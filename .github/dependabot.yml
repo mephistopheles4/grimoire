@@ -1,0 +1,23 @@
+# Actions only. This repository has no package manifest, because the renderer
+# imports node built-in modules and nothing else — see CONTRIBUTING.md.
+#
+# Every `uses:` line in .github/workflows/ is pinned to a commit SHA with a
+# version-shaped comment beside it. A pin does not rot loudly: the workflow
+# keeps passing on a SHA that is a year old and has a known advisory. This file
+# is what turns that silence into a pull request.
+#
+# Dependabot rewrites the SHA and the comment together, so the comment stays
+# true through an update. It cannot tell you the comment was true to begin
+# with. SECURITY.md says so.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      actions:
+        patterns:
+          - '*'
+    commit-message:
+      prefix: 'Bump'

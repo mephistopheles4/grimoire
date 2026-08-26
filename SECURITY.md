@@ -73,10 +73,17 @@ repository, and that distinction matters more than it looks:
 | | |
 | --- | --- |
 | Dependabot alerts | vulnerabilities in the dependency tree |
+| Dependabot security updates | a pull request per alert with an available patch |
 | Dependabot malware alerts | a dependency found to be malicious, not merely vulnerable |
+| CodeQL (default setup) | static analysis of the JavaScript, including `lib/template.html` |
 | Private vulnerability reporting | the channel this file points at |
 | Branch protection on `main` | pull request required, `check` must pass, no bypass |
 | Pages, built from Actions | what the `pages` workflow deploys to a public URL |
+
+One line of dependency defence is **in** the tree and does go red:
+[`.github/dependabot.yml`](.github/dependabot.yml) asks for weekly
+`github-actions` updates. Version updates are that file; **security** updates
+are the setting above. Both exist, and they are not the same thing.
 
 **Nothing in this repository can check that any of them is switched on.** They
 live in repository settings, outside the tree, so a clone cannot read them. This
@@ -84,10 +91,18 @@ section is a statement of what the project **relies on**, not a claim about what
 is currently true. If you are auditing this repo and that distinction matters to
 you, check the settings themselves; the file cannot tell you.
 
-**CodeQL is deliberately not enabled.** Its default setup analyses TypeScript
-and JavaScript, and this repository holds one `.mjs` file and one `.js` file,
-both without dependencies. The finding rate would not justify a required check
-that people learn to route around. Revisit this if the renderer grows.
+**CodeQL is enabled, and the first version of this file argued that it should
+not be.** That argument counted one `.mjs` file and one `.js` file and called
+the finding rate too low to justify a check. It was wrong, and the way it was
+wrong is worth recording. CodeQL's JavaScript extractor processes `.html`, and
+`lib/template.html` holds about 49 KB of inline script — every `innerHTML` sink
+in this project, and the `esc` function above. The one place in this repository
+where a scanner has something to say is the one place the argument did not
+count.
+
+**It is not a required check yet.** Its first findings need triage before a
+threshold means anything, and this file will say what they turned out to be. A
+check that blocks on an untriaged ratio is one people learn to route around.
 
 **Every action is pinned to a commit SHA**, with a version-shaped comment beside
 it. The pins were resolved from the GitHub API at the time of writing, not from
