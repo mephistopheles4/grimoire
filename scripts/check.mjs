@@ -65,7 +65,23 @@ for (const skill of files.filter(f => f.endsWith('SKILL.md'))) {
   }
 }
 
-// 3. The marketplace manifest matches the tree.
+// 3. The single-pass tag strip does not come back.
+// CodeQL raised js/incomplete-multi-character-sanitization on this exact form,
+// in two files, on the first scan. The output is not an HTML sink and the
+// bypass is hard to build, so this guard holds a shape, not a hole. SECURITY.md
+// carries the triage.
+const SINGLE_PASS = /=>\s*s\.replace\(\/<\[\^>\]\+>\/g/;
+for (const f of files.filter(f => /\.(mjs|js|html)$/.test(f))) {
+  readFileSync(f, 'utf8')
+    .split('\n')
+    .forEach((line, i) => {
+      if (SINGLE_PASS.test(line)) {
+        fail(`${rel(f)}:${i + 1} strips tags in one pass — repeat until the string stops changing`);
+      }
+    });
+}
+
+// 4. The marketplace manifest matches the tree.
 const mkt = JSON.parse(readFileSync(join(root, '.claude-plugin', 'marketplace.json'), 'utf8'));
 for (const p of mkt.plugins) {
   const src = p.source.replace(/^\.\//, '');

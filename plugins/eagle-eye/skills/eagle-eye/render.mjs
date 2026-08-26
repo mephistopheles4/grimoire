@@ -116,7 +116,7 @@ function findings(box, code) {
     if (!optById[id]) throw new Error(`--sel: unknown option "${id}"`);
     sel[optById[id].dim.id] = id; touched.add(optById[id].dim.id);
   });
-  const r = EagleEye.analyse(box, sel, touched), strip = s => s.replace(/<[^>]+>/g, '');
+  const r = EagleEye.analyse(box, sel, touched), strip = s => { let p, o = String(s); do { p = o; o = o.replace(/<[^>]+>/g, ''); } while (o !== p); return o; };
   const L = [`verdict: ${r.verdict}` + (r.overrides.length ? ` (${r.overrides.length} change${r.overrides.length === 1 ? '' : 's'}; active edges ${r.basis.map(([t, n]) => `${n} ${t}`).join(', ')})` : '')];
   r.conflicts.forEach(e => L.push(`  conflict: ${optById[e.from].dim.name}: ${optById[e.from].short || optById[e.from].label} vs ${optById[e.to].dim.name}: ${optById[e.to].short || optById[e.to].label} — ${e.why} [${e.tier}]`));
   r.unmet.forEach(e => L.push(`  not met: ${optById[e.from].dim.name} requires ${optById[e.to].dim.name}: ${optById[e.to].short || optById[e.to].label} — ${e.why} [${e.tier}]`));

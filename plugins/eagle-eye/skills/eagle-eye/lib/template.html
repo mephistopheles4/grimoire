@@ -442,7 +442,7 @@ function hideTip(){ $('tip').classList.remove('show'); }
 // ---- export / restore: the round trip. Format is specified in SKILL.md; change both together. ----
 function encodeSel(){ return BOX.dims.filter(d => sel[d.id] !== chosenOf[d.id]).map(d => sel[d.id]).join(', '); }
 function exportMarkdown(){
-  const r = EagleEye.analyse(BOX, sel, touched), strip = s => s.replace(/<[^>]+>/g, '');
+  const r = EagleEye.analyse(BOX, sel, touched), strip = s => { let p, o = String(s); do { p = o; o = o.replace(/<[^>]+>/g, ''); } while (o !== p); return o; };
   const L = [`## eagle-eye · ${BOX.title} · ${r.overrides.length} change${r.overrides.length === 1 ? '' : 's'} · ${r.verdict}`, ''];
   L.push('| # | Decision | Chosen | My choice |', '| --- | --- | --- | --- |');
   BOX.dims.forEach(d => L.push(`| ${ref(d)} | ${d.name} | ${S(chosenOf[d.id])} | ${sel[d.id] === chosenOf[d.id] ? '— (keep)' : '**' + S(sel[d.id]) + '**'} |`));

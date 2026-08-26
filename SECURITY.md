@@ -100,9 +100,30 @@ in this project, and the `esc` function above. The one place in this repository
 where a scanner has something to say is the one place the argument did not
 count.
 
-**It is not a required check yet.** Its first findings need triage before a
-threshold means anything, and this file will say what they turned out to be. A
-check that blocks on an untriaged ratio is one people learn to route around.
+**It is not a required check yet.** A check that blocks on an untriaged ratio is
+one people learn to route around.
+
+**Its first scan raised two alerts, both `js/incomplete-multi-character-
+sanitization`, both rated high, and both the same one-line function copied into
+two files.** `strip` removed HTML tags from an option label in one pass, at
+`render.mjs:119` and `lib/template.html:445`. Here is the triage, because "we
+fixed it" tells an auditor nothing:
+
+- **The output never reaches HTML.** `strip` feeds a Markdown export that lands
+  in a `<textarea>` `.value` and the clipboard, and a console line. Neither is
+  an HTML sink, so no bypass of it becomes script.
+- **A bypass is hard to build against this regex anyway.** `<[^>]+>` matches
+  from the first `<` to the first `>`, so a nested `<scr<script>ipt>` is
+  consumed whole rather than reassembled into a tag.
+- **It was fixed regardless**, because the safe form is one line: repeat the
+  replacement until the string stops changing. `scripts/check.mjs` fails if the
+  single-pass form returns.
+
+So: a real pattern, not a reachable vulnerability, fixed and guarded. **CodeQL
+did not flag the sink this file was most worried about** — the `esc` function
+and the five `innerHTML` calls above. That is worth knowing. A clean scan there
+is not evidence the escape is right; it is evidence the query set had nothing
+to say about it.
 
 **Every action is pinned to a commit SHA**, with a version-shaped comment beside
 it. The pins were resolved from the GitHub API at the time of writing, not from
