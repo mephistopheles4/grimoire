@@ -1,0 +1,349 @@
+{
+  "title": "What is left after npx skills add",
+  "eyebrow": "2026-08-26 · rev B · author’s set",
+  "dims": [
+    {
+      "id": "voice",
+      "name": "How much Claude Code the text keeps",
+      "question": "The skill names Claude Code things. Do they stay?",
+      "problem": "The skill text names a slash command, an in-app preview pane, an Artifact tool, and a Windows command that opens a file. An agent that is not Claude Code has none of the first three. Four lines carry all of it. The skill now installs into many agents, so a reader who cannot follow an instruction learns to skip instructions. This row decides whether those lines stay, change, or split in two.",
+      "opts": [
+        {
+          "id": "voice-neutral",
+          "label": "Replace the four lines with wording that fits any agent.",
+          "short": "Neutral wording",
+          "chosen": true,
+          "src": "grep: SKILL.md lines 27, 87, 94-97"
+        },
+        {
+          "id": "voice-guard",
+          "label": "Keep the tool names, and put a condition in front of each.",
+          "short": "Guarded wording",
+          "src": "assistant proposal"
+        },
+        {
+          "id": "voice-fork",
+          "label": "Keep a Claude Code section, and add a section for other agents.",
+          "short": "Two sections",
+          "src": "assistant proposal"
+        },
+        {
+          "id": "voice-keep",
+          "label": "Leave them. Other agents skip what they cannot do.",
+          "short": "Leave as is",
+          "strawman": true,
+          "src": "assistant proposal"
+        }
+      ]
+    },
+    {
+      "id": "pkg",
+      "name": "Whether the renderer is also an npm package",
+      "question": "Can somebody render a box without installing a skill?",
+      "problem": "The skills installer copies the renderer with the skill, so any agent that installs the skill can already run it. A package serves a different reader: somebody who keeps box files in a repository and wants a check in continuous integration, with no agent and no skill involved. A package also adds a second version number to keep in step with the plugin manifest.",
+      "opts": [
+        {
+          "id": "pkg-bin",
+          "label": "A package whose program is the renderer.",
+          "short": "Renderer package",
+          "src": "assistant proposal"
+        },
+        {
+          "id": "pkg-lib",
+          "label": "The same package, and it also exports the analyser for other programs.",
+          "short": "Package and library",
+          "src": "assistant proposal"
+        },
+        {
+          "id": "pkg-none",
+          "label": "No package. The renderer arrives with the skill and nowhere else.",
+          "short": "No package",
+          "strawman": true,
+          "src": "assistant proposal",
+          "chosen": true
+        }
+      ]
+    },
+    {
+      "id": "lead",
+      "name": "What the README leads with",
+      "question": "Three routes now exist. Which one does a stranger read first?",
+      "problem": "A reader can install the plugin, run the skills installer, or copy the directory by hand. The installer works for every agent, Claude Code included, and it is one line. The plugin updates itself and needs no third-party tool. A README that lists three routes before it explains the tool loses the reader. This row names the first route, not the only one.",
+      "opts": [
+        {
+          "id": "lead-skills",
+          "label": "The skills installer first. It serves every agent in one line.",
+          "short": "Installer first",
+          "chosen": true,
+          "src": "measured: it installed from this repository"
+        },
+        {
+          "id": "lead-plugin",
+          "label": "The plugin first, as today. The installer comes second.",
+          "short": "Plugin first",
+          "src": "box 1, install row"
+        },
+        {
+          "id": "lead-split",
+          "label": "A short table. The reader finds their agent and reads one command.",
+          "short": "Table by agent",
+          "src": "assistant proposal"
+        },
+        {
+          "id": "lead-none",
+          "label": "List all three and name no first route.",
+          "short": "No first route",
+          "strawman": true,
+          "src": "assistant proposal"
+        }
+      ]
+    },
+    {
+      "id": "layout",
+      "name": "Where the skill directory sits",
+      "question": "Does the skill move nearer the top of the repository?",
+      "problem": "The skill lives four directories deep, inside the plugin that carries it. The installer finds it there, and so does Claude Code. A person who opens the repository on the web does not see a skill; they see a plugins folder. This row weighs a tooling fact against a human one, and the tooling fact is already settled.",
+      "opts": [
+        {
+          "id": "layout-nested",
+          "label": "Leave it. Add links in the README so a person finds it.",
+          "short": "Leave nested",
+          "chosen": true,
+          "src": "measured: the installer found it and copied every file"
+        },
+        {
+          "id": "layout-mirror",
+          "label": "A script writes a copy at the top of the repository, and the check keeps the two the same.",
+          "short": "Generated mirror",
+          "src": "assistant proposal"
+        },
+        {
+          "id": "layout-single",
+          "label": "Drop the marketplace. One plugin, one skill, near the top.",
+          "short": "Single plugin repo",
+          "src": "assistant proposal"
+        },
+        {
+          "id": "layout-later",
+          "label": "Change nothing and add nothing. Move it if somebody reports they could not find it.",
+          "short": "Wait for a report",
+          "strawman": true,
+          "src": "assistant proposal"
+        }
+      ]
+    }
+  ],
+  "rel": {
+    "voice-neutral": {
+      "why": "Four lines carry all of it, so the edit is small. The slash command still works, because it comes from the frontmatter name, not from the prose.",
+      "notes": [
+        "Measured: lines 27, 87, and 94 to 97 of SKILL.md. Nothing else names a Claude Code feature.",
+        "It loses a little precision for the Claude Code reader, who had exact instructions and now reads general ones."
+      ]
+    },
+    "voice-guard": {
+      "why": "Each line keeps its tool name and gains a condition, so a reader who has the tool gets the exact instruction.",
+      "notes": [
+        "A conditional instruction is harder to read than a plain one, and there would be four of them."
+      ]
+    },
+    "voice-fork": {
+      "why": "Each reader gets text written for them, and neither has to skip anything.",
+      "notes": [
+        "It doubles the part of the file most likely to change, and the two halves drift."
+      ]
+    },
+    "voice-keep": {
+      "why": "The none answer. The lines are few, and an agent that cannot follow one moves past it.",
+      "rel": [
+        [
+          "lead-skills",
+          "conf",
+          "A route sold to every agent cannot open with text that tells them to type a Claude Code slash command.",
+          "argued"
+        ],
+        [
+          "pkg-bin",
+          "conf",
+          "A reader running the package outside any agent cannot act on advice about an in-app preview pane.",
+          "argued"
+        ]
+      ]
+    },
+    "pkg-bin": {
+      "why": "It serves the reader who has box files in a repository and wants the check in continuous integration, with no agent involved.",
+      "notes": [
+        "It needs a package.json with a bin field at the repository root. Measured: npx cloned this repository and stopped at the missing file.",
+        "`eagle-eye` is taken on the registry by an unrelated package from 2022, so the name must be scoped or suffixed.",
+        "It adds a second version number beside the plugin manifest. Box 1's release row is where that cost lands.",
+        "Not chosen. The second version number was the cost, and no reader has asked for the check without an agent."
+      ]
+    },
+    "pkg-lib": {
+      "why": "The analyser is already a separate file with no dependencies. Exporting it lets other programs compute the findings.",
+      "notes": [
+        "An exported function is a promise about its shape. Nobody has asked for it yet."
+      ]
+    },
+    "pkg-none": {
+      "why": "The none answer. The installer already delivers the renderer to every agent that installs the skill.",
+      "rel": [
+        [
+          "lead-split",
+          "conf",
+          "A table by agent needs a row for the reader who wants only the renderer, and without a package that row has no command.",
+          "argued"
+        ]
+      ],
+      "notes": [
+        "The author picked this strawman. The skill says to give the reason to reject a strawman, or to pick it.",
+        "The reason it survives: the installer already delivers the renderer to every agent that installs the skill.",
+        "What it costs: a reader who keeps box files and runs no agent must clone the repository to get a check."
+      ]
+    },
+    "lead-skills": {
+      "why": "One line, every agent, and it worked against this repository unchanged.",
+      "notes": [
+        "Measured: the installer found plugins/eagle-eye/skills/eagle-eye/SKILL.md, copied render.mjs, lib, examples and reference, and wrote a lock file naming that path.",
+        "It puts a third-party tool in front of the project's own install route."
+      ]
+    },
+    "lead-plugin": {
+      "why": "The route the project owns, and it updates itself. It needs no other tool.",
+      "notes": [
+        "It serves Claude Code only, which is now the smaller half of the audience."
+      ]
+    },
+    "lead-split": {
+      "why": "A reader finds their own agent and reads one line, and never weighs a route that is not for them.",
+      "notes": [
+        "A table is the first thing on the page, before the tool has been explained."
+      ]
+    },
+    "lead-none": {
+      "why": "The none answer. Describe three routes and let the reader choose.",
+      "rel": [
+        [
+          "voice-neutral",
+          "conf",
+          "Neutral text assumes the reader arrived by a route the project did not name, so the README must name one.",
+          "argued"
+        ]
+      ]
+    },
+    "layout-nested": {
+      "why": "Both install routes find the skill where it is. Links in the README fix the part the measurement does not cover.",
+      "notes": [
+        "Measured: the installer's lock file records plugins/eagle-eye/skills/eagle-eye/SKILL.md and the copy ran from its new home.",
+        "The cost is human, not mechanical. Somebody browsing the repository sees a plugins folder, not a skill."
+      ]
+    },
+    "layout-mirror": {
+      "why": "A copy at the top of the repository is what a person sees first, and a check keeps it honest.",
+      "notes": [
+        "Two copies of a 14 KB file in one repository. The check stops drift and does not stop confusion about which one to edit."
+      ]
+    },
+    "layout-single": {
+      "why": "A single-plugin repository needs no marketplace file, so the skill can sit one directory down.",
+      "notes": [
+        "Sourced: a repository with one plugin installs without a marketplace file. code.claude.com/docs/en/plugin-marketplaces.",
+        "It contradicts why this repository exists. Box 1 chose a marketplace so more skills can follow."
+      ]
+    },
+    "layout-later": {
+      "why": "The later answer. No move, no links, and no cost until somebody is actually lost.",
+      "rel": [
+        [
+          "lead-skills",
+          "conf",
+          "The first route sends a reader to this repository, so the README must show where the skill is.",
+          "argued"
+        ]
+      ],
+      "notes": [
+        "Nobody reports a repository they gave up on. The signal this waits for does not arrive."
+      ]
+    }
+  },
+  "suspected": [
+    "layout-single conf scope-market — the target sits in box 1, so this box cannot draw the edge. It is the strongest argument against layout-single and it is recorded here instead.",
+    "pkg-bin conf layout-nested — a package root and a nested skill are unrelated; the package reads the renderer by path either way."
+  ],
+  "presets": [
+    {
+      "title": "As recommended",
+      "text": "Neutral wording, a renderer package, the installer first, and the tree left alone because the measurement says it works.",
+      "steps": [
+        {
+          "label": "The four lines",
+          "open": "voice"
+        },
+        {
+          "label": "Which route goes first",
+          "open": "lead"
+        },
+        {
+          "label": "Why the tree does not move",
+          "open": "layout"
+        },
+        {
+          "label": "Back to findings",
+          "open": null,
+          "view": "findings"
+        }
+      ]
+    },
+    {
+      "title": "Leave the Claude wording",
+      "text": "The strawman run. Two edges reject it, and both are argued, not measured.",
+      "steps": [
+        {
+          "label": "Keep the four lines",
+          "set": {
+            "voice": "voice-keep"
+          },
+          "open": "voice"
+        },
+        {
+          "label": "What it closes",
+          "open": "lead"
+        }
+      ]
+    },
+    {
+      "title": "No package at all",
+      "text": "The installer already delivers the renderer. This asks what a package adds that it does not.",
+      "steps": [
+        {
+          "label": "Drop the package",
+          "set": {
+            "pkg": "pkg-none"
+          },
+          "open": "pkg"
+        },
+        {
+          "label": "Read what nothing rejects",
+          "open": "lead"
+        }
+      ]
+    },
+    {
+      "title": "One skill, no marketplace",
+      "text": "The repository was built to hold more skills. This is what dropping that plan would buy.",
+      "steps": [
+        {
+          "label": "Single plugin repository",
+          "set": {
+            "layout": "layout-single"
+          },
+          "open": "layout"
+        },
+        {
+          "label": "Where the argument against it lives",
+          "open": "lead"
+        }
+      ]
+    }
+  ]
+}

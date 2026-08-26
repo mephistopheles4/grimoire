@@ -2,13 +2,28 @@
 
 A spellbook of agent skills for AI. Cast wisely.
 
-A [Claude Code](https://code.claude.com) plugin marketplace. One skill today,
-more later.
+One skill today, more later. Works with any agent:
+
+```bash
+npx skills@latest add mephistopheles4/grimoire
+```
+
+That is [`skills`](https://github.com/vercel-labs/skills), which installs into
+Claude Code, Cursor, Codex, Gemini CLI, Copilot, Windsurf, Zed, opencode, Amp
+and around seventy more. It copies the whole skill directory, renderer
+included.
+
+**Claude Code users can install the plugin instead**, if you would rather have
+the marketplace handle updates:
 
 ```
 /plugin marketplace add mephistopheles4/grimoire
 /plugin install eagle-eye@grimoire
 ```
+
+Either way you get [`skills/eagle-eye/`](plugins/eagle-eye/skills/eagle-eye) —
+[`SKILL.md`](plugins/eagle-eye/skills/eagle-eye/SKILL.md) and the renderer that
+goes with it.
 
 ---
 
@@ -81,16 +96,27 @@ complete example is
 
 ---
 
-## Install without the plugin system
+## Install by hand
 
-Copy the skill directory into your skills folder:
+If you want neither installer, copy the directory yourself:
 
 ```bash
 git clone https://github.com/mephistopheles4/grimoire.git
 cp -r grimoire/plugins/eagle-eye/skills/eagle-eye ~/.claude/skills/
 ```
 
-The skill names no fixed path, so it works from either location.
+The skill names no fixed path to its own renderer, so it runs from wherever it
+lands. It has been run from three directories: the author's skills folder, the
+plugin install, and a copy made by `skills`.
+
+## Why the skill lives four directories down
+
+`plugins/eagle-eye/skills/eagle-eye/` is the layout the Claude Code plugin
+system needs, and `skills` finds it there without help — its lock file records
+that exact path. The nesting costs a person browsing the repository one extra
+click, and it costs neither installer anything. That trade is written up in
+[`docs/decisions/portable-skill.box.json`](docs/decisions/portable-skill.box.json),
+which you can read as a page on the [demo site][demo].
 
 ## Contributing
 

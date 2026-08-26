@@ -1,18 +1,24 @@
 {
   "title": "Publish eagle-eye as a public repo",
-  "eyebrow": "2026-08-26 · rev B · author’s set, after the stacks posture",
+  "eyebrow": "2026-08-26 · rev C · install row reopened by box 2",
   "dims": [
     {
       "id": "install",
       "name": "Install route",
       "question": "What does the README tell a stranger to run?",
-      "problem": "A skill is a folder that Claude Code reads at start-up. The reader must get that folder onto their machine, in a place Claude Code looks. Claude Code offers a plugin system for this: a repo with a manifest installs with one command. The alternative is a copy by hand. This row picks the one route the README puts first, because a second route always becomes the unread one.",
+      "problem": "A skill is a folder that Claude Code reads at start-up. The reader must get that folder onto their machine, in a place Claude Code looks. Claude Code offers a plugin system for this: a repo with a manifest installs with one command. The alternative is a copy by hand. This row picks the one route the README puts first, because a second route always becomes the unread one. A general installer for agent skills also exists, and it reads this repository unchanged. That option was added after the first draft.",
       "opts": [
+        {
+          "id": "inst-skills",
+          "label": "A general skills installer reads the repository. One command serves every agent.",
+          "short": "Skills installer",
+          "chosen": true,
+          "src": "measured 2026-08-26: npx skills add mephistopheles4/grimoire installed from this repository"
+        },
         {
           "id": "inst-plugin",
           "label": "Publish as a Claude Code plugin. The reader runs one marketplace command.",
           "short": "Plugin install",
-          "chosen": true,
           "src": "assistant proposal, /eagle-eye session 2026-08-26"
         },
         {
@@ -295,7 +301,8 @@
       ],
       "notes": [
         "A single-plugin repo installs without a marketplace.json file. Source: code.claude.com/docs/en/plugin-marketplaces.",
-        "SKILL.md already carries the frontmatter name field, so the skill keeps its name under any install directory."
+        "SKILL.md already carries the frontmatter name field, so the skill keeps its name under any install directory.",
+        "No longer the first route. Box 2 chose the installer, and this row was missing that cell when it was drawn."
       ]
     },
     "inst-copy": {
@@ -621,6 +628,15 @@
         "Most of these live in repository settings, outside the tree. A clone cannot check that any is on.",
         "stacks records that gap deliberately instead of assuming it. The same honesty belongs here.",
         "CodeQL analyses TypeScript. This repo is one .mjs file and one .js file, so the value is smaller than it is for stacks."
+      ]
+    },
+    "inst-skills": {
+      "why": "A third-party installer finds the skill in this repository and copies it to whichever agent the reader uses.",
+      "notes": [
+        "Measured: it found plugins/eagle-eye/skills/eagle-eye/SKILL.md, copied render.mjs, lib, examples and reference, and wrote a lock file naming that path.",
+        "The renderer then ran from the copy, which is the third directory it has run from.",
+        "It puts a tool this project does not own in front of the route this project does own.",
+        "This row was reopened by the lead row in the second box. See portable-skill.box.json."
       ]
     }
   },
