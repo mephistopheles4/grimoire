@@ -24,11 +24,11 @@ jobs:
           node-version: '22'
       - name: Render every box file into the site
         run: node scripts/build-pages.mjs
-      # enablement: true turns Pages on from here, so the setting lives in the
-      # tree instead of only in repository settings.
+      # No enablement: true here. GITHUB_TOKEN cannot create a Pages site —
+      # the call returns "Resource not accessible by integration" — so Pages is
+      # a repository setting, switched on with an admin credential. This
+      # workflow reads it and cannot turn it on. See SECURITY.md.
       - uses: actions/configure-pages@45bfe0192ca1faeb007ade9deae92b16b8254a0d # v6.0.0
-        with:
-          enablement: true
       - uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
         with:
           path: site

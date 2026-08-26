@@ -76,6 +76,7 @@ repository, and that distinction matters more than it looks:
 | Dependabot malware alerts | a dependency found to be malicious, not merely vulnerable |
 | Private vulnerability reporting | the channel this file points at |
 | Branch protection on `main` | pull request required, `check` must pass, no bypass |
+| Pages, built from Actions | what the `pages` workflow deploys to a public URL |
 
 **Nothing in this repository can check that any of them is switched on.** They
 live in repository settings, outside the tree, so a clone cannot read them. This
