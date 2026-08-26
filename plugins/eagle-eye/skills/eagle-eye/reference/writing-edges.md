@@ -1,0 +1,83 @@
+# Writing edges
+
+An edge is a reason. A reason can be wrong in eight ways. An edge colours the
+grid, so a wrong edge is worse than no edge.
+
+## Tiers
+
+| Tier | Means | `src` |
+|---|---|---|
+| `measured` | Somebody ran it and saw the result. | Required: what was run, when, the number. |
+| `sourced` | A named document states it. | Required: the document, section, or ticket. |
+| `argued` | Your reasoning. Nobody checked it. | Optional. |
+
+A tier is a claim about evidence, not about confidence. An argued edge you are
+sure of is still argued.
+
+## What an edge can say
+
+- `conf`: if both options are selected, the set does not hold.
+- `req`: if this option is selected and the target is not, the set is
+  incomplete.
+- Several `req` edges from one option are **all required** (AND). There is no
+  "requires one of". To say *"needs A or B"*, draw `conf` edges to every option
+  in that row that is **not** A or B. The grid then rules those out, and A and
+  B stay open.
+- An edge is one-directional. A `conf` drawn once is enough; the page
+  de-duplicates the reverse if you draw both.
+- Target in the same row: not allowed. Choosing one option in a row already
+  excludes its siblings.
+
+## Writing rules (ASD-STE100, writing rules only)
+
+1. Active voice. *"The hook reads coverage"*, not *"coverage is read by the hook"*.
+2. Present tense for facts. Imperative for instructions.
+3. One topic per sentence. One instruction per sentence.
+4. Twenty words or fewer. Twenty-five for a descriptive sentence at most.
+5. No `-ing` verb forms as nouns or adjectives. *"Measure it"*, not *"measuring is needed"*.
+6. No idiom, no metaphor, no analogy. *"pull one thread"*, *"rests on"*, *"fights"* are out.
+7. Noun clusters of three words at most. *"per-function coverage figure"* is the limit.
+8. Re-anchor a coined term every time it returns: *"the substrate (the shared walking layer)"*.
+9. Use the same word for the same thing. Do not vary for style.
+10. Write the qualifier, then the point. Never a slogan alone.
+
+Test (ISO 24495-1): can the reader find it, understand it, and use it? A why
+that needs a second reading fails.
+
+## The eight weakness patterns (audit every argued edge)
+
+From the TDE method. Name the pattern when you reject an edge; it teaches the
+next author.
+
+| Pattern | The edge… | Fix |
+|---|---|---|
+| **wrong** | states something false. | Drop it, or measure it. |
+| **weakly connected** | is true but does not produce the conflict or requirement it claims. | Rewrite the why so the link is explicit, or drop it. |
+| **disconnected from context** | would hold in general but not in this system. | Add the context to the why, or drop it. |
+| **biased** | exists because the author prefers one option. | State the preference in `notes`. Not an edge. |
+| **opinionated** | asserts a judgement as a fact. *"X is the right way"*. | Rewrite as the observable consequence. |
+| **disrespectful** | dismisses an option rather than describing its cost. | Describe the cost. |
+| **insufficient** | needs a second reason to hold, and the second reason is not written. | Write it, as its own edge if it has its own target. |
+| **vague** | could mean two things. | Pick one. |
+
+An edge that fails and cannot be fixed goes to `suspected`: a plain string
+that the page lists but that colours nothing.
+
+## Cogency test
+
+After the audit, ask the user once: *"If every edge in this box is true, can
+the chosen set still be wrong?"* The answer is the list of edges that are
+missing.
+
+## Strawmen
+
+For every row, before edges, ask four questions:
+
+- **none** — do not do this at all.
+- **opposite** — the reverse of the chosen option.
+- **later** — defer it.
+- **by hand** — a person does it instead of the system.
+
+Add the ones that are not absurd, flagged `strawman: true`. Give each a why
+like any option. A strawman nothing rules out is the finding the box exists
+for.

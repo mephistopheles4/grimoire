@@ -1,0 +1,22 @@
+{
+  "name": "grimoire",
+  "description": "A spellbook of agent skills for AI. Cast wisely.",
+  "owner": {
+    "name": "Ayman Diab",
+    "url": "https://github.com/mephistopheles4"
+  },
+  "metadata": {
+    "pluginRoot": "./plugins"
+  },
+  "plugins": [
+    {
+      "name": "eagle-eye",
+      "source": "./plugins/eagle-eye",
+      "description": "Lay coupled decisions out as a morphological box: one row per decision, one cell per option, an edge between options that rule each other out. Renders an interactive page that reads any configuration back.",
+      "version": "0.1.0",
+      "author": {
+        "name": "Ayman Diab"
+      }
+    }
+  ]
+}

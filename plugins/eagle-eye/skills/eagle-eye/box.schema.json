@@ -1,0 +1,95 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "eagle-eye/box.schema.json",
+  "title": "Eagle-eye box file",
+  "description": "A morphological box: decisions (dims), their options, and the edges between options. Documentation of the shape; render.mjs validates it with hand-rolled checks so nothing needs installing.",
+  "type": "object",
+  "required": ["title", "dims", "rel", "presets"],
+  "additionalProperties": false,
+  "properties": {
+    "title": { "type": "string", "minLength": 1 },
+    "eyebrow": { "type": "string", "description": "Small caps line above the title. Sheet number, date, revision." },
+    "dims": {
+      "type": "array", "minItems": 1,
+      "items": {
+        "type": "object", "required": ["id", "name", "opts"], "additionalProperties": false,
+        "properties": {
+          "id": { "type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$" },
+          "name": { "type": "string", "minLength": 1 },
+          "question": { "type": "string", "description": "The decision as a question. Shown when the row is opened, under the row name." },
+          "problem": { "type": "string", "description": "What this row decides, in plain words, for a reader outside the domain: the terms it rests on, why the choice exists, what turns on it. Two to five sentences, STE rules. Opens the 'In short' block above the cards. The renderer warns when a row has none — no derivation can supply it, and a row name like 'Reachable by whom' explains itself to nobody." },
+          "opts": {
+            "type": "array", "minItems": 2,
+            "items": {
+              "type": "object", "required": ["id", "label"], "additionalProperties": false,
+              "properties": {
+                "id": { "type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$", "description": "Unique across the whole box. Convention: <dim>-<word>." },
+                "label": { "type": "string", "minLength": 1, "description": "Full wording. STE rules." },
+                "short": { "type": "string", "maxLength": 28, "description": "Sheet-cell wording. Two or three words." },
+                "chosen": { "type": "boolean", "description": "Exactly one per row. The current position." },
+                "strawman": { "type": "boolean", "description": "This option answers one of the four coverage questions: none / opposite / later / by hand. The flag records coverage, not provenance — set it even when somebody proposed the option, and keep the src that says who did. A row whose 'none' answer came from the ticket is still covered." },
+                "src": { "type": "string", "description": "Where this option was proposed: ticket, document, chat turn." }
+              }
+            }
+          }
+        }
+      }
+    },
+    "rel": {
+      "type": "object",
+      "description": "Keyed by option id. Every option should have an entry.",
+      "additionalProperties": {
+        "type": "object", "required": ["why"], "additionalProperties": false,
+        "properties": {
+          "why": { "type": "string", "minLength": 1, "description": "What this option is and why it was on the table. One to three sentences, STE." },
+          "rel": {
+            "type": "array",
+            "description": "Edges from this option. Tuple: [targetOptionId, kind, why, tier?, src?]. Target must be in another row.",
+            "items": {
+              "type": "array", "minItems": 3, "maxItems": 5,
+              "prefixItems": [
+                { "type": "string", "description": "target option id" },
+                { "enum": ["conf", "req"], "description": "conf: rules the target out. req: requires the target." },
+                { "type": "string", "minLength": 1, "description": "why, one sentence" },
+                { "enum": ["measured", "sourced", "argued"], "default": "argued" },
+                { "type": "string", "description": "src — required for measured and sourced" }
+              ]
+            }
+          },
+          "notes": { "type": "array", "items": { "type": "string" }, "description": "Things that are not edges: preferences, caveats, history." }
+        }
+      }
+    },
+    "suspected": {
+      "type": "array", "items": { "type": "string" },
+      "description": "Edges that failed the audit. Listed on the page, colour nothing."
+    },
+    "presets": {
+      "type": "array",
+      "minItems": 2,
+      "description": "Guided walkthroughs shown as chips. REQUIRED, at least two, and at least one must carry a step with `set` so the reader meets a configuration that is not the baseline. render.mjs enforces both. See SKILL.md, 'Presets', for the archetypes.",
+      "items": {
+        "type": "object", "required": ["title", "steps"], "additionalProperties": false,
+        "properties": {
+          "title": { "type": "string" },
+          "text": { "type": "string" },
+          "steps": {
+            "type": "array", "minItems": 1,
+            "items": {
+              "type": "object", "required": ["label"], "additionalProperties": false,
+              "properties": {
+                "label": { "type": "string" },
+                "reset": { "type": "boolean" },
+                "coach": { "type": "boolean" },
+                "set": { "type": "object", "additionalProperties": { "type": "string" }, "description": "{dimId: optionId}" },
+                "predict": { "type": "boolean", "description": "With set: start a coach prediction for that change." },
+                "open": { "type": ["string", "null"], "description": "dim id to open in Findings, or null to close." },
+                "view": { "enum": ["findings", "sheet"] }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

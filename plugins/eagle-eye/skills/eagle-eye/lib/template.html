@@ -1,0 +1,568 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>/*TITLE*/ — eagle-eye</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<style>
+/* Drafting: one ink on one paper; amber = caution only, green = normal only; neutrals are ink at alpha; no radius, no shadow. */
+:root{
+  --dw-paper:#fafaf7; --dw-ink:#22262b; --dw-caution:#d97706; --dw-normal:#15803d;
+  --dw-ink-80:rgb(34 38 43 / .8); --dw-ink-55:rgb(34 38 43 / .55); --dw-ink-30:rgb(34 38 43 / .3); --dw-ink-12:rgb(34 38 43 / .12); --dw-grid:rgb(34 38 43 / .05);
+  --dw-font:'IBM Plex Mono',ui-monospace,'SFMono-Regular',Menlo,Consolas,monospace;
+  /* Spacing scale. Raise these to loosen the whole page; nothing hardcodes a gap that is on this scale. */
+  --sp-1:8px; --sp-2:14px; --sp-3:20px; --sp-4:28px; --sp-5:36px; --sp-6:48px;
+  --sp-gutter:36px;              /* the left/right margin every band shares */
+  --card-min:350px;              /* option card track width in the row detail */
+  --ease:cubic-bezier(.2,.7,.3,1);
+}
+*{box-sizing:border-box}
+/* `hidden` is a property the shell sets on .exportbox and .preset-note. Both carry display:flex,
+   which outranks the UA rule for [hidden] — so without this line neither panel ever hides. */
+[hidden]{display:none!important}
+html,body{height:100%}
+body{margin:0;font-family:var(--dw-font);font-size:15px;line-height:1.6;color:var(--dw-ink);background-color:var(--dw-paper);
+  background-image:linear-gradient(to right,var(--dw-grid) 1px,transparent 1px),linear-gradient(to bottom,var(--dw-grid) 1px,transparent 1px);background-size:24px 24px}
+button{font:inherit;color:inherit;background:none;border:0;padding:0;cursor:pointer;text-align:left}
+input,textarea{font:inherit;color:inherit;background:var(--dw-paper);border:1px solid var(--dw-ink-30)}
+.label{font-size:11px;text-transform:uppercase;letter-spacing:.16em;font-weight:500;color:var(--dw-ink-55)}
+.num{font-variant-numeric:tabular-nums}
+.chip{font-size:11px;text-transform:uppercase;letter-spacing:.16em;padding:6px 14px;border:1px solid var(--dw-ink);color:var(--dw-ink);background:transparent;white-space:nowrap;
+  transition:color .16s var(--ease),border-color .16s var(--ease),background-color .16s var(--ease)}
+.chip:hover{color:var(--dw-caution);border-color:var(--dw-caution)}
+.chip.on{background:var(--dw-ink);color:var(--dw-paper);border-color:var(--dw-ink)}
+.chip.on:hover{color:var(--dw-paper);border-color:var(--dw-ink)}
+/* Three weights of chip, separated by line weight and by where the label sits on the ink ramp — never by colour (Drafting rule 1).
+   Drafting annotates that ramp by role: ink-80 is secondary prose, ink-55 is annotation and captions, ink-30 and ink-12 are
+   hairlines and dividers. A control label set at ink-55 is typeset as a caption, which is why Coach, Export, Reset and Close
+   all read as switched off. Secondary keeps the hairline border and takes ink-80, the system's own secondary-prose alpha. */
+.chip.ghost{border-color:var(--dw-ink-30);color:var(--dw-ink-80)}
+/* Ghost sits after .chip:hover at equal specificity, so without this line it silently ate its own hover state
+   and answered the pointer with nothing. A secondary control still responds; that is what makes it not-disabled. */
+.chip.ghost:hover{color:var(--dw-caution);border-color:var(--dw-caution)}
+/* Disabled is the only chip allowed to sit at rule alpha, and the only one that does not answer the pointer.
+   Two tells, not one: the label drops to hairline alpha and the hover response goes away. */
+.chip:disabled,.chip.disabled{border-color:var(--dw-ink-12);color:var(--dw-ink-30);cursor:not-allowed}
+.chip:disabled:hover,.chip.disabled:hover{color:var(--dw-ink-30);border-color:var(--dw-ink-12)}
+/* Reset holding an undo offer. Amber, because taking a reset back is a recovery, not a normal move. */
+/* Filled, not outlined: every chip goes amber on hover, so an outline would say nothing here. */
+#reset.armed{background:var(--dw-caution);border-color:var(--dw-caution);color:var(--dw-paper)}
+/* "Undo" is shorter than "Reset", so the swap used to resize the button mid-hover, drop it back under a
+   pointer on its way out, and oscillate. Reserve one box for both labels and the resize cannot happen. */
+#reset{min-width:9ch;text-align:center}
+.state{display:inline-flex;align-items:center;gap:6px;font-size:11px;text-transform:uppercase;letter-spacing:.16em;padding:4px 13px;border:1px solid currentColor;white-space:nowrap}
+.state::before{content:'';width:6px;height:6px;border-radius:50%;background:currentColor;flex:none}
+.state.caution{color:var(--dw-caution)} .state.normal{color:var(--dw-normal)} .state.ink{color:var(--dw-ink-55)}
+.tier{font-size:11px;text-transform:uppercase;letter-spacing:.16em;color:var(--dw-ink-55);white-space:nowrap}
+.tier.measured{color:var(--dw-normal)} .tier.sourced{color:var(--dw-ink)} .tier.argued{color:var(--dw-caution)}
+.dot{display:inline-block;width:6px;height:6px;border-radius:50%;flex:none}
+.dot.caution{background:var(--dw-caution)} .dot.normal{background:var(--dw-normal)} .dot.ink{background:var(--dw-ink)}
+.page{min-height:100%;padding:var(--sp-4);display:flex;flex-direction:column}
+.sheet{flex:1;border:2px solid var(--dw-ink);background:rgb(250 250 247 / .72);display:flex;flex-direction:column;min-height:calc(100vh - var(--sp-4) * 2)}
+#view{flex:1;display:flex;flex-direction:column;min-height:0}
+.head{display:flex;justify-content:space-between;align-items:flex-end;gap:var(--sp-4);padding:var(--sp-4) var(--sp-gutter) var(--sp-3);border-bottom:1px solid var(--dw-ink-30);flex-wrap:wrap}
+.head h1{font-size:24px;font-weight:600;line-height:1.25;margin:10px 0 0}
+.controls{display:flex;gap:var(--sp-3);align-items:center;flex-wrap:wrap}
+.controls .group{display:flex;gap:var(--sp-1);align-items:center;flex-wrap:wrap}
+.preset-note{display:flex;gap:var(--sp-4);align-items:flex-start;padding:var(--sp-2) var(--sp-gutter);border-bottom:1px solid var(--dw-ink-12);font-size:13px;line-height:1.55;color:var(--dw-ink-80)}
+.preset-note p{margin:0;flex:1;max-width:78ch}
+.steps{display:flex;gap:var(--sp-1);flex-wrap:wrap}
+.steps button{font-size:11px;text-transform:uppercase;letter-spacing:.16em;padding:5px 12px;border:1px solid var(--dw-ink-30);color:var(--dw-ink-80);
+  transition:color .16s var(--ease),border-color .16s var(--ease),opacity .2s var(--ease)}
+.steps button:hover{color:var(--dw-caution);border-color:var(--dw-caution)}
+.steps button.next{border-color:var(--dw-ink);color:var(--dw-ink)}
+.steps button.done{opacity:.4}
+/* Export: the one line worth reading stays open; the long Markdown folds away. */
+.exportbox{padding:var(--sp-2) var(--sp-gutter) var(--sp-3);border-bottom:1px solid var(--dw-ink-12);display:flex;flex-direction:column;gap:var(--sp-2)}
+.exportbox textarea{width:100%;font-size:12.5px;line-height:1.5;padding:var(--sp-2);resize:vertical;margin-top:var(--sp-1)}
+.exportbox .row{display:flex;gap:var(--sp-1);align-items:center;flex-wrap:wrap}
+.exportbox input{flex:1;min-width:240px;font-size:12.5px;padding:7px 10px}
+.exportbox details{border-top:1px solid var(--dw-ink-12);padding-top:var(--sp-2);margin-top:0}
+.exportbox .spacer{margin-left:auto;display:flex;gap:var(--sp-1)}
+.restore{flex:1;min-width:0;font-size:12.5px;padding:7px 10px;border:1px dashed var(--dw-ink-30);color:var(--dw-ink-80);overflow-x:auto;white-space:nowrap;user-select:all}
+/* findings view */
+.findings{flex:1;display:grid;grid-template-columns:400px minmax(0,1fr);min-height:0}
+.index{border-right:1px solid var(--dw-ink-30);display:flex;flex-direction:column}
+.index .row{display:grid;grid-template-columns:28px 1fr auto;gap:var(--sp-2);align-items:center;padding:var(--sp-2) var(--sp-4);border-bottom:1px solid var(--dw-ink-12);font-size:13px;line-height:1.5;width:100%;
+  transition:background-color .16s var(--ease),box-shadow .2s var(--ease),color .16s var(--ease)}
+.index .row:hover{background:rgb(34 38 43 / .04)}
+.index .row.open{box-shadow:inset 3px 0 0 var(--dw-ink)}
+.index .row.over{background:var(--dw-ink);color:var(--dw-paper)}
+.index .row.over .label,.index .row.over .muted{color:rgb(250 250 247 / .55)}
+.index .row.predict{cursor:pointer}
+.index .row.predicted{box-shadow:inset 3px 0 0 var(--dw-caution)}
+.index .row.hit{box-shadow:inset 3px 0 0 var(--dw-normal)}
+.index .row.miss{box-shadow:inset 3px 0 0 var(--dw-caution);background:rgb(217 119 6 / .08)}
+.index .row.fp{box-shadow:inset 3px 0 0 var(--dw-ink-30)}
+.muted{color:var(--dw-ink-55)}
+.index .legend{margin-top:auto;padding:var(--sp-3) var(--sp-4);border-top:1px solid var(--dw-ink-30);display:flex;gap:var(--sp-3);flex-wrap:wrap;line-height:1.9}
+.right{display:flex;flex-direction:column;min-width:0}
+.verdict-bar{display:flex;justify-content:space-between;align-items:center;gap:var(--sp-4);padding:var(--sp-3) var(--sp-6);border-bottom:1px solid var(--dw-ink-12)}
+.stamp{border:2.5px solid currentColor;padding:4px 14px;font-size:18px;text-transform:uppercase;letter-spacing:.12em;font-weight:600;transform:rotate(-2.5deg);white-space:nowrap}
+.stamp.caution{color:var(--dw-caution)} .stamp.normal{color:var(--dw-normal)} .stamp.ink{color:var(--dw-ink-30)}
+.body{flex:1;padding:var(--sp-5) var(--sp-6) var(--sp-6);display:flex;flex-direction:column;gap:var(--sp-4);min-width:0}
+.find{display:grid;grid-template-columns:11px 48px 84px minmax(0,1fr);gap:var(--sp-2);align-items:baseline}
+.find .pt{width:11px;height:11px;border-radius:50%;background:var(--dw-ink);align-self:center}
+.find .lead{border-top:1.5px dashed var(--dw-ink-30);align-self:center}
+.find .tag{color:var(--dw-caution);font-size:11px;text-transform:uppercase;letter-spacing:.16em;font-weight:500}
+.find .tag.ink{color:var(--dw-ink-55)}
+.find .txt{font-size:15px;line-height:1.6}
+.h2{font-size:30px;text-transform:uppercase;letter-spacing:.12em;font-weight:600;line-height:1.15;margin:0}
+.annot{font-size:13px;line-height:1.6;color:var(--dw-ink-80);max-width:68ch}
+details{border-top:1px solid var(--dw-ink-12);padding-top:var(--sp-2);margin-top:var(--sp-1)}
+summary{cursor:pointer;list-style:none;display:flex;justify-content:space-between;gap:var(--sp-2);padding:2px 0;transition:color .16s var(--ease)}
+summary:hover{color:var(--dw-caution)}
+summary::-webkit-details-marker{display:none}
+summary::after{content:'+';color:var(--dw-ink-55);transition:transform .2s var(--ease)}
+details[open] summary::after{content:'–'}
+details ul{margin:var(--sp-2) 0 var(--sp-1);padding-left:20px;font-size:13px;line-height:1.6;color:var(--dw-ink-80)}
+details li{margin-bottom:var(--sp-1)}
+details[open] > :not(summary){animation:ee-unfold .22s var(--ease) both}
+.cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(var(--card-min),1fr));gap:var(--sp-4)}
+.card{position:relative;border:1px solid var(--dw-ink-30);padding:var(--sp-4);display:flex;flex-direction:column;gap:var(--sp-2);font-size:13px;line-height:1.6;
+  transition:border-color .2s var(--ease),background-color .2s var(--ease),color .2s var(--ease),opacity .25s var(--ease)}
+.card.chosen{border:2px solid var(--dw-ink)}
+.card.over{background:var(--dw-ink);color:var(--dw-paper);border-color:var(--dw-ink)}
+.card.over .muted,.card.over .label,.card.over .tier{color:rgb(250 250 247 / .6)}
+/* The tab straddles the card's top border and keeps a paper background, so it never sits on the
+   dark fill. Paper-on-paper is the rule above's blind spot: it must stay ink, not go pale. */
+.card.over .tab{color:var(--dw-ink)}
+.card.straw{border-style:dashed;border-width:1.5px}
+.card.closed{opacity:.5}
+.card .tab{position:absolute;top:0;left:16px;transform:translateY(-50%);background:var(--dw-paper);padding:0 8px}
+.card .ttl{font-size:15.5px;font-weight:600;line-height:1.45;margin-top:6px}
+.card .cons{border-top:1px solid var(--dw-ink-12);padding-top:var(--sp-2);margin-top:var(--sp-1);display:flex;flex-direction:column;gap:var(--sp-1)}
+.card.over .cons{border-top-color:rgb(250 250 247 / .2)}
+.card .cons div{display:flex;gap:var(--sp-1);align-items:baseline}
+.card .act{margin-top:auto;display:flex;gap:var(--sp-2);align-items:center;justify-content:space-between;padding-top:var(--sp-2);flex-wrap:wrap}
+.card .act .chip{padding:5px 12px}
+.card.over .act .chip{border-color:var(--dw-paper);color:var(--dw-paper)}
+.card.over .act .chip.on{background:var(--dw-paper);color:var(--dw-ink)}
+/* The row in plain sentences, above the cards. Two halves: the authored `problem` says what the
+   row is about to somebody who does not know the domain, and the derived lines say where it stands.
+   Only an author can write the first — a row named "Reachable by whom" explains itself to nobody. */
+.summary{border-left:2px solid var(--dw-ink);padding:var(--sp-1) 0 var(--sp-1) var(--sp-3);margin-top:var(--sp-2);display:flex;flex-direction:column;gap:6px;max-width:84ch}
+.summary p{margin:0;font-size:14px;line-height:1.65;color:var(--dw-ink-80)}
+.summary p b{color:var(--dw-ink);font-weight:600}
+.summary .problem{font-size:14.5px;line-height:1.75;color:var(--dw-ink)}
+/* Not `.state` — that name is the status pill above, and it carries nowrap, a border and a ::before
+   dot. A wrapper called .state inherited all three and overflowed the row. */
+.summary .derived{display:flex;flex-direction:column;gap:6px;border-top:1px solid var(--dw-ink-12);padding-top:var(--sp-2);margin-top:2px}
+.summary .hot{color:var(--dw-caution)}
+.summary .hot b{color:var(--dw-caution)}
+.coach{border:1.5px dashed var(--dw-caution);padding:var(--sp-4);display:flex;flex-direction:column;gap:var(--sp-2);font-size:13px;line-height:1.6}
+.coach p{margin:0}
+/* sheet view */
+.sheetview{flex:1;display:flex;flex-direction:column;min-height:0}
+.grid{flex:1;display:grid;grid-template-columns:72px 220px repeat(var(--cols,4),minmax(0,1fr));grid-auto-rows:minmax(60px,auto);font-size:13px;line-height:1.55;overflow:auto}
+.grid .hd{padding:var(--sp-2) var(--sp-2);border-bottom:1px solid var(--dw-ink-30)}
+.grid .ref{padding:var(--sp-2) var(--sp-2) var(--sp-2) var(--sp-3);border-bottom:1px solid var(--dw-ink-12)}
+.grid .dim{padding:var(--sp-2);font-weight:500;border-bottom:1px solid var(--dw-ink-12);width:100%;transition:color .16s var(--ease)}
+.grid .dim:hover{color:var(--dw-caution)}
+.grid .cell{position:relative;padding:var(--sp-2);border-bottom:1px solid var(--dw-ink-12);border-right:1px solid var(--dw-ink-12);width:100%;height:100%;color:var(--dw-ink-55);
+  transition:background-color .16s var(--ease),color .16s var(--ease),box-shadow .2s var(--ease)}
+.grid .cell:hover{background:rgb(34 38 43 / .04);color:var(--dw-ink)}
+.grid .cell.empty{cursor:default;border-right:0}
+.grid .cell.chosen{box-shadow:inset 0 0 0 2px var(--dw-ink);color:var(--dw-ink);font-weight:600}
+.grid .cell.over{background:var(--dw-ink);color:var(--dw-paper);font-weight:600}
+.grid .cell.straw{border-left:1.5px dashed var(--dw-ink-30);border-right:1.5px dashed var(--dw-ink-30)}
+.grid .cell.conf{color:var(--dw-caution)}
+.grid .cell.out{color:var(--dw-ink-30);text-decoration:line-through}
+.grid .cell.req{color:var(--dw-normal)}
+.grid .cell.over.conf{background:var(--dw-ink);color:var(--dw-caution)}
+.tip{position:fixed;z-index:10;max-width:400px;background:var(--dw-paper);border:1px solid var(--dw-ink);padding:var(--sp-2) var(--sp-3);font-size:13px;line-height:1.55;color:var(--dw-ink-80);pointer-events:none;
+  opacity:0;visibility:hidden;transform:translateY(-4px);transition:opacity .13s var(--ease),transform .13s var(--ease),visibility .13s}
+.tip.show{opacity:1;visibility:visible;transform:none}
+.tip .ttl{color:var(--dw-ink);font-weight:600;margin-bottom:6px}
+.tip .foot{margin-top:var(--sp-2);display:flex;gap:var(--sp-2);flex-wrap:wrap}
+.titleblock{display:grid;grid-template-columns:1.2fr 1fr 1fr 1fr .8fr;border-top:2px solid var(--dw-ink)}
+.titleblock > div{padding:var(--sp-3) var(--sp-4);border-right:1px solid var(--dw-ink-12);display:flex;flex-direction:column;gap:var(--sp-1);min-width:0}
+.titleblock > div:last-child{border-right:0}
+
+/* ---- motion. One rule: a band animates when the reader moved to it, never on every click. ---- */
+@keyframes ee-rise{from{opacity:0;transform:translateY(7px)}to{opacity:1;transform:none}}
+@keyframes ee-unfold{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:none}}
+@keyframes ee-stamp{0%{opacity:0;transform:rotate(-2.5deg) scale(.9)}60%{transform:rotate(-2.5deg) scale(1.04)}100%{opacity:1;transform:rotate(-2.5deg) scale(1)}}
+/* .anim — the whole band arrived: a different view. .anim-body — only the right pane changed:
+   a row opened, a coach phase advanced. The index and the verdict bar hold still for that one,
+   because restacking a list the reader is pointing at reads as a flash. */
+#view.anim .verdict-bar,#view.anim .index .row,#view.anim .grid{animation:ee-rise .3s var(--ease) both}
+#view.anim .index .row:nth-child(n+2){animation-delay:.015s}
+#view.anim .index .row:nth-child(n+5){animation-delay:.03s}
+#view:is(.anim,.anim-body) .body > *{animation:ee-rise .3s var(--ease) both}
+#view:is(.anim,.anim-body) .body > :nth-child(2){animation-delay:.04s}
+#view:is(.anim,.anim-body) .body > :nth-child(3){animation-delay:.07s}
+#view:is(.anim,.anim-body) .body > :nth-child(n+4){animation-delay:.1s}
+#view:is(.anim,.anim-body) .card{animation:ee-rise .34s var(--ease) both}
+#view:is(.anim,.anim-body) .card:nth-child(2){animation-delay:.05s}
+#view:is(.anim,.anim-body) .card:nth-child(3){animation-delay:.09s}
+#view:is(.anim,.anim-body) .card:nth-child(n+4){animation-delay:.13s}
+.stamp.vchg{animation:ee-stamp .34s var(--ease) both}
+@media (max-width:1000px){.findings{grid-template-columns:1fr}.index{border-right:0;border-bottom:1px solid var(--dw-ink-30)}
+  :root{--sp-gutter:24px;--sp-6:32px;--card-min:280px}}
+@media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+</style>
+</head>
+<body>
+<div class="page"><div class="sheet">
+  <div class="head">
+    <div>
+      <div class="label" id="eyebrow"></div>
+      <h1 id="title"></h1>
+    </div>
+    <div class="controls">
+      <div class="group"><span class="label">View</span><button class="chip" id="viewFind">Findings</button><button class="chip" id="viewSheet">Sheet</button></div>
+      <div class="group" id="presetGroup"><span class="label">Presets</span><span id="presets" style="display:flex;gap:6px;flex-wrap:wrap"></span></div>
+      <div class="group"><button class="chip ghost" id="coachToggle">Coach: off</button><button class="chip ghost" id="exportBtn">Export</button><button class="chip ghost" id="reset">Reset</button></div>
+    </div>
+  </div>
+  <div class="preset-note" id="presetNote" hidden><p id="presetText"></p><div class="steps" id="presetSteps"></div></div>
+  <div class="exportbox" id="exportBox" hidden>
+    <div class="row"><span class="label">Paste this to Claude</span><span class="label" id="exportStatus"></span><span class="spacer"><button class="chip" id="copyBtn">Copy</button><button class="chip ghost" id="closeExport">Close</button></span></div>
+    <div class="row"><code class="restore" id="restoreCode" title="Your configuration, as one line"></code></div>
+    <!-- Load stays open beside the restore code it accepts. Reading a configuration back is the common move;
+         the full Markdown is the rare one, so that is what folds away. Layout only — the format is in SKILL.md. -->
+    <div class="row"><label class="label" for="loadCode">Load</label><input id="loadCode" type="text" spellcheck="false" placeholder="eagle-eye: option-id, option-id"><button class="chip" id="loadBtn">Load</button></div>
+    <details id="exportDetails">
+      <summary class="label">Full Markdown</summary>
+      <textarea id="exportText" rows="14" spellcheck="false" aria-label="Your configuration as Markdown"></textarea>
+    </details>
+  </div>
+  <div id="view"></div>
+</div></div>
+<div class="tip" id="tip"></div>
+
+<script>
+const BOX = /*DATA*/;
+</script>
+<script>
+/*MODULE*/
+</script>
+<script>
+// ---- shell: reads BOX, calls EagleEye.analyse, paints. No grid logic in here. ----
+const { optById, chosenOf } = EagleEye.index(BOX);
+const sel = { ...chosenOf }, touched = new Set();
+let view = 'findings', openRow = null, coach = false, pending = null;
+// Reset throws away every override at once. The button keeps the pre-reset state and offers it back
+// while the pointer rests on it; the pointer leaving starts a ten-second fuse rather than dropping
+// the offer, so a slip of the mouse does not cost the work.
+const UNDO_GRACE_MS = 10000;
+const HOT_SETTLE_MS = 260;   // how long the Undo label holds after the pointer leaves. See resetHover.
+let undoSnap = null, undoFuse = null, resetHot = false, hotFuse = null;
+const $ = id => document.getElementById(id);
+const S = id => optById[id].short || optById[id].label;
+const ref = d => String(BOX.dims.indexOf(d) + 1).padStart(2, '0');
+const edgesOf = id => (BOX.rel[id]?.rel || []).map(([to, kind, why, tier, src]) => ({ from: id, to, kind, why, tier: tier || 'argued', src }));
+const esc = s => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;');
+const tierTag = t => `<span class="tier ${t}">${t}</span>`;
+const nm = id => `<b>${ref(optById[id].dim)} ${esc(optById[id].dim.name)}: ${esc(S(id))}</b>`;
+const COLS = Math.max(...BOX.dims.map(d => d.opts.length));
+document.documentElement.style.setProperty('--cols', COLS);
+$('title').textContent = BOX.title;
+$('eyebrow').textContent = BOX.eyebrow || `Morphological box · ${BOX.dims.length} decisions · ${Object.values(BOX.rel).reduce((n, r) => n + (r.rel || []).length, 0)} edges`;
+
+function resetAll(){ Object.assign(sel, chosenOf); touched.clear(); pending = null; openRow = null; disarmUndo(); }
+// Opening a row counts as looking at it. Every path that opens one goes through here.
+// Without this, `touched` was written only when a selection changed, so the "row not opened"
+// finding could not be cleared by opening the row it named — which is the one thing it asks for.
+function openDim(id){ openRow = id; if (id) touched.add(id); }
+function override(d, o){
+  if (pending && !pending.revealed) return;
+  disarmUndo();   // the snapshot means "the state just before that reset"; a new pick makes it a lie
+  touched.add(d.id);
+  const was = sel[d.id];
+  sel[d.id] = (sel[d.id] === o.id && o.id !== chosenOf[d.id]) ? chosenOf[d.id] : o.id;
+  pending = (coach && sel[d.id] !== was && sel[d.id] !== chosenOf[d.id]) ? { dimId: d.id, predicted: new Set(), revealed: false } : null;
+  if (pending) { openRow = null; view = 'findings'; }
+  update();
+}
+const vcls = v => ({ 'does not hold': 'caution', 'incomplete': 'caution', 'consistent': 'normal', 'as chosen': 'ink' }[v]);
+
+function verdictBar(r){
+  const basis = r.overrides.length ? `Active edges: ${r.basis.map(([t, n]) => `${n} ${tierTag(t)}`).join(' · ')}` : 'No option changed. Nobody tested the chosen set.';
+  return `<div class="verdict-bar"><div><div class="label">Verdict for the selected options · ${r.overrides.length} change${r.overrides.length === 1 ? '' : 's'}</div><div class="annot">${basis}</div></div><div class="stamp ${vcls(r.verdict)}">${r.verdict}</div></div>`;
+}
+function cellState(r, id){
+  const o = optById[id], isChosen = id === chosenOf[o.dim.id], c = [];
+  if (o.strawman) c.push('straw');
+  if (r.selected.has(id)) { c.push(isChosen ? 'chosen' : 'over'); if (r.conflicts.some(e => e.from === id || e.to === id)) c.push('conf'); else if (r.overrides.length && r.met.some(e => e.to === id)) c.push('req'); }
+  else if (r.overrides.length) { if (r.pulled.has(id)) c.push('req'); else if (r.closed.has(id)) c.push('out'); }
+  return c;
+}
+function rowDot(r, d){
+  const id = sel[d.id];
+  if (r.conflicts.some(e => e.from === id || e.to === id)) return '<span class="dot caution"></span>';
+  if (r.unmet.some(e => optById[e.to].dim.id === d.id)) return '<span class="dot caution"></span>';
+  if (r.overrides.length && r.met.some(e => e.to === id)) return '<span class="dot normal"></span>';
+  return '<span></span>';
+}
+
+// ---- findings view ----
+function renderFindings(r){
+  const veil = pending && !pending.revealed;
+  const rows = BOX.dims.map(d => {
+    const id = sel[d.id], isOver = id !== chosenOf[d.id];
+    const cls = ['row', openRow === d.id ? 'open' : '', isOver && !pending ? 'over' : ''];
+    if (pending) { if (!pending.revealed) { if (d.id !== pending.dimId) cls.push('predict'); if (pending.predicted.has(d.id)) cls.push('predicted'); }
+      else { const hit = r.affected.has(d.id), g = pending.predicted.has(d.id); if (hit && g) cls.push('hit'); else if (hit) cls.push('miss'); else if (g) cls.push('fp'); } }
+    return `<button class="${cls.join(' ')}" data-row="${d.id}"><span class="label num">${ref(d)}</span><span><span style="font-weight:500">${esc(d.name)}</span> <span class="muted">· ${esc(S(id))}${isOver ? ' ←' : ''}</span></span>${veil ? '<span></span>' : rowDot(r, d)}</button>`;
+  }).join('');
+  const legend = `<div class="legend label"><span><span class="dot caution"></span> conflict, or requirement not met</span><span><span class="dot normal"></span> requirement met</span><span>← option you changed</span></div>`;
+  let right = verdictBar(r);
+  if (veil) {
+    const o = optById[sel[pending.dimId]];
+    right += `<div class="body"><div class="coach"><div class="label" style="color:var(--dw-caution)">Coach · predict, then reveal</div><p>You changed <b>${esc(o.dim.name)}</b> to “${esc(S(o.id))}”. Which rows does this change affect? Click those rows in the index. Then click Reveal.</p><p class="label">${pending.predicted.size} row${pending.predicted.size === 1 ? '' : 's'} predicted</p><div style="display:flex;gap:8px"><button class="chip on" id="reveal">Reveal</button><button class="chip" id="skipPredict">Skip</button></div></div><p class="annot">The index shows no colours and the findings are hidden until you predict. You remember more when you predict first.</p></div>`;
+  } else if (openRow) right += renderRowDetail(r, BOX.dims.find(d => d.id === openRow));
+  else right += renderFindList(r);
+  $('view').innerHTML = `<div class="findings"><div class="index">${rows}${legend}</div><div class="right">${right}</div></div>`;
+  $('view').querySelectorAll('[data-row]').forEach(b => b.addEventListener('click', () => {
+    const d = b.dataset.row;
+    if (pending && !pending.revealed) { if (d !== pending.dimId) { pending.predicted.has(d) ? pending.predicted.delete(d) : pending.predicted.add(d); update(); } return; }
+    openDim(openRow === d ? null : d); update();
+  }));
+  wire();
+}
+function renderFindList(r){
+  let h = '<div class="body">';
+  if (pending && pending.revealed) { const hits = [...pending.predicted].filter(d => r.affected.has(d)).length, missed = [...r.affected].filter(d => !pending.predicted.has(d)).length, fp = pending.predicted.size - hits;
+    h += `<div class="coach"><div class="label" style="color:var(--dw-caution)">Coach · result</div><p><b>${hits} correct</b> · ${missed} not predicted (amber rows) · ${fp} predicted, not affected. ${missed ? 'You did not know the edges of the amber rows. Read their reasons below.' : 'You predicted every affected row.'}</p></div>`; }
+  if (r.overrides.length) h += `<div><div class="label">Options you changed</div><div class="h2" style="margin-top:6px">${r.overrides.map(id => esc(S(id))).join(' + ')}</div><p class="annot" style="margin:12px 0 0">${r.overrides.map(id => `<b>${esc(optById[id].dim.name)}.</b> ${esc(BOX.rel[id]?.why || '')}`).join(' ')}</p></div>`;
+  else h += `<div><div class="label">Start here</div><div class="h2" style="margin-top:6px">${BOX.dims.length} rows, one chosen option in each</div><p class="annot" style="margin:12px 0 0">Click a row in the index. You see its options and the effect of each one. Change an option there, or in the Sheet view. The findings below describe a set that nobody tested.</p></div>`;
+  const finds = [];
+  r.conflicts.forEach(e => finds.push({ tag: 'conflict', caution: true, txt: `${nm(e.from)} vs ${nm(e.to)}. ${esc(e.why)} ${tierTag(e.tier)}` }));
+  r.unmet.forEach(e => finds.push({ tag: 'requirement not met', caution: true, txt: `${nm(e.from)} requires ${nm(e.to)}. ${esc(e.why)} ${tierTag(e.tier)} <i>That option is not selected.</i>` }));
+  r.moves.forEach(m => finds.push({ tag: m.kind, caution: false, txt: m.text }));
+  h += `<div style="display:flex;flex-direction:column;gap:var(--sp-3)">${finds.map((f, i) => `<div class="find"><span class="pt"></span><span class="lead"></span><span class="tag ${f.caution ? '' : 'ink'}">Find ${String(i + 1).padStart(2, '0')}</span><span class="txt"><b>${f.tag}.</b> ${f.txt}</span></div>`).join('')}</div>`;
+  if (r.overrides.length) {
+    if (r.closed.size) h += `<details><summary class="label">Options ruled out (${r.closed.size})</summary><ul>${[...r.closed.entries()].map(([tid, es]) => `<li>${nm(tid)} — ${es.map(e => esc(e.why) + ' ' + tierTag(e.tier)).join(' ')}</li>`).join('')}</ul></details>`;
+    if (r.met.length) h += `<details><summary class="label">Requirements met (${r.met.length})</summary><ul>${r.met.map(e => `<li>${nm(e.from)} requires ${nm(e.to)} ${tierTag(e.tier)}</li>`).join('')}</ul></details>`;
+    const notes = r.overrides.flatMap(id => (BOX.rel[id]?.notes || []).map(n => `<li><b>${esc(optById[id].dim.name)}.</b> ${esc(n)}</li>`));
+    if (notes.length) h += `<details><summary class="label">Notes (${notes.length})</summary><ul>${notes.join('')}</ul></details>`;
+  }
+  if (r.suspected?.length) h += `<details><summary class="label">Suspected edges, not in the grid (${r.suspected.length})</summary><ul>${r.suspected.map(s => `<li>${esc(s)}</li>`).join('')}</ul></details>`;
+  return h + '</div>';
+}
+// The row said plainly, before the reader meets four cards of detail. The `problem` half is
+// authored: what this decision is about, for a reader who does not know the domain. The rest is
+// derived from the box and the selection, so it cannot go stale.
+function rowSummary(r, d){
+  const id = sel[d.id], isChosen = id === chosenOf[d.id];
+  const straw = d.opts.filter(o => o.strawman).length;
+  const tag = oid => `<b>${ref(optById[oid].dim)} ${esc(S(oid))}</b>`;
+  const rowTag = did => { const x = BOX.dims.find(y => y.id === did); return `<b>${ref(x)} ${esc(x.name)}</b>`; };
+
+  const inbound = [];
+  [...r.selected].filter(s => optById[s].dim.id !== d.id)
+    .forEach(s => edgesOf(s).forEach(e => { if (optById[e.to].dim.id === d.id) inbound.push(e); }));
+  const needThis = inbound.filter(e => e.kind === 'req' && e.to === id);
+  const reach = new Set();
+  d.opts.forEach(o => edgesOf(o.id).forEach(e => { if (optById[e.to].dim.id !== d.id) reach.add(optById[e.to].dim.id); }));
+  inbound.forEach(e => reach.add(optById[e.from].dim.id));
+  const closedHere = d.opts.filter(o => r.closed.has(o.id));
+  const conf = r.conflicts.filter(e => e.from === id || e.to === id);
+  const unmet = r.unmet.filter(e => e.from === id);
+  const list = (arr, n = 4) => arr.slice(0, n).join(', ') + (arr.length > n ? `, and ${arr.length - n} more` : '');
+
+  const L = [];
+  L.push(`This row holds ${d.opts.length} options${straw ? `, ${straw === 1 ? 'one of them a strawman' : `${straw} of them strawmen`}` : ''}. `
+    + (isChosen ? `You are on <b>${esc(S(id))}</b>, which is the chosen option.`
+                : `You changed it to <b>${esc(S(id))}</b>. The chosen option is <b>${esc(S(chosenOf[d.id]))}</b>.`));
+  L.push(needThis.length
+    ? `${needThis.length} selected option${needThis.length > 1 ? 's require' : ' requires'} it: ${list(needThis.map(e => tag(e.from)))}.`
+    : `No selected option requires it. Nothing downstream is holding this row in place.`);
+  L.push(reach.size
+    ? `Its options carry edges to ${reach.size} other row${reach.size > 1 ? 's' : ''}: ${list([...reach].sort((a, b) => BOX.dims.findIndex(x => x.id === a) - BOX.dims.findIndex(x => x.id === b)).map(rowTag))}. Change this row and those are the rows to read next.`
+    : `Its options carry no edges. Decide this row alone, or add the edge that is missing.`);
+  if (conf.length) L.push(`<span class="hot">Your pick conflicts with ${tag(conf[0].from === id ? conf[0].to : conf[0].from)}.</span> ${esc(conf[0].why)}`);
+  if (unmet.length) L.push(`<span class="hot">It requires ${unmet.length} option${unmet.length > 1 ? 's' : ''} you have not selected.</span> Read the card below for each one.`);
+  if (closedHere.length) L.push(`${closedHere.length} option${closedHere.length > 1 ? 's here are' : ' here is'} ruled out by what you selected in other rows.`);
+  const problem = d.problem ? `<p class="problem">${esc(d.problem)}</p>` : '';
+  return `<div class="summary"><div class="label">In short</div>${problem}<div class="derived">${L.map(t => `<p>${t}</p>`).join('')}</div></div>`;
+}
+function renderRowDetail(r, d){
+  const cards = d.opts.map(o => {
+    const id = o.id, isSel = sel[d.id] === id, isChosen = chosenOf[d.id] === id, st = cellState(r, id);
+    const what = EagleEye.analyse(BOX, { ...sel, [d.id]: id }, touched);
+    const out = edgesOf(id).filter(e => optById[e.to].dim.id !== d.id);
+    const inbound = [];
+    [...r.selected].filter(s => optById[s].dim.id !== d.id).forEach(s => edgesOf(s).forEach(e => { if (e.to === id) inbound.push(e); }));
+    const line = e => `<div><span class="dot ${e.kind === 'conf' ? 'caution' : 'normal'}" style="margin-top:8px"></span><span>${e.kind === 'conf' ? 'Rules out' : 'Requires'} ${nm(e.to)}${r.selected.has(e.to) ? (e.kind === 'conf' ? ' <b>— that option is selected: conflict.</b>' : ' — that option is selected.') : (e.kind === 'req' ? ' <b>— that option is not selected.</b>' : '.')} ${esc(e.why)} ${tierTag(e.tier)}</span></div>`;
+    const inl = e => `<div><span class="dot ${e.kind === 'conf' ? 'caution' : 'normal'}" style="margin-top:8px"></span><span>${nm(e.from)} ${e.kind === 'conf' ? 'rules this option out' : 'requires this option'}. ${esc(e.why)} ${tierTag(e.tier)}</span></div>`;
+    const cls = ['card', isSel ? (isChosen ? 'chosen' : 'over') : '', o.strawman ? 'straw' : '', st.includes('out') ? 'closed' : ''].join(' ');
+    return `<div class="${cls}"><span class="tab label">${o.strawman ? 'strawman' : isChosen ? 'chosen' : isSel ? 'your change' : 'option'}${o.src ? ' · ' + esc(o.src) : ''}</span>
+      <div class="ttl">${esc(o.label)}</div>
+      <div class="muted">${esc(BOX.rel[id]?.why || '')}</div>
+      ${(BOX.rel[id]?.notes || []).map(n => `<div class="muted" style="border-left:1.5px solid var(--dw-ink-30);padding-left:8px">${esc(n)}</div>`).join('')}
+      <div class="cons"><div class="label" style="display:block">${isSel ? 'Verdict with this option' : 'Verdict if you pick this option'} <span class="state ${vcls(what.verdict)}">${what.verdict}</span></div>${out.map(line).join('')}${inbound.map(inl).join('')}${!out.length && !inbound.length ? '<div class="muted">This option has no edges. It is independent, or an edge is missing.</div>' : ''}</div>
+      <div class="act"><span class="muted">rules out ${out.filter(e => e.kind === 'conf').length} · requires ${out.filter(e => e.kind === 'req').length} · ${inbound.length} edge${inbound.length === 1 ? '' : 's'} in</span><button class="chip ${isSel ? 'on' : ''}" data-pick="${id}">${isSel ? (isChosen ? 'Chosen' : 'Undo change') : 'Pick'}</button></div></div>`;
+  }).join('');
+  // The summary sits inside the header column, directly under the question: same subject, so a
+  // full body gap between them would read as two separate things.
+  return `<div class="body"><div style="display:flex;justify-content:space-between;align-items:baseline;gap:var(--sp-4);flex-wrap:wrap"><div style="flex:1;min-width:0"><div class="label">Row ${ref(d)} · ${d.opts.length} options${d.opts.some(o => o.strawman) ? ' · ' + d.opts.filter(o => o.strawman).length + ' strawman' : ''}</div><div class="h2" style="margin-top:6px">${esc(d.name)}</div>${d.question ? `<p class="annot" style="margin:8px 0 0">${esc(d.question)}</p>` : ''}${rowSummary(r, d)}</div><button class="chip ghost" data-back>← Findings</button></div><div class="cards">${cards}</div></div>`;
+}
+
+// ---- sheet view ----
+function renderSheet(r){
+  const hd = ['Ref', 'Decision', ...Array.from({ length: COLS }, (_, i) => String.fromCharCode(65 + i))].map(h => `<div class="hd label">${h}</div>`).join('');
+  const rows = BOX.dims.map(d => {
+    let h = `<div class="ref label num">${ref(d)}</div><button class="dim" data-open="${d.id}" title="Read this row in Findings">${esc(d.name)}</button>`;
+    for (let i = 0; i < COLS; i++) { const o = d.opts[i]; if (!o) { h += '<div class="cell empty"></div>'; continue; }
+      h += `<button class="cell ${cellState(r, o.id).join(' ')}" data-cell="${o.id}">${esc(S(o.id))}${sel[d.id] === o.id && chosenOf[d.id] !== o.id ? ' ←' : ''}</button>`; }
+    return h;
+  }).join('');
+  const tb = `<div class="titleblock">
+    <div><span class="label">Verdict</span><span class="state ${vcls(r.verdict)}">${r.verdict}</span></div>
+    <div><span class="label">Active edges</span><span class="num" style="font-size:13px">${r.overrides.length ? r.basis.map(([t, n]) => `${n} ${t}`).join(' · ') : '—'}</span></div>
+    <div><span class="label">Changed</span><span class="num" style="font-size:13px">${r.overrides.length} of ${BOX.dims.length}${r.overrides.length ? ' · rows ' + r.overrides.map(id => ref(optById[id].dim)).join(', ') : ''}</span></div>
+    <div><span class="label">Problems</span><span class="num" style="font-size:13px">${r.conflicts.length} conflict${r.conflicts.length === 1 ? '' : 's'} · ${r.unmet.length} not met</span></div>
+    <div><span class="label">Findings</span><button class="chip" data-tofind style="padding:3px 10px">Read ${r.moves.length + r.conflicts.length + r.unmet.length} →</button></div></div>`;
+  $('view').innerHTML = `<div class="sheetview"><div class="grid">${hd}${rows}</div>${tb}</div>`;
+  $('view').querySelectorAll('[data-cell]').forEach(b => {
+    const o = optById[b.dataset.cell];
+    b.addEventListener('click', () => override(o.dim, o));
+    b.addEventListener('mouseenter', () => showTip(r, o, b)); b.addEventListener('focus', () => showTip(r, o, b));
+    b.addEventListener('mouseleave', hideTip); b.addEventListener('blur', hideTip);
+  });
+  $('view').querySelectorAll('[data-open]').forEach(b => b.addEventListener('click', () => { openDim(b.dataset.open); view = 'findings'; update(); }));
+  $('view').querySelector('[data-tofind]')?.addEventListener('click', () => { openRow = null; view = 'findings'; update(); });
+}
+function showTip(r, o, el){
+  const out = edgesOf(o.id).filter(e => optById[e.to].dim.id !== o.dim.id);
+  const st = cellState(r, o.id);
+  const status = st.includes('conf') ? '<span class="state caution">conflict</span>' : st.includes('out') ? '<span class="state caution">ruled out</span>' : st.includes('req') ? '<span class="state normal">required</span>' : st.includes('over') ? '<span class="state ink">your change</span>' : st.includes('chosen') ? '<span class="state ink">chosen</span>' : '';
+  const why = (BOX.rel[o.id]?.why || '').split(/(?<=\.)\s/)[0];
+  $('tip').innerHTML = `<div class="ttl">${esc(o.label)}</div><div>${esc(why)}</div><div class="foot"><span class="label">rules out ${out.filter(e => e.kind === 'conf').length} · requires ${out.filter(e => e.kind === 'req').length}</span>${status}</div><div class="label" style="margin-top:6px">Click the option to pick it. Click the row name to read the row.</div>`;
+  const b = el.getBoundingClientRect(), t = $('tip'); t.classList.add('show');
+  let x = b.left, y = b.bottom + 8; if (x + 412 > innerWidth) x = innerWidth - 412; if (y + t.offsetHeight > innerHeight) y = b.top - t.offsetHeight - 8;
+  t.style.left = x + 'px'; t.style.top = y + 'px';
+}
+function hideTip(){ $('tip').classList.remove('show'); }
+
+// ---- export / restore: the round trip. Format is specified in SKILL.md; change both together. ----
+function encodeSel(){ return BOX.dims.filter(d => sel[d.id] !== chosenOf[d.id]).map(d => sel[d.id]).join(', '); }
+function exportMarkdown(){
+  const r = EagleEye.analyse(BOX, sel, touched), strip = s => s.replace(/<[^>]+>/g, '');
+  const L = [`## eagle-eye · ${BOX.title} · ${r.overrides.length} change${r.overrides.length === 1 ? '' : 's'} · ${r.verdict}`, ''];
+  L.push('| # | Decision | Chosen | My choice |', '| --- | --- | --- | --- |');
+  BOX.dims.forEach(d => L.push(`| ${ref(d)} | ${d.name} | ${S(chosenOf[d.id])} | ${sel[d.id] === chosenOf[d.id] ? '— (keep)' : '**' + S(sel[d.id]) + '**'} |`));
+  if (r.conflicts.length) { L.push('', '### Conflicts'); r.conflicts.forEach(e => L.push(`- ${strip(nm(e.from))} vs ${strip(nm(e.to))} — ${e.why} [${e.tier}]`)); }
+  if (r.unmet.length) { L.push('', '### Requirements not met'); r.unmet.forEach(e => L.push(`- ${strip(nm(e.from))} requires ${strip(nm(e.to))} — ${e.why} [${e.tier}]`)); }
+  if (r.closed.size) { L.push('', '### Ruled out'); [...r.closed.entries()].forEach(([tid, es]) => L.push(`- ${strip(nm(tid))} — ${es.map(e => e.why).join(' ')}`)); }
+  L.push('', '### Findings'); r.moves.forEach((m, i) => L.push(`- ${m.kind}: ${strip(m.text)}`));
+  L.push('', `Restore code: \`eagle-eye: ${encodeSel() || 'none'}\``, '', 'Claude: read these changes against the box file, re-argue the set, and tell me what else moves.');
+  return L.join('\n');
+}
+function loadCode(raw){
+  const ids = raw.replace(/^\s*eagle-eye:\s*/i, '').split(',').map(s => s.trim()).filter(Boolean);
+  Object.assign(sel, chosenOf); const bad = [];
+  ids.forEach(id => { if (id === 'none') return; if (optById[id]) { sel[optById[id].dim.id] = id; touched.add(optById[id].dim.id); } else bad.push(id); });
+  pending = null; update();
+  $('exportStatus').textContent = bad.length ? `Loaded. Unknown: ${bad.join(', ')}` : (ids.length ? 'Loaded.' : 'Reset to chosen.');
+}
+function syncHash(){ const s = encodeSel().replace(/,\s*/g, ','); history.replaceState(null, '', s ? `#sel=${s}` : location.pathname + location.search); }
+function decodeHash(){ const m = /sel=([^&]*)/.exec(location.hash); if (m) loadCode(decodeURIComponent(m[1])); }
+
+function wire(){
+  $('view').querySelectorAll('[data-pick]').forEach(b => b.addEventListener('click', () => { const o = optById[b.dataset.pick]; override(o.dim, o); }));
+  $('view').querySelector('[data-back]')?.addEventListener('click', () => { openRow = null; update(); });
+  $('reveal')?.addEventListener('click', () => { pending.revealed = true; update(); });
+  $('skipPredict')?.addEventListener('click', () => { pending = null; update(); });
+}
+// Motion follows how far the reader moved. A new view animates the whole band; a row opened animates
+// the right pane only, so the index does not restack under the pointer. Neither key reads the
+// selection, so picking a cell repaints without any animation at all.
+let lastView = '', lastPane = '', lastVerdict = '';
+function paintExport(){
+  if ($('exportBox').hidden) return;
+  $('restoreCode').textContent = `eagle-eye: ${encodeSel() || 'none'}`;
+  if ($('exportDetails').open) $('exportText').value = exportMarkdown();
+}
+function update(){
+  hideTip();
+  const r = EagleEye.analyse(BOX, sel, touched);
+  $('viewFind').classList.toggle('on', view === 'findings'); $('viewSheet').classList.toggle('on', view === 'sheet');
+  view === 'sheet' ? renderSheet(r) : renderFindings(r);
+  const pane = `${openRow || ''}|${pending ? (pending.revealed ? 'reveal' : 'predict') : ''}`;
+  const v = $('view');
+  v.classList.remove('anim', 'anim-body');
+  if (view !== lastView) { void v.offsetWidth; v.classList.add('anim'); }
+  else if (pane !== lastPane) { void v.offsetWidth; v.classList.add('anim-body'); }
+  lastView = view; lastPane = pane;
+  const stamp = v.querySelector('.stamp');
+  if (stamp && r.verdict !== lastVerdict) { void stamp.offsetWidth; stamp.classList.add('vchg'); }
+  lastVerdict = r.verdict;
+  markSteps(); syncHash(); paintExport();
+}
+$('viewFind').addEventListener('click', () => { view = 'findings'; update(); });
+$('viewSheet').addEventListener('click', () => { view = 'sheet'; update(); });
+// ---- Reset, and the ten seconds you have to take it back ----
+function snapshotState(){ return { sel: { ...sel }, touched: new Set(touched), openRow, view }; }
+function restoreState(s){ Object.assign(sel, s.sel); touched.clear(); s.touched.forEach(t => touched.add(t)); openRow = s.openRow; view = s.view; pending = null; }
+function paintReset(){
+  const offering = !!undoSnap && resetHot;
+  $('reset').textContent = offering ? 'Undo' : 'Reset';
+  $('reset').classList.toggle('armed', offering);
+  $('reset').title = offering ? 'Put back the options you had before the reset'
+    : undoSnap ? 'Reset. Hover to take the last reset back' : 'Put every row back to its chosen option';
+}
+function disarmUndo(){ clearTimeout(undoFuse); undoFuse = null; undoSnap = null; paintReset(); }
+function resetHover(on){
+  clearTimeout(hotFuse); hotFuse = null;
+  if (on) { resetHot = true; clearTimeout(undoFuse); undoFuse = null; paintReset(); return; }
+  // Demote the label after a short settle rather than on the leave event itself. The swap changes the
+  // button's width, so an instant demotion could resize the control back under a pointer that was still
+  // on its way out, re-fire mouseenter, and oscillate between Reset and Undo. The CSS min-width removes
+  // the resize; this removes the race that made it visible. The pointer leaving is not a decision.
+  hotFuse = setTimeout(() => { resetHot = false; paintReset(); }, HOT_SETTLE_MS);
+  // The ten-second offer is a separate clock: how long the undo stays available, not how the label reads.
+  if (undoSnap) { clearTimeout(undoFuse); undoFuse = setTimeout(disarmUndo, UNDO_GRACE_MS); }
+}
+$('reset').addEventListener('mouseenter', () => resetHover(true));
+$('reset').addEventListener('focus', () => resetHover(true));
+$('reset').addEventListener('mouseleave', () => resetHover(false));
+$('reset').addEventListener('blur', () => resetHover(false));
+$('reset').addEventListener('click', () => {
+  if (undoSnap && resetHot) { const s = undoSnap; disarmUndo(); restoreState(s); update(); return; }
+  const before = snapshotState();
+  const hadOverrides = BOX.dims.some(d => sel[d.id] !== chosenOf[d.id]);
+  resetAll(); update();                      // resetAll disarms, so arm after it
+  if (hadOverrides) { undoSnap = before; paintReset(); }
+});
+const setCoach = on => { coach = on; pending = null; $('coachToggle').textContent = `Coach: ${on ? 'on' : 'off'}`; $('coachToggle').classList.toggle('on', on); $('coachToggle').classList.toggle('ghost', !on); };
+$('coachToggle').addEventListener('click', () => { setCoach(!coach); update(); });
+$('exportBtn').addEventListener('click', () => { const b = $('exportBox'); b.hidden = !b.hidden; $('exportStatus').textContent = ''; paintExport(); });
+$('closeExport').addEventListener('click', () => { $('exportBox').hidden = true; });
+$('exportDetails').addEventListener('toggle', paintExport);
+$('copyBtn').addEventListener('click', async () => { $('exportText').value = exportMarkdown(); try { await navigator.clipboard.writeText($('exportText').value); $('exportStatus').textContent = 'Copied.'; } catch { $('exportText').select(); $('exportStatus').textContent = 'Press Ctrl/Cmd+C.'; } });
+$('loadBtn').addEventListener('click', () => loadCode($('loadCode').value));
+$('loadCode').addEventListener('keydown', e => { if (e.key === 'Enter') loadCode($('loadCode').value); });
+
+// ---- presets: declarative, from the box file. step = { label, set?: {dimId: optId}, open?: dimId|null, view?: 'findings'|'sheet', coach?: bool, reset?: true, predict?: true } ----
+const PRESETS = BOX.presets || [];
+let preset = -1, stepIdx = 0;
+function runStep(s){
+  if (s.reset) resetAll();
+  if (s.coach !== undefined) setCoach(s.coach);
+  if (s.set) Object.entries(s.set).forEach(([d, o]) => { if (optById[o] && optById[o].dim.id === d) { touched.add(d); sel[d] = o; } });
+  if (s.predict && s.set) { const d = Object.keys(s.set)[0]; pending = { dimId: d, predicted: new Set(), revealed: false }; openRow = null; view = 'findings'; }
+  if (s.open !== undefined) openDim(s.open);
+  if (s.view) view = s.view;
+}
+function paintPresets(){
+  if (!PRESETS.length) { $('presetGroup').hidden = true; return; }
+  $('presets').innerHTML = PRESETS.map((p, i) => `<button class="chip ${i === preset ? 'on' : ''}" data-p="${i}">${esc(p.title)}</button>`).join('') + `<button class="chip ghost" data-p="-1">Free</button>`;
+  // Picking a preset starts it from the baseline. Every preset used to open with a Reset step that did this
+  // by hand, which spent the reader's first click on housekeeping and left the grid stale until they made it.
+  // "Free" is not a preset — it means stop guiding me — so it changes no option.
+  $('presets').querySelectorAll('[data-p]').forEach(b => b.addEventListener('click', () => { preset = +b.dataset.p; stepIdx = 0; if (preset >= 0) resetAll(); paintPresets(); update(); }));
+  $('presetNote').hidden = preset < 0;
+  if (preset >= 0) { $('presetText').textContent = PRESETS[preset].text || ''; $('presetSteps').innerHTML = PRESETS[preset].steps.map((s, i) => `<button data-i="${i}">${i + 1}. ${esc(s.label)}</button>`).join('');
+    $('presetSteps').querySelectorAll('button').forEach(b => b.addEventListener('click', () => { const i = +b.dataset.i; runStep(PRESETS[preset].steps[i]); stepIdx = i + 1; update(); })); }
+  markSteps();
+}
+function markSteps(){ $('presetSteps').querySelectorAll('button').forEach((b, i) => { b.classList.toggle('done', i < stepIdx); b.classList.toggle('next', i === stepIdx); }); }
+paintPresets(); paintReset(); decodeHash(); update();
+</script>
+</body>
+</html>

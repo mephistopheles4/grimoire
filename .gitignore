@@ -1,0 +1,5 @@
+node_modules/
+site/
+*.local.*
+.DS_Store
+Thumbs.db

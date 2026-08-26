@@ -1,0 +1,900 @@
+{
+  "title": "The eagle-eye skill",
+  "dims": [
+    {
+      "id": "driver",
+      "problem": "A morphological box needs somebody to build it and somebody to read a change back. The agent could do both, or hand a page to a person and never see it again. This row decides whether a box is a one-way artifact the agent produces, or a document a person edits and returns for the agent to re-argue.",
+      "name": "Who drives it",
+      "opts": [
+        {
+          "id": "driver-method",
+          "label": "Claude’s reasoning method: it builds the box in chat; the page is optional",
+          "src": "chat Q1",
+          "short": "Claude reasons in chat"
+        },
+        {
+          "id": "driver-gen",
+          "label": "A generator: Claude emits the page, you do the thinking",
+          "src": "chat Q1",
+          "short": "Generator only"
+        },
+        {
+          "id": "driver-both",
+          "label": "Both, round-tripped: Claude builds, you override and export, Claude re-argues",
+          "chosen": true,
+          "src": "chat Q1",
+          "short": "Round-tripped"
+        },
+        {
+          "id": "driver-none",
+          "label": "No tool — keep grilling one question at a time",
+          "strawman": true,
+          "short": "No tool"
+        }
+      ]
+    },
+    {
+      "id": "trigger",
+      "problem": "A skill only helps if it starts at the right moment. Too eager and it builds a grid for two unrelated choices. Too shy and a tangled discussion never gets one. This row decides what wakes the skill: an explicit request, a coupling the agent notices, a host flow that calls it, or all three.",
+      "name": "When it fires",
+      "opts": [
+        {
+          "id": "trig-name",
+          "label": "By name only: /eagle-eye",
+          "src": "chat Q2",
+          "short": "By name only"
+        },
+        {
+          "id": "trig-signal",
+          "label": "On the coupling smell alone: 3+ decisions where one pick changes another",
+          "src": "chat Q2",
+          "short": "Coupling smell"
+        },
+        {
+          "id": "trig-hosts",
+          "label": "As a stage inside brainstorming, grilling, wayfinder",
+          "src": "chat Q2",
+          "short": "Inside host flows"
+        },
+        {
+          "id": "trig-full",
+          "label": "Signal + host stages, with the name as fallback",
+          "chosen": true,
+          "src": "chat Q2",
+          "short": "Smell + hosts + name"
+        }
+      ]
+    },
+    {
+      "id": "edges",
+      "problem": "An edge colours the grid, so a reader treats it as a fact. Some edges come from a measurement, some from a named document, and some from the author's own reasoning. This row decides whether the page shows that difference, and how much a weak edge must admit before it may colour anything.",
+      "name": "Edge honesty",
+      "opts": [
+        {
+          "id": "edge-evidence",
+          "label": "Evidence required: no edge without a citation",
+          "src": "chat Q3",
+          "short": "Evidence required"
+        },
+        {
+          "id": "edge-reason",
+          "label": "Reasoning is enough: a one-line why",
+          "src": "chat Q3",
+          "short": "One-line why"
+        },
+        {
+          "id": "edge-tiered",
+          "label": "Tiered and labelled: measured / sourced / argued",
+          "chosen": true,
+          "src": "chat Q3",
+          "short": "Tiered + labelled"
+        },
+        {
+          "id": "edge-bare",
+          "label": "Just the edge, no why at all",
+          "strawman": true,
+          "short": "No why"
+        }
+      ]
+    },
+    {
+      "id": "moves",
+      "problem": "After a reader changes an option, the page can report a verdict and stop, or it can point at what the reader has not looked at. A verdict alone closes the question. This row decides whether the panel also names the untouched row, the weakest edge, and the strawman that nothing ruled out.",
+      "name": "What the panel says",
+      "opts": [
+        {
+          "id": "moves-verdict",
+          "label": "The verdict only: consistent / incomplete / does not hold",
+          "strawman": true,
+          "short": "Verdict only"
+        },
+        {
+          "id": "moves-six",
+          "label": "The six moves: untouched row, weakest edge, load-bearing option, free row, survived strawman, cogency test",
+          "chosen": true,
+          "src": "chat Q4",
+          "short": "The six moves"
+        }
+      ]
+    },
+    {
+      "id": "coach",
+      "problem": "People remember a system better when they predict its behaviour before they see it. A page can force that, offer it, or skip it. Forcing it makes a quick lookup slow. This row decides whether prediction exists at all, and whether the reader opts in.",
+      "name": "Coach layer",
+      "opts": [
+        {
+          "id": "coach-none",
+          "label": "None",
+          "src": "chat Q5",
+          "short": "None"
+        },
+        {
+          "id": "coach-optin",
+          "label": "Opt-in: predict before reveal",
+          "chosen": true,
+          "src": "chat Q5",
+          "short": "Opt-in predict"
+        },
+        {
+          "id": "coach-always",
+          "label": "Always on: every override is a quiz",
+          "strawman": true,
+          "short": "Always a quiz"
+        }
+      ]
+    },
+    {
+      "id": "audit",
+      "problem": "Every edge is a reason, and a reason can be wrong in eight known ways. Checking all of them is thorough and slow. Checking none ships colour the reader cannot trust. This row decides which edges are audited before the box is rendered.",
+      "name": "Edge audit",
+      "opts": [
+        {
+          "id": "audit-none",
+          "label": "None",
+          "src": "chat Q5",
+          "short": "None"
+        },
+        {
+          "id": "audit-argued",
+          "label": "The eight weakness patterns, on argued edges",
+          "chosen": true,
+          "src": "chat Q5",
+          "short": "Argued edges"
+        },
+        {
+          "id": "audit-all",
+          "label": "On every edge, every tier",
+          "src": "chat Q5",
+          "short": "Every edge"
+        }
+      ]
+    },
+    {
+      "id": "home",
+      "problem": "A skill file sits either in the user's own directory or inside one repository. In the user's directory it works everywhere and travels with the person. In a repository it ships to a team and is reviewed like code. This row picks where the skill is installed.",
+      "name": "Where it lives",
+      "opts": [
+        {
+          "id": "home-user",
+          "label": "User-level: ~/.claude/skills",
+          "chosen": true,
+          "src": "chat Q6",
+          "short": "User-level"
+        },
+        {
+          "id": "home-repo",
+          "label": "This repo: .claude/skills, beside phase-gate",
+          "src": "chat Q6",
+          "short": "This repo"
+        },
+        {
+          "id": "home-both",
+          "label": "Developed here, promoted later",
+          "src": "chat Q6",
+          "short": "Here, then promote"
+        }
+      ]
+    },
+    {
+      "id": "persist",
+      "problem": "A box can vanish when the conversation ends, or be written to a file somebody commits. A file lets a later session re-argue the same decisions and lets a reader return to them. It also becomes one more document to keep true. This row decides whether a box outlives its conversation.",
+      "name": "Does a box persist",
+      "opts": [
+        {
+          "id": "persist-no",
+          "label": "Ephemeral: conversation and page only",
+          "src": "chat Q7",
+          "short": "Ephemeral"
+        },
+        {
+          "id": "persist-decision",
+          "label": "Durable, one file per coupled decision",
+          "chosen": true,
+          "src": "chat Q7",
+          "short": "File per decision"
+        },
+        {
+          "id": "persist-project",
+          "label": "Durable, one box per project",
+          "src": "chat Q7",
+          "short": "One per project"
+        }
+      ]
+    },
+    {
+      "id": "build",
+      "problem": "The page could be written by the model each time, produced by a fixed renderer from a data file, or served by a full command-line tool. A page re-authored each time drifts the export format that the round trip depends on. This row decides how much machinery the skill carries.",
+      "name": "How it is built",
+      "opts": [
+        {
+          "id": "build-prompt",
+          "label": "Prompt-only: Claude hand-writes the page from a template",
+          "src": "chat approaches",
+          "short": "Prompt-only"
+        },
+        {
+          "id": "build-renderer",
+          "label": "Skill + zero-dep renderer: box file in, page out",
+          "chosen": true,
+          "src": "chat approaches",
+          "short": "Skill + renderer"
+        },
+        {
+          "id": "build-tool",
+          "label": "A proper CLI / MCP tool: validate, render, diff",
+          "src": "chat approaches",
+          "short": "Full CLI / MCP"
+        }
+      ]
+    },
+    {
+      "id": "page",
+      "problem": "The rendered box has to reach the reader somehow: a local file they open, a hosted page with a link, or nothing beyond the chat. Hosting needs a tool that is not always available. This row decides the delivery, and what happens when the preferred one is missing.",
+      "name": "Where the page goes",
+      "opts": [
+        {
+          "id": "page-local",
+          "label": "A local HTML file, opened in the browser; Artifact when available",
+          "chosen": true,
+          "src": "chat, my call",
+          "short": "Local HTML"
+        },
+        {
+          "id": "page-artifact",
+          "label": "Artifact only",
+          "src": "chat, my call",
+          "short": "Artifact only"
+        },
+        {
+          "id": "page-chat",
+          "label": "No page: the markdown table is the whole tool",
+          "strawman": true,
+          "short": "No page"
+        }
+      ]
+    },
+    {
+      "id": "data",
+      "problem": "The box is data before it is a page, and something has to hold it. JSON is strict and every tool reads it. YAML is easier to write by hand and easier to get wrong. Embedding it in the page removes the separate file, and the round trip with it. This row picks the format.",
+      "name": "Box file format",
+      "opts": [
+        {
+          "id": "data-json",
+          "label": "JSON",
+          "chosen": true,
+          "src": "chat, my call",
+          "short": "JSON"
+        },
+        {
+          "id": "data-yaml",
+          "label": "YAML",
+          "src": "chat, my call",
+          "short": "YAML"
+        },
+        {
+          "id": "data-embedded",
+          "label": "Embedded in the page, as the #186 artifact does",
+          "src": "the artifact",
+          "short": "Embedded in page"
+        }
+      ]
+    },
+    {
+      "id": "depth",
+      "problem": "Not every set of decisions deserves a rendered page. Three coupled choices fit in a table in the chat. Fifteen need splitting into clusters. This row decides what picks the output: the number of rows, a flag the user passes, or the full treatment every time.",
+      "name": "Depth control",
+      "opts": [
+        {
+          "id": "depth-rows",
+          "label": "By row count: 2–3 rows a chat table, 4+ a page, 15+ split",
+          "chosen": true,
+          "src": "chat, section 1",
+          "short": "By row count"
+        },
+        {
+          "id": "depth-flag",
+          "label": "A flag the user passes",
+          "src": "chat, section 1",
+          "short": "A flag"
+        },
+        {
+          "id": "depth-always",
+          "label": "Always the full page, no tuning",
+          "strawman": true,
+          "short": "Always full"
+        }
+      ]
+    },
+    {
+      "id": "name",
+      "problem": "The command name is what the user types and what the agent recognises. It has to be memorable, unlikely to collide with another command, and suggestive of what the tool does. This row picks between the metaphor, the technical term, and the short generic word.",
+      "name": "Name",
+      "opts": [
+        {
+          "id": "name-eagle",
+          "label": "/eagle-eye",
+          "chosen": true,
+          "src": "chat",
+          "short": "/eagle-eye"
+        },
+        {
+          "id": "name-morph",
+          "label": "/morph",
+          "src": "chat",
+          "short": "/morph"
+        },
+        {
+          "id": "name-box",
+          "label": "/box",
+          "src": "chat",
+          "short": "/box"
+        }
+      ]
+    }
+  ],
+  "rel": {
+    "driver-both": {
+      "why": "Chosen. The restore code in the #186 artifact already hints at the loop; the page is the surface you think on, the export is what Claude reads back.",
+      "rel": [
+        [
+          "build-prompt",
+          "conf",
+          "A round trip needs an export format both sides agree on; a page re-authored by hand each time drifts it.",
+          "argued"
+        ],
+        [
+          "persist-decision",
+          "req",
+          "Reading an export back as overrides needs a file to diff against.",
+          "argued"
+        ]
+      ],
+      "notes": [
+        "The export→Claude half is the artifact’s own design; the Claude→file half is new and untested."
+      ]
+    },
+    "driver-method": {
+      "why": "Claude builds the box in conversation and checks its own recommendation against it; the page is optional.",
+      "rel": [
+        [
+          "coach-optin",
+          "conf",
+          "Predict-before-reveal withholds a verdict the page computes; in chat Claude would have to withhold its own sentence.",
+          "argued"
+        ]
+      ],
+      "notes": []
+    },
+    "driver-gen": {
+      "why": "Claude emits the page; the thinking is yours.",
+      "rel": [
+        [
+          "audit-argued",
+          "conf",
+          "The audit is Claude checking edges it drew; a generator that does no reasoning has nothing to audit.",
+          "argued"
+        ],
+        [
+          "moves-six",
+          "conf",
+          "The moves are the panel reasoning about the set; a pure generator draws the grid and stops.",
+          "argued"
+        ]
+      ],
+      "notes": []
+    },
+    "driver-none": {
+      "why": "Strawman: no tool. Grilling one question at a time, as today.",
+      "rel": [
+        [
+          "moves-six",
+          "conf",
+          "No grid, no moves.",
+          "argued"
+        ],
+        [
+          "persist-decision",
+          "conf",
+          "Nothing to persist.",
+          "argued"
+        ],
+        [
+          "build-renderer",
+          "conf",
+          "Nothing to render.",
+          "argued"
+        ]
+      ],
+      "notes": [
+        "The honest comparison: you said a box resolves a grilling session as fast as you can read it. That is the claim this strawman tests."
+      ]
+    },
+    "trig-full": {
+      "why": "Chosen. The smell is the trigger; the hosts are where it shows up; the name is for when you see the coupling first.",
+      "rel": [
+        [
+          "depth-rows",
+          "req",
+          "A skill that fires itself must size its own output, or a three-row question gets a full page.",
+          "argued"
+        ]
+      ],
+      "notes": []
+    },
+    "trig-signal": {
+      "why": "Fires on the coupling smell only.",
+      "rel": [
+        [
+          "depth-rows",
+          "req",
+          "Same: self-firing needs self-sizing.",
+          "argued"
+        ],
+        [
+          "depth-flag",
+          "conf",
+          "Nobody is there to pass a flag when the skill fires on its own.",
+          "argued"
+        ]
+      ],
+      "notes": []
+    },
+    "trig-hosts": {
+      "why": "A stage inside brainstorming, grilling, wayfinder.",
+      "rel": [
+        [
+          "home-repo",
+          "conf",
+          "The hosts are global plugins; a repo-level skill makes a global flow behave differently per repo.",
+          "argued"
+        ]
+      ],
+      "notes": []
+    },
+    "trig-name": {
+      "why": "Only when you call it.",
+      "rel": [],
+      "notes": [
+        "No edges: a human-pulled trigger constrains nothing else. Zero false fires, zero reach."
+      ]
+    },
+    "edge-tiered": {
+      "why": "Chosen. Every edge says what it rests on; the verdict says what tier it rests on.",
+      "rel": [
+        [
+          "audit-argued",
+          "req",
+          "The argued tier is the one the audit exists for; tiers without an audit is labelling without checking.",
+          "argued"
+        ]
+      ],
+      "notes": []
+    },
+    "edge-evidence": {
+      "why": "No edge without a citation.",
+      "rel": [
+        [
+          "moves-six",
+          "conf",
+          "On a fresh decision almost nothing is cited — this very box would have two edges — so most moves have nothing to read.",
+          "argued"
+        ]
+      ],
+      "notes": [
+        "Count the sourced edges in this box: that is what an evidence-only grid of the same decision looks like."
+      ]
+    },
+    "edge-reason": {
+      "why": "A one-line why, no tier.",
+      "rel": [
+        [
+          "moves-six",
+          "conf",
+          "The weakest-edge move ranks by tier; with one tier there is no weakest.",
+          "argued"
+        ],
+        [
+          "audit-argued",
+          "conf",
+          "The audit targets argued edges; untiered, it runs on all of them or none.",
+          "argued"
+        ]
+      ],
+      "notes": []
+    },
+    "edge-bare": {
+      "why": "Strawman: the edge exists, nobody says why.",
+      "rel": [
+        [
+          "audit-argued",
+          "conf",
+          "Nothing to audit.",
+          "argued"
+        ],
+        [
+          "moves-six",
+          "conf",
+          "The cogency test asks whether the whys could all be true; there are none.",
+          "argued"
+        ]
+      ],
+      "notes": []
+    },
+    "moves-six": {
+      "why": "Chosen. A box that returns only consistent / does not hold is a checker; one that returns the thing you haven’t looked at is a thinking tool.",
+      "rel": [
+        [
+          "edge-tiered",
+          "req",
+          "The weakest-edge move needs a tier to rank by.",
+          "argued"
+        ]
+      ],
+      "notes": []
+    },
+    "moves-verdict": {
+      "why": "Strawman: the verdict and nothing else — the #186 artifact as it stands.",
+      "rel": [],
+      "notes": [
+        "This is the artifact you already have. If it survives the box, the six moves are decoration."
+      ]
+    },
+    "coach-optin": {
+      "why": "Chosen. Predict which rows an override breaks, then reveal. Retrieval practice, borrowed from the tutoring skill.",
+      "rel": [
+        [
+          "build-renderer",
+          "req",
+          "Withhold-then-reveal is page state; prompt-only re-implements it on every page.",
+          "argued"
+        ]
+      ],
+      "notes": [
+        "Try it: the toggle above. Then decide whether it is the strongest move or a quiz nobody asked for."
+      ]
+    },
+    "coach-none": {
+      "why": "No coaching layer.",
+      "rel": [],
+      "notes": []
+    },
+    "coach-always": {
+      "why": "Strawman: every override is a quiz.",
+      "rel": [
+        [
+          "depth-rows",
+          "conf",
+          "A three-row chat table with a withheld verdict is a quiz nobody asked for.",
+          "argued"
+        ]
+      ],
+      "notes": []
+    },
+    "audit-argued": {
+      "why": "Chosen. The TDE coach’s eight weakness patterns, run on argued edges only.",
+      "rel": [
+        [
+          "edge-tiered",
+          "req",
+          "The audit needs to know which edges are argued.",
+          "argued"
+        ]
+      ],
+      "notes": []
+    },
+    "audit-none": {
+      "why": "Edges go in as drawn.",
+      "rel": [],
+      "notes": [
+        "A plausible wrong edge then looks identical to a right one — the failure the tiers were meant to make visible."
+      ]
+    },
+    "audit-all": {
+      "why": "Audit every edge, every tier.",
+      "rel": [],
+      "notes": [
+        "Auditing a measured edge against “is it vague?” is re-running the measurement in prose. Cost, no catch."
+      ]
+    },
+    "home-user": {
+      "why": "Chosen. A thinking tool is yours, not the project’s; and you plan to share it from your own skill repo.",
+      "rel": [],
+      "notes": []
+    },
+    "home-repo": {
+      "why": "Versioned beside phase-gate; only this repo gets it.",
+      "rel": [
+        [
+          "trig-full",
+          "conf",
+          "A committed command invoking a plugin only one machine had is the crfix trap; a repo skill hooking global flows is its mirror.",
+          "sourced",
+          "memory: tooling-you-have-is-not-in-the-repo"
+        ]
+      ],
+      "notes": []
+    },
+    "home-both": {
+      "why": "Build here, promote later.",
+      "rel": [],
+      "notes": [
+        "Two copies to keep in step; the promotion is a chore nobody schedules."
+      ]
+    },
+    "persist-decision": {
+      "why": "Chosen. One file per coupled decision; the page regenerated from it; a box past ~15 rows splits.",
+      "rel": [
+        [
+          "data-json",
+          "req",
+          "A file needs a format the renderer reads with nothing installed.",
+          "argued"
+        ]
+      ],
+      "notes": []
+    },
+    "persist-no": {
+      "why": "Snapshot only.",
+      "rel": [
+        [
+          "driver-both",
+          "conf",
+          "A round trip has nothing to diff against.",
+          "argued"
+        ]
+      ],
+      "notes": []
+    },
+    "persist-project": {
+      "why": "One box for the whole system.",
+      "rel": [
+        [
+          "depth-rows",
+          "conf",
+          "A system box passes fifteen rows and the split rule fires on it by design.",
+          "argued"
+        ]
+      ],
+      "notes": []
+    },
+    "build-renderer": {
+      "why": "Chosen. Claude thinks and writes data; a zero-dep script renders, deterministically. Grid logic lives in one place.",
+      "rel": [
+        [
+          "data-embedded",
+          "conf",
+          "A renderer reads a file; data embedded in the page is the artifact’s shape, not a renderer’s input.",
+          "sourced",
+          "the #186 artifact: DIMS/REL are literals inside the page"
+        ]
+      ],
+      "notes": []
+    },
+    "build-prompt": {
+      "why": "Claude hand-writes the page each time.",
+      "rel": [
+        [
+          "coach-optin",
+          "conf",
+          "Predict-then-reveal is page state, re-implemented per page.",
+          "argued"
+        ],
+        [
+          "driver-both",
+          "conf",
+          "The export format drifts with every re-authoring.",
+          "argued"
+        ]
+      ],
+      "notes": [
+        "The grid logic would be re-derived by a model each time; the bugs would be quiet."
+      ]
+    },
+    "build-tool": {
+      "why": "A CLI or MCP server with validate / render / diff / moves.",
+      "rel": [],
+      "notes": [
+        "A product, not a skill. Nothing here rules it out — that is worth noticing. It is “too early”, which is a preference, not an edge."
+      ]
+    },
+    "page-local": {
+      "why": "Chosen. Works anywhere Node runs; Artifact when claude.ai is there.",
+      "rel": [],
+      "notes": []
+    },
+    "page-artifact": {
+      "why": "Publish as an Artifact only.",
+      "rel": [
+        [
+          "home-user",
+          "conf",
+          "A portable, shareable skill cannot assume claude.ai is reachable.",
+          "argued"
+        ]
+      ],
+      "notes": []
+    },
+    "page-chat": {
+      "why": "Strawman: no page. The markdown table is the tool.",
+      "rel": [
+        [
+          "driver-both",
+          "conf",
+          "No export to round-trip; the table is edited by hand or not at all.",
+          "argued"
+        ],
+        [
+          "coach-optin",
+          "conf",
+          "Nothing to withhold.",
+          "argued"
+        ]
+      ],
+      "notes": [
+        "For 2–3 rows this is already what depth-by-rows does. The strawman asks: why not always?"
+      ]
+    },
+    "data-json": {
+      "why": "Chosen. Node parses it with nothing installed.",
+      "rel": [],
+      "notes": []
+    },
+    "data-yaml": {
+      "why": "Friendlier to hand-edit.",
+      "rel": [
+        [
+          "build-renderer",
+          "conf",
+          "Node has no built-in YAML parser; zero-dep means JSON.",
+          "sourced",
+          "Node.js: JSON.parse is global; no yaml module in core"
+        ]
+      ],
+      "notes": []
+    },
+    "data-embedded": {
+      "why": "Data inside the page, as the artifact does today.",
+      "rel": [
+        [
+          "persist-decision",
+          "conf",
+          "The page is the file, so regenerating the page overwrites the data.",
+          "argued"
+        ]
+      ],
+      "notes": []
+    },
+    "depth-rows": {
+      "why": "Chosen. Depth follows the row count, not a flag.",
+      "rel": [],
+      "notes": []
+    },
+    "depth-flag": {
+      "why": "You pass --deep or --quick.",
+      "rel": [],
+      "notes": []
+    },
+    "depth-always": {
+      "why": "Strawman: no tuning at all; every box is the full page.",
+      "rel": [],
+      "notes": [
+        "You asked for tuning so it “doesn’t go too deep on easy decisions”. Nothing structural enforces that — watch whether this strawman survives."
+      ]
+    },
+    "name-eagle": {
+      "why": "Chosen: your sentence.",
+      "rel": [],
+      "notes": []
+    },
+    "name-morph": {
+      "why": "The method’s name.",
+      "rel": [],
+      "notes": []
+    },
+    "name-box": {
+      "why": "Shortest.",
+      "rel": [],
+      "notes": []
+    }
+  },
+  "eyebrow": "Sheet E-01 · the skill, boxed on itself · 2026-08-23",
+  "suspected": [
+    "Depth control → Coach layer: a three-row chat table with a withheld verdict may be a quiz nobody asked for. Argued once, not tested; not drawn as an edge because the depth row is a preference, not a constraint."
+  ],
+  "presets": [
+    {
+      "title": "Start",
+      "text": "No option is changed. Read the findings. Then open row 04 to see each option and its effect.",
+      "steps": [
+        {
+          "label": "Open row 04",
+          "open": "moves",
+          "view": "findings"
+        }
+      ]
+    },
+    {
+      "title": "Change one option",
+      "text": "Open row 09 and pick “Prompt-only”. Two other rows become amber. Then open the Sheet view and move the pointer over the options.",
+      "steps": [
+        {
+          "label": "Open row 09",
+          "open": "build",
+          "view": "findings"
+        },
+        {
+          "label": "Pick prompt-only",
+          "set": {
+            "build": "build-prompt"
+          },
+          "open": null
+        },
+        {
+          "label": "Sheet view",
+          "view": "sheet"
+        }
+      ]
+    },
+    {
+      "title": "Coach",
+      "text": "Set Coach to on. Change row 07 to “This repo”. The index shows no colours. Click the rows you think are affected. Then click Reveal.",
+      "steps": [
+        {
+          "label": "Coach on",
+          "coach": true
+        },
+        {
+          "label": "Home → this repo",
+          "set": {
+            "home": "home-repo"
+          },
+          "predict": true
+        }
+      ]
+    },
+    {
+      "title": "Strawmen",
+      "text": "Change row 01 to “No tool”. Three edges rule it out. Reset. Change row 04 to “Verdict only”. No row becomes amber: no option in the design requires the six moves.",
+      "steps": [
+        {
+          "label": "Driver → no tool",
+          "set": {
+            "driver": "driver-none"
+          },
+          "open": "driver"
+        },
+        {
+          "label": "Reset",
+          "reset": true
+        },
+        {
+          "label": "Panel → verdict only",
+          "set": {
+            "moves": "moves-verdict"
+          },
+          "open": "moves"
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,746 @@
+{
+  "title": "Publish eagle-eye as a public repo",
+  "eyebrow": "2026-08-26 · rev B · author’s set, after the stacks posture",
+  "dims": [
+    {
+      "id": "install",
+      "name": "Install route",
+      "question": "What does the README tell a stranger to run?",
+      "problem": "A skill is a folder that Claude Code reads at start-up. The reader must get that folder onto their machine, in a place Claude Code looks. Claude Code offers a plugin system for this: a repo with a manifest installs with one command. The alternative is a copy by hand. This row picks the one route the README puts first, because a second route always becomes the unread one.",
+      "opts": [
+        {
+          "id": "inst-plugin",
+          "label": "Publish as a Claude Code plugin. The reader runs one marketplace command.",
+          "short": "Plugin install",
+          "chosen": true,
+          "src": "assistant proposal, /eagle-eye session 2026-08-26"
+        },
+        {
+          "id": "inst-copy",
+          "label": "The reader clones the repo and copies the folder into the skills directory.",
+          "short": "Manual copy",
+          "src": "assistant proposal, /eagle-eye session 2026-08-26"
+        },
+        {
+          "id": "inst-npm",
+          "label": "Publish to npm. A command copies the skill files into place.",
+          "short": "npm package",
+          "src": "assistant proposal, /eagle-eye session 2026-08-26"
+        },
+        {
+          "id": "inst-script",
+          "label": "The README gives one shell command. The command downloads and copies the files.",
+          "short": "Install script",
+          "src": "assistant proposal, /eagle-eye session 2026-08-26"
+        },
+        {
+          "id": "inst-readme",
+          "label": "The README shows the file tree. The reader works out the install.",
+          "short": "No instructions",
+          "strawman": true,
+          "src": "assistant proposal, /eagle-eye session 2026-08-26"
+        }
+      ]
+    },
+    {
+      "id": "path",
+      "name": "How the skill finds its renderer",
+      "question": "What command does SKILL.md tell Claude to run?",
+      "problem": "The skill writes a box file, then runs render.mjs to make the page. SKILL.md holds that command as text, and today the text is a fixed path under the home directory. A fixed path is correct for one install location and wrong for every other. This row picks how the command names the renderer, so the skill still works where the reader put it.",
+      "opts": [
+        {
+          "id": "path-hard",
+          "label": "Keep the fixed path under the home skills directory.",
+          "short": "Fixed home path",
+          "src": "SKILL.md:89, SKILL.md:102"
+        },
+        {
+          "id": "path-root",
+          "label": "Use the plugin root variable in the command.",
+          "short": "Plugin root var",
+          "src": "assistant proposal, /eagle-eye session 2026-08-26"
+        },
+        {
+          "id": "path-rel",
+          "label": "Run render.mjs from the skill base directory that the harness supplies.",
+          "short": "Skill base dir",
+          "chosen": true,
+          "src": "assistant proposal, /eagle-eye session 2026-08-26"
+        },
+        {
+          "id": "path-npx",
+          "label": "Call a published command line tool instead of a file.",
+          "short": "npx command",
+          "src": "assistant proposal, /eagle-eye session 2026-08-26"
+        },
+        {
+          "id": "path-inline",
+          "label": "Drop the renderer. Claude writes the page itself.",
+          "short": "No renderer",
+          "strawman": true,
+          "src": "assistant proposal, /eagle-eye session 2026-08-26"
+        }
+      ]
+    },
+    {
+      "id": "scope",
+      "name": "What the repo holds",
+      "question": "Does the repo carry one skill, three skills, or a marketplace?",
+      "problem": "The author has three private skills. Eagle-eye is one. A repo can hold one skill, all three, or a marketplace manifest that lists many plugins and grows later. Scope sets the name, the licence unit, and the release rhythm. A wide repo makes each part harder to find. A narrow repo needs a second repo for the next skill.",
+      "opts": [
+        {
+          "id": "scope-solo",
+          "label": "One repo. Eagle-eye only.",
+          "short": "Eagle-eye alone",
+          "src": "assistant proposal, /eagle-eye session 2026-08-26"
+        },
+        {
+          "id": "scope-bundle",
+          "label": "One repo with all three personal skills.",
+          "short": "Skills bundle",
+          "src": "assistant proposal, /eagle-eye session 2026-08-26"
+        },
+        {
+          "id": "scope-market",
+          "label": "A marketplace repo. It lists eagle-eye and has room for more plugins.",
+          "short": "Marketplace repo",
+          "src": "assistant proposal, /eagle-eye session 2026-08-26",
+          "chosen": true
+        },
+        {
+          "id": "scope-guest",
+          "label": "Add the skill to a marketplace that somebody else owns. Publish no repo.",
+          "short": "Somebody else's repo",
+          "strawman": true,
+          "src": "assistant proposal, /eagle-eye session 2026-08-26"
+        }
+      ]
+    },
+    {
+      "id": "license",
+      "name": "Licence",
+      "question": "Under what terms may a stranger copy and change the work?",
+      "problem": "Copyright is automatic. Without a licence file the work stays all rights reserved, and a reader has no permission to copy it. A licence grants that permission and sets the conditions. MIT is short and permissive. Apache 2.0 adds a patent grant and a notice duty. CC0 waives rights and suits documents better than code. This row states the terms in the repo.",
+      "opts": [
+        {
+          "id": "lic-mit",
+          "label": "MIT.",
+          "short": "MIT",
+          "chosen": true,
+          "src": "assistant proposal, /eagle-eye session 2026-08-26"
+        },
+        {
+          "id": "lic-apache",
+          "label": "Apache 2.0.",
+          "short": "Apache 2.0",
+          "src": "assistant proposal, /eagle-eye session 2026-08-26"
+        },
+        {
+          "id": "lic-cc0",
+          "label": "CC0. The author waives rights.",
+          "short": "CC0",
+          "src": "assistant proposal, /eagle-eye session 2026-08-26"
+        },
+        {
+          "id": "lic-none",
+          "label": "No licence file.",
+          "short": "No licence",
+          "strawman": true,
+          "src": "assistant proposal, /eagle-eye session 2026-08-26"
+        }
+      ]
+    },
+    {
+      "id": "proof",
+      "name": "What the README shows first",
+      "question": "What does a stranger see in the first ten seconds?",
+      "problem": "Eagle-eye makes an interactive page. Text alone cannot show it. A stranger decides in seconds whether the tool is worth an install, and the README carries that decision. The options differ in cost and in how fast they go stale. A hosted page always matches the code. Screenshots do not. This row picks the first proof, not the only content.",
+      "opts": [
+        {
+          "id": "proof-prose",
+          "label": "The README explains the method and shows the box file as text.",
+          "short": "Text only",
+          "src": "assistant proposal, /eagle-eye session 2026-08-26"
+        },
+        {
+          "id": "proof-shots",
+          "label": "The README shows screenshots of the rendered page.",
+          "short": "Screenshots",
+          "src": "assistant proposal, /eagle-eye session 2026-08-26"
+        },
+        {
+          "id": "proof-pages",
+          "label": "GitHub Pages serves the example page. The README links to it.",
+          "short": "Live page",
+          "src": "assistant proposal, /eagle-eye session 2026-08-26",
+          "chosen": true
+        },
+        {
+          "id": "proof-thin",
+          "label": "One paragraph and the file list.",
+          "short": "Bare README",
+          "strawman": true,
+          "src": "assistant proposal, /eagle-eye session 2026-08-26"
+        }
+      ]
+    },
+    {
+      "id": "support",
+      "name": "Support posture",
+      "question": "What does the author promise a reader who has a problem?",
+      "problem": "A public repo attracts questions and patches. The author owes nothing, but silence reads as abandonment, and an open door costs time. This row states the promise in the README, so a reader knows what to expect before they open an issue. It also sets whether outside code enters the project, which changes the licence duties and the review load.",
+      "opts": [
+        {
+          "id": "sup-open",
+          "label": "Issues and pull requests welcome. A contributing file states the rules.",
+          "short": "Issues and PRs",
+          "src": "assistant proposal, /eagle-eye session 2026-08-26",
+          "chosen": true
+        },
+        {
+          "id": "sup-issues",
+          "label": "Issues welcome. The author reads pull requests case by case.",
+          "short": "Issues only",
+          "src": "assistant proposal, /eagle-eye session 2026-08-26"
+        },
+        {
+          "id": "sup-asis",
+          "label": "The README states the repo is unsupported. Readers fork it.",
+          "short": "As is",
+          "src": "assistant proposal, /eagle-eye session 2026-08-26"
+        },
+        {
+          "id": "sup-archive",
+          "label": "Publish, then archive the repo read-only.",
+          "short": "Archived",
+          "strawman": true,
+          "src": "assistant proposal, /eagle-eye session 2026-08-26"
+        }
+      ]
+    },
+    {
+      "id": "release",
+      "name": "Release discipline",
+      "question": "How does a reader know which version they have, and that it works?",
+      "problem": "The renderer validates a box file and refuses a bad one. That check can run by hand or on every push. Versions are a separate promise: a tag lets a reader name what they installed and read what changed. Both cost setup time before anybody uses the tool. This row is a ladder. Each step includes the step below it.",
+      "opts": [
+        {
+          "id": "rel-main",
+          "label": "A rolling main branch. No versions and no checks.",
+          "short": "Rolling main",
+          "strawman": true,
+          "src": "assistant proposal, /eagle-eye session 2026-08-26"
+        },
+        {
+          "id": "rel-tags",
+          "label": "Semantic version tags and a changelog.",
+          "short": "Tags and changelog",
+          "src": "assistant proposal, /eagle-eye session 2026-08-26"
+        },
+        {
+          "id": "rel-ci",
+          "label": "A GitHub Action checks every example box on push. Tags on top.",
+          "short": "CI plus tags",
+          "chosen": true,
+          "src": "assistant proposal, /eagle-eye session 2026-08-26"
+        }
+      ]
+    },
+    {
+      "id": "security",
+      "name": "Security posture",
+      "question": "How does a stranger report a flaw, and what guards the repo between reports?",
+      "problem": "The renderer reads a box file and writes an HTML page that somebody then opens. A shared box file is therefore input from a stranger, and the page is built from its text. The repo also carries a dependency tree and a workflow. This row sets two things at once: the channel for a report, and the controls that run without one. Some controls live in GitHub settings, outside the tree, so no file in the repo can prove they are on.",
+      "opts": [
+        {
+          "id": "sec-none",
+          "label": "No security file. The issue tracker is the only channel.",
+          "short": "No policy",
+          "strawman": true,
+          "src": "assistant proposal, /eagle-eye session 2026-08-26"
+        },
+        {
+          "id": "sec-report",
+          "label": "A SECURITY.md that names private vulnerability reporting and the scope.",
+          "short": "Report channel",
+          "src": "assistant proposal, /eagle-eye session 2026-08-26"
+        },
+        {
+          "id": "sec-model",
+          "label": "The report channel, plus a threat model and a list of what is not defended.",
+          "short": "Threat model",
+          "src": "stacks/SECURITY.md"
+        },
+        {
+          "id": "sec-platform",
+          "label": "The threat model, plus platform controls: Dependabot, CodeQL, branch protection, pinned actions.",
+          "short": "Model plus platform",
+          "chosen": true,
+          "src": "stacks/SECURITY.md — \"What the platform is relied on for\""
+        }
+      ]
+    }
+  ],
+  "rel": {
+    "inst-plugin": {
+      "why": "Claude Code installs a plugin from a GitHub repo with one command. The repo needs a manifest at .claude-plugin/plugin.json and the skill under skills/eagle-eye/.",
+      "rel": [
+        [
+          "path-hard",
+          "conf",
+          "A plugin installs into the plugin directory, so the fixed home path points at nothing.",
+          "sourced",
+          "code.claude.com/docs/en/plugins-reference — CLAUDE_PLUGIN_ROOT is the absolute path to the plugin install directory"
+        ]
+      ],
+      "notes": [
+        "A single-plugin repo installs without a marketplace.json file. Source: code.claude.com/docs/en/plugin-marketplaces.",
+        "SKILL.md already carries the frontmatter name field, so the skill keeps its name under any install directory."
+      ]
+    },
+    "inst-copy": {
+      "why": "The reader clones the repo and copies one folder. This is what the author does today, and it needs no manifest.",
+      "rel": [
+        [
+          "path-root",
+          "conf",
+          "Claude Code sets the plugin root variable for installed plugins only, so a copied folder has no value to read.",
+          "sourced",
+          "code.claude.com/docs/en/plugins-reference"
+        ]
+      ],
+      "notes": [
+        "A copy by hand goes stale in silence. The reader gets no update signal."
+      ]
+    },
+    "inst-npm": {
+      "why": "npm gives a registry name, a version number, and one familiar command.",
+      "rel": [
+        [
+          "path-npx",
+          "req",
+          "The package publishes a command. The skill must call that command, not a file path.",
+          "argued"
+        ]
+      ],
+      "notes": [
+        "The renderer imports only node built-in modules. Verified: no external import in render.mjs or lib/eagle-eye.js.",
+        "So npm adds a name and a version, and nothing more. It still cannot place SKILL.md where Claude Code reads it."
+      ]
+    },
+    "inst-script": {
+      "why": "One shell command copies the files. It works on any machine with git and a shell.",
+      "rel": [
+        [
+          "path-root",
+          "conf",
+          "The script copies files into the skills folder, where the plugin root variable is not set.",
+          "sourced",
+          "code.claude.com/docs/en/plugins-reference"
+        ]
+      ],
+      "notes": [
+        "A pipe from the network into a shell asks the reader to trust the author. Many readers refuse."
+      ]
+    },
+    "inst-readme": {
+      "why": "The none answer. The repo shows the files and says nothing about the install.",
+      "rel": [
+        [
+          "sup-issues",
+          "conf",
+          "Every reader asks the same install question, so the tracker fills with one question.",
+          "argued"
+        ],
+        [
+          "sup-open",
+          "conf",
+          "A contributor cannot patch a skill they failed to install.",
+          "argued"
+        ]
+      ]
+    },
+    "path-hard": {
+      "why": "The command in SKILL.md today. It is correct for the author's own machine.",
+      "notes": [
+        "SKILL.md line 89 and line 102 hold this path. Both must change together."
+      ]
+    },
+    "path-root": {
+      "why": "Claude Code expands the plugin root variable to the plugin install directory.",
+      "rel": [
+        [
+          "inst-plugin",
+          "req",
+          "Only a plugin install sets the variable, so this command needs the plugin route.",
+          "sourced",
+          "code.claude.com/docs/en/plugins-reference"
+        ]
+      ]
+    },
+    "path-rel": {
+      "why": "The harness prints the skill base directory when it loads the skill. This session shows that line, so the path is available under every install route.",
+      "notes": [
+        "Evidence is this session's own skill header: 'Base directory for this skill: C:\\Users\\mephi\\.claude\\skills\\eagle-eye'.",
+        "The instruction becomes prose, not a fixed string. Claude must join the base directory to render.mjs."
+      ]
+    },
+    "path-npx": {
+      "why": "A published command replaces the file path with a name.",
+      "notes": [
+        "It adds a network fetch on first run, and a second thing to publish and version."
+      ]
+    },
+    "path-inline": {
+      "why": "The opposite answer. No script, no Node, no install step for the renderer.",
+      "rel": [
+        [
+          "rel-ci",
+          "conf",
+          "The check command is the renderer, so CI has nothing left to run.",
+          "sourced",
+          "render.mjs:4-6 — --check validates and prints the findings, and writes nothing"
+        ],
+        [
+          "proof-pages",
+          "conf",
+          "With no renderer there is no example page to host.",
+          "argued"
+        ]
+      ],
+      "notes": [
+        "Claude rewrites 49 KB of template by hand each time. Output drifts between runs."
+      ]
+    },
+    "scope-solo": {
+      "why": "One repo, one subject, one README. A stranger finds the skill in one click.",
+      "notes": [
+        "The next skill needs a second repo, or a move to a marketplace later."
+      ]
+    },
+    "scope-bundle": {
+      "why": "The author holds three skills. One repo publishes all of them at once.",
+      "rel": [
+        [
+          "rel-tags",
+          "conf",
+          "Three skills change on three schedules, so one version number describes none of them.",
+          "argued"
+        ]
+      ],
+      "notes": [
+        "The other two skills are english-please and explaining-technical-work.",
+        "A reader who wants one skill gets three."
+      ]
+    },
+    "scope-market": {
+      "why": "A marketplace manifest lists plugins and their sources. It has room for the next skill.",
+      "notes": [
+        "A single-plugin repo installs without this file, so the manifest adds room for more plugins and changes no install step. Source: code.claude.com/docs/en/plugin-marketplaces."
+      ]
+    },
+    "scope-guest": {
+      "why": "The later answer. Put the skill in an existing marketplace and publish no repo of your own.",
+      "rel": [
+        [
+          "sup-issues",
+          "conf",
+          "The author does not own the tracker, so the author cannot promise an answer.",
+          "argued"
+        ],
+        [
+          "rel-tags",
+          "conf",
+          "The host repo sets the version scheme.",
+          "argued"
+        ],
+        [
+          "proof-pages",
+          "conf",
+          "You cannot publish Pages from a repo you do not own.",
+          "argued"
+        ]
+      ]
+    },
+    "lic-mit": {
+      "why": "Short, permissive, and familiar. It permits use, change, and redistribution, and it keeps the notice.",
+      "notes": [
+        "The author chose MIT for the Stacks public release in August 2026. That is a preference, not a constraint."
+      ]
+    },
+    "lic-apache": {
+      "why": "Permissive, with an explicit patent grant and a notice duty.",
+      "notes": [
+        "It is longer, and it adds a NOTICE file to maintain."
+      ]
+    },
+    "lic-cc0": {
+      "why": "The author waives rights. Anybody may do anything.",
+      "notes": [
+        "CC0 is written for data and documents. It gives no patent or warranty language for code."
+      ]
+    },
+    "lic-none": {
+      "why": "The none answer. Push the code and write no terms.",
+      "rel": [
+        [
+          "inst-plugin",
+          "conf",
+          "An install copies the files to another machine, and no licence permits that copy.",
+          "argued"
+        ],
+        [
+          "sup-open",
+          "conf",
+          "A contributor cannot grant rights to a project that states no terms.",
+          "argued"
+        ]
+      ]
+    },
+    "proof-prose": {
+      "why": "Text costs nothing and never goes stale.",
+      "notes": [
+        "It cannot show an interactive grid. The reader must install to see the point."
+      ]
+    },
+    "proof-shots": {
+      "why": "Screenshots show the page in the README, and GitHub renders them inline.",
+      "notes": [
+        "They go stale when the template changes, and nobody notices."
+      ]
+    },
+    "proof-pages": {
+      "why": "The rendered page is one self-contained HTML file, so GitHub Pages serves it with no build step.",
+      "notes": [
+        "Source for the single-file claim: render.mjs header — 'Box file in, one self-contained HTML page out'."
+      ]
+    },
+    "proof-thin": {
+      "why": "The none answer. One paragraph, and the files speak for themselves.",
+      "rel": [
+        [
+          "sup-open",
+          "conf",
+          "A contributor cannot match a style that the repo never states.",
+          "argued"
+        ]
+      ]
+    },
+    "sup-open": {
+      "why": "An open door. Issues and patches both welcome, with written rules.",
+      "notes": [
+        "It costs review time on every patch, forever."
+      ]
+    },
+    "sup-issues": {
+      "why": "A middle posture. Readers report problems, and the author keeps control of the text.",
+      "notes": [
+        "A skill is prose. A patch to prose is harder to review than a patch to code."
+      ]
+    },
+    "sup-asis": {
+      "why": "No promise. The README says so, and readers fork.",
+      "notes": [
+        "It is honest, and it lowers the chance anybody adopts the skill."
+      ]
+    },
+    "sup-archive": {
+      "why": "The none answer. Publish once, then set the repo read-only.",
+      "rel": [
+        [
+          "rel-ci",
+          "conf",
+          "An archived repo accepts no commits, so a check on push never runs.",
+          "argued"
+        ]
+      ]
+    },
+    "rel-main": {
+      "why": "The later answer. Ship now, and add discipline when somebody else uses the tool.",
+      "notes": [
+        "A reader cannot name the version they have."
+      ]
+    },
+    "rel-tags": {
+      "why": "A tag names a state, and a changelog says what moved.",
+      "notes": [
+        "Tags are manual. They rot when the author forgets one."
+      ]
+    },
+    "rel-ci": {
+      "why": "The renderer already validates a box and writes nothing in check mode, so it is ready to be a CI step.",
+      "notes": [
+        "Source: render.mjs:4-6. The action needs Node and one command.",
+        "It guards the example boxes, not the prose in SKILL.md."
+      ]
+    },
+    "sec-none": {
+      "why": "The none answer. Publish the code and name no channel.",
+      "rel": [
+        [
+          "sup-open",
+          "conf",
+          "An open door with no private channel sends the first flaw to a public issue.",
+          "argued"
+        ]
+      ]
+    },
+    "sec-report": {
+      "why": "GitHub private vulnerability reporting gives a maintainer-only channel. A short file names it and states the scope.",
+      "notes": [
+        "It costs one file and one repository setting.",
+        "It states no threat model, so a reporter guesses what counts."
+      ]
+    },
+    "sec-model": {
+      "why": "A threat model names the real risks and the ones the project accepts. The renderer turns a stranger’s box file into a page, so that risk is worth stating.",
+      "notes": [
+        "Verified: lib/template.html:257 escapes & and < before it writes box text into innerHTML. It does not escape the double quote.",
+        "Every attribute the template interpolates holds a validated id, a number, or a fixed class. No box text reaches an attribute today.",
+        "No test covers that escape function. The threat model should say so rather than claim the guard holds."
+      ]
+    },
+    "sec-platform": {
+      "why": "The stacks posture. Dependabot alerts, CodeQL on push, branch protection on main, and every action pinned to a commit SHA.",
+      "rel": [
+        [
+          "rel-ci",
+          "req",
+          "Branch protection blocks a merge on a required check, and only CI supplies one.",
+          "sourced",
+          "stacks/SECURITY.md — \"Branch protection on main: pull request required, gates must pass, CodeQL must find no new high alert\""
+        ],
+        [
+          "sup-archive",
+          "conf",
+          "An archived repo runs no action and takes no pull request, so every control idles.",
+          "argued"
+        ]
+      ],
+      "notes": [
+        "Most of these live in repository settings, outside the tree. A clone cannot check that any is on.",
+        "stacks records that gap deliberately instead of assuming it. The same honesty belongs here.",
+        "CodeQL analyses TypeScript. This repo is one .mjs file and one .js file, so the value is smaller than it is for stacks."
+      ]
+    }
+  },
+  "suspected": [
+    "proof-shots conf rel-main — stale screenshots are a maintenance cost, not a rule that either option breaks.",
+    "inst-plugin req rel-ci — a plugin install does not need a check on push. The two are independent."
+  ],
+  "presets": [
+    {
+      "title": "The stacks posture",
+      "text": "The author’s set. It copies the licence, contribution, and security posture from the stacks repository.",
+      "steps": [
+        {
+          "label": "Marketplace repo, live page, open door",
+          "open": "scope"
+        },
+        {
+          "label": "Security posture",
+          "open": "security"
+        },
+        {
+          "label": "What it forces on release",
+          "open": "release"
+        },
+        {
+          "label": "Back to findings",
+          "open": null,
+          "view": "findings"
+        }
+      ]
+    },
+    {
+      "title": "The narrow first cut",
+      "text": "The earlier recommendation: one repo, screenshots, issues only. Read what the author traded away.",
+      "steps": [
+        {
+          "label": "Narrow it",
+          "set": {
+            "scope": "scope-solo",
+            "proof": "proof-shots",
+            "support": "sup-issues"
+          }
+        },
+        {
+          "label": "Install route",
+          "open": "install"
+        },
+        {
+          "label": "Renderer path",
+          "open": "path"
+        },
+        {
+          "label": "Licence",
+          "open": "license"
+        },
+        {
+          "label": "Back to findings",
+          "open": null,
+          "view": "findings"
+        }
+      ]
+    },
+    {
+      "title": "The break test",
+      "text": "The plugin root variable looks like the tidy answer. It also forces the install route. Read the requirement it adds.",
+      "steps": [
+        {
+          "label": "Use the plugin root variable",
+          "set": {
+            "path": "path-root"
+          },
+          "open": "path"
+        },
+        {
+          "label": "Read what it forces",
+          "open": "install"
+        }
+      ]
+    },
+    {
+      "title": "The cheap route",
+      "text": "Every option that costs the least setup time. Read what the configuration gives up.",
+      "steps": [
+        {
+          "label": "Copy by hand, fixed path",
+          "set": {
+            "install": "inst-copy",
+            "path": "path-hard"
+          }
+        },
+        {
+          "label": "Thin README, no CI, no support",
+          "set": {
+            "proof": "proof-thin",
+            "release": "rel-main",
+            "support": "sup-asis"
+          }
+        },
+        {
+          "label": "Read the ruled-out list",
+          "open": "install"
+        }
+      ]
+    },
+    {
+      "title": "Publish with no licence",
+      "text": "The strawman run. Two edges reject it, and both are argued, not measured.",
+      "steps": [
+        {
+          "label": "Drop the licence file",
+          "set": {
+            "license": "lic-none"
+          },
+          "open": "license"
+        },
+        {
+          "label": "See what it closes",
+          "open": "install"
+        }
+      ]
+    }
+  ]
+}
