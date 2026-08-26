@@ -24,7 +24,7 @@ draw the box so they can see the system. You do not pick for them.
 - Brainstorming has the clarifying questions answered and has not yet proposed
   approaches.
 - A wayfinder map's tickets are the rows.
-- The user asks by name: `/eagle-eye <topic>`.
+- The user asks by name. Some tools map a command to it: `/eagle-eye <topic>`.
 
 Say it before you build it: *"This has N coupled decisions. I will build a
 box."* A wrong trigger costs one sentence.
@@ -84,7 +84,7 @@ rows. A cell that closes half the box is usually a position, not an option.
 6. **Render and read.** Write `<topic>.box.json` next to the project's decision
    records (`docs/decisions/`, `docs/adr/`, or where the project keeps them).
    Run the renderer. It sits next to this file, in the skill base directory
-   the harness names when it loads the skill. Join that directory to
+   your tool reports when it loads this skill. Join that directory to
    `render.mjs`. Do not write a fixed path. Give the findings in chat:
 
    ```bash
@@ -92,10 +92,11 @@ rows. A cell that closes half the box is usually a position, not an option.
    ```
 
    Open the HTML it writes in the user's browser (`Start-Process <file>` on
-   Windows, `open` on macOS, `xdg-open` on Linux). An in-app preview pane may
-   show local files as static snapshots with no script; do not judge the page
-   from one. Publish as an Artifact only when that tool is available; the file
-   works without it. To read a configuration without a browser, use `--sel`.
+   Windows, `open` on macOS, `xdg-open` on Linux). A preview pane inside a tool
+   may show local files as static snapshots with no script; do not judge the
+   page from one. If your tool can publish or share a file, offer that as well;
+   the page works without it. To read a configuration without a browser, use
+   `--sel`.
 7. **Round trip.** The page has **Export**. The user pastes the Markdown back.
    Read the restore code, re-argue the set, and update the box file only with
    what the user confirms. `--sel` reads a restore code from the command line:
@@ -219,8 +220,14 @@ Shape in `box.schema.json`; a complete example in
 renderer validates: unique ids, exactly one `chosen` per row, edge targets
 exist and sit in another row, tier in {measured, sourced, argued}, a
 non-argued edge names its `src`, every edge has a why, and two or more presets
-of which one changes an option. It warns on a row with no `problem` and on a
-row with no strawman.
+of which one changes an option. It warns on a row with no `problem`, on a row
+with no strawman, and on a strawman that is the chosen option.
+
+**A strawman can be the chosen option.** The *strawman not rejected* finding
+says: give the reason to reject it, or pick it. Picking it is the second
+answer, and it is the interesting one — the weak option survived the whole
+grid. Keep the flag set and say in `notes` why it survived. The flag records
+coverage, never quality.
 
 **What it does not check is the part that goes wrong.** No validator can tell a
 dimension from a menu of positions, and none can tell you a row is missing. Both

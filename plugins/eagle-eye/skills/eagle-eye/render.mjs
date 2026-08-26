@@ -57,7 +57,13 @@ function validate(box) {
         if (typeof o.label !== 'string' || !o.label.trim()) err(`${oat}.label: required`);
         if (o.short && o.short.length > 28) warn(`${oat}.short "${o.short}": longer than 28 chars; the sheet cell will wrap`);
         if (!o.short && o.label.length > 28) warn(`${oat} "${o.id}": no short label and label is ${o.label.length} chars; add "short" for the sheet`);
-        if (o.strawman && o.chosen) err(`${oat} "${o.id}": a strawman cannot be the chosen option`);
+        // A chosen strawman is not an error. The "strawman not rejected" finding says:
+        // give the reason to reject it, or pick it. Picking it is the documented outcome
+        // and the most interesting one — the weak option survived the whole grid.
+        // The flag records coverage (none / opposite / later / by hand), never quality,
+        // so it must stay set after the author picks the option. This was an error until
+        // a real decision hit it and could not be written down. Warn instead.
+        if (o.strawman && o.chosen) warn(`${oat} "${o.id}": a strawman is the chosen option — say in its notes why it survived`);
         if (!o.strawman && !o.src) warn(`${oat} "${o.id}": no src — where was this option proposed?`);
       });
       if (!d.opts.some(o => o.strawman)) warn(`${at} "${d.name}": no strawman. Did you ask: none / opposite / later / by hand?`);
