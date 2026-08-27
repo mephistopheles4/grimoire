@@ -18,12 +18,14 @@ the marketplace handle updates:
 
 ```
 /plugin marketplace add mephistopheles4/grimoire
-/plugin install eagle-eye@grimoire
+/plugin install grimoire@mephistopheles4
 ```
 
-Either way you get [`skills/eagle-eye/`](plugins/eagle-eye/skills/eagle-eye) —
-[`SKILL.md`](plugins/eagle-eye/skills/eagle-eye/SKILL.md) and the renderer that
-goes with it.
+Plugin skills are namespaced, so that route invokes it as
+`/grimoire:eagle-eye`. The installer route keeps the plain `/eagle-eye`.
+
+Either way you get [`skills/eagle-eye/`](skills/eagle-eye) —
+[`SKILL.md`](skills/eagle-eye/SKILL.md) and the renderer that goes with it.
 
 ---
 
@@ -82,16 +84,16 @@ is possible in another.
 No install, no dependencies. Node 20 or later:
 
 ```bash
-node plugins/eagle-eye/skills/eagle-eye/render.mjs <box.json> --out page.html
+node skills/eagle-eye/render.mjs <box.json> --out page.html
 ```
 
 `--check` validates a box and prints the findings without writing a file.
 `--sel "eagle-eye: opt-a, opt-b"` reads a configuration from the command line.
 
 The box file's shape is in
-[`box.schema.json`](plugins/eagle-eye/skills/eagle-eye/box.schema.json). A
+[`box.schema.json`](skills/eagle-eye/box.schema.json). A
 complete example is
-[`eagle-eye-skill.box.json`](plugins/eagle-eye/skills/eagle-eye/examples/eagle-eye-skill.box.json)
+[`eagle-eye-skill.box.json`](skills/eagle-eye/examples/eagle-eye-skill.box.json)
 — the skill's own design, boxed.
 
 ---
@@ -102,21 +104,29 @@ If you want neither installer, copy the directory yourself:
 
 ```bash
 git clone https://github.com/mephistopheles4/grimoire.git
-cp -r grimoire/plugins/eagle-eye/skills/eagle-eye ~/.claude/skills/
+cp -r grimoire/skills/eagle-eye ~/.claude/skills/
 ```
 
 The skill names no fixed path to its own renderer, so it runs from wherever it
 lands. It has been run from three directories: the author's skills folder, the
 plugin install, and a copy made by `skills`.
 
-## Why the skill lives four directories down
+## How the repository is put together
 
-`plugins/eagle-eye/skills/eagle-eye/` is the layout the Claude Code plugin
-system needs, and `skills` finds it there without help — its lock file records
-that exact path. The nesting costs a person browsing the repository one extra
-click, and it costs neither installer anything. That trade is written up in
-[`docs/decisions/portable-skill.box.json`](docs/decisions/portable-skill.box.json),
-which you can read as a page on the [demo site][demo].
+The repository **is** the plugin. `.claude-plugin/plugin.json` names it
+`grimoire`; `.claude-plugin/marketplace.json` is the shelf that lists it with
+`"source": "./"`. Skills sit at `skills/<name>/`, which is the one level the
+default scan reads and the layout the `skills` installer finds first.
+
+The two manifests carry different names on purpose: the shelf is
+`mephistopheles4`, the book is `grimoire`. The version lives in `plugin.json`
+and nowhere else, because a second copy is a second place to forget.
+
+This shape follows [mattpocock/skills](https://github.com/mattpocock/skills),
+which ships a marketplace manifest and a plugin manifest side by side at the
+root. The Claude Code docs describe each separately and never that pairing, so
+the evidence it works is a repository that does it, plus
+`claude plugin validate .` passing here.
 
 ## Contributing
 

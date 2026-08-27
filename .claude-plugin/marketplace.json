@@ -1,22 +1,17 @@
 {
-  "name": "grimoire",
-  "description": "A spellbook of agent skills for AI. Cast wisely.",
+  "name": "mephistopheles4",
   "owner": {
     "name": "Ayman Diab",
     "url": "https://github.com/mephistopheles4"
   },
-  "metadata": {
-    "pluginRoot": "./plugins"
-  },
+  "description": "Ayman Diab's agent skills, as an installable Claude Code plugin.",
   "plugins": [
     {
-      "name": "eagle-eye",
-      "source": "./plugins/eagle-eye",
-      "description": "Lay coupled decisions out as a morphological box: one row per decision, one cell per option, an edge between options that rule each other out. Renders an interactive page that reads any configuration back.",
-      "version": "0.2.0",
-      "author": {
-        "name": "Ayman Diab"
-      }
+      "name": "grimoire",
+      "source": "./",
+      "description": "A spellbook of agent skills for AI. Cast wisely. Currently: eagle-eye, which lays coupled decisions out as a morphological box and renders a page that reads any configuration back.",
+      "category": "productivity",
+      "keywords": ["decisions", "morphological-box", "zwicky", "design-review", "brainstorming"]
     }
   ]
 }

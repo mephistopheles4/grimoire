@@ -33,15 +33,8 @@ const files = walk(root);
 // 1. Box files validate.
 const boxes = files.filter(f => f.endsWith('.box.json'));
 if (!boxes.length) fail('no *.box.json found — the renderer has nothing to check');
+const renderer = join(root, 'skills', 'eagle-eye', 'render.mjs');
 for (const box of boxes) {
-  const renderer = join(
-    root,
-    'plugins',
-    'eagle-eye',
-    'skills',
-    'eagle-eye',
-    'render.mjs',
-  );
   try {
     execFileSync(process.execPath, [renderer, box, '--check'], { stdio: 'pipe' });
     console.log(`ok    ${rel(box)}`);
@@ -81,21 +74,44 @@ for (const f of files.filter(f => /\.(mjs|js|html)$/.test(f))) {
     });
 }
 
-// 4. The marketplace manifest matches the tree.
+// 4. The two manifests agree, and each listed skill exists.
+//
+// The repo is one plugin. marketplace.json is the shelf and names the source
+// "./"; plugin.json is the book and sits at the same root. That pairing is not
+// in the docs, and mattpocock/skills ships it, which is the evidence it works.
+//
+// The version lives in plugin.json only. A version in a marketplace entry would
+// be a second place to forget, so this check rejects one rather than compare it.
 const mkt = JSON.parse(readFileSync(join(root, '.claude-plugin', 'marketplace.json'), 'utf8'));
+const pluginManifestPath = join(root, '.claude-plugin', 'plugin.json');
+const plugin = JSON.parse(readFileSync(pluginManifestPath, 'utf8'));
+
 for (const p of mkt.plugins) {
-  const src = p.source.replace(/^\.\//, '');
-  const manifest = join(root, src, '.claude-plugin', 'plugin.json');
-  try {
-    statSync(manifest);
-  } catch {
-    fail(`marketplace.json lists "${p.name}" but ${rel(manifest)} does not exist`);
+  if (p.source !== './') {
+    fail(`marketplace.json "${p.name}": source is "${p.source}"; this repo is one plugin, so it must be "./"`);
     continue;
   }
-  const pluginVersion = JSON.parse(readFileSync(manifest, 'utf8')).version;
-  if (p.version !== pluginVersion) {
+  if (p.name !== plugin.name) {
+    fail(`marketplace.json calls the plugin "${p.name}", plugin.json calls it "${plugin.name}"`);
+  }
+  if (p.version !== undefined) {
+    fail(`marketplace.json "${p.name}": drop "version" — plugin.json is where it lives, and two copies drift`);
+  }
+}
+if (mkt.name === plugin.name) {
+  fail(`the marketplace and the plugin are both named "${mkt.name}" — give the shelf and the book different names`);
+}
+
+// Every skill directory holds a SKILL.md. The default scan reads skills/<name>/,
+// one level deep. A nested layout (skills/<category>/<name>/) needs an explicit
+// "skills" array in plugin.json, which this repo does not have and does not need.
+for (const e of readdirSync(join(root, 'skills'), { withFileTypes: true })) {
+  if (!e.isDirectory()) continue;
+  try {
+    statSync(join(root, 'skills', e.name, 'SKILL.md'));
+  } catch {
     fail(
-      `"${p.name}": marketplace.json says ${p.version}, ${rel(manifest)} says ${pluginVersion}`,
+      `skills/${e.name}/ has no SKILL.md — the default scan reads one level, so a category folder needs a "skills" array in plugin.json`,
     );
   }
 }
@@ -128,19 +144,20 @@ if (!mergeBase) {
 } else if (mergeBase === git('rev-parse', 'HEAD')) {
   console.log(`note: nothing ahead of ${baseRef} — version bump check skipped`);
 } else {
-  for (const p of mkt.plugins) {
-    const src = p.source.replace(/^\.\//, '');
-    const touched = git('diff', '--name-only', `${mergeBase}..HEAD`, '--', `${src}/skills`);
-    if (!touched) continue;
-    const manifestRel = `${src}/.claude-plugin/plugin.json`;
-    const before = git('show', `${mergeBase}:${manifestRel}`);
-    if (!before) continue; // new plugin: there is no previous version to move
+  const touched = git('diff', '--name-only', `${mergeBase}..HEAD`, '--', 'skills');
+  const before = git('show', `${mergeBase}:.claude-plugin/plugin.json`);
+  if (!touched) {
+    // nothing to release
+  } else if (!before) {
+    // The manifest did not exist at the base, so there is no version to move
+    // from. This is the layout move itself. Say it rather than pass in silence.
+    console.log('note: no plugin.json at the base commit — version bump check skipped');
+  } else {
     const was = JSON.parse(before).version;
-    const now = JSON.parse(readFileSync(join(root, manifestRel), 'utf8')).version;
-    if (was === now) {
+    if (was === plugin.version) {
       const files = touched.split('\n').length;
       fail(
-        `"${p.name}": ${files} skill file(s) changed since ${baseRef}, but version is still ${now} — plugin users receive no update`,
+        `${files} skill file(s) changed since ${baseRef}, but version is still ${plugin.version} — plugin users receive no update`,
       );
     }
   }

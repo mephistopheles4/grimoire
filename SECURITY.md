@@ -25,14 +25,14 @@ So the realistic risks are narrow, and worth naming precisely:
 
 Stated with line numbers, because "it escapes things" is not a threat model:
 
-- **`render.mjs:146` escapes `</` before it writes the box JSON into a
+- **`skills/eagle-eye/render.mjs:146` escapes `</` before it writes the box JSON into a
   `<script>` block**, so a `why` string that contains `</script>` cannot close
   the block.
-- **`lib/template.html:257` escapes `&` and `<`** before box text reaches
+- **`skills/eagle-eye/lib/template.html:257` escapes `&` and `<`** before box text reaches
   `innerHTML`. **It does not escape the double quote.**
 - **No box text reaches an HTML attribute today.** Every interpolated attribute
   in the template holds an option id, a number, or a fixed class name, and ids
-  are validated against `^[a-z0-9][a-z0-9-]*$` at `render.mjs:27`.
+  are validated against `^[a-z0-9][a-z0-9-]*$` at `skills/eagle-eye/render.mjs:27`.
 
 Those two facts hold together. The escape is narrow, and it is enough only
 because nothing puts box text where a quote would matter. **If somebody adds an
@@ -58,9 +58,8 @@ fix and a line in this file that records it.
 
 ## Scope
 
-**In scope:** anything in this repository — the marketplace manifest, each
-plugin manifest, every `SKILL.md`, the renderer, the template, and the CI
-workflows.
+**In scope:** anything in this repository — both manifests, every `SKILL.md`,
+the renderer, the template, the check scripts, and the CI workflows.
 
 **Out of scope:** Claude Code itself, your own box files and what you choose to
 put in them, and wherever you host a page the renderer wrote.
