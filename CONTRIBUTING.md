@@ -18,6 +18,9 @@ pushes.
 You need Node 20 or later and nothing else. There is no install step, because
 there are no dependencies.
 
+That is also why a `git worktree` needs no setup here. Add one and run the
+check; there is nothing to install, link, or copy first.
+
 ## What a good patch looks like
 
 **One change, one reason.** A pull request that fixes a typo and rewrites a
@@ -45,7 +48,7 @@ from it, so the name survives whatever the install directory is called.
 **Write to the skill's own rules.** eagle-eye's prose follows ASD-STE100 tested
 against ISO 24495-1: active voice, present tense, one instruction per sentence,
 twenty words or fewer, no idiom. See
-[`plugins/eagle-eye/skills/eagle-eye/reference/writing-edges.md`](plugins/eagle-eye/skills/eagle-eye/reference/writing-edges.md).
+[`skills/eagle-eye/reference/writing-edges.md`](skills/eagle-eye/reference/writing-edges.md).
 A patch that breaks the rule the skill teaches is the worst kind of patch here.
 
 **Changing the export format touches three places.** The page writes it,
@@ -54,10 +57,15 @@ or none.
 
 ## Adding a new skill
 
-1. Put it at `plugins/<name>/skills/<name>/SKILL.md`.
-2. Add `plugins/<name>/.claude-plugin/plugin.json`.
-3. Add an entry to `.claude-plugin/marketplace.json`.
-4. Run `node scripts/check.mjs`.
+1. Put it at `skills/<name>/SKILL.md`, with a frontmatter `name` and
+   `description`.
+2. Bump `version` in `.claude-plugin/plugin.json`. The check fails without it,
+   because Claude Code ships an update only when that field moves.
+3. Run `node scripts/check.mjs`.
+
+There is no per-skill manifest. The repository is one plugin and every skill
+lives under it. A skill nested deeper than `skills/<name>/` needs an explicit
+`skills` array in `plugin.json`; the check says so if you try.
 
 Open an issue first if the skill is large. It is easier to agree on scope before
 you write ten pages than after.

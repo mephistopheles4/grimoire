@@ -12,7 +12,7 @@ import { fileURLToPath } from 'node:url';
 
 const root = join(fileURLToPath(import.meta.url), '..', '..');
 const out = join(root, 'site');
-const renderer = join(root, 'plugins', 'eagle-eye', 'skills', 'eagle-eye', 'render.mjs');
+const renderer = join(root, 'skills', 'eagle-eye', 'render.mjs');
 const SKIP = new Set(['node_modules', '.git', 'site']);
 
 function walk(dir, acc = []) {

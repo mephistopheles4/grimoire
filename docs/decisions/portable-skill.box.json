@@ -1,6 +1,6 @@
 {
   "title": "What is left after npx skills add",
-  "eyebrow": "2026-08-26 · rev B · author’s set",
+  "eyebrow": "2026-08-26 · rev C · layout row reopened; a false constraint removed",
   "dims": [
     {
       "id": "voice",
@@ -102,13 +102,19 @@
       "id": "layout",
       "name": "Where the skill directory sits",
       "question": "Does the skill move nearer the top of the repository?",
-      "problem": "The skill lives four directories deep, inside the plugin that carries it. The installer finds it there, and so does Claude Code. A person who opens the repository on the web does not see a skill; they see a plugins folder. This row weighs a tooling fact against a human one, and the tooling fact is already settled.",
+      "problem": "The skill lives four directories deep, inside the plugin that carries it. The installer finds it there, and so does Claude Code. A person who opens the repository on the web does not see a skill; they see a plugins folder. This row weighs a tooling fact against a human one, and the tooling fact is already settled. The first draft of this row assumed a repository at the top could hold only one skill. That is false: one plugin holds many skills under skills/<name>/.",
       "opts": [
+        {
+          "id": "layout-root",
+          "label": "The repository is the plugin. Skills sit at skills/<name>/ and the marketplace stays.",
+          "short": "Repo is the plugin",
+          "chosen": true,
+          "src": "mattpocock/skills — marketplace.json and plugin.json side by side at the root, source \"./\""
+        },
         {
           "id": "layout-nested",
           "label": "Leave it. Add links in the README so a person finds it.",
           "short": "Leave nested",
-          "chosen": true,
           "src": "measured: the installer found it and copied every file"
         },
         {
@@ -235,7 +241,8 @@
       "why": "Both install routes find the skill where it is. Links in the README fix the part the measurement does not cover.",
       "notes": [
         "Measured: the installer's lock file records plugins/eagle-eye/skills/eagle-eye/SKILL.md and the copy ran from its new home.",
-        "The cost is human, not mechanical. Somebody browsing the repository sees a plugins folder, not a skill."
+        "The cost is human, not mechanical. Somebody browsing the repository sees a plugins folder, not a skill.",
+        "No longer chosen. The measurement still holds — both installers found the skill four levels down — but the nesting existed to serve a marketplace shape the repository no longer uses."
       ]
     },
     "layout-mirror": {
@@ -248,7 +255,8 @@
       "why": "A single-plugin repository needs no marketplace file, so the skill can sit one directory down.",
       "notes": [
         "Sourced: a repository with one plugin installs without a marketplace file. code.claude.com/docs/en/plugin-marketplaces.",
-        "It contradicts why this repository exists. Box 1 chose a marketplace so more skills can follow."
+        "It contradicts why this repository exists. Box 1 chose a marketplace so more skills can follow.",
+        "The premise was wrong. A root layout does not require dropping the marketplace, so this option was never the only way up."
       ]
     },
     "layout-later": {
@@ -264,11 +272,21 @@
       "notes": [
         "Nobody reports a repository they gave up on. The signal this waits for does not arrive."
       ]
+    },
+    "layout-root": {
+      "why": "One plugin, many skills, both manifests at the root. The shelf and the book carry different names.",
+      "notes": [
+        "Sourced: mattpocock/skills ships marketplace.json and plugin.json together at the root, with the plugin source set to \"./\".",
+        "The Claude Code docs describe a marketplace and a plugin separately and never that pairing. A working repository is the evidence; claude plugin validate passes on it.",
+        "It costs plugin users the namespace: skills are invoked as /grimoire:eagle-eye. The installer route is unaffected.",
+        "This cell did not exist when the row was drawn. The row offered only nested or a single-skill repo, because the author believed a root layout meant dropping the marketplace."
+      ]
     }
   },
   "suspected": [
     "layout-single conf scope-market — the target sits in box 1, so this box cannot draw the edge. It is the strongest argument against layout-single and it is recorded here instead.",
-    "pkg-bin conf layout-nested — a package root and a nested skill are unrelated; the package reads the renderer by path either way."
+    "pkg-bin conf layout-nested — a package root and a nested skill are unrelated; the package reads the renderer by path either way.",
+    "layout-single conf scope-market — recorded earlier as the strongest argument against a root layout. It was false: one plugin holds many skills, so growth never required the nesting."
   ],
   "presets": [
     {

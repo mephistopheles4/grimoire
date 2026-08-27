@@ -1,6 +1,6 @@
 {
   "title": "Publish eagle-eye as a public repo",
-  "eyebrow": "2026-08-26 · rev C · install row reopened by box 2",
+  "eyebrow": "2026-08-26 · rev D · scope row still holds, with a note",
   "dims": [
     {
       "id": "install",
@@ -443,7 +443,9 @@
     "scope-market": {
       "why": "A marketplace manifest lists plugins and their sources. It has room for the next skill.",
       "notes": [
-        "A single-plugin repo installs without this file, so the manifest adds room for more plugins and changes no install step. Source: code.claude.com/docs/en/plugin-marketplaces."
+        "A single-plugin repo installs without this file, so the manifest adds room for more plugins and changes no install step. Source: code.claude.com/docs/en/plugin-marketplaces.",
+        "Still the chosen shape, with one correction: the marketplace lists one plugin, and that plugin is the repository. More skills arrive as more directories under skills/, not as more plugins.",
+        "So the row was right and its reasoning was half wrong. Room to grow came from the plugin, not from the marketplace."
       ]
     },
     "scope-guest": {
