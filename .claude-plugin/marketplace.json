@@ -13,7 +13,7 @@
       "name": "eagle-eye",
       "source": "./plugins/eagle-eye",
       "description": "Lay coupled decisions out as a morphological box: one row per decision, one cell per option, an edge between options that rule each other out. Renders an interactive page that reads any configuration back.",
-      "version": "0.1.0",
+      "version": "0.2.0",
       "author": {
         "name": "Ayman Diab"
       }

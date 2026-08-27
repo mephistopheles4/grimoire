@@ -90,6 +90,59 @@ for (const p of mkt.plugins) {
     statSync(manifest);
   } catch {
     fail(`marketplace.json lists "${p.name}" but ${rel(manifest)} does not exist`);
+    continue;
+  }
+  const pluginVersion = JSON.parse(readFileSync(manifest, 'utf8')).version;
+  if (p.version !== pluginVersion) {
+    fail(
+      `"${p.name}": marketplace.json says ${p.version}, ${rel(manifest)} says ${pluginVersion}`,
+    );
+  }
+}
+
+// 5. A change to a skill needs a version bump.
+//
+// Claude Code delivers an update only when the version field moves: "If set,
+// users only receive updates when you bump this field."
+// (code.claude.com/docs/en/plugins) So a skill edit that ships without a bump
+// reaches nobody who installed the plugin, and nothing goes red. Two merged
+// pull requests changed the skill under an unmoved 0.1.0 before this check
+// existed. The npx route resolves a git ref and was never affected, which is
+// what made the gap quiet.
+function git(...args) {
+  try {
+    return execFileSync('git', args, { cwd: root, stdio: ['ignore', 'pipe', 'ignore'] })
+      .toString()
+      .trim();
+  } catch {
+    return null;
+  }
+}
+
+const baseRef = process.env.GITHUB_BASE_REF ? `origin/${process.env.GITHUB_BASE_REF}` : 'origin/main';
+const mergeBase = git('merge-base', baseRef, 'HEAD');
+
+if (!mergeBase) {
+  // Say so. A check that silently does nothing reads as a check that passed.
+  console.log(`note: cannot resolve ${baseRef} — version bump check skipped`);
+} else if (mergeBase === git('rev-parse', 'HEAD')) {
+  console.log(`note: nothing ahead of ${baseRef} — version bump check skipped`);
+} else {
+  for (const p of mkt.plugins) {
+    const src = p.source.replace(/^\.\//, '');
+    const touched = git('diff', '--name-only', `${mergeBase}..HEAD`, '--', `${src}/skills`);
+    if (!touched) continue;
+    const manifestRel = `${src}/.claude-plugin/plugin.json`;
+    const before = git('show', `${mergeBase}:${manifestRel}`);
+    if (!before) continue; // new plugin: there is no previous version to move
+    const was = JSON.parse(before).version;
+    const now = JSON.parse(readFileSync(join(root, manifestRel), 'utf8')).version;
+    if (was === now) {
+      const files = touched.split('\n').length;
+      fail(
+        `"${p.name}": ${files} skill file(s) changed since ${baseRef}, but version is still ${now} — plugin users receive no update`,
+      );
+    }
   }
 }
 
