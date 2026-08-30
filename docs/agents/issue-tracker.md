@@ -2,6 +2,17 @@
 
 Issues and specs for this repo live as GitHub issues. Use the `gh` CLI for all operations.
 
+## A vulnerability goes somewhere else
+
+A security finding is reported through GitHub's **private vulnerability
+reporting** — the "Report a vulnerability" button under the repository's
+Security tab. It reaches the maintainer and nobody else.
+
+Every convention below describes ordinary work. A public issue is the wrong
+surface for a vulnerability, and `gh issue create` publishes one, so hand the
+finding to the human and let them file it privately. See
+[`SECURITY.md`](../../SECURITY.md).
+
 ## Conventions
 
 - **Create an issue**: `gh issue create --title "..." --body "..."`. Use a heredoc for multi-line bodies.
