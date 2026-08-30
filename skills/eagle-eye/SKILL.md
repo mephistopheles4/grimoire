@@ -137,9 +137,9 @@ rows. A cell that closes half the box is usually a position, not an option.
 ## The seven findings
 
 The page and `--check` compute these. Six read the configuration in front of
-you. The seventh, *chain*, reads the whole box, so it does not change when the
-reader clicks: a chain is an authoring fault, not a reading one. In chat, give
-the ones that apply.
+you. The seventh, *chain*, reads the whole box. A chain is an authoring fault,
+not a reading one, so the finding does not change when the reader clicks. In
+chat, give the ones that apply.
 
 | Finding | What it points at |
 |---|---|
@@ -148,7 +148,7 @@ the ones that apply.
 | most connected | The selected option with the most edges. Change it and the most moves. |
 | row with no edges | Independent, or an edge is missing. |
 | strawman not rejected | A strawman nothing rules out. Give the reason, or pick it. |
-| chain | Two or more edges that compose into a relation the box does not state. Two options that require each other report as a *cycle*. |
+| chain | Two or more edges that compose. Names the relation they derive, and says whether the box states it. Options that require each other report as a *cycle*. |
 | cogency | *If every edge is true, can the set still be wrong?* Counts the argued edges. |
 
 ## When the box is finished

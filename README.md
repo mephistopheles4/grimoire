@@ -60,7 +60,7 @@ reads the box itself:
 | most connected | The option with the most edges. Change it and the most moves. |
 | row with no edges | Independent, or an edge is missing. |
 | strawman not rejected | A deliberately weak option that nothing rules out. Give the reason, or pick it. |
-| chain | Two edges that join into a relation the box never states. A cycle reports on its own. |
+| chain | Edges that join into a relation, and whether the box says that relation itself. A cycle reports on its own. |
 | cogency | If every edge is true, can the set still be wrong? |
 
 ### Why the edges carry a tier

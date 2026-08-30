@@ -81,9 +81,9 @@ That last row is the one that misleads. Count every option that is both a
 source and a target, and the example box — 34 edges — reports 28 chains. Apply
 the rule, and it reports one.
 
-A chain runs past two edges. Each `req` edge carries the run forward, and one
-`conf` edge closes it. A run of `req` edges derives *requires*. A run closed by
-a `conf` edge derives *rules out*.
+A chain can hold more than two edges. Each `req` edge carries the run forward,
+and one `conf` edge closes it. A run of `req` edges derives *requires*. A run
+closed by a `conf` edge derives *rules out*.
 
 **The renderer walks the chains. You answer the two questions.** The *chain*
 finding names the longest run, the relation it derives, and whether the box
@@ -95,8 +95,9 @@ states that relation. Then ask:
   constraint. Add the edge, or say in `notes` why the pair is enough.
 
 **A cycle is its own finding.** Option A requires B, and B requires A. The pair
-is one mutual dependency drawn twice, and the finding reports it once. Either
-the two rows are one decision, or one direction is redundant. Say which, in
+is one mutual dependency drawn twice, and the finding reports it once. A longer
+loop, through three options or more, reports the same way. Either the rows in
+the loop are one decision, or one direction is redundant. Say which, in
 `notes`.
 
 ## Cogency test

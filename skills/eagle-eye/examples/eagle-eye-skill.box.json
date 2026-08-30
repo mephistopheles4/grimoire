@@ -482,7 +482,8 @@
       "why": "Chosen. Every edge says what it rests on; the verdict says what tier it rests on.",
       "rel": [],
       "notes": [
-        "This option required Argued edges, and Argued edges requires this option. The cycle finding named the pair. One direction is dropped: the audit cannot run without a tier to select on, but a tier can be written without an audit."
+        "This option and Argued edges required each other. The cycle finding named the pair as one decision drawn twice.",
+        "The box now keeps one direction. The audit needs a tier to select on. A tier needs no audit."
       ]
     },
     "edge-evidence": {

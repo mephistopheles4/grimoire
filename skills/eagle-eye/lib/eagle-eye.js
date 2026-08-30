@@ -43,7 +43,7 @@ const EagleEye = (() => {
     const active = conflicts.concat(unmet, met);
     const basis = active.length ? Object.entries(active.reduce((m, e) => (m[e.tier] = (m[e.tier] || 0) + 1, m), {})) : [];
 
-    // ---- the seven moves ----
+    // ---- the moves ----
     const moves = [];
 
     // 1. untouched row: bound to the most overridden rows, never clicked.
@@ -102,17 +102,20 @@ const EagleEye = (() => {
     // This reads the whole box, not the selection. A cycle and an unstated derived relation
     // are authoring faults: they are true of the box whatever the reader clicks, and a finding
     // that disappears on a click teaches the reader that clicking fixed it.
-    const derived = new Map(), rings = new Map();
+    const derived = new Map(), cycles = new Map();
     const walk = (path, tiers) => {
       const u = path[path.length - 1], src = path[0];
       edgesOf(u).forEach(e => {
         const onPath = path.includes(e.to);
         // A req edge back onto the path is a cycle, not a chain. Keyed on the set of options,
         // so the pair that draws it twice reports once.
-        if (e.kind === 'req' && onPath) { const ring = path.slice(path.indexOf(e.to)), key = ring.slice().sort().join('+'); if (!rings.has(key)) rings.set(key, ring); return; }
+        if (e.kind === 'req' && onPath) { const loop = path.slice(path.indexOf(e.to)), key = loop.slice().sort().join('+'); if (!cycles.has(key)) cycles.set(key, loop); return; }
         // path.length > 1 is the whole "a conf never starts a chain" rule: the walk only
         // recurses along req edges, so anything past the first hop arrived on one.
-        if (path.length > 1 && optById[src].dim.id !== optById[e.to].dim.id) { // same row: a swap, not a relation
+        // An edge back onto the path derives nothing to report: the far option is already an
+        // option on the path, so the finding would name it as its own step. A conf drawn back
+        // onto the path says the box contradicts itself, which is a second finding and not this one.
+        if (path.length > 1 && !onPath && optById[src].dim.id !== optById[e.to].dim.id) { // same row: a swap, not a relation
           const key = `${src}>${e.to}:${e.kind}`, best = derived.get(key);
           if (!best || best.path.length <= path.length) derived.set(key, { src, to: e.to, kind: e.kind, path: path.concat(e.to), tiers: tiers.concat(e.tier) });
         }
@@ -136,7 +139,7 @@ const EagleEye = (() => {
       const rest = chains.length - 1;
       moves.push({ kind: 'chain', text: `<b>${nm(chain.src)}</b> ${chain.kind === 'conf' ? 'rules out' : 'requires'} <b>${nm(chain.to)}</b>, through ${list(chain.path.slice(1, -1).map(id => `<b>${nm(id)}</b>`))}. ${chain.stated ? 'The box states this relation.' : 'The box does not state it. Add the edge, or say in the notes why the pair is enough.'} The weakest edge on the path is <span class="tier ${chain.tier}">${chain.tier}</span>.${rest ? ` ${rest} more chain${rest > 1 ? 's' : ''} compose${rest > 1 ? '' : 's'}.` : ''}` });
     }
-    if (rings.size) moves.push({ kind: 'cycle', text: `${[...rings.values()].map(r => `${list(r.map(id => `<b>${nm(id)}</b>`))} require each other.`).join(' ')} That is one decision drawn twice. Merge the rows, or drop one direction.` });
+    if (cycles.size) moves.push({ kind: 'cycle', text: `${[...cycles.values()].map(loop => `${list(loop.map(id => `<b>${nm(id)}</b>`))} require each other.`).join(' ')} That is one decision drawn twice. Merge the rows, or drop one direction.` });
 
     // 7. cogency
     const argued = active.filter(e => e.tier === 'argued').length;

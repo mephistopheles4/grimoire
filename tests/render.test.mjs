@@ -168,6 +168,20 @@ test('a derived relation between two options of one row is not reported', () => 
   assert.equal(/chain:/.test(out), false, out);
 });
 
+test('an edge back onto the path derives nothing, so no option is its own step', () => {
+  // A1 requires B1, B1 requires C1, and C1 rules B1 out. The conf edge closes back
+  // onto an option the path already holds, so the only relation it could derive
+  // names B1 as a step on the way to B1. The box contradicts itself, which is a
+  // finding this one does not make.
+  const out = checkChain('chain-back-edge.box.json', {
+    a1: [['b1', 'req', 'A1 needs B1']],
+    b1: [['c1', 'req', 'B1 needs C1']],
+    c1: [['b1', 'conf', 'C1 rules B1 out']],
+  });
+  assert.match(out, /chain: Row one: A1 requires Row three: C1, through Row two: B1\./);
+  assert.equal(/rules out Row two: B1/.test(out), false, out);
+});
+
 test('a derived relation the box already states is reported as stated', () => {
   const out = checkChain('chain-stated.box.json', {
     a1: [['b1', 'req', 'A1 needs B1'], ['c1', 'req', 'A1 needs C1 as well']],
