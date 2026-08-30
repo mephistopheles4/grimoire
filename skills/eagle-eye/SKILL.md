@@ -76,19 +76,30 @@ rows. A cell that closes half the box is usually a position, not an option.
    swap, not an edge.
 3. **Audit.** Check every `argued` edge against the eight weakness patterns
    (see `reference/writing-edges.md`). Rewrite it, or move it to `suspected`,
-   where it is listed but colours nothing.
+   where it is listed but colours nothing. Name the pattern at the front of the
+   `suspected` string. That string is the only record after the session ends.
+
+   Then read the **chains**. For each `req` edge, follow the target's own edges
+   and state what the pair derives. An edge that starts with `conf` composes
+   with nothing. Check that the derived relation is true, and that the box says
+   it. A cycle is a finding: two options that require each other are one
+   decision drawn twice. See [Chains](reference/writing-edges.md).
 4. **Chosen set.** Mark one option per row as the current position. Say whose
    it is: the spec's, the owner's, or your recommendation.
 5. **Presets.** Write at least two, and make at least one of them change an
    option. The renderer refuses a box without them. See [Presets](#presets).
-6. **Render and read.** Write `<topic>.box.json` next to the project's decision
-   records (`docs/decisions/`, `docs/adr/`, or where the project keeps them).
+6. **Render and read.** Write `<topic>.box.json` to a **scratch directory** —
+   the temporary path your tool reports, or the system temporary directory.
+   **A box is disposable.** It is the working surface for one conversation, and
+   the decision it produces belongs in the project's records, not the grid that
+   found it. See [Where a box lives](#where-a-box-lives).
+
    Run the renderer. It sits next to this file, in the skill base directory
    your tool reports when it loads this skill. Join that directory to
    `render.mjs`. Do not write a fixed path. Give the findings in chat:
 
    ```bash
-   node <skill base directory>/render.mjs docs/decisions/<topic>.box.json
+   node <skill base directory>/render.mjs <scratch>/<topic>.box.json
    ```
 
    Open the HTML it writes in the user's browser (`Start-Process <file>` on
@@ -98,12 +109,28 @@ rows. A cell that closes half the box is usually a position, not an option.
    the page works without it. To read a configuration without a browser, use
    `--sel`.
 7. **Round trip.** The page has **Export**. The user pastes the Markdown back.
-   Read the restore code, re-argue the set, and update the box file only with
-   what the user confirms. `--sel` reads a restore code from the command line:
+   Read the restore code, then **say the set back in words before you act on
+   it** — one line per changed row, `<row name>: <short>`. The user pastes ids,
+   which they cannot check by reading. The echo is where they catch a misread.
+   Then re-argue the set, and update the box file only with what the user
+   confirms. `--sel` reads a restore code from the command line:
 
    ```bash
    node <skill base directory>/render.mjs <box.json> --sel "eagle-eye: opt-a, opt-b"
    ```
+8. **Debrief.** When the user accepts a set, close the loop in chat. Three
+   things, in three or four sentences:
+
+   - **Which weakness patterns appeared.** Read `suspected`, where every
+     rejected edge carries its pattern name. Count them and name the ones that
+     repeat.
+   - **What got stronger.** Name the row that changed most between the first
+     box and the last, and say what changed it.
+   - **One thing to watch next time.** The pattern that appeared most often.
+
+   The audit names a pattern each time it rejects an edge. Those names reach
+   the chat and stop there, so the next author repeats the same faults. This
+   step is where the box teaches. Say it in words, never in ids.
 
 ## The six findings
 
@@ -205,6 +232,45 @@ Opt-in, on the page. After an override the grid stays uncoloured until the
 user predicts which rows are affected, then reveals. Prediction before
 recognition. Do not turn it on for them; name it once.
 
+## Where a box lives
+
+**Scratch by default. The repository only when the user asks.**
+
+A box is a working surface. It holds the argument while the argument is live,
+and the argument ends when the user accepts a set. What the project needs after
+that is the decision and its reasons, in the form the project already uses. A
+committed box file asks every later reader to learn a grid to read one choice.
+
+**Disposable is not ephemeral.** The file exists for the whole session, because
+`--sel` and the round trip both read it. Disposable means the file leaves no
+trace in the repository, not that it never existed.
+
+**Keep it when the user asks, and only then.** Then write it where the project
+keeps its decision records (`docs/decisions/`, `docs/adr/`, or wherever they
+are), and say the path. A kept box is a record the project now maintains.
+
+Say which one you did. *"The box is in scratch at <path>. Say the word and I
+will keep it."* One sentence, at the end of step 6.
+
+## Names in chat
+
+**An id is machine state. It belongs in the box file and in the restore code,
+and nowhere else.** Say the row name, then the option's `short`:
+
+> *Where the debrief lands: In chat.*
+
+Never *"deb-chat"*. The reader did not write the ids, cannot see the file while
+you speak, and an id that reads as an abbreviation of something teaches them a
+word that means nothing. This applies to findings, recommendations, questions,
+and the debrief. The renderer already prints names; match it.
+
+The schema requires `short` on every option for this reason. The renderer
+refuses a box without one, so the name always exists.
+
+Two places keep ids, because both are machine state the user copies whole: the
+restore code and the box file. When you read a restore code back, say the set
+in words first. See step 7.
+
 ## Writing rules
 
 All text in a box — labels, whys, notes — follows ASD-STE100's writing rules,
@@ -217,10 +283,10 @@ patterns: `reference/writing-edges.md`.
 
 Shape in `box.schema.json`; a complete example in
 `examples/eagle-eye-skill.box.json` (the skill's own design, boxed). The
-renderer validates: unique ids, exactly one `chosen` per row, edge targets
-exist and sit in another row, tier in {measured, sourced, argued}, a
-non-argued edge names its `src`, every edge has a why, and two or more presets
-of which one changes an option. It warns on a row with no `problem`, on a row
+renderer validates: unique ids, exactly one `chosen` per row, every option has a
+`short`, edge targets exist and sit in another row, tier in {measured, sourced,
+argued}, a non-argued edge names its `src`, every edge has a why, and two or
+more presets of which one changes an option. It warns on a row with no `problem`, on a row
 with no strawman, and on a strawman that is the chosen option.
 
 **A strawman can be the chosen option.** The *strawman not rejected* finding
@@ -281,5 +347,13 @@ not format** — the block above is unchanged, and Copy still copies all of it.
   an edge. Put it in `notes`, or in `suspected`.
 - **Presets that all walk the chosen set.** Four tours of the baseline teach the
   reader one configuration. Give at least one preset a `set` step.
+- **Saying an id in chat.** *"deb-chat"* names nothing to the reader. They did
+  not write the ids and cannot see the file while you speak. Say the row name
+  and the `short`. See [Names in chat](#names-in-chat).
+- **Acting on a restore code without echoing it.** The user pastes ids they
+  cannot check by reading. Say the set back in words first, or a misread
+  becomes the record.
+- **Reading each edge and never the chain.** Two sound edges can join into an
+  unsound argument. Only a `req` first edge composes; audit those pairs.
 - **Changing the export format in one place.** The page writes it; this file
   specifies it; you read it. All three, or none.
