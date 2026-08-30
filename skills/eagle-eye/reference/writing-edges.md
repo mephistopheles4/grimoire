@@ -107,7 +107,7 @@ Cogency asks whether the joined reasons reach the verdict.
 An edge that fails the audit goes to `suspected`. **Name the pattern first, so
 the debrief can count it:**
 
-```
+```text
 weakly connected: coh-step req deb-chat — a manual check does not force a manual record.
 ```
 

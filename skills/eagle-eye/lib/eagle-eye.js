@@ -82,9 +82,14 @@ const EagleEye = (() => {
     // Branch on the edges, not on the change count. A set with no overrides can still carry
     // conflicts, and a set with overrides can still touch no edge. Both read as tested when
     // the count decides, and both are untested.
-    moves.push({ kind: 'cogency', text: active.length
-      ? `${argued} of ${active.length} active edges are argued. Nobody measured them. If all the edges are true, the verdict is “${verdict}”. If one argued edge is false, the verdict can change.`
-      : `No edge reaches this set, so nothing in the box tested it. Add the edge that is missing, or change an option to see which edges hold.` });
+    // "Nobody measured them" is only true of the argued edges. A set whose active edges are all
+    // measured or sourced is the strong case, and saying it is untested inverts the finding.
+    const evidenced = active.filter(e => e.tier !== 'argued');
+    moves.push({ kind: 'cogency', text: !active.length
+      ? `No edge reaches this set, so nothing in the box tested it. Add the edge that is missing, or change an option to see which edges hold.`
+      : argued
+        ? `${argued} of ${active.length} active edge${active.length === 1 ? '' : 's'} ${argued === 1 ? 'is' : 'are'} argued. Nobody measured ${argued === 1 ? 'that one' : 'those'}. If all the edges are true, the verdict is “${verdict}”. If one argued edge is false, the verdict can change.`
+        : `Every active edge carries evidence: ${evidenced.filter(e => e.tier === 'measured').length} measured, ${evidenced.filter(e => e.tier === 'sourced').length} sourced. If all the edges are true, the verdict is “${verdict}”.` });
 
     // affected rows for coach mode: rows whose cells changed colour because of the overrides
     // only edges that involve an override count — what the chosen set rules out on its own is the baseline, not a change
