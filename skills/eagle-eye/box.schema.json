@@ -4,11 +4,23 @@
   "title": "Eagle-eye box file",
   "description": "A morphological box: decisions (dims), their options, and the edges between options. Documentation of the shape; render.mjs validates it with hand-rolled checks so nothing needs installing.",
   "type": "object",
-  "required": ["title", "dims", "rel", "presets"],
+  "required": ["title", "problem", "dims", "rel", "presets"],
   "additionalProperties": false,
   "properties": {
     "title": { "type": "string", "minLength": 1 },
     "eyebrow": { "type": "string", "description": "Small caps line above the title. Sheet number, date, revision." },
+    "problem": {
+      "type": "string", "minLength": 1, "pattern": "\\S",
+      "description": "The brief: what this whole box decides, in plain words, for a reader who was not in the room. A fact about the decision, not about any row — dims[].problem explains one row and is only warned about, this one is refused. Two to five sentences, STE rules. render.mjs refuses a box whose problem is absent, not a string, or only whitespace; minLength and the pattern above say the same thing."
+    },
+    "who": {
+      "type": "string", "minLength": 1, "pattern": "\\S",
+      "description": "Who the decision affects. Optional, and one plain sentence — there is no people model. Refused when present and blank; leave the field out instead."
+    },
+    "when": {
+      "type": "string", "minLength": 1, "pattern": "\\S",
+      "description": "When the decision must be settled. Optional, and one plain sentence — no date is parsed, so \"not known\" is an honest value. Refused when present and blank; leave the field out instead."
+    },
     "dims": {
       "type": "array", "minItems": 1,
       "items": {
