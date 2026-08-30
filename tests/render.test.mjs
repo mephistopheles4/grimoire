@@ -91,6 +91,62 @@ test('--sel with no change returns the chosen verdict, not a changed one', () =>
   assert.match(r.stdout, /^verdict: as chosen/);
 });
 
+test('the evidence finding names the rows whose active edges are all argued', () => {
+  // The count alone says the verdict is unevidenced and never says where to
+  // The count alone says the verdict is unevidenced and never says where to
+  // measure. These are the addresses: a row whose selected cell touches active
+  // edges, and every one of them is argued.
+  // The helper's only edge rules out an option nobody selected, which closes
+  // that option rather than making the edge active. Point it at the chosen
+  // cell instead.
+  const b = box();
+  b.rel.a1.rel = [['b1', 'req', 'A1 needs B1']];
+  const r = run(renderer, [write('argued-rows.box.json', b), '--check']);
+  assert.equal(r.code, 0);
+  assert.match(r.stdout, /evidence for the verdict: .*The active edges at Row one, Row two are all argued./);
+});
+
+test('the evidence finding counts the rows instead of naming them when the list is long', () => {
+  // The shipped example is the case this rule exists for. Almost every edge in
+  // it is argued, so naming every row with one is an instruction to open ten
+  // rows, which nobody follows. One sentence with a count is the report that
+  // can be read.
+  const r = run(renderer, [exampleBox, '--check']);
+  assert.equal(r.code, 0);
+  assert.match(r.stdout, /evidence for the verdict: .*The active edges at 10 of 13 rows are all argued./);
+  assert.equal(r.stdout.includes('Measure those rows first'), false);
+});
+
+test('the evidence finding names no row when every active edge carries evidence', () => {
+  const b = box();
+  b.rel.a1.rel = [['b1', 'req', 'A1 needs B1', 'sourced', 'the box schema']];
+  const r = run(renderer, [write('sourced-rows.box.json', b), '--check']);
+  assert.equal(r.code, 0);
+  assert.match(r.stdout, /evidence for the verdict: Every active edge carries evidence/);
+  assert.equal(r.stdout.includes('are all argued'), false);
+});
+
+test('the evidence finding names no row that carries one evidenced edge', () => {
+  // A row is named only when every active edge at it is argued. One sourced
+  // edge on the same cell leaves the row out, even though the box still has an
+  // argued edge to report.
+  const b = box();
+  b.rel.a1.rel = [['b1', 'req', 'A1 needs B1', 'sourced', 'the box schema']];
+  b.rel.b1.rel = [['a1', 'req', 'B1 needs A1']];
+  const r = run(renderer, [write('mixed-rows.box.json', b), '--check']);
+  assert.equal(r.code, 0);
+  assert.match(r.stdout, /evidence for the verdict: 1 of 2 active edges is argued/);
+  assert.equal(r.stdout.includes('are all argued'), false);
+});
+
+test('the renderer no longer prints the finding under its term of art', () => {
+  // The tag is one string in the analysis module, and the page, the exported
+  // Markdown and this command all print whatever it says. `cogency` stays in
+  // the reference document and reaches no reader here.
+  const r = run(renderer, [exampleBox, '--check']);
+  assert.equal(r.stdout.includes('cogency'), false);
+});
+
 test('--sel refuses an option id that is not in the box', () => {
   const r = run(renderer, [exampleBox, '--sel', 'eagle-eye: no-such-option']);
   assert.notEqual(r.code, 0);

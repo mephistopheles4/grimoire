@@ -102,6 +102,11 @@ missing.
 Cohesion and cogency are the pair. Cohesion asks whether the reasons join.
 Cogency asks whether the joined reasons reach the verdict.
 
+The page reports this test under a plain name: **evidence for the verdict**. It
+counts the argued edges and names the rows whose active edges are all argued.
+*Cogency* is the name in the method, and this document is where the method is
+explained. The page uses the plain name.
+
 ## The suspected list
 
 An edge that fails the audit goes to `suspected`. **Name the pattern first, so

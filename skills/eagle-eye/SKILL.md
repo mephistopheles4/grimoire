@@ -139,12 +139,12 @@ ones that apply.
 
 | Finding | What it points at |
 |---|---|
-| row not opened | A row with edges to the rows you changed that you did not look at. |
+| row not opened | A row with edges to the rows you changed on the page, that you did not open. It reads your clicks, so an edit to `chosen` in the box file is not a change it can see. |
 | weakest edge | The lowest-tier edge the verdict depends on. Measure this one first. |
 | most connected | The selected option with the most edges. Change it and the most moves. |
 | row with no edges | Independent, or an edge is missing. |
 | strawman not rejected | A strawman nothing rules out. Give the reason, or pick it. |
-| cogency | *If every edge is true, can the set still be wrong?* Counts the argued edges. |
+| evidence for the verdict | *If every edge is true, can the set still be wrong?* Counts the argued edges among the active ones. Names each row whose active edges are all argued. Past three rows it gives a count instead. |
 
 ## When the box is finished
 

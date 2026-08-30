@@ -54,12 +54,12 @@ Six findings, computed for whatever configuration you are looking at:
 
 | Finding | What it points at |
 | --- | --- |
-| row not opened | A row that your changes touch, and you did not look at. |
+| row not opened | A row with edges to the rows you changed on the page, that you did not open. |
 | weakest edge | The lowest-evidence edge your verdict depends on. Measure this one first. |
 | most connected | The option with the most edges. Change it and the most moves. |
 | row with no edges | Independent, or an edge is missing. |
 | strawman not rejected | A deliberately weak option that nothing rules out. Give the reason, or pick it. |
-| cogency | If every edge is true, can the set still be wrong? |
+| evidence for the verdict | If every edge is true, can the set still be wrong? Names the rows whose active edges are all argued. |
 
 ### Why the edges carry a tier
 

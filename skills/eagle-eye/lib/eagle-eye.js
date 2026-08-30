@@ -91,7 +91,7 @@ const EagleEye = (() => {
     }));
     if (survived.length) moves.push({ kind: 'strawman not rejected', text: `${survived.map(o => `<b>${o.dim.name}: ${o.short || o.label}</b>`).join('; ')}. No selected option rules ${survived.length > 1 ? 'these strawmen' : 'this strawman'} out. Give the reason to reject ${survived.length > 1 ? 'them' : 'it'}, or pick ${survived.length > 1 ? 'one' : 'it'}.` });
 
-    // 6. cogency
+    // 6. evidence for the verdict
     const argued = active.filter(e => e.tier === 'argued').length;
     // Branch on the edges, not on the change count. A set with no overrides can still carry
     // conflicts, and a set with overrides can still touch no edge. Both read as tested when
@@ -99,10 +99,25 @@ const EagleEye = (() => {
     // "Nobody measured them" is only true of the argued edges. A set whose active edges are all
     // measured or sourced is the strong case, and saying it is untested inverts the finding.
     const evidenced = active.filter(e => e.tier !== 'argued');
-    moves.push({ kind: 'cogency', text: !active.length
+    // The count says the verdict is unevidenced and never says where to measure. These are the
+    // addresses: a row whose selected cell touches active edges, and every one of them is argued.
+    // A row no active edge touches is not named. Nothing tests that row either way, and
+    // "row with no edges" is the finding for it.
+    const onlyArgued = box.dims.filter(d => {
+      const touching = active.filter(e => e.from === sel[d.id] || e.to === sel[d.id]);
+      return touching.length && touching.every(e => e.tier === 'argued');
+    }).map(d => d.name);
+    // Past three rows the list stops being an address and becomes a backlog. The shipped example
+    // names 10 of its 13 rows: "open these ten rows" is an instruction nobody follows, and the
+    // count is one sentence a reader finishes.
+    const address = !onlyArgued.length ? ''
+      : onlyArgued.length > 3
+        ? ` The active edges at ${onlyArgued.length} of ${box.dims.length} rows are all argued.`
+        : ` The active edges at ${onlyArgued.map(n => `<b>${esc(n)}</b>`).join(', ')} are all argued. Measure ${onlyArgued.length === 1 ? 'that row' : 'those rows'} first.`;
+    moves.push({ kind: 'evidence for the verdict', text: !active.length
       ? `No edge reaches this set, so nothing in the box tested it. Add the edge that is missing, or change an option to see which edges hold.`
       : argued
-        ? `${argued} of ${active.length} active edge${active.length === 1 ? '' : 's'} ${argued === 1 ? 'is' : 'are'} argued. Nobody measured ${argued === 1 ? 'that one' : 'those'}. If all the edges are true, the verdict is “${verdict}”. If one argued edge is false, the verdict can change.`
+        ? `${argued} of ${active.length} active edge${active.length === 1 ? '' : 's'} ${argued === 1 ? 'is' : 'are'} argued. Nobody measured ${argued === 1 ? 'that one' : 'those'}.${address} If all the edges are true, the verdict is “${verdict}”. If one argued edge is false, the verdict can change.`
         : `Every active edge carries evidence: ${evidenced.filter(e => e.tier === 'measured').length} measured, ${evidenced.filter(e => e.tier === 'sourced').length} sourced. If all the edges are true, the verdict is “${verdict}”.` });
 
     // affected rows for coach mode: rows whose cells changed colour because of the overrides
