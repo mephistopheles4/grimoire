@@ -9,7 +9,7 @@ A decision is made once it has been seen against the whole system. This skill
 lays coupled decisions out as a **morphological box** (Zwicky): one row per
 decision, one cell per option, and an **edge** between options that rule each
 other out or require each other. A page reads any configuration back: what
-fights, what is missing, and six findings that point at what you have not
+fights, what is missing, and seven findings that point at what you have not
 looked at.
 
 **Stance.** The user's thinking is the product; the box is the receipt. You
@@ -79,11 +79,13 @@ rows. A cell that closes half the box is usually a position, not an option.
    where it is listed but colours nothing. Name the pattern at the front of the
    `suspected` string. That string is the only record after the session ends.
 
-   Then read the **chains**. For each `req` edge, follow the target's own edges
-   and state what the pair derives. An edge that starts with `conf` composes
-   with nothing. Check that the derived relation is true, and that the box says
-   it. A cycle is a finding: two options that require each other are one
-   decision drawn twice. See [Chains](reference/writing-edges.md).
+   The renderer walks the **chains** for you. The *chain* finding names the
+   longest run of edges that compose, the relation it derives, and whether the
+   box states that relation. The *cycle* finding names two options that require
+   each other. Read both findings and answer two questions: is the derived
+   relation true, and does the box say it? A relation nobody wrote is a hidden
+   constraint. Add the edge, or write the reason in `notes`. See
+   [Chains](reference/writing-edges.md).
 4. **Chosen set.** Mark one option per row as the current position. Say whose
    it is: the spec's, the owner's, or your recommendation.
 5. **Presets.** Write at least two, and make at least one of them change an
@@ -132,10 +134,12 @@ rows. A cell that closes half the box is usually a position, not an option.
    the chat and stop there, so the next author repeats the same faults. This
    step is where the box teaches. Say it in words, never in ids.
 
-## The six findings
+## The seven findings
 
-The page and `--check` compute these for any configuration. In chat, give the
-ones that apply.
+The page and `--check` compute these. Six read the configuration in front of
+you. The seventh, *chain*, reads the whole box, so it does not change when the
+reader clicks: a chain is an authoring fault, not a reading one. In chat, give
+the ones that apply.
 
 | Finding | What it points at |
 |---|---|
@@ -144,6 +148,7 @@ ones that apply.
 | most connected | The selected option with the most edges. Change it and the most moves. |
 | row with no edges | Independent, or an edge is missing. |
 | strawman not rejected | A strawman nothing rules out. Give the reason, or pick it. |
+| chain | Two or more edges that compose into a relation the box does not state. Two options that require each other report as a *cycle*. |
 | cogency | *If every edge is true, can the set still be wrong?* Counts the argued edges. |
 
 ## When the box is finished
@@ -354,6 +359,7 @@ not format** — the block above is unchanged, and Copy still copies all of it.
   cannot check by reading. Say the set back in words first, or a misread
   becomes the record.
 - **Reading each edge and never the chain.** Two sound edges can join into an
-  unsound argument. Only a `req` first edge composes; audit those pairs.
+  unsound argument. The *chain* finding names the join; read it, and say
+  whether the box states the relation it derives.
 - **Changing the export format in one place.** The page writes it; this file
   specifies it; you read it. All three, or none.

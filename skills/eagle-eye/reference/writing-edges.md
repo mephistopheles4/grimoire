@@ -67,7 +67,7 @@ that the page lists but that colours nothing.
 
 An edge is one reason. A chain is two reasons in a row. The TDE method calls a
 set of reasons **cohesive** when each reason extends the one before it. The
-audit above reads one edge at a time, so nothing reads the join.
+audit above reads one edge at a time. The *chain* finding reads the join.
 
 **Only a `req` first edge composes.**
 
@@ -78,20 +78,26 @@ audit above reads one edge at a time, so nothing reads the join.
 | `conf` | anything | no | The source removes the target from the set. The target's own edges never fire. |
 
 That last row is the one that misleads. Count every option that is both a
-source and a target, and a box of 34 edges reports 31 chains. Apply the rule,
-and it reports three.
+source and a target, and the example box — 34 edges — reports 28 chains. Apply
+the rule, and it reports one.
 
-**Run it after the edge audit.** For each `req` edge, read the target's own
-edges. State what the pair derives. Then ask two questions:
+A chain runs past two edges. Each `req` edge carries the run forward, and one
+`conf` edge closes it. A run of `req` edges derives *requires*. A run closed by
+a `conf` edge derives *rules out*.
+
+**The renderer walks the chains. You answer the two questions.** The *chain*
+finding names the longest run, the relation it derives, and whether the box
+states that relation. Then ask:
 
 - **Is the derived relation true?** If it is not, one of the two edges is
   wrong. This is the `weakly connected` pattern across two edges.
 - **Does the box say it?** A derived relation that nobody wrote is a hidden
   constraint. Add the edge, or say in `notes` why the pair is enough.
 
-**A cycle is a finding.** Option A requires B, and B requires A. The pair is
-one mutual dependency drawn twice. Either the two rows are one decision, or
-one direction is redundant. Say which.
+**A cycle is its own finding.** Option A requires B, and B requires A. The pair
+is one mutual dependency drawn twice, and the finding reports it once. Either
+the two rows are one decision, or one direction is redundant. Say which, in
+`notes`.
 
 ## Cogency test
 

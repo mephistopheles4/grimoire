@@ -97,6 +97,91 @@ test('--sel refuses an option id that is not in the box', () => {
   assert.match(r.stderr, /no-such-option/);
 });
 
+// ---- chains ----
+// The chain finding reads the join between two edges, over the whole box. A
+// chain needs three rows: an edge out of row one, an edge out of row two, and
+// the far option in row three. Each test writes the edges it needs and reads
+// the finding back off the command line.
+function chainBox(rel) {
+  const row = (id, name, p) => ({ id, name, opts: [
+    { id: `${p}1`, label: `Option ${p}1`, short: `${p.toUpperCase()}1`, chosen: true, src: 'test' },
+    { id: `${p}2`, label: `Option ${p}2`, short: `${p.toUpperCase()}2`, strawman: true },
+  ] });
+  return {
+    title: 'A chain box',
+    dims: [row('one', 'Row one', 'a'), row('two', 'Row two', 'b'), row('three', 'Row three', 'c')],
+    rel: Object.fromEntries(Object.entries(rel).map(([id, edges]) => [id, { why: `The reason for ${id}`, rel: edges }])),
+    presets: [
+      { title: 'Baseline', text: 'The chosen set.', steps: [{ label: 'Look' }] },
+      { title: 'Stress', text: 'One change.', steps: [{ label: 'Change row one', set: { one: 'a2' } }] },
+    ],
+  };
+}
+
+const checkChain = (name, rel) => run(renderer, [write(name, chainBox(rel)), '--check']).stdout;
+
+test('two req edges derive a requires relation, and the finding names the path', () => {
+  const out = checkChain('chain-req.box.json', {
+    a1: [['b1', 'req', 'A1 needs B1']],
+    b1: [['c1', 'req', 'B1 needs C1']],
+  });
+  assert.match(out, /chain: Row one: A1 requires Row three: C1, through Row two: B1\./);
+  assert.match(out, /The box does not state it/);
+  assert.match(out, /weakest edge on the path is argued/);
+});
+
+test('a req edge closed by a conf edge derives a rules out relation', () => {
+  const out = checkChain('chain-conf.box.json', {
+    a1: [['b1', 'req', 'A1 needs B1']],
+    b1: [['c1', 'conf', 'B1 rules C1 out']],
+  });
+  assert.match(out, /chain: Row one: A1 rules out Row three: C1, through Row two: B1\./);
+});
+
+test('a conf edge starts no chain', () => {
+  // The rule the whole finding turns on: a conf removes the target from the
+  // set, so the target's own edges never fire and compose with nothing.
+  const out = checkChain('chain-conf-first.box.json', {
+    a1: [['b1', 'conf', 'A1 rules B1 out']],
+    b1: [['c1', 'req', 'B1 needs C1']],
+  });
+  assert.equal(/chain:/.test(out), false, out);
+});
+
+test('two options that require each other are one cycle, reported once', () => {
+  const out = checkChain('chain-cycle.box.json', {
+    a1: [['b1', 'req', 'A1 needs B1']],
+    b1: [['a1', 'req', 'B1 needs A1']],
+  });
+  assert.match(out, /cycle: Row one: A1 and Row two: B1 require each other/);
+  assert.equal((out.match(/cycle:/g) || []).length, 1, out);
+  assert.equal(/chain:/.test(out), false, out);
+});
+
+test('a derived relation between two options of one row is not reported', () => {
+  // A2 is the other option of A1's row. Choosing one option in a row already
+  // excludes its siblings, so the pair derives nothing worth saying.
+  const out = checkChain('chain-same-row.box.json', {
+    a1: [['b1', 'req', 'A1 needs B1']],
+    b1: [['a2', 'req', 'B1 needs A2']],
+  });
+  assert.equal(/chain:/.test(out), false, out);
+});
+
+test('a derived relation the box already states is reported as stated', () => {
+  const out = checkChain('chain-stated.box.json', {
+    a1: [['b1', 'req', 'A1 needs B1'], ['c1', 'req', 'A1 needs C1 as well']],
+    b1: [['c1', 'req', 'B1 needs C1']],
+  });
+  assert.match(out, /The box states this relation/);
+});
+
+test('the shipped example box reports its chain and holds no cycle', () => {
+  const out = run(renderer, [exampleBox, '--check']).stdout;
+  assert.match(out, /chain: Coach layer: Opt-in predict rules out Box file format: Embedded in page/);
+  assert.equal(/cycle:/.test(out), false, out);
+});
+
 test('--out writes the page with the box and the module inside it', () => {
   const out = join(work, 'page.html');
   const r = run(renderer, [exampleBox, '--out', out]);

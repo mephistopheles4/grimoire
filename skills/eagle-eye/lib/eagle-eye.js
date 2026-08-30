@@ -43,7 +43,7 @@ const EagleEye = (() => {
     const active = conflicts.concat(unmet, met);
     const basis = active.length ? Object.entries(active.reduce((m, e) => (m[e.tier] = (m[e.tier] || 0) + 1, m), {})) : [];
 
-    // ---- the six moves ----
+    // ---- the seven moves ----
     const moves = [];
 
     // 1. untouched row: bound to the most overridden rows, never clicked.
@@ -91,7 +91,54 @@ const EagleEye = (() => {
     }));
     if (survived.length) moves.push({ kind: 'strawman not rejected', text: `${survived.map(o => `<b>${o.dim.name}: ${o.short || o.label}</b>`).join('; ')}. No selected option rules ${survived.length > 1 ? 'these strawmen' : 'this strawman'} out. Give the reason to reject ${survived.length > 1 ? 'them' : 'it'}, or pick ${survived.length > 1 ? 'one' : 'it'}.` });
 
-    // 6. cogency
+    // 6. chains: the join between two edges. The audit above reads one edge at a time,
+    // and three sound edges can carry an unsound argument when the fault sits in the join.
+    //
+    // Only a req edge composes. A req edge carries the run forward. A conf edge ends it,
+    // because a conf removes the target from the set and the target's own edges never fire.
+    // So a chain is one or more req edges, optionally closed by one conf edge. A req run
+    // derives "requires"; a run closed by a conf derives "rules out".
+    //
+    // This reads the whole box, not the selection. A cycle and an unstated derived relation
+    // are authoring faults: they are true of the box whatever the reader clicks, and a finding
+    // that disappears on a click teaches the reader that clicking fixed it.
+    const derived = new Map(), rings = new Map();
+    const walk = (path, tiers) => {
+      const u = path[path.length - 1], src = path[0];
+      edgesOf(u).forEach(e => {
+        const onPath = path.includes(e.to);
+        // A req edge back onto the path is a cycle, not a chain. Keyed on the set of options,
+        // so the pair that draws it twice reports once.
+        if (e.kind === 'req' && onPath) { const ring = path.slice(path.indexOf(e.to)), key = ring.slice().sort().join('+'); if (!rings.has(key)) rings.set(key, ring); return; }
+        // path.length > 1 is the whole "a conf never starts a chain" rule: the walk only
+        // recurses along req edges, so anything past the first hop arrived on one.
+        if (path.length > 1 && optById[src].dim.id !== optById[e.to].dim.id) { // same row: a swap, not a relation
+          const key = `${src}>${e.to}:${e.kind}`, best = derived.get(key);
+          if (!best || best.path.length <= path.length) derived.set(key, { src, to: e.to, kind: e.kind, path: path.concat(e.to), tiers: tiers.concat(e.tier) });
+        }
+        if (e.kind === 'req' && !onPath) walk(path.concat(e.to), tiers.concat(e.tier));
+      });
+    };
+    Object.keys(optById).forEach(id => walk([id], []));
+
+    const nm = id => esc(`${optById[id].dim.name}: ${optById[id].short || optById[id].label}`);
+    const list = xs => xs.length < 2 ? xs.join('') : `${xs.slice(0, -1).join(', ')} and ${xs[xs.length - 1]}`;
+    // "Does the box say it?" is the actionable half. A derived relation nobody wrote is a
+    // hidden constraint, and the reader fixes it by adding the edge or by writing the reason.
+    const states = c => edgesOf(c.src).some(e => e.to === c.to && e.kind === c.kind)
+      || (c.kind === 'conf' && edgesOf(c.to).some(e => e.to === c.src && e.kind === 'conf')); // a conf drawn once is enough
+    const chains = [...derived.values()].map(c => ({ ...c, stated: states(c), tier: c.tiers.slice().sort((a, b) => TIER_RANK[a] - TIER_RANK[b])[0] }))
+      // Report the longest path, because it is the one no reader holds in their head.
+      // Then the unstated one, then the one that rests on the weakest evidence.
+      .sort((a, b) => b.path.length - a.path.length || a.stated - b.stated || TIER_RANK[a.tier] - TIER_RANK[b.tier]);
+    const chain = chains[0];
+    if (chain) {
+      const rest = chains.length - 1;
+      moves.push({ kind: 'chain', text: `<b>${nm(chain.src)}</b> ${chain.kind === 'conf' ? 'rules out' : 'requires'} <b>${nm(chain.to)}</b>, through ${list(chain.path.slice(1, -1).map(id => `<b>${nm(id)}</b>`))}. ${chain.stated ? 'The box states this relation.' : 'The box does not state it. Add the edge, or say in the notes why the pair is enough.'} The weakest edge on the path is <span class="tier ${chain.tier}">${chain.tier}</span>.${rest ? ` ${rest} more chain${rest > 1 ? 's' : ''} compose${rest > 1 ? '' : 's'}.` : ''}` });
+    }
+    if (rings.size) moves.push({ kind: 'cycle', text: `${[...rings.values()].map(r => `${list(r.map(id => `<b>${nm(id)}</b>`))} require each other.`).join(' ')} That is one decision drawn twice. Merge the rows, or drop one direction.` });
+
+    // 7. cogency
     const argued = active.filter(e => e.tier === 'argued').length;
     // Branch on the edges, not on the change count. A set with no overrides can still carry
     // conflicts, and a set with overrides can still touch no edge. Both read as tested when

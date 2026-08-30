@@ -480,15 +480,10 @@
     },
     "edge-tiered": {
       "why": "Chosen. Every edge says what it rests on; the verdict says what tier it rests on.",
-      "rel": [
-        [
-          "audit-argued",
-          "req",
-          "The argued tier is the one the audit exists for; tiers without an audit is labelling without checking.",
-          "argued"
-        ]
-      ],
-      "notes": []
+      "rel": [],
+      "notes": [
+        "This option required Argued edges, and Argued edges requires this option. The cycle finding named the pair. One direction is dropped: the audit cannot run without a tier to select on, but a tier can be written without an audit."
+      ]
     },
     "edge-evidence": {
       "why": "No edge without a citation.",
