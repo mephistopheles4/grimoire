@@ -31,6 +31,20 @@ function validate(box) {
   const err = m => errors.push(m), warn = m => warnings.push(m);
   if (!box || typeof box !== 'object') return { errors: ['box is not an object'], warnings };
   if (typeof box.title !== 'string' || !box.title.trim()) err('title: required, non-empty string');
+  // The brief. `problem` is the only place the box says what the whole set is for. A row's own
+  // `problem` explains one decision; nothing explained the set, so a reader who opens the page
+  // after a context switch found row names and a grid. Refused, not warned: the row-level warning
+  // is the proof that a warning leaves a field unwritten. `who` and `when` are optional, and each
+  // is one plain sentence — no people model, no dates parsed. A blank one is refused rather than
+  // ignored, so the schema's "non-empty string" is what this code enforces.
+  if (typeof box.problem !== 'string' || !box.problem.trim())
+    err(
+      'problem: required, non-empty string — say what this box decides, in plain words, for a reader who does not know the domain. Without it a reader who returns later sees row names and a grid, and no question. Add "who" for the people it affects and "when" for the date it must be settled. Both are optional, and "not known" is a valid when. See SKILL.md, "The brief".',
+    );
+  ['who', 'when'].forEach(f => {
+    if (box[f] !== undefined && (typeof box[f] !== 'string' || !box[f].trim()))
+      err(`${f}: must be a non-empty string — leave the field out rather than write a blank one`);
+  });
   if (!Array.isArray(box.dims) || !box.dims.length) err('dims: required, non-empty array');
   if (!box.rel || typeof box.rel !== 'object') err('rel: required object keyed by option id');
   if (errors.length) return { errors, warnings };

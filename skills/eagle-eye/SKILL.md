@@ -59,7 +59,10 @@ rows. A cell that closes half the box is usually a position, not an option.
 
 ## Procedure
 
-1. **Rows.** Name each decision and give it a **`problem`** — see
+1. **Brief.** Write the `problem`: what this box decides, for a reader who does
+   not know the domain. Add `who` and `when` if you can. See
+   [The brief](#the-brief). The renderer refuses a box with no `problem`.
+2. **Rows.** Name each decision and give it a **`problem`** — see
    [The problem statement](#the-problem-statement). Apply
    [What earns a row](#what-earns-a-row) first: a menu of positions is not a
    row. List the options that were actually on the table, each with a `src`
@@ -69,12 +72,12 @@ rows. A cell that closes half the box is usually a position, not an option.
    or the *later* answer — flag it anyway and keep its `src`. The flag records
    coverage; `src` records who proposed it. The renderer warns on a row with no
    strawman and on a row with no `problem`.
-2. **Edges.** For each option: what it rules out (`conf`), what it requires
+3. **Edges.** For each option: what it rules out (`conf`), what it requires
    (`req`). Each edge carries one sentence of *why* and a **tier**:
    `measured` (somebody ran it), `sourced` (a document says so — name it),
    `argued` (your reasoning). No edge without a why. An edge inside a row is a
    swap, not an edge.
-3. **Audit.** Check every `argued` edge against the eight weakness patterns
+4. **Audit.** Check every `argued` edge against the eight weakness patterns
    (see `reference/writing-edges.md`). Rewrite it, or move it to `suspected`,
    where it is listed but colours nothing. Name the pattern at the front of the
    `suspected` string. That string is the only record after the session ends.
@@ -84,11 +87,11 @@ rows. A cell that closes half the box is usually a position, not an option.
    with nothing. Check that the derived relation is true, and that the box says
    it. A cycle is a finding: two options that require each other are one
    decision drawn twice. See [Chains](reference/writing-edges.md).
-4. **Chosen set.** Mark one option per row as the current position. Say whose
+5. **Chosen set.** Mark one option per row as the current position. Say whose
    it is: the spec's, the owner's, or your recommendation.
-5. **Presets.** Write at least two, and make at least one of them change an
+6. **Presets.** Write at least two, and make at least one of them change an
    option. The renderer refuses a box without them. See [Presets](#presets).
-6. **Render and read.** Write `<topic>.box.json` to a **scratch directory** —
+7. **Render and read.** Write `<topic>.box.json` to a **scratch directory** —
    the temporary path your tool reports, or the system temporary directory.
    **A box is disposable.** It is the working surface for one conversation, and
    the decision it produces belongs in the project's records, not the grid that
@@ -108,7 +111,7 @@ rows. A cell that closes half the box is usually a position, not an option.
    page from one. If your tool can publish or share a file, offer that as well;
    the page works without it. To read a configuration without a browser, use
    `--sel`.
-7. **Round trip.** The page has **Export**. The user pastes the Markdown back.
+8. **Round trip.** The page has **Export**. The user pastes the Markdown back.
    Read the restore code, then **say the set back in words before you act on
    it** — one line per changed row, `<row name>: <short>`. The user pastes ids,
    which they cannot check by reading. The echo is where they catch a misread.
@@ -118,7 +121,7 @@ rows. A cell that closes half the box is usually a position, not an option.
    ```bash
    node <skill base directory>/render.mjs <box.json> --sel "eagle-eye: opt-a, opt-b"
    ```
-8. **Debrief.** When the user accepts a set, close the loop in chat. Three
+9. **Debrief.** When the user accepts a set, close the loop in chat. Three
    things, in three or four sentences:
 
    - **Which weakness patterns appeared.** Read `suspected`, where every
@@ -162,7 +165,61 @@ good conversation. It is not. A round moves outward from a settled row; a
 question with no row is a hole. Ask where in the grid it would go. If the answer
 is nowhere, add the row.
 
+## The brief
+
+**Every box carries a `problem`: what the whole set decides, for a reader who
+does not know the domain.** The renderer refuses a box without it. A row's own
+`problem` explains one decision. Nothing else explains the set. A reader who
+opens a kept box a month later then sees row names and a grid, and no question.
+
+Write the brief first, before the rows. It is the test for each row. A row that
+serves no part of the problem does not belong in the box.
+
+Two to five sentences, under the [Writing rules](#writing-rules). Cover:
+
+- **The decision, and what forces it now.** Name the terms a stranger does not
+  know.
+- **The fixed constraints.** Name what the rows must not move.
+- **The cost of no decision.** Say what goes wrong while the question stays
+  open.
+
+Write the problem, not your answer. The chosen set carries the answer.
+
+**Two optional fields follow it.** Write one plain sentence for each.
+
+- **`who`** names the people the decision affects. There is no people model, so
+  write a sentence, not a list of roles.
+- **`when`** names the date for the decision. The renderer reads no date, so
+  *"not known"* is a valid answer. Write it when the date is open, because
+  silence tells a reader that nobody must decide.
+
+> **problem.** The gate blocks a merge when a build is red. Nobody has said who
+> must be able to clear it. A maintainer can fix almost anything, and a
+> first-time contributor with a fresh clone cannot. This box decides the reader
+> the standard is written for, the remedy it promises them, and who reviews the
+> promise.
+> **who.** Every contributor who opens a pull request, and the two maintainers
+> who answer them.
+> **when.** Before the next release, because the release note repeats the
+> promise.
+
+### Challenge the premise with a row
+
+The brief says why the box exists. The box never tests that statement. Every row
+carries a strawman, so a reader can attack its options. The reason for the whole
+box carries none.
+
+**Draw the premise as an ordinary row.** Its cells are *solve it*, *defer it*
+and *do it by hand*. They exclude each other, and each one combines with the
+cells of every other row. The row test passes.
+
+This row needs no new concept. Strawmen, edges and all six findings work on it
+today. The *strawman not rejected* finding then also covers the premise. The
+renderer does not enforce this row. Draw it when the premise deserves a test.
+
 ## The problem statement
+
+This section is about a **row**. For the box, see [The brief](#the-brief).
 
 **Every row carries a `problem`: what this decision is about, for a reader who
 does not know the domain.** A row name is a handle, not an explanation —
@@ -250,7 +307,7 @@ keeps its decision records (`docs/decisions/`, `docs/adr/`, or wherever they
 are), and say the path. A kept box is a record the project now maintains.
 
 Say which one you did. *"The box is in scratch at <path>. Say the word and I
-will keep it."* One sentence, at the end of step 6.
+will keep it."* One sentence, at the end of step 7.
 
 ## Names in chat
 
@@ -269,7 +326,7 @@ refuses a box without one, so the name always exists.
 
 Two places keep ids, because both are machine state the user copies whole: the
 restore code and the box file. When you read a restore code back, say the set
-in words first. See step 7.
+in words first. See step 8.
 
 ## Writing rules
 
@@ -283,11 +340,17 @@ patterns: `reference/writing-edges.md`.
 
 Shape in `box.schema.json`; a complete example in
 `examples/eagle-eye-skill.box.json` (the skill's own design, boxed). The
-renderer validates: unique ids, exactly one `chosen` per row, every option has a
+renderer validates: a box-level `problem`, unique ids, exactly one `chosen` per
+row, every option has a
 `short`, edge targets exist and sit in another row, tier in {measured, sourced,
 argued}, a non-argued edge names its `src`, every edge has a why, and two or
-more presets of which one changes an option. It warns on a row with no `problem`, on a row
+more presets of which one changes an option. `who` and `when` are optional, and
+a present one must not be blank. It warns on a row with no `problem`, on a row
 with no strawman, and on a strawman that is the chosen option.
+
+**The box's `problem` and a row's `problem` are two fields.** The renderer
+refuses a box that has no `problem`. It warns about a row that has none. The two
+messages name different places: `problem:` for the box, `dims[i]` for a row.
 
 **A strawman can be the chosen option.** The *strawman not rejected* finding
 says: give the reason to reject it, or pick it. Picking it is the second

@@ -1,6 +1,9 @@
 {
   "title": "What is left after npx skills add",
   "eyebrow": "2026-08-26 · rev C · layout row reopened; a false constraint removed",
+  "problem": "The skills installer copies a skill into agents that are not Claude Code. The skill text names a slash command, a preview pane, and a Windows command that another agent does not have. The renderer is a Node script inside the skill. A reader without the skill cannot render a box. This box decides what the text says, what the repository ships, and what the README tells a stranger first.",
+  "who": "A reader who installs the skill into an agent that is not Claude Code.",
+  "when": "Before the README told a stranger what to run, and the author settled it on 2026-08-26.",
   "dims": [
     {
       "id": "voice",
