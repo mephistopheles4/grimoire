@@ -39,7 +39,7 @@ function validate(box) {
   // ignored, so the schema's "non-empty string" is what this code enforces.
   if (typeof box.problem !== 'string' || !box.problem.trim())
     err(
-      'problem: required, non-empty string — state the problem this box decides, in plain words, for a reader who was not in the room. Add "who" for the people it affects and "when" for the date it must be settled; both are optional, and "not known" is an honest when. See SKILL.md, "The brief".',
+      'problem: required, non-empty string — say what this box decides, in plain words, for a reader who does not know the domain. Without it a reader who returns later sees row names and a grid, and no question. Add "who" for the people it affects and "when" for the date it must be settled. Both are optional, and "not known" is a valid when. See SKILL.md, "The brief".',
     );
   ['who', 'when'].forEach(f => {
     if (box[f] !== undefined && (typeof box[f] !== 'string' || !box[f].trim()))

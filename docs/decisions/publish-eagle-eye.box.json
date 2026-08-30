@@ -1,9 +1,9 @@
 {
   "title": "Publish eagle-eye as a public repo",
   "eyebrow": "2026-08-26 · rev D · scope row still holds, with a note",
-  "problem": "The skill works on one machine and nobody else can get it. Publishing it makes strangers the readers: they install it, run it, trust it, and report a flaw to somebody they have never met. This box decides the install route, the shape of the repository, the licence, the support the author promises, and the guard between reports. The rows are coupled: a marketplace repository fixes the install command, and a public repository fixes what the security file must answer.",
+  "problem": "The skill works on one machine, and nobody else can get it. A public repository makes strangers the readers. They install it, run it, trust it, and report a flaw to a person they have never met. This box decides the install route, the shape of the repository, and the licence. It also decides the support the author promises and the guard between reports.",
   "who": "The author, and any stranger who installs the skill or reports a flaw in it.",
-  "when": "Settled on 2026-08-26, on the day the repository became public.",
+  "when": "Before the first public commit, and the author settled it on 2026-08-26.",
   "dims": [
     {
       "id": "install",

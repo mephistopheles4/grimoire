@@ -11,7 +11,7 @@
     "eyebrow": { "type": "string", "description": "Small caps line above the title. Sheet number, date, revision." },
     "problem": {
       "type": "string", "minLength": 1, "pattern": "\\S",
-      "description": "The brief: what this whole box decides, in plain words, for a reader who was not in the room. A fact about the decision, not about any row — dims[].problem explains one row and is only warned about, this one is refused. Two to five sentences, STE rules. render.mjs refuses a box whose problem is absent, not a string, or only whitespace; minLength and the pattern above say the same thing."
+      "description": "The brief: what this whole box decides, in plain words, for a reader who does not know the domain. A fact about the decision, not about any row — render.mjs warns about a row that has no dims[].problem, and refuses a box that has no problem. Two to five sentences, STE rules. It refuses a problem that is absent, not a string, or only whitespace; minLength and the pattern above say the same thing."
     },
     "who": {
       "type": "string", "minLength": 1, "pattern": "\\S",

@@ -1,8 +1,8 @@
 {
   "title": "The eagle-eye skill",
-  "problem": "This box designs the eagle-eye skill on itself. The skill must decide who builds a box, how honest an edge claims to be, where the file lives, and what the page shows. The answers change each other: a page a person edits needs a round trip, and a round trip needs a stable file format. This sheet is the worked example a reader opens first, so it also has to read well cold.",
+  "problem": "This box designs the eagle-eye skill on itself. The skill must decide who builds a box and who reads it back. It must also decide how honest an edge claims to be, where the file lives, and what the page shows. The answers change each other. A page that a person edits needs a round trip, and a round trip needs a stable file format.",
   "who": "The author of the skill, and every agent and reader who builds a box with it.",
-  "when": "Settled on 2026-08-23. The sheet is a record now, and a row reopens when it goes stale.",
+  "when": "Before the skill shipped, and the author settled it on 2026-08-23.",
   "dims": [
     {
       "id": "driver",

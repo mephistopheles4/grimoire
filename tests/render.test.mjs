@@ -239,12 +239,15 @@ test('a box with no problem statement is refused, and no page is written', () =>
   assert.equal(existsSync(src.replace(/\.box\.json$/, '.html')), false);
 });
 
-test('the refusal names the field, says what to write, and says where to read more', () => {
-  // An author must be able to fix this without opening render.mjs.
+test('the refusal names the field, says what to write and why, and says where to read more', () => {
+  // An author must be able to fix this without opening render.mjs. The why is
+  // the part a message usually drops: it says what the reader loses without
+  // the field, not only that the field is absent.
   const b = box();
   delete b.problem;
   const r = run(renderer, [write('no-problem-message.box.json', b)]);
-  assert.match(r.stderr, /state the problem this box decides/);
+  assert.match(r.stderr, /say what this box decides/);
+  assert.match(r.stderr, /sees row names and a grid, and no question/);
   assert.match(r.stderr, /the people it affects/);
   assert.match(r.stderr, /the date it must be settled/);
   assert.match(r.stderr, /SKILL\.md, "The brief"/);

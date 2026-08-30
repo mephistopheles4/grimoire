@@ -59,8 +59,8 @@ rows. A cell that closes half the box is usually a position, not an option.
 
 ## Procedure
 
-1. **Brief.** Write the `problem`: what this box decides, for a reader who
-   was not in the room. Add `who` and `when` if you can. See
+1. **Brief.** Write the `problem`: what this box decides, for a reader who does
+   not know the domain. Add `who` and `when` if you can. See
    [The brief](#the-brief). The renderer refuses a box with no `problem`.
 2. **Rows.** Name each decision and give it a **`problem`** — see
    [The problem statement](#the-problem-statement). Apply
@@ -168,30 +168,30 @@ is nowhere, add the row.
 ## The brief
 
 **Every box carries a `problem`: what the whole set decides, for a reader who
-was not in the room.** The renderer refuses a box without it. A row's own
-`problem` explains one decision; until this field existed, nothing explained the
-set. A reader who opens a kept box weeks later then finds row names and a grid,
-and has to derive the question from the answers.
+does not know the domain.** The renderer refuses a box without it. A row's own
+`problem` explains one decision. Nothing else explains the set. A reader who
+opens a kept box a month later then sees row names and a grid, and no question.
 
-Write it first, before the rows. The brief is the test each row is drawn
-against: a row that serves no part of the problem does not belong in the box.
+Write the brief first, before the rows. It is the test for each row. A row that
+serves no part of the problem does not belong in the box.
 
 Two to five sentences, under the [Writing rules](#writing-rules). Cover:
 
-- **What is being decided, and what forces the decision now.** Name the terms a
-  stranger has not met.
-- **What is already fixed.** The constraints the rows may not move.
-- **What goes wrong if nobody decides.** The cost of the open question.
+- **The decision, and what forces it now.** Name the terms a stranger does not
+  know.
+- **The fixed constraints.** Name what the rows must not move.
+- **The cost of no decision.** Say what goes wrong while the question stays
+  open.
 
 Write the problem, not your answer. The chosen set carries the answer.
 
-**Two optional fields sit beside it.** Each is one plain sentence.
+**Two optional fields follow it.** Write one plain sentence for each.
 
 - **`who`** names the people the decision affects. There is no people model, so
   write a sentence, not a list of roles.
-- **`when`** names the date it must be settled. No date is parsed. *"Not
-  known"* is an honest answer, and it beats silence: silence reads as a
-  decision nobody has to take.
+- **`when`** names the date for the decision. The renderer reads no date, so
+  *"not known"* is a valid answer. Write it when the date is open, because
+  silence tells a reader that nobody must decide.
 
 > **problem.** The gate blocks a merge when a build is red. Nobody has said who
 > must be able to clear it. A maintainer can fix almost anything, and a
@@ -205,18 +205,17 @@ Write the problem, not your answer. The chosen set carries the answer.
 
 ### Challenge the premise with a row
 
-The brief states why the box exists, and the box never argues with it. Every row
-carries a strawman so its options can be attacked; the reason for the whole box
-carries none.
+The brief says why the box exists. The box never tests that statement. Every row
+carries a strawman, so a reader can attack its options. The reason for the whole
+box carries none.
 
 **Draw the premise as an ordinary row.** Its cells are *solve it*, *defer it*
-and *do it by hand*. They exclude each other, and each combines with the cells
-of every other row, so the row test passes.
+and *do it by hand*. They exclude each other, and each one combines with the
+cells of every other row. The row test passes.
 
-This costs no new concept. Strawmen, edges and all six findings work on that row
-today, and *strawman not rejected* then covers the premise for free. The
-renderer does not enforce this row. It is a pattern you choose when the premise
-is worth testing.
+This row needs no new concept. Strawmen, edges and all six findings work on it
+today. The *strawman not rejected* finding then also covers the premise. The
+renderer does not enforce this row. Draw it when the premise deserves a test.
 
 ## The problem statement
 
@@ -349,9 +348,9 @@ more presets of which one changes an option. `who` and `when` are optional, and
 a present one must not be blank. It warns on a row with no `problem`, on a row
 with no strawman, and on a strawman that is the chosen option.
 
-**The box's `problem` and a row's `problem` are two fields.** The box-level one
-is refused when it is missing. The row-level one is warned about. The error and
-the warning name different places: `problem:` for the box, `dims[i]` for a row.
+**The box's `problem` and a row's `problem` are two fields.** The renderer
+refuses a box that has no `problem`. It warns about a row that has none. The two
+messages name different places: `problem:` for the box, `dims[i]` for a row.
 
 **A strawman can be the chosen option.** The *strawman not rejected* finding
 says: give the reason to reject it, or pick it. Picking it is the second
