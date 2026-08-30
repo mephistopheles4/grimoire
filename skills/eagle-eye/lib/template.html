@@ -254,7 +254,7 @@ const $ = id => document.getElementById(id);
 const S = id => optById[id].short || optById[id].label;
 const ref = d => String(BOX.dims.indexOf(d) + 1).padStart(2, '0');
 const edgesOf = id => (BOX.rel[id]?.rel || []).map(([to, kind, why, tier, src]) => ({ from: id, to, kind, why, tier: tier || 'argued', src }));
-const esc = s => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;');
+const esc = EagleEye.esc; // defined in lib/eagle-eye.js, inlined above, covered by tests/esc.test.mjs
 const tierTag = t => `<span class="tier ${t}">${t}</span>`;
 const nm = id => `<b>${ref(optById[id].dim)} ${esc(optById[id].dim.name)}: ${esc(S(id))}</b>`;
 const COLS = Math.max(...BOX.dims.map(d => d.opts.length));

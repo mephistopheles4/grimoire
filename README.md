@@ -16,7 +16,7 @@ included.
 **Claude Code users can install the plugin instead**, if you would rather have
 the marketplace handle updates:
 
-```
+```text
 /plugin marketplace add mephistopheles4/grimoire
 /plugin install grimoire@mephistopheles4
 ```
@@ -72,7 +72,7 @@ confident-looking verdict rests on three guesses.
 
 Ask for it by name:
 
-```
+```text
 /eagle-eye <topic>
 ```
 

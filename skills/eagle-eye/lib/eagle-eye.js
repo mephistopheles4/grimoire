@@ -2,6 +2,20 @@
 const EagleEye = (() => {
   const TIER_RANK = { measured: 3, sourced: 2, argued: 1 };
 
+  // Box text is a stranger's text. This turns it into text the browser shows
+  // rather than markup the browser runs, and it is the only guard between a
+  // shared box file and the page you opened.
+  //
+  // It escapes & and < and nothing else. That is deliberate and it is narrow:
+  // it is enough only because no box text reaches an HTML attribute, where the
+  // double quote would end the value. SECURITY.md states that pairing, and
+  // tests/esc.test.mjs pins both halves of it.
+  //
+  // It lives here, and not beside the markup that calls it, so a test can
+  // reach it. render.mjs inlines this module into the page, so the page and
+  // the test run the same function.
+  const esc = s => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;');
+
   function index(box){
     const optById = {}, chosenOf = {};
     box.dims.forEach(d => { d.opts.forEach(o => { optById[o.id] = { ...o, dim: d }; }); chosenOf[d.id] = d.opts.find(o => o.chosen).id; });
@@ -103,6 +117,6 @@ const EagleEye = (() => {
     return { optById, chosenOf, selected, overrides, conflicts, unmet, met, closed, pulled, verdict, basis, moves, affected, suspected: box.suspected || [] };
   }
 
-  return { analyse, index };
+  return { analyse, index, esc };
 })();
 if (typeof module !== 'undefined') module.exports = EagleEye;

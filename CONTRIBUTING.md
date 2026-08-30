@@ -10,13 +10,39 @@ computer. That is the reason for the rules below, and it is the only reason.
 node scripts/check.mjs
 ```
 
-That is the contract. It validates every `*.box.json` in the tree with the
-eagle-eye renderer, and it checks that no `SKILL.md` has grown a fixed path
-back. CI runs it as a required check called `check`. `main` takes no direct
-pushes.
+That is the contract, and it is still one command. It validates every
+`*.box.json` in the tree with the eagle-eye renderer, checks that no `SKILL.md`
+has grown a fixed path back, fails on a code fence that declares no language,
+and runs the test suite in `tests/`. CI runs it as a required check called
+`check`. `main` takes no direct pushes.
 
 You need Node 20 or later and nothing else. There is no install step, because
 there are no dependencies.
+
+## Tests
+
+The tests run on `node --test`, which ships with Node. That is the whole reason
+they exist: a test runner from npm would be the dependency this repository does
+not take, and `SECURITY.md` explains why that matters more than it looks.
+
+`node scripts/check.mjs` runs them, so there is no second command to forget. To
+run only the suite while you work on it:
+
+```bash
+node --test tests/esc.test.mjs tests/render.test.mjs tests/check.test.mjs
+```
+
+Two rules about what goes in there:
+
+**Never commit a box file as a fixture.** `scripts/check.mjs` and
+`scripts/build-pages.mjs` both walk the whole tree for `*.box.json`. A broken
+fixture fails the check, and a valid one is rendered and published to the public
+site. Read the box file the skill already ships, or write the malformed one to a
+temporary directory at run time. `tests/render.test.mjs` does both.
+
+**Test at the seam a reader uses.** The renderer's seam is its command line, and
+the check's seam is its exit code and its output. A test that reaches inside
+either one breaks on a refactor that changed no behaviour.
 
 That is also why a `git worktree` needs no setup here. Add one and run the
 check; there is nothing to install, link, or copy first.
@@ -30,10 +56,23 @@ procedure is two reviews wearing one hat.
 prose change. For a renderer change, say which box file you rendered and what
 you looked at on the page.
 
+**A behaviour change carries a test.** Not a coverage target — there is none.
+The rule is narrower: if the patch changes what the renderer or the check does,
+the pull request shows the test that fails without it.
+
 **Do not add a dependency.** The renderer is deliberately zero-dependency: it
 imports node built-in modules and nothing else. A patch that adds a package
 needs to argue for itself in the pull request body before anybody reads the
 diff. See [`SECURITY.md`](SECURITY.md) for why this matters more than it looks.
+
+**Give every code fence a language.** `node scripts/check.mjs` fails on a fence
+that declares none, and names the file and the line. Use `text` for a block
+that is neither code nor markup — a typed command, a plain example.
+
+This is a hand-written rule and not markdownlint, on purpose. A linter is a
+dependency wherever it runs, including an unpinned `npx` in a workflow, and
+adopting one would start with a decision about its line-length rule that nobody
+has taken. The rule catches a bare fence and nothing else.
 
 ## Rules that are specific to skills
 

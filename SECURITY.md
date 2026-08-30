@@ -25,11 +25,13 @@ So the realistic risks are narrow, and worth naming precisely:
 
 Stated with line numbers, because "it escapes things" is not a threat model:
 
-- **`skills/eagle-eye/render.mjs:146` escapes `</` before it writes the box JSON into a
+- **`skills/eagle-eye/render.mjs:155` escapes `</` before it writes the box JSON into a
   `<script>` block**, so a `why` string that contains `</script>` cannot close
   the block.
-- **`skills/eagle-eye/lib/template.html:257` escapes `&` and `<`** before box text reaches
-  `innerHTML`. **It does not escape the double quote.**
+- **`skills/eagle-eye/lib/eagle-eye.js:17` escapes `&` and `<`** before box text reaches
+  `innerHTML`. **It does not escape the double quote.** The template calls it at
+  `skills/eagle-eye/lib/template.html:257`; `render.mjs` inlines the module into the page,
+  so the page and the test run the same function.
 - **No box text reaches an HTML attribute today.** Every interpolated attribute
   in the template holds an option id, a number, or a fixed class name, and ids
   are validated against `^[a-z0-9][a-z0-9-]*$` at `skills/eagle-eye/render.mjs:27`.
@@ -40,8 +42,25 @@ attribute that interpolates a label, a `why`, or a `note`, the escape stops
 being enough.** A reviewer should treat any new `="${` in the template as a
 change to this file.
 
-**No test covers the escape function.** It is one line, it has never been
-exercised by a red test, and this file says so rather than implying otherwise.
+**Both escapes are now covered by tests, and the tests pin the width rather
+than only the behaviour.** [`tests/esc.test.mjs`](tests/esc.test.mjs) asserts
+that `&` and `<` are escaped **and** that the double quote passes through, so
+widening the escape and narrowing it back are each a visible test change rather
+than a silent one. [`tests/render.test.mjs`](tests/render.test.mjs) renders a
+box whose `why` carries `</script><script>…</script>`, and asserts the payload
+reaches the page with the slash escaped and closes no script block. The escape
+lives in `lib/eagle-eye.js`, and not beside the markup that calls it, for
+exactly this reason: a function inside a 49 KB template is a function no test
+can reach.
+
+An earlier version of this file recorded the opposite — "No test covers the
+escape function" — which was true when it was written and is the reason the
+tests exist.
+
+**What the tests do not cover.** They exercise the escape, not the five
+`innerHTML` calls that consume it. A test that asserted "no box text reaches an
+attribute" would need to parse the rendered page, and nothing here does that
+yet. The claim above is still read by a reviewer, not by a machine.
 
 ## Reporting a vulnerability
 
@@ -105,7 +124,7 @@ one people learn to route around.
 **Its first scan raised two alerts, both `js/incomplete-multi-character-
 sanitization`, both rated high, and both the same one-line function copied into
 two files.** `strip` removed HTML tags from an option label in one pass, at
-`render.mjs:119` and `lib/template.html:445`. Here is the triage, because "we
+`render.mjs:128` and `lib/template.html:445`. Here is the triage, because "we
 fixed it" tells an auditor nothing:
 
 - **The output never reaches HTML.** `strip` feeds a Markdown export that lands
@@ -145,3 +164,13 @@ a threat model:
   before you install it, here or anywhere.
 - **A malicious maintainer account.** Branch protection raises the cost of a bad
   commit. It does not survive a stolen account with admin rights.
+- **The one request the page makes when you open it.** "Self-contained" means
+  every line of script and style that runs is in the file. It is not "makes no
+  network request": the page links one Google Fonts stylesheet, and falls back
+  to a system font stack when that fails. So opening a page tells Google you
+  opened it. `tests/render.test.mjs` asserts that this is the only external
+  reference, which makes a second one a red test rather than a discovery —
+  **at one width**: the test reads `src` and `href` on a `script`, `link` or
+  `img` element. A CSS `@import`, a `url()`, a `fetch` or an `iframe` is a
+  second way out that stays green. Widening the test is cheap; nobody has
+  needed to yet.

@@ -9,8 +9,16 @@ import { readdirSync, readFileSync, mkdirSync, writeFileSync } from 'node:fs';
 import { join, basename, relative, sep } from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
+import { createRequire } from 'node:module';
 
 const root = join(fileURLToPath(import.meta.url), '..', '..');
+
+// The same escape the rendered page uses, from the same file. This script had
+// its own copy, and the copy behaved differently: it rendered a missing value
+// as the string "undefined". Two escapes are two things to get right, and the
+// second one had no test. tests/esc.test.mjs covers this one.
+const require = createRequire(import.meta.url);
+const { esc } = require(join(root, 'skills', 'eagle-eye', 'lib', 'eagle-eye.js'));
 const out = join(root, 'site');
 const renderer = join(root, 'skills', 'eagle-eye', 'render.mjs');
 const SKIP = new Set(['node_modules', '.git', 'site']);
@@ -34,7 +42,6 @@ for (const box of walk(root)) {
   pages.push({ name, title, src: relative(root, box).split(sep).join('/') });
 }
 
-const esc = s => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;');
 const items = pages
   .map(p => `    <li><a href="./${esc(p.name)}">${esc(p.title)}</a> <code>${esc(p.src)}</code></li>`)
   .join('\n');

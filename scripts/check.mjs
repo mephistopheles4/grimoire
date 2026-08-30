@@ -6,7 +6,12 @@
 // 1. Every *.box.json in the tree validates against the eagle-eye renderer.
 // 2. No SKILL.md carries a fixed path. A skill lands in a different directory
 //    under every install route, so a path that names one of them is a defect.
-// 3. Every plugin in the marketplace manifest exists on disk with a manifest.
+// 3. The single-pass tag strip does not come back, and no code fence in any
+//    markdown file declares no language.
+// 4. Every plugin in the marketplace manifest exists on disk with a manifest.
+// 5. A change to a skill carries a version bump.
+// 6. The test suite passes. `node --test` ships with Node, so the tests cost no
+//    dependency and this stays one command.
 
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join, relative, sep } from 'node:path';
@@ -70,6 +75,46 @@ for (const f of files.filter(f => /\.(mjs|js|html)$/.test(f))) {
     .forEach((line, i) => {
       if (SINGLE_PASS.test(line)) {
         fail(`${rel(f)}:${i + 1} strips tags in one pass — repeat until the string stops changing`);
+      }
+    });
+}
+
+// 3b. No fenced code block declares no language.
+//
+// CodeRabbit raised one of these on #6, and there was no local gate to catch
+// it. A bare fence renders without highlighting and tells a reader nothing
+// about what they are looking at.
+//
+// This is a state machine and not a per-line regex, which is the same shape
+// the rule started as. A naive regex matches the closing fence too, and every
+// closing fence declares no language, so it reported sixteen lines of which
+// thirteen were closing ones.
+//
+// The open fence is held whole, not as its first character. CommonMark closes
+// a fence only on the same character, at the same length or longer, so ```` a
+// four-backtick block holding a three-backtick example stays one block. Held
+// as a character, the inner ``` closed the outer block and the example's own
+// closing fence then read as a new bare one — a failure on correct markdown,
+// in a repository whose files document fenced blocks. The same rule lets a
+// ``` block hold a ~~~ line untouched.
+//
+// Only the bare fence is checked. markdownlint reports about forty long lines
+// in this tree at its defaults, and that is a separate decision nobody has
+// taken. See SECURITY.md for why no linter is installed to take it.
+const FENCE = /^\s*(`{3,}|~{3,})\s*(\S*)/;
+for (const md of files.filter(f => f.endsWith('.md'))) {
+  let open = null;
+  readFileSync(md, 'utf8')
+    .split('\n')
+    .forEach((line, i) => {
+      const m = FENCE.exec(line);
+      if (!m) return;
+      const [, marker, lang] = m;
+      if (open === null) {
+        open = marker;
+        if (!lang) fail(`${rel(md)}:${i + 1} opens a code fence with no language — say what the block holds`);
+      } else if (marker[0] === open[0] && marker.length >= open.length && !lang) {
+        open = null;
       }
     });
 }
@@ -159,6 +204,60 @@ if (!mergeBase) {
       fail(
         `${files} skill file(s) changed since ${baseRef}, but version is still ${plugin.version} — plugin users receive no update`,
       );
+    }
+  }
+}
+
+// 6. The test suite runs here, under the same one command.
+//
+// `node --test` ships with Node and needs no manifest, no install and no
+// dependency, which is the only reason a repository with no package.json can
+// have tests at all. It runs last because the rules above are cheap and the
+// suite spawns processes.
+//
+// It runs from here rather than from a second CI step, because CONTRIBUTING
+// promises one command. A suite behind a command nobody is told to run is a
+// suite nobody runs.
+//
+// The files are listed rather than passed as a directory or a glob. A bare
+// `node --test tests/` is a file path on some versions and a directory on
+// others, and a glob is the shell's job on one platform and Node's on another.
+// A list of paths means the same thing everywhere.
+//
+// GRIMOIRE_IN_TEST breaks the loop. tests/check.test.mjs runs this script, and
+// this script runs the suite. The variable tells the child which of the two is
+// already happening.
+if (process.env.GRIMOIRE_IN_TEST) {
+  console.log('note: tests already running — test step skipped');
+} else {
+  // Every path out of here says which one it took. A check that silently does
+  // nothing reads as a check that passed, and "the suite is missing" and "the
+  // suite is empty" are two different ways for it to disappear.
+  let tests = null;
+  try {
+    tests = readdirSync(join(root, 'tests'))
+      .filter(f => f.endsWith('.test.mjs'))
+      .sort()
+      .map(f => join(root, 'tests', f));
+  } catch (e) {
+    // Only "it is not there" is a skip. A bare catch also swallowed a
+    // permission error and a file called tests, and reported both as a missing
+    // directory — a suite that cannot be read, passing under a reassuring note.
+    if (e.code !== 'ENOENT') throw e;
+    console.log('note: no tests/ directory — test step skipped');
+  }
+  if (tests && !tests.length) {
+    console.log('note: tests/ holds no *.test.mjs file — test step skipped');
+  } else if (tests) {
+    console.log(`\nrunning ${tests.length} test file(s)`);
+    try {
+      execFileSync(process.execPath, ['--test', ...tests], {
+        cwd: root,
+        env: { ...process.env, GRIMOIRE_IN_TEST: '1' },
+        stdio: 'inherit',
+      });
+    } catch {
+      fail('the test suite failed — the run is printed above');
     }
   }
 }

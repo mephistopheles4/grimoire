@@ -307,7 +307,7 @@ usually a position.
 
 What the page produces and what you read back. Change both together.
 
-```
+```markdown
 ## eagle-eye · <title> · N changes · <verdict>
 | # | Decision | Chosen | My choice |
 ...
