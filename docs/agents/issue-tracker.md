@@ -48,8 +48,13 @@ assignee field:
   happened, not when the issue was made:
 
   ```bash
-  gh api repos/<owner>/<repo>/issues/<n>/events --jq '.[] | select(.event == "assigned") | {created_at, assignee: .assignee.login, assigner: .assigner.login}'
+  gh api --paginate repos/<owner>/<repo>/issues/<n>/events --jq '.[] | select(.event == "assigned") | {created_at, assignee: .assignee.login, assigner: .assigner.login}'
   ```
+
+  `--paginate` because the endpoint returns thirty events a page, and the
+  assignment you care about is the most recent one. On a long-running issue,
+  the page you get without it is the oldest thirty events, which is the wrong
+  end of the list.
 
   `gh issue list --json number,createdAt,assignees` cannot answer this. It
   returns the issue's creation time and its current assignees, and those are

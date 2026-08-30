@@ -217,6 +217,42 @@ test('a tilde fence inside a backtick block does not close it', () => {
   assertPasses(dir);
 });
 
+test('a longer fence may hold a shorter one, which does not close it', () => {
+  // CommonMark closes a fence on the same character at the same length or
+  // longer. Holding only the character, the inner ``` closed the outer block
+  // and the example's own closing fence then read as a new bare one — the rule
+  // failing correct markdown. This repository documents fenced blocks, so that
+  // file is one somebody here would write.
+  const dir = tree();
+  appendFileSync(skillMd(dir), '\n````markdown\n```\nan inner example fence\n```\n````\n');
+  assertPasses(dir);
+});
+
+test('a bare fence after a nested block is still caught', () => {
+  // The other half of the same fix. Getting the nesting right must not buy
+  // silence: the rule still has to see the bare fence that follows.
+  const dir = tree();
+  const lines = readFileSync(skillMd(dir), 'utf8').split('\n');
+  const added = ['````markdown', '```', 'an inner example fence', '```', '````', '', '```', 'genuinely bare', '```', ''];
+  // The bare fence is the seventh line added, and lines.length is its 0-based
+  // offset. Derived from the block rather than counted by hand.
+  const fenceLine = lines.length + added.indexOf('```', 6) + 1;
+  lines.push(...added);
+  writeFileSync(skillMd(dir), lines.join('\n'));
+  assert.equal(lines[fenceLine - 1], '```');
+  assertFails(dir, new RegExp(`SKILL\\.md:${fenceLine} opens a code fence with no language`));
+});
+
+test('a tests path that is not a directory fails rather than reading as absent', () => {
+  // A bare catch reported every error as a missing directory, so a suite that
+  // could not be read passed under a reassuring note.
+  const dir = tree();
+  writeFileSync(join(dir, 'tests'), 'not a directory\n');
+  const r = run(checkIn(dir), [], { cwd: dir, env: { GRIMOIRE_IN_TEST: null } });
+  assert.notEqual(r.code, 0, `${r.stdout}\n${r.stderr}`);
+  assert.equal(/no tests\/ directory/.test(r.stdout), false, 'must not report a missing directory');
+});
+
 // The version-bump rule needs a merge base, so the two tests below build one.
 // Every other test in this file runs against a copy with no .git at all, which
 // puts the rule on its "cannot resolve" path and proves only that it says so.

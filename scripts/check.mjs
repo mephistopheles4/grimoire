@@ -88,8 +88,15 @@ for (const f of files.filter(f => /\.(mjs|js|html)$/.test(f))) {
 // This is a state machine and not a per-line regex, which is the same shape
 // the rule started as. A naive regex matches the closing fence too, and every
 // closing fence declares no language, so it reported sixteen lines of which
-// thirteen were closing ones. A fence closes only on the character it opened
-// with, so a ``` block can hold a ~~~ line and stay one block.
+// thirteen were closing ones.
+//
+// The open fence is held whole, not as its first character. CommonMark closes
+// a fence only on the same character, at the same length or longer, so ```` a
+// four-backtick block holding a three-backtick example stays one block. Held
+// as a character, the inner ``` closed the outer block and the example's own
+// closing fence then read as a new bare one — a failure on correct markdown,
+// in a repository whose files document fenced blocks. The same rule lets a
+// ``` block hold a ~~~ line untouched.
 //
 // Only the bare fence is checked. markdownlint reports about forty long lines
 // in this tree at its defaults, and that is a separate decision nobody has
@@ -104,9 +111,9 @@ for (const md of files.filter(f => f.endsWith('.md'))) {
       if (!m) return;
       const [, marker, lang] = m;
       if (open === null) {
-        open = marker[0];
+        open = marker;
         if (!lang) fail(`${rel(md)}:${i + 1} opens a code fence with no language — say what the block holds`);
-      } else if (marker[0] === open && !lang) {
+      } else if (marker[0] === open[0] && marker.length >= open.length && !lang) {
         open = null;
       }
     });
@@ -232,7 +239,11 @@ if (process.env.GRIMOIRE_IN_TEST) {
       .filter(f => f.endsWith('.test.mjs'))
       .sort()
       .map(f => join(root, 'tests', f));
-  } catch {
+  } catch (e) {
+    // Only "it is not there" is a skip. A bare catch also swallowed a
+    // permission error and a file called tests, and reported both as a missing
+    // directory — a suite that cannot be read, passing under a reassuring note.
+    if (e.code !== 'ENOENT') throw e;
     console.log('note: no tests/ directory — test step skipped');
   }
   if (tests && !tests.length) {
