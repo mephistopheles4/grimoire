@@ -457,7 +457,7 @@ function loadCode(raw){
   const ids = raw.replace(/^\s*eagle-eye:\s*/i, '').split(',').map(s => s.trim()).filter(Boolean);
   Object.assign(sel, chosenOf); const bad = [];
   ids.forEach(id => { if (id === 'none') return; if (optById[id]) { sel[optById[id].dim.id] = id; touched.add(optById[id].dim.id); } else bad.push(id); });
-  pending = null; update();
+  pending = null; clearPreset(); update();
   $('exportStatus').textContent = bad.length ? `Loaded. Unknown: ${bad.join(', ')}` : (ids.length ? 'Loaded.' : 'Reset to chosen.');
 }
 function syncHash(){ const s = encodeSel().replace(/,\s*/g, ','); history.replaceState(null, '', s ? `#sel=${s}` : location.pathname + location.search); }
@@ -497,8 +497,8 @@ function update(){
 $('viewFind').addEventListener('click', () => { view = 'findings'; update(); });
 $('viewSheet').addEventListener('click', () => { view = 'sheet'; update(); });
 // ---- Reset, and the ten seconds you have to take it back ----
-function snapshotState(){ return { sel: { ...sel }, touched: new Set(touched), openRow, view }; }
-function restoreState(s){ Object.assign(sel, s.sel); touched.clear(); s.touched.forEach(t => touched.add(t)); openRow = s.openRow; view = s.view; pending = null; }
+function snapshotState(){ return { sel: { ...sel }, touched: new Set(touched), openRow, view, preset, stepIdx }; }
+function restoreState(s){ Object.assign(sel, s.sel); touched.clear(); s.touched.forEach(t => touched.add(t)); openRow = s.openRow; view = s.view; pending = null; preset = s.preset; stepIdx = s.stepIdx; paintPresets(); }
 function paintReset(){
   const offering = !!undoSnap && resetHot;
   $('reset').textContent = offering ? 'Undo' : 'Reset';
@@ -526,8 +526,11 @@ $('reset').addEventListener('click', () => {
   if (undoSnap && resetHot) { const s = undoSnap; disarmUndo(); restoreState(s); update(); return; }
   const before = snapshotState();
   const hadOverrides = BOX.dims.some(d => sel[d.id] !== chosenOf[d.id]);
-  resetAll(); update();                      // resetAll disarms, so arm after it
-  if (hadOverrides) { undoSnap = before; paintReset(); }
+  // A preset with no step run yet has no override, so overrides alone would leave that reset
+  // with no way back. Arm the undo for the preset too.
+  const hadPreset = preset >= 0;
+  resetAll(); clearPreset(); update();       // resetAll disarms, so arm after it
+  if (hadOverrides || hadPreset) { undoSnap = before; paintReset(); }
 });
 const setCoach = on => { coach = on; pending = null; $('coachToggle').textContent = `Coach: ${on ? 'on' : 'off'}`; $('coachToggle').classList.toggle('on', on); $('coachToggle').classList.toggle('ghost', !on); };
 $('coachToggle').addEventListener('click', () => { setCoach(!coach); update(); });
@@ -549,6 +552,10 @@ function runStep(s){
   if (s.open !== undefined) openDim(s.open);
   if (s.view) view = s.view;
 }
+// Reset and a pasted code both throw away the selections a preset made, so the preset no longer
+// describes the grid. This lives here and not in resetAll: a preset step can ask for a reset, and a
+// preset must not deselect itself halfway through its own walkthrough.
+function clearPreset(){ preset = -1; stepIdx = 0; paintPresets(); }
 function paintPresets(){
   if (!PRESETS.length) { $('presetGroup').hidden = true; return; }
   $('presets').innerHTML = PRESETS.map((p, i) => `<button class="chip ${i === preset ? 'on' : ''}" data-p="${i}">${esc(p.title)}</button>`).join('') + `<button class="chip ghost" data-p="-1">Free</button>`;
@@ -557,7 +564,10 @@ function paintPresets(){
   // "Free" is not a preset — it means stop guiding me — so it changes no option.
   $('presets').querySelectorAll('[data-p]').forEach(b => b.addEventListener('click', () => { preset = +b.dataset.p; stepIdx = 0; if (preset >= 0) resetAll(); paintPresets(); update(); }));
   $('presetNote').hidden = preset < 0;
-  if (preset >= 0) { $('presetText').textContent = PRESETS[preset].text || ''; $('presetSteps').innerHTML = PRESETS[preset].steps.map((s, i) => `<button data-i="${i}">${i + 1}. ${esc(s.label)}</button>`).join('');
+  // No preset means no steps. Emptying the list rather than hiding it stops a stale "next" mark
+  // from surviving inside the hidden note and reappearing with the next preset.
+  if (preset < 0) { $('presetText').textContent = ''; $('presetSteps').innerHTML = ''; }
+  else { $('presetText').textContent = PRESETS[preset].text || ''; $('presetSteps').innerHTML = PRESETS[preset].steps.map((s, i) => `<button data-i="${i}">${i + 1}. ${esc(s.label)}</button>`).join('');
     $('presetSteps').querySelectorAll('button').forEach(b => b.addEventListener('click', () => { const i = +b.dataset.i; runStep(PRESETS[preset].steps[i]); stepIdx = i + 1; update(); })); }
   markSteps();
 }
