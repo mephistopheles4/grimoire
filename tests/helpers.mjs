@@ -24,6 +24,13 @@ export const exampleBox = join(root, 'skills', 'eagle-eye', 'examples', 'eagle-e
 export function run(script, args = [], opts = {}) {
   const env = { ...process.env, GRIMOIRE_IN_TEST: '1', ...opts.env };
   for (const [k, v] of Object.entries(env)) if (v === null) delete env[k];
+  // Node sets NODE_TEST_CONTEXT for anything a test file spawns, and a
+  // `node --test` that sees it refuses to run: "run() is being called
+  // recursively within a test file. skipping running files." It skips and
+  // exits 0, so a suite that should have failed reads as a suite that passed —
+  // which is how the test for a failing suite first went green. The scripts
+  // spawned here are not test files, so the variable does not belong to them.
+  delete env.NODE_TEST_CONTEXT;
   const r = spawnSync(process.execPath, [script, ...args], {
     cwd: opts.cwd || root,
     env,

@@ -12,8 +12,9 @@ node scripts/check.mjs
 
 That is the contract, and it is still one command. It validates every
 `*.box.json` in the tree with the eagle-eye renderer, checks that no `SKILL.md`
-has grown a fixed path back, and runs the test suite in `tests/`. CI runs it as
-a required check called `check`. `main` takes no direct pushes.
+has grown a fixed path back, fails on a code fence that declares no language,
+and runs the test suite in `tests/`. CI runs it as a required check called
+`check`. `main` takes no direct pushes.
 
 You need Node 20 or later and nothing else. There is no install step, because
 there are no dependencies.
@@ -63,6 +64,15 @@ the pull request shows the test that fails without it.
 imports node built-in modules and nothing else. A patch that adds a package
 needs to argue for itself in the pull request body before anybody reads the
 diff. See [`SECURITY.md`](SECURITY.md) for why this matters more than it looks.
+
+**Give every code fence a language.** `node scripts/check.mjs` fails on a fence
+that declares none, and names the file and the line. Use `text` for a block
+that is neither code nor markup — a typed command, a plain example.
+
+This is a hand-written rule and not markdownlint, on purpose. A linter is a
+dependency wherever it runs, including an unpinned `npx` in a workflow, and
+adopting one would start with a decision about its line-length rule that nobody
+has taken. The rule catches a bare fence and nothing else.
 
 ## Rules that are specific to skills
 

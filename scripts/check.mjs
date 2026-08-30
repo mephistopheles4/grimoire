@@ -6,7 +6,8 @@
 // 1. Every *.box.json in the tree validates against the eagle-eye renderer.
 // 2. No SKILL.md carries a fixed path. A skill lands in a different directory
 //    under every install route, so a path that names one of them is a defect.
-// 3. The single-pass tag strip does not come back.
+// 3. The single-pass tag strip does not come back, and no code fence in any
+//    markdown file declares no language.
 // 4. Every plugin in the marketplace manifest exists on disk with a manifest.
 // 5. A change to a skill carries a version bump.
 // 6. The test suite passes. `node --test` ships with Node, so the tests cost no
@@ -74,6 +75,39 @@ for (const f of files.filter(f => /\.(mjs|js|html)$/.test(f))) {
     .forEach((line, i) => {
       if (SINGLE_PASS.test(line)) {
         fail(`${rel(f)}:${i + 1} strips tags in one pass — repeat until the string stops changing`);
+      }
+    });
+}
+
+// 3b. No fenced code block declares no language.
+//
+// CodeRabbit raised one of these on #6, and there was no local gate to catch
+// it. A bare fence renders without highlighting and tells a reader nothing
+// about what they are looking at.
+//
+// This is a state machine and not a per-line regex, which is the same shape
+// the rule started as. A naive regex matches the closing fence too, and every
+// closing fence declares no language, so it reported sixteen lines of which
+// thirteen were closing ones. A fence closes only on the character it opened
+// with, so a ``` block can hold a ~~~ line and stay one block.
+//
+// Only the bare fence is checked. markdownlint reports about forty long lines
+// in this tree at its defaults, and that is a separate decision nobody has
+// taken. See SECURITY.md for why no linter is installed to take it.
+const FENCE = /^\s*(`{3,}|~{3,})\s*(\S*)/;
+for (const md of files.filter(f => f.endsWith('.md'))) {
+  let open = null;
+  readFileSync(md, 'utf8')
+    .split('\n')
+    .forEach((line, i) => {
+      const m = FENCE.exec(line);
+      if (!m) return;
+      const [, marker, lang] = m;
+      if (open === null) {
+        open = marker[0];
+        if (!lang) fail(`${rel(md)}:${i + 1} opens a code fence with no language — say what the block holds`);
+      } else if (marker[0] === open && !lang) {
+        open = null;
       }
     });
 }
@@ -189,17 +223,21 @@ if (!mergeBase) {
 if (process.env.GRIMOIRE_IN_TEST) {
   console.log('note: tests already running — test step skipped');
 } else {
-  let tests = [];
+  // Every path out of here says which one it took. A check that silently does
+  // nothing reads as a check that passed, and "the suite is missing" and "the
+  // suite is empty" are two different ways for it to disappear.
+  let tests = null;
   try {
     tests = readdirSync(join(root, 'tests'))
       .filter(f => f.endsWith('.test.mjs'))
       .sort()
       .map(f => join(root, 'tests', f));
   } catch {
-    // Say so. A check that silently does nothing reads as a check that passed.
     console.log('note: no tests/ directory — test step skipped');
   }
-  if (tests.length) {
+  if (tests && !tests.length) {
+    console.log('note: tests/ holds no *.test.mjs file — test step skipped');
+  } else if (tests) {
     console.log(`\nrunning ${tests.length} test file(s)`);
     try {
       execFileSync(process.execPath, ['--test', ...tests], {

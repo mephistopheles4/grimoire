@@ -116,7 +116,13 @@ test('the page loads no code from anywhere else', () => {
   // request remains, and this test states it rather than rounding it off — a
   // Google Fonts stylesheet, which the page falls back from when it fails.
   // Any new external reference turns this test red, which is the point.
-  const html = readFileSync(join(work, 'page.html'), 'utf8');
+  //
+  // Say the width, as SECURITY.md does for the escape. This looks at src and
+  // href on a script, link or img element. A CSS @import, a url(), a fetch or
+  // an iframe would be a second way out and this test would stay green.
+  const out = join(work, 'external.html');
+  run(renderer, [exampleBox, '--out', out]);
+  const html = readFileSync(out, 'utf8');
   const external = html.match(/<(?:script|link|img)[^>]+(?:src|href)="(https?:[^"]*)"/gi) || [];
   assert.equal(external.length, 1, `unexpected external references: ${external.join(', ')}`);
   assert.match(external[0], /^<link rel="stylesheet" href="https:\/\/fonts\.googleapis\.com\//);

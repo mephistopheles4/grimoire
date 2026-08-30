@@ -169,4 +169,8 @@ a threat model:
   network request": the page links one Google Fonts stylesheet, and falls back
   to a system font stack when that fails. So opening a page tells Google you
   opened it. `tests/render.test.mjs` asserts that this is the only external
-  reference, which makes a second one a red test rather than a discovery.
+  reference, which makes a second one a red test rather than a discovery —
+  **at one width**: the test reads `src` and `href` on a `script`, `link` or
+  `img` element. A CSS `@import`, a `url()`, a `fetch` or an `iframe` is a
+  second way out that stays green. Widening the test is cheap; nobody has
+  needed to yet.

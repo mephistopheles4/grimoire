@@ -44,9 +44,12 @@ assignee field:
 
 - **Name the issue when you start a session.** A session told which issue to
   work never self-selects, so it cannot collide.
-- **Treat a recently assigned issue as live.** `gh issue list --json
-  number,createdAt,assignees` shows when. Ask the other session whether it is
-  finished rather than inferring from an idle-looking process.
+- **Treat an issue created in the last hour as live.** `gh issue list --json
+  number,createdAt,assignees` shows when it was created. It does not show when
+  it was assigned — GitHub exposes no assignment timestamp through `gh` — so
+  creation time is the clock you actually have. Inside that hour, an issue
+  belongs to whoever made it, whatever its assignee says. Ask that session
+  whether it is finished rather than inferring from an idle-looking process.
 
 **Unassign yourself when you stop without finishing**, with a comment saying
 where you got to. An assignee on abandoned work is worse than none: it reads as

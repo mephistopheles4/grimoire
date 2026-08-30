@@ -15,6 +15,7 @@
 import { test, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdtempSync, rmSync, cpSync, readFileSync, writeFileSync, mkdirSync, appendFileSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { root, check, run } from './helpers.mjs';
@@ -179,6 +180,125 @@ test('the check reports every failure at once, not the first one', () => {
   const r = assertFails(dir, /2 failure\(s\)/);
   assert.match(r.stderr, /holds a fixed path/);
   assert.match(r.stderr, /drop "version"/);
+});
+
+test('a code fence with no language fails, naming the file and the line', () => {
+  const dir = tree();
+  const p = skillMd(dir);
+  const lines = readFileSync(p, 'utf8').split('\n');
+  // The file ends with a newline, so the last element is empty and the fence
+  // lands on the next line down. Held as an index rather than searched for: a
+  // search finds the first bare ``` in the file, which is a closing fence.
+  const fenceLine = lines.length + 1;
+  lines.push('```', 'a block that says nothing about itself', '```', '');
+  writeFileSync(p, lines.join('\n'));
+  assert.equal(lines[fenceLine - 1], '```');
+  assertFails(dir, new RegExp(`SKILL\\.md:${fenceLine} opens a code fence with no language`));
+});
+
+test('a fence that declares a language passes', () => {
+  const dir = tree();
+  appendFileSync(skillMd(dir), '\n```bash\nnode scripts/check.mjs\n```\n');
+  assertPasses(dir);
+});
+
+test('a closing fence is not read as a bare opening fence', () => {
+  // The rule started as a per-line regex, which reported every closing fence
+  // in the tree: sixteen hits, thirteen of them closing. This is the test that
+  // says the state machine is the point.
+  const dir = tree();
+  appendFileSync(skillMd(dir), '\n```text\nfirst\n```\n\n```text\nsecond\n```\n');
+  assertPasses(dir);
+});
+
+test('a tilde fence inside a backtick block does not close it', () => {
+  const dir = tree();
+  appendFileSync(skillMd(dir), '\n```text\n~~~\nstill inside\n~~~\n```\n');
+  assertPasses(dir);
+});
+
+// The version-bump rule needs a merge base, so the two tests below build one.
+// Every other test in this file runs against a copy with no .git at all, which
+// puts the rule on its "cannot resolve" path and proves only that it says so.
+function repo(dir) {
+  const git = (...args) =>
+    execFileSync('git', ['-c', 'user.name=test', '-c', 'user.email=test@example.com', ...args], {
+      cwd: dir,
+      stdio: 'pipe',
+    });
+  git('init', '-q', '-b', 'main');
+  git('add', '-A');
+  git('commit', '-qm', 'base');
+  // The rule compares against origin/main. A local ref standing in for the
+  // remote one is what makes this testable with no network and no clone.
+  git('update-ref', 'refs/remotes/origin/main', 'HEAD');
+  return git;
+}
+
+test('a skill change with no version bump fails', () => {
+  const dir = tree();
+  const git = repo(dir);
+  appendFileSync(skillMd(dir), '\nOne more sentence, shipped to nobody.\n');
+  git('commit', '-aqm', 'change the skill');
+  const r = assertFails(dir, /skill file\(s\) changed since origin\/main, but version is still/);
+  assert.match(r.stderr, /plugin users receive no update/);
+});
+
+test('the same skill change passes once the version moves', () => {
+  const dir = tree();
+  const git = repo(dir);
+  appendFileSync(skillMd(dir), '\nOne more sentence, and a release to carry it.\n');
+  const p = join(dir, '.claude-plugin', 'plugin.json');
+  const m = readJson(p);
+  m.version = '99.0.0';
+  writeJson(p, m);
+  git('commit', '-aqm', 'change the skill and bump the version');
+  assertPasses(dir);
+});
+
+test('a change outside skills/ needs no bump', () => {
+  const dir = tree();
+  const git = repo(dir);
+  appendFileSync(join(dir, 'scripts', 'build-pages.mjs'), '\n// a comment, releasing nothing\n');
+  git('commit', '-aqm', 'touch a script');
+  assertPasses(dir);
+});
+
+test('a failing test file fails the whole check', () => {
+  // The gate has to bite. Without this, "check.mjs runs the tests" could be
+  // true and worthless.
+  //
+  // Safe to clear the recursion guard here, because the copy carries only the
+  // one test file written below, and that file spawns nothing.
+  const dir = tree();
+  mkdirSync(join(dir, 'tests'));
+  writeFileSync(
+    join(dir, 'tests', 'red.test.mjs'),
+    "import { test } from 'node:test';\nimport assert from 'node:assert/strict';\ntest('deliberately red', () => assert.equal(1, 2));\n",
+  );
+  const r = run(checkIn(dir), [], { cwd: dir, env: { GRIMOIRE_IN_TEST: null } });
+  assert.equal(r.code, 1, `${r.stdout}\n${r.stderr}`);
+  assert.match(r.stderr, /the test suite failed/);
+});
+
+test('a passing test file passes the whole check', () => {
+  const dir = tree();
+  mkdirSync(join(dir, 'tests'));
+  writeFileSync(
+    join(dir, 'tests', 'green.test.mjs'),
+    "import { test } from 'node:test';\nimport assert from 'node:assert/strict';\ntest('deliberately green', () => assert.equal(1, 1));\n",
+  );
+  const r = run(checkIn(dir), [], { cwd: dir, env: { GRIMOIRE_IN_TEST: null } });
+  assert.equal(r.code, 0, `${r.stdout}\n${r.stderr}`);
+  assert.match(r.stdout, /running 1 test file\(s\)/);
+});
+
+test('an empty tests directory says so rather than passing in silence', () => {
+  const dir = tree();
+  mkdirSync(join(dir, 'tests'));
+  const r = run(checkIn(dir), [], { cwd: dir, env: { GRIMOIRE_IN_TEST: null } });
+  assert.equal(r.code, 0, `${r.stdout}\n${r.stderr}`);
+  assert.match(r.stdout, /tests\/ holds no \*\.test\.mjs file/);
 });
 
 test('the check runs this test suite as its last step', () => {
