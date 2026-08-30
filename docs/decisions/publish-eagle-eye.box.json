@@ -643,8 +643,8 @@
     }
   },
   "suspected": [
-    "proof-shots conf rel-main — stale screenshots are a maintenance cost, not a rule that either option breaks.",
-    "inst-plugin req rel-ci — a plugin install does not need a check on push. The two are independent."
+    "disconnected from context: proof-shots conf rel-main — stale screenshots are a maintenance cost, not a rule that either option breaks.",
+    "weakly connected: inst-plugin req rel-ci — a plugin install does not need a check on push. The two are independent."
   ],
   "presets": [
     {

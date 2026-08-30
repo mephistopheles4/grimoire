@@ -23,7 +23,9 @@ const EagleEye = (() => {
       else { if (tSel) met.push(e); else { unmet.push(e); pulled.set(e.to, (pulled.get(e.to) || []).concat(e)); } }
     }));
 
-    const verdict = !overrides.length ? 'as chosen' : conflicts.length ? 'does not hold' : unmet.length ? 'incomplete' : 'consistent';
+    // A chosen set can be broken. Test the edges before the change count, or "as chosen" hides
+    // the conflict the author wrote into the baseline — the one state nobody clicks to discover.
+    const verdict = conflicts.length ? 'does not hold' : unmet.length ? 'incomplete' : !overrides.length ? 'as chosen' : 'consistent';
     const active = conflicts.concat(unmet, met);
     const basis = active.length ? Object.entries(active.reduce((m, e) => (m[e.tier] = (m[e.tier] || 0) + 1, m), {})) : [];
 
@@ -77,9 +79,12 @@ const EagleEye = (() => {
 
     // 6. cogency
     const argued = active.filter(e => e.tier === 'argued').length;
-    moves.push({ kind: 'cogency', text: overrides.length
+    // Branch on the edges, not on the change count. A set with no overrides can still carry
+    // conflicts, and a set with overrides can still touch no edge. Both read as tested when
+    // the count decides, and both are untested.
+    moves.push({ kind: 'cogency', text: active.length
       ? `${argued} of ${active.length} active edges are argued. Nobody measured them. If all the edges are true, the verdict is “${verdict}”. If one argued edge is false, the verdict can change.`
-      : `The chosen set has no conflicts. Nobody tested it. Change one option to see which edges hold it.` });
+      : `No edge reaches this set, so nothing in the box tested it. Add the edge that is missing, or change an option to see which edges hold.` });
 
     // affected rows for coach mode: rows whose cells changed colour because of the overrides
     // only edges that involve an override count — what the chosen set rules out on its own is the baseline, not a change

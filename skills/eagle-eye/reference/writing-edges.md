@@ -63,11 +63,56 @@ next author.
 An edge that fails and cannot be fixed goes to `suspected`: a plain string
 that the page lists but that colours nothing.
 
+## Chains
+
+An edge is one reason. A chain is two reasons in a row. The TDE method calls a
+set of reasons **cohesive** when each reason extends the one before it. The
+audit above reads one edge at a time, so nothing reads the join.
+
+**Only a `req` first edge composes.**
+
+| First | Second | Composes | What the pair derives |
+|---|---|---|---|
+| `req` | `req` | yes | The source **requires** the far option. |
+| `req` | `conf` | yes | The source **rules out** the far option. |
+| `conf` | anything | no | The source removes the target from the set. The target's own edges never fire. |
+
+That last row is the one that misleads. Count every option that is both a
+source and a target, and a box of 34 edges reports 31 chains. Apply the rule,
+and it reports three.
+
+**Run it after the edge audit.** For each `req` edge, read the target's own
+edges. State what the pair derives. Then ask two questions:
+
+- **Is the derived relation true?** If it is not, one of the two edges is
+  wrong. This is the `weakly connected` pattern across two edges.
+- **Does the box say it?** A derived relation that nobody wrote is a hidden
+  constraint. Add the edge, or say in `notes` why the pair is enough.
+
+**A cycle is a finding.** Option A requires B, and B requires A. The pair is
+one mutual dependency drawn twice. Either the two rows are one decision, or
+one direction is redundant. Say which.
+
 ## Cogency test
 
 After the audit, ask the user once: *"If every edge in this box is true, can
 the chosen set still be wrong?"* The answer is the list of edges that are
 missing.
+
+Cohesion and cogency are the pair. Cohesion asks whether the reasons join.
+Cogency asks whether the joined reasons reach the verdict.
+
+## The suspected list
+
+An edge that fails the audit goes to `suspected`. **Name the pattern first, so
+the debrief can count it:**
+
+```
+weakly connected: coh-step req deb-chat — a manual check does not force a manual record.
+```
+
+The pattern name, then the edge, then the why. The box file keeps this after
+the session ends, so it is the only record of what the audit rejected.
 
 ## Strawmen
 
