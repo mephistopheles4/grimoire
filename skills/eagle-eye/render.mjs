@@ -55,8 +55,11 @@ function validate(box) {
         if (!ID.test(o.id || '')) err(`${oat}.id: must match ${ID}`);
         if (optIds.has(o.id)) err(`${oat}.id "${o.id}": duplicate`); optIds.set(o.id, d.id);
         if (typeof o.label !== 'string' || !o.label.trim()) err(`${oat}.label: required`);
-        if (o.short && o.short.length > 28) warn(`${oat}.short "${o.short}": longer than 28 chars; the sheet cell will wrap`);
-        if (!o.short && o.label.length > 28) warn(`${oat} "${o.id}": no short label and label is ${o.label.length} chars; add "short" for the sheet`);
+        // `short` is the name Claude says in chat. Without it the only handle is the id, and an
+        // id names nothing to a reader — the failure that produced this check. Refused, not warned:
+        // a warning leaves the name optional, and the missing name is invisible until somebody is lost.
+        if (typeof o.short !== 'string' || !o.short.trim()) err(`${oat} "${o.id}": short: required. This is the name spoken in chat; an id is not a name. See SKILL.md, "Names in chat".`);
+        else if (o.short.length > 28) warn(`${oat}.short "${o.short}": longer than 28 chars; the sheet cell will wrap`);
         // A chosen strawman is not an error. The "strawman not rejected" finding says:
         // give the reason to reject it, or pick it. Picking it is the documented outcome
         // and the most interesting one — the weak option survived the whole grid.

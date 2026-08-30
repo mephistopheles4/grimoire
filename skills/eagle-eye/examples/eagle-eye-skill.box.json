@@ -197,27 +197,21 @@
     },
     {
       "id": "persist",
-      "problem": "A box can vanish when the conversation ends, or be written to a file somebody commits. A file lets a later session re-argue the same decisions and lets a reader return to them. It also becomes one more document to keep true. This row decides whether a box outlives its conversation.",
-      "name": "Does a box persist",
+      "problem": "A box file always exists during the session, because the round trip and --sel both read it. This row decides where it is written, and so whether the project keeps it afterwards. A file in the repository lets a later session re-argue the same decisions. It also becomes one more document to keep true, and it asks every later reader to learn a grid to read one choice.",
+      "name": "Where a box is written",
       "opts": [
         {
-          "id": "persist-no",
-          "label": "Ephemeral: conversation and page only",
-          "src": "chat Q7",
-          "short": "Ephemeral"
+          "id": "persist-scratch",
+          "label": "Disposable: one file in scratch, no trace in the repository",
+          "chosen": true,
+          "src": "author, session 2026-08-30",
+          "short": "Scratch"
         },
         {
           "id": "persist-decision",
-          "label": "Durable, one file per coupled decision",
-          "chosen": true,
+          "label": "Kept: one file per coupled decision, in the project's records, on request",
           "src": "chat Q7",
-          "short": "File per decision"
-        },
-        {
-          "id": "persist-project",
-          "label": "Durable, one box per project",
-          "src": "chat Q7",
-          "short": "One per project"
+          "short": "Kept on request"
         }
       ]
     },
@@ -363,9 +357,9 @@
           "argued"
         ],
         [
-          "persist-decision",
+          "data-json",
           "req",
-          "Reading an export back as overrides needs a file to diff against.",
+          "Reading an export back as overrides needs a file to diff against, in a format the renderer reads.",
           "argued"
         ]
       ],
@@ -413,9 +407,15 @@
           "argued"
         ],
         [
+          "persist-scratch",
+          "conf",
+          "No tool writes no file, in scratch or anywhere else.",
+          "argued"
+        ],
+        [
           "persist-decision",
           "conf",
-          "Nothing to persist.",
+          "No tool writes no file, so nothing reaches the project's records.",
           "argued"
         ],
         [
@@ -641,8 +641,8 @@
         "Two copies to keep in step; the promotion is a chore nobody schedules."
       ]
     },
-    "persist-decision": {
-      "why": "Chosen. One file per coupled decision; the page regenerated from it; a box past ~15 rows splits.",
+    "persist-scratch": {
+      "why": "Chosen. The box is the working surface for one conversation. The decision it produces belongs in the project's records, not the grid that found it.",
       "rel": [
         [
           "data-json",
@@ -651,27 +651,18 @@
           "argued"
         ]
       ],
-      "notes": []
+      "notes": [
+        "Disposable is not ephemeral. The file exists for the whole session, because --sel and the round trip both read it.",
+        "A committed box asks every later reader to learn a grid to read one choice."
+      ]
     },
-    "persist-no": {
-      "why": "Snapshot only.",
+    "persist-decision": {
+      "why": "One file per coupled decision, written where the project keeps its records. The user asks for this; it is never the default.",
       "rel": [
         [
-          "driver-both",
-          "conf",
-          "A round trip has nothing to diff against.",
-          "argued"
-        ]
-      ],
-      "notes": []
-    },
-    "persist-project": {
-      "why": "One box for the whole system.",
-      "rel": [
-        [
-          "depth-rows",
-          "conf",
-          "A system box passes fifteen rows and the split rule fires on it by design.",
+          "data-json",
+          "req",
+          "A file needs a format the renderer reads with nothing installed.",
           "argued"
         ]
       ],
@@ -776,9 +767,15 @@
       "why": "Data inside the page, as the artifact does today.",
       "rel": [
         [
-          "persist-decision",
+          "persist-scratch",
           "conf",
           "The page is the file, so regenerating the page overwrites the data.",
+          "argued"
+        ],
+        [
+          "persist-decision",
+          "conf",
+          "The page is the file, so a kept box has no separate record to keep.",
           "argued"
         ]
       ],
@@ -819,7 +816,8 @@
   },
   "eyebrow": "Sheet E-01 · the skill, boxed on itself · 2026-08-23",
   "suspected": [
-    "Depth control → Coach layer: a three-row chat table with a withheld verdict may be a quiz nobody asked for. Argued once, not tested; not drawn as an edge because the depth row is a preference, not a constraint."
+    "biased: Depth control → Coach layer: a three-row chat table with a withheld verdict may be a quiz nobody asked for. Argued once, not tested; not drawn as an edge because the depth row is a preference, not a constraint.",
+    "wrong: driver-both req persist-decision — the round trip needs a file, and both cells of that row write one. The edge named the wrong requirement. It is now a requirement on the file format, not on where the file lives. Retired 2026-08-30 when the row changed to scratch or kept."
   ],
   "presets": [
     {
