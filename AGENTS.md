@@ -15,4 +15,6 @@ The five canonical roles, each label string equal to its name. See `docs/agents/
 
 ### Domain docs
 
-Single-context — `CONTEXT.md` and `docs/adr/` at the repo root. See `docs/agents/domain.md`.
+Single-context — `CONTEXT.md` and `docs/adr/` at the repo root. Neither exists yet. `/domain-modeling` writes them when a term or a decision actually lands, not before. See `docs/agents/domain.md`.
+
+`docs/decisions/` holds kept eagle-eye box files. A box is a working surface, so most stay in scratch and never land here.
