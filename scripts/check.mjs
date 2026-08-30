@@ -6,7 +6,11 @@
 // 1. Every *.box.json in the tree validates against the eagle-eye renderer.
 // 2. No SKILL.md carries a fixed path. A skill lands in a different directory
 //    under every install route, so a path that names one of them is a defect.
-// 3. Every plugin in the marketplace manifest exists on disk with a manifest.
+// 3. The single-pass tag strip does not come back.
+// 4. Every plugin in the marketplace manifest exists on disk with a manifest.
+// 5. A change to a skill carries a version bump.
+// 6. The test suite passes. `node --test` ships with Node, so the tests cost no
+//    dependency and this stays one command.
 
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join, relative, sep } from 'node:path';
@@ -159,6 +163,52 @@ if (!mergeBase) {
       fail(
         `${files} skill file(s) changed since ${baseRef}, but version is still ${plugin.version} — plugin users receive no update`,
       );
+    }
+  }
+}
+
+// 6. The test suite runs here, under the same one command.
+//
+// `node --test` ships with Node and needs no manifest, no install and no
+// dependency, which is the only reason a repository with no package.json can
+// have tests at all. It runs last because the rules above are cheap and the
+// suite spawns processes.
+//
+// It runs from here rather than from a second CI step, because CONTRIBUTING
+// promises one command. A suite behind a command nobody is told to run is a
+// suite nobody runs.
+//
+// The files are listed rather than passed as a directory or a glob. A bare
+// `node --test tests/` is a file path on some versions and a directory on
+// others, and a glob is the shell's job on one platform and Node's on another.
+// A list of paths means the same thing everywhere.
+//
+// GRIMOIRE_IN_TEST breaks the loop. tests/check.test.mjs runs this script, and
+// this script runs the suite. The variable tells the child which of the two is
+// already happening.
+if (process.env.GRIMOIRE_IN_TEST) {
+  console.log('note: tests already running — test step skipped');
+} else {
+  let tests = [];
+  try {
+    tests = readdirSync(join(root, 'tests'))
+      .filter(f => f.endsWith('.test.mjs'))
+      .sort()
+      .map(f => join(root, 'tests', f));
+  } catch {
+    // Say so. A check that silently does nothing reads as a check that passed.
+    console.log('note: no tests/ directory — test step skipped');
+  }
+  if (tests.length) {
+    console.log(`\nrunning ${tests.length} test file(s)`);
+    try {
+      execFileSync(process.execPath, ['--test', ...tests], {
+        cwd: root,
+        env: { ...process.env, GRIMOIRE_IN_TEST: '1' },
+        stdio: 'inherit',
+      });
+    } catch {
+      fail('the test suite failed — the run is printed above');
     }
   }
 }
