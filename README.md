@@ -50,7 +50,8 @@ itself.
 
 ### What the page tells you
 
-Six findings, computed for whatever configuration you are looking at:
+Seven findings. Six read the configuration you are looking at; the seventh
+reads the box itself:
 
 | Finding | What it points at |
 | --- | --- |
@@ -59,6 +60,7 @@ Six findings, computed for whatever configuration you are looking at:
 | most connected | The option with the most edges. Change it and the most moves. |
 | row with no edges | Independent, or an edge is missing. |
 | strawman not rejected | A deliberately weak option that nothing rules out. Give the reason, or pick it. |
+| chain | Edges that join into a relation, and whether the box says that relation itself. A cycle reports on its own. |
 | evidence for the verdict | If every edge is true, can the set still be wrong? Names the rows whose active edges are all argued. |
 
 ### Why the edges carry a tier
