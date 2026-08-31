@@ -89,10 +89,10 @@ closed by a `conf` edge derives *rules out*.
 finding names the longest run, the relation it derives, and whether the box
 states that relation. Then ask:
 
-- **Is the derived relation true?** If it is not, one of the two edges is
-  wrong. This is the `weakly connected` pattern across two edges.
+- **Is the derived relation true?** If it is not, one edge on the path is
+  wrong. This is the `weakly connected` pattern across a path.
 - **Does the box say it?** A derived relation that nobody wrote is a hidden
-  constraint. Add the edge, or say in `notes` why the pair is enough.
+  constraint. Add the edge, or say in `notes` why the path is enough.
 
 **A cycle is its own finding.** Option A requires B, and B requires A. The pair
 is one mutual dependency drawn twice, and the finding reports it once. A longer

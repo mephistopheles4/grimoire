@@ -158,6 +158,20 @@ test('two options that require each other are one cycle, reported once', () => {
   assert.equal(/chain:/.test(out), false, out);
 });
 
+test('a loop of three options reports one cycle and no chain', () => {
+  // Going round the loop derives a relation between two of its options. That
+  // relation is the loop said again, so only the cycle is reported — the same
+  // answer a two-option loop gives, where the walk never gets far enough to
+  // derive anything.
+  const out = checkChain('chain-three-loop.box.json', {
+    a1: [['b1', 'req', 'A1 needs B1']],
+    b1: [['c1', 'req', 'B1 needs C1']],
+    c1: [['a1', 'req', 'C1 needs A1']],
+  });
+  assert.match(out, /cycle: Row one: A1, Row two: B1 and Row three: C1 require each other/);
+  assert.equal(/chain:/.test(out), false, out);
+});
+
 test('a derived relation between two options of one row is not reported', () => {
   // A2 is the other option of A1's row. Choosing one option in a row already
   // excludes its siblings, so the pair derives nothing worth saying.

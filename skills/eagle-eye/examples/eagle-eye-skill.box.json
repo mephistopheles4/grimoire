@@ -546,7 +546,9 @@
           "argued"
         ]
       ],
-      "notes": []
+      "notes": [
+        "The panel computes seven findings now. The chain finding joined the six after this box was drawn. The option keeps its name, because the name records what the decision was."
+      ]
     },
     "moves-verdict": {
       "why": "Strawman: the verdict and nothing else — the #186 artifact as it stands.",
@@ -566,7 +568,8 @@
         ]
       ],
       "notes": [
-        "Try it: the toggle above. Then decide whether it is the strongest move or a quiz nobody asked for."
+        "Try it: the toggle above. Then decide whether it is the strongest move or a quiz nobody asked for.",
+        "The chain finding names one derived relation here. This option needs Skill + renderer, and Skill + renderer rules out Embedded in page. So this option rules out Embedded in page. The path says it. A direct edge would repeat it."
       ]
     },
     "coach-none": {

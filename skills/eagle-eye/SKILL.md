@@ -81,8 +81,8 @@ rows. A cell that closes half the box is usually a position, not an option.
 
    The renderer walks the **chains** for you. The *chain* finding names the
    longest run of edges that compose, the relation it derives, and whether the
-   box states that relation. The *cycle* finding names two options that require
-   each other. Read both findings and answer two questions: is the derived
+   box states that relation. The *cycle* finding names the options that require
+   each other. Read both findings. Then answer two questions: is the derived
    relation true, and does the box say it? A relation nobody wrote is a hidden
    constraint. Add the edge, or write the reason in `notes`. See
    [Chains](reference/writing-edges.md).
@@ -137,8 +137,8 @@ rows. A cell that closes half the box is usually a position, not an option.
 ## The seven findings
 
 The page and `--check` compute these. Six read the configuration in front of
-you. The seventh, *chain*, reads the whole box. A chain is an authoring fault,
-not a reading one, so the finding does not change when the reader clicks. In
+you. The seventh, *chain*, reads the whole box. The author makes a chain, and
+the reader cannot, so the finding does not change when the reader clicks. In
 chat, give the ones that apply.
 
 | Finding | What it points at |
@@ -358,8 +358,8 @@ not format** — the block above is unchanged, and Copy still copies all of it.
 - **Acting on a restore code without echoing it.** The user pastes ids they
   cannot check by reading. Say the set back in words first, or a misread
   becomes the record.
-- **Reading each edge and never the chain.** Two sound edges can join into an
-  unsound argument. The *chain* finding names the join; read it, and say
+- **Reading each edge and never the chain.** Sound edges can join into an
+  unsound argument. The *chain* finding names the join. Read it. Then say
   whether the box states the relation it derives.
 - **Changing the export format in one place.** The page writes it; this file
   specifies it; you read it. All three, or none.

@@ -102,10 +102,16 @@ const EagleEye = (() => {
     // This reads the whole box, not the selection. A cycle and an unstated derived relation
     // are authoring faults: they are true of the box whatever the reader clicks, and a finding
     // that disappears on a click teaches the reader that clicking fixed it.
+    // The walk enumerates every simple run of req edges, and a box you did not write is the
+    // threat SECURITY.md names. A box built to branch hard would run for a long time on the
+    // machine of the person who opened it, so the walk stops. The number is far past any box
+    // a person writes: the shipped example takes under a hundred steps.
     const derived = new Map(), cycles = new Map();
+    let steps = 0;
     const walk = (path, tiers) => {
-      const u = path[path.length - 1], src = path[0];
-      edgesOf(u).forEach(e => {
+      if (++steps > 20000) return;
+      const at = path[path.length - 1], src = path[0];
+      edgesOf(at).forEach(e => {
         const onPath = path.includes(e.to);
         // A req edge back onto the path is a cycle, not a chain. Keyed on the set of options,
         // so the pair that draws it twice reports once.
@@ -125,21 +131,28 @@ const EagleEye = (() => {
     Object.keys(optById).forEach(id => walk([id], []));
 
     const nm = id => esc(`${optById[id].dim.name}: ${optById[id].short || optById[id].label}`);
-    const list = xs => xs.length < 2 ? xs.join('') : `${xs.slice(0, -1).join(', ')} and ${xs[xs.length - 1]}`;
+    const joinAnd = xs => xs.length < 2 ? xs.join('') : `${xs.slice(0, -1).join(', ')} and ${xs[xs.length - 1]}`;
     // "Does the box say it?" is the actionable half. A derived relation nobody wrote is a
     // hidden constraint, and the reader fixes it by adding the edge or by writing the reason.
     const states = c => edgesOf(c.src).some(e => e.to === c.to && e.kind === c.kind)
       || (c.kind === 'conf' && edgesOf(c.to).some(e => e.to === c.src && e.kind === 'conf')); // a conf drawn once is enough
-    const chains = [...derived.values()].map(c => ({ ...c, stated: states(c), tier: c.tiers.slice().sort((a, b) => TIER_RANK[a] - TIER_RANK[b])[0] }))
+    // A loop of three options derives a relation between two of them on the way round. That
+    // relation is the loop said again, and the chain finding would tell the author to write it
+    // down, which draws the loop a third time. The cycle finding already names the whole loop,
+    // so a relation with both ends inside one loop is dropped. A pair does this by itself: the
+    // walk stops at the second edge, so a two-option loop derives nothing to drop.
+    const loops = [...cycles.values()].map(loop => new Set(loop));
+    const chains = [...derived.values()].filter(c => !loops.some(l => l.has(c.src) && l.has(c.to)))
+      .map(c => ({ ...c, stated: states(c), tier: c.tiers.slice().sort((a, b) => TIER_RANK[a] - TIER_RANK[b])[0] }))
       // Report the longest path, because it is the one no reader holds in their head.
       // Then the unstated one, then the one that rests on the weakest evidence.
       .sort((a, b) => b.path.length - a.path.length || a.stated - b.stated || TIER_RANK[a.tier] - TIER_RANK[b.tier]);
     const chain = chains[0];
     if (chain) {
       const rest = chains.length - 1;
-      moves.push({ kind: 'chain', text: `<b>${nm(chain.src)}</b> ${chain.kind === 'conf' ? 'rules out' : 'requires'} <b>${nm(chain.to)}</b>, through ${list(chain.path.slice(1, -1).map(id => `<b>${nm(id)}</b>`))}. ${chain.stated ? 'The box states this relation.' : 'The box does not state it. Add the edge, or say in the notes why the pair is enough.'} The weakest edge on the path is <span class="tier ${chain.tier}">${chain.tier}</span>.${rest ? ` ${rest} more chain${rest > 1 ? 's' : ''} compose${rest > 1 ? '' : 's'}.` : ''}` });
+      moves.push({ kind: 'chain', text: `<b>${nm(chain.src)}</b> ${chain.kind === 'conf' ? 'rules out' : 'requires'} <b>${nm(chain.to)}</b>, through ${joinAnd(chain.path.slice(1, -1).map(id => `<b>${nm(id)}</b>`))}. ${chain.stated ? 'The box states this relation.' : 'The box does not state it. Add the edge, or say in the notes why the path is enough.'} The weakest edge on the path is <span class="tier ${chain.tier}">${chain.tier}</span>.${rest ? ` The box derives ${rest} more relation${rest > 1 ? 's' : ''} this way.` : ''}` });
     }
-    if (cycles.size) moves.push({ kind: 'cycle', text: `${[...cycles.values()].map(loop => `${list(loop.map(id => `<b>${nm(id)}</b>`))} require each other.`).join(' ')} That is one decision drawn twice. Merge the rows, or drop one direction.` });
+    if (cycles.size) moves.push({ kind: 'cycle', text: `${[...cycles.values()].map(loop => `${joinAnd(loop.map(id => `<b>${nm(id)}</b>`))} require each other.`).join(' ')} A loop is one decision drawn more than once. Merge its rows, or drop one of its edges.` });
 
     // 7. cogency
     const argued = active.filter(e => e.tier === 'argued').length;
