@@ -101,7 +101,10 @@ rows. A cell that closes half the box is usually a position, not an option.
 
    Run the renderer. It sits next to this file, in the skill base directory
    your tool reports when it loads this skill. Join that directory to
-   `render.mjs`. Do not write a fixed path. Give the findings in chat:
+   `render.mjs`. Do not write a fixed path. **Lead the findings in chat with
+   the problem, in your own words.** The renderer prints it first for that
+   reason. A finding names two rows that fight; the problem says what the fight
+   is for. Then give the findings:
 
    ```bash
    node <skill base directory>/render.mjs <scratch>/<topic>.box.json
@@ -179,6 +182,11 @@ opens a kept box a month later then sees row names and a grid, and no question.
 
 Write the brief first, before the rows. It is the test for each row. A row that
 serves no part of the problem does not belong in the box.
+
+**The page pins the brief** at the top of the findings panel, so it stays on
+screen while the reader scrolls the grid. The export carries the problem, and
+`--check` prints it before the verdict. Write it for a stranger: every one of
+those readers may be one.
 
 Two to five sentences, under the [Writing rules](#writing-rules). Cover:
 
@@ -265,6 +273,17 @@ A preset is a title, a one-sentence `text`, and steps run in order from chips on
 the page. A step sets options, opens a row, switches view, resets, or turns coach
 mode on. The page prints the `text` above the steps.
 
+**A preset may also carry a `reframe`: one sentence saying what the problem
+becomes here.** It is optional, and it is not the `text`. The `text` says what
+the reader sees; the `reframe` says what the box now decides. The page prints it
+in the brief, under the problem, while that preset owns the grid. The reader's
+own pick stops it, so a sentence written for one configuration never sits over
+another.
+
+> *The strawman run.* **text:** Set the strawman and open the row it closes.
+> **reframe:** The problem becomes whether the weak answers were ever really
+> ruled out.
+
 Pick from these archetypes. The first is cheap; the rest are what earn the box.
 
 | Archetype | What it shows | Steps |
@@ -349,9 +368,10 @@ renderer validates: a box-level `problem`, unique ids, exactly one `chosen` per
 row, every option has a
 `short`, edge targets exist and sit in another row, tier in {measured, sourced,
 argued}, a non-argued edge names its `src`, every edge has a why, and two or
-more presets of which one changes an option. `who` and `when` are optional, and
-a present one must not be blank. It warns on a row with no `problem`, on a row
-with no strawman, and on a strawman that is the chosen option.
+more presets of which one changes an option. `who`, `when` and a preset's
+`reframe` are optional, and a present one must not be blank. It warns on a row
+with no `problem`, on a row with no strawman, and on a strawman that is the
+chosen option.
 
 **The box's `problem` and a row's `problem` are two fields.** The renderer
 refuses a box that has no `problem`. It warns about a row that has none. The two
@@ -377,11 +397,18 @@ What the page produces and what you read back. Change both together.
 
 ```markdown
 ## eagle-eye · <title> · N changes · <verdict>
+
+**Problem.** <the box's problem statement>
+
 | # | Decision | Chosen | My choice |
 ...
 ### Conflicts / Requirements not met / Ruled out / Findings
 Restore code: `eagle-eye: <opt-id>, <opt-id>`
 ```
+
+The **Problem** line carries the brief into the paste. A pasted block that names
+rows and a verdict, and never the question, reproduces on the clipboard the
+failure the brief exists to fix.
 
 The restore code is the full state: every option id that differs from chosen,
 comma-separated. `none` means the chosen set. The page also keeps it in the URL

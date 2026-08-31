@@ -98,6 +98,18 @@ input,textarea{font:inherit;color:inherit;background:var(--dw-paper);border:1px 
 .muted{color:var(--dw-ink-55)}
 .index .legend{margin-top:auto;padding:var(--sp-3) var(--sp-4);border-top:1px solid var(--dw-ink-30);display:flex;gap:var(--sp-3);flex-wrap:wrap;line-height:1.9}
 .right{display:flex;flex-direction:column;min-width:0}
+/* The brief. It pins, because the reader who needs it most is the one who scrolled away from it: the
+   page scrolls at the window, and nothing above .right sets overflow, so top:0 sticks to the viewport.
+   It carries the paper background, or the findings scroll through it. The height is bounded and the
+   block scrolls inside itself — the grid stays the thing the reader came for, on a phone as well. */
+.brief{position:sticky;top:0;z-index:2;background:var(--dw-paper);border-bottom:1px solid var(--dw-ink-30);
+  padding:var(--sp-3) var(--sp-6);display:flex;flex-direction:column;gap:var(--sp-1);max-height:32vh;overflow-y:auto}
+.brief p{margin:0;font-size:14px;line-height:1.6;color:var(--dw-ink-80);max-width:78ch}
+.brief .facts{display:flex;gap:var(--sp-4);flex-wrap:wrap;font-size:13px;line-height:1.6;color:var(--dw-ink-55)}
+.brief .facts b{font-weight:500;color:var(--dw-ink-80)}
+/* The reframe is the author speaking about this configuration, so it is marked as an aside and not as
+   more of the problem. It shows only while the preset that wrote it owns the grid. */
+.brief .reframe{border-left:2px solid var(--dw-caution);padding-left:var(--sp-2);font-size:13px;color:var(--dw-ink-80)}
 .verdict-bar{display:flex;justify-content:space-between;align-items:center;gap:var(--sp-4);padding:var(--sp-3) var(--sp-6);border-bottom:1px solid var(--dw-ink-12)}
 .stamp{border:2.5px solid currentColor;padding:4px 14px;font-size:18px;text-transform:uppercase;letter-spacing:.12em;font-weight:600;transform:rotate(-2.5deg);white-space:nowrap}
 .stamp.caution{color:var(--dw-caution)} .stamp.normal{color:var(--dw-normal)} .stamp.ink{color:var(--dw-ink-30)}
@@ -270,6 +282,9 @@ function openDim(id){ openRow = id; if (id) touched.add(id); }
 function override(d, o){
   if (pending && !pending.revealed) return;
   disarmUndo();   // the snapshot means "the state just before that reset"; a new pick makes it a lie
+  // The reader now owns the configuration, so a preset's reframe sentence no longer describes it.
+  // The preset itself stays selected: its steps are still worth clicking. Only the sentence stops.
+  presetOwned = false;
   touched.add(d.id);
   const was = sel[d.id];
   sel[d.id] = (sel[d.id] === o.id && o.id !== chosenOf[d.id]) ? chosenOf[d.id] : o.id;
@@ -298,6 +313,27 @@ function rowDot(r, d){
   return '<span></span>';
 }
 
+// ---- the brief ----
+// What the whole box decides, above the findings, pinned. A row name is a handle for the people
+// already in the room; nothing else on this page says what the set is for. The reader who returns
+// after a context switch needs it first, and the stranger who was sent a link needs it at all.
+//
+// The reframe belongs to the preset that wrote it. `presetOwned` says the grid is still the one that
+// preset built: a preset chip sets it, and the reader's own pick clears it. Without that flag a
+// sentence written for one configuration would sit over another and describe nothing on screen.
+function briefBlock(){
+  const p = BOX.presets?.[preset];
+  const frame = presetOwned && p?.reframe;
+  const facts = [BOX.who ? `<span><b>Who.</b> ${esc(BOX.who)}</span>` : '', BOX.when ? `<span><b>When.</b> ${esc(BOX.when)}</span>` : ''].join('');
+  // The reframe follows the problem it changes, and the facts come last. Who and when never move,
+  // and the block is bounded in height, so a reader on a short screen must not scroll past two
+  // static lines to reach the one sentence that answers the configuration in front of them.
+  return `<div class="brief"><div class="label">The problem</div><p>${esc(BOX.problem)}</p>`
+    + (frame ? `<p class="reframe"><b>${esc(p.title)}.</b> ${esc(p.reframe)}</p>` : '')
+    + (facts ? `<div class="facts">${facts}</div>` : '')
+    + '</div>';
+}
+
 // ---- findings view ----
 function renderFindings(r){
   const veil = pending && !pending.revealed;
@@ -309,7 +345,7 @@ function renderFindings(r){
     return `<button class="${cls.join(' ')}" data-row="${d.id}"><span class="label num">${ref(d)}</span><span><span style="font-weight:500">${esc(d.name)}</span> <span class="muted">· ${esc(S(id))}${isOver ? ' ←' : ''}</span></span>${veil ? '<span></span>' : rowDot(r, d)}</button>`;
   }).join('');
   const legend = `<div class="legend label"><span><span class="dot caution"></span> conflict, or requirement not met</span><span><span class="dot normal"></span> requirement met</span><span>← option you changed</span></div>`;
-  let right = verdictBar(r);
+  let right = briefBlock() + verdictBar(r);
   if (veil) {
     const o = optById[sel[pending.dimId]];
     right += `<div class="body"><div class="coach"><div class="label" style="color:var(--dw-caution)">Coach · predict, then reveal</div><p>You changed <b>${esc(o.dim.name)}</b> to “${esc(S(o.id))}”. Which rows does this change affect? Click those rows in the index. Then click Reveal.</p><p class="label">${pending.predicted.size} row${pending.predicted.size === 1 ? '' : 's'} predicted</p><div style="display:flex;gap:8px"><button class="chip on" id="reveal">Reveal</button><button class="chip" id="skipPredict">Skip</button></div></div><p class="annot">The index shows no colours and the findings are hidden until you predict. You remember more when you predict first.</p></div>`;
@@ -444,6 +480,10 @@ function encodeSel(){ return BOX.dims.filter(d => sel[d.id] !== chosenOf[d.id]).
 function exportMarkdown(){
   const r = EagleEye.analyse(BOX, sel, touched), strip = s => { let p, o = String(s); do { p = o; o = o.replace(/<[^>]+>/g, ''); } while (o !== p); return o; };
   const L = [`## eagle-eye · ${BOX.title} · ${r.overrides.length} change${r.overrides.length === 1 ? '' : 's'} · ${r.verdict}`, ''];
+  // The pasted block describes itself. Without this line the reader of a paste sees a table of row
+  // names and a verdict, and nothing says what was being decided — the failure this brief exists for,
+  // moved from the page to the clipboard. Specified in SKILL.md, "Export format"; change both together.
+  L.push(`**Problem.** ${BOX.problem}`, '');
   L.push('| # | Decision | Chosen | My choice |', '| --- | --- | --- | --- |');
   BOX.dims.forEach(d => L.push(`| ${ref(d)} | ${d.name} | ${S(chosenOf[d.id])} | ${sel[d.id] === chosenOf[d.id] ? '— (keep)' : '**' + S(sel[d.id]) + '**'} |`));
   if (r.conflicts.length) { L.push('', '### Conflicts'); r.conflicts.forEach(e => L.push(`- ${strip(nm(e.from))} vs ${strip(nm(e.to))} — ${e.why} [${e.tier}]`)); }
@@ -543,7 +583,10 @@ $('loadCode').addEventListener('keydown', e => { if (e.key === 'Enter') loadCode
 
 // ---- presets: declarative, from the box file. step = { label, set?: {dimId: optId}, open?: dimId|null, view?: 'findings'|'sheet', coach?: bool, reset?: true, predict?: true } ----
 const PRESETS = BOX.presets || [];
-let preset = -1, stepIdx = 0;
+// `presetOwned` says the grid still holds what the preset built, so its reframe sentence still
+// describes what is on screen. A step never re-arms it: a step sets only the rows it names, so a
+// grid the reader has already changed by hand is a blend, and the sentence would describe neither.
+let preset = -1, stepIdx = 0, presetOwned = false;
 function runStep(s){
   if (s.reset) resetAll();
   if (s.coach !== undefined) setCoach(s.coach);
@@ -555,14 +598,14 @@ function runStep(s){
 // Reset and a pasted code both throw away the selections a preset made, so the preset no longer
 // describes the grid. This lives here and not in resetAll: a preset step can ask for a reset, and a
 // preset must not deselect itself halfway through its own walkthrough.
-function clearPreset(){ preset = -1; stepIdx = 0; paintPresets(); }
+function clearPreset(){ preset = -1; stepIdx = 0; presetOwned = false; paintPresets(); }
 function paintPresets(){
   if (!PRESETS.length) { $('presetGroup').hidden = true; return; }
   $('presets').innerHTML = PRESETS.map((p, i) => `<button class="chip ${i === preset ? 'on' : ''}" data-p="${i}">${esc(p.title)}</button>`).join('') + `<button class="chip ghost" data-p="-1">Free</button>`;
   // Picking a preset starts it from the baseline. Every preset used to open with a Reset step that did this
   // by hand, which spent the reader's first click on housekeeping and left the grid stale until they made it.
   // "Free" is not a preset — it means stop guiding me — so it changes no option.
-  $('presets').querySelectorAll('[data-p]').forEach(b => b.addEventListener('click', () => { preset = +b.dataset.p; stepIdx = 0; if (preset >= 0) resetAll(); paintPresets(); update(); }));
+  $('presets').querySelectorAll('[data-p]').forEach(b => b.addEventListener('click', () => { preset = +b.dataset.p; stepIdx = 0; presetOwned = preset >= 0; if (preset >= 0) resetAll(); paintPresets(); update(); }));
   $('presetNote').hidden = preset < 0;
   // No preset means no steps. Emptying the list rather than hiding it stops a stale "next" mark
   // from surviving inside the hidden note and reappearing with the next preset.
