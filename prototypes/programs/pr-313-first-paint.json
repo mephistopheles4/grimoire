@@ -1,0 +1,513 @@
+{
+  "id": "pr-313-first-paint",
+  "title": "PR #313 · first paint",
+  "blurb": "The woodwork slice of buildShelf, as it stands after #313. The species is resolved here and nowhere else, which is the whole of the menu's laziness: an entry nobody selects is never fetched. Read the effects ledger against the PR's own request table.",
+  "entry": "buildShelf",
+  "env": {
+    "roster": ["rosewood", "sapele", "flat"],
+    "default": "rosewood",
+    "sheets": {
+      "rosewood": {
+        "url": "/wood/rosewood-diff-1024.jpg",
+        "unitsPerTile": 7.68
+      },
+      "sapele": {
+        "url": "/wood/sapele-diff-512.jpg",
+        "unitsPerTile": 1.6
+      }
+    },
+    "backboard": {
+      "url": "/wood/darkwood-diff-512.jpg",
+      "unitsPerTile": 2.4
+    }
+  },
+  "files": [
+    {
+      "path": "packages/site/src/shelf/woodwork.ts",
+      "change": "edit",
+      "adds": 436,
+      "dels": 20,
+      "why": "the roster, the resolution, the read-back and the fibre lay — the whole of the menu"
+    },
+    {
+      "path": "packages/site/src/shelf/scene.ts",
+      "change": "edit",
+      "adds": 154,
+      "dels": 15,
+      "why": "buildShelf resolves the species and binds one sheet; applySettings reports it"
+    },
+    {
+      "path": "packages/site/public/wood/sapele-diff-512.jpg",
+      "change": "new",
+      "why": "the second roster entry — the first committed sheet a default page never fetches"
+    },
+    {
+      "path": "gates/one-sheet.test.ts",
+      "change": "new",
+      "adds": 194,
+      "why": "G53 — a default page resolves to exactly one woodwork sheet"
+    },
+    {
+      "path": "gates/sheet-size.test.ts",
+      "change": "edit",
+      "adds": 16,
+      "dels": 4,
+      "why": "G52 widened from SHIPPED_SHEETS to ALL_SHEETS: the two are now different sets"
+    },
+    {
+      "path": "gates/woodwork-readback.test.ts",
+      "change": "new",
+      "adds": 288,
+      "why": "G54 — asserted on describeWoodwork, which lives on the panel-apply sheet"
+    },
+    {
+      "path": "packages/site/src/shelf/woodwork.test.ts",
+      "change": "new",
+      "adds": 329,
+      "why": "the module's own spec — new code in this scope enters the mutation denominator whether or not it is tested"
+    },
+    {
+      "path": "packages/site/src/shelf/debug-panel.ts",
+      "change": "edit",
+      "adds": 100,
+      "dels": 4,
+      "why": "the menu itself, and the off-roster option that never cleared"
+    },
+    {
+      "path": "packages/site/src/shelf/shelf-settings.ts",
+      "change": "edit",
+      "adds": 58,
+      "why": "materials.woodSpecies — the first string-valued key in that record"
+    },
+    {
+      "path": "packages/site/src/shelf/shelf-url.test.ts",
+      "change": "edit",
+      "adds": 35,
+      "why": "the ?tune= round trip for the new key"
+    },
+    {
+      "path": "gates/repo-hygiene.test.ts",
+      "change": "edit",
+      "adds": 10,
+      "why": "G13 gains sapele's sheet by filename"
+    },
+    {
+      "path": "docs/adr/0081-the-woodwork-sheet-is-a-menu-and-the-shelf-says-what-it-resolved.md",
+      "change": "new",
+      "adds": 196,
+      "why": "answers the four questions ADR-0080 closed by naming"
+    },
+    {
+      "path": "docs/adr/README.md",
+      "change": "edit",
+      "adds": 1,
+      "why": "the index line"
+    },
+    {
+      "path": "docs/gate-register.md",
+      "change": "edit",
+      "adds": 152,
+      "dels": 4,
+      "why": "G52's widening, G53 and G54"
+    },
+    {
+      "path": "docs/gates.md",
+      "change": "edit",
+      "adds": 2,
+      "why": "the scoreboard, in the same commit as the rows"
+    },
+    {
+      "path": "docs/log/2026-08-30-the-species-menu-and-the-read-back.md",
+      "change": "new",
+      "adds": 135,
+      "why": "the investigation, one file, one index line in the spine"
+    },
+    {
+      "path": "docs/progress.md",
+      "change": "edit",
+      "adds": 3,
+      "dels": 2,
+      "why": "the index line and the gate log"
+    }
+  ],
+  "presets": [
+    {
+      "name": "default page",
+      "blurb": "two sheets on the wire, both of them ones the page is actually showing",
+      "input": {
+        "rowCount": 5,
+        "settings": {
+          "materials": {
+            "woodSpecies": "rosewood",
+            "woodFibre": 0.5
+          }
+        }
+      }
+    },
+    {
+      "name": "?tune= sapele",
+      "blurb": "sapele's sheet instead of rosewood's, and the fibre re-laid to 1.6 world units with it",
+      "input": {
+        "rowCount": 5,
+        "settings": {
+          "materials": {
+            "woodSpecies": "sapele",
+            "woodFibre": 0.5
+          }
+        }
+      }
+    },
+    {
+      "name": "?tune= walnut — a typo",
+      "blurb": "off the roster: refused in the report, never dropped at parse",
+      "input": {
+        "rowCount": 5,
+        "settings": {
+          "materials": {
+            "woodSpecies": "walnut",
+            "woodFibre": 0.5
+          }
+        }
+      }
+    },
+    {
+      "name": "?tune= flat",
+      "blurb": "binds no map at all — the backboard's sheet is the only woodwork request",
+      "input": {
+        "rowCount": 5,
+        "settings": {
+          "materials": {
+            "woodSpecies": "flat",
+            "woodFibre": 0.5
+          }
+        }
+      }
+    },
+    {
+      "name": "the sheet 404s",
+      "blurb": "the load failure is warned, not raised — which is why bindSheet's E channel is empty",
+      "input": {
+        "rowCount": 5,
+        "settings": {
+          "materials": {
+            "woodSpecies": "rosewood",
+            "woodFibre": 0.5
+          }
+        },
+        "sheetMissing": "/wood/rosewood-diff-1024.jpg"
+      }
+    },
+    {
+      "name": "no 2D context",
+      "blurb": "the drawn fibre cannot be baked, so the woodwork stays smooth and says so",
+      "input": {
+        "rowCount": 5,
+        "settings": {
+          "materials": {
+            "woodSpecies": "rosewood",
+            "woodFibre": 0.5
+          }
+        },
+        "noCanvas": true
+      }
+    }
+  ],
+  "nodes": {
+    "buildShelf": {
+      "name": "buildShelf",
+      "kind": "handler",
+      "loc": "packages/site/src/shelf/scene.ts:1664",
+      "params": ["rowCount", "settings"],
+      "channels": {
+        "A": "Woodwork",
+        "E": [],
+        "R": ["THREE", "woodwork.ts"]
+      },
+      "steps": [
+        {
+          "op": "note",
+          "note": "The sheet is bound where the material is made, so a roster of any size costs a default page one sheet."
+        },
+        {
+          "op": "call",
+          "target": "resolveWoodwork",
+          "args": {
+            "requested": "settings.materials.woodSpecies"
+          },
+          "bind": "resolved"
+        },
+        {
+          "op": "call",
+          "target": "worldSpaceUvs",
+          "args": {
+            "lay": "resolved.lay"
+          },
+          "bind": "uvs",
+          "note": "flattened: really called per member from buildMember, scene.ts:1625"
+        },
+        {
+          "op": "if",
+          "cond": "resolved.sheet === null",
+          "then": "flat",
+          "else": "bind"
+        },
+        {
+          "op": "call",
+          "label": "bind",
+          "target": "bindSheet",
+          "args": {
+            "url": "resolved.sheet.url"
+          },
+          "bind": "sheet"
+        },
+        {
+          "op": "goto",
+          "to": "fibre"
+        },
+        {
+          "op": "note",
+          "label": "flat",
+          "note": "flat binds no map at all — nothing on the wire for the woodwork"
+        },
+        {
+          "op": "call",
+          "label": "fibre",
+          "target": "applyWoodFibre",
+          "args": {
+            "scale": "settings.materials.woodFibre",
+            "lay": "resolved.lay"
+          },
+          "bind": "fibreInForce"
+        },
+        {
+          "op": "call",
+          "target": "bindSheet",
+          "args": {
+            "url": "$env.backboard.url"
+          },
+          "bind": "backSheet",
+          "note": "a constant, not a knob: #297 measured all 41 veneers and the darkness constraint leaves one"
+        },
+        {
+          "op": "return",
+          "expr": "({ species: resolved.species, fibre: fibreInForce, refused: resolved.refused })"
+        }
+      ],
+      "touches": ["packages/site/src/shelf/scene.ts"],
+      "tests": []
+    },
+    "resolveWoodwork": {
+      "name": "resolveWoodwork",
+      "kind": "pure",
+      "loc": "packages/site/src/shelf/woodwork.ts:432",
+      "params": ["requested"],
+      "channels": {
+        "A": "ResolvedWoodwork",
+        "E": [],
+        "R": []
+      },
+      "steps": [
+        {
+          "op": "note",
+          "note": "E is empty on purpose. A bad species is a VALUE in the A channel, not a throw — see the refusal below."
+        },
+        {
+          "op": "let",
+          "name": "species",
+          "expr": "$env.roster.find((n) => n === requested) ?? null",
+          "note": "a find over the roster, not `requested in WOODWORK_SHEETS` — an object lookup answers true for toString"
+        },
+        {
+          "op": "if",
+          "cond": "species === null",
+          "then": "off",
+          "else": "on"
+        },
+        {
+          "op": "note",
+          "label": "off",
+          "note": "refused in the report, never dropped at parse: a dropped value looks exactly like a value that was applied"
+        },
+        {
+          "op": "return",
+          "expr": "({ species: $env.default, sheet: $env.sheets[$env.default], lay: $env.sheets[$env.default], refused: 'woodwork sheet: \"' + requested + '\" is not a sheet anybody has rendered, so the woodwork is showing ' + $env.default + '. The roster is ' + $env.roster.join(', ') })"
+        },
+        {
+          "op": "let",
+          "label": "on",
+          "name": "sheet",
+          "expr": "$env.sheets[species] ?? null"
+        },
+        {
+          "op": "return",
+          "expr": "({ species, sheet, lay: sheet ?? $env.sheets[$env.default], refused: null })",
+          "note": "flat is laid by the DEFAULT sheet — that is what makes it a control rather than a fourth look"
+        }
+      ],
+      "touches": ["packages/site/src/shelf/woodwork.ts"],
+      "tests": ["gates/one-sheet.test.ts", "packages/site/src/shelf/woodwork.test.ts"]
+    },
+    "worldSpaceUvs": {
+      "name": "worldSpaceUvs",
+      "kind": "pure",
+      "loc": "packages/site/src/shelf/woodwork.ts:650",
+      "params": ["lay"],
+      "channels": {
+        "A": "void",
+        "E": [],
+        "R": []
+      },
+      "steps": [
+        {
+          "op": "note",
+          "note": "Writes each member's world-space period into its UVs IN PLACE. The 0..1 values are gone, so re-laying means new geometry — which is why a species change is rebuild-class and there is no live path to offer."
+        },
+        {
+          "op": "return",
+          "expr": "('uvs laid at ' + lay.unitsPerTile + ' world units')"
+        }
+      ],
+      "touches": ["packages/site/src/shelf/woodwork.ts"],
+      "tests": ["packages/site/src/shelf/woodwork.test.ts"]
+    },
+    "bindSheet": {
+      "name": "bindSheet",
+      "kind": "io",
+      "loc": "packages/site/src/shelf/woodwork.ts:780",
+      "params": ["url"],
+      "channels": {
+        "A": "SheetBinding",
+        "E": [],
+        "R": ["THREE.TextureLoader"]
+      },
+      "steps": [
+        {
+          "op": "effect",
+          "kind": "net.get",
+          "desc": "fetch the sheet",
+          "args": "({ url })",
+          "result": "({ ok: true })",
+          "bind": "res",
+          "failIf": "$input.sheetMissing === url",
+          "failOnAttempt": [1],
+          "failWith": {
+            "tag": "SheetMissing",
+            "message": "404",
+            "channel": "escape"
+          },
+          "onError": [
+            {
+              "tag": "SheetMissing",
+              "goto": "warn"
+            }
+          ]
+        },
+        {
+          "op": "return",
+          "expr": "({ url, bound: true })"
+        },
+        {
+          "op": "effect",
+          "label": "warn",
+          "kind": "console.warn",
+          "desc": "did not load; the surface keeps its flat colour",
+          "args": "({ url })",
+          "result": "true"
+        },
+        {
+          "op": "note",
+          "note": "Said out loud rather than raised, because a sheet that never arrives looks like a sheet that was never bound. That absorption is why E above is empty."
+        },
+        {
+          "op": "return",
+          "expr": "({ url, bound: false })"
+        }
+      ],
+      "touches": [
+        "packages/site/src/shelf/woodwork.ts",
+        "packages/site/public/wood/sapele-diff-512.jpg"
+      ],
+      "tests": ["gates/sheet-size.test.ts", "gates/repo-hygiene.test.ts"]
+    },
+    "applyWoodFibre": {
+      "name": "applyWoodFibre",
+      "kind": "io",
+      "loc": "packages/site/src/shelf/woodwork.ts:1246",
+      "params": ["scale", "lay"],
+      "channels": {
+        "A": "number — the scale actually in force",
+        "E": [],
+        "R": ["CanvasTexture"]
+      },
+      "steps": [
+        {
+          "op": "call",
+          "target": "fibreMapFor",
+          "args": {
+            "lay": "lay"
+          },
+          "bind": "map"
+        },
+        {
+          "op": "if",
+          "cond": "map === null",
+          "then": "nocanvas",
+          "else": "ok"
+        },
+        {
+          "op": "return",
+          "label": "ok",
+          "expr": "scale",
+          "note": "returns the scale IN FORCE, so no call site can report the one that was asked for"
+        },
+        {
+          "op": "note",
+          "label": "nocanvas",
+          "note": "no 2D context — reported as refused, never silently smooth"
+        },
+        {
+          "op": "return",
+          "expr": "0"
+        }
+      ],
+      "touches": ["packages/site/src/shelf/woodwork.ts"],
+      "tests": ["packages/site/src/shelf/woodwork.test.ts"]
+    },
+    "fibreMapFor": {
+      "name": "fibreMapFor",
+      "kind": "io",
+      "loc": "packages/site/src/shelf/woodwork.ts:1161",
+      "params": ["lay"],
+      "channels": {
+        "A": "CanvasTexture | null",
+        "E": [],
+        "R": ["canvas 2d"]
+      },
+      "steps": [
+        {
+          "op": "note",
+          "note": "The fibre rides the SAME UVs the figure does. Laid by the module's default constant it is 4.8x wrong under sapele — with every whole-frame number still in the normal range. #297's crossed-fibre defect, one surface over."
+        },
+        {
+          "op": "let",
+          "name": "tiles",
+          "expr": "lay.unitsPerTile / 0.5"
+        },
+        {
+          "op": "effect",
+          "kind": "canvas.bake",
+          "desc": "bake the 256-square fibre",
+          "args": "({ tiles })",
+          "result": "$input.noCanvas === true ? null : ({ tiles })",
+          "bind": "map"
+        },
+        {
+          "op": "return",
+          "expr": "map"
+        }
+      ],
+      "touches": ["packages/site/src/shelf/woodwork.ts"],
+      "tests": ["packages/site/src/shelf/woodwork.test.ts"]
+    }
+  }
+}

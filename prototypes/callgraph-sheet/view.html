@@ -1,0 +1,1982 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>D-01 · Call graph sheet</title>
+
+    <!--
+      ==========================================================================
+      PROTOTYPE — throwaway. Sheet D-01.
+
+      Answers: "what does the call graph look like as a drawing, and does the
+      drawing stay honest while you step it?"
+
+      SOURCE FILE. This is the template, not the deliverable.
+      Run build.ps1 to splice in the fonts, drafting.css and the engine and
+      produce index.html — one self-contained file, no network at all.
+
+      The engine (the IR + the step() VM) is lifted verbatim from
+      ../callstack-debugger/index.html. Same programs, same VM, different eyes:
+      that is the point being tested. The IR is the product; a viewer is a view.
+
+      DESIGN: Drafting / Aviation. Four colours, and two of them are budgets.
+        ink        structure. Line weight is the depth system: 1px construction,
+                   1.5px leader/dimension, 2px object outline.
+        caution    attention required — a fired error, a failed effect, a
+                   breakpoint. Never a declared one. A `throw` in the source is
+                   code; a throw that happened is a caution.
+        normal     nominal — a frame that returned, an effect that landed.
+        No radius, no shadow, no gradient, no icon set, no emoji. Drawing
+        notation carries what icons would: leader lines with terminal dots,
+        witness ticks, dimension arrowheads, a dashed cutaway, a title block.
+      ==========================================================================
+    -->
+
+    <style>
+      /* __FONTS__ */
+    </style>
+    <style>
+      /* __DRAFTING__ */
+    </style>
+
+    <style>
+      /* ======================================================================
+         SHEET LAYOUT — this prototype only. Tokens only, no new values.
+         ==================================================================== */
+      * {
+        box-sizing: border-box;
+      }
+      html,
+      body {
+        height: 100%;
+        margin: 0;
+      }
+      body {
+        overflow: hidden;
+      }
+
+      /* Two zero-width tracks hold the splitters, so each one spans exactly the
+         panes it divides — not the header, not the title block. The hit area is
+         a ::after that overflows the track; the visible rule stays 2px. */
+      .sheet-root {
+        --side-w: 22rem;
+        --cut-h: 15rem;
+        height: 100%;
+        display: grid;
+        grid-template-columns: 1fr 0 var(--side-w);
+        grid-template-rows: auto 1fr 0 var(--cut-h) auto;
+        grid-template-areas:
+          'head  head head'
+          'plan  vsp  side'
+          'hsp   vsp  side'
+          'cut   vsp  side'
+          'block block block';
+      }
+      .vsp,
+      .hsp {
+        position: relative;
+        z-index: 5;
+      }
+      .vsp {
+        grid-area: vsp;
+      }
+      .hsp {
+        grid-area: hsp;
+      }
+      .vsp::after,
+      .hsp::after {
+        content: '';
+        position: absolute;
+      }
+      .vsp::after {
+        inset: 0 -5px;
+        cursor: col-resize;
+      }
+      .hsp::after {
+        inset: -5px 0;
+        cursor: row-resize;
+      }
+      /* Dragging one is a measurement, so it reads as a dimension line would. */
+      .sheet-root[data-resizing] {
+        user-select: none;
+      }
+      .sheet-root[data-resizing] .vsp::after,
+      .sheet-root[data-resizing] .hsp::after {
+        background: var(--dw-caution);
+      }
+
+      /* -- header ---------------------------------------------------------- */
+      .head {
+        grid-area: head;
+        display: flex;
+        align-items: center;
+        gap: var(--dw-s3);
+        padding: var(--dw-s2) var(--dw-s3);
+        border-bottom: var(--dw-rule-bold) solid var(--dw-ink);
+        flex-wrap: wrap;
+      }
+      .head-id {
+        display: flex;
+        align-items: baseline;
+        gap: var(--dw-s2);
+      }
+
+      select,
+      button,
+      input {
+        font: inherit;
+        font-size: var(--dw-t-micro);
+        color: var(--dw-ink);
+        background: var(--dw-paper);
+        border: var(--dw-rule-hair) solid var(--dw-ink-30);
+        border-radius: 0;
+        padding: 4px var(--dw-s2);
+      }
+      select {
+        font-size: var(--dw-t-annot);
+        border-color: var(--dw-ink);
+        border-width: var(--dw-rule-thin);
+        max-width: 22rem;
+      }
+      .btn {
+        text-transform: uppercase;
+        letter-spacing: var(--dw-track-label);
+        font-weight: 500;
+        cursor: pointer;
+        transition:
+          color 150ms,
+          border-color 150ms;
+      }
+      .btn:hover {
+        border-color: var(--dw-ink);
+      }
+      .btn[disabled] {
+        color: var(--dw-ink-30);
+        border-color: var(--dw-ink-12);
+        cursor: default;
+      }
+      .btn--run {
+        border-color: var(--dw-ink);
+        border-width: var(--dw-rule-thin);
+      }
+      .btn-group {
+        display: flex;
+        gap: var(--dw-s1);
+        margin-left: auto;
+      }
+
+      .toggle {
+        display: inline-flex;
+        align-items: center;
+        gap: var(--dw-s1);
+        font-size: var(--dw-t-micro);
+        text-transform: uppercase;
+        letter-spacing: var(--dw-track-label);
+        color: var(--dw-ink-55);
+        cursor: pointer;
+      }
+      /* A checkbox is not drawing notation. This is a witness tick that fills. */
+      .toggle input {
+        appearance: none;
+        width: 10px;
+        height: 10px;
+        padding: 0;
+        border: var(--dw-rule-hair) solid var(--dw-ink-30);
+      }
+      .toggle input:checked {
+        background: var(--dw-caution);
+        border-color: var(--dw-caution);
+      }
+
+      /* -- the plan (graph) ------------------------------------------------ */
+      .plan {
+        grid-area: plan;
+        overflow: hidden;
+        position: relative;
+        border-right: var(--dw-rule-bold) solid var(--dw-ink);
+        cursor: grab;
+        touch-action: none;
+      }
+      .plan[data-panning] {
+        cursor: grabbing;
+      }
+      #canvas {
+        position: absolute;
+        top: 0;
+        left: 0;
+        transform-origin: 0 0;
+        padding: var(--dw-s4);
+      }
+
+      /* The drawing's own scale block, on the drawing rather than in the title
+         block — a wheel can change it at any moment, and a title-block cell
+         states a fact rather than tracking one. */
+      .scaleblock {
+        position: absolute;
+        top: var(--dw-s2);
+        right: var(--dw-s2);
+        z-index: 4;
+        display: flex;
+        align-items: stretch;
+        background: var(--dw-paper);
+        border: var(--dw-rule-thin) solid var(--dw-ink);
+      }
+      .scaleblock button {
+        border: 0;
+        border-left: var(--dw-rule-hair) solid var(--dw-ink-12);
+        background: transparent;
+        padding: 3px var(--dw-s2);
+        font-size: var(--dw-t-micro);
+        text-transform: uppercase;
+        letter-spacing: var(--dw-track-label);
+        color: var(--dw-ink-55);
+        cursor: pointer;
+        transition: color 150ms;
+      }
+      .scaleblock button:first-child {
+        border-left: 0;
+      }
+      .scaleblock button:hover {
+        color: var(--dw-ink);
+      }
+      #scaleNow {
+        padding: 3px var(--dw-s2);
+        font-size: var(--dw-t-micro);
+        letter-spacing: var(--dw-track-label);
+        font-variant-numeric: tabular-nums;
+        align-self: center;
+        min-width: 4.5rem;
+        text-align: center;
+      }
+      #wires {
+        position: absolute;
+        inset: 0;
+        overflow: visible;
+        pointer-events: none;
+      }
+
+      /* -- a node is a part on the drawing --------------------------------- */
+      .nd {
+        position: absolute;
+        width: 288px;
+        background: var(--dw-paper);
+        border: var(--dw-rule-bold) solid var(--dw-ink);
+        padding: var(--dw-s2);
+        cursor: pointer;
+        overflow: hidden;
+        transition: border-color 150ms;
+      }
+      /* Not reached: construction weight. The part is drawn, not yet built. */
+      .nd--cold {
+        border-width: var(--dw-rule-hair);
+        border-color: var(--dw-ink-30);
+        color: var(--dw-ink-55);
+      }
+      .nd--error {
+        border-color: var(--dw-caution);
+      }
+      /* On the stack now: the double rule, straight off the deck's section
+         sheets. No colour spent — position is not a state. */
+      .nd--active {
+        outline: var(--dw-rule-hair) solid var(--dw-ink-30);
+        outline-offset: 4px;
+      }
+      .nd--sel {
+        outline: var(--dw-rule-thin) solid var(--dw-ink);
+        outline-offset: 7px;
+      }
+
+      .nd-top {
+        display: flex;
+        align-items: center;
+        gap: var(--dw-s1);
+        margin-bottom: 2px;
+      }
+      .nd-name {
+        font-weight: 600;
+        font-size: var(--dw-t-body);
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      .nd-loc {
+        font-size: var(--dw-t-micro);
+        color: var(--dw-ink-55);
+      }
+      .nd-ch {
+        display: grid;
+        grid-template-columns: 1.2rem 1fr;
+        gap: 0 var(--dw-s1);
+        font-size: var(--dw-t-micro);
+        margin-top: var(--dw-s1);
+        padding-top: var(--dw-s1);
+        border-top: var(--dw-rule-hair) solid var(--dw-ink-12);
+      }
+      .nd-ch b {
+        font-weight: 600;
+      }
+      .nd-ch span {
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+      .fired {
+        color: var(--dw-caution);
+      }
+      .none {
+        color: var(--dw-ink-30);
+      }
+
+      /* Effect rows are the callout motif: terminal dot, leader, then the note. */
+      .fx {
+        display: flex;
+        align-items: center;
+        gap: var(--dw-s1);
+        font-size: var(--dw-t-micro);
+        color: var(--dw-ink-55);
+        margin-top: 3px;
+      }
+      .fx-dot {
+        width: 5px;
+        height: 5px;
+        border-radius: 50%;
+        background: var(--dw-ink-30);
+        flex: none;
+      }
+      .fx-lead {
+        width: var(--dw-s2);
+        border-top: var(--dw-rule-thin) solid var(--dw-ink-30);
+        flex: none;
+      }
+      .fx--ok .fx-dot,
+      .fx--ok .fx-lead {
+        background: var(--dw-normal);
+        border-top-color: var(--dw-normal);
+      }
+      .fx--fail .fx-dot,
+      .fx--fail .fx-lead {
+        background: var(--dw-caution);
+        border-top-color: var(--dw-caution);
+      }
+      .fx-txt {
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      /* Breakpoint: a witness tick on the part's edge. Square, like everything. */
+      .bp {
+        width: 10px;
+        height: 10px;
+        padding: 0;
+        flex: none;
+        border: var(--dw-rule-hair) solid var(--dw-ink-30);
+        background: transparent;
+        cursor: pointer;
+      }
+      .bp--on {
+        background: var(--dw-caution);
+        border-color: var(--dw-caution);
+      }
+
+      /* -- cutaway: one node opened for inspection ------------------------- */
+      .cut {
+        grid-area: cut;
+        border-top: var(--dw-rule-bold) solid var(--dw-ink);
+        border-right: var(--dw-rule-bold) solid var(--dw-ink);
+        display: flex;
+        flex-direction: column;
+        min-height: 0;
+      }
+      .cut-head {
+        display: flex;
+        align-items: baseline;
+        gap: var(--dw-s2);
+        padding: var(--dw-s1) var(--dw-s3);
+        border-bottom: var(--dw-rule-hair) solid var(--dw-ink-12);
+      }
+      .tape {
+        flex: 1;
+        overflow: auto;
+        padding: var(--dw-s2) var(--dw-s3) var(--dw-s3);
+      }
+
+      /* Tabs are the drawing's own move: one sheet, several views of it. */
+      .tabs {
+        margin-left: auto;
+        display: flex;
+        gap: var(--dw-s2);
+      }
+      .tab {
+        border: 0;
+        background: transparent;
+        padding: 2px 0;
+        font-size: var(--dw-t-micro);
+        text-transform: uppercase;
+        letter-spacing: var(--dw-track-label);
+        color: var(--dw-ink-55);
+        cursor: pointer;
+        border-bottom: var(--dw-rule-bold) solid transparent;
+        transition:
+          color 150ms,
+          border-color 150ms;
+      }
+      .tab--on {
+        color: var(--dw-ink);
+        border-bottom-color: var(--dw-ink);
+      }
+
+      /* -- the file-tree diff ---------------------------------------------- */
+      .fgroup {
+        margin-bottom: var(--dw-s3);
+      }
+      .fgroup > .dw-label {
+        display: block;
+        margin-bottom: var(--dw-s1);
+      }
+      .frow {
+        display: grid;
+        grid-template-columns: 3.2rem 1fr 4.5rem;
+        gap: var(--dw-s2);
+        align-items: baseline;
+        font-size: var(--dw-t-annot);
+        padding: 1px 0;
+      }
+      .frow--shared {
+        color: var(--dw-caution);
+      }
+      .fchange {
+        font-size: var(--dw-t-micro);
+        text-transform: uppercase;
+        letter-spacing: var(--dw-track-label);
+        color: var(--dw-ink-55);
+      }
+      .fpath {
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+      .fdir {
+        color: var(--dw-ink-55);
+      }
+      .fwhy {
+        grid-column: 2 / -1;
+        font-size: var(--dw-t-micro);
+        color: var(--dw-ink-55);
+      }
+      .fnum {
+        text-align: right;
+        font-variant-numeric: tabular-nums;
+        font-size: var(--dw-t-micro);
+        color: var(--dw-ink-55);
+      }
+
+      /* -- the contract sheet ---------------------------------------------- */
+      .contract .dw-titleblock-cell {
+        border-bottom: var(--dw-rule-hair) solid var(--dw-ink-12);
+      }
+      .contract .dw-titleblock-val {
+        font-size: var(--dw-t-annot);
+      }
+      .tp {
+        display: flex;
+        align-items: flex-start;
+        gap: var(--dw-s2);
+        font-size: var(--dw-t-annot);
+        line-height: 1.5;
+        padding: 1px 0 1px var(--dw-s2);
+        border-left: var(--dw-rule-bold) solid transparent;
+      }
+      .tp--past {
+        color: var(--dw-ink-55);
+      }
+      .tp--here {
+        border-left-color: var(--dw-ink);
+        background: var(--dw-grid);
+      }
+      .tp-n {
+        width: 1.5rem;
+        text-align: right;
+        color: var(--dw-ink-30);
+        font-size: var(--dw-t-micro);
+        flex: none;
+        padding-top: 2px;
+      }
+      .tp-lbl {
+        width: 5rem;
+        flex: none;
+        font-size: var(--dw-t-micro);
+        text-transform: uppercase;
+        letter-spacing: var(--dw-track-label);
+        color: var(--dw-ink-55);
+        padding-top: 2px;
+      }
+      .tp-src {
+        min-width: 0;
+        flex: 1;
+      }
+      .kw {
+        font-weight: 600;
+      }
+      .dim {
+        color: var(--dw-ink-55);
+      }
+
+      /* -- side column ----------------------------------------------------- */
+      .side {
+        grid-area: side;
+        overflow: auto;
+        display: flex;
+        flex-direction: column;
+      }
+      .blk {
+        padding: var(--dw-s2) var(--dw-s3) var(--dw-s3);
+        border-bottom: var(--dw-rule-hair) solid var(--dw-ink-12);
+      }
+      .blk > .dw-label {
+        display: block;
+        margin-bottom: var(--dw-s1);
+      }
+      .row {
+        display: flex;
+        gap: var(--dw-s1);
+        font-size: var(--dw-t-annot);
+        align-items: baseline;
+      }
+      .row-k {
+        color: var(--dw-ink-55);
+        flex: none;
+      }
+      .row-v {
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+      .frame {
+        display: block;
+        width: 100%;
+        text-align: left;
+        border: 0;
+        border-left: var(--dw-rule-bold) solid transparent;
+        padding: 2px var(--dw-s2);
+        cursor: pointer;
+        background: transparent;
+        font-size: var(--dw-t-annot);
+      }
+      .frame--top {
+        border-left-color: var(--dw-ink);
+      }
+      .frame--sel {
+        background: var(--dw-grid);
+      }
+      .var {
+        display: flex;
+        align-items: center;
+        gap: var(--dw-s1);
+        margin-bottom: 2px;
+      }
+      .var-k {
+        width: 4.5rem;
+        flex: none;
+        font-size: var(--dw-t-micro);
+        color: var(--dw-ink-55);
+        text-align: right;
+      }
+      .var input {
+        flex: 1;
+        min-width: 0;
+        font-size: var(--dw-t-micro);
+        border-color: var(--dw-ink-12);
+        padding: 2px 4px;
+      }
+      .led {
+        display: flex;
+        gap: var(--dw-s1);
+        font-size: var(--dw-t-micro);
+        padding: 2px 0;
+        border-bottom: var(--dw-rule-hair) solid var(--dw-ink-12);
+      }
+      .led:last-child {
+        border-bottom: 0;
+      }
+      .led-seq {
+        color: var(--dw-ink-30);
+        flex: none;
+      }
+      .led-body {
+        min-width: 0;
+        flex: 1;
+      }
+      .led-body div {
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+      .ok {
+        color: var(--dw-normal);
+      }
+      .caut {
+        color: var(--dw-caution);
+      }
+
+      /* -- title block ----------------------------------------------------- */
+      .block {
+        grid-area: block;
+      }
+      .dw-titleblock {
+        border-left: 0;
+        border-right: 0;
+        border-bottom: 0;
+      }
+
+      /* The trace is a measured span, so it is drawn as a dimension line. */
+      .trace {
+        grid-column: 1 / -1;
+        padding: var(--dw-s2) var(--dw-s3);
+        border-top: var(--dw-rule-hair) solid var(--dw-ink-12);
+      }
+      .trace .dw-dimension {
+        padding: 0;
+        cursor: pointer;
+      }
+      .trace-span {
+        position: relative;
+        flex: 1;
+        height: 18px;
+        display: flex;
+        align-items: center;
+      }
+      .trace-rule {
+        position: absolute;
+        inset: 50% 0 auto;
+        height: 0;
+        border-top: var(--dw-rule-thin) solid var(--dw-ink-30);
+      }
+      .trace-tick {
+        position: absolute;
+        top: 0;
+        bottom: 0;
+        width: 0;
+        border-left: var(--dw-rule-bold) solid var(--dw-ink);
+      }
+      .trace-fill {
+        position: absolute;
+        inset: 50% auto auto 0;
+        height: 0;
+        border-top: var(--dw-rule-bold) solid var(--dw-ink);
+      }
+
+      /* -- IR drawer ------------------------------------------------------- */
+      .drawer {
+        position: fixed;
+        inset: 0;
+        background: var(--dw-paper);
+        display: none;
+        flex-direction: column;
+        padding: var(--dw-s4);
+        gap: var(--dw-s2);
+        z-index: 20;
+      }
+      .drawer[data-open='1'] {
+        display: flex;
+      }
+      .drawer textarea {
+        flex: 1;
+        font-family: var(--dw-font);
+        font-size: var(--dw-t-micro);
+        line-height: 1.5;
+        border: var(--dw-rule-thin) solid var(--dw-ink-30);
+        border-radius: 0;
+        padding: var(--dw-s2);
+        background: var(--dw-paper);
+        color: var(--dw-ink);
+        resize: none;
+      }
+    </style>
+  </head>
+
+  <body class="dw-paper">
+    <div class="sheet-root">
+      <!-- ── header ──────────────────────────────────────────────────────── -->
+      <header class="head">
+        <div class="head-id">
+          <span class="dw-label">D-01</span>
+          <span class="dw-h3" style="font-size: var(--dw-t-lead)">Call graph</span>
+        </div>
+
+        <select id="scenario" aria-label="Scenario"></select>
+
+        <label class="toggle"><input type="checkbox" id="brkEffect" /> hold on effect</label>
+        <label class="toggle"><input type="checkbox" id="brkError" checked /> hold on error</label>
+
+        <div class="btn-group">
+          <button class="btn" data-act="restart">Restart</button>
+          <button class="btn" data-act="back">← Back</button>
+          <button class="btn" data-act="into">Step ↓</button>
+          <button class="btn" data-act="over">Over</button>
+          <button class="btn" data-act="out">Out ↑</button>
+          <button class="btn btn--run" data-act="cont">Run</button>
+          <button class="btn" data-act="play">Auto</button>
+          <button class="btn" data-act="ir">IR</button>
+        </div>
+      </header>
+
+      <!-- ── the plan ────────────────────────────────────────────────────── -->
+      <div class="plan dw-grid" id="plan">
+        <div class="scaleblock">
+          <button data-zoom="out" title="Zoom out">−</button>
+          <span id="scaleNow">1:1</span>
+          <button data-zoom="in" title="Zoom in">+</button>
+          <button data-zoom="one">1:1</button>
+          <button data-zoom="fit">Fit</button>
+        </div>
+        <div id="canvas">
+          <svg id="wires" xmlns="http://www.w3.org/2000/svg">
+            <defs>
+              <marker
+                id="ar-ink"
+                viewBox="0 0 8 8"
+                refX="7"
+                refY="4"
+                markerWidth="8"
+                markerHeight="8"
+                orient="auto-start-reverse"
+              >
+                <path d="M0,0 L8,4 L0,8 z" fill="#22262b" />
+              </marker>
+              <marker
+                id="ar-cold"
+                viewBox="0 0 8 8"
+                refX="7"
+                refY="4"
+                markerWidth="8"
+                markerHeight="8"
+                orient="auto-start-reverse"
+              >
+                <path d="M0,0 L8,4 L0,8 z" fill="rgb(34 38 43 / 0.3)" />
+              </marker>
+              <marker
+                id="ar-caut"
+                viewBox="0 0 8 8"
+                refX="7"
+                refY="4"
+                markerWidth="8"
+                markerHeight="8"
+                orient="auto-start-reverse"
+              >
+                <path d="M0,0 L8,4 L0,8 z" fill="#d97706" />
+              </marker>
+            </defs>
+            <g id="edges"></g>
+            <g id="tracers"></g>
+          </svg>
+          <div id="nodes"></div>
+        </div>
+      </div>
+
+      <div class="vsp" id="vsp"></div>
+      <div class="hsp" id="hsp"></div>
+
+      <!-- ── cutaway ─────────────────────────────────────────────────────── -->
+      <section class="cut">
+        <div class="cut-head">
+          <span class="dw-label">Section A-A</span>
+          <span id="cutName" style="font-weight: 600"></span>
+          <span class="dw-annot" id="cutLoc"></span>
+          <span class="dw-annot" id="cutHint"></span>
+          <span class="tabs">
+            <button class="tab tab--on" data-tab="source">Source</button>
+            <button class="tab" data-tab="files">Files</button>
+            <button class="tab" data-tab="contract">Contract</button>
+          </span>
+        </div>
+        <div class="tape" id="tape"></div>
+      </section>
+
+      <!-- ── side ────────────────────────────────────────────────────────── -->
+      <aside class="side">
+        <div class="blk">
+          <span class="dw-label">Call stack</span>
+          <div id="stack"></div>
+        </div>
+        <div class="blk">
+          <span class="dw-label">Scope — editable, forks the trace</span>
+          <div id="scope"></div>
+        </div>
+        <div class="blk">
+          <span class="dw-label">Error path</span>
+          <div id="errors"></div>
+        </div>
+        <div class="blk" style="border-bottom: 0">
+          <span class="dw-label">Effects ledger</span>
+          <div id="effects"></div>
+        </div>
+      </aside>
+
+      <!-- ── title block ─────────────────────────────────────────────────── -->
+      <footer class="block">
+        <div class="dw-titleblock">
+          <div class="dw-titleblock-cell">
+            <span class="dw-titleblock-key">Program</span>
+            <span class="dw-titleblock-val" id="tbProgram"></span>
+          </div>
+          <div class="dw-titleblock-cell">
+            <span class="dw-titleblock-key">Condition</span>
+            <span class="dw-titleblock-val" id="tbPreset"></span>
+          </div>
+          <div class="dw-titleblock-cell">
+            <span class="dw-titleblock-key">Step</span>
+            <span class="dw-titleblock-val dw-num" id="tbStep"></span>
+          </div>
+          <div class="dw-titleblock-cell">
+            <span class="dw-titleblock-key">Status</span>
+            <span class="dw-titleblock-val" id="tbStatus"></span>
+          </div>
+          <div class="dw-titleblock-cell">
+            <span class="dw-titleblock-key">Notices</span>
+            <span class="dw-titleblock-val" id="tbNotices"></span>
+          </div>
+          <div class="dw-titleblock-cell">
+            <span class="dw-titleblock-key">Sheet</span>
+            <span class="dw-titleblock-val">D-01</span>
+          </div>
+        </div>
+        <div class="trace">
+          <div class="dw-dimension" id="dim">
+            <span class="dw-dimension-value" id="dimA">0</span>
+            <span class="dw-dimension-tick"></span>
+            <span class="trace-span">
+              <span class="trace-rule"></span>
+              <span class="trace-fill" id="dimFill"></span>
+              <span class="trace-tick" id="dimTick"></span>
+            </span>
+            <span class="dw-dimension-tick"></span>
+            <span class="dw-dimension-value" id="dimB">0</span>
+          </div>
+        </div>
+      </footer>
+    </div>
+
+    <!-- ── IR drawer ─────────────────────────────────────────────────────── -->
+    <div class="drawer" id="drawer">
+      <div style="display: flex; align-items: baseline; gap: var(--dw-s3)">
+        <span class="dw-label">Sheet source</span>
+        <span class="dw-annot"
+          >The drawing is generated from this. Paste one an agent wrote, then load.</span
+        >
+        <span class="btn-group">
+          <button class="btn btn--run" data-act="irLoad">Load</button>
+          <button class="btn" data-act="ir">Close</button>
+        </span>
+      </div>
+      <div class="dw-annot caut" id="irErrors"></div>
+      <textarea id="irText" spellcheck="false"></textarea>
+    </div>
+
+    <script>
+      /* __ENGINE__ */
+    </script>
+
+    <script>
+      /* ======================================================================
+         DRIVER — trace, breakpoints, time travel. Same shape as D-00.
+         ==================================================================== */
+      let TRACE = [];
+      let T = 0;
+      let SEL = null; // stack index being inspected, null = top
+      let PIN = null; // node pinned into the cutaway by clicking it
+      let TAB = 'source'; // which view of the opened node the cutaway shows
+      const BP = new Set();
+      const OPT = { breakEffect: false, breakError: true };
+      let PLAYING = null;
+      const MAX = 4000;
+      const STILL = matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+      const cur = () => TRACE[T];
+      // NOT `top`: a top-level `const top` shadows window.top, which is
+      // non-configurable, so the whole script is a SyntaxError before its first
+      // statement runs. It parses; it just never executes. build.ps1 refuses the
+      // four names this can happen with.
+      const topFrame = (s) => s.frames[s.frames.length - 1];
+      const cursorKey = (s) => (s.frames.length ? `${topFrame(s).nodeId}#${topFrame(s).pc}` : null);
+
+      function loadProgram(prog, presetIdx) {
+        PROG = prepare(structuredClone(prog));
+        PROG.presetIdx = presetIdx;
+        PROG.input = structuredClone(prog.presets[presetIdx].input);
+        const errs = validate(PROG);
+        TRACE = [initState()];
+        T = 0;
+        SEL = null;
+        PIN = null;
+        stopPlay();
+        layout();
+        fit();
+        render();
+        return errs;
+      }
+
+      function pushState(s) {
+        if (T < TRACE.length - 1) TRACE.length = T + 1;
+        TRACE.push(s);
+        T = TRACE.length - 1;
+      }
+
+      function stopHere(s) {
+        if (s.status !== 'running') return true;
+        if (OPT.breakError && (s.lastEvent === 'raise' || s.lastEvent === 'unwind')) return true;
+        if (OPT.breakEffect && s.lastEvent === 'effect') return true;
+        return BP.has(cursorKey(s));
+      }
+
+      /* A twenty-step Run would otherwise start twenty stroke animations at
+         once, which is a light show rather than a gesture. Hold them during the
+         loop and draw only the transition you land on. */
+      let FX = true;
+      let FX_PENDING = null;
+
+      function advance(extra) {
+        FX = false;
+        FX_PENDING = null;
+        let n = 0;
+        while (n++ < MAX) {
+          const nx = step(cur());
+          pushState(nx);
+          if (stopHere(nx) || (extra && extra(nx))) break;
+        }
+        FX = true;
+        if (FX_PENDING) tracer(FX_PENDING.d, FX_PENDING.colour);
+        FX_PENDING = null;
+        SEL = null;
+        render();
+      }
+
+      const actions = {
+        restart: () => loadProgram(PROGRAMS[PI], RI),
+        back() {
+          if (T > 0) T--;
+          SEL = null;
+          stopPlay();
+          render();
+        },
+        into() {
+          if (cur().status !== 'running') return;
+          pushState(step(cur()));
+          SEL = null;
+          render();
+        },
+        over() {
+          const d = cur().frames.length;
+          advance((s) => s.frames.length <= d);
+        },
+        out() {
+          const d = cur().frames.length;
+          advance(d <= 1 ? () => false : (s) => s.frames.length < d);
+        },
+        cont: () => advance(null),
+        play() {
+          if (PLAYING) return (stopPlay(), render());
+          PLAYING = setInterval(() => {
+            if (cur().status !== 'running') return (stopPlay(), render());
+            pushState(step(cur()));
+            SEL = null;
+            render();
+          }, 480);
+          render();
+        },
+        ir() {
+          const d = document.getElementById('drawer');
+          const open = d.dataset.open === '1';
+          d.dataset.open = open ? '0' : '1';
+          if (!open) {
+            const { _labels, presetIdx, input, ...clean } = structuredClone(PROG);
+            for (const n of Object.values(clean.nodes)) delete n.id;
+            document.getElementById('irText').value = JSON.stringify(clean, null, 2);
+          }
+        },
+        irLoad() {
+          const box = document.getElementById('irErrors');
+          try {
+            const parsed = JSON.parse(document.getElementById('irText').value);
+            if (!parsed.presets?.length)
+              parsed.presets = [{ name: 'as loaded', blurb: '', input: parsed.input || {} }];
+            // Validate a copy BEFORE swapping. Loading first and reporting after
+            // leaves a program the VM trips over sitting on the sheet, drawn and
+            // steppable, which reads as accepted.
+            const errs = validate(prepare(structuredClone(parsed)));
+            box.textContent = errs.join(' · ');
+            if (errs.length) return;
+            loadProgram(parsed, 0);
+            const at = PROGRAMS.findIndex((p) => p.id === parsed.id);
+            at >= 0 ? (PROGRAMS[at] = parsed) : PROGRAMS.push(parsed);
+            PI = at >= 0 ? at : PROGRAMS.length - 1;
+            RI = 0;
+            buildScenarios();
+            actions.ir();
+          } catch (e) {
+            box.textContent = String(e);
+          }
+        },
+      };
+
+      function stopPlay() {
+        if (PLAYING) clearInterval(PLAYING);
+        PLAYING = null;
+      }
+
+      function editVar(frameIdx, name, raw) {
+        let value;
+        try {
+          value = JSON.parse(raw);
+        } catch {
+          value = raw;
+        }
+        const s = structuredClone(cur());
+        s.frames[frameIdx].scope[name] = value;
+        s.forked = true;
+        TRACE.length = T + 1;
+        TRACE[T] = s;
+        render();
+      }
+
+      /* ======================================================================
+         LAYOUT — layered, top to bottom. An assembly breakdown, not a blob.
+         ==================================================================== */
+      const W = 288;
+      const GAP_X = 48;
+      const GAP_Y = 96;
+      const PAD = 36;
+      let POS = {}; // nodeId -> {x, y, h}
+      let EDGES = []; // {from, to, call, err}
+      let FILES = []; // the program's file-tree diff
+      let FILEMAP = {}; // path -> { touch: [nodeId], test: [nodeId] }
+      let NOTICES = []; // structural findings, computed once per program
+
+      /**
+       * What the IR can be asked about itself, before a single step runs.
+       *
+       * All three come from the same place: a graph that names its files and its
+       * channels can be checked against itself. None needs the VM.
+       */
+      function index() {
+        FILES = PROG.files ?? [];
+        FILEMAP = {};
+        for (const f of FILES) FILEMAP[f.path] = { touch: [], test: [] };
+        for (const [id, n] of Object.entries(PROG.nodes)) {
+          for (const p of n.touches ?? []) (FILEMAP[p] ??= { touch: [], test: [] }).touch.push(id);
+          for (const p of n.tests ?? []) (FILEMAP[p] ??= { touch: [], test: [] }).test.push(id);
+        }
+
+        NOTICES = [];
+
+        // 1. One file, several nodes. On a map this is the parallelism question
+        //    answered by arithmetic instead of by a warning nobody reads.
+        for (const [path, rel] of Object.entries(FILEMAP)) {
+          if (rel.touch.length > 1) {
+            NOTICES.push({
+              tag: 'shared',
+              text: `${path} is edited by ${rel.touch.length} nodes — ${rel.touch.map((i) => PROG.nodes[i].name).join(', ')}`,
+            });
+          }
+        }
+
+        // 2. In the diff, on no node. The honest limit of a call graph: docs,
+        //    gate rows and settings edits are real changes with no runtime node,
+        //    and a graph that quietly omitted them would read as complete.
+        const orphans = FILES.filter(
+          (f) => !FILEMAP[f.path].touch.length && !FILEMAP[f.path].test.length,
+        );
+        if (orphans.length) {
+          NOTICES.push({
+            tag: 'unattached',
+            text: `${orphans.length} of ${FILES.length} changed files are accounted for by no node on this sheet`,
+          });
+        }
+
+        // 3. An E channel carrying a tag nothing beneath it can produce — the
+        //    gist's layer-scoping rule, which says each layer catches what it
+        //    received and renames it, so an implementation error from three
+        //    layers down must never appear in a handler's E.
+        for (const [id, n] of Object.entries(PROG.nodes)) {
+          const own = new Set();
+          for (const st of n.steps) {
+            if (st.op === 'throw') own.add(st.tag);
+            if (st.op === 'effect' && st.failWith) own.add(st.failWith.tag);
+          }
+          for (const c of calleesOf(id))
+            for (const t of PROG.nodes[c].channels?.E ?? []) own.add(t);
+          for (const t of n.channels?.E ?? []) {
+            if (!own.has(t)) {
+              NOTICES.push({
+                tag: 'declared',
+                text: `${n.name} declares ${t}, and nothing it calls or raises produces it`,
+              });
+            }
+          }
+        }
+      }
+
+      const calleesOf = (id) => {
+        const out = [];
+        for (const st of PROG.nodes[id].steps)
+          if (st.op === 'call' && !out.includes(st.target)) out.push(st.target);
+        return out;
+      };
+
+      function layout() {
+        const ids = Object.keys(PROG.nodes);
+        index();
+
+        // depth = longest path from the entry, so a shared callee sinks below
+        // every caller instead of cutting across them
+        const depth = Object.fromEntries(ids.map((i) => [i, 0]));
+        for (let k = 0; k < ids.length; k++)
+          for (const id of ids)
+            for (const c of calleesOf(id)) if (depth[c] < depth[id] + 1) depth[c] = depth[id] + 1;
+
+        const order = [];
+        const seen = new Set();
+        (function dfs(id) {
+          if (seen.has(id)) return;
+          seen.add(id);
+          order.push(id);
+          calleesOf(id).forEach(dfs);
+        })(PROG.entry);
+        ids.forEach((id) => !seen.has(id) && order.push(id));
+
+        const rows = {};
+        for (const id of order) (rows[depth[id]] ||= []).push(id);
+
+        // measure: every box is drawn at object weight so the geometry a
+        // measurement produces is the geometry every later state uses
+        const host = document.getElementById('nodes');
+        host.innerHTML = order
+          .map(
+            (id) =>
+              `<div class="nd" data-node="${id}" style="left:0;top:0">${nodeInner(id, null)}</div>`,
+          )
+          .join('');
+        const H = {};
+        for (const el of host.children) H[el.dataset.node] = el.offsetHeight;
+
+        const widest = Math.max(...Object.values(rows).map((r) => r.length));
+        const sheetW = widest * W + (widest - 1) * GAP_X;
+
+        POS = {};
+        let y = PAD;
+        for (const d of Object.keys(rows).sort((a, b) => a - b)) {
+          const row = rows[d];
+          const rowW = row.length * W + (row.length - 1) * GAP_X;
+          let x = PAD + (sheetW - rowW) / 2;
+          for (const id of row) {
+            POS[id] = { x, y, h: H[id] };
+            x += W + GAP_X;
+          }
+          y += Math.max(...row.map((id) => H[id])) + GAP_Y;
+        }
+
+        // corridors: the call runs down the left of the pair, the declared
+        // error return runs up its right. Same corridor, opposite directions.
+        EDGES = [];
+        for (const from of ids)
+          for (const to of calleesOf(from)) {
+            const a = POS[from];
+            const b = POS[to];
+            const sx = a.x + W / 2 - 10;
+            const sy = a.y + a.h;
+            const ex = b.x + W / 2 - 10;
+            const ey = b.y;
+            const my = (sy + ey) / 2 - 6;
+            const call = `M${sx},${sy} L${sx},${my} L${ex},${my} L${ex},${ey}`;
+            const my2 = my + 12;
+            const err = `M${ex + 20},${ey} L${ex + 20},${my2} L${sx + 20},${my2} L${sx + 20},${sy}`;
+            EDGES.push({
+              from,
+              to,
+              call,
+              err,
+              hasE: (PROG.nodes[to].channels?.E || []).length > 0,
+            });
+          }
+
+        const canvas = document.getElementById('canvas');
+        canvas.style.width = sheetW + PAD * 2 + 'px';
+        canvas.style.height = y - GAP_Y + PAD + 'px';
+        document
+          .getElementById('wires')
+          .setAttribute(
+            'viewBox',
+            `0 0 ${canvas.style.width.replace('px', '')} ${canvas.style.height.replace('px', '')}`,
+          );
+        document.getElementById('wires').style.width = canvas.style.width;
+        document.getElementById('wires').style.height = canvas.style.height;
+      }
+
+      /* ======================================================================
+         RENDER
+         ==================================================================== */
+      const esc = (x) =>
+        String(x).replace(
+          /[&<>"]/g,
+          (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c],
+        );
+      function fmt(v, max = 70) {
+        let out;
+        try {
+          out = JSON.stringify(v);
+        } catch {
+          out = String(v);
+        }
+        if (out === undefined) out = 'undefined';
+        return out.length > max ? out.slice(0, max) + '…' : out;
+      }
+
+      function nodeState(s, id) {
+        if (!s) return 'cold';
+        if (s.frames.some((f) => f.nodeId === id)) return 'active';
+        if (s.errored[id]) return 'error';
+        if (s.visited[id]) return 'warm';
+        return 'cold';
+      }
+
+      function firedTags(s, id) {
+        return new Set((s?.errorLog || []).filter((l) => l.where === id).map((l) => l.tag));
+      }
+
+      function nodeInner(id, s) {
+        const n = PROG.nodes[id];
+        const ch = n.channels || {};
+        const st = nodeState(s, id);
+        const fired = firedTags(s, id);
+
+        const chip =
+          st === 'error'
+            ? '<span class="dw-state dw-state--caution">raised</span>'
+            : st === 'warm'
+              ? '<span class="dw-state dw-state--normal">returned</span>'
+              : st === 'active'
+                ? `<span class="dw-label">on stack${s.visited[id] > 1 ? ' · ' + s.visited[id] : ''}</span>`
+                : '';
+
+        const fx = n.steps
+          .map((x, i) => [x, i])
+          .filter(([x]) => x.op === 'effect')
+          .map(([x]) => {
+            const recs = (s?.effects || []).filter((r) => r.node === id && r.kind === x.kind);
+            const cls = recs.some((r) => r.status === 'failed')
+              ? 'fx--fail'
+              : recs.length
+                ? 'fx--ok'
+                : '';
+            const tries = recs.length > 1 ? ` ×${recs.length}` : '';
+            return `<div class="fx ${cls}"><span class="fx-dot"></span><span class="fx-lead"></span>
+              <span class="fx-txt">${esc(x.kind)}${tries} <span class="dim">${esc(x.desc || '')}</span></span></div>`;
+          })
+          .join('');
+
+        const E = (ch.E || []).length
+          ? ch.E.map((t) => `<span class="${fired.has(t) ? 'fired' : ''}">${esc(t)}</span>`).join(
+              ' · ',
+            )
+          : '<span class="none">never</span>';
+
+        return `
+          <div class="nd-top">
+            <button class="bp ${BP.has(id + '#0') ? 'bp--on' : ''}" data-bp="${id}#0" title="Hold on entry"></button>
+            <span class="dw-label">${esc(n.kind)}</span>
+            <span style="margin-left:auto">${chip}</span>
+          </div>
+          <div class="nd-name">${esc(n.name)}</div>
+          <div class="nd-loc">${esc(n.loc || '')}</div>
+          <div class="nd-ch">
+            <b>A</b><span>${esc(ch.A || '—')}</span>
+            <b>E</b><span>${E}</span>
+            <b>R</b><span>${(ch.R || []).length ? esc(ch.R.join(', ')) : '<span class="none">none</span>'}</span>
+          </div>
+          ${fx}`;
+      }
+
+      function render() {
+        const s = cur();
+        renderPlan(s);
+        renderCutaway(s);
+        renderStack(s);
+        renderScope(s);
+        renderErrors(s);
+        renderEffects(s);
+        renderBlock(s);
+      }
+
+      /* -- the plan -------------------------------------------------------- */
+      function renderPlan(s) {
+        const host = document.getElementById('nodes');
+        const selId = pinnedNode(s);
+        host.innerHTML = Object.keys(PROG.nodes)
+          .map((id) => {
+            const p = POS[id];
+            const st = nodeState(s, id);
+            const cls = [
+              'nd',
+              st === 'cold' ? 'nd--cold' : '',
+              st === 'error' ? 'nd--error' : '',
+              st === 'active' ? 'nd--active' : '',
+              id === selId ? 'nd--sel' : '',
+            ]
+              .filter(Boolean)
+              .join(' ');
+            return `<div class="${cls}" data-node="${id}"
+                     style="left:${p.x}px;top:${p.y}px;height:${p.h}px">${nodeInner(id, s)}</div>`;
+          })
+          .join('');
+
+        // the live caller→callee pairs, so the stack itself is drawn heavy
+        const live = new Set();
+        for (let i = 1; i < s.frames.length; i++)
+          live.add(s.frames[i - 1].nodeId + '>' + s.frames[i].nodeId);
+        const walked = s.walked || {};
+
+        document.getElementById('edges').innerHTML = EDGES.map((e) => {
+          const key = e.from + '>' + e.to;
+          const onStack = live.has(key);
+          const taken = walked[key];
+          const errTaken = walked['!' + key];
+
+          const w = onStack ? 2 : taken ? 1.5 : 1;
+          const col = onStack || taken ? '#22262b' : 'rgb(34 38 43 / 0.3)';
+          const mk = onStack || taken ? 'ar-ink' : 'ar-cold';
+
+          let out = `<path d="${e.call}" fill="none" stroke="${col}" stroke-width="${w}" marker-end="url(#${mk})"/>`;
+          if (e.hasE) {
+            const ec = errTaken ? '#d97706' : 'rgb(34 38 43 / 0.3)';
+            out += `<path d="${e.err}" fill="none" stroke="${ec}" stroke-width="${errTaken ? 1.5 : 1}"
+                      stroke-dasharray="4 4" marker-end="url(#${errTaken ? 'ar-caut' : 'ar-cold'})"/>`;
+          }
+          return out;
+        }).join('');
+      }
+
+      /* The one sanctioned gesture: a stroke that draws itself, reused for the
+         only thing on this sheet that actually moves — control transferring. */
+      function tracer(d, colour) {
+        if (STILL) return;
+        if (!FX) return void (FX_PENDING = { d, colour });
+        const g = document.getElementById('tracers');
+        const p = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+        p.setAttribute('d', d);
+        p.setAttribute('fill', 'none');
+        p.setAttribute('stroke', colour);
+        p.setAttribute('stroke-width', '3');
+        g.appendChild(p);
+        const L = p.getTotalLength();
+        p.style.strokeDasharray = L;
+        p.animate([{ strokeDashoffset: L }, { strokeDashoffset: 0 }], {
+          duration: 420,
+          easing: 'cubic-bezier(.2,.7,.2,1)',
+          fill: 'forwards',
+        }).onfinish = () => {
+          p.animate([{ opacity: 1 }, { opacity: 0 }], {
+            duration: 280,
+            fill: 'forwards',
+          }).onfinish = () => p.remove();
+        };
+      }
+
+      /* -- cutaway --------------------------------------------------------- */
+      function pinnedNode(s) {
+        if (PIN && PROG.nodes[PIN]) return PIN;
+        const f = s.frames[SEL ?? s.frames.length - 1];
+        return f ? f.nodeId : null;
+      }
+
+      function tapeLine(st) {
+        const kw = (t) => `<span class="kw">${esc(t)}</span>`;
+        const d = (t) => `<span class="dim">${esc(t)}</span>`;
+        switch (st.op) {
+          case 'note':
+            return d('— ' + st.note);
+          case 'let':
+            return `${kw('let')} ${esc(st.name)} = ${esc(st.expr)}`;
+          case 'if':
+            return `${kw('if')} (${esc(st.cond)}) ${kw('goto')} ${esc(st.then)} ${kw('else')} ${esc(st.else)}`;
+          case 'goto':
+            return `${kw('goto')} ${esc(st.to)}`;
+          case 'throw':
+            return `${kw('throw')} ${esc(st.tag)} ${d('"' + st.message + '" · ' + st.channel)}`;
+          case 'return':
+            return `${kw('return')} ${esc(st.expr ?? '')}`;
+          case 'effect': {
+            const a = st.args ? st.args.replace(/^\(|\)$/g, '') : '';
+            return `<span class="fx-dot" style="display:inline-block;vertical-align:middle"></span>
+                    ${kw(st.kind)} ${esc(st.desc || '')} ${d(a.length > 46 ? a.slice(0, 46) + '…' : a)}${
+                      st.bind ? ' → ' + esc(st.bind) : ''
+                    }${st.failOnAttempt ? d('  fails on attempt ' + st.failOnAttempt.join(',')) : ''}`;
+          }
+          case 'call': {
+            const args = Object.entries(st.args || {})
+              .map(([k, e]) => `${k}: ${e}`)
+              .join(', ');
+            return `${st.bind ? kw('let') + ' ' + esc(st.bind) + ' = ' : ''}${kw('call')} ${esc(
+              PROG.nodes[st.target].name,
+            )}(${esc(args)})`;
+          }
+        }
+        return esc(JSON.stringify(st));
+      }
+
+      function renderCutaway(s) {
+        const id = pinnedNode(s);
+        const cutName = document.getElementById('cutName');
+        const tape = document.getElementById('tape');
+        if (!id) {
+          cutName.textContent = '—';
+          document.getElementById('cutLoc').textContent = '';
+          tape.innerHTML = `<div class="dw-annot">${
+            s.status === 'error'
+              ? 'Stack empty. ' + esc(s.error.tag) + ' — ' + esc(s.error.message)
+              : 'Stack empty. Returned ' + esc(fmt(s.result, 200))
+          }</div>`;
+          return;
+        }
+        const n = PROG.nodes[id];
+        cutName.textContent = n.name;
+        document.getElementById('cutLoc').textContent = n.loc || '';
+
+        const frameIdx = s.frames.findIndex((f) => f.nodeId === id);
+        const f = frameIdx >= 0 ? s.frames[frameIdx] : null;
+        document.getElementById('cutHint').textContent =
+          TAB !== 'source' ? '' : f ? `pc ${f.pc}` : 'not on the stack — showing the plan only';
+
+        if (TAB === 'files') return void (tape.innerHTML = filesView(id));
+        if (TAB === 'contract') return void (tape.innerHTML = contractView(id));
+
+        tape.innerHTML = n.steps
+          .map((st, i) => {
+            const here = f && i === f.pc;
+            const past = f && i < f.pc;
+            const key = `${id}#${i}`;
+            return `<div class="tp ${here ? 'tp--here' : past ? 'tp--past' : ''}">
+              <button class="bp ${BP.has(key) ? 'bp--on' : ''}" data-bp="${key}" title="Hold here"></button>
+              <span class="tp-n dw-num">${i}</span>
+              <span class="tp-lbl">${st.label ? esc(st.label) : ''}</span>
+              <span class="tp-src">${tapeLine(st)}${
+                st.note && st.op !== 'note' ? `<div class="dim">— ${esc(st.note)}</div>` : ''
+              }${
+                (st.onError || [])
+                  .map((h) => `<div class="dim">↳ catch ${esc(h.tag)} → ${esc(h.goto)}</div>`)
+                  .join('') || ''
+              }</span>
+            </div>`;
+          })
+          .join('');
+        const active = tape.querySelector('.tp--here');
+        if (active) active.scrollIntoView({ block: 'nearest' });
+      }
+
+      /* -- the file-tree diff, wsff.md's second Program Design artifact ----- */
+      const CHANGE = { new: 'new', edit: 'edit', delete: 'del' };
+
+      function fileRow(f, selected) {
+        const rel = FILEMAP[f.path] ?? { touch: [], test: [] };
+        const shared = rel.touch.length > 1;
+        const cut = f.path.lastIndexOf('/');
+        const dir = cut < 0 ? '' : f.path.slice(0, cut + 1);
+        const base = cut < 0 ? f.path : f.path.slice(cut + 1);
+        const n = [f.adds ? `+${f.adds}` : '', f.dels ? `−${f.dels}` : '']
+          .filter(Boolean)
+          .join(' ');
+        return `<div class="frow ${shared ? 'frow--shared' : ''}">
+            <span class="fchange">${esc(CHANGE[f.change] ?? f.change ?? '')}</span>
+            <span class="fpath"><span class="fdir">${esc(dir)}</span>${
+              selected ? `<b>${esc(base)}</b>` : esc(base)
+            }</span>
+            <span class="fnum">${esc(n)}</span>
+            ${f.why ? `<span class="fwhy">${esc(f.why)}</span>` : ''}
+          </div>`;
+      }
+
+      function filesView(id) {
+        if (!FILES.length)
+          return '<div class="dw-annot">This program declares no file-tree diff. Add a top-level <code>files</code> list and per-node <code>touches</code> / <code>tests</code>.</div>';
+
+        const mine = new Set([...(PROG.nodes[id].touches ?? []), ...(PROG.nodes[id].tests ?? [])]);
+        const rel = (p) => FILEMAP[p] ?? { touch: [], test: [] };
+        const groups = [
+          {
+            label: `This node — ${PROG.nodes[id].name}`,
+            rows: FILES.filter((f) => mine.has(f.path)),
+          },
+          {
+            label: 'Other nodes on this sheet',
+            rows: FILES.filter(
+              (f) => !mine.has(f.path) && (rel(f.path).touch.length || rel(f.path).test.length),
+            ),
+          },
+          {
+            label: 'In the diff, on no node',
+            rows: FILES.filter((f) => !rel(f.path).touch.length && !rel(f.path).test.length),
+          },
+        ];
+
+        const notices = NOTICES.filter((x) => x.tag !== 'declared');
+        return (
+          groups
+            .filter((g) => g.rows.length)
+            .map(
+              (g) =>
+                `<div class="fgroup"><span class="dw-label">${esc(g.label)} · ${g.rows.length}</span>
+                 ${g.rows.map((f) => fileRow(f, mine.has(f.path))).join('')}</div>`,
+            )
+            .join('') +
+          (notices.length
+            ? `<div class="fgroup"><span class="dw-label">Notices</span>${notices
+                .map((x) => `<div class="dw-annot caut">${esc(x.text)}</div>`)
+                .join('')}</div>`
+            : '')
+        );
+      }
+
+      /* -- the contract: type signatures, the third artifact ---------------- */
+      const CARD = {
+        one: 'one value, then done',
+        many: 'many values over time',
+        window: 'valid for a window — cache it',
+      };
+
+      function contractView(id) {
+        const n = PROG.nodes[id];
+        const ch = n.channels ?? {};
+        const fx = [...new Set(n.steps.filter((s) => s.op === 'effect').map((s) => s.kind))];
+        const raises = [
+          ...new Set([
+            ...n.steps.filter((s) => s.op === 'throw').map((s) => s.tag),
+            ...n.steps.filter((s) => s.op === 'effect' && s.failWith).map((s) => s.failWith.tag),
+          ]),
+        ];
+        const leaks = NOTICES.filter(
+          (x) => x.tag === 'declared' && x.text.startsWith(n.name + ' '),
+        );
+
+        const cell = (k, v) =>
+          `<div class="dw-titleblock-cell"><span class="dw-titleblock-key">${esc(k)}</span>
+           <span class="dw-titleblock-val">${v}</span></div>`;
+        const or = (x, fallback) =>
+          x && x.length ? esc(x) : `<span class="none">${fallback}</span>`;
+
+        return `<div class="contract dw-titleblock" style="grid-template-columns:repeat(auto-fit,minmax(13rem,1fr))">
+            ${cell('Kind', esc(n.kind))}
+            ${cell('Cardinality', esc(CARD[n.card ?? 'one']))}
+            ${cell('Declared at', esc(n.loc ?? '—'))}
+            ${cell('Parameters', or((n.params ?? []).join(', '), 'none'))}
+            ${cell('A — success', or(ch.A, '—'))}
+            ${cell('E — failure', or((ch.E ?? []).join(' · '), 'never'))}
+            ${cell('R — requires', or((ch.R ?? []).join(', '), 'nothing'))}
+            ${cell('Effects performed', or(fx.join(', '), 'none'))}
+            ${cell('Raises here', or(raises.join(' · '), 'nothing'))}
+            ${cell('Asserted by', or((n.tests ?? []).join(', '), 'nothing on this sheet'))}
+          </div>
+          ${
+            leaks.length
+              ? `<div style="padding:var(--dw-s2) var(--dw-s3)">${leaks
+                  .map((x) => `<div class="dw-annot caut">${esc(x.text)}</div>`)
+                  .join('')}</div>`
+              : ''
+          }`;
+      }
+
+      /* -- side ------------------------------------------------------------ */
+      function renderStack(s) {
+        const sel = SEL ?? s.frames.length - 1;
+        document.getElementById('stack').innerHTML =
+          s.frames
+            .map((f, i) => {
+              const n = PROG.nodes[f.nodeId];
+              return `<button class="frame ${i === s.frames.length - 1 ? 'frame--top' : ''} ${
+                i === sel ? 'frame--sel' : ''
+              }" data-frame="${i}">${esc(n.name)}
+                <span class="dw-annot dw-num" style="display:block">${esc(n.loc || '')} · pc ${f.pc}</span>
+              </button>`;
+            })
+            .reverse()
+            .join('') || '<div class="dw-annot">empty</div>';
+      }
+
+      function renderScope(s) {
+        const idx = SEL ?? s.frames.length - 1;
+        const f = s.frames[idx];
+        const box = document.getElementById('scope');
+        if (!f) return (box.innerHTML = '<div class="dw-annot">no frame</div>');
+        const rows = Object.entries(f.scope).filter(([k]) => k !== '$input' && k !== '$env');
+        box.innerHTML =
+          rows
+            .map(
+              ([k, v]) => `<div class="var"><span class="var-k">${esc(k)}</span>
+              <input data-var="${idx}|${esc(k)}" value="${esc(fmt(v, 4000))}" /></div>`,
+            )
+            .join('') || '<div class="dw-annot">no locals yet</div>';
+      }
+
+      const MARK = {
+        raised: 'raised in',
+        unwound: 'unwound past',
+        handled: 'handled by',
+        uncaught: 'escaped the sheet',
+      };
+
+      function renderErrors(s) {
+        const box = document.getElementById('errors');
+        const live = s.unwinding || (s.error && s.status !== 'done' ? s.error : null);
+        const head = live
+          ? `<div class="row"><span class="caut" style="font-weight:600">${esc(live.tag)}</span>
+             <span class="dw-annot">${esc(live.channel)}</span></div>
+             <div class="dw-annot">${esc(live.message)}</div>`
+          : `<div class="dw-annot">${s.errorLog.length ? 'nothing in flight' : 'clean'}</div>`;
+
+        const log = s.errorLog
+          .map(
+            (l) => `<div class="row" style="margin-top:2px">
+            <span class="dw-annot dw-num" style="width:1.6rem;text-align:right">${l.at}</span>
+            <span class="${l.kind === 'handled' ? 'ok' : 'caut'}" style="font-size:var(--dw-t-micro)">${MARK[l.kind]}</span>
+            <span class="row-v dw-annot">${esc(PROG.nodes[l.where]?.name ?? l.where)}${
+              l.goto ? ' → ' + esc(l.goto) : ''
+            }</span>
+          </div>`,
+          )
+          .join('');
+
+        box.innerHTML =
+          head + (log ? `<hr class="dw-rule" style="margin:var(--dw-s1) 0" />${log}` : '');
+      }
+
+      function renderEffects(s) {
+        document.getElementById('effects').innerHTML =
+          s.effects
+            .slice()
+            .reverse()
+            .map(
+              (r) => `<div class="led">
+            <span class="led-seq dw-num">${r.seq}</span>
+            <span class="led-body">
+              <div><span class="${r.status === 'ok' ? 'ok' : 'caut'}">${esc(r.kind)}</span>${
+                r.attempt > 1 ? ` <span class="dw-annot">try ${r.attempt}</span>` : ''
+              }</div>
+              <div class="dim">${esc(r.label)}</div>
+              <div class="dim">${r.status === 'ok' ? '→ ' + esc(fmt(r.result, 44)) : '✕ ' + esc(r.error.tag)}</div>
+            </span>
+          </div>`,
+            )
+            .join('') || '<div class="dw-annot">nothing has touched the world yet</div>';
+      }
+
+      function renderBlock(s) {
+        document.getElementById('tbProgram').textContent = PROG.title;
+        document.getElementById('tbPreset').textContent = PROG.presets[PROG.presetIdx].name;
+        document.getElementById('tbStep').textContent = `${T} / ${TRACE.length - 1}`;
+        const st =
+          s.status === 'error'
+            ? `<span class="dw-state dw-state--caution">uncaught ${esc(s.error.tag)}</span>`
+            : s.status === 'done'
+              ? '<span class="dw-state dw-state--normal">returned</span>'
+              : PLAYING
+                ? '<span class="dw-state dw-state--normal">auto</span>'
+                : '<span class="dw-label">holding</span>';
+        document.getElementById('tbStatus').innerHTML =
+          st + (s.forked ? ' <span class="dw-label">forked</span>' : '');
+
+        document.getElementById('tbNotices').innerHTML = NOTICES.length
+          ? `<span class="dw-state dw-state--caution">${NOTICES.length}</span>`
+          : '<span class="dw-label">none</span>';
+
+        const last = TRACE.length - 1;
+        document.getElementById('dimB').textContent = last;
+        const pct = last ? (T / last) * 100 : 0;
+        document.getElementById('dimTick').style.left = pct + '%';
+        document.getElementById('dimFill').style.width = pct + '%';
+      }
+
+      /* ======================================================================
+         WIRING
+         ==================================================================== */
+      let PI = 0;
+      let RI = 0;
+
+      function buildScenarios() {
+        document.getElementById('scenario').innerHTML = PROGRAMS.map((p, pi) =>
+          p.presets
+            .map(
+              (pr, ri) => `<option value="${pi}:${ri}">${esc(p.title)} · ${esc(pr.name)}</option>`,
+            )
+            .join(''),
+        ).join('');
+        document.getElementById('scenario').value = `${PI}:${RI}`;
+      }
+
+      document.getElementById('scenario').addEventListener('change', (e) => {
+        [PI, RI] = e.target.value.split(':').map(Number);
+        loadProgram(PROGRAMS[PI], RI);
+      });
+
+      /* ======================================================================
+         VIEWPORT — the drawing pans and zooms; the paper does not.
+
+         The grid stays on .plan rather than on the canvas, so what moves is the
+         drawing over the sheet, which is the light-table reading and keeps the
+         grid pitch honest at every zoom.
+         ==================================================================== */
+      const K_MIN = 0.2;
+      const K_MAX = 2.5;
+      let K = 1;
+      let TX = 0;
+      let TY = 0;
+
+      const plan = document.getElementById('plan');
+      const canvasEl = document.getElementById('canvas');
+
+      function applyView() {
+        canvasEl.style.transform = `translate(${TX}px, ${TY}px) scale(${K})`;
+        document.getElementById('scaleNow').textContent =
+          K >= 0.999 && K <= 1.001
+            ? '1:1'
+            : K > 1
+              ? `${K.toFixed(2)}:1`
+              : `1:${(1 / K).toFixed(2)}`;
+      }
+
+      /** Zoom about a point in the pane, so what is under the cursor stays put. */
+      function zoomAt(px, py, next) {
+        const k2 = Math.min(K_MAX, Math.max(K_MIN, next));
+        TX = px - ((px - TX) * k2) / K;
+        TY = py - ((py - TY) * k2) / K;
+        K = k2;
+        applyView();
+      }
+
+      function fit() {
+        const w = canvasEl.offsetWidth;
+        const h = canvasEl.offsetHeight;
+        const r = plan.getBoundingClientRect();
+        if (!w || !h || !r.width) return;
+        K = Math.min(K_MAX, Math.max(K_MIN, Math.min((r.width - 24) / w, (r.height - 24) / h, 1)));
+        TX = (r.width - w * K) / 2;
+        TY = 12;
+        applyView();
+      }
+
+      plan.addEventListener(
+        'wheel',
+        (e) => {
+          e.preventDefault();
+          const r = plan.getBoundingClientRect();
+          zoomAt(e.clientX - r.left, e.clientY - r.top, K * Math.exp(-e.deltaY * 0.0015));
+        },
+        { passive: false },
+      );
+
+      // Drag to pan. A press that never travels 4px is still a click, so
+      // selecting a node and dragging the sheet share one gesture.
+      let DRAGGED = false;
+      plan.addEventListener('pointerdown', (e) => {
+        if (e.button !== 0 || e.target.closest('.scaleblock')) return;
+        const x0 = e.clientX;
+        const y0 = e.clientY;
+        const tx0 = TX;
+        const ty0 = TY;
+        DRAGGED = false;
+        const move = (ev) => {
+          if (!DRAGGED && Math.hypot(ev.clientX - x0, ev.clientY - y0) < 4) return;
+          if (!DRAGGED) {
+            DRAGGED = true;
+            plan.dataset.panning = '1';
+          }
+          TX = tx0 + (ev.clientX - x0);
+          TY = ty0 + (ev.clientY - y0);
+          applyView();
+        };
+        const up = () => {
+          removeEventListener('pointermove', move);
+          removeEventListener('pointerup', up);
+          delete plan.dataset.panning;
+        };
+        addEventListener('pointermove', move);
+        addEventListener('pointerup', up);
+      });
+
+      document.querySelector('.scaleblock').addEventListener('click', (e) => {
+        const b = e.target.closest('[data-zoom]');
+        if (!b) return;
+        const r = plan.getBoundingClientRect();
+        const how = b.dataset.zoom;
+        if (how === 'fit') return fit();
+        if (how === 'one') return zoomAt(r.width / 2, r.height / 2, 1);
+        zoomAt(r.width / 2, r.height / 2, K * (how === 'in' ? 1.25 : 0.8));
+      });
+
+      /* -- the two splitters ------------------------------------------------ */
+      function splitter(el, axis, prop, min, max, pane) {
+        el.addEventListener('pointerdown', (e) => {
+          e.preventDefault();
+          const root = document.querySelector('.sheet-root');
+          const start = axis === 'x' ? e.clientX : e.clientY;
+          // Measure the pane rather than parsing the custom property: its
+          // initial value is `22rem`, and parseFloat of that is 22.
+          const box = document.querySelector(pane).getBoundingClientRect();
+          const from = axis === 'x' ? box.width : box.height;
+          root.dataset.resizing = '1';
+          const move = (ev) => {
+            const d = (axis === 'x' ? ev.clientX : ev.clientY) - start;
+            // both panes grow as the pointer moves toward the sheet's interior
+            const px = Math.min(max(), Math.max(min, from - d));
+            root.style.setProperty(prop, px + 'px');
+          };
+          const up = () => {
+            removeEventListener('pointermove', move);
+            removeEventListener('pointerup', up);
+            delete root.dataset.resizing;
+            fit();
+          };
+          addEventListener('pointermove', move);
+          addEventListener('pointerup', up);
+        });
+      }
+      splitter(
+        document.getElementById('vsp'),
+        'x',
+        '--side-w',
+        220,
+        () => innerWidth * 0.6,
+        '.side',
+      );
+      splitter(document.getElementById('hsp'), 'y', '--cut-h', 80, () => innerHeight * 0.7, '.cut');
+      addEventListener('resize', fit);
+
+      document.body.addEventListener('click', (e) => {
+        // a pan that ended over a node is not a click on it
+        if (DRAGGED) return void (DRAGGED = false);
+        const bp = e.target.closest('[data-bp]');
+        if (bp) {
+          e.stopPropagation();
+          const k = bp.dataset.bp;
+          BP.has(k) ? BP.delete(k) : BP.add(k);
+          return render();
+        }
+        const act = e.target.closest('[data-act]');
+        if (act) return actions[act.dataset.act]();
+        const fr = e.target.closest('[data-frame]');
+        if (fr) {
+          SEL = Number(fr.dataset.frame);
+          PIN = null;
+          return render();
+        }
+        const tb = e.target.closest('[data-tab]');
+        if (tb) {
+          TAB = tb.dataset.tab;
+          for (const b of document.querySelectorAll('[data-tab]'))
+            b.classList.toggle('tab--on', b.dataset.tab === TAB);
+          return render();
+        }
+        const nd = e.target.closest('[data-node]');
+        if (nd) {
+          PIN = PIN === nd.dataset.node ? null : nd.dataset.node;
+          return render();
+        }
+      });
+
+      document.body.addEventListener('change', (e) => {
+        const v = e.target.closest('[data-var]');
+        if (v) {
+          const [idx, name] = v.dataset.var.split('|');
+          editVar(Number(idx), name, v.value);
+        }
+      });
+      document
+        .getElementById('brkEffect')
+        .addEventListener('change', (e) => (OPT.breakEffect = e.target.checked));
+      document
+        .getElementById('brkError')
+        .addEventListener('change', (e) => (OPT.breakError = e.target.checked));
+
+      // the dimension line seeks
+      (function () {
+        const dim = document.getElementById('dim');
+        const span = dim.querySelector('.trace-span');
+        let down = false;
+        const seek = (ev) => {
+          const r = span.getBoundingClientRect();
+          const p = Math.min(1, Math.max(0, (ev.clientX - r.left) / r.width));
+          T = Math.round(p * (TRACE.length - 1));
+          SEL = null;
+          stopPlay();
+          render();
+        };
+        dim.addEventListener('pointerdown', (e) => {
+          down = true;
+          // Seek first. setPointerCapture throws for a pointerId that is not
+          // active — which swallowed the seek entirely until it was moved below.
+          seek(e);
+          try {
+            span.setPointerCapture(e.pointerId);
+          } catch {
+            /* drag still works off the window-level pointerup */
+          }
+        });
+        dim.addEventListener('pointermove', (e) => down && seek(e));
+        addEventListener('pointerup', () => (down = false));
+      })();
+
+      addEventListener('keydown', (e) => {
+        if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+        if (e.key === 'ArrowRight') actions.into();
+        if (e.key === 'ArrowLeft') actions.back();
+        if (e.key === 'F8') (e.preventDefault(), actions.cont());
+        if (e.key === 'F10') (e.preventDefault(), actions.over());
+        if (e.key === 'F11') (e.preventDefault(), actions.out());
+      });
+
+      /* Draw the tracer for whatever the last step did, and keep the record of
+         which corridors have carried anything — an untravelled edge stays a
+         construction line, which is the whole honesty claim of this sheet. */
+      const _push = pushState;
+      pushState = function (s) {
+        const prev = cur();
+        s.walked = { ...(prev.walked || {}) };
+        const a = prev.frames[prev.frames.length - 1];
+        if (s.lastEvent === 'call') {
+          const b = s.frames[s.frames.length - 1];
+          const key = a.nodeId + '>' + b.nodeId;
+          s.walked[key] = true;
+          _push(s);
+          const e = EDGES.find((x) => x.from === a.nodeId && x.to === b.nodeId);
+          if (e) tracer(e.call, '#22262b');
+          return;
+        }
+        if ((s.lastEvent === 'return' || s.lastEvent === 'unwind') && prev.frames.length > 1) {
+          const caller = prev.frames[prev.frames.length - 2];
+          const key = caller.nodeId + '>' + a.nodeId;
+          const err = s.lastEvent === 'unwind';
+          if (err) s.walked['!' + key] = true;
+          _push(s);
+          const e = EDGES.find((x) => x.from === caller.nodeId && x.to === a.nodeId);
+          if (e) tracer(err ? e.err : reverse(e.call), err ? '#d97706' : '#15803d');
+          return;
+        }
+        _push(s);
+      };
+
+      /** Reverse a polyline `d` so a return draws upward, the way it travels. */
+      function reverse(d) {
+        const pts = d
+          .slice(1)
+          .split(/[ML]/)
+          .map((p) => p.trim())
+          .filter(Boolean)
+          .reverse();
+        return 'M' + pts.join(' L');
+      }
+
+      buildScenarios();
+      loadProgram(PROGRAMS[0], 0);
+    </script>
+  </body>
+</html>

@@ -1,0 +1,1626 @@
+<!doctype html>
+<html lang="en" class="dark">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Callstack Inspector — call-graph debugger prototype</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+      tailwind.config = { darkMode: 'class' };
+    </script>
+    <style>
+      body {
+        font-family: ui-sans-serif, system-ui, sans-serif;
+      }
+      .mono {
+        font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      }
+      ::-webkit-scrollbar {
+        width: 10px;
+        height: 10px;
+      }
+      ::-webkit-scrollbar-thumb {
+        background: #334155;
+        border-radius: 9999px;
+      }
+      ::-webkit-scrollbar-track {
+        background: transparent;
+      }
+    </style>
+  </head>
+  <body class="bg-slate-950 text-slate-200 h-screen overflow-hidden">
+    <!--
+      ============================================================================
+      PROTOTYPE — throwaway. Answers: "can a call graph + effects IR be stepped
+      like a debugger, and can an agent hand-author that IR?"
+
+      THE IR (this is the product; the UI is just a viewer)
+      ----------------------------------------------------------------------------
+      Program {
+        id, title, blurb,
+        entry: nodeId,
+        env:   { ...}                 // ambient fake world, in scope as $env
+        presets: [ { name, blurb, input: {...} } ]
+        nodes: { [nodeId]: Node }
+      }
+
+      Node {
+        name, kind: handler|service|repo|io|pure|agent,
+        loc: "src/foo.ts:42",
+        params: [string],             // become locals in the frame scope
+        channels: { A: string, E: [string], R: [string] },   // Effect<A, E, R>
+        steps: [Step]                 // a FLAT tape. pc is an integer.
+      }
+
+      Step — `label` is a JUMP TARGET (one bare word), `note` is a comment line.
+             An effect's human-readable name is `desc`, never `label`.
+        { op:'note'   }                                        // annotation only
+        { op:'let',    name, expr }                            // expr is a STRING
+        { op:'if',     cond, then:label, else:label }
+        { op:'goto',   to:label }
+        { op:'call',   target:nodeId, args:{param:expr}, bind?, onError?:[Handler] }
+        { op:'effect', kind, desc, args?:expr, result?:expr, bind?,
+                       failIf?:expr, failOnAttempt?:[1,2], failWith?:{tag,message,channel},
+                       onError?:[Handler] }
+        { op:'throw',  tag, message, channel:'retry'|'escape'|'die' }
+        { op:'return', expr? }
+
+      Handler { tag:'X'|'*', goto:label, bind? }
+
+      Everything is JSON-serialisable. Expressions are strings evaluated against
+      the frame scope (plus $input and $env). No closures, no real IO — an
+      `effect` step carries its own mocked result and its own failure schedule.
+
+      THE VM
+      ----------------------------------------------------------------------------
+      step(state) -> state, pure. Every state is snapshotted into TRACE, so
+      time travel is an array index and reverse-step is a decrement.
+      Continue / step-over / step-out are all "loop step() until predicate".
+      Editing a variable forks: it truncates TRACE after the cursor.
+      ============================================================================
+    -->
+
+    <div class="h-full flex flex-col">
+      <!-- ── top bar ─────────────────────────────────────────────────────── -->
+      <header
+        class="shrink-0 border-b border-slate-800 bg-slate-900/60 px-4 py-2 flex items-center gap-3 flex-wrap"
+      >
+        <div class="flex items-center gap-2 mr-2">
+          <div class="w-2.5 h-2.5 rounded-full bg-emerald-400"></div>
+          <span class="font-semibold tracking-tight">Callstack Inspector</span>
+          <span
+            class="text-[10px] uppercase tracking-widest text-amber-400 border border-amber-500/40 rounded px-1.5 py-0.5"
+            >prototype</span
+          >
+        </div>
+
+        <select
+          id="scenario"
+          class="bg-slate-800 border border-slate-700 rounded px-2 py-1 text-sm"
+        ></select>
+
+        <div class="flex items-center gap-1 ml-auto">
+          <button data-act="restart" class="ctl">⟲ Restart</button>
+          <button data-act="back" class="ctl">◀ Back</button>
+          <button data-act="into" class="ctl">↓ Step</button>
+          <button data-act="over" class="ctl">⤼ Over</button>
+          <button data-act="out" class="ctl">↑ Out</button>
+          <button
+            data-act="cont"
+            class="ctl bg-emerald-600/20 border-emerald-600/50 text-emerald-300"
+          >
+            ▶ Continue
+          </button>
+          <button data-act="play" class="ctl">⏵⏵ Auto</button>
+        </div>
+
+        <div class="flex items-center gap-3 text-xs border-l border-slate-800 pl-3">
+          <label class="flex items-center gap-1.5 cursor-pointer">
+            <input type="checkbox" id="brkEffect" class="accent-sky-500" /> break on
+            <span class="text-sky-400">effect</span>
+          </label>
+          <label class="flex items-center gap-1.5 cursor-pointer">
+            <input type="checkbox" id="brkError" class="accent-rose-500" checked /> break on
+            <span class="text-rose-400">error</span>
+          </label>
+          <button data-act="zoom" class="ctl">⤢ Zoom out</button>
+          <button data-act="ir" class="ctl">{ } IR</button>
+        </div>
+      </header>
+
+      <!-- ── body ────────────────────────────────────────────────────────── -->
+      <main class="flex-1 min-h-0 grid" style="grid-template-columns: 19rem 1fr 24rem">
+        <!-- call graph -->
+        <aside class="border-r border-slate-800 overflow-auto bg-slate-900/30">
+          <h2 class="panel-h">Call graph</h2>
+          <div id="graph" class="p-2 space-y-1"></div>
+          <h2 class="panel-h">Legend</h2>
+          <div class="px-3 pb-4 text-[11px] space-y-1 text-slate-400">
+            <div>
+              <span class="inline-block w-2 h-2 rounded-full bg-amber-400 mr-1.5"></span>on the
+              stack now
+            </div>
+            <div>
+              <span class="inline-block w-2 h-2 rounded-full bg-emerald-400 mr-1.5"></span>entered
+              &amp; returned
+            </div>
+            <div>
+              <span class="inline-block w-2 h-2 rounded-full bg-rose-500 mr-1.5"></span>raised /
+              unwound
+            </div>
+            <div>
+              <span class="inline-block w-2 h-2 rounded-full bg-slate-600 mr-1.5"></span>not reached
+            </div>
+            <div class="pt-1 text-slate-500">click ● in the gutter to set a breakpoint</div>
+          </div>
+        </aside>
+
+        <!-- source / tape -->
+        <section class="min-w-0 flex flex-col">
+          <div
+            id="frameHead"
+            class="shrink-0 border-b border-slate-800 px-4 py-2 bg-slate-900/40"
+          ></div>
+          <div id="source" class="flex-1 overflow-auto mono text-[13px] leading-6 py-2"></div>
+          <div
+            class="shrink-0 border-t border-slate-800 bg-slate-900/50 px-4 py-2 flex items-center gap-3"
+          >
+            <span id="statusPill" class="text-xs rounded px-2 py-0.5 border"></span>
+            <input
+              id="scrub"
+              type="range"
+              min="0"
+              max="0"
+              value="0"
+              class="flex-1 accent-emerald-500"
+            />
+            <span id="scrubLabel" class="text-xs mono text-slate-400 w-28 text-right"></span>
+          </div>
+        </section>
+
+        <!-- inspector -->
+        <aside class="border-l border-slate-800 overflow-auto bg-slate-900/30">
+          <h2 class="panel-h">Call stack</h2>
+          <div id="stack" class="p-2 space-y-1"></div>
+
+          <h2 class="panel-h">
+            Scope
+            <span class="normal-case tracking-normal text-slate-500 font-normal"
+              >— editable, forks the trace</span
+            >
+          </h2>
+          <div id="scope" class="p-2 space-y-1"></div>
+
+          <h2 class="panel-h">Error channel</h2>
+          <div id="errors" class="p-2 space-y-1"></div>
+
+          <h2 class="panel-h">Effects ledger</h2>
+          <div id="effects" class="p-2 space-y-1 pb-6"></div>
+        </aside>
+      </main>
+    </div>
+
+    <!-- ── zoom-out overlay ──────────────────────────────────────────────── -->
+    <div id="zoomOverlay" class="hidden fixed inset-0 bg-slate-950/95 z-40 overflow-auto p-6">
+      <div class="flex items-center justify-between mb-4">
+        <div>
+          <h2 class="text-lg font-semibold">Program map</h2>
+          <p id="zoomBlurb" class="text-sm text-slate-400"></p>
+        </div>
+        <button data-act="zoom" class="ctl">✕ Close</button>
+      </div>
+      <div
+        id="zoomGrid"
+        class="grid gap-4"
+        style="grid-template-columns: repeat(auto-fill, minmax(21rem, 1fr))"
+      ></div>
+    </div>
+
+    <!-- ── IR overlay ────────────────────────────────────────────────────── -->
+    <div id="irOverlay" class="hidden fixed inset-0 bg-slate-950/95 z-40 flex flex-col p-6">
+      <div class="flex items-center justify-between mb-3">
+        <div>
+          <h2 class="text-lg font-semibold">Program IR</h2>
+          <p class="text-sm text-slate-400">
+            Paste a program an agent wrote, then Load. Schema is in the HTML source comment.
+          </p>
+        </div>
+        <div class="flex gap-2">
+          <button
+            data-act="irLoad"
+            class="ctl bg-emerald-600/20 border-emerald-600/50 text-emerald-300"
+          >
+            Load
+          </button>
+          <button data-act="ir" class="ctl">✕ Close</button>
+        </div>
+      </div>
+      <div id="irErrors" class="mb-2 text-sm text-rose-400 mono"></div>
+      <textarea
+        id="irText"
+        spellcheck="false"
+        class="flex-1 bg-slate-900 border border-slate-800 rounded p-3 mono text-xs leading-5 resize-none"
+      ></textarea>
+    </div>
+
+    <style type="text/tailwindcss">
+      .ctl {
+        @apply text-xs rounded border border-slate-700 bg-slate-800 hover:bg-slate-700 px-2 py-1 transition;
+      }
+      .panel-h {
+        @apply sticky top-0 z-10 bg-slate-900 border-y border-slate-800 px-3 py-1.5 text-[10px] uppercase tracking-widest text-slate-400 font-semibold;
+      }
+    </style>
+
+    <script>
+      /* ══════════════════════════════════════════════════════════════════════
+         1. PROGRAMS  (the IR — hand-authorable JSON)
+         ══════════════════════════════════════════════════════════════════════ */
+
+      const PROGRAMS = [
+        /* ── A. the article's example: HTTP → service → repo → db ─────────── */
+        {
+          id: 'user-fetch',
+          title: 'GET /users/:id',
+          blurb:
+            'The call graph from the article, with a cache read, a retrying repo and two failure modes. Same program, three inputs.',
+          entry: 'handler',
+          env: {
+            db: {
+              u_1: {
+                id: 'u_1',
+                name: 'Ada Lovelace',
+                email: 'ada@analytical.engine',
+                internal_hash: 'x9f2',
+              },
+            },
+          },
+          presets: [
+            {
+              name: 'happy path',
+              blurb: 'u_1 exists, db is healthy',
+              input: { req: { params: { id: 'u_1' } }, flakyDb: false },
+            },
+            {
+              name: 'not found (Escape)',
+              blurb: 'u_404 is absent → UserNotFound climbs to a 404',
+              input: { req: { params: { id: 'u_404' } }, flakyDb: false },
+            },
+            {
+              name: 'transient db (Retry)',
+              blurb: 'first two db attempts fail, third succeeds',
+              input: { req: { params: { id: 'u_1' } }, flakyDb: true },
+            },
+          ],
+          nodes: {
+            handler: {
+              name: 'httpHandler',
+              kind: 'handler',
+              loc: 'src/http/users.ts:12',
+              params: ['req'],
+              channels: { A: 'HttpResponse', E: [], R: ['UserService'] },
+              steps: [
+                {
+                  op: 'note',
+                  note: 'HTTP GET /users/:id — the only node allowed to know about HTTP',
+                },
+                { op: 'let', name: 'id', expr: 'req.params.id' },
+                {
+                  op: 'call',
+                  target: 'getUser',
+                  args: { id: 'id' },
+                  bind: 'user',
+                  onError: [
+                    { tag: 'UserNotFound', goto: 'nf', bind: 'err' },
+                    { tag: 'DbUnavailable', goto: 'down', bind: 'err' },
+                  ],
+                },
+                { op: 'return', expr: '({ status: 200, body: user })' },
+                {
+                  op: 'return',
+                  label: 'nf',
+                  expr: '({ status: 404, body: { error: err.tag, id } })',
+                },
+                {
+                  op: 'return',
+                  label: 'down',
+                  expr: '({ status: 503, body: { error: "upstream unavailable" } })',
+                },
+              ],
+            },
+            getUser: {
+              name: 'UserService.getUser',
+              kind: 'service',
+              loc: 'src/services/user.ts:31',
+              params: ['id'],
+              channels: {
+                A: 'User',
+                E: ['UserNotFound', 'DbUnavailable'],
+                R: ['UserRepo', 'Cache'],
+              },
+              steps: [
+                {
+                  op: 'effect',
+                  kind: 'cache.get',
+                  desc: 'cache.get(user:{id})',
+                  args: '({ key: "user:" + id })',
+                  result: 'null',
+                  bind: 'cached',
+                },
+                { op: 'if', cond: 'cached !== null', then: 'hit', else: 'miss' },
+                {
+                  op: 'return',
+                  label: 'hit',
+                  expr: 'cached',
+                  note: 'cache hit — the repo is never touched',
+                },
+                { op: 'call', label: 'miss', target: 'findById', args: { id: 'id' }, bind: 'row' },
+                { op: 'if', cond: 'row === null', then: 'missing', else: 'found' },
+                {
+                  op: 'throw',
+                  label: 'missing',
+                  tag: 'UserNotFound',
+                  message: 'no user with that id',
+                  channel: 'escape',
+                },
+                {
+                  op: 'let',
+                  label: 'found',
+                  name: 'user',
+                  expr: '({ id: row.id, name: row.name, email: row.email })',
+                  note: 'internal_hash is dropped here — the boundary',
+                },
+                {
+                  op: 'effect',
+                  kind: 'cache.set',
+                  desc: 'cache.set(user:{id})',
+                  args: '({ key: "user:" + id, ttl: 60 })',
+                  result: 'true',
+                },
+                { op: 'return', expr: 'user' },
+              ],
+            },
+            findById: {
+              name: 'UserRepo.findById',
+              kind: 'repo',
+              loc: 'src/repo/user.ts:8',
+              params: ['id'],
+              channels: { A: 'Row | null', E: ['DbUnavailable'], R: ['Postgres'] },
+              steps: [
+                { op: 'let', name: 'attempt', expr: '0' },
+                { op: 'let', label: 'try', name: 'attempt', expr: 'attempt + 1' },
+                {
+                  op: 'effect',
+                  kind: 'db.query',
+                  desc: 'SELECT * FROM users WHERE id = $1',
+                  args: '({ sql: "select * from users where id = $1", params: [id] })',
+                  result: '$env.db[id] ?? null',
+                  bind: 'row',
+                  failIf: '$input.flakyDb === true',
+                  failOnAttempt: [1, 2],
+                  failWith: {
+                    tag: 'DbUnavailable',
+                    message: 'connection reset by peer',
+                    channel: 'retry',
+                  },
+                  onError: [{ tag: 'DbUnavailable', goto: 'again', bind: 'dbErr' }],
+                },
+                { op: 'return', expr: 'row' },
+                {
+                  op: 'if',
+                  label: 'again',
+                  cond: 'attempt < 3',
+                  then: 'try',
+                  else: 'giveUp',
+                  note: 'Retry channel: 3 attempts, then it becomes an Escape',
+                },
+                {
+                  op: 'throw',
+                  label: 'giveUp',
+                  tag: 'DbUnavailable',
+                  message: 'exhausted 3 attempts',
+                  channel: 'escape',
+                },
+              ],
+            },
+          },
+        },
+
+        /* ── B. side effects that cannot be un-done ────────────────────────── */
+        {
+          id: 'checkout',
+          title: 'checkout(cart)',
+          blurb:
+            'Four effects in a row, one of them irreversible. Shows why effect ordering is a design decision: a failure after the charge needs a compensating effect, not a retry.',
+          entry: 'checkout',
+          env: { prices: { sku_a: 2400, sku_b: 900 }, orderIdSeed: 'ord_7781' },
+          presets: [
+            {
+              name: 'happy path',
+              blurb: 'card charges, order persists, receipt sent',
+              input: { cart: { items: ['sku_a', 'sku_b'], card: 'tok_ok' }, dbDown: false },
+            },
+            {
+              name: 'card declined (Escape)',
+              blurb: 'charge fails before any state changes — clean',
+              input: { cart: { items: ['sku_a'], card: 'tok_declined' }, dbDown: false },
+            },
+            {
+              name: 'db dies after charge (Die)',
+              blurb: 'money moved, order did not — compensating refund then Die',
+              input: { cart: { items: ['sku_a', 'sku_b'], card: 'tok_ok' }, dbDown: true },
+            },
+          ],
+          nodes: {
+            checkout: {
+              name: 'checkout',
+              kind: 'handler',
+              loc: 'src/checkout/index.ts:20',
+              params: ['cart'],
+              channels: {
+                A: 'Receipt',
+                E: ['CardDeclined', 'OrderNotPersisted'],
+                R: ['Payments', 'Orders', 'Mailer'],
+              },
+              steps: [
+                { op: 'call', target: 'priceCart', args: { cart: 'cart' }, bind: 'total' },
+                {
+                  op: 'call',
+                  target: 'chargeCard',
+                  args: { token: 'cart.card', amount: 'total' },
+                  bind: 'charge',
+                  onError: [{ tag: 'CardDeclined', goto: 'declined', bind: 'err' }],
+                },
+                {
+                  op: 'note',
+                  note: '⚠ from here on, money has moved. Every failure below needs compensating, not retrying.',
+                },
+                {
+                  op: 'call',
+                  target: 'persistOrder',
+                  args: { cart: 'cart', total: 'total', chargeId: 'charge.id' },
+                  bind: 'order',
+                  onError: [{ tag: 'DbUnavailable', goto: 'compensate', bind: 'err' }],
+                },
+                {
+                  op: 'effect',
+                  kind: 'mail.send',
+                  desc: 'receipt email',
+                  args: '({ to: "buyer@example.com", order: order.id })',
+                  result: 'true',
+                  note: 'non-critical: a failure here would be logged, not raised',
+                },
+                { op: 'return', expr: '({ order: order.id, charged: total })' },
+                { op: 'return', label: 'declined', expr: '({ status: 402, error: err.tag })' },
+                {
+                  op: 'effect',
+                  label: 'compensate',
+                  desc: 'refund the charge',
+                  kind: 'payments.refund',
+                  args: '({ chargeId: charge.id, amount: total })',
+                  result: '({ refunded: true })',
+                  note: 'the compensating effect — the only correct move after a post-charge failure',
+                },
+                {
+                  op: 'throw',
+                  tag: 'OrderNotPersisted',
+                  message: 'charge refunded, order dropped',
+                  channel: 'die',
+                },
+              ],
+            },
+            priceCart: {
+              name: 'priceCart',
+              kind: 'pure',
+              loc: 'src/checkout/price.ts:4',
+              params: ['cart'],
+              channels: { A: 'number', E: [], R: [] },
+              steps: [
+                { op: 'note', note: 'pure — no effects, no errors, trivially testable' },
+                {
+                  op: 'return',
+                  expr: 'cart.items.reduce((n, sku) => n + ($env.prices[sku] ?? 0), 0)',
+                },
+              ],
+            },
+            chargeCard: {
+              name: 'Payments.charge',
+              kind: 'io',
+              loc: 'src/payments/stripe.ts:52',
+              params: ['token', 'amount'],
+              channels: { A: 'Charge', E: ['CardDeclined'], R: ['Stripe'] },
+              steps: [
+                { op: 'if', cond: 'token === "tok_declined"', then: 'no', else: 'yes' },
+                {
+                  op: 'throw',
+                  label: 'no',
+                  tag: 'CardDeclined',
+                  message: 'issuer declined',
+                  channel: 'escape',
+                },
+                {
+                  op: 'effect',
+                  label: 'yes',
+                  kind: 'http.post',
+                  desc: 'POST stripe/charges',
+                  args: '({ token, amount })',
+                  result: '({ id: "ch_9901", amount })',
+                  bind: 'charge',
+                },
+                { op: 'return', expr: 'charge' },
+              ],
+            },
+            persistOrder: {
+              name: 'Orders.create',
+              kind: 'repo',
+              loc: 'src/orders/repo.ts:17',
+              params: ['cart', 'total', 'chargeId'],
+              channels: { A: 'Order', E: ['DbUnavailable'], R: ['Postgres'] },
+              steps: [
+                {
+                  op: 'effect',
+                  kind: 'db.write',
+                  desc: 'INSERT INTO orders',
+                  args: '({ items: cart.items, total, chargeId })',
+                  result: '({ id: $env.orderIdSeed, total })',
+                  bind: 'order',
+                  failIf: '$input.dbDown === true',
+                  failOnAttempt: [1],
+                  failWith: {
+                    tag: 'DbUnavailable',
+                    message: 'no primary available',
+                    channel: 'die',
+                  },
+                },
+                { op: 'return', expr: 'order' },
+              ],
+            },
+          },
+        },
+
+        /* ── C. the meta one: a plan / PR diff as a call graph ─────────────── */
+        {
+          id: 'review-diff',
+          title: 'reviewPullRequest(diff)',
+          blurb:
+            'An agent plan drawn as a call graph. Nodes are plan steps, effects are tool calls, the error channel is "the plan does not survive this input". This is the shape a /callgraph skill would emit for a PR or a codebase.',
+          entry: 'review',
+          env: {
+            hunks: [
+              { file: 'src/auth/session.ts', area: 'security', added: 41 },
+              { file: 'src/db/query.ts', area: 'perf', added: 12 },
+              { file: 'README.md', area: 'docs', added: 3 },
+            ],
+          },
+          presets: [
+            {
+              name: 'three hunks',
+              blurb: 'security + perf + docs, all routed',
+              input: { pr: 314, budget: 3 },
+            },
+            {
+              name: 'budget of 1',
+              blurb: 'the loop runs out of budget mid-way — a plan failure, not a code failure',
+              input: { pr: 314, budget: 1 },
+            },
+          ],
+          nodes: {
+            review: {
+              name: 'reviewPullRequest',
+              kind: 'agent',
+              loc: 'plan.md:1',
+              params: ['pr', 'budget'],
+              channels: { A: 'Report', E: ['BudgetExhausted'], R: ['gh', 'Reviewers'] },
+              steps: [
+                {
+                  op: 'effect',
+                  kind: 'gh.diff',
+                  desc: 'gh pr diff {pr}',
+                  args: '({ pr })',
+                  result: '$env.hunks',
+                  bind: 'hunks',
+                },
+                { op: 'let', name: 'i', expr: '0' },
+                { op: 'let', name: 'findings', expr: '[]' },
+                { op: 'let', name: 'spent', expr: '0' },
+                { op: 'if', label: 'loop', cond: 'i < hunks.length', then: 'body', else: 'done' },
+                { op: 'let', label: 'body', name: 'h', expr: 'hunks[i]' },
+                { op: 'if', cond: 'h.area === "docs"', then: 'skip', else: 'spend' },
+                { op: 'if', label: 'spend', cond: 'spent >= budget', then: 'broke', else: 'route' },
+                {
+                  op: 'throw',
+                  label: 'broke',
+                  tag: 'BudgetExhausted',
+                  message: 'more review surface than budget',
+                  channel: 'escape',
+                },
+                { op: 'let', label: 'route', name: 'spent', expr: 'spent + 1' },
+                { op: 'if', cond: 'h.area === "security"', then: 'sec', else: 'perf' },
+                {
+                  op: 'call',
+                  label: 'sec',
+                  target: 'securityReview',
+                  args: { hunk: 'h' },
+                  bind: 'r',
+                },
+                { op: 'goto', to: 'collect' },
+                { op: 'call', label: 'perf', target: 'perfReview', args: { hunk: 'h' }, bind: 'r' },
+                { op: 'let', label: 'collect', name: 'findings', expr: 'findings.concat(r)' },
+                { op: 'let', label: 'skip', name: 'i', expr: 'i + 1' },
+                { op: 'goto', to: 'loop' },
+                {
+                  op: 'call',
+                  label: 'done',
+                  target: 'summarise',
+                  args: { findings: 'findings' },
+                  bind: 'report',
+                },
+                { op: 'return', expr: 'report' },
+              ],
+            },
+            securityReview: {
+              name: 'securityReview',
+              kind: 'agent',
+              loc: 'plan.md:14',
+              params: ['hunk'],
+              channels: { A: 'Finding[]', E: [], R: ['read', 'grep'] },
+              steps: [
+                {
+                  op: 'effect',
+                  kind: 'fs.read',
+                  desc: 'read {file}',
+                  args: '({ file: hunk.file })',
+                  result: '({ lines: 210 })',
+                  bind: 'src',
+                },
+                {
+                  op: 'return',
+                  expr: '[{ file: hunk.file, sev: "high", claim: "session id is logged" }]',
+                },
+              ],
+            },
+            perfReview: {
+              name: 'perfReview',
+              kind: 'agent',
+              loc: 'plan.md:22',
+              params: ['hunk'],
+              channels: { A: 'Finding[]', E: [], R: ['read'] },
+              steps: [
+                {
+                  op: 'effect',
+                  kind: 'fs.read',
+                  desc: 'read {file}',
+                  args: '({ file: hunk.file })',
+                  result: '({ lines: 88 })',
+                  bind: 'src',
+                },
+                {
+                  op: 'return',
+                  expr: '[{ file: hunk.file, sev: "low", claim: "n+1 in the loop" }]',
+                },
+              ],
+            },
+            summarise: {
+              name: 'summariseFindings',
+              kind: 'pure',
+              loc: 'plan.md:30',
+              params: ['findings'],
+              channels: { A: 'Report', E: [], R: [] },
+              steps: [
+                {
+                  op: 'return',
+                  expr: '({ count: findings.length, high: findings.filter(f => f.sev === "high").length, findings })',
+                },
+              ],
+            },
+          },
+        },
+      ];
+
+      /* ══════════════════════════════════════════════════════════════════════
+         2. VM — step(state) -> state
+         ══════════════════════════════════════════════════════════════════════ */
+
+      let PROG = null;
+
+      function prepare(prog) {
+        prog._labels = {};
+        for (const [id, node] of Object.entries(prog.nodes)) {
+          node.id = id;
+          const m = {};
+          node.steps.forEach((s, i) => {
+            if (s.label) m[s.label] = i;
+          });
+          prog._labels[id] = m;
+        }
+        return prog;
+      }
+
+      function validate(prog) {
+        const errs = [];
+        if (!prog.entry || !prog.nodes?.[prog.entry]) errs.push('entry node missing');
+        for (const [id, node] of Object.entries(prog.nodes || {})) {
+          const labels = prog._labels[id];
+          node.steps.forEach((s, i) => {
+            const where = `${id}[${i}] ${s.op}`;
+            if (s.op === 'call' && !prog.nodes[s.target])
+              errs.push(`${where}: unknown target "${s.target}"`);
+            for (const key of ['then', 'else', 'to']) {
+              if (s[key] !== undefined && labels[s[key]] === undefined)
+                errs.push(`${where}: unknown label "${s[key]}"`);
+            }
+            for (const h of s.onError || []) {
+              if (labels[h.goto] === undefined)
+                errs.push(`${where}: onError → unknown label "${h.goto}"`);
+            }
+          });
+        }
+        return errs;
+      }
+
+      const IDENT = /^[A-Za-z_$][A-Za-z0-9_$]*$/;
+
+      function evalExpr(expr, scope, nodeId) {
+        const keys = Object.keys(scope).filter((k) => IDENT.test(k));
+        try {
+          return new Function(...keys, `"use strict"; return (${expr});`)(
+            ...keys.map((k) => scope[k]),
+          );
+        } catch (e) {
+          throw vmError('EvalError', `${expr} → ${e.message}`, 'die', nodeId);
+        }
+      }
+
+      const vmError = (tag, message, channel, node) => ({
+        __vm: true,
+        tag,
+        message,
+        channel: channel || 'escape',
+        node,
+      });
+
+      function labelIdx(node, label) {
+        const i = PROG._labels[node.id][label];
+        if (i === undefined)
+          throw vmError('BadLabel', `no label "${label}" in ${node.id}`, 'die', node.id);
+        return i;
+      }
+
+      function initState() {
+        const scope = { ...PROG.input, $input: PROG.input, $env: PROG.env || {} };
+        return {
+          frames: [{ nodeId: PROG.entry, pc: 0, scope, attempts: {} }],
+          status: 'running',
+          result: undefined,
+          error: null,
+          unwinding: null,
+          handled: null,
+          effects: [],
+          errorLog: [],
+          visited: { [PROG.entry]: 1 },
+          errored: {},
+          stepCount: 0,
+          lastEvent: 'start',
+          forked: false,
+        };
+      }
+
+      function step(prev) {
+        const s = structuredClone(prev);
+        s.lastEvent = null;
+        s.handled = null;
+        if (s.status !== 'running') return s;
+        s.stepCount++;
+        if (s.unwinding) return unwindOne(s);
+
+        const f = s.frames[s.frames.length - 1];
+        const node = PROG.nodes[f.nodeId];
+        const st = node.steps[f.pc];
+        if (!st) return doReturn(s, undefined);
+
+        try {
+          exec(s, f, node, st);
+        } catch (e) {
+          if (e && e.__vm) return raise(s, e, st);
+          throw e;
+        }
+        return s;
+      }
+
+      function exec(s, f, node, st) {
+        const scope = f.scope;
+        switch (st.op) {
+          case 'note':
+            f.pc++;
+            break;
+          case 'let':
+            scope[st.name] = evalExpr(st.expr, scope, node.id);
+            s.lastEvent = 'let';
+            f.pc++;
+            break;
+          case 'if':
+            f.pc = labelIdx(node, evalExpr(st.cond, scope, node.id) ? st.then : st.else);
+            break;
+          case 'goto':
+            f.pc = labelIdx(node, st.to);
+            break;
+          case 'throw':
+            throw vmError(st.tag, st.message, st.channel, node.id);
+          case 'return':
+            doReturn(s, st.expr === undefined ? undefined : evalExpr(st.expr, scope, node.id));
+            break;
+          case 'effect':
+            execEffect(s, f, node, st);
+            break;
+          case 'call': {
+            const target = PROG.nodes[st.target];
+            const args = {};
+            for (const p of target.params || []) {
+              args[p] =
+                st.args && st.args[p] !== undefined
+                  ? evalExpr(st.args[p], scope, node.id)
+                  : undefined;
+            }
+            s.frames.push({
+              nodeId: st.target,
+              pc: 0,
+              scope: { ...args, $input: scope.$input, $env: scope.$env },
+              attempts: {},
+            });
+            s.visited[st.target] = (s.visited[st.target] || 0) + 1;
+            s.lastEvent = 'call';
+            break;
+          }
+          default:
+            throw vmError('BadOp', `unknown op "${st.op}"`, 'die', node.id);
+        }
+      }
+
+      function execEffect(s, f, node, st) {
+        const scope = f.scope;
+        const key = 'e' + f.pc;
+        f.attempts[key] = (f.attempts[key] || 0) + 1;
+        const attempt = f.attempts[key];
+        const args = st.args ? evalExpr(st.args, scope, node.id) : undefined;
+        const willFail =
+          st.failOnAttempt &&
+          st.failOnAttempt.includes(attempt) &&
+          (st.failIf ? !!evalExpr(st.failIf, scope, node.id) : true);
+
+        const rec = {
+          seq: s.effects.length + 1,
+          node: node.id,
+          kind: st.kind,
+          label: st.desc || st.kind,
+          args,
+          attempt,
+          at: s.stepCount,
+        };
+
+        if (willFail) {
+          rec.status = 'failed';
+          rec.error = st.failWith;
+          s.effects.push(rec);
+          throw vmError(st.failWith.tag, st.failWith.message, st.failWith.channel, node.id);
+        }
+
+        const val = st.result !== undefined ? evalExpr(st.result, scope, node.id) : undefined;
+        rec.status = 'ok';
+        rec.result = val;
+        s.effects.push(rec);
+        if (st.bind) scope[st.bind] = val;
+        s.lastEvent = 'effect';
+        f.pc++;
+      }
+
+      function doReturn(s, value) {
+        const f = s.frames.pop();
+        s.lastEvent = 'return';
+        s.lastReturn = { node: f.nodeId, value };
+        if (!s.frames.length) {
+          s.status = 'done';
+          s.result = value;
+          return s;
+        }
+        const cf = s.frames[s.frames.length - 1];
+        const cst = PROG.nodes[cf.nodeId].steps[cf.pc];
+        if (cst && cst.op === 'call' && cst.bind) cf.scope[cst.bind] = value;
+        cf.pc++;
+        return s;
+      }
+
+      /** An error was raised in the top frame. Try the raising step's own handler. */
+      function raise(s, err, raisingStep) {
+        s.lastEvent = 'raise';
+        s.error = err;
+        s.errored[err.node] = true;
+        s.errorLog.push({ at: s.stepCount, kind: 'raised', ...err, where: err.node });
+        const f = s.frames[s.frames.length - 1];
+        const node = PROG.nodes[f.nodeId];
+        if (raisingStep && raisingStep.op !== 'throw') {
+          const h = (raisingStep.onError || []).find((h) => h.tag === err.tag || h.tag === '*');
+          if (h) {
+            f.scope[h.bind || 'error'] = {
+              tag: err.tag,
+              message: err.message,
+              channel: err.channel,
+            };
+            f.pc = labelIdx(node, h.goto);
+            s.error = null;
+            s.handled = err;
+            s.errorLog.push({
+              at: s.stepCount,
+              kind: 'handled',
+              ...err,
+              where: node.id,
+              goto: h.goto,
+            });
+            return s;
+          }
+        }
+        s.unwinding = err;
+        return s;
+      }
+
+      /** One frame of stack unwind — deliberately its own trace entry. */
+      function unwindOne(s) {
+        const err = s.unwinding;
+        const f = s.frames.pop();
+        s.lastEvent = 'unwind';
+        s.unwound = f.nodeId;
+        s.errored[f.nodeId] = true;
+        s.errorLog.push({ at: s.stepCount, kind: 'unwound', ...err, where: f.nodeId });
+
+        if (!s.frames.length) {
+          s.status = 'error';
+          s.error = err;
+          s.unwinding = null;
+          s.errorLog.push({ at: s.stepCount, kind: 'uncaught', ...err, where: '—' });
+          return s;
+        }
+        const cf = s.frames[s.frames.length - 1];
+        const node = PROG.nodes[cf.nodeId];
+        const cst = node.steps[cf.pc];
+        const h = ((cst && cst.onError) || []).find((h) => h.tag === err.tag || h.tag === '*');
+        if (h) {
+          cf.scope[h.bind || 'error'] = {
+            tag: err.tag,
+            message: err.message,
+            channel: err.channel,
+          };
+          cf.pc = labelIdx(node, h.goto);
+          s.unwinding = null;
+          s.error = null;
+          s.handled = err;
+          s.errorLog.push({
+            at: s.stepCount,
+            kind: 'handled',
+            ...err,
+            where: cf.nodeId,
+            goto: h.goto,
+          });
+        }
+        return s;
+      }
+
+      /* ══════════════════════════════════════════════════════════════════════
+         3. DRIVER — trace, breakpoints, time travel
+         ══════════════════════════════════════════════════════════════════════ */
+
+      let TRACE = [];
+      let T = 0;
+      let SEL = null; // selected stack frame index, null = top
+      const BP = new Set(); // "nodeId#pc"
+      const OPT = { breakEffect: false, breakError: true };
+      let PLAYING = null;
+      const MAX = 4000;
+
+      const cur = () => TRACE[T];
+      const cursorKey = (s) =>
+        s.frames.length
+          ? `${s.frames[s.frames.length - 1].nodeId}#${s.frames[s.frames.length - 1].pc}`
+          : null;
+
+      function loadProgram(prog, presetIdx) {
+        PROG = prepare(structuredClone(prog));
+        PROG.presetIdx = presetIdx;
+        PROG.input = structuredClone(prog.presets[presetIdx].input);
+        const errs = validate(PROG);
+        if (errs.length) console.warn('IR validation:', errs);
+        restart();
+        return errs;
+      }
+
+      function restart() {
+        TRACE = [initState()];
+        T = 0;
+        SEL = null;
+        stopPlay();
+        render();
+      }
+
+      function pushState(s) {
+        if (T < TRACE.length - 1) TRACE.length = T + 1;
+        TRACE.push(s);
+        T = TRACE.length - 1;
+      }
+
+      function stopHere(s) {
+        if (s.status !== 'running') return true;
+        if (OPT.breakError && (s.lastEvent === 'raise' || s.lastEvent === 'unwind')) return true;
+        if (OPT.breakEffect && s.lastEvent === 'effect') return true;
+        return BP.has(cursorKey(s));
+      }
+
+      function runUntil(extra) {
+        let n = 0;
+        while (n++ < MAX) {
+          const nx = step(cur());
+          pushState(nx);
+          if (stopHere(nx) || (extra && extra(nx))) break;
+        }
+        SEL = null;
+        render();
+      }
+
+      const actions = {
+        restart,
+        back() {
+          if (T > 0) T--;
+          SEL = null;
+          stopPlay();
+          render();
+        },
+        into() {
+          if (cur().status !== 'running') return;
+          pushState(step(cur()));
+          SEL = null;
+          render();
+        },
+        over() {
+          const d = cur().frames.length;
+          runUntil((s) => s.frames.length <= d);
+        },
+        out() {
+          const d = cur().frames.length;
+          if (d <= 1) return runUntil(() => false);
+          runUntil((s) => s.frames.length < d);
+        },
+        cont() {
+          runUntil(null);
+        },
+        play() {
+          if (PLAYING) return stopPlay();
+          PLAYING = setInterval(() => {
+            if (cur().status !== 'running') return stopPlay();
+            pushState(step(cur()));
+            SEL = null;
+            render();
+          }, 220);
+          render();
+        },
+        zoom() {
+          const el = document.getElementById('zoomOverlay');
+          el.classList.toggle('hidden');
+          if (!el.classList.contains('hidden')) renderZoom();
+        },
+        ir() {
+          const el = document.getElementById('irOverlay');
+          el.classList.toggle('hidden');
+          if (!el.classList.contains('hidden')) {
+            // deep clone: a shallow spread would share .nodes and strip ids off the LIVE program
+            const { _labels, presetIdx, input, ...clean } = structuredClone(PROG);
+            for (const n of Object.values(clean.nodes)) delete n.id;
+            document.getElementById('irText').value = JSON.stringify(clean, null, 2);
+          }
+        },
+        irLoad() {
+          const box = document.getElementById('irErrors');
+          try {
+            const parsed = JSON.parse(document.getElementById('irText').value);
+            if (!parsed.presets?.length)
+              parsed.presets = [{ name: 'default', blurb: '', input: parsed.input || {} }];
+            // Validate a copy BEFORE swapping. Loading first and reporting after
+            // leaves a program the VM trips over sitting there, rendered and
+            // steppable, which reads as accepted.
+            const errs = validate(prepare(structuredClone(parsed)));
+            box.textContent = errs.length ? errs.join('\n') : '';
+            if (errs.length) return;
+            loadProgram(parsed, 0);
+            const at = PROGRAMS.findIndex((p) => p.id === parsed.id);
+            at >= 0 ? (PROGRAMS[at] = parsed) : PROGRAMS.push(parsed);
+            buildScenarioList();
+            document.getElementById('scenario').value = `${at >= 0 ? at : PROGRAMS.length - 1}:0`;
+            actions.ir();
+          } catch (e) {
+            box.textContent = String(e);
+          }
+        },
+      };
+
+      function stopPlay() {
+        if (PLAYING) clearInterval(PLAYING);
+        PLAYING = null;
+      }
+
+      /** Editing a variable forks: the recorded future no longer applies. */
+      function editVar(frameIdx, name, raw) {
+        let value;
+        try {
+          value = JSON.parse(raw);
+        } catch {
+          value = raw;
+        }
+        const s = structuredClone(cur());
+        s.frames[frameIdx].scope[name] = value;
+        s.forked = true;
+        TRACE.length = T + 1;
+        TRACE[T] = s;
+        render();
+      }
+
+      /* ══════════════════════════════════════════════════════════════════════
+         4. RENDER
+         ══════════════════════════════════════════════════════════════════════ */
+
+      const esc = (x) =>
+        String(x).replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' })[c]);
+      function fmt(v, max = 90) {
+        let out;
+        if (v === undefined) out = 'undefined';
+        else
+          try {
+            out = JSON.stringify(v);
+          } catch {
+            out = String(v);
+          }
+        if (out === undefined) out = 'undefined';
+        return out.length > max ? out.slice(0, max) + '…' : out;
+      }
+
+      const KIND_COLOR = {
+        handler: 'text-fuchsia-300 border-fuchsia-500/40',
+        service: 'text-sky-300 border-sky-500/40',
+        repo: 'text-teal-300 border-teal-500/40',
+        io: 'text-orange-300 border-orange-500/40',
+        pure: 'text-lime-300 border-lime-500/40',
+        agent: 'text-violet-300 border-violet-500/40',
+      };
+
+      function nodeStatus(s, id) {
+        const onStack = s.frames.some((f) => f.nodeId === id);
+        if (onStack) return 'active';
+        if (s.errored[id]) return 'error';
+        if (s.visited[id]) return 'done';
+        return 'cold';
+      }
+      const DOT = {
+        active: 'bg-amber-400',
+        done: 'bg-emerald-400',
+        error: 'bg-rose-500',
+        cold: 'bg-slate-600',
+      };
+
+      function render() {
+        const s = cur();
+        renderGraph(s);
+        renderFrame(s);
+        renderStack(s);
+        renderScope(s);
+        renderErrors(s);
+        renderEffects(s);
+
+        const scrub = document.getElementById('scrub');
+        scrub.max = TRACE.length - 1;
+        scrub.value = T;
+        document.getElementById('scrubLabel').textContent = `${T} / ${TRACE.length - 1}`;
+
+        const pill = document.getElementById('statusPill');
+        const map = {
+          running: ['running', 'border-slate-600 text-slate-300'],
+          done: ['✔ returned', 'border-emerald-500/50 text-emerald-300 bg-emerald-500/10'],
+          error: [
+            '✕ uncaught ' + (s.error?.tag ?? ''),
+            'border-rose-500/50 text-rose-300 bg-rose-500/10',
+          ],
+        };
+        const [label, cls] = map[s.status];
+        pill.className = 'text-xs rounded px-2 py-0.5 border ' + cls;
+        pill.textContent = label + (s.forked ? ' · forked' : '') + (PLAYING ? ' · auto' : '');
+
+        document.querySelector('[data-act="play"]').textContent = PLAYING ? '⏸ Pause' : '⏵⏵ Auto';
+      }
+
+      /* ── call graph ─────────────────────────────────────────────────────── */
+      function calleesOf(id) {
+        const out = [];
+        for (const st of PROG.nodes[id].steps)
+          if (st.op === 'call' && !out.includes(st.target)) out.push(st.target);
+        return out;
+      }
+
+      function renderGraph(s) {
+        const seen = new Set();
+        const rows = [];
+        (function walk(id, depth) {
+          if (seen.has(id)) {
+            rows.push({ id, depth, cyc: true });
+            return;
+          }
+          seen.add(id);
+          rows.push({ id, depth });
+          for (const c of calleesOf(id)) walk(c, depth + 1);
+        })(PROG.entry, 0);
+
+        document.getElementById('graph').innerHTML = rows
+          .map(({ id, depth, cyc }) => {
+            const node = PROG.nodes[id];
+            const stat = nodeStatus(s, id);
+            const bp = BP.has(`${id}#0`);
+            const effects = node.steps.filter((x) => x.op === 'effect').length;
+            const throws = node.channels?.E?.length || 0;
+            return `<div class="flex items-start gap-1.5 rounded px-1.5 py-1 hover:bg-slate-800/60 ${stat === 'active' ? 'bg-amber-500/10' : ''}"
+                         style="margin-left:${depth * 12}px">
+              <button data-bp="${id}#0" class="mt-1 w-2.5 h-2.5 rounded-full shrink-0 ${bp ? 'bg-rose-500' : 'bg-slate-700 hover:bg-rose-500/50'}" title="breakpoint on entry"></button>
+              <button data-node="${id}" class="text-left min-w-0 flex-1">
+                <div class="flex items-center gap-1.5">
+                  <span class="w-2 h-2 rounded-full shrink-0 ${DOT[stat]}"></span>
+                  <span class="text-xs truncate ${stat === 'cold' ? 'text-slate-500' : ''}">${esc(node.name)}${cyc ? ' ↺' : ''}</span>
+                </div>
+                <div class="text-[10px] text-slate-500 pl-3.5 flex gap-2">
+                  <span class="${(KIND_COLOR[node.kind] || '').split(' ')[0]}">${node.kind}</span>
+                  ${effects ? `<span class="text-sky-400">${effects}⚡</span>` : ''}
+                  ${throws ? `<span class="text-rose-400">${throws}✕</span>` : ''}
+                  ${s.visited[id] > 1 ? `<span class="text-amber-400">×${s.visited[id]}</span>` : ''}
+                </div>
+              </button>
+            </div>`;
+          })
+          .join('');
+      }
+
+      /* ── source tape ────────────────────────────────────────────────────── */
+      function stepLine(st, node) {
+        const K = (t, c) => `<span class="${c}">${esc(t)}</span>`;
+        const v = (t) => K(t, 'text-slate-300');
+        const kw = (t) => K(t, 'text-fuchsia-400');
+        const nm = (t) => K(t, 'text-amber-200');
+        switch (st.op) {
+          case 'note':
+            return K('// ' + st.note, 'text-slate-500 italic');
+          case 'let':
+            return `${kw('let')} ${nm(st.name)} = ${v(st.expr)}`;
+          case 'if':
+            return `${kw('if')} (${v(st.cond)}) ${kw('goto')} ${K(st.then, 'text-cyan-300')} ${kw('else')} ${K(st.else, 'text-cyan-300')}`;
+          case 'goto':
+            return `${kw('goto')} ${K(st.to, 'text-cyan-300')}`;
+          case 'throw':
+            return `${K('throw', 'text-rose-400')} ${K(st.tag, 'text-rose-300 font-semibold')}(${K('"' + st.message + '"', 'text-slate-400')}) ${K('[' + st.channel + ']', 'text-rose-500/70 text-[11px]')}`;
+          case 'return':
+            return `${kw('return')} ${v(st.expr ?? '')}`;
+          case 'effect': {
+            const a = st.args ? st.args.replace(/^\(|\)$/g, '') : '';
+            const short = a.length > 54 ? a.slice(0, 54) + '…' : a;
+            return `${K('effect', 'text-sky-400')}${K('[' + st.kind + ']', 'text-sky-500/80')} ${K(st.desc || st.kind, 'text-sky-200')} ${K(short, 'text-slate-500')}${
+              st.bind ? ' → ' + nm(st.bind) : ''
+            }${st.failOnAttempt ? K(`   ✕ fails on attempt ${st.failOnAttempt.join(',')}`, 'text-rose-500/70') : ''}`;
+          }
+          case 'call': {
+            const t = PROG.nodes[st.target];
+            const args = Object.entries(st.args || {})
+              .map(([k, e]) => `${k}: ${esc(e)}`)
+              .join(', ');
+            return `${st.bind ? kw('let') + ' ' + nm(st.bind) + ' = ' : ''}${K('call', 'text-violet-400')} ${K(t.name, 'text-violet-200 font-medium')}(${v(args)})`;
+          }
+        }
+        return esc(JSON.stringify(st));
+      }
+
+      function renderFrame(s) {
+        const idx = SEL ?? s.frames.length - 1;
+        const f = s.frames[idx];
+        const head = document.getElementById('frameHead');
+        const src = document.getElementById('source');
+
+        if (!f) {
+          head.innerHTML = `<div class="text-sm text-slate-400">stack empty — ${s.status === 'done' ? 'returned' : 'unwound'}</div>`;
+          src.innerHTML = `<div class="p-6 mono text-sm ${s.status === 'error' ? 'text-rose-300' : 'text-emerald-300'}">${
+            s.status === 'error'
+              ? '✕ uncaught ' + esc(s.error.tag) + ' — ' + esc(s.error.message)
+              : '✔ ' + esc(fmt(s.result, 400))
+          }</div>`;
+          return;
+        }
+
+        const node = PROG.nodes[f.nodeId];
+        const ch = node.channels || {};
+        head.innerHTML = `
+          <div class="flex items-baseline gap-2 flex-wrap">
+            <span class="mono text-sm font-semibold">${esc(node.name)}</span>
+            <span class="text-[10px] uppercase tracking-wider border rounded px-1.5 ${KIND_COLOR[node.kind] || 'text-slate-400 border-slate-600'}">${node.kind}</span>
+            <span class="mono text-[11px] text-slate-500">${esc(node.loc || '')}</span>
+            ${idx !== s.frames.length - 1 ? '<span class="text-[10px] text-amber-400">viewing a parent frame</span>' : ''}
+          </div>
+          <div class="mt-1 flex gap-4 text-[11px] mono">
+            <span><span class="text-emerald-400">A</span> ${esc(ch.A || '—')}</span>
+            <span><span class="text-rose-400">E</span> ${ch.E?.length ? ch.E.map((e) => `<span class="text-rose-300">${esc(e)}</span>`).join(' | ') : '<span class="text-slate-600">never</span>'}</span>
+            <span><span class="text-sky-400">R</span> ${ch.R?.length ? ch.R.map((r) => esc(r)).join(', ') : '<span class="text-slate-600">none</span>'}</span>
+          </div>`;
+
+        const isTop = idx === s.frames.length - 1;
+        src.innerHTML = node.steps
+          .map((st, i) => {
+            const here = i === f.pc;
+            const key = `${node.id}#${i}`;
+            const bp = BP.has(key);
+            const bg = here
+              ? isTop
+                ? 'bg-amber-400/15 border-l-2 border-amber-400'
+                : 'bg-slate-700/40 border-l-2 border-slate-500'
+              : 'border-l-2 border-transparent';
+            return `<div class="flex items-start gap-2 px-3 ${bg} hover:bg-slate-800/40">
+              <button data-bp="${key}" class="mt-2 w-2.5 h-2.5 rounded-full shrink-0 ${bp ? 'bg-rose-500' : 'bg-slate-800 hover:bg-rose-500/40'}"></button>
+              <span class="w-6 text-right text-slate-600 select-none text-[11px] mt-0.5">${i}</span>
+              <span class="w-16 shrink-0 text-[10px] text-cyan-400/80 mt-0.5">${st.label ? esc(st.label) + ':' : ''}</span>
+              <span class="min-w-0 flex-1">${stepLine(st, node)}${
+                st.note && st.op !== 'note'
+                  ? `<div class="text-[11px] text-slate-500 italic">// ${esc(st.note)}</div>`
+                  : ''
+              }${
+                (st.onError || []).length
+                  ? `<div class="text-[11px] text-rose-400/80">${st.onError.map((h) => `↳ catch ${esc(h.tag)} → <span class="text-cyan-300">${esc(h.goto)}</span>`).join('  ')}</div>`
+                  : ''
+              }</span>
+            </div>`;
+          })
+          .join('');
+
+        const active = src.querySelector('.border-amber-400, .border-slate-500');
+        if (active) active.scrollIntoView({ block: 'nearest' });
+      }
+
+      /* ── right column ───────────────────────────────────────────────────── */
+      function renderStack(s) {
+        const sel = SEL ?? s.frames.length - 1;
+        document.getElementById('stack').innerHTML =
+          s.frames
+            .map((f, i) => {
+              const node = PROG.nodes[f.nodeId];
+              return `<button data-frame="${i}" class="w-full text-left rounded px-2 py-1 border ${
+                i === sel
+                  ? 'border-amber-500/50 bg-amber-500/10'
+                  : 'border-slate-800 hover:bg-slate-800/60'
+              }">
+              <div class="mono text-xs">${i === s.frames.length - 1 ? '▸ ' : '  '}${esc(node.name)}</div>
+              <div class="text-[10px] text-slate-500 mono pl-3">${esc(node.loc || '')} · pc ${f.pc}</div>
+            </button>`;
+            })
+            .reverse()
+            .join('') || '<div class="text-xs text-slate-500 px-2 py-1">empty</div>';
+      }
+
+      function renderScope(s) {
+        const idx = SEL ?? s.frames.length - 1;
+        const f = s.frames[idx];
+        if (!f)
+          return (document.getElementById('scope').innerHTML =
+            '<div class="text-xs text-slate-500 px-2">no frame</div>');
+        const entries = Object.entries(f.scope).filter(([k]) => k !== '$input' && k !== '$env');
+        document.getElementById('scope').innerHTML =
+          entries
+            .map(
+              ([k, v]) => `<div class="flex items-center gap-1.5">
+              <span class="mono text-[11px] text-amber-200 w-20 shrink-0 truncate" title="${esc(k)}">${esc(k)}</span>
+              <input data-var="${idx}|${esc(k)}" value="${esc(fmt(v, 4000))}"
+                     class="flex-1 min-w-0 bg-slate-900 border border-slate-800 focus:border-amber-500 rounded px-1.5 py-0.5 mono text-[11px]" />
+            </div>`,
+            )
+            .join('') || '<div class="text-xs text-slate-500 px-2">no locals yet</div>';
+      }
+
+      const CHANNEL_STYLE = {
+        retry: 'border-amber-500/50 text-amber-300 bg-amber-500/10',
+        escape: 'border-rose-500/50 text-rose-300 bg-rose-500/10',
+        die: 'border-red-700 text-red-300 bg-red-900/30',
+      };
+
+      const KIND_MARK = {
+        raised: ['▲ raised in', 'text-rose-300'],
+        unwound: ['↑ unwound past', 'text-rose-400'],
+        handled: ['✓ handled by', 'text-emerald-300'],
+        uncaught: ['✕ escaped the program', 'text-rose-200'],
+      };
+
+      function renderErrors(s) {
+        const box = document.getElementById('errors');
+        const live = s.unwinding
+          ? { e: s.unwinding, note: 'in flight — unwinding the stack' }
+          : s.error
+            ? { e: s.error, note: s.status === 'error' ? 'uncaught' : 'raised, no handler yet' }
+            : null;
+
+        const head = live
+          ? `<div class="rounded border px-2 py-1.5 ${CHANNEL_STYLE[live.e.channel] || 'border-slate-700'}">
+               <div class="mono text-xs font-semibold">${esc(live.e.tag)} <span class="text-[10px] uppercase opacity-70">${esc(live.e.channel)}</span></div>
+               <div class="text-[11px] opacity-80">${esc(live.e.message)}</div>
+               <div class="text-[10px] opacity-60 mt-0.5">${esc(live.note)}</div>
+             </div>`
+          : `<div class="text-xs text-slate-500 px-2">${s.errorLog.length ? 'nothing in flight' : 'clean'}</div>`;
+
+        const log = s.errorLog
+          .map((l) => {
+            const [mark, cls] = KIND_MARK[l.kind];
+            return `<div class="flex items-baseline gap-1.5 text-[11px] mono">
+              <span class="text-slate-600 w-6 text-right">${l.at}</span>
+              <span class="${cls}">${esc(mark)}</span>
+              <span class="text-slate-400 truncate">${esc(PROG.nodes[l.where]?.name ?? l.where)}${l.goto ? ' → ' + esc(l.goto) : ''}</span>
+              <span class="ml-auto text-[10px] ${CHANNEL_STYLE[l.channel]?.split(' ')[1] ?? ''}">${esc(l.tag)}</span>
+            </div>`;
+          })
+          .join('');
+
+        box.innerHTML =
+          head +
+          (log
+            ? `<div class="pt-1.5 mt-1.5 border-t border-slate-800 space-y-0.5">${log}</div>`
+            : '');
+      }
+
+      function renderEffects(s) {
+        document.getElementById('effects').innerHTML =
+          s.effects
+            .slice()
+            .reverse()
+            .map(
+              (
+                r,
+              ) => `<div class="rounded border px-2 py-1 ${r.status === 'ok' ? 'border-slate-800 bg-slate-900/60' : 'border-rose-600/50 bg-rose-950/30'}">
+            <div class="flex items-center gap-1.5">
+              <span class="text-[10px] text-slate-600 mono">#${r.seq}</span>
+              <span class="text-[10px] px-1 rounded ${r.status === 'ok' ? 'bg-sky-500/20 text-sky-300' : 'bg-rose-500/20 text-rose-300'} mono">${esc(r.kind)}</span>
+              ${r.attempt > 1 ? `<span class="text-[10px] text-amber-400">try ${r.attempt}</span>` : ''}
+            </div>
+            <div class="mono text-[11px] text-slate-300 truncate" title="${esc(r.label)}">${esc(r.label)}</div>
+            <div class="mono text-[10px] text-slate-500 truncate">${r.status === 'ok' ? '→ ' + esc(fmt(r.result, 70)) : '✕ ' + esc(r.error.tag)}</div>
+          </div>`,
+            )
+            .join('') ||
+          '<div class="text-xs text-slate-500 px-2">nothing has touched the world yet</div>';
+      }
+
+      /* ── zoom out ───────────────────────────────────────────────────────── */
+      function renderZoom() {
+        document.getElementById('zoomBlurb').textContent = PROG.blurb || '';
+        const s = cur();
+        document.getElementById('zoomGrid').innerHTML = Object.entries(PROG.nodes)
+          .map(([id, n]) => {
+            const stat = nodeStatus(s, id);
+            const effects = n.steps.filter((x) => x.op === 'effect');
+            const throws = n.steps.filter((x) => x.op === 'throw');
+            const calls = calleesOf(id);
+            return `<div class="rounded-lg border ${stat === 'error' ? 'border-rose-600/60' : stat === 'active' ? 'border-amber-500/60' : 'border-slate-800'} bg-slate-900/60 p-3">
+            <div class="flex items-center gap-2">
+              <span class="w-2 h-2 rounded-full ${DOT[stat]}"></span>
+              <span class="mono text-sm font-semibold">${esc(n.name)}</span>
+              <span class="text-[10px] uppercase border rounded px-1 ${KIND_COLOR[n.kind] || 'text-slate-400 border-slate-600'}">${n.kind}</span>
+            </div>
+            <div class="mono text-[10px] text-slate-500 mt-0.5">${esc(n.loc || '')}</div>
+            <div class="mt-2 space-y-0.5 mono text-[11px]">
+              <div><span class="text-emerald-400 w-4 inline-block">A</span> ${esc(n.channels?.A || '—')}</div>
+              <div><span class="text-rose-400 w-4 inline-block">E</span> ${n.channels?.E?.length ? esc(n.channels.E.join(' | ')) : '<span class="text-slate-600">never</span>'}</div>
+              <div><span class="text-sky-400 w-4 inline-block">R</span> ${n.channels?.R?.length ? esc(n.channels.R.join(', ')) : '<span class="text-slate-600">none</span>'}</div>
+            </div>
+            ${
+              calls.length
+                ? `<div class="mt-2 text-[11px]"><span class="text-violet-400">calls</span> ${calls.map((c) => `<span class="mono text-violet-200">${esc(PROG.nodes[c].name)}</span>`).join(', ')}</div>`
+                : ''
+            }
+            ${
+              effects.length
+                ? `<div class="mt-1 text-[11px]"><span class="text-sky-400">effects</span> ${effects
+                    .map(
+                      (e) =>
+                        `<span class="mono text-sky-200">${esc(e.kind)}</span>${e.failOnAttempt ? '<span class="text-rose-400">*</span>' : ''}`,
+                    )
+                    .join(', ')}</div>`
+                : ''
+            }
+            ${
+              throws.length
+                ? `<div class="mt-1 text-[11px]"><span class="text-rose-400">throws</span> ${throws
+                    .map(
+                      (t) =>
+                        `<span class="mono">${esc(t.tag)}<span class="opacity-60">[${esc(t.channel)}]</span></span>`,
+                    )
+                    .join(', ')}</div>`
+                : ''
+            }
+          </div>`;
+          })
+          .join('');
+      }
+
+      /* ══════════════════════════════════════════════════════════════════════
+         5. WIRING
+         ══════════════════════════════════════════════════════════════════════ */
+
+      function buildScenarioList() {
+        const sel = document.getElementById('scenario');
+        sel.innerHTML = PROGRAMS.map((p, pi) =>
+          p.presets
+            .map(
+              (pr, ri) => `<option value="${pi}:${ri}">${esc(p.title)} — ${esc(pr.name)}</option>`,
+            )
+            .join(''),
+        ).join('');
+      }
+
+      document.getElementById('scenario').addEventListener('change', (e) => {
+        const [pi, ri] = e.target.value.split(':').map(Number);
+        loadProgram(PROGRAMS[pi], ri);
+      });
+
+      document.body.addEventListener('click', (e) => {
+        const act = e.target.closest('[data-act]');
+        if (act) return actions[act.dataset.act]();
+
+        const bp = e.target.closest('[data-bp]');
+        if (bp) {
+          const k = bp.dataset.bp;
+          BP.has(k) ? BP.delete(k) : BP.add(k);
+          return render();
+        }
+
+        const fr = e.target.closest('[data-frame]');
+        if (fr) {
+          SEL = Number(fr.dataset.frame);
+          return render();
+        }
+
+        const nd = e.target.closest('[data-node]');
+        if (nd) {
+          const i = cur().frames.findIndex((f) => f.nodeId === nd.dataset.node);
+          if (i >= 0) {
+            SEL = i;
+            render();
+          }
+        }
+      });
+
+      document.body.addEventListener('change', (e) => {
+        const v = e.target.closest('[data-var]');
+        if (v) {
+          const [idx, name] = v.dataset.var.split('|');
+          editVar(Number(idx), name, v.value);
+        }
+      });
+
+      document.getElementById('scrub').addEventListener('input', (e) => {
+        T = Number(e.target.value);
+        SEL = null;
+        stopPlay();
+        render();
+      });
+      document
+        .getElementById('brkEffect')
+        .addEventListener('change', (e) => (OPT.breakEffect = e.target.checked));
+      document
+        .getElementById('brkError')
+        .addEventListener('change', (e) => (OPT.breakError = e.target.checked));
+
+      window.addEventListener('keydown', (e) => {
+        if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+        const map = { F10: 'over', F11: 'out', F8: 'cont', F5: 'restart' };
+        if (map[e.key]) {
+          e.preventDefault();
+          actions[map[e.key]]();
+        }
+        if (e.key === 'ArrowRight') actions.into();
+        if (e.key === 'ArrowLeft') actions.back();
+      });
+
+      buildScenarioList();
+      loadProgram(PROGRAMS[0], 0);
+    </script>
+  </body>
+</html>

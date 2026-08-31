@@ -1,0 +1,688 @@
+{
+  "id": "map-300-woodwork",
+  "title": "Map #300 · ship the woodwork",
+  "blurb": "A wayfinder map as a call graph. Nodes are tickets, call edges are `blocked by`, effects are the durable artifacts a ticket deposits — a PR, a gate row, an ADR, a tracker edit — and the error channel is how the plan fails rather than how the code fails. The presets are histories: what happened, and the four things the map's own warnings say must not.",
+  "entry": "map",
+  "env": {
+    "chain": [301, 302, 303, 304, 305, 306],
+    "module": "packages/site/src/shelf/woodwork.ts"
+  },
+  "files": [
+    {
+      "path": "packages/site/src/shelf/case.ts",
+      "change": "edit",
+      "why": "the inset constants, so the gate computes the 46 pairs from the numbers the renderer builds from"
+    },
+    {
+      "path": "packages/site/src/shelf/woodwork.ts",
+      "change": "new",
+      "why": "the sheet table, the UV rewrite, the per-member variation, the bind. Tickets 2–6 all land here — which is why they are a chain and not a fan-out"
+    },
+    {
+      "path": "packages/site/src/shelf/scene.ts",
+      "change": "edit",
+      "why": "buildShelf and applySettings call the above and do no arithmetic of their own"
+    },
+    {
+      "path": "packages/site/src/shelf/shelf-settings.ts",
+      "change": "edit",
+      "why": "the two materials keys, their defaults and their resolveSettings merge"
+    },
+    {
+      "path": "packages/site/src/shelf/shelf-url.ts",
+      "change": "edit",
+      "why": "woodSeed(params) beside soloBook"
+    },
+    {
+      "path": "gates/coplanar-faces.test.ts",
+      "change": "new",
+      "why": "G51"
+    },
+    {
+      "path": "gates/sheet-size.test.ts",
+      "change": "new",
+      "why": "G52"
+    },
+    {
+      "path": "gates/one-sheet.test.ts",
+      "change": "new",
+      "why": "G53"
+    },
+    {
+      "path": "gates/woodwork-readback.test.ts",
+      "change": "new",
+      "why": "G54"
+    },
+    {
+      "path": "docs/adr/0080-the-woodwork-is-rosewood-and-its-relief-is-drawn.md",
+      "change": "new",
+      "why": "the treatment. Numbers claimed at write time"
+    },
+    {
+      "path": "docs/adr/0081-the-woodwork-sheet-is-a-menu-and-the-shelf-says-what-it-resolved.md",
+      "change": "new",
+      "why": "the four questions 0080 closed by naming"
+    },
+    {
+      "path": "docs/images/shelf.png",
+      "change": "edit",
+      "why": "regenerated in place — G13 pins that directory to exactly one file"
+    },
+    {
+      "path": "stryker.scopes.json",
+      "change": "forbidden",
+      "why": "⚠ must NOT be edited, and it is on the list for that reason. packages/site/src/shelf/**/*.ts is already a declared scope, and the mutate array derived from this file is hashed — the drift an edit causes is caught by nothing"
+    }
+  ],
+  "presets": [
+    {
+      "name": "as it happened",
+      "blurb": "six PRs in a linear chain, four gate rows, #299 closes the map",
+      "input": {
+        "flickerFirst": true,
+        "parallel": false,
+        "premiseHolds": true,
+        "preAllocate": false
+      }
+    },
+    {
+      "name": "tickets 2–6 in parallel",
+      "blurb": "the map refuses: every one of them edits the same module, so six sessions buy conflicts rather than speed",
+      "input": {
+        "flickerFirst": true,
+        "parallel": true,
+        "premiseHolds": true,
+        "preAllocate": false
+      }
+    },
+    {
+      "name": "the texture ships first",
+      "blurb": "ticket 1 deferred — a texture does not cause the depth-buffer tie, it reveals it",
+      "input": {
+        "flickerFirst": false,
+        "parallel": false,
+        "premiseHolds": true,
+        "preAllocate": false
+      }
+    },
+    {
+      "name": "a premise dies under a render",
+      "blurb": "what actually happened twice on map #280 — the plan reroutes through a prototype and comes back",
+      "input": {
+        "flickerFirst": true,
+        "parallel": false,
+        "premiseHolds": false,
+        "preAllocate": false
+      }
+    },
+    {
+      "name": "a gate number claimed in advance",
+      "blurb": "the previous rollout's failure: four register entries record the correction",
+      "input": {
+        "flickerFirst": true,
+        "parallel": false,
+        "premiseHolds": true,
+        "preAllocate": true
+      }
+    }
+  ],
+  "nodes": {
+    "map": {
+      "name": "Map #300 — ship the woodwork treatment",
+      "kind": "agent",
+      "loc": "issues/300 · docs/spec/the-woodwork-reads-as-wood.md",
+      "params": ["flickerFirst", "parallel", "premiseHolds", "preAllocate"],
+      "channels": {
+        "A": "a rendered bookcase on main",
+        "E": ["FanOutRefused", "ShippedAShimmer"],
+        "R": ["9 closed decision tickets", "3 prototype branches, reference only"]
+      },
+      "steps": [
+        {
+          "op": "note",
+          "note": "Six implementation tickets, a linear chain, and the map's own destination ticket. Exactly one is takeable at a time."
+        },
+        {
+          "op": "let",
+          "name": "premiseSettled",
+          "expr": "false"
+        },
+        {
+          "op": "let",
+          "name": "numbersFixed",
+          "expr": "false"
+        },
+        {
+          "op": "if",
+          "cond": "flickerFirst === false",
+          "then": "skipFix",
+          "else": "fix"
+        },
+        {
+          "op": "call",
+          "label": "fix",
+          "target": "t301",
+          "args": {},
+          "bind": "g51",
+          "note": "ticket 1 shares no source file with the rest and fixes something broken on main today, so it lands as its own PR"
+        },
+        {
+          "op": "let",
+          "name": "coplanarLanded",
+          "expr": "true"
+        },
+        {
+          "op": "goto",
+          "to": "gateChain"
+        },
+        {
+          "op": "let",
+          "label": "skipFix",
+          "name": "coplanarLanded",
+          "expr": "false",
+          "note": "tickets 2–6 must not reach a deploy ahead of ticket 1"
+        },
+        {
+          "op": "if",
+          "label": "gateChain",
+          "cond": "parallel === true",
+          "then": "fanout",
+          "else": "seq"
+        },
+        {
+          "op": "throw",
+          "label": "fanout",
+          "tag": "FanOutRefused",
+          "message": "tickets 2–6 are one feature in one module — every one edits buildShelf, the materials block and woodwork.ts",
+          "channel": "die"
+        },
+        {
+          "op": "call",
+          "label": "seq",
+          "target": "t302",
+          "args": {
+            "coplanarLanded": "coplanarLanded",
+            "premiseSettled": "premiseSettled"
+          },
+          "bind": "g52",
+          "onError": [
+            {
+              "tag": "PremiseOverturned",
+              "goto": "reroute",
+              "bind": "why"
+            },
+            {
+              "tag": "ShimmerOnMain",
+              "goto": "shimmer",
+              "bind": "why"
+            }
+          ]
+        },
+        {
+          "op": "call",
+          "target": "t303",
+          "args": {},
+          "bind": "fibre"
+        },
+        {
+          "op": "call",
+          "target": "t304",
+          "args": {},
+          "bind": "backboard"
+        },
+        {
+          "op": "call",
+          "target": "t305",
+          "args": {},
+          "bind": "variation"
+        },
+        {
+          "op": "call",
+          "label": "menu",
+          "target": "t306",
+          "args": {
+            "preAllocate": "preAllocate",
+            "numbersFixed": "numbersFixed"
+          },
+          "bind": "rows306",
+          "onError": [
+            {
+              "tag": "NumberClaimedTwice",
+              "goto": "renumber",
+              "bind": "why"
+            }
+          ]
+        },
+        {
+          "op": "call",
+          "label": "close",
+          "target": "t299",
+          "args": {
+            "rows": "['G51','G52','G53','G54']"
+          },
+          "bind": "shipped"
+        },
+        {
+          "op": "return",
+          "expr": "({ onMain: true, rows: shipped.rows, prs: shipped.prs, adrs: shipped.adrs })"
+        },
+        {
+          "op": "note",
+          "label": "reroute",
+          "note": "#281 chose sapele on sound reasoning and the render said 94% of what it moved was the average colour rather than the grain. #287's seed read from the books died on arithmetic. Both were plausible."
+        },
+        {
+          "op": "call",
+          "target": "spawnPrototype",
+          "args": {
+            "question": "'which sheet actually moves the grain, not the average colour'"
+          },
+          "bind": "answer"
+        },
+        {
+          "op": "let",
+          "name": "premiseSettled",
+          "expr": "true",
+          "note": "the habit that caught both: build the arm nobody planned, and measure before concluding"
+        },
+        {
+          "op": "goto",
+          "to": "seq"
+        },
+        {
+          "op": "note",
+          "label": "shimmer",
+          "note": "The tie was always there — 46 coplanar overlapping face pairs. Every woodwork face carrying the identical flat colour is the only reason 36 of them were invisible."
+        },
+        {
+          "op": "call",
+          "target": "t301",
+          "args": {},
+          "bind": "g51late"
+        },
+        {
+          "op": "throw",
+          "tag": "ShippedAShimmer",
+          "message": "ticket 1 landed after the texture, so every visitor between the two deploys saw 46 flickering pairs",
+          "channel": "die"
+        },
+        {
+          "op": "effect",
+          "label": "renumber",
+          "kind": "docs.edit",
+          "desc": "four register corrections",
+          "args": "({ file: 'docs/gate-register.md' })",
+          "result": "({ corrected: 4 })",
+          "note": "a row number is a fact about when something landed, not a name — cite slug and number together, never the number alone"
+        },
+        {
+          "op": "let",
+          "name": "numbersFixed",
+          "expr": "true"
+        },
+        {
+          "op": "goto",
+          "to": "menu",
+          "note": "back to ticket 6, not on to the merge. Skipping it would put the treatment on main with neither G53 nor G54 — which is what this program said until the sheet was stepped."
+        }
+      ],
+      "card": "many"
+    },
+    "t301": {
+      "name": "#301 — the bookcase stops flickering",
+      "kind": "agent",
+      "loc": "issues/301 → PR #308",
+      "params": [],
+      "channels": {
+        "A": "G51 coplanar-faces",
+        "E": [],
+        "R": ["case.ts", "the inset constants"]
+      },
+      "steps": [
+        {
+          "op": "note",
+          "note": "The one slice safe to run alongside the others, and the only one whose fix is already needed on main."
+        },
+        {
+          "op": "effect",
+          "kind": "gh.pr",
+          "desc": "the coplanar fix, applied to the class",
+          "args": "({ pr: 308 })",
+          "result": "({ pr: 308 })"
+        },
+        {
+          "op": "effect",
+          "kind": "gate.land",
+          "desc": "G51 coplanar-faces — 46 pairs before the inset, 0 after",
+          "args": "({ row: 'G51' })",
+          "result": "({ row: 'G51', before: 46, after: 0 })",
+          "note": "computed from SHELF's own constants rather than eyeballed, so the assertion survives a dimension change"
+        },
+        {
+          "op": "return",
+          "expr": "'G51'"
+        }
+      ],
+      "touches": ["packages/site/src/shelf/case.ts"],
+      "tests": ["gates/coplanar-faces.test.ts"]
+    },
+    "t302": {
+      "name": "#302 — the woodwork is rosewood",
+      "kind": "agent",
+      "loc": "issues/302 → PR #309",
+      "params": ["coplanarLanded", "premiseSettled"],
+      "channels": {
+        "A": "G52 sheet-size",
+        "E": ["ShimmerOnMain", "PremiseOverturned"],
+        "R": ["woodwork.ts (new)", "scene.ts", "a Poly Haven sheet, CC0"]
+      },
+      "steps": [
+        {
+          "op": "if",
+          "cond": "coplanarLanded === false",
+          "then": "reveal",
+          "else": "checkPremise"
+        },
+        {
+          "op": "throw",
+          "label": "reveal",
+          "tag": "ShimmerOnMain",
+          "message": "all 46 pairs become visible at once",
+          "channel": "escape"
+        },
+        {
+          "op": "if",
+          "label": "checkPremise",
+          "cond": "premiseSettled === false && $input.premiseHolds === false",
+          "then": "overturned",
+          "else": "build"
+        },
+        {
+          "op": "throw",
+          "label": "overturned",
+          "tag": "PremiseOverturned",
+          "message": "94% of what the chosen sheet moved was the average colour, not the grain",
+          "channel": "retry"
+        },
+        {
+          "op": "effect",
+          "label": "build",
+          "kind": "gh.pr",
+          "desc": "rosewood, world-space UVs, grain along each long axis",
+          "args": "({ pr: 309 })",
+          "result": "({ pr: 309 })"
+        },
+        {
+          "op": "effect",
+          "kind": "gate.land",
+          "desc": "G52 sheet-size — long-edge and byte caps under public/wood/",
+          "args": "({ row: 'G52' })",
+          "result": "({ row: 'G52' })",
+          "note": "G15 counts cover bytes only, so an 8192-square file would reach the deploy with nothing objecting"
+        },
+        {
+          "op": "return",
+          "expr": "'G52'"
+        }
+      ],
+      "touches": ["packages/site/src/shelf/woodwork.ts", "packages/site/src/shelf/scene.ts"],
+      "tests": ["gates/sheet-size.test.ts"]
+    },
+    "t303": {
+      "name": "#303 — a drawn fibre, and a knob to dial it",
+      "kind": "agent",
+      "loc": "issues/303 → PR #310",
+      "params": [],
+      "channels": {
+        "A": "materials.woodFibre",
+        "E": [],
+        "R": ["woodwork.ts", "a 2D canvas"]
+      },
+      "steps": [
+        {
+          "op": "note",
+          "note": "The sheet's own normal map measured 0.000% at every rung on two different sheets. The drawn fibre adds 0.742% of frame level. Not an extra texture — a better use of one."
+        },
+        {
+          "op": "effect",
+          "kind": "gh.pr",
+          "desc": "a drawn fibre on the woodwork",
+          "args": "({ pr: 310 })",
+          "result": "({ pr: 310 })"
+        },
+        {
+          "op": "note",
+          "note": "No gate row. The look is the owner's verdict, on a live build or on screenshots, never on a number."
+        },
+        {
+          "op": "return",
+          "expr": "'no row'"
+        }
+      ],
+      "touches": [
+        "packages/site/src/shelf/woodwork.ts",
+        "packages/site/src/shelf/scene.ts",
+        "packages/site/src/shelf/shelf-settings.ts"
+      ],
+      "tests": []
+    },
+    "t304": {
+      "name": "#304 — the backboard takes its own sheet",
+      "kind": "agent",
+      "loc": "issues/304 → PR #311",
+      "params": [],
+      "channels": {
+        "A": "a constant, not a knob",
+        "E": [],
+        "R": ["woodwork.ts", "prototype/297"]
+      },
+      "steps": [
+        {
+          "op": "note",
+          "note": "#297 measured all 41 veneers Poly Haven publishes; the darkness constraint leaves exactly one candidate, third-nearest 24.8 luma away. That is why it is a constant."
+        },
+        {
+          "op": "effect",
+          "kind": "gh.pr",
+          "desc": "the backboard's sheet, and the fibre turned to run with its grain",
+          "args": "({ pr: 311 })",
+          "result": "({ pr: 311 })"
+        },
+        {
+          "op": "return",
+          "expr": "'no row'"
+        }
+      ],
+      "touches": ["packages/site/src/shelf/woodwork.ts", "packages/site/src/shelf/scene.ts"],
+      "tests": []
+    },
+    "t305": {
+      "name": "#305 — no two members alike",
+      "kind": "agent",
+      "loc": "issues/305 → PR #312",
+      "params": [],
+      "channels": {
+        "A": "per-member variation + ?woodSeed",
+        "E": [],
+        "R": ["woodwork.ts", "shelf-url.ts"]
+      },
+      "steps": [
+        {
+          "op": "note",
+          "note": "?woodSeed pins the root so the render harness can force one; a fresh page draws a fresh root. The backboard's key must carry the root — its absence renders correctly and only misreports."
+        },
+        {
+          "op": "effect",
+          "kind": "gh.pr",
+          "desc": "per-member variation, and a seed the harness can force",
+          "args": "({ pr: 312 })",
+          "result": "({ pr: 312 })"
+        },
+        {
+          "op": "return",
+          "expr": "'no row'"
+        }
+      ],
+      "touches": [
+        "packages/site/src/shelf/woodwork.ts",
+        "packages/site/src/shelf/shelf-url.ts",
+        "packages/site/src/shelf/shelf-settings.ts"
+      ],
+      "tests": []
+    },
+    "t306": {
+      "name": "#306 — the species menu, lazy and honest",
+      "kind": "agent",
+      "loc": "issues/306 → PR #313",
+      "params": ["preAllocate", "numbersFixed"],
+      "channels": {
+        "A": "G53 one-sheet + G54 woodwork-readback",
+        "E": ["NumberClaimedTwice"],
+        "R": ["woodwork.ts", "scene.ts", "debug-panel.ts"]
+      },
+      "steps": [
+        {
+          "op": "if",
+          "cond": "preAllocate === true && numbersFixed === false",
+          "then": "claim",
+          "else": "land"
+        },
+        {
+          "op": "throw",
+          "label": "claim",
+          "tag": "NumberClaimedTwice",
+          "message": "an identifier can be claimed twice by two branches and nothing notices",
+          "channel": "escape"
+        },
+        {
+          "op": "effect",
+          "label": "land",
+          "kind": "gh.pr",
+          "desc": "the sheet is a menu, and the shelf says what it resolved",
+          "args": "({ pr: 313 })",
+          "result": "({ pr: 313 })"
+        },
+        {
+          "op": "effect",
+          "kind": "gate.land",
+          "desc": "G53 one-sheet — a default page resolves to exactly one woodwork sheet",
+          "args": "({ row: 'G53' })",
+          "result": "({ row: 'G53' })",
+          "note": "it would have asserted nothing a day earlier: one hard-coded sheet makes the guarantee a tautology, and a tautology in that table reads as cover"
+        },
+        {
+          "op": "effect",
+          "kind": "gate.land",
+          "desc": "G54 woodwork-readback — the resolved configuration is the reported one",
+          "args": "({ row: 'G54' })",
+          "result": "({ row: 'G54' })",
+          "note": "the row this map earned three times over — #284's duplicated query parameter, #298's Number(null), #297's fibre at 90 degrees. All three are a query string treated as an assumption."
+        },
+        {
+          "op": "return",
+          "expr": "'G53 + G54'"
+        }
+      ],
+      "touches": ["packages/site/src/shelf/woodwork.ts", "packages/site/src/shelf/scene.ts"],
+      "tests": ["gates/one-sheet.test.ts", "gates/woodwork-readback.test.ts"]
+    },
+    "t299": {
+      "name": "#299 — the merge, the screenshot and the ADR",
+      "kind": "agent",
+      "loc": "issues/299 · the map's own destination ticket",
+      "params": ["rows"],
+      "channels": {
+        "A": "the treatment on main",
+        "E": [],
+        "R": ["docs/adr/", "docs/images/", "the tracker"]
+      },
+      "steps": [
+        {
+          "op": "effect",
+          "kind": "git.merge",
+          "desc": "the six pull requests are on main",
+          "args": "({ prs: [308, 309, 310, 311, 312, 313] })",
+          "result": "({ prs: [308, 309, 310, 311, 312, 313] })",
+          "bind": "merged"
+        },
+        {
+          "op": "effect",
+          "kind": "adr.write",
+          "desc": "ADR-0080 and ADR-0081",
+          "args": "({ dir: 'docs/adr/' })",
+          "result": "({ adrs: ['0080', '0081'] })",
+          "note": "numbers claimed against the directory's tip at write time, never in advance"
+        },
+        {
+          "op": "effect",
+          "kind": "image.commit",
+          "desc": "regenerate docs/images/shelf.png in place",
+          "args": "({ from: 'the 50-book fixture vault' })",
+          "result": "true",
+          "note": "G13 pins that directory to exactly one file, so no widening is needed and the provenance claim still holds"
+        },
+        {
+          "op": "effect",
+          "kind": "tracker.close",
+          "desc": "close #296 naming its gate row, and close #299",
+          "args": "({ issues: [296, 299] })",
+          "result": "true"
+        },
+        {
+          "op": "effect",
+          "kind": "tracker.edit",
+          "desc": "append a Decisions-so-far line to map #280, clear the knobs bullet",
+          "args": "({ issue: 280 })",
+          "result": "true",
+          "note": "re-fetch the map body immediately before editing — concurrent sessions edit it, and the copy loaded at session start is stale by now"
+        },
+        {
+          "op": "return",
+          "expr": "({ rows, prs: merged.prs, adrs: ['0080', '0081'] })"
+        }
+      ],
+      "touches": [
+        "docs/adr/0080-the-woodwork-is-rosewood-and-its-relief-is-drawn.md",
+        "docs/adr/0081-the-woodwork-sheet-is-a-menu-and-the-shelf-says-what-it-resolved.md",
+        "docs/images/shelf.png"
+      ],
+      "tests": []
+    },
+    "spawnPrototype": {
+      "name": "a prototype the map did not plan",
+      "kind": "prototype",
+      "loc": "prototype/297-backboard-sheet · prototype/298-wood-seed",
+      "params": ["question"],
+      "channels": {
+        "A": "an answer the plan can use",
+        "E": [],
+        "R": ["a render", "a branch that never merges"]
+      },
+      "steps": [
+        {
+          "op": "note",
+          "note": "Reference, not a merge base. Nothing on these branches fast-forwards."
+        },
+        {
+          "op": "effect",
+          "kind": "render.measure",
+          "desc": "build the arm nobody planned, and measure",
+          "args": "({ question })",
+          "result": "({ answer: 'rosewood, not sapele' })",
+          "bind": "measured"
+        },
+        {
+          "op": "effect",
+          "kind": "tracker.open",
+          "desc": "a prototype ticket, off the map",
+          "args": "({ parent: 280 })",
+          "result": "true"
+        },
+        {
+          "op": "return",
+          "expr": "measured.answer"
+        }
+      ]
+    }
+  }
+}
