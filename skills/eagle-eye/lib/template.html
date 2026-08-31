@@ -98,14 +98,15 @@ input,textarea{font:inherit;color:inherit;background:var(--dw-paper);border:1px 
 .muted{color:var(--dw-ink-55)}
 .index .legend{margin-top:auto;padding:var(--sp-3) var(--sp-4);border-top:1px solid var(--dw-ink-30);display:flex;gap:var(--sp-3);flex-wrap:wrap;line-height:1.9}
 .right{display:flex;flex-direction:column;min-width:0}
-/* The brief. It pins, because the reader who needs it most is the one who scrolled away from it: the
-   page scrolls at the window, and nothing above .right sets overflow, so top:0 sticks to the viewport.
-   It carries the paper background, or the findings scroll through it. The height is bounded and the
-   block scrolls inside itself — the grid stays the thing the reader came for, on a phone as well. */
-.brief{position:sticky;top:0;z-index:2;background:var(--dw-paper);border-bottom:1px solid var(--dw-ink-30);
-  padding:var(--sp-3) var(--sp-6);display:flex;flex-direction:column;gap:var(--sp-1);max-height:32vh;overflow-y:auto}
+/* The brief sits in the findings list, under the lead block, and scrolls with it. It was pinned above
+   the verdict bar first. That cost the whole right pane a band of text on every view, including the
+   open row, where the reader has already asked a narrower question and wants the option cards. Here it
+   is in front of the reader who opens the page, and out of the way of the reader who went deeper. */
+.brief{display:flex;flex-direction:column;gap:var(--sp-1);margin:var(--sp-3) 0 0}
 .brief p{margin:0;font-size:14px;line-height:1.6;color:var(--dw-ink-80);max-width:78ch}
-.brief .facts{display:flex;gap:var(--sp-4);flex-wrap:wrap;font-size:13px;line-height:1.6;color:var(--dw-ink-55)}
+/* Row gap tight, column gap wide: who and when read as one line when they fit, and as two close
+   lines when they wrap. One gap for both made the wrapped pair look like two separate blocks. */
+.brief .facts{display:flex;gap:2px var(--sp-4);flex-wrap:wrap;font-size:13px;line-height:1.6;color:var(--dw-ink-55)}
 .brief .facts b{font-weight:500;color:var(--dw-ink-80)}
 /* The reframe is the author speaking about this configuration, so it is marked as an aside and not as
    more of the problem. It shows only while the preset that wrote it owns the grid. */
@@ -314,7 +315,7 @@ function rowDot(r, d){
 }
 
 // ---- the brief ----
-// What the whole box decides, above the findings, pinned. A row name is a handle for the people
+// What the whole box decides, at the head of the findings list. A row name is a handle for the people
 // already in the room; nothing else on this page says what the set is for. The reader who returns
 // after a context switch needs it first, and the stranger who was sent a link needs it at all.
 //
@@ -345,7 +346,7 @@ function renderFindings(r){
     return `<button class="${cls.join(' ')}" data-row="${d.id}"><span class="label num">${ref(d)}</span><span><span style="font-weight:500">${esc(d.name)}</span> <span class="muted">· ${esc(S(id))}${isOver ? ' ←' : ''}</span></span>${veil ? '<span></span>' : rowDot(r, d)}</button>`;
   }).join('');
   const legend = `<div class="legend label"><span><span class="dot caution"></span> conflict, or requirement not met</span><span><span class="dot normal"></span> requirement met</span><span>← option you changed</span></div>`;
-  let right = briefBlock() + verdictBar(r);
+  let right = verdictBar(r);
   if (veil) {
     const o = optById[sel[pending.dimId]];
     right += `<div class="body"><div class="coach"><div class="label" style="color:var(--dw-caution)">Coach · predict, then reveal</div><p>You changed <b>${esc(o.dim.name)}</b> to “${esc(S(o.id))}”. Which rows does this change affect? Click those rows in the index. Then click Reveal.</p><p class="label">${pending.predicted.size} row${pending.predicted.size === 1 ? '' : 's'} predicted</p><div style="display:flex;gap:8px"><button class="chip on" id="reveal">Reveal</button><button class="chip" id="skipPredict">Skip</button></div></div><p class="annot">The index shows no colours and the findings are hidden until you predict. You remember more when you predict first.</p></div>`;
@@ -363,8 +364,11 @@ function renderFindList(r){
   let h = '<div class="body">';
   if (pending && pending.revealed) { const hits = [...pending.predicted].filter(d => r.affected.has(d)).length, missed = [...r.affected].filter(d => !pending.predicted.has(d)).length, fp = pending.predicted.size - hits;
     h += `<div class="coach"><div class="label" style="color:var(--dw-caution)">Coach · result</div><p><b>${hits} correct</b> · ${missed} not predicted (amber rows) · ${fp} predicted, not affected. ${missed ? 'You did not know the edges of the amber rows. Read their reasons below.' : 'You predicted every affected row.'}</p></div>`; }
-  if (r.overrides.length) h += `<div><div class="label">Options you changed</div><div class="h2" style="margin-top:6px">${r.overrides.map(id => esc(S(id))).join(' + ')}</div><p class="annot" style="margin:12px 0 0">${r.overrides.map(id => `<b>${esc(optById[id].dim.name)}.</b> ${esc(BOX.rel[id]?.why || '')}`).join(' ')}</p></div>`;
-  else h += `<div><div class="label">Start here</div><div class="h2" style="margin-top:6px">${BOX.dims.length} rows, one chosen option in each</div><p class="annot" style="margin:12px 0 0">Click a row in the index. You see its options and the effect of each one. Change an option there, or in the Sheet view. The findings below describe a set that nobody tested.</p></div>`;
+  // The brief goes under the lead block's title, so the reader meets what the box decides before the
+  // findings that argue about it. It is here and not above the verdict bar because that band showed on
+  // every view, the open row included, where it pushed the option cards down the page.
+  if (r.overrides.length) h += `<div><div class="label">Options you changed</div><div class="h2" style="margin-top:6px">${r.overrides.map(id => esc(S(id))).join(' + ')}</div>${briefBlock()}<p class="annot" style="margin:12px 0 0">${r.overrides.map(id => `<b>${esc(optById[id].dim.name)}.</b> ${esc(BOX.rel[id]?.why || '')}`).join(' ')}</p></div>`;
+  else h += `<div><div class="label">Start here</div><div class="h2" style="margin-top:6px">${BOX.dims.length} rows, one chosen option in each</div>${briefBlock()}<p class="annot" style="margin:12px 0 0">Click a row in the index. You see its options and the effect of each one. Change an option there, or in the Sheet view. The findings below describe a set that nobody tested.</p></div>`;
   const finds = [];
   r.conflicts.forEach(e => finds.push({ tag: 'conflict', caution: true, txt: `${nm(e.from)} vs ${nm(e.to)}. ${esc(e.why)} ${tierTag(e.tier)}` }));
   r.unmet.forEach(e => finds.push({ tag: 'requirement not met', caution: true, txt: `${nm(e.from)} requires ${nm(e.to)}. ${esc(e.why)} ${tierTag(e.tier)} <i>That option is not selected.</i>` }));

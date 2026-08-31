@@ -183,10 +183,12 @@ opens a kept box a month later then sees row names and a grid, and no question.
 Write the brief first, before the rows. It is the test for each row. A row that
 serves no part of the problem does not belong in the box.
 
-**The page holds the brief** at the top of the findings panel, so it stays on
-screen while the reader scrolls the grid. The export carries the problem, and
-`--check` prints it before the verdict. Write it for a stranger: every one of
-those readers may be one.
+**The page prints the brief** at the head of the findings list, under the title,
+so the reader meets it before the findings that argue about it. An open row
+hides it. That reader has already asked a narrower question, and the option
+cards take the pane. The export carries the problem, and `--check` prints it
+before the verdict. Write it for a stranger: every one of those readers may be
+one.
 
 Two to five sentences, under the [Writing rules](#writing-rules). Cover:
 
