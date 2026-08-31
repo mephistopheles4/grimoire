@@ -180,7 +180,17 @@ const template = readFileSync(resolve(here, 'lib/template.html'), 'utf8');
 const module = readFileSync(resolve(here, 'lib/eagle-eye.js'), 'utf8').replace(/\nif \(typeof module[^\n]*\n?$/, '\n');
 // JSON inside <script>: escape "</" so a why containing "</script>" cannot close the block
 const data = JSON.stringify(box).replace(/<\//g, '<\\/');
-const html = template.replace('/*TITLE*/', box.title.replace(/[<>&]/g, '')).replace('/*DATA*/', data).replace('/*MODULE*/', module);
+// Function replacements, and this is load-bearing rather than style. A *string*
+// replacement is interpreted: `$&`, `` $` `` and `$'` stand for the match and
+// the text on either side of it. So box text carrying one of those splices a
+// slab of the template into the middle of the page — including the template's
+// own real "</script>", which is precisely what the escape on the line above
+// cannot help with, because that tag never passed through the box. A function
+// replacement is inserted literally and has no patterns at all.
+const html = template
+  .replace('/*TITLE*/', () => box.title.replace(/[<>&]/g, ''))
+  .replace('/*DATA*/', () => data)
+  .replace('/*MODULE*/', () => module);
 const out = flag('--out') && flag('--out') !== true ? resolve(flag('--out')) : resolve(dirname(resolve(boxPath)), basename(boxPath).replace(/\.box\.json$|\.json$/, '') + '.html');
 writeFileSync(out, html);
 console.error(`wrote ${out}`);
