@@ -343,6 +343,47 @@ test('a box whose text closes the script block cannot close it', () => {
   assert.equal(closes(out), closes(clean), 'the payload closed no script block');
 });
 
+test('box text cannot splice the template through a replacement pattern', () => {
+  // The same threat by a route the escape above cannot see. render.mjs composes
+  // the page with String.prototype.replace, and a *string* replacement is
+  // interpreted: `$&` is the match, "$`" is everything before it and `$'` is
+  // everything after. So a box carrying one of those inserts a slab of the
+  // template into the page — including the template's own real "</script>",
+  // which never passed through the box and so was never escaped.
+  //
+  // The test above plants "</script>" and stays green whichever way this is
+  // written, because it only ever asks about text that came from the box. This
+  // one asks whether the *template* can be made to arrive somewhere it should
+  // not, which is the question that was not being asked.
+  const clean = join(work, 'pattern-clean.html');
+  run(renderer, [write('pattern-clean.box.json', box()), '--out', clean]);
+
+  for (const pattern of ["$'", '$`', '$&', '$$']) {
+    const b = box();
+    b.title = `A box ${pattern} titled`;
+    b.rel.a1.why = `A reason containing ${pattern} in the middle`;
+
+    const out = join(work, 'pattern.html');
+    const r = run(renderer, [write('pattern.box.json', b), '--out', out]);
+    assert.equal(r.code, 0, `${pattern} should still render`);
+    const html = readFileSync(out, 'utf8');
+
+    // One page, not one and a fragment of another. A spliced template shows up
+    // as a second copy of the document's own tail.
+    const count = (re) => (html.match(re) || []).length;
+    assert.equal(count(/<\/html\s*>/gi), 1, `${pattern} duplicated the document`);
+    assert.equal(
+      count(/<\/script\s*>/gi),
+      (readFileSync(clean, 'utf8').match(/<\/script\s*>/gi) || []).length,
+      `${pattern} changed how many script blocks the page closes`,
+    );
+
+    // And the pattern reaches the page as itself, so this cannot pass by the
+    // text being stripped on the way in.
+    assert.ok(html.includes(pattern), `${pattern} should reach the page literally`);
+  }
+});
+
 test('a finding cannot carry markup out of a row name, an option name or an edge reason', () => {
   // The same threat one layer in. A finding is built as an HTML string and the
   // page writes it with innerHTML, so every piece of box text inside one is
