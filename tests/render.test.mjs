@@ -24,6 +24,7 @@ after(() => rmSync(work, { recursive: true, force: true }));
 function box(patch = {}) {
   return {
     title: 'A box',
+    problem: 'A box needs one statement of what it decides. This one decides nothing; it exists so a test has a valid box to break.',
     dims: [
       {
         id: 'one',
@@ -279,6 +280,73 @@ test('a box whose presets never change an option is refused', () => {
   const r = run(renderer, [write('flat-presets.box.json', b)]);
   assert.equal(r.code, 1);
   assert.match(r.stderr, /At least one must carry a "set" step/);
+});
+
+test('a box with no problem statement is refused, and no page is written', () => {
+  // The failure this field exists for: a reader opens a kept box weeks later
+  // and finds rows, a grid, and no sentence saying what is being decided. A
+  // row's own `problem` explains one decision; nothing explained the set.
+  const b = box();
+  delete b.problem;
+  const src = write('no-problem.box.json', b);
+  const r = run(renderer, [src]);
+  assert.equal(r.code, 1);
+  assert.match(r.stderr, /^error: problem: required/m);
+  assert.equal(existsSync(src.replace(/\.box\.json$/, '.html')), false);
+});
+
+test('the refusal names the field, says what to write and why, and says where to read more', () => {
+  // An author must be able to fix this without opening render.mjs. The why is
+  // the part a message usually drops: it says what the reader loses without
+  // the field, not only that the field is absent.
+  const b = box();
+  delete b.problem;
+  const r = run(renderer, [write('no-problem-message.box.json', b)]);
+  assert.match(r.stderr, /say what this box decides/);
+  assert.match(r.stderr, /sees row names and a grid, and no question/);
+  assert.match(r.stderr, /the people it affects/);
+  assert.match(r.stderr, /the date it must be settled/);
+  assert.match(r.stderr, /SKILL\.md, "The brief"/);
+});
+
+test('a problem statement of whitespace is refused, as the schema says', () => {
+  // The schema states minLength 1 and the pattern \S. The renderer trims. The
+  // two must agree, or the documented shape is not the enforced one.
+  const r = run(renderer, [write('blank-problem.box.json', box({ problem: ' \n\t ' }))]);
+  assert.equal(r.code, 1);
+  assert.match(r.stderr, /^error: problem: required/m);
+});
+
+test('a box with a problem and no who and no when renders', () => {
+  // Who and when are optional. The brief is not a form.
+  const out = join(work, 'brief-only.html');
+  const r = run(renderer, [write('brief-only.box.json', box()), '--out', out]);
+  assert.equal(r.code, 0);
+  assert.equal(existsSync(out), true);
+});
+
+test('who and when are accepted, and a blank one is refused rather than ignored', () => {
+  const ok = run(renderer, [
+    write('who-when.box.json', box({ who: 'The two maintainers.', when: 'Not known.' })),
+    '--check',
+  ]);
+  assert.equal(ok.code, 0);
+
+  for (const field of ['who', 'when']) {
+    const r = run(renderer, [write(`blank-${field}.box.json`, box({ [field]: '  ' })), '--check']);
+    assert.equal(r.code, 1, `a blank ${field} should be refused`);
+    assert.match(r.stderr, new RegExp(`^error: ${field}: `, 'm'));
+  }
+});
+
+test('a row with no problem statement still warns, and the box renders', () => {
+  // The row-level field keeps the treatment it had. Only the box-level one is
+  // refused, and the two messages name different places.
+  const b = box();
+  b.dims[0].problem = undefined;
+  const r = run(renderer, [write('row-no-problem.box.json', b), '--check']);
+  assert.equal(r.code, 0);
+  assert.match(r.stderr, /^warning: dims\[0\] "Row one": no problem/m);
 });
 
 test('unreadable JSON exits 2, not 1', () => {
