@@ -57,10 +57,23 @@ An earlier version of this file recorded the opposite — "No test covers the
 escape function" — which was true when it was written and is the reason the
 tests exist.
 
-**What the tests do not cover.** They exercise the escape, not the five
-`innerHTML` calls that consume it. A test that asserted "no box text reaches an
-attribute" would need to parse the rendered page, and nothing here does that
-yet. The claim above is still read by a reviewer, not by a machine.
+**Five findings put box text into their HTML without the escape, and that is
+now fixed.** The findings in `lib/eagle-eye.js` are built as HTML strings, and
+the page writes them with `innerHTML`. Five of the six interpolated a row name,
+an option name or an edge `why` without `esc`, so a crafted box file put markup
+straight into the page — the exact threat the first bullet of this section
+names. The sixth interpolates only counts and a fixed verdict word.
+Every one of them escapes now, and `tests/render.test.mjs` renders a box that
+carries a tag in each of those places and asserts the tag arrives escaped. The
+finding prints through `strip` on the command line, which deletes a real tag
+and leaves an escaped one alone, so the test goes red on a renderer that stops
+escaping.
+
+**What the tests do not cover.** They exercise the escape and what the findings
+put through it, not the `innerHTML` calls in the template. A test that asserted
+"no box text reaches an attribute" would need to parse the rendered page, and
+nothing here does that yet. The claim above is still read by a reviewer, not by
+a machine.
 
 ## Reporting a vulnerability
 

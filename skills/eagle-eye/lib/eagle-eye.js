@@ -59,12 +59,12 @@ const EagleEye = (() => {
     const untouched = ranked[0];
     if (untouched) {
       const rest = ranked.length - 1;
-      moves.push({ kind: 'row not opened', text: `<b>${box.dims.find(d => d.id === untouched[0]).name}</b> has ${untouched[1]} edge${untouched[1] > 1 ? 's' : ''} to the rows you changed. You did not open it. Open it.${rest ? ` ${rest} more row${rest > 1 ? 's are' : ' is'} still unopened.` : ''}` });
+      moves.push({ kind: 'row not opened', text: `<b>${esc(box.dims.find(d => d.id === untouched[0]).name)}</b> has ${untouched[1]} edge${untouched[1] > 1 ? 's' : ''} to the rows you changed. You did not open it. Open it.${rest ? ` ${rest} more row${rest > 1 ? 's are' : ' is'} still unopened.` : ''}` });
     }
 
     // 2. weakest edge under the verdict
     const weakest = active.slice().sort((a, b) => TIER_RANK[a.tier] - TIER_RANK[b.tier])[0];
-    if (weakest && overrides.length) moves.push({ kind: 'weakest edge', text: `The verdict depends on the edge <b>${optById[weakest.from].dim.name} ${weakest.kind === 'conf' ? 'vs' : 'needs'} ${optById[weakest.to].dim.name}</b>. This edge is <span class="tier ${weakest.tier}">${weakest.tier}</span>. “${weakest.why}” ${weakest.tier === 'argued' ? 'Nobody measured it. Measure this edge first.' : weakest.tier === 'sourced' ? 'A document says so. Read the source.' : ''}` });
+    if (weakest && overrides.length) moves.push({ kind: 'weakest edge', text: `The verdict depends on the edge <b>${esc(optById[weakest.from].dim.name)} ${weakest.kind === 'conf' ? 'vs' : 'needs'} ${esc(optById[weakest.to].dim.name)}</b>. This edge is <span class="tier ${weakest.tier}">${weakest.tier}</span>. “${esc(weakest.why)}” ${weakest.tier === 'argued' ? 'Nobody measured it. Measure this edge first.' : weakest.tier === 'sourced' ? 'A document says so. Read the source.' : ''}` });
 
     // 3. load-bearing option: the selected cell with the most edges to other selected cells (either direction)
     const degree = {};
@@ -72,12 +72,12 @@ const EagleEye = (() => {
     selected.forEach(id => edgesOf(id).forEach(e => { if (optById[e.to].dim.id === optById[id].dim.id) return;
       degree[id]++; if (selected.has(e.to)) degree[e.to]++; }));
     const lb = Object.entries(degree).sort((a, b) => b[1] - a[1])[0];
-    if (lb && lb[1]) moves.push({ kind: 'most connected', text: `<b>${optById[lb[0]].dim.name}: ${optById[lb[0]].short || optById[lb[0]].label}</b> has ${lb[1]} edge${lb[1] === 1 ? '' : 's'} to the other selected options. If you change this option, the most options change with it.` });
+    if (lb && lb[1]) moves.push({ kind: 'most connected', text: `<b>${esc(optById[lb[0]].dim.name)}: ${esc(optById[lb[0]].short || optById[lb[0]].label)}</b> has ${lb[1]} edge${lb[1] === 1 ? '' : 's'} to the other selected options. If you change this option, the most options change with it.` });
 
     // 4. free rows: no edges in or out, any option
     const inbound = new Set(); box.dims.forEach(d => d.opts.forEach(o => edgesOf(o.id).forEach(e => inbound.add(optById[e.to].dim.id))));
     const free = box.dims.filter(d => !inbound.has(d.id) && d.opts.every(o => edgesOf(o.id).length === 0));
-    if (free.length) moves.push({ kind: 'row with no edges', text: `<b>${free.map(d => d.name).join(', ')}</b> ${free.length > 1 ? 'have' : 'has'} no edges. Decide ${free.length > 1 ? 'these rows' : 'this row'} alone, or add the edge that is missing.` });
+    if (free.length) moves.push({ kind: 'row with no edges', text: `<b>${free.map(d => esc(d.name)).join(', ')}</b> ${free.length > 1 ? 'have' : 'has'} no edges. Decide ${free.length > 1 ? 'these rows' : 'this row'} alone, or add the edge that is missing.` });
 
     // 5. survived strawmen: strawman options not ruled out by the selection, whose own conflicts are not selected
     const survived = [];
@@ -89,7 +89,7 @@ const EagleEye = (() => {
       const pulledAway = [...selected].some(sid => optById[sid].dim.id !== d.id && edgesOf(sid).some(e => e.kind === 'req' && optById[e.to].dim.id === d.id && e.to !== o.id));
       if (!ruledOut && !wouldConflict && !pulledAway) survived.push(optById[o.id]);
     }));
-    if (survived.length) moves.push({ kind: 'strawman not rejected', text: `${survived.map(o => `<b>${o.dim.name}: ${o.short || o.label}</b>`).join('; ')}. No selected option rules ${survived.length > 1 ? 'these strawmen' : 'this strawman'} out. Give the reason to reject ${survived.length > 1 ? 'them' : 'it'}, or pick ${survived.length > 1 ? 'one' : 'it'}.` });
+    if (survived.length) moves.push({ kind: 'strawman not rejected', text: `${survived.map(o => `<b>${esc(o.dim.name)}: ${esc(o.short || o.label)}</b>`).join('; ')}. No selected option rules ${survived.length > 1 ? 'these strawmen' : 'this strawman'} out. Give the reason to reject ${survived.length > 1 ? 'them' : 'it'}, or pick ${survived.length > 1 ? 'one' : 'it'}.` });
 
     // 6. cogency
     const argued = active.filter(e => e.tier === 'argued').length;
