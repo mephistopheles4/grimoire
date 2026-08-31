@@ -337,6 +337,49 @@ test('a box whose text closes the script block cannot close it', () => {
   assert.equal(closes(out), closes(clean), 'the payload closed no script block');
 });
 
+test('a finding cannot carry markup out of a row name, an option name or an edge reason', () => {
+  // The same threat one layer in. A finding is built as an HTML string and the
+  // page writes it with innerHTML, so every piece of box text inside one is
+  // markup unless the finding escapes it first.
+  //
+  // The seam is the command line, where each finding prints through `strip`.
+  // `strip` deletes a real tag and leaves an escaped one alone, so an
+  // unescaped payload arrives with its tags gone and an escaped payload
+  // arrives whole. The assertions below fail on a renderer that does not
+  // escape, rather than passing on one.
+  const b = box();
+  b.dims[0].name = 'Row <i>one-pwn</i>';
+  b.dims[1].name = 'Row <i>two-pwn</i>';
+  b.dims[0].opts[1].short = 'A2 <i>opt-pwn</i>';
+  b.dims[1].opts[1].short = 'B2 <i>straw-pwn</i>';
+  // A third row with no edges either way, which is the only way to fire "row with no edges".
+  b.dims.push({
+    id: 'three',
+    name: 'Row <i>free-pwn</i>',
+    opts: [
+      { id: 'c1', label: 'Option C1', short: 'C1', chosen: true, src: 'test' },
+      { id: 'c2', label: 'Option C2', short: 'C2', strawman: true },
+    ],
+  });
+  b.rel.a2 = { why: 'The strawman for row one', rel: [['b1', 'conf', 'A2 <i>why-pwn</i> rules B1 out']] };
+  b.rel.c1 = { why: 'The first option of row three' };
+  b.rel.c2 = { why: 'The strawman for row three' };
+
+  const r = run(renderer, [write('finding-markup.box.json', b), '--sel', 'eagle-eye: a2']);
+  assert.equal(r.code, 0);
+
+  // One payload per interpolation the findings make: the two row names and the
+  // reason in "weakest edge", the option name in "most connected", the
+  // edge-free row name in "row with no edges", and the strawman's name in
+  // "strawman not rejected".
+  for (const payload of ['one-pwn', 'two-pwn', 'why-pwn', 'opt-pwn', 'free-pwn', 'straw-pwn']) {
+    assert.ok(
+      r.stdout.includes(`&lt;i>${payload}&lt;/i>`),
+      `${payload} should reach the finding escaped, not as a tag:\n${r.stdout}`,
+    );
+  }
+});
+
 test('a title cannot carry markup into the head', () => {
   // The title is the one piece of box text the renderer writes outside a
   // script block, so it gets its own guard: < > and & are removed, not
