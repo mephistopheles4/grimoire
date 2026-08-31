@@ -59,12 +59,16 @@ const EagleEye = (() => {
     const untouched = ranked[0];
     if (untouched) {
       const rest = ranked.length - 1;
-      moves.push({ kind: 'row not opened', text: `<b>${box.dims.find(d => d.id === untouched[0]).name}</b> has ${untouched[1]} edge${untouched[1] > 1 ? 's' : ''} to the rows you changed. You did not open it. Open it.${rest ? ` ${rest} more row${rest > 1 ? 's are' : ' is'} still unopened.` : ''}` });
+      moves.push({ kind: 'row not opened', text: `<b>${esc(box.dims.find(d => d.id === untouched[0]).name)}</b> has ${untouched[1]} edge${untouched[1] > 1 ? 's' : ''} to the rows you changed. You did not open it. Open it.${rest ? ` ${rest} more row${rest > 1 ? 's are' : ' is'} still unopened.` : ''}` });
     }
 
     // 2. weakest edge under the verdict
     const weakest = active.slice().sort((a, b) => TIER_RANK[a.tier] - TIER_RANK[b.tier])[0];
-    if (weakest && overrides.length) moves.push({ kind: 'weakest edge', text: `The verdict depends on the edge <b>${optById[weakest.from].dim.name} ${weakest.kind === 'conf' ? 'vs' : 'needs'} ${optById[weakest.to].dim.name}</b>. This edge is <span class="tier ${weakest.tier}">${weakest.tier}</span>. “${weakest.why}” ${weakest.tier === 'argued' ? 'Nobody measured it. Measure this edge first.' : weakest.tier === 'sourced' ? 'A document says so. Read the source.' : ''}` });
+    // The tier is the one box value a finding writes into an HTML attribute, and esc does not
+    // escape the double quote. render.mjs refuses a tier that is not one of the three names, so
+    // no page it writes carries one. This does not lean on that check.
+    const tierClass = weakest && Object.hasOwn(TIER_RANK, weakest.tier) ? weakest.tier : 'argued';
+    if (weakest && overrides.length) moves.push({ kind: 'weakest edge', text: `The verdict depends on the edge <b>${esc(optById[weakest.from].dim.name)} ${weakest.kind === 'conf' ? 'vs' : 'needs'} ${esc(optById[weakest.to].dim.name)}</b>. This edge is <span class="tier ${tierClass}">${esc(weakest.tier)}</span>. “${esc(weakest.why)}” ${weakest.tier === 'argued' ? 'Nobody measured it. Measure this edge first.' : weakest.tier === 'sourced' ? 'A document says so. Read the source.' : ''}` });
 
     // 3. load-bearing option: the selected cell with the most edges to other selected cells (either direction)
     const degree = {};
@@ -72,12 +76,12 @@ const EagleEye = (() => {
     selected.forEach(id => edgesOf(id).forEach(e => { if (optById[e.to].dim.id === optById[id].dim.id) return;
       degree[id]++; if (selected.has(e.to)) degree[e.to]++; }));
     const lb = Object.entries(degree).sort((a, b) => b[1] - a[1])[0];
-    if (lb && lb[1]) moves.push({ kind: 'most connected', text: `<b>${optById[lb[0]].dim.name}: ${optById[lb[0]].short || optById[lb[0]].label}</b> has ${lb[1]} edge${lb[1] === 1 ? '' : 's'} to the other selected options. If you change this option, the most options change with it.` });
+    if (lb && lb[1]) moves.push({ kind: 'most connected', text: `<b>${esc(optById[lb[0]].dim.name)}: ${esc(optById[lb[0]].short || optById[lb[0]].label)}</b> has ${lb[1]} edge${lb[1] === 1 ? '' : 's'} to the other selected options. If you change this option, the most options change with it.` });
 
     // 4. free rows: no edges in or out, any option
     const inbound = new Set(); box.dims.forEach(d => d.opts.forEach(o => edgesOf(o.id).forEach(e => inbound.add(optById[e.to].dim.id))));
     const free = box.dims.filter(d => !inbound.has(d.id) && d.opts.every(o => edgesOf(o.id).length === 0));
-    if (free.length) moves.push({ kind: 'row with no edges', text: `<b>${free.map(d => d.name).join(', ')}</b> ${free.length > 1 ? 'have' : 'has'} no edges. Decide ${free.length > 1 ? 'these rows' : 'this row'} alone, or add the edge that is missing.` });
+    if (free.length) moves.push({ kind: 'row with no edges', text: `<b>${free.map(d => esc(d.name)).join(', ')}</b> ${free.length > 1 ? 'have' : 'has'} no edges. Decide ${free.length > 1 ? 'these rows' : 'this row'} alone, or add the edge that is missing.` });
 
     // 5. survived strawmen: strawman options not ruled out by the selection, whose own conflicts are not selected
     const survived = [];
@@ -89,7 +93,7 @@ const EagleEye = (() => {
       const pulledAway = [...selected].some(sid => optById[sid].dim.id !== d.id && edgesOf(sid).some(e => e.kind === 'req' && optById[e.to].dim.id === d.id && e.to !== o.id));
       if (!ruledOut && !wouldConflict && !pulledAway) survived.push(optById[o.id]);
     }));
-    if (survived.length) moves.push({ kind: 'strawman not rejected', text: `${survived.map(o => `<b>${o.dim.name}: ${o.short || o.label}</b>`).join('; ')}. No selected option rules ${survived.length > 1 ? 'these strawmen' : 'this strawman'} out. Give the reason to reject ${survived.length > 1 ? 'them' : 'it'}, or pick ${survived.length > 1 ? 'one' : 'it'}.` });
+    if (survived.length) moves.push({ kind: 'strawman not rejected', text: `${survived.map(o => `<b>${esc(o.dim.name)}: ${esc(o.short || o.label)}</b>`).join('; ')}. No selected option rules ${survived.length > 1 ? 'these strawmen' : 'this strawman'} out. Give the reason to reject ${survived.length > 1 ? 'them' : 'it'}, or pick ${survived.length > 1 ? 'one' : 'it'}.` });
 
     // 6. chains: the join between two edges. The audit above reads one edge at a time,
     // and three sound edges can carry an unsound argument when the fault sits in the join.
@@ -150,11 +154,14 @@ const EagleEye = (() => {
     const chain = chains[0];
     if (chain) {
       const rest = chains.length - 1;
-      moves.push({ kind: 'chain', text: `<b>${nm(chain.src)}</b> ${chain.kind === 'conf' ? 'rules out' : 'requires'} <b>${nm(chain.to)}</b>, through ${joinAnd(chain.path.slice(1, -1).map(id => `<b>${nm(id)}</b>`))}. ${chain.stated ? 'The box states this relation.' : 'The box does not state it. Add the edge, or say in the notes why the path is enough.'} The weakest edge on the path is <span class="tier ${chain.tier}">${chain.tier}</span>.${rest ? ` The box derives ${rest} more relation${rest > 1 ? 's' : ''} this way.` : ''}` });
+      // The tier reaches an HTML attribute here, where esc does not help. Same guard as the
+      // weakest edge above: an unknown tier reads as argued rather than as markup.
+      const tier = Object.hasOwn(TIER_RANK, chain.tier) ? chain.tier : 'argued';
+      moves.push({ kind: 'chain', text: `<b>${nm(chain.src)}</b> ${chain.kind === 'conf' ? 'rules out' : 'requires'} <b>${nm(chain.to)}</b>, through ${joinAnd(chain.path.slice(1, -1).map(id => `<b>${nm(id)}</b>`))}. ${chain.stated ? 'The box states this relation.' : 'The box does not state it. Add the edge, or say in the notes why the path is enough.'} The weakest edge on the path is <span class="tier ${tier}">${esc(chain.tier)}</span>.${rest ? ` The box derives ${rest} more relation${rest > 1 ? 's' : ''} this way.` : ''}` });
     }
     if (cycles.size) moves.push({ kind: 'cycle', text: `${[...cycles.values()].map(loop => `${joinAnd(loop.map(id => `<b>${nm(id)}</b>`))} require each other.`).join(' ')} A loop is one decision drawn more than once. Merge its rows, or drop one of its edges.` });
 
-    // 7. cogency
+    // 7. evidence for the verdict
     const argued = active.filter(e => e.tier === 'argued').length;
     // Branch on the edges, not on the change count. A set with no overrides can still carry
     // conflicts, and a set with overrides can still touch no edge. Both read as tested when
@@ -162,10 +169,25 @@ const EagleEye = (() => {
     // "Nobody measured them" is only true of the argued edges. A set whose active edges are all
     // measured or sourced is the strong case, and saying it is untested inverts the finding.
     const evidenced = active.filter(e => e.tier !== 'argued');
-    moves.push({ kind: 'cogency', text: !active.length
+    // The count says the verdict is unevidenced and never says where to measure. These are the
+    // addresses: a row whose selected cell touches active edges, and every one of them is argued.
+    // A row no active edge touches is not named. Nothing tests that row either way, and
+    // "row with no edges" is the finding for it.
+    const onlyArgued = box.dims.filter(d => {
+      const touching = active.filter(e => e.from === sel[d.id] || e.to === sel[d.id]);
+      return touching.length && touching.every(e => e.tier === 'argued');
+    }).map(d => d.name);
+    // Past three rows the list stops being an address and becomes a backlog. The shipped example
+    // names 10 of its 13 rows: "open these ten rows" is an instruction nobody follows, and the
+    // count is one sentence a reader finishes.
+    const address = !onlyArgued.length ? ''
+      : onlyArgued.length > 3
+        ? ` The active edges at ${onlyArgued.length} of ${box.dims.length} rows are all argued.`
+        : ` The active edges at ${onlyArgued.map(n => `<b>${esc(n)}</b>`).join(', ')} are all argued. Measure ${onlyArgued.length === 1 ? 'that row' : 'those rows'} first.`;
+    moves.push({ kind: 'evidence for the verdict', text: !active.length
       ? `No edge reaches this set, so nothing in the box tested it. Add the edge that is missing, or change an option to see which edges hold.`
       : argued
-        ? `${argued} of ${active.length} active edge${active.length === 1 ? '' : 's'} ${argued === 1 ? 'is' : 'are'} argued. Nobody measured ${argued === 1 ? 'that one' : 'those'}. If all the edges are true, the verdict is “${verdict}”. If one argued edge is false, the verdict can change.`
+        ? `${argued} of ${active.length} active edge${active.length === 1 ? '' : 's'} ${argued === 1 ? 'is' : 'are'} argued. Nobody measured ${argued === 1 ? 'that one' : 'those'}.${address} If all the edges are true, the verdict is “${verdict}”. If one argued edge is false, the verdict can change.`
         : `Every active edge carries evidence: ${evidenced.filter(e => e.tier === 'measured').length} measured, ${evidenced.filter(e => e.tier === 'sourced').length} sourced. If all the edges are true, the verdict is “${verdict}”.` });
 
     // affected rows for coach mode: rows whose cells changed colour because of the overrides
