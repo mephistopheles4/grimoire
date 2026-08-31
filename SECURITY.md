@@ -25,56 +25,22 @@ So the realistic risks are narrow, and worth naming precisely:
 
 Stated with line numbers, because "it escapes things" is not a threat model:
 
-- **`skills/eagle-eye/render.mjs:155` escapes `</` before it writes the box JSON into a
+- **`skills/eagle-eye/render.mjs:182` escapes `</` before it writes the box JSON into a
   `<script>` block**, so a `why` string that contains `</script>` cannot close
   the block.
 - **`skills/eagle-eye/lib/eagle-eye.js:17` escapes `&` and `<`** before box text reaches
   `innerHTML`. **It does not escape the double quote.** The template calls it at
-  `skills/eagle-eye/lib/template.html:257`; `render.mjs` inlines the module into the page,
+  `skills/eagle-eye/lib/template.html:270`; `render.mjs` inlines the module into the page,
   so the page and the test run the same function.
 - **The six findings escape the same way.** They are built in
   `skills/eagle-eye/lib/eagle-eye.js`, not in the template, and the page assigns their
-  text to `innerHTML` at `skills/eagle-eye/lib/template.html:318`. Every row name,
+  text to `innerHTML` at `skills/eagle-eye/lib/template.html:355`. Every row name,
   option name and `why` a finding prints goes through the escape. Until
   version 0.3.5 they did not, and a row name containing a tag reached the page
   as markup.
 - **No box text reaches an HTML attribute today.** Every interpolated attribute
   in the template holds an option id, a number, or a fixed class name, and ids
-  are validated against `^[a-z0-9][a-z0-9-]*# Security
-
-## What this project is, in threat terms
-
-`grimoire` is a marketplace of Claude Code skills. A skill is prose plus, in
-eagle-eye's case, a renderer: `render.mjs` reads a box file — JSON — and writes
-one self-contained HTML page. There is no server, no account, no database, and
-nothing is uploaded anywhere. Node runs the renderer locally, and the reader
-opens the page in a browser.
-
-So the realistic risks are narrow, and worth naming precisely:
-
-- **A box file is input from a stranger.** The point of eagle-eye is that
-  people share configurations. A `.box.json` you did not write becomes an HTML
-  page you open, and its text lands in the page. That is the main risk in this
-  repository.
-- **A skill is an instruction file an agent obeys.** Anybody who can change a
-  `SKILL.md` here can change what Claude does on a reader's machine. That is
-  what branch protection is for, below.
-- **A dependency reaching a reader.** The renderer imports node built-in
-  modules only, so there is no dependency tree to poison today. That is a fact
-  about now, not a guarantee about later.
-
-## What the renderer actually does with box text
-
-Stated with line numbers, because "it escapes things" is not a threat model:
-
-- **`skills/eagle-eye/render.mjs:155` escapes `</` before it writes the box JSON into a
-  `<script>` block**, so a `why` string that contains `</script>` cannot close
-  the block.
-- **`skills/eagle-eye/lib/eagle-eye.js:17` escapes `&` and `<`** before box text reaches
-  `innerHTML`. **It does not escape the double quote.** The template calls it at
-  `skills/eagle-eye/lib/template.html:257`; `render.mjs` inlines the module into the page,
-  so the page and the test run the same function.
- at `skills/eagle-eye/render.mjs:27`.
+  are validated against `^[a-z0-9][a-z0-9-]*$` at `skills/eagle-eye/render.mjs:27`.
   One attribute is written by the module rather than the template — the tier
   name in `class="tier …"` on the *weakest edge* finding — and the module
   reduces anything that is not `measured`, `sourced` or `argued` to `argued`
@@ -177,7 +143,7 @@ one people learn to route around.
 **Its first scan raised two alerts, both `js/incomplete-multi-character-
 sanitization`, both rated high, and both the same one-line function copied into
 two files.** `strip` removed HTML tags from an option label in one pass, at
-`render.mjs:128` and `lib/template.html:445`. Here is the triage, because "we
+`render.mjs:147` and `lib/template.html:485`. Here is the triage, because "we
 fixed it" tells an auditor nothing:
 
 - **The output never reaches HTML.** `strip` feeds a Markdown export that lands

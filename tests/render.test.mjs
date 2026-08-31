@@ -63,10 +63,16 @@ function write(name, value) {
   return p;
 }
 
-test('--check validates the shipped example and names the chosen verdict', () => {
+test('--check leads with the brief, then names the chosen verdict', () => {
+  // The brief leads because the findings are about something. This is also the
+  // only surface a test can reach: the page writes the export, and no test at
+  // this command line can read a browser.
   const r = run(renderer, [exampleBox, '--check']);
   assert.equal(r.code, 0);
-  assert.match(r.stdout, /^verdict: as chosen/);
+  assert.match(r.stdout, /^problem: This box designs the eagle-eye skill/);
+  assert.match(r.stdout, /^who: The author of the skill/m);
+  assert.match(r.stdout, /^when: Before the skill shipped/m);
+  assert.match(r.stdout, /^verdict: as chosen/m);
   assert.match(r.stderr, /^ok: /m);
 });
 
@@ -82,14 +88,14 @@ test('--sel reads a configuration back and reports the conflict it creates', () 
   // code, and the renderer reads the same code back to the same verdict.
   const r = run(renderer, [exampleBox, '--sel', 'eagle-eye: coach-always']);
   assert.equal(r.code, 0);
-  assert.match(r.stdout, /^verdict: does not hold \(1 change/);
+  assert.match(r.stdout, /^verdict: does not hold \(1 change/m);
   assert.match(r.stdout, /conflict: Coach layer: Always a quiz vs Depth control/);
 });
 
 test('--sel with no change returns the chosen verdict, not a changed one', () => {
   const r = run(renderer, [exampleBox, '--sel', 'eagle-eye: none']);
   assert.equal(r.code, 0);
-  assert.match(r.stdout, /^verdict: as chosen/);
+  assert.match(r.stdout, /^verdict: as chosen/m);
 });
 
 test('the evidence finding names the rows whose active edges are all argued', () => {
@@ -504,6 +510,47 @@ test('a row with no problem statement still warns, and the box renders', () => {
   const r = run(renderer, [write('row-no-problem.box.json', b), '--check']);
   assert.equal(r.code, 0);
   assert.match(r.stderr, /^warning: dims\[0\] "Row one": no problem/m);
+});
+
+test('the findings name who and when only when the box carries them', () => {
+  // The brief is not a form. A box with a problem and nothing else prints one
+  // brief line, and no empty labels.
+  const plain = run(renderer, [write('brief-plain.box.json', box()), '--check']);
+  assert.equal(plain.code, 0);
+  assert.match(plain.stdout, /^problem: A box needs one statement/);
+  assert.equal(/^who:/m.test(plain.stdout), false);
+  assert.equal(/^when:/m.test(plain.stdout), false);
+
+  const full = run(renderer, [
+    write('brief-full.box.json', box({ who: 'The two maintainers.', when: 'Not known.' })),
+    '--check',
+  ]);
+  assert.match(full.stdout, /^who: The two maintainers\.$/m);
+  assert.match(full.stdout, /^when: Not known\.$/m);
+});
+
+test('a preset may carry a reframe sentence, and a blank one is refused', () => {
+  // `text` says what the configuration shows. `reframe` says what the problem
+  // becomes there. They are two sentences, so they are two fields.
+  const b = box();
+  b.presets[1].reframe = 'The problem becomes a question about row one alone.';
+  const ok = run(renderer, [write('reframe.box.json', b), '--check']);
+  assert.equal(ok.code, 0);
+
+  const blank = box();
+  blank.presets[1].reframe = '   ';
+  const r = run(renderer, [write('blank-reframe.box.json', blank), '--check']);
+  assert.equal(r.code, 1);
+  assert.match(r.stderr, /^error: presets\[1\]\.reframe: must be a non-empty string/m);
+});
+
+test('a box whose presets carry no reframe renders unchanged', () => {
+  // The field is optional, so every box that rendered before this one still
+  // renders. The shipped example is the box a reader opens first.
+  const out = join(work, 'no-reframe.html');
+  const r = run(renderer, [write('no-reframe.box.json', box()), '--out', out]);
+  assert.equal(r.code, 0);
+  assert.equal(existsSync(out), true);
 });
 
 test('unreadable JSON exits 2, not 1', () => {

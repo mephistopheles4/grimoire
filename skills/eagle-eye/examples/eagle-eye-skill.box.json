@@ -825,6 +825,7 @@
     {
       "title": "Start",
       "text": "No option is changed. Read the findings. Then open row 04 to see each option and its effect.",
+      "reframe": "The problem is still the whole design, and the box tests none of it until you change an option.",
       "steps": [
         {
           "label": "Open row 04",
@@ -836,6 +837,7 @@
     {
       "title": "Change one option",
       "text": "Open row 09 and pick “Prompt-only”. Two other rows become amber. Then open the Sheet view and move the pointer over the options.",
+      "reframe": "The problem narrows to one question: what does a skill without a page cost the reader?",
       "steps": [
         {
           "label": "Open row 09",
@@ -858,6 +860,7 @@
     {
       "title": "Coach",
       "text": "Set Coach to on. Change row 07 to “This repo”. The index shows no colours. Click the rows you think are affected. Then click Reveal.",
+      "reframe": "The problem becomes how a reader learns the grid, not which option the grid picks.",
       "steps": [
         {
           "label": "Coach on",
@@ -875,6 +878,7 @@
     {
       "title": "Strawmen",
       "text": "Change row 01 to “No tool”. Three edges rule it out. Reset. Change row 04 to “Verdict only”. No row becomes amber: no option in the design requires the six moves.",
+      "reframe": "The problem becomes whether anything in the box rules the weak answers out.",
       "steps": [
         {
           "label": "Driver → no tool",

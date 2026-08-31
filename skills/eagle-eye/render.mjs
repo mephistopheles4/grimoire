@@ -125,6 +125,11 @@ function validate(box) {
         if (s.open && !dimIds.has(s.open)) err(`presets[${i}].steps[${j}].open: no dim "${s.open}"`);
       });
       if (!p.text) warn(`presets[${i}] "${p.title}": no text — say in one sentence what this configuration shows.`);
+      // `reframe` is optional and says what the problem becomes under this configuration. `text` says
+      // what the configuration shows, which is a different sentence. A blank one is refused rather
+      // than ignored, so the schema's "non-empty string" is what this code enforces.
+      if (p.reframe !== undefined && (typeof p.reframe !== 'string' || !p.reframe.trim()))
+        err(`presets[${i}].reframe: must be a non-empty string — say what the problem becomes here, or leave the field out`);
     });
     if (!box.presets.some(p => (p.steps || []).some(s => s.set && Object.keys(s.set).length)))
       err('presets: every preset only walks the chosen set. At least one must carry a "set" step, so the reader meets a configuration that is not the baseline.');
@@ -140,7 +145,15 @@ function findings(box, code) {
     sel[optById[id].dim.id] = id; touched.add(optById[id].dim.id);
   });
   const r = EagleEye.analyse(box, sel, touched), strip = s => { let p, o = String(s); do { p = o; o = o.replace(/<[^>]+>/g, ''); } while (o !== p); return o; };
-  const L = [`verdict: ${r.verdict}` + (r.overrides.length ? ` (${r.overrides.length} change${r.overrides.length === 1 ? '' : 's'}; active edges ${r.basis.map(([t, n]) => `${n} ${t}`).join(', ')})` : '')];
+  // The brief leads, because the findings are about something. An agent reads this output and says
+  // it in chat, and a reader who meets "conflict: Coach layer vs Depth control" without the problem
+  // learns which two rows exclude each other, and never what turns on it. `who` and `when` print when
+  // the box carries them. This is also the only surface a test can reach: the page writes the
+  // export, and no test at this command line can read a browser.
+  const L = [`problem: ${box.problem}`];
+  if (box.who) L.push(`who: ${box.who}`);
+  if (box.when) L.push(`when: ${box.when}`);
+  L.push(`verdict: ${r.verdict}` + (r.overrides.length ? ` (${r.overrides.length} change${r.overrides.length === 1 ? '' : 's'}; active edges ${r.basis.map(([t, n]) => `${n} ${t}`).join(', ')})` : ''));
   r.conflicts.forEach(e => L.push(`  conflict: ${optById[e.from].dim.name}: ${optById[e.from].short || optById[e.from].label} vs ${optById[e.to].dim.name}: ${optById[e.to].short || optById[e.to].label} — ${e.why} [${e.tier}]`));
   r.unmet.forEach(e => L.push(`  not met: ${optById[e.from].dim.name} requires ${optById[e.to].dim.name}: ${optById[e.to].short || optById[e.to].label} — ${e.why} [${e.tier}]`));
   // "row not opened" measures a reader clicking rows on the page. The command line has no such act:
