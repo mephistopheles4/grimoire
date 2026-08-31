@@ -147,7 +147,7 @@ function findings(box, code) {
   const r = EagleEye.analyse(box, sel, touched), strip = s => { let p, o = String(s); do { p = o; o = o.replace(/<[^>]+>/g, ''); } while (o !== p); return o; };
   // The brief leads, because the findings are about something. An agent reads this output and says
   // it in chat, and a reader who meets "conflict: Coach layer vs Depth control" without the problem
-  // learns which two rows fight and never what the fight is for. `who` and `when` print only when
+  // learns which two rows exclude each other, and never what turns on it. `who` and `when` print when
   // the box carries them. This is also the only surface a test can reach: the page writes the
   // export, and no test at this command line can read a browser.
   const L = [`problem: ${box.problem}`];

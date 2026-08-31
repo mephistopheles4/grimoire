@@ -537,8 +537,12 @@ function update(){
 $('viewFind').addEventListener('click', () => { view = 'findings'; update(); });
 $('viewSheet').addEventListener('click', () => { view = 'sheet'; update(); });
 // ---- Reset, and the ten seconds you have to take it back ----
-function snapshotState(){ return { sel: { ...sel }, touched: new Set(touched), openRow, view, preset, stepIdx }; }
-function restoreState(s){ Object.assign(sel, s.sel); touched.clear(); s.touched.forEach(t => touched.add(t)); openRow = s.openRow; view = s.view; pending = null; preset = s.preset; stepIdx = s.stepIdx; paintPresets(); }
+// `presetOwned` travels with the snapshot, and is never set true by restoring one. Undo puts back the
+// state before the reset: if a preset owned the grid then, it owns the grid again; if the reader had
+// already picked by hand, it did not and still does not. Without the field here, Undo restored the
+// preset chip and left its reframe off, so the sentence went missing from the set it describes.
+function snapshotState(){ return { sel: { ...sel }, touched: new Set(touched), openRow, view, preset, stepIdx, presetOwned }; }
+function restoreState(s){ Object.assign(sel, s.sel); touched.clear(); s.touched.forEach(t => touched.add(t)); openRow = s.openRow; view = s.view; pending = null; preset = s.preset; stepIdx = s.stepIdx; presetOwned = s.presetOwned; paintPresets(); }
 function paintReset(){
   const offering = !!undoSnap && resetHot;
   $('reset').textContent = offering ? 'Undo' : 'Reset';

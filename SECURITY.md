@@ -25,12 +25,12 @@ So the realistic risks are narrow, and worth naming precisely:
 
 Stated with line numbers, because "it escapes things" is not a threat model:
 
-- **`skills/eagle-eye/render.mjs:155` escapes `</` before it writes the box JSON into a
+- **`skills/eagle-eye/render.mjs:182` escapes `</` before it writes the box JSON into a
   `<script>` block**, so a `why` string that contains `</script>` cannot close
   the block.
 - **`skills/eagle-eye/lib/eagle-eye.js:17` escapes `&` and `<`** before box text reaches
   `innerHTML`. **It does not escape the double quote.** The template calls it at
-  `skills/eagle-eye/lib/template.html:257`; `render.mjs` inlines the module into the page,
+  `skills/eagle-eye/lib/template.html:269`; `render.mjs` inlines the module into the page,
   so the page and the test run the same function.
 - **The six findings escape the same way.** They are built in
   `skills/eagle-eye/lib/eagle-eye.js`, not in the template, and the page assigns their
@@ -177,7 +177,7 @@ one people learn to route around.
 **Its first scan raised two alerts, both `js/incomplete-multi-character-
 sanitization`, both rated high, and both the same one-line function copied into
 two files.** `strip` removed HTML tags from an option label in one pass, at
-`render.mjs:128` and `lib/template.html:445`. Here is the triage, because "we
+`render.mjs:147` and `lib/template.html:481`. Here is the triage, because "we
 fixed it" tells an auditor nothing:
 
 - **The output never reaches HTML.** `strip` feeds a Markdown export that lands

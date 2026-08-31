@@ -103,8 +103,8 @@ rows. A cell that closes half the box is usually a position, not an option.
    your tool reports when it loads this skill. Join that directory to
    `render.mjs`. Do not write a fixed path. **Lead the findings in chat with
    the problem, in your own words.** The renderer prints it first for that
-   reason. A finding names two rows that fight; the problem says what the fight
-   is for. Then give the findings:
+   reason. A finding names two rows that exclude each other. The problem says
+   what the reader loses either way. Then give the findings:
 
    ```bash
    node <skill base directory>/render.mjs <scratch>/<topic>.box.json
@@ -183,7 +183,7 @@ opens a kept box a month later then sees row names and a grid, and no question.
 Write the brief first, before the rows. It is the test for each row. A row that
 serves no part of the problem does not belong in the box.
 
-**The page pins the brief** at the top of the findings panel, so it stays on
+**The page holds the brief** at the top of the findings panel, so it stays on
 screen while the reader scrolls the grid. The export carries the problem, and
 `--check` prints it before the verdict. Write it for a stranger: every one of
 those readers may be one.
@@ -273,16 +273,16 @@ A preset is a title, a one-sentence `text`, and steps run in order from chips on
 the page. A step sets options, opens a row, switches view, resets, or turns coach
 mode on. The page prints the `text` above the steps.
 
-**A preset may also carry a `reframe`: one sentence saying what the problem
+**A preset may also carry a `reframe`: one sentence that says what the problem
 becomes here.** It is optional, and it is not the `text`. The `text` says what
-the reader sees; the `reframe` says what the box now decides. The page prints it
-in the brief, under the problem, while that preset owns the grid. The reader's
-own pick stops it, so a sentence written for one configuration never sits over
-another.
+the reader sees. The `reframe` says what the box now decides. The page prints it
+in the brief, under the problem, while that preset still describes the grid. The
+reader's own pick stops it, so a sentence written for one configuration never
+shows over another.
 
 > *The strawman run.* **text:** Set the strawman and open the row it closes.
-> **reframe:** The problem becomes whether the weak answers were ever really
-> ruled out.
+> **reframe:** The problem becomes whether anything in the box rules the weak
+> answers out.
 
 Pick from these archetypes. The first is cheap; the rest are what earn the box.
 
