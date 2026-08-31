@@ -32,9 +32,54 @@ Stated with line numbers, because "it escapes things" is not a threat model:
   `innerHTML`. **It does not escape the double quote.** The template calls it at
   `skills/eagle-eye/lib/template.html:257`; `render.mjs` inlines the module into the page,
   so the page and the test run the same function.
+- **The six findings escape the same way.** They are built in
+  `skills/eagle-eye/lib/eagle-eye.js`, not in the template, and the page assigns their
+  text to `innerHTML` at `skills/eagle-eye/lib/template.html:318`. Every row name,
+  option name and `why` a finding prints goes through the escape. Until
+  version 0.3.5 they did not, and a row name containing a tag reached the page
+  as markup.
 - **No box text reaches an HTML attribute today.** Every interpolated attribute
   in the template holds an option id, a number, or a fixed class name, and ids
-  are validated against `^[a-z0-9][a-z0-9-]*$` at `skills/eagle-eye/render.mjs:27`.
+  are validated against `^[a-z0-9][a-z0-9-]*# Security
+
+## What this project is, in threat terms
+
+`grimoire` is a marketplace of Claude Code skills. A skill is prose plus, in
+eagle-eye's case, a renderer: `render.mjs` reads a box file — JSON — and writes
+one self-contained HTML page. There is no server, no account, no database, and
+nothing is uploaded anywhere. Node runs the renderer locally, and the reader
+opens the page in a browser.
+
+So the realistic risks are narrow, and worth naming precisely:
+
+- **A box file is input from a stranger.** The point of eagle-eye is that
+  people share configurations. A `.box.json` you did not write becomes an HTML
+  page you open, and its text lands in the page. That is the main risk in this
+  repository.
+- **A skill is an instruction file an agent obeys.** Anybody who can change a
+  `SKILL.md` here can change what Claude does on a reader's machine. That is
+  what branch protection is for, below.
+- **A dependency reaching a reader.** The renderer imports node built-in
+  modules only, so there is no dependency tree to poison today. That is a fact
+  about now, not a guarantee about later.
+
+## What the renderer actually does with box text
+
+Stated with line numbers, because "it escapes things" is not a threat model:
+
+- **`skills/eagle-eye/render.mjs:155` escapes `</` before it writes the box JSON into a
+  `<script>` block**, so a `why` string that contains `</script>` cannot close
+  the block.
+- **`skills/eagle-eye/lib/eagle-eye.js:17` escapes `&` and `<`** before box text reaches
+  `innerHTML`. **It does not escape the double quote.** The template calls it at
+  `skills/eagle-eye/lib/template.html:257`; `render.mjs` inlines the module into the page,
+  so the page and the test run the same function.
+ at `skills/eagle-eye/render.mjs:27`.
+  One attribute is written by the module rather than the template — the tier
+  name in `class="tier …"` on the *weakest edge* finding — and the module
+  reduces anything that is not `measured`, `sourced` or `argued` to `argued`
+  before it writes it. `render.mjs` refuses such a box anyway; the module does
+  not lean on that.
 
 Those two facts hold together. The escape is narrow, and it is enough only
 because nothing puts box text where a quote would matter. **If somebody adds an
@@ -57,23 +102,18 @@ An earlier version of this file recorded the opposite — "No test covers the
 escape function" — which was true when it was written and is the reason the
 tests exist.
 
-**Five findings put box text into their HTML without the escape, and that is
-now fixed.** The findings in `lib/eagle-eye.js` are built as HTML strings, and
-the page writes them with `innerHTML`. Five of the six interpolated a row name,
-an option name or an edge `why` without `esc`, so a crafted box file put markup
-straight into the page — the exact threat the first bullet of this section
-names. The sixth interpolates only counts and a fixed verdict word.
-Every one of them escapes now, and `tests/render.test.mjs` renders a box that
-carries a tag in each of those places and asserts the tag arrives escaped. The
-finding prints through `strip` on the command line, which deletes a real tag
-and leaves an escaped one alone, so the test goes red on a renderer that stops
-escaping.
+`tests/esc.test.mjs` also runs one box whose row names, option names and `why`
+all carry `<img …>`, fires all six findings on it, and asserts that none of
+them writes the tag and that the names still appear as text. That test is at
+the module and not at the command line, because the findings are built in the
+browser: the payload never reaches the file `render.mjs` writes, and
+`--check` strips every tag before it prints.
 
-**What the tests do not cover.** They exercise the escape and what the findings
-put through it, not the `innerHTML` calls in the template. A test that asserted
+**What the tests do not cover.** They exercise the escape and the text the
+findings build, not the `innerHTML` calls that consume it. A test that asserted
 "no box text reaches an attribute" would need to parse the rendered page, and
-nothing here does that yet. The claim above is still read by a reviewer, not by
-a machine.
+nothing here does that yet. That claim is still read by a reviewer, not by a
+machine.
 
 ## Reporting a vulnerability
 
