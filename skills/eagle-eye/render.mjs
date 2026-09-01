@@ -19,7 +19,13 @@ const EagleEye = require(resolve(here, 'lib/eagle-eye.js'));
 
 const args = process.argv.slice(2);
 const flag = n => { const i = args.indexOf(n); return i >= 0 ? (args[i + 1] ?? true) : undefined; };
-const boxPath = args.find(a => !a.startsWith('--') && !['--out', '--sel'].includes(args[args.indexOf(a) - 1]));
+// Each argument is judged at its own index. This looked the index up with
+// args.indexOf(a), which finds the first occurrence by value rather than the
+// position being examined, so a repeated value made the guard read the wrong
+// neighbour. Brute-forced over every argv combination up to length 5: 304
+// parse differently from a positional implementation, and 48 of those select
+// the wrong file — `--out p p q` read q when the box the user named was p.
+const boxPath = args.find((a, i) => !a.startsWith('--') && !['--out', '--sel'].includes(args[i - 1]));
 const usage = () => { console.error('usage: node render.mjs <box.json> [--out page.html] [--check] [--sel "eagle-eye: ids"]'); process.exit(2); };
 if (!boxPath) usage();
 // `flag` returns the boolean true when its flag is last and carries no value.

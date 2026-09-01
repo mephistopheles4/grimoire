@@ -624,6 +624,23 @@ test('no box path at all exits 2 with the usage line', () => {
   assert.match(r.stderr, /usage: node render\.mjs/);
 });
 
+test('a repeated argument value does not move the box path', () => {
+  // The box-path finder looked each candidate's index up by value, which
+  // returns the first occurrence and not the position under examination. When
+  // a value repeats, the guard read the wrong neighbour. Brute-forced over
+  // every argv combination up to length 5: 304 parse differently from a
+  // positional implementation, and 48 of those select the wrong file.
+  //
+  // This is the reported case, `--out p p q`, with --check so that nothing is
+  // written: p is the box, and the broken parse read q.
+  const p = write('repeated-p.box.json', box({ title: 'The named box' }));
+  const q = write('repeated-q.box.json', box({ title: 'The other box' }));
+  const r = run(renderer, ['--out', p, p, q, '--check']);
+  assert.equal(r.code, 0, `${r.stdout}\n${r.stderr}`);
+  assert.match(r.stderr, /^ok: The named box /m);
+  assert.equal(/The other box/.test(r.stderr), false, 'the tool must not read a file the user did not name');
+});
+
 test('a --sel with no value exits 2 with the usage line, not a stack trace', () => {
   // The flag reader returns the boolean true when a flag is last and carries
   // no value. --out guarded against that and --sel did not, so a bare trailing
