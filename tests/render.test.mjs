@@ -287,6 +287,20 @@ test('--out writes the page with the box and the module inside it', () => {
   assert.match(html, /const EagleEye = \(\(\) => \{/);
 });
 
+test('a default render writes a page the repository already ignores', () => {
+  // With no --out the page landed beside the box as <name>.html, and
+  // .gitignore covers site/ but not that. Every default render left an
+  // untracked file in the working tree — four in the maintainer's checkout at
+  // the time. .gitignore already carries *.local.*, so the default name lands
+  // inside a rule the repository has rather than one it has to grow.
+  const p = write('defaulted.box.json', box());
+  const r = run(renderer, [p]);
+  assert.equal(r.code, 0, r.stderr);
+  assert.equal(existsSync(join(work, 'defaulted.html')), false, 'the untracked name must not come back');
+  assert.equal(existsSync(join(work, 'defaulted.local.html')), true);
+  assert.match(r.stderr, /wrote .*defaulted\.local\.html/);
+});
+
 test('the page loads no code from anywhere else', () => {
   // "Self-contained" is the claim README and SECURITY.md make, and it is true
   // of everything that runs: no script and no image is fetched. One external

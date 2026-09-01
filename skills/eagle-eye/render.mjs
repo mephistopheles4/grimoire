@@ -191,7 +191,14 @@ const html = template
   .replace('/*TITLE*/', () => box.title.replace(/[<>&]/g, ''))
   .replace('/*DATA*/', () => data)
   .replace('/*MODULE*/', () => module);
-const out = flag('--out') && flag('--out') !== true ? resolve(flag('--out')) : resolve(dirname(resolve(boxPath)), basename(boxPath).replace(/\.box\.json$|\.json$/, '') + '.html');
+// The default page is named .local.html, not .html. A default render writes
+// beside the box file, and a box file that lives in a repository left an
+// untracked page there every time — four in the maintainer's working tree when
+// this was found. .gitignore already carries *.local.*, so the default name
+// sits inside a rule the repository has rather than one it has to grow, and
+// the rule reads as what it is: this file was generated, do not commit it.
+// An explicit --out is untouched, and is what the site build passes.
+const out = flag('--out') && flag('--out') !== true ? resolve(flag('--out')) : resolve(dirname(resolve(boxPath)), basename(boxPath).replace(/\.box\.json$|\.json$/, '') + '.local.html');
 writeFileSync(out, html);
 console.error(`wrote ${out}`);
 console.log(findings(box));
