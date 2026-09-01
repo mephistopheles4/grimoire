@@ -74,6 +74,14 @@ lockfile, and any `.mjs` or `.js` file importing a bare specifier — an import
 path that is neither relative nor a `node:` builtin. Until this check existed
 the rule held only because the tree gave it nowhere to land.
 
+**Give every box file a name no other box file wants.**
+`scripts/build-pages.mjs` names each published page after the box file's path
+from the repository root, with the separators flattened:
+`docs/decisions/x.box.json` becomes `docs-decisions-x.html`. Flattening a path
+onto one name is not injective, so `grid/one.box.json` and `grid-one.box.json`
+both ask for `grid-one.html`. The build refuses and names both files rather
+than publishing one over the other. Rename one.
+
 **Give every code fence a language.** `node scripts/check.mjs` fails on a fence
 that declares none, and names the file and the line. Use `text` for a block
 that is neither code nor markup — a typed command, a plain example.
