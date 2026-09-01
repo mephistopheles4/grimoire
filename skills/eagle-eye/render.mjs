@@ -28,13 +28,21 @@ const flag = n => { const i = args.indexOf(n); return i >= 0 ? (args[i + 1] ?? t
 const boxPath = args.find((a, i) => !a.startsWith('--') && !['--out', '--sel'].includes(args[i - 1]));
 const usage = () => { console.error('usage: node render.mjs <box.json> [--out page.html] [--check] [--sel "eagle-eye: ids"]'); process.exit(2); };
 if (!boxPath) usage();
-// `flag` returns the boolean true when its flag is last and carries no value.
-// --out already tested for that; --sel did not, so a bare trailing --sel
-// reached findings() and called a string method on a boolean:
-// "TypeError: code.replace is not a function", where the usage line belongs.
+// A flag that takes a value has two ways to arrive without one: last on the
+// line, where `flag` returns the boolean true, or followed by another flag.
+// --out already tested for the first; --sel tested for neither.
+//
+// A bare trailing --sel reached findings() and called a string method on a
+// boolean: "TypeError: code.replace is not a function". `--sel --check` was
+// worse — findings() read "--check" as a restore code and threw an uncaught
+// "unknown option" with a stack trace. Both belong at the usage line.
+//
+// A restore code never begins with --, so treating a following flag as a
+// missing value costs nothing. Every occurrence is checked, not the first.
 // Checked here, with the other argument errors, so it does not depend on the
 // box being readable — and it exits 2, the code a missing box path produces.
-if (flag('--sel') === true) usage();
+const missingValue = n => args.some((a, i) => a === n && (args[i + 1] === undefined || args[i + 1].startsWith('--')));
+if (missingValue('--sel') || missingValue('--out')) usage();
 
 const TIERS = new Set(['measured', 'sourced', 'argued']);
 const KINDS = new Set(['conf', 'req']);

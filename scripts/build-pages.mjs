@@ -50,14 +50,18 @@ for (const box of files.filter(f => f.endsWith('.box.json'))) {
   // Flattening a path onto one name is not injective: grid/one.box.json and
   // grid-one.box.json both ask for grid-one.html. Refuse rather than overwrite,
   // which is the failure this whole change is about.
-  const taken = takenBy.get(name);
+  // Keyed case-insensitively. A.box.json and a.box.json produce two distinct
+  // names and one file on Windows and macOS, where the filesystem folds case —
+  // so the second page silently replaced the first on the machine this site is
+  // built from. Two boxes whose names differ only in case now refuse.
+  const taken = takenBy.get(name.toLowerCase());
   if (taken) {
     console.error(
       `${src} and ${taken} both render to site/${name} — rename one so each box has its own page. Two sources cannot share one output file; the second render overwrites the first and the page disappears from the site. See CONTRIBUTING.md.`,
     );
     process.exit(1);
   }
-  takenBy.set(name, src);
+  takenBy.set(name.toLowerCase(), src);
   pages.push({ name, src, box });
 }
 
@@ -67,7 +71,12 @@ for (const p of pages) {
 }
 
 const items = pages
-  .map(p => `    <li><a href="./${esc(p.name)}">${esc(p.title)}</a> <code>${esc(p.src)}</code></li>`)
+  // The href is percent-encoded, not escaped. `esc` deliberately leaves the
+  // double quote alone — SECURITY.md says so — and the page name comes from a
+  // file name, which on Linux and macOS may hold a quote. Escaped, such a name
+  // closed the attribute and wrote markup into the index. encodeURIComponent is
+  // what an href wants anyway: it also handles the space and the hash.
+  .map(p => `    <li><a href="./${encodeURIComponent(p.name)}">${esc(p.title)}</a> <code>${esc(p.src)}</code></li>`)
   .join('\n');
 
 // The Drafting tokens the rendered pages carry, copied rather than shared. A

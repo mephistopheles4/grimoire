@@ -273,8 +273,11 @@ for (const f of files.filter(f => MANIFESTS.has(basename(f)))) {
 // comment line is skipped, and the two static forms have to begin their line,
 // which is where a hoisted import lives. A dynamic import and a require are
 // read anywhere but a comment, because those two can hide inside an
-// expression. One gap stays open and is cheap to live with: a trailing
-// comment on a line of code is still read as code.
+// expression. Two gaps stay open and are cheap to live with: a trailing
+// comment on a line of code is still read as code, and a comment written
+// between the keyword and the specifier — `import /* c */ 'pkg'` — is not
+// seen. Closing the second needs a tokenizer, which is a dependency or a
+// hand-rolled parser, and this rule exists to keep both out.
 const COMMENT = /^\s*(\/\/|\*|\/\*)/;
 // A static form needs the word `from` before its quote, or it is a bare
 // side-effect import. Without that, `export const renderer = join(root,
@@ -282,6 +285,12 @@ const COMMENT = /^\s*(\/\/|\*|\/\*)/;
 // false failures on tests/helpers.mjs, which is how this line got written.
 const FROM = /^\s*(?:import|export)\b[^'"]*\bfrom\s*(['"])([^'"]+)\1/;
 const SIDE_EFFECT = /^\s*import\s*(['"])([^'"]+)\1/;
+// The closing line of a wrapped import. `import {` ... `} from 'chalk';` is
+// ordinary formatting for a long import list, and read a line at a time none
+// of the patterns above see it — a bare dependency in the most common shape a
+// formatter produces. A prose line does not begin with a brace, so this costs
+// no false positive.
+const WRAPPED = /^\s*[}]\s*from\s*(['"])([^'"]+)\1/;
 const CALLED = [
   /\bimport\s*\(\s*(['"])([^'"]+)\1/g,
   /\brequire\s*\(\s*(['"])([^'"]+)\1/g,
@@ -295,7 +304,7 @@ for (const f of files.filter(f => /\.(mjs|js)$/.test(f))) {
     .forEach((line, i) => {
       if (COMMENT.test(line)) return;
       const found = [];
-      for (const re of [FROM, SIDE_EFFECT]) {
+      for (const re of [FROM, SIDE_EFFECT, WRAPPED]) {
         const m = re.exec(line);
         if (m) found.push(m[2]);
       }

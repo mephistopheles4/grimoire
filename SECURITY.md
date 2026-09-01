@@ -192,7 +192,9 @@ a threat model:
   visitor hits makes the request as well. `tests/render.test.mjs` asserts
   this is the only external reference on a rendered page and
   `tests/build-pages.test.mjs` asserts the same of the index, which makes a
-  third one a red test rather than a discovery —
+  third one a red test rather than a discovery. Both bound what the page
+  **loads on its own**; a link the reader clicks is not that, and the index
+  carries one to GitHub —
   **at one width**: the test reads `src` and `href` on a `script`, `link` or
   `img` element. A CSS `@import`, a `url()`, a `fetch` or an `iframe` is a
   second way out that stays green. Widening the test is cheap; nobody has

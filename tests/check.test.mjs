@@ -250,6 +250,19 @@ test('a quoted string on an export line is not read as an import', () => {
   assertPasses(dir);
 });
 
+test('a bare import wrapped across lines is still caught', () => {
+  // `import {` ... `} from 'chalk';` is what a formatter produces for a long
+  // import list. Read one line at a time, none of the single-line patterns see
+  // it, so the most ordinary shape of a new dependency walked through.
+  const dir = tree();
+  const q = "'";
+  appendFileSync(
+    join(dir, 'skills', 'eagle-eye', 'lib', 'eagle-eye.js'),
+    `\nimport {\n  red,\n  blue,\n} from ${q}chalk${q};\n`,
+  );
+  assertFails(dir, /eagle-eye\.js:\d+ imports "chalk"/);
+});
+
 test('a node: builtin and a relative path are not dependencies', () => {
   const dir = tree();
   appendFileSync(join(dir, 'scripts', 'build-pages.mjs'), "\nimport { sep as s2 } from 'node:path';\nimport './lib/tree.mjs';\n");

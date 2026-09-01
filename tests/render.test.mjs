@@ -624,6 +624,25 @@ test('no box path at all exits 2 with the usage line', () => {
   assert.match(r.stderr, /usage: node render\.mjs/);
 });
 
+test('a --sel whose value is another flag exits 2, not a stack trace', () => {
+  // The first guard tested only for --sel last on the line. `--sel --check`
+  // handed findings() the string "--check" as a restore code, which threw an
+  // uncaught "unknown option" and printed a stack trace — the same failure the
+  // guard was written to remove, one argument shape over.
+  const r = run(renderer, [exampleBox, '--sel', '--check']);
+  assert.equal(r.code, 2, `${r.stdout}\n${r.stderr}`);
+  assert.match(r.stderr, /usage: node render\.mjs/);
+  assert.equal(/unknown option|at Object|at Module/.test(r.stderr), false, 'a usage error is not a crash');
+});
+
+test('a --sel that does carry a restore code still works', () => {
+  // The guard reads a following flag as a missing value. A restore code never
+  // begins with --, so this is the case that must not regress.
+  const r = run(renderer, [write('sel-ok.box.json', box()), '--sel', 'eagle-eye: a2']);
+  assert.equal(r.code, 0, `${r.stdout}\n${r.stderr}`);
+  assert.match(r.stdout, /verdict:/);
+});
+
 test('a repeated argument value does not move the box path', () => {
   // The box-path finder looked each candidate's index up by value, which
   // returns the first occurrence and not the position under examination. When

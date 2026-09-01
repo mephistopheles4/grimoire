@@ -137,6 +137,39 @@ test('a box that wants the listing page name refuses, rather than being overwrit
   assert.match(r.stderr, /listing page/);
 });
 
+test('two box names differing only in case refuse, because one filesystem folds them', () => {
+  // Windows and macOS fold case, so two destinations differing only in case are
+  // one file there — and that is the machine this site is built from. Two
+  // distinct collision keys, one destination, second page silently gone.
+  //
+  // The two sources cannot themselves differ only in case: this test would then
+  // write one file on the filesystem it is written for, which is the whole
+  // point. So they differ by a directory boundary and collide once flattened —
+  // one/Two.box.json and ONE-two.box.json both want one-two.html.
+  const dir = tree();
+  writeBox(dir, 'one/Two.box.json', 'Under a directory');
+  writeBox(dir, 'ONE-two.box.json', 'Beside it, in another case');
+  const r = run(buildIn(dir), [], { cwd: dir });
+  assert.equal(r.code, 1, `${r.stdout}\n${r.stderr}`);
+  assert.match(r.stderr, /both render to/i);
+});
+
+test('the index links a page by a percent-encoded href', () => {
+  // esc deliberately leaves the double quote alone, and the page name comes
+  // from a file name. Escaped into href="...", a name holding a quote closed
+  // the attribute and wrote markup into the index. An href wants encoding, not
+  // escaping, and encoding has no quote to leave behind.
+  const dir = tree();
+  const r = run(buildIn(dir), [], { cwd: dir });
+  assert.equal(r.code, 0, `${r.stdout}\n${r.stderr}`);
+  const index = readFileSync(site(dir, 'index.html'), 'utf8');
+  // Every href in the list points at one file and nothing follows it.
+  for (const href of index.match(/href="\.\/[^"]*"/g) || []) {
+    assert.equal(/[<>'\\]/.test(href), false, `unencoded character in ${href}`);
+  }
+  assert.ok(index.includes('href="./skills-eagle-eye-examples-eagle-eye-skill.html"'));
+});
+
 test('two sources that want one page name refuse, rather than overwrite', () => {
   // Flattening a path onto one name is not injective: a/b.box.json and
   // a-b.box.json both ask for a-b.html. The guard the basename version needed.
