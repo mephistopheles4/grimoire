@@ -79,6 +79,29 @@ test('the box the skill ships still publishes, and the index links it', () => {
   assert.match(index, /skills\/eagle-eye\/examples\/eagle-eye-skill\.box\.json/);
 });
 
+test('the index is the same design as the pages it links', () => {
+  // The index carried its own sans-serif stack and declared
+  // `color-scheme: light dark`. The pages use the Drafting tokens and declare
+  // no color-scheme at all, so on a dark-mode browser the index rendered dark
+  // and every page it linked rendered light: a visible flip on each
+  // click-through, not a style inconsistency.
+  const dir = tree();
+  const r = run(buildIn(dir), [], { cwd: dir });
+  assert.equal(r.code, 0, `${r.stdout}\n${r.stderr}`);
+  const index = readFileSync(site(dir, 'index.html'), 'utf8');
+  const page = readFileSync(site(dir, 'skills-eagle-eye-examples-eagle-eye-skill.html'), 'utf8');
+
+  for (const token of ['--dw-paper', '--dw-ink', '--dw-font']) {
+    assert.match(index, new RegExp(token), `the index must carry ${token}`);
+    assert.match(page, new RegExp(token));
+  }
+  assert.match(index, /IBM\+Plex\+Mono/);
+  assert.equal(/ui-sans-serif/.test(index), false, 'the index must not keep its own type stack');
+  // The same light/dark commitment, which is to make none.
+  assert.equal(/color-scheme/.test(page), false);
+  assert.equal(/color-scheme/.test(index), false, 'the index must not flip a dark browser to light');
+});
+
 test('two sources that want one page name refuse, rather than overwrite', () => {
   // Flattening a path onto one name is not injective: a/b.box.json and
   // a-b.box.json both ask for a-b.html. The guard the basename version needed.

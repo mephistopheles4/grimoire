@@ -64,6 +64,16 @@ const items = pages
   .map(p => `    <li><a href="./${esc(p.name)}">${esc(p.title)}</a> <code>${esc(p.src)}</code></li>`)
   .join('\n');
 
+// The Drafting tokens the rendered pages carry, copied rather than shared. A
+// stylesheet in site/ would be one request every page has to make, and every
+// page here is self-contained — the claim README and SECURITY.md both make.
+//
+// The index used to set its own ui-sans-serif stack and declare
+// `color-scheme: light dark`. template.html declares no color-scheme and
+// carries no prefers-color-scheme block, so a dark-mode browser rendered the
+// index dark and every page it linked light: a visible flip on each
+// click-through, and two designs for one thing. Same tokens now, and the same
+// light/dark commitment, which is to make none.
 writeFileSync(
   join(out, 'index.html'),
   `<!doctype html>
@@ -72,16 +82,36 @@ writeFileSync(
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>grimoire — eagle-eye boxes</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&display=swap">
 <style>
-  :root { color-scheme: light dark; }
-  body { font: 16px/1.6 ui-sans-serif, system-ui, sans-serif; max-width: 42rem; margin: 4rem auto; padding: 0 1.5rem; }
-  h1 { font-size: 1.4rem; }
-  li { margin: .6rem 0; }
-  code { font-size: .8em; opacity: .6; }
+:root{
+  --dw-paper:#fafaf7; --dw-ink:#22262b; --dw-caution:#d97706;
+  --dw-ink-80:rgb(34 38 43 / .8); --dw-ink-55:rgb(34 38 43 / .55); --dw-ink-12:rgb(34 38 43 / .12); --dw-grid:rgb(34 38 43 / .05);
+  --dw-font:'IBM Plex Mono',ui-monospace,'SFMono-Regular',Menlo,Consolas,monospace;
+  --sp-3:20px; --sp-4:28px; --sp-gutter:36px;
+  --ease:cubic-bezier(.2,.7,.3,1);
+}
+*{box-sizing:border-box}
+html,body{height:100%}
+body{margin:0;font-family:var(--dw-font);font-size:15px;line-height:1.6;color:var(--dw-ink);background-color:var(--dw-paper);
+  background-image:linear-gradient(to right,var(--dw-grid) 1px,transparent 1px),linear-gradient(to bottom,var(--dw-grid) 1px,transparent 1px);background-size:24px 24px}
+.page{min-height:100%;padding:var(--sp-4);display:flex}
+.sheet{flex:1;max-width:64rem;margin:0 auto;border:2px solid var(--dw-ink);background:rgb(250 250 247 / .72);padding:var(--sp-4) var(--sp-gutter)}
+.label{font-size:11px;text-transform:uppercase;letter-spacing:.16em;font-weight:500;color:var(--dw-ink-55)}
+h1{font-size:24px;font-weight:600;line-height:1.25;margin:10px 0 var(--sp-3)}
+p{max-width:78ch;color:var(--dw-ink-80)}
+ul{list-style:none;padding:0;margin:var(--sp-4) 0;border-top:1px solid var(--dw-ink-12)}
+li{border-bottom:1px solid var(--dw-ink-12);padding:14px 0;display:flex;gap:var(--sp-3);align-items:baseline;flex-wrap:wrap}
+a{color:var(--dw-ink);text-decoration-color:var(--dw-ink-55);text-underline-offset:3px;
+  transition:color .16s var(--ease),text-decoration-color .16s var(--ease)}
+a:hover{color:var(--dw-caution);text-decoration-color:var(--dw-caution)}
+code{font-size:12px;color:var(--dw-ink-55)}
 </style>
 </head>
 <body>
-  <h1>grimoire — eagle-eye</h1>
+<div class="page"><div class="sheet">
+  <div class="label">grimoire</div>
+  <h1>eagle-eye</h1>
   <p>Each page below is one morphological box. Click an option to change it, and
   the page reads the configuration back: what fights, what is missing, and what
   you have not looked at.</p>
@@ -89,6 +119,7 @@ writeFileSync(
 ${items}
   </ul>
   <p><a href="https://github.com/mephistopheles4/grimoire">Source on GitHub</a></p>
+</div></div>
 </body>
 </html>
 `,
