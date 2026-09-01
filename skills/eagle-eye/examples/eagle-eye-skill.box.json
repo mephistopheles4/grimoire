@@ -179,7 +179,7 @@
       "opts": [
         {
           "id": "home-user",
-          "label": "User-level: ~/.claude/skills",
+          "label": "User-level: the user's own skills directory",
           "chosen": true,
           "src": "chat Q6",
           "short": "User-level"

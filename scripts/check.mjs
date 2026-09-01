@@ -42,17 +42,33 @@ for (const box of boxes) {
   }
 }
 
-// 2. No fixed paths in a skill.
+// 2. No fixed paths in anything a skill ships.
+//
+// This read files named SKILL.md, so the three patterns never ran against a
+// skill's lib/, reference/, renderer or schema. A hardcoded home directory
+// anywhere but the skill's own prose passed the gate that exists to catch it.
+//
+// Scoped to skills/ and not to the whole tree, because the rule is about what
+// lands on somebody else's computer under an install route nobody here
+// chooses. A repository script is not that, and tests/check.test.mjs carries
+// two of these patterns on purpose — as the strings that prove the rule works.
 const FIXED = [/~\/\.claude/, /\/home\/[a-z]/i, /C:\\Users\\/i];
+// A minified file is one long line, and a refusal nobody can read is a refusal
+// nobody acts on.
+const excerpt = s => (s.length > 120 ? `${s.slice(0, 117)}...` : s);
+for (const shipped of files.filter(f => rel(f).startsWith('skills/'))) {
+  readFileSync(shipped, 'utf8')
+    .split('\n')
+    .forEach((line, i) => {
+      if (line.trimStart().startsWith('>')) return; // a quoted example is not an instruction
+      for (const re of FIXED) {
+        if (re.test(line)) fail(`${rel(shipped)}:${i + 1} holds a fixed path: ${excerpt(line.trim())}`);
+      }
+    });
+}
+
 for (const skill of files.filter(f => f.endsWith('SKILL.md'))) {
-  const text = readFileSync(skill, 'utf8');
-  text.split('\n').forEach((line, i) => {
-    if (line.trimStart().startsWith('>')) return; // a quoted example is not an instruction
-    for (const re of FIXED) {
-      if (re.test(line)) fail(`${rel(skill)}:${i + 1} holds a fixed path: ${line.trim()}`);
-    }
-  });
-  if (!/^---\r?\n[\s\S]*?^name:/m.test(text)) {
+  if (!/^---\r?\n[\s\S]*?^name:/m.test(readFileSync(skill, 'utf8'))) {
     fail(`${rel(skill)} has no frontmatter name — the invocation name would follow the directory`);
   }
 }

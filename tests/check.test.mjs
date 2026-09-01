@@ -124,6 +124,24 @@ test('a fixed Windows path in a SKILL.md fails', () => {
   assertFails(dir, /holds a fixed path/);
 });
 
+test('a fixed path in any file a skill ships fails, not only in its prose', () => {
+  // Filtered to SKILL.md, the three patterns never ran against lib/,
+  // reference/, the renderer or the schema. A hardcoded home directory
+  // anywhere but the skill's own prose passed the gate that exists to catch it.
+  const dir = tree();
+  appendFileSync(join(dir, 'skills', 'eagle-eye', 'lib', 'eagle-eye.js'), '\n// installed at /home/someone/.claude/skills\n');
+  assertFails(dir, /lib\/eagle-eye\.js:\d+ holds a fixed path/);
+});
+
+test('a fixed path outside skills/ does not fail, because nothing ships it', () => {
+  // The rule is about what lands on somebody else's computer under an install
+  // route nobody here chooses. A repository script is not that, and this
+  // file's own tests carry two of the patterns on purpose.
+  const dir = tree();
+  appendFileSync(join(dir, 'scripts', 'build-pages.mjs'), '\n// a note naming ~/.claude/skills/, shipped to nobody\n');
+  assertPasses(dir);
+});
+
 test('a fixed path inside a block quote does not fail, because it is an example', () => {
   const dir = tree();
   appendFileSync(skillMd(dir), '\n> Never write ~/.claude/skills/ into a skill.\n');
