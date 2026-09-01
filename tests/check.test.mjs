@@ -174,6 +174,42 @@ test('the single-pass tag strip cannot come back', () => {
   assertFails(dir, /strips tags in one pass/);
 });
 
+// ---- zero dependencies ----
+// check.mjs opens with "Zero dependencies, one command" and CONTRIBUTING says
+// it twice as a rule for patches. Nothing enforced it: no check mentioned
+// package.json outside a comment, no test covered it, and CI runs this script
+// and nothing else. A patch adding a manifest and a dependency went green.
+
+test('a dependency manifest anywhere in the tree fails', () => {
+  const dir = tree();
+  writeFileSync(join(dir, 'package.json'), '{"name":"grimoire","dependencies":{}}\n');
+  assertFails(dir, /package\.json: a dependency manifest or lockfile/);
+});
+
+test('a lockfile fails on its own, with no manifest beside it', () => {
+  const dir = tree();
+  writeFileSync(join(dir, 'skills', 'eagle-eye', 'pnpm-lock.yaml'), 'lockfileVersion: 9\n');
+  assertFails(dir, /pnpm-lock\.yaml: a dependency manifest or lockfile/);
+});
+
+test('a bare import fails, naming the file and the specifier', () => {
+  // A dependency needs no manifest to be a dependency.
+  //
+  // The specifier is assembled rather than written whole, for the reason the
+  // single-pass test above gives: written whole, this line would carry the
+  // shape it tests, and the suite would fail its own check.
+  const dir = tree();
+  const q = "'";
+  appendFileSync(join(dir, 'skills', 'eagle-eye', 'lib', 'eagle-eye.js'), `\nimport chalk from ${q}chalk${q};\n`);
+  assertFails(dir, /eagle-eye\.js imports "chalk"/);
+});
+
+test('a node: builtin and a relative path are not dependencies', () => {
+  const dir = tree();
+  appendFileSync(join(dir, 'scripts', 'build-pages.mjs'), "\nimport { sep as s2 } from 'node:path';\nimport './lib/tree.mjs';\n");
+  assertPasses(dir);
+});
+
 test('a marketplace entry that names a different plugin fails', () => {
   const dir = tree();
   const p = join(dir, '.claude-plugin', 'marketplace.json');

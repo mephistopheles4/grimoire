@@ -4,17 +4,19 @@
 //   node scripts/check.mjs
 //
 // 1. Every *.box.json in the tree validates against the eagle-eye renderer.
-// 2. No SKILL.md carries a fixed path. A skill lands in a different directory
-//    under every install route, so a path that names one of them is a defect.
+// 2. No file a skill ships carries a fixed path. A skill lands in a different
+//    directory under every install route, so a path naming one is a defect.
 // 3. The single-pass tag strip does not come back, and no code fence in any
 //    markdown file declares no language.
 // 4. Every plugin in the marketplace manifest exists on disk with a manifest.
 // 5. A change to a skill carries a version bump.
-// 6. The test suite passes. `node --test` ships with Node, so the tests cost no
+// 6. Nothing in the tree takes a dependency: no manifest, no lockfile, and no
+//    import of a bare specifier.
+// 7. The test suite passes. `node --test` ships with Node, so the tests cost no
 //    dependency and this stays one command.
 
 import { readdirSync, readFileSync, statSync } from 'node:fs';
-import { join, relative, sep } from 'node:path';
+import { basename, join, relative, sep } from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { walk } from './lib/tree.mjs';
@@ -218,7 +220,58 @@ if (!mergeBase) {
   }
 }
 
-// 6. The test suite runs here, under the same one command.
+// 6. Zero dependencies — the claim this file opens with.
+//
+// CONTRIBUTING states it twice as a rule for patches and nothing enforced it:
+// no check mentioned package.json outside a comment, no test covered it, and
+// CI runs this script and nothing else. A patch adding a manifest and a
+// dependency went green. The rule held only because the tree gave it nowhere
+// to land.
+//
+// Two ways in, so two rules. A manifest or a lockfile is the install step this
+// repository does not have. A bare specifier — an import path that is neither
+// relative nor a node builtin — is a dependency whether or not a manifest
+// declares it.
+//
+// Say the width. This reads string literals: a from-clause, a side-effect
+// import, a dynamic import and a require. A computed path cannot be read here
+// and is not flagged, which is how build-pages.mjs and render.mjs both reach
+// the shared module. Neither rule can skip, so neither has a note to print.
+const MANIFESTS = new Set([
+  'package.json',
+  'package-lock.json',
+  'npm-shrinkwrap.json',
+  'yarn.lock',
+  'pnpm-lock.yaml',
+  'pnpm-workspace.yaml',
+  'bun.lock',
+  'bun.lockb',
+]);
+for (const f of files.filter(f => MANIFESTS.has(basename(f)))) {
+  fail(
+    `${rel(f)}: a dependency manifest or lockfile — delete it. This repository takes no dependency and has no install step, which is what lets the tests run on \`node --test\` and the skill run from a checkout. See CONTRIBUTING.md, "Do not add a dependency", and SECURITY.md for why it matters more than it looks.`,
+  );
+}
+
+const SPECIFIER = [
+  /\bfrom\s*(['"])([^'"]+)\1/g,
+  /\bimport\s*\(\s*(['"])([^'"]+)\1/g,
+  /\bimport\s+(['"])([^'"]+)\1/g,
+  /\brequire\s*\(\s*(['"])([^'"]+)\1/g,
+];
+for (const f of files.filter(f => /\.(mjs|js)$/.test(f))) {
+  const text = readFileSync(f, 'utf8');
+  for (const re of SPECIFIER) {
+    for (const [, , spec] of text.matchAll(re)) {
+      if (spec.startsWith('.') || spec.startsWith('/') || spec.startsWith('node:')) continue;
+      fail(
+        `${rel(f)} imports "${spec}" — import a relative path or a node: builtin instead. A bare specifier is a dependency, and this repository has none, so nothing installs it and the file does not load. See CONTRIBUTING.md, "Do not add a dependency".`,
+      );
+    }
+  }
+}
+
+// 7. The test suite runs here, under the same one command.
 //
 // `node --test` ships with Node and needs no manifest, no install and no
 // dependency, which is the only reason a repository with no package.json can
