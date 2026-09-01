@@ -26,13 +26,15 @@ after(() => rmSync(work, { recursive: true, force: true }));
 let n = 0;
 
 // A copy of everything check.mjs reads: the script, the renderer and its
-// module, one box file to validate, and both manifests.
+// module, one box file to validate, both manifests, and .gitignore — the walk
+// reads that file to decide what it does not enter.
 function tree() {
   const dir = join(work, `case-${n++}`);
   mkdirSync(dir);
   for (const part of ['scripts', 'skills', '.claude-plugin']) {
     cpSync(join(root, part), join(dir, part), { recursive: true });
   }
+  cpSync(join(root, '.gitignore'), join(dir, '.gitignore'));
   return dir;
 }
 
@@ -72,6 +74,49 @@ test('a copy with no git history says the version check was skipped', () => {
   assert.match(assertPasses(tree()).stdout, /version bump check skipped/);
 });
 
+test('a stale worktree is not walked, because .gitignore excludes it', () => {
+  // The walkers used a hardcoded skip set that did not know about
+  // .claude/worktrees/, so the check descended into every stale worktree and
+  // validated other checkouts of itself. 19 failures on the maintainer's
+  // machine, 18 of them worktrees. CI never saw it: a fresh checkout has no
+  // worktrees, so the gate was red locally and green everywhere it was
+  // measured.
+  const dir = tree();
+  const stale = join(dir, '.claude', 'worktrees', 'older-branch');
+  mkdirSync(join(stale, 'skills', 'eagle-eye'), { recursive: true });
+  writeFileSync(join(stale, 'a.box.json'), '{"title":"not a box"}');
+  writeFileSync(join(stale, 'skills', 'eagle-eye', 'SKILL.md'), 'no frontmatter, and ~/.claude/skills/ as well\n');
+  assertPasses(dir);
+});
+
+test('a .gitignore pattern the reader cannot compile is named, not compiled wrong', () => {
+  // `**/x` expanded as two independent `*` matches exactly one directory
+  // level, and a character class is escaped to a literal. Both are valid
+  // .gitignore syntax producing a wrong answer, and a wrong answer here means
+  // the walk enters a directory git excludes — the bug the walk exists to fix.
+  const dir = tree();
+  appendFileSync(join(dir, '.gitignore'), '**/build/\n*.[bl]ak\n');
+  const r = assertPasses(dir);
+  assert.match(r.stdout, /2 pattern\(s\) not read/);
+  assert.match(r.stdout, /\*\*\/build\//);
+});
+
+test('a fixed path on a quoted line fails outside markdown, because > is not a quote there', () => {
+  // The exemption exists because a quoted example is not an instruction, and
+  // only a markdown file can quote. Rule 2 now reads .js, .json and .html
+  // under skills/, where a leading > is not quotation syntax.
+  const dir = tree();
+  appendFileSync(join(dir, 'skills', 'eagle-eye', 'lib', 'eagle-eye.js'), '\n// > installed at /home/someone/.claude\n');
+  assertFails(dir, /eagle-eye\.js:\d+ holds a fixed path/);
+});
+
+test('a tree with no .gitignore says so rather than skipping in silence', () => {
+  // A walk that quietly skips nothing reads as a walk that found everything.
+  const dir = tree();
+  rmSync(join(dir, '.gitignore'));
+  assert.match(assertPasses(dir).stdout, /no \.gitignore/);
+});
+
 test('a box file that does not validate fails the check by name', () => {
   const dir = tree();
   const box = join(dir, 'skills', 'eagle-eye', 'examples', 'eagle-eye-skill.box.json');
@@ -98,6 +143,24 @@ test('a fixed Windows path in a SKILL.md fails', () => {
   const dir = tree();
   appendFileSync(skillMd(dir), '\nOpen C:\\Users\\someone\\box.json first.\n');
   assertFails(dir, /holds a fixed path/);
+});
+
+test('a fixed path in any file a skill ships fails, not only in its prose', () => {
+  // Filtered to SKILL.md, the three patterns never ran against lib/,
+  // reference/, the renderer or the schema. A hardcoded home directory
+  // anywhere but the skill's own prose passed the gate that exists to catch it.
+  const dir = tree();
+  appendFileSync(join(dir, 'skills', 'eagle-eye', 'lib', 'eagle-eye.js'), '\n// installed at /home/someone/.claude/skills\n');
+  assertFails(dir, /lib\/eagle-eye\.js:\d+ holds a fixed path/);
+});
+
+test('a fixed path outside skills/ does not fail, because nothing ships it', () => {
+  // The rule is about what lands on somebody else's computer under an install
+  // route nobody here chooses. A repository script is not that, and this
+  // file's own tests carry two of the patterns on purpose.
+  const dir = tree();
+  appendFileSync(join(dir, 'scripts', 'build-pages.mjs'), '\n// a note naming ~/.claude/skills/, shipped to nobody\n');
+  assertPasses(dir);
 });
 
 test('a fixed path inside a block quote does not fail, because it is an example', () => {
@@ -130,6 +193,80 @@ test('the single-pass tag strip cannot come back', () => {
   const singlePass = '\nconst naive = s => s.replace(/<[^' + '>]+>/g, "");\n';
   writeFileSync(p, readFileSync(p, 'utf8') + singlePass);
   assertFails(dir, /strips tags in one pass/);
+});
+
+// ---- zero dependencies ----
+// check.mjs opens with "Zero dependencies, one command" and CONTRIBUTING says
+// it twice as a rule for patches. Nothing enforced it: no check mentioned
+// package.json outside a comment, no test covered it, and CI runs this script
+// and nothing else. A patch adding a manifest and a dependency went green.
+
+test('a dependency manifest anywhere in the tree fails', () => {
+  const dir = tree();
+  writeFileSync(join(dir, 'package.json'), '{"name":"grimoire","dependencies":{}}\n');
+  assertFails(dir, /package\.json: a dependency manifest or lockfile/);
+});
+
+test('a lockfile fails on its own, with no manifest beside it', () => {
+  const dir = tree();
+  writeFileSync(join(dir, 'skills', 'eagle-eye', 'pnpm-lock.yaml'), 'lockfileVersion: 9\n');
+  assertFails(dir, /pnpm-lock\.yaml: a dependency manifest or lockfile/);
+});
+
+test('a bare import fails, naming the file and the specifier', () => {
+  // A dependency needs no manifest to be a dependency.
+  //
+  // The specifier is assembled rather than written whole, for the reason the
+  // single-pass test above gives: written whole, this line would carry the
+  // shape it tests, and the suite would fail its own check.
+  const dir = tree();
+  const q = "'";
+  appendFileSync(join(dir, 'skills', 'eagle-eye', 'lib', 'eagle-eye.js'), `\nimport chalk from ${q}chalk${q};\n`);
+  assertFails(dir, /eagle-eye\.js:\d+ imports "chalk"/);
+});
+
+test('prose in a comment is not read as an import', () => {
+  // The first version of this rule scanned every line for a quoted string
+  // after the word "from", and flagged three prose sentences out of three
+  // tried. This repository writes long prose comments, so that was a
+  // CI-breaking false positive rather than a theoretical one.
+  const dir = tree();
+  const q = "'";
+  appendFileSync(
+    join(dir, 'scripts', 'build-pages.mjs'),
+    `\n// The tokens were copied from ${q}the rendered page${q}, not shared.\n` +
+      `// A refusal is different from "a warning".\n` +
+      `// Read import ${q}x${q} to mean a side-effect import.\n`,
+  );
+  assertPasses(dir);
+});
+
+test('a quoted string on an export line is not read as an import', () => {
+  // `export const renderer = join(root, 'skills', ...)` is not a re-export.
+  // Anchoring the rule to the start of the line without also requiring the
+  // word "from" failed tests/helpers.mjs three times over.
+  const dir = tree();
+  appendFileSync(join(dir, 'scripts', 'build-pages.mjs'), "\nexport const where = join(root, 'skills', 'eagle-eye');\n");
+  assertPasses(dir);
+});
+
+test('a bare import wrapped across lines is still caught', () => {
+  // `import {` ... `} from 'chalk';` is what a formatter produces for a long
+  // import list. Read one line at a time, none of the single-line patterns see
+  // it, so the most ordinary shape of a new dependency walked through.
+  const dir = tree();
+  const q = "'";
+  appendFileSync(
+    join(dir, 'skills', 'eagle-eye', 'lib', 'eagle-eye.js'),
+    `\nimport {\n  red,\n  blue,\n} from ${q}chalk${q};\n`,
+  );
+  assertFails(dir, /eagle-eye\.js:\d+ imports "chalk"/);
+});
+
+test('a node: builtin and a relative path are not dependencies', () => {
+  const dir = tree();
+  appendFileSync(join(dir, 'scripts', 'build-pages.mjs'), "\nimport { sep as s2 } from 'node:path';\nimport './lib/tree.mjs';\n");
+  assertPasses(dir);
 });
 
 test('a marketplace entry that names a different plugin fails', () => {

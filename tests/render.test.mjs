@@ -287,6 +287,20 @@ test('--out writes the page with the box and the module inside it', () => {
   assert.match(html, /const EagleEye = \(\(\) => \{/);
 });
 
+test('a default render writes a page the repository already ignores', () => {
+  // With no --out the page landed beside the box as <name>.html, and
+  // .gitignore covers site/ but not that. Every default render left an
+  // untracked file in the working tree — four in the maintainer's checkout at
+  // the time. .gitignore already carries *.local.*, so the default name lands
+  // inside a rule the repository has rather than one it has to grow.
+  const p = write('defaulted.box.json', box());
+  const r = run(renderer, [p]);
+  assert.equal(r.code, 0, r.stderr);
+  assert.equal(existsSync(join(work, 'defaulted.html')), false, 'the untracked name must not come back');
+  assert.equal(existsSync(join(work, 'defaulted.local.html')), true);
+  assert.match(r.stderr, /wrote .*defaulted\.local\.html/);
+});
+
 test('the page loads no code from anywhere else', () => {
   // "Self-contained" is the claim README and SECURITY.md make, and it is true
   // of everything that runs: no script and no image is fetched. One external
@@ -608,4 +622,52 @@ test('no box path at all exits 2 with the usage line', () => {
   const r = run(renderer, []);
   assert.equal(r.code, 2);
   assert.match(r.stderr, /usage: node render\.mjs/);
+});
+
+test('a --sel whose value is another flag exits 2, not a stack trace', () => {
+  // The first guard tested only for --sel last on the line. `--sel --check`
+  // handed findings() the string "--check" as a restore code, which threw an
+  // uncaught "unknown option" and printed a stack trace — the same failure the
+  // guard was written to remove, one argument shape over.
+  const r = run(renderer, [exampleBox, '--sel', '--check']);
+  assert.equal(r.code, 2, `${r.stdout}\n${r.stderr}`);
+  assert.match(r.stderr, /usage: node render\.mjs/);
+  assert.equal(/unknown option|at Object|at Module/.test(r.stderr), false, 'a usage error is not a crash');
+});
+
+test('a --sel that does carry a restore code still works', () => {
+  // The guard reads a following flag as a missing value. A restore code never
+  // begins with --, so this is the case that must not regress.
+  const r = run(renderer, [write('sel-ok.box.json', box()), '--sel', 'eagle-eye: a2']);
+  assert.equal(r.code, 0, `${r.stdout}\n${r.stderr}`);
+  assert.match(r.stdout, /verdict:/);
+});
+
+test('a repeated argument value does not move the box path', () => {
+  // The box-path finder looked each candidate's index up by value, which
+  // returns the first occurrence and not the position under examination. When
+  // a value repeats, the guard read the wrong neighbour. Brute-forced over
+  // every argv combination up to length 5: 304 parse differently from a
+  // positional implementation, and 48 of those select the wrong file.
+  //
+  // This is the reported case, `--out p p q`, with --check so that nothing is
+  // written: p is the box, and the broken parse read q.
+  const p = write('repeated-p.box.json', box({ title: 'The named box' }));
+  const q = write('repeated-q.box.json', box({ title: 'The other box' }));
+  const r = run(renderer, ['--out', p, p, q, '--check']);
+  assert.equal(r.code, 0, `${r.stdout}\n${r.stderr}`);
+  assert.match(r.stderr, /^ok: The named box /m);
+  assert.equal(/The other box/.test(r.stderr), false, 'the tool must not read a file the user did not name');
+});
+
+test('a --sel with no value exits 2 with the usage line, not a stack trace', () => {
+  // The flag reader returns the boolean true when a flag is last and carries
+  // no value. --out guarded against that and --sel did not, so a bare trailing
+  // --sel reached the findings function, which calls a string method on a
+  // boolean: "TypeError: code.replace is not a function", where the usage line
+  // belongs. 2 is the code a missing box path already produces.
+  const r = run(renderer, [exampleBox, '--sel']);
+  assert.equal(r.code, 2, `${r.stdout}\n${r.stderr}`);
+  assert.match(r.stderr, /usage: node render\.mjs/);
+  assert.equal(/TypeError/.test(r.stderr), false, 'a usage error is not a crash');
 });

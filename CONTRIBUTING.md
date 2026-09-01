@@ -11,10 +11,14 @@ node scripts/check.mjs
 ```
 
 That is the contract, and it is still one command. It validates every
-`*.box.json` in the tree with the eagle-eye renderer, checks that no `SKILL.md`
-has grown a fixed path back, fails on a code fence that declares no language,
-and runs the test suite in `tests/`. CI runs it as a required check called
-`check`. `main` takes no direct pushes.
+`*.box.json` in the tree with the eagle-eye renderer, checks that no file a
+skill ships has grown a fixed path back, fails on a code fence that declares no
+language, fails on a dependency, and runs the test suite in `tests/`. CI runs it
+as a required check called `check`. `main` takes no direct pushes.
+
+It walks what `.gitignore` does not exclude, so a worktree under
+`.claude/worktrees/` is not descended into and not checked. Only the root
+`.gitignore` is read.
 
 You need Node 20 or later and nothing else. There is no install step, because
 there are no dependencies.
@@ -29,7 +33,7 @@ not take, and `SECURITY.md` explains why that matters more than it looks.
 run only the suite while you work on it:
 
 ```bash
-node --test tests/esc.test.mjs tests/render.test.mjs tests/check.test.mjs
+node --test tests/esc.test.mjs tests/render.test.mjs tests/check.test.mjs tests/build-pages.test.mjs
 ```
 
 Two rules about what goes in there:
@@ -65,6 +69,20 @@ imports node built-in modules and nothing else. A patch that adds a package
 needs to argue for itself in the pull request body before anybody reads the
 diff. See [`SECURITY.md`](SECURITY.md) for why this matters more than it looks.
 
+`node scripts/check.mjs` enforces this. It fails on a `package.json`, a
+lockfile, and any `.mjs` or `.js` file importing a bare specifier — an import
+path that is not relative, not absolute, and not a `node:` builtin. It reads
+code and not prose, so a comment is skipped. Until this check existed the rule
+held only because the tree gave it nowhere to land.
+
+**Give every box file a name no other box file wants.**
+`scripts/build-pages.mjs` names each published page after the box file's path
+from the repository root, with the separators flattened:
+`docs/decisions/x.box.json` becomes `docs-decisions-x.html`. Flattening a path
+onto one name is not injective, so `grid/one.box.json` and `grid-one.box.json`
+both ask for `grid-one.html`. The build refuses and names both files rather
+than publishing one over the other. Rename one.
+
 **Give every code fence a language.** `node scripts/check.mjs` fails on a fence
 that declares none, and names the file and the line. Use `text` for a block
 that is neither code nor markup — a typed command, a plain example.
@@ -79,7 +97,11 @@ has taken. The rule catches a bare fence and nothing else.
 **Never write a fixed path to a file inside a skill.** A skill can be installed
 as a plugin, copied by hand, or vendored into a project, and each lands in a
 different directory. Reference the skill base directory the harness supplies.
-`scripts/check.mjs` fails on `~/.claude/` appearing in any `SKILL.md`.
+`scripts/check.mjs` fails on `~/.claude/` appearing in any file under `skills/`
+— the prose, the library, the reference pages, the renderer and the schema. A
+block-quoted line in a markdown file is exempt, because a quoted example is not
+an instruction. Only markdown is exempted: `>` is quotation in prose and is
+nothing in JavaScript, JSON or HTML.
 
 **Keep the frontmatter `name`.** Claude Code takes the skill's invocation name
 from it, so the name survives whatever the install directory is called.

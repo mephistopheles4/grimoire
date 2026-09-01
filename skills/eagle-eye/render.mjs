@@ -19,8 +19,30 @@ const EagleEye = require(resolve(here, 'lib/eagle-eye.js'));
 
 const args = process.argv.slice(2);
 const flag = n => { const i = args.indexOf(n); return i >= 0 ? (args[i + 1] ?? true) : undefined; };
-const boxPath = args.find(a => !a.startsWith('--') && !['--out', '--sel'].includes(args[args.indexOf(a) - 1]));
-if (!boxPath) { console.error('usage: node render.mjs <box.json> [--out page.html] [--check] [--sel "eagle-eye: ids"]'); process.exit(2); }
+// Each argument is judged at its own index. This looked the index up with
+// args.indexOf(a), which finds the first occurrence by value rather than the
+// position being examined, so a repeated value made the guard read the wrong
+// neighbour. Brute-forced over every argv combination up to length 5: 304
+// parse differently from a positional implementation, and 48 of those select
+// the wrong file — `--out p p q` read q when the box the user named was p.
+const boxPath = args.find((a, i) => !a.startsWith('--') && !['--out', '--sel'].includes(args[i - 1]));
+const usage = () => { console.error('usage: node render.mjs <box.json> [--out page.html] [--check] [--sel "eagle-eye: ids"]'); process.exit(2); };
+if (!boxPath) usage();
+// A flag that takes a value has two ways to arrive without one: last on the
+// line, where `flag` returns the boolean true, or followed by another flag.
+// --out already tested for the first; --sel tested for neither.
+//
+// A bare trailing --sel reached findings() and called a string method on a
+// boolean: "TypeError: code.replace is not a function". `--sel --check` was
+// worse — findings() read "--check" as a restore code and threw an uncaught
+// "unknown option" with a stack trace. Both belong at the usage line.
+//
+// A restore code never begins with --, so treating a following flag as a
+// missing value costs nothing. Every occurrence is checked, not the first.
+// Checked here, with the other argument errors, so it does not depend on the
+// box being readable — and it exits 2, the code a missing box path produces.
+const missingValue = n => args.some((a, i) => a === n && (args[i + 1] === undefined || args[i + 1].startsWith('--')));
+if (missingValue('--sel') || missingValue('--out')) usage();
 
 const TIERS = new Set(['measured', 'sourced', 'argued']);
 const KINDS = new Set(['conf', 'req']);
@@ -191,7 +213,14 @@ const html = template
   .replace('/*TITLE*/', () => box.title.replace(/[<>&]/g, ''))
   .replace('/*DATA*/', () => data)
   .replace('/*MODULE*/', () => module);
-const out = flag('--out') && flag('--out') !== true ? resolve(flag('--out')) : resolve(dirname(resolve(boxPath)), basename(boxPath).replace(/\.box\.json$|\.json$/, '') + '.html');
+// The default page is named .local.html, not .html. A default render writes
+// beside the box file, and a box file that lives in a repository left an
+// untracked page there every time — four in the maintainer's working tree when
+// this was found. .gitignore already carries *.local.*, so the default name
+// sits inside a rule the repository has rather than one it has to grow, and
+// the rule reads as what it is: this file was generated, do not commit it.
+// An explicit --out is untouched, and is what the site build passes.
+const out = flag('--out') && flag('--out') !== true ? resolve(flag('--out')) : resolve(dirname(resolve(boxPath)), basename(boxPath).replace(/\.box\.json$|\.json$/, '') + '.local.html');
 writeFileSync(out, html);
 console.error(`wrote ${out}`);
 console.log(findings(box));

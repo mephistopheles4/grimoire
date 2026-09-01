@@ -4,36 +4,32 @@
 //   node scripts/check.mjs
 //
 // 1. Every *.box.json in the tree validates against the eagle-eye renderer.
-// 2. No SKILL.md carries a fixed path. A skill lands in a different directory
-//    under every install route, so a path that names one of them is a defect.
+// 2. No file a skill ships carries a fixed path. A skill lands in a different
+//    directory under every install route, so a path naming one is a defect.
 // 3. The single-pass tag strip does not come back, and no code fence in any
 //    markdown file declares no language.
 // 4. Every plugin in the marketplace manifest exists on disk with a manifest.
 // 5. A change to a skill carries a version bump.
-// 6. The test suite passes. `node --test` ships with Node, so the tests cost no
+// 6. Nothing in the tree takes a dependency: no manifest, no lockfile, and no
+//    import of a bare specifier.
+// 7. The test suite passes. `node --test` ships with Node, so the tests cost no
 //    dependency and this stays one command.
 
 import { readdirSync, readFileSync, statSync } from 'node:fs';
-import { join, relative, sep } from 'node:path';
+import { basename, join, relative, sep } from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
+import { walk } from './lib/tree.mjs';
 
 const root = join(fileURLToPath(import.meta.url), '..', '..');
-const SKIP = new Set(['node_modules', '.git', 'site']);
 const failures = [];
 const fail = m => failures.push(m);
 const rel = p => relative(root, p).split(sep).join('/');
 
-function walk(dir, out = []) {
-  for (const e of readdirSync(dir, { withFileTypes: true })) {
-    if (e.isDirectory()) {
-      if (!SKIP.has(e.name)) walk(join(dir, e.name), out);
-    } else out.push(join(dir, e.name));
-  }
-  return out;
-}
-
-const files = walk(root);
+// The walk reads .gitignore rather than a hardcoded skip set. scripts/lib/tree.mjs
+// carries why, and it is shared with build-pages.mjs so the two cannot drift.
+const { files, notes: walkNotes } = walk(root);
+for (const n of walkNotes) console.log(`note: ${n}`);
 
 // 1. Box files validate.
 const boxes = files.filter(f => f.endsWith('.box.json'));
@@ -48,17 +44,41 @@ for (const box of boxes) {
   }
 }
 
-// 2. No fixed paths in a skill.
+// 2. No fixed paths in anything a skill ships.
+//
+// This read files named SKILL.md, so the three patterns never ran against a
+// skill's lib/, reference/, renderer or schema. A hardcoded home directory
+// anywhere but the skill's own prose passed the gate that exists to catch it.
+//
+// Scoped to skills/ and not to the whole tree, because the rule is about what
+// lands on somebody else's computer under an install route nobody here
+// chooses. A repository script is not that, and tests/check.test.mjs carries
+// all three of these patterns on purpose — as the strings that prove the rule
+// works. Counted from the file rather than remembered: an earlier draft of this
+// comment said two, and the third was added in the same change that wrote it.
 const FIXED = [/~\/\.claude/, /\/home\/[a-z]/i, /C:\\Users\\/i];
+// A minified file is one long line, and a refusal nobody can read is a refusal
+// nobody acts on.
+const excerpt = s => (s.length > 120 ? `${s.slice(0, 117)}...` : s);
+for (const shipped of files.filter(f => rel(f).startsWith('skills/'))) {
+  // The block-quote exemption is markdown only. `>` opens a quotation in prose
+  // and means nothing in JavaScript, JSON or HTML, so honouring it everywhere
+  // would let a fixed path walk through the gate on any line that happened to
+  // start with one. The exemption exists because a quoted example is not an
+  // instruction, and only a markdown file can quote.
+  const quotable = shipped.endsWith('.md');
+  readFileSync(shipped, 'utf8')
+    .split('\n')
+    .forEach((line, i) => {
+      if (quotable && line.trimStart().startsWith('>')) return;
+      for (const re of FIXED) {
+        if (re.test(line)) fail(`${rel(shipped)}:${i + 1} holds a fixed path: ${excerpt(line.trim())}`);
+      }
+    });
+}
+
 for (const skill of files.filter(f => f.endsWith('SKILL.md'))) {
-  const text = readFileSync(skill, 'utf8');
-  text.split('\n').forEach((line, i) => {
-    if (line.trimStart().startsWith('>')) return; // a quoted example is not an instruction
-    for (const re of FIXED) {
-      if (re.test(line)) fail(`${rel(skill)}:${i + 1} holds a fixed path: ${line.trim()}`);
-    }
-  });
-  if (!/^---\r?\n[\s\S]*?^name:/m.test(text)) {
+  if (!/^---\r?\n[\s\S]*?^name:/m.test(readFileSync(skill, 'utf8'))) {
     fail(`${rel(skill)} has no frontmatter name — the invocation name would follow the directory`);
   }
 }
@@ -208,7 +228,96 @@ if (!mergeBase) {
   }
 }
 
-// 6. The test suite runs here, under the same one command.
+// 6. Zero dependencies — the claim this file opens with.
+//
+// CONTRIBUTING states it twice as a rule for patches and nothing enforced it:
+// no check mentioned package.json outside a comment, no test covered it, and
+// CI runs this script and nothing else. A patch adding a manifest and a
+// dependency went green. The rule held only because the tree gave it nowhere
+// to land.
+//
+// Two ways in, so two rules. A manifest or a lockfile is the install step this
+// repository does not have. A bare specifier — an import path that is neither
+// relative nor a node builtin — is a dependency whether or not a manifest
+// declares it.
+//
+// Say the width, twice over. The rule reads .mjs and .js files only, so the
+// inline script in lib/template.html is not scanned — a dynamic import there
+// would pass. That file loads in a browser from a file: URL and has nowhere to
+// resolve a bare specifier from, so the gap is stated rather than closed.
+//
+// Within a file it reads string literals: a from-clause, a side-effect import,
+// a dynamic import and a require. A computed path cannot be read here and is
+// not flagged, which is how build-pages.mjs and render.mjs both reach the
+// shared module. Neither rule can skip, so neither has a note to print.
+const MANIFESTS = new Set([
+  'package.json',
+  'package-lock.json',
+  'npm-shrinkwrap.json',
+  'yarn.lock',
+  'pnpm-lock.yaml',
+  'pnpm-workspace.yaml',
+  'bun.lock',
+  'bun.lockb',
+]);
+for (const f of files.filter(f => MANIFESTS.has(basename(f)))) {
+  fail(
+    `${rel(f)}: a dependency manifest or lockfile — delete it. This repository takes no dependency and has no install step, which is what lets the tests run on \`node --test\` and the skill run from a checkout. See CONTRIBUTING.md, "Do not add a dependency", and SECURITY.md for why it matters more than it looks.`,
+  );
+}
+
+// Prose is not code, and this repository writes long prose comments. Scanning
+// every line for a quoted string after the word "from" flagged three sentences out
+// of three tried, including one that said a refusal is different from "a
+// warning" and one saying the tokens were copied from 'the rendered page'. So a
+// comment line is skipped, and the two static forms have to begin their line,
+// which is where a hoisted import lives. A dynamic import and a require are
+// read anywhere but a comment, because those two can hide inside an
+// expression. Two gaps stay open and are cheap to live with: a trailing
+// comment on a line of code is still read as code, and a comment written
+// between the keyword and the specifier — `import /* c */ 'pkg'` — is not
+// seen. Closing the second needs a tokenizer, which is a dependency or a
+// hand-rolled parser, and this rule exists to keep both out.
+const COMMENT = /^\s*(\/\/|\*|\/\*)/;
+// A static form needs the word `from` before its quote, or it is a bare
+// side-effect import. Without that, `export const renderer = join(root,
+// 'skills', ...)` read as a re-export of the package "skills" — three
+// false failures on tests/helpers.mjs, which is how this line got written.
+const FROM = /^\s*(?:import|export)\b[^'"]*\bfrom\s*(['"])([^'"]+)\1/;
+const SIDE_EFFECT = /^\s*import\s*(['"])([^'"]+)\1/;
+// The closing line of a wrapped import. `import {` ... `} from 'chalk';` is
+// ordinary formatting for a long import list, and read a line at a time none
+// of the patterns above see it — a bare dependency in the most common shape a
+// formatter produces. A prose line does not begin with a brace, so this costs
+// no false positive.
+const WRAPPED = /^\s*[}]\s*from\s*(['"])([^'"]+)\1/;
+const CALLED = [
+  /\bimport\s*\(\s*(['"])([^'"]+)\1/g,
+  /\brequire\s*\(\s*(['"])([^'"]+)\1/g,
+];
+// A relative path, an absolute path and a node: builtin all resolve with
+// nothing installed. Everything else is a package.
+const bare = spec => !spec.startsWith('.') && !spec.startsWith('/') && !spec.startsWith('node:');
+for (const f of files.filter(f => /\.(mjs|js)$/.test(f))) {
+  readFileSync(f, 'utf8')
+    .split('\n')
+    .forEach((line, i) => {
+      if (COMMENT.test(line)) return;
+      const found = [];
+      for (const re of [FROM, SIDE_EFFECT, WRAPPED]) {
+        const m = re.exec(line);
+        if (m) found.push(m[2]);
+      }
+      for (const re of CALLED) for (const m of line.matchAll(re)) found.push(m[2]);
+      for (const spec of found.filter(bare)) {
+        fail(
+          `${rel(f)}:${i + 1} imports "${spec}" — import a relative path or a node: builtin instead. A bare specifier is a dependency, and this repository has none, so nothing installs it and the file does not load. See CONTRIBUTING.md, "Do not add a dependency".`,
+        );
+      }
+    });
+}
+
+// 7. The test suite runs here, under the same one command.
 //
 // `node --test` ships with Node and needs no manifest, no install and no
 // dependency, which is the only reason a repository with no package.json can
