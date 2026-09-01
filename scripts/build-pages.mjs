@@ -5,11 +5,12 @@
 //
 //   node scripts/build-pages.mjs
 
-import { readdirSync, readFileSync, mkdirSync, writeFileSync } from 'node:fs';
+import { readFileSync, mkdirSync, writeFileSync } from 'node:fs';
 import { join, relative, sep } from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { createRequire } from 'node:module';
+import { walk } from './lib/tree.mjs';
 
 const root = join(fileURLToPath(import.meta.url), '..', '..');
 
@@ -21,16 +22,11 @@ const require = createRequire(import.meta.url);
 const { esc } = require(join(root, 'skills', 'eagle-eye', 'lib', 'eagle-eye.js'));
 const out = join(root, 'site');
 const renderer = join(root, 'skills', 'eagle-eye', 'render.mjs');
-const SKIP = new Set(['node_modules', '.git', 'site']);
 
-function walk(dir, acc = []) {
-  for (const e of readdirSync(dir, { withFileTypes: true })) {
-    if (e.isDirectory()) {
-      if (!SKIP.has(e.name)) walk(join(dir, e.name), acc);
-    } else if (e.name.endsWith('.box.json')) acc.push(join(dir, e.name));
-  }
-  return acc;
-}
+// The walk reads .gitignore rather than a hardcoded skip set, and it is the
+// same walk scripts/check.mjs uses. scripts/lib/tree.mjs carries why.
+const { files, note: walkNote } = walk(root);
+if (walkNote) console.log(`note: ${walkNote}`);
 
 mkdirSync(out, { recursive: true });
 
@@ -42,7 +38,7 @@ mkdirSync(out, { recursive: true });
 // Names are resolved before anything is rendered, so a refusal writes no page.
 const pages = [];
 const takenBy = new Map();
-for (const box of walk(root)) {
+for (const box of files.filter(f => f.endsWith('.box.json'))) {
   const src = relative(root, box).split(sep).join('/');
   const name = src.replace(/\.box\.json$/, '').replace(/\//g, '-') + '.html';
   // Flattening a path onto one name is not injective: grid/one.box.json and

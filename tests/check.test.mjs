@@ -26,13 +26,15 @@ after(() => rmSync(work, { recursive: true, force: true }));
 let n = 0;
 
 // A copy of everything check.mjs reads: the script, the renderer and its
-// module, one box file to validate, and both manifests.
+// module, one box file to validate, both manifests, and .gitignore — the walk
+// reads that file to decide what it does not enter.
 function tree() {
   const dir = join(work, `case-${n++}`);
   mkdirSync(dir);
   for (const part of ['scripts', 'skills', '.claude-plugin']) {
     cpSync(join(root, part), join(dir, part), { recursive: true });
   }
+  cpSync(join(root, '.gitignore'), join(dir, '.gitignore'));
   return dir;
 }
 
@@ -70,6 +72,28 @@ test('a copy with no git history says the version check was skipped', () => {
   // The rule cannot run without a merge base. It has to say so out loud: a
   // check that quietly does nothing is indistinguishable from one that passed.
   assert.match(assertPasses(tree()).stdout, /version bump check skipped/);
+});
+
+test('a stale worktree is not walked, because .gitignore excludes it', () => {
+  // The walkers used a hardcoded skip set that did not know about
+  // .claude/worktrees/, so the check descended into every stale worktree and
+  // validated other checkouts of itself. 19 failures on the maintainer's
+  // machine, 18 of them worktrees. CI never saw it: a fresh checkout has no
+  // worktrees, so the gate was red locally and green everywhere it was
+  // measured.
+  const dir = tree();
+  const stale = join(dir, '.claude', 'worktrees', 'older-branch');
+  mkdirSync(join(stale, 'skills', 'eagle-eye'), { recursive: true });
+  writeFileSync(join(stale, 'a.box.json'), '{"title":"not a box"}');
+  writeFileSync(join(stale, 'skills', 'eagle-eye', 'SKILL.md'), 'no frontmatter, and ~/.claude/skills/ as well\n');
+  assertPasses(dir);
+});
+
+test('a tree with no .gitignore says so rather than skipping in silence', () => {
+  // A walk that quietly skips nothing reads as a walk that found everything.
+  const dir = tree();
+  rmSync(join(dir, '.gitignore'));
+  assert.match(assertPasses(dir).stdout, /no \.gitignore/);
 });
 
 test('a box file that does not validate fails the check by name', () => {

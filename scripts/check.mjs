@@ -17,23 +17,17 @@ import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join, relative, sep } from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
+import { walk } from './lib/tree.mjs';
 
 const root = join(fileURLToPath(import.meta.url), '..', '..');
-const SKIP = new Set(['node_modules', '.git', 'site']);
 const failures = [];
 const fail = m => failures.push(m);
 const rel = p => relative(root, p).split(sep).join('/');
 
-function walk(dir, out = []) {
-  for (const e of readdirSync(dir, { withFileTypes: true })) {
-    if (e.isDirectory()) {
-      if (!SKIP.has(e.name)) walk(join(dir, e.name), out);
-    } else out.push(join(dir, e.name));
-  }
-  return out;
-}
-
-const files = walk(root);
+// The walk reads .gitignore rather than a hardcoded skip set. scripts/lib/tree.mjs
+// carries why, and it is shared with build-pages.mjs so the two cannot drift.
+const { files, note: walkNote } = walk(root);
+if (walkNote) console.log(`note: ${walkNote}`);
 
 // 1. Box files validate.
 const boxes = files.filter(f => f.endsWith('.box.json'));
