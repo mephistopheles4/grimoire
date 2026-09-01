@@ -6,7 +6,7 @@
 //   node scripts/build-pages.mjs
 
 import { readdirSync, readFileSync, mkdirSync, writeFileSync } from 'node:fs';
-import { join, basename, relative, sep } from 'node:path';
+import { join, relative, sep } from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { createRequire } from 'node:module';
@@ -33,13 +33,35 @@ function walk(dir, acc = []) {
 }
 
 mkdirSync(out, { recursive: true });
-const pages = [];
 
+// The page name carries the whole repo-relative path. Keyed on the basename,
+// two boxes with the same file name in different directories resolved to one
+// path in site/, and the second render silently overwrote the first: a page
+// missing from the published site, with no warning and no failure.
+//
+// Names are resolved before anything is rendered, so a refusal writes no page.
+const pages = [];
+const takenBy = new Map();
 for (const box of walk(root)) {
-  const name = basename(box, '.box.json') + '.html';
-  execFileSync(process.execPath, [renderer, box, '--out', join(out, name)], { stdio: 'inherit' });
-  const { title } = JSON.parse(readFileSync(box, 'utf8'));
-  pages.push({ name, title, src: relative(root, box).split(sep).join('/') });
+  const src = relative(root, box).split(sep).join('/');
+  const name = src.replace(/\.box\.json$/, '').replace(/\//g, '-') + '.html';
+  // Flattening a path onto one name is not injective: grid/one.box.json and
+  // grid-one.box.json both ask for grid-one.html. Refuse rather than overwrite,
+  // which is the failure this whole change is about.
+  const taken = takenBy.get(name);
+  if (taken) {
+    console.error(
+      `${src} and ${taken} both render to site/${name} — rename one so each box has its own page. Two sources cannot share one output file; the second render overwrites the first and the page disappears from the site. See CONTRIBUTING.md.`,
+    );
+    process.exit(1);
+  }
+  takenBy.set(name, src);
+  pages.push({ name, src, box });
+}
+
+for (const p of pages) {
+  execFileSync(process.execPath, [renderer, p.box, '--out', join(out, p.name)], { stdio: 'inherit' });
+  p.title = JSON.parse(readFileSync(p.box, 'utf8')).title;
 }
 
 const items = pages
