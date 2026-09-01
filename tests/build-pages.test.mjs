@@ -102,6 +102,37 @@ test('the index is the same design as the pages it links', () => {
   assert.equal(/color-scheme/.test(index), false, 'the index must not flip a dark browser to light');
 });
 
+test('the index page is the only external reference the site adds', () => {
+  // SECURITY.md enumerates every external request the published site makes,
+  // so a second one has to be a red test rather than a discovery. The index
+  // links the same Google Fonts stylesheet the rendered pages link; nothing
+  // else may join it. Asserting the link is present pins it in — this bounds
+  // the set, which is the direction that matters.
+  //
+  // Same width as the render test, and stated for the same reason: this reads
+  // src and href on a script, link or img element. A CSS @import, a url(), a
+  // fetch or an iframe would be a second way out and this test stays green.
+  const dir = tree();
+  run(buildIn(dir), [], { cwd: dir });
+  const index = readFileSync(site(dir, 'index.html'), 'utf8');
+  const external = index.match(/<(?:script|link|img)[^>]+(?:src|href)="(https?:[^"]*)"/gi) || [];
+  assert.equal(external.length, 1, `unexpected external references: ${external.join(', ')}`);
+  assert.match(external[0], /^<link rel="stylesheet" href="https:\/\/fonts\.googleapis\.com\//);
+  assert.equal(/<script[^>]+src=/i.test(index), false, 'no script is loaded from a URL');
+});
+
+test('a box that wants the listing page name refuses, rather than being overwritten', () => {
+  // The listing page writes site/index.html too, and was not in the guard: a
+  // root index.box.json rendered its page and the listing then overwrote it,
+  // exit 0 and no warning — the same disappearance this guard exists to stop.
+  const dir = tree();
+  writeBox(dir, 'index.box.json', 'The box that wanted the front door');
+  const r = run(buildIn(dir), [], { cwd: dir });
+  assert.equal(r.code, 1, `${r.stdout}\n${r.stderr}`);
+  assert.match(r.stderr, /both render to site\/index\.html/);
+  assert.match(r.stderr, /listing page/);
+});
+
 test('two sources that want one page name refuse, rather than overwrite', () => {
   // Flattening a path onto one name is not injective: a/b.box.json and
   // a-b.box.json both ask for a-b.html. The guard the basename version needed.

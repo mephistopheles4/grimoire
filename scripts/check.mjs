@@ -28,8 +28,8 @@ const rel = p => relative(root, p).split(sep).join('/');
 
 // The walk reads .gitignore rather than a hardcoded skip set. scripts/lib/tree.mjs
 // carries why, and it is shared with build-pages.mjs so the two cannot drift.
-const { files, note: walkNote } = walk(root);
-if (walkNote) console.log(`note: ${walkNote}`);
+const { files, notes: walkNotes } = walk(root);
+for (const n of walkNotes) console.log(`note: ${n}`);
 
 // 1. Box files validate.
 const boxes = files.filter(f => f.endsWith('.box.json'));
@@ -53,16 +53,24 @@ for (const box of boxes) {
 // Scoped to skills/ and not to the whole tree, because the rule is about what
 // lands on somebody else's computer under an install route nobody here
 // chooses. A repository script is not that, and tests/check.test.mjs carries
-// two of these patterns on purpose — as the strings that prove the rule works.
+// all three of these patterns on purpose — as the strings that prove the rule
+// works. Counted from the file rather than remembered: an earlier draft of this
+// comment said two, and the third was added in the same change that wrote it.
 const FIXED = [/~\/\.claude/, /\/home\/[a-z]/i, /C:\\Users\\/i];
 // A minified file is one long line, and a refusal nobody can read is a refusal
 // nobody acts on.
 const excerpt = s => (s.length > 120 ? `${s.slice(0, 117)}...` : s);
 for (const shipped of files.filter(f => rel(f).startsWith('skills/'))) {
+  // The block-quote exemption is markdown only. `>` opens a quotation in prose
+  // and means nothing in JavaScript, JSON or HTML, so honouring it everywhere
+  // would let a fixed path walk through the gate on any line that happened to
+  // start with one. The exemption exists because a quoted example is not an
+  // instruction, and only a markdown file can quote.
+  const quotable = shipped.endsWith('.md');
   readFileSync(shipped, 'utf8')
     .split('\n')
     .forEach((line, i) => {
-      if (line.trimStart().startsWith('>')) return; // a quoted example is not an instruction
+      if (quotable && line.trimStart().startsWith('>')) return;
       for (const re of FIXED) {
         if (re.test(line)) fail(`${rel(shipped)}:${i + 1} holds a fixed path: ${excerpt(line.trim())}`);
       }
@@ -258,22 +266,46 @@ for (const f of files.filter(f => MANIFESTS.has(basename(f)))) {
   );
 }
 
-const SPECIFIER = [
-  /\bfrom\s*(['"])([^'"]+)\1/g,
+// Prose is not code, and this repository writes long prose comments. Scanning
+// every line for a quoted string after the word "from" flagged three sentences out
+// of three tried, including one that said a refusal is different from "a
+// warning" and one saying the tokens were copied from 'the rendered page'. So a
+// comment line is skipped, and the two static forms have to begin their line,
+// which is where a hoisted import lives. A dynamic import and a require are
+// read anywhere but a comment, because those two can hide inside an
+// expression. One gap stays open and is cheap to live with: a trailing
+// comment on a line of code is still read as code.
+const COMMENT = /^\s*(\/\/|\*|\/\*)/;
+// A static form needs the word `from` before its quote, or it is a bare
+// side-effect import. Without that, `export const renderer = join(root,
+// 'skills', ...)` read as a re-export of the package "skills" — three
+// false failures on tests/helpers.mjs, which is how this line got written.
+const FROM = /^\s*(?:import|export)\b[^'"]*\bfrom\s*(['"])([^'"]+)\1/;
+const SIDE_EFFECT = /^\s*import\s*(['"])([^'"]+)\1/;
+const CALLED = [
   /\bimport\s*\(\s*(['"])([^'"]+)\1/g,
-  /\bimport\s+(['"])([^'"]+)\1/g,
   /\brequire\s*\(\s*(['"])([^'"]+)\1/g,
 ];
+// A relative path, an absolute path and a node: builtin all resolve with
+// nothing installed. Everything else is a package.
+const bare = spec => !spec.startsWith('.') && !spec.startsWith('/') && !spec.startsWith('node:');
 for (const f of files.filter(f => /\.(mjs|js)$/.test(f))) {
-  const text = readFileSync(f, 'utf8');
-  for (const re of SPECIFIER) {
-    for (const [, , spec] of text.matchAll(re)) {
-      if (spec.startsWith('.') || spec.startsWith('/') || spec.startsWith('node:')) continue;
-      fail(
-        `${rel(f)} imports "${spec}" — import a relative path or a node: builtin instead. A bare specifier is a dependency, and this repository has none, so nothing installs it and the file does not load. See CONTRIBUTING.md, "Do not add a dependency".`,
-      );
-    }
-  }
+  readFileSync(f, 'utf8')
+    .split('\n')
+    .forEach((line, i) => {
+      if (COMMENT.test(line)) return;
+      const found = [];
+      for (const re of [FROM, SIDE_EFFECT]) {
+        const m = re.exec(line);
+        if (m) found.push(m[2]);
+      }
+      for (const re of CALLED) for (const m of line.matchAll(re)) found.push(m[2]);
+      for (const spec of found.filter(bare)) {
+        fail(
+          `${rel(f)}:${i + 1} imports "${spec}" — import a relative path or a node: builtin instead. A bare specifier is a dependency, and this repository has none, so nothing installs it and the file does not load. See CONTRIBUTING.md, "Do not add a dependency".`,
+        );
+      }
+    });
 }
 
 // 7. The test suite runs here, under the same one command.

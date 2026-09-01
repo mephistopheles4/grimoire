@@ -33,7 +33,7 @@ not take, and `SECURITY.md` explains why that matters more than it looks.
 run only the suite while you work on it:
 
 ```bash
-node --test tests/esc.test.mjs tests/render.test.mjs tests/check.test.mjs
+node --test tests/esc.test.mjs tests/render.test.mjs tests/check.test.mjs tests/build-pages.test.mjs
 ```
 
 Two rules about what goes in there:
@@ -71,8 +71,9 @@ diff. See [`SECURITY.md`](SECURITY.md) for why this matters more than it looks.
 
 `node scripts/check.mjs` enforces this. It fails on a `package.json`, a
 lockfile, and any `.mjs` or `.js` file importing a bare specifier — an import
-path that is neither relative nor a `node:` builtin. Until this check existed
-the rule held only because the tree gave it nowhere to land.
+path that is not relative, not absolute, and not a `node:` builtin. It reads
+code and not prose, so a comment is skipped. Until this check existed the rule
+held only because the tree gave it nowhere to land.
 
 **Give every box file a name no other box file wants.**
 `scripts/build-pages.mjs` names each published page after the box file's path
@@ -98,7 +99,9 @@ as a plugin, copied by hand, or vendored into a project, and each lands in a
 different directory. Reference the skill base directory the harness supplies.
 `scripts/check.mjs` fails on `~/.claude/` appearing in any file under `skills/`
 — the prose, the library, the reference pages, the renderer and the schema. A
-block-quoted line is exempt, because a quoted example is not an instruction.
+block-quoted line in a markdown file is exempt, because a quoted example is not
+an instruction. Only markdown is exempted: `>` is quotation in prose and is
+nothing in JavaScript, JSON or HTML.
 
 **Keep the frontmatter `name`.** Claude Code takes the skill's invocation name
 from it, so the name survives whatever the install directory is called.

@@ -11,8 +11,8 @@ export const exampleBox = join(root, 'skills', 'eagle-eye', 'examples', 'eagle-e
 
 // Run a node script and report both streams and the exit code, rather than
 // throwing. A test about a gate that fails needs the failure, not an exception.
-// Both scripts under test say the interesting part on stderr and the answer on
-// stdout, so a runner that drops either one can only test half of them.
+// Every script under test says the interesting part on stderr and the answer
+// on stdout, so a runner that drops either one can only test half of them.
 //
 // GRIMOIRE_IN_TEST stops the recursion: scripts/check.mjs runs this suite as
 // its last step, and this suite runs scripts/check.mjs. Whichever one starts,

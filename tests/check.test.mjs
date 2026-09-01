@@ -89,6 +89,27 @@ test('a stale worktree is not walked, because .gitignore excludes it', () => {
   assertPasses(dir);
 });
 
+test('a .gitignore pattern the reader cannot compile is named, not compiled wrong', () => {
+  // `**/x` expanded as two independent `*` matches exactly one directory
+  // level, and a character class is escaped to a literal. Both are valid
+  // .gitignore syntax producing a wrong answer, and a wrong answer here means
+  // the walk enters a directory git excludes — the bug the walk exists to fix.
+  const dir = tree();
+  appendFileSync(join(dir, '.gitignore'), '**/build/\n*.[bl]ak\n');
+  const r = assertPasses(dir);
+  assert.match(r.stdout, /2 pattern\(s\) not read/);
+  assert.match(r.stdout, /\*\*\/build\//);
+});
+
+test('a fixed path on a quoted line fails outside markdown, because > is not a quote there', () => {
+  // The exemption exists because a quoted example is not an instruction, and
+  // only a markdown file can quote. Rule 2 now reads .js, .json and .html
+  // under skills/, where a leading > is not quotation syntax.
+  const dir = tree();
+  appendFileSync(join(dir, 'skills', 'eagle-eye', 'lib', 'eagle-eye.js'), '\n// > installed at /home/someone/.claude\n');
+  assertFails(dir, /eagle-eye\.js:\d+ holds a fixed path/);
+});
+
 test('a tree with no .gitignore says so rather than skipping in silence', () => {
   // A walk that quietly skips nothing reads as a walk that found everything.
   const dir = tree();
@@ -201,7 +222,32 @@ test('a bare import fails, naming the file and the specifier', () => {
   const dir = tree();
   const q = "'";
   appendFileSync(join(dir, 'skills', 'eagle-eye', 'lib', 'eagle-eye.js'), `\nimport chalk from ${q}chalk${q};\n`);
-  assertFails(dir, /eagle-eye\.js imports "chalk"/);
+  assertFails(dir, /eagle-eye\.js:\d+ imports "chalk"/);
+});
+
+test('prose in a comment is not read as an import', () => {
+  // The first version of this rule scanned every line for a quoted string
+  // after the word "from", and flagged three prose sentences out of three
+  // tried. This repository writes long prose comments, so that was a
+  // CI-breaking false positive rather than a theoretical one.
+  const dir = tree();
+  const q = "'";
+  appendFileSync(
+    join(dir, 'scripts', 'build-pages.mjs'),
+    `\n// The tokens were copied from ${q}the rendered page${q}, not shared.\n` +
+      `// A refusal is different from "a warning".\n` +
+      `// Read import ${q}x${q} to mean a side-effect import.\n`,
+  );
+  assertPasses(dir);
+});
+
+test('a quoted string on an export line is not read as an import', () => {
+  // `export const renderer = join(root, 'skills', ...)` is not a re-export.
+  // Anchoring the rule to the start of the line without also requiring the
+  // word "from" failed tests/helpers.mjs three times over.
+  const dir = tree();
+  appendFileSync(join(dir, 'scripts', 'build-pages.mjs'), "\nexport const where = join(root, 'skills', 'eagle-eye');\n");
+  assertPasses(dir);
 });
 
 test('a node: builtin and a relative path are not dependencies', () => {

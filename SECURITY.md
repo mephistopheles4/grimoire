@@ -187,8 +187,12 @@ a threat model:
   every line of script and style that runs is in the file. It is not "makes no
   network request": the page links one Google Fonts stylesheet, and falls back
   to a system font stack when that fails. So opening a page tells Google you
-  opened it. `tests/render.test.mjs` asserts that this is the only external
-  reference, which makes a second one a red test rather than a discovery —
+  opened it. The generated `site/index.html` links the same stylesheet, for
+  the same reason and with the same fallback, so the landing page every
+  visitor hits makes the request as well. `tests/render.test.mjs` asserts
+  this is the only external reference on a rendered page and
+  `tests/build-pages.test.mjs` asserts the same of the index, which makes a
+  third one a red test rather than a discovery —
   **at one width**: the test reads `src` and `href` on a `script`, `link` or
   `img` element. A CSS `@import`, a `url()`, a `fetch` or an `iframe` is a
   second way out that stays green. Widening the test is cheap; nobody has

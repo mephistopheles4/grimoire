@@ -25,8 +25,8 @@ const renderer = join(root, 'skills', 'eagle-eye', 'render.mjs');
 
 // The walk reads .gitignore rather than a hardcoded skip set, and it is the
 // same walk scripts/check.mjs uses. scripts/lib/tree.mjs carries why.
-const { files, note: walkNote } = walk(root);
-if (walkNote) console.log(`note: ${walkNote}`);
+const { files, notes: walkNotes } = walk(root);
+for (const n of walkNotes) console.log(`note: ${n}`);
 
 mkdirSync(out, { recursive: true });
 
@@ -38,6 +38,12 @@ mkdirSync(out, { recursive: true });
 // Names are resolved before anything is rendered, so a refusal writes no page.
 const pages = [];
 const takenBy = new Map();
+// The listing page is a writer of site/ too, and it was not in the guard: a
+// box at the repository root called index.box.json rendered to site/index.html
+// and was then overwritten by the listing, exit 0 and no warning — the same
+// disappearance this change closes for two boxes, reopened for one box and the
+// index. Claimed before the loop so the collision message names it.
+takenBy.set('index.html', 'the generated listing page');
 for (const box of files.filter(f => f.endsWith('.box.json'))) {
   const src = relative(root, box).split(sep).join('/');
   const name = src.replace(/\.box\.json$/, '').replace(/\//g, '-') + '.html';
