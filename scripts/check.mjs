@@ -233,10 +233,15 @@ if (!mergeBase) {
 // relative nor a node builtin — is a dependency whether or not a manifest
 // declares it.
 //
-// Say the width. This reads string literals: a from-clause, a side-effect
-// import, a dynamic import and a require. A computed path cannot be read here
-// and is not flagged, which is how build-pages.mjs and render.mjs both reach
-// the shared module. Neither rule can skip, so neither has a note to print.
+// Say the width, twice over. The rule reads .mjs and .js files only, so the
+// inline script in lib/template.html is not scanned — a dynamic import there
+// would pass. That file loads in a browser from a file: URL and has nowhere to
+// resolve a bare specifier from, so the gap is stated rather than closed.
+//
+// Within a file it reads string literals: a from-clause, a side-effect import,
+// a dynamic import and a require. A computed path cannot be read here and is
+// not flagged, which is how build-pages.mjs and render.mjs both reach the
+// shared module. Neither rule can skip, so neither has a note to print.
 const MANIFESTS = new Set([
   'package.json',
   'package-lock.json',

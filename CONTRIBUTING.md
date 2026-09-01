@@ -16,8 +16,9 @@ skill ships has grown a fixed path back, fails on a code fence that declares no
 language, fails on a dependency, and runs the test suite in `tests/`. CI runs it
 as a required check called `check`. `main` takes no direct pushes.
 
-It walks what git tracks: the walk reads `.gitignore`, so a worktree under
-`.claude/worktrees/` is not descended into and not checked.
+It walks what `.gitignore` does not exclude, so a worktree under
+`.claude/worktrees/` is not descended into and not checked. Only the root
+`.gitignore` is read.
 
 You need Node 20 or later and nothing else. There is no install step, because
 there are no dependencies.

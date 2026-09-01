@@ -29,7 +29,7 @@ import { join, relative, sep } from 'node:path';
 const escape = s => s.replace(/[.+^${}()|[\]\\]/g, '\\$&');
 const toRegExp = glob => new RegExp(`^${escape(glob).replace(/\*/g, '[^/]*').replace(/\?/g, '[^/]')}$`);
 
-export function parseIgnore(text) {
+function parseIgnore(text) {
   const rules = [];
   for (const raw of text.split('\n')) {
     let line = raw.replace(/\r$/, '').trim();
@@ -51,7 +51,7 @@ export function parseIgnore(text) {
 }
 
 // Last match wins, so a later `!` line can bring a path back.
-export function isIgnored(rules, relPath, isDir) {
+function isIgnored(rules, relPath, isDir) {
   const name = relPath.slice(relPath.lastIndexOf('/') + 1);
   let ignored = false;
   for (const r of rules) {
@@ -74,8 +74,14 @@ function rulesFor(root) {
   }
 }
 
-// Every file in the tree that git would track, plus a note when there was no
-// .gitignore to read. Callers filter for what they want.
+// Every file the root .gitignore does not exclude, plus a note when there was
+// no .gitignore to read. Callers filter for what they want.
+//
+// Not "every file git would track": an untracked file git has never been told
+// about comes back from here, which is the answer both callers want — a box
+// file nobody has committed yet still has to validate. Nor is it every rule
+// git would apply: .git/info/exclude, a global core.excludesFile and a nested
+// .gitignore in a subdirectory are all unread.
 export function walk(root) {
   const { rules, note } = rulesFor(root);
   const files = [];

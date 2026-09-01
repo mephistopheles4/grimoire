@@ -25,7 +25,7 @@ So the realistic risks are narrow, and worth naming precisely:
 
 Stated with line numbers, because "it escapes things" is not a threat model:
 
-- **`skills/eagle-eye/render.mjs:182` escapes `</` before it writes the box JSON into a
+- **`skills/eagle-eye/render.mjs:196` escapes `</` before it writes the box JSON into a
   `<script>` block**, so a `why` string that contains `</script>` cannot close
   the block.
 - **`skills/eagle-eye/lib/eagle-eye.js:17` escapes `&` and `<`** before box text reaches
@@ -40,7 +40,7 @@ Stated with line numbers, because "it escapes things" is not a threat model:
   as markup.
 - **No box text reaches an HTML attribute today.** Every interpolated attribute
   in the template holds an option id, a number, or a fixed class name, and ids
-  are validated against `^[a-z0-9][a-z0-9-]*$` at `skills/eagle-eye/render.mjs:27`.
+  are validated against `^[a-z0-9][a-z0-9-]*$` at `skills/eagle-eye/render.mjs:41`.
   One attribute is written by the module rather than the template — the tier
   name in `class="tier …"` on the *weakest edge* finding — and the module
   reduces anything that is not `measured`, `sourced` or `argued` to `argued`
@@ -143,7 +143,7 @@ one people learn to route around.
 **Its first scan raised two alerts, both `js/incomplete-multi-character-
 sanitization`, both rated high, and both the same one-line function copied into
 two files.** `strip` removed HTML tags from an option label in one pass, at
-`render.mjs:147` and `lib/template.html:485`. Here is the triage, because "we
+`render.mjs:161` and `lib/template.html:485`. Here is the triage, because "we
 fixed it" tells an auditor nothing:
 
 - **The output never reaches HTML.** `strip` feeds a Markdown export that lands
