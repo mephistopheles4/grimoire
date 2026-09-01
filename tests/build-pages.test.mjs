@@ -75,7 +75,11 @@ test('the box the skill ships still publishes, and the index links it', () => {
   const name = 'skills-eagle-eye-examples-eagle-eye-skill.html';
   assert.match(readFileSync(site(dir, name), 'utf8'), /^<!doctype html>/i);
   const index = readFileSync(site(dir, 'index.html'), 'utf8');
-  assert.match(index, new RegExp(`href="\\./${name.replace(/\./g, '\\.')}"`));
+  // A substring, not a regex built by escaping the dots in a file name. That
+  // escape handled `.` and not `\`, and CodeQL raised js/incomplete-sanitization
+  // on it — high severity, on a line that only ever sees a constant. The link
+  // is a fixed string, so nothing here needs a pattern at all.
+  assert.ok(index.includes(`href="./${name}"`), `the index must link ${name}`);
   assert.match(index, /skills\/eagle-eye\/examples\/eagle-eye-skill\.box\.json/);
 });
 
@@ -92,8 +96,8 @@ test('the index is the same design as the pages it links', () => {
   const page = readFileSync(site(dir, 'skills-eagle-eye-examples-eagle-eye-skill.html'), 'utf8');
 
   for (const token of ['--dw-paper', '--dw-ink', '--dw-font']) {
-    assert.match(index, new RegExp(token), `the index must carry ${token}`);
-    assert.match(page, new RegExp(token));
+    assert.ok(index.includes(token), `the index must carry ${token}`);
+    assert.ok(page.includes(token), `the page must carry ${token}`);
   }
   assert.match(index, /IBM\+Plex\+Mono/);
   assert.equal(/ui-sans-serif/.test(index), false, 'the index must not keep its own type stack');
