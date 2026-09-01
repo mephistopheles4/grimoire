@@ -20,7 +20,15 @@ const EagleEye = require(resolve(here, 'lib/eagle-eye.js'));
 const args = process.argv.slice(2);
 const flag = n => { const i = args.indexOf(n); return i >= 0 ? (args[i + 1] ?? true) : undefined; };
 const boxPath = args.find(a => !a.startsWith('--') && !['--out', '--sel'].includes(args[args.indexOf(a) - 1]));
-if (!boxPath) { console.error('usage: node render.mjs <box.json> [--out page.html] [--check] [--sel "eagle-eye: ids"]'); process.exit(2); }
+const usage = () => { console.error('usage: node render.mjs <box.json> [--out page.html] [--check] [--sel "eagle-eye: ids"]'); process.exit(2); };
+if (!boxPath) usage();
+// `flag` returns the boolean true when its flag is last and carries no value.
+// --out already tested for that; --sel did not, so a bare trailing --sel
+// reached findings() and called a string method on a boolean:
+// "TypeError: code.replace is not a function", where the usage line belongs.
+// Checked here, with the other argument errors, so it does not depend on the
+// box being readable — and it exits 2, the code a missing box path produces.
+if (flag('--sel') === true) usage();
 
 const TIERS = new Set(['measured', 'sourced', 'argued']);
 const KINDS = new Set(['conf', 'req']);

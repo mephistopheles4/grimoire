@@ -623,3 +623,15 @@ test('no box path at all exits 2 with the usage line', () => {
   assert.equal(r.code, 2);
   assert.match(r.stderr, /usage: node render\.mjs/);
 });
+
+test('a --sel with no value exits 2 with the usage line, not a stack trace', () => {
+  // The flag reader returns the boolean true when a flag is last and carries
+  // no value. --out guarded against that and --sel did not, so a bare trailing
+  // --sel reached the findings function, which calls a string method on a
+  // boolean: "TypeError: code.replace is not a function", where the usage line
+  // belongs. 2 is the code a missing box path already produces.
+  const r = run(renderer, [exampleBox, '--sel']);
+  assert.equal(r.code, 2, `${r.stdout}\n${r.stderr}`);
+  assert.match(r.stderr, /usage: node render\.mjs/);
+  assert.equal(/TypeError/.test(r.stderr), false, 'a usage error is not a crash');
+});
