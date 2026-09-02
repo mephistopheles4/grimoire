@@ -3796,7 +3796,7 @@ PROGRAMS.push({
 PROGRAMS.push({
   "id": "pr-313-first-paint",
   "title": "PR #313 · first paint",
-  "blurb": "The woodwork slice of buildShelf, as it stands after #313. The species is resolved here and nowhere else, which is the whole of the menu's laziness: an entry nobody selects is never fetched. Read the effects ledger against the PR's own request table.",
+  "blurb": "The woodwork slice of buildShelf, as it stands after #313. The species is resolved here and nowhere else, which is the whole of the menu's laziness: an entry nobody selects is never fetched. Read the effects ledger against the PR's own request table. Flip Layer to Tests and exactly two nodes move: bindSheet and applyWoodFibre each take a parameter with a real default, so a double goes in at the call. fibreMapFor keeps canvas 2d, because it has no seam and no test reaches it.",
   "entry": "buildShelf",
   "env": {
     "roster": [
@@ -3932,6 +3932,17 @@ PROGRAMS.push({
   "sheet": {
     "scopeRule": "one graph per entry point",
     "graphsNotDrawn": ["panel apply"]
+  },
+  "layers": {
+    "production": {},
+    "tests": {
+      "bindSheet": {
+        "R": ["THREE.TextureLoader → fakeLoader() · woodwork.test.ts:483"]
+      },
+      "applyWoodFibre": {
+        "R": ["CanvasTexture → () => fibre · woodwork.test.ts:827"]
+      }
+    }
   },
   "presets": [
     {
@@ -5339,7 +5350,8 @@ PROGRAMS.push({
       ],
       "tests": [
         "gates/sheet-size.test.ts",
-        "gates/repo-hygiene.test.ts"
+        "gates/repo-hygiene.test.ts",
+        "packages/site/src/shelf/woodwork.test.ts"
       ]
     },
     "applyWoodFibre": {
@@ -7289,6 +7301,11 @@ PROGRAMS.push({
         PROG = prepare(structuredClone(prog));
         PROG.presetIdx = presetIdx;
         PROG.input = structuredClone(prog.presets[presetIdx].input ?? {});
+        // A layer belongs to one program, so it does not survive the switch to
+        // another. Without this the Tests row stays lit and disabled over a
+        // program that declares no layer map — a control saying it is on while
+        // refusing to be touched, which is the one state it must never show.
+        if (!layersIn(prog).includes(LAYER)) LAYER = 'production';
         const errs = validate(PROG);
         WALK = PROG.presets[presetIdx].walk;
         TRACE = WALK && !walkErrors(PROG, WALK).length ? fold(WALK) : [blank()];

@@ -89,13 +89,50 @@ should treat them as the schema's acceptance set.
   different species, **one** under `flat`. It also carries the full 17-file
   diff, and reports that ten of those files are accounted for by no node — the
   honest limit of a call graph, since documentation and gate rows are real
-  changes with no runtime node.
+  changes with no runtime node. It is also the one program that declares a
+  **layer map** — see below.
 - **`map-300-woodwork.json`** — [`stacks#300`](https://github.com/mephistopheles4/stacks/issues/300),
   a wayfinder map, drawn as a graph. Nodes are tickets, call edges are
   _blocked by_, effects are the artifacts a ticket deposits, and the error
   channel is how the **plan** fails rather than how code fails. Its five presets
   are histories: what happened, and the four things that map's own warnings say
   must not.
+
+## The test layer substitutes a token, not a node
+
+[#34](https://github.com/mephistopheles4/grimoire/issues/34) shipped the layer
+swap in version one and left two readings open — **node for node**, the source
+article's `UserRepo.findById → UserRepoMock`, or **token for token**, a rename
+inside `R`. [#42](https://github.com/mephistopheles4/grimoire/issues/42) settled
+it by writing one against real material rather than arguing: `#313`'s own test
+files, read node by node.
+
+**Token for token, and no node is ever replaced.** Across a 2109-line pull
+request carrying two real doubles, `vi.mock` appears nowhere and no stand-in
+module exists. A double goes in **at the call site**, through a parameter with a
+real default:
+
+| node | `R` in production | under `tests` | why |
+| --- | --- | --- | --- |
+| `resolveWoodwork`, `worldSpaceUvs` | none | unchanged | pure; the specs call them directly |
+| `bindSheet` | `THREE.TextureLoader` | `fakeLoader()` | `load: SheetLoader = textureLoader()` — `woodwork.ts:783` |
+| `applyWoodFibre` | `CanvasTexture` | `() => fibre` | `map = () => woodFibreMap() ?? null` — `woodwork.ts:1249` |
+| `fibreMapFor` | `canvas 2d` | **unchanged** | `bakeFibre` reaches `document.createElement` directly; nothing substitutes it |
+| `buildShelf` | `THREE`, `woodwork.ts` | **never entered** | no spec enters here at all |
+
+⚠️ **`fibreMapFor` is the row worth having.** It is the node that still holds its
+real dependency once the toggle is flipped, and it is the only one in the graph
+no test reaches — the same fact twice. That is exactly the payoff #34 argued the
+swap for, arriving on the first program anybody wrote one for.
+
+**Two things this cost the framing.** *Token for token changes nothing
+structural* is not quite true: production reaches `fibreMapFor` through
+`applyWoodFibre`'s third argument, so substituting that token **severs the call
+edge**, and the graph does change shape at that leaf. And a rename-only map
+cannot say what a layer never **reaches** — `buildShelf` is the entry point in
+production and is entered by nothing under `tests`, which no `R` token can
+express. Both go to [#32](https://github.com/mephistopheles4/grimoire/issues/32)
+as questions, not as schema.
 
 ## Two findings worth keeping
 

@@ -1370,6 +1370,11 @@
         PROG = prepare(structuredClone(prog));
         PROG.presetIdx = presetIdx;
         PROG.input = structuredClone(prog.presets[presetIdx].input ?? {});
+        // A layer belongs to one program, so it does not survive the switch to
+        // another. Without this the Tests row stays lit and disabled over a
+        // program that declares no layer map — a control saying it is on while
+        // refusing to be touched, which is the one state it must never show.
+        if (!layersIn(prog).includes(LAYER)) LAYER = 'production';
         const errs = validate(PROG);
         WALK = PROG.presets[presetIdx].walk;
         TRACE = WALK && !walkErrors(PROG, WALK).length ? fold(WALK) : [blank()];
