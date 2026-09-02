@@ -29,18 +29,19 @@ function migrateWalk(prog, walk) {
     if (m.k === 'done' || m.k === 'uncaught') { frames.length = 0; out.push({ ...m }); continue; }
 
     const f = top();
+    const node = prog.nodes[f.nodeId];
     if (m.k === 'at') {
-      // old: `at` is the landing. The step that ran is the cursor.
-      out.push({ k: 'move', at: f.pc, next: m.at });
+      // old: one `move` for four ops, and `at` was the landing. New: `k` is the
+      // op that ran, and the landing is `next`.
+      out.push({ k: node.steps[f.pc].op, at: f.pc, next: m.at });
       f.pc = m.at;
       continue;
     }
     if (m.k === 'effect') {
-      // `status` and `error` said twice what the tape says once. A raise now
-      // follows a failed effect, and a `next` follows one that went on.
+      // `status` and `error` said twice what the tape says once.
       const { label, status, error, ...rest } = m;
       if (status === 'ok') { out.push({ ...rest, desc: label, next: m.at + 1 }); f.pc = m.at + 1; }
-      else out.push({ ...rest, desc: label });
+      else out.push({ ...rest, desc: label, raised: { tag: error.tag, message: error.message, channel: error.channel } });
       continue;
     }
     if (m.k === 'call') { out.push({ ...m, next: m.at + 1 }); f.pc = m.at + 1; frames.push({ nodeId: m.to, pc: 0 }); continue; }
@@ -48,13 +49,18 @@ function migrateWalk(prog, walk) {
     if (m.k === 'handled') {
       // old: `at` was the landing. New: `at` is the step whose onError caught,
       // and `next` is the landing.
-      const node = prog.nodes[f.nodeId];
       const catcher = node.steps.findIndex((s) => (s.onError || []).some((h) => h.goto === m.goto));
       out.push({ k: 'handled', at: catcher, goto: m.goto, next: m.at });
       f.pc = m.at;
       continue;
     }
-    out.push({ ...m }); // raise
+    if (m.k === 'raise') {
+      // A raise off an effect is now the effect's own `raised`, already written
+      // above. A raise off a `throw` step becomes a `throw` move.
+      if (node.steps[m.at].op === 'throw') { const { k, ...rest } = m; out.push({ k: 'throw', ...rest }); }
+      continue;
+    }
+    out.push({ ...m });
   }
   return { provenance: walk.provenance, steps: out };
 }

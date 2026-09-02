@@ -65,8 +65,16 @@ const CASES = [
   ['a call that resumes in the wrong place is refused', (p) => { p.presets[0].walk.steps[2].next = 0; return p; }, 'cursor sits at'],
   ['`status` on an effect move is refused', (p) => { p.presets[0].walk.steps[3].status = 'ok'; return p; }, 'unknown key "status"'],
   ['`error` on an effect move is refused', (p) => { p.presets[0].walk.steps[3].error = { tag: 'X' }; return p; }, 'unknown key "error"'],
-  ['an effect with no next and no raise after it is refused', (p) => { delete p.presets[0].walk.steps[3].next; return p; }, 'must be followed by a raise'],
-  ['an effect with no next followed by a raise is accepted', (p) => p, null],
+  ['an effect with neither next nor raised is refused', (p) => { delete p.presets[0].walk.steps[3].next; return p; }, 'next when it went on, or raised when it threw'],
+  ['an effect with both next and raised is refused', (p) => { p.presets[0].walk.steps[3].raised = { tag: 'X', message: 'y', channel: 'die' }; return p; }, 'never both'],
+  ['a raised with no channel is refused', (p) => { const m = p.presets[2].walk.steps.find((s) => s.raised); delete m.raised.channel; return p; }, 'missing required key "channel"'],
+  ['an effect that raised is accepted', (p) => p, null],
+
+  // Rule 1 of the tape — `k` is the op that ran.
+  ['a move named for the wrong op is refused', (p) => { p.presets[0].walk.steps[7].k = 'if'; return p; }, 'a "if" move ran step 3, which is a "let"'],
+  ['`move` is no longer a move kind', (p) => { p.presets[0].walk.steps[1].k = 'move'; return p; }, 'is not a move kind'],
+  ['`raise` is no longer a move kind', (p) => { p.presets[1].walk.steps[5].k = 'raise'; return p; }, 'is not a move kind'],
+  ['a throw move on a throw step is accepted', (p) => p, null],
   ['a move after a call that ignores the call\'s next is refused', (p) => { p.presets[0].walk.steps[6].at = 1; return p; }, 'cursor sits at'],
 
   // What the document says it CANNOT prove — these must PASS

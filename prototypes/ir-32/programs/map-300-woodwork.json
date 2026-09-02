@@ -125,22 +125,22 @@
             "node": "map"
           },
           {
-            "k": "move",
+            "k": "note",
             "at": 0,
             "next": 1
           },
           {
-            "k": "move",
+            "k": "let",
             "at": 1,
             "next": 2
           },
           {
-            "k": "move",
+            "k": "let",
             "at": 2,
             "next": 3
           },
           {
-            "k": "move",
+            "k": "if",
             "at": 3,
             "next": 4
           },
@@ -151,7 +151,7 @@
             "next": 5
           },
           {
-            "k": "move",
+            "k": "note",
             "at": 0,
             "next": 1
           },
@@ -183,17 +183,17 @@
             "value": "G51"
           },
           {
-            "k": "move",
+            "k": "let",
             "at": 5,
             "next": 6
           },
           {
-            "k": "move",
+            "k": "goto",
             "at": 6,
             "next": 8
           },
           {
-            "k": "move",
+            "k": "if",
             "at": 8,
             "next": 10
           },
@@ -204,12 +204,12 @@
             "next": 11
           },
           {
-            "k": "move",
+            "k": "if",
             "at": 0,
             "next": 2
           },
           {
-            "k": "move",
+            "k": "if",
             "at": 2,
             "next": 4
           },
@@ -245,7 +245,7 @@
             "next": 12
           },
           {
-            "k": "move",
+            "k": "note",
             "at": 0,
             "next": 1
           },
@@ -260,7 +260,7 @@
             "next": 2
           },
           {
-            "k": "move",
+            "k": "note",
             "at": 2,
             "next": 3
           },
@@ -276,7 +276,7 @@
             "next": 13
           },
           {
-            "k": "move",
+            "k": "note",
             "at": 0,
             "next": 1
           },
@@ -302,7 +302,7 @@
             "next": 14
           },
           {
-            "k": "move",
+            "k": "note",
             "at": 0,
             "next": 1
           },
@@ -328,7 +328,7 @@
             "next": 15
           },
           {
-            "k": "move",
+            "k": "if",
             "at": 0,
             "next": 2
           },
@@ -520,22 +520,22 @@
             "node": "map"
           },
           {
-            "k": "move",
+            "k": "note",
             "at": 0,
             "next": 1
           },
           {
-            "k": "move",
+            "k": "let",
             "at": 1,
             "next": 2
           },
           {
-            "k": "move",
+            "k": "let",
             "at": 2,
             "next": 3
           },
           {
-            "k": "move",
+            "k": "if",
             "at": 3,
             "next": 4
           },
@@ -546,7 +546,7 @@
             "next": 5
           },
           {
-            "k": "move",
+            "k": "note",
             "at": 0,
             "next": 1
           },
@@ -578,22 +578,22 @@
             "value": "G51"
           },
           {
-            "k": "move",
+            "k": "let",
             "at": 5,
             "next": 6
           },
           {
-            "k": "move",
+            "k": "goto",
             "at": 6,
             "next": 8
           },
           {
-            "k": "move",
+            "k": "if",
             "at": 8,
             "next": 9
           },
           {
-            "k": "raise",
+            "k": "throw",
             "at": 9,
             "tag": "FanOutRefused",
             "message": "tickets 2–6 are one feature in one module — every one edits buildShelf, the materials block and woodwork.ts",
@@ -628,32 +628,32 @@
             "node": "map"
           },
           {
-            "k": "move",
+            "k": "note",
             "at": 0,
             "next": 1
           },
           {
-            "k": "move",
+            "k": "let",
             "at": 1,
             "next": 2
           },
           {
-            "k": "move",
+            "k": "let",
             "at": 2,
             "next": 3
           },
           {
-            "k": "move",
+            "k": "if",
             "at": 3,
             "next": 7
           },
           {
-            "k": "move",
+            "k": "let",
             "at": 7,
             "next": 8
           },
           {
-            "k": "move",
+            "k": "if",
             "at": 8,
             "next": 10
           },
@@ -664,12 +664,12 @@
             "next": 11
           },
           {
-            "k": "move",
+            "k": "if",
             "at": 0,
             "next": 1
           },
           {
-            "k": "raise",
+            "k": "throw",
             "at": 1,
             "tag": "ShimmerOnMain",
             "message": "all 46 pairs become visible at once",
@@ -685,7 +685,7 @@
             "next": 21
           },
           {
-            "k": "move",
+            "k": "note",
             "at": 21,
             "next": 22
           },
@@ -696,7 +696,7 @@
             "next": 23
           },
           {
-            "k": "move",
+            "k": "note",
             "at": 0,
             "next": 1
           },
@@ -728,7 +728,7 @@
             "value": "G51"
           },
           {
-            "k": "raise",
+            "k": "throw",
             "at": 23,
             "tag": "ShippedAShimmer",
             "message": "ticket 1 landed after the texture, so every visitor between the two deploys saw 46 flickering pairs",
@@ -763,22 +763,22 @@
             "node": "map"
           },
           {
-            "k": "move",
+            "k": "note",
             "at": 0,
             "next": 1
           },
           {
-            "k": "move",
+            "k": "let",
             "at": 1,
             "next": 2
           },
           {
-            "k": "move",
+            "k": "let",
             "at": 2,
             "next": 3
           },
           {
-            "k": "move",
+            "k": "if",
             "at": 3,
             "next": 4
           },
@@ -789,7 +789,7 @@
             "next": 5
           },
           {
-            "k": "move",
+            "k": "note",
             "at": 0,
             "next": 1
           },
@@ -821,17 +821,17 @@
             "value": "G51"
           },
           {
-            "k": "move",
+            "k": "let",
             "at": 5,
             "next": 6
           },
           {
-            "k": "move",
+            "k": "goto",
             "at": 6,
             "next": 8
           },
           {
-            "k": "move",
+            "k": "if",
             "at": 8,
             "next": 10
           },
@@ -842,17 +842,17 @@
             "next": 11
           },
           {
-            "k": "move",
+            "k": "if",
             "at": 0,
             "next": 2
           },
           {
-            "k": "move",
+            "k": "if",
             "at": 2,
             "next": 3
           },
           {
-            "k": "raise",
+            "k": "throw",
             "at": 3,
             "tag": "PremiseOverturned",
             "message": "94% of what the chosen sheet moved was the average colour, not the grain",
@@ -868,7 +868,7 @@
             "next": 17
           },
           {
-            "k": "move",
+            "k": "note",
             "at": 17,
             "next": 18
           },
@@ -879,7 +879,7 @@
             "next": 19
           },
           {
-            "k": "move",
+            "k": "note",
             "at": 0,
             "next": 1
           },
@@ -907,12 +907,12 @@
             "value": "rosewood, not sapele"
           },
           {
-            "k": "move",
+            "k": "let",
             "at": 19,
             "next": 20
           },
           {
-            "k": "move",
+            "k": "goto",
             "at": 20,
             "next": 10
           },
@@ -923,12 +923,12 @@
             "next": 11
           },
           {
-            "k": "move",
+            "k": "if",
             "at": 0,
             "next": 2
           },
           {
-            "k": "move",
+            "k": "if",
             "at": 2,
             "next": 4
           },
@@ -964,7 +964,7 @@
             "next": 12
           },
           {
-            "k": "move",
+            "k": "note",
             "at": 0,
             "next": 1
           },
@@ -979,7 +979,7 @@
             "next": 2
           },
           {
-            "k": "move",
+            "k": "note",
             "at": 2,
             "next": 3
           },
@@ -995,7 +995,7 @@
             "next": 13
           },
           {
-            "k": "move",
+            "k": "note",
             "at": 0,
             "next": 1
           },
@@ -1021,7 +1021,7 @@
             "next": 14
           },
           {
-            "k": "move",
+            "k": "note",
             "at": 0,
             "next": 1
           },
@@ -1047,7 +1047,7 @@
             "next": 15
           },
           {
-            "k": "move",
+            "k": "if",
             "at": 0,
             "next": 2
           },
@@ -1239,22 +1239,22 @@
             "node": "map"
           },
           {
-            "k": "move",
+            "k": "note",
             "at": 0,
             "next": 1
           },
           {
-            "k": "move",
+            "k": "let",
             "at": 1,
             "next": 2
           },
           {
-            "k": "move",
+            "k": "let",
             "at": 2,
             "next": 3
           },
           {
-            "k": "move",
+            "k": "if",
             "at": 3,
             "next": 4
           },
@@ -1265,7 +1265,7 @@
             "next": 5
           },
           {
-            "k": "move",
+            "k": "note",
             "at": 0,
             "next": 1
           },
@@ -1297,17 +1297,17 @@
             "value": "G51"
           },
           {
-            "k": "move",
+            "k": "let",
             "at": 5,
             "next": 6
           },
           {
-            "k": "move",
+            "k": "goto",
             "at": 6,
             "next": 8
           },
           {
-            "k": "move",
+            "k": "if",
             "at": 8,
             "next": 10
           },
@@ -1318,12 +1318,12 @@
             "next": 11
           },
           {
-            "k": "move",
+            "k": "if",
             "at": 0,
             "next": 2
           },
           {
-            "k": "move",
+            "k": "if",
             "at": 2,
             "next": 4
           },
@@ -1359,7 +1359,7 @@
             "next": 12
           },
           {
-            "k": "move",
+            "k": "note",
             "at": 0,
             "next": 1
           },
@@ -1374,7 +1374,7 @@
             "next": 2
           },
           {
-            "k": "move",
+            "k": "note",
             "at": 2,
             "next": 3
           },
@@ -1390,7 +1390,7 @@
             "next": 13
           },
           {
-            "k": "move",
+            "k": "note",
             "at": 0,
             "next": 1
           },
@@ -1416,7 +1416,7 @@
             "next": 14
           },
           {
-            "k": "move",
+            "k": "note",
             "at": 0,
             "next": 1
           },
@@ -1442,12 +1442,12 @@
             "next": 15
           },
           {
-            "k": "move",
+            "k": "if",
             "at": 0,
             "next": 1
           },
           {
-            "k": "raise",
+            "k": "throw",
             "at": 1,
             "tag": "NumberClaimedTwice",
             "message": "an identifier can be claimed twice by two branches and nothing notices",
@@ -1473,12 +1473,12 @@
             "next": 25
           },
           {
-            "k": "move",
+            "k": "let",
             "at": 25,
             "next": 26
           },
           {
-            "k": "move",
+            "k": "goto",
             "at": 26,
             "next": 14
           },
@@ -1489,7 +1489,7 @@
             "next": 15
           },
           {
-            "k": "move",
+            "k": "if",
             "at": 0,
             "next": 2
           },

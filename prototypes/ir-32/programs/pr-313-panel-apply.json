@@ -60,32 +60,32 @@
             "node": "applySettings"
           },
           {
-            "k": "move",
+            "k": "note",
             "at": 0,
             "next": 1
           },
           {
-            "k": "move",
+            "k": "let",
             "at": 1,
             "next": 2
           },
           {
-            "k": "move",
+            "k": "let",
             "at": 2,
             "next": 3
           },
           {
-            "k": "move",
+            "k": "let",
             "at": 3,
             "next": 4
           },
           {
-            "k": "move",
+            "k": "if",
             "at": 4,
             "next": 11
           },
           {
-            "k": "move",
+            "k": "let",
             "at": 11,
             "next": 12
           },
@@ -96,7 +96,7 @@
             "next": 13
           },
           {
-            "k": "move",
+            "k": "note",
             "at": 0,
             "next": 1
           },
@@ -107,17 +107,17 @@
             "next": 2
           },
           {
-            "k": "move",
+            "k": "let",
             "at": 0,
             "next": 1
           },
           {
-            "k": "move",
+            "k": "if",
             "at": 1,
             "next": 3
           },
           {
-            "k": "move",
+            "k": "let",
             "at": 3,
             "next": 4
           },
@@ -144,17 +144,17 @@
             "next": 3
           },
           {
-            "k": "move",
+            "k": "let",
             "at": 0,
             "next": 1
           },
           {
-            "k": "move",
+            "k": "if",
             "at": 1,
             "next": 3
           },
           {
-            "k": "move",
+            "k": "let",
             "at": 3,
             "next": 4
           },
@@ -180,12 +180,12 @@
             "value": true
           },
           {
-            "k": "move",
+            "k": "if",
             "at": 13,
             "next": 14
           },
           {
-            "k": "move",
+            "k": "let",
             "at": 14,
             "next": 15
           },
@@ -196,17 +196,17 @@
             "next": 16
           },
           {
-            "k": "move",
+            "k": "let",
             "at": 0,
             "next": 1
           },
           {
-            "k": "move",
+            "k": "if",
             "at": 1,
             "next": 3
           },
           {
-            "k": "move",
+            "k": "let",
             "at": 3,
             "next": 4
           },
@@ -233,22 +233,22 @@
             "next": 17
           },
           {
-            "k": "move",
+            "k": "note",
             "at": 0,
             "next": 1
           },
           {
-            "k": "move",
+            "k": "let",
             "at": 1,
             "next": 2
           },
           {
-            "k": "move",
+            "k": "let",
             "at": 2,
             "next": 3
           },
           {
-            "k": "move",
+            "k": "let",
             "at": 3,
             "next": 4
           },
@@ -333,32 +333,32 @@
             "node": "applySettings"
           },
           {
-            "k": "move",
+            "k": "note",
             "at": 0,
             "next": 1
           },
           {
-            "k": "move",
+            "k": "let",
             "at": 1,
             "next": 2
           },
           {
-            "k": "move",
+            "k": "let",
             "at": 2,
             "next": 3
           },
           {
-            "k": "move",
+            "k": "let",
             "at": 3,
             "next": 4
           },
           {
-            "k": "move",
+            "k": "if",
             "at": 4,
             "next": 11
           },
           {
-            "k": "move",
+            "k": "let",
             "at": 11,
             "next": 12
           },
@@ -369,7 +369,7 @@
             "next": 13
           },
           {
-            "k": "move",
+            "k": "note",
             "at": 0,
             "next": 1
           },
@@ -380,17 +380,17 @@
             "next": 2
           },
           {
-            "k": "move",
+            "k": "let",
             "at": 0,
             "next": 1
           },
           {
-            "k": "move",
+            "k": "if",
             "at": 1,
             "next": 3
           },
           {
-            "k": "move",
+            "k": "let",
             "at": 3,
             "next": 4
           },
@@ -417,17 +417,17 @@
             "next": 3
           },
           {
-            "k": "move",
+            "k": "let",
             "at": 0,
             "next": 1
           },
           {
-            "k": "move",
+            "k": "if",
             "at": 1,
             "next": 3
           },
           {
-            "k": "move",
+            "k": "let",
             "at": 3,
             "next": 4
           },
@@ -453,7 +453,7 @@
             "value": false
           },
           {
-            "k": "move",
+            "k": "if",
             "at": 13,
             "next": 15
           },
@@ -464,17 +464,17 @@
             "next": 16
           },
           {
-            "k": "move",
+            "k": "let",
             "at": 0,
             "next": 1
           },
           {
-            "k": "move",
+            "k": "if",
             "at": 1,
             "next": 3
           },
           {
-            "k": "move",
+            "k": "let",
             "at": 3,
             "next": 4
           },
@@ -501,22 +501,22 @@
             "next": 17
           },
           {
-            "k": "move",
+            "k": "note",
             "at": 0,
             "next": 1
           },
           {
-            "k": "move",
+            "k": "let",
             "at": 1,
             "next": 2
           },
           {
-            "k": "move",
+            "k": "let",
             "at": 2,
             "next": 3
           },
           {
-            "k": "move",
+            "k": "let",
             "at": 3,
             "next": 4
           },
@@ -597,32 +597,32 @@
             "node": "applySettings"
           },
           {
-            "k": "move",
+            "k": "note",
             "at": 0,
             "next": 1
           },
           {
-            "k": "move",
+            "k": "let",
             "at": 1,
             "next": 2
           },
           {
-            "k": "move",
+            "k": "let",
             "at": 2,
             "next": 3
           },
           {
-            "k": "move",
+            "k": "let",
             "at": 3,
             "next": 4
           },
           {
-            "k": "move",
+            "k": "if",
             "at": 4,
             "next": 11
           },
           {
-            "k": "move",
+            "k": "let",
             "at": 11,
             "next": 12
           },
@@ -633,7 +633,7 @@
             "next": 13
           },
           {
-            "k": "move",
+            "k": "note",
             "at": 0,
             "next": 1
           },
@@ -644,17 +644,17 @@
             "next": 2
           },
           {
-            "k": "move",
+            "k": "let",
             "at": 0,
             "next": 1
           },
           {
-            "k": "move",
+            "k": "if",
             "at": 1,
             "next": 3
           },
           {
-            "k": "move",
+            "k": "let",
             "at": 3,
             "next": 4
           },
@@ -681,12 +681,12 @@
             "next": 3
           },
           {
-            "k": "move",
+            "k": "let",
             "at": 0,
             "next": 1
           },
           {
-            "k": "move",
+            "k": "if",
             "at": 1,
             "next": 2
           },
@@ -712,7 +712,7 @@
             "value": false
           },
           {
-            "k": "move",
+            "k": "if",
             "at": 13,
             "next": 15
           },
@@ -723,12 +723,12 @@
             "next": 16
           },
           {
-            "k": "move",
+            "k": "let",
             "at": 0,
             "next": 1
           },
           {
-            "k": "move",
+            "k": "if",
             "at": 1,
             "next": 2
           },
@@ -755,22 +755,22 @@
             "next": 17
           },
           {
-            "k": "move",
+            "k": "note",
             "at": 0,
             "next": 1
           },
           {
-            "k": "move",
+            "k": "let",
             "at": 1,
             "next": 2
           },
           {
-            "k": "move",
+            "k": "let",
             "at": 2,
             "next": 3
           },
           {
-            "k": "move",
+            "k": "let",
             "at": 3,
             "next": 4
           },
@@ -858,27 +858,27 @@
             "node": "applySettings"
           },
           {
-            "k": "move",
+            "k": "note",
             "at": 0,
             "next": 1
           },
           {
-            "k": "move",
+            "k": "let",
             "at": 1,
             "next": 2
           },
           {
-            "k": "move",
+            "k": "let",
             "at": 2,
             "next": 3
           },
           {
-            "k": "move",
+            "k": "let",
             "at": 3,
             "next": 4
           },
           {
-            "k": "move",
+            "k": "if",
             "at": 4,
             "next": 5
           },
@@ -889,7 +889,7 @@
             "next": 6
           },
           {
-            "k": "move",
+            "k": "let",
             "at": 0,
             "next": 1
           },
@@ -902,12 +902,12 @@
             "next": 2
           },
           {
-            "k": "move",
+            "k": "if",
             "at": 2,
             "next": 4
           },
           {
-            "k": "move",
+            "k": "note",
             "at": 4,
             "next": 5
           },
@@ -917,17 +917,17 @@
             "value": 0
           },
           {
-            "k": "move",
+            "k": "if",
             "at": 6,
             "next": 9
           },
           {
-            "k": "move",
+            "k": "let",
             "at": 9,
             "next": 10
           },
           {
-            "k": "move",
+            "k": "goto",
             "at": 10,
             "next": 12
           },
@@ -938,7 +938,7 @@
             "next": 13
           },
           {
-            "k": "move",
+            "k": "note",
             "at": 0,
             "next": 1
           },
@@ -949,17 +949,17 @@
             "next": 2
           },
           {
-            "k": "move",
+            "k": "let",
             "at": 0,
             "next": 1
           },
           {
-            "k": "move",
+            "k": "if",
             "at": 1,
             "next": 3
           },
           {
-            "k": "move",
+            "k": "let",
             "at": 3,
             "next": 4
           },
@@ -986,17 +986,17 @@
             "next": 3
           },
           {
-            "k": "move",
+            "k": "let",
             "at": 0,
             "next": 1
           },
           {
-            "k": "move",
+            "k": "if",
             "at": 1,
             "next": 3
           },
           {
-            "k": "move",
+            "k": "let",
             "at": 3,
             "next": 4
           },
@@ -1022,7 +1022,7 @@
             "value": false
           },
           {
-            "k": "move",
+            "k": "if",
             "at": 13,
             "next": 15
           },
@@ -1033,17 +1033,17 @@
             "next": 16
           },
           {
-            "k": "move",
+            "k": "let",
             "at": 0,
             "next": 1
           },
           {
-            "k": "move",
+            "k": "if",
             "at": 1,
             "next": 3
           },
           {
-            "k": "move",
+            "k": "let",
             "at": 3,
             "next": 4
           },
@@ -1070,22 +1070,22 @@
             "next": 17
           },
           {
-            "k": "move",
+            "k": "note",
             "at": 0,
             "next": 1
           },
           {
-            "k": "move",
+            "k": "let",
             "at": 1,
             "next": 2
           },
           {
-            "k": "move",
+            "k": "let",
             "at": 2,
             "next": 3
           },
           {
-            "k": "move",
+            "k": "let",
             "at": 3,
             "next": 4
           },
@@ -1170,27 +1170,27 @@
             "node": "applySettings"
           },
           {
-            "k": "move",
+            "k": "note",
             "at": 0,
             "next": 1
           },
           {
-            "k": "move",
+            "k": "let",
             "at": 1,
             "next": 2
           },
           {
-            "k": "move",
+            "k": "let",
             "at": 2,
             "next": 3
           },
           {
-            "k": "move",
+            "k": "let",
             "at": 3,
             "next": 4
           },
           {
-            "k": "move",
+            "k": "if",
             "at": 4,
             "next": 5
           },
@@ -1201,7 +1201,7 @@
             "next": 6
           },
           {
-            "k": "move",
+            "k": "let",
             "at": 0,
             "next": 1
           },
@@ -1216,7 +1216,7 @@
             "next": 2
           },
           {
-            "k": "move",
+            "k": "if",
             "at": 2,
             "next": 3
           },
@@ -1226,17 +1226,17 @@
             "value": 1.2
           },
           {
-            "k": "move",
+            "k": "if",
             "at": 6,
             "next": 7
           },
           {
-            "k": "move",
+            "k": "let",
             "at": 7,
             "next": 8
           },
           {
-            "k": "move",
+            "k": "goto",
             "at": 8,
             "next": 12
           },
@@ -1247,7 +1247,7 @@
             "next": 13
           },
           {
-            "k": "move",
+            "k": "note",
             "at": 0,
             "next": 1
           },
@@ -1258,17 +1258,17 @@
             "next": 2
           },
           {
-            "k": "move",
+            "k": "let",
             "at": 0,
             "next": 1
           },
           {
-            "k": "move",
+            "k": "if",
             "at": 1,
             "next": 3
           },
           {
-            "k": "move",
+            "k": "let",
             "at": 3,
             "next": 4
           },
@@ -1295,17 +1295,17 @@
             "next": 3
           },
           {
-            "k": "move",
+            "k": "let",
             "at": 0,
             "next": 1
           },
           {
-            "k": "move",
+            "k": "if",
             "at": 1,
             "next": 3
           },
           {
-            "k": "move",
+            "k": "let",
             "at": 3,
             "next": 4
           },
@@ -1331,7 +1331,7 @@
             "value": false
           },
           {
-            "k": "move",
+            "k": "if",
             "at": 13,
             "next": 15
           },
@@ -1342,17 +1342,17 @@
             "next": 16
           },
           {
-            "k": "move",
+            "k": "let",
             "at": 0,
             "next": 1
           },
           {
-            "k": "move",
+            "k": "if",
             "at": 1,
             "next": 3
           },
           {
-            "k": "move",
+            "k": "let",
             "at": 3,
             "next": 4
           },
@@ -1379,22 +1379,22 @@
             "next": 17
           },
           {
-            "k": "move",
+            "k": "note",
             "at": 0,
             "next": 1
           },
           {
-            "k": "move",
+            "k": "let",
             "at": 1,
             "next": 2
           },
           {
-            "k": "move",
+            "k": "let",
             "at": 2,
             "next": 3
           },
           {
-            "k": "move",
+            "k": "let",
             "at": 3,
             "next": 4
           },

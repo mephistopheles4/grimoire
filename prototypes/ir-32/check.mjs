@@ -35,18 +35,26 @@ const STEP = {
   return: { req: ['expr'], opt: [] },
 };
 
+/* Rule 1: `k` is the op that ran. These eight names are the eight ops. */
 const MOVE = {
-  enter: { req: ['node'], opt: [] },
-  move: { req: ['at', 'next'], opt: [] },
+  note: { req: ['at', 'next'], opt: [] },
+  let: { req: ['at', 'next'], opt: [] },
+  if: { req: ['at', 'next'], opt: [] },
+  goto: { req: ['at', 'next'], opt: [] },
   call: { req: ['at', 'to', 'next'], opt: [] },
-  effect: { req: ['at', 'kind', 'desc'], opt: ['next', 'result', 'attempt'] },
-  raise: { req: ['at', 'tag', 'message', 'channel'], opt: [] },
+  effect: { req: ['at', 'kind', 'desc'], opt: ['next', 'raised', 'result', 'attempt'] },
+  throw: { req: ['at', 'tag', 'message', 'channel'], opt: [] },
+  return: { req: ['at'], opt: ['value'] },
+  /* and the five that move a frame rather than run a step */
+  enter: { req: ['node'], opt: [] },
   handled: { req: ['at', 'goto', 'next'], opt: [] },
   unwind: { req: [], opt: [] },
-  return: { req: ['at'], opt: ['value'] },
   done: { req: [], opt: ['result'] },
   uncaught: { req: ['tag', 'message', 'channel'], opt: [] },
 };
+
+/** The moves that name an op. `handled` is not one: it runs no step. */
+const OP_MOVES = new Set(['note', 'let', 'if', 'goto', 'call', 'effect', 'throw', 'return']);
 
 /* -- helpers -------------------------------------------------------------- */
 
@@ -173,9 +181,15 @@ function path(prog, walk, where, errs) {
     if (m.next !== undefined && !node.steps[m.next])
       bad(i, `next ${m.next} is not a step of ${f.nodeId}`);
 
+    /* Rule 1, enforced in one place: the move's name is the step's op. */
+    if (OP_MOVES.has(m.k) && st.op !== m.k)
+      bad(i, `a "${m.k}" move ran step ${m.at}, which is a "${st.op}"`);
+
     switch (m.k) {
-      case 'move': {
-        if (!['note', 'let', 'if', 'goto'].includes(st.op)) bad(i, `move ran ${st.op}, which produces no move`);
+      case 'note':
+      case 'let':
+      case 'if':
+      case 'goto': {
         let ok = false;
         if (st.op === 'if') ok = m.next === L[st.then] || m.next === L[st.else];
         else if (st.op === 'goto') ok = m.next === L[st.to];
@@ -185,22 +199,20 @@ function path(prog, walk, where, errs) {
         break;
       }
       case 'call':
-        if (st.op !== 'call') bad(i, `call ran ${st.op} at ${m.at}`);
-        else if (m.to !== st.target) bad(i, `call to "${m.to}", step targets "${st.target}"`);
+        if (st.op === 'call' && m.to !== st.target) bad(i, `call to "${m.to}", step targets "${st.target}"`);
         f.pc = m.next;
         if (prog.nodes[m.to]) frames.push({ nodeId: m.to, pc: 0 });
         else bad(i, `call to unknown node "${m.to}"`);
         break;
       case 'effect':
-        if (st.op !== 'effect') bad(i, `effect ran ${st.op} at ${m.at}`);
-        else if (m.kind !== st.kind) bad(i, `effect kind "${m.kind}" != step kind "${st.kind}"`);
-        if (m.next !== undefined) f.pc = m.next;
-        else if (walk.steps[i + 1] && walk.steps[i + 1].k !== 'raise')
-          bad(i, 'an effect with no next must be followed by a raise');
+        if (st.op === 'effect' && m.kind !== st.kind) bad(i, `effect kind "${m.kind}" != step kind "${st.kind}"`);
+        if (m.next !== undefined && m.raised !== undefined) bad(i, 'an effect carries next or raised, never both');
+        else if (m.next !== undefined) f.pc = m.next;
+        else if (m.raised === undefined) bad(i, 'an effect carries next when it went on, or raised when it threw');
+        else keys(errs, `${where} [${i}] raised`, m.raised, ['tag', 'message', 'channel']);
         break;
-      case 'raise':
-        if (st.op === 'throw') { if (m.tag !== st.tag) bad(i, `raise tag "${m.tag}" != throw tag "${st.tag}"`); }
-        else if (st.op !== 'effect' && st.op !== 'call') bad(i, `raise ran ${st.op} at ${m.at}`);
+      case 'throw':
+        if (st.op === 'throw' && m.tag !== st.tag) bad(i, `throw tag "${m.tag}" != step tag "${st.tag}"`);
         break;
       case 'handled': {
         if (!(st.onError || []).some((h) => h.goto === m.goto))
@@ -211,7 +223,6 @@ function path(prog, walk, where, errs) {
         break;
       }
       case 'return':
-        if (st.op !== 'return') bad(i, `return ran ${st.op} at ${m.at}`);
         frames.pop();
         break;
     }

@@ -192,7 +192,7 @@
             "node": "buildShelf"
           },
           {
-            "k": "move",
+            "k": "note",
             "at": 0,
             "next": 1
           },
@@ -203,22 +203,22 @@
             "next": 2
           },
           {
-            "k": "move",
+            "k": "note",
             "at": 0,
             "next": 1
           },
           {
-            "k": "move",
+            "k": "let",
             "at": 1,
             "next": 2
           },
           {
-            "k": "move",
+            "k": "if",
             "at": 2,
             "next": 5
           },
           {
-            "k": "move",
+            "k": "let",
             "at": 5,
             "next": 6
           },
@@ -245,7 +245,7 @@
             "next": 3
           },
           {
-            "k": "move",
+            "k": "note",
             "at": 0,
             "next": 1
           },
@@ -255,7 +255,7 @@
             "value": "uvs laid at 7.68 world units"
           },
           {
-            "k": "move",
+            "k": "if",
             "at": 3,
             "next": 4
           },
@@ -284,7 +284,7 @@
             }
           },
           {
-            "k": "move",
+            "k": "goto",
             "at": 5,
             "next": 7
           },
@@ -301,12 +301,12 @@
             "next": 1
           },
           {
-            "k": "move",
+            "k": "note",
             "at": 0,
             "next": 1
           },
           {
-            "k": "move",
+            "k": "let",
             "at": 1,
             "next": 2
           },
@@ -328,7 +328,7 @@
             }
           },
           {
-            "k": "move",
+            "k": "if",
             "at": 1,
             "next": 2
           },
@@ -401,7 +401,7 @@
             "node": "buildShelf"
           },
           {
-            "k": "move",
+            "k": "note",
             "at": 0,
             "next": 1
           },
@@ -412,22 +412,22 @@
             "next": 2
           },
           {
-            "k": "move",
+            "k": "note",
             "at": 0,
             "next": 1
           },
           {
-            "k": "move",
+            "k": "let",
             "at": 1,
             "next": 2
           },
           {
-            "k": "move",
+            "k": "if",
             "at": 2,
             "next": 5
           },
           {
-            "k": "move",
+            "k": "let",
             "at": 5,
             "next": 6
           },
@@ -454,7 +454,7 @@
             "next": 3
           },
           {
-            "k": "move",
+            "k": "note",
             "at": 0,
             "next": 1
           },
@@ -464,7 +464,7 @@
             "value": "uvs laid at 1.6 world units"
           },
           {
-            "k": "move",
+            "k": "if",
             "at": 3,
             "next": 4
           },
@@ -493,7 +493,7 @@
             }
           },
           {
-            "k": "move",
+            "k": "goto",
             "at": 5,
             "next": 7
           },
@@ -510,12 +510,12 @@
             "next": 1
           },
           {
-            "k": "move",
+            "k": "note",
             "at": 0,
             "next": 1
           },
           {
-            "k": "move",
+            "k": "let",
             "at": 1,
             "next": 2
           },
@@ -537,7 +537,7 @@
             }
           },
           {
-            "k": "move",
+            "k": "if",
             "at": 1,
             "next": 2
           },
@@ -610,7 +610,7 @@
             "node": "buildShelf"
           },
           {
-            "k": "move",
+            "k": "note",
             "at": 0,
             "next": 1
           },
@@ -621,22 +621,22 @@
             "next": 2
           },
           {
-            "k": "move",
+            "k": "note",
             "at": 0,
             "next": 1
           },
           {
-            "k": "move",
+            "k": "let",
             "at": 1,
             "next": 2
           },
           {
-            "k": "move",
+            "k": "if",
             "at": 2,
             "next": 3
           },
           {
-            "k": "move",
+            "k": "note",
             "at": 3,
             "next": 4
           },
@@ -663,7 +663,7 @@
             "next": 3
           },
           {
-            "k": "move",
+            "k": "note",
             "at": 0,
             "next": 1
           },
@@ -673,7 +673,7 @@
             "value": "uvs laid at 7.68 world units"
           },
           {
-            "k": "move",
+            "k": "if",
             "at": 3,
             "next": 4
           },
@@ -702,7 +702,7 @@
             }
           },
           {
-            "k": "move",
+            "k": "goto",
             "at": 5,
             "next": 7
           },
@@ -719,12 +719,12 @@
             "next": 1
           },
           {
-            "k": "move",
+            "k": "note",
             "at": 0,
             "next": 1
           },
           {
-            "k": "move",
+            "k": "let",
             "at": 1,
             "next": 2
           },
@@ -746,7 +746,7 @@
             }
           },
           {
-            "k": "move",
+            "k": "if",
             "at": 1,
             "next": 2
           },
@@ -819,7 +819,7 @@
             "node": "buildShelf"
           },
           {
-            "k": "move",
+            "k": "note",
             "at": 0,
             "next": 1
           },
@@ -830,22 +830,22 @@
             "next": 2
           },
           {
-            "k": "move",
+            "k": "note",
             "at": 0,
             "next": 1
           },
           {
-            "k": "move",
+            "k": "let",
             "at": 1,
             "next": 2
           },
           {
-            "k": "move",
+            "k": "if",
             "at": 2,
             "next": 5
           },
           {
-            "k": "move",
+            "k": "let",
             "at": 5,
             "next": 6
           },
@@ -869,7 +869,7 @@
             "next": 3
           },
           {
-            "k": "move",
+            "k": "note",
             "at": 0,
             "next": 1
           },
@@ -879,12 +879,12 @@
             "value": "uvs laid at 7.68 world units"
           },
           {
-            "k": "move",
+            "k": "if",
             "at": 3,
             "next": 6
           },
           {
-            "k": "move",
+            "k": "note",
             "at": 6,
             "next": 7
           },
@@ -901,12 +901,12 @@
             "next": 1
           },
           {
-            "k": "move",
+            "k": "note",
             "at": 0,
             "next": 1
           },
           {
-            "k": "move",
+            "k": "let",
             "at": 1,
             "next": 2
           },
@@ -928,7 +928,7 @@
             }
           },
           {
-            "k": "move",
+            "k": "if",
             "at": 1,
             "next": 2
           },
@@ -1002,7 +1002,7 @@
             "node": "buildShelf"
           },
           {
-            "k": "move",
+            "k": "note",
             "at": 0,
             "next": 1
           },
@@ -1013,22 +1013,22 @@
             "next": 2
           },
           {
-            "k": "move",
+            "k": "note",
             "at": 0,
             "next": 1
           },
           {
-            "k": "move",
+            "k": "let",
             "at": 1,
             "next": 2
           },
           {
-            "k": "move",
+            "k": "if",
             "at": 2,
             "next": 5
           },
           {
-            "k": "move",
+            "k": "let",
             "at": 5,
             "next": 6
           },
@@ -1055,7 +1055,7 @@
             "next": 3
           },
           {
-            "k": "move",
+            "k": "note",
             "at": 0,
             "next": 1
           },
@@ -1065,7 +1065,7 @@
             "value": "uvs laid at 7.68 world units"
           },
           {
-            "k": "move",
+            "k": "if",
             "at": 3,
             "next": 4
           },
@@ -1079,14 +1079,12 @@
             "k": "effect",
             "at": 0,
             "kind": "net.get",
-            "desc": "fetch the sheet"
-          },
-          {
-            "k": "raise",
-            "at": 0,
-            "tag": "SheetMissing",
-            "message": "404",
-            "channel": "escape"
+            "desc": "fetch the sheet",
+            "raised": {
+              "tag": "SheetMissing",
+              "message": "404",
+              "channel": "escape"
+            }
           },
           {
             "k": "handled",
@@ -1103,7 +1101,7 @@
             "next": 3
           },
           {
-            "k": "move",
+            "k": "note",
             "at": 3,
             "next": 4
           },
@@ -1116,7 +1114,7 @@
             }
           },
           {
-            "k": "move",
+            "k": "goto",
             "at": 5,
             "next": 7
           },
@@ -1133,12 +1131,12 @@
             "next": 1
           },
           {
-            "k": "move",
+            "k": "note",
             "at": 0,
             "next": 1
           },
           {
-            "k": "move",
+            "k": "let",
             "at": 1,
             "next": 2
           },
@@ -1160,7 +1158,7 @@
             }
           },
           {
-            "k": "move",
+            "k": "if",
             "at": 1,
             "next": 2
           },
@@ -1234,7 +1232,7 @@
             "node": "buildShelf"
           },
           {
-            "k": "move",
+            "k": "note",
             "at": 0,
             "next": 1
           },
@@ -1245,22 +1243,22 @@
             "next": 2
           },
           {
-            "k": "move",
+            "k": "note",
             "at": 0,
             "next": 1
           },
           {
-            "k": "move",
+            "k": "let",
             "at": 1,
             "next": 2
           },
           {
-            "k": "move",
+            "k": "if",
             "at": 2,
             "next": 5
           },
           {
-            "k": "move",
+            "k": "let",
             "at": 5,
             "next": 6
           },
@@ -1287,7 +1285,7 @@
             "next": 3
           },
           {
-            "k": "move",
+            "k": "note",
             "at": 0,
             "next": 1
           },
@@ -1297,7 +1295,7 @@
             "value": "uvs laid at 7.68 world units"
           },
           {
-            "k": "move",
+            "k": "if",
             "at": 3,
             "next": 4
           },
@@ -1326,7 +1324,7 @@
             }
           },
           {
-            "k": "move",
+            "k": "goto",
             "at": 5,
             "next": 7
           },
@@ -1343,12 +1341,12 @@
             "next": 1
           },
           {
-            "k": "move",
+            "k": "note",
             "at": 0,
             "next": 1
           },
           {
-            "k": "move",
+            "k": "let",
             "at": 1,
             "next": 2
           },
@@ -1366,12 +1364,12 @@
             "value": null
           },
           {
-            "k": "move",
+            "k": "if",
             "at": 1,
             "next": 3
           },
           {
-            "k": "move",
+            "k": "note",
             "at": 3,
             "next": 4
           },
