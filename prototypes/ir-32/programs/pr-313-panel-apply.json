@@ -1744,15 +1744,5 @@
       "enteredBy": [],
       "touches": []
     }
-  },
-  "files": [],
-  "layers": {
-    "production": {
-      "nodes": {}
-    }
-  },
-  "sheet": {
-    "scopeRule": "one graph per entry point",
-    "graphsNotDrawn": []
   }
 }

@@ -26,8 +26,13 @@ const CASES = [
   ['an unknown walk-move key is refused', (p) => { p.presets[0].walk.steps[0].label = 'x'; return p; }, 'unknown key "label"'],
   ['a near-miss spelling is refused', (p) => { p.nodes.greet.enteredby = []; return p; }, 'unknown key "enteredby"'],
 
-  // Rule 4 — every part is required
-  ['a missing top-level field is refused', (p) => { delete p.sheet; return p; }, 'missing required key "sheet"'],
+  // Rule 4 — every part of the core is required, and the block is all or none
+  ['a missing core field is refused', (p) => { delete p.blurb; return p; }, 'missing required key "blurb"'],
+  ['a file without sheet is accepted', (p) => { delete p.sheet; return p; }, null],
+  ['a file without layers is accepted', (p) => { delete p.layers; return p; }, null],
+  ['a file without files is accepted', (p) => { delete p.files; return p; }, null],
+  ['a plan that lists changed files is accepted', (p) => { delete p.layers; delete p.sheet; return p; }, null],
+  ['an empty file list is refused', (p) => { p.files = []; return p; }, 'or leave the key out'],
   ['a missing node field is refused', (p) => { delete p.nodes.greet.enteredBy; return p; }, 'missing required key "enteredBy"'],
   ['a missing files field is refused', (p) => { delete p.files[0].dels; return p; }, 'missing required key "dels"'],
   ['a missing preset blurb is refused', (p) => { delete p.presets[0].blurb; return p; }, 'missing required key "blurb"'],

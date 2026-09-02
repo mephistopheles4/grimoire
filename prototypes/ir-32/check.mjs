@@ -17,7 +17,11 @@ import { join } from 'node:path';
 
 /* -- the shape, exactly as groundtrack-ir.md states it --------------------- */
 
-const TOP = ['id', 'title', 'blurb', 'entry', 'env', 'files', 'layers', 'nodes', 'presets', 'sheet'];
+/* The core is every file's. The three change fields are each optional on their
+ * own: the material shows a plan that lists changed files and a change that
+ * lists none. See groundtrack-ir.md, "The core and the change fields". */
+const CORE = ['id', 'title', 'blurb', 'entry', 'env', 'nodes', 'presets'];
+const OPTIONAL = ['files', 'layers', 'sheet'];
 const NODE = ['name', 'role', 'loc', 'params', 'channels', 'steps', 'touches', 'enteredBy'];
 const FILE = ['path', 'change', 'why', 'adds', 'dels'];
 const PRESET = ['name', 'blurb', 'input', 'walk'];
@@ -76,16 +80,18 @@ const labelMap = (node) => {
 /* -- pass 1 and 2: shape and links ---------------------------------------- */
 
 function shape(prog, errs) {
-  keys(errs, 'file', prog, TOP);
+  keys(errs, 'file', prog, CORE, OPTIONAL);
   if (!isObj(prog.nodes)) return;
 
-  if (!Array.isArray(prog.files)) errs.push('files: expected an array');
-  else prog.files.forEach((f, i) => {
-    keys(errs, `files[${i}]`, f, FILE);
-    if (f && !CHANGE.includes(f.change)) errs.push(`files[${i}]: change "${f.change}" is not one of ${CHANGE.join(', ')}`);
-  });
-
-  if (isObj(prog.sheet)) keys(errs, 'sheet', prog.sheet, ['scopeRule', 'graphsNotDrawn']);
+  if (prog.files !== undefined) {
+    if (!Array.isArray(prog.files)) errs.push('files: expected an array');
+    else if (!prog.files.length) errs.push('files: state the changed files, or leave the key out. An empty list claims a change that touched nothing.');
+    else prog.files.forEach((f, i) => {
+      keys(errs, `files[${i}]`, f, FILE);
+      if (f && !CHANGE.includes(f.change)) errs.push(`files[${i}]: change "${f.change}" is not one of ${CHANGE.join(', ')}`);
+    });
+  }
+  if (prog.sheet !== undefined) keys(errs, 'sheet', prog.sheet, ['scopeRule', 'graphsNotDrawn']);
 
   if (isObj(prog.layers)) {
     if (!Object.keys(prog.layers).length) errs.push('layers: state at least one layer');

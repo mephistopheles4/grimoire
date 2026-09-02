@@ -386,7 +386,8 @@
           "id": "required-walk",
           "label": "An entry node, the nodes, and one preset with a walk",
           "short": "Plus a walked preset",
-          "src": "#43, the walk ships"
+          "src": "#43, the walk ships",
+          "chosen": true
         },
         {
           "id": "required-files",
@@ -398,34 +399,34 @@
           "id": "required-all",
           "label": "Every part this box names",
           "short": "Everything",
-          "strawman": true,
-          "chosen": true
+          "strawman": true
         }
       ]
     },
     {
       "id": "kind",
-      "name": "One shape, or two",
-      "question": "Does one shape cover a code change and a plan?",
-      "problem": "The skill accepts a change, a plan, a named function or a module path. A change carries a diff. A plan carries none. Three fields divide them: the changed file list, the layer map and the sheet rule. This row decides whether one shape holds both documents.",
+      "name": "The change fields",
+      "question": "Are the changed files, the layer map and the sheet rule required?",
+      "problem": "Three fields describe a diff: the changed file list, the layer map and the sheet rule. The other seven describe any graph. The premise that these three mark a change and their absence marks a plan is false: a wayfinder map lists 13 changed files, and one real pull request states none of the three. This row decides what a file must carry.",
       "opts": [
         {
           "id": "kind-one",
-          "label": "One shape; a plan writes an empty file list and one layer",
-          "short": "One shape for both",
-          "chosen": true,
+          "label": "All three required; a file with none writes them empty",
+          "short": "All three required",
           "src": "#32 grilling, round 1"
         },
         {
           "id": "kind-core",
-          "label": "A shared core, and one optional block a change carries",
-          "short": "A core, plus a block",
+          "label": "A core always, and each of the three optional on its own",
+          "short": "Core, three optional",
+          "chosen": true,
           "src": "#32 grilling, round 2"
         },
         {
-          "id": "kind-two",
-          "label": "Two shapes: a plan file and a change file",
-          "short": "Two shapes",
+          "id": "kind-block",
+          "label": "A core always, and the three optional together as one block",
+          "short": "Core, one block",
+          "strawman": true,
           "src": "#32 grilling, round 2"
         },
         {
@@ -746,7 +747,10 @@
       "why": "The checker accepts a file with an entry node and its nodes. Everything else is optional."
     },
     "required-walk": {
-      "why": "The checker accepts a file that also carries one preset with a walk, so every file steps."
+      "why": "The checker accepts a file that also carries one preset with a walk, so every file steps.",
+      "notes": [
+        "The core is id, title, blurb, entry, env, nodes and presets. The change block sits outside it."
+      ]
     },
     "required-files": {
       "why": "The checker also demands the changed file list, so every file reports what the change touched."
@@ -760,33 +764,36 @@
       ]
     },
     "kind-one": {
-      "why": "Every file carries the same fields. A plan states an empty file list and a single production layer.",
+      "why": "Every file states all ten fields. A file with no diff writes an empty list and a bare production layer.",
       "notes": [
-        "Measured: the wayfinder-map program carried no file list, no layer map and no sheet rule. Three fields had to be written in to pass."
+        "Measured: migrate.mjs had to invent a layer map and a sheet rule for the wayfinder map, and all three for one pull request."
       ]
     },
     "kind-core": {
-      "why": "The nodes and the walks are common to both. The file list, the layer map and the sheet rule form one optional block.",
+      "why": "The seven core fields are required. The changed file list, the layer map and the sheet rule are each optional on their own.",
       "rel": [
         [
           "required-all",
           "conf",
-          "An optional block and a rule that requires every part cannot both hold.",
+          "Three optional fields and a rule requiring every part cannot both hold.",
           "measured",
-          "migrate.mjs had to write files, layers and sheet into map-300-woodwork before check.mjs accepted it"
+          "the three worked programs carry the three fields in three different combinations"
         ]
-      ]
-    },
-    "kind-two": {
-      "why": "A plan and a change are different documents. Each shape states only its own fields.",
+      ],
       "notes": [
-        "Two shapes need two case lists, and an author must pick one before writing."
+        "Chosen by the owner. The checker refuses an empty file list, so absence and emptiness stay different claims."
       ]
     },
     "kind-none": {
       "why": "The skill reads a change only, and a plan reaches it as prose or not at all.",
       "notes": [
         "Ticket #27 already admits a plan as durable material, so this option reopens a closed decision."
+      ]
+    },
+    "kind-block": {
+      "why": "The three travel together: a file states all three or none.",
+      "notes": [
+        "The material refuses this. A wayfinder map lists 13 changed files and states no layer map and no sheet rule, so the three do not co-occur."
       ]
     }
   },

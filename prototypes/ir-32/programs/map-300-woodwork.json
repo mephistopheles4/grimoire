@@ -2259,14 +2259,5 @@
       "enteredBy": [],
       "touches": []
     }
-  },
-  "layers": {
-    "production": {
-      "nodes": {}
-    }
-  },
-  "sheet": {
-    "scopeRule": "one graph per entry point",
-    "graphsNotDrawn": []
   }
 }

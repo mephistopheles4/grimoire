@@ -87,14 +87,13 @@ for (const file of readdirSync(inDir).filter((f) => f.endsWith('.json')).sort())
     }
   }
 
-  p.files = p.files || [];
-  for (const f of p.files) { f.adds = f.adds ?? 0; f.dels = f.dels ?? 0; }
   p.env = p.env || {};
-  p.layers = p.layers && Object.keys(p.layers).length ? p.layers : { production: { nodes: {} } };
-  for (const [ln, l] of Object.entries(p.layers)) {
+
+  // Each change field is optional on its own. Nothing is invented to fill a gap.
+  if (p.files) for (const f of p.files) { f.adds = f.adds ?? 0; f.dels = f.dels ?? 0; }
+  if (p.layers) for (const [ln, l] of Object.entries(p.layers)) {
     if (!l.nodes) { const { entry, ...rest } = l; p.layers[ln] = { ...(entry ? { entry } : {}), nodes: rest }; }
   }
-  p.sheet = p.sheet || { scopeRule: 'one graph per entry point', graphsNotDrawn: [] };
 
   for (const pr of p.presets) { pr.blurb = pr.blurb || pr.name; pr.walk = migrateWalk(p, pr.walk); }
 

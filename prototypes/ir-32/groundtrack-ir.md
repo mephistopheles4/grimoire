@@ -17,7 +17,30 @@ and `corpus.mjs` asserts that this document and `check.mjs` agree.
    names the author chooses.
 3. **Nothing runs.** Every expression field is text the page prints. No program
    evaluates it, so it may say anything a reader understands.
-4. **Every part is required.** A file that omits a named field is refused.
+4. **Every part of the core is required.** A file that omits a core field is
+   refused. Three fields sit outside the core, and each is optional on its own.
+
+## The core and the change fields
+
+groundtrack draws two kinds of thing. A **change** is a diff: a pull request, a
+branch, a set of edits. A **plan** is work not yet done: a map of tickets, a
+design still being argued. Both are graphs of nodes, and both are walked.
+
+**The core is every file's, and it is always required:** `id`, `title`,
+`blurb`, `entry`, `env`, `nodes`, `presets`.
+
+**Three fields are optional, and each stands alone:** `files`, `layers`,
+`sheet`.
+
+They do not divide plans from changes, and the material says so. Of the three
+worked programs, a wayfinder map lists 13 changed files while stating no layer
+map and no sheet rule, and one real pull request states none of the three. A
+plan can touch files. A change can need no test layer.
+
+**Leave a field out rather than writing it empty.** `"files": []` claims a
+change that touched nothing, which is a different statement from *this file
+says nothing about changed files*. The checker refuses the empty list for that
+reason.
 
 ## Top level
 
