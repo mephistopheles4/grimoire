@@ -10,14 +10,17 @@ import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { check } from './check.mjs';
 
+/* Order matters: the first pattern that matches wins. Keep the walk patterns
+ * ahead of the generic ones, or a walk fault lands in a shape bucket. */
 const ROW = [
+  [/missing required key "next"/i, 'Who makes the walk'],
   [/unknown key/i, 'An unknown key'],
   [/missing required key|state at least one/i, 'What a file must carry'],
-  [/no edge from|cursor sits at|frame\(s\)|move ran|produces no move|lands at|is not a step of|with no frame|done with/i, 'Who makes the walk'],
-  [/is not a label|onError goto|named by no onError|then "|else "|to "/i, 'One name, two meanings'],
+  [/no edge from|cursor sits at|frame\(s\)|move ran|produces no move|lands at|is not a step of|with no frame|done with|next \d+ is not a step|followed by a raise|ran (throw|call|effect|return|note|let|if|goto)/i, 'Who makes the walk'],
+  [/is not a label|onError does not name|onError goto|named by no onError/i, 'One name, two meanings'],
   [/role is blank/i, 'The node category'],
   [/^layers|entry "/i, 'What a layer may say'],
-  [/effect kind|raise tag|status "/i, 'Who makes the walk'],
+  [/effect kind|raise tag/i, 'Who makes the walk'],
   [/is not a node|op "|k "|change "|channel "|provenance "/i, 'One name, two meanings'],
   [/not JSON/i, 'Not valid JSON'],
 ];
