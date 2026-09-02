@@ -204,14 +204,14 @@
           "id": "vocab-open",
           "label": "Any word; the page prints it",
           "short": "Any word",
-          "chosen": true,
           "src": "#32 grilling, round 1"
         },
         {
           "id": "vocab-starter",
           "label": "Any word, with a starter list in the document",
           "short": "Any word, list given",
-          "src": "#32 grilling, round 1"
+          "src": "#32 grilling, round 1",
+          "chosen": true
         },
         {
           "id": "vocab-drop",
@@ -386,7 +386,6 @@
           "id": "required-walk",
           "label": "An entry node, the nodes, and one preset with a walk",
           "short": "Plus a walked preset",
-          "chosen": true,
           "src": "#43, the walk ships"
         },
         {
@@ -399,7 +398,42 @@
           "id": "required-all",
           "label": "Every part this box names",
           "short": "Everything",
-          "strawman": true
+          "strawman": true,
+          "chosen": true
+        }
+      ]
+    },
+    {
+      "id": "kind",
+      "name": "One shape, or two",
+      "question": "Does one shape cover a code change and a plan?",
+      "problem": "The skill accepts a change, a plan, a named function or a module path. A change carries a diff. A plan carries none. Three fields divide them: the changed file list, the layer map and the sheet rule. This row decides whether one shape holds both documents.",
+      "opts": [
+        {
+          "id": "kind-one",
+          "label": "One shape; a plan writes an empty file list and one layer",
+          "short": "One shape for both",
+          "chosen": true,
+          "src": "#32 grilling, round 1"
+        },
+        {
+          "id": "kind-core",
+          "label": "A shared core, and one optional block a change carries",
+          "short": "A core, plus a block",
+          "src": "#32 grilling, round 2"
+        },
+        {
+          "id": "kind-two",
+          "label": "Two shapes: a plan file and a change file",
+          "short": "Two shapes",
+          "src": "#32 grilling, round 2"
+        },
+        {
+          "id": "kind-none",
+          "label": "Code changes only; a plan is out of scope",
+          "short": "Changes only",
+          "strawman": true,
+          "src": "#27, retired"
         }
       ]
     }
@@ -440,17 +474,11 @@
     },
     "walk-checked": {
       "why": "The agent states each move, and a checker proves every move exists in the graph. No program evaluates an expression.",
-      "rel": [
-        [
-          "clash-all",
-          "req",
-          "A path checker names each field it reads, so a double meaning must go first.",
-          "argued"
-        ]
-      ],
+      "rel": [],
       "notes": [
         "The checker tests structure only: each index is a real step, each call target matches, each branch landing is that branch's own label, frames pop in order.",
-        "It cannot test which branch ran. Ticket #43 already ruled the tape literal, so the branch is a stated fact."
+        "It cannot test which branch ran. Ticket #43 already ruled the tape literal, so the branch is a stated fact.",
+        "Measured over three eval rounds: a capable model hand-wrote a legal walk on two tasks, six runs, no validator, zero errors. A weaker model did not."
       ]
     },
     "walk-trust": {
@@ -525,7 +553,8 @@
     "unknown-refuse": {
       "why": "The checker names every key it accepts and refuses the file on any other key.",
       "notes": [
-        "A layer map and the node map hold author-named keys. The refusal must name where it applies, or it refuses every real file."
+        "A layer map and the node map hold author-named keys. The refusal must name where it applies, or it refuses every real file.",
+        "Measured: 36 eval runs produced no unknown key and no missing required field. Refusal cost nothing in authorability."
       ]
     },
     "unknown-warn": {
@@ -609,7 +638,10 @@
       "why": "The author names the category and the page prints the word. Nothing branches on it."
     },
     "vocab-starter": {
-      "why": "The document lists the words in use, and an author may add one."
+      "why": "The document lists the words in use, and an author may add one.",
+      "notes": [
+        "The starter list is the one part of the shape document that no case list can bind, because the checker enforces no role word."
+      ]
     },
     "vocab-drop": {
       "why": "The node's name and its channels say what it is, so the category adds nothing."
@@ -720,7 +752,42 @@
       "why": "The checker also demands the changed file list, so every file reports what the change touched."
     },
     "required-all": {
-      "why": "The checker demands every part, so no file is partial."
+      "why": "The checker demands every part, so no file is partial.",
+      "notes": [
+        "Measured: every one of 36 eval runs wrote all ten required top-level fields.",
+        "It is also what exposed the row One shape, or two: a plan has no diff, so requiring the file list makes a plan write an empty one.",
+        "It is a strawman and it is the chosen option. The owner picked it, and picking it is what exposed the missing row."
+      ]
+    },
+    "kind-one": {
+      "why": "Every file carries the same fields. A plan states an empty file list and a single production layer.",
+      "notes": [
+        "Measured: the wayfinder-map program carried no file list, no layer map and no sheet rule. Three fields had to be written in to pass."
+      ]
+    },
+    "kind-core": {
+      "why": "The nodes and the walks are common to both. The file list, the layer map and the sheet rule form one optional block.",
+      "rel": [
+        [
+          "required-all",
+          "conf",
+          "An optional block and a rule that requires every part cannot both hold.",
+          "measured",
+          "migrate.mjs had to write files, layers and sheet into map-300-woodwork before check.mjs accepted it"
+        ]
+      ]
+    },
+    "kind-two": {
+      "why": "A plan and a change are different documents. Each shape states only its own fields.",
+      "notes": [
+        "Two shapes need two case lists, and an author must pick one before writing."
+      ]
+    },
+    "kind-none": {
+      "why": "The skill reads a change only, and a plan reaches it as prose or not at all.",
+      "notes": [
+        "Ticket #27 already admits a plan as durable material, so this option reopens a closed decision."
+      ]
     }
   },
   "suspected": [
@@ -730,7 +797,8 @@
     "weakly connected: walk-trust conf premise-lock — a fixed shape still states the walk's fields, even when nothing tests the path.",
     "weakly connected: tests-drop conf layer-reach — a declared unreached mark needs no test field, so a dropped field removes nothing it depends on.",
     "weakly connected: card-require req required-all — one required field does not make every part required.",
-    "biased: layerset-open req unknown-refuse — the author-named layer key is a scope question for the checker, not a conflict between options. It is in notes."
+    "biased: layerset-open req unknown-refuse — the author-named layer key is a scope question for the checker, not a conflict between options. It is in notes.",
+    "weakly connected: walk-checked req clash-all — measured on 560 moves. A path checker reads the program's label map and never a walk step's label, so renaming the clash is not what the check depends on. The clash that did bite was `at`, which the ticket does not name."
   ],
   "presets": [
     {
@@ -866,6 +934,27 @@
         {
           "label": "Open the lock itself",
           "open": "premise"
+        }
+      ]
+    },
+    {
+      "title": "A plan, not a change",
+      "text": "The document is a plan with no diff. Read what the shape then demands.",
+      "reframe": "The problem becomes whether a file with no diff is the same document as one with a diff.",
+      "steps": [
+        {
+          "label": "A shared core plus a block",
+          "set": {
+            "kind": "kind-core"
+          }
+        },
+        {
+          "label": "Open one shape, or two",
+          "open": "kind"
+        },
+        {
+          "label": "Read what it rules out",
+          "open": "required"
         }
       ]
     }
