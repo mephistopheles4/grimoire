@@ -1,0 +1,434 @@
+{
+  "id": "csv-import",
+  "title": "CSV import · load contacts into the address book",
+  "blurb": "importContacts reads an uploaded CSV, parses it into rows, and saves each row as a contact. A duplicate row is skipped rather than failing the whole import, while a missing upload or a malformed header aborts the import entirely.",
+  "entry": "importContacts",
+  "env": {},
+  "files": [
+    {
+      "path": "src/import/contacts.ts",
+      "change": "edit",
+      "why": "holds the new importContacts handler and its row loop",
+      "adds": 88,
+      "dels": 12
+    },
+    {
+      "path": "src/import/parse.ts",
+      "change": "new",
+      "why": "holds the new parseRows pure function",
+      "adds": 41,
+      "dels": 0
+    },
+    {
+      "path": "src/import/fetch.ts",
+      "change": "new",
+      "why": "holds the new fetchUpload effect wrapper",
+      "adds": 19,
+      "dels": 0
+    },
+    {
+      "path": "src/contacts/save.ts",
+      "change": "edit",
+      "why": "holds the updated saveContact insert and duplicate handling",
+      "adds": 33,
+      "dels": 7
+    },
+    {
+      "path": "src/contacts/normalise.ts",
+      "change": "edit",
+      "why": "holds the updated row-cleaning logic saveContact now calls",
+      "adds": 14,
+      "dels": 2
+    }
+  ],
+  "layers": {
+    "production": {
+      "nodes": {}
+    },
+    "tests": {
+      "entry": "importContacts",
+      "nodes": {
+        "fetchUpload": {
+          "R": [
+            "the S3 client → a fixture directory · contacts.test.ts:9"
+          ]
+        },
+        "saveContact": {
+          "R": [
+            "the contacts table → an in-memory list · contacts.test.ts:22"
+          ]
+        }
+      }
+    }
+  },
+  "nodes": {
+    "importContacts": {
+      "name": "importContacts",
+      "role": "handler",
+      "loc": "src/import/contacts.ts:10",
+      "params": [
+        "uploadId"
+      ],
+      "channels": {
+        "A": "a count of saved and skipped rows",
+        "E": [
+          "NoUpload",
+          "BadCsv",
+          "Duplicate"
+        ],
+        "R": [
+          "the S3 client",
+          "the contacts table"
+        ]
+      },
+      "touches": [
+        "src/import/contacts.ts"
+      ],
+      "enteredBy": [
+        "src/import/contacts.test.ts"
+      ],
+      "steps": [
+        {
+          "op": "note",
+          "note": "load the upload, parse it, then save each row, skipping duplicates"
+        },
+        {
+          "op": "call",
+          "target": "fetchUpload",
+          "args": {
+            "uploadId": "uploadId"
+          },
+          "bind": "bytes",
+          "aside": "raises NoUpload on a missing object; nothing here catches it"
+        },
+        {
+          "op": "call",
+          "target": "parseRows",
+          "args": {
+            "bytes": "bytes"
+          },
+          "bind": "rows",
+          "aside": "raises BadCsv on a bad header; nothing here catches it"
+        },
+        {
+          "op": "let",
+          "name": "saved",
+          "expr": "0"
+        },
+        {
+          "op": "let",
+          "name": "skipped",
+          "expr": "0"
+        },
+        {
+          "op": "if",
+          "label": "loopTop",
+          "cond": "rows is empty",
+          "then": "afterLoop",
+          "else": "loopBody"
+        },
+        {
+          "op": "call",
+          "label": "loopBody",
+          "target": "saveContact",
+          "args": {
+            "row": "rows[0]"
+          },
+          "aside": "the only call in the loop that can fail",
+          "onError": [
+            {
+              "tag": "Duplicate",
+              "goto": "skip",
+              "bind": "why"
+            }
+          ]
+        },
+        {
+          "op": "let",
+          "name": "saved",
+          "expr": "saved + 1"
+        },
+        {
+          "op": "let",
+          "name": "rows",
+          "expr": "rows.slice(1)"
+        },
+        {
+          "op": "goto",
+          "to": "loopTop"
+        },
+        {
+          "op": "let",
+          "label": "skip",
+          "name": "skipped",
+          "expr": "skipped + 1"
+        },
+        {
+          "op": "let",
+          "name": "rows",
+          "expr": "rows.slice(1)"
+        },
+        {
+          "op": "goto",
+          "to": "loopTop"
+        },
+        {
+          "op": "effect",
+          "label": "afterLoop",
+          "kind": "metrics.write",
+          "desc": "record the saved and skipped counts",
+          "args": {
+            "saved": "saved",
+            "skipped": "skipped"
+          }
+        },
+        {
+          "op": "return",
+          "expr": "{ saved, skipped }"
+        }
+      ]
+    },
+    "fetchUpload": {
+      "name": "fetchUpload",
+      "role": "io",
+      "loc": "src/import/fetch.ts:5",
+      "params": [
+        "uploadId"
+      ],
+      "channels": {
+        "A": "the raw upload bytes",
+        "E": [
+          "NoUpload"
+        ],
+        "R": [
+          "the S3 client"
+        ]
+      },
+      "touches": [
+        "src/import/fetch.ts"
+      ],
+      "enteredBy": [],
+      "steps": [
+        {
+          "op": "effect",
+          "kind": "s3.get",
+          "desc": "fetch the uploaded object",
+          "args": {
+            "key": "uploadId"
+          },
+          "bind": "bytes",
+          "aside": "raises NoUpload directly when the object is missing"
+        },
+        {
+          "op": "return",
+          "expr": "bytes"
+        }
+      ]
+    },
+    "parseRows": {
+      "name": "parseRows",
+      "role": "pure",
+      "loc": "src/import/parse.ts:4",
+      "params": [
+        "bytes"
+      ],
+      "channels": {
+        "A": "a list of rows",
+        "E": [
+          "BadCsv"
+        ],
+        "R": []
+      },
+      "touches": [
+        "src/import/parse.ts"
+      ],
+      "enteredBy": [
+        "src/import/contacts.test.ts"
+      ],
+      "steps": [
+        {
+          "op": "if",
+          "cond": "the header line is wrong",
+          "then": "badHeader",
+          "else": "ok"
+        },
+        {
+          "op": "return",
+          "label": "ok",
+          "expr": "rows"
+        },
+        {
+          "op": "throw",
+          "label": "badHeader",
+          "tag": "BadCsv",
+          "message": "the header line is wrong",
+          "channel": "die"
+        }
+      ]
+    },
+    "saveContact": {
+      "name": "saveContact",
+      "role": "handler",
+      "loc": "src/contacts/save.ts:8",
+      "params": [
+        "row"
+      ],
+      "channels": {
+        "A": "confirmation the contact was saved",
+        "E": [
+          "Duplicate"
+        ],
+        "R": [
+          "the contacts table"
+        ]
+      },
+      "touches": [
+        "src/contacts/save.ts"
+      ],
+      "enteredBy": [],
+      "steps": [
+        {
+          "op": "call",
+          "target": "normalise",
+          "args": {
+            "row": "row"
+          },
+          "bind": "cleanRow"
+        },
+        {
+          "op": "effect",
+          "kind": "db.insert",
+          "desc": "insert the contact row",
+          "args": {
+            "row": "cleanRow"
+          },
+          "aside": "raises Duplicate directly on a repeat contact"
+        },
+        {
+          "op": "return",
+          "expr": "\"contact saved\""
+        }
+      ]
+    },
+    "normalise": {
+      "name": "normalise",
+      "role": "pure",
+      "loc": "src/contacts/normalise.ts:3",
+      "params": [
+        "row"
+      ],
+      "channels": {
+        "A": "the cleaned row",
+        "E": [],
+        "R": []
+      },
+      "touches": [
+        "src/contacts/normalise.ts"
+      ],
+      "enteredBy": [
+        "src/contacts/normalise.test.ts"
+      ],
+      "steps": [
+        {
+          "op": "let",
+          "name": "cleaned",
+          "expr": "trim fields and lower-case the email on row"
+        },
+        {
+          "op": "return",
+          "expr": "cleaned"
+        }
+      ]
+    }
+  },
+  "presets": [
+    {
+      "name": "two rows, one duplicate",
+      "blurb": "The loop runs twice: the first row saves, the second raises Duplicate, the handler skips it, and the import returns 1 saved and 1 skipped.",
+      "input": {
+        "uploadId": "up-1"
+      },
+      "walk": {
+        "provenance": "authored",
+        "steps": [
+          { "k": "note", "at": 0, "next": 1 },
+          { "k": "call", "at": 1, "to": "fetchUpload", "next": 2 },
+          { "k": "effect", "at": 0, "kind": "s3.get", "desc": "fetch the uploaded object", "next": 1, "result": { "bytes": "raw csv bytes" } },
+          { "k": "return", "at": 1, "value": "raw csv bytes" },
+          { "k": "call", "at": 2, "to": "parseRows", "next": 3 },
+          { "k": "if", "at": 0, "next": 1 },
+          { "k": "return", "at": 1, "value": [ "row-a", "row-b" ] },
+          { "k": "let", "at": 3, "next": 4 },
+          { "k": "let", "at": 4, "next": 5 },
+          { "k": "if", "at": 5, "next": 6 },
+          { "k": "call", "at": 6, "to": "saveContact", "next": 7 },
+          { "k": "call", "at": 0, "to": "normalise", "next": 1 },
+          { "k": "let", "at": 0, "next": 1 },
+          { "k": "return", "at": 1, "value": "cleaned row-a" },
+          { "k": "effect", "at": 1, "kind": "db.insert", "desc": "insert the contact row", "next": 2, "result": { "inserted": true } },
+          { "k": "return", "at": 2, "value": "contact saved" },
+          { "k": "let", "at": 7, "next": 8 },
+          { "k": "let", "at": 8, "next": 9 },
+          { "k": "goto", "at": 9, "next": 5 },
+          { "k": "if", "at": 5, "next": 6 },
+          { "k": "call", "at": 6, "to": "saveContact", "next": 7 },
+          { "k": "call", "at": 0, "to": "normalise", "next": 1 },
+          { "k": "let", "at": 0, "next": 1 },
+          { "k": "return", "at": 1, "value": "cleaned row-b" },
+          { "k": "effect", "at": 1, "kind": "db.insert", "desc": "insert the contact row", "attempt": 1, "raised": { "tag": "Duplicate", "message": "a contact with this email already exists", "channel": "retry" } },
+          { "k": "unwind" },
+          { "k": "handled", "at": 6, "goto": "skip", "next": 10 },
+          { "k": "let", "at": 10, "next": 11 },
+          { "k": "let", "at": 11, "next": 12 },
+          { "k": "goto", "at": 12, "next": 5 },
+          { "k": "if", "at": 5, "next": 13 },
+          { "k": "effect", "at": 13, "kind": "metrics.write", "desc": "record the saved and skipped counts", "next": 14, "result": { "ok": true } },
+          { "k": "return", "at": 14, "value": { "saved": 1, "skipped": 1 } },
+          { "k": "done", "result": { "saved": 1, "skipped": 1 } }
+        ]
+      }
+    },
+    {
+      "name": "a bad header",
+      "blurb": "parseRows finds the header line wrong and throws BadCsv. Nothing in importContacts catches it, so it reaches the top uncaught.",
+      "input": {
+        "uploadId": "up-bad"
+      },
+      "walk": {
+        "provenance": "authored",
+        "steps": [
+          { "k": "note", "at": 0, "next": 1 },
+          { "k": "call", "at": 1, "to": "fetchUpload", "next": 2 },
+          { "k": "effect", "at": 0, "kind": "s3.get", "desc": "fetch the uploaded object", "next": 1, "result": { "bytes": "raw csv bytes" } },
+          { "k": "return", "at": 1, "value": "raw csv bytes" },
+          { "k": "call", "at": 2, "to": "parseRows", "next": 3 },
+          { "k": "if", "at": 0, "next": 2 },
+          { "k": "throw", "at": 2, "tag": "BadCsv", "message": "the header line is wrong", "channel": "die" },
+          { "k": "unwind" },
+          { "k": "uncaught", "tag": "BadCsv", "message": "the header line is wrong", "channel": "die" }
+        ]
+      }
+    },
+    {
+      "name": "no upload",
+      "blurb": "fetchUpload's s3.get effect raises NoUpload because the object is missing. Nothing in importContacts catches it either.",
+      "input": {
+        "uploadId": "up-missing"
+      },
+      "walk": {
+        "provenance": "authored",
+        "steps": [
+          { "k": "note", "at": 0, "next": 1 },
+          { "k": "call", "at": 1, "to": "fetchUpload", "next": 2 },
+          { "k": "effect", "at": 0, "kind": "s3.get", "desc": "fetch the uploaded object", "raised": { "tag": "NoUpload", "message": "no object for that upload id", "channel": "escape" } },
+          { "k": "unwind" },
+          { "k": "uncaught", "tag": "NoUpload", "message": "no object for that upload id", "channel": "escape" }
+        ]
+      }
+    }
+  ],
+  "sheet": {
+    "scopeRule": "one graph per entry point",
+    "graphsNotDrawn": []
+  }
+}

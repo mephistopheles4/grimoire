@@ -1,0 +1,415 @@
+{
+  "id": "publish-post-retry",
+  "title": "publishPost · render, upload, retry",
+  "blurb": "publishPost reads a draft, renders it to HTML through a pure renderer, and uploads the result. A draft whose body will not parse falls back to a plain-text render, and the upload can fail once before it succeeds.",
+  "entry": "publishPost",
+  "env": {},
+  "files": [
+    {
+      "path": "src/publish.ts",
+      "change": "edit",
+      "why": "the handler that reads the draft, calls the renderer and uploader, and falls back on bad markdown",
+      "adds": 40,
+      "dels": 6
+    },
+    {
+      "path": "src/render.ts",
+      "change": "new",
+      "why": "the pure renderer that turns a draft into HTML",
+      "adds": 55,
+      "dels": 0
+    },
+    {
+      "path": "src/upload.ts",
+      "change": "edit",
+      "why": "the uploader that puts the rendered HTML in the bucket",
+      "adds": 18,
+      "dels": 2
+    }
+  ],
+  "layers": {
+    "production": {
+      "nodes": {}
+    },
+    "tests": {
+      "entry": "publishPost",
+      "nodes": {
+        "uploadHtml": {
+          "R": [
+            "the S3 client → a fake bucket · publish.test.ts:31"
+          ]
+        }
+      }
+    }
+  },
+  "nodes": {
+    "publishPost": {
+      "name": "publishPost",
+      "role": "handler",
+      "loc": "src/publish.ts:5",
+      "params": [
+        "draftId"
+      ],
+      "channels": {
+        "A": "the published URL",
+        "E": [
+          "EmptyDraft",
+          "BadMarkdown"
+        ],
+        "R": [
+          "the draft store",
+          "the S3 client"
+        ]
+      },
+      "touches": [
+        "src/publish.ts"
+      ],
+      "enteredBy": [
+        "src/publish.test.ts"
+      ],
+      "steps": [
+        {
+          "op": "note",
+          "note": "publish a post: render the draft to HTML, upload it, and return the published URL"
+        },
+        {
+          "op": "effect",
+          "kind": "db.get",
+          "desc": "read the draft from the store",
+          "args": {
+            "id": "draftId"
+          },
+          "bind": "draft"
+        },
+        {
+          "op": "if",
+          "cond": "the draft is empty",
+          "then": "empty",
+          "else": "render"
+        },
+        {
+          "op": "throw",
+          "label": "empty",
+          "tag": "EmptyDraft",
+          "message": "no draft was found for that id",
+          "channel": "escape"
+        },
+        {
+          "op": "call",
+          "label": "render",
+          "target": "renderHtml",
+          "args": {
+            "draft": "draft"
+          },
+          "bind": "html",
+          "aside": "the only call that can fail",
+          "onError": [
+            {
+              "tag": "BadMarkdown",
+              "goto": "fallback",
+              "bind": "why"
+            }
+          ]
+        },
+        {
+          "op": "goto",
+          "to": "upload"
+        },
+        {
+          "op": "let",
+          "label": "fallback",
+          "name": "html",
+          "expr": "the plain-text version of the draft"
+        },
+        {
+          "op": "call",
+          "label": "upload",
+          "target": "uploadHtml",
+          "args": {
+            "html": "html"
+          },
+          "bind": "url"
+        },
+        {
+          "op": "return",
+          "expr": "url"
+        }
+      ]
+    },
+    "renderHtml": {
+      "name": "renderHtml",
+      "role": "pure",
+      "loc": "src/render.ts:4",
+      "params": [
+        "draft"
+      ],
+      "channels": {
+        "A": "the rendered HTML string",
+        "E": [
+          "BadMarkdown"
+        ],
+        "R": []
+      },
+      "touches": [
+        "src/render.ts"
+      ],
+      "enteredBy": [
+        "src/publish.test.ts"
+      ],
+      "steps": [
+        {
+          "op": "if",
+          "cond": "the draft body is empty",
+          "then": "missing",
+          "else": "found"
+        },
+        {
+          "op": "return",
+          "label": "found",
+          "expr": "the rendered HTML"
+        },
+        {
+          "op": "throw",
+          "label": "missing",
+          "tag": "BadMarkdown",
+          "message": "the markdown will not parse",
+          "channel": "die"
+        }
+      ]
+    },
+    "uploadHtml": {
+      "name": "uploadHtml",
+      "role": "io",
+      "loc": "src/upload.ts:6",
+      "params": [
+        "html"
+      ],
+      "channels": {
+        "A": "the published URL",
+        "E": [
+          "PutFailed"
+        ],
+        "R": [
+          "the S3 client"
+        ]
+      },
+      "touches": [
+        "src/upload.ts"
+      ],
+      "enteredBy": [],
+      "steps": [
+        {
+          "op": "effect",
+          "kind": "s3.put",
+          "desc": "upload the rendered HTML to the bucket",
+          "args": {
+            "body": "html"
+          },
+          "bind": "url"
+        },
+        {
+          "op": "return",
+          "expr": "url"
+        }
+      ]
+    }
+  },
+  "presets": [
+    {
+      "name": "the happy path",
+      "blurb": "A real draft renders cleanly, and the upload fails once before succeeding on its second attempt.",
+      "input": {
+        "draftId": "d-1"
+      },
+      "walk": {
+        "provenance": "authored",
+        "steps": [
+          {
+            "k": "note",
+            "at": 0,
+            "next": 1
+          },
+          {
+            "k": "effect",
+            "at": 1,
+            "kind": "db.get",
+            "desc": "read the draft from the store",
+            "next": 2,
+            "result": {
+              "id": "d-1",
+              "body": "# Ship the retry\n\nA look at what a flaky upload does to the walk."
+            }
+          },
+          {
+            "k": "if",
+            "at": 2,
+            "next": 4
+          },
+          {
+            "k": "call",
+            "at": 4,
+            "to": "renderHtml",
+            "next": 5
+          },
+          {
+            "k": "if",
+            "at": 0,
+            "next": 1
+          },
+          {
+            "k": "return",
+            "at": 1,
+            "value": "<h1>Ship the retry</h1><p>A look at what a flaky upload does to the walk.</p>"
+          },
+          {
+            "k": "goto",
+            "at": 5,
+            "next": 7
+          },
+          {
+            "k": "call",
+            "at": 7,
+            "to": "uploadHtml",
+            "next": 8
+          },
+          {
+            "k": "effect",
+            "at": 0,
+            "kind": "s3.put",
+            "desc": "upload the rendered HTML to the bucket",
+            "attempt": 1,
+            "raised": {
+              "tag": "PutFailed",
+              "message": "503 from the bucket on the first attempt",
+              "channel": "retry"
+            }
+          },
+          {
+            "k": "effect",
+            "at": 0,
+            "kind": "s3.put",
+            "desc": "upload the rendered HTML to the bucket",
+            "attempt": 2,
+            "next": 1,
+            "result": {
+              "url": "https://blog.example.com/posts/d-1"
+            }
+          },
+          {
+            "k": "return",
+            "at": 1,
+            "value": "https://blog.example.com/posts/d-1"
+          },
+          {
+            "k": "return",
+            "at": 8,
+            "value": "https://blog.example.com/posts/d-1"
+          },
+          {
+            "k": "done",
+            "result": "https://blog.example.com/posts/d-1"
+          }
+        ]
+      }
+    },
+    {
+      "name": "bad markdown",
+      "blurb": "The draft's body is empty, so the render throws BadMarkdown. publishPost catches it, falls back to a plain-text render, and that upload succeeds on its first attempt.",
+      "input": {
+        "draftId": "d-2"
+      },
+      "walk": {
+        "provenance": "authored",
+        "steps": [
+          {
+            "k": "note",
+            "at": 0,
+            "next": 1
+          },
+          {
+            "k": "effect",
+            "at": 1,
+            "kind": "db.get",
+            "desc": "read the draft from the store",
+            "next": 2,
+            "result": {
+              "id": "d-2",
+              "body": ""
+            }
+          },
+          {
+            "k": "if",
+            "at": 2,
+            "next": 4
+          },
+          {
+            "k": "call",
+            "at": 4,
+            "to": "renderHtml",
+            "next": 5
+          },
+          {
+            "k": "if",
+            "at": 0,
+            "next": 2
+          },
+          {
+            "k": "throw",
+            "at": 2,
+            "tag": "BadMarkdown",
+            "message": "the markdown will not parse",
+            "channel": "die"
+          },
+          {
+            "k": "unwind"
+          },
+          {
+            "k": "handled",
+            "at": 4,
+            "goto": "fallback",
+            "next": 6
+          },
+          {
+            "k": "let",
+            "at": 6,
+            "next": 7
+          },
+          {
+            "k": "call",
+            "at": 7,
+            "to": "uploadHtml",
+            "next": 8
+          },
+          {
+            "k": "effect",
+            "at": 0,
+            "kind": "s3.put",
+            "desc": "upload the rendered HTML to the bucket",
+            "next": 1,
+            "result": {
+              "url": "https://blog.example.com/posts/d-2"
+            }
+          },
+          {
+            "k": "return",
+            "at": 1,
+            "value": "https://blog.example.com/posts/d-2"
+          },
+          {
+            "k": "return",
+            "at": 8,
+            "value": "https://blog.example.com/posts/d-2"
+          },
+          {
+            "k": "done",
+            "result": "https://blog.example.com/posts/d-2"
+          }
+        ]
+      }
+    }
+  ],
+  "sheet": {
+    "scopeRule": "one graph per entry point",
+    "graphsNotDrawn": []
+  }
+}
