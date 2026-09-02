@@ -1348,25 +1348,21 @@
         return BP.has(cursorKey(s));
       };
 
-      /* A twenty-step Run would otherwise start twenty stroke animations at
-         once, which is a light show rather than a gesture. Hold them during the
-         loop and draw only the transition you land on. */
-      let FX = true;
-      let FX_PENDING = null;
-
       /** Move the index. `extra` stops the run early — that is all Over and Out
-       *  are now: a depth the recording already has. */
+       *  are now: a depth the recording already has.
+       *
+       *  A twenty-step Run must not start twenty stroke animations at once,
+       *  which would be a light show rather than a gesture. Under the recording
+       *  that costs nothing to avoid: the loop moves the subscript and draws
+       *  only the transition it lands on. */
       function advance(extra) {
-        FX = false;
-        FX_PENDING = null;
+        const from = T;
         while (T < TRACE.length - 1) {
           T++;
           if (stopHere(T) || (extra && extra(TRACE[T]))) break;
         }
-        FX = true;
-        if (FX_PENDING) tracer(FX_PENDING.d, FX_PENDING.colour);
-        FX_PENDING = null;
         SEL = null;
+        if (T > from) traceMove(T, true);
         render();
       }
 
@@ -1374,9 +1370,13 @@
         const next = Math.min(TRACE.length - 1, Math.max(0, i));
         if (next === T) return;
         const forward = next > T;
+        // the move being played, or the move being undone: stepping back one
+        // takes back the move at the index you are leaving, not the one you
+        // land on
+        const at = forward ? next : T;
         T = next;
         SEL = null;
-        if (animate) traceMove(TRACE[T].move, forward);
+        if (animate) traceMove(at, forward);
         render();
       }
 
@@ -1386,7 +1386,7 @@
           goTo(0);
           render();
         },
-        back: () => (stopPlay(), goTo(T - 1)),
+        back: () => (stopPlay(), goTo(T - 1, true)),
         into: () => goTo(T + 1, true),
         over() {
           const d = cur().frames.length;
@@ -1869,7 +1869,6 @@
          only thing on this sheet that actually moves — control transferring. */
       function tracer(d, colour) {
         if (STILL) return;
-        if (!FX) return void (FX_PENDING = { d, colour });
         const g = document.getElementById('tracers');
         const p = document.createElementNS('http://www.w3.org/2000/svg', 'path');
         p.setAttribute('d', d);
@@ -2516,27 +2515,27 @@
 
          Under the recording this reads the move rather than diffing two states,
          so a step backwards can draw the same stroke in reverse. */
-      function traceMove(m, forward) {
-        if (!m) return;
-        const prev = TRACE[forward ? T - 1 : T + 1];
+      function traceMove(at, forward) {
+        const m = TRACE[at]?.move;
+        const before = TRACE[at - 1]; // the state the move acted on, either way
+        if (!m || !before) return;
+        // Taking a move back draws its own stroke the other way. Only a
+        // recording can do that: the VM could step forward and no further.
+        const draw = (d, colour) => tracer(forward ? d : reverse(d), colour);
+
         if (m.k === 'call') {
-          const from = topFrame(prev)?.nodeId;
-          const e = EDGES.find((x) => x.from === from && x.to === m.to);
-          if (e) tracer(forward ? e.call : reverse(e.call), '#22262b');
+          const e = EDGES.find((x) => x.from === topFrame(before)?.nodeId && x.to === m.to);
+          if (e) draw(e.call, '#22262b');
           return;
         }
         if (m.k === 'return' || m.k === 'unwind') {
-          // the frame this move pops — still on the stack in whichever state
-          // precedes the move, which is `prev` going forward and `cur` coming back
-          const s = forward ? prev : TRACE[T];
-          const gone = topFrame(s);
-          const caller = s.frames[s.frames.length - 2];
+          const gone = topFrame(before);
+          const caller = before.frames[before.frames.length - 2];
           if (!gone || !caller) return;
           const e = EDGES.find((x) => x.from === caller.nodeId && x.to === gone.nodeId);
           if (!e) return;
           const err = m.k === 'unwind';
-          const d = err ? e.err : reverse(e.call);
-          tracer(forward ? d : reverse(d), err ? '#d97706' : '#15803d');
+          draw(err ? e.err : reverse(e.call), err ? '#d97706' : '#15803d');
         }
       }
 
