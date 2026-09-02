@@ -1,0 +1,873 @@
+{
+  "title": "The groundtrack file, locked",
+  "eyebrow": "Ticket 32 · call-graph map · 2026-09-02",
+  "problem": "groundtrack is a planned skill. An agent writes one JSON file, and a page draws that file as a call graph. This box decides the file's shape: what an agent writes by hand, what a program checks, and what a file may leave out. Two constraints are fixed and no row moves them: the skill folder installs no dependencies, and the page needs no server. While the shape stays open, no implementation session can start.",
+  "who": "The agent that writes each file, the reader of the drawn page, and the owner who maintains the skill.",
+  "when": "Before any implementation session starts, because the skill has no other specification.",
+  "dims": [
+    {
+      "id": "premise",
+      "name": "The lock itself",
+      "question": "Does this ticket fix the file shape now?",
+      "problem": "A fixed shape states every field, its meaning, and whether a file may omit it. Three prototype files exist today. Their shape grew one program at a time, so no document states it. This row asks whether the effort fixes the shape now, later, or never.",
+      "opts": [
+        {
+          "id": "premise-lock",
+          "label": "Fix the shape now, in this ticket",
+          "short": "Lock it now",
+          "chosen": true,
+          "src": "#32"
+        },
+        {
+          "id": "premise-defer",
+          "label": "Fix the shape during the session that builds the skill",
+          "short": "Lock it later",
+          "strawman": true
+        },
+        {
+          "id": "premise-none",
+          "label": "Leave the shape open; each file carries what it needs",
+          "short": "Never lock it",
+          "strawman": true
+        }
+      ]
+    },
+    {
+      "id": "walk",
+      "name": "Who makes the walk",
+      "question": "Who produces the step tape, and what makes it honest?",
+      "problem": "A walk is a flat list of moves through the graph, and the page plays it. Today a script runs a small interpreter over the file and writes the walk back. Every walk in the three files says 'authored', and the same walk names the script that made it. This row decides who makes a walk and what checks it.",
+      "opts": [
+        {
+          "id": "walk-recorder",
+          "label": "The skill ships the recorder and computes every walk",
+          "short": "Recorder ships",
+          "src": "#43"
+        },
+        {
+          "id": "walk-checked",
+          "label": "The agent writes the walk; a checker proves it is a legal path",
+          "short": "Authored, path-checked",
+          "chosen": true,
+          "src": "#32 grilling, round 1"
+        },
+        {
+          "id": "walk-trust",
+          "label": "The agent writes the walk; nothing checks it",
+          "short": "Authored, unchecked",
+          "strawman": true
+        },
+        {
+          "id": "walk-none",
+          "label": "The file carries no walk, and the page only draws",
+          "short": "No walk",
+          "strawman": true,
+          "src": "#28, first answer"
+        }
+      ]
+    },
+    {
+      "id": "expr",
+      "name": "What an expression is",
+      "question": "Does a shipped program run an expression, or only show it?",
+      "problem": "Fields such as expr, cond and args hold strings. The prototype interpreter passes each string to new Function and runs it. An agent writes these strings by hand. This row decides whether any shipped program runs them, and therefore whether the shape must define a language.",
+      "opts": [
+        {
+          "id": "expr-js",
+          "label": "Any JavaScript expression, run by the recorder",
+          "short": "Run as JavaScript",
+          "src": "the prototype"
+        },
+        {
+          "id": "expr-subset",
+          "label": "A named subset of JavaScript, run by the recorder",
+          "short": "Run, subset only",
+          "src": "#32 grilling, round 1"
+        },
+        {
+          "id": "expr-caption",
+          "label": "Text the page shows; no shipped program runs it",
+          "short": "Shown, never run",
+          "chosen": true,
+          "src": "#32 grilling, round 1"
+        },
+        {
+          "id": "expr-struct",
+          "label": "Structured objects in place of strings",
+          "short": "Objects, not strings",
+          "strawman": true
+        }
+      ]
+    },
+    {
+      "id": "unknown",
+      "name": "An unknown key",
+      "question": "What happens when a file carries a key the shape does not name?",
+      "problem": "An agent that writes a file by hand misspells keys. A checker can refuse the file, warn about it, or say nothing. The third answer changes what the drawing means and gives no signal.",
+      "opts": [
+        {
+          "id": "unknown-refuse",
+          "label": "The checker refuses the file",
+          "short": "Refuse the file",
+          "chosen": true,
+          "src": "#40, shape 1"
+        },
+        {
+          "id": "unknown-warn",
+          "label": "The checker warns and continues",
+          "short": "Warn, then continue",
+          "src": "#40, the middle answer"
+        },
+        {
+          "id": "unknown-ignore",
+          "label": "The checker says nothing",
+          "short": "Say nothing",
+          "strawman": true
+        }
+      ]
+    },
+    {
+      "id": "schemadoc",
+      "name": "The shape document",
+      "question": "Does a machine-readable shape file exist, and what holds it true?",
+      "problem": "A shape file states the fields for an agent to read before it writes. Nothing forces that file to match the checker. On the sibling skill six differences already exist between the two. This row decides whether the document exists and what binds it.",
+      "opts": [
+        {
+          "id": "schemadoc-bound",
+          "label": "A shape file, bound by a case list run through the checker",
+          "short": "Bound by a case list",
+          "chosen": true,
+          "src": "#40, shape 2"
+        },
+        {
+          "id": "schemadoc-loose",
+          "label": "A shape file that nothing binds",
+          "short": "Unbound document",
+          "strawman": true,
+          "src": "#40"
+        },
+        {
+          "id": "schemadoc-gen",
+          "label": "A shape file generated from the checker",
+          "short": "Generated from checker",
+          "src": "#40, shape 3"
+        },
+        {
+          "id": "schemadoc-none",
+          "label": "No shape file; the checker's refusals are the record",
+          "short": "No shape file",
+          "strawman": true,
+          "src": "#40, shape 4"
+        }
+      ]
+    },
+    {
+      "id": "clash",
+      "name": "One name, two meanings",
+      "question": "What happens to a field name that means two things?",
+      "problem": "The name label means a jump target on a program step and display text on a walk step. The name kind means a node category and an effect category. The prototype states the first rule in its own header and breaks it in its own code. This row sets the policy for every such name.",
+      "opts": [
+        {
+          "id": "clash-all",
+          "label": "Rename every field whose name means two things",
+          "short": "Rename every clash",
+          "chosen": true,
+          "src": "#32, the label trap"
+        },
+        {
+          "id": "clash-bitten",
+          "label": "Rename only the names that already caused a fault",
+          "short": "Rename what bit",
+          "src": "#32 grilling, round 1"
+        },
+        {
+          "id": "clash-keep",
+          "label": "Keep the names and document both readings",
+          "short": "Keep and document",
+          "strawman": true
+        }
+      ]
+    },
+    {
+      "id": "vocab",
+      "name": "The node category",
+      "question": "Which words may name what a node is?",
+      "problem": "Each node carries a category. Three files used five words: agent, pure, io, handler and prototype. Two of those describe code. Two describe tracker work. This row decides whether the shape fixes the list, opens it, or drops the field.",
+      "opts": [
+        {
+          "id": "vocab-enum",
+          "label": "A fixed list the checker enforces",
+          "short": "A fixed list",
+          "src": "#32 grilling, round 1"
+        },
+        {
+          "id": "vocab-open",
+          "label": "Any word; the page prints it",
+          "short": "Any word",
+          "chosen": true,
+          "src": "#32 grilling, round 1"
+        },
+        {
+          "id": "vocab-starter",
+          "label": "Any word, with a starter list in the document",
+          "short": "Any word, list given",
+          "src": "#32 grilling, round 1"
+        },
+        {
+          "id": "vocab-drop",
+          "label": "No category field on a node",
+          "short": "No category field",
+          "strawman": true
+        }
+      ]
+    },
+    {
+      "id": "tests",
+      "name": "What the test field names",
+      "question": "Does the test field name the files that enter a node, or the files that cover it?",
+      "problem": "A node may carry test files from the change. One reading names the specs that call the node. The other names the specs that cover the node's concern. On one measured node the two readings disagree: no spec calls it, and its work is covered through its caller.",
+      "opts": [
+        {
+          "id": "tests-enters",
+          "label": "Files whose specs enter this node",
+          "short": "Files that enter it",
+          "chosen": true,
+          "src": "#42"
+        },
+        {
+          "id": "tests-covers",
+          "label": "Files whose specs cover this node's concern",
+          "short": "Files that cover it",
+          "src": "#42, the second reading"
+        },
+        {
+          "id": "tests-both",
+          "label": "Two fields, one for each reading",
+          "short": "Two fields",
+          "src": "#32 grilling, round 1"
+        },
+        {
+          "id": "tests-drop",
+          "label": "No test field on a node",
+          "short": "No test field",
+          "strawman": true
+        }
+      ]
+    },
+    {
+      "id": "layer",
+      "name": "What a layer may say",
+      "question": "How does a layer state its substitutions?",
+      "problem": "A layer redraws the graph for one context, such as a test run. In the measured change every double enters at the call site through a parameter, and no file stands in for another. This row decides what a layer may state: renamed requirements, an entry point, an explicit unreached mark, or whole node swaps.",
+      "opts": [
+        {
+          "id": "layer-rename",
+          "label": "Renamed requirements only",
+          "short": "Renames only",
+          "strawman": true,
+          "src": "#42"
+        },
+        {
+          "id": "layer-entry",
+          "label": "Renamed requirements and a per-layer entry point",
+          "short": "Renames plus an entry",
+          "chosen": true,
+          "src": "#42, the reach question"
+        },
+        {
+          "id": "layer-reach",
+          "label": "Renamed requirements and an explicit unreached mark",
+          "short": "Renames plus a mark",
+          "src": "#42, the reach question"
+        },
+        {
+          "id": "layer-node",
+          "label": "One node replaces another node",
+          "short": "Swap whole nodes",
+          "src": "#34"
+        }
+      ]
+    },
+    {
+      "id": "layerset",
+      "name": "The layer set",
+      "question": "Which layer names may a file carry?",
+      "problem": "The page draws one button for each layer. Today it draws two: production and tests. One measured change runs a third context, a headless browser check, where the run substitutes nothing. This row decides whether the shape fixes the names.",
+      "opts": [
+        {
+          "id": "layerset-two",
+          "label": "Two names only: production and tests",
+          "short": "Fixed at two",
+          "strawman": true,
+          "src": "the prototype page"
+        },
+        {
+          "id": "layerset-open",
+          "label": "Any names; the page draws a button for each",
+          "short": "Any layer name",
+          "chosen": true,
+          "src": "#42"
+        },
+        {
+          "id": "layerset-prod",
+          "label": "Any names, and every file must state production",
+          "short": "Open, production first",
+          "src": "#32 grilling, round 1"
+        }
+      ]
+    },
+    {
+      "id": "cut",
+      "name": "A rename that cuts an edge",
+      "question": "Who states that a substitution removes a call edge?",
+      "problem": "One measured node reaches another node through a parameter. A layer that renames that parameter removes the call edge, and the graph changes shape at that point. This row decides who states the change: the checker, the author, or nobody.",
+      "opts": [
+        {
+          "id": "cut-derived",
+          "label": "The checker finds the cut edge from the rename",
+          "short": "The checker finds it",
+          "chosen": true,
+          "src": "#32 grilling, round 1"
+        },
+        {
+          "id": "cut-declared",
+          "label": "The author states the cut edge in the layer",
+          "short": "The author states it",
+          "src": "#42, the edge-cut question"
+        },
+        {
+          "id": "cut-ignore",
+          "label": "Nobody states it; the page draws the edge as it stands",
+          "short": "Nobody states it",
+          "strawman": true
+        }
+      ]
+    },
+    {
+      "id": "card",
+      "name": "Cardinality",
+      "question": "Does a node state how many values it carries?",
+      "problem": "Cardinality says whether a node carries one value, many values over time, or a value valid for a window. It came from a source document. Twenty nodes exist across three files, and one node carries the field. The page prints 'one' for the other nineteen.",
+      "opts": [
+        {
+          "id": "card-drop",
+          "label": "No cardinality field",
+          "short": "Drop it",
+          "chosen": true,
+          "strawman": true
+        },
+        {
+          "id": "card-keep",
+          "label": "An optional cardinality field",
+          "short": "Keep it optional",
+          "src": "the source gist"
+        },
+        {
+          "id": "card-require",
+          "label": "Every node states its cardinality",
+          "short": "Require it everywhere",
+          "src": "#32 grilling, round 1"
+        }
+      ]
+    },
+    {
+      "id": "required",
+      "name": "What a file must carry",
+      "question": "Which parts must a valid file carry?",
+      "problem": "A checker refuses a file that omits a required part. Across three files some parts appear every time and some appear once. This row decides the smallest file the checker accepts.",
+      "opts": [
+        {
+          "id": "required-min",
+          "label": "An entry node and the nodes",
+          "short": "Entry and nodes",
+          "src": "#32 grilling, round 1"
+        },
+        {
+          "id": "required-walk",
+          "label": "An entry node, the nodes, and one preset with a walk",
+          "short": "Plus a walked preset",
+          "chosen": true,
+          "src": "#43, the walk ships"
+        },
+        {
+          "id": "required-files",
+          "label": "Entry, nodes, a walk, and the changed file list",
+          "short": "Plus the file list",
+          "src": "#31, files the graph cannot place"
+        },
+        {
+          "id": "required-all",
+          "label": "Every part this box names",
+          "short": "Everything",
+          "strawman": true
+        }
+      ]
+    }
+  ],
+  "rel": {
+    "premise-lock": {
+      "why": "The ticket asks for the shape end to end, so an implementation session opens no ticket again.",
+      "notes": [
+        "The map's destination states a locked specification, so this option is the effort's own position."
+      ]
+    },
+    "premise-defer": {
+      "why": "The build session meets the real constraints, so it decides with more information than this ticket holds.",
+      "notes": [
+        "The map's rule is plan, do not do. A build session that also decides the shape breaks that rule."
+      ]
+    },
+    "premise-none": {
+      "why": "Each file states what it needs, and the page reads what it finds.",
+      "notes": [
+        "An agent then has no shape to write against, which is the test this ticket names as the real one."
+      ]
+    },
+    "walk-recorder": {
+      "why": "A program computes the tape from the file, so the tape matches the graph by construction.",
+      "rel": [
+        [
+          "required-walk",
+          "req",
+          "The recorder writes a walk for every preset, so every file carries one.",
+          "argued"
+        ]
+      ],
+      "notes": [
+        "The current recorder lifts the interpreter out of a prototype page by a line-number search. A self-contained skill folder cannot ship that.",
+        "A shipped recorder runs author-written JavaScript on the reader's machine."
+      ]
+    },
+    "walk-checked": {
+      "why": "The agent states each move, and a checker proves every move exists in the graph. No program evaluates an expression.",
+      "rel": [
+        [
+          "clash-all",
+          "req",
+          "A path checker names each field it reads, so a double meaning must go first.",
+          "argued"
+        ]
+      ],
+      "notes": [
+        "The checker tests structure only: each index is a real step, each call target matches, each branch landing is that branch's own label, frames pop in order.",
+        "It cannot test which branch ran. Ticket #43 already ruled the tape literal, so the branch is a stated fact."
+      ]
+    },
+    "walk-trust": {
+      "why": "The agent states the tape and the page plays it. Nothing tests the claim.",
+      "notes": [
+        "This is the current position minus the recorder."
+      ]
+    },
+    "walk-none": {
+      "why": "The page draws the graph and does not step. The file carries no tape.",
+      "rel": [
+        [
+          "required-walk",
+          "conf",
+          "A file with no walk cannot carry a required walk.",
+          "argued"
+        ]
+      ],
+      "notes": [
+        "Ticket #28's amendment overturned this answer. It stays in the box as the none case."
+      ]
+    },
+    "expr-js": {
+      "why": "The prototype interpreter accepts any JavaScript expression and runs it.",
+      "rel": [
+        [
+          "walk-recorder",
+          "req",
+          "Only the recorder runs an expression, so the language needs the recorder.",
+          "argued"
+        ]
+      ],
+      "notes": [
+        "A chain runs from here: the recorder writes a walk for every preset, so this option also requires a file that carries a walk. The box does not draw that edge because the relation follows from the two edges already drawn."
+      ]
+    },
+    "expr-subset": {
+      "why": "A named subset limits what an author writes and what the recorder runs.",
+      "rel": [
+        [
+          "walk-recorder",
+          "req",
+          "Only the recorder runs an expression, so the subset needs the recorder.",
+          "argued"
+        ]
+      ],
+      "notes": [
+        "A subset needs its own parser, which the zero-dependency rule makes the skill write by hand."
+      ]
+    },
+    "expr-caption": {
+      "why": "The string names the work at that step. The page prints it and nothing evaluates it.",
+      "rel": [
+        [
+          "walk-recorder",
+          "conf",
+          "A recorder runs each expression, and a caption runs nowhere.",
+          "measured",
+          "prototypes/callstack-debugger/index.html:766 — evalExpr passes expr to new Function"
+        ]
+      ],
+      "notes": [
+        "This removes the whole language question from the shape. The shape then states one word: text."
+      ]
+    },
+    "expr-struct": {
+      "why": "A structured object states the operation and its parts, so no parser reads a string.",
+      "notes": [
+        "The ticket states that every expression is a string because an agent must write the file by hand."
+      ]
+    },
+    "unknown-refuse": {
+      "why": "The checker names every key it accepts and refuses the file on any other key.",
+      "notes": [
+        "A layer map and the node map hold author-named keys. The refusal must name where it applies, or it refuses every real file."
+      ]
+    },
+    "unknown-warn": {
+      "why": "The checker reports the key and draws the page.",
+      "notes": [
+        "A warning that does not stop the build reaches nobody once the page renders."
+      ]
+    },
+    "unknown-ignore": {
+      "why": "The checker reads the keys it knows and passes over the rest.",
+      "rel": [
+        [
+          "premise-lock",
+          "conf",
+          "A shape that nothing refuses fixes nothing.",
+          "measured",
+          "#29 measurement: every strawman key on the shipped example renamed to strawmen; the count fell from 6 to 0; exit code 0 both times"
+        ]
+      ]
+    },
+    "schemadoc-bound": {
+      "why": "A case list runs through the checker and asserts what the document states, so the two cannot drift.",
+      "rel": [
+        [
+          "unknown-refuse",
+          "req",
+          "A case list asserts a refusal; a checker that accepts every key passes every case.",
+          "argued"
+        ]
+      ],
+      "notes": [
+        "One test file, no build step."
+      ]
+    },
+    "schemadoc-loose": {
+      "why": "The document states the shape and a reader trusts it.",
+      "notes": [
+        "Six differences already exist between the sibling skill's document and its checker."
+      ]
+    },
+    "schemadoc-gen": {
+      "why": "The checker produces the document, so the two cannot differ.",
+      "notes": [
+        "This needs a build step, and the repository has none."
+      ]
+    },
+    "schemadoc-none": {
+      "why": "The checker's refusals state the shape, and the source is the record.",
+      "notes": [
+        "An agent then reads code before it writes its first file."
+      ]
+    },
+    "clash-all": {
+      "why": "Every field name means one thing. A reader needs no context to read a field."
+    },
+    "clash-bitten": {
+      "why": "Only the names that already caused a fault change, so fewer files change.",
+      "notes": [
+        "The label fault appeared once, and the same fault returned in the walk tape under a new field."
+      ]
+    },
+    "clash-keep": {
+      "why": "The document states both readings and the reader keeps the position in mind.",
+      "rel": [
+        [
+          "walk-checked",
+          "conf",
+          "The checker reads label on a walk step and on a program step, and the two mean different things.",
+          "measured",
+          "prototypes/callstack-debugger/index.html:56 states the rule; line 894 writes label: st.desc; record.mjs copies that into the walk"
+        ]
+      ]
+    },
+    "vocab-enum": {
+      "why": "The checker holds the list, so no file invents a category.",
+      "notes": [
+        "Three files already used five words across two domains: code and tracker work."
+      ]
+    },
+    "vocab-open": {
+      "why": "The author names the category and the page prints the word. Nothing branches on it."
+    },
+    "vocab-starter": {
+      "why": "The document lists the words in use, and an author may add one."
+    },
+    "vocab-drop": {
+      "why": "The node's name and its channels say what it is, so the category adds nothing."
+    },
+    "tests-enters": {
+      "why": "The field names the spec files that call the node. Coverage of a lower node follows from the call edges.",
+      "rel": [
+        [
+          "layer-reach",
+          "conf",
+          "For a test layer the entered files and the call edges already state what nothing reaches.",
+          "argued"
+        ]
+      ]
+    },
+    "tests-covers": {
+      "why": "The field names the spec files that test the node's concern, whether or not they call it."
+    },
+    "tests-both": {
+      "why": "Two fields state the two readings, and neither field carries the other's meaning."
+    },
+    "tests-drop": {
+      "why": "The changed file list already names the spec files in the change."
+    },
+    "layer-rename": {
+      "why": "A layer states renamed requirements for the nodes it changes. Nothing else changes.",
+      "notes": [
+        "This is the shape the one measured layer map uses today."
+      ]
+    },
+    "layer-entry": {
+      "why": "A layer states renamed requirements and the node the layer enters. Reach follows from the call edges."
+    },
+    "layer-reach": {
+      "why": "A layer states renamed requirements and marks each node the layer never enters."
+    },
+    "layer-node": {
+      "why": "A layer names a replacement node, so a stand-in module draws as its own node.",
+      "rel": [
+        [
+          "cut-derived",
+          "conf",
+          "A node swap replaces the edge itself, so no rename exists for the checker to read.",
+          "argued"
+        ]
+      ],
+      "notes": [
+        "Across a 2109-line change with two real doubles the material holds no stand-in module and no mock call."
+      ]
+    },
+    "layerset-two": {
+      "why": "The page draws two buttons, and the shape names the two layers they draw."
+    },
+    "layerset-open": {
+      "why": "The author names each layer, and the page draws a button for each name.",
+      "notes": [
+        "A measured change runs three contexts: production, the unit specs, and a headless browser check."
+      ]
+    },
+    "layerset-prod": {
+      "why": "The author names each layer, and every file states production so the page always has a baseline."
+    },
+    "cut-derived": {
+      "why": "The checker reads the renamed requirement, finds it in a call step's arguments, and marks the edge cut."
+    },
+    "cut-declared": {
+      "why": "The author states which edge the layer removes.",
+      "rel": [
+        [
+          "walk-checked",
+          "conf",
+          "The checker cannot test a stated cut, so a walk may still cross the removed edge.",
+          "argued"
+        ]
+      ]
+    },
+    "cut-ignore": {
+      "why": "The page draws every edge under every layer.",
+      "rel": [
+        [
+          "layer-entry",
+          "conf",
+          "A per-layer entry point decides reach from the edges, and an unrecorded cut leaves those edges wrong.",
+          "argued"
+        ]
+      ]
+    },
+    "card-drop": {
+      "why": "No node states cardinality, and the page prints no such cell.",
+      "notes": [
+        "This option is a strawman and it is also the chosen one. Nothing in the box rules it out, and the material declined the field nineteen times in twenty.",
+        "The box rules it out nowhere, and that is the finding: no other row needs the field."
+      ]
+    },
+    "card-keep": {
+      "why": "A node may state one value, many values over time, or a value valid for a window."
+    },
+    "card-require": {
+      "why": "Every node states its cardinality, so no default stands in for an unwritten answer."
+    },
+    "required-min": {
+      "why": "The checker accepts a file with an entry node and its nodes. Everything else is optional."
+    },
+    "required-walk": {
+      "why": "The checker accepts a file that also carries one preset with a walk, so every file steps."
+    },
+    "required-files": {
+      "why": "The checker also demands the changed file list, so every file reports what the change touched."
+    },
+    "required-all": {
+      "why": "The checker demands every part, so no file is partial."
+    }
+  },
+  "suspected": [
+    "weakly connected: schemadoc-none conf premise-lock — a fixed shape can live in the checker alone, and the ticket's own fourth shape says so.",
+    "wrong: vocab-drop conf clash-all — the label clash survives without a node category, so a dropped field does not empty the rename policy.",
+    "weakly connected: vocab-enum req unknown-refuse — a refusal of an unknown key is not a refusal of an unknown value; the two need separate checks.",
+    "weakly connected: walk-trust conf premise-lock — a fixed shape still states the walk's fields, even when nothing tests the path.",
+    "weakly connected: tests-drop conf layer-reach — a declared unreached mark needs no test field, so a dropped field removes nothing it depends on.",
+    "weakly connected: card-require req required-all — one required field does not make every part required.",
+    "biased: layerset-open req unknown-refuse — the author-named layer key is a scope question for the checker, not a conflict between options. It is in notes."
+  ],
+  "presets": [
+    {
+      "title": "As chosen",
+      "text": "The current position, on the three rows that carry the argument.",
+      "steps": [
+        {
+          "label": "Open who makes the walk",
+          "open": "walk"
+        },
+        {
+          "label": "Open what an expression is",
+          "open": "expr"
+        },
+        {
+          "label": "Open an unknown key",
+          "open": "unknown"
+        },
+        {
+          "label": "Back to the findings",
+          "open": null,
+          "view": "findings"
+        }
+      ]
+    },
+    {
+      "title": "The recorder route",
+      "text": "The skill ships the interpreter and computes every walk.",
+      "reframe": "The problem becomes what language an agent writes, and whether the skill folder can hold an interpreter.",
+      "steps": [
+        {
+          "label": "Ship the recorder",
+          "set": {
+            "walk": "walk-recorder"
+          }
+        },
+        {
+          "label": "Run a named subset",
+          "set": {
+            "expr": "expr-subset"
+          }
+        },
+        {
+          "label": "Open who makes the walk",
+          "open": "walk"
+        },
+        {
+          "label": "Read what it requires",
+          "open": "expr"
+        }
+      ]
+    },
+    {
+      "title": "The strawman run",
+      "text": "Every weak answer at once. Read what the box rules out.",
+      "reframe": "The problem becomes whether anything in the box refuses a file that states what it likes.",
+      "steps": [
+        {
+          "label": "Trust the walk",
+          "set": {
+            "walk": "walk-trust"
+          }
+        },
+        {
+          "label": "Say nothing about unknown keys",
+          "set": {
+            "unknown": "unknown-ignore"
+          }
+        },
+        {
+          "label": "Keep both readings of a name",
+          "set": {
+            "clash": "clash-keep"
+          }
+        },
+        {
+          "label": "Open an unknown key",
+          "open": "unknown"
+        }
+      ]
+    },
+    {
+      "title": "The cheap route",
+      "text": "The lowest-cost answer in every row. Read what it gives up.",
+      "steps": [
+        {
+          "label": "Drop the shape file",
+          "set": {
+            "schemadoc": "schemadoc-none"
+          }
+        },
+        {
+          "label": "Warn on an unknown key",
+          "set": {
+            "unknown": "unknown-warn"
+          }
+        },
+        {
+          "label": "Renames only",
+          "set": {
+            "layer": "layer-rename"
+          }
+        },
+        {
+          "label": "Two layers",
+          "set": {
+            "layerset": "layerset-two"
+          }
+        },
+        {
+          "label": "Entry and nodes only",
+          "set": {
+            "required": "required-min"
+          }
+        },
+        {
+          "label": "Open the shape document",
+          "open": "schemadoc"
+        }
+      ]
+    },
+    {
+      "title": "Challenge the premise",
+      "text": "Leave the shape open and read what the rest of the box still says.",
+      "reframe": "The problem becomes whether an agent can write a file at all with no shape to write against.",
+      "steps": [
+        {
+          "label": "Never fix the shape",
+          "set": {
+            "premise": "premise-none"
+          }
+        },
+        {
+          "label": "Open the lock itself",
+          "open": "premise"
+        }
+      ]
+    }
+  ]
+}

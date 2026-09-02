@@ -1,0 +1,1751 @@
+{
+  "id": "pr-313-panel-apply",
+  "title": "PR #313 · panel apply",
+  "blurb": "The other half of #313: the woodwork slice of applySettings, and the fifth ApplyReport category it earned. The other four are all transitions, and a transition cannot describe a configuration that was wrong from the first frame — so `resolved` states rather than diffs, on every apply, whether or not anything moved.",
+  "entry": "applySettings",
+  "env": {
+    "roster": [
+      "rosewood",
+      "sapele",
+      "flat"
+    ],
+    "default": "rosewood",
+    "sheets": {
+      "rosewood": {
+        "url": "/wood/rosewood-diff-1024.jpg",
+        "unitsPerTile": 7.68
+      },
+      "sapele": {
+        "url": "/wood/sapele-diff-512.jpg",
+        "unitsPerTile": 1.6
+      }
+    }
+  },
+  "presets": [
+    {
+      "name": "pick sapele in the panel",
+      "blurb": "rebuild-class: the menu moved, the bookcase has not, and the read-back names both",
+      "input": {
+        "built": {
+          "species": "rosewood",
+          "lay": {
+            "unitsPerTile": 7.68
+          },
+          "fibre": 0.5
+        },
+        "mountedWith": {
+          "materials": {
+            "woodSpecies": "rosewood",
+            "woodFibre": 0.5
+          }
+        },
+        "current": {
+          "materials": {
+            "woodSpecies": "rosewood",
+            "woodFibre": 0.5
+          }
+        },
+        "next": {
+          "materials": {
+            "woodSpecies": "sapele",
+            "woodFibre": 0.5
+          }
+        }
+      },
+      "walk": {
+        "provenance": "authored",
+        "steps": [
+          {
+            "k": "enter",
+            "node": "applySettings"
+          },
+          {
+            "k": "move",
+            "at": 0,
+            "next": 1
+          },
+          {
+            "k": "move",
+            "at": 1,
+            "next": 2
+          },
+          {
+            "k": "move",
+            "at": 2,
+            "next": 3
+          },
+          {
+            "k": "move",
+            "at": 3,
+            "next": 4
+          },
+          {
+            "k": "move",
+            "at": 4,
+            "next": 11
+          },
+          {
+            "k": "move",
+            "at": 11,
+            "next": 12
+          },
+          {
+            "k": "call",
+            "at": 12,
+            "to": "speciesPending"
+          },
+          {
+            "k": "move",
+            "at": 0,
+            "next": 1
+          },
+          {
+            "k": "call",
+            "at": 1,
+            "to": "resolveWoodwork"
+          },
+          {
+            "k": "move",
+            "at": 0,
+            "next": 1
+          },
+          {
+            "k": "move",
+            "at": 1,
+            "next": 3
+          },
+          {
+            "k": "move",
+            "at": 3,
+            "next": 4
+          },
+          {
+            "k": "return",
+            "at": 4,
+            "value": {
+              "species": "rosewood",
+              "sheet": {
+                "url": "/wood/rosewood-diff-1024.jpg",
+                "unitsPerTile": 7.68
+              },
+              "lay": {
+                "url": "/wood/rosewood-diff-1024.jpg",
+                "unitsPerTile": 7.68
+              },
+              "refused": null
+            }
+          },
+          {
+            "k": "call",
+            "at": 2,
+            "to": "resolveWoodwork"
+          },
+          {
+            "k": "move",
+            "at": 0,
+            "next": 1
+          },
+          {
+            "k": "move",
+            "at": 1,
+            "next": 3
+          },
+          {
+            "k": "move",
+            "at": 3,
+            "next": 4
+          },
+          {
+            "k": "return",
+            "at": 4,
+            "value": {
+              "species": "sapele",
+              "sheet": {
+                "url": "/wood/sapele-diff-512.jpg",
+                "unitsPerTile": 1.6
+              },
+              "lay": {
+                "url": "/wood/sapele-diff-512.jpg",
+                "unitsPerTile": 1.6
+              },
+              "refused": null
+            }
+          },
+          {
+            "k": "return",
+            "at": 3,
+            "value": true
+          },
+          {
+            "k": "move",
+            "at": 13,
+            "next": 14
+          },
+          {
+            "k": "move",
+            "at": 14,
+            "next": 15
+          },
+          {
+            "k": "call",
+            "at": 15,
+            "to": "resolveWoodwork"
+          },
+          {
+            "k": "move",
+            "at": 0,
+            "next": 1
+          },
+          {
+            "k": "move",
+            "at": 1,
+            "next": 3
+          },
+          {
+            "k": "move",
+            "at": 3,
+            "next": 4
+          },
+          {
+            "k": "return",
+            "at": 4,
+            "value": {
+              "species": "sapele",
+              "sheet": {
+                "url": "/wood/sapele-diff-512.jpg",
+                "unitsPerTile": 1.6
+              },
+              "lay": {
+                "url": "/wood/sapele-diff-512.jpg",
+                "unitsPerTile": 1.6
+              },
+              "refused": null
+            }
+          },
+          {
+            "k": "call",
+            "at": 16,
+            "to": "describeWoodwork"
+          },
+          {
+            "k": "move",
+            "at": 0,
+            "next": 1
+          },
+          {
+            "k": "move",
+            "at": 1,
+            "next": 2
+          },
+          {
+            "k": "move",
+            "at": 2,
+            "next": 3
+          },
+          {
+            "k": "move",
+            "at": 3,
+            "next": 4
+          },
+          {
+            "k": "return",
+            "at": 4,
+            "value": {
+              "resolved": [
+                "woodwork sheet: sapele (/wood/sapele-diff-512.jpg, laid at 1.6 world units) — built with rosewood, rebuild to change it",
+                "wood fibre: 0.5"
+              ],
+              "refused": []
+            }
+          },
+          {
+            "k": "return",
+            "at": 17,
+            "value": {
+              "applied": [],
+              "needsRebuild": [
+                "woodwork sheet: rosewood → sapele"
+              ],
+              "refused": [],
+              "resolved": [
+                "woodwork sheet: sapele (/wood/sapele-diff-512.jpg, laid at 1.6 world units) — built with rosewood, rebuild to change it",
+                "wood fibre: 0.5"
+              ]
+            }
+          },
+          {
+            "k": "done",
+            "result": {
+              "applied": [],
+              "needsRebuild": [
+                "woodwork sheet: rosewood → sapele"
+              ],
+              "refused": [],
+              "resolved": [
+                "woodwork sheet: sapele (/wood/sapele-diff-512.jpg, laid at 1.6 world units) — built with rosewood, rebuild to change it",
+                "wood fibre: 0.5"
+              ]
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "nothing moved",
+      "blurb": "the argument for the fifth category — four empty transition lists, and the sheet still says what it is running",
+      "input": {
+        "built": {
+          "species": "rosewood",
+          "lay": {
+            "unitsPerTile": 7.68
+          },
+          "fibre": 0.5
+        },
+        "mountedWith": {
+          "materials": {
+            "woodSpecies": "rosewood",
+            "woodFibre": 0.5
+          }
+        },
+        "current": {
+          "materials": {
+            "woodSpecies": "rosewood",
+            "woodFibre": 0.5
+          }
+        },
+        "next": {
+          "materials": {
+            "woodSpecies": "rosewood",
+            "woodFibre": 0.5
+          }
+        }
+      },
+      "walk": {
+        "provenance": "authored",
+        "steps": [
+          {
+            "k": "enter",
+            "node": "applySettings"
+          },
+          {
+            "k": "move",
+            "at": 0,
+            "next": 1
+          },
+          {
+            "k": "move",
+            "at": 1,
+            "next": 2
+          },
+          {
+            "k": "move",
+            "at": 2,
+            "next": 3
+          },
+          {
+            "k": "move",
+            "at": 3,
+            "next": 4
+          },
+          {
+            "k": "move",
+            "at": 4,
+            "next": 11
+          },
+          {
+            "k": "move",
+            "at": 11,
+            "next": 12
+          },
+          {
+            "k": "call",
+            "at": 12,
+            "to": "speciesPending"
+          },
+          {
+            "k": "move",
+            "at": 0,
+            "next": 1
+          },
+          {
+            "k": "call",
+            "at": 1,
+            "to": "resolveWoodwork"
+          },
+          {
+            "k": "move",
+            "at": 0,
+            "next": 1
+          },
+          {
+            "k": "move",
+            "at": 1,
+            "next": 3
+          },
+          {
+            "k": "move",
+            "at": 3,
+            "next": 4
+          },
+          {
+            "k": "return",
+            "at": 4,
+            "value": {
+              "species": "rosewood",
+              "sheet": {
+                "url": "/wood/rosewood-diff-1024.jpg",
+                "unitsPerTile": 7.68
+              },
+              "lay": {
+                "url": "/wood/rosewood-diff-1024.jpg",
+                "unitsPerTile": 7.68
+              },
+              "refused": null
+            }
+          },
+          {
+            "k": "call",
+            "at": 2,
+            "to": "resolveWoodwork"
+          },
+          {
+            "k": "move",
+            "at": 0,
+            "next": 1
+          },
+          {
+            "k": "move",
+            "at": 1,
+            "next": 3
+          },
+          {
+            "k": "move",
+            "at": 3,
+            "next": 4
+          },
+          {
+            "k": "return",
+            "at": 4,
+            "value": {
+              "species": "rosewood",
+              "sheet": {
+                "url": "/wood/rosewood-diff-1024.jpg",
+                "unitsPerTile": 7.68
+              },
+              "lay": {
+                "url": "/wood/rosewood-diff-1024.jpg",
+                "unitsPerTile": 7.68
+              },
+              "refused": null
+            }
+          },
+          {
+            "k": "return",
+            "at": 3,
+            "value": false
+          },
+          {
+            "k": "move",
+            "at": 13,
+            "next": 15
+          },
+          {
+            "k": "call",
+            "at": 15,
+            "to": "resolveWoodwork"
+          },
+          {
+            "k": "move",
+            "at": 0,
+            "next": 1
+          },
+          {
+            "k": "move",
+            "at": 1,
+            "next": 3
+          },
+          {
+            "k": "move",
+            "at": 3,
+            "next": 4
+          },
+          {
+            "k": "return",
+            "at": 4,
+            "value": {
+              "species": "rosewood",
+              "sheet": {
+                "url": "/wood/rosewood-diff-1024.jpg",
+                "unitsPerTile": 7.68
+              },
+              "lay": {
+                "url": "/wood/rosewood-diff-1024.jpg",
+                "unitsPerTile": 7.68
+              },
+              "refused": null
+            }
+          },
+          {
+            "k": "call",
+            "at": 16,
+            "to": "describeWoodwork"
+          },
+          {
+            "k": "move",
+            "at": 0,
+            "next": 1
+          },
+          {
+            "k": "move",
+            "at": 1,
+            "next": 2
+          },
+          {
+            "k": "move",
+            "at": 2,
+            "next": 3
+          },
+          {
+            "k": "move",
+            "at": 3,
+            "next": 4
+          },
+          {
+            "k": "return",
+            "at": 4,
+            "value": {
+              "resolved": [
+                "woodwork sheet: rosewood (/wood/rosewood-diff-1024.jpg, laid at 7.68 world units)",
+                "wood fibre: 0.5"
+              ],
+              "refused": []
+            }
+          },
+          {
+            "k": "return",
+            "at": 17,
+            "value": {
+              "applied": [],
+              "needsRebuild": [],
+              "refused": [],
+              "resolved": [
+                "woodwork sheet: rosewood (/wood/rosewood-diff-1024.jpg, laid at 7.68 world units)",
+                "wood fibre: 0.5"
+              ]
+            }
+          },
+          {
+            "k": "done",
+            "result": {
+              "applied": [],
+              "needsRebuild": [],
+              "refused": [],
+              "resolved": [
+                "woodwork sheet: rosewood (/wood/rosewood-diff-1024.jpg, laid at 7.68 world units)",
+                "wood fibre: 0.5"
+              ]
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "?tune= walnut",
+      "blurb": "no rebuild offered — walnut and rosewood are one bookcase — but the refusal still reaches the report",
+      "input": {
+        "built": {
+          "species": "rosewood",
+          "lay": {
+            "unitsPerTile": 7.68
+          },
+          "fibre": 0.5
+        },
+        "mountedWith": {
+          "materials": {
+            "woodSpecies": "rosewood",
+            "woodFibre": 0.5
+          }
+        },
+        "current": {
+          "materials": {
+            "woodSpecies": "rosewood",
+            "woodFibre": 0.5
+          }
+        },
+        "next": {
+          "materials": {
+            "woodSpecies": "walnut",
+            "woodFibre": 0.5
+          }
+        }
+      },
+      "walk": {
+        "provenance": "authored",
+        "steps": [
+          {
+            "k": "enter",
+            "node": "applySettings"
+          },
+          {
+            "k": "move",
+            "at": 0,
+            "next": 1
+          },
+          {
+            "k": "move",
+            "at": 1,
+            "next": 2
+          },
+          {
+            "k": "move",
+            "at": 2,
+            "next": 3
+          },
+          {
+            "k": "move",
+            "at": 3,
+            "next": 4
+          },
+          {
+            "k": "move",
+            "at": 4,
+            "next": 11
+          },
+          {
+            "k": "move",
+            "at": 11,
+            "next": 12
+          },
+          {
+            "k": "call",
+            "at": 12,
+            "to": "speciesPending"
+          },
+          {
+            "k": "move",
+            "at": 0,
+            "next": 1
+          },
+          {
+            "k": "call",
+            "at": 1,
+            "to": "resolveWoodwork"
+          },
+          {
+            "k": "move",
+            "at": 0,
+            "next": 1
+          },
+          {
+            "k": "move",
+            "at": 1,
+            "next": 3
+          },
+          {
+            "k": "move",
+            "at": 3,
+            "next": 4
+          },
+          {
+            "k": "return",
+            "at": 4,
+            "value": {
+              "species": "rosewood",
+              "sheet": {
+                "url": "/wood/rosewood-diff-1024.jpg",
+                "unitsPerTile": 7.68
+              },
+              "lay": {
+                "url": "/wood/rosewood-diff-1024.jpg",
+                "unitsPerTile": 7.68
+              },
+              "refused": null
+            }
+          },
+          {
+            "k": "call",
+            "at": 2,
+            "to": "resolveWoodwork"
+          },
+          {
+            "k": "move",
+            "at": 0,
+            "next": 1
+          },
+          {
+            "k": "move",
+            "at": 1,
+            "next": 2
+          },
+          {
+            "k": "return",
+            "at": 2,
+            "value": {
+              "species": "rosewood",
+              "sheet": {
+                "url": "/wood/rosewood-diff-1024.jpg",
+                "unitsPerTile": 7.68
+              },
+              "lay": {
+                "url": "/wood/rosewood-diff-1024.jpg",
+                "unitsPerTile": 7.68
+              },
+              "refused": "woodwork sheet: \"walnut\" is not a sheet anybody has rendered, so the woodwork is showing rosewood. The roster is rosewood, sapele, flat"
+            }
+          },
+          {
+            "k": "return",
+            "at": 3,
+            "value": false
+          },
+          {
+            "k": "move",
+            "at": 13,
+            "next": 15
+          },
+          {
+            "k": "call",
+            "at": 15,
+            "to": "resolveWoodwork"
+          },
+          {
+            "k": "move",
+            "at": 0,
+            "next": 1
+          },
+          {
+            "k": "move",
+            "at": 1,
+            "next": 2
+          },
+          {
+            "k": "return",
+            "at": 2,
+            "value": {
+              "species": "rosewood",
+              "sheet": {
+                "url": "/wood/rosewood-diff-1024.jpg",
+                "unitsPerTile": 7.68
+              },
+              "lay": {
+                "url": "/wood/rosewood-diff-1024.jpg",
+                "unitsPerTile": 7.68
+              },
+              "refused": "woodwork sheet: \"walnut\" is not a sheet anybody has rendered, so the woodwork is showing rosewood. The roster is rosewood, sapele, flat"
+            }
+          },
+          {
+            "k": "call",
+            "at": 16,
+            "to": "describeWoodwork"
+          },
+          {
+            "k": "move",
+            "at": 0,
+            "next": 1
+          },
+          {
+            "k": "move",
+            "at": 1,
+            "next": 2
+          },
+          {
+            "k": "move",
+            "at": 2,
+            "next": 3
+          },
+          {
+            "k": "move",
+            "at": 3,
+            "next": 4
+          },
+          {
+            "k": "return",
+            "at": 4,
+            "value": {
+              "resolved": [
+                "woodwork sheet: rosewood (/wood/rosewood-diff-1024.jpg, laid at 7.68 world units)",
+                "wood fibre: 0.5"
+              ],
+              "refused": [
+                "woodwork sheet: \"walnut\" is not a sheet anybody has rendered, so the woodwork is showing rosewood. The roster is rosewood, sapele, flat"
+              ]
+            }
+          },
+          {
+            "k": "return",
+            "at": 17,
+            "value": {
+              "applied": [],
+              "needsRebuild": [],
+              "refused": [
+                "woodwork sheet: \"walnut\" is not a sheet anybody has rendered, so the woodwork is showing rosewood. The roster is rosewood, sapele, flat"
+              ],
+              "resolved": [
+                "woodwork sheet: rosewood (/wood/rosewood-diff-1024.jpg, laid at 7.68 world units)",
+                "wood fibre: 0.5"
+              ]
+            }
+          },
+          {
+            "k": "done",
+            "result": {
+              "applied": [],
+              "needsRebuild": [],
+              "refused": [
+                "woodwork sheet: \"walnut\" is not a sheet anybody has rendered, so the woodwork is showing rosewood. The roster is rosewood, sapele, flat"
+              ],
+              "resolved": [
+                "woodwork sheet: rosewood (/wood/rosewood-diff-1024.jpg, laid at 7.68 world units)",
+                "wood fibre: 0.5"
+              ]
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "fibre moved, no canvas",
+      "blurb": "refused, and the read-back names the scale in force beside the one asked for",
+      "input": {
+        "built": {
+          "species": "rosewood",
+          "lay": {
+            "unitsPerTile": 7.68
+          },
+          "fibre": 0.5
+        },
+        "mountedWith": {
+          "materials": {
+            "woodSpecies": "rosewood",
+            "woodFibre": 0.5
+          }
+        },
+        "current": {
+          "materials": {
+            "woodSpecies": "rosewood",
+            "woodFibre": 0.5
+          }
+        },
+        "next": {
+          "materials": {
+            "woodSpecies": "rosewood",
+            "woodFibre": 1.2
+          }
+        },
+        "noCanvas": true
+      },
+      "walk": {
+        "provenance": "authored",
+        "steps": [
+          {
+            "k": "enter",
+            "node": "applySettings"
+          },
+          {
+            "k": "move",
+            "at": 0,
+            "next": 1
+          },
+          {
+            "k": "move",
+            "at": 1,
+            "next": 2
+          },
+          {
+            "k": "move",
+            "at": 2,
+            "next": 3
+          },
+          {
+            "k": "move",
+            "at": 3,
+            "next": 4
+          },
+          {
+            "k": "move",
+            "at": 4,
+            "next": 5
+          },
+          {
+            "k": "call",
+            "at": 5,
+            "to": "applyWoodFibre"
+          },
+          {
+            "k": "move",
+            "at": 0,
+            "next": 1
+          },
+          {
+            "k": "effect",
+            "at": 1,
+            "kind": "canvas.bake",
+            "status": "ok",
+            "result": null,
+            "desc": "bake the 256-square fibre"
+          },
+          {
+            "k": "move",
+            "at": 2,
+            "next": 4
+          },
+          {
+            "k": "move",
+            "at": 4,
+            "next": 5
+          },
+          {
+            "k": "return",
+            "at": 5,
+            "value": 0
+          },
+          {
+            "k": "move",
+            "at": 6,
+            "next": 9
+          },
+          {
+            "k": "move",
+            "at": 9,
+            "next": 10
+          },
+          {
+            "k": "move",
+            "at": 10,
+            "next": 12
+          },
+          {
+            "k": "call",
+            "at": 12,
+            "to": "speciesPending"
+          },
+          {
+            "k": "move",
+            "at": 0,
+            "next": 1
+          },
+          {
+            "k": "call",
+            "at": 1,
+            "to": "resolveWoodwork"
+          },
+          {
+            "k": "move",
+            "at": 0,
+            "next": 1
+          },
+          {
+            "k": "move",
+            "at": 1,
+            "next": 3
+          },
+          {
+            "k": "move",
+            "at": 3,
+            "next": 4
+          },
+          {
+            "k": "return",
+            "at": 4,
+            "value": {
+              "species": "rosewood",
+              "sheet": {
+                "url": "/wood/rosewood-diff-1024.jpg",
+                "unitsPerTile": 7.68
+              },
+              "lay": {
+                "url": "/wood/rosewood-diff-1024.jpg",
+                "unitsPerTile": 7.68
+              },
+              "refused": null
+            }
+          },
+          {
+            "k": "call",
+            "at": 2,
+            "to": "resolveWoodwork"
+          },
+          {
+            "k": "move",
+            "at": 0,
+            "next": 1
+          },
+          {
+            "k": "move",
+            "at": 1,
+            "next": 3
+          },
+          {
+            "k": "move",
+            "at": 3,
+            "next": 4
+          },
+          {
+            "k": "return",
+            "at": 4,
+            "value": {
+              "species": "rosewood",
+              "sheet": {
+                "url": "/wood/rosewood-diff-1024.jpg",
+                "unitsPerTile": 7.68
+              },
+              "lay": {
+                "url": "/wood/rosewood-diff-1024.jpg",
+                "unitsPerTile": 7.68
+              },
+              "refused": null
+            }
+          },
+          {
+            "k": "return",
+            "at": 3,
+            "value": false
+          },
+          {
+            "k": "move",
+            "at": 13,
+            "next": 15
+          },
+          {
+            "k": "call",
+            "at": 15,
+            "to": "resolveWoodwork"
+          },
+          {
+            "k": "move",
+            "at": 0,
+            "next": 1
+          },
+          {
+            "k": "move",
+            "at": 1,
+            "next": 3
+          },
+          {
+            "k": "move",
+            "at": 3,
+            "next": 4
+          },
+          {
+            "k": "return",
+            "at": 4,
+            "value": {
+              "species": "rosewood",
+              "sheet": {
+                "url": "/wood/rosewood-diff-1024.jpg",
+                "unitsPerTile": 7.68
+              },
+              "lay": {
+                "url": "/wood/rosewood-diff-1024.jpg",
+                "unitsPerTile": 7.68
+              },
+              "refused": null
+            }
+          },
+          {
+            "k": "call",
+            "at": 16,
+            "to": "describeWoodwork"
+          },
+          {
+            "k": "move",
+            "at": 0,
+            "next": 1
+          },
+          {
+            "k": "move",
+            "at": 1,
+            "next": 2
+          },
+          {
+            "k": "move",
+            "at": 2,
+            "next": 3
+          },
+          {
+            "k": "move",
+            "at": 3,
+            "next": 4
+          },
+          {
+            "k": "return",
+            "at": 4,
+            "value": {
+              "resolved": [
+                "woodwork sheet: rosewood (/wood/rosewood-diff-1024.jpg, laid at 7.68 world units)",
+                "wood fibre: 0 (asked for 1.2)"
+              ],
+              "refused": []
+            }
+          },
+          {
+            "k": "return",
+            "at": 17,
+            "value": {
+              "applied": [],
+              "needsRebuild": [],
+              "refused": [
+                "wood fibre: there is no canvas to draw it on, so the woodwork stays smooth"
+              ],
+              "resolved": [
+                "woodwork sheet: rosewood (/wood/rosewood-diff-1024.jpg, laid at 7.68 world units)",
+                "wood fibre: 0 (asked for 1.2)"
+              ]
+            }
+          },
+          {
+            "k": "done",
+            "result": {
+              "applied": [],
+              "needsRebuild": [],
+              "refused": [
+                "wood fibre: there is no canvas to draw it on, so the woodwork stays smooth"
+              ],
+              "resolved": [
+                "woodwork sheet: rosewood (/wood/rosewood-diff-1024.jpg, laid at 7.68 world units)",
+                "wood fibre: 0 (asked for 1.2)"
+              ]
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "fibre moved, canvas fine",
+      "blurb": "the ordinary applied case, for contrast",
+      "input": {
+        "built": {
+          "species": "rosewood",
+          "lay": {
+            "unitsPerTile": 7.68
+          },
+          "fibre": 0.5
+        },
+        "mountedWith": {
+          "materials": {
+            "woodSpecies": "rosewood",
+            "woodFibre": 0.5
+          }
+        },
+        "current": {
+          "materials": {
+            "woodSpecies": "rosewood",
+            "woodFibre": 0.5
+          }
+        },
+        "next": {
+          "materials": {
+            "woodSpecies": "rosewood",
+            "woodFibre": 1.2
+          }
+        }
+      },
+      "walk": {
+        "provenance": "authored",
+        "steps": [
+          {
+            "k": "enter",
+            "node": "applySettings"
+          },
+          {
+            "k": "move",
+            "at": 0,
+            "next": 1
+          },
+          {
+            "k": "move",
+            "at": 1,
+            "next": 2
+          },
+          {
+            "k": "move",
+            "at": 2,
+            "next": 3
+          },
+          {
+            "k": "move",
+            "at": 3,
+            "next": 4
+          },
+          {
+            "k": "move",
+            "at": 4,
+            "next": 5
+          },
+          {
+            "k": "call",
+            "at": 5,
+            "to": "applyWoodFibre"
+          },
+          {
+            "k": "move",
+            "at": 0,
+            "next": 1
+          },
+          {
+            "k": "effect",
+            "at": 1,
+            "kind": "canvas.bake",
+            "status": "ok",
+            "result": {
+              "tiles": 15.36
+            },
+            "desc": "bake the 256-square fibre"
+          },
+          {
+            "k": "move",
+            "at": 2,
+            "next": 3
+          },
+          {
+            "k": "return",
+            "at": 3,
+            "value": 1.2
+          },
+          {
+            "k": "move",
+            "at": 6,
+            "next": 7
+          },
+          {
+            "k": "move",
+            "at": 7,
+            "next": 8
+          },
+          {
+            "k": "move",
+            "at": 8,
+            "next": 12
+          },
+          {
+            "k": "call",
+            "at": 12,
+            "to": "speciesPending"
+          },
+          {
+            "k": "move",
+            "at": 0,
+            "next": 1
+          },
+          {
+            "k": "call",
+            "at": 1,
+            "to": "resolveWoodwork"
+          },
+          {
+            "k": "move",
+            "at": 0,
+            "next": 1
+          },
+          {
+            "k": "move",
+            "at": 1,
+            "next": 3
+          },
+          {
+            "k": "move",
+            "at": 3,
+            "next": 4
+          },
+          {
+            "k": "return",
+            "at": 4,
+            "value": {
+              "species": "rosewood",
+              "sheet": {
+                "url": "/wood/rosewood-diff-1024.jpg",
+                "unitsPerTile": 7.68
+              },
+              "lay": {
+                "url": "/wood/rosewood-diff-1024.jpg",
+                "unitsPerTile": 7.68
+              },
+              "refused": null
+            }
+          },
+          {
+            "k": "call",
+            "at": 2,
+            "to": "resolveWoodwork"
+          },
+          {
+            "k": "move",
+            "at": 0,
+            "next": 1
+          },
+          {
+            "k": "move",
+            "at": 1,
+            "next": 3
+          },
+          {
+            "k": "move",
+            "at": 3,
+            "next": 4
+          },
+          {
+            "k": "return",
+            "at": 4,
+            "value": {
+              "species": "rosewood",
+              "sheet": {
+                "url": "/wood/rosewood-diff-1024.jpg",
+                "unitsPerTile": 7.68
+              },
+              "lay": {
+                "url": "/wood/rosewood-diff-1024.jpg",
+                "unitsPerTile": 7.68
+              },
+              "refused": null
+            }
+          },
+          {
+            "k": "return",
+            "at": 3,
+            "value": false
+          },
+          {
+            "k": "move",
+            "at": 13,
+            "next": 15
+          },
+          {
+            "k": "call",
+            "at": 15,
+            "to": "resolveWoodwork"
+          },
+          {
+            "k": "move",
+            "at": 0,
+            "next": 1
+          },
+          {
+            "k": "move",
+            "at": 1,
+            "next": 3
+          },
+          {
+            "k": "move",
+            "at": 3,
+            "next": 4
+          },
+          {
+            "k": "return",
+            "at": 4,
+            "value": {
+              "species": "rosewood",
+              "sheet": {
+                "url": "/wood/rosewood-diff-1024.jpg",
+                "unitsPerTile": 7.68
+              },
+              "lay": {
+                "url": "/wood/rosewood-diff-1024.jpg",
+                "unitsPerTile": 7.68
+              },
+              "refused": null
+            }
+          },
+          {
+            "k": "call",
+            "at": 16,
+            "to": "describeWoodwork"
+          },
+          {
+            "k": "move",
+            "at": 0,
+            "next": 1
+          },
+          {
+            "k": "move",
+            "at": 1,
+            "next": 2
+          },
+          {
+            "k": "move",
+            "at": 2,
+            "next": 3
+          },
+          {
+            "k": "move",
+            "at": 3,
+            "next": 4
+          },
+          {
+            "k": "return",
+            "at": 4,
+            "value": {
+              "resolved": [
+                "woodwork sheet: rosewood (/wood/rosewood-diff-1024.jpg, laid at 7.68 world units)",
+                "wood fibre: 1.2"
+              ],
+              "refused": []
+            }
+          },
+          {
+            "k": "return",
+            "at": 17,
+            "value": {
+              "applied": [
+                "wood fibre: 0.5 → 1.2"
+              ],
+              "needsRebuild": [],
+              "refused": [],
+              "resolved": [
+                "woodwork sheet: rosewood (/wood/rosewood-diff-1024.jpg, laid at 7.68 world units)",
+                "wood fibre: 1.2"
+              ]
+            }
+          },
+          {
+            "k": "done",
+            "result": {
+              "applied": [
+                "wood fibre: 0.5 → 1.2"
+              ],
+              "needsRebuild": [],
+              "refused": [],
+              "resolved": [
+                "woodwork sheet: rosewood (/wood/rosewood-diff-1024.jpg, laid at 7.68 world units)",
+                "wood fibre: 1.2"
+              ]
+            }
+          }
+        ]
+      }
+    }
+  ],
+  "nodes": {
+    "applySettings": {
+      "name": "applySettings — woodwork slice",
+      "loc": "packages/site/src/shelf/scene.ts:2225",
+      "params": [
+        "mountedWith",
+        "current",
+        "next",
+        "built"
+      ],
+      "channels": {
+        "A": "ApplyReport",
+        "E": [],
+        "R": [
+          "THREE",
+          "woodwork.ts"
+        ]
+      },
+      "steps": [
+        {
+          "op": "note",
+          "note": "Five report lists. applied / needsRebuild / needsReload / refused are transitions; resolved is a statement."
+        },
+        {
+          "op": "let",
+          "name": "applied",
+          "expr": "[]"
+        },
+        {
+          "op": "let",
+          "name": "needsRebuild",
+          "expr": "[]"
+        },
+        {
+          "op": "let",
+          "name": "refused",
+          "expr": "[]"
+        },
+        {
+          "op": "if",
+          "cond": "current.materials.woodFibre !== next.materials.woodFibre",
+          "then": "fibre",
+          "else": "holdFibre"
+        },
+        {
+          "op": "call",
+          "label": "fibre",
+          "target": "applyWoodFibre",
+          "args": {
+            "scale": "next.materials.woodFibre",
+            "lay": "built.lay"
+          },
+          "bind": "fibreInForce",
+          "aside": "laid by the sheet the shelf was BUILT with, not by the module's default constant"
+        },
+        {
+          "op": "if",
+          "cond": "fibreInForce === next.materials.woodFibre",
+          "then": "fibreOk",
+          "else": "fibreNo"
+        },
+        {
+          "op": "let",
+          "label": "fibreOk",
+          "name": "applied",
+          "expr": "applied.concat('wood fibre: ' + current.materials.woodFibre + ' → ' + fibreInForce)"
+        },
+        {
+          "op": "goto",
+          "to": "species"
+        },
+        {
+          "op": "let",
+          "label": "fibreNo",
+          "name": "refused",
+          "expr": "refused.concat('wood fibre: there is no canvas to draw it on, so the woodwork stays smooth')"
+        },
+        {
+          "op": "goto",
+          "to": "species"
+        },
+        {
+          "op": "let",
+          "label": "holdFibre",
+          "name": "fibreInForce",
+          "expr": "built.fibre",
+          "aside": "not applied and not asked for — but still reported, so a fibre that never bound says so on every apply after the one that discovered it"
+        },
+        {
+          "op": "call",
+          "label": "species",
+          "target": "speciesPending",
+          "args": {
+            "built": "mountedWith.materials.woodSpecies",
+            "wanted": "next.materials.woodSpecies"
+          },
+          "bind": "pending"
+        },
+        {
+          "op": "if",
+          "cond": "pending",
+          "then": "rebuild",
+          "else": "readback"
+        },
+        {
+          "op": "let",
+          "label": "rebuild",
+          "name": "needsRebuild",
+          "expr": "needsRebuild.concat('woodwork sheet: ' + built.species + ' → ' + next.materials.woodSpecies)"
+        },
+        {
+          "op": "call",
+          "label": "readback",
+          "target": "resolveWoodwork",
+          "args": {
+            "requested": "next.materials.woodSpecies"
+          },
+          "bind": "wanted",
+          "aside": "resolved from `next`, NOT read off woodwork.resolved — the two differ exactly when a species change is waiting for a rebuild, and a typo has to reach the report when the value is set rather than one rebuild later"
+        },
+        {
+          "op": "call",
+          "target": "describeWoodwork",
+          "args": {
+            "wanted": "wanted",
+            "built": "built.species",
+            "fibreInForce": "fibreInForce",
+            "fibreAsked": "next.materials.woodFibre"
+          },
+          "bind": "readBack"
+        },
+        {
+          "op": "return",
+          "expr": "({ applied, needsRebuild, refused: refused.concat(readBack.refused), resolved: readBack.resolved })"
+        }
+      ],
+      "role": "handler",
+      "enteredBy": [],
+      "touches": []
+    },
+    "speciesPending": {
+      "name": "speciesPending",
+      "loc": "packages/site/src/shelf/woodwork.ts:482",
+      "params": [
+        "built",
+        "wanted"
+      ],
+      "channels": {
+        "A": "boolean",
+        "E": [],
+        "R": []
+      },
+      "steps": [
+        {
+          "op": "note",
+          "note": "Compared AFTER resolution, never as raw strings: everything off-roster resolves to the default, so walnut and rosewood name one shelf. Comparing the requests would offer a rebuild for a change a rebuild cannot make."
+        },
+        {
+          "op": "call",
+          "target": "resolveWoodwork",
+          "args": {
+            "requested": "built"
+          },
+          "bind": "a"
+        },
+        {
+          "op": "call",
+          "target": "resolveWoodwork",
+          "args": {
+            "requested": "wanted"
+          },
+          "bind": "b"
+        },
+        {
+          "op": "return",
+          "expr": "a.species !== b.species"
+        }
+      ],
+      "role": "pure",
+      "enteredBy": [],
+      "touches": []
+    },
+    "resolveWoodwork": {
+      "name": "resolveWoodwork",
+      "loc": "packages/site/src/shelf/woodwork.ts:432",
+      "params": [
+        "requested"
+      ],
+      "channels": {
+        "A": "ResolvedWoodwork",
+        "E": [],
+        "R": []
+      },
+      "steps": [
+        {
+          "op": "let",
+          "name": "species",
+          "expr": "$env.roster.find((n) => n === requested) ?? null"
+        },
+        {
+          "op": "if",
+          "cond": "species === null",
+          "then": "off",
+          "else": "on"
+        },
+        {
+          "op": "return",
+          "label": "off",
+          "expr": "({ species: $env.default, sheet: $env.sheets[$env.default], lay: $env.sheets[$env.default], refused: 'woodwork sheet: \"' + requested + '\" is not a sheet anybody has rendered, so the woodwork is showing ' + $env.default + '. The roster is ' + $env.roster.join(', ') })"
+        },
+        {
+          "op": "let",
+          "label": "on",
+          "name": "sheet",
+          "expr": "$env.sheets[species] ?? null"
+        },
+        {
+          "op": "return",
+          "expr": "({ species, sheet, lay: sheet ?? $env.sheets[$env.default], refused: null })"
+        }
+      ],
+      "role": "pure",
+      "enteredBy": [],
+      "touches": []
+    },
+    "describeWoodwork": {
+      "name": "describeWoodwork",
+      "loc": "packages/site/src/shelf/woodwork.ts:539",
+      "params": [
+        "wanted",
+        "built",
+        "fibreInForce",
+        "fibreAsked"
+      ],
+      "channels": {
+        "A": "WoodworkReadBack",
+        "E": [],
+        "R": []
+      },
+      "steps": [
+        {
+          "op": "note",
+          "note": "Pure, and in a module with no Three.js in it, so G54 can assert on it without a WebGL context."
+        },
+        {
+          "op": "let",
+          "name": "sheet",
+          "expr": "wanted.sheet === null ? 'no map — the mean-matched flat twin' : wanted.sheet.url + ', laid at ' + wanted.lay.unitsPerTile + ' world units'"
+        },
+        {
+          "op": "let",
+          "name": "waiting",
+          "expr": "wanted.species === built ? '' : ' — built with ' + built + ', rebuild to change it'"
+        },
+        {
+          "op": "let",
+          "name": "lines",
+          "expr": "['woodwork sheet: ' + wanted.species + ' (' + sheet + ')' + waiting, 'wood fibre: ' + fibreInForce + (fibreInForce === fibreAsked ? '' : ' (asked for ' + fibreAsked + ')')]",
+          "aside": "G54's first draft matched the species by bare substring and was green on a read-back naming no species at all — rosewood and sapele each appear inside their own URL. Anchoring to `woodwork sheet: <name> (` reddened six clauses."
+        },
+        {
+          "op": "return",
+          "expr": "({ resolved: lines, refused: wanted.refused === null ? [] : [wanted.refused] })",
+          "aside": "refused AND reported, never silently defaulted"
+        }
+      ],
+      "role": "pure",
+      "enteredBy": [],
+      "touches": []
+    },
+    "applyWoodFibre": {
+      "name": "applyWoodFibre",
+      "loc": "packages/site/src/shelf/woodwork.ts:1246",
+      "params": [
+        "scale",
+        "lay"
+      ],
+      "channels": {
+        "A": "number — the scale in force",
+        "E": [],
+        "R": [
+          "CanvasTexture"
+        ]
+      },
+      "steps": [
+        {
+          "op": "let",
+          "name": "tiles",
+          "expr": "lay.unitsPerTile / 0.5"
+        },
+        {
+          "op": "effect",
+          "kind": "canvas.bake",
+          "desc": "bake the 256-square fibre",
+          "args": "({ tiles })",
+          "bind": "map"
+        },
+        {
+          "op": "if",
+          "cond": "map === null",
+          "then": "nocanvas",
+          "else": "ok"
+        },
+        {
+          "op": "return",
+          "label": "ok",
+          "expr": "scale"
+        },
+        {
+          "op": "note",
+          "label": "nocanvas",
+          "note": "no 2D context — the caller reports refused, never silently smooth"
+        },
+        {
+          "op": "return",
+          "expr": "0"
+        }
+      ],
+      "role": "io",
+      "enteredBy": [],
+      "touches": []
+    }
+  },
+  "files": [],
+  "layers": {
+    "production": {
+      "nodes": {}
+    }
+  },
+  "sheet": {
+    "scopeRule": "one graph per entry point",
+    "graphsNotDrawn": []
+  }
+}
