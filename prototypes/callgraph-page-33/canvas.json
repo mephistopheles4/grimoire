@@ -1,0 +1,83 @@
+{
+  "pages": [
+    { "id": "page-1", "name": "Base and deltas" },
+    { "id": "page-2", "name": "Details" }
+  ],
+  "artboards": [
+    { "file": "Main.dc.html", "title": "As built, on the recorded walk", "x": 0, "y": 0, "w": 1440, "h": 900, "page": "page-1", "is_interactive": true },
+    { "file": "Contrast.dc.html", "title": "Delta 1 — annotation layer to ink 0.64", "x": 1560, "y": 0, "w": 1440, "h": 900, "page": "page-1", "is_interactive": true },
+    { "file": "Cutaway.dc.html", "title": "Delta 2 — cut-h 15rem to 10rem", "x": 3120, "y": 0, "w": 1440, "h": 900, "page": "page-1", "is_interactive": true },
+    { "file": "Tools.dc.html", "title": "Delta 3 — zoom, layer, view: the tool block", "x": 0, "y": 1120, "w": 1440, "h": 900, "page": "page-1", "is_interactive": true },
+    { "file": "Tree.dc.html", "title": "Delta 5 — the same sheet, View set to Tree", "x": 1560, "y": 1120, "w": 1440, "h": 900, "page": "page-1", "is_interactive": true },
+    { "file": "SheetFacts.dc.html", "title": "Delta 4 — #31's two facts, in a fifth rail block", "x": 3120, "y": 1120, "w": 1440, "h": 900, "page": "page-1", "is_interactive": true },
+    { "file": "DetailScope.dc.html", "title": "Detail A — scope, and the provenance stamp", "x": 0, "y": 0, "w": 1120, "h": 860, "page": "page-2" },
+    { "file": "Components.dc.html", "title": "Component sheet — the numbers", "x": 1240, "y": 0, "w": 1100, "h": 1000, "page": "page-2" }
+  ],
+  "annotations": [
+    {
+      "id": "brief",
+      "x": 0,
+      "y": -470,
+      "w": 560,
+      "page": "page-1",
+      "text": "Ticket #33, rebuilt on #28's AMENDED answer: the artifact steps over a recorded walk, and there is still no engine.\n\nThe earlier set on this canvas assumed the drawing-only answer and was wrong about most of what it called retired. Back: the walk, the inputs, what fired, the step tape, tracer(), all four rail blocks, the trace row, and green.\n\nBASE IS prototypes/callgraph-sheet/view.html. gen-plan.mjs re-runs its layout() AND its renderPlan() edge weights; measure.mjs re-runs its fit() and its NOTICES computation. Every number in these captions comes from those two.\n\nDrawn state: preset \"the sheet 404s\", stopped just after bindSheet's fetch failed and the warn landed. Two nodes not yet reached, so two construction hairlines.\n\nTHE WALK ON THESE BOARDS IS AUTHORED, NOT CAPTURED. Nothing executed buildShelf. That is the provenance problem the amendment hands to #32 — see Detail A."
+    },
+    {
+      "id": "base-note",
+      "x": 0,
+      "y": -210,
+      "w": 480,
+      "page": "page-1",
+      "text": "AS BUILT + WHAT THE AMENDMENT FORCES, plus the two placements the owner has settled.\n\nSettled and applied to every board: the hold-on-effect and hold-on-error checkboxes move out of the head to the top of the rail, above a 2px rule. They sit over the blocks they act on — hold-on-effect over the effects ledger, hold-on-error over the error path.\n\nThat softens the rule Delta 3 states. The head drives the walk FORWARD; the holds say where it STOPS, and they read better beside what they watch than beside the step buttons. Worth naming rather than pretending the rule is clean.\n\nStill genuinely forced: Scope's inputs drove forking, and forking computes a state nothing recorded. Drawn here still editable, as built — Detail A proposes what replaces it.\n\nScale block reads 1:1.69 — K = 0.5926, ratio notation, not a percentage."
+    },
+    {
+      "id": "d1",
+      "x": 1560,
+      "y": -210,
+      "w": 480,
+      "page": "page-1",
+      "text": "DELTA 1 — the annotation layer, ink-55 to ink at 0.64.\n\nWHY: ink-55 is 3.53:1 on paper and carries every 11px thing on the sheet — .dw-label, .nd-loc, .nd-ch, .fx, .fchange, .fnum, .fdir, .fwhy, .tab, .tp-lbl, .row-k, .var-k, .dim, .dw-titleblock-key, .dw-dimension-value. 0.64 is the lowest alpha clearing 4.5:1, at 4.60:1. .none and .never come off ink-30 (1.85:1).\n\nThe one delta the amendment did not touch: it held under both answers, and now carries more, because the rail is full again.\n\nCOST: Drafting's ink ramp annotates by role and ink-55 IS the annotation tier. This narrows the gap to body text. It also does not fix amber-as-text at 3.05:1, which now carries the error-path row and the failed effect."
+    },
+    {
+      "id": "d2",
+      "x": 3120,
+      "y": -210,
+      "w": 480,
+      "page": "page-1",
+      "text": "DELTA 2 — --cut-h from 15rem to 10rem. One variable.\n\nWHY: the fit is height-bound in every configuration, so --cut-h is the only thing throttling the drawing. 15rem gives 1:1.69, 12rem gives 1:1.53, 10rem gives 1:1.44 — a 17% bigger drawing. Deleting the entire 22rem rail gives 0%: width was never binding.\n\nCOST: heavier than it was under the drawing-only answer. The tape is where the walk is READ — .tp--here, the step pointer, the past rows — so shortening it trades drawing for the thing stepping exists to show. The splitter still moves; this is only the opening height."
+    },
+    {
+      "id": "d3",
+      "x": 0,
+      "y": 2060,
+      "w": 480,
+      "page": "page-1",
+      "text": "DELTA 3 — the scale block becomes a VERTICAL TOOL BLOCK: one row per tool.\n\nZoom on its own row, then Layer, then View. A fixed 4.5rem key column on the left, so the three rows read as a table of controls rather than three ragged strips. Rows divided by an ink-30 rule, buttons within a row by the ink-12 the scale block already used.\n\nWHY: one rule sorts every control on the sheet. The head drives the WALK. The tool block changes how the sheet is READ, and never touches it. Zoom was already here; view.html's own comment says why it sits on the drawing rather than in the title block: 'a wheel can change it at any moment, and a title-block cell states a fact rather than tracking one.' Layer and view track the same way.\n\nThat rule is the answer to this ticket's question, and it is sharper than the one the ticket proposed.\n\nThe live tool takes .tab--on's treatment — ink label, 2px bottom rule — not a filled chip, which this sheet uses nowhere.\n\nCOST: vertical is narrower but taller, so it covers the top-right corner of the drawing more deeply than the horizontal strip did — and that corner is where applyWoodFibre sits at this zoom. Worth checking against the real drawing rather than this one."
+    },
+    {
+      "id": "d5",
+      "x": 1560,
+      "y": 2060,
+      "w": 480,
+      "page": "page-1",
+      "text": "DELTA 5 — View set to Tree. Same sheet, same IR, same recorded walk.\n\nWHY: not everyone wants an animated diagram. The tree is #35's house format — indented `→` arrows — rendered on the page, which makes #35's own claim visible rather than merely true: 'the skill's written answer and its rendered page are the same artifact seen two ways.'\n\nThe walk survives the switch: reached rows at full ink, not-reached at ink-55, the on-stack row with .tp--here's 2px rule and grid wash, effects marked landed or failed. Stepping works here; only the animation goes.\n\nFINDING: the tree renders CALL SITES, the drawing renders NODES. bindSheet is called twice, so the tree is 7 rows where the drawing is 6 boxes. That is a truer picture of a call graph, and it means the two views are not the same list — worth a decision, not a coincidence.\n\nEvery row carries a paper background and a hairline box, because the plan is a .dw-grid surface and 11px annotation over a 24px grid pitch is the one place that grid stops being background.\n\nCOST: zoom has nothing to act on and greys out, so a whole row of the tool block is dead in this mode. And the channels crowd: A, E, R and the effects on one 13px row need every column the 1086px pane has."
+    },
+    {
+      "id": "d4",
+      "x": 3120,
+      "y": 2060,
+      "w": 480,
+      "page": "page-1",
+      "text": "DELTA 4 — #31's two remaining facts as a FOOTER BAND, not a fifth rail block.\n\nWHY: only two, not three. filesView() already carries \"in the diff, on no node\" as one of its three groups — that shipped before this ticket opened. What has no home is graphs-found-not-drawn and the scope rule.\n\nThe band shares the .trace row rather than taking one of its own, and that is the whole reason it works: the fit is height-bound, so a new footer row would have cost the drawing 9% (1:1.69 to 1:1.85). Sharing costs 0%.\n\nIt also puts the sheet's facts where a drawing puts sheet facts, next to a measured span that is already whole-sheet.\n\nCOST: they sit at micro size on one line, so the scope rule is compressed to five words. And the band pairs a static fact with the trace, which moves on every step — one row, two tempos."
+    },
+    {
+      "id": "detail-note",
+      "x": 0,
+      "y": -300,
+      "w": 560,
+      "page": "page-2",
+      "text": "Detail A — scope, and provenance.\n\nScope is the one rail block the amendment changes. The owner named seeing a system's inputs as the valuable part, and it survives; its <input> fields drove forking, which needs a reducer. Three treatments: as built, read-only, and renamed to what it now is — the preset's whole input block, fault included.\n\nProvenance is the page's half of the question #28 hands to #32. If an agent writes both the graph and the walk, the recording is a longer claim rather than a check — so a reader must be able to tell captured from authored without leaving the page. Two placements drawn. Green earns one of its few honest uses on 'captured'.\n\nComponent sheet: contrast, fit, and an explicit list of what the amendment restored against what it did not."
+    }
+  ],
+  "launch": { "view": "canvas", "page": "page-1" }
+}

@@ -1,0 +1,544 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+  <style>
+/* Working copy of the sheet's CSS, lifted from prototypes/callgraph-sheet/view.html
+   (which splices drafting.css in verbatim at build time). Paste into each artboard's
+   <helmet><style>. Values are copied, not re-derived — do not round them. */
+
+/* -- Drafting tokens, from aymandiab.com design-system/drafting.css ---------- */
+:root {
+  --dw-paper: #fafaf7; --dw-ink: #22262b; --dw-caution: #d97706; --dw-normal: #15803d;
+  --dw-ink-80: rgb(34 38 43 / 0.8); --dw-ink-55: rgb(34 38 43 / 0.55);
+  --dw-ink-30: rgb(34 38 43 / 0.3); --dw-ink-12: rgb(34 38 43 / 0.12); --dw-grid: rgb(34 38 43 / 0.05);
+  --dw-rule-hair: 1px; --dw-rule-thin: 1.5px; --dw-rule-bold: 2px; --dw-grid-size: 24px;
+  --dw-font: 'IBM Plex Mono', ui-monospace, 'SFMono-Regular', Menlo, Consolas, monospace;
+  --dw-t-micro: 0.6875rem; --dw-t-annot: 0.8125rem; --dw-t-body: 0.9375rem;
+  --dw-t-lead: 1.125rem; --dw-t-h3: 1.375rem;
+  --dw-track-label: 0.16em; --dw-track-title: 0.12em;
+  --dw-s1: 6px; --dw-s2: 12px; --dw-s3: 24px; --dw-s4: 36px; --dw-s5: 48px;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background-color: var(--dw-paper); color: var(--dw-ink);
+  font-family: var(--dw-font); font-size: var(--dw-t-body); line-height: 1.6; }
+a { color: var(--dw-caution); } a:hover { color: var(--dw-ink); }
+.dw-grid { background-image:
+  linear-gradient(to right, var(--dw-grid) var(--dw-rule-hair), transparent var(--dw-rule-hair)),
+  linear-gradient(to bottom, var(--dw-grid) var(--dw-rule-hair), transparent var(--dw-rule-hair));
+  background-size: var(--dw-grid-size) var(--dw-grid-size); }
+.dw-label { font-size: var(--dw-t-micro); text-transform: uppercase;
+  letter-spacing: var(--dw-track-label); font-weight: 500; color: var(--dw-ink-55); }
+.dw-h3 { font-size: var(--dw-t-h3); font-weight: 600; line-height: 1.25; margin: 0; }
+.dw-annot { font-size: var(--dw-t-annot); line-height: 1.45; color: var(--dw-ink-55); }
+.dw-num { font-variant-numeric: tabular-nums; }
+.dw-state { display: inline-flex; align-items: center; gap: var(--dw-s1);
+  font-size: var(--dw-t-micro); text-transform: uppercase; letter-spacing: var(--dw-track-label);
+  padding: 3px var(--dw-s2); border: var(--dw-rule-hair) solid currentColor; }
+.dw-state::before { content: ''; width: 6px; height: 6px; border-radius: 50%;
+  background: currentColor; flex: none; }
+.dw-state--caution { color: var(--dw-caution); }
+.dw-state--normal { color: var(--dw-normal); }
+/* drafting.css gives this a 2px box; view.html zeroes three sides, so what is
+   left is the bold top rule that separates the block from the sheet. */
+.dw-titleblock { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  border: var(--dw-rule-bold) solid var(--dw-ink); border-left: 0; border-right: 0; border-bottom: 0; }
+.dw-titleblock-cell { padding: var(--dw-s2) var(--dw-s3);
+  border-right: var(--dw-rule-hair) solid var(--dw-ink-12);
+  display: flex; flex-direction: column; gap: var(--dw-s1); min-width: 0; }
+.dw-titleblock-cell:last-child { border-right: 0; }
+.dw-titleblock-key { font-size: var(--dw-t-micro); text-transform: uppercase;
+  letter-spacing: var(--dw-track-label); color: var(--dw-ink-55); }
+.dw-titleblock-val { font-size: var(--dw-t-body); font-variant-numeric: tabular-nums;
+  overflow-wrap: break-word; }
+
+/* -- the sheet grid, view.html:60-69 ---------------------------------------- */
+.sheet-root { --side-w: 22rem; --cut-h: 15rem; width: 1440px; height: 900px;
+  display: grid; grid-template-columns: 1fr 0 var(--side-w);
+  grid-template-rows: auto 1fr 0 var(--cut-h) auto;
+  grid-template-areas: 'head head head' 'plan vsp side' 'hsp vsp side' 'cut vsp side' 'block block block';
+  background: var(--dw-paper); overflow: hidden; }
+
+/* -- header, view.html:108-190 ---------------------------------------------- */
+.head { grid-area: head; display: flex; align-items: center; gap: var(--dw-s3);
+  padding: var(--dw-s2) var(--dw-s3);
+  border-bottom: var(--dw-rule-bold) solid var(--dw-ink); flex-wrap: wrap; }
+.head-id { display: flex; align-items: baseline; gap: var(--dw-s2); }
+select, button, input { font: inherit; font-size: var(--dw-t-micro); color: var(--dw-ink);
+  background: var(--dw-paper); border: var(--dw-rule-hair) solid var(--dw-ink-30);
+  border-radius: 0; padding: 4px var(--dw-s2); }
+select { font-size: var(--dw-t-annot); border-color: var(--dw-ink);
+  border-width: var(--dw-rule-thin); max-width: 22rem; }
+.btn { text-transform: uppercase; letter-spacing: var(--dw-track-label); font-weight: 500;
+  cursor: pointer; transition: color 150ms, border-color 150ms; }
+.btn:hover { border-color: var(--dw-ink); }
+.btn--run { border-color: var(--dw-ink); border-width: var(--dw-rule-thin); }
+.btn-group { display: flex; gap: var(--dw-s1); margin-left: auto; }
+.toggle { display: inline-flex; align-items: center; gap: var(--dw-s1);
+  font-size: var(--dw-t-micro); text-transform: uppercase; letter-spacing: var(--dw-track-label);
+  color: var(--dw-ink-55); cursor: pointer; }
+.toggle input { appearance: none; width: 10px; height: 10px; padding: 0;
+  border: var(--dw-rule-hair) solid var(--dw-ink-30); }
+.toggle input:checked { background: var(--dw-caution); border-color: var(--dw-caution); }
+
+/* -- the plan, view.html:191-260 -------------------------------------------- */
+.plan { grid-area: plan; overflow: hidden; position: relative;
+  border-right: var(--dw-rule-bold) solid var(--dw-ink); cursor: grab; }
+#canvas { position: absolute; top: 0; left: 0; transform-origin: 0 0; padding: var(--dw-s4); }
+.scaleblock { position: absolute; top: var(--dw-s2); right: var(--dw-s2); z-index: 4;
+  display: flex; align-items: stretch; background: var(--dw-paper);
+  border: var(--dw-rule-thin) solid var(--dw-ink); }
+.scaleblock button { border: 0; border-left: var(--dw-rule-hair) solid var(--dw-ink-12);
+  background: transparent; padding: 3px var(--dw-s2); font-size: var(--dw-t-micro);
+  text-transform: uppercase; letter-spacing: var(--dw-track-label); color: var(--dw-ink-55);
+  cursor: pointer; transition: color 150ms; }
+.scaleblock button:first-child { border-left: 0; }
+.scaleblock button:hover { color: var(--dw-ink); }
+#scaleNow { padding: 3px var(--dw-s2); font-size: var(--dw-t-micro);
+  letter-spacing: var(--dw-track-label); font-variant-numeric: tabular-nums;
+  align-self: center; min-width: 4.5rem; text-align: center; }
+#wires { position: absolute; inset: 0; overflow: visible; pointer-events: none; }
+
+/* PROPOSED — the scale block widened into a tool block: every control that
+   changes how this sheet is READ, none that drive the walk. Groups divided by
+   an ink-30 rule, buttons within a group by the ink-12 the scale block uses.
+   The live tool takes .tab--on's treatment: ink label, 2px bottom rule. */
+.toolblock { position: absolute; top: var(--dw-s2); right: var(--dw-s2); z-index: 4;
+  display: flex; flex-direction: column; align-items: stretch; background: var(--dw-paper);
+  border: var(--dw-rule-thin) solid var(--dw-ink); }
+/* One row per tool. The key column is fixed so the rows read as a table of
+   controls rather than three ragged strips. */
+.toolblock .grp { display: flex; align-items: stretch; }
+.toolblock .grp + .grp { border-top: var(--dw-rule-hair) solid var(--dw-ink-30); }
+.toolblock .grp-k { width: 4.5rem; flex: none; text-align: left;
+  border-right: var(--dw-rule-hair) solid var(--dw-ink-12); }
+.toolblock .grp > button:first-of-type { border-left: 0; }
+.toolblock button { border: 0; border-left: var(--dw-rule-hair) solid var(--dw-ink-12);
+  background: transparent; padding: 3px var(--dw-s2); font-size: var(--dw-t-micro);
+  text-transform: uppercase; letter-spacing: var(--dw-track-label); color: var(--dw-ink-55);
+  cursor: pointer; border-bottom: var(--dw-rule-bold) solid transparent; transition: color 150ms; }
+.toolblock .grp button:first-child { border-left: 0; }
+.toolblock button:hover { color: var(--dw-ink); }
+.toolblock button.on { color: var(--dw-ink); border-bottom-color: var(--dw-ink); }
+.toolblock button[disabled] { color: var(--dw-ink-30); cursor: default; }
+.toolblock .grp-k { padding: 3px var(--dw-s2) 3px var(--dw-s2); font-size: var(--dw-t-micro);
+  text-transform: uppercase; letter-spacing: var(--dw-track-label); color: var(--dw-ink-30);
+  align-self: center; }
+.toolblock .now { padding: 3px var(--dw-s2); font-size: var(--dw-t-micro);
+  letter-spacing: var(--dw-track-label); font-variant-numeric: tabular-nums;
+  align-self: center; min-width: 4.5rem; text-align: center;
+  border-left: var(--dw-rule-hair) solid var(--dw-ink-12); }
+
+/* PROPOSED — the tree rendering, in #35's house format. Same IR, same recorded
+   walk: the drawing and the tree are one artifact seen twice. */
+.tree { padding: var(--dw-s4) var(--dw-s3); overflow: auto; height: 100%;
+  display: flex; flex-direction: column; gap: 2px; }
+/* Paper under every row: the plan carries .dw-grid, and 11px annotation over a
+   24px grid pitch is the one place the grid stops being background. */
+.tr { display: flex; align-items: baseline; gap: var(--dw-s2); padding: 5px var(--dw-s2);
+  background: var(--dw-paper); font-size: var(--dw-t-annot);
+  border: var(--dw-rule-hair) solid var(--dw-ink-12);
+  border-left: var(--dw-rule-bold) solid transparent; }
+.tr--cold { color: var(--dw-ink-55); }
+.tr--cold .tr-name { font-weight: 400; }
+.tr--active { border-left-color: var(--dw-ink); background: var(--dw-grid); }
+.tr-name { font-weight: 600; min-width: 15rem; white-space: nowrap; }
+.tr-kind { min-width: 4.5rem; flex: none; }
+.tr-ch { font-size: var(--dw-t-micro); white-space: nowrap; }
+.tr-ch b { font-weight: 600; }
+.tr-site { font-size: var(--dw-t-micro); white-space: nowrap; }
+.tr-fxs { margin-left: auto; display: flex; gap: var(--dw-s2); flex: none; }
+.tr-fx { font-size: var(--dw-t-micro); color: var(--dw-ink-55); white-space: nowrap; }
+
+/* -- a node is a part on the drawing, view.html:256-330 --------------------- */
+.nd { position: absolute; width: 288px; background: var(--dw-paper);
+  border: var(--dw-rule-bold) solid var(--dw-ink); padding: var(--dw-s2);
+  cursor: pointer; overflow: hidden; transition: border-color 150ms; }
+.nd--cold { border-width: var(--dw-rule-hair); border-color: var(--dw-ink-30); color: var(--dw-ink-55); }
+.nd--sel { outline: var(--dw-rule-thin) solid var(--dw-ink); outline-offset: 7px; }
+.nd-top { display: flex; align-items: center; gap: var(--dw-s1); margin-bottom: 2px; }
+.nd-name { font-weight: 600; font-size: var(--dw-t-body); white-space: nowrap;
+  overflow: hidden; text-overflow: ellipsis; }
+.nd-loc { font-size: var(--dw-t-micro); color: var(--dw-ink-55); }
+.nd-ch { display: grid; grid-template-columns: 1.2rem 1fr; gap: 0 var(--dw-s1);
+  font-size: var(--dw-t-micro); margin-top: var(--dw-s1); padding-top: var(--dw-s1);
+  border-top: var(--dw-rule-hair) solid var(--dw-ink-12); }
+.nd-ch b { font-weight: 600; }
+.nd-ch span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.none { color: var(--dw-ink-30); }
+.fx { display: flex; align-items: center; gap: var(--dw-s1); font-size: var(--dw-t-micro);
+  color: var(--dw-ink-55); margin-top: 3px; }
+.fx-dot { width: 5px; height: 5px; border-radius: 50%; background: var(--dw-ink-30); flex: none; }
+.fx-lead { width: var(--dw-s2); border-top: var(--dw-rule-thin) solid var(--dw-ink-30); flex: none; }
+.fx-txt { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dim { color: var(--dw-ink-55); }
+
+/* -- cutaway, view.html:384-430 --------------------------------------------- */
+.cut { grid-area: cut; border-top: var(--dw-rule-bold) solid var(--dw-ink);
+  border-right: var(--dw-rule-bold) solid var(--dw-ink);
+  display: flex; flex-direction: column; min-height: 0; }
+.cut-head { display: flex; align-items: baseline; gap: var(--dw-s2);
+  padding: var(--dw-s1) var(--dw-s3); border-bottom: var(--dw-rule-hair) solid var(--dw-ink-12); }
+.tape { flex: 1; overflow: auto; padding: var(--dw-s2) var(--dw-s3) var(--dw-s3); }
+.tabs { margin-left: auto; display: flex; gap: var(--dw-s2); }
+.tab { border: 0; background: transparent; padding: 2px 0; font-size: var(--dw-t-micro);
+  text-transform: uppercase; letter-spacing: var(--dw-track-label); color: var(--dw-ink-55);
+  cursor: pointer; border-bottom: var(--dw-rule-bold) solid transparent;
+  transition: color 150ms, border-color 150ms; }
+.tab--on { color: var(--dw-ink); border-bottom-color: var(--dw-ink); }
+
+/* -- the source tape, view.html:487-520 ------------------------------------- */
+.tp { display: flex; align-items: flex-start; gap: var(--dw-s2); font-size: var(--dw-t-annot);
+  line-height: 1.5; padding: 1px 0 1px var(--dw-s2);
+  border-left: var(--dw-rule-bold) solid transparent; }
+.tp--here { border-left-color: var(--dw-ink); background: var(--dw-grid); }
+.tp-n { width: 1.5rem; text-align: right; color: var(--dw-ink-30);
+  font-size: var(--dw-t-micro); flex: none; padding-top: 2px; }
+.tp-lbl { width: 5rem; flex: none; font-size: var(--dw-t-micro); text-transform: uppercase;
+  letter-spacing: var(--dw-track-label); color: var(--dw-ink-55); padding-top: 2px; }
+.tp-src { min-width: 0; flex: 1; }
+.kw { font-weight: 600; }
+
+/* -- the file-tree diff, view.html:428-470 ---------------------------------- */
+.fgroup { margin-bottom: var(--dw-s3); }
+.fgroup > .dw-label { display: block; margin-bottom: var(--dw-s1); }
+.frow { display: grid; grid-template-columns: 3.2rem 1fr 4.5rem; gap: var(--dw-s2);
+  align-items: baseline; font-size: var(--dw-t-annot); padding: 1px 0; }
+.frow--shared { color: var(--dw-caution); }
+.fwhy { grid-column: 2 / -1; font-size: var(--dw-t-micro); color: var(--dw-ink-55); }
+.fchange { font-size: var(--dw-t-micro); text-transform: uppercase;
+  letter-spacing: var(--dw-track-label); color: var(--dw-ink-55); }
+.fpath { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.fdir { color: var(--dw-ink-55); }
+.fnum { text-align: right; font-variant-numeric: tabular-nums; font-size: var(--dw-t-micro);
+  color: var(--dw-ink-55); }
+
+/* -- side column, view.html:528-560 ----------------------------------------- */
+.side { grid-area: side; overflow: hidden; display: flex; flex-direction: column; }
+.blk { padding: var(--dw-s2) var(--dw-s3) var(--dw-s3);
+  border-bottom: var(--dw-rule-hair) solid var(--dw-ink-12); }
+.blk > .dw-label { display: block; margin-bottom: var(--dw-s1); }
+.row { display: flex; gap: var(--dw-s1); font-size: var(--dw-t-annot); align-items: baseline; }
+.row-k { color: var(--dw-ink-55); flex: none; }
+.row-v { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* stack frames, view.html:556-576 */
+.frame { display: block; width: 100%; text-align: left; border: 0;
+  border-left: var(--dw-rule-bold) solid transparent; padding: 2px var(--dw-s2);
+  cursor: pointer; background: transparent; font-size: var(--dw-t-annot); }
+.frame--top { border-left-color: var(--dw-ink); }
+.frame--sel { background: var(--dw-grid); }
+/* scope rows, view.html:575-596 */
+.var { display: flex; align-items: center; gap: var(--dw-s1); margin-bottom: 2px; }
+.var-k { width: 4.5rem; flex: none; font-size: var(--dw-t-micro); color: var(--dw-ink-55);
+  text-align: right; }
+.var input { flex: 1; min-width: 0; font-size: var(--dw-t-micro);
+  border-color: var(--dw-ink-12); padding: 2px 4px; }
+.ok { color: var(--dw-normal); }
+.caut { color: var(--dw-caution); }
+/* the trace, drawn as a dimension line, view.html:632-666 */
+.trace { grid-column: 1 / -1; padding: var(--dw-s2) var(--dw-s3);
+  border-top: var(--dw-rule-hair) solid var(--dw-ink-12); }
+/* PROPOSED — the footer band carries the sheet-level facts beside the trace,
+   sharing its row so the drawing loses no height. */
+.traceband { display: flex; align-items: center; gap: var(--dw-s4); }
+.sheetfacts { display: flex; align-items: baseline; gap: var(--dw-s3); flex: none;
+  font-size: var(--dw-t-micro); color: var(--dw-ink-55); white-space: nowrap; }
+.sheetfacts span + span { padding-left: var(--dw-s3);
+  border-left: var(--dw-rule-hair) solid var(--dw-ink-12); }
+.sheetfacts b { font-weight: 600; color: var(--dw-ink); }
+/* The holds sit above the blocks they act on: hold-on-effect over the effects
+   ledger, hold-on-error over the error path. */
+.blk.holds { display: flex; gap: var(--dw-s3); align-items: center;
+  padding: var(--dw-s2) var(--dw-s3); border-bottom: var(--dw-rule-bold) solid var(--dw-ink); }
+.trace .dw-dimension { padding: 0; cursor: pointer; display: flex; align-items: center;
+  gap: var(--dw-s2); }
+.dw-dimension-value { font-size: var(--dw-t-micro); letter-spacing: var(--dw-track-label);
+  text-transform: uppercase; color: var(--dw-ink-55); font-variant-numeric: tabular-nums;
+  white-space: nowrap; }
+.dw-dimension-tick { width: 0; align-self: stretch;
+  border-left: var(--dw-rule-hair) solid var(--dw-ink-30); }
+.trace-span { position: relative; flex: 1; height: 18px; display: flex; align-items: center; }
+.trace-rule { position: absolute; inset: 50% 0 auto; height: 0;
+  border-top: var(--dw-rule-thin) solid var(--dw-ink-30); }
+.trace-tick { position: absolute; top: 0; bottom: 0; width: 0;
+  border-left: var(--dw-rule-bold) solid var(--dw-ink); }
+.trace-fill { position: absolute; inset: 50% auto auto 0; height: 0;
+  border-top: var(--dw-rule-bold) solid var(--dw-ink); }
+/* breakpoint: a witness tick on the part's edge, view.html:352-366 */
+.bp { width: 10px; height: 10px; padding: 0; flex: none;
+  border: var(--dw-rule-hair) solid var(--dw-ink-30); background: transparent; cursor: pointer; }
+.bp--on { background: var(--dw-caution); border-color: var(--dw-caution); }
+/* on the stack now: the double rule. No colour spent — position is not a state. */
+.nd--active { outline: var(--dw-rule-hair) solid var(--dw-ink-30); outline-offset: 4px; }
+.nd--error { border-color: var(--dw-caution); }
+.fired { color: var(--dw-caution); }
+.fx--ok .fx-dot, .fx--ok .fx-lead { background: var(--dw-normal); border-top-color: var(--dw-normal); }
+.fx--fail .fx-dot, .fx--fail .fx-lead { background: var(--dw-caution); border-top-color: var(--dw-caution); }
+/* the effects ledger's row, view.html:598-625 */
+.led { display: flex; gap: var(--dw-s1); font-size: var(--dw-t-micro); padding: 2px 0;
+  border-bottom: var(--dw-rule-hair) solid var(--dw-ink-12); }
+.led:last-child { border-bottom: 0; }
+.led-seq { color: var(--dw-ink-30); flex: none; }
+.led-body { min-width: 0; flex: 1; }
+.led-body div { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* -- title block ------------------------------------------------------------ */
+.block { grid-area: block; border-top: var(--dw-rule-bold) solid var(--dw-ink); }
+  </style>
+</helmet>
+
+    <div class="sheet-root" style="--cut-h: 15rem">
+      <header class="head">
+        <div class="head-id">
+          <span class="dw-label">D-01</span>
+          <span class="dw-h3" style="font-size: var(--dw-t-lead)">Call graph</span>
+        </div>
+
+        <select aria-label="Scenario"><option>PR #313 · first paint · the sheet 404s</option></select>
+
+
+        <div class="btn-group">
+          <button class="btn">Restart</button>
+          <button class="btn">← Back</button>
+          <button class="btn">Step ↓</button>
+          <button class="btn">Over</button>
+          <button class="btn">Out ↑</button>
+          <button class="btn btn--run">Run</button>
+          <button class="btn">Auto</button>
+          <button class="btn">IR</button>
+        </div>
+      </header>
+
+      <div class="plan dw-grid">
+        <div class="toolblock">
+          <div class="grp">
+            <span class="grp-k">Zoom</span>
+            <button  title="Zoom out">−</button>
+            <span class="now">1:1.69</span>
+            <button  title="Zoom in">+</button>
+            <button >Fit</button>
+          </div>
+          <div class="grp">
+            <span class="grp-k">Layer</span>
+            <button class="{{ prodOn }}" onClick="{{ pickProd }}">Production</button>
+            <button class="{{ testOn }}" onClick="{{ pickTest }}">Tests</button>
+          </div>
+          <div class="grp">
+            <span class="grp-k">View</span>
+            <button class="on">Drawing</button>
+            <button class="">Tree</button>
+          </div>
+        </div>
+        <div id="canvas" style="transform: translate(138px, 12px) scale(0.5926); width: 1368px; height: 783px">
+      <svg id="wires" viewBox="0 0 1368 783" style="width:1368px;height:783px" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+          <marker id="ar-cold" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="8" markerHeight="8" orient="auto">
+            <path d="M0,0 L8,4 L0,8 z" fill="rgb(34 38 43 / 0.3)"></path>
+          </marker>
+          <marker id="ar-ink" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="8" markerHeight="8" orient="auto">
+            <path d="M0,0 L8,4 L0,8 z" fill="#22262b"></path>
+          </marker>
+        </defs>
+        <g id="edges">
+          <path d="M674,188 L674,230 L170,230 L170,284" fill="none" stroke="#22262b" stroke-width="1.5" marker-end="url(#ar-ink)"></path>
+          <path d="M674,188 L674,230 L506,230 L506,284" fill="none" stroke="#22262b" stroke-width="1.5" marker-end="url(#ar-ink)"></path>
+          <path d="M674,188 L674,230 L842,230 L842,284" fill="none" stroke="#22262b" stroke-width="2" marker-end="url(#ar-ink)"></path>
+          <path d="M674,188 L674,230 L1178,230 L1178,284" fill="none" stroke="rgb(34 38 43 / 0.3)" stroke-width="1" marker-end="url(#ar-cold)"></path>
+          <path d="M1178,436 L1178,499 L674,499 L674,574" fill="none" stroke="rgb(34 38 43 / 0.3)" stroke-width="1" marker-end="url(#ar-cold)"></path>
+        </g>
+      </svg>
+      <div class="nd nd--active" style="left:540px;top:36px;width:288px">
+        <div class="nd-top"><button class="bp" title="Hold on entry"></button><span class="dw-label">handler</span><span style="margin-left:auto"><span class="dw-label">on stack</span></span></div>
+        <div class="nd-name">buildShelf</div>
+        <div class="nd-loc">packages/site/src/shelf/scene.ts:1664</div>
+        <div class="nd-ch">
+          <b>A</b><span>Woodwork</span>
+          <b>E</b><span><span class="none">never</span></span>
+          <b>R</b><span>THREE, woodwork.ts</span>
+        </div>
+      </div>
+      <div class="nd" style="left:36px;top:284px;width:288px">
+        <div class="nd-top"><button class="bp" title="Hold on entry"></button><span class="dw-label">pure</span><span style="margin-left:auto"><span class="dw-state dw-state--normal">returned</span></span></div>
+        <div class="nd-name">resolveWoodwork</div>
+        <div class="nd-loc">packages/site/src/shelf/woodwork.ts:432</div>
+        <div class="nd-ch">
+          <b>A</b><span>ResolvedWoodwork</span>
+          <b>E</b><span><span class="none">never</span></span>
+          <b>R</b><span><span class="none">none</span></span>
+        </div>
+      </div>
+      <div class="nd" style="left:372px;top:284px;width:288px">
+        <div class="nd-top"><button class="bp" title="Hold on entry"></button><span class="dw-label">pure</span><span style="margin-left:auto"><span class="dw-state dw-state--normal">returned</span></span></div>
+        <div class="nd-name">worldSpaceUvs</div>
+        <div class="nd-loc">packages/site/src/shelf/woodwork.ts:650</div>
+        <div class="nd-ch">
+          <b>A</b><span>void</span>
+          <b>E</b><span><span class="none">never</span></span>
+          <b>R</b><span><span class="none">none</span></span>
+        </div>
+      </div>
+      <div class="nd nd--active" style="left:708px;top:284px;width:288px">
+        <div class="nd-top"><button class="bp" title="Hold on entry"></button><span class="dw-label">io</span><span class="dw-label" style="margin-left:auto">{{ chipText }}</span></div>
+        <div class="nd-name">bindSheet</div>
+        <div class="nd-loc">packages/site/src/shelf/woodwork.ts:780</div>
+        <div class="nd-ch">
+          <b>A</b><span>SheetBinding</span>
+          <b>E</b><span><span class="none">never</span></span>
+          <b>R</b><span>{{ r_bindSheet }}</span>
+        </div>
+        <div class="fx fx--fail"><span class="fx-dot"></span><span class="fx-lead"></span><span class="fx-txt">net.get <span class="dim">fetch the sheet</span></span></div>
+        <div class="fx fx--ok"><span class="fx-dot"></span><span class="fx-lead"></span><span class="fx-txt">console.warn <span class="dim">did not load; the surface keeps its flat colour</span></span></div>
+      </div>
+      <div class="nd nd--cold" style="left:1044px;top:284px;width:288px">
+        <div class="nd-top"><button class="bp" title="Hold on entry"></button><span class="dw-label">io</span></div>
+        <div class="nd-name">applyWoodFibre</div>
+        <div class="nd-loc">packages/site/src/shelf/woodwork.ts:1246</div>
+        <div class="nd-ch">
+          <b>A</b><span>number — the scale actually in force</span>
+          <b>E</b><span><span class="none">never</span></span>
+          <b>R</b><span>CanvasTexture</span>
+        </div>
+      </div>
+      <div class="nd nd--cold" style="left:540px;top:574px;width:288px">
+        <div class="nd-top"><button class="bp" title="Hold on entry"></button><span class="dw-label">io</span><span class="dw-label" style="margin-left:auto">{{ chipText }}</span></div>
+        <div class="nd-name">fibreMapFor</div>
+        <div class="nd-loc">packages/site/src/shelf/woodwork.ts:1161</div>
+        <div class="nd-ch">
+          <b>A</b><span>CanvasTexture | null</span>
+          <b>E</b><span><span class="none">never</span></span>
+          <b>R</b><span>{{ r_fibreMapFor }}</span>
+        </div>
+        <div class="fx"><span class="fx-dot"></span><span class="fx-lead"></span><span class="fx-txt">canvas.bake <span class="dim">bake the 256-square fibre</span></span></div>
+      </div>
+        </div>
+      </div>
+
+      <div class="vsp"></div>
+      <div class="hsp"></div>
+
+      <section class="cut">
+        <div class="cut-head">
+          <span class="dw-label">Section A-A</span>
+          <span style="font-weight: 600">buildShelf</span>
+          <span class="dw-annot">packages/site/src/shelf/scene.ts:1664</span>
+          <span class="dw-annot">pc 4</span>
+          <span class="tabs">
+            <button class="tab tab--on">Source</button>
+            <button class="tab">Files</button>
+            <button class="tab">Contract</button>
+          </span>
+        </div>
+        <div class="tape">
+          <div class="tp tp--past"><button class="bp"></button><span class="tp-n dw-num">0</span><span class="tp-lbl"></span><span class="tp-src"><span class="dim">The sheet is bound where the material is made, so a roster of any size costs a default page one sheet.</span></span></div>
+          <div class="tp tp--past"><button class="bp"></button><span class="tp-n dw-num">1</span><span class="tp-lbl"></span><span class="tp-src"><span class="kw">resolveWoodwork</span>(requested: settings.materials.woodSpecies) → resolved</span></div>
+          <div class="tp tp--past"><button class="bp"></button><span class="tp-n dw-num">2</span><span class="tp-lbl"></span><span class="tp-src"><span class="kw">worldSpaceUvs</span>(lay: resolved.lay) → uvs</span></div>
+          <div class="tp tp--past"><button class="bp"></button><span class="tp-n dw-num">3</span><span class="tp-lbl"></span><span class="tp-src">resolved.sheet === null ? <span class="kw">flat</span> : <span class="kw">bind</span></span></div>
+          <div class="tp tp--here"><button class="bp"></button><span class="tp-n dw-num">4</span><span class="tp-lbl">bind</span><span class="tp-src"><span class="kw">bindSheet</span>(url: resolved.sheet.url) → sheet</span></div>
+          <div class="tp "><button class="bp"></button><span class="tp-n dw-num">5</span><span class="tp-lbl"></span><span class="tp-src">fibre</span></div>
+          <div class="tp "><button class="bp"></button><span class="tp-n dw-num">6</span><span class="tp-lbl">flat</span><span class="tp-src"><span class="dim">flat binds no map at all — nothing on the wire for the woodwork</span></span></div>
+          <div class="tp "><button class="bp"></button><span class="tp-n dw-num">7</span><span class="tp-lbl">fibre</span><span class="tp-src"><span class="kw">applyWoodFibre</span>(scale: settings.materials.woodFibre, lay: resolved.lay) → fibreInForce</span></div>
+          <div class="tp "><button class="bp"></button><span class="tp-n dw-num">8</span><span class="tp-lbl"></span><span class="tp-src"><span class="kw">bindSheet</span>(url: $env.backboard.url) → backSheet<div class="dim">— a constant, not a knob: #297 measured all 41 veneers and the darkness constraint leaves one</div></span></div>
+          <div class="tp "><button class="bp"></button><span class="tp-n dw-num">9</span><span class="tp-lbl"></span><span class="tp-src">({ species: resolved.species, fibre: fibreInForce, refused: resolved.refused })</span></div>
+        </div>
+      </section>
+
+      <aside class="side">
+        <div class="blk holds">
+          <label class="toggle"><input type="checkbox" /> hold on effect</label>
+          <label class="toggle"><input type="checkbox" checked /> hold on error</label>
+        </div>
+        <div class="blk">
+          <span class="dw-label">Call stack</span>
+          <button class="frame">buildShelf <span class="dw-annot">pc 4</span></button>
+          <button class="frame frame--top">bindSheet <span class="dw-annot">pc 0</span></button>
+        </div>
+        <div class="blk">
+          <span class="dw-label">Scope — editable, forks the trace</span>
+          <div class="var"><span class="var-k">url</span><input value="&quot;/wood/rosewood-diff-1024.jpg&quot;" /></div>
+          <div class="var"><span class="var-k">rowCount</span><input value="5" /></div>
+          <div class="var"><span class="var-k">species</span><input value="&quot;rosewood&quot;" /></div>
+          <div class="var"><span class="var-k">woodFibre</span><input value="0.5" /></div>
+        </div>
+        <div class="blk">
+          <span class="dw-label">Error path</span>
+          <div class="row"><span class="row-k caut">SheetMissing</span><span class="row-v">404</span></div>
+          <div class="row"><span class="row-k">↳ caught</span><span class="row-v">bindSheet → warn</span></div>
+        </div>
+        <div class="blk" style="border-bottom: 0">
+          <span class="dw-label">Effects ledger</span>
+          <div class="led"><span class="led-seq dw-num">1</span><span class="led-body"><div class="caut">net.get — failed</div><div class="dim">/wood/rosewood-diff-1024.jpg</div></span></div>
+          <div class="led"><span class="led-seq dw-num">2</span><span class="led-body"><div class="ok">console.warn — landed</div><div class="dim">did not load; the surface keeps its flat colour</div></span></div>
+        </div>
+      </aside>
+
+      <footer class="block">
+        <div class="dw-titleblock">
+          <div class="dw-titleblock-cell">
+            <span class="dw-titleblock-key">Program</span>
+            <span class="dw-titleblock-val">PR #313 · first paint</span>
+          </div>
+          <div class="dw-titleblock-cell">
+            <span class="dw-titleblock-key">Condition</span>
+            <span class="dw-titleblock-val">the sheet 404s</span>
+          </div>
+          <div class="dw-titleblock-cell">
+            <span class="dw-titleblock-key">Step</span>
+            <span class="dw-titleblock-val"><span class="dw-num">14 / 27</span></span>
+          </div>
+          <div class="dw-titleblock-cell">
+            <span class="dw-titleblock-key">Status</span>
+            <span class="dw-titleblock-val"><span class="dw-label">holding</span></span>
+          </div>
+          <div class="dw-titleblock-cell">
+            <span class="dw-titleblock-key">Notices</span>
+            <span class="dw-titleblock-val"><span class="dw-state dw-state--caution dw-num">2</span></span>
+          </div>
+          <div class="dw-titleblock-cell">
+            <span class="dw-titleblock-key">Sheet</span>
+            <span class="dw-titleblock-val">D-01</span>
+          </div>
+          <div class="trace">
+            <div class="traceband">
+            <div class="dw-dimension" style="flex: 1">
+              <span class="dw-dimension-value">0</span>
+              <span class="dw-dimension-tick"></span>
+              <span class="trace-span">
+                <span class="trace-rule"></span>
+                <span class="trace-fill" style="width: 52%"></span>
+                <span class="trace-tick" style="left: 52%"></span>
+              </span>
+              <span class="dw-dimension-tick"></span>
+              <span class="dw-dimension-value">27</span>
+            </div>
+            </div>
+          </div>
+        </div>
+      </footer>
+    </div>
+</x-dc>
+<script data-dc-script data-props='{"$preview":{"width":1440,"height":900}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const tests = this.state && this.state.layer === 'tests';
+    return {
+      prodClass: tests ? 'btn' : 'btn btn--run',
+      testClass: tests ? 'btn btn--run' : 'btn',
+      prodOn: tests ? '' : 'on',
+      testOn: tests ? 'on' : '',
+      chipText: tests ? 'substituted' : '',
+      r_bindSheet: tests ? 'TextureLoader → stub' : 'THREE.TextureLoader',
+      r_fibreMapFor: tests ? 'canvas 2d → node-canvas' : 'canvas 2d',
+      pickProd: () => this.setState({ layer: 'production' }),
+      pickTest: () => this.setState({ layer: 'tests' }),
+    };
+  }
+}
+</script>
+</body>
+</html>

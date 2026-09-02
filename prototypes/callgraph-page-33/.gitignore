@@ -1,0 +1,4 @@
+# The seeded canvas payload: ~2.7 MB, almost all of it the Claude Design editor
+# baked in at publish time. The artboards and canvas.json in this folder are the
+# source; the published canvas is the rendering. Regenerate rather than commit.
+groundtrack-page-layouts.html
