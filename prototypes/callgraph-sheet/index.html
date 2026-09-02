@@ -3,14 +3,19 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>D-01 · Call graph sheet</title>
+    <title>D-01 · groundtrack</title>
 
     <!--
       ==========================================================================
-      PROTOTYPE — throwaway. Sheet D-01.
+      PROTOTYPE — throwaway. Sheet D-01, for the skill #26 named GROUNDTRACK.
 
       Answers: "what does the call graph look like as a drawing, and does the
       drawing stay honest while you step it?"
+
+      The name is on the door and nowhere else: #26's rule is evocative outside,
+      plain language inside, and rule 9 reserves `groundtrack` and `flightpath`
+      out of the notation. So the sheet says groundtrack; the drawing says
+      nodes, channels, effects and a walk.
 
       SOURCE FILE. This is the template, not the deliverable.
       Run build.ps1 to splice in the fonts, drafting.css and the programs and
@@ -546,8 +551,13 @@
          12rem is the smallest cut that still shows a small node's whole tape,
          and it buys 10% more drawing than 15rem. 10rem clips a five-step node,
          which is the trade the amendment says not to make. */
+      /* --side-w is 24rem so the two holds sit on one line. They need 344px and
+         22rem left 352px — eight pixels, which any font fallback spends, and the
+         row wrapped. 24rem gives 384px, and the rail is free: the fit is still
+         height-bound at 12rem (0.644 by height against 0.731 by width even at
+         26rem), so this costs the drawing 0%. */
       .sheet-root {
-        --side-w: 22rem;
+        --side-w: 24rem;
         --cut-h: 12rem;
         height: 100%;
         display: grid;
@@ -646,6 +656,26 @@
       .btn--run {
         border-color: var(--dw-ink);
         border-width: var(--dw-rule-thin);
+      }
+      /* Play is the one control that latches, so it is the one that lights.
+         The glyph is drawn rather than borrowed: Drafting has no icon set, and
+         a solid triangle and two bars are notation a drawing can carry. */
+      .btn--play {
+        display: inline-flex;
+        align-items: center;
+        gap: var(--dw-s1);
+      }
+      .btn--play svg {
+        width: 7px;
+        height: 8px;
+        fill: currentColor;
+        flex: none;
+      }
+      .btn--play[data-playing] {
+        color: var(--dw-ink);
+        border-color: var(--dw-caution);
+        border-width: var(--dw-rule-thin);
+        background: var(--dw-grid);
       }
       .btn-group {
         display: flex;
@@ -787,6 +817,11 @@
         display: flex;
         flex-direction: column;
         gap: 2px;
+      }
+      /* `display` on a class beats the user agent's `[hidden]` rule, so the
+         tree stayed on the sheet over the drawing when you switched back. */
+      .tree[hidden] {
+        display: none;
       }
       /* Paper under every row: the plan carries .dw-grid, and 11px annotation
          over a 24px grid pitch is the one place the grid stops being
@@ -1153,6 +1188,12 @@
         padding: var(--dw-s2) var(--dw-s3);
         border-bottom: var(--dw-rule-bold) solid var(--dw-ink);
       }
+      /* Two controls on one row, so neither may break mid-label. The splitter
+         can still be dragged narrower than they fit; that is the reader's
+         choice, not a default. */
+      .blk.holds .toggle {
+        white-space: nowrap;
+      }
       .row {
         display: flex;
         gap: var(--dw-s1);
@@ -1365,7 +1406,10 @@
       <header class="head">
         <div class="head-id">
           <span class="dw-label">D-01</span>
-          <span class="dw-h3" style="font-size: var(--dw-t-lead)">Call graph</span>
+          <!-- The name on the door, settled by #26. Evocative here; plain
+               language inside, which is why nothing in the notation below says
+               groundtrack or flightpath. -->
+          <span class="dw-h3" style="font-size: var(--dw-t-lead)">groundtrack</span>
         </div>
 
         <select id="scenario" aria-label="Scenario"></select>
@@ -1377,7 +1421,7 @@
           <button class="btn" data-act="over">Over</button>
           <button class="btn" data-act="out">Out ↑</button>
           <button class="btn btn--run" data-act="cont">Run</button>
-          <button class="btn" data-act="play">Auto</button>
+          <button class="btn btn--play" data-act="play" id="btnPlay"></button>
           <button class="btn" data-act="ir">IR</button>
         </div>
       </header>
@@ -7362,6 +7406,9 @@ PROGRAMS.push({
       function stopPlay() {
         if (PLAYING) clearInterval(PLAYING);
         PLAYING = null;
+        // the button latches, so it must come back up even on the paths that
+        // stop the play without re-rendering the sheet
+        if (document.getElementById('btnPlay')) renderPlayButton();
       }
 
       /* ======================================================================
@@ -7858,11 +7905,21 @@ PROGRAMS.push({
         if (!id) {
           cutName.textContent = '—';
           document.getElementById('cutLoc').textContent = '';
-          tape.innerHTML = `<div class="dw-annot">${
-            s.status === 'error'
-              ? 'Stack empty. ' + esc(s.error.tag) + ' — ' + esc(s.error.message)
-              : 'Stack empty. Returned ' + esc(fmt(s.result, 200))
-          }</div>`;
+          document.getElementById('cutHint').textContent =
+            TAB === 'files' ? 'no node open — the whole diff' : '';
+          // With no node open the diff is still the sheet's, so Files shows all
+          // of it. Source and Contract are views OF a node and have nothing to
+          // show, so they say what the walk ended up doing instead.
+          tape.innerHTML =
+            TAB === 'files'
+              ? filesView(null)
+              : `<div class="dw-annot">${
+                  s.status === 'error'
+                    ? 'Stack empty. ' + esc(s.error.tag) + ' — ' + esc(s.error.message)
+                    : s.status === 'done'
+                      ? 'Stack empty. Returned ' + esc(fmt(s.result, 200))
+                      : 'Nothing on the stack yet. Step to open a node.'
+                }</div>`;
           return;
         }
         const n = PROG.nodes[id];
@@ -7926,15 +7983,19 @@ PROGRAMS.push({
         if (!FILES.length)
           return '<div class="dw-annot">This program declares no file-tree diff. Add a top-level <code>files</code> list and per-node <code>touches</code> / <code>tests</code>.</div>';
 
-        const mine = new Set([...(PROG.nodes[id].touches ?? []), ...(PROG.nodes[id].tests ?? [])]);
+        // `id` is null when no node is open — at the start of a walk, or once
+        // it has returned. The diff belongs to the sheet rather than to a node,
+        // so it all still shows; only the first group has nothing to name.
+        const n = id ? PROG.nodes[id] : null;
+        const mine = new Set([...(n?.touches ?? []), ...(n?.tests ?? [])]);
         const rel = (p) => FILEMAP[p] ?? { touch: [], test: [] };
         const groups = [
           {
-            label: `This node — ${PROG.nodes[id].name}`,
-            rows: FILES.filter((f) => mine.has(f.path)),
+            label: n ? `This node — ${n.name}` : '',
+            rows: n ? FILES.filter((f) => mine.has(f.path)) : [],
           },
           {
-            label: 'Other nodes on this sheet',
+            label: n ? 'Other nodes on this sheet' : 'On a node on this sheet',
             rows: FILES.filter(
               (f) => !mine.has(f.path) && (rel(f.path).touch.length || rel(f.path).test.length),
             ),
@@ -8107,7 +8168,7 @@ PROGRAMS.push({
             : s.status === 'done'
               ? '<span class="dw-state dw-state--normal">returned</span>'
               : PLAYING
-                ? '<span class="dw-state dw-state--normal">auto</span>'
+                ? '<span class="dw-state dw-state--normal">playing</span>'
                 : '<span class="dw-label">holding</span>';
         document.getElementById('tbStatus').innerHTML = st;
 
@@ -8129,6 +8190,7 @@ PROGRAMS.push({
           : '<span class="dw-label">none</span>';
 
         renderSheetFacts();
+        renderPlayButton();
 
         const last = TRACE.length - 1;
         document.getElementById('dimB').textContent = last;
@@ -8157,6 +8219,18 @@ PROGRAMS.push({
           );
         if (PROG.sheet?.scopeRule) parts.push(`<span>scope: ${esc(PROG.sheet.scopeRule)}</span>`);
         document.getElementById('sheetfacts').innerHTML = parts.join('');
+      }
+
+      /* Play latches, so it says which state it is in rather than which button
+         it is. Both glyphs are drawn here: no icon set, no emoji. */
+      const GLYPH = {
+        play: '<svg viewBox="0 0 7 8" aria-hidden="true"><path d="M0,0 L7,4 L0,8 z"/></svg>',
+        pause: '<svg viewBox="0 0 7 8" aria-hidden="true"><path d="M0,0h2.5v8H0z M4.5,0h2.5v8H4.5z"/></svg>',
+      };
+      function renderPlayButton() {
+        const b = document.getElementById('btnPlay');
+        b.innerHTML = PLAYING ? GLYPH.pause + 'Pause' : GLYPH.play + 'Play';
+        PLAYING ? (b.dataset.playing = '1') : delete b.dataset.playing;
       }
 
       /* -- the tool block --------------------------------------------------- */
