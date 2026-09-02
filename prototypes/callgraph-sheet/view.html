@@ -62,9 +62,27 @@
       /* Two zero-width tracks hold the splitters, so each one spans exactly the
          panes it divides — not the header, not the title block. The hit area is
          a ::after that overflows the track; the visible rule stays 2px. */
+      /* --cut-h is 12rem because that is where the splitter wants to sit, and
+         it is a measured answer rather than a taste. The fit is height-bound in
+         every configuration, so the cutaway is the only thing throttling the
+         drawing — but under #28's amendment the tape is where the walk is READ,
+         so height given back to the drawing is taken from the thing stepping
+         exists to show. Measured at 1440 × 900, on pr-313's ten-step entry and
+         its five-step callee:
+
+           8rem  1:1.38   3/10 rows   3/5 rows
+           10rem 1:1.46   4/10        3/5     <- #33 delta 2 proposed this
+           12rem 1:1.55   6/10        5/5     <- the knee
+           15rem 1:1.71   7/10        5/5     <- as built
+           18rem 1:1.91   9/10        5/5
+           22rem 1:2.26  10/10        5/5
+
+         12rem is the smallest cut that still shows a small node's whole tape,
+         and it buys 10% more drawing than 15rem. 10rem clips a five-step node,
+         which is the trade the amendment says not to make. */
       .sheet-root {
         --side-w: 22rem;
-        --cut-h: 15rem;
+        --cut-h: 12rem;
         height: 100%;
         display: grid;
         grid-template-columns: 1fr 0 var(--side-w);
