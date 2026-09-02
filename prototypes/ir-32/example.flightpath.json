@@ -21,7 +21,7 @@
       "role": "handler",
       "loc": "src/greet.ts:8",
       "params": ["userId"],
-      "channels": { "A": "a greeting line", "E": ["NoSuchUser"], "R": ["the name store"] },
+      "channels": { "A": "a greeting line", "E": ["NoSuchUser", "SendFailed"], "R": ["the name store"] },
       "touches": ["src/greet.ts"],
       "enteredBy": ["src/greet.test.ts"],
       "steps": [
@@ -65,14 +65,14 @@
         "steps": [
           { "k": "enter", "node": "greet" },
           { "k": "move", "at": 0, "next": 1 },
-          { "k": "call", "at": 1, "to": "lookupName" },
-          { "k": "effect", "at": 0, "kind": "db.get", "desc": "read the name row", "status": "ok", "result": { "displayName": "Ada" } },
+          { "k": "call", "at": 1, "to": "lookupName", "next": 2 },
+          { "k": "effect", "at": 0, "kind": "db.get", "desc": "read the name row", "next": 1, "result": { "displayName": "Ada" } },
           { "k": "move", "at": 1, "next": 2 },
           { "k": "return", "at": 2, "value": "Ada" },
           { "k": "move", "at": 2, "next": 3 },
           { "k": "move", "at": 3, "next": 4 },
           { "k": "move", "at": 4, "next": 6 },
-          { "k": "effect", "at": 6, "kind": "http.post", "desc": "POST the greeting", "status": "ok", "result": { "ok": true } },
+          { "k": "effect", "at": 6, "kind": "http.post", "desc": "POST the greeting", "next": 7, "result": { "ok": true } },
           { "k": "return", "at": 7, "value": "Hello, Ada" },
           { "k": "done", "result": "Hello, Ada" }
         ]
@@ -80,23 +80,45 @@
     },
     {
       "name": "no such user",
-      "blurb": "The lookup throws, the handler catches, and the plain line goes out.",
+      "blurb": "The lookup returns no row, an if routes to the throw, and the handler catches. This is a failure the code inspects and raises itself.",
       "input": { "userId": "u-404" },
       "walk": {
         "provenance": "authored",
         "steps": [
           { "k": "enter", "node": "greet" },
           { "k": "move", "at": 0, "next": 1 },
-          { "k": "call", "at": 1, "to": "lookupName" },
-          { "k": "effect", "at": 0, "kind": "db.get", "desc": "read the name row", "status": "ok", "result": null },
+          { "k": "call", "at": 1, "to": "lookupName", "next": 2 },
+          { "k": "effect", "at": 0, "kind": "db.get", "desc": "read the name row", "next": 1, "result": null },
           { "k": "move", "at": 1, "next": 3 },
           { "k": "raise", "at": 3, "tag": "NoSuchUser", "message": "no row for that id", "channel": "escape" },
           { "k": "unwind" },
-          { "k": "handled", "at": 5, "goto": "plain" },
+          { "k": "handled", "at": 1, "goto": "plain", "next": 5 },
           { "k": "move", "at": 5, "next": 6 },
-          { "k": "effect", "at": 6, "kind": "http.post", "desc": "POST the greeting", "status": "ok", "result": { "ok": true } },
+          { "k": "effect", "at": 6, "kind": "http.post", "desc": "POST the greeting", "next": 7, "result": { "ok": true } },
           { "k": "return", "at": 7, "value": "Hello there" },
           { "k": "done", "result": "Hello there" }
+        ]
+      }
+    },
+    {
+      "name": "the post fails",
+      "blurb": "The effect itself raises. It carries no next, and a raise follows it. Nothing catches it.",
+      "input": { "userId": "u-1" },
+      "walk": {
+        "provenance": "authored",
+        "steps": [
+          { "k": "enter", "node": "greet" },
+          { "k": "move", "at": 0, "next": 1 },
+          { "k": "call", "at": 1, "to": "lookupName", "next": 2 },
+          { "k": "effect", "at": 0, "kind": "db.get", "desc": "read the name row", "next": 1, "result": { "displayName": "Ada" } },
+          { "k": "move", "at": 1, "next": 2 },
+          { "k": "return", "at": 2, "value": "Ada" },
+          { "k": "move", "at": 2, "next": 3 },
+          { "k": "move", "at": 3, "next": 4 },
+          { "k": "move", "at": 4, "next": 6 },
+          { "k": "effect", "at": 6, "kind": "http.post", "desc": "POST the greeting", "attempt": 2 },
+          { "k": "raise", "at": 6, "tag": "SendFailed", "message": "502 from the greeting service", "channel": "retry" },
+          { "k": "uncaught", "tag": "SendFailed", "message": "502 from the greeting service", "channel": "retry" }
         ]
       }
     }

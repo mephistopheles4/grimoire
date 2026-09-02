@@ -92,7 +92,8 @@
           {
             "k": "call",
             "at": 12,
-            "to": "speciesPending"
+            "to": "speciesPending",
+            "next": 13
           },
           {
             "k": "move",
@@ -102,7 +103,8 @@
           {
             "k": "call",
             "at": 1,
-            "to": "resolveWoodwork"
+            "to": "resolveWoodwork",
+            "next": 2
           },
           {
             "k": "move",
@@ -138,7 +140,8 @@
           {
             "k": "call",
             "at": 2,
-            "to": "resolveWoodwork"
+            "to": "resolveWoodwork",
+            "next": 3
           },
           {
             "k": "move",
@@ -189,7 +192,8 @@
           {
             "k": "call",
             "at": 15,
-            "to": "resolveWoodwork"
+            "to": "resolveWoodwork",
+            "next": 16
           },
           {
             "k": "move",
@@ -225,7 +229,8 @@
           {
             "k": "call",
             "at": 16,
-            "to": "describeWoodwork"
+            "to": "describeWoodwork",
+            "next": 17
           },
           {
             "k": "move",
@@ -360,7 +365,8 @@
           {
             "k": "call",
             "at": 12,
-            "to": "speciesPending"
+            "to": "speciesPending",
+            "next": 13
           },
           {
             "k": "move",
@@ -370,7 +376,8 @@
           {
             "k": "call",
             "at": 1,
-            "to": "resolveWoodwork"
+            "to": "resolveWoodwork",
+            "next": 2
           },
           {
             "k": "move",
@@ -406,7 +413,8 @@
           {
             "k": "call",
             "at": 2,
-            "to": "resolveWoodwork"
+            "to": "resolveWoodwork",
+            "next": 3
           },
           {
             "k": "move",
@@ -452,7 +460,8 @@
           {
             "k": "call",
             "at": 15,
-            "to": "resolveWoodwork"
+            "to": "resolveWoodwork",
+            "next": 16
           },
           {
             "k": "move",
@@ -488,7 +497,8 @@
           {
             "k": "call",
             "at": 16,
-            "to": "describeWoodwork"
+            "to": "describeWoodwork",
+            "next": 17
           },
           {
             "k": "move",
@@ -619,7 +629,8 @@
           {
             "k": "call",
             "at": 12,
-            "to": "speciesPending"
+            "to": "speciesPending",
+            "next": 13
           },
           {
             "k": "move",
@@ -629,7 +640,8 @@
           {
             "k": "call",
             "at": 1,
-            "to": "resolveWoodwork"
+            "to": "resolveWoodwork",
+            "next": 2
           },
           {
             "k": "move",
@@ -665,7 +677,8 @@
           {
             "k": "call",
             "at": 2,
-            "to": "resolveWoodwork"
+            "to": "resolveWoodwork",
+            "next": 3
           },
           {
             "k": "move",
@@ -706,7 +719,8 @@
           {
             "k": "call",
             "at": 15,
-            "to": "resolveWoodwork"
+            "to": "resolveWoodwork",
+            "next": 16
           },
           {
             "k": "move",
@@ -737,7 +751,8 @@
           {
             "k": "call",
             "at": 16,
-            "to": "describeWoodwork"
+            "to": "describeWoodwork",
+            "next": 17
           },
           {
             "k": "move",
@@ -870,7 +885,8 @@
           {
             "k": "call",
             "at": 5,
-            "to": "applyWoodFibre"
+            "to": "applyWoodFibre",
+            "next": 6
           },
           {
             "k": "move",
@@ -881,9 +897,9 @@
             "k": "effect",
             "at": 1,
             "kind": "canvas.bake",
-            "status": "ok",
             "result": null,
-            "desc": "bake the 256-square fibre"
+            "desc": "bake the 256-square fibre",
+            "next": 2
           },
           {
             "k": "move",
@@ -918,7 +934,8 @@
           {
             "k": "call",
             "at": 12,
-            "to": "speciesPending"
+            "to": "speciesPending",
+            "next": 13
           },
           {
             "k": "move",
@@ -928,7 +945,8 @@
           {
             "k": "call",
             "at": 1,
-            "to": "resolveWoodwork"
+            "to": "resolveWoodwork",
+            "next": 2
           },
           {
             "k": "move",
@@ -964,7 +982,8 @@
           {
             "k": "call",
             "at": 2,
-            "to": "resolveWoodwork"
+            "to": "resolveWoodwork",
+            "next": 3
           },
           {
             "k": "move",
@@ -1010,7 +1029,8 @@
           {
             "k": "call",
             "at": 15,
-            "to": "resolveWoodwork"
+            "to": "resolveWoodwork",
+            "next": 16
           },
           {
             "k": "move",
@@ -1046,7 +1066,8 @@
           {
             "k": "call",
             "at": 16,
-            "to": "describeWoodwork"
+            "to": "describeWoodwork",
+            "next": 17
           },
           {
             "k": "move",
@@ -1176,7 +1197,8 @@
           {
             "k": "call",
             "at": 5,
-            "to": "applyWoodFibre"
+            "to": "applyWoodFibre",
+            "next": 6
           },
           {
             "k": "move",
@@ -1187,11 +1209,11 @@
             "k": "effect",
             "at": 1,
             "kind": "canvas.bake",
-            "status": "ok",
             "result": {
               "tiles": 15.36
             },
-            "desc": "bake the 256-square fibre"
+            "desc": "bake the 256-square fibre",
+            "next": 2
           },
           {
             "k": "move",
@@ -1221,7 +1243,8 @@
           {
             "k": "call",
             "at": 12,
-            "to": "speciesPending"
+            "to": "speciesPending",
+            "next": 13
           },
           {
             "k": "move",
@@ -1231,7 +1254,8 @@
           {
             "k": "call",
             "at": 1,
-            "to": "resolveWoodwork"
+            "to": "resolveWoodwork",
+            "next": 2
           },
           {
             "k": "move",
@@ -1267,7 +1291,8 @@
           {
             "k": "call",
             "at": 2,
-            "to": "resolveWoodwork"
+            "to": "resolveWoodwork",
+            "next": 3
           },
           {
             "k": "move",
@@ -1313,7 +1338,8 @@
           {
             "k": "call",
             "at": 15,
-            "to": "resolveWoodwork"
+            "to": "resolveWoodwork",
+            "next": 16
           },
           {
             "k": "move",
@@ -1349,7 +1375,8 @@
           {
             "k": "call",
             "at": 16,
-            "to": "describeWoodwork"
+            "to": "describeWoodwork",
+            "next": 17
           },
           {
             "k": "move",

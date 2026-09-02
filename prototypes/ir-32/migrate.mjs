@@ -36,14 +36,24 @@ function migrateWalk(prog, walk) {
       continue;
     }
     if (m.k === 'effect') {
-      const { label, ...rest } = m;
-      out.push({ ...rest, desc: label });
-      if (m.status === 'ok') f.pc = m.at + 1;
+      // `status` and `error` said twice what the tape says once. A raise now
+      // follows a failed effect, and a `next` follows one that went on.
+      const { label, status, error, ...rest } = m;
+      if (status === 'ok') { out.push({ ...rest, desc: label, next: m.at + 1 }); f.pc = m.at + 1; }
+      else out.push({ ...rest, desc: label });
       continue;
     }
-    if (m.k === 'call') { f.pc = m.at + 1; out.push({ ...m }); frames.push({ nodeId: m.to, pc: 0 }); continue; }
+    if (m.k === 'call') { out.push({ ...m, next: m.at + 1 }); f.pc = m.at + 1; frames.push({ nodeId: m.to, pc: 0 }); continue; }
     if (m.k === 'return') { out.push({ ...m }); frames.pop(); continue; }
-    if (m.k === 'handled') { f.pc = m.at; out.push({ ...m }); continue; }
+    if (m.k === 'handled') {
+      // old: `at` was the landing. New: `at` is the step whose onError caught,
+      // and `next` is the landing.
+      const node = prog.nodes[f.nodeId];
+      const catcher = node.steps.findIndex((s) => (s.onError || []).some((h) => h.goto === m.goto));
+      out.push({ k: 'handled', at: catcher, goto: m.goto, next: m.at });
+      f.pc = m.at;
+      continue;
+    }
     out.push({ ...m }); // raise
   }
   return { provenance: walk.provenance, steps: out };

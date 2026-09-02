@@ -199,7 +199,8 @@
           {
             "k": "call",
             "at": 1,
-            "to": "resolveWoodwork"
+            "to": "resolveWoodwork",
+            "next": 2
           },
           {
             "k": "move",
@@ -240,7 +241,8 @@
           {
             "k": "call",
             "at": 2,
-            "to": "worldSpaceUvs"
+            "to": "worldSpaceUvs",
+            "next": 3
           },
           {
             "k": "move",
@@ -260,17 +262,18 @@
           {
             "k": "call",
             "at": 4,
-            "to": "bindSheet"
+            "to": "bindSheet",
+            "next": 5
           },
           {
             "k": "effect",
             "at": 0,
             "kind": "net.get",
-            "status": "ok",
             "result": {
               "ok": true
             },
-            "desc": "fetch the sheet"
+            "desc": "fetch the sheet",
+            "next": 1
           },
           {
             "k": "return",
@@ -288,12 +291,14 @@
           {
             "k": "call",
             "at": 7,
-            "to": "applyWoodFibre"
+            "to": "applyWoodFibre",
+            "next": 8
           },
           {
             "k": "call",
             "at": 0,
-            "to": "fibreMapFor"
+            "to": "fibreMapFor",
+            "next": 1
           },
           {
             "k": "move",
@@ -309,11 +314,11 @@
             "k": "effect",
             "at": 2,
             "kind": "canvas.bake",
-            "status": "ok",
             "result": {
               "tiles": 15.36
             },
-            "desc": "bake the 256-square fibre"
+            "desc": "bake the 256-square fibre",
+            "next": 3
           },
           {
             "k": "return",
@@ -335,17 +340,18 @@
           {
             "k": "call",
             "at": 8,
-            "to": "bindSheet"
+            "to": "bindSheet",
+            "next": 9
           },
           {
             "k": "effect",
             "at": 0,
             "kind": "net.get",
-            "status": "ok",
             "result": {
               "ok": true
             },
-            "desc": "fetch the sheet"
+            "desc": "fetch the sheet",
+            "next": 1
           },
           {
             "k": "return",
@@ -402,7 +408,8 @@
           {
             "k": "call",
             "at": 1,
-            "to": "resolveWoodwork"
+            "to": "resolveWoodwork",
+            "next": 2
           },
           {
             "k": "move",
@@ -443,7 +450,8 @@
           {
             "k": "call",
             "at": 2,
-            "to": "worldSpaceUvs"
+            "to": "worldSpaceUvs",
+            "next": 3
           },
           {
             "k": "move",
@@ -463,17 +471,18 @@
           {
             "k": "call",
             "at": 4,
-            "to": "bindSheet"
+            "to": "bindSheet",
+            "next": 5
           },
           {
             "k": "effect",
             "at": 0,
             "kind": "net.get",
-            "status": "ok",
             "result": {
               "ok": true
             },
-            "desc": "fetch the sheet"
+            "desc": "fetch the sheet",
+            "next": 1
           },
           {
             "k": "return",
@@ -491,12 +500,14 @@
           {
             "k": "call",
             "at": 7,
-            "to": "applyWoodFibre"
+            "to": "applyWoodFibre",
+            "next": 8
           },
           {
             "k": "call",
             "at": 0,
-            "to": "fibreMapFor"
+            "to": "fibreMapFor",
+            "next": 1
           },
           {
             "k": "move",
@@ -512,11 +523,11 @@
             "k": "effect",
             "at": 2,
             "kind": "canvas.bake",
-            "status": "ok",
             "result": {
               "tiles": 3.2
             },
-            "desc": "bake the 256-square fibre"
+            "desc": "bake the 256-square fibre",
+            "next": 3
           },
           {
             "k": "return",
@@ -538,17 +549,18 @@
           {
             "k": "call",
             "at": 8,
-            "to": "bindSheet"
+            "to": "bindSheet",
+            "next": 9
           },
           {
             "k": "effect",
             "at": 0,
             "kind": "net.get",
-            "status": "ok",
             "result": {
               "ok": true
             },
-            "desc": "fetch the sheet"
+            "desc": "fetch the sheet",
+            "next": 1
           },
           {
             "k": "return",
@@ -605,7 +617,8 @@
           {
             "k": "call",
             "at": 1,
-            "to": "resolveWoodwork"
+            "to": "resolveWoodwork",
+            "next": 2
           },
           {
             "k": "move",
@@ -646,7 +659,8 @@
           {
             "k": "call",
             "at": 2,
-            "to": "worldSpaceUvs"
+            "to": "worldSpaceUvs",
+            "next": 3
           },
           {
             "k": "move",
@@ -666,17 +680,18 @@
           {
             "k": "call",
             "at": 4,
-            "to": "bindSheet"
+            "to": "bindSheet",
+            "next": 5
           },
           {
             "k": "effect",
             "at": 0,
             "kind": "net.get",
-            "status": "ok",
             "result": {
               "ok": true
             },
-            "desc": "fetch the sheet"
+            "desc": "fetch the sheet",
+            "next": 1
           },
           {
             "k": "return",
@@ -694,12 +709,14 @@
           {
             "k": "call",
             "at": 7,
-            "to": "applyWoodFibre"
+            "to": "applyWoodFibre",
+            "next": 8
           },
           {
             "k": "call",
             "at": 0,
-            "to": "fibreMapFor"
+            "to": "fibreMapFor",
+            "next": 1
           },
           {
             "k": "move",
@@ -715,11 +732,11 @@
             "k": "effect",
             "at": 2,
             "kind": "canvas.bake",
-            "status": "ok",
             "result": {
               "tiles": 15.36
             },
-            "desc": "bake the 256-square fibre"
+            "desc": "bake the 256-square fibre",
+            "next": 3
           },
           {
             "k": "return",
@@ -741,17 +758,18 @@
           {
             "k": "call",
             "at": 8,
-            "to": "bindSheet"
+            "to": "bindSheet",
+            "next": 9
           },
           {
             "k": "effect",
             "at": 0,
             "kind": "net.get",
-            "status": "ok",
             "result": {
               "ok": true
             },
-            "desc": "fetch the sheet"
+            "desc": "fetch the sheet",
+            "next": 1
           },
           {
             "k": "return",
@@ -808,7 +826,8 @@
           {
             "k": "call",
             "at": 1,
-            "to": "resolveWoodwork"
+            "to": "resolveWoodwork",
+            "next": 2
           },
           {
             "k": "move",
@@ -846,7 +865,8 @@
           {
             "k": "call",
             "at": 2,
-            "to": "worldSpaceUvs"
+            "to": "worldSpaceUvs",
+            "next": 3
           },
           {
             "k": "move",
@@ -871,12 +891,14 @@
           {
             "k": "call",
             "at": 7,
-            "to": "applyWoodFibre"
+            "to": "applyWoodFibre",
+            "next": 8
           },
           {
             "k": "call",
             "at": 0,
-            "to": "fibreMapFor"
+            "to": "fibreMapFor",
+            "next": 1
           },
           {
             "k": "move",
@@ -892,11 +914,11 @@
             "k": "effect",
             "at": 2,
             "kind": "canvas.bake",
-            "status": "ok",
             "result": {
               "tiles": 15.36
             },
-            "desc": "bake the 256-square fibre"
+            "desc": "bake the 256-square fibre",
+            "next": 3
           },
           {
             "k": "return",
@@ -918,17 +940,18 @@
           {
             "k": "call",
             "at": 8,
-            "to": "bindSheet"
+            "to": "bindSheet",
+            "next": 9
           },
           {
             "k": "effect",
             "at": 0,
             "kind": "net.get",
-            "status": "ok",
             "result": {
               "ok": true
             },
-            "desc": "fetch the sheet"
+            "desc": "fetch the sheet",
+            "next": 1
           },
           {
             "k": "return",
@@ -986,7 +1009,8 @@
           {
             "k": "call",
             "at": 1,
-            "to": "resolveWoodwork"
+            "to": "resolveWoodwork",
+            "next": 2
           },
           {
             "k": "move",
@@ -1027,7 +1051,8 @@
           {
             "k": "call",
             "at": 2,
-            "to": "worldSpaceUvs"
+            "to": "worldSpaceUvs",
+            "next": 3
           },
           {
             "k": "move",
@@ -1047,18 +1072,13 @@
           {
             "k": "call",
             "at": 4,
-            "to": "bindSheet"
+            "to": "bindSheet",
+            "next": 5
           },
           {
             "k": "effect",
             "at": 0,
             "kind": "net.get",
-            "status": "failed",
-            "error": {
-              "tag": "SheetMissing",
-              "message": "404",
-              "channel": "escape"
-            },
             "desc": "fetch the sheet"
           },
           {
@@ -1070,16 +1090,17 @@
           },
           {
             "k": "handled",
-            "at": 2,
-            "goto": "warn"
+            "at": 0,
+            "goto": "warn",
+            "next": 2
           },
           {
             "k": "effect",
             "at": 2,
             "kind": "console.warn",
-            "status": "ok",
             "result": true,
-            "desc": "did not load; the surface keeps its flat colour"
+            "desc": "did not load; the surface keeps its flat colour",
+            "next": 3
           },
           {
             "k": "move",
@@ -1102,12 +1123,14 @@
           {
             "k": "call",
             "at": 7,
-            "to": "applyWoodFibre"
+            "to": "applyWoodFibre",
+            "next": 8
           },
           {
             "k": "call",
             "at": 0,
-            "to": "fibreMapFor"
+            "to": "fibreMapFor",
+            "next": 1
           },
           {
             "k": "move",
@@ -1123,11 +1146,11 @@
             "k": "effect",
             "at": 2,
             "kind": "canvas.bake",
-            "status": "ok",
             "result": {
               "tiles": 15.36
             },
-            "desc": "bake the 256-square fibre"
+            "desc": "bake the 256-square fibre",
+            "next": 3
           },
           {
             "k": "return",
@@ -1149,17 +1172,18 @@
           {
             "k": "call",
             "at": 8,
-            "to": "bindSheet"
+            "to": "bindSheet",
+            "next": 9
           },
           {
             "k": "effect",
             "at": 0,
             "kind": "net.get",
-            "status": "ok",
             "result": {
               "ok": true
             },
-            "desc": "fetch the sheet"
+            "desc": "fetch the sheet",
+            "next": 1
           },
           {
             "k": "return",
@@ -1217,7 +1241,8 @@
           {
             "k": "call",
             "at": 1,
-            "to": "resolveWoodwork"
+            "to": "resolveWoodwork",
+            "next": 2
           },
           {
             "k": "move",
@@ -1258,7 +1283,8 @@
           {
             "k": "call",
             "at": 2,
-            "to": "worldSpaceUvs"
+            "to": "worldSpaceUvs",
+            "next": 3
           },
           {
             "k": "move",
@@ -1278,17 +1304,18 @@
           {
             "k": "call",
             "at": 4,
-            "to": "bindSheet"
+            "to": "bindSheet",
+            "next": 5
           },
           {
             "k": "effect",
             "at": 0,
             "kind": "net.get",
-            "status": "ok",
             "result": {
               "ok": true
             },
-            "desc": "fetch the sheet"
+            "desc": "fetch the sheet",
+            "next": 1
           },
           {
             "k": "return",
@@ -1306,12 +1333,14 @@
           {
             "k": "call",
             "at": 7,
-            "to": "applyWoodFibre"
+            "to": "applyWoodFibre",
+            "next": 8
           },
           {
             "k": "call",
             "at": 0,
-            "to": "fibreMapFor"
+            "to": "fibreMapFor",
+            "next": 1
           },
           {
             "k": "move",
@@ -1327,9 +1356,9 @@
             "k": "effect",
             "at": 2,
             "kind": "canvas.bake",
-            "status": "ok",
             "result": null,
-            "desc": "bake the 256-square fibre"
+            "desc": "bake the 256-square fibre",
+            "next": 3
           },
           {
             "k": "return",
@@ -1354,17 +1383,18 @@
           {
             "k": "call",
             "at": 8,
-            "to": "bindSheet"
+            "to": "bindSheet",
+            "next": 9
           },
           {
             "k": "effect",
             "at": 0,
             "kind": "net.get",
-            "status": "ok",
             "result": {
               "ok": true
             },
-            "desc": "fetch the sheet"
+            "desc": "fetch the sheet",
+            "next": 1
           },
           {
             "k": "return",

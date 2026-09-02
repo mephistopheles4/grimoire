@@ -38,10 +38,10 @@ const STEP = {
 const MOVE = {
   enter: { req: ['node'], opt: [] },
   move: { req: ['at', 'next'], opt: [] },
-  call: { req: ['at', 'to'], opt: [] },
-  effect: { req: ['at', 'kind', 'desc', 'status'], opt: ['result', 'error', 'attempt'] },
+  call: { req: ['at', 'to', 'next'], opt: [] },
+  effect: { req: ['at', 'kind', 'desc'], opt: ['next', 'result', 'attempt'] },
   raise: { req: ['at', 'tag', 'message', 'channel'], opt: [] },
-  handled: { req: ['at', 'goto'], opt: [] },
+  handled: { req: ['at', 'goto', 'next'], opt: [] },
   unwind: { req: [], opt: [] },
   return: { req: ['at'], opt: ['value'] },
   done: { req: [], opt: ['result'] },
@@ -163,45 +163,51 @@ function path(prog, walk, where, errs) {
     if (typeof m.at !== 'number' || !node.steps[m.at]) return bad(i, `${m.k} at ${m.at} is not a step of ${f.nodeId}`);
     const st = node.steps[m.at];
 
-    if (m.k === 'move') {
-      if (m.at !== f.pc) bad(i, `move ran step ${m.at}, but the cursor sits at ${f.pc}`);
-      if (!['note', 'let', 'if', 'goto'].includes(st.op)) bad(i, `move ran ${st.op}, which produces no move`);
-      let ok = false;
-      if (st.op === 'if') ok = m.next === L[st.then] || m.next === L[st.else];
-      else if (st.op === 'goto') ok = m.next === L[st.to];
-      else ok = m.next === m.at + 1;
-      if (!ok) bad(i, `no edge from ${m.at} (${st.op}) to ${m.next}`);
-      if (!node.steps[m.next]) bad(i, `move lands at ${m.next}, which is not a step of ${f.nodeId}`);
-      f.pc = m.next;
-      return;
-    }
-
+    /* Rule 1: `at` is always the step that ran, so it is always the cursor.
+     * A `handled` is the one move that arrives after an unwind, so its `at`
+     * names the step in THIS frame whose onError caught, not the cursor. */
     if (m.k !== 'handled' && m.at !== f.pc) bad(i, `${m.k} ran step ${m.at}, but the cursor sits at ${f.pc}`);
 
+    /* Rule 2: `next` is always where the cursor goes, and it is never worked
+     * out. Validate it once, here, for every move that carries one. */
+    if (m.next !== undefined && !node.steps[m.next])
+      bad(i, `next ${m.next} is not a step of ${f.nodeId}`);
+
     switch (m.k) {
+      case 'move': {
+        if (!['note', 'let', 'if', 'goto'].includes(st.op)) bad(i, `move ran ${st.op}, which produces no move`);
+        let ok = false;
+        if (st.op === 'if') ok = m.next === L[st.then] || m.next === L[st.else];
+        else if (st.op === 'goto') ok = m.next === L[st.to];
+        else ok = m.next === m.at + 1;
+        if (!ok) bad(i, `no edge from ${m.at} (${st.op}) to ${m.next}`);
+        f.pc = m.next;
+        break;
+      }
       case 'call':
         if (st.op !== 'call') bad(i, `call ran ${st.op} at ${m.at}`);
         else if (m.to !== st.target) bad(i, `call to "${m.to}", step targets "${st.target}"`);
-        f.pc = m.at + 1;
+        f.pc = m.next;
         if (prog.nodes[m.to]) frames.push({ nodeId: m.to, pc: 0 });
         else bad(i, `call to unknown node "${m.to}"`);
         break;
       case 'effect':
         if (st.op !== 'effect') bad(i, `effect ran ${st.op} at ${m.at}`);
         else if (m.kind !== st.kind) bad(i, `effect kind "${m.kind}" != step kind "${st.kind}"`);
-        if (m.status === 'ok') f.pc = m.at + 1;
-        else if (m.status !== 'failed') bad(i, `effect status "${m.status}" is not ok or failed`);
+        if (m.next !== undefined) f.pc = m.next;
+        else if (walk.steps[i + 1] && walk.steps[i + 1].k !== 'raise')
+          bad(i, 'an effect with no next must be followed by a raise');
         break;
       case 'raise':
         if (st.op === 'throw') { if (m.tag !== st.tag) bad(i, `raise tag "${m.tag}" != throw tag "${st.tag}"`); }
         else if (st.op !== 'effect' && st.op !== 'call') bad(i, `raise ran ${st.op} at ${m.at}`);
         break;
       case 'handled': {
-        if (!node.steps.some((s) => (s.onError || []).some((h) => h.goto === m.goto)))
-          bad(i, `handled goto "${m.goto}" is named by no onError in ${f.nodeId}`);
+        if (!(st.onError || []).some((h) => h.goto === m.goto))
+          bad(i, `handled at ${m.at} (${st.op}): its onError does not name "${m.goto}"`);
         if (L[m.goto] === undefined) bad(i, `handled goto "${m.goto}" is not a label in ${f.nodeId}`);
-        else if (m.at !== L[m.goto]) bad(i, `handled lands at ${m.at}, but "${m.goto}" is step ${L[m.goto]}`);
-        f.pc = m.at;
+        else if (m.next !== L[m.goto]) bad(i, `handled lands at ${m.next}, but "${m.goto}" is step ${L[m.goto]}`);
+        f.pc = m.next;
         break;
       }
       case 'return':

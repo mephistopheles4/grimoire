@@ -53,9 +53,21 @@ const CASES = [
   ['a call to the wrong node is refused', (p) => { p.presets[0].walk.steps[2].to = 'greet'; return p; }, 'step targets'],
   ['a mismatched effect kind is refused', (p) => { p.presets[0].walk.steps[3].kind = 'http.post'; return p; }, 'kind'],
   ['a return on a non-return step is refused', (p) => { p.presets[0].walk.steps[10].at = 0; return p; }, 'ran'],
-  ['a handled goto no onError names is refused', (p) => { p.presets[1].walk.steps[7].goto = 'named'; return p; }, 'named by no onError'],
+  ['a handled goto the catching step does not name is refused', (p) => { p.presets[1].walk.steps[7].goto = 'named'; return p; }, 'its onError does not name'],
   ['an unbalanced frame stack is refused', (p) => { p.presets[0].walk.steps.splice(5, 1); return p; }, 'frame'],
   ['an unknown move kind is refused', (p) => { p.presets[0].walk.steps[1].k = 'jump'; return p; }, 'is not a move kind'],
+
+  // Rule 2 of the tape — `next` is stated, never worked out.
+  // Every case below is a fault the eval measured on a real agent's file.
+  ['a call with no next is refused', (p) => { delete p.presets[0].walk.steps[2].next; return p; }, 'missing required key "next"'],
+  ['a handled with no next is refused', (p) => { delete p.presets[1].walk.steps[7].next; return p; }, 'missing required key "next"'],
+  ['a next outside the node is refused', (p) => { p.presets[0].walk.steps[2].next = 99; return p; }, 'next 99 is not a step'],
+  ['a call that resumes in the wrong place is refused', (p) => { p.presets[0].walk.steps[2].next = 0; return p; }, 'cursor sits at'],
+  ['`status` on an effect move is refused', (p) => { p.presets[0].walk.steps[3].status = 'ok'; return p; }, 'unknown key "status"'],
+  ['`error` on an effect move is refused', (p) => { p.presets[0].walk.steps[3].error = { tag: 'X' }; return p; }, 'unknown key "error"'],
+  ['an effect with no next and no raise after it is refused', (p) => { delete p.presets[0].walk.steps[3].next; return p; }, 'must be followed by a raise'],
+  ['an effect with no next followed by a raise is accepted', (p) => p, null],
+  ['a move after a call that ignores the call\'s next is refused', (p) => { p.presets[0].walk.steps[6].at = 1; return p; }, 'cursor sits at'],
 
   // What the document says it CANNOT prove — these must PASS
   ['an invented effect result is accepted, as the document states', (p) => { p.presets[0].walk.steps[3].result = { invented: true }; return p; }, null],

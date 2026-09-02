@@ -119,35 +119,50 @@ is `desc`. A walk move's readable name is `desc`. Nothing else is called
 `provenance` is `authored` (a person or an agent wrote it) or `captured` (a real
 run produced it). `steps` is a flat list of moves.
 
-**`at` always names the step that ran.** A `move` states where the cursor landed
-in `next`. No other move carries `next`.
+**Two rules cover the whole tape.**
+
+1. **`at` always names the step that ran.** Every move that runs a step has one.
+2. **`next` always names where the cursor goes in that same frame.** Every move
+   that leaves a live cursor behind has one. The cursor never advances on its
+   own, so a reader works nothing out.
 
 | `k` | Fields | Meaning |
 | --- | --- | --- |
-| `enter` | `node` | Push the entry frame. |
+| `enter` | `node` | Push the entry frame. The cursor starts at 0. |
 | `move` | `at`, `next` | The step at `at` ran and the cursor landed at `next`. Only `note`, `let`, `if` and `goto` produce a move. |
-| `call` | `at`, `to` | The call at `at` ran and pushed node `to`. |
-| `effect` | `at`, `kind`, `desc`, `status`, `result?`, `error?`, `attempt?` | The effect at `at` ran. `status` is `ok` or `failed`. |
-| `raise` | `at`, `tag`, `message`, `channel` | The step at `at` raised. |
-| `handled` | `at`, `goto` | A handler caught it and the cursor landed at `at`, which is the step labelled `goto`. |
+| `call` | `at`, `to`, `next` | The call at `at` ran and pushed node `to`. `next` is where **this** frame's cursor waits for the return. |
+| `effect` | `at`, `kind`, `desc`, `next?`, `result?`, `attempt?` | The effect at `at` ran. It carries `next` when the cursor went on, and no `next` when it raised. |
+| `raise` | `at`, `tag`, `message`, `channel` | The step at `at` raised. The frame stops here. |
+| `handled` | `at`, `goto`, `next` | The step at `at` declares this `goto` in its `onError`. The cursor landed at `next`, the step labelled `goto`. |
 | `unwind` | — | Pop a frame the error passed through. |
 | `return` | `at`, `value?` | The return at `at` ran and popped the frame. |
 | `done` | `result?` | The entry frame returned. |
 | `uncaught` | `tag`, `message`, `channel` | Nothing caught the error. |
 
+**An effect has no `status`.** A `status` field would say twice what the tape
+already says once: an effect that raised is followed by a `raise` move, and an
+effect that went on carries a `next`. Two ways to say one thing is how a file
+comes to disagree with itself.
+
+**Model a failure the way the code does.** If the real effect throws, write
+`effect` then `raise`. If the real effect returns a failure value that an `if`
+inspects, write `effect` with a `next` to that `if`, and let the `if` route to
+the `throw`. Both are ordinary, and the tape tells them apart.
+
 ### What a walk must satisfy
 
 `check.mjs` proves the walk is a **legal path**. It evaluates nothing.
 
-- Every `at` indexes a real step of the frame's node.
+- Every `at` indexes a real step of the frame's node, and equals the cursor.
+- Every `next` indexes a real step of the same node.
 - A `move` lands somewhere the step at `at` can reach: the next index for a
   `note` or a `let`, the `then` or `else` label for an `if`, the `to` label for
   a `goto`.
 - A `call` runs a `call` step, and `to` matches that step's `target`.
 - An `effect` runs an `effect` step, and `kind` matches that step's `kind`.
 - A `return` runs a `return` step.
-- A `handled` names a `goto` some `onError` in that node declares, and lands on
-  the step that carries it.
+- A `handled` runs a step whose `onError` declares that `goto`, and `next` is
+  the step labelled `goto`.
 - Frames push and pop in order, and `done` arrives with none open.
 
 **What it cannot prove.** Which branch an `if` took, and what an effect
