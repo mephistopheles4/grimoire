@@ -13,12 +13,15 @@
       drawing stay honest while you step it?"
 
       SOURCE FILE. This is the template, not the deliverable.
-      Run build.ps1 to splice in the fonts, drafting.css and the engine and
+      Run build.ps1 to splice in the fonts, drafting.css and the programs and
       produce index.html — one self-contained file, no network at all.
 
-      The engine (the IR + the step() VM) is lifted verbatim from
-      ../callstack-debugger/index.html. Same programs, same VM, different eyes:
-      that is the point being tested. The IR is the product; a viewer is a view.
+      THERE IS NO ENGINE HERE. #28 was amended to "the artifact steps over a
+      recorded walk", so nothing on this page computes a next state: each
+      program carries its walk as data, and this file plays it. The VM did not
+      die, it moved to record time — record.mjs lifts it out of D-00, runs it
+      once offline and writes the tape into the IR. The IR is the product; a
+      viewer is a view; the walk is a claim the viewer only replays.
 
       DESIGN: Drafting / Aviation. Four colours, and two of them are budgets.
         ink        structure. Line weight is the depth system: 1px construction,
@@ -209,22 +212,49 @@
         padding: var(--dw-s4);
       }
 
-      /* The drawing's own scale block, on the drawing rather than in the title
-         block — a wheel can change it at any moment, and a title-block cell
-         states a fact rather than tracking one. */
-      .scaleblock {
+      /* The tool block, on the drawing rather than in the title block. One rule
+         sorts every control on this sheet: the HEAD drives the walk, the tool
+         block changes how the sheet is READ and never touches it. Zoom was
+         always here — a wheel can change it at any moment, and a title-block
+         cell states a fact rather than tracking one. Layer and view track the
+         same way, so they join it. (#33, delta 3.)
+
+         One row per tool, with a fixed key column, so the rows read as a table
+         of controls rather than three ragged strips. */
+      .toolblock {
         position: absolute;
         top: var(--dw-s2);
         right: var(--dw-s2);
         z-index: 4;
         display: flex;
+        flex-direction: column;
         align-items: stretch;
         background: var(--dw-paper);
         border: var(--dw-rule-thin) solid var(--dw-ink);
       }
-      .scaleblock button {
+      .toolblock .grp {
+        display: flex;
+        align-items: stretch;
+      }
+      .toolblock .grp + .grp {
+        border-top: var(--dw-rule-hair) solid var(--dw-ink-30);
+      }
+      .toolblock .grp-k {
+        width: 4.5rem;
+        flex: none;
+        text-align: left;
+        align-self: center;
+        padding: 3px var(--dw-s2);
+        font-size: var(--dw-t-micro);
+        text-transform: uppercase;
+        letter-spacing: var(--dw-track-label);
+        color: var(--dw-ink-30);
+        border-right: var(--dw-rule-hair) solid var(--dw-ink-12);
+      }
+      .toolblock button {
         border: 0;
         border-left: var(--dw-rule-hair) solid var(--dw-ink-12);
+        border-bottom: var(--dw-rule-bold) solid transparent;
         background: transparent;
         padding: 3px var(--dw-s2);
         font-size: var(--dw-t-micro);
@@ -234,13 +264,23 @@
         cursor: pointer;
         transition: color 150ms;
       }
-      .scaleblock button:first-child {
+      .toolblock .grp button:first-of-type {
         border-left: 0;
       }
-      .scaleblock button:hover {
+      .toolblock button:hover {
         color: var(--dw-ink);
       }
-      #scaleNow {
+      /* The live tool takes .tab--on's treatment — ink label, 2px bottom rule.
+         Not a filled chip; this sheet uses one nowhere. */
+      .toolblock button.on {
+        color: var(--dw-ink);
+        border-bottom-color: var(--dw-ink);
+      }
+      .toolblock button[disabled] {
+        color: var(--dw-ink-30);
+        cursor: default;
+      }
+      .toolblock .now {
         padding: 3px var(--dw-s2);
         font-size: var(--dw-t-micro);
         letter-spacing: var(--dw-track-label);
@@ -248,6 +288,85 @@
         align-self: center;
         min-width: 4.5rem;
         text-align: center;
+        border-left: var(--dw-rule-hair) solid var(--dw-ink-12);
+      }
+
+      /* The tree rendering, in #35's `→` format. Same IR, same walk, so the
+         drawing and the tree are one artifact seen twice — and the tree walks
+         call SITES where the drawing draws NODES, so a callee reached from two
+         places appears twice. */
+      .tree {
+        position: absolute;
+        inset: 0;
+        padding: var(--dw-s4) var(--dw-s3);
+        overflow: auto;
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+      }
+      /* Paper under every row: the plan carries .dw-grid, and 11px annotation
+         over a 24px grid pitch is the one place the grid stops being
+         background. */
+      .tr {
+        display: flex;
+        align-items: baseline;
+        gap: var(--dw-s2);
+        padding: 5px var(--dw-s2);
+        background: var(--dw-paper);
+        font-size: var(--dw-t-annot);
+        border: var(--dw-rule-hair) solid var(--dw-ink-12);
+        border-left: var(--dw-rule-bold) solid transparent;
+        cursor: pointer;
+      }
+      .tr--cold {
+        color: var(--dw-ink-55);
+      }
+      .tr--cold .tr-name {
+        font-weight: 400;
+      }
+      .tr--active {
+        border-left-color: var(--dw-ink);
+        background: var(--dw-grid);
+      }
+      .tr--sel {
+        outline: var(--dw-rule-thin) solid var(--dw-ink);
+        outline-offset: 2px;
+      }
+      .tr-name {
+        font-weight: 600;
+        min-width: 15rem;
+        white-space: nowrap;
+      }
+      .tr-kind {
+        min-width: 4.5rem;
+        flex: none;
+      }
+      .tr-ch,
+      .tr-site,
+      .tr-fx {
+        font-size: var(--dw-t-micro);
+        white-space: nowrap;
+      }
+      /* The channels fit at every width this pane takes; a call site's note is
+         a whole sentence and does not. It is the one thing on the row that may
+         be cut, so it is the only one allowed to shrink. */
+      .tr-site {
+        flex: 0 1 auto;
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      .tr-ch b {
+        font-weight: 600;
+      }
+      .tr-fxs {
+        margin-left: auto;
+        display: flex;
+        gap: var(--dw-s2);
+        flex: none;
+      }
+      .tr-fx {
+        color: var(--dw-ink-55);
       }
       #wires {
         position: absolute;
@@ -539,6 +658,17 @@
         display: block;
         margin-bottom: var(--dw-s1);
       }
+      /* The holds sit above the blocks they act on — hold-on-effect over the
+         effects ledger, hold-on-error over the error path — rather than beside
+         the step buttons. The head drives the walk forward; these say where it
+         stops, which is a different question. (#33.) */
+      .blk.holds {
+        display: flex;
+        gap: var(--dw-s3);
+        align-items: center;
+        padding: var(--dw-s2) var(--dw-s3);
+        border-bottom: var(--dw-rule-bold) solid var(--dw-ink);
+      }
       .row {
         display: flex;
         gap: var(--dw-s1);
@@ -579,11 +709,21 @@
         margin-bottom: 2px;
       }
       .var-k {
-        width: 4.5rem;
+        width: 7rem;
         flex: none;
         font-size: var(--dw-t-micro);
         color: var(--dw-ink-55);
         text-align: right;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+      /* The inputs are read, not typed into, so the value is a .row-v pair the
+         way the blocks above it are — no border, no caret, nothing promising an
+         edit the sheet can no longer honour. */
+      .var .row-v {
+        flex: 1;
+        font-size: var(--dw-t-annot);
       }
       .var input {
         flex: 1;
@@ -641,6 +781,43 @@
       .trace .dw-dimension {
         padding: 0;
         cursor: pointer;
+        flex: 1;
+      }
+      /* #31's per-sheet facts share the trace row rather than taking one of
+         their own. The fit is height-bound, so a band of its own would have
+         cost the drawing 9%; sharing costs it nothing. (#33, delta 4.) */
+      .traceband {
+        display: flex;
+        align-items: center;
+        gap: var(--dw-s4);
+      }
+      .sheetfacts {
+        display: flex;
+        align-items: baseline;
+        gap: var(--dw-s3);
+        flex: none;
+        font-size: var(--dw-t-micro);
+        color: var(--dw-ink-55);
+        white-space: nowrap;
+      }
+      .sheetfacts span + span {
+        padding-left: var(--dw-s3);
+        border-left: var(--dw-rule-hair) solid var(--dw-ink-12);
+      }
+      .sheetfacts b {
+        font-weight: 600;
+        color: var(--dw-ink);
+      }
+      /* The provenance stamp. Amber on a bordered stamp is a rule, not 11px
+         text, so caution's 3.05:1 as text is not in play. */
+      .stamp {
+        border: var(--dw-rule-thin) solid var(--dw-caution);
+        color: var(--dw-caution);
+        padding: 1px 8px;
+        font-size: var(--dw-t-micro);
+        text-transform: uppercase;
+        letter-spacing: var(--dw-track-label);
+        font-weight: 600;
       }
       .trace-span {
         position: relative;
@@ -709,9 +886,6 @@
 
         <select id="scenario" aria-label="Scenario"></select>
 
-        <label class="toggle"><input type="checkbox" id="brkEffect" /> hold on effect</label>
-        <label class="toggle"><input type="checkbox" id="brkError" checked /> hold on error</label>
-
         <div class="btn-group">
           <button class="btn" data-act="restart">Restart</button>
           <button class="btn" data-act="back">← Back</button>
@@ -726,13 +900,27 @@
 
       <!-- ── the plan ────────────────────────────────────────────────────── -->
       <div class="plan dw-grid" id="plan">
-        <div class="scaleblock">
-          <button data-zoom="out" title="Zoom out">−</button>
-          <span id="scaleNow">1:1</span>
-          <button data-zoom="in" title="Zoom in">+</button>
-          <button data-zoom="one">1:1</button>
-          <button data-zoom="fit">Fit</button>
+        <div class="toolblock" id="toolblock">
+          <div class="grp">
+            <span class="grp-k">Zoom</span>
+            <button data-zoom="out" title="Zoom out">−</button>
+            <span class="now" id="scaleNow">1:1</span>
+            <button data-zoom="in" title="Zoom in">+</button>
+            <button data-zoom="one">1:1</button>
+            <button data-zoom="fit">Fit</button>
+          </div>
+          <div class="grp">
+            <span class="grp-k">Layer</span>
+            <button data-layer="production">Production</button>
+            <button data-layer="tests">Tests</button>
+          </div>
+          <div class="grp">
+            <span class="grp-k">View</span>
+            <button data-view="drawing">Drawing</button>
+            <button data-view="tree">Tree</button>
+          </div>
         </div>
+        <div class="tree" id="tree" hidden></div>
         <div id="canvas">
           <svg id="wires" xmlns="http://www.w3.org/2000/svg">
             <defs>
@@ -798,12 +986,16 @@
 
       <!-- ── side ────────────────────────────────────────────────────────── -->
       <aside class="side">
+        <div class="blk holds">
+          <label class="toggle"><input type="checkbox" id="brkEffect" /> hold on effect</label>
+          <label class="toggle"><input type="checkbox" id="brkError" checked /> hold on error</label>
+        </div>
         <div class="blk">
           <span class="dw-label">Call stack</span>
           <div id="stack"></div>
         </div>
         <div class="blk">
-          <span class="dw-label">Scope — editable, forks the trace</span>
+          <span class="dw-label">Inputs — the condition this walk was recorded under</span>
           <div id="scope"></div>
         </div>
         <div class="blk">
@@ -845,16 +1037,32 @@
           </div>
         </div>
         <div class="trace">
-          <div class="dw-dimension" id="dim">
-            <span class="dw-dimension-value" id="dimA">0</span>
-            <span class="dw-dimension-tick"></span>
-            <span class="trace-span">
-              <span class="trace-rule"></span>
-              <span class="trace-fill" id="dimFill"></span>
-              <span class="trace-tick" id="dimTick"></span>
-            </span>
-            <span class="dw-dimension-tick"></span>
-            <span class="dw-dimension-value" id="dimB">0</span>
+          <div class="traceband">
+            <!-- The page's half of the question #28 hands to #32. If an agent
+                 writes both the graph and the walk, the recording is a longer
+                 claim rather than a check, so a reader must be able to tell a
+                 captured walk from an authored one without leaving the page.
+
+                 Detail A drew this as a title-block cell, or a mark folded into
+                 Condition. On the real page both cost the same 22px: the stamp
+                 takes a second line in whichever cell holds it, and #33 measured
+                 the fit as height-bound in every configuration, so 22px is 4.8%
+                 of the drawing (1:1.71 → 1:1.80 at 1440 × 900). Here it costs
+                 nothing — the band is already the row for sheet-level facts,
+                 and the provenance of the walk is one. -->
+            <div class="sheetfacts" id="tbWalk"></div>
+            <div class="sheetfacts" id="sheetfacts"></div>
+            <div class="dw-dimension" id="dim">
+              <span class="dw-dimension-value" id="dimA">0</span>
+              <span class="dw-dimension-tick"></span>
+              <span class="trace-span">
+                <span class="trace-rule"></span>
+                <span class="trace-fill" id="dimFill"></span>
+                <span class="trace-tick" id="dimTick"></span>
+              </span>
+              <span class="dw-dimension-tick"></span>
+              <span class="dw-dimension-value" id="dimB">0</span>
+            </div>
           </div>
         </div>
       </footer>
@@ -877,22 +1085,121 @@
     </div>
 
     <script>
-      /* __ENGINE__ */
+      /* __PROGRAMS__ */
     </script>
 
     <script>
       /* ======================================================================
-         DRIVER — trace, breakpoints, time travel. Same shape as D-00.
+         THE IR, CHECKED — no evaluation, so no VM.
+
+         prepare() only indexes; validate() only cross-references. Both used to
+         be lifted out of D-00 along with the step() VM. They stay because the
+         drawer accepts a pasted program and a graph that names a node it has
+         not got should be refused before it is drawn, not after.
          ==================================================================== */
+      let PROG = null;
+
+      function prepare(prog) {
+        prog._labels = {};
+        for (const [id, node] of Object.entries(prog.nodes)) {
+          node.id = id;
+          const m = {};
+          node.steps.forEach((s, i) => {
+            if (s.label) m[s.label] = i;
+          });
+          prog._labels[id] = m;
+        }
+        return prog;
+      }
+
+      function validate(prog) {
+        const errs = [];
+        if (!prog.entry || !prog.nodes?.[prog.entry]) errs.push('entry node missing');
+        for (const [id, node] of Object.entries(prog.nodes || {})) {
+          const labels = prog._labels[id];
+          node.steps.forEach((s, i) => {
+            const where = `${id}[${i}] ${s.op}`;
+            if (s.op === 'call' && !prog.nodes[s.target])
+              errs.push(`${where}: unknown target "${s.target}"`);
+            for (const key of ['then', 'else', 'to']) {
+              if (s[key] !== undefined && labels[s[key]] === undefined)
+                errs.push(`${where}: unknown label "${s[key]}"`);
+            }
+            for (const h of s.onError || []) {
+              if (labels[h.goto] === undefined)
+                errs.push(`${where}: onError → unknown label "${h.goto}"`);
+            }
+          });
+        }
+        (prog.presets || []).forEach((pr, i) => {
+          for (const e of walkErrors(prog, pr.walk)) errs.push(`preset[${i}] ${pr.name}: ${e}`);
+        });
+        return errs;
+      }
+
+      /**
+       * A walk is a claim, so it is checkable. Every move names a node that must
+       * exist and a step index inside it that must be in range, and the frame
+       * arithmetic must balance — a walk that pops an empty stack, or points at
+       * step 40 of a ten-step node, is a broken claim and says so here rather
+       * than rendering as a plausible-looking drawing.
+       */
+      function walkErrors(prog, walk) {
+        const out = [];
+        if (!walk) return ['no walk — this preset records nothing to step over'];
+        if (!Array.isArray(walk.steps) || !walk.steps.length) return ['walk.steps is empty'];
+        if (walk.steps[0].k !== 'enter') out.push('walk does not open with an enter move');
+        const stack = [];
+        walk.steps.forEach((m, i) => {
+          const at = `move ${i} (${m.k})`;
+          if (m.k === 'enter') {
+            if (!prog.nodes[m.node]) return void out.push(`${at}: unknown node "${m.node}"`);
+            return void stack.push(m.node);
+          }
+          // the two terminal moves land after the last frame has gone
+          if (m.k === 'done' || m.k === 'uncaught') return;
+          const here = stack[stack.length - 1];
+          if (!here) return void out.push(`${at}: no frame is open`);
+          const n = prog.nodes[here];
+          if (m.at !== undefined && (m.at < 0 || m.at > n.steps.length))
+            out.push(`${at}: step ${m.at} is out of range in ${n.name} (${n.steps.length} steps)`);
+          if (m.k === 'call') {
+            if (!prog.nodes[m.to]) out.push(`${at}: unknown target "${m.to}"`);
+            else stack.push(m.to);
+          }
+          if (m.k === 'return' || m.k === 'unwind') stack.pop();
+        });
+        if (stack.length && !walk.steps.some((m) => m.k === 'uncaught'))
+          out.push(`walk ends with ${stack.length} frame(s) still open`);
+        return out;
+      }
+
+      /* ======================================================================
+         THE PLAYER — an index over a recorded walk.
+
+         #28, amended: the artifact steps over a recorded walk and there is no
+         engine. The rule that keeps that true is THE PLAYER MAY DERIVE, NEVER
+         DECIDE. Which branch an `if` took, what an effect returned, whether a
+         handler caught — every one of those is a literal in the tape. What
+         happens below is bookkeeping: push a frame, pop a frame, append a
+         ledger row, move a cursor. Nothing is evaluated, and `new Function` —
+         which the VM needed for every `let`, `if` and effect argument — is
+         gone from this page entirely.
+
+         The fold runs once per load, so `Back` and the dimension line seek by
+         subscript rather than by recomputing anything.
+         ==================================================================== */
+      let WALK = null;
       let TRACE = [];
       let T = 0;
       let SEL = null; // stack index being inspected, null = top
       let PIN = null; // node pinned into the cutaway by clicking it
       let TAB = 'source'; // which view of the opened node the cutaway shows
+      let VIEW = 'drawing'; // drawing | tree — what the sheet is read as
+      let LAYER = 'production'; // which R the graph is drawn against (#34)
       const BP = new Set();
       const OPT = { breakEffect: false, breakError: true };
       let PLAYING = null;
-      const MAX = 4000;
       const STILL = matchMedia('(prefers-reduced-motion: reduce)').matches;
 
       const cur = () => TRACE[T];
@@ -903,12 +1210,107 @@
       const topFrame = (s) => s.frames[s.frames.length - 1];
       const cursorKey = (s) => (s.frames.length ? `${topFrame(s).nodeId}#${topFrame(s).pc}` : null);
 
+      const blank = () => ({
+        frames: [],
+        status: 'running',
+        result: undefined,
+        error: null,
+        unwinding: null,
+        effects: [],
+        errorLog: [],
+        visited: {},
+        errored: {},
+        walked: {},
+        move: null,
+      });
+
+      /** Apply one move. Bookkeeping only — see the rule above. */
+      function apply(prev, m, i) {
+        const s = structuredClone(prev);
+        s.move = m;
+        const f = topFrame(s);
+
+        switch (m.k) {
+          case 'enter':
+            s.frames.push({ nodeId: m.node, pc: 0, site: null });
+            s.visited[m.node] = (s.visited[m.node] || 0) + 1;
+            break;
+          case 'at':
+            f.pc = m.at;
+            break;
+          case 'call': {
+            f.pc = m.at;
+            s.walked[f.nodeId + '>' + m.to] = true;
+            s.frames.push({ nodeId: m.to, pc: 0, site: { node: f.nodeId, at: m.at } });
+            s.visited[m.to] = (s.visited[m.to] || 0) + 1;
+            break;
+          }
+          case 'effect':
+            f.pc = m.at;
+            s.effects.push({
+              seq: s.effects.length + 1,
+              node: f.nodeId,
+              kind: m.kind,
+              label: m.label,
+              status: m.status,
+              result: m.result,
+              error: m.error,
+              attempt: m.attempt || 1,
+              at: i,
+            });
+            break;
+          case 'raise':
+            f.pc = m.at;
+            s.error = { tag: m.tag, message: m.message, channel: m.channel, node: f.nodeId };
+            s.unwinding = s.error;
+            s.errored[f.nodeId] = true;
+            s.errorLog.push({ at: i, kind: 'raised', ...s.error, where: f.nodeId });
+            break;
+          case 'handled':
+            f.pc = m.at;
+            s.errorLog.push({ at: i, kind: 'handled', ...(s.error || {}), where: f.nodeId, goto: m.goto });
+            s.error = null;
+            s.unwinding = null;
+            break;
+          case 'unwind': {
+            const gone = s.frames.pop();
+            s.errored[gone.nodeId] = true;
+            s.errorLog.push({ at: i, kind: 'unwound', ...(s.unwinding || {}), where: gone.nodeId });
+            if (gone.site) s.walked['!' + gone.site.node + '>' + gone.nodeId] = true;
+            break;
+          }
+          case 'return':
+            f.pc = m.at;
+            s.lastReturn = { node: f.nodeId, value: m.value };
+            s.frames.pop();
+            break;
+          case 'done':
+            s.status = 'done';
+            s.result = m.result;
+            break;
+          case 'uncaught':
+            s.status = 'error';
+            s.error = { tag: m.tag, message: m.message, channel: m.channel };
+            s.unwinding = null;
+            s.errorLog.push({ at: i, kind: 'uncaught', ...s.error, where: '—' });
+            break;
+        }
+        return s;
+      }
+
+      function fold(walk) {
+        const out = [blank()];
+        walk.steps.forEach((m, i) => out.push(apply(out[out.length - 1], m, i)));
+        return out;
+      }
+
       function loadProgram(prog, presetIdx) {
         PROG = prepare(structuredClone(prog));
         PROG.presetIdx = presetIdx;
-        PROG.input = structuredClone(prog.presets[presetIdx].input);
+        PROG.input = structuredClone(prog.presets[presetIdx].input ?? {});
         const errs = validate(PROG);
-        TRACE = [initState()];
+        WALK = PROG.presets[presetIdx].walk;
+        TRACE = WALK && !walkErrors(PROG, WALK).length ? fold(WALK) : [blank()];
         T = 0;
         SEL = null;
         PIN = null;
@@ -919,18 +1321,14 @@
         return errs;
       }
 
-      function pushState(s) {
-        if (T < TRACE.length - 1) TRACE.length = T + 1;
-        TRACE.push(s);
-        T = TRACE.length - 1;
-      }
-
-      function stopHere(s) {
+      const stopHere = (i) => {
+        const s = TRACE[i];
         if (s.status !== 'running') return true;
-        if (OPT.breakError && (s.lastEvent === 'raise' || s.lastEvent === 'unwind')) return true;
-        if (OPT.breakEffect && s.lastEvent === 'effect') return true;
+        const k = s.move?.k;
+        if (OPT.breakError && (k === 'raise' || k === 'unwind')) return true;
+        if (OPT.breakEffect && k === 'effect') return true;
         return BP.has(cursorKey(s));
-      }
+      };
 
       /* A twenty-step Run would otherwise start twenty stroke animations at
          once, which is a light show rather than a gesture. Hold them during the
@@ -938,14 +1336,14 @@
       let FX = true;
       let FX_PENDING = null;
 
+      /** Move the index. `extra` stops the run early — that is all Over and Out
+       *  are now: a depth the recording already has. */
       function advance(extra) {
         FX = false;
         FX_PENDING = null;
-        let n = 0;
-        while (n++ < MAX) {
-          const nx = step(cur());
-          pushState(nx);
-          if (stopHere(nx) || (extra && extra(nx))) break;
+        while (T < TRACE.length - 1) {
+          T++;
+          if (stopHere(T) || (extra && extra(TRACE[T]))) break;
         }
         FX = true;
         if (FX_PENDING) tracer(FX_PENDING.d, FX_PENDING.colour);
@@ -954,20 +1352,24 @@
         render();
       }
 
+      function goTo(i, animate) {
+        const next = Math.min(TRACE.length - 1, Math.max(0, i));
+        if (next === T) return;
+        const forward = next > T;
+        T = next;
+        SEL = null;
+        if (animate) traceMove(TRACE[T].move, forward);
+        render();
+      }
+
       const actions = {
-        restart: () => loadProgram(PROGRAMS[PI], RI),
-        back() {
-          if (T > 0) T--;
-          SEL = null;
+        restart() {
           stopPlay();
+          goTo(0);
           render();
         },
-        into() {
-          if (cur().status !== 'running') return;
-          pushState(step(cur()));
-          SEL = null;
-          render();
-        },
+        back: () => (stopPlay(), goTo(T - 1)),
+        into: () => goTo(T + 1, true),
         over() {
           const d = cur().frames.length;
           advance((s) => s.frames.length <= d);
@@ -980,10 +1382,8 @@
         play() {
           if (PLAYING) return (stopPlay(), render());
           PLAYING = setInterval(() => {
-            if (cur().status !== 'running') return (stopPlay(), render());
-            pushState(step(cur()));
-            SEL = null;
-            render();
+            if (T >= TRACE.length - 1) return (stopPlay(), render());
+            goTo(T + 1, true);
           }, 480);
           render();
         },
@@ -1004,8 +1404,8 @@
             if (!parsed.presets?.length)
               parsed.presets = [{ name: 'as loaded', blurb: '', input: parsed.input || {} }];
             // Validate a copy BEFORE swapping. Loading first and reporting after
-            // leaves a program the VM trips over sitting on the sheet, drawn and
-            // steppable, which reads as accepted.
+            // leaves a program the page trips over sitting on the sheet, drawn
+            // and steppable, which reads as accepted.
             const errs = validate(prepare(structuredClone(parsed)));
             box.textContent = errs.join(' · ');
             if (errs.length) return;
@@ -1025,21 +1425,6 @@
       function stopPlay() {
         if (PLAYING) clearInterval(PLAYING);
         PLAYING = null;
-      }
-
-      function editVar(frameIdx, name, raw) {
-        let value;
-        try {
-          value = JSON.parse(raw);
-        } catch {
-          value = raw;
-        }
-        const s = structuredClone(cur());
-        s.frames[frameIdx].scope[name] = value;
-        s.forked = true;
-        TRACE.length = T + 1;
-        TRACE[T] = s;
-        render();
       }
 
       /* ======================================================================
@@ -1151,7 +1536,12 @@
         for (const id of order) (rows[depth[id]] ||= []).push(id);
 
         // measure: every box is drawn at object weight so the geometry a
-        // measurement produces is the geometry every later state uses
+        // measurement produces is the geometry every later state uses. A
+        // hidden canvas measures zero, so the tree view unhides it to measure
+        // and puts it back — the drawing's geometry must not depend on which
+        // view happened to be up when the program loaded.
+        const canvasHidden = document.getElementById('canvas').hidden;
+        document.getElementById('canvas').hidden = false;
         const host = document.getElementById('nodes');
         host.innerHTML = order
           .map(
@@ -1213,6 +1603,7 @@
           );
         document.getElementById('wires').style.width = canvas.style.width;
         document.getElementById('wires').style.height = canvas.style.height;
+        canvas.hidden = canvasHidden;
       }
 
       /* ======================================================================
@@ -1248,7 +1639,7 @@
 
       function nodeInner(id, s) {
         const n = PROG.nodes[id];
-        const ch = n.channels || {};
+        const ch = channelsOf(id);
         const st = nodeState(s, id);
         const fired = firedTags(s, id);
 
@@ -1301,13 +1692,30 @@
 
       function render() {
         const s = cur();
-        renderPlan(s);
+        VIEW === 'tree' ? renderTree(s) : renderPlan(s);
         renderCutaway(s);
         renderStack(s);
         renderScope(s);
         renderErrors(s);
         renderEffects(s);
         renderBlock(s);
+        renderTools();
+      }
+
+      /* -- the R channel, per layer (#34) ----------------------------------
+         A layer map is an OPTIONAL top-level block that renames R per node:
+
+           "layers": { "tests": { "bindSheet": { "R": ["TextureLoader → stub"] } } }
+
+         It substitutes an R token rather than a node, so a redraw needs no
+         engine — which is the whole reason #34 could ship in version one. No
+         program on this sheet declares one yet; the Layer row says so and
+         disables itself rather than offering a switch that does nothing. */
+      const layersIn = (prog) => Object.keys(prog?.layers ?? {});
+      function channelsOf(id) {
+        const base = PROG.nodes[id].channels || {};
+        const over = PROG.layers?.[LAYER]?.[id];
+        return over ? { ...base, ...over } : base;
       }
 
       /* -- the plan -------------------------------------------------------- */
@@ -1356,6 +1764,87 @@
           }
           return out;
         }).join('');
+      }
+
+      /* -- the tree, #35's `→` format --------------------------------------
+         The same IR and the same walk as the drawing, which is what makes #35's
+         claim visible rather than merely true: the written answer and the
+         rendered page are one artifact seen twice.
+
+         It walks call SITES, not nodes. bindSheet is called at two sites in
+         buildShelf, so pr-313 is seven rows against six boxes — a truer picture
+         of a call graph than the drawing gives, and the reason the two views
+         are not the same list. */
+      function callSites() {
+        const rows = [];
+        const walk = (id, depth, site, path) => {
+          rows.push({ id, depth, site, cycle: path.includes(id) });
+          if (path.includes(id) || depth > 12) return;
+          for (const [i, st] of PROG.nodes[id].steps.entries())
+            if (st.op === 'call' && PROG.nodes[st.target])
+              // the label first: a jump label is the site's short name, and the
+              // note is a sentence that would otherwise carry the whole row
+              walk(st.target, depth + 1, { node: id, at: i, label: st.label || st.note || '' }, [
+                ...path,
+                id,
+              ]);
+        };
+        walk(PROG.entry, 0, null, []);
+        return rows;
+      }
+
+      /** A site is live if some frame was entered through exactly it. */
+      const sameSite = (a, b) => a && b && a.node === b.node && a.at === b.at;
+
+      function renderTree(s) {
+        const taken = new Set();
+        for (let i = 1; i <= T; i++) {
+          const m = TRACE[i].move;
+          if (m?.k === 'call') taken.add(topFrame(TRACE[i - 1]).nodeId + '#' + m.at);
+        }
+        const selId = pinnedNode(s);
+
+        document.getElementById('tree').innerHTML = callSites()
+          .map((r) => {
+            const n = PROG.nodes[r.id];
+            const ch = channelsOf(r.id);
+            const live = s.frames.some((f) =>
+              r.site ? sameSite(f.site, r.site) : f.nodeId === r.id && !f.site,
+            );
+            const reached = live || (r.site ? taken.has(r.site.node + '#' + r.site.at) : T > 0);
+            const cls = ['tr', live ? 'tr--active' : '', reached ? '' : 'tr--cold', r.id === selId ? 'tr--sel' : '']
+              .filter(Boolean)
+              .join(' ');
+
+            const E = (ch.E || []).length
+              ? ch.E.map((t) => `<span class="${firedTags(s, r.id).has(t) ? 'fired' : ''}">${esc(t)}</span>`).join(' · ')
+              : '<span class="none">never</span>';
+            const R = (ch.R || []).length ? esc(ch.R.join(', ')) : '<span class="none">none</span>';
+
+            const fx = n.steps
+              .filter((x) => x.op === 'effect')
+              .map((x) => {
+                const recs = reached
+                  ? s.effects.filter((e) => e.node === r.id && e.kind === x.kind)
+                  : [];
+                const mark = recs.some((e) => e.status === 'failed')
+                  ? '<span class="caut">failed</span>'
+                  : recs.length
+                    ? '<span class="ok">landed</span>'
+                    : '<span class="none">not reached</span>';
+                return `<span class="tr-fx">· ${esc(x.kind)} ${mark}</span>`;
+              })
+              .join('');
+
+            return `<div class="${cls}" data-node="${esc(r.id)}" style="margin-left:${r.depth * 24}px">
+              <span class="tr-name">${r.depth ? '→ ' : ''}${esc(n.name)}${r.cycle ? ' <span class="dim">↺</span>' : ''}</span>
+              <span class="dw-label tr-kind">${esc(n.kind)}</span>
+              <span class="tr-ch"><b>A</b> ${esc(ch.A || '—')} &nbsp; <b>E</b> ${E} &nbsp; <b>R</b> ${R}</span>
+              ${r.site?.label ? `<span class="tr-site dim" title="${esc(r.site.label)}">${esc(r.site.label)}</span>` : ''}
+              ${fx ? `<span class="tr-fxs">${fx}</span>` : ''}
+            </div>`;
+          })
+          .join('');
       }
 
       /* The one sanctioned gesture: a stroke that draws itself, reused for the
@@ -1603,19 +2092,21 @@
             .join('') || '<div class="dw-annot">empty</div>';
       }
 
-      function renderScope(s) {
-        const idx = SEL ?? s.frames.length - 1;
-        const f = s.frames[idx];
-        const box = document.getElementById('scope');
-        if (!f) return (box.innerHTML = '<div class="dw-annot">no frame</div>');
-        const rows = Object.entries(f.scope).filter(([k]) => k !== '$input' && k !== '$env');
-        box.innerHTML =
+      /* Scope-at-a-frame becomes inputs-for-the-walk. The block survives — the
+         owner named seeing a system's inputs as the valuable part — but its
+         fields drove FORKING, and a fork computes a state nothing recorded. A
+         field that looks editable and is not is worse than a value that never
+         looked editable, so the border and the caret go and the whole preset
+         input block is shown instead, fault included. (#33, detail A.) */
+      function renderScope() {
+        const rows = Object.entries(PROG.input ?? {});
+        document.getElementById('scope').innerHTML =
           rows
             .map(
               ([k, v]) => `<div class="var"><span class="var-k">${esc(k)}</span>
-              <input data-var="${idx}|${esc(k)}" value="${esc(fmt(v, 4000))}" /></div>`,
+              <span class="row-v${/fail|missing|error|404/i.test(k) ? ' caut' : ''}">${esc(fmt(v, 200))}</span></div>`,
             )
-            .join('') || '<div class="dw-annot">no locals yet</div>';
+            .join('') || '<div class="dw-annot">this preset sets no input</div>';
       }
 
       const MARK = {
@@ -1682,18 +2173,79 @@
               : PLAYING
                 ? '<span class="dw-state dw-state--normal">auto</span>'
                 : '<span class="dw-label">holding</span>';
-        document.getElementById('tbStatus').innerHTML =
-          st + (s.forked ? ' <span class="dw-label">forked</span>' : '');
+        document.getElementById('tbStatus').innerHTML = st;
+
+        // Amber on a bordered stamp for an authored walk, green for a captured
+        // one: green is nominal, and a walk a real run produced is the nominal
+        // case. This is one of the few places it earns a use.
+        const p = WALK?.provenance;
+        document.getElementById('tbWalk').innerHTML =
+          `<span>walk ${
+            p === 'captured'
+              ? '<span class="dw-state dw-state--normal">captured</span>'
+              : p === 'authored'
+                ? `<span class="stamp" title="${esc(WALK.recordedBy ?? '')}">authored</span>`
+                : '<span class="stamp">none recorded</span>'
+          }</span>`;
 
         document.getElementById('tbNotices').innerHTML = NOTICES.length
           ? `<span class="dw-state dw-state--caution">${NOTICES.length}</span>`
           : '<span class="dw-label">none</span>';
+
+        renderSheetFacts();
 
         const last = TRACE.length - 1;
         document.getElementById('dimB').textContent = last;
         const pct = last ? (T / last) * 100 : 0;
         document.getElementById('dimTick').style.left = pct + '%';
         document.getElementById('dimFill').style.width = pct + '%';
+      }
+
+      /* -- the footer band: #31's per-sheet facts --------------------------
+         Only two, not three. filesView() already carries "in the diff, on no
+         node" as one of its three groups — #31's first deliverable shipped
+         before the ticket that placed it. What had no home is the graphs this
+         run found and did not draw, and the scope rule it applied. Both read
+         off an optional top-level `sheet` block; the file count is derived. */
+      function renderSheetFacts() {
+        const orphans = FILES.filter(
+          (f) => !FILEMAP[f.path].touch.length && !FILEMAP[f.path].test.length,
+        ).length;
+        const other = PROG.sheet?.graphsNotDrawn ?? [];
+        const parts = [];
+        if (FILES.length)
+          parts.push(`<span><b class="dw-num">${orphans}/${FILES.length}</b> files on no node</span>`);
+        if (other.length)
+          parts.push(
+            `<span><b class="dw-num">${other.length}</b> graph${other.length > 1 ? 's' : ''} not drawn — ${esc(other.join(', '))}</span>`,
+          );
+        if (PROG.sheet?.scopeRule) parts.push(`<span>scope: ${esc(PROG.sheet.scopeRule)}</span>`);
+        document.getElementById('sheetfacts').innerHTML = parts.join('');
+      }
+
+      /* -- the tool block --------------------------------------------------- */
+      function renderTools() {
+        const set = (sel, on, off) => {
+          for (const b of document.querySelectorAll(sel)) {
+            b.classList.toggle('on', on(b));
+            off(b) ? b.setAttribute('disabled', '') : b.removeAttribute('disabled');
+          }
+        };
+        // Zoom has nothing to act on in tree mode, so the whole row greys out.
+        set('[data-zoom]', () => false, () => VIEW === 'tree');
+        document.getElementById('scaleNow').textContent = VIEW === 'tree' ? '—' : SCALE;
+
+        const has = layersIn(PROG);
+        set(
+          '[data-layer]',
+          (b) => b.dataset.layer === LAYER,
+          (b) => b.dataset.layer !== 'production' && !has.includes(b.dataset.layer),
+        );
+        document.querySelector('[data-layer="tests"]').title = has.includes('tests')
+          ? 'Substitute the tests layer’s R'
+          : 'This program declares no layer map — see #34';
+
+        set('[data-view]', (b) => b.dataset.view === VIEW, () => false);
       }
 
       /* ======================================================================
@@ -1734,14 +2286,12 @@
       const plan = document.getElementById('plan');
       const canvasEl = document.getElementById('canvas');
 
+      let SCALE = '1:1'; // the drawing's own scale, in ratio notation
       function applyView() {
         canvasEl.style.transform = `translate(${TX}px, ${TY}px) scale(${K})`;
-        document.getElementById('scaleNow').textContent =
-          K >= 0.999 && K <= 1.001
-            ? '1:1'
-            : K > 1
-              ? `${K.toFixed(2)}:1`
-              : `1:${(1 / K).toFixed(2)}`;
+        SCALE =
+          K >= 0.999 && K <= 1.001 ? '1:1' : K > 1 ? `${K.toFixed(2)}:1` : `1:${(1 / K).toFixed(2)}`;
+        if (VIEW !== 'tree') document.getElementById('scaleNow').textContent = SCALE;
       }
 
       /** Zoom about a point in the pane, so what is under the cursor stays put. */
@@ -1778,7 +2328,7 @@
       // selecting a node and dragging the sheet share one gesture.
       let DRAGGED = false;
       plan.addEventListener('pointerdown', (e) => {
-        if (e.button !== 0 || e.target.closest('.scaleblock')) return;
+        if (e.button !== 0 || e.target.closest('.toolblock, .tree')) return;
         const x0 = e.clientX;
         const y0 = e.clientY;
         const tx0 = TX;
@@ -1803,8 +2353,23 @@
         addEventListener('pointerup', up);
       });
 
-      document.querySelector('.scaleblock').addEventListener('click', (e) => {
-        const b = e.target.closest('[data-zoom]');
+      document.getElementById('toolblock').addEventListener('click', (e) => {
+        const v = e.target.closest('[data-view]');
+        if (v) {
+          VIEW = v.dataset.view;
+          document.getElementById('tree').hidden = VIEW !== 'tree';
+          canvasEl.hidden = VIEW === 'tree';
+          if (VIEW !== 'tree') fit();
+          return render();
+        }
+        const l = e.target.closest('[data-layer]:not([disabled])');
+        if (l) {
+          LAYER = l.dataset.layer;
+          // An R token is substituted, not a node, so the geometry is unchanged
+          // and the redraw needs nothing computed. That is #34's whole case.
+          return render();
+        }
+        const b = e.target.closest('[data-zoom]:not([disabled])');
         if (!b) return;
         const r = plan.getBoundingClientRect();
         const how = b.dataset.zoom;
@@ -1883,13 +2448,6 @@
         }
       });
 
-      document.body.addEventListener('change', (e) => {
-        const v = e.target.closest('[data-var]');
-        if (v) {
-          const [idx, name] = v.dataset.var.split('|');
-          editVar(Number(idx), name, v.value);
-        }
-      });
       document
         .getElementById('brkEffect')
         .addEventListener('change', (e) => (OPT.breakEffect = e.target.checked));
@@ -1905,10 +2463,8 @@
         const seek = (ev) => {
           const r = span.getBoundingClientRect();
           const p = Math.min(1, Math.max(0, (ev.clientX - r.left) / r.width));
-          T = Math.round(p * (TRACE.length - 1));
-          SEL = null;
           stopPlay();
-          render();
+          goTo(Math.round(p * (TRACE.length - 1)));
         };
         dim.addEventListener('pointerdown', (e) => {
           down = true;
@@ -1934,35 +2490,37 @@
         if (e.key === 'F11') (e.preventDefault(), actions.out());
       });
 
-      /* Draw the tracer for whatever the last step did, and keep the record of
-         which corridors have carried anything — an untravelled edge stays a
-         construction line, which is the whole honesty claim of this sheet. */
-      const _push = pushState;
-      pushState = function (s) {
-        const prev = cur();
-        s.walked = { ...(prev.walked || {}) };
-        const a = prev.frames[prev.frames.length - 1];
-        if (s.lastEvent === 'call') {
-          const b = s.frames[s.frames.length - 1];
-          const key = a.nodeId + '>' + b.nodeId;
-          s.walked[key] = true;
-          _push(s);
-          const e = EDGES.find((x) => x.from === a.nodeId && x.to === b.nodeId);
-          if (e) tracer(e.call, '#22262b');
+      /* Draw the tracer for whatever the move at the new index did. Control
+         transferring is the only thing on this sheet that actually moves, and
+         an untravelled corridor stays a construction line — which is the whole
+         honesty claim of the drawing, and the reason a walk is worth stepping
+         at all rather than reading as a finished picture.
+
+         Under the recording this reads the move rather than diffing two states,
+         so a step backwards can draw the same stroke in reverse. */
+      function traceMove(m, forward) {
+        if (!m) return;
+        const prev = TRACE[forward ? T - 1 : T + 1];
+        if (m.k === 'call') {
+          const from = topFrame(prev)?.nodeId;
+          const e = EDGES.find((x) => x.from === from && x.to === m.to);
+          if (e) tracer(forward ? e.call : reverse(e.call), '#22262b');
           return;
         }
-        if ((s.lastEvent === 'return' || s.lastEvent === 'unwind') && prev.frames.length > 1) {
-          const caller = prev.frames[prev.frames.length - 2];
-          const key = caller.nodeId + '>' + a.nodeId;
-          const err = s.lastEvent === 'unwind';
-          if (err) s.walked['!' + key] = true;
-          _push(s);
-          const e = EDGES.find((x) => x.from === caller.nodeId && x.to === a.nodeId);
-          if (e) tracer(err ? e.err : reverse(e.call), err ? '#d97706' : '#15803d');
-          return;
+        if (m.k === 'return' || m.k === 'unwind') {
+          // the frame this move pops — still on the stack in whichever state
+          // precedes the move, which is `prev` going forward and `cur` coming back
+          const s = forward ? prev : TRACE[T];
+          const gone = topFrame(s);
+          const caller = s.frames[s.frames.length - 2];
+          if (!gone || !caller) return;
+          const e = EDGES.find((x) => x.from === caller.nodeId && x.to === gone.nodeId);
+          if (!e) return;
+          const err = m.k === 'unwind';
+          const d = err ? e.err : reverse(e.call);
+          tracer(forward ? d : reverse(d), err ? '#d97706' : '#15803d');
         }
-        _push(s);
-      };
+      }
 
       /** Reverse a polyline `d` so a return draws upward, the way it travels. */
       function reverse(d) {

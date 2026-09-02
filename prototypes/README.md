@@ -14,25 +14,59 @@ another repository, one `git clean` from gone.
 
 | | |
 | --- | --- |
-| `callstack-debugger/index.html` | **D-00.** The first prototype: a self-contained stepping debugger over a JSON call-graph IR. Proved the engine. Retires with the map. |
+| `callstack-debugger/index.html` | **D-00.** The first prototype: a self-contained stepping debugger over a JSON call-graph IR. Proved the engine, and still **owns** it — `record.mjs` runs this VM. Retires with the map. |
 | `callgraph-sheet/view.html` | **D-01, source.** The Drafting-styled sheet. Edit this one. |
+| `callgraph-sheet/record.mjs` | Runs D-00's VM offline and writes each program's **recorded walk** into its own file. |
 | `callgraph-sheet/build.ps1` | Assembles `index.html` from `view.html`. |
 | `callgraph-sheet/index.html` | **Generated — never hand-edit.** The deliverable: one file, no network references, open it by double-clicking. |
-| `programs/*.json` | Three worked IR files, all drawn from real work. |
+| `programs/*.json` | Three worked IR files, all drawn from real work, each carrying a recorded walk per preset. |
 
-## The engine is lifted, not duplicated
+## The engine moved to record time
 
-`build.ps1` extracts the IR definitions and the `step()` VM out of D-00 by line
-range and splices them into D-01. **One engine, two viewers** — which is the
-property the whole effort rests on, and the reason both files are kept rather
-than only the newer one. All eight of D-00's scenarios produce identical step
-counts under D-01.
+It used to be spliced. `build.ps1` lifted the IR definitions and the `step()` VM
+out of D-00 by line range and put them in D-01 — one engine, two viewers.
 
-It also splices in `drafting.css` verbatim and inlines three IBM Plex Mono
-weights as data URIs, so the built page has **zero network references**.
+[#28](https://github.com/mephistopheles4/grimoire/issues/28) was then amended to
+_the artifact steps over a recorded walk, and there is still no engine_, and
+[#43](https://github.com/mephistopheles4/grimoire/issues/43) carried that into
+the build. **The VM did not die, it moved.** `record.mjs` lifts it out of D-00
+by the same trick, runs every program × preset to completion once, and writes
+the resulting tape into the IR file. D-01 plays that tape: it pushes frames,
+pops frames and appends ledger rows, and it has no `step()`, no `evalExpr` and
+no `new Function` at all.
+
+So D-00 is still the single source of the VM, and `build.ps1` now **refuses** to
+emit a page whose walks are stale (`node record.mjs --check`) rather than
+drawing a sheet that steps over yesterday's graph.
+
+`build.ps1` also splices in `drafting.css` verbatim and inlines three IBM Plex
+Mono weights as data URIs, so the built page has **zero network references**.
 `eagle-eye` links Google Fonts instead; map ticket
-[#33](https://github.com/mephistopheles4/grimoire/issues/33) decides which the
+[#37](https://github.com/mephistopheles4/grimoire/issues/37) decides which the
 skill follows.
+
+## A walk is a claim, so it is checkable
+
+The tape is **event-granular and literal**: every branch an `if` took, every
+value an effect returned and every handler that caught is written down, so the
+player never works anything out. The rule is *derive, never decide.*
+
+```json
+{ "k": "call", "at": 4, "to": "bindSheet" }
+{ "k": "effect", "at": 0, "kind": "net.get", "status": "failed",
+  "error": { "tag": "SheetMissing", "message": "404", "channel": "escape" } }
+{ "k": "handled", "at": 2, "goto": "warn" }
+```
+
+`walkErrors()` in `view.html` holds a walk to the graph it claims to have
+walked — a move naming a step index the node has not got, or a pop with no frame
+open, is a broken claim and is refused before it is drawn.
+
+**The walks here are `authored`, not `captured`.** Nothing executed `buildShelf`;
+they came out of a model of it. The footer band stamps that on every sheet, in
+amber, because an agent that writes both the graph and the walk has made a
+longer claim rather than performed a check — which is the question
+[#32](https://github.com/mephistopheles4/grimoire/issues/32) owns.
 
 ⚠️ **`build.ps1` reads a sibling checkout.** It expects
 `mephistopheles4/aymandiab.com` at `$env:USERPROFILE\WebstormProjects\aymandiab.com`
@@ -70,7 +104,8 @@ hairline until control actually crosses it. On the map's _budget of 1_ preset,
 two branches the plan never reached stay unlit — the plan's untaken paths,
 visible at a glance. This is the argument for ticket
 [#28](https://github.com/mephistopheles4/grimoire/issues/28) answering "it
-steps"; the counter-argument is that the engine is half the weight here.
+steps". The counter-argument was that the engine is half the weight here — and
+the amendment answers it: a recording buys the stepping without the engine.
 
 **A drawn plan can lie, and running it catches that.** The map program's
 recovery path for a pre-allocated gate number originally jumped straight to the

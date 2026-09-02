@@ -1,21 +1,24 @@
 # build.ps1 — assemble index.html from view.html + the real sources.
 #
 # Nothing is transcribed. drafting.css and the three IBM Plex Mono weights are
-# read from the design system itself; the IR and the VM are lifted out of the
-# D-00 prototype. The output is one file with no network references at all —
-# which was the point: a CDN link is a dependency on someone else's uptime and
-# a claude.ai artifact will not load one.
+# read from the design system itself; the programs are read off disk. The output
+# is one file with no network references at all — which was the point: a CDN
+# link is a dependency on someone else's uptime and a claude.ai artifact will
+# not load one.
+#
+# THE VM IS NO LONGER SPLICED. It used to come out of D-00 by line range, and
+# #28's amendment retires it from read time: D-01 plays a recorded walk instead.
+# The VM did not die, it moved — record.mjs lifts it from D-00, runs it once and
+# writes the tape into each program. So this script REFUSES a program whose
+# walks are stale rather than emitting a page that steps over yesterday's IR.
 #
 #   pnpm exec prettier --write prototypes/callgraph-sheet/index.html   # after
 
 $ErrorActionPreference = 'Stop'
 $here = Split-Path -Parent $MyInvocation.MyCommand.Path
 $ds = Join-Path $env:USERPROFILE 'WebstormProjects\aymandiab.com\design-system'
-$d00 = Join-Path $here '..\callstack-debugger\index.html'
 
-foreach ($p in @($ds, $d00)) {
-  if (-not (Test-Path $p)) { throw "missing source: $p" }
-}
+if (-not (Test-Path $ds)) { throw "missing source: $ds" }
 
 # -- fonts: the vendored binaries, inlined -----------------------------------
 $faces = foreach ($w in 400, 500, 600) {
@@ -36,43 +39,41 @@ $fonts = ($faces -join "`n")
 # -- drafting.css: verbatim ---------------------------------------------------
 $drafting = Get-Content -LiteralPath (Join-Path $ds 'drafting.css') -Raw
 
-# -- engine: the IR + the VM out of D-00, verbatim ---------------------------
-$src = Get-Content -LiteralPath $d00
-$start = ($src | Select-String -Pattern '^\s+const PROGRAMS = \[' | Select-Object -First 1).LineNumber
-$end = ($src | Select-String -Pattern '^\s+3\. DRIVER' | Select-Object -First 1).LineNumber
-if (-not $start -or -not $end -or $end -le $start) { throw 'could not find the engine block in D-00' }
-# back off the section banner (2 lines) and the blank line above it
-$engineLines = $src[($start - 1)..($end - 4)]
-$engine = @"
-/* Lifted verbatim from ../callstack-debugger/index.html by build.ps1.
-   One engine, two viewers — do not edit here, edit D-00 and rebuild. */
-$($engineLines -join "`n")
-"@
+# -- the walks must be current -----------------------------------------------
+# A page that steps over a walk recorded against an older IR is the exact
+# failure the provenance stamp exists to make visible, so it is caught here
+# rather than drawn.
+& node (Join-Path $here 'record.mjs') --check | Out-Null
+if ($LASTEXITCODE -ne 0) {
+  throw 'walks are stale — run: node prototypes/callgraph-sheet/record.mjs'
+}
 
 # -- programs on disk: the real ones, drawn off actual pull requests ----------
 # This is the skill's output format. An agent reads a diff and writes one of
-# these; the viewer is what renders it. They are appended rather than compiled
-# in, so adding an example is a file rather than an edit.
+# these — the graph AND the walk over it; the viewer is what plays it. They are
+# appended rather than compiled in, so adding an example is a file, not an edit.
 $dir = Join-Path $here '..\programs'
 $extra = @()
-if (Test-Path $dir) {
-  foreach ($f in Get-ChildItem -LiteralPath $dir -Filter '*.json' | Sort-Object Name) {
-    $json = Get-Content -LiteralPath $f.FullName -Raw
-    try { $null = $json | ConvertFrom-Json } catch { throw "$($f.Name) is not valid JSON: $_" }
-    $extra += "PROGRAMS.push($json);"
-  }
+foreach ($f in Get-ChildItem -LiteralPath $dir -Filter '*.json' | Sort-Object Name) {
+  $json = Get-Content -LiteralPath $f.FullName -Raw
+  try { $null = $json | ConvertFrom-Json } catch { throw "$($f.Name) is not valid JSON: $_" }
+  $extra += "PROGRAMS.push($json);"
 }
-if ($extra.Count) {
-  $engine += "`n`n/* --- programs read from prototypes/programs/*.json --- */`n" + ($extra -join "`n")
-  "  + $($extra.Count) program(s) from prototypes/programs/"
-}
+if (-not $extra.Count) { throw "no programs in $dir — the page would have nothing to draw" }
+$programs = @"
+/* The programs, read from prototypes/programs/*.json by build.ps1. Each one
+   carries its own recorded walk; nothing on this page computes a next state. */
+let PROGRAMS = [];
+$($extra -join "`n")
+"@
+"  + $($extra.Count) program(s) from prototypes/programs/"
 
 # -- splice -------------------------------------------------------------------
 $out = Get-Content -LiteralPath (Join-Path $here 'view.html') -Raw
 foreach ($pair in @(
     @{ token = '/* __FONTS__ */'; value = $fonts },
     @{ token = '/* __DRAFTING__ */'; value = $drafting },
-    @{ token = '/* __ENGINE__ */'; value = $engine }
+    @{ token = '/* __PROGRAMS__ */'; value = $programs }
   )) {
   if ($out -notmatch [regex]::Escape($pair.token)) { throw "placeholder not found: $($pair.token)" }
   $out = $out.Replace($pair.token, $pair.value)

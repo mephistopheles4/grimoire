@@ -4,7 +4,14 @@
   "blurb": "A wayfinder map as a call graph. Nodes are tickets, call edges are `blocked by`, effects are the durable artifacts a ticket deposits — a PR, a gate row, an ADR, a tracker edit — and the error channel is how the plan fails rather than how the code fails. The presets are histories: what happened, and the four things the map's own warnings say must not.",
   "entry": "map",
   "env": {
-    "chain": [301, 302, 303, 304, 305, 306],
+    "chain": [
+      301,
+      302,
+      303,
+      304,
+      305,
+      306
+    ],
     "module": "packages/site/src/shelf/woodwork.ts"
   },
   "files": [
@@ -83,6 +90,370 @@
         "parallel": false,
         "premiseHolds": true,
         "preAllocate": false
+      },
+      "walk": {
+        "provenance": "authored",
+        "recordedBy": "record.mjs, replaying the D-00 VM over this IR",
+        "steps": [
+          {
+            "k": "enter",
+            "node": "map"
+          },
+          {
+            "k": "at",
+            "at": 1
+          },
+          {
+            "k": "at",
+            "at": 2
+          },
+          {
+            "k": "at",
+            "at": 3
+          },
+          {
+            "k": "at",
+            "at": 4
+          },
+          {
+            "k": "call",
+            "at": 4,
+            "to": "t301"
+          },
+          {
+            "k": "at",
+            "at": 1
+          },
+          {
+            "k": "effect",
+            "at": 1,
+            "kind": "gh.pr",
+            "label": "the coplanar fix, applied to the class",
+            "status": "ok",
+            "result": {
+              "pr": 308
+            }
+          },
+          {
+            "k": "effect",
+            "at": 2,
+            "kind": "gate.land",
+            "label": "G51 coplanar-faces — 46 pairs before the inset, 0 after",
+            "status": "ok",
+            "result": {
+              "row": "G51",
+              "before": 46,
+              "after": 0
+            }
+          },
+          {
+            "k": "return",
+            "at": 3,
+            "value": "G51"
+          },
+          {
+            "k": "at",
+            "at": 6
+          },
+          {
+            "k": "at",
+            "at": 8
+          },
+          {
+            "k": "at",
+            "at": 10
+          },
+          {
+            "k": "call",
+            "at": 10,
+            "to": "t302"
+          },
+          {
+            "k": "at",
+            "at": 2
+          },
+          {
+            "k": "at",
+            "at": 4
+          },
+          {
+            "k": "effect",
+            "at": 4,
+            "kind": "gh.pr",
+            "label": "rosewood, world-space UVs, grain along each long axis",
+            "status": "ok",
+            "result": {
+              "pr": 309
+            }
+          },
+          {
+            "k": "effect",
+            "at": 5,
+            "kind": "gate.land",
+            "label": "G52 sheet-size — long-edge and byte caps under public/wood/",
+            "status": "ok",
+            "result": {
+              "row": "G52"
+            }
+          },
+          {
+            "k": "return",
+            "at": 6,
+            "value": "G52"
+          },
+          {
+            "k": "call",
+            "at": 11,
+            "to": "t303"
+          },
+          {
+            "k": "at",
+            "at": 1
+          },
+          {
+            "k": "effect",
+            "at": 1,
+            "kind": "gh.pr",
+            "label": "a drawn fibre on the woodwork",
+            "status": "ok",
+            "result": {
+              "pr": 310
+            }
+          },
+          {
+            "k": "at",
+            "at": 3
+          },
+          {
+            "k": "return",
+            "at": 3,
+            "value": "no row"
+          },
+          {
+            "k": "call",
+            "at": 12,
+            "to": "t304"
+          },
+          {
+            "k": "at",
+            "at": 1
+          },
+          {
+            "k": "effect",
+            "at": 1,
+            "kind": "gh.pr",
+            "label": "the backboard's sheet, and the fibre turned to run with its grain",
+            "status": "ok",
+            "result": {
+              "pr": 311
+            }
+          },
+          {
+            "k": "return",
+            "at": 2,
+            "value": "no row"
+          },
+          {
+            "k": "call",
+            "at": 13,
+            "to": "t305"
+          },
+          {
+            "k": "at",
+            "at": 1
+          },
+          {
+            "k": "effect",
+            "at": 1,
+            "kind": "gh.pr",
+            "label": "per-member variation, and a seed the harness can force",
+            "status": "ok",
+            "result": {
+              "pr": 312
+            }
+          },
+          {
+            "k": "return",
+            "at": 2,
+            "value": "no row"
+          },
+          {
+            "k": "call",
+            "at": 14,
+            "to": "t306"
+          },
+          {
+            "k": "at",
+            "at": 2
+          },
+          {
+            "k": "effect",
+            "at": 2,
+            "kind": "gh.pr",
+            "label": "the sheet is a menu, and the shelf says what it resolved",
+            "status": "ok",
+            "result": {
+              "pr": 313
+            }
+          },
+          {
+            "k": "effect",
+            "at": 3,
+            "kind": "gate.land",
+            "label": "G53 one-sheet — a default page resolves to exactly one woodwork sheet",
+            "status": "ok",
+            "result": {
+              "row": "G53"
+            }
+          },
+          {
+            "k": "effect",
+            "at": 4,
+            "kind": "gate.land",
+            "label": "G54 woodwork-readback — the resolved configuration is the reported one",
+            "status": "ok",
+            "result": {
+              "row": "G54"
+            }
+          },
+          {
+            "k": "return",
+            "at": 5,
+            "value": "G53 + G54"
+          },
+          {
+            "k": "call",
+            "at": 15,
+            "to": "t299"
+          },
+          {
+            "k": "effect",
+            "at": 0,
+            "kind": "git.merge",
+            "label": "the six pull requests are on main",
+            "status": "ok",
+            "result": {
+              "prs": [
+                308,
+                309,
+                310,
+                311,
+                312,
+                313
+              ]
+            }
+          },
+          {
+            "k": "effect",
+            "at": 1,
+            "kind": "adr.write",
+            "label": "ADR-0080 and ADR-0081",
+            "status": "ok",
+            "result": {
+              "adrs": [
+                "0080",
+                "0081"
+              ]
+            }
+          },
+          {
+            "k": "effect",
+            "at": 2,
+            "kind": "image.commit",
+            "label": "regenerate docs/images/shelf.png in place",
+            "status": "ok",
+            "result": true
+          },
+          {
+            "k": "effect",
+            "at": 3,
+            "kind": "tracker.close",
+            "label": "close #296 naming its gate row, and close #299",
+            "status": "ok",
+            "result": true
+          },
+          {
+            "k": "effect",
+            "at": 4,
+            "kind": "tracker.edit",
+            "label": "append a Decisions-so-far line to map #280, clear the knobs bullet",
+            "status": "ok",
+            "result": true
+          },
+          {
+            "k": "return",
+            "at": 5,
+            "value": {
+              "rows": [
+                "G51",
+                "G52",
+                "G53",
+                "G54"
+              ],
+              "prs": [
+                308,
+                309,
+                310,
+                311,
+                312,
+                313
+              ],
+              "adrs": [
+                "0080",
+                "0081"
+              ]
+            }
+          },
+          {
+            "k": "return",
+            "at": 16,
+            "value": {
+              "onMain": true,
+              "rows": [
+                "G51",
+                "G52",
+                "G53",
+                "G54"
+              ],
+              "prs": [
+                308,
+                309,
+                310,
+                311,
+                312,
+                313
+              ],
+              "adrs": [
+                "0080",
+                "0081"
+              ]
+            }
+          },
+          {
+            "k": "done",
+            "result": {
+              "onMain": true,
+              "rows": [
+                "G51",
+                "G52",
+                "G53",
+                "G54"
+              ],
+              "prs": [
+                308,
+                309,
+                310,
+                311,
+                312,
+                313
+              ],
+              "adrs": [
+                "0080",
+                "0081"
+              ]
+            }
+          }
+        ]
       }
     },
     {
@@ -93,6 +464,96 @@
         "parallel": true,
         "premiseHolds": true,
         "preAllocate": false
+      },
+      "walk": {
+        "provenance": "authored",
+        "recordedBy": "record.mjs, replaying the D-00 VM over this IR",
+        "steps": [
+          {
+            "k": "enter",
+            "node": "map"
+          },
+          {
+            "k": "at",
+            "at": 1
+          },
+          {
+            "k": "at",
+            "at": 2
+          },
+          {
+            "k": "at",
+            "at": 3
+          },
+          {
+            "k": "at",
+            "at": 4
+          },
+          {
+            "k": "call",
+            "at": 4,
+            "to": "t301"
+          },
+          {
+            "k": "at",
+            "at": 1
+          },
+          {
+            "k": "effect",
+            "at": 1,
+            "kind": "gh.pr",
+            "label": "the coplanar fix, applied to the class",
+            "status": "ok",
+            "result": {
+              "pr": 308
+            }
+          },
+          {
+            "k": "effect",
+            "at": 2,
+            "kind": "gate.land",
+            "label": "G51 coplanar-faces — 46 pairs before the inset, 0 after",
+            "status": "ok",
+            "result": {
+              "row": "G51",
+              "before": 46,
+              "after": 0
+            }
+          },
+          {
+            "k": "return",
+            "at": 3,
+            "value": "G51"
+          },
+          {
+            "k": "at",
+            "at": 6
+          },
+          {
+            "k": "at",
+            "at": 8
+          },
+          {
+            "k": "at",
+            "at": 9
+          },
+          {
+            "k": "raise",
+            "at": 9,
+            "tag": "FanOutRefused",
+            "message": "tickets 2–6 are one feature in one module — every one edits buildShelf, the materials block and woodwork.ts",
+            "channel": "die"
+          },
+          {
+            "k": "unwind"
+          },
+          {
+            "k": "uncaught",
+            "tag": "FanOutRefused",
+            "message": "tickets 2–6 are one feature in one module — every one edits buildShelf, the materials block and woodwork.ts",
+            "channel": "die"
+          }
+        ]
       }
     },
     {
@@ -103,6 +564,120 @@
         "parallel": false,
         "premiseHolds": true,
         "preAllocate": false
+      },
+      "walk": {
+        "provenance": "authored",
+        "recordedBy": "record.mjs, replaying the D-00 VM over this IR",
+        "steps": [
+          {
+            "k": "enter",
+            "node": "map"
+          },
+          {
+            "k": "at",
+            "at": 1
+          },
+          {
+            "k": "at",
+            "at": 2
+          },
+          {
+            "k": "at",
+            "at": 3
+          },
+          {
+            "k": "at",
+            "at": 7
+          },
+          {
+            "k": "at",
+            "at": 8
+          },
+          {
+            "k": "at",
+            "at": 10
+          },
+          {
+            "k": "call",
+            "at": 10,
+            "to": "t302"
+          },
+          {
+            "k": "at",
+            "at": 1
+          },
+          {
+            "k": "raise",
+            "at": 1,
+            "tag": "ShimmerOnMain",
+            "message": "all 46 pairs become visible at once",
+            "channel": "escape"
+          },
+          {
+            "k": "unwind"
+          },
+          {
+            "k": "handled",
+            "at": 21,
+            "goto": "shimmer"
+          },
+          {
+            "k": "at",
+            "at": 22
+          },
+          {
+            "k": "call",
+            "at": 22,
+            "to": "t301"
+          },
+          {
+            "k": "at",
+            "at": 1
+          },
+          {
+            "k": "effect",
+            "at": 1,
+            "kind": "gh.pr",
+            "label": "the coplanar fix, applied to the class",
+            "status": "ok",
+            "result": {
+              "pr": 308
+            }
+          },
+          {
+            "k": "effect",
+            "at": 2,
+            "kind": "gate.land",
+            "label": "G51 coplanar-faces — 46 pairs before the inset, 0 after",
+            "status": "ok",
+            "result": {
+              "row": "G51",
+              "before": 46,
+              "after": 0
+            }
+          },
+          {
+            "k": "return",
+            "at": 3,
+            "value": "G51"
+          },
+          {
+            "k": "raise",
+            "at": 23,
+            "tag": "ShippedAShimmer",
+            "message": "ticket 1 landed after the texture, so every visitor between the two deploys saw 46 flickering pairs",
+            "channel": "die"
+          },
+          {
+            "k": "unwind"
+          },
+          {
+            "k": "uncaught",
+            "tag": "ShippedAShimmer",
+            "message": "ticket 1 landed after the texture, so every visitor between the two deploys saw 46 flickering pairs",
+            "channel": "die"
+          }
+        ]
       }
     },
     {
@@ -113,6 +688,442 @@
         "parallel": false,
         "premiseHolds": false,
         "preAllocate": false
+      },
+      "walk": {
+        "provenance": "authored",
+        "recordedBy": "record.mjs, replaying the D-00 VM over this IR",
+        "steps": [
+          {
+            "k": "enter",
+            "node": "map"
+          },
+          {
+            "k": "at",
+            "at": 1
+          },
+          {
+            "k": "at",
+            "at": 2
+          },
+          {
+            "k": "at",
+            "at": 3
+          },
+          {
+            "k": "at",
+            "at": 4
+          },
+          {
+            "k": "call",
+            "at": 4,
+            "to": "t301"
+          },
+          {
+            "k": "at",
+            "at": 1
+          },
+          {
+            "k": "effect",
+            "at": 1,
+            "kind": "gh.pr",
+            "label": "the coplanar fix, applied to the class",
+            "status": "ok",
+            "result": {
+              "pr": 308
+            }
+          },
+          {
+            "k": "effect",
+            "at": 2,
+            "kind": "gate.land",
+            "label": "G51 coplanar-faces — 46 pairs before the inset, 0 after",
+            "status": "ok",
+            "result": {
+              "row": "G51",
+              "before": 46,
+              "after": 0
+            }
+          },
+          {
+            "k": "return",
+            "at": 3,
+            "value": "G51"
+          },
+          {
+            "k": "at",
+            "at": 6
+          },
+          {
+            "k": "at",
+            "at": 8
+          },
+          {
+            "k": "at",
+            "at": 10
+          },
+          {
+            "k": "call",
+            "at": 10,
+            "to": "t302"
+          },
+          {
+            "k": "at",
+            "at": 2
+          },
+          {
+            "k": "at",
+            "at": 3
+          },
+          {
+            "k": "raise",
+            "at": 3,
+            "tag": "PremiseOverturned",
+            "message": "94% of what the chosen sheet moved was the average colour, not the grain",
+            "channel": "retry"
+          },
+          {
+            "k": "unwind"
+          },
+          {
+            "k": "handled",
+            "at": 17,
+            "goto": "reroute"
+          },
+          {
+            "k": "at",
+            "at": 18
+          },
+          {
+            "k": "call",
+            "at": 18,
+            "to": "spawnPrototype"
+          },
+          {
+            "k": "at",
+            "at": 1
+          },
+          {
+            "k": "effect",
+            "at": 1,
+            "kind": "render.measure",
+            "label": "build the arm nobody planned, and measure",
+            "status": "ok",
+            "result": {
+              "answer": "rosewood, not sapele"
+            }
+          },
+          {
+            "k": "effect",
+            "at": 2,
+            "kind": "tracker.open",
+            "label": "a prototype ticket, off the map",
+            "status": "ok",
+            "result": true
+          },
+          {
+            "k": "return",
+            "at": 3,
+            "value": "rosewood, not sapele"
+          },
+          {
+            "k": "at",
+            "at": 20
+          },
+          {
+            "k": "at",
+            "at": 10
+          },
+          {
+            "k": "call",
+            "at": 10,
+            "to": "t302"
+          },
+          {
+            "k": "at",
+            "at": 2
+          },
+          {
+            "k": "at",
+            "at": 4
+          },
+          {
+            "k": "effect",
+            "at": 4,
+            "kind": "gh.pr",
+            "label": "rosewood, world-space UVs, grain along each long axis",
+            "status": "ok",
+            "result": {
+              "pr": 309
+            }
+          },
+          {
+            "k": "effect",
+            "at": 5,
+            "kind": "gate.land",
+            "label": "G52 sheet-size — long-edge and byte caps under public/wood/",
+            "status": "ok",
+            "result": {
+              "row": "G52"
+            }
+          },
+          {
+            "k": "return",
+            "at": 6,
+            "value": "G52"
+          },
+          {
+            "k": "call",
+            "at": 11,
+            "to": "t303"
+          },
+          {
+            "k": "at",
+            "at": 1
+          },
+          {
+            "k": "effect",
+            "at": 1,
+            "kind": "gh.pr",
+            "label": "a drawn fibre on the woodwork",
+            "status": "ok",
+            "result": {
+              "pr": 310
+            }
+          },
+          {
+            "k": "at",
+            "at": 3
+          },
+          {
+            "k": "return",
+            "at": 3,
+            "value": "no row"
+          },
+          {
+            "k": "call",
+            "at": 12,
+            "to": "t304"
+          },
+          {
+            "k": "at",
+            "at": 1
+          },
+          {
+            "k": "effect",
+            "at": 1,
+            "kind": "gh.pr",
+            "label": "the backboard's sheet, and the fibre turned to run with its grain",
+            "status": "ok",
+            "result": {
+              "pr": 311
+            }
+          },
+          {
+            "k": "return",
+            "at": 2,
+            "value": "no row"
+          },
+          {
+            "k": "call",
+            "at": 13,
+            "to": "t305"
+          },
+          {
+            "k": "at",
+            "at": 1
+          },
+          {
+            "k": "effect",
+            "at": 1,
+            "kind": "gh.pr",
+            "label": "per-member variation, and a seed the harness can force",
+            "status": "ok",
+            "result": {
+              "pr": 312
+            }
+          },
+          {
+            "k": "return",
+            "at": 2,
+            "value": "no row"
+          },
+          {
+            "k": "call",
+            "at": 14,
+            "to": "t306"
+          },
+          {
+            "k": "at",
+            "at": 2
+          },
+          {
+            "k": "effect",
+            "at": 2,
+            "kind": "gh.pr",
+            "label": "the sheet is a menu, and the shelf says what it resolved",
+            "status": "ok",
+            "result": {
+              "pr": 313
+            }
+          },
+          {
+            "k": "effect",
+            "at": 3,
+            "kind": "gate.land",
+            "label": "G53 one-sheet — a default page resolves to exactly one woodwork sheet",
+            "status": "ok",
+            "result": {
+              "row": "G53"
+            }
+          },
+          {
+            "k": "effect",
+            "at": 4,
+            "kind": "gate.land",
+            "label": "G54 woodwork-readback — the resolved configuration is the reported one",
+            "status": "ok",
+            "result": {
+              "row": "G54"
+            }
+          },
+          {
+            "k": "return",
+            "at": 5,
+            "value": "G53 + G54"
+          },
+          {
+            "k": "call",
+            "at": 15,
+            "to": "t299"
+          },
+          {
+            "k": "effect",
+            "at": 0,
+            "kind": "git.merge",
+            "label": "the six pull requests are on main",
+            "status": "ok",
+            "result": {
+              "prs": [
+                308,
+                309,
+                310,
+                311,
+                312,
+                313
+              ]
+            }
+          },
+          {
+            "k": "effect",
+            "at": 1,
+            "kind": "adr.write",
+            "label": "ADR-0080 and ADR-0081",
+            "status": "ok",
+            "result": {
+              "adrs": [
+                "0080",
+                "0081"
+              ]
+            }
+          },
+          {
+            "k": "effect",
+            "at": 2,
+            "kind": "image.commit",
+            "label": "regenerate docs/images/shelf.png in place",
+            "status": "ok",
+            "result": true
+          },
+          {
+            "k": "effect",
+            "at": 3,
+            "kind": "tracker.close",
+            "label": "close #296 naming its gate row, and close #299",
+            "status": "ok",
+            "result": true
+          },
+          {
+            "k": "effect",
+            "at": 4,
+            "kind": "tracker.edit",
+            "label": "append a Decisions-so-far line to map #280, clear the knobs bullet",
+            "status": "ok",
+            "result": true
+          },
+          {
+            "k": "return",
+            "at": 5,
+            "value": {
+              "rows": [
+                "G51",
+                "G52",
+                "G53",
+                "G54"
+              ],
+              "prs": [
+                308,
+                309,
+                310,
+                311,
+                312,
+                313
+              ],
+              "adrs": [
+                "0080",
+                "0081"
+              ]
+            }
+          },
+          {
+            "k": "return",
+            "at": 16,
+            "value": {
+              "onMain": true,
+              "rows": [
+                "G51",
+                "G52",
+                "G53",
+                "G54"
+              ],
+              "prs": [
+                308,
+                309,
+                310,
+                311,
+                312,
+                313
+              ],
+              "adrs": [
+                "0080",
+                "0081"
+              ]
+            }
+          },
+          {
+            "k": "done",
+            "result": {
+              "onMain": true,
+              "rows": [
+                "G51",
+                "G52",
+                "G53",
+                "G54"
+              ],
+              "prs": [
+                308,
+                309,
+                310,
+                311,
+                312,
+                313
+              ],
+              "adrs": [
+                "0080",
+                "0081"
+              ]
+            }
+          }
+        ]
       }
     },
     {
@@ -123,6 +1134,412 @@
         "parallel": false,
         "premiseHolds": true,
         "preAllocate": true
+      },
+      "walk": {
+        "provenance": "authored",
+        "recordedBy": "record.mjs, replaying the D-00 VM over this IR",
+        "steps": [
+          {
+            "k": "enter",
+            "node": "map"
+          },
+          {
+            "k": "at",
+            "at": 1
+          },
+          {
+            "k": "at",
+            "at": 2
+          },
+          {
+            "k": "at",
+            "at": 3
+          },
+          {
+            "k": "at",
+            "at": 4
+          },
+          {
+            "k": "call",
+            "at": 4,
+            "to": "t301"
+          },
+          {
+            "k": "at",
+            "at": 1
+          },
+          {
+            "k": "effect",
+            "at": 1,
+            "kind": "gh.pr",
+            "label": "the coplanar fix, applied to the class",
+            "status": "ok",
+            "result": {
+              "pr": 308
+            }
+          },
+          {
+            "k": "effect",
+            "at": 2,
+            "kind": "gate.land",
+            "label": "G51 coplanar-faces — 46 pairs before the inset, 0 after",
+            "status": "ok",
+            "result": {
+              "row": "G51",
+              "before": 46,
+              "after": 0
+            }
+          },
+          {
+            "k": "return",
+            "at": 3,
+            "value": "G51"
+          },
+          {
+            "k": "at",
+            "at": 6
+          },
+          {
+            "k": "at",
+            "at": 8
+          },
+          {
+            "k": "at",
+            "at": 10
+          },
+          {
+            "k": "call",
+            "at": 10,
+            "to": "t302"
+          },
+          {
+            "k": "at",
+            "at": 2
+          },
+          {
+            "k": "at",
+            "at": 4
+          },
+          {
+            "k": "effect",
+            "at": 4,
+            "kind": "gh.pr",
+            "label": "rosewood, world-space UVs, grain along each long axis",
+            "status": "ok",
+            "result": {
+              "pr": 309
+            }
+          },
+          {
+            "k": "effect",
+            "at": 5,
+            "kind": "gate.land",
+            "label": "G52 sheet-size — long-edge and byte caps under public/wood/",
+            "status": "ok",
+            "result": {
+              "row": "G52"
+            }
+          },
+          {
+            "k": "return",
+            "at": 6,
+            "value": "G52"
+          },
+          {
+            "k": "call",
+            "at": 11,
+            "to": "t303"
+          },
+          {
+            "k": "at",
+            "at": 1
+          },
+          {
+            "k": "effect",
+            "at": 1,
+            "kind": "gh.pr",
+            "label": "a drawn fibre on the woodwork",
+            "status": "ok",
+            "result": {
+              "pr": 310
+            }
+          },
+          {
+            "k": "at",
+            "at": 3
+          },
+          {
+            "k": "return",
+            "at": 3,
+            "value": "no row"
+          },
+          {
+            "k": "call",
+            "at": 12,
+            "to": "t304"
+          },
+          {
+            "k": "at",
+            "at": 1
+          },
+          {
+            "k": "effect",
+            "at": 1,
+            "kind": "gh.pr",
+            "label": "the backboard's sheet, and the fibre turned to run with its grain",
+            "status": "ok",
+            "result": {
+              "pr": 311
+            }
+          },
+          {
+            "k": "return",
+            "at": 2,
+            "value": "no row"
+          },
+          {
+            "k": "call",
+            "at": 13,
+            "to": "t305"
+          },
+          {
+            "k": "at",
+            "at": 1
+          },
+          {
+            "k": "effect",
+            "at": 1,
+            "kind": "gh.pr",
+            "label": "per-member variation, and a seed the harness can force",
+            "status": "ok",
+            "result": {
+              "pr": 312
+            }
+          },
+          {
+            "k": "return",
+            "at": 2,
+            "value": "no row"
+          },
+          {
+            "k": "call",
+            "at": 14,
+            "to": "t306"
+          },
+          {
+            "k": "at",
+            "at": 1
+          },
+          {
+            "k": "raise",
+            "at": 1,
+            "tag": "NumberClaimedTwice",
+            "message": "an identifier can be claimed twice by two branches and nothing notices",
+            "channel": "escape"
+          },
+          {
+            "k": "unwind"
+          },
+          {
+            "k": "handled",
+            "at": 24,
+            "goto": "renumber"
+          },
+          {
+            "k": "effect",
+            "at": 24,
+            "kind": "docs.edit",
+            "label": "four register corrections",
+            "status": "ok",
+            "result": {
+              "corrected": 4
+            }
+          },
+          {
+            "k": "at",
+            "at": 26
+          },
+          {
+            "k": "at",
+            "at": 14
+          },
+          {
+            "k": "call",
+            "at": 14,
+            "to": "t306"
+          },
+          {
+            "k": "at",
+            "at": 2
+          },
+          {
+            "k": "effect",
+            "at": 2,
+            "kind": "gh.pr",
+            "label": "the sheet is a menu, and the shelf says what it resolved",
+            "status": "ok",
+            "result": {
+              "pr": 313
+            }
+          },
+          {
+            "k": "effect",
+            "at": 3,
+            "kind": "gate.land",
+            "label": "G53 one-sheet — a default page resolves to exactly one woodwork sheet",
+            "status": "ok",
+            "result": {
+              "row": "G53"
+            }
+          },
+          {
+            "k": "effect",
+            "at": 4,
+            "kind": "gate.land",
+            "label": "G54 woodwork-readback — the resolved configuration is the reported one",
+            "status": "ok",
+            "result": {
+              "row": "G54"
+            }
+          },
+          {
+            "k": "return",
+            "at": 5,
+            "value": "G53 + G54"
+          },
+          {
+            "k": "call",
+            "at": 15,
+            "to": "t299"
+          },
+          {
+            "k": "effect",
+            "at": 0,
+            "kind": "git.merge",
+            "label": "the six pull requests are on main",
+            "status": "ok",
+            "result": {
+              "prs": [
+                308,
+                309,
+                310,
+                311,
+                312,
+                313
+              ]
+            }
+          },
+          {
+            "k": "effect",
+            "at": 1,
+            "kind": "adr.write",
+            "label": "ADR-0080 and ADR-0081",
+            "status": "ok",
+            "result": {
+              "adrs": [
+                "0080",
+                "0081"
+              ]
+            }
+          },
+          {
+            "k": "effect",
+            "at": 2,
+            "kind": "image.commit",
+            "label": "regenerate docs/images/shelf.png in place",
+            "status": "ok",
+            "result": true
+          },
+          {
+            "k": "effect",
+            "at": 3,
+            "kind": "tracker.close",
+            "label": "close #296 naming its gate row, and close #299",
+            "status": "ok",
+            "result": true
+          },
+          {
+            "k": "effect",
+            "at": 4,
+            "kind": "tracker.edit",
+            "label": "append a Decisions-so-far line to map #280, clear the knobs bullet",
+            "status": "ok",
+            "result": true
+          },
+          {
+            "k": "return",
+            "at": 5,
+            "value": {
+              "rows": [
+                "G51",
+                "G52",
+                "G53",
+                "G54"
+              ],
+              "prs": [
+                308,
+                309,
+                310,
+                311,
+                312,
+                313
+              ],
+              "adrs": [
+                "0080",
+                "0081"
+              ]
+            }
+          },
+          {
+            "k": "return",
+            "at": 16,
+            "value": {
+              "onMain": true,
+              "rows": [
+                "G51",
+                "G52",
+                "G53",
+                "G54"
+              ],
+              "prs": [
+                308,
+                309,
+                310,
+                311,
+                312,
+                313
+              ],
+              "adrs": [
+                "0080",
+                "0081"
+              ]
+            }
+          },
+          {
+            "k": "done",
+            "result": {
+              "onMain": true,
+              "rows": [
+                "G51",
+                "G52",
+                "G53",
+                "G54"
+              ],
+              "prs": [
+                308,
+                309,
+                310,
+                311,
+                312,
+                313
+              ],
+              "adrs": [
+                "0080",
+                "0081"
+              ]
+            }
+          }
+        ]
       }
     }
   ],
@@ -131,11 +1548,22 @@
       "name": "Map #300 — ship the woodwork treatment",
       "kind": "agent",
       "loc": "issues/300 · docs/spec/the-woodwork-reads-as-wood.md",
-      "params": ["flickerFirst", "parallel", "premiseHolds", "preAllocate"],
+      "params": [
+        "flickerFirst",
+        "parallel",
+        "premiseHolds",
+        "preAllocate"
+      ],
       "channels": {
         "A": "a rendered bookcase on main",
-        "E": ["FanOutRefused", "ShippedAShimmer"],
-        "R": ["9 closed decision tickets", "3 prototype branches, reference only"]
+        "E": [
+          "FanOutRefused",
+          "ShippedAShimmer"
+        ],
+        "R": [
+          "9 closed decision tickets",
+          "3 prototype branches, reference only"
+        ]
       },
       "steps": [
         {
@@ -336,7 +1764,10 @@
       "channels": {
         "A": "G51 coplanar-faces",
         "E": [],
-        "R": ["case.ts", "the inset constants"]
+        "R": [
+          "case.ts",
+          "the inset constants"
+        ]
       },
       "steps": [
         {
@@ -363,18 +1794,32 @@
           "expr": "'G51'"
         }
       ],
-      "touches": ["packages/site/src/shelf/case.ts"],
-      "tests": ["gates/coplanar-faces.test.ts"]
+      "touches": [
+        "packages/site/src/shelf/case.ts"
+      ],
+      "tests": [
+        "gates/coplanar-faces.test.ts"
+      ]
     },
     "t302": {
       "name": "#302 — the woodwork is rosewood",
       "kind": "agent",
       "loc": "issues/302 → PR #309",
-      "params": ["coplanarLanded", "premiseSettled"],
+      "params": [
+        "coplanarLanded",
+        "premiseSettled"
+      ],
       "channels": {
         "A": "G52 sheet-size",
-        "E": ["ShimmerOnMain", "PremiseOverturned"],
-        "R": ["woodwork.ts (new)", "scene.ts", "a Poly Haven sheet, CC0"]
+        "E": [
+          "ShimmerOnMain",
+          "PremiseOverturned"
+        ],
+        "R": [
+          "woodwork.ts (new)",
+          "scene.ts",
+          "a Poly Haven sheet, CC0"
+        ]
       },
       "steps": [
         {
@@ -425,8 +1870,13 @@
           "expr": "'G52'"
         }
       ],
-      "touches": ["packages/site/src/shelf/woodwork.ts", "packages/site/src/shelf/scene.ts"],
-      "tests": ["gates/sheet-size.test.ts"]
+      "touches": [
+        "packages/site/src/shelf/woodwork.ts",
+        "packages/site/src/shelf/scene.ts"
+      ],
+      "tests": [
+        "gates/sheet-size.test.ts"
+      ]
     },
     "t303": {
       "name": "#303 — a drawn fibre, and a knob to dial it",
@@ -436,7 +1886,10 @@
       "channels": {
         "A": "materials.woodFibre",
         "E": [],
-        "R": ["woodwork.ts", "a 2D canvas"]
+        "R": [
+          "woodwork.ts",
+          "a 2D canvas"
+        ]
       },
       "steps": [
         {
@@ -474,7 +1927,10 @@
       "channels": {
         "A": "a constant, not a knob",
         "E": [],
-        "R": ["woodwork.ts", "prototype/297"]
+        "R": [
+          "woodwork.ts",
+          "prototype/297"
+        ]
       },
       "steps": [
         {
@@ -493,7 +1949,10 @@
           "expr": "'no row'"
         }
       ],
-      "touches": ["packages/site/src/shelf/woodwork.ts", "packages/site/src/shelf/scene.ts"],
+      "touches": [
+        "packages/site/src/shelf/woodwork.ts",
+        "packages/site/src/shelf/scene.ts"
+      ],
       "tests": []
     },
     "t305": {
@@ -504,7 +1963,10 @@
       "channels": {
         "A": "per-member variation + ?woodSeed",
         "E": [],
-        "R": ["woodwork.ts", "shelf-url.ts"]
+        "R": [
+          "woodwork.ts",
+          "shelf-url.ts"
+        ]
       },
       "steps": [
         {
@@ -534,11 +1996,20 @@
       "name": "#306 — the species menu, lazy and honest",
       "kind": "agent",
       "loc": "issues/306 → PR #313",
-      "params": ["preAllocate", "numbersFixed"],
+      "params": [
+        "preAllocate",
+        "numbersFixed"
+      ],
       "channels": {
         "A": "G53 one-sheet + G54 woodwork-readback",
-        "E": ["NumberClaimedTwice"],
-        "R": ["woodwork.ts", "scene.ts", "debug-panel.ts"]
+        "E": [
+          "NumberClaimedTwice"
+        ],
+        "R": [
+          "woodwork.ts",
+          "scene.ts",
+          "debug-panel.ts"
+        ]
       },
       "steps": [
         {
@@ -583,18 +2054,30 @@
           "expr": "'G53 + G54'"
         }
       ],
-      "touches": ["packages/site/src/shelf/woodwork.ts", "packages/site/src/shelf/scene.ts"],
-      "tests": ["gates/one-sheet.test.ts", "gates/woodwork-readback.test.ts"]
+      "touches": [
+        "packages/site/src/shelf/woodwork.ts",
+        "packages/site/src/shelf/scene.ts"
+      ],
+      "tests": [
+        "gates/one-sheet.test.ts",
+        "gates/woodwork-readback.test.ts"
+      ]
     },
     "t299": {
       "name": "#299 — the merge, the screenshot and the ADR",
       "kind": "agent",
       "loc": "issues/299 · the map's own destination ticket",
-      "params": ["rows"],
+      "params": [
+        "rows"
+      ],
       "channels": {
         "A": "the treatment on main",
         "E": [],
-        "R": ["docs/adr/", "docs/images/", "the tracker"]
+        "R": [
+          "docs/adr/",
+          "docs/images/",
+          "the tracker"
+        ]
       },
       "steps": [
         {
@@ -652,11 +2135,16 @@
       "name": "a prototype the map did not plan",
       "kind": "prototype",
       "loc": "prototype/297-backboard-sheet · prototype/298-wood-seed",
-      "params": ["question"],
+      "params": [
+        "question"
+      ],
       "channels": {
         "A": "an answer the plan can use",
         "E": [],
-        "R": ["a render", "a branch that never merges"]
+        "R": [
+          "a render",
+          "a branch that never merges"
+        ]
       },
       "steps": [
         {
