@@ -45,8 +45,7 @@ const MOVE = {
   effect: { req: ['at', 'kind', 'desc'], opt: ['next', 'raised', 'result', 'attempt'] },
   throw: { req: ['at', 'tag', 'message', 'channel'], opt: [] },
   return: { req: ['at'], opt: ['value'] },
-  /* and the five that move a frame rather than run a step */
-  enter: { req: ['node'], opt: [] },
+  /* and the four that move a frame rather than run a step */
   handled: { req: ['at', 'goto', 'next'], opt: [] },
   unwind: { req: [], opt: [] },
   done: { req: [], opt: ['result'] },
@@ -153,13 +152,10 @@ function path(prog, walk, where, errs) {
   const top = () => frames[frames.length - 1];
   const bad = (i, m) => errs.push(`${where} [${i}] ${m}`);
 
+  /* A walk begins in the entry node with the cursor at 0. No move says so. */
+  frames.push({ nodeId: prog.entry, pc: 0 });
+
   walk.steps.forEach((m, i) => {
-    if (m.k === 'enter') {
-      if (frames.length) return bad(i, 'enter inside a live frame');
-      if (!prog.nodes[m.node]) return bad(i, `enter unknown node "${m.node}"`);
-      if (m.node !== prog.entry) bad(i, `enter "${m.node}" is not the entry "${prog.entry}"`);
-      return void frames.push({ nodeId: m.node, pc: 0 });
-    }
     if (m.k === 'unwind') { if (!frames.length) return bad(i, 'unwind with no frame'); return void frames.pop(); }
     if (m.k === 'done') { if (frames.length) bad(i, `done with ${frames.length} frame(s) open`); return void (frames.length = 0); }
     if (m.k === 'uncaught') return void (frames.length = 0);

@@ -16,7 +16,7 @@ const ROW = [
   [/missing required key "next"/i, 'Who makes the walk'],
   [/unknown key/i, 'An unknown key'],
   [/missing required key|state at least one/i, 'What a file must carry'],
-  [/no edge from|cursor sits at|frame\(s\)|move ran|produces no move|lands at|is not a step of|with no frame|done with|next \d+ is not a step|followed by a raise|ran (throw|call|effect|return|note|let|if|goto)/i, 'Who makes the walk'],
+  [/no edge from|cursor sits at|frame\(s\)|move ran|lands at|is not a step of|with no frame|done with|next \d+ is not a step|move ran step \d+, which is a|a "\w+" move ran step|next when it went on|never both|is not a move kind/i, 'Who makes the walk'],
   [/is not a label|onError does not name|onError goto|named by no onError/i, 'One name, two meanings'],
   [/role is blank/i, 'The node category'],
   [/^layers|entry "/i, 'What a layer may say'],

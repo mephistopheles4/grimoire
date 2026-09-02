@@ -24,7 +24,7 @@ function migrateWalk(prog, walk) {
   const top = () => frames[frames.length - 1];
   const out = [];
   for (const m of walk.steps) {
-    if (m.k === 'enter') { frames.push({ nodeId: m.node, pc: 0 }); out.push({ ...m }); continue; }
+    if (m.k === 'enter') { frames.push({ nodeId: m.node, pc: 0 }); continue; } // dropped: always the entry
     if (m.k === 'unwind') { frames.pop(); out.push({ k: 'unwind' }); continue; }
     if (m.k === 'done' || m.k === 'uncaught') { frames.length = 0; out.push({ ...m }); continue; }
 

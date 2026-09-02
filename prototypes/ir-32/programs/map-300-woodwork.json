@@ -121,10 +121,6 @@
         "provenance": "authored",
         "steps": [
           {
-            "k": "enter",
-            "node": "map"
-          },
-          {
             "k": "note",
             "at": 0,
             "next": 1
@@ -516,10 +512,6 @@
         "provenance": "authored",
         "steps": [
           {
-            "k": "enter",
-            "node": "map"
-          },
-          {
             "k": "note",
             "at": 0,
             "next": 1
@@ -623,10 +615,6 @@
       "walk": {
         "provenance": "authored",
         "steps": [
-          {
-            "k": "enter",
-            "node": "map"
-          },
           {
             "k": "note",
             "at": 0,
@@ -758,10 +746,6 @@
       "walk": {
         "provenance": "authored",
         "steps": [
-          {
-            "k": "enter",
-            "node": "map"
-          },
           {
             "k": "note",
             "at": 0,
@@ -1234,10 +1218,6 @@
       "walk": {
         "provenance": "authored",
         "steps": [
-          {
-            "k": "enter",
-            "node": "map"
-          },
           {
             "k": "note",
             "at": 0,

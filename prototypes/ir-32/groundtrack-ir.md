@@ -122,9 +122,9 @@ run produced it). `steps` is a flat list of moves.
 **Three rules cover the whole tape.**
 
 1. **`k` is the op that ran.** A `let` step produces a `let` move, an `if` step
-   an `if` move, a `call` a `call`. There is no mapping to learn. Five moves
-   name no op, because they move a frame rather than run a step: `enter`,
-   `handled`, `unwind`, `done` and `uncaught`.
+   an `if` move, a `call` a `call`. There is no mapping to learn. Four moves
+   name no op, because they move a frame rather than run a step: `handled`,
+   `unwind`, `done` and `uncaught`.
 2. **`at` always names the step that ran.** Every move that runs a step has one.
 3. **`next` always names where the cursor goes in that same frame.** Every move
    that leaves a live cursor behind has one. The cursor never advances on its
@@ -147,12 +147,16 @@ run produced it). `steps` is a flat list of moves.
 
 | `k` | Fields | Meaning |
 | --- | --- | --- |
-| `enter` | `node` | Push the entry frame. The cursor starts at 0. |
 | `handled` | `at`, `goto`, `next` | The step at `at` declares this `goto` in its `onError`. The cursor landed at `next`, the step labelled `goto`. |
 | `unwind` | — | Pop a frame the error passed through. |
-| `return` is above | | |
 | `done` | `result?` | The entry frame returned. |
 | `uncaught` | `tag`, `message`, `channel` | Nothing caught the error. |
+
+**A walk begins in the entry node with the cursor at 0.** No move says so, and
+the first move in every walk runs step 0 of the entry node.
+
+**A `call` pushes the frame it names.** Every frame after the first is pushed by
+a `call` and popped by a `return` or an `unwind`. Nothing else pushes a frame.
 
 **An effect has no `status`.** It carries `next` when the cursor went on, or
 `raised` when it threw. `raised` holds `tag`, `message` and `channel`. Two ways

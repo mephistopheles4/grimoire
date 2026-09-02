@@ -181,10 +181,6 @@
         "provenance": "authored",
         "steps": [
           {
-            "k": "enter",
-            "node": "greet"
-          },
-          {
             "k": "note",
             "at": 0,
             "next": 1
@@ -262,10 +258,6 @@
         "provenance": "authored",
         "steps": [
           {
-            "k": "enter",
-            "node": "greet"
-          },
-          {
             "k": "note",
             "at": 0,
             "next": 1
@@ -341,10 +333,6 @@
       "walk": {
         "provenance": "authored",
         "steps": [
-          {
-            "k": "enter",
-            "node": "greet"
-          },
           {
             "k": "note",
             "at": 0,

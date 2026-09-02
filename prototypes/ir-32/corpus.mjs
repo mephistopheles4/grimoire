@@ -23,7 +23,7 @@ const CASES = [
   ['an unknown top-level key is refused', (p) => { p.extra = 1; return p; }, 'unknown key "extra"'],
   ['an unknown node key is refused', (p) => { p.nodes.greet.kind = 'handler'; return p; }, 'unknown key "kind"'],
   ['an unknown step key is refused', (p) => { p.nodes.greet.steps[0].result = 'x'; return p; }, 'unknown key "result"'],
-  ['an unknown walk-move key is refused', (p) => { p.presets[0].walk.steps[1].label = 'x'; return p; }, 'unknown key "label"'],
+  ['an unknown walk-move key is refused', (p) => { p.presets[0].walk.steps[0].label = 'x'; return p; }, 'unknown key "label"'],
   ['a near-miss spelling is refused', (p) => { p.nodes.greet.enteredby = []; return p; }, 'unknown key "enteredby"'],
 
   // Rule 4 — every part is required
@@ -49,36 +49,36 @@ const CASES = [
   ['a bad provenance is refused', (p) => { p.presets[0].walk.provenance = 'guessed'; return p; }, 'is not authored or captured'],
 
   // The path check
-  ['a move with no edge is refused', (p) => { p.presets[0].walk.steps[1].next = 5; return p; }, 'no edge from'],
-  ['a call to the wrong node is refused', (p) => { p.presets[0].walk.steps[2].to = 'greet'; return p; }, 'step targets'],
-  ['a mismatched effect kind is refused', (p) => { p.presets[0].walk.steps[3].kind = 'http.post'; return p; }, 'kind'],
-  ['a return on a non-return step is refused', (p) => { p.presets[0].walk.steps[10].at = 0; return p; }, 'ran'],
-  ['a handled goto the catching step does not name is refused', (p) => { p.presets[1].walk.steps[7].goto = 'named'; return p; }, 'its onError does not name'],
-  ['an unbalanced frame stack is refused', (p) => { p.presets[0].walk.steps.splice(5, 1); return p; }, 'frame'],
-  ['an unknown move kind is refused', (p) => { p.presets[0].walk.steps[1].k = 'jump'; return p; }, 'is not a move kind'],
+  ['a move with no edge is refused', (p) => { p.presets[0].walk.steps[0].next = 5; return p; }, 'no edge from'],
+  ['a call to the wrong node is refused', (p) => { p.presets[0].walk.steps[1].to = 'greet'; return p; }, 'step targets'],
+  ['a mismatched effect kind is refused', (p) => { p.presets[0].walk.steps[2].kind = 'http.post'; return p; }, 'kind'],
+  ['a return on a non-return step is refused', (p) => { p.presets[0].walk.steps[9].at = 0; return p; }, 'ran'],
+  ['a handled goto the catching step does not name is refused', (p) => { p.presets[1].walk.steps[6].goto = 'named'; return p; }, 'its onError does not name'],
+  ['an unbalanced frame stack is refused', (p) => { p.presets[0].walk.steps.splice(4, 1); return p; }, 'frame'],
+  ['an unknown move kind is refused', (p) => { p.presets[0].walk.steps[0].k = 'jump'; return p; }, 'is not a move kind'],
 
   // Rule 2 of the tape — `next` is stated, never worked out.
   // Every case below is a fault the eval measured on a real agent's file.
-  ['a call with no next is refused', (p) => { delete p.presets[0].walk.steps[2].next; return p; }, 'missing required key "next"'],
-  ['a handled with no next is refused', (p) => { delete p.presets[1].walk.steps[7].next; return p; }, 'missing required key "next"'],
-  ['a next outside the node is refused', (p) => { p.presets[0].walk.steps[2].next = 99; return p; }, 'next 99 is not a step'],
-  ['a call that resumes in the wrong place is refused', (p) => { p.presets[0].walk.steps[2].next = 0; return p; }, 'cursor sits at'],
-  ['`status` on an effect move is refused', (p) => { p.presets[0].walk.steps[3].status = 'ok'; return p; }, 'unknown key "status"'],
-  ['`error` on an effect move is refused', (p) => { p.presets[0].walk.steps[3].error = { tag: 'X' }; return p; }, 'unknown key "error"'],
-  ['an effect with neither next nor raised is refused', (p) => { delete p.presets[0].walk.steps[3].next; return p; }, 'next when it went on, or raised when it threw'],
-  ['an effect with both next and raised is refused', (p) => { p.presets[0].walk.steps[3].raised = { tag: 'X', message: 'y', channel: 'die' }; return p; }, 'never both'],
+  ['a call with no next is refused', (p) => { delete p.presets[0].walk.steps[1].next; return p; }, 'missing required key "next"'],
+  ['a handled with no next is refused', (p) => { delete p.presets[1].walk.steps[6].next; return p; }, 'missing required key "next"'],
+  ['a next outside the node is refused', (p) => { p.presets[0].walk.steps[1].next = 99; return p; }, 'next 99 is not a step'],
+  ['a call that resumes in the wrong place is refused', (p) => { p.presets[0].walk.steps[1].next = 0; return p; }, 'cursor sits at'],
+  ['`status` on an effect move is refused', (p) => { p.presets[0].walk.steps[2].status = 'ok'; return p; }, 'unknown key "status"'],
+  ['`error` on an effect move is refused', (p) => { p.presets[0].walk.steps[2].error = { tag: 'X' }; return p; }, 'unknown key "error"'],
+  ['an effect with neither next nor raised is refused', (p) => { delete p.presets[0].walk.steps[2].next; return p; }, 'next when it went on, or raised when it threw'],
+  ['an effect with both next and raised is refused', (p) => { p.presets[0].walk.steps[2].raised = { tag: 'X', message: 'y', channel: 'die' }; return p; }, 'never both'],
   ['a raised with no channel is refused', (p) => { const m = p.presets[2].walk.steps.find((s) => s.raised); delete m.raised.channel; return p; }, 'missing required key "channel"'],
   ['an effect that raised is accepted', (p) => p, null],
 
   // Rule 1 of the tape — `k` is the op that ran.
-  ['a move named for the wrong op is refused', (p) => { p.presets[0].walk.steps[7].k = 'if'; return p; }, 'a "if" move ran step 3, which is a "let"'],
-  ['`move` is no longer a move kind', (p) => { p.presets[0].walk.steps[1].k = 'move'; return p; }, 'is not a move kind'],
-  ['`raise` is no longer a move kind', (p) => { p.presets[1].walk.steps[5].k = 'raise'; return p; }, 'is not a move kind'],
+  ['a move named for the wrong op is refused', (p) => { p.presets[0].walk.steps[6].k = 'if'; return p; }, 'a "if" move ran step 3, which is a "let"'],
+  ['`move` is no longer a move kind', (p) => { p.presets[0].walk.steps[0].k = 'move'; return p; }, 'is not a move kind'],
+  ['`enter` is no longer a move kind', (p) => { p.presets[1].walk.steps[4].k = 'enter'; return p; }, 'is not a move kind'],
   ['a throw move on a throw step is accepted', (p) => p, null],
-  ['a move after a call that ignores the call\'s next is refused', (p) => { p.presets[0].walk.steps[6].at = 1; return p; }, 'cursor sits at'],
+  ['a move after a call that ignores the call\'s next is refused', (p) => { p.presets[0].walk.steps[5].at = 1; return p; }, 'cursor sits at'],
 
   // What the document says it CANNOT prove — these must PASS
-  ['an invented effect result is accepted, as the document states', (p) => { p.presets[0].walk.steps[3].result = { invented: true }; return p; }, null],
+  ['an invented effect result is accepted, as the document states', (p) => { p.presets[0].walk.steps[2].result = { invented: true }; return p; }, null],
   ['any role word is accepted, as the document states', (p) => { p.nodes.greet.role = 'choreographer'; return p; }, null],
   ['any layer name is accepted, as the document states', (p) => { p.layers.smoke = { nodes: {} }; return p; }, null],
 ];
