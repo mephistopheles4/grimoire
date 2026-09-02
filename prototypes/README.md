@@ -118,12 +118,17 @@ real default:
 | `bindSheet` | `THREE.TextureLoader` | `fakeLoader()` | `load: SheetLoader = textureLoader()` — `woodwork.ts:783` |
 | `applyWoodFibre` | `CanvasTexture` | `() => fibre` | `map = () => woodFibreMap() ?? null` — `woodwork.ts:1249` |
 | `fibreMapFor` | `canvas 2d` | **unchanged** | `bakeFibre` reaches `document.createElement` directly; nothing substitutes it |
-| `buildShelf` | `THREE`, `woodwork.ts` | **never entered** | no spec enters here at all |
+| `buildShelf` | `THREE`, `woodwork.ts` | **never entered** | no vitest spec enters here at all |
 
 ⚠️ **`fibreMapFor` is the row worth having.** It is the node that still holds its
 real dependency once the toggle is flipped, and it is the only one in the graph
-no test reaches — the same fact twice. That is exactly the payoff #34 argued the
-swap for, arriving on the first program anybody wrote one for.
+no vitest spec reaches — the same fact twice. That is exactly the payoff #34
+argued the swap for, arriving on the first program anybody wrote one for.
+
+⚠️ **Two layers is not the whole set.** `pnpm smoke:render` drives the real page
+in headless Chrome — a live server, a real `TextureLoader`, a real 2D context —
+so it enters `buildShelf` and reaches `fibreMapFor` with **nothing**
+substituted. That is a third layer, and the page hard-codes two buttons.
 
 **Two things this cost the framing.** *Token for token changes nothing
 structural* is not quite true: production reaches `fibreMapFor` through

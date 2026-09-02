@@ -3796,7 +3796,7 @@ PROGRAMS.push({
 PROGRAMS.push({
   "id": "pr-313-first-paint",
   "title": "PR #313 · first paint",
-  "blurb": "The woodwork slice of buildShelf, as it stands after #313. The species is resolved here and nowhere else, which is the whole of the menu's laziness: an entry nobody selects is never fetched. Read the effects ledger against the PR's own request table. Flip Layer to Tests and exactly two nodes move: bindSheet and applyWoodFibre each take a parameter with a real default, so a double goes in at the call. fibreMapFor keeps canvas 2d, because it has no seam and no test reaches it.",
+  "blurb": "The woodwork slice of buildShelf, as it stands after #313. The species is resolved here and nowhere else, which is the whole of the menu's laziness: an entry nobody selects is never fetched. Read the effects ledger against the PR's own request table. Flip Layer to Tests and exactly two nodes move: bindSheet and applyWoodFibre each take a parameter with a real default, so a double goes in at the call. fibreMapFor keeps canvas 2d, because it has no seam and no vitest spec reaches it — only smoke:render does, in a real browser with nothing substituted.",
   "entry": "buildShelf",
   "env": {
     "roster": [
