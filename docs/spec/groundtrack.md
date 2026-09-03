@@ -804,6 +804,39 @@ reads its faces from a fixed path on one machine, which the skill cannot do —
 the fixed-path rule refuses it and the skill directory must be self-contained.
 The faces are vendored, not read.
 
+**The skill's prose is scanned, and the scan gates the merge.** This landed
+after the map's tickets closed, so no resolution mentions it, and it binds this
+work anyway: groundtrack is mostly prose an agent obeys, which is exactly what
+the scanner reads.
+
+Four things the implementation session needs to know before it writes a word of
+`SKILL.md`:
+
+- **One unsuppressed finding fails, at any severity.** There is no risk-score
+  threshold and no severity floor — the scanner's own exit code answers *should
+  I install this whole skill*, which is the wrong question for *did this change
+  add something*. The baseline is the argument instead.
+- **A suppression is keyed by rule identifier and carries a reason**, never by a
+  fingerprint of the matched text. Fingerprints expire silently on the next edit
+  of prose this repository rewrites constantly, and the root file declares an
+  empty fingerprint list so nobody is invited to add one.
+- **If any rule fires inside the skill directory, the skill needs its own
+  baseline file at its top.** The scanner finds a baseline only at the top of
+  the directory it was pointed at, and a reader who scans the skill before
+  installing it is pointed at the skill, not at this repository. That is why the
+  incumbent carries one.
+- **A rule suppressed in a skill's baseline must appear in the repository root's
+  baseline too, with the identical reason and the identical file scope.** The
+  root check enforces all three, word for word, because a rule reasoned away in
+  one file and not the other is a suppression nobody has read.
+
+**Nothing is reworded to satisfy a pattern matcher.** Both existing baselines
+say so in their own headers, and it is the rule that matters most here: a
+finding on this skill's prose is answered with a reason in the baseline, or by
+changing what the prose actually instructs — never by editing wording until a
+regex goes quiet. A skill whose safety text was tuned to pass a scanner is the
+failure the scan exists to catch.
+
 **Registration needs no per-skill manifest.** The repository is the plugin and
 the default scan reads one level of the skills directory. The skill's
 frontmatter carries the invocation name. The plugin version moves, which the
@@ -964,6 +997,10 @@ surface invented for the page.
   reads as a gate that passed, and this repository has already written a commit
   about that.
 - **The fixed-path rule covers the new skill**, including its non-markdown files.
+- **The skill's own prose baseline agrees with the root's**, if the skill needs
+  one: same rule identifiers, same reasons word for word, same file scopes. The
+  root check already asserts this for the incumbent, and a second skill is what
+  makes the rule worth having rather than a rule about one file.
 
 ### Prior art
 
