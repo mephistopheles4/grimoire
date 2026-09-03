@@ -41,7 +41,6 @@ for (const n of walkNotes) console.log(`note: ${n}`);
 // second skill's artifact was checked by nothing and published by nothing, and
 // neither script said so. scripts/lib/registry.mjs is now the one table.
 const artifacts = files.map(f => ({ path: f, src: rel(f) })).filter(a => (a.row = rowFor(a.src)));
-if (!artifacts.length) fail('no artifact found for any registry row — the renderers have nothing to check');
 
 for (const a of artifacts) {
   const renderer = join(root, ...a.row.renderer.split('/'));
@@ -62,7 +61,9 @@ for (const row of ARTIFACTS) {
     fail(`registry row "${row.type}" names ${row.renderer}, and there is no such file — nothing would validate a ${row.suffix}`);
   }
   if (!artifacts.some(a => a.row === row)) {
-    console.log(`note: no ${row.suffix} in the tree — the "${row.type}" row matched nothing`);
+    fail(
+      `no ${row.suffix} anywhere in the tree, so the "${row.type}" row checked nothing. Every row is here because a skill ships that artifact, and every such skill ships a worked example — so either the example is gone or the row is. A check with nothing to check reads as a check that passed.`,
+    );
   }
 }
 

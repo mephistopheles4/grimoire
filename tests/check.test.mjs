@@ -67,7 +67,7 @@ function assertFails(dir, pattern) {
 test('the real repository passes its own check', () => {
   const r = run(check);
   assert.equal(r.code, 0, `${r.stdout}\n${r.stderr}`);
-  assert.match(r.stdout, /^ok: \d+ box file\(s\), \d+ plugin\(s\)$/m);
+  assert.match(r.stdout, /^ok: \d+ artifact file\(s\), \d+ plugin\(s\)$/m);
 });
 
 test('an untouched copy of the tree passes', () => {
@@ -133,10 +133,19 @@ test('a box file that does not validate fails the check by name', () => {
   assert.match(r.stderr, /exactly one option must be chosen/);
 });
 
-test('a tree with no box file fails, rather than passing with nothing to check', () => {
+test('a registry row that matches nothing fails, rather than passing with nothing to check', () => {
+  // Each row is here because a skill ships that artifact type. A row matching
+  // no file means the example went away or the row did, and a check with
+  // nothing to check reads as a check that passed.
   const dir = tree();
   rmSync(join(dir, 'skills', 'eagle-eye', 'examples'), { recursive: true, force: true });
-  assertFails(dir, /no \*\.box\.json found/);
+  assertFails(dir, /no \.box\.json anywhere in the tree, so the "box" row checked nothing/);
+});
+
+test('a registry row naming a renderer that is not there fails', () => {
+  const dir = tree();
+  rmSync(join(dir, 'skills', 'groundtrack', 'scripts', 'render.mjs'), { force: true });
+  assertFails(dir, /names skills\/groundtrack\/scripts\/render\.mjs, and there is no such file/);
 });
 
 test('a fixed home path in a SKILL.md fails', () => {

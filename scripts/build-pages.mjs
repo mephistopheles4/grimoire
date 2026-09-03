@@ -32,8 +32,6 @@ const out = join(root, 'site');
 const { files, notes: walkNotes } = walk(root);
 for (const n of walkNotes) console.log(`note: ${n}`);
 
-mkdirSync(out, { recursive: true });
-
 // The page name carries the whole repo-relative path. Keyed on the basename,
 // two boxes with the same file name in different directories resolved to one
 // path in site/, and the second render silently overwrote the first: a page
@@ -70,6 +68,10 @@ for (const artifact of files) {
   takenBy.set(name.toLowerCase(), src);
   pages.push({ name, src, artifact, row });
 }
+
+// Made only once every name has resolved, so a refusal above leaves no site/
+// behind at all — it refuses before it renders anything, rather than after.
+mkdirSync(out, { recursive: true });
 
 for (const p of pages) {
   const renderer = join(root, ...p.row.renderer.split('/'));
