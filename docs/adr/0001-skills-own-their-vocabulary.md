@@ -49,6 +49,6 @@ decision, argued in a pull request.
 
 **Some provenance is lost, and that is accepted.** `eagle-eye`'s own boxed
 design recorded three named tools as candidate host flows for its trigger. The
-labels now say *another planning flow*. The argument survives in full — the row
+labels now say *another host flow*. The argument survives in full — the row
 states that a host flow may call the skill, and the edge states that hosts are
 global while the skill is repo-level — so only the examples go.
