@@ -27,10 +27,10 @@
 # baseline the author shipped — applied only if they pass
 # `--use-shipped-baseline`. Read it with `--show-suppressed`.
 #
-# skills/eagle-eye/.skillspector-baseline.yaml repeats the three rules that
-# fire inside the skill, because a baseline is only found at the top of the
-# directory actually scanned. `node scripts/check.mjs` fails if the two
-# disagree.
+# The two skill directories each repeat the rules that fire inside them,
+# because a baseline is only found at the top of the directory actually
+# scanned. `node scripts/check.mjs` fails if a repeated entry disagrees with
+# this one.
 
 version: 2
 fingerprints: []
@@ -43,7 +43,6 @@ rules:
   - rule_id: "EA2"
     reason: "False positive. The why text on an edge in the example box file. It is content the renderer prints for a reader, not an instruction the agent acts on alone."
   - rule_id: "EA3"
-    file: "**/OFL.txt"
     reason: "False positive. The phrase NOT LIMITED TO, in the warranty disclaimer of the SIL Open Font Licence that ships beside the vendored font faces. It is a legal text the licence requires us to carry verbatim, not an instruction an agent obeys, and its wording is not ours to change."
   - rule_id: "MP3"
     reason: "False positive. A comment in the page template describing how Reset discards the reader's overrides and Undo offers them back. It documents a button, not an agent's memory."

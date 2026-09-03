@@ -20,6 +20,13 @@
 # the rule across the whole directory. The reason below is what that breadth is
 # paid for with.
 #
+# It is keyed by rule identifier and nothing else for a second reason here,
+# found by trying the alternative. Narrowing the entry to the licence file left
+# the rule live on this file — because the reason below quotes the phrase the
+# rule matches, which is how a reader can tell what was reasoned away. A
+# suppression that cannot say what it suppresses is worth less than the breadth
+# it saves.
+#
 # Nothing here was reworded to satisfy a pattern matcher, and the licence text
 # could not be even if somebody wanted to.
 #
@@ -32,5 +39,4 @@ fingerprints: []
 
 rules:
   - rule_id: "EA3"
-    file: "**/OFL.txt"
     reason: "False positive. The phrase NOT LIMITED TO, in the warranty disclaimer of the SIL Open Font Licence that ships beside the vendored font faces. It is a legal text the licence requires us to carry verbatim, not an instruction an agent obeys, and its wording is not ours to change."
