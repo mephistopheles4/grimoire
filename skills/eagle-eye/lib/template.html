@@ -232,7 +232,7 @@ details[open] > :not(summary){animation:ee-unfold .22s var(--ease) both}
   </div>
   <div class="preset-note" id="presetNote" hidden><p id="presetText"></p><div class="steps" id="presetSteps"></div></div>
   <div class="exportbox" id="exportBox" hidden>
-    <div class="row"><span class="label">Paste this to Claude</span><span class="label" id="exportStatus"></span><span class="spacer"><button class="chip" id="copyBtn">Copy</button><button class="chip ghost" id="closeExport">Close</button></span></div>
+    <div class="row"><span class="label">Paste this to the agent</span><span class="label" id="exportStatus"></span><span class="spacer"><button class="chip" id="copyBtn">Copy</button><button class="chip ghost" id="closeExport">Close</button></span></div>
     <div class="row"><code class="restore" id="restoreCode" title="Your configuration, as one line"></code></div>
     <!-- Load stays open beside the restore code it accepts. Reading a configuration back is the common move;
          the full Markdown is the rare one, so that is what folds away. Layout only — the format is in SKILL.md. -->
@@ -494,7 +494,7 @@ function exportMarkdown(){
   if (r.unmet.length) { L.push('', '### Requirements not met'); r.unmet.forEach(e => L.push(`- ${strip(nm(e.from))} requires ${strip(nm(e.to))} — ${e.why} [${e.tier}]`)); }
   if (r.closed.size) { L.push('', '### Ruled out'); [...r.closed.entries()].forEach(([tid, es]) => L.push(`- ${strip(nm(tid))} — ${es.map(e => e.why).join(' ')}`)); }
   L.push('', '### Findings'); r.moves.forEach((m, i) => L.push(`- ${m.kind}: ${strip(m.text)}`));
-  L.push('', `Restore code: \`eagle-eye: ${encodeSel() || 'none'}\``, '', 'Claude: read these changes against the box file, re-argue the set, and tell me what else moves.');
+  L.push('', `Restore code: \`eagle-eye: ${encodeSel() || 'none'}\``, '', 'Read these changes against the box file, re-argue the set, and tell me what else moves.');
   return L.join('\n');
 }
 function loadCode(raw){

@@ -1,6 +1,6 @@
 ---
 name: eagle-eye
-description: Use when a discussion holds three or more open decisions and one choice changes what is possible in another — during brainstorming, grilling, a design review, a wayfinder map — or when the user asks for an eagle-eye view, a morphological box, or invokes /eagle-eye. Not for two independent choices.
+description: Use when a discussion holds three or more open decisions and one choice changes what is possible in another — during brainstorming, a design review, or any walk through a plan one decision at a time — or when the user asks for an eagle-eye view, a morphological box, or invokes /eagle-eye. Not for two independent choices.
 ---
 
 # Eagle-eye
@@ -19,11 +19,10 @@ draw the box so they can see the system. You do not pick for them.
 
 - Three or more open decisions, and picking one changes what is possible in
   another. Two independent choices never earn a box.
-- A grilling session is asking questions one at a time that a grid would ask
-  at once.
-- Brainstorming has the clarifying questions answered and has not yet proposed
-  approaches.
-- A wayfinder map's tickets are the rows.
+- A discussion asks one question at a time. A grid asks them all at once.
+- Every clarifying question has an answer. Nobody has proposed an approach yet.
+- A plan holds tickets that each settle one decision. Those tickets are the
+  rows.
 - The user asks by name. Some tools map a command to it: `/eagle-eye <topic>`.
 
 Say it before you build it: *"This has N coupled decisions. I will build a

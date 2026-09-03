@@ -11,26 +11,26 @@
       "opts": [
         {
           "id": "driver-method",
-          "label": "Claude’s reasoning method: it builds the box in chat; the page is optional",
+          "label": "The agent’s reasoning method: it builds the box in chat; the page is optional",
           "src": "chat Q1",
-          "short": "Claude reasons in chat"
+          "short": "Agent reasons in chat"
         },
         {
           "id": "driver-gen",
-          "label": "A generator: Claude emits the page, you do the thinking",
+          "label": "A generator: the agent emits the page, you do the thinking",
           "src": "chat Q1",
           "short": "Generator only"
         },
         {
           "id": "driver-both",
-          "label": "Both, round-tripped: Claude builds, you override and export, Claude re-argues",
+          "label": "Both, round-tripped: the agent builds, you override and export, it re-argues",
           "chosen": true,
           "src": "chat Q1",
           "short": "Round-tripped"
         },
         {
           "id": "driver-none",
-          "label": "No tool — keep grilling one question at a time",
+          "label": "No tool — keep asking one question at a time",
           "strawman": true,
           "short": "No tool"
         }
@@ -55,7 +55,7 @@
         },
         {
           "id": "trig-hosts",
-          "label": "As a stage inside brainstorming, grilling, wayfinder",
+          "label": "As a stage inside another host flow",
           "src": "chat Q2",
           "short": "Inside host flows"
         },
@@ -186,7 +186,7 @@
         },
         {
           "id": "home-repo",
-          "label": "This repo: .claude/skills, beside phase-gate",
+          "label": "This repo: a skills directory, beside the project's other skills",
           "src": "chat Q6",
           "short": "This repo"
         },
@@ -225,7 +225,7 @@
       "opts": [
         {
           "id": "build-prompt",
-          "label": "Prompt-only: Claude hand-writes the page from a template",
+          "label": "Prompt-only: the agent hand-writes the page from a template",
           "src": "chat approaches",
           "short": "Prompt-only"
         },
@@ -238,9 +238,9 @@
         },
         {
           "id": "build-tool",
-          "label": "A proper CLI / MCP tool: validate, render, diff",
+          "label": "A proper command-line tool: validate, render, diff",
           "src": "chat approaches",
-          "short": "Full CLI / MCP"
+          "short": "Full command-line tool"
         }
       ]
     },
@@ -251,16 +251,16 @@
       "opts": [
         {
           "id": "page-local",
-          "label": "A local HTML file, opened in the browser; Artifact when available",
+          "label": "A local HTML file, opened in the browser; a hosted page when available",
           "chosen": true,
           "src": "chat, my call",
           "short": "Local HTML"
         },
         {
           "id": "page-artifact",
-          "label": "Artifact only",
+          "label": "Hosted page only",
           "src": "chat, my call",
-          "short": "Artifact only"
+          "short": "Hosted page only"
         },
         {
           "id": "page-chat",
@@ -290,7 +290,7 @@
         },
         {
           "id": "data-embedded",
-          "label": "Embedded in the page, as the #186 artifact does",
+          "label": "Embedded in the page, as the earlier artifact does",
           "src": "the artifact",
           "short": "Embedded in page"
         }
@@ -351,7 +351,7 @@
   ],
   "rel": {
     "driver-both": {
-      "why": "Chosen. The restore code in the #186 artifact already hints at the loop; the page is the surface you think on, the export is what Claude reads back.",
+      "why": "Chosen. The restore code in the earlier artifact already hints at the loop; the page is the surface you think on, the export is what the agent reads back.",
       "rel": [
         [
           "build-prompt",
@@ -367,28 +367,28 @@
         ]
       ],
       "notes": [
-        "The export→Claude half is the artifact’s own design; the Claude→file half is new and untested."
+        "The export→agent half is the artifact’s own design; the agent→file half is new and untested."
       ]
     },
     "driver-method": {
-      "why": "Claude builds the box in conversation and checks its own recommendation against it; the page is optional.",
+      "why": "The agent builds the box in conversation and checks its own recommendation against it; the page is optional.",
       "rel": [
         [
           "coach-optin",
           "conf",
-          "Predict-before-reveal withholds a verdict the page computes; in chat Claude would have to withhold its own sentence.",
+          "Predict-before-reveal withholds a verdict the page computes; in chat the agent would have to withhold its own sentence.",
           "argued"
         ]
       ],
       "notes": []
     },
     "driver-gen": {
-      "why": "Claude emits the page; the thinking is yours.",
+      "why": "The agent emits the page; the thinking is yours.",
       "rel": [
         [
           "audit-argued",
           "conf",
-          "The audit is Claude checking edges it drew; a generator that does no reasoning has nothing to audit.",
+          "The audit is the agent checking edges it drew; a generator that does no reasoning has nothing to audit.",
           "argued"
         ],
         [
@@ -401,7 +401,7 @@
       "notes": []
     },
     "driver-none": {
-      "why": "Strawman: no tool. Grilling one question at a time, as today.",
+      "why": "Strawman: no tool. One question at a time, as today.",
       "rel": [
         [
           "moves-six",
@@ -429,7 +429,7 @@
         ]
       ],
       "notes": [
-        "The honest comparison: you said a box resolves a grilling session as fast as you can read it. That is the claim this strawman tests."
+        "The honest comparison: you said a box resolves a question-at-a-time session as fast as you can read it. That is the claim this strawman tests."
       ]
     },
     "trig-full": {
@@ -463,7 +463,7 @@
       "notes": []
     },
     "trig-hosts": {
-      "why": "A stage inside brainstorming, grilling, wayfinder.",
+      "why": "A stage inside another host flow.",
       "rel": [
         [
           "home-repo",
@@ -554,7 +554,7 @@
       ]
     },
     "moves-verdict": {
-      "why": "Strawman: the verdict and nothing else — the #186 artifact as it stands.",
+      "why": "Strawman: the verdict and nothing else — the earlier artifact as it stands.",
       "rel": [],
       "notes": [
         "This is the artifact you already have. If it survives the box, the six moves are decoration."
@@ -624,12 +624,12 @@
       "notes": []
     },
     "home-repo": {
-      "why": "Versioned beside phase-gate; only this repo gets it.",
+      "why": "Versioned beside the project's other skills; only this repo gets it.",
       "rel": [
         [
           "trig-full",
           "conf",
-          "A committed command invoking a plugin only one machine had is the crfix trap; a repo skill hooking global flows is its mirror.",
+          "A committed command that invokes a plugin only one machine has is the trap; a repo skill that hooks global flows is its mirror.",
           "sourced",
           "memory: tooling-you-have-is-not-in-the-repo"
         ]
@@ -671,7 +671,7 @@
       "notes": []
     },
     "build-renderer": {
-      "why": "Chosen. Claude thinks and writes data; a zero-dep script renders, deterministically. Grid logic lives in one place.",
+      "why": "Chosen. The agent thinks and writes data; a zero-dep script renders, deterministically. Grid logic lives in one place.",
       "rel": [
         [
           "data-embedded",
@@ -684,7 +684,7 @@
       "notes": []
     },
     "build-prompt": {
-      "why": "Claude hand-writes the page each time.",
+      "why": "The agent hand-writes the page each time.",
       "rel": [
         [
           "coach-optin",
@@ -704,24 +704,24 @@
       ]
     },
     "build-tool": {
-      "why": "A CLI or MCP server with validate / render / diff / moves.",
+      "why": "A command-line tool with validate / render / diff / moves.",
       "rel": [],
       "notes": [
         "A product, not a skill. Nothing here rules it out — that is worth noticing. It is “too early”, which is a preference, not an edge."
       ]
     },
     "page-local": {
-      "why": "Chosen. Works anywhere Node runs; Artifact when claude.ai is there.",
+      "why": "Chosen. Works anywhere Node runs; a hosted page when one is there.",
       "rel": [],
       "notes": []
     },
     "page-artifact": {
-      "why": "Publish as an Artifact only.",
+      "why": "Publish as a hosted page only.",
       "rel": [
         [
           "home-user",
           "conf",
-          "A portable, shareable skill cannot assume claude.ai is reachable.",
+          "A portable, shareable skill cannot assume a hosting service is reachable.",
           "argued"
         ]
       ],

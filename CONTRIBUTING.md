@@ -127,13 +127,36 @@ against ISO 24495-1: active voice, present tense, one instruction per sentence,
 twenty words or fewer, no idiom. See
 [`skills/eagle-eye/reference/writing-edges.md`](skills/eagle-eye/reference/writing-edges.md).
 A patch that breaks the rule the skill teaches is the worst kind of patch here.
+groundtrack's prose follows the same controlled English.
 
-groundtrack's prose follows the same controlled English, and carries one rule
-of its own: **it names no other skill and no outside tool.** Not in its
-description, not in its body, not in its examples. The occasion is stated as a
-bare fact a stranger can check — *for a plan already made or work already
-done*. A skill that couples itself to vocabulary the reader may not have is a
-skill that stops working when they do not have it.
+**A skill names no vocabulary this repository does not own.** Not in its
+description, not in its body, not in its examples. No outside skill name,
+command name, or tool-specific noun.
+
+The test is one question a stranger can run: *does this sentence stay true and
+checkable for a reader who has only this repository?* A borrowed name fails it
+twice — the reader cannot resolve it, and the sentence asserts something about
+a tool they do not have.
+
+**The test is per sentence, not per word.** Ordinary English that collides with
+an outside name is fine: *during brainstorming* costs the reader nothing. A
+sentence built on a named tool's behaviour is not, even when every word in it
+is ordinary — *"Brainstorming has the clarifying questions answered and has not
+yet proposed approaches"* asserts a phase sequence only one tool has.
+
+**A citation is not vocabulary.** A `src` field records where a claim came
+from, so it points outside this repository by definition — a chat turn, a
+document, an earlier artifact, a runtime's manual. Genericise it and it cites
+nothing, and the renderer refuses a `sourced` edge that names no `src` anyway.
+This is scope, not an exception: the rule governs the words a reader must
+resolve to use the skill, and a citation is a pointer for somebody checking the
+claim. It covers the field only. The `why` beside it obeys the rule.
+
+State a skill's occasion as a bare fact instead: *for a plan already made or
+work already done*, or *any walk through a plan one decision at a time*. A
+skill that couples itself to vocabulary the reader may not have is a skill that
+stops working when they do not have it. Why this test and not a narrower one:
+[`docs/adr/0001-skills-own-their-vocabulary.md`](docs/adr/0001-skills-own-their-vocabulary.md).
 
 **Changing the export format touches three places.** The page writes it,
 `SKILL.md` specifies it, and the agent reads it back. All three in one commit,

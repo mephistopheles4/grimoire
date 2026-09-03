@@ -1,7 +1,7 @@
 {
   "id": "map-300-woodwork",
   "title": "Map #300 · ship the woodwork",
-  "blurb": "A wayfinder map as a call graph. Nodes are tickets, call edges are `blocked by`, effects are the durable artifacts a ticket deposits — a PR, a gate row, an ADR, a tracker edit — and the error channel is how the plan fails rather than how the code fails. The presets are histories: what happened, and the four things the map's own warnings say must not.",
+  "blurb": "A ticket map as a call graph. Nodes are tickets, call edges are `blocked by`, effects are the durable artifacts a ticket deposits — a PR, a gate row, an ADR, a tracker edit — and the error channel is how the plan fails rather than how the code fails. The presets are histories: what happened, and the four things the map's own warnings say must not.",
   "entry": "map",
   "env": {
     "chain": [
