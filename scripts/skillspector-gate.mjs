@@ -11,7 +11,9 @@
 // tests/skillspector-gate.test.mjs, which feeds it reports by hand and never
 // runs the scanner.
 //
-// Three things it deliberately does not read:
+// Four things it deliberately does not read. The fourth — the report's own
+// `is_complete` flag — is argued where it is skipped, beside the counts read
+// in its place. The first three:
 //
 // **The scanner's exit code.** That code answers "should I install this whole
 // skill": 0 at a risk score of fifty or under, 1 above it. A file carrying an

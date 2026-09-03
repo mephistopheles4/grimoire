@@ -86,9 +86,13 @@ jobs:
       # Exit 2 is an error and fails here. Exit 0 and exit 1 both mean the scan
       # ran, and which one it was depends on the risk score, which this gate
       # does not read. The scanner has a --fail-on-incomplete flag that folds a
-      # partial analysis into exit 1; it is not used, because the exit code is
-      # not the signal. scripts/skillspector-gate.mjs reads the report's own
-      # completeness fields instead, and fails on the same condition.
+      # partial analysis into exit 1; it is not used, and not only because the
+      # exit code is not the signal. Its condition is the report's is_complete
+      # flag, which the scanner clears whenever its reference pass meets a
+      # relative link it did not follow — this repository's markdown is full of
+      # those. scripts/skillspector-gate.mjs reads the coverage counts instead,
+      # which say whether the scanner actually skipped something, and carries
+      # the argument for the difference.
       #
       # No `|| true` anywhere. A blanket one swallows the error case with
       # everything else.
