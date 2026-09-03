@@ -100,6 +100,21 @@ test('an unwind pops the frame and keeps the error travelling', () => {
   assert.ok(s[i + 1].errorPath.some(e => e.how === 'passed through'));
 });
 
+test('an effect mark outlives the frame that produced it', () => {
+  // The drawing shows one box per node and the tree shows one row per call
+  // site. Read off the open frame, a node's marks vanished from the drawing
+  // the moment it returned, while the tree kept them — one graph seen two
+  // ways, disagreeing. The fold carries both keyings for that reason.
+  const walk = runNamed(greet, 'a known user').walk;
+  const s = G.fold(greet, walk);
+  const end = s[s.length - 1];
+  assert.equal(end.frames.length, 0, 'nothing is on the stack at the end');
+  assert.equal(end.nodeEffects['lookupName[0]'], 'landed');
+  assert.equal(end.nodeEffects['greet[6]'], 'landed');
+  // And it is still cumulative-to-the-cursor, not the whole walk at once.
+  assert.deepEqual(s[0].nodeEffects, {});
+});
+
 test('the ledger grows one row per effect, in order, with what the walk claims', () => {
   const walk = runNamed(greet, 'a known user').walk;
   const s = G.fold(greet, walk);

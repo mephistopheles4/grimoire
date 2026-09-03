@@ -512,10 +512,12 @@ function start() {
           : '';
     const E = (ch.E || []).length ? (ch.E || []).map(esc).join(' &middot; ') : '<span class="none">never</span>';
     const R = rOf(id).length ? esc(rOf(id).join(', ')) : '<span class="none">none</span>';
-    const site = st.frames.filter(f => f.nodeId === id).map(f => f.site)[0];
+    // Keyed by node, not by call site. The drawing shows one box per node, so
+    // a mark read off the open frame would disappear the moment that frame
+    // returned — while the tree, which is one row per call site, kept it.
     const fx = G.effectsOf(n)
       .map(function (e) {
-        const mark = site && st.sites[site] ? st.sites[site].effects[id + '[' + e.at + ']'] : null;
+        const mark = st.nodeEffects[id + '[' + e.at + ']'];
         const k = mark === 'failed' ? ' fx--fail' : mark === 'landed' ? ' fx--ok' : '';
         return (
           '<div class="fx' + k + '"><span class="fx-dot"></span><span class="fx-lead"></span>' +

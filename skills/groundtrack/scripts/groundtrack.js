@@ -85,6 +85,12 @@ const Groundtrack = (() => {
     let edges = [];
     let errorPath = [];
     let sites = {}; /* site key -> { entered, returned, effects: { "node[at]": outcome } } */
+    /* The same marks again, keyed by node rather than by call site. The tree
+     * shows one row per call site and wants the first; the drawing shows one
+     * box per node and wants the second. Without this the drawing loses a
+     * node's effect marks the moment its frame returns, while the tree keeps
+     * them — one graph seen two ways, disagreeing. */
+    let nodeEffects = {};
     let ended = null;
 
     const clone = () => frames.map(f => ({ ...f }));
@@ -103,6 +109,7 @@ const Groundtrack = (() => {
         edges: [],
         errorPath: [],
         sites: JSON.parse(JSON.stringify(sites)),
+        nodeEffects: {},
         ended: null,
         moved: null,
       },
@@ -152,6 +159,7 @@ const Groundtrack = (() => {
           case 'effect': {
             const outcome = m.raised !== undefined ? 'failed' : 'landed';
             touch(siteOf(top)).effects[`${top.nodeId}[${m.at}]`] = outcome;
+            nodeEffects = { ...nodeEffects, [`${top.nodeId}[${m.at}]`]: outcome };
             ledger = ledger.concat([
               {
                 nodeId: top.nodeId,
@@ -202,6 +210,7 @@ const Groundtrack = (() => {
         edges: edges.slice(),
         errorPath: errorPath.slice(),
         sites: JSON.parse(JSON.stringify(sites)),
+        nodeEffects,
         ended,
         moved,
       });
