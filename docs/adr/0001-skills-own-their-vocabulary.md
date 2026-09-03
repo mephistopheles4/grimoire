@@ -55,6 +55,13 @@ it was written for, and chose wording that fits any agent. So skill prose says
 service that provides it. Files outside `skills/` are unaffected — this
 repository is free to name its own host, and does.
 
+**A `src` field is out of scope, and this is not an exception to the rule
+above.** Provenance points outside the repository by definition, so a rule that
+forbade it there would forbid citation itself — and the renderer refuses a
+`sourced` edge that names no `src`. The rule governs words a reader must
+resolve to use the skill. A citation is a pointer for somebody checking a
+claim, and the `why` it sits beside still obeys the rule.
+
 **Some provenance is lost, and that is accepted.** `eagle-eye`'s own boxed
 design recorded three named tools as candidate host flows for its trigger. The
 labels now say *another host flow*. The argument survives in full — the row
