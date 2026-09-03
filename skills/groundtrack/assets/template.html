@@ -248,7 +248,7 @@ input[type=checkbox] { accent-color: var(--dw-ink); margin: 0 var(--dw-s1) 0 0; 
   padding: var(--dw-s2) var(--dw-s3); border-bottom: var(--dw-rule-bold) solid var(--dw-ink);
   position: sticky; top: 0; background: var(--dw-paper); z-index: 1; }
 .side-head label { display: inline-flex; align-items: center; cursor: pointer; }
-.side-head label[title] { cursor: help; }
+.side-head label[data-help] { cursor: help; }
 .blk { padding: var(--dw-s2) var(--dw-s3) var(--dw-s3); border-bottom: var(--dw-rule-hair) solid var(--dw-ink-12); }
 .blk > .dw-label { display: block; margin-bottom: var(--dw-s1); }
 .row { display: flex; gap: var(--dw-s1); font-size: var(--dw-t-annot); align-items: baseline; }
@@ -328,6 +328,23 @@ input[type=checkbox] { accent-color: var(--dw-ink); margin: 0 var(--dw-s1) 0 0; 
 .sheet-root.scrubbing .trace-span { cursor: grabbing; }
 .sheet-root.scrubbing, .sheet-root.scrubbing * { user-select: none; -webkit-user-select: none; }
 
+/* The help note. One element, moved to whatever carries a data-help when the
+   pointer rests on it or focus lands on it. An annotation on paper in the
+   system's vocabulary: a thin ink box, annotation size, ink 80 — no shadow, no
+   radius, no colour. The text is the page's own and never the file's. */
+.tip { position: fixed; z-index: 20; max-width: 38ch; padding: var(--dw-s1) var(--dw-s2);
+  background: var(--dw-paper); color: var(--dw-ink-80); border: var(--dw-rule-thin) solid var(--dw-ink);
+  font-size: var(--dw-t-annot); line-height: 1.45; text-transform: none; letter-spacing: normal;
+  font-weight: 400; pointer-events: none; }
+.tip[hidden] { display: none; }
+.tip::before { content: ''; position: absolute; left: var(--dw-s2); top: -7px; width: 5px; height: 5px;
+  border-radius: 50%; background: var(--dw-ink); }
+.tip--above::before { top: auto; bottom: -7px; }
+[data-help] { cursor: help; }
+button[data-help], select[data-help], .split[data-help], .trace-span[data-help] { cursor: inherit; }
+button[data-help] { cursor: pointer; }
+button[data-help][disabled] { cursor: default; }
+
 .refused { padding: var(--dw-s4); max-width: 60rem; }
 .refused h1 { font-size: var(--dw-t-h3); }
 .refused li { font-size: var(--dw-t-annot); }
@@ -341,15 +358,15 @@ input[type=checkbox] { accent-color: var(--dw-ink); margin: 0 var(--dw-s1) 0 0; 
       <span class="head-title" id="title"></span>
     </div>
     <label class="dw-label" for="run">run</label>
-    <select id="run" title="Which recorded walk to step. Each run is one route through the graph."></select>
+    <select id="run" data-help="Which recorded walk to step. Each run is one route through the graph."></select>
     <span class="dw-annot" id="runBlurb"></span>
     <div class="btn-group">
-      <button class="btn" id="first" title="Back to the start">|&lt;</button>
-      <button class="btn" id="prev" title="Step back one move">&lt;</button>
-      <button class="btn" id="play" title="Run the walk. It stops at a hold, or at the end.">play</button>
-      <button class="btn" id="next" title="Step forward one move">&gt;</button>
-      <button class="btn" id="last" title="Jump to the end">&gt;|</button>
-      <span class="stepnow" id="stepnow" title="The move the cursor is on, out of the moves in this run"></span>
+      <button class="btn" id="first" data-help="Back to the start">|&lt;</button>
+      <button class="btn" id="prev" data-help="Step back one move">&lt;</button>
+      <button class="btn" id="play" data-help="Run the walk. It stops at a hold, or at the end.">play</button>
+      <button class="btn" id="next" data-help="Step forward one move">&gt;</button>
+      <button class="btn" id="last" data-help="Jump to the end">&gt;|</button>
+      <span class="stepnow" id="stepnow" data-help="The move the cursor is on, out of the moves in this run"></span>
     </div>
   </div>
 
@@ -357,18 +374,18 @@ input[type=checkbox] { accent-color: var(--dw-ink); margin: 0 var(--dw-s1) 0 0; 
     <div class="toolblock">
       <div class="grp">
         <span class="grp-k dw-label">zoom</span>
-        <button id="zoomOut" title="Zoom out">&minus;</button>
-        <button id="zoomFit" title="Fit the whole drawing in the pane">fit</button>
-        <button id="zoomIn" title="Zoom in">+</button>
-        <span class="now" id="scaleNow" title="The scale the drawing is shown at, as a ratio">1:1</span>
+        <button id="zoomOut" data-help="Zoom out">&minus;</button>
+        <button id="zoomFit" data-help="Fit the whole drawing in the pane">fit</button>
+        <button id="zoomIn" data-help="Zoom in">+</button>
+        <span class="now" id="scaleNow" data-help="The scale the drawing is shown at, as a ratio">1:1</span>
       </div>
       <div class="grp" id="layerGrp">
-        <span class="grp-k dw-label" title="A layer redraws the same graph under a different set of dependencies. The test layer is the obvious one.">layer</span>
+        <span class="grp-k dw-label" data-help="A layer redraws the same graph under a different set of dependencies. The test layer is the obvious one.">layer</span>
       </div>
       <div class="grp">
         <span class="grp-k dw-label">view</span>
-        <button id="viewPlan" class="on" title="The drawing">plan</button>
-        <button id="viewTree" title="The same graph as an indented tree, one row per call site. Stepping still works here.">tree</button>
+        <button id="viewPlan" class="on" data-help="The drawing">plan</button>
+        <button id="viewTree" data-help="The same graph as an indented tree, one row per call site. Stepping still works here.">tree</button>
       </div>
     </div>
     <div id="canvas"></div>
@@ -376,27 +393,27 @@ input[type=checkbox] { accent-color: var(--dw-ink); margin: 0 var(--dw-s1) 0 0; 
   </div>
 
   <div class="side" id="side">
-    <div class="split split-v" id="splitV" title="Drag to resize the rail"></div>
+    <div class="split split-v" id="splitV" data-help="Drag to resize the rail"></div>
     <div class="side-head">
-      <label class="dw-label" title="When playing, stop on the next move that touches the outside world — a network call, a file, the console."><input type="checkbox" id="holdEffect">hold on next effect</label>
-      <label class="dw-label" title="When playing, stop on the next throw, the next effect that raises, or an error reaching the top uncaught."><input type="checkbox" id="holdError">hold on next error</label>
+      <label class="dw-label" data-help="When playing, stop on the next move that touches the outside world — a network call, a file, the console."><input type="checkbox" id="holdEffect">hold on next effect</label>
+      <label class="dw-label" data-help="When playing, stop on the next throw, the next effect that raises, or an error reaching the top uncaught."><input type="checkbox" id="holdError">hold on next error</label>
     </div>
-    <div class="blk"><span class="dw-label" title="The frames open at the cursor, top first. How the walk got to the node it is on.">call stack</span><div id="stack"></div></div>
-    <div class="blk"><span class="dw-label" title="The values this run started from. Read-only: the walk was recorded under exactly these.">inputs</span><div id="inputs"></div></div>
-    <div class="blk"><span class="dw-label" title="How far the current error has travelled: where it was raised, which frames it passed through, and where it was caught.">error path</span><div id="errpath"></div></div>
-    <div class="blk"><span class="dw-label" title="Every effect the walk has run so far, in order, with what the author says it returned or raised.">effects ledger</span><div id="ledger"></div></div>
+    <div class="blk"><span class="dw-label" data-help="The frames open at the cursor, top first. How the walk got to the node it is on.">call stack</span><div id="stack"></div></div>
+    <div class="blk"><span class="dw-label" data-help="The values this run started from. Read-only: the walk was recorded under exactly these.">inputs</span><div id="inputs"></div></div>
+    <div class="blk"><span class="dw-label" data-help="How far the current error has travelled: where it was raised, which frames it passed through, and where it was caught.">error path</span><div id="errpath"></div></div>
+    <div class="blk"><span class="dw-label" data-help="Every effect the walk has run so far, in order, with what the author says it returned or raised.">effects ledger</span><div id="ledger"></div></div>
   </div>
 
   <div class="cut" id="cut">
-    <div class="split split-h" id="splitH" title="Drag to resize the cutaway"></div>
+    <div class="split split-h" id="splitH" data-help="Drag to resize the cutaway"></div>
     <div class="cut-head">
-      <span class="dw-label" title="One node, opened up. Click a node on the drawing or a row in the tree to open it here.">cutaway</span>
+      <span class="dw-label" data-help="One node, opened up. Click a node on the drawing or a row in the tree to open it here.">cutaway</span>
       <strong id="cutName"></strong>
       <span class="dw-annot" id="cutLoc"></span>
       <div class="tabs">
-        <button class="tab tab--on" data-tab="source" title="The node's steps, with the cursor marked">source</button>
-        <button class="tab" data-tab="files" title="The files this node changes, the files other nodes change, and the files in the change no node accounts for">files</button>
-        <button class="tab" data-tab="contract" title="What the node declares: what it takes, returns, can raise, and needs">contract</button>
+        <button class="tab tab--on" data-tab="source" data-help="The node's steps, with the cursor marked">source</button>
+        <button class="tab" data-tab="files" data-help="The files this node changes, the files other nodes change, and the files in the change no node accounts for">files</button>
+        <button class="tab" data-tab="contract" data-help="What the node declares: what it takes, returns, can raise, and needs">contract</button>
       </div>
     </div>
     <div class="tape" id="cutBody"></div>
@@ -407,7 +424,7 @@ input[type=checkbox] { accent-color: var(--dw-ink); margin: 0 var(--dw-s1) 0 0; 
     <div class="trace">
       <div class="traceband">
         <div class="sheetfacts" id="sheetfacts"></div>
-        <div class="trace-span" id="traceSpan" title="Drag or click to move the cursor">
+        <div class="trace-span" id="traceSpan" data-help="Drag or click to move the cursor">
           <div class="trace-rule"></div>
           <div class="trace-fill" id="traceFill"></div>
           <div class="trace-tick" id="traceTick"></div>
@@ -557,7 +574,7 @@ function start() {
     );
   }
 
-  const channelKey = k => '<b title="' + HELP[k] + '">' + k + '</b>';
+  const channelKey = k => '<b data-help="' + HELP[k] + '">' + k + '</b>';
 
   function nodeBox(id, st, reach) {
     const n = PROG.nodes[id];
@@ -572,11 +589,11 @@ function start() {
       'nd' + (cold ? ' nd--cold' : '') + (onStack ? ' nd--active' : '') +
       (erroring ? ' nd--error' : '') + (S.open === id ? ' nd--sel' : '');
     const chip = top
-      ? '<span class="dw-label chip-help" style="margin-left:auto" title="The frame the cursor is in">on stack</span>'
+      ? '<span class="dw-label chip-help" style="margin-left:auto" data-help="The frame the cursor is in">on stack</span>'
       : onStack
-        ? '<span class="dw-label chip-help" style="margin-left:auto" title="On the stack, suspended at a call, waiting for the callee to return">waiting</span>'
+        ? '<span class="dw-label chip-help" style="margin-left:auto" data-help="On the stack, suspended at a call, waiting for the callee to return">waiting</span>'
         : visited
-          ? '<span style="margin-left:auto"><span class="dw-state dw-state--normal chip-help" title="Entered and returned earlier in this walk">returned</span></span>'
+          ? '<span style="margin-left:auto"><span class="dw-state dw-state--normal chip-help" data-help="Entered and returned earlier in this walk">returned</span></span>'
           : '';
     const E = (ch.E || []).length ? (ch.E || []).map(esc).join(' &middot; ') : '<span class="none">never</span>';
     const R = rOf(id).length ? esc(rOf(id).join(', ')) : '<span class="none">none</span>';
@@ -599,7 +616,7 @@ function start() {
     return (
       '<div class="' + cls + '" data-node="' + id + '" style="left:' + p.x + 'px;top:' + p.y +
       'px;width:' + LAYOUT.width + 'px">' +
-      '<div class="nd-top"><span class="dw-label chip-help" title="' + HELP.role + '">' + esc(n.role) + '</span>' + chip + '</div>' +
+      '<div class="nd-top"><span class="dw-label chip-help" data-help="' + HELP.role + '">' + esc(n.role) + '</span>' + chip + '</div>' +
       '<div class="nd-name">' + esc(n.name) + '</div>' +
       '<div class="nd-loc">' + esc(n.loc) + '</div>' +
       '<div class="nd-ch">' + channelKey('A') + '<span>' + esc(ch.A || '—') + '</span>' +
@@ -632,7 +649,7 @@ function start() {
           '<div class="' + cls + '" data-node="' + row.id + '" style="padding-left:' + (row.depth * 24) + 'px">' +
           '<span class="tr-name">' + (row.depth ? '&rarr; ' : '') + esc(row.name) +
           (row.repeat ? ' <span class="none">(seen above — stopped)</span>' : '') + '</span>' +
-          '<span class="dw-label tr-kind" title="' + HELP.role + '">' + esc(row.role) + '</span>' +
+          '<span class="dw-label tr-kind" data-help="' + HELP.role + '">' + esc(row.role) + '</span>' +
           '<span class="tr-ch">' + channelKey('A') + ' ' + esc(row.A || '—') + ' &nbsp; ' + channelKey('E') + ' ' + E +
           ' &nbsp; ' + channelKey('R') + ' ' + R + '</span>' +
           siteText + '<span class="tr-fxs">' + marks + '</span></div>'
@@ -766,7 +783,7 @@ function start() {
     const n = PROG.nodes[S.open];
     const ch = n.channels || {};
     const line = (k, v, help) =>
-      '<div class="row"><span class="row-k"' + (help ? ' title="' + help + '"' : '') + ' style="width:8rem">' + k + '</span><span class="row-v">' + v + '</span></div>';
+      '<div class="row"><span class="row-k"' + (help ? ' data-help="' + help + '"' : '') + ' style="width:8rem">' + k + '</span><span class="row-v">' + v + '</span></div>';
     return (
       line('role', esc(n.role), HELP.role) +
       line('takes', (n.params || []).length ? esc((n.params || []).join(', ')) : '<span class="none">nothing</span>') +
@@ -786,7 +803,7 @@ function start() {
     /* Authored draws as a bordered caution stamp, captured as a nominal one —
        one of green's few honest uses. */
     const stamp =
-      '<span class="dw-state stamp ' + (authored ? 'dw-state--caution' : 'dw-state--normal') + '" title="' +
+      '<span class="dw-state stamp ' + (authored ? 'dw-state--caution' : 'dw-state--normal') + '" data-help="' +
       (authored ? HELP.authored : HELP.captured) + '">' + (authored ? 'authored' : 'captured') + '</span>';
     return (
       cell('file', esc(PROG.id)) +
@@ -813,6 +830,7 @@ function start() {
   };
 
   function render() {
+    hideTip(); /* the element under the pointer is about to be replaced */
     const st = S.states[S.at];
     const reach = reachable();
     $('title').textContent = PROG.title;
@@ -1125,7 +1143,73 @@ function start() {
     root.style.setProperty('--cut-h', h + 'px');
   });
 
+  /* The help note. Shown after a short rest on anything that carries a
+     data-help, or at once when focus lands on it; hidden on leave, blur, a
+     press, a scroll, Escape, or a render — which replaces the thing under the
+     pointer. The text is set as text, never as markup, and it is the page's
+     own: nothing from the file reaches a data-help. */
+  const tip = document.createElement('div');
+  tip.className = 'tip';
+  tip.id = 'tip';
+  tip.setAttribute('role', 'tooltip');
+  tip.hidden = true;
+  document.body.appendChild(tip);
+  let tipTimer = null;
+  let tipFor = null;
+  function hideTip() {
+    if (tipTimer) { clearTimeout(tipTimer); tipTimer = null; }
+    if (!tipFor) return;
+    tip.hidden = true;
+    tipFor.removeAttribute('aria-describedby');
+    tipFor = null;
+  }
+  function showTip(el) {
+    const text = el.getAttribute('data-help');
+    if (!text) return;
+    tipFor = el;
+    tip.textContent = text;
+    tip.className = 'tip';
+    tip.hidden = false;
+    el.setAttribute('aria-describedby', 'tip');
+    /* Below the thing by default, above it when there is no room, and never
+       off the edge of the window. The margins are the system's --dw-s2 and
+       the leader gap, held here because a layout number cannot be read out
+       of a custom property without a round trip through computed style. */
+    const EDGE = 12, GAP = 9;
+    const r = el.getBoundingClientRect();
+    const w = tip.offsetWidth, h = tip.offsetHeight;
+    const left = Math.max(EDGE, Math.min(r.left, window.innerWidth - w - EDGE));
+    let top = r.bottom + GAP;
+    if (top + h > window.innerHeight - EDGE) {
+      top = r.top - h - GAP;
+      tip.className = 'tip tip--above';
+    }
+    tip.style.left = left + 'px';
+    tip.style.top = Math.max(EDGE, top) + 'px';
+  }
+  document.addEventListener('pointerover', function (e) {
+    const el = e.target.closest ? e.target.closest('[data-help]') : null;
+    if (!el || el === tipFor) return;
+    hideTip();
+    tipTimer = setTimeout(function () { tipTimer = null; showTip(el); }, 300);
+  });
+  document.addEventListener('pointerout', function (e) {
+    const el = e.target.closest ? e.target.closest('[data-help]') : null;
+    if (!el) return;
+    if (e.relatedTarget && el.contains(e.relatedTarget)) return;
+    hideTip();
+  });
+  document.addEventListener('focusin', function (e) {
+    const el = e.target.closest ? e.target.closest('[data-help]') : null;
+    if (el) { hideTip(); showTip(el); }
+  });
+  document.addEventListener('focusout', hideTip);
+  document.addEventListener('pointerdown', hideTip, true);
+  window.addEventListener('scroll', hideTip, true);
+  window.addEventListener('resize', hideTip);
+
   window.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape') hideTip();
     // A form control gets its own arrow keys. Without this, an arrow pressed
     // on the run picker steps the walk and then the select's own change
     // handler reseeds it, so the step is spent and thrown away — and an arrow
