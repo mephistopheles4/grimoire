@@ -130,6 +130,16 @@ The reader steps forward and back, holds the walk on the next effect or the
 next error, reads the call stack and the effects ledger, opens one node to see
 its body, and flips between the drawing and a tree.
 
+The cutaway follows the cursor. Each move opens the node the walk is in and
+brings the step that ran into view. A node opened by hand stays open until the
+cursor next moves.
+
+The wheel scrolls the drawing. With ctrl held it zooms about the pointer.
+
+The contract tab states one number per node: its cyclomatic complexity, as
+drawn. One, plus one for each `if`, each error handler and each backward jump.
+It measures the drawing, and the drawing is what you chose to draw.
+
 The page makes no network request. Open it by double-clicking, or send it to
 somebody else.
 

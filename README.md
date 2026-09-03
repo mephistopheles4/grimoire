@@ -1,6 +1,18 @@
-# grimoire
+<p align="center">
+  <img src="docs/brand/grimoire/grimoire-mark.svg" width="112" alt="grimoire mark">
+</p>
 
-A spellbook of agent skills for AI. Cast wisely.
+<h1 align="center">G R I M O I R E</h1>
+
+<p align="center"><strong>A spellbook of agent skills for AI. Cast wisely.</strong></p>
+
+<p align="center">
+  <a href="skills/eagle-eye"><img src="docs/brand/eagle-eye/eagle-eye-mark.svg" width="40" alt="eagle-eye"></a>
+  &nbsp;&nbsp;
+  <a href="skills/groundtrack"><img src="docs/brand/groundtrack/groundtrack-mark.svg" width="40" alt="groundtrack"></a>
+</p>
+
+---
 
 Two skills today, more later. Works with any agent:
 
@@ -25,17 +37,20 @@ Plugin skills are namespaced, so that route invokes them as
 `/grimoire:eagle-eye` and `/grimoire:groundtrack`. The installer route keeps the
 plain `/eagle-eye` and `/groundtrack`.
 
-Either way you get both skill directories, each with its `SKILL.md` and the
-renderer that goes with it:
+Either way you get both skill directories, each with its `SKILL.md`, the
+renderer that goes with it, and a README of its own:
 
 - [`skills/eagle-eye/`](skills/eagle-eye) — coupled decisions, as a
   morphological box.
 - [`skills/groundtrack/`](skills/groundtrack) — a plan or a written change, as
   a call graph you can step through.
 
+The marks, the cards and the tokens behind them are in
+[`docs/brand/`](docs/brand).
+
 ---
 
-## eagle-eye
+## <img src="docs/brand/eagle-eye/eagle-eye-mark.svg" width="32" align="absmiddle" alt=""> eagle-eye
 
 **A decision is made once it has been seen against the whole system.**
 
@@ -106,7 +121,7 @@ complete example is
 
 ---
 
-## groundtrack
+## <img src="docs/brand/groundtrack/groundtrack-mark.svg" width="32" align="absmiddle" alt=""> groundtrack
 
 **A reader who did not write a change cannot see its shape.**
 

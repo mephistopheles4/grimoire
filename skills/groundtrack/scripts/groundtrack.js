@@ -61,6 +61,32 @@ const Groundtrack = (() => {
 
   const effectsOf = node => (node.steps || []).map((s, i) => ({ ...s, at: i })).filter(s => s.op === 'effect');
 
+  /* Cyclomatic complexity of one node, as drawn: one, plus one for each place
+   * the path forks. An `if` forks. Each onError handler forks, since the call
+   * or effect it guards can go on or be caught. A jump backward — a goto, or
+   * an if branch, that lands at or before its own step — closes a loop, and a
+   * loop is one more independent path.
+   *
+   * It is the complexity of the drawing and not of the code. The author chose
+   * which branches to draw, and a node whose steps are one note has a value
+   * of one however the real function reads. Cognitive complexity is not
+   * computed, on purpose: it weights nesting depth, and a flat step list with
+   * labels does not carry nesting, so any number would be a guess.
+   */
+  function complexityOf(node) {
+    const L = labelsOf(node);
+    let ifs = 0, handlers = 0, loops = 0;
+    (node.steps || []).forEach((s, i) => {
+      if (s.op === 'if') {
+        ifs += 1;
+        for (const k of ['then', 'else']) if (L[s[k]] !== undefined && L[s[k]] <= i) loops += 1;
+      }
+      if (s.op === 'goto' && L[s.to] !== undefined && L[s.to] <= i) loops += 1;
+      handlers += (s.onError || []).length;
+    });
+    return { value: 1 + ifs + handlers + loops, ifs, handlers, loops };
+  }
+
   /* -- the fold ------------------------------------------------------------
    *
    * The player may derive, never decide. This pushes a frame, pops a frame,
@@ -289,9 +315,12 @@ const Groundtrack = (() => {
     const rows = {};
     for (const id of order) (rows[depth[id]] = rows[depth[id]] || []).push(id);
 
-    /* The box: 12 + 12 padding, a 20 top row, a 24 name, an 18 location, a 66
-     * channel block, and 21 for each effect row under it. */
-    const H = Object.fromEntries(ids.map(id => [id, 152 + effectsOf(prog.nodes[id]).length * 21]));
+    /* The box, measured on the page at 1:1: 12 + 12 padding, a 21 top row —
+     * 23 when it carries a state chip, which is the height taken here so no
+     * wire starts inside a box — a 24 name, a 19 location, a 71 channel
+     * block, and 22 for each effect row under it. The two small type sizes
+     * moved up one step, and these moved with them. */
+    const H = Object.fromEntries(ids.map(id => [id, 163 + effectsOf(prog.nodes[id]).length * 22]));
     const widest = Math.max(...Object.values(rows).map(r => r.length));
     const sheetW = widest * W + (widest - 1) * GAP_X;
 
@@ -421,6 +450,6 @@ const Groundtrack = (() => {
     return best;
   }
 
-  return { esc, ID, labelsOf, callSites, calleesOf, effectsOf, fold, back, cutEdges, layout, treeRows, suggestRun, renamedToken };
+  return { esc, ID, labelsOf, callSites, calleesOf, effectsOf, complexityOf, fold, back, cutEdges, layout, treeRows, suggestRun, renamedToken };
 })();
 if (typeof module !== 'undefined') module.exports = Groundtrack;
