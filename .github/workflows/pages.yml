@@ -5,10 +5,17 @@ on:
     branches: [main]
   workflow_dispatch:
 
+# contents: read is all the workflow grants. The two write permissions Pages
+# needs are granted on the one job that uses them, below.
+#
+# They used to sit here, which handed them to `build` as well — a job that
+# checks out a stranger's branch state and runs a Node script over it, with
+# `pages: write` it never calls and an OIDC identity it never mints. zizmor
+# calls that `excessive-permissions` and rates it high, and it was the only
+# high finding in this tree when the audit was adopted. Nothing the `deploy`
+# job can do changed; `build` lost two grants it never used.
 permissions:
   contents: read
-  pages: write
-  id-token: write
 
 concurrency:
   group: pages
@@ -17,8 +24,23 @@ concurrency:
 jobs:
   build:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      # For actions/configure-pages, which reads the site's metadata with
+      # `GET /repos/{owner}/{repo}/pages` to learn the base URL. A read, and
+      # read is what it gets — see the enablement comment on that step.
+      pages: read
     steps:
+      # persist-credentials: false because no step after this one talks to git.
+      # The build renders a site, the Pages actions call the Pages API with the
+      # job's token from the environment, and the artifact is `path: site`, so
+      # .git never leaves the runner either way. The default writes the job's
+      # token into .git/config as an http.extraheader, which nothing here reads
+      # and nothing here needs. Raised by zizmor as `artipacked`, and gated by
+      # .github/workflows/zizmor.yml.
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: '22'
@@ -28,6 +50,10 @@ jobs:
       # the call returns "Resource not accessible by integration" — so Pages is
       # a repository setting, switched on with an admin credential. This
       # workflow reads it and cannot turn it on. See SECURITY.md.
+      #
+      # The action's own default is `enablement: false`, so it takes the read
+      # path and never the create path, which is why `pages: read` above is
+      # enough for it.
       - uses: actions/configure-pages@45bfe0192ca1faeb007ade9deae92b16b8254a0d # v6.0.0
       - uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
         with:
@@ -36,6 +62,12 @@ jobs:
   deploy:
     needs: build
     runs-on: ubuntu-latest
+    permissions:
+      # For actions/deploy-pages, and for nothing else in this file. It creates
+      # the deployment, which is a write, and mints an OIDC token to prove to
+      # the Pages service that this workflow run is the one asking.
+      pages: write
+      id-token: write
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}

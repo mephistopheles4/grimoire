@@ -173,6 +173,7 @@ repository, and that distinction matters more than it looks:
 | Private vulnerability reporting | the channel this file points at |
 | Branch protection on `main` | pull request required, `check` must pass, no bypass |
 | `skillspector` as a required status check | a SkillSpector finding blocking a merge, rather than being merged over |
+| `zizmor` as a required status check | a workflow-security finding blocking a merge, rather than being merged over |
 | Pages, built from Actions | what the `pages` workflow deploys to a public URL |
 
 One line of dependency defence is **in** the tree and does go red:
@@ -222,11 +223,19 @@ to say about it.
 
 **Every action is pinned to a commit SHA**, with a version-shaped comment beside
 it. The pins were resolved from the GitHub API at the time of writing, not from
-memory. **What no check here holds is whether the comment is true** — that
-`3d3c42e…` really is `v7.0.1` of `actions/checkout` is a fact living at GitHub,
-actions have no lockfile, and a hand-edit swapping in a different valid SHA
-under an unchanged comment would pass. That is the mitigation; it is not
-immunity.
+memory.
+
+**An earlier version of this paragraph said no check here holds whether the
+comment is true. One does now.** That `3d3c42e…` really is `v7.0.1` of
+`actions/checkout` is a fact living at GitHub and actions have no lockfile, so a
+hand-edit swapping in a different valid SHA under an unchanged comment used to
+pass. zizmor's `ref-version-mismatch` resolves the SHA at GitHub and reports the
+mismatch, and the section below gates on it. It is an **online** audit: measured
+on a workflow whose comment was deliberately wrong, it fires with a token and
+fires at no persona offline. That is why the workflow passes one.
+
+What is still not held: whether a SHA that matches its comment points at code
+worth trusting. A pin is a statement about identity, not about content.
 
 ## The skill prose is scanned, and the scan gates
 
@@ -344,6 +353,130 @@ which is why publishing one costs no honesty.
 while the check reported `pass`, and that run cannot be configured, baselined,
 or made to fail anything. It is outside this repository's control and is not
 what the table above relies on.
+
+## The workflows are audited, and the audit gates
+
+The section above scans the prose this repository ships. This one scans the
+thing that runs it. **Scope, at the top of this file, puts the CI workflows in
+by name, and until [`.github/workflows/zizmor.yml`](.github/workflows/zizmor.yml)
+existed nothing in the tree audited them.**
+
+[zizmor](https://docs.zizmor.sh) already reached this repository from outside.
+It found `artipacked` on all three checkouts, and that finding arrived inside a
+CodeRabbit review whose status check reported `pass` beside the words *"Review
+skipped: automatic reviews are disabled"*. That run cannot be configured,
+cannot be baselined, and cannot fail anything. **A check that reports and
+changes nothing reads as a check that passed.** This one is a gate.
+
+**Pinned to `zizmor==1.30.0`, and that is a weaker pin than the one beside
+it.** SkillSpector installs from a git commit, so its pin names exact bytes.
+zizmor is Rust and reaches PyPI as a prebuilt wheel: a git install would need a
+Rust toolchain on the runner, and hash-pinning the wheel needs a requirements
+file, which is the dependency manifest this tree refuses. A PyPI version cannot
+be re-uploaded under the same number, so this is close to a content pin and is
+not one. Like SkillSpector's, **Dependabot does not watch it** — the scanner
+arrives through a `run:` line, not a `uses:` line — so it rots silently and a
+bump is a reviewed pull request.
+
+**An official action exists and is not used.** `zizmorcore/zizmor-action` was
+published after the issue that asked for this said none was documented. It
+defaults to `version: latest`, it uploads SARIF unconditionally — which fails on
+a fork pull request, where the token is read-only — and its `version:` input is
+an action input, so Dependabot would not watch the scanner version through it
+either. The one thing a `uses:` line would buy is the one it does not buy.
+
+**A finding fails the build, at any severity, at the default persona.** Same
+rule as the SkillSpector gate beside it, for the same reason: a severity floor
+is a number to defend at every review. The gate is shell rather than a Node
+script, and **that difference is the whole reason the other one is a script.**
+SkillSpector's exit code answers "should I install this whole skill", against a
+risk-score threshold that once shipped a real finding as a `0`. zizmor's exit
+code answers exactly the question a pull request asks, and answers it precisely
+— a documented code per highest severity. Reading a report to rediscover it
+would be machinery with no measured reason behind it.
+
+**A broken audit fails too, and there is no `|| true`.** `1` is an error during
+the audit, including an input path that is not there; `2` is a bad argument;
+`3` is a path that exists and collects no workflow. All three are named and all
+three go red. The last is the one worth having: it is the shape of a gate that
+quietly checks nothing.
+
+**The audit runs online, with the job's own `contents: read` token.** That is a
+decision with a measured payoff, and it is the opposite direction from the
+change that removed the persisted credential from the SkillSpector job's working
+tree. The two are not the same credential and not the same risk. That change
+stopped a token being written into `.git/config`, where a scanner pointed at the
+whole tree would read it as a file. This one hands a token to a scanner through
+an environment variable, on purpose, to do public API reads:
+
+- **`ref-version-mismatch` is online-only, and it closes the gap named above.**
+  Measured on a workflow whose version comment was deliberately wrong: it fires
+  online at the default persona, and at no persona offline.
+- **`unpinned-uses` is not lost offline**, which the issue that asked for this
+  expected it to be. Measured on a workflow carrying `actions/checkout@v4`: it
+  fires at high offline and online alike. Only its auto-fix needs the network,
+  because writing the SHA in means resolving the tag first.
+- **Going online moves one severity downward.** `artipacked` is medium offline
+  and low online on this same tree. It changes nothing, because the gate fails
+  on a finding at any severity.
+- **The cost is a dependency on the GitHub API.** An outage exits `1`, and the
+  gate reports that as an errored audit rather than a clean one. An honest red,
+  and a re-run.
+
+**What it audits, and what it cannot see.** It reads `.github/workflows/` and
+nothing else. Rooted at the repository instead, it also collects
+`.github/dependabot.yml` and raises `dependabot-cooldown` — an opinion about how
+long to wait before taking a dependency update, which is a policy decision
+nobody here has taken. It reads workflow definitions statically: it cannot see
+what `scripts/check.mjs` or `scripts/build-pages.mjs` do once a `run:` step
+starts them, it cannot see a repository setting, and it does not know whether a
+correctly-pinned action is worth trusting.
+
+**There is no `zizmor.yml` and no `# zizmor: ignore` comment anywhere**, because
+there is nothing to suppress. Measured on this tree at this version: the default
+persona reports no finding at all. That absence is load-bearing. **zizmor has no
+per-entry reason field** — a suppression would carry its argument only as a YAML
+comment the tool never reads, and no check here could require one, which is the
+opposite of what `.skillspector-baseline.yaml` gets for the same job. If a
+suppression is ever needed, `scripts/check.mjs` has to grow the rule that every
+entry carries a reason, the way it already holds the two SkillSpector baselines
+to the same words. That cost is stated here before it is paid, and it is not
+paid yet.
+
+**What the audit changed on arrival.** Four findings on the tree it was pointed
+at, and all four were fixed rather than suppressed:
+
+| Finding | Where | What was done |
+| --- | --- | --- |
+| `artipacked` | `check.yml` | `persist-credentials: false`. Every git command it runs is a local read of an already-fetched history, and `fetch-depth: 0` puts `origin/main` on disk before any later step needs it. |
+| `artipacked` | `pages.yml` | `persist-credentials: false`. No step after the checkout talks to git. |
+| `excessive-permissions` | `pages.yml` | `pages: write` moved off the workflow and onto the `deploy` job. |
+| `excessive-permissions` | `pages.yml` | `id-token: write`, the same way. |
+
+The permissions move is worth stating plainly, because the issue that asked for
+this put narrowing permissions out of scope on the ground that **nobody had
+measured what each job actually needs**. zizmor measured it, and these were the
+only *high* findings in the tree. Nothing the `deploy` job can do changed. The
+`build` job lost two grants it never used and keeps `pages: read`, which is what
+`actions/configure-pages` needs for the `GET /repos/{owner}/{repo}/pages` it
+makes — its `enablement` input defaults to `false`, so it takes the read path
+and never the create path.
+
+**The default persona, and the pedantic delta measured rather than guessed.**
+`--persona=pedantic` adds twelve findings, all style: five informational
+`anonymous-definition` for unnamed jobs, four low `undocumented-permissions`,
+three low `concurrency-limits`. `--persona=auditor` finds nothing pedantic does
+not. Adopting them is a decision about workflow style that nobody has taken, and
+one of them asks for a behaviour change — a concurrency group cancels runs in
+flight.
+
+**actionlint is deliberately not adopted.** It checks workflow syntax and shell,
+and that class of error fails loudly on its own when the workflow runs. No
+`${{ }}` appears inside any `run:` block in this tree, which is the finding both
+tools would catch and the one that would actually matter, so what actionlint
+would add today is shellcheck over a handful of short blocks. That is the
+linting `CONTRIBUTING.md` argues against installing a dependency for. If a
+`${{ }}` ever lands in a `run:`, reopen it.
 
 ## What is deliberately not defended against
 

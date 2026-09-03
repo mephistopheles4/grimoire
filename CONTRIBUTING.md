@@ -17,10 +17,13 @@ language, fails on a dependency, fails when the two SkillSpector baselines
 disagree, and runs the test suite in `tests/`. CI runs it as a required check
 called `check`. `main` takes no direct pushes.
 
-A second workflow scans the skill prose with SkillSpector and fails on any
-finding the baselines do not cover. It installs the scanner on the runner and
-never on your machine, so the command above stays the only one you need. See
-[`SECURITY.md`](SECURITY.md) for what it suppresses and why.
+Two more workflows scan things the command above does not. One runs SkillSpector
+over the skill prose and fails on any finding the baselines do not cover. The
+other runs zizmor over `.github/workflows/` and fails on any finding at all —
+there is no baseline for it, because there is nothing to suppress. Both install
+their scanner on the runner and never on your machine, so the command above
+stays the only one you need. See [`SECURITY.md`](SECURITY.md) for what each one
+covers, what it suppresses, and why.
 
 It walks what `.gitignore` does not exclude, so a worktree under
 `.claude/worktrees/` is not descended into and not checked. Only the root
