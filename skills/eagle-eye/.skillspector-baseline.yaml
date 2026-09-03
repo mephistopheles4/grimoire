@@ -1,0 +1,37 @@
+# SkillSpector baseline for this skill.
+#
+# You are reading this because you scanned this directory before installing
+# what is in it, which is the right thing to do with a skill. Three of
+# SkillSpector's rules have fired on the files here, and this file says why each
+# one is wrong, so you can disagree with a reason rather than with silence.
+#
+# Which of the three fire on any given scan depends on the prose, and the prose
+# is edited constantly. An entry matching nothing today is an argument that was
+# made once and kept.
+#
+# The scanner reports the score unchanged and applies none of this unless you
+# ask. Apply it with --use-shipped-baseline, and read what it covered with
+# --show-suppressed.
+#
+# Every entry is keyed by rule identifier rather than by a fingerprint of the
+# text it matched. A fingerprint expires the next time the prose is edited, and
+# this prose is edited constantly; a rule key survives that, and it also
+# suppresses the rule across the whole directory. The reasons below are what
+# that breadth is paid for with.
+#
+# Nothing here was reworded to satisfy a pattern matcher.
+#
+# The repository this skill comes from carries the same file at its root,
+# covering three more rules that fire outside this directory. Its check refuses
+# a change that makes the two disagree.
+
+version: 2
+fingerprints: []
+
+rules:
+  - rule_id: "AR2"
+    reason: "False positive. SKILL.md tells the agent that a preview pane may render the page without script, so do not judge it from one. That adds a caveat; it does not suppress one."
+  - rule_id: "EA2"
+    reason: "False positive. The why text on an edge in the example box file. It is content the renderer prints for a reader, not an instruction the agent acts on alone."
+  - rule_id: "MP3"
+    reason: "False positive. A comment in the page template describing how Reset discards the reader's overrides and Undo offers them back. It documents a button, not an agent's memory."

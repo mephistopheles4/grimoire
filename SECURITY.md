@@ -115,6 +115,7 @@ repository, and that distinction matters more than it looks:
 | CodeQL (default setup) | static analysis of the JavaScript, including `lib/template.html` |
 | Private vulnerability reporting | the channel this file points at |
 | Branch protection on `main` | pull request required, `check` must pass, no bypass |
+| `skillspector` as a required status check | a SkillSpector finding blocking a merge, rather than being merged over |
 | Pages, built from Actions | what the `pages` workflow deploys to a public URL |
 
 One line of dependency defence is **in** the tree and does go red:
@@ -169,6 +170,123 @@ memory. **What no check here holds is whether the comment is true** — that
 actions have no lockfile, and a hand-edit swapping in a different valid SHA
 under an unchanged comment would pass. That is the mitigation; it is not
 immunity.
+
+## The skill prose is scanned, and the scan gates
+
+CodeQL reads the JavaScript. Nothing read the prose, which is the part of this
+repository an agent obeys — the risk this file opens with.
+[SkillSpector](https://github.com/NVIDIA/SkillSpector) does, and
+[`.github/workflows/skillspector.yml`](.github/workflows/skillspector.yml) runs
+it on every pull request and every push to `main`.
+
+**Pinned to `b7241089d7ec15d8b30df980dacbb428214732b9`, which is `v2.11.0` in
+the `NVIDIA` repository.** The owner is part of the pin: a fork of this scanner
+exists elsewhere. The pin is a commit, matching the convention every `uses:`
+line here follows — and unlike those, **Dependabot does not watch it.** Its
+`github-actions` ecosystem reads `uses:` lines and the scanner arrives through
+a `run:` line, and there is no pip manifest to read instead. So this pin rots
+silently and a bump is a reviewed pull request. The workflow says so in a
+comment.
+
+**A finding fails the build, at any severity.** Not the scanner's exit code and
+not its risk score. Both answer "should I install this whole skill" against a
+fifty-point threshold, and this was measured rather than assumed: a file
+carrying an instruction override and a credential read was added to the skill
+tree during triage, the scanner found both and rated them high, and it exited
+`0` — two findings across thirty files score 42. An advisory check would have
+shipped that green, which is the failure this repository already wrote a commit
+about. [`scripts/skillspector-gate.mjs`](scripts/skillspector-gate.mjs) reads
+the report's `issues` array instead, and
+[`tests/skillspector-gate.test.mjs`](tests/skillspector-gate.test.mjs) drives it
+with reports written by hand — one per rule it applies, including the shapes it
+refuses to judge. **A scan that errored, did not complete, or read only part of
+the tree fails as well**, because a broken scan must not read as a clean one.
+
+**Incompleteness is read from the counts, not from the report's own
+`is_complete` flag**, and that is a trade worth stating. The scanner downgrades
+a run to `partial` when its reference pass meets a relative link it did not
+follow, and this file and `CONTRIBUTING.md` are full of those. Gating on the
+flag would make the workflow red on arrival for a reason that is not "the
+scanner missed something". So the gate fails on a component left unscanned, a
+file read partly or not at all, an exception recorded while reading, an
+execution the scanner does not call successful, or a status of `failed` — and a
+`partial` run with every count clean passes with the status printed. On the
+first CI run the scanner reported the analysis complete, so the `partial` path
+has been reasoned about and not yet observed. The three semantic analyzers skip
+with a logged warning under `--no-llm`, and that skip does not make the run
+partial.
+
+**Static analysis only.** `--no-llm`: patterns, AST and YARA, no model call, no
+API key, no login, no secret in the workflow. The semantic pass — which
+compares a skill's behaviour against its stated purpose, and is arguably the
+failure this repository could actually ship — needs a provider credential and
+is a separate decision nobody has taken.
+
+**Six rules are baselined, and every finding from them is wrong.** The numbers
+move, and watching them move is the point. Triage counted fifteen findings from
+six rules at an earlier commit. The first run of this workflow counted
+twenty-two from five, on a tree that had grown a workflow, two baselines, a gate
+script, its tests and this section:
+
+```text
+by rule: AR2×7, AS3×6, MP3×1, RA2×2, RP1×6
+```
+
+`AR2` went from one to seven, and the six new ones are this section and the
+comments around it — prose about anti-refusal reads to a pattern matcher exactly
+like anti-refusal. `EA2` fired at triage and does not fire here; its entry stays,
+because the `why` text it matched is unchanged and a scan rooted at the skill
+may still see it. **An entry that suppresses nothing today costs a line and
+keeps an argument that was made once.**
+
+So: **the counts drift as prose is edited, and the rule identifiers do not.**
+That is the whole case for keying the baseline on the rule rather than on the
+text a fingerprint would bind to. A seventh rule cannot appear quietly — it
+fails the build, and costs one more entry below with a written reason, never a
+rewording. The gate prints the tally on every run, so drift is visible in the
+log rather than discovered later.
+[`.skillspector-baseline.yaml`](.skillspector-baseline.yaml) suppresses the six
+by rule identifier, with a reason per entry:
+
+| Rule | | Why it is a false positive |
+| --- | --- | --- |
+| `AR2` | Anti-Refusal Statement | `SKILL.md` tells the agent that a preview pane may render the page without script, so do not judge it from one. It adds a caveat; it does not suppress one. |
+| `AS3` | Skill Enumeration | A `README.md` line naming the one skill this repository ships, and the decision records quoting it. Naming your own product is not enumerating somebody else's. |
+| `EA2` | Autonomous Decision Making | The `why` text on an edge in the example box file. It is content the renderer prints for a reader. |
+| `MP3` | Memory Manipulation | A comment in the page template describing how **Reset** discards the reader's overrides and **Undo** offers them back. It documents a button. |
+| `RA2` | Session Persistence | The `CONTRIBUTING.md` rule forbidding a fixed path inside a skill, and the test proving that rule fires. A guard and its test, reported as the risk they prevent. |
+| `RP1` | Unpinned MCP server | The `README.md` install command and quotations of it. `skills` is the Vercel Labs installer run through `npx`, not an MCP server. |
+
+**Keyed by rule identifier and not by fingerprint**, which is a trade stated
+rather than hidden. A fingerprint is bound to the text it was taken from and
+reactivates whenever that text or the scanner version changes; on prose this
+repository rewrites constantly it would expire without telling anybody. A rule
+key survives a rewording, and it also suppresses that rule everywhere. The
+reasons above are what that breadth is paid for with.
+
+**Nothing was reworded to satisfy a pattern matcher.** Two of these findings sit
+on a security rule in `CONTRIBUTING.md` and on the test that proves it works.
+Letting a regex edit that prose is the trap, and refusing it is a decision.
+
+**There are two baseline files.** The scanner finds a baseline only at the top
+of the directory it was pointed at, and a reader scanning the skill is pointed
+at the skill, so
+[`skills/eagle-eye/.skillspector-baseline.yaml`](skills/eagle-eye/.skillspector-baseline.yaml)
+repeats the three rules that fire inside it. `node scripts/check.mjs` fails if
+the two disagree — same rules, same words — so a suppression cannot be argued
+one way in one file and another way in the other.
+
+**Scanning this repository yourself gets the reasons, not silence.** With no
+flags the scanner reports the unchanged score and tells you a baseline was
+shipped; `--use-shipped-baseline` applies it, and `--show-suppressed` lists
+every suppression with the reason above beside it. Opting in stays your choice,
+which is why publishing one costs no honesty.
+
+**SkillSpector also reaches this repository through CodeRabbit**, which ran
+2.8.2 against pull request 9. That finding arrived inside a collapsed block
+while the check reported `pass`, and that run cannot be configured, baselined,
+or made to fail anything. It is outside this repository's control and is not
+what the table above relies on.
 
 ## What is deliberately not defended against
 

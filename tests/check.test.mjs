@@ -25,9 +25,12 @@ after(() => rmSync(work, { recursive: true, force: true }));
 
 let n = 0;
 
+const baselineName = '.skillspector-baseline.yaml';
+
 // A copy of everything check.mjs reads: the script, the renderer and its
-// module, one box file to validate, both manifests, and .gitignore — the walk
-// reads that file to decide what it does not enter.
+// module, one box file to validate, both manifests, the repository's
+// SkillSpector baseline — the skill's own copy travels inside skills/ — and
+// .gitignore, which the walk reads to decide what it does not enter.
 function tree() {
   const dir = join(work, `case-${n++}`);
   mkdirSync(dir);
@@ -35,10 +38,13 @@ function tree() {
     cpSync(join(root, part), join(dir, part), { recursive: true });
   }
   cpSync(join(root, '.gitignore'), join(dir, '.gitignore'));
+  cpSync(join(root, baselineName), join(dir, baselineName));
   return dir;
 }
 
 const checkIn = dir => join(dir, 'scripts', 'check.mjs');
+const rootBaselineIn = dir => join(dir, baselineName);
+const skillBaselineIn = dir => join(dir, 'skills', 'eagle-eye', baselineName);
 const readJson = p => JSON.parse(readFileSync(p, 'utf8'));
 const writeJson = (p, v) => writeFileSync(p, JSON.stringify(v, null, 2));
 const skillMd = dir => join(dir, 'skills', 'eagle-eye', 'SKILL.md');
@@ -498,4 +504,153 @@ test('a tree with no tests directory says so instead of failing', () => {
   const r = run(checkIn(dir), [], { cwd: dir, env: { GRIMOIRE_IN_TEST: null } });
   assert.equal(r.code, 0, `${r.stdout}\n${r.stderr}`);
   assert.match(r.stdout, /no tests\//);
+});
+
+// Rule 7: the two SkillSpector baselines agree.
+//
+// The baselines are the argument for every finding this repository has decided
+// is wrong, and the workflow fails on anything they do not cover. So the
+// failure worth testing is not a scan — it is a suppression that stopped
+// meaning what it says: a reason reworded in one file, a rule added to one and
+// not the other, a fingerprint creeping in, or a shape the hand-written reader
+// would have to guess at.
+//
+// No scan runs here. The scanner is a Python tool that installs on a runner,
+// and this repository has no install step.
+
+const baselineBody = rules =>
+  `version: 2\nfingerprints: []\n\nrules:\n${rules.map(r => `  - rule_id: "${r.id}"\n    reason: "${r.reason}"\n`).join('')}`;
+
+test('the two baselines as shipped agree', () => {
+  assertPasses(tree());
+});
+
+test('a reason reworded in one baseline and not the other fails', () => {
+  // This is the drift the rule exists for. Both files still suppress AR2, and
+  // a reader comparing them now gets two different arguments for it.
+  const dir = tree();
+  const skill = readFileSync(skillBaselineIn(dir), 'utf8');
+  writeFileSync(skillBaselineIn(dir), skill.replace(/reason: "False positive\./, 'reason: "Accepted.'));
+  assertFails(dir, /gives a different reason here/);
+});
+
+test('a rule suppressed in the skill and not at the root fails', () => {
+  const dir = tree();
+  appendFileSync(skillBaselineIn(dir), '  - rule_id: "ZZ1"\n    reason: "Not argued anywhere else."\n');
+  assertFails(dir, /ZZ1 is suppressed here and not at the repository root/);
+});
+
+test('a rule suppressed at the root and not in the skill passes', () => {
+  // The root covers the whole tree and the skill covers one directory, so the
+  // root is a superset by design. Only the overlap has to match.
+  const dir = tree();
+  appendFileSync(rootBaselineIn(dir), '  - rule_id: "ZZ1"\n    reason: "Fires outside the skill only."\n');
+  assertPasses(dir);
+});
+
+test('a missing baseline at the repository root fails', () => {
+  const dir = tree();
+  rmSync(rootBaselineIn(dir));
+  assertFails(dir, /missing from the repository root/);
+});
+
+test('a missing baseline in the skill fails', () => {
+  // A reader who scans the skill rather than the repository finds no baseline
+  // and no reasons, which is the state this file exists to end.
+  const dir = tree();
+  rmSync(skillBaselineIn(dir));
+  assertFails(dir, /a reader who scans the skill/);
+});
+
+test('a fingerprint suppression fails, because it expires without saying so', () => {
+  const dir = tree();
+  writeFileSync(
+    rootBaselineIn(dir),
+    'version: 2\nfingerprints: [one]\n\nrules:\n  - rule_id: "AR2"\n    reason: "x"\n',
+  );
+  assertFails(dir, /fingerprints is/);
+});
+
+test('a baseline with no version fails rather than being read as version 2', () => {
+  const dir = tree();
+  writeFileSync(rootBaselineIn(dir), 'fingerprints: []\n\nrules:\n  - rule_id: "AR2"\n    reason: "x"\n');
+  assertFails(dir, /version is absent/);
+});
+
+test('a rule with no reason fails, because a suppression nobody can audit is noise', () => {
+  const dir = tree();
+  writeFileSync(rootBaselineIn(dir), 'version: 2\nfingerprints: []\n\nrules:\n  - rule_id: "AR2"\n');
+  assertFails(dir, /has no reason/);
+});
+
+test('the same rule twice in one baseline fails', () => {
+  const dir = tree();
+  writeFileSync(
+    rootBaselineIn(dir),
+    baselineBody([
+      { id: 'AR2', reason: 'One argument.' },
+      { id: 'AR2', reason: 'A second argument.' },
+    ]),
+  );
+  assertFails(dir, /AR2 appears twice/);
+});
+
+test('an unknown top-level key is named, not ignored', () => {
+  // The reader is hand-written and reads one shape. A key it does not know is
+  // a key it cannot honour, and honouring nothing quietly is how a baseline
+  // grows a field that does nothing.
+  const dir = tree();
+  appendFileSync(rootBaselineIn(dir), '\nseverity_floor: HIGH\n');
+  assertFails(dir, /unknown key "severity_floor"/);
+});
+
+test('an unknown field inside a rule entry is named', () => {
+  const dir = tree();
+  writeFileSync(
+    rootBaselineIn(dir),
+    'version: 2\nfingerprints: []\n\nrules:\n  - rule_id: "AR2"\n    message: "*preview*"\n    reason: "x"\n',
+  );
+  assertFails(dir, /unknown field "message"/);
+});
+
+test('a nested value the reader cannot follow fails rather than being skipped', () => {
+  const dir = tree();
+  writeFileSync(
+    rootBaselineIn(dir),
+    'version: 2\nfingerprints: []\n\nrules:\n  - rule_id: "AR2"\n    reason:\n      - "x"\n',
+  );
+  assertFails(dir, /not a "key: value" field|not a rule entry/);
+});
+
+test('an empty rules block fails, because a baseline that suppresses nothing is not one', () => {
+  const dir = tree();
+  writeFileSync(rootBaselineIn(dir), 'version: 2\nfingerprints: []\n\nrules:\n');
+  assertFails(dir, /no rules/);
+});
+
+test('a rule narrowed to a file in one baseline and not the other fails', () => {
+  // A file glob narrows a suppression, so the same rule with different scopes
+  // is not agreement. Comparing the reason alone let one file suppress AR2
+  // everywhere while the other suppressed it in one place, and called that
+  // agreement.
+  const dir = tree();
+  const skill = readFileSync(skillBaselineIn(dir), 'utf8');
+  writeFileSync(skillBaselineIn(dir), skill.replace('  - rule_id: "AR2"\n', '  - rule_id: "AR2"\n    file: "*SKILL.md"\n'));
+  assertFails(dir, /narrowed to \*SKILL\.md here and to every file/);
+});
+
+test('a rule narrowed to the same file in both baselines passes', () => {
+  const dir = tree();
+  for (const p of [rootBaselineIn(dir), skillBaselineIn(dir)]) {
+    const text = readFileSync(p, 'utf8');
+    writeFileSync(p, text.replace('  - rule_id: "AR2"\n', '  - rule_id: "AR2"\n    file: "*SKILL.md"\n'));
+  }
+  assertPasses(dir);
+});
+
+test('a quoted version is read, because the entries accept quoting too', () => {
+  const dir = tree();
+  const text = readFileSync(rootBaselineIn(dir), 'utf8');
+  writeFileSync(rootBaselineIn(dir), text.replace('version: 2', 'version: "2"'));
+  assertPasses(dir);
 });
