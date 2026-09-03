@@ -21,7 +21,12 @@ same worked example, same weak model, same n = 3 per task.
 | Valid on the first attempt | 4 of 9 | 1 of 9 |
 | Valid within 5 passes | — | **8 of 9** |
 | Passes to green | — | median 2, worst 3 |
-| Green **and** faithful | 7 of 9 first-attempt | **7 of 9** |
+| Valid **and** faithful | **3 of 9** | **7 of 9** |
+
+The last row is the intersection, and it is the one that matters. Round four had
+four valid files, and one of those four (`t2-haiku-3`) never runs the pricing
+loop twice, which both its walks are required to do. So the loop moved
+valid-and-faithful from 3 of 9 to 7 of 9 — a real gain, and still a fail.
 
 ## The verdict
 
@@ -50,7 +55,8 @@ moves are required. Both are reported; the verdict rests on the rule.
 
 ### Rule 2 — stays honest. FAIL, and this is the finding
 
-7 of 9. `t3-haiku-1` is checker-clean and describes a different program: the
+7 of the 8 green files, so 7 of 9 runs against a bar of 8. `t3-haiku-1` is
+checker-clean and describes a different program: the
 task says `BadCsv` **is not handled anywhere** and reaches the top uncaught, and
 the file gives `importContacts` an `onError` that catches it.
 
@@ -72,6 +78,32 @@ reason to look.
 Nothing was introduced while fixing. Every miss in the green files was already
 in attempt 1.
 
+## The pre-registered consequence does not fit, and that is itself a finding
+
+PREREG-45 said a fail reopens #28's amendment against a recorder. Held to the
+evidence, it does not follow, because the two residual failures are different
+kinds of thing and **a recorder addresses only one of them**.
+
+| Residual | Kind | Would a recorder remove it? |
+| --- | --- | --- |
+| `t2-haiku-2` never converged — a spurious `unwind` | a **walk** error | **Yes**, by construction |
+| `t3-haiku-1` is green and wrong — an `onError` the program has not got | a **graph** error | **No — it makes it worse** |
+
+A recorder replays the graph it is given. Given `t3-haiku-1`'s graph it would
+emit a `handled` move for `BadCsv`, because the handler is right there on the
+step. The file would become internally consistent **and still describe the wrong
+program** — it would then fail two fidelity claims instead of one. Nobody
+hand-wrote that walk; the graph was already wrong, and no recorder reads the
+task.
+
+So the real shape of the residual is:
+
+- the **walk** error is bought back by a recorder, at the cost of a VM at record
+  time — or by a better refusal, at the cost of a string. Measured cost of
+  leaving it: one run in nine.
+- the **graph** error is touched by neither side of the ticket's dichotomy. The
+  `uncaught`-versus-handler check below is what catches it.
+
 ## Two things worth carrying
 
 ### A structural check the shape does not make, and could
@@ -85,9 +117,18 @@ in attempt 1.
 
 A tag cannot be both caught by a frame on the stack and uncaught in the same
 walk. `check.mjs` accepts both, because it validates a `handled` move against
-`onError` and never asks the reverse question of an `uncaught` one. This needs
-no evaluator: at the moment of `uncaught`, walk the open frames and refuse if
-any declares a handler for that tag. It would have caught this file.
+`onError` and never asks the reverse question of an `uncaught` one.
+
+This needs no evaluator: at the moment of `uncaught`, look at **the step each
+open frame is parked at**, and refuse if any of them declares a handler for that
+tag. Not any step in the node — `onError` is per-step, and a handler sitting on
+some other call is not in the error's way.
+
+**It fires on this file.** The handler is on step 2, the `call parseRows` step,
+and the walk's open `importContacts` frame is parked at step 2 — move 5 is
+`{"k":"call","at":2,"to":"parseRows"}` — when move 10 declares `BadCsv`
+uncaught. The frame that says it catches `BadCsv` is the frame the error is
+passing through.
 
 That does not make the shape sound — it moves one semantic error into the
 structural half, where the loop demonstrably fixes things.
