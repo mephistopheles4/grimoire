@@ -256,6 +256,10 @@ It proves the walk is a **legal path**, and it evaluates nothing.
   catches nothing is refused, and an `uncaught` whose tag is not the one
   travelling is refused. A `handled` is also refused when the `onError` entry
   it names was declared for some other tag.
+- **While an error is travelling, only the moves that carry it may run.** A
+  `return` that discards the error, and a `done` that arrives while it is
+  still moving, are both refused. **An error is caught, or it reaches the
+  top.** There is no third ending.
 
 **What it cannot prove.** Which branch an `if` took, and what an effect
 returned. Both are claims you make. In practice a wrong branch is often caught

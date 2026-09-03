@@ -15,7 +15,7 @@
 // Nothing here evaluates an expression. Every expression field is text the
 // page prints.
 
-import { readFileSync, writeFileSync } from 'node:fs';
+import { readFileSync, writeFileSync, statSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createRequire } from 'node:module';
@@ -263,6 +263,7 @@ function path(prog, walk, runName, r) {
     }
     if (m.k === 'done') {
       if (frames.length) bad(i, `done arrived with ${frames.length} frame(s) still open`);
+      if (raised) bad(i, `done arrived while "${raised.tag}" was still travelling (raised at move ${raised.from}) — an error ends in a catch or at the top, and not by the walk stopping`);
       frames.length = 0;
       return;
     }
@@ -290,6 +291,16 @@ function path(prog, walk, runName, r) {
 
     const f = frames[frames.length - 1];
     if (!f) return blameEmpty(i, m);
+
+    /* While an error is travelling, only the moves that carry it may run. A
+     * return here would discard the error without a catch and without it
+     * reaching the top, and a step-running move would mean the frame the error
+     * is leaving carried on regardless. Both are walks that contradict their
+     * own graph. The three moves that carry an error — unwind, handled and
+     * uncaught — never reach this line or are excepted below. */
+    if (raised && m.k !== 'handled') {
+      bad(i, `${m.k} ran while "${raised.tag}" was still travelling (raised at move ${raised.from}) — an error is caught, or it reaches the top`);
+    }
     const node = prog.nodes[f.nodeId];
     const L = labels[f.nodeId];
     if (typeof m.at !== 'number' || !node.steps[m.at]) return bad(i, `${m.k} at ${m.at} is not a step of ${f.nodeId}`);
@@ -637,9 +648,23 @@ function main(argv) {
    * page, and there is no copy. Refused rather than written. */
   const source = resolve(file);
   const target = resolve(outPath);
-  if (source === target) {
+  const refuseSelf = () => {
     console.error(`${file}: --out names the file being rendered. Write the page somewhere else; this would replace the program with its own drawing.`);
     process.exit(2);
+  };
+  if (source === target) refuseSelf();
+  /* Two names can be one file. Comparing the text of the paths does not see a
+   * symbolic link or a hard link, so the identity is read off the filesystem
+   * as well. Only when both sides report a real device and inode: some
+   * filesystems report zero for both, and two different files would then look
+   * like one. */
+  try {
+    const a = statSync(source);
+    const b = statSync(target);
+    if (a.dev && a.ino && a.dev === b.dev && a.ino === b.ino) refuseSelf();
+  } catch (e) {
+    /* No such target yet is the ordinary case and means nothing to compare. */
+    if (e.code !== 'ENOENT') throw e;
   }
 
   writeFileSync(target, page(prog));

@@ -15,7 +15,7 @@
 
 import { test, after } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtempSync, rmSync, writeFileSync, readFileSync, existsSync, readdirSync } from 'node:fs';
+import { mkdtempSync, rmSync, writeFileSync, readFileSync, existsSync, readdirSync, linkSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { groundtrack, examples, exampleFlightpath, layeredFlightpath, run } from './helpers.mjs';
@@ -163,6 +163,18 @@ const cases = [
     m.goto = 'named';
     m.next = 3;
   }, /which greet declares for "Other", and the error travelling is "NoSuchUser"/],
+  ['a return that discards a travelling error', p => {
+    // "no such user": the callee throws, its frame unwinds, and the caller
+    // catches. Drop the catch and let the caller return instead, and the walk
+    // has thrown an error away with no catch and no top.
+    const w = p.presets[1].walk.steps;
+    const at = w.findIndex(x => x.k === 'handled');
+    w.splice(at, 1);
+  }, /ran while "NoSuchUser" was still travelling \(raised at move \d+\)/],
+  ['a done that arrives while an error is travelling', p => {
+    const w = p.presets[2].walk.steps;
+    w.splice(w.length - 1, 1, { k: 'done' });
+  }, /done arrived while "SendFailed" was still travelling/],
   ['a walk that ends with a frame open', p => {
     // Drop the entry frame's return and the done that followed it.
     const w = p.presets[0].walk.steps;
@@ -440,6 +452,27 @@ test('--out naming the input file is refused, and the input survives', () => {
   assert.equal(r.code, 2);
   assert.match(r.stderr, /--out names the file being rendered/);
   assert.equal(readFileSync(p, 'utf8'), before, 'the program was not replaced by its own page');
+});
+
+test('--out naming a second name for the input file is refused too', t => {
+  // Two names can be one file. Comparing the text of the paths does not see a
+  // link, so the identity is read off the filesystem as well.
+  const src = join(work, 'linked.flightpath.json');
+  const alias = join(work, 'alias.html');
+  const before = readFileSync(exampleFlightpath, 'utf8');
+  writeFileSync(src, before);
+  try {
+    linkSync(src, alias);
+  } catch (e) {
+    // A hard link needs the two names on one volume, and some environments
+    // refuse it outright. Say which, rather than pass in silence.
+    t.skip(`this filesystem would not make a hard link: ${e.code}`);
+    return;
+  }
+  const r = run(groundtrack, [src, '--out', alias]);
+  assert.equal(r.code, 2);
+  assert.match(r.stderr, /--out names the file being rendered/);
+  assert.equal(readFileSync(src, 'utf8'), before, 'the program was not replaced through its other name');
 });
 
 test('a file that is not JSON is refused before anything else', () => {
