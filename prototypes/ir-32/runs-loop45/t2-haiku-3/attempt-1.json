@@ -1,0 +1,598 @@
+{
+  "id": "cart-checkout",
+  "title": "Cart checkout and payment",
+  "blurb": "A checkout handler loads a cart, prices its items, and charges a card. It handles card decline by sending a notification and returning a failure message.",
+  "entry": "checkout",
+  "env": {},
+  "files": [
+    {
+      "path": "src/checkout.ts",
+      "change": "edit",
+      "why": "the handler that coordinates the checkout flow",
+      "adds": 62,
+      "dels": 11
+    },
+    {
+      "path": "src/pricing.ts",
+      "change": "new",
+      "why": "the loop that sums item prices",
+      "adds": 38,
+      "dels": 0
+    },
+    {
+      "path": "src/cart-store.ts",
+      "change": "edit",
+      "why": "the cart lookup function",
+      "adds": 9,
+      "dels": 1
+    },
+    {
+      "path": "src/payments.ts",
+      "change": "edit",
+      "why": "the charge function that calls Stripe",
+      "adds": 27,
+      "dels": 4
+    }
+  ],
+  "layers": {
+    "production": {
+      "nodes": {}
+    },
+    "tests": {
+      "entry": "checkout",
+      "nodes": {
+        "charge": {
+          "R": ["a stub that always declines · checkout.test.ts:44"]
+        },
+        "loadCart": {
+          "R": ["an in-memory map · checkout.test.ts:12"]
+        }
+      }
+    },
+    "smoke": {
+      "entry": "checkout",
+      "nodes": {}
+    }
+  },
+  "nodes": {
+    "checkout": {
+      "name": "checkout",
+      "role": "handler",
+      "loc": "src/checkout.ts:1",
+      "params": ["cartId"],
+      "channels": {
+        "A": "the order id or a message",
+        "E": [],
+        "R": []
+      },
+      "touches": ["src/checkout.ts"],
+      "enteredBy": ["src/checkout.test.ts"],
+      "steps": [
+        {
+          "op": "note",
+          "note": "turn a cart into an order by loading, pricing, and charging"
+        },
+        {
+          "op": "call",
+          "target": "loadCart",
+          "args": {"cartId": "cartId"},
+          "bind": "cart"
+        },
+        {
+          "op": "call",
+          "target": "priceCart",
+          "args": {"cart": "cart"},
+          "bind": "total"
+        },
+        {
+          "op": "if",
+          "cond": "total is zero",
+          "then": "empty",
+          "else": "charge_it"
+        },
+        {
+          "op": "call",
+          "label": "charge_it",
+          "target": "charge",
+          "args": {"amount": "total"},
+          "bind": "orderId",
+          "onError": [
+            {
+              "tag": "CardDeclined",
+              "goto": "declined"
+            }
+          ]
+        },
+        {
+          "op": "return",
+          "expr": "orderId"
+        },
+        {
+          "op": "note",
+          "label": "empty",
+          "note": "cart has no items, return empty message"
+        },
+        {
+          "op": "return",
+          "expr": "\"nothing to buy\""
+        },
+        {
+          "op": "effect",
+          "label": "declined",
+          "kind": "mail.send",
+          "desc": "notify customer of declined card",
+          "args": {"message": "Your card was declined"}
+        },
+        {
+          "op": "return",
+          "expr": "\"payment declined\""
+        }
+      ]
+    },
+    "loadCart": {
+      "name": "loadCart",
+      "role": "io",
+      "loc": "src/cart-store.ts:10",
+      "params": ["cartId"],
+      "channels": {
+        "A": "a cart object",
+        "E": ["NoCart"],
+        "R": ["the cart table"]
+      },
+      "touches": ["src/cart-store.ts"],
+      "enteredBy": ["src/checkout.test.ts"],
+      "steps": [
+        {
+          "op": "effect",
+          "kind": "db.get",
+          "desc": "load the cart row",
+          "args": {"id": "cartId"},
+          "bind": "row"
+        },
+        {
+          "op": "if",
+          "cond": "row is missing",
+          "then": "missing",
+          "else": "found"
+        },
+        {
+          "op": "return",
+          "label": "found",
+          "expr": "row"
+        },
+        {
+          "op": "throw",
+          "label": "missing",
+          "tag": "NoCart",
+          "message": "no cart for that id",
+          "channel": "escape"
+        }
+      ]
+    },
+    "priceCart": {
+      "name": "priceCart",
+      "role": "pure",
+      "loc": "src/pricing.ts:1",
+      "params": ["cart"],
+      "channels": {
+        "A": "the total in pence",
+        "E": [],
+        "R": []
+      },
+      "touches": ["src/pricing.ts"],
+      "enteredBy": ["src/pricing.test.ts"],
+      "steps": [
+        {
+          "op": "note",
+          "note": "sum the item prices from the cart"
+        },
+        {
+          "op": "let",
+          "name": "total",
+          "expr": "0"
+        },
+        {
+          "op": "let",
+          "label": "loop",
+          "name": "price",
+          "expr": "current item price"
+        },
+        {
+          "op": "let",
+          "name": "total",
+          "expr": "total + price"
+        },
+        {
+          "op": "let",
+          "name": "next",
+          "expr": "advance to next item"
+        },
+        {
+          "op": "goto",
+          "to": "check"
+        },
+        {
+          "op": "if",
+          "label": "check",
+          "cond": "items remain",
+          "then": "loop",
+          "else": "done"
+        },
+        {
+          "op": "return",
+          "label": "done",
+          "expr": "total"
+        }
+      ]
+    },
+    "charge": {
+      "name": "charge",
+      "role": "io",
+      "loc": "src/payments.ts:20",
+      "params": ["amount"],
+      "channels": {
+        "A": "the order id",
+        "E": ["CardDeclined"],
+        "R": ["the Stripe client"]
+      },
+      "touches": ["src/payments.ts"],
+      "enteredBy": [],
+      "steps": [
+        {
+          "op": "effect",
+          "kind": "stripe.charge",
+          "desc": "charge the card",
+          "args": {"amount": "amount"},
+          "bind": "result"
+        },
+        {
+          "op": "return",
+          "expr": "result.orderId"
+        }
+      ]
+    }
+  },
+  "presets": [
+    {
+      "name": "a paid order",
+      "blurb": "The cart loads and prices at 4500 pence, and the charge succeeds.",
+      "input": {
+        "cartId": "cart-1"
+      },
+      "walk": {
+        "provenance": "authored",
+        "steps": [
+          {
+            "k": "note",
+            "at": 0,
+            "next": 1
+          },
+          {
+            "k": "call",
+            "at": 1,
+            "to": "loadCart",
+            "next": 2
+          },
+          {
+            "k": "effect",
+            "at": 0,
+            "kind": "db.get",
+            "desc": "load the cart row",
+            "next": 1,
+            "result": {
+              "items": [
+                {"id": "item1", "price": 2000},
+                {"id": "item2", "price": 2500}
+              ]
+            }
+          },
+          {
+            "k": "if",
+            "at": 1,
+            "next": 2
+          },
+          {
+            "k": "return",
+            "at": 2,
+            "value": {
+              "items": [
+                {"id": "item1", "price": 2000},
+                {"id": "item2", "price": 2500}
+              ]
+            }
+          },
+          {
+            "k": "unwind"
+          },
+          {
+            "k": "call",
+            "at": 2,
+            "to": "priceCart",
+            "next": 3
+          },
+          {
+            "k": "note",
+            "at": 0,
+            "next": 1
+          },
+          {
+            "k": "let",
+            "at": 1,
+            "next": 2
+          },
+          {
+            "k": "let",
+            "at": 2,
+            "next": 3
+          },
+          {
+            "k": "let",
+            "at": 3,
+            "next": 4
+          },
+          {
+            "k": "let",
+            "at": 4,
+            "next": 5
+          },
+          {
+            "k": "goto",
+            "at": 5,
+            "next": 6
+          },
+          {
+            "k": "if",
+            "at": 6,
+            "next": 2
+          },
+          {
+            "k": "let",
+            "at": 2,
+            "next": 3
+          },
+          {
+            "k": "let",
+            "at": 3,
+            "next": 4
+          },
+          {
+            "k": "let",
+            "at": 4,
+            "next": 5
+          },
+          {
+            "k": "goto",
+            "at": 5,
+            "next": 6
+          },
+          {
+            "k": "if",
+            "at": 6,
+            "next": 7
+          },
+          {
+            "k": "return",
+            "at": 7,
+            "value": 4500
+          },
+          {
+            "k": "unwind"
+          },
+          {
+            "k": "if",
+            "at": 3,
+            "next": 4
+          },
+          {
+            "k": "call",
+            "at": 4,
+            "to": "charge",
+            "next": 5
+          },
+          {
+            "k": "effect",
+            "at": 0,
+            "kind": "stripe.charge",
+            "desc": "charge the card",
+            "next": 1,
+            "result": {
+              "orderId": "order-123"
+            }
+          },
+          {
+            "k": "return",
+            "at": 1,
+            "value": "order-123"
+          },
+          {
+            "k": "unwind"
+          },
+          {
+            "k": "return",
+            "at": 5,
+            "value": "order-123"
+          },
+          {
+            "k": "done",
+            "result": "order-123"
+          }
+        ]
+      }
+    },
+    {
+      "name": "the card declines",
+      "blurb": "The charge fails with CardDeclined, checkout catches it, sends a notification, and returns the decline message.",
+      "input": {
+        "cartId": "cart-2"
+      },
+      "walk": {
+        "provenance": "authored",
+        "steps": [
+          {
+            "k": "note",
+            "at": 0,
+            "next": 1
+          },
+          {
+            "k": "call",
+            "at": 1,
+            "to": "loadCart",
+            "next": 2
+          },
+          {
+            "k": "effect",
+            "at": 0,
+            "kind": "db.get",
+            "desc": "load the cart row",
+            "next": 1,
+            "result": {
+              "items": [
+                {"id": "item1", "price": 1000},
+                {"id": "item2", "price": 1500}
+              ]
+            }
+          },
+          {
+            "k": "if",
+            "at": 1,
+            "next": 2
+          },
+          {
+            "k": "return",
+            "at": 2,
+            "value": {
+              "items": [
+                {"id": "item1", "price": 1000},
+                {"id": "item2", "price": 1500}
+              ]
+            }
+          },
+          {
+            "k": "unwind"
+          },
+          {
+            "k": "call",
+            "at": 2,
+            "to": "priceCart",
+            "next": 3
+          },
+          {
+            "k": "note",
+            "at": 0,
+            "next": 1
+          },
+          {
+            "k": "let",
+            "at": 1,
+            "next": 2
+          },
+          {
+            "k": "let",
+            "at": 2,
+            "next": 3
+          },
+          {
+            "k": "let",
+            "at": 3,
+            "next": 4
+          },
+          {
+            "k": "let",
+            "at": 4,
+            "next": 5
+          },
+          {
+            "k": "goto",
+            "at": 5,
+            "next": 6
+          },
+          {
+            "k": "if",
+            "at": 6,
+            "next": 2
+          },
+          {
+            "k": "let",
+            "at": 2,
+            "next": 3
+          },
+          {
+            "k": "let",
+            "at": 3,
+            "next": 4
+          },
+          {
+            "k": "let",
+            "at": 4,
+            "next": 5
+          },
+          {
+            "k": "goto",
+            "at": 5,
+            "next": 6
+          },
+          {
+            "k": "if",
+            "at": 6,
+            "next": 7
+          },
+          {
+            "k": "return",
+            "at": 7,
+            "value": 2500
+          },
+          {
+            "k": "unwind"
+          },
+          {
+            "k": "if",
+            "at": 3,
+            "next": 4
+          },
+          {
+            "k": "call",
+            "at": 4,
+            "to": "charge",
+            "next": 5
+          },
+          {
+            "k": "effect",
+            "at": 0,
+            "kind": "stripe.charge",
+            "desc": "charge the card",
+            "raised": {
+              "tag": "CardDeclined",
+              "message": "Card was declined by issuer",
+              "channel": "retry"
+            }
+          },
+          {
+            "k": "unwind"
+          },
+          {
+            "k": "handled",
+            "at": 4,
+            "goto": "declined",
+            "next": 8
+          },
+          {
+            "k": "effect",
+            "at": 8,
+            "kind": "mail.send",
+            "desc": "notify customer of declined card",
+            "next": 9
+          },
+          {
+            "k": "return",
+            "at": 9,
+            "value": "payment declined"
+          },
+          {
+            "k": "done",
+            "result": "payment declined"
+          }
+        ]
+      }
+    }
+  ]
+}

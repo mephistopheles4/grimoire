@@ -1,0 +1,10 @@
+attempt-1.json                 9 ERRORS
+    csv-import / two rows, one duplicate [3] a "return" move ran step 1, which is a "if"
+    csv-import / two rows, one duplicate [5] let ran step 1, but the cursor sits at 0
+    csv-import / two rows, one duplicate [6] return ran step 3, but the cursor sits at 2
+    csv-import / two rows, one duplicate [13] a "return" move ran step 0, which is a "note"
+    csv-import / two rows, one duplicate [18] if ran step 5, but the cursor sits at 3
+    csv-import / two rows, one duplicate [22] a "return" move ran step 0, which is a "note"
+    csv-import / two rows, one duplicate [29] if ran step 5, but the cursor sits at 3
+    csv-import / a bad header [3] a "return" move ran step 1, which is a "if"
+    csv-import / a bad header [5] let ran step 1, but the cursor sits at 0

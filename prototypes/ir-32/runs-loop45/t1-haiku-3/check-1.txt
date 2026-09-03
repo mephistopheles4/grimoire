@@ -1,0 +1,6 @@
+attempt-1.json                 5 ERRORS
+    publish-post / happy path [4] a "note" move ran step 0, which is a "if"
+    publish-post / happy path [5] if ran step 0, but the cursor sits at 1
+    publish-post / bad markdown [4] a "note" move ran step 0, which is a "if"
+    publish-post / bad markdown [5] if ran step 0, but the cursor sits at 1
+    publish-post / bad markdown [7] a "throw" move ran step 3, which is a "return"

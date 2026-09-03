@@ -1,0 +1,2 @@
+attempt-1.json                 1 ERRORS
+    publish-post / bad markdown [7] a "throw" move ran step 4, which is a "return"

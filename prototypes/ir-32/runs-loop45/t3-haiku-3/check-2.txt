@@ -1,0 +1,15 @@
+attempt-2.json                 14 ERRORS
+    csv-import-contacts / two rows, one duplicate [22] no edge from 9 (goto) to 12
+    csv-import-contacts / two rows, one duplicate [23] a "let" move ran step 12, which is a "goto"
+    csv-import-contacts / two rows, one duplicate [23] no edge from 12 (goto) to 13
+    csv-import-contacts / two rows, one duplicate [24] a "goto" move ran step 13, which is a "effect"
+    csv-import-contacts / two rows, one duplicate [24] no edge from 13 (effect) to 5
+    csv-import-contacts / two rows, one duplicate [32] handled at 7 is not a step of saveContact
+    csv-import-contacts / two rows, one duplicate [33] let at 10 is not a step of saveContact
+    csv-import-contacts / two rows, one duplicate [34] let at 11 is not a step of saveContact
+    csv-import-contacts / two rows, one duplicate [35] goto at 12 is not a step of saveContact
+    csv-import-contacts / two rows, one duplicate [36] note at 5 is not a step of saveContact
+    csv-import-contacts / two rows, one duplicate [37] if at 6 is not a step of saveContact
+    csv-import-contacts / two rows, one duplicate [38] effect at 13 is not a step of saveContact
+    csv-import-contacts / two rows, one duplicate [39] return at 14 is not a step of saveContact
+    csv-import-contacts / two rows, one duplicate [40] done with 2 frame(s) open

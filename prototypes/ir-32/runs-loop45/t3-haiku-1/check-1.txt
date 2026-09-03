@@ -1,0 +1,9 @@
+attempt-1.json                 8 ERRORS
+    presets[0].walk.steps[6] (let): unknown key "name"
+    presets[0].walk.steps[6] (let): unknown key "expr"
+    presets[0].walk.steps[7] (let): unknown key "name"
+    presets[0].walk.steps[7] (let): unknown key "expr"
+    presets[0].walk.steps[9] (let): unknown key "name"
+    presets[0].walk.steps[9] (let): unknown key "expr"
+    presets[0].walk.steps[18] (let): unknown key "name"
+    presets[0].walk.steps[18] (let): unknown key "expr"

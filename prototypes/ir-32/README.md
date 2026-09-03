@@ -16,7 +16,12 @@ what its file should be.
 | `programs/` | Those three programs, migrated. All three pass. |
 | `task-1-retry.md`, `task-2-cart.md` | The eval tasks. |
 | `grade.mjs` | Scores a directory of eval runs and buckets each failure to a box row. |
-| `runs/` | Eval output. |
+| `runs/` | Eval output, round four. First-attempt authoring, validator forbidden. |
+| `PREREG-45.md` | The rule, the cap and the instrument for round five, fixed before the first run. |
+| `fidelity.mjs` | Does a green file describe the program the task asked for? Written from the task files. |
+| `loop-report.mjs` | Scores a round of write-validate-fix runs against the pre-registered rule. |
+| `runs-loop45/` | Eval output, round five. Every attempt and every checker output. |
+| `RESULTS-45.md` | What round five found. |
 
 ## Run it
 
@@ -26,6 +31,8 @@ node check.mjs example.flightpath.json
 node corpus.mjs                  # 32 claims, document against validator
 node grade.mjs runs              # score the eval
 node grade.mjs runs --detail     # with every error
+node fidelity.mjs runs --detail  # does a file describe the program asked for?
+node loop-report.mjs runs-loop45 --detail   # round five, against the pre-registered rule
 ```
 
 ## Run the eval on another agent

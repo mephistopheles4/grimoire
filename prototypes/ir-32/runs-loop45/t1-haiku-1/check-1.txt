@@ -1,0 +1,8 @@
+attempt-1.json                 7 ERRORS
+    publish-post-retry / the happy path [4] effect ran step 2, but the cursor sits at 0
+    publish-post-retry / bad markdown [4] effect ran step 2, but the cursor sits at 0
+    publish-post-retry / bad markdown [6] handled lands at 8, but "fallback" is step 7
+    publish-post-retry / bad markdown [7] next 9 is not a step of publishPost
+    publish-post-retry / bad markdown [7] a "let" move ran step 8, which is a "goto"
+    publish-post-retry / bad markdown [7] no edge from 8 (goto) to 9
+    publish-post-retry / bad markdown [8] call ran step 5, but the cursor sits at 9

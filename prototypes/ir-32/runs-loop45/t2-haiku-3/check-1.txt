@@ -1,0 +1,17 @@
+attempt-1.json                 43 ERRORS
+    cart-checkout / a paid order [6] call with no frame
+    cart-checkout / a paid order [7] note with no frame
+    cart-checkout / a paid order [8] let with no frame
+    cart-checkout / a paid order [9] let with no frame
+    cart-checkout / a paid order [10] let with no frame
+    cart-checkout / a paid order [11] let with no frame
+    cart-checkout / a paid order [12] goto with no frame
+    cart-checkout / a paid order [13] if with no frame
+    cart-checkout / a paid order [14] let with no frame
+    cart-checkout / a paid order [15] let with no frame
+    cart-checkout / a paid order [16] let with no frame
+    cart-checkout / a paid order [17] goto with no frame
+    cart-checkout / a paid order [18] if with no frame
+    cart-checkout / a paid order [19] return with no frame
+    cart-checkout / a paid order [20] unwind with no frame
+    … 28 more
