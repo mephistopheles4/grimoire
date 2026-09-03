@@ -69,22 +69,61 @@ if (report.execution_successful !== true) {
   failures.push(
     report.execution_successful === undefined
       ? 'the report has no "execution_successful" field — the gate cannot tell a finished scan from an abandoned one'
-      : 'the scan did not complete successfully ("execution_successful" is false)',
+      : `the scan did not complete successfully ("execution_successful" is ${JSON.stringify(report.execution_successful)})`,
   );
 }
 
+// A scan that read part of the tree and found nothing in that part is not a
+// clean scan, so incompleteness fails here as well.
+//
+// It is read from the counts and not from the report's own `is_complete` flag,
+// and that is a decision worth stating. `is_complete` is false whenever the
+// scanner's status is anything but "complete", and the status is downgraded to
+// "partial" by a reference pass that walks relative links between files —
+// which this repository's markdown is full of, SECURITY.md and CONTRIBUTING.md
+// most of all. Gating on the flag would make the workflow red on arrival for a
+// reason that is not "the scanner missed something", and a check that is red
+// on arrival is a check people learn to route around. Every count that means
+// the scanner actually skipped something is read instead, each one a required
+// field of the report:
+//
+//   - a component it did not scan
+//   - a file left partly or entirely uninspected
+//   - an exception it recorded while reading
+//   - an execution it does not call successful
+//
+// A status of "failed" fails too. A status of "partial" with every count clean
+// is printed and not failed, and the run says so rather than staying quiet.
 const done = report.analysis_completeness;
 if (done === null || typeof done !== 'object' || Array.isArray(done)) {
   failures.push(
     'the report has no "analysis_completeness" object — the gate cannot tell a whole scan from a partial one',
   );
-} else if (done.is_complete !== true) {
-  // A scan that read part of the tree and found nothing in that part is not a
-  // clean scan. `skillspector scan --fail-on-incomplete` makes the tool say so
-  // in its own exit code; this says it again, because the exit code is not
-  // what the workflow reads.
-  const cover = typeof done.coverage_percent === 'number' ? `, ${done.coverage_percent}% covered` : '';
-  failures.push(`the scan did not analyse the whole tree (status "${done.status ?? 'unknown'}"${cover})`);
+} else {
+  const num = k => (typeof done[k] === 'number' ? done[k] : null);
+  const total = num('total_components');
+  const scanned = num('scanned_components');
+  const partial = num('partially_inspected_files');
+  const skipped = num('entirely_uninspected_files');
+  const missing = ['total_components', 'scanned_components', 'partially_inspected_files', 'entirely_uninspected_files']
+    .filter(k => num(k) === null)
+    .concat(Array.isArray(done.ledger_exceptions) ? [] : ['ledger_exceptions']);
+
+  if (missing.length) {
+    // The gate reads these four counts and one list. A report without them is
+    // a report it cannot judge, and judging it clean would be the failure this
+    // whole workflow exists to prevent.
+    failures.push(`the report's "analysis_completeness" is missing ${missing.join(', ')} — the gate cannot tell a whole scan from a partial one`);
+  } else {
+    if (done.execution_successful !== true) failures.push('the scanner does not call its own execution successful');
+    if (done.status === 'failed') failures.push('the scan failed (status "failed")');
+    if (scanned < total) failures.push(`the scan read ${scanned} of ${total} components`);
+    if (skipped > 0) failures.push(`the scan left ${skipped} file(s) entirely uninspected`);
+    if (partial > 0) failures.push(`the scan read ${partial} file(s) only in part`);
+    if (done.ledger_exceptions.length) {
+      failures.push(`the scanner recorded ${done.ledger_exceptions.length} exception(s) while reading the tree`);
+    }
+  }
 }
 
 const issues = report.issues;
@@ -101,12 +140,14 @@ if (Array.isArray(issues) && issues.length) {
     const line = i.location?.start_line;
     return line === undefined ? f : `${f}:${line}`;
   };
-  failures.push(
-    `${issues.length} unsuppressed finding(s):\n` +
-      issues
-        .map(i => `    ${i.id ?? '?'} ${i.severity ?? '?'} ${where(i)}\n      ${i.message ?? i.finding ?? ''}`)
-        .join('\n'),
-  );
+  // `i` is read defensively for the same reason the fields are. A finding the
+  // gate cannot describe still has to be printed as a finding, because the
+  // alternative is a stack trace where the reason for the red should be.
+  const describe = i =>
+    i === null || typeof i !== 'object'
+      ? `    a finding the gate cannot read: ${JSON.stringify(i)}`
+      : `    ${i.id ?? '?'} ${i.severity ?? '?'} ${where(i)}\n      ${i.message ?? i.finding ?? ''}`;
+  failures.push(`${issues.length} unsuppressed finding(s):\n${issues.map(describe).join('\n')}`);
 }
 
 if (failures.length) {
@@ -120,6 +161,14 @@ if (failures.length) {
       'or the test the finding landed on to satisfy a pattern matcher.',
   );
   process.exit(1);
+}
+
+// Passing quietly on a status the scanner itself calls partial would be the
+// silence this repository keeps writing commits about. Every count came back
+// clean, so the run is not failed — and it is not hidden either.
+if (done.is_complete !== true) {
+  const why = Array.isArray(done.limitations) && done.limitations.length ? `: ${done.limitations.join('; ')}` : '';
+  console.log(`note: the scanner calls this run "${done.status ?? 'unknown'}", with every coverage count clean${why}`);
 }
 
 const suppressed = typeof report.suppressed_count === 'number' ? report.suppressed_count : 0;

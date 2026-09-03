@@ -197,9 +197,22 @@ tree during triage, the scanner found both and rated them high, and it exited
 shipped that green, which is the failure this repository already wrote a commit
 about. [`scripts/skillspector-gate.mjs`](scripts/skillspector-gate.mjs) reads
 the report's `issues` array instead, and
-[`tests/skillspector-gate.test.mjs`](tests/skillspector-gate.test.mjs) covers
-every branch of it. **A scan that errored, did not complete, or read only part
-of the tree fails as well**, because a broken scan must not read as a clean one.
+[`tests/skillspector-gate.test.mjs`](tests/skillspector-gate.test.mjs) drives it
+with reports written by hand — one per rule it applies, including the shapes it
+refuses to judge. **A scan that errored, did not complete, or read only part of
+the tree fails as well**, because a broken scan must not read as a clean one.
+
+**Incompleteness is read from the counts, not from the report's own
+`is_complete` flag**, and that is a trade worth stating. The scanner downgrades
+a run to `partial` when its reference pass meets a relative link it did not
+follow, and this file and `CONTRIBUTING.md` are full of those. Gating on the
+flag would make the workflow red on arrival for a reason that is not "the
+scanner missed something". So the gate fails on a component left unscanned, a
+file read partly or not at all, an exception recorded while reading, an
+execution the scanner does not call successful, or a status of `failed` — and a
+`partial` run with every count clean passes with the status printed. **None of
+this has been observed on a real report.** The scanner could not be run while
+this was written, so the first CI run is the first measurement.
 
 **Static analysis only.** `--no-llm`: patterns, AST and YARA, no model call, no
 API key, no login, no secret in the workflow. The semantic pass — which
@@ -207,7 +220,12 @@ compares a skill's behaviour against its stated purpose, and is arguably the
 failure this repository could actually ship — needs a provider credential and
 is a separate decision nobody has taken.
 
-**Fifteen findings from six rules, and all fifteen are wrong.**
+**Fifteen findings from six rules, and all fifteen are wrong.** That was
+measured on an earlier commit of this tree, with `v2.11.0`, and the tree has
+moved since — this section and the workflow that carries it are themselves new
+prose the scanner has not read. The counts drift as prose is edited; **the six
+rule identifiers are the durable part**, and a rule that fires on something new
+costs one more entry below, never a rewording.
 [`.skillspector-baseline.yaml`](.skillspector-baseline.yaml) suppresses those
 six by rule identifier, with a reason per entry:
 

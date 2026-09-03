@@ -386,8 +386,10 @@ function readBaseline(path) {
         }
         // Recorded either way, so the rules below report what the line said
         // rather than calling a key that is plainly there absent.
-        top[key] = value || 'empty';
-        if (/^\[.+\]$/.test(value)) problems.push(`${at}: "${key}" holds an inline list — write one entry per line`);
+        const read = scalar(value);
+        if (read === null) return problems.push(`${at}: "${key}" is not a bare or plainly quoted value — ${value}`);
+        top[key] = read || 'empty';
+        if (/^\[.+\]$/.test(read)) problems.push(`${at}: "${key}" holds an inline list — write one entry per line`);
         return;
       }
 
@@ -465,8 +467,19 @@ for (const path of skillBaselines) {
     const mirror = rootRules.get(r.rule_id);
     if (!mirror) {
       fail(`${r.at}: ${r.rule_id} is suppressed here and not at the repository root — the two baselines disagree`);
-    } else if (mirror.reason !== r.reason) {
+      continue;
+    }
+    if (mirror.reason !== r.reason) {
       fail(`${r.at}: ${r.rule_id} gives a different reason here than ${rel(rootBaseline)} does — say it once, the same way`);
+    }
+    // The file glob narrows a suppression, so two baselines that agree on the
+    // rule and disagree on the glob do not agree. Comparing the reason alone
+    // let one file suppress AR2 everywhere while the other suppressed it in
+    // one place, and called that agreement.
+    if ((mirror.file ?? null) !== (r.file ?? null)) {
+      fail(
+        `${r.at}: ${r.rule_id} is narrowed to ${r.file ?? 'every file'} here and to ${mirror.file ?? 'every file'} in ${rel(rootBaseline)} — one rule, one scope`,
+      );
     }
   }
 }

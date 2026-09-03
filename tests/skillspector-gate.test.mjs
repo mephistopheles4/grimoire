@@ -40,7 +40,18 @@ const clean = () => ({
   issues: [],
   suppressed_count: 15,
   execution_successful: true,
-  analysis_completeness: { is_complete: true, status: 'complete', coverage_percent: 100.0 },
+  analysis_completeness: {
+    is_complete: true,
+    status: 'complete',
+    execution_successful: true,
+    coverage_percent: 100.0,
+    total_components: 30,
+    scanned_components: 30,
+    fully_inspected_files: 30,
+    partially_inspected_files: 0,
+    entirely_uninspected_files: 0,
+    ledger_exceptions: [],
+  },
 });
 
 function assertPasses(path) {
@@ -117,19 +128,66 @@ test('an unsuccessful execution fails, even with no findings', () => {
   assertFails(report(r), /did not complete successfully/);
 });
 
-test('incomplete analysis fails, even with no findings', () => {
+test('a component the scanner did not read fails, even with no findings', () => {
   // A scan that read half the tree and found nothing in that half is not a
   // clean scan. This is the failure mode this repository already wrote a
   // commit about: a check that does nothing reads as a check that passed.
   const r = clean();
-  r.analysis_completeness = { is_complete: false, status: 'partial', coverage_percent: 61.5 };
-  assertFails(report(r), /did not analyse the whole tree/);
+  r.analysis_completeness.scanned_components = 19;
+  assertFails(report(r), /read 19 of 30 components/);
 });
 
-test('an incomplete report says what the scanner covered', () => {
+test('a file left entirely uninspected fails', () => {
   const r = clean();
-  r.analysis_completeness = { is_complete: false, status: 'partial', coverage_percent: 61.5 };
-  assert.match(assertFails(report(r), /partial/).stderr, /61\.5/);
+  r.analysis_completeness.entirely_uninspected_files = 2;
+  assertFails(report(r), /2 file\(s\) entirely uninspected/);
+});
+
+test('a file read only in part fails', () => {
+  const r = clean();
+  r.analysis_completeness.partially_inspected_files = 1;
+  assertFails(report(r), /1 file\(s\) only in part/);
+});
+
+test('an exception the scanner recorded while reading fails', () => {
+  const r = clean();
+  r.analysis_completeness.ledger_exceptions = [{ path: 'skills/eagle-eye/lib/template.html', reason: 'too large' }];
+  assertFails(report(r), /1 exception\(s\) while reading/);
+});
+
+test('a failed status fails', () => {
+  const r = clean();
+  r.analysis_completeness.status = 'failed';
+  assertFails(report(r), /status "failed"/);
+});
+
+test('a scanner that does not call its own execution successful fails', () => {
+  const r = clean();
+  r.analysis_completeness.execution_successful = false;
+  assertFails(report(r), /does not call its own execution successful/);
+});
+
+test('a partial status with every count clean passes, and says so', () => {
+  // The scanner downgrades a complete run to "partial" when its reference pass
+  // finds a relative link it did not follow, and this repository's markdown is
+  // full of those. Failing on the flag would make the workflow red on arrival
+  // for a reason that is not "the scanner missed something". Failing on the
+  // counts catches that; this passes and prints what the scanner said.
+  const r = clean();
+  r.analysis_completeness.is_complete = false;
+  r.analysis_completeness.status = 'partial';
+  r.analysis_completeness.limitations = ['One or more referenced artifacts were not completely inspected.'];
+  const out = assertPasses(report(r));
+  assert.match(out.stdout, /calls this run "partial"/);
+  assert.match(out.stdout, /referenced artifacts/);
+});
+
+test('a completeness block missing a count it reads fails, rather than judging on what is left', () => {
+  const r = clean();
+  delete r.analysis_completeness.entirely_uninspected_files;
+  delete r.analysis_completeness.ledger_exceptions;
+  const out = assertFails(report(r), /entirely_uninspected_files/);
+  assert.match(out.stderr, /ledger_exceptions/);
 });
 
 test('a missing execution_successful fails rather than being assumed true', () => {
@@ -168,4 +226,31 @@ test('no argument fails with usage', () => {
   const r = run(gate, []);
   assert.equal(r.code, 1);
   assert.match(r.stderr, /usage/i);
+});
+
+test('a finding with a file and no line is reported at the file', () => {
+  const r = clean();
+  r.issues = [{ id: 'XX9', severity: 'LOW', location: { file: 'README.md' }, message: 'placeholder' }];
+  const out = assertFails(report(r), /XX9/);
+  assert.match(out.stderr, /README\.md(?!:)/);
+});
+
+test('a finding the gate cannot read is printed, not thrown on', () => {
+  // A stack trace where the reason for the red should be is a red nobody can
+  // act on. The gate still fails; it just says what it saw.
+  const r = clean();
+  r.issues = [null];
+  assertFails(report(r), /a finding the gate cannot read/);
+});
+
+test('a non-boolean execution_successful is quoted back, not called false', () => {
+  const r = clean();
+  r.execution_successful = 'yes';
+  assertFails(report(r), /is "yes"/);
+});
+
+test('a clean report with no suppressed_count still says how many', () => {
+  const r = clean();
+  delete r.suppressed_count;
+  assert.match(assertPasses(report(r)).stdout, /0 suppressed/);
 });

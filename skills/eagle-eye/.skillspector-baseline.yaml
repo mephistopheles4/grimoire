@@ -1,14 +1,25 @@
-# SkillSpector baseline for the eagle-eye skill.
+# SkillSpector baseline for this skill.
 #
-# This file exists because a baseline is only found at the top of the
-# directory a scan is pointed at, and a skill scanner is normally pointed at
-# the skill. The repository root carries its own copy at
-# .skillspector-baseline.yaml, covering six rules; three of them fire inside
-# this directory, and those three are repeated here word for word.
+# You are reading this because you scanned this directory before installing
+# what is in it, which is the right thing to do with a skill. Three of
+# SkillSpector's rules fire on the files here, and this file says why each one
+# is wrong, so you can disagree with a reason rather than with silence.
 #
-# `node scripts/check.mjs` fails if the two files disagree — same rule
-# identifiers, same reasons — so a rule reasoned away in one place cannot go
-# unexplained in the other.
+# The scanner reports the score unchanged and applies none of this unless you
+# ask. Apply it with --use-shipped-baseline, and read what it covered with
+# --show-suppressed.
+#
+# Every entry is keyed by rule identifier rather than by a fingerprint of the
+# text it matched. A fingerprint expires the next time the prose is edited, and
+# this prose is edited constantly; a rule key survives that, and it also
+# suppresses the rule across the whole directory. The reasons below are what
+# that breadth is paid for with.
+#
+# Nothing here was reworded to satisfy a pattern matcher.
+#
+# The repository this skill comes from carries the same file at its root,
+# covering three more rules that fire outside this directory. Its check refuses
+# a change that makes the two disagree.
 
 version: 2
 fingerprints: []

@@ -64,7 +64,7 @@ jobs:
       # owner, so the owner is part of the pin, not decoration.
       - name: Install SkillSpector
         run: |
-          pipx install "git+https://github.com/NVIDIA/SkillSpector.git@b7241089d7ec15d8b30df980dacbb428214732b9"
+          pipx install "git+https://github.com/NVIDIA/SkillSpector.git@b7241089d7ec15d8b30df980dacbb428214732b9" # v2.11.0
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
 
       # Verified, not assumed. An install that put no entry point on the PATH
@@ -92,10 +92,15 @@ jobs:
       #
       # No `|| true` anywhere. A blanket one swallows the error case with
       # everything else.
+      #
+      # Both reports are written outside the checkout. A report echoes the text
+      # each finding matched, so one left in the working tree is a file the
+      # next scan reads — a component that is not in this repository, and an
+      # alert pointing at a path nobody can open.
       - name: Scan the repository
         run: |
           status=0
-          skillspector scan . --no-llm --baseline .skillspector-baseline.yaml --format json --output skillspector-report.json || status=$?
+          skillspector scan . --no-llm --baseline .skillspector-baseline.yaml --format json --output "${RUNNER_TEMP}/skillspector-report.json" || status=$?
           if [ "$status" -gt 1 ]; then
             echo "skillspector exited ${status} — the scan errored rather than finding something"
             exit 1
@@ -108,7 +113,7 @@ jobs:
       - name: Write the SARIF report
         run: |
           status=0
-          skillspector scan . --no-llm --baseline .skillspector-baseline.yaml --format sarif --output skillspector.sarif || status=$?
+          skillspector scan . --no-llm --baseline .skillspector-baseline.yaml --format sarif --output "${RUNNER_TEMP}/skillspector.sarif" || status=$?
           if [ "$status" -gt 1 ]; then
             echo "skillspector exited ${status} — the SARIF pass errored"
             exit 1
@@ -130,7 +135,7 @@ jobs:
         if: github.event_name == 'push'
         uses: github/codeql-action/upload-sarif@cdf488f595d80d6e07e03d4674febd5ab45fa938 # v4.37.9
         with:
-          sarif_file: skillspector.sarif
+          sarif_file: ${{ runner.temp }}/skillspector.sarif
           category: skillspector
 
       # The gate, and the last word. A small Node script rather than a line of

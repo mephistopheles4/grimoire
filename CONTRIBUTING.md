@@ -13,8 +13,14 @@ node scripts/check.mjs
 That is the contract, and it is still one command. It validates every
 `*.box.json` in the tree with the eagle-eye renderer, checks that no file a
 skill ships has grown a fixed path back, fails on a code fence that declares no
-language, fails on a dependency, and runs the test suite in `tests/`. CI runs it
-as a required check called `check`. `main` takes no direct pushes.
+language, fails on a dependency, fails when the two SkillSpector baselines
+disagree, and runs the test suite in `tests/`. CI runs it as a required check
+called `check`. `main` takes no direct pushes.
+
+A second workflow scans the skill prose with SkillSpector and fails on any
+finding the baselines do not cover. It installs the scanner on the runner and
+never on your machine, so the command above stays the only one you need. See
+[`SECURITY.md`](SECURITY.md) for what it suppresses and why.
 
 It walks what `.gitignore` does not exclude, so a worktree under
 `.claude/worktrees/` is not descended into and not checked. Only the root
@@ -33,7 +39,7 @@ not take, and `SECURITY.md` explains why that matters more than it looks.
 run only the suite while you work on it:
 
 ```bash
-node --test tests/esc.test.mjs tests/render.test.mjs tests/check.test.mjs tests/build-pages.test.mjs
+node --test tests/esc.test.mjs tests/render.test.mjs tests/check.test.mjs tests/build-pages.test.mjs tests/skillspector-gate.test.mjs
 ```
 
 Two rules about what goes in there:
