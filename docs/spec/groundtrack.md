@@ -1177,3 +1177,27 @@ changing the set is a one-file change.
 symbol that no other changed symbol calls* ships as written, in `SKILL.md`.
 Measuring it is a design activity rather than an implementation one, and it did
 not happen here.
+
+**The vendored faces are IBM's own subsets, and there are six of them.** The
+spec says *three monospace faces ship in the skill's assets and are inlined as
+data URIs, about 45 KB before encoding*. That number came from three faces the
+prototype had cut down by hand, and they could not ship.
+
+The licence names `Plex` as a Reserved Font Name, and it defines a Modified
+Version to include a derivative made by deleting components. A face subset by
+hand is therefore a modified version, and a modified version may not use the
+reserved name — which both the page's `font-family` and the files' own name
+tables did.
+
+IBM publish per-script subsets themselves, and an original version distributed
+by the copyright holder is not a modified version. So the skill ships IBM's
+`Latin1` and `Pi` subsets for each of the three weights, unmodified: six files,
+about 94 KB before encoding, each declared under the `unicode-range` IBM
+declares for it. Latin1 carries the text; Pi carries the one arrow the tree and
+the source view draw. The full licence, IBM's own copy with their copyright
+line, ships beside them as `OFL.txt`.
+
+**Everything the spec asked of the fonts still holds.** They are vendored, they
+are inlined, the page makes no network request, and no fixed path is named. The
+only figure that moved is the byte count, and it moved because the smaller one
+was not licensed to ship.

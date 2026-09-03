@@ -526,10 +526,36 @@ export function text(prog, runIndex) {
 
 /* -- the page -------------------------------------------------------------- */
 
+/* The faces, exactly as IBM publishes them, and their own unicode ranges.
+ *
+ * These files are IBM's, byte for byte, and that is the whole point. The
+ * licence names "Plex" as a Reserved Font Name, so a font we had cut down
+ * ourselves would be a Modified Version and could not keep the name it
+ * carries. IBM's own splits are original versions, so the name stands.
+ *
+ * Latin1 holds the text and Pi holds the arrow. Two faces per weight, each
+ * with the range IBM declares for it, because two @font-face rules for one
+ * family and weight with no range would leave only the last one in force.
+ */
+const LATIN1 =
+  'U+0020-007E, U+00A0-00FF, U+0131, U+0152-0153, U+02C6, U+02DA, U+02DC, U+2013-2014, ' +
+  'U+2018-201A, U+201C-201E, U+2020-2022, U+2026, U+2030, U+2039-203A, U+2044, U+20AC, ' +
+  'U+2122, U+2212, U+FB01-FB02';
+const PI =
+  'U+03C0, U+0E3F, U+2000-200D, U+2010-2012, U+2015, U+2028-2029, U+202F, U+2032-2033, ' +
+  'U+203E, U+205F, U+2070, U+2074-2079, U+2080-2089, U+2113, U+2116, U+2126, U+212E, ' +
+  'U+2150-2151, U+2153-215E, U+2190-2199, U+21A9-21AA, U+21B0-21B3, U+21B6-21B7, ' +
+  'U+21BA-21BB, U+21C4, U+21C6, U+2202, U+2206, U+220F, U+2211, U+2215, U+2219-221A, ' +
+  'U+221E, U+222B, U+2236, U+2248, U+2260, U+2264-2265, U+2400-2421, U+2500-259F, ' +
+  'U+25CA, U+2713, U+274C, U+2B0E-2B11, U+3000, U+FEFF, U+FFFD';
+
 const FONTS = [
-  ['400', 'ibm-plex-mono-400.woff2'],
-  ['500', 'ibm-plex-mono-500.woff2'],
-  ['600', 'ibm-plex-mono-600.woff2'],
+  ['400', 'IBMPlexMono-Regular-Latin1.woff2', LATIN1],
+  ['400', 'IBMPlexMono-Regular-Pi.woff2', PI],
+  ['500', 'IBMPlexMono-Medium-Latin1.woff2', LATIN1],
+  ['500', 'IBMPlexMono-Medium-Pi.woff2', PI],
+  ['600', 'IBMPlexMono-SemiBold-Latin1.woff2', LATIN1],
+  ['600', 'IBMPlexMono-SemiBold-Pi.woff2', PI],
 ];
 
 export function page(prog) {
@@ -540,9 +566,9 @@ export function page(prog) {
    * at all. A font CDN is a dependency on somebody else's uptime, some hosts
    * will not load one, and a drawing whose monospace silently degrades is a
    * worse drawing. */
-  const faces = FONTS.map(([weight, file]) => {
+  const faces = FONTS.map(([weight, file, range]) => {
     const b64 = readFileSync(resolve(here, '..', 'assets', file)).toString('base64');
-    return `@font-face{font-family:'IBM Plex Mono';font-style:normal;font-weight:${weight};font-display:block;src:url(data:font/woff2;base64,${b64}) format('woff2')}`;
+    return `@font-face{font-family:'IBM Plex Mono';font-style:normal;font-weight:${weight};font-display:block;unicode-range:${range};src:url(data:font/woff2;base64,${b64}) format('woff2')}`;
   }).join('\n');
 
   /* JSON inside a script block: the closing-tag sequence is escaped so no

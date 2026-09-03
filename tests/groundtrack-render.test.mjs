@@ -326,9 +326,36 @@ test('the emitted page holds zero external references', () => {
   assert.doesNotMatch(html, /@import/i);
   assert.doesNotMatch(html, /\bfetch\s*\(/);
   assert.doesNotMatch(html, /XMLHttpRequest|WebSocket|EventSource|navigator\.sendBeacon/);
-  // The faces are here instead, inlined.
-  assert.equal((html.match(/@font-face/g) || []).length, 3);
-  assert.match(html, /src:url\(data:font\/woff2;base64,/);
+  // The faces are here instead, inlined: two subsets for each of three
+  // weights, each under the unicode-range IBM declares for it.
+  assert.equal((html.match(/@font-face/g) || []).length, 6);
+  assert.equal((html.match(/src:url\(data:font\/woff2;base64,/g) || []).length, 6);
+  assert.equal((html.match(/unicode-range:/g) || []).length, 6);
+});
+
+test('the shipped faces are IBM\'s own, unmodified', () => {
+  // The licence names "Plex" as a Reserved Font Name, and a face we had cut
+  // down ourselves would be a Modified Version that may not use it. So the
+  // assets are IBM's published subsets, and this test is what notices if
+  // somebody swaps in a hand-made one. See assets/FONTS.md.
+  const assets = join(groundtrack, '..', '..', 'assets');
+  const faces = readdirSync(assets).filter(f => f.endsWith('.woff2')).sort();
+  assert.deepEqual(faces, [
+    'IBMPlexMono-Medium-Latin1.woff2',
+    'IBMPlexMono-Medium-Pi.woff2',
+    'IBMPlexMono-Regular-Latin1.woff2',
+    'IBMPlexMono-Regular-Pi.woff2',
+    'IBMPlexMono-SemiBold-Latin1.woff2',
+    'IBMPlexMono-SemiBold-Pi.woff2',
+  ]);
+  for (const f of faces) {
+    assert.equal(readFileSync(join(assets, f)).subarray(0, 4).toString('latin1'), 'wOF2', `${f} is not a woff2`);
+  }
+  // The licence travels with them, and it is IBM's copy rather than the blank
+  // template: their copyright line is the first thing in it.
+  const ofl = readFileSync(join(assets, 'OFL.txt'), 'utf8');
+  assert.match(ofl.split('\n')[0], /Copyright .* IBM Corp\. with Reserved Font Name "Plex"/);
+  assert.match(ofl, /SIL OPEN FONT LICENSE Version 1\.1/);
 });
 
 test('author text reaches the page as text, in every field the page shows', () => {
