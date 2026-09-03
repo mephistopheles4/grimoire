@@ -1,0 +1,13 @@
+attempt-2.json                 12 ERRORS
+    csv-import / two rows, one duplicate [19] a "let" move ran step 9, which is a "goto"
+    csv-import / two rows, one duplicate [19] no edge from 9 (goto) to 10
+    csv-import / two rows, one duplicate [20] a "goto" move ran step 10, which is a "let"
+    csv-import / two rows, one duplicate [20] no edge from 10 (let) to 5
+    csv-import / two rows, one duplicate [29] handled lands at 11, but "skip" is step 10
+    csv-import / two rows, one duplicate [30] a "let" move ran step 11, which is a "goto"
+    csv-import / two rows, one duplicate [30] no edge from 11 (goto) to 12
+    csv-import / two rows, one duplicate [31] a "goto" move ran step 12, which is a "effect"
+    csv-import / two rows, one duplicate [31] no edge from 12 (effect) to 5
+    csv-import / two rows, one duplicate [33] no edge from 6 (if) to 13
+    csv-import / two rows, one duplicate [34] a "effect" move ran step 13, which is a "return"
+    csv-import / two rows, one duplicate [35] a "return" move ran step 14, which is a "throw"

@@ -164,7 +164,28 @@ function path(prog, walk, where, errs) {
   walk.steps.forEach((m, i) => {
     if (m.k === 'unwind') { if (!frames.length) return bad(i, 'unwind with no frame'); return void frames.pop(); }
     if (m.k === 'done') { if (frames.length) bad(i, `done with ${frames.length} frame(s) open`); return void (frames.length = 0); }
-    if (m.k === 'uncaught') return void (frames.length = 0);
+    /* PROTOTYPE, #45: a tag cannot be uncaught while a frame it is passing
+     * through declares a handler for it. Nothing is evaluated — this reads the
+     * call step each open frame is suspended at, which is the step whose
+     * `onError` guards that call. (Not the frame's cursor: a `call` advances
+     * the caller to `next` before pushing, so the cursor sits past the guard.
+     * Not any step of the node either: `onError` is per-step, and a handler on
+     * some other call is not in this error's way.) */
+    if (m.k === 'uncaught') {
+      for (const fr of frames) {
+        /* Only a frame suspended at a call is in the error's way. `callAt` is
+         * set by `call` and cleared by the matching `return`, so the throwing
+         * frame has none, and a caller that already resumed has none either.
+         * It survives an `unwind`, which is the case that matters: after the
+         * throwing frame is popped, the guilty caller is the top frame. */
+        if (fr.callAt === undefined) continue;
+        const guard = prog.nodes[fr.nodeId]?.steps?.[fr.callAt];
+        for (const h of (guard && guard.onError) || [])
+          if (h.tag === m.tag)
+            bad(i, `"${m.tag}" is uncaught, but ${fr.nodeId}[${fr.callAt}] declares onError for it`);
+      }
+      return void (frames.length = 0);
+    }
 
     const f = top();
     if (!f) return bad(i, `${m.k} with no frame`);
@@ -203,6 +224,7 @@ function path(prog, walk, where, errs) {
       case 'call':
         if (st.op === 'call' && m.to !== st.target) bad(i, `call to "${m.to}", step targets "${st.target}"`);
         f.pc = m.next;
+        f.callAt = m.at; /* #45: the step whose onError guards this call */
         if (prog.nodes[m.to]) frames.push({ nodeId: m.to, pc: 0 });
         else bad(i, `call to unknown node "${m.to}"`);
         break;
@@ -226,6 +248,10 @@ function path(prog, walk, where, errs) {
       }
       case 'return':
         frames.pop();
+        /* #45: the caller resumed, so it is no longer suspended at its call and
+         * that call's onError is no longer in any error's way. An `unwind` does
+         * NOT clear this: there the error is still travelling through it. */
+        if (frames.length) top().callAt = undefined;
         break;
     }
   });

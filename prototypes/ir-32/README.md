@@ -21,6 +21,7 @@ what its file should be.
 | `fidelity.mjs` | Does a green file describe the program the task asked for? Written from the task files. |
 | `loop-report.mjs` | Scores a round of write-validate-fix runs against the pre-registered rule. |
 | `runs-loop45/` | Eval output, round five. Every attempt and every checker output. |
+| `runs-loop45b/` | Three more `t3` runs against the patched checker. |
 | `RESULTS-45.md` | What round five found. |
 
 ## Run it

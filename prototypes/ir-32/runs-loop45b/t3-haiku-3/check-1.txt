@@ -1,0 +1,15 @@
+attempt-1.json                 14 ERRORS
+    csv-import-contacts / two rows, one duplicate [8] no edge from 2 (if) to 5
+    csv-import-contacts / two rows, one duplicate [9] let ran step 4, but the cursor sits at 5
+    csv-import-contacts / two rows, one duplicate [17] return ran step 1, but the cursor sits at 0
+    csv-import-contacts / two rows, one duplicate [26] return ran step 1, but the cursor sits at 0
+    csv-import-contacts / two rows, one duplicate [29] handled lands at 11, but "skip" is step 10
+    csv-import-contacts / two rows, one duplicate [30] a "let" move ran step 11, which is a "goto"
+    csv-import-contacts / two rows, one duplicate [30] no edge from 11 (goto) to 12
+    csv-import-contacts / two rows, one duplicate [31] a "goto" move ran step 12, which is a "effect"
+    csv-import-contacts / two rows, one duplicate [31] no edge from 12 (effect) to 5
+    csv-import-contacts / two rows, one duplicate [33] no edge from 6 (if) to 13
+    csv-import-contacts / two rows, one duplicate [34] next 14 is not a step of importContacts
+    csv-import-contacts / two rows, one duplicate [34] a "effect" move ran step 13, which is a "return"
+    csv-import-contacts / two rows, one duplicate [35] return at 14 is not a step of importContacts
+    csv-import-contacts / two rows, one duplicate [36] done with 1 frame(s) open

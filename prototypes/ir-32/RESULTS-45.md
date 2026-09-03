@@ -119,16 +119,70 @@ A tag cannot be both caught by a frame on the stack and uncaught in the same
 walk. `check.mjs` accepts both, because it validates a `handled` move against
 `onError` and never asks the reverse question of an `uncaught` one.
 
-This needs no evaluator: at the moment of `uncaught`, look at **the step each
-open frame is parked at**, and refuse if any of them declares a handler for that
-tag. Not any step in the node — `onError` is per-step, and a handler sitting on
-some other call is not in the error's way.
+This needs no evaluator: at the moment of `uncaught`, look at **the call step
+each open frame is suspended at**, and refuse if that step declares a handler
+for the tag.
 
-**It fires on this file.** The handler is on step 2, the `call parseRows` step,
-and the walk's open `importContacts` frame is parked at step 2 — move 5 is
-`{"k":"call","at":2,"to":"parseRows"}` — when move 10 declares `BadCsv`
-uncaught. The frame that says it catches `BadCsv` is the frame the error is
-passing through.
+Getting that sentence right took writing it. Two wrong versions first:
+
+- *any step of the node* is too wide. `onError` is per-step, and a handler on
+  some other call is not in this error's way.
+- *the step the frame's cursor sits at* is simply wrong. A `call` sets the
+  caller's cursor to `next` **before** pushing the child, so the cursor is
+  already past the guard. On this file the cursor reads 3 and the handler is on
+  2. The check has to remember the call step, not read the cursor.
+
+**Measured, not argued.** Implemented on this branch as ten lines in
+`check.mjs`, tracking `callAt` when a `call` pushes a frame:
+
+```
+csv-import-contacts / bad header [10] "BadCsv" is uncaught,
+    but importContacts[2] declares onError for it
+```
+
+And it costs nothing elsewhere. Across the whole corpus — the three worked
+programs, the example, all 52 corpus claims, and all 18 round-four runs — **not
+one file changes verdict.** The round-four baseline is still 13 of 18. The only
+files it refuses are the ones that were green and wrong.
+
+#### It took two goes, and the second one is the interesting one
+
+A first cut checked every frame *below* the top, reasoning that the top frame is
+the one that threw. That is wrong whenever the walk emits an `unwind` before
+`uncaught`: the throwing frame is popped, and the guilty caller **becomes** the
+top frame. Two files with identical graphs behaved differently purely on that.
+
+The rule that survives: a frame is in the error's way when it is **suspended at
+a call**. Track `callAt` on `call`, clear it on the matching `return` — the
+caller has resumed, so its handler is no longer in the way — and **keep it
+through an `unwind`**, which is precisely the case where the error is still
+travelling. The throwing frame never has one.
+
+With that, the check refuses both green-and-wrong files, and finds **two**
+errors in each rather than one: `NoUpload` is caught by `importContacts[1]` in
+both, and the task says that reaches the top uncaught too. `fidelity.mjs` never
+tested for that. The structural check found more than the rubric did.
+
+### And the remedy works — measured, on three fresh runs
+
+`runs-loop45b/` is three more `t3` runs against the patched checker. One of them
+is the whole argument in miniature. `t3-haiku-1` went 22 → 11 → 2 → 0 errors,
+and its own account of pass three reads:
+
+> still had onError handlers for BadCsv and NoUpload, which the task specifies
+> should NOT be caught
+
+It removed them on pass four and finished green **and** faithful, 23 of 23. The
+semantic error became a structural one, the checker named it, and the loop —
+which repairs structural errors three times in four — repaired it.
+
+The other two: one clean at 23 of 23 in two passes, and one that still carries
+the miss, because it was run against the *narrow* first cut of the check. Under
+the rule as it now stands its green file is refused with two errors, so it would
+have had a refusal to act on.
+
+This is three runs, not nine. It is a demonstration that the mechanism works
+end to end, not a re-run of the round.
 
 That does not make the shape sound — it moves one semantic error into the
 structural half, where the loop demonstrably fixes things.

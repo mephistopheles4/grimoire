@@ -1,0 +1,17 @@
+attempt-1.json                 22 ERRORS
+    csv-import / two rows, one duplicate [16] let ran step 1, but the cursor sits at 0
+    csv-import / two rows, one duplicate [17] effect ran step 1, but the cursor sits at 2
+    csv-import / two rows, one duplicate [17] a "effect" move ran step 1, which is a "let"
+    csv-import / two rows, one duplicate [19] let at 8 is not a step of saveContact
+    csv-import / two rows, one duplicate [20] goto at 9 is not a step of saveContact
+    csv-import / two rows, one duplicate [21] let at 12 is not a step of saveContact
+    csv-import / two rows, one duplicate [22] goto at 13 is not a step of saveContact
+    csv-import / two rows, one duplicate [23] if at 6 is not a step of saveContact
+    csv-import / two rows, one duplicate [24] call at 7 is not a step of saveContact
+    csv-import / two rows, one duplicate [25] call ran step 0, but the cursor sits at 1
+    csv-import / two rows, one duplicate [26] let ran step 1, but the cursor sits at 0
+    csv-import / two rows, one duplicate [27] effect ran step 1, but the cursor sits at 2
+    csv-import / two rows, one duplicate [27] a "effect" move ran step 1, which is a "let"
+    csv-import / two rows, one duplicate [29] handled at 7 is not a step of saveContact
+    csv-import / two rows, one duplicate [30] let at 11 is not a step of saveContact
+    … 7 more

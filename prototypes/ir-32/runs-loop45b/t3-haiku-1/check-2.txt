@@ -1,0 +1,12 @@
+attempt-2.json                 11 ERRORS
+    csv-import / two rows, one duplicate [22] no edge from 9 (goto) to 12
+    csv-import / two rows, one duplicate [23] a "let" move ran step 12, which is a "goto"
+    csv-import / two rows, one duplicate [23] no edge from 12 (goto) to 13
+    csv-import / two rows, one duplicate [24] a "goto" move ran step 13, which is a "effect"
+    csv-import / two rows, one duplicate [24] no edge from 13 (effect) to 3
+    csv-import / two rows, one duplicate [25] if ran step 6, but the cursor sits at 3
+    csv-import / two rows, one duplicate [37] if ran step 6, but the cursor sits at 3
+    csv-import / two rows, one duplicate [37] no edge from 6 (if) to 14
+    csv-import / two rows, one duplicate [38] a "effect" move ran step 14, which is a "return"
+    csv-import / two rows, one duplicate [39] a "return" move ran step 15, which is a "throw"
+    csv-import / no upload [3] "NoUpload" is uncaught, but importContacts[1] declares onError for it

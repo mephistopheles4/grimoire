@@ -1,0 +1,3 @@
+attempt-3.json                 2 ERRORS
+    csv-import / bad header [9] "BadCsv" is uncaught, but importContacts[2] declares onError for it
+    csv-import / no upload [3] "NoUpload" is uncaught, but importContacts[1] declares onError for it
