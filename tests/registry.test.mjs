@@ -100,16 +100,40 @@ test('the check validates a flightpath file, and fails on a broken one', () => {
   assert.match(broken.stderr, /a "let" move ran step 0, which is a "note"/);
 });
 
-test('the check reports a skill whose artifacts no row claims', () => {
-  const dir = tree();
-  mkdirSync(join(dir, 'skills', 'newcomer'), { recursive: true });
+function newSkill(dir, name, withExamples) {
+  mkdirSync(join(dir, 'skills', name), { recursive: true });
   writeFileSync(
-    join(dir, 'skills', 'newcomer', 'SKILL.md'),
-    '---\nname: newcomer\ndescription: A skill with no registry row.\n---\n\n# Newcomer\n',
+    join(dir, 'skills', name, 'SKILL.md'),
+    `---\nname: ${name}\ndescription: A skill added by a test.\n---\n\n# ${name}\n`,
   );
+  if (withExamples) {
+    mkdirSync(join(dir, 'skills', name, 'examples'), { recursive: true });
+    writeFileSync(join(dir, 'skills', name, 'examples', 'README.md'), '# An example\n\nSomething this skill produces.\n');
+  }
+}
+
+test('the check reports a skill that ships examples and has no row', () => {
+  const dir = tree();
+  newSkill(dir, 'newcomer', true);
   const r = run(checkIn(dir), [], { cwd: dir });
   assert.equal(r.code, 1);
-  assert.match(r.stderr, /skills\/newcomer\/ has no row in scripts\/lib\/registry\.mjs/);
+  assert.match(r.stderr, /skills\/newcomer\/ ships examples\/ and has no row in scripts\/lib\/registry\.mjs/);
+});
+
+test('a skill that produces nothing needs no row', () => {
+  // A prose-only skill has no renderer for a row to name. Failing it would be
+  // an instruction a contributor could follow and still go red.
+  const dir = tree();
+  newSkill(dir, 'proseonly', false);
+  const r = run(checkIn(dir), [], { cwd: dir });
+  assert.equal(r.code, 0, `${r.stdout}\n${r.stderr}`);
+});
+
+test('the registry rule matches what CONTRIBUTING tells a contributor to do', () => {
+  // The two went out of step once: the prose asked for a row from a skill that
+  // produces an artifact, and the check asked every skill for one.
+  const contributing = readFileSync(join(root, 'CONTRIBUTING.md'), 'utf8');
+  assert.match(contributing, /If it ships an `examples\/` directory/);
 });
 
 test('the fixed-path rule covers the new skill, including its non-markdown files', () => {

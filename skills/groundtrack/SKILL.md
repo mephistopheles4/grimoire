@@ -60,6 +60,12 @@ channel is where a reader sees that in advance.
    changed symbol that no other changed symbol calls. Seventeen files do not
    fit on one graph.
 
+   **This rule is argued, not measured.** It was derived from one real change,
+   where it gives the right answer. Nobody has run it against a set of changes
+   and compared the result to a hand-drawn one. So read your own cut before you
+   show it: if a graph comes out with one node, or with everything in it, the
+   rule has told you something you should say out loud rather than draw.
+
 3. **List every graph you found, and let the reader pick.** Say the list before
    you draw anything, so the reader can disagree with the cut before the work
    rather than after it. **Rank nothing and suggest nothing.** No rule for

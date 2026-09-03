@@ -150,7 +150,13 @@ real run produced it). `steps` is a flat list of moves.
    name no op, because they move a frame rather than run a step: `handled`,
    `unwind`, `done` and `uncaught`.
 2. **`at` always names the step that ran.** Every move that runs a step has
-   one; the four frame moves run no step and carry none.
+   one. Three of the four frame moves run no step and carry none.
+
+   **`handled` is the exception, and it is not a second rule.** A handled catch
+   carries `at`, and that `at` names the call step whose `onError` caught —
+   the step this frame is suspended at, not a step that just ran. It is the
+   one move that arrives after an unwind, so its `at` is the only way to say
+   which guard did the catching.
 3. **`next` always names where the cursor goes in that same frame.** Every move
    that leaves a live cursor behind has one. The cursor never advances on its
    own, so a reader works nothing out.

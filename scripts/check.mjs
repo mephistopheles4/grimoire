@@ -75,11 +75,25 @@ for (const row of ARTIFACTS) {
 // A skill whose artifacts no row claims is reported rather than skipped. This
 // is the failure the registry exists to make impossible to reach quietly: the
 // skill ships, the check walks past it, and the run is green.
+//
+// Scoped to a skill that ships an examples/ directory, which is this
+// repository's own mark of a skill that produces something — both skills here
+// carry one, and a worked example is a file a reader opens. A prose-only skill
+// produces no artifact, so there is no renderer for a row to name and no rule
+// for it to break. Asking every skill for a row would be an instruction a
+// contributor could follow and still fail this check.
 for (const e of readdirSync(join(root, 'skills'), { withFileTypes: true })) {
   if (!e.isDirectory()) continue;
+  let ships = false;
+  try {
+    ships = statSync(join(root, 'skills', e.name, 'examples')).isDirectory();
+  } catch (err) {
+    if (err.code !== 'ENOENT') throw err;
+  }
+  if (!ships) continue;
   if (!ARTIFACTS.some(row => row.renderer.startsWith(`skills/${e.name}/`))) {
     fail(
-      `skills/${e.name}/ has no row in scripts/lib/registry.mjs — nothing validates what it produces and nothing publishes it. Add a row naming its artifact suffix and its renderer.`,
+      `skills/${e.name}/ ships examples/ and has no row in scripts/lib/registry.mjs — nothing validates what it produces and nothing publishes it. Add a row naming its artifact suffix and its renderer.`,
     );
   }
 }

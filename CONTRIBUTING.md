@@ -140,10 +140,11 @@ or none.
 
 1. Put it at `skills/<name>/SKILL.md`, with a frontmatter `name` and
    `description`.
-2. If it produces an artifact, add a row to `scripts/lib/registry.mjs` naming
-   the artifact's file suffix and the renderer that owns it. The check fails on
-   a skill with no row, because a gate that quietly does nothing reads as a
-   gate that passed.
+2. If it ships an `examples/` directory, add a row to
+   `scripts/lib/registry.mjs` naming the artifact's file suffix and the
+   renderer that owns it. The check fails on such a skill with no row, because
+   a gate that quietly does nothing reads as a gate that passed. A prose-only
+   skill produces no artifact and needs no row.
 3. Bump `version` in `.claude-plugin/plugin.json`. The check fails without it,
    because Claude Code ships an update only when that field moves.
 4. Run `node scripts/check.mjs`.

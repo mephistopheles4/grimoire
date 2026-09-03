@@ -135,10 +135,12 @@ A **layer** redraws the same graph under a different set of dependencies. Flip
 to the test layer, and a node that still reaches the real network under test is
 a design defect you can see rather than a sentence you have to trust.
 
-Ask for it by name:
+Ask for it by name. The installer route keeps the plain name; the plugin route
+namespaces it:
 
 ```text
 /groundtrack <a plan, a change, a path>
+/grimoire:groundtrack <a plan, a change, a path>
 ```
 
 Or run the renderer directly:
