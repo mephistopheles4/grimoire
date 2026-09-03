@@ -3,6 +3,13 @@
 Before you patch anything, read [`CONTRIBUTING.md`](CONTRIBUTING.md) — it is the
 contract for any patch.
 
+## Two directories are called `scripts/`
+
+`scripts/` at the repository root holds this repository's own checks — the one
+command, the site build, and the table that says which renderer owns which
+artifact. `skills/groundtrack/scripts/` holds that skill's renderer and the one
+module it inlines into the page. The path always says which is which.
+
 ## Agent skills
 
 ### Issue tracker

@@ -81,6 +81,63 @@ findings build, not the `innerHTML` calls that consume it. A test that asserted
 nothing here does that yet. That claim is still read by a reviewer, not by a
 machine.
 
+## What the groundtrack renderer does with author text
+
+The same pairing, stated again rather than inherited in silence. groundtrack
+has a field the incumbent has not got — a node's `loc`, which is a path or a
+URL — and a URL is the thing most likely to be reached for as an attribute.
+
+The page shows a great deal more author text than the incumbent does:
+expressions, step remarks, effect descriptions, error messages, run blurbs,
+layer tokens, file paths and their reasons, ambient value names, run input
+names, and a node's location. All of it is a stranger's text.
+
+- **`skills/groundtrack/scripts/render.mjs` escapes `</` before it writes the
+  flightpath JSON into a `<script>` block**, so no author string can close the
+  block.
+- **`skills/groundtrack/scripts/groundtrack.js` escapes `&` and `<`** before
+  author text reaches `innerHTML`. **It does not escape the double quote.** The
+  module lives apart from the markup that calls it so a test can reach it, and
+  `render.mjs` inlines it into the page, so the page and the test run the same
+  function.
+- **Author text goes into element content, never into an attribute.** Every
+  interpolated attribute on the page holds a node id, an index, a fixed class
+  name, or one of the page's own fixed help strings — the `data-help` text the
+  page's tooltip reads off the channel keys, the holds and the stamps, which
+  is written in the template and never comes from the file. The tooltip sets
+  it as text content, never as markup.
+- **Ids are validated rather than escaped.** A node id that does not match
+  `^[A-Za-z0-9][A-Za-z0-9-]*$` is refused by the validator, so an id reaching
+  an attribute is a known-safe string by the time the page sees it.
+
+**Two rules follow, and they are a decision rather than a note.**
+
+1. Author text goes into element content, never into an attribute.
+2. **If an attribute must ever carry author text, the narrow escape does not
+   cover it.** A URL wants percent-encoding, which is what
+   `scripts/build-pages.mjs` already uses for the one `href` it writes.
+   Widening the shared escape to cover the double quote instead is a change to
+   this file, and is reviewed as one.
+
+**The tests pin the width and the reference count.**
+[`tests/groundtrack-fold.test.mjs`](tests/groundtrack-fold.test.mjs) asserts
+that `&` and `<` are escaped **and** that the double quote passes through.
+[`tests/groundtrack-render.test.mjs`](tests/groundtrack-render.test.mjs)
+renders a file that carries `<`, `&`, a double quote and a closing script tag
+in **every** author-written field the page shows — one field left out of that
+fixture is one field with no coverage — and asserts the page still closes no
+block. It also pins the page's external reference count at **zero**: no link,
+no external `src` or `href`, no `@import`, no `fetch`, and three `@font-face`
+rules whose sources are inlined data URIs. The three faces are vendored under
+`skills/groundtrack/assets/` for that reason; a font served from a content
+delivery network is a dependency on somebody else's uptime.
+
+**What the tests do not cover.** The same limit as above. Proving "no author
+text reaches an attribute" needs a parse of the rendered page, and nothing here
+parses one. What is machine-checked is the narrower shape: no `esc(...)` call
+appears inside an attribute value in the template. The full claim is still read
+by a reviewer, and a new `="${` there is a change to this file.
+
 ## Reporting a vulnerability
 
 Please use GitHub's **private vulnerability reporting** — the "Report a

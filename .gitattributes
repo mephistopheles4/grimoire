@@ -1,0 +1,8 @@
+# Keep the vendored font faces byte-for-byte. Line-ending conversion on a
+# woff2 corrupts it silently, and the page then falls back to a system face
+# with no error anywhere.
+*.woff2 binary
+
+# IBM's own copy of the licence, kept byte for byte. It ships with CRLF line
+# endings; normalising them would make the file no longer the one IBM publishes.
+skills/groundtrack/assets/OFL.txt -text

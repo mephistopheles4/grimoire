@@ -9,9 +9,9 @@
     {
       "name": "grimoire",
       "source": "./",
-      "description": "A spellbook of agent skills for AI. Cast wisely. Currently: eagle-eye, which lays coupled decisions out as a morphological box and renders a page that reads any configuration back.",
+      "description": "A spellbook of agent skills for AI. Cast wisely. Two skills: eagle-eye, which lays coupled decisions out as a morphological box and renders a page that reads any configuration back; and groundtrack, which draws a plan or a written change as a call graph a reader can step through.",
       "category": "productivity",
-      "keywords": ["decisions", "morphological-box", "zwicky", "design-review", "brainstorming"]
+      "keywords": ["decisions", "morphological-box", "zwicky", "design-review", "brainstorming", "call-graph", "code-review"]
     }
   ]
 }

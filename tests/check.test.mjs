@@ -14,7 +14,7 @@
 
 import { test, after } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtempSync, rmSync, cpSync, readFileSync, writeFileSync, mkdirSync, appendFileSync } from 'node:fs';
+import { mkdtempSync, rmSync, cpSync, readFileSync, writeFileSync, mkdirSync, appendFileSync, readdirSync, existsSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -67,7 +67,7 @@ function assertFails(dir, pattern) {
 test('the real repository passes its own check', () => {
   const r = run(check);
   assert.equal(r.code, 0, `${r.stdout}\n${r.stderr}`);
-  assert.match(r.stdout, /^ok: \d+ box file\(s\), \d+ plugin\(s\)$/m);
+  assert.match(r.stdout, /^ok: \d+ artifact file\(s\), \d+ plugin\(s\)$/m);
 });
 
 test('an untouched copy of the tree passes', () => {
@@ -133,10 +133,19 @@ test('a box file that does not validate fails the check by name', () => {
   assert.match(r.stderr, /exactly one option must be chosen/);
 });
 
-test('a tree with no box file fails, rather than passing with nothing to check', () => {
+test('a registry row that matches nothing fails, rather than passing with nothing to check', () => {
+  // Each row is here because a skill ships that artifact type. A row matching
+  // no file means the example went away or the row did, and a check with
+  // nothing to check reads as a check that passed.
   const dir = tree();
   rmSync(join(dir, 'skills', 'eagle-eye', 'examples'), { recursive: true, force: true });
-  assertFails(dir, /no \*\.box\.json found/);
+  assertFails(dir, /no \.box\.json anywhere in the tree, so the "box" row checked nothing/);
+});
+
+test('a registry row naming a renderer that is not there fails', () => {
+  const dir = tree();
+  rmSync(join(dir, 'skills', 'groundtrack', 'scripts', 'render.mjs'), { force: true });
+  assertFails(dir, /names skills\/groundtrack\/scripts\/render\.mjs, and there is no such file/);
 });
 
 test('a fixed home path in a SKILL.md fails', () => {
@@ -554,12 +563,31 @@ test('a missing baseline at the repository root fails', () => {
   assertFails(dir, /missing from the repository root/);
 });
 
-test('a missing baseline in the skill fails', () => {
-  // A reader who scans the skill rather than the repository finds no baseline
+test('a tree with no baseline under any skill fails', () => {
+  // A reader who scans a skill rather than the repository finds no baseline
   // and no reasons, which is the state this file exists to end.
+  //
+  // The rule is tree-level rather than per skill, and that is a limit rather
+  // than an oversight: only the scanner knows which directory a finding lands
+  // in, so nothing here can say which skills need a baseline of their own. It
+  // catches the practice being abandoned wholesale, and the agreement rules
+  // below cover every baseline that does ship. Both skills carry one today,
+  // so this test has to remove both.
   const dir = tree();
-  rmSync(skillBaselineIn(dir));
+  for (const skill of readdirSync(join(dir, 'skills'))) {
+    const p = join(dir, 'skills', skill, baselineName);
+    if (existsSync(p)) rmSync(p);
+  }
   assertFails(dir, /a reader who scans the skill/);
+});
+
+test('one skill keeping its baseline is not enough to excuse the other', () => {
+  // Stated as the limit it is: with eagle-eye's baseline still there, removing
+  // groundtrack's passes. If this ever needs to fail, the check needs the
+  // scanner's report, and that lives in the workflow rather than here.
+  const dir = tree();
+  rmSync(join(dir, 'skills', 'groundtrack', baselineName));
+  assertPasses(dir);
 });
 
 test('a fingerprint suppression fails, because it expires without saying so', () => {

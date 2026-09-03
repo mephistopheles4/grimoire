@@ -2,7 +2,7 @@
 
 A spellbook of agent skills for AI. Cast wisely.
 
-One skill today, more later. Works with any agent:
+Two skills today, more later. Works with any agent:
 
 ```bash
 npx skills@latest add mephistopheles4/grimoire
@@ -21,11 +21,17 @@ the marketplace handle updates:
 /plugin install grimoire@mephistopheles4
 ```
 
-Plugin skills are namespaced, so that route invokes it as
-`/grimoire:eagle-eye`. The installer route keeps the plain `/eagle-eye`.
+Plugin skills are namespaced, so that route invokes them as
+`/grimoire:eagle-eye` and `/grimoire:groundtrack`. The installer route keeps the
+plain `/eagle-eye` and `/groundtrack`.
 
-Either way you get [`skills/eagle-eye/`](skills/eagle-eye) —
-[`SKILL.md`](skills/eagle-eye/SKILL.md) and the renderer that goes with it.
+Either way you get both skill directories, each with its `SKILL.md` and the
+renderer that goes with it:
+
+- [`skills/eagle-eye/`](skills/eagle-eye) — coupled decisions, as a
+  morphological box.
+- [`skills/groundtrack/`](skills/groundtrack) — a plan or a written change, as
+  a call graph you can step through.
 
 ---
 
@@ -100,6 +106,74 @@ complete example is
 
 ---
 
+## groundtrack
+
+**A reader who did not write a change cannot see its shape.**
+
+A change arrives as a list of files. A plan arrives as a list of tickets.
+Neither says what calls what, what each part hands back, where it can break, or
+what it needs in order to work.
+
+groundtrack turns durable material — a plan already made, or work already
+done — into a call graph a reader can step through. The agent reads the
+material and hand-writes one `<topic>.flightpath.json`, which states one graph
+and one or more recorded walks through it. A zero-dependency renderer turns
+that file into one self-contained page.
+
+Every node carries three channels:
+
+- **A** — what flows out of the node.
+- **E** — where it breaks: each failure tag is a retry, an escape, or a die.
+- **R** — what it needs to work.
+
+The page draws the graph and steps a cursor over one recorded walk. Nothing is
+computed while you watch: every branch an `if` took, every value an effect
+returned, and every catch is a literal in the file. That is what makes the walk
+a list of checkable claims rather than a program you have to believe.
+
+A **layer** redraws the same graph under a different set of dependencies. Flip
+to the test layer, and a node that still reaches the real network under test is
+a design defect you can see rather than a sentence you have to trust.
+
+Ask for it by name. The installer route keeps the plain name; the plugin route
+namespaces it:
+
+```text
+/groundtrack <a plan, a change, a path>
+/grimoire:groundtrack <a plan, a change, a path>
+```
+
+Or run the renderer directly:
+
+```bash
+node skills/groundtrack/scripts/render.mjs <topic>.flightpath.json --check
+node skills/groundtrack/scripts/render.mjs <topic>.flightpath.json --out page.html
+node skills/groundtrack/scripts/render.mjs <topic>.flightpath.json --text
+```
+
+`--check` validates and prints its findings. `--text` prints the same graph as
+an indented tree, so the answer in a reply and the answer on the page are one
+graph seen two ways.
+
+The file's shape is in
+[`flightpath-file.md`](skills/groundtrack/references/flightpath-file.md), and
+the validator is what enforces it — no machine-readable schema ships, because a
+second artifact that can silently disagree with the first is not worth having.
+Three complete examples sit in
+[`skills/groundtrack/examples/`](skills/groundtrack/examples): a small one that
+uses every move kind, a real pull request with a test layer, and a plan of
+sixteen tickets.
+
+**The page makes no network request at all.** Three monospace faces ship with
+the skill and are inlined into the page.
+
+**The honesty property has a stated limit.** The validator proves the walk is a
+legal path through the graph the file declares. It cannot prove which branch
+was taken or what an effect returned. Those stay the author's claims, and the
+skill says so rather than hiding it.
+
+---
+
 ## Install by hand
 
 If you want neither installer, copy the directory yourself:
@@ -107,11 +181,12 @@ If you want neither installer, copy the directory yourself:
 ```bash
 git clone https://github.com/mephistopheles4/grimoire.git
 cp -r grimoire/skills/eagle-eye ~/.claude/skills/
+cp -r grimoire/skills/groundtrack ~/.claude/skills/
 ```
 
-The skill names no fixed path to its own renderer, so it runs from wherever it
-lands. It has been run from three directories: the author's skills folder, the
-plugin install, and a copy made by `skills`.
+Neither skill names a fixed path to its own renderer, so each runs from
+wherever it lands. eagle-eye has been run from three directories: the author's
+skills folder, the plugin install, and a copy made by `skills`.
 
 ## How the repository is put together
 
