@@ -103,8 +103,8 @@ it.
    one graph, so that I am not handed a picture too dense to read.
 7. As a reviewer, I want the skill to list every graph it found and let me pick,
    so that I choose the starting point rather than accepting one it guessed.
-8. As a reviewer, I want the graph the skill suggests to be the one that shows
-   the most, so that picking nothing still gives me something worth reading.
+8. As a reviewer, I want that list before the skill draws anything, so that I
+   can disagree with the cut before the work rather than after it.
 9. As a reviewer, I want the files in the diff that no node accounts for listed
    by name, so that a documentation-only or config-only part of the change is
    not silently dropped.
@@ -321,6 +321,14 @@ other changed symbol calls — the roots of the changed-call graph.
 announces the list before it draws, so the cut is checkable before the work
 rather than after. Asking is the default and is a setting.
 
+**Nothing ranks the graphs, and nothing suggests one.** The list is the whole
+mechanism: the reader picks, and a run that is not told which graph to draw asks
+rather than choosing. This is stated because the opposite is an easy thing to
+assume — the *text* output does suggest, but it suggests one **run** within one
+graph, on a rule that names exactly one run in all three worked programs. No
+rule was ever measured for ranking graphs against each other, so inventing a
+score here would put an undecided default in front of every reader.
+
 Three things reach the page so a reader can audit the cut:
 
 - **The scope rule the run applied**, so the reader can disagree with it.
@@ -413,29 +421,83 @@ moves.
 1. **The move kind is the op that ran.** A `let` step produces a `let` move,
    an `if` step an `if` move. There is no mapping to learn. Four kinds name no
    op, because they move a frame rather than run a step.
-2. **`at` always names the step that ran.**
-3. **`next` always names where the cursor goes in that same frame.** The cursor
-   never advances on its own, so a reader works nothing out.
+2. **`at` always names the step that ran.** Every move that runs a step carries
+   one; the four frame moves run no step and carry none.
+3. **`next` always names where the cursor goes in that same frame.** Every move
+   that leaves a live cursor behind carries one. The cursor never advances on
+   its own, so a reader works nothing out.
+
+The qualifiers on rules 2 and 3 are load-bearing. Read without them, both rules
+demand a field of moves that cannot have it.
 
 **Eight moves run a step**, one per op. **Four move a frame:** a handled catch,
 an unwind, the entry frame returning, and an error reaching the top uncaught.
 
+**Which moves carry which fields:**
+
+| kind | `at` | `next` | also |
+| --- | --- | --- | --- |
+| note, let | yes | yes — the following index | |
+| if | yes | yes — the then label or the else label | |
+| goto | yes | yes — the target label | |
+| call | yes | yes — where **this** frame resumes | the node it pushed |
+| effect | yes | **either** `next` **or** a raise, never both | the kind, the description, and a result on the `next` form |
+| throw | yes | no — the frame is leaving | the tag, the message, the channel |
+| return | yes | no — the frame is leaving | the returned value, optional |
+| handled | yes — the step that declares the handler | yes — the step it landed on | the handler label |
+| unwind | no | no | |
+| done | no | no | the result, optional |
+| uncaught | no | no | the tag, the message, the channel |
+
+**Frames.**
+
 - **A walk begins in the entry node with the cursor at zero.** No move says so.
-- **A call pushes the frame it names**, and nothing else pushes one. A frame is
-  popped by a return or an unwind.
-- **An effect has no status field.** It carries `next` when the cursor went on,
-  or a raise when it threw. Two ways to say one thing is how a file comes to
-  disagree with itself. The status field died in the eval, because three capable
-  runs read it the other way from the checker.
+- **A call pushes the frame it names, and that frame enters at step zero**, the
+  same rule the entry frame follows. Nothing else pushes a frame.
+- **The call's own `next` is the caller's continuation** — where the caller
+  resumes when the callee returns. It is set when the call is made, *before* the
+  callee is pushed, which is why a caller's cursor is already past its own guard
+  while the callee runs. That detail is not trivia: it is exactly what one of
+  the shipped validator checks had to get right.
+- **A frame is popped by a return or an unwind**, and by nothing else.
 - **The two terminal moves are stack-free.** They arrive after the last frame
   has gone, so a validator that demands an open frame on every move rejects
   every valid walk.
-- **A failing effect is two moves, not one** — the effect and then the raise —
-  because collapsing them loses the ledger row.
-- **Model a failure the way the code does.** If the real effect throws, the
-  effect move raises. If it returns a failure value that an `if` inspects, the
-  effect move carries `next` to that `if` and the `if` routes to the throw. Both
-  are ordinary and the tape tells them apart.
+
+**A failing effect is one move, not two.** The effect move carries a raise
+instead of a `next`, and the ledger row is derived from that one move. **There
+is no separate raise move, and `raise` is not a move kind.** The prototype had
+one, and it died when the shape locked: an effect with both a status field and a
+separate raise gave a file two ways to say one thing, which is how a file comes
+to disagree with itself. The status field died in the same pass, because three
+capable runs read it the other way from the checker.
+
+**Model a failure the way the code does.** If the real effect throws, the effect
+move carries the raise. If it returns a failure value that an `if` inspects, the
+effect move carries `next` to that `if`, and the `if` routes to the throw step.
+Both are ordinary and the tape tells them apart.
+
+A tape covering a call and a failure, in full:
+
+```json
+[
+  { "k": "let",    "at": 0, "next": 1 },
+  { "k": "call",   "at": 1, "to": "bindSheet", "next": 2 },
+  { "k": "effect", "at": 0, "kind": "net.get", "desc": "fetch the sheet",
+                   "raised": { "tag": "SheetMissing", "message": "404",
+                               "channel": "escape" } },
+  { "k": "unwind" },
+  { "k": "handled", "at": 1, "goto": "warn", "next": 4 },
+  { "k": "return", "at": 5, "value": { "bound": false } },
+  { "k": "done",   "result": { "refused": null } }
+]
+```
+
+Read it as: the entry frame runs a `let` and then calls, parking its own cursor
+at 2. The callee enters at zero, its effect raises, and the callee's frame
+unwinds. The entry frame's call step declared a handler, so the error is caught
+there and the cursor lands on the step labelled `warn`. The entry frame returns,
+and the walk is done with no frame open.
 
 **Walks live in the file.** They cost about a quarter of a program file — a
 kilobyte or two per run, roughly sixty bytes a move — which is cheap enough that
@@ -583,6 +645,49 @@ fold.
 **The page holds the walk to the graph** before drawing it: a move naming a step
 the node has not got, or a pop with no frame open, is refused rather than drawn.
 
+### Author text on the page
+
+**Every field an author writes is a stranger's text**, and the page shows a lot
+more of it than the incumbent does: expressions, step remarks, effect
+descriptions, error messages, run blurbs, layer tokens, file paths and reasons,
+and a node's location.
+
+**Two escapes, and each one states the context it is for.**
+
+- **The embedded file.** The closing-tag sequence is escaped before the file is
+  written into the page's script block, so no author string can close it. The
+  same guard the incumbent has.
+- **Text going into markup.** Escape `&` and `<` before author text reaches the
+  page's markup, using the shared module so the page and the tests run the same
+  function.
+
+**The second escape is narrow, and it is only enough while no author text
+reaches an HTML attribute.** That pairing is the incumbent's, it is written down
+in this repository's security policy, and that policy states in as many words
+what breaks it: an attribute that interpolates author text stops the escape
+being enough, because the escape leaves the double quote alone.
+
+**So this skill states the rule rather than inheriting it silently, because
+groundtrack has a field the incumbent has not got: a node's location, which is a
+path or a URL, and a URL is the thing most likely to be reached for as an
+attribute.** Two rules follow, and they are a decision, not a note:
+
+- **Author text goes into element content, never into an attribute.** Every
+  interpolated attribute on the page holds a node id, an index, or a fixed class
+  name.
+- **If an attribute must ever carry author text, the narrow escape does not
+  cover it.** A URL wants percent-encoding, which is what the site build already
+  uses for the one href it writes. Widening the shared escape to cover quotes
+  instead is a change to the security policy and is reviewed as one.
+
+**Ids are validated rather than escaped**, on the incumbent's pattern: a node id
+that does not match a plain lowercase-and-hyphen shape is refused by the
+validator, so an id reaching an attribute is a known-safe string.
+
+**The page's own vocabulary is drawn from author-keyed maps** — node ids, layer
+names, ambient value names, run input names. All four are author-chosen, so all
+four are author text, and none of them is exempt because it looks like a key.
+
 ### The text output
 
 **The text prints the graph with end marks, on request, for one run the reader
@@ -671,6 +776,18 @@ page. A third skill becomes a row rather than a branch in two files.
 site walker keys on basename, so two artifacts sharing a file name resolve to
 one output and the second silently overwrites the first. Publishing a second
 artifact type makes that reachable.
+
+**Source identity and output identity are two different keys, and only the
+second can collide.** An artifact is identified by its repository-relative path,
+so **two artifacts sharing a basename in different directories are both legal
+and both publish** — that is the case path keying exists to fix, not to refuse.
+The published page's name is derived from that path by flattening it, and **the
+collision key is the derived name, compared case-insensitively.** Flattening is
+not injective, so two different paths can still ask for one page; that is the
+one case the build refuses, and it refuses before it renders anything rather
+than overwriting. Case folding is in the key because the filesystem this site is
+built from folds case, and two names differing only in case silently became one
+file there.
 
 **One worked example renders into the published site.** *Disposable by default*
 governs what a reader's run leaves behind, not whether the repository shows what
@@ -768,7 +885,15 @@ surface invented for the page.
   validator is the schema* has to mean in practice, and it is the only thing
   standing where a schema file would otherwise stand.
 - **Every refusal fires on a file that breaks exactly that rule**, and the
-  message names the file, the run, the move and the reason.
+  message locates the fault as precisely as the fault allows. **A file, and a
+  reason, always.** The run and the move are carried **when the fault is in a
+  walk**, which is what makes a refusal actionable there — the measured example
+  reads `<file> / <run> [<move>] "<tag>" is uncaught, but <node>[<step>] declares
+  onError for it`. A fault in the file's shape has no run and no move to name: a
+  top-level unknown key and an empty optional list are both refused before a
+  walk is read, and both locate to a path into the document instead. A contract
+  that demanded all four fields would be a contract two of the required refusals
+  could not satisfy.
 - **An unknown key is refused**, including one that differs from a real key by a
   letter. This is measured, not theoretical: renaming one key in a shipped file
   took it from six findings to zero, exit 0 both times.
@@ -781,12 +906,29 @@ surface invented for the page.
   set, and the layer-carrying one exercises the toggle's both sides.
 - **The text output** prints one row per call site, marks and stops a repeat,
   suggests the longest run, and lists the others with their own blurbs.
-- **The page as a string:** the file is embedded, the closing-tag sequence is
-  escaped inside the embedded data so no author text can close the script block,
-  **there is no dynamic code evaluation**, and **the emitted page holds zero
-  external references.** That last assertion is the inverse of the incumbent's,
-  which pins its external link count at exactly one; here the count is zero, and
-  a test that pins it is what keeps a convenience link from creeping back.
+- **The page as a string:** the file is embedded, **there is no dynamic code
+  evaluation**, and **the emitted page holds zero external references.** That
+  last assertion is the inverse of the incumbent's, which pins its external link
+  count at exactly one; here the count is zero, and a test that pins it is what
+  keeps a convenience link from creeping back.
+- **Author text cannot become markup or script**, tested per field rather than
+  once. One fixture carries `<`, `&`, a double quote and a closing script tag,
+  and it carries them in **every** author-written field the page shows: an
+  expression, a step remark, an effect description, an error message, a run
+  blurb, a layer token, a file path and its reason, and a node's location. Each
+  reaches the page as text and closes no block. One field left out of that
+  fixture is one field with no coverage, which is how the incumbent shipped a
+  row name that reached the page as markup.
+- **The escape's width is pinned, not just its behaviour** — `&` and `<` are
+  escaped **and** the double quote passes through — so widening it or narrowing
+  it back is a visible test change. The incumbent pins its escape the same way
+  and its security policy explains why: the narrow escape is safe only while the
+  attribute rule holds, so a silent widening hides the fact that the pairing
+  moved.
+- **No author text reaches an HTML attribute.** Stated as a limit rather than a
+  claim: proving it needs a parse of the rendered page, and nothing in this
+  repository parses one. Until something does, this is read by a reviewer, and a
+  new `="${` in the template is a change to the security policy.
 - **The argument parser**, at the level the incumbent's already is: a flag
   missing its value, a flag followed by another flag, and a repeated value all
   land at the usage line rather than in a stack trace.
@@ -810,8 +952,13 @@ surface invented for the page.
 
 - **The root check validates a `.flightpath.json`** and fails on a broken one.
 - **The site build renders one**, and the index links it.
-- **Two artifacts of different types that share a file name refuse** rather than
-  overwrite, which is the failure that made path keying necessary.
+- **Two artifacts of different types sharing a basename in different directories
+  both publish**, to two pages. This is the case path keying exists to fix, and
+  a test that asserted a refusal here would pin the bug rather than the fix.
+- **Two artifacts whose paths flatten to one page name refuse** rather than
+  overwrite, and refuse before anything is rendered. Including two that differ
+  only in case, which is the form that silently lost a page on the machine the
+  site is built from.
 - **The registry has a row for each artifact type**, and an artifact type with no
   row is reported rather than silently skipped. A gate that quietly does nothing
   reads as a gate that passed, and this repository has already written a commit
