@@ -256,6 +256,28 @@ test('the tree carries the layer rename on the row', () => {
   assert.ok(row.rename && row.rename.length, 'the row carries the renamed tokens');
 });
 
+/* -- the complexity of a node, as drawn ----------------------------------- */
+
+test('cyclomatic complexity is one plus the ifs, the handlers and the loops', () => {
+  // greet: one if, one onError handler on its call, and a goto that jumps
+  // forward — which is no loop. lookupName: one if and nothing else.
+  assert.deepEqual(G.complexityOf(greet.nodes.greet), { value: 3, ifs: 1, handlers: 1, loops: 0 });
+  assert.deepEqual(G.complexityOf(greet.nodes.lookupName), { value: 2, ifs: 1, handlers: 0, loops: 0 });
+});
+
+test('a jump backward is a loop, and a node with no fork has one path', () => {
+  const node = {
+    steps: [
+      { op: 'note', note: 'top', label: 'top' },
+      { op: 'if', cond: 'again?', then: 'top', else: 'out' },
+      { op: 'return', expr: 'x', label: 'out' },
+    ],
+  };
+  assert.deepEqual(G.complexityOf(node), { value: 3, ifs: 1, handlers: 0, loops: 1 });
+  assert.deepEqual(G.complexityOf({ steps: [{ op: 'return', expr: 'x' }] }), { value: 1, ifs: 0, handlers: 0, loops: 0 });
+  assert.equal(G.complexityOf({}).value, 1);
+});
+
 /* -- which run the text suggests ------------------------------------------ */
 
 test('the suggested run is the longest walk', () => {
