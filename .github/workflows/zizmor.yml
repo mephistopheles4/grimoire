@@ -1,0 +1,241 @@
+# Audit the workflows this repository runs, with zizmor.
+#
+# SECURITY.md puts the CI workflows in scope by name, and until this file
+# existed nothing in the tree audited them. zizmor already scanned them from
+# outside — it found `artipacked` on all three checkouts, and that finding
+# reached this repository inside a CodeRabbit review that cannot be configured,
+# cannot be baselined, and reports `pass` beside the words "Review skipped".
+# **A check that reports and changes nothing reads as a check that passed.**
+# This one is a gate.
+#
+# **Its own file, not a step in skillspector.yml.** Two scanners in one job
+# means the first red one hides the second, and a status check is the unit
+# branch protection requires — two files can be required separately, a step
+# cannot be required at all. The cost is a second install job, and it is small.
+#
+# **This workflow blocks no merge until it is added to the required status
+# checks**, which is a repository setting no file here can read or change.
+# SECURITY.md records the reliance beside the others.
+#
+# **Dependabot does not watch the zizmor pin.** Its github-actions ecosystem
+# reads `uses:` lines, and the scanner arrives through a `run:` line — the same
+# blind spot skillspector.yml carries, for the same reason, and there is no pip
+# manifest here for the pip ecosystem to read either. So the version below rots
+# silently and a bump is a reviewed pull request. A new zizmor version can add
+# an audit, and a new audit turns this gate red on workflows nobody changed.
+#
+# **An official action exists and is not used here.** `zizmorcore/zizmor-action`
+# was published after the issue that asked for this said none was documented.
+# It was measured and declined: it defaults to `version: latest`, it uploads
+# SARIF unconditionally — which fails on a fork pull request, where the token is
+# read-only — and its `version:` input is an action input, so Dependabot does
+# not watch the scanner version there either. The one advantage a `uses:` line
+# would buy is the one it does not buy.
+
+name: zizmor
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  audit:
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      # For the SARIF upload. A pull request from a fork gets a read-only token
+      # whatever this says, which is why the upload step is skipped there.
+      security-events: write
+    steps:
+      # persist-credentials: false, for the reason this workflow exists to
+      # enforce. Nothing after this step runs a git command, and a job that
+      # audits other jobs for leaving a credential in the working tree has no
+      # business leaving one in its own.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      # ubuntu-24.04 and pipx, both copied from skillspector.yml: pipx ships on
+      # that image and uv does not, so this route costs no second action, and
+      # pinning the image is what makes that sentence checkable. Whether the
+      # other two workflows should stop saying ubuntu-latest is a separate
+      # question nobody has decided.
+      #
+      # **A weaker pin than skillspector.yml's, stated rather than glossed.**
+      # That scanner is Python and installs from a git commit, so the pin names
+      # exact bytes. zizmor is Rust and reaches PyPI as a prebuilt wheel: a git
+      # install would need a Rust toolchain on the runner, and hash-pinning the
+      # wheel needs a requirements file, which is the dependency manifest this
+      # tree refuses. A PyPI version cannot be re-uploaded under the same
+      # number, so this is close to a content pin and is not one.
+      - name: Install zizmor
+        run: |
+          pipx install "zizmor==1.30.0"
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+
+      # Verified, not assumed. An install that put no entry point on the PATH
+      # would otherwise surface as an audit that produced no findings, and a
+      # scanner that never ran is the failure this repository keeps writing
+      # commits about.
+      - name: Check the entry point runs
+        run: zizmor --version
+
+      # Online, with the job's own token, and that is a decision with a measured
+      # payoff rather than a default nobody looked at.
+      #
+      # **`ref-version-mismatch` is an online audit, and it closes a gap
+      # SECURITY.md names out loud.** That file says every action here is pinned
+      # to a commit with a version-shaped comment, and that *nothing checks the
+      # comment is true* — a hand-edit swapping in a different valid SHA under
+      # an unchanged comment would pass. This audit resolves the SHA at GitHub
+      # and reports the mismatch, at medium, at the default persona. Measured
+      # both ways on a workflow whose comment was deliberately wrong: it fires
+      # online and it fires at no persona offline.
+      #
+      # **What the token costs, stated.** It is `contents: read` and nothing
+      # more, it reaches zizmor as an environment variable, and it is never
+      # written into .git/config — which is what the checkout above refuses, and
+      # a different thing from this. The online audits read public action
+      # repositories to resolve refs. The real cost is that a GitHub API outage
+      # exits 1 here, and the gate below reports that as an errored audit rather
+      # than a clean one.
+      #
+      # **`unpinned-uses` was the audit the issue expected to lose offline, and
+      # it is not lost.** Measured on a workflow with `actions/checkout@v4`: it
+      # fires at high offline and online alike. Only its auto-fix needs the
+      # network, because writing the SHA in means resolving the tag first.
+      #
+      # **Going online does move one severity, downward.** `artipacked` is
+      # medium offline and low online, on this same tree. It changes nothing
+      # here, because the gate below fails on a finding at any severity.
+      #
+      # Scoped to .github/workflows/ and not to the repository root. Rooted at
+      # `.`, zizmor also collects .github/dependabot.yml and raises
+      # `dependabot-cooldown` — an opinion about how long to wait before taking
+      # a dependency update, which is a policy decision nobody here has taken
+      # and not what this gate was adopted for.
+      #
+      # The SARIF pass comes first so the findings reach the Security tab even
+      # when the gate below is red, and it writes outside the checkout so the
+      # report is never a file the audit could collect.
+      #
+      # **--format=sarif suppresses the finding exit codes and nothing else**,
+      # measured: this command exits 0 on the same tree that exits 14 below,
+      # and still exits 1, 2 and 3 on a missing path, a bad argument and a
+      # directory that collects nothing. So a non-zero status here is an error,
+      # and is the only thing this step can fail on.
+      #
+      # **--strict-collection, because the default is the exact failure this
+      # repository keeps writing commits about.** Measured: a workflow zizmor
+      # cannot parse is reported as a WARN on stderr, dropped from the run, and
+      # the remaining files are audited — so four good workflows beside one
+      # broken one print "No findings to report. Good job!" and exit 0. A file
+      # nobody audited must not read as a file with nothing wrong. With the
+      # flag the same tree exits 1.
+      - name: Write the SARIF report
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          status=0
+          zizmor --strict-collection --format=sarif .github/workflows/ > "${RUNNER_TEMP}/zizmor.sarif" || status=$?
+          if [ "$status" -ne 0 ]; then
+            echo "zizmor exited ${status} writing SARIF — the audit errored"
+            exit 1
+          fi
+
+      # On push only. A pull request from a fork carries a read-only token and
+      # cannot write a code-scanning result. The paths inside are relative to
+      # the git repository root — `.github/workflows/check.yml`, not
+      # `check.yml` — so every alert points at a file GitHub can open.
+      - name: Upload SARIF
+        if: github.event_name == 'push'
+        uses: github/codeql-action/upload-sarif@cdf488f595d80d6e07e03d4674febd5ab45fa938 # v4.37.9
+        with:
+          sarif_file: ${{ runner.temp }}/zizmor.sarif
+          category: zizmor
+
+      # The gate, and the last word.
+      #
+      # **This is shell and not a Node script, unlike the SkillSpector gate
+      # beside it, and the difference is the whole reason that one exists.**
+      # SkillSpector's exit code answers "should I install this whole skill",
+      # against a risk-score threshold that shipped a real finding as a 0. It is
+      # the wrong question for a pull request, so a script reads the report
+      # instead. zizmor's exit code answers exactly the right question and
+      # answers it precisely — a documented code per highest severity — so
+      # reading a report to rediscover it would be machinery with no measured
+      # reason behind it.
+      #
+      # **Any finding fails, at any severity, at the default persona.** Same
+      # rule as the SkillSpector gate and for the same reason: a severity floor
+      # is a number to defend at every review. **No configuration file exists**
+      # — zizmor reads one at the repository root or at .github/zizmor.yml, and
+      # neither is present — and no `# zizmor: ignore` comment appears anywhere,
+      # because there is nothing to suppress. Measured, on this tree, at this
+      # version. That matters more than it reads: zizmor has no per-entry reason
+      # field, so a suppression here would carry its argument only as a YAML
+      # comment the tool never reads and no check here can require.
+      # SECURITY.md carries the cost.
+      #
+      # **This file shares a name with that configuration file and is not it.**
+      # Config discovery is anchored at the repository root, not at the
+      # directory passed as input — measured with `-v`, which reports "no config
+      # candidates discovered relative to repository root" and then registers
+      # .github/workflows/zizmor.yml as a workflow input and audits it. The
+      # name follows skillspector.yml's convention of naming a workflow after
+      # the tool it runs; the collision is apparent and not real.
+      #
+      # **The default persona, and the pedantic delta measured rather than
+      # guessed.** `--persona=pedantic` adds twelve findings on this tree, all
+      # of them style: five informational `anonymous-definition` for unnamed
+      # jobs, four low `undocumented-permissions`, three low
+      # `concurrency-limits`. Adopting them is a decision about workflow style,
+      # and one of them asks for a behaviour change — a concurrency group
+      # cancels runs in flight. `--persona=auditor` finds nothing pedantic does
+      # not: the same twelve.
+      #
+      # A plain-format run prints "N findings (M suppressed)" where M is that
+      # persona filter and not a configuration file. Nothing here suppresses
+      # anything.
+      #
+      # No `|| true`. Every exit code is named, and the three that are not
+      # findings fail as loudly as a finding does. **The last one is the one
+      # worth having:** 3 is what a .github/workflows/ that collects nothing
+      # produces, which is exactly the shape of a gate that quietly checks
+      # nothing. A path that is gone entirely exits 1 instead — measured, both
+      # ways — so neither spelling of "there was nothing to audit" can pass.
+      #
+      # **--strict-collection closes the third spelling, which is the quiet
+      # one.** Without it, a workflow zizmor cannot parse is a WARN on stderr
+      # and is dropped from the run: the other files are audited, the summary
+      # says "No findings to report. Good job!", and the job exits 0. One
+      # unparseable file among four would ship as a clean audit. Measured both
+      # ways — with the flag that tree exits 1.
+      - name: Audit the workflows
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          status=0
+          zizmor --strict-collection .github/workflows/ || status=$?
+          case "$status" in
+            0)
+              echo "ok: no finding in .github/workflows/ at the default persona"
+              ;;
+            11|12|13|14)
+              echo "zizmor exited ${status} — the audit found something, listed above."
+              echo "Fix it, or argue it in the pull request. There is no baseline file here"
+              echo "to hide it in, and SECURITY.md says why adding one is a cost."
+              exit 1
+              ;;
+            *)
+              echo "zizmor exited ${status} — the audit errored rather than finding something."
+              echo "1 is an error during the audit, including an input path that is not there."
+              echo "2 is a bad argument. 3 is a path that exists and collects no workflow."
+              echo "A broken audit must not read as a clean one."
+              exit 1
+              ;;
+          esac
