@@ -30,7 +30,7 @@
         },
         {
           "id": "driver-none",
-          "label": "No tool — keep grilling one question at a time",
+          "label": "No tool — keep asking one question at a time",
           "strawman": true,
           "short": "No tool"
         }
@@ -55,7 +55,7 @@
         },
         {
           "id": "trig-hosts",
-          "label": "As a stage inside brainstorming, grilling, wayfinder",
+          "label": "As a stage inside another planning flow",
           "src": "chat Q2",
           "short": "Inside host flows"
         },
@@ -186,7 +186,7 @@
         },
         {
           "id": "home-repo",
-          "label": "This repo: .claude/skills, beside phase-gate",
+          "label": "This repo: .claude/skills, beside the project's other skills",
           "src": "chat Q6",
           "short": "This repo"
         },
@@ -401,7 +401,7 @@
       "notes": []
     },
     "driver-none": {
-      "why": "Strawman: no tool. Grilling one question at a time, as today.",
+      "why": "Strawman: no tool. One question at a time, as today.",
       "rel": [
         [
           "moves-six",
@@ -429,7 +429,7 @@
         ]
       ],
       "notes": [
-        "The honest comparison: you said a box resolves a grilling session as fast as you can read it. That is the claim this strawman tests."
+        "The honest comparison: you said a box resolves a question-at-a-time session as fast as you can read it. That is the claim this strawman tests."
       ]
     },
     "trig-full": {
@@ -463,7 +463,7 @@
       "notes": []
     },
     "trig-hosts": {
-      "why": "A stage inside brainstorming, grilling, wayfinder.",
+      "why": "A stage inside another planning flow.",
       "rel": [
         [
           "home-repo",
