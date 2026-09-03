@@ -18,6 +18,7 @@ import assert from 'node:assert/strict';
 import { mkdtempSync, rmSync, writeFileSync, readFileSync, existsSync, readdirSync, linkSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { createHash } from 'node:crypto';
 import { groundtrack, examples, exampleFlightpath, layeredFlightpath, run } from './helpers.mjs';
 
 const work = mkdtempSync(join(tmpdir(), 'grimoire-groundtrack-'));
@@ -333,29 +334,50 @@ test('the emitted page holds zero external references', () => {
   assert.equal((html.match(/unicode-range:/g) || []).length, 6);
 });
 
-test('the shipped faces are IBM\'s own, unmodified', () => {
+// The bytes that shipped, hashed. Taken from the files fetched from IBM's own
+// repository when they were vendored.
+//
+// What this pins is drift here, not IBM's canonical release: it turns "somebody
+// swapped in a hand-cut subset" or "somebody edited the licence" into a test
+// failure, which is the failure mode assets/FONTS.md is written against. A name
+// and a file signature cannot see edited bytes.
+const VENDORED = {
+  'IBMPlexMono-Medium-Latin1.woff2': '41201b658a328b9d00368215c2f1102770f80b15952ab82631e4006255e6365d',
+  'IBMPlexMono-Medium-Pi.woff2': '92bd18415e8c43a2569f615e4e84a94b1b1c4e0377ba9d8f4d894bbf6ffcc39d',
+  'IBMPlexMono-Regular-Latin1.woff2': 'e8993d946649b9d01abb1ed06d574b19d8ea3e66b5c3948602db335c44c18e56',
+  'IBMPlexMono-Regular-Pi.woff2': 'b8002770aa636f544ba43e124da6a227301769754f295eae26e16475b469c767',
+  'IBMPlexMono-SemiBold-Latin1.woff2': 'b7acd05041ab65f3b7039e218ddd893065e11a07e85ea85019473152a51b6b7d',
+  'IBMPlexMono-SemiBold-Pi.woff2': '1637166246d386507b1351d59ddda93b732f781d06c0a6574e486104a00897b1',
+  'OFL.txt': '7e6b2818edbd8f6a01ae80641cc8f16a51080d08fb4e532be3a0b6f74adb07da',
+};
+
+test("the shipped faces are IBM's own, unmodified", () => {
   // The licence names "Plex" as a Reserved Font Name, and a face we had cut
   // down ourselves would be a Modified Version that may not use it. So the
   // assets are IBM's published subsets, and this test is what notices if
   // somebody swaps in a hand-made one. See assets/FONTS.md.
   const assets = join(groundtrack, '..', '..', 'assets');
   const faces = readdirSync(assets).filter(f => f.endsWith('.woff2')).sort();
-  assert.deepEqual(faces, [
-    'IBMPlexMono-Medium-Latin1.woff2',
-    'IBMPlexMono-Medium-Pi.woff2',
-    'IBMPlexMono-Regular-Latin1.woff2',
-    'IBMPlexMono-Regular-Pi.woff2',
-    'IBMPlexMono-SemiBold-Latin1.woff2',
-    'IBMPlexMono-SemiBold-Pi.woff2',
-  ]);
+  assert.deepEqual(faces, Object.keys(VENDORED).filter(f => f.endsWith('.woff2')).sort());
+
+  for (const [name, want] of Object.entries(VENDORED)) {
+    const bytes = readFileSync(join(assets, name));
+    const got = createHash('sha256').update(bytes).digest('hex');
+    assert.equal(got, want, `${name} is not the file that was vendored`);
+  }
   for (const f of faces) {
     assert.equal(readFileSync(join(assets, f)).subarray(0, 4).toString('latin1'), 'wOF2', `${f} is not a woff2`);
   }
+
   // The licence travels with them, and it is IBM's copy rather than the blank
   // template: their copyright line is the first thing in it.
   const ofl = readFileSync(join(assets, 'OFL.txt'), 'utf8');
   assert.match(ofl.split('\n')[0], /Copyright .* IBM Corp\. with Reserved Font Name "Plex"/);
   assert.match(ofl, /SIL OPEN FONT LICENSE Version 1\.1/);
+  // IBM ship it with CRLF, and .gitattributes keeps it that way. A normalised
+  // copy is no longer the file IBM publishes, and the hash above would catch
+  // it — this says which of the two went wrong.
+  assert.ok(ofl.includes('\r\n'), 'the licence lost its original line endings');
 });
 
 test('author text reaches the page as text, in every field the page shows', () => {

@@ -14,7 +14,7 @@
 
 import { test, after } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtempSync, rmSync, cpSync, readFileSync, writeFileSync, mkdirSync, appendFileSync } from 'node:fs';
+import { mkdtempSync, rmSync, cpSync, readFileSync, writeFileSync, mkdirSync, appendFileSync, readdirSync, existsSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -563,12 +563,31 @@ test('a missing baseline at the repository root fails', () => {
   assertFails(dir, /missing from the repository root/);
 });
 
-test('a missing baseline in the skill fails', () => {
-  // A reader who scans the skill rather than the repository finds no baseline
+test('a tree with no baseline under any skill fails', () => {
+  // A reader who scans a skill rather than the repository finds no baseline
   // and no reasons, which is the state this file exists to end.
+  //
+  // The rule is tree-level rather than per skill, and that is a limit rather
+  // than an oversight: only the scanner knows which directory a finding lands
+  // in, so nothing here can say which skills need a baseline of their own. It
+  // catches the practice being abandoned wholesale, and the agreement rules
+  // below cover every baseline that does ship. Both skills carry one today,
+  // so this test has to remove both.
   const dir = tree();
-  rmSync(skillBaselineIn(dir));
+  for (const skill of readdirSync(join(dir, 'skills'))) {
+    const p = join(dir, 'skills', skill, baselineName);
+    if (existsSync(p)) rmSync(p);
+  }
   assertFails(dir, /a reader who scans the skill/);
+});
+
+test('one skill keeping its baseline is not enough to excuse the other', () => {
+  // Stated as the limit it is: with eagle-eye's baseline still there, removing
+  // groundtrack's passes. If this ever needs to fail, the check needs the
+  // scanner's report, and that lives in the workflow rather than here.
+  const dir = tree();
+  rmSync(join(dir, 'skills', 'groundtrack', baselineName));
+  assertPasses(dir);
 });
 
 test('a fingerprint suppression fails, because it expires without saying so', () => {
