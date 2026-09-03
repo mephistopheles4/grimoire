@@ -1040,7 +1040,12 @@ function start() {
     if (e.button !== 0 || S.tree) return;
     if (e.target.closest('.toolblock')) return;
     e.preventDefault();
-    drag = { x: e.clientX - S.panX, y: e.clientY - S.panY, sx: e.clientX, sy: e.clientY, moved: false };
+    /* The node under the press is remembered here, because it cannot be read
+       later: once the plan captures the pointer, the browser retargets the
+       release and the click it synthesises to the plan itself, and a click
+       handler asking what node it landed on gets no answer. */
+    const nd = e.target.closest('[data-node]');
+    drag = { x: e.clientX - S.panX, y: e.clientY - S.panY, sx: e.clientX, sy: e.clientY, moved: false, node: nd ? nd.getAttribute('data-node') : null };
     plan.setPointerCapture(e.pointerId);
   });
   plan.addEventListener('pointermove', function (e) {
@@ -1054,22 +1059,32 @@ function start() {
     S.panY = e.clientY - drag.y;
     applyTransform();
   });
-  const endDrag = function () {
+  plan.addEventListener('pointerup', function () {
     if (!drag) return;
-    swallowClick = drag.moved;
+    const d = drag;
     drag = null;
     plan.classList.remove('grabbing');
-  };
-  plan.addEventListener('pointerup', endDrag);
-  plan.addEventListener('pointercancel', endDrag);
+    /* A press that never moved is a click on the node it started on. The
+       click the browser fires next is spent, whatever it lands on. */
+    swallowClick = true;
+    if (!d.moved && d.node) {
+      S.open = d.node;
+      render();
+    }
+  });
+  plan.addEventListener('pointercancel', function () {
+    drag = null;
+    plan.classList.remove('grabbing');
+  });
 
+  /* Rows in the tree, frames in the stack: anything outside the plan that
+     names a node opens it on an ordinary click. */
   document.addEventListener('click', function (e) {
+    const spent = swallowClick;
+    swallowClick = false;
+    if (spent) return;
     const el = e.target.closest ? e.target.closest('[data-node]') : null;
     if (!el) return;
-    if (swallowClick) {
-      swallowClick = false;
-      return;
-    }
     S.open = el.getAttribute('data-node');
     render();
   });
