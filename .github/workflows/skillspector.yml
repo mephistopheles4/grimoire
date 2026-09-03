@@ -1,0 +1,140 @@
+# Scan the prose this repository ships, with SkillSpector.
+#
+# SECURITY.md's first claim is that a skill is prose an agent obeys on somebody
+# else's computer. SkillSpector's threat model is exactly that: prompt
+# injection, data exfiltration, excessive agency, anti-refusal, trigger abuse,
+# tool poisoning. It is not a style checker on our source. It is a scanner for
+# the thing we publish.
+#
+# This gate fails on any finding .skillspector-baseline.yaml does not cover, at
+# any severity. It does not read the scanner's exit code and it does not read
+# the risk score, and the reason is measured: a file carrying an instruction
+# override and a credential read was added to this tree during triage, the
+# scanner found both, and it exited 0 — two findings across thirty files score
+# 42, under the tool's fifty-point threshold. That threshold answers "should I
+# install this whole skill", which is the right question for the tool and the
+# wrong one for a pull request. scripts/skillspector-gate.mjs carries the rest.
+#
+# **This workflow blocks no merge until it is added to the required status
+# checks**, which is a repository setting no file here can read or change.
+# SECURITY.md records the reliance beside the others.
+#
+# **Dependabot does not watch the scanner pin.** Its github-actions ecosystem
+# reads `uses:` lines, and the scanner arrives through a `run:` line with a git
+# reference in it. There is no pip manifest here for the pip ecosystem to read
+# either, and adding one would be the dependency manifest this repository
+# refuses. So the SHA below rots silently, exactly as .github/dependabot.yml
+# warns a pin does, and a bump is a reviewed pull request. That matters more
+# here than it looks: a new scanner version can add rules, and a new rule turns
+# this gate red on prose nobody changed.
+
+name: skillspector
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  scan:
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      # For the SARIF upload. A pull request from a fork gets a read-only token
+      # whatever this says, which is why the upload step is skipped there.
+      security-events: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      # The gate is a Node script. The runner ships a Node, and pinning the
+      # version here means the gate runs on the same one check.yml uses rather
+      # than on whatever the image happens to carry.
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: '22'
+
+      # pipx ships on the ubuntu-24.04 image and uv does not, so this route
+      # costs no second action. The install lands on the runner and never on a
+      # contributor's machine, which is the point: the check script runs on
+      # Node with nothing installed, and this is a Python tool.
+      #
+      # SkillSpector v2.11.0. A fork of this scanner exists under a different
+      # owner, so the owner is part of the pin, not decoration.
+      - name: Install SkillSpector
+        run: |
+          pipx install "git+https://github.com/NVIDIA/SkillSpector.git@b7241089d7ec15d8b30df980dacbb428214732b9"
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+
+      # Verified, not assumed. An install that put no entry point on the PATH
+      # would otherwise surface as a scan that produced no report, and a
+      # missing report is a story the gate has to tell rather than discover.
+      - name: Check the entry point runs
+        run: skillspector --help > /dev/null
+
+      # The repository root, not skills/. Two reasons, both measured: the root
+      # is where the findings actually are, and SARIF paths are written
+      # relative to the scan root with no flag to rebase them — scanning
+      # skills/ emits eagle-eye/SKILL.md, which GitHub resolves against the
+      # repository root and cannot match to a file.
+      #
+      # --no-llm is the whole analysis story here: static patterns, AST and
+      # YARA, no model call, no API key, no login, no secret. The semantic pass
+      # is a separate decision nobody has taken.
+      #
+      # Exit 2 is an error and fails here. Exit 0 and exit 1 both mean the scan
+      # ran, and which one it was depends on the risk score, which this gate
+      # does not read. The scanner has a --fail-on-incomplete flag that folds a
+      # partial analysis into exit 1; it is not used, because the exit code is
+      # not the signal. scripts/skillspector-gate.mjs reads the report's own
+      # completeness fields instead, and fails on the same condition.
+      #
+      # No `|| true` anywhere. A blanket one swallows the error case with
+      # everything else.
+      - name: Scan the repository
+        run: |
+          status=0
+          skillspector scan . --no-llm --baseline .skillspector-baseline.yaml --format json --output skillspector-report.json || status=$?
+          if [ "$status" -gt 1 ]; then
+            echo "skillspector exited ${status} — the scan errored rather than finding something"
+            exit 1
+          fi
+
+      # A second pass for the Security tab. Static analysis takes seconds, and
+      # the alternative is converting one format to the other by hand.
+      # Suppressed findings stay in the SARIF, marked as suppressed, so the tab
+      # shows what the baseline covers as well as what it does not.
+      - name: Write the SARIF report
+        run: |
+          status=0
+          skillspector scan . --no-llm --baseline .skillspector-baseline.yaml --format sarif --output skillspector.sarif || status=$?
+          if [ "$status" -gt 1 ]; then
+            echo "skillspector exited ${status} — the SARIF pass errored"
+            exit 1
+          fi
+
+      # On push only. A pull request from a fork carries a read-only token and
+      # cannot write a code-scanning result, so uploading there fails on a
+      # permission it can never have — while the gate below still runs and
+      # still blocks. GitHub refuses a third-party upload under CodeQL default
+      # setup only when the file holds CodeQL-generated results, and these are
+      # SkillSpector's.
+      #
+      # It runs before the gate on purpose. A red gate is exactly when the
+      # findings are worth having in the Security tab, and a step after a
+      # failing one does not run.
+      #
+      # This is the one action here that check.yml does not already use.
+      - name: Upload SARIF
+        if: github.event_name == 'push'
+        uses: github/codeql-action/upload-sarif@cdf488f595d80d6e07e03d4674febd5ab45fa938 # v4.37.9
+        with:
+          sarif_file: skillspector.sarif
+          category: skillspector
+
+      # The gate, and the last word. A small Node script rather than a line of
+      # shell, because a decision inside a workflow is a decision no test can
+      # reach; this one is covered by tests/skillspector-gate.test.mjs.
+      - name: Gate on unsuppressed findings
+        run: node scripts/skillspector-gate.mjs skillspector-report.json

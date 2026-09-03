@@ -1,0 +1,22 @@
+# SkillSpector baseline for the eagle-eye skill.
+#
+# This file exists because a baseline is only found at the top of the
+# directory a scan is pointed at, and a skill scanner is normally pointed at
+# the skill. The repository root carries its own copy at
+# .skillspector-baseline.yaml, covering six rules; three of them fire inside
+# this directory, and those three are repeated here word for word.
+#
+# `node scripts/check.mjs` fails if the two files disagree — same rule
+# identifiers, same reasons — so a rule reasoned away in one place cannot go
+# unexplained in the other.
+
+version: 2
+fingerprints: []
+
+rules:
+  - rule_id: "AR2"
+    reason: "False positive. SKILL.md tells the agent that a preview pane may render the page without script, so do not judge it from one. That adds a caveat; it does not suppress one."
+  - rule_id: "EA2"
+    reason: "False positive. The why text on an edge in the example box file. It is content the renderer prints for a reader, not an instruction the agent acts on alone."
+  - rule_id: "MP3"
+    reason: "False positive. A comment in the page template describing how Reset discards the reader's overrides and Undo offers them back. It documents a button, not an agent's memory."

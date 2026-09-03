@@ -1,0 +1,50 @@
+# SkillSpector baseline for this repository.
+#
+# SkillSpector scans a skill the way this project describes the risk in
+# SECURITY.md: a skill is prose an agent obeys on somebody else's computer.
+# Scanned at the repository root it reports fifteen findings from six rules,
+# and every one of them is wrong. This file says which six and why, so a
+# stranger reading it can disagree with a named reason rather than with
+# silence.
+#
+# Every entry is keyed by rule identifier and nothing else. Two consequences,
+# both deliberate:
+#
+#   - It survives a rewording. The prose under these findings is edited
+#     constantly, and the counts drift with it. The rule identifiers do not.
+#   - It suppresses that rule across the whole tree. A fingerprint baseline
+#     would be narrower, and `skillspector baseline` writes one, but a
+#     fingerprint is bound to the text it was taken from and reactivates on
+#     the next edit. Breadth bought here is paid for in the reasons below.
+#
+# Nothing in the tree was reworded to satisfy a pattern matcher. Two of these
+# findings sit on a security rule in CONTRIBUTING.md and the test that proves
+# it works; editing those to quiet a regex would be the trap the issue behind
+# this file named.
+#
+# `.github/workflows/skillspector.yml` passes this file explicitly. It is also
+# discovered by anyone who scans this repository, and reported to them as a
+# baseline the author shipped — applied only if they pass
+# `--use-shipped-baseline`. Read it with `--show-suppressed`.
+#
+# skills/eagle-eye/.skillspector-baseline.yaml repeats the three rules that
+# fire inside the skill, because a baseline is only found at the top of the
+# directory actually scanned. `node scripts/check.mjs` fails if the two
+# disagree.
+
+version: 2
+fingerprints: []
+
+rules:
+  - rule_id: "AR2"
+    reason: "False positive. SKILL.md tells the agent that a preview pane may render the page without script, so do not judge it from one. That adds a caveat; it does not suppress one."
+  - rule_id: "AS3"
+    reason: "False positive. A README line naming the one skill this repository ships, and the decision records quoting that line. Naming your own product is not enumerating somebody else's."
+  - rule_id: "EA2"
+    reason: "False positive. The why text on an edge in the example box file. It is content the renderer prints for a reader, not an instruction the agent acts on alone."
+  - rule_id: "MP3"
+    reason: "False positive. A comment in the page template describing how Reset discards the reader's overrides and Undo offers them back. It documents a button, not an agent's memory."
+  - rule_id: "RA2"
+    reason: "False positive. The CONTRIBUTING.md rule forbidding a fixed path inside a skill, and the test proving that rule fires. A guard and its test, both reported as the risk they exist to prevent."
+  - rule_id: "RP1"
+    reason: "False positive. The README install command and quotations of it. skills is the Vercel Labs installer run through npx, not an MCP server, so there is no server version to pin."
