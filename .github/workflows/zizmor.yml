@@ -172,12 +172,22 @@ jobs:
       #
       # **Any finding fails, at any severity, at the default persona.** Same
       # rule as the SkillSpector gate and for the same reason: a severity floor
-      # is a number to defend at every review. There is no zizmor.yml here and
-      # no `# zizmor: ignore` comment anywhere, because there is nothing to
-      # suppress — measured, on this tree, at this version. That matters more
-      # than it reads: zizmor has no per-entry reason field, so a suppression
-      # here would carry its argument only as a YAML comment the tool never
-      # reads and no check here can require. SECURITY.md carries the cost.
+      # is a number to defend at every review. **No configuration file exists**
+      # — zizmor reads one at the repository root or at .github/zizmor.yml, and
+      # neither is present — and no `# zizmor: ignore` comment appears anywhere,
+      # because there is nothing to suppress. Measured, on this tree, at this
+      # version. That matters more than it reads: zizmor has no per-entry reason
+      # field, so a suppression here would carry its argument only as a YAML
+      # comment the tool never reads and no check here can require.
+      # SECURITY.md carries the cost.
+      #
+      # **This file shares a name with that configuration file and is not it.**
+      # Config discovery is anchored at the repository root, not at the
+      # directory passed as input — measured with `-v`, which reports "no config
+      # candidates discovered relative to repository root" and then registers
+      # .github/workflows/zizmor.yml as a workflow input and audits it. The
+      # name follows skillspector.yml's convention of naming a workflow after
+      # the tool it runs; the collision is apparent and not real.
       #
       # **The default persona, and the pedantic delta measured rather than
       # guessed.** `--persona=pedantic` adds twelve findings on this tree, all

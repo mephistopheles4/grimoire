@@ -11,9 +11,10 @@ on:
 # They used to sit here, which handed them to `build` as well — a job that
 # checks out a stranger's branch state and runs a Node script over it, with
 # `pages: write` it never calls and an OIDC identity it never mints. zizmor
-# calls that `excessive-permissions` and rates it high, and it was the only
-# high finding in this tree when the audit was adopted. Nothing the `deploy`
-# job can do changed; `build` lost two grants it never used.
+# calls that `excessive-permissions` and rates it high, once per permission,
+# and those two were the only high findings in this tree when the audit was
+# adopted. Nothing the `deploy` job can do changed; `build` lost two grants it
+# never used.
 permissions:
   contents: read
 

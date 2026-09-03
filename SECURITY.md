@@ -362,11 +362,14 @@ by name, and until [`.github/workflows/zizmor.yml`](.github/workflows/zizmor.yml
 existed nothing in the tree audited them.**
 
 [zizmor](https://docs.zizmor.sh) already reached this repository from outside.
-It found `artipacked` on all three checkouts, and that finding arrived inside a
-CodeRabbit review whose status check reported `pass` beside the words *"Review
-skipped: automatic reviews are disabled"*. That run cannot be configured,
-cannot be baselined, and cannot fail anything. **A check that reports and
-changes nothing reads as a check that passed.** This one is a gate.
+It found `artipacked` on all three checkouts that existed then, and that finding
+arrived inside a CodeRabbit review whose status check reported `pass` beside the
+words *"Review skipped: automatic reviews are disabled"*. One of the three was
+fixed in the pull request that added `skillspector.yml`; **the other two were
+still open when this section was written**, which is why the table below has two
+`artipacked` rows and not three. That run cannot be configured, cannot be
+baselined, and cannot fail anything. **A check that reports and changes nothing
+reads as a check that passed.** This one is a gate.
 
 **Pinned to `zizmor==1.30.0`, and that is a weaker pin than the one beside
 it.** SkillSpector installs from a git commit, so its pin names exact bytes.
@@ -441,16 +444,25 @@ what `scripts/check.mjs` or `scripts/build-pages.mjs` do once a `run:` step
 starts them, it cannot see a repository setting, and it does not know whether a
 correctly-pinned action is worth trusting.
 
-**There is no `zizmor.yml` and no `# zizmor: ignore` comment anywhere**, because
-there is nothing to suppress. Measured on this tree at this version: the default
-persona reports no finding at all. That absence is load-bearing. **zizmor has no
-per-entry reason field** — a suppression would carry its argument only as a YAML
-comment the tool never reads, and no check here could require one, which is the
-opposite of what `.skillspector-baseline.yaml` gets for the same job. If a
-suppression is ever needed, `scripts/check.mjs` has to grow the rule that every
-entry carries a reason, the way it already holds the two SkillSpector baselines
-to the same words. That cost is stated here before it is paid, and it is not
-paid yet.
+**No configuration file exists, and no `# zizmor: ignore` comment appears
+anywhere**, because there is nothing to suppress. zizmor reads its configuration
+from `zizmor.yml` at the repository root or from `.github/zizmor.yml`, and
+neither is present. Measured on this tree at this version: the default persona
+reports no finding at all.
+
+**`.github/workflows/zizmor.yml` shares that name and is not that file.** It is
+the workflow, named after the tool the way `skillspector.yml` is. Config
+discovery is anchored at the repository root rather than at the directory passed
+as input — measured with `-v`, which reports no config candidates and then
+registers the file as a workflow input and audits it like any other.
+
+That absence is load-bearing. **zizmor has no per-entry reason field** — a
+suppression would carry its argument only as a YAML comment the tool never
+reads, and no check here could require one, which is the opposite of what
+`.skillspector-baseline.yaml` gets for the same job. If a suppression is ever
+needed, `scripts/check.mjs` has to grow the rule that every entry carries a
+reason, the way it already holds the two SkillSpector baselines to the same
+words. That cost is stated here before it is paid, and it is not paid yet.
 
 **What the audit changed on arrival.** Four findings on the tree it was pointed
 at, and all four were fixed rather than suppressed:
