@@ -682,7 +682,8 @@ attribute.** Two rules follow, and they are a decision, not a note:
 
 **Ids are validated rather than escaped**, on the incumbent's pattern: a node id
 that does not match a plain lowercase-and-hyphen shape is refused by the
-validator, so an id reaching an attribute is a known-safe string.
+validator, so an id reaching an attribute is a known-safe string. *Amended in
+implementation — see [Amendments](#amendments).*
 
 **The page's own vocabulary is drawn from author-keyed maps** — node ids, layer
 names, ambient value names, run input names. All four are author-chosen, so all
@@ -1115,3 +1116,64 @@ the three worked programs, the shape document, the checker, the case list and
 five rounds of eval output all live under prototype branches on this repository.
 They are what the decisions were made against. The skill does not exist yet, and
 nothing there is written to be merged.
+
+---
+
+## Amendments
+
+Written by the implementation session that built the skill, in the same series
+as the build. The instruction was to amend this file rather than contradict it
+in silence.
+
+**A node id is letters, digits and hyphens, not lowercase and hyphens.** The
+prose above asks for a lowercase-and-hyphen shape. This document's own layer
+example writes `bindSheet` and `buildShelf` as node ids, and all three worked
+programs use camel case throughout — so the file contradicted itself, and one
+of the two halves had to give. The pattern shipped is
+`^[A-Za-z0-9][A-Za-z0-9-]*$`. The property the rule exists for is unchanged:
+an id reaching an HTML attribute is still a known-safe string, and the double
+quote, the angle bracket and the space are all still refused. What is bought
+back is the id matching the symbol it names, which is what a sceptical reader
+checks the drawing against.
+
+**The two unplaced structural findings are findings, not refusals.** *One file
+edited by several nodes* and *an `E` channel declaring a tag nothing beneath it
+can produce* are printed on standard output under `--check`, and the exit code
+stays zero. Neither is a graph-versus-walk contradiction, so refusing a file
+for either would refuse a file that says exactly what its author meant. Several
+nodes editing one file is the ordinary shape of a change where one file carries
+two concerns, and the shipped example fires it five times.
+
+The second finding needed one change to be worth printing at all. The
+prototype could read an effect's failure set off the step, because its
+intermediate representation gave an effect a `failWith`. The locked shape
+removes that field on purpose, so nothing in the steps says which tags an
+effect can raise. Read from the steps alone the rule fires on every effect that
+can fail, which is most of them. **So the rule reads the walks as well**: a node
+produces a tag if it throws it, if a step of it declares a handler for it, or
+if one of its effects raised it in a walk this file carries. That is still
+computed from the file alone — a walk is part of the file — and it takes the
+shipped example from one false finding to none.
+
+**The layer cut is the argument list and nothing else.** The prototype also cut
+every call the renamed node itself makes. That is a node rule wearing a token
+rule's clothes, and *a layer renames a token, never a node* rules it out. It
+also disagreed with this document's own testing decision, which states that the
+shipped layer-carrying example cuts nothing. With the clause removed, it does.
+
+**One worked example the spec left open was never written.** *Which programs
+ship as worked examples is reopened* names three candidates, and the middle one
+is "the change whose failure story is an out-of-memory kill reaching no
+handler". No program for that change exists on any branch — it was found in a
+search and never written up. So the shipped set is the acceptance set
+(`pr-313-first-paint`), the plan (`map-300-woodwork`, which is where all three
+failure channels and an uncaught tag actually appear), and the small
+`greet` example that uses every move kind in thirty-two moves. `pr-313-panel-apply`
+stays on its branch: it declares no layers, no changed files and no throws, so
+it is the least distinctive of the three. **This remains the owner's call**, and
+changing the set is a one-file change.
+
+**The entry-point rule is still unmeasured.** *An entry point is a changed
+symbol that no other changed symbol calls* ships as written, in `SKILL.md`.
+Measuring it is a design activity rather than an implementation one, and it did
+not happen here.

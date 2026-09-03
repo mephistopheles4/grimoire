@@ -11,8 +11,8 @@ node scripts/check.mjs
 ```
 
 That is the contract, and it is still one command. It validates every
-`*.box.json` in the tree with the eagle-eye renderer, checks that no file a
-skill ships has grown a fixed path back, fails on a code fence that declares no
+artifact in the tree with the renderer its registry row names, checks that no
+file a skill ships has grown a fixed path back, fails on a code fence that declares no
 language, fails on a dependency, fails when the two SkillSpector baselines
 disagree, and runs the test suite in `tests/`. CI runs it as a required check
 called `check`. `main` takes no direct pushes.
@@ -39,16 +39,18 @@ not take, and `SECURITY.md` explains why that matters more than it looks.
 run only the suite while you work on it:
 
 ```bash
-node --test tests/esc.test.mjs tests/render.test.mjs tests/check.test.mjs tests/build-pages.test.mjs tests/skillspector-gate.test.mjs
+node --test tests/esc.test.mjs tests/render.test.mjs tests/check.test.mjs tests/build-pages.test.mjs tests/skillspector-gate.test.mjs tests/groundtrack-fold.test.mjs tests/groundtrack-render.test.mjs tests/registry.test.mjs
 ```
 
 Two rules about what goes in there:
 
-**Never commit a box file as a fixture.** `scripts/check.mjs` and
-`scripts/build-pages.mjs` both walk the whole tree for `*.box.json`. A broken
-fixture fails the check, and a valid one is rendered and published to the public
-site. Read the box file the skill already ships, or write the malformed one to a
-temporary directory at run time. `tests/render.test.mjs` does both.
+**Never commit an artifact as a fixture.** `scripts/check.mjs` and
+`scripts/build-pages.mjs` both walk the whole tree for every suffix
+`scripts/lib/registry.mjs` names — `*.box.json` and `*.flightpath.json` today.
+A broken fixture fails the check, and a valid one is rendered and published to
+the public site. Read the artifact the skill already ships, or write the
+malformed one to a temporary directory at run time. `tests/render.test.mjs` and
+`tests/groundtrack-render.test.mjs` both do this.
 
 **Test at the seam a reader uses.** The renderer's seam is its command line, and
 the check's seam is its exit code and its output. A test that reaches inside
@@ -81,13 +83,18 @@ path that is not relative, not absolute, and not a `node:` builtin. It reads
 code and not prose, so a comment is skipped. Until this check existed the rule
 held only because the tree gave it nowhere to land.
 
-**Give every box file a name no other box file wants.**
-`scripts/build-pages.mjs` names each published page after the box file's path
+**Give every artifact a page name no other artifact wants.**
+`scripts/build-pages.mjs` names each published page after the artifact's path
 from the repository root, with the separators flattened:
-`docs/decisions/x.box.json` becomes `docs-decisions-x.html`. Flattening a path
-onto one name is not injective, so `grid/one.box.json` and `grid-one.box.json`
-both ask for `grid-one.html`. The build refuses and names both files rather
-than publishing one over the other. Rename one.
+`docs/decisions/x.box.json` becomes `docs-decisions-x.html`. Two artifacts
+sharing a basename in different directories are both legal and both publish —
+that is what path keying is for. Flattening a path onto one name is not
+injective, though, so `grid/one.box.json` and `grid-one.box.json` both ask for
+`grid-one.html`. The build refuses and names both files rather than publishing
+one over the other, and it refuses before it renders anything. Rename one.
+
+The comparison folds case, because the filesystem this site is built from folds
+case and two names differing only in case silently became one file there.
 
 **Give every code fence a language.** `node scripts/check.mjs` fails on a fence
 that declares none, and names the file and the line. Use `text` for a block
@@ -118,6 +125,13 @@ twenty words or fewer, no idiom. See
 [`skills/eagle-eye/reference/writing-edges.md`](skills/eagle-eye/reference/writing-edges.md).
 A patch that breaks the rule the skill teaches is the worst kind of patch here.
 
+groundtrack's prose follows the same controlled English, and carries one rule
+of its own: **it names no other skill and no outside tool.** Not in its
+description, not in its body, not in its examples. The occasion is stated as a
+bare fact a stranger can check — *for a plan already made or work already
+done*. A skill that couples itself to vocabulary the reader may not have is a
+skill that stops working when they do not have it.
+
 **Changing the export format touches three places.** The page writes it,
 `SKILL.md` specifies it, and the agent reads it back. All three in one commit,
 or none.
@@ -126,9 +140,13 @@ or none.
 
 1. Put it at `skills/<name>/SKILL.md`, with a frontmatter `name` and
    `description`.
-2. Bump `version` in `.claude-plugin/plugin.json`. The check fails without it,
+2. If it produces an artifact, add a row to `scripts/lib/registry.mjs` naming
+   the artifact's file suffix and the renderer that owns it. The check fails on
+   a skill with no row, because a gate that quietly does nothing reads as a
+   gate that passed.
+3. Bump `version` in `.claude-plugin/plugin.json`. The check fails without it,
    because Claude Code ships an update only when that field moves.
-3. Run `node scripts/check.mjs`.
+4. Run `node scripts/check.mjs`.
 
 There is no per-skill manifest. The repository is one plugin and every skill
 lives under it. A skill nested deeper than `skills/<name>/` needs an explicit
