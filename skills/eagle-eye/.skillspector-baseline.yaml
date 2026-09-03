@@ -2,8 +2,12 @@
 #
 # You are reading this because you scanned this directory before installing
 # what is in it, which is the right thing to do with a skill. Three of
-# SkillSpector's rules fire on the files here, and this file says why each one
-# is wrong, so you can disagree with a reason rather than with silence.
+# SkillSpector's rules have fired on the files here, and this file says why each
+# one is wrong, so you can disagree with a reason rather than with silence.
+#
+# Which of the three fire on any given scan depends on the prose, and the prose
+# is edited constantly. An entry matching nothing today is an argument that was
+# made once and kept.
 #
 # The scanner reports the score unchanged and applies none of this unless you
 # ask. Apply it with --use-shipped-baseline, and read what it covered with

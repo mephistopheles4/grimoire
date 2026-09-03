@@ -222,15 +222,29 @@ compares a skill's behaviour against its stated purpose, and is arguably the
 failure this repository could actually ship — needs a provider credential and
 is a separate decision nobody has taken.
 
-**Six rules fire on this tree, and every finding from them is wrong.** Triage
-counted fifteen at an earlier commit; the first CI run of this workflow counted
-twenty-two, from the same six rules, on a tree that had grown a workflow, two
-baselines, a gate script, its tests and this section. That is the argument for
-keying the baseline on the rule rather than on the text: **the counts drift as
-prose is edited and the rule identifiers do not.** A seventh rule cannot appear
-quietly — it fails the build, and costs one more entry below with a reason,
-never a rewording. The gate prints the tally by rule on every run, so the
-drift is visible in the log rather than discovered later.
+**Six rules are baselined, and every finding from them is wrong.** The numbers
+move, and watching them move is the point. Triage counted fifteen findings from
+six rules at an earlier commit. The first run of this workflow counted
+twenty-two from five, on a tree that had grown a workflow, two baselines, a gate
+script, its tests and this section:
+
+```text
+by rule: AR2×7, AS3×6, MP3×1, RA2×2, RP1×6
+```
+
+`AR2` went from one to seven, and the six new ones are this section and the
+comments around it — prose about anti-refusal reads to a pattern matcher exactly
+like anti-refusal. `EA2` fired at triage and does not fire here; its entry stays,
+because the `why` text it matched is unchanged and a scan rooted at the skill
+may still see it. **An entry that suppresses nothing today costs a line and
+keeps an argument that was made once.**
+
+So: **the counts drift as prose is edited, and the rule identifiers do not.**
+That is the whole case for keying the baseline on the rule rather than on the
+text a fingerprint would bind to. A seventh rule cannot appear quietly — it
+fails the build, and costs one more entry below with a written reason, never a
+rewording. The gate prints the tally on every run, so drift is visible in the
+log rather than discovered later.
 [`.skillspector-baseline.yaml`](.skillspector-baseline.yaml) suppresses the six
 by rule identifier, with a reason per entry:
 
