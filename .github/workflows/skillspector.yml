@@ -146,4 +146,4 @@ jobs:
       # shell, because a decision inside a workflow is a decision no test can
       # reach; this one is covered by tests/skillspector-gate.test.mjs.
       - name: Gate on unsuppressed findings
-        run: node scripts/skillspector-gate.mjs skillspector-report.json
+        run: node scripts/skillspector-gate.mjs "${RUNNER_TEMP}/skillspector-report.json"
