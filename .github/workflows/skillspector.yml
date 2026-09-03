@@ -47,7 +47,17 @@ jobs:
       # whatever this says, which is why the upload step is skipped there.
       security-events: write
     steps:
+      # persist-credentials: false because this job installs a third-party tool
+      # and points it at the whole tree. The default writes the job's token into
+      # .git/config as an http.extraheader, so the checkout leaves a credential
+      # in the working directory that the scanner then reads. Nothing here runs
+      # an authenticated git command — no fetch, no push, and the version-bump
+      # rule that needs history lives in the other workflow — so the credential
+      # buys nothing and costs a token sitting under a scanner's nose. Raised by
+      # zizmor as `artipacked`, through CodeRabbit, on this pull request.
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
       # The gate is a Node script. The runner ships a Node, and pinning the
       # version here means the gate runs on the same one check.yml uses rather
       # than on whatever the image happens to carry.
