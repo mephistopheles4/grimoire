@@ -123,15 +123,25 @@ jobs:
       # when the gate below is red, and it writes outside the checkout so the
       # report is never a file the audit could collect.
       #
-      # **--format=sarif suppresses the finding exit codes**, measured: this
-      # command exits 0 on the same tree that exits 14 below. So a non-zero
-      # status here is an error, and is the only thing this step can fail on.
+      # **--format=sarif suppresses the finding exit codes and nothing else**,
+      # measured: this command exits 0 on the same tree that exits 14 below,
+      # and still exits 1, 2 and 3 on a missing path, a bad argument and a
+      # directory that collects nothing. So a non-zero status here is an error,
+      # and is the only thing this step can fail on.
+      #
+      # **--strict-collection, because the default is the exact failure this
+      # repository keeps writing commits about.** Measured: a workflow zizmor
+      # cannot parse is reported as a WARN on stderr, dropped from the run, and
+      # the remaining files are audited — so four good workflows beside one
+      # broken one print "No findings to report. Good job!" and exit 0. A file
+      # nobody audited must not read as a file with nothing wrong. With the
+      # flag the same tree exits 1.
       - name: Write the SARIF report
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           status=0
-          zizmor --format=sarif .github/workflows/ > "${RUNNER_TEMP}/zizmor.sarif" || status=$?
+          zizmor --strict-collection --format=sarif .github/workflows/ > "${RUNNER_TEMP}/zizmor.sarif" || status=$?
           if [ "$status" -ne 0 ]; then
             echo "zizmor exited ${status} writing SARIF — the audit errored"
             exit 1
@@ -188,12 +198,19 @@ jobs:
       # produces, which is exactly the shape of a gate that quietly checks
       # nothing. A path that is gone entirely exits 1 instead — measured, both
       # ways — so neither spelling of "there was nothing to audit" can pass.
+      #
+      # **--strict-collection closes the third spelling, which is the quiet
+      # one.** Without it, a workflow zizmor cannot parse is a WARN on stderr
+      # and is dropped from the run: the other files are audited, the summary
+      # says "No findings to report. Good job!", and the job exits 0. One
+      # unparseable file among four would ship as a clean audit. Measured both
+      # ways — with the flag that tree exits 1.
       - name: Audit the workflows
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           status=0
-          zizmor .github/workflows/ || status=$?
+          zizmor --strict-collection .github/workflows/ || status=$?
           case "$status" in
             0)
               echo "ok: no finding in .github/workflows/ at the default persona"

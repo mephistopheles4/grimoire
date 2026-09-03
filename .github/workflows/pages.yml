@@ -66,6 +66,12 @@ jobs:
       # For actions/deploy-pages, and for nothing else in this file. It creates
       # the deployment, which is a write, and mints an OIDC token to prove to
       # the Pages service that this workflow run is the one asking.
+      #
+      # This job-level pair is the shape that action's own README recommends,
+      # word for word — "We recommend this action to be used in a dedicated
+      # job", with these two permissions on it and no others. The workflow-level
+      # copy this replaced came from a Pages starter workflow, not from here.
+      # No `contents:` line, because this job checks nothing out.
       pages: write
       id-token: write
     environment:

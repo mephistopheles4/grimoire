@@ -401,6 +401,15 @@ the audit, including an input path that is not there; `2` is a bad argument;
 three go red. The last is the one worth having: it is the shape of a gate that
 quietly checks nothing.
 
+**`--strict-collection`, because the default is that exact failure in its
+quietest form.** Measured: a workflow zizmor cannot parse is reported as a
+warning on stderr, dropped from the run, and the files beside it are audited
+normally — so four good workflows next to one broken one print *"No findings to
+report. Good job!"* and exit `0`. **A file nobody audited must not read as a
+file with nothing wrong.** With the flag the same tree exits `1`. This is the
+same rule the SkillSpector gate applies when it reads the scan's coverage counts
+rather than trusting a clean-looking report, arrived at from the other end.
+
 **The audit runs online, with the job's own `contents: read` token.** That is a
 decision with a measured payoff, and it is the opposite direction from the
 change that removed the persisted credential from the SkillSpector job's working
