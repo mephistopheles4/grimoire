@@ -268,6 +268,23 @@ test('the suggested run is the longest walk', () => {
 
 /* -- the drawing ---------------------------------------------------------- */
 
+test('a node with one caller sits straight beneath it', () => {
+  // fibreMapFor is called by applyWoodFibre and nobody else. Centring each row
+  // on the sheet put it under the middle of the drawing instead, three boxes
+  // away from the only edge that reaches it.
+  const l = G.layout(layered);
+  assert.equal(l.pos.fibreMapFor.x, l.pos.applyWoodFibre.x);
+  // Placing by caller never lets two boxes in a row overlap.
+  const byRow = {};
+  for (const [id, p] of Object.entries(l.pos)) (byRow[p.y] = byRow[p.y] || []).push(p.x);
+  for (const xs of Object.values(byRow)) {
+    xs.sort((a, b) => a - b);
+    for (let i = 1; i < xs.length; i++) assert.ok(xs[i] - xs[i - 1] >= l.width, 'two boxes in one row overlap');
+  }
+  // And nothing runs off the right edge of the canvas.
+  for (const p of Object.values(l.pos)) assert.ok(p.x + l.width <= l.canvasW);
+});
+
 test('the layout places every node and draws every call edge once', () => {
   const l = G.layout(layered);
   assert.deepEqual(Object.keys(l.pos).sort(), Object.keys(layered.nodes).sort());

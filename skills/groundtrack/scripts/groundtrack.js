@@ -295,18 +295,47 @@ const Groundtrack = (() => {
     const widest = Math.max(...Object.values(rows).map(r => r.length));
     const sheetW = widest * W + (widest - 1) * GAP_X;
 
+    /* A node sits under the nodes that call it. A caller centres its callees
+     * beneath itself, in call order, so a node with one callee puts it straight
+     * below and a node with four spreads them either side. A callee reached
+     * from two callers takes the mean of what each asked for. Each row after
+     * the first is then placed by one left-to-right sweep: a node gets the x
+     * it asked for unless the node before it is in the way, in which case it
+     * shifts right by exactly the gap. A node no placed node calls keeps the
+     * row's right edge. This is one pass with no search, not a layout engine,
+     * and the first row is centred on the sheet as before. */
     const pos = {};
     let y = PAD;
+    let rightEdge = PAD;
     for (const d of Object.keys(rows).sort((a, b) => a - b)) {
       const row = rows[d];
-      const rowW = row.length * W + (row.length - 1) * GAP_X;
-      let x = PAD + (sheetW - rowW) / 2;
-      for (const id of row) {
-        pos[id] = { x, y, h: H[id] };
-        x += W + GAP_X;
+      if (d === '0') {
+        const rowW = row.length * W + (row.length - 1) * GAP_X;
+        let x = PAD + (sheetW - rowW) / 2;
+        for (const id of row) {
+          pos[id] = { x, y, h: H[id] };
+          x += W + GAP_X;
+        }
+      } else {
+        const asks = Object.fromEntries(row.map(id => [id, []]));
+        for (const c of ids) {
+          if (!pos[c]) continue;
+          const kids = calleesOf(prog, c).filter(k => asks[k]);
+          kids.forEach((k, i) => asks[k].push(pos[c].x + (i - (kids.length - 1) / 2) * (W + GAP_X)));
+        }
+        const want = {};
+        for (const id of row) want[id] = asks[id].length ? asks[id].reduce((s, v) => s + v, 0) / asks[id].length : Infinity;
+        let x = PAD;
+        for (const id of row.slice().sort((a, b) => want[a] - want[b] || row.indexOf(a) - row.indexOf(b))) {
+          x = Math.max(want[id] === Infinity ? rightEdge + GAP_X : want[id], x);
+          pos[id] = { x, y, h: H[id] };
+          x += W + GAP_X;
+        }
       }
+      for (const id of row) rightEdge = Math.max(rightEdge, pos[id].x + W);
       y += Math.max(...row.map(id => H[id])) + GAP_Y;
     }
+    const canvasW = Math.max(sheetW + PAD * 2, rightEdge + PAD);
 
     const edges = [];
     for (const from of ids) {
@@ -324,7 +353,7 @@ const Groundtrack = (() => {
       }
     }
 
-    return { pos, edges, order, width: W, canvasW: sheetW + PAD * 2, canvasH: y - GAP_Y + PAD };
+    return { pos, edges, order, width: W, canvasW, canvasH: y - GAP_Y + PAD };
   }
 
   /* -- the tree ------------------------------------------------------------
