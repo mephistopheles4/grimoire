@@ -3,7 +3,8 @@
 //
 //   node scripts/check.mjs
 //
-// 1. Every *.box.json in the tree validates against the eagle-eye renderer.
+// 1. Every artifact in the tree validates against the renderer its registry
+//    row names, and every skill that ships artifacts has a row.
 // 2. No file a skill ships carries a fixed path. A skill lands in a different
 //    directory under every install route, so a path naming one is a defect.
 // 3. The single-pass tag strip does not come back, and no code fence in any
@@ -22,6 +23,7 @@ import { basename, join, relative, sep } from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { walk } from './lib/tree.mjs';
+import { ARTIFACTS, rowFor } from './lib/registry.mjs';
 
 const root = join(fileURLToPath(import.meta.url), '..', '..');
 const failures = [];
@@ -33,16 +35,46 @@ const rel = p => relative(root, p).split(sep).join('/');
 const { files, notes: walkNotes } = walk(root);
 for (const n of walkNotes) console.log(`note: ${n}`);
 
-// 1. Box files validate.
-const boxes = files.filter(f => f.endsWith('.box.json'));
-if (!boxes.length) fail('no *.box.json found — the renderer has nothing to check');
-const renderer = join(root, 'skills', 'eagle-eye', 'render.mjs');
-for (const box of boxes) {
+// 1. Artifacts validate, against the renderer their registry row names.
+//
+// Both root scripts used to hard-code one glob and one renderer path, so a
+// second skill's artifact was checked by nothing and published by nothing, and
+// neither script said so. scripts/lib/registry.mjs is now the one table.
+const artifacts = files.map(f => ({ path: f, src: rel(f) })).filter(a => (a.row = rowFor(a.src)));
+if (!artifacts.length) fail('no artifact found for any registry row — the renderers have nothing to check');
+
+for (const a of artifacts) {
+  const renderer = join(root, ...a.row.renderer.split('/'));
   try {
-    execFileSync(process.execPath, [renderer, box, '--check'], { stdio: 'pipe' });
-    console.log(`ok    ${rel(box)}`);
+    execFileSync(process.execPath, [renderer, a.path, ...a.row.checkArgs], { stdio: 'pipe' });
+    console.log(`ok    ${a.src}`);
   } catch (e) {
-    fail(`${rel(box)} failed --check:\n${(e.stderr || e.stdout || '').toString().trim()}`);
+    fail(`${a.src} failed ${a.row.checkArgs.join(' ')}:\n${(e.stderr || e.stdout || '').toString().trim()}`);
+  }
+}
+
+// Every row names a renderer that is there, and matches something. A gate that
+// quietly does nothing reads as a gate that passed.
+for (const row of ARTIFACTS) {
+  try {
+    statSync(join(root, ...row.renderer.split('/')));
+  } catch {
+    fail(`registry row "${row.type}" names ${row.renderer}, and there is no such file — nothing would validate a ${row.suffix}`);
+  }
+  if (!artifacts.some(a => a.row === row)) {
+    console.log(`note: no ${row.suffix} in the tree — the "${row.type}" row matched nothing`);
+  }
+}
+
+// A skill whose artifacts no row claims is reported rather than skipped. This
+// is the failure the registry exists to make impossible to reach quietly: the
+// skill ships, the check walks past it, and the run is green.
+for (const e of readdirSync(join(root, 'skills'), { withFileTypes: true })) {
+  if (!e.isDirectory()) continue;
+  if (!ARTIFACTS.some(row => row.renderer.startsWith(`skills/${e.name}/`))) {
+    fail(
+      `skills/${e.name}/ has no row in scripts/lib/registry.mjs — nothing validates what it produces and nothing publishes it. Add a row naming its artifact suffix and its renderer.`,
+    );
   }
 }
 
@@ -543,4 +575,4 @@ if (failures.length) {
   for (const f of failures) console.error(`  - ${f}`);
   process.exit(1);
 }
-console.log(`\nok: ${boxes.length} box file(s), ${mkt.plugins.length} plugin(s)`);
+console.log(`\nok: ${artifacts.length} artifact file(s), ${mkt.plugins.length} plugin(s)`);

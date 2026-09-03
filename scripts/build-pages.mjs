@@ -1,7 +1,11 @@
 #!/usr/bin/env node
-// Render every box file in the tree into site/, plus an index that links them.
-// The renderer writes one self-contained HTML file, so the site needs no build
+// Render every artifact in the tree into site/, plus an index that links them.
+// Each renderer writes one self-contained HTML file, so the site needs no build
 // step and no asset pipeline.
+//
+// Which artifact goes to which renderer is a row in scripts/lib/registry.mjs.
+// This script had one glob and one renderer path written into it, so a second
+// skill's artifact was published by nothing and nothing said so.
 //
 //   node scripts/build-pages.mjs
 
@@ -11,6 +15,7 @@ import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { createRequire } from 'node:module';
 import { walk } from './lib/tree.mjs';
+import { rowFor, pageNameFor } from './lib/registry.mjs';
 
 const root = join(fileURLToPath(import.meta.url), '..', '..');
 
@@ -21,7 +26,6 @@ const root = join(fileURLToPath(import.meta.url), '..', '..');
 const require = createRequire(import.meta.url);
 const { esc } = require(join(root, 'skills', 'eagle-eye', 'lib', 'eagle-eye.js'));
 const out = join(root, 'site');
-const renderer = join(root, 'skills', 'eagle-eye', 'render.mjs');
 
 // The walk reads .gitignore rather than a hardcoded skip set, and it is the
 // same walk scripts/check.mjs uses. scripts/lib/tree.mjs carries why.
@@ -44,9 +48,11 @@ const takenBy = new Map();
 // disappearance this change closes for two boxes, reopened for one box and the
 // index. Claimed before the loop so the collision message names it.
 takenBy.set('index.html', 'the generated listing page');
-for (const box of files.filter(f => f.endsWith('.box.json'))) {
-  const src = relative(root, box).split(sep).join('/');
-  const name = src.replace(/\.box\.json$/, '').replace(/\//g, '-') + '.html';
+for (const artifact of files) {
+  const src = relative(root, artifact).split(sep).join('/');
+  const row = rowFor(src);
+  if (!row) continue;
+  const name = pageNameFor(src, row);
   // Flattening a path onto one name is not injective: grid/one.box.json and
   // grid-one.box.json both ask for grid-one.html. Refuse rather than overwrite,
   // which is the failure this whole change is about.
@@ -57,17 +63,18 @@ for (const box of files.filter(f => f.endsWith('.box.json'))) {
   const taken = takenBy.get(name.toLowerCase());
   if (taken) {
     console.error(
-      `${src} and ${taken} both render to site/${name} — rename one so each box has its own page. Two sources cannot share one output file; the second render overwrites the first and the page disappears from the site. See CONTRIBUTING.md.`,
+      `${src} and ${taken} both render to site/${name} — rename one so each artifact has its own page. Two sources cannot share one output file; the second render overwrites the first and the page disappears from the site. See CONTRIBUTING.md.`,
     );
     process.exit(1);
   }
   takenBy.set(name.toLowerCase(), src);
-  pages.push({ name, src, box });
+  pages.push({ name, src, artifact, row });
 }
 
 for (const p of pages) {
-  execFileSync(process.execPath, [renderer, p.box, '--out', join(out, p.name)], { stdio: 'inherit' });
-  p.title = JSON.parse(readFileSync(p.box, 'utf8')).title;
+  const renderer = join(root, ...p.row.renderer.split('/'));
+  execFileSync(process.execPath, [renderer, p.artifact, ...p.row.outArgs(join(out, p.name))], { stdio: 'inherit' });
+  p.title = JSON.parse(readFileSync(p.artifact, 'utf8')).title;
 }
 
 const items = pages
@@ -76,7 +83,10 @@ const items = pages
   // file name, which on Linux and macOS may hold a quote. Escaped, such a name
   // closed the attribute and wrote markup into the index. encodeURIComponent is
   // what an href wants anyway: it also handles the space and the hash.
-  .map(p => `    <li><a href="./${encodeURIComponent(p.name)}">${esc(p.title)}</a> <code>${esc(p.src)}</code></li>`)
+  .map(
+    p =>
+      `    <li><a href="./${encodeURIComponent(p.name)}">${esc(p.title)}</a> <code>${esc(p.src)}</code> <span class="kind">${esc(p.row.type)}</span></li>`,
+  )
   .join('\n');
 
 // The Drafting tokens the rendered pages carry, copied rather than shared. A
@@ -96,7 +106,7 @@ writeFileSync(
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>grimoire — eagle-eye boxes</title>
+<title>grimoire — what the skills produce</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&display=swap">
 <style>
 :root{
@@ -121,15 +131,20 @@ a{color:var(--dw-ink);text-decoration-color:var(--dw-ink-55);text-underline-offs
   transition:color .16s var(--ease),text-decoration-color .16s var(--ease)}
 a:hover{color:var(--dw-caution);text-decoration-color:var(--dw-caution)}
 code{font-size:12px;color:var(--dw-ink-55)}
+.kind{font-size:11px;text-transform:uppercase;letter-spacing:.16em;color:var(--dw-ink-55);margin-left:auto}
 </style>
 </head>
 <body>
 <div class="page"><div class="sheet">
   <div class="label">grimoire</div>
-  <h1>eagle-eye</h1>
-  <p>Each page below is one morphological box. Click an option to change it, and
-  the page reads the configuration back: what fights, what is missing, and what
-  you have not looked at.</p>
+  <h1>what the skills produce</h1>
+  <p>Each page below is one self-contained file, written by one of this
+  repository's skills. A <strong>box</strong> is a morphological box: click an
+  option to change it, and the page reads the configuration back — what fights,
+  what is missing, and what you have not looked at. A
+  <strong>flightpath</strong> is a call graph with a recorded walk through it:
+  step the cursor, and the page says what each part returns, where it breaks
+  and what it needs.</p>
   <ul>
 ${items}
   </ul>
