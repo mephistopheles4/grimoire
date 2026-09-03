@@ -604,4 +604,7 @@ function main(argv) {
   process.exit(0);
 }
 
-if (process.argv[1] && process.argv[1].replace(/\\/g, '/').endsWith('render.mjs')) main(process.argv);
+// Run only when this file is what node was pointed at. Matched on the resolved
+// path rather than on the file name: the other skill in this repository also
+// ships a `render.mjs`, so a name test would run this main() inside that one.
+if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) main(process.argv);

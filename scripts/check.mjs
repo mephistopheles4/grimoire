@@ -40,7 +40,12 @@ for (const n of walkNotes) console.log(`note: ${n}`);
 // Both root scripts used to hard-code one glob and one renderer path, so a
 // second skill's artifact was checked by nothing and published by nothing, and
 // neither script said so. scripts/lib/registry.mjs is now the one table.
-const artifacts = files.map(f => ({ path: f, src: rel(f) })).filter(a => (a.row = rowFor(a.src)));
+const artifacts = files
+  .map(f => {
+    const src = rel(f);
+    return { path: f, src, row: rowFor(src) };
+  })
+  .filter(a => a.row);
 
 for (const a of artifacts) {
   const renderer = join(root, ...a.row.renderer.split('/'));
