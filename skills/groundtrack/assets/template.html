@@ -935,7 +935,7 @@ function start() {
     // handler reseeds it, so the step is spent and thrown away — and an arrow
     // on either hold moved the walk for no reason at all.
     const t = e.target;
-    if (t && /^(SELECT|INPUT|TEXTAREA)$/.test(t.tagName || '')) return;
+    if (t && ['SELECT', 'INPUT', 'TEXTAREA'].indexOf(t.tagName) >= 0) return;
     if (t && t.isContentEditable) return;
     if (e.key === 'ArrowRight') step(1);
     if (e.key === 'ArrowLeft') step(-1);

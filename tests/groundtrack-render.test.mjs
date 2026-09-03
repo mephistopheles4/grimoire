@@ -139,6 +139,30 @@ const cases = [
     m.goto = 'named';
     m.next = 3;
   }, /its onError does not name "named"/],
+  ['a nodes map that is a list', p => { p.nodes = []; }, /nodes: expected an object keyed by node id/],
+  ['an unwind with no error travelling', p => {
+    const w = p.presets[0].walk.steps;
+    w.splice(2, 0, { k: 'unwind' });
+  }, /unwind with no error travelling/],
+  ['an uncaught nothing raised', p => {
+    const w = p.presets[0].walk.steps;
+    w.splice(w.length - 1, 1, { k: 'uncaught', tag: 'Invented', message: 'nothing raised this', channel: 'die' });
+  }, /"Invented" reached the top uncaught, and no move before it raised anything/],
+  ['an uncaught naming a tag other than the one travelling', p => {
+    const w = p.presets[2].walk.steps;
+    w[w.length - 1].tag = 'SomethingElse';
+  }, /"SomethingElse" reached the top, but the error travelling is "SendFailed"/],
+  ['a handled that catches nothing', p => {
+    const w = p.presets[0].walk.steps;
+    w.splice(2, 0, { k: 'handled', at: 1, goto: 'plain', next: 5 });
+  }, /handled at 1 catches nothing — no move before it raised/],
+  ['a handled whose goto is declared for another tag', p => {
+    p.nodes.greet.steps[1].onError.push({ tag: 'Other', goto: 'named' });
+    const w = p.presets[1].walk.steps;
+    const m = w.find(x => x.k === 'handled');
+    m.goto = 'named';
+    m.next = 3;
+  }, /which greet declares for "Other", and the error travelling is "NoSuchUser"/],
   ['a walk that ends with a frame open', p => {
     // Drop the entry frame's return and the done that followed it.
     const w = p.presets[0].walk.steps;
@@ -393,6 +417,29 @@ test('a default render writes nothing and says so', () => {
   assert.match(r.stderr, /name the page to write with --out/);
   assert.deepEqual(readdirSync(examples).sort(), before, 'nothing landed beside the input');
   assert.ok(!existsSync(exampleFlightpath.replace(/\.flightpath\.json$/, '.html')));
+});
+
+test('valid JSON that is not a flightpath file is refused, not crashed on', () => {
+  // `null`, a number and a list all parse. Reading a field off one threw a
+  // stack trace where a refusal belongs.
+  for (const body of ['null', '42', '[]', '"a string"']) {
+    const p = join(work, `notaprogram-${n++}.flightpath.json`);
+    writeFileSync(p, body);
+    const r = run(groundtrack, [p, '--check']);
+    assert.equal(r.code, 1, `${body} should be refused, not accepted`);
+    assert.match(r.stderr, /file: expected an object — this is valid JSON and is not a flightpath file/);
+    assert.doesNotMatch(r.stderr, /at Object|TypeError|Cannot read/);
+  }
+});
+
+test('--out naming the input file is refused, and the input survives', () => {
+  const p = join(work, 'self.flightpath.json');
+  const before = readFileSync(exampleFlightpath, 'utf8');
+  writeFileSync(p, before);
+  const r = run(groundtrack, [p, '--out', p]);
+  assert.equal(r.code, 2);
+  assert.match(r.stderr, /--out names the file being rendered/);
+  assert.equal(readFileSync(p, 'utf8'), before, 'the program was not replaced by its own page');
 });
 
 test('a file that is not JSON is refused before anything else', () => {

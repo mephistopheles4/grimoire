@@ -97,7 +97,17 @@ function keys(r, where, obj, req, opt = []) {
 /* -- pass 1 and 2: shape and links ----------------------------------------- */
 
 function shape(prog, r) {
+  /* The top level is read before anything else asks it a question. A file
+   * holding `null`, a number or a list parses as JSON and is not a program,
+   * and reading `prog.nodes` off it threw a stack trace where a refusal
+   * belongs. */
+  if (!isObj(prog)) return r.shape('file', 'expected an object — this is valid JSON and is not a flightpath file');
   keys(r, 'file', prog, CORE, OPTIONAL);
+  /* Said out loud rather than returned from in silence. A `nodes` that is a
+   * list or a null used to end this pass with no refusal about it, so the file
+   * was accepted and the walk pass then dereferenced a node that was not
+   * there. */
+  if (prog.nodes !== undefined && !isObj(prog.nodes)) return r.shape('nodes', 'expected an object keyed by node id');
   if (!isObj(prog.nodes)) return;
   if (!Object.keys(prog.nodes).length) r.shape('nodes', 'state at least one node');
 
@@ -221,6 +231,17 @@ function path(prog, walk, runName, r) {
    * the refusal pointed at. */
   let emptiedAt = null;
   let emptiedBy = null;
+
+  /* The travelling error. Three of the four frame moves exist only to carry an
+   * error somewhere, and without this a walk could unwind a frame that never
+   * threw, catch an error that was never raised, or claim a tag reached the
+   * top when nothing produced it. Each of those is a walk that contradicts its
+   * own graph, which is the class this pass exists to refuse.
+   *
+   * Set by a throw and by an effect that raised. Kept through an unwind, which
+   * is exactly where the error is still moving. Cleared by the catch, and by
+   * reaching the top. */
+  let raised = null;
   const noteEmpty = (i, kind) => {
     if (!frames.length) {
       emptiedAt = i;
@@ -235,6 +256,7 @@ function path(prog, walk, runName, r) {
   walk.steps.forEach((m, i) => {
     if (m.k === 'unwind') {
       if (!frames.length) return blameEmpty(i, m);
+      if (!raised) bad(i, 'unwind with no error travelling — a frame is popped by a return unless something raised');
       frames.pop();
       noteEmpty(i, 'unwind');
       return;
@@ -252,6 +274,9 @@ function path(prog, walk, runName, r) {
      * either — onError is per step, and a handler on some other call is not in
      * this error's way. */
     if (m.k === 'uncaught') {
+      if (!raised) bad(i, `"${m.tag}" reached the top uncaught, and no move before it raised anything`);
+      else if (raised.tag !== m.tag) bad(i, `"${m.tag}" reached the top, but the error travelling is "${raised.tag}"`);
+      raised = null;
       for (const fr of frames) {
         if (fr.callAt === undefined) continue;
         const guard = ((prog.nodes[fr.nodeId] || {}).steps || [])[fr.callAt];
@@ -310,16 +335,26 @@ function path(prog, walk, runName, r) {
           keys(r, `${runName} [${i}] raised`, m.raised, ['tag', 'message', 'channel']);
           if (isObj(m.raised) && !CHANNEL.includes(m.raised.channel))
             bad(i, `raised channel "${m.raised.channel}" is not one of ${CHANNEL.join(', ')}`);
+          if (isObj(m.raised)) raised = { tag: m.raised.tag, from: i };
         }
         break;
       case 'throw':
         if (st.op === 'throw' && m.tag !== st.tag) bad(i, `throw tag "${m.tag}" does not match step tag "${st.tag}"`);
+        raised = { tag: m.tag, from: i };
         break;
       case 'handled': {
-        if (!((st.onError || []).some(h => h.goto === m.goto))) bad(i, `handled at ${m.at} (${st.op}): its onError does not name "${m.goto}"`);
+        const declared = (st.onError || []).filter(h => h.goto === m.goto);
+        if (!declared.length) bad(i, `handled at ${m.at} (${st.op}): its onError does not name "${m.goto}"`);
+        if (!raised) bad(i, `handled at ${m.at} catches nothing — no move before it raised`);
+        else if (declared.length && !declared.some(h => h.tag === raised.tag))
+          bad(i, `handled at ${m.at} goes to "${m.goto}", which ${f.nodeId} declares for ${declared.map(h => `"${h.tag}"`).join(', ')}, and the error travelling is "${raised.tag}" (raised at move ${raised.from})`);
         if (L[m.goto] === undefined) bad(i, `handled goto "${m.goto}" is not a label in ${f.nodeId}`);
         else if (m.next !== L[m.goto]) bad(i, `handled lands at ${m.next}, but "${m.goto}" is step ${L[m.goto]}`);
+        raised = null;
         f.pc = m.next;
+        /* The frame resumed, so the call it was suspended at no longer guards
+         * anything. The return path clears this for the same reason. */
+        f.callAt = undefined;
         break;
       }
       case 'return':
@@ -598,8 +633,17 @@ function main(argv) {
     process.exit(2);
   }
 
-  writeFileSync(resolve(outPath), page(prog));
-  console.error(`wrote ${resolve(outPath)}`);
+  /* An output path equal to the input overwrites the program with its own
+   * page, and there is no copy. Refused rather than written. */
+  const source = resolve(file);
+  const target = resolve(outPath);
+  if (source === target) {
+    console.error(`${file}: --out names the file being rendered. Write the page somewhere else; this would replace the program with its own drawing.`);
+    process.exit(2);
+  }
+
+  writeFileSync(target, page(prog));
+  console.error(`wrote ${target}`);
   for (const n of notes) console.log(n);
   process.exit(0);
 }

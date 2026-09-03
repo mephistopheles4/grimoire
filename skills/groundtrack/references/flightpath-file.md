@@ -250,6 +250,12 @@ It proves the walk is a **legal path**, and it evaluates nothing.
   handler for it.** A frame is in the way when it is suspended at a call.
 - **A refusal names the move that emptied the frame stack**, not the first move
   to notice.
+- **The three exceptional moves need an error to be travelling.** A throw and a
+  raising effect start one; an unwind keeps it; a handled catch and an uncaught
+  end it. So an `unwind` with nothing raised is refused, a `handled` that
+  catches nothing is refused, and an `uncaught` whose tag is not the one
+  travelling is refused. A `handled` is also refused when the `onError` entry
+  it names was declared for some other tag.
 
 **What it cannot prove.** Which branch an `if` took, and what an effect
 returned. Both are claims you make. In practice a wrong branch is often caught
