@@ -210,9 +210,11 @@ flag would make the workflow red on arrival for a reason that is not "the
 scanner missed something". So the gate fails on a component left unscanned, a
 file read partly or not at all, an exception recorded while reading, an
 execution the scanner does not call successful, or a status of `failed` — and a
-`partial` run with every count clean passes with the status printed. **None of
-this has been observed on a real report.** The scanner could not be run while
-this was written, so the first CI run is the first measurement.
+`partial` run with every count clean passes with the status printed. On the
+first CI run the scanner reported the analysis complete, so the `partial` path
+has been reasoned about and not yet observed. The three semantic analyzers skip
+with a logged warning under `--no-llm`, and that skip does not make the run
+partial.
 
 **Static analysis only.** `--no-llm`: patterns, AST and YARA, no model call, no
 API key, no login, no secret in the workflow. The semantic pass — which
@@ -220,14 +222,17 @@ compares a skill's behaviour against its stated purpose, and is arguably the
 failure this repository could actually ship — needs a provider credential and
 is a separate decision nobody has taken.
 
-**Fifteen findings from six rules, and all fifteen are wrong.** That was
-measured on an earlier commit of this tree, with `v2.11.0`, and the tree has
-moved since — this section and the workflow that carries it are themselves new
-prose the scanner has not read. The counts drift as prose is edited; **the six
-rule identifiers are the durable part**, and a rule that fires on something new
-costs one more entry below, never a rewording.
-[`.skillspector-baseline.yaml`](.skillspector-baseline.yaml) suppresses those
-six by rule identifier, with a reason per entry:
+**Six rules fire on this tree, and every finding from them is wrong.** Triage
+counted fifteen at an earlier commit; the first CI run of this workflow counted
+twenty-two, from the same six rules, on a tree that had grown a workflow, two
+baselines, a gate script, its tests and this section. That is the argument for
+keying the baseline on the rule rather than on the text: **the counts drift as
+prose is edited and the rule identifiers do not.** A seventh rule cannot appear
+quietly — it fails the build, and costs one more entry below with a reason,
+never a rewording. The gate prints the tally by rule on every run, so the
+drift is visible in the log rather than discovered later.
+[`.skillspector-baseline.yaml`](.skillspector-baseline.yaml) suppresses the six
+by rule identifier, with a reason per entry:
 
 | Rule | | Why it is a false positive |
 | --- | --- | --- |

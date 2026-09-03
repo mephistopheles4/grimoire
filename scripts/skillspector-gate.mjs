@@ -175,3 +175,18 @@ if (done.is_complete !== true) {
 
 const suppressed = typeof report.suppressed_count === 'number' ? report.suppressed_count : 0;
 console.log(`ok: no unsuppressed finding, ${suppressed} suppressed by the baseline`);
+
+// Which rules, and how many each. A count alone says a number was silenced; it
+// does not say whether the six rules the baseline argues about are still the
+// six that fire. The counts drift as prose is edited and the rule identifiers
+// do not, so this line is the one that tells a reader when a seventh appears —
+// which cannot happen quietly, because a rule outside the baseline fails above.
+if (Array.isArray(report.suppressed) && report.suppressed.length) {
+  const perRule = new Map();
+  for (const s of report.suppressed) {
+    const id = (s && typeof s === 'object' && (s.rule_id ?? s.id)) || 'unidentified';
+    perRule.set(id, (perRule.get(id) ?? 0) + 1);
+  }
+  const tally = [...perRule].sort(([a], [b]) => (a < b ? -1 : 1)).map(([id, n]) => `${id}×${n}`);
+  console.log(`      by rule: ${tally.join(', ')}`);
+}

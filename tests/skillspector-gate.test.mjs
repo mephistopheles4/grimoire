@@ -254,3 +254,21 @@ test('a clean report with no suppressed_count still says how many', () => {
   delete r.suppressed_count;
   assert.match(assertPasses(report(r)).stdout, /0 suppressed/);
 });
+
+test('a clean report tallies the suppressions by rule', () => {
+  // A count alone says a number was silenced. It does not say whether the six
+  // rules the baseline argues about are still the six that fire, and that is
+  // the fact a reader of the CI log needs.
+  const r = clean();
+  r.suppressed_count = 3;
+  r.suppressed = [{ rule_id: 'RP1' }, { rule_id: 'AS3' }, { rule_id: 'RP1' }];
+  const out = assertPasses(report(r));
+  assert.match(out.stdout, /by rule: AS3×1, RP1×2/);
+});
+
+test('a suppression the gate cannot identify is tallied, not dropped', () => {
+  const r = clean();
+  r.suppressed_count = 1;
+  r.suppressed = [null];
+  assert.match(assertPasses(report(r)).stdout, /unidentified×1/);
+});
