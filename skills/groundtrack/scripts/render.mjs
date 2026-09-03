@@ -382,6 +382,11 @@ function path(prog, walk, runName, r) {
   });
 
   if (frames.length) bad(walk.steps.length, `the walk ended with ${frames.length} frame(s) still open`);
+  /* The last door in the same rule. A walk whose final move unwinds the last
+   * frame leaves no frame open, so the line above is content — and the error
+   * is still travelling with nowhere left to go. An error is caught, or it
+   * reaches the top. */
+  if (raised) bad(walk.steps.length, `the walk ended while "${raised.tag}" was still travelling (raised at move ${raised.from}) — write the catch, or the uncaught that ends it`);
 }
 
 export function check(prog, fileLabel) {

@@ -175,6 +175,13 @@ const cases = [
     const w = p.presets[2].walk.steps;
     w.splice(w.length - 1, 1, { k: 'done' });
   }, /done arrived while "SendFailed" was still travelling/],
+  ['a walk that ends while an error is still travelling', p => {
+    // The last move unwinds the last frame. No frame is open, so the
+    // frames-still-open rule is content, and the error has nowhere left to go.
+    p.presets = [p.presets[2]];
+    const w = p.presets[0].walk.steps;
+    w.splice(w.length - 1, 1, { k: 'unwind' });
+  }, /the walk ended while "SendFailed" was still travelling/],
   ['a walk that ends with a frame open', p => {
     // Drop the entry frame's return and the done that followed it.
     const w = p.presets[0].walk.steps;
