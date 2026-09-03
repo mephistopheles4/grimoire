@@ -37,7 +37,7 @@
               "properties": {
                 "id": { "type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$", "description": "Unique across the whole box. Convention: <dim>-<word>. The id is machine state. It appears in the box file and in the restore code, and never in chat." },
                 "label": { "type": "string", "minLength": 1, "description": "Full wording. STE rules." },
-                "short": { "type": "string", "maxLength": 28, "minLength": 1, "pattern": "\\S", "description": "Sheet-cell wording. Two or three words. Required, because this is the name Claude says in chat. Without it the only handle is the id, and an id names nothing to a reader. See SKILL.md, 'Names in chat'." },
+                "short": { "type": "string", "maxLength": 28, "minLength": 1, "pattern": "\\S", "description": "Sheet-cell wording. Two or three words. Required, because this is the name the agent says in chat. Without it the only handle is the id, and an id names nothing to a reader. See SKILL.md, 'Names in chat'." },
                 "chosen": { "type": "boolean", "description": "Exactly one per row. The current position." },
                 "strawman": { "type": "boolean", "description": "This option answers one of the four coverage questions: none / opposite / later / by hand. The flag records coverage, not provenance — set it even when somebody proposed the option, and keep the src that says who did. A row whose 'none' answer came from the ticket is still covered." },
                 "src": { "type": "string", "description": "Where this option was proposed: ticket, document, chat turn." }

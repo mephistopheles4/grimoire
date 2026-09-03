@@ -47,6 +47,14 @@ mentions with reasons. An allowlist with no entries invites the first one and
 grows by precedent once it has one. A genuine exception is a patch to this
 decision, argued in a pull request.
 
+**The host platform is not an exception.** The agent that runs a skill is named
+by the same test as anything else, and it fails it: `docs/decisions/portable-skill.box.json`
+already decided that a skill's text is copied into agents that are not the one
+it was written for, and chose wording that fits any agent. So skill prose says
+*the agent*, not a product name, and describes a capability rather than the
+service that provides it. Files outside `skills/` are unaffected — this
+repository is free to name its own host, and does.
+
 **Some provenance is lost, and that is accepted.** `eagle-eye`'s own boxed
 design recorded three named tools as candidate host flows for its trigger. The
 labels now say *another host flow*. The argument survives in full — the row

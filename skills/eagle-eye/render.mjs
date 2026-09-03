@@ -91,7 +91,7 @@ function validate(box) {
         if (!ID.test(o.id || '')) err(`${oat}.id: must match ${ID}`);
         if (optIds.has(o.id)) err(`${oat}.id "${o.id}": duplicate`); optIds.set(o.id, d.id);
         if (typeof o.label !== 'string' || !o.label.trim()) err(`${oat}.label: required`);
-        // `short` is the name Claude says in chat. Without it the only handle is the id, and an
+        // `short` is the name the agent says in chat. Without it the only handle is the id, and an
         // id names nothing to a reader — the failure that produced this check. Refused, not warned:
         // a warning leaves the name optional, and the missing name is invisible until somebody is lost.
         if (typeof o.short !== 'string' || !o.short.trim()) err(`${oat} "${o.id}": short: required. This is the name spoken in chat; an id is not a name. See SKILL.md, "Names in chat".`);
