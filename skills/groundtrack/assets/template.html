@@ -123,7 +123,8 @@ body { margin: 0; }
 /* Head — the run picker and the step controls. It drives the walk. */
 .head { grid-area: head; display: flex; align-items: center; gap: var(--dw-s3);
   padding: var(--dw-s2) var(--dw-s3); border-bottom: var(--dw-rule-bold) solid var(--dw-ink); flex-wrap: wrap; }
-.head-id { display: flex; align-items: baseline; gap: var(--dw-s2); min-width: 0; }
+.head-id { display: flex; align-items: center; gap: var(--dw-s2); min-width: 0; }
+.head-mark { flex: none; display: block; }
 .head-title { font-size: var(--dw-t-lead); font-weight: 600; white-space: nowrap;
   overflow: hidden; text-overflow: ellipsis; max-width: 28rem; }
 select, button, input { font: inherit; font-size: var(--dw-t-micro); color: var(--dw-ink);
@@ -395,7 +396,29 @@ button[data-help][aria-disabled=true] { cursor: help; }
 <div class="sheet-root" id="root">
   <div class="head">
     <div class="head-id">
-      <span class="dw-label">groundtrack</span>
+      <!-- The groundtrack mark, the small-size variant, inlined so the page
+           still fetches nothing. Its colours read the sheet's tokens. -->
+      <svg class="head-mark" viewBox="0 0 24 24" width="28" height="28" role="img" aria-label="groundtrack" data-help="groundtrack">
+        <rect x="0" y="0" width="24" height="24" fill="var(--dw-ink)"></rect>
+        <g transform="rotate(90 12 12) translate(24,0) scale(-1,1)">
+          <g fill="none" stroke="var(--dw-paper)" stroke-width="1.7">
+            <path d="M13.4 20 A 6.6 6.6 0 0 1 20 13.4"></path>
+            <path d="M4.6 20 A 15.4 15.4 0 0 1 20 4.6"></path>
+          </g>
+          <g stroke="var(--dw-paper)" stroke-width="1.8">
+            <line x1="4.6" y1="20" x2="13.4" y2="20"></line>
+            <line x1="9.11" y1="9.11" x2="15.33" y2="15.33"></line>
+            <line x1="20" y1="4.6" x2="20" y2="13.4"></line>
+          </g>
+        </g>
+        <g stroke="var(--dw-paper)" stroke-width="1.7">
+          <line x1="10.6" y1="4.0" x2="10.6" y2="1.2"></line>
+          <line x1="19.4" y1="4.0" x2="19.4" y2="1.2"></line>
+        </g>
+        <g stroke="var(--dw-caution)" stroke-width="1.8">
+          <line x1="10.6" y1="2.1" x2="19.4" y2="2.1"></line>
+        </g>
+      </svg>
       <span class="head-title" id="title"></span>
     </div>
     <label class="dw-label" for="run">run</label>
@@ -814,11 +837,13 @@ function start() {
       '<div class="fgroup"><span class="dw-label">' + label + '</span>' +
       (paths.length ? paths.map(rowOf).join('') : '<div class="dw-annot">none</div>') + '</div>';
     const unaccounted = all.filter(f => !mine.has(f.path) && !others.has(f.path)).map(f => f.path);
-    return (
-      group('this node', [...mine]) +
-      group('other nodes on this sheet', [...others]) +
-      group('in the change, on no node', unaccounted)
-    );
+    /* A file that states no changed files has no change to account for, so
+       the third group says that rather than implying a change with nothing
+       left over in it. */
+    const third = PROG.files
+      ? group('in the change, on no node', unaccounted)
+      : '<div class="fgroup"><span class="dw-label">changed files</span><div class="dw-annot">not stated by this file</div></div>';
+    return group('this node', [...mine]) + group('other nodes on this sheet', [...others]) + third;
   }
 
   function drawContract() {
