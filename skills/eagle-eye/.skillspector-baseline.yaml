@@ -22,7 +22,7 @@
 # Nothing here was reworded to satisfy a pattern matcher.
 #
 # The repository this skill comes from carries the same file at its root,
-# covering three more rules that fire outside this directory. Its check refuses
+# covering four more rules that fire outside this directory. Its check refuses
 # a change that makes the two disagree.
 
 version: 2

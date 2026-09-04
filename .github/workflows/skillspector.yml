@@ -122,8 +122,13 @@ jobs:
 
       # A second pass for the Security tab. Static analysis takes seconds, and
       # the alternative is converting one format to the other by hand.
-      # Suppressed findings stay in the SARIF, marked as suppressed, so the tab
-      # shows what the baseline covers as well as what it does not.
+      #
+      # The baseline is passed here too, and what it buys is a marker rather
+      # than an absence: a suppressed finding stays in the SARIF carrying
+      # `suppressions: [{kind: "external", justification: <the reason>}]`. That
+      # is what SARIF says a consumer should exclude from its counts, and the
+      # step below exists because GitHub does not. Its argument is in
+      # scripts/skillspector-strip-suppressed.mjs, with what was measured.
       - name: Write the SARIF report
         run: |
           status=0
@@ -132,6 +137,32 @@ jobs:
             echo "skillspector exited ${status} — the SARIF pass errored"
             exit 1
           fi
+
+      # GitHub does not read `result.suppressions`. Its supported-properties
+      # page lists what code scanning uses and that property is not on it, and
+      # this was confirmed against the repository rather than inferred: the
+      # uploaded report fetched back from the analyses API had the property
+      # stored — re-serialised as `{"state": "accepted"}` — beside an alert
+      # GitHub opened anyway. Twenty-three of them, every one a rule
+      # .skillspector-baseline.yaml argues away by name, sat open in the
+      # Security tab while every run of this workflow was green.
+      #
+      # So the upload carries what the gate would go red on, and nothing else.
+      # The reasons for the rest are in the baseline and in `--show-suppressed`,
+      # which is where a reader can disagree with them.
+      #
+      # It runs unconditionally, unlike the upload below. A pull request that
+      # bumps the scanner and changes the report shape should go red on the pull
+      # request, not on the push that follows it.
+      #
+      # The stripped file is written beside the report, outside the checkout,
+      # for the same reason: a SARIF echoes the text each finding matched, and
+      # one left in the working tree is a file the next scan reads.
+      - name: Strip the baseline-suppressed results
+        run: |
+          node scripts/skillspector-strip-suppressed.mjs \
+            "${RUNNER_TEMP}/skillspector.sarif" \
+            "${RUNNER_TEMP}/skillspector-upload.sarif"
 
       # On push only. A pull request from a fork carries a read-only token and
       # cannot write a code-scanning result, so uploading there fails on a
@@ -145,11 +176,18 @@ jobs:
       # failing one does not run.
       #
       # This is the one action here that check.yml does not already use.
+      #
+      # It uploads even when the strip left nothing, and that is the point
+      # rather than an oversight. GitHub marks an alert fixed when the next
+      # upload under the same category stops carrying it, so an empty results
+      # array is what closes the findings the baseline argued away. `category`
+      # is how GitHub matches this upload to the last one, which is why it does
+      # not change: renaming it would leave every open alert open forever.
       - name: Upload SARIF
         if: github.event_name == 'push'
         uses: github/codeql-action/upload-sarif@cdf488f595d80d6e07e03d4674febd5ab45fa938 # v4.37.9
         with:
-          sarif_file: ${{ runner.temp }}/skillspector.sarif
+          sarif_file: ${{ runner.temp }}/skillspector-upload.sarif
           category: skillspector
 
       # The gate, and the last word. A small Node script rather than a line of

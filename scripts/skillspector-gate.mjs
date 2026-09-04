@@ -26,7 +26,7 @@
 //
 // **The severity.** One unsuppressed finding fails, LOW included. A severity
 // floor is a number to defend at every review; the baseline is a list of
-// reasons to defend once. .skillspector-baseline.yaml carries the six rules
+// reasons to defend once. .skillspector-baseline.yaml carries the seven rules
 // this repository has argued about, and anything outside it is new.
 //
 // The report's `issues` array already excludes what the baseline suppressed —
@@ -177,10 +177,11 @@ const suppressed = typeof report.suppressed_count === 'number' ? report.suppress
 console.log(`ok: no unsuppressed finding, ${suppressed} suppressed by the baseline`);
 
 // Which rules, and how many each. A count alone says a number was silenced; it
-// does not say whether the six rules the baseline argues about are still the
-// six that fire. The counts drift as prose is edited and the rule identifiers
-// do not, so this line is the one that tells a reader when a seventh appears —
+// does not say whether the rules the baseline argues about are still the ones
+// that fire. The counts drift as prose is edited and the rule identifiers
+// do not, so this line is the one that tells a reader when a new rule appears —
 // which cannot happen quietly, because a rule outside the baseline fails above.
+// EA3 arrived that way, on a font licence a skill is required to ship.
 if (Array.isArray(report.suppressed) && report.suppressed.length) {
   const perRule = new Map();
   for (const s of report.suppressed) {

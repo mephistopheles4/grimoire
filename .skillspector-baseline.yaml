@@ -2,10 +2,11 @@
 #
 # SkillSpector scans a skill the way this project describes the risk in
 # SECURITY.md: a skill is prose an agent obeys on somebody else's computer.
-# Scanned at the repository root it reports fifteen findings from six rules,
-# and every one of them is wrong. This file says which six and why, so a
-# stranger reading it can disagree with a named reason rather than with
-# silence.
+# Scanned at the repository root it reports findings from six rules, and every
+# one of them is wrong. Seven are listed below: one of them fires nowhere at the
+# root today and is kept because a scan rooted at the skill may still see it.
+# This file says which seven and why, so a stranger reading it can disagree with
+# a named reason rather than with silence.
 #
 # Every entry is keyed by rule identifier and nothing else. Two consequences,
 # both deliberate:
