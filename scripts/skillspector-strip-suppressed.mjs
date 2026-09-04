@@ -100,8 +100,14 @@ report.runs.forEach((run, i) => {
       unreadable += 1;
       return keep();
     }
+    // Absent means no suppression. `null` does not, and the difference is not
+    // a JavaScript habit: SkillSpector serialises its SARIF with Pydantic's
+    // `exclude_none=True`, so a result it wrote either carries the key as an
+    // array or does not carry it at all. A `null` here came from somewhere
+    // else, which is exactly the thing this script says out loud rather than
+    // reads past.
     const suppressions = r.suppressions;
-    if (suppressions === undefined || suppressions === null) return keep();
+    if (suppressions === undefined) return keep();
     if (!Array.isArray(suppressions)) {
       unreadable += 1;
       return keep();

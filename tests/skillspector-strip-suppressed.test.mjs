@@ -171,6 +171,23 @@ test('a suppressions field that is not an array is kept and said out loud', () =
   assert.match(r.stdout, /could not read a suppression/);
 });
 
+test('a null suppressions is malformed, not absent', () => {
+  // The scanner serialises with Pydantic's exclude_none=True, so it writes the
+  // key as an array or omits it. A null came from somewhere else, and reading
+  // it as "no suppression" would be the silent pass this script refuses.
+  const r = assertStrips(sarif(report({ ...result('ZZ9', false), suppressions: null })));
+  assert.equal(r.report.runs[0].results.length, 1);
+  assert.match(r.stdout, /could not read a suppression/);
+});
+
+test('a result with no suppressions key is not called unreadable', () => {
+  // The other half of the line above. Absent is the ordinary shape of an
+  // unsuppressed finding, and a note on every one of them is noise.
+  const r = assertStrips(sarif(report(result('ZZ9', false))));
+  assert.equal(r.report.runs[0].results.length, 1);
+  assert.doesNotMatch(r.stdout, /could not read a suppression/);
+});
+
 test('a missing output path fails rather than guessing one', () => {
   assertFails([sarif(report())], /usage:/);
 });
