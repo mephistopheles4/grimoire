@@ -288,7 +288,7 @@ compares a skill's behaviour against its stated purpose, and is arguably the
 failure this repository could actually ship — needs a provider credential and
 is a separate decision nobody has taken.
 
-**Six rules are baselined, and every finding from them is wrong.** The numbers
+**Seven rules are baselined, and every finding from them is wrong.** The numbers
 move, and watching them move is the point. Triage counted fifteen findings from
 six rules at an earlier commit. The first run of this workflow counted
 twenty-two from five, on a tree that had grown a workflow, two baselines, a gate
@@ -305,20 +305,33 @@ because the `why` text it matched is unchanged and a scan rooted at the skill
 may still see it. **An entry that suppresses nothing today costs a line and
 keeps an argument that was made once.**
 
+**Then a seventh rule arrived.** The `groundtrack` skill vendors three weights of
+IBM Plex Mono, the SIL Open Font Licence requires its text to travel beside them,
+and `EA3` reads the warranty disclaimer's *not limited to* as scope creep. It
+turned the gate red on a legal text nobody here is allowed to reword, and it cost
+one entry with a reason — which is the paragraph below working rather than a hole
+in it. `AS3` lost one over the same stretch. The tally on `main` at the time of
+writing:
+
+```text
+by rule: AR2×7, AS3×5, EA3×2, MP3×1, RA2×2, RP1×6
+```
+
 So: **the counts drift as prose is edited, and the rule identifiers do not.**
 That is the whole case for keying the baseline on the rule rather than on the
-text a fingerprint would bind to. A seventh rule cannot appear quietly — it
-fails the build, and costs one more entry below with a written reason, never a
+text a fingerprint would bind to. A new rule cannot appear quietly — it fails
+the build, and costs one more entry below with a written reason, never a
 rewording. The gate prints the tally on every run, so drift is visible in the
 log rather than discovered later.
-[`.skillspector-baseline.yaml`](.skillspector-baseline.yaml) suppresses the six
-by rule identifier, with a reason per entry:
+[`.skillspector-baseline.yaml`](.skillspector-baseline.yaml) suppresses the
+seven by rule identifier, with a reason per entry:
 
 | Rule | | Why it is a false positive |
 | --- | --- | --- |
 | `AR2` | Anti-Refusal Statement | `SKILL.md` tells the agent that a preview pane may render the page without script, so do not judge it from one. It adds a caveat; it does not suppress one. |
 | `AS3` | Skill Enumeration | A `README.md` line naming the one skill this repository ships, and the decision records quoting it. Naming your own product is not enumerating somebody else's. |
 | `EA2` | Autonomous Decision Making | The `why` text on an edge in the example box file. It is content the renderer prints for a reader. |
+| `EA3` | Scope Creep | The warranty disclaimer of the SIL Open Font Licence, which ships beside `groundtrack`'s vendored font faces. A legal text the licence requires us to carry verbatim, not an instruction an agent obeys, and its wording is not ours to change. |
 | `MP3` | Memory Manipulation | A comment in the page template describing how **Reset** discards the reader's overrides and **Undo** offers them back. It documents a button. |
 | `RA2` | Session Persistence | The `CONTRIBUTING.md` rule forbidding a fixed path inside a skill, and the test proving that rule fires. A guard and its test, reported as the risk they prevent. |
 | `RP1` | Unpinned MCP server | The `README.md` install command and quotations of it. `skills` is the Vercel Labs installer run through `npx`, not an MCP server. |
@@ -334,19 +347,52 @@ reasons above are what that breadth is paid for with.
 on a security rule in `CONTRIBUTING.md` and on the test that proves it works.
 Letting a regex edit that prose is the trap, and refusing it is a decision.
 
-**There are two baseline files.** The scanner finds a baseline only at the top
-of the directory it was pointed at, and a reader scanning the skill is pointed
-at the skill, so
+**There is one baseline file per scannable directory, so three.** The scanner
+finds a baseline only at the top of the directory it was pointed at, and a
+reader scanning a skill is pointed at the skill. So
 [`skills/eagle-eye/.skillspector-baseline.yaml`](skills/eagle-eye/.skillspector-baseline.yaml)
-repeats the three rules that fire inside it. `node scripts/check.mjs` fails if
-the two disagree — same rules, same words — so a suppression cannot be argued
-one way in one file and another way in the other.
+repeats the three rules that fire inside it, and
+[`skills/groundtrack/.skillspector-baseline.yaml`](skills/groundtrack/.skillspector-baseline.yaml)
+the one that fires inside it. `node scripts/check.mjs` fails when a skill file
+disagrees with the root — same rule, same words, same scope — so a suppression
+cannot be argued one way in one file and another way in another. What that check
+does not hold is that every skill has a file of its own: it fails when `skills/`
+carries no baseline at all, not when one skill under it is missing one.
 
 **Scanning this repository yourself gets the reasons, not silence.** With no
 flags the scanner reports the unchanged score and tells you a baseline was
 shipped; `--use-shipped-baseline` applies it, and `--show-suppressed` lists
 every suppression with the reason above beside it. Opting in stays your choice,
 which is why publishing one costs no honesty.
+
+**The Security tab gets the findings and not the suppressions, because GitHub
+does not read a suppression.** A second scan writes SARIF, and a push to `main`
+uploads it. SkillSpector keeps a baselined finding in that file and marks it
+`suppressions: [{kind: "external", justification: <the reason>}]`, which is what
+SARIF says a consumer should exclude from its counts. GitHub code scanning does
+not act on the property — it is absent from the supported-properties page — and
+this was measured rather than inferred: fetching the uploaded report back from
+the analyses API shows GitHub had **stored** it, re-serialised as
+`{"state": "accepted"}`, beside an alert it opened anyway. **Twenty-three alerts
+sat open, every one of them a rule
+[`.skillspector-baseline.yaml`](.skillspector-baseline.yaml) argues away by
+name, while every run of the workflow was green.** A tab full of findings this
+project has
+already reasoned about is a tab nobody reads.
+
+So [`scripts/skillspector-strip-suppressed.mjs`](scripts/skillspector-strip-suppressed.mjs)
+drops the suppressed results between the scan and the upload, and
+[`tests/skillspector-strip-suppressed.test.mjs`](tests/skillspector-strip-suppressed.test.mjs)
+drives it with reports written by hand. It removes results and nothing else: the
+rule and artifact arrays are referenced by index from the results that stay, so
+renumbering them would point a kept finding at the wrong rule. **It never drops
+what it cannot read** — a result it cannot judge is kept and printed, because a
+silent removal is the one mistake it can make — and a report it cannot parse
+fails the step. The upload runs even when the strip left nothing, because an
+empty `results` array under an unchanged `category` is exactly what marks the
+last upload's alerts fixed. **The reasons are still published**, in the baseline
+above and under `--show-suppressed`; what changed is that they are no longer
+published as unresolved alerts.
 
 **SkillSpector also reaches this repository through CodeRabbit**, which ran
 2.8.2 against pull request 9. That finding arrived inside a collapsed block

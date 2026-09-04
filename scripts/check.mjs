@@ -13,8 +13,8 @@
 // 5. A change to a skill carries a version bump.
 // 6. Nothing in the tree takes a dependency: no manifest, no lockfile, and no
 //    import of a bare specifier.
-// 7. The two SkillSpector baselines agree, so a rule reasoned away at the
-//    repository root is reasoned away the same way inside the skill.
+// 7. The SkillSpector baselines agree, so a rule reasoned away at the
+//    repository root is reasoned away the same way inside a skill.
 // 8. The test suite passes. `node --test` ships with Node, so the tests cost no
 //    dependency and this stays one command.
 
@@ -371,19 +371,24 @@ for (const f of files.filter(f => /\.(mjs|js)$/.test(f))) {
     });
 }
 
-// 7. The two SkillSpector baselines agree.
+// 7. The SkillSpector baselines agree.
 //
 // SkillSpector scans the prose this repository ships, and the workflow at
 // .github/workflows/skillspector.yml fails on any finding a baseline does not
-// cover. The baseline is therefore the argument, and there are two copies of
-// it: one at the repository root, one at the top of the skill. Two, because
-// the scanner finds a baseline only at the top of the directory it was pointed
-// at, and a reader scanning the skill is pointed at the skill.
+// cover. The baseline is therefore the argument, and there is a copy of it per
+// directory somebody might scan: one at the repository root, one at the top of
+// each skill that needs it. Copies, because the scanner finds a baseline only
+// at the top of the directory it was pointed at, and a reader scanning a skill
+// is pointed at the skill.
 //
-// Two copies drift. The root file covers six rules, the skill file the three
-// that fire inside it, and this rule holds the overlap to the same words. A
-// rule quietly reasoned away in one file and not the other is a suppression
-// nobody has read.
+// Copies drift. The root file covers seven rules, a skill file the ones that
+// fire inside it, and this rule holds the overlap to the same words. A rule
+// quietly reasoned away in one file and not another is a suppression nobody
+// has read.
+//
+// Every baseline under skills/ is read, not a named pair. What this does not
+// hold is that each skill has one: it fails when skills/ carries no baseline
+// at all, which is the shape of the tree having lost the argument entirely.
 //
 // The reader below is written by hand and reads exactly the shape these two
 // files are allowed to have: three top-level keys, and a list of entries with
