@@ -125,8 +125,16 @@ body { margin: 0; }
   padding: var(--dw-s2) var(--dw-s3); border-bottom: var(--dw-rule-bold) solid var(--dw-ink); flex-wrap: wrap; }
 .head-id { display: flex; align-items: center; gap: var(--dw-s2); min-width: 0; }
 .head-mark { flex: none; display: block; }
-.head-title { font-size: var(--dw-t-lead); font-weight: 600; white-space: nowrap;
+/* The lockup: the mark beside two stacked rows, the sheet's name over the
+   selected run's line. The mark is sized to both rows together (the title's
+   18px at 1.3, plus the annotation's 14px at 1.45 = 43.7px), so it stands
+   against the pair rather than floating beside one of them. */
+.head-text { display: flex; flex-direction: column; min-width: 0; }
+.head-title { font-size: var(--dw-t-lead); font-weight: 600; line-height: 1.3; white-space: nowrap;
   overflow: hidden; text-overflow: ellipsis; max-width: 28rem; }
+/* A blurb is a sentence, so the cap is generous — 34rem clipped the shipped
+   examples on a wide screen. Narrow screens still ellipsis it, by flex shrink. */
+.head-blurb { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 52rem; }
 select, button, input { font: inherit; font-size: var(--dw-t-micro); color: var(--dw-ink);
   background: var(--dw-paper); border: var(--dw-rule-hair) solid var(--dw-ink-30); border-radius: 0;
   padding: 4px var(--dw-s2); }
@@ -400,9 +408,9 @@ button[data-help][aria-disabled=true] { cursor: help; }
            still fetches nothing. Its colours read the sheet's tokens. All five
            sleepers and the inset ground are here, which is what the small
            variant drops; below 40px the 1.0 hairlines stop resolving, so this
-           one is drawn at 40 and not smaller. Geometry is the brand handoff's,
+           one is never drawn below 40. Geometry is the brand handoff's,
            coordinate for coordinate; do not tidy the paths. -->
-      <svg class="head-mark" viewBox="0 0 24 24" width="40" height="40" role="img" aria-label="groundtrack" data-help="groundtrack">
+      <svg class="head-mark" viewBox="0 0 24 24" width="44" height="44" role="img" aria-label="groundtrack" data-help="groundtrack">
         <rect x="0.8" y="0.8" width="22.4" height="22.4" fill="var(--dw-ink)"></rect>
         <g transform="rotate(90 12 12) translate(24,0) scale(-1,1)">
           <g fill="none" stroke="var(--dw-paper)" stroke-width="1.0">
@@ -425,11 +433,16 @@ button[data-help][aria-disabled=true] { cursor: help; }
           <line x1="10.8" y1="2.6" x2="17.2" y2="2.6"></line>
         </g>
       </svg>
-      <span class="head-title" id="title"></span>
+      <div class="head-text">
+        <span class="head-title" id="title"></span>
+        <!-- The selected run's line. It sits under the sheet's name rather than
+             loose on the head row, so the head reads as one lockup; the run
+             picker is a step away, and the label on it says what it changes. -->
+        <span class="dw-annot head-blurb" id="runBlurb"></span>
+      </div>
     </div>
     <label class="dw-label" for="run">run</label>
     <select id="run" data-help="Which recorded walk to step. Each run is one route through the graph."></select>
-    <span class="dw-annot" id="runBlurb"></span>
     <div class="btn-group">
       <button class="btn" id="first" data-help="Back to the start">|&lt;</button>
       <button class="btn" id="prev" data-help="Step back one move">&lt;</button>
