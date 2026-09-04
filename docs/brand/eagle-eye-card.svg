@@ -18,10 +18,11 @@ text{font-family:'IBM Plex Mono',ui-monospace,Menlo,Consolas,monospace}
 <rect width="1280" height="640" fill="url(#major)"/>
 <rect x="36.5" y="36.5" width="1207" height="567" fill="none" stroke="rgb(34 38 43 / 0.22)" stroke-width="1"/>
 <svg x="88" y="88" width="200" height="200" viewBox="0 0 24 24">
-<circle cx="12" cy="12" r="9.6" fill="none" stroke="#22262B" stroke-width="1.5"></circle>
-  <path d="M9.65 10.35 L5.1 17.4 H18.9 L14.35 10.35" fill="none" stroke="#22262B" stroke-width="1.5" stroke-linejoin="miter"></path>
-  <path d="M12 3.5 L14.35 7.85 H9.65 Z" fill="#B45309"></path>
-  <line x1="7.6" y1="12.9" x2="16.4" y2="12.9" stroke="#22262B" stroke-width="1.5"></line>
+<rect x="0.8" y="0.8" width="22.4" height="22.4" fill="#22262B"></rect>
+  <circle cx="12" cy="12" r="8.8" fill="none" stroke="#FAFAF7" stroke-width="1.4"></circle>
+  <path d="M9.85 10.5 L5.7 16.95 H18.3 L14.15 10.5" fill="none" stroke="#FAFAF7" stroke-width="1.4" stroke-linejoin="miter"></path>
+  <path d="M12 4.2 L14.15 8.2 H9.85 Z" fill="#B45309"></path>
+  <line x1="8.0" y1="12.85" x2="16.0" y2="12.85" stroke="#FAFAF7" stroke-width="1.4"></line>
 </svg>
 <text x="336" y="150" font-size="64" font-weight="600" letter-spacing="7.68" fill="#22262B">EAGLE-EYE</text>
 <rect x="336" y="184" width="520" height="2" fill="#22262B"/>

@@ -112,7 +112,7 @@ writeFileSync(
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&display=swap">
 <style>
 :root{
-  --dw-paper:#fafaf7; --dw-ink:#22262b; --dw-caution:#d97706;
+  --dw-paper:#fafaf7; --dw-ink:#22262b; --dw-caution:#b45309;
   --dw-ink-80:rgb(34 38 43 / .8); --dw-ink-55:rgb(34 38 43 / .55); --dw-ink-12:rgb(34 38 43 / .12); --dw-grid:rgb(34 38 43 / .05);
   --dw-font:'IBM Plex Mono',ui-monospace,'SFMono-Regular',Menlo,Consolas,monospace;
   --sp-3:20px; --sp-4:28px; --sp-gutter:36px;

@@ -8,7 +8,7 @@
 <style>
 /* Drafting: one ink on one paper; amber = caution only, green = normal only; neutrals are ink at alpha; no radius, no shadow. */
 :root{
-  --dw-paper:#fafaf7; --dw-ink:#22262b; --dw-caution:#d97706; --dw-normal:#15803d;
+  --dw-paper:#fafaf7; --dw-ink:#22262b; --dw-caution:#b45309; --dw-normal:#15803d;
   --dw-ink-80:rgb(34 38 43 / .8); --dw-ink-55:rgb(34 38 43 / .55); --dw-ink-30:rgb(34 38 43 / .3); --dw-ink-12:rgb(34 38 43 / .12); --dw-grid:rgb(34 38 43 / .05);
   --dw-font:'IBM Plex Mono',ui-monospace,'SFMono-Regular',Menlo,Consolas,monospace;
   /* Spacing scale. Raise these to loosen the whole page; nothing hardcodes a gap that is on this scale. */
@@ -63,6 +63,11 @@ input,textarea{font:inherit;color:inherit;background:var(--dw-paper);border:1px 
 #view{flex:1;display:flex;flex-direction:column;min-height:0}
 .head{display:flex;justify-content:space-between;align-items:flex-end;gap:var(--sp-4);padding:var(--sp-4) var(--sp-gutter) var(--sp-3);border-bottom:1px solid var(--dw-ink-30);flex-wrap:wrap}
 .head h1{font-size:24px;font-weight:600;line-height:1.25;margin:10px 0 0}
+/* The lockup: mark and text in a flex row, gap 16, vertically centred — the brand's own rule.
+   The mark is sized to the two text rows it stands beside (eyebrow 11px at 1.6, plus the h1's
+   10px top margin and its 24px at 1.25 = 57.6px), so it covers both rather than floating on one. */
+.head-id{display:flex;align-items:center;gap:16px;min-width:0}
+.head-mark{flex:none;display:block;width:56px;height:56px}
 .controls{display:flex;gap:var(--sp-3);align-items:center;flex-wrap:wrap}
 .controls .group{display:flex;gap:var(--sp-1);align-items:center;flex-wrap:wrap}
 .preset-note{display:flex;gap:var(--sp-4);align-items:flex-start;padding:var(--sp-2) var(--sp-gutter);border-bottom:1px solid var(--dw-ink-12);font-size:13px;line-height:1.55;color:var(--dw-ink-80)}
@@ -220,9 +225,21 @@ details[open] > :not(summary){animation:ee-unfold .22s var(--ease) both}
 <body>
 <div class="page"><div class="sheet">
   <div class="head">
-    <div>
-      <div class="label" id="eyebrow"></div>
-      <h1 id="title"></h1>
+    <div class="head-id">
+      <!-- The eagle-eye mark, the 40px-and-up variant, inlined so the page still
+           fetches nothing. Its colours read the sheet's tokens. Geometry is the
+           brand handoff's, coordinate for coordinate; do not tidy the paths. -->
+      <svg class="head-mark" viewBox="0 0 24 24" role="img" aria-label="eagle-eye">
+        <rect x="0.8" y="0.8" width="22.4" height="22.4" fill="var(--dw-ink)"></rect>
+        <circle cx="12" cy="12" r="8.8" fill="none" stroke="var(--dw-paper)" stroke-width="1.4"></circle>
+        <path d="M9.85 10.5 L5.7 16.95 H18.3 L14.15 10.5" fill="none" stroke="var(--dw-paper)" stroke-width="1.4" stroke-linejoin="miter"></path>
+        <path d="M12 4.2 L14.15 8.2 H9.85 Z" fill="var(--dw-caution)"></path>
+        <line x1="8.0" y1="12.85" x2="16.0" y2="12.85" stroke="var(--dw-paper)" stroke-width="1.4"></line>
+      </svg>
+      <div>
+        <div class="label" id="eyebrow"></div>
+        <h1 id="title"></h1>
+      </div>
     </div>
     <div class="controls">
       <div class="group"><span class="label">View</span><button class="chip" id="viewFind">Findings</button><button class="chip" id="viewSheet">Sheet</button></div>

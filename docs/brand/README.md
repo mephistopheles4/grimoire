@@ -23,10 +23,10 @@ splayed from a spine, knocked out of an ink square, with two hairline rules per
 side implying leaves. It is the author's chevron-A monogram turned upside down.
 The A is the author, the ∨ is the author's book.
 
-**eagle-eye.** A circle with an inscribed triangle and a chord. Alchemical at a
-glance, a setting-out drawing up close. The triangle's apex is detached and
-floated clear, exploded-view style, and filled amber: the finding pulled out of
-the assembly for inspection.
+**eagle-eye.** A circle with an inscribed triangle and a chord, knocked out of
+an ink square. Alchemical at a glance, a setting-out drawing up close. The
+triangle's apex is detached and floated clear, exploded-view style, and filled
+amber: the finding pulled out of the assembly for inspection.
 
 **groundtrack.** A railway track through a quarter turn, drawn in plan. Five
 sleepers rotate from horizontal at the entry to vertical at the exit, so the
@@ -35,13 +35,15 @@ run continues past the turn, and the amber sleeper at its head is the cursor.
 
 ## Which file to use
 
-Each directory holds three sizes of the same drawing.
+Each directory holds three sizes of the same drawing. All three are ink ground
+with paper linework, at every size — a knockout disappears against dark browser
+chrome, so no mark has a paper-ground variant.
 
 | File | Use it at |
 | --- | --- |
 | `<name>-mark.svg` | 40px and up. The hairlines stop resolving below that. |
 | `<name>-mark-solid.svg` | 32px and below. Hairlines dropped, ground bled to the edge. |
-| `favicon.svg` | 16px. Heavier strokes, one orientation: ink ground, paper linework. |
+| `favicon.svg` | 16px. Heavier strokes again, and the figure reduced to what survives there. |
 
 `grimoire-mark-bare.svg` is the chevron on no ground, for a known paper ground
 only.
