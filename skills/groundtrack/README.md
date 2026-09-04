@@ -73,6 +73,14 @@ node skills/groundtrack/scripts/render.mjs <topic>.flightpath.json --text
 | `--out <page>` | Writes one self-contained HTML file. |
 | `--text ["<run>"]` | Prints the same graph as an indented tree, for one run. |
 
+`--text` gives the answer in a reply and the answer on the page as one graph
+seen two ways.
+
+The file's shape is in
+[`references/flightpath-file.md`](references/flightpath-file.md), and the
+validator is what enforces it. No machine-readable schema ships, because a
+second artifact that can silently disagree with the first is not worth having.
+
 ## What is in this directory
 
 | Path | What it is |
@@ -82,7 +90,7 @@ node skills/groundtrack/scripts/render.mjs <topic>.flightpath.json --text
 | [`scripts/groundtrack.js`](scripts/groundtrack.js) | The one module the page and the tests both run. |
 | [`references/flightpath-file.md`](references/flightpath-file.md) | The shape of a flightpath file. |
 | [`references/writing-walks.md`](references/writing-walks.md) | How to write a walk, and the two mistakes measurement says you will make. |
-| [`examples/`](examples) | Three complete files: a small one, a real pull request with a test layer, and a plan of sixteen tickets. |
+| [`examples/`](examples) | Three complete files: a small one that uses every move kind, a real pull request with a test layer, and a plan of sixteen tickets. |
 | [`assets/`](assets) | The page template and the three vendored faces. |
 
 ## The honesty property, and its limit
