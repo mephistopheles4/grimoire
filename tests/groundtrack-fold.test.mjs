@@ -81,6 +81,42 @@ test('bare tables answer an unset prototype member with undefined', () => {
   assert.equal(t.toString === undefined, true);
 });
 
+test('hardenKeys makes a parsed file answer only for keys the author wrote', () => {
+  // JSON.parse builds the node map, not this module, and it builds a plain
+  // object. So the map the whole validator asks "is this a node?" answers yes
+  // for five names nobody declared.
+  const parsed = JSON.parse('{"nodes":{"greet":{}},"env":{"a":1}}');
+  assert.equal(typeof parsed.nodes.constructor, 'function', 'the parsed map inherits');
+
+  const hard = G.hardenKeys(parsed);
+  for (const name of ['constructor', 'toString', 'valueOf', 'hasOwnProperty', 'isPrototypeOf']) {
+    assert.equal(hard.nodes[name], undefined, `nodes.${name}`);
+    assert.equal(hard.env[name], undefined, `env.${name}`);
+  }
+  // What the author did write is untouched.
+  assert.deepEqual(Object.keys(hard.nodes), ['greet']);
+  assert.equal(hard.env.a, 1);
+  // And it copies rather than mutates, so a caller's parsed object is its own.
+  assert.equal(typeof parsed.nodes.constructor, 'function');
+});
+
+test('hardenKeys reaches the layers, a layer\'s nodes, and a run\'s input', () => {
+  const parsed = JSON.parse(
+    '{"nodes":{"a":{}},"layers":{"tests":{"nodes":{"a":{"R":["x"]}}}},"presets":[{"input":{"user":1}}]}',
+  );
+  const hard = G.hardenKeys(parsed);
+  assert.equal(hard.layers.constructor, undefined);
+  assert.equal(hard.layers.tests.nodes.constructor, undefined);
+  assert.equal(hard.presets[0].input.constructor, undefined);
+  // The author's own keys survive at every level.
+  assert.deepEqual(hard.layers.tests.nodes.a.R, ['x']);
+  assert.equal(hard.presets[0].input.user, 1);
+});
+
+test('hardenKeys leaves a file that is not an object alone', () => {
+  for (const v of [null, 42, 'a string', []]) assert.deepEqual(G.hardenKeys(v), v);
+});
+
 test('a label named after a prototype member is not a label until a step carries it', () => {
   // labelsOf feeds the jump check, which asks `L[s.to] === undefined`. On a
   // plain object that is false for a label nobody declared, so the refusal

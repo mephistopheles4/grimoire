@@ -277,6 +277,35 @@ test('a goto to a label named after a prototype member is refused where the faul
   );
 });
 
+test('a call to a node that does not exist is refused, even named after a prototype member', () => {
+  // The map that matters most is the one this code does not build: `JSON.parse`
+  // hands back a plain object, so `prog.nodes.constructor` answers with a
+  // function for a node the file never declared and `if (!prog.nodes[target])`
+  // silently stops guarding.
+  //
+  // The failure is not a crash. Put the call on a step no walk runs, and the
+  // file validates clean and exits zero — a validator accepting a file that
+  // contradicts its own graph, which is the one thing it exists to prevent.
+  const file = derive(prog => {
+    prog.nodes.lookupName.steps.push({ op: 'call', target: 'constructor', label: 'ghost' });
+  });
+  const r = check(file);
+  assert.equal(r.code, 1, `a call to a node that is not there must be refused:\n${r.stdout}`);
+  assert.match(r.stderr, /target "constructor" is not a node/);
+});
+
+test('a walk calling a node that does not exist is refused for the right reason', () => {
+  // Reached through a walk the same fault surfaced as three walk refusals
+  // saying the move disagreed with its step — pointing at the walks, when what
+  // is wrong is that the step targets a node the file has not got.
+  const file = derive(prog => {
+    prog.nodes.greet.steps[1].target = 'constructor';
+  });
+  const r = check(file);
+  assert.equal(r.code, 1);
+  assert.match(r.stderr, /target "constructor" is not a node/);
+});
+
 test('an E tag nothing beneath the node can produce is a finding', () => {
   const file = derive(prog => {
     prog.nodes.greet.channels.E.push('NeverRaised');

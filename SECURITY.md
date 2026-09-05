@@ -122,6 +122,11 @@ names, and a node's location. All of it is a stranger's text.
    `Groundtrack.bare()` — `Object.create(null)` — for any map keyed by text a
    flightpath file supplies, and `Object.hasOwn` where a membership test is
    what is wanted.
+   **A parsed file is hardened at the boundary**: `Groundtrack.hardenKeys`
+   rebuilds `nodes`, `env`, `layers`, a layer's `nodes` and a run's `input`
+   with no prototype, because `JSON.parse` builds those and builds them plain.
+   Both the renderer and the page call it on the file before asking it
+   anything.
 
 **The third rule is here because the first two invite the opposite
 conclusion.** *Ids are validated rather than escaped* is true, and validation

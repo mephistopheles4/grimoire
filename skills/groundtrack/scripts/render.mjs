@@ -636,7 +636,8 @@ function main(argv) {
 
   let prog;
   try {
-    prog = JSON.parse(readFileSync(file, 'utf8'));
+    /* Hardened before anything asks the file a question: JSON.parse hands\n     * back plain objects, so an unhardened node map answers constructor with\n     * a function and the not-a-node guard stops firing. */
+    prog = Groundtrack.hardenKeys(JSON.parse(readFileSync(file, 'utf8')));
   } catch (e) {
     console.error(`cannot read ${file}: ${e.message}`);
     process.exit(2);

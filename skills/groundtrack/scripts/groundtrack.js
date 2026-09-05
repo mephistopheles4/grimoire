@@ -53,6 +53,49 @@ const Groundtrack = (() => {
   /** `bare()` seeded from entries, for the tables built in one go. */
   const bareFrom = entries => Object.assign(bare(), Object.fromEntries(entries));
 
+  /** Rebuild a parsed file's author-keyed maps with no prototype.
+   *
+   * The tables this module builds are `bare()` by construction. **The biggest
+   * author-keyed map is not built here at all** — `JSON.parse` builds it, and
+   * it builds a plain object. So `prog.nodes.constructor` answers with a
+   * function for a node the file never declared, and every membership test
+   * over the node map reads true for five names the author never wrote.
+   *
+   * The damage is not a crash. `render.mjs` refuses a call whose target is not
+   * a node with `if (!prog.nodes[s.target])`, and that guard silently stops
+   * firing: a file calling a node that does not exist validates clean and
+   * exits zero. A validator that accepts a file contradicting its own graph is
+   * the one thing this validator exists to prevent.
+   *
+   * Hardening once at the boundary fixes every reader at the same time,
+   * including the ones nobody has audited. The maps are the five the shape
+   * document calls author-keyed: `nodes`, `env`, `layers`, a layer's `nodes`,
+   * and a run's `input`. A copy rather than a mutation, so the caller's parsed
+   * object is left as it found it.
+   */
+  function hardenKeys(prog) {
+    if (!prog || typeof prog !== 'object' || Array.isArray(prog)) return prog;
+    const isMap = o => o !== null && typeof o === 'object' && !Array.isArray(o);
+    const rebuild = o => (isMap(o) ? Object.assign(bare(), o) : o);
+    const out = { ...prog };
+    if (prog.nodes !== undefined) out.nodes = rebuild(prog.nodes);
+    if (prog.env !== undefined) out.env = rebuild(prog.env);
+    if (isMap(prog.layers)) {
+      out.layers = rebuild(prog.layers);
+      for (const name of Object.keys(out.layers)) {
+        const layer = out.layers[name];
+        if (isMap(layer) && layer.nodes !== undefined) out.layers[name] = { ...layer, nodes: rebuild(layer.nodes) };
+      }
+    }
+    const hardenRuns = runs =>
+      runs.map(p => (isMap(p) && p.input !== undefined ? { ...p, input: rebuild(p.input) } : p));
+    if (Array.isArray(prog.presets)) out.presets = hardenRuns(prog.presets);
+    if (Array.isArray(prog.graphs)) {
+      out.graphs = prog.graphs.map(g => (isMap(g) && Array.isArray(g.presets) ? { ...g, presets: hardenRuns(g.presets) } : g));
+    }
+    return out;
+  }
+
   /* -- reading the graph ---------------------------------------------------- */
 
   /** label -> step index, for one node. A label is a jump target and nothing else. */
@@ -683,6 +726,6 @@ const Groundtrack = (() => {
     return best;
   }
 
-  return { esc, ID, bare, KINDS, labelsOf, callSites, calleesOf, effectsOf, failureKinds, tagFate, complexityOf, fold, back, cutEdges, layout, treeRows, unaccountedFiles, filesOf, fileTree, filesMarkup, suggestRun, renamedToken };
+  return { esc, ID, bare, hardenKeys, KINDS, labelsOf, callSites, calleesOf, effectsOf, failureKinds, tagFate, complexityOf, fold, back, cutEdges, layout, treeRows, unaccountedFiles, filesOf, fileTree, filesMarkup, suggestRun, renamedToken };
 })();
 if (typeof module !== 'undefined') module.exports = Groundtrack;
