@@ -286,6 +286,60 @@ test('a repeated node is marked and stopped rather than expanded forever', () =>
   assert.equal(check(file).code, 0);
 });
 
+test('the text prints the failure kind beside every E tag', () => {
+  // The kind is what tells a blip from a crash, and it is the one thing the
+  // skill calls the point of the drawing. Before this it reached the reader
+  // only when the run they happened to pick hit that failure.
+  const r = run(groundtrack, [exampleFlightpath, '--text']);
+  assert.equal(r.code, 0, r.stderr);
+  // greet declares NoSuchUser and SendFailed; lookupName declares NoSuchUser.
+  assert.equal((r.stdout.match(/NoSuchUser escape/g) || []).length, 2);
+  assert.equal((r.stdout.match(/SendFailed retry/g) || []).length, 1);
+});
+
+test('a tag the file gives no kind for prints bare', () => {
+  // The page invents nothing. An E channel may name a tag no throw step and no
+  // walk accounts for — the check reports it as a finding, and the row still
+  // has to print it.
+  const file = derive(prog => {
+    prog.nodes.greet.channels.E.push('Ghost');
+  });
+  const r = run(groundtrack, [file, '--text']);
+  assert.equal(r.code, 0, r.stderr);
+  assert.match(r.stdout, /Ghost(?! (retry|escape|die))/);
+});
+
+test('a tag named after a property of every object prints, rather than crashing the renderer', () => {
+  // A failure tag is a stranger's text and nothing constrains it. Looking a
+  // kind up in a plain object answers "constructor" with a function, and the
+  // row then asks the function for its kinds. The tag has no kind, so it
+  // prints bare, exactly like any other tag the file says nothing about.
+  const file = derive(prog => {
+    prog.nodes.greet.channels.E.push('constructor', 'toString');
+  });
+  const r = run(groundtrack, [file, '--text']);
+  assert.equal(r.code, 0, r.stderr);
+  assert.match(r.stdout, /constructor(?! (retry|escape|die))/);
+  assert.equal(check(file).code, 0);
+});
+
+test('a tag raised with two kinds prints both, retry before escape before die', () => {
+  // A tag that retries in one place and dies in another is two facts. The
+  // second run is the first with its channel changed, so the file says both.
+  const file = derive(prog => {
+    const fails = prog.presets.find(p => p.walk.steps.some(m => m.k === 'effect' && m.raised));
+    const dies = JSON.parse(JSON.stringify(fails));
+    dies.name = 'the post dies';
+    dies.blurb = 'the same failure, fatal';
+    for (const m of dies.walk.steps) if (m.k === 'effect' && m.raised) m.raised.channel = 'die';
+    prog.presets.unshift(dies); // met first, and still printed last
+  });
+  assert.equal(check(file).code, 0);
+  const r = run(groundtrack, [file, '--text']);
+  assert.equal(r.code, 0, r.stderr);
+  assert.match(r.stdout, /SendFailed retry die/);
+});
+
 test('the text says where the walks came from, above everything', () => {
   const r = run(groundtrack, [exampleFlightpath, '--text']);
   assert.match(r.stdout.split('\n')[0], /written by hand\. They are claims about the program, not recordings of it\./);
@@ -303,6 +357,28 @@ const pageOf = file => {
 test('the page embeds the file', () => {
   const html = pageOf(exampleFlightpath);
   assert.match(html, /"id":"example-greet"/);
+});
+
+test('the page prints the failure kind beside the tag, and what the node does with it', () => {
+  // A limit, stated: the page draws its rows in the browser, so no assertion
+  // here can read a rendered row. What it can read is that the page carries
+  // the one derivation the module exports and the closed vocabulary it prints
+  // — the alternative, a kind table baked into the page by the renderer, would
+  // be a second copy of a fact the module already computes.
+  const html = pageOf(exampleFlightpath);
+  // The page derives the table for itself. A table the renderer had computed
+  // and baked in would be a second copy of a fact the module already holds.
+  assert.match(html, /G\.failureKinds\(/);
+  assert.doesNotMatch(html, /"failureKinds":/);
+  // The tree row and the contract tab both read it, and neither writes it.
+  assert.match(html, /row\.kinds/);
+  assert.match(html, /G\.tagFate\(/);
+  // The kind is a mark with a class of its own, not author text.
+  assert.match(html, /class="ekind"/);
+  // And the contract tab can say all three things about a tag.
+  for (const word of ['throws', 'catches', 'passes up from beneath']) {
+    assert.ok(html.includes(word), `the contract tab can say "${word}"`);
+  }
 });
 
 test('the page contains no dynamic code evaluation', () => {

@@ -21,7 +21,8 @@ Every node carries three channels, and they are the point of the drawing.
 
 - **A** — what flows out of the node.
 - **E** — where it breaks. Each failure tag is a **retry**, an **escape**, or a
-  **die**.
+  **die**. The kind prints beside the tag in the tree, the text output and the
+  contract tab, derived from the file rather than written in it.
 - **R** — what it needs to work.
 
 ## Use it

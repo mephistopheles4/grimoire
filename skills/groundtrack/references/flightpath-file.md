@@ -92,6 +92,14 @@ Any word. The page prints it and nothing branches on it. The words in use are
 - `E` — an array of strings. The failure tags the node can raise.
 - `R` — an array of strings. What the node needs to work.
 
+**Never write a tag's kind here.** The `E` channel is a list of tags, and
+nothing more.
+
+The tree, the text output and the contract tab each print `retry`, `escape` or
+`die` beside a tag. The kind is derived file-wide, from the `throw` steps and
+the `raised` moves. A tag found in neither prints bare. A tag found with two
+kinds prints both, retry before escape before die.
+
 ### enteredBy
 
 **This field names the test files whose specs call this node, and nothing
