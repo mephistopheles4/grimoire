@@ -58,6 +58,98 @@ test('the id pattern admits letters, digits and hyphens, and nothing else', () =
   }
 });
 
+/* -- nothing out of the file is safe as a key ----------------------------- */
+
+test('the id pattern is no defence against a prototype member', () => {
+  // The pattern is about HTML attributes and says nothing about object keys.
+  // Read as a guarantee of key safety — which is the reading that produced
+  // this bug — it admits five of them.
+  for (const name of ['constructor', 'toString', 'valueOf', 'hasOwnProperty', 'isPrototypeOf']) {
+    assert.ok(G.ID.test(name), `${name} is a legal id`);
+  }
+  assert.ok(!G.ID.test('__proto__'), 'only __proto__ fails, and only over the underscore');
+});
+
+test('bare tables answer an unset prototype member with undefined', () => {
+  const t = G.bare();
+  for (const name of ['constructor', 'toString', 'valueOf', 'hasOwnProperty', 'isPrototypeOf']) {
+    assert.equal(t[name], undefined, name);
+  }
+  // The property under test, stated as the two reads that actually break:
+  // a `|| fallback` that must fire, and an `=== undefined` guard that must.
+  assert.deepEqual(t.constructor || ['fallback'], ['fallback']);
+  assert.equal(t.toString === undefined, true);
+});
+
+test('hardenKeys makes a parsed file answer only for keys the author wrote', () => {
+  // JSON.parse builds the node map, not this module, and it builds a plain
+  // object. So the map the whole validator asks "is this a node?" answers yes
+  // for five names nobody declared.
+  const parsed = JSON.parse('{"nodes":{"greet":{}},"env":{"a":1}}');
+  assert.equal(typeof parsed.nodes.constructor, 'function', 'the parsed map inherits');
+
+  const hard = G.hardenKeys(parsed);
+  for (const name of ['constructor', 'toString', 'valueOf', 'hasOwnProperty', 'isPrototypeOf']) {
+    assert.equal(hard.nodes[name], undefined, `nodes.${name}`);
+    assert.equal(hard.env[name], undefined, `env.${name}`);
+  }
+  // What the author did write is untouched.
+  assert.deepEqual(Object.keys(hard.nodes), ['greet']);
+  assert.equal(hard.env.a, 1);
+  // And it copies rather than mutates, so a caller's parsed object is its own.
+  assert.equal(typeof parsed.nodes.constructor, 'function');
+});
+
+test('hardenKeys reaches the layers, a layer\'s nodes, and a run\'s input', () => {
+  const parsed = JSON.parse(
+    '{"nodes":{"a":{}},"layers":{"tests":{"nodes":{"a":{"R":["x"]}}}},"presets":[{"input":{"user":1}}]}',
+  );
+  const hard = G.hardenKeys(parsed);
+  assert.equal(hard.layers.constructor, undefined);
+  assert.equal(hard.layers.tests.nodes.constructor, undefined);
+  assert.equal(hard.presets[0].input.constructor, undefined);
+  // The author's own keys survive at every level.
+  assert.deepEqual(hard.layers.tests.nodes.a.R, ['x']);
+  assert.equal(hard.presets[0].input.user, 1);
+});
+
+test('hardenKeys leaves a file that is not an object alone', () => {
+  for (const v of [null, 42, 'a string', []]) assert.deepEqual(G.hardenKeys(v), v);
+});
+
+test('a label named after a prototype member is not a label until a step carries it', () => {
+  // labelsOf feeds the jump check, which asks `L[s.to] === undefined`. On a
+  // plain object that is false for a label nobody declared, so the refusal
+  // that names the fault never fires.
+  const node = { steps: [{ op: 'note', note: 'x' }] };
+  assert.equal(G.labelsOf(node).constructor, undefined);
+  // And a step that does carry it still resolves.
+  const labelled = { steps: [{ op: 'note', note: 'x', label: 'constructor' }] };
+  assert.equal(G.labelsOf(labelled).constructor, 0);
+});
+
+test('the drawing places a node named after a prototype member', () => {
+  // Two of layout's tables are keyed by node id and read before every id is
+  // written. `pos[c]` reports an unplaced node as placed, and `asks[k]`
+  // answers with `Object.prototype.constructor` — a function, which is then
+  // asked to `push`. The whole drawing throws, so no page renders at all.
+  //
+  // The shape that reaches it: the node named `constructor` must have a
+  // callee in the row being placed, which needs a second caller giving that
+  // callee its depth. greet calls both, and constructor calls lookupName.
+  const prog = JSON.parse(JSON.stringify(greet));
+  prog.nodes.constructor = JSON.parse(JSON.stringify(prog.nodes.lookupName));
+  prog.nodes.greet.steps.push({ op: 'call', target: 'constructor', label: 'ctor' });
+  prog.nodes.constructor.steps.push({ op: 'call', target: 'lookupName', label: 'back' });
+
+  const out = G.layout(prog);
+  assert.ok(out.order.includes('constructor'), 'it is in the draw order');
+  for (const id of out.order) {
+    assert.ok(Number.isFinite(out.pos[id].x), `${id} has a real x, not NaN`);
+    assert.ok(Number.isFinite(out.pos[id].y), `${id} has a real y`);
+  }
+});
+
 /* -- the fold ------------------------------------------------------------- */
 
 test('the fold seeds the entry frame with the cursor at zero, before any move', () => {

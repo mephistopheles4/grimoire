@@ -540,7 +540,7 @@ button[data-help][aria-disabled=true] { cursor: help; }
    appends a ledger row and moves a cursor — all of that in the shared module,
    which the tests run too. It evaluates nothing, and this page contains no
    dynamic code evaluation at all. */
-const PROG = /*DATA*/;
+const PROG = Groundtrack.hardenKeys(/*DATA*/);
 const G = Groundtrack;
 const esc = G.esc;
 const $ = id => document.getElementById(id);

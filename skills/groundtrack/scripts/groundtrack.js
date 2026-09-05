@@ -27,14 +27,80 @@ const Groundtrack = (() => {
 
   /* A node id reaches an HTML attribute, so it is validated rather than
    * escaped. render.mjs refuses a file whose ids do not match this, which is
-   * what makes an id a known-safe string by the time the page sees it. */
+   * what makes an id a known-safe string by the time the page sees it.
+   *
+   * That is a claim about attributes and about nothing else. See `bare` below:
+   * as an object key an id is as dangerous as any other author string, and
+   * this pattern is no defence at all. */
   const ID = /^[A-Za-z0-9][A-Za-z0-9-]*$/;
+
+  /** An object with no prototype, for any map keyed by text out of the file.
+   *
+   * **Nothing out of the file is safe as a key, ids included.** A plain `{}`
+   * inherits from `Object.prototype`, so a key nobody set still answers: the
+   * ID pattern above admits `constructor`, `toString`, `valueOf`,
+   * `hasOwnProperty` and `isPrototypeOf`, and tags, labels, paths, run names
+   * and layer tokens are not validated at all. Only `__proto__` is excluded,
+   * and only over its underscore.
+   *
+   * Read `t[k] || fallback` on such a table and the fallback never fires; read
+   * `t[k] === undefined` and the guard never fires. Neither throws where it
+   * happens, so the failure surfaces somewhere else — as a crash, or worse as a
+   * refusal naming the wrong thing. SECURITY.md carries the rule.
+   */
+  const bare = () => Object.create(null);
+
+  /** `bare()` seeded from entries, for the tables built in one go. */
+  const bareFrom = entries => Object.assign(bare(), Object.fromEntries(entries));
+
+  /** Rebuild a parsed file's author-keyed maps with no prototype.
+   *
+   * The tables this module builds are `bare()` by construction. **The biggest
+   * author-keyed map is not built here at all** — `JSON.parse` builds it, and
+   * it builds a plain object. So `prog.nodes.constructor` answers with a
+   * function for a node the file never declared, and every membership test
+   * over the node map reads true for five names the author never wrote.
+   *
+   * The damage is not a crash. `render.mjs` refuses a call whose target is not
+   * a node with `if (!prog.nodes[s.target])`, and that guard silently stops
+   * firing: a file calling a node that does not exist validates clean and
+   * exits zero. A validator that accepts a file contradicting its own graph is
+   * the one thing this validator exists to prevent.
+   *
+   * Hardening once at the boundary fixes every reader at the same time,
+   * including the ones nobody has audited. The maps are the five the shape
+   * document calls author-keyed: `nodes`, `env`, `layers`, a layer's `nodes`,
+   * and a run's `input`. A copy rather than a mutation, so the caller's parsed
+   * object is left as it found it.
+   */
+  function hardenKeys(prog) {
+    if (!prog || typeof prog !== 'object' || Array.isArray(prog)) return prog;
+    const isMap = o => o !== null && typeof o === 'object' && !Array.isArray(o);
+    const rebuild = o => (isMap(o) ? Object.assign(bare(), o) : o);
+    const out = { ...prog };
+    if (prog.nodes !== undefined) out.nodes = rebuild(prog.nodes);
+    if (prog.env !== undefined) out.env = rebuild(prog.env);
+    if (isMap(prog.layers)) {
+      out.layers = rebuild(prog.layers);
+      for (const name of Object.keys(out.layers)) {
+        const layer = out.layers[name];
+        if (isMap(layer) && layer.nodes !== undefined) out.layers[name] = { ...layer, nodes: rebuild(layer.nodes) };
+      }
+    }
+    const hardenRuns = runs =>
+      runs.map(p => (isMap(p) && p.input !== undefined ? { ...p, input: rebuild(p.input) } : p));
+    if (Array.isArray(prog.presets)) out.presets = hardenRuns(prog.presets);
+    if (Array.isArray(prog.graphs)) {
+      out.graphs = prog.graphs.map(g => (isMap(g) && Array.isArray(g.presets) ? { ...g, presets: hardenRuns(g.presets) } : g));
+    }
+    return out;
+  }
 
   /* -- reading the graph ---------------------------------------------------- */
 
   /** label -> step index, for one node. A label is a jump target and nothing else. */
   const labelsOf = node => {
-    const m = {};
+    const m = bare();
     (node.steps || []).forEach((s, i) => {
       if (s.label !== undefined) m[s.label] = i;
     });
@@ -68,16 +134,6 @@ const Groundtrack = (() => {
    * two reads worst-last.
    */
   const KINDS = ['retry', 'escape', 'die'];
-
-  /** An object with no prototype, for any map keyed by author text.
-   *
-   * A failure tag is a stranger's string and nothing constrains it — only a
-   * node id is validated, and even that admits `constructor` and `toString`.
-   * A plain object answers those with a function and a method, and the caller
-   * then asks that for its list of kinds. Files carrying such a tag rendered
-   * before the kind table existed, and have to keep rendering.
-   */
-  const bare = () => Object.create(null);
 
   /** tag -> the kinds the file gives it, in KINDS order.
    *
@@ -364,7 +420,7 @@ const Groundtrack = (() => {
 
   function layout(prog) {
     const ids = Object.keys(prog.nodes);
-    const depth = Object.fromEntries(ids.map(i => [i, 0]));
+    const depth = bareFrom(ids.map(i => [i, 0]));
     for (let k = 0; k < ids.length; k++) {
       for (const id of ids) for (const c of calleesOf(prog, id)) if (depth[c] < depth[id] + 1) depth[c] = depth[id] + 1;
     }
@@ -399,7 +455,7 @@ const Groundtrack = (() => {
      * shifts right by exactly the gap. A node no placed node calls keeps the
      * row's right edge. This is one pass with no search, not a layout engine,
      * and the first row is centred on the sheet as before. */
-    const pos = {};
+    const pos = bare();
     let y = PAD;
     let rightEdge = PAD;
     for (const d of Object.keys(rows).sort((a, b) => a - b)) {
@@ -412,13 +468,13 @@ const Groundtrack = (() => {
           x += W + GAP_X;
         }
       } else {
-        const asks = Object.fromEntries(row.map(id => [id, []]));
+        const asks = bareFrom(row.map(id => [id, []]));
         for (const c of ids) {
           if (!pos[c]) continue;
           const kids = calleesOf(prog, c).filter(k => asks[k]);
           kids.forEach((k, i) => asks[k].push(pos[c].x + (i - (kids.length - 1) / 2) * (W + GAP_X)));
         }
-        const want = {};
+        const want = bare();
         for (const id of row) want[id] = asks[id].length ? asks[id].reduce((s, v) => s + v, 0) / asks[id].length : Infinity;
         let x = PAD;
         for (const id of row.slice().sort((a, b) => want[a] - want[b] || row.indexOf(a) - row.indexOf(b))) {
@@ -670,6 +726,6 @@ const Groundtrack = (() => {
     return best;
   }
 
-  return { esc, ID, KINDS, labelsOf, callSites, calleesOf, effectsOf, failureKinds, tagFate, complexityOf, fold, back, cutEdges, layout, treeRows, unaccountedFiles, filesOf, fileTree, filesMarkup, suggestRun, renamedToken };
+  return { esc, ID, bare, hardenKeys, KINDS, labelsOf, callSites, calleesOf, effectsOf, failureKinds, tagFate, complexityOf, fold, back, cutEdges, layout, treeRows, unaccountedFiles, filesOf, fileTree, filesMarkup, suggestRun, renamedToken };
 })();
 if (typeof module !== 'undefined') module.exports = Groundtrack;
