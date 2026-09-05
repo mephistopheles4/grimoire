@@ -92,7 +92,7 @@ The pre-registered bar asked for two of three on the first two of those.
 **The task is a real test of the change-wide finding**, and that was measured
 rather than asserted. `discriminates.mjs` on the reference answer:
 
-```
+```text
 per-graph reading, sheet "catalogue-page": src/filters/apply.ts, src/filters/parse.ts
 per-graph reading, sheet "filter-panel":   src/catalog/render.ts, src/catalog/grid.ts
 change-wide reading: nothing unaccounted
@@ -125,7 +125,7 @@ here. Nothing in #61 addresses it, and nothing in #61 was supposed to.
 
 `t4-haiku-3` is the more useful one, and it is **procedural, not structural**:
 
-```
+```text
 renderCatalog declares E tag "NoPage", and nothing beneath it produces that tag
 ok: Price panel — two entry points — 5 node(s), 2 graph(s), 3 run(s), 1 finding(s)
 ```
@@ -147,7 +147,7 @@ is not raised as a blocker here.
 written in the old one-graph shape. The two that met the pinned validator were
 refused with the message naming `graphs`, and both fixed it within one pass:
 
-```
+```text
 this is the old one-graph shape. A file now states one change and lists its
 graphs: move "entry" and "presets" into an entry of a "graphs" array …
 ```
