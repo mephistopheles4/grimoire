@@ -122,7 +122,7 @@ for it. Never write a fixed path.
 | `--check` | Validates. Refusals on standard error, exit 1. Findings on standard output, exit 0. |
 | `--out <page>` | Writes one self-contained HTML file. |
 | `--text ["<run>"]` | Prints the tree to standard output, for one run. |
-| `--graph <id>` | Which graph of the change to read. |
+| `--graph <id>` | Which graph `--text` reads. Refused with `--check`, which validates every graph, and with `--out`, which draws the change's first graph. |
 
 **A file with several graphs needs the graph named.** `--text` on a one-graph
 file prints as it always did. On a several-graph file without `--graph` it
