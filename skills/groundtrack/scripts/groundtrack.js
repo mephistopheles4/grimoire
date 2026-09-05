@@ -525,7 +525,12 @@ const Groundtrack = (() => {
    *  changes, what the other nodes change, and what the change touches that no
    *  node accounts for. A file two nodes touch is listed against both. */
   function filesOf(prog, id) {
-    const mine = [...new Set(((prog.nodes[id] || {}).touches) || [])];
+    /* No guard on the node itself. `id` is the open node, which starts at the
+       entry and only ever moves to a node the walk is in, and the validator
+       requires both to be in the map. A guard here could not fire today, and
+       the day it could is the day an empty first group would be a wrong answer
+       printed in place of a crash. `touches` is optional, so that one stays. */
+    const mine = [...new Set(prog.nodes[id].touches || [])];
     const others = [];
     const seen = new Set();
     for (const [k, o] of Object.entries(prog.nodes)) {
