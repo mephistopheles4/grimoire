@@ -91,13 +91,31 @@ test('the check validates a flightpath file, and fails on a broken one', () => {
 
   // Break exactly one thing: a move that ran a step of another op.
   const prog = JSON.parse(readFileSync(join(dir, 'skills', 'groundtrack', 'examples', 'greet.flightpath.json'), 'utf8'));
-  prog.presets[0].walk.steps[0].k = 'let';
+  prog.graphs[0].presets[0].walk.steps[0].k = 'let';
   writeFileSync(join(dir, 'skills', 'groundtrack', 'examples', 'greet.flightpath.json'), JSON.stringify(prog));
 
   const broken = run(checkIn(dir), [], { cwd: dir });
   assert.equal(broken.code, 1);
   assert.match(broken.stderr, /greet\.flightpath\.json failed --check/);
   assert.match(broken.stderr, /a "let" move ran step 0, which is a "note"/);
+});
+
+test('the check fails an old-shape flightpath file', () => {
+  // A file states one change and lists its graphs. A stale one-graph file has
+  // to fail the root check, not only the renderer's own — otherwise it reaches
+  // the site build and publishes half of what it means.
+  const dir = tree();
+  const p = join(dir, 'skills', 'groundtrack', 'examples', 'greet.flightpath.json');
+  const prog = JSON.parse(readFileSync(p, 'utf8'));
+  prog.entry = prog.graphs[0].entry;
+  prog.presets = prog.graphs[0].presets;
+  delete prog.graphs;
+  writeFileSync(p, JSON.stringify(prog));
+
+  const r = run(checkIn(dir), [], { cwd: dir });
+  assert.equal(r.code, 1);
+  assert.match(r.stderr, /greet\.flightpath\.json failed --check/);
+  assert.match(r.stderr, /this is the old one-graph shape/);
 });
 
 function newSkill(dir, name, withExamples) {
