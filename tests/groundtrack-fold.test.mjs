@@ -553,6 +553,23 @@ test('a change kind outside the four prints a question mark, not a function', ()
   assert.doesNotMatch(out, /function Object/);
 });
 
+test('a path that is a prototype member name still reads its own row', () => {
+  // The second key into a plain object in this function, and the one with no
+  // validator behind it at all: a path is author text. It has to *be* a
+  // prototype name, not end in one — `src/constructor` is an ordinary key.
+  //
+  // With a bare `{}`, a node touching a path the change does not state finds
+  // Object's own constructor, which is truthy, so the `|| {}` fallback never
+  // fires and the row prints its change, adds and dels as undefined.
+  const prog = JSON.parse(JSON.stringify(greet));
+  prog.nodes.greet.touches = ['constructor'];
+  const out = G.filesMarkup(prog, 'greet');
+  assert.match(out, /<span class="fchange">E<\/span>/, 'the fallback fired');
+  assert.match(out, /<span class="fnum">\+0 &minus;0<\/span>/);
+  assert.doesNotMatch(out, /undefined/);
+  assert.doesNotMatch(out, /function Object/);
+});
+
 test('a file that states no changed files says so instead of drawing a tree', () => {
   const prog = JSON.parse(JSON.stringify(greet));
   delete prog.files;

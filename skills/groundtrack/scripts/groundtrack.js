@@ -525,23 +525,33 @@ const Groundtrack = (() => {
    *  changes, what the other nodes change, and what the change touches that no
    *  node accounts for. A file two nodes touch is listed against both.
    *
-   *  The second group is every other node in the map, and the tab labels it
-   *  *other nodes on this sheet*. Those are the same set only while a file
-   *  draws one graph, which is every file the shape allows today. Give a file
-   *  several graphs and the label starts lying: the map stays change-wide, so
-   *  a node no sheet of this drawing reaches would be listed as on it. The
-   *  second group is then the nodes the sheet's entry reaches, and the third
-   *  is unchanged — unaccounted is a question about the change, not the
-   *  sheet.
+   *  Two readers of the change-wide node map, a line apart, wanting opposite
+   *  things. `unaccounted` is per change and must stay so — a file one graph
+   *  covers is not reported because another does not. `others` is per sheet,
+   *  and the tab labels it *other nodes on this sheet*. Those are the same set
+   *  only while a file draws one graph. Swapping either is silent, and no
+   *  shipped example can show it.
    *
-   *  Note which program each of the three wants, because they differ and none
-   *  of them throws when given the wrong one. `mine` does not care. The second
-   *  group needs the sheet's entry, and a file that lists graphs has no
-   *  top-level entry at all — only a view of one graph does — so it must be
-   *  handed the view. The third needs the file, unfiltered. Hand the whole
-   *  function a raw file and the second group renders empty; hand it a view
-   *  and filter the third and a file another sheet accounts for is reported
-   *  against this one. */
+   *  `others` is the open question, and it is the sheets ticket's, not this
+   *  one's. Measured on a two-graph file: the group labelled *on this sheet*
+   *  lists a file touched only by a node of the *other* graph. The obvious fix
+   *  — filter it through the entry's reachable set — is wrong on its own,
+   *  because the drawing still puts that node on the sheet: `layout` places
+   *  every node in the map and greys what the entry cannot reach, so the tab
+   *  and the drawing agree today and would stop agreeing.
+   *
+   *  So the question is not *filter this list* but *what is on a sheet* — only
+   *  the graph's own nodes, or all of them with the rest cold. Layout, the
+   *  cold-node ink and this label answer it together or contradict each other.
+   *  Whoever settles it changes all three.
+   *
+   *  One constraint on whatever they choose: a file that lists graphs has no
+   *  top-level entry — only a view of one graph does. Any answer reaching for
+   *  the entry must be handed the view, and this function is handed the raw
+   *  program today.
+   *
+   *  The measurement and the reasoning above are the #61 session's, moved here
+   *  from `drawFiles` because that is where these lines now live. */
   function filesOf(prog, id) {
     /* No guard on the node itself. `id` is the open node, which starts at the
        entry and only ever moves to a node the walk is in, and the validator
