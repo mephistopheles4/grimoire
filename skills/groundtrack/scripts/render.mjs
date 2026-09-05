@@ -460,11 +460,7 @@ export function findings(prog) {
   /* Files in the change that no node accounts for, by name. A
    * documentation-only or config-only part of a change is not silently
    * dropped. */
-  const touched = new Set();
-  for (const n of Object.values(prog.nodes)) for (const p of n.touches || []) touched.add(p);
-  for (const f of prog.files || []) {
-    if (!touched.has(f.path)) out.push(`no node accounts for ${f.path}`);
-  }
+  for (const p of Groundtrack.unaccountedFiles(prog)) out.push(`no node accounts for ${p}`);
 
   /* A cut edge is derived, never declared. */
   for (const c of Groundtrack.cutEdges(prog)) {

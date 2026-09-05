@@ -863,44 +863,10 @@ function start() {
 
   /* One tree answers all three questions: what this node changes, what other
      nodes on this sheet change, and what the change touches that no node
-     accounts for. Fourteen paths read as a few folders, which is how a file
-     tree in a review reads. */
-  const MARK = { new: 'N', edit: 'E', delete: 'D', forbidden: 'F' };
+     accounts for. The markup is built in the shared module — see the note on
+     filesMarkup for why it is there and not here. */
   function drawFiles() {
-    const { mine, others, unaccounted } = G.filesOf(PROG, S.open);
-    const byPath = {};
-    for (const f of PROG.files || []) byPath[f.path] = f;
-    /* A path a node touches that the change does not state has no entry to
-       read, so it prints as an edit of unknown size rather than not at all. */
-    const fileRow = row => {
-      const f = byPath[row.path] || { change: 'edit', why: '', adds: 0, dels: 0 };
-      return (
-        '<div class="frow"><span class="fchange">' + (MARK[f.change] || '?') + '</span>' +
-        '<span class="fpath">' + esc(row.label) +
-        (f.why ? ' <span class="fwhy">&mdash; ' + esc(f.why) + '</span>' : '') + '</span>' +
-        '<span class="fnum">+' + esc(f.adds) + ' &minus;' + esc(f.dels) + '</span></div>'
-      );
-    };
-    const tree = paths => {
-      let out = '';
-      let depth = 0;
-      for (const row of G.fileTree(paths)) {
-        while (depth > row.depth) { out += '</div>'; depth--; }
-        while (depth < row.depth) { out += '<div class="ftree">'; depth++; }
-        out += row.path ? fileRow(row) : '<div class="fdir">' + esc(row.label) + '/</div>';
-      }
-      while (depth > 0) { out += '</div>'; depth--; }
-      return out;
-    };
-    const group = (label, paths) =>
-      '<div class="fgroup"><span class="dw-label">' + label + '</span>' +
-      (paths.length ? tree(paths) : '<div class="dw-annot">none</div>') + '</div>';
-    /* A file that states no changed files has no change to account for, so
-       the third group says that rather than drawing an empty tree. */
-    const third = PROG.files
-      ? group('in the change, on no node of this sheet', unaccounted)
-      : '<div class="fgroup"><span class="dw-label">changed files</span><div class="dw-annot">not stated by this file</div></div>';
-    return group('this node', mine) + group('other nodes on this sheet', others) + third;
+    return G.filesMarkup(PROG, S.open);
   }
 
   /* One E tag on the contract tab: the tag, its kind, and the one thing this

@@ -6,6 +6,10 @@
 // apart from the markup that calls it for exactly that reason, and
 // render.mjs inlines it into the page so the page and this test run the same
 // function.
+//
+// The files tab is the one piece of markup the module builds itself, because
+// the tab is written into the page at click time and no rendered page carries
+// it as a string. Its markup is at the end of this file for that reason.
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -455,7 +459,7 @@ test('paths group under their directories, in first-appearance order', () => {
   assert.equal(new Set(files.map(r => r.path)).size, 14);
 });
 
-test('a directory holding one thing collapses into the line above it', () => {
+test('a directory holding one thing collapses into the line below it', () => {
   const rows = G.fileTree(G.filesOf(layered, 'bindSheet').unaccounted);
   // docs/log holds one file, so it is one row and not a header plus a row.
   const log = rows.filter(r => r.label.startsWith('log/'));
@@ -492,4 +496,67 @@ test('a label joined to its ancestors is the path again, whatever the path holds
     assert.equal(rows[0].label, p);
     assert.equal(rows[0].path, p);
   }
+});
+
+/* -- the files tab, as markup --------------------------------------------- */
+
+// This is the only surface the tab has. It is written into the cutaway with
+// `innerHTML` at click time, so no rendered page carries it as a string and
+// tests/groundtrack-render.test.mjs cannot see it at all. The function is in
+// the module for that reason, and these are the tests that reason bought.
+
+const POISON = '<img src=x onerror=alert(1)> & "quoted" </script><script>alert(2)</script>';
+
+test('every author string on a row reaches the tab escaped', () => {
+  // A path with a separator in it poisons a directory segment and a leaf, and
+  // the `why` poisons the comment that trails the leaf. Drop the `esc` from
+  // any of the three and this is what says so.
+  const prog = JSON.parse(JSON.stringify(greet));
+  prog.files[0].path = `${POISON}/${POISON}`;
+  prog.files[0].why = POISON;
+  prog.nodes.greet.touches = [`${POISON}/${POISON}`];
+  const out = G.filesMarkup(prog, 'greet');
+  assert.doesNotMatch(out, /<img src=x onerror/);
+  assert.match(out, /&lt;img src=x onerror/);
+  assert.equal((out.match(/&lt;script>alert\(2\)/g) || []).length, 3, 'the segment, the leaf and the why');
+});
+
+test('the tab opens and closes one div per level it indents', () => {
+  // The depth loop is where broken nesting would live, and broken nesting on
+  // an innerHTML assignment silently eats the rest of the tab.
+  for (const [prog, id] of [[layered, 'bindSheet'], [layered, 'buildShelf'], [greet, 'greet']]) {
+    const out = G.filesMarkup(prog, id);
+    assert.equal((out.match(/<div/g) || []).length, (out.match(/<\/div>/g) || []).length, id);
+  }
+});
+
+test('a file row carries its mark, its leaf, its counts and its why', () => {
+  const out = G.filesMarkup(layered, 'buildShelf');
+  assert.match(out, /<span class="fchange">N<\/span>/, 'a new file is marked N');
+  assert.match(out, /<span class="fchange">E<\/span>/, 'an edited one is marked E');
+  assert.match(out, /<span class="fpath">one-sheet\.test\.ts <span class="fwhy">&mdash; G53/);
+  assert.match(out, /<span class="fnum">\+194 &minus;0<\/span>/);
+  // The collapsed row prints the segments it swallowed, not a bare leaf.
+  assert.match(out, /<span class="fpath">log\/2026-08-30-the-species-menu-and-the-read-back\.md /);
+  assert.doesNotMatch(out, /<div class="fdir">log\//);
+  assert.match(out, /<div class="fdir">gates\/<\/div>/);
+  assert.match(out, /in the change, on no node of this sheet/);
+});
+
+test('a change kind outside the four prints a question mark, not a function', () => {
+  // The validator refuses one, and this does not lean on the validator: a
+  // bare-object lookup would find Object's own constructor and print it.
+  const prog = JSON.parse(JSON.stringify(greet));
+  prog.files[0].change = 'constructor';
+  const out = G.filesMarkup(prog, 'greet');
+  assert.match(out, /<span class="fchange">\?<\/span>/);
+  assert.doesNotMatch(out, /function Object/);
+});
+
+test('a file that states no changed files says so instead of drawing a tree', () => {
+  const prog = JSON.parse(JSON.stringify(greet));
+  delete prog.files;
+  const out = G.filesMarkup(prog, 'greet');
+  assert.match(out, /not stated by this file/);
+  assert.doesNotMatch(out, /in the change, on no node/);
 });
