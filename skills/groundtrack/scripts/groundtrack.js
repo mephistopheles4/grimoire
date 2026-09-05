@@ -61,6 +61,57 @@ const Groundtrack = (() => {
 
   const effectsOf = node => (node.steps || []).map((s, i) => ({ ...s, at: i })).filter(s => s.op === 'effect');
 
+  /* -- the failure kind ----------------------------------------------------
+   *
+   * The three kinds a failure can be, in the order they print. A retry is a
+   * blip, a die is a crash, and an escape is between them, so a tag carrying
+   * two reads worst-last.
+   */
+  const KINDS = ['retry', 'escape', 'die'];
+
+  /* tag -> the kinds the file gives it, in KINDS order.
+   *
+   * Two sources, and only two: a `throw` step in the node map, and an effect
+   * move that `raised` in a walk. Both name a channel, and between them they
+   * are every place the file says what kind of failure a tag is. A tag named
+   * nowhere but an E channel is absent from this table, and prints bare — the
+   * page does not invent a kind the file never stated.
+   *
+   * An `onError` handler is not a source. It names the tag it catches and no
+   * channel: it says where a failure stops, never what kind it was. Nor is a
+   * walk's `throw` move, which repeats the channel of the step it ran — one
+   * fact, written once, read from the step.
+   *
+   * It is derived rather than declared for the same reason a cut edge is: a
+   * second place to write the kind is a second place for it to be wrong.
+   */
+  function failureKinds(prog) {
+    const seen = {};
+    const add = (tag, channel) => {
+      if (tag === undefined || !KINDS.includes(channel)) return;
+      (seen[tag] = seen[tag] || new Set()).add(channel);
+    };
+    for (const node of Object.values(prog.nodes || {})) {
+      for (const s of node.steps || []) if (s.op === 'throw') add(s.tag, s.channel);
+    }
+    for (const p of prog.presets || []) {
+      for (const m of (p.walk && p.walk.steps) || []) {
+        if (m.k === 'effect' && m.raised) add(m.raised.tag, m.raised.channel);
+      }
+    }
+    const out = {};
+    for (const tag of Object.keys(seen)) out[tag] = KINDS.filter(k => seen[tag].has(k));
+    return out;
+  }
+
+  /** What one node does with one tag: throws it, catches it, both, or neither.
+   *  Neither means the tag passes up from beneath, which is the third thing
+   *  the contract tab has to be able to say. */
+  const tagFate = (node, tag) => ({
+    throws: (node.steps || []).some(s => s.op === 'throw' && s.tag === tag),
+    catches: (node.steps || []).some(s => (s.onError || []).some(h => h.tag === tag)),
+  });
+
   /* Cyclomatic complexity of one node, as drawn: one, plus one for each place
    * the path forks. An `if` forks. Each onError handler forks, since the call
    * or effect it guards can go on or be caught. A jump backward — a goto, or
@@ -396,6 +447,10 @@ const Groundtrack = (() => {
     const end = all[atIndex === undefined ? all.length - 1 : atIndex];
     const openSites = new Set(end.frames.map(f => f.site));
     const layer = (prog.layers || {})[layerName];
+    /* One table for the whole file, computed once here and carried on every
+     * row, so the tree on the page and the tree in a reply read the same tag
+     * the same way. */
+    const kinds = failureKinds(prog);
     const rows = [];
 
     const markOf = (siteKey, nodeId, at) => {
@@ -423,6 +478,7 @@ const Groundtrack = (() => {
         role: node.role,
         A: ch.A,
         E: (ch.E || []).slice(),
+        kinds: Object.fromEntries((ch.E || []).filter(t => kinds[t]).map(t => [t, kinds[t].slice()])),
         R: (ch.R || []).slice(),
         rename: rename ? rename.slice() : null,
         site: site ? { label: site.label, aside: site.aside } : null,
@@ -450,6 +506,6 @@ const Groundtrack = (() => {
     return best;
   }
 
-  return { esc, ID, labelsOf, callSites, calleesOf, effectsOf, complexityOf, fold, back, cutEdges, layout, treeRows, suggestRun, renamedToken };
+  return { esc, ID, KINDS, labelsOf, callSites, calleesOf, effectsOf, failureKinds, tagFate, complexityOf, fold, back, cutEdges, layout, treeRows, suggestRun, renamedToken };
 })();
 if (typeof module !== 'undefined') module.exports = Groundtrack;

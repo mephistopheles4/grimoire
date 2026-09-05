@@ -105,6 +105,14 @@
 * { box-sizing: border-box; }
 body { margin: 0; }
 .none { color: var(--dw-ink-30); } /* an absent value is a mark, not text */
+/* The failure kind, and what a node does with a tag. Neither is author text:
+   each is one word of a closed set the file never writes, derived from the
+   throw steps and the raised moves. So they set as marks — micro, tracked,
+   upper — beside the tag, which is the author's and reads as text. */
+.ekind, .efate { font-size: var(--dw-t-micro); text-transform: uppercase;
+  letter-spacing: var(--dw-track-label); font-weight: 500; color: var(--dw-ink-70); }
+.efate { color: var(--dw-ink-30); }
+.etag { display: block; white-space: normal; }
 /* Secondary text — an aside, a description, a message — is ink 80. The system
    floor is 70, and the labels stay there; running text at 70 on paper read as
    grey, and a reader who cannot read an aside has been handed nothing. */
@@ -579,6 +587,10 @@ function start() {
   const LAYOUT = G.layout(PROG);
   const layerNames = Object.keys(PROG.layers || {});
   const CUTS = G.cutEdges(PROG);
+  /* tag -> kind, for the whole file, derived once. The tree rows carry their
+     own copy of the same table; this is the contract tab's, which asks about
+     one node's tags rather than a row's. */
+  const KINDS = G.failureKinds(PROG);
 
   const S = {
     run: 0,
@@ -660,6 +672,13 @@ function start() {
 
   const channelKey = k => '<b data-help="' + HELP[k] + '">' + k + '</b>';
 
+  /* One E tag, with the kind the file gives it. The tag is author text and is
+     escaped; the kind is one of three words the file never writes, so it is a
+     mark. A tag the file gives no kind for prints bare — the page invents
+     nothing — and one given two prints both, worst last. */
+  const eTag = (kinds, tag) =>
+    esc(tag) + ((kinds || {})[tag] ? ' <span class="ekind">' + kinds[tag].join(' ') + '</span>' : '');
+
   function nodeBox(id, st, reach) {
     const n = PROG.nodes[id];
     const ch = n.channels || {};
@@ -717,7 +736,7 @@ function start() {
         const cls =
           'tr' + (row.state === 'not reached' ? ' tr--cold' : '') + (row.state === 'on stack' ? ' tr--active' : '') +
           (row.id === S.open ? ' tr--sel' : '');
-        const E = row.E.length ? row.E.map(esc).join(' &middot; ') : '<span class="none">never</span>';
+        const E = row.E.length ? row.E.map(eTag.bind(null, row.kinds)).join(' &middot; ') : '<span class="none">never</span>';
         const rr = row.rename && row.rename.length ? row.rename : row.R;
         const R = rr.length ? esc(rr.join(', ')) : '<span class="none">none</span>';
         const marks = row.effects
@@ -865,6 +884,19 @@ function start() {
     return group('this node', [...mine]) + group('other nodes on this sheet', [...others]) + third;
   }
 
+  /* One E tag on the contract tab: the tag, its kind, and the one thing this
+     node does with it. A node throws the tag, catches it, both, or neither —
+     and neither means it passes up from beneath, which is the fact a reader
+     needs to know where a failure goes when it leaves this node. */
+  function eContract(node, tag) {
+    const f = G.tagFate(node, tag);
+    const fate = f.throws && f.catches ? 'throws &middot; catches'
+      : f.throws ? 'throws'
+        : f.catches ? 'catches'
+          : 'passes up from beneath';
+    return '<div class="etag">' + eTag(KINDS, tag) + ' <span class="efate">' + fate + '</span></div>';
+  }
+
   function drawContract() {
     const n = PROG.nodes[S.open];
     const ch = n.channels || {};
@@ -880,7 +912,7 @@ function start() {
       line('role', esc(n.role), HELP.role) +
       line('takes', (n.params || []).length ? esc((n.params || []).join(', ')) : '<span class="none">nothing</span>') +
       line('A — returns', esc(ch.A || '—'), HELP.A) +
-      line('E — breaks', (ch.E || []).length ? esc((ch.E || []).join(', ')) : '<span class="none">never</span>', HELP.E) +
+      line('E — breaks', (ch.E || []).length ? (ch.E || []).map(eContract.bind(null, n)).join('') : '<span class="none">never</span>', HELP.E) +
       line('R — needs', rOf(S.open).length ? esc(rOf(S.open).join(', ')) : '<span class="none">nothing</span>', HELP.R) +
       line('entered by', (n.enteredBy || []).length ? esc((n.enteredBy || []).join(', ')) : '<span class="none">no spec calls this node</span>',
         'The test files whose specs call this node directly. A node covered through its caller lists none.') +

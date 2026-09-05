@@ -501,7 +501,9 @@ export function text(prog, runIndex) {
     const pad = '  '.repeat(row.depth);
     const arrow = row.depth ? '-> ' : '';
     L.push(`${pad}${arrow}${row.name}  [${row.role}]  ${row.state}${row.repeat ? '  (seen above — stopped)' : ''}`);
-    const E = row.E.length ? row.E.join(' · ') : 'never';
+    /* The tag, then the kind the file gives it. A tag the file gives no kind
+     * for prints bare, and one given two prints both. */
+    const E = row.E.length ? row.E.map(t => [t, ...(row.kinds[t] || [])].join(' ')).join(' · ') : 'never';
     const R = row.R.length ? row.R.join(', ') : 'none';
     L.push(`${pad}   A ${row.A || '—'}   E ${E}   R ${R}`);
     if (row.site && (row.site.label || row.site.aside)) {
