@@ -452,6 +452,74 @@ test('a change outside skills/ needs no bump', () => {
   assertPasses(dir);
 });
 
+// The four tests below move origin/main ahead of the branch, which is the
+// shape the rule could not see while it read the version at the merge base
+// only. `reset --soft` is what builds it: it rewinds the branch to the fork
+// point and leaves the newer commit's tree in the working directory, so the
+// branch carries the same edit the base just took. A checkout would rewrite
+// the working tree, and the check reads plugin.json from there.
+function baseMovesAhead(git, edit) {
+  edit();
+  git('commit', '-aqm', 'the sibling branch that landed first');
+  git('update-ref', 'refs/remotes/origin/main', 'HEAD');
+  git('reset', '-q', '--soft', 'HEAD~1');
+}
+
+const setVersion = (dir, v) => {
+  const p = join(dir, '.claude-plugin', 'plugin.json');
+  const m = readJson(p);
+  m.version = v;
+  writeJson(p, m);
+};
+
+test('a version the base already released fails, and says the base moved', () => {
+  // Two sibling branches fork from one commit and both bump to the same
+  // number. The first lands; the second still reads a bump at its merge base
+  // and went green, against a base already carrying that version. Merging it
+  // ships no update, which is the outcome the rule exists to prevent.
+  const dir = tree();
+  const git = repo(dir);
+  baseMovesAhead(git, () => setVersion(dir, '99.0.0'));
+  appendFileSync(skillMd(dir), '\nOne more sentence, and a version somebody else already took.\n');
+  git('commit', '-aqm', 'change the skill and bump to the number main now holds');
+  const r = assertFails(dir, /already at 99\.0\.0/);
+  assert.match(r.stderr, /plugin users receive no update/);
+});
+
+test('a bump past what the base released passes', () => {
+  const dir = tree();
+  const git = repo(dir);
+  baseMovesAhead(git, () => setVersion(dir, '99.0.0'));
+  setVersion(dir, '99.0.1');
+  appendFileSync(skillMd(dir), '\nOne more sentence, and the next version to carry it.\n');
+  git('commit', '-aqm', 'change the skill and bump past main');
+  assertPasses(dir);
+});
+
+test('a base that moved without releasing does not trip the comparison', () => {
+  // main moving is not the failure. main moving the version is.
+  const dir = tree();
+  const git = repo(dir);
+  baseMovesAhead(git, () => appendFileSync(join(dir, 'scripts', 'build-pages.mjs'), '\n// a comment, releasing nothing\n'));
+  setVersion(dir, '99.0.0');
+  appendFileSync(skillMd(dir), '\nOne more sentence, released by this branch.\n');
+  git('commit', '-aqm', 'change the skill and bump');
+  assertPasses(dir);
+});
+
+test('a branch that never bumped is told that first, even when the base moved', () => {
+  // Both comparisons fail here, and only one of them is worth reading. "You
+  // never bumped" is the smaller fact and the one to act on; being told to
+  // rebase would send the author somewhere else entirely.
+  const dir = tree();
+  const git = repo(dir);
+  baseMovesAhead(git, () => appendFileSync(join(dir, 'scripts', 'build-pages.mjs'), '\n// a comment, releasing nothing\n'));
+  appendFileSync(skillMd(dir), '\nOne more sentence, shipped to nobody.\n');
+  git('commit', '-aqm', 'change the skill');
+  const r = assertFails(dir, /but version is still/);
+  assert.equal(/already at/.test(r.stderr), false, 'must not also tell the author to rebase');
+});
+
 test('a failing test file fails the whole check', () => {
   // The gate has to bite. Without this, "check.mjs runs the tests" could be
   // true and worthless.
