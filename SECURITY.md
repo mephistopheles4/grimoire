@@ -110,7 +110,7 @@ names, and a node's location. All of it is a stranger's text.
   `^[A-Za-z0-9][A-Za-z0-9-]*$` is refused by the validator, so an id reaching
   an attribute is a known-safe string by the time the page sees it.
 
-**Two rules follow, and they are a decision rather than a note.**
+**Three rules follow, and they are a decision rather than a note.**
 
 1. Author text goes into element content, never into an attribute.
 2. **If an attribute must ever carry author text, the narrow escape does not
@@ -118,6 +118,40 @@ names, and a node's location. All of it is a stranger's text.
    `scripts/build-pages.mjs` already uses for the one `href` it writes.
    Widening the shared escape to cover the double quote instead is a change to
    this file, and is reviewed as one.
+3. **Nothing out of the file is safe as an object key, ids included.** Use
+   `Groundtrack.bare()` — `Object.create(null)` — for any map keyed by text a
+   flightpath file supplies, and `Object.hasOwn` where a membership test is
+   what is wanted.
+
+**The third rule is here because the first two invite the opposite
+conclusion.** *Ids are validated rather than escaped* is true, and validation
+is genuinely what makes an id safe **in an attribute**. It says nothing about
+keys, and there validation buys nothing:
+`^[A-Za-z0-9][A-Za-z0-9-]*$` admits `constructor`, `toString`, `valueOf`,
+`hasOwnProperty` and `isPrototypeOf`. Only `__proto__` fails, and only over its
+underscore. Labels, file paths, failure tags, run names and layer tokens are
+not validated at all. **"Validated" means attribute-safe, not key-safe** — two
+different properties wearing one word.
+
+A plain `{}` inherits from `Object.prototype`, so a key nobody set still
+answers. `t[k] || fallback` never falls back; `t[k] === undefined` never
+guards. Neither throws where it happens, so the damage surfaces elsewhere. The
+worked example is not a crash but a **wrong diagnosis**: a `goto` naming a
+label no step carries is refused as *to "nowhere" is not a label in greet*,
+pointing at the step — but spell the same missing label `constructor` and the
+"is not a label" check silently passes, and the file is refused twice as *no
+edge from 4 (goto) to 6*, pointing at the walks. The author is told their walk
+is wrong when their node is wrong.
+
+This is worth a rule rather than a fix alone because it recurred: three
+separate changes in one afternoon each introduced or inherited an instance,
+and one of them was written by someone who had just read the paragraph above
+and concluded ids were safe.
+
+`tests/groundtrack-fold.test.mjs` and `tests/groundtrack-render.test.mjs` pin
+it, with fixtures whose field **is** the bare name — `src/constructor` and
+`constructor.ts` are ordinary keys and reproduce nothing, so a fixture that
+decorates the name passes while testing nothing.
 
 **The tests pin the width and the reference count.**
 [`tests/groundtrack-fold.test.mjs`](tests/groundtrack-fold.test.mjs) asserts
