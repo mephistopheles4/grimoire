@@ -70,6 +70,8 @@ list what enters where.
 - **Layers and ambient values are the change's.** A layer that renames a node
   token renames it on every sheet. A layer's own `entry` names a node in the map.
 - **Run names are unique per graph**, so two graphs may each have a happy path.
+  A repeat within one graph is refused: `--text <run>` resolves by name and
+  takes the first match, so the second would be unreachable.
 - **A graph id is letters, digits and hyphens**, like a node id, and unique in
   the file. It reaches the page as an attribute, so it is validated rather than
   escaped.

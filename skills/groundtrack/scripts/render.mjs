@@ -72,6 +72,19 @@ const OP_MOVES = new Set(['note', 'let', 'if', 'goto', 'call', 'effect', 'throw'
 
 const isObj = v => v !== null && typeof v === 'object' && !Array.isArray(v);
 
+/* Is this the id of a node the author actually wrote?
+ *
+ * `prog.nodes` comes from JSON.parse, so it carries Object.prototype and
+ * answers `constructor`, `toString`, `valueOf`, `hasOwnProperty` and
+ * `isPrototypeOf` with an inherited member. Read as `!prog.nodes[id]`, every
+ * "is not a node" refusal below silently stops firing for those five names:
+ * a graph entering at `constructor`, or a call targeting it, was accepted and
+ * then crashed in the walk pass with a stack trace where a refusal belongs.
+ *
+ * An own-property test is the whole fix, and it belongs at the membership
+ * tests rather than at one of them. */
+const isNode = (prog, id) => Object.hasOwn(prog.nodes, id);
+
 /* -- refusals -------------------------------------------------------------
  *
  * Every refusal names the file and a path into the document, always. A tool
@@ -163,10 +176,10 @@ function shape(prog, r) {
       for (const [ln, layer] of Object.entries(prog.layers)) {
         keys(r, `layers.${ln}`, layer, ['nodes'], ['entry']);
         if (!isObj(layer)) continue;
-        if (layer.entry !== undefined && !prog.nodes[layer.entry]) r.shape(`layers.${ln}.entry`, `"${layer.entry}" is not a node`);
+        if (layer.entry !== undefined && !isNode(prog, layer.entry)) r.shape(`layers.${ln}.entry`, `"${layer.entry}" is not a node`);
         if (isObj(layer.nodes))
           for (const [nid, ov] of Object.entries(layer.nodes)) {
-            if (!prog.nodes[nid]) r.shape(`layers.${ln}.nodes.${nid}`, 'is not a node');
+            if (!isNode(prog, nid)) r.shape(`layers.${ln}.nodes.${nid}`, 'is not a node');
             keys(r, `layers.${ln}.nodes.${nid}`, ov, ['R']);
             if (isObj(ov) && Array.isArray(ov.R) && !ov.R.length)
               r.shape(`layers.${ln}.nodes.${nid}.R`, 'state the renamed tokens, or leave the node out of this layer');
@@ -201,7 +214,7 @@ function shape(prog, r) {
       for (const k of ['then', 'else', 'to']) {
         if (s[k] !== undefined && L[s[k]] === undefined) r.shape(w, `${k} "${s[k]}" is not a label in ${id}`);
       }
-      if (s.op === 'call' && !prog.nodes[s.target]) r.shape(w, `target "${s.target}" is not a node`);
+      if (s.op === 'call' && !isNode(prog, s.target)) r.shape(w, `target "${s.target}" is not a node`);
       if (s.op === 'throw' && !CHANNEL.includes(s.channel)) r.shape(w, `channel "${s.channel}" is not one of ${CHANNEL.join(', ')}`);
       if (s.onError !== undefined && !Array.isArray(s.onError)) r.shape(w, 'onError expected an array of { tag, goto }');
       for (const h of Array.isArray(s.onError) ? s.onError : []) {
@@ -230,12 +243,26 @@ function shape(prog, r) {
       r.shape(`graphs[${gi}].id`, `"${g.id}" is already the id of another graph — a graph id names one sheet`);
     } else graphIds.add(g.id);
 
-    if (!prog.nodes[g.entry]) r.shape(`graphs[${gi}].entry`, `"${g.entry}" is not a node`);
+    if (!isNode(prog, g.entry)) r.shape(`graphs[${gi}].entry`, `"${g.entry}" is not a node`);
 
     /* Run names are unique per graph, not per file, so two graphs may each
      * have a happy path. */
     if (!Array.isArray(g.presets)) return r.shape(`graphs[${gi}].presets`, 'expected an array');
     if (!g.presets.length) return r.shape(`graphs[${gi}].presets`, 'state at least one run');
+    /* The shape document says run names are unique per graph, and until now
+     * nothing held it to that. A repeated name is not cosmetic: `--text <run>`
+     * resolves by name and takes the first match, so the second run becomes
+     * unreachable from the command line while still printing in the list of
+     * runs not shown. A file that offers a reader a run they cannot select is
+     * refused rather than shipped. Per graph, not per file — two graphs may
+     * each have a happy path. */
+    const runNames = new Set();
+    g.presets.forEach((p, i) => {
+      if (isObj(p) && typeof p.name === 'string') {
+        if (runNames.has(p.name)) r.shape(`graphs[${gi}].presets[${i}].name`, `"${p.name}" is already the name of a run in graph "${g.id}" — a repeated name cannot be selected by name`);
+        else runNames.add(p.name);
+      }
+    });
     g.presets.forEach((p, i) => {
       keys(r, `graphs[${gi}].presets[${i}]`, p, PRESET);
       if (!isObj(p) || !isObj(p.walk)) return;
@@ -391,7 +418,7 @@ function path(prog, gi, pi, r) {
         if (st.op === 'call' && m.to !== st.target) bad(i, `call to "${m.to}", but step ${m.at} targets "${st.target}"`);
         f.pc = m.next;
         f.callAt = m.at;
-        if (prog.nodes[m.to]) frames.push({ nodeId: m.to, pc: 0 });
+        if (isNode(prog, m.to)) frames.push({ nodeId: m.to, pc: 0 });
         else bad(i, `call to unknown node "${m.to}"`);
         break;
       case 'effect':
@@ -522,7 +549,7 @@ export function findings(prog) {
     for (const s of prog.nodes[id].steps || []) {
       if (s.op === 'throw') set.add(s.tag);
       for (const h of s.onError || []) set.add(h.tag);
-      if (s.op === 'call' && prog.nodes[s.target]) for (const t of tagsOf(s.target, seen)) set.add(t);
+      if (s.op === 'call' && isNode(prog, s.target)) for (const t of tagsOf(s.target, seen)) set.add(t);
     }
     return set;
   };

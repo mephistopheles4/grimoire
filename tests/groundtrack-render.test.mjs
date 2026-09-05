@@ -206,6 +206,17 @@ const cases = [
     for (const m of runs(p)[2].walk.steps) if (m.raised) m.raised.extra = 'not a field';
   }, /walk\.steps\[\d+\]\.raised: graph "greet", run "[^"]+", move \d+: unknown key "extra"/],
   ["a graph whose entry is not in the node map", p => { only(p).entry = 'nowhere'; }, /graphs\[0\]\.entry: "nowhere" is not a node/],
+  // The node map comes from JSON.parse, so it answers five names the author
+  // never wrote. Read as `!prog.nodes[id]`, every "is not a node" refusal
+  // stopped firing for them, and the fault reached the walk pass as a stack
+  // trace instead.
+  ['a graph entering at a node named after a prototype member', p => { only(p).entry = 'constructor'; }, /graphs\[0\]\.entry: "constructor" is not a node/],
+  ['a call targeting a node named after a prototype member', p => { p.nodes.greet.steps[1].target = 'toString'; }, /target "toString" is not a node/],
+  ['a layer entering at a node named after a prototype member', p => { p.layers.tests.entry = 'valueOf'; }, /layers\.tests\.entry: "valueOf" is not a node/],
+  // The shape document says run names are unique per graph. `--text <run>`
+  // resolves by name and takes the first match, so a repeated name leaves the
+  // second run unreachable while still printed in the runs-not-shown list.
+  ['two runs in one graph sharing a name', p => { runs(p)[1].name = runs(p)[0].name; }, /graphs\[0\]\.presets\[1\]\.name: "a known user" is already the name of a run in graph "greet"/],
   ['a graph id that is not plain', p => { only(p).id = 'first paint'; }, /graphs\[0\]\.id: "first paint" is not a plain letters-digits-and-hyphens id/],
   ['two graphs with one id', p => { p.graphs.push({ ...only(p) }); }, /graphs\[1\]\.id: "greet" is already the id of another graph/],
   ['an empty graphs list', p => { p.graphs = []; }, /graphs: state at least one graph/],
