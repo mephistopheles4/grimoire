@@ -443,6 +443,25 @@ test('the three groups a node sees are read off the change and the node map', ()
   assert.ok(!f.unaccounted.includes('packages/site/src/shelf/scene.ts'));
 });
 
+test('the second group is not empty while other nodes touch files', () => {
+  // A tripwire, and the shape of the bug it is set for matters more than the
+  // assertion. Once a file lists graphs there is no top-level `entry` — only a
+  // view of one graph has one — so a reader that narrows this group by what
+  // the entry reaches, handed the raw program, narrows it by `undefined` and
+  // gets nothing. The group renders empty, and empty is what a files tab looks
+  // like when a node touches nothing, so the page still reads as if it were
+  // telling the truth.
+  //
+  // The failure cannot be provoked here: nothing on this branch narrows the
+  // group, and the graphs shape does not exist yet. What can be held is the
+  // symptom, which is the same whatever causes it. The two `includes` above
+  // would also catch it, but they are asserting something else and would not
+  // survive a rewrite of that test with this property intact.
+  for (const [prog, id] of [[layered, 'bindSheet'], [layered, 'fibreMapFor'], [greet, 'greet']]) {
+    assert.ok(G.filesOf(prog, id).others.length > 0, id);
+  }
+});
+
 test('a file that states no changed files leaves nothing unaccounted for', () => {
   const bare = { ...layered };
   delete bare.files;
