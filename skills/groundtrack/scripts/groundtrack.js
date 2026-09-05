@@ -27,14 +27,37 @@ const Groundtrack = (() => {
 
   /* A node id reaches an HTML attribute, so it is validated rather than
    * escaped. render.mjs refuses a file whose ids do not match this, which is
-   * what makes an id a known-safe string by the time the page sees it. */
+   * what makes an id a known-safe string by the time the page sees it.
+   *
+   * That is a claim about attributes and about nothing else. See `bare` below:
+   * as an object key an id is as dangerous as any other author string, and
+   * this pattern is no defence at all. */
   const ID = /^[A-Za-z0-9][A-Za-z0-9-]*$/;
+
+  /** An object with no prototype, for any map keyed by text out of the file.
+   *
+   * **Nothing out of the file is safe as a key, ids included.** A plain `{}`
+   * inherits from `Object.prototype`, so a key nobody set still answers: the
+   * ID pattern above admits `constructor`, `toString`, `valueOf`,
+   * `hasOwnProperty` and `isPrototypeOf`, and tags, labels, paths, run names
+   * and layer tokens are not validated at all. Only `__proto__` is excluded,
+   * and only over its underscore.
+   *
+   * Read `t[k] || fallback` on such a table and the fallback never fires; read
+   * `t[k] === undefined` and the guard never fires. Neither throws where it
+   * happens, so the failure surfaces somewhere else — as a crash, or worse as a
+   * refusal naming the wrong thing. SECURITY.md carries the rule.
+   */
+  const bare = () => Object.create(null);
+
+  /** `bare()` seeded from entries, for the tables built in one go. */
+  const bareFrom = entries => Object.assign(bare(), Object.fromEntries(entries));
 
   /* -- reading the graph ---------------------------------------------------- */
 
   /** label -> step index, for one node. A label is a jump target and nothing else. */
   const labelsOf = node => {
-    const m = {};
+    const m = bare();
     (node.steps || []).forEach((s, i) => {
       if (s.label !== undefined) m[s.label] = i;
     });
@@ -68,16 +91,6 @@ const Groundtrack = (() => {
    * two reads worst-last.
    */
   const KINDS = ['retry', 'escape', 'die'];
-
-  /** An object with no prototype, for any map keyed by author text.
-   *
-   * A failure tag is a stranger's string and nothing constrains it — only a
-   * node id is validated, and even that admits `constructor` and `toString`.
-   * A plain object answers those with a function and a method, and the caller
-   * then asks that for its list of kinds. Files carrying such a tag rendered
-   * before the kind table existed, and have to keep rendering.
-   */
-  const bare = () => Object.create(null);
 
   /** tag -> the kinds the file gives it, in KINDS order.
    *
@@ -364,7 +377,7 @@ const Groundtrack = (() => {
 
   function layout(prog) {
     const ids = Object.keys(prog.nodes);
-    const depth = Object.fromEntries(ids.map(i => [i, 0]));
+    const depth = bareFrom(ids.map(i => [i, 0]));
     for (let k = 0; k < ids.length; k++) {
       for (const id of ids) for (const c of calleesOf(prog, id)) if (depth[c] < depth[id] + 1) depth[c] = depth[id] + 1;
     }
@@ -399,7 +412,7 @@ const Groundtrack = (() => {
      * shifts right by exactly the gap. A node no placed node calls keeps the
      * row's right edge. This is one pass with no search, not a layout engine,
      * and the first row is centred on the sheet as before. */
-    const pos = {};
+    const pos = bare();
     let y = PAD;
     let rightEdge = PAD;
     for (const d of Object.keys(rows).sort((a, b) => a - b)) {
@@ -412,13 +425,13 @@ const Groundtrack = (() => {
           x += W + GAP_X;
         }
       } else {
-        const asks = Object.fromEntries(row.map(id => [id, []]));
+        const asks = bareFrom(row.map(id => [id, []]));
         for (const c of ids) {
           if (!pos[c]) continue;
           const kids = calleesOf(prog, c).filter(k => asks[k]);
           kids.forEach((k, i) => asks[k].push(pos[c].x + (i - (kids.length - 1) / 2) * (W + GAP_X)));
         }
-        const want = {};
+        const want = bare();
         for (const id of row) want[id] = asks[id].length ? asks[id].reduce((s, v) => s + v, 0) / asks[id].length : Infinity;
         let x = PAD;
         for (const id of row.slice().sort((a, b) => want[a] - want[b] || row.indexOf(a) - row.indexOf(b))) {
@@ -670,6 +683,6 @@ const Groundtrack = (() => {
     return best;
   }
 
-  return { esc, ID, KINDS, labelsOf, callSites, calleesOf, effectsOf, failureKinds, tagFate, complexityOf, fold, back, cutEdges, layout, treeRows, unaccountedFiles, filesOf, fileTree, filesMarkup, suggestRun, renamedToken };
+  return { esc, ID, bare, KINDS, labelsOf, callSites, calleesOf, effectsOf, failureKinds, tagFate, complexityOf, fold, back, cutEdges, layout, treeRows, unaccountedFiles, filesOf, fileTree, filesMarkup, suggestRun, renamedToken };
 })();
 if (typeof module !== 'undefined') module.exports = Groundtrack;
