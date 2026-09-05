@@ -284,7 +284,9 @@ test('the kind table reads the throw steps and the raised moves of the whole fil
   // greet's lookupName throws NoSuchUser as an escape. Nothing throws
   // SendFailed anywhere; one walk raises it from an effect, as a retry. Both
   // reach the table, because both are what the file says.
-  assert.deepEqual(G.failureKinds(greet), { NoSuchUser: ['escape'], SendFailed: ['retry'] });
+  // Spread to compare, because the table has no prototype on purpose — see
+  // the tag named after a property of every object, below.
+  assert.deepEqual({ ...G.failureKinds(greet) }, { NoSuchUser: ['escape'], SendFailed: ['retry'] });
 });
 
 test('a tag the file gives no kind for is absent from the table, so the row prints bare', () => {
@@ -301,7 +303,7 @@ test('a handler is not a source of a kind', () => {
   const prog = JSON.parse(JSON.stringify(greet));
   prog.nodes.lookupName.steps = prog.nodes.lookupName.steps.filter(s => s.op !== 'throw');
   prog.presets = [];
-  assert.deepEqual(G.failureKinds(prog), {});
+  assert.deepEqual({ ...G.failureKinds(prog) }, {});
 });
 
 test('a throw move is not a source of a kind — the step it ran is', () => {
@@ -312,6 +314,27 @@ test('a throw move is not a source of a kind — the step it ran is', () => {
   const prog = JSON.parse(JSON.stringify(greet));
   for (const p of prog.presets) for (const m of p.walk.steps) if (m.k === 'throw') m.channel = 'die';
   assert.deepEqual(G.failureKinds(prog).NoSuchUser, ['escape']);
+});
+
+test('a tag named after a property of every object is still just a tag', () => {
+  // A failure tag is author text, and nothing validates it — only a node id is
+  // constrained. So the kind table is looked up by a stranger's string, and a
+  // plain object answers "constructor" and "toString" with something truthy
+  // that is not a list of kinds. A file with such a tag rendered before this
+  // table existed, and has to keep rendering.
+  const prog = JSON.parse(JSON.stringify(greet));
+  prog.nodes.greet.channels.E.push('constructor', 'toString', '__proto__');
+  const table = G.failureKinds(prog);
+  for (const tag of ['constructor', 'toString', '__proto__']) {
+    assert.equal(table[tag], undefined, `${tag} has no kind`);
+  }
+  const rows = G.treeRows(prog, runNamed(prog, 'a known user').walk);
+  const entry = rows.find(r => r.id === 'greet');
+  for (const tag of ['constructor', 'toString', '__proto__']) {
+    assert.equal(entry.kinds[tag], undefined, `${tag} carries no kind onto the row`);
+  }
+  // And the tags themselves are still on the row, to be printed bare.
+  assert.ok(entry.E.includes('constructor'));
 });
 
 test('a tag raised with two kinds keeps both, retry before escape before die', () => {
@@ -330,8 +353,8 @@ test('the tree row carries the kinds of the tags it prints, and nothing else', (
   const rows = G.treeRows(greet, runNamed(greet, 'a known user').walk);
   const entry = rows.find(r => r.id === 'greet');
   const callee = rows.find(r => r.id === 'lookupName');
-  assert.deepEqual(entry.kinds, { NoSuchUser: ['escape'], SendFailed: ['retry'] });
-  assert.deepEqual(callee.kinds, { NoSuchUser: ['escape'] });
+  assert.deepEqual({ ...entry.kinds }, { NoSuchUser: ['escape'], SendFailed: ['retry'] });
+  assert.deepEqual({ ...callee.kinds }, { NoSuchUser: ['escape'] });
   // The E channel is still the list of tags it always was.
   assert.deepEqual(callee.E, ['NoSuchUser']);
 });
@@ -345,6 +368,20 @@ test('a node throws a tag, catches it, or lets it pass up from beneath', () => {
   assert.deepEqual(G.tagFate(greet.nodes.greet, 'NoSuchUser'), { throws: false, catches: true });
   assert.deepEqual(G.tagFate(greet.nodes.lookupName, 'NoSuchUser'), { throws: true, catches: false });
   assert.deepEqual(G.tagFate(greet.nodes.greet, 'SendFailed'), { throws: false, catches: false });
+});
+
+test('a node that both throws a tag and catches it says both', () => {
+  // No shipped example holds one, and it is the case a two-way answer would
+  // get wrong: a node that raises a tag on one path and catches it on another
+  // is not "the thrower" and not "the catcher".
+  const node = {
+    steps: [
+      { op: 'call', target: 'x', onError: [{ tag: 'Wobble', goto: 'out' }] },
+      { op: 'throw', tag: 'Wobble', message: 'again', channel: 'retry' },
+      { op: 'return', expr: 'x', label: 'out' },
+    ],
+  };
+  assert.deepEqual(G.tagFate(node, 'Wobble'), { throws: true, catches: true });
 });
 
 /* -- which run the text suggests ------------------------------------------ */

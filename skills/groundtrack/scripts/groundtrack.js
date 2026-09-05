@@ -84,9 +84,18 @@ const Groundtrack = (() => {
    *
    * It is derived rather than declared for the same reason a cut edge is: a
    * second place to write the kind is a second place for it to be wrong.
+   *
+   * The table has no prototype, and neither does the copy a tree row carries.
+   * A failure tag is author text and nothing constrains it — only a node id is
+   * validated — so this map is read by a stranger's string. A plain object
+   * answers "constructor" with a function and "toString" with a method, and
+   * the caller would then ask that for its list of kinds. Such a file rendered
+   * before this table existed, and has to keep rendering.
    */
+  const bare = () => Object.create(null);
+
   function failureKinds(prog) {
-    const seen = {};
+    const seen = bare();
     const add = (tag, channel) => {
       if (tag === undefined || !KINDS.includes(channel)) return;
       (seen[tag] = seen[tag] || new Set()).add(channel);
@@ -99,7 +108,7 @@ const Groundtrack = (() => {
         if (m.k === 'effect' && m.raised) add(m.raised.tag, m.raised.channel);
       }
     }
-    const out = {};
+    const out = bare();
     for (const tag of Object.keys(seen)) out[tag] = KINDS.filter(k => seen[tag].has(k));
     return out;
   }
@@ -478,7 +487,7 @@ const Groundtrack = (() => {
         role: node.role,
         A: ch.A,
         E: (ch.E || []).slice(),
-        kinds: Object.fromEntries((ch.E || []).filter(t => kinds[t]).map(t => [t, kinds[t].slice()])),
+        kinds: (ch.E || []).reduce((m, t) => (kinds[t] ? ((m[t] = kinds[t].slice()), m) : m), bare()),
         R: (ch.R || []).slice(),
         rename: rename ? rename.slice() : null,
         site: site ? { label: site.label, aside: site.aside } : null,

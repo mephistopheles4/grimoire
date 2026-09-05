@@ -32,7 +32,10 @@ const NODE = ['name', 'role', 'loc', 'params', 'channels', 'steps', 'touches', '
 const FILE = ['path', 'change', 'why', 'adds', 'dels'];
 const PRESET = ['name', 'blurb', 'input', 'walk'];
 const CHANGE = ['new', 'edit', 'delete', 'forbidden'];
-const CHANNEL = ['retry', 'escape', 'die'];
+/* The three kinds a failure can be. Read from the module rather than written
+ * again here: the module orders a tag's kinds by this list, and a second copy
+ * that drifted would refuse a channel the page then printed. */
+const CHANNEL = Groundtrack.KINDS;
 
 const STEP = {
   note: { req: ['note'], opt: [] },

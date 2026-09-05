@@ -309,6 +309,20 @@ test('a tag the file gives no kind for prints bare', () => {
   assert.match(r.stdout, /Ghost(?! (retry|escape|die))/);
 });
 
+test('a tag named after a property of every object prints, rather than crashing the renderer', () => {
+  // A failure tag is a stranger's text and nothing constrains it. Looking a
+  // kind up in a plain object answers "constructor" with a function, and the
+  // row then asks the function for its kinds. The tag has no kind, so it
+  // prints bare, exactly like any other tag the file says nothing about.
+  const file = derive(prog => {
+    prog.nodes.greet.channels.E.push('constructor', 'toString');
+  });
+  const r = run(groundtrack, [file, '--text']);
+  assert.equal(r.code, 0, r.stderr);
+  assert.match(r.stdout, /constructor(?! (retry|escape|die))/);
+  assert.equal(check(file).code, 0);
+});
+
 test('a tag raised with two kinds prints both, retry before escape before die', () => {
   // A tag that retries in one place and dies in another is two facts. The
   // second run is the first with its channel changed, so the file says both.
@@ -352,7 +366,10 @@ test('the page prints the failure kind beside the tag, and what the node does wi
   // — the alternative, a kind table baked into the page by the renderer, would
   // be a second copy of a fact the module already computes.
   const html = pageOf(exampleFlightpath);
-  assert.match(html, /function failureKinds\(prog\)/);
+  // The page derives the table for itself. A table the renderer had computed
+  // and baked in would be a second copy of a fact the module already holds.
+  assert.match(html, /G\.failureKinds\(/);
+  assert.doesNotMatch(html, /"failureKinds":/);
   // The tree row and the contract tab both read it, and neither writes it.
   assert.match(html, /row\.kinds/);
   assert.match(html, /G\.tagFate\(/);

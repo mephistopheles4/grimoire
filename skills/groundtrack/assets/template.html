@@ -587,10 +587,11 @@ function start() {
   const LAYOUT = G.layout(PROG);
   const layerNames = Object.keys(PROG.layers || {});
   const CUTS = G.cutEdges(PROG);
-  /* tag -> kind, for the whole file, derived once. The tree rows carry their
-     own copy of the same table; this is the contract tab's, which asks about
-     one node's tags rather than a row's. */
-  const KINDS = G.failureKinds(PROG);
+  /* tag -> its kinds, for the whole file. Named apart from the module's KINDS,
+     which is the list of the three kinds themselves. The contract tab asks
+     this about one node's declared tags; a tree row is handed the same
+     derivation by treeRows. One function, so the two cannot disagree. */
+  const TAG_KINDS = G.failureKinds(PROG);
 
   const S = {
     run: 0,
@@ -676,8 +677,13 @@ function start() {
      escaped; the kind is one of three words the file never writes, so it is a
      mark. A tag the file gives no kind for prints bare — the page invents
      nothing — and one given two prints both, worst last. */
-  const eTag = (kinds, tag) =>
-    esc(tag) + ((kinds || {})[tag] ? ' <span class="ekind">' + kinds[tag].join(' ') + '</span>' : '');
+  const eTag = function (kinds, tag) {
+    /* Indexed only when the table is there. A tag is a stranger's string, and
+       an empty object literal standing in for a missing table would answer
+       "constructor" with a function. */
+    const k = kinds && kinds[tag];
+    return esc(tag) + (k ? ' <span class="ekind">' + k.join(' ') + '</span>' : '');
+  };
 
   function nodeBox(id, st, reach) {
     const n = PROG.nodes[id];
@@ -894,7 +900,7 @@ function start() {
       : f.throws ? 'throws'
         : f.catches ? 'catches'
           : 'passes up from beneath';
-    return '<div class="etag">' + eTag(KINDS, tag) + ' <span class="efate">' + fate + '</span></div>';
+    return '<div class="etag">' + eTag(TAG_KINDS, tag) + ' <span class="efate">' + fate + '</span></div>';
   }
 
   function drawContract() {

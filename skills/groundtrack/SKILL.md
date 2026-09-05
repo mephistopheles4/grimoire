@@ -180,8 +180,8 @@ in a plain text fence.
 
 - **One row is a call site**, not a node. A node called twice appears twice.
 - **A repeated node is marked and stopped**, or a cycle never terminates.
-- **Every E tag carries its failure kind**, derived from the file and never
-  written in it. A tag the file gives no kind for prints bare.
+- **Every E tag on a row carries its failure kind**, derived from the file and
+  never written in it. A tag the file gives no kind for prints bare.
 - **Suggest the longest walk.** It is the only rule that names exactly one run
   in every worked example, with no tie.
 - **List every run you did not print**, by name, with the blurb its author
