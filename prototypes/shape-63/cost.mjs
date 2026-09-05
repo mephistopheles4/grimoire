@@ -110,12 +110,13 @@ function requiredFields(src) {
   };
 }
 
+/* The helper definitions inside `refusals()` are `shape:` and `walk:` object
+ * properties, not `r.shape(` calls, so they are not matched and nothing needs
+ * subtracting. */
 const refusalKinds = (src) =>
   (src.match(/\br\.shape\(/g) ?? []).length +
   (src.match(/\br\.walk\(/g) ?? []).length +
-  (src.match(/(?<![.\w])bad\(/g) ?? []).length -
-  /* the two helper definitions inside `refusals()` are not call sites */
-  0;
+  (src.match(/(?<![.\w])bad\(/g) ?? []).length;
 
 function measure(rev) {
   const doc = show(rev, DOC);

@@ -425,32 +425,46 @@ function main() {
       `; new task: ${fresh.filter((r) => r.firstAttemptValid).length}/${fresh.length}`,
   );
 
+  /* Each rule's verdict is decided ONCE, here, and both the printed row and
+   * the final verdict read the same boolean. Writing a threshold twice — once
+   * to print and once to decide — is how a table comes to say PASS above a
+   * line that says FAIL, and the whole "#61 may merge" call rests on this
+   * output. */
+  const BAR = [
+    {
+      group: "migrated",
+      label: "migrated · convergence",
+      pass: mConverged.length >= 8,
+      text: `${mConverged.length}/${migrated.length} reached a clean checker within ${CAP} passes (needs ≥ 8 of 9)`,
+    },
+    {
+      group: "migrated",
+      label: "migrated · median passes",
+      pass: mMedian !== null && mMedian <= 2,
+      text: `median ${mMedian ?? "—"} passes to green (needs ≤ 2)`,
+    },
+    {
+      group: "migrated",
+      label: "migrated · fidelity",
+      pass: mFaithful.length >= 7,
+      text: `${mFaithful.length}/${migrated.length} are valid AND carry zero critical fidelity misses (needs ≥ 7 of 9)`,
+    },
+    {
+      group: "new",
+      label: "new task · convergence",
+      pass: fConverged.length >= 2,
+      text: `${fConverged.length}/${fresh.length} reached a clean checker within ${CAP} passes (needs ≥ 2 of 3)`,
+    },
+    {
+      group: "new",
+      label: "new task · the shared node is defined once",
+      pass: fShared.length >= 2,
+      text: `${fShared.length}/${fresh.length} converged runs define the shared symbol once (needs ≥ 2 of 3)`,
+    },
+  ];
+
   console.log(`\nTHE PRE-REGISTERED BAR (PREREG-63.md)`);
-  rule(
-    "migrated · convergence",
-    mConverged.length >= 8,
-    `${mConverged.length}/${migrated.length} reached a clean checker within ${CAP} passes (needs ≥ 8 of 9)`,
-  );
-  rule(
-    "migrated · median passes",
-    mMedian !== null && mMedian <= 2,
-    `median ${mMedian ?? "—"} passes to green (needs ≤ 2)`,
-  );
-  rule(
-    "migrated · fidelity",
-    mFaithful.length >= 7,
-    `${mFaithful.length}/${migrated.length} are valid AND carry zero critical fidelity misses (needs ≥ 7 of 9)`,
-  );
-  rule(
-    "new task · convergence",
-    fConverged.length >= 2,
-    `${fConverged.length}/${fresh.length} reached a clean checker within ${CAP} passes (needs ≥ 2 of 3)`,
-  );
-  rule(
-    "new task · the shared node is defined once",
-    fShared.length >= 2,
-    `${fShared.length}/${fresh.length} converged runs define the shared symbol once (needs ≥ 2 of 3)`,
-  );
+  for (const b of BAR) rule(b.label, b.pass, b.text);
 
   console.log(`\nTHE NEW TASK, MEASURED (reported alongside the bar)`);
   for (const r of fresh) {
@@ -479,9 +493,8 @@ function main() {
         : ""),
   );
 
-  const migratedPass =
-    mConverged.length >= 8 && mMedian !== null && mMedian <= 2 && mFaithful.length >= 7;
-  const newPass = fConverged.length >= 2 && fShared.length >= 2;
+  const migratedPass = BAR.filter((b) => b.group === "migrated").every((b) => b.pass);
+  const newPass = BAR.filter((b) => b.group === "new").every((b) => b.pass);
 
   console.log(
     `\nVERDICT: migrated ${migratedPass ? "PASS" : "FAIL"}, new task ${
