@@ -26,6 +26,7 @@ one task file, and `render.mjs --check`.
 | `loop-report.mjs` | Scores a round of write-validate-fix runs against the pre-registered bar. |
 | `discriminates.mjs` | Shows that the new task really does separate the per-graph and change-wide readings of the unaccounted finding. |
 | `inspect.mjs` | Prints a file's returns, throws and E channels, for diagnosing a fidelity miss. |
+| `ship-check.mjs` | **Run this before #58 ships.** Does round six still stand at the shipping commit, or must it be re-run? |
 | `cost.mjs` | The authoring-cost numbers, before and after. Reported, never gated. |
 | `runs-loop63/` | Eval output. Every attempt and every checker output. |
 | `report-as-run.txt`, `report-corrected.txt` | The round scored under the rubric reader that ran, and under the corrected one. The verdict differs; RESULTS says why. |
@@ -53,7 +54,37 @@ node loop-report.mjs runs-loop63 --detail
 
 # what the new shape costs an author
 node cost.mjs
+
+# before #58 ships: does the round still stand at the shipping commit?
+node ship-check.mjs origin/main
 ```
+
+## Before #58 ships
+
+#63 gated #61, and that is done. #58 asks for something wider — *"The eval is
+re-run, on the same procedure, before this ships"* — and #58 does not ship until
+#62 lands as well. Between the round and the ship, the thing the round measured
+can move.
+
+**A second nine-run round is only owed if it did move.** The round measured two
+surfaces and nothing else: the shape document, which is what an agent reads, and
+the validator's rules, which are what it fixes against. A change that leaves
+both alone cannot have changed how hard the file is to author.
+
+`ship-check.mjs` decides which, and refuses to guess:
+
+```powershell
+node ship-check.mjs <the-commit-that-would-ship>
+```
+
+Exit zero means the round carries and its numbers still describe the shape that
+is shipping. Non-zero means re-run it.
+
+The validator is compared by **behaviour, not by diff**, because a diff cannot
+tell a rule change from a refactor. Round six's own rebase moved `render.mjs` by
+thirteen lines and changed no verdict on any of the round's attempt files; a
+diff would have called that a change. Both validators are run over every attempt
+file of the round instead, which is the widest corpus of wrong files available.
 
 ## Run the eval on another agent
 

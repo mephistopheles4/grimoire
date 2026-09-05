@@ -301,6 +301,33 @@ Restructuring is an ordinary fix, not a deletion.
 **A pass ships.** On the corrected instrument, every rule passes and **#61 may
 merge**. Neither the container row nor the node-map row of the box is reopened.
 
+### One thing this round does not settle: #62
+
+#63 gates #61, and that is what the numbers above do. But #58 asks for more —
+*"The eval is re-run, on the same procedure, before this ships"* — and #58 does
+not ship until #62 lands too. This round was taken against #61's branch, before
+#62 existed, so there is a window between the measurement and the ship.
+
+**That does not automatically owe a second round.** The round measured exactly
+two surfaces: the shape document, which is what an agent reads before it writes,
+and the validator's rules, which are what it fixes against. #62 is page work —
+a sheet picker, per-sheet state, a second graph on a shipped example — so it
+very likely touches neither. But "very likely" is not evidence, and this round's
+own rebase is the reason to distrust it: `render.mjs` moved thirteen lines and
+changed nothing, which a diff would have called a change.
+
+So the question is settled the way the rebase was, by running both validators
+over every attempt file of the round:
+
+```powershell
+node ship-check.mjs <the-commit-that-would-ship>
+```
+
+Exit zero means neither surface has moved and this round's numbers still
+describe the shape that is shipping. Non-zero means re-run the round. Against
+#61's tip it exits zero on all 31 attempt files; against `main`, which still
+carries the old shape, it refuses on both surfaces. **Run it before #58 ships.**
+
 The one thing this round found that is worth acting on is not a reason to hold
 #61: the write-validate-fix procedure stops at a clean checker and steps over
 findings, and on the new task a finding named a real fidelity miss that the
