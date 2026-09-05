@@ -456,7 +456,11 @@ test('the second group is not empty while other nodes touch files', () => {
   // group, and the graphs shape does not exist yet. What can be held is the
   // symptom, which is the same whatever causes it. The two `includes` above
   // would also catch it, but they are asserting something else and would not
-  // survive a rewrite of that test with this property intact.
+  // survive a rewrite of that test with this property intact. They were
+  // written the same day as this one, which is the point rather than a
+  // mitigation: a test acquires an unnamed load-bearing assertion as soon as
+  // it is written, not once it has aged into folklore, and the next person to
+  // tidy it drops the property with a green suite.
   for (const [prog, id] of [[layered, 'bindSheet'], [layered, 'fibreMapFor'], [greet, 'greet']]) {
     assert.ok(G.filesOf(prog, id).others.length > 0, id);
   }
