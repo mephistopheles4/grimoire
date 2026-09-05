@@ -1,6 +1,7 @@
 THE THREE MIGRATED TASKS — the baseline round five set
 
 RUN            PASSES  GREEN  ERRORS BY PASS      SIZE 1 → FINAL                     FIDELITY
+t1-haiku-1     1       1      0                   3n/1g/2r/19s/34m → 3n/1g/2r/19s/34m  0→0 crit (21/21)
 t1-haiku-2     2       2      7 → 0               3n/1g/2r/17s/31m → 3n/1g/2r/17s/30m  (count↓)  0→0 crit (21/21)
 t1-haiku-3     2       2      0 → 0               3n/1g/2r/16s/34m → 3n/1g/2r/16s/34m  0→0 crit (21/21)
 t2-haiku-1     1       1      0                   4n/1g/2r/24s/54m → 4n/1g/2r/24s/54m  0→0 crit (25/25)
@@ -30,7 +31,7 @@ t4-haiku-3     4       4      1 → 2 → 30 → 0      5n/0g/0r/35s/0m → 5n/2
 VOID — ran the wrong validator, so these measured `main` and not the shape under test
 
 RUN            PASSES  GREEN  ERRORS BY PASS      SIZE 1 → FINAL                     FIDELITY
-t1-haiku-1     4       no     1 → 1 → 1 → 1       3n/0g/0r/17s/0m → 3n/0g/0r/18s/0m  6→6 crit (15/21)
+t1-haiku-1-void 4       no     1 → 1 → 1 → 1       3n/0g/0r/17s/0m → 3n/0g/0r/18s/0m  6→6 crit (15/21)
                 X VOID — a check file here came from the OLD validator (its ok line carries no graph count), so this run's loop never met the shape under test
                 ? attempt-1.json: its check file says 16 refusal(s); the pinned validator scores 1 — the saved output was not produced from the saved file
                 ? attempt-2.json: its check file says 6 refusal(s); the pinned validator scores 1 — the saved output was not produced from the saved file
@@ -46,12 +47,12 @@ t1-haiku-1     4       no     1 → 1 → 1 → 1       3n/0g/0r/17s/0m → 3n/0
                 · attempt-4.json: file: this is the old one-graph shape. A file now states one change and lists its graphs: move "entry" and "presets" into an entry of a "graphs" array, giving that graph its own id, title and blurb. The change facts — id, title, blurb, env, files, layers, sheet — and the one node map stay at the top level.
 
 FIRST ATTEMPT (reported, not gated)
-  migrated: 3/8 valid with no fix at all; new task: 1/3
+  migrated: 4/9 valid with no fix at all; new task: 1/3
 
 THE PRE-REGISTERED BAR (PREREG-63.md)
-  PASS  migrated · convergence — 8/8 reached a clean checker within 5 passes (needs ≥ 8 of 9)
+  PASS  migrated · convergence — 9/9 reached a clean checker within 5 passes (needs ≥ 8 of 9)
   PASS  migrated · median passes — median 2 passes to green (needs ≤ 2)
-  PASS  migrated · fidelity — 8/8 are valid AND carry zero critical fidelity misses (needs ≥ 7 of 9)
+  PASS  migrated · fidelity — 9/9 are valid AND carry zero critical fidelity misses (needs ≥ 7 of 9)
   PASS  new task · convergence — 3/3 reached a clean checker within 5 passes (needs ≥ 2 of 3)
   PASS  new task · the shared node is defined once — 3/3 converged runs define the shared symbol once (needs ≥ 2 of 3)
 
@@ -64,4 +65,4 @@ SHRINK TO GREEN (reported; #63's bar does not gate on it)
   0 green run(s) lost a node, a graph, a run or a required move; 3 had a raw count fall while losing nothing required
 
 VERDICT: migrated PASS, new task PASS — #61 may merge.
-Passes to green, migrated: 2, 2, 1, 1, 1, 3, 5, 4 (median 2)
+Passes to green, migrated: 1, 2, 2, 1, 1, 1, 3, 5, 4 (median 2)
