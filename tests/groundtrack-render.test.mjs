@@ -224,6 +224,73 @@ test('a finding prints on standard output and the exit code stays zero', () => {
   assert.match(r.stdout, /no node accounts for /);
 });
 
+/* -- text out of the file is never safe as an object key -------------------
+ *
+ * Every fixture below uses the bare name as the whole value, and that is the
+ * whole trick: `src/constructor` and `constructor.ts` are ordinary keys and
+ * reproduce nothing. Only the exact prototype member does, so a fixture that
+ * decorates it passes while testing nothing.
+ */
+
+test('a node id named after a prototype member is a finding, not a stack trace', () => {
+  // `raisedInWalks` is keyed by node id, and `tagsOf` reads it as
+  // `raisedInWalks[id] || []`. On a plain object that read returns a function
+  // for a node called `constructor`, the fallback never fires, and `new Set`
+  // is handed something it cannot iterate — a stack trace where a finding
+  // belongs.
+  const file = derive(prog => {
+    prog.nodes.constructor = JSON.parse(JSON.stringify(prog.nodes.lookupName));
+    prog.nodes.constructor.name = 'constructor';
+    prog.nodes.constructor.touches = ['src/greet.ts'];
+  });
+  const r = check(file);
+  assert.equal(r.code, 0, `${r.stdout}${r.stderr}`);
+  assert.doesNotMatch(r.stderr, /TypeError|Cannot read|at Object|not iterable/);
+  // And the finding it was supposed to produce is there.
+  assert.match(r.stdout, /several nodes edit src\/greet\.ts/);
+});
+
+test('a goto to a label named after a prototype member is refused where the fault is', () => {
+  // The one that matters more than the crash. `labelsOf` builds the label
+  // table, and the caller refuses a jump when `L[s.to] === undefined`. On a
+  // plain object that test is false for `constructor`, so the refusal never
+  // fires and the fault surfaces two moves later as a walk that cannot make
+  // its own edge — the author is told their walk is wrong when their node is.
+  const at = p => { p.nodes.greet.steps[4].to = 'constructor'; };
+  const r = check(derive(at));
+  assert.equal(r.code, 1);
+  assert.match(r.stderr, /to "constructor" is not a label in greet/);
+  // Not the downstream symptom, and not twice.
+  assert.doesNotMatch(r.stderr, /no edge from/);
+
+  // The same mistake spelled anything else already read this way, and still
+  // does. This is the comparison that shows the two had diverged.
+  const plain = check(derive(p => { p.nodes.greet.steps[4].to = 'nowhere'; }));
+  assert.match(plain.stderr, /to "nowhere" is not a label in greet/);
+  // Normalised for the tag and for the fixture's own name, which differ by
+  // construction and are not what is under test.
+  const shape = (s, tag) => s.replace(tag, 'X').replace(/case-\d+/g, 'case-N');
+  assert.equal(
+    shape(r.stderr, /"constructor"/g),
+    shape(plain.stderr, /"nowhere"/g),
+    'the two spellings of one mistake are refused identically',
+  );
+});
+
+test('a changed file whose path is a prototype member keeps its own row', () => {
+  // `byPath` is keyed by the path. Read as `byPath[p] || {…}`, a plain object
+  // hands back the inherited member and the fallback never fires, so the row
+  // renders with an empty change kind and no counts.
+  const file = derive(prog => {
+    prog.files.push({ path: 'constructor', change: 'new', why: 'a path with nothing behind it', adds: 3, dels: 0 });
+    prog.nodes.greet.touches.push('constructor');
+  });
+  assert.equal(check(file).code, 0);
+  const html = pageOf(file);
+  assert.match(html, /G\.bare\(\)/, 'the page builds its path table with no prototype');
+  assert.doesNotMatch(html, /const byPath = \{\};/);
+});
+
 test('an E tag nothing beneath the node can produce is a finding', () => {
   const file = derive(prog => {
     prog.nodes.greet.channels.E.push('NeverRaised');

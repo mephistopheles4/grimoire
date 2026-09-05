@@ -58,6 +58,62 @@ test('the id pattern admits letters, digits and hyphens, and nothing else', () =
   }
 });
 
+/* -- nothing out of the file is safe as a key ----------------------------- */
+
+test('the id pattern is no defence against a prototype member', () => {
+  // The pattern is about HTML attributes and says nothing about object keys.
+  // Read as a guarantee of key safety — which is the reading that produced
+  // this bug — it admits five of them.
+  for (const name of ['constructor', 'toString', 'valueOf', 'hasOwnProperty', 'isPrototypeOf']) {
+    assert.ok(G.ID.test(name), `${name} is a legal id`);
+  }
+  assert.ok(!G.ID.test('__proto__'), 'only __proto__ fails, and only over the underscore');
+});
+
+test('bare tables answer an unset prototype member with undefined', () => {
+  const t = G.bare();
+  for (const name of ['constructor', 'toString', 'valueOf', 'hasOwnProperty', 'isPrototypeOf']) {
+    assert.equal(t[name], undefined, name);
+  }
+  // The property under test, stated as the two reads that actually break:
+  // a `|| fallback` that must fire, and an `=== undefined` guard that must.
+  assert.deepEqual(t.constructor || ['fallback'], ['fallback']);
+  assert.equal(t.toString === undefined, true);
+});
+
+test('a label named after a prototype member is not a label until a step carries it', () => {
+  // labelsOf feeds the jump check, which asks `L[s.to] === undefined`. On a
+  // plain object that is false for a label nobody declared, so the refusal
+  // that names the fault never fires.
+  const node = { steps: [{ op: 'note', note: 'x' }] };
+  assert.equal(G.labelsOf(node).constructor, undefined);
+  // And a step that does carry it still resolves.
+  const labelled = { steps: [{ op: 'note', note: 'x', label: 'constructor' }] };
+  assert.equal(G.labelsOf(labelled).constructor, 0);
+});
+
+test('the drawing places a node named after a prototype member', () => {
+  // Two of layout's tables are keyed by node id and read before every id is
+  // written. `pos[c]` reports an unplaced node as placed, and `asks[k]`
+  // answers with `Object.prototype.constructor` — a function, which is then
+  // asked to `push`. The whole drawing throws, so no page renders at all.
+  //
+  // The shape that reaches it: the node named `constructor` must have a
+  // callee in the row being placed, which needs a second caller giving that
+  // callee its depth. greet calls both, and constructor calls lookupName.
+  const prog = JSON.parse(JSON.stringify(greet));
+  prog.nodes.constructor = JSON.parse(JSON.stringify(prog.nodes.lookupName));
+  prog.nodes.greet.steps.push({ op: 'call', target: 'constructor', label: 'ctor' });
+  prog.nodes.constructor.steps.push({ op: 'call', target: 'lookupName', label: 'back' });
+
+  const out = G.layout(prog);
+  assert.ok(out.order.includes('constructor'), 'it is in the draw order');
+  for (const id of out.order) {
+    assert.ok(Number.isFinite(out.pos[id].x), `${id} has a real x, not NaN`);
+    assert.ok(Number.isFinite(out.pos[id].y), `${id} has a real y`);
+  }
+});
+
 /* -- the fold ------------------------------------------------------------- */
 
 test('the fold seeds the entry frame with the cursor at zero, before any move', () => {
