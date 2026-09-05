@@ -38,6 +38,60 @@ function derive(mutate) {
 
 const check = file => run(groundtrack, [file, '--check']);
 
+// The small example states one change and one graph, and every mutator below
+// reaches into that graph's runs. Named so the reshape reads as one thing
+// rather than as a hundred index changes.
+const only = prog => prog.graphs[0];
+const runs = prog => prog.graphs[0].presets;
+
+/**
+ * Give a derived program a second entry point, sharing the one node map.
+ *
+ * A change with two entry points is what the container exists for, and the
+ * small example has one. The second graph's run takes the first graph's name
+ * on purpose: uniqueness is per graph.
+ */
+function addSecondGraph(prog) {
+  prog.nodes.applyPanel = {
+    name: 'applyPanel',
+    role: 'handler',
+    loc: 'src/panel.ts:1',
+    params: [],
+    channels: { A: 'void', E: [], R: [] },
+    steps: [
+      { op: 'call', target: 'lookupName', args: { id: 'id' } },
+      { op: 'return', expr: 'undefined' },
+    ],
+    touches: ['src/panel.ts'],
+    enteredBy: [],
+  };
+  prog.graphs.push({
+    id: 'panel-apply',
+    title: 'apply the panel',
+    blurb: 'The second entry point of the same change. It reaches lookupName, which the first graph reaches too.',
+    entry: 'applyPanel',
+    presets: [
+      {
+        name: 'a known user',
+        blurb: 'The same run name as the first graph, which is legal: uniqueness is per graph.',
+        input: {},
+        walk: {
+          provenance: 'authored',
+          steps: [
+            { k: 'call', at: 0, to: 'lookupName', next: 1 },
+            { k: 'effect', at: 0, kind: 'db.get', desc: 'read the name row', next: 1, result: { displayName: 'Ada' } },
+            { k: 'if', at: 1, next: 2 },
+            { k: 'return', at: 2, value: 'Ada' },
+            { k: 'return', at: 1 },
+            { k: 'done' },
+          ],
+        },
+      },
+    ],
+  });
+  return prog;
+}
+
 /* -- the acceptance set --------------------------------------------------- */
 
 test('every shipped worked example validates', () => {
@@ -62,35 +116,62 @@ test('the two structural checks change the verdict on no shipped example', () =>
 
 /* -- what a refusal says -------------------------------------------------- */
 
-test('a refusal in a walk names the file, the run and the move', () => {
-  // A file and a reason, always. The run and the move as well when the fault
-  // is in a walk — that is what makes a refusal actionable there.
+test('a refusal in a walk names the path, then the graph, the run and the move', () => {
+  // Every refusal carries a path into the document, so a tool locates the
+  // fault without parsing prose. A walk refusal spells the same place out in
+  // words after it, because counting into two arrays is work a person should
+  // not have to do.
   // A tag cannot be uncaught while a frame it is passing through declares a
   // handler for it. In "no such user" the callee throws NoSuchUser, the callee
   // unwinds, and greet's call step catches it. Claim the error reached the top
   // instead, and the file contradicts itself: greet is still suspended at that
   // guarded call.
   const file = derive(prog => {
-    const w = prog.presets[1].walk.steps;
+    const w = runs(prog)[1].walk.steps;
     const at = w.findIndex(m => m.k === 'handled');
     w.splice(at, w.length - at, { k: 'uncaught', tag: 'NoSuchUser', message: 'no row', channel: 'escape' });
   });
   const r = check(file);
   assert.equal(r.code, 1, r.stdout);
-  assert.match(r.stderr, /case-\d+\.flightpath\.json \/ no such user \[\d+\] "NoSuchUser" is uncaught, but greet\[1\] declares onError for it/);
+  assert.match(
+    r.stderr,
+    /case-\d+\.flightpath\.json: graphs\[0\]\.presets\[1\]\.walk\.steps\[\d+\]: graph "greet", run "no such user", move \d+: "NoSuchUser" is uncaught, but greet\[1\] declares onError for it/,
+  );
 });
 
 test('a refusal in the file shape names a path into the document, and no run', () => {
   // A top-level unknown key is refused before a walk is read, so there is no
-  // run and no move to name. A contract demanding all four fields would be a
-  // contract this refusal could not satisfy.
+  // graph, no run and no move to name. A refusal that named one anyway would
+  // be naming something that does not exist.
   const file = derive(prog => {
     prog.presests = [];
   });
   const r = check(file);
   assert.equal(r.code, 1);
   assert.match(r.stderr, /: file: unknown key "presests"/);
-  assert.doesNotMatch(r.stderr, / \/ .* \[\d+\]/);
+  assert.doesNotMatch(r.stderr, /graph "|run "|move \d+/);
+});
+
+test('two graphs may share a run name, and a refusal names the second graph', () => {
+  // Uniqueness is per graph, so "a known user" can exist on each sheet. The
+  // two runs are then told apart by the graph, which is why the graph is in
+  // the words and not only in the path.
+  const clean = derive(addSecondGraph);
+  assert.equal(check(clean).code, 0, check(clean).stderr);
+
+  const file = derive(prog => {
+    addSecondGraph(prog);
+    prog.graphs[1].presets[0].walk.steps[0].to = 'greet'; // the step targets lookupName
+  });
+  const r = check(file);
+  assert.equal(r.code, 1);
+  assert.match(
+    r.stderr.split('\n')[0],
+    /graphs\[1\]\.presets\[0\]\.walk\.steps\[0\]: graph "panel-apply", run "a known user", move 0: call to "greet", but step 0 targets "lookupName"/,
+  );
+  // The first graph's identically named run is untouched, so nothing points at
+  // it. Only the graph tells the two apart.
+  assert.doesNotMatch(r.stderr, /graph "greet"/);
 });
 
 test('a refusal names the move that emptied the frame stack, not the first to notice', () => {
@@ -98,14 +179,14 @@ test('a refusal names the move that emptied the frame stack, not the first to no
   // blaming the checker — when the whole fault was one spurious unwind, a
   // single move earlier than the refusal pointed.
   const file = derive(prog => {
-    const walk = prog.presets[0].walk.steps;
+    const walk = runs(prog)[0].walk.steps;
     const i = walk.findIndex(m => m.k === 'return');
     walk.splice(i, 0, { k: 'unwind' }, { k: 'unwind' });
   });
   const r = check(file);
   assert.equal(r.code, 1);
   assert.match(r.stderr, /emptied the frame stack, and move \d+ \(\w+\) then ran with none open/);
-  const named = Number(/\[(\d+)\] \w+ emptied the frame stack, and move (\d+)/.exec(r.stderr)[1]);
+  const named = Number(/move (\d+): \w+ emptied the frame stack/.exec(r.stderr)[1]);
   const noticed = Number(/emptied the frame stack, and move (\d+)/.exec(r.stderr)[1]);
   assert.ok(named < noticed, 'the refusal blames the earlier move');
 });
@@ -113,53 +194,63 @@ test('a refusal names the move that emptied the frame stack, not the first to no
 /* -- one refusal per rule ------------------------------------------------- */
 
 const cases = [
-  ['a missing core field', p => delete p.entry, /file: missing required key "entry"/],
+  ['a missing core field', p => delete p.blurb, /file: missing required key "blurb"/],
+  ['a graph missing a core field', p => delete only(p).entry, /graphs\[0\]: missing required key "entry"/],
   ['an unknown key one letter from a real one', p => { p.nodes.greet.channles = {}; }, /nodes\.greet: unknown key "channles"/],
   ['an unknown key on a step', p => { p.nodes.greet.steps[0].notes = 'x'; }, /steps\[0\] \(note\): unknown key "notes"/],
-  ['an unknown key on a move', p => { p.presets[0].walk.steps[0].att = 0; }, /walk\.steps\[0\] \(note\): unknown key "att"/],
-  ['an entry that is not a node', p => { p.entry = 'nowhere'; }, /entry: "nowhere" is not a node/],
+  ['an unknown key on a move', p => { runs(p)[0].walk.steps[0].att = 0; }, /walk\.steps\[0\] \(note\): unknown key "att"/],
+  // Found while walking, so it names the graph, the run and the move like
+  // every other walk refusal. It reports through the shape helper, and once
+  // printed a path and went quiet about which run it was in.
+  ['an unknown key inside a raised', p => {
+    for (const m of runs(p)[2].walk.steps) if (m.raised) m.raised.extra = 'not a field';
+  }, /walk\.steps\[\d+\]\.raised: graph "greet", run "[^"]+", move \d+: unknown key "extra"/],
+  ["a graph whose entry is not in the node map", p => { only(p).entry = 'nowhere'; }, /graphs\[0\]\.entry: "nowhere" is not a node/],
+  ['a graph id that is not plain', p => { only(p).id = 'first paint'; }, /graphs\[0\]\.id: "first paint" is not a plain letters-digits-and-hyphens id/],
+  ['two graphs with one id', p => { p.graphs.push({ ...only(p) }); }, /graphs\[1\]\.id: "greet" is already the id of another graph/],
+  ['an empty graphs list', p => { p.graphs = []; }, /graphs: state at least one graph/],
   ['a node id that is not plain', p => { p.nodes['greet!'] = p.nodes.greet; }, /nodes\.greet!: a node id must be plain letters, digits and hyphens/],
   ['a call to a node that is not there', p => { p.nodes.greet.steps[1].target = 'missing'; }, /target "missing" is not a node/],
   ['a goto naming no label', p => { p.nodes.greet.steps[4].to = 'nowhere'; }, /to "nowhere" is not a label in greet/],
   ['a throw channel outside the three', p => { p.nodes.lookupName.steps[3].channel = 'panic'; }, /channel "panic" is not one of retry, escape, die/],
-  ['a provenance outside the two', p => { p.presets[0].walk.provenance = 'guessed'; }, /provenance: "guessed" is not authored or captured/],
+  ['a provenance outside the two', p => { runs(p)[0].walk.provenance = 'guessed'; }, /provenance: "guessed" is not authored or captured/],
   ['a layer naming a node that is not there', p => { p.layers.tests.nodes.absent = { R: ['x'] }; }, /layers\.tests\.nodes\.absent: is not a node/],
   ['an empty files list', p => { p.files = []; }, /files: state the changed files, or leave the key out/],
   ['an empty layer map', p => { p.layers = {}; }, /layers: state at least one layer, or leave the key out/],
-  ['a move kind that names no op', p => { p.presets[0].walk.steps[0].k = 'raise'; }, /k "raise" is not a move kind/],
-  ['a move whose kind is not the step it ran', p => { p.presets[0].walk.steps[0].k = 'let'; }, /a "let" move ran step 0, which is a "note"/],
-  ['an at that is not where the cursor sits', p => { p.presets[0].walk.steps[0].at = 1; }, /ran step 1, but the cursor sits at 0/],
-  ['a next the step cannot reach', p => { p.presets[0].walk.steps[0].next = 5; }, /no edge from 0 \(note\) to 5/],
-  ['a call whose target is not the step target', p => { p.presets[0].walk.steps[1].to = 'greet'; }, /call to "greet", but step 1 targets "lookupName"/],
+  ['a move kind that names no op', p => { runs(p)[0].walk.steps[0].k = 'raise'; }, /k "raise" is not a move kind/],
+  ['a move whose kind is not the step it ran', p => { runs(p)[0].walk.steps[0].k = 'let'; }, /a "let" move ran step 0, which is a "note"/],
+  ['an at that is not where the cursor sits', p => { runs(p)[0].walk.steps[0].at = 1; }, /ran step 1, but the cursor sits at 0/],
+  ['a next the step cannot reach', p => { runs(p)[0].walk.steps[0].next = 5; }, /no edge from 0 \(note\) to 5/],
+  ['a call whose target is not the step target', p => { runs(p)[0].walk.steps[1].to = 'greet'; }, /call to "greet", but step 1 targets "lookupName"/],
   ['an effect carrying next and raised at once', p => {
-    const m = p.presets[0].walk.steps.find(x => x.k === 'effect');
+    const m = runs(p)[0].walk.steps.find(x => x.k === 'effect');
     m.raised = { tag: 'X', message: 'y', channel: 'die' };
   }, /an effect carries next or raised, never both/],
   ['a handled catch its step does not declare', p => {
-    const m = p.presets[1].walk.steps.find(x => x.k === 'handled');
+    const m = runs(p)[1].walk.steps.find(x => x.k === 'handled');
     m.goto = 'named';
     m.next = 3;
   }, /its onError does not name "named"/],
   ['a nodes map that is a list', p => { p.nodes = []; }, /nodes: expected an object keyed by node id/],
   ['an unwind with no error travelling', p => {
-    const w = p.presets[0].walk.steps;
+    const w = runs(p)[0].walk.steps;
     w.splice(2, 0, { k: 'unwind' });
   }, /unwind with no error travelling/],
   ['an uncaught nothing raised', p => {
-    const w = p.presets[0].walk.steps;
+    const w = runs(p)[0].walk.steps;
     w.splice(w.length - 1, 1, { k: 'uncaught', tag: 'Invented', message: 'nothing raised this', channel: 'die' });
   }, /"Invented" reached the top uncaught, and no move before it raised anything/],
   ['an uncaught naming a tag other than the one travelling', p => {
-    const w = p.presets[2].walk.steps;
+    const w = runs(p)[2].walk.steps;
     w[w.length - 1].tag = 'SomethingElse';
   }, /"SomethingElse" reached the top, but the error travelling is "SendFailed"/],
   ['a handled that catches nothing', p => {
-    const w = p.presets[0].walk.steps;
+    const w = runs(p)[0].walk.steps;
     w.splice(2, 0, { k: 'handled', at: 1, goto: 'plain', next: 5 });
   }, /handled at 1 catches nothing — no move before it raised/],
   ['a handled whose goto is declared for another tag', p => {
     p.nodes.greet.steps[1].onError.push({ tag: 'Other', goto: 'named' });
-    const w = p.presets[1].walk.steps;
+    const w = runs(p)[1].walk.steps;
     const m = w.find(x => x.k === 'handled');
     m.goto = 'named';
     m.next = 3;
@@ -168,28 +259,28 @@ const cases = [
     // "no such user": the callee throws, its frame unwinds, and the caller
     // catches. Drop the catch and let the caller return instead, and the walk
     // has thrown an error away with no catch and no top.
-    const w = p.presets[1].walk.steps;
+    const w = runs(p)[1].walk.steps;
     const at = w.findIndex(x => x.k === 'handled');
     w.splice(at, 1);
   }, /ran while "NoSuchUser" was still travelling \(raised at move \d+\)/],
   ['a done that arrives while an error is travelling', p => {
-    const w = p.presets[2].walk.steps;
+    const w = runs(p)[2].walk.steps;
     w.splice(w.length - 1, 1, { k: 'done' });
   }, /done arrived while "SendFailed" was still travelling/],
   ['a walk that ends while an error is still travelling', p => {
     // The last move unwinds the last frame. No frame is open, so the
     // frames-still-open rule is content, and the error has nowhere left to go.
-    p.presets = [p.presets[2]];
-    const w = p.presets[0].walk.steps;
+    only(p).presets = [runs(p)[2]];
+    const w = runs(p)[0].walk.steps;
     w.splice(w.length - 1, 1, { k: 'unwind' });
   }, /the walk ended while "SendFailed" was still travelling/],
   ['a walk that ends with a frame open', p => {
     // Drop the entry frame's return and the done that followed it.
-    const w = p.presets[0].walk.steps;
+    const w = runs(p)[0].walk.steps;
     w.splice(w.length - 2, 2);
   }, /the walk ended with 1 frame\(s\) still open/],
   ['a done that arrives with a frame still open', p => {
-    const w = p.presets[0].walk.steps;
+    const w = runs(p)[0].walk.steps;
     w.splice(w.length - 2, 1);
   }, /done arrived with 1 frame\(s\) still open/],
 ];
@@ -201,6 +292,33 @@ for (const [what, mutate, expected] of cases) {
     assert.match(r.stderr, expected);
   });
 }
+
+test('the old one-graph shape is refused, and the message names graphs', () => {
+  // A file states one change, not one graph. Accepting both shapes would be
+  // two ways to say one thing, so a stale file fails loudly rather than
+  // rendering half of what it means.
+  const file = derive(prog => {
+    prog.entry = prog.graphs[0].entry;
+    prog.presets = prog.graphs[0].presets;
+    delete prog.graphs;
+  });
+  const r = check(file);
+  assert.equal(r.code, 1);
+  assert.match(r.stderr, /file: this is the old one-graph shape/);
+  assert.match(r.stderr, /"graphs"/);
+  // One refusal, not a cascade: the fix is one reshape, and three lines
+  // describing the symptom help nobody.
+  assert.match(r.stderr, /: 1 refusal\(s\)/);
+});
+
+test('a file carrying only a top-level presets is refused the same way', () => {
+  const file = derive(prog => {
+    prog.presets = prog.graphs[0].presets;
+  });
+  const r = check(file);
+  assert.equal(r.code, 1);
+  assert.match(r.stderr, /this is the old one-graph shape/);
+});
 
 test('an absent optional field is not refused, and the empty one is', () => {
   // Leave a field out rather than write it empty. "files": [] claims a change
@@ -222,6 +340,32 @@ test('a finding prints on standard output and the exit code stays zero', () => {
   assert.equal(r.code, 0);
   assert.match(r.stdout, /several nodes edit /);
   assert.match(r.stdout, /no node accounts for /);
+});
+
+test("a node no graph's entry reaches is a finding, and the file still validates", () => {
+  // Legal, and worth seeing: a node the author wrote and has not connected yet
+  // is a work in progress, not a contradiction. Refusing it would refuse a
+  // file that says exactly what its author meant.
+  const file = derive(prog => {
+    prog.nodes.orphan = { ...JSON.parse(JSON.stringify(prog.nodes.lookupName)), name: 'orphan' };
+  });
+  const r = check(file);
+  assert.equal(r.code, 0, r.stderr);
+  assert.match(r.stdout, /no graph's entry reaches orphan, so no sheet draws it/);
+});
+
+test('the unaccounted-files finding reads every node of the change', () => {
+  // A file another graph covers is not reported. Per graph this finding was
+  // true of one sheet and silent about the rest, so a reader holding two files
+  // got two answers that did not add up.
+  const file = derive(prog => {
+    prog.files.push({ path: 'src/panel.ts', change: 'new', why: 'the second entry point', adds: 40, dels: 0 });
+    addSecondGraph(prog);
+  });
+  const r = check(file);
+  assert.equal(r.code, 0, r.stderr);
+  assert.doesNotMatch(r.stdout, /no node accounts for src\/panel\.ts/);
+  assert.doesNotMatch(r.stdout, /no graph's entry reaches/);
 });
 
 test('an E tag nothing beneath the node can produce is a finding', () => {
@@ -248,7 +392,7 @@ test('the text prints one row per call site and lists the runs it did not print'
 
 test('the text suggests the longest walk', () => {
   const prog = JSON.parse(readFileSync(layeredFlightpath, 'utf8'));
-  const longest = prog.presets.reduce((a, b) => (b.walk.steps.length > a.walk.steps.length ? b : a));
+  const longest = runs(prog).reduce((a, b) => (b.walk.steps.length > a.walk.steps.length ? b : a));
   const r = run(groundtrack, [layeredFlightpath, '--text']);
   assert.match(r.stdout, new RegExp(`run "${longest.name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}"`));
 });
@@ -263,6 +407,68 @@ test('a run the file has not got is refused by name', () => {
   const r = run(groundtrack, [layeredFlightpath, '--text', 'no such run']);
   assert.equal(r.code, 1);
   assert.match(r.stderr, /no run called "no such run"/);
+});
+
+test('a several-graph file without --graph lists the graphs and stops', () => {
+  // Nothing ranks the graphs and nothing suggests one. A change with two entry
+  // points has two starting points and no reason to prefer either, so the
+  // command says what there is and lets the reader choose.
+  const file = derive(addSecondGraph);
+  const r = run(groundtrack, [file, '--text']);
+  assert.equal(r.code, 1);
+  assert.match(r.stdout, /^greet {2}greet a user$/m);
+  assert.match(r.stdout, /^panel-apply {2}apply the panel$/m);
+  assert.match(r.stderr, /this file states 2 graphs\. Name one with --graph <id>/);
+  assert.doesNotMatch(r.stdout, /\[handler\]/, 'no tree was printed');
+});
+
+test('--graph names the graph that prints', () => {
+  const file = derive(addSecondGraph);
+  const r = run(groundtrack, [file, '--text', '--graph', 'panel-apply']);
+  assert.equal(r.code, 0, r.stderr);
+  assert.match(r.stdout, /^applyPanel {2}\[handler\]/m);
+  assert.doesNotMatch(r.stdout, /^greet {2}\[/m, 'the first graph is not on this sheet');
+});
+
+test('a graph the file has not got is refused by name', () => {
+  const file = derive(addSecondGraph);
+  const r = run(groundtrack, [file, '--text', '--graph', 'no-such-graph']);
+  assert.equal(r.code, 1);
+  assert.match(r.stderr, /no graph called "no-such-graph"\. This file has: "greet", "panel-apply"/);
+});
+
+test('a one-graph file needs no --graph, and takes one', () => {
+  const bare = run(groundtrack, [exampleFlightpath, '--text']);
+  const named = run(groundtrack, [exampleFlightpath, '--text', '--graph', 'greet']);
+  assert.equal(bare.code, 0);
+  assert.equal(named.code, 0, named.stderr);
+  assert.equal(bare.stdout, named.stdout);
+});
+
+test('--graph with no value, or followed by a flag, lands at the usage line', () => {
+  for (const args of [[exampleFlightpath, '--graph'], [exampleFlightpath, '--graph', '--check']]) {
+    const r = run(groundtrack, args);
+    assert.equal(r.code, 2);
+    assert.match(r.stderr, /^usage: node render\.mjs/m);
+  }
+});
+
+test('--graph is refused where nothing would read it, rather than ignored', () => {
+  // Accepted and discarded, --graph hands back a page for a graph the reader
+  // did not ask for, with exit 0 and nothing said. --check reads every graph
+  // of the change, and the page draws the first one until the picker lands, so
+  // neither has a graph to select.
+  const file = derive(addSecondGraph);
+  const out = join(work, `unread-${n++}.html`);
+  for (const args of [
+    [file, '--graph', 'panel-apply', '--check'],
+    [file, '--graph', 'panel-apply', '--out', out],
+  ]) {
+    const r = run(groundtrack, args);
+    assert.equal(r.code, 2, `expected a refusal, got:\n${r.stdout}${r.stderr}`);
+    assert.match(r.stderr, /--graph selects a graph to read, and only --text reads one/);
+  }
+  assert.ok(!existsSync(out), 'no page was written for a graph nothing would draw');
 });
 
 test('the end marks differ between runs, so choosing one changes what is read', () => {
@@ -327,12 +533,12 @@ test('a tag raised with two kinds prints both, retry before escape before die', 
   // A tag that retries in one place and dies in another is two facts. The
   // second run is the first with its channel changed, so the file says both.
   const file = derive(prog => {
-    const fails = prog.presets.find(p => p.walk.steps.some(m => m.k === 'effect' && m.raised));
+    const fails = runs(prog).find(p => p.walk.steps.some(m => m.k === 'effect' && m.raised));
     const dies = JSON.parse(JSON.stringify(fails));
     dies.name = 'the post dies';
     dies.blurb = 'the same failure, fatal';
     for (const m of dies.walk.steps) if (m.k === 'effect' && m.raised) m.raised.channel = 'die';
-    prog.presets.unshift(dies); // met first, and still printed last
+    runs(prog).unshift(dies); // met first, and still printed last
   });
   assert.equal(check(file).code, 0);
   const r = run(groundtrack, [file, '--text']);
@@ -379,6 +585,27 @@ test('the page prints the failure kind beside the tag, and what the node does wi
   for (const word of ['throws', 'catches', 'passes up from beneath']) {
     assert.ok(html.includes(word), `the contract tab can say "${word}"`);
   }
+});
+
+test('a one-graph file draws no sheet control', () => {
+  // A control that does nothing is worse than no control. The picker arrives
+  // with the sheets; until then a one-graph file must not grow one.
+  const html = pageOf(exampleFlightpath);
+  assert.doesNotMatch(html, /id="sheet"/);
+  assert.doesNotMatch(html, /data-sheet=/);
+});
+
+test('the page reads its graph through an accessor, not off the file root', () => {
+  // The prefactor the sheets ticket needs: which graph is on the sheet is one
+  // place to change, not fifteen reads scattered through the template. The
+  // property is that nothing under start() reaches for a graph's fields on the
+  // file root — which is what the next ticket relies on, and what a refactor
+  // must not undo. The accessor's own spelling is not pinned; pinning it would
+  // fail a rename that changed no behaviour.
+  const template = readFileSync(join(groundtrack, '..', '..', 'assets', 'template.html'), 'utf8');
+  const body = template.slice(template.indexOf('function start()'));
+  assert.doesNotMatch(body, /PROG\.presets/);
+  assert.doesNotMatch(body, /PROG\.entry/);
 });
 
 test('the page contains no dynamic code evaluation', () => {
@@ -463,6 +690,8 @@ test('author text reaches the page as text, in every field the page shows', () =
   const file = derive(prog => {
     prog.title = `T ${POISON}`;
     prog.blurb = `B ${POISON}`;
+    only(prog).title = `GT ${POISON}`; // a graph's title — the sheet picker's label
+    only(prog).blurb = `GB ${POISON}`;
     prog.nodes.greet.loc = POISON; // a node's location — a path or a URL
     prog.nodes.greet.name = `N ${POISON}`;
     prog.nodes.greet.role = `R ${POISON}`;
@@ -473,9 +702,9 @@ test('author text reaches the page as text, in every field the page shows', () =
     prog.nodes.greet.steps[1].aside = POISON; // a step remark
     prog.nodes.greet.steps[6].desc = POISON; // an effect description
     prog.nodes.lookupName.steps[3].message = POISON; // an error message
-    prog.presets[0].blurb = `RB ${POISON}`;
-    prog.presets[0].input[POISON] = 'a run input name is author-keyed too';
-    prog.presets[0].input.user = POISON; // a run input
+    runs(prog)[0].blurb = `RB ${POISON}`;
+    runs(prog)[0].input[POISON] = 'a run input name is author-keyed too';
+    runs(prog)[0].input.user = POISON; // a run input
     prog.layers.tests.nodes.lookupName = { R: [POISON] }; // a layer token
     prog.layers[`layer ${POISON}`] = { nodes: {} }; // and a layer name
     // A path with a separator in it, because the files tab splits on the

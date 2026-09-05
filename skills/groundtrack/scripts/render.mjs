@@ -6,6 +6,7 @@
 //     --check          validate; refusals on stderr, exit 1; findings on stdout
 //     --out <page>     write one self-contained HTML file
 //     --text [<run>]   print the tree to stdout
+//     --graph <id>     which graph of the change to read
 //
 // The validator below IS the format. No machine-readable schema file ships,
 // because a second artifact that can silently disagree with the first is not
@@ -26,8 +27,9 @@ const Groundtrack = require(resolve(here, 'groundtrack.js'));
 
 /* -- the shape, exactly as references/flightpath-file.md states it ---------- */
 
-const CORE = ['id', 'title', 'blurb', 'entry', 'env', 'nodes', 'presets'];
+const CORE = ['id', 'title', 'blurb', 'env', 'nodes', 'graphs'];
 const OPTIONAL = ['files', 'layers', 'sheet'];
+const GRAPH = ['id', 'title', 'blurb', 'entry', 'presets'];
 const NODE = ['name', 'role', 'loc', 'params', 'channels', 'steps', 'touches', 'enteredBy'];
 const FILE = ['path', 'change', 'why', 'adds', 'dels'];
 const PRESET = ['name', 'blurb', 'input', 'walk'];
@@ -72,11 +74,15 @@ const isObj = v => v !== null && typeof v === 'object' && !Array.isArray(v);
 
 /* -- refusals -------------------------------------------------------------
  *
- * A refusal names the file and a reason, always. It names the run and the move
- * as well when the fault is in a walk, which is what makes it actionable
- * there. A fault in the file's shape has no run and no move to name — a
- * top-level unknown key and an empty optional list are both refused before a
- * walk is read — so those locate to a path into the document instead.
+ * Every refusal names the file and a path into the document, always. A tool
+ * locates the fault from the path without reading the prose.
+ *
+ * A refusal in a walk names the graph, the run and the move as words after the
+ * path, because counting into two arrays to find `graphs[1].presets[0]` is
+ * work a person should not have to do. A fault in the file's shape has no run
+ * and no move — a top-level unknown key and an empty optional list are both
+ * refused before a walk is read — so it prints the path alone rather than
+ * naming a run that does not exist.
  */
 function refusals(fileLabel) {
   const list = [];
@@ -84,8 +90,8 @@ function refusals(fileLabel) {
     list,
     /** A fault in the document's shape: a path into the file, and a reason. */
     shape: (path, why) => list.push(`${fileLabel}: ${path}: ${why}`),
-    /** A fault in a walk: the run, the move that caused it, and a reason. */
-    walk: (run, move, why) => list.push(`${fileLabel} / ${run} [${move}] ${why}`),
+    /** A fault in a walk: the path, then the graph, the run and the move by name. */
+    walk: (path, where, why) => list.push(`${fileLabel}: ${path}: ${where}: ${why}`),
   };
 }
 
@@ -105,6 +111,18 @@ function shape(prog, r) {
    * and reading `prog.nodes` off it threw a stack trace where a refusal
    * belongs. */
   if (!isObj(prog)) return r.shape('file', 'expected an object — this is valid JSON and is not a flightpath file');
+  /* The old one-graph shape, refused by name and refused first. Read through
+   * the ordinary key check it produces `unknown key "entry"` and `missing
+   * required key "graphs"` — two lines that describe the symptom and leave the
+   * author to work the cure out. The fix is one reshape, so this says it and
+   * stops rather than cascading. A file states one change and lists its
+   * graphs; accepting both shapes would be two ways to say one thing. */
+  if (prog.entry !== undefined || prog.presets !== undefined) {
+    return r.shape(
+      'file',
+      'this is the old one-graph shape. A file now states one change and lists its graphs: move "entry" and "presets" into an entry of a "graphs" array, giving that graph its own id, title and blurb. The change facts — id, title, blurb, env, files, layers, sheet — and the one node map stay at the top level.',
+    );
+  }
   keys(r, 'file', prog, CORE, OPTIONAL);
   /* Said out loud rather than returned from in silence. A `nodes` that is a
    * list or a null used to end this pass with no refusal about it, so the file
@@ -156,8 +174,6 @@ function shape(prog, r) {
       }
   }
 
-  if (!prog.nodes[prog.entry]) r.shape('entry', `"${prog.entry}" is not a node`);
-
   for (const [id, n] of Object.entries(prog.nodes)) {
     if (!Groundtrack.ID.test(id)) r.shape(`nodes.${id}`, 'a node id must be plain letters, digits and hyphens — it reaches the page as an attribute');
     keys(r, `nodes.${id}`, n, NODE);
@@ -195,20 +211,44 @@ function shape(prog, r) {
     });
   }
 
-  if (!Array.isArray(prog.presets)) return r.shape('presets', 'expected an array');
-  if (!prog.presets.length) return r.shape('presets', 'state at least one run');
-  prog.presets.forEach((p, i) => {
-    keys(r, `presets[${i}]`, p, PRESET);
-    if (!isObj(p) || !isObj(p.walk)) return;
-    keys(r, `presets[${i}].walk`, p.walk, ['provenance', 'steps']);
-    if (!['authored', 'captured'].includes(p.walk.provenance))
-      r.shape(`presets[${i}].walk.provenance`, `"${p.walk.provenance}" is not authored or captured`);
-    if (!Array.isArray(p.walk.steps)) return r.shape(`presets[${i}].walk.steps`, 'expected an array');
-    if (!p.walk.steps.length) r.shape(`presets[${i}].walk.steps`, 'a walk with no moves shows nothing');
-    p.walk.steps.forEach((m, j) => {
-      const w = `presets[${i}].walk.steps[${j}]`;
-      if (!isObj(m) || !MOVE[m.k]) return r.shape(w, `k "${m && m.k}" is not a move kind`);
-      keys(r, `${w} (${m.k})`, m, ['k', ...MOVE[m.k].req], MOVE[m.k].opt);
+  /* A graph is an entry point and the runs from it. Nothing else: the nodes,
+   * the layers and the ambient values belong to the change, so a symbol two
+   * graphs reach is defined once and a layer that renames a token renames it
+   * on every sheet. */
+  if (!Array.isArray(prog.graphs)) return r.shape('graphs', 'expected an array');
+  if (!prog.graphs.length) return r.shape('graphs', 'state at least one graph — a graph is an entry point and the runs from it');
+  const graphIds = new Set();
+  prog.graphs.forEach((g, gi) => {
+    keys(r, `graphs[${gi}]`, g, GRAPH);
+    if (!isObj(g)) return;
+
+    /* A graph id reaches the page as an attribute, the way a node id does, so
+     * it is validated rather than escaped. */
+    if (typeof g.id !== 'string' || !Groundtrack.ID.test(g.id)) {
+      r.shape(`graphs[${gi}].id`, `"${g.id}" is not a plain letters-digits-and-hyphens id`);
+    } else if (graphIds.has(g.id)) {
+      r.shape(`graphs[${gi}].id`, `"${g.id}" is already the id of another graph — a graph id names one sheet`);
+    } else graphIds.add(g.id);
+
+    if (!prog.nodes[g.entry]) r.shape(`graphs[${gi}].entry`, `"${g.entry}" is not a node`);
+
+    /* Run names are unique per graph, not per file, so two graphs may each
+     * have a happy path. */
+    if (!Array.isArray(g.presets)) return r.shape(`graphs[${gi}].presets`, 'expected an array');
+    if (!g.presets.length) return r.shape(`graphs[${gi}].presets`, 'state at least one run');
+    g.presets.forEach((p, i) => {
+      keys(r, `graphs[${gi}].presets[${i}]`, p, PRESET);
+      if (!isObj(p) || !isObj(p.walk)) return;
+      keys(r, `graphs[${gi}].presets[${i}].walk`, p.walk, ['provenance', 'steps']);
+      if (!['authored', 'captured'].includes(p.walk.provenance))
+        r.shape(`graphs[${gi}].presets[${i}].walk.provenance`, `"${p.walk.provenance}" is not authored or captured`);
+      if (!Array.isArray(p.walk.steps)) return r.shape(`graphs[${gi}].presets[${i}].walk.steps`, 'expected an array');
+      if (!p.walk.steps.length) r.shape(`graphs[${gi}].presets[${i}].walk.steps`, 'a walk with no moves shows nothing');
+      p.walk.steps.forEach((m, j) => {
+        const w = `graphs[${gi}].presets[${i}].walk.steps[${j}]`;
+        if (!isObj(m) || !MOVE[m.k]) return r.shape(w, `k "${m && m.k}" is not a move kind`);
+        keys(r, `${w} (${m.k})`, m, ['k', ...MOVE[m.k].req], MOVE[m.k].opt);
+      });
     });
   });
 }
@@ -219,14 +259,25 @@ function shape(prog, r) {
  * evaluates nothing: which branch an `if` took and what an effect returned are
  * the author's claims, and the skill says so rather than hiding it.
  */
-function path(prog, walk, runName, r) {
+function path(prog, gi, pi, r) {
+  const graph = prog.graphs[gi];
+  const { walk, name: runName } = graph.presets[pi];
   const labels = {};
   for (const [id, n] of Object.entries(prog.nodes)) labels[id] = Groundtrack.labelsOf(n);
   const frames = [];
-  const bad = (i, m) => r.walk(runName, i, m);
 
-  /* A walk begins in the entry node with the cursor at zero. No move says so. */
-  frames.push({ nodeId: prog.entry, pc: 0 });
+  /* Where a refusal points. The path locates the move for a tool; the names
+   * spell the same place out for a person. The two refusals that fire once the
+   * tape has run out index no move, so they point at the walk itself rather
+   * than at a step that is not there. */
+  const base = `graphs[${gi}].presets[${pi}]`;
+  const where = `graph "${graph.id}", run "${runName}"`;
+  const pathAt = i => (i >= walk.steps.length ? `${base}.walk` : `${base}.walk.steps[${i}]`);
+  const wordsAt = i => (i >= walk.steps.length ? `${where}, at the end of the walk` : `${where}, move ${i}`);
+  const bad = (i, m) => r.walk(pathAt(i), wordsAt(i), m);
+
+  /* A walk begins at its graph's entry with the cursor at zero. No move says so. */
+  frames.push({ nodeId: graph.entry, pc: 0 });
 
   /* The move that emptied the frame stack, not the first move to notice. One
    * measured run went 34 -> 36 -> 36 -> 36 errors and finished blaming the
@@ -346,7 +397,12 @@ function path(prog, walk, runName, r) {
         else if (m.next !== undefined) f.pc = m.next;
         else if (m.raised === undefined) bad(i, 'an effect carries next when it went on, or raised when it threw');
         else {
-          keys(r, `${runName} [${i}] raised`, m.raised, ['tag', 'message', 'channel']);
+          /* Found while walking, so it names the graph, the run and the move
+           * like every other walk refusal. `keys` reports through `shape`, so
+           * it is handed a reporter that routes to the walk form instead —
+           * otherwise this one fault, alone among the walk's, would print a
+           * path and go quiet about which run it is in. */
+          keys({ shape: (p, why) => r.walk(p, wordsAt(i), why) }, `${pathAt(i)}.raised`, m.raised, ['tag', 'message', 'channel']);
           if (isObj(m.raised) && !CHANNEL.includes(m.raised.channel))
             bad(i, `raised channel "${m.raised.channel}" is not one of ${CHANNEL.join(', ')}`);
           if (isObj(m.raised)) raised = { tag: m.raised.tag, from: i };
@@ -396,7 +452,9 @@ export function check(prog, fileLabel) {
   const r = refusals(fileLabel);
   shape(prog, r);
   if (r.list.length) return r.list; /* links are unreliable once the shape is wrong */
-  for (const p of prog.presets) path(prog, p.walk, p.name, r);
+  /* Each walk is validated against the graph it belongs to, entering at that
+   * graph's entry. Every rule below that is unchanged. */
+  prog.graphs.forEach((g, gi) => g.presets.forEach((_, pi) => path(prog, gi, pi, r)));
   return r.list;
 }
 
@@ -422,6 +480,15 @@ export function findings(prog) {
     if (ids.length > 1) out.push(`several nodes edit ${p}: ${ids.join(', ')}`);
   }
 
+  /* A node no graph's entry reaches. It is drawn by no sheet, so it is worth
+   * seeing — but it is legal, because a node the author has written and not
+   * yet connected is a work in progress and not a contradiction. */
+  const reached = new Set();
+  for (const g of prog.graphs) for (const id of Groundtrack.reachable(prog, g.entry)) reached.add(id);
+  for (const id of Object.keys(prog.nodes)) {
+    if (!reached.has(id)) out.push(`no graph's entry reaches ${id}, so no sheet draws it`);
+  }
+
   /* An E channel declaring a tag nothing beneath it can produce.
    *
    * A node produces a tag three ways: it throws it, a step of it declares a
@@ -432,12 +499,15 @@ export function findings(prog) {
    * which is most of them, and the finding would mean nothing.
    */
   const raisedInWalks = {};
-  for (const p of prog.presets || []) {
-    const states = Groundtrack.fold(prog, p.walk);
-    for (const l of states[states.length - 1].ledger) {
-      if (l.raised) (raisedInWalks[l.nodeId] = raisedInWalks[l.nodeId] || new Set()).add(l.raised.tag);
+  prog.graphs.forEach((g, gi) => {
+    const view = Groundtrack.graphView(prog, gi);
+    for (const p of g.presets) {
+      const states = Groundtrack.fold(view, p.walk);
+      for (const l of states[states.length - 1].ledger) {
+        if (l.raised) (raisedInWalks[l.nodeId] = raisedInWalks[l.nodeId] || new Set()).add(l.raised.tag);
+      }
     }
-  }
+  });
 
   const tagsOf = (id, seen = new Set()) => {
     if (seen.has(id)) return new Set();
@@ -477,13 +547,17 @@ export function findings(prog) {
  * twice. Without the run's end marks every run in a file prints the same text,
  * which would make the reader's choice of run change nothing.
  */
-export function text(prog, runIndex) {
-  const i = runIndex === undefined ? Groundtrack.suggestRun(prog) : runIndex;
-  const run = prog.presets[i];
-  const rows = Groundtrack.treeRows(prog, run.walk);
+export function text(prog, graphIndex, runIndex) {
+  const view = Groundtrack.graphView(prog, graphIndex);
+  const i = runIndex === undefined ? Groundtrack.suggestRun(view) : runIndex;
+  const run = view.presets[i];
+  const rows = Groundtrack.treeRows(view, run.walk);
   const L = [];
 
-  const kinds = [...new Set(prog.presets.map(p => p.walk.provenance))];
+  /* Read across the whole file, because the sentence says "in this file". A
+   * change whose first graph was written by hand and whose second was captured
+   * is mixed, and saying so on either sheet is the honest reading. */
+  const kinds = [...new Set(prog.graphs.flatMap(g => g.presets.map(p => p.walk.provenance)))];
   L.push(
     kinds.length === 1 && kinds[0] === 'captured'
       ? 'The walks in this file were captured from a real run.'
@@ -516,7 +590,7 @@ export function text(prog, runIndex) {
     for (const fx of row.effects) L.push(`${pad}   · ${fx.kind}  ${fx.desc} — ${fx.mark}`);
   }
 
-  const others = prog.presets.filter((_, j) => j !== i);
+  const others = view.presets.filter((_, j) => j !== i);
   if (others.length) {
     L.push('');
     L.push('other runs in this file:');
@@ -593,10 +667,11 @@ export function page(prog) {
 /* -- the command line ------------------------------------------------------ */
 
 const USAGE =
-  'usage: node render.mjs <topic>.flightpath.json [--check] [--out page.html] [--text [run]]\n' +
+  'usage: node render.mjs <topic>.flightpath.json [--check] [--out page.html] [--text [run]] [--graph <id>]\n' +
   '  --check        validate; refusals on stderr, exit 1; findings on stdout\n' +
   '  --out <page>   write one self-contained HTML file\n' +
-  '  --text [run]   print the tree to stdout for one run, by name or index';
+  '  --text [run]   print the tree to stdout for one run, by name or index\n' +
+  '  --graph <id>   which graph --text reads. Needed when the file states more than one';
 
 function main(argv) {
   const args = argv.slice(2);
@@ -613,12 +688,12 @@ function main(argv) {
     const i = args.indexOf(n);
     return i >= 0 ? args[i + 1] : undefined;
   };
-  const VALUED = ['--out', '--text'];
+  const VALUED = ['--out', '--text', '--graph'];
   /* A flag that takes a value has two ways to arrive without one: last on the
-   * line, or followed by another flag. --text's value is optional, so only
-   * --out is refused for a missing one. */
+   * line, or followed by another flag. --text's value is optional, so it is
+   * not refused for a missing one; --out and --graph are. */
   const missingValue = n => args.some((a, i) => a === n && (args[i + 1] === undefined || args[i + 1].startsWith('--')));
-  if (missingValue('--out')) usage();
+  if (missingValue('--out') || missingValue('--graph')) usage();
 
   const positional = args.filter((a, i) => !a.startsWith('--') && !VALUED.includes(args[i - 1]));
   if (positional.length !== 1) usage();
@@ -627,6 +702,7 @@ function main(argv) {
   const outPath = has('--out') ? valueOf('--out') : undefined;
   const wantText = has('--text');
   const runArg = wantText && valueOf('--text') !== undefined && !valueOf('--text').startsWith('--') ? valueOf('--text') : undefined;
+  const graphArg = has('--graph') ? valueOf('--graph') : undefined;
 
   let prog;
   try {
@@ -645,23 +721,61 @@ function main(argv) {
 
   const notes = findings(prog);
 
+  /* --graph picks which graph to read, and only --text reads one. --check
+   * validates every graph of the change, and the page embeds the whole file
+   * and draws the first graph until the sheet picker lands. Accepting the flag
+   * in either of those and quietly ignoring it would hand back a page for a
+   * graph the reader did not ask for, with exit 0 and nothing said — the
+   * silent wrong answer this validator exists to refuse. */
+  if (graphArg !== undefined && !wantText) {
+    console.error(
+      `${file}: --graph selects a graph to read, and only --text reads one. --check validates every graph of the change, and the page draws the change's first graph. Drop --graph, or add --text.`,
+    );
+    process.exit(2);
+  }
+
+  /* A graph the reader named, refused by name when the file has not got it. */
+  let graphIndex = 0;
+  if (graphArg !== undefined) {
+    graphIndex = prog.graphs.findIndex(g => g.id === graphArg);
+    if (graphIndex < 0) {
+      console.error(`${file}: no graph called "${graphArg}". This file has: ${prog.graphs.map(g => `"${g.id}"`).join(', ')}`);
+      process.exit(1);
+    }
+  }
+
   if (has('--check')) {
     for (const n of notes) console.log(n);
-    console.error(`ok: ${prog.title} — ${Object.keys(prog.nodes).length} node(s), ${prog.presets.length} run(s), ${notes.length} finding(s)`);
+    const runs = prog.graphs.reduce((s, g) => s + g.presets.length, 0);
+    console.error(
+      `ok: ${prog.title} — ${Object.keys(prog.nodes).length} node(s), ${prog.graphs.length} graph(s), ${runs} run(s), ${notes.length} finding(s)`,
+    );
     process.exit(0);
   }
 
   if (wantText) {
+    /* Nothing ranks the graphs and nothing suggests one. A change with two
+     * entry points has two starting points and no reason to prefer either, so
+     * the command says what there is and stops rather than picking. The same
+     * rule the skill already states for choosing a graph to draw. */
+    if (prog.graphs.length > 1 && graphArg === undefined) {
+      for (const g of prog.graphs) console.log(`${g.id}  ${g.title}`);
+      console.error(`${file}: this file states ${prog.graphs.length} graphs. Name one with --graph <id>; the ids are listed above.`);
+      process.exit(1);
+    }
+    const graph = prog.graphs[graphIndex];
     let index;
     if (runArg !== undefined) {
-      index = prog.presets.findIndex(p => p.name === runArg);
+      index = graph.presets.findIndex(p => p.name === runArg);
       if (index < 0 && /^\d+$/.test(runArg)) index = Number(runArg);
-      if (index < 0 || !prog.presets[index]) {
-        console.error(`${file}: no run called "${runArg}". This file has: ${prog.presets.map(p => `"${p.name}"`).join(', ')}`);
+      if (index < 0 || !graph.presets[index]) {
+        console.error(
+          `${file}: no run called "${runArg}" in graph "${graph.id}". That graph has: ${graph.presets.map(p => `"${p.name}"`).join(', ')}`,
+        );
         process.exit(1);
       }
     }
-    console.log(text(prog, index));
+    console.log(text(prog, graphIndex, index));
     process.exit(0);
   }
 

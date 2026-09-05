@@ -21,8 +21,14 @@ import { root, exampleFlightpath, layeredFlightpath } from './helpers.mjs';
 const require = createRequire(import.meta.url);
 const G = require(join(root, 'skills', 'groundtrack', 'scripts', 'groundtrack.js'));
 
-const greet = JSON.parse(readFileSync(exampleFlightpath, 'utf8'));
-const layered = JSON.parse(readFileSync(layeredFlightpath, 'utf8'));
+// A file states a change and lists its graphs. Everything below reads one
+// graph, so everything below reads a view: the change's node map with one
+// graph's entry and runs on it. That is the shape the fold, the tree and the
+// page all take, and it is why none of the tests under it had to change when
+// the container did.
+const view = (path, i = 0) => G.graphView(JSON.parse(readFileSync(path, 'utf8')), i);
+const greet = view(exampleFlightpath);
+const layered = view(layeredFlightpath);
 const runNamed = (prog, name) => prog.presets.find(p => p.name === name);
 
 /* -- the escape ----------------------------------------------------------- */
@@ -56,6 +62,46 @@ test('the id pattern admits letters, digits and hyphens, and nothing else', () =
   for (const no of ['', '-lead', 'has space', 'quote"', 'brack<et', 'under_score']) {
     assert.ok(!G.ID.test(no), no);
   }
+});
+
+/* -- one change, several graphs ------------------------------------------- */
+
+test('a view carries the change\'s node map with one graph\'s entry and runs', () => {
+  // The node map belongs to the change, so a symbol two graphs reach is
+  // defined once. What a view swaps is the entry and the runs, which is the
+  // whole of what a graph is.
+  const prog = JSON.parse(readFileSync(exampleFlightpath, 'utf8'));
+  const v = G.graphView(prog, 0);
+  assert.equal(v.entry, prog.graphs[0].entry);
+  assert.deepEqual(v.presets, prog.graphs[0].presets);
+  assert.deepEqual(Object.keys(v.nodes), Object.keys(prog.nodes));
+  assert.equal(v.graph.id, prog.graphs[0].id);
+});
+
+test('a view with no index is the first graph', () => {
+  const prog = JSON.parse(readFileSync(exampleFlightpath, 'utf8'));
+  assert.equal(G.graphView(prog).entry, G.graphView(prog, 0).entry);
+});
+
+test('what a graph draws is what its entry reaches through call edges', () => {
+  assert.deepEqual([...G.reachable(greet, 'greet')].sort(), ['greet', 'lookupName']);
+  // Enter at the callee and the caller is not in the drawing: a call edge runs
+  // one way.
+  assert.deepEqual([...G.reachable(greet, 'lookupName')], ['lookupName']);
+});
+
+test('a node two entries reach is in both drawings, and defined once', () => {
+  const prog = JSON.parse(readFileSync(layeredFlightpath, 'utf8'));
+  const first = G.reachable(prog, 'buildShelf');
+  const second = G.reachable(prog, 'bindSheet');
+  assert.ok(first.has('bindSheet') && second.has('bindSheet'));
+  assert.equal(Object.keys(prog.nodes).filter(id => id === 'bindSheet').length, 1);
+});
+
+test('reachability terminates on a cycle', () => {
+  const prog = JSON.parse(JSON.stringify(greet));
+  prog.nodes.lookupName.steps.push({ op: 'call', target: 'greet', label: 'again' });
+  assert.deepEqual([...G.reachable(prog, 'greet')].sort(), ['greet', 'lookupName']);
 });
 
 /* -- the fold ------------------------------------------------------------- */
@@ -306,6 +352,10 @@ test('a handler is not a source of a kind', () => {
   // tag has no kind left, however many handlers name it.
   const prog = JSON.parse(JSON.stringify(greet));
   prog.nodes.lookupName.steps = prog.nodes.lookupName.steps.filter(s => s.op !== 'throw');
+  // The kind is file-wide, so the walks are cleared where the file keeps them.
+  // Emptying the view's own `presets` would leave every graph's walks in place
+  // and the table would still find the raise.
+  for (const g of prog.graphs) g.presets = [];
   prog.presets = [];
   assert.deepEqual({ ...G.failureKinds(prog) }, {});
 });
@@ -318,6 +368,28 @@ test('a throw move is not a source of a kind — the step it ran is', () => {
   const prog = JSON.parse(JSON.stringify(greet));
   for (const p of prog.presets) for (const m of p.walk.steps) if (m.k === 'throw') m.channel = 'die';
   assert.deepEqual(G.failureKinds(prog).NoSuchUser, ['escape']);
+});
+
+test('a kind supplied only by another graph\'s walk still reaches this sheet', () => {
+  // The kind is file-wide, and this is the case that says so. Read per graph,
+  // a tag whose only `raised` lives in a walk of a graph you are not looking
+  // at loses its kind and prints bare — no error, no failing test, and
+  // invisible in every one-graph file that ships. The whole file is one
+  // change, so what the change says about a tag holds on every sheet of it.
+  const prog = JSON.parse(JSON.stringify(greet));
+  const fails = prog.graphs[0].presets.find(p => p.walk.steps.some(m => m.k === 'effect' && m.raised));
+  const dies = JSON.parse(JSON.stringify(fails));
+  for (const m of dies.walk.steps) if (m.k === 'effect' && m.raised) m.raised.channel = 'die';
+
+  // Move the fatal reading into a second graph, and leave the first with only
+  // the retry. Read file-wide the tag has both; read per graph it has one.
+  prog.graphs.push({ id: 'second', title: 'a second entry', blurb: 'b', entry: 'lookupName', presets: [dies] });
+  assert.deepEqual(G.failureKinds(prog).SendFailed, ['retry', 'die']);
+
+  // And a view of the *first* graph gives the same answer, which is the point:
+  // the reader on sheet one is told what the change knows, not what sheet one
+  // happens to contain.
+  assert.deepEqual(G.failureKinds(G.graphView(prog, 0)).SendFailed, ['retry', 'die']);
 });
 
 test('a tag named after a property of every object is still just a tag', () => {
@@ -349,7 +421,11 @@ test('a tag raised with two kinds keeps both, retry before escape before die', (
   const dies = JSON.parse(JSON.stringify(fails));
   dies.name = 'the post dies';
   for (const m of dies.walk.steps) if (m.k === 'effect' && m.raised) m.raised.channel = 'die';
-  prog.presets = [dies, fails]; // die met first; the order out is still retry, die
+  // Written to the graph, which is where the file keeps its walks and where
+  // the file-wide table reads them. Die is met first; the order out is still
+  // retry, die.
+  prog.graphs[0].presets = [dies, fails];
+  prog.presets = prog.graphs[0].presets;
   assert.deepEqual(G.failureKinds(prog).SendFailed, ['retry', 'die']);
 });
 
