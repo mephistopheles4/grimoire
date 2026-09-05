@@ -397,7 +397,12 @@ function path(prog, gi, pi, r) {
         else if (m.next !== undefined) f.pc = m.next;
         else if (m.raised === undefined) bad(i, 'an effect carries next when it went on, or raised when it threw');
         else {
-          keys(r, `${pathAt(i)}.raised`, m.raised, ['tag', 'message', 'channel']);
+          /* Found while walking, so it names the graph, the run and the move
+           * like every other walk refusal. `keys` reports through `shape`, so
+           * it is handed a reporter that routes to the walk form instead —
+           * otherwise this one fault, alone among the walk's, would print a
+           * path and go quiet about which run it is in. */
+          keys({ shape: (p, why) => r.walk(p, wordsAt(i), why) }, `${pathAt(i)}.raised`, m.raised, ['tag', 'message', 'channel']);
           if (isObj(m.raised) && !CHANNEL.includes(m.raised.channel))
             bad(i, `raised channel "${m.raised.channel}" is not one of ${CHANNEL.join(', ')}`);
           if (isObj(m.raised)) raised = { tag: m.raised.tag, from: i };
