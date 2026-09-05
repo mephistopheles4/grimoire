@@ -69,7 +69,17 @@ const Groundtrack = (() => {
    */
   const KINDS = ['retry', 'escape', 'die'];
 
-  /* tag -> the kinds the file gives it, in KINDS order.
+  /** An object with no prototype, for any map keyed by author text.
+   *
+   * A failure tag is a stranger's string and nothing constrains it — only a
+   * node id is validated, and even that admits `constructor` and `toString`.
+   * A plain object answers those with a function and a method, and the caller
+   * then asks that for its list of kinds. Files carrying such a tag rendered
+   * before the kind table existed, and have to keep rendering.
+   */
+  const bare = () => Object.create(null);
+
+  /** tag -> the kinds the file gives it, in KINDS order.
    *
    * Two sources, and only two: a `throw` step in the node map, and an effect
    * move that `raised` in a walk. Both name a channel, and between them they
@@ -84,16 +94,7 @@ const Groundtrack = (() => {
    *
    * It is derived rather than declared for the same reason a cut edge is: a
    * second place to write the kind is a second place for it to be wrong.
-   *
-   * The table has no prototype, and neither does the copy a tree row carries.
-   * A failure tag is author text and nothing constrains it — only a node id is
-   * validated — so this map is read by a stranger's string. A plain object
-   * answers "constructor" with a function and "toString" with a method, and
-   * the caller would then ask that for its list of kinds. Such a file rendered
-   * before this table existed, and has to keep rendering.
    */
-  const bare = () => Object.create(null);
-
   function failureKinds(prog) {
     const seen = bare();
     const add = (tag, channel) => {
