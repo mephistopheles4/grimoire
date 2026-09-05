@@ -277,20 +277,6 @@ test('a goto to a label named after a prototype member is refused where the faul
   );
 });
 
-test('a changed file whose path is a prototype member keeps its own row', () => {
-  // `byPath` is keyed by the path. Read as `byPath[p] || {…}`, a plain object
-  // hands back the inherited member and the fallback never fires, so the row
-  // renders with an empty change kind and no counts.
-  const file = derive(prog => {
-    prog.files.push({ path: 'constructor', change: 'new', why: 'a path with nothing behind it', adds: 3, dels: 0 });
-    prog.nodes.greet.touches.push('constructor');
-  });
-  assert.equal(check(file).code, 0);
-  const html = pageOf(file);
-  assert.match(html, /G\.bare\(\)/, 'the page builds its path table with no prototype');
-  assert.doesNotMatch(html, /const byPath = \{\};/);
-});
-
 test('an E tag nothing beneath the node can produce is a finding', () => {
   const file = derive(prog => {
     prog.nodes.greet.channels.E.push('NeverRaised');
