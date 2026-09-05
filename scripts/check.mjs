@@ -244,6 +244,47 @@ for (const e of readdirSync(join(root, 'skills'), { withFileTypes: true })) {
 // pull requests changed the skill under an unmoved 0.1.0 before this check
 // existed. The npx route resolves a git ref and was never affected, which is
 // what made the gap quiet.
+//
+// Two comparisons, because there are two ways to ship no update and the fix
+// for each one is different. The merge base answers "did this branch move the
+// version since it forked". The tip of the base branch answers "will merging
+// this move the released version", and those differ the moment a sibling lands
+// first. Both were true of #64 and #65: siblings forked from the same commit,
+// both bumped 0.9.2 to 0.9.3, #64 merged, and #65 then read a bump at its
+// merge base and passed a local run green against a main already at 0.9.3.
+// Merging it would have released one version for two skill changes. It was
+// caught by hand, and nothing in the repository required the rebase that fixed
+// it.
+//
+// Equality is the whole of the silent case. Two branches bumping to different
+// numbers conflict on the version line and GitHub refuses the merge out loud;
+// only the identical bump merges clean and says nothing.
+//
+// Where each comparison fires is not symmetrical, and saying so is the point.
+// On a pull request the runner checks out refs/pull/N/merge — this branch
+// already merged into the base tip — so the merge base is that tip, the two
+// questions collapse into one, and it is the first message that prints. Read
+// from the checkout step of a run on this repository: "HEAD is now at 3f5e7e7
+// Merge 2bca1a9 into a925af4". The second comparison is therefore for every
+// run where HEAD is the branch itself: a local check, and a merge ref that has
+// gone stale against the origin/main the job fetched.
+//
+// A local run also compares against the origin/main on disk, which is only as
+// current as the last fetch. `git fetch origin` first, or the comparison is
+// against a base that moved hours ago. CONTRIBUTING says so where the bump is
+// asked for.
+//
+// What neither comparison holds is a green earned before the sibling landed.
+// GitHub does not re-run a check when the base moves, so that pass stays on
+// the pull request and stays mergeable. "Require branches to be up to date
+// before merging" is what closes it, and it is a repository setting rather
+// than anything this file can assert. This rule holds the question. It does
+// not hold the whole guarantee on its own.
+//
+// The order matters as much as the pair. A branch that never bumped at all
+// fails both comparisons, and only the first is worth reading — "you never
+// bumped" is the smaller fact and the one to act on, and being told to rebase
+// would send the author somewhere else entirely.
 function git(...args) {
   try {
     return execFileSync('git', args, { cwd: root, stdio: ['ignore', 'pipe', 'ignore'] })
@@ -272,12 +313,29 @@ if (!mergeBase) {
     // from. This is the layout move itself. Say it rather than pass in silence.
     console.log('note: no plugin.json at the base commit — version bump check skipped');
   } else {
+    const files = touched.split('\n').length;
     const was = JSON.parse(before).version;
     if (was === plugin.version) {
-      const files = touched.split('\n').length;
       fail(
         `${files} skill file(s) changed since ${baseRef}, but version is still ${plugin.version} — plugin users receive no update`,
       );
+    } else {
+      // Read here and not beside `before`, because a branch that never moved
+      // the version asks the first question only and should spawn nothing for
+      // the second. The names say which end of the base branch each one came
+      // from: `was` is the fork point, this is the tip.
+      const atBaseTip = git('show', `${baseRef}:.claude-plugin/plugin.json`);
+      if (!atBaseTip) {
+        // The merge base carries a manifest and the tip of the base branch
+        // does not, which is the layout move landing the other way round. The
+        // first comparison still ran, so this is one comparison skipped and
+        // not the rule, and it says which.
+        console.log(`note: no plugin.json at the tip of ${baseRef} — the released-version comparison was skipped`);
+      } else if (JSON.parse(atBaseTip).version === plugin.version) {
+        fail(
+          `${files} skill file(s) changed since ${baseRef}, and the version moved to ${plugin.version}, but ${baseRef} is already at ${plugin.version} — something landed there after this branch forked, so plugin users receive no update. Rebase onto ${baseRef} and bump again.`,
+        );
+      }
     }
   }
 }

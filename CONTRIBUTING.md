@@ -172,7 +172,13 @@ or none.
    a gate that quietly does nothing reads as a gate that passed. A prose-only
    skill produces no artifact and needs no row.
 3. Bump `version` in `.claude-plugin/plugin.json`. The check fails without it,
-   because Claude Code ships an update only when that field moves.
+   because Claude Code ships an update only when that field moves. It also
+   fails when `main` already carries the version you bumped to, which is what
+   happens when a sibling branch lands first. Rebase and bump again.
+
+   That second comparison reads the `origin/main` on your disk, so run
+   `git fetch origin` first. Without it you are compared against a base that
+   may have moved hours ago.
 4. Run `node scripts/check.mjs`.
 
 There is no per-skill manifest. The repository is one plugin and every skill
