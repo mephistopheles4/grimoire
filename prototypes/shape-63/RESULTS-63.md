@@ -44,10 +44,18 @@ labelled `empty` step and returns `"nothing to buy"`"* — like this:
 { "op": "return", "expr": "result" }
 ```
 
-PREREG-63 defines a critical claim as one whose absence makes the file **a
-different program**. Binding a literal one step before returning it is not a
-different program. The reader was narrower than the claim it implements, and
-the corrected reader accepts either form.
+A critical claim is defined as one whose absence makes the file **a different
+program**. Binding a literal one step before returning it is not a different
+program. The reader was narrower than the claim it implements, and the
+corrected reader accepts either form.
+
+*Where that definition lives, precisely, because the whole correction leans on
+it.* It is `fidelity.mjs:139` — `crit: the task states it and the program is a
+DIFFERENT program without it` — carried from round five and committed in
+`070e612`, so it is genuinely pre-run. It is **not** in PREREG-63.md, which
+says only "marking each claim `critical` or `detail`". An earlier draft of this
+section cited the pre-registration for it, which was wrong; the definition is
+pre-run either way, but a gate record should name the file it is quoting.
 
 **Round five set this precedent in the same words**, when its shrink detector
 fired on a raw count the pre-registered rule did not mention: *"The instrument
@@ -141,6 +149,45 @@ cheaper problem: it needs no new rule, only a procedure that reads findings
 before it stops. That is a note for the skill's procedure, not for #61, and it
 is not raised as a blocker here.
 
+## Where this round departed from the pre-registration
+
+Three places. Each is written out so a reader can price it rather than take my
+word that it did not matter.
+
+**The void rule was written after the runs.** PREREG has no rule for a run that
+never met the shape under test, because nobody expected one. So the exclusion
+could in principle be the bar moving. It is not, and here is the arithmetic
+under every counting anyone could argue for:
+
+| How the void run is counted | Converged | Faithful | Both bars? |
+| --- | --- | --- | --- |
+| Void set aside, slot re-run (what this report does) | 9/9 | 9/9 | PASS |
+| Void kept as a non-converger, re-run dropped | 8/9 | 8/9 | PASS |
+| Void kept, re-run kept, n = 10 | 9/10 | 9/10 | PASS |
+
+Every one clears ≥ 8 of 9 and ≥ 7 of 9. **No counting of that run changes the
+verdict**, which is the only reason the post-hoc rule is safe to apply.
+
+The replacement run also got one line the other eight did not — telling it to
+check its ok line names a graph count. That makes it a marginally easier run,
+and it went green on its first attempt. The middle row of the table above is
+the result with it dropped entirely.
+
+**The bar in PREREG is not word-for-word the ticket's.** Two differences, both
+tightenings rather than loosenings:
+
+- The ticket says "fidelity not below seven of nine". PREREG:77 reads "valid
+  *and* zero critical fidelity misses", which is round five's intersection
+  measure — the stricter reading.
+- The ticket says "at least two of three converge **and** define the shared node
+  once", one conjoined rule. PREREG splits it into two independent 2-of-3 rules,
+  which is the weaker reading, because in principle a different pair could
+  satisfy each half. **On the data it makes no difference**: all three runs
+  converged and all three defined the shared node once, so the conjoined
+  reading passes 3 of 3 as well.
+
+**The cost comparand moved off its pin**, and both are now reported above.
+
 ## The confounds PREREG named, resolved
 
 **The new-shape residual appeared, and it repaired.** Three first attempts were
@@ -174,16 +221,24 @@ checker output under both commits**. See [`rebase-check.txt`](rebase-check.txt).
 
 ## Authoring cost — reported, gating nothing
 
-Before is `main` at `a925af4`, which is what an author reads today with #59 and
-#60 in it. After is #61. Method fixed in `cost.mjs` before the numbers were read.
+Method fixed in `cost.mjs` before the numbers were read. **Both comparands are
+reported**, because PREREG pinned one and `main` then moved: `d4fcd66` is the
+pinned one, `a925af4` is `main` today with #59 and #60 in it. PREREG says
+"nothing here is re-run silently against a later commit", so neither is
+silent.
 
-| Measure | Before | After | Change |
+| Measure | `d4fcd66` (pinned) | `a925af4` (main today) | After (#61) |
 | --- | --- | --- | --- |
-| Words in the shape document | 2578 | 3148 | +570 (+22%) |
-| Lines in the shape document | 318 | 390 | +72 (+23%) |
-| Required fields, over every object kind | 97 | 98 | +1 (+1%) |
-| Object kinds the validator shape-checks | 32 | 32 | +0 |
-| Refusal kinds | 63 | 69 | +6 (+10%) |
+| Words in the shape document | 2510 | 2578 | 3148 |
+| Lines in the shape document | 310 | 318 | 390 |
+| Required fields, over every object kind | 97 | 97 | **98** |
+| Object kinds the validator shape-checks | 32 | 32 | 32 |
+| Refusal kinds | 63 | 63 | **69** |
+
+The document grew by 25% against the pinned comparand and 22% against `main`
+today. **Every other number is identical under both**, so the choice of
+comparand changes only the size of the prose delta, and nothing this round
+concluded turns on it.
 
 **The document grew by a fifth and the thing an author fills in did not.** The
 graph object adds five required fields and the top level loses `entry` and
@@ -228,11 +283,15 @@ Restructuring is an ordinary fix, not a deletion.
   once, with a line in the prompt telling the agent to check its ok line names a
   graph count. **One in twelve drifted.** Anyone repeating this should run the
   eval somewhere the old validator is not on the same disk.
-- **One run edited an attempt after checking it.** `t1-haiku-3`'s `attempt-1`
-  scores clean under the pinned validator while its `check-1.txt` reports two
-  refusals. The surviving file is not the artifact of that pass, so its passes
-  are counted by the number of checker runs: **2, not 1**. The scorer flags this
-  and no number silently absorbs it.
+- **One run edited an attempt after checking it, and that is a lost artifact.**
+  `t1-haiku-3`'s `attempt-1` scores clean under the pinned validator while its
+  `check-1.txt` reports two refusals. Its passes are counted by the number of
+  checker runs — **2, not 1** — and the scorer flags the disagreement, so no
+  number silently absorbs it. But the ticket asks that "each attempt and each
+  checker output" be kept, and for this one run the file that produced
+  `check-1.txt` no longer exists. That criterion is met for eleven of twelve
+  runs and partially for this one. The later prompts forbid the in-place edit
+  explicitly; this run predates that wording.
 - **The rubric is not the program.** `fidelity.mjs` checks what the task states.
   A file can satisfy every claim and still read badly — and, as `t4-haiku-1`
   shows, a file can satisfy the checker and describe a different program.

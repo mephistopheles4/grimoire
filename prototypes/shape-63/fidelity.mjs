@@ -76,8 +76,9 @@ const throwStep = (f, id, tag, channel) =>
  * The first cut read only a `return` step's `expr`. All three t2 runs wrote
  * the value the way the task words it — "jumps to a labelled `empty` step and
  * returns" — as a `let` on the labelled step binding the literal, and a
- * `return` of that name. PREREG-63 defines a critical claim as one whose
- * absence makes it a DIFFERENT PROGRAM, and `let result = "nothing to buy";
+ * `return` of that name. A critical claim is defined at the head of the rubric
+ * section below — "the task states it and the program is a DIFFERENT program
+ * without it", carried from round five — and `let result = "nothing to buy";
  * return result` is not a different program from `return "nothing to buy"`.
  * The reader was narrower than the claim it implements.
  *

@@ -24,18 +24,29 @@ one task file, and `render.mjs --check`.
 | `make-baseline.mjs` | Carries a round-five green file onto the new shape. Two edits, and it prints which is which. |
 | `baseline/` | One file per task that validates clean and scores full marks. The rubric's own test. |
 | `loop-report.mjs` | Scores a round of write-validate-fix runs against the pre-registered bar. |
+| `discriminates.mjs` | Shows that the new task really does separate the per-graph and change-wide readings of the unaccounted finding. |
+| `inspect.mjs` | Prints a file's returns, throws and E channels, for diagnosing a fidelity miss. |
 | `cost.mjs` | The authoring-cost numbers, before and after. Reported, never gated. |
 | `runs-loop63/` | Eval output. Every attempt and every checker output. |
+| `report-as-run.txt`, `report-corrected.txt` | The round scored under the rubric reader that ran, and under the corrected one. The verdict differs; RESULTS says why. |
+| `rebase-check.txt` | Every attempt file checked under the pinned commit and under #61's tip, after #61 was rebased mid-round. |
+| `cost.txt` | The cost table as `cost.mjs` printed it. |
 | `RESULTS-63.md` | What round six found. |
+
+**`baseline/` files are `.json`, not `.flightpath.json`, and deliberately so.**
+`scripts/build-pages.mjs` walks the whole tree for that suffix and publishes
+every valid file it finds to the public site. These are internal eval fixtures,
+so they carry a suffix the site build does not collect. CONTRIBUTING.md states
+the rule: never commit an artifact as a fixture.
 
 ## Run it
 
 ```powershell
 # the four baseline files, against the shipped validator
-node ../../skills/groundtrack/scripts/render.mjs baseline/t1.flightpath.json --check
+node ../../skills/groundtrack/scripts/render.mjs baseline/t1.json --check
 
 # the rubric against those files: every one should be full marks
-node fidelity.mjs baseline/t4.flightpath.json t4 --detail
+node fidelity.mjs baseline/t4.json t4 --detail
 
 # the round, against the pre-registered bar
 node loop-report.mjs runs-loop63 --detail

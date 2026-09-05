@@ -22,7 +22,7 @@
 //    where the same effect succeeds on the next move. The walk still says the
 //    upload took two attempts; it says it the way the shipped shape says it.
 //
-//   node make-baseline.mjs baseline/t1-old.json baseline/t1.flightpath.json
+//   node make-baseline.mjs baseline/t1-round5-green.json baseline/t1.json
 
 import { readFileSync, writeFileSync } from "node:fs";
 

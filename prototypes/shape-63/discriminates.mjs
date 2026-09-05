@@ -8,11 +8,11 @@
 // two readings differ on it. This prints both, so the claim is measured rather
 // than asserted.
 //
-//   node discriminates.mjs baseline/t4.flightpath.json
+//   node discriminates.mjs baseline/t4.json
 
 import { readFileSync } from "node:fs";
 
-const path = process.argv[2] ?? "baseline/t4.flightpath.json";
+const path = process.argv[2] ?? "baseline/t4.json";
 const f = JSON.parse(readFileSync(path, "utf8"));
 
 const reach = (entry) => {
