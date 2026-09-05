@@ -100,10 +100,15 @@ const Groundtrack = (() => {
       if (tag === undefined || !KINDS.includes(channel)) return;
       (seen[tag] = seen[tag] || new Set()).add(channel);
     };
-    for (const node of Object.values(prog.nodes || {})) {
+    /* `nodes` and `presets` are core fields the validator requires, so neither
+     * is guarded here. A guard could never fire on a file this module is given
+     * today, and would earn its keep only by hiding the day one of them stops
+     * being where it is — returning a table missing every kind that a `raised`
+     * move supplies, with no error and nothing to notice. Let that throw. */
+    for (const node of Object.values(prog.nodes)) {
       for (const s of node.steps || []) if (s.op === 'throw') add(s.tag, s.channel);
     }
-    for (const p of prog.presets || []) {
+    for (const p of prog.presets) {
       for (const m of (p.walk && p.walk.steps) || []) {
         if (m.k === 'effect' && m.raised) add(m.raised.tag, m.raised.channel);
       }
