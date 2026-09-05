@@ -161,8 +161,8 @@ renders a file that carries `<`, `&`, a double quote and a closing script tag
 in **every** author-written field the page shows — one field left out of that
 fixture is one field with no coverage — and asserts the page still closes no
 block. It also pins the page's external reference count at **zero**: no link,
-no external `src` or `href`, no `@import`, no `fetch`, and three `@font-face`
-rules whose sources are inlined data URIs. The three faces are vendored under
+no external `src` or `href`, no `@import`, no `fetch`, and six `@font-face`
+rules whose sources are inlined data URIs. The faces are vendored under
 `skills/groundtrack/assets/` for that reason; a font served from a content
 delivery network is a dependency on somebody else's uptime.
 
