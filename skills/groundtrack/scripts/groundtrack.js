@@ -532,7 +532,16 @@ const Groundtrack = (() => {
    *  a node no sheet of this drawing reaches would be listed as on it. The
    *  second group is then the nodes the sheet's entry reaches, and the third
    *  is unchanged — unaccounted is a question about the change, not the
-   *  sheet. */
+   *  sheet.
+   *
+   *  Note which program each of the three wants, because they differ and none
+   *  of them throws when given the wrong one. `mine` does not care. The second
+   *  group needs the sheet's entry, and a file that lists graphs has no
+   *  top-level entry at all — only a view of one graph does — so it must be
+   *  handed the view. The third needs the file, unfiltered. Hand the whole
+   *  function a raw file and the second group renders empty; hand it a view
+   *  and filter the third and a file another sheet accounts for is reported
+   *  against this one. */
   function filesOf(prog, id) {
     /* No guard on the node itself. `id` is the open node, which starts at the
        entry and only ever moves to a node the walk is in, and the validator
