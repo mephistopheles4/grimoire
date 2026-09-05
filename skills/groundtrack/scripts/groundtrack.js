@@ -30,6 +30,34 @@ const Groundtrack = (() => {
    * what makes an id a known-safe string by the time the page sees it. */
   const ID = /^[A-Za-z0-9][A-Za-z0-9-]*$/;
 
+  /* -- one change, several graphs ------------------------------------------
+   *
+   * A file states one change: its facts, one node map, and a list of graphs. A
+   * graph is an entry point and the runs from it. Everything below this reads
+   * one graph at a time, so everything below this reads a *view*: the change's
+   * node map with one graph's entry and runs laid on top.
+   *
+   * The view exists so that the fold, the tree and the page did not have to
+   * learn about the container. A node belongs to no graph — two graphs reach
+   * the same node by both reaching it — so there is nothing to slice out of
+   * `nodes`, and a view is a rename rather than a copy of the graph.
+   */
+  const graphView = (prog, i) => {
+    const graph = prog.graphs[i || 0];
+    return Object.assign({}, prog, { entry: graph.entry, presets: graph.presets, graph });
+  };
+
+  /** What one entry reaches through call edges. That set is what a graph draws. */
+  function reachable(prog, entry) {
+    const seen = new Set();
+    (function go(id) {
+      if (seen.has(id) || !prog.nodes[id]) return;
+      seen.add(id);
+      for (const s of prog.nodes[id].steps || []) if (s.op === 'call') go(s.target);
+    })(entry);
+    return seen;
+  }
+
   /* -- reading the graph ---------------------------------------------------- */
 
   /** label -> step index, for one node. A label is a jump target and nothing else. */
@@ -101,15 +129,22 @@ const Groundtrack = (() => {
       if (tag === undefined || !KINDS.includes(channel)) return;
       (seen[tag] = seen[tag] || new Set()).add(channel);
     };
-    /* `nodes` and `presets` are core fields the validator requires, so neither
+    /* `nodes` and `graphs` are core fields the validator requires, so neither
      * is guarded here. A guard could never fire on a file this module is given
      * today, and would earn its keep only by hiding the day one of them stops
      * being where it is — returning a table missing every kind that a `raised`
-     * move supplies, with no error and nothing to notice. Let that throw. */
+     * move supplies, with no error and nothing to notice. Let that throw.
+     *
+     * The kind is file-wide, so the walks are read through `graphs` rather
+     * than through `presets`. A view carries `graphs` untouched, so this is
+     * right whether it is handed the file or one graph's view — and reading
+     * `presets` would be wrong both ways: one graph's walks on a view, and
+     * nothing at all on the file, where the field does not exist. A tag that
+     * only another graph's walk raises would have printed bare. */
     for (const node of Object.values(prog.nodes)) {
       for (const s of node.steps || []) if (s.op === 'throw') add(s.tag, s.channel);
     }
-    for (const p of prog.presets) {
+    for (const p of prog.graphs.flatMap(g => g.presets)) {
       for (const m of (p.walk && p.walk.steps) || []) {
         if (m.k === 'effect' && m.raised) add(m.raised.tag, m.raised.channel);
       }
@@ -521,6 +556,6 @@ const Groundtrack = (() => {
     return best;
   }
 
-  return { esc, ID, KINDS, labelsOf, callSites, calleesOf, effectsOf, failureKinds, tagFate, complexityOf, fold, back, cutEdges, layout, treeRows, suggestRun, renamedToken };
+  return { esc, ID, KINDS, graphView, reachable, labelsOf, callSites, calleesOf, effectsOf, failureKinds, tagFate, complexityOf, fold, back, cutEdges, layout, treeRows, suggestRun, renamedToken };
 })();
 if (typeof module !== 'undefined') module.exports = Groundtrack;

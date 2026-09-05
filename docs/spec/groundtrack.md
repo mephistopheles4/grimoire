@@ -1201,3 +1201,55 @@ line, ships beside them as `OFL.txt`.
 are inlined, the page makes no network request, and no fixed path is named. The
 only figure that moved is the byte count, and it moved because the smaller one
 was not licensed to ship.
+
+**A file states one change, not one graph.** This document is written
+throughout as though a flightpath file were one graph and its walks. It is now
+one change: the id, the title, the blurb, the changed files, the sheet rule,
+the ambient values, the layers and one node map at the top level, and a
+`graphs` array beneath them. A graph is an entry point and the runs from it,
+and its drawing is whatever that entry reaches through call edges. Node ids are
+unique across the change and a node belongs to no graph, so a symbol two graphs
+reach is defined once. Run names are unique per graph.
+
+Nobody argued for one graph per file; the record shows it came from the
+prototype. The evidence for the change is measured duplication — the two
+`pr-313` programs define two of the same nodes, and each file repeated the
+change facts — and a finding, *a file in the change that no node accounts for*,
+that was true of one graph and silent about the rest. The decision was settled
+in an eagle-eye box of nine rows, and no edge in the box reaches the chosen
+set: the array, the single node map and the rest are choices with a cost each.
+Only the status quo carried forcing edges.
+
+**The old shape is refused rather than accepted alongside.** A file with a
+top-level `entry` or `presets` fails with a message naming `graphs`. This
+document's own rule that a file has one way to say one thing rules out
+accepting both. The three shipped examples migrate: each has one entry today,
+so each becomes a one-graph file with the same nodes, the same runs, the same
+layers and the same findings.
+
+**Two additions to the validator, and no walk rule changed.** A walk is proved
+against the graph it belongs to, entering at that graph's entry. A graph whose
+`entry` is not in the node map is refused. A node no graph's entry reaches is a
+*finding*, exit zero, for the reason the other two structural findings are
+findings: it is not a graph-versus-walk contradiction, and a node written and
+not yet connected is a work in progress rather than a mistake.
+
+**Every refusal now carries a path into the document.** A shape fault prints
+the path alone, because it is refused before any walk is read and there is no
+run or move to name. A walk fault prints the path and then the graph, the run
+and the move in words, because counting into two arrays to find
+`graphs[1].presets[0]` is work a person should not have to do. The rule that a
+refusal names the move that emptied the frame stack, not the first to notice,
+is unchanged.
+
+**`--text` takes `--graph <id>`.** On a one-graph file it prints exactly as it
+did. On a file stating several, without `--graph` it lists the graphs, one line
+each, and exits non-zero. Nothing ranks them and nothing suggests one, which is
+the rule `SKILL.md` already states for choosing a graph to draw.
+
+**The tempo table gains a sheet picker.** The head holds the sheet picker, the
+run picker and the step controls. A sheet picker changes slower than a run and
+changes everything beneath it, so it sits to the left of the run picker. The
+picker itself, and per-sheet page state, are a separate ticket; what shipped
+here is the page reading its graph through one accessor rather than off the
+file root, and a one-graph file showing no picker at all.

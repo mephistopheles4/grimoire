@@ -2,7 +2,6 @@
   "id": "example-greet",
   "title": "Example · greet a user",
   "blurb": "The smallest complete flightpath. One entry node, one called node, one effect that can fail, and a handler that catches it.",
-  "entry": "greet",
   "env": {
     "locale": "en-GB"
   },
@@ -36,6 +35,10 @@
         }
       }
     }
+  },
+  "sheet": {
+    "scopeRule": "one graph per entry point",
+    "graphsNotDrawn": []
   },
   "nodes": {
     "greet": {
@@ -170,239 +173,243 @@
       ]
     }
   },
-  "presets": [
+  "graphs": [
     {
-      "name": "a known user",
-      "blurb": "The name is found and the greeting uses it.",
-      "input": {
-        "userId": "u-1"
-      },
-      "walk": {
-        "provenance": "authored",
-        "steps": [
-          {
-            "k": "note",
-            "at": 0,
-            "next": 1
+      "id": "greet",
+      "title": "greet a user",
+      "blurb": "Enters at greet, which looks a name up and sends the line. The lookup is the one effect that can fail, and greet's call step catches it.",
+      "entry": "greet",
+      "presets": [
+        {
+          "name": "a known user",
+          "blurb": "The name is found and the greeting uses it.",
+          "input": {
+            "userId": "u-1"
           },
-          {
-            "k": "call",
-            "at": 1,
-            "to": "lookupName",
-            "next": 2
-          },
-          {
-            "k": "effect",
-            "at": 0,
-            "kind": "db.get",
-            "desc": "read the name row",
-            "next": 1,
-            "result": {
-              "displayName": "Ada"
-            }
-          },
-          {
-            "k": "if",
-            "at": 1,
-            "next": 2
-          },
-          {
-            "k": "return",
-            "at": 2,
-            "value": "Ada"
-          },
-          {
-            "k": "if",
-            "at": 2,
-            "next": 3
-          },
-          {
-            "k": "let",
-            "at": 3,
-            "next": 4
-          },
-          {
-            "k": "goto",
-            "at": 4,
-            "next": 6
-          },
-          {
-            "k": "effect",
-            "at": 6,
-            "kind": "http.post",
-            "desc": "POST the greeting",
-            "next": 7,
-            "result": {
-              "ok": true
-            }
-          },
-          {
-            "k": "return",
-            "at": 7,
-            "value": "Hello, Ada"
-          },
-          {
-            "k": "done",
-            "result": "Hello, Ada"
+          "walk": {
+            "provenance": "authored",
+            "steps": [
+              {
+                "k": "note",
+                "at": 0,
+                "next": 1
+              },
+              {
+                "k": "call",
+                "at": 1,
+                "to": "lookupName",
+                "next": 2
+              },
+              {
+                "k": "effect",
+                "at": 0,
+                "kind": "db.get",
+                "desc": "read the name row",
+                "next": 1,
+                "result": {
+                  "displayName": "Ada"
+                }
+              },
+              {
+                "k": "if",
+                "at": 1,
+                "next": 2
+              },
+              {
+                "k": "return",
+                "at": 2,
+                "value": "Ada"
+              },
+              {
+                "k": "if",
+                "at": 2,
+                "next": 3
+              },
+              {
+                "k": "let",
+                "at": 3,
+                "next": 4
+              },
+              {
+                "k": "goto",
+                "at": 4,
+                "next": 6
+              },
+              {
+                "k": "effect",
+                "at": 6,
+                "kind": "http.post",
+                "desc": "POST the greeting",
+                "next": 7,
+                "result": {
+                  "ok": true
+                }
+              },
+              {
+                "k": "return",
+                "at": 7,
+                "value": "Hello, Ada"
+              },
+              {
+                "k": "done",
+                "result": "Hello, Ada"
+              }
+            ]
           }
-        ]
-      }
-    },
-    {
-      "name": "no such user",
-      "blurb": "The lookup returns no row, an if routes to the throw, and the handler catches. This is a failure the code inspects and raises itself.",
-      "input": {
-        "userId": "u-404"
-      },
-      "walk": {
-        "provenance": "authored",
-        "steps": [
-          {
-            "k": "note",
-            "at": 0,
-            "next": 1
+        },
+        {
+          "name": "no such user",
+          "blurb": "The lookup returns no row, an if routes to the throw, and the handler catches. This is a failure the code inspects and raises itself.",
+          "input": {
+            "userId": "u-404"
           },
-          {
-            "k": "call",
-            "at": 1,
-            "to": "lookupName",
-            "next": 2
-          },
-          {
-            "k": "effect",
-            "at": 0,
-            "kind": "db.get",
-            "desc": "read the name row",
-            "next": 1,
-            "result": null
-          },
-          {
-            "k": "if",
-            "at": 1,
-            "next": 3
-          },
-          {
-            "k": "throw",
-            "at": 3,
-            "tag": "NoSuchUser",
-            "message": "no row for that id",
-            "channel": "escape"
-          },
-          {
-            "k": "unwind"
-          },
-          {
-            "k": "handled",
-            "at": 1,
-            "goto": "plain",
-            "next": 5
-          },
-          {
-            "k": "let",
-            "at": 5,
-            "next": 6
-          },
-          {
-            "k": "effect",
-            "at": 6,
-            "kind": "http.post",
-            "desc": "POST the greeting",
-            "next": 7,
-            "result": {
-              "ok": true
-            }
-          },
-          {
-            "k": "return",
-            "at": 7,
-            "value": "Hello there"
-          },
-          {
-            "k": "done",
-            "result": "Hello there"
+          "walk": {
+            "provenance": "authored",
+            "steps": [
+              {
+                "k": "note",
+                "at": 0,
+                "next": 1
+              },
+              {
+                "k": "call",
+                "at": 1,
+                "to": "lookupName",
+                "next": 2
+              },
+              {
+                "k": "effect",
+                "at": 0,
+                "kind": "db.get",
+                "desc": "read the name row",
+                "next": 1,
+                "result": null
+              },
+              {
+                "k": "if",
+                "at": 1,
+                "next": 3
+              },
+              {
+                "k": "throw",
+                "at": 3,
+                "tag": "NoSuchUser",
+                "message": "no row for that id",
+                "channel": "escape"
+              },
+              {
+                "k": "unwind"
+              },
+              {
+                "k": "handled",
+                "at": 1,
+                "goto": "plain",
+                "next": 5
+              },
+              {
+                "k": "let",
+                "at": 5,
+                "next": 6
+              },
+              {
+                "k": "effect",
+                "at": 6,
+                "kind": "http.post",
+                "desc": "POST the greeting",
+                "next": 7,
+                "result": {
+                  "ok": true
+                }
+              },
+              {
+                "k": "return",
+                "at": 7,
+                "value": "Hello there"
+              },
+              {
+                "k": "done",
+                "result": "Hello there"
+              }
+            ]
           }
-        ]
-      }
-    },
-    {
-      "name": "the post fails",
-      "blurb": "The effect itself raises. It carries no next, and a raise follows it. Nothing catches it.",
-      "input": {
-        "userId": "u-1"
-      },
-      "walk": {
-        "provenance": "authored",
-        "steps": [
-          {
-            "k": "note",
-            "at": 0,
-            "next": 1
+        },
+        {
+          "name": "the post fails",
+          "blurb": "The effect itself raises. It carries no next, and a raise follows it. Nothing catches it.",
+          "input": {
+            "userId": "u-1"
           },
-          {
-            "k": "call",
-            "at": 1,
-            "to": "lookupName",
-            "next": 2
-          },
-          {
-            "k": "effect",
-            "at": 0,
-            "kind": "db.get",
-            "desc": "read the name row",
-            "next": 1,
-            "result": {
-              "displayName": "Ada"
-            }
-          },
-          {
-            "k": "if",
-            "at": 1,
-            "next": 2
-          },
-          {
-            "k": "return",
-            "at": 2,
-            "value": "Ada"
-          },
-          {
-            "k": "if",
-            "at": 2,
-            "next": 3
-          },
-          {
-            "k": "let",
-            "at": 3,
-            "next": 4
-          },
-          {
-            "k": "goto",
-            "at": 4,
-            "next": 6
-          },
-          {
-            "k": "effect",
-            "at": 6,
-            "kind": "http.post",
-            "desc": "POST the greeting",
-            "attempt": 2,
-            "raised": {
-              "tag": "SendFailed",
-              "message": "502 from the greeting service",
-              "channel": "retry"
-            }
-          },
-          {
-            "k": "uncaught",
-            "tag": "SendFailed",
-            "message": "502 from the greeting service",
-            "channel": "retry"
+          "walk": {
+            "provenance": "authored",
+            "steps": [
+              {
+                "k": "note",
+                "at": 0,
+                "next": 1
+              },
+              {
+                "k": "call",
+                "at": 1,
+                "to": "lookupName",
+                "next": 2
+              },
+              {
+                "k": "effect",
+                "at": 0,
+                "kind": "db.get",
+                "desc": "read the name row",
+                "next": 1,
+                "result": {
+                  "displayName": "Ada"
+                }
+              },
+              {
+                "k": "if",
+                "at": 1,
+                "next": 2
+              },
+              {
+                "k": "return",
+                "at": 2,
+                "value": "Ada"
+              },
+              {
+                "k": "if",
+                "at": 2,
+                "next": 3
+              },
+              {
+                "k": "let",
+                "at": 3,
+                "next": 4
+              },
+              {
+                "k": "goto",
+                "at": 4,
+                "next": 6
+              },
+              {
+                "k": "effect",
+                "at": 6,
+                "kind": "http.post",
+                "desc": "POST the greeting",
+                "attempt": 2,
+                "raised": {
+                  "tag": "SendFailed",
+                  "message": "502 from the greeting service",
+                  "channel": "retry"
+                }
+              },
+              {
+                "k": "uncaught",
+                "tag": "SendFailed",
+                "message": "502 from the greeting service",
+                "channel": "retry"
+              }
+            ]
           }
-        ]
-      }
+        }
+      ]
     }
-  ],
-  "sheet": {
-    "scopeRule": "one graph per entry point",
-    "graphsNotDrawn": []
-  }
+  ]
 }

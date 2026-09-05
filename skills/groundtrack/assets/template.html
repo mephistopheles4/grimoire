@@ -555,20 +555,23 @@ const HELP = {
    drawn. */
 function holdToGraph(prog) {
   const bad = [];
-  if (!prog.nodes || !prog.nodes[prog.entry]) bad.push('the entry node is not in the graph');
-  for (const p of prog.presets || []) {
-    let depth = 1;
-    (p.walk.steps || []).forEach((m, i) => {
-      if (m.k === 'unwind' || m.k === 'return') {
-        if (depth < 1) bad.push('run "' + p.name + '" move ' + i + ': ' + m.k + ' with no frame open');
-        depth -= 1;
-      } else if (m.k === 'call') {
-        if (!prog.nodes[m.to]) bad.push('run "' + p.name + '" move ' + i + ': calls "' + m.to + '", which is not a node');
-        depth += 1;
-      } else if (m.k === 'done' || m.k === 'uncaught') {
-        depth = 0;
-      }
-    });
+  if (!prog.nodes) bad.push('this file states no nodes');
+  for (const g of prog.graphs || []) {
+    if (!prog.nodes || !prog.nodes[g.entry]) bad.push('graph "' + g.id + '": the entry node is not in the node map');
+    for (const p of g.presets || []) {
+      let depth = 1;
+      (p.walk.steps || []).forEach((m, i) => {
+        if (m.k === 'unwind' || m.k === 'return') {
+          if (depth < 1) bad.push('graph "' + g.id + '" run "' + p.name + '" move ' + i + ': ' + m.k + ' with no frame open');
+          depth -= 1;
+        } else if (m.k === 'call') {
+          if (!prog.nodes[m.to]) bad.push('graph "' + g.id + '" run "' + p.name + '" move ' + i + ': calls "' + m.to + '", which is not a node');
+          depth += 1;
+        } else if (m.k === 'done' || m.k === 'uncaught') {
+          depth = 0;
+        }
+      });
+    }
   }
   return bad;
 }
@@ -584,7 +587,14 @@ if (refusals.length) {
 }
 
 function start() {
-  const LAYOUT = G.layout(PROG);
+  /* The file states a change and lists its graphs; a sheet draws one of them.
+     Everything below reads the current graph through this one view rather than
+     off the file root, so which graph is on the sheet is one line to change
+     and not fifteen. The layers, the ambient values and the node map are the
+     change's, so they are read from PROG itself. */
+  const SHEET = G.graphView(PROG, 0);
+
+  const LAYOUT = G.layout(SHEET);
   const layerNames = Object.keys(PROG.layers || {});
   const CUTS = G.cutEdges(PROG);
   /* tag -> its kinds, for the whole file. Named apart from the module's KINDS,
@@ -596,9 +606,9 @@ function start() {
   const S = {
     run: 0,
     at: 0,
-    states: G.fold(PROG, PROG.presets[0].walk),
+    states: G.fold(SHEET, SHEET.presets[0].walk),
     layer: layerNames.length ? layerNames[0] : null,
-    open: PROG.entry,
+    open: SHEET.entry,
     tab: 'source',
     tree: false,
     zoom: 1,
@@ -619,7 +629,7 @@ function start() {
   const cutsFrom = (from, at) => CUTS.filter(c => c.layer === S.layer && c.from === from && c.at === at);
   const layerEntry = () => {
     const layer = S.layer ? PROG.layers[S.layer] : null;
-    return (layer && layer.entry) || PROG.entry;
+    return (layer && layer.entry) || SHEET.entry;
   };
   /* Everything the call edges cannot reach from the layer's own entry draws as
      unreached. The geometry is untouched; only the ink changes. */
@@ -736,7 +746,7 @@ function start() {
 
   /* -- the tree ----------------------------------------------------------- */
   function drawTree() {
-    const rows = G.treeRows(PROG, PROG.presets[S.run].walk, S.layer, S.at, S.states);
+    const rows = G.treeRows(SHEET, SHEET.presets[S.run].walk, S.layer, S.at, S.states);
     return rows
       .map(function (row) {
         const cls =
@@ -786,7 +796,7 @@ function start() {
   const show = v => (typeof v === 'string' ? v : JSON.stringify(v));
 
   function drawInputs() {
-    const input = PROG.presets[S.run].input || {};
+    const input = SHEET.presets[S.run].input || {};
     const keys = Object.keys(input);
     if (!keys.length) return '<div class="dw-annot">this run starts from nothing</div>';
     return keys
@@ -928,7 +938,7 @@ function start() {
 
   /* -- the footer band ---------------------------------------------------- */
   function drawTitleBlock() {
-    const run = PROG.presets[S.run];
+    const run = SHEET.presets[S.run];
     const authored = run.walk.provenance === 'authored';
     const cell = (k, v) => '<div class="dw-titleblock-cell"><span class="dw-titleblock-key">' + k + '</span><span class="dw-titleblock-val">' + v + '</span></div>';
     /* Authored draws as a bordered caution stamp, captured as a nominal one —
@@ -939,7 +949,7 @@ function start() {
     return (
       cell('file', esc(PROG.id)) +
       cell('nodes', String(Object.keys(PROG.nodes).length)) +
-      cell('runs', String(PROG.presets.length)) +
+      cell('runs', String(SHEET.presets.length)) +
       cell('changed files', PROG.files ? String(PROG.files.length) : '<span class="none">not stated</span>') +
       cell('walk', stamp)
     );
@@ -965,7 +975,7 @@ function start() {
     const st = S.states[S.at];
     const reach = reachable();
     $('title').textContent = PROG.title;
-    $('runBlurb').textContent = PROG.presets[S.run].blurb;
+    $('runBlurb').textContent = SHEET.presets[S.run].blurb;
     $('canvas').innerHTML = drawWires(st, reach) + LAYOUT.order.map(id => nodeBox(id, st, reach)).join('');
     applyTransform();
     $('tree').innerHTML = drawTree();
@@ -1078,7 +1088,7 @@ function start() {
   }
 
   /* -- wiring ------------------------------------------------------------- */
-  PROG.presets.forEach(function (p, i) {
+  SHEET.presets.forEach(function (p, i) {
     const o = document.createElement('option');
     o.value = String(i);
     o.textContent = p.name + ' — ' + p.blurb;
@@ -1087,7 +1097,7 @@ function start() {
   $('run').addEventListener('change', function (e) {
     stopPlaying();
     S.run = Number(e.target.value);
-    S.states = G.fold(PROG, PROG.presets[S.run].walk);
+    S.states = G.fold(SHEET, SHEET.presets[S.run].walk);
     jumpTo(0);
     render();
   });
