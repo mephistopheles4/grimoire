@@ -352,6 +352,10 @@ test('a handler is not a source of a kind', () => {
   // tag has no kind left, however many handlers name it.
   const prog = JSON.parse(JSON.stringify(greet));
   prog.nodes.lookupName.steps = prog.nodes.lookupName.steps.filter(s => s.op !== 'throw');
+  // The kind is file-wide, so the walks are cleared where the file keeps them.
+  // Emptying the view's own `presets` would leave every graph's walks in place
+  // and the table would still find the raise.
+  for (const g of prog.graphs) g.presets = [];
   prog.presets = [];
   assert.deepEqual({ ...G.failureKinds(prog) }, {});
 });
@@ -364,6 +368,28 @@ test('a throw move is not a source of a kind — the step it ran is', () => {
   const prog = JSON.parse(JSON.stringify(greet));
   for (const p of prog.presets) for (const m of p.walk.steps) if (m.k === 'throw') m.channel = 'die';
   assert.deepEqual(G.failureKinds(prog).NoSuchUser, ['escape']);
+});
+
+test('a kind supplied only by another graph\'s walk still reaches this sheet', () => {
+  // The kind is file-wide, and this is the case that says so. Read per graph,
+  // a tag whose only `raised` lives in a walk of a graph you are not looking
+  // at loses its kind and prints bare — no error, no failing test, and
+  // invisible in every one-graph file that ships. The whole file is one
+  // change, so what the change says about a tag holds on every sheet of it.
+  const prog = JSON.parse(JSON.stringify(greet));
+  const fails = prog.graphs[0].presets.find(p => p.walk.steps.some(m => m.k === 'effect' && m.raised));
+  const dies = JSON.parse(JSON.stringify(fails));
+  for (const m of dies.walk.steps) if (m.k === 'effect' && m.raised) m.raised.channel = 'die';
+
+  // Move the fatal reading into a second graph, and leave the first with only
+  // the retry. Read file-wide the tag has both; read per graph it has one.
+  prog.graphs.push({ id: 'second', title: 'a second entry', blurb: 'b', entry: 'lookupName', presets: [dies] });
+  assert.deepEqual(G.failureKinds(prog).SendFailed, ['retry', 'die']);
+
+  // And a view of the *first* graph gives the same answer, which is the point:
+  // the reader on sheet one is told what the change knows, not what sheet one
+  // happens to contain.
+  assert.deepEqual(G.failureKinds(G.graphView(prog, 0)).SendFailed, ['retry', 'die']);
 });
 
 test('a tag named after a property of every object is still just a tag', () => {
@@ -395,7 +421,11 @@ test('a tag raised with two kinds keeps both, retry before escape before die', (
   const dies = JSON.parse(JSON.stringify(fails));
   dies.name = 'the post dies';
   for (const m of dies.walk.steps) if (m.k === 'effect' && m.raised) m.raised.channel = 'die';
-  prog.presets = [dies, fails]; // die met first; the order out is still retry, die
+  // Written to the graph, which is where the file keeps its walks and where
+  // the file-wide table reads them. Die is met first; the order out is still
+  // retry, die.
+  prog.graphs[0].presets = [dies, fails];
+  prog.presets = prog.graphs[0].presets;
   assert.deepEqual(G.failureKinds(prog).SendFailed, ['retry', 'die']);
 });
 
