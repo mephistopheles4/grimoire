@@ -67,6 +67,35 @@ const throwStep = (f, id, tag, channel) =>
     (s) => s?.op === "throw" && s?.tag === tag && s?.channel === channel,
   );
 
+/* "The node can return this value."
+ *
+ * CORRECTED AFTER THE ROUND RAN, and the correction is to the claim's own
+ * words rather than to the bar. See RESULTS-63.md, which prints the score
+ * under both readers.
+ *
+ * The first cut read only a `return` step's `expr`. All three t2 runs wrote
+ * the value the way the task words it — "jumps to a labelled `empty` step and
+ * returns" — as a `let` on the labelled step binding the literal, and a
+ * `return` of that name. PREREG-63 defines a critical claim as one whose
+ * absence makes it a DIFFERENT PROGRAM, and `let result = "nothing to buy";
+ * return result` is not a different program from `return "nothing to buy"`.
+ * The reader was narrower than the claim it implements.
+ *
+ * So: the value may be returned directly, or bound by a `let` whose name a
+ * `return` then returns. Round five's precedent is the same move — an
+ * instrument corrected to the rule as written, with both numbers reported. */
+const returnsValue = (f, id, re) => {
+  if (hasStep(f, id, (s) => s?.op === "return" && re.test(s?.expr ?? ""))) return true;
+  const bound = stepsWhere(
+    f,
+    id,
+    (s) => s?.op === "let" && re.test(s?.expr ?? ""),
+  ).map((s) => s.name);
+  return bound.some((n) =>
+    hasStep(f, id, (s) => s?.op === "return" && (s?.expr ?? "").trim() === n),
+  );
+};
+
 /* A loop, as t2, t3 and t4 all word it: a labelled step at the top, a goto back
  * to that label, and an if that leaves. */
 const loopsBack = (f, id) => {
@@ -266,11 +295,7 @@ const RUBRIC = {
       hasStep(f, "checkout", (s) => s?.op === "if"),
     ),
     C('checkout can return "nothing to buy"', (f) =>
-      hasStep(
-        f,
-        "checkout",
-        (s) => s?.op === "return" && /nothing to buy/i.test(s?.expr ?? ""),
-      ),
+      returnsValue(f, "checkout", /nothing to buy/i),
     ),
     C("checkout calls loadCart, priceCart and charge", (f) =>
       ["loadCart", "priceCart", "charge"].every(
