@@ -133,18 +133,36 @@ function sharedNode(prog, raw) {
   };
 }
 
-/* What the agent's own `check-N.txt` says, so a file that was edited AFTER it
- * was checked is visible. The scorer never trusts this number — it re-derives
- * every count from the attempt file — but a disagreement means the saved
- * checker output was not produced from the saved file, and a run whose passes
- * cannot be counted honestly should not be read as if they could. */
-function claimedErrors(dir, n) {
+/* What the agent's own `check-N.txt` says. The scorer never trusts this number
+ * for a score — it re-derives every count from the attempt file — but the two
+ * must agree, and where they do not, the disagreement is itself the datum.
+ *
+ * Two different faults produce a disagreement, and they are not the same size:
+ *
+ *   - THE WRONG VALIDATOR. The eval runs in a worktree of a repository whose
+ *     main checkout holds the OLD validator on the same disk. An agent that
+ *     resolves the script path against the wrong root validates the old shape
+ *     and gets told it is fine. Such a run measured `main`, not the shape under
+ *     test, so it is VOID: it is not a run that failed to converge, it is not a
+ *     run at all. The tell is objective and in the file — the old validator's
+ *     ok line has no `graph(s)` count, because the old shape had no graphs.
+ *
+ *   - AN IN-PLACE EDIT. The agent checked an attempt, then edited that same
+ *     file instead of writing the next one. The artifact of that pass is lost,
+ *     but the checker still ran, so the honest pass count is the number of
+ *     check files, not the number of surviving attempts. */
+function checkFile(dir, n) {
   const p = join(dir, `check-${n}.txt`);
   if (!existsSync(p)) return null;
   const txt = readFileSync(p, "utf8");
-  if (/^ok:/m.test(txt)) return 0;
+  const ok = /^ok:/m.test(txt);
   const m = txt.match(/(\d+) refusal\(s\)/);
-  return m ? +m[1] : null;
+  return {
+    text: txt,
+    errors: ok ? 0 : m ? +m[1] : null,
+    /* The pinned validator always prints a graph count. The old one cannot. */
+    fromOldValidator: ok && !/graph\(s\)/.test(txt),
+  };
 }
 
 function readRun(dir) {
@@ -164,18 +182,39 @@ function readRun(dir) {
       errs = [`not JSON: ${e.message}`];
     }
     const n = +f.match(/\d+/)[0];
+    const chk = checkFile(dir, n);
     passes.push({
       file: f,
       prog,
       raw,
       errors: errs.length,
       errs,
-      claimed: claimedErrors(dir, n),
+      claimed: chk?.errors ?? null,
+      fromOldValidator: chk?.fromOldValidator ?? false,
+      hasCheck: chk !== null,
+      checkLine: (chk?.text.split("\n").find((l) => l.trim()) ?? "").trim(),
     });
   }
   const greenAt = passes.findIndex((p) => p.errors === 0);
   const green = greenAt !== -1;
   const finalIdx = green ? greenAt : passes.length - 1;
+
+  /* VOID: at least one of this run's own checker outputs came from the old
+   * validator, so the loop it ran was not against the shape under test. */
+  const isVoid = passes.some((p) => p.fromOldValidator);
+
+  const mismatches = passes.filter(
+    (p) => p.claimed !== null && p.claimed !== p.errors,
+  );
+
+  /* Where an attempt was edited after it was checked, the surviving file is
+   * not the artifact of that pass, but the checker still ran. The pass count
+   * is the number of times the checker ran up to and including the first clean
+   * one — which is what the check files say, and they are all present. */
+  const everyPassChecked = passes.every((p) => p.hasCheck && p.claimed !== null);
+  const checkedGreenAt = everyPassChecked
+    ? passes.findIndex((p) => p.claimed === 0)
+    : -1;
   const first = passes[0]?.prog ? size(passes[0].prog) : null;
   const final = passes[finalIdx]?.prog ? size(passes[finalIdx].prog) : null;
 
@@ -205,7 +244,19 @@ function readRun(dir) {
     task,
     passes,
     green,
-    passesToGreen: green ? greenAt + 1 : null,
+    isVoid,
+    mismatches,
+    /* The checker-run count where it is knowable and differs; the file-derived
+     * count otherwise. Both are kept so the difference can be shown. */
+    passesToGreen: green
+      ? checkedGreenAt !== -1
+        ? checkedGreenAt + 1
+        : greenAt + 1
+      : null,
+    passesToGreenByFile: green ? greenAt + 1 : null,
+    firstAttemptValid: everyPassChecked
+      ? passes[0].claimed === 0
+      : passes[0]?.errors === 0,
     overCap: passes.length > CAP,
     first,
     final,
@@ -253,14 +304,26 @@ function table(runs) {
 }
 
 function detailFor(r) {
+  if (r.isVoid)
+    console.log(
+      `${" ".repeat(16)}X VOID — a check file here came from the OLD validator (its ok line carries no graph count), so this run's loop never met the shape under test`,
+    );
   for (const p of r.passes) {
-    if (p.claimed !== null && p.claimed !== p.errors)
+    if (p.fromOldValidator)
       console.log(
-        `${" ".repeat(16)}? ${p.file}: its check file says ${p.claimed} refusal(s); the file scores ${p.errors} — it was edited after it was checked`,
+        `${" ".repeat(16)}X ${p.file}: check output is the old validator's — "${p.checkLine}"`,
       );
-    if (p.claimed === null)
-      console.log(`${" ".repeat(16)}? ${p.file}: no readable check file beside it`);
+    else if (p.claimed !== null && p.claimed !== p.errors)
+      console.log(
+        `${" ".repeat(16)}? ${p.file}: its check file says ${p.claimed} refusal(s); the pinned validator scores ${p.errors} — the saved output was not produced from the saved file`,
+      );
+    if (!p.hasCheck)
+      console.log(`${" ".repeat(16)}? ${p.file}: no check file beside it`);
   }
+  if (r.passesToGreen !== r.passesToGreenByFile)
+    console.log(
+      `${" ".repeat(16)}· passes to green counted by checker runs: ${r.passesToGreen} (the surviving files alone would say ${r.passesToGreenByFile})`,
+    );
   for (const m of r.fid?.critMisses ?? []) {
     const preexisting = r.fidFirst?.critMisses.some((x) => x.what === m.what);
     console.log(
@@ -316,7 +379,12 @@ function main() {
     .filter((p) => statSync(p).isDirectory())
     .sort();
 
-  const runs = dirs.map(readRun);
+  const all = dirs.map(readRun);
+  /* A void run is reported and then set aside. It is evidence about the
+   * harness, not about the shape, and counting it either way would say
+   * something the round did not measure. */
+  const voided = all.filter((r) => r.isVoid);
+  const runs = all.filter((r) => !r.isVoid);
   const migrated = runs.filter((r) => MIGRATED.includes(r.task));
   const fresh = runs.filter((r) => NEW.includes(r.task));
 
@@ -327,6 +395,14 @@ function main() {
   console.log("\nTHE NEW TWO-ENTRY TASK\n");
   table(fresh);
   if (detail) for (const r of fresh) detailFor(r);
+
+  if (voided.length) {
+    console.log(
+      "\nVOID — ran the wrong validator, so these measured `main` and not the shape under test\n",
+    );
+    table(voided);
+    for (const r of voided) detailFor(r);
+  }
 
   const rule = (label, pass, text) =>
     console.log(`  ${pass ? "PASS" : "FAIL"}  ${label} — ${text}`);
@@ -343,10 +419,10 @@ function main() {
 
   console.log(`\nFIRST ATTEMPT (reported, not gated)`);
   console.log(
-    `  migrated: ${migrated.filter((r) => r.passes[0]?.errors === 0).length}/${
+    `  migrated: ${migrated.filter((r) => r.firstAttemptValid).length}/${
       migrated.length
     } valid with no fix at all` +
-      `; new task: ${fresh.filter((r) => r.passes[0]?.errors === 0).length}/${fresh.length}`,
+      `; new task: ${fresh.filter((r) => r.firstAttemptValid).length}/${fresh.length}`,
   );
 
   console.log(`\nTHE PRE-REGISTERED BAR (PREREG-63.md)`);
