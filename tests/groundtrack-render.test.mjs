@@ -199,6 +199,12 @@ const cases = [
   ['an unknown key one letter from a real one', p => { p.nodes.greet.channles = {}; }, /nodes\.greet: unknown key "channles"/],
   ['an unknown key on a step', p => { p.nodes.greet.steps[0].notes = 'x'; }, /steps\[0\] \(note\): unknown key "notes"/],
   ['an unknown key on a move', p => { runs(p)[0].walk.steps[0].att = 0; }, /walk\.steps\[0\] \(note\): unknown key "att"/],
+  // Found while walking, so it names the graph, the run and the move like
+  // every other walk refusal. It reports through the shape helper, and once
+  // printed a path and went quiet about which run it was in.
+  ['an unknown key inside a raised', p => {
+    for (const m of runs(p)[2].walk.steps) if (m.raised) m.raised.extra = 'not a field';
+  }, /walk\.steps\[\d+\]\.raised: graph "greet", run "[^"]+", move \d+: unknown key "extra"/],
   ["a graph whose entry is not in the node map", p => { only(p).entry = 'nowhere'; }, /graphs\[0\]\.entry: "nowhere" is not a node/],
   ['a graph id that is not plain', p => { only(p).id = 'first paint'; }, /graphs\[0\]\.id: "first paint" is not a plain letters-digits-and-hyphens id/],
   ['two graphs with one id', p => { p.graphs.push({ ...only(p) }); }, /graphs\[1\]\.id: "greet" is already the id of another graph/],
