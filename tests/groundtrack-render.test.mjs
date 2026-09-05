@@ -478,8 +478,11 @@ test('author text reaches the page as text, in every field the page shows', () =
     prog.presets[0].input.user = POISON; // a run input
     prog.layers.tests.nodes.lookupName = { R: [POISON] }; // a layer token
     prog.layers[`layer ${POISON}`] = { nodes: {} }; // and a layer name
-    prog.files[0].path = POISON; // a file path
-    prog.files[0].why = POISON; // and its reason
+    // A path with a separator in it, because the files tab splits on the
+    // separator and prints each segment: poison the directory and the leaf.
+    prog.files[0].path = `${POISON}/${POISON}`;
+    prog.nodes.greet.touches = [`${POISON}/${POISON}`];
+    prog.files[0].why = POISON; // and its reason, which trails the leaf
     prog.env.poison = POISON; // an ambient value
   });
   const r = check(file);
@@ -498,6 +501,24 @@ test('author text reaches the page as text, in every field the page shows', () =
   const payloadEnd = html.indexOf('\n', payloadStart);
   const markup = html.slice(0, payloadStart) + html.slice(payloadEnd);
   assert.doesNotMatch(markup, /<img src=x onerror/);
+});
+
+test('the files tab is a directory tree, and its third group is the sheet\'s', () => {
+  // The tab is built from `innerHTML` when a reader clicks it, so the tree
+  // itself is not in the page as a string — tests/groundtrack-fold.test.mjs
+  // holds its shape. What is static is the markup that builds it, which is
+  // what a reader would have to change to get a flat list back.
+  const html = pageOf(layeredFlightpath);
+  assert.match(html, /in the change, on no node of this sheet/);
+  assert.match(html, /G\.fileTree\(paths\)/, 'the tab groups paths by directory');
+  assert.match(html, /N new, E edit, D delete, F forbidden/, 'the tab says what the marks mean');
+  // The reason trails the leaf rather than sitting on a line of its own.
+  assert.doesNotMatch(html, /\.fwhy \{[^}]*grid-column/);
+});
+
+test('a file that states no changed files still says so', () => {
+  const html = pageOf(derive(prog => { delete prog.files; }));
+  assert.match(html, /not stated by this file/);
 });
 
 test('the escape is pinned at its width, both what it does and what it does not', () => {

@@ -511,6 +511,63 @@ const Groundtrack = (() => {
     return rows;
   }
 
+  /** The three questions the files tab answers about one open node: what it
+   *  changes, what the other nodes change, and what the change touches that no
+   *  node accounts for. A file two nodes touch is listed against both. */
+  function filesOf(prog, id) {
+    const mine = [...new Set(((prog.nodes[id] || {}).touches) || [])];
+    const mineSet = new Set(mine);
+    const others = [];
+    const otherSet = new Set();
+    for (const [k, o] of Object.entries(prog.nodes)) {
+      if (k === id) continue;
+      for (const p of o.touches || []) if (!otherSet.has(p)) { otherSet.add(p); others.push(p); }
+    }
+    const unaccounted = (prog.files || [])
+      .filter(f => !mineSet.has(f.path) && !otherSet.has(f.path))
+      .map(f => f.path);
+    return { mine, others, unaccounted };
+  }
+
+  /** Paths as a shallow directory tree, flattened to rows the caller indents.
+   *
+   *  A row is a directory when it carries no `path` and a file when it does.
+   *  `label` is what prints; joined to the labels of its ancestors it is the
+   *  path again, which is the invariant that keeps a collapsed row honest.
+   *
+   *  A directory with one thing under it says nothing its child does not say,
+   *  so it collapses into the line below. Order is first appearance, because
+   *  the author ordered the change's files and a tree should keep what of that
+   *  order it can. */
+  function fileTree(paths) {
+    const root = { kids: new Map(), file: null };
+    for (const p of paths || []) {
+      const path = String(p);
+      let at = root;
+      for (const seg of path.split('/')) {
+        if (!at.kids.has(seg)) at.kids.set(seg, { kids: new Map(), file: null });
+        at = at.kids.get(seg);
+      }
+      at.file = path;
+    }
+    const rows = [];
+    (function walk(node, depth) {
+      for (const [seg, kid] of node.kids) {
+        const parts = [seg];
+        let cur = kid;
+        while (!cur.file && cur.kids.size === 1) {
+          const [s, k] = cur.kids.entries().next().value;
+          parts.push(s);
+          cur = k;
+        }
+        const label = parts.join('/');
+        rows.push(cur.file ? { depth, label, path: cur.file } : { depth, label });
+        if (cur.kids.size) walk(cur, depth + 1);
+      }
+    })(root, 0);
+    return rows;
+  }
+
   /** The longest walk. It is the only rule that names exactly one run in all
    *  three worked programs with no tie, so it is the one the text suggests. */
   function suggestRun(prog) {
@@ -521,6 +578,6 @@ const Groundtrack = (() => {
     return best;
   }
 
-  return { esc, ID, KINDS, labelsOf, callSites, calleesOf, effectsOf, failureKinds, tagFate, complexityOf, fold, back, cutEdges, layout, treeRows, suggestRun, renamedToken };
+  return { esc, ID, KINDS, labelsOf, callSites, calleesOf, effectsOf, failureKinds, tagFate, complexityOf, fold, back, cutEdges, layout, treeRows, filesOf, fileTree, suggestRun, renamedToken };
 })();
 if (typeof module !== 'undefined') module.exports = Groundtrack;

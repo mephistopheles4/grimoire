@@ -420,3 +420,76 @@ test('the layout places every node and draws every call edge once', () => {
   assert.equal(new Set(pairs).size, pairs.length, 'no edge is drawn twice');
   assert.ok(l.canvasW > 0 && l.canvasH > 0);
 });
+
+/* -- the files tab -------------------------------------------------------- */
+
+// The tab is built at runtime from `innerHTML`, so the rendered page as a
+// string cannot show the tree. The grouping lives here instead, which is the
+// same seam the fold uses: a pure function the page calls and this file calls,
+// with no DOM between them.
+
+test('the three groups a node sees are read off the change and the node map', () => {
+  const f = G.filesOf(layered, 'bindSheet');
+  assert.deepEqual(f.mine, ['packages/site/src/shelf/woodwork.ts', 'packages/site/public/wood/sapele-diff-512.jpg']);
+  // scene.ts is buildShelf's, and woodwork.ts is several nodes' — a file this
+  // node touches is still listed against the others that touch it.
+  assert.ok(f.others.includes('packages/site/src/shelf/scene.ts'));
+  assert.ok(f.others.includes('packages/site/src/shelf/woodwork.ts'));
+  assert.equal(f.unaccounted.length, 14);
+  assert.ok(!f.unaccounted.includes('packages/site/src/shelf/scene.ts'));
+});
+
+test('a file that states no changed files leaves nothing unaccounted for', () => {
+  const bare = { ...layered };
+  delete bare.files;
+  assert.deepEqual(G.filesOf(bare, 'bindSheet').unaccounted, []);
+});
+
+test('paths group under their directories, in first-appearance order', () => {
+  const rows = G.fileTree(G.filesOf(layered, 'bindSheet').unaccounted);
+  const dirs = rows.filter(r => !r.path).map(r => r.label);
+  assert.deepEqual(dirs, ['gates', 'packages/site/src/shelf', 'docs', 'adr']);
+  // Every path put in comes back out exactly once, and nothing else does.
+  const files = rows.filter(r => r.path);
+  assert.equal(files.length, 14);
+  assert.equal(new Set(files.map(r => r.path)).size, 14);
+});
+
+test('a directory holding one thing collapses into the line above it', () => {
+  const rows = G.fileTree(G.filesOf(layered, 'bindSheet').unaccounted);
+  // docs/log holds one file, so it is one row and not a header plus a row.
+  const log = rows.filter(r => r.label.startsWith('log/'));
+  assert.equal(log.length, 1);
+  assert.equal(log[0].path, 'docs/log/2026-08-30-the-species-menu-and-the-read-back.md');
+  assert.equal(log[0].label, 'log/2026-08-30-the-species-menu-and-the-read-back.md');
+  // And a chain of one-child directories is one header, not four.
+  assert.equal(rows.filter(r => r.label === 'packages').length, 0);
+});
+
+test('a lone path is one line with no header above it', () => {
+  assert.deepEqual(G.fileTree(['src/greet.ts']), [{ depth: 0, label: 'src/greet.ts', path: 'src/greet.ts' }]);
+  assert.deepEqual(G.fileTree([]), []);
+});
+
+test('a row sits one level under the header that names its directory', () => {
+  const rows = G.fileTree(['a/one.ts', 'a/two.ts', 'b/c/three.ts', 'b/d/four.ts']);
+  assert.deepEqual(rows, [
+    { depth: 0, label: 'a' },
+    { depth: 1, label: 'one.ts', path: 'a/one.ts' },
+    { depth: 1, label: 'two.ts', path: 'a/two.ts' },
+    { depth: 0, label: 'b' },
+    { depth: 1, label: 'c/three.ts', path: 'b/c/three.ts' },
+    { depth: 1, label: 'd/four.ts', path: 'b/d/four.ts' },
+  ]);
+});
+
+test('a label joined to its ancestors is the path again, whatever the path holds', () => {
+  // The label is what prints. If it did not reconstruct the path, the tab
+  // would be showing a reader a path that is not the one in the change.
+  for (const p of ['/leading.ts', 'doubled//sep.ts', 'trailing/', 'bare.ts']) {
+    const rows = G.fileTree([p]);
+    assert.equal(rows.length, 1);
+    assert.equal(rows[0].label, p);
+    assert.equal(rows[0].path, p);
+  }
+});
