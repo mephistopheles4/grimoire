@@ -41,6 +41,18 @@ const Groundtrack = (() => {
    * learn about the container. A node belongs to no graph — two graphs reach
    * the same node by both reaching it — so there is nothing to slice out of
    * `nodes`, and a view is a rename rather than a copy of the graph.
+   *
+   * **A file-wide reader must go through `graphs`, never through `presets`.**
+   * `presets` on a view is one graph's runs, and on the file itself it does
+   * not exist at all — so a rule that wants every walk in the file and reads
+   * `prog.presets` is silently one graph's answer in the first case and
+   * silently nothing in the second. Neither throws and neither is visible in a
+   * one-graph file, which is every example that ships today. The view carries
+   * `graphs` through untouched for exactly this reason: write
+   * `prog.graphs.flatMap(g => g.presets)` and the reader is right whether it
+   * was handed the file or a view. `findings` and `text` in render.mjs both
+   * do. Per-graph readers — the fold, the tree, the drawing — take the view
+   * and read `presets`, which is what a view is for.
    */
   const graphView = (prog, i) => {
     const graph = prog.graphs[i || 0];
