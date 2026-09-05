@@ -133,6 +133,20 @@ function sharedNode(prog, raw) {
   };
 }
 
+/* What the agent's own `check-N.txt` says, so a file that was edited AFTER it
+ * was checked is visible. The scorer never trusts this number — it re-derives
+ * every count from the attempt file — but a disagreement means the saved
+ * checker output was not produced from the saved file, and a run whose passes
+ * cannot be counted honestly should not be read as if they could. */
+function claimedErrors(dir, n) {
+  const p = join(dir, `check-${n}.txt`);
+  if (!existsSync(p)) return null;
+  const txt = readFileSync(p, "utf8");
+  if (/^ok:/m.test(txt)) return 0;
+  const m = txt.match(/(\d+) refusal\(s\)/);
+  return m ? +m[1] : null;
+}
+
 function readRun(dir) {
   const name = basename(dir);
   const task = taskOf(name);
@@ -149,7 +163,15 @@ function readRun(dir) {
     } catch (e) {
       errs = [`not JSON: ${e.message}`];
     }
-    passes.push({ file: f, prog, raw, errors: errs.length, errs });
+    const n = +f.match(/\d+/)[0];
+    passes.push({
+      file: f,
+      prog,
+      raw,
+      errors: errs.length,
+      errs,
+      claimed: claimedErrors(dir, n),
+    });
   }
   const greenAt = passes.findIndex((p) => p.errors === 0);
   const green = greenAt !== -1;
@@ -231,6 +253,14 @@ function table(runs) {
 }
 
 function detailFor(r) {
+  for (const p of r.passes) {
+    if (p.claimed !== null && p.claimed !== p.errors)
+      console.log(
+        `${" ".repeat(16)}? ${p.file}: its check file says ${p.claimed} refusal(s); the file scores ${p.errors} — it was edited after it was checked`,
+      );
+    if (p.claimed === null)
+      console.log(`${" ".repeat(16)}? ${p.file}: no readable check file beside it`);
+  }
   for (const m of r.fid?.critMisses ?? []) {
     const preexisting = r.fidFirst?.critMisses.some((x) => x.what === m.what);
     console.log(

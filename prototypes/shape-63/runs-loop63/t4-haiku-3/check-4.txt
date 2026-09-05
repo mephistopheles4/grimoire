@@ -1,0 +1,2 @@
+renderCatalog declares E tag "NoPage", and nothing beneath it produces that tag
+ok: Price panel — two entry points — 5 node(s), 2 graph(s), 3 run(s), 1 finding(s)

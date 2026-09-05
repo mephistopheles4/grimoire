@@ -1,0 +1,1 @@
+{"task": "t1", "attempts": 2, "green": true, "account": "Pass 1 had incorrect step references in the walk moves. The goto at step 5 incorrectly pointed to step 6 (next: 6) instead of step 7 (next: 7, the upload label), and the subsequent call referenced step 6 instead of step 7. Pass 2 corrected these step indices in both the happy path and bad markdown presets' walk moves."}

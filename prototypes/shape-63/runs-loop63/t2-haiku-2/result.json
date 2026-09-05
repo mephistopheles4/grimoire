@@ -1,0 +1,6 @@
+{
+  "task": "t2",
+  "attempts": 1,
+  "green": true,
+  "account": "Wrote cart checkout flightpath on first attempt. Defined four nodes: checkout (handler entry), loadCart (io), priceCart (pure with loop), and charge (io). Modeled one graph with two presets: a paid order and the card declines. Both presets show the pricing loop running twice. All walks validated successfully with no refusals."
+}

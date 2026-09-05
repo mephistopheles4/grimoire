@@ -1,0 +1,1 @@
+ok: Price panel in catalog and filters — 5 node(s), 2 graph(s), 3 run(s), 0 finding(s)

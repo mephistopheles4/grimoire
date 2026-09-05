@@ -1,0 +1,6 @@
+{
+  "task": "t3",
+  "attempts": 4,
+  "green": true,
+  "account": "Attempt 1: Used old one-graph file format. Attempt 2: Moved entry and presets into graphs array. Attempt 3: Removed result fields from let moves. Attempt 4: Fixed step indices, removed NoUpload handler from importContacts (task says nothing catches it), corrected if branches to point to correct step labels."
+}

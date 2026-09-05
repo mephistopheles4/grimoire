@@ -1,0 +1,397 @@
+{
+  "id": "publish-post",
+  "title": "Publish a blog post",
+  "blurb": "A blog post pipeline that reads a draft, renders markdown to HTML, and uploads to S3. Handles markdown parsing failures gracefully with a fallback plain-text version.",
+  "env": {},
+  "files": [
+    {
+      "path": "src/publish.ts",
+      "change": "edit",
+      "why": "the main publishing logic and error handler",
+      "adds": 40,
+      "dels": 6
+    },
+    {
+      "path": "src/render.ts",
+      "change": "new",
+      "why": "the markdown rendering function",
+      "adds": 55,
+      "dels": 0
+    },
+    {
+      "path": "src/upload.ts",
+      "change": "edit",
+      "why": "the S3 upload function",
+      "adds": 18,
+      "dels": 2
+    }
+  ],
+  "layers": {
+    "production": {
+      "nodes": {}
+    },
+    "tests": {
+      "nodes": {
+        "uploadHtml": {
+          "R": ["a fake bucket · publish.test.ts:31"]
+        }
+      }
+    }
+  },
+  "nodes": {
+    "publishPost": {
+      "name": "publishPost",
+      "role": "handler",
+      "loc": "src/publish.ts:1",
+      "params": ["draftId"],
+      "channels": {
+        "A": "the published URL",
+        "E": ["EmptyDraft"],
+        "R": ["the draft store"]
+      },
+      "touches": ["src/publish.ts"],
+      "enteredBy": ["src/publish.test.ts"],
+      "steps": [
+        {
+          "op": "note",
+          "note": "publish a blog post by reading a draft, rendering markdown to HTML, and uploading to S3"
+        },
+        {
+          "op": "effect",
+          "kind": "db.get",
+          "desc": "read the draft from the store",
+          "args": {"id": "draftId"},
+          "bind": "draft"
+        },
+        {
+          "op": "if",
+          "cond": "draft is empty",
+          "then": "empty",
+          "else": "render"
+        },
+        {
+          "op": "throw",
+          "label": "empty",
+          "tag": "EmptyDraft",
+          "message": "draft is empty",
+          "channel": "escape"
+        },
+        {
+          "op": "call",
+          "label": "render",
+          "target": "renderHtml",
+          "args": {"draft": "draft"},
+          "bind": "html",
+          "onError": [
+            {
+              "tag": "BadMarkdown",
+              "goto": "fallback"
+            }
+          ]
+        },
+        {
+          "op": "goto",
+          "to": "upload"
+        },
+        {
+          "op": "let",
+          "label": "fallback",
+          "name": "html",
+          "expr": "\"<p>\" + draft.body + \"</p>\""
+        },
+        {
+          "op": "call",
+          "label": "upload",
+          "target": "uploadHtml",
+          "args": {"html": "html"},
+          "bind": "url"
+        },
+        {
+          "op": "return",
+          "expr": "url"
+        }
+      ]
+    },
+    "renderHtml": {
+      "name": "renderHtml",
+      "role": "pure",
+      "loc": "src/render.ts:1",
+      "params": ["draft"],
+      "channels": {
+        "A": "HTML string",
+        "E": ["BadMarkdown"],
+        "R": []
+      },
+      "touches": ["src/render.ts"],
+      "enteredBy": ["src/publish.test.ts"],
+      "steps": [
+        {
+          "op": "note",
+          "note": "convert markdown draft to HTML, or throw BadMarkdown if parsing fails"
+        },
+        {
+          "op": "if",
+          "cond": "draft body is empty",
+          "then": "empty",
+          "else": "validate"
+        },
+        {
+          "op": "return",
+          "label": "empty",
+          "expr": "\"\""
+        },
+        {
+          "op": "if",
+          "label": "validate",
+          "cond": "markdown is valid",
+          "then": "valid",
+          "else": "invalid"
+        },
+        {
+          "op": "return",
+          "label": "valid",
+          "expr": "parsed HTML"
+        },
+        {
+          "op": "throw",
+          "label": "invalid",
+          "tag": "BadMarkdown",
+          "message": "markdown parsing failed",
+          "channel": "die"
+        }
+      ]
+    },
+    "uploadHtml": {
+      "name": "uploadHtml",
+      "role": "io",
+      "loc": "src/upload.ts:1",
+      "params": ["html"],
+      "channels": {
+        "A": "the S3 URL",
+        "E": [],
+        "R": ["the S3 client"]
+      },
+      "touches": ["src/upload.ts"],
+      "enteredBy": [],
+      "steps": [
+        {
+          "op": "effect",
+          "kind": "s3.put",
+          "desc": "upload HTML to S3",
+          "args": {"body": "html"},
+          "bind": "url"
+        },
+        {
+          "op": "return",
+          "expr": "url"
+        }
+      ]
+    }
+  },
+  "graphs": [
+    {
+      "id": "publish-post",
+      "title": "Publish a blog post",
+      "blurb": "Reads a draft from the store, renders it to HTML, and uploads it to S3. The render can fail with BadMarkdown, which is caught and handled with a fallback plain-text version.",
+      "entry": "publishPost",
+      "presets": [
+        {
+          "name": "the happy path",
+          "blurb": "Real draft, markdown renders successfully, upload succeeds on the second attempt.",
+          "input": {
+            "draftId": "d-1"
+          },
+          "walk": {
+            "provenance": "authored",
+            "steps": [
+              {
+                "k": "note",
+                "at": 0,
+                "next": 1
+              },
+              {
+                "k": "effect",
+                "at": 1,
+                "kind": "db.get",
+                "desc": "read the draft from the store",
+                "next": 2,
+                "result": {
+                  "id": "d-1",
+                  "body": "# Hello world"
+                }
+              },
+              {
+                "k": "if",
+                "at": 2,
+                "next": 4
+              },
+              {
+                "k": "call",
+                "at": 4,
+                "to": "renderHtml",
+                "next": 5
+              },
+              {
+                "k": "note",
+                "at": 0,
+                "next": 1
+              },
+              {
+                "k": "if",
+                "at": 1,
+                "next": 3
+              },
+              {
+                "k": "if",
+                "at": 3,
+                "next": 4
+              },
+              {
+                "k": "return",
+                "at": 4,
+                "value": "<h1>Hello world</h1>"
+              },
+              {
+                "k": "goto",
+                "at": 5,
+                "next": 7
+              },
+              {
+                "k": "call",
+                "at": 7,
+                "to": "uploadHtml",
+                "next": 8
+              },
+              {
+                "k": "effect",
+                "at": 0,
+                "kind": "s3.put",
+                "desc": "upload HTML to S3",
+                "attempt": 2,
+                "next": 1,
+                "result": "https://s3.example.com/d-1.html"
+              },
+              {
+                "k": "return",
+                "at": 1,
+                "value": "https://s3.example.com/d-1.html"
+              },
+              {
+                "k": "return",
+                "at": 8,
+                "value": "https://s3.example.com/d-1.html"
+              },
+              {
+                "k": "done",
+                "result": "https://s3.example.com/d-1.html"
+              }
+            ]
+          }
+        },
+        {
+          "name": "bad markdown",
+          "blurb": "Render throws BadMarkdown, publishPost catches it, and the fallback plain-text HTML uploads successfully.",
+          "input": {
+            "draftId": "d-2"
+          },
+          "walk": {
+            "provenance": "authored",
+            "steps": [
+              {
+                "k": "note",
+                "at": 0,
+                "next": 1
+              },
+              {
+                "k": "effect",
+                "at": 1,
+                "kind": "db.get",
+                "desc": "read the draft from the store",
+                "next": 2,
+                "result": {
+                  "id": "d-2",
+                  "body": "[invalid markdown"
+                }
+              },
+              {
+                "k": "if",
+                "at": 2,
+                "next": 4
+              },
+              {
+                "k": "call",
+                "at": 4,
+                "to": "renderHtml",
+                "next": 5
+              },
+              {
+                "k": "note",
+                "at": 0,
+                "next": 1
+              },
+              {
+                "k": "if",
+                "at": 1,
+                "next": 3
+              },
+              {
+                "k": "if",
+                "at": 3,
+                "next": 5
+              },
+              {
+                "k": "throw",
+                "at": 5,
+                "tag": "BadMarkdown",
+                "message": "markdown parsing failed",
+                "channel": "die"
+              },
+              {
+                "k": "unwind"
+              },
+              {
+                "k": "handled",
+                "at": 4,
+                "goto": "fallback",
+                "next": 6
+              },
+              {
+                "k": "let",
+                "at": 6,
+                "next": 7
+              },
+              {
+                "k": "call",
+                "at": 7,
+                "to": "uploadHtml",
+                "next": 8
+              },
+              {
+                "k": "effect",
+                "at": 0,
+                "kind": "s3.put",
+                "desc": "upload HTML to S3",
+                "next": 1,
+                "result": "https://s3.example.com/d-2.html"
+              },
+              {
+                "k": "return",
+                "at": 1,
+                "value": "https://s3.example.com/d-2.html"
+              },
+              {
+                "k": "return",
+                "at": 8,
+                "value": "https://s3.example.com/d-2.html"
+              },
+              {
+                "k": "done",
+                "result": "https://s3.example.com/d-2.html"
+              }
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}
