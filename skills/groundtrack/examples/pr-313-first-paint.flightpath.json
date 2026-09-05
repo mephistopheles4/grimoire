@@ -2,7 +2,6 @@
   "id": "pr-313-first-paint",
   "title": "PR #313 · first paint",
   "blurb": "The woodwork slice of buildShelf, as it stands after #313. The species is resolved here and nowhere else, which is the whole of the menu's laziness: an entry nobody selects is never fetched. Read the effects ledger against the PR's own request table. Flip Layer to Tests and exactly two nodes move: bindSheet and applyWoodFibre each take a parameter with a real default, so a double goes in at the call. fibreMapFor keeps canvas 2d, because it has no seam and no vitest spec reaches it — only smoke:render does, in a real browser with nothing substituted.",
-  "entry": "buildShelf",
   "env": {
     "roster": [
       "rosewood",
@@ -146,12 +145,6 @@
       "why": "the index line and the gate log"
     }
   ],
-  "sheet": {
-    "scopeRule": "one graph per entry point",
-    "graphsNotDrawn": [
-      "panel apply"
-    ]
-  },
   "layers": {
     "production": {
       "nodes": {}
@@ -171,1234 +164,12 @@
       }
     }
   },
-  "presets": [
-    {
-      "name": "default page",
-      "blurb": "two sheets on the wire, both of them ones the page is actually showing",
-      "input": {
-        "rowCount": 5,
-        "settings": {
-          "materials": {
-            "woodSpecies": "rosewood",
-            "woodFibre": 0.5
-          }
-        }
-      },
-      "walk": {
-        "provenance": "authored",
-        "steps": [
-          {
-            "k": "note",
-            "at": 0,
-            "next": 1
-          },
-          {
-            "k": "call",
-            "at": 1,
-            "to": "resolveWoodwork",
-            "next": 2
-          },
-          {
-            "k": "note",
-            "at": 0,
-            "next": 1
-          },
-          {
-            "k": "let",
-            "at": 1,
-            "next": 2
-          },
-          {
-            "k": "if",
-            "at": 2,
-            "next": 5
-          },
-          {
-            "k": "let",
-            "at": 5,
-            "next": 6
-          },
-          {
-            "k": "return",
-            "at": 6,
-            "value": {
-              "species": "rosewood",
-              "sheet": {
-                "url": "/wood/rosewood-diff-1024.jpg",
-                "unitsPerTile": 7.68
-              },
-              "lay": {
-                "url": "/wood/rosewood-diff-1024.jpg",
-                "unitsPerTile": 7.68
-              },
-              "refused": null
-            }
-          },
-          {
-            "k": "call",
-            "at": 2,
-            "to": "worldSpaceUvs",
-            "next": 3
-          },
-          {
-            "k": "note",
-            "at": 0,
-            "next": 1
-          },
-          {
-            "k": "return",
-            "at": 1,
-            "value": "uvs laid at 7.68 world units"
-          },
-          {
-            "k": "if",
-            "at": 3,
-            "next": 4
-          },
-          {
-            "k": "call",
-            "at": 4,
-            "to": "bindSheet",
-            "next": 5
-          },
-          {
-            "k": "effect",
-            "at": 0,
-            "kind": "net.get",
-            "result": {
-              "ok": true
-            },
-            "desc": "fetch the sheet",
-            "next": 1
-          },
-          {
-            "k": "return",
-            "at": 1,
-            "value": {
-              "url": "/wood/rosewood-diff-1024.jpg",
-              "bound": true
-            }
-          },
-          {
-            "k": "goto",
-            "at": 5,
-            "next": 7
-          },
-          {
-            "k": "call",
-            "at": 7,
-            "to": "applyWoodFibre",
-            "next": 8
-          },
-          {
-            "k": "call",
-            "at": 0,
-            "to": "fibreMapFor",
-            "next": 1
-          },
-          {
-            "k": "note",
-            "at": 0,
-            "next": 1
-          },
-          {
-            "k": "let",
-            "at": 1,
-            "next": 2
-          },
-          {
-            "k": "effect",
-            "at": 2,
-            "kind": "canvas.bake",
-            "result": {
-              "tiles": 15.36
-            },
-            "desc": "bake the 256-square fibre",
-            "next": 3
-          },
-          {
-            "k": "return",
-            "at": 3,
-            "value": {
-              "tiles": 15.36
-            }
-          },
-          {
-            "k": "if",
-            "at": 1,
-            "next": 2
-          },
-          {
-            "k": "return",
-            "at": 2,
-            "value": 0.5
-          },
-          {
-            "k": "call",
-            "at": 8,
-            "to": "bindSheet",
-            "next": 9
-          },
-          {
-            "k": "effect",
-            "at": 0,
-            "kind": "net.get",
-            "result": {
-              "ok": true
-            },
-            "desc": "fetch the sheet",
-            "next": 1
-          },
-          {
-            "k": "return",
-            "at": 1,
-            "value": {
-              "url": "/wood/darkwood-diff-512.jpg",
-              "bound": true
-            }
-          },
-          {
-            "k": "return",
-            "at": 9,
-            "value": {
-              "species": "rosewood",
-              "fibre": 0.5,
-              "refused": null
-            }
-          },
-          {
-            "k": "done",
-            "result": {
-              "species": "rosewood",
-              "fibre": 0.5,
-              "refused": null
-            }
-          }
-        ]
-      }
-    },
-    {
-      "name": "?tune= sapele",
-      "blurb": "sapele's sheet instead of rosewood's, and the fibre re-laid to 1.6 world units with it",
-      "input": {
-        "rowCount": 5,
-        "settings": {
-          "materials": {
-            "woodSpecies": "sapele",
-            "woodFibre": 0.5
-          }
-        }
-      },
-      "walk": {
-        "provenance": "authored",
-        "steps": [
-          {
-            "k": "note",
-            "at": 0,
-            "next": 1
-          },
-          {
-            "k": "call",
-            "at": 1,
-            "to": "resolveWoodwork",
-            "next": 2
-          },
-          {
-            "k": "note",
-            "at": 0,
-            "next": 1
-          },
-          {
-            "k": "let",
-            "at": 1,
-            "next": 2
-          },
-          {
-            "k": "if",
-            "at": 2,
-            "next": 5
-          },
-          {
-            "k": "let",
-            "at": 5,
-            "next": 6
-          },
-          {
-            "k": "return",
-            "at": 6,
-            "value": {
-              "species": "sapele",
-              "sheet": {
-                "url": "/wood/sapele-diff-512.jpg",
-                "unitsPerTile": 1.6
-              },
-              "lay": {
-                "url": "/wood/sapele-diff-512.jpg",
-                "unitsPerTile": 1.6
-              },
-              "refused": null
-            }
-          },
-          {
-            "k": "call",
-            "at": 2,
-            "to": "worldSpaceUvs",
-            "next": 3
-          },
-          {
-            "k": "note",
-            "at": 0,
-            "next": 1
-          },
-          {
-            "k": "return",
-            "at": 1,
-            "value": "uvs laid at 1.6 world units"
-          },
-          {
-            "k": "if",
-            "at": 3,
-            "next": 4
-          },
-          {
-            "k": "call",
-            "at": 4,
-            "to": "bindSheet",
-            "next": 5
-          },
-          {
-            "k": "effect",
-            "at": 0,
-            "kind": "net.get",
-            "result": {
-              "ok": true
-            },
-            "desc": "fetch the sheet",
-            "next": 1
-          },
-          {
-            "k": "return",
-            "at": 1,
-            "value": {
-              "url": "/wood/sapele-diff-512.jpg",
-              "bound": true
-            }
-          },
-          {
-            "k": "goto",
-            "at": 5,
-            "next": 7
-          },
-          {
-            "k": "call",
-            "at": 7,
-            "to": "applyWoodFibre",
-            "next": 8
-          },
-          {
-            "k": "call",
-            "at": 0,
-            "to": "fibreMapFor",
-            "next": 1
-          },
-          {
-            "k": "note",
-            "at": 0,
-            "next": 1
-          },
-          {
-            "k": "let",
-            "at": 1,
-            "next": 2
-          },
-          {
-            "k": "effect",
-            "at": 2,
-            "kind": "canvas.bake",
-            "result": {
-              "tiles": 3.2
-            },
-            "desc": "bake the 256-square fibre",
-            "next": 3
-          },
-          {
-            "k": "return",
-            "at": 3,
-            "value": {
-              "tiles": 3.2
-            }
-          },
-          {
-            "k": "if",
-            "at": 1,
-            "next": 2
-          },
-          {
-            "k": "return",
-            "at": 2,
-            "value": 0.5
-          },
-          {
-            "k": "call",
-            "at": 8,
-            "to": "bindSheet",
-            "next": 9
-          },
-          {
-            "k": "effect",
-            "at": 0,
-            "kind": "net.get",
-            "result": {
-              "ok": true
-            },
-            "desc": "fetch the sheet",
-            "next": 1
-          },
-          {
-            "k": "return",
-            "at": 1,
-            "value": {
-              "url": "/wood/darkwood-diff-512.jpg",
-              "bound": true
-            }
-          },
-          {
-            "k": "return",
-            "at": 9,
-            "value": {
-              "species": "sapele",
-              "fibre": 0.5,
-              "refused": null
-            }
-          },
-          {
-            "k": "done",
-            "result": {
-              "species": "sapele",
-              "fibre": 0.5,
-              "refused": null
-            }
-          }
-        ]
-      }
-    },
-    {
-      "name": "?tune= walnut — a typo",
-      "blurb": "off the roster: refused in the report, never dropped at parse",
-      "input": {
-        "rowCount": 5,
-        "settings": {
-          "materials": {
-            "woodSpecies": "walnut",
-            "woodFibre": 0.5
-          }
-        }
-      },
-      "walk": {
-        "provenance": "authored",
-        "steps": [
-          {
-            "k": "note",
-            "at": 0,
-            "next": 1
-          },
-          {
-            "k": "call",
-            "at": 1,
-            "to": "resolveWoodwork",
-            "next": 2
-          },
-          {
-            "k": "note",
-            "at": 0,
-            "next": 1
-          },
-          {
-            "k": "let",
-            "at": 1,
-            "next": 2
-          },
-          {
-            "k": "if",
-            "at": 2,
-            "next": 3
-          },
-          {
-            "k": "note",
-            "at": 3,
-            "next": 4
-          },
-          {
-            "k": "return",
-            "at": 4,
-            "value": {
-              "species": "rosewood",
-              "sheet": {
-                "url": "/wood/rosewood-diff-1024.jpg",
-                "unitsPerTile": 7.68
-              },
-              "lay": {
-                "url": "/wood/rosewood-diff-1024.jpg",
-                "unitsPerTile": 7.68
-              },
-              "refused": "woodwork sheet: \"walnut\" is not a sheet anybody has rendered, so the woodwork is showing rosewood. The roster is rosewood, sapele, flat"
-            }
-          },
-          {
-            "k": "call",
-            "at": 2,
-            "to": "worldSpaceUvs",
-            "next": 3
-          },
-          {
-            "k": "note",
-            "at": 0,
-            "next": 1
-          },
-          {
-            "k": "return",
-            "at": 1,
-            "value": "uvs laid at 7.68 world units"
-          },
-          {
-            "k": "if",
-            "at": 3,
-            "next": 4
-          },
-          {
-            "k": "call",
-            "at": 4,
-            "to": "bindSheet",
-            "next": 5
-          },
-          {
-            "k": "effect",
-            "at": 0,
-            "kind": "net.get",
-            "result": {
-              "ok": true
-            },
-            "desc": "fetch the sheet",
-            "next": 1
-          },
-          {
-            "k": "return",
-            "at": 1,
-            "value": {
-              "url": "/wood/rosewood-diff-1024.jpg",
-              "bound": true
-            }
-          },
-          {
-            "k": "goto",
-            "at": 5,
-            "next": 7
-          },
-          {
-            "k": "call",
-            "at": 7,
-            "to": "applyWoodFibre",
-            "next": 8
-          },
-          {
-            "k": "call",
-            "at": 0,
-            "to": "fibreMapFor",
-            "next": 1
-          },
-          {
-            "k": "note",
-            "at": 0,
-            "next": 1
-          },
-          {
-            "k": "let",
-            "at": 1,
-            "next": 2
-          },
-          {
-            "k": "effect",
-            "at": 2,
-            "kind": "canvas.bake",
-            "result": {
-              "tiles": 15.36
-            },
-            "desc": "bake the 256-square fibre",
-            "next": 3
-          },
-          {
-            "k": "return",
-            "at": 3,
-            "value": {
-              "tiles": 15.36
-            }
-          },
-          {
-            "k": "if",
-            "at": 1,
-            "next": 2
-          },
-          {
-            "k": "return",
-            "at": 2,
-            "value": 0.5
-          },
-          {
-            "k": "call",
-            "at": 8,
-            "to": "bindSheet",
-            "next": 9
-          },
-          {
-            "k": "effect",
-            "at": 0,
-            "kind": "net.get",
-            "result": {
-              "ok": true
-            },
-            "desc": "fetch the sheet",
-            "next": 1
-          },
-          {
-            "k": "return",
-            "at": 1,
-            "value": {
-              "url": "/wood/darkwood-diff-512.jpg",
-              "bound": true
-            }
-          },
-          {
-            "k": "return",
-            "at": 9,
-            "value": {
-              "species": "rosewood",
-              "fibre": 0.5,
-              "refused": "woodwork sheet: \"walnut\" is not a sheet anybody has rendered, so the woodwork is showing rosewood. The roster is rosewood, sapele, flat"
-            }
-          },
-          {
-            "k": "done",
-            "result": {
-              "species": "rosewood",
-              "fibre": 0.5,
-              "refused": "woodwork sheet: \"walnut\" is not a sheet anybody has rendered, so the woodwork is showing rosewood. The roster is rosewood, sapele, flat"
-            }
-          }
-        ]
-      }
-    },
-    {
-      "name": "?tune= flat",
-      "blurb": "binds no map at all — the backboard's sheet is the only woodwork request",
-      "input": {
-        "rowCount": 5,
-        "settings": {
-          "materials": {
-            "woodSpecies": "flat",
-            "woodFibre": 0.5
-          }
-        }
-      },
-      "walk": {
-        "provenance": "authored",
-        "steps": [
-          {
-            "k": "note",
-            "at": 0,
-            "next": 1
-          },
-          {
-            "k": "call",
-            "at": 1,
-            "to": "resolveWoodwork",
-            "next": 2
-          },
-          {
-            "k": "note",
-            "at": 0,
-            "next": 1
-          },
-          {
-            "k": "let",
-            "at": 1,
-            "next": 2
-          },
-          {
-            "k": "if",
-            "at": 2,
-            "next": 5
-          },
-          {
-            "k": "let",
-            "at": 5,
-            "next": 6
-          },
-          {
-            "k": "return",
-            "at": 6,
-            "value": {
-              "species": "flat",
-              "sheet": null,
-              "lay": {
-                "url": "/wood/rosewood-diff-1024.jpg",
-                "unitsPerTile": 7.68
-              },
-              "refused": null
-            }
-          },
-          {
-            "k": "call",
-            "at": 2,
-            "to": "worldSpaceUvs",
-            "next": 3
-          },
-          {
-            "k": "note",
-            "at": 0,
-            "next": 1
-          },
-          {
-            "k": "return",
-            "at": 1,
-            "value": "uvs laid at 7.68 world units"
-          },
-          {
-            "k": "if",
-            "at": 3,
-            "next": 6
-          },
-          {
-            "k": "note",
-            "at": 6,
-            "next": 7
-          },
-          {
-            "k": "call",
-            "at": 7,
-            "to": "applyWoodFibre",
-            "next": 8
-          },
-          {
-            "k": "call",
-            "at": 0,
-            "to": "fibreMapFor",
-            "next": 1
-          },
-          {
-            "k": "note",
-            "at": 0,
-            "next": 1
-          },
-          {
-            "k": "let",
-            "at": 1,
-            "next": 2
-          },
-          {
-            "k": "effect",
-            "at": 2,
-            "kind": "canvas.bake",
-            "result": {
-              "tiles": 15.36
-            },
-            "desc": "bake the 256-square fibre",
-            "next": 3
-          },
-          {
-            "k": "return",
-            "at": 3,
-            "value": {
-              "tiles": 15.36
-            }
-          },
-          {
-            "k": "if",
-            "at": 1,
-            "next": 2
-          },
-          {
-            "k": "return",
-            "at": 2,
-            "value": 0.5
-          },
-          {
-            "k": "call",
-            "at": 8,
-            "to": "bindSheet",
-            "next": 9
-          },
-          {
-            "k": "effect",
-            "at": 0,
-            "kind": "net.get",
-            "result": {
-              "ok": true
-            },
-            "desc": "fetch the sheet",
-            "next": 1
-          },
-          {
-            "k": "return",
-            "at": 1,
-            "value": {
-              "url": "/wood/darkwood-diff-512.jpg",
-              "bound": true
-            }
-          },
-          {
-            "k": "return",
-            "at": 9,
-            "value": {
-              "species": "flat",
-              "fibre": 0.5,
-              "refused": null
-            }
-          },
-          {
-            "k": "done",
-            "result": {
-              "species": "flat",
-              "fibre": 0.5,
-              "refused": null
-            }
-          }
-        ]
-      }
-    },
-    {
-      "name": "the sheet 404s",
-      "blurb": "the load failure is warned, not raised — which is why bindSheet's E channel is empty",
-      "input": {
-        "rowCount": 5,
-        "settings": {
-          "materials": {
-            "woodSpecies": "rosewood",
-            "woodFibre": 0.5
-          }
-        },
-        "sheetMissing": "/wood/rosewood-diff-1024.jpg"
-      },
-      "walk": {
-        "provenance": "authored",
-        "steps": [
-          {
-            "k": "note",
-            "at": 0,
-            "next": 1
-          },
-          {
-            "k": "call",
-            "at": 1,
-            "to": "resolveWoodwork",
-            "next": 2
-          },
-          {
-            "k": "note",
-            "at": 0,
-            "next": 1
-          },
-          {
-            "k": "let",
-            "at": 1,
-            "next": 2
-          },
-          {
-            "k": "if",
-            "at": 2,
-            "next": 5
-          },
-          {
-            "k": "let",
-            "at": 5,
-            "next": 6
-          },
-          {
-            "k": "return",
-            "at": 6,
-            "value": {
-              "species": "rosewood",
-              "sheet": {
-                "url": "/wood/rosewood-diff-1024.jpg",
-                "unitsPerTile": 7.68
-              },
-              "lay": {
-                "url": "/wood/rosewood-diff-1024.jpg",
-                "unitsPerTile": 7.68
-              },
-              "refused": null
-            }
-          },
-          {
-            "k": "call",
-            "at": 2,
-            "to": "worldSpaceUvs",
-            "next": 3
-          },
-          {
-            "k": "note",
-            "at": 0,
-            "next": 1
-          },
-          {
-            "k": "return",
-            "at": 1,
-            "value": "uvs laid at 7.68 world units"
-          },
-          {
-            "k": "if",
-            "at": 3,
-            "next": 4
-          },
-          {
-            "k": "call",
-            "at": 4,
-            "to": "bindSheet",
-            "next": 5
-          },
-          {
-            "k": "effect",
-            "at": 0,
-            "kind": "net.get",
-            "desc": "fetch the sheet",
-            "raised": {
-              "tag": "SheetMissing",
-              "message": "404",
-              "channel": "escape"
-            }
-          },
-          {
-            "k": "handled",
-            "at": 0,
-            "goto": "warn",
-            "next": 2
-          },
-          {
-            "k": "effect",
-            "at": 2,
-            "kind": "console.warn",
-            "result": true,
-            "desc": "did not load; the surface keeps its flat colour",
-            "next": 3
-          },
-          {
-            "k": "note",
-            "at": 3,
-            "next": 4
-          },
-          {
-            "k": "return",
-            "at": 4,
-            "value": {
-              "url": "/wood/rosewood-diff-1024.jpg",
-              "bound": false
-            }
-          },
-          {
-            "k": "goto",
-            "at": 5,
-            "next": 7
-          },
-          {
-            "k": "call",
-            "at": 7,
-            "to": "applyWoodFibre",
-            "next": 8
-          },
-          {
-            "k": "call",
-            "at": 0,
-            "to": "fibreMapFor",
-            "next": 1
-          },
-          {
-            "k": "note",
-            "at": 0,
-            "next": 1
-          },
-          {
-            "k": "let",
-            "at": 1,
-            "next": 2
-          },
-          {
-            "k": "effect",
-            "at": 2,
-            "kind": "canvas.bake",
-            "result": {
-              "tiles": 15.36
-            },
-            "desc": "bake the 256-square fibre",
-            "next": 3
-          },
-          {
-            "k": "return",
-            "at": 3,
-            "value": {
-              "tiles": 15.36
-            }
-          },
-          {
-            "k": "if",
-            "at": 1,
-            "next": 2
-          },
-          {
-            "k": "return",
-            "at": 2,
-            "value": 0.5
-          },
-          {
-            "k": "call",
-            "at": 8,
-            "to": "bindSheet",
-            "next": 9
-          },
-          {
-            "k": "effect",
-            "at": 0,
-            "kind": "net.get",
-            "result": {
-              "ok": true
-            },
-            "desc": "fetch the sheet",
-            "next": 1
-          },
-          {
-            "k": "return",
-            "at": 1,
-            "value": {
-              "url": "/wood/darkwood-diff-512.jpg",
-              "bound": true
-            }
-          },
-          {
-            "k": "return",
-            "at": 9,
-            "value": {
-              "species": "rosewood",
-              "fibre": 0.5,
-              "refused": null
-            }
-          },
-          {
-            "k": "done",
-            "result": {
-              "species": "rosewood",
-              "fibre": 0.5,
-              "refused": null
-            }
-          }
-        ]
-      }
-    },
-    {
-      "name": "no 2D context",
-      "blurb": "the drawn fibre cannot be baked, so the woodwork stays smooth and says so",
-      "input": {
-        "rowCount": 5,
-        "settings": {
-          "materials": {
-            "woodSpecies": "rosewood",
-            "woodFibre": 0.5
-          }
-        },
-        "noCanvas": true
-      },
-      "walk": {
-        "provenance": "authored",
-        "steps": [
-          {
-            "k": "note",
-            "at": 0,
-            "next": 1
-          },
-          {
-            "k": "call",
-            "at": 1,
-            "to": "resolveWoodwork",
-            "next": 2
-          },
-          {
-            "k": "note",
-            "at": 0,
-            "next": 1
-          },
-          {
-            "k": "let",
-            "at": 1,
-            "next": 2
-          },
-          {
-            "k": "if",
-            "at": 2,
-            "next": 5
-          },
-          {
-            "k": "let",
-            "at": 5,
-            "next": 6
-          },
-          {
-            "k": "return",
-            "at": 6,
-            "value": {
-              "species": "rosewood",
-              "sheet": {
-                "url": "/wood/rosewood-diff-1024.jpg",
-                "unitsPerTile": 7.68
-              },
-              "lay": {
-                "url": "/wood/rosewood-diff-1024.jpg",
-                "unitsPerTile": 7.68
-              },
-              "refused": null
-            }
-          },
-          {
-            "k": "call",
-            "at": 2,
-            "to": "worldSpaceUvs",
-            "next": 3
-          },
-          {
-            "k": "note",
-            "at": 0,
-            "next": 1
-          },
-          {
-            "k": "return",
-            "at": 1,
-            "value": "uvs laid at 7.68 world units"
-          },
-          {
-            "k": "if",
-            "at": 3,
-            "next": 4
-          },
-          {
-            "k": "call",
-            "at": 4,
-            "to": "bindSheet",
-            "next": 5
-          },
-          {
-            "k": "effect",
-            "at": 0,
-            "kind": "net.get",
-            "result": {
-              "ok": true
-            },
-            "desc": "fetch the sheet",
-            "next": 1
-          },
-          {
-            "k": "return",
-            "at": 1,
-            "value": {
-              "url": "/wood/rosewood-diff-1024.jpg",
-              "bound": true
-            }
-          },
-          {
-            "k": "goto",
-            "at": 5,
-            "next": 7
-          },
-          {
-            "k": "call",
-            "at": 7,
-            "to": "applyWoodFibre",
-            "next": 8
-          },
-          {
-            "k": "call",
-            "at": 0,
-            "to": "fibreMapFor",
-            "next": 1
-          },
-          {
-            "k": "note",
-            "at": 0,
-            "next": 1
-          },
-          {
-            "k": "let",
-            "at": 1,
-            "next": 2
-          },
-          {
-            "k": "effect",
-            "at": 2,
-            "kind": "canvas.bake",
-            "result": null,
-            "desc": "bake the 256-square fibre",
-            "next": 3
-          },
-          {
-            "k": "return",
-            "at": 3,
-            "value": null
-          },
-          {
-            "k": "if",
-            "at": 1,
-            "next": 3
-          },
-          {
-            "k": "note",
-            "at": 3,
-            "next": 4
-          },
-          {
-            "k": "return",
-            "at": 4,
-            "value": 0
-          },
-          {
-            "k": "call",
-            "at": 8,
-            "to": "bindSheet",
-            "next": 9
-          },
-          {
-            "k": "effect",
-            "at": 0,
-            "kind": "net.get",
-            "result": {
-              "ok": true
-            },
-            "desc": "fetch the sheet",
-            "next": 1
-          },
-          {
-            "k": "return",
-            "at": 1,
-            "value": {
-              "url": "/wood/darkwood-diff-512.jpg",
-              "bound": true
-            }
-          },
-          {
-            "k": "return",
-            "at": 9,
-            "value": {
-              "species": "rosewood",
-              "fibre": 0,
-              "refused": null
-            }
-          },
-          {
-            "k": "done",
-            "result": {
-              "species": "rosewood",
-              "fibre": 0,
-              "refused": null
-            }
-          }
-        ]
-      }
-    }
-  ],
+  "sheet": {
+    "scopeRule": "one graph per entry point",
+    "graphsNotDrawn": [
+      "panel apply"
+    ]
+  },
   "nodes": {
     "buildShelf": {
       "name": "buildShelf",
@@ -1732,5 +503,1241 @@
         "packages/site/src/shelf/woodwork.test.ts"
       ]
     }
-  }
+  },
+  "graphs": [
+    {
+      "id": "first-paint",
+      "title": "first paint",
+      "blurb": "Enters at buildShelf, the paint path that resolves the species and binds the sheet it names.",
+      "entry": "buildShelf",
+      "presets": [
+        {
+          "name": "default page",
+          "blurb": "two sheets on the wire, both of them ones the page is actually showing",
+          "input": {
+            "rowCount": 5,
+            "settings": {
+              "materials": {
+                "woodSpecies": "rosewood",
+                "woodFibre": 0.5
+              }
+            }
+          },
+          "walk": {
+            "provenance": "authored",
+            "steps": [
+              {
+                "k": "note",
+                "at": 0,
+                "next": 1
+              },
+              {
+                "k": "call",
+                "at": 1,
+                "to": "resolveWoodwork",
+                "next": 2
+              },
+              {
+                "k": "note",
+                "at": 0,
+                "next": 1
+              },
+              {
+                "k": "let",
+                "at": 1,
+                "next": 2
+              },
+              {
+                "k": "if",
+                "at": 2,
+                "next": 5
+              },
+              {
+                "k": "let",
+                "at": 5,
+                "next": 6
+              },
+              {
+                "k": "return",
+                "at": 6,
+                "value": {
+                  "species": "rosewood",
+                  "sheet": {
+                    "url": "/wood/rosewood-diff-1024.jpg",
+                    "unitsPerTile": 7.68
+                  },
+                  "lay": {
+                    "url": "/wood/rosewood-diff-1024.jpg",
+                    "unitsPerTile": 7.68
+                  },
+                  "refused": null
+                }
+              },
+              {
+                "k": "call",
+                "at": 2,
+                "to": "worldSpaceUvs",
+                "next": 3
+              },
+              {
+                "k": "note",
+                "at": 0,
+                "next": 1
+              },
+              {
+                "k": "return",
+                "at": 1,
+                "value": "uvs laid at 7.68 world units"
+              },
+              {
+                "k": "if",
+                "at": 3,
+                "next": 4
+              },
+              {
+                "k": "call",
+                "at": 4,
+                "to": "bindSheet",
+                "next": 5
+              },
+              {
+                "k": "effect",
+                "at": 0,
+                "kind": "net.get",
+                "result": {
+                  "ok": true
+                },
+                "desc": "fetch the sheet",
+                "next": 1
+              },
+              {
+                "k": "return",
+                "at": 1,
+                "value": {
+                  "url": "/wood/rosewood-diff-1024.jpg",
+                  "bound": true
+                }
+              },
+              {
+                "k": "goto",
+                "at": 5,
+                "next": 7
+              },
+              {
+                "k": "call",
+                "at": 7,
+                "to": "applyWoodFibre",
+                "next": 8
+              },
+              {
+                "k": "call",
+                "at": 0,
+                "to": "fibreMapFor",
+                "next": 1
+              },
+              {
+                "k": "note",
+                "at": 0,
+                "next": 1
+              },
+              {
+                "k": "let",
+                "at": 1,
+                "next": 2
+              },
+              {
+                "k": "effect",
+                "at": 2,
+                "kind": "canvas.bake",
+                "result": {
+                  "tiles": 15.36
+                },
+                "desc": "bake the 256-square fibre",
+                "next": 3
+              },
+              {
+                "k": "return",
+                "at": 3,
+                "value": {
+                  "tiles": 15.36
+                }
+              },
+              {
+                "k": "if",
+                "at": 1,
+                "next": 2
+              },
+              {
+                "k": "return",
+                "at": 2,
+                "value": 0.5
+              },
+              {
+                "k": "call",
+                "at": 8,
+                "to": "bindSheet",
+                "next": 9
+              },
+              {
+                "k": "effect",
+                "at": 0,
+                "kind": "net.get",
+                "result": {
+                  "ok": true
+                },
+                "desc": "fetch the sheet",
+                "next": 1
+              },
+              {
+                "k": "return",
+                "at": 1,
+                "value": {
+                  "url": "/wood/darkwood-diff-512.jpg",
+                  "bound": true
+                }
+              },
+              {
+                "k": "return",
+                "at": 9,
+                "value": {
+                  "species": "rosewood",
+                  "fibre": 0.5,
+                  "refused": null
+                }
+              },
+              {
+                "k": "done",
+                "result": {
+                  "species": "rosewood",
+                  "fibre": 0.5,
+                  "refused": null
+                }
+              }
+            ]
+          }
+        },
+        {
+          "name": "?tune= sapele",
+          "blurb": "sapele's sheet instead of rosewood's, and the fibre re-laid to 1.6 world units with it",
+          "input": {
+            "rowCount": 5,
+            "settings": {
+              "materials": {
+                "woodSpecies": "sapele",
+                "woodFibre": 0.5
+              }
+            }
+          },
+          "walk": {
+            "provenance": "authored",
+            "steps": [
+              {
+                "k": "note",
+                "at": 0,
+                "next": 1
+              },
+              {
+                "k": "call",
+                "at": 1,
+                "to": "resolveWoodwork",
+                "next": 2
+              },
+              {
+                "k": "note",
+                "at": 0,
+                "next": 1
+              },
+              {
+                "k": "let",
+                "at": 1,
+                "next": 2
+              },
+              {
+                "k": "if",
+                "at": 2,
+                "next": 5
+              },
+              {
+                "k": "let",
+                "at": 5,
+                "next": 6
+              },
+              {
+                "k": "return",
+                "at": 6,
+                "value": {
+                  "species": "sapele",
+                  "sheet": {
+                    "url": "/wood/sapele-diff-512.jpg",
+                    "unitsPerTile": 1.6
+                  },
+                  "lay": {
+                    "url": "/wood/sapele-diff-512.jpg",
+                    "unitsPerTile": 1.6
+                  },
+                  "refused": null
+                }
+              },
+              {
+                "k": "call",
+                "at": 2,
+                "to": "worldSpaceUvs",
+                "next": 3
+              },
+              {
+                "k": "note",
+                "at": 0,
+                "next": 1
+              },
+              {
+                "k": "return",
+                "at": 1,
+                "value": "uvs laid at 1.6 world units"
+              },
+              {
+                "k": "if",
+                "at": 3,
+                "next": 4
+              },
+              {
+                "k": "call",
+                "at": 4,
+                "to": "bindSheet",
+                "next": 5
+              },
+              {
+                "k": "effect",
+                "at": 0,
+                "kind": "net.get",
+                "result": {
+                  "ok": true
+                },
+                "desc": "fetch the sheet",
+                "next": 1
+              },
+              {
+                "k": "return",
+                "at": 1,
+                "value": {
+                  "url": "/wood/sapele-diff-512.jpg",
+                  "bound": true
+                }
+              },
+              {
+                "k": "goto",
+                "at": 5,
+                "next": 7
+              },
+              {
+                "k": "call",
+                "at": 7,
+                "to": "applyWoodFibre",
+                "next": 8
+              },
+              {
+                "k": "call",
+                "at": 0,
+                "to": "fibreMapFor",
+                "next": 1
+              },
+              {
+                "k": "note",
+                "at": 0,
+                "next": 1
+              },
+              {
+                "k": "let",
+                "at": 1,
+                "next": 2
+              },
+              {
+                "k": "effect",
+                "at": 2,
+                "kind": "canvas.bake",
+                "result": {
+                  "tiles": 3.2
+                },
+                "desc": "bake the 256-square fibre",
+                "next": 3
+              },
+              {
+                "k": "return",
+                "at": 3,
+                "value": {
+                  "tiles": 3.2
+                }
+              },
+              {
+                "k": "if",
+                "at": 1,
+                "next": 2
+              },
+              {
+                "k": "return",
+                "at": 2,
+                "value": 0.5
+              },
+              {
+                "k": "call",
+                "at": 8,
+                "to": "bindSheet",
+                "next": 9
+              },
+              {
+                "k": "effect",
+                "at": 0,
+                "kind": "net.get",
+                "result": {
+                  "ok": true
+                },
+                "desc": "fetch the sheet",
+                "next": 1
+              },
+              {
+                "k": "return",
+                "at": 1,
+                "value": {
+                  "url": "/wood/darkwood-diff-512.jpg",
+                  "bound": true
+                }
+              },
+              {
+                "k": "return",
+                "at": 9,
+                "value": {
+                  "species": "sapele",
+                  "fibre": 0.5,
+                  "refused": null
+                }
+              },
+              {
+                "k": "done",
+                "result": {
+                  "species": "sapele",
+                  "fibre": 0.5,
+                  "refused": null
+                }
+              }
+            ]
+          }
+        },
+        {
+          "name": "?tune= walnut — a typo",
+          "blurb": "off the roster: refused in the report, never dropped at parse",
+          "input": {
+            "rowCount": 5,
+            "settings": {
+              "materials": {
+                "woodSpecies": "walnut",
+                "woodFibre": 0.5
+              }
+            }
+          },
+          "walk": {
+            "provenance": "authored",
+            "steps": [
+              {
+                "k": "note",
+                "at": 0,
+                "next": 1
+              },
+              {
+                "k": "call",
+                "at": 1,
+                "to": "resolveWoodwork",
+                "next": 2
+              },
+              {
+                "k": "note",
+                "at": 0,
+                "next": 1
+              },
+              {
+                "k": "let",
+                "at": 1,
+                "next": 2
+              },
+              {
+                "k": "if",
+                "at": 2,
+                "next": 3
+              },
+              {
+                "k": "note",
+                "at": 3,
+                "next": 4
+              },
+              {
+                "k": "return",
+                "at": 4,
+                "value": {
+                  "species": "rosewood",
+                  "sheet": {
+                    "url": "/wood/rosewood-diff-1024.jpg",
+                    "unitsPerTile": 7.68
+                  },
+                  "lay": {
+                    "url": "/wood/rosewood-diff-1024.jpg",
+                    "unitsPerTile": 7.68
+                  },
+                  "refused": "woodwork sheet: \"walnut\" is not a sheet anybody has rendered, so the woodwork is showing rosewood. The roster is rosewood, sapele, flat"
+                }
+              },
+              {
+                "k": "call",
+                "at": 2,
+                "to": "worldSpaceUvs",
+                "next": 3
+              },
+              {
+                "k": "note",
+                "at": 0,
+                "next": 1
+              },
+              {
+                "k": "return",
+                "at": 1,
+                "value": "uvs laid at 7.68 world units"
+              },
+              {
+                "k": "if",
+                "at": 3,
+                "next": 4
+              },
+              {
+                "k": "call",
+                "at": 4,
+                "to": "bindSheet",
+                "next": 5
+              },
+              {
+                "k": "effect",
+                "at": 0,
+                "kind": "net.get",
+                "result": {
+                  "ok": true
+                },
+                "desc": "fetch the sheet",
+                "next": 1
+              },
+              {
+                "k": "return",
+                "at": 1,
+                "value": {
+                  "url": "/wood/rosewood-diff-1024.jpg",
+                  "bound": true
+                }
+              },
+              {
+                "k": "goto",
+                "at": 5,
+                "next": 7
+              },
+              {
+                "k": "call",
+                "at": 7,
+                "to": "applyWoodFibre",
+                "next": 8
+              },
+              {
+                "k": "call",
+                "at": 0,
+                "to": "fibreMapFor",
+                "next": 1
+              },
+              {
+                "k": "note",
+                "at": 0,
+                "next": 1
+              },
+              {
+                "k": "let",
+                "at": 1,
+                "next": 2
+              },
+              {
+                "k": "effect",
+                "at": 2,
+                "kind": "canvas.bake",
+                "result": {
+                  "tiles": 15.36
+                },
+                "desc": "bake the 256-square fibre",
+                "next": 3
+              },
+              {
+                "k": "return",
+                "at": 3,
+                "value": {
+                  "tiles": 15.36
+                }
+              },
+              {
+                "k": "if",
+                "at": 1,
+                "next": 2
+              },
+              {
+                "k": "return",
+                "at": 2,
+                "value": 0.5
+              },
+              {
+                "k": "call",
+                "at": 8,
+                "to": "bindSheet",
+                "next": 9
+              },
+              {
+                "k": "effect",
+                "at": 0,
+                "kind": "net.get",
+                "result": {
+                  "ok": true
+                },
+                "desc": "fetch the sheet",
+                "next": 1
+              },
+              {
+                "k": "return",
+                "at": 1,
+                "value": {
+                  "url": "/wood/darkwood-diff-512.jpg",
+                  "bound": true
+                }
+              },
+              {
+                "k": "return",
+                "at": 9,
+                "value": {
+                  "species": "rosewood",
+                  "fibre": 0.5,
+                  "refused": "woodwork sheet: \"walnut\" is not a sheet anybody has rendered, so the woodwork is showing rosewood. The roster is rosewood, sapele, flat"
+                }
+              },
+              {
+                "k": "done",
+                "result": {
+                  "species": "rosewood",
+                  "fibre": 0.5,
+                  "refused": "woodwork sheet: \"walnut\" is not a sheet anybody has rendered, so the woodwork is showing rosewood. The roster is rosewood, sapele, flat"
+                }
+              }
+            ]
+          }
+        },
+        {
+          "name": "?tune= flat",
+          "blurb": "binds no map at all — the backboard's sheet is the only woodwork request",
+          "input": {
+            "rowCount": 5,
+            "settings": {
+              "materials": {
+                "woodSpecies": "flat",
+                "woodFibre": 0.5
+              }
+            }
+          },
+          "walk": {
+            "provenance": "authored",
+            "steps": [
+              {
+                "k": "note",
+                "at": 0,
+                "next": 1
+              },
+              {
+                "k": "call",
+                "at": 1,
+                "to": "resolveWoodwork",
+                "next": 2
+              },
+              {
+                "k": "note",
+                "at": 0,
+                "next": 1
+              },
+              {
+                "k": "let",
+                "at": 1,
+                "next": 2
+              },
+              {
+                "k": "if",
+                "at": 2,
+                "next": 5
+              },
+              {
+                "k": "let",
+                "at": 5,
+                "next": 6
+              },
+              {
+                "k": "return",
+                "at": 6,
+                "value": {
+                  "species": "flat",
+                  "sheet": null,
+                  "lay": {
+                    "url": "/wood/rosewood-diff-1024.jpg",
+                    "unitsPerTile": 7.68
+                  },
+                  "refused": null
+                }
+              },
+              {
+                "k": "call",
+                "at": 2,
+                "to": "worldSpaceUvs",
+                "next": 3
+              },
+              {
+                "k": "note",
+                "at": 0,
+                "next": 1
+              },
+              {
+                "k": "return",
+                "at": 1,
+                "value": "uvs laid at 7.68 world units"
+              },
+              {
+                "k": "if",
+                "at": 3,
+                "next": 6
+              },
+              {
+                "k": "note",
+                "at": 6,
+                "next": 7
+              },
+              {
+                "k": "call",
+                "at": 7,
+                "to": "applyWoodFibre",
+                "next": 8
+              },
+              {
+                "k": "call",
+                "at": 0,
+                "to": "fibreMapFor",
+                "next": 1
+              },
+              {
+                "k": "note",
+                "at": 0,
+                "next": 1
+              },
+              {
+                "k": "let",
+                "at": 1,
+                "next": 2
+              },
+              {
+                "k": "effect",
+                "at": 2,
+                "kind": "canvas.bake",
+                "result": {
+                  "tiles": 15.36
+                },
+                "desc": "bake the 256-square fibre",
+                "next": 3
+              },
+              {
+                "k": "return",
+                "at": 3,
+                "value": {
+                  "tiles": 15.36
+                }
+              },
+              {
+                "k": "if",
+                "at": 1,
+                "next": 2
+              },
+              {
+                "k": "return",
+                "at": 2,
+                "value": 0.5
+              },
+              {
+                "k": "call",
+                "at": 8,
+                "to": "bindSheet",
+                "next": 9
+              },
+              {
+                "k": "effect",
+                "at": 0,
+                "kind": "net.get",
+                "result": {
+                  "ok": true
+                },
+                "desc": "fetch the sheet",
+                "next": 1
+              },
+              {
+                "k": "return",
+                "at": 1,
+                "value": {
+                  "url": "/wood/darkwood-diff-512.jpg",
+                  "bound": true
+                }
+              },
+              {
+                "k": "return",
+                "at": 9,
+                "value": {
+                  "species": "flat",
+                  "fibre": 0.5,
+                  "refused": null
+                }
+              },
+              {
+                "k": "done",
+                "result": {
+                  "species": "flat",
+                  "fibre": 0.5,
+                  "refused": null
+                }
+              }
+            ]
+          }
+        },
+        {
+          "name": "the sheet 404s",
+          "blurb": "the load failure is warned, not raised — which is why bindSheet's E channel is empty",
+          "input": {
+            "rowCount": 5,
+            "settings": {
+              "materials": {
+                "woodSpecies": "rosewood",
+                "woodFibre": 0.5
+              }
+            },
+            "sheetMissing": "/wood/rosewood-diff-1024.jpg"
+          },
+          "walk": {
+            "provenance": "authored",
+            "steps": [
+              {
+                "k": "note",
+                "at": 0,
+                "next": 1
+              },
+              {
+                "k": "call",
+                "at": 1,
+                "to": "resolveWoodwork",
+                "next": 2
+              },
+              {
+                "k": "note",
+                "at": 0,
+                "next": 1
+              },
+              {
+                "k": "let",
+                "at": 1,
+                "next": 2
+              },
+              {
+                "k": "if",
+                "at": 2,
+                "next": 5
+              },
+              {
+                "k": "let",
+                "at": 5,
+                "next": 6
+              },
+              {
+                "k": "return",
+                "at": 6,
+                "value": {
+                  "species": "rosewood",
+                  "sheet": {
+                    "url": "/wood/rosewood-diff-1024.jpg",
+                    "unitsPerTile": 7.68
+                  },
+                  "lay": {
+                    "url": "/wood/rosewood-diff-1024.jpg",
+                    "unitsPerTile": 7.68
+                  },
+                  "refused": null
+                }
+              },
+              {
+                "k": "call",
+                "at": 2,
+                "to": "worldSpaceUvs",
+                "next": 3
+              },
+              {
+                "k": "note",
+                "at": 0,
+                "next": 1
+              },
+              {
+                "k": "return",
+                "at": 1,
+                "value": "uvs laid at 7.68 world units"
+              },
+              {
+                "k": "if",
+                "at": 3,
+                "next": 4
+              },
+              {
+                "k": "call",
+                "at": 4,
+                "to": "bindSheet",
+                "next": 5
+              },
+              {
+                "k": "effect",
+                "at": 0,
+                "kind": "net.get",
+                "desc": "fetch the sheet",
+                "raised": {
+                  "tag": "SheetMissing",
+                  "message": "404",
+                  "channel": "escape"
+                }
+              },
+              {
+                "k": "handled",
+                "at": 0,
+                "goto": "warn",
+                "next": 2
+              },
+              {
+                "k": "effect",
+                "at": 2,
+                "kind": "console.warn",
+                "result": true,
+                "desc": "did not load; the surface keeps its flat colour",
+                "next": 3
+              },
+              {
+                "k": "note",
+                "at": 3,
+                "next": 4
+              },
+              {
+                "k": "return",
+                "at": 4,
+                "value": {
+                  "url": "/wood/rosewood-diff-1024.jpg",
+                  "bound": false
+                }
+              },
+              {
+                "k": "goto",
+                "at": 5,
+                "next": 7
+              },
+              {
+                "k": "call",
+                "at": 7,
+                "to": "applyWoodFibre",
+                "next": 8
+              },
+              {
+                "k": "call",
+                "at": 0,
+                "to": "fibreMapFor",
+                "next": 1
+              },
+              {
+                "k": "note",
+                "at": 0,
+                "next": 1
+              },
+              {
+                "k": "let",
+                "at": 1,
+                "next": 2
+              },
+              {
+                "k": "effect",
+                "at": 2,
+                "kind": "canvas.bake",
+                "result": {
+                  "tiles": 15.36
+                },
+                "desc": "bake the 256-square fibre",
+                "next": 3
+              },
+              {
+                "k": "return",
+                "at": 3,
+                "value": {
+                  "tiles": 15.36
+                }
+              },
+              {
+                "k": "if",
+                "at": 1,
+                "next": 2
+              },
+              {
+                "k": "return",
+                "at": 2,
+                "value": 0.5
+              },
+              {
+                "k": "call",
+                "at": 8,
+                "to": "bindSheet",
+                "next": 9
+              },
+              {
+                "k": "effect",
+                "at": 0,
+                "kind": "net.get",
+                "result": {
+                  "ok": true
+                },
+                "desc": "fetch the sheet",
+                "next": 1
+              },
+              {
+                "k": "return",
+                "at": 1,
+                "value": {
+                  "url": "/wood/darkwood-diff-512.jpg",
+                  "bound": true
+                }
+              },
+              {
+                "k": "return",
+                "at": 9,
+                "value": {
+                  "species": "rosewood",
+                  "fibre": 0.5,
+                  "refused": null
+                }
+              },
+              {
+                "k": "done",
+                "result": {
+                  "species": "rosewood",
+                  "fibre": 0.5,
+                  "refused": null
+                }
+              }
+            ]
+          }
+        },
+        {
+          "name": "no 2D context",
+          "blurb": "the drawn fibre cannot be baked, so the woodwork stays smooth and says so",
+          "input": {
+            "rowCount": 5,
+            "settings": {
+              "materials": {
+                "woodSpecies": "rosewood",
+                "woodFibre": 0.5
+              }
+            },
+            "noCanvas": true
+          },
+          "walk": {
+            "provenance": "authored",
+            "steps": [
+              {
+                "k": "note",
+                "at": 0,
+                "next": 1
+              },
+              {
+                "k": "call",
+                "at": 1,
+                "to": "resolveWoodwork",
+                "next": 2
+              },
+              {
+                "k": "note",
+                "at": 0,
+                "next": 1
+              },
+              {
+                "k": "let",
+                "at": 1,
+                "next": 2
+              },
+              {
+                "k": "if",
+                "at": 2,
+                "next": 5
+              },
+              {
+                "k": "let",
+                "at": 5,
+                "next": 6
+              },
+              {
+                "k": "return",
+                "at": 6,
+                "value": {
+                  "species": "rosewood",
+                  "sheet": {
+                    "url": "/wood/rosewood-diff-1024.jpg",
+                    "unitsPerTile": 7.68
+                  },
+                  "lay": {
+                    "url": "/wood/rosewood-diff-1024.jpg",
+                    "unitsPerTile": 7.68
+                  },
+                  "refused": null
+                }
+              },
+              {
+                "k": "call",
+                "at": 2,
+                "to": "worldSpaceUvs",
+                "next": 3
+              },
+              {
+                "k": "note",
+                "at": 0,
+                "next": 1
+              },
+              {
+                "k": "return",
+                "at": 1,
+                "value": "uvs laid at 7.68 world units"
+              },
+              {
+                "k": "if",
+                "at": 3,
+                "next": 4
+              },
+              {
+                "k": "call",
+                "at": 4,
+                "to": "bindSheet",
+                "next": 5
+              },
+              {
+                "k": "effect",
+                "at": 0,
+                "kind": "net.get",
+                "result": {
+                  "ok": true
+                },
+                "desc": "fetch the sheet",
+                "next": 1
+              },
+              {
+                "k": "return",
+                "at": 1,
+                "value": {
+                  "url": "/wood/rosewood-diff-1024.jpg",
+                  "bound": true
+                }
+              },
+              {
+                "k": "goto",
+                "at": 5,
+                "next": 7
+              },
+              {
+                "k": "call",
+                "at": 7,
+                "to": "applyWoodFibre",
+                "next": 8
+              },
+              {
+                "k": "call",
+                "at": 0,
+                "to": "fibreMapFor",
+                "next": 1
+              },
+              {
+                "k": "note",
+                "at": 0,
+                "next": 1
+              },
+              {
+                "k": "let",
+                "at": 1,
+                "next": 2
+              },
+              {
+                "k": "effect",
+                "at": 2,
+                "kind": "canvas.bake",
+                "result": null,
+                "desc": "bake the 256-square fibre",
+                "next": 3
+              },
+              {
+                "k": "return",
+                "at": 3,
+                "value": null
+              },
+              {
+                "k": "if",
+                "at": 1,
+                "next": 3
+              },
+              {
+                "k": "note",
+                "at": 3,
+                "next": 4
+              },
+              {
+                "k": "return",
+                "at": 4,
+                "value": 0
+              },
+              {
+                "k": "call",
+                "at": 8,
+                "to": "bindSheet",
+                "next": 9
+              },
+              {
+                "k": "effect",
+                "at": 0,
+                "kind": "net.get",
+                "result": {
+                  "ok": true
+                },
+                "desc": "fetch the sheet",
+                "next": 1
+              },
+              {
+                "k": "return",
+                "at": 1,
+                "value": {
+                  "url": "/wood/darkwood-diff-512.jpg",
+                  "bound": true
+                }
+              },
+              {
+                "k": "return",
+                "at": 9,
+                "value": {
+                  "species": "rosewood",
+                  "fibre": 0,
+                  "refused": null
+                }
+              },
+              {
+                "k": "done",
+                "result": {
+                  "species": "rosewood",
+                  "fibre": 0,
+                  "refused": null
+                }
+              }
+            ]
+          }
+        }
+      ]
+    }
+  ]
 }

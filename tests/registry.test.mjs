@@ -91,7 +91,7 @@ test('the check validates a flightpath file, and fails on a broken one', () => {
 
   // Break exactly one thing: a move that ran a step of another op.
   const prog = JSON.parse(readFileSync(join(dir, 'skills', 'groundtrack', 'examples', 'greet.flightpath.json'), 'utf8'));
-  prog.presets[0].walk.steps[0].k = 'let';
+  prog.graphs[0].presets[0].walk.steps[0].k = 'let';
   writeFileSync(join(dir, 'skills', 'groundtrack', 'examples', 'greet.flightpath.json'), JSON.stringify(prog));
 
   const broken = run(checkIn(dir), [], { cwd: dir });

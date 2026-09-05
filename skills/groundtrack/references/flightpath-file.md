@@ -1,8 +1,9 @@
 # The flightpath file
 
-A `<topic>.flightpath.json` file states one call graph and one or more walks
-through it. You write the file by hand. A page draws it. Nothing runs the
-program the file describes.
+A `<topic>.flightpath.json` file states **one change**: its facts, one node map,
+and a list of graphs. A graph is an entry point and the walks from it. You write
+the file by hand. A page draws one graph at a time. Nothing runs the program the
+file describes.
 
 This document is the shape you write against. `scripts/render.mjs` enforces it.
 **The validator is the format.** No machine-readable schema ships, because a
@@ -32,8 +33,7 @@ written change, a branch, a set of edits. A **plan** is work not yet done: a
 map of tickets, a design still being argued. Both are graphs of nodes, and both
 are walked.
 
-**The core is every file's:** `id`, `title`, `blurb`, `entry`, `env`, `nodes`,
-`presets`.
+**The core is every file's:** `id`, `title`, `blurb`, `env`, `nodes`, `graphs`.
 
 **Three fields are optional, and each stands alone:** `files`, `layers`,
 `sheet`.
@@ -41,20 +41,66 @@ are walked.
 They do not divide plans from changes. A plan can touch files. A change can
 need no test layer.
 
+## One change, one file
+
+A change with two entry points needs two graphs. It is still one change, so it
+is still one file: the title, the blurb, the changed files, the sheet rule, the
+ambient values, the layers and the node map are stated once, and the graphs
+list what enters where.
+
+```json
+{
+  "id": "pr-313", "title": "…", "blurb": "…",
+  "files": [ … ],
+  "sheet": { "scopeRule": "…", "graphsNotDrawn": [ … ] },
+  "env": { … },
+  "layers": { … },
+  "nodes": { … },
+  "graphs": [
+    { "id": "first-paint", "title": "…", "blurb": "…", "entry": "buildShelf", "presets": [ … ] },
+    { "id": "panel-apply", "title": "…", "blurb": "…", "entry": "applySettings", "presets": [ … ] }
+  ]
+}
+```
+
+- **A graph is an entry point and the runs from it.** Its drawing is whatever
+  its entry reaches through call edges.
+- **Node ids are unique across the change, and a node belongs to no graph.** Two
+  graphs reach the same node by both reaching it, and the node is defined once.
+- **Layers and ambient values are the change's.** A layer that renames a node
+  token renames it on every sheet. A layer's own `entry` names a node in the map.
+- **Run names are unique per graph**, so two graphs may each have a happy path.
+- **A graph id is letters, digits and hyphens**, like a node id, and unique in
+  the file. It reaches the page as an attribute, so it is validated rather than
+  escaped.
+
+**The old one-graph shape is refused.** A file with a top-level `entry` or
+`presets` fails with a message naming `graphs`. There is one way to say one
+thing, so nothing accepts both.
+
 ## Top level
 
 | Field | Type | Meaning |
 | --- | --- | --- |
 | `id` | string | The file's own name. Letters, digits and hyphens. |
-| `title` | string | One line for the page head. |
-| `blurb` | string | Two or three sentences: what this graph shows. |
-| `entry` | string | The node id the walk enters. Must exist in `nodes`. |
-| `env` | object | Ambient values the graph reads. Author-keyed. |
+| `title` | string | One line for the page head: what the change is. |
+| `blurb` | string | Two or three sentences: what this change is. |
+| `env` | object | Ambient values the graphs read. Author-keyed. |
 | `files` | array | The changed files. See [files](#files). |
-| `layers` | object | Contexts that redraw the graph. See [layers](#layers). |
-| `nodes` | object | The graph. Author-keyed by node id. See [a node](#a-node). |
-| `presets` | array | Named runs. See [a run](#a-run). |
+| `layers` | object | Contexts that redraw the graphs. See [layers](#layers). |
+| `nodes` | object | The change's one node map, author-keyed by node id. See [a node](#a-node). |
+| `graphs` | array | The graphs. See [a graph](#a-graph). |
 | `sheet` | object | `scopeRule` (string) and `graphsNotDrawn` (array of strings). |
+
+## A graph
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `id` | string | The graph's own name. Letters, digits and hyphens; unique in the file. |
+| `title` | string | One line: the sheet picker's label. |
+| `blurb` | string | One or two sentences: what this entry point does. |
+| `entry` | string | The node id the walks enter. Must exist in `nodes`. |
+| `presets` | array | Named runs from this entry. See [a run](#a-run). |
 
 **A node id is letters, digits and hyphens, and nothing else.** The id reaches
 the page as an HTML attribute, so it is validated rather than escaped. Every
@@ -196,7 +242,7 @@ demand a field of moves that cannot have it.
 
 ### Frames
 
-- **A walk begins in the entry node with the cursor at zero.** No move says so.
+- **A walk begins at its graph's entry with the cursor at zero.** No move says so.
 - **A call pushes the frame it names, and that frame enters at step zero.**
   Nothing else pushes a frame.
 - **The call's own `next` is the caller's continuation** — where the caller
@@ -243,7 +289,8 @@ and the walk is done with no frame open.
 
 ## What the validator proves
 
-It proves the walk is a **legal path**, and it evaluates nothing.
+It proves the walk is a **legal path**, and it evaluates nothing. A walk is
+proved against the graph it belongs to, entering at that graph's entry.
 
 - Every `at` indexes a real step of the frame's node, and equals the cursor.
 - Every `next` indexes a real step of the same node.
@@ -276,6 +323,27 @@ anyway, because the moves after it no longer fit the graph.
 **Say this limit out loud when you hand the page over.** The material is
 durable, so a sceptical reader can check the drawing against it. The walk's
 structure is checked. Its values are not.
+
+## What a refusal says
+
+**Every refusal carries a path into the document**, so a tool locates the fault
+without reading the prose:
+
+```text
+greet.flightpath.json: graphs[0].entry: "nowhere" is not a node
+```
+
+**A refusal in a walk names the graph, the run and the move in words** after the
+path, because counting into two arrays to find `graphs[1].presets[0]` is work a
+person should not have to do:
+
+```text
+greet.flightpath.json: graphs[1].presets[0].walk.steps[4]: graph "panel-apply", run "a known user", move 4: call to "greet", but step 0 targets "lookupName"
+```
+
+**A fault in the file's shape prints the path alone.** It is refused before any
+walk is read, so there is no run and no move to name, and a refusal never names
+one that does not exist.
 
 ## layers
 
@@ -313,5 +381,9 @@ exits zero. Each one is a thing you may have meant.
 - **An `E` channel declaring a tag nothing beneath it can produce.** A node
   produces a tag three ways: it throws it, a step of it declares a handler for
   it, or one of its effects raised it in a walk this file carries.
-- **A file in the change that no node accounts for**, by name.
+- **A file in the change that no node accounts for**, by name. It reads every
+  node of the change, so a file one graph covers is not reported because
+  another graph does not.
+- **A node no graph's entry reaches**, so no sheet draws it. Legal: a node you
+  have written and not yet connected is a work in progress.
 - **A call edge a layer cuts.**

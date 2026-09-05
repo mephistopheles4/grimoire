@@ -73,12 +73,17 @@ channel is where a reader sees that in advance.
    undecided default in front of every reader. A run that is not told which
    graph to draw asks.
 
-4. **Write the file.** Read
-   [`references/flightpath-file.md`](references/flightpath-file.md) for the
-   shape, and
+4. **Write one file for the change.** One file states the change: its title,
+   its blurb, its changed files, its sheet rule, one node map, and a list of
+   graphs. A graph is an entry point and the runs from it, so a second graph is
+   an entry named rather than a second file. A symbol two graphs reach is
+   defined once.
+
+   Read [`references/flightpath-file.md`](references/flightpath-file.md) for
+   the shape, and
    [`skills/groundtrack/examples/greet.flightpath.json`](examples/greet.flightpath.json)
-   for a complete legal file. Write the graph first. Validate it. Then write
-   the walks, one at a time.
+   for a complete legal file. Write the nodes and the graphs first. Validate.
+   Then write the walks, one at a time.
 
 5. **Validate, read the refusal, fix, repeat.** See
    [`references/writing-walks.md`](references/writing-walks.md) for the loop and
@@ -106,7 +111,7 @@ The renderer will not write a page without an output path, for the same reason.
 ```bash
 node <skill>/scripts/render.mjs <topic>.flightpath.json --check
 node <skill>/scripts/render.mjs <topic>.flightpath.json --out <page>.html
-node <skill>/scripts/render.mjs <topic>.flightpath.json --text ["<run>"]
+node <skill>/scripts/render.mjs <topic>.flightpath.json --text ["<run>"] [--graph <id>]
 ```
 
 `<skill>` is the base directory this skill was installed into. Ask the harness
@@ -117,6 +122,13 @@ for it. Never write a fixed path.
 | `--check` | Validates. Refusals on standard error, exit 1. Findings on standard output, exit 0. |
 | `--out <page>` | Writes one self-contained HTML file. |
 | `--text ["<run>"]` | Prints the tree to standard output, for one run. |
+| `--graph <id>` | Which graph of the change to read. |
+
+**A file with several graphs needs the graph named.** `--text` on a one-graph
+file prints as it always did. On a several-graph file without `--graph` it
+lists the graphs, one line each, and stops. **Nothing ranks them and nothing
+suggests one**, which is the same rule as step 3: a run that is not told which
+graph to read asks.
 
 ## The page
 
@@ -154,8 +166,12 @@ Three things reach the page so a reader can audit the cut.
 
 - **The scope rule the run applied**, so the reader can disagree with it.
 - **Files in the change that no node accounts for**, by name. A
-  documentation-only part of a change is not silently dropped.
-- **Graphs found and not drawn**, each named with why it is worth a draw.
+  documentation-only part of a change is not silently dropped. It reads every
+  node of the change, so a file one graph covers is not reported because
+  another does not.
+- **Graphs found and not drawn**, each named with why it is worth a draw. Found
+  and in no sheet of this file: a graph the file carries is drawn, so it is
+  never listed here.
 
 Those last two stay two separate statements. They are different failures, and
 merging them loses which is which.
@@ -183,6 +199,9 @@ A file that declares no layer map disables the toggle and says why.
 **Print the tree only when the reader asks for text.** Print it into the reply,
 in a plain text fence.
 
+- **Name the graph when the file states more than one.** `--graph <id>`. Asked
+  without it, the command lists the graphs and stops rather than picking for
+  the reader.
 - **One row is a call site**, not a node. A node called twice appears twice.
 - **A repeated node is marked and stopped**, or a cycle never terminates.
 - **Every E tag on a row carries its failure kind**, derived from the file and

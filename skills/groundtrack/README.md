@@ -12,7 +12,8 @@ what it needs in order to work.
 
 groundtrack turns durable material into a call graph a reader can step
 through. The agent reads the material and writes one `<topic>.flightpath.json`
-by hand. That file states one graph and one or more recorded walks through it.
+by hand. That file states one change: one node map, and a list of graphs, each
+an entry point with recorded walks from it.
 A zero-dependency renderer turns it into one self-contained page.
 
 ## The three channels
@@ -65,7 +66,7 @@ and are inlined into it.
 ```bash
 node skills/groundtrack/scripts/render.mjs <topic>.flightpath.json --check
 node skills/groundtrack/scripts/render.mjs <topic>.flightpath.json --out page.html
-node skills/groundtrack/scripts/render.mjs <topic>.flightpath.json --text
+node skills/groundtrack/scripts/render.mjs <topic>.flightpath.json --text [--graph <id>]
 ```
 
 | Flag | What it does |
@@ -73,6 +74,7 @@ node skills/groundtrack/scripts/render.mjs <topic>.flightpath.json --text
 | `--check` | Validates. Refusals on standard error, exit 1. Findings on standard output, exit 0. |
 | `--out <page>` | Writes one self-contained HTML file. |
 | `--text ["<run>"]` | Prints the same graph as an indented tree, for one run. |
+| `--graph <id>` | Which graph of the change to read. A file stating several needs one named; asked without it, `--text` lists them and stops. |
 
 `--text` gives the answer in a reply and the answer on the page as one graph
 seen two ways.
