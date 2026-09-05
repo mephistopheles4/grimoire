@@ -21,8 +21,14 @@ import { root, exampleFlightpath, layeredFlightpath } from './helpers.mjs';
 const require = createRequire(import.meta.url);
 const G = require(join(root, 'skills', 'groundtrack', 'scripts', 'groundtrack.js'));
 
-const greet = JSON.parse(readFileSync(exampleFlightpath, 'utf8'));
-const layered = JSON.parse(readFileSync(layeredFlightpath, 'utf8'));
+// A file states a change and lists its graphs. Everything below reads one
+// graph, so everything below reads a view: the change's node map with one
+// graph's entry and runs on it. That is the shape the fold, the tree and the
+// page all take, and it is why none of the tests under it had to change when
+// the container did.
+const view = (path, i = 0) => G.graphView(JSON.parse(readFileSync(path, 'utf8')), i);
+const greet = view(exampleFlightpath);
+const layered = view(layeredFlightpath);
 const runNamed = (prog, name) => prog.presets.find(p => p.name === name);
 
 /* -- the escape ----------------------------------------------------------- */
@@ -56,6 +62,46 @@ test('the id pattern admits letters, digits and hyphens, and nothing else', () =
   for (const no of ['', '-lead', 'has space', 'quote"', 'brack<et', 'under_score']) {
     assert.ok(!G.ID.test(no), no);
   }
+});
+
+/* -- one change, several graphs ------------------------------------------- */
+
+test('a view carries the change\'s node map with one graph\'s entry and runs', () => {
+  // The node map belongs to the change, so a symbol two graphs reach is
+  // defined once. What a view swaps is the entry and the runs, which is the
+  // whole of what a graph is.
+  const prog = JSON.parse(readFileSync(exampleFlightpath, 'utf8'));
+  const v = G.graphView(prog, 0);
+  assert.equal(v.entry, prog.graphs[0].entry);
+  assert.deepEqual(v.presets, prog.graphs[0].presets);
+  assert.deepEqual(Object.keys(v.nodes), Object.keys(prog.nodes));
+  assert.equal(v.graph.id, prog.graphs[0].id);
+});
+
+test('a view with no index is the first graph', () => {
+  const prog = JSON.parse(readFileSync(exampleFlightpath, 'utf8'));
+  assert.equal(G.graphView(prog).entry, G.graphView(prog, 0).entry);
+});
+
+test('what a graph draws is what its entry reaches through call edges', () => {
+  assert.deepEqual([...G.reachable(greet, 'greet')].sort(), ['greet', 'lookupName']);
+  // Enter at the callee and the caller is not in the drawing: a call edge runs
+  // one way.
+  assert.deepEqual([...G.reachable(greet, 'lookupName')], ['lookupName']);
+});
+
+test('a node two entries reach is in both drawings, and defined once', () => {
+  const prog = JSON.parse(readFileSync(layeredFlightpath, 'utf8'));
+  const first = G.reachable(prog, 'buildShelf');
+  const second = G.reachable(prog, 'bindSheet');
+  assert.ok(first.has('bindSheet') && second.has('bindSheet'));
+  assert.equal(Object.keys(prog.nodes).filter(id => id === 'bindSheet').length, 1);
+});
+
+test('reachability terminates on a cycle', () => {
+  const prog = JSON.parse(JSON.stringify(greet));
+  prog.nodes.lookupName.steps.push({ op: 'call', target: 'greet', label: 'again' });
+  assert.deepEqual([...G.reachable(prog, 'greet')].sort(), ['greet', 'lookupName']);
 });
 
 /* -- the fold ------------------------------------------------------------- */
