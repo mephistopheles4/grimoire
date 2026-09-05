@@ -220,7 +220,10 @@ function shape(prog, r) {
  * the author's claims, and the skill says so rather than hiding it.
  */
 function path(prog, walk, runName, r) {
-  const labels = {};
+  /* Every node is written before any is read, so this one cannot reach the
+   * prototype today. Bare anyway: the property is one loop order away from
+   * being untrue, and nothing would say so. */
+  const labels = Groundtrack.bare();
   for (const [id, n] of Object.entries(prog.nodes)) labels[id] = Groundtrack.labelsOf(n);
   const frames = [];
   const bad = (i, m) => r.walk(runName, i, m);
@@ -414,7 +417,8 @@ export function findings(prog) {
 
   /* One file edited by several nodes. Legal, and worth seeing: it is the shape
    * a change takes when one file carries two concerns. */
-  const editors = {};
+  /* Keyed by a changed file's path, which nothing validates. */
+  const editors = Groundtrack.bare();
   for (const [id, n] of Object.entries(prog.nodes)) {
     for (const p of n.touches || []) (editors[p] = editors[p] || []).push(id);
   }
@@ -431,7 +435,9 @@ export function findings(prog) {
    * rule that read the steps alone would report every effect that can fail,
    * which is most of them, and the finding would mean nothing.
    */
-  const raisedInWalks = {};
+  /* Keyed by a node id, and an id is no safer here than any other author
+   * string — the pattern that guards it is about attributes. */
+  const raisedInWalks = Groundtrack.bare();
   for (const p of prog.presets || []) {
     const states = Groundtrack.fold(prog, p.walk);
     for (const l of states[states.length - 1].ledger) {
