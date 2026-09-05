@@ -523,7 +523,16 @@ const Groundtrack = (() => {
 
   /** The three groups the files tab shows around one open node: what it
    *  changes, what the other nodes change, and what the change touches that no
-   *  node accounts for. A file two nodes touch is listed against both. */
+   *  node accounts for. A file two nodes touch is listed against both.
+   *
+   *  The second group is every other node in the map, and the tab labels it
+   *  *other nodes on this sheet*. Those are the same set only while a file
+   *  draws one graph, which is every file the shape allows today. Give a file
+   *  several graphs and the label starts lying: the map stays change-wide, so
+   *  a node no sheet of this drawing reaches would be listed as on it. The
+   *  second group is then the nodes the sheet's entry reaches, and the third
+   *  is unchanged — unaccounted is a question about the change, not the
+   *  sheet. */
   function filesOf(prog, id) {
     /* No guard on the node itself. `id` is the open node, which starts at the
        entry and only ever moves to a node the walk is in, and the validator
