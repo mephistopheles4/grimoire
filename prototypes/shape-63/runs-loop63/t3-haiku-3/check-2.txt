@@ -1,0 +1,2 @@
+C:\Users\mephi\WebstormProjects\grimoire\.claude\worktrees\shape-eval-63\prototypes\shape-63\runs-loop63\t3-haiku-3\attempt-2.json: graphs[0].presets[0].walk.steps[8] (let): unknown key "result"
+C:\Users\mephi\WebstormProjects\grimoire\.claude\worktrees\shape-eval-63\prototypes\shape-63\runs-loop63\t3-haiku-3\attempt-2.json: 1 refusal(s)

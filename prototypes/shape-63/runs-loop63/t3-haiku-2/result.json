@@ -1,0 +1,6 @@
+{
+  "task": "t3",
+  "attempts": 5,
+  "green": true,
+  "account": "Attempt 1: Missing required expr field on saveContact return step. Attempt 2-4: Incorrect walk structure with wrong step indices and frame tracking—missed understanding that normalise has only one step (return at 0), and failed to properly track cursor through nested frames and gotos. Attempt 5: Added missing goto move at step 11 after the first iteration's goto at step 9, ensuring all intermediate jumps were captured in the walk sequence. Final version validates cleanly with all three presets (two rows with duplicate, bad header, no upload) and proper error handling."
+}

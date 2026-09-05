@@ -1,0 +1,6 @@
+{
+  "task": "t1",
+  "attempts": 2,
+  "green": true,
+  "account": "Attempt 1 had malformed walk structure with duplicate return statements and frames not properly tracked—the return moves from renderHtml were duplicated, causing the validator to report that moves ran after the frame was already popped. Attempt 2 removed the duplicate returns and properly sequenced the frame entry/exit moves (note, if, if, return for renderHtml in happy path; note, if, if, throw, unwind for bad markdown path) so each frame pushes with a call and pops with a return at the correct points."
+}

@@ -1,0 +1,6 @@
+{
+  "task": "t1",
+  "attempts": 4,
+  "green": true,
+  "account": "Attempt 1 had fundamental walk errors with misaligned frames and stepping. Attempt 2 fixed some walk structure but uploadHtml still showed unhandled errors. Attempt 3 added a second if to renderHtml to distinguish parsing success from failure, which fixed the renderHtml walks. Attempt 4 added error handling (onError) to the uploadHtml effect step to catch and retry UploadFailed, allowing both presets to complete with proper error handling."
+}

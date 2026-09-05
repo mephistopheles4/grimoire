@@ -1,0 +1,6 @@
+{
+  "task": "t4",
+  "attempts": 4,
+  "green": true,
+  "account": "Attempt 1: Used old single-entry-point file structure. Attempt 2: Restructured to multi-graph format with graphs array. Attempt 3: Removed invalid standalone label ops; labels must be fields on other ops. Attempt 4: Fixed walk structure to properly model function call frames and step transitions across called functions. Final: Clean validation with expected finding about undeclared NoPage error in walks."
+}
