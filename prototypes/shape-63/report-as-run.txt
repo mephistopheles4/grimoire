@@ -1,0 +1,70 @@
+THE THREE MIGRATED TASKS — the baseline round five set
+
+RUN            PASSES  GREEN  ERRORS BY PASS      SIZE 1 → FINAL                     FIDELITY
+t1-haiku-2     2       2      7 → 0               3n/1g/2r/17s/31m → 3n/1g/2r/17s/30m  (count↓)  0→0 crit (21/21)
+t1-haiku-3     2       2      0 → 0               3n/1g/2r/16s/34m → 3n/1g/2r/16s/34m  0→0 crit (21/21)
+t2-haiku-1     1       1      0                   4n/1g/2r/24s/54m → 4n/1g/2r/24s/54m  1→1 crit (24/25)
+t2-haiku-2     1       1      0                   4n/1g/2r/26s/59m → 4n/1g/2r/26s/59m  1→1 crit (24/25)
+t2-haiku-3     1       1      0                   4n/1g/2r/27s/55m → 4n/1g/2r/27s/55m  1→1 crit (24/25)
+t3-haiku-1     3       3      27 → 12 → 0         5n/1g/3r/29s/54m → 5n/1g/3r/29s/57m  0→0 crit (23/23)
+t3-haiku-2     5       5      1 → 44 → 21 → 12 → 0  5n/1g/3r/23s/45m → 5n/1g/3r/24s/48m  0→0 crit (23/23)
+t3-haiku-3     4       4      1 → 1 → 11 → 0      5n/0g/0r/32s/0m → 5n/1g/3r/28s/53m  (count↓)  7→0 crit (23/23)
+                · counts fell (moves 31→30) but no node, graph, run or required move was lost
+                ? attempt-1.json: its check file says 2 refusal(s); the pinned validator scores 0 — the saved output was not produced from the saved file
+                · passes to green counted by checker runs: 2 (the surviving files alone would say 1)
+                ! checkout can return "nothing to buy"   (present at attempt 1; the loop never touched it)
+                ! checkout can return "nothing to buy"   (present at attempt 1; the loop never touched it)
+                ! checkout can return "nothing to buy"   (present at attempt 1; the loop never touched it)
+                · counts fell (steps 32→28) but no node, graph, run or required move was lost
+
+THE NEW TWO-ENTRY TASK
+
+RUN            PASSES  GREEN  ERRORS BY PASS      SIZE 1 → FINAL                     FIDELITY
+t4-haiku-1     2       2      7 → 0               5n/2g/3r/33s/52m → 5n/2g/3r/33s/57m  1→1 crit (29/30)
+t4-haiku-2     1       1      0                   5n/2g/3r/33s/62m → 5n/2g/3r/33s/62m  0→0 crit (30/30)
+t4-haiku-3     4       4      1 → 2 → 30 → 0      5n/0g/0r/35s/0m → 5n/2g/3r/33s/63m  (count↓)  8→1 crit (29/30)
+                ! renderCatalog raises NoPage on the escape channel   (present at attempt 1; the loop never touched it)
+                · shared node: formatPrice — defined once: true; both entries reach it: true; unaccounted findings: 0
+                · shared node: formatPrice — defined once: true; both entries reach it: true; unaccounted findings: 0
+                ! renderCatalog raises NoPage on the escape channel   (present at attempt 1; the loop never touched it)
+                · counts fell (steps 35→33) but no node, graph, run or required move was lost
+                · shared node: formatPrice — defined once: true; both entries reach it: true; unaccounted findings: 0
+
+VOID — ran the wrong validator, so these measured `main` and not the shape under test
+
+RUN            PASSES  GREEN  ERRORS BY PASS      SIZE 1 → FINAL                     FIDELITY
+t1-haiku-1     4       no     1 → 1 → 1 → 1       3n/0g/0r/17s/0m → 3n/0g/0r/18s/0m  6→6 crit (15/21)
+                X VOID — a check file here came from the OLD validator (its ok line carries no graph count), so this run's loop never met the shape under test
+                ? attempt-1.json: its check file says 16 refusal(s); the pinned validator scores 1 — the saved output was not produced from the saved file
+                ? attempt-2.json: its check file says 6 refusal(s); the pinned validator scores 1 — the saved output was not produced from the saved file
+                ? attempt-3.json: its check file says 5 refusal(s); the pinned validator scores 1 — the saved output was not produced from the saved file
+                X attempt-4.json: check output is the old validator's — "ok: Publish a blog post — 3 node(s), 2 run(s), 0 finding(s)"
+                ! one graph, entered at publishPost   (present at attempt 1; the loop never touched it)
+                ! exactly two presets   (present at attempt 1; the loop never touched it)
+                ! the happy walk uploads on the SECOND attempt   (present at attempt 1; the loop never touched it)
+                ! the happy walk never raises BadMarkdown and ends done   (present at attempt 1; the loop never touched it)
+                ! the bad-markdown walk is handled and still ends done   (present at attempt 1; the loop never touched it)
+                ! the bad-markdown walk still uploads   (present at attempt 1; the loop never touched it)
+                ? the agent reported green=true; the files say false
+                · attempt-4.json: file: this is the old one-graph shape. A file now states one change and lists its graphs: move "entry" and "presets" into an entry of a "graphs" array, giving that graph its own id, title and blurb. The change facts — id, title, blurb, env, files, layers, sheet — and the one node map stay at the top level.
+
+FIRST ATTEMPT (reported, not gated)
+  migrated: 3/8 valid with no fix at all; new task: 1/3
+
+THE PRE-REGISTERED BAR (PREREG-63.md)
+  PASS  migrated · convergence — 8/8 reached a clean checker within 5 passes (needs ≥ 8 of 9)
+  PASS  migrated · median passes — median 2 passes to green (needs ≤ 2)
+  FAIL  migrated · fidelity — 5/8 are valid AND carry zero critical fidelity misses (needs ≥ 7 of 9)
+  PASS  new task · convergence — 3/3 reached a clean checker within 5 passes (needs ≥ 2 of 3)
+  PASS  new task · the shared node is defined once — 3/3 converged runs define the shared symbol once (needs ≥ 2 of 3)
+
+THE NEW TASK, MEASURED (reported alongside the bar)
+  t4-haiku-1     green=2  once=true  bothReach=true  unaccounted=0
+  t4-haiku-2     green=1  once=true  bothReach=true  unaccounted=0
+  t4-haiku-3     green=4  once=true  bothReach=true  unaccounted=0
+
+SHRINK TO GREEN (reported; #63's bar does not gate on it)
+  0 green run(s) lost a node, a graph, a run or a required move; 3 had a raw count fall while losing nothing required
+
+VERDICT: migrated FAIL, new task PASS — #61 does not merge; this reopens the CONTAINER row of the box.
+Passes to green, migrated: 2, 2, 1, 1, 1, 3, 5, 4 (median 2)
