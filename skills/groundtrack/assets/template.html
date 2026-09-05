@@ -868,6 +868,24 @@ function start() {
      nodes on this sheet change, and what the change touches that no node
      accounts for. */
   function drawFiles() {
+    /* Two readers of the change-wide node map, one line apart, and they want
+       opposite things. `others` is per sheet and `unaccounted` is per change:
+       swapping either is silent, and no shipped example can show it.
+       `unaccounted` must stay change-wide — a file one graph covers is not
+       reported because another does not.
+
+       `others` is the open question, and it belongs to the sheets ticket
+       rather than here. Measured on a two-graph file: the group labelled "on
+       this sheet" lists a file touched only by a node of the *other* graph.
+       The obvious fix — filter it through the entry's reachable set — is wrong
+       on its own, because the drawing still puts that node on the sheet:
+       layout draws every node in the map and greys what the entry cannot
+       reach, so the tab and the drawing agree today and would stop agreeing.
+
+       So the question is not "filter this list" but "what is on a sheet" —
+       only the graph's own nodes, or all of them with the rest cold. Layout,
+       the cold-node ink and this label answer it together or contradict each
+       other. Whoever settles it changes all three. */
     const n = PROG.nodes[S.open];
     const mine = new Set(n.touches || []);
     const others = new Set();
