@@ -48,6 +48,8 @@ const skillBaselineIn = dir => join(dir, 'skills', 'eagle-eye', baselineName);
 const readJson = p => JSON.parse(readFileSync(p, 'utf8'));
 const writeJson = (p, v) => writeFileSync(p, JSON.stringify(v, null, 2));
 const skillMd = dir => join(dir, 'skills', 'eagle-eye', 'SKILL.md');
+const manifest = dir => join(dir, '.claude-plugin', 'plugin.json');
+const setVersion = (dir, v) => writeJson(manifest(dir), { ...readJson(manifest(dir)), version: v });
 
 function assertPasses(dir) {
   const r = run(checkIn(dir), [], { cwd: dir });
@@ -405,7 +407,7 @@ test('a tests path that is not a directory fails rather than reading as absent',
   assert.equal(/no tests\/ directory/.test(r.stdout), false, 'must not report a missing directory');
 });
 
-// The version-bump rule needs a merge base, so the two tests below build one.
+// The version-bump rule needs a merge base, so the tests below build one.
 // Every other test in this file runs against a copy with no .git at all, which
 // puts the rule on its "cannot resolve" path and proves only that it says so.
 function repo(dir) {
@@ -436,10 +438,7 @@ test('the same skill change passes once the version moves', () => {
   const dir = tree();
   const git = repo(dir);
   appendFileSync(skillMd(dir), '\nOne more sentence, and a release to carry it.\n');
-  const p = join(dir, '.claude-plugin', 'plugin.json');
-  const m = readJson(p);
-  m.version = '99.0.0';
-  writeJson(p, m);
+  setVersion(dir, '99.0.0');
   git('commit', '-aqm', 'change the skill and bump the version');
   assertPasses(dir);
 });
@@ -464,13 +463,6 @@ function baseMovesAhead(git, edit) {
   git('update-ref', 'refs/remotes/origin/main', 'HEAD');
   git('reset', '-q', '--soft', 'HEAD~1');
 }
-
-const setVersion = (dir, v) => {
-  const p = join(dir, '.claude-plugin', 'plugin.json');
-  const m = readJson(p);
-  m.version = v;
-  writeJson(p, m);
-};
 
 test('a version the base already released fails, and says the base moved', () => {
   // Two sibling branches fork from one commit and both bump to the same
@@ -505,6 +497,26 @@ test('a base that moved without releasing does not trip the comparison', () => {
   appendFileSync(skillMd(dir), '\nOne more sentence, released by this branch.\n');
   git('commit', '-aqm', 'change the skill and bump');
   assertPasses(dir);
+});
+
+test('a base tip with no manifest says which comparison was skipped', () => {
+  // The layout move landing the other way round: the fork point carries a
+  // manifest and the tip of the base branch does not. One comparison cannot
+  // run, and the run says which one rather than passing in silence — the
+  // failure this repository has already written a commit about.
+  //
+  // The manifest is rewritten after the reset, because the check reads
+  // plugin.json from the working tree and the deletion is still staged there.
+  const dir = tree();
+  const git = repo(dir);
+  const original = readJson(manifest(dir));
+  baseMovesAhead(git, () => git('rm', '-q', '.claude-plugin/plugin.json'));
+  writeJson(manifest(dir), { ...original, version: '99.0.0' });
+  appendFileSync(skillMd(dir), '\nOne more sentence, against a base with no manifest.\n');
+  git('add', '-A');
+  git('commit', '-qm', 'change the skill and bump, with no manifest on the base');
+  const r = assertPasses(dir);
+  assert.match(r.stdout, /no plugin\.json at the tip of origin\/main/);
 });
 
 test('a branch that never bumped is told that first, even when the base moved', () => {
