@@ -511,6 +511,155 @@ const Groundtrack = (() => {
     return rows;
   }
 
+  /** Files in the change that no node touches, in the order the change states
+   *  them. A question about the whole file, not about one node: `--check`
+   *  reports it as a finding and the files tab prints it as its third group,
+   *  and the two must not be able to disagree. */
+  function unaccountedFiles(prog) {
+    const touched = new Set();
+    for (const n of Object.values(prog.nodes)) for (const p of n.touches || []) touched.add(p);
+    return (prog.files || []).filter(f => !touched.has(f.path)).map(f => f.path);
+  }
+
+  /** The three groups the files tab shows around one open node: what it
+   *  changes, what the other nodes change, and what the change touches that no
+   *  node accounts for. A file two nodes touch is listed against both.
+   *
+   *  Two readers of the change-wide node map, a line apart, wanting opposite
+   *  things. `unaccounted` is per change and must stay so — a file one graph
+   *  covers is not reported because another does not. `others` is per sheet,
+   *  and the tab labels it *other nodes on this sheet*. Those are the same set
+   *  only while a file draws one graph. Swapping either is silent, and no
+   *  shipped example can show it.
+   *
+   *  `others` is the open question, and it is the sheets ticket's, not this
+   *  one's. Measured on a two-graph file: the group labelled *on this sheet*
+   *  lists a file touched only by a node of the *other* graph. The obvious fix
+   *  — filter it through the entry's reachable set — is wrong on its own,
+   *  because the drawing still puts that node on the sheet: `layout` places
+   *  every node in the map and greys what the entry cannot reach, so the tab
+   *  and the drawing agree today and would stop agreeing.
+   *
+   *  So the question is not *filter this list* but *what is on a sheet* — only
+   *  the graph's own nodes, or all of them with the rest cold. Layout, the
+   *  cold-node ink and this label answer it together or contradict each other.
+   *  Whoever settles it changes all three.
+   *
+   *  One constraint on whatever they choose: a file that lists graphs has no
+   *  top-level entry — only a view of one graph does. Any answer reaching for
+   *  the entry must be handed the view, and this function is handed the raw
+   *  program today.
+   *
+   *  The measurement and the reasoning above are the #61 session's, moved here
+   *  from `drawFiles` because that is where these lines now live. */
+  function filesOf(prog, id) {
+    /* No guard on the node itself. `id` is the open node, which starts at the
+       entry and only ever moves to a node the walk is in, and the validator
+       requires both to be in the map. A guard here could not fire today, and
+       the day it could is the day an empty first group would be a wrong answer
+       printed in place of a crash. `touches` is optional, so that one stays. */
+    const mine = [...new Set(prog.nodes[id].touches || [])];
+    const others = [];
+    const seen = new Set();
+    for (const [k, o] of Object.entries(prog.nodes)) {
+      if (k === id) continue;
+      for (const p of o.touches || []) if (!seen.has(p)) { seen.add(p); others.push(p); }
+    }
+    return { mine, others, unaccounted: unaccountedFiles(prog) };
+  }
+
+  /** Paths as a shallow directory tree, flattened to rows the caller indents.
+   *
+   *  A row is a directory when it carries no `path` and a file when it does.
+   *  `label` is what prints; joined to the labels of its ancestors it is the
+   *  path again, which is the invariant that keeps a collapsed row honest.
+   *
+   *  A directory with one thing under it says nothing its child does not say,
+   *  so it collapses into the line below. Order is first appearance, because
+   *  the author ordered the change's files and a tree should keep what of that
+   *  order it can. */
+  function fileTree(paths) {
+    const root = { kids: new Map(), file: null };
+    for (const p of paths || []) {
+      const path = String(p);
+      let at = root;
+      for (const seg of path.split('/')) {
+        if (!at.kids.has(seg)) at.kids.set(seg, { kids: new Map(), file: null });
+        at = at.kids.get(seg);
+      }
+      at.file = path;
+    }
+    const rows = [];
+    (function walk(node, depth) {
+      for (const [seg, kid] of node.kids) {
+        const parts = [seg];
+        let cur = kid;
+        while (!cur.file && cur.kids.size === 1) {
+          const [s, k] = cur.kids.entries().next().value;
+          parts.push(s);
+          cur = k;
+        }
+        const label = parts.join('/');
+        rows.push(cur.file ? { depth, label, path: cur.file } : { depth, label });
+        if (cur.kids.size) walk(cur, depth + 1);
+      }
+    })(root, 0);
+    return rows;
+  }
+
+  /** The files tab, as markup.
+   *
+   *  Everything else here returns data and leaves the markup to the page. This
+   *  one does not, and the reason is the seam. The tab is written into the
+   *  cutaway with `innerHTML` when a reader clicks it, so it is in no rendered
+   *  page as a string: markup left in the template is markup no test can reach,
+   *  and three of the strings below carry author text through `esc`. Put it
+   *  here and the page and the test run the same function, which is the same
+   *  bargain the fold makes.
+   *
+   *  The marks are a closed vocabulary the validator already refuses anything
+   *  outside of. Nothing else on a row is. */
+  const MARK = Object.freeze({ new: 'N', edit: 'E', delete: 'D', forbidden: 'F' });
+  function filesMarkup(prog, id) {
+    const { mine, others, unaccounted } = filesOf(prog, id);
+    /* Keyed by author text, so it does not read through to Object's own
+       properties: a path called "constructor" would otherwise find a function
+       and print it. */
+    const byPath = Object.create(null);
+    for (const f of prog.files || []) byPath[f.path] = f;
+    /* A path a node touches that the change does not state has no entry to
+       read, so it prints as an edit of no stated size rather than not at all. */
+    const fileRow = row => {
+      const f = byPath[row.path] || { change: 'edit', why: '', adds: 0, dels: 0 };
+      return (
+        '<div class="frow"><span class="fchange">' + (Object.hasOwn(MARK, f.change) ? MARK[f.change] : '?') + '</span>' +
+        '<span class="fpath">' + esc(row.label) +
+        (f.why ? ' <span class="fwhy">&mdash; ' + esc(f.why) + '</span>' : '') + '</span>' +
+        '<span class="fnum">+' + esc(f.adds) + ' &minus;' + esc(f.dels) + '</span></div>'
+      );
+    };
+    const tree = paths => {
+      let out = '';
+      let depth = 0;
+      for (const row of fileTree(paths)) {
+        while (depth > row.depth) { out += '</div>'; depth--; }
+        while (depth < row.depth) { out += '<div class="ftree">'; depth++; }
+        out += row.path ? fileRow(row) : '<div class="fdir">' + esc(row.label) + '/</div>';
+      }
+      while (depth > 0) { out += '</div>'; depth--; }
+      return out;
+    };
+    const group = (label, paths) =>
+      '<div class="fgroup"><span class="dw-label">' + label + '</span>' +
+      (paths.length ? tree(paths) : '<div class="dw-annot">none</div>') + '</div>';
+    /* A file that states no changed files has no change to account for, so
+       the third group says that rather than drawing an empty tree. */
+    const third = prog.files
+      ? group('in the change, on no node of this sheet', unaccounted)
+      : '<div class="fgroup"><span class="dw-label">changed files</span><div class="dw-annot">not stated by this file</div></div>';
+    return group('this node', mine) + group('other nodes on this sheet', others) + third;
+  }
+
   /** The longest walk. It is the only rule that names exactly one run in all
    *  three worked programs with no tie, so it is the one the text suggests. */
   function suggestRun(prog) {
@@ -521,6 +670,6 @@ const Groundtrack = (() => {
     return best;
   }
 
-  return { esc, ID, KINDS, labelsOf, callSites, calleesOf, effectsOf, failureKinds, tagFate, complexityOf, fold, back, cutEdges, layout, treeRows, suggestRun, renamedToken };
+  return { esc, ID, KINDS, labelsOf, callSites, calleesOf, effectsOf, failureKinds, tagFate, complexityOf, fold, back, cutEdges, layout, treeRows, unaccountedFiles, filesOf, fileTree, filesMarkup, suggestRun, renamedToken };
 })();
 if (typeof module !== 'undefined') module.exports = Groundtrack;

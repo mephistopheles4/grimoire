@@ -478,8 +478,14 @@ test('author text reaches the page as text, in every field the page shows', () =
     prog.presets[0].input.user = POISON; // a run input
     prog.layers.tests.nodes.lookupName = { R: [POISON] }; // a layer token
     prog.layers[`layer ${POISON}`] = { nodes: {} }; // and a layer name
-    prog.files[0].path = POISON; // a file path
-    prog.files[0].why = POISON; // and its reason
+    // A path with a separator in it, because the files tab splits on the
+    // separator and prints each segment: poison the directory and the leaf.
+    // The tab's own escape is pinned in tests/groundtrack-fold.test.mjs, which
+    // is the only place that can see it; what this pins is the payload, which
+    // is the half a page as a string can show.
+    prog.files[0].path = `${POISON}/${POISON}`;
+    prog.nodes.greet.touches = [`${POISON}/${POISON}`];
+    prog.files[0].why = POISON; // and its reason, which trails the leaf
     prog.env.poison = POISON; // an ambient value
   });
   const r = check(file);
@@ -500,6 +506,16 @@ test('author text reaches the page as text, in every field the page shows', () =
   assert.doesNotMatch(markup, /<img src=x onerror/);
 });
 
+test('the files tab names its groups and says what its marks mean', () => {
+  // Only the fixed text is here. The tab itself is written into the cutaway
+  // with `innerHTML` when a reader clicks it, so no page carries it as a
+  // string — tests/groundtrack-fold.test.mjs holds it, against the same
+  // function the tab calls.
+  const html = pageOf(layeredFlightpath);
+  assert.match(html, /in the change, on no node of this sheet/);
+  assert.match(html, /N new, E edit, D delete, F forbidden/, 'the tab says what the marks mean');
+});
+
 test('the escape is pinned at its width, both what it does and what it does not', () => {
   // The narrow escape is safe only while the attribute rule holds, so a silent
   // widening hides the fact that the pairing moved. SECURITY.md carries why.
@@ -517,11 +533,20 @@ test('no escaped author text reaches an HTML attribute', () => {
   // leaves the double quote alone. So an `esc(...)` inside an attribute value
   // is exactly the construct that breaks the pairing. There is none, and this
   // test is what has to change first if somebody adds one.
-  const template = readFileSync(join(groundtrack, '..', '..', 'assets', 'template.html'), 'utf8');
-  for (const m of template.matchAll(/="/g)) {
-    const end = template.indexOf('"', m.index + 2);
-    const value = template.slice(m.index + 2, end === -1 ? template.length : end);
-    assert.ok(!value.includes('esc('), `an attribute value interpolates escaped author text: ${value}`);
+  //
+  // Both files. The shared module builds the files tab's markup and is where
+  // `esc` is defined, so a new attribute interpolation there is the same
+  // change to the security policy as one in the template.
+  const sources = [
+    readFileSync(join(groundtrack, '..', '..', 'assets', 'template.html'), 'utf8'),
+    readFileSync(join(groundtrack, '..', 'groundtrack.js'), 'utf8'),
+  ];
+  for (const src of sources) {
+    for (const m of src.matchAll(/="/g)) {
+      const end = src.indexOf('"', m.index + 2);
+      const value = src.slice(m.index + 2, end === -1 ? src.length : end);
+      assert.ok(!value.includes('esc('), `an attribute value interpolates escaped author text: ${value}`);
+    }
   }
 });
 

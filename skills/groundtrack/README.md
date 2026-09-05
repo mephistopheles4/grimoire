@@ -50,8 +50,8 @@ On the page you can:
 - Step forward and back, play the walk, and hold it on the next effect or the
   next error.
 - Read the call stack, the inputs, the error path, and the effects ledger.
-- Open one node in the cutaway: its steps, the files it touches, and its
-  contract. The cutaway follows the cursor while the walk plays.
+- Open one node in the cutaway: its steps, the files it touches as a directory
+  tree, and its contract. The cutaway follows the cursor while the walk plays.
 - Flip between the drawing and a tree. Pan by dragging or with the wheel; zoom
   with ctrl and the wheel.
 - Redraw the graph under a **layer**. Flip to the test layer, and a node that

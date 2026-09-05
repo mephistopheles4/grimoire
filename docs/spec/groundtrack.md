@@ -1122,8 +1122,9 @@ nothing there is written to be merged.
 ## Amendments
 
 Written by the implementation session that built the skill, in the same series
-as the build. The instruction was to amend this file rather than contradict it
-in silence.
+as the build, and by the sessions that have changed the skill since. The
+instruction was to amend this file rather than contradict it in silence. The
+build's own amendments come first; a later one goes at the end.
 
 **A node id is letters, digits and hyphens, not lowercase and hyphens.** The
 prose above asks for a lowercase-and-hyphen shape. This document's own layer
@@ -1201,3 +1202,17 @@ line, ships beside them as `OFL.txt`.
 are inlined, the page makes no network request, and no fixed path is named. The
 only figure that moved is the byte count, and it moved because the smaller one
 was not licensed to ship.
+
+**The files tab is a directory tree, and its third group is the sheet's.** The
+three groups are unchanged — this node, other nodes, and the change on no node —
+but each is grouped by directory rather than printed flat, and a directory
+holding one thing collapses into the line below it. The acceptance set puts
+fourteen files in the third group, which as a flat list is fourteen rows of
+docs, tests and source interleaved, and as a tree is four folders. The change
+kind moved from a word to a one-letter mark, and the tab's help text says what
+the four marks mean; the `why` moved from its own line to a comment trailing the
+path. The third group is labelled *in the change, on no node of this sheet*,
+which is the same set as before and says whose set it is, so that a file holding
+several sheets cannot have its per-sheet list read as the change-wide one. The
+grouping is a pure function in the shared module, because the tab is built at
+runtime and the rendered page as a string cannot show what it draws.

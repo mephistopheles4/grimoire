@@ -347,14 +347,21 @@ input[type=checkbox] { accent-color: var(--dw-ink); margin: 0 var(--dw-s1) 0 0; 
 .kw { font-weight: 600; }
 .fgroup { margin-bottom: var(--dw-s3); }
 .fgroup > .dw-label { display: block; margin-bottom: var(--dw-s1); }
-/* A file is a path with its reason under it. The reason sits tight beneath its
-   own path and a step of space above the next file, so it reads as belonging
-   to the row above rather than the row below. */
-.frow { display: grid; grid-template-columns: 4.5rem 1fr 5rem; gap: 0 var(--dw-s2); align-items: baseline;
+/* A directory tree, one step of indent per level. The indent is a class on a
+   wrapper rather than a width on the row, because a depth written into an
+   attribute is a number the markup has to compute and this one does not. */
+.ftree { padding-left: var(--dw-s3); border-left: var(--dw-rule-hair) solid var(--dw-ink-12); }
+/* A directory prints in the case the path is written in. Upper-casing it, the
+   way a label is upper-cased, would show a reader a path that is not the one
+   in the change. */
+.fdir { font-size: var(--dw-t-annot); color: var(--dw-ink-70); padding: 1px 0; overflow-wrap: anywhere; }
+.fdir + .frow, .fdir + .ftree { margin-top: 1px; }
+/* A file is a mark, a path and its counts on one line, with the reason trailing
+   the path the way a comment trails a line of code. */
+.frow { display: grid; grid-template-columns: 1.25rem 1fr 5rem; gap: 0 var(--dw-s2); align-items: baseline;
   font-size: var(--dw-t-annot); padding: 1px 0; }
-.frow + .frow { margin-top: var(--dw-s1); }
-.fwhy { grid-column: 2 / -1; font-size: var(--dw-t-micro); color: var(--dw-ink-80); line-height: 1.4; }
-.fchange { font-size: var(--dw-t-micro); text-transform: uppercase; letter-spacing: var(--dw-track-label); color: var(--dw-ink-70); }
+.fwhy { font-size: var(--dw-t-micro); color: var(--dw-ink-70); }
+.fchange { font-size: var(--dw-t-micro); color: var(--dw-ink-70); }
 .fpath { min-width: 0; overflow-wrap: anywhere; }
 .fnum { text-align: right; font-variant-numeric: tabular-nums; font-size: var(--dw-t-micro); color: var(--dw-ink-70); }
 
@@ -503,7 +510,7 @@ button[data-help][aria-disabled=true] { cursor: help; }
       <span class="dw-annot" id="cutLoc"></span>
       <div class="tabs">
         <button class="tab tab--on" data-tab="source" data-help="The node's steps, with the cursor marked">source</button>
-        <button class="tab" data-tab="files" data-help="The files this node changes, the files other nodes change, and the files in the change no node accounts for">files</button>
+        <button class="tab" data-tab="files" data-help="The files this node changes, the files other nodes change, and the files in the change no node accounts for. The mark says how: N new, E edit, D delete, F forbidden.">files</button>
         <button class="tab" data-tab="contract" data-help="What the node declares: what it takes, returns, can raise, and needs">contract</button>
       </div>
     </div>
@@ -854,40 +861,12 @@ function start() {
       .join('');
   }
 
-  /* One list answers all three questions: what this node changes, what other
+  /* One tree answers all three questions: what this node changes, what other
      nodes on this sheet change, and what the change touches that no node
-     accounts for. */
+     accounts for. The markup is built in the shared module — see the note on
+     filesMarkup for why it is there and not here. */
   function drawFiles() {
-    const n = PROG.nodes[S.open];
-    const mine = new Set(n.touches || []);
-    const others = new Set();
-    for (const [id, o] of Object.entries(PROG.nodes)) {
-      if (id === S.open) continue;
-      for (const p of o.touches || []) others.add(p);
-    }
-    const all = PROG.files || [];
-    const byPath = {};
-    for (const f of all) byPath[f.path] = f;
-    const rowOf = p => {
-      const f = byPath[p] || { path: p, change: 'edit', why: '', adds: 0, dels: 0 };
-      return (
-        '<div class="frow"><span class="fchange">' + esc(f.change) + '</span>' +
-        '<span class="fpath">' + esc(f.path) + '</span>' +
-        '<span class="fnum">+' + esc(f.adds) + ' &minus;' + esc(f.dels) + '</span>' +
-        (f.why ? '<span class="fwhy">' + esc(f.why) + '</span>' : '') + '</div>'
-      );
-    };
-    const group = (label, paths) =>
-      '<div class="fgroup"><span class="dw-label">' + label + '</span>' +
-      (paths.length ? paths.map(rowOf).join('') : '<div class="dw-annot">none</div>') + '</div>';
-    const unaccounted = all.filter(f => !mine.has(f.path) && !others.has(f.path)).map(f => f.path);
-    /* A file that states no changed files has no change to account for, so
-       the third group says that rather than implying a change with nothing
-       left over in it. */
-    const third = PROG.files
-      ? group('in the change, on no node', unaccounted)
-      : '<div class="fgroup"><span class="dw-label">changed files</span><div class="dw-annot">not stated by this file</div></div>';
-    return group('this node', [...mine]) + group('other nodes on this sheet', [...others]) + third;
+    return G.filesMarkup(PROG, S.open);
   }
 
   /* One E tag on the contract tab: the tag, its kind, and the one thing this

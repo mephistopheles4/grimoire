@@ -6,6 +6,10 @@
 // apart from the markup that calls it for exactly that reason, and
 // render.mjs inlines it into the page so the page and this test run the same
 // function.
+//
+// The files tab is the one piece of markup the module builds itself, because
+// the tab is written into the page at click time and no rendered page carries
+// it as a string. Its markup is at the end of this file for that reason.
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -419,4 +423,180 @@ test('the layout places every node and draws every call edge once', () => {
   const pairs = l.edges.map(e => `${e.from}>${e.to}`);
   assert.equal(new Set(pairs).size, pairs.length, 'no edge is drawn twice');
   assert.ok(l.canvasW > 0 && l.canvasH > 0);
+});
+
+/* -- the files tab -------------------------------------------------------- */
+
+// The tab is built at runtime from `innerHTML`, so the rendered page as a
+// string cannot show the tree. The grouping lives here instead, which is the
+// same seam the fold uses: a pure function the page calls and this file calls,
+// with no DOM between them.
+
+test('the three groups a node sees are read off the change and the node map', () => {
+  const f = G.filesOf(layered, 'bindSheet');
+  assert.deepEqual(f.mine, ['packages/site/src/shelf/woodwork.ts', 'packages/site/public/wood/sapele-diff-512.jpg']);
+  // scene.ts is buildShelf's, and woodwork.ts is several nodes' — a file this
+  // node touches is still listed against the others that touch it.
+  assert.ok(f.others.includes('packages/site/src/shelf/scene.ts'));
+  assert.ok(f.others.includes('packages/site/src/shelf/woodwork.ts'));
+  assert.equal(f.unaccounted.length, 14);
+  assert.ok(!f.unaccounted.includes('packages/site/src/shelf/scene.ts'));
+});
+
+test('the second group is not empty while other nodes touch files', () => {
+  // A tripwire, and the shape of the bug it is set for matters more than the
+  // assertion. Once a file lists graphs there is no top-level `entry` — only a
+  // view of one graph has one — so a reader that narrows this group by what
+  // the entry reaches, handed the raw program, narrows it by `undefined` and
+  // gets nothing. The group renders empty, and empty is what a files tab looks
+  // like when a node touches nothing, so the page still reads as if it were
+  // telling the truth.
+  //
+  // The failure cannot be provoked here: nothing on this branch narrows the
+  // group, and the graphs shape does not exist yet. What can be held is the
+  // symptom, which is the same whatever causes it. The two `includes` above
+  // would also catch it, but they are asserting something else and would not
+  // survive a rewrite of that test with this property intact. They were
+  // written the same day as this one, which is the point rather than a
+  // mitigation: a test acquires an unnamed load-bearing assertion as soon as
+  // it is written, not once it has aged into folklore, and the next person to
+  // tidy it drops the property with a green suite.
+  for (const [prog, id] of [[layered, 'bindSheet'], [layered, 'fibreMapFor'], [greet, 'greet']]) {
+    assert.ok(G.filesOf(prog, id).others.length > 0, id);
+  }
+});
+
+test('a file that states no changed files leaves nothing unaccounted for', () => {
+  const bare = { ...layered };
+  delete bare.files;
+  assert.deepEqual(G.filesOf(bare, 'bindSheet').unaccounted, []);
+});
+
+test('paths group under their directories, in first-appearance order', () => {
+  const rows = G.fileTree(G.filesOf(layered, 'bindSheet').unaccounted);
+  const dirs = rows.filter(r => !r.path).map(r => r.label);
+  assert.deepEqual(dirs, ['gates', 'packages/site/src/shelf', 'docs', 'adr']);
+  // Every path put in comes back out exactly once, and nothing else does.
+  const files = rows.filter(r => r.path);
+  assert.equal(files.length, 14);
+  assert.equal(new Set(files.map(r => r.path)).size, 14);
+});
+
+test('a directory holding one thing collapses into the line below it', () => {
+  const rows = G.fileTree(G.filesOf(layered, 'bindSheet').unaccounted);
+  // docs/log holds one file, so it is one row and not a header plus a row.
+  const log = rows.filter(r => r.label.startsWith('log/'));
+  assert.equal(log.length, 1);
+  assert.equal(log[0].path, 'docs/log/2026-08-30-the-species-menu-and-the-read-back.md');
+  assert.equal(log[0].label, 'log/2026-08-30-the-species-menu-and-the-read-back.md');
+  // And a chain of one-child directories is one header, not four.
+  assert.equal(rows.filter(r => r.label === 'packages').length, 0);
+});
+
+test('a lone path is one line with no header above it', () => {
+  assert.deepEqual(G.fileTree(['src/greet.ts']), [{ depth: 0, label: 'src/greet.ts', path: 'src/greet.ts' }]);
+  assert.deepEqual(G.fileTree([]), []);
+});
+
+test('a row sits one level under the header that names its directory', () => {
+  const rows = G.fileTree(['a/one.ts', 'a/two.ts', 'b/c/three.ts', 'b/d/four.ts']);
+  assert.deepEqual(rows, [
+    { depth: 0, label: 'a' },
+    { depth: 1, label: 'one.ts', path: 'a/one.ts' },
+    { depth: 1, label: 'two.ts', path: 'a/two.ts' },
+    { depth: 0, label: 'b' },
+    { depth: 1, label: 'c/three.ts', path: 'b/c/three.ts' },
+    { depth: 1, label: 'd/four.ts', path: 'b/d/four.ts' },
+  ]);
+});
+
+test('a label joined to its ancestors is the path again, whatever the path holds', () => {
+  // The label is what prints. If it did not reconstruct the path, the tab
+  // would be showing a reader a path that is not the one in the change.
+  for (const p of ['/leading.ts', 'doubled//sep.ts', 'trailing/', 'bare.ts']) {
+    const rows = G.fileTree([p]);
+    assert.equal(rows.length, 1);
+    assert.equal(rows[0].label, p);
+    assert.equal(rows[0].path, p);
+  }
+});
+
+/* -- the files tab, as markup --------------------------------------------- */
+
+// This is the only surface the tab has. It is written into the cutaway with
+// `innerHTML` at click time, so no rendered page carries it as a string and
+// tests/groundtrack-render.test.mjs cannot see it at all. The function is in
+// the module for that reason, and these are the tests that reason bought.
+
+const POISON = '<img src=x onerror=alert(1)> & "quoted" </script><script>alert(2)</script>';
+
+test('every author string on a row reaches the tab escaped', () => {
+  // A path with a separator in it poisons a directory segment and a leaf, and
+  // the `why` poisons the comment that trails the leaf. Drop the `esc` from
+  // any of the three and this is what says so.
+  const prog = JSON.parse(JSON.stringify(greet));
+  prog.files[0].path = `${POISON}/${POISON}`;
+  prog.files[0].why = POISON;
+  prog.nodes.greet.touches = [`${POISON}/${POISON}`];
+  const out = G.filesMarkup(prog, 'greet');
+  assert.doesNotMatch(out, /<img src=x onerror/);
+  assert.match(out, /&lt;img src=x onerror/);
+  assert.equal((out.match(/&lt;script>alert\(2\)/g) || []).length, 3, 'the segment, the leaf and the why');
+});
+
+test('the tab opens and closes one div per level it indents', () => {
+  // The depth loop is where broken nesting would live, and broken nesting on
+  // an innerHTML assignment silently eats the rest of the tab.
+  for (const [prog, id] of [[layered, 'bindSheet'], [layered, 'buildShelf'], [greet, 'greet']]) {
+    const out = G.filesMarkup(prog, id);
+    assert.equal((out.match(/<div/g) || []).length, (out.match(/<\/div>/g) || []).length, id);
+  }
+});
+
+test('a file row carries its mark, its leaf, its counts and its why', () => {
+  const out = G.filesMarkup(layered, 'buildShelf');
+  assert.match(out, /<span class="fchange">N<\/span>/, 'a new file is marked N');
+  assert.match(out, /<span class="fchange">E<\/span>/, 'an edited one is marked E');
+  assert.match(out, /<span class="fpath">one-sheet\.test\.ts <span class="fwhy">&mdash; G53/);
+  assert.match(out, /<span class="fnum">\+194 &minus;0<\/span>/);
+  // The collapsed row prints the segments it swallowed, not a bare leaf.
+  assert.match(out, /<span class="fpath">log\/2026-08-30-the-species-menu-and-the-read-back\.md /);
+  assert.doesNotMatch(out, /<div class="fdir">log\//);
+  assert.match(out, /<div class="fdir">gates\/<\/div>/);
+  assert.match(out, /in the change, on no node of this sheet/);
+});
+
+test('a change kind outside the four prints a question mark, not a function', () => {
+  // The validator refuses one, and this does not lean on the validator: a
+  // bare-object lookup would find Object's own constructor and print it.
+  const prog = JSON.parse(JSON.stringify(greet));
+  prog.files[0].change = 'constructor';
+  const out = G.filesMarkup(prog, 'greet');
+  assert.match(out, /<span class="fchange">\?<\/span>/);
+  assert.doesNotMatch(out, /function Object/);
+});
+
+test('a path that is a prototype member name still reads its own row', () => {
+  // The second key into a plain object in this function, and the one with no
+  // validator behind it at all: a path is author text. It has to *be* a
+  // prototype name, not end in one — `src/constructor` is an ordinary key.
+  //
+  // With a bare `{}`, a node touching a path the change does not state finds
+  // Object's own constructor, which is truthy, so the `|| {}` fallback never
+  // fires and the row prints its change, adds and dels as undefined.
+  const prog = JSON.parse(JSON.stringify(greet));
+  prog.nodes.greet.touches = ['constructor'];
+  const out = G.filesMarkup(prog, 'greet');
+  assert.match(out, /<span class="fchange">E<\/span>/, 'the fallback fired');
+  assert.match(out, /<span class="fnum">\+0 &minus;0<\/span>/);
+  assert.doesNotMatch(out, /undefined/);
+  assert.doesNotMatch(out, /function Object/);
+});
+
+test('a file that states no changed files says so instead of drawing a tree', () => {
+  const prog = JSON.parse(JSON.stringify(greet));
+  delete prog.files;
+  const out = G.filesMarkup(prog, 'greet');
+  assert.match(out, /not stated by this file/);
+  assert.doesNotMatch(out, /in the change, on no node/);
 });

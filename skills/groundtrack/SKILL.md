@@ -134,6 +134,11 @@ The cutaway follows the cursor. Each move opens the node the walk is in and
 brings the step that ran into view. A node opened by hand stays open until the
 cursor next moves.
 
+The files tab reads as a directory tree, so a change of many files reads as a
+few folders. A directory holding one thing prints on one line. Each file
+carries a mark for its change — `N` new, `E` edit, `D` delete, `F` forbidden —
+and the `why` you wrote trails the path the way a comment trails a line of code.
+
 The wheel scrolls the drawing. With ctrl held it zooms about the pointer.
 
 The contract tab states one number per node: its cyclomatic complexity, as
