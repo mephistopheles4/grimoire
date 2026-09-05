@@ -131,8 +131,19 @@ function measure(rev) {
   };
 }
 
-const before = measure("main");
-const after = measure("HEAD");
+/* Explicit commits, not moving refs. `main` and `#61` both moved while this
+ * round ran — #59 and #60 landed and #61 was rebased onto them — and a cost
+ * table that silently followed a branch would compare two things nobody chose.
+ *
+ * BEFORE is main at a925af4: the shape an author reads today, with #59 and #60
+ * already in it. AFTER is this branch, which is #61 at ecfb727. The rebase did
+ * not touch the shape document, so ecfb727 and #61's tip say the same thing to
+ * an author; `rebase-check.txt` is the measurement of that. */
+const BEFORE = process.argv[2] ?? "a925af4";
+const AFTER = process.argv[3] ?? "HEAD";
+
+const before = measure(BEFORE);
+const after = measure(AFTER);
 
 const delta = (a, b) => {
   const d = b - a;
@@ -143,9 +154,9 @@ const delta = (a, b) => {
 const row = (label, key) =>
   `| ${label} | ${before[key]} | ${after[key]} | ${delta(before[key], after[key])} |`;
 
-console.log(`before = main, after = HEAD (${
-  execFileSync("git", ["rev-parse", "--short", "HEAD"], { encoding: "utf8" }).trim()
-})\n`);
+const sha = (r) =>
+  execFileSync("git", ["rev-parse", "--short", r], { encoding: "utf8" }).trim();
+console.log(`before = ${BEFORE} (${sha(BEFORE)}), after = ${AFTER} (${sha(AFTER)})\n`);
 console.log("| Measure | Before | After | Change |");
 console.log("| --- | --- | --- | --- |");
 console.log(row("Words in the shape document", "words"));

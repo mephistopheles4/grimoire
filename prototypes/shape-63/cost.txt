@@ -1,0 +1,9 @@
+before = a925af4 (a925af4), after = HEAD (48a7145)
+
+| Measure | Before | After | Change |
+| --- | --- | --- | --- |
+| Words in the shape document | 2578 | 3148 | +570 (+22%) |
+| Lines in the shape document | 318 | 390 | +72 (+23%) |
+| Required fields, over every object kind | 97 | 98 | +1 (+1%) |
+| Object kinds the validator shape-checks | 32 | 32 | +0 (+0%) |
+| Refusal kinds | 63 | 69 | +6 (+10%) |
