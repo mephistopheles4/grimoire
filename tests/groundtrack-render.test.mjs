@@ -533,12 +533,12 @@ test('a tag raised with two kinds prints both, retry before escape before die', 
   // A tag that retries in one place and dies in another is two facts. The
   // second run is the first with its channel changed, so the file says both.
   const file = derive(prog => {
-    const fails = prog.presets.find(p => p.walk.steps.some(m => m.k === 'effect' && m.raised));
+    const fails = runs(prog).find(p => p.walk.steps.some(m => m.k === 'effect' && m.raised));
     const dies = JSON.parse(JSON.stringify(fails));
     dies.name = 'the post dies';
     dies.blurb = 'the same failure, fatal';
     for (const m of dies.walk.steps) if (m.k === 'effect' && m.raised) m.raised.channel = 'die';
-    prog.presets.unshift(dies); // met first, and still printed last
+    runs(prog).unshift(dies); // met first, and still printed last
   });
   assert.equal(check(file).code, 0);
   const r = run(groundtrack, [file, '--text']);
