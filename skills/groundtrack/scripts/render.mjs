@@ -259,8 +259,9 @@ function shape(prog, r) {
  * evaluates nothing: which branch an `if` took and what an effect returned are
  * the author's claims, and the skill says so rather than hiding it.
  */
-function path(prog, graph, gi, pi, r) {
-  const { walk, name: runName } = prog.graphs[gi].presets[pi];
+function path(prog, gi, pi, r) {
+  const graph = prog.graphs[gi];
+  const { walk, name: runName } = graph.presets[pi];
   const labels = {};
   for (const [id, n] of Object.entries(prog.nodes)) labels[id] = Groundtrack.labelsOf(n);
   const frames = [];
@@ -448,7 +449,7 @@ export function check(prog, fileLabel) {
   if (r.list.length) return r.list; /* links are unreliable once the shape is wrong */
   /* Each walk is validated against the graph it belongs to, entering at that
    * graph's entry. Every rule below that is unchanged. */
-  prog.graphs.forEach((g, gi) => g.presets.forEach((_, pi) => path(prog, g, gi, pi, r)));
+  prog.graphs.forEach((g, gi) => g.presets.forEach((_, pi) => path(prog, gi, pi, r)));
   return r.list;
 }
 
@@ -674,7 +675,7 @@ const USAGE =
   '  --check        validate; refusals on stderr, exit 1; findings on stdout\n' +
   '  --out <page>   write one self-contained HTML file\n' +
   '  --text [run]   print the tree to stdout for one run, by name or index\n' +
-  '  --graph <id>   which graph of the change to read. Needed by --text when the file states more than one';
+  '  --graph <id>   which graph --text reads. Needed when the file states more than one';
 
 function main(argv) {
   const args = argv.slice(2);
@@ -723,6 +724,19 @@ function main(argv) {
   }
 
   const notes = findings(prog);
+
+  /* --graph picks which graph to read, and only --text reads one. --check
+   * validates every graph of the change, and the page embeds the whole file
+   * and draws the first graph until the sheet picker lands. Accepting the flag
+   * in either of those and quietly ignoring it would hand back a page for a
+   * graph the reader did not ask for, with exit 0 and nothing said — the
+   * silent wrong answer this validator exists to refuse. */
+  if (graphArg !== undefined && !wantText) {
+    console.error(
+      `${file}: --graph selects a graph to read, and only --text reads one. --check validates every graph of the change, and the page draws the change's first graph. Drop --graph, or add --text.`,
+    );
+    process.exit(2);
+  }
 
   /* A graph the reader named, refused by name when the file has not got it. */
   let graphIndex = 0;

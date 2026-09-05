@@ -447,6 +447,24 @@ test('--graph with no value, or followed by a flag, lands at the usage line', ()
   }
 });
 
+test('--graph is refused where nothing would read it, rather than ignored', () => {
+  // Accepted and discarded, --graph hands back a page for a graph the reader
+  // did not ask for, with exit 0 and nothing said. --check reads every graph
+  // of the change, and the page draws the first one until the picker lands, so
+  // neither has a graph to select.
+  const file = derive(addSecondGraph);
+  const out = join(work, `unread-${n++}.html`);
+  for (const args of [
+    [file, '--graph', 'panel-apply', '--check'],
+    [file, '--graph', 'panel-apply', '--out', out],
+  ]) {
+    const r = run(groundtrack, args);
+    assert.equal(r.code, 2, `expected a refusal, got:\n${r.stdout}${r.stderr}`);
+    assert.match(r.stderr, /--graph selects a graph to read, and only --text reads one/);
+  }
+  assert.ok(!existsSync(out), 'no page was written for a graph nothing would draw');
+});
+
 test('the end marks differ between runs, so choosing one changes what is read', () => {
   const a = run(groundtrack, [layeredFlightpath, '--text', 'default page']).stdout;
   const b = run(groundtrack, [layeredFlightpath, '--text', 'the sheet 404s']).stdout;
@@ -571,15 +589,18 @@ test('a one-graph file draws no sheet control', () => {
   assert.doesNotMatch(html, /data-sheet=/);
 });
 
-test('the page reads its graph through one accessor, not off the file root', () => {
+test('the page reads its graph through an accessor, not off the file root', () => {
   // The prefactor the sheets ticket needs: which graph is on the sheet is one
-  // line, not fifteen reads of PROG.entry and PROG.presets scattered through
-  // the template.
+  // place to change, not fifteen reads scattered through the template. The
+  // property is that nothing under start() reaches for a graph's fields on the
+  // file root — which is what the next ticket relies on, and what a refactor
+  // must not undo. The accessor's own spelling is not pinned; pinning it would
+  // fail a rename that changed no behaviour.
   const template = readFileSync(join(groundtrack, '..', '..', 'assets', 'template.html'), 'utf8');
   const body = template.slice(template.indexOf('function start()'));
   assert.doesNotMatch(body, /PROG\.presets/);
   assert.doesNotMatch(body, /PROG\.entry/);
-  assert.match(body, /const SHEET = G\.graphView\(PROG, 0\);/);});
+});
 
 test('the page contains no dynamic code evaluation', () => {
   const html = pageOf(layeredFlightpath);
