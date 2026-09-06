@@ -96,11 +96,19 @@ Nothing here is tied to one harness.
 2. Tell it to write the file the task asks for, then **validate and fix**:
    run `node skills/groundtrack/scripts/render.mjs <file> --check`, read the
    refusals, fix, and repeat. Cap at five passes.
-3. Save each attempt as `runs-loop63/<task>-<agent>-<n>/attempt-<pass>.json`,
+3. Tell it to **read every finding once the checker is clean, and answer each
+   one**: fix the file, or say in one line why the finding is what it meant.
+   A finding never refuses, so the loop above never fixed one. A fix here is
+   another pass, and it counts against the cap.
+4. Save each attempt as `runs-loop63/<task>-<agent>-<n>/attempt-<pass>.json`,
    and the checker's output beside it as `check-<pass>.txt`.
-4. Save the agent's own account as `result.json`, so a mismatch with the files
-   is visible.
-5. Run `node loop-report.mjs runs-loop63`.
+5. Save the agent's own account as `result.json`, so a mismatch with the files
+   is visible. Add an `answers` array beside `account`, one
+   `{ "finding": "<the line the checker printed>", "answer": "<fixed | why it
+   is what I meant>" }` per finding. **A kept finding and an ignored one leave
+   the same attempt file**, so this array is the only evidence step 3 ran. The
+   scorer does not read it; a reader does.
+6. Run `node loop-report.mjs runs-loop63`.
 
 The scorer re-derives every number from the attempt files with the shipped
 validator. It reads `result.json` only to report where the agent's account and
