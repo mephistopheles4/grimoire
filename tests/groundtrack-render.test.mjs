@@ -472,8 +472,12 @@ test('an E tag nothing beneath the node can produce is a finding', () => {
 
 /* -- the text output ------------------------------------------------------ */
 
+// The shipped pull-request example states two graphs, so every reading of it
+// names one. The first-paint sheet is the one these were written against.
+const firstPaint = ['--graph', 'first-paint'];
+
 test('the text prints one row per call site and lists the runs it did not print', () => {
-  const r = run(groundtrack, [layeredFlightpath, '--text']);
+  const r = run(groundtrack, [layeredFlightpath, '--text', ...firstPaint]);
   assert.equal(r.code, 0);
   // bindSheet is called twice from buildShelf, so it appears twice, and the
   // two rows carry different end marks.
@@ -486,20 +490,35 @@ test('the text prints one row per call site and lists the runs it did not print'
 test('the text suggests the longest walk', () => {
   const prog = JSON.parse(readFileSync(layeredFlightpath, 'utf8'));
   const longest = runs(prog).reduce((a, b) => (b.walk.steps.length > a.walk.steps.length ? b : a));
-  const r = run(groundtrack, [layeredFlightpath, '--text']);
+  const r = run(groundtrack, [layeredFlightpath, '--text', ...firstPaint]);
   assert.match(r.stdout, new RegExp(`run "${longest.name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}"`));
 });
 
 test('the run the reader names is the run that prints', () => {
-  const r = run(groundtrack, [layeredFlightpath, '--text', '?tune= flat']);
+  const r = run(groundtrack, [layeredFlightpath, '--text', '?tune= flat', ...firstPaint]);
   assert.equal(r.code, 0);
   assert.match(r.stdout, /run "\?tune= flat"/);
 });
 
 test('a run the file has not got is refused by name', () => {
-  const r = run(groundtrack, [layeredFlightpath, '--text', 'no such run']);
+  const r = run(groundtrack, [layeredFlightpath, '--text', 'no such run', ...firstPaint]);
   assert.equal(r.code, 1);
   assert.match(r.stderr, /no run called "no such run"/);
+});
+
+test('two graphs of one change may each have a run of that name', () => {
+  // Uniqueness is per graph, and the two sheets of the shipped example are
+  // where that stops being a rule on paper.
+  const prog = JSON.parse(readFileSync(layeredFlightpath, 'utf8'));
+  const name = prog.graphs[0].presets[0].name;
+  prog.graphs[1].presets[0].name = name;
+  const p = join(work, `shared-run-${n++}.flightpath.json`);
+  writeFileSync(p, JSON.stringify(prog, null, 2));
+  assert.equal(check(p).code, 0, check(p).stderr);
+  // And naming it resolves within the graph the reader chose.
+  const r = run(groundtrack, [p, '--text', name, '--graph', 'panel-apply']);
+  assert.equal(r.code, 0, r.stderr);
+  assert.match(r.stdout, /^applySettings/m);
 });
 
 test('a several-graph file without --graph lists the graphs and stops', () => {
@@ -549,7 +568,7 @@ test('--graph with no value, or followed by a flag, lands at the usage line', ()
 test('--graph is refused where nothing would read it, rather than ignored', () => {
   // Accepted and discarded, --graph hands back a page for a graph the reader
   // did not ask for, with exit 0 and nothing said. --check reads every graph
-  // of the change, and the page draws the first one until the picker lands, so
+  // of the change, and the page carries all of them and offers a picker, so
   // neither has a graph to select.
   const file = derive(addSecondGraph);
   const out = join(work, `unread-${n++}.html`);
@@ -565,8 +584,8 @@ test('--graph is refused where nothing would read it, rather than ignored', () =
 });
 
 test('the end marks differ between runs, so choosing one changes what is read', () => {
-  const a = run(groundtrack, [layeredFlightpath, '--text', 'default page']).stdout;
-  const b = run(groundtrack, [layeredFlightpath, '--text', 'the sheet 404s']).stdout;
+  const a = run(groundtrack, [layeredFlightpath, '--text', 'default page', ...firstPaint]).stdout;
+  const b = run(groundtrack, [layeredFlightpath, '--text', 'the sheet 404s', ...firstPaint]).stdout;
   assert.notEqual(a, b);
 });
 

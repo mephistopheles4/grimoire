@@ -14,8 +14,10 @@ export const examples = join(root, 'skills', 'groundtrack', 'examples');
 // The small worked example: two nodes, three runs, and every move kind the
 // shape has. It is the one every derived fixture starts from.
 export const exampleFlightpath = join(examples, 'greet.flightpath.json');
-// The layer-carrying one, which is the acceptance set for the toggle.
-export const layeredFlightpath = join(examples, 'pr-313-first-paint.flightpath.json');
+// The layer-carrying one, which is the acceptance set for the toggle — and
+// the only shipped example with two graphs, so it is also the acceptance set
+// for the sheet picker and the shared node map.
+export const layeredFlightpath = join(examples, 'pr-313.flightpath.json');
 
 // Run a node script and report both streams and the exit code, rather than
 // throwing. A test about a gate that fails needs the failure, not an exception.

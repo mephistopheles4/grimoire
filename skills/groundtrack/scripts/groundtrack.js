@@ -709,7 +709,21 @@ const Groundtrack = (() => {
    *
    *  Which means this takes the **view**, not the file. Handed the file,
    *  `prog.entry` is undefined, the reachable set is empty, and the second
-   *  group renders empty rather than throwing. It throws instead. */
+   *  group renders empty rather than throwing. It throws instead.
+   *
+   *  **A gap, stated rather than closed.** Narrowing `others` to the sheet
+   *  leaves a file that only the *other* sheet's nodes touch in neither of the
+   *  last two groups: not in `others`, because no node here touches it, and
+   *  not in `unaccounted`, because a node of the change does. Measured on the
+   *  shipped pr-313 example: `shelf-settings.ts` is on the panel-apply sheet
+   *  and appears nowhere on the first-paint one. The third group's label —
+   *  "in the change, on no node of this sheet" — reads as though it should
+   *  catch it.
+   *
+   *  Not closed here because both halves are named in the spec: the label is
+   *  its wording, and the change-wide computation is what keeps this group and
+   *  `--check`'s finding from disagreeing. Closing it means changing one of
+   *  those two, which is a spec amendment and not a sheets ticket. */
   function filesOf(prog, id) {
     if (!prog.entry) {
       throw new Error('filesOf needs a graph view: a file lists graphs and has no entry of its own');

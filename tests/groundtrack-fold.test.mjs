@@ -705,9 +705,9 @@ test('a node with one caller sits straight beneath it', () => {
   for (const p of Object.values(l.pos)) assert.ok(p.x + l.width <= l.canvasW);
 });
 
-test('the layout places every node and draws every call edge once', () => {
+test('the layout places every node of the sheet and draws every call edge once', () => {
   const l = G.layout(layered);
-  assert.deepEqual(Object.keys(l.pos).sort(), Object.keys(layered.nodes).sort());
+  assert.deepEqual(Object.keys(l.pos).sort(), [...G.reachable(layered, layered.entry)].sort());
   const pairs = l.edges.map(e => `${e.from}>${e.to}`);
   assert.equal(new Set(pairs).size, pairs.length, 'no edge is drawn twice');
   assert.ok(l.canvasW > 0 && l.canvasH > 0);
@@ -727,7 +727,12 @@ test('the three groups a node sees are read off the change and the node map', ()
   // node touches is still listed against the others that touch it.
   assert.ok(f.others.includes('packages/site/src/shelf/scene.ts'));
   assert.ok(f.others.includes('packages/site/src/shelf/woodwork.ts'));
-  assert.equal(f.unaccounted.length, 14);
+  // The second group is this sheet's, so a file only the other sheet's nodes
+  // touch is not in it. The third is the change's, so that file is accounted
+  // for all the same and does not appear there either.
+  assert.ok(!f.others.includes('packages/site/src/shelf/shelf-settings.ts'));
+  assert.ok(!f.unaccounted.includes('packages/site/src/shelf/shelf-settings.ts'));
+  assert.equal(f.unaccounted.length, 13);
   assert.ok(!f.unaccounted.includes('packages/site/src/shelf/scene.ts'));
 });
 
@@ -766,8 +771,8 @@ test('paths group under their directories, in first-appearance order', () => {
   assert.deepEqual(dirs, ['gates', 'packages/site/src/shelf', 'docs', 'adr']);
   // Every path put in comes back out exactly once, and nothing else does.
   const files = rows.filter(r => r.path);
-  assert.equal(files.length, 14);
-  assert.equal(new Set(files.map(r => r.path)).size, 14);
+  assert.equal(files.length, 13);
+  assert.equal(new Set(files.map(r => r.path)).size, 13);
 });
 
 test('a directory holding one thing collapses into the line below it', () => {

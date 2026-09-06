@@ -41,13 +41,17 @@ conversation, because nothing durable exists to check the graph against.
 
 ## The page
 
-The page draws the graph and steps a cursor over one recorded walk. Nothing is
+The page draws one graph and steps a cursor over one recorded walk. Nothing is
 computed while you watch. Every branch an `if` took, every value an effect
 returned, and every catch is a literal in the file. That is what makes the walk
 a list of checkable claims rather than a program you have to believe.
 
-On the page you can:
+A change with several graphs is one page with several sheets. On the page you
+can:
 
+- **Pick a sheet**, when the file states more than one graph. The picker sits
+  in the head, left of the run picker. A sheet draws what its entry reaches, and
+  keeps its own run, cursor, layer, view and open node.
 - Step forward and back, play the walk, and hold it on the next effect or the
   next error.
 - Read the call stack, the inputs, the error path, and the effects ledger.
