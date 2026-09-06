@@ -170,7 +170,12 @@ const Groundtrack = (() => {
    *  A title is author text and goes through `esc` into element content. An id
    *  reaches an attribute, so it is validated rather than escaped — and a file
    *  the validator has not seen carries none, which is why the pattern is
-   *  tested here too and not only in `render.mjs`. */
+   *  tested here too and not only in `render.mjs`.
+   *
+   *  The option's value is the index, because that is what the page indexes
+   *  its sheets by. `data-graph` carries the id beside it, and no script reads
+   *  it: it is there so the id a reader needs for `--text --graph <id>` is in
+   *  the page they are looking at, rather than only in the file. */
   function sheetPickerMarkup(prog) {
     const graphs = (prog && prog.graphs) || [];
     if (graphs.length < 2) return '';
@@ -534,8 +539,15 @@ const Groundtrack = (() => {
    *
    * Every shipped example reports no unreached node, so no one-graph drawing
    * moves by a pixel — which is the promise, and the reason this could be
-   * settled here rather than argued from a screenshot. */
+   * settled here rather than argued from a screenshot.
+   *
+   * Loud on a file, for the reason `filesOf` is: `reachable(prog, undefined)`
+   * is the empty set, so a drawing with no boxes in it is what a caller that
+   * passed the file rather than the view would get, with nothing said. */
   function layout(prog) {
+    if (!prog.entry) {
+      throw new Error('layout needs a graph view: a file lists graphs and has no entry of its own');
+    }
     const ids = [...reachable(prog, prog.entry)];
     const depth = bareFrom(ids.map(i => [i, 0]));
     for (let k = 0; k < ids.length; k++) {

@@ -261,11 +261,13 @@ test('unaccounted files are the change\'s, counted across every graph', () => {
   }
 });
 
-test('the files tab refuses a file rather than a view, because it needs the sheet', () => {
-  // Handed the file, `prog.entry` is undefined and the reachable set is empty,
-  // so the second group renders empty — which is what a files tab looks like
-  // when a node touches nothing. Loud beats a wrong answer that reads right.
+test('the two sheet-scoped readers refuse a file rather than a view', () => {
+  // Handed the file, `prog.entry` is undefined and the reachable set is empty.
+  // The files tab's second group then renders empty — which is what a tab
+  // looks like when a node touches nothing — and the drawing places no box at
+  // all. Both read right and both are wrong, so both are loud instead.
   assert.throws(() => G.filesOf(twoGraphs(), 'greet'), /entry/);
+  assert.throws(() => G.layout(twoGraphs()), /entry/);
 });
 
 test('a sheet\'s state starts on its own graph, and two sheets do not share one', () => {
@@ -707,7 +709,13 @@ test('a node with one caller sits straight beneath it', () => {
 
 test('the layout places every node of the sheet and draws every call edge once', () => {
   const l = G.layout(layered);
-  assert.deepEqual(Object.keys(l.pos).sort(), [...G.reachable(layered, layered.entry)].sort());
+  // Written out rather than derived from `reachable`, which is what `layout`
+  // itself calls: a test that asks the implementation what the answer is
+  // agrees with it whatever it says. These are the six the first-paint entry
+  // reaches; the change's other three are the panel-apply sheet's.
+  assert.deepEqual(Object.keys(l.pos).sort(), [
+    'applyWoodFibre', 'bindSheet', 'buildShelf', 'fibreMapFor', 'resolveWoodwork', 'worldSpaceUvs',
+  ]);
   const pairs = l.edges.map(e => `${e.from}>${e.to}`);
   assert.equal(new Set(pairs).size, pairs.length, 'no edge is drawn twice');
   assert.ok(l.canvasW > 0 && l.canvasH > 0);

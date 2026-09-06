@@ -745,17 +745,21 @@ test('a graph title reaches the page as text', () => {
   assert.match(head, /panel &amp; &lt;script>alert/);
 });
 
-test('each sheet keeps its own run, cursor, layer, view and open node', () => {
-  // Where the state lives is the shared module, and the fold tests hold what
-  // it holds. What the page owes is that it uses it: one state per graph, kept
-  // rather than rebuilt, so returning to a sheet returns to what was left.
+test('the page seeds a sheet from the module rather than keeping its own copy', () => {
+  // A limit, stated, and the same one the failure-kind test states. What a
+  // sheet remembers is the module's — `sheetState`, and the fold tests hold
+  // that two sheets get two of them and that moving one leaves the other. That
+  // a reader who leaves a sheet and returns finds it as they left it is a
+  // property of the running page, and nothing here runs one: no DOM, by
+  // design. It was driven by hand in a browser instead.
+  //
+  // What this can hold is the seam: the page calls the module's constructor,
+  // so there is one definition of what a sheet remembers and not two. Nothing
+  // else about the page's spelling is pinned — the accessor test below says
+  // why pinning a spelling is the wrong trade.
   const template = readFileSync(join(groundtrack, '..', '..', 'assets', 'template.html'), 'utf8');
   const body = template.slice(template.indexOf('function start()'));
-  assert.match(body, /G\.sheetState\(/, 'the page seeds a sheet from the module');
-  // Seeded once per graph and kept: a switch that re-seeded would lose the
-  // reader's place, which is the whole of what this ticket adds.
-  assert.match(body, /SHEETS\[/);
-  assert.doesNotMatch(body, /S\s*=\s*G\.sheetState\([^)]*\);\s*render/, 'a switch does not re-seed');
+  assert.match(body, /G\.sheetState\(/);
 });
 
 test('the page reads its graph through an accessor, not off the file root', () => {

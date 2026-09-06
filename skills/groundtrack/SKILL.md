@@ -150,8 +150,10 @@ The page draws one graph and steps a cursor over one recorded walk.
 
 **A file with several graphs is one page with several sheets.** A sheet picker
 sits in the head, left of the run picker, and lists each graph by title. A
-one-graph file shows none. A sheet draws what its entry reaches through call
-edges, so a symbol two graphs reach appears on both and is written once.
+one-graph file shows none.
+
+A sheet draws what its entry reaches through call edges. Write a symbol two
+graphs reach once; both sheets draw it.
 
 Each sheet keeps its own run, cursor, layer, view and open node. Leave a sheet
 and come back and it is as you left it.

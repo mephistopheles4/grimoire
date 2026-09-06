@@ -1080,13 +1080,18 @@ function start() {
 
   /* -- wiring ------------------------------------------------------------- */
 
-  /* Every control's appearance, derived from S rather than poked at the point
-     of the click. A handler that sets its own button's class is right until a
-     sheet switch changes S underneath it, at which point the page shows one
-     sheet's drawing with another sheet's controls. So the handlers set state
-     and call this, and this is also what a switch calls. One reading, one
-     writer. */
-  function syncControls() {
+  /* The two controls whose contents outlive one render, looked up here so the
+     two functions below can be called in any order after this point. The
+     picker is absent on a one-graph file, so every read of it is guarded. */
+  const sheetPicker = $('sheet');
+  const layerGrp = $('layerGrp');
+
+  /* The run picker's options are the sheet's, so they are rebuilt when the
+     sheet changes and at no other time. Kept apart from syncControls, which
+     runs on every click: tearing down a select and rebuilding it to set a
+     class on a tab is work for nothing, and it drops the reader's place in an
+     open dropdown. */
+  function fillRunPicker() {
     const sel = $('run');
     sel.innerHTML = '';
     SHEET.presets.forEach(function (p, i) {
@@ -1095,8 +1100,17 @@ function start() {
       o.textContent = p.name + ' — ' + p.blurb;
       sel.appendChild(o);
     });
-    sel.value = String(S.run);
-    if (sheets) sheets.value = String(sheetAt);
+  }
+
+  /* Every control's appearance, derived from S rather than poked at the point
+     of the click. A handler that sets its own button's class is right until a
+     sheet switch changes S underneath it, at which point the page shows one
+     sheet's drawing with another sheet's controls. So the handlers set state
+     and call this, and this is also what a switch calls. One reading, one
+     writer. */
+  function syncControls() {
+    $('run').value = String(S.run);
+    if (sheetPicker) sheetPicker.value = String(sheetAt);
     [...layerGrp.querySelectorAll('button')].forEach(function (b) {
       b.className = b.textContent === S.layer ? 'on' : '';
     });
@@ -1114,11 +1128,11 @@ function start() {
 
   /* A sheet the reader has been on before comes back as they left it, because
      nothing here rebuilds its state — it only swaps which one is read. */
-  const sheets = $('sheet');
-  if (sheets) {
-    sheets.addEventListener('change', function (e) {
+  if (sheetPicker) {
+    sheetPicker.addEventListener('change', function (e) {
       stopPlaying();
       const fresh = useSheet(Number(e.target.value));
+      fillRunPicker();
       syncControls();
       render();
       /* A sheet opened for the first time is fitted to the pane, the way the
@@ -1180,7 +1194,6 @@ function start() {
      says why. Layers belong to the change, so the same buttons serve every
      sheet — what changes with the sheet is only which one is lit, and
      syncControls reads that off S. */
-  const layerGrp = $('layerGrp');
   if (!layerNames.length) {
     /* Named for the layer a reader expects, and switched off with the reason
        held as its help note. aria-disabled rather than disabled, because a
@@ -1440,6 +1453,7 @@ function start() {
     if (e.key === 'ArrowLeft') step(-1);
   });
 
+  fillRunPicker();
   syncControls();
   render();
   $('zoomFit').click();
