@@ -17,6 +17,10 @@ Refusals go to standard error and the exit code is 1. Findings go to standard
 output and the exit code stays 0. A refusal names the file and a reason,
 always. When the fault is in a walk it names the run and the move as well.
 
+**The loop ends on a clean checker, and a clean checker still prints findings.**
+The loop never fixes them, because a finding never refuses. Read every finding
+when the loop ends, and answer each one before you call the file done.
+
 **Do not write the whole file and then validate once.** Write the graph, run
 the validator, and only then write the first walk. A walk written against a
 graph that does not hold is a walk you will rewrite.
