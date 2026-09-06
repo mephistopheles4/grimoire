@@ -1296,15 +1296,27 @@ set; and the cold ink has nothing left to say about a node that is not there,
 so it keeps the one job it had, which is a node a *layer's* cut has stranded.
 No shipped example reports an unreached node, so no one-graph drawing moved.
 
-The third group stays the change's, so the tab and `--check` cannot disagree
-about what no node accounts for. That leaves a gap on a two-sheet file: a file
-only the other sheet's nodes touch is in neither of the last two groups, and
-the third group's label reads as though it should be. This document is not of
-one mind about it — story 28 reads as though the third group *is* the per-sheet
-list and the check is the change-wide one, while the decision below it states
-the label verbatim and keeps the computation change-wide. Choosing between
-those two sentences is an amendment of its own, and it is recorded in the
-module beside the code so the next reader starts from story 28.
+**The files tab's third group is the sheet's; the check's finding is the
+change's.** That is this document's own pairing — story 28 asks for the third
+group *labelled as this sheet's, so that I do not take a per-sheet list for the
+change-wide one*, and story 29 asks the check for the change-wide one — but it
+had not been read that way, because before this ticket a sheet was the whole
+node map and the two sets were the same on every shipped file.
+
+They come apart on a two-sheet file, and the tab has to be the sheet's for the
+three groups to cover: narrow the second group to the sheet and leave the third
+change-wide, and a file only the *other* sheet's nodes touch is in neither, with
+no label anywhere saying where it went. Measured on the migrated example:
+`shelf-settings.ts` is the panel-apply sheet's and appeared nowhere on the
+first-paint one. All three groups are the sheet's now, so every file the change
+states lands in exactly one of them on every sheet, and `--check` still reports
+across the whole change — a file one graph covers is not reported because
+another does not.
+
+The prior claim that the tab and the check *must not be able to disagree* was
+written while a file drew one graph, and it is withdrawn. They ask different
+questions, this document asks both, and on a one-graph file they still have one
+answer.
 
 **The shipped pull-request example is one change on two sheets.** `pr-313`
 gains the panel-apply graph the prototype branch carried, so the acceptance set
@@ -1322,3 +1334,12 @@ never a graph not drawn.
 The file's title and blurb are the change's, and the first-paint graph's blurb
 is the one the file used to carry. The file is `pr-313.flightpath.json`, since
 it is no longer one entry point's.
+
+**Two small readings follow the sheet rather than the change.** The footer's
+`nodes` count is what this sheet draws, so a reader can count the boxes and
+agree with it; `--check` still says how many the change has, and the two differ
+on a two-sheet file on purpose. And the band gained one line that is the
+sheet's: the graph's `blurb`, a required field that until now printed nowhere.
+The band's other three facts are the change's and are still stated once. The
+band moved into the shared module to be tested at all, on the same bargain the
+files tab makes.

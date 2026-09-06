@@ -134,9 +134,12 @@ const Groundtrack = (() => {
    *  It is here rather than in the template because a state that a reader can
    *  lose by clicking twice is worth a test, and a test needs it without a DOM.
    *
-   *  The layer is the exception, and deliberately: layers belong to the change,
-   *  so every sheet starts on the same one. A reader who picks a layer and then
-   *  changes sheet is asking about the same change under the same layer. */
+   *  The layer is one of the five, so it is the sheet's like the rest: a sheet
+   *  opened for the first time starts on the file's first layer, whatever
+   *  layer the sheet the reader came from is on. What belongs to the change is
+   *  the layer *map* — every sheet is offered the same buttons, because a
+   *  layer renames a token wherever that token is. Which of them is lit is a
+   *  question about this sheet. */
   function sheetState(prog, i) {
     const view = graphView(prog, i);
     const layerNames = Object.keys(prog.layers || {});
@@ -696,51 +699,43 @@ const Groundtrack = (() => {
   }
 
   /** Files in the change that no node touches, in the order the change states
-   *  them. A question about the whole file, not about one node: `--check`
-   *  reports it as a finding and the files tab prints it as its third group,
-   *  and the two must not be able to disagree. */
-  function unaccountedFiles(prog) {
+   *  them. A question about the whole file, not about one node, and this is
+   *  the change-wide answer: `--check` reports it as a finding, so a file one
+   *  graph covers is not reported because another does not.
+   *
+   *  The files tab asks a narrower question with the same words — see
+   *  `filesOf`. Read `ids` to choose which: every node of the change here, one
+   *  sheet's nodes there. */
+  function unaccountedFiles(prog, ids) {
+    const nodes = ids || Object.keys(prog.nodes);
     const touched = new Set();
-    for (const n of Object.values(prog.nodes)) for (const p of n.touches || []) touched.add(p);
+    for (const id of nodes) for (const p of prog.nodes[id].touches || []) touched.add(p);
     return (prog.files || []).filter(f => !touched.has(f.path)).map(f => f.path);
   }
 
   /** The three groups the files tab shows around one open node: what it
    *  changes, what the other nodes *on this sheet* change, and what the change
-   *  touches that no node accounts for. A file two nodes touch is listed
-   *  against both.
+   *  touches that no node *of this sheet* accounts for. A file two nodes touch
+   *  is listed against both.
    *
-   *  Two readers of the change-wide node map, a line apart, wanting opposite
-   *  things. `unaccounted` is the change's, so a file one graph covers is not
-   *  reported because another does not. `others` is the sheet's, and the tab
-   *  labels it so. They are the same set only while a file draws one graph,
-   *  and swapping either is silent: an empty second group is what a sheet of
-   *  one node looks like, and an over-full third one just reads as a large
-   *  change. So the two are read off different things on purpose — `others`
-   *  through the entry, `unaccounted` through the whole map.
+   *  **All three are the sheet's**, which is what makes them a partition: every
+   *  file the change states lands in exactly one of them, and a reader on this
+   *  sheet is never left wondering where a path went. Narrow the second group
+   *  without narrowing the third and they stop covering: a file only the other
+   *  sheet's nodes touch is in neither, and no group's label says so.
+   *
+   *  That is the spec's own pairing rather than a choice made here. Its story
+   *  28 wants this group *labelled as this sheet's, so that I do not take a
+   *  per-sheet list for the change-wide one*, and its story 29 wants the
+   *  change-wide one from `--check`. Two questions, two answers, and both
+   *  printed — the tab's here, the check's from `unaccountedFiles` with no
+   *  `ids`. On a one-graph file they are the same set, which is why the three
+   *  shipped examples read exactly as they did.
    *
    *  Which means this takes the **view**, not the file. Handed the file,
-   *  `prog.entry` is undefined, the reachable set is empty, and the second
-   *  group renders empty rather than throwing. It throws instead.
-   *
-   *  **A gap, stated rather than closed.** Narrowing `others` to the sheet
-   *  leaves a file that only the *other* sheet's nodes touch in neither of the
-   *  last two groups: not in `others`, because no node here touches it, and
-   *  not in `unaccounted`, because a node of the change does. Measured on the
-   *  shipped pr-313 example: `shelf-settings.ts` is on the panel-apply sheet
-   *  and appears nowhere on the first-paint one. The third group's label —
-   *  "in the change, on no node of this sheet" — reads as though it should
-   *  catch it.
-   *
-   *  Not closed here because both halves are named in the spec, and the spec
-   *  is not of one mind about them. Its story 28 — *I want the third group
-   *  labelled as this sheet's, so that I do not take a per-sheet list for the
-   *  change-wide one* — reads as though this group is the per-sheet list and
-   *  `--check`'s finding is the change-wide one, which would close the gap.
-   *  Its implementation decisions state the label verbatim and keep the
-   *  computation change-wide, which is what the tab ships and what the tests
-   *  pin. Closing it means choosing between those two sentences, which is a
-   *  spec amendment and not a sheets ticket. Start from story 28. */
+   *  `prog.entry` is undefined, the reachable set is empty, and the tab would
+   *  put every file in the third group under a label saying no node touches
+   *  them. It throws instead. */
   function filesOf(prog, id) {
     if (!prog.entry) {
       throw new Error('filesOf needs a graph view: a file lists graphs and has no entry of its own');
@@ -750,14 +745,15 @@ const Groundtrack = (() => {
        requires both to be in the map. A guard here could not fire today, and
        the day it could is the day an empty first group would be a wrong answer
        printed in place of a crash. `touches` is optional, so that one stays. */
+    const onSheet = [...reachable(prog, prog.entry)];
     const mine = [...new Set(prog.nodes[id].touches || [])];
     const others = [];
     const seen = new Set();
-    for (const k of reachable(prog, prog.entry)) {
+    for (const k of onSheet) {
       if (k === id) continue;
       for (const p of prog.nodes[k].touches || []) if (!seen.has(p)) { seen.add(p); others.push(p); }
     }
-    return { mine, others, unaccounted: unaccountedFiles(prog) };
+    return { mine, others, unaccounted: unaccountedFiles(prog, onSheet) };
   }
 
   /** Paths as a shallow directory tree, flattened to rows the caller indents.
@@ -852,6 +848,32 @@ const Groundtrack = (() => {
     return group('this node', mine) + group('other nodes on this sheet', others) + third;
   }
 
+  /** The band under the drawing, as markup.
+   *
+   *  Here rather than in the page for the reason `filesMarkup` is: it is
+   *  written into the footer with `innerHTML`, so it is in no rendered page as
+   *  a string and no test could otherwise read a word of it. It carries four
+   *  author strings through `esc`, and it is where the cut is audited — which
+   *  makes it exactly the wrong thing to leave untested.
+   *
+   *  Three of the four facts are the change's and are stated once, at the
+   *  level the cut was made. `graphsNotDrawn` means *found, and in no sheet of
+   *  this file*, so a sibling sheet is never listed there — a graph the file
+   *  carries is drawn. The fourth is the sheet's: the graph's own blurb, which
+   *  is what this entry point does, and the only place a graph's `blurb` is
+   *  printed at all. */
+  function sheetFactsMarkup(prog) {
+    const bits = ['<span><b>blurb</b> ' + esc(prog.blurb) + '</span>'];
+    const graph = prog.graph || {};
+    if (graph.blurb) bits.push('<span><b>this sheet</b> ' + esc(graph.blurb) + '</span>');
+    const sheet = prog.sheet || {};
+    if (sheet.scopeRule) bits.push('<span><b>scope rule</b> ' + esc(sheet.scopeRule) + '</span>');
+    if ((sheet.graphsNotDrawn || []).length) {
+      bits.push('<span><b>not drawn</b> ' + esc(sheet.graphsNotDrawn.join(', ')) + '</span>');
+    }
+    return bits.join('');
+  }
+
   /** The longest walk. It is the only rule that names exactly one run in all
    *  three worked programs with no tie, so it is the one the text suggests. */
   function suggestRun(prog) {
@@ -862,6 +884,6 @@ const Groundtrack = (() => {
     return best;
   }
 
-  return { esc, ID, bare, hardenKeys, KINDS, graphView, sheetState, sheetPickerMarkup, reachable, labelsOf, callSites, calleesOf, effectsOf, failureKinds, tagFate, complexityOf, fold, back, cutEdges, layout, treeRows, unaccountedFiles, filesOf, fileTree, filesMarkup, suggestRun, renamedToken };
+  return { esc, ID, bare, hardenKeys, KINDS, graphView, sheetState, sheetPickerMarkup, sheetFactsMarkup, reachable, labelsOf, callSites, calleesOf, effectsOf, failureKinds, tagFate, complexityOf, fold, back, cutEdges, layout, treeRows, unaccountedFiles, filesOf, fileTree, filesMarkup, suggestRun, renamedToken };
 })();
 if (typeof module !== 'undefined') module.exports = Groundtrack;

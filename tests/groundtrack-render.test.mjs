@@ -578,7 +578,11 @@ test('--graph is refused where nothing would read it, rather than ignored', () =
   ]) {
     const r = run(groundtrack, args);
     assert.equal(r.code, 2, `expected a refusal, got:\n${r.stdout}${r.stderr}`);
-    assert.match(r.stderr, /--graph selects a graph to read, and only --text reads one/);
+    assert.match(r.stderr, /--graph names the one graph a reading is of, and only --text is one/);
+    // And it says why in the one case a reader might reasonably expect it to
+    // work: the page has a picker, so a sheet to open on is a thing this flag
+    // does not do rather than a thing it silently ignored.
+    assert.match(r.stderr, /does not open on a named sheet/);
   }
   assert.ok(!existsSync(out), 'no page was written for a graph nothing would draw');
 });
@@ -724,6 +728,21 @@ test('a several-graph file draws one sheet control per graph', () => {
   // By title, and each carrying its graph's validated id.
   assert.ok(options.includes('apply the panel'));
   assert.match(options, /data-graph="panel-apply"/);
+});
+
+test('the shipped pull-request example draws one sheet control per graph', () => {
+  // The acceptance set, not a derived fixture: the ticket names this example
+  // because a picker that only ever meets a two-node greet has not met a real
+  // change with a shared node map.
+  const prog = JSON.parse(readFileSync(layeredFlightpath, 'utf8'));
+  assert.equal(prog.graphs.length, 2, 'the shipped example states two graphs');
+  const head = headOf(pageOf(layeredFlightpath));
+  const options = head.slice(head.indexOf('<select id="sheet"'), head.indexOf('</select>'));
+  assert.equal((options.match(/<option /g) || []).length, 2);
+  for (const g of prog.graphs) {
+    assert.ok(options.includes(g.title), `the picker lists "${g.title}"`);
+    assert.ok(options.includes(`data-graph="${g.id}"`), `and carries the id ${g.id}`);
+  }
 });
 
 test('the sheet picker sits in the head, left of the run picker', () => {

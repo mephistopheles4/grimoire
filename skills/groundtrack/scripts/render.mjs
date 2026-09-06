@@ -762,15 +762,16 @@ function main(argv) {
 
   const notes = findings(prog);
 
-  /* --graph picks which graph to read, and only --text reads one. --check
-   * validates every graph of the change, and the page embeds the whole file
-   * and offers a picker over every graph in it. Accepting the flag in either
-   * of those and quietly ignoring it would hand back a page for a graph the
-   * reader did not ask for, with exit 0 and nothing said — the silent wrong
-   * answer this validator exists to refuse. */
+  /* --graph names the one graph a reading is of, and only --text is a reading
+   * of one. --check validates every graph of the change. The page carries
+   * every graph and puts a picker over them, so it is not a reading of one
+   * either — and *which sheet it opens on* is a thing this flag does not do.
+   * Accepting it in either case and quietly ignoring it would answer a
+   * question the reader asked with one they did not, at exit 0 and in
+   * silence, which is the failure this validator exists to refuse. */
   if (graphArg !== undefined && !wantText) {
     console.error(
-      `${file}: --graph selects a graph to read, and only --text reads one. --check validates every graph of the change, and the page carries every graph and picks between them. Drop --graph, or add --text.`,
+      `${file}: --graph names the one graph a reading is of, and only --text is one. --check validates every graph, and the page carries every graph and offers a sheet picker over them — it does not open on a named sheet. Drop --graph, or add --text.`,
     );
     process.exit(2);
   }

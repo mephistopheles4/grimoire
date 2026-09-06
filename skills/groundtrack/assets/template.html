@@ -940,20 +940,11 @@ function start() {
     );
   }
 
-  /* The band under the drawing. The blurb, the scope rule and the graphs not
-     drawn are the change's and are stated once, at the level the cut was made:
-     "not drawn" means found and in no sheet of this file, so a sibling sheet
-     is never listed there. The sheet's own line is the graph's blurb, which is
-     what this entry point does. */
+  /* The band under the drawing, where the cut is audited. Built in the shared
+     module — see the note on sheetFactsMarkup for why it is there and not
+     here. */
   function drawSheetFacts() {
-    const bits = [];
-    bits.push('<span><b>blurb</b> ' + esc(PROG.blurb) + '</span>');
-    if (SHEET.graph.blurb) bits.push('<span><b>this sheet</b> ' + esc(SHEET.graph.blurb) + '</span>');
-    if (PROG.sheet && PROG.sheet.scopeRule) bits.push('<span><b>scope rule</b> ' + esc(PROG.sheet.scopeRule) + '</span>');
-    if (PROG.sheet && (PROG.sheet.graphsNotDrawn || []).length) {
-      bits.push('<span><b>not drawn</b> ' + esc(PROG.sheet.graphsNotDrawn.join(', ')) + '</span>');
-    }
-    return bits.join('');
+    return G.sheetFactsMarkup(SHEET);
   }
 
   /* -- render ------------------------------------------------------------- */
