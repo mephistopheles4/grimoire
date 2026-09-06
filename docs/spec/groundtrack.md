@@ -1299,9 +1299,12 @@ No shipped example reports an unreached node, so no one-graph drawing moved.
 The third group stays the change's, so the tab and `--check` cannot disagree
 about what no node accounts for. That leaves a gap on a two-sheet file: a file
 only the other sheet's nodes touch is in neither of the last two groups, and
-the third group's label reads as though it should be. It is recorded in the
-module beside the code, and closing it means changing either that label or the
-change-wide computation, which is an amendment of its own.
+the third group's label reads as though it should be. This document is not of
+one mind about it — story 28 reads as though the third group *is* the per-sheet
+list and the check is the change-wide one, while the decision below it states
+the label verbatim and keeps the computation change-wide. Choosing between
+those two sentences is an amendment of its own, and it is recorded in the
+module beside the code so the next reader starts from story 28.
 
 **The shipped pull-request example is one change on two sheets.** `pr-313`
 gains the panel-apply graph the prototype branch carried, so the acceptance set

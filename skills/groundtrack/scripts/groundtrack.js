@@ -720,10 +720,15 @@ const Groundtrack = (() => {
    *  "in the change, on no node of this sheet" — reads as though it should
    *  catch it.
    *
-   *  Not closed here because both halves are named in the spec: the label is
-   *  its wording, and the change-wide computation is what keeps this group and
-   *  `--check`'s finding from disagreeing. Closing it means changing one of
-   *  those two, which is a spec amendment and not a sheets ticket. */
+   *  Not closed here because both halves are named in the spec, and the spec
+   *  is not of one mind about them. Its story 28 — *I want the third group
+   *  labelled as this sheet's, so that I do not take a per-sheet list for the
+   *  change-wide one* — reads as though this group is the per-sheet list and
+   *  `--check`'s finding is the change-wide one, which would close the gap.
+   *  Its implementation decisions state the label verbatim and keep the
+   *  computation change-wide, which is what the tab ships and what the tests
+   *  pin. Closing it means choosing between those two sentences, which is a
+   *  spec amendment and not a sheets ticket. Start from story 28. */
   function filesOf(prog, id) {
     if (!prog.entry) {
       throw new Error('filesOf needs a graph view: a file lists graphs and has no entry of its own');

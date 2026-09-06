@@ -764,13 +764,13 @@ function main(argv) {
 
   /* --graph picks which graph to read, and only --text reads one. --check
    * validates every graph of the change, and the page embeds the whole file
-   * and draws the first graph until the sheet picker lands. Accepting the flag
-   * in either of those and quietly ignoring it would hand back a page for a
-   * graph the reader did not ask for, with exit 0 and nothing said — the
-   * silent wrong answer this validator exists to refuse. */
+   * and offers a picker over every graph in it. Accepting the flag in either
+   * of those and quietly ignoring it would hand back a page for a graph the
+   * reader did not ask for, with exit 0 and nothing said — the silent wrong
+   * answer this validator exists to refuse. */
   if (graphArg !== undefined && !wantText) {
     console.error(
-      `${file}: --graph selects a graph to read, and only --text reads one. --check validates every graph of the change, and the page draws the change's first graph. Drop --graph, or add --text.`,
+      `${file}: --graph selects a graph to read, and only --text reads one. --check validates every graph of the change, and the page carries every graph and picks between them. Drop --graph, or add --text.`,
     );
     process.exit(2);
   }

@@ -78,7 +78,7 @@ node skills/groundtrack/scripts/render.mjs <topic>.flightpath.json --text [--gra
 | `--check` | Validates. Refusals on standard error, exit 1. Findings on standard output, exit 0. |
 | `--out <page>` | Writes one self-contained HTML file. |
 | `--text ["<run>"]` | Prints the same graph as an indented tree, for one run. |
-| `--graph <id>` | Which graph `--text` reads. A file stating several needs one named; asked without it, `--text` lists them and stops. Refused with `--check` and `--out`, which read every graph and the first one. |
+| `--graph <id>` | Which graph `--text` reads. A file stating several needs one named; asked without it, `--text` lists them and stops. Refused with `--check` and `--out`, which both read every graph — the page carries them all and picks between them. |
 
 `--text` gives the answer in a reply and the answer on the page as one graph
 seen two ways.
