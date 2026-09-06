@@ -680,12 +680,63 @@ test('the page prints the failure kind beside the tag, and what the node does wi
   }
 });
 
+/** The page's own head markup, which is where the controls are.
+ *
+ *  Sliced rather than searched whole, because the page carries the shared
+ *  module inlined and the module carries the picker's markup as a string. A
+ *  page that draws no picker still contains the source of the function that
+ *  would have drawn one, so the whole page cannot answer "is there a control
+ *  here" — only the markup can. */
+const headOf = html => html.slice(html.indexOf('<div class="head">'), html.indexOf('<div class="plan'));
+
 test('a one-graph file draws no sheet control', () => {
-  // A control that does nothing is worse than no control. The picker arrives
-  // with the sheets; until then a one-graph file must not grow one.
-  const html = pageOf(exampleFlightpath);
-  assert.doesNotMatch(html, /id="sheet"/);
-  assert.doesNotMatch(html, /data-sheet=/);
+  // A control that does nothing is worse than no control, so a file with one
+  // graph is not offered one.
+  const head = headOf(pageOf(exampleFlightpath));
+  assert.doesNotMatch(head, /id="sheet"/);
+  assert.doesNotMatch(head, /data-graph=/);
+});
+
+test('a several-graph file draws one sheet control per graph', () => {
+  const head = headOf(pageOf(derive(addSecondGraph)));
+  assert.match(head, /<select id="sheet"/);
+  const options = head.slice(head.indexOf('<select id="sheet"'), head.indexOf('</select>'));
+  assert.equal((options.match(/<option /g) || []).length, 2);
+  // By title, and each carrying its graph's validated id.
+  assert.ok(options.includes('apply the panel'));
+  assert.match(options, /data-graph="panel-apply"/);
+});
+
+test('the sheet picker sits in the head, left of the run picker', () => {
+  // The locked spec's tempo table: a sheet changes slower than a run and
+  // changes everything beneath it, so it reads first.
+  const head = headOf(pageOf(derive(addSecondGraph)));
+  assert.ok(head.includes('id="sheet"'), 'the picker is in the head');
+  assert.ok(head.indexOf('id="sheet"') < head.indexOf('id="run"'), 'and before the run picker');
+});
+
+test('a graph title reaches the page as text', () => {
+  const head = headOf(pageOf(derive(prog => {
+    addSecondGraph(prog);
+    prog.graphs[1].title = 'panel & <script>alert("x")</script>';
+  })));
+  assert.ok(!head.includes('panel & <script>alert'), 'not as markup');
+  // The escape turns the ampersand and the opening bracket, which is all it
+  // takes: a `>` with no `<` opens nothing.
+  assert.match(head, /panel &amp; &lt;script>alert/);
+});
+
+test('each sheet keeps its own run, cursor, layer, view and open node', () => {
+  // Where the state lives is the shared module, and the fold tests hold what
+  // it holds. What the page owes is that it uses it: one state per graph, kept
+  // rather than rebuilt, so returning to a sheet returns to what was left.
+  const template = readFileSync(join(groundtrack, '..', '..', 'assets', 'template.html'), 'utf8');
+  const body = template.slice(template.indexOf('function start()'));
+  assert.match(body, /G\.sheetState\(/, 'the page seeds a sheet from the module');
+  // Seeded once per graph and kept: a switch that re-seeded would lose the
+  // reader's place, which is the whole of what this ticket adds.
+  assert.match(body, /SHEETS\[/);
+  assert.doesNotMatch(body, /S\s*=\s*G\.sheetState\([^)]*\);\s*render/, 'a switch does not re-seed');
 });
 
 test('the page reads its graph through an accessor, not off the file root', () => {

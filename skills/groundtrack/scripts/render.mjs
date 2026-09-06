@@ -690,9 +690,16 @@ export function page(prog) {
    * template's own real closing script tag, which the escape above cannot help
    * with because that tag never passed through the file. A function
    * replacement is inserted literally and has no patterns at all. */
+  /* The sheet picker is rendered here rather than built by the page's script,
+   * because a control the script creates is in no page as a string and so no
+   * test can count one per graph. Same bargain as the files tab: the markup is
+   * the module's, and this splices it in. A one-graph file gets nothing. */
+  const picker = Groundtrack.sheetPickerMarkup(prog);
+
   return template
     .replace('/*TITLE*/', () => String(prog.title).replace(/[<>&]/g, ''))
     .replace('/*FONTS*/', () => faces)
+    .replace('<!--SHEETS-->', () => picker)
     .replace('/*DATA*/', () => data)
     .replace('/*MODULE*/', () => moduleSource);
 }

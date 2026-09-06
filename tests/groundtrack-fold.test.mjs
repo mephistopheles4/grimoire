@@ -196,6 +196,126 @@ test('reachability terminates on a cycle', () => {
   assert.deepEqual([...G.reachable(prog, 'greet')].sort(), ['greet', 'lookupName']);
 });
 
+/* -- sheets ---------------------------------------------------------------
+ *
+ * A sheet is one graph drawn. Three things settle together what is on one:
+ * what the drawing places, what the files tab calls the other nodes, and what
+ * ink the page gives a node the entry cannot reach. They answer *the nodes the
+ * entry reaches, and nothing else*, so the third has nothing left to say.
+ */
+
+// A change with two entries and one shared node, derived rather than shipped
+// so these hold whatever the examples do.
+const twoGraphs = () => {
+  const prog = JSON.parse(JSON.stringify(JSON.parse(readFileSync(exampleFlightpath, 'utf8'))));
+  prog.nodes.shout = JSON.parse(JSON.stringify(prog.nodes.greet));
+  prog.nodes.shout.name = 'shout';
+  prog.nodes.shout.touches = ['src/shout.ts'];
+  prog.graphs.push({
+    id: 'shout',
+    title: 'shouting',
+    blurb: 'The other entry point, which reaches the shared lookup.',
+    entry: 'shout',
+    presets: JSON.parse(JSON.stringify(prog.graphs[0].presets)),
+  });
+  return prog;
+};
+
+test('the drawing places the nodes the entry reaches, and no others', () => {
+  const prog = twoGraphs();
+  const first = G.layout(G.graphView(prog, 0));
+  const second = G.layout(G.graphView(prog, 1));
+  assert.ok(!first.order.includes('shout'), 'the other entry is not on this sheet');
+  assert.ok(!second.order.includes('greet'), 'nor this one on the other');
+  // The shared node is on both, and defined once.
+  assert.ok(first.order.includes('lookupName') && second.order.includes('lookupName'));
+  assert.equal(Object.keys(prog.nodes).filter(id => id === 'lookupName').length, 1);
+});
+
+test('a one-graph file draws every node it has, so its drawing is unmoved', () => {
+  // The three shipped examples report no unreached node, so narrowing the
+  // drawing to the reachable set moves nothing on any of them. Held on the
+  // small one because a moved box would be a change nobody asked for.
+  assert.deepEqual(G.layout(greet).order.slice().sort(), Object.keys(greet.nodes).sort());
+});
+
+test('the other nodes on this sheet are the sheet\'s, not the change\'s', () => {
+  const prog = twoGraphs();
+  const first = G.filesOf(G.graphView(prog, 0), 'greet');
+  // shout is on the other sheet, so the file only it touches is not this
+  // sheet's — the group the tab labels "other nodes on this sheet".
+  assert.ok(!first.others.includes('src/shout.ts'));
+  const second = G.filesOf(G.graphView(prog, 1), 'shout');
+  assert.ok(!second.others.includes('src/shout.ts'), 'nor is the open node its own other');
+});
+
+test('unaccounted files are the change\'s, counted across every graph', () => {
+  const prog = twoGraphs();
+  prog.files = [
+    { path: 'src/shout.ts', change: 'edit', why: 'the other entry', adds: 1, dels: 0 },
+    { path: 'docs/none.md', change: 'edit', why: 'nothing draws it', adds: 1, dels: 0 },
+  ];
+  // A file the other graph covers is accounted for, on both sheets.
+  for (const [i, id] of [[0, 'greet'], [1, 'shout']]) {
+    assert.deepEqual(G.filesOf(G.graphView(prog, i), id).unaccounted, ['docs/none.md']);
+  }
+});
+
+test('the files tab refuses a file rather than a view, because it needs the sheet', () => {
+  // Handed the file, `prog.entry` is undefined and the reachable set is empty,
+  // so the second group renders empty — which is what a files tab looks like
+  // when a node touches nothing. Loud beats a wrong answer that reads right.
+  assert.throws(() => G.filesOf(twoGraphs(), 'greet'), /entry/);
+});
+
+test('a sheet\'s state starts on its own graph, and two sheets do not share one', () => {
+  const prog = twoGraphs();
+  const a = G.sheetState(prog, 0);
+  const b = G.sheetState(prog, 1);
+  assert.equal(a.open, 'greet');
+  assert.equal(b.open, 'shout');
+  assert.equal(a.view.graph.id, prog.graphs[0].id);
+  assert.equal(b.view.graph.id, prog.graphs[1].id);
+  assert.notDeepEqual(a.layout.order, b.layout.order);
+  // Every sheet is offered the change's layers, so the toggle does not change
+  // under the reader when the sheet does.
+  assert.equal(a.layer, b.layer);
+  // Moving one leaves the other where it was: that is what returning to a
+  // sheet and finding it as you left it is made of.
+  a.run = 1; a.at = 4; a.open = 'lookupName'; a.tree = true; a.tab = 'files';
+  assert.deepEqual([b.run, b.at, b.open, b.tree, b.tab], [0, 0, 'shout', false, 'source']);
+});
+
+test('a sheet\'s state is folded from its own first run', () => {
+  const prog = twoGraphs();
+  const a = G.sheetState(prog, 0);
+  assert.deepEqual(a.states, G.fold(G.graphView(prog, 0), prog.graphs[0].presets[0].walk));
+});
+
+test('the sheet picker is one control per graph, and nothing for one graph', () => {
+  assert.equal(G.sheetPickerMarkup(JSON.parse(readFileSync(exampleFlightpath, 'utf8'))), '');
+  const out = G.sheetPickerMarkup(twoGraphs());
+  assert.equal((out.match(/<option /g) || []).length, 2);
+  assert.match(out, /<select id="sheet"/);
+});
+
+test('a graph title reaches the picker as text, and its id as a validated attribute', () => {
+  const prog = twoGraphs();
+  prog.graphs[1].title = '</select><img src=x onerror="alert(1)">';
+  const out = G.sheetPickerMarkup(prog);
+  assert.doesNotMatch(out, /<img src=x onerror/);
+  assert.match(out, /&lt;\/select&gt;|&lt;\/select>/);
+  assert.match(out, /data-graph="shout"/);
+});
+
+test('a graph id the id pattern refuses reaches no attribute', () => {
+  // The validator refuses it first, so this is the second line and not the
+  // first. A page rendered from an unchecked file still may not carry it.
+  const prog = twoGraphs();
+  prog.graphs[1].id = 'a" onload="alert(1)';
+  assert.doesNotMatch(G.sheetPickerMarkup(prog), /onload/);
+});
+
 /* -- the fold ------------------------------------------------------------- */
 
 test('the fold seeds the entry frame with the cursor at zero, before any move', () => {
