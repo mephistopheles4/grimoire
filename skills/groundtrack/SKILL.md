@@ -89,9 +89,23 @@ channel is where a reader sees that in advance.
    [`references/writing-walks.md`](references/writing-walks.md) for the loop and
    for the two mistakes measurement says you will make.
 
-6. **Render the page**, and say where it is.
+6. **Read every finding, and answer each one.** `--check` exits zero and still
+   prints its findings, because a finding never refuses. A clean checker is not
+   a finished file.
 
-7. **State the limit.** The validator proves the walk is a legal path. It
+   Answer a finding in one of two ways. Fix the file, or write one line saying
+   why the finding is what you meant. A node you have written and not yet
+   connected is a finding you write the line for. You usually fix an `E` tag
+   nothing beneath it produces. Draw what raises the tag, or drop a tag the
+   program never raises.
+
+   Both answers are legitimate. Never skip this step. **Give the reader the
+   findings you kept**, each with the line you wrote for it. A reader who never
+   sees the finding cannot disagree with your answer.
+
+7. **Render the page**, and say where it is.
+
+8. **State the limit.** The validator proves the walk is a legal path. It
    cannot prove which branch an `if` took or what an effect returned. Those
    stay your claims. Say this when you hand the page over.
 
