@@ -1270,6 +1270,20 @@ picker itself, and per-sheet page state, are a separate ticket; what shipped
 here is the page reading its graph through one accessor rather than off the
 file root, and a one-graph file showing no picker at all.
 
+**The head is two rows.** The tempo table puts the pickers and the step
+controls in the head, and says nothing about their arrangement; the head was one
+flex row because two controls fitted on one. Three do not: a run picker wide
+enough to read a run's blurb crowds the title off a narrow screen, and the run
+blurb is where a reader learns what they are about to step. So the lockup and
+the step controls take the first row and both pickers take the second, sheet
+first. Nothing moved between regions and the tempo table is unchanged.
+
+The root grid's first column became `minmax(0, 1fr)` with it. A track's
+automatic minimum is its content, so the widened picker grew the column instead
+of shrinking itself, and a narrow window got a horizontal scrollbar. Nothing on
+this page wants a content floor — the plan and the cutaway both clip their own
+overflow.
+
 **The picker landed, and a sheet is what its entry reaches.** A file stating
 several graphs draws one at a time and lists the rest by title in the head. A
 one-graph file shows no picker, because a control that does nothing is worse

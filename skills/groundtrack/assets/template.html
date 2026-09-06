@@ -122,15 +122,28 @@ body { margin: 0; }
 
 /* Every region is defined by how fast what it holds changes, and each control
    sits with what it acts on. The two splitters move --side-w and --cut-h. */
+/* minmax(0, 1fr), not 1fr: a track's automatic minimum is its content, so one
+   wide child — the run picker, which is as wide as a run's blurb — widens the
+   column rather than shrinking itself, and the page grows a horizontal
+   scrollbar on a narrow screen. Nothing here wants a content floor; the plan
+   and the cutaway both clip their own overflow. */
 .sheet-root { --side-w: 22rem; --cut-h: 12rem; height: 100vh;
-  display: grid; grid-template-columns: 1fr var(--side-w);
+  display: grid; grid-template-columns: minmax(0, 1fr) var(--side-w);
   grid-template-rows: auto 1fr var(--cut-h) auto;
   grid-template-areas: 'head head' 'plan side' 'cut side' 'block block';
   overflow: hidden; }
 
-/* Head — the run picker and the step controls. It drives the walk. */
-.head { grid-area: head; display: flex; align-items: center; gap: var(--dw-s3);
-  padding: var(--dw-s2) var(--dw-s3); border-bottom: var(--dw-rule-bold) solid var(--dw-ink); flex-wrap: wrap; }
+/* Head — the pickers and the step controls. It drives the walk.
+   Two rows: the lockup and the step controls above, the pickers below. The
+   pickers went under the title because a select wide enough to read a run's
+   blurb crowds the title off a narrow screen when both share a row, and the
+   sheet picker made that row one control longer. */
+/* min-width 0 on both, or the grid does not hold them: a grid item's automatic
+   minimum is its content, so a picker wider than the pane widens the whole
+   head, and the head widens the column instead of the picker shrinking. */
+.head { grid-area: head; display: flex; flex-direction: column; gap: var(--dw-s2); min-width: 0;
+  padding: var(--dw-s2) var(--dw-s3); border-bottom: var(--dw-rule-bold) solid var(--dw-ink); }
+.head-row { display: flex; align-items: center; gap: var(--dw-s3); flex-wrap: wrap; min-width: 0; }
 .head-id { display: flex; align-items: center; gap: var(--dw-s2); min-width: 0; }
 .head-mark { flex: none; display: block; }
 /* The lockup: the mark beside two stacked rows, the sheet's name over the
@@ -147,6 +160,11 @@ select, button, input { font: inherit; font-size: var(--dw-t-micro); color: var(
   background: var(--dw-paper); border: var(--dw-rule-hair) solid var(--dw-ink-30); border-radius: 0;
   padding: 4px var(--dw-s2); }
 select { font-size: var(--dw-t-annot); border-color: var(--dw-ink); border-width: var(--dw-rule-thin); max-width: 22rem; }
+/* The run picker reads "name — blurb", which 22rem cuts mid-sentence. It has a
+   row of its own now, so it may use it; the row wraps before the cap bites on
+   a narrow screen. The sheet picker keeps the default: a graph title is a few
+   words, and a picker wider than the longest of them is empty box. */
+#run { flex: 0 1 46rem; min-width: 0; max-width: 46rem; }
 input[type=checkbox] { accent-color: var(--dw-ink); margin: 0 var(--dw-s1) 0 0; vertical-align: -1px; }
 .btn { text-transform: uppercase; letter-spacing: var(--dw-track-label); font-weight: 500; cursor: pointer;
   transition: border-color 150ms; }
@@ -418,6 +436,7 @@ button[data-help][aria-disabled=true] { cursor: help; }
 <body class="dw-paper">
 <div class="sheet-root" id="root">
   <div class="head">
+   <div class="head-row">
     <div class="head-id">
       <!-- The groundtrack mark, the 40px-and-up variant, inlined so the page
            still fetches nothing. Its colours read the sheet's tokens. All five
@@ -456,9 +475,6 @@ button[data-help][aria-disabled=true] { cursor: help; }
         <span class="dw-annot head-blurb" id="runBlurb"></span>
       </div>
     </div>
-    <!--SHEETS-->
-    <label class="dw-label" for="run">run</label>
-    <select id="run" data-help="Which recorded walk to step. Each run is one route through the graph."></select>
     <div class="btn-group">
       <button class="btn" id="first" data-help="Back to the start">|&lt;</button>
       <button class="btn" id="prev" data-help="Step back one move">&lt;</button>
@@ -467,6 +483,14 @@ button[data-help][aria-disabled=true] { cursor: help; }
       <button class="btn" id="last" data-help="Jump to the end">&gt;|</button>
       <span class="stepnow" id="stepnow" data-help="The move the cursor is on, out of the moves in this run"></span>
     </div>
+   </div>
+   <!-- The pickers, under the lockup. The sheet reads first: it changes slower
+        than a run and it changes what the runs are. -->
+   <div class="head-row">
+    <!--SHEETS-->
+    <label class="dw-label" for="run">run</label>
+    <select id="run" data-help="Which recorded walk to step. Each run is one route through the graph."></select>
+   </div>
   </div>
 
   <div class="plan dw-grid" id="plan">

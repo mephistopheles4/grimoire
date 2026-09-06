@@ -49,9 +49,9 @@ a list of checkable claims rather than a program you have to believe.
 A change with several graphs is one page with several sheets. On the page you
 can:
 
-- **Pick a sheet**, when the file states more than one graph. The picker sits
-  in the head, left of the run picker. A sheet draws what its entry reaches, and
-  keeps its own run, cursor, layer, view and open node.
+- **Pick a sheet**, when the file states more than one graph. The sheet and run
+  pickers share the head's second row, under the title. A sheet draws what its
+  entry reaches, and keeps its own run, cursor, layer, view and open node.
 - Step forward and back, play the walk, and hold it on the next effect or the
   next error.
 - Read the call stack, the inputs, the error path, and the effects ledger.

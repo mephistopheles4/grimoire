@@ -148,9 +148,9 @@ graph to read asks.
 
 The page draws one graph and steps a cursor over one recorded walk.
 
-**A file with several graphs is one page with several sheets.** A sheet picker
-sits in the head, left of the run picker, and lists each graph by title. A
-one-graph file shows none.
+**A file with several graphs is one page with several sheets.** The head holds
+two rows: the title and the step controls above, the sheet and run pickers
+below. The sheet picker lists each graph by title. A one-graph file shows none.
 
 A sheet draws what its entry reaches through call edges. Write a symbol two
 graphs reach once; both sheets draw it.

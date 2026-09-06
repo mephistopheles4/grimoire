@@ -753,6 +753,25 @@ test('the sheet picker sits in the head, left of the run picker', () => {
   assert.ok(head.indexOf('id="sheet"') < head.indexOf('id="run"'), 'and before the run picker');
 });
 
+test('the head is two rows: the lockup above, both pickers below', () => {
+  // A run picker wide enough to read a run's blurb does not share a row with
+  // the title, and the sheet picker made that row one control longer.
+  const head = headOf(pageOf(derive(addSecondGraph)));
+  const rows = head.split('<div class="head-row">').slice(1);
+  assert.equal(rows.length, 2);
+  assert.ok(rows[0].includes('id="title"'), 'the lockup is on the first row');
+  assert.ok(!rows[0].includes('id="sheet"') && !rows[0].includes('id="run"'), 'and no picker is');
+  assert.ok(rows[1].includes('id="sheet"') && rows[1].includes('id="run"'), 'both pickers are on the second');
+});
+
+test('a one-graph file still gets the second row, with the run picker on it', () => {
+  const head = headOf(pageOf(exampleFlightpath));
+  const rows = head.split('<div class="head-row">').slice(1);
+  assert.equal(rows.length, 2);
+  assert.ok(rows[1].includes('id="run"'));
+  assert.doesNotMatch(rows[1], /id="sheet"/);
+});
+
 test('a graph title reaches the page as text', () => {
   const head = headOf(pageOf(derive(prog => {
     addSecondGraph(prog);
