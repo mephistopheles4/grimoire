@@ -368,16 +368,20 @@ test('a sibling sheet is never listed as a graph not drawn', () => {
 
 test('the band puts every author string through the escape', () => {
   const prog = twoGraphs();
-  prog.blurb = 'change <script>a</script>';
-  prog.graphs[1].blurb = 'graph <script>b</script>';
-  prog.sheet = { scopeRule: 'rule <script>c</script>', graphsNotDrawn: ['left <script>d</script>'] };
+  // Mixed case and four different tags, because the assertion below is not
+  // about script tags. A test that hunts for one tag by name passes the day an
+  // author writes another, or the same one shouting.
+  prog.blurb = 'change <script>a</SCRIPT>';
+  prog.graphs[1].blurb = 'graph <ScRiPt>b</script>';
+  prog.sheet = { scopeRule: 'rule <IMG src=x onerror=1>', graphsNotDrawn: ['left <b onclick=1>'] };
   const out = G.sheetFactsMarkup(G.graphView(prog, 1));
-  assert.doesNotMatch(out, /<script>/);
-  assert.doesNotMatch(out, /<\/script>/);
-  // The escape turns the opening bracket, which is all it takes to keep a tag
-  // from opening. All four author strings go through it.
-  assert.equal((out.match(/&lt;script>/g) || []).length, 4);
-  assert.equal((out.match(/&lt;\/script>/g) || []).length, 4);
+  // Strip the band's own markup — a span and a b, the only tags it writes —
+  // and nothing that opens a tag may be left. Whatever the author wrote is
+  // text by then, whatever they named it and however they cased it.
+  assert.doesNotMatch(out.replace(/<\/?(?:span|b)>/g, ''), /</);
+  // And every author bracket arrived as one: two in each blurb, one in each of
+  // the other two.
+  assert.equal((out.match(/&lt;/g) || []).length, 6);
 });
 
 test('the sheet picker is one control per graph, and nothing for one graph', () => {
