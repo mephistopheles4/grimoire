@@ -753,22 +753,28 @@ test('the sheet picker sits in the head, left of the run picker', () => {
   assert.ok(head.indexOf('id="sheet"') < head.indexOf('id="run"'), 'and before the run picker');
 });
 
-test('the head is two rows: the lockup above, both pickers below', () => {
+test('the head is two rows: the lockup above, everything that drives the walk below', () => {
   // A run picker wide enough to read a run's blurb does not share a row with
-  // the title, and the sheet picker made that row one control longer.
+  // the title, and the sheet picker made that row one control longer. So the
+  // first row is identity and the second is controls, in the order a reader
+  // chooses them: the sheet, the run on it, then the moves of that run.
   const head = headOf(pageOf(derive(addSecondGraph)));
   const rows = head.split('<div class="head-row">').slice(1);
   assert.equal(rows.length, 2);
   assert.ok(rows[0].includes('id="title"'), 'the lockup is on the first row');
-  assert.ok(!rows[0].includes('id="sheet"') && !rows[0].includes('id="run"'), 'and no picker is');
-  assert.ok(rows[1].includes('id="sheet"') && rows[1].includes('id="run"'), 'both pickers are on the second');
+  for (const id of ['sheet', 'run', 'play', 'stepnow']) {
+    assert.ok(!rows[0].includes(`id="${id}"`), `${id} is not on the first row`);
+    assert.ok(rows[1].includes(`id="${id}"`), `${id} is on the second`);
+  }
+  const order = ['id="sheet"', 'id="run"', 'class="btn-group"'].map(s => rows[1].indexOf(s));
+  assert.deepEqual(order.slice().sort((a, b) => a - b), order, 'sheet, then run, then the step controls');
 });
 
 test('a one-graph file still gets the second row, with the run picker on it', () => {
   const head = headOf(pageOf(exampleFlightpath));
   const rows = head.split('<div class="head-row">').slice(1);
   assert.equal(rows.length, 2);
-  assert.ok(rows[1].includes('id="run"'));
+  assert.ok(rows[1].includes('id="run"') && rows[1].includes('id="play"'));
   assert.doesNotMatch(rows[1], /id="sheet"/);
 });
 

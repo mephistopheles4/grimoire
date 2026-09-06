@@ -160,11 +160,14 @@ select, button, input { font: inherit; font-size: var(--dw-t-micro); color: var(
   background: var(--dw-paper); border: var(--dw-rule-hair) solid var(--dw-ink-30); border-radius: 0;
   padding: 4px var(--dw-s2); }
 select { font-size: var(--dw-t-annot); border-color: var(--dw-ink); border-width: var(--dw-rule-thin); max-width: 22rem; }
-/* The run picker reads "name — blurb", which 22rem cuts mid-sentence. It has a
-   row of its own now, so it may use it; the row wraps before the cap bites on
-   a narrow screen. The sheet picker keeps the default: a graph title is a few
-   words, and a picker wider than the longest of them is empty box. */
-#run { flex: 0 1 46rem; min-width: 0; max-width: 46rem; }
+/* The run picker reads "name — blurb", which the 22rem cap cut mid-sentence.
+   It takes whatever the row has left instead — the labels, the sheet picker
+   and the step controls are all as wide as their content, so the run picker is
+   the one thing on the row with a reason to grow. min-width 0 lets it shrink
+   below its content too, so a narrow window narrows the box rather than the
+   page. The sheet picker keeps the default cap: a graph title is a few words,
+   and a picker wider than the longest of them is empty box. */
+#run { flex: 1 1 0; min-width: 0; max-width: none; }
 input[type=checkbox] { accent-color: var(--dw-ink); margin: 0 var(--dw-s1) 0 0; vertical-align: -1px; }
 .btn { text-transform: uppercase; letter-spacing: var(--dw-track-label); font-weight: 500; cursor: pointer;
   transition: border-color 150ms; }
@@ -172,7 +175,10 @@ input[type=checkbox] { accent-color: var(--dw-ink); margin: 0 var(--dw-s1) 0 0; 
 /* A control that can do nothing right now stays legible — ink 70 is the text
    floor — and loses its outline weight and its pointer. Structure, not tone. */
 .btn[disabled] { color: var(--dw-ink-70); cursor: default; border-color: var(--dw-ink-12); }
-.btn-group { display: flex; gap: var(--dw-s1); margin-left: auto; align-items: center; }
+/* No auto margin: the run picker absorbs the row's slack, so the controls sit
+   against it rather than being flung at the far edge — and when the row wraps
+   on a narrow window they start at the left like everything else. */
+.btn-group { display: flex; gap: var(--dw-s1); align-items: center; flex: none; }
 .stepnow { font-size: var(--dw-t-micro); letter-spacing: var(--dw-track-label); font-variant-numeric: tabular-nums;
   color: var(--dw-ink-70); min-width: 6rem; text-align: right; }
 
@@ -475,6 +481,15 @@ button[data-help][aria-disabled=true] { cursor: help; }
         <span class="dw-annot head-blurb" id="runBlurb"></span>
       </div>
     </div>
+   </div>
+   <!-- Everything that drives the walk, under the lockup and in the order a
+        reader chooses it: the sheet, then the run on it, then the controls
+        that step that run. The sheet reads first because it changes slower
+        than a run and it changes what the runs are. -->
+   <div class="head-row">
+    <!--SHEETS-->
+    <label class="dw-label" for="run">run</label>
+    <select id="run" data-help="Which recorded walk to step. Each run is one route through the graph."></select>
     <div class="btn-group">
       <button class="btn" id="first" data-help="Back to the start">|&lt;</button>
       <button class="btn" id="prev" data-help="Step back one move">&lt;</button>
@@ -483,13 +498,6 @@ button[data-help][aria-disabled=true] { cursor: help; }
       <button class="btn" id="last" data-help="Jump to the end">&gt;|</button>
       <span class="stepnow" id="stepnow" data-help="The move the cursor is on, out of the moves in this run"></span>
     </div>
-   </div>
-   <!-- The pickers, under the lockup. The sheet reads first: it changes slower
-        than a run and it changes what the runs are. -->
-   <div class="head-row">
-    <!--SHEETS-->
-    <label class="dw-label" for="run">run</label>
-    <select id="run" data-help="Which recorded walk to step. Each run is one route through the graph."></select>
    </div>
   </div>
 

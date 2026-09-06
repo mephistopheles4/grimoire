@@ -1270,13 +1270,20 @@ picker itself, and per-sheet page state, are a separate ticket; what shipped
 here is the page reading its graph through one accessor rather than off the
 file root, and a one-graph file showing no picker at all.
 
-**The head is two rows.** The tempo table puts the pickers and the step
-controls in the head, and says nothing about their arrangement; the head was one
-flex row because two controls fitted on one. Three do not: a run picker wide
-enough to read a run's blurb crowds the title off a narrow screen, and the run
-blurb is where a reader learns what they are about to step. So the lockup and
-the step controls take the first row and both pickers take the second, sheet
-first. Nothing moved between regions and the tempo table is unchanged.
+**The head is two rows: identity above, the walk's controls below.** The tempo
+table puts the pickers and the step controls in the head and says nothing about
+their arrangement; the head was one flex row because two controls fitted on one.
+Three do not — a run picker wide enough to read a run's blurb crowds the title
+off a narrow screen, and the blurb is where a reader learns what they are about
+to step. So the first row is the lockup and the second is the sheet picker, the
+run picker and the step controls, in the order a reader chooses them: the sheet,
+the run on it, then the moves of that run. Nothing moved between regions and the
+tempo table is unchanged.
+
+The run picker takes whatever the row has left rather than a fixed cap. Every
+other control on it is as wide as its content, so it is the one thing there with
+a reason to grow, and it shrinks below its content too — a narrow window narrows
+the box, and the step controls wrap under it rather than off the edge.
 
 The root grid's first column became `minmax(0, 1fr)` with it. A track's
 automatic minimum is its content, so the widened picker grew the column instead
