@@ -1,0 +1,12 @@
+{
+  "task": "t4",
+  "attempts": 3,
+  "green": true,
+  "account": "Wrote a flightpath file for a two-entry-point shop change. The file models two nodes (renderCatalog and applyFilters) that both reach a shared formatPrice node, plus parseQuery and renderGrid. Two graphs cover the catalogue page and filter panel entry points. Three presets show happy paths for both plus a bad query error on the filter panel. Walk traces follow nested calls correctly, including loop iterations through formatPrice for each product.",
+  "answers": [
+    {
+      "finding": "renderCatalog declares E tag \"NoPage\", and nothing beneath it produces that tag",
+      "answer": "renderCatalog can throw NoPage when the page is missing (per the task spec), but we only show the happy path with a successful query, so the error is not demonstrated in the walks provided."
+    }
+  ]
+}

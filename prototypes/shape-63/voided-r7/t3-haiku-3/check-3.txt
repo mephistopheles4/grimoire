@@ -1,0 +1,2 @@
+attempt-2.json: graphs[0].presets[0].walk.steps[31]: graph "import-contacts", run "two rows, one duplicate", move 31: goto ran step 11, but the cursor sits at 10
+attempt-2.json: 1 refusal(s)

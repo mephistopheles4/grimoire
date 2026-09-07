@@ -1,0 +1,17 @@
+attempt-1.json: graphs[0].presets[0].walk.steps[21]: graph "import-contacts", run "two rows, one duplicate", move 21: a "let" move ran step 11, which is a "goto"
+attempt-1.json: graphs[0].presets[0].walk.steps[21]: graph "import-contacts", run "two rows, one duplicate", move 21: no edge from 11 (goto) to 12
+attempt-1.json: graphs[0].presets[0].walk.steps[22]: graph "import-contacts", run "two rows, one duplicate", move 22: a "goto" move ran step 12, which is a "effect"
+attempt-1.json: graphs[0].presets[0].walk.steps[22]: graph "import-contacts", run "two rows, one duplicate", move 22: no edge from 12 (effect) to 5
+attempt-1.json: graphs[0].presets[0].walk.steps[30]: graph "import-contacts", run "two rows, one duplicate", move 30: handled lands at 10, but "skip-row" is step 9
+attempt-1.json: graphs[0].presets[0].walk.steps[32]: graph "import-contacts", run "two rows, one duplicate", move 32: a "let" move ran step 11, which is a "goto"
+attempt-1.json: graphs[0].presets[0].walk.steps[32]: graph "import-contacts", run "two rows, one duplicate", move 32: no edge from 11 (goto) to 12
+attempt-1.json: graphs[0].presets[0].walk.steps[33]: graph "import-contacts", run "two rows, one duplicate", move 33: a "goto" move ran step 12, which is a "effect"
+attempt-1.json: graphs[0].presets[0].walk.steps[33]: graph "import-contacts", run "two rows, one duplicate", move 33: no edge from 12 (effect) to 5
+attempt-1.json: graphs[0].presets[0].walk.steps[34]: graph "import-contacts", run "two rows, one duplicate", move 34: no edge from 5 (if) to 13
+attempt-1.json: graphs[0].presets[0].walk.steps[35]: graph "import-contacts", run "two rows, one duplicate", move 35: next 14 is not a step of importContacts
+attempt-1.json: graphs[0].presets[0].walk.steps[35]: graph "import-contacts", run "two rows, one duplicate", move 35: a "effect" move ran step 13, which is a "return"
+attempt-1.json: graphs[0].presets[0].walk.steps[36]: graph "import-contacts", run "two rows, one duplicate", move 36: return at 14 is not a step of importContacts
+attempt-1.json: graphs[0].presets[0].walk.steps[37]: graph "import-contacts", run "two rows, one duplicate", move 37: done arrived with 1 frame(s) still open
+attempt-1.json: graphs[0].presets[1].walk.steps[6]: graph "import-contacts", run "a bad header", move 6: no edge from 1 (if) to 3
+attempt-1.json: graphs[0].presets[1].walk.steps[7]: graph "import-contacts", run "a bad header", move 7: a "throw" move ran step 3, which is a "return"
+attempt-1.json: 16 refusal(s)

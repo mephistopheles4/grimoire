@@ -1,0 +1,7 @@
+X t3-haiku-3/attempt-2.json: saved output is not what the pinned validator prints for this file
+    the file or the output was changed after the check
+    saved: attempt-2.json: graphs[0].presets[0].walk.steps[29]: graph "import-contacts", run "two rows, one duplicate", move 29: handled lands at 10, but "skip-row" is step 9
+    now:   ok: CSV import to contacts — 5 node(s), 1 graph(s), 3 run(s), 0 finding(s)
+
+1 of 2 attempt files reproduce their saved checker output under the pinned validator.
+NOT ATTESTED: 1 file(s) above. The runs holding them are not runs, per PREREG-63-ROUND7.md.

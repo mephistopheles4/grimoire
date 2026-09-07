@@ -1,0 +1,9 @@
+before = d4fcd66 (d4fcd66), after = HEAD (37b33d3)
+
+| Measure | Before | After | Change |
+| --- | --- | --- | --- |
+| Words in the shape document | 2510 | 3171 | +661 (+26%) |
+| Lines in the shape document | 310 | 392 | +82 (+26%) |
+| Required fields, over every object kind | 97 | 98 | +1 (+1%) |
+| Object kinds the validator shape-checks | 32 | 32 | +0 (+0%) |
+| Refusal kinds | 63 | 70 | +7 (+11%) |

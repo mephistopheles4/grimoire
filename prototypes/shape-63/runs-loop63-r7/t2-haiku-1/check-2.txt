@@ -1,0 +1,36 @@
+attempt-2.json: graphs[0].presets[0].walk.steps[4]: graph "checkout", run "a paid order", move 4: unwind with no error travelling — a frame is popped by a return unless something raised
+attempt-2.json: graphs[0].presets[0].walk.steps[4]: graph "checkout", run "a paid order", move 4: unwind emptied the frame stack, and move 5 (call) then ran with none open
+attempt-2.json: graphs[0].presets[0].walk.steps[4]: graph "checkout", run "a paid order", move 4: unwind emptied the frame stack, and move 6 (let) then ran with none open
+attempt-2.json: graphs[0].presets[0].walk.steps[4]: graph "checkout", run "a paid order", move 4: unwind emptied the frame stack, and move 7 (let) then ran with none open
+attempt-2.json: graphs[0].presets[0].walk.steps[4]: graph "checkout", run "a paid order", move 4: unwind emptied the frame stack, and move 8 (if) then ran with none open
+attempt-2.json: graphs[0].presets[0].walk.steps[4]: graph "checkout", run "a paid order", move 4: unwind emptied the frame stack, and move 9 (let) then ran with none open
+attempt-2.json: graphs[0].presets[0].walk.steps[4]: graph "checkout", run "a paid order", move 4: unwind emptied the frame stack, and move 10 (goto) then ran with none open
+attempt-2.json: graphs[0].presets[0].walk.steps[4]: graph "checkout", run "a paid order", move 4: unwind emptied the frame stack, and move 11 (let) then ran with none open
+attempt-2.json: graphs[0].presets[0].walk.steps[4]: graph "checkout", run "a paid order", move 4: unwind emptied the frame stack, and move 12 (if) then ran with none open
+attempt-2.json: graphs[0].presets[0].walk.steps[4]: graph "checkout", run "a paid order", move 4: unwind emptied the frame stack, and move 13 (return) then ran with none open
+attempt-2.json: graphs[0].presets[0].walk.steps[4]: graph "checkout", run "a paid order", move 4: unwind emptied the frame stack, and move 14 (unwind) then ran with none open
+attempt-2.json: graphs[0].presets[0].walk.steps[4]: graph "checkout", run "a paid order", move 4: unwind emptied the frame stack, and move 15 (if) then ran with none open
+attempt-2.json: graphs[0].presets[0].walk.steps[4]: graph "checkout", run "a paid order", move 4: unwind emptied the frame stack, and move 16 (call) then ran with none open
+attempt-2.json: graphs[0].presets[0].walk.steps[4]: graph "checkout", run "a paid order", move 4: unwind emptied the frame stack, and move 17 (effect) then ran with none open
+attempt-2.json: graphs[0].presets[0].walk.steps[4]: graph "checkout", run "a paid order", move 4: unwind emptied the frame stack, and move 18 (return) then ran with none open
+attempt-2.json: graphs[0].presets[0].walk.steps[4]: graph "checkout", run "a paid order", move 4: unwind emptied the frame stack, and move 19 (unwind) then ran with none open
+attempt-2.json: graphs[0].presets[0].walk.steps[4]: graph "checkout", run "a paid order", move 4: unwind emptied the frame stack, and move 20 (return) then ran with none open
+attempt-2.json: graphs[0].presets[1].walk.steps[4]: graph "checkout", run "the card declines", move 4: unwind with no error travelling — a frame is popped by a return unless something raised
+attempt-2.json: graphs[0].presets[1].walk.steps[4]: graph "checkout", run "the card declines", move 4: unwind emptied the frame stack, and move 5 (call) then ran with none open
+attempt-2.json: graphs[0].presets[1].walk.steps[4]: graph "checkout", run "the card declines", move 4: unwind emptied the frame stack, and move 6 (let) then ran with none open
+attempt-2.json: graphs[0].presets[1].walk.steps[4]: graph "checkout", run "the card declines", move 4: unwind emptied the frame stack, and move 7 (let) then ran with none open
+attempt-2.json: graphs[0].presets[1].walk.steps[4]: graph "checkout", run "the card declines", move 4: unwind emptied the frame stack, and move 8 (if) then ran with none open
+attempt-2.json: graphs[0].presets[1].walk.steps[4]: graph "checkout", run "the card declines", move 4: unwind emptied the frame stack, and move 9 (let) then ran with none open
+attempt-2.json: graphs[0].presets[1].walk.steps[4]: graph "checkout", run "the card declines", move 4: unwind emptied the frame stack, and move 10 (goto) then ran with none open
+attempt-2.json: graphs[0].presets[1].walk.steps[4]: graph "checkout", run "the card declines", move 4: unwind emptied the frame stack, and move 11 (let) then ran with none open
+attempt-2.json: graphs[0].presets[1].walk.steps[4]: graph "checkout", run "the card declines", move 4: unwind emptied the frame stack, and move 12 (if) then ran with none open
+attempt-2.json: graphs[0].presets[1].walk.steps[4]: graph "checkout", run "the card declines", move 4: unwind emptied the frame stack, and move 13 (return) then ran with none open
+attempt-2.json: graphs[0].presets[1].walk.steps[4]: graph "checkout", run "the card declines", move 4: unwind emptied the frame stack, and move 14 (unwind) then ran with none open
+attempt-2.json: graphs[0].presets[1].walk.steps[4]: graph "checkout", run "the card declines", move 4: unwind emptied the frame stack, and move 15 (if) then ran with none open
+attempt-2.json: graphs[0].presets[1].walk.steps[4]: graph "checkout", run "the card declines", move 4: unwind emptied the frame stack, and move 16 (call) then ran with none open
+attempt-2.json: graphs[0].presets[1].walk.steps[4]: graph "checkout", run "the card declines", move 4: unwind emptied the frame stack, and move 17 (effect) then ran with none open
+attempt-2.json: graphs[0].presets[1].walk.steps[4]: graph "checkout", run "the card declines", move 4: unwind emptied the frame stack, and move 18 (unwind) then ran with none open
+attempt-2.json: graphs[0].presets[1].walk.steps[4]: graph "checkout", run "the card declines", move 4: unwind emptied the frame stack, and move 19 (handled) then ran with none open
+attempt-2.json: graphs[0].presets[1].walk.steps[4]: graph "checkout", run "the card declines", move 4: unwind emptied the frame stack, and move 20 (effect) then ran with none open
+attempt-2.json: graphs[0].presets[1].walk.steps[4]: graph "checkout", run "the card declines", move 4: unwind emptied the frame stack, and move 21 (return) then ran with none open
+attempt-2.json: 35 refusal(s)

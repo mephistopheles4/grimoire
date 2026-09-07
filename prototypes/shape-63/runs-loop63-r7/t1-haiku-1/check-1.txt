@@ -1,0 +1,5 @@
+attempt-1.json: graphs[0].presets[0].walk.steps[4]: graph "publish", run "the happy path", move 4: a "note" move ran step 0, which is a "if"
+attempt-1.json: graphs[0].presets[0].walk.steps[5]: graph "publish", run "the happy path", move 5: if ran step 0, but the cursor sits at 1
+attempt-1.json: graphs[0].presets[1].walk.steps[4]: graph "publish", run "bad markdown", move 4: a "note" move ran step 0, which is a "if"
+attempt-1.json: graphs[0].presets[1].walk.steps[5]: graph "publish", run "bad markdown", move 5: if ran step 0, but the cursor sits at 1
+attempt-1.json: 4 refusal(s)

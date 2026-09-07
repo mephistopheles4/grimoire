@@ -1,0 +1,8 @@
+attempt-2.json: graphs[0].presets[0].walk.steps[21]: graph "checkout", run "a paid order", move 21: a "let" move ran step 6, which is a "call"
+attempt-2.json: graphs[0].presets[0].walk.steps[22]: graph "checkout", run "a paid order", move 22: a "goto" move ran step 7, which is a "let"
+attempt-2.json: graphs[0].presets[0].walk.steps[22]: graph "checkout", run "a paid order", move 22: no edge from 7 (let) to 9
+attempt-2.json: graphs[0].presets[0].walk.steps[23]: graph "checkout", run "a paid order", move 23: call ran step 6, but the cursor sits at 9
+attempt-2.json: graphs[0].presets[1].walk.steps[21]: graph "checkout", run "the card declines", move 21: a "let" move ran step 6, which is a "call"
+attempt-2.json: graphs[0].presets[1].walk.steps[22]: graph "checkout", run "the card declines", move 22: a "goto" move ran step 7, which is a "let"
+attempt-2.json: graphs[0].presets[1].walk.steps[22]: graph "checkout", run "the card declines", move 22: no edge from 7 (let) to 6
+attempt-2.json: 7 refusal(s)

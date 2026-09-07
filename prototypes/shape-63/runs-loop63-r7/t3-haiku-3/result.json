@@ -1,0 +1,7 @@
+{
+  "task": "t3",
+  "attempts": 2,
+  "green": true,
+  "account": "Wrote a flightpath for the CSV import program that fetches a file, parses rows, loops to save each contact, and handles duplicate key errors. First attempt declared an onError handler for NoUpload on the fetchUpload call, but the task required that error to reach the top uncaught. Removed the handler in the second attempt, which passed validation.",
+  "answers": []
+}

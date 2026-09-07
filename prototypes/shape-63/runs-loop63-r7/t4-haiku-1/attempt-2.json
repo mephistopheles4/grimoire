@@ -1,0 +1,759 @@
+{
+  "id": "price-panel",
+  "title": "Price panel in catalogue and filters",
+  "blurb": "A shop renders a catalogue page and re-applies filters. Both paths format prices through one shared node. The catalogue path loads products from the database; the filter path fetches from the API and can timeout.",
+  "env": {
+    "currency": "GBP"
+  },
+  "files": [
+    {
+      "path": "src/catalog/render.ts",
+      "change": "edit",
+      "why": "the server render entry point that loads products and returns grid HTML",
+      "adds": 47,
+      "dels": 8
+    },
+    {
+      "path": "src/catalog/grid.ts",
+      "change": "new",
+      "why": "renders the product grid as HTML",
+      "adds": 31,
+      "dels": 0
+    },
+    {
+      "path": "src/filters/apply.ts",
+      "change": "edit",
+      "why": "the browser re-filter entry point that applies query and patches DOM",
+      "adds": 52,
+      "dels": 15
+    },
+    {
+      "path": "src/filters/parse.ts",
+      "change": "new",
+      "why": "parses the filter query string into a filter object",
+      "adds": 24,
+      "dels": 0
+    },
+    {
+      "path": "src/money/format.ts",
+      "change": "new",
+      "why": "formats pence values as currency strings",
+      "adds": 18,
+      "dels": 0
+    }
+  ],
+  "layers": {
+    "production": {
+      "nodes": {}
+    },
+    "tests": {
+      "nodes": {
+        "renderCatalog": {
+          "R": [
+            "a seeded fixture · render.test.ts:14"
+          ]
+        },
+        "applyFilters": {
+          "R": [
+            "a canned response · apply.test.ts:31"
+          ]
+        }
+      }
+    }
+  },
+  "sheet": {
+    "scopeRule": "one graph per entry point",
+    "graphsNotDrawn": []
+  },
+  "nodes": {
+    "renderCatalog": {
+      "name": "renderCatalog",
+      "role": "io",
+      "loc": "src/catalog/render.ts:8",
+      "params": ["pageId"],
+      "channels": {
+        "A": "HTML for the grid",
+        "E": ["NoPage"],
+        "R": ["the products table"]
+      },
+      "touches": ["src/catalog/render.ts"],
+      "enteredBy": ["src/catalog/render.test.ts"],
+      "steps": [
+        {
+          "op": "note",
+          "note": "render the catalogue page by loading products and formatting prices"
+        },
+        {
+          "op": "effect",
+          "kind": "db.query",
+          "desc": "load the page's products",
+          "args": {
+            "pageId": "pageId"
+          },
+          "bind": "products",
+          "onError": [
+            {
+              "tag": "NoPage",
+              "goto": "err"
+            }
+          ]
+        },
+        {
+          "op": "let",
+          "label": "loop",
+          "name": "rows",
+          "expr": "[]"
+        },
+        {
+          "op": "if",
+          "cond": "products is empty",
+          "then": "done",
+          "else": "format"
+        },
+        {
+          "op": "let",
+          "label": "format",
+          "name": "product",
+          "expr": "products[0]"
+        },
+        {
+          "op": "call",
+          "target": "formatPrice",
+          "args": {
+            "pence": "product.pence"
+          },
+          "bind": "priceStr"
+        },
+        {
+          "op": "let",
+          "name": "row",
+          "expr": "{ name: product.name, price: priceStr }"
+        },
+        {
+          "op": "let",
+          "name": "rows",
+          "expr": "rows.push(row)"
+        },
+        {
+          "op": "let",
+          "name": "products",
+          "expr": "products.slice(1)"
+        },
+        {
+          "op": "goto",
+          "to": "loop"
+        },
+        {
+          "op": "call",
+          "label": "done",
+          "target": "renderGrid",
+          "args": {
+            "rows": "rows"
+          },
+          "bind": "html"
+        },
+        {
+          "op": "return",
+          "expr": "html"
+        },
+        {
+          "op": "throw",
+          "label": "err",
+          "tag": "NoPage",
+          "message": "page not found",
+          "channel": "escape"
+        }
+      ]
+    },
+    "applyFilters": {
+      "name": "applyFilters",
+      "role": "io",
+      "loc": "src/filters/apply.ts:12",
+      "params": ["query"],
+      "channels": {
+        "A": "number of rows written",
+        "E": ["BadQuery", "Timeout"],
+        "R": ["the search API"]
+      },
+      "touches": ["src/filters/apply.ts"],
+      "enteredBy": [],
+      "steps": [
+        {
+          "op": "note",
+          "note": "apply filters by parsing the query and patching the page"
+        },
+        {
+          "op": "call",
+          "target": "parseQuery",
+          "args": {
+            "query": "query"
+          },
+          "bind": "filters"
+        },
+        {
+          "op": "effect",
+          "kind": "api.get",
+          "desc": "fetch matching products",
+          "args": {
+            "filters": "filters"
+          },
+          "bind": "matches",
+          "onError": [
+            {
+              "tag": "Timeout",
+              "goto": "stale"
+            }
+          ]
+        },
+        {
+          "op": "let",
+          "label": "loop",
+          "name": "rows",
+          "expr": "[]"
+        },
+        {
+          "op": "if",
+          "cond": "matches is empty",
+          "then": "patch",
+          "else": "format"
+        },
+        {
+          "op": "let",
+          "label": "format",
+          "name": "match",
+          "expr": "matches[0]"
+        },
+        {
+          "op": "call",
+          "target": "formatPrice",
+          "args": {
+            "pence": "match.pence"
+          },
+          "bind": "priceStr"
+        },
+        {
+          "op": "let",
+          "name": "row",
+          "expr": "{ name: match.name, price: priceStr }"
+        },
+        {
+          "op": "let",
+          "name": "rows",
+          "expr": "rows.push(row)"
+        },
+        {
+          "op": "let",
+          "name": "matches",
+          "expr": "matches.slice(1)"
+        },
+        {
+          "op": "goto",
+          "to": "loop"
+        },
+        {
+          "op": "effect",
+          "label": "patch",
+          "kind": "dom.patch",
+          "desc": "write the rows into the page",
+          "args": {
+            "rows": "rows"
+          }
+        },
+        {
+          "op": "return",
+          "expr": "rows.length"
+        },
+        {
+          "op": "return",
+          "label": "stale",
+          "expr": "\"kept the stale rows\""
+        }
+      ]
+    },
+    "formatPrice": {
+      "name": "formatPrice",
+      "role": "pure",
+      "loc": "src/money/format.ts:3",
+      "params": ["pence"],
+      "channels": {
+        "A": "formatted price string (e.g., £12.50)",
+        "E": [],
+        "R": []
+      },
+      "touches": ["src/money/format.ts"],
+      "enteredBy": ["src/money/format.test.ts"],
+      "steps": [
+        {
+          "op": "let",
+          "name": "pounds",
+          "expr": "pence / 100"
+        },
+        {
+          "op": "return",
+          "expr": "'£' + pounds.toFixed(2)"
+        }
+      ]
+    },
+    "renderGrid": {
+      "name": "renderGrid",
+      "role": "pure",
+      "loc": "src/catalog/grid.ts:5",
+      "params": ["rows"],
+      "channels": {
+        "A": "HTML string",
+        "E": [],
+        "R": []
+      },
+      "touches": ["src/catalog/grid.ts"],
+      "enteredBy": [],
+      "steps": [
+        {
+          "op": "return",
+          "expr": "<div class='grid'>...</div>"
+        }
+      ]
+    },
+    "parseQuery": {
+      "name": "parseQuery",
+      "role": "pure",
+      "loc": "src/filters/parse.ts:7",
+      "params": ["query"],
+      "channels": {
+        "A": "filter object",
+        "E": ["BadQuery"],
+        "R": []
+      },
+      "touches": ["src/filters/parse.ts"],
+      "enteredBy": ["src/filters/parse.test.ts"],
+      "steps": [
+        {
+          "op": "if",
+          "cond": "query is parseable",
+          "then": "success",
+          "else": "bad"
+        },
+        {
+          "op": "return",
+          "label": "success",
+          "expr": "parse(query)"
+        },
+        {
+          "op": "throw",
+          "label": "bad",
+          "tag": "BadQuery",
+          "message": "cannot parse query",
+          "channel": "die"
+        }
+      ]
+    }
+  },
+  "graphs": [
+    {
+      "id": "catalogue-page",
+      "title": "the catalogue page",
+      "blurb": "Renders the catalogue by loading products from the database, formatting their prices, and returning the grid HTML.",
+      "entry": "renderCatalog",
+      "presets": [
+        {
+          "name": "the happy path",
+          "blurb": "Two products load, both prices format, the grid renders.",
+          "input": {
+            "pageId": "page-1"
+          },
+          "walk": {
+            "provenance": "authored",
+            "steps": [
+              {
+                "k": "note",
+                "at": 0,
+                "next": 1
+              },
+              {
+                "k": "effect",
+                "at": 1,
+                "kind": "db.query",
+                "desc": "load the page's products",
+                "next": 2,
+                "result": [
+                  {
+                    "name": "Widget A",
+                    "pence": 1299
+                  },
+                  {
+                    "name": "Widget B",
+                    "pence": 2550
+                  }
+                ]
+              },
+              {
+                "k": "let",
+                "at": 2,
+                "next": 3
+              },
+              {
+                "k": "if",
+                "at": 3,
+                "next": 4
+              },
+              {
+                "k": "let",
+                "at": 4,
+                "next": 5
+              },
+              {
+                "k": "call",
+                "at": 5,
+                "to": "formatPrice",
+                "next": 6
+              },
+              {
+                "k": "let",
+                "at": 0,
+                "next": 1
+              },
+              {
+                "k": "return",
+                "at": 1,
+                "value": "£12.99"
+              },
+              {
+                "k": "let",
+                "at": 6,
+                "next": 7
+              },
+              {
+                "k": "let",
+                "at": 7,
+                "next": 8
+              },
+              {
+                "k": "let",
+                "at": 8,
+                "next": 9
+              },
+              {
+                "k": "goto",
+                "at": 9,
+                "next": 2
+              },
+              {
+                "k": "let",
+                "at": 2,
+                "next": 3
+              },
+              {
+                "k": "if",
+                "at": 3,
+                "next": 4
+              },
+              {
+                "k": "let",
+                "at": 4,
+                "next": 5
+              },
+              {
+                "k": "call",
+                "at": 5,
+                "to": "formatPrice",
+                "next": 6
+              },
+              {
+                "k": "let",
+                "at": 0,
+                "next": 1
+              },
+              {
+                "k": "return",
+                "at": 1,
+                "value": "£25.50"
+              },
+              {
+                "k": "let",
+                "at": 6,
+                "next": 7
+              },
+              {
+                "k": "let",
+                "at": 7,
+                "next": 8
+              },
+              {
+                "k": "let",
+                "at": 8,
+                "next": 9
+              },
+              {
+                "k": "goto",
+                "at": 9,
+                "next": 2
+              },
+              {
+                "k": "let",
+                "at": 2,
+                "next": 3
+              },
+              {
+                "k": "if",
+                "at": 3,
+                "next": 10
+              },
+              {
+                "k": "call",
+                "at": 10,
+                "to": "renderGrid",
+                "next": 11
+              },
+              {
+                "k": "return",
+                "at": 0,
+                "value": "<div class='grid'>Widget A £12.99, Widget B £25.50</div>"
+              },
+              {
+                "k": "return",
+                "at": 11,
+                "value": "<div class='grid'>Widget A £12.99, Widget B £25.50</div>"
+              },
+              {
+                "k": "done",
+                "result": "<div class='grid'>Widget A £12.99, Widget B £25.50</div>"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "filter-panel",
+      "title": "the filter panel",
+      "blurb": "Applies filters to the product list, formatting prices and patching the page.",
+      "entry": "applyFilters",
+      "presets": [
+        {
+          "name": "the happy path",
+          "blurb": "The query parses, the API returns two matches, both prices format, the DOM patch lands, and it returns 2.",
+          "input": {
+            "query": "color=red&size=large"
+          },
+          "walk": {
+            "provenance": "authored",
+            "steps": [
+              {
+                "k": "note",
+                "at": 0,
+                "next": 1
+              },
+              {
+                "k": "call",
+                "at": 1,
+                "to": "parseQuery",
+                "next": 2
+              },
+              {
+                "k": "if",
+                "at": 0,
+                "next": 1
+              },
+              {
+                "k": "return",
+                "at": 1,
+                "value": {
+                  "color": "red",
+                  "size": "large"
+                }
+              },
+              {
+                "k": "effect",
+                "at": 2,
+                "kind": "api.get",
+                "desc": "fetch matching products",
+                "next": 3,
+                "result": [
+                  {
+                    "name": "Red Large Item 1",
+                    "pence": 3999
+                  },
+                  {
+                    "name": "Red Large Item 2",
+                    "pence": 4500
+                  }
+                ]
+              },
+              {
+                "k": "let",
+                "at": 3,
+                "next": 4
+              },
+              {
+                "k": "if",
+                "at": 4,
+                "next": 5
+              },
+              {
+                "k": "let",
+                "at": 5,
+                "next": 6
+              },
+              {
+                "k": "call",
+                "at": 6,
+                "to": "formatPrice",
+                "next": 7
+              },
+              {
+                "k": "let",
+                "at": 0,
+                "next": 1
+              },
+              {
+                "k": "return",
+                "at": 1,
+                "value": "£39.99"
+              },
+              {
+                "k": "let",
+                "at": 7,
+                "next": 8
+              },
+              {
+                "k": "let",
+                "at": 8,
+                "next": 9
+              },
+              {
+                "k": "let",
+                "at": 9,
+                "next": 10
+              },
+              {
+                "k": "goto",
+                "at": 10,
+                "next": 3
+              },
+              {
+                "k": "let",
+                "at": 3,
+                "next": 4
+              },
+              {
+                "k": "if",
+                "at": 4,
+                "next": 5
+              },
+              {
+                "k": "let",
+                "at": 5,
+                "next": 6
+              },
+              {
+                "k": "call",
+                "at": 6,
+                "to": "formatPrice",
+                "next": 7
+              },
+              {
+                "k": "let",
+                "at": 0,
+                "next": 1
+              },
+              {
+                "k": "return",
+                "at": 1,
+                "value": "£45.00"
+              },
+              {
+                "k": "let",
+                "at": 7,
+                "next": 8
+              },
+              {
+                "k": "let",
+                "at": 8,
+                "next": 9
+              },
+              {
+                "k": "let",
+                "at": 9,
+                "next": 10
+              },
+              {
+                "k": "goto",
+                "at": 10,
+                "next": 3
+              },
+              {
+                "k": "let",
+                "at": 3,
+                "next": 4
+              },
+              {
+                "k": "if",
+                "at": 4,
+                "next": 12
+              },
+              {
+                "k": "effect",
+                "at": 12,
+                "kind": "dom.patch",
+                "desc": "write the rows into the page",
+                "next": 13
+              },
+              {
+                "k": "return",
+                "at": 13,
+                "value": 2
+              },
+              {
+                "k": "done",
+                "result": 2
+              }
+            ]
+          }
+        },
+        {
+          "name": "a bad query",
+          "blurb": "parseQuery throws BadQuery and nothing catches it.",
+          "input": {
+            "query": "invalid<query"
+          },
+          "walk": {
+            "provenance": "authored",
+            "steps": [
+              {
+                "k": "note",
+                "at": 0,
+                "next": 1
+              },
+              {
+                "k": "call",
+                "at": 1,
+                "to": "parseQuery",
+                "next": 2
+              },
+              {
+                "k": "if",
+                "at": 0,
+                "next": 2
+              },
+              {
+                "k": "throw",
+                "at": 2,
+                "tag": "BadQuery",
+                "message": "cannot parse query",
+                "channel": "die"
+              },
+              {
+                "k": "unwind"
+              },
+              {
+                "k": "uncaught",
+                "tag": "BadQuery",
+                "message": "cannot parse query",
+                "channel": "die"
+              }
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

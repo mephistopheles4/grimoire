@@ -1,0 +1,7 @@
+{
+  "task": "t4",
+  "attempts": 2,
+  "green": true,
+  "account": "Wrote a flightpath file for the price panel change with two entry points. The file describes 5 nodes (renderCatalog, applyFilters, formatPrice, renderGrid, parseQuery), 2 graphs, and 3 total presets demonstrating the happy paths and error handling. First attempt declared a NoPage error on renderCatalog that wasn't demonstrated in any walk; removed it in the second attempt to match the three preset requirement.",
+  "answers": []
+}

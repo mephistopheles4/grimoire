@@ -1,0 +1,7 @@
+{
+  "task": "t2",
+  "attempts": 3,
+  "green": true,
+  "account": "Wrote a flightpath file for the checkout cart program. Defined four nodes: checkout (handler entry point), loadCart (io), priceCart (pure with loop), and charge (io). Created two walks showing a successful order and a declined card scenario. Fixed walk structure through two attempts by correcting next step indices and understanding frame transitions properly.",
+  "answers": []
+}

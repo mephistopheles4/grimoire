@@ -1,0 +1,7 @@
+{
+  "task": "t3",
+  "attempts": 2,
+  "green": true,
+  "account": "Wrote a flightpath file for a CSV import handler that orchestrates fetching a CSV from S3, parsing rows, and saving each contact with duplicate handling. The first attempt had frame management issues in the walk traces and incorrect error handlers. The second attempt fixed the walk structure to properly trace through function calls and returns, removed the incorrect onError handler for NoUpload (which should propagate uncaught), and correctly modeled the loop with two rows where one succeeds and one raises a Duplicate error that is handled.",
+  "answers": []
+}

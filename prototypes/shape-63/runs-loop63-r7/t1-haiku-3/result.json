@@ -1,0 +1,7 @@
+{
+  "task": "t1",
+  "attempts": 2,
+  "green": true,
+  "account": "Wrote a flightpath for the publishPost program with three nodes (publishPost handler, renderHtml pure node, uploadHtml io node) and two preset walks. The happy path shows successful markdown rendering and S3 upload after retry. The bad markdown path demonstrates error handling: renderHtml raises BadMarkdown on the die channel, publishPost catches it via an onError handler, jumps to a fallback label that sets plain-text HTML, then uploads successfully. Pass 1 had JSON syntax errors with unescaped quotes in expression strings; pass 2 fixed that by simplifying the expression text.",
+  "answers": []
+}

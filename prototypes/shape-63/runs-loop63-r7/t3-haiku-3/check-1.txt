@@ -1,0 +1,2 @@
+attempt-1.json: graphs[0].presets[2].walk.steps[4]: graph "import-contacts", run "no upload", move 4: "NoUpload" is uncaught, but importContacts[1] declares onError for it
+attempt-1.json: 1 refusal(s)

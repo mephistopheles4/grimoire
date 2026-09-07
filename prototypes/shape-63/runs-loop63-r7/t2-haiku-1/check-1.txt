@@ -1,0 +1,9 @@
+attempt-1.json: graphs[0].presets[0].walk.steps[8]: graph "checkout", run "a paid order", move 8: no edge from 3 (let) to 1
+attempt-1.json: graphs[0].presets[0].walk.steps[9]: graph "checkout", run "a paid order", move 9: goto ran step 4, but the cursor sits at 1
+attempt-1.json: graphs[0].presets[0].walk.steps[12]: graph "checkout", run "a paid order", move 12: no edge from 3 (let) to 1
+attempt-1.json: graphs[0].presets[0].walk.steps[13]: graph "checkout", run "a paid order", move 13: goto ran step 4, but the cursor sits at 1
+attempt-1.json: graphs[0].presets[1].walk.steps[8]: graph "checkout", run "the card declines", move 8: no edge from 3 (let) to 1
+attempt-1.json: graphs[0].presets[1].walk.steps[9]: graph "checkout", run "the card declines", move 9: goto ran step 4, but the cursor sits at 1
+attempt-1.json: graphs[0].presets[1].walk.steps[12]: graph "checkout", run "the card declines", move 12: no edge from 3 (let) to 1
+attempt-1.json: graphs[0].presets[1].walk.steps[13]: graph "checkout", run "the card declines", move 13: goto ran step 4, but the cursor sits at 1
+attempt-1.json: 8 refusal(s)

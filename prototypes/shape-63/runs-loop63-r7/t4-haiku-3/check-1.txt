@@ -1,0 +1,4 @@
+attempt-1.json: graphs[0].presets[0].walk.steps[6] (let): unknown key "kind"
+attempt-1.json: graphs[0].presets[0].walk.steps[6] (let): unknown key "desc"
+attempt-1.json: graphs[0].presets[0].walk.steps[6] (let): unknown key "result"
+attempt-1.json: 3 refusal(s)

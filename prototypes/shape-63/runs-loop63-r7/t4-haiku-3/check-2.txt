@@ -1,0 +1,3 @@
+attempt-2.json: graphs[0].presets[0].walk.steps[24]: graph "catalogue-page", run "the happy path", move 24: if ran step 3, but the cursor sits at 2
+attempt-2.json: graphs[1].presets[0].walk.steps[28]: graph "filter-panel", run "the happy path", move 28: if ran step 4, but the cursor sits at 3
+attempt-2.json: 2 refusal(s)

@@ -1,0 +1,7 @@
+{
+  "task": "t4",
+  "attempts": 3,
+  "green": true,
+  "account": "Wrote a flightpath file for the price panel change with two entry points: renderCatalog (server render) and applyFilters (browser re-filter). Both paths format prices through a shared formatPrice node. First attempt had incorrect frame tracking in walks where moves from called nodes were mixed with caller context. Second attempt corrected the frame boundaries but had edge mismatches in the loop structure. Third attempt fixed the step labels to match the edge destinations (patch label on dom.patch effect, format label on the format step), allowing the if statements to correctly route through the loop.",
+  "answers": []
+}

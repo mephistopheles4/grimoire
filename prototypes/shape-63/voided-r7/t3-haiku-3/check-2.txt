@@ -1,0 +1,2 @@
+attempt-2.json: graphs[0].presets[0].walk.steps[29]: graph "import-contacts", run "two rows, one duplicate", move 29: handled lands at 10, but "skip-row" is step 9
+attempt-2.json: 1 refusal(s)

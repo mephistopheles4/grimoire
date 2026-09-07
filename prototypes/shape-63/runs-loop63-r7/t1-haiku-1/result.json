@@ -1,0 +1,7 @@
+{
+  "task": "t1",
+  "attempts": 2,
+  "green": true,
+  "account": "Wrote a flightpath file for a blog post publishing system with three nodes: publishPost (handler), renderHtml (pure), and uploadHtml (io). PublishPost reads a draft, checks if it's empty (throws EmptyDraft), calls renderHtml to parse markdown, handles BadMarkdown errors with a fallback step, and uploads the result. RenderHtml checks for empty body and validates markdown. UploadHtml performs the S3 put effect. The file includes two graphs showing the happy path (valid markdown rendering and retry on upload) and the bad markdown path (catching the rendering error and uploading fallback plain-text HTML).",
+  "answers": []
+}

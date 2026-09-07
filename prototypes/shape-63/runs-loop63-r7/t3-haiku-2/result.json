@@ -1,0 +1,7 @@
+{
+  "task": "t3",
+  "attempts": 3,
+  "green": true,
+  "account": "Wrote a flightpath for the CSV import task with five nodes: importContacts (handler), fetchUpload (io), parseRows (pure), saveContact (io), and normalise (pure). The main challenge was correctly structuring the walk traces for the three scenarios: two rows with a duplicate (showing error handling inside the loop), bad CSV header (uncaught die error), and missing upload (uncaught escape error). Attempt 1 failed because let steps had invalid result fields; attempt 2 had frame and label mismatches; attempt 3 passed by carefully tracking frame transitions and correcting step indices for the onError handler landing at label 'skip'.",
+  "answers": []
+}

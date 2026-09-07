@@ -1,0 +1,6 @@
+attempt-2.json: graphs[0].presets[0].walk.steps[10]: graph "publish", run "the happy path", move 10: effect ran while "UploadFailed" was still travelling (raised at move 9) — an error is caught, or it reaches the top
+attempt-2.json: graphs[0].presets[0].walk.steps[11]: graph "publish", run "the happy path", move 11: return ran while "UploadFailed" was still travelling (raised at move 9) — an error is caught, or it reaches the top
+attempt-2.json: graphs[0].presets[0].walk.steps[12]: graph "publish", run "the happy path", move 12: return ran while "UploadFailed" was still travelling (raised at move 9) — an error is caught, or it reaches the top
+attempt-2.json: graphs[0].presets[0].walk.steps[13]: graph "publish", run "the happy path", move 13: done arrived while "UploadFailed" was still travelling (raised at move 9) — an error ends in a catch or at the top, and not by the walk stopping
+attempt-2.json: graphs[0].presets[0].walk: graph "publish", run "the happy path", at the end of the walk: the walk ended while "UploadFailed" was still travelling (raised at move 9) — write the catch, or the uncaught that ends it
+attempt-2.json: 5 refusal(s)

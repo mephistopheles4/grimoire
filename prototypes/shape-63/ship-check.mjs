@@ -38,7 +38,10 @@ import { tmpdir } from "node:os";
 const PINNED = "fd5c87e"; // what PREREG-63-ROUND7.md pinned the round to
 const DOC = "skills/groundtrack/references/flightpath-file.md";
 const VALIDATOR = "skills/groundtrack/scripts/render.mjs";
-const RUNS = ["runs-loop63", "runs-loop63-r7"]; // both rounds; a wider corpus
+// Both rounds, and round seven's voided run. A voided run is not evidence about
+// authoring, but its attempt files are still shapes of wrong file, and this
+// corpus exists only to make two validators disagree if they are going to.
+const RUNS = ["runs-loop63", "runs-loop63-r7", "voided-r7"];
 
 const ship = process.argv[2];
 if (!ship) {

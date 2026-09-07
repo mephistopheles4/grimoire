@@ -1,0 +1,24 @@
+attempt-1.json: graphs[0].presets[0].walk.steps[4]: graph "import", run "two rows, one duplicate", move 4: a "call" move ran step 2, which is a "return"
+attempt-1.json: graphs[0].presets[0].walk.steps[10]: graph "import", run "two rows, one duplicate", move 10: next 4 is not a step of fetchUpload
+attempt-1.json: graphs[0].presets[0].walk.steps[10]: graph "import", run "two rows, one duplicate", move 10: a "let" move ran step 3, which is a "throw"
+attempt-1.json: graphs[0].presets[0].walk.steps[11]: graph "import", run "two rows, one duplicate", move 11: let at 4 is not a step of fetchUpload
+attempt-1.json: graphs[0].presets[0].walk.steps[12]: graph "import", run "two rows, one duplicate", move 12: let at 5 is not a step of fetchUpload
+attempt-1.json: graphs[0].presets[0].walk.steps[13]: graph "import", run "two rows, one duplicate", move 13: if at 6 is not a step of fetchUpload
+attempt-1.json: graphs[0].presets[0].walk.steps[14]: graph "import", run "two rows, one duplicate", move 14: call at 7 is not a step of fetchUpload
+attempt-1.json: graphs[0].presets[0].walk.steps[15]: graph "import", run "two rows, one duplicate", move 15: call ran step 0, but the cursor sits at 4
+attempt-1.json: graphs[0].presets[0].walk.steps[15]: graph "import", run "two rows, one duplicate", move 15: a "call" move ran step 0, which is a "effect"
+attempt-1.json: graphs[0].presets[0].walk.steps[17]: graph "import", run "two rows, one duplicate", move 17: a "effect" move ran step 1, which is a "if"
+attempt-1.json: graphs[0].presets[0].walk.steps[19]: graph "import", run "two rows, one duplicate", move 19: let ran step 8, but the cursor sits at 2
+attempt-1.json: graphs[0].presets[0].walk.steps[28]: graph "import", run "two rows, one duplicate", move 28: handled lands at 11, but "skip-row" is step 10
+attempt-1.json: graphs[0].presets[0].walk.steps[29]: graph "import", run "two rows, one duplicate", move 29: a "let" move ran step 11, which is a "goto"
+attempt-1.json: graphs[0].presets[0].walk.steps[29]: graph "import", run "two rows, one duplicate", move 29: no edge from 11 (goto) to 12
+attempt-1.json: graphs[0].presets[0].walk.steps[30]: graph "import", run "two rows, one duplicate", move 30: a "goto" move ran step 12, which is a "effect"
+attempt-1.json: graphs[0].presets[0].walk.steps[30]: graph "import", run "two rows, one duplicate", move 30: no edge from 12 (effect) to 5
+attempt-1.json: graphs[0].presets[0].walk.steps[32]: graph "import", run "two rows, one duplicate", move 32: no edge from 6 (if) to 13
+attempt-1.json: graphs[0].presets[0].walk.steps[33]: graph "import", run "two rows, one duplicate", move 33: next 14 is not a step of importContacts
+attempt-1.json: graphs[0].presets[0].walk.steps[33]: graph "import", run "two rows, one duplicate", move 33: a "effect" move ran step 13, which is a "return"
+attempt-1.json: graphs[0].presets[0].walk.steps[34]: graph "import", run "two rows, one duplicate", move 34: return at 14 is not a step of importContacts
+attempt-1.json: graphs[0].presets[0].walk.steps[35]: graph "import", run "two rows, one duplicate", move 35: done arrived with 1 frame(s) still open
+attempt-1.json: graphs[0].presets[1].walk.steps[4]: graph "import", run "a bad header", move 4: a "call" move ran step 2, which is a "return"
+attempt-1.json: graphs[0].presets[2].walk.steps[4]: graph "import", run "no upload", move 4: "NoUpload" is uncaught, but importContacts[1] declares onError for it
+attempt-1.json: 23 refusal(s)

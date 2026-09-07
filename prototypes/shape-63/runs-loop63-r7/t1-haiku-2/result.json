@@ -1,0 +1,7 @@
+{
+  "task": "t1",
+  "attempts": 3,
+  "green": true,
+  "account": "Wrote a flightpath file for publishPost, a handler that reads drafts, renders markdown to HTML, and uploads to S3. The model includes three nodes: publishPost (entry point with error handling), renderHtml (pure node that throws BadMarkdown on parse failure), and uploadHtml (I/O node that performs S3 upload). Created two presets: happy path showing successful upload on second attempt after first failure, and bad markdown showing error handling flow where renderHtml's BadMarkdown exception is caught and a fallback HTML is used. First two attempts had walk structure errors with incorrect step indices and frame transitions; third attempt corrected these by properly tracking which frame each move belongs to and using appropriate attempt counts for retried effects.",
+  "answers": []
+}

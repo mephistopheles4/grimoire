@@ -1,0 +1,7 @@
+{
+  "task": "t2",
+  "attempts": 3,
+  "green": true,
+  "account": "Wrote a flightpath file for a checkout flow with four nodes: loadCart (io effect calling db.get), priceCart (pure node with loop using goto), charge (io effect calling stripe.charge), and checkout (handler orchestrating the flow). Included two layers (tests, smoke) with substitutions for test mocks. The file has one graph with two presets: 'a paid order' showing successful pricing and charging through the loop twice, and 'the card declines' showing error handling where CardDeclined is caught and mail is sent. First two attempts had walk step sequence errors; fixed by removing incorrect unwind moves and properly sequencing frame pushes/pops.",
+  "answers": []
+}

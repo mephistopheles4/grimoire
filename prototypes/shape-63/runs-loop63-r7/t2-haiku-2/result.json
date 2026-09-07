@@ -1,0 +1,7 @@
+{
+  "task": "t2",
+  "attempts": 1,
+  "green": true,
+  "account": "Wrote a flightpath file for the cart checkout flow with four nodes: checkout (handler), loadCart (io), priceCart (pure with loop), and charge (io). The file includes three layers (production, tests, smoke) with substitutions for the Stripe client and cart table in tests. Two presets model a successful payment (loop runs twice, charges 4500 pence) and a card decline (loop runs twice, charge raises CardDeclined which checkout catches and handles by sending mail). File structure validated on first pass with no refusals or findings.",
+  "answers": []
+}
