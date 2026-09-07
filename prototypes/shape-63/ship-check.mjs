@@ -1,12 +1,17 @@
 #!/usr/bin/env node
-// ship-check.mjs — does round six still stand at ship time?
+// ship-check.mjs — does the latest round still stand at ship time?
 //
-//   node ship-check.mjs <ship-ref>        e.g. origin/claude/implement-58-62-...
+//   node ship-check.mjs <ship-ref>        e.g. origin/main
 //
 // #63 gated #61. #58 asks for more than that: "The eval is re-run, on the same
 // procedure, before this ships" — and #58 does not ship until #62 lands as
 // well. So between the round and the ship there is a window in which the thing
 // the round measured can move.
+//
+// It moved once already, which is why there is a round seven: #62 added two
+// lines to the shape document, this gate refused round six, and the round was
+// re-run against `main`. PINNED below is round seven's pin, and the corpus is
+// both rounds' attempt files — a wider corpus is strictly more evidence.
 //
 // A second nine-run round is the honest answer ONLY if something an author
 // touches has moved. The round measured two surfaces and nothing else:
@@ -26,14 +31,14 @@
 // round called it what it was.
 
 import { execFileSync } from "node:child_process";
-import { readdirSync, statSync, rmSync, mkdtempSync } from "node:fs";
+import { readdirSync, statSync, rmSync, mkdtempSync, existsSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 
-const PINNED = "ecfb727"; // what PREREG-63.md pinned the round to
+const PINNED = "fd5c87e"; // what PREREG-63-ROUND7.md pinned the round to
 const DOC = "skills/groundtrack/references/flightpath-file.md";
 const VALIDATOR = "skills/groundtrack/scripts/render.mjs";
-const RUNS = "runs-loop63";
+const RUNS = ["runs-loop63", "runs-loop63-r7"]; // both rounds; a wider corpus
 
 const ship = process.argv[2];
 if (!ship) {
@@ -49,8 +54,8 @@ const sha = (r) => git("rev-parse", "--short", r).trim();
 
 /* Every attempt file of the round, which is the corpus the two validators are
  * compared on. Nothing else exercises as many shapes of wrong file. */
-const attempts = readdirSync(RUNS)
-  .map((n) => join(RUNS, n))
+const attempts = RUNS.filter((r) => existsSync(r))
+  .flatMap((r) => readdirSync(r).map((n) => join(r, n)))
   .filter((p) => statSync(p).isDirectory())
   .flatMap((d) =>
     readdirSync(d)
@@ -73,7 +78,7 @@ const run = (script, file) => {
   }
 };
 
-console.log(`round six was pinned to  ${PINNED}`);
+console.log(`round seven was pinned to  ${PINNED}`);
 console.log(`checking it against      ${ship} (${sha(ship)})\n`);
 
 // ---------------------------------------------------------- surface 1: the document
@@ -127,8 +132,8 @@ const carries = docSame && rulesSame;
 console.log(
   `\nVERDICT: ${
     carries
-      ? "round six CARRIES to this commit. Neither surface it measured has moved,\n         so the authoring cost it reported is still the authoring cost."
-      : "round six DOES NOT CARRY. A surface it measured has moved, so its numbers\n         describe a shape that is no longer the one shipping. Re-run the round."
+      ? "round seven CARRIES to this commit. Neither surface it measured has moved,\n         so the authoring cost it reported is still the authoring cost."
+      : "round seven DOES NOT CARRY. A surface it measured has moved, so its numbers\n         describe a shape that is no longer the one shipping. Re-run the round."
   }`,
 );
 process.exit(carries ? 0 : 1);

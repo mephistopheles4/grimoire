@@ -1,0 +1,10 @@
+round six was pinned to  ecfb727
+checking it against      origin/main (150954f)
+
+1. THE SHAPE DOCUMENT — CHANGED. What an agent reads is not what the round measured.
+   3148 words -> 3171 words
+
+2. THE VALIDATOR'S RULES — same verdict on all 31 attempt files of the round.
+
+VERDICT: round six DOES NOT CARRY. A surface it measured has moved, so its numbers
+         describe a shape that is no longer the one shipping. Re-run the round.

@@ -1,0 +1,23 @@
+X t1-haiku-1-void/attempt-1.json: saved output is not what the pinned validator prints for this file
+    the file or the output was changed after the check
+    saved: attempt-1.json / the happy path [4] return ran step 2, but the cursor sits at 0
+    now:   attempt-1.json: file: this is the old one-graph shape. A file now states one change and lists its graphs: move "entry" and "presets" into an entry of a "graphs" array, giving that graph its own id, title and blurb. The change facts — id, title, blurb, env, files, layers, sheet — and the one node map stay at the top level.
+X t1-haiku-1-void/attempt-2.json: saved output is not what the pinned validator prints for this file
+    the file or the output was changed after the check
+    saved: attempt-2.json / the happy path [5] return ran step 1, but the cursor sits at 2
+    now:   attempt-2.json: file: this is the old one-graph shape. A file now states one change and lists its graphs: move "entry" and "presets" into an entry of a "graphs" array, giving that graph its own id, title and blurb. The change facts — id, title, blurb, env, files, layers, sheet — and the one node map stay at the top level.
+X t1-haiku-1-void/attempt-3.json: saved output is not what the pinned validator prints for this file
+    the file or the output was changed after the check
+    saved: attempt-3.json / the happy path [9] effect ran while "UploadFailed" was still travelling (raised at move 8) — an error is caught, or it reaches the top
+    now:   attempt-3.json: file: this is the old one-graph shape. A file now states one change and lists its graphs: move "entry" and "presets" into an entry of a "graphs" array, giving that graph its own id, title and blurb. The change facts — id, title, blurb, env, files, layers, sheet — and the one node map stay at the top level.
+X t1-haiku-1-void/attempt-4.json: saved output is not what the pinned validator prints for this file
+    its ok line carries no graph count — this came from the OLD validator
+    saved: ok: Publish a blog post — 3 node(s), 2 run(s), 0 finding(s)
+    now:   attempt-4.json: file: this is the old one-graph shape. A file now states one change and lists its graphs: move "entry" and "presets" into an entry of a "graphs" array, giving that graph its own id, title and blurb. The change facts — id, title, blurb, env, files, layers, sheet — and the one node map stay at the top level.
+X t1-haiku-3/attempt-1.json: saved output is not what the pinned validator prints for this file
+    the file or the output was changed after the check
+    saved: attempt-1.json: graphs[0].presets[0].walk.steps[7]: graph "publishPost", run "happy path", move 7: no edge from 5 (goto) to 6
+    now:   ok: Publish a blog post — 3 node(s), 1 graph(s), 2 run(s), 0 finding(s)
+
+26 of 31 attempt files reproduce their saved checker output under the pinned validator.
+NOT ATTESTED: 5 file(s) above. The runs holding them are not runs, per PREREG-63-ROUND7.md.
