@@ -718,11 +718,16 @@ const Groundtrack = (() => {
    *  touches that no node *of this sheet* accounts for. A file two nodes touch
    *  is listed against both.
    *
-   *  **All three are the sheet's**, which is what makes them a partition: every
-   *  file the change states lands in exactly one of them, and a reader on this
+   *  **All three are the sheet's**, and that is what makes them cover: every
+   *  file the change states is in at least one of them, so a reader on this
    *  sheet is never left wondering where a path went. Narrow the second group
    *  without narrowing the third and they stop covering: a file only the other
    *  sheet's nodes touch is in neither, and no group's label says so.
+   *
+   *  Cover, not partition. The third group is disjoint from the other two — it
+   *  is the files no node here touches — but the first two overlap on purpose,
+   *  because a file the open node and a neighbour both change is a fact about
+   *  both of them and the tab says so twice rather than picking a winner.
    *
    *  That is the spec's own pairing rather than a choice made here. Its story
    *  28 wants this group *labelled as this sheet's, so that I do not take a

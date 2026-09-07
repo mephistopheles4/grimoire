@@ -264,27 +264,40 @@ test('the other nodes on this sheet are the sheet\'s, not the change\'s', () => 
   assert.ok(!second.others.includes('src/shout.ts'), 'nor is the open node its own other');
 });
 
-test('the tab\'s three groups cover every file the change states, exactly once', () => {
-  // The property that makes them a partition, and the reason all three are the
+test('the tab\'s three groups cover every file the change states', () => {
+  // The property that makes them cover, and the reason all three are the
   // sheet's. Narrow the second without the third and a file only the other
   // sheet touches falls out of all three, under no label that says so.
+  //
+  // Cover, not partition: `lookupName` is given a path `greet` also touches, so
+  // the first two groups overlap on the sheet the open node shares it with.
+  // Every shipped example does this on nearly every node, so a fixture of
+  // distinct paths would test the tab nobody has.
   const prog = twoGraphs();
+  prog.nodes.lookupName.touches = ['src/name-store.ts', 'src/greet.ts'];
   prog.files = [
     { path: 'src/greet.ts', change: 'edit', why: 'the first entry', adds: 1, dels: 0 },
     { path: 'src/shout.ts', change: 'edit', why: 'the other entry', adds: 1, dels: 0 },
     { path: 'docs/none.md', change: 'edit', why: 'no node at all', adds: 1, dels: 0 },
   ];
+  const stated = prog.files.map(x => x.path);
   for (const [i, id] of [[0, 'greet'], [1, 'shout']]) {
     const f = G.filesOf(G.graphView(prog, i), id);
     const all = [...f.mine, ...f.others, ...f.unaccounted];
     // Restricted to what the change states, because the first two groups read
     // `touches` and a node may touch a path the change does not list — the tab
     // prints one of those as an edit of no stated size rather than not at all.
-    const stated = prog.files.map(x => x.path);
-    const covered = all.filter(p => stated.includes(p));
-    assert.deepEqual(covered.slice().sort(), stated.slice().sort(), `sheet ${i} covers them all`);
-    assert.equal(new Set(covered).size, covered.length, `sheet ${i} lists none of them twice`);
+    const covered = new Set(all.filter(p => stated.includes(p)));
+    assert.deepEqual([...covered].sort(), stated.slice().sort(), `sheet ${i} covers them all`);
+    // The third group is the disjoint one: it is what no node here touches, so
+    // nothing in it can also be in a group read from `touches`.
+    assert.deepEqual(f.unaccounted.filter(p => f.mine.includes(p) || f.others.includes(p)), [],
+      `sheet ${i}'s third group holds nothing the first two do`);
   }
+  // And the overlap the first two are allowed: the open node changes it, the
+  // neighbour changes it, and the tab says both rather than picking a winner.
+  const first = G.filesOf(G.graphView(prog, 0), 'greet');
+  assert.ok(first.mine.includes('src/greet.ts') && first.others.includes('src/greet.ts'));
 });
 
 test('the tab asks about this sheet and the check asks about the change', () => {
