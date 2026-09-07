@@ -1,0 +1,3 @@
+
+3 of 3 attempt files reproduce their saved checker output under the pinned validator.
+ATTESTED: every run in this directory measured the shape under test.

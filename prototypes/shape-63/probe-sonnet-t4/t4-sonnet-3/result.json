@@ -1,0 +1,7 @@
+{
+  "task": "t4",
+  "attempts": 1,
+  "green": true,
+  "account": "Wrote one flightpath file for the price-panel change: five nodes (renderCatalog, renderGrid, formatPrice, applyFilters, parseQuery) and two graphs, catalog-page (entry renderCatalog) and filter-panel (entry applyFilters), sharing formatPrice as the one node both graphs reach. Three presets total: the happy path on catalog-page (two products, both prices format, grid renders), and the happy path plus a bad query on filter-panel (successful re-filter with two matches and a DOM patch; parseQuery throwing BadQuery with two unwinds and an uncaught since nothing catches it, matching the task's 'not handled anywhere'). Layers rename renderCatalog's and applyFilters's requirements per the task's test-fixture wording. The file validated clean on the first pass -- ok: Price panel: catalog render and browser re-filter -- 5 node(s), 2 graph(s), 3 run(s), 0 finding(s) -- so nothing needed fixing.",
+  "answers": []
+}

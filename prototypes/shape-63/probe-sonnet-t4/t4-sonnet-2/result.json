@@ -1,0 +1,7 @@
+{
+  "task": "t4",
+  "attempts": 1,
+  "green": true,
+  "account": "Wrote one flightpath file for the price-panel change: two entry points (renderCatalog, applyFilters) sharing the pure formatPrice node, plus renderGrid and parseQuery. Modeled the loops as a labelled if/goto pair per the spec's loop pattern, the api.get effect's Timeout as an onError jump to a labelled 'stale' return, and BadQuery as thrown by parseQuery and left uncaught by applyFilters (no onError entry for it, so it does not appear in applyFilters's own E channel per the three-way 'produces' rule). The one thing I had to get right before running the checker was the bad-query walk's unwind count: matching the worked example's 'the post fails' run, only the throwing frame (parseQuery) unwinds before the uncaught move — applyFilters's own frame is left open when uncaught fires, it is not separately unwound. attempt-1.json validated clean on the first pass with 0 findings, so no fix passes were needed.",
+  "answers": []
+}

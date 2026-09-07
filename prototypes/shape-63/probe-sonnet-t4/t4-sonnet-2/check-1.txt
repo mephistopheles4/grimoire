@@ -1,0 +1,1 @@
+ok: Format a price on the catalogue page and the filter panel — 5 node(s), 2 graph(s), 3 run(s), 0 finding(s)

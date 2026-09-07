@@ -1,0 +1,7 @@
+{
+  "task": "t4",
+  "attempts": 1,
+  "green": true,
+  "account": "Wrote one flightpath file for the price-panel change with two graphs: catalog-page (entry renderCatalog) and filter-panel (entry applyFilters), both reaching the shared pure node formatPrice. renderCatalog models the missing-page case as an effect whose result an if inspects, routing to a throw step for NoPage on escape, per the doc's guidance to model a failure the way the code does. applyFilters models Timeout as an onError on its own api.get effect step, jumping to a labelled 'stale' return step, and lets BadQuery from parseQuery propagate uncaught since applyFilters declares no handler for it. E channels were placed following the three-way justification rule: NoPage only on renderCatalog (it throws it), BadQuery only on parseQuery (it throws it), Timeout only on applyFilters (it declares the handler) — none needed a raised walk to be justified. I invented one thing not given by the task: env.currency = 'GBP', since env is a required core field but the task stated no ambient values; GBP was the only value implied anywhere (the £ sign in formatPrice's output). The checker passed clean on the first attempt with 0 findings, so no fix passes were needed.",
+  "answers": []
+}
