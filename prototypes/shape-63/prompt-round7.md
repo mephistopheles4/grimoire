@@ -32,10 +32,11 @@ Write the flightpath file the task asks for, to:
 
 ## Then validate and fix, capped at five passes
 
-For pass `N`, from the directory `{{OUT_DIR}}`:
+For pass `N`, run exactly this — the `Set-Location` is part of it, because your
+shell does not start in the output directory:
 
 ```powershell
-node C:\Users\mephi\WebstormProjects\grimoire\.claude\worktrees\shape-eval-63\skills\groundtrack\scripts\render.mjs attempt-N.json --check > check-N.txt 2>&1
+Set-Location {{OUT_DIR}}; node C:\Users\mephi\WebstormProjects\grimoire\.claude\worktrees\shape-eval-63\skills\groundtrack\scripts\render.mjs attempt-N.json --check > check-N.txt 2>&1
 ```
 
 **The redirect is required.** `--check` exits non-zero when it refuses, and a
