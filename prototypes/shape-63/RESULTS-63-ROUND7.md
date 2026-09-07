@@ -299,11 +299,27 @@ file rather than at the bottom.
 
 ## Does the round still stand at the shipping commit?
 
-`ship-check.mjs` now pins `fd5c87e` and takes both rounds' attempt files as its
-corpus. Run against the commit that would ship, it is green — and **trivially
-so**, because round seven was pinned to `main` rather than to a branch that
-could move under it. That is the gate reporting that nothing has moved since
-this morning, not a finding. It becomes informative again the moment anything
-lands on `main`.
+`ship-check.mjs` now pins `fd5c87e` and takes both rounds' attempt files plus the
+voided run as its corpus — 62 files, twice round six's 31. Run against the
+commit that would ship:
 
-See [`ship-check-round7.txt`](ship-check-round7.txt).
+```text
+round seven was pinned to  fd5c87e
+checking it against      HEAD (34a7925)
+
+1. THE SHAPE DOCUMENT — byte-identical. What an agent reads has not moved.
+
+2. THE VALIDATOR'S RULES — same verdict on all 62 attempt files of the round.
+
+VERDICT: round seven CARRIES to this commit.
+```
+
+It is green against `origin/main` too, and it is **green trivially**, because
+round seven was pinned to `main` rather than to a branch that could move under
+it. That is the gate reporting that nothing has moved since the round ran, not a
+finding. It becomes informative again the moment anything lands on `main`.
+
+The gate ran against `34a7925`, the commit carrying this document. The only
+later commit on this branch adds the gate's own output, which touches neither
+surface it measures. See [`ship-check-round7.txt`](ship-check-round7.txt) and
+[`ship-check-round7-main.txt`](ship-check-round7-main.txt).

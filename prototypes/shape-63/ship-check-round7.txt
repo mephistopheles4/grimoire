@@ -1,0 +1,9 @@
+round seven was pinned to  fd5c87e
+checking it against      HEAD (34a7925)
+
+1. THE SHAPE DOCUMENT — byte-identical. What an agent reads has not moved.
+
+2. THE VALIDATOR'S RULES — same verdict on all 62 attempt files of the round.
+
+VERDICT: round seven CARRIES to this commit. Neither surface it measured has moved,
+         so the authoring cost it reported is still the authoring cost.
