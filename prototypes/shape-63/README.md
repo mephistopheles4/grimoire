@@ -1,10 +1,18 @@
 # The authoring eval on the new file shape
 
 Evidence for [#63](https://github.com/mephistopheles4/grimoire/issues/63), which
-gates [#61](https://github.com/mephistopheles4/grimoire/issues/61). Round six of
-the authoring eval, on the same procedure as round five
+gated [#61](https://github.com/mephistopheles4/grimoire/issues/61) and now gates
+[#58](https://github.com/mephistopheles4/grimoire/issues/58) shipping. Rounds six
+and seven of the authoring eval, on the same procedure as round five
 ([#45](https://github.com/mephistopheles4/grimoire/issues/45), directory
 `prototypes/ir-32/` on branch `prototype/45-fix-loop`).
+
+**Two rounds live here, and neither overwrites the other.** Round six was pinned
+to `ecfb727`, #61's branch. `ship-check.mjs` then refused it at `main`, because
+#62 added two lines to the shape document, so round seven re-ran the same bar
+against `main`. Round six's `PREREG-63.md`, `RESULTS-63.md` and `runs-loop63/`
+are its record and are not edited; round seven's carry a `ROUND7` or `-r7`
+suffix.
 
 **The shape under test is the shipped one on this branch**, not a prototype.
 There is no `check.mjs` and no `groundtrack-ir.md` here on purpose: an agent
@@ -26,13 +34,29 @@ one task file, and `render.mjs --check`.
 | `loop-report.mjs` | Scores a round of write-validate-fix runs against the pre-registered bar. |
 | `discriminates.mjs` | Shows that the new task really does separate the per-graph and change-wide readings of the unaccounted finding. |
 | `inspect.mjs` | Prints a file's returns, throws and E channels, for diagnosing a fidelity miss. |
-| `ship-check.mjs` | **Run this before #58 ships.** Does round six still stand at the shipping commit, or must it be re-run? |
+| `ship-check.mjs` | **Run this before #58 ships.** Does the latest round still stand at the shipping commit, or must it be re-run? |
 | `cost.mjs` | The authoring-cost numbers, before and after. Reported, never gated. |
-| `runs-loop63/` | Eval output. Every attempt and every checker output. |
-| `report-as-run.txt`, `report-corrected.txt` | The round scored under the rubric reader that ran, and under the corrected one. The verdict differs; RESULTS says why. |
-| `rebase-check.txt` | Every attempt file checked under the pinned commit and under #61's tip, after #61 was rebased mid-round. |
-| `cost.txt` | The cost table as `cost.mjs` printed it. |
+| `runs-loop63/` | Round six's output. Every attempt and every checker output. |
+| `report-as-run.txt`, `report-corrected.txt` | Round six scored under the rubric reader that ran, and under the corrected one. The verdict differs; RESULTS-63 says why. |
+| `rebase-check.txt` | Every round-six attempt file checked under the pinned commit and under #61's tip, after #61 was rebased mid-round. |
+| `cost.txt` | Round six's cost table as `cost.mjs` printed it. |
 | `RESULTS-63.md` | What round six found. |
+
+Round seven adds:
+
+| File | What it is |
+| --- | --- |
+| `PREREG-63-ROUND7.md` | Round seven's own pre-registration. The same bar word for word, one procedural departure, its own pin. |
+| `prompt-round7.md` | The exact text every round-seven agent received, committed before the first run. |
+| `attest.mjs` | Does each saved attempt still reproduce its saved checker output under the pinned validator? The void rule, enforced mechanically, before any number is computed. |
+| `counting-r7.mjs` | The arithmetic under every counting of the voided run, and round six scored under round seven's rule. **Read this: rule 2 passes only under the pre-registered counting.** |
+| `runs-loop63-r7/` | Round seven's scored corpus. |
+| `voided-r7/` | The one run the attestation excluded, kept in full. |
+| `attest-r6.txt`, `attest-r7.txt`, `attest-r7-voided.txt` | The attestations as `attest.mjs` printed them. |
+| `report-r7.txt`, `report-r7-void-counted.txt`, `report-r7-n10.txt` | Round seven scored, and the two alternative countings as `loop-report.mjs` prints them — see `counting-r7.txt` for why its pass counts differ. |
+| `counting-r7.txt`, `cost-r7.txt`, `ship-check-round7.txt` | The countings, the cost table and the ship gate as they printed. |
+| `ship-check-round6-at-150954f.txt` | The gate refusing round six at `main`. Why round seven exists. |
+| `RESULTS-63-ROUND7.md` | What round seven found. |
 
 **`baseline/` files are `.json`, not `.flightpath.json`, and deliberately so.**
 `scripts/build-pages.mjs` walks the whole tree for that suffix and publishes
@@ -49,11 +73,17 @@ node ../../skills/groundtrack/scripts/render.mjs baseline/t1.json --check
 # the rubric against those files: every one should be full marks
 node fidelity.mjs baseline/t4.json t4 --detail
 
-# the round, against the pre-registered bar
-node loop-report.mjs runs-loop63 --detail
+# the latest round, against the pre-registered bar
+node loop-report.mjs runs-loop63-r7 --detail
+
+# every run measured the shape under test, and no file was edited after checking
+node attest.mjs runs-loop63-r7
+
+# the arithmetic under every counting of the voided run
+node counting-r7.mjs
 
 # what the new shape costs an author
-node cost.mjs
+node cost.mjs d4fcd66 fd5c87e
 
 # before #58 ships: does the round still stand at the shipping commit?
 node ship-check.mjs origin/main
@@ -62,9 +92,15 @@ node ship-check.mjs origin/main
 ## Before #58 ships
 
 #63 gated #61, and that is done. #58 asks for something wider — *"The eval is
-re-run, on the same procedure, before this ships"* — and #58 does not ship until
-#62 lands as well. Between the round and the ship, the thing the round measured
+re-run, on the same procedure, before this ships"* — and #58 did not ship until
+#62 landed as well. Between the round and the ship, the thing the round measured
 can move.
+
+**It moved once, and the round was re-run.** #62 added two lines to the shape
+document, `ship-check.mjs` refused round six at `main`, and round seven ran the
+same bar against `main`. That is the loop this section describes, having
+actually run: [`ship-check-round6-at-150954f.txt`](ship-check-round6-at-150954f.txt)
+is the refusal, [`RESULTS-63-ROUND7.md`](RESULTS-63-ROUND7.md) is what followed.
 
 **A second nine-run round is only owed if it did move.** The round measured two
 surfaces and nothing else: the shape document, which is what an agent reads, and

@@ -1,0 +1,40 @@
+THE THREE MIGRATED TASKS — the baseline round five set
+
+RUN            PASSES  GREEN  ERRORS BY PASS      SIZE 1 → FINAL                     FIDELITY
+t1-haiku-1     2       2      4 → 0               3n/1g/2r/17s/31m → 3n/1g/2r/17s/29m  (count↓)  0→0 crit (21/21)
+t1-haiku-2     3       3      17 → 5 → 0          3n/1g/2r/16s/24m → 3n/1g/2r/16s/28m  0→0 crit (21/21)
+t1-haiku-3     2       2      1 → 0               —                                  ?→2 crit (19/21)
+t2-haiku-1     3       3      8 → 35 → 0          4n/1g/2r/21s/48m → 4n/1g/2r/21s/40m  LOST  0→1 crit (24/25)
+t2-haiku-2     1       1      0                   4n/1g/2r/21s/48m → 4n/1g/2r/21s/48m  0→0 crit (25/25)
+t2-haiku-3     3       3      9 → 7 → 0           4n/1g/2r/26s/57m → 4n/1g/2r/26s/57m  1→0 crit (25/25)
+t3-haiku-1     2       2      23 → 0              5n/1g/3r/28s/52m → 5n/1g/3r/28s/54m  0→0 crit (23/23)
+t3-haiku-2     3       3      4 → 12 → 0          5n/1g/3r/28s/52m → 5n/1g/3r/28s/55m  0→0 crit (23/23)
+t3-haiku-3     2       2      16 → 0              5n/1g/3r/26s/53m → 5n/1g/3r/26s/52m  (count↓)  0→0 crit (23/23)
+
+THE NEW TWO-ENTRY TASK
+
+RUN            PASSES  GREEN  ERRORS BY PASS      SIZE 1 → FINAL                     FIDELITY
+t4-haiku-1     3       3      42 → 2 → 0          5n/2g/3r/33s/57m → 5n/2g/3r/33s/64m  0→0 crit (30/30)
+t4-haiku-2     2       1      0 → 0               5n/2g/3r/29s/54m → 5n/2g/3r/29s/54m  1→1 crit (29/30)
+t4-haiku-3     3       3      3 → 2 → 0           5n/2g/3r/33s/53m → 5n/2g/3r/33s/69m  1→1 crit (29/30)
+
+FIRST ATTEMPT (reported, not gated)
+  migrated: 1/9 valid with no fix at all; new task: 1/3
+
+THE PRE-REGISTERED BAR (PREREG-63.md)
+  PASS  migrated · convergence — 9/9 reached a clean checker within 5 passes (needs ≥ 8 of 9)
+  PASS  migrated · median passes — median 2 passes to green (needs ≤ 2)
+  PASS  migrated · fidelity — 7/9 are valid AND carry zero critical fidelity misses (needs ≥ 7 of 9)
+  PASS  new task · convergence — 3/3 reached a clean checker within 5 passes (needs ≥ 2 of 3)
+  PASS  new task · the shared node is defined once — 3/3 converged runs define the shared symbol once (needs ≥ 2 of 3)
+
+THE NEW TASK, MEASURED (reported alongside the bar)
+  t4-haiku-1     green=3  once=true  bothReach=true  unaccounted=0
+  t4-haiku-2     green=1  once=true  bothReach=true  unaccounted=0
+  t4-haiku-3     green=3  once=true  bothReach=true  unaccounted=0
+
+SHRINK TO GREEN (reported; #63's bar does not gate on it)
+  1 green run(s) lost a node, a graph, a run or a required move; 3 had a raw count fall while losing nothing required
+
+VERDICT: migrated PASS, new task PASS — #61 may merge.
+Passes to green, migrated: 2, 3, 2, 3, 1, 3, 2, 3, 2 (median 2)
