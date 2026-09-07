@@ -122,15 +122,28 @@ body { margin: 0; }
 
 /* Every region is defined by how fast what it holds changes, and each control
    sits with what it acts on. The two splitters move --side-w and --cut-h. */
+/* minmax(0, 1fr), not 1fr: a track's automatic minimum is its content, so one
+   wide child — the run picker, which is as wide as a run's blurb — widens the
+   column rather than shrinking itself, and the page grows a horizontal
+   scrollbar on a narrow screen. Nothing here wants a content floor; the plan
+   and the cutaway both clip their own overflow. */
 .sheet-root { --side-w: 22rem; --cut-h: 12rem; height: 100vh;
-  display: grid; grid-template-columns: 1fr var(--side-w);
+  display: grid; grid-template-columns: minmax(0, 1fr) var(--side-w);
   grid-template-rows: auto 1fr var(--cut-h) auto;
   grid-template-areas: 'head head' 'plan side' 'cut side' 'block block';
   overflow: hidden; }
 
-/* Head — the run picker and the step controls. It drives the walk. */
-.head { grid-area: head; display: flex; align-items: center; gap: var(--dw-s3);
-  padding: var(--dw-s2) var(--dw-s3); border-bottom: var(--dw-rule-bold) solid var(--dw-ink); flex-wrap: wrap; }
+/* Head — the pickers and the step controls. It drives the walk.
+   Two rows: the lockup and the step controls above, the pickers below. The
+   pickers went under the title because a select wide enough to read a run's
+   blurb crowds the title off a narrow screen when both share a row, and the
+   sheet picker made that row one control longer. */
+/* min-width 0 on both, or the grid does not hold them: a grid item's automatic
+   minimum is its content, so a picker wider than the pane widens the whole
+   head, and the head widens the column instead of the picker shrinking. */
+.head { grid-area: head; display: flex; flex-direction: column; gap: var(--dw-s2); min-width: 0;
+  padding: var(--dw-s2) var(--dw-s3); border-bottom: var(--dw-rule-bold) solid var(--dw-ink); }
+.head-row { display: flex; align-items: center; gap: var(--dw-s3); flex-wrap: wrap; min-width: 0; }
 .head-id { display: flex; align-items: center; gap: var(--dw-s2); min-width: 0; }
 .head-mark { flex: none; display: block; }
 /* The lockup: the mark beside two stacked rows, the sheet's name over the
@@ -147,6 +160,14 @@ select, button, input { font: inherit; font-size: var(--dw-t-micro); color: var(
   background: var(--dw-paper); border: var(--dw-rule-hair) solid var(--dw-ink-30); border-radius: 0;
   padding: 4px var(--dw-s2); }
 select { font-size: var(--dw-t-annot); border-color: var(--dw-ink); border-width: var(--dw-rule-thin); max-width: 22rem; }
+/* The run picker reads "name — blurb", which the 22rem cap cut mid-sentence.
+   It takes whatever the row has left instead — the labels, the sheet picker
+   and the step controls are all as wide as their content, so the run picker is
+   the one thing on the row with a reason to grow. min-width 0 lets it shrink
+   below its content too, so a narrow window narrows the box rather than the
+   page. The sheet picker keeps the default cap: a graph title is a few words,
+   and a picker wider than the longest of them is empty box. */
+#run { flex: 1 1 0; min-width: 0; max-width: none; }
 input[type=checkbox] { accent-color: var(--dw-ink); margin: 0 var(--dw-s1) 0 0; vertical-align: -1px; }
 .btn { text-transform: uppercase; letter-spacing: var(--dw-track-label); font-weight: 500; cursor: pointer;
   transition: border-color 150ms; }
@@ -154,7 +175,10 @@ input[type=checkbox] { accent-color: var(--dw-ink); margin: 0 var(--dw-s1) 0 0; 
 /* A control that can do nothing right now stays legible — ink 70 is the text
    floor — and loses its outline weight and its pointer. Structure, not tone. */
 .btn[disabled] { color: var(--dw-ink-70); cursor: default; border-color: var(--dw-ink-12); }
-.btn-group { display: flex; gap: var(--dw-s1); margin-left: auto; align-items: center; }
+/* No auto margin: the run picker absorbs the row's slack, so the controls sit
+   against it rather than being flung at the far edge — and when the row wraps
+   on a narrow window they start at the left like everything else. */
+.btn-group { display: flex; gap: var(--dw-s1); align-items: center; flex: none; }
 .stepnow { font-size: var(--dw-t-micro); letter-spacing: var(--dw-track-label); font-variant-numeric: tabular-nums;
   color: var(--dw-ink-70); min-width: 6rem; text-align: right; }
 
@@ -418,6 +442,7 @@ button[data-help][aria-disabled=true] { cursor: help; }
 <body class="dw-paper">
 <div class="sheet-root" id="root">
   <div class="head">
+   <div class="head-row">
     <div class="head-id">
       <!-- The groundtrack mark, the 40px-and-up variant, inlined so the page
            still fetches nothing. Its colours read the sheet's tokens. All five
@@ -456,6 +481,13 @@ button[data-help][aria-disabled=true] { cursor: help; }
         <span class="dw-annot head-blurb" id="runBlurb"></span>
       </div>
     </div>
+   </div>
+   <!-- Everything that drives the walk, under the lockup and in the order a
+        reader chooses it: the sheet, then the run on it, then the controls
+        that step that run. The sheet reads first because it changes slower
+        than a run and it changes what the runs are. -->
+   <div class="head-row">
+    <!--SHEETS-->
     <label class="dw-label" for="run">run</label>
     <select id="run" data-help="Which recorded walk to step. Each run is one route through the graph."></select>
     <div class="btn-group">
@@ -466,6 +498,7 @@ button[data-help][aria-disabled=true] { cursor: help; }
       <button class="btn" id="last" data-help="Jump to the end">&gt;|</button>
       <span class="stepnow" id="stepnow" data-help="The move the cursor is on, out of the moves in this run"></span>
     </div>
+   </div>
   </div>
 
   <div class="plan dw-grid" id="plan">
@@ -594,14 +627,6 @@ if (refusals.length) {
 }
 
 function start() {
-  /* The file states a change and lists its graphs; a sheet draws one of them.
-     Everything below reads the current graph through this one view rather than
-     off the file root, so which graph is on the sheet is one line to change
-     and not fifteen. The layers, the ambient values and the node map are the
-     change's, so they are read from PROG itself. */
-  const SHEET = G.graphView(PROG, 0);
-
-  const LAYOUT = G.layout(SHEET);
   const layerNames = Object.keys(PROG.layers || {});
   const CUTS = G.cutEdges(PROG);
   /* tag -> its kinds, for the whole file. Named apart from the module's KINDS,
@@ -610,22 +635,31 @@ function start() {
      derivation by treeRows. One function, so the two cannot disagree. */
   const TAG_KINDS = G.failureKinds(PROG);
 
-  const S = {
-    run: 0,
-    at: 0,
-    states: G.fold(SHEET, SHEET.presets[0].walk),
-    layer: layerNames.length ? layerNames[0] : null,
-    open: SHEET.entry,
-    tab: 'source',
-    tree: false,
-    zoom: 1,
-    panX: 0,
-    panY: 0,
-    playing: null,
-    /* The edge the last step moved along, kept until the next step so the
-       animation on it runs the whole time the cursor rests there. */
-    redraw: null,
-  };
+  /* The file states a change and lists its graphs; a sheet draws one of them.
+     Everything below reads the current graph through this one view rather than
+     off the file root, so which graph is on the sheet is one line to change
+     and not fifteen. The layers, the ambient values and the node map are the
+     change's, so they are read from PROG itself.
+
+     One state per graph, made when the reader first opens that sheet and kept
+     from then on. That is the whole of what "a sheet keeps its own run,
+     cursor, layer, view and open node" is: a switch swaps which state the page
+     is reading, and never rebuilds one that exists. Made lazily because a
+     ten-graph file would otherwise fold every walk of every graph before
+     drawing the first. */
+  const SHEETS = PROG.graphs.map(function () { return null; });
+  let sheetAt = 0;
+  let S = null, SHEET = null, LAYOUT = null;
+  function useSheet(i) {
+    const fresh = !SHEETS[i];
+    if (fresh) SHEETS[i] = G.sheetState(PROG, i);
+    sheetAt = i;
+    S = SHEETS[i];
+    SHEET = S.view;
+    LAYOUT = S.layout;
+    return fresh;
+  }
+  useSheet(0);
 
   /* -- what a node shows, under the layer in force ------------------------ */
   const rOf = id => {
@@ -876,7 +910,7 @@ function start() {
      accounts for. The markup is built in the shared module — see the note on
      filesMarkup for why it is there and not here. */
   function drawFiles() {
-    return G.filesMarkup(PROG, S.open);
+    return G.filesMarkup(SHEET, S.open);
   }
 
   /* One E tag on the contract tab: the tag, its kind, and the one thing this
@@ -927,21 +961,22 @@ function start() {
       (authored ? HELP.authored : HELP.captured) + '">' + (authored ? 'authored' : 'captured') + '</span>';
     return (
       cell('file', esc(PROG.id)) +
-      cell('nodes', String(Object.keys(PROG.nodes).length)) +
+      /* What this sheet draws, so a reader can count the boxes and agree with
+         it. The change's node map is larger the moment a second graph exists,
+         and a number on the sheet that nothing on the sheet matches is worse
+         than no number. */
+      cell('nodes', String(LAYOUT.order.length)) +
       cell('runs', String(SHEET.presets.length)) +
       cell('changed files', PROG.files ? String(PROG.files.length) : '<span class="none">not stated</span>') +
       cell('walk', stamp)
     );
   }
 
+  /* The band under the drawing, where the cut is audited. Built in the shared
+     module — see the note on sheetFactsMarkup for why it is there and not
+     here. */
   function drawSheetFacts() {
-    const bits = [];
-    bits.push('<span><b>blurb</b> ' + esc(PROG.blurb) + '</span>');
-    if (PROG.sheet && PROG.sheet.scopeRule) bits.push('<span><b>scope rule</b> ' + esc(PROG.sheet.scopeRule) + '</span>');
-    if (PROG.sheet && (PROG.sheet.graphsNotDrawn || []).length) {
-      bits.push('<span><b>not drawn</b> ' + esc(PROG.sheet.graphsNotDrawn.join(', ')) + '</span>');
-    }
-    return bits.join('');
+    return G.sheetFactsMarkup(SHEET);
   }
 
   /* -- render ------------------------------------------------------------- */
@@ -1067,12 +1102,69 @@ function start() {
   }
 
   /* -- wiring ------------------------------------------------------------- */
-  SHEET.presets.forEach(function (p, i) {
-    const o = document.createElement('option');
-    o.value = String(i);
-    o.textContent = p.name + ' — ' + p.blurb;
-    $('run').appendChild(o);
-  });
+
+  /* The two controls whose contents outlive one render, looked up here so the
+     two functions below can be called in any order after this point. The
+     picker is absent on a one-graph file, so every read of it is guarded. */
+  const sheetPicker = $('sheet');
+  const layerGrp = $('layerGrp');
+
+  /* The run picker's options are the sheet's, so they are rebuilt when the
+     sheet changes and at no other time. Kept apart from syncControls, which
+     runs on every click: tearing down a select and rebuilding it to set a
+     class on a tab is work for nothing, and it drops the reader's place in an
+     open dropdown. */
+  function fillRunPicker() {
+    const sel = $('run');
+    sel.innerHTML = '';
+    SHEET.presets.forEach(function (p, i) {
+      const o = document.createElement('option');
+      o.value = String(i);
+      o.textContent = p.name + ' — ' + p.blurb;
+      sel.appendChild(o);
+    });
+  }
+
+  /* Every control's appearance, derived from S rather than poked at the point
+     of the click. A handler that sets its own button's class is right until a
+     sheet switch changes S underneath it, at which point the page shows one
+     sheet's drawing with another sheet's controls. So the handlers set state
+     and call this, and this is also what a switch calls. One reading, one
+     writer. */
+  function syncControls() {
+    $('run').value = String(S.run);
+    if (sheetPicker) sheetPicker.value = String(sheetAt);
+    [...layerGrp.querySelectorAll('button')].forEach(function (b) {
+      b.className = b.textContent === S.layer ? 'on' : '';
+    });
+    $('viewPlan').className = S.tree ? '' : 'on';
+    $('viewTree').className = S.tree ? 'on' : '';
+    /* Zoom has nothing to act on in the tree, so it greys out — to the text
+       floor, and no further. */
+    $('zoomIn').disabled = S.tree;
+    $('zoomOut').disabled = S.tree;
+    $('zoomFit').disabled = S.tree;
+    [...document.querySelectorAll('.tab')].forEach(function (t) {
+      t.className = 'tab' + (t.getAttribute('data-tab') === S.tab ? ' tab--on' : '');
+    });
+  }
+
+  /* A sheet the reader has been on before comes back as they left it, because
+     nothing here rebuilds its state — it only swaps which one is read. */
+  if (sheetPicker) {
+    sheetPicker.addEventListener('change', function (e) {
+      stopPlaying();
+      const fresh = useSheet(Number(e.target.value));
+      fillRunPicker();
+      syncControls();
+      render();
+      /* A sheet opened for the first time is fitted to the pane, the way the
+         page fits the first one. A sheet the reader has been on keeps the zoom
+         and the pan they left it at, which is the point. */
+      if (fresh) $('zoomFit').click();
+    });
+  }
+
   $('run').addEventListener('change', function (e) {
     stopPlaying();
     S.run = Number(e.target.value);
@@ -1122,8 +1214,9 @@ function start() {
 
   /* The toggle offers every layer the file declares, so a file with three
      layers does not get two buttons. A file that declares none disables it and
-     says why. */
-  const grp = $('layerGrp');
+     says why. Layers belong to the change, so the same buttons serve every
+     sheet — what changes with the sheet is only which one is lit, and
+     syncControls reads that off S. */
   if (!layerNames.length) {
     /* Named for the layer a reader expects, and switched off with the reason
        held as its help note. aria-disabled rather than disabled, because a
@@ -1132,39 +1225,28 @@ function start() {
     b.textContent = 'tests';
     b.setAttribute('aria-disabled', 'true');
     b.setAttribute('data-help', 'This file declares no layer map, so there is no second set of dependencies to redraw under.');
-    grp.appendChild(b);
+    layerGrp.appendChild(b);
   } else {
     layerNames.forEach(function (name) {
       const b = document.createElement('button');
       b.textContent = name;
-      b.className = name === S.layer ? 'on' : '';
       b.addEventListener('click', function () {
         S.layer = name;
-        [...grp.querySelectorAll('button')].forEach(function (x) { x.className = x.textContent === name ? 'on' : ''; });
+        syncControls();
         render();
       });
-      grp.appendChild(b);
+      layerGrp.appendChild(b);
     });
   }
 
   $('viewPlan').addEventListener('click', function () {
     S.tree = false;
-    $('viewPlan').className = 'on';
-    $('viewTree').className = '';
-    $('zoomIn').disabled = false;
-    $('zoomOut').disabled = false;
-    $('zoomFit').disabled = false;
+    syncControls();
     render();
   });
   $('viewTree').addEventListener('click', function () {
     S.tree = true;
-    $('viewTree').className = 'on';
-    $('viewPlan').className = '';
-    /* Zoom has nothing to act on in the tree, so it greys out — to the text
-       floor, and no further. */
-    $('zoomIn').disabled = true;
-    $('zoomOut').disabled = true;
-    $('zoomFit').disabled = true;
+    syncControls();
     render();
   });
 
@@ -1213,9 +1295,7 @@ function start() {
   [...document.querySelectorAll('.tab')].forEach(function (t) {
     t.addEventListener('click', function () {
       S.tab = t.getAttribute('data-tab');
-      [...document.querySelectorAll('.tab')].forEach(function (x) {
-        x.className = 'tab' + (x === t ? ' tab--on' : '');
-      });
+      syncControls();
       render();
     });
   });
@@ -1396,6 +1476,8 @@ function start() {
     if (e.key === 'ArrowLeft') step(-1);
   });
 
+  fillRunPicker();
+  syncControls();
   render();
   $('zoomFit').click();
 }

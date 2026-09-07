@@ -196,6 +196,231 @@ test('reachability terminates on a cycle', () => {
   assert.deepEqual([...G.reachable(prog, 'greet')].sort(), ['greet', 'lookupName']);
 });
 
+/* -- sheets ---------------------------------------------------------------
+ *
+ * A sheet is one graph drawn. Three things settle together what is on one:
+ * what the drawing places, what the files tab calls the other nodes, and what
+ * ink the page gives a node the entry cannot reach. They answer *the nodes the
+ * entry reaches, and nothing else*, so the third has nothing left to say.
+ */
+
+// A change with two entries and one shared node, derived rather than shipped
+// so these hold whatever the examples do.
+const twoGraphs = () => {
+  const prog = JSON.parse(JSON.stringify(JSON.parse(readFileSync(exampleFlightpath, 'utf8'))));
+  prog.nodes.shout = JSON.parse(JSON.stringify(prog.nodes.greet));
+  prog.nodes.shout.name = 'shout';
+  prog.nodes.shout.touches = ['src/shout.ts'];
+  prog.graphs.push({
+    id: 'shout',
+    title: 'shouting',
+    blurb: 'The other entry point, which reaches the shared lookup.',
+    entry: 'shout',
+    presets: JSON.parse(JSON.stringify(prog.graphs[0].presets)),
+  });
+  return prog;
+};
+
+test('the drawing places the nodes the entry reaches, and no others', () => {
+  const prog = twoGraphs();
+  const first = G.layout(G.graphView(prog, 0));
+  const second = G.layout(G.graphView(prog, 1));
+  assert.ok(!first.order.includes('shout'), 'the other entry is not on this sheet');
+  assert.ok(!second.order.includes('greet'), 'nor this one on the other');
+  // The shared node is on both, and defined once.
+  assert.ok(first.order.includes('lookupName') && second.order.includes('lookupName'));
+  assert.equal(Object.keys(prog.nodes).filter(id => id === 'lookupName').length, 1);
+});
+
+test('the shipped two-graph example shares its node map rather than repeating it', () => {
+  // The acceptance set, not a derived fixture. A shared node map that has only
+  // ever met a two-node greet has not met a real change.
+  const prog = JSON.parse(readFileSync(layeredFlightpath, 'utf8'));
+  assert.equal(prog.graphs.length, 2);
+  const [first, second] = prog.graphs.map(g => G.reachable(prog, g.entry));
+  const shared = [...first].filter(id => second.has(id));
+  assert.ok(shared.length >= 2, `the two entries reach ${shared.length} node(s) in common`);
+  for (const id of shared) {
+    assert.equal(Object.keys(prog.nodes).filter(k => k === id).length, 1, `${id} is defined once`);
+  }
+  // And each sheet draws its own reach, so neither sheet is the whole change.
+  for (const set of [first, second]) assert.ok(set.size < Object.keys(prog.nodes).length);
+});
+
+test('a one-graph file draws every node it has, so its drawing is unmoved', () => {
+  // The three shipped examples report no unreached node, so narrowing the
+  // drawing to the reachable set moves nothing on any of them. Held on the
+  // small one because a moved box would be a change nobody asked for.
+  assert.deepEqual(G.layout(greet).order.slice().sort(), Object.keys(greet.nodes).sort());
+});
+
+test('the other nodes on this sheet are the sheet\'s, not the change\'s', () => {
+  const prog = twoGraphs();
+  const first = G.filesOf(G.graphView(prog, 0), 'greet');
+  // shout is on the other sheet, so the file only it touches is not this
+  // sheet's — the group the tab labels "other nodes on this sheet".
+  assert.ok(!first.others.includes('src/shout.ts'));
+  const second = G.filesOf(G.graphView(prog, 1), 'shout');
+  assert.ok(!second.others.includes('src/shout.ts'), 'nor is the open node its own other');
+});
+
+test('the tab\'s three groups cover every file the change states', () => {
+  // The property that makes them cover, and the reason all three are the
+  // sheet's. Narrow the second without the third and a file only the other
+  // sheet touches falls out of all three, under no label that says so.
+  //
+  // Cover, not partition: `lookupName` is given a path `greet` also touches, so
+  // the first two groups overlap on the sheet the open node shares it with.
+  // Every shipped example does this on nearly every node, so a fixture of
+  // distinct paths would test the tab nobody has.
+  const prog = twoGraphs();
+  prog.nodes.lookupName.touches = ['src/name-store.ts', 'src/greet.ts'];
+  prog.files = [
+    { path: 'src/greet.ts', change: 'edit', why: 'the first entry', adds: 1, dels: 0 },
+    { path: 'src/shout.ts', change: 'edit', why: 'the other entry', adds: 1, dels: 0 },
+    { path: 'docs/none.md', change: 'edit', why: 'no node at all', adds: 1, dels: 0 },
+  ];
+  const stated = prog.files.map(x => x.path);
+  for (const [i, id] of [[0, 'greet'], [1, 'shout']]) {
+    const f = G.filesOf(G.graphView(prog, i), id);
+    const all = [...f.mine, ...f.others, ...f.unaccounted];
+    // Restricted to what the change states, because the first two groups read
+    // `touches` and a node may touch a path the change does not list — the tab
+    // prints one of those as an edit of no stated size rather than not at all.
+    const covered = new Set(all.filter(p => stated.includes(p)));
+    assert.deepEqual([...covered].sort(), stated.slice().sort(), `sheet ${i} covers them all`);
+    // The third group is the disjoint one: it is what no node here touches, so
+    // nothing in it can also be in a group read from `touches`.
+    assert.deepEqual(f.unaccounted.filter(p => f.mine.includes(p) || f.others.includes(p)), [],
+      `sheet ${i}'s third group holds nothing the first two do`);
+  }
+  // And the overlap the first two are allowed: the open node changes it, the
+  // neighbour changes it, and the tab says both rather than picking a winner.
+  const first = G.filesOf(G.graphView(prog, 0), 'greet');
+  assert.ok(first.mine.includes('src/greet.ts') && first.others.includes('src/greet.ts'));
+});
+
+test('the tab asks about this sheet and the check asks about the change', () => {
+  // Story 28 wants the tab's third group labelled as this sheet's; story 29
+  // wants the check's finding taken across every graph. Two questions, so two
+  // answers, and the same function gives both.
+  const prog = twoGraphs();
+  prog.files = [
+    { path: 'src/shout.ts', change: 'edit', why: 'the other entry', adds: 1, dels: 0 },
+    { path: 'docs/none.md', change: 'edit', why: 'no node at all', adds: 1, dels: 0 },
+  ];
+  // The change's answer: the other graph covers shout.ts, so it is accounted.
+  assert.deepEqual(G.unaccountedFiles(prog), ['docs/none.md']);
+  // The first sheet's answer: no node here touches it, so it is on this list.
+  assert.deepEqual(G.filesOf(G.graphView(prog, 0), 'greet').unaccounted, ['src/shout.ts', 'docs/none.md']);
+});
+
+test('on a one-graph file the sheet\'s question and the change\'s have one answer', () => {
+  // Which is why the three shipped examples read exactly as they did.
+  const one = JSON.parse(readFileSync(exampleFlightpath, 'utf8'));
+  one.files = [{ path: 'docs/none.md', change: 'edit', why: 'no node at all', adds: 1, dels: 0 }];
+  assert.deepEqual(G.filesOf(G.graphView(one, 0), 'greet').unaccounted, G.unaccountedFiles(one));
+});
+
+test('the two sheet-scoped readers refuse a file rather than a view', () => {
+  // Handed the file, `prog.entry` is undefined and the reachable set is empty.
+  // The files tab's second group then renders empty — which is what a tab
+  // looks like when a node touches nothing — and the drawing places no box at
+  // all. Both read right and both are wrong, so both are loud instead.
+  assert.throws(() => G.filesOf(twoGraphs(), 'greet'), /entry/);
+  assert.throws(() => G.layout(twoGraphs()), /entry/);
+});
+
+test('a sheet\'s state starts on its own graph, and two sheets do not share one', () => {
+  const prog = twoGraphs();
+  const a = G.sheetState(prog, 0);
+  const b = G.sheetState(prog, 1);
+  assert.equal(a.open, 'greet');
+  assert.equal(b.open, 'shout');
+  assert.equal(a.view.graph.id, prog.graphs[0].id);
+  assert.equal(b.view.graph.id, prog.graphs[1].id);
+  assert.notDeepEqual(a.layout.order, b.layout.order);
+  // Every sheet is offered the change's layers, so the toggle does not change
+  // under the reader when the sheet does.
+  assert.equal(a.layer, b.layer);
+  // Moving one leaves the other where it was: that is what returning to a
+  // sheet and finding it as you left it is made of.
+  a.run = 1; a.at = 4; a.open = 'lookupName'; a.tree = true; a.tab = 'files';
+  assert.deepEqual([b.run, b.at, b.open, b.tree, b.tab], [0, 0, 'shout', false, 'source']);
+});
+
+test('a sheet\'s state is folded from its own first run', () => {
+  const prog = twoGraphs();
+  const a = G.sheetState(prog, 0);
+  assert.deepEqual(a.states, G.fold(G.graphView(prog, 0), prog.graphs[0].presets[0].walk));
+});
+
+/* -- the footer band ------------------------------------------------------ */
+
+test('the band states the change\'s cut once, and the sheet\'s blurb beside it', () => {
+  const prog = twoGraphs();
+  prog.sheet = { scopeRule: 'one graph per entry point', graphsNotDrawn: ['the cron path'] };
+  const out = G.sheetFactsMarkup(G.graphView(prog, 1));
+  assert.equal((out.match(/<b>scope rule<\/b>/g) || []).length, 1, 'one scope rule, for the change');
+  assert.match(out, /one graph per entry point/);
+  assert.match(out, /<b>not drawn<\/b> the cron path/);
+  // The sheet's own line is the graph's blurb, which nothing else prints.
+  assert.match(out, /<b>this sheet<\/b> The other entry point/);
+  assert.ok(out.includes(prog.blurb), 'and the change\'s blurb');
+});
+
+test('a sibling sheet is never listed as a graph not drawn', () => {
+  // "Not drawn" means found and in no sheet of this file. Both graphs of the
+  // shipped example are sheets, so its list is empty rather than naming one.
+  const prog = JSON.parse(readFileSync(layeredFlightpath, 'utf8'));
+  assert.deepEqual(prog.sheet.graphsNotDrawn, []);
+  const out = G.sheetFactsMarkup(G.graphView(prog, 0));
+  assert.doesNotMatch(out, /<b>not drawn<\/b>/, 'an empty list draws no line at all');
+  for (const g of prog.graphs) assert.ok(!out.includes('not drawn</b> ' + g.title));
+});
+
+test('the band puts every author string through the escape', () => {
+  const prog = twoGraphs();
+  // Mixed case and four different tags, because the assertion below is not
+  // about script tags. A test that hunts for one tag by name passes the day an
+  // author writes another, or the same one shouting.
+  prog.blurb = 'change <script>a</SCRIPT>';
+  prog.graphs[1].blurb = 'graph <ScRiPt>b</script>';
+  prog.sheet = { scopeRule: 'rule <IMG src=x onerror=1>', graphsNotDrawn: ['left <b onclick=1>'] };
+  const out = G.sheetFactsMarkup(G.graphView(prog, 1));
+  // Strip the band's own markup — a span and a b, the only tags it writes —
+  // and nothing that opens a tag may be left. Whatever the author wrote is
+  // text by then, whatever they named it and however they cased it.
+  assert.doesNotMatch(out.replace(/<\/?(?:span|b)>/g, ''), /</);
+  // And every author bracket arrived as one: two in each blurb, one in each of
+  // the other two.
+  assert.equal((out.match(/&lt;/g) || []).length, 6);
+});
+
+test('the sheet picker is one control per graph, and nothing for one graph', () => {
+  assert.equal(G.sheetPickerMarkup(JSON.parse(readFileSync(exampleFlightpath, 'utf8'))), '');
+  const out = G.sheetPickerMarkup(twoGraphs());
+  assert.equal((out.match(/<option /g) || []).length, 2);
+  assert.match(out, /<select id="sheet"/);
+});
+
+test('a graph title reaches the picker as text, and its id as a validated attribute', () => {
+  const prog = twoGraphs();
+  prog.graphs[1].title = '</select><img src=x onerror="alert(1)">';
+  const out = G.sheetPickerMarkup(prog);
+  assert.doesNotMatch(out, /<img src=x onerror/);
+  assert.match(out, /&lt;\/select&gt;|&lt;\/select>/);
+  assert.match(out, /data-graph="shout"/);
+});
+
+test('a graph id the id pattern refuses reaches no attribute', () => {
+  // The validator refuses it first, so this is the second line and not the
+  // first. A page rendered from an unchecked file still may not carry it.
+  const prog = twoGraphs();
+  prog.graphs[1].id = 'a" onload="alert(1)';
+  assert.doesNotMatch(G.sheetPickerMarkup(prog), /onload/);
+});
+
 /* -- the fold ------------------------------------------------------------- */
 
 test('the fold seeds the entry frame with the cursor at zero, before any move', () => {
@@ -585,9 +810,15 @@ test('a node with one caller sits straight beneath it', () => {
   for (const p of Object.values(l.pos)) assert.ok(p.x + l.width <= l.canvasW);
 });
 
-test('the layout places every node and draws every call edge once', () => {
+test('the layout places every node of the sheet and draws every call edge once', () => {
   const l = G.layout(layered);
-  assert.deepEqual(Object.keys(l.pos).sort(), Object.keys(layered.nodes).sort());
+  // Written out rather than derived from `reachable`, which is what `layout`
+  // itself calls: a test that asks the implementation what the answer is
+  // agrees with it whatever it says. These are the six the first-paint entry
+  // reaches; the change's other three are the panel-apply sheet's.
+  assert.deepEqual(Object.keys(l.pos).sort(), [
+    'applyWoodFibre', 'bindSheet', 'buildShelf', 'fibreMapFor', 'resolveWoodwork', 'worldSpaceUvs',
+  ]);
   const pairs = l.edges.map(e => `${e.from}>${e.to}`);
   assert.equal(new Set(pairs).size, pairs.length, 'no edge is drawn twice');
   assert.ok(l.canvasW > 0 && l.canvasH > 0);
@@ -607,8 +838,15 @@ test('the three groups a node sees are read off the change and the node map', ()
   // node touches is still listed against the others that touch it.
   assert.ok(f.others.includes('packages/site/src/shelf/scene.ts'));
   assert.ok(f.others.includes('packages/site/src/shelf/woodwork.ts'));
+  // shelf-settings.ts is the panel-apply sheet's. No node here touches it, so
+  // it is not in the second group — and the third group, which is also this
+  // sheet's, is where it lands rather than nowhere.
+  assert.ok(!f.others.includes('packages/site/src/shelf/shelf-settings.ts'));
+  assert.ok(f.unaccounted.includes('packages/site/src/shelf/shelf-settings.ts'));
   assert.equal(f.unaccounted.length, 14);
   assert.ok(!f.unaccounted.includes('packages/site/src/shelf/scene.ts'));
+  // The check asks the change, and there the other sheet accounts for it.
+  assert.ok(!G.unaccountedFiles(layered).includes('packages/site/src/shelf/shelf-settings.ts'));
 });
 
 test('the second group is not empty while other nodes touch files', () => {

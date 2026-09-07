@@ -472,8 +472,12 @@ test('an E tag nothing beneath the node can produce is a finding', () => {
 
 /* -- the text output ------------------------------------------------------ */
 
+// The shipped pull-request example states two graphs, so every reading of it
+// names one. The first-paint sheet is the one these were written against.
+const firstPaint = ['--graph', 'first-paint'];
+
 test('the text prints one row per call site and lists the runs it did not print', () => {
-  const r = run(groundtrack, [layeredFlightpath, '--text']);
+  const r = run(groundtrack, [layeredFlightpath, '--text', ...firstPaint]);
   assert.equal(r.code, 0);
   // bindSheet is called twice from buildShelf, so it appears twice, and the
   // two rows carry different end marks.
@@ -486,20 +490,35 @@ test('the text prints one row per call site and lists the runs it did not print'
 test('the text suggests the longest walk', () => {
   const prog = JSON.parse(readFileSync(layeredFlightpath, 'utf8'));
   const longest = runs(prog).reduce((a, b) => (b.walk.steps.length > a.walk.steps.length ? b : a));
-  const r = run(groundtrack, [layeredFlightpath, '--text']);
+  const r = run(groundtrack, [layeredFlightpath, '--text', ...firstPaint]);
   assert.match(r.stdout, new RegExp(`run "${longest.name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}"`));
 });
 
 test('the run the reader names is the run that prints', () => {
-  const r = run(groundtrack, [layeredFlightpath, '--text', '?tune= flat']);
+  const r = run(groundtrack, [layeredFlightpath, '--text', '?tune= flat', ...firstPaint]);
   assert.equal(r.code, 0);
   assert.match(r.stdout, /run "\?tune= flat"/);
 });
 
 test('a run the file has not got is refused by name', () => {
-  const r = run(groundtrack, [layeredFlightpath, '--text', 'no such run']);
+  const r = run(groundtrack, [layeredFlightpath, '--text', 'no such run', ...firstPaint]);
   assert.equal(r.code, 1);
   assert.match(r.stderr, /no run called "no such run"/);
+});
+
+test('two graphs of one change may each have a run of that name', () => {
+  // Uniqueness is per graph, and the two sheets of the shipped example are
+  // where that stops being a rule on paper.
+  const prog = JSON.parse(readFileSync(layeredFlightpath, 'utf8'));
+  const name = prog.graphs[0].presets[0].name;
+  prog.graphs[1].presets[0].name = name;
+  const p = join(work, `shared-run-${n++}.flightpath.json`);
+  writeFileSync(p, JSON.stringify(prog, null, 2));
+  assert.equal(check(p).code, 0, check(p).stderr);
+  // And naming it resolves within the graph the reader chose.
+  const r = run(groundtrack, [p, '--text', name, '--graph', 'panel-apply']);
+  assert.equal(r.code, 0, r.stderr);
+  assert.match(r.stdout, /^applySettings/m);
 });
 
 test('a several-graph file without --graph lists the graphs and stops', () => {
@@ -549,7 +568,7 @@ test('--graph with no value, or followed by a flag, lands at the usage line', ()
 test('--graph is refused where nothing would read it, rather than ignored', () => {
   // Accepted and discarded, --graph hands back a page for a graph the reader
   // did not ask for, with exit 0 and nothing said. --check reads every graph
-  // of the change, and the page draws the first one until the picker lands, so
+  // of the change, and the page carries all of them and offers a picker, so
   // neither has a graph to select.
   const file = derive(addSecondGraph);
   const out = join(work, `unread-${n++}.html`);
@@ -559,14 +578,18 @@ test('--graph is refused where nothing would read it, rather than ignored', () =
   ]) {
     const r = run(groundtrack, args);
     assert.equal(r.code, 2, `expected a refusal, got:\n${r.stdout}${r.stderr}`);
-    assert.match(r.stderr, /--graph selects a graph to read, and only --text reads one/);
+    assert.match(r.stderr, /--graph names the one graph a reading is of, and only --text is one/);
+    // And it says why in the one case a reader might reasonably expect it to
+    // work: the page has a picker, so a sheet to open on is a thing this flag
+    // does not do rather than a thing it silently ignored.
+    assert.match(r.stderr, /does not open on a named sheet/);
   }
   assert.ok(!existsSync(out), 'no page was written for a graph nothing would draw');
 });
 
 test('the end marks differ between runs, so choosing one changes what is read', () => {
-  const a = run(groundtrack, [layeredFlightpath, '--text', 'default page']).stdout;
-  const b = run(groundtrack, [layeredFlightpath, '--text', 'the sheet 404s']).stdout;
+  const a = run(groundtrack, [layeredFlightpath, '--text', 'default page', ...firstPaint]).stdout;
+  const b = run(groundtrack, [layeredFlightpath, '--text', 'the sheet 404s', ...firstPaint]).stdout;
   assert.notEqual(a, b);
 });
 
@@ -680,12 +703,107 @@ test('the page prints the failure kind beside the tag, and what the node does wi
   }
 });
 
+/** The page's own head markup, which is where the controls are.
+ *
+ *  Sliced rather than searched whole, because the page carries the shared
+ *  module inlined and the module carries the picker's markup as a string. A
+ *  page that draws no picker still contains the source of the function that
+ *  would have drawn one, so the whole page cannot answer "is there a control
+ *  here" — only the markup can. */
+const headOf = html => html.slice(html.indexOf('<div class="head">'), html.indexOf('<div class="plan'));
+
 test('a one-graph file draws no sheet control', () => {
-  // A control that does nothing is worse than no control. The picker arrives
-  // with the sheets; until then a one-graph file must not grow one.
-  const html = pageOf(exampleFlightpath);
-  assert.doesNotMatch(html, /id="sheet"/);
-  assert.doesNotMatch(html, /data-sheet=/);
+  // A control that does nothing is worse than no control, so a file with one
+  // graph is not offered one.
+  const head = headOf(pageOf(exampleFlightpath));
+  assert.doesNotMatch(head, /id="sheet"/);
+  assert.doesNotMatch(head, /data-graph=/);
+});
+
+test('a several-graph file draws one sheet control per graph', () => {
+  const head = headOf(pageOf(derive(addSecondGraph)));
+  assert.match(head, /<select id="sheet"/);
+  const options = head.slice(head.indexOf('<select id="sheet"'), head.indexOf('</select>'));
+  assert.equal((options.match(/<option /g) || []).length, 2);
+  // By title, and each carrying its graph's validated id.
+  assert.ok(options.includes('apply the panel'));
+  assert.match(options, /data-graph="panel-apply"/);
+});
+
+test('the shipped pull-request example draws one sheet control per graph', () => {
+  // The acceptance set, not a derived fixture: the ticket names this example
+  // because a picker that only ever meets a two-node greet has not met a real
+  // change with a shared node map.
+  const prog = JSON.parse(readFileSync(layeredFlightpath, 'utf8'));
+  assert.equal(prog.graphs.length, 2, 'the shipped example states two graphs');
+  const head = headOf(pageOf(layeredFlightpath));
+  const options = head.slice(head.indexOf('<select id="sheet"'), head.indexOf('</select>'));
+  assert.equal((options.match(/<option /g) || []).length, 2);
+  for (const g of prog.graphs) {
+    assert.ok(options.includes(g.title), `the picker lists "${g.title}"`);
+    assert.ok(options.includes(`data-graph="${g.id}"`), `and carries the id ${g.id}`);
+  }
+});
+
+test('the sheet picker sits in the head, left of the run picker', () => {
+  // The locked spec's tempo table: a sheet changes slower than a run and
+  // changes everything beneath it, so it reads first.
+  const head = headOf(pageOf(derive(addSecondGraph)));
+  assert.ok(head.includes('id="sheet"'), 'the picker is in the head');
+  assert.ok(head.indexOf('id="sheet"') < head.indexOf('id="run"'), 'and before the run picker');
+});
+
+test('the head is two rows: the lockup above, everything that drives the walk below', () => {
+  // A run picker wide enough to read a run's blurb does not share a row with
+  // the title, and the sheet picker made that row one control longer. So the
+  // first row is identity and the second is controls, in the order a reader
+  // chooses them: the sheet, the run on it, then the moves of that run.
+  const head = headOf(pageOf(derive(addSecondGraph)));
+  const rows = head.split('<div class="head-row">').slice(1);
+  assert.equal(rows.length, 2);
+  assert.ok(rows[0].includes('id="title"'), 'the lockup is on the first row');
+  for (const id of ['sheet', 'run', 'play', 'stepnow']) {
+    assert.ok(!rows[0].includes(`id="${id}"`), `${id} is not on the first row`);
+    assert.ok(rows[1].includes(`id="${id}"`), `${id} is on the second`);
+  }
+  const order = ['id="sheet"', 'id="run"', 'class="btn-group"'].map(s => rows[1].indexOf(s));
+  assert.deepEqual(order.slice().sort((a, b) => a - b), order, 'sheet, then run, then the step controls');
+});
+
+test('a one-graph file still gets the second row, with the run picker on it', () => {
+  const head = headOf(pageOf(exampleFlightpath));
+  const rows = head.split('<div class="head-row">').slice(1);
+  assert.equal(rows.length, 2);
+  assert.ok(rows[1].includes('id="run"') && rows[1].includes('id="play"'));
+  assert.doesNotMatch(rows[1], /id="sheet"/);
+});
+
+test('a graph title reaches the page as text', () => {
+  const head = headOf(pageOf(derive(prog => {
+    addSecondGraph(prog);
+    prog.graphs[1].title = 'panel & <script>alert("x")</script>';
+  })));
+  assert.ok(!head.includes('panel & <script>alert'), 'not as markup');
+  // The escape turns the ampersand and the opening bracket, which is all it
+  // takes: a `>` with no `<` opens nothing.
+  assert.match(head, /panel &amp; &lt;script>alert/);
+});
+
+test('the page seeds a sheet from the module rather than keeping its own copy', () => {
+  // A limit, stated, and the same one the failure-kind test states. What a
+  // sheet remembers is the module's — `sheetState`, and the fold tests hold
+  // that two sheets get two of them and that moving one leaves the other. That
+  // a reader who leaves a sheet and returns finds it as they left it is a
+  // property of the running page, and nothing here runs one: no DOM, by
+  // design. It was driven by hand in a browser instead.
+  //
+  // What this can hold is the seam: the page calls the module's constructor,
+  // so there is one definition of what a sheet remembers and not two. Nothing
+  // else about the page's spelling is pinned — the accessor test below says
+  // why pinning a spelling is the wrong trade.
+  const template = readFileSync(join(groundtrack, '..', '..', 'assets', 'template.html'), 'utf8');
+  const body = template.slice(template.indexOf('function start()'));
+  assert.match(body, /G\.sheetState\(/);
 });
 
 test('the page reads its graph through an accessor, not off the file root', () => {

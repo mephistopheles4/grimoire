@@ -41,13 +41,18 @@ conversation, because nothing durable exists to check the graph against.
 
 ## The page
 
-The page draws the graph and steps a cursor over one recorded walk. Nothing is
+The page draws one graph and steps a cursor over one recorded walk. Nothing is
 computed while you watch. Every branch an `if` took, every value an effect
 returned, and every catch is a literal in the file. That is what makes the walk
 a list of checkable claims rather than a program you have to believe.
 
-On the page you can:
+A change with several graphs is one page with several sheets. On the page you
+can:
 
+- **Pick a sheet**, when the file states more than one graph. The sheet picker,
+  the run picker and the step controls share the head's second row, under the
+  title. A sheet draws what its entry reaches, and keeps its own run, cursor,
+  layer, view and open node.
 - Step forward and back, play the walk, and hold it on the next effect or the
   next error.
 - Read the call stack, the inputs, the error path, and the effects ledger.
@@ -74,7 +79,7 @@ node skills/groundtrack/scripts/render.mjs <topic>.flightpath.json --text [--gra
 | `--check` | Validates. Refusals on standard error, exit 1. Findings on standard output, exit 0. |
 | `--out <page>` | Writes one self-contained HTML file. |
 | `--text ["<run>"]` | Prints the same graph as an indented tree, for one run. |
-| `--graph <id>` | Which graph `--text` reads. A file stating several needs one named; asked without it, `--text` lists them and stops. Refused with `--check` and `--out`, which read every graph and the first one. |
+| `--graph <id>` | Which graph `--text` reads. A file stating several needs one named; asked without it, `--text` lists them and stops. Refused with `--check` and `--out`, which both read every graph — the page carries them all and picks between them. |
 
 `--text` gives the answer in a reply and the answer on the page as one graph
 seen two ways.

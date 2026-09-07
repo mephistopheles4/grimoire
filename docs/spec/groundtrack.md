@@ -1167,12 +1167,13 @@ ship as worked examples is reopened* names three candidates, and the middle one
 is "the change whose failure story is an out-of-memory kill reaching no
 handler". No program for that change exists on any branch — it was found in a
 search and never written up. So the shipped set is the acceptance set
-(`pr-313-first-paint`), the plan (`map-300-woodwork`, which is where all three
+(`pr-313`), the plan (`map-300-woodwork`, which is where all three
 failure channels and an uncaught tag actually appear), and the small
-`greet` example that uses every move kind in thirty-two moves. `pr-313-panel-apply`
-stays on its branch: it declares no layers, no changed files and no throws, so
-it is the least distinctive of the three. **This remains the owner's call**, and
-changing the set is a one-file change.
+`greet` example that uses every move kind in thirty-two moves. The panel-apply
+program stayed on its branch while a file could hold one graph; it is now the
+second graph of `pr-313`, which is what makes that example the first two-sheet
+file the skill ships. **This remains the owner's call**, and changing the set is
+a one-file change.
 
 **The entry-point rule is still unmeasured.** *An entry point is a changed
 symbol that no other changed symbol calls* ships as written, in `SKILL.md`.
@@ -1268,3 +1269,98 @@ changes everything beneath it, so it sits to the left of the run picker. The
 picker itself, and per-sheet page state, are a separate ticket; what shipped
 here is the page reading its graph through one accessor rather than off the
 file root, and a one-graph file showing no picker at all.
+
+**The head is two rows: identity above, the walk's controls below.** The tempo
+table puts the pickers and the step controls in the head and says nothing about
+their arrangement; the head was one flex row because two controls fitted on one.
+Three do not — a run picker wide enough to read a run's blurb crowds the title
+off a narrow screen, and the blurb is where a reader learns what they are about
+to step. So the first row is the lockup and the second is the sheet picker, the
+run picker and the step controls, in the order a reader chooses them: the sheet,
+the run on it, then the moves of that run. Nothing moved between regions and the
+tempo table is unchanged.
+
+The run picker takes whatever the row has left rather than a fixed cap. Every
+other control on it is as wide as its content, so it is the one thing there with
+a reason to grow, and it shrinks below its content too — a narrow window narrows
+the box, and the step controls wrap under it rather than off the edge.
+
+The root grid's first column became `minmax(0, 1fr)` with it. A track's
+automatic minimum is its content, so the widened picker grew the column instead
+of shrinking itself, and a narrow window got a horizontal scrollbar. Nothing on
+this page wants a content floor — the plan and the cutaway both clip their own
+overflow.
+
+**The picker landed, and a sheet is what its entry reaches.** A file stating
+several graphs draws one at a time and lists the rest by title in the head. A
+one-graph file shows no picker, because a control that does nothing is worse
+than no control. Each sheet keeps its own run, cursor, layer, view and open
+node, so a reader returning to a sheet finds it as they left it; a sheet opened
+for the first time is fitted to the pane the way the first one is.
+
+The picker is rendered into the page rather than built by the page's script.
+Every other control on the head row is built at runtime, which is why no test
+could ever count one — and *one control per graph, or none* is exactly what
+this ticket owes. So the markup is a function in the shared module, spliced in
+at render time, on the same bargain the files tab already makes. A graph title
+is author text and goes through the escape into element content; a graph id is
+validated against the id pattern before it reaches an attribute, in the module
+as well as in the validator, because a page can be rendered from a file the
+validator has not seen.
+
+**What is on a sheet is the entry's reachable set, and three things say so
+together.** The spec left this open and the shape ticket named it: either a
+sheet draws only the graph's own nodes, or it draws the whole map with the rest
+cold. It draws the graph's own. `layout` places the reachable set; the files
+tab's second group — *other nodes on this sheet* — is read through the same
+set; and the cold ink has nothing left to say about a node that is not there,
+so it keeps the one job it had, which is a node a *layer's* cut has stranded.
+No shipped example reports an unreached node, so no one-graph drawing moved.
+
+**The files tab's third group is the sheet's; the check's finding is the
+change's.** That is this document's own pairing — story 28 asks for the third
+group *labelled as this sheet's, so that I do not take a per-sheet list for the
+change-wide one*, and story 29 asks the check for the change-wide one — but it
+had not been read that way, because before this ticket a sheet was the whole
+node map and the two sets were the same on every shipped file.
+
+They come apart on a two-sheet file, and the tab has to be the sheet's for the
+three groups to cover: narrow the second group to the sheet and leave the third
+change-wide, and a file only the *other* sheet's nodes touch is in neither, with
+no label anywhere saying where it went. Measured on the migrated example:
+`shelf-settings.ts` is the panel-apply sheet's and appeared nowhere on the
+first-paint one. All three groups are the sheet's now, so every file the change
+states lands in exactly one of them on every sheet, and `--check` still reports
+across the whole change — a file one graph covers is not reported because
+another does not.
+
+The prior claim that the tab and the check *must not be able to disagree* was
+written while a file drew one graph, and it is withdrawn. They ask different
+questions, this document asks both, and on a one-graph file they still have one
+answer.
+
+**The shipped pull-request example is one change on two sheets.** `pr-313`
+gains the panel-apply graph the prototype branch carried, so the acceptance set
+exercises the picker and the shared node map for real. Its two shared symbols,
+`resolveWoodwork` and `applyWoodFibre`, are defined once, and the prototype's
+walks were re-indexed onto the shipped definitions: the shipped
+`resolveWoodwork` carries two `note` steps the prototype has not got, and the
+shipped `applyWoodFibre` calls `fibreMapFor` where the prototype inlined the
+bake. The three nodes only the second graph reaches were given the `touches`
+the prototype lacked, which is what takes `shelf-settings.ts` off the
+unaccounted list — the change-wide finding, answered by a graph the old file
+could not state. The file's `graphsNotDrawn` is now empty: a sibling sheet is
+never a graph not drawn.
+
+The file's title and blurb are the change's, and the first-paint graph's blurb
+is the one the file used to carry. The file is `pr-313.flightpath.json`, since
+it is no longer one entry point's.
+
+**Two small readings follow the sheet rather than the change.** The footer's
+`nodes` count is what this sheet draws, so a reader can count the boxes and
+agree with it; `--check` still says how many the change has, and the two differ
+on a two-sheet file on purpose. And the band gained one line that is the
+sheet's: the graph's `blurb`, a required field that until now printed nowhere.
+The band's other three facts are the change's and are still stated once. The
+band moved into the shared module to be tested at all, on the same bargain the
+files tab makes.
