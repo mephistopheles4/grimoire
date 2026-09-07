@@ -58,13 +58,22 @@ survive round seven's stricter rule?**
 | | Migrated runs | Convergence | Median passes | Verdict |
 | --- | --- | --- | --- | --- |
 | Round six as reported | 9 | 9/9 | 2 | PASS |
-| **Round six under round seven's void rule** | 8 | **8/8 PASS** | **1 PASS** | **PASS** |
+| **Round six under round seven's void rule** | 8 | **8/8 PASS** | **2 PASS** | **PASS** |
 | Round seven under round six's rule (row B above) | 9 | 9/9 PASS | **3 FAIL** | **FAIL** |
 
 **Round six survives round seven's rule; round seven does not survive round
-six's.** The asymmetry is not the rule — it is that round seven's runs were
-genuinely slower to green. Round six's eight attested runs reach a clean checker
-in a median of **one** pass; round seven's nine reach it in **two**.
+six's.** Both rounds sit at a median of 2 under their own counting and under the
+strict rule. The asymmetry is not a difference in how fast the rounds converged
+— it is **what each round's defective run cost**:
+
+- Round six's `t1-haiku-3` went green in **2** checker runs, the same as the
+  median. Keeping it or dropping it barely moves anything.
+- Round seven's `t3-haiku-3` needed **4**. Swapping a 4 in for a 2 at n = 9
+  moves the median from 2 to 3.
+
+Round seven also has less room under its median than round six did — four runs
+at 3 passes and one at 1, where round six's attested eight had four at 1. Same
+median, thinner margin.
 
 ## The numbers
 
@@ -180,9 +189,17 @@ check-2.txt: ok: … 5 node(s), 2 graph(s), 3 run(s), 0 finding(s)
 ```
 
 The task says the page-missing failure escapes. The file now does not mention it
-at all. **That is the step's cost paid and its benefit not received**, and it is
-the one run in twelve where the step changed the pass count — the mechanism by
-which rules 1, 2 and 4 could only degrade.
+at all. **That is the step's cost paid and its benefit not received.**
+
+**The pre-registration priced that cost too cautiously, and this is where it
+shows.** It said the step could only make rules 1, 2 and 4 worse or equal,
+because a findings fix is another pass against the cap. As the round is actually
+instrumented it cannot make them worse at all: rules 1, 2 and 4 read
+`passesToGreen`, which stops at the **first clean check**, so a pass spent after
+green adds to the attempt count and not to the score. `t4-haiku-2` reads
+`PASSES 2, GREEN 1`. So the step changed one run's attempt count and no gated
+number, and the honest reading is that it was free on rules 1, 2 and 4 and
+bought nothing on rule 3.
 
 **Every migrated `answers` array is empty**: no finding fired on any of the nine
 migrated runs. **So the findings step cannot explain the fidelity drop from 9 of
