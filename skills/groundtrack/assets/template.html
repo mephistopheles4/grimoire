@@ -32,90 +32,18 @@ try{if(matchMedia('(prefers-color-scheme: dark)').matches)document.documentEleme
 </style>
 <style>
 
-/* ==========================================================================
-   AVIATION — the design system, deck theme, copied in rather than linked.
-   Tokens from tokens/core.css and themes/deck.css; the classes this page uses
-   from drafting.css. Values are the system's and are not re-derived here.
+/* THE TWO SIZES THIS PAGE MOVES ------------------------------------------
+   Everything else — the ramp, the space scale, the rules, the classes, the
+   dark layer — arrives from the bundle inlined above. These two do not.
 
-   The rules, which are the system:
-     1. Colour is signal, never decoration.
-     2. Each accent has exactly one meaning. Amber is caution only, green is
-        normal only, and there is no failure colour — failure is structural.
-     3. Every neutral is ink at reduced alpha.
-     4. Text never uses a neutral below --dw-ink-70. Below that is non-text.
-     5. No gradients, no shadows. Depth comes from line weight.
-   ========================================================================== */
+   Both sit one step above the deck theme's. A slide is read from across a
+   room at one size; this sheet is read at a desk in a lot of eleven-pixel
+   labels, and measured against paper those did not resolve. Declared here
+   rather than raised upstream because it is this page's reading distance
+   that is different, not the system's scale. */
 :root {
-  --dw-rule-hair: 1px; --dw-rule-thin: 1.5px; --dw-rule-bold: 2px;
-  --dw-s1: 6px; --dw-s2: 12px; --dw-s3: 24px; --dw-s4: 36px; --dw-s5: 48px; --dw-s6: 72px; --dw-s7: 96px;
-  /* The two small sizes sit one step above the deck theme's. A slide is read
-     from across a room at one size; this sheet is read at a desk in a lot of
-     eleven-pixel labels, and measured against paper those did not resolve. */
-  --dw-t-micro: 0.75rem; --dw-t-annot: 0.875rem; --dw-t-body: 0.9375rem;
-  --dw-t-lead: 1.125rem; --dw-t-h3: 1.375rem; --dw-t-h2: 1.875rem; --dw-t-h1: 2.75rem; --dw-t-slide: 4rem;
-  --dw-track-label: 0.16em; --dw-track-title: 0.12em;
-  --dw-grid-major-every: 5;
-
-  --dw-paper: #fafaf7;
-  --dw-ink: #22262b;
-  --dw-caution: #b45309;
-  --dw-normal: #15803d;
-  --dw-structure: var(--dw-ink);
-  --dw-failure: var(--dw-ink);
-  --dw-ink-80: rgb(34 38 43 / 0.8);
-  --dw-ink-70: rgb(34 38 43 / 0.7);
-  --dw-ink-55: rgb(34 38 43 / 0.55);
-  --dw-ink-30: rgb(34 38 43 / 0.3);
-  --dw-ink-12: rgb(34 38 43 / 0.12);
-  --dw-grid: rgb(34 38 43 / 0.05);
-  --dw-grid-minor: rgb(34 38 43 / 0.035);
-  --dw-grid-major: rgb(34 38 43 / 0.085);
-  --dw-font: 'IBM Plex Mono', ui-monospace, 'SFMono-Regular', Menlo, Consolas, monospace;
-  --dw-font-display: var(--dw-font);
-  --dw-font-prose: var(--dw-font);
-  --dw-grid-size: 24px;
-  --dw-measure: 68ch;
-}
-.dw-paper { background-color: var(--dw-paper); color: var(--dw-ink); font-family: var(--dw-font);
-  font-size: var(--dw-t-body); line-height: 1.6; }
-/* Two-tier, the way graph paper is printed. The major pitch is spelled out
-   inline rather than held in a custom property, because a calc() inside one
-   resolves where it is declared. */
-.dw-grid { background-image:
-    linear-gradient(to right, var(--dw-grid-major) var(--dw-rule-hair), transparent var(--dw-rule-hair)),
-    linear-gradient(to bottom, var(--dw-grid-major) var(--dw-rule-hair), transparent var(--dw-rule-hair)),
-    linear-gradient(to right, var(--dw-grid-minor) var(--dw-rule-hair), transparent var(--dw-rule-hair)),
-    linear-gradient(to bottom, var(--dw-grid-minor) var(--dw-rule-hair), transparent var(--dw-rule-hair));
-  background-size:
-    calc(var(--dw-grid-size) * var(--dw-grid-major-every)) calc(var(--dw-grid-size) * var(--dw-grid-major-every)),
-    calc(var(--dw-grid-size) * var(--dw-grid-major-every)) calc(var(--dw-grid-size) * var(--dw-grid-major-every)),
-    var(--dw-grid-size) var(--dw-grid-size),
-    var(--dw-grid-size) var(--dw-grid-size); }
-.dw-label { font-size: var(--dw-t-micro); text-transform: uppercase; letter-spacing: var(--dw-track-label);
-  font-weight: 500; color: var(--dw-ink-70); }
-.dw-annot { font-size: var(--dw-t-annot); line-height: 1.45; color: var(--dw-ink-70); }
-.dw-num { font-variant-numeric: tabular-nums; }
-.dw-state { display: inline-flex; align-items: center; gap: var(--dw-s1); font-size: var(--dw-t-micro);
-  text-transform: uppercase; letter-spacing: var(--dw-track-label); padding: 3px var(--dw-s2);
-  border: var(--dw-rule-hair) solid currentColor; }
-.dw-state::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: currentColor; flex: none; }
-.dw-state--caution { color: var(--dw-caution); }
-.dw-state--normal { color: var(--dw-normal); }
-.dw-state--failure { color: var(--dw-failure); border-width: var(--dw-rule-thin); }
-.dw-titleblock { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-  border: var(--dw-rule-bold) solid var(--dw-ink); }
-.dw-titleblock-cell { padding: var(--dw-s2) var(--dw-s3); border-right: var(--dw-rule-hair) solid var(--dw-ink-12);
-  display: flex; flex-direction: column; gap: var(--dw-s1); min-width: 0; }
-.dw-titleblock-cell:last-child { border-right: 0; }
-.dw-titleblock-key { font-size: var(--dw-t-micro); text-transform: uppercase; letter-spacing: var(--dw-track-label);
-  color: var(--dw-ink-70); }
-.dw-titleblock-val { font-size: var(--dw-t-body); font-variant-numeric: tabular-nums; overflow-wrap: break-word; }
-.dw-dimension-value { font-size: var(--dw-t-micro); letter-spacing: var(--dw-track-label); text-transform: uppercase;
-  color: var(--dw-ink-70); font-variant-numeric: tabular-nums; white-space: nowrap; }
-.dw-paper :focus-visible { outline: var(--dw-rule-bold) solid var(--dw-focus, var(--dw-caution)); outline-offset: 2px; }
-@media (prefers-reduced-motion: reduce) {
-  .dw-paper *, .dw-paper *::before, .dw-paper *::after { animation-duration: 0.01ms !important;
-    animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; scroll-behavior: auto !important; }
+  --av-t-micro: 0.75rem;  /* deck: 0.6875rem */
+  --av-t-annot: 0.875rem; /* deck: 0.8125rem */
 }
 
 /* ==========================================================================
@@ -125,21 +53,21 @@ try{if(matchMedia('(prefers-color-scheme: dark)').matches)document.documentEleme
    ========================================================================== */
 * { box-sizing: border-box; }
 body { margin: 0; }
-.none { color: var(--dw-ink-30); } /* an absent value is a mark, not text */
+.none { color: var(--av-ink-30); } /* an absent value is a mark, not text */
 /* The failure kind, and what a node does with a tag. Neither is author text:
    each is one word of a closed set the file never writes, derived from the
    throw steps and the raised moves. So they set as marks — micro, tracked,
    upper — beside the tag, which is the author's and reads as text. */
-.ekind, .efate { font-size: var(--dw-t-micro); text-transform: uppercase;
-  letter-spacing: var(--dw-track-label); font-weight: 500; color: var(--dw-ink-70); }
-.efate { color: var(--dw-ink-30); }
+.ekind, .efate { font-size: var(--av-t-micro); text-transform: uppercase;
+  letter-spacing: var(--av-track-label); font-weight: 500; color: var(--av-ink-70); }
+.efate { color: var(--av-ink-30); }
 .etag { display: block; white-space: normal; }
 /* Secondary text — an aside, a description, a message — is ink 80. The system
    floor is 70, and the labels stay there; running text at 70 on paper read as
    grey, and a reader who cannot read an aside has been handed nothing. */
-.dim { color: var(--dw-ink-80); }
-.ok { color: var(--dw-normal); }
-.caut { color: var(--dw-caution); }
+.dim { color: var(--av-ink-80); }
+.ok { color: var(--av-normal); }
+.caut { color: var(--av-caution); }
 
 /* Every region is defined by how fast what it holds changes, and each control
    sits with what it acts on. The two splitters move --side-w and --cut-h. */
@@ -162,25 +90,25 @@ body { margin: 0; }
 /* min-width 0 on both, or the grid does not hold them: a grid item's automatic
    minimum is its content, so a picker wider than the pane widens the whole
    head, and the head widens the column instead of the picker shrinking. */
-.head { grid-area: head; display: flex; flex-direction: column; gap: var(--dw-s2); min-width: 0;
-  padding: var(--dw-s2) var(--dw-s3); border-bottom: var(--dw-rule-bold) solid var(--dw-ink); }
-.head-row { display: flex; align-items: center; gap: var(--dw-s3); flex-wrap: wrap; min-width: 0; }
-.head-id { display: flex; align-items: center; gap: var(--dw-s2); min-width: 0; }
+.head { grid-area: head; display: flex; flex-direction: column; gap: var(--av-s2); min-width: 0;
+  padding: var(--av-s2) var(--av-s3); border-bottom: var(--av-rule-bold) solid var(--av-ink); }
+.head-row { display: flex; align-items: center; gap: var(--av-s3); flex-wrap: wrap; min-width: 0; }
+.head-id { display: flex; align-items: center; gap: var(--av-s2); min-width: 0; }
 .head-mark { flex: none; display: block; }
 /* The lockup: the mark beside two stacked rows, the sheet's name over the
    selected run's line. The mark is sized to both rows together (the title's
    18px at 1.3, plus the annotation's 14px at 1.45 = 43.7px), so it stands
    against the pair rather than floating beside one of them. */
 .head-text { display: flex; flex-direction: column; min-width: 0; }
-.head-title { font-size: var(--dw-t-lead); font-weight: 600; line-height: 1.3; white-space: nowrap;
+.head-title { font-size: var(--av-t-lead); font-weight: 600; line-height: 1.3; white-space: nowrap;
   overflow: hidden; text-overflow: ellipsis; max-width: 28rem; }
 /* A blurb is a sentence, so the cap is generous — 34rem clipped the shipped
    examples on a wide screen. Narrow screens still ellipsis it, by flex shrink. */
 .head-blurb { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 52rem; }
-select, button, input { font: inherit; font-size: var(--dw-t-micro); color: var(--dw-ink);
-  background: var(--dw-paper); border: var(--dw-rule-hair) solid var(--dw-ink-30); border-radius: 0;
-  padding: 4px var(--dw-s2); }
-select { font-size: var(--dw-t-annot); border-color: var(--dw-ink); border-width: var(--dw-rule-thin); max-width: 22rem; }
+select, button, input { font: inherit; font-size: var(--av-t-micro); color: var(--av-ink);
+  background: var(--av-paper); border: var(--av-rule-hair) solid var(--av-ink-30); border-radius: 0;
+  padding: 4px var(--av-s2); }
+select { font-size: var(--av-t-annot); border-color: var(--av-ink); border-width: var(--av-rule-thin); max-width: 22rem; }
 /* The run picker reads "name — blurb", which the 22rem cap cut mid-sentence.
    It takes whatever the row has left instead — the labels, the sheet picker
    and the step controls are all as wide as their content, so the run picker is
@@ -189,41 +117,41 @@ select { font-size: var(--dw-t-annot); border-color: var(--dw-ink); border-width
    page. The sheet picker keeps the default cap: a graph title is a few words,
    and a picker wider than the longest of them is empty box. */
 #run { flex: 1 1 0; min-width: 0; max-width: none; }
-input[type=checkbox] { accent-color: var(--dw-ink); margin: 0 var(--dw-s1) 0 0; vertical-align: -1px; }
-.btn { text-transform: uppercase; letter-spacing: var(--dw-track-label); font-weight: 500; cursor: pointer;
+input[type=checkbox] { accent-color: var(--av-ink); margin: 0 var(--av-s1) 0 0; vertical-align: -1px; }
+.btn { text-transform: uppercase; letter-spacing: var(--av-track-label); font-weight: 500; cursor: pointer;
   transition: border-color 150ms; }
-.btn:hover { border-color: var(--dw-ink); }
+.btn:hover { border-color: var(--av-ink); }
 /* A control that can do nothing right now stays legible — ink 70 is the text
    floor — and loses its outline weight and its pointer. Structure, not tone. */
-.btn[disabled] { color: var(--dw-ink-70); cursor: default; border-color: var(--dw-ink-12); }
+.btn[disabled] { color: var(--av-ink-70); cursor: default; border-color: var(--av-ink-12); }
 /* No auto margin: the run picker absorbs the row's slack, so the controls sit
    against it rather than being flung at the far edge — and when the row wraps
    on a narrow window they start at the left like everything else. */
-.btn-group { display: flex; gap: var(--dw-s1); align-items: center; flex: none; }
-.stepnow { font-size: var(--dw-t-micro); letter-spacing: var(--dw-track-label); font-variant-numeric: tabular-nums;
-  color: var(--dw-ink-70); min-width: 6rem; text-align: right; }
+.btn-group { display: flex; gap: var(--av-s1); align-items: center; flex: none; }
+.stepnow { font-size: var(--av-t-micro); letter-spacing: var(--av-track-label); font-variant-numeric: tabular-nums;
+  color: var(--av-ink-70); min-width: 6rem; text-align: right; }
 
 /* Plan — the drawing. Pan and zoom are load-bearing: it does not fit at 1:1.
    A drag anywhere on it pans, a node included, and a drag selects no text. The
    wheel pans too, and with ctrl held it zooms about the pointer. */
 .plan { grid-area: plan; overflow: hidden; position: relative;
-  border-right: var(--dw-rule-bold) solid var(--dw-ink); cursor: grab; touch-action: none; }
+  border-right: var(--av-rule-bold) solid var(--av-ink); cursor: grab; touch-action: none; }
 .plan.grabbing { cursor: grabbing; }
 .plan.grabbing, .plan.grabbing * { user-select: none; -webkit-user-select: none; }
-#canvas { position: absolute; top: 0; left: 0; transform-origin: 0 0; padding: var(--dw-s4); }
+#canvas { position: absolute; top: 0; left: 0; transform-origin: 0 0; padding: var(--av-s4); }
 #wires { position: absolute; inset: 0; overflow: visible; pointer-events: none; }
 .sheet-root.tree-on .plan { cursor: default; }
 
 /* The wires. Line weight says what the walk did: on the stack now, bold;
    walked, thin; not yet, a hairline in construction ink. A cut edge is dashed.
    No hex value lives here — every stroke reads the ramp. */
-.wire { fill: none; stroke: var(--dw-ink-30); stroke-width: var(--dw-rule-hair); }
-.wire--walked { stroke: var(--dw-ink); stroke-width: var(--dw-rule-thin); }
-.wire--live { stroke: var(--dw-ink); stroke-width: var(--dw-rule-bold); }
+.wire { fill: none; stroke: var(--av-ink-30); stroke-width: var(--av-rule-hair); }
+.wire--walked { stroke: var(--av-ink); stroke-width: var(--av-rule-thin); }
+.wire--live { stroke: var(--av-ink); stroke-width: var(--av-rule-bold); }
 .wire--cut { stroke-dasharray: 4 4; }
 .wire--err { stroke-dasharray: 4 4; }
-.ar { fill: var(--dw-ink-30); }
-.ar--ink { fill: var(--dw-ink); }
+.ar { fill: var(--av-ink-30); }
+.ar--ink { fill: var(--av-ink); }
 /* The direction of a call is something a reader sees rather than works out.
    It keeps moving while the cursor rests on the move, so a step is never a
    still frame that looks frozen. The system's reduced-motion block collapses
@@ -237,63 +165,63 @@ input[type=checkbox] { accent-color: var(--dw-ink); margin: 0 var(--dw-s1) 0 0; 
    that drive the walk. One row per tool, with a fixed key column so the rows
    read as a table of controls. The live tool takes the tab treatment — full
    ink and a bold bottom rule — which is line weight, not a fill. */
-.toolblock { position: absolute; top: var(--dw-s2); right: var(--dw-s2); z-index: 4;
-  display: flex; flex-direction: column; align-items: stretch; background: var(--dw-paper);
-  border: var(--dw-rule-thin) solid var(--dw-ink); }
+.toolblock { position: absolute; top: var(--av-s2); right: var(--av-s2); z-index: 4;
+  display: flex; flex-direction: column; align-items: stretch; background: var(--av-paper);
+  border: var(--av-rule-thin) solid var(--av-ink); }
 .toolblock .grp { display: flex; align-items: stretch; }
-.toolblock .grp + .grp { border-top: var(--dw-rule-hair) solid var(--dw-ink-30); }
-.toolblock .grp-k { width: 4.5rem; flex: none; text-align: left; border-right: var(--dw-rule-hair) solid var(--dw-ink-12);
-  padding: 3px var(--dw-s2); align-self: center; }
-.toolblock button { border: 0; border-left: var(--dw-rule-hair) solid var(--dw-ink-12); background: transparent;
-  padding: 3px var(--dw-s2); font-size: var(--dw-t-micro); text-transform: uppercase;
-  letter-spacing: var(--dw-track-label); color: var(--dw-ink); cursor: pointer;
-  border-bottom: var(--dw-rule-bold) solid transparent; }
+.toolblock .grp + .grp { border-top: var(--av-rule-hair) solid var(--av-ink-30); }
+.toolblock .grp-k { width: 4.5rem; flex: none; text-align: left; border-right: var(--av-rule-hair) solid var(--av-ink-12);
+  padding: 3px var(--av-s2); align-self: center; }
+.toolblock button { border: 0; border-left: var(--av-rule-hair) solid var(--av-ink-12); background: transparent;
+  padding: 3px var(--av-s2); font-size: var(--av-t-micro); text-transform: uppercase;
+  letter-spacing: var(--av-track-label); color: var(--av-ink); cursor: pointer;
+  border-bottom: var(--av-rule-bold) solid transparent; }
 .toolblock .grp button:first-of-type { border-left: 0; }
-.toolblock button:hover { border-bottom-color: var(--dw-ink-30); }
-.toolblock button.on { border-bottom-color: var(--dw-ink); font-weight: 600; }
-.toolblock button[disabled] { color: var(--dw-ink-70); cursor: default; font-weight: 400; }
+.toolblock button:hover { border-bottom-color: var(--av-ink-30); }
+.toolblock button.on { border-bottom-color: var(--av-ink); font-weight: 600; }
+.toolblock button[disabled] { color: var(--av-ink-70); cursor: default; font-weight: 400; }
 .toolblock button[disabled]:hover { border-bottom-color: transparent; }
 /* A tool that can do nothing on this file keeps its name and loses its weight,
    and carries the reason as a help note. It is not the disabled attribute: a
    disabled button gets no pointer events, so the note could never show. */
-.toolblock button[aria-disabled=true] { color: var(--dw-ink-70); cursor: help; font-weight: 400; }
+.toolblock button[aria-disabled=true] { color: var(--av-ink-70); cursor: help; font-weight: 400; }
 .toolblock button[aria-disabled=true]:hover { border-bottom-color: transparent; }
-.toolblock .now { padding: 3px var(--dw-s2); font-size: var(--dw-t-micro); letter-spacing: var(--dw-track-label);
+.toolblock .now { padding: 3px var(--av-s2); font-size: var(--av-t-micro); letter-spacing: var(--av-track-label);
   font-variant-numeric: tabular-nums; align-self: center; min-width: 4.5rem; text-align: center;
-  border-left: var(--dw-rule-hair) solid var(--dw-ink-12); }
+  border-left: var(--av-rule-hair) solid var(--av-ink-12); }
 
 /* A node is a part on the drawing. Its states are line weights: the open one
    carries an outline set off the box, one on the stack a hairline outside it,
    one the walk has not reached a hairline box in construction ink. */
-.nd { position: absolute; width: 288px; background: var(--dw-paper); border: var(--dw-rule-bold) solid var(--dw-ink);
-  padding: var(--dw-s2); cursor: pointer; overflow: hidden; transition: border-color 150ms; }
-.nd--cold { border-width: var(--dw-rule-hair); border-color: var(--dw-ink-30); color: var(--dw-ink-70); }
-.nd--sel { outline: var(--dw-rule-thin) solid var(--dw-ink); outline-offset: 7px; }
-.nd--active { outline: var(--dw-rule-hair) solid var(--dw-ink-30); outline-offset: 4px; }
-.nd--error { border-color: var(--dw-caution); }
-.nd-top { display: flex; align-items: center; gap: var(--dw-s1); margin-bottom: 2px; }
-.nd-name { font-weight: 600; font-size: var(--dw-t-body); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.nd-loc { font-size: var(--dw-t-micro); color: var(--dw-ink-70); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.nd-ch { display: grid; grid-template-columns: 1.2rem 1fr; gap: 0 var(--dw-s1); font-size: var(--dw-t-micro);
-  margin-top: var(--dw-s1); padding-top: var(--dw-s1); border-top: var(--dw-rule-hair) solid var(--dw-ink-12); }
+.nd { position: absolute; width: 288px; background: var(--av-paper); border: var(--av-rule-bold) solid var(--av-ink);
+  padding: var(--av-s2); cursor: pointer; overflow: hidden; transition: border-color 150ms; }
+.nd--cold { border-width: var(--av-rule-hair); border-color: var(--av-ink-30); color: var(--av-ink-70); }
+.nd--sel { outline: var(--av-rule-thin) solid var(--av-ink); outline-offset: 7px; }
+.nd--active { outline: var(--av-rule-hair) solid var(--av-ink-30); outline-offset: 4px; }
+.nd--error { border-color: var(--av-caution); }
+.nd-top { display: flex; align-items: center; gap: var(--av-s1); margin-bottom: 2px; }
+.nd-name { font-weight: 600; font-size: var(--av-t-body); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.nd-loc { font-size: var(--av-t-micro); color: var(--av-ink-70); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.nd-ch { display: grid; grid-template-columns: 1.2rem 1fr; gap: 0 var(--av-s1); font-size: var(--av-t-micro);
+  margin-top: var(--av-s1); padding-top: var(--av-s1); border-top: var(--av-rule-hair) solid var(--av-ink-12); }
 .nd-ch b { font-weight: 600; cursor: help; }
 .nd-ch span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.fx { display: flex; align-items: center; gap: var(--dw-s1); font-size: var(--dw-t-micro); color: var(--dw-ink-70); margin-top: 3px; }
-.fx-dot { width: 5px; height: 5px; border-radius: 50%; background: var(--dw-ink-30); flex: none; }
-.fx-lead { width: var(--dw-s2); border-top: var(--dw-rule-thin) solid var(--dw-ink-30); flex: none; }
+.fx { display: flex; align-items: center; gap: var(--av-s1); font-size: var(--av-t-micro); color: var(--av-ink-70); margin-top: 3px; }
+.fx-dot { width: 5px; height: 5px; border-radius: 50%; background: var(--av-ink-30); flex: none; }
+.fx-lead { width: var(--av-s2); border-top: var(--av-rule-thin) solid var(--av-ink-30); flex: none; }
 .fx-txt { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.fx--ok .fx-dot { background: var(--dw-normal); }
-.fx--ok .fx-lead { border-top-color: var(--dw-normal); }
-.fx--fail .fx-dot { background: var(--dw-caution); }
-.fx--fail .fx-lead { border-top-color: var(--dw-caution); }
-.nd-cut { font-size: var(--dw-t-micro); color: var(--dw-caution); margin-top: 3px; }
+.fx--ok .fx-dot { background: var(--av-normal); }
+.fx--ok .fx-lead { border-top-color: var(--av-normal); }
+.fx--fail .fx-dot { background: var(--av-caution); }
+.fx--fail .fx-lead { border-top-color: var(--av-caution); }
+.nd-cut { font-size: var(--av-t-micro); color: var(--av-caution); margin-top: 3px; }
 .chip-help { cursor: help; }
 
 /* The tree. The same file and the same walk, on paper. Stepping works here;
    only the animation goes. A row on the stack carries a bold left rule; the
    row whose node is open in the cutaway carries a thin ink box, the same
    outline the drawing gives the open node. No fill. */
-.tree { padding: var(--dw-s4) var(--dw-s3); overflow: auto; height: 100%; display: none; flex-direction: column; gap: 2px; }
+.tree { padding: var(--av-s4) var(--av-s3); overflow: auto; height: 100%; display: none; flex-direction: column; gap: 2px; }
 .sheet-root.tree-on .tree { display: flex; }
 .sheet-root.tree-on #canvas, .sheet-root.tree-on #wires { display: none; }
 /* A row is a small grid, not one line. Name, kind and the three channels sit
@@ -301,48 +229,48 @@ input[type=checkbox] { accent-color: var(--dw-ink); margin: 0 var(--dw-s1) 0 0; 
    marks take a second line under them. On one nowrap line a long name painted
    straight over the channels next to it. */
 .tr { display: grid; grid-template-columns: minmax(14rem, max-content) 5rem minmax(12rem, 1fr);
-  column-gap: var(--dw-s3); row-gap: 2px; align-items: baseline; padding: 5px var(--dw-s2); background: var(--dw-paper);
-  font-size: var(--dw-t-annot); border: var(--dw-rule-hair) solid var(--dw-ink-12);
-  border-left: var(--dw-rule-bold) solid transparent; cursor: pointer; }
-.tr--cold { color: var(--dw-ink-70); }
-.tr--active { border-left-color: var(--dw-ink); }
-.tr--sel { border-color: var(--dw-ink); border-width: var(--dw-rule-thin); border-left-width: var(--dw-rule-bold); }
-.tr--sel:not(.tr--active) { border-left-color: var(--dw-ink); }
+  column-gap: var(--av-s3); row-gap: 2px; align-items: baseline; padding: 5px var(--av-s2); background: var(--av-paper);
+  font-size: var(--av-t-annot); border: var(--av-rule-hair) solid var(--av-ink-12);
+  border-left: var(--av-rule-bold) solid transparent; cursor: pointer; }
+.tr--cold { color: var(--av-ink-70); }
+.tr--active { border-left-color: var(--av-ink); }
+.tr--sel { border-color: var(--av-ink); border-width: var(--av-rule-thin); border-left-width: var(--av-rule-bold); }
+.tr--sel:not(.tr--active) { border-left-color: var(--av-ink); }
 .tr-name { font-weight: 600; overflow-wrap: anywhere; }
 .tr-kind { align-self: baseline; }
-.tr-ch { font-size: var(--dw-t-micro); min-width: 0; overflow-wrap: anywhere; }
+.tr-ch { font-size: var(--av-t-micro); min-width: 0; overflow-wrap: anywhere; }
 .tr-ch b { font-weight: 600; cursor: help; }
-.tr-ch .sep { display: inline-block; width: var(--dw-s2); }
-.tr-under { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 2px var(--dw-s3); font-size: var(--dw-t-micro); }
+.tr-ch .sep { display: inline-block; width: var(--av-s2); }
+.tr-under { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 2px var(--av-s3); font-size: var(--av-t-micro); }
 .tr-under:empty { display: none; }
-.tr-site { color: var(--dw-ink-70); overflow-wrap: anywhere; }
-.tr-fx { color: var(--dw-ink-70); white-space: nowrap; }
+.tr-site { color: var(--av-ink-70); overflow-wrap: anywhere; }
+.tr-fx { color: var(--av-ink-70); white-space: nowrap; }
 
 /* The rail. It reads the walk, and it moves on every step. Deleting it changes
    the drawing's scale by nothing, so what goes in it is never an argument
    about the drawing. The holds are its header: the head drives the walk
    forward, the holds say where it stops. */
 .side { grid-area: side; position: relative; overflow-y: auto; display: flex; flex-direction: column; }
-.side-head { display: flex; gap: var(--dw-s3); align-items: center; flex-wrap: wrap;
-  padding: var(--dw-s2) var(--dw-s3); border-bottom: var(--dw-rule-bold) solid var(--dw-ink);
-  position: sticky; top: 0; background: var(--dw-paper); z-index: 1; }
+.side-head { display: flex; gap: var(--av-s3); align-items: center; flex-wrap: wrap;
+  padding: var(--av-s2) var(--av-s3); border-bottom: var(--av-rule-bold) solid var(--av-ink);
+  position: sticky; top: 0; background: var(--av-paper); z-index: 1; }
 .side-head label { display: inline-flex; align-items: center; cursor: pointer; }
 .side-head label[data-help] { cursor: help; }
-.blk { padding: var(--dw-s2) var(--dw-s3) var(--dw-s3); border-bottom: var(--dw-rule-hair) solid var(--dw-ink-12); }
-.blk > .dw-label { display: block; margin-bottom: var(--dw-s1); }
-.row { display: flex; gap: var(--dw-s1); font-size: var(--dw-t-annot); align-items: baseline; }
-.row-k { color: var(--dw-ink-70); flex: none; }
+.blk { padding: var(--av-s2) var(--av-s3) var(--av-s3); border-bottom: var(--av-rule-hair) solid var(--av-ink-12); }
+.blk > .av-label { display: block; margin-bottom: var(--av-s1); }
+.row { display: flex; gap: var(--av-s1); font-size: var(--av-t-annot); align-items: baseline; }
+.row-k { color: var(--av-ink-70); flex: none; }
 .row-v { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.frame { display: block; width: 100%; text-align: left; border: 0; border-left: var(--dw-rule-bold) solid transparent;
-  padding: 2px var(--dw-s2); cursor: pointer; background: transparent; font-size: var(--dw-t-annot); }
-.frame--top { border-left-color: var(--dw-ink); }
-.var { display: flex; align-items: baseline; gap: var(--dw-s1); margin-bottom: 2px; }
-.var-k { width: 6rem; flex: none; font-size: var(--dw-t-micro); color: var(--dw-ink-70); text-align: right; }
-.var-v { min-width: 0; flex: 1; font-size: var(--dw-t-micro); overflow-wrap: anywhere; }
-.led { display: flex; gap: var(--dw-s1); font-size: var(--dw-t-micro); padding: 2px 0;
-  border-bottom: var(--dw-rule-hair) solid var(--dw-ink-12); }
+.frame { display: block; width: 100%; text-align: left; border: 0; border-left: var(--av-rule-bold) solid transparent;
+  padding: 2px var(--av-s2); cursor: pointer; background: transparent; font-size: var(--av-t-annot); }
+.frame--top { border-left-color: var(--av-ink); }
+.var { display: flex; align-items: baseline; gap: var(--av-s1); margin-bottom: 2px; }
+.var-k { width: 6rem; flex: none; font-size: var(--av-t-micro); color: var(--av-ink-70); text-align: right; }
+.var-v { min-width: 0; flex: 1; font-size: var(--av-t-micro); overflow-wrap: anywhere; }
+.led { display: flex; gap: var(--av-s1); font-size: var(--av-t-micro); padding: 2px 0;
+  border-bottom: var(--av-rule-hair) solid var(--av-ink-12); }
 .led:last-child { border-bottom: 0; }
-.led-seq { color: var(--dw-ink-70); flex: none; }
+.led-seq { color: var(--av-ink-70); flex: none; }
 .led-body { min-width: 0; flex: 1; }
 .led-body div { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
@@ -358,7 +286,7 @@ input[type=checkbox] { accent-color: var(--dw-ink); margin: 0 var(--dw-s1) 0 0; 
 .split { position: absolute; z-index: 5; touch-action: none; }
 .split-v { left: -7px; top: 0; bottom: 0; width: 14px; cursor: col-resize; }
 .split-h { top: -7px; left: 0; right: 0; height: 14px; cursor: row-resize; }
-.split::before, .split::after { content: ''; position: absolute; background: var(--dw-ink); opacity: 0;
+.split::before, .split::after { content: ''; position: absolute; background: var(--av-ink); opacity: 0;
   transition: opacity 150ms; pointer-events: none; }
 .split-v::before { left: 5px; top: 0; bottom: 0; width: 4px; }
 .split-h::before { top: 5px; left: 0; right: 0; height: 4px; }
@@ -371,63 +299,63 @@ input[type=checkbox] { accent-color: var(--dw-ink); margin: 0 var(--dw-s1) 0 0; 
 
 /* The cutaway. One node — its source, its files, its declared contract. The
    step the cursor is on carries a bold left rule, no fill. */
-.cut { grid-area: cut; position: relative; border-top: var(--dw-rule-bold) solid var(--dw-ink);
-  border-right: var(--dw-rule-bold) solid var(--dw-ink); display: flex; flex-direction: column; min-height: 0; }
-.cut-head { display: flex; align-items: baseline; gap: var(--dw-s2); padding: var(--dw-s1) var(--dw-s3);
-  border-bottom: var(--dw-rule-hair) solid var(--dw-ink-12); }
-.tape { flex: 1; overflow: auto; padding: var(--dw-s2) var(--dw-s3) var(--dw-s3); }
-.tabs { margin-left: auto; display: flex; gap: var(--dw-s2); }
-.tab { border: 0; background: transparent; padding: 2px 0; font-size: var(--dw-t-micro); text-transform: uppercase;
-  letter-spacing: var(--dw-track-label); color: var(--dw-ink); cursor: pointer;
-  border-bottom: var(--dw-rule-bold) solid transparent; transition: border-color 150ms; }
-.tab:hover { border-bottom-color: var(--dw-ink-30); }
-.tab--on { border-bottom-color: var(--dw-ink); font-weight: 600; }
-.tp { display: flex; align-items: flex-start; gap: var(--dw-s2); font-size: var(--dw-t-annot); line-height: 1.5;
-  padding: 1px 0 1px var(--dw-s2); border-left: var(--dw-rule-bold) solid transparent; }
-.tp--here { border-left-color: var(--dw-ink); }
-.tp-n { width: 1.5rem; text-align: right; color: var(--dw-ink-70); font-size: var(--dw-t-micro); flex: none; padding-top: 2px; }
-.tp-lbl { width: 5rem; flex: none; font-size: var(--dw-t-micro); text-transform: uppercase;
-  letter-spacing: var(--dw-track-label); color: var(--dw-ink-70); padding-top: 2px; }
+.cut { grid-area: cut; position: relative; border-top: var(--av-rule-bold) solid var(--av-ink);
+  border-right: var(--av-rule-bold) solid var(--av-ink); display: flex; flex-direction: column; min-height: 0; }
+.cut-head { display: flex; align-items: baseline; gap: var(--av-s2); padding: var(--av-s1) var(--av-s3);
+  border-bottom: var(--av-rule-hair) solid var(--av-ink-12); }
+.tape { flex: 1; overflow: auto; padding: var(--av-s2) var(--av-s3) var(--av-s3); }
+.tabs { margin-left: auto; display: flex; gap: var(--av-s2); }
+.tab { border: 0; background: transparent; padding: 2px 0; font-size: var(--av-t-micro); text-transform: uppercase;
+  letter-spacing: var(--av-track-label); color: var(--av-ink); cursor: pointer;
+  border-bottom: var(--av-rule-bold) solid transparent; transition: border-color 150ms; }
+.tab:hover { border-bottom-color: var(--av-ink-30); }
+.tab--on { border-bottom-color: var(--av-ink); font-weight: 600; }
+.tp { display: flex; align-items: flex-start; gap: var(--av-s2); font-size: var(--av-t-annot); line-height: 1.5;
+  padding: 1px 0 1px var(--av-s2); border-left: var(--av-rule-bold) solid transparent; }
+.tp--here { border-left-color: var(--av-ink); }
+.tp-n { width: 1.5rem; text-align: right; color: var(--av-ink-70); font-size: var(--av-t-micro); flex: none; padding-top: 2px; }
+.tp-lbl { width: 5rem; flex: none; font-size: var(--av-t-micro); text-transform: uppercase;
+  letter-spacing: var(--av-track-label); color: var(--av-ink-70); padding-top: 2px; }
 .tp-src { min-width: 0; flex: 1; overflow-wrap: anywhere; }
 .kw { font-weight: 600; }
-.fgroup { margin-bottom: var(--dw-s3); }
-.fgroup > .dw-label { display: block; margin-bottom: var(--dw-s1); }
+.fgroup { margin-bottom: var(--av-s3); }
+.fgroup > .av-label { display: block; margin-bottom: var(--av-s1); }
 /* A directory tree, one step of indent per level. The indent is a class on a
    wrapper rather than a width on the row, because a depth written into an
    attribute is a number the markup has to compute and this one does not. */
-.ftree { padding-left: var(--dw-s3); border-left: var(--dw-rule-hair) solid var(--dw-ink-12); }
+.ftree { padding-left: var(--av-s3); border-left: var(--av-rule-hair) solid var(--av-ink-12); }
 /* A directory prints in the case the path is written in. Upper-casing it, the
    way a label is upper-cased, would show a reader a path that is not the one
    in the change. */
-.fdir { font-size: var(--dw-t-annot); color: var(--dw-ink-70); padding: 1px 0; overflow-wrap: anywhere; }
+.fdir { font-size: var(--av-t-annot); color: var(--av-ink-70); padding: 1px 0; overflow-wrap: anywhere; }
 .fdir + .frow, .fdir + .ftree { margin-top: 1px; }
 /* A file is a mark, a path and its counts on one line, with the reason trailing
    the path the way a comment trails a line of code. */
-.frow { display: grid; grid-template-columns: 1.25rem 1fr 5rem; gap: 0 var(--dw-s2); align-items: baseline;
-  font-size: var(--dw-t-annot); padding: 1px 0; }
-.fwhy { font-size: var(--dw-t-micro); color: var(--dw-ink-70); }
-.fchange { font-size: var(--dw-t-micro); color: var(--dw-ink-70); }
+.frow { display: grid; grid-template-columns: 1.25rem 1fr 5rem; gap: 0 var(--av-s2); align-items: baseline;
+  font-size: var(--av-t-annot); padding: 1px 0; }
+.fwhy { font-size: var(--av-t-micro); color: var(--av-ink-70); }
+.fchange { font-size: var(--av-t-micro); color: var(--av-ink-70); }
 .fpath { min-width: 0; overflow-wrap: anywhere; }
-.fnum { text-align: right; font-variant-numeric: tabular-nums; font-size: var(--dw-t-micro); color: var(--dw-ink-70); }
+.fnum { text-align: right; font-variant-numeric: tabular-nums; font-size: var(--av-t-micro); color: var(--av-ink-70); }
 
 /* The footer band states the sheet. Only the trace moves. The title block sits
    under the band's own top rule, so its other three sides are dropped. */
-.block { grid-area: block; border-top: var(--dw-rule-bold) solid var(--dw-ink); }
-.block .dw-titleblock { border-left: 0; border-right: 0; border-bottom: 0; border-top: 0; }
+.block { grid-area: block; border-top: var(--av-rule-bold) solid var(--av-ink); }
+.block .av-titleblock { border-left: 0; border-right: 0; border-bottom: 0; border-top: 0; }
 .stamp { align-self: flex-start; cursor: help; }
-.trace { padding: var(--dw-s2) var(--dw-s3); border-top: var(--dw-rule-hair) solid var(--dw-ink-12); }
-.traceband { display: flex; align-items: center; gap: var(--dw-s4); }
-.sheetfacts { display: flex; align-items: baseline; gap: var(--dw-s3); flex: none; font-size: var(--dw-t-micro);
-  color: var(--dw-ink-70); white-space: nowrap; max-width: 46rem; overflow: hidden; text-overflow: ellipsis; }
-.sheetfacts span + span { padding-left: var(--dw-s3); border-left: var(--dw-rule-hair) solid var(--dw-ink-12); }
-.sheetfacts b { font-weight: 600; color: var(--dw-ink); }
+.trace { padding: var(--av-s2) var(--av-s3); border-top: var(--av-rule-hair) solid var(--av-ink-12); }
+.traceband { display: flex; align-items: center; gap: var(--av-s4); }
+.sheetfacts { display: flex; align-items: baseline; gap: var(--av-s3); flex: none; font-size: var(--av-t-micro);
+  color: var(--av-ink-70); white-space: nowrap; max-width: 46rem; overflow: hidden; text-overflow: ellipsis; }
+.sheetfacts span + span { padding-left: var(--av-s3); border-left: var(--av-rule-hair) solid var(--av-ink-12); }
+.sheetfacts b { font-weight: 600; color: var(--av-ink); }
 /* The trace is a dimension line the reader can take hold of at any time,
    including while the walk is playing. */
 .trace-span { position: relative; flex: 1; height: 18px; display: flex; align-items: center; cursor: pointer;
   touch-action: none; }
-.trace-rule { position: absolute; inset: 50% 0 auto; height: 0; border-top: var(--dw-rule-thin) solid var(--dw-ink-30); }
-.trace-fill { position: absolute; inset: 50% auto auto 0; height: 0; border-top: var(--dw-rule-bold) solid var(--dw-ink); }
-.trace-tick { position: absolute; top: 0; bottom: 0; width: 0; border-left: var(--dw-rule-bold) solid var(--dw-ink); }
+.trace-rule { position: absolute; inset: 50% 0 auto; height: 0; border-top: var(--av-rule-thin) solid var(--av-ink-30); }
+.trace-fill { position: absolute; inset: 50% auto auto 0; height: 0; border-top: var(--av-rule-bold) solid var(--av-ink); }
+.trace-tick { position: absolute; top: 0; bottom: 0; width: 0; border-left: var(--av-rule-bold) solid var(--av-ink); }
 .sheet-root.scrubbing .trace-span { cursor: grabbing; }
 .sheet-root.scrubbing, .sheet-root.scrubbing * { user-select: none; -webkit-user-select: none; }
 
@@ -435,13 +363,13 @@ input[type=checkbox] { accent-color: var(--dw-ink); margin: 0 var(--dw-s1) 0 0; 
    pointer rests on it or focus lands on it. An annotation on paper in the
    system's vocabulary: a thin ink box, annotation size, ink 80 — no shadow, no
    radius, no colour. The text is the page's own and never the file's. */
-.tip { position: fixed; z-index: 20; max-width: 38ch; padding: var(--dw-s1) var(--dw-s2);
-  background: var(--dw-paper); color: var(--dw-ink-80); border: var(--dw-rule-thin) solid var(--dw-ink);
-  font-size: var(--dw-t-annot); line-height: 1.45; text-transform: none; letter-spacing: normal;
+.tip { position: fixed; z-index: 20; max-width: 38ch; padding: var(--av-s1) var(--av-s2);
+  background: var(--av-paper); color: var(--av-ink-80); border: var(--av-rule-thin) solid var(--av-ink);
+  font-size: var(--av-t-annot); line-height: 1.45; text-transform: none; letter-spacing: normal;
   font-weight: 400; pointer-events: none; }
 .tip[hidden] { display: none; }
-.tip::before { content: ''; position: absolute; left: var(--dw-s2); top: -7px; width: 5px; height: 5px;
-  border-radius: 50%; background: var(--dw-ink); }
+.tip::before { content: ''; position: absolute; left: var(--av-s2); top: -7px; width: 5px; height: 5px;
+  border-radius: 50%; background: var(--av-ink); }
 .tip--above::before { top: auto; bottom: -7px; }
 /* A control that carries a help note keeps the cursor its job gives it. The
    two grips said col-resize and row-resize and were shown as an arrow, because
@@ -455,12 +383,12 @@ button[data-help][aria-disabled=true] { cursor: help; }
 .split-h[data-help] { cursor: row-resize; }
 .trace-span[data-help] { cursor: pointer; }
 
-.refused { padding: var(--dw-s4); max-width: 60rem; }
-.refused h1 { font-size: var(--dw-t-h3); }
-.refused li { font-size: var(--dw-t-annot); }
+.refused { padding: var(--av-s4); max-width: 60rem; }
+.refused h1 { font-size: var(--av-t-h3); }
+.refused li { font-size: var(--av-t-annot); }
 </style>
 </head>
-<body class="dw-paper">
+<body class="av-paper">
 <div class="sheet-root" id="root">
   <div class="head">
    <div class="head-row">
@@ -472,13 +400,13 @@ button[data-help][aria-disabled=true] { cursor: help; }
            one is never drawn below 40. Geometry is the brand handoff's,
            coordinate for coordinate; do not tidy the paths. -->
       <svg class="head-mark" viewBox="0 0 24 24" width="44" height="44" role="img" aria-label="groundtrack" data-help="groundtrack">
-        <rect x="0.8" y="0.8" width="22.4" height="22.4" fill="var(--dw-ink)"></rect>
+        <rect x="0.8" y="0.8" width="22.4" height="22.4" fill="var(--av-ink)"></rect>
         <g transform="rotate(90 12 12) translate(24,0) scale(-1,1)">
-          <g fill="none" stroke="var(--dw-paper)" stroke-width="1.0">
+          <g fill="none" stroke="var(--av-paper)" stroke-width="1.0">
             <path d="M13.2 19 A 5.8 5.8 0 0 1 19 13.2"></path>
             <path d="M6.8 19 A 12.2 12.2 0 0 1 19 6.8"></path>
           </g>
-          <g stroke="var(--dw-paper)" stroke-width="1.05">
+          <g stroke="var(--av-paper)" stroke-width="1.05">
             <line x1="6.8" y1="19" x2="13.2" y2="19"></line>
             <line x1="7.73" y1="14.33" x2="13.64" y2="16.78"></line>
             <line x1="10.37" y1="10.37" x2="14.90" y2="14.90"></line>
@@ -486,11 +414,11 @@ button[data-help][aria-disabled=true] { cursor: help; }
             <line x1="19" y1="6.8" x2="19" y2="13.2"></line>
           </g>
         </g>
-        <g stroke="var(--dw-paper)" stroke-width="1.0">
+        <g stroke="var(--av-paper)" stroke-width="1.0">
           <line x1="10.8" y1="5.0" x2="10.8" y2="1.9"></line>
           <line x1="17.2" y1="5.0" x2="17.2" y2="1.9"></line>
         </g>
-        <g stroke="var(--dw-caution)" stroke-width="1.05">
+        <g stroke="var(--av-caution)" stroke-width="1.05">
           <line x1="10.8" y1="2.6" x2="17.2" y2="2.6"></line>
         </g>
       </svg>
@@ -499,7 +427,7 @@ button[data-help][aria-disabled=true] { cursor: help; }
         <!-- The selected run's line. It sits under the sheet's name rather than
              loose on the head row, so the head reads as one lockup; the run
              picker is a step away, and the label on it says what it changes. -->
-        <span class="dw-annot head-blurb" id="runBlurb"></span>
+        <span class="av-annot head-blurb" id="runBlurb"></span>
       </div>
     </div>
    </div>
@@ -509,7 +437,7 @@ button[data-help][aria-disabled=true] { cursor: help; }
         than a run and it changes what the runs are. -->
    <div class="head-row">
     <!--SHEETS-->
-    <label class="dw-label" for="run">run</label>
+    <label class="av-label" for="run">run</label>
     <select id="run" data-help="Which recorded walk to step. Each run is one route through the graph."></select>
     <div class="btn-group">
       <button class="btn" id="first" data-help="Back to the start">|&lt;</button>
@@ -522,20 +450,20 @@ button[data-help][aria-disabled=true] { cursor: help; }
    </div>
   </div>
 
-  <div class="plan dw-grid" id="plan">
+  <div class="plan av-grid" id="plan">
     <div class="toolblock">
       <div class="grp">
-        <span class="grp-k dw-label">zoom</span>
+        <span class="grp-k av-label">zoom</span>
         <button id="zoomOut" data-help="Zoom out">&minus;</button>
         <button id="zoomFit" data-help="Fit the whole drawing in the pane">fit</button>
         <button id="zoomIn" data-help="Zoom in">+</button>
         <span class="now" id="scaleNow" data-help="The scale the drawing is shown at, as a ratio">1:1</span>
       </div>
       <div class="grp" id="layerGrp">
-        <span class="grp-k dw-label" data-help="A layer redraws the same graph under a different set of dependencies. The test layer is the obvious one.">layer</span>
+        <span class="grp-k av-label" data-help="A layer redraws the same graph under a different set of dependencies. The test layer is the obvious one.">layer</span>
       </div>
       <div class="grp">
-        <span class="grp-k dw-label">view</span>
+        <span class="grp-k av-label">view</span>
         <button id="viewPlan" class="on" data-help="The drawing">plan</button>
         <button id="viewTree" data-help="The same graph as an indented tree, one row per call site. Stepping still works here.">tree</button>
       </div>
@@ -547,21 +475,21 @@ button[data-help][aria-disabled=true] { cursor: help; }
   <div class="side" id="side">
     <div class="split split-v" id="splitV" data-help="Drag to resize the rail"></div>
     <div class="side-head">
-      <label class="dw-label" data-help="When playing, stop on the next move that touches the outside world — a network call, a file, the console."><input type="checkbox" id="holdEffect">hold on next effect</label>
-      <label class="dw-label" data-help="When playing, stop on the next throw, the next effect that raises, or an error reaching the top uncaught."><input type="checkbox" id="holdError">hold on next error</label>
+      <label class="av-label" data-help="When playing, stop on the next move that touches the outside world — a network call, a file, the console."><input type="checkbox" id="holdEffect">hold on next effect</label>
+      <label class="av-label" data-help="When playing, stop on the next throw, the next effect that raises, or an error reaching the top uncaught."><input type="checkbox" id="holdError">hold on next error</label>
     </div>
-    <div class="blk"><span class="dw-label" data-help="The frames open at the cursor, top first. How the walk got to the node it is on.">call stack</span><div id="stack"></div></div>
-    <div class="blk"><span class="dw-label" data-help="The values this run started from. Read-only: the walk was recorded under exactly these.">inputs</span><div id="inputs"></div></div>
-    <div class="blk"><span class="dw-label" data-help="How far the current error has travelled: where it was raised, which frames it passed through, and where it was caught.">error path</span><div id="errpath"></div></div>
-    <div class="blk"><span class="dw-label" data-help="Every effect the walk has run so far, in order, with what the author says it returned or raised.">effects ledger</span><div id="ledger"></div></div>
+    <div class="blk"><span class="av-label" data-help="The frames open at the cursor, top first. How the walk got to the node it is on.">call stack</span><div id="stack"></div></div>
+    <div class="blk"><span class="av-label" data-help="The values this run started from. Read-only: the walk was recorded under exactly these.">inputs</span><div id="inputs"></div></div>
+    <div class="blk"><span class="av-label" data-help="How far the current error has travelled: where it was raised, which frames it passed through, and where it was caught.">error path</span><div id="errpath"></div></div>
+    <div class="blk"><span class="av-label" data-help="Every effect the walk has run so far, in order, with what the author says it returned or raised.">effects ledger</span><div id="ledger"></div></div>
   </div>
 
   <div class="cut" id="cut">
     <div class="split split-h" id="splitH" data-help="Drag to resize the cutaway"></div>
     <div class="cut-head">
-      <span class="dw-label" data-help="One node, opened up. Click a node on the drawing or a row in the tree to open it here.">cutaway</span>
+      <span class="av-label" data-help="One node, opened up. Click a node on the drawing or a row in the tree to open it here.">cutaway</span>
       <strong id="cutName"></strong>
-      <span class="dw-annot" id="cutLoc"></span>
+      <span class="av-annot" id="cutLoc"></span>
       <div class="tabs">
         <button class="tab tab--on" data-tab="source" data-help="The node's steps, with the cursor marked">source</button>
         <button class="tab" data-tab="files" data-help="The files this node changes, the files other nodes change, and the files in the change no node accounts for. The mark says how: N new, E edit, D delete, F forbidden.">files</button>
@@ -572,7 +500,7 @@ button[data-help][aria-disabled=true] { cursor: help; }
   </div>
 
   <div class="block">
-    <div class="dw-titleblock" id="titleblock"></div>
+    <div class="av-titleblock" id="titleblock"></div>
     <div class="trace">
       <div class="traceband">
         <div class="sheetfacts" id="sheetfacts"></div>
@@ -581,7 +509,7 @@ button[data-help][aria-disabled=true] { cursor: help; }
           <div class="trace-fill" id="traceFill"></div>
           <div class="trace-tick" id="traceTick"></div>
         </div>
-        <span class="dw-dimension-value" id="traceVal"></span>
+        <span class="av-dimension-value" id="traceVal"></span>
       </div>
     </div>
   </div>
@@ -770,11 +698,11 @@ function start() {
       'nd' + (cold ? ' nd--cold' : '') + (onStack ? ' nd--active' : '') +
       (erroring ? ' nd--error' : '') + (S.open === id ? ' nd--sel' : '');
     const chip = top
-      ? '<span class="dw-label chip-help" style="margin-left:auto" data-help="The frame the cursor is in">on stack</span>'
+      ? '<span class="av-label chip-help" style="margin-left:auto" data-help="The frame the cursor is in">on stack</span>'
       : onStack
-        ? '<span class="dw-label chip-help" style="margin-left:auto" data-help="On the stack, suspended at a call, waiting for the callee to return">waiting</span>'
+        ? '<span class="av-label chip-help" style="margin-left:auto" data-help="On the stack, suspended at a call, waiting for the callee to return">waiting</span>'
         : visited
-          ? '<span style="margin-left:auto"><span class="dw-state dw-state--normal chip-help" data-help="Entered and returned earlier in this walk">returned</span></span>'
+          ? '<span style="margin-left:auto"><span class="av-state av-state--normal chip-help" data-help="Entered and returned earlier in this walk">returned</span></span>'
           : '';
     const E = (ch.E || []).length ? (ch.E || []).map(esc).join(' &middot; ') : '<span class="none">never</span>';
     const R = rOf(id).length ? esc(rOf(id).join(', ')) : '<span class="none">none</span>';
@@ -797,7 +725,7 @@ function start() {
     return (
       '<div class="' + cls + '" data-node="' + id + '" style="left:' + p.x + 'px;top:' + p.y +
       'px;width:' + LAYOUT.width + 'px">' +
-      '<div class="nd-top"><span class="dw-label chip-help" data-help="' + HELP.role + '">' + esc(n.role) + '</span>' + chip + '</div>' +
+      '<div class="nd-top"><span class="av-label chip-help" data-help="' + HELP.role + '">' + esc(n.role) + '</span>' + chip + '</div>' +
       '<div class="nd-name">' + esc(n.name) + '</div>' +
       '<div class="nd-loc">' + esc(n.loc) + '</div>' +
       '<div class="nd-ch">' + channelKey('A') + '<span>' + esc(ch.A || '—') + '</span>' +
@@ -830,7 +758,7 @@ function start() {
           '<div class="' + cls + '" data-node="' + row.id + '" style="padding-left:' + (row.depth * 24 + 12) + 'px">' +
           '<span class="tr-name">' + (row.depth ? '&rarr; ' : '') + esc(row.name) +
           (row.repeat ? ' <span class="none">(seen above — stopped)</span>' : '') + '</span>' +
-          '<span class="dw-label tr-kind" data-help="' + HELP.role + '">' + esc(row.role) + '</span>' +
+          '<span class="av-label tr-kind" data-help="' + HELP.role + '">' + esc(row.role) + '</span>' +
           '<span class="tr-ch">' + channelKey('A') + ' ' + esc(row.A || '—') + '<span class="sep"></span>' + channelKey('E') + ' ' + E +
           '<span class="sep"></span>' + channelKey('R') + ' ' + R + '</span>' +
           '<span class="tr-under">' + siteText + marks + '</span></div>'
@@ -841,7 +769,7 @@ function start() {
 
   /* -- the rail ----------------------------------------------------------- */
   function drawStack(st) {
-    if (!st.frames.length) return '<div class="dw-annot">no frame open</div>';
+    if (!st.frames.length) return '<div class="av-annot">no frame open</div>';
     return st.frames
       .slice()
       .reverse()
@@ -860,7 +788,7 @@ function start() {
   function drawInputs() {
     const input = SHEET.presets[S.run].input || {};
     const keys = Object.keys(input);
-    if (!keys.length) return '<div class="dw-annot">this run starts from nothing</div>';
+    if (!keys.length) return '<div class="av-annot">this run starts from nothing</div>';
     return keys
       .map(function (k) {
         return '<div class="var"><span class="var-k">' + esc(k) + '</span><span class="var-v">' + esc(show(input[k])) + '</span></div>';
@@ -869,7 +797,7 @@ function start() {
   }
 
   function drawErrPath(st) {
-    if (!st.errorPath.length) return '<div class="dw-annot">nothing has raised</div>';
+    if (!st.errorPath.length) return '<div class="av-annot">nothing has raised</div>';
     return st.errorPath
       .map(function (e) {
         const who = e.nodeId ? PROG.nodes[e.nodeId].name : 'the top';
@@ -882,7 +810,7 @@ function start() {
   }
 
   function drawLedger(st) {
-    if (!st.ledger.length) return '<div class="dw-annot">nothing touched the outside world yet</div>';
+    if (!st.ledger.length) return '<div class="av-annot">nothing touched the outside world yet</div>';
     return st.ledger
       .map(function (l, i) {
         const mark = l.outcome === 'failed'
@@ -974,11 +902,11 @@ function start() {
   function drawTitleBlock() {
     const run = SHEET.presets[S.run];
     const authored = run.walk.provenance === 'authored';
-    const cell = (k, v) => '<div class="dw-titleblock-cell"><span class="dw-titleblock-key">' + k + '</span><span class="dw-titleblock-val">' + v + '</span></div>';
+    const cell = (k, v) => '<div class="av-titleblock-cell"><span class="av-titleblock-key">' + k + '</span><span class="av-titleblock-val">' + v + '</span></div>';
     /* Authored draws as a bordered caution stamp, captured as a nominal one —
        one of green's few honest uses. */
     const stamp =
-      '<span class="dw-state stamp ' + (authored ? 'dw-state--caution' : 'dw-state--normal') + '" data-help="' +
+      '<span class="av-state stamp ' + (authored ? 'av-state--caution' : 'av-state--normal') + '" data-help="' +
       (authored ? HELP.authored : HELP.captured) + '">' + (authored ? 'authored' : 'captured') + '</span>';
     return (
       cell('file', esc(PROG.id)) +
@@ -1448,7 +1376,7 @@ function start() {
     tip.hidden = false;
     el.setAttribute('aria-describedby', 'tip');
     /* Below the thing by default, above it when there is no room, and never
-       off the edge of the window. The margins are the system's --dw-s2 and
+       off the edge of the window. The margins are the system's --av-s2 and
        the leader gap, held here because a layout number cannot be read out
        of a custom property without a round trip through computed style. */
     const EDGE = 12, GAP = 9;

@@ -31,12 +31,17 @@ try{if(matchMedia('(prefers-color-scheme: dark)').matches)document.documentEleme
 /*AVIATION*/
 </style>
 <style>
-/* Drafting: one ink on one paper; amber = caution only, green = normal only; neutrals are ink at alpha; no radius, no shadow. */
+/* This page's own, and only this page's. The palette, the neutral ramp, the
+   face, the rules and the dark layer all arrive from the bundle inlined above;
+   nothing here re-declares one.
+
+   THE SPACING SCALE STAYS LOCAL. The system's is 6/12/24/36/48/72, geometric
+   off a 24px pitch, and this page's is 8/14/20/28/36/48 — a flatter run that
+   was solved against the option cards and the index gutter. Rewriting onto the
+   system scale would move every gap on the page, which is a design change and
+   not a rename. --sp-* is what a reader loosens; --av-s* is what the system
+   sets, and neither is pretending to be the other. */
 :root{
-  --dw-paper:#fafaf7; --dw-ink:#22262b; --dw-caution:#b45309; --dw-normal:#15803d;
-  --dw-ink-80:rgb(34 38 43 / .8); --dw-ink-55:rgb(34 38 43 / .55); --dw-ink-30:rgb(34 38 43 / .3); --dw-ink-12:rgb(34 38 43 / .12); --dw-grid:rgb(34 38 43 / .05);
-  --dw-font:'IBM Plex Mono',ui-monospace,'SFMono-Regular',Menlo,Consolas,monospace;
-  /* Spacing scale. Raise these to loosen the whole page; nothing hardcodes a gap that is on this scale. */
   --sp-1:8px; --sp-2:14px; --sp-3:20px; --sp-4:28px; --sp-5:36px; --sp-6:48px;
   --sp-gutter:36px;              /* the left/right margin every band shares */
   --card-min:350px;              /* option card track width in the row detail */
@@ -47,46 +52,48 @@ try{if(matchMedia('(prefers-color-scheme: dark)').matches)document.documentEleme
    which outranks the UA rule for [hidden] — so without this line neither panel ever hides. */
 [hidden]{display:none!important}
 html,body{height:100%}
-body{margin:0;font-family:var(--dw-font);font-size:15px;line-height:1.6;color:var(--dw-ink);background-color:var(--dw-paper);
-  background-image:linear-gradient(to right,var(--dw-grid) 1px,transparent 1px),linear-gradient(to bottom,var(--dw-grid) 1px,transparent 1px);background-size:24px 24px}
+/* The ground, the ink, the face and the ruling now come from the system: the
+   page wears av-paper and av-grid--single on <body>. Single-tier, which is
+   what this page drew before — a findings sheet is not graph paper. */
+body{margin:0;background-size:var(--av-grid-size) var(--av-grid-size)}
 button{font:inherit;color:inherit;background:none;border:0;padding:0;cursor:pointer;text-align:left}
-input,textarea{font:inherit;color:inherit;background:var(--dw-paper);border:1px solid var(--dw-ink-30)}
-.label{font-size:11px;text-transform:uppercase;letter-spacing:.16em;font-weight:500;color:var(--dw-ink-55)}
+input,textarea{font:inherit;color:inherit;background:var(--av-paper);border:1px solid var(--av-ink-30)}
+.label{font-size:11px;text-transform:uppercase;letter-spacing:.16em;font-weight:500;color:var(--av-ink-55)}
 .num{font-variant-numeric:tabular-nums}
-.chip{font-size:11px;text-transform:uppercase;letter-spacing:.16em;padding:6px 14px;border:1px solid var(--dw-ink);color:var(--dw-ink);background:transparent;white-space:nowrap;
+.chip{font-size:11px;text-transform:uppercase;letter-spacing:.16em;padding:6px 14px;border:1px solid var(--av-ink);color:var(--av-ink);background:transparent;white-space:nowrap;
   transition:color .16s var(--ease),border-color .16s var(--ease),background-color .16s var(--ease)}
-.chip:hover{color:var(--dw-caution);border-color:var(--dw-caution)}
-.chip.on{background:var(--dw-ink);color:var(--dw-paper);border-color:var(--dw-ink)}
-.chip.on:hover{color:var(--dw-paper);border-color:var(--dw-ink)}
+.chip:hover{color:var(--av-caution);border-color:var(--av-caution)}
+.chip.on{background:var(--av-ink);color:var(--av-paper);border-color:var(--av-ink)}
+.chip.on:hover{color:var(--av-paper);border-color:var(--av-ink)}
 /* Three weights of chip, separated by line weight and by where the label sits on the ink ramp — never by colour (Drafting rule 1).
    Drafting annotates that ramp by role: ink-80 is secondary prose, ink-55 is annotation and captions, ink-30 and ink-12 are
    hairlines and dividers. A control label set at ink-55 is typeset as a caption, which is why Coach, Export, Reset and Close
    all read as switched off. Secondary keeps the hairline border and takes ink-80, the system's own secondary-prose alpha. */
-.chip.ghost{border-color:var(--dw-ink-30);color:var(--dw-ink-80)}
+.chip.ghost{border-color:var(--av-ink-30);color:var(--av-ink-80)}
 /* Ghost sits after .chip:hover at equal specificity, so without this line it silently ate its own hover state
    and answered the pointer with nothing. A secondary control still responds; that is what makes it not-disabled. */
-.chip.ghost:hover{color:var(--dw-caution);border-color:var(--dw-caution)}
+.chip.ghost:hover{color:var(--av-caution);border-color:var(--av-caution)}
 /* Disabled is the only chip allowed to sit at rule alpha, and the only one that does not answer the pointer.
    Two tells, not one: the label drops to hairline alpha and the hover response goes away. */
-.chip:disabled,.chip.disabled{border-color:var(--dw-ink-12);color:var(--dw-ink-30);cursor:not-allowed}
-.chip:disabled:hover,.chip.disabled:hover{color:var(--dw-ink-30);border-color:var(--dw-ink-12)}
+.chip:disabled,.chip.disabled{border-color:var(--av-ink-12);color:var(--av-ink-30);cursor:not-allowed}
+.chip:disabled:hover,.chip.disabled:hover{color:var(--av-ink-30);border-color:var(--av-ink-12)}
 /* Reset holding an undo offer. Amber, because taking a reset back is a recovery, not a normal move. */
 /* Filled, not outlined: every chip goes amber on hover, so an outline would say nothing here. */
-#reset.armed{background:var(--dw-caution);border-color:var(--dw-caution);color:var(--dw-paper)}
+#reset.armed{background:var(--av-caution);border-color:var(--av-caution);color:var(--av-paper)}
 /* "Undo" is shorter than "Reset", so the swap used to resize the button mid-hover, drop it back under a
    pointer on its way out, and oscillate. Reserve one box for both labels and the resize cannot happen. */
 #reset{min-width:9ch;text-align:center}
 .state{display:inline-flex;align-items:center;gap:6px;font-size:11px;text-transform:uppercase;letter-spacing:.16em;padding:4px 13px;border:1px solid currentColor;white-space:nowrap}
 .state::before{content:'';width:6px;height:6px;border-radius:50%;background:currentColor;flex:none}
-.state.caution{color:var(--dw-caution)} .state.normal{color:var(--dw-normal)} .state.ink{color:var(--dw-ink-55)}
-.tier{font-size:11px;text-transform:uppercase;letter-spacing:.16em;color:var(--dw-ink-55);white-space:nowrap}
-.tier.measured{color:var(--dw-normal)} .tier.sourced{color:var(--dw-ink)} .tier.argued{color:var(--dw-caution)}
+.state.caution{color:var(--av-caution)} .state.normal{color:var(--av-normal)} .state.ink{color:var(--av-ink-55)}
+.tier{font-size:11px;text-transform:uppercase;letter-spacing:.16em;color:var(--av-ink-55);white-space:nowrap}
+.tier.measured{color:var(--av-normal)} .tier.sourced{color:var(--av-ink)} .tier.argued{color:var(--av-caution)}
 .dot{display:inline-block;width:6px;height:6px;border-radius:50%;flex:none}
-.dot.caution{background:var(--dw-caution)} .dot.normal{background:var(--dw-normal)} .dot.ink{background:var(--dw-ink)}
+.dot.caution{background:var(--av-caution)} .dot.normal{background:var(--av-normal)} .dot.ink{background:var(--av-ink)}
 .page{min-height:100%;padding:var(--sp-4);display:flex;flex-direction:column}
-.sheet{flex:1;border:2px solid var(--dw-ink);background:rgb(250 250 247 / .72);display:flex;flex-direction:column;min-height:calc(100vh - var(--sp-4) * 2)}
+.sheet{flex:1;border:2px solid var(--av-ink);background:var(--av-surface);display:flex;flex-direction:column;min-height:calc(100vh - var(--sp-4) * 2)}
 #view{flex:1;display:flex;flex-direction:column;min-height:0}
-.head{display:flex;justify-content:space-between;align-items:flex-end;gap:var(--sp-4);padding:var(--sp-4) var(--sp-gutter) var(--sp-3);border-bottom:1px solid var(--dw-ink-30);flex-wrap:wrap}
+.head{display:flex;justify-content:space-between;align-items:flex-end;gap:var(--sp-4);padding:var(--sp-4) var(--sp-gutter) var(--sp-3);border-bottom:1px solid var(--av-ink-30);flex-wrap:wrap}
 .head h1{font-size:24px;font-weight:600;line-height:1.25;margin:10px 0 0}
 /* The lockup: mark and text in a flex row, gap 16, vertically centred — the brand's own rule.
    The mark is sized to the two text rows it stands beside (eyebrow 11px at 1.6, plus the h1's
@@ -95,132 +102,132 @@ input,textarea{font:inherit;color:inherit;background:var(--dw-paper);border:1px 
 .head-mark{flex:none;display:block;width:56px;height:56px}
 .controls{display:flex;gap:var(--sp-3);align-items:center;flex-wrap:wrap}
 .controls .group{display:flex;gap:var(--sp-1);align-items:center;flex-wrap:wrap}
-.preset-note{display:flex;gap:var(--sp-4);align-items:flex-start;padding:var(--sp-2) var(--sp-gutter);border-bottom:1px solid var(--dw-ink-12);font-size:13px;line-height:1.55;color:var(--dw-ink-80)}
+.preset-note{display:flex;gap:var(--sp-4);align-items:flex-start;padding:var(--sp-2) var(--sp-gutter);border-bottom:1px solid var(--av-ink-12);font-size:13px;line-height:1.55;color:var(--av-ink-80)}
 .preset-note p{margin:0;flex:1;max-width:78ch}
 .steps{display:flex;gap:var(--sp-1);flex-wrap:wrap}
-.steps button{font-size:11px;text-transform:uppercase;letter-spacing:.16em;padding:5px 12px;border:1px solid var(--dw-ink-30);color:var(--dw-ink-80);
+.steps button{font-size:11px;text-transform:uppercase;letter-spacing:.16em;padding:5px 12px;border:1px solid var(--av-ink-30);color:var(--av-ink-80);
   transition:color .16s var(--ease),border-color .16s var(--ease),opacity .2s var(--ease)}
-.steps button:hover{color:var(--dw-caution);border-color:var(--dw-caution)}
-.steps button.next{border-color:var(--dw-ink);color:var(--dw-ink)}
+.steps button:hover{color:var(--av-caution);border-color:var(--av-caution)}
+.steps button.next{border-color:var(--av-ink);color:var(--av-ink)}
 .steps button.done{opacity:.4}
 /* Export: the one line worth reading stays open; the long Markdown folds away. */
-.exportbox{padding:var(--sp-2) var(--sp-gutter) var(--sp-3);border-bottom:1px solid var(--dw-ink-12);display:flex;flex-direction:column;gap:var(--sp-2)}
+.exportbox{padding:var(--sp-2) var(--sp-gutter) var(--sp-3);border-bottom:1px solid var(--av-ink-12);display:flex;flex-direction:column;gap:var(--sp-2)}
 .exportbox textarea{width:100%;font-size:12.5px;line-height:1.5;padding:var(--sp-2);resize:vertical;margin-top:var(--sp-1)}
 .exportbox .row{display:flex;gap:var(--sp-1);align-items:center;flex-wrap:wrap}
 .exportbox input{flex:1;min-width:240px;font-size:12.5px;padding:7px 10px}
-.exportbox details{border-top:1px solid var(--dw-ink-12);padding-top:var(--sp-2);margin-top:0}
+.exportbox details{border-top:1px solid var(--av-ink-12);padding-top:var(--sp-2);margin-top:0}
 .exportbox .spacer{margin-left:auto;display:flex;gap:var(--sp-1)}
-.restore{flex:1;min-width:0;font-size:12.5px;padding:7px 10px;border:1px dashed var(--dw-ink-30);color:var(--dw-ink-80);overflow-x:auto;white-space:nowrap;user-select:all}
+.restore{flex:1;min-width:0;font-size:12.5px;padding:7px 10px;border:1px dashed var(--av-ink-30);color:var(--av-ink-80);overflow-x:auto;white-space:nowrap;user-select:all}
 /* findings view */
 .findings{flex:1;display:grid;grid-template-columns:400px minmax(0,1fr);min-height:0}
-.index{border-right:1px solid var(--dw-ink-30);display:flex;flex-direction:column}
-.index .row{display:grid;grid-template-columns:28px 1fr auto;gap:var(--sp-2);align-items:center;padding:var(--sp-2) var(--sp-4);border-bottom:1px solid var(--dw-ink-12);font-size:13px;line-height:1.5;width:100%;
+.index{border-right:1px solid var(--av-ink-30);display:flex;flex-direction:column}
+.index .row{display:grid;grid-template-columns:28px 1fr auto;gap:var(--sp-2);align-items:center;padding:var(--sp-2) var(--sp-4);border-bottom:1px solid var(--av-ink-12);font-size:13px;line-height:1.5;width:100%;
   transition:background-color .16s var(--ease),box-shadow .2s var(--ease),color .16s var(--ease)}
-.index .row:hover{background:rgb(34 38 43 / .04)}
-.index .row.open{box-shadow:inset 3px 0 0 var(--dw-ink)}
-.index .row.over{background:var(--dw-ink);color:var(--dw-paper)}
-.index .row.over .label,.index .row.over .muted{color:rgb(250 250 247 / .55)}
+.index .row:hover{background:rgb(from var(--av-ink) r g b / .04)}
+.index .row.open{box-shadow:inset 3px 0 0 var(--av-ink)}
+.index .row.over{background:var(--av-ink);color:var(--av-paper)}
+.index .row.over .label,.index .row.over .muted{color:rgb(from var(--av-paper) r g b / .55)}
 .index .row.predict{cursor:pointer}
-.index .row.predicted{box-shadow:inset 3px 0 0 var(--dw-caution)}
-.index .row.hit{box-shadow:inset 3px 0 0 var(--dw-normal)}
-.index .row.miss{box-shadow:inset 3px 0 0 var(--dw-caution);background:rgb(217 119 6 / .08)}
-.index .row.fp{box-shadow:inset 3px 0 0 var(--dw-ink-30)}
-.muted{color:var(--dw-ink-55)}
-.index .legend{margin-top:auto;padding:var(--sp-3) var(--sp-4);border-top:1px solid var(--dw-ink-30);display:flex;gap:var(--sp-3);flex-wrap:wrap;line-height:1.9}
+.index .row.predicted{box-shadow:inset 3px 0 0 var(--av-caution)}
+.index .row.hit{box-shadow:inset 3px 0 0 var(--av-normal)}
+.index .row.miss{box-shadow:inset 3px 0 0 var(--av-caution);background:rgb(from var(--av-caution) r g b / .08)}
+.index .row.fp{box-shadow:inset 3px 0 0 var(--av-ink-30)}
+.muted{color:var(--av-ink-55)}
+.index .legend{margin-top:auto;padding:var(--sp-3) var(--sp-4);border-top:1px solid var(--av-ink-30);display:flex;gap:var(--sp-3);flex-wrap:wrap;line-height:1.9}
 .right{display:flex;flex-direction:column;min-width:0}
 /* The brief sits in the findings list, under the lead block, and scrolls with it. It was pinned above
    the verdict bar first. That cost the whole right pane a band of text on every view, including the
    open row, where the reader has already asked a narrower question and wants the option cards. Here it
    is in front of the reader who opens the page, and out of the way of the reader who went deeper. */
 .brief{display:flex;flex-direction:column;gap:var(--sp-1);margin:var(--sp-3) 0 0}
-.brief p{margin:0;font-size:14px;line-height:1.6;color:var(--dw-ink-80);max-width:78ch}
+.brief p{margin:0;font-size:14px;line-height:1.6;color:var(--av-ink-80);max-width:78ch}
 /* Row gap tight, column gap wide: who and when read as one line when they fit, and as two close
    lines when they wrap. One gap for both made the wrapped pair look like two separate blocks. */
-.brief .facts{display:flex;gap:2px var(--sp-4);flex-wrap:wrap;font-size:13px;line-height:1.6;color:var(--dw-ink-55)}
-.brief .facts b{font-weight:500;color:var(--dw-ink-80)}
+.brief .facts{display:flex;gap:2px var(--sp-4);flex-wrap:wrap;font-size:13px;line-height:1.6;color:var(--av-ink-55)}
+.brief .facts b{font-weight:500;color:var(--av-ink-80)}
 /* The reframe is the author speaking about this configuration, so it is marked as an aside and not as
    more of the problem. It shows only while the preset that wrote it owns the grid. */
-.brief .reframe{border-left:2px solid var(--dw-caution);padding-left:var(--sp-2);font-size:13px;color:var(--dw-ink-80)}
-.verdict-bar{display:flex;justify-content:space-between;align-items:center;gap:var(--sp-4);padding:var(--sp-3) var(--sp-6);border-bottom:1px solid var(--dw-ink-12)}
+.brief .reframe{border-left:2px solid var(--av-caution);padding-left:var(--sp-2);font-size:13px;color:var(--av-ink-80)}
+.verdict-bar{display:flex;justify-content:space-between;align-items:center;gap:var(--sp-4);padding:var(--sp-3) var(--sp-6);border-bottom:1px solid var(--av-ink-12)}
 .stamp{border:2.5px solid currentColor;padding:4px 14px;font-size:18px;text-transform:uppercase;letter-spacing:.12em;font-weight:600;transform:rotate(-2.5deg);white-space:nowrap}
-.stamp.caution{color:var(--dw-caution)} .stamp.normal{color:var(--dw-normal)} .stamp.ink{color:var(--dw-ink-30)}
+.stamp.caution{color:var(--av-caution)} .stamp.normal{color:var(--av-normal)} .stamp.ink{color:var(--av-ink-30)}
 .body{flex:1;padding:var(--sp-5) var(--sp-6) var(--sp-6);display:flex;flex-direction:column;gap:var(--sp-4);min-width:0}
 .find{display:grid;grid-template-columns:11px 48px 84px minmax(0,1fr);gap:var(--sp-2);align-items:baseline}
-.find .pt{width:11px;height:11px;border-radius:50%;background:var(--dw-ink);align-self:center}
-.find .lead{border-top:1.5px dashed var(--dw-ink-30);align-self:center}
-.find .tag{color:var(--dw-caution);font-size:11px;text-transform:uppercase;letter-spacing:.16em;font-weight:500}
-.find .tag.ink{color:var(--dw-ink-55)}
+.find .pt{width:11px;height:11px;border-radius:50%;background:var(--av-ink);align-self:center}
+.find .lead{border-top:1.5px dashed var(--av-ink-30);align-self:center}
+.find .tag{color:var(--av-caution);font-size:11px;text-transform:uppercase;letter-spacing:.16em;font-weight:500}
+.find .tag.ink{color:var(--av-ink-55)}
 .find .txt{font-size:15px;line-height:1.6}
 .h2{font-size:30px;text-transform:uppercase;letter-spacing:.12em;font-weight:600;line-height:1.15;margin:0}
-.annot{font-size:13px;line-height:1.6;color:var(--dw-ink-80);max-width:68ch}
-details{border-top:1px solid var(--dw-ink-12);padding-top:var(--sp-2);margin-top:var(--sp-1)}
+.annot{font-size:13px;line-height:1.6;color:var(--av-ink-80);max-width:68ch}
+details{border-top:1px solid var(--av-ink-12);padding-top:var(--sp-2);margin-top:var(--sp-1)}
 summary{cursor:pointer;list-style:none;display:flex;justify-content:space-between;gap:var(--sp-2);padding:2px 0;transition:color .16s var(--ease)}
-summary:hover{color:var(--dw-caution)}
+summary:hover{color:var(--av-caution)}
 summary::-webkit-details-marker{display:none}
-summary::after{content:'+';color:var(--dw-ink-55);transition:transform .2s var(--ease)}
+summary::after{content:'+';color:var(--av-ink-55);transition:transform .2s var(--ease)}
 details[open] summary::after{content:'–'}
-details ul{margin:var(--sp-2) 0 var(--sp-1);padding-left:20px;font-size:13px;line-height:1.6;color:var(--dw-ink-80)}
+details ul{margin:var(--sp-2) 0 var(--sp-1);padding-left:20px;font-size:13px;line-height:1.6;color:var(--av-ink-80)}
 details li{margin-bottom:var(--sp-1)}
 details[open] > :not(summary){animation:ee-unfold .22s var(--ease) both}
 .cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(var(--card-min),1fr));gap:var(--sp-4)}
-.card{position:relative;border:1px solid var(--dw-ink-30);padding:var(--sp-4);display:flex;flex-direction:column;gap:var(--sp-2);font-size:13px;line-height:1.6;
+.card{position:relative;border:1px solid var(--av-ink-30);padding:var(--sp-4);display:flex;flex-direction:column;gap:var(--sp-2);font-size:13px;line-height:1.6;
   transition:border-color .2s var(--ease),background-color .2s var(--ease),color .2s var(--ease),opacity .25s var(--ease)}
-.card.chosen{border:2px solid var(--dw-ink)}
-.card.over{background:var(--dw-ink);color:var(--dw-paper);border-color:var(--dw-ink)}
-.card.over .muted,.card.over .label,.card.over .tier{color:rgb(250 250 247 / .6)}
+.card.chosen{border:2px solid var(--av-ink)}
+.card.over{background:var(--av-ink);color:var(--av-paper);border-color:var(--av-ink)}
+.card.over .muted,.card.over .label,.card.over .tier{color:rgb(from var(--av-paper) r g b / .6)}
 /* The tab straddles the card's top border and keeps a paper background, so it never sits on the
    dark fill. Paper-on-paper is the rule above's blind spot: it must stay ink, not go pale. */
-.card.over .tab{color:var(--dw-ink)}
+.card.over .tab{color:var(--av-ink)}
 .card.straw{border-style:dashed;border-width:1.5px}
 .card.closed{opacity:.5}
-.card .tab{position:absolute;top:0;left:16px;transform:translateY(-50%);background:var(--dw-paper);padding:0 8px}
+.card .tab{position:absolute;top:0;left:16px;transform:translateY(-50%);background:var(--av-paper);padding:0 8px}
 .card .ttl{font-size:15.5px;font-weight:600;line-height:1.45;margin-top:6px}
-.card .cons{border-top:1px solid var(--dw-ink-12);padding-top:var(--sp-2);margin-top:var(--sp-1);display:flex;flex-direction:column;gap:var(--sp-1)}
-.card.over .cons{border-top-color:rgb(250 250 247 / .2)}
+.card .cons{border-top:1px solid var(--av-ink-12);padding-top:var(--sp-2);margin-top:var(--sp-1);display:flex;flex-direction:column;gap:var(--sp-1)}
+.card.over .cons{border-top-color:rgb(from var(--av-paper) r g b / .2)}
 .card .cons div{display:flex;gap:var(--sp-1);align-items:baseline}
 .card .act{margin-top:auto;display:flex;gap:var(--sp-2);align-items:center;justify-content:space-between;padding-top:var(--sp-2);flex-wrap:wrap}
 .card .act .chip{padding:5px 12px}
-.card.over .act .chip{border-color:var(--dw-paper);color:var(--dw-paper)}
-.card.over .act .chip.on{background:var(--dw-paper);color:var(--dw-ink)}
+.card.over .act .chip{border-color:var(--av-paper);color:var(--av-paper)}
+.card.over .act .chip.on{background:var(--av-paper);color:var(--av-ink)}
 /* The row in plain sentences, above the cards. Two halves: the authored `problem` says what the
    row is about to somebody who does not know the domain, and the derived lines say where it stands.
    Only an author can write the first — a row named "Reachable by whom" explains itself to nobody. */
-.summary{border-left:2px solid var(--dw-ink);padding:var(--sp-1) 0 var(--sp-1) var(--sp-3);margin-top:var(--sp-2);display:flex;flex-direction:column;gap:6px;max-width:84ch}
-.summary p{margin:0;font-size:14px;line-height:1.65;color:var(--dw-ink-80)}
-.summary p b{color:var(--dw-ink);font-weight:600}
-.summary .problem{font-size:14.5px;line-height:1.75;color:var(--dw-ink)}
+.summary{border-left:2px solid var(--av-ink);padding:var(--sp-1) 0 var(--sp-1) var(--sp-3);margin-top:var(--sp-2);display:flex;flex-direction:column;gap:6px;max-width:84ch}
+.summary p{margin:0;font-size:14px;line-height:1.65;color:var(--av-ink-80)}
+.summary p b{color:var(--av-ink);font-weight:600}
+.summary .problem{font-size:14.5px;line-height:1.75;color:var(--av-ink)}
 /* Not `.state` — that name is the status pill above, and it carries nowrap, a border and a ::before
    dot. A wrapper called .state inherited all three and overflowed the row. */
-.summary .derived{display:flex;flex-direction:column;gap:6px;border-top:1px solid var(--dw-ink-12);padding-top:var(--sp-2);margin-top:2px}
-.summary .hot{color:var(--dw-caution)}
-.summary .hot b{color:var(--dw-caution)}
-.coach{border:1.5px dashed var(--dw-caution);padding:var(--sp-4);display:flex;flex-direction:column;gap:var(--sp-2);font-size:13px;line-height:1.6}
+.summary .derived{display:flex;flex-direction:column;gap:6px;border-top:1px solid var(--av-ink-12);padding-top:var(--sp-2);margin-top:2px}
+.summary .hot{color:var(--av-caution)}
+.summary .hot b{color:var(--av-caution)}
+.coach{border:1.5px dashed var(--av-caution);padding:var(--sp-4);display:flex;flex-direction:column;gap:var(--sp-2);font-size:13px;line-height:1.6}
 .coach p{margin:0}
 /* sheet view */
 .sheetview{flex:1;display:flex;flex-direction:column;min-height:0}
 .grid{flex:1;display:grid;grid-template-columns:72px 220px repeat(var(--cols,4),minmax(0,1fr));grid-auto-rows:minmax(60px,auto);font-size:13px;line-height:1.55;overflow:auto}
-.grid .hd{padding:var(--sp-2) var(--sp-2);border-bottom:1px solid var(--dw-ink-30)}
-.grid .ref{padding:var(--sp-2) var(--sp-2) var(--sp-2) var(--sp-3);border-bottom:1px solid var(--dw-ink-12)}
-.grid .dim{padding:var(--sp-2);font-weight:500;border-bottom:1px solid var(--dw-ink-12);width:100%;transition:color .16s var(--ease)}
-.grid .dim:hover{color:var(--dw-caution)}
-.grid .cell{position:relative;padding:var(--sp-2);border-bottom:1px solid var(--dw-ink-12);border-right:1px solid var(--dw-ink-12);width:100%;height:100%;color:var(--dw-ink-55);
+.grid .hd{padding:var(--sp-2) var(--sp-2);border-bottom:1px solid var(--av-ink-30)}
+.grid .ref{padding:var(--sp-2) var(--sp-2) var(--sp-2) var(--sp-3);border-bottom:1px solid var(--av-ink-12)}
+.grid .dim{padding:var(--sp-2);font-weight:500;border-bottom:1px solid var(--av-ink-12);width:100%;transition:color .16s var(--ease)}
+.grid .dim:hover{color:var(--av-caution)}
+.grid .cell{position:relative;padding:var(--sp-2);border-bottom:1px solid var(--av-ink-12);border-right:1px solid var(--av-ink-12);width:100%;height:100%;color:var(--av-ink-55);
   transition:background-color .16s var(--ease),color .16s var(--ease),box-shadow .2s var(--ease)}
-.grid .cell:hover{background:rgb(34 38 43 / .04);color:var(--dw-ink)}
+.grid .cell:hover{background:rgb(from var(--av-ink) r g b / .04);color:var(--av-ink)}
 .grid .cell.empty{cursor:default;border-right:0}
-.grid .cell.chosen{box-shadow:inset 0 0 0 2px var(--dw-ink);color:var(--dw-ink);font-weight:600}
-.grid .cell.over{background:var(--dw-ink);color:var(--dw-paper);font-weight:600}
-.grid .cell.straw{border-left:1.5px dashed var(--dw-ink-30);border-right:1.5px dashed var(--dw-ink-30)}
-.grid .cell.conf{color:var(--dw-caution)}
-.grid .cell.out{color:var(--dw-ink-30);text-decoration:line-through}
-.grid .cell.req{color:var(--dw-normal)}
-.grid .cell.over.conf{background:var(--dw-ink);color:var(--dw-caution)}
-.tip{position:fixed;z-index:10;max-width:400px;background:var(--dw-paper);border:1px solid var(--dw-ink);padding:var(--sp-2) var(--sp-3);font-size:13px;line-height:1.55;color:var(--dw-ink-80);pointer-events:none;
+.grid .cell.chosen{box-shadow:inset 0 0 0 2px var(--av-ink);color:var(--av-ink);font-weight:600}
+.grid .cell.over{background:var(--av-ink);color:var(--av-paper);font-weight:600}
+.grid .cell.straw{border-left:1.5px dashed var(--av-ink-30);border-right:1.5px dashed var(--av-ink-30)}
+.grid .cell.conf{color:var(--av-caution)}
+.grid .cell.out{color:var(--av-ink-30);text-decoration:line-through}
+.grid .cell.req{color:var(--av-normal)}
+.grid .cell.over.conf{background:var(--av-ink);color:var(--av-caution)}
+.tip{position:fixed;z-index:10;max-width:400px;background:var(--av-paper);border:1px solid var(--av-ink);padding:var(--sp-2) var(--sp-3);font-size:13px;line-height:1.55;color:var(--av-ink-80);pointer-events:none;
   opacity:0;visibility:hidden;transform:translateY(-4px);transition:opacity .13s var(--ease),transform .13s var(--ease),visibility .13s}
 .tip.show{opacity:1;visibility:visible;transform:none}
-.tip .ttl{color:var(--dw-ink);font-weight:600;margin-bottom:6px}
+.tip .ttl{color:var(--av-ink);font-weight:600;margin-bottom:6px}
 .tip .foot{margin-top:var(--sp-2);display:flex;gap:var(--sp-2);flex-wrap:wrap}
-.titleblock{display:grid;grid-template-columns:1.2fr 1fr 1fr 1fr .8fr;border-top:2px solid var(--dw-ink)}
-.titleblock > div{padding:var(--sp-3) var(--sp-4);border-right:1px solid var(--dw-ink-12);display:flex;flex-direction:column;gap:var(--sp-1);min-width:0}
+.titleblock{display:grid;grid-template-columns:1.2fr 1fr 1fr 1fr .8fr;border-top:2px solid var(--av-ink)}
+.titleblock > div{padding:var(--sp-3) var(--sp-4);border-right:1px solid var(--av-ink-12);display:flex;flex-direction:column;gap:var(--sp-1);min-width:0}
 .titleblock > div:last-child{border-right:0}
 
 /* ---- motion. One rule: a band animates when the reader moved to it, never on every click. ---- */
@@ -242,12 +249,12 @@ details[open] > :not(summary){animation:ee-unfold .22s var(--ease) both}
 #view:is(.anim,.anim-body) .card:nth-child(3){animation-delay:.09s}
 #view:is(.anim,.anim-body) .card:nth-child(n+4){animation-delay:.13s}
 .stamp.vchg{animation:ee-stamp .34s var(--ease) both}
-@media (max-width:1000px){.findings{grid-template-columns:1fr}.index{border-right:0;border-bottom:1px solid var(--dw-ink-30)}
+@media (max-width:1000px){.findings{grid-template-columns:1fr}.index{border-right:0;border-bottom:1px solid var(--av-ink-30)}
   :root{--sp-gutter:24px;--sp-6:32px;--card-min:280px}}
 @media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
 </style>
 </head>
-<body>
+<body class="av-paper av-grid--single">
 <div class="page"><div class="sheet">
   <div class="head">
     <div class="head-id">
@@ -255,11 +262,11 @@ details[open] > :not(summary){animation:ee-unfold .22s var(--ease) both}
            fetches nothing. Its colours read the sheet's tokens. Geometry is the
            brand handoff's, coordinate for coordinate; do not tidy the paths. -->
       <svg class="head-mark" viewBox="0 0 24 24" role="img" aria-label="eagle-eye">
-        <rect x="0.8" y="0.8" width="22.4" height="22.4" fill="var(--dw-ink)"></rect>
-        <circle cx="12" cy="12" r="8.8" fill="none" stroke="var(--dw-paper)" stroke-width="1.4"></circle>
-        <path d="M9.85 10.5 L5.7 16.95 H18.3 L14.15 10.5" fill="none" stroke="var(--dw-paper)" stroke-width="1.4" stroke-linejoin="miter"></path>
-        <path d="M12 4.2 L14.15 8.2 H9.85 Z" fill="var(--dw-caution)"></path>
-        <line x1="8.0" y1="12.85" x2="16.0" y2="12.85" stroke="var(--dw-paper)" stroke-width="1.4"></line>
+        <rect x="0.8" y="0.8" width="22.4" height="22.4" fill="var(--av-ink)"></rect>
+        <circle cx="12" cy="12" r="8.8" fill="none" stroke="var(--av-paper)" stroke-width="1.4"></circle>
+        <path d="M9.85 10.5 L5.7 16.95 H18.3 L14.15 10.5" fill="none" stroke="var(--av-paper)" stroke-width="1.4" stroke-linejoin="miter"></path>
+        <path d="M12 4.2 L14.15 8.2 H9.85 Z" fill="var(--av-caution)"></path>
+        <line x1="8.0" y1="12.85" x2="16.0" y2="12.85" stroke="var(--av-paper)" stroke-width="1.4"></line>
       </svg>
       <div>
         <div class="label" id="eyebrow"></div>
@@ -391,7 +398,7 @@ function renderFindings(r){
   let right = verdictBar(r);
   if (veil) {
     const o = optById[sel[pending.dimId]];
-    right += `<div class="body"><div class="coach"><div class="label" style="color:var(--dw-caution)">Coach · predict, then reveal</div><p>You changed <b>${esc(o.dim.name)}</b> to “${esc(S(o.id))}”. Which rows does this change affect? Click those rows in the index. Then click Reveal.</p><p class="label">${pending.predicted.size} row${pending.predicted.size === 1 ? '' : 's'} predicted</p><div style="display:flex;gap:8px"><button class="chip on" id="reveal">Reveal</button><button class="chip" id="skipPredict">Skip</button></div></div><p class="annot">The index shows no colours and the findings are hidden until you predict. You remember more when you predict first.</p></div>`;
+    right += `<div class="body"><div class="coach"><div class="label" style="color:var(--av-caution)">Coach · predict, then reveal</div><p>You changed <b>${esc(o.dim.name)}</b> to “${esc(S(o.id))}”. Which rows does this change affect? Click those rows in the index. Then click Reveal.</p><p class="label">${pending.predicted.size} row${pending.predicted.size === 1 ? '' : 's'} predicted</p><div style="display:flex;gap:8px"><button class="chip on" id="reveal">Reveal</button><button class="chip" id="skipPredict">Skip</button></div></div><p class="annot">The index shows no colours and the findings are hidden until you predict. You remember more when you predict first.</p></div>`;
   } else if (openRow) right += renderRowDetail(r, BOX.dims.find(d => d.id === openRow));
   else right += renderFindList(r);
   $('view').innerHTML = `<div class="findings"><div class="index">${rows}${legend}</div><div class="right">${right}</div></div>`;
@@ -405,7 +412,7 @@ function renderFindings(r){
 function renderFindList(r){
   let h = '<div class="body">';
   if (pending && pending.revealed) { const hits = [...pending.predicted].filter(d => r.affected.has(d)).length, missed = [...r.affected].filter(d => !pending.predicted.has(d)).length, fp = pending.predicted.size - hits;
-    h += `<div class="coach"><div class="label" style="color:var(--dw-caution)">Coach · result</div><p><b>${hits} correct</b> · ${missed} not predicted (amber rows) · ${fp} predicted, not affected. ${missed ? 'You did not know the edges of the amber rows. Read their reasons below.' : 'You predicted every affected row.'}</p></div>`; }
+    h += `<div class="coach"><div class="label" style="color:var(--av-caution)">Coach · result</div><p><b>${hits} correct</b> · ${missed} not predicted (amber rows) · ${fp} predicted, not affected. ${missed ? 'You did not know the edges of the amber rows. Read their reasons below.' : 'You predicted every affected row.'}</p></div>`; }
   // The brief goes under the lead block's title, so the reader meets what the box decides before the
   // findings that argue about it. It is here and not above the verdict bar because that band showed on
   // every view, the open row included, where it pushed the option cards down the page.
@@ -475,7 +482,7 @@ function renderRowDetail(r, d){
     return `<div class="${cls}"><span class="tab label">${o.strawman ? 'strawman' : isChosen ? 'chosen' : isSel ? 'your change' : 'option'}${o.src ? ' · ' + esc(o.src) : ''}</span>
       <div class="ttl">${esc(o.label)}</div>
       <div class="muted">${esc(BOX.rel[id]?.why || '')}</div>
-      ${(BOX.rel[id]?.notes || []).map(n => `<div class="muted" style="border-left:1.5px solid var(--dw-ink-30);padding-left:8px">${esc(n)}</div>`).join('')}
+      ${(BOX.rel[id]?.notes || []).map(n => `<div class="muted" style="border-left:1.5px solid var(--av-ink-30);padding-left:8px">${esc(n)}</div>`).join('')}
       <div class="cons"><div class="label" style="display:block">${isSel ? 'Verdict with this option' : 'Verdict if you pick this option'} <span class="state ${vcls(what.verdict)}">${what.verdict}</span></div>${out.map(line).join('')}${inbound.map(inl).join('')}${!out.length && !inbound.length ? '<div class="muted">This option has no edges. It is independent, or an edge is missing.</div>' : ''}</div>
       <div class="act"><span class="muted">rules out ${out.filter(e => e.kind === 'conf').length} · requires ${out.filter(e => e.kind === 'req').length} · ${inbound.length} edge${inbound.length === 1 ? '' : 's'} in</span><button class="chip ${isSel ? 'on' : ''}" data-pick="${id}">${isSel ? (isChosen ? 'Chosen' : 'Undo change') : 'Pick'}</button></div></div>`;
   }).join('');

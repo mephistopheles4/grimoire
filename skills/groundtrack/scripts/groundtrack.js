@@ -188,7 +188,7 @@ const Groundtrack = (() => {
         '>' + esc(g.title) + '</option>')
       .join('');
     return (
-      '<label class="dw-label" for="sheet">sheet</label>' +
+      '<label class="av-label" for="sheet">sheet</label>' +
       '<select id="sheet" data-help="Which graph of this change to draw. One change, one file: each entry point is a sheet, and each sheet keeps its own run, cursor, layer, view and open node.">' +
       options +
       '</select>'
@@ -843,13 +843,13 @@ const Groundtrack = (() => {
       return out;
     };
     const group = (label, paths) =>
-      '<div class="fgroup"><span class="dw-label">' + label + '</span>' +
-      (paths.length ? tree(paths) : '<div class="dw-annot">none</div>') + '</div>';
+      '<div class="fgroup"><span class="av-label">' + label + '</span>' +
+      (paths.length ? tree(paths) : '<div class="av-annot">none</div>') + '</div>';
     /* A file that states no changed files has no change to account for, so
        the third group says that rather than drawing an empty tree. */
     const third = prog.files
       ? group('in the change, on no node of this sheet', unaccounted)
-      : '<div class="fgroup"><span class="dw-label">changed files</span><div class="dw-annot">not stated by this file</div></div>';
+      : '<div class="fgroup"><span class="av-label">changed files</span><div class="av-annot">not stated by this file</div></div>';
     return group('this node', mine) + group('other nodes on this sheet', others) + third;
   }
 
