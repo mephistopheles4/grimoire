@@ -200,6 +200,23 @@ if (flag('--check') || flag('--sel') !== undefined) {
 
 const template = readFileSync(resolve(here, 'lib/template.html'), 'utf8');
 const module = readFileSync(resolve(here, 'lib/eagle-eye.js'), 'utf8').replace(/\nif \(typeof module[^\n]*\n?$/, '\n');
+
+// The Aviation design system, vendored whole. One file, no imports: tokens,
+// both themes, the dark layer, the av-* vocabulary and the av-tool-* report
+// chrome. It is inlined rather than linked for the same reason the faces below
+// are — a rendered page is one file and must stand on its own. See
+// assets/FONTS.md, and do not edit the bundle in place.
+const aviation = readFileSync(resolve(here, 'assets/aviation.bundle.css'), 'utf8');
+
+// The faces, IBM's own subsets, inlined as data URIs so the page makes no
+// network request at all. The table and the rule are in lib/faces.js, which
+// scripts/build-pages.mjs reads as well — see the comment there for why the
+// unicode-range is not optional and why there is only one copy of it.
+const { FACES, faceRule } = require(resolve(here, 'lib/faces.js'));
+const faces = FACES.map(([weight, file, range]) =>
+  faceRule(weight, range, readFileSync(resolve(here, 'assets', file)).toString('base64')),
+).join('\n');
+
 // JSON inside <script>: escape "</" so a why containing "</script>" cannot close the block
 const data = JSON.stringify(box).replace(/<\//g, '<\\/');
 // Function replacements, and this is load-bearing rather than style. A *string*
@@ -211,6 +228,8 @@ const data = JSON.stringify(box).replace(/<\//g, '<\\/');
 // replacement is inserted literally and has no patterns at all.
 const html = template
   .replace('/*TITLE*/', () => box.title.replace(/[<>&]/g, ''))
+  .replace('/*AVIATION*/', () => aviation)
+  .replace('/*FONTS*/', () => faces)
   .replace('/*DATA*/', () => data)
   .replace('/*MODULE*/', () => module);
 // The default page is named .local.html, not .html. A default render writes

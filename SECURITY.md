@@ -597,19 +597,27 @@ a threat model:
   before you install it, here or anywhere.
 - **A malicious maintainer account.** Branch protection raises the cost of a bad
   commit. It does not survive a stolen account with admin rights.
-- **The one request the page makes when you open it.** "Self-contained" means
-  every line of script and style that runs is in the file. It is not "makes no
-  network request": the page links one Google Fonts stylesheet, and falls back
-  to a system font stack when that fails. So opening a page tells Google you
-  opened it. The generated `site/index.html` links the same stylesheet, for
-  the same reason and with the same fallback, so the landing page every
-  visitor hits makes the request as well. `tests/render.test.mjs` asserts
-  this is the only external reference on a rendered page and
-  `tests/build-pages.test.mjs` asserts the same of the index, which makes a
-  third one a red test rather than a discovery. Both bound what the page
+- ~~**The one request the page makes when you open it.**~~ **Closed.** This
+  entry used to say that "self-contained" meant every line of script and style
+  was in the file, but not "makes no network request" — because every page
+  linked one Google Fonts stylesheet, and so opening a page told Google you had
+  opened it. The generated `site/index.html` linked the same stylesheet, so the
+  landing page every visitor hits made the request too.
+
+  **It is now literally no network request.** The faces are vendored — IBM's
+  own IBM Plex Mono subsets, unmodified, under the SIL Open Font Licence — and
+  inlined into every page as `data:` URIs. Both skills carry their own copy
+  next to their template, and the index reads the same files. See
+  `skills/groundtrack/assets/FONTS.md` and `skills/eagle-eye/assets/FONTS.md`
+  for why they are IBM's cuts rather than ones we made.
+
+  The tests moved with it, and widened while they were being rewritten.
+  `tests/render.test.mjs`, `tests/groundtrack-render.test.mjs` and
+  `tests/build-pages.test.mjs` each now assert **zero** external references,
+  and each reads more than the old pair did: `src` and `href` anywhere rather
+  than only on a `script`, `link` or `img`, plus a CSS `@import`, a `url()`,
+  and `XMLHttpRequest` / `WebSocket` / `EventSource` / `sendBeacon`. An
+  `iframe` with a `src` is caught by the `src` rule. They bound what the page
   **loads on its own**; a link the reader clicks is not that, and the index
-  carries one to GitHub —
-  **at one width**: the test reads `src` and `href` on a `script`, `link` or
-  `img` element. A CSS `@import`, a `url()`, a `fetch` or an `iframe` is a
-  second way out that stays green. Widening the test is cheap; nobody has
-  needed to yet.
+  carries one to GitHub, named explicitly in the test rather than exempted by
+  a wildcard.

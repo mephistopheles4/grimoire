@@ -843,7 +843,12 @@ test('the emitted page holds zero external references', () => {
   assert.doesNotMatch(html, /XMLHttpRequest|WebSocket|EventSource|navigator\.sendBeacon/);
   // The faces are here instead, inlined: two subsets for each of three
   // weights, each under the unicode-range IBM declares for it.
-  assert.equal((html.match(/@font-face/g) || []).length, 6);
+  //
+  // The brace matters. The vendored design-system bundle carries a header
+  // explaining, in prose, that a stylesheet cannot embed a binary and that
+  // @font-face rules are the consumer's job — so a bare /@font-face/ counts
+  // that prose as if it were CSS. Rules have a brace; sentences do not.
+  assert.equal((html.match(/@font-face\{/g) || []).length, 6);
   assert.equal((html.match(/src:url\(data:font\/woff2;base64,/g) || []).length, 6);
   assert.equal((html.match(/unicode-range:/g) || []).length, 6);
 });
@@ -870,28 +875,52 @@ test("the shipped faces are IBM's own, unmodified", () => {
   // down ourselves would be a Modified Version that may not use it. So the
   // assets are IBM's published subsets, and this test is what notices if
   // somebody swaps in a hand-made one. See assets/FONTS.md.
-  const assets = join(groundtrack, '..', '..', 'assets');
-  const faces = readdirSync(assets).filter(f => f.endsWith('.woff2')).sort();
-  assert.deepEqual(faces, Object.keys(VENDORED).filter(f => f.endsWith('.woff2')).sort());
+  //
+  // BOTH skills, not just this one. eagle-eye vendored its own copy rather
+  // than reaching across the tree, for the reason FONTS.md gives: a skill
+  // lands in a different directory under every install route. A second copy
+  // is a second thing that can drift, so it is hashed against the same list.
+  // The first thing that went wrong with it was line endings, caught by the
+  // OFL check below one commit after the copy was made.
+  const dirs = [
+    join(groundtrack, '..', '..', 'assets'),
+    join(groundtrack, '..', '..', '..', 'eagle-eye', 'assets'),
+  ];
 
-  for (const [name, want] of Object.entries(VENDORED)) {
-    const bytes = readFileSync(join(assets, name));
-    const got = createHash('sha256').update(bytes).digest('hex');
-    assert.equal(got, want, `${name} is not the file that was vendored`);
-  }
-  for (const f of faces) {
-    assert.equal(readFileSync(join(assets, f)).subarray(0, 4).toString('latin1'), 'wOF2', `${f} is not a woff2`);
+  for (const assets of dirs) {
+    const faces = readdirSync(assets).filter(f => f.endsWith('.woff2')).sort();
+    assert.deepEqual(faces, Object.keys(VENDORED).filter(f => f.endsWith('.woff2')).sort(), assets);
+
+    for (const [name, want] of Object.entries(VENDORED)) {
+      const bytes = readFileSync(join(assets, name));
+      const got = createHash('sha256').update(bytes).digest('hex');
+      assert.equal(got, want, `${join(assets, name)} is not the file that was vendored`);
+    }
+    for (const f of faces) {
+      assert.equal(readFileSync(join(assets, f)).subarray(0, 4).toString('latin1'), 'wOF2', `${f} is not a woff2`);
+    }
+
+    // The licence travels with them, and it is IBM's copy rather than the blank
+    // template: their copyright line is the first thing in it.
+    const ofl = readFileSync(join(assets, 'OFL.txt'), 'utf8');
+    assert.match(ofl.split('\n')[0], /Copyright .* IBM Corp\. with Reserved Font Name "Plex"/);
+    assert.match(ofl, /SIL OPEN FONT LICENSE Version 1\.1/);
+    // IBM ship it with CRLF, and .gitattributes keeps it that way — one rule
+    // per path, so a new copy needs a new rule. A normalised copy is no longer
+    // the file IBM publishes, and the hash above would catch it; this says
+    // which of the two went wrong.
+    assert.ok(ofl.includes('\r\n'), `${assets}: the licence lost its original line endings`);
   }
 
-  // The licence travels with them, and it is IBM's copy rather than the blank
-  // template: their copyright line is the first thing in it.
-  const ofl = readFileSync(join(assets, 'OFL.txt'), 'utf8');
-  assert.match(ofl.split('\n')[0], /Copyright .* IBM Corp\. with Reserved Font Name "Plex"/);
-  assert.match(ofl, /SIL OPEN FONT LICENSE Version 1\.1/);
-  // IBM ship it with CRLF, and .gitattributes keeps it that way. A normalised
-  // copy is no longer the file IBM publishes, and the hash above would catch
-  // it — this says which of the two went wrong.
-  assert.ok(ofl.includes('\r\n'), 'the licence lost its original line endings');
+  // The bundle is the same class of file as the faces — vendored, do-not-edit,
+  // and now in two places — so it gets the same guard, minus the fixed hash.
+  // A hash would have to be bumped by hand on every design system release,
+  // which is a step somebody skips; equality between the copies is the failure
+  // that actually happens, and it happened once already inside this branch. The
+  // header line is checked too, because an empty file is also "identical".
+  const bundles = dirs.map(d => readFileSync(join(d, 'aviation.bundle.css')));
+  assert.ok(bundles[0].equals(bundles[1]), 'the two vendored bundles have drifted apart');
+  assert.match(bundles[0].toString('utf8').slice(0, 200), /AVIATION — BUNDLE/);
 });
 
 test('author text reaches the page as text, in every field the page shows', () => {
@@ -935,7 +964,12 @@ test('author text reaches the page as text, in every field the page shows', () =
   // The script block cannot be closed from inside the embedded file. Only the
   // closing sequence matters: a bare "<script" inside a script block is text,
   // and the escape leaves it alone on purpose.
-  assert.equal((html.match(/<\/script>/g) || []).length, 2, 'the page has exactly the two closers it ships');
+  //
+  // Three closers, not two. The third is the scheme script in <head>, which
+  // reads prefers-color-scheme before first paint and carries no author text
+  // at all. Raise this number only for another block the page ships itself;
+  // a closer that arrives from the flightpath file is the bug this counts.
+  assert.equal((html.match(/<\/script>/g) || []).length, 3, 'the page has exactly the three closers it ships');
   assert.match(html, /<\\\/script>/, 'the payload carries the closing tag escaped');
 
   // Every poisoned string reaches the markup escaped, and the raw tag appears

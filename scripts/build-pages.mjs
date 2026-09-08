@@ -91,16 +91,39 @@ const items = pages
   )
   .join('\n');
 
-// The Drafting tokens the rendered pages carry, copied rather than shared. A
-// stylesheet in site/ would be one request every page has to make, and every
-// page here is self-contained — the claim README and SECURITY.md both make.
+// The design system and the faces, inlined — the same two the rendered pages
+// carry, read from the same files rather than transcribed. A stylesheet in
+// site/ would be one request every page has to make, and every page here is
+// self-contained: the claim README and SECURITY.md both make.
 //
-// The index used to set its own ui-sans-serif stack and declare
-// `color-scheme: light dark`. template.html declares no color-scheme and
-// carries no prefers-color-scheme block, so a dark-mode browser rendered the
-// index dark and every page it linked light: a visible flip on each
-// click-through, and two designs for one thing. Same tokens now, and the same
-// light/dark commitment, which is to make none.
+// The index used to keep a fourth private copy of the tokens and link Google
+// Fonts. Both are gone. It had already been pulled onto the pages' tokens once,
+// for a real reason — it set its own ui-sans-serif stack and declared
+// `color-scheme: light dark`, so a dark-mode browser rendered the index dark
+// and every page it linked light, a visible flip on each click-through. Wearing
+// the system outright is that fix finished: same tokens, same chrome classes,
+// same scheme script, no transcription to drift.
+const aviation = readFileSync(join(root, 'skills', 'eagle-eye', 'assets', 'aviation.bundle.css'), 'utf8');
+
+// The same face table and the same rule the rendered pages use, from the same
+// file — including the unicode-range on each rule.
+//
+// This emitted the rules without a range for one commit, on the reasoning that
+// the index is prose and links, so both subsets could load and the browser
+// would pick whichever held the glyph. That is not what unicode-range does.
+// Without it both rules for a weight default to U+0-10FFFF, fully overlap, and
+// only the last — Pi, which has no Latin letters — is in force. Chromium walks
+// back to the earlier face in the family and renders Plex anyway, so the bug
+// did not show; that is engine behaviour, not a contract, and lib/faces.js
+// states the contract. Raised by CodeRabbit on #73.
+//
+// Read rather than transcribed, for the reason the escape above is: a private
+// copy is a thing that drifts, and the ranges are six lines of hex.
+const { FACES, faceRule } = require(join(root, 'skills', 'eagle-eye', 'lib', 'faces.js'));
+const faces = FACES.map(([weight, file, range]) =>
+  faceRule(weight, range, readFileSync(join(root, 'skills', 'eagle-eye', 'assets', file)).toString('base64')),
+).join('\n');
+
 writeFileSync(
   join(out, 'index.html'),
   `<!doctype html>
@@ -109,36 +132,38 @@ writeFileSync(
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>grimoire — what the skills produce</title>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<script>
+/* The same three lines every rendered page carries, for the same reason: the
+   design system is opt-in by policy, so a consumer that wants to follow the
+   operating system has to say so. Before first paint, so nothing flashes. */
+try{if(matchMedia('(prefers-color-scheme: dark)').matches)document.documentElement.setAttribute('data-aviation-scheme','dark')}catch(e){}
+</script>
 <style>
-:root{
-  --dw-paper:#fafaf7; --dw-ink:#22262b; --dw-caution:#b45309;
-  --dw-ink-80:rgb(34 38 43 / .8); --dw-ink-55:rgb(34 38 43 / .55); --dw-ink-12:rgb(34 38 43 / .12); --dw-grid:rgb(34 38 43 / .05);
-  --dw-font:'IBM Plex Mono',ui-monospace,'SFMono-Regular',Menlo,Consolas,monospace;
-  --sp-3:20px; --sp-4:28px; --sp-gutter:36px;
-  --ease:cubic-bezier(.2,.7,.3,1);
-}
+${faces}
+</style>
+<style>
+${aviation}
+</style>
+<style>
+/* This page's own, and only this page's: a list of links. Everything above is
+   the system, and nothing below re-declares a colour, a size or a face. */
 *{box-sizing:border-box}
 html,body{height:100%}
-body{margin:0;font-family:var(--dw-font);font-size:15px;line-height:1.6;color:var(--dw-ink);background-color:var(--dw-paper);
-  background-image:linear-gradient(to right,var(--dw-grid) 1px,transparent 1px),linear-gradient(to bottom,var(--dw-grid) 1px,transparent 1px);background-size:24px 24px}
-.page{min-height:100%;padding:var(--sp-4);display:flex}
-.sheet{flex:1;max-width:64rem;margin:0 auto;border:2px solid var(--dw-ink);background:rgb(250 250 247 / .72);padding:var(--sp-4) var(--sp-gutter)}
-.label{font-size:11px;text-transform:uppercase;letter-spacing:.16em;font-weight:500;color:var(--dw-ink-55)}
-h1{font-size:24px;font-weight:600;line-height:1.25;margin:10px 0 var(--sp-3)}
-p{max-width:78ch;color:var(--dw-ink-80)}
-ul{list-style:none;padding:0;margin:var(--sp-4) 0;border-top:1px solid var(--dw-ink-12)}
-li{border-bottom:1px solid var(--dw-ink-12);padding:14px 0;display:flex;gap:var(--sp-3);align-items:baseline;flex-wrap:wrap}
-a{color:var(--dw-ink);text-decoration-color:var(--dw-ink-55);text-underline-offset:3px;
-  transition:color .16s var(--ease),text-decoration-color .16s var(--ease)}
-a:hover{color:var(--dw-caution);text-decoration-color:var(--dw-caution)}
-code{font-size:12px;color:var(--dw-ink-55)}
-.kind{font-size:11px;text-transform:uppercase;letter-spacing:.16em;color:var(--dw-ink-55);margin-left:auto}
+body{margin:0}
+h1{font-size:var(--av-t-h3);font-weight:600;line-height:1.25;margin:10px 0 var(--av-s3)}
+p{max-width:78ch;color:var(--av-ink-80)}
+ul{list-style:none;padding:0;margin:var(--av-s4) 0;border-top:var(--av-rule-hair) solid var(--av-ink-12)}
+li{border-bottom:var(--av-rule-hair) solid var(--av-ink-12);padding:14px 0;display:flex;gap:var(--av-s3);align-items:baseline;flex-wrap:wrap}
+a{color:var(--av-ink);text-decoration-color:var(--av-ink-70);text-underline-offset:3px;transition:color .16s ease,text-decoration-color .16s ease}
+a:hover{color:var(--av-caution);text-decoration-color:var(--av-caution)}
+code{font-size:var(--av-t-micro);color:var(--av-ink-70)}
+.kind{margin-left:auto}
+.gt-sheet{max-width:64rem;margin:0 auto;padding:var(--av-s4) var(--av-s4)}
 </style>
 </head>
-<body>
-<div class="page"><div class="sheet">
-  <div class="label">grimoire</div>
+<body class="av-tool av-grid">
+<div class="av-tool-sheet gt-sheet">
+  <div class="av-label">grimoire</div>
   <h1>what the skills produce</h1>
   <p>Each page below is one self-contained file, written by one of this
   repository's skills. A <strong>box</strong> is a morphological box: click an
@@ -151,7 +176,7 @@ code{font-size:12px;color:var(--dw-ink-55)}
 ${items}
   </ul>
   <p><a href="https://github.com/mephistopheles4/grimoire">Source on GitHub</a></p>
-</div></div>
+</div>
 </body>
 </html>
 `,
