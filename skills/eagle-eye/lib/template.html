@@ -5,15 +5,22 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>/*TITLE*/ — eagle-eye</title>
 <script>
-/* The one place anything here consults the operating system. The design system
-   is opt-in by policy — light is the default and dark.css never reads
-   prefers-color-scheme — so a consumer that wants to follow the OS has to say
-   so. A tool is read on a screen for a long sitting next to a terminal, so
-   this one does. Inline and before first paint, so no page flashes light.
-   The attribute goes on <html>, which is the element the deck theme sits on:
-   custom properties inherit, and a scheme set lower than the theme would lose
-   to it by proximity. */
-try{if(matchMedia('(prefers-color-scheme: dark)').matches)document.documentElement.setAttribute('data-aviation-scheme','dark')}catch(e){}
+/* LIGHT IS THE DEFAULT, and the operating system is not consulted. That is the
+   design system's own policy — dark.css never reads prefers-color-scheme — and
+   this page now follows it rather than making an exception. A reader who wants
+   dark says so with the control in the head, and that choice is what is
+   remembered; an OS preference is not a request about this page.
+
+   Inline and before first paint, so a reader who chose dark last time never
+   sees a light flash. The attribute goes on <html>, which is the element the
+   deck theme sits on: a theme answers some roles with ink, those resolve where
+   they are declared, and a scheme set lower would leave the subtree half-dark.
+
+   Storage is best-effort. A page opened from file:// has an opaque origin in
+   some browsers and localStorage throws on access, not just on write — hence
+   the try around the read as well. Failing means light, which is the default
+   anyway, so nothing else needs to know. */
+try{if(localStorage.getItem('aviation-scheme')==='dark')document.documentElement.setAttribute('data-aviation-scheme','dark')}catch(e){}
 </script>
 <style>
 /* The faces are vendored and inlined as data URIs. This page makes no network
@@ -52,10 +59,22 @@ try{if(matchMedia('(prefers-color-scheme: dark)').matches)document.documentEleme
    which outranks the UA rule for [hidden] — so without this line neither panel ever hides. */
 [hidden]{display:none!important}
 html,body{height:100%}
-/* The ground, the ink, the face and the ruling now come from the system: the
-   page wears av-paper and av-grid--single on <body>. Single-tier, which is
-   what this page drew before — a findings sheet is not graph paper. */
-body{margin:0;background-size:var(--av-grid-size) var(--av-grid-size)}
+/* The ground, the ink, the face and the ruling all come from the system now:
+   the page wears av-paper and av-grid on <body>.
+
+   THE TWO-TIER GRID, not the single. This page kept av-grid--single at first,
+   to preserve the one-weight ruling it drew for itself before it wore the
+   system at all. That was preserving the wrong thing: real graph paper is two
+   ruled tiers, a fine one that reads as tone and a heavier line every fifth
+   cell that carries the structure, and every other sheet in the system is
+   ruled that way. A findings sheet has no reason to be the exception.
+
+   AND NOTHING SETS background-size HERE. It used to, carried over from the
+   private grid. av-grid paints four gradients and needs four sizes to match;
+   one value would have been applied to all four layers and flattened the
+   major tier back into the minor — the exact ruling this change is undoing.
+   The size comes from --av-grid-size, through the system's own rule. */
+body{margin:0}
 button{font:inherit;color:inherit;background:none;border:0;padding:0;cursor:pointer;text-align:left}
 input,textarea{font:inherit;color:inherit;background:var(--av-paper);border:1px solid var(--av-ink-30)}
 .label{font-size:11px;text-transform:uppercase;letter-spacing:.16em;font-weight:500;color:var(--av-ink-55)}
@@ -75,6 +94,25 @@ input,textarea{font:inherit;color:inherit;background:var(--av-paper);border:1px 
 .chip.ghost:hover{color:var(--av-caution);border-color:var(--av-caution)}
 /* Disabled is the only chip allowed to sit at rule alpha, and the only one that does not answer the pointer.
    Two tells, not one: the label drops to hairline alpha and the hover response goes away. */
+/* The scheme control. A chip like every other control in this row — same type,
+   same border, same vertical padding — carrying a drawing instead of a word,
+   so the horizontal padding comes in to match.
+
+   THE HEIGHT IS NOT ARITHMETIC. The ::before is a zero-width strut exactly one
+   line box tall, the same box a word makes in a text chip, and the icon is
+   deliberately shorter than it. So the strut sets the height and the two kinds
+   of chip match by construction — and keep matching if the type scale moves. */
+.chip--scheme{padding-left:8px;padding-right:8px;display:inline-flex;align-items:center}
+.chip--scheme::before{content:"";display:block;width:0;height:1.6em}
+/* HIDDEN BY DEFAULT, SHOWN WHEN NOT [hidden] — this pair does the hiding
+   itself rather than leaning on the [hidden] rule above or on the UA. The
+   `hidden` attribute does nothing to an <svg> on its own: the UA stylesheet
+   declares @namespace as XHTML, so its [hidden] rule never matches an SVG
+   element. This page's own !important rule would have covered it, but stating
+   both halves here keeps the control correct on its own terms — and it is the
+   form groundtrack needs, where no blanket rule exists. */
+.chip--scheme svg{display:none;width:16px;height:16px}
+.chip--scheme svg:not([hidden]){display:block}
 .chip:disabled,.chip.disabled{border-color:var(--av-ink-12);color:var(--av-ink-30);cursor:not-allowed}
 .chip:disabled:hover,.chip.disabled:hover{color:var(--av-ink-30);border-color:var(--av-ink-12)}
 /* Reset holding an undo offer. Amber, because taking a reset back is a recovery, not a normal move. */
@@ -254,19 +292,30 @@ details[open] > :not(summary){animation:ee-unfold .22s var(--ease) both}
 @media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
 </style>
 </head>
-<body class="av-paper av-grid--single">
+<body class="av-paper av-grid">
 <div class="page"><div class="sheet">
   <div class="head">
     <div class="head-id">
       <!-- The eagle-eye mark, the 40px-and-up variant, inlined so the page still
-           fetches nothing. Its colours read the sheet's tokens. Geometry is the
-           brand handoff's, coordinate for coordinate; do not tidy the paths. -->
+           fetches nothing. Geometry is the brand handoff's, coordinate for
+           coordinate; do not tidy the paths.
+
+           THE MARK DOES NOT FOLLOW THE SCHEME. It used to read the live
+           --av-ink and --av-paper, which swap under a dark scheme and turned it
+           into a pale square with dark linework — the logo, inverted. It is not
+           a light mark that needs a dark counterpart; it already carries its own
+           dark ground, and it should look the same in both schemes.
+
+           --av-deck-* is the deck theme's STAGED palette: declared once at
+           :root, unconditionally, read by nothing else, and never remapped by
+           dark.css. That is the system's own way of writing "this value does
+           not invert", so it is a token reference and not a hardcoded hex. -->
       <svg class="head-mark" viewBox="0 0 24 24" role="img" aria-label="eagle-eye">
-        <rect x="0.8" y="0.8" width="22.4" height="22.4" fill="var(--av-ink)"></rect>
-        <circle cx="12" cy="12" r="8.8" fill="none" stroke="var(--av-paper)" stroke-width="1.4"></circle>
-        <path d="M9.85 10.5 L5.7 16.95 H18.3 L14.15 10.5" fill="none" stroke="var(--av-paper)" stroke-width="1.4" stroke-linejoin="miter"></path>
-        <path d="M12 4.2 L14.15 8.2 H9.85 Z" fill="var(--av-caution)"></path>
-        <line x1="8.0" y1="12.85" x2="16.0" y2="12.85" stroke="var(--av-paper)" stroke-width="1.4"></line>
+        <rect x="0.8" y="0.8" width="22.4" height="22.4" fill="var(--av-deck-ink)"></rect>
+        <circle cx="12" cy="12" r="8.8" fill="none" stroke="var(--av-deck-paper)" stroke-width="1.4"></circle>
+        <path d="M9.85 10.5 L5.7 16.95 H18.3 L14.15 10.5" fill="none" stroke="var(--av-deck-paper)" stroke-width="1.4" stroke-linejoin="miter"></path>
+        <path d="M12 4.2 L14.15 8.2 H9.85 Z" fill="var(--av-deck-caution)"></path>
+        <line x1="8.0" y1="12.85" x2="16.0" y2="12.85" stroke="var(--av-deck-paper)" stroke-width="1.4"></line>
       </svg>
       <div>
         <div class="label" id="eyebrow"></div>
@@ -277,6 +326,16 @@ details[open] > :not(summary){animation:ee-unfold .22s var(--ease) both}
       <div class="group"><span class="label">View</span><button class="chip" id="viewFind">Findings</button><button class="chip" id="viewSheet">Sheet</button></div>
       <div class="group" id="presetGroup"><span class="label">Presets</span><span id="presets" style="display:flex;gap:6px;flex-wrap:wrap"></span></div>
       <div class="group"><button class="chip ghost" id="coachToggle">Coach: off</button><button class="chip ghost" id="exportBtn">Export</button><button class="chip ghost" id="reset">Reset</button></div>
+      <!-- Last in the row, so it sits top right. It shows the DESTINATION, not
+           the state: the moon is offered while the page is light. Both drawings
+           ship and one is hidden, rather than rewriting a path, so nothing has
+           to reflow and the geometry stays readable in the source. Stroke reads
+           currentColor, so the icon is whatever the chip is — colour is signal
+           in this system and a scheme is not a condition. -->
+      <div class="group"><button class="chip chip--scheme" id="schemeToggle" type="button">
+        <svg class="scheme-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="miter" aria-hidden="true"><path d="M16.124 4 A 9 9 0 1 0 16.124 20 A 8 8 0 0 1 16.124 4 Z"></path></svg>
+        <svg class="scheme-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="miter" aria-hidden="true" hidden><circle cx="12" cy="12" r="5"></circle><line x1="19.6" y1="12" x2="22.4" y2="12"></line><line x1="18.582" y1="8.2" x2="21.007" y2="6.8"></line><line x1="15.8" y1="5.418" x2="17.2" y2="2.993"></line><line x1="12" y1="4.4" x2="12" y2="1.6"></line><line x1="8.2" y1="5.418" x2="6.8" y2="2.993"></line><line x1="5.418" y1="8.2" x2="2.993" y2="6.8"></line><line x1="4.4" y1="12" x2="1.6" y2="12"></line><line x1="5.418" y1="15.8" x2="2.993" y2="17.2"></line><line x1="8.2" y1="18.582" x2="6.8" y2="21.007"></line><line x1="12" y1="19.6" x2="12" y2="22.4"></line><line x1="15.8" y1="18.582" x2="17.2" y2="21.007"></line><line x1="18.582" y1="15.8" x2="21.007" y2="17.2"></line></svg>
+      </button></div>
     </div>
   </div>
   <div class="preset-note" id="presetNote" hidden><p id="presetText"></p><div class="steps" id="presetSteps"></div></div>
@@ -632,6 +691,43 @@ $('reset').addEventListener('click', () => {
 const setCoach = on => { coach = on; pending = null; $('coachToggle').textContent = `Coach: ${on ? 'on' : 'off'}`; $('coachToggle').classList.toggle('on', on); $('coachToggle').classList.toggle('ghost', !on); };
 $('coachToggle').addEventListener('click', () => { setCoach(!coach); update(); });
 $('exportBtn').addEventListener('click', () => { const b = $('exportBox'); b.hidden = !b.hidden; $('exportStatus').textContent = ''; paintExport(); });
+
+/* THE SCHEME CONTROL. The attribute on <html> is the whole of the mechanism —
+ * the design system's dark layer keys off it — so this only sets it, remembers
+ * it, and keeps the button describing what it will do next.
+ *
+ * It names the DESTINATION, not the state: while the page is light the button
+ * shows a moon and says "Switch to dark". The label is what a screen reader
+ * gets and what a hover reveals, so the drawing never has to carry the meaning
+ * alone.
+ *
+ * The inline script in <head> applied the saved choice before first paint;
+ * this reads the attribute back rather than keeping a second copy of the
+ * truth. Storage stays best-effort: a page opened from file:// can throw on
+ * access in some browsers, and a toggle that works for this sitting but is not
+ * remembered is a much smaller failure than one that throws. */
+/* toggleAttribute, NOT `.hidden`. The `hidden` IDL property is defined on
+ * HTMLElement, and these two are SVGElement — so `svg.hidden = true` sets a
+ * plain JS expando and never touches the attribute the [hidden] rule matches.
+ * Written that way first, and the effect was a toggle that flipped the scheme,
+ * the title and the stored value while the icon sat unchanged: the property
+ * and the attribute disagreed, and only the attribute renders. */
+const paintScheme = () => {
+  const dark = document.documentElement.getAttribute('data-aviation-scheme') === 'dark';
+  document.querySelector('.scheme-moon').toggleAttribute('hidden', dark);
+  document.querySelector('.scheme-sun').toggleAttribute('hidden', !dark);
+  const next = dark ? 'light' : 'dark';
+  $('schemeToggle').title = `Switch to ${next}`;
+  $('schemeToggle').setAttribute('aria-label', `Switch to ${next}`);
+};
+$('schemeToggle').addEventListener('click', () => {
+  const dark = document.documentElement.getAttribute('data-aviation-scheme') === 'dark';
+  if (dark) document.documentElement.removeAttribute('data-aviation-scheme');
+  else document.documentElement.setAttribute('data-aviation-scheme', 'dark');
+  try { localStorage.setItem('aviation-scheme', dark ? 'light' : 'dark'); } catch (e) {}
+  paintScheme();
+});
+paintScheme();
 $('closeExport').addEventListener('click', () => { $('exportBox').hidden = true; });
 $('exportDetails').addEventListener('toggle', paintExport);
 $('copyBtn').addEventListener('click', async () => { $('exportText').value = exportMarkdown(); try { await navigator.clipboard.writeText($('exportText').value); $('exportStatus').textContent = 'Copied.'; } catch { $('exportText').select(); $('exportStatus').textContent = 'Press Ctrl/Cmd+C.'; } });

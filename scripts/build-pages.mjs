@@ -133,10 +133,15 @@ writeFileSync(
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>grimoire — what the skills produce</title>
 <script>
-/* The same three lines every rendered page carries, for the same reason: the
-   design system is opt-in by policy, so a consumer that wants to follow the
-   operating system has to say so. Before first paint, so nothing flashes. */
-try{if(matchMedia('(prefers-color-scheme: dark)').matches)document.documentElement.setAttribute('data-aviation-scheme','dark')}catch(e){}
+/* The same line every rendered page carries: light is the default, the OS is
+   not consulted, and a saved choice is applied before first paint.
+
+   The index has NO toggle of its own — it is a list of links, not a tool read
+   for a long sitting. What it does have is the same storage key, so a reader
+   who chose dark on a report finds the index already dark on the way back.
+   That is the whole reason this line is here rather than nothing: without it
+   the landing page would flash light between two dark reports. */
+try{if(localStorage.getItem('aviation-scheme')==='dark')document.documentElement.setAttribute('data-aviation-scheme','dark')}catch(e){}
 </script>
 <style>
 ${faces}
