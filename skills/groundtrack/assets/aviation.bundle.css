@@ -350,6 +350,25 @@
     --av-surface:var(--av-dark-surface);
     --av-caution:var(--av-dark-caution);
     --av-normal:var(--av-dark-normal);
+
+    /* THE INK ROLES, RE-DECLARED. The deck theme answers structure and failure
+       with ink — failure is structural there, not a colour — and writes that
+       as --av-structure:var(--av-ink) at :root. On :root that is correct: when
+       the scheme lands on the same element, ink is already dark and both
+       follow. In the NESTED case the comment above invites — a dark strip on a
+       light page — it is not: those two were substituted at :root while ink
+       was still light, and the resolved colour inherits down. The region gets
+       dark paper with #22262b linework on it, 1.1:1.
+
+       Re-declaring them here fixes that, and changes nothing anywhere else.
+       Written as var(--av-ink) rather than the staged literal because the rule
+       being restated is "structure is ink", not "structure is that grey"; it
+       resolves against this block's own --av-ink, on this element, so it is
+       not exposed to the substitution trap the staging exists to avoid. The
+       site theme overrides both at 0,2,0 below and is unaffected. */
+    --av-structure:var(--av-ink);
+    --av-failure:var(--av-ink);
+
     color-scheme:dark;
   }
   [data-aviation-scheme="dark"][data-aviation-theme="site"]{
