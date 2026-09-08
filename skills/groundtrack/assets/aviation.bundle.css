@@ -1,0 +1,626 @@
+/* AVIATION — BUNDLE
+   One file, no imports, no build step. Generated from the sources listed
+   below, in this order. Do not edit: edit the source and regenerate.
+
+   Contains: core tokens, the deck and site themes, the dark scheme layer, the
+   av-* class vocabulary, and the av-tool-* report chrome.
+
+   NOT CONTAINED — and this is the one thing you must handle yourself:
+
+     FONTS. fonts/fonts.css declares @font-face rules pointing at binaries
+     (IBM Plex Mono woff2 x3, Archivo Variable ttf). A stylesheet cannot carry
+     those. Three options, best first:
+       1. Serve fonts/ alongside and add fonts/fonts.css as a second link.
+       2. Base64 the woff2 files into @font-face src: url(data:...) at build
+          time. Roughly 250 KB for the three Plex weights.
+       3. Do nothing. The stacks fall back to ui-monospace and system-ui,
+          which is legible but is not the system.
+
+   Sources, in load order:
+     tokens/core.css
+     themes/deck.css
+     themes/site.css
+     themes/dark.css
+     aviation.css
+     tools.css
+*/
+
+/* ===== tokens/core.css ===== */
+/* AVIATION · CORE
+   Theme-agnostic. Everything here is shared by every consumer: line weights,
+   the space scale, the type scale, and caps tracking.
+
+   What is NOT here: paper, ink, accents, the neutral ramp, typefaces, grid
+   pitch. Those flex by theme — see themes/deck.css and themes/site.css.
+
+   The ramp in particular MUST live in the theme files. Custom properties are
+   substituted at their point of declaration, so a ramp declared once here as
+   rgb(var(--av-ink-rgb) / A) would resolve against whichever theme owns :root
+   and inherit that fixed value into every other theme. Each theme declares
+   its own six steps against its own ink. */
+:root{
+  /* LINE WEIGHT — object outlines heavy, construction lines light. */
+  --av-rule-hair:1px;   /* grid, construction     */
+  --av-rule-thin:1.5px; /* dimensions, leaders    */
+  --av-rule-bold:2px;   /* object outline, frames */
+
+  /* SPACE — quarters, halves and whole multiples of a 24px pitch. */
+  --av-s1:6px;   /* ¼  */
+  --av-s2:12px;  /* ½  */
+  --av-s3:24px;  /* 1  */
+  --av-s4:36px;  /* 1½ */
+  --av-s5:48px;  /* 2  */
+  --av-s6:72px;  /* 3  */
+  --av-s7:96px;  /* 4 — page-level margins */
+
+  /* TYPE SCALE — shared across themes; the faces themselves flex. */
+  --av-t-micro:0.6875rem; /* 11px — cell captions, sheet numbers */
+  --av-t-annot:0.8125rem; /* 13px — callouts, annotations        */
+  --av-t-body:0.9375rem;  /* 15px — body                         */
+  --av-t-lead:1.125rem;   /* 18px — lead paragraph               */
+  --av-t-h3:1.375rem;     /* 22px                                */
+  --av-t-h2:1.875rem;     /* 30px                                */
+  --av-t-h1:2.75rem;      /* 44px — section title                */
+  --av-t-slide:4rem;      /* 64px — slide title                  */
+
+  --av-track-label:0.16em; /* caps tracking, small sizes */
+  --av-track-title:0.12em; /* caps tracking, large sizes */
+
+  /* Cells per major division. 5 matches metric 5mm-on-1mm paper, which is
+     what the system uses; 4 would match a 4-squares-per-inch engineer's pad.
+     The major pitch derives from the theme's own grid pitch, so it follows
+     whatever that theme sets — 24px minor gives a 120px major. */
+  --av-grid-major-every:5; /* @kind other */
+}
+
+
+/* ===== themes/deck.css ===== */
+/* AVIATION · DECK THEME
+   The strict engineering document. Warm paper, near-black ink, one monospace
+   face doing every job, 24px pitch. Two reserved colours and no third.
+
+   Applied at :root as the system default, and available explicitly as
+   [data-aviation-theme="deck"].
+
+   THE PALETTE IS STAGED, THEN MAPPED
+   Every colour is declared once under --av-deck-*, which nothing reads, and
+   mapped onto the live --av-* names below. Two reasons:
+
+     1. Custom properties are substituted at their point of declaration, so a
+        ramp declared once on :root as rgb(var(--av-ink-rgb) / A) would bake in
+        this theme's ink and inherit it into every other theme. Staged values
+        resolve against literal numbers instead, so they are safe to reuse
+        anywhere.
+     2. themes/dark.css maps its own palette onto the same live names, so
+        both files stage and neither keeps a copy of the other's values.
+
+   RULES SPECIFIC TO THIS THEME
+     · Amber is ONLY caution / attention-required.
+     · Green is ONLY normal / monitored / nominal.
+     · There is no failure colour. Failure is structural — heavier rule
+       weight, hatching, a revision cloud, an explicit note.
+     · One typeface. Roles separate by size, weight, caps and tracking. */
+:root{
+  --av-deck-paper:#fafaf7;   /* ground                                  */
+  --av-deck-ink:#22262b;     /* linework, text            · 14.6:1      */
+  --av-deck-caution:#b45309; /* caution / attention only  ·  4.80:1     */
+  --av-deck-normal:#15803d;  /* normal / nominal only     ·  4.80:1     */
+
+  /* NEUTRAL RAMP — ink at reduced alpha.
+     70 is the floor for text; 55 and below are non-text only. */
+  --av-deck-ink-80:rgb(34 38 43 / 0.8);  /* secondary prose            */
+  --av-deck-ink-70:rgb(34 38 43 / 0.7);  /* annotation, captions       */
+  --av-deck-ink-55:rgb(34 38 43 / 0.55); /* NON-TEXT: heavy hairlines  */
+  --av-deck-ink-30:rgb(34 38 43 / 0.3);  /* hairlines, leader lines    */
+  --av-deck-ink-12:rgb(34 38 43 / 0.12); /* light rules, cell dividers */
+  --av-deck-grid:rgb(34 38 43 / 0.05);   /* the drafting grid          */
+
+  /* MAJOR TIER — for .av-grid--ruled. Real graph paper is two-tier: a fine
+     ruling that reads as tone, plus heavier lines every 4th or 5th cell that
+     carry the structure. The minor tier drops to 0.035 under --ruled so the
+     pair together is quieter than the single-tier grid. */
+  --av-deck-grid-minor:rgb(34 38 43 / 0.035);
+  --av-deck-grid-major:rgb(34 38 43 / 0.085);
+
+  /* SURFACE — translucent sheet fill. Sits over the grid and holds it back
+     without hiding it, so a sheet reads as laid ON the paper. */
+  --av-deck-surface:rgb(250 250 247 / 0.72);
+}
+
+:root,
+[data-aviation-theme="deck"]{
+  --av-paper:var(--av-deck-paper);
+  --av-ink:var(--av-deck-ink);
+  --av-caution:var(--av-deck-caution);
+  --av-normal:var(--av-deck-normal);
+
+  /* ROLES the skeleton asks for that this theme answers with ink.
+     Structure is not a colour here; failure is not a colour here. */
+  --av-structure:var(--av-ink);
+  --av-failure:var(--av-ink);
+
+  --av-ink-80:var(--av-deck-ink-80);
+  --av-ink-70:var(--av-deck-ink-70);
+  --av-ink-55:var(--av-deck-ink-55);
+  --av-ink-30:var(--av-deck-ink-30);
+  --av-ink-12:var(--av-deck-ink-12);
+  --av-grid:var(--av-deck-grid);
+  --av-grid-minor:var(--av-deck-grid-minor);
+  --av-grid-major:var(--av-deck-grid-major);
+  --av-surface:var(--av-deck-surface);
+
+  --av-font:'IBM Plex Mono',ui-monospace,'SFMono-Regular',Menlo,Consolas,monospace;
+  --av-font-display:var(--av-font);
+  --av-font-prose:var(--av-font); /* no escape: mono sets prose too */
+
+  --av-grid-size:24px;
+  --av-measure:68ch;
+}
+
+
+/* ===== themes/site.css ===== */
+/* AVIATION · SITE THEME
+   The blueprint. Cooler paper, navy ink, blueprint blue for structure and a
+   redline for revision marks and failure. Three faces so long-form reading
+   works. 24px pitch.
+
+   Apply with [data-aviation-theme="site"] on <html> or any container.
+
+   This theme writes the same --av-* names as the deck theme, so every class
+   in aviation.css works under it unchanged. That is the shared skeleton:
+   linework, title blocks, annotations and the caps-mono label grammar are
+   identical; palette, type and pitch flex.
+
+   The palette is staged under --av-site-* and mapped below, for the reasons
+   set out at the top of themes/deck.css.
+
+   RULES SPECIFIC TO THIS THEME
+     · Blueprint is structure — eyebrows, links, section rules. Not emphasis.
+     · Redline is the red pen: revision, failure, focus. One meaning.
+     · Green is not part of this theme. It says "nominal", and a marketing
+       site has no nominal condition to report.
+     · Amber is not part of this theme either. Against redline it is
+       indistinguishable — 1.13:1 — so two signals would collapse into one.
+       Caution is structural here, exactly as failure is structural in the
+       deck theme. The two themes are symmetric: each carries one mark
+       colour, and expresses the other condition with weight and notation. */
+:root{
+  --av-site-paper:#f4f6f7;     /* ground                                  */
+  --av-site-ink:#15222c;       /* headings, primary text    · 14.9:1      */
+  --av-site-structure:#1d5c8c; /* blueprint: eyebrows, links ·  6.54:1    */
+  --av-site-failure:#c42d14;   /* redline: revision, failure ·  5.19:1    */
+
+  /* NEUTRAL RAMP — derived from THIS theme's ink, not the deck's. */
+  --av-site-ink-80:rgb(21 34 44 / 0.8);  /* secondary prose            */
+  --av-site-ink-70:rgb(21 34 44 / 0.7);  /* annotation, captions       */
+  --av-site-ink-55:rgb(21 34 44 / 0.55); /* NON-TEXT: heavy hairlines  */
+  --av-site-ink-30:rgb(21 34 44 / 0.3);  /* hairlines, leader lines    */
+  --av-site-ink-12:rgb(21 34 44 / 0.12); /* light rules, cell dividers */
+  --av-site-grid:rgb(21 34 44 / 0.05);   /* the drafting grid          */
+
+  /* MAJOR TIER — see themes/deck.css for the reasoning. */
+  --av-site-grid-minor:rgb(21 34 44 / 0.035);
+  --av-site-grid-major:rgb(21 34 44 / 0.085);
+
+  --av-site-surface:rgb(244 246 247 / 0.72); /* translucent sheet fill */
+
+  /* The inverted band. Deep ground with its own linework, and its own
+     foreground: text on the band must NOT be painted with --av-paper. That
+     only reads while the band is darker than the page, which stops being
+     true the moment a dark scheme is layered on. --av-deep-ink is the
+     band's text colour in every scheme. */
+  --av-site-deep:#0d2536;
+  --av-site-deep-line:#9fc0d6; /* linework and labels on the band · 8.23:1 */
+  --av-site-deep-ink:#f4f6f7;  /* body text on the band          · 15.9:1 */
+}
+
+[data-aviation-theme="site"]{
+  --av-paper:var(--av-site-paper);
+  --av-ink:var(--av-site-ink);
+  --av-structure:var(--av-site-structure);
+  --av-failure:var(--av-site-failure);
+
+  /* ROLES answered with ink rather than a colour — see the rules above. */
+  --av-caution:var(--av-ink);
+  --av-normal:var(--av-ink);
+
+  --av-ink-80:var(--av-site-ink-80);
+  --av-ink-70:var(--av-site-ink-70);
+  --av-ink-55:var(--av-site-ink-55);
+  --av-ink-30:var(--av-site-ink-30);
+  --av-ink-12:var(--av-site-ink-12);
+  --av-grid:var(--av-site-grid);
+  --av-grid-minor:var(--av-site-grid-minor);
+  --av-grid-major:var(--av-site-grid-major);
+  --av-surface:var(--av-site-surface);
+  --av-deep:var(--av-site-deep);
+  --av-deep-line:var(--av-site-deep-line);
+  --av-deep-ink:var(--av-site-deep-ink);
+
+  --av-font:'IBM Plex Mono',ui-monospace,'SFMono-Regular',Menlo,Consolas,monospace;
+  --av-font-display:'Archivo Variable','Archivo',system-ui,sans-serif;
+  --av-font-prose:'IBM Plex Sans',system-ui,sans-serif;
+
+  --av-grid-size:24px; /* was 32px — one pitch across both themes, so the
+                            24-based space scale aligns here too */
+  --av-measure:72ch;
+  --av-focus:var(--av-failure); /* the red pen marks the focused thing */
+}
+
+/* Display type wants tighter tracking than mono caps do. */
+[data-aviation-theme="site"] .av-slide-title,
+[data-aviation-theme="site"] .av-h1,
+[data-aviation-theme="site"] .av-h2{font-family:var(--av-font-display);letter-spacing:0.04em;font-stretch:125%;font-weight:640}
+
+
+/* ===== themes/dark.css ===== */
+/* AVIATION · DARK
+   Not a third theme. A layer that sits on top of whichever theme is active
+   and swaps the ground, the ink, the neutral ramp and the mark colours. Type,
+   pitch, measure and every class in aviation.css come through untouched — a
+   dark deck is still the deck theme, a dark site is still the site theme.
+
+   Built for tools: long sessions, screens, a terminal open next to the
+   window. Every rule below is scoped to @media screen, so print never sees
+   dark — a tool printed from a dark window prints on the active theme's own
+   paper, with that theme's own ramp intact.
+
+   HOW IT TURNS ON
+     Opt in only. Light is the default; the OS preference is not consulted.
+     Explicit:   data-aviation-scheme="dark"  turns dark on
+     Put the attribute on the SAME element that carries data-aviation-theme
+     (normally <html>). A theme declared on a nearer ancestor than the scheme
+     would win by proximity, since custom properties inherit — so a theme
+     scoped to a container needs the scheme scoped there too.
+
+   Load this AFTER themes/deck.css and themes/site.css. Every rule here has
+   the same specificity as the theme rule it overrides; source order decides.
+
+   WHY THE VALUES ARE STAGED
+     The palette is declared once, unconditionally, as --av-dark-*. Those
+     names are never read by the skeleton; they are inert. The blocks below
+     only map them onto the live --av-* names. One palette, several mappings,
+     no chance of the branches drifting. Staging also makes the ramp safe to
+     express against one literal ink: the staged values resolve against
+     numbers, not against whichever theme owns :root — the substitution trap
+     core.css warns about. The two theme files stage their palettes the same
+     way, so nothing here has to keep a second copy of the light values. */
+:root{
+  --av-dark-paper:#1a1614; /* warm near-black; the deck's paper, inverted */
+  --av-dark-ink:#ece5df;   /* warm off-white, never #fff      · 14.2:1   */
+
+  /* NEUTRAL RAMP — staged against the literal dark ink.
+     Low-alpha white reads brighter than low-alpha black does on paper, so
+     the hairlines and the grid sit lower here than their light counterparts.
+     70 is still the floor for text; 55 and below stay non-text. */
+  --av-dark-ink-80:rgb(236 229 223 / 0.80); /* secondary prose   ·  9.6:1 */
+  --av-dark-ink-70:rgb(236 229 223 / 0.70); /* annotation        ·  7.6:1 */
+  --av-dark-ink-55:rgb(236 229 223 / 0.55); /* NON-TEXT: heavy hairlines  */
+  --av-dark-ink-30:rgb(236 229 223 / 0.28); /* hairlines, leaders         */
+  --av-dark-ink-12:rgb(236 229 223 / 0.11); /* light rules, dividers      */
+  --av-dark-grid:rgb(236 229 223 / 0.045);  /* the drafting grid          */
+  --av-dark-grid-minor:rgb(236 229 223 / 0.032);
+  --av-dark-grid-major:rgb(236 229 223 / 0.075);
+
+  /* SURFACE — the translucent sheet fill that sits over the grid. On paper
+     it holds the grid back; here it also lifts the sheet off the ground,
+     which is how elevation reads without shadow on a dark screen. */
+  --av-dark-surface:rgb(32 27 24 / 0.72);
+
+  /* THE INVERTED BAND flips direction in dark. On paper it drops to a deep
+     ground; here it rises to a raised one. Same job — a band that is not
+     the page — opposite means. Which is exactly why the band carries its own
+     foreground token: --av-paper is light on paper and dark here, so text
+     painted with it collapses the pair. Site theme only, as in light. */
+  --av-dark-deep:#2a2320;
+  --av-dark-deep-line:#d9cec6; /* linework on the band        ·  9.9:1   */
+  --av-dark-deep-ink:#ece5df;  /* body text on the band       · 11.9:1   */
+
+  /* MARK COLOURS — lighter siblings of the light-theme hues. Same meanings,
+     retuned for a dark ground: the light values are 4.8–6.5:1 on paper and
+     collapse to under 3:1 here. All four land in one 6–7:1 tier so no signal
+     shouts over another. */
+  --av-dark-caution:#d98a3c;   /* amber, deck  · caution      ·  6.45:1   */
+  --av-dark-normal:#4fae6d;    /* green, deck  · nominal      ·  6.40:1   */
+  --av-dark-structure:#6fa9d1; /* blueprint, site · structure ·  6.97:1   */
+  --av-dark-failure:#ef6f52;   /* redline, site   · failure   ·  5.95:1   */
+}
+
+/* DARK — the only place the layer applies. Also the nested scope: put the
+   attribute on a container to darken a region of a light page (a console
+   strip, a preview well). Pair it with data-aviation-theme on the same
+   element if that region is not on the document's theme. */
+@media screen{
+  [data-aviation-scheme="dark"]{
+    --av-paper:var(--av-dark-paper);
+    --av-ink:var(--av-dark-ink);
+    --av-ink-80:var(--av-dark-ink-80);
+    --av-ink-70:var(--av-dark-ink-70);
+    --av-ink-55:var(--av-dark-ink-55);
+    --av-ink-30:var(--av-dark-ink-30);
+    --av-ink-12:var(--av-dark-ink-12);
+    --av-grid:var(--av-dark-grid);
+    --av-grid-minor:var(--av-dark-grid-minor);
+    --av-grid-major:var(--av-dark-grid-major);
+    --av-surface:var(--av-dark-surface);
+    --av-caution:var(--av-dark-caution);
+    --av-normal:var(--av-dark-normal);
+    color-scheme:dark;
+  }
+  [data-aviation-scheme="dark"][data-aviation-theme="site"]{
+    --av-structure:var(--av-dark-structure);
+    --av-failure:var(--av-dark-failure);
+    --av-caution:var(--av-ink);
+    --av-normal:var(--av-ink);
+    --av-deep:var(--av-dark-deep);
+    --av-deep-line:var(--av-dark-deep-line);
+    --av-deep-ink:var(--av-dark-deep-ink);
+  }
+}
+
+
+/* ===== aviation.css ===== */
+/* ============================================================================
+   DRAFTING — the shared skeleton. This is the drafting language: linework,
+   title blocks, annotations tethered by leader lines, dimension spans, and
+   the caps-mono label grammar. It is theme-agnostic and identical across
+   every consumer.
+
+   Token declarations live in tokens/core.css (shared) and themes/*.css
+   (per-consumer). Both themes write the same --av-* names, so every class
+   below works under either without modification.
+
+   THE RULES (these are the system; everything else is convenience)
+     1. Colour is signal, never decoration. A state chip or a coloured mark
+        must describe a real condition — ornament is a rule violation, not a
+        variant.
+     2. Each accent has exactly one meaning, fixed by its theme. No accent
+        does two jobs and no two accents do one job.
+     3. Every neutral is ink at reduced alpha, never a sampled grey. The ramp
+        derives from the theme's ink.
+     4. Text never uses a neutral below ink 70. Below that is non-text only.
+     5. No gradients. No drop shadows. No photographs. Depth comes from line
+        weight, the way it does on a real drawing.
+
+   WHAT FLEXES BY THEME: paper, ink, accents, typefaces, grid pitch, measure.
+   WHAT DOES NOT: everything in this file.
+   ========================================================================== */
+
+/* GROUND ------------------------------------------------------------------ */
+.av-paper{background-color:var(--av-paper);color:var(--av-ink);font-family:var(--av-font);font-size:var(--av-t-body);line-height:1.6}
+
+/* THE DRAFTING GRID — two-tier, the way graph paper is actually printed:
+   a fine ruling that reads as tone, plus a heavier line every
+   --av-grid-major-every cells to navigate by. The pair is quieter than a
+   single tier at the same pitch, because the fine tier can sit lighter when
+   it is not also doing the structural work.
+
+   The system runs 24px minor / 120px major — 5 per division, the metric
+   convention. Major gradients are listed first so they paint over the minor
+   ones where the two coincide. .av-grid--ruled is an alias, kept because the
+   two-tier ruling shipped under that name before it became the default.
+
+   The major pitch is spelled out inline rather than held in a custom
+   property: a calc() referencing var() inside a custom property resolves
+   where it is DECLARED, so a hoisted --av-grid-major-size would freeze at
+   the root pitch and silently ignore any per-element override. In
+   background-size it evaluates at the element, which is what we want. */
+.av-grid,.av-grid--ruled{background-image:linear-gradient(to right,var(--av-grid-major) var(--av-rule-hair),transparent var(--av-rule-hair)),linear-gradient(to bottom,var(--av-grid-major) var(--av-rule-hair),transparent var(--av-rule-hair)),linear-gradient(to right,var(--av-grid-minor) var(--av-rule-hair),transparent var(--av-rule-hair)),linear-gradient(to bottom,var(--av-grid-minor) var(--av-rule-hair),transparent var(--av-rule-hair));background-size:calc(var(--av-grid-size) * var(--av-grid-major-every)) calc(var(--av-grid-size) * var(--av-grid-major-every)),calc(var(--av-grid-size) * var(--av-grid-major-every)) calc(var(--av-grid-size) * var(--av-grid-major-every)),var(--av-grid-size) var(--av-grid-size),var(--av-grid-size) var(--av-grid-size)}
+
+/* Single-tier escape hatch: one pitch, one weight. For surfaces too small to
+   show a major division, or where the grid must stay a flat texture. */
+.av-grid--single{background-image:linear-gradient(to right,var(--av-grid) var(--av-rule-hair),transparent var(--av-rule-hair)),linear-gradient(to bottom,var(--av-grid) var(--av-rule-hair),transparent var(--av-rule-hair));background-size:var(--av-grid-size) var(--av-grid-size)}
+
+/* Sheet frame — the ruled border a drawing sits inside. */
+.av-sheet{border:var(--av-rule-bold) solid var(--av-ink);padding:var(--av-s4)}
+
+/* TYPE -------------------------------------------------------------------- */
+.av-slide-title,.av-h1,.av-h2{text-transform:uppercase;letter-spacing:var(--av-track-title);font-weight:600;line-height:1.1;text-wrap:balance;margin:0}
+.av-slide-title{font-size:var(--av-t-slide)}
+.av-h1{font-size:var(--av-t-h1)}
+.av-h2{font-size:var(--av-t-h2)}
+.av-h3{font-size:var(--av-t-h3);font-weight:600;line-height:1.25;text-wrap:balance;margin:0}
+
+/* The drawing label — an eyebrow. Carries a real identifier (sheet number,
+   stage, revision), never decoration. */
+.av-label{font-size:var(--av-t-micro);text-transform:uppercase;letter-spacing:var(--av-track-label);font-weight:500;color:var(--av-ink-70)}
+.av-body{font-family:var(--av-font-prose);font-size:var(--av-t-body);line-height:1.65;max-width:var(--av-measure,68ch)}
+.av-lead{font-family:var(--av-font-prose);font-size:var(--av-t-lead);line-height:1.5;max-width:62ch}
+.av-annot{font-size:var(--av-t-annot);line-height:1.45;color:var(--av-ink-70)}
+.av-num{font-variant-numeric:tabular-nums}
+
+/* MOTIF · ANNOTATION CALLOUT WITH LEADER LINE
+   A note tethered to the thing it describes. The dot marks the referent. ---- */
+.av-callout{position:relative;padding-left:var(--av-s4);font-size:var(--av-t-annot);line-height:1.45;color:var(--av-ink-80)}
+.av-callout::before{content:'';position:absolute;left:0;top:0.62em;width:calc(var(--av-s4) - var(--av-s2));height:0;border-top:var(--av-rule-thin) solid var(--av-ink-30)}
+.av-callout::after{content:'';position:absolute;left:0;top:0.62em;width:5px;height:5px;border-radius:50%;background:var(--av-ink);transform:translate(-2px,-2.5px)}
+.av-callout--caution{color:var(--av-ink)}
+.av-callout--caution::after{background:var(--av-caution)}
+.av-callout--caution::before{border-top-color:var(--av-caution)}
+.av-callout--normal::after{background:var(--av-normal)}
+.av-callout--normal::before{border-top-color:var(--av-normal)}
+.av-callout--failure{color:var(--av-ink)}
+.av-callout--failure::after{background:var(--av-failure)}
+.av-callout--failure::before{border-top-color:var(--av-failure)}
+
+/* MOTIF · DASHED CUTAWAY BOUNDARY
+   Marks a region shown in section — "opened up for inspection". ------------ */
+.av-cutaway{border:var(--av-rule-thin) dashed var(--av-ink-30);padding:var(--av-s3);position:relative}
+.av-cutaway>.av-cutaway-tag{position:absolute;top:0;left:var(--av-s3);transform:translateY(-50%);background:var(--av-paper);padding:0 var(--av-s1);font-size:var(--av-t-micro);text-transform:uppercase;letter-spacing:var(--av-track-label);color:var(--av-ink-70)}
+
+/* MOTIF · DIMENSION LINE
+   A measured span with arrowheads. Carries a real quantity. ---------------- */
+.av-dimension{position:relative;display:flex;align-items:center;gap:var(--av-s2);padding:var(--av-s2) 0}
+.av-dimension-line{position:relative;flex:1;height:0;border-top:var(--av-rule-thin) solid var(--av-ink-30)}
+.av-dimension-line::before,.av-dimension-line::after{content:'';position:absolute;top:50%;width:0;height:0;border-block:4px solid transparent}
+.av-dimension-line::before{left:0;transform:translateY(-50%);border-right:8px solid var(--av-ink-30)}
+.av-dimension-line::after{right:0;transform:translateY(-50%);border-left:8px solid var(--av-ink-30)}
+.av-dimension-tick{width:0;align-self:stretch;border-left:var(--av-rule-hair) solid var(--av-ink-30)}
+.av-dimension-value{font-size:var(--av-t-micro);letter-spacing:var(--av-track-label);text-transform:uppercase;color:var(--av-ink-70);font-variant-numeric:tabular-nums;white-space:nowrap}
+
+/* MOTIF · ENGINEERING TITLE BLOCK
+   The ruled cell grid in the corner of every drawing sheet. --------------- */
+.av-titleblock{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));border:var(--av-rule-bold) solid var(--av-ink)}
+.av-titleblock-cell{padding:var(--av-s2) var(--av-s3);border-right:var(--av-rule-hair) solid var(--av-ink-12);display:flex;flex-direction:column;gap:var(--av-s1);min-width:0}
+.av-titleblock-cell:last-child{border-right:0}
+.av-titleblock-key{font-size:var(--av-t-micro);text-transform:uppercase;letter-spacing:var(--av-track-label);color:var(--av-ink-70)}
+.av-titleblock-val{font-size:var(--av-t-body);font-variant-numeric:tabular-nums;overflow-wrap:break-word}
+
+/* STATE
+   The only place colour is permitted beyond ink. A state chip must describe a
+   real condition — ornament is a rule violation, not a variant.
+
+   --failure resolves to the theme's failure colour where it has one, and to
+   plain ink where it does not. In the deck theme the chip therefore reads as
+   structure rather than alarm, which is the documented behaviour. ---------- */
+.av-state{display:inline-flex;align-items:center;gap:var(--av-s1);font-size:var(--av-t-micro);text-transform:uppercase;letter-spacing:var(--av-track-label);padding:3px var(--av-s2);border:var(--av-rule-hair) solid currentColor}
+.av-state::before{content:'';width:6px;height:6px;border-radius:50%;background:currentColor;flex:none}
+.av-state--caution{color:var(--av-caution)}
+.av-state--normal{color:var(--av-normal)}
+.av-state--failure{color:var(--av-failure);border-width:var(--av-rule-thin)}
+
+/* RULES & UTILITIES ------------------------------------------------------- */
+.av-rule{border:0;border-top:var(--av-rule-hair) solid var(--av-ink-12);margin:var(--av-s3) 0}
+.av-rule--bold{border-top-width:var(--av-rule-bold);border-top-color:var(--av-ink)}
+.av-scroll-x{overflow-x:auto}
+
+/* ACCESSIBILITY ---------------------------------------------------------- */
+.av-paper :focus-visible{outline:var(--av-rule-bold) solid var(--av-focus,var(--av-caution));outline-offset:2px}
+@media (prefers-reduced-motion:reduce){.av-paper *,.av-paper *::before,.av-paper *::after{animation-duration:0.01ms !important;animation-iteration-count:1 !important;transition-duration:0.01ms !important;scroll-behavior:auto !important}}
+
+/* PRINT — a manual should print like one. -------------------------------- */
+@media print{.av-grid,.av-grid--ruled,.av-grid--single{background-image:none}.av-paper{background:#fff}}
+
+
+/* ===== tools.css ===== */
+/* AVIATION · TOOLS
+   The chrome a generated report wears: a sheet, a head, filter chips, an index
+   beside a detail pane, key-value blocks, an export box. Everything here is
+   shell. The payload — a findings list, a node graph, a table — is the tool's
+   own and does not belong in this file.
+
+   Extracted from the two grimoire skill reports, which had independently grown
+   the same shell around very different contents. Where they differed, the
+   simpler of the two won.
+
+   Prefix is av-tool-. Wears the active theme and scheme with no extra markup:
+   every value here is a token, so a tool inherits dark mode for free.
+
+   CONTRACTS
+     · av-tool-sheet is a document, not a card. One per page.
+     · av-tool-index-row states mean what they mean everywhere else in the
+       system: caution is attention-required, normal is nominal. A row stripe
+       is not a category colour.
+     · av-tool-code holds a value the reader will copy — a restore key, a
+       command, an id. Not a place to put prose. */
+
+/* PAGE ---------------------------------------------------------------------
+   The ground a tool sits on. Fills the viewport so the sheet's rules reach
+   the edges of a maximised window, which is how a tool is actually read. */
+.av-tool{min-height:100vh;padding:var(--av-s3);background-color:var(--av-paper);color:var(--av-ink);font-family:var(--av-font);font-size:var(--av-t-body);line-height:1.6;display:flex}
+
+/* SHEET --------------------------------------------------------------------
+   The bordered document. Translucent over the grid so the ruling still reads
+   through it — the same relationship a drawing has with its paper. */
+.av-tool-sheet{flex:1;display:flex;flex-direction:column;min-width:0;border:var(--av-rule-bold) solid var(--av-ink);background:var(--av-surface)}
+
+/* HEAD ---------------------------------------------------------------------
+   Identity left, actions right, both baseline-aligned so a long title and a
+   row of chips sit on one line until they cannot. */
+.av-tool-head{display:flex;justify-content:space-between;align-items:flex-end;gap:var(--av-s3);flex-wrap:wrap;padding:var(--av-s3) var(--av-s4) var(--av-s2);border-bottom:var(--av-rule-hair) solid var(--av-ink-30)}
+.av-tool-head-id{display:flex;align-items:center;gap:var(--av-s2);min-width:0}
+.av-tool-head-mark{flex:none;display:block}
+.av-tool-head-text{display:flex;flex-direction:column;min-width:0}
+.av-tool-title{font-size:var(--av-t-lead);font-weight:600;line-height:1.3;margin:0;min-width:0;overflow-wrap:anywhere}
+.av-tool-blurb{font-size:var(--av-t-annot);color:var(--av-ink-70);margin:2px 0 0;min-width:0}
+.av-tool-actions{display:flex;gap:var(--av-s1);align-items:center;flex-wrap:wrap}
+
+/* BAR ----------------------------------------------------------------------
+   A full-width strip under the head: a preset note, a verdict, an export box.
+   Stack them; each rules off from the next. */
+.av-tool-bar{display:flex;justify-content:space-between;align-items:center;gap:var(--av-s3);flex-wrap:wrap;padding:var(--av-s2) var(--av-s4);border-bottom:var(--av-rule-hair) solid var(--av-ink-12)}
+.av-tool-bar--stack{flex-direction:column;align-items:stretch;gap:var(--av-s2)}
+.av-tool-bar--stack>*{min-width:0;max-width:100%}
+.av-tool-stamp{font-size:var(--av-t-annot);text-transform:uppercase;letter-spacing:var(--av-track-label);font-weight:600;white-space:nowrap}
+.av-tool-stamp--caution{color:var(--av-caution)}
+.av-tool-stamp--normal{color:var(--av-normal)}
+.av-tool-stamp--failure{color:var(--av-failure)}
+
+/* CHIP ---------------------------------------------------------------------
+   A filter or a mode, not a tag. Ink border when off, ink fill when on —
+   selection is a solid, the way a filled arrowhead differs from an open one. */
+.av-tool-chip{font-family:inherit;font-size:var(--av-t-micro);text-transform:uppercase;letter-spacing:var(--av-track-label);font-weight:500;padding:5px var(--av-s2);border:var(--av-rule-hair) solid var(--av-ink);color:var(--av-ink);background:transparent;cursor:pointer;white-space:nowrap}
+.av-tool-chip:hover{color:var(--av-caution);border-color:var(--av-caution)}
+.av-tool-chip--on{background:var(--av-ink);color:var(--av-paper);border-color:var(--av-ink)}
+.av-tool-chip--on:hover{color:var(--av-paper);border-color:var(--av-ink)}
+.av-tool-chip--ghost{border-color:var(--av-ink-30);color:var(--av-ink-80)}
+.av-tool-chip:disabled,.av-tool-chip--disabled{border-color:var(--av-ink-12);color:var(--av-ink-30);cursor:not-allowed}
+.av-tool-chip:disabled:hover,.av-tool-chip--disabled:hover{color:var(--av-ink-30);border-color:var(--av-ink-12)}
+.av-tool-chip:focus-visible{outline:var(--av-rule-thin) solid var(--av-focus,var(--av-ink));outline-offset:2px}
+
+/* SPLIT --------------------------------------------------------------------
+   Index beside detail. Collapses to one column early, because an index is
+   unusable at half of a narrow window. */
+.av-tool-split{flex:1;display:grid;grid-template-columns:minmax(0,360px) minmax(0,1fr);min-height:0}
+.av-tool-index{border-right:var(--av-rule-hair) solid var(--av-ink-30);display:flex;flex-direction:column;min-width:0;overflow:auto}
+.av-tool-detail{min-width:0;overflow:auto;padding:var(--av-s3) var(--av-s4)}
+@media (max-width:900px){.av-tool-split{grid-template-columns:minmax(0,1fr)}.av-tool-index{border-right:0;border-bottom:var(--av-rule-hair) solid var(--av-ink-30)}}
+
+/* INDEX ROW ----------------------------------------------------------------
+   The stripe is an inset box-shadow, not a border, so a row never changes
+   size when its state does. */
+.av-tool-index-row{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:var(--av-s2);align-items:center;width:100%;text-align:left;padding:var(--av-s2) var(--av-s3);border:0;border-bottom:var(--av-rule-hair) solid var(--av-ink-12);background:transparent;color:inherit;font:inherit;font-size:var(--av-t-annot);line-height:1.5;cursor:pointer}
+.av-tool-index-row:hover{background:var(--av-ink-12)}
+.av-tool-index-row--open{box-shadow:inset 3px 0 0 var(--av-ink)}
+.av-tool-index-row--caution{box-shadow:inset 3px 0 0 var(--av-caution)}
+.av-tool-index-row--normal{box-shadow:inset 3px 0 0 var(--av-normal)}
+.av-tool-index-row--failure{box-shadow:inset 3px 0 0 var(--av-failure)}
+.av-tool-index-row--muted{box-shadow:inset 3px 0 0 var(--av-ink-30);color:var(--av-ink-70)}
+.av-tool-index-row:focus-visible{outline:var(--av-rule-thin) solid var(--av-focus,var(--av-ink));outline-offset:-2px}
+.av-tool-index-num{font-variant-numeric:tabular-nums;color:var(--av-ink-70);font-size:var(--av-t-micro)}
+
+/* SIDE PANEL ---------------------------------------------------------------
+   Blocks of key-value pairs down the right edge. */
+.av-tool-side{width:22rem;flex:none;border-left:var(--av-rule-hair) solid var(--av-ink-30);display:flex;flex-direction:column;overflow-y:auto}
+.av-tool-blk{padding:var(--av-s2) var(--av-s3) var(--av-s3);border-bottom:var(--av-rule-hair) solid var(--av-ink-12)}
+.av-tool-row{display:flex;gap:var(--av-s2);font-size:var(--av-t-annot);align-items:baseline}
+.av-tool-row-k{color:var(--av-ink-70);flex:none}
+.av-tool-row-v{min-width:0;overflow-wrap:anywhere;font-variant-numeric:tabular-nums}
+
+/* CARDS --------------------------------------------------------------------
+   A card here is a labelled specimen, tagged like a cutaway. The tab sits on
+   the border because that is where a drawing puts its callout. */
+.av-tool-cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(15rem,1fr));gap:var(--av-s3)}
+.av-tool-card{position:relative;border:var(--av-rule-hair) solid var(--av-ink-30);padding:var(--av-s3) var(--av-s2) var(--av-s2);display:flex;flex-direction:column;align-items:flex-start;gap:var(--av-s1);font-size:var(--av-t-annot);line-height:1.6;background:var(--av-surface)}
+.av-tool-card--chosen{border:var(--av-rule-bold) solid var(--av-ink)}
+.av-tool-card-tab{position:absolute;top:0;left:var(--av-s2);transform:translateY(-50%);background:var(--av-paper);padding:0 var(--av-s1)}
+
+/* CODE ---------------------------------------------------------------------
+   A value to be copied. user-select:all so one click takes the whole thing,
+   which is the entire point of a restore key. */
+.av-tool-code{margin:0;min-width:0;max-width:100%;padding:var(--av-s2);background:var(--av-surface);border:var(--av-rule-hair) solid var(--av-ink-12);border-left:var(--av-rule-bold) solid var(--av-ink-30);font-family:var(--av-font);font-size:var(--av-t-annot);line-height:1.65;color:var(--av-ink-80);overflow-x:auto}
+.av-tool-code b,.av-tool-code strong{font-weight:500;color:var(--av-ink)}
+.av-tool-code--key{white-space:nowrap;user-select:all;border-left-style:dashed}
+
+/* LEGEND -------------------------------------------------------------------
+   Pushed to the bottom of whatever column holds it. A legend that floats in
+   the middle of an index reads as content. */
+.av-tool-legend{margin-top:auto;display:flex;gap:var(--av-s2) var(--av-s3);flex-wrap:wrap;padding:var(--av-s2) var(--av-s3);border-top:var(--av-rule-hair) solid var(--av-ink-30);line-height:1.9}
+.av-tool-legend>span{display:inline-flex;align-items:center;gap:var(--av-s1)}
+.av-tool-dot{width:6px;height:6px;border-radius:50%;flex:none;background:var(--av-ink)}
+.av-tool-dot--caution{background:var(--av-caution)}
+.av-tool-dot--normal{background:var(--av-normal)}
+.av-tool-dot--failure{background:var(--av-failure)}
+.av-tool-dot--muted{background:var(--av-ink-30)}
+
+/* PRINT --------------------------------------------------------------------
+   A report is printed more often than a slide is. Drop the grid, drop the
+   chrome that cannot be actioned on paper, let the sheet flow. */
+@media print{
+  .av-tool{display:block;padding:0;background-image:none}
+  .av-tool-sheet{border:0}
+  .av-tool-actions,.av-tool-chip{display:none}
+  .av-tool-split{display:block}
+  .av-tool-index{border-right:0}
+  .av-tool-side{width:auto;border-left:0}
+}

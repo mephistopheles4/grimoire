@@ -200,6 +200,54 @@ if (flag('--check') || flag('--sel') !== undefined) {
 
 const template = readFileSync(resolve(here, 'lib/template.html'), 'utf8');
 const module = readFileSync(resolve(here, 'lib/eagle-eye.js'), 'utf8').replace(/\nif \(typeof module[^\n]*\n?$/, '\n');
+
+// The Aviation design system, vendored whole. One file, no imports: tokens,
+// both themes, the dark layer, the av-* vocabulary and the av-tool-* report
+// chrome. It is inlined rather than linked for the same reason the faces below
+// are — a rendered page is one file and must stand on its own. See
+// assets/FONTS.md, and do not edit the bundle in place.
+const aviation = readFileSync(resolve(here, 'assets/aviation.bundle.css'), 'utf8');
+
+/* The faces, exactly as IBM publishes them, and their own unicode ranges.
+ *
+ * These files are IBM's, byte for byte, and that is the whole point. The
+ * licence names "Plex" as a Reserved Font Name, so a font we had cut down
+ * ourselves would be a Modified Version and could not keep the name it
+ * carries. IBM's own splits are original versions, so the name stands. The
+ * design system's own fonts/ directory is a third-party cut and is not used.
+ *
+ * Latin1 holds the text and Pi holds the arrows. Two faces per weight, each
+ * with the range IBM declares for it, because two @font-face rules for one
+ * family and weight with no range would leave only the last one in force.
+ *
+ * These replaced a <link> to Google Fonts. A font CDN is a dependency on
+ * somebody else's uptime, some hosts will not load one, and a page whose
+ * monospace silently degrades is a worse page.
+ */
+const LATIN1 =
+  'U+0020-007E, U+00A0-00FF, U+0131, U+0152-0153, U+02C6, U+02DA, U+02DC, U+2013-2014, ' +
+  'U+2018-201A, U+201C-201E, U+2020-2022, U+2026, U+2030, U+2039-203A, U+2044, U+20AC, ' +
+  'U+2122, U+2212, U+FB01-FB02';
+const PI =
+  'U+03C0, U+0E3F, U+2000-200D, U+2010-2012, U+2015, U+2028-2029, U+202F, U+2032-2033, ' +
+  'U+203E, U+205F, U+2070, U+2074-2079, U+2080-2089, U+2113, U+2116, U+2126, U+212E, ' +
+  'U+2150-2151, U+2153-215E, U+2190-2199, U+21A9-21AA, U+21B0-21B3, U+21B6-21B7, ' +
+  'U+21BA-21BB, U+21C4, U+21C6, U+2202, U+2206, U+220F, U+2211, U+2215, U+2219-221A, ' +
+  'U+221E, U+222B, U+2236, U+2248, U+2260, U+2264-2265, U+2400-2421, U+2500-259F, ' +
+  'U+25CA, U+2713, U+274C, U+2B0E-2B11, U+3000, U+FEFF, U+FFFD';
+const FONTS = [
+  ['400', 'IBMPlexMono-Regular-Latin1.woff2', LATIN1],
+  ['400', 'IBMPlexMono-Regular-Pi.woff2', PI],
+  ['500', 'IBMPlexMono-Medium-Latin1.woff2', LATIN1],
+  ['500', 'IBMPlexMono-Medium-Pi.woff2', PI],
+  ['600', 'IBMPlexMono-SemiBold-Latin1.woff2', LATIN1],
+  ['600', 'IBMPlexMono-SemiBold-Pi.woff2', PI],
+];
+const faces = FONTS.map(([weight, file, range]) => {
+  const b64 = readFileSync(resolve(here, 'assets', file)).toString('base64');
+  return `@font-face{font-family:'IBM Plex Mono';font-style:normal;font-weight:${weight};font-display:block;unicode-range:${range};src:url(data:font/woff2;base64,${b64}) format('woff2')}`;
+}).join('\n');
+
 // JSON inside <script>: escape "</" so a why containing "</script>" cannot close the block
 const data = JSON.stringify(box).replace(/<\//g, '<\\/');
 // Function replacements, and this is load-bearing rather than style. A *string*
@@ -211,6 +259,8 @@ const data = JSON.stringify(box).replace(/<\//g, '<\\/');
 // replacement is inserted literally and has no patterns at all.
 const html = template
   .replace('/*TITLE*/', () => box.title.replace(/[<>&]/g, ''))
+  .replace('/*AVIATION*/', () => aviation)
+  .replace('/*FONTS*/', () => faces)
   .replace('/*DATA*/', () => data)
   .replace('/*MODULE*/', () => module);
 // The default page is named .local.html, not .html. A default render writes

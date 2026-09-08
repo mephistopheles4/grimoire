@@ -302,22 +302,34 @@ test('a default render writes a page the repository already ignores', () => {
 });
 
 test('the page loads no code from anywhere else', () => {
-  // "Self-contained" is the claim README and SECURITY.md make, and it is true
-  // of everything that runs: no script and no image is fetched. One external
-  // request remains, and this test states it rather than rounding it off — a
-  // Google Fonts stylesheet, which the page falls back from when it fails.
-  // Any new external reference turns this test red, which is the point.
+  // "Self-contained" is the claim README and SECURITY.md make, and it is now
+  // true without an asterisk. This test used to pin the external reference
+  // count at exactly ONE and name it — a Google Fonts stylesheet the page fell
+  // back from when it failed. The faces are vendored and inlined instead, so
+  // the count is zero and this test is what keeps a convenience link from
+  // creeping back.
   //
-  // Say the width, as SECURITY.md does for the escape. This looks at src and
-  // href on a script, link or img element. A CSS @import, a url(), a fetch or
-  // an iframe would be a second way out and this test would stay green.
+  // Widened to match tests/groundtrack-render.test.mjs, which was already the
+  // stricter of the pair. The old version looked only at src and href on a
+  // script, link or img element; a CSS @import, a url(), a fetch or a socket
+  // would each have been a way out that it stayed green for.
   const out = join(work, 'external.html');
   run(renderer, [exampleBox, '--out', out]);
   const html = readFileSync(out, 'utf8');
-  const external = html.match(/<(?:script|link|img)[^>]+(?:src|href)="(https?:[^"]*)"/gi) || [];
-  assert.equal(external.length, 1, `unexpected external references: ${external.join(', ')}`);
-  assert.match(external[0], /^<link rel="stylesheet" href="https:\/\/fonts\.googleapis\.com\//);
+  assert.doesNotMatch(html, /<link\b/i);
+  assert.doesNotMatch(html, /\bsrc\s*=\s*["']https?:/i);
+  assert.doesNotMatch(html, /\bhref\s*=\s*["']https?:/i);
+  assert.doesNotMatch(html, /url\(\s*["']?https?:/i);
+  assert.doesNotMatch(html, /@import/i);
+  assert.doesNotMatch(html, /XMLHttpRequest|WebSocket|EventSource|navigator\.sendBeacon/);
   assert.equal(/<script[^>]+src=/i.test(html), false, 'no script is loaded from a URL');
+  // The faces are here instead, inlined: two subsets for each of three weights,
+  // each under the unicode-range IBM declares for it. The brace matters — the
+  // vendored design-system bundle's header explains in prose that a stylesheet
+  // cannot embed a binary, so a bare /@font-face/ would count that sentence.
+  assert.equal((html.match(/@font-face\{/g) || []).length, 6);
+  assert.equal((html.match(/src:url\(data:font\/woff2;base64,/g) || []).length, 6);
+  assert.equal((html.match(/unicode-range:/g) || []).length, 6);
 });
 
 test('the page carries no leftover module.exports line', () => {

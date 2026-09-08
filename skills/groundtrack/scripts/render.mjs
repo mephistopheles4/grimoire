@@ -670,6 +670,14 @@ export function page(prog) {
   const template = readFileSync(resolve(here, '..', 'assets', 'template.html'), 'utf8');
   const moduleSource = readFileSync(resolve(here, 'groundtrack.js'), 'utf8').replace(/\nif \(typeof module[^\n]*\n?$/, '\n');
 
+  /* The Aviation design system, vendored whole. One file, no imports: tokens,
+   * both themes, the dark layer, the av-* vocabulary and the av-tool-* report
+   * chrome. Inlined for the same reason the faces below are — a rendered page
+   * is one file and must stand on its own. The bundle cannot carry the faces;
+   * a stylesheet has no way to embed a binary. See assets/FONTS.md, and do not
+   * edit the bundle in place: replace it from the design system repository. */
+  const aviation = readFileSync(resolve(here, '..', 'assets', 'aviation.bundle.css'), 'utf8');
+
   /* The faces are vendored and inlined, so the page makes no network request
    * at all. A font CDN is a dependency on somebody else's uptime, some hosts
    * will not load one, and a drawing whose monospace silently degrades is a
@@ -698,6 +706,7 @@ export function page(prog) {
 
   return template
     .replace('/*TITLE*/', () => String(prog.title).replace(/[<>&]/g, ''))
+    .replace('/*AVIATION*/', () => aviation)
     .replace('/*FONTS*/', () => faces)
     .replace('<!--SHEETS-->', () => picker)
     .replace('/*DATA*/', () => data)

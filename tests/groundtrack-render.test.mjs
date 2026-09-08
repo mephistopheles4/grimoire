@@ -843,7 +843,12 @@ test('the emitted page holds zero external references', () => {
   assert.doesNotMatch(html, /XMLHttpRequest|WebSocket|EventSource|navigator\.sendBeacon/);
   // The faces are here instead, inlined: two subsets for each of three
   // weights, each under the unicode-range IBM declares for it.
-  assert.equal((html.match(/@font-face/g) || []).length, 6);
+  //
+  // The brace matters. The vendored design-system bundle carries a header
+  // explaining, in prose, that a stylesheet cannot embed a binary and that
+  // @font-face rules are the consumer's job — so a bare /@font-face/ counts
+  // that prose as if it were CSS. Rules have a brace; sentences do not.
+  assert.equal((html.match(/@font-face\{/g) || []).length, 6);
   assert.equal((html.match(/src:url\(data:font\/woff2;base64,/g) || []).length, 6);
   assert.equal((html.match(/unicode-range:/g) || []).length, 6);
 });
@@ -935,7 +940,12 @@ test('author text reaches the page as text, in every field the page shows', () =
   // The script block cannot be closed from inside the embedded file. Only the
   // closing sequence matters: a bare "<script" inside a script block is text,
   // and the escape leaves it alone on purpose.
-  assert.equal((html.match(/<\/script>/g) || []).length, 2, 'the page has exactly the two closers it ships');
+  //
+  // Three closers, not two. The third is the scheme script in <head>, which
+  // reads prefers-color-scheme before first paint and carries no author text
+  // at all. Raise this number only for another block the page ships itself;
+  // a closer that arrives from the flightpath file is the bug this counts.
+  assert.equal((html.match(/<\/script>/g) || []).length, 3, 'the page has exactly the three closers it ships');
   assert.match(html, /<\\\/script>/, 'the payload carries the closing tag escaped');
 
   // Every poisoned string reaches the markup escaped, and the raw tag appears

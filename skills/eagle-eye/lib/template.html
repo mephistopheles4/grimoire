@@ -4,7 +4,32 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>/*TITLE*/ — eagle-eye</title>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<script>
+/* The one place anything here consults the operating system. The design system
+   is opt-in by policy — light is the default and dark.css never reads
+   prefers-color-scheme — so a consumer that wants to follow the OS has to say
+   so. A tool is read on a screen for a long sitting next to a terminal, so
+   this one does. Inline and before first paint, so no page flashes light.
+   The attribute goes on <html>, which is the element the deck theme sits on:
+   custom properties inherit, and a scheme set lower than the theme would lose
+   to it by proximity. */
+try{if(matchMedia('(prefers-color-scheme: dark)').matches)document.documentElement.setAttribute('data-aviation-scheme','dark')}catch(e){}
+</script>
+<style>
+/* The faces are vendored and inlined as data URIs. This page makes no network
+   request at all: a font CDN is a dependency on somebody else's uptime, some
+   hosts will not load one, and a page whose monospace silently degrades is a
+   worse page. See assets/FONTS.md. */
+/*FONTS*/
+</style>
+<style>
+/* AVIATION — the design system, whole, from dist/aviation.bundle.css. Tokens,
+   both themes, the dark layer, the av-* vocabulary and the av-tool-* report
+   chrome. It is inlined ahead of this page's own <style> so that everything
+   below wins by source order where the two ever meet. Do not edit it here:
+   replace it from the design system repository. */
+/*AVIATION*/
+</style>
 <style>
 /* Drafting: one ink on one paper; amber = caution only, green = normal only; neutrals are ink at alpha; no radius, no shadow. */
 :root{

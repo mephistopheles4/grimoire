@@ -85,44 +85,69 @@ test('the box the skill ships still publishes, and the index links it', () => {
 
 test('the index is the same design as the pages it links', () => {
   // The index carried its own sans-serif stack and declared
-  // `color-scheme: light dark`. The pages use the Drafting tokens and declare
-  // no color-scheme at all, so on a dark-mode browser the index rendered dark
-  // and every page it linked rendered light: a visible flip on each
-  // click-through, not a style inconsistency.
+  // `color-scheme: light dark`. The pages use the system's tokens and take
+  // their light/dark from the scheme layer, so on a dark-mode browser the index
+  // rendered dark and every page it linked rendered light: a visible flip on
+  // each click-through, not a style inconsistency.
+  //
+  // Both now wear the Aviation bundle outright rather than a transcription of
+  // it, which is what makes "the same design" checkable instead of a promise.
   const dir = tree();
   const r = run(buildIn(dir), [], { cwd: dir });
   assert.equal(r.code, 0, `${r.stdout}\n${r.stderr}`);
   const index = readFileSync(site(dir, 'index.html'), 'utf8');
   const page = readFileSync(site(dir, 'skills-eagle-eye-examples-eagle-eye-skill.html'), 'utf8');
 
-  for (const token of ['--dw-paper', '--dw-ink', '--dw-font']) {
-    assert.ok(index.includes(token), `the index must carry ${token}`);
-    assert.ok(page.includes(token), `the page must carry ${token}`);
+  // The bundle's own header line. If either side stops carrying it, they have
+  // stopped sharing a source and this test is the place that says so.
+  for (const marker of ['AVIATION — BUNDLE', '--av-paper', '--av-ink', '--av-font']) {
+    assert.ok(index.includes(marker), `the index must carry ${marker}`);
+    assert.ok(page.includes(marker), `the page must carry ${marker}`);
   }
-  assert.match(index, /IBM\+Plex\+Mono/);
   assert.equal(/ui-sans-serif/.test(index), false, 'the index must not keep its own type stack');
-  // The same light/dark commitment, which is to make none.
-  assert.equal(/color-scheme/.test(page), false);
-  assert.equal(/color-scheme/.test(index), false, 'the index must not flip a dark browser to light');
+  // The same light/dark commitment, and now it is a commitment to something:
+  // both consult the OS once, before first paint, and set the system's own
+  // scheme attribute.
+  //
+  // `color-scheme: light dark` is what caused the flip and stays forbidden: it
+  // hands the decision to the browser, which then disagreed with pages that had
+  // made it themselves. The bundle's `color-scheme: dark` is the opposite —
+  // scoped inside the dark layer, it tells the browser what the page has
+  // ALREADY decided, so form controls and scrollbars match the ground.
+  for (const html of [index, page]) {
+    assert.doesNotMatch(html, /color-scheme:\s*light\s+dark/, 'neither may hand the choice to the browser');
+    assert.match(html, /prefers-color-scheme: dark/, 'both read the OS preference');
+    assert.match(html, /setAttribute\('data-aviation-scheme','dark'\)/);
+  }
 });
 
-test('the index page is the only external reference the site adds', () => {
+test('the site adds no external reference at all', () => {
   // SECURITY.md enumerates every external request the published site makes,
-  // so a second one has to be a red test rather than a discovery. The index
-  // links the same Google Fonts stylesheet the rendered pages link; nothing
-  // else may join it. Asserting the link is present pins it in — this bounds
-  // the set, which is the direction that matters.
+  // and that list is now empty. This test used to pin the count at exactly one
+  // and name it — the Google Fonts stylesheet the index and the rendered pages
+  // both linked. The faces are vendored and inlined everywhere, so nothing is
+  // fetched, and this is what keeps a convenience link from creeping back.
   //
-  // Same width as the render test, and stated for the same reason: this reads
-  // src and href on a script, link or img element. A CSS @import, a url(), a
-  // fetch or an iframe would be a second way out and this test stays green.
+  // Same width as the render tests: src and href anywhere, a CSS @import, a
+  // url() in a stylesheet, and the four ways a script opens a socket.
   const dir = tree();
   run(buildIn(dir), [], { cwd: dir });
   const index = readFileSync(site(dir, 'index.html'), 'utf8');
-  const external = index.match(/<(?:script|link|img)[^>]+(?:src|href)="(https?:[^"]*)"/gi) || [];
-  assert.equal(external.length, 1, `unexpected external references: ${external.join(', ')}`);
-  assert.match(external[0], /^<link rel="stylesheet" href="https:\/\/fonts\.googleapis\.com\//);
+  assert.doesNotMatch(index, /<link\b/i);
+  assert.doesNotMatch(index, /\bsrc\s*=\s*["']https?:/i);
+  assert.doesNotMatch(index, /\bhref\s*=\s*["']https?:(?!\/\/github\.com)/i);
+  assert.doesNotMatch(index, /url\(\s*["']?https?:/i);
+  assert.doesNotMatch(index, /@import/i);
+  assert.doesNotMatch(index, /XMLHttpRequest|WebSocket|EventSource|navigator\.sendBeacon/);
   assert.equal(/<script[^>]+src=/i.test(index), false, 'no script is loaded from a URL');
+  // The one https the page may carry is the source link a reader clicks. An
+  // anchor is not a request the page makes; the negative lookahead above says
+  // so precisely rather than exempting every href.
+  assert.match(index, /<a href="https:\/\/github\.com\/mephistopheles4\/grimoire">/);
+  // The faces are here instead. No unicode-range on the index: it is prose and
+  // links, so both subsets of each weight load and the browser picks.
+  assert.equal((index.match(/@font-face\{/g) || []).length, 6);
+  assert.equal((index.match(/src:url\(data:font\/woff2;base64,/g) || []).length, 6);
 });
 
 test('a box that wants the listing page name refuses, rather than being overwritten', () => {
