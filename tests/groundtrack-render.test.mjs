@@ -875,28 +875,42 @@ test("the shipped faces are IBM's own, unmodified", () => {
   // down ourselves would be a Modified Version that may not use it. So the
   // assets are IBM's published subsets, and this test is what notices if
   // somebody swaps in a hand-made one. See assets/FONTS.md.
-  const assets = join(groundtrack, '..', '..', 'assets');
-  const faces = readdirSync(assets).filter(f => f.endsWith('.woff2')).sort();
-  assert.deepEqual(faces, Object.keys(VENDORED).filter(f => f.endsWith('.woff2')).sort());
+  //
+  // BOTH skills, not just this one. eagle-eye vendored its own copy rather
+  // than reaching across the tree, for the reason FONTS.md gives: a skill
+  // lands in a different directory under every install route. A second copy
+  // is a second thing that can drift, so it is hashed against the same list.
+  // The first thing that went wrong with it was line endings, caught by the
+  // OFL check below one commit after the copy was made.
+  const dirs = [
+    join(groundtrack, '..', '..', 'assets'),
+    join(groundtrack, '..', '..', '..', 'eagle-eye', 'assets'),
+  ];
 
-  for (const [name, want] of Object.entries(VENDORED)) {
-    const bytes = readFileSync(join(assets, name));
-    const got = createHash('sha256').update(bytes).digest('hex');
-    assert.equal(got, want, `${name} is not the file that was vendored`);
-  }
-  for (const f of faces) {
-    assert.equal(readFileSync(join(assets, f)).subarray(0, 4).toString('latin1'), 'wOF2', `${f} is not a woff2`);
-  }
+  for (const assets of dirs) {
+    const faces = readdirSync(assets).filter(f => f.endsWith('.woff2')).sort();
+    assert.deepEqual(faces, Object.keys(VENDORED).filter(f => f.endsWith('.woff2')).sort(), assets);
 
-  // The licence travels with them, and it is IBM's copy rather than the blank
-  // template: their copyright line is the first thing in it.
-  const ofl = readFileSync(join(assets, 'OFL.txt'), 'utf8');
-  assert.match(ofl.split('\n')[0], /Copyright .* IBM Corp\. with Reserved Font Name "Plex"/);
-  assert.match(ofl, /SIL OPEN FONT LICENSE Version 1\.1/);
-  // IBM ship it with CRLF, and .gitattributes keeps it that way. A normalised
-  // copy is no longer the file IBM publishes, and the hash above would catch
-  // it — this says which of the two went wrong.
-  assert.ok(ofl.includes('\r\n'), 'the licence lost its original line endings');
+    for (const [name, want] of Object.entries(VENDORED)) {
+      const bytes = readFileSync(join(assets, name));
+      const got = createHash('sha256').update(bytes).digest('hex');
+      assert.equal(got, want, `${join(assets, name)} is not the file that was vendored`);
+    }
+    for (const f of faces) {
+      assert.equal(readFileSync(join(assets, f)).subarray(0, 4).toString('latin1'), 'wOF2', `${f} is not a woff2`);
+    }
+
+    // The licence travels with them, and it is IBM's copy rather than the blank
+    // template: their copyright line is the first thing in it.
+    const ofl = readFileSync(join(assets, 'OFL.txt'), 'utf8');
+    assert.match(ofl.split('\n')[0], /Copyright .* IBM Corp\. with Reserved Font Name "Plex"/);
+    assert.match(ofl, /SIL OPEN FONT LICENSE Version 1\.1/);
+    // IBM ship it with CRLF, and .gitattributes keeps it that way — one rule
+    // per path, so a new copy needs a new rule. A normalised copy is no longer
+    // the file IBM publishes, and the hash above would catch it; this says
+    // which of the two went wrong.
+    assert.ok(ofl.includes('\r\n'), `${assets}: the licence lost its original line endings`);
+  }
 });
 
 test('author text reaches the page as text, in every field the page shows', () => {
