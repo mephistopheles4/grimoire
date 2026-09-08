@@ -269,9 +269,14 @@
      Opt in only. Light is the default; the OS preference is not consulted.
      Explicit:   data-aviation-scheme="dark"  turns dark on
      Put the attribute on the SAME element that carries data-aviation-theme
-     (normally <html>). A theme declared on a nearer ancestor than the scheme
-     would win by proximity, since custom properties inherit — so a theme
-     scoped to a container needs the scheme scoped there too.
+     (normally <html>). Split them and the scheme still applies to its own
+     subtree — but only partly, and half a scheme is worse than either whole
+     one. Measured, with the deck theme at :root and the scheme on a child:
+     --av-paper and --av-ink invert correctly, while --av-structure and
+     --av-failure stay light. This theme declares those two as var(--av-ink),
+     so they were substituted at :root, where ink was still the light one, and
+     what inherits down is the resolved colour rather than the reference.
+     A theme scoped to a container needs the scheme scoped there too.
 
    Load this AFTER themes/deck.css and themes/site.css. Every rule here has
    the same specificity as the theme rule it overrides; source order decides.

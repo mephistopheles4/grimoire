@@ -911,6 +911,16 @@ test("the shipped faces are IBM's own, unmodified", () => {
     // which of the two went wrong.
     assert.ok(ofl.includes('\r\n'), `${assets}: the licence lost its original line endings`);
   }
+
+  // The bundle is the same class of file as the faces — vendored, do-not-edit,
+  // and now in two places — so it gets the same guard, minus the fixed hash.
+  // A hash would have to be bumped by hand on every design system release,
+  // which is a step somebody skips; equality between the copies is the failure
+  // that actually happens, and it happened once already inside this branch. The
+  // header line is checked too, because an empty file is also "identical".
+  const bundles = dirs.map(d => readFileSync(join(d, 'aviation.bundle.css')));
+  assert.ok(bundles[0].equals(bundles[1]), 'the two vendored bundles have drifted apart');
+  assert.match(bundles[0].toString('utf8').slice(0, 200), /AVIATION — BUNDLE/);
 });
 
 test('author text reaches the page as text, in every field the page shows', () => {
