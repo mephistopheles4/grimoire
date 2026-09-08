@@ -94,9 +94,18 @@ input,textarea{font:inherit;color:inherit;background:var(--av-paper);border:1px 
 .chip.ghost:hover{color:var(--av-caution);border-color:var(--av-caution)}
 /* Disabled is the only chip allowed to sit at rule alpha, and the only one that does not answer the pointer.
    Two tells, not one: the label drops to hairline alpha and the hover response goes away. */
-/* The scheme control. A chip like every other control in this row — same type,
-   same border, same vertical padding — carrying a drawing instead of a word,
-   so the horizontal padding comes in to match.
+/* The scheme control, last in the actions row so it sits top right.
+
+   It shows the DESTINATION, not the state: the moon is offered while the page
+   is light. Both drawings ship in the markup and one carries [hidden], rather
+   than one drawing whose path is rewritten — nothing has to reflow, and the
+   geometry stays readable in the source. Stroke reads currentColor, so the
+   icon is whatever the chip is: colour is signal in this system and a scheme
+   is not a condition.
+
+   A chip like every other control in this row — same type, same border, same
+   vertical padding — carrying a drawing instead of a word, so the horizontal
+   padding comes in to match.
 
    THE HEIGHT IS NOT ARITHMETIC. The ::before is a zero-width strut exactly one
    line box tall, the same box a word makes in a text chip, and the icon is
@@ -137,6 +146,21 @@ input,textarea{font:inherit;color:inherit;background:var(--av-paper);border:1px 
    The mark is sized to the two text rows it stands beside (eyebrow 11px at 1.6, plus the h1's
    10px top margin and its 24px at 1.25 = 57.6px), so it covers both rather than floating on one. */
 .head-id{display:flex;align-items:center;gap:16px;min-width:0}
+/* THE MARK DOES NOT FOLLOW THE SCHEME, and its fills say so by reading
+   --av-deck-* rather than the live names.
+
+   It used to read --av-ink and --av-paper, which swap under a dark scheme —
+   so the mark turned into a pale square with dark linework, the logo
+   inverted. It is not a light mark that needs a dark counterpart; it already
+   carries its own dark ground, and it should look the same in both schemes.
+
+   --av-deck-* is the deck theme's STAGED palette: declared once at :root,
+   unconditionally, read by nothing else, and never remapped by dark.css. That
+   is the system's own way of writing "this value does not invert", so the
+   fills stay token references rather than becoming hardcoded hexes.
+
+   Stated here rather than beside the <svg> because the markup ships to every
+   reader of every report and this is a note for whoever edits the template. */
 .head-mark{flex:none;display:block;width:56px;height:56px}
 .controls{display:flex;gap:var(--sp-3);align-items:center;flex-wrap:wrap}
 .controls .group{display:flex;gap:var(--sp-1);align-items:center;flex-wrap:wrap}
@@ -296,20 +320,10 @@ details[open] > :not(summary){animation:ee-unfold .22s var(--ease) both}
 <div class="page"><div class="sheet">
   <div class="head">
     <div class="head-id">
-      <!-- The eagle-eye mark, the 40px-and-up variant, inlined so the page still
-           fetches nothing. Geometry is the brand handoff's, coordinate for
-           coordinate; do not tidy the paths.
-
-           THE MARK DOES NOT FOLLOW THE SCHEME. It used to read the live
-           --av-ink and --av-paper, which swap under a dark scheme and turned it
-           into a pale square with dark linework — the logo, inverted. It is not
-           a light mark that needs a dark counterpart; it already carries its own
-           dark ground, and it should look the same in both schemes.
-
-           --av-deck-* is the deck theme's STAGED palette: declared once at
-           :root, unconditionally, read by nothing else, and never remapped by
-           dark.css. That is the system's own way of writing "this value does
-           not invert", so it is a token reference and not a hardcoded hex. -->
+      <!-- The eagle-eye mark, the 40px-and-up variant, inlined so the page
+           still fetches nothing. Geometry is the brand handoff's, coordinate
+           for coordinate; do not tidy the paths. Colours are --av-deck-*, so
+           the mark does not invert — see .head-mark in the stylesheet. -->
       <svg class="head-mark" viewBox="0 0 24 24" role="img" aria-label="eagle-eye">
         <rect x="0.8" y="0.8" width="22.4" height="22.4" fill="var(--av-deck-ink)"></rect>
         <circle cx="12" cy="12" r="8.8" fill="none" stroke="var(--av-deck-paper)" stroke-width="1.4"></circle>
@@ -326,12 +340,8 @@ details[open] > :not(summary){animation:ee-unfold .22s var(--ease) both}
       <div class="group"><span class="label">View</span><button class="chip" id="viewFind">Findings</button><button class="chip" id="viewSheet">Sheet</button></div>
       <div class="group" id="presetGroup"><span class="label">Presets</span><span id="presets" style="display:flex;gap:6px;flex-wrap:wrap"></span></div>
       <div class="group"><button class="chip ghost" id="coachToggle">Coach: off</button><button class="chip ghost" id="exportBtn">Export</button><button class="chip ghost" id="reset">Reset</button></div>
-      <!-- Last in the row, so it sits top right. It shows the DESTINATION, not
-           the state: the moon is offered while the page is light. Both drawings
-           ship and one is hidden, rather than rewriting a path, so nothing has
-           to reflow and the geometry stays readable in the source. Stroke reads
-           currentColor, so the icon is whatever the chip is — colour is signal
-           in this system and a scheme is not a condition. -->
+      <!-- The scheme control, last in the row so it sits top right. Both
+           drawings ship; one carries [hidden]. See .chip--scheme. -->
       <div class="group"><button class="chip chip--scheme" id="schemeToggle" type="button">
         <svg class="scheme-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="miter" aria-hidden="true"><path d="M16.124 4 A 9 9 0 1 0 16.124 20 A 8 8 0 0 1 16.124 4 Z"></path></svg>
         <svg class="scheme-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="miter" aria-hidden="true" hidden><circle cx="12" cy="12" r="5"></circle><line x1="19.6" y1="12" x2="22.4" y2="12"></line><line x1="18.582" y1="8.2" x2="21.007" y2="6.8"></line><line x1="15.8" y1="5.418" x2="17.2" y2="2.993"></line><line x1="12" y1="4.4" x2="12" y2="1.6"></line><line x1="8.2" y1="5.418" x2="6.8" y2="2.993"></line><line x1="5.418" y1="8.2" x2="2.993" y2="6.8"></line><line x1="4.4" y1="12" x2="1.6" y2="12"></line><line x1="5.418" y1="15.8" x2="2.993" y2="17.2"></line><line x1="8.2" y1="18.582" x2="6.8" y2="21.007"></line><line x1="12" y1="19.6" x2="12" y2="22.4"></line><line x1="15.8" y1="18.582" x2="17.2" y2="21.007"></line><line x1="18.582" y1="15.8" x2="21.007" y2="17.2"></line></svg>

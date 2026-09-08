@@ -101,6 +101,21 @@ body { margin: 0; }
   padding: var(--av-s2) var(--av-s3); border-bottom: var(--av-rule-bold) solid var(--av-ink); }
 .head-row { display: flex; align-items: center; gap: var(--av-s3); flex-wrap: wrap; min-width: 0; }
 .head-id { display: flex; align-items: center; gap: var(--av-s2); min-width: 0; }
+/* THE MARK DOES NOT FOLLOW THE SCHEME, and its fills say so by reading
+   --av-deck-* rather than the live names.
+
+   It used to read --av-ink and --av-paper, which swap under a dark scheme —
+   so the mark turned into a pale square with dark linework, the logo
+   inverted. It is not a light mark that needs a dark counterpart; it already
+   carries its own dark ground, and it should look the same in both schemes.
+
+   --av-deck-* is the deck theme's STAGED palette: declared once at :root,
+   unconditionally, read by nothing else, and never remapped by dark.css. That
+   is the system's own way of writing "this value does not invert", so the
+   fills stay token references rather than becoming hardcoded hexes.
+
+   Stated here rather than beside the <svg> because the markup ships to every
+   reader of every report and this is a note for whoever edits the template. */
 .head-mark { flex: none; display: block; }
 /* The lockup: the mark beside two stacked rows, the sheet's name over the
    selected run's line. The mark is sized to both rows together (the title's
@@ -135,10 +150,20 @@ input[type=checkbox] { accent-color: var(--av-ink); margin: 0 var(--av-s1) 0 0; 
    against it rather than being flung at the far edge — and when the row wraps
    on a narrow window they start at the left like everything else. */
 .btn-group { display: flex; gap: var(--av-s1); align-items: center; flex: none; }
-/* The scheme control. A button like every other control on this row — it
-   inherits the shared `select, button, input` rule above, so same type, same
-   border, same vertical padding — carrying a drawing instead of a word, so the
-   horizontal padding comes in to match.
+/* The scheme control, top right of the lockup row rather than down with the
+   walk controls: it changes how the sheet is READ, not where the cursor is.
+
+   It shows the DESTINATION, not the state: the moon is offered while the page
+   is light. Both drawings ship in the markup and one carries [hidden], rather
+   than one drawing whose path is rewritten — nothing has to reflow, and the
+   geometry stays readable in the source. Stroke reads currentColor, so the
+   icon is whatever the button is: colour is signal in this system and a scheme
+   is not a condition.
+
+   A button like every other control on this row — it inherits the shared
+   `select, button, input` rule above, so same type, same border, same vertical
+   padding — carrying a drawing instead of a word, so the horizontal padding
+   comes in to match.
 
    THE HEIGHT IS NOT ARITHMETIC. The ::before is a zero-width strut exactly one
    line box tall, the same box a word makes in a text button, and the icon is
@@ -431,18 +456,8 @@ button[data-help][aria-disabled=true] { cursor: help; }
            here, which is what the small variant drops; below 40px the 1.0
            hairlines stop resolving, so this one is never drawn below 40.
            Geometry is the brand handoff's, coordinate for coordinate; do not
-           tidy the paths.
-
-           THE MARK DOES NOT FOLLOW THE SCHEME. It used to read the live
-           --av-ink and --av-paper, which swap under a dark scheme and turned it
-           into a pale square with dark linework — the logo, inverted. It is not
-           a light mark that needs a dark counterpart; it already carries its own
-           dark ground, and it should look the same in both schemes.
-
-           --av-deck-* is the deck theme's STAGED palette: declared once at
-           :root, unconditionally, read by nothing else, and never remapped by
-           dark.css. That is the system's own way of writing "this value does
-           not invert", so it is a token reference and not a hardcoded hex. -->
+           tidy the paths. Colours are --av-deck-*, so the mark does not
+           invert — see .head-mark in the stylesheet. -->
       <svg class="head-mark" viewBox="0 0 24 24" width="44" height="44" role="img" aria-label="groundtrack" data-help="groundtrack">
         <rect x="0.8" y="0.8" width="22.4" height="22.4" fill="var(--av-deck-ink)"></rect>
         <g transform="rotate(90 12 12) translate(24,0) scale(-1,1)">
@@ -474,13 +489,8 @@ button[data-help][aria-disabled=true] { cursor: help; }
         <span class="av-annot head-blurb" id="runBlurb"></span>
       </div>
     </div>
-    <!-- Top right of the lockup row, away from the walk controls below: this
-         changes how the sheet is READ, not where the cursor is. It shows the
-         DESTINATION, not the state — the moon is offered while the page is
-         light. Both drawings ship and one is hidden, rather than rewriting a
-         path, so nothing has to reflow and the geometry stays readable in the
-         source. Stroke reads currentColor, so the icon is whatever the button
-         is: colour is signal in this system and a scheme is not a condition. -->
+    <!-- The scheme control, top right of the lockup row. Both drawings ship;
+         one carries [hidden]. See .btn-scheme. -->
     <button class="btn btn-scheme" id="schemeToggle" type="button">
       <svg class="scheme-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="miter" aria-hidden="true"><path d="M16.124 4 A 9 9 0 1 0 16.124 20 A 8 8 0 0 1 16.124 4 Z"></path></svg>
       <svg class="scheme-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="miter" aria-hidden="true" hidden><circle cx="12" cy="12" r="5"></circle><line x1="19.6" y1="12" x2="22.4" y2="12"></line><line x1="18.582" y1="8.2" x2="21.007" y2="6.8"></line><line x1="15.8" y1="5.418" x2="17.2" y2="2.993"></line><line x1="12" y1="4.4" x2="12" y2="1.6"></line><line x1="8.2" y1="5.418" x2="6.8" y2="2.993"></line><line x1="5.418" y1="8.2" x2="2.993" y2="6.8"></line><line x1="4.4" y1="12" x2="1.6" y2="12"></line><line x1="5.418" y1="15.8" x2="2.993" y2="17.2"></line><line x1="8.2" y1="18.582" x2="6.8" y2="21.007"></line><line x1="12" y1="19.6" x2="12" y2="22.4"></line><line x1="15.8" y1="18.582" x2="17.2" y2="21.007"></line><line x1="18.582" y1="15.8" x2="21.007" y2="17.2"></line></svg>
