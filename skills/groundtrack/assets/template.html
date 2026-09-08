@@ -5,15 +5,22 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>groundtrack — /*TITLE*/</title>
 <script>
-/* The one place anything here consults the operating system. The design system
-   is opt-in by policy — light is the default and dark.css never reads
-   prefers-color-scheme — so a consumer that wants to follow the OS has to say
-   so. A drawing is read on a screen for a long sitting next to a terminal, so
-   this one does. Inline and before first paint, so no page flashes light.
-   The attribute goes on <html>, which is the element the deck theme sits on:
-   custom properties inherit, and a scheme set lower than the theme would lose
-   to it by proximity. */
-try{if(matchMedia('(prefers-color-scheme: dark)').matches)document.documentElement.setAttribute('data-aviation-scheme','dark')}catch(e){}
+/* LIGHT IS THE DEFAULT, and the operating system is not consulted. That is the
+   design system's own policy — dark.css never reads prefers-color-scheme — and
+   this page now follows it rather than making an exception. A reader who wants
+   dark says so with the control in the head, and that choice is what is
+   remembered; an OS preference is not a request about this page.
+
+   Inline and before first paint, so a reader who chose dark last time never
+   sees a light flash. The attribute goes on <html>, which is the element the
+   deck theme sits on: a theme answers some roles with ink, those resolve where
+   they are declared, and a scheme set lower would leave the subtree half-dark.
+
+   Storage is best-effort. A page opened from file:// has an opaque origin in
+   some browsers and localStorage throws on access, not just on write — hence
+   the try around the read as well. Failing means light, which is the default
+   anyway, so nothing else needs to know. */
+try{if(localStorage.getItem('aviation-scheme')==='dark')document.documentElement.setAttribute('data-aviation-scheme','dark')}catch(e){}
 </script>
 <style>
 /* The faces are vendored and inlined as data URIs. This page makes no network
@@ -94,6 +101,21 @@ body { margin: 0; }
   padding: var(--av-s2) var(--av-s3); border-bottom: var(--av-rule-bold) solid var(--av-ink); }
 .head-row { display: flex; align-items: center; gap: var(--av-s3); flex-wrap: wrap; min-width: 0; }
 .head-id { display: flex; align-items: center; gap: var(--av-s2); min-width: 0; }
+/* THE MARK DOES NOT FOLLOW THE SCHEME, and its fills say so by reading
+   --av-deck-* rather than the live names.
+
+   It used to read --av-ink and --av-paper, which swap under a dark scheme —
+   so the mark turned into a pale square with dark linework, the logo
+   inverted. It is not a light mark that needs a dark counterpart; it already
+   carries its own dark ground, and it should look the same in both schemes.
+
+   --av-deck-* is the deck theme's STAGED palette: declared once at :root,
+   unconditionally, read by nothing else, and never remapped by dark.css. That
+   is the system's own way of writing "this value does not invert", so the
+   fills stay token references rather than becoming hardcoded hexes.
+
+   Stated here rather than beside the <svg> because the markup ships to every
+   reader of every report and this is a note for whoever edits the template. */
 .head-mark { flex: none; display: block; }
 /* The lockup: the mark beside two stacked rows, the sheet's name over the
    selected run's line. The mark is sized to both rows together (the title's
@@ -128,6 +150,42 @@ input[type=checkbox] { accent-color: var(--av-ink); margin: 0 var(--av-s1) 0 0; 
    against it rather than being flung at the far edge — and when the row wraps
    on a narrow window they start at the left like everything else. */
 .btn-group { display: flex; gap: var(--av-s1); align-items: center; flex: none; }
+/* The scheme control, top right of the lockup row rather than down with the
+   walk controls: it changes how the sheet is READ, not where the cursor is.
+
+   It shows the DESTINATION, not the state: the moon is offered while the page
+   is light. Both drawings ship in the markup and one carries [hidden], rather
+   than one drawing whose path is rewritten — nothing has to reflow, and the
+   geometry stays readable in the source. Stroke reads currentColor, so the
+   icon is whatever the button is: colour is signal in this system and a scheme
+   is not a condition.
+
+   A button like every other control on this row — it inherits the shared
+   `select, button, input` rule above, so same type, same border, same vertical
+   padding — carrying a drawing instead of a word, so the horizontal padding
+   comes in to match.
+
+   THE HEIGHT IS NOT ARITHMETIC. The ::before is a zero-width strut exactly one
+   line box tall, the same box a word makes in a text button, and the icon is
+   deliberately shorter than it. So the strut sets the height and the two kinds
+   of button match by construction — and keep matching if the type scale moves,
+   which on this page it already has. */
+/* margin-left: auto, not a spacer element: the lockup row is a wrap-enabled
+   flex, so the auto margin takes the row's slack and drops the button to the
+   left of the next line when the row wraps, rather than leaving a gap. */
+.btn-scheme { margin-left: auto; padding-left: 8px; padding-right: 8px; display: inline-flex; align-items: center; }
+.btn-scheme::before { content: ""; display: block; width: 0; height: 1.6em; }
+/* HIDDEN BY DEFAULT, SHOWN WHEN NOT [hidden] — and this pair does the hiding
+   itself rather than leaning on the UA.
+   The `hidden` attribute does nothing at all to an <svg>: the UA stylesheet
+   declares `@namespace` as XHTML, so its `[hidden]` rule carries an implied
+   universal selector in that namespace and never matches an SVG element. Two
+   attempts got this wrong — a bare `display: block` painted both icons, and so
+   did `:not([hidden])` on its own, because there was nothing left to hide the
+   other one. Stating both halves here needs no rule anywhere else in the file
+   and no UA behaviour. */
+.btn-scheme svg { display: none; width: 16px; height: 16px; }
+.btn-scheme svg:not([hidden]) { display: block; }
 .stepnow { font-size: var(--av-t-micro); letter-spacing: var(--av-track-label); font-variant-numeric: tabular-nums;
   color: var(--av-ink-70); min-width: 6rem; text-align: right; }
 
@@ -394,19 +452,20 @@ button[data-help][aria-disabled=true] { cursor: help; }
    <div class="head-row">
     <div class="head-id">
       <!-- The groundtrack mark, the 40px-and-up variant, inlined so the page
-           still fetches nothing. Its colours read the sheet's tokens. All five
-           sleepers and the inset ground are here, which is what the small
-           variant drops; below 40px the 1.0 hairlines stop resolving, so this
-           one is never drawn below 40. Geometry is the brand handoff's,
-           coordinate for coordinate; do not tidy the paths. -->
+           still fetches nothing. All five sleepers and the inset ground are
+           here, which is what the small variant drops; below 40px the 1.0
+           hairlines stop resolving, so this one is never drawn below 40.
+           Geometry is the brand handoff's, coordinate for coordinate; do not
+           tidy the paths. Colours are --av-deck-*, so the mark does not
+           invert — see .head-mark in the stylesheet. -->
       <svg class="head-mark" viewBox="0 0 24 24" width="44" height="44" role="img" aria-label="groundtrack" data-help="groundtrack">
-        <rect x="0.8" y="0.8" width="22.4" height="22.4" fill="var(--av-ink)"></rect>
+        <rect x="0.8" y="0.8" width="22.4" height="22.4" fill="var(--av-deck-ink)"></rect>
         <g transform="rotate(90 12 12) translate(24,0) scale(-1,1)">
-          <g fill="none" stroke="var(--av-paper)" stroke-width="1.0">
+          <g fill="none" stroke="var(--av-deck-paper)" stroke-width="1.0">
             <path d="M13.2 19 A 5.8 5.8 0 0 1 19 13.2"></path>
             <path d="M6.8 19 A 12.2 12.2 0 0 1 19 6.8"></path>
           </g>
-          <g stroke="var(--av-paper)" stroke-width="1.05">
+          <g stroke="var(--av-deck-paper)" stroke-width="1.05">
             <line x1="6.8" y1="19" x2="13.2" y2="19"></line>
             <line x1="7.73" y1="14.33" x2="13.64" y2="16.78"></line>
             <line x1="10.37" y1="10.37" x2="14.90" y2="14.90"></line>
@@ -414,11 +473,11 @@ button[data-help][aria-disabled=true] { cursor: help; }
             <line x1="19" y1="6.8" x2="19" y2="13.2"></line>
           </g>
         </g>
-        <g stroke="var(--av-paper)" stroke-width="1.0">
+        <g stroke="var(--av-deck-paper)" stroke-width="1.0">
           <line x1="10.8" y1="5.0" x2="10.8" y2="1.9"></line>
           <line x1="17.2" y1="5.0" x2="17.2" y2="1.9"></line>
         </g>
-        <g stroke="var(--av-caution)" stroke-width="1.05">
+        <g stroke="var(--av-deck-caution)" stroke-width="1.05">
           <line x1="10.8" y1="2.6" x2="17.2" y2="2.6"></line>
         </g>
       </svg>
@@ -430,6 +489,12 @@ button[data-help][aria-disabled=true] { cursor: help; }
         <span class="av-annot head-blurb" id="runBlurb"></span>
       </div>
     </div>
+    <!-- The scheme control, top right of the lockup row. Both drawings ship;
+         one carries [hidden]. See .btn-scheme. -->
+    <button class="btn btn-scheme" id="schemeToggle" type="button">
+      <svg class="scheme-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="miter" aria-hidden="true"><path d="M16.124 4 A 9 9 0 1 0 16.124 20 A 8 8 0 0 1 16.124 4 Z"></path></svg>
+      <svg class="scheme-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="miter" aria-hidden="true" hidden><circle cx="12" cy="12" r="5"></circle><line x1="19.6" y1="12" x2="22.4" y2="12"></line><line x1="18.582" y1="8.2" x2="21.007" y2="6.8"></line><line x1="15.8" y1="5.418" x2="17.2" y2="2.993"></line><line x1="12" y1="4.4" x2="12" y2="1.6"></line><line x1="8.2" y1="5.418" x2="6.8" y2="2.993"></line><line x1="5.418" y1="8.2" x2="2.993" y2="6.8"></line><line x1="4.4" y1="12" x2="1.6" y2="12"></line><line x1="5.418" y1="15.8" x2="2.993" y2="17.2"></line><line x1="8.2" y1="18.582" x2="6.8" y2="21.007"></line><line x1="12" y1="19.6" x2="12" y2="22.4"></line><line x1="15.8" y1="18.582" x2="17.2" y2="21.007"></line><line x1="18.582" y1="15.8" x2="21.007" y2="17.2"></line></svg>
+    </button>
    </div>
    <!-- Everything that drives the walk, under the lockup and in the order a
         reader chooses it: the sheet, then the run on it, then the controls
@@ -1127,6 +1192,43 @@ function start() {
   $('first').addEventListener('click', function () { jumpTo(0); render(); });
   $('last').addEventListener('click', function () { jumpTo(S.states.length - 1); render(); });
   $('play').addEventListener('click', play);
+
+  /* THE SCHEME CONTROL. The attribute on <html> is the whole of the mechanism —
+   * the design system's dark layer keys off it — so this only sets it,
+   * remembers it, and keeps the button describing what it will do next.
+   *
+   * It names the DESTINATION, not the state: while the page is light the button
+   * shows a moon and says "Switch to dark". The label is what a screen reader
+   * gets and what a hover reveals, so the drawing never carries the meaning on
+   * its own.
+   *
+   * The inline script in <head> applied the saved choice before first paint;
+   * this reads the attribute back rather than keeping a second copy of the
+   * truth. Storage stays best-effort: a page opened from file:// can throw on
+   * access in some browsers, and a toggle that works for this sitting but is
+   * not remembered is a much smaller failure than one that throws. */
+  /* toggleAttribute, NOT `.hidden`. The `hidden` IDL property is defined on
+   * HTMLElement, and these two are SVGElement — so `svg.hidden = true` sets a
+   * plain JS expando and never touches the attribute the [hidden] rule
+   * matches. Written that way first, and the effect was a toggle that flipped
+   * the scheme, the title and the stored value while the icon sat unchanged:
+   * the property and the attribute disagreed, and only the attribute renders. */
+  var paintScheme = function () {
+    var dark = document.documentElement.getAttribute('data-aviation-scheme') === 'dark';
+    document.querySelector('.scheme-moon').toggleAttribute('hidden', dark);
+    document.querySelector('.scheme-sun').toggleAttribute('hidden', !dark);
+    var next = dark ? 'light' : 'dark';
+    $('schemeToggle').title = 'Switch to ' + next;
+    $('schemeToggle').setAttribute('aria-label', 'Switch to ' + next);
+  };
+  $('schemeToggle').addEventListener('click', function () {
+    var dark = document.documentElement.getAttribute('data-aviation-scheme') === 'dark';
+    if (dark) document.documentElement.removeAttribute('data-aviation-scheme');
+    else document.documentElement.setAttribute('data-aviation-scheme', 'dark');
+    try { localStorage.setItem('aviation-scheme', dark ? 'light' : 'dark'); } catch (e) {}
+    paintScheme();
+  });
+  paintScheme();
 
   /* The trace is taken hold of, not only clicked. While the reader holds it,
      play pauses so the two do not fight over the cursor, and resumes on

@@ -105,20 +105,38 @@ test('the index is the same design as the pages it links', () => {
     assert.ok(page.includes(marker), `the page must carry ${marker}`);
   }
   assert.equal(/ui-sans-serif/.test(index), false, 'the index must not keep its own type stack');
-  // The same light/dark commitment, and now it is a commitment to something:
-  // both consult the OS once, before first paint, and set the system's own
-  // scheme attribute.
+  // The same light/dark commitment, and it is now the design system's own:
+  // light is the default, the OS is NOT consulted, and a reader's saved choice
+  // is applied before first paint from one shared storage key. Both surfaces
+  // read that key, so a reader who picked dark on a report does not get a light
+  // flash from the index on the way back.
   //
-  // `color-scheme: light dark` is what caused the flip and stays forbidden: it
-  // hands the decision to the browser, which then disagreed with pages that had
-  // made it themselves. The bundle's `color-scheme: dark` is the opposite —
-  // scoped inside the dark layer, it tells the browser what the page has
-  // ALREADY decided, so form controls and scrollbars match the ground.
+  // The OS read is asserted ABSENT — as `matchMedia`, the mechanism, not as
+  // the words "prefers-color-scheme". Both pages say those words in a comment,
+  // explaining why they do NOT consult it, and a test that forbids the phrase
+  // forbids the explanation with it. This asserted the phrase for one run and
+  // failed on that comment, which is the whole argument in one failure.
+  //
+  // It shipped reading the OS for one release and that was the wrong default:
+  // an OS preference is a preference about a desktop, not a request about this
+  // page, and the system's policy is that dark is opt-in.
+  //
+  // `color-scheme: light dark` is what caused the original flip and stays
+  // forbidden: it hands the decision to the browser, which then disagreed with
+  // pages that had made it themselves. The bundle's `color-scheme: dark` is the
+  // opposite — scoped inside the dark layer, it tells the browser what the page
+  // has ALREADY decided, so form controls and scrollbars match the ground.
   for (const html of [index, page]) {
     assert.doesNotMatch(html, /color-scheme:\s*light\s+dark/, 'neither may hand the choice to the browser');
-    assert.match(html, /prefers-color-scheme: dark/, 'both read the OS preference');
+    assert.doesNotMatch(html, /matchMedia\s*\(/, 'neither may consult the OS');
+    assert.match(html, /localStorage\.getItem\('aviation-scheme'\)/, 'both read the saved choice');
     assert.match(html, /setAttribute\('data-aviation-scheme','dark'\)/);
   }
+
+  // Only the report carries a control. The index is a list of links, not a tool
+  // read for a long sitting, so it follows the choice without offering one.
+  assert.match(page, /id="schemeToggle"/, 'the report carries the toggle');
+  assert.doesNotMatch(index, /id="schemeToggle"/, 'the index does not');
 });
 
 test('the site adds no external reference at all', () => {
