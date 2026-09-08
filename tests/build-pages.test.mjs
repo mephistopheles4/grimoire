@@ -144,10 +144,16 @@ test('the site adds no external reference at all', () => {
   // anchor is not a request the page makes; the negative lookahead above says
   // so precisely rather than exempting every href.
   assert.match(index, /<a href="https:\/\/github\.com\/mephistopheles4\/grimoire">/);
-  // The faces are here instead. No unicode-range on the index: it is prose and
-  // links, so both subsets of each weight load and the browser picks.
+  // The faces are here instead, and under the same contract as the rendered
+  // pages: two subsets per weight, each with the range IBM declares for it.
+  // The index shipped these WITHOUT a range for one commit. Two rules for one
+  // family and weight with no range both default to U+0-10FFFF and fully
+  // overlap, so only the last — Pi, which has no Latin letters — is in force.
+  // It happened to render because Chromium walks back to the earlier face in
+  // the family; that is not a contract. This is the assertion that was missing.
   assert.equal((index.match(/@font-face\{/g) || []).length, 6);
   assert.equal((index.match(/src:url\(data:font\/woff2;base64,/g) || []).length, 6);
+  assert.equal((index.match(/unicode-range:/g) || []).length, 6);
 });
 
 test('a box that wants the listing page name refuses, rather than being overwritten', () => {

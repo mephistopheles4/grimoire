@@ -104,20 +104,25 @@ const items = pages
 // the system outright is that fix finished: same tokens, same chrome classes,
 // same scheme script, no transcription to drift.
 const aviation = readFileSync(join(root, 'skills', 'eagle-eye', 'assets', 'aviation.bundle.css'), 'utf8');
-const FACES = [
-  ['400', 'IBMPlexMono-Regular-Latin1.woff2'], ['400', 'IBMPlexMono-Regular-Pi.woff2'],
-  ['500', 'IBMPlexMono-Medium-Latin1.woff2'], ['500', 'IBMPlexMono-Medium-Pi.woff2'],
-  ['600', 'IBMPlexMono-SemiBold-Latin1.woff2'], ['600', 'IBMPlexMono-SemiBold-Pi.woff2'],
-];
-// No unicode-range here. The rendered pages split each weight into two subsets
-// under IBM's own ranges because they draw arrows and box characters; this page
-// is prose and links, so both subsets load unconditionally and the browser
-// picks whichever holds the glyph. Same six files, same bytes, no third rule to
-// keep in step with assets/FONTS.md.
-const faces = FACES.map(([weight, file]) => {
-  const b64 = readFileSync(join(root, 'skills', 'eagle-eye', 'assets', file)).toString('base64');
-  return `@font-face{font-family:'IBM Plex Mono';font-style:normal;font-weight:${weight};font-display:block;src:url(data:font/woff2;base64,${b64}) format('woff2')}`;
-}).join('\n');
+
+// The same face table and the same rule the rendered pages use, from the same
+// file — including the unicode-range on each rule.
+//
+// This emitted the rules without a range for one commit, on the reasoning that
+// the index is prose and links, so both subsets could load and the browser
+// would pick whichever held the glyph. That is not what unicode-range does.
+// Without it both rules for a weight default to U+0-10FFFF, fully overlap, and
+// only the last — Pi, which has no Latin letters — is in force. Chromium walks
+// back to the earlier face in the family and renders Plex anyway, so the bug
+// did not show; that is engine behaviour, not a contract, and lib/faces.js
+// states the contract. Raised by CodeRabbit on #73.
+//
+// Read rather than transcribed, for the reason the escape above is: a private
+// copy is a thing that drifts, and the ranges are six lines of hex.
+const { FACES, faceRule } = require(join(root, 'skills', 'eagle-eye', 'lib', 'faces.js'));
+const faces = FACES.map(([weight, file, range]) =>
+  faceRule(weight, range, readFileSync(join(root, 'skills', 'eagle-eye', 'assets', file)).toString('base64')),
+).join('\n');
 
 writeFileSync(
   join(out, 'index.html'),
