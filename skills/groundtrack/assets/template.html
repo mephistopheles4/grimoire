@@ -91,8 +91,28 @@ body { margin: 0; }
    that decides it can be a colour at all. */
 body { height: 100vh; box-sizing: border-box; padding: var(--av-s1);
   background: var(--av-ground); overflow: hidden; }
+
+/* THE PANEL SHADOW IS A DELIBERATE LOCAL EXCEPTION to the system's rule 5
+   ("No gradients, no drop shadows, no photographs. Depth comes from line
+   weight."). It is declared here, in the tool, and NOT as an --av-* token,
+   because the exception is groundtrack's and the system does not sanction it.
+   If it ever should, it needs a token and an amended rule, not a copy of this
+   line in a second consumer.
+
+   It cannot be built from ink. A shadow is darker than whatever it falls on,
+   in both schemes; every ink-derived value inverts with the scheme and would
+   turn this into a glow on a dark ground. So it is a literal, and the dark
+   scheme restates it rather than inheriting one. */
+.sheet-root { --gt-panel-shadow: 0 2px 6px rgb(34 38 43 / 0.16); }
+@media screen {
+  [data-aviation-scheme="dark"] .sheet-root,
+  [data-aviation-scheme="dark"].sheet-root { --gt-panel-shadow: 0 2px 6px rgb(0 0 0 / 0.45); }
+}
 .sheet-root { --side-w: 22rem; --cut-h: 12rem; height: 100%;
-  background: var(--av-paper); border: var(--av-rule-bold) solid var(--av-ink);
+  /* background-COLOR, not the shorthand: this rule loads after the bundle, and
+     `background:` would reset background-image and silently erase .av-grid's
+     ruling from the element carrying it. */
+  background-color: var(--av-paper); border: var(--av-rule-bold) solid var(--av-ink);
   box-sizing: border-box;
   display: grid; grid-template-columns: minmax(0, 1fr) var(--side-w);
   grid-template-rows: auto 1fr var(--cut-h) auto;
@@ -107,8 +127,18 @@ body { height: 100vh; box-sizing: border-box; padding: var(--av-s1);
 /* min-width 0 on both, or the grid does not hold them: a grid item's automatic
    minimum is its content, so a picker wider than the pane widens the whole
    head, and the head widens the column instead of the picker shrinking. */
+/* The chrome panels are SHEETS LAID ON THE GRID, not tinted boxes. --av-surface
+   is paper at 72%: it holds the grid back without hiding it, which is what the
+   token exists for. The plan is the one place the grid comes through raw,
+   because the plan IS the drafting surface — and that is what stops the drawing
+   reading as the only textured thing on screen, recessed under flat chrome.
+   Measured on the surface fill: ink 14.3:1, ink-70 5.76:1, and the marks 4.72
+   (amber) and 4.71 (green) — above the floor, which a --av-ground fill was not
+   (4.35). The boundaries drop to a hairline because the shadow now carries the
+   separation the bold rule used to. */
 .head { grid-area: head; display: flex; flex-direction: column; gap: var(--av-s2); min-width: 0;
-  padding: var(--av-s2) var(--av-s3); border-bottom: var(--av-rule-bold) solid var(--av-ink); }
+  padding: var(--av-s2) var(--av-s3); border-bottom: var(--av-rule-hair) solid var(--av-ink);
+  background: var(--av-surface); box-shadow: var(--gt-panel-shadow); position: relative; z-index: 2; }
 .head-row { display: flex; align-items: center; gap: var(--av-s3); flex-wrap: wrap; min-width: 0; }
 .head-id { display: flex; align-items: center; gap: var(--av-s2); min-width: 0; }
 /* THE MARK DOES NOT FOLLOW THE SCHEME, and its fills say so by reading
@@ -203,7 +233,7 @@ input[type=checkbox] { accent-color: var(--av-ink); margin: 0 var(--av-s1) 0 0; 
    A drag anywhere on it pans, a node included, and a drag selects no text. The
    wheel pans too, and with ctrl held it zooms about the pointer. */
 .plan { grid-area: plan; overflow: hidden; position: relative;
-  border-right: var(--av-rule-bold) solid var(--av-ink); cursor: grab; touch-action: none; }
+  border-right: var(--av-rule-hair) solid var(--av-ink); cursor: grab; touch-action: none; }
 .plan.grabbing { cursor: grabbing; }
 .plan.grabbing, .plan.grabbing * { user-select: none; -webkit-user-select: none; }
 #canvas { position: absolute; top: 0; left: 0; transform-origin: 0 0; padding: var(--av-s4); }
@@ -318,9 +348,13 @@ input[type=checkbox] { accent-color: var(--av-ink); margin: 0 var(--av-s1) 0 0; 
    the drawing's scale by nothing, so what goes in it is never an argument
    about the drawing. The holds are its header: the head drives the walk
    forward, the holds say where it stops. */
-.side { grid-area: side; position: relative; overflow-y: auto; display: flex; flex-direction: column; }
+.side { grid-area: side; position: relative; overflow-y: auto; display: flex; flex-direction: column;
+  background: var(--av-surface); box-shadow: var(--gt-panel-shadow); z-index: 2; }
+/* The sticky head sits ON the panel, so it takes the panel's own fill rather
+   than the surface again — two translucent layers would stack to a lighter
+   band exactly where a heading should not stand out on tone. */
 .side-head { display: flex; gap: var(--av-s3); align-items: center; flex-wrap: wrap;
-  padding: var(--av-s2) var(--av-s3); border-bottom: var(--av-rule-bold) solid var(--av-ink);
+  padding: var(--av-s2) var(--av-s3); border-bottom: var(--av-rule-hair) solid var(--av-ink);
   position: sticky; top: 0; background: var(--av-paper); z-index: 1; }
 .side-head label { display: inline-flex; align-items: center; cursor: pointer; }
 .side-head label[data-help] { cursor: help; }
@@ -370,10 +404,10 @@ input[type=checkbox] { accent-color: var(--av-ink); margin: 0 var(--av-s1) 0 0; 
    carry the technical paper, the gutter stripes and the five token classes,
    so nothing here restyles them. What used to be .tp / .tp-n / .tp-lbl / .kw
    was a local fork of exactly that vocabulary and is gone. */
-.cut { grid-area: cut; position: relative; border-top: var(--av-rule-bold) solid var(--av-ink);
-  border-right: var(--av-rule-bold) solid var(--av-ink); display: flex; flex-direction: column; min-height: 0; }
+.cut { grid-area: cut; position: relative; border-top: var(--av-rule-hair) solid var(--av-ink);
+  border-right: var(--av-rule-hair) solid var(--av-ink); display: flex; flex-direction: column; min-height: 0; }
 .cut-head { display: flex; align-items: baseline; gap: var(--av-s2); padding: var(--av-s1) var(--av-s3);
-  border-bottom: var(--av-rule-hair) solid var(--av-ink-12); }
+  border-bottom: var(--av-rule-hair) solid var(--av-ink-12); background: var(--av-surface); }
 .tape { flex: 1; overflow: auto; padding: var(--av-s2) var(--av-s3) var(--av-s3); }
 .tabs { margin-left: auto; display: flex; gap: var(--av-s2); }
 .tab { border: 0; background: transparent; padding: 2px 0; font-size: var(--av-t-micro); text-transform: uppercase;
@@ -411,7 +445,8 @@ input[type=checkbox] { accent-color: var(--av-ink); margin: 0 var(--av-s1) 0 0; 
 
 /* The footer band states the sheet. Only the trace moves. The title block sits
    under the band's own top rule, so its other three sides are dropped. */
-.block { grid-area: block; border-top: var(--av-rule-bold) solid var(--av-ink); }
+.block { grid-area: block; border-top: var(--av-rule-hair) solid var(--av-ink);
+  background: var(--av-surface); box-shadow: var(--gt-panel-shadow); position: relative; z-index: 2; }
 .block .av-titleblock { border-left: 0; border-right: 0; border-bottom: 0; border-top: 0; }
 .stamp { align-self: flex-start; cursor: help; }
 .trace { padding: var(--av-s2) var(--av-s3); border-top: var(--av-rule-hair) solid var(--av-ink-12); }
@@ -460,7 +495,13 @@ button[data-help][aria-disabled=true] { cursor: help; }
 </style>
 </head>
 <body class="av-paper">
-<div class="sheet-root" id="root">
+<!-- The grid rules the WHOLE sheet, not just the plan. It used to rule the plan
+     alone, which made the drawing the only textured surface on the screen and
+     left it reading as recessed under flat chrome — the grid was doing a
+     ground's job. Ruling the sheet and floating the panels on --av-surface puts
+     it back where it belongs: under everything, showing through raw only where
+     the drawing is. -->
+<div class="sheet-root av-grid" id="root">
   <div class="head">
    <div class="head-row">
     <div class="head-id">
@@ -528,7 +569,7 @@ button[data-help][aria-disabled=true] { cursor: help; }
    </div>
   </div>
 
-  <div class="plan av-grid" id="plan">
+  <div class="plan" id="plan">
     <div class="toolblock">
       <div class="grp">
         <span class="grp-k av-label">zoom</span>
