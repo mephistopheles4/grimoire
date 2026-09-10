@@ -629,9 +629,19 @@ Measured facts that govern the layout:
 - **The scale block speaks in ratios, never percentages.**
 - **Pan and zoom are load-bearing.** The drawing does not fit at 1:1 in any
   arrangement.
-- **The tool block occludes nothing at the framing anyone sees.** It is under
-  five percent of the plan pane and the fit view leaves that corner empty; the
-  worst case requires panning a node under it, and panning back out is one drag.
+- **On the drawing, the tool block occludes nothing at the framing anyone
+  sees.** It is under five percent of the plan pane and the fit view leaves that
+  corner empty; the worst case requires panning a node under it, and panning
+  back out is one drag.
+- **In the tree, the tool block occludes nothing by construction.** The tree
+  has no pan, so a row under the block would stay under it. In tree view the
+  block leaves the overlay: the plan pane becomes a column, the block sits in
+  flow at its top at the same offsets it has on the drawing, and the tree
+  scrolls in the height below it. No row reaches the block at any vertical or
+  horizontal scroll offset, whatever the block's width — which the file sets,
+  because the layer row is built from its layers. For the same reason the
+  block is held to the pane's width there, and a row too long for it wraps
+  rather than clipping, so the view toggle and every layer stay in reach.
 - **A call site's remark is the only shrinkable element on its row**, and a short
   jump label is preferred over it. Everything else fits; one remark overflowed a
   row by 600 pixels on its own.

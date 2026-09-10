@@ -819,6 +819,73 @@ test('the page reads its graph through an accessor, not off the file root', () =
   assert.doesNotMatch(body, /PROG\.entry/);
 });
 
+/** What a page's stylesheets declare for one selector, across every rule that
+ *  names it, the later declaration winning — the cascade for two rules of
+ *  equal specificity. Comments go first, because the stylesheet explains
+ *  itself at length and a comment can hold a brace.
+ *
+ *  A limit, stated: at-rules are not read as at-rules. A rule inside a media
+ *  block counts as though it always applied. Ask only about selectors that no
+ *  media block names. */
+function declsFor(html, selector) {
+  const css = [...html.matchAll(/<style[^>]*>([\s\S]*?)<\/style>/g)]
+    .map(m => m[1])
+    .join('\n')
+    .replace(/\/\*[\s\S]*?\*\//g, '');
+  const out = {};
+  for (const m of css.matchAll(/([^{}]+)\{([^{}]*)\}/g)) {
+    const sels = m[1].split(',').map(s => s.trim().replace(/\s+/g, ' '));
+    if (!sels.includes(selector)) continue;
+    for (const d of m[2].split(';')) {
+      const i = d.indexOf(':');
+      if (i !== -1) out[d.slice(0, i).trim()] = d.slice(i + 1).trim();
+    }
+  }
+  return out;
+}
+
+test('in the tree the tool block leaves the overlay, and the tree scrolls below it', () => {
+  // A limit, stated: nothing here runs a page, so no assertion can read where
+  // a row was painted. The rendered sheet was measured in a browser instead —
+  // every row's text against the block's box, at both scroll ends, at a pane
+  // narrow enough to scroll the tree sideways, and in both schemes.
+  //
+  // What this holds is the construction that makes the measurement come out.
+  // On the drawing the block overlays the pane, and pan moves a node out from
+  // under it. The tree has no pan, so there the block is in flow above the
+  // tree's scroll box, and no row reaches it at any offset or block width.
+  const html = pageOf(layeredFlightpath);
+  const on = (base, treeOn) => ({ ...declsFor(html, base), ...declsFor(html, treeOn) });
+
+  assert.equal(declsFor(html, '.toolblock').position, 'absolute', 'on the drawing the block still overlays the pane');
+  const block = on('.toolblock', '.sheet-root.tree-on .toolblock');
+  assert.ok(['static', 'relative'].includes(block.position),
+    `in the tree the block is in flow, not an overlay (position: ${block.position})`);
+
+  const pane = on('.plan', '.sheet-root.tree-on .plan');
+  assert.equal(pane.display, 'flex');
+  assert.match(pane['flex-direction'] || pane['flex-flow'] || '', /^column/, 'the block stacks above the tree');
+  // A pane shorter than the block overflows, and a hidden overflow is still
+  // scrolled by script — by the row the cursor brings into view — and the
+  // drawing then inherits that offset. Clip cannot be scrolled at all.
+  assert.equal(pane.overflow, 'clip', 'the tree cannot scroll the pane it sits in');
+
+  const tree = on('.tree', '.sheet-root.tree-on .tree');
+  assert.match(tree.flex || tree['flex-grow'] || '', /^[1-9]/, 'the tree takes the height the block leaves');
+  assert.equal(tree.overflow, 'auto', 'and is its own scroll box in it');
+
+  // The width is data — the layer row is built from the file — so in the tree
+  // the block is held to the pane and its rows wrap. Clipped at the pane's
+  // edge instead, it takes the view toggle with it: the one way back.
+  assert.ok(block['max-width'] && block['max-width'] !== 'none', 'the block is held to the pane');
+  const row = on('.toolblock .grp', '.sheet-root.tree-on .toolblock .grp');
+  assert.match(row['flex-wrap'] || row['flex-flow'] || '', /\bwrap\b/, 'and a row too long for it wraps');
+
+  // In flow and above means first in the pane's markup.
+  const planPane = html.slice(html.indexOf('<div class="plan"'), html.indexOf('<div class="side"'));
+  assert.ok(planPane.indexOf('class="toolblock"') < planPane.indexOf('id="tree"'), 'the block precedes the tree');
+});
+
 test('the page contains no dynamic code evaluation', () => {
   const html = pageOf(layeredFlightpath);
   assert.doesNotMatch(html, /\bnew Function\s*\(/);

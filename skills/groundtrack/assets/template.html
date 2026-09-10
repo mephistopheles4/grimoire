@@ -238,7 +238,6 @@ input[type=checkbox] { accent-color: var(--av-ink); margin: 0 var(--av-s1) 0 0; 
 .plan.grabbing, .plan.grabbing * { user-select: none; -webkit-user-select: none; }
 #canvas { position: absolute; top: 0; left: 0; transform-origin: 0 0; padding: var(--av-s4); }
 #wires { position: absolute; inset: 0; overflow: visible; pointer-events: none; }
-.sheet-root.tree-on .plan { cursor: default; }
 
 /* The wires. Line weight says what the walk did: on the stack now, bold;
    walked, thin; not yet, a hairline in construction ink. A cut edge is dashed.
@@ -266,6 +265,16 @@ input[type=checkbox] { accent-color: var(--av-ink); margin: 0 var(--av-s1) 0 0; 
 .toolblock { position: absolute; top: var(--av-s2); right: var(--av-s2); z-index: 4;
   display: flex; flex-direction: column; align-items: stretch; background: var(--av-paper);
   border: var(--av-rule-thin) solid var(--av-ink); }
+/* In the tree the block leaves the overlay: the tree has no pan, so a row
+   under the block would stay there. The pane becomes a column, with the block
+   in flow at the overlay's offsets and the tree below it. The layer row comes
+   from the file, so the block is held to the pane and its rows wrap. Clip, not
+   hidden: a pane shorter than the block is otherwise scrolled by the row the
+   cursor brings into view, and the drawing inherits the offset. */
+.sheet-root.tree-on .plan { cursor: default; display: flex; flex-direction: column; overflow: clip; }
+.sheet-root.tree-on .toolblock { position: static; flex: none; align-self: flex-end;
+  margin: var(--av-s2) var(--av-s2) 0 0; max-width: calc(100% - 2 * var(--av-s2)); }
+.sheet-root.tree-on .toolblock .grp { flex-wrap: wrap; }
 .toolblock .grp { display: flex; align-items: stretch; }
 .toolblock .grp + .grp { border-top: var(--av-rule-hair) solid var(--av-ink-30); }
 .toolblock .grp-k { width: 4.5rem; flex: none; text-align: left; border-right: var(--av-rule-hair) solid var(--av-ink-12);
@@ -319,8 +328,9 @@ input[type=checkbox] { accent-color: var(--av-ink); margin: 0 var(--av-s1) 0 0; 
    only the animation goes. A row on the stack carries a bold left rule; the
    row whose node is open in the cutaway carries a thin ink box, the same
    outline the drawing gives the open node. No fill. */
-.tree { padding: var(--av-s4) var(--av-s3); overflow: auto; height: 100%; display: none; flex-direction: column; gap: 2px; }
-.sheet-root.tree-on .tree { display: flex; }
+.tree { padding: var(--av-s4) var(--av-s3); overflow: auto; display: none; flex-direction: column; gap: 2px; }
+/* It takes the height the block leaves, and scrolls in it. */
+.sheet-root.tree-on .tree { display: flex; flex: 1 1 0; }
 .sheet-root.tree-on #canvas, .sheet-root.tree-on #wires { display: none; }
 /* A row is a small grid, not one line. Name, kind and the three channels sit
    on the first line and wrap when they must; the call site and the effect
