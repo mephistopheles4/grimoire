@@ -947,7 +947,10 @@ test('every author string on a row reaches the tab escaped', () => {
   const out = G.filesMarkup(prog, 'greet');
   assert.doesNotMatch(out, /<img src=x onerror/);
   assert.match(out, /&lt;img src=x onerror/);
-  assert.equal((out.match(/&lt;script>alert\(2\)/g) || []).length, 3, 'the segment, the leaf and the why');
+  // Twice over: the row is in 	his node AND in very file in the change,
+  // which now indexes the whole change rather than the remainder. Three
+  // escaped strings per row, two rows.
+  assert.equal((out.match(/&lt;script>alert\(2\)/g) || []).length, 6, 'the segment, the leaf and the why, on both rows');
 });
 
 test('the tab opens and closes one div per level it indents', () => {
@@ -961,15 +964,15 @@ test('the tab opens and closes one div per level it indents', () => {
 
 test('a file row carries its mark, its leaf, its counts and its why', () => {
   const out = G.filesMarkup(layered, 'buildShelf');
-  assert.match(out, /<span class="fchange">N<\/span>/, 'a new file is marked N');
-  assert.match(out, /<span class="fchange">E<\/span>/, 'an edited one is marked E');
+  assert.match(out, /<span class="fchange av-label">new<\/span>/, 'a new file reads new');
+  assert.match(out, /<span class="fchange av-label">modified<\/span>/, 'an edited one reads modified');
   assert.match(out, /<span class="fpath">one-sheet\.test\.ts <span class="fwhy">&mdash; G53/);
-  assert.match(out, /<span class="fnum">\+194 &minus;0<\/span>/);
+  assert.match(out, /<span class="fadd">\+194<\/span> <span class="fdel">&minus;0<\/span>/);
   // The collapsed row prints the segments it swallowed, not a bare leaf.
   assert.match(out, /<span class="fpath">log\/2026-08-30-the-species-menu-and-the-read-back\.md /);
   assert.doesNotMatch(out, /<div class="fdir">log\//);
   assert.match(out, /<div class="fdir">gates\/<\/div>/);
-  assert.match(out, /in the change, on no node of this sheet/);
+  assert.match(out, /every file in the change/);
 });
 
 test('a change kind outside the four prints a question mark, not a function', () => {
@@ -978,7 +981,7 @@ test('a change kind outside the four prints a question mark, not a function', ()
   const prog = JSON.parse(JSON.stringify(greet));
   prog.files[0].change = 'constructor';
   const out = G.filesMarkup(prog, 'greet');
-  assert.match(out, /<span class="fchange">\?<\/span>/);
+  assert.match(out, /<span class="fchange av-label">\?<\/span>/);
   assert.doesNotMatch(out, /function Object/);
 });
 
@@ -993,8 +996,8 @@ test('a path that is a prototype member name still reads its own row', () => {
   const prog = JSON.parse(JSON.stringify(greet));
   prog.nodes.greet.touches = ['constructor'];
   const out = G.filesMarkup(prog, 'greet');
-  assert.match(out, /<span class="fchange">E<\/span>/, 'the fallback fired');
-  assert.match(out, /<span class="fnum">\+0 &minus;0<\/span>/);
+  assert.match(out, /<span class="fchange av-label">modified<\/span>/, 'the fallback fired');
+  assert.match(out, /<span class="fadd">\+0<\/span> <span class="fdel">&minus;0<\/span>/);
   assert.doesNotMatch(out, /undefined/);
   assert.doesNotMatch(out, /function Object/);
 });
@@ -1004,5 +1007,7 @@ test('a file that states no changed files says so instead of drawing a tree', ()
   delete prog.files;
   const out = G.filesMarkup(prog, 'greet');
   assert.match(out, /not stated by this file/);
-  assert.doesNotMatch(out, /in the change, on no node/);
+  assert.doesNotMatch(out, /every file in the change/);
 });
+
+

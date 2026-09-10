@@ -986,8 +986,8 @@ test('the files tab names its groups and says what its marks mean', () => {
   // string — tests/groundtrack-fold.test.mjs holds it, against the same
   // function the tab calls.
   const html = pageOf(layeredFlightpath);
-  assert.match(html, /in the change, on no node of this sheet/);
-  assert.match(html, /N new, E edit, D delete, F forbidden/, 'the tab says what the marks mean');
+  assert.match(html, /every file in the change/);
+  assert.match(html, /new, modified, deleted or forbidden/, 'the tab says what the change kinds are');
 });
 
 test('the escape is pinned at its width, both what it does and what it does not', () => {
@@ -1113,3 +1113,4 @@ test('a file that is not JSON is refused before anything else', () => {
   assert.equal(r.code, 2);
   assert.match(r.stderr, /cannot read /);
 });
+
