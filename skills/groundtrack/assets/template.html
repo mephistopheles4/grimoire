@@ -1503,7 +1503,14 @@ function start() {
     el.addEventListener('pointercancel', release);
   }
   splitter($('splitV'), 'v', function (e) {
-    const right = root.getBoundingClientRect().right;
+    /* The CONTENT edge, not the border edge. --side-w is a grid track, and the
+       tracks live inside the sheet's frame; measuring to the border box drags
+       the panel past the pointer by the frame's width. clientLeft is that
+       width and clientWidth is the track area, so this holds whatever the
+       frame weighs — including nothing, which is what it weighed before the
+       sheet was laid on a ground. */
+    const box = root.getBoundingClientRect();
+    const right = box.left + root.clientLeft + root.clientWidth;
     const w = Math.min(window.innerWidth * 0.5, Math.max(256, right - e.clientX));
     root.style.setProperty('--side-w', w + 'px');
   });

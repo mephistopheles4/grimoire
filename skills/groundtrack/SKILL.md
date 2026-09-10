@@ -171,6 +171,14 @@ The cutaway follows the cursor. Each move opens the node the walk is in and
 brings the step that ran into view. A node opened by hand stays open until the
 cursor next moves.
 
+The source tab marks each line with what the walk did to it: the line the
+cursor is on, a line in a frame still on the stack, a line that ran, and a
+line the run never reached. The last is the one worth having — an untaken
+branch is the first thing a reader interrogates, so it stays legible rather
+than being hidden. A call or an effect also carries its outcome, and only
+once the walk has given it one. A token is coloured because the run touched
+it, never because of what it is.
+
 The files tab reads as a directory tree, so a change of many files reads as a
 few folders. A directory holding one thing prints on one line. Each file
 carries a mark for its change — `N` new, `E` edit, `D` delete, `F` forbidden —
