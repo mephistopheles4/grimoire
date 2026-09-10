@@ -812,9 +812,9 @@ const Groundtrack = (() => {
    *
    *  The marks are a closed vocabulary the validator already refuses anything
    *  outside of. Nothing else on a row is. */
-  const MARK = Object.freeze({ new: 'N', edit: 'E', delete: 'D', forbidden: 'F' });
+  const MARK = Object.freeze({ new: 'new', edit: 'modified', delete: 'deleted', forbidden: 'forbidden' });
   function filesMarkup(prog, id) {
-    const { mine, others, unaccounted } = filesOf(prog, id);
+    const { mine, others } = filesOf(prog, id);
     /* Keyed by author text, so it does not read through to Object's own
        properties: a path called "constructor" would otherwise find a function
        and print it. */
@@ -825,10 +825,11 @@ const Groundtrack = (() => {
     const fileRow = row => {
       const f = byPath[row.path] || { change: 'edit', why: '', adds: 0, dels: 0 };
       return (
-        '<div class="frow"><span class="fchange">' + (Object.hasOwn(MARK, f.change) ? MARK[f.change] : '?') + '</span>' +
+        '<div class="frow">' +
+        '<span class="fnum"><span class="fadd">+' + esc(f.adds) + '</span> <span class="fdel">&minus;' + esc(f.dels) + '</span></span>' +
         '<span class="fpath">' + esc(row.label) +
         (f.why ? ' <span class="fwhy">&mdash; ' + esc(f.why) + '</span>' : '') + '</span>' +
-        '<span class="fnum">+' + esc(f.adds) + ' &minus;' + esc(f.dels) + '</span></div>'
+        '<span class="fchange av-label">' + (Object.hasOwn(MARK, f.change) ? MARK[f.change] : '?') + '</span></div>'
       );
     };
     const tree = paths => {
@@ -845,10 +846,19 @@ const Groundtrack = (() => {
     const group = (label, paths) =>
       '<div class="fgroup"><span class="av-label">' + label + '</span>' +
       (paths.length ? tree(paths) : '<div class="av-annot">none</div>') + '</div>';
-    /* A file that states no changed files has no change to account for, so
-       the third group says that rather than drawing an empty tree. */
+    /* The third group is EVERY file in the change, not the remainder no node
+       accounts for. The first two groups omit each other's files, so a reader
+       looking at one node could not see where its file sat in the whole
+       change — which is the question the third list is opened to answer. It
+       repeats paths from the groups above on purpose: this is the index, and
+       an index that skipped what you had already seen would not be one.
+       `filesOf().unaccounted` is unchanged and still drives the checker's
+       "no node accounts for" finding; only what this tab draws moved.
+
+       A file that states no changed files has nothing to index, so the group
+       says that rather than drawing an empty tree. */
     const third = prog.files
-      ? group('in the change, on no node of this sheet', unaccounted)
+      ? group('every file in the change', (prog.files || []).map(f => f.path))
       : '<div class="fgroup"><span class="av-label">changed files</span><div class="av-annot">not stated by this file</div></div>';
     return group('this node', mine) + group('other nodes on this sheet', others) + third;
   }

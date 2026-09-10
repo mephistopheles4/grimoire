@@ -73,7 +73,6 @@
   --av-grid-major-every:5; /* @kind other */
 }
 
-
 /* ===== themes/deck.css ===== */
 /* AVIATION · DECK THEME
    The strict engineering document. Warm paper, near-black ink, one monospace
@@ -125,6 +124,37 @@
   /* SURFACE — translucent sheet fill. Sits over the grid and holds it back
      without hiding it, so a sheet reads as laid ON the paper. */
   --av-deck-surface:rgb(250 250 247 / 0.72);
+
+  /* GROUND — the desk the sheet is laid on, one step off paper. A tool window
+     is not a slide: it has chrome around the document, and without a ground
+     the sheet has nothing to be laid ON. Never carries text. */
+  --av-deck-ground:#efefe9;
+
+  /* SYNTAX — code structure: keywords, control flow, operators. Blueprint,
+     the same hue the site theme spends on structure, because a keyword is
+     structure. Distinct from a NEW role: it does not replace --av-structure,
+     which each theme decides for itself. Text at 11px, so it clears 4.5:1. */
+  --av-deck-syntax:#1d5c8c;  /* blueprint · code structure ·  6.78:1     */
+
+  /* TECHNICAL PAPER — a second sheet, not a second ink. Blueprint-cast, for
+     the planes that hold code, data and terminal output.
+
+     A ground carries no text of its own, but it is NOT free of contrast: it
+     is what every mark on it is measured against. On this paper the standard
+     marks fall to 4.37:1 — under the floor at 11px tracked caps. The lightest
+     paper that would carry them unchanged is #F1F5FA, which sits 1.05:1 from
+     plain paper: indistinguishable, so not worth having.
+
+     So this plane retunes its own marks, exactly as themes/dark.css retunes
+     for a dark ground. Two hexes, one step darker, same hues. Everything else
+     — ink, the ramp, syntax — clears on the untinted values.
+
+       paper-tech #EAF0F6 · 1.10:1 from paper · ink 13.25:1 · syntax 6.18:1
+       tech-caution 4.84:1 on tech, 5.31:1 on plain paper
+       tech-normal  4.97:1 on tech, 5.45:1 on plain paper */
+  --av-deck-paper-tech:#eaf0f6;
+  --av-deck-tech-caution:#a94e08;
+  --av-deck-tech-normal:#14763a;
 }
 
 :root,
@@ -133,6 +163,11 @@
   --av-ink:var(--av-deck-ink);
   --av-caution:var(--av-deck-caution);
   --av-normal:var(--av-deck-normal);
+  --av-ground:var(--av-deck-ground);
+  --av-syntax:var(--av-deck-syntax);
+  --av-paper-tech:var(--av-deck-paper-tech);
+  --av-tech-caution:var(--av-deck-tech-caution);
+  --av-tech-normal:var(--av-deck-tech-normal);
 
   /* ROLES the skeleton asks for that this theme answers with ink.
      Structure is not a colour here; failure is not a colour here. */
@@ -156,7 +191,6 @@
   --av-grid-size:24px;
   --av-measure:68ch;
 }
-
 
 /* ===== themes/site.css ===== */
 /* AVIATION · SITE THEME
@@ -204,6 +238,15 @@
 
   --av-site-surface:rgb(244 246 247 / 0.72); /* translucent sheet fill */
 
+  /* GROUND and SYNTAX — see themes/deck.css for both. Blueprint is already
+     this theme's structure colour, so syntax and structure coincide here;
+     they are still two tokens, because the deck theme separates them. */
+  --av-site-ground:#e7ebed;
+  --av-site-syntax:#1d5c8c;  /* blueprint · code structure ·  6.54:1     */
+  /* This paper is already cool, so the technical sheet has less distance to
+     travel — it goes a step bluer rather than a step colder. */
+  --av-site-paper-tech:#e4ecf3;
+
   /* The inverted band. Deep ground with its own linework, and its own
      foreground: text on the band must NOT be painted with --av-paper. That
      only reads while the band is darker than the page, which stops being
@@ -219,6 +262,13 @@
   --av-ink:var(--av-site-ink);
   --av-structure:var(--av-site-structure);
   --av-failure:var(--av-site-failure);
+  --av-ground:var(--av-site-ground);
+  --av-syntax:var(--av-site-syntax);
+  --av-paper-tech:var(--av-site-paper-tech);
+  /* Both marks already fold to ink in this theme, and ink reads 13.6:1 on the
+     technical paper, so the plane has nothing to retune. */
+  --av-tech-caution:var(--av-ink);
+  --av-tech-normal:var(--av-ink);
 
   /* ROLES answered with ink rather than a colour — see the rules above. */
   --av-caution:var(--av-ink);
@@ -251,7 +301,6 @@
 [data-aviation-theme="site"] .av-slide-title,
 [data-aviation-theme="site"] .av-h1,
 [data-aviation-theme="site"] .av-h2{font-family:var(--av-font-display);letter-spacing:0.04em;font-stretch:125%;font-weight:640}
-
 
 /* ===== themes/dark.css ===== */
 /* AVIATION · DARK
@@ -329,6 +378,18 @@
   --av-dark-normal:#4fae6d;    /* green, deck  · nominal      ·  6.40:1   */
   --av-dark-structure:#6fa9d1; /* blueprint, site · structure ·  6.97:1   */
   --av-dark-failure:#ef6f52;   /* redline, site   · failure   ·  5.95:1   */
+
+  /* GROUND — darker than paper, so the sheet still reads as laid on top.
+     On paper the ground is the deeper value; here it is the shallower one,
+     and the direction flips exactly as the inverted band does. */
+  --av-dark-ground:#100e0d;
+  --av-dark-syntax:#6fa9d1;    /* blueprint · code structure  ·  6.97:1   */
+
+  /* TECHNICAL PAPER — restrained here on purpose. A blue-cast dark ground is
+     so conventional for code that pushing it further makes the tool read as
+     an IDE theme rather than a drawing. Cool enough to own the syntax blue,
+     warm enough to still belong to this scheme. */
+  --av-dark-paper-tech:#141a20;
 }
 
 /* DARK — the only place the layer applies. Also the nested scope: put the
@@ -350,6 +411,13 @@
     --av-surface:var(--av-dark-surface);
     --av-caution:var(--av-dark-caution);
     --av-normal:var(--av-dark-normal);
+    --av-ground:var(--av-dark-ground);
+    --av-syntax:var(--av-dark-syntax);
+    --av-paper-tech:var(--av-dark-paper-tech);
+    /* Both marks hold above 6.3:1 on #141A20, so no retune is needed here —
+       the dark ground was already tuned against a value in this range. */
+    --av-tech-caution:var(--av-dark-caution);
+    --av-tech-normal:var(--av-dark-normal);
 
     /* THE INK ROLES, RE-DECLARED. The deck theme answers structure and failure
        with ink — failure is structural there, not a colour — and writes that
@@ -376,12 +444,19 @@
     --av-failure:var(--av-dark-failure);
     --av-caution:var(--av-ink);
     --av-normal:var(--av-ink);
+    /* The tech marks fold to ink here for the same reason the standard ones
+       do: the site theme has no amber and no green, and a technical plane is
+       not a licence to import them. Without these two the generic block above
+       would win — it maps them to the deck's amber and green, and both are
+       declared at 0,1,0 while this rule is 0,2,0, so only an explicit
+       override stops a dark site listing from painting amber. */
+    --av-tech-caution:var(--av-ink);
+    --av-tech-normal:var(--av-ink);
     --av-deep:var(--av-dark-deep);
     --av-deep-line:var(--av-dark-deep-line);
     --av-deep-ink:var(--av-dark-deep-ink);
   }
 }
-
 
 /* ===== aviation.css ===== */
 /* ============================================================================
@@ -515,7 +590,6 @@
 /* PRINT — a manual should print like one. -------------------------------- */
 @media print{.av-grid,.av-grid--ruled,.av-grid--single{background-image:none}.av-paper{background:#fff}}
 
-
 /* ===== tools.css ===== */
 /* AVIATION · TOOLS
    The chrome a generated report wears: a sheet, a head, filter chips, an index
@@ -541,7 +615,7 @@
 /* PAGE ---------------------------------------------------------------------
    The ground a tool sits on. Fills the viewport so the sheet's rules reach
    the edges of a maximised window, which is how a tool is actually read. */
-.av-tool{min-height:100vh;padding:var(--av-s3);background-color:var(--av-paper);color:var(--av-ink);font-family:var(--av-font);font-size:var(--av-t-body);line-height:1.6;display:flex}
+.av-tool{min-height:100vh;padding:var(--av-s3);background-color:var(--av-ground,var(--av-paper));color:var(--av-ink);font-family:var(--av-font);font-size:var(--av-t-body);line-height:1.6;display:flex}
 
 /* SHEET --------------------------------------------------------------------
    The bordered document. Translucent over the grid so the ruling still reads
@@ -641,10 +715,72 @@
    A report is printed more often than a slide is. Drop the grid, drop the
    chrome that cannot be actioned on paper, let the sheet flow. */
 @media print{
-  .av-tool{display:block;padding:0;background-image:none}
+  /* Back to paper. The ground is a screen plane — print and slides always
+     render on paper — and clearing the background IMAGE is not enough now that
+     the page carries a ground COLOUR: without this a printed tool wears the
+     desk. */
+  .av-tool{display:block;padding:0;background-image:none;background-color:var(--av-paper)}
   .av-tool-sheet{border:0}
   .av-tool-actions,.av-tool-chip{display:none}
   .av-tool-split{display:block}
   .av-tool-index{border-right:0}
   .av-tool-side{width:auto;border-left:0}
 }
+
+
+/* CODE ---------------------------------------------------------------------
+   A source or pseudocode listing inside a tool. Not a syntax theme: the
+   listing is ink, and the only hues are blueprint for structure and the two
+   marks — and the marks appear ONLY where the walk gave a token an outcome.
+   A token is coloured because the run touched it, not because of what it is.
+
+   The gutter carries walk state on the same four settings as an index row:
+   no stripe / hairline / solid / solid + cursor. */
+/* The technical plane retunes the two marks for its own ground — the one
+   sanctioned exception to "marks are never re-grounded", and the reason this
+   plane counts as a scheme rather than a ground. Values come from the theme;
+   only the mapping lives here. */
+.av-code,.av-tool-tech{--av-caution:var(--av-tech-caution);--av-normal:var(--av-tech-normal)}
+.av-code{font-family:var(--av-font);font-size:var(--av-t-micro);line-height:1.9;background:var(--av-paper-tech,var(--av-paper));border:var(--av-rule-hair) solid var(--av-ink-30);padding:var(--av-s2) 0}
+/* Three tracks: gutter, branch label, code. The label track is sized to the
+   longest label in practice, not to a guess — it is reserved on every line so
+   the code column starts at one x, which is the whole point of a listing. */
+.av-code-line{display:grid;grid-template-columns:2.4rem 3.2rem minmax(0,1fr);gap:0 var(--av-s2);align-items:baseline;padding:0 var(--av-s2) 0 0;border-left:3px solid transparent}
+.av-code-line--ran{border-left-color:var(--av-ink-30)}
+.av-code-line--live{border-left-color:var(--av-ink)}
+.av-code-line--cursor{border-left-color:var(--av-ink);background:var(--av-ink-12)}
+/* A branch the walk did not take is still code the reader interrogates, so it
+   sits at the ink-70 text floor. The MISSING gutter stripe carries "not
+   reached" — that signal costs no contrast. */
+.av-code-line--skip{color:var(--av-ink-70)}
+.av-code-num{color:var(--av-ink-70);font-variant-numeric:tabular-nums;text-align:right;display:flex;justify-content:flex-end;gap:var(--av-s1)}
+.av-code-line--skip .av-code-num{color:var(--av-ink-70)}
+.av-code-label{color:var(--av-ink-70);text-transform:uppercase;letter-spacing:var(--av-track-label);font-size:var(--av-t-micro)}
+
+/* TOKEN CLASSES — five, and no more. */
+.av-code-kw{color:var(--av-syntax,var(--av-ink));font-weight:600}   /* keyword, control flow  */
+.av-code-name{color:var(--av-ink)}                                  /* identifier             */
+.av-code-lit{color:var(--av-ink-80)}                                /* string, number         */
+.av-code-note{color:var(--av-ink-70)}                               /* comment, prose         */
+.av-code-site{color:var(--av-ink);font-weight:600;border-bottom:var(--av-rule-hair) dotted var(--av-ink-30);padding-bottom:1px}
+/* An effect or call site takes its outcome from the walk, not from itself. */
+.av-code-site--caution{border-bottom-color:var(--av-caution);border-bottom-style:solid;color:var(--av-caution)}
+.av-code-site--normal{border-bottom-color:var(--av-normal);border-bottom-style:solid;color:var(--av-normal)}
+.av-code-site--failed{border-bottom:var(--av-rule-bold) solid var(--av-ink)}
+/* A SKIPPED LINE DROPS ITS TOKENS TOO. --skip sets a colour on the ROW, and an
+   inherited colour never reaches a child that declares its own — so without
+   this the row dimmed only its untagged text while every keyword stayed
+   blueprint and every identifier stayed full ink, and the line did not read as
+   unreached at all. Only the colour drops: the weight stays, because the
+   grammar is still grammar on a branch the run did not take. */
+.av-code-line--skip .av-code-kw,
+.av-code-line--skip .av-code-name,
+.av-code-line--skip .av-code-lit,
+.av-code-line--skip .av-code-note{color:inherit}
+.av-code-line--skip .av-code-site{color:inherit;border-bottom-color:var(--av-ink-12)}
+
+/* TECHNICAL PLANE — the same second paper on anything else that holds code,
+   command output or a data ledger. Not the graph canvas: the canvas IS the
+   drawing, and it keeps paper and its ruling. Not the side panel: that is
+   chrome, not a document. */
+.av-tool-tech{background:var(--av-paper-tech,var(--av-paper))}
