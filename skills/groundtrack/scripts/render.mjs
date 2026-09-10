@@ -675,7 +675,13 @@ export function page(prog) {
    * chrome. Inlined for the same reason the faces below are — a rendered page
    * is one file and must stand on its own. The bundle cannot carry the faces;
    * a stylesheet has no way to embed a binary. See assets/FONTS.md, and do not
-   * edit the bundle in place: replace it from the design system repository. */
+   * edit the bundle in place: replace it from the design system repository.
+   *
+   * Vendored from aviation-design-system 5d38ba5, which adds the planes
+   * (--av-ground, --av-paper-tech) and the av-code-* listing vocabulary the
+   * source view below wears. Record the revision when you replace it: a
+   * vendored copy with no provenance cannot be told from a hand-edited one,
+   * which is the failure the "do not edit in place" line above is guarding. */
   const aviation = readFileSync(resolve(here, '..', 'assets', 'aviation.bundle.css'), 'utf8');
 
   /* The faces are vendored and inlined, so the page makes no network request
