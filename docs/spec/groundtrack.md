@@ -590,19 +590,23 @@ holds changes, and each control sits with what it acts on.
 | Region | Holds | Tempo |
 | --- | --- | --- |
 | Head | the run picker and the step controls | drives the walk |
-| Tool block, vertical, on the drawing | zoom, layer, view | changes how the sheet is **read**; never touches the walk |
-| Rail, right | the holds, then call stack, inputs, error path, effects ledger | reads the walk; moves on every step |
+| Tools, the rail's header | zoom, layer, view, and the holds | changes how the sheet is **read**, and where a walk stops; never moves the cursor |
+| Rail, right | under the tools: call stack, inputs, error path, effects ledger | reads the walk; moves on every step |
 | Cutaway, below | one node — source, files, contract | changes when a different node is opened |
 | Footer band | title-block cells, sheet facts, the trace | states the sheet; only the trace moves |
 
 Settled placements:
 
-- **The tool block is vertical**, one row per tool, with a fixed key column so
-  the rows read as a table of controls. Rows are divided by one rule weight and
-  buttons within a row by a lighter one. The live tool takes the tab treatment —
-  label plus a bottom rule — not a filled chip, which this sheet uses nowhere.
-- **The two holds sit at the top of the rail**, above a rule, over the blocks
-  they watch. The head drives the walk forward; the holds say where it stops.
+- **The tools are the rail's header, not a block.** One row per tool — zoom,
+  layer, view, hold — with a fixed key column, so the rows read as a table of
+  controls. They carry no frame, no fill and no rules between buttons: they are
+  the panel's own rows. The live tool takes the tab treatment — label plus a
+  bottom rule — not a filled chip, which this sheet uses nowhere. A row too
+  long for the rail wraps under its first control, and the layer row can be:
+  it is built from the file, so its width is data.
+- **The holds are the tools' last row** — hold: effect, error — at the top of
+  the rail, over the blocks they watch. The head drives the walk forward; the
+  holds say where it stops.
 - **The view toggle switches the plan between the drawing and a tree.** The tree
   is the text format rendered from the same file and the same walk, on paper.
   Stepping works in tree mode; only the animation goes. Zoom has nothing to act
@@ -629,19 +633,13 @@ Measured facts that govern the layout:
 - **The scale block speaks in ratios, never percentages.**
 - **Pan and zoom are load-bearing.** The drawing does not fit at 1:1 in any
   arrangement.
-- **On the drawing, the tool block occludes nothing at the framing anyone
-  sees.** It is under five percent of the plan pane and the fit view leaves that
-  corner empty; the worst case requires panning a node under it, and panning
-  back out is one drag.
-- **In the tree, the tool block occludes nothing by construction.** The tree
-  has no pan, so a row under the block would stay under it. In tree view the
-  block leaves the overlay: the plan pane becomes a column, the block sits in
-  flow at its top at the same offsets it has on the drawing, and the tree
-  scrolls in the height below it. No row reaches the block at any vertical or
-  horizontal scroll offset, whatever the block's width — which the file sets,
-  because the layer row is built from its layers. For the same reason the
-  block is held to the pane's width there, and a row too long for it wraps
-  rather than clipping, so the view toggle and every layer stay in reach.
+- **Nothing sits on the plan pane.** The drawing and the tree own all of it,
+  so neither has a corner a node or a row can go under. The tools sat there
+  first, as a block over the drawing's top-right corner. On the drawing that
+  cost a pan to clear a node. In the tree, which has no pan, it hid rows for
+  good (#76). Laid in flow above the tree instead, it left a band of empty
+  space over the rows. The rail takes the tools at no cost to the drawing,
+  because the fit is height-bound.
 - **A call site's remark is the only shrinkable element on its row**, and a short
   jump label is preferred over it. Everything else fits; one remark overflowed a
   row by 600 pixels on its own.
