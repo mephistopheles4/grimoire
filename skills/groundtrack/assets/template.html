@@ -1000,11 +1000,17 @@ function start() {
     if (!site || !site.entered) return '';
     /* Still on the stack: the call has an outcome later, not now. */
     if (st.frames.some(function (f) { return f.site === key; })) return '';
-    if (site.returned) return ' av-code-site--normal';
-    /* Entered, off the stack, and never returned — it left by raising. Read
-     * from the site's own counts and not from st.errorPath, which holds where
-     * an error is NOW: a failure that a handler caught and a walk then ran
-     * past leaves errorPath empty while the call it came from stays failed. */
+    /* EVERY entry came back, not merely one of them. A site is one line of
+     * source, and a walk can run that line more than once — a loop, a retry.
+     * `returned > 0` would call a site that went in twice and came back once
+     * a clean return, which is the reading a reader is most likely to act on
+     * and the one most likely to be wrong. */
+    if (site.returned === site.entered) return ' av-code-site--normal';
+    /* Entered more times than it returned, and nothing from it is on the
+     * stack: at least one of those entries left by raising. Read from the
+     * site's own counts and not from st.errorPath, which holds where an error
+     * is NOW — a failure a handler caught and the walk then ran past leaves
+     * errorPath empty while the call it came from stays failed. */
     return ' av-code-site--caution';
   }
 

@@ -677,7 +677,7 @@ export function page(prog) {
    * a stylesheet has no way to embed a binary. See assets/FONTS.md, and do not
    * edit the bundle in place: replace it from the design system repository.
    *
-   * Vendored from aviation-design-system 5d38ba5, which adds the planes
+   * Vendored from aviation-design-system 32f02eb, which adds the planes
    * (--av-ground, --av-paper-tech) and the av-code-* listing vocabulary the
    * source view below wears. Record the revision when you replace it: a
    * vendored copy with no provenance cannot be told from a hand-edited one,
@@ -880,3 +880,4 @@ function main(argv) {
 // path rather than on the file name: the other skill in this repository also
 // ships a `render.mjs`, so a name test would run this main() inside that one.
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) main(process.argv);
+

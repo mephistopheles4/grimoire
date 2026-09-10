@@ -180,9 +180,14 @@ once the walk has given it one. A token is coloured because the run touched
 it, never because of what it is.
 
 The files tab reads as a directory tree, so a change of many files reads as a
-few folders. A directory holding one thing prints on one line. Each file
-carries a mark for its change — `N` new, `E` edit, `D` delete, `F` forbidden —
-and the `why` you wrote trails the path the way a comment trails a line of code.
+few folders. A directory holding one thing prints on one line. Each file leads
+with its added and removed lines and ends with how it changed — **new**,
+**modified**, **deleted** or **forbidden** — and the `why` you wrote trails the
+path the way a comment trails a line of code.
+
+Its last group is every file in the change, not the ones no node accounts for.
+The first two groups leave each other's files out, so without it a reader could
+not see where one node's file sits in the whole change.
 
 The wheel scrolls the drawing. With ctrl held it zooms about the pointer.
 

@@ -715,7 +715,11 @@
    A report is printed more often than a slide is. Drop the grid, drop the
    chrome that cannot be actioned on paper, let the sheet flow. */
 @media print{
-  .av-tool{display:block;padding:0;background-image:none}
+  /* Back to paper. The ground is a screen plane — print and slides always
+     render on paper — and clearing the background IMAGE is not enough now that
+     the page carries a ground COLOUR: without this a printed tool wears the
+     desk. */
+  .av-tool{display:block;padding:0;background-image:none;background-color:var(--av-paper)}
   .av-tool-sheet{border:0}
   .av-tool-actions,.av-tool-chip{display:none}
   .av-tool-split{display:block}
@@ -763,6 +767,16 @@
 .av-code-site--caution{border-bottom-color:var(--av-caution);border-bottom-style:solid;color:var(--av-caution)}
 .av-code-site--normal{border-bottom-color:var(--av-normal);border-bottom-style:solid;color:var(--av-normal)}
 .av-code-site--failed{border-bottom:var(--av-rule-bold) solid var(--av-ink)}
+/* A SKIPPED LINE DROPS ITS TOKENS TOO. --skip sets a colour on the ROW, and an
+   inherited colour never reaches a child that declares its own — so without
+   this the row dimmed only its untagged text while every keyword stayed
+   blueprint and every identifier stayed full ink, and the line did not read as
+   unreached at all. Only the colour drops: the weight stays, because the
+   grammar is still grammar on a branch the run did not take. */
+.av-code-line--skip .av-code-kw,
+.av-code-line--skip .av-code-name,
+.av-code-line--skip .av-code-lit,
+.av-code-line--skip .av-code-note{color:inherit}
 .av-code-line--skip .av-code-site{color:inherit;border-bottom-color:var(--av-ink-12)}
 
 /* TECHNICAL PLANE — the same second paper on anything else that holds code,
