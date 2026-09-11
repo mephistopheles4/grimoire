@@ -623,6 +623,12 @@ Settled placements:
 - **The cutaway opens at 12rem.** Measured as the knee: the smallest cut that
   still shows a small node's whole tape. Ten clips a five-step node, and the
   tape is where the walk is read. The splitter still moves.
+- **A help note hangs under the thing it describes.** It is centred under the
+  thing, with its leader on the thing's middle, and it goes above when there
+  is no room below. It is kept inside the window, and its leader stays on the
+  thing when it is. A note hung from a thing's left edge and then clamped
+  inside the window led to nothing the reader was pointing at, and the tools
+  sit at the window's right edge.
 
 Measured facts that govern the layout:
 

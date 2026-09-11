@@ -495,11 +495,11 @@ input[type=checkbox] { accent-color: var(--av-ink); margin: 0 var(--av-s1) 0 0; 
   font-size: var(--av-t-annot); line-height: 1.45; text-transform: none; letter-spacing: normal;
   font-weight: 400; pointer-events: none; }
 .tip[hidden] { display: none; }
-.tip::before { content: ''; position: absolute; left: var(--av-s2); top: -7px; width: 5px; height: 5px;
-  border-radius: 50%; background: var(--av-ink); }
+/* The leader sits over the middle of the thing the note describes. The page
+   sets where, because the note is kept inside the window and the thing is not. */
+.tip::before { content: ''; position: absolute; left: var(--tip-lead, var(--av-s2)); top: -7px; width: 5px; height: 5px;
+  border-radius: 50%; background: var(--av-ink); transform: translateX(-50%); }
 .tip--above::before { top: auto; bottom: -7px; }
-/* Hung from the thing's right edge, so the leader goes to that end. */
-.tip--end::before { left: auto; right: var(--av-s2); }
 /* A control that carries a help note keeps the cursor its job gives it. The
    two grips said col-resize and row-resize and were shown as an arrow, because
    `inherit` here took the parent's cursor and outranked the grip's own rule. */
@@ -1625,33 +1625,21 @@ function start() {
     tipFor = el;
     tip.textContent = text;
     tip.className = 'tip';
+    /* Measured at the window's origin. A fixed box keeps the last note's
+       place while hidden, and its width shrinks to what is right of that
+       place, so a long note measured after one near the edge came back too
+       narrow and was placed by the wrong width. */
+    tip.style.left = '0px';
+    tip.style.top = '0px';
     tip.hidden = false;
     el.setAttribute('aria-describedby', 'tip');
-    /* Below the thing by default, above it when there is no room, and never
-       off the edge of the window. The margins are the system's --av-s2 and
-       the leader gap, held here because a layout number cannot be read out
-       of a custom property without a round trip through computed style.
-       Hung from the thing's left edge, or from its right edge when the note
-       would run off the window. The rail sits at that edge, and a note only
-       clamped inside the window hung from nothing the reader was pointing at. */
-    const EDGE = 12, GAP = 9;
-    const r = el.getBoundingClientRect();
-    const w = tip.offsetWidth, h = tip.offsetHeight;
-    let cls = 'tip';
-    let left = r.left;
-    if (left + w > window.innerWidth - EDGE) {
-      left = r.right - w;
-      cls += ' tip--end';
-    }
-    left = Math.max(EDGE, Math.min(left, window.innerWidth - w - EDGE));
-    let top = r.bottom + GAP;
-    if (top + h > window.innerHeight - EDGE) {
-      top = r.top - h - GAP;
-      cls += ' tip--above';
-    }
-    tip.className = cls;
-    tip.style.left = left + 'px';
-    tip.style.top = Math.max(EDGE, top) + 'px';
+    /* Where it goes is the module's arithmetic, so a test can hold it. */
+    const at = G.tipAt(el.getBoundingClientRect(), tip.getBoundingClientRect(),
+      { width: window.innerWidth, height: window.innerHeight });
+    if (at.above) tip.className = 'tip tip--above';
+    tip.style.left = at.left + 'px';
+    tip.style.top = at.top + 'px';
+    tip.style.setProperty('--tip-lead', at.lead + 'px');
   }
   document.addEventListener('pointerover', function (e) {
     const el = e.target.closest ? e.target.closest('[data-help]') : null;
