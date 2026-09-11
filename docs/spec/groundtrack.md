@@ -599,14 +599,20 @@ Settled placements:
 
 - **The tools are the rail's header, not a block.** One row per tool — zoom,
   layer, view, hold — with a fixed key column, so the rows read as a table of
-  controls. They carry no frame, no fill and no rules between buttons: they are
-  the panel's own rows. The live tool takes the tab treatment — label plus a
+  controls. They carry no frame of their own and no rules between buttons:
+  they are the panel's own rows, on the header's ground. The live tool takes the tab treatment — label plus a
   bottom rule — not a filled chip, which this sheet uses nowhere. A row too
   long for the rail wraps under its first control, and the layer row can be:
   it is built from the file, so its width is data.
 - **The holds are the tools' last row** — hold: effect, error — at the top of
   the rail, over the blocks they watch. The head drives the walk forward; the
   holds say where it stops.
+- **No tool sits on the plan pane.** The drawing and the tree own all of it,
+  so neither has a corner that a node or a row can go under. The tree has no
+  pan, so a row under a tool would stay there. The rail takes the tools at no
+  cost to the drawing, because the fit is height-bound. The rail pays instead:
+  its header is sticky, so at a short window its blocks scroll under four
+  rows of tools.
 - **The view toggle switches the plan between the drawing and a tree.** The tree
   is the text format rendered from the same file and the same walk, on paper.
   Stepping works in tree mode; only the animation goes. Zoom has nothing to act
@@ -639,13 +645,6 @@ Measured facts that govern the layout:
 - **The scale block speaks in ratios, never percentages.**
 - **Pan and zoom are load-bearing.** The drawing does not fit at 1:1 in any
   arrangement.
-- **Nothing sits on the plan pane.** The drawing and the tree own all of it,
-  so neither has a corner a node or a row can go under. The tools sat there
-  first, as a block over the drawing's top-right corner. On the drawing that
-  cost a pan to clear a node. In the tree, which has no pan, it hid rows for
-  good (#76). Laid in flow above the tree instead, it left a band of empty
-  space over the rows. The rail takes the tools at no cost to the drawing,
-  because the fit is height-bound.
 - **A call site's remark is the only shrinkable element on its row**, and a short
   jump label is preferred over it. Everything else fits; one remark overflowed a
   row by 600 pixels on its own.

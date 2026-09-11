@@ -710,7 +710,11 @@ test('the page prints the failure kind beside the tag, and what the node does wi
  *  page that draws no picker still contains the source of the function that
  *  would have drawn one, so the whole page cannot answer "is there a control
  *  here" — only the markup can. */
-const headOf = html => html.slice(html.indexOf('<div class="head">'), html.indexOf('<div class="plan'));
+const between = (html, from, to) => {
+  const at = html.indexOf(from);
+  return html.slice(at, html.indexOf(to, at));
+};
+const headOf = html => between(html, '<div class="head">', '<div class="plan');
 
 test('a one-graph file draws no sheet control', () => {
   // A control that does nothing is worse than no control, so a file with one
@@ -821,17 +825,18 @@ test('the page reads its graph through an accessor, not off the file root', () =
 
 /** The plan pane's markup, and the rail head's, sliced out of the page for the
  *  reason headOf gives: only the markup can say where a control is. */
-const planOf = html => html.slice(html.indexOf('<div class="plan"'), html.indexOf('<div class="side"'));
-const railHeadOf = html => {
-  const at = html.indexOf('<div class="side-head"');
-  return html.slice(at, html.indexOf('<div class="blk"', at));
-};
+const planOf = html => between(html, '<div class="plan"', '<div class="side"');
+const railHeadOf = html => between(html, '<div class="side-head"', '<div class="blk"');
 
-test('nothing sits on the plan pane: the drawing and the tree own all of it', () => {
-  // #76. A block laid over the pane cost the drawing a pan to clear a node,
-  // and cost the tree — which has no pan — rows it could never show. Laid in
-  // flow above the tree it left a band of empty space instead. So no control
-  // lives on the pane at all, and neither view has a corner to hide under.
+test('no tool sits on the plan pane: the drawing and the tree own all of it', () => {
+  // A block laid over the pane cost the drawing a pan to clear a node, and
+  // cost the tree — which has no pan — rows it could never show. Laid in flow
+  // above the tree it left a band of empty space instead. So no tool lives on
+  // the pane at all, and neither view has a corner to hide under.
+  //
+  // A limit, stated: this reads the markup the page ships. The layer buttons
+  // are built at run time, into #layerGrp, and the test below holds that
+  // #layerGrp is in the rail head.
   const plan = planOf(pageOf(layeredFlightpath));
   assert.match(plan, /id="canvas"/);
   assert.match(plan, /id="tree"/);

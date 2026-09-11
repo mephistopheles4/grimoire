@@ -331,7 +331,7 @@ input[type=checkbox] { accent-color: var(--av-ink); margin: 0 var(--av-s1) 0 0; 
    frame, no fill, no rules between buttons. A key column makes them read as a
    table. The live tool takes the tab treatment, full ink and a bold bottom
    rule, which is line weight and not a fill. They left the plan pane because
-   the tree has no pan: a row under them stayed under them (#76). */
+   the tree has no pan: a row under them stayed under them. */
 .side-head .grp { display: flex; align-items: stretch; }
 /* Top, not centre: beside a wrapped row the key names its first line. */
 .side-head .grp-k { width: 4.5rem; flex: none; padding: 3px var(--av-s2) 3px 0; align-self: flex-start; }
@@ -351,8 +351,9 @@ input[type=checkbox] { accent-color: var(--av-ink); margin: 0 var(--av-s1) 0 0; 
    disabled button gets no pointer events, so the note could never show. */
 .side-head .grp-v button[aria-disabled=true] { color: var(--av-ink-70); cursor: help; font-weight: 400; }
 .side-head .grp-v button[aria-disabled=true]:hover { border-bottom-color: transparent; }
+/* A hold is a control, so it keeps the pointer its job gives it, help note or
+   not. */
 .side-head .grp-v label { display: inline-flex; align-items: center; cursor: pointer; }
-.side-head .grp-v label[data-help] { cursor: help; }
 .side-head .now { padding: 3px var(--av-s2); font-size: var(--av-t-micro); letter-spacing: var(--av-track-label);
   font-variant-numeric: tabular-nums; align-self: center; }
 .blk { padding: var(--av-s2) var(--av-s3) var(--av-s3); border-bottom: var(--av-rule-hair) solid var(--av-ink-12); }
