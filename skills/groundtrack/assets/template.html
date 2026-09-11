@@ -259,35 +259,6 @@ input[type=checkbox] { accent-color: var(--av-ink); margin: 0 var(--av-s1) 0 0; 
 .wire--flow { stroke-dasharray: 6 6; animation: flow 1.2s linear infinite; }
 .wire--flow-rev { stroke-dasharray: 6 6; animation: flow-rev 1.2s linear infinite; }
 
-/* The tool block. Every control that changes how this sheet is READ, and none
-   that drive the walk. One row per tool, with a fixed key column so the rows
-   read as a table of controls. The live tool takes the tab treatment — full
-   ink and a bold bottom rule — which is line weight, not a fill. */
-.toolblock { position: absolute; top: var(--av-s2); right: var(--av-s2); z-index: 4;
-  display: flex; flex-direction: column; align-items: stretch; background: var(--av-paper);
-  border: var(--av-rule-thin) solid var(--av-ink); }
-.toolblock .grp { display: flex; align-items: stretch; }
-.toolblock .grp + .grp { border-top: var(--av-rule-hair) solid var(--av-ink-30); }
-.toolblock .grp-k { width: 4.5rem; flex: none; text-align: left; border-right: var(--av-rule-hair) solid var(--av-ink-12);
-  padding: 3px var(--av-s2); align-self: center; }
-.toolblock button { border: 0; border-left: var(--av-rule-hair) solid var(--av-ink-12); background: transparent;
-  padding: 3px var(--av-s2); font-size: var(--av-t-micro); text-transform: uppercase;
-  letter-spacing: var(--av-track-label); color: var(--av-ink); cursor: pointer;
-  border-bottom: var(--av-rule-bold) solid transparent; }
-.toolblock .grp button:first-of-type { border-left: 0; }
-.toolblock button:hover { border-bottom-color: var(--av-ink-30); }
-.toolblock button.on { border-bottom-color: var(--av-ink); font-weight: 600; }
-.toolblock button[disabled] { color: var(--av-ink-70); cursor: default; font-weight: 400; }
-.toolblock button[disabled]:hover { border-bottom-color: transparent; }
-/* A tool that can do nothing on this file keeps its name and loses its weight,
-   and carries the reason as a help note. It is not the disabled attribute: a
-   disabled button gets no pointer events, so the note could never show. */
-.toolblock button[aria-disabled=true] { color: var(--av-ink-70); cursor: help; font-weight: 400; }
-.toolblock button[aria-disabled=true]:hover { border-bottom-color: transparent; }
-.toolblock .now { padding: 3px var(--av-s2); font-size: var(--av-t-micro); letter-spacing: var(--av-track-label);
-  font-variant-numeric: tabular-nums; align-self: center; min-width: 4.5rem; text-align: center;
-  border-left: var(--av-rule-hair) solid var(--av-ink-12); }
-
 /* A node is a part on the drawing. Its states are line weights: the open one
    carries an outline set off the box, one on the stack a hairline outside it,
    one the walk has not reached a hairline box in construction ink. */
@@ -346,18 +317,45 @@ input[type=checkbox] { accent-color: var(--av-ink); margin: 0 var(--av-s1) 0 0; 
 
 /* The rail. It reads the walk, and it moves on every step. Deleting it changes
    the drawing's scale by nothing, so what goes in it is never an argument
-   about the drawing. The holds are its header: the head drives the walk
-   forward, the holds say where it stops. */
+   about the drawing, and the tools are its header. */
 .side { grid-area: side; position: relative; overflow-y: auto; display: flex; flex-direction: column;
   background: var(--av-surface); box-shadow: var(--gt-panel-shadow); z-index: 2; }
 /* The sticky head sits ON the panel, so it takes the panel's own fill rather
    than the surface again — two translucent layers would stack to a lighter
    band exactly where a heading should not stand out on tone. */
-.side-head { display: flex; gap: var(--av-s3); align-items: center; flex-wrap: wrap;
+.side-head { display: flex; flex-direction: column; gap: 2px;
   padding: var(--av-s2) var(--av-s3); border-bottom: var(--av-rule-hair) solid var(--av-ink);
   position: sticky; top: 0; background: var(--av-paper); z-index: 1; }
-.side-head label { display: inline-flex; align-items: center; cursor: pointer; }
-.side-head label[data-help] { cursor: help; }
+/* The tools. Every control that changes how the sheet is READ, then the holds
+   that say where a walk stops. They are the panel's own rows, not a block: no
+   frame, no fill, no rules between buttons. A key column makes them read as a
+   table. The live tool takes the tab treatment, full ink and a bold bottom
+   rule, which is line weight and not a fill. They left the plan pane because
+   the tree has no pan: a row under them stayed under them. */
+.side-head .grp { display: flex; align-items: stretch; }
+/* Top, not centre: beside a wrapped row the key names its first line. */
+.side-head .grp-k { width: 4.5rem; flex: none; padding: 3px var(--av-s2) 3px 0; align-self: flex-start; }
+/* The layer row is built from the file, so its width is data. A row too long
+   for the rail wraps under its first control, not under its key. */
+.side-head .grp-v { display: flex; flex-wrap: wrap; align-items: stretch; min-width: 0; }
+.side-head .grp-v button, .side-head .grp-v label { padding: 3px var(--av-s2); font-size: var(--av-t-micro);
+  text-transform: uppercase; letter-spacing: var(--av-track-label); color: var(--av-ink);
+  border: 0; border-bottom: var(--av-rule-bold) solid transparent; }
+.side-head .grp-v button { background: transparent; cursor: pointer; }
+.side-head .grp-v button:hover { border-bottom-color: var(--av-ink-30); }
+.side-head .grp-v button.on { border-bottom-color: var(--av-ink); font-weight: 600; }
+.side-head .grp-v button[disabled] { color: var(--av-ink-70); cursor: default; font-weight: 400; }
+.side-head .grp-v button[disabled]:hover { border-bottom-color: transparent; }
+/* A tool that can do nothing on this file keeps its name and loses its weight,
+   and carries the reason as a help note. It is not the disabled attribute: a
+   disabled button gets no pointer events, so the note could never show. */
+.side-head .grp-v button[aria-disabled=true] { color: var(--av-ink-70); cursor: help; font-weight: 400; }
+.side-head .grp-v button[aria-disabled=true]:hover { border-bottom-color: transparent; }
+/* A hold is a control, so it keeps the pointer its job gives it, help note or
+   not. */
+.side-head .grp-v label { display: inline-flex; align-items: center; cursor: pointer; }
+.side-head .now { padding: 3px var(--av-s2); font-size: var(--av-t-micro); letter-spacing: var(--av-track-label);
+  font-variant-numeric: tabular-nums; align-self: center; }
 .blk { padding: var(--av-s2) var(--av-s3) var(--av-s3); border-bottom: var(--av-rule-hair) solid var(--av-ink-12); }
 .blk > .av-label { display: block; margin-bottom: var(--av-s1); }
 .row { display: flex; gap: var(--av-s1); font-size: var(--av-t-annot); align-items: baseline; }
@@ -493,13 +491,17 @@ input[type=checkbox] { accent-color: var(--av-ink); margin: 0 var(--av-s1) 0 0; 
    pointer rests on it or focus lands on it. An annotation on paper in the
    system's vocabulary: a thin ink box, annotation size, ink 80 — no shadow, no
    radius, no colour. The text is the page's own and never the file's. */
-.tip { position: fixed; z-index: 20; max-width: 38ch; padding: var(--av-s1) var(--av-s2);
+/* Never wider than the window less a margin each side, so there is always
+   room to keep it inside: the module's tipAt counts on that. */
+.tip { position: fixed; z-index: 20; max-width: min(38ch, calc(100vw - 2 * var(--av-s2))); padding: var(--av-s1) var(--av-s2);
   background: var(--av-paper); color: var(--av-ink-80); border: var(--av-rule-thin) solid var(--av-ink);
   font-size: var(--av-t-annot); line-height: 1.45; text-transform: none; letter-spacing: normal;
   font-weight: 400; pointer-events: none; }
 .tip[hidden] { display: none; }
-.tip::before { content: ''; position: absolute; left: var(--av-s2); top: -7px; width: 5px; height: 5px;
-  border-radius: 50%; background: var(--av-ink); }
+/* The leader sits over the middle of the thing the note describes. The page
+   sets where, because the note is kept inside the window and the thing is not. */
+.tip::before { content: ''; position: absolute; left: var(--tip-lead, var(--av-s2)); top: -7px; width: 5px; height: 5px;
+  border-radius: 50%; background: var(--av-ink); transform: translateX(-50%); }
 .tip--above::before { top: auto; bottom: -7px; }
 /* A control that carries a help note keeps the cursor its job gives it. The
    two grips said col-resize and row-resize and were shown as an arrow, because
@@ -593,33 +595,43 @@ button[data-help][aria-disabled=true] { cursor: help; }
    </div>
   </div>
 
+  <!-- Nothing sits on the plan pane: the drawing and the tree own all of it. -->
   <div class="plan" id="plan">
-    <div class="toolblock">
-      <div class="grp">
-        <span class="grp-k av-label">zoom</span>
-        <button id="zoomOut" data-help="Zoom out">&minus;</button>
-        <button id="zoomFit" data-help="Fit the whole drawing in the pane">fit</button>
-        <button id="zoomIn" data-help="Zoom in">+</button>
-        <span class="now" id="scaleNow" data-help="The scale the drawing is shown at, as a ratio">1:1</span>
-      </div>
-      <div class="grp" id="layerGrp">
-        <span class="grp-k av-label" data-help="A layer redraws the same graph under a different set of dependencies. The test layer is the obvious one.">layer</span>
-      </div>
-      <div class="grp">
-        <span class="grp-k av-label">view</span>
-        <button id="viewPlan" class="on" data-help="The drawing">plan</button>
-        <button id="viewTree" data-help="The same graph as an indented tree, one row per call site. Stepping still works here.">tree</button>
-      </div>
-    </div>
     <div id="canvas"></div>
     <div class="tree" id="tree"></div>
   </div>
 
   <div class="side" id="side">
     <div class="split split-v" id="splitV" data-help="Drag to resize the rail"></div>
+    <!-- The tools, as the rail's header. See .side-head .grp. -->
     <div class="side-head">
-      <label class="av-label" data-help="When playing, stop on the next move that touches the outside world — a network call, a file, the console."><input type="checkbox" id="holdEffect">hold on next effect</label>
-      <label class="av-label" data-help="When playing, stop on the next throw, the next effect that raises, or an error reaching the top uncaught."><input type="checkbox" id="holdError">hold on next error</label>
+      <div class="grp">
+        <span class="grp-k av-label">zoom</span>
+        <div class="grp-v">
+          <button id="zoomOut" data-help="Zoom out">&minus;</button>
+          <button id="zoomFit" data-help="Fit the whole drawing in the pane">fit</button>
+          <button id="zoomIn" data-help="Zoom in">+</button>
+          <span class="now" id="scaleNow" data-help="The scale the drawing is shown at, as a ratio">1:1</span>
+        </div>
+      </div>
+      <div class="grp">
+        <span class="grp-k av-label" data-help="A layer redraws the same graph under a different set of dependencies. The test layer is the obvious one.">layer</span>
+        <div class="grp-v" id="layerGrp"></div>
+      </div>
+      <div class="grp">
+        <span class="grp-k av-label">view</span>
+        <div class="grp-v">
+          <button id="viewPlan" class="on" data-help="The drawing">plan</button>
+          <button id="viewTree" data-help="The same graph as an indented tree, one row per call site. Stepping still works here.">tree</button>
+        </div>
+      </div>
+      <div class="grp">
+        <span class="grp-k av-label">hold</span>
+        <div class="grp-v">
+          <label data-help="When playing, stop on the next move that touches the outside world — a network call, a file, the console."><input type="checkbox" id="holdEffect">effect</label>
+          <label data-help="When playing, stop on the next throw, the next effect that raises, or an error reaching the top uncaught."><input type="checkbox" id="holdError">error</label>
+        </div>
+      </div>
     </div>
     <div class="blk"><span class="av-label" data-help="The frames open at the cursor, top first. How the walk got to the node it is on.">call stack</span><div id="stack"></div></div>
     <div class="blk"><span class="av-label" data-help="The values this run started from. Read-only: the walk was recorded under exactly these.">inputs</span><div id="inputs"></div></div>
@@ -1449,7 +1461,7 @@ function start() {
      Listened to as non-passive so the browser's own ctrl-wheel page zoom is
      declined. The tree is a scrolling column already and is left alone. */
   $('plan').addEventListener('wheel', function (e) {
-    if (S.tree || e.target.closest('.toolblock')) return;
+    if (S.tree) return;
     e.preventDefault();
     const unit = e.deltaMode === 1 ? 16 : e.deltaMode === 2 ? $('plan').clientHeight : 1;
     if (e.ctrlKey || e.metaKey) {
@@ -1495,7 +1507,6 @@ function start() {
   const plan = $('plan');
   plan.addEventListener('pointerdown', function (e) {
     if (e.button !== 0 || S.tree) return;
-    if (e.target.closest('.toolblock')) return;
     e.preventDefault();
     /* The node under the press is remembered here, because it cannot be read
        later: once the plan captures the pointer, the browser retargets the
@@ -1617,23 +1628,21 @@ function start() {
     tipFor = el;
     tip.textContent = text;
     tip.className = 'tip';
+    /* Measured at the window's origin. A fixed box keeps the last note's
+       place while hidden, and its width shrinks to what is right of that
+       place, so a long note measured after one near the edge came back too
+       narrow and was placed by the wrong width. */
+    tip.style.left = '0px';
+    tip.style.top = '0px';
     tip.hidden = false;
     el.setAttribute('aria-describedby', 'tip');
-    /* Below the thing by default, above it when there is no room, and never
-       off the edge of the window. The margins are the system's --av-s2 and
-       the leader gap, held here because a layout number cannot be read out
-       of a custom property without a round trip through computed style. */
-    const EDGE = 12, GAP = 9;
-    const r = el.getBoundingClientRect();
-    const w = tip.offsetWidth, h = tip.offsetHeight;
-    const left = Math.max(EDGE, Math.min(r.left, window.innerWidth - w - EDGE));
-    let top = r.bottom + GAP;
-    if (top + h > window.innerHeight - EDGE) {
-      top = r.top - h - GAP;
-      tip.className = 'tip tip--above';
-    }
-    tip.style.left = left + 'px';
-    tip.style.top = Math.max(EDGE, top) + 'px';
+    /* Where it goes is the module's arithmetic, so a test can hold it. */
+    const at = G.tipAt(el.getBoundingClientRect(), tip.getBoundingClientRect(),
+      { width: window.innerWidth, height: window.innerHeight });
+    if (at.above) tip.className = 'tip tip--above';
+    tip.style.left = at.left + 'px';
+    tip.style.top = at.top + 'px';
+    tip.style.setProperty('--tip-lead', at.lead + 'px');
   }
   document.addEventListener('pointerover', function (e) {
     const el = e.target.closest ? e.target.closest('[data-help]') : null;

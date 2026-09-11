@@ -1010,4 +1010,53 @@ test('a file that states no changed files says so instead of drawing a tree', ()
   assert.doesNotMatch(out, /every file in the change/);
 });
 
+/* -- the help note ---------------------------------------------------------
+ *
+ * Where a note goes is arithmetic on three boxes, so the module does it and
+ * the page only reads the answer. The boxes below are the ones measured on
+ * the shipped pull-request sheet at 1280 by 820: the run picker at the left,
+ * and the error hold in the rail at the right. */
+
+const WIN = { width: 1280, height: 820 };
+const NOTE = { width: 320, height: 75 };
+const boxAt = (left, top, width, height) => ({ left, top, right: left + width, bottom: top + height });
+
+const middle = box => (box.left + box.right) / 2;
+
+test('a help note hangs centred under the thing it describes, its leader on the middle', () => {
+  const run = boxAt(316, 76, 561, 30);
+  const at = G.tipAt(run, NOTE, WIN);
+  assert.equal(at.left + NOTE.width / 2, middle(run), 'centred under it');
+  assert.equal(at.top, run.bottom + 9, 'below it, a leader gap away');
+  assert.equal(at.left + at.lead, middle(run), 'the leader on its middle');
+  assert.equal(at.above, false);
+});
+
+test('at the window\'s edge a note is kept inside it, and its leader still lands on the thing', () => {
+  // The rail sits at the window's right edge. A note hung from a control's
+  // left edge and then clamped inside the window started left of the control
+  // and led to nothing the reader was pointing at.
+  const error = boxAt(1114, 219, 88, 27);
+  const at = G.tipAt(error, NOTE, WIN);
+  assert.equal(at.left + NOTE.width, WIN.width - 12, 'kept inside the window');
+  assert.equal(at.left + at.lead, middle(error), 'the leader still on the control');
+});
+
+test('with no room below, a note goes above', () => {
+  const low = boxAt(20, 780, 60, 28);
+  const at = G.tipAt(low, NOTE, WIN);
+  assert.equal(at.above, true);
+  assert.equal(at.top, low.top - NOTE.height - 9);
+});
+
+test('a note never runs off the window, and its leader never runs off the note', () => {
+  // The widest note the page lets there be: the window less a margin each
+  // side. The stylesheet holds it there, and the render tests hold that.
+  const widest = { width: WIN.width - 2 * 12, height: 50 };
+  const at = G.tipAt(boxAt(5, 10, 10, 10), widest, WIN);
+  assert.equal(at.left, 12, 'the window margin on the left');
+  assert.ok(at.left + widest.width <= WIN.width - 12, 'and on the right');
+  assert.equal(at.lead, 12, 'and the leader keeps the same margin inside the note');
+});
+
 

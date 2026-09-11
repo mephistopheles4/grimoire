@@ -710,7 +710,11 @@ test('the page prints the failure kind beside the tag, and what the node does wi
  *  page that draws no picker still contains the source of the function that
  *  would have drawn one, so the whole page cannot answer "is there a control
  *  here" — only the markup can. */
-const headOf = html => html.slice(html.indexOf('<div class="head">'), html.indexOf('<div class="plan'));
+const between = (html, from, to) => {
+  const at = html.indexOf(from);
+  return html.slice(at, html.indexOf(to, at));
+};
+const headOf = html => between(html, '<div class="head">', '<div class="plan');
 
 test('a one-graph file draws no sheet control', () => {
   // A control that does nothing is worse than no control, so a file with one
@@ -817,6 +821,48 @@ test('the page reads its graph through an accessor, not off the file root', () =
   const body = template.slice(template.indexOf('function start()'));
   assert.doesNotMatch(body, /PROG\.presets/);
   assert.doesNotMatch(body, /PROG\.entry/);
+});
+
+/** The plan pane's markup, and the rail head's, sliced out of the page for the
+ *  reason headOf gives: only the markup can say where a control is. */
+const planOf = html => between(html, '<div class="plan"', '<div class="side"');
+const railHeadOf = html => between(html, '<div class="side-head"', '<div class="blk"');
+
+test('no tool sits on the plan pane: the drawing and the tree own all of it', () => {
+  // A block laid over the pane cost the drawing a pan to clear a node, and
+  // cost the tree — which has no pan — rows it could never show. Laid in flow
+  // above the tree it left a band of empty space instead. So no tool lives on
+  // the pane at all, and neither view has a corner to hide under.
+  //
+  // A limit, stated: this reads the markup the page ships. The layer buttons
+  // are built at run time, into #layerGrp, and the test below holds that
+  // #layerGrp is in the rail head.
+  const plan = planOf(pageOf(layeredFlightpath));
+  assert.match(plan, /id="canvas"/);
+  assert.match(plan, /id="tree"/);
+  assert.doesNotMatch(plan, /<(button|select|input|label)\b/, 'no control on the pane');
+});
+
+test("the tools are the rail head's rows: zoom, layer, view, then the holds", () => {
+  // One table of the controls that change how the sheet is read, with the
+  // holds as its last row. A row per tool, keyed down the left.
+  const head = railHeadOf(pageOf(layeredFlightpath));
+  const keys = [...head.matchAll(/class="grp-k[^"]*"[^>]*>([^<]+)</g)].map(m => m[1]);
+  assert.deepEqual(keys, ['zoom', 'layer', 'view', 'hold']);
+  const ids = ['zoomOut', 'zoomFit', 'zoomIn', 'scaleNow', 'layerGrp', 'viewPlan', 'viewTree', 'holdEffect', 'holdError'];
+  const at = ids.map(id => head.indexOf(`id="${id}"`));
+  ids.forEach((id, i) => assert.ok(at[i] >= 0, `${id} is in the rail head`));
+  assert.deepEqual(at.slice().sort((a, b) => a - b), at, 'in reading order');
+});
+
+test('a help note is never wider than the window less its margins', () => {
+  // The module keeps a note inside the window only if the note fits in it.
+  // The fold tests hold the placement; this holds the width it relies on,
+  // which is the stylesheet's to cap before the page measures the note.
+  const html = pageOf(exampleFlightpath);
+  const rule = html.match(/\.tip \{([^}]*)\}/);
+  assert.ok(rule, 'the page styles its help note');
+  assert.match(rule[1], /max-width:\s*min\([^;]*100vw/, 'capped by the window, not by its text alone');
 });
 
 test('the page contains no dynamic code evaluation', () => {

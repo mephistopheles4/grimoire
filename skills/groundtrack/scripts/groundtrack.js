@@ -493,6 +493,33 @@ const Groundtrack = (() => {
     return { state: to, redraw: m ? { from: m.to, to: m.from, dir: m.dir === 'call' ? 'uncall' : 'unreturn' } : null };
   }
 
+  /** Where a help note goes, given the box of the thing it describes, the
+   *  note's size and the window's. Centred under the thing, above it when
+   *  there is no room below, and never off the window. `lead` is where the
+   *  leader sits along the note: over the thing's middle, so it still lands on
+   *  the thing when the note is pushed back inside the window — which is
+   *  where a note from the rail, at the window's right edge, always is.
+   *
+   *  "Never off the window" needs a note no wider than the window less both
+   *  margins. The page's stylesheet holds the note to that width before it is
+   *  measured, so the room is always there.
+   *
+   *  The margins are the system's --av-s2 and the leader gap, held here
+   *  because a layout number cannot be read out of a custom property without
+   *  a round trip through computed style. */
+  const TIP_EDGE = 12, TIP_GAP = 9;
+  function tipAt(box, note, win) {
+    const middle = (box.left + box.right) / 2;
+    const left = Math.max(TIP_EDGE, Math.min(middle - note.width / 2, win.width - note.width - TIP_EDGE));
+    const lead = Math.max(TIP_EDGE, Math.min(middle - left, note.width - TIP_EDGE));
+    let top = box.bottom + TIP_GAP, above = false;
+    if (top + note.height > win.height - TIP_EDGE) {
+      top = box.top - note.height - TIP_GAP;
+      above = true;
+    }
+    return { left, top: Math.max(TIP_EDGE, top), lead, above };
+  }
+
   /* -- the derived cut -----------------------------------------------------
    *
    * A layer renames a token, never a node, so the geometry never changes. A
@@ -899,6 +926,6 @@ const Groundtrack = (() => {
     return best;
   }
 
-  return { esc, ID, bare, hardenKeys, KINDS, graphView, sheetState, sheetPickerMarkup, sheetFactsMarkup, reachable, labelsOf, callSites, calleesOf, effectsOf, failureKinds, tagFate, complexityOf, fold, back, cutEdges, layout, treeRows, unaccountedFiles, filesOf, fileTree, filesMarkup, suggestRun, renamedToken };
+  return { esc, ID, bare, hardenKeys, KINDS, graphView, sheetState, sheetPickerMarkup, sheetFactsMarkup, reachable, labelsOf, callSites, calleesOf, effectsOf, failureKinds, tagFate, complexityOf, fold, back, tipAt, cutEdges, layout, treeRows, unaccountedFiles, filesOf, fileTree, filesMarkup, suggestRun, renamedToken };
 })();
 if (typeof module !== 'undefined') module.exports = Groundtrack;
