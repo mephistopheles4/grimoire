@@ -617,6 +617,15 @@ Settled placements:
   is the text format rendered from the same file and the same walk, on paper.
   Stepping works in tree mode; only the animation goes. Zoom has nothing to act
   on there and greys out.
+- **The tree marks the error path, row by row.** At a cursor where an error is
+  live, every row whose call site took part says which part: raised or thrown,
+  passed through, or caught. The tree is one row per call site, so it is the
+  one view that shows the path as a path. Rows are matched by the site each
+  error-path entry carries, never by node, so a node called from several
+  places is marked only where the error went. The error reaching the top names
+  no node, so no row carries it. Each position has a word and a rule of its
+  own, because a hue alone is gone in the site scheme and on paper. `--text`
+  prints the same positions, for an error still live at the end of the walk.
 - **The inputs block is read-only and is called Inputs**, showing the run's whole
   input block including any injected fault. A field that looks editable and is
   not is worse than a value that never looked editable, and the player needs no

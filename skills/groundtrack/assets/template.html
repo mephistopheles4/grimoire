@@ -314,6 +314,24 @@ input[type=checkbox] { accent-color: var(--av-ink); margin: 0 var(--av-s1) 0 0; 
 .tr-under:empty { display: none; }
 .tr-site { color: var(--av-ink-70); overflow-wrap: anywhere; }
 .tr-fx { color: var(--av-ink-70); white-space: nowrap; }
+/* Where a row's call site stands on the current error: raised or thrown,
+   passed through, caught. The word carries it, because a hue cannot — the
+   site scheme folds caution to ink, and paper and a colour-blind reader have
+   no hue at all. Rule and ink tier say it again for a reader scanning, in one
+   ink: where it began is a thin rule and a filled point; where it crossed is
+   ink 70, a dashed hairline — the drawing dashes its error returns — and an
+   arrow up; where it stopped is full ink, a solid hairline and a hooked arrow.
+   The tag sits outside the stamp: the stamp sets caps, and a tag is the
+   author's text. */
+.tr-errs { display: inline-flex; align-items: center; gap: var(--av-s1); }
+.tr-err { padding: 0 var(--av-s1); }
+.tr-err--raised { color: var(--av-caution); border-width: var(--av-rule-thin); font-weight: 600; }
+.tr-err--passed { color: var(--av-ink-70); border-style: dashed; }
+.tr-err--caught { color: var(--av-ink); font-weight: 600; }
+.tr-err--passed::before, .tr-err--caught::before { width: auto; height: auto; background: none; border-radius: 0; }
+.tr-err--passed::before { content: '\2191'; }
+.tr-err--caught::before { content: '\21A9'; }
+.tr-err-tag { font-weight: 600; }
 
 /* The rail. It reads the walk, and it moves on every step. Deleting it changes
    the drawing's scale by nothing, so what goes in it is never an argument
@@ -689,6 +707,9 @@ const HELP = {
   E: 'E — where it breaks: the failure tags this node can raise. Each one is a retry, an escape or a die.',
   R: 'R — what this node needs to work. A layer can rename these.',
   role: 'What kind of thing this node is. The page prints it; nothing branches on it.',
+  errRaised: 'Where the current error started: this call raised it or threw it.',
+  errPassed: 'The current error left this call without being caught, on its way up.',
+  errCaught: 'A handler at this call caught the current error.',
   authored: 'Written by hand from the material. A claim about the program, not a recording of it.',
   captured: 'Produced by a real run.',
   paths: 'Cyclomatic complexity of the node as drawn: one, plus one for each if, each error handler and each backward jump. It measures the drawing, and the drawing is what the author chose to draw of the code.',
@@ -909,6 +930,21 @@ function start() {
         const siteText = row.site && (row.site.label || row.site.aside)
           ? '<span class="tr-site">' + esc(row.site.aside || row.site.label) + '</span>'
           : '';
+        /* Where this call site stands on the error at the cursor, read off the
+           row: the module matched it by site, so a node called from two places
+           is marked only where the error went. The position is one of the
+           fold's own words, never the file's; the tag is the file's, so it is
+           escaped and sits outside the stamp. */
+        const errs = row.error
+          ? '<span class="tr-errs">' + row.error.how
+            .map(function (h) {
+              const k = h === 'passed through' ? 'passed' : h === 'caught' ? 'caught' : 'raised';
+              const help = k === 'passed' ? HELP.errPassed : k === 'caught' ? HELP.errCaught : HELP.errRaised;
+              return '<span class="av-state tr-err chip-help tr-err--' + k + '" data-help="' + help + '">' + h + '</span>' +
+                (k === 'raised' ? '<span class="tr-err-tag">' + esc(row.error.tag) + '</span>' : '');
+            })
+            .join('') + '</span>'
+          : '';
         return (
           '<div class="' + cls + '" data-node="' + row.id + '" style="padding-left:' + (row.depth * 24 + 12) + 'px">' +
           '<span class="tr-name">' + (row.depth ? '&rarr; ' : '') + esc(row.name) +
@@ -916,7 +952,7 @@ function start() {
           '<span class="av-label tr-kind" data-help="' + HELP.role + '">' + esc(row.role) + '</span>' +
           '<span class="tr-ch">' + channelKey('A') + ' ' + esc(row.A || '—') + '<span class="sep"></span>' + channelKey('E') + ' ' + E +
           '<span class="sep"></span>' + channelKey('R') + ' ' + R + '</span>' +
-          '<span class="tr-under">' + siteText + marks + '</span></div>'
+          '<span class="tr-under">' + errs + siteText + marks + '</span></div>'
         );
       })
       .join('');

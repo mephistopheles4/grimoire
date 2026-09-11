@@ -607,6 +607,14 @@ export function text(prog, graphIndex, runIndex) {
     const pad = '  '.repeat(row.depth);
     const arrow = row.depth ? '-> ' : '';
     L.push(`${pad}${arrow}${row.name}  [${row.role}]  ${row.state}${row.repeat ? '  (seen above — stopped)' : ''}`);
+    /* Where this call site stood on the error, in the rail's words: the tag
+     * beside the raise or the throw, and nothing beside the rest. Only an
+     * error still live at the end of the walk shows here, because that is
+     * where the text reads the walk. */
+    if (row.error) {
+      const how = row.error.how.map(h => (h === 'raised' || h === 'thrown' ? `${h} ${row.error.tag}` : h));
+      L.push(`${pad}   error path: ${how.join(', ')}`);
+    }
     /* The tag, then the kind the file gives it. A tag the file gives no kind
      * for prints bare, and one given two prints both. */
     const E = row.E.length ? row.E.map(t => [t, ...(row.kinds[t] || [])].join(' ')).join(' · ') : 'never';
