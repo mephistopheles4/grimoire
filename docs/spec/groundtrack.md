@@ -601,9 +601,9 @@ Settled placements:
   layer, view, hold — with a fixed key column, so the rows read as a table of
   controls. They carry no frame of their own and no rules between buttons:
   they are the panel's own rows, on the header's ground. The live tool takes the tab treatment — label plus a
-  bottom rule — not a filled chip, which this sheet uses nowhere. A row too
-  long for the rail wraps under its first control, and the layer row can be:
-  it is built from the file, so its width is data.
+  bottom rule — not a filled chip, which this sheet uses nowhere. The layer
+  row is built from the file, so its width is data. A row too long for the
+  rail wraps under its first control.
 - **The holds are the tools' last row** — hold: effect, error — at the top of
   the rail, over the blocks they watch. The head drives the walk forward; the
   holds say where it stops.
