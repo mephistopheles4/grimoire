@@ -500,6 +500,10 @@ const Groundtrack = (() => {
    *  the thing when the note is pushed back inside the window — which is
    *  where a note from the rail, at the window's right edge, always is.
    *
+   *  "Never off the window" needs a note no wider than the window less both
+   *  margins. The page's stylesheet holds the note to that width before it is
+   *  measured, so the room is always there.
+   *
    *  The margins are the system's --av-s2 and the leader gap, held here
    *  because a layout number cannot be read out of a custom property without
    *  a round trip through computed style. */

@@ -855,6 +855,16 @@ test("the tools are the rail head's rows: zoom, layer, view, then the holds", ()
   assert.deepEqual(at.slice().sort((a, b) => a - b), at, 'in reading order');
 });
 
+test('a help note is never wider than the window less its margins', () => {
+  // The module keeps a note inside the window only if the note fits in it.
+  // The fold tests hold the placement; this holds the width it relies on,
+  // which is the stylesheet's to cap before the page measures the note.
+  const html = pageOf(exampleFlightpath);
+  const rule = html.match(/\.tip \{([^}]*)\}/);
+  assert.ok(rule, 'the page styles its help note');
+  assert.match(rule[1], /max-width:\s*min\([^;]*100vw/, 'capped by the window, not by its text alone');
+});
+
 test('the page contains no dynamic code evaluation', () => {
   const html = pageOf(layeredFlightpath);
   assert.doesNotMatch(html, /\bnew Function\s*\(/);

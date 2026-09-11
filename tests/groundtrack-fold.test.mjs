@@ -1050,8 +1050,12 @@ test('with no room below, a note goes above', () => {
 });
 
 test('a note never runs off the window, and its leader never runs off the note', () => {
-  const at = G.tipAt(boxAt(5, 10, 10, 10), { width: 2000, height: 50 }, WIN);
-  assert.equal(at.left, 12, 'the window margin is the last word');
+  // The widest note the page lets there be: the window less a margin each
+  // side. The stylesheet holds it there, and the render tests hold that.
+  const widest = { width: WIN.width - 2 * 12, height: 50 };
+  const at = G.tipAt(boxAt(5, 10, 10, 10), widest, WIN);
+  assert.equal(at.left, 12, 'the window margin on the left');
+  assert.ok(at.left + widest.width <= WIN.width - 12, 'and on the right');
   assert.equal(at.lead, 12, 'and the leader keeps the same margin inside the note');
 });
 

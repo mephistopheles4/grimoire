@@ -491,7 +491,9 @@ input[type=checkbox] { accent-color: var(--av-ink); margin: 0 var(--av-s1) 0 0; 
    pointer rests on it or focus lands on it. An annotation on paper in the
    system's vocabulary: a thin ink box, annotation size, ink 80 — no shadow, no
    radius, no colour. The text is the page's own and never the file's. */
-.tip { position: fixed; z-index: 20; max-width: 38ch; padding: var(--av-s1) var(--av-s2);
+/* Never wider than the window less a margin each side, so there is always
+   room to keep it inside: the module's tipAt counts on that. */
+.tip { position: fixed; z-index: 20; max-width: min(38ch, calc(100vw - 2 * var(--av-s2))); padding: var(--av-s1) var(--av-s2);
   background: var(--av-paper); color: var(--av-ink-80); border: var(--av-rule-thin) solid var(--av-ink);
   font-size: var(--av-t-annot); line-height: 1.45; text-transform: none; letter-spacing: normal;
   font-weight: 400; pointer-events: none; }
