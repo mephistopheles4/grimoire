@@ -19,7 +19,7 @@ import { mkdtempSync, rmSync, writeFileSync, readFileSync, existsSync, readdirSy
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createHash } from 'node:crypto';
-import { groundtrack, examples, exampleFlightpath, layeredFlightpath, run } from './helpers.mjs';
+import { groundtrack, examples, exampleFlightpath, layeredFlightpath, run, errorPastTwoSites } from './helpers.mjs';
 
 const work = mkdtempSync(join(tmpdir(), 'grimoire-groundtrack-'));
 after(() => rmSync(work, { recursive: true, force: true }));
@@ -667,6 +667,45 @@ test('the text says where the walks came from, above everything', () => {
   assert.match(r.stdout.split('\n')[0], /written by hand\. They are claims about the program, not recordings of it\./);
 });
 
+/** The text's rows, one block of lines per row, split at each row's head. */
+const textRows = stdout =>
+  stdout.split('\n').reduce((rows, line) => {
+    if (/^ *(-> )?\S+ {2}\[/.test(line)) rows.push([line]);
+    else if (rows.length) rows[rows.length - 1].push(line);
+    return rows;
+  }, []);
+const errorLines = stdout => textRows(stdout).map(b => (b.find(l => l.includes('error path:')) || '').trim());
+
+test('the text marks where each row stood on an error that is still live at the end', () => {
+  // --text folds to the end of the walk, so the error it can show is one that
+  // reached the top. A limit, stated: a catch never shows here. A return ends
+  // the error the catch took, and a walk cannot end with its entry frame open,
+  // so no valid walk ends on a caught error.
+  const file = derive(errorPastTwoSites);
+  assert.equal(check(file).code, 0, 'the derived file is a legal program');
+  const r = run(groundtrack, [file, '--text', 'the store is down']);
+  assert.equal(r.code, 0, r.stderr);
+  assert.deepEqual(errorLines(r.stdout), ['', 'error path: passed through', '', 'error path: raised StoreDown']);
+  // The row that raised is the lookup by alias. The lookup by id is the same
+  // node from another call site, and it took no part.
+  const rows = textRows(r.stdout);
+  assert.ok(rows[3].some(l => l.includes('by alias')));
+  assert.ok(rows[2].some(l => l.includes('by id')));
+});
+
+test('the text marks nothing when the walk ends with no error live', () => {
+  const file = derive(errorPastTwoSites);
+  const r = run(groundtrack, [file, '--text', 'the alias is missing']);
+  assert.equal(r.code, 0, r.stderr);
+  assert.doesNotMatch(r.stdout, /error path:/);
+});
+
+test('the text marks the entry that raised, and no row for the top', () => {
+  const r = run(groundtrack, [exampleFlightpath, '--text', 'the post fails']);
+  assert.equal(r.code, 0, r.stderr);
+  assert.deepEqual(errorLines(r.stdout), ['error path: raised SendFailed', '']);
+});
+
 /* -- the page as a string ------------------------------------------------- */
 
 const pageOf = file => {
@@ -701,6 +740,24 @@ test('the page prints the failure kind beside the tag, and what the node does wi
   for (const word of ['throws', 'catches', 'passes up from beneath']) {
     assert.ok(html.includes(word), `the contract tab can say "${word}"`);
   }
+});
+
+test('the page tree marks the error path from the row, with a word and a rule for each position', () => {
+  // A limit, stated, and the same one the failure-kind test states: the page
+  // draws its rows in the browser, so this reads the markup and the rules the
+  // page ships, not a drawn row. What it can hold is that the tree reads the
+  // one derivation the module exports, and that every position has a signal
+  // that is not a hue — the site scheme folds caution to ink.
+  const html = pageOf(exampleFlightpath);
+  const tree = between(html, 'function drawTree(', '/* -- the rail');
+  assert.match(tree, /row\.error/, 'the tree reads the row, not the error path');
+  assert.match(tree, /tr-err--/, 'the tree draws a position class');
+  for (const k of ['raised', 'passed', 'caught']) {
+    assert.match(html, new RegExp(`\\.tr-err--${k}\\b[^{]*\\{[^}]*(border|content|font-weight)`), `${k} has a signal in one ink`);
+  }
+  // The drawing is not this change: its box still reads the path by node.
+  const box = between(html, 'function nodeBox(', '/* -- the tree');
+  assert.doesNotMatch(box, /\.error\b|tr-err/);
 });
 
 /** The page's own head markup, which is where the controls are.

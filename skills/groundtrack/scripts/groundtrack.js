@@ -348,6 +348,12 @@ const Groundtrack = (() => {
     let ledger = [];
     let visited = [prog.entry];
     let edges = [];
+    /* Every entry that names a node also names the call site of its frame —
+     * the popped frame on an unwind, the top frame on a raise, a throw or a
+     * catch. The tree is one row per call site and has to know which row an
+     * entry is, and it cannot work that out later: by the time the cursor sits
+     * on the catch, the frames that raised and unwound are gone. The entry for
+     * an error reaching the top names neither. */
     let errorPath = [];
     let sites = {}; /* site key -> { entered, returned, effects: { "node[at]": outcome } } */
     /* The same marks again, keyed by node rather than by call site. The tree
@@ -388,7 +394,7 @@ const Groundtrack = (() => {
         const gone = frames.pop();
         if (gone) {
           moved = { from: gone.nodeId, to: frames.length ? frames[frames.length - 1].nodeId : null, dir: 'unwind' };
-          errorPath = errorPath.concat([{ nodeId: gone.nodeId, how: 'passed through' }]);
+          errorPath = errorPath.concat([{ nodeId: gone.nodeId, site: gone.site, how: 'passed through' }]);
         }
       } else if (m.k === 'done') {
         frames = [];
@@ -438,18 +444,18 @@ const Groundtrack = (() => {
               },
             ]);
             if (m.raised !== undefined) {
-              errorPath = [{ nodeId: top.nodeId, how: 'raised', tag: m.raised.tag, message: m.raised.message, channel: m.raised.channel }];
+              errorPath = [{ nodeId: top.nodeId, site: top.site, how: 'raised', tag: m.raised.tag, message: m.raised.message, channel: m.raised.channel }];
             } else {
               top.pc = m.next;
             }
             break;
           }
           case 'throw':
-            errorPath = [{ nodeId: top.nodeId, how: 'thrown', tag: m.tag, message: m.message, channel: m.channel }];
+            errorPath = [{ nodeId: top.nodeId, site: top.site, how: 'thrown', tag: m.tag, message: m.message, channel: m.channel }];
             break;
           case 'handled':
             top.pc = m.next;
-            errorPath = errorPath.concat([{ nodeId: top.nodeId, how: 'caught', goto: m.goto }]);
+            errorPath = errorPath.concat([{ nodeId: top.nodeId, site: top.site, how: 'caught', goto: m.goto }]);
             break;
           case 'return': {
             const gone = frames.pop();
@@ -671,6 +677,13 @@ const Groundtrack = (() => {
    * and the text matches the tree on the page. A repeated node is marked and
    * stopped, or a cycle never terminates.
    */
+
+  /** The four words the fold writes on the error path, sorted into the three
+   *  positions a row can take. A raise and a throw are one position — where
+   *  the error started. The tree, the text and the page all sort by this one
+   *  table, so the three cannot disagree about which word is which. */
+  const ERROR_POSITION = Object.freeze({ raised: 'raised', thrown: 'raised', 'passed through': 'passed', caught: 'caught' });
+
   function treeRows(prog, walk, layerName, atIndex, states) {
     const all = states || fold(prog, walk);
     const end = all[atIndex === undefined ? all.length - 1 : atIndex];
@@ -694,6 +707,39 @@ const Groundtrack = (() => {
       return 'returned';
     };
 
+    /* Where each call site stands on the error path at the cursor: raised or
+     * thrown, passed through, caught. A second signal beside `state` and not a
+     * fourth value of it, because a row can be on the stack and on the path at
+     * once — the frame that catches is still open.
+     *
+     * Matched by the site each entry carries, never by its node. A node called
+     * from three sites is three rows, and at most one of them is the frame the
+     * error crossed. The site is the fold's key, `caller#step`, so it tells two
+     * call steps apart and does not tell apart two copies of one subtree: a
+     * node whose *caller* the tree shows twice is marked under both. That is
+     * the same key `state` reads, and the same limit.
+     *
+     * The frame an error starts in is on the fold's path twice — it raised,
+     * then it unwound — and only the first is a position. The row where the
+     * error started says so; `passed through` is for the frames it crossed. A
+     * frame that raises and catches its own error says both, in path order.
+     *
+     * The entry for an error reaching the top names no site, so it matches no
+     * row and makes none. Nor do the frames still open when it gets there:
+     * nothing unwound them, so the fold did not put them on the path. */
+    const onPath = bare();
+    for (const e of end.errorPath) {
+      if (e.site === undefined) continue;
+      const how = (onPath[e.site] = onPath[e.site] || []);
+      if (!how.includes(e.how)) how.push(e.how);
+    }
+    const errorOf = siteKey => {
+      const how = onPath[siteKey];
+      if (!how) return null;
+      const started = how.some(h => ERROR_POSITION[h] === 'raised');
+      return { how: started ? how.filter(h => h !== 'passed through') : how.slice(), tag: end.errorPath[0].tag };
+    };
+
     (function walkNode(id, siteKey, depth, path, site) {
       const node = prog.nodes[id];
       if (!node) return;
@@ -712,6 +758,7 @@ const Groundtrack = (() => {
         rename: rename ? rename.slice() : null,
         site: site ? { label: site.label, aside: site.aside } : null,
         state: stateOf(siteKey),
+        error: errorOf(siteKey),
         effects: effectsOf(node).map(e => ({ kind: e.kind, desc: e.desc, mark: markOf(siteKey, id, e.at) })),
         repeat,
       });
@@ -926,6 +973,6 @@ const Groundtrack = (() => {
     return best;
   }
 
-  return { esc, ID, bare, hardenKeys, KINDS, graphView, sheetState, sheetPickerMarkup, sheetFactsMarkup, reachable, labelsOf, callSites, calleesOf, effectsOf, failureKinds, tagFate, complexityOf, fold, back, tipAt, cutEdges, layout, treeRows, unaccountedFiles, filesOf, fileTree, filesMarkup, suggestRun, renamedToken };
+  return { esc, ID, bare, hardenKeys, KINDS, ERROR_POSITION, graphView, sheetState, sheetPickerMarkup, sheetFactsMarkup, reachable, labelsOf, callSites, calleesOf, effectsOf, failureKinds, tagFate, complexityOf, fold, back, tipAt, cutEdges, layout, treeRows, unaccountedFiles, filesOf, fileTree, filesMarkup, suggestRun, renamedToken };
 })();
 if (typeof module !== 'undefined') module.exports = Groundtrack;

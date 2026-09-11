@@ -16,7 +16,7 @@ import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { root, exampleFlightpath, layeredFlightpath } from './helpers.mjs';
+import { root, exampleFlightpath, layeredFlightpath, errorPastTwoSites } from './helpers.mjs';
 
 const require = createRequire(import.meta.url);
 const G = require(join(root, 'skills', 'groundtrack', 'scripts', 'groundtrack.js'));
@@ -511,6 +511,30 @@ test('a handled catch moves the cursor and records the catch on the error path',
   assert.equal(s[i + 1].frames[0].pc, walk.steps[i].next);
 });
 
+test('every error-path entry that names a node carries the call site of its frame', () => {
+  // An entry names a node, and the tree is one row per call site. By the time
+  // the cursor sits on the catch, the frames that threw and unwound are popped,
+  // so the site cannot be recovered afterwards: the fold has to write it down
+  // while it holds the frame.
+  const walk = runNamed(greet, 'no such user').walk;
+  const s = G.fold(greet, walk);
+  const i = walk.steps.findIndex(m => m.k === 'handled');
+  assert.deepEqual(s[i + 1].errorPath.map(e => [e.how, e.nodeId, e.site]), [
+    ['thrown', 'lookupName', 'greet#1'],
+    ['passed through', 'lookupName', 'greet#1'],
+    ['caught', 'greet', '@entry'],
+  ]);
+});
+
+test('an error that reaches the top names no node and no site', () => {
+  const s = G.fold(greet, runNamed(greet, 'the post fails').walk);
+  const path = s[s.length - 1].errorPath;
+  assert.deepEqual(path.map(e => [e.how, e.nodeId, e.site]), [
+    ['raised', 'greet', '@entry'],
+    ['reached the top uncaught', null, undefined],
+  ]);
+});
+
 test('the fold records which edges the walk took, and which nodes it reached', () => {
   const walk = runNamed(layered, 'the sheet 404s').walk;
   const end = G.fold(layered, walk).slice(-1)[0];
@@ -615,6 +639,124 @@ test('the tree reads its marks at the cursor, not only at the end', () => {
   const atEnd = G.treeRows(greet, walk, null, undefined, states);
   assert.equal(atStart.find(r => r.id === 'lookupName').state, 'not reached');
   assert.equal(atEnd.find(r => r.id === 'lookupName').state, 'returned');
+});
+
+/* -- the error path, on the tree -------------------------------------------
+ *
+ * The tree is one row per call site, and the error path names nodes. A node
+ * called from two sites is two rows, and at most one of them is the frame the
+ * error passed through. */
+
+const twoSites = G.graphView(errorPastTwoSites(JSON.parse(readFileSync(exampleFlightpath, 'utf8'))), 0);
+/** Each row as [node, the site's aside, where it stands on the error path]. */
+const errorRows = (prog, name, at) => {
+  const walk = runNamed(prog, name).walk;
+  return G.treeRows(prog, walk, null, at, G.fold(prog, walk)).map(r => [
+    r.id,
+    r.site ? r.site.aside : null,
+    r.error ? r.error.how : null,
+  ]);
+};
+const cursorAfter = (prog, name, k) => runNamed(prog, name).walk.steps.findIndex(m => m.k === k) + 1;
+
+test('a row on the error path says where it stands: thrown, passed through, or caught', () => {
+  const at = cursorAfter(twoSites, 'the alias is missing', 'handled');
+  assert.deepEqual(errorRows(twoSites, 'the alias is missing', at), [
+    ['greet', null, ['caught']],
+    ['loadProfile', 'the only call that can fail', ['passed through']],
+    // The same node from the other site took no part, so it carries nothing.
+    ['lookupName', 'by id', null],
+    ['lookupName', 'by alias', ['thrown']],
+  ]);
+});
+
+test('the row the error started at says so, and not also that it passed through', () => {
+  // The fold records the throwing frame twice: it threw, and then it unwound.
+  // Only the first is a position. Read as two, the row that threw would
+  // carry the mark every frame the error merely crossed carries too.
+  const walk = runNamed(twoSites, 'the alias is missing').walk;
+  const at = cursorAfter(twoSites, 'the alias is missing', 'handled');
+  const path = G.fold(twoSites, walk)[at].errorPath;
+  assert.deepEqual(path.filter(e => e.site === 'loadProfile#1').map(e => e.how), ['thrown', 'passed through']);
+  const [, , thrower] = errorRows(twoSites, 'the alias is missing', at).find(([, aside]) => aside === 'by alias');
+  assert.deepEqual(thrower, ['thrown']);
+});
+
+test('a row that raised and caught its own error says both', () => {
+  // An effect whose own step carries the handler. No shipped example has one,
+  // and it is the case a single word per row would get wrong.
+  const prog = {
+    entry: 'a',
+    graphs: [],
+    nodes: {
+      a: {
+        name: 'a',
+        role: 'io',
+        steps: [
+          { op: 'effect', kind: 'db.get', desc: 'read', onError: [{ tag: 'Gone', goto: 'out' }] },
+          { op: 'return', label: 'out', expr: 'null' },
+        ],
+      },
+    },
+  };
+  const walk = {
+    steps: [
+      { k: 'effect', at: 0, kind: 'db.get', desc: 'read', raised: { tag: 'Gone', message: 'no row', channel: 'escape' } },
+      { k: 'handled', at: 0, goto: 'out', next: 1 },
+    ],
+  };
+  const rows = G.treeRows(prog, walk);
+  assert.deepEqual(rows[0].error.how, ['raised', 'caught']);
+  assert.equal(rows[0].error.tag, 'Gone');
+});
+
+test('the error path marks nothing before the raise and nothing after the return that ends it', () => {
+  const name = 'the alias is missing';
+  const walk = runNamed(twoSites, name).walk;
+  const marked = at => errorRows(twoSites, name, at).filter(r => r[2]).length;
+  const thrownAt = walk.steps.findIndex(m => m.k === 'throw');
+  assert.equal(marked(0), 0, 'before the first move');
+  assert.equal(marked(thrownAt), 0, 'the cursor on the throw, not yet past it');
+  assert.equal(marked(thrownAt + 1), 1, 'past the throw, only the row that threw');
+  const caughtAt = cursorAfter(twoSites, name, 'handled');
+  assert.equal(marked(caughtAt), 3, 'the catch, and every frame the error crossed');
+  const endsAt = walk.steps.map(m => m.k).lastIndexOf('return') + 1;
+  assert.equal(marked(endsAt), 0, 'the return after the catch ends the error');
+  // Stepping back is an index lookup, so every cursor reads the same forward
+  // and back. Held across the whole walk anyway: no mark survives a cursor
+  // where the error path is empty.
+  const states = G.fold(twoSites, walk);
+  for (let i = 0; i < states.length; i++) {
+    if (!states[i].errorPath.length) assert.equal(marked(i), 0, `cursor ${i}`);
+  }
+});
+
+test('an error that reaches the top adds no row, and marks only the frames it crossed', () => {
+  // The frames still open when it reaches the top are not on the fold's path —
+  // nothing unwound them — so greet carries nothing. The top itself names no
+  // node, so no row carries it and no row is made for it.
+  assert.deepEqual(errorRows(twoSites, 'the store is down'), [
+    ['greet', null, null],
+    ['loadProfile', 'the only call that can fail', ['passed through']],
+    ['lookupName', 'by id', null],
+    ['lookupName', 'by alias', ['raised']],
+  ]);
+  // And on the shipped example: the entry raised, and the lookup it called
+  // earlier and which returned took no part.
+  assert.deepEqual(errorRows(greet, 'the post fails'), [
+    ['greet', null, ['raised']],
+    ['lookupName', 'the only call that can fail', null],
+  ]);
+});
+
+test('the error path is a second signal, independent of the walk state', () => {
+  // A row can be on the stack and on the error path at once: greet is still
+  // open when it catches.
+  const walk = runNamed(twoSites, 'the alias is missing').walk;
+  const at = cursorAfter(twoSites, 'the alias is missing', 'handled');
+  const entry = G.treeRows(twoSites, walk, null, at)[0];
+  assert.equal(entry.state, 'on stack');
+  assert.deepEqual(entry.error.how, ['caught']);
 });
 
 test('the tree carries the layer rename on the row', () => {
