@@ -707,9 +707,12 @@ const HELP = {
   E: 'E — where it breaks: the failure tags this node can raise. Each one is a retry, an escape or a die.',
   R: 'R — what this node needs to work. A layer can rename these.',
   role: 'What kind of thing this node is. The page prints it; nothing branches on it.',
-  errRaised: 'Where the current error started: this call raised it or threw it.',
-  errPassed: 'The current error left this call without being caught, on its way up.',
-  errCaught: 'A handler at this call caught the current error.',
+  /* Keyed by the position G.ERROR_POSITION sorts a fold word into. */
+  err: {
+    raised: 'Where the current error started: this call raised it or threw it.',
+    passed: 'The current error left this call without being caught, on its way up.',
+    caught: 'A handler at this call caught the current error.',
+  },
   authored: 'Written by hand from the material. A claim about the program, not a recording of it.',
   captured: 'Produced by a real run.',
   paths: 'Cyclomatic complexity of the node as drawn: one, plus one for each if, each error handler and each backward jump. It measures the drawing, and the drawing is what the author chose to draw of the code.',
@@ -938,10 +941,9 @@ function start() {
         const errs = row.error
           ? '<span class="tr-errs">' + row.error.how
             .map(function (h) {
-              const k = h === 'passed through' ? 'passed' : h === 'caught' ? 'caught' : 'raised';
-              const help = k === 'passed' ? HELP.errPassed : k === 'caught' ? HELP.errCaught : HELP.errRaised;
-              return '<span class="av-state tr-err chip-help tr-err--' + k + '" data-help="' + help + '">' + h + '</span>' +
-                (k === 'raised' ? '<span class="tr-err-tag">' + esc(row.error.tag) + '</span>' : '');
+              const position = G.ERROR_POSITION[h];
+              return '<span class="av-state tr-err chip-help tr-err--' + position + '" data-help="' + HELP.err[position] + '">' + h + '</span>' +
+                (position === 'raised' ? '<span class="tr-err-tag">' + esc(row.error.tag) + '</span>' : '');
             })
             .join('') + '</span>'
           : '';

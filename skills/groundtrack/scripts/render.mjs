@@ -612,7 +612,7 @@ export function text(prog, graphIndex, runIndex) {
      * error still live at the end of the walk shows here, because that is
      * where the text reads the walk. */
     if (row.error) {
-      const how = row.error.how.map(h => (h === 'raised' || h === 'thrown' ? `${h} ${row.error.tag}` : h));
+      const how = row.error.how.map(h => (Groundtrack.ERROR_POSITION[h] === 'raised' ? `${h} ${row.error.tag}` : h));
       L.push(`${pad}   error path: ${how.join(', ')}`);
     }
     /* The tag, then the kind the file gives it. A tag the file gives no kind

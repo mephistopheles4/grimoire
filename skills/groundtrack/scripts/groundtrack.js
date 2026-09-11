@@ -677,6 +677,13 @@ const Groundtrack = (() => {
    * and the text matches the tree on the page. A repeated node is marked and
    * stopped, or a cycle never terminates.
    */
+
+  /** The four words the fold writes on the error path, sorted into the three
+   *  positions a row can take. A raise and a throw are one position — where
+   *  the error started. The tree, the text and the page all sort by this one
+   *  table, so the three cannot disagree about which word is which. */
+  const ERROR_POSITION = Object.freeze({ raised: 'raised', thrown: 'raised', 'passed through': 'passed', caught: 'caught' });
+
   function treeRows(prog, walk, layerName, atIndex, states) {
     const all = states || fold(prog, walk);
     const end = all[atIndex === undefined ? all.length - 1 : atIndex];
@@ -729,7 +736,7 @@ const Groundtrack = (() => {
     const errorOf = siteKey => {
       const how = onPath[siteKey];
       if (!how) return null;
-      const started = how.includes('raised') || how.includes('thrown');
+      const started = how.some(h => ERROR_POSITION[h] === 'raised');
       return { how: started ? how.filter(h => h !== 'passed through') : how.slice(), tag: end.errorPath[0].tag };
     };
 
@@ -966,6 +973,6 @@ const Groundtrack = (() => {
     return best;
   }
 
-  return { esc, ID, bare, hardenKeys, KINDS, graphView, sheetState, sheetPickerMarkup, sheetFactsMarkup, reachable, labelsOf, callSites, calleesOf, effectsOf, failureKinds, tagFate, complexityOf, fold, back, tipAt, cutEdges, layout, treeRows, unaccountedFiles, filesOf, fileTree, filesMarkup, suggestRun, renamedToken };
+  return { esc, ID, bare, hardenKeys, KINDS, ERROR_POSITION, graphView, sheetState, sheetPickerMarkup, sheetFactsMarkup, reachable, labelsOf, callSites, calleesOf, effectsOf, failureKinds, tagFate, complexityOf, fold, back, tipAt, cutEdges, layout, treeRows, unaccountedFiles, filesOf, fileTree, filesMarkup, suggestRun, renamedToken };
 })();
 if (typeof module !== 'undefined') module.exports = Groundtrack;

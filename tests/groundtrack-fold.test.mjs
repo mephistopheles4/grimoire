@@ -678,7 +678,8 @@ test('the row the error started at says so, and not also that it passed through'
   const at = cursorAfter(twoSites, 'the alias is missing', 'handled');
   const path = G.fold(twoSites, walk)[at].errorPath;
   assert.deepEqual(path.filter(e => e.site === 'loadProfile#1').map(e => e.how), ['thrown', 'passed through']);
-  assert.deepEqual(errorRows(twoSites, 'the alias is missing', at)[3][2], ['thrown']);
+  const [, , thrower] = errorRows(twoSites, 'the alias is missing', at).find(([, aside]) => aside === 'by alias');
+  assert.deepEqual(thrower, ['thrown']);
 });
 
 test('a row that raised and caught its own error says both', () => {
