@@ -720,7 +720,12 @@ const Groundtrack = (() => {
      * `state` is what --text prints and what the checks read, and a value
      * they have never seen would change both. The page spends it on rule
      * weight — the running frame keeps full ink, the ones waiting under it
-     * take the system's state rule. */
+     * take the system's state rule.
+     *
+     * It reads the same `caller#step` key `state` and the effect marks read,
+     * so it inherits their limit and does not add one: two copies of a subtree
+     * share a key, and a frame open under one copy reads as open under both.
+     * That is #82, and it is the next case down from the one #79 tested. */
     const topSite = end.frames.length ? end.frames[end.frames.length - 1].site : null;
 
     /* Where each call site stands on the error path at the cursor: raised or
