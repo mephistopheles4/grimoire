@@ -878,6 +878,18 @@ test('no mark the walk made is missing from the tree', () => {
   assert.ok(marks.includes('failed'), 'the deepest frame failed and the tree says so');
 });
 
+test('a failure is not hidden by a frame that succeeded at the same step', () => {
+  // Two frames one row speaks for, marking the SAME step differently. Merging
+  // by insertion order would take the deeper chain, which is the one that
+  // landed — and the row would report a clean record beside its own raised
+  // stripe, contradicting itself on one line.
+  const walk = runNamed(recursive, 'the deeper frame lands and the shallower one fails').walk;
+  const rows = G.treeRows(recursive, walk, null, undefined, G.fold(recursive, walk));
+  const repeat = rows[rows.length - 1];
+  assert.equal(repeat.path, 'raised', 'the row says an error started under it');
+  assert.deepEqual(repeat.effects.map(e => e.mark), ['failed'], 'so it must not also say the step recorded cleanly');
+});
+
 test('a call step sums its copies, because the listing shows a node and not a path', () => {
   // The cutaway lists ONE node's source and marks each call line by what the
   // walk did with it. It has a node and a step index in hand and no path, so

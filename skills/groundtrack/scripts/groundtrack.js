@@ -55,15 +55,18 @@ const Groundtrack = (() => {
 
   /** A frame's chain of call sites from the entry, as one table key.
    *
-   *  A call site is `caller#step`, and that names one line of source. It does
-   *  NOT name one place in the tree: a subtree drawn twice puts the same
-   *  `caller#step` under both copies. The chain from the entry does name one
-   *  place, which is why the tree keys by this and not by the last link.
+   *  A link is one call site, `caller#step`, and that names one line of
+   *  source. It does NOT name one place in the tree: a subtree drawn twice
+   *  puts the same link under both copies. The chain from the entry does name
+   *  one place, which is why the tree keys by this and not by the last link.
    *
-   *  A node id is letters, digits and hyphens, so no link can hold the
-   *  separator and a chain splits back into its links unambiguously. */
-  const CHAIN = chain => chain.join('/');
-  const UNCHAIN = key => key.split('/');
+   *  Neither half of a link can hold the separator: an id is letters, digits
+   *  and hyphens by `ID` above, and a step is an array index because
+   *  `render.mjs` refuses a move whose `at` is not a number. So a chain splits
+   *  back into its links unambiguously — on an invariant enforced outside this
+   *  function, and half of it outside this file. */
+  const chainKey = chain => chain.join('/');
+  const chainLinks = key => key.split('/');
 
   /** Rebuild a parsed file's author-keyed maps with no prototype.
    *
@@ -388,7 +391,7 @@ const Groundtrack = (() => {
     let ended = null;
 
     const clone = () => frames.map(f => ({ ...f, chain: f.chain.slice() }));
-    const touch = chain => (sites[CHAIN(chain)] = sites[CHAIN(chain)] || { entered: 0, returned: 0, effects: bare() });
+    const touch = chain => (sites[chainKey(chain)] = sites[chainKey(chain)] || { entered: 0, returned: 0, effects: bare() });
 
     touch(['@entry']).entered = 1;
 
@@ -730,12 +733,12 @@ const Groundtrack = (() => {
   function callCounts(state, nodeId, at) {
     const step = `${nodeId}#${at}`;
     const out = { entered: 0, returned: 0, open: false };
-    for (const key of Object.keys(state.sites || {})) {
-      if (UNCHAIN(key).pop() !== step) continue;
+    for (const key of Object.keys(state.sites)) {
+      if (chainLinks(key).pop() !== step) continue;
       out.entered += state.sites[key].entered;
       out.returned += state.sites[key].returned;
     }
-    out.open = (state.frames || []).some(f => f.site === step);
+    out.open = state.frames.some(f => f.site === step);
     return out;
   }
 
@@ -758,7 +761,7 @@ const Groundtrack = (() => {
       const node = prog.nodes[id];
       if (!node) return;
       const repeat = path.includes(id);
-      drawn.push({ id, node, chain, depth, site, repeat });
+      drawn.push({ id, node, chain, depth, site, repeat, entered: 0, returned: 0, effects: bare(), open: false, how: [] });
       if (repeat) return;
       for (const s of callSites(node)) {
         if (!prog.nodes[s.target]) continue;
@@ -766,7 +769,7 @@ const Groundtrack = (() => {
       }
     })(prog.entry, ['@entry'], 0, [], null);
 
-    const rowOf = new Map(drawn.map((r, i) => [CHAIN(r.chain), i]));
+    const rowOf = new Map(drawn.map((r, i) => [chainKey(r.chain), i]));
 
     /* WHICH ROW SPEAKS FOR A CHAIN. Its own row where the tree draws one, and
      * otherwise the row whose chain is the longest prefix of it.
@@ -782,7 +785,7 @@ const Groundtrack = (() => {
      * no definition for. */
     const speaksFor = chain => {
       for (let n = chain.length; n > 0; n -= 1) {
-        const i = rowOf.get(CHAIN(chain.slice(0, n)));
+        const i = rowOf.get(chainKey(chain.slice(0, n)));
         if (i !== undefined) return i;
       }
       return undefined;
@@ -791,17 +794,26 @@ const Groundtrack = (() => {
     /* Every signal a row carries, gathered onto the row that speaks for it.
      * One pass per source, so a chain is attributed once and the four signals
      * cannot disagree about which row it belongs to. */
-    const seen = drawn.map(() => ({ entered: 0, returned: 0, effects: bare(), open: false, how: [] }));
     for (const key of Object.keys(end.sites)) {
-      const i = speaksFor(UNCHAIN(key));
+      const i = speaksFor(chainLinks(key));
       if (i === undefined) continue;
-      seen[i].entered += end.sites[key].entered;
-      seen[i].returned += end.sites[key].returned;
-      Object.assign(seen[i].effects, end.sites[key].effects);
+      drawn[i].entered += end.sites[key].entered;
+      drawn[i].returned += end.sites[key].returned;
+      /* A FAILURE IS NEVER OVERWRITTEN BY A SUCCESS. Where several chains land
+       * on one row — a recursion running below the drawn rows — two frames can
+       * mark the same step with different outcomes, and the row has one mark to
+       * show for both. Taking the last one written would take the deepest
+       * frame, which is an accident of the order the fold entered them: the row
+       * would report a clean record beside its own raised stripe and contradict
+       * itself on one line. The failure is the half a reader must not lose. */
+      for (const at of Object.keys(end.sites[key].effects)) {
+        if (drawn[i].effects[at] === 'failed') continue;
+        drawn[i].effects[at] = end.sites[key].effects[at];
+      }
     }
     for (const f of end.frames) {
       const i = speaksFor(f.chain);
-      if (i !== undefined) seen[i].open = true;
+      if (i !== undefined) drawn[i].open = true;
     }
 
     /* WHICH open frame is the one running. `state` says a row is on the stack;
@@ -841,10 +853,10 @@ const Groundtrack = (() => {
       if (e.chain === undefined) continue;
       const i = speaksFor(e.chain);
       if (i === undefined) continue;
-      if (!seen[i].how.includes(e.how)) seen[i].how.push(e.how);
+      if (!drawn[i].how.includes(e.how)) drawn[i].how.push(e.how);
     }
-    const errorOf = i => {
-      const how = seen[i].how;
+    const errorOf = r => {
+      const how = r.how;
       if (!how.length) return null;
       const started = how.some(h => ERROR_POSITION[h] === 'raised');
       return { how: started ? how.filter(h => h !== 'passed through') : how.slice(), tag: end.errorPath[0].tag };
@@ -867,8 +879,8 @@ const Groundtrack = (() => {
     return drawn.map((r, i) => {
       const ch = r.node.channels || {};
       const rename = layer && layer.nodes && layer.nodes[r.id] ? layer.nodes[r.id].R : null;
-      const error = errorOf(i);
-      const reached = seen[i].entered > 0;
+      const error = errorOf(r);
+      const reached = r.entered > 0;
       return {
         depth: r.depth,
         id: r.id,
@@ -880,14 +892,14 @@ const Groundtrack = (() => {
         R: (ch.R || []).slice(),
         rename: rename ? rename.slice() : null,
         site: r.site ? { label: r.site.label, aside: r.site.aside } : null,
-        state: !reached ? 'not reached' : seen[i].open ? 'on stack' : 'returned',
+        state: !reached ? 'not reached' : r.open ? 'on stack' : 'returned',
         top: i === topRow,
         error,
         path: pathOf(error),
         effects: effectsOf(r.node).map(e => ({
           kind: e.kind,
           desc: e.desc,
-          mark: (reached && seen[i].effects[`${r.id}[${e.at}]`]) || 'not reached',
+          mark: (reached && r.effects[`${r.id}[${e.at}]`]) || 'not reached',
         })),
         repeat: r.repeat,
       };

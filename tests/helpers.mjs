@@ -148,7 +148,11 @@ export function errorPastTwoSites(prog) {
  * the first has returned, landed its effect and is off the error path; the
  * second is on the stack, failed, and is the frame the walk is in.
  *
- * Derived, never shipped, for the reason `errorPastTwoSites` is.
+ * Derived, never shipped, for the reason `errorPastTwoSites` is. Unlike that
+ * one this is read only through the module, never rendered, so its walk is
+ * never put to the validator — which is why it may stop on an unresolved raise
+ * with no `unwind` and no `uncaught` after it. Render it and that would have to
+ * change. Mutates and returns the program it is given.
  */
 export function repeatedSubtree(prog) {
   const lookup = prog.nodes.lookupName;
@@ -222,14 +226,22 @@ export function repeatedSubtree(prog) {
 }
 
 /**
- * Reshape a parsed copy of the small example into one node that calls itself.
+ * Replace a parsed copy of the small example with one node that calls itself.
+ *
+ * Nothing of the example's own nodes survives — the shape under test is a
+ * cycle, and the example has none. It is still the starting point, because
+ * every derived fixture begins from a file that already carries the change,
+ * the layers and the sheet.
  *
  * The tree draws a repeated node once more and then stops, so two rows are all
- * it ever draws however deep the walk runs. The one run goes three frames down
- * and fails in the third — below the last row the tree draws, which is the case
- * the repeat row has to speak for.
+ * it ever draws however deep the walk runs. Both runs go three frames down,
+ * below the last row the tree draws, which is the case the repeat row has to
+ * speak for: one fails in the deepest frame, and one has the deepest frame
+ * succeed at the very step a shallower frame fails at.
  *
- * Derived, never shipped.
+ * Derived, never shipped, and read only through the module — so, like
+ * `repeatedSubtree`, its walks are never put to the validator. Mutates and
+ * returns the program it is given.
  */
 export function selfRecursive(prog) {
   prog.nodes = {
@@ -264,6 +276,28 @@ export function selfRecursive(prog) {
             steps: [
               { k: 'call', at: 0, to: 'scan', next: 1 },
               { k: 'call', at: 0, to: 'scan', next: 1 },
+              {
+                k: 'effect', at: 1, kind: 'db.put', desc: 'record the row',
+                raised: { tag: 'WriteFailed', message: 'the row store refused the write', channel: 'escape' },
+              },
+            ],
+          },
+        },
+        {
+          // Two frames the SAME row speaks for, marking the same step with
+          // different outcomes. The deeper one lands and the shallower one
+          // fails, so a merge that simply takes the later chain would show the
+          // reader a row that recorded cleanly while a frame under it did not.
+          name: 'the deeper frame lands and the shallower one fails',
+          blurb: 'The third frame records its row and returns. The second one then fails to record.',
+          input: { dir: '/src' },
+          walk: {
+            provenance: 'authored',
+            steps: [
+              { k: 'call', at: 0, to: 'scan', next: 1 },
+              { k: 'call', at: 0, to: 'scan', next: 1 },
+              { k: 'effect', at: 1, kind: 'db.put', desc: 'record the row', next: 2, result: { ok: true } },
+              { k: 'return', at: 2, value: '[]' },
               {
                 k: 'effect', at: 1, kind: 'db.put', desc: 'record the row',
                 raised: { tag: 'WriteFailed', message: 'the row store refused the write', channel: 'escape' },
