@@ -681,7 +681,13 @@ const Groundtrack = (() => {
   /** The four words the fold writes on the error path, sorted into the three
    *  positions a row can take. A raise and a throw are one position — where
    *  the error started. The tree, the text and the page all sort by this one
-   *  table, so the three cannot disagree about which word is which. */
+   *  table, so the three cannot disagree about which word is which.
+   *
+   *  What each position LOOKS like is not here and must not come here: the
+   *  page keeps its own PATH_MARK of classes and glyphs, keyed by the word
+   *  rather than the position, because a raise and a throw are one position
+   *  and still draw differently. That table reads this one for the position,
+   *  so the two cannot drift apart on the only thing they share. */
   const ERROR_POSITION = Object.freeze({ raised: 'raised', thrown: 'raised', 'passed through': 'passed', caught: 'caught' });
 
   function treeRows(prog, walk, layerName, atIndex, states) {
@@ -706,6 +712,21 @@ const Groundtrack = (() => {
       if (openSites.has(siteKey)) return 'on stack';
       return 'returned';
     };
+
+    /* WHICH open frame is the one running. `state` says a site is on the
+     * stack; it does not say whether the walk is in it or merely under it,
+     * and on a deep stack that is most of the rows. A separate boolean and
+     * not a fourth `state`, for the reason the error position is separate:
+     * `state` is what --text prints and what the checks read, and a value
+     * they have never seen would change both. The page spends it on rule
+     * weight — the running frame keeps full ink, the ones waiting under it
+     * take the system's state rule.
+     *
+     * It reads the same `caller#step` key `state` and the effect marks read,
+     * so it inherits their limit and does not add one: two copies of a subtree
+     * share a key, and a frame open under one copy reads as open under both.
+     * That is #82, and it is the next case down from the one #79 tested. */
+    const topSite = end.frames.length ? end.frames[end.frames.length - 1].site : null;
 
     /* Where each call site stands on the error path at the cursor: raised or
      * thrown, passed through, caught. A second signal beside `state` and not a
@@ -740,12 +761,27 @@ const Groundtrack = (() => {
       return { how: started ? how.filter(h => h !== 'passed through') : how.slice(), tag: end.errorPath[0].tag };
     };
 
+    /* WHERE THE FRAME ENDED UP — one word, for a mark that can only be one
+     * thing: a stripe down a row's edge, a glyph before its name. `error.how`
+     * can hold two, and a frame that raises and then catches its own error is
+     * both; the last is where it came to rest, and the rail still lists the
+     * whole path in order.
+     *
+     * Read from `error.how` and never from `end.errorPath` directly. The fold
+     * puts the frame that started an error on the path twice — thrown, then
+     * passed through as it unwinds — so the last RAW entry for that site says
+     * "passed through" and the row that threw would lose its mark. `errorOf`
+     * has already dropped that second entry, which is the whole reason it
+     * filters. */
+    const pathOf = error => (error ? error.how[error.how.length - 1] : null);
+
     (function walkNode(id, siteKey, depth, path, site) {
       const node = prog.nodes[id];
       if (!node) return;
       const repeat = path.includes(id);
       const ch = node.channels || {};
       const rename = layer && layer.nodes && layer.nodes[id] ? layer.nodes[id].R : null;
+      const error = errorOf(siteKey);
       rows.push({
         depth,
         id,
@@ -758,7 +794,9 @@ const Groundtrack = (() => {
         rename: rename ? rename.slice() : null,
         site: site ? { label: site.label, aside: site.aside } : null,
         state: stateOf(siteKey),
-        error: errorOf(siteKey),
+        top: siteKey === topSite,
+        error,
+        path: pathOf(error),
         effects: effectsOf(node).map(e => ({ kind: e.kind, desc: e.desc, mark: markOf(siteKey, id, e.at) })),
         repeat,
       });

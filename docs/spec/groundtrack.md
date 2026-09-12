@@ -623,9 +623,38 @@ Settled placements:
   one view that shows the path as a path. Rows are matched by the site each
   error-path entry carries, never by node, so a node called from several
   places is marked only where the error went. The error reaching the top names
-  no node, so no row carries it. Each position has a word and a rule of its
-  own, because a hue alone is gone in the site scheme and on paper. `--text`
-  prints the same positions, for an error still live at the end of the walk.
+  no node, so no row carries it. Each position gets three channels, because a
+  hue alone is gone on paper and for a colour-blind reader: a stripe inset
+  down the row's left edge, a glyph before the name, and the word itself in a
+  chip after it. The stripe goes on the left and not the right — a reader
+  enters a row at its left edge, and that is where the rarest signal on the
+  sheet belongs — just inside the walk-state border, which is drafting order:
+  the object outline outermost, its annotation within. `--text` prints the
+  same positions, for an error still live at the end of the walk.
+- **The stripe and the glyph say where the frame ended up, one word.** A frame
+  that raises and then catches its own error is on the path twice; the rail
+  lists both in order, and the row says `caught`, which is where it came to
+  rest. That word is read off the row's filtered path and never off the fold's
+  raw entries — the fold records a throwing frame as thrown and then as passed
+  through as it unwinds, so the raw last entry would strip the mark off the
+  one row a reader looks for first.
+- **The tree tells the frame the walk is in from the frames waiting under it.**
+  Both are on the stack, and on a deep stack that is most of the rows. The
+  running frame keeps the full-ink left rule; the ones waiting under it take
+  the design system's state rule, which is ink 55 — a stroke that carries a
+  signal is held to 3:1. Neither takes a hue: a position on the stack is not a
+  condition. This is a second field on the row and not a fourth walk state,
+  because the state is what `--text` prints and what the checks read.
+- **The sheet asks the design system for a role, never for a mark colour.** An
+  error in flight and a failed effect are one condition and ask for the path;
+  where the path stops and an effect that landed are resolved and ask for the
+  caught role. Each theme answers in what it carries: amber and green in the
+  deck theme, redline and plain ink in the site theme, where reaching for
+  caution directly would have got ink and said nothing. The effect outcome
+  wears the same chip as the path's word, at the same weight — it is a closed
+  set, derived per call site, and it was already spending those two colours on
+  an 11px word where they could not be seen. Not reached is an absence and
+  takes no chip, so every chip drawn means something.
 - **The inputs block is read-only and is called Inputs**, showing the run's whole
   input block including any injected fault. A field that looks editable and is
   not is worse than a value that never looked editable, and the player needs no

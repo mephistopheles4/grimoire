@@ -155,6 +155,31 @@ test('an exception the scanner recorded while reading fails', () => {
   assertFails(report(r), /1 exception\(s\) while reading/);
 });
 
+test('and it says which one, because the report is gone by the time anyone reads the run', () => {
+  // The workflow writes the report outside the checkout and keeps nothing, so
+  // a count on its own is a red gate a contributor cannot act on — which is
+  // exactly what happened on the run that prompted this.
+  const r = clean();
+  r.analysis_completeness.ledger_exceptions = [
+    { path: 'skills/eagle-eye/lib/template.html', reason: 'too large' },
+    { path: 'docs/spec/groundtrack.md', reason: 'decode error' },
+  ];
+  const out = assertFails(report(r), /2 exception\(s\) while reading/);
+  assert.match(out.stderr, /skills\/eagle-eye\/lib\/template\.html: too large/);
+  assert.match(out.stderr, /docs\/spec\/groundtrack\.md: decode error/);
+});
+
+test('an exception in a shape the gate does not know is printed as itself, not dropped', () => {
+  // The scanner owns the shape of these entries. A gate that only understood
+  // {path, reason} would answer a new shape with silence, which is the failure
+  // printing them exists to prevent.
+  const r = clean();
+  r.analysis_completeness.ledger_exceptions = ['PermissionError: skills/x', { note: 'no path here' }];
+  const out = assertFails(report(r), /2 exception\(s\) while reading/);
+  assert.match(out.stderr, /PermissionError: skills\/x/);
+  assert.match(out.stderr, /no path here/);
+});
+
 test('a failed status fails', () => {
   const r = clean();
   r.analysis_completeness.status = 'failed';

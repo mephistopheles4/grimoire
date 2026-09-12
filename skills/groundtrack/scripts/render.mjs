@@ -685,9 +685,13 @@ export function page(prog) {
    * a stylesheet has no way to embed a binary. See assets/FONTS.md, and do not
    * edit the bundle in place: replace it from the design system repository.
    *
-   * Vendored from aviation-design-system 32f02eb, which adds the planes
-   * (--av-ground, --av-paper-tech) and the av-code-* listing vocabulary the
-   * source view below wears. Record the revision when you replace it: a
+   * Vendored from aviation-design-system 067c21f, which names the walk-sheet
+   * roles — --av-path, --av-path-caught and --av-state-rule — so a sheet asks
+   * for "the error path" and each theme answers in its own colour, rather
+   * than reaching for --av-caution and getting whatever that theme spends it
+   * on. It supersedes 32f02eb, which added the planes (--av-ground,
+   * --av-paper-tech) and the av-code-* listing vocabulary the source view
+   * below wears. Record the revision when you replace it: a
    * vendored copy with no provenance cannot be told from a hand-edited one,
    * which is the failure the "do not edit in place" line above is guarding. */
   const aviation = readFileSync(resolve(here, '..', 'assets', 'aviation.bundle.css'), 'utf8');

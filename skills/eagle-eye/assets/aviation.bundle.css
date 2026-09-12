@@ -25,7 +25,6 @@
      tools.css
 */
 
-/* ===== tokens/core.css ===== */
 /* AVIATION · CORE
    Theme-agnostic. Everything here is shared by every consumer: line weights,
    the space scale, the type scale, and caps tracking.
@@ -73,7 +72,6 @@
   --av-grid-major-every:5; /* @kind other */
 }
 
-/* ===== themes/deck.css ===== */
 /* AVIATION · DECK THEME
    The strict engineering document. Warm paper, near-black ink, one monospace
    face doing every job, 24px pitch. Two reserved colours and no third.
@@ -155,6 +153,30 @@
   --av-deck-paper-tech:#eaf0f6;
   --av-deck-tech-caution:#a94e08;
   --av-deck-tech-normal:#14763a;
+
+  /* THE WALK-SHEET ROLES — named jobs, not new colours. A dense call-graph
+     sheet has two conditions to report and they are the two this theme
+     already carries, so these are aliases. Naming them is the point: a
+     consumer asks for "the error path" and the theme answers, instead of
+     reaching for --av-caution and getting whatever that theme spends it on.
+
+       path         an error in flight, and an effect that failed. One
+                    condition: something broke and has not resolved.
+       path-caught  where the path stops, and an effect that landed. One
+                    condition: it resolved.
+
+     There is no third. Under deuteranopia this palette has one axis, yellow
+     to blue; amber and green sit at the yellow end 1.16:1 apart and syntax
+     sits at the blue end. Every candidate fifth hue measured — violet, teal,
+     magenta, olive — lands within 1.34:1 of something already in use, and
+     violet lands on syntax at 1.03:1. Amber and green survive that gap only
+     because each carries a glyph and there are two of them. So the answer to
+     a sheet that reads monochrome is these hues in more places, never more
+     hues. */
+  --av-deck-path:var(--av-deck-caution);            /* 4.80:1 · 5.02:1 in print */
+  --av-deck-path-caught:var(--av-deck-normal);      /* 4.80:1 · 5.02:1 in print */
+  --av-deck-tech-path:var(--av-deck-tech-caution);  /* 4.84:1 on #EAF0F6        */
+  --av-deck-tech-path-caught:var(--av-deck-tech-normal); /* 4.97:1 on #EAF0F6   */
 }
 
 :root,
@@ -168,6 +190,17 @@
   --av-paper-tech:var(--av-deck-paper-tech);
   --av-tech-caution:var(--av-deck-tech-caution);
   --av-tech-normal:var(--av-deck-tech-normal);
+  --av-path:var(--av-deck-path);
+  --av-path-caught:var(--av-deck-path-caught);
+  --av-tech-path:var(--av-deck-tech-path);
+  --av-tech-path-caught:var(--av-deck-tech-path-caught);
+
+  /* The stroke that carries walk state. Ink at 55 and not 30: state is a
+     real signal, a signal drawn as a stroke is held to 3:1, and ink 30
+     measures 1.86:1 against paper. 55 measures 3.54:1. It never takes a
+     hue — a position on the stack is not a condition, and a sheet whose
+     every row is coloured has rationed nothing. */
+  --av-state-rule:var(--av-deck-ink-55);            /* 3.54:1 as a stroke */
 
   /* ROLES the skeleton asks for that this theme answers with ink.
      Structure is not a colour here; failure is not a colour here. */
@@ -192,7 +225,6 @@
   --av-measure:68ch;
 }
 
-/* ===== themes/site.css ===== */
 /* AVIATION · SITE THEME
    The blueprint. Cooler paper, navy ink, blueprint blue for structure and a
    redline for revision marks and failure. Three faces so long-form reading
@@ -214,7 +246,7 @@
      · Green is not part of this theme. It says "nominal", and a marketing
        site has no nominal condition to report.
      · Amber is not part of this theme either. Against redline it is
-       indistinguishable — 1.13:1 — so two signals would collapse into one.
+       indistinguishable — 1.12:1 — so two signals would collapse into one.
        Caution is structural here, exactly as failure is structural in the
        deck theme. The two themes are symmetric: each carries one mark
        colour, and expresses the other condition with weight and notation. */
@@ -247,6 +279,13 @@
      travel — it goes a step bluer rather than a step colder. */
   --av-site-paper-tech:#e4ecf3;
 
+  /* THE WALK-SHEET ROLES — see themes/deck.css for what they mean and why
+     there is no third. This theme answers the path with redline, which is
+     already its failure colour and is exactly what an error in flight and a
+     failed effect are. It is the better answer than the deck's amber would
+     be here: amber is not part of this theme, and caution folds to ink. */
+  --av-site-path:var(--av-site-failure);   /* 5.19:1 · 4.71:1 on #E4ECF3 · 5.63:1 in print */
+
   /* The inverted band. Deep ground with its own linework, and its own
      foreground: text on the band must NOT be painted with --av-paper. That
      only reads while the band is darker than the page, which stops being
@@ -269,10 +308,25 @@
      technical paper, so the plane has nothing to retune. */
   --av-tech-caution:var(--av-ink);
   --av-tech-normal:var(--av-ink);
+  --av-path:var(--av-site-path);
+  --av-tech-path:var(--av-site-path);
 
-  /* ROLES answered with ink rather than a colour — see the rules above. */
+  /* ROLES answered with ink rather than a colour — see the rules above.
+     path-caught folds with them: this theme has no green, and a walk sheet
+     is not a licence to import one. Nothing is lost, because every position
+     on the path also carries a glyph and a word — read the sheet in one ink
+     and the path is still a path.
+
+     One consequence, accepted rather than overlooked: --av-state-rule is
+     also ink, so on a row that is both the top frame and the one that
+     caught, the state rule and the path stripe abut into a single bar and
+     stop being separable. The glyph and the word carry the position there,
+     which is the whole reason every position has a second channel. */
   --av-caution:var(--av-ink);
   --av-normal:var(--av-ink);
+  --av-path-caught:var(--av-ink);          /* 14.94:1 · 13.56:1 on #E4ECF3 */
+  --av-tech-path-caught:var(--av-ink);
+  --av-state-rule:var(--av-site-ink-55);   /*  3.65:1 as a stroke          */
 
   --av-ink-80:var(--av-site-ink-80);
   --av-ink-70:var(--av-site-ink-70);
@@ -302,7 +356,6 @@
 [data-aviation-theme="site"] .av-h1,
 [data-aviation-theme="site"] .av-h2{font-family:var(--av-font-display);letter-spacing:0.04em;font-stretch:125%;font-weight:640}
 
-/* ===== themes/dark.css ===== */
 /* AVIATION · DARK
    Not a third theme. A layer that sits on top of whichever theme is active
    and swaps the ground, the ink, the neutral ramp and the mark colours. Type,
@@ -341,7 +394,7 @@
      way, so nothing here has to keep a second copy of the light values. */
 :root{
   --av-dark-paper:#1a1614; /* warm near-black; the deck's paper, inverted */
-  --av-dark-ink:#ece5df;   /* warm off-white, never #fff      · 14.2:1   */
+  --av-dark-ink:#ece5df;   /* warm off-white, never #fff      · 14.41:1  */
 
   /* NEUTRAL RAMP — staged against the literal dark ink.
      Low-alpha white reads brighter than low-alpha black does on paper, so
@@ -367,29 +420,37 @@
      foreground token: --av-paper is light on paper and dark here, so text
      painted with it collapses the pair. Site theme only, as in light. */
   --av-dark-deep:#2a2320;
-  --av-dark-deep-line:#d9cec6; /* linework on the band        ·  9.9:1   */
-  --av-dark-deep-ink:#ece5df;  /* body text on the band       · 11.9:1   */
+  --av-dark-deep-line:#d9cec6; /* linework on the band        · 10.0:1   */
+  --av-dark-deep-ink:#ece5df;  /* body text on the band       · 12.4:1   */
 
   /* MARK COLOURS — lighter siblings of the light-theme hues. Same meanings,
      retuned for a dark ground: the light values are 4.8–6.5:1 on paper and
-     collapse to under 3:1 here. All four land in one 6–7:1 tier so no signal
-     shouts over another. */
-  --av-dark-caution:#d98a3c;   /* amber, deck  · caution      ·  6.45:1   */
-  --av-dark-normal:#4fae6d;    /* green, deck  · nominal      ·  6.40:1   */
-  --av-dark-structure:#6fa9d1; /* blueprint, site · structure ·  6.97:1   */
-  --av-dark-failure:#ef6f52;   /* redline, site   · failure   ·  5.95:1   */
+     collapse to under 3:1 here. All four land in one tier, 6.0–7.1:1, so no
+     signal shouts over another. */
+  --av-dark-caution:#d98a3c;   /* amber, deck  · caution      ·  6.55:1   */
+  --av-dark-normal:#4fae6d;    /* green, deck  · nominal      ·  6.51:1   */
+  --av-dark-structure:#6fa9d1; /* blueprint, site · structure ·  7.08:1   */
+  --av-dark-failure:#ef6f52;   /* redline, site   · failure   ·  6.05:1   */
 
   /* GROUND — darker than paper, so the sheet still reads as laid on top.
      On paper the ground is the deeper value; here it is the shallower one,
      and the direction flips exactly as the inverted band does. */
   --av-dark-ground:#100e0d;
-  --av-dark-syntax:#6fa9d1;    /* blueprint · code structure  ·  6.97:1   */
+  --av-dark-syntax:#6fa9d1;    /* blueprint · code structure  ·  7.08:1   */
 
   /* TECHNICAL PAPER — restrained here on purpose. A blue-cast dark ground is
      so conventional for code that pushing it further makes the tool read as
      an IDE theme rather than a drawing. Cool enough to own the syntax blue,
      warm enough to still belong to this scheme. */
   --av-dark-paper-tech:#141a20;
+
+  /* THE WALK-SHEET ROLES — the lighter siblings, same meanings. Two path
+     values, because the two themes answer the role differently and the dark
+     layer follows whichever it sits on: over the deck the path is amber,
+     over the site it is redline. */
+  --av-dark-path:var(--av-dark-caution);        /* 6.55:1 · 6.38:1 on #141A20 */
+  --av-dark-path-caught:var(--av-dark-normal);  /* 6.51:1 · 6.35:1 on #141A20 */
+  --av-dark-path-site:var(--av-dark-failure);   /* 6.05:1 · 5.90:1 on #141A20 */
 }
 
 /* DARK — the only place the layer applies. Also the nested scope: put the
@@ -418,22 +479,27 @@
        the dark ground was already tuned against a value in this range. */
     --av-tech-caution:var(--av-dark-caution);
     --av-tech-normal:var(--av-dark-normal);
+    --av-path:var(--av-dark-path);
+    --av-path-caught:var(--av-dark-path-caught);
+    --av-tech-path:var(--av-dark-path);
+    --av-tech-path-caught:var(--av-dark-path-caught);
+    --av-state-rule:var(--av-dark-ink-55);   /* 5.14:1 as a stroke */
 
-    /* THE INK ROLES, RE-DECLARED. The deck theme answers structure and failure
-       with ink — failure is structural there, not a colour — and writes that
-       as --av-structure:var(--av-ink) at :root. On :root that is correct: when
-       the scheme lands on the same element, ink is already dark and both
-       follow. In the NESTED case the comment above invites — a dark strip on a
-       light page — it is not: those two were substituted at :root while ink
-       was still light, and the resolved colour inherits down. The region gets
-       dark paper with #22262b linework on it, 1.1:1.
+    /* THE INK ROLES, RE-DECLARED. The deck theme answers structure and
+       failure with ink — failure is structural there, not a colour — and
+       writes that as --av-structure:var(--av-ink) at :root. On :root that is
+       correct: when the scheme lands on the same element, ink is already dark
+       and both follow. In the NESTED case the comment above invites — a dark
+       strip on a light page — it is not: those two were substituted at :root
+       while ink was still light, and the resolved colour inherits down. The
+       region gets dark paper with #22262b linework on it, 1.1:1.
 
-       Re-declaring them here fixes that, and changes nothing anywhere else.
-       Written as var(--av-ink) rather than the staged literal because the rule
-       being restated is "structure is ink", not "structure is that grey"; it
-       resolves against this block's own --av-ink, on this element, so it is
-       not exposed to the substitution trap the staging exists to avoid. The
-       site theme overrides both at 0,2,0 below and is unaffected. */
+       Re-declaring them here fixes that and changes nothing anywhere else.
+       Written as var(--av-ink) rather than the staged literal because the
+       rule being restated is "structure is ink", not "structure is that
+       grey"; it resolves against this block's own --av-ink, on this element,
+       so it is not exposed to the substitution trap the staging exists to
+       avoid. The site theme overrides both at 0,2,0 below. */
     --av-structure:var(--av-ink);
     --av-failure:var(--av-ink);
 
@@ -444,21 +510,24 @@
     --av-failure:var(--av-dark-failure);
     --av-caution:var(--av-ink);
     --av-normal:var(--av-ink);
-    /* The tech marks fold to ink here for the same reason the standard ones
-       do: the site theme has no amber and no green, and a technical plane is
-       not a licence to import them. Without these two the generic block above
-       would win — it maps them to the deck's amber and green, and both are
-       declared at 0,1,0 while this rule is 0,2,0, so only an explicit
-       override stops a dark site listing from painting amber. */
+    /* The tech marks and path-caught fold to ink for the same reason the
+       standard marks do: this theme has no amber and no green, and neither a
+       technical plane nor a walk sheet is a licence to import them. Without
+       these the generic block above would win — it maps them to the deck's
+       amber and green, and it is declared at 0,1,0 while this rule is 0,2,0,
+       so only an explicit override stops a dark site sheet painting amber. */
     --av-tech-caution:var(--av-ink);
     --av-tech-normal:var(--av-ink);
+    --av-path:var(--av-dark-path-site);
+    --av-tech-path:var(--av-dark-path-site);
+    --av-path-caught:var(--av-ink);       /* 14.41:1 · 14.05:1 on #141A20 */
+    --av-tech-path-caught:var(--av-ink);
     --av-deep:var(--av-dark-deep);
     --av-deep-line:var(--av-dark-deep-line);
     --av-deep-ink:var(--av-dark-deep-ink);
   }
 }
 
-/* ===== aviation.css ===== */
 /* ============================================================================
    DRAFTING — the shared skeleton. This is the drafting language: linework,
    title blocks, annotations tethered by leader lines, dimension spans, and
@@ -590,7 +659,6 @@
 /* PRINT — a manual should print like one. -------------------------------- */
 @media print{.av-grid,.av-grid--ruled,.av-grid--single{background-image:none}.av-paper{background:#fff}}
 
-/* ===== tools.css ===== */
 /* AVIATION · TOOLS
    The chrome a generated report wears: a sheet, a head, filter chips, an index
    beside a detail pane, key-value blocks, an export box. Everything here is
@@ -740,7 +808,7 @@
    sanctioned exception to "marks are never re-grounded", and the reason this
    plane counts as a scheme rather than a ground. Values come from the theme;
    only the mapping lives here. */
-.av-code,.av-tool-tech{--av-caution:var(--av-tech-caution);--av-normal:var(--av-tech-normal)}
+.av-code,.av-tool-tech{--av-caution:var(--av-tech-caution);--av-normal:var(--av-tech-normal);--av-path:var(--av-tech-path);--av-path-caught:var(--av-tech-path-caught)}
 .av-code{font-family:var(--av-font);font-size:var(--av-t-micro);line-height:1.9;background:var(--av-paper-tech,var(--av-paper));border:var(--av-rule-hair) solid var(--av-ink-30);padding:var(--av-s2) 0}
 /* Three tracks: gutter, branch label, code. The label track is sized to the
    longest label in practice, not to a guess — it is reserved on every line so
@@ -764,8 +832,10 @@
 .av-code-note{color:var(--av-ink-70)}                               /* comment, prose         */
 .av-code-site{color:var(--av-ink);font-weight:600;border-bottom:var(--av-rule-hair) dotted var(--av-ink-30);padding-bottom:1px}
 /* An effect or call site takes its outcome from the walk, not from itself. */
-.av-code-site--caution{border-bottom-color:var(--av-caution);border-bottom-style:solid;color:var(--av-caution)}
-.av-code-site--normal{border-bottom-color:var(--av-normal);border-bottom-style:solid;color:var(--av-normal)}
+/* The walk-sheet roles, so a listing and the tree beside it mark one outcome
+   the same way. --caution and --normal are kept as the older names. */
+.av-code-site--caution,.av-code-site--path{border-bottom-color:var(--av-path);border-bottom-style:solid;color:var(--av-path)}
+.av-code-site--normal,.av-code-site--caught{border-bottom-color:var(--av-path-caught);border-bottom-style:solid;color:var(--av-path-caught)}
 .av-code-site--failed{border-bottom:var(--av-rule-bold) solid var(--av-ink)}
 /* A SKIPPED LINE DROPS ITS TOKENS TOO. --skip sets a colour on the ROW, and an
    inherited colour never reaches a child that declares its own — so without

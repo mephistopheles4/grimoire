@@ -73,8 +73,13 @@ body { margin: 0; }
    floor is 70, and the labels stay there; running text at 70 on paper read as
    grey, and a reader who cannot read an aside has been handed nothing. */
 .dim { color: var(--av-ink-80); }
-.ok { color: var(--av-normal); }
-.caut { color: var(--av-caution); }
+/* An effect that landed and an effect that failed are the walk-sheet roles the
+   design system names, not the raw marks: a failed effect and an error in
+   flight are one condition, and an effect that landed is resolved exactly as a
+   caught error is. Asking for the role is what lets the site theme answer with
+   redline, where caution folds to ink and would have said nothing. */
+.ok { color: var(--av-path-caught); }
+.caut { color: var(--av-path); }
 
 /* Every region is defined by how fast what it holds changes, and each control
    sits with what it acts on. The two splitters move --side-w and --cut-h. */
@@ -267,7 +272,7 @@ input[type=checkbox] { accent-color: var(--av-ink); margin: 0 var(--av-s1) 0 0; 
 .nd--cold { border-width: var(--av-rule-hair); border-color: var(--av-ink-30); color: var(--av-ink-70); }
 .nd--sel { outline: var(--av-rule-thin) solid var(--av-ink); outline-offset: 7px; }
 .nd--active { outline: var(--av-rule-hair) solid var(--av-ink-30); outline-offset: 4px; }
-.nd--error { border-color: var(--av-caution); }
+.nd--error { border-color: var(--av-path); }
 .nd-top { display: flex; align-items: center; gap: var(--av-s1); margin-bottom: 2px; }
 .nd-name { font-weight: 600; font-size: var(--av-t-body); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .nd-loc { font-size: var(--av-t-micro); color: var(--av-ink-70); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -279,10 +284,10 @@ input[type=checkbox] { accent-color: var(--av-ink); margin: 0 var(--av-s1) 0 0; 
 .fx-dot { width: 5px; height: 5px; border-radius: 50%; background: var(--av-ink-30); flex: none; }
 .fx-lead { width: var(--av-s2); border-top: var(--av-rule-thin) solid var(--av-ink-30); flex: none; }
 .fx-txt { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.fx--ok .fx-dot { background: var(--av-normal); }
-.fx--ok .fx-lead { border-top-color: var(--av-normal); }
-.fx--fail .fx-dot { background: var(--av-caution); }
-.fx--fail .fx-lead { border-top-color: var(--av-caution); }
+.fx--ok .fx-dot { background: var(--av-path-caught); }
+.fx--ok .fx-lead { border-top-color: var(--av-path-caught); }
+.fx--fail .fx-dot { background: var(--av-path); }
+.fx--fail .fx-lead { border-top-color: var(--av-path); }
 .nd-cut { font-size: var(--av-t-micro); color: var(--av-caution); margin-top: 3px; }
 .chip-help { cursor: help; }
 
@@ -298,13 +303,23 @@ input[type=checkbox] { accent-color: var(--av-ink); margin: 0 var(--av-s1) 0 0; 
    marks take a second line under them. On one nowrap line a long name painted
    straight over the channels next to it. */
 .tr { display: grid; grid-template-columns: minmax(14rem, max-content) 5rem minmax(12rem, 1fr);
-  column-gap: var(--av-s3); row-gap: 2px; align-items: baseline; padding: 5px var(--av-s2); background: var(--av-paper);
+  column-gap: var(--av-s3); row-gap: var(--av-s1); align-items: baseline;
+  /* The system's pitch is 24px. At 5px the row sat under it; a quarter step
+     top and bottom puts the rows on the grid the sheet is ruled to. */
+  padding: var(--av-s1) var(--av-s2); background: var(--av-paper);
   font-size: var(--av-t-annot); border: var(--av-rule-hair) solid var(--av-ink-12);
   border-left: var(--av-rule-bold) solid transparent; cursor: pointer; }
 .tr--cold { color: var(--av-ink-70); }
+/* On the stack, and the two are not the same job. The frame the walk is IN
+   keeps full ink; the frames waiting under it take the system's state rule,
+   which is ink 55 — a stroke that means something is held to 3:1, and it
+   never takes a hue, because a position on the stack is not a condition. */
 .tr--active { border-left-color: var(--av-ink); }
+.tr--waiting { border-left-color: var(--av-state-rule); }
 .tr--sel { border-color: var(--av-ink); border-width: var(--av-rule-thin); border-left-width: var(--av-rule-bold); }
-.tr--sel:not(.tr--active) { border-left-color: var(--av-ink); }
+/* Selection is already the box on all four sides, so the left rule stays the
+   walk's to spend. */
+.tr--sel.tr--waiting { border-left-color: var(--av-state-rule); }
 .tr-name { font-weight: 600; overflow-wrap: anywhere; }
 .tr-kind { align-self: baseline; }
 .tr-ch { font-size: var(--av-t-micro); min-width: 0; overflow-wrap: anywhere; }
@@ -313,25 +328,58 @@ input[type=checkbox] { accent-color: var(--av-ink); margin: 0 var(--av-s1) 0 0; 
 .tr-under { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 2px var(--av-s3); font-size: var(--av-t-micro); }
 .tr-under:empty { display: none; }
 .tr-site { color: var(--av-ink-70); overflow-wrap: anywhere; }
-.tr-fx { color: var(--av-ink-70); white-space: nowrap; }
+/* Ink 80 and not the 70 floor: the line now carries chips, and the words
+   around them are what the chips qualify. */
+.tr-fx { color: var(--av-ink-80); white-space: nowrap; }
+/* THE CHIP. A denser cut of the system's own .av-state — hairline border, a
+   filled point, caps — because that one is sized for a title block and these
+   sit inline in a 13px row, three or four to a line. Same vocabulary, same
+   currentColor discipline: the chip carries no colour of its own, so one rule
+   below paints it and the border and the point follow. */
+.gt-chip { display: inline-flex; align-items: center; gap: var(--av-s1);
+  padding: 1px var(--av-s1); border: var(--av-rule-hair) solid currentColor;
+  text-transform: uppercase; letter-spacing: var(--av-track-label);
+  font-weight: 500; white-space: nowrap; vertical-align: 1px; }
+.gt-chip::before { content: ''; width: 5px; height: 5px; border-radius: 50%;
+  background: currentColor; flex: none; }
+
 /* Where a row's call site stands on the current error: raised or thrown,
-   passed through, caught. The word carries it, because a hue cannot — the
-   site scheme folds caution to ink, and paper and a colour-blind reader have
-   no hue at all. Rule and ink tier say it again for a reader scanning, in one
-   ink: where it began is a thin rule and a filled point; where it crossed is
-   ink 70, a dashed hairline — the drawing dashes its error returns — and an
-   arrow up; where it stopped is full ink, a solid hairline and a hooked arrow.
-   The tag sits outside the stamp: the stamp sets caps, and a tag is the
-   author's text. */
-.tr-errs { display: inline-flex; align-items: center; gap: var(--av-s1); }
-.tr-err { padding: 0 var(--av-s1); }
-.tr-err--raised { color: var(--av-caution); border-width: var(--av-rule-thin); font-weight: 600; }
-.tr-err--passed { color: var(--av-ink-70); border-style: dashed; }
-.tr-err--caught { color: var(--av-ink); font-weight: 600; }
-.tr-err--passed::before, .tr-err--caught::before { width: auto; height: auto; background: none; border-radius: 0; }
-.tr-err--passed::before { content: '\2191'; }
-.tr-err--caught::before { content: '\21A9'; }
-.tr-err-tag { font-weight: 600; }
+   passed through, caught. Three channels, because a hue is not one — the site
+   scheme folds the path to redline and a colour-blind reader has no hue at
+   all — and each says the same thing on its own:
+
+     the stripe   an inset rule down the row's left edge, just inside the
+                  walk-state border. Drafting order: the object outline is
+                  outermost and its annotation sits within, which also puts
+                  the stripe hard against the glyph and the word it qualifies
+                  so the three read as one mark.
+     the glyph    before the name. The channel that survives one ink.
+     the word     a chip after the name. The channel that needs no legend.
+
+   Left and not right: the right edge never argues with the walk-state rule,
+   which is why the stripe would start there — but a reader enters a row at
+   its left edge, and that is where the rarest signal on the sheet belongs.
+   Only the raise takes a rule under the row as well; it is the one position a
+   reader looks for first. The tag stays outside the chip, as author text: the
+   chip sets caps and a tag is the author's. */
+.tr--onpath { box-shadow: inset 3px 0 0 var(--av-path); }
+.tr--caught { box-shadow: inset 3px 0 0 var(--av-path-caught); }
+.tr--raised { box-shadow: inset 3px 0 0 var(--av-path); border-bottom: var(--av-rule-bold) solid var(--av-ink); }
+.tr-gl { font-weight: 600; margin-right: var(--av-s1); color: var(--av-path); cursor: help; }
+.tr-gl--caught { color: var(--av-path-caught); }
+.tr-pl { font-size: var(--av-t-micro); color: var(--av-path); margin-left: var(--av-s2); }
+.tr-pl--caught { color: var(--av-path-caught); }
+.tr-err-tag { font-weight: 600; margin-left: var(--av-s1); }
+
+/* THE EFFECT OUTCOME, at the weight of the path label. It is the answer to a
+   sheet that reads monochrome on a walk where nothing breaks: landed, failed
+   and not reached is a closed set, derived per call site, live the moment a
+   node is entered. It already owned the two roles — .ok and .caut above — and
+   spent them on an 11px word inside an ink-70 line, where the colour was
+   present and invisible. Not reached is an absence and an absence costs no
+   ink, so drawTree never gives it the chip in the first place — it stays plain
+   text at the floor, and the chips that ARE drawn all mean something. */
+.tr-fxm--not-reached { color: var(--av-ink-70); }
 
 /* The rail. It reads the walk, and it moves on every step. Deleting it changes
    the drawing's scale by nothing, so what goes in it is never an argument
@@ -378,6 +426,9 @@ input[type=checkbox] { accent-color: var(--av-ink); margin: 0 var(--av-s1) 0 0; 
 .blk > .av-label { display: block; margin-bottom: var(--av-s1); }
 .row { display: flex; gap: var(--av-s1); font-size: var(--av-t-annot); align-items: baseline; }
 .row-k { color: var(--av-ink-70); flex: none; }
+/* The error path's own glyph column, the same marks the tree draws. */
+.epath-gl { flex: none; width: 1.1em; font-weight: 600; color: var(--av-path); }
+.epath-gl--caught { color: var(--av-path-caught); }
 .row-v { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .frame { display: block; width: 100%; text-align: left; border: 0; border-left: var(--av-rule-bold) solid transparent;
   padding: 2px var(--av-s2); cursor: pointer; background: transparent; font-size: var(--av-t-annot); }
@@ -424,7 +475,13 @@ input[type=checkbox] { accent-color: var(--av-ink); margin: 0 var(--av-s1) 0 0; 
   border-right: var(--av-rule-hair) solid var(--av-ink); display: flex; flex-direction: column; min-height: 0; }
 .cut-head { display: flex; align-items: baseline; gap: var(--av-s2); padding: var(--av-s1) var(--av-s3);
   border-bottom: var(--av-rule-hair) solid var(--av-ink-12); background: var(--av-surface); }
-.tape { flex: 1; overflow: auto; padding: var(--av-s2) var(--av-s3) var(--av-s3); }
+/* The tape is chrome, so it takes the surface its own head already wears and
+   the rail and the footer band wear beside it. The files table and the
+   contract read as a panel rather than as text left on the drafting surface,
+   which is what the plan is for. The source tab is the exception and lays its
+   own technical paper over this — see .tape--code below. */
+.tape { flex: 1; overflow: auto; padding: var(--av-s2) var(--av-s3) var(--av-s3);
+  background: var(--av-surface); }
 .tabs { margin-left: auto; display: flex; gap: var(--av-s2); }
 .tab { border: 0; background: transparent; padding: 2px 0; font-size: var(--av-t-micro); text-transform: uppercase;
   letter-spacing: var(--av-track-label); color: var(--av-ink); cursor: pointer;
@@ -707,7 +764,9 @@ const HELP = {
   E: 'E — where it breaks: the failure tags this node can raise. Each one is a retry, an escape or a die.',
   R: 'R — what this node needs to work. A layer can rename these.',
   role: 'What kind of thing this node is. The page prints it; nothing branches on it.',
-  /* Keyed by the position G.ERROR_POSITION sorts a fold word into. */
+  /* Keyed by the position G.ERROR_POSITION sorts a fold word into, which is
+     what drawTree looks a row's help note up by. PATH_MARK is keyed by the
+     word itself, because two words share a position and draw differently. */
   err: {
     raised: 'Where the current error started: this call raised it or threw it.',
     passed: 'The current error left this call without being caught, on its way up.',
@@ -914,20 +973,52 @@ function start() {
   }
 
   /* -- the tree ----------------------------------------------------------- */
+  /* HOW THE SHEET DRAWS ONE OF THE FOLD'S WORDS. Presentation only: which
+     position a word IS stays with G.ERROR_POSITION in the module, so the tree,
+     the rail and the text still cannot disagree about that. The glyphs are
+     drafting marks and not pictures — a filled lozenge where the error
+     started and a hollow one where it was thrown by hand, a vertical where it
+     merely crossed, a corner where it stopped, an arrow where it left the top.
+     The tree and the rail read this same table, so one word looks the same in
+     both. Only the last has no row class: an error reaching the top names no
+     node, so no row carries it and the rail states it alone. */
+  const PATH_MARK = {
+    'raised': { cls: 'tr--raised', glyph: '◆' },
+    'thrown': { cls: 'tr--raised', glyph: '◇' },
+    'passed through': { cls: 'tr--onpath', glyph: '│' },
+    'caught': { cls: 'tr--caught', glyph: '└' },
+    'reached the top uncaught': { cls: null, glyph: '↑' },
+  };
+
   function drawTree() {
     const rows = G.treeRows(SHEET, SHEET.presets[S.run].walk, S.layer, S.at, S.states);
     return rows
       .map(function (row) {
+        /* Two independent signals on one row, because a frame that catches is
+           on the stack and on the path at once. Walk state takes the row's own
+           left border, the error path an inset stripe just within it. */
+        const p = row.path ? PATH_MARK[row.path] : null;
+        const position = row.path ? G.ERROR_POSITION[row.path] : null;
+        const caught = position === 'caught';
         const cls =
-          'tr' + (row.state === 'not reached' ? ' tr--cold' : '') + (row.state === 'on stack' ? ' tr--active' : '') +
-          (row.id === S.open ? ' tr--sel' : '');
+          'tr' + (row.state === 'not reached' ? ' tr--cold' : '') +
+          (row.state === 'on stack' ? (row.top ? ' tr--active' : ' tr--waiting') : '') +
+          (p && p.cls ? ' ' + p.cls : '') + (row.id === S.open ? ' tr--sel' : '');
         const E = row.E.length ? row.E.map(eTag.bind(null, row.kinds)).join(' &middot; ') : '<span class="none">never</span>';
         const rr = row.rename && row.rename.length ? row.rename : row.R;
         const R = rr.length ? esc(rr.join(', ')) : '<span class="none">none</span>';
         const marks = row.effects
           .map(function (f) {
+            /* The outcome takes the weight of the path label. Same two roles,
+               not a third and fourth name: an effect that failed and an error
+               in flight are one condition, and one that landed is resolved.
+               Not reached is an absence, so it takes no chip at all — it stays
+               plain text at the ink floor, and every chip drawn means
+               something. */
             const k = f.mark === 'failed' ? 'caut' : f.mark === 'landed' ? 'ok' : 'none';
-            return '<span class="tr-fx">&middot; ' + esc(f.kind) + ' <span class="' + k + '">' + esc(f.mark) + '</span></span>';
+            const chip = f.mark === 'not reached' ? '' : ' gt-chip';
+            return '<span class="tr-fx">&middot; ' + esc(f.kind) +
+              ' <span class="' + k + chip + ' tr-fxm--' + f.mark.replace(/ /g, '-') + '">' + esc(f.mark) + '</span></span>';
           })
           .join('');
         const siteText = row.site && (row.site.label || row.site.aside)
@@ -935,26 +1026,26 @@ function start() {
           : '';
         /* Where this call site stands on the error at the cursor, read off the
            row: the module matched it by site, so a node called from two places
-           is marked only where the error went. The position is one of the
-           fold's own words, never the file's; the tag is the file's, so it is
-           escaped and sits outside the stamp. */
-        const errs = row.error
-          ? '<span class="tr-errs">' + row.error.how
-            .map(function (h) {
-              const position = G.ERROR_POSITION[h];
-              return '<span class="av-state tr-err chip-help tr-err--' + position + '" data-help="' + HELP.err[position] + '">' + h + '</span>' +
-                (position === 'raised' ? '<span class="tr-err-tag">' + esc(row.error.tag) + '</span>' : '');
-            })
-            .join('') + '</span>'
+           is marked only where the error went. The glyph goes before the name
+           and the word after it, so the stripe, the glyph and the word sit
+           together and read as one mark. Both are the fold's own words, never
+           the file's; the tag is the file's, so it is escaped and kept outside
+           the chip, which sets caps. */
+        const glyph = p
+          ? '<span class="tr-gl' + (caught ? ' tr-gl--caught' : '') + ' chip-help" data-help="' + HELP.err[position] + '">' + p.glyph + '</span>'
+          : '';
+        const plabel = p
+          ? '<span class="tr-pl' + (caught ? ' tr-pl--caught' : '') + ' gt-chip">' + row.path + '</span>' +
+            (position === 'raised' ? '<span class="tr-err-tag">' + esc(row.error.tag) + '</span>' : '')
           : '';
         return (
           '<div class="' + cls + '" data-node="' + row.id + '" style="padding-left:' + (row.depth * 24 + 12) + 'px">' +
-          '<span class="tr-name">' + (row.depth ? '&rarr; ' : '') + esc(row.name) +
-          (row.repeat ? ' <span class="none">(seen above — stopped)</span>' : '') + '</span>' +
+          '<span class="tr-name">' + (row.depth ? '&rarr; ' : '') + glyph + esc(row.name) +
+          (row.repeat ? ' <span class="none">(seen above — stopped)</span>' : '') + plabel + '</span>' +
           '<span class="av-label tr-kind" data-help="' + HELP.role + '">' + esc(row.role) + '</span>' +
           '<span class="tr-ch">' + channelKey('A') + ' ' + esc(row.A || '—') + '<span class="sep"></span>' + channelKey('E') + ' ' + E +
           '<span class="sep"></span>' + channelKey('R') + ' ' + R + '</span>' +
-          '<span class="tr-under">' + errs + siteText + marks + '</span></div>'
+          '<span class="tr-under">' + siteText + marks + '</span></div>'
         );
       })
       .join('');
@@ -997,7 +1088,12 @@ function start() {
         const tag = e.tag ? ' <b>' + esc(e.tag) + '</b>' : '';
         const msg = e.message ? ' <span class="dim">' + esc(e.message) + '</span>' : '';
         const ch = e.channel ? ' <span class="caut">' + esc(e.channel) + '</span>' : '';
-        return '<div class="row"><span class="row-k">' + esc(who) + '</span><span class="row-v">' + esc(e.how) + tag + ch + msg + '</span></div>';
+        /* The same glyph the tree draws for the same word, so the rail's list
+           and the marked rows beside it read as one path in two views. */
+        const mark = PATH_MARK[e.how];
+        const gl = '<span class="epath-gl' + (e.how === 'caught' ? ' epath-gl--caught' : '') + '">' +
+          (mark ? mark.glyph : '') + '</span>';
+        return '<div class="row">' + gl + '<span class="row-k">' + esc(who) + '</span><span class="row-v">' + esc(e.how) + tag + ch + msg + '</span></div>';
       })
       .join('');
   }
@@ -1042,7 +1138,7 @@ function start() {
     if (s.op === 'effect') {
       const outcome = st.nodeEffects[open + '[' + i + ']'];
       return outcome === 'failed' ? ' av-code-site--failed'
-        : outcome === 'landed' ? ' av-code-site--normal'
+        : outcome === 'landed' ? ' av-code-site--caught'
         : '';
     }
     const key = open + '#' + i;
@@ -1055,13 +1151,13 @@ function start() {
      * `returned > 0` would call a site that went in twice and came back once
      * a clean return, which is the reading a reader is most likely to act on
      * and the one most likely to be wrong. */
-    if (site.returned === site.entered) return ' av-code-site--normal';
+    if (site.returned === site.entered) return ' av-code-site--caught';
     /* Entered more times than it returned, and nothing from it is on the
      * stack: at least one of those entries left by raising. Read from the
      * site's own counts and not from st.errorPath, which holds where an error
      * is NOW — a failure a handler caught and the walk then ran past leaves
      * errorPath empty while the call it came from stays failed. */
-    return ' av-code-site--caution';
+    return ' av-code-site--path';
   }
 
   function drawSource(st) {
