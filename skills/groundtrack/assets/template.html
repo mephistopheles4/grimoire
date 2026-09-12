@@ -377,11 +377,9 @@ input[type=checkbox] { accent-color: var(--av-ink); margin: 0 var(--av-s1) 0 0; 
    node is entered. It already owned the two roles — .ok and .caut above — and
    spent them on an 11px word inside an ink-70 line, where the colour was
    present and invisible. Not reached is an absence and an absence costs no
-   ink, so it takes no chip and the chips that ARE drawn all mean something. */
+   ink, so drawTree never gives it the chip in the first place — it stays plain
+   text at the floor, and the chips that ARE drawn all mean something. */
 .tr-fxm--not-reached { color: var(--av-ink-70); }
-.tr-fxm--not-reached.gt-chip { display: inline; border: 0; padding: 0;
-  text-transform: none; letter-spacing: normal; font-weight: 400; }
-.tr-fxm--not-reached.gt-chip::before { content: none; }
 
 /* The rail. It reads the walk, and it moves on every step. Deleting it changes
    the drawing's scale by nothing, so what goes in it is never an argument
@@ -766,7 +764,9 @@ const HELP = {
   E: 'E — where it breaks: the failure tags this node can raise. Each one is a retry, an escape or a die.',
   R: 'R — what this node needs to work. A layer can rename these.',
   role: 'What kind of thing this node is. The page prints it; nothing branches on it.',
-  /* Keyed by the position G.ERROR_POSITION sorts a fold word into. */
+  /* Keyed by the position G.ERROR_POSITION sorts a fold word into, which is
+     what drawTree looks a row's help note up by. PATH_MARK is keyed by the
+     word itself, because two words share a position and draw differently. */
   err: {
     raised: 'Where the current error started: this call raised it or threw it.',
     passed: 'The current error left this call without being caught, on its way up.',
@@ -973,20 +973,21 @@ function start() {
   }
 
   /* -- the tree ----------------------------------------------------------- */
-  /* ONE TABLE, from the fold's word to how the sheet draws it. The glyphs are
-     drafting marks and not pictures: a filled lozenge where the error started
-     and a hollow one where it was thrown by hand, a vertical where it merely
-     crossed, and a corner where it stopped. The rail draws the same glyph for
-     the same word, plus one for the top, which names no row. */
-  const TREE_PATH = {
-    'raised': { cls: 'tr--raised', glyph: '◆', caught: false, position: 'raised' },
-    'thrown': { cls: 'tr--raised', glyph: '◇', caught: false, position: 'raised' },
-    'passed through': { cls: 'tr--onpath', glyph: '│', caught: false, position: 'passed' },
-    'caught': { cls: 'tr--caught', glyph: '└', caught: true, position: 'caught' },
-  };
-  const PATH_GLYPH = {
-    'raised': '◆', 'thrown': '◇', 'passed through': '│',
-    'caught': '└', 'reached the top uncaught': '↑',
+  /* HOW THE SHEET DRAWS ONE OF THE FOLD'S WORDS. Presentation only: which
+     position a word IS stays with G.ERROR_POSITION in the module, so the tree,
+     the rail and the text still cannot disagree about that. The glyphs are
+     drafting marks and not pictures — a filled lozenge where the error
+     started and a hollow one where it was thrown by hand, a vertical where it
+     merely crossed, a corner where it stopped, an arrow where it left the top.
+     The tree and the rail read this same table, so one word looks the same in
+     both. Only the last has no row class: an error reaching the top names no
+     node, so no row carries it and the rail states it alone. */
+  const PATH_MARK = {
+    'raised': { cls: 'tr--raised', glyph: '◆' },
+    'thrown': { cls: 'tr--raised', glyph: '◇' },
+    'passed through': { cls: 'tr--onpath', glyph: '│' },
+    'caught': { cls: 'tr--caught', glyph: '└' },
+    'reached the top uncaught': { cls: null, glyph: '↑' },
   };
 
   function drawTree() {
@@ -996,22 +997,28 @@ function start() {
         /* Two independent signals on one row, because a frame that catches is
            on the stack and on the path at once. Walk state takes the row's own
            left border, the error path an inset stripe just within it. */
-        const p = TREE_PATH[row.path] || null;
+        const p = row.path ? PATH_MARK[row.path] : null;
+        const position = row.path ? G.ERROR_POSITION[row.path] : null;
+        const caught = position === 'caught';
         const cls =
           'tr' + (row.state === 'not reached' ? ' tr--cold' : '') +
           (row.state === 'on stack' ? (row.top ? ' tr--active' : ' tr--waiting') : '') +
-          (p ? ' ' + p.cls : '') + (row.id === S.open ? ' tr--sel' : '');
+          (p && p.cls ? ' ' + p.cls : '') + (row.id === S.open ? ' tr--sel' : '');
         const E = row.E.length ? row.E.map(eTag.bind(null, row.kinds)).join(' &middot; ') : '<span class="none">never</span>';
         const rr = row.rename && row.rename.length ? row.rename : row.R;
         const R = rr.length ? esc(rr.join(', ')) : '<span class="none">none</span>';
         const marks = row.effects
           .map(function (f) {
-            const k = f.mark === 'failed' ? 'caut' : f.mark === 'landed' ? 'ok' : 'none';
             /* The outcome takes the weight of the path label. Same two roles,
                not a third and fourth name: an effect that failed and an error
-               in flight are one condition, and one that landed is resolved. */
+               in flight are one condition, and one that landed is resolved.
+               Not reached is an absence, so it takes no chip at all — it stays
+               plain text at the ink floor, and every chip drawn means
+               something. */
+            const k = f.mark === 'failed' ? 'caut' : f.mark === 'landed' ? 'ok' : 'none';
+            const chip = f.mark === 'not reached' ? '' : ' gt-chip';
             return '<span class="tr-fx">&middot; ' + esc(f.kind) +
-              ' <span class="' + k + ' gt-chip tr-fxm--' + f.mark.replace(/ /g, '-') + '">' + esc(f.mark) + '</span></span>';
+              ' <span class="' + k + chip + ' tr-fxm--' + f.mark.replace(/ /g, '-') + '">' + esc(f.mark) + '</span></span>';
           })
           .join('');
         const siteText = row.site && (row.site.label || row.site.aside)
@@ -1025,11 +1032,11 @@ function start() {
            the file's; the tag is the file's, so it is escaped and kept outside
            the chip, which sets caps. */
         const glyph = p
-          ? '<span class="tr-gl' + (p.caught ? ' tr-gl--caught' : '') + ' chip-help" data-help="' + HELP.err[p.position] + '">' + p.glyph + '</span>'
+          ? '<span class="tr-gl' + (caught ? ' tr-gl--caught' : '') + ' chip-help" data-help="' + HELP.err[position] + '">' + p.glyph + '</span>'
           : '';
         const plabel = p
-          ? '<span class="tr-pl' + (p.caught ? ' tr-pl--caught' : '') + ' gt-chip">' + row.path + '</span>' +
-            (p.position === 'raised' ? '<span class="tr-err-tag">' + esc(row.error.tag) + '</span>' : '')
+          ? '<span class="tr-pl' + (caught ? ' tr-pl--caught' : '') + ' gt-chip">' + row.path + '</span>' +
+            (position === 'raised' ? '<span class="tr-err-tag">' + esc(row.error.tag) + '</span>' : '')
           : '';
         return (
           '<div class="' + cls + '" data-node="' + row.id + '" style="padding-left:' + (row.depth * 24 + 12) + 'px">' +
@@ -1083,8 +1090,9 @@ function start() {
         const ch = e.channel ? ' <span class="caut">' + esc(e.channel) + '</span>' : '';
         /* The same glyph the tree draws for the same word, so the rail's list
            and the marked rows beside it read as one path in two views. */
+        const mark = PATH_MARK[e.how];
         const gl = '<span class="epath-gl' + (e.how === 'caught' ? ' epath-gl--caught' : '') + '">' +
-          (PATH_GLYPH[e.how] || '') + '</span>';
+          (mark ? mark.glyph : '') + '</span>';
         return '<div class="row">' + gl + '<span class="row-k">' + esc(who) + '</span><span class="row-v">' + esc(e.how) + tag + ch + msg + '</span></div>';
       })
       .join('');

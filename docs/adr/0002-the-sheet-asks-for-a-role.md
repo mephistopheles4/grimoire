@@ -3,8 +3,12 @@
 A call-graph sheet reports two conditions — something broke and has not
 resolved, and it resolved — and the design system now names them: `--av-path`
 and `--av-path-caught`, with `--av-state-rule` for the stroke that carries walk
-state. `groundtrack` asks for those roles everywhere it used to reach for
-`--av-caution` and `--av-normal`. The two are the same amber and green in the
+state. `groundtrack` asks for those roles wherever a mark reports one of those two
+conditions — the error path, the effect outcome, and the node box and leaders
+that draw them. It keeps reaching for the raw marks where it is reporting
+something else: a cut edge, the added and removed lines of a diff, and the
+provenance stamp are not walk conditions, and their exceptions are argued
+where they are declared. The two roles are the same amber and green in the
 deck theme, so most of this is invisible; the point is the theme that answers
 differently. In the site theme caution folds to plain ink, so a sheet asking for
 caution got nothing where it needed a mark most, and asking for the path gets
@@ -61,10 +65,22 @@ the two abut into a single bar and stop being separable. The glyph and the word
 carry the position there, which is the whole reason every position has a second
 channel.
 
-**The drawing keeps its own on-stack outline at ink 30**, which measures 1.86:1
-and is under the 3:1 a stroke carrying a signal is held to. That is a real
-defect and it is not this change: #79 promised the drawing unchanged, and moving
-it belongs with the drawing's own linework rather than with the tree's.
+**The drawing is not left entirely alone, and #84's "the drawing is unchanged"
+stops being true here.** Its node box and its effect leaders report the same two
+conditions the tree does, so they ask for the same roles. In the deck theme that
+is the same amber and green; in the site theme the node that raised goes from
+plain ink to redline, because caution folded to ink there and the path does not.
+That is the change working as intended rather than a regression — a node that
+raised had no mark in the site theme and now has one — but it is a visible
+change to the drawing and it is recorded rather than slipped through.
+
+**What the drawing does keep is its on-stack outline at ink 30**, which measures
+1.86:1 and is under the 3:1 a stroke carrying a signal is held to. Moving it is
+not a token swap: `.nd--active` is set per node, so one box can stand for
+several call sites and the running-frame distinction the tree now makes has no
+box to land on. Deciding what the drawing should say about the stack is a pass
+over its whole line vocabulary — `.nd--cold`, `.nd--active`, `.nd--sel` and the
+wire weights read against each other — and it is filed as #85.
 
 **One word per row is read off the filtered path, never off the fold's raw
 entries.** The fold records a throwing frame twice — thrown, then passed through

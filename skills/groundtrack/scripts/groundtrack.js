@@ -681,7 +681,13 @@ const Groundtrack = (() => {
   /** The four words the fold writes on the error path, sorted into the three
    *  positions a row can take. A raise and a throw are one position — where
    *  the error started. The tree, the text and the page all sort by this one
-   *  table, so the three cannot disagree about which word is which. */
+   *  table, so the three cannot disagree about which word is which.
+   *
+   *  What each position LOOKS like is not here and must not come here: the
+   *  page keeps its own PATH_MARK of classes and glyphs, keyed by the word
+   *  rather than the position, because a raise and a throw are one position
+   *  and still draw differently. That table reads this one for the position,
+   *  so the two cannot drift apart on the only thing they share. */
   const ERROR_POSITION = Object.freeze({ raised: 'raised', thrown: 'raised', 'passed through': 'passed', caught: 'caught' });
 
   function treeRows(prog, walk, layerName, atIndex, states) {

@@ -751,21 +751,40 @@ test('the page tree marks the error path from the row, with a word and a rule fo
   const html = pageOf(exampleFlightpath);
   const tree = between(html, 'function drawTree(', '/* -- the rail');
   assert.match(tree, /row\.path/, 'the tree reads the row, not the error path');
-  assert.match(tree, /TREE_PATH\[row\.path\]/, 'one table sorts the fold words into positions');
-  // Three channels for each position, and only one of them is a hue: a stripe
-  // on the row, a glyph before the name, the word itself in a chip after it.
+  assert.match(tree, /G\.ERROR_POSITION\[row\.path\]/, 'the page sorts words into positions by the module s one table');
+
+  // THE HARD REQUIREMENT, and the reason this assertion is shaped the way it
+  // is. #79: "Each of the three positions needs a non-colour signal ... that
+  // carries it in one ink." A stripe is a hue and proves nothing on paper, in
+  // the site scheme, or for a colour-blind reader. So the stripe is asserted
+  // separately below, and what is checked HERE is that the three positions
+  // stay apart with every colour removed.
+  const marks = between(html, 'const PATH_MARK', '};');
+  const glyphs = [...marks.matchAll(/glyph: '([^']+)'/g)].map(m => m[1]);
+  assert.equal(glyphs.length, 5, 'a glyph per fold word, the top included');
+  assert.equal(new Set(glyphs).size, 5, 'and no two of them are the same mark');
+  // The word too, which is the channel that needs no legend. It is one of the
+  // fold's own four, so a reader never has to learn a key.
+  assert.match(tree, /class="tr-pl[^"]*">' \+ row\.path/, 'the position is written out as its own word');
+  // Neither channel is a hue: the glyph is a character and the word is text,
+  // and both sit in the row's own ink flow until a role paints them.
+  assert.match(tree, /class="tr-gl/, 'the glyph is drawn before the name');
+  assert.match(html, /\.gt-chip\b[^{]*\{[^}]*border:/, 'the chip is a hairline border, not a fill');
+  assert.match(tree, /tr-err-tag/, 'the tag stays beside the row that raised');
+
+  // The stripe is the third channel and the only one that IS a hue.
   for (const cls of ['tr--raised', 'tr--onpath', 'tr--caught']) {
     assert.match(html, new RegExp(`\\.${cls}\\b[^{]*\\{[^}]*box-shadow`), `${cls} carries the path stripe`);
   }
-  assert.match(tree, /class="tr-gl/, 'the position takes a glyph');
-  assert.match(tree, /class="tr-pl/, 'the position takes the word');
+  // Raised takes a fourth signal the other two do not, in ink rather than hue,
+  // because it is the position a reader looks for first.
+  assert.match(html, /\.tr--raised\b[^{]*\{[^}]*border-bottom:[^;]*var\(--av-ink\)/, 'the raise is ruled under, in ink');
   // The glyph and the word each take their OWN caught modifier. One shared
   // modifier string reads fine in the deck theme, where both roles resolve to
   // a colour, and paints the caught word redline in the site theme, where the
   // path is redline and caught is ink. That was the bug; this is the guard.
-  assert.match(tree, /tr-gl--caught/, 'the glyph has its caught modifier');
-  assert.match(tree, /tr-pl--caught/, 'the word has its own');
   for (const cls of ['tr-gl--caught', 'tr-pl--caught']) {
+    assert.match(tree, new RegExp(cls), `the markup sets ${cls}`);
     assert.match(html, new RegExp(`\\.${cls}\\b[^{]*\\{[^}]*var\\(--av-path-caught\\)`), `${cls} asks for the caught role`);
   }
   assert.match(html, /\.gt-chip\b[^{]*\{[^}]*border:/, 'the chip is a hairline border, not a fill');
@@ -781,7 +800,8 @@ test('the tree separates the frame the walk is in from the frames waiting under 
   // checks keep reading the same three states they always have.
   const html = pageOf(exampleFlightpath);
   const tree = between(html, 'function drawTree(', '/* -- the rail');
-  assert.match(tree, /row\.top \? ' tr--active' : ' tr--waiting'/, 'the running frame and the waiting ones part');
+  assert.match(tree, /row\.top \?/, 'the running frame and the waiting ones part');
+  assert.match(tree, /tr--waiting/, 'and the waiting ones have their own class');
   // Neither takes a hue: a position on the stack is not a condition.
   assert.match(html, /\.tr--waiting\b[^{]*\{[^}]*--av-state-rule/, 'waiting takes the system state rule');
   assert.match(html, /\.tr--active\b[^{]*\{[^}]*var\(--av-ink\)/, 'the running frame keeps full ink');
