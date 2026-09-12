@@ -477,7 +477,13 @@ input[type=checkbox] { accent-color: var(--av-ink); margin: 0 var(--av-s1) 0 0; 
   border-right: var(--av-rule-hair) solid var(--av-ink); display: flex; flex-direction: column; min-height: 0; }
 .cut-head { display: flex; align-items: baseline; gap: var(--av-s2); padding: var(--av-s1) var(--av-s3);
   border-bottom: var(--av-rule-hair) solid var(--av-ink-12); background: var(--av-surface); }
-.tape { flex: 1; overflow: auto; padding: var(--av-s2) var(--av-s3) var(--av-s3); }
+/* The tape is chrome, so it takes the surface its own head already wears and
+   the rail and the footer band wear beside it. The files table and the
+   contract read as a panel rather than as text left on the drafting surface,
+   which is what the plan is for. The source tab is the exception and lays its
+   own technical paper over this — see .tape--code below. */
+.tape { flex: 1; overflow: auto; padding: var(--av-s2) var(--av-s3) var(--av-s3);
+  background: var(--av-surface); }
 .tabs { margin-left: auto; display: flex; gap: var(--av-s2); }
 .tab { border: 0; background: transparent; padding: 2px 0; font-size: var(--av-t-micro); text-transform: uppercase;
   letter-spacing: var(--av-track-label); color: var(--av-ink); cursor: pointer;
