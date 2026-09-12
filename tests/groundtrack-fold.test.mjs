@@ -708,6 +708,39 @@ test('a row that raised and caught its own error says both', () => {
   const rows = G.treeRows(prog, walk);
   assert.deepEqual(rows[0].error.how, ['raised', 'caught']);
   assert.equal(rows[0].error.tag, 'Gone');
+  // One word for the marks that can only be one thing — the stripe down a
+  // row's edge, the glyph before its name. Where the frame ended up.
+  assert.equal(rows[0].path, 'caught');
+});
+
+test('the row carries one word for where its frame ended up, beside the full path', () => {
+  // A stripe and a glyph can each say one thing, so `path` is the last
+  // position in `error.how` — never the last RAW entry for the site. The fold
+  // puts a throwing frame on the path twice, thrown then passed through, and
+  // reading the raw entries would strip the mark off the row that threw.
+  const at = cursorAfter(twoSites, 'the alias is missing', 'handled');
+  const walk = runNamed(twoSites, 'the alias is missing').walk;
+  const rows = G.treeRows(twoSites, walk, null, at, G.fold(twoSites, walk));
+  assert.deepEqual(
+    rows.map(r => [r.site ? r.site.aside : null, r.path]),
+    [[null, 'caught'], ['the only call that can fail', 'passed through'], ['by id', null], ['by alias', 'thrown']],
+  );
+});
+
+test('one open frame is the frame the walk is in, and the rest are waiting under it', () => {
+  // `state` still says "on stack" for all of them — it is what --text prints
+  // and what the checks read. `top` is the second signal, so the page can give
+  // the running frame full ink and the waiting ones the system's state rule.
+  const name = 'the alias is missing';
+  const walk = runNamed(twoSites, name).walk;
+  const at = walk.steps.findIndex(m => m.k === 'throw');
+  const rows = G.treeRows(twoSites, walk, null, at, G.fold(twoSites, walk));
+  const open = rows.filter(r => r.state === 'on stack');
+  assert.ok(open.length > 1, 'more than one frame is open at the throw');
+  assert.equal(open.filter(r => r.top).length, 1, 'exactly one of them is the frame the walk is in');
+  assert.equal(open[open.length - 1].top, true, 'and it is the deepest');
+  // A row nothing entered is never the top, whatever the stack is doing.
+  assert.deepEqual([...new Set(rows.filter(r => r.state !== 'on stack').map(r => r.top))], [false]);
 });
 
 test('the error path marks nothing before the raise and nothing after the return that ends it', () => {

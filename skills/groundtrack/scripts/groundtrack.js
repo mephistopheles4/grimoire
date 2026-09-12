@@ -707,6 +707,16 @@ const Groundtrack = (() => {
       return 'returned';
     };
 
+    /* WHICH open frame is the one running. `state` says a site is on the
+     * stack; it does not say whether the walk is in it or merely under it,
+     * and on a deep stack that is most of the rows. A separate boolean and
+     * not a fourth `state`, for the reason the error position is separate:
+     * `state` is what --text prints and what the checks read, and a value
+     * they have never seen would change both. The page spends it on rule
+     * weight — the running frame keeps full ink, the ones waiting under it
+     * take the system's state rule. */
+    const topSite = end.frames.length ? end.frames[end.frames.length - 1].site : null;
+
     /* Where each call site stands on the error path at the cursor: raised or
      * thrown, passed through, caught. A second signal beside `state` and not a
      * fourth value of it, because a row can be on the stack and on the path at
@@ -740,12 +750,27 @@ const Groundtrack = (() => {
       return { how: started ? how.filter(h => h !== 'passed through') : how.slice(), tag: end.errorPath[0].tag };
     };
 
+    /* WHERE THE FRAME ENDED UP — one word, for a mark that can only be one
+     * thing: a stripe down a row's edge, a glyph before its name. `error.how`
+     * can hold two, and a frame that raises and then catches its own error is
+     * both; the last is where it came to rest, and the rail still lists the
+     * whole path in order.
+     *
+     * Read from `error.how` and never from `end.errorPath` directly. The fold
+     * puts the frame that started an error on the path twice — thrown, then
+     * passed through as it unwinds — so the last RAW entry for that site says
+     * "passed through" and the row that threw would lose its mark. `errorOf`
+     * has already dropped that second entry, which is the whole reason it
+     * filters. */
+    const pathOf = error => (error ? error.how[error.how.length - 1] : null);
+
     (function walkNode(id, siteKey, depth, path, site) {
       const node = prog.nodes[id];
       if (!node) return;
       const repeat = path.includes(id);
       const ch = node.channels || {};
       const rename = layer && layer.nodes && layer.nodes[id] ? layer.nodes[id].R : null;
+      const error = errorOf(siteKey);
       rows.push({
         depth,
         id,
@@ -758,7 +783,9 @@ const Groundtrack = (() => {
         rename: rename ? rename.slice() : null,
         site: site ? { label: site.label, aside: site.aside } : null,
         state: stateOf(siteKey),
-        error: errorOf(siteKey),
+        top: siteKey === topSite,
+        error,
+        path: pathOf(error),
         effects: effectsOf(node).map(e => ({ kind: e.kind, desc: e.desc, mark: markOf(siteKey, id, e.at) })),
         repeat,
       });

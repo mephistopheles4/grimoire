@@ -750,14 +750,56 @@ test('the page tree marks the error path from the row, with a word and a rule fo
   // that is not a hue — the site scheme folds caution to ink.
   const html = pageOf(exampleFlightpath);
   const tree = between(html, 'function drawTree(', '/* -- the rail');
-  assert.match(tree, /row\.error/, 'the tree reads the row, not the error path');
-  assert.match(tree, /tr-err--/, 'the tree draws a position class');
-  for (const k of ['raised', 'passed', 'caught']) {
-    assert.match(html, new RegExp(`\\.tr-err--${k}\\b[^{]*\\{[^}]*(border|content|font-weight)`), `${k} has a signal in one ink`);
+  assert.match(tree, /row\.path/, 'the tree reads the row, not the error path');
+  assert.match(tree, /TREE_PATH\[row\.path\]/, 'one table sorts the fold words into positions');
+  // Three channels for each position, and only one of them is a hue: a stripe
+  // on the row, a glyph before the name, the word itself in a chip after it.
+  for (const cls of ['tr--raised', 'tr--onpath', 'tr--caught']) {
+    assert.match(html, new RegExp(`\\.${cls}\\b[^{]*\\{[^}]*box-shadow`), `${cls} carries the path stripe`);
   }
+  assert.match(tree, /class="tr-gl/, 'the position takes a glyph');
+  assert.match(tree, /class="tr-pl/, 'the position takes the word');
+  // The glyph and the word each take their OWN caught modifier. One shared
+  // modifier string reads fine in the deck theme, where both roles resolve to
+  // a colour, and paints the caught word redline in the site theme, where the
+  // path is redline and caught is ink. That was the bug; this is the guard.
+  assert.match(tree, /tr-gl--caught/, 'the glyph has its caught modifier');
+  assert.match(tree, /tr-pl--caught/, 'the word has its own');
+  for (const cls of ['tr-gl--caught', 'tr-pl--caught']) {
+    assert.match(html, new RegExp(`\\.${cls}\\b[^{]*\\{[^}]*var\\(--av-path-caught\\)`), `${cls} asks for the caught role`);
+  }
+  assert.match(html, /\.gt-chip\b[^{]*\{[^}]*border:/, 'the chip is a hairline border, not a fill');
+  assert.match(tree, /tr-err-tag/, 'the tag stays beside the row that raised');
   // The drawing is not this change: its box still reads the path by node.
   const box = between(html, 'function nodeBox(', '/* -- the tree');
-  assert.doesNotMatch(box, /\.error\b|tr-err/);
+  assert.doesNotMatch(box, /\.error\b|tr-err|tr-gl/);
+});
+
+test('the tree separates the frame the walk is in from the frames waiting under it', () => {
+  // `state` says "on stack" for every open frame, and on a deep stack that is
+  // most of the rows. `top` is the second, additive signal, so --text and the
+  // checks keep reading the same three states they always have.
+  const html = pageOf(exampleFlightpath);
+  const tree = between(html, 'function drawTree(', '/* -- the rail');
+  assert.match(tree, /row\.top \? ' tr--active' : ' tr--waiting'/, 'the running frame and the waiting ones part');
+  // Neither takes a hue: a position on the stack is not a condition.
+  assert.match(html, /\.tr--waiting\b[^{]*\{[^}]*--av-state-rule/, 'waiting takes the system state rule');
+  assert.match(html, /\.tr--active\b[^{]*\{[^}]*var\(--av-ink\)/, 'the running frame keeps full ink');
+});
+
+test('the sheet asks for the walk-sheet roles, never the raw mark colours', () => {
+  // The design system names --av-path and --av-path-caught so each theme can
+  // answer in its own colour. Reaching for --av-caution here would get amber
+  // in the deck theme and plain ink in the site theme, where the path is
+  // redline — the one place the mark is needed most.
+  const html = pageOf(exampleFlightpath);
+  for (const sel of ['.nd--error', '.fx--fail .fx-dot', '.caut', '.epath-gl']) {
+    const esc = sel.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    assert.match(html, new RegExp(`${esc}\\s*(,[^{]*)?\\{[^}]*var\\(--av-path\\)`), `${sel} asks for the path role`);
+  }
+  const tree = between(html, 'function siteClass(', 'function drawSource(');
+  assert.match(tree, /av-code-site--path/, 'the listing marks a failed site with the role');
+  assert.match(tree, /av-code-site--caught/, 'the listing marks a returned site with the role');
 });
 
 /** The page's own head markup, which is where the controls are.
