@@ -16,7 +16,10 @@ import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { root, exampleFlightpath, layeredFlightpath, errorPastTwoSites } from './helpers.mjs';
+import {
+  root, exampleFlightpath, layeredFlightpath,
+  errorPastTwoSites, repeatedSubtree, selfRecursive,
+} from './helpers.mjs';
 
 const require = createRequire(import.meta.url);
 const G = require(join(root, 'skills', 'groundtrack', 'scripts', 'groundtrack.js'));
@@ -790,6 +793,106 @@ test('the error path is a second signal, independent of the walk state', () => {
   const entry = G.treeRows(twoSites, walk, null, at)[0];
   assert.equal(entry.state, 'on stack');
   assert.deepEqual(entry.error.how, ['caught']);
+});
+
+/* -- two copies of one subtree ---------------------------------------------
+ *
+ * A node called from two steps is two rows, and #79 tested that. This is the
+ * case one level down: the node whose CALLER is drawn twice. Everything under
+ * a repeated node is drawn twice too, and the two copies sit at the same call
+ * step of the same node — so a name made of the caller and the step cannot
+ * tell them apart, and every signal that reads it is shared. */
+
+const twoCopies = G.graphView(repeatedSubtree(JSON.parse(readFileSync(exampleFlightpath, 'utf8'))), 0);
+/** The two lookupName rows, which are the copies, in tree order. */
+const copies = (prog, name, at) => {
+  const walk = runNamed(prog, name).walk;
+  return G.treeRows(prog, walk, null, at, G.fold(prog, walk)).filter(r => r.id === 'lookupName');
+};
+
+test('a copy of a repeated subtree carries only what happened under it', () => {
+  const [first, second] = copies(twoCopies, 'the second copy fails');
+  assert.equal(second.path, 'raised', 'the copy the walk failed in says so');
+  assert.equal(first.error, null, 'and the copy that returned cleanly says nothing');
+});
+
+test('a copy that returned reads returned while the other copy is still in', () => {
+  const [first, second] = copies(twoCopies, 'the second copy fails');
+  assert.equal(first.state, 'returned');
+  assert.equal(second.state, 'on stack');
+});
+
+test('one row is the frame the walk is in, however many copies share its call step', () => {
+  const walk = runNamed(twoCopies, 'the second copy fails').walk;
+  const rows = G.treeRows(twoCopies, walk, null, undefined, G.fold(twoCopies, walk));
+  assert.equal(rows.filter(r => r.top).length, 1, 'exactly one row');
+  const [first, second] = rows.filter(r => r.id === 'lookupName');
+  assert.equal(second.top, true, 'and it is the copy the walk is in');
+  assert.equal(first.top, false);
+});
+
+test('an effect mark answers for its own copy', () => {
+  const [first, second] = copies(twoCopies, 'the second copy fails');
+  assert.deepEqual(first.effects.map(e => e.mark), ['landed'], 'the copy that found its row');
+  assert.deepEqual(second.effects.map(e => e.mark), ['failed'], 'the copy the store was down for');
+});
+
+/* -- deeper than the tree draws --------------------------------------------
+ *
+ * The tree draws a repeated node once more and then stops, or a cycle never
+ * terminates. So a walk can run below the last row there is. Those frames'
+ * marks belong to the row that stopped: it is the row that speaks for what is
+ * under it, and the drawing cannot show a cycle at all (#88), so dropping them
+ * would lose them from every view at once. */
+
+const recursive = G.graphView(selfRecursive(JSON.parse(readFileSync(exampleFlightpath, 'utf8'))), 0);
+
+test('the tree draws a repeated node once more and stops, however deep the walk runs', () => {
+  const walk = runNamed(recursive, 'three frames down').walk;
+  const end = G.fold(recursive, walk).pop();
+  assert.equal(end.frames.length, 3, 'the walk is three frames down');
+  const rows = G.treeRows(recursive, walk, null, undefined, G.fold(recursive, walk));
+  assert.deepEqual(rows.map(r => r.repeat), [false, true], 'and the tree draws two rows');
+});
+
+test('a failure below the last row drawn is carried by the row that stopped', () => {
+  const walk = runNamed(recursive, 'three frames down').walk;
+  const rows = G.treeRows(recursive, walk, null, undefined, G.fold(recursive, walk));
+  const repeat = rows[rows.length - 1];
+  assert.equal(repeat.repeat, true);
+  assert.equal(repeat.path, 'raised', 'the repeat row says the error started under it');
+  assert.deepEqual(repeat.effects.map(e => e.mark), ['failed'], 'and carries the mark of the frame that failed');
+  assert.equal(repeat.top, true, 'the walk is somewhere inside that subtree');
+});
+
+test('no mark the walk made is missing from the tree', () => {
+  // The invariant the repeat row exists to keep. Every chain the fold entered
+  // is spoken for by exactly one row, so a walk below the drawn rows moves a
+  // mark rather than losing it.
+  const walk = runNamed(recursive, 'three frames down').walk;
+  const end = G.fold(recursive, walk).pop();
+  const entered = Object.keys(end.sites).filter(k => end.sites[k].entered);
+  assert.equal(entered.length, 3, 'three frames went in');
+  const marks = G.treeRows(recursive, walk, null, undefined, G.fold(recursive, walk))
+    .flatMap(r => r.effects.map(e => e.mark));
+  assert.ok(marks.includes('failed'), 'the deepest frame failed and the tree says so');
+});
+
+test('a call step sums its copies, because the listing shows a node and not a path', () => {
+  // The cutaway lists ONE node's source and marks each call line by what the
+  // walk did with it. It has a node and a step index in hand and no path, so
+  // it cannot ask the tree's table, which is keyed by the path from the entry.
+  // This is the second reading of the same fold, and the two must agree.
+  const walk = runNamed(twoCopies, 'the second copy fails').walk;
+  const end = G.fold(twoCopies, walk).pop();
+  // loadProfile calls lookupName at one step, and the tree draws that step
+  // twice. One copy came back; the other is still in.
+  assert.deepEqual(G.callCounts(end, 'loadProfile', 0), { entered: 2, returned: 1, open: true });
+  // greet's two call steps are two lines of source and answer separately.
+  assert.deepEqual(G.callCounts(end, 'greet', 0), { entered: 1, returned: 1, open: false });
+  assert.deepEqual(G.callCounts(end, 'greet', 1), { entered: 1, returned: 0, open: true });
+  // A step no walk reached carries nothing rather than answering for another.
+  assert.deepEqual(G.callCounts(end, 'lookupName', 0), { entered: 0, returned: 0, open: false });
 });
 
 test('the tree carries the layer rename on the row', () => {

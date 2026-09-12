@@ -135,6 +135,148 @@ export function errorPastTwoSites(prog) {
   return prog;
 }
 
+/**
+ * Reshape a parsed copy of the small example so one SUBTREE is drawn twice.
+ *
+ * greet calls loadProfile at two steps, and loadProfile calls lookupName at
+ * one. So the tree draws loadProfile twice and lookupName twice under it, and
+ * both lookupName rows sit at the same call step of the same node. They are
+ * told apart only by which copy of loadProfile they hang under.
+ *
+ * The one run walks the first copy to a clean return, then enters the second
+ * and fails there. Every row signal therefore differs between the two copies:
+ * the first has returned, landed its effect and is off the error path; the
+ * second is on the stack, failed, and is the frame the walk is in.
+ *
+ * Derived, never shipped, for the reason `errorPastTwoSites` is.
+ */
+export function repeatedSubtree(prog) {
+  const lookup = prog.nodes.lookupName;
+  lookup.channels.E = ['StoreDown'];
+  lookup.steps = [
+    { op: 'effect', kind: 'db.get', desc: 'read the name row', args: { id: 'id' }, bind: 'row' },
+    { op: 'return', expr: 'row.displayName' },
+  ];
+  prog.nodes = {
+    greet: {
+      name: 'greet',
+      role: 'handler',
+      loc: 'src/greet.ts:8',
+      params: ['userId'],
+      channels: { A: 'a greeting line', E: ['StoreDown'], R: ['the name store'] },
+      touches: ['src/greet.ts'],
+      enteredBy: [],
+      steps: [
+        { op: 'call', target: 'loadProfile', args: { id: 'userId' }, bind: 'mine', aside: 'first copy' },
+        { op: 'call', target: 'loadProfile', args: { id: 'theirs' }, bind: 'theirs', aside: 'second copy' },
+        { op: 'return', expr: '{ mine, theirs }' },
+      ],
+    },
+    loadProfile: {
+      name: 'loadProfile',
+      role: 'service',
+      loc: 'src/profile.ts:4',
+      params: ['id'],
+      channels: { A: 'a profile', E: ['StoreDown'], R: ['the name store'] },
+      touches: ['src/name-store.ts'],
+      enteredBy: [],
+      steps: [
+        { op: 'call', target: 'lookupName', args: { id: 'id' }, bind: 'name', aside: 'the lookup' },
+        { op: 'return', expr: 'name' },
+      ],
+    },
+    lookupName: lookup,
+  };
+  prog.graphs = [
+    {
+      id: 'greet',
+      title: 'greet a user, loaded twice',
+      blurb: 'Enters at greet, which loads two profiles through the same pair of nodes.',
+      entry: 'greet',
+      presets: [
+        {
+          name: 'the second copy fails',
+          blurb: 'The first load succeeds and returns. The second one fails in the lookup.',
+          input: { userId: 'u-1' },
+          walk: {
+            provenance: 'authored',
+            steps: [
+              { k: 'call', at: 0, to: 'loadProfile', next: 1 },
+              { k: 'call', at: 0, to: 'lookupName', next: 1 },
+              { k: 'effect', at: 0, kind: 'db.get', desc: 'read the name row', next: 1, result: { displayName: 'Ada' } },
+              { k: 'return', at: 1, value: 'Ada' },
+              { k: 'return', at: 1, value: 'Ada' },
+              { k: 'call', at: 1, to: 'loadProfile', next: 2 },
+              { k: 'call', at: 0, to: 'lookupName', next: 1 },
+              {
+                k: 'effect', at: 0, kind: 'db.get', desc: 'read the name row',
+                raised: { tag: 'StoreDown', message: 'the name store timed out', channel: 'retry' },
+              },
+            ],
+          },
+        },
+      ],
+    },
+  ];
+  return prog;
+}
+
+/**
+ * Reshape a parsed copy of the small example into one node that calls itself.
+ *
+ * The tree draws a repeated node once more and then stops, so two rows are all
+ * it ever draws however deep the walk runs. The one run goes three frames down
+ * and fails in the third — below the last row the tree draws, which is the case
+ * the repeat row has to speak for.
+ *
+ * Derived, never shipped.
+ */
+export function selfRecursive(prog) {
+  prog.nodes = {
+    scan: {
+      name: 'scan',
+      role: 'service',
+      loc: 'src/scan.ts:3',
+      params: ['dir'],
+      channels: { A: 'the rows found', E: ['WriteFailed'], R: ['the row store'] },
+      touches: ['src/scan.ts'],
+      enteredBy: [],
+      steps: [
+        { op: 'call', target: 'scan', args: { dir: 'child' }, bind: 'rows', aside: 'one level down' },
+        { op: 'effect', kind: 'db.put', desc: 'record the row', args: { dir: 'dir' } },
+        { op: 'return', expr: 'rows' },
+      ],
+    },
+  };
+  prog.graphs = [
+    {
+      id: 'scan',
+      title: 'scan a tree',
+      blurb: 'Enters at scan, which calls itself and records a row on the way back up.',
+      entry: 'scan',
+      presets: [
+        {
+          name: 'three frames down',
+          blurb: 'The walk runs three frames deep and the deepest one fails to record.',
+          input: { dir: '/src' },
+          walk: {
+            provenance: 'authored',
+            steps: [
+              { k: 'call', at: 0, to: 'scan', next: 1 },
+              { k: 'call', at: 0, to: 'scan', next: 1 },
+              {
+                k: 'effect', at: 1, kind: 'db.put', desc: 'record the row',
+                raised: { tag: 'WriteFailed', message: 'the row store refused the write', channel: 'escape' },
+              },
+            ],
+          },
+        },
+      ],
+    },
+  ];
+  return prog;
+}
+
 // Run a node script and report both streams and the exit code, rather than
 // throwing. A test about a gate that fails needs the failure, not an exception.
 // Every script under test says the interesting part on stderr and the answer
