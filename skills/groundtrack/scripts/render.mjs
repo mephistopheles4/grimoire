@@ -607,6 +607,14 @@ export function text(prog, graphIndex, runIndex) {
     const pad = '  '.repeat(row.depth);
     const arrow = row.depth ? '-> ' : '';
     L.push(`${pad}${arrow}${row.name}  [${row.role}]  ${row.state}${row.repeat ? '  (seen above — stopped)' : ''}`);
+    /* Where this call site stood on the error, in the rail's words: the tag
+     * beside the raise or the throw, and nothing beside the rest. Only an
+     * error still live at the end of the walk shows here, because that is
+     * where the text reads the walk. */
+    if (row.error) {
+      const how = row.error.how.map(h => (Groundtrack.ERROR_POSITION[h] === 'raised' ? `${h} ${row.error.tag}` : h));
+      L.push(`${pad}   error path: ${how.join(', ')}`);
+    }
     /* The tag, then the kind the file gives it. A tag the file gives no kind
      * for prints bare, and one given two prints both. */
     const E = row.E.length ? row.E.map(t => [t, ...(row.kinds[t] || [])].join(' ')).join(' · ') : 'never';
@@ -675,7 +683,17 @@ export function page(prog) {
    * chrome. Inlined for the same reason the faces below are — a rendered page
    * is one file and must stand on its own. The bundle cannot carry the faces;
    * a stylesheet has no way to embed a binary. See assets/FONTS.md, and do not
-   * edit the bundle in place: replace it from the design system repository. */
+   * edit the bundle in place: replace it from the design system repository.
+   *
+   * Vendored from aviation-design-system 067c21f, which names the walk-sheet
+   * roles — --av-path, --av-path-caught and --av-state-rule — so a sheet asks
+   * for "the error path" and each theme answers in its own colour, rather
+   * than reaching for --av-caution and getting whatever that theme spends it
+   * on. It supersedes 32f02eb, which added the planes (--av-ground,
+   * --av-paper-tech) and the av-code-* listing vocabulary the source view
+   * below wears. Record the revision when you replace it: a
+   * vendored copy with no provenance cannot be told from a hand-edited one,
+   * which is the failure the "do not edit in place" line above is guarding. */
   const aviation = readFileSync(resolve(here, '..', 'assets', 'aviation.bundle.css'), 'utf8');
 
   /* The faces are vendored and inlined, so the page makes no network request
@@ -874,3 +892,4 @@ function main(argv) {
 // path rather than on the file name: the other skill in this repository also
 // ships a `render.mjs`, so a name test would run this main() inside that one.
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) main(process.argv);
+

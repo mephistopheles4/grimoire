@@ -348,6 +348,12 @@ const Groundtrack = (() => {
     let ledger = [];
     let visited = [prog.entry];
     let edges = [];
+    /* Every entry that names a node also names the call site of its frame —
+     * the popped frame on an unwind, the top frame on a raise, a throw or a
+     * catch. The tree is one row per call site and has to know which row an
+     * entry is, and it cannot work that out later: by the time the cursor sits
+     * on the catch, the frames that raised and unwound are gone. The entry for
+     * an error reaching the top names neither. */
     let errorPath = [];
     let sites = {}; /* site key -> { entered, returned, effects: { "node[at]": outcome } } */
     /* The same marks again, keyed by node rather than by call site. The tree
@@ -388,7 +394,7 @@ const Groundtrack = (() => {
         const gone = frames.pop();
         if (gone) {
           moved = { from: gone.nodeId, to: frames.length ? frames[frames.length - 1].nodeId : null, dir: 'unwind' };
-          errorPath = errorPath.concat([{ nodeId: gone.nodeId, how: 'passed through' }]);
+          errorPath = errorPath.concat([{ nodeId: gone.nodeId, site: gone.site, how: 'passed through' }]);
         }
       } else if (m.k === 'done') {
         frames = [];
@@ -438,18 +444,18 @@ const Groundtrack = (() => {
               },
             ]);
             if (m.raised !== undefined) {
-              errorPath = [{ nodeId: top.nodeId, how: 'raised', tag: m.raised.tag, message: m.raised.message, channel: m.raised.channel }];
+              errorPath = [{ nodeId: top.nodeId, site: top.site, how: 'raised', tag: m.raised.tag, message: m.raised.message, channel: m.raised.channel }];
             } else {
               top.pc = m.next;
             }
             break;
           }
           case 'throw':
-            errorPath = [{ nodeId: top.nodeId, how: 'thrown', tag: m.tag, message: m.message, channel: m.channel }];
+            errorPath = [{ nodeId: top.nodeId, site: top.site, how: 'thrown', tag: m.tag, message: m.message, channel: m.channel }];
             break;
           case 'handled':
             top.pc = m.next;
-            errorPath = errorPath.concat([{ nodeId: top.nodeId, how: 'caught', goto: m.goto }]);
+            errorPath = errorPath.concat([{ nodeId: top.nodeId, site: top.site, how: 'caught', goto: m.goto }]);
             break;
           case 'return': {
             const gone = frames.pop();
@@ -491,6 +497,33 @@ const Groundtrack = (() => {
     const to = states[Math.max(0, i - 1)];
     const m = from && from.moved;
     return { state: to, redraw: m ? { from: m.to, to: m.from, dir: m.dir === 'call' ? 'uncall' : 'unreturn' } : null };
+  }
+
+  /** Where a help note goes, given the box of the thing it describes, the
+   *  note's size and the window's. Centred under the thing, above it when
+   *  there is no room below, and never off the window. `lead` is where the
+   *  leader sits along the note: over the thing's middle, so it still lands on
+   *  the thing when the note is pushed back inside the window — which is
+   *  where a note from the rail, at the window's right edge, always is.
+   *
+   *  "Never off the window" needs a note no wider than the window less both
+   *  margins. The page's stylesheet holds the note to that width before it is
+   *  measured, so the room is always there.
+   *
+   *  The margins are the system's --av-s2 and the leader gap, held here
+   *  because a layout number cannot be read out of a custom property without
+   *  a round trip through computed style. */
+  const TIP_EDGE = 12, TIP_GAP = 9;
+  function tipAt(box, note, win) {
+    const middle = (box.left + box.right) / 2;
+    const left = Math.max(TIP_EDGE, Math.min(middle - note.width / 2, win.width - note.width - TIP_EDGE));
+    const lead = Math.max(TIP_EDGE, Math.min(middle - left, note.width - TIP_EDGE));
+    let top = box.bottom + TIP_GAP, above = false;
+    if (top + note.height > win.height - TIP_EDGE) {
+      top = box.top - note.height - TIP_GAP;
+      above = true;
+    }
+    return { left, top: Math.max(TIP_EDGE, top), lead, above };
   }
 
   /* -- the derived cut -----------------------------------------------------
@@ -644,6 +677,19 @@ const Groundtrack = (() => {
    * and the text matches the tree on the page. A repeated node is marked and
    * stopped, or a cycle never terminates.
    */
+
+  /** The four words the fold writes on the error path, sorted into the three
+   *  positions a row can take. A raise and a throw are one position — where
+   *  the error started. The tree, the text and the page all sort by this one
+   *  table, so the three cannot disagree about which word is which.
+   *
+   *  What each position LOOKS like is not here and must not come here: the
+   *  page keeps its own PATH_MARK of classes and glyphs, keyed by the word
+   *  rather than the position, because a raise and a throw are one position
+   *  and still draw differently. That table reads this one for the position,
+   *  so the two cannot drift apart on the only thing they share. */
+  const ERROR_POSITION = Object.freeze({ raised: 'raised', thrown: 'raised', 'passed through': 'passed', caught: 'caught' });
+
   function treeRows(prog, walk, layerName, atIndex, states) {
     const all = states || fold(prog, walk);
     const end = all[atIndex === undefined ? all.length - 1 : atIndex];
@@ -667,12 +713,75 @@ const Groundtrack = (() => {
       return 'returned';
     };
 
+    /* WHICH open frame is the one running. `state` says a site is on the
+     * stack; it does not say whether the walk is in it or merely under it,
+     * and on a deep stack that is most of the rows. A separate boolean and
+     * not a fourth `state`, for the reason the error position is separate:
+     * `state` is what --text prints and what the checks read, and a value
+     * they have never seen would change both. The page spends it on rule
+     * weight — the running frame keeps full ink, the ones waiting under it
+     * take the system's state rule.
+     *
+     * It reads the same `caller#step` key `state` and the effect marks read,
+     * so it inherits their limit and does not add one: two copies of a subtree
+     * share a key, and a frame open under one copy reads as open under both.
+     * That is #82, and it is the next case down from the one #79 tested. */
+    const topSite = end.frames.length ? end.frames[end.frames.length - 1].site : null;
+
+    /* Where each call site stands on the error path at the cursor: raised or
+     * thrown, passed through, caught. A second signal beside `state` and not a
+     * fourth value of it, because a row can be on the stack and on the path at
+     * once — the frame that catches is still open.
+     *
+     * Matched by the site each entry carries, never by its node. A node called
+     * from three sites is three rows, and at most one of them is the frame the
+     * error crossed. The site is the fold's key, `caller#step`, so it tells two
+     * call steps apart and does not tell apart two copies of one subtree: a
+     * node whose *caller* the tree shows twice is marked under both. That is
+     * the same key `state` reads, and the same limit.
+     *
+     * The frame an error starts in is on the fold's path twice — it raised,
+     * then it unwound — and only the first is a position. The row where the
+     * error started says so; `passed through` is for the frames it crossed. A
+     * frame that raises and catches its own error says both, in path order.
+     *
+     * The entry for an error reaching the top names no site, so it matches no
+     * row and makes none. Nor do the frames still open when it gets there:
+     * nothing unwound them, so the fold did not put them on the path. */
+    const onPath = bare();
+    for (const e of end.errorPath) {
+      if (e.site === undefined) continue;
+      const how = (onPath[e.site] = onPath[e.site] || []);
+      if (!how.includes(e.how)) how.push(e.how);
+    }
+    const errorOf = siteKey => {
+      const how = onPath[siteKey];
+      if (!how) return null;
+      const started = how.some(h => ERROR_POSITION[h] === 'raised');
+      return { how: started ? how.filter(h => h !== 'passed through') : how.slice(), tag: end.errorPath[0].tag };
+    };
+
+    /* WHERE THE FRAME ENDED UP — one word, for a mark that can only be one
+     * thing: a stripe down a row's edge, a glyph before its name. `error.how`
+     * can hold two, and a frame that raises and then catches its own error is
+     * both; the last is where it came to rest, and the rail still lists the
+     * whole path in order.
+     *
+     * Read from `error.how` and never from `end.errorPath` directly. The fold
+     * puts the frame that started an error on the path twice — thrown, then
+     * passed through as it unwinds — so the last RAW entry for that site says
+     * "passed through" and the row that threw would lose its mark. `errorOf`
+     * has already dropped that second entry, which is the whole reason it
+     * filters. */
+    const pathOf = error => (error ? error.how[error.how.length - 1] : null);
+
     (function walkNode(id, siteKey, depth, path, site) {
       const node = prog.nodes[id];
       if (!node) return;
       const repeat = path.includes(id);
       const ch = node.channels || {};
       const rename = layer && layer.nodes && layer.nodes[id] ? layer.nodes[id].R : null;
+      const error = errorOf(siteKey);
       rows.push({
         depth,
         id,
@@ -685,6 +794,9 @@ const Groundtrack = (() => {
         rename: rename ? rename.slice() : null,
         site: site ? { label: site.label, aside: site.aside } : null,
         state: stateOf(siteKey),
+        top: siteKey === topSite,
+        error,
+        path: pathOf(error),
         effects: effectsOf(node).map(e => ({ kind: e.kind, desc: e.desc, mark: markOf(siteKey, id, e.at) })),
         repeat,
       });
@@ -812,9 +924,9 @@ const Groundtrack = (() => {
    *
    *  The marks are a closed vocabulary the validator already refuses anything
    *  outside of. Nothing else on a row is. */
-  const MARK = Object.freeze({ new: 'N', edit: 'E', delete: 'D', forbidden: 'F' });
+  const MARK = Object.freeze({ new: 'new', edit: 'modified', delete: 'deleted', forbidden: 'forbidden' });
   function filesMarkup(prog, id) {
-    const { mine, others, unaccounted } = filesOf(prog, id);
+    const { mine, others } = filesOf(prog, id);
     /* Keyed by author text, so it does not read through to Object's own
        properties: a path called "constructor" would otherwise find a function
        and print it. */
@@ -825,10 +937,11 @@ const Groundtrack = (() => {
     const fileRow = row => {
       const f = byPath[row.path] || { change: 'edit', why: '', adds: 0, dels: 0 };
       return (
-        '<div class="frow"><span class="fchange">' + (Object.hasOwn(MARK, f.change) ? MARK[f.change] : '?') + '</span>' +
+        '<div class="frow">' +
+        '<span class="fnum"><span class="fadd">+' + esc(f.adds) + '</span> <span class="fdel">&minus;' + esc(f.dels) + '</span></span>' +
         '<span class="fpath">' + esc(row.label) +
         (f.why ? ' <span class="fwhy">&mdash; ' + esc(f.why) + '</span>' : '') + '</span>' +
-        '<span class="fnum">+' + esc(f.adds) + ' &minus;' + esc(f.dels) + '</span></div>'
+        '<span class="fchange av-label">' + (Object.hasOwn(MARK, f.change) ? MARK[f.change] : '?') + '</span></div>'
       );
     };
     const tree = paths => {
@@ -845,10 +958,19 @@ const Groundtrack = (() => {
     const group = (label, paths) =>
       '<div class="fgroup"><span class="av-label">' + label + '</span>' +
       (paths.length ? tree(paths) : '<div class="av-annot">none</div>') + '</div>';
-    /* A file that states no changed files has no change to account for, so
-       the third group says that rather than drawing an empty tree. */
+    /* The third group is EVERY file in the change, not the remainder no node
+       accounts for. The first two groups omit each other's files, so a reader
+       looking at one node could not see where its file sat in the whole
+       change — which is the question the third list is opened to answer. It
+       repeats paths from the groups above on purpose: this is the index, and
+       an index that skipped what you had already seen would not be one.
+       `filesOf().unaccounted` is unchanged and still drives the checker's
+       "no node accounts for" finding; only what this tab draws moved.
+
+       A file that states no changed files has nothing to index, so the group
+       says that rather than drawing an empty tree. */
     const third = prog.files
-      ? group('in the change, on no node of this sheet', unaccounted)
+      ? group('every file in the change', (prog.files || []).map(f => f.path))
       : '<div class="fgroup"><span class="av-label">changed files</span><div class="av-annot">not stated by this file</div></div>';
     return group('this node', mine) + group('other nodes on this sheet', others) + third;
   }
@@ -889,6 +1011,6 @@ const Groundtrack = (() => {
     return best;
   }
 
-  return { esc, ID, bare, hardenKeys, KINDS, graphView, sheetState, sheetPickerMarkup, sheetFactsMarkup, reachable, labelsOf, callSites, calleesOf, effectsOf, failureKinds, tagFate, complexityOf, fold, back, cutEdges, layout, treeRows, unaccountedFiles, filesOf, fileTree, filesMarkup, suggestRun, renamedToken };
+  return { esc, ID, bare, hardenKeys, KINDS, ERROR_POSITION, graphView, sheetState, sheetPickerMarkup, sheetFactsMarkup, reachable, labelsOf, callSites, calleesOf, effectsOf, failureKinds, tagFate, complexityOf, fold, back, tipAt, cutEdges, layout, treeRows, unaccountedFiles, filesOf, fileTree, filesMarkup, suggestRun, renamedToken };
 })();
 if (typeof module !== 'undefined') module.exports = Groundtrack;

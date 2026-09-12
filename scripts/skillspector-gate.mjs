@@ -123,7 +123,21 @@ if (done === null || typeof done !== 'object' || Array.isArray(done)) {
     if (skipped > 0) failures.push(`the scan left ${skipped} file(s) entirely uninspected`);
     if (partial > 0) failures.push(`the scan read ${partial} file(s) only in part`);
     if (done.ledger_exceptions.length) {
-      failures.push(`the scanner recorded ${done.ledger_exceptions.length} exception(s) while reading the tree`);
+      // SAY WHICH ONES. The count alone is a red gate nobody can act on: the
+      // report is written outside the checkout and no step keeps it, so a
+      // contributor reading the run sees "1 exception" and has no way to learn
+      // which file or why. The entries are already in hand here. They are
+      // echoed rather than parsed, because the scanner owns their shape and a
+      // reader needs whatever it actually said — an entry that is neither a
+      // path nor a reason is still printed, as itself.
+      const said = e =>
+        e && typeof e === 'object' && !Array.isArray(e)
+          ? [e.path, e.reason].filter(Boolean).join(': ') || JSON.stringify(e)
+          : String(e);
+      failures.push(
+        `the scanner recorded ${done.ledger_exceptions.length} exception(s) while reading the tree:\n` +
+          done.ledger_exceptions.map(e => `      ${said(e)}`).join('\n'),
+      );
     }
   }
 }

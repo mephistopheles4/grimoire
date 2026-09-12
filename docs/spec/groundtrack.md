@@ -590,23 +590,71 @@ holds changes, and each control sits with what it acts on.
 | Region | Holds | Tempo |
 | --- | --- | --- |
 | Head | the run picker and the step controls | drives the walk |
-| Tool block, vertical, on the drawing | zoom, layer, view | changes how the sheet is **read**; never touches the walk |
-| Rail, right | the holds, then call stack, inputs, error path, effects ledger | reads the walk; moves on every step |
+| Tools, the rail's header | zoom, layer, view, and the holds | changes how the sheet is **read**, and where a walk stops; never moves the cursor |
+| Rail, right | under the tools: call stack, inputs, error path, effects ledger | reads the walk; moves on every step |
 | Cutaway, below | one node — source, files, contract | changes when a different node is opened |
 | Footer band | title-block cells, sheet facts, the trace | states the sheet; only the trace moves |
 
 Settled placements:
 
-- **The tool block is vertical**, one row per tool, with a fixed key column so
-  the rows read as a table of controls. Rows are divided by one rule weight and
-  buttons within a row by a lighter one. The live tool takes the tab treatment —
-  label plus a bottom rule — not a filled chip, which this sheet uses nowhere.
-- **The two holds sit at the top of the rail**, above a rule, over the blocks
-  they watch. The head drives the walk forward; the holds say where it stops.
+- **The tools are the rail's header, not a block.** One row per tool — zoom,
+  layer, view, hold — with a fixed key column, so the rows read as a table of
+  controls. They carry no frame of their own and no rules between buttons:
+  they are the panel's own rows, on the header's ground. The live tool takes the tab treatment — label plus a
+  bottom rule — not a filled chip, which this sheet uses nowhere. The layer
+  row is built from the file, so its width is data. A row too long for the
+  rail wraps under its first control.
+- **The holds are the tools' last row** — hold: effect, error — at the top of
+  the rail, over the blocks they watch. The head drives the walk forward; the
+  holds say where it stops.
+- **No tool sits on the plan pane.** The drawing and the tree own all of it,
+  so neither has a corner that a node or a row can go under. The tree has no
+  pan, so a row under a tool would stay there. The rail takes the tools at no
+  cost to the drawing, because the fit is height-bound. The rail pays instead:
+  its header is sticky, so at a short window its blocks scroll under four
+  rows of tools.
 - **The view toggle switches the plan between the drawing and a tree.** The tree
   is the text format rendered from the same file and the same walk, on paper.
   Stepping works in tree mode; only the animation goes. Zoom has nothing to act
   on there and greys out.
+- **The tree marks the error path, row by row.** At a cursor where an error is
+  live, every row whose call site took part says which part: raised or thrown,
+  passed through, or caught. The tree is one row per call site, so it is the
+  one view that shows the path as a path. Rows are matched by the site each
+  error-path entry carries, never by node, so a node called from several
+  places is marked only where the error went. The error reaching the top names
+  no node, so no row carries it. Each position gets three channels, because a
+  hue alone is gone on paper and for a colour-blind reader: a stripe inset
+  down the row's left edge, a glyph before the name, and the word itself in a
+  chip after it. The stripe goes on the left and not the right — a reader
+  enters a row at its left edge, and that is where the rarest signal on the
+  sheet belongs — just inside the walk-state border, which is drafting order:
+  the object outline outermost, its annotation within. `--text` prints the
+  same positions, for an error still live at the end of the walk.
+- **The stripe and the glyph say where the frame ended up, one word.** A frame
+  that raises and then catches its own error is on the path twice; the rail
+  lists both in order, and the row says `caught`, which is where it came to
+  rest. That word is read off the row's filtered path and never off the fold's
+  raw entries — the fold records a throwing frame as thrown and then as passed
+  through as it unwinds, so the raw last entry would strip the mark off the
+  one row a reader looks for first.
+- **The tree tells the frame the walk is in from the frames waiting under it.**
+  Both are on the stack, and on a deep stack that is most of the rows. The
+  running frame keeps the full-ink left rule; the ones waiting under it take
+  the design system's state rule, which is ink 55 — a stroke that carries a
+  signal is held to 3:1. Neither takes a hue: a position on the stack is not a
+  condition. This is a second field on the row and not a fourth walk state,
+  because the state is what `--text` prints and what the checks read.
+- **The sheet asks the design system for a role, never for a mark colour.** An
+  error in flight and a failed effect are one condition and ask for the path;
+  where the path stops and an effect that landed are resolved and ask for the
+  caught role. Each theme answers in what it carries: amber and green in the
+  deck theme, redline and plain ink in the site theme, where reaching for
+  caution directly would have got ink and said nothing. The effect outcome
+  wears the same chip as the path's word, at the same weight — it is a closed
+  set, derived per call site, and it was already spending those two colours on
+  an 11px word where they could not be seen. Not reached is an absence and
+  takes no chip, so every chip drawn means something.
 - **The inputs block is read-only and is called Inputs**, showing the run's whole
   input block including any injected fault. A field that looks editable and is
   not is worse than a value that never looked editable, and the player needs no
@@ -619,6 +667,12 @@ Settled placements:
 - **The cutaway opens at 12rem.** Measured as the knee: the smallest cut that
   still shows a small node's whole tape. Ten clips a five-step node, and the
   tape is where the walk is read. The splitter still moves.
+- **A help note hangs under the thing it describes.** It is centred under the
+  thing, with its leader on the thing's middle, and it goes above when there
+  is no room below. It is kept inside the window, and its leader stays on the
+  thing when it is. A note hung from a thing's left edge and then clamped
+  inside the window led to nothing the reader was pointing at, and the tools
+  sit at the window's right edge.
 
 Measured facts that govern the layout:
 
@@ -629,9 +683,6 @@ Measured facts that govern the layout:
 - **The scale block speaks in ratios, never percentages.**
 - **Pan and zoom are load-bearing.** The drawing does not fit at 1:1 in any
   arrangement.
-- **The tool block occludes nothing at the framing anyone sees.** It is under
-  five percent of the plan pane and the fit view leaves that corner empty; the
-  worst case requires panning a node under it, and panning back out is one drag.
 - **A call site's remark is the only shrinkable element on its row**, and a short
   jump label is preferred over it. Everything else fits; one remark overflowed a
   row by 600 pixels on its own.

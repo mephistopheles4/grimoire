@@ -16,7 +16,7 @@ import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { root, exampleFlightpath, layeredFlightpath } from './helpers.mjs';
+import { root, exampleFlightpath, layeredFlightpath, errorPastTwoSites } from './helpers.mjs';
 
 const require = createRequire(import.meta.url);
 const G = require(join(root, 'skills', 'groundtrack', 'scripts', 'groundtrack.js'));
@@ -511,6 +511,30 @@ test('a handled catch moves the cursor and records the catch on the error path',
   assert.equal(s[i + 1].frames[0].pc, walk.steps[i].next);
 });
 
+test('every error-path entry that names a node carries the call site of its frame', () => {
+  // An entry names a node, and the tree is one row per call site. By the time
+  // the cursor sits on the catch, the frames that threw and unwound are popped,
+  // so the site cannot be recovered afterwards: the fold has to write it down
+  // while it holds the frame.
+  const walk = runNamed(greet, 'no such user').walk;
+  const s = G.fold(greet, walk);
+  const i = walk.steps.findIndex(m => m.k === 'handled');
+  assert.deepEqual(s[i + 1].errorPath.map(e => [e.how, e.nodeId, e.site]), [
+    ['thrown', 'lookupName', 'greet#1'],
+    ['passed through', 'lookupName', 'greet#1'],
+    ['caught', 'greet', '@entry'],
+  ]);
+});
+
+test('an error that reaches the top names no node and no site', () => {
+  const s = G.fold(greet, runNamed(greet, 'the post fails').walk);
+  const path = s[s.length - 1].errorPath;
+  assert.deepEqual(path.map(e => [e.how, e.nodeId, e.site]), [
+    ['raised', 'greet', '@entry'],
+    ['reached the top uncaught', null, undefined],
+  ]);
+});
+
 test('the fold records which edges the walk took, and which nodes it reached', () => {
   const walk = runNamed(layered, 'the sheet 404s').walk;
   const end = G.fold(layered, walk).slice(-1)[0];
@@ -615,6 +639,157 @@ test('the tree reads its marks at the cursor, not only at the end', () => {
   const atEnd = G.treeRows(greet, walk, null, undefined, states);
   assert.equal(atStart.find(r => r.id === 'lookupName').state, 'not reached');
   assert.equal(atEnd.find(r => r.id === 'lookupName').state, 'returned');
+});
+
+/* -- the error path, on the tree -------------------------------------------
+ *
+ * The tree is one row per call site, and the error path names nodes. A node
+ * called from two sites is two rows, and at most one of them is the frame the
+ * error passed through. */
+
+const twoSites = G.graphView(errorPastTwoSites(JSON.parse(readFileSync(exampleFlightpath, 'utf8'))), 0);
+/** Each row as [node, the site's aside, where it stands on the error path]. */
+const errorRows = (prog, name, at) => {
+  const walk = runNamed(prog, name).walk;
+  return G.treeRows(prog, walk, null, at, G.fold(prog, walk)).map(r => [
+    r.id,
+    r.site ? r.site.aside : null,
+    r.error ? r.error.how : null,
+  ]);
+};
+const cursorAfter = (prog, name, k) => runNamed(prog, name).walk.steps.findIndex(m => m.k === k) + 1;
+
+test('a row on the error path says where it stands: thrown, passed through, or caught', () => {
+  const at = cursorAfter(twoSites, 'the alias is missing', 'handled');
+  assert.deepEqual(errorRows(twoSites, 'the alias is missing', at), [
+    ['greet', null, ['caught']],
+    ['loadProfile', 'the only call that can fail', ['passed through']],
+    // The same node from the other site took no part, so it carries nothing.
+    ['lookupName', 'by id', null],
+    ['lookupName', 'by alias', ['thrown']],
+  ]);
+});
+
+test('the row the error started at says so, and not also that it passed through', () => {
+  // The fold records the throwing frame twice: it threw, and then it unwound.
+  // Only the first is a position. Read as two, the row that threw would
+  // carry the mark every frame the error merely crossed carries too.
+  const walk = runNamed(twoSites, 'the alias is missing').walk;
+  const at = cursorAfter(twoSites, 'the alias is missing', 'handled');
+  const path = G.fold(twoSites, walk)[at].errorPath;
+  assert.deepEqual(path.filter(e => e.site === 'loadProfile#1').map(e => e.how), ['thrown', 'passed through']);
+  const [, , thrower] = errorRows(twoSites, 'the alias is missing', at).find(([, aside]) => aside === 'by alias');
+  assert.deepEqual(thrower, ['thrown']);
+});
+
+test('a row that raised and caught its own error says both', () => {
+  // An effect whose own step carries the handler. No shipped example has one,
+  // and it is the case a single word per row would get wrong.
+  const prog = {
+    entry: 'a',
+    graphs: [],
+    nodes: {
+      a: {
+        name: 'a',
+        role: 'io',
+        steps: [
+          { op: 'effect', kind: 'db.get', desc: 'read', onError: [{ tag: 'Gone', goto: 'out' }] },
+          { op: 'return', label: 'out', expr: 'null' },
+        ],
+      },
+    },
+  };
+  const walk = {
+    steps: [
+      { k: 'effect', at: 0, kind: 'db.get', desc: 'read', raised: { tag: 'Gone', message: 'no row', channel: 'escape' } },
+      { k: 'handled', at: 0, goto: 'out', next: 1 },
+    ],
+  };
+  const rows = G.treeRows(prog, walk);
+  assert.deepEqual(rows[0].error.how, ['raised', 'caught']);
+  assert.equal(rows[0].error.tag, 'Gone');
+  // One word for the marks that can only be one thing — the stripe down a
+  // row's edge, the glyph before its name. Where the frame ended up.
+  assert.equal(rows[0].path, 'caught');
+});
+
+test('the row carries one word for where its frame ended up, beside the full path', () => {
+  // A stripe and a glyph can each say one thing, so `path` is the last
+  // position in `error.how` — never the last RAW entry for the site. The fold
+  // puts a throwing frame on the path twice, thrown then passed through, and
+  // reading the raw entries would strip the mark off the row that threw.
+  const at = cursorAfter(twoSites, 'the alias is missing', 'handled');
+  const walk = runNamed(twoSites, 'the alias is missing').walk;
+  const rows = G.treeRows(twoSites, walk, null, at, G.fold(twoSites, walk));
+  assert.deepEqual(
+    rows.map(r => [r.site ? r.site.aside : null, r.path]),
+    [[null, 'caught'], ['the only call that can fail', 'passed through'], ['by id', null], ['by alias', 'thrown']],
+  );
+});
+
+test('one open frame is the frame the walk is in, and the rest are waiting under it', () => {
+  // `state` still says "on stack" for all of them — it is what --text prints
+  // and what the checks read. `top` is the second signal, so the page can give
+  // the running frame full ink and the waiting ones the system's state rule.
+  const name = 'the alias is missing';
+  const walk = runNamed(twoSites, name).walk;
+  const at = walk.steps.findIndex(m => m.k === 'throw');
+  const rows = G.treeRows(twoSites, walk, null, at, G.fold(twoSites, walk));
+  const open = rows.filter(r => r.state === 'on stack');
+  assert.ok(open.length > 1, 'more than one frame is open at the throw');
+  assert.equal(open.filter(r => r.top).length, 1, 'exactly one of them is the frame the walk is in');
+  assert.equal(open[open.length - 1].top, true, 'and it is the deepest');
+  // A row nothing entered is never the top, whatever the stack is doing.
+  assert.deepEqual([...new Set(rows.filter(r => r.state !== 'on stack').map(r => r.top))], [false]);
+});
+
+test('the error path marks nothing before the raise and nothing after the return that ends it', () => {
+  const name = 'the alias is missing';
+  const walk = runNamed(twoSites, name).walk;
+  const marked = at => errorRows(twoSites, name, at).filter(r => r[2]).length;
+  const thrownAt = walk.steps.findIndex(m => m.k === 'throw');
+  assert.equal(marked(0), 0, 'before the first move');
+  assert.equal(marked(thrownAt), 0, 'the cursor on the throw, not yet past it');
+  assert.equal(marked(thrownAt + 1), 1, 'past the throw, only the row that threw');
+  const caughtAt = cursorAfter(twoSites, name, 'handled');
+  assert.equal(marked(caughtAt), 3, 'the catch, and every frame the error crossed');
+  const endsAt = walk.steps.map(m => m.k).lastIndexOf('return') + 1;
+  assert.equal(marked(endsAt), 0, 'the return after the catch ends the error');
+  // Stepping back is an index lookup, so every cursor reads the same forward
+  // and back. Held across the whole walk anyway: no mark survives a cursor
+  // where the error path is empty.
+  const states = G.fold(twoSites, walk);
+  for (let i = 0; i < states.length; i++) {
+    if (!states[i].errorPath.length) assert.equal(marked(i), 0, `cursor ${i}`);
+  }
+});
+
+test('an error that reaches the top adds no row, and marks only the frames it crossed', () => {
+  // The frames still open when it reaches the top are not on the fold's path —
+  // nothing unwound them — so greet carries nothing. The top itself names no
+  // node, so no row carries it and no row is made for it.
+  assert.deepEqual(errorRows(twoSites, 'the store is down'), [
+    ['greet', null, null],
+    ['loadProfile', 'the only call that can fail', ['passed through']],
+    ['lookupName', 'by id', null],
+    ['lookupName', 'by alias', ['raised']],
+  ]);
+  // And on the shipped example: the entry raised, and the lookup it called
+  // earlier and which returned took no part.
+  assert.deepEqual(errorRows(greet, 'the post fails'), [
+    ['greet', null, ['raised']],
+    ['lookupName', 'the only call that can fail', null],
+  ]);
+});
+
+test('the error path is a second signal, independent of the walk state', () => {
+  // A row can be on the stack and on the error path at once: greet is still
+  // open when it catches.
+  const walk = runNamed(twoSites, 'the alias is missing').walk;
+  const at = cursorAfter(twoSites, 'the alias is missing', 'handled');
+  const entry = G.treeRows(twoSites, walk, null, at)[0];
+  assert.equal(entry.state, 'on stack');
+  assert.deepEqual(entry.error.how, ['caught']);
 });
 
 test('the tree carries the layer rename on the row', () => {
@@ -947,7 +1122,10 @@ test('every author string on a row reaches the tab escaped', () => {
   const out = G.filesMarkup(prog, 'greet');
   assert.doesNotMatch(out, /<img src=x onerror/);
   assert.match(out, /&lt;img src=x onerror/);
-  assert.equal((out.match(/&lt;script>alert\(2\)/g) || []).length, 3, 'the segment, the leaf and the why');
+  // Twice over: the row is in 	his node AND in very file in the change,
+  // which now indexes the whole change rather than the remainder. Three
+  // escaped strings per row, two rows.
+  assert.equal((out.match(/&lt;script>alert\(2\)/g) || []).length, 6, 'the segment, the leaf and the why, on both rows');
 });
 
 test('the tab opens and closes one div per level it indents', () => {
@@ -961,15 +1139,15 @@ test('the tab opens and closes one div per level it indents', () => {
 
 test('a file row carries its mark, its leaf, its counts and its why', () => {
   const out = G.filesMarkup(layered, 'buildShelf');
-  assert.match(out, /<span class="fchange">N<\/span>/, 'a new file is marked N');
-  assert.match(out, /<span class="fchange">E<\/span>/, 'an edited one is marked E');
+  assert.match(out, /<span class="fchange av-label">new<\/span>/, 'a new file reads new');
+  assert.match(out, /<span class="fchange av-label">modified<\/span>/, 'an edited one reads modified');
   assert.match(out, /<span class="fpath">one-sheet\.test\.ts <span class="fwhy">&mdash; G53/);
-  assert.match(out, /<span class="fnum">\+194 &minus;0<\/span>/);
+  assert.match(out, /<span class="fadd">\+194<\/span> <span class="fdel">&minus;0<\/span>/);
   // The collapsed row prints the segments it swallowed, not a bare leaf.
   assert.match(out, /<span class="fpath">log\/2026-08-30-the-species-menu-and-the-read-back\.md /);
   assert.doesNotMatch(out, /<div class="fdir">log\//);
   assert.match(out, /<div class="fdir">gates\/<\/div>/);
-  assert.match(out, /in the change, on no node of this sheet/);
+  assert.match(out, /every file in the change/);
 });
 
 test('a change kind outside the four prints a question mark, not a function', () => {
@@ -978,7 +1156,7 @@ test('a change kind outside the four prints a question mark, not a function', ()
   const prog = JSON.parse(JSON.stringify(greet));
   prog.files[0].change = 'constructor';
   const out = G.filesMarkup(prog, 'greet');
-  assert.match(out, /<span class="fchange">\?<\/span>/);
+  assert.match(out, /<span class="fchange av-label">\?<\/span>/);
   assert.doesNotMatch(out, /function Object/);
 });
 
@@ -993,8 +1171,8 @@ test('a path that is a prototype member name still reads its own row', () => {
   const prog = JSON.parse(JSON.stringify(greet));
   prog.nodes.greet.touches = ['constructor'];
   const out = G.filesMarkup(prog, 'greet');
-  assert.match(out, /<span class="fchange">E<\/span>/, 'the fallback fired');
-  assert.match(out, /<span class="fnum">\+0 &minus;0<\/span>/);
+  assert.match(out, /<span class="fchange av-label">modified<\/span>/, 'the fallback fired');
+  assert.match(out, /<span class="fadd">\+0<\/span> <span class="fdel">&minus;0<\/span>/);
   assert.doesNotMatch(out, /undefined/);
   assert.doesNotMatch(out, /function Object/);
 });
@@ -1004,5 +1182,56 @@ test('a file that states no changed files says so instead of drawing a tree', ()
   delete prog.files;
   const out = G.filesMarkup(prog, 'greet');
   assert.match(out, /not stated by this file/);
-  assert.doesNotMatch(out, /in the change, on no node/);
+  assert.doesNotMatch(out, /every file in the change/);
 });
+
+/* -- the help note ---------------------------------------------------------
+ *
+ * Where a note goes is arithmetic on three boxes, so the module does it and
+ * the page only reads the answer. The boxes below are the ones measured on
+ * the shipped pull-request sheet at 1280 by 820: the run picker at the left,
+ * and the error hold in the rail at the right. */
+
+const WIN = { width: 1280, height: 820 };
+const NOTE = { width: 320, height: 75 };
+const boxAt = (left, top, width, height) => ({ left, top, right: left + width, bottom: top + height });
+
+const middle = box => (box.left + box.right) / 2;
+
+test('a help note hangs centred under the thing it describes, its leader on the middle', () => {
+  const run = boxAt(316, 76, 561, 30);
+  const at = G.tipAt(run, NOTE, WIN);
+  assert.equal(at.left + NOTE.width / 2, middle(run), 'centred under it');
+  assert.equal(at.top, run.bottom + 9, 'below it, a leader gap away');
+  assert.equal(at.left + at.lead, middle(run), 'the leader on its middle');
+  assert.equal(at.above, false);
+});
+
+test('at the window\'s edge a note is kept inside it, and its leader still lands on the thing', () => {
+  // The rail sits at the window's right edge. A note hung from a control's
+  // left edge and then clamped inside the window started left of the control
+  // and led to nothing the reader was pointing at.
+  const error = boxAt(1114, 219, 88, 27);
+  const at = G.tipAt(error, NOTE, WIN);
+  assert.equal(at.left + NOTE.width, WIN.width - 12, 'kept inside the window');
+  assert.equal(at.left + at.lead, middle(error), 'the leader still on the control');
+});
+
+test('with no room below, a note goes above', () => {
+  const low = boxAt(20, 780, 60, 28);
+  const at = G.tipAt(low, NOTE, WIN);
+  assert.equal(at.above, true);
+  assert.equal(at.top, low.top - NOTE.height - 9);
+});
+
+test('a note never runs off the window, and its leader never runs off the note', () => {
+  // The widest note the page lets there be: the window less a margin each
+  // side. The stylesheet holds it there, and the render tests hold that.
+  const widest = { width: WIN.width - 2 * 12, height: 50 };
+  const at = G.tipAt(boxAt(5, 10, 10, 10), widest, WIN);
+  assert.equal(at.left, 12, 'the window margin on the left');
+  assert.ok(at.left + widest.width <= WIN.width - 12, 'and on the right');
+  assert.equal(at.lead, 12, 'and the leader keeps the same margin inside the note');
+});
+
+

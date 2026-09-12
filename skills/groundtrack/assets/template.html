@@ -73,8 +73,13 @@ body { margin: 0; }
    floor is 70, and the labels stay there; running text at 70 on paper read as
    grey, and a reader who cannot read an aside has been handed nothing. */
 .dim { color: var(--av-ink-80); }
-.ok { color: var(--av-normal); }
-.caut { color: var(--av-caution); }
+/* An effect that landed and an effect that failed are the walk-sheet roles the
+   design system names, not the raw marks: a failed effect and an error in
+   flight are one condition, and an effect that landed is resolved exactly as a
+   caught error is. Asking for the role is what lets the site theme answer with
+   redline, where caution folds to ink and would have said nothing. */
+.ok { color: var(--av-path-caught); }
+.caut { color: var(--av-path); }
 
 /* Every region is defined by how fast what it holds changes, and each control
    sits with what it acts on. The two splitters move --side-w and --cut-h. */
@@ -83,7 +88,37 @@ body { margin: 0; }
    column rather than shrinking itself, and the page grows a horizontal
    scrollbar on a narrow screen. Nothing here wants a content floor; the plan
    and the cutaway both clip their own overflow. */
-.sheet-root { --side-w: 22rem; --cut-h: 12rem; height: 100vh;
+/* The sheet is laid on a desk, and --av-ground is the desk. A tool window is
+   not a slide: without a ground the sheet runs to the bezel and stops being a
+   sheet. The inset is one space unit, which is the least that reads as an
+   edge; the bold frame is the sheet's own outline, the same weight the system
+   gives every object outline. The ground carries no text, which is the rule
+   that decides it can be a colour at all. */
+body { height: 100vh; box-sizing: border-box; padding: var(--av-s1);
+  background: var(--av-ground); overflow: hidden; }
+
+/* THE PANEL SHADOW IS A DELIBERATE LOCAL EXCEPTION to the system's rule 5
+   ("No gradients, no drop shadows, no photographs. Depth comes from line
+   weight."). It is declared here, in the tool, and NOT as an --av-* token,
+   because the exception is groundtrack's and the system does not sanction it.
+   If it ever should, it needs a token and an amended rule, not a copy of this
+   line in a second consumer.
+
+   It cannot be built from ink. A shadow is darker than whatever it falls on,
+   in both schemes; every ink-derived value inverts with the scheme and would
+   turn this into a glow on a dark ground. So it is a literal, and the dark
+   scheme restates it rather than inheriting one. */
+.sheet-root { --gt-panel-shadow: 0 2px 6px rgb(34 38 43 / 0.16); }
+@media screen {
+  [data-aviation-scheme="dark"] .sheet-root,
+  [data-aviation-scheme="dark"].sheet-root { --gt-panel-shadow: 0 2px 6px rgb(0 0 0 / 0.45); }
+}
+.sheet-root { --side-w: 22rem; --cut-h: 12rem; height: 100%;
+  /* background-COLOR, not the shorthand: this rule loads after the bundle, and
+     `background:` would reset background-image and silently erase .av-grid's
+     ruling from the element carrying it. */
+  background-color: var(--av-paper); border: var(--av-rule-bold) solid var(--av-ink);
+  box-sizing: border-box;
   display: grid; grid-template-columns: minmax(0, 1fr) var(--side-w);
   grid-template-rows: auto 1fr var(--cut-h) auto;
   grid-template-areas: 'head head' 'plan side' 'cut side' 'block block';
@@ -97,8 +132,18 @@ body { margin: 0; }
 /* min-width 0 on both, or the grid does not hold them: a grid item's automatic
    minimum is its content, so a picker wider than the pane widens the whole
    head, and the head widens the column instead of the picker shrinking. */
+/* The chrome panels are SHEETS LAID ON THE GRID, not tinted boxes. --av-surface
+   is paper at 72%: it holds the grid back without hiding it, which is what the
+   token exists for. The plan is the one place the grid comes through raw,
+   because the plan IS the drafting surface — and that is what stops the drawing
+   reading as the only textured thing on screen, recessed under flat chrome.
+   Measured on the surface fill: ink 14.3:1, ink-70 5.76:1, and the marks 4.72
+   (amber) and 4.71 (green) — above the floor, which a --av-ground fill was not
+   (4.35). The boundaries drop to a hairline because the shadow now carries the
+   separation the bold rule used to. */
 .head { grid-area: head; display: flex; flex-direction: column; gap: var(--av-s2); min-width: 0;
-  padding: var(--av-s2) var(--av-s3); border-bottom: var(--av-rule-bold) solid var(--av-ink); }
+  padding: var(--av-s2) var(--av-s3); border-bottom: var(--av-rule-hair) solid var(--av-ink);
+  background: var(--av-surface); box-shadow: var(--gt-panel-shadow); position: relative; z-index: 2; }
 .head-row { display: flex; align-items: center; gap: var(--av-s3); flex-wrap: wrap; min-width: 0; }
 .head-id { display: flex; align-items: center; gap: var(--av-s2); min-width: 0; }
 /* THE MARK DOES NOT FOLLOW THE SCHEME, and its fills say so by reading
@@ -193,7 +238,7 @@ input[type=checkbox] { accent-color: var(--av-ink); margin: 0 var(--av-s1) 0 0; 
    A drag anywhere on it pans, a node included, and a drag selects no text. The
    wheel pans too, and with ctrl held it zooms about the pointer. */
 .plan { grid-area: plan; overflow: hidden; position: relative;
-  border-right: var(--av-rule-bold) solid var(--av-ink); cursor: grab; touch-action: none; }
+  border-right: var(--av-rule-hair) solid var(--av-ink); cursor: grab; touch-action: none; }
 .plan.grabbing { cursor: grabbing; }
 .plan.grabbing, .plan.grabbing * { user-select: none; -webkit-user-select: none; }
 #canvas { position: absolute; top: 0; left: 0; transform-origin: 0 0; padding: var(--av-s4); }
@@ -219,35 +264,6 @@ input[type=checkbox] { accent-color: var(--av-ink); margin: 0 var(--av-s1) 0 0; 
 .wire--flow { stroke-dasharray: 6 6; animation: flow 1.2s linear infinite; }
 .wire--flow-rev { stroke-dasharray: 6 6; animation: flow-rev 1.2s linear infinite; }
 
-/* The tool block. Every control that changes how this sheet is READ, and none
-   that drive the walk. One row per tool, with a fixed key column so the rows
-   read as a table of controls. The live tool takes the tab treatment — full
-   ink and a bold bottom rule — which is line weight, not a fill. */
-.toolblock { position: absolute; top: var(--av-s2); right: var(--av-s2); z-index: 4;
-  display: flex; flex-direction: column; align-items: stretch; background: var(--av-paper);
-  border: var(--av-rule-thin) solid var(--av-ink); }
-.toolblock .grp { display: flex; align-items: stretch; }
-.toolblock .grp + .grp { border-top: var(--av-rule-hair) solid var(--av-ink-30); }
-.toolblock .grp-k { width: 4.5rem; flex: none; text-align: left; border-right: var(--av-rule-hair) solid var(--av-ink-12);
-  padding: 3px var(--av-s2); align-self: center; }
-.toolblock button { border: 0; border-left: var(--av-rule-hair) solid var(--av-ink-12); background: transparent;
-  padding: 3px var(--av-s2); font-size: var(--av-t-micro); text-transform: uppercase;
-  letter-spacing: var(--av-track-label); color: var(--av-ink); cursor: pointer;
-  border-bottom: var(--av-rule-bold) solid transparent; }
-.toolblock .grp button:first-of-type { border-left: 0; }
-.toolblock button:hover { border-bottom-color: var(--av-ink-30); }
-.toolblock button.on { border-bottom-color: var(--av-ink); font-weight: 600; }
-.toolblock button[disabled] { color: var(--av-ink-70); cursor: default; font-weight: 400; }
-.toolblock button[disabled]:hover { border-bottom-color: transparent; }
-/* A tool that can do nothing on this file keeps its name and loses its weight,
-   and carries the reason as a help note. It is not the disabled attribute: a
-   disabled button gets no pointer events, so the note could never show. */
-.toolblock button[aria-disabled=true] { color: var(--av-ink-70); cursor: help; font-weight: 400; }
-.toolblock button[aria-disabled=true]:hover { border-bottom-color: transparent; }
-.toolblock .now { padding: 3px var(--av-s2); font-size: var(--av-t-micro); letter-spacing: var(--av-track-label);
-  font-variant-numeric: tabular-nums; align-self: center; min-width: 4.5rem; text-align: center;
-  border-left: var(--av-rule-hair) solid var(--av-ink-12); }
-
 /* A node is a part on the drawing. Its states are line weights: the open one
    carries an outline set off the box, one on the stack a hairline outside it,
    one the walk has not reached a hairline box in construction ink. */
@@ -256,7 +272,7 @@ input[type=checkbox] { accent-color: var(--av-ink); margin: 0 var(--av-s1) 0 0; 
 .nd--cold { border-width: var(--av-rule-hair); border-color: var(--av-ink-30); color: var(--av-ink-70); }
 .nd--sel { outline: var(--av-rule-thin) solid var(--av-ink); outline-offset: 7px; }
 .nd--active { outline: var(--av-rule-hair) solid var(--av-ink-30); outline-offset: 4px; }
-.nd--error { border-color: var(--av-caution); }
+.nd--error { border-color: var(--av-path); }
 .nd-top { display: flex; align-items: center; gap: var(--av-s1); margin-bottom: 2px; }
 .nd-name { font-weight: 600; font-size: var(--av-t-body); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .nd-loc { font-size: var(--av-t-micro); color: var(--av-ink-70); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -268,10 +284,10 @@ input[type=checkbox] { accent-color: var(--av-ink); margin: 0 var(--av-s1) 0 0; 
 .fx-dot { width: 5px; height: 5px; border-radius: 50%; background: var(--av-ink-30); flex: none; }
 .fx-lead { width: var(--av-s2); border-top: var(--av-rule-thin) solid var(--av-ink-30); flex: none; }
 .fx-txt { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.fx--ok .fx-dot { background: var(--av-normal); }
-.fx--ok .fx-lead { border-top-color: var(--av-normal); }
-.fx--fail .fx-dot { background: var(--av-caution); }
-.fx--fail .fx-lead { border-top-color: var(--av-caution); }
+.fx--ok .fx-dot { background: var(--av-path-caught); }
+.fx--ok .fx-lead { border-top-color: var(--av-path-caught); }
+.fx--fail .fx-dot { background: var(--av-path); }
+.fx--fail .fx-lead { border-top-color: var(--av-path); }
 .nd-cut { font-size: var(--av-t-micro); color: var(--av-caution); margin-top: 3px; }
 .chip-help { cursor: help; }
 
@@ -287,13 +303,23 @@ input[type=checkbox] { accent-color: var(--av-ink); margin: 0 var(--av-s1) 0 0; 
    marks take a second line under them. On one nowrap line a long name painted
    straight over the channels next to it. */
 .tr { display: grid; grid-template-columns: minmax(14rem, max-content) 5rem minmax(12rem, 1fr);
-  column-gap: var(--av-s3); row-gap: 2px; align-items: baseline; padding: 5px var(--av-s2); background: var(--av-paper);
+  column-gap: var(--av-s3); row-gap: var(--av-s1); align-items: baseline;
+  /* The system's pitch is 24px. At 5px the row sat under it; a quarter step
+     top and bottom puts the rows on the grid the sheet is ruled to. */
+  padding: var(--av-s1) var(--av-s2); background: var(--av-paper);
   font-size: var(--av-t-annot); border: var(--av-rule-hair) solid var(--av-ink-12);
   border-left: var(--av-rule-bold) solid transparent; cursor: pointer; }
 .tr--cold { color: var(--av-ink-70); }
+/* On the stack, and the two are not the same job. The frame the walk is IN
+   keeps full ink; the frames waiting under it take the system's state rule,
+   which is ink 55 — a stroke that means something is held to 3:1, and it
+   never takes a hue, because a position on the stack is not a condition. */
 .tr--active { border-left-color: var(--av-ink); }
+.tr--waiting { border-left-color: var(--av-state-rule); }
 .tr--sel { border-color: var(--av-ink); border-width: var(--av-rule-thin); border-left-width: var(--av-rule-bold); }
-.tr--sel:not(.tr--active) { border-left-color: var(--av-ink); }
+/* Selection is already the box on all four sides, so the left rule stays the
+   walk's to spend. */
+.tr--sel.tr--waiting { border-left-color: var(--av-state-rule); }
 .tr-name { font-weight: 600; overflow-wrap: anywhere; }
 .tr-kind { align-self: baseline; }
 .tr-ch { font-size: var(--av-t-micro); min-width: 0; overflow-wrap: anywhere; }
@@ -302,22 +328,107 @@ input[type=checkbox] { accent-color: var(--av-ink); margin: 0 var(--av-s1) 0 0; 
 .tr-under { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 2px var(--av-s3); font-size: var(--av-t-micro); }
 .tr-under:empty { display: none; }
 .tr-site { color: var(--av-ink-70); overflow-wrap: anywhere; }
-.tr-fx { color: var(--av-ink-70); white-space: nowrap; }
+/* Ink 80 and not the 70 floor: the line now carries chips, and the words
+   around them are what the chips qualify. */
+.tr-fx { color: var(--av-ink-80); white-space: nowrap; }
+/* THE CHIP. A denser cut of the system's own .av-state — hairline border, a
+   filled point, caps — because that one is sized for a title block and these
+   sit inline in a 13px row, three or four to a line. Same vocabulary, same
+   currentColor discipline: the chip carries no colour of its own, so one rule
+   below paints it and the border and the point follow. */
+.gt-chip { display: inline-flex; align-items: center; gap: var(--av-s1);
+  padding: 1px var(--av-s1); border: var(--av-rule-hair) solid currentColor;
+  text-transform: uppercase; letter-spacing: var(--av-track-label);
+  font-weight: 500; white-space: nowrap; vertical-align: 1px; }
+.gt-chip::before { content: ''; width: 5px; height: 5px; border-radius: 50%;
+  background: currentColor; flex: none; }
+
+/* Where a row's call site stands on the current error: raised or thrown,
+   passed through, caught. Three channels, because a hue is not one — the site
+   scheme folds the path to redline and a colour-blind reader has no hue at
+   all — and each says the same thing on its own:
+
+     the stripe   an inset rule down the row's left edge, just inside the
+                  walk-state border. Drafting order: the object outline is
+                  outermost and its annotation sits within, which also puts
+                  the stripe hard against the glyph and the word it qualifies
+                  so the three read as one mark.
+     the glyph    before the name. The channel that survives one ink.
+     the word     a chip after the name. The channel that needs no legend.
+
+   Left and not right: the right edge never argues with the walk-state rule,
+   which is why the stripe would start there — but a reader enters a row at
+   its left edge, and that is where the rarest signal on the sheet belongs.
+   Only the raise takes a rule under the row as well; it is the one position a
+   reader looks for first. The tag stays outside the chip, as author text: the
+   chip sets caps and a tag is the author's. */
+.tr--onpath { box-shadow: inset 3px 0 0 var(--av-path); }
+.tr--caught { box-shadow: inset 3px 0 0 var(--av-path-caught); }
+.tr--raised { box-shadow: inset 3px 0 0 var(--av-path); border-bottom: var(--av-rule-bold) solid var(--av-ink); }
+.tr-gl { font-weight: 600; margin-right: var(--av-s1); color: var(--av-path); cursor: help; }
+.tr-gl--caught { color: var(--av-path-caught); }
+.tr-pl { font-size: var(--av-t-micro); color: var(--av-path); margin-left: var(--av-s2); }
+.tr-pl--caught { color: var(--av-path-caught); }
+.tr-err-tag { font-weight: 600; margin-left: var(--av-s1); }
+
+/* THE EFFECT OUTCOME, at the weight of the path label. It is the answer to a
+   sheet that reads monochrome on a walk where nothing breaks: landed, failed
+   and not reached is a closed set, derived per call site, live the moment a
+   node is entered. It already owned the two roles — .ok and .caut above — and
+   spent them on an 11px word inside an ink-70 line, where the colour was
+   present and invisible. Not reached is an absence and an absence costs no
+   ink, so drawTree never gives it the chip in the first place — it stays plain
+   text at the floor, and the chips that ARE drawn all mean something. */
+.tr-fxm--not-reached { color: var(--av-ink-70); }
 
 /* The rail. It reads the walk, and it moves on every step. Deleting it changes
    the drawing's scale by nothing, so what goes in it is never an argument
-   about the drawing. The holds are its header: the head drives the walk
-   forward, the holds say where it stops. */
-.side { grid-area: side; position: relative; overflow-y: auto; display: flex; flex-direction: column; }
-.side-head { display: flex; gap: var(--av-s3); align-items: center; flex-wrap: wrap;
-  padding: var(--av-s2) var(--av-s3); border-bottom: var(--av-rule-bold) solid var(--av-ink);
+   about the drawing, and the tools are its header. */
+.side { grid-area: side; position: relative; overflow-y: auto; display: flex; flex-direction: column;
+  background: var(--av-surface); box-shadow: var(--gt-panel-shadow); z-index: 2; }
+/* The sticky head sits ON the panel, so it takes the panel's own fill rather
+   than the surface again — two translucent layers would stack to a lighter
+   band exactly where a heading should not stand out on tone. */
+.side-head { display: flex; flex-direction: column; gap: 2px;
+  padding: var(--av-s2) var(--av-s3); border-bottom: var(--av-rule-hair) solid var(--av-ink);
   position: sticky; top: 0; background: var(--av-paper); z-index: 1; }
-.side-head label { display: inline-flex; align-items: center; cursor: pointer; }
-.side-head label[data-help] { cursor: help; }
+/* The tools. Every control that changes how the sheet is READ, then the holds
+   that say where a walk stops. They are the panel's own rows, not a block: no
+   frame, no fill, no rules between buttons. A key column makes them read as a
+   table. The live tool takes the tab treatment, full ink and a bold bottom
+   rule, which is line weight and not a fill. They left the plan pane because
+   the tree has no pan: a row under them stayed under them. */
+.side-head .grp { display: flex; align-items: stretch; }
+/* Top, not centre: beside a wrapped row the key names its first line. */
+.side-head .grp-k { width: 4.5rem; flex: none; padding: 3px var(--av-s2) 3px 0; align-self: flex-start; }
+/* The layer row is built from the file, so its width is data. A row too long
+   for the rail wraps under its first control, not under its key. */
+.side-head .grp-v { display: flex; flex-wrap: wrap; align-items: stretch; min-width: 0; }
+.side-head .grp-v button, .side-head .grp-v label { padding: 3px var(--av-s2); font-size: var(--av-t-micro);
+  text-transform: uppercase; letter-spacing: var(--av-track-label); color: var(--av-ink);
+  border: 0; border-bottom: var(--av-rule-bold) solid transparent; }
+.side-head .grp-v button { background: transparent; cursor: pointer; }
+.side-head .grp-v button:hover { border-bottom-color: var(--av-ink-30); }
+.side-head .grp-v button.on { border-bottom-color: var(--av-ink); font-weight: 600; }
+.side-head .grp-v button[disabled] { color: var(--av-ink-70); cursor: default; font-weight: 400; }
+.side-head .grp-v button[disabled]:hover { border-bottom-color: transparent; }
+/* A tool that can do nothing on this file keeps its name and loses its weight,
+   and carries the reason as a help note. It is not the disabled attribute: a
+   disabled button gets no pointer events, so the note could never show. */
+.side-head .grp-v button[aria-disabled=true] { color: var(--av-ink-70); cursor: help; font-weight: 400; }
+.side-head .grp-v button[aria-disabled=true]:hover { border-bottom-color: transparent; }
+/* A hold is a control, so it keeps the pointer its job gives it, help note or
+   not. */
+.side-head .grp-v label { display: inline-flex; align-items: center; cursor: pointer; }
+.side-head .now { padding: 3px var(--av-s2); font-size: var(--av-t-micro); letter-spacing: var(--av-track-label);
+  font-variant-numeric: tabular-nums; align-self: center; }
 .blk { padding: var(--av-s2) var(--av-s3) var(--av-s3); border-bottom: var(--av-rule-hair) solid var(--av-ink-12); }
 .blk > .av-label { display: block; margin-bottom: var(--av-s1); }
 .row { display: flex; gap: var(--av-s1); font-size: var(--av-t-annot); align-items: baseline; }
 .row-k { color: var(--av-ink-70); flex: none; }
+/* The error path's own glyph column, the same marks the tree draws. */
+.epath-gl { flex: none; width: 1.1em; font-weight: 600; color: var(--av-path); }
+.epath-gl--caught { color: var(--av-path-caught); }
 .row-v { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .frame { display: block; width: 100%; text-align: left; border: 0; border-left: var(--av-rule-bold) solid transparent;
   padding: 2px var(--av-s2); cursor: pointer; background: transparent; font-size: var(--av-t-annot); }
@@ -356,26 +467,35 @@ input[type=checkbox] { accent-color: var(--av-ink); margin: 0 var(--av-s1) 0 0; 
 .sheet-root.splitting-h { cursor: row-resize; }
 
 /* The cutaway. One node — its source, its files, its declared contract. The
-   step the cursor is on carries a bold left rule, no fill. */
-.cut { grid-area: cut; position: relative; border-top: var(--av-rule-bold) solid var(--av-ink);
-  border-right: var(--av-rule-bold) solid var(--av-ink); display: flex; flex-direction: column; min-height: 0; }
+   listing itself is the design system's: .av-code and .av-code-* in tools.css
+   carry the technical paper, the gutter stripes and the five token classes,
+   so nothing here restyles them. What used to be .tp / .tp-n / .tp-lbl / .kw
+   was a local fork of exactly that vocabulary and is gone. */
+.cut { grid-area: cut; position: relative; border-top: var(--av-rule-hair) solid var(--av-ink);
+  border-right: var(--av-rule-hair) solid var(--av-ink); display: flex; flex-direction: column; min-height: 0; }
 .cut-head { display: flex; align-items: baseline; gap: var(--av-s2); padding: var(--av-s1) var(--av-s3);
-  border-bottom: var(--av-rule-hair) solid var(--av-ink-12); }
-.tape { flex: 1; overflow: auto; padding: var(--av-s2) var(--av-s3) var(--av-s3); }
+  border-bottom: var(--av-rule-hair) solid var(--av-ink-12); background: var(--av-surface); }
+/* The tape is chrome, so it takes the surface its own head already wears and
+   the rail and the footer band wear beside it. The files table and the
+   contract read as a panel rather than as text left on the drafting surface,
+   which is what the plan is for. The source tab is the exception and lays its
+   own technical paper over this — see .tape--code below. */
+.tape { flex: 1; overflow: auto; padding: var(--av-s2) var(--av-s3) var(--av-s3);
+  background: var(--av-surface); }
 .tabs { margin-left: auto; display: flex; gap: var(--av-s2); }
 .tab { border: 0; background: transparent; padding: 2px 0; font-size: var(--av-t-micro); text-transform: uppercase;
   letter-spacing: var(--av-track-label); color: var(--av-ink); cursor: pointer;
   border-bottom: var(--av-rule-bold) solid transparent; transition: border-color 150ms; }
 .tab:hover { border-bottom-color: var(--av-ink-30); }
 .tab--on { border-bottom-color: var(--av-ink); font-weight: 600; }
-.tp { display: flex; align-items: flex-start; gap: var(--av-s2); font-size: var(--av-t-annot); line-height: 1.5;
-  padding: 1px 0 1px var(--av-s2); border-left: var(--av-rule-bold) solid transparent; }
-.tp--here { border-left-color: var(--av-ink); }
-.tp-n { width: 1.5rem; text-align: right; color: var(--av-ink-70); font-size: var(--av-t-micro); flex: none; padding-top: 2px; }
-.tp-lbl { width: 5rem; flex: none; font-size: var(--av-t-micro); text-transform: uppercase;
-  letter-spacing: var(--av-track-label); color: var(--av-ink-70); padding-top: 2px; }
-.tp-src { min-width: 0; flex: 1; overflow-wrap: anywhere; }
-.kw { font-weight: 600; }
+/* The listing fills the tape rather than sitting in it: the technical paper is
+   a plane, and a plane with a margin around it reads as a card. The tape's own
+   padding comes off for the source tab only, so the other two tabs keep it. */
+.tape--code { padding: 0; }
+.tape--code .av-code { border: 0; min-height: 100%; }
+/* The third track wraps; the two gutter tracks do not. Set here because the
+   system sizes the tracks and leaves what goes in them to the tool. */
+.av-code-line > span:last-child { overflow-wrap: anywhere; }
 .fgroup { margin-bottom: var(--av-s3); }
 .fgroup > .av-label { display: block; margin-bottom: var(--av-s1); }
 /* A directory tree, one step of indent per level. The indent is a class on a
@@ -389,16 +509,41 @@ input[type=checkbox] { accent-color: var(--av-ink); margin: 0 var(--av-s1) 0 0; 
 .fdir + .frow, .fdir + .ftree { margin-top: 1px; }
 /* A file is a mark, a path and its counts on one line, with the reason trailing
    the path the way a comment trails a line of code. */
-.frow { display: grid; grid-template-columns: 1.25rem 1fr 5rem; gap: 0 var(--av-s2); align-items: baseline;
+/* Counts lead the row, the path reads next, and the change kind lands as a
+   word rather than an initial. The counts lead because a size is the thing a
+   reader compares between rows, and tabular-nums keeps the digits on one axis
+   within a depth. They do NOT form one column down the whole group: the rows
+   sit in a directory tree and the tree indents them, exactly as it indented
+   the mark that used to lead. Pulling them out of the indent would buy one
+   straight column at the cost of the tree, which is the more useful shape.
+   No tilt on the label:
+   the deck theme rotates a STAMP, which lands once on a sheet to conclude it,
+   and twenty rotated labels down a file list is ornament rather than a stamp.
+   It would also break the baseline the grid is holding. */
+.frow { display: grid; grid-template-columns: 5.5rem minmax(0, 1fr) 6rem; gap: 0 var(--av-s2); align-items: baseline;
   font-size: var(--av-t-annot); padding: 1px 0; }
 .fwhy { font-size: var(--av-t-micro); color: var(--av-ink-70); }
-.fchange { font-size: var(--av-t-micro); color: var(--av-ink-70); }
+/* .av-label carries the caps, tracking and weight; only the alignment is ours. */
+.fchange { text-align: right; white-space: nowrap; }
 .fpath { min-width: 0; overflow-wrap: anywhere; }
-.fnum { text-align: right; font-variant-numeric: tabular-nums; font-size: var(--av-t-micro); color: var(--av-ink-70); }
+.fnum { font-variant-numeric: tabular-nums; font-size: var(--av-t-micro); color: var(--av-ink-70); white-space: nowrap; }
+/* THE COUNTS ARE COLOURED ON THE READER'S CALL, and it is a second deliberate
+   exception — this one to rule 2, "each accent has exactly one meaning". Green
+   means nominal and amber means caution in this theme; lines added and lines
+   removed are neither. The exception was taken with the alternative (both at
+   ink, separated by tier) drawn beside it.
+
+   Written as the live --av-* names rather than literals so it degrades the way
+   the system intends: the site theme folds both accents to ink, so a site-themed
+   listing loses the coding rather than importing amber into a theme that refuses
+   it, and dark picks up the dark siblings. */
+.fadd { color: var(--av-normal); }
+.fdel { color: var(--av-caution); }
 
 /* The footer band states the sheet. Only the trace moves. The title block sits
    under the band's own top rule, so its other three sides are dropped. */
-.block { grid-area: block; border-top: var(--av-rule-bold) solid var(--av-ink); }
+.block { grid-area: block; border-top: var(--av-rule-hair) solid var(--av-ink);
+  background: var(--av-surface); box-shadow: var(--gt-panel-shadow); position: relative; z-index: 2; }
 .block .av-titleblock { border-left: 0; border-right: 0; border-bottom: 0; border-top: 0; }
 .stamp { align-self: flex-start; cursor: help; }
 .trace { padding: var(--av-s2) var(--av-s3); border-top: var(--av-rule-hair) solid var(--av-ink-12); }
@@ -421,13 +566,17 @@ input[type=checkbox] { accent-color: var(--av-ink); margin: 0 var(--av-s1) 0 0; 
    pointer rests on it or focus lands on it. An annotation on paper in the
    system's vocabulary: a thin ink box, annotation size, ink 80 — no shadow, no
    radius, no colour. The text is the page's own and never the file's. */
-.tip { position: fixed; z-index: 20; max-width: 38ch; padding: var(--av-s1) var(--av-s2);
+/* Never wider than the window less a margin each side, so there is always
+   room to keep it inside: the module's tipAt counts on that. */
+.tip { position: fixed; z-index: 20; max-width: min(38ch, calc(100vw - 2 * var(--av-s2))); padding: var(--av-s1) var(--av-s2);
   background: var(--av-paper); color: var(--av-ink-80); border: var(--av-rule-thin) solid var(--av-ink);
   font-size: var(--av-t-annot); line-height: 1.45; text-transform: none; letter-spacing: normal;
   font-weight: 400; pointer-events: none; }
 .tip[hidden] { display: none; }
-.tip::before { content: ''; position: absolute; left: var(--av-s2); top: -7px; width: 5px; height: 5px;
-  border-radius: 50%; background: var(--av-ink); }
+/* The leader sits over the middle of the thing the note describes. The page
+   sets where, because the note is kept inside the window and the thing is not. */
+.tip::before { content: ''; position: absolute; left: var(--tip-lead, var(--av-s2)); top: -7px; width: 5px; height: 5px;
+  border-radius: 50%; background: var(--av-ink); transform: translateX(-50%); }
 .tip--above::before { top: auto; bottom: -7px; }
 /* A control that carries a help note keeps the cursor its job gives it. The
    two grips said col-resize and row-resize and were shown as an arrow, because
@@ -447,7 +596,13 @@ button[data-help][aria-disabled=true] { cursor: help; }
 </style>
 </head>
 <body class="av-paper">
-<div class="sheet-root" id="root">
+<!-- The grid rules the WHOLE sheet, not just the plan. It used to rule the plan
+     alone, which made the drawing the only textured surface on the screen and
+     left it reading as recessed under flat chrome — the grid was doing a
+     ground's job. Ruling the sheet and floating the panels on --av-surface puts
+     it back where it belongs: under everything, showing through raw only where
+     the drawing is. -->
+<div class="sheet-root av-grid" id="root">
   <div class="head">
    <div class="head-row">
     <div class="head-id">
@@ -515,33 +670,43 @@ button[data-help][aria-disabled=true] { cursor: help; }
    </div>
   </div>
 
-  <div class="plan av-grid" id="plan">
-    <div class="toolblock">
-      <div class="grp">
-        <span class="grp-k av-label">zoom</span>
-        <button id="zoomOut" data-help="Zoom out">&minus;</button>
-        <button id="zoomFit" data-help="Fit the whole drawing in the pane">fit</button>
-        <button id="zoomIn" data-help="Zoom in">+</button>
-        <span class="now" id="scaleNow" data-help="The scale the drawing is shown at, as a ratio">1:1</span>
-      </div>
-      <div class="grp" id="layerGrp">
-        <span class="grp-k av-label" data-help="A layer redraws the same graph under a different set of dependencies. The test layer is the obvious one.">layer</span>
-      </div>
-      <div class="grp">
-        <span class="grp-k av-label">view</span>
-        <button id="viewPlan" class="on" data-help="The drawing">plan</button>
-        <button id="viewTree" data-help="The same graph as an indented tree, one row per call site. Stepping still works here.">tree</button>
-      </div>
-    </div>
+  <!-- Nothing sits on the plan pane: the drawing and the tree own all of it. -->
+  <div class="plan" id="plan">
     <div id="canvas"></div>
     <div class="tree" id="tree"></div>
   </div>
 
   <div class="side" id="side">
     <div class="split split-v" id="splitV" data-help="Drag to resize the rail"></div>
+    <!-- The tools, as the rail's header. See .side-head .grp. -->
     <div class="side-head">
-      <label class="av-label" data-help="When playing, stop on the next move that touches the outside world — a network call, a file, the console."><input type="checkbox" id="holdEffect">hold on next effect</label>
-      <label class="av-label" data-help="When playing, stop on the next throw, the next effect that raises, or an error reaching the top uncaught."><input type="checkbox" id="holdError">hold on next error</label>
+      <div class="grp">
+        <span class="grp-k av-label">zoom</span>
+        <div class="grp-v">
+          <button id="zoomOut" data-help="Zoom out">&minus;</button>
+          <button id="zoomFit" data-help="Fit the whole drawing in the pane">fit</button>
+          <button id="zoomIn" data-help="Zoom in">+</button>
+          <span class="now" id="scaleNow" data-help="The scale the drawing is shown at, as a ratio">1:1</span>
+        </div>
+      </div>
+      <div class="grp">
+        <span class="grp-k av-label" data-help="A layer redraws the same graph under a different set of dependencies. The test layer is the obvious one.">layer</span>
+        <div class="grp-v" id="layerGrp"></div>
+      </div>
+      <div class="grp">
+        <span class="grp-k av-label">view</span>
+        <div class="grp-v">
+          <button id="viewPlan" class="on" data-help="The drawing">plan</button>
+          <button id="viewTree" data-help="The same graph as an indented tree, one row per call site. Stepping still works here.">tree</button>
+        </div>
+      </div>
+      <div class="grp">
+        <span class="grp-k av-label">hold</span>
+        <div class="grp-v">
+          <label data-help="When playing, stop on the next move that touches the outside world — a network call, a file, the console."><input type="checkbox" id="holdEffect">effect</label>
+          <label data-help="When playing, stop on the next throw, the next effect that raises, or an error reaching the top uncaught."><input type="checkbox" id="holdError">error</label>
+        </div>
+      </div>
     </div>
     <div class="blk"><span class="av-label" data-help="The frames open at the cursor, top first. How the walk got to the node it is on.">call stack</span><div id="stack"></div></div>
     <div class="blk"><span class="av-label" data-help="The values this run started from. Read-only: the walk was recorded under exactly these.">inputs</span><div id="inputs"></div></div>
@@ -557,7 +722,7 @@ button[data-help][aria-disabled=true] { cursor: help; }
       <span class="av-annot" id="cutLoc"></span>
       <div class="tabs">
         <button class="tab tab--on" data-tab="source" data-help="The node's steps, with the cursor marked">source</button>
-        <button class="tab" data-tab="files" data-help="The files this node changes, the files other nodes change, and the files in the change no node accounts for. The mark says how: N new, E edit, D delete, F forbidden.">files</button>
+        <button class="tab" data-tab="files" data-help="The files this node changes, the files other nodes change, and every file in the change, so you can see where one sits in the whole. Each row carries its added and removed lines and how it changed: new, modified, deleted or forbidden.">files</button>
         <button class="tab" data-tab="contract" data-help="What the node declares: what it takes, returns, can raise, and needs">contract</button>
       </div>
     </div>
@@ -599,6 +764,14 @@ const HELP = {
   E: 'E — where it breaks: the failure tags this node can raise. Each one is a retry, an escape or a die.',
   R: 'R — what this node needs to work. A layer can rename these.',
   role: 'What kind of thing this node is. The page prints it; nothing branches on it.',
+  /* Keyed by the position G.ERROR_POSITION sorts a fold word into, which is
+     what drawTree looks a row's help note up by. PATH_MARK is keyed by the
+     word itself, because two words share a position and draw differently. */
+  err: {
+    raised: 'Where the current error started: this call raised it or threw it.',
+    passed: 'The current error left this call without being caught, on its way up.',
+    caught: 'A handler at this call caught the current error.',
+  },
   authored: 'Written by hand from the material. A claim about the program, not a recording of it.',
   captured: 'Produced by a real run.',
   paths: 'Cyclomatic complexity of the node as drawn: one, plus one for each if, each error handler and each backward jump. It measures the drawing, and the drawing is what the author chose to draw of the code.',
@@ -800,29 +973,75 @@ function start() {
   }
 
   /* -- the tree ----------------------------------------------------------- */
+  /* HOW THE SHEET DRAWS ONE OF THE FOLD'S WORDS. Presentation only: which
+     position a word IS stays with G.ERROR_POSITION in the module, so the tree,
+     the rail and the text still cannot disagree about that. The glyphs are
+     drafting marks and not pictures — a filled lozenge where the error
+     started and a hollow one where it was thrown by hand, a vertical where it
+     merely crossed, a corner where it stopped, an arrow where it left the top.
+     The tree and the rail read this same table, so one word looks the same in
+     both. Only the last has no row class: an error reaching the top names no
+     node, so no row carries it and the rail states it alone. */
+  const PATH_MARK = {
+    'raised': { cls: 'tr--raised', glyph: '◆' },
+    'thrown': { cls: 'tr--raised', glyph: '◇' },
+    'passed through': { cls: 'tr--onpath', glyph: '│' },
+    'caught': { cls: 'tr--caught', glyph: '└' },
+    'reached the top uncaught': { cls: null, glyph: '↑' },
+  };
+
   function drawTree() {
     const rows = G.treeRows(SHEET, SHEET.presets[S.run].walk, S.layer, S.at, S.states);
     return rows
       .map(function (row) {
+        /* Two independent signals on one row, because a frame that catches is
+           on the stack and on the path at once. Walk state takes the row's own
+           left border, the error path an inset stripe just within it. */
+        const p = row.path ? PATH_MARK[row.path] : null;
+        const position = row.path ? G.ERROR_POSITION[row.path] : null;
+        const caught = position === 'caught';
         const cls =
-          'tr' + (row.state === 'not reached' ? ' tr--cold' : '') + (row.state === 'on stack' ? ' tr--active' : '') +
-          (row.id === S.open ? ' tr--sel' : '');
+          'tr' + (row.state === 'not reached' ? ' tr--cold' : '') +
+          (row.state === 'on stack' ? (row.top ? ' tr--active' : ' tr--waiting') : '') +
+          (p && p.cls ? ' ' + p.cls : '') + (row.id === S.open ? ' tr--sel' : '');
         const E = row.E.length ? row.E.map(eTag.bind(null, row.kinds)).join(' &middot; ') : '<span class="none">never</span>';
         const rr = row.rename && row.rename.length ? row.rename : row.R;
         const R = rr.length ? esc(rr.join(', ')) : '<span class="none">none</span>';
         const marks = row.effects
           .map(function (f) {
+            /* The outcome takes the weight of the path label. Same two roles,
+               not a third and fourth name: an effect that failed and an error
+               in flight are one condition, and one that landed is resolved.
+               Not reached is an absence, so it takes no chip at all — it stays
+               plain text at the ink floor, and every chip drawn means
+               something. */
             const k = f.mark === 'failed' ? 'caut' : f.mark === 'landed' ? 'ok' : 'none';
-            return '<span class="tr-fx">&middot; ' + esc(f.kind) + ' <span class="' + k + '">' + esc(f.mark) + '</span></span>';
+            const chip = f.mark === 'not reached' ? '' : ' gt-chip';
+            return '<span class="tr-fx">&middot; ' + esc(f.kind) +
+              ' <span class="' + k + chip + ' tr-fxm--' + f.mark.replace(/ /g, '-') + '">' + esc(f.mark) + '</span></span>';
           })
           .join('');
         const siteText = row.site && (row.site.label || row.site.aside)
           ? '<span class="tr-site">' + esc(row.site.aside || row.site.label) + '</span>'
           : '';
+        /* Where this call site stands on the error at the cursor, read off the
+           row: the module matched it by site, so a node called from two places
+           is marked only where the error went. The glyph goes before the name
+           and the word after it, so the stripe, the glyph and the word sit
+           together and read as one mark. Both are the fold's own words, never
+           the file's; the tag is the file's, so it is escaped and kept outside
+           the chip, which sets caps. */
+        const glyph = p
+          ? '<span class="tr-gl' + (caught ? ' tr-gl--caught' : '') + ' chip-help" data-help="' + HELP.err[position] + '">' + p.glyph + '</span>'
+          : '';
+        const plabel = p
+          ? '<span class="tr-pl' + (caught ? ' tr-pl--caught' : '') + ' gt-chip">' + row.path + '</span>' +
+            (position === 'raised' ? '<span class="tr-err-tag">' + esc(row.error.tag) + '</span>' : '')
+          : '';
         return (
           '<div class="' + cls + '" data-node="' + row.id + '" style="padding-left:' + (row.depth * 24 + 12) + 'px">' +
-          '<span class="tr-name">' + (row.depth ? '&rarr; ' : '') + esc(row.name) +
-          (row.repeat ? ' <span class="none">(seen above — stopped)</span>' : '') + '</span>' +
+          '<span class="tr-name">' + (row.depth ? '&rarr; ' : '') + glyph + esc(row.name) +
+          (row.repeat ? ' <span class="none">(seen above — stopped)</span>' : '') + plabel + '</span>' +
           '<span class="av-label tr-kind" data-help="' + HELP.role + '">' + esc(row.role) + '</span>' +
           '<span class="tr-ch">' + channelKey('A') + ' ' + esc(row.A || '—') + '<span class="sep"></span>' + channelKey('E') + ' ' + E +
           '<span class="sep"></span>' + channelKey('R') + ' ' + R + '</span>' +
@@ -869,7 +1088,12 @@ function start() {
         const tag = e.tag ? ' <b>' + esc(e.tag) + '</b>' : '';
         const msg = e.message ? ' <span class="dim">' + esc(e.message) + '</span>' : '';
         const ch = e.channel ? ' <span class="caut">' + esc(e.channel) + '</span>' : '';
-        return '<div class="row"><span class="row-k">' + esc(who) + '</span><span class="row-v">' + esc(e.how) + tag + ch + msg + '</span></div>';
+        /* The same glyph the tree draws for the same word, so the rail's list
+           and the marked rows beside it read as one path in two views. */
+        const mark = PATH_MARK[e.how];
+        const gl = '<span class="epath-gl' + (e.how === 'caught' ? ' epath-gl--caught' : '') + '">' +
+          (mark ? mark.glyph : '') + '</span>';
+        return '<div class="row">' + gl + '<span class="row-k">' + esc(who) + '</span><span class="row-v">' + esc(e.how) + tag + ch + msg + '</span></div>';
       })
       .join('');
   }
@@ -891,32 +1115,88 @@ function start() {
   }
 
   /* -- the cutaway -------------------------------------------------------- */
+
+  /* Which lines the walk has touched, up to the cursor. The frames of every
+   * state so far are the record: a pc a frame sat on is a pc the run reached.
+   * Read forward from zero rather than from the current state, because a
+   * frame that has already returned is gone from st.frames and its lines are
+   * still lines the run executed — which is the whole distinction between a
+   * line that ran and a branch that never did. */
+  function ranPcs(open, at) {
+    const seen = new Set();
+    for (let i = 0; i <= at && i < S.states.length; i++) {
+      S.states[i].frames.forEach(function (f) { if (f.nodeId === open) seen.add(f.pc); });
+    }
+    return seen;
+  }
+
+  /* A call or an effect is marked by what the walk did with it, never by what
+   * it is. The fold already records both: an effect's outcome by node and pc,
+   * a call site's entries and returns by key. A site the run has not reached
+   * carries no mark at all — an unmarked site is a fact, not a gap. */
+  function siteClass(st, open, s, i) {
+    if (s.op === 'effect') {
+      const outcome = st.nodeEffects[open + '[' + i + ']'];
+      return outcome === 'failed' ? ' av-code-site--failed'
+        : outcome === 'landed' ? ' av-code-site--caught'
+        : '';
+    }
+    const key = open + '#' + i;
+    const site = st.sites[key];
+    if (!site || !site.entered) return '';
+    /* Still on the stack: the call has an outcome later, not now. */
+    if (st.frames.some(function (f) { return f.site === key; })) return '';
+    /* EVERY entry came back, not merely one of them. A site is one line of
+     * source, and a walk can run that line more than once — a loop, a retry.
+     * `returned > 0` would call a site that went in twice and came back once
+     * a clean return, which is the reading a reader is most likely to act on
+     * and the one most likely to be wrong. */
+    if (site.returned === site.entered) return ' av-code-site--caught';
+    /* Entered more times than it returned, and nothing from it is on the
+     * stack: at least one of those entries left by raising. Read from the
+     * site's own counts and not from st.errorPath, which holds where an error
+     * is NOW — a failure a handler caught and the walk then ran past leaves
+     * errorPath empty while the call it came from stays failed. */
+    return ' av-code-site--path';
+  }
+
   function drawSource(st) {
     const n = PROG.nodes[S.open];
     const here = st.frames.filter(f => f.nodeId === S.open).map(f => f.pc);
-    return (n.steps || [])
+    const topFrame = st.frames.length ? st.frames[st.frames.length - 1] : null;
+    const cursor = topFrame && topFrame.nodeId === S.open ? topFrame.pc : -1;
+    const ran = ranPcs(S.open, S.at);
+    return '<div class="av-code">' + (n.steps || [])
       .map(function (s, i) {
+        const site = 'av-code-site' + siteClass(st, S.open, s, i);
         const body =
-          s.op === 'note' ? '<span class="dim">' + esc(s.note) + '</span>'
-          : s.op === 'let' ? '<span class="kw">let</span> ' + esc(s.name) + ' = ' + esc(s.expr)
-          : s.op === 'if' ? '<span class="kw">if</span> ' + esc(s.cond) + ' &rarr; ' + esc(s.then) + ' <span class="kw">else</span> ' + esc(s.else)
-          : s.op === 'goto' ? '<span class="kw">goto</span> ' + esc(s.to)
-          : s.op === 'call' ? '<span class="kw">call</span> ' + esc(s.target)
-          : s.op === 'effect' ? '<span class="kw">effect</span> ' + esc(s.kind) + ' <span class="dim">' + esc(s.desc) + '</span>'
-          : s.op === 'throw' ? '<span class="kw">throw</span> ' + esc(s.tag) + ' <span class="caut">' + esc(s.channel) + '</span> <span class="dim">' + esc(s.message) + '</span>'
-          : '<span class="kw">return</span> ' + esc(s.expr);
-        const aside = s.aside ? '<div class="dim">' + esc(s.aside) + '</div>' : '';
+          s.op === 'note' ? '<span class="av-code-note">' + esc(s.note) + '</span>'
+          : s.op === 'let' ? '<span class="av-code-kw">let</span> <span class="av-code-name">' + esc(s.name) + '</span> <span class="av-code-note">=</span> <span class="av-code-lit">' + esc(s.expr) + '</span>'
+          : s.op === 'if' ? '<span class="av-code-kw">if</span> <span class="av-code-lit">' + esc(s.cond) + '</span> <span class="av-code-note">&rarr;</span> <span class="av-code-name">' + esc(s.then) + '</span> <span class="av-code-kw">else</span> <span class="av-code-name">' + esc(s.else) + '</span>'
+          : s.op === 'goto' ? '<span class="av-code-kw">goto</span> <span class="av-code-name">' + esc(s.to) + '</span>'
+          : s.op === 'call' ? '<span class="av-code-kw">call</span> <span class="' + site + '">' + esc(s.target) + '</span>'
+          : s.op === 'effect' ? '<span class="av-code-kw">effect</span> <span class="' + site + '">' + esc(s.kind) + '</span> <span class="av-code-note">' + esc(s.desc) + '</span>'
+          : s.op === 'throw' ? '<span class="av-code-kw">throw</span> <span class="av-code-name">' + esc(s.tag) + '</span> <span class="av-code-lit">' + esc(s.channel) + '</span> <span class="av-code-note">' + esc(s.message) + '</span>'
+          : '<span class="av-code-kw">return</span> <span class="av-code-lit">' + esc(s.expr) + '</span>';
+        const aside = s.aside ? '<div class="av-code-note">' + esc(s.aside) + '</div>' : '';
         const handlers = (s.onError || [])
-          .map(function (h) { return '<div class="dim">on ' + esc(h.tag) + ' &rarr; ' + esc(h.goto) + '</div>'; })
+          .map(function (h) { return '<div class="av-code-note">on ' + esc(h.tag) + ' &rarr; ' + esc(h.goto) + '</div>'; })
           .join('');
+        /* One line takes one state, most specific first. The cursor is on the
+         * stack and the stack has run, so the order is what separates them. */
+        const state =
+          i === cursor ? ' av-code-line--cursor'
+          : here.indexOf(i) >= 0 ? ' av-code-line--live'
+          : ran.has(i) ? ' av-code-line--ran'
+          : ' av-code-line--skip';
         return (
-          '<div class="tp' + (here.indexOf(i) >= 0 ? ' tp--here' : '') + '">' +
-          '<span class="tp-n">' + i + '</span>' +
-          '<span class="tp-lbl">' + (s.label ? esc(s.label) : '') + '</span>' +
-          '<span class="tp-src">' + body + aside + handlers + '</span></div>'
+          '<div class="av-code-line' + state + '">' +
+          '<span class="av-code-num">' + i + '</span>' +
+          '<span class="av-code-label">' + (s.label ? esc(s.label) : '') + '</span>' +
+          '<span>' + body + aside + handlers + '</span></div>'
         );
       })
-      .join('');
+      .join('') + '</div>';
   }
 
   /* One tree answers all three questions: what this node changes, what other
@@ -1014,6 +1294,7 @@ function start() {
     $('cutName').textContent = PROG.nodes[S.open].name;
     $('cutLoc').textContent = PROG.nodes[S.open].loc;
     $('cutBody').innerHTML = S.tab === 'source' ? drawSource(st) : S.tab === 'files' ? drawFiles() : drawContract();
+    $('cutBody').classList.toggle('tape--code', S.tab === 'source');
     $('titleblock').innerHTML = drawTitleBlock();
     $('sheetfacts').innerHTML = drawSheetFacts();
 
@@ -1032,7 +1313,7 @@ function start() {
     /* The cutaway follows the cursor: the step the walk is on is brought into
        view after the tape has been rebuilt, and so is the open row of the
        tree. Nearest edge only, so a step already in view moves nothing. */
-    const here = $('cutBody').querySelector('.tp--here');
+    const here = $('cutBody').querySelector('.av-code-line--cursor, .av-code-line--live');
     if (here) here.scrollIntoView({ block: 'nearest' });
     if (S.tree) {
       const sel = $('tree').querySelector('.tr--sel');
@@ -1314,7 +1595,7 @@ function start() {
      Listened to as non-passive so the browser's own ctrl-wheel page zoom is
      declined. The tree is a scrolling column already and is left alone. */
   $('plan').addEventListener('wheel', function (e) {
-    if (S.tree || e.target.closest('.toolblock')) return;
+    if (S.tree) return;
     e.preventDefault();
     const unit = e.deltaMode === 1 ? 16 : e.deltaMode === 2 ? $('plan').clientHeight : 1;
     if (e.ctrlKey || e.metaKey) {
@@ -1360,7 +1641,6 @@ function start() {
   const plan = $('plan');
   plan.addEventListener('pointerdown', function (e) {
     if (e.button !== 0 || S.tree) return;
-    if (e.target.closest('.toolblock')) return;
     e.preventDefault();
     /* The node under the press is remembered here, because it cannot be read
        later: once the plan captures the pointer, the browser retargets the
@@ -1439,7 +1719,14 @@ function start() {
     el.addEventListener('pointercancel', release);
   }
   splitter($('splitV'), 'v', function (e) {
-    const right = root.getBoundingClientRect().right;
+    /* The CONTENT edge, not the border edge. --side-w is a grid track, and the
+       tracks live inside the sheet's frame; measuring to the border box drags
+       the panel past the pointer by the frame's width. clientLeft is that
+       width and clientWidth is the track area, so this holds whatever the
+       frame weighs — including nothing, which is what it weighed before the
+       sheet was laid on a ground. */
+    const box = root.getBoundingClientRect();
+    const right = box.left + root.clientLeft + root.clientWidth;
     const w = Math.min(window.innerWidth * 0.5, Math.max(256, right - e.clientX));
     root.style.setProperty('--side-w', w + 'px');
   });
@@ -1475,23 +1762,21 @@ function start() {
     tipFor = el;
     tip.textContent = text;
     tip.className = 'tip';
+    /* Measured at the window's origin. A fixed box keeps the last note's
+       place while hidden, and its width shrinks to what is right of that
+       place, so a long note measured after one near the edge came back too
+       narrow and was placed by the wrong width. */
+    tip.style.left = '0px';
+    tip.style.top = '0px';
     tip.hidden = false;
     el.setAttribute('aria-describedby', 'tip');
-    /* Below the thing by default, above it when there is no room, and never
-       off the edge of the window. The margins are the system's --av-s2 and
-       the leader gap, held here because a layout number cannot be read out
-       of a custom property without a round trip through computed style. */
-    const EDGE = 12, GAP = 9;
-    const r = el.getBoundingClientRect();
-    const w = tip.offsetWidth, h = tip.offsetHeight;
-    const left = Math.max(EDGE, Math.min(r.left, window.innerWidth - w - EDGE));
-    let top = r.bottom + GAP;
-    if (top + h > window.innerHeight - EDGE) {
-      top = r.top - h - GAP;
-      tip.className = 'tip tip--above';
-    }
-    tip.style.left = left + 'px';
-    tip.style.top = Math.max(EDGE, top) + 'px';
+    /* Where it goes is the module's arithmetic, so a test can hold it. */
+    const at = G.tipAt(el.getBoundingClientRect(), tip.getBoundingClientRect(),
+      { width: window.innerWidth, height: window.innerHeight });
+    if (at.above) tip.className = 'tip tip--above';
+    tip.style.left = at.left + 'px';
+    tip.style.top = at.top + 'px';
+    tip.style.setProperty('--tip-lead', at.lead + 'px');
   }
   document.addEventListener('pointerover', function (e) {
     const el = e.target.closest ? e.target.closest('[data-help]') : null;

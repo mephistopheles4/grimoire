@@ -19,7 +19,7 @@ import { mkdtempSync, rmSync, writeFileSync, readFileSync, existsSync, readdirSy
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createHash } from 'node:crypto';
-import { groundtrack, examples, exampleFlightpath, layeredFlightpath, run } from './helpers.mjs';
+import { groundtrack, examples, exampleFlightpath, layeredFlightpath, run, errorPastTwoSites } from './helpers.mjs';
 
 const work = mkdtempSync(join(tmpdir(), 'grimoire-groundtrack-'));
 after(() => rmSync(work, { recursive: true, force: true }));
@@ -667,6 +667,45 @@ test('the text says where the walks came from, above everything', () => {
   assert.match(r.stdout.split('\n')[0], /written by hand\. They are claims about the program, not recordings of it\./);
 });
 
+/** The text's rows, one block of lines per row, split at each row's head. */
+const textRows = stdout =>
+  stdout.split('\n').reduce((rows, line) => {
+    if (/^ *(-> )?\S+ {2}\[/.test(line)) rows.push([line]);
+    else if (rows.length) rows[rows.length - 1].push(line);
+    return rows;
+  }, []);
+const errorLines = stdout => textRows(stdout).map(b => (b.find(l => l.includes('error path:')) || '').trim());
+
+test('the text marks where each row stood on an error that is still live at the end', () => {
+  // --text folds to the end of the walk, so the error it can show is one that
+  // reached the top. A limit, stated: a catch never shows here. A return ends
+  // the error the catch took, and a walk cannot end with its entry frame open,
+  // so no valid walk ends on a caught error.
+  const file = derive(errorPastTwoSites);
+  assert.equal(check(file).code, 0, 'the derived file is a legal program');
+  const r = run(groundtrack, [file, '--text', 'the store is down']);
+  assert.equal(r.code, 0, r.stderr);
+  assert.deepEqual(errorLines(r.stdout), ['', 'error path: passed through', '', 'error path: raised StoreDown']);
+  // The row that raised is the lookup by alias. The lookup by id is the same
+  // node from another call site, and it took no part.
+  const rows = textRows(r.stdout);
+  assert.ok(rows[3].some(l => l.includes('by alias')));
+  assert.ok(rows[2].some(l => l.includes('by id')));
+});
+
+test('the text marks nothing when the walk ends with no error live', () => {
+  const file = derive(errorPastTwoSites);
+  const r = run(groundtrack, [file, '--text', 'the alias is missing']);
+  assert.equal(r.code, 0, r.stderr);
+  assert.doesNotMatch(r.stdout, /error path:/);
+});
+
+test('the text marks the entry that raised, and no row for the top', () => {
+  const r = run(groundtrack, [exampleFlightpath, '--text', 'the post fails']);
+  assert.equal(r.code, 0, r.stderr);
+  assert.deepEqual(errorLines(r.stdout), ['error path: raised SendFailed', '']);
+});
+
 /* -- the page as a string ------------------------------------------------- */
 
 const pageOf = file => {
@@ -703,6 +742,86 @@ test('the page prints the failure kind beside the tag, and what the node does wi
   }
 });
 
+test('the page tree marks the error path from the row, with a word and a rule for each position', () => {
+  // A limit, stated, and the same one the failure-kind test states: the page
+  // draws its rows in the browser, so this reads the markup and the rules the
+  // page ships, not a drawn row. What it can hold is that the tree reads the
+  // one derivation the module exports, and that every position has a signal
+  // that is not a hue — the site scheme folds caution to ink.
+  const html = pageOf(exampleFlightpath);
+  const tree = between(html, 'function drawTree(', '/* -- the rail');
+  assert.match(tree, /row\.path/, 'the tree reads the row, not the error path');
+  assert.match(tree, /G\.ERROR_POSITION\[row\.path\]/, 'the page sorts words into positions by the module s one table');
+
+  // THE HARD REQUIREMENT, and the reason this assertion is shaped the way it
+  // is. #79: "Each of the three positions needs a non-colour signal ... that
+  // carries it in one ink." A stripe is a hue and proves nothing on paper, in
+  // the site scheme, or for a colour-blind reader. So the stripe is asserted
+  // separately below, and what is checked HERE is that the three positions
+  // stay apart with every colour removed.
+  const marks = between(html, 'const PATH_MARK', '};');
+  const glyphs = [...marks.matchAll(/glyph: '([^']+)'/g)].map(m => m[1]);
+  assert.equal(glyphs.length, 5, 'a glyph per fold word, the top included');
+  assert.equal(new Set(glyphs).size, 5, 'and no two of them are the same mark');
+  // The word too, which is the channel that needs no legend. It is one of the
+  // fold's own four, so a reader never has to learn a key.
+  assert.match(tree, /class="tr-pl[^"]*">' \+ row\.path/, 'the position is written out as its own word');
+  // Neither channel is a hue: the glyph is a character and the word is text,
+  // and both sit in the row's own ink flow until a role paints them.
+  assert.match(tree, /class="tr-gl/, 'the glyph is drawn before the name');
+  assert.match(html, /\.gt-chip\b[^{]*\{[^}]*border:/, 'the chip is a hairline border, not a fill');
+  assert.match(tree, /tr-err-tag/, 'the tag stays beside the row that raised');
+
+  // The stripe is the third channel and the only one that IS a hue.
+  for (const cls of ['tr--raised', 'tr--onpath', 'tr--caught']) {
+    assert.match(html, new RegExp(`\\.${cls}\\b[^{]*\\{[^}]*box-shadow`), `${cls} carries the path stripe`);
+  }
+  // Raised takes a fourth signal the other two do not, in ink rather than hue,
+  // because it is the position a reader looks for first.
+  assert.match(html, /\.tr--raised\b[^{]*\{[^}]*border-bottom:[^;]*var\(--av-ink\)/, 'the raise is ruled under, in ink');
+  // The glyph and the word each take their OWN caught modifier. One shared
+  // modifier string reads fine in the deck theme, where both roles resolve to
+  // a colour, and paints the caught word redline in the site theme, where the
+  // path is redline and caught is ink. That was the bug; this is the guard.
+  for (const cls of ['tr-gl--caught', 'tr-pl--caught']) {
+    assert.match(tree, new RegExp(cls), `the markup sets ${cls}`);
+    assert.match(html, new RegExp(`\\.${cls}\\b[^{]*\\{[^}]*var\\(--av-path-caught\\)`), `${cls} asks for the caught role`);
+  }
+  assert.match(html, /\.gt-chip\b[^{]*\{[^}]*border:/, 'the chip is a hairline border, not a fill');
+  assert.match(tree, /tr-err-tag/, 'the tag stays beside the row that raised');
+  // The drawing is not this change: its box still reads the path by node.
+  const box = between(html, 'function nodeBox(', '/* -- the tree');
+  assert.doesNotMatch(box, /\.error\b|tr-err|tr-gl/);
+});
+
+test('the tree separates the frame the walk is in from the frames waiting under it', () => {
+  // `state` says "on stack" for every open frame, and on a deep stack that is
+  // most of the rows. `top` is the second, additive signal, so --text and the
+  // checks keep reading the same three states they always have.
+  const html = pageOf(exampleFlightpath);
+  const tree = between(html, 'function drawTree(', '/* -- the rail');
+  assert.match(tree, /row\.top \?/, 'the running frame and the waiting ones part');
+  assert.match(tree, /tr--waiting/, 'and the waiting ones have their own class');
+  // Neither takes a hue: a position on the stack is not a condition.
+  assert.match(html, /\.tr--waiting\b[^{]*\{[^}]*--av-state-rule/, 'waiting takes the system state rule');
+  assert.match(html, /\.tr--active\b[^{]*\{[^}]*var\(--av-ink\)/, 'the running frame keeps full ink');
+});
+
+test('the sheet asks for the walk-sheet roles, never the raw mark colours', () => {
+  // The design system names --av-path and --av-path-caught so each theme can
+  // answer in its own colour. Reaching for --av-caution here would get amber
+  // in the deck theme and plain ink in the site theme, where the path is
+  // redline — the one place the mark is needed most.
+  const html = pageOf(exampleFlightpath);
+  for (const sel of ['.nd--error', '.fx--fail .fx-dot', '.caut', '.epath-gl']) {
+    const esc = sel.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    assert.match(html, new RegExp(`${esc}\\s*(,[^{]*)?\\{[^}]*var\\(--av-path\\)`), `${sel} asks for the path role`);
+  }
+  const tree = between(html, 'function siteClass(', 'function drawSource(');
+  assert.match(tree, /av-code-site--path/, 'the listing marks a failed site with the role');
+  assert.match(tree, /av-code-site--caught/, 'the listing marks a returned site with the role');
+});
+
 /** The page's own head markup, which is where the controls are.
  *
  *  Sliced rather than searched whole, because the page carries the shared
@@ -710,7 +829,11 @@ test('the page prints the failure kind beside the tag, and what the node does wi
  *  page that draws no picker still contains the source of the function that
  *  would have drawn one, so the whole page cannot answer "is there a control
  *  here" — only the markup can. */
-const headOf = html => html.slice(html.indexOf('<div class="head">'), html.indexOf('<div class="plan'));
+const between = (html, from, to) => {
+  const at = html.indexOf(from);
+  return html.slice(at, html.indexOf(to, at));
+};
+const headOf = html => between(html, '<div class="head">', '<div class="plan');
 
 test('a one-graph file draws no sheet control', () => {
   // A control that does nothing is worse than no control, so a file with one
@@ -817,6 +940,48 @@ test('the page reads its graph through an accessor, not off the file root', () =
   const body = template.slice(template.indexOf('function start()'));
   assert.doesNotMatch(body, /PROG\.presets/);
   assert.doesNotMatch(body, /PROG\.entry/);
+});
+
+/** The plan pane's markup, and the rail head's, sliced out of the page for the
+ *  reason headOf gives: only the markup can say where a control is. */
+const planOf = html => between(html, '<div class="plan"', '<div class="side"');
+const railHeadOf = html => between(html, '<div class="side-head"', '<div class="blk"');
+
+test('no tool sits on the plan pane: the drawing and the tree own all of it', () => {
+  // A block laid over the pane cost the drawing a pan to clear a node, and
+  // cost the tree — which has no pan — rows it could never show. Laid in flow
+  // above the tree it left a band of empty space instead. So no tool lives on
+  // the pane at all, and neither view has a corner to hide under.
+  //
+  // A limit, stated: this reads the markup the page ships. The layer buttons
+  // are built at run time, into #layerGrp, and the test below holds that
+  // #layerGrp is in the rail head.
+  const plan = planOf(pageOf(layeredFlightpath));
+  assert.match(plan, /id="canvas"/);
+  assert.match(plan, /id="tree"/);
+  assert.doesNotMatch(plan, /<(button|select|input|label)\b/, 'no control on the pane');
+});
+
+test("the tools are the rail head's rows: zoom, layer, view, then the holds", () => {
+  // One table of the controls that change how the sheet is read, with the
+  // holds as its last row. A row per tool, keyed down the left.
+  const head = railHeadOf(pageOf(layeredFlightpath));
+  const keys = [...head.matchAll(/class="grp-k[^"]*"[^>]*>([^<]+)</g)].map(m => m[1]);
+  assert.deepEqual(keys, ['zoom', 'layer', 'view', 'hold']);
+  const ids = ['zoomOut', 'zoomFit', 'zoomIn', 'scaleNow', 'layerGrp', 'viewPlan', 'viewTree', 'holdEffect', 'holdError'];
+  const at = ids.map(id => head.indexOf(`id="${id}"`));
+  ids.forEach((id, i) => assert.ok(at[i] >= 0, `${id} is in the rail head`));
+  assert.deepEqual(at.slice().sort((a, b) => a - b), at, 'in reading order');
+});
+
+test('a help note is never wider than the window less its margins', () => {
+  // The module keeps a note inside the window only if the note fits in it.
+  // The fold tests hold the placement; this holds the width it relies on,
+  // which is the stylesheet's to cap before the page measures the note.
+  const html = pageOf(exampleFlightpath);
+  const rule = html.match(/\.tip \{([^}]*)\}/);
+  assert.ok(rule, 'the page styles its help note');
+  assert.match(rule[1], /max-width:\s*min\([^;]*100vw/, 'capped by the window, not by its text alone');
 });
 
 test('the page contains no dynamic code evaluation', () => {
@@ -986,8 +1151,8 @@ test('the files tab names its groups and says what its marks mean', () => {
   // string — tests/groundtrack-fold.test.mjs holds it, against the same
   // function the tab calls.
   const html = pageOf(layeredFlightpath);
-  assert.match(html, /in the change, on no node of this sheet/);
-  assert.match(html, /N new, E edit, D delete, F forbidden/, 'the tab says what the marks mean');
+  assert.match(html, /every file in the change/);
+  assert.match(html, /new, modified, deleted or forbidden/, 'the tab says what the change kinds are');
 });
 
 test('the escape is pinned at its width, both what it does and what it does not', () => {
@@ -1113,3 +1278,4 @@ test('a file that is not JSON is refused before anything else', () => {
   assert.equal(r.code, 2);
   assert.match(r.stderr, /cannot read /);
 });
+
