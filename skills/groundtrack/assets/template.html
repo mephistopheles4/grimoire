@@ -1141,11 +1141,15 @@ function start() {
         : outcome === 'landed' ? ' av-code-site--caught'
         : '';
     }
-    const key = open + '#' + i;
-    const site = st.sites[key];
-    if (!site || !site.entered) return '';
+    /* SUMMED OVER EVERY PATH THAT REACHED THIS STEP. A listing is one node's
+     * source and not one path through the graph, so this asks by node and
+     * step. The fold's own table is keyed by the path from the entry — a step
+     * the tree draws under two different callers is two entries there and one
+     * line here, and `callCounts` is what puts them back together. */
+    const site = Groundtrack.callCounts(st, open, i);
+    if (!site.entered) return '';
     /* Still on the stack: the call has an outcome later, not now. */
-    if (st.frames.some(function (f) { return f.site === key; })) return '';
+    if (site.open) return '';
     /* EVERY entry came back, not merely one of them. A site is one line of
      * source, and a walk can run that line more than once — a loop, a retry.
      * `returned > 0` would call a site that went in twice and came back once

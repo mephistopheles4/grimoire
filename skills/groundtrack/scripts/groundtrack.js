@@ -53,6 +53,21 @@ const Groundtrack = (() => {
   /** `bare()` seeded from entries, for the tables built in one go. */
   const bareFrom = entries => Object.assign(bare(), Object.fromEntries(entries));
 
+  /** A frame's chain of call sites from the entry, as one table key.
+   *
+   *  A link is one call site, `caller#step`, and that names one line of
+   *  source. It does NOT name one place in the tree: a subtree drawn twice
+   *  puts the same link under both copies. The chain from the entry does name
+   *  one place, which is why the tree keys by this and not by the last link.
+   *
+   *  Neither half of a link can hold the separator: an id is letters, digits
+   *  and hyphens by `ID` above, and a step is an array index because
+   *  `render.mjs` refuses a move whose `at` is not a number. So a chain splits
+   *  back into its links unambiguously — on an invariant enforced outside this
+   *  function, and half of it outside this file. */
+  const chainKey = chain => chain.join('/');
+  const chainLinks = key => key.split('/');
+
   /** Rebuild a parsed file's author-keyed maps with no prototype.
    *
    * The tables this module builds are `bare()` by construction. **The biggest
@@ -343,8 +358,15 @@ const Groundtrack = (() => {
 
     /* A walk begins in the entry node with the cursor at zero. No move says
      * so, so the seed state does. The entry frame's site is the root: it was
-     * pushed by nothing, and the tree hangs its top row off this key. */
-    let frames = [{ nodeId: prog.entry, pc: 0, callAt: undefined, site: '@entry' }];
+     * pushed by nothing, and the tree hangs its top row off this key.
+     *
+     * A frame carries its site TWICE, and the two answer different questions.
+     * `site` is the call step that pushed it, `caller#step`. `chain` is every
+     * site from the entry down to it. A step names one line of source and is
+     * what the cutaway asks about; a chain names one path through the graph
+     * and is what the tree asks about. They differ exactly when one subtree is
+     * drawn more than once, which is the case `site` alone cannot read. */
+    let frames = [{ nodeId: prog.entry, pc: 0, callAt: undefined, site: '@entry', chain: ['@entry'] }];
     let ledger = [];
     let visited = [prog.entry];
     let edges = [];
@@ -355,7 +377,11 @@ const Groundtrack = (() => {
      * on the catch, the frames that raised and unwound are gone. The entry for
      * an error reaching the top names neither. */
     let errorPath = [];
-    let sites = {}; /* site key -> { entered, returned, effects: { "node[at]": outcome } } */
+    /* BY PATH FROM THE ENTRY, which is what the tree reads. A chain key is the
+     * frame's chain joined: `@entry/greet#0/loadProfile#1`. No node id can hold
+     * the separator — an id is letters, digits and hyphens — so a chain splits
+     * back into its links unambiguously. */
+    let sites = bare(); /* chain key -> { entered, returned, effects: { "node[at]": outcome } } */
     /* The same marks again, keyed by node rather than by call site. The tree
      * shows one row per call site and wants the first; the drawing shows one
      * box per node and wants the second. Without this the drawing loses a
@@ -364,11 +390,10 @@ const Groundtrack = (() => {
     let nodeEffects = {};
     let ended = null;
 
-    const clone = () => frames.map(f => ({ ...f }));
-    const siteOf = f => f.site;
-    const touch = key => (sites[key] = sites[key] || { entered: 0, returned: 0, effects: {} });
+    const clone = () => frames.map(f => ({ ...f, chain: f.chain.slice() }));
+    const touch = chain => (sites[chainKey(chain)] = sites[chainKey(chain)] || { entered: 0, returned: 0, effects: bare() });
 
-    touch('@entry').entered = 1;
+    touch(['@entry']).entered = 1;
 
     const states = [
       {
@@ -394,7 +419,7 @@ const Groundtrack = (() => {
         const gone = frames.pop();
         if (gone) {
           moved = { from: gone.nodeId, to: frames.length ? frames[frames.length - 1].nodeId : null, dir: 'unwind' };
-          errorPath = errorPath.concat([{ nodeId: gone.nodeId, site: gone.site, how: 'passed through' }]);
+          errorPath = errorPath.concat([{ nodeId: gone.nodeId, site: gone.site, chain: gone.chain.slice(), how: 'passed through' }]);
         }
       } else if (m.k === 'done') {
         frames = [];
@@ -420,8 +445,9 @@ const Groundtrack = (() => {
              * already past it by now. */
             top.callAt = m.at;
             const key = `${top.nodeId}#${m.at}`;
-            touch(key).entered += 1;
-            frames.push({ nodeId: m.to, pc: 0, callAt: undefined, site: key });
+            const chain = top.chain.concat([key]);
+            touch(chain).entered += 1;
+            frames.push({ nodeId: m.to, pc: 0, callAt: undefined, site: key, chain });
             if (!visited.includes(m.to)) visited.push(m.to);
             edges = edges.concat([`${top.nodeId}>${m.to}`]);
             moved = { from: top.nodeId, to: m.to, dir: 'call' };
@@ -429,7 +455,7 @@ const Groundtrack = (() => {
           }
           case 'effect': {
             const outcome = m.raised !== undefined ? 'failed' : 'landed';
-            touch(siteOf(top)).effects[`${top.nodeId}[${m.at}]`] = outcome;
+            touch(top.chain).effects[`${top.nodeId}[${m.at}]`] = outcome;
             nodeEffects = { ...nodeEffects, [`${top.nodeId}[${m.at}]`]: outcome };
             ledger = ledger.concat([
               {
@@ -444,22 +470,22 @@ const Groundtrack = (() => {
               },
             ]);
             if (m.raised !== undefined) {
-              errorPath = [{ nodeId: top.nodeId, site: top.site, how: 'raised', tag: m.raised.tag, message: m.raised.message, channel: m.raised.channel }];
+              errorPath = [{ nodeId: top.nodeId, site: top.site, chain: top.chain.slice(), how: 'raised', tag: m.raised.tag, message: m.raised.message, channel: m.raised.channel }];
             } else {
               top.pc = m.next;
             }
             break;
           }
           case 'throw':
-            errorPath = [{ nodeId: top.nodeId, site: top.site, how: 'thrown', tag: m.tag, message: m.message, channel: m.channel }];
+            errorPath = [{ nodeId: top.nodeId, site: top.site, chain: top.chain.slice(), how: 'thrown', tag: m.tag, message: m.message, channel: m.channel }];
             break;
           case 'handled':
             top.pc = m.next;
-            errorPath = errorPath.concat([{ nodeId: top.nodeId, site: top.site, how: 'caught', goto: m.goto }]);
+            errorPath = errorPath.concat([{ nodeId: top.nodeId, site: top.site, chain: top.chain.slice(), how: 'caught', goto: m.goto }]);
             break;
           case 'return': {
             const gone = frames.pop();
-            if (gone) touch(siteOf(gone)).returned += 1;
+            if (gone) touch(gone.chain).returned += 1;
             if (frames.length) {
               frames[frames.length - 1].callAt = undefined;
               moved = { from: gone.nodeId, to: frames[frames.length - 1].nodeId, dir: 'return' };
@@ -690,73 +716,148 @@ const Groundtrack = (() => {
    *  so the two cannot drift apart on the only thing they share. */
   const ERROR_POSITION = Object.freeze({ raised: 'raised', thrown: 'raised', 'passed through': 'passed', caught: 'caught' });
 
+  /** What one CALL STEP did, summed over every path that reached it.
+   *
+   *  The cutaway lists one node's source and marks each call line by what the
+   *  walk did with it. It asks about a node and a step index and holds no
+   *  path, because a listing of one node is not a path through the graph — so
+   *  it cannot read the fold's table, which is keyed by the chain from the
+   *  entry. A step the tree draws in two places is one line of source here,
+   *  and its answer is both places together.
+   *
+   *  This lives in the module rather than in the template for the reason
+   *  SECURITY.md gives: a function inside the page is a function no test can
+   *  reach. The page keeps the classes it paints from these counts; the words
+   *  for a walk's state are the tree's and are not invented here.
+   */
+  function callCounts(state, nodeId, at) {
+    const step = `${nodeId}#${at}`;
+    const out = { entered: 0, returned: 0, open: false };
+    for (const key of Object.keys(state.sites)) {
+      if (chainLinks(key).pop() !== step) continue;
+      out.entered += state.sites[key].entered;
+      out.returned += state.sites[key].returned;
+    }
+    out.open = state.frames.some(f => f.site === step);
+    return out;
+  }
+
   function treeRows(prog, walk, layerName, atIndex, states) {
     const all = states || fold(prog, walk);
     const end = all[atIndex === undefined ? all.length - 1 : atIndex];
-    const openSites = new Set(end.frames.map(f => f.site));
     const layer = (prog.layers || {})[layerName];
     /* One table for the whole file, computed once here and carried on every
      * row, so the tree on the page and the tree in a reply read the same tag
      * the same way. */
     const kinds = failureKinds(prog);
-    const rows = [];
 
-    const markOf = (siteKey, nodeId, at) => {
-      const s = end.sites[siteKey];
-      if (!s || !s.entered) return 'not reached';
-      return s.effects[`${nodeId}[${at}]`] || 'not reached';
-    };
-    const stateOf = siteKey => {
-      const s = end.sites[siteKey];
-      if (!s || !s.entered) return 'not reached';
-      if (openSites.has(siteKey)) return 'on stack';
-      return 'returned';
-    };
+    /* THE ROWS THE TREE DRAWS, and the chain each one stands for. Walked
+     * before any mark is read, because which row a mark belongs to is a
+     * question about the whole set of rows and cannot be answered one row at
+     * a time. A repeated node is drawn once more and stopped, or a cycle never
+     * terminates — so the walk can run deeper than the rows go. */
+    const drawn = [];
+    (function walkNode(id, chain, depth, path, site) {
+      const node = prog.nodes[id];
+      if (!node) return;
+      const repeat = path.includes(id);
+      drawn.push({ id, node, chain, depth, site, repeat, entered: 0, returned: 0, effects: bare(), open: false, how: [] });
+      if (repeat) return;
+      for (const s of callSites(node)) {
+        if (!prog.nodes[s.target]) continue;
+        walkNode(s.target, chain.concat([`${id}#${s.at}`]), depth + 1, path.concat([id]), s);
+      }
+    })(prog.entry, ['@entry'], 0, [], null);
 
-    /* WHICH open frame is the one running. `state` says a site is on the
-     * stack; it does not say whether the walk is in it or merely under it,
-     * and on a deep stack that is most of the rows. A separate boolean and
-     * not a fourth `state`, for the reason the error position is separate:
-     * `state` is what --text prints and what the checks read, and a value
-     * they have never seen would change both. The page spends it on rule
-     * weight — the running frame keeps full ink, the ones waiting under it
-     * take the system's state rule.
+    const rowOf = new Map(drawn.map((r, i) => [chainKey(r.chain), i]));
+
+    /* WHICH ROW SPEAKS FOR A CHAIN. Its own row where the tree draws one, and
+     * otherwise the row whose chain is the longest prefix of it.
      *
-     * It reads the same `caller#step` key `state` and the effect marks read,
-     * so it inherits their limit and does not add one: two copies of a subtree
-     * share a key, and a frame open under one copy reads as open under both.
-     * That is #82, and it is the next case down from the one #79 tested. */
-    const topSite = end.frames.length ? end.frames[end.frames.length - 1].site : null;
-
-    /* Where each call site stands on the error path at the cursor: raised or
-     * thrown, passed through, caught. A second signal beside `state` and not a
-     * fourth value of it, because a row can be on the stack and on the path at
-     * once — the frame that catches is still open.
+     * For a tree with no repeat every chain has a row and the rule never
+     * fires. It fires under recursion, where the walk runs below the last row
+     * drawn: those frames' marks land on the repeat row, which is where the
+     * tree stopped. Dropping them instead would lose them from every view at
+     * once, the drawing having no way to show a cycle at all (#88).
      *
-     * Matched by the site each entry carries, never by its node. A node called
+     * A chain under a callee the file never defines lands the same way, on the
+     * nearest drawn ancestor, because the tree skips a call to a node it has
+     * no definition for. */
+    const speaksFor = chain => {
+      for (let n = chain.length; n > 0; n -= 1) {
+        const i = rowOf.get(chainKey(chain.slice(0, n)));
+        if (i !== undefined) return i;
+      }
+      return undefined;
+    };
+
+    /* Every signal a row carries, gathered onto the row that speaks for it.
+     * One pass per source, so a chain is attributed once and the four signals
+     * cannot disagree about which row it belongs to. */
+    for (const key of Object.keys(end.sites)) {
+      const i = speaksFor(chainLinks(key));
+      if (i === undefined) continue;
+      drawn[i].entered += end.sites[key].entered;
+      drawn[i].returned += end.sites[key].returned;
+      /* A FAILURE IS NEVER OVERWRITTEN BY A SUCCESS. Where several chains land
+       * on one row — a recursion running below the drawn rows — two frames can
+       * mark the same step with different outcomes, and the row has one mark to
+       * show for both. Taking the last one written would take the deepest
+       * frame, which is an accident of the order the fold entered them: the row
+       * would report a clean record beside its own raised stripe and contradict
+       * itself on one line. The failure is the half a reader must not lose. */
+      for (const at of Object.keys(end.sites[key].effects)) {
+        if (drawn[i].effects[at] === 'failed') continue;
+        drawn[i].effects[at] = end.sites[key].effects[at];
+      }
+    }
+    for (const f of end.frames) {
+      const i = speaksFor(f.chain);
+      if (i !== undefined) drawn[i].open = true;
+    }
+
+    /* WHICH open frame is the one running. `state` says a row is on the stack;
+     * it does not say whether the walk is in it or merely under it, and on a
+     * deep stack that is most of the rows. A separate boolean and not a fourth
+     * `state`, for the reason the error position is separate: `state` is what
+     * --text prints and what the checks read, and a value they have never seen
+     * would change both. The page spends it on rule weight — the running frame
+     * keeps full ink, the ones waiting under it take the system's state rule.
+     *
+     * Read through `speaksFor` like every other signal. Where a recursion runs
+     * below the drawn rows that makes the repeat row the row the walk is in,
+     * which is the honest answer: the walk is somewhere inside that subtree,
+     * and the repeat row is the row that speaks for it. Two open frames can
+     * land on one row that way, and it is still one row. */
+    const topRow = end.frames.length ? speaksFor(end.frames[end.frames.length - 1].chain) : undefined;
+
+    /* Where each row stands on the error path at the cursor: raised or thrown,
+     * passed through, caught. A second signal beside `state` and not a fourth
+     * value of it, because a row can be on the stack and on the path at once —
+     * the frame that catches is still open.
+     *
+     * Matched by the chain each entry carries, never by its node. A node called
      * from three sites is three rows, and at most one of them is the frame the
-     * error crossed. The site is the fold's key, `caller#step`, so it tells two
-     * call steps apart and does not tell apart two copies of one subtree: a
-     * node whose *caller* the tree shows twice is marked under both. That is
-     * the same key `state` reads, and the same limit.
+     * error crossed; a node whose CALLER is drawn twice is two rows, and the
+     * same holds. The chain tells both apart, which `caller#step` could not.
      *
      * The frame an error starts in is on the fold's path twice — it raised,
      * then it unwound — and only the first is a position. The row where the
      * error started says so; `passed through` is for the frames it crossed. A
      * frame that raises and catches its own error says both, in path order.
      *
-     * The entry for an error reaching the top names no site, so it matches no
+     * The entry for an error reaching the top names no chain, so it matches no
      * row and makes none. Nor do the frames still open when it gets there:
      * nothing unwound them, so the fold did not put them on the path. */
-    const onPath = bare();
     for (const e of end.errorPath) {
-      if (e.site === undefined) continue;
-      const how = (onPath[e.site] = onPath[e.site] || []);
-      if (!how.includes(e.how)) how.push(e.how);
+      if (e.chain === undefined) continue;
+      const i = speaksFor(e.chain);
+      if (i === undefined) continue;
+      if (!drawn[i].how.includes(e.how)) drawn[i].how.push(e.how);
     }
-    const errorOf = siteKey => {
-      const how = onPath[siteKey];
-      if (!how) return null;
+    const errorOf = r => {
+      const how = r.how;
+      if (!how.length) return null;
       const started = how.some(h => ERROR_POSITION[h] === 'raised');
       return { how: started ? how.filter(h => h !== 'passed through') : how.slice(), tag: end.errorPath[0].tag };
     };
@@ -769,45 +870,40 @@ const Groundtrack = (() => {
      *
      * Read from `error.how` and never from `end.errorPath` directly. The fold
      * puts the frame that started an error on the path twice — thrown, then
-     * passed through as it unwinds — so the last RAW entry for that site says
+     * passed through as it unwinds — so the last RAW entry for that row says
      * "passed through" and the row that threw would lose its mark. `errorOf`
      * has already dropped that second entry, which is the whole reason it
      * filters. */
     const pathOf = error => (error ? error.how[error.how.length - 1] : null);
 
-    (function walkNode(id, siteKey, depth, path, site) {
-      const node = prog.nodes[id];
-      if (!node) return;
-      const repeat = path.includes(id);
-      const ch = node.channels || {};
-      const rename = layer && layer.nodes && layer.nodes[id] ? layer.nodes[id].R : null;
-      const error = errorOf(siteKey);
-      rows.push({
-        depth,
-        id,
-        name: node.name,
-        role: node.role,
+    return drawn.map((r, i) => {
+      const ch = r.node.channels || {};
+      const rename = layer && layer.nodes && layer.nodes[r.id] ? layer.nodes[r.id].R : null;
+      const error = errorOf(r);
+      const reached = r.entered > 0;
+      return {
+        depth: r.depth,
+        id: r.id,
+        name: r.node.name,
+        role: r.node.role,
         A: ch.A,
         E: (ch.E || []).slice(),
         kinds: (ch.E || []).reduce((m, t) => (kinds[t] ? ((m[t] = kinds[t].slice()), m) : m), bare()),
         R: (ch.R || []).slice(),
         rename: rename ? rename.slice() : null,
-        site: site ? { label: site.label, aside: site.aside } : null,
-        state: stateOf(siteKey),
-        top: siteKey === topSite,
+        site: r.site ? { label: r.site.label, aside: r.site.aside } : null,
+        state: !reached ? 'not reached' : r.open ? 'on stack' : 'returned',
+        top: i === topRow,
         error,
         path: pathOf(error),
-        effects: effectsOf(node).map(e => ({ kind: e.kind, desc: e.desc, mark: markOf(siteKey, id, e.at) })),
-        repeat,
-      });
-      if (repeat) return;
-      for (const s of callSites(node)) {
-        if (!prog.nodes[s.target]) continue;
-        walkNode(s.target, `${id}#${s.at}`, depth + 1, path.concat([id]), s);
-      }
-    })(prog.entry, '@entry', 0, [], null);
-
-    return rows;
+        effects: effectsOf(r.node).map(e => ({
+          kind: e.kind,
+          desc: e.desc,
+          mark: (reached && r.effects[`${r.id}[${e.at}]`]) || 'not reached',
+        })),
+        repeat: r.repeat,
+      };
+    });
   }
 
   /** Files in the change that no node touches, in the order the change states
@@ -1011,6 +1107,6 @@ const Groundtrack = (() => {
     return best;
   }
 
-  return { esc, ID, bare, hardenKeys, KINDS, ERROR_POSITION, graphView, sheetState, sheetPickerMarkup, sheetFactsMarkup, reachable, labelsOf, callSites, calleesOf, effectsOf, failureKinds, tagFate, complexityOf, fold, back, tipAt, cutEdges, layout, treeRows, unaccountedFiles, filesOf, fileTree, filesMarkup, suggestRun, renamedToken };
+  return { esc, ID, bare, hardenKeys, KINDS, ERROR_POSITION, graphView, sheetState, sheetPickerMarkup, sheetFactsMarkup, reachable, labelsOf, callSites, calleesOf, effectsOf, failureKinds, tagFate, complexityOf, fold, back, tipAt, cutEdges, layout, callCounts, treeRows, unaccountedFiles, filesOf, fileTree, filesMarkup, suggestRun, renamedToken };
 })();
 if (typeof module !== 'undefined') module.exports = Groundtrack;
