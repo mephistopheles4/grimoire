@@ -27,7 +27,7 @@ export const layeredFlightpath = join(examples, 'pr-313.flightpath.json');
  * then by alias. The error always starts at the second site, so the first one
  * is the row an id-keyed match would wrongly mark. Two runs:
  *
- * - "the alias is missing": lookupName throws NoSuchUser, it unwinds through
+ * - "the alias is missing": lookupName throws NoSuchUser, it propagates through
  *   loadProfile, and greet's call step catches it.
  * - "the store is down": the lookup's effect raises StoreDown, which greet
  *   does not catch, so it reaches the top. The validator refuses an uncaught
@@ -151,7 +151,7 @@ export function errorPastTwoSites(prog) {
  * Derived, never shipped, for the reason `errorPastTwoSites` is. Unlike that
  * one this is read only through the module, never rendered, so its walk is
  * never put to the validator — which is why it may stop on an unresolved raise
- * with no `unwind` and no `uncaught` after it. Render it and that would have to
+ * with no `propagate` and no `uncaught` after it. Render it and that would have to
  * change. Mutates and returns the program it is given.
  */
 export function repeatedSubtree(prog) {

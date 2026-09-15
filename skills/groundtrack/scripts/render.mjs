@@ -364,7 +364,7 @@ function path(prog, gi, pi, r) {
     }
     if (m.k === 'done') {
       if (frames.length) bad(i, `done arrived with ${frames.length} frame(s) still open`);
-      if (raised) bad(i, `done arrived while "${raised.tag}" was still travelling (raised at move ${raised.from}) — an error ends in a catch or at the top, and not by the walk stopping`);
+      if (raised) bad(i, `done arrived while "${raised.tag}" was still travelling (raised at move ${raised.from}) — an error ends in a catch or at the top, and not by the trace stopping`);
       frames.length = 0;
       return;
     }

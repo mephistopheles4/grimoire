@@ -237,7 +237,7 @@ const cases = [
     const m = runs(p)[0].trace.steps.find(x => x.k === 'effect');
     m.raised = { tag: 'X', message: 'y', cause: 'die' };
   }, /an effect carries next or raised, never both/],
-  ['a handled catch its step does not declare', p => {
+  ['a catch its step does not declare', p => {
     const m = runs(p)[1].trace.steps.find(x => x.k === 'catch');
     m.goto = 'named';
     m.next = 3;
@@ -255,11 +255,11 @@ const cases = [
     const w = runs(p)[2].trace.steps;
     w[w.length - 1].tag = 'SomethingElse';
   }, /"SomethingElse" reached the top, but the error travelling is "SendFailed"/],
-  ['a handled that catches nothing', p => {
+  ['a catch that catches nothing', p => {
     const w = runs(p)[0].trace.steps;
     w.splice(2, 0, { k: 'catch', at: 1, goto: 'plain', next: 5 });
   }, /catch at 1 catches nothing — no move before it raised/],
-  ['a handled whose goto is declared for another tag', p => {
+  ['a catch whose goto is declared for another tag', p => {
     p.nodes.greet.steps[1].onError.push({ tag: 'Other', goto: 'named' });
     const w = runs(p)[1].trace.steps;
     const m = w.find(x => x.k === 'catch');
@@ -267,8 +267,8 @@ const cases = [
     m.next = 3;
   }, /which greet declares for "Other", and the error travelling is "NoSuchUser"/],
   ['a return that discards a travelling error', p => {
-    // "no such user": the callee throws, its frame unwinds, and the caller
-    // catches. Drop the catch and let the caller return instead, and the walk
+    // "no such user": the callee throws, its frame propagates, and the caller
+    // catches. Drop the catch and let the caller return instead, and the trace
     // has thrown an error away with no catch and no top.
     const w = runs(p)[1].trace.steps;
     const at = w.findIndex(x => x.k === 'catch');
@@ -278,14 +278,14 @@ const cases = [
     const w = runs(p)[2].trace.steps;
     w.splice(w.length - 1, 1, { k: 'done' });
   }, /done arrived while "SendFailed" was still travelling/],
-  ['a walk that ends while an error is still travelling', p => {
-    // The last move unwinds the last frame. No frame is open, so the
+  ['a trace that ends while an error is still travelling', p => {
+    // The last move propagates the last frame. No frame is open, so the
     // frames-still-open rule is content, and the error has nowhere left to go.
     only(p).presets = [runs(p)[2]];
     const w = runs(p)[0].trace.steps;
     w.splice(w.length - 1, 1, { k: 'propagate' });
   }, /the trace ended while "SendFailed" was still travelling/],
-  ['a walk that ends with a frame open', p => {
+  ['a trace that ends with a frame open', p => {
     // Drop the entry frame's return and the done that followed it.
     const w = runs(p)[0].trace.steps;
     w.splice(w.length - 2, 2);
@@ -344,6 +344,22 @@ test('a die that leaves a node is not in that node\'s error list', () => {
   const r = check(file);
   assert.equal(r.code, 1, r.stdout);
   assert.match(r.stderr, /move 9: "SendFailed" is a die and leaves greet, but greet's error list names it — a die is never in the list/);
+});
+
+test('a fail that leaves a node by propagate is in that node\'s error list', () => {
+  // "a known user": the db.get effect inside lookupName raises instead of
+  // returning. A propagate pops the lookupName frame before the uncaught at
+  // the top pops greet's — so this exercises the leaves() call on propagate,
+  // not the one on uncaught that the other tests above already cover.
+  const file = derive(prog => {
+    const w = runs(prog)[0].trace.steps;
+    w[2] = { k: 'effect', at: 0, kind: 'db.get', desc: 'read the name row', raised: { tag: 'StoreDown', message: 'store down', cause: 'fail' } };
+    w.splice(3, w.length - 3, { k: 'propagate' }, { k: 'uncaught', tag: 'StoreDown', message: 'store down', cause: 'fail' });
+    prog.nodes.greet.channels.error.push('StoreDown');
+  });
+  const r = check(file);
+  assert.equal(r.code, 1, r.stdout);
+  assert.match(r.stderr, /move 3: "StoreDown" is a fail and leaves lookupName, but lookupName's error list does not name it/);
 });
 
 test('catching a die is legal, and worth seeing', () => {

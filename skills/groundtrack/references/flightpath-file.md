@@ -159,7 +159,7 @@ Every `throw` step, `raised` object and `uncaught` move carries a `cause`.
 
 - A node that throws a fail names the tag in its `error` list.
 - A node that throws a die does not name the tag there.
-- A fail that leaves a node uncaught is in that node's `error` list.
+- A fail that leaves a node, by `propagate` or at the top, is in that node's `error` list.
 - A die that leaves a node is not in that node's `error` list.
 
 The validator refuses each break of these rules. A handler for a die is legal, and `--check` reports it as a finding.
@@ -301,14 +301,14 @@ route to the `throw` step. Both are ordinary, and the tape tells them apart.
 
 Read it as: the entry frame runs a `var` and then calls, parking its own cursor
 at 2. The callee enters at zero, its effect throws, and the callee's frame
-propagates. The entry frame's call step declared a handler, so the error is caught
-there and the cursor lands on the step labelled `warn`. The entry frame returns,
-and the trace is done with no frame open.
+propagates. The entry frame's call step declares a handler, so it catches the
+error there. The cursor lands on the step labelled `warn`. The entry frame
+returns, and the trace is done with no frame open.
 
 ## What the validator proves
 
-It proves the trace is a **legal path**, and it evaluates nothing. A trace is
-proved against the graph it belongs to, entering at that graph's entry.
+It proves the trace is a **legal path**, and it evaluates nothing. The validator
+proves a trace against the graph it belongs to, entering at that graph's entry.
 
 - Every `at` indexes a real step of the frame's node, and equals the cursor.
 - Every `next` indexes a real step of the same node.
@@ -327,8 +327,8 @@ proved against the graph it belongs to, entering at that graph's entry.
   throwing effect start one; a propagate keeps it; a catch and an uncaught
   end it. So the validator refuses a `propagate` with nothing thrown. It
   refuses a `catch` that catches nothing. It refuses an `uncaught` whose tag is
-  not the one travelling. A `catch` is also refused when the `onError` entry
-  it names was declared for some other tag.
+  not the one travelling. It also refuses a `catch` whose named `onError`
+  entry declares a different tag.
 - **While an error is travelling, only the moves that carry it may run.** A
   `return` that discards the error, and a `done` that arrives while it is
   still moving, are both refused. **An error is caught, or it reaches the
@@ -361,9 +361,9 @@ person should not have to do:
 greet.flightpath.json: graphs[1].presets[0].trace.steps[4]: graph "panel-apply", run "a known user", move 4: call to "greet", but step 0 targets "lookupName"
 ```
 
-**A fault in the file's shape prints the path alone.** It is refused before any
-trace is read, so there is no run and no move to name, and a refusal never names
-one that does not exist.
+**A fault in the file's shape prints the path alone.** The validator refuses it
+before it reads any trace, so there is no run and no move to name. A refusal
+never names one that does not exist.
 
 ## layers
 

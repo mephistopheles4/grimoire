@@ -259,7 +259,7 @@
         },
         {
           "name": "no such user",
-          "blurb": "The lookup returns no row, an if routes to the throw, and the handler catches. This is a failure the code inspects and raises itself.",
+          "blurb": "The lookup returns no row, an if routes to the throw, and the handler catches. This is a failure the code inspects and throws itself.",
           "input": {
             "userId": "u-404"
           },
@@ -335,7 +335,7 @@
         },
         {
           "name": "the post fails",
-          "blurb": "The effect itself raises. It carries no next, and a raise follows it. Nothing catches it.",
+          "blurb": "The effect itself throws. It carries no next, and an uncaught follows it. Nothing catches it.",
           "input": {
             "userId": "u-1"
           },

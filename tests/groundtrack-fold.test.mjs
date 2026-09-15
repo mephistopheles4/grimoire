@@ -459,7 +459,7 @@ test('a return pops the frame and clears the caller from its call', () => {
   assert.equal(s[i + 1].frames[0].callAt, undefined);
 });
 
-test('an unwind pops the frame and keeps the error travelling', () => {
+test('a propagate pops the frame and keeps the error travelling', () => {
   const walk = runNamed(greet, 'no such user').trace;
   const s = G.fold(greet, walk);
   const i = walk.steps.findIndex(m => m.k === 'propagate');
@@ -506,7 +506,7 @@ test('a failing effect is one move, and it lands in the ledger as threw', () => 
   assert.deepEqual(end.frames, []);
 });
 
-test('a handled catch moves the cursor and records the catch on the error path', () => {
+test('a catch moves the cursor and records the catch on the error path', () => {
   const walk = runNamed(greet, 'no such user').trace;
   const s = G.fold(greet, walk);
   const i = walk.steps.findIndex(m => m.k === 'catch');
@@ -516,7 +516,7 @@ test('a handled catch moves the cursor and records the catch on the error path',
 
 test('every error-path entry that names a node carries the call site of its frame', () => {
   // An entry names a node, and the tree is one row per call site. By the time
-  // the cursor sits on the catch, the frames that threw and unwound are popped,
+  // the cursor sits on the catch, the frames that threw and propagated are popped,
   // so the site cannot be recovered afterwards: the fold has to write it down
   // while it holds the frame.
   const walk = runNamed(greet, 'no such user').trace;
@@ -935,8 +935,8 @@ test('a jump backward is a loop, and a node with no fork has one path', () => {
 /* -- the failure kind ----------------------------------------------------- */
 
 test('the kind table reads the throw steps and the raised moves of the whole file', () => {
-  // greet's lookupName throws NoSuchUser as an escape. Nothing throws
-  // SendFailed anywhere; one walk raises it from an effect, as a retry. Both
+  // greet's lookupName throws NoSuchUser as a fail. Nothing throws
+  // SendFailed anywhere; one trace raises it from an effect, as a fail. Both
   // reach the table, because both are what the file says.
   // Spread to compare, because the table has no prototype on purpose — see
   // the tag named after a property of every object, below.
@@ -950,22 +950,22 @@ test('a tag the file gives no kind for is absent from the table, so the row prin
 });
 
 test('a handler is not a source of a kind', () => {
-  // An onError entry names the tag it catches and no channel. It says where a
+  // An onError entry names the tag it catches and no cause. It says where a
   // failure stops, never what kind of failure it was. greet declares a handler
   // for NoSuchUser and throws nothing; take lookupName's throw away and the
   // tag has no kind left, however many handlers name it.
   const prog = JSON.parse(JSON.stringify(greet));
   prog.nodes.lookupName.steps = prog.nodes.lookupName.steps.filter(s => s.op !== 'throw');
-  // The kind is file-wide, so the walks are cleared where the file keeps them.
-  // Emptying the view's own `presets` would leave every graph's walks in place
-  // and the table would still find the raise.
+  // The kind is file-wide, so the traces are cleared where the file keeps them.
+  // Emptying the view's own `presets` would leave every graph's traces in place
+  // and the table would still find the raised effect.
   for (const g of prog.graphs) g.presets = [];
   prog.presets = [];
   assert.deepEqual({ ...G.failureKinds(prog) }, {});
 });
 
 test('a throw move is not a source of a kind — the step it ran is', () => {
-  // The move repeats the step's channel, so reading both would be reading one
+  // The move repeats the step's cause, so reading both would be reading one
   // fact twice. Contradict them and the step is what the table says. The
   // validator refuses this file; the module is asked directly, which is what
   // makes the source of the fact visible.
@@ -974,9 +974,9 @@ test('a throw move is not a source of a kind — the step it ran is', () => {
   assert.deepEqual(G.failureKinds(prog).NoSuchUser, ['fail']);
 });
 
-test('a kind supplied only by another graph\'s walk still reaches this sheet', () => {
+test('a kind supplied only by another graph\'s trace still reaches this sheet', () => {
   // The kind is file-wide, and this is the case that says so. Read per graph,
-  // a tag whose only `raised` lives in a walk of a graph you are not looking
+  // a tag whose only `raised` lives in a trace of a graph you are not looking
   // at loses its kind and prints bare — no error, no failing test, and
   // invisible in every one-graph file that ships. The whole file is one
   // change, so what the change says about a tag holds on every sheet of it.
@@ -986,7 +986,7 @@ test('a kind supplied only by another graph\'s walk still reaches this sheet', (
   for (const m of dies.trace.steps) if (m.k === 'effect' && m.raised) m.raised.cause = 'die';
 
   // Move the fatal reading into a second graph, and leave the first with only
-  // the retry. Read file-wide the tag has both; read per graph it has one.
+  // the fail. Read file-wide the tag has both; read per graph it has one.
   prog.graphs.push({ id: 'second', title: 'a second entry', blurb: 'b', entry: 'lookupName', presets: [dies] });
   assert.deepEqual(G.failureKinds(prog).SendFailed, ['fail', 'die']);
 
@@ -1039,7 +1039,7 @@ test('the tree row carries the kinds of the tags it prints, and nothing else', (
   const callee = rows.find(r => r.id === 'lookupName');
   assert.deepEqual({ ...entry.kinds }, { NoSuchUser: ['fail'], SendFailed: ['fail'] });
   assert.deepEqual({ ...callee.kinds }, { NoSuchUser: ['fail'] });
-  // The E channel is still the list of tags it always was.
+  // The error list is still the list of tags it always was.
   assert.deepEqual(callee.error, ['NoSuchUser']);
 });
 

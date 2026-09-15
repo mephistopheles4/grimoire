@@ -274,7 +274,7 @@
       "steps": [
         {
           "op": "comment",
-          "comment": "E is empty on purpose. A bad species is a VALUE in the A channel, not a throw — see the refusal below."
+          "comment": "The error list is empty on purpose. A bad species is a value the success channel carries, not a throw — see the refusal below."
         },
         {
           "op": "var",
@@ -387,7 +387,7 @@
         },
         {
           "op": "comment",
-          "comment": "Said out loud rather than raised, because a sheet that never arrives looks like a sheet that was never bound. That absorption is why E above is empty."
+          "comment": "Said out loud rather than thrown, because a sheet that never arrives looks like a sheet that was never bound. That absorption is why the error list above is empty."
         },
         {
           "op": "return",
@@ -1542,7 +1542,7 @@
         },
         {
           "name": "the sheet 404s",
-          "blurb": "the load failure is warned, not raised — which is why bindSheet's E channel is empty",
+          "blurb": "the load failure is warned, not thrown — which is why bindSheet's error list is empty",
           "input": {
             "rowCount": 5,
             "settings": {

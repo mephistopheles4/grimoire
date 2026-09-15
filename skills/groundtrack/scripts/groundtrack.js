@@ -704,8 +704,9 @@ const Groundtrack = (() => {
    * stopped, or a cycle never terminates.
    */
 
-  /** The three words the fold writes on the error path, each its own
-   *  position. The tree, the text and the page all sort by this one table. */
+  /** Three of the four words the fold writes on the error path, each its own
+   *  position — `reached the top uncaught` names no node, so it needs none.
+   *  The tree, the text and the page all sort by this one table. */
   const ERROR_POSITION = Object.freeze({ thrown: 'thrown', propagated: 'propagated', caught: 'caught' });
 
   /** What one CALL STEP did, summed over every path that reached it.
