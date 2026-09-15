@@ -163,7 +163,7 @@ const Groundtrack = (() => {
       layout: layout(view),
       run: 0,
       at: 0,
-      states: fold(view, view.presets[0].walk),
+      states: fold(view, view.presets[0].trace),
       layer: layerNames.length ? layerNames[0] : null,
       open: view.entry,
       tab: 'source',
@@ -252,25 +252,25 @@ const Groundtrack = (() => {
 
   const effectsOf = node => (node.steps || []).map((s, i) => ({ ...s, at: i })).filter(s => s.op === 'effect');
 
-  /* -- the failure kind ----------------------------------------------------
+  /* -- the failure cause ---------------------------------------------------
    *
-   * The three kinds a failure can be, in the order they print. A retry is a
-   * blip, a die is a crash, and an escape is between them, so a tag carrying
-   * two reads worst-last.
+   * The two causes a failure can have, in the order they print. A fail is an
+   * expected error a caller handles. A die is a defect, and never part of the
+   * contract.
    */
-  const KINDS = ['retry', 'escape', 'die'];
+  const KINDS = ['fail', 'die'];
 
   /** tag -> the kinds the file gives it, in KINDS order.
    *
    * Two sources, and only two: a `throw` step in the node map, and an effect
-   * move that `raised` in a walk. Both name a channel, and between them they
+   * move that `raised` in a trace. Both name a cause, and between them they
    * are every place the file says what kind of failure a tag is. A tag named
-   * nowhere but an E channel is absent from this table, and prints bare — the
+   * nowhere but an error list is absent from this table, and prints bare — the
    * page does not invent a kind the file never stated.
    *
    * An `onError` handler is not a source. It names the tag it catches and no
-   * channel: it says where a failure stops, never what kind it was. Nor is a
-   * walk's `throw` move, which repeats the channel of the step it ran — one
+   * cause: it says where a failure stops, never what kind it was. Nor is a
+   * trace's `throw` move, which repeats the cause of the step it ran — one
    * fact, written once, read from the step.
    *
    * It is derived rather than declared for the same reason a cut edge is: a
@@ -278,9 +278,9 @@ const Groundtrack = (() => {
    */
   function failureKinds(prog) {
     const seen = bare();
-    const add = (tag, channel) => {
-      if (tag === undefined || !KINDS.includes(channel)) return;
-      (seen[tag] = seen[tag] || new Set()).add(channel);
+    const add = (tag, cause) => {
+      if (tag === undefined || !KINDS.includes(cause)) return;
+      (seen[tag] = seen[tag] || new Set()).add(cause);
     };
     /* `nodes` and `graphs` are core fields the validator requires, so neither
      * is guarded here. A guard could never fire on a file this module is given
@@ -295,11 +295,11 @@ const Groundtrack = (() => {
      * nothing at all on the file, where the field does not exist. A tag that
      * only another graph's walk raises would have printed bare. */
     for (const node of Object.values(prog.nodes)) {
-      for (const s of node.steps || []) if (s.op === 'throw') add(s.tag, s.channel);
+      for (const s of node.steps || []) if (s.op === 'throw') add(s.tag, s.cause);
     }
     for (const p of prog.graphs.flatMap(g => g.presets)) {
-      for (const m of (p.walk && p.walk.steps) || []) {
-        if (m.k === 'effect' && m.raised) add(m.raised.tag, m.raised.channel);
+      for (const m of (p.trace && p.trace.steps) || []) {
+        if (m.k === 'effect' && m.raised) add(m.raised.tag, m.raised.cause);
       }
     }
     const out = bare();
@@ -415,24 +415,24 @@ const Groundtrack = (() => {
       let moved = null;
       const top = frames[frames.length - 1];
 
-      if (m.k === 'unwind') {
+      if (m.k === 'propagate') {
         const gone = frames.pop();
         if (gone) {
-          moved = { from: gone.nodeId, to: frames.length ? frames[frames.length - 1].nodeId : null, dir: 'unwind' };
+          moved = { from: gone.nodeId, to: frames.length ? frames[frames.length - 1].nodeId : null, dir: 'propagate' };
           errorPath = errorPath.concat([{ nodeId: gone.nodeId, site: gone.site, chain: gone.chain.slice(), how: 'passed through' }]);
         }
       } else if (m.k === 'done') {
         frames = [];
         ended = 'done';
       } else if (m.k === 'uncaught') {
-        errorPath = errorPath.concat([{ nodeId: null, how: 'reached the top uncaught', tag: m.tag, message: m.message, channel: m.channel }]);
+        errorPath = errorPath.concat([{ nodeId: null, how: 'reached the top uncaught', tag: m.tag, message: m.message, cause: m.cause }]);
         frames = [];
         ended = 'uncaught';
       } else if (top) {
 
         switch (m.k) {
-          case 'note':
-          case 'let':
+          case 'comment':
+          case 'var':
           case 'if':
           case 'goto':
             top.pc = m.next;
@@ -470,16 +470,16 @@ const Groundtrack = (() => {
               },
             ]);
             if (m.raised !== undefined) {
-              errorPath = [{ nodeId: top.nodeId, site: top.site, chain: top.chain.slice(), how: 'raised', tag: m.raised.tag, message: m.raised.message, channel: m.raised.channel }];
+              errorPath = [{ nodeId: top.nodeId, site: top.site, chain: top.chain.slice(), how: 'raised', tag: m.raised.tag, message: m.raised.message, cause: m.raised.cause }];
             } else {
               top.pc = m.next;
             }
             break;
           }
           case 'throw':
-            errorPath = [{ nodeId: top.nodeId, site: top.site, chain: top.chain.slice(), how: 'thrown', tag: m.tag, message: m.message, channel: m.channel }];
+            errorPath = [{ nodeId: top.nodeId, site: top.site, chain: top.chain.slice(), how: 'thrown', tag: m.tag, message: m.message, cause: m.cause }];
             break;
-          case 'handled':
+          case 'catch':
             top.pc = m.next;
             errorPath = errorPath.concat([{ nodeId: top.nodeId, site: top.site, chain: top.chain.slice(), how: 'caught', goto: m.goto }]);
             break;
@@ -566,7 +566,7 @@ const Groundtrack = (() => {
     const cuts = [];
     for (const [ln, layer] of Object.entries(prog.layers || {})) {
       for (const [nid, ov] of Object.entries((layer && layer.nodes) || {})) {
-        const tokens = ((ov && ov.R) || []).map(renamedToken).filter(Boolean);
+        const tokens = ((ov && ov.requirements) || []).map(renamedToken).filter(Boolean);
         for (const [callerId, caller] of Object.entries(prog.nodes)) {
           (caller.steps || []).forEach((s, i) => {
             if (s.op !== 'call') return;
@@ -689,7 +689,7 @@ const Groundtrack = (() => {
           from, to,
           call: `M${sx},${sy} L${sx},${my} L${ex},${my} L${ex},${ey}`,
           err: `M${ex + 20},${ey} L${ex + 20},${my + 12} L${sx + 20},${my + 12} L${sx + 20},${sy}`,
-          hasE: ((prog.nodes[to].channels || {}).E || []).length > 0,
+          hasE: ((prog.nodes[to].channels || {}).error || []).length > 0,
         });
       }
     }
@@ -878,7 +878,7 @@ const Groundtrack = (() => {
 
     return drawn.map((r, i) => {
       const ch = r.node.channels || {};
-      const rename = layer && layer.nodes && layer.nodes[r.id] ? layer.nodes[r.id].R : null;
+      const rename = layer && layer.nodes && layer.nodes[r.id] ? layer.nodes[r.id].requirements : null;
       const error = errorOf(r);
       const reached = r.entered > 0;
       return {
@@ -886,15 +886,15 @@ const Groundtrack = (() => {
         id: r.id,
         name: r.node.name,
         role: r.node.role,
-        A: ch.A,
-        E: (ch.E || []).slice(),
-        kinds: (ch.E || []).reduce((m, t) => (kinds[t] ? ((m[t] = kinds[t].slice()), m) : m), bare()),
-        R: (ch.R || []).slice(),
+        success: ch.success,
+        error: (ch.error || []).slice(),
+        kinds: (ch.error || []).reduce((m, t) => (kinds[t] ? ((m[t] = kinds[t].slice()), m) : m), bare()),
+        requirements: (ch.requirements || []).slice(),
         rename: rename ? rename.slice() : null,
         site: r.site ? { label: r.site.label, aside: r.site.aside } : null,
         state: !reached ? 'not reached' : r.open ? 'on stack' : 'returned',
         top: i === topRow,
-        error,
+        errorPath: error,
         path: pathOf(error),
         effects: effectsOf(r.node).map(e => ({
           kind: e.kind,
@@ -1097,12 +1097,12 @@ const Groundtrack = (() => {
     return bits.join('');
   }
 
-  /** The longest walk. It is the only rule that names exactly one run in all
+  /** The longest trace. It is the only rule that names exactly one run in all
    *  three worked programs with no tie, so it is the one the text suggests. */
   function suggestRun(prog) {
     let best = 0;
     prog.presets.forEach((p, i) => {
-      if (p.walk.steps.length > prog.presets[best].walk.steps.length) best = i;
+      if (p.trace.steps.length > prog.presets[best].trace.steps.length) best = i;
     });
     return best;
   }

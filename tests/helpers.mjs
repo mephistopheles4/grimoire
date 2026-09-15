@@ -39,14 +39,14 @@ export const layeredFlightpath = join(examples, 'pr-313.flightpath.json');
  */
 export function errorPastTwoSites(prog) {
   const lookup = prog.nodes.lookupName;
-  lookup.channels.E = ['NoSuchUser', 'StoreDown'];
+  lookup.channels.error = ['NoSuchUser', 'StoreDown'];
   prog.nodes = {
     greet: {
       name: 'greet',
       role: 'handler',
       loc: 'src/greet.ts:8',
       params: ['userId'],
-      channels: { A: 'a greeting line', E: ['StoreDown'], R: ['the name store'] },
+      channels: { success: 'a greeting line', error: ['StoreDown'], requirements: ['the name store'] },
       touches: ['src/greet.ts'],
       enteredBy: [],
       steps: [
@@ -67,7 +67,7 @@ export function errorPastTwoSites(prog) {
       role: 'service',
       loc: 'src/profile.ts:4',
       params: ['id'],
-      channels: { A: 'a profile', E: ['NoSuchUser', 'StoreDown'], R: ['the name store'] },
+      channels: { success: 'a profile', error: ['NoSuchUser', 'StoreDown'], requirements: ['the name store'] },
       touches: ['src/name-store.ts'],
       enteredBy: [],
       steps: [
@@ -87,7 +87,7 @@ export function errorPastTwoSites(prog) {
     { k: 'return', at: 2, value: 'Ada' },
     { k: 'call', at: 1, to: 'lookupName', next: 2 },
   ];
-  const storeDown = { tag: 'StoreDown', message: 'the name store timed out', channel: 'retry' };
+  const storeDown = { tag: 'StoreDown', message: 'the name store timed out', cause: 'fail' };
   prog.graphs = [
     {
       id: 'greet',
@@ -99,16 +99,16 @@ export function errorPastTwoSites(prog) {
           name: 'the alias is missing',
           blurb: 'The second lookup throws, and greet catches it.',
           input: { userId: 'u-404' },
-          walk: {
+          trace: {
             provenance: 'authored',
             steps: [
               ...firstLookup,
               { k: 'effect', at: 0, kind: 'db.get', desc: 'read the name row', next: 1, result: null },
               { k: 'if', at: 1, next: 3 },
-              { k: 'throw', at: 3, tag: 'NoSuchUser', message: 'no row for that id', channel: 'escape' },
-              { k: 'unwind' },
-              { k: 'unwind' },
-              { k: 'handled', at: 0, goto: 'plain', next: 2 },
+              { k: 'throw', at: 3, tag: 'NoSuchUser', message: 'no row for that id', cause: 'fail' },
+              { k: 'propagate' },
+              { k: 'propagate' },
+              { k: 'catch', at: 0, goto: 'plain', next: 2 },
               { k: 'return', at: 2, value: 'Hello there' },
               { k: 'done', result: 'Hello there' },
             ],
@@ -118,13 +118,13 @@ export function errorPastTwoSites(prog) {
           name: 'the store is down',
           blurb: 'The second lookup raises, and nothing catches it.',
           input: { userId: 'u-1' },
-          walk: {
+          trace: {
             provenance: 'authored',
             steps: [
               ...firstLookup,
               { k: 'effect', at: 0, kind: 'db.get', desc: 'read the name row', raised: storeDown },
-              { k: 'unwind' },
-              { k: 'unwind' },
+              { k: 'propagate' },
+              { k: 'propagate' },
               { k: 'uncaught', ...storeDown },
             ],
           },
@@ -156,7 +156,7 @@ export function errorPastTwoSites(prog) {
  */
 export function repeatedSubtree(prog) {
   const lookup = prog.nodes.lookupName;
-  lookup.channels.E = ['StoreDown'];
+  lookup.channels.error = ['StoreDown'];
   lookup.steps = [
     { op: 'effect', kind: 'db.get', desc: 'read the name row', args: { id: 'id' }, bind: 'row' },
     { op: 'return', expr: 'row.displayName' },
@@ -167,7 +167,7 @@ export function repeatedSubtree(prog) {
       role: 'handler',
       loc: 'src/greet.ts:8',
       params: ['userId'],
-      channels: { A: 'a greeting line', E: ['StoreDown'], R: ['the name store'] },
+      channels: { success: 'a greeting line', error: ['StoreDown'], requirements: ['the name store'] },
       touches: ['src/greet.ts'],
       enteredBy: [],
       steps: [
@@ -181,7 +181,7 @@ export function repeatedSubtree(prog) {
       role: 'service',
       loc: 'src/profile.ts:4',
       params: ['id'],
-      channels: { A: 'a profile', E: ['StoreDown'], R: ['the name store'] },
+      channels: { success: 'a profile', error: ['StoreDown'], requirements: ['the name store'] },
       touches: ['src/name-store.ts'],
       enteredBy: [],
       steps: [
@@ -202,7 +202,7 @@ export function repeatedSubtree(prog) {
           name: 'the second copy fails',
           blurb: 'The first load succeeds and returns. The second one fails in the lookup.',
           input: { userId: 'u-1' },
-          walk: {
+          trace: {
             provenance: 'authored',
             steps: [
               { k: 'call', at: 0, to: 'loadProfile', next: 1 },
@@ -214,7 +214,7 @@ export function repeatedSubtree(prog) {
               { k: 'call', at: 0, to: 'lookupName', next: 1 },
               {
                 k: 'effect', at: 0, kind: 'db.get', desc: 'read the name row',
-                raised: { tag: 'StoreDown', message: 'the name store timed out', channel: 'retry' },
+                raised: { tag: 'StoreDown', message: 'the name store timed out', cause: 'fail' },
               },
             ],
           },
@@ -250,7 +250,7 @@ export function selfRecursive(prog) {
       role: 'service',
       loc: 'src/scan.ts:3',
       params: ['dir'],
-      channels: { A: 'the rows found', E: ['WriteFailed'], R: ['the row store'] },
+      channels: { success: 'the rows found', error: ['WriteFailed'], requirements: ['the row store'] },
       touches: ['src/scan.ts'],
       enteredBy: [],
       steps: [
@@ -271,14 +271,14 @@ export function selfRecursive(prog) {
           name: 'three frames down',
           blurb: 'The walk runs three frames deep and the deepest one fails to record.',
           input: { dir: '/src' },
-          walk: {
+          trace: {
             provenance: 'authored',
             steps: [
               { k: 'call', at: 0, to: 'scan', next: 1 },
               { k: 'call', at: 0, to: 'scan', next: 1 },
               {
                 k: 'effect', at: 1, kind: 'db.put', desc: 'record the row',
-                raised: { tag: 'WriteFailed', message: 'the row store refused the write', channel: 'escape' },
+                raised: { tag: 'WriteFailed', message: 'the row store refused the write', cause: 'fail' },
               },
             ],
           },
@@ -291,7 +291,7 @@ export function selfRecursive(prog) {
           name: 'the deeper frame lands and the shallower one fails',
           blurb: 'The third frame records its row and returns. The second one then fails to record.',
           input: { dir: '/src' },
-          walk: {
+          trace: {
             provenance: 'authored',
             steps: [
               { k: 'call', at: 0, to: 'scan', next: 1 },
@@ -300,7 +300,7 @@ export function selfRecursive(prog) {
               { k: 'return', at: 2, value: '[]' },
               {
                 k: 'effect', at: 1, kind: 'db.put', desc: 'record the row',
-                raised: { tag: 'WriteFailed', message: 'the row store refused the write', channel: 'escape' },
+                raised: { tag: 'WriteFailed', message: 'the row store refused the write', cause: 'fail' },
               },
             ],
           },
