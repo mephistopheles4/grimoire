@@ -118,10 +118,7 @@
       ],
       "channels": {
         "success": "a rendered bookcase on main",
-        "error": [
-          "FanOutRefused",
-          "ShippedAShimmer"
-        ],
+        "error": [],
         "requirements": [
           "9 closed decision tickets",
           "3 prototype branches, reference only"

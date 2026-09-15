@@ -304,6 +304,59 @@ for (const [what, mutate, expected] of cases) {
   });
 }
 
+/* -- a fail is in the contract, a die never is ---------------------------- */
+
+const throwAsDie = prog => {
+  prog.nodes.lookupName.steps[3].cause = 'die';
+  for (const r of runs(prog)) for (const m of r.trace.steps) if (m.k === 'throw') m.cause = 'die';
+};
+
+test('a node that throws a fail names the tag in its error list', () => {
+  const file = derive(prog => { prog.nodes.lookupName.channels.error = []; });
+  const r = check(file);
+  assert.equal(r.code, 1, r.stdout);
+  assert.match(r.stderr, /nodes\.lookupName\.steps\[3\]: throws "NoSuchUser" as a fail, and lookupName's error list does not name it/);
+});
+
+test('a node that throws a die does not name the tag in its error list', () => {
+  const file = derive(throwAsDie);
+  const r = check(file);
+  assert.equal(r.code, 1, r.stdout);
+  assert.match(r.stderr, /nodes\.lookupName\.steps\[3\]: throws "NoSuchUser" as a die, and lookupName's error list names it — a die is never in the list/);
+});
+
+test('a fail that leaves a node uncaught is in that node\'s error list', () => {
+  // SendFailed is raised by an effect, not thrown by a step, so only the trace
+  // can say it leaves greet.
+  const file = derive(prog => { prog.nodes.greet.channels.error = ['NoSuchUser']; });
+  const r = check(file);
+  assert.equal(r.code, 1, r.stdout);
+  assert.match(r.stderr, /presets\[2\]\.trace\.steps\[9\]: graph "greet", run "the post fails", move 9: "SendFailed" is a fail and leaves greet, but greet's error list does not name it/);
+});
+
+test('a die that leaves a node is not in that node\'s error list', () => {
+  const file = derive(prog => {
+    for (const m of runs(prog)[2].trace.steps) {
+      if (m.raised) m.raised.cause = 'die';
+      if (m.k === 'uncaught') m.cause = 'die';
+    }
+  });
+  const r = check(file);
+  assert.equal(r.code, 1, r.stdout);
+  assert.match(r.stderr, /move 9: "SendFailed" is a die and leaves greet, but greet's error list names it — a die is never in the list/);
+});
+
+test('catching a die is legal, and worth seeing', () => {
+  const file = derive(prog => {
+    throwAsDie(prog);
+    prog.nodes.lookupName.channels.error = [];
+    prog.nodes.greet.channels.error = ['SendFailed'];
+  });
+  const r = check(file);
+  assert.equal(r.code, 0, r.stderr);
+  assert.match(r.stdout, /greet\[1\] catches "NoSuchUser", which the file throws as a die/);
+});
+
 test('the old one-graph shape is refused, and the message names graphs', () => {
   // A file states one change, not one graph. Accepting both shapes would be
   // two ways to say one thing, so a stale file fails loudly rather than
@@ -646,17 +699,18 @@ test('a tag named after a property of every object prints, rather than crashing 
 });
 
 test('a tag raised with two kinds prints both, fail before die', () => {
-  // A tag that retries in one place and dies in another is two facts. The
-  // second run is the first with its channel changed, so the file says both.
+  // A tag that fails in one node and is a defect in another is two facts about
+  // the file. failureKinds reads the whole file for them, and a throw step
+  // counts even when no walk in this file exercises it — so a die for
+  // SendFailed is added to lookupName, which does not name the tag in its own
+  // error list. (A die can never leave greet's own frame: greet's error list
+  // names SendFailed, because the shipped "the post fails" run raises it as a
+  // fail there, and a fail and a die for one tag cannot both be true of one
+  // node.)
   const file = derive(prog => {
-    const fails = runs(prog).find(p => p.trace.steps.some(m => m.k === 'effect' && m.raised));
-    const dies = JSON.parse(JSON.stringify(fails));
-    dies.name = 'the post dies';
-    dies.blurb = 'the same failure, fatal';
-    for (const m of dies.trace.steps) if (m.k === 'effect' && m.raised) m.raised.cause = 'die';
-    runs(prog).unshift(dies); // met first, and still printed last
+    prog.nodes.lookupName.steps.push({ op: 'throw', tag: 'SendFailed', message: 'a defect, not a fail', cause: 'die' });
   });
-  assert.equal(check(file).code, 0);
+  assert.equal(check(file).code, 0, check(file).stderr);
   const r = run(groundtrack, [file, '--text']);
   assert.equal(r.code, 0, r.stderr);
   assert.match(r.stdout, /SendFailed fail die/);

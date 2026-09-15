@@ -216,6 +216,13 @@ function shape(prog, r) {
       }
       if (s.op === 'call' && !isNode(prog, s.target)) r.shape(w, `target "${s.target}" is not a node`);
       if (s.op === 'throw' && !CAUSE.includes(s.cause)) r.shape(w, `cause "${s.cause}" is not one of ${CAUSE.join(', ')}`);
+      /* A fail is part of the node's contract, so its error list names it. A
+       * die is a defect, so the list never does. */
+      if (s.op === 'throw' && CAUSE.includes(s.cause) && isObj(n.channels)) {
+        const listed = (n.channels.error || []).includes(s.tag);
+        if (s.cause === 'fail' && !listed) r.shape(w, `throws "${s.tag}" as a fail, and ${id}'s error list does not name it`);
+        if (s.cause === 'die' && listed) r.shape(w, `throws "${s.tag}" as a die, and ${id}'s error list names it — a die is never in the list`);
+      }
       if (s.onError !== undefined && !Array.isArray(s.onError)) r.shape(w, 'onError expected an array of { tag, goto }');
       for (const h of Array.isArray(s.onError) ? s.onError : []) {
         keys(r, `${w}.onError`, h, ['tag', 'goto'], ['bind']);
@@ -326,6 +333,15 @@ function path(prog, gi, pi, r) {
    * is exactly where the error is still moving. Cleared by the catch, and by
    * reaching the top. */
   let raised = null;
+  /* An error leaves a frame when it propagates out, or when it reaches the top
+   * with the frame still open. The node it leaves states it in its error list
+   * when it is a fail, and never when it is a die. */
+  const leaves = (i, nodeId) => {
+    if (!raised || !CAUSE.includes(raised.cause)) return;
+    const listed = ((((prog.nodes[nodeId] || {}).channels) || {}).error || []).includes(raised.tag);
+    if (raised.cause === 'fail' && !listed) bad(i, `"${raised.tag}" is a fail and leaves ${nodeId}, but ${nodeId}'s error list does not name it`);
+    if (raised.cause === 'die' && listed) bad(i, `"${raised.tag}" is a die and leaves ${nodeId}, but ${nodeId}'s error list names it — a die is never in the list`);
+  };
   const noteEmpty = (i, kind) => {
     if (!frames.length) {
       emptiedAt = i;
@@ -341,6 +357,7 @@ function path(prog, gi, pi, r) {
     if (m.k === 'propagate') {
       if (!frames.length) return blameEmpty(i, m);
       if (!raised) bad(i, 'propagate with no error travelling — a frame is popped by a return unless something threw');
+      leaves(i, frames[frames.length - 1].nodeId);
       frames.pop();
       noteEmpty(i, 'propagate');
       return;
@@ -361,6 +378,7 @@ function path(prog, gi, pi, r) {
     if (m.k === 'uncaught') {
       if (!raised) bad(i, `"${m.tag}" reached the top uncaught, and no move before it raised anything`);
       else if (raised.tag !== m.tag) bad(i, `"${m.tag}" reached the top, but the error travelling is "${raised.tag}"`);
+      for (const fr of frames) leaves(i, fr.nodeId);
       raised = null;
       for (const fr of frames) {
         if (fr.callAt === undefined) continue;
@@ -435,12 +453,12 @@ function path(prog, gi, pi, r) {
           keys({ shape: (p, why) => r.walk(p, wordsAt(i), why) }, `${pathAt(i)}.raised`, m.raised, ['tag', 'message', 'cause']);
           if (isObj(m.raised) && !CAUSE.includes(m.raised.cause))
             bad(i, `raised cause "${m.raised.cause}" is not one of ${CAUSE.join(', ')}`);
-          if (isObj(m.raised)) raised = { tag: m.raised.tag, from: i };
+          if (isObj(m.raised)) raised = { tag: m.raised.tag, from: i, cause: m.raised.cause };
         }
         break;
       case 'throw':
         if (st.op === 'throw' && m.tag !== st.tag) bad(i, `throw tag "${m.tag}" does not match step tag "${st.tag}"`);
-        raised = { tag: m.tag, from: i };
+        raised = { tag: m.tag, from: i, cause: st.op === 'throw' ? st.cause : m.cause };
         break;
       case 'catch': {
         const declared = (st.onError || []).filter(h => h.goto === m.goto);
@@ -558,6 +576,18 @@ export function findings(prog) {
     for (const tag of (n.channels || {}).error || []) {
       if (!can.has(tag)) out.push(`${id} declares error tag "${tag}", and nothing beneath it produces that tag`);
     }
+  }
+
+  /* A handler for a tag the file throws as a die. Legal — a defect can be
+   * caught — and worth seeing, because a catch of a defect should be on
+   * purpose. */
+  const causes = Groundtrack.failureKinds(prog);
+  for (const [id, n] of Object.entries(prog.nodes)) {
+    (n.steps || []).forEach((s, at) => {
+      for (const h of s.onError || []) {
+        if ((causes[h.tag] || []).includes('die')) out.push(`${id}[${at}] catches "${h.tag}", which the file throws as a die`);
+      }
+    });
   }
 
   /* Files in the change that no node accounts for, by name. A

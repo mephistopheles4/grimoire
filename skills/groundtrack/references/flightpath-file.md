@@ -148,6 +148,22 @@ beside a tag. The kind is derived file-wide, from the `throw` steps and
 the `raised` moves. A tag found in neither prints bare. A tag found with both
 prints both, fail before die.
 
+### fail and die
+
+Every `throw` step, `raised` object and `uncaught` move carries a `cause`.
+
+- **`fail` is an expected error.** A caller is meant to catch it.
+- **`die` is a defect.** Nothing is meant to catch it.
+
+**A fail is part of the contract, and a die never is.**
+
+- A node that throws a fail names the tag in its `error` list.
+- A node that throws a die does not name the tag there.
+- A fail that leaves a node uncaught is in that node's `error` list.
+- A die that leaves a node is not in that node's `error` list.
+
+The validator refuses each break of these rules. A handler for a die is legal, and `--check` reports it as a finding.
+
 ### enteredBy
 
 **This field names the test files whose specs call this node, and nothing
@@ -229,7 +245,7 @@ demand a field of moves that cannot have it.
 | `if` | `at`, `next` — the `then` label or the `else` label |
 | `goto` | `at`, `next` — the `to` label |
 | `call` | `at`, `to`, `next` — `next` is where **this** frame resumes |
-| `effect` | `at`, `kind`, `desc`, and then **either** `next` (+ `result?`, `attempt?`) **or** `raised` |
+| `effect` | `at`, `kind`, `desc`, and then **either** `next` (+ `result?`, `attempt?`) **or** `raised` — `attempt` counts the tries of an effect that ran more than once |
 | `throw` | `at`, `tag`, `message`, `cause` |
 | `return` | `at`, `value?` |
 
@@ -317,6 +333,7 @@ proved against the graph it belongs to, entering at that graph's entry.
   `return` that discards the error, and a `done` that arrives while it is
   still moving, are both refused. **An error is caught, or it reaches the
   top.** There is no third ending.
+- **A fail is in the error list of every node it leaves, and a die is in none.**
 
 **What it cannot prove.** Which branch an `if` took, and what an effect
 returned. Both are claims you make. In practice a wrong branch is often caught
@@ -389,3 +406,4 @@ exits zero. Each one is a thing you may have meant.
 - **A node no graph's entry reaches**, so no sheet draws it. Legal: a node you
   have written and not yet connected is a work in progress.
 - **A call edge a layer cuts.**
+- **A handler for a tag the file throws as a die.** Legal, and it should be on purpose.
