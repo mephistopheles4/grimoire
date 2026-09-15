@@ -334,6 +334,7 @@ proved against the graph it belongs to, entering at that graph's entry.
   still moving, are both refused. **An error is caught, or it reaches the
   top.** There is no third ending.
 - **A fail is in the error list of every node it leaves, and a die is in none.**
+- **A throw move and an uncaught move repeat the cause the error carries.**
 
 **What it cannot prove.** Which branch an `if` took, and what an effect
 returned. Both are claims you make. In practice a wrong branch is often caught

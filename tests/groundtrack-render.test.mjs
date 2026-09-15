@@ -357,6 +357,39 @@ test('catching a die is legal, and worth seeing', () => {
   assert.match(r.stdout, /greet\[1\] catches "NoSuchUser", which the file throws as a die/);
 });
 
+/* -- a move restates its step's cause, or the cause travelling ------------ */
+
+test('a throw move whose cause does not match its step\'s cause is refused', () => {
+  // "no such user": lookupName.steps[3] throws NoSuchUser as a fail, and the
+  // throw move at move 4 repeats that cause. Misstate it there.
+  const file = derive(prog => {
+    const w = runs(prog)[1].trace.steps;
+    const at = w.findIndex(m => m.k === 'throw');
+    w[at].cause = 'die';
+  });
+  const r = check(file);
+  assert.equal(r.code, 1, r.stdout);
+  assert.match(
+    r.stderr,
+    /graphs\[0\]\.presets\[1\]\.trace\.steps\[\d+\]: graph "greet", run "no such user", move \d+: throw cause "die" does not match step cause "fail"/,
+  );
+});
+
+test('an uncaught move whose cause does not match the error travelling is refused', () => {
+  // "the post fails": the effect's raised.cause is "fail". Leave it, and
+  // misstate the cause on the uncaught move that carries the same tag.
+  const file = derive(prog => {
+    const w = runs(prog)[2].trace.steps;
+    w[w.length - 1].cause = 'die';
+  });
+  const r = check(file);
+  assert.equal(r.code, 1, r.stdout);
+  assert.match(
+    r.stderr,
+    /graphs\[0\]\.presets\[2\]\.trace\.steps\[\d+\]: graph "greet", run "the post fails", move \d+: "SendFailed" reached the top as a die, but the error travelling is a fail/,
+  );
+});
+
 test('the old one-graph shape is refused, and the message names graphs', () => {
   // A file states one change, not one graph. Accepting both shapes would be
   // two ways to say one thing, so a stale file fails loudly rather than

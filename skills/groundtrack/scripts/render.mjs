@@ -378,6 +378,7 @@ function path(prog, gi, pi, r) {
     if (m.k === 'uncaught') {
       if (!raised) bad(i, `"${m.tag}" reached the top uncaught, and no move before it raised anything`);
       else if (raised.tag !== m.tag) bad(i, `"${m.tag}" reached the top, but the error travelling is "${raised.tag}"`);
+      else if (raised.cause !== m.cause) bad(i, `"${m.tag}" reached the top as a ${m.cause}, but the error travelling is a ${raised.cause}`);
       for (const fr of frames) leaves(i, fr.nodeId);
       raised = null;
       for (const fr of frames) {
@@ -458,6 +459,7 @@ function path(prog, gi, pi, r) {
         break;
       case 'throw':
         if (st.op === 'throw' && m.tag !== st.tag) bad(i, `throw tag "${m.tag}" does not match step tag "${st.tag}"`);
+        if (st.op === 'throw' && m.cause !== st.cause) bad(i, `throw cause "${m.cause}" does not match step cause "${st.cause}"`);
         raised = { tag: m.tag, from: i, cause: st.op === 'throw' ? st.cause : m.cause };
         break;
       case 'catch': {
