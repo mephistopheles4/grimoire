@@ -772,7 +772,7 @@ test('the text marks where each row stood on an error that is still live at the 
   assert.equal(check(file).code, 0, 'the derived file is a legal program');
   const r = run(groundtrack, [file, '--text', 'the store is down']);
   assert.equal(r.code, 0, r.stderr);
-  assert.deepEqual(errorLines(r.stdout), ['', 'error path: passed through', '', 'error path: raised StoreDown']);
+  assert.deepEqual(errorLines(r.stdout), ['', 'error path: propagated', '', 'error path: thrown StoreDown']);
   // The row that raised is the lookup by alias. The lookup by id is the same
   // node from another call site, and it took no part.
   const rows = textRows(r.stdout);
@@ -790,7 +790,15 @@ test('the text marks nothing when the walk ends with no error live', () => {
 test('the text marks the entry that raised, and no row for the top', () => {
   const r = run(groundtrack, [exampleFlightpath, '--text', 'the post fails']);
   assert.equal(r.code, 0, r.stderr);
-  assert.deepEqual(errorLines(r.stdout), ['error path: raised SendFailed', '']);
+  assert.deepEqual(errorLines(r.stdout), ['error path: thrown SendFailed', '']);
+});
+
+test('the text names the contract in words, not letters', () => {
+  const r = run(groundtrack, [exampleFlightpath, '--text']);
+  assert.equal(r.code, 0, r.stderr);
+  assert.match(r.stdout, /success a greeting line {3}error NoSuchUser fail · SendFailed fail {3}requirements the name store/);
+  assert.doesNotMatch(r.stdout, /(^| {3})[AER] /m);
+  assert.match(r.stdout, /requirements under tests: /);
 });
 
 /* -- the page as a string ------------------------------------------------- */
@@ -848,8 +856,8 @@ test('the page tree marks the error path from the row, with a word and a rule fo
   // stay apart with every colour removed.
   const marks = between(html, 'const PATH_MARK', '};');
   const glyphs = [...marks.matchAll(/glyph: '([^']+)'/g)].map(m => m[1]);
-  assert.equal(glyphs.length, 5, 'a glyph per fold word, the top included');
-  assert.equal(new Set(glyphs).size, 5, 'and no two of them are the same mark');
+  assert.equal(glyphs.length, 4, 'a glyph per fold word, the top included');
+  assert.equal(new Set(glyphs).size, 4, 'and no two of them are the same mark');
   // The word too, which is the channel that needs no legend. It is one of the
   // fold's own four, so a reader never has to learn a key.
   assert.match(tree, /class="tr-pl[^"]*">' \+ row\.path/, 'the position is written out as its own word');
@@ -860,12 +868,12 @@ test('the page tree marks the error path from the row, with a word and a rule fo
   assert.match(tree, /tr-err-tag/, 'the tag stays beside the row that raised');
 
   // The stripe is the third channel and the only one that IS a hue.
-  for (const cls of ['tr--raised', 'tr--onpath', 'tr--caught']) {
+  for (const cls of ['tr--thrown', 'tr--onpath', 'tr--caught']) {
     assert.match(html, new RegExp(`\\.${cls}\\b[^{]*\\{[^}]*box-shadow`), `${cls} carries the path stripe`);
   }
-  // Raised takes a fourth signal the other two do not, in ink rather than hue,
+  // Thrown takes a fourth signal the other two do not, in ink rather than hue,
   // because it is the position a reader looks for first.
-  assert.match(html, /\.tr--raised\b[^{]*\{[^}]*border-bottom:[^;]*var\(--av-ink\)/, 'the raise is ruled under, in ink');
+  assert.match(html, /\.tr--thrown\b[^{]*\{[^}]*border-bottom:[^;]*var\(--av-ink\)/, 'the raise is ruled under, in ink');
   // The glyph and the word each take their OWN caught modifier. One shared
   // modifier string reads fine in the deck theme, where both roles resolve to
   // a colour, and paints the caught word redline in the site theme, where the
@@ -881,15 +889,11 @@ test('the page tree marks the error path from the row, with a word and a rule fo
   assert.doesNotMatch(box, /row\.error\b|\.error\.how|tr-err|tr-gl/);
 });
 
-test('the tree separates the frame the walk is in from the frames waiting under it', () => {
-  // `state` says "on stack" for every open frame, and on a deep stack that is
-  // most of the rows. `top` is the second, additive signal, so --text and the
-  // checks keep reading the same three states they always have.
+test('the tree separates the running frame from the frames waiting under it', () => {
   const html = pageOf(exampleFlightpath);
   const tree = between(html, 'function drawTree(', '/* -- the rail');
-  assert.match(tree, /row\.top \?/, 'the running frame and the waiting ones part');
+  assert.match(tree, /row\.state === 'running'/, 'the running frame and the waiting ones part');
   assert.match(tree, /tr--waiting/, 'and the waiting ones have their own class');
-  // Neither takes a hue: a position on the stack is not a condition.
   assert.match(html, /\.tr--waiting\b[^{]*\{[^}]*--av-state-rule/, 'waiting takes the system state rule');
   assert.match(html, /\.tr--active\b[^{]*\{[^}]*var\(--av-ink\)/, 'the running frame keeps full ink');
 });
@@ -907,6 +911,16 @@ test('the sheet asks for the walk-sheet roles, never the raw mark colours', () =
   const tree = between(html, 'function siteClass(', 'function drawSource(');
   assert.match(tree, /av-code-site--path/, 'the listing marks a failed site with the role');
   assert.match(tree, /av-code-site--caught/, 'the listing marks a returned site with the role');
+});
+
+test('the page prints the programming words, and none of the old ones', () => {
+  const html = pageOf(exampleFlightpath);
+  for (const word of ['>running<', '>waiting<', '>arguments<', "'propagated'", "'not called'", "'returned'", "'threw'"]) {
+    assert.ok(html.includes(word), `the page carries ${word}`);
+  }
+  for (const word of ['on stack', 'not reached', 'passed through', "'landed'", "'failed'", 'nothing has raised', '>inputs<', 'A — returns', 'E — breaks', 'R — needs']) {
+    assert.ok(!html.includes(word), `the page no longer carries ${word}`);
+  }
 });
 
 /** The page's own head markup, which is where the controls are.

@@ -607,7 +607,7 @@ export function findings(prog) {
 
 /* -- the text output ------------------------------------------------------
  *
- * One shared walk drives the page and the text, so the two produce the same
+ * One shared trace drives the page and the text, so the two produce the same
  * row list. One row is a call site, not a node, so a node called twice appears
  * twice. Without the run's end marks every run in a file prints the same text,
  * which would make the reader's choice of run change nothing.
@@ -625,10 +625,10 @@ export function text(prog, graphIndex, runIndex) {
   const kinds = [...new Set(prog.graphs.flatMap(g => g.presets.map(p => p.trace.provenance)))];
   L.push(
     kinds.length === 1 && kinds[0] === 'captured'
-      ? 'The walks in this file were captured from a real run.'
+      ? 'The traces in this file were captured from a real run.'
       : kinds.length === 1
-        ? 'The walks in this file were written by hand. They are claims about the program, not recordings of it.'
-        : 'The walks in this file are mixed: some were captured from a real run, some were written by hand.',
+        ? 'The traces in this file were written by hand. They are claims about the program, not recordings of it.'
+        : 'The traces in this file are mixed: some were captured from a real run, some were written by hand.',
   );
   L.push('');
   L.push(`${prog.title}`);
@@ -640,25 +640,25 @@ export function text(prog, graphIndex, runIndex) {
     const arrow = row.depth ? '-> ' : '';
     L.push(`${pad}${arrow}${row.name}  [${row.role}]  ${row.state}${row.repeat ? '  (seen above — stopped)' : ''}`);
     /* Where this call site stood on the error, in the rail's words: the tag
-     * beside the raise or the throw, and nothing beside the rest. Only an
-     * error still live at the end of the walk shows here, because that is
-     * where the text reads the walk. */
+     * beside the throw, and nothing beside the rest. Only an
+     * error still live at the end of the trace shows here, because that is
+     * where the text reads the trace. */
     if (row.errorPath) {
-      const how = row.errorPath.how.map(h => (Groundtrack.ERROR_POSITION[h] === 'raised' ? `${h} ${row.errorPath.tag}` : h));
+      const how = row.errorPath.how.map(h => (Groundtrack.ERROR_POSITION[h] === 'thrown' ? `${h} ${row.errorPath.tag}` : h));
       L.push(`${pad}   error path: ${how.join(', ')}`);
     }
     /* The tag, then the kind the file gives it. A tag the file gives no kind
      * for prints bare, and one given two prints both. */
     const E = row.error.length ? row.error.map(t => [t, ...(row.kinds[t] || [])].join(' ')).join(' · ') : 'never';
     const R = row.requirements.length ? row.requirements.join(', ') : 'none';
-    L.push(`${pad}   A ${row.success || '—'}   E ${E}   R ${R}`);
+    L.push(`${pad}   success ${row.success || '—'}   error ${E}   requirements ${R}`);
     if (row.site && (row.site.label || row.site.aside)) {
       if (row.site.label) L.push(`${pad}   at "${row.site.label}"`);
       if (row.site.aside) L.push(`${pad}   ${row.site.aside}`);
     }
     for (const [ln, layer] of Object.entries(prog.layers || {})) {
       const ov = layer.nodes && layer.nodes[row.id];
-      if (ov && ov.requirements && ov.requirements.length) L.push(`${pad}   R under ${ln}: ${ov.requirements.join(', ')}`);
+      if (ov && ov.requirements && ov.requirements.length) L.push(`${pad}   requirements under ${ln}: ${ov.requirements.join(', ')}`);
     }
     for (const fx of row.effects) L.push(`${pad}   · ${fx.kind}  ${fx.desc} — ${fx.mark}`);
   }
@@ -745,8 +745,8 @@ export function page(prog) {
    * string replacement is interpreted: $&, $` and $' stand for the match and
    * the text on either side of it, so author text carrying one of those
    * splices a slab of the template into the middle of the page — including the
-   * template's own real closing script tag, which the escape above cannot help
-   * with because that tag never passed through the file. A function
+   * template's own real closing script tag, which the replace above cannot help
+   * with because that tag never went through the file. A function
    * replacement is inserted literally and has no patterns at all. */
   /* The sheet picker is rendered here rather than built by the page's script,
    * because a control the script creates is in no page as a string and so no

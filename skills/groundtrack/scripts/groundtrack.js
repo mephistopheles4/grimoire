@@ -371,11 +371,11 @@ const Groundtrack = (() => {
     let visited = [prog.entry];
     let edges = [];
     /* Every entry that names a node also names the call site of its frame —
-     * the popped frame on an unwind, the top frame on a raise, a throw or a
-     * catch. The tree is one row per call site and has to know which row an
-     * entry is, and it cannot work that out later: by the time the cursor sits
-     * on the catch, the frames that raised and unwound are gone. The entry for
-     * an error reaching the top names neither. */
+     * the popped frame on an unwind, the top frame on a throw or a catch. The
+     * tree is one row per call site and has to know which row an entry is,
+     * and it cannot work that out later: by the time the cursor sits on the
+     * catch, the frames that threw and unwound are gone. The entry for an
+     * error reaching the top names neither. */
     let errorPath = [];
     /* BY PATH FROM THE ENTRY, which is what the tree reads. A chain key is the
      * frame's chain joined: `@entry/greet#0/loadProfile#1`. No node id can hold
@@ -419,7 +419,7 @@ const Groundtrack = (() => {
         const gone = frames.pop();
         if (gone) {
           moved = { from: gone.nodeId, to: frames.length ? frames[frames.length - 1].nodeId : null, dir: 'propagate' };
-          errorPath = errorPath.concat([{ nodeId: gone.nodeId, site: gone.site, chain: gone.chain.slice(), how: 'passed through' }]);
+          errorPath = errorPath.concat([{ nodeId: gone.nodeId, site: gone.site, chain: gone.chain.slice(), how: 'propagated' }]);
         }
       } else if (m.k === 'done') {
         frames = [];
@@ -454,7 +454,7 @@ const Groundtrack = (() => {
             break;
           }
           case 'effect': {
-            const outcome = m.raised !== undefined ? 'failed' : 'landed';
+            const outcome = m.raised !== undefined ? 'threw' : 'returned';
             touch(top.chain).effects[`${top.nodeId}[${m.at}]`] = outcome;
             nodeEffects = { ...nodeEffects, [`${top.nodeId}[${m.at}]`]: outcome };
             ledger = ledger.concat([
@@ -470,7 +470,7 @@ const Groundtrack = (() => {
               },
             ]);
             if (m.raised !== undefined) {
-              errorPath = [{ nodeId: top.nodeId, site: top.site, chain: top.chain.slice(), how: 'raised', tag: m.raised.tag, message: m.raised.message, cause: m.raised.cause }];
+              errorPath = [{ nodeId: top.nodeId, site: top.site, chain: top.chain.slice(), how: 'thrown', tag: m.raised.tag, message: m.raised.message, cause: m.raised.cause }];
             } else {
               top.pc = m.next;
             }
@@ -704,17 +704,9 @@ const Groundtrack = (() => {
    * stopped, or a cycle never terminates.
    */
 
-  /** The four words the fold writes on the error path, sorted into the three
-   *  positions a row can take. A raise and a throw are one position — where
-   *  the error started. The tree, the text and the page all sort by this one
-   *  table, so the three cannot disagree about which word is which.
-   *
-   *  What each position LOOKS like is not here and must not come here: the
-   *  page keeps its own PATH_MARK of classes and glyphs, keyed by the word
-   *  rather than the position, because a raise and a throw are one position
-   *  and still draw differently. That table reads this one for the position,
-   *  so the two cannot drift apart on the only thing they share. */
-  const ERROR_POSITION = Object.freeze({ raised: 'raised', thrown: 'raised', 'passed through': 'passed', caught: 'caught' });
+  /** The three words the fold writes on the error path, each its own
+   *  position. The tree, the text and the page all sort by this one table. */
+  const ERROR_POSITION = Object.freeze({ thrown: 'thrown', propagated: 'propagated', caught: 'caught' });
 
   /** What one CALL STEP did, summed over every path that reached it.
    *
@@ -804,10 +796,10 @@ const Groundtrack = (() => {
        * mark the same step with different outcomes, and the row has one mark to
        * show for both. Taking the last one written would take the deepest
        * frame, which is an accident of the order the fold entered them: the row
-       * would report a clean record beside its own raised stripe and contradict
+       * would report a clean record beside its own thrown stripe and contradict
        * itself on one line. The failure is the half a reader must not lose. */
       for (const at of Object.keys(end.sites[key].effects)) {
-        if (drawn[i].effects[at] === 'failed') continue;
+        if (drawn[i].effects[at] === 'threw') continue;
         drawn[i].effects[at] = end.sites[key].effects[at];
       }
     }
@@ -816,13 +808,12 @@ const Groundtrack = (() => {
       if (i !== undefined) drawn[i].open = true;
     }
 
-    /* WHICH open frame is the one running. `state` says a row is on the stack;
-     * it does not say whether the walk is in it or merely under it, and on a
-     * deep stack that is most of the rows. A separate boolean and not a fourth
-     * `state`, for the reason the error position is separate: `state` is what
-     * --text prints and what the checks read, and a value they have never seen
-     * would change both. The page spends it on rule weight — the running frame
-     * keeps full ink, the ones waiting under it take the system's state rule.
+    /* WHICH open frame is the one running. `state` already says `running` or
+     * `waiting` for every open row, and `top` is kept alongside it rather than
+     * folded away: `state` is what --text prints and what the checks read,
+     * and a page-only signal has no business changing what they see. The page
+     * spends `top` on rule weight — the running frame keeps full ink, the ones
+     * waiting under it take the system's state rule.
      *
      * Read through `speaksFor` like every other signal. Where a recursion runs
      * below the drawn rows that makes the repeat row the row the walk is in,
@@ -831,20 +822,20 @@ const Groundtrack = (() => {
      * land on one row that way, and it is still one row. */
     const topRow = end.frames.length ? speaksFor(end.frames[end.frames.length - 1].chain) : undefined;
 
-    /* Where each row stands on the error path at the cursor: raised or thrown,
-     * passed through, caught. A second signal beside `state` and not a fourth
-     * value of it, because a row can be on the stack and on the path at once —
-     * the frame that catches is still open.
+    /* Where each row stands on the error path at the cursor: thrown, propagated,
+     * caught. A second signal beside `state` and not a fourth value of it,
+     * because a row can be running or waiting and on the path at once — the
+     * frame that catches is still open.
      *
      * Matched by the chain each entry carries, never by its node. A node called
      * from three sites is three rows, and at most one of them is the frame the
      * error crossed; a node whose CALLER is drawn twice is two rows, and the
      * same holds. The chain tells both apart, which `caller#step` could not.
      *
-     * The frame an error starts in is on the fold's path twice — it raised,
+     * The frame an error starts in is on the fold's path twice — it threw,
      * then it unwound — and only the first is a position. The row where the
-     * error started says so; `passed through` is for the frames it crossed. A
-     * frame that raises and catches its own error says both, in path order.
+     * error started says so; `propagated` is for the frames it crossed. A
+     * frame that throws and catches its own error says both, in path order.
      *
      * The entry for an error reaching the top names no chain, so it matches no
      * row and makes none. Nor do the frames still open when it gets there:
@@ -858,20 +849,20 @@ const Groundtrack = (() => {
     const errorOf = r => {
       const how = r.how;
       if (!how.length) return null;
-      const started = how.some(h => ERROR_POSITION[h] === 'raised');
-      return { how: started ? how.filter(h => h !== 'passed through') : how.slice(), tag: end.errorPath[0].tag };
+      const started = how.some(h => ERROR_POSITION[h] === 'thrown');
+      return { how: started ? how.filter(h => h !== 'propagated') : how.slice(), tag: end.errorPath[0].tag };
     };
 
     /* WHERE THE FRAME ENDED UP — one word, for a mark that can only be one
      * thing: a stripe down a row's edge, a glyph before its name. `error.how`
-     * can hold two, and a frame that raises and then catches its own error is
+     * can hold two, and a frame that throws and then catches its own error is
      * both; the last is where it came to rest, and the rail still lists the
      * whole path in order.
      *
      * Read from `error.how` and never from `end.errorPath` directly. The fold
      * puts the frame that started an error on the path twice — thrown, then
-     * passed through as it unwinds — so the last RAW entry for that row says
-     * "passed through" and the row that threw would lose its mark. `errorOf`
+     * propagated as it unwinds — so the last RAW entry for that row says
+     * "propagated" and the row that threw would lose its mark. `errorOf`
      * has already dropped that second entry, which is the whole reason it
      * filters. */
     const pathOf = error => (error ? error.how[error.how.length - 1] : null);
@@ -892,14 +883,14 @@ const Groundtrack = (() => {
         requirements: (ch.requirements || []).slice(),
         rename: rename ? rename.slice() : null,
         site: r.site ? { label: r.site.label, aside: r.site.aside } : null,
-        state: !reached ? 'not reached' : r.open ? 'on stack' : 'returned',
+        state: !reached ? 'not called' : r.open ? (i === topRow ? 'running' : 'waiting') : 'returned',
         top: i === topRow,
         errorPath: error,
         path: pathOf(error),
         effects: effectsOf(r.node).map(e => ({
           kind: e.kind,
           desc: e.desc,
-          mark: (reached && r.effects[`${r.id}[${e.at}]`]) || 'not reached',
+          mark: (reached && r.effects[`${r.id}[${e.at}]`]) || 'not called',
         })),
         repeat: r.repeat,
       };
