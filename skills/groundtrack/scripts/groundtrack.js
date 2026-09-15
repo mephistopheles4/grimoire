@@ -592,7 +592,7 @@ const Groundtrack = (() => {
    * draws below both of its callers. The call runs down the left of a pair and
    * the declared error return up its right: one corridor, two directions.
    */
-  const W = 288, GAP_X = 48, GAP_Y = 96, PAD = 36;
+  const W = 356, GAP_X = 48, GAP_Y = 96, PAD = 36;
 
   /* A sheet draws one graph, and one graph is what its entry reaches. So the
    * drawing places the reachable set and not the node map: on a change with
