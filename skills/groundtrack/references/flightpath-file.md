@@ -325,9 +325,9 @@ proved against the graph it belongs to, entering at that graph's entry.
   to notice.
 - **The three exceptional moves need an error to be travelling.** A throw and a
   throwing effect start one; a propagate keeps it; a catch and an uncaught
-  end it. So a `propagate` with nothing thrown is refused, a `catch` that
-  catches nothing is refused, and an `uncaught` whose tag is not the one
-  travelling is refused. A `catch` is also refused when the `onError` entry
+  end it. So the validator refuses a `propagate` with nothing thrown. It
+  refuses a `catch` that catches nothing. It refuses an `uncaught` whose tag is
+  not the one travelling. A `catch` is also refused when the `onError` entry
   it names was declared for some other tag.
 - **While an error is travelling, only the moves that carry it may run.** A
   `return` that discards the error, and a `done` that arrives while it is

@@ -171,9 +171,10 @@ The cutaway follows the cursor. Each move opens the node the trace is in and
 brings the step that ran into view. A node opened by hand stays open until the
 cursor next moves.
 
-The source tab marks each line with what the run did to it: the line the
-cursor is on, a line in a frame still running or waiting, a line that ran, and
-a line the run never reached. The last is the one worth having — an untaken
+The source tab marks each line with what the run did to it. It marks four
+kinds of line. The first is the line the cursor is on. The second is a line in
+a frame still running or waiting. The third is a line that ran. The fourth is a
+line the run never reached. The last is the one worth having — an untaken
 branch is the first thing a reader interrogates, so it stays legible rather
 than being hidden. A call or an effect also carries its outcome, and only
 once the run has given it one. A token is coloured because the run touched
@@ -242,8 +243,8 @@ in a plain text fence.
   the reader.
 - **One row is a call site**, not a node. A node called twice appears twice.
 - **A repeated node is marked and stopped**, or a cycle never terminates.
-- **Every `error` tag on a row carries its failure kind**, `fail` or `die`,
-  derived from the file and never written in it. A tag the file gives no kind
+- **Every `error` tag on a row carries its failure kind**, `fail` or `die`.
+  The kind is derived from the file and never written in it. A tag the file gives no kind
   for prints bare.
 - **Suggest the longest trace.** It is the only rule that names exactly one run
   in every worked example, with no tie.
