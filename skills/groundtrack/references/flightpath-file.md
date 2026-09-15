@@ -1,7 +1,7 @@
 # The flightpath file
 
 A `<topic>.flightpath.json` file states **one change**: its facts, one node map,
-and a list of graphs. A graph is an entry point and the walks from it. You write
+and a list of graphs. A graph is an entry point and the traces from it. You write
 the file by hand. A page draws one graph at a time. Nothing runs the program the
 file describes.
 
@@ -31,7 +31,7 @@ for that reason.
 groundtrack draws two kinds of thing. A **change** is work already done: a
 written change, a branch, a set of edits. A **plan** is work not yet done: a
 map of tickets, a design still being argued. Both are graphs of nodes, and both
-are walked.
+carry traces.
 
 **The core is every file's:** `id`, `title`, `blurb`, `env`, `nodes`, `graphs`.
 
@@ -101,7 +101,7 @@ thing, so nothing accepts both.
 | `id` | string | The graph's own name. Letters, digits and hyphens; unique in the file. |
 | `title` | string | One line: the sheet picker's label. |
 | `blurb` | string | One or two sentences: what this entry point does. |
-| `entry` | string | The node id the walks enter. Must exist in `nodes`. |
+| `entry` | string | The node id the traces enter. Must exist in `nodes`. |
 | `presets` | array | Named runs from this entry. See [a run](#a-run). |
 
 **A node id is letters, digits and hyphens, and nothing else.** The id reaches
@@ -137,7 +137,7 @@ Any word. The page prints it and nothing branches on it. The words in use are
 ### channels
 
 - `success` — a string. What flows out of the node.
-- `error` — an array of strings. The failure tags the node can raise.
+- `error` — an array of strings. The failure tags the node can throw.
 - `requirements` — an array of strings. What the node needs to work.
 
 **Never write a tag's kind here.** `error` is a list of tags, and
@@ -178,7 +178,7 @@ name, and `aside`, a remark about the step.
 **`comment` is an op, and `aside` is the remark on any other step.** Two different
 things, two different names.
 
-**No step carries a result.** What an effect returned is a fact in the walk,
+**No step carries a result.** What an effect returned is a fact in the trace,
 not a rule in the program.
 
 | `op` | Required fields | Optional |
@@ -199,7 +199,7 @@ names a node id. `cause` is `fail` or `die`.
 step of the same node.
 
 **`label` is a jump target and only a jump target.** An effect's readable name
-is `desc`. A walk move's readable name is `desc`.
+is `desc`. A trace move's readable name is `desc`.
 
 ## A run
 
@@ -253,14 +253,14 @@ demand a field of moves that cannot have it.
 
 | `k` | Fields | Meaning |
 | --- | --- | --- |
-| `catch` | `at`, `goto`, `next` | The step at `at` declares this `goto` in its `onError`. The cursor landed at `next`, the step labelled `goto`. |
-| `propagate` | — | Pop a frame the error passed through. |
+| `catch` | `at`, `goto`, `next` | The step at `at` declares this `goto` in its `onError`. The cursor moves to `next`, the step labelled `goto`. |
+| `propagate` | — | Pop a frame the error leaves. |
 | `done` | `result?` | The entry frame returned. |
 | `uncaught` | `tag`, `message`, `cause` | Nothing caught the error. |
 
 ### Frames
 
-- **A walk begins at its graph's entry with the cursor at zero.** No move says so.
+- **A trace begins at its graph's entry with the cursor at zero.** No move says so.
 - **A call pushes the frame it names, and that frame enters at step zero.**
   Nothing else pushes a frame.
 - **The call's own `next` is the caller's continuation** — where the caller
@@ -300,14 +300,14 @@ route to the `throw` step. Both are ordinary, and the tape tells them apart.
 ```
 
 Read it as: the entry frame runs a `var` and then calls, parking its own cursor
-at 2. The callee enters at zero, its effect raises, and the callee's frame
+at 2. The callee enters at zero, its effect throws, and the callee's frame
 propagates. The entry frame's call step declared a handler, so the error is caught
 there and the cursor lands on the step labelled `warn`. The entry frame returns,
 and the trace is done with no frame open.
 
 ## What the validator proves
 
-It proves the walk is a **legal path**, and it evaluates nothing. A walk is
+It proves the trace is a **legal path**, and it evaluates nothing. A trace is
 proved against the graph it belongs to, entering at that graph's entry.
 
 - Every `at` indexes a real step of the frame's node, and equals the cursor.
@@ -324,8 +324,8 @@ proved against the graph it belongs to, entering at that graph's entry.
 - **A refusal names the move that emptied the frame stack**, not the first move
   to notice.
 - **The three exceptional moves need an error to be travelling.** A throw and a
-  raising effect start one; a propagate keeps it; a catch and an uncaught
-  end it. So a `propagate` with nothing raised is refused, a `catch` that
+  throwing effect start one; a propagate keeps it; a catch and an uncaught
+  end it. So a `propagate` with nothing thrown is refused, a `catch` that
   catches nothing is refused, and an `uncaught` whose tag is not the one
   travelling is refused. A `catch` is also refused when the `onError` entry
   it names was declared for some other tag.
@@ -341,7 +341,7 @@ returned. Both are claims you make. In practice a wrong branch is often caught
 anyway, because the moves after it no longer fit the graph.
 
 **Say this limit out loud when you hand the page over.** The material is
-durable, so a sceptical reader can check the drawing against it. The walk's
+durable, so a sceptical reader can check the drawing against it. The trace's
 structure is checked. Its values are not.
 
 ## What a refusal says
@@ -353,7 +353,7 @@ without reading the prose:
 greet.flightpath.json: graphs[0].entry: "nowhere" is not a node
 ```
 
-**A refusal in a walk names the graph, the run and the move in words** after the
+**A refusal in a trace names the graph, the run and the move in words** after the
 path, because counting into two arrays to find `graphs[1].presets[0]` is work a
 person should not have to do:
 
@@ -362,7 +362,7 @@ greet.flightpath.json: graphs[1].presets[0].trace.steps[4]: graph "panel-apply",
 ```
 
 **A fault in the file's shape prints the path alone.** It is refused before any
-walk is read, so there is no run and no move to name, and a refusal never names
+trace is read, so there is no run and no move to name, and a refusal never names
 one that does not exist.
 
 ## layers
@@ -400,7 +400,7 @@ exits zero. Each one is a thing you may have meant.
   change takes when one file carries two concerns.
 - **An `error` list declaring a tag nothing beneath it can produce.** A node
   produces a tag three ways: it throws it, a step of it declares a handler for
-  it, or one of its effects raised it in a walk this file carries.
+  it, or one of its effects threw it in a trace this file carries.
 - **A file in the change that no node accounts for**, by name. It reads every
   node of the change, so a file one graph covers is not reported because
   another graph does not.

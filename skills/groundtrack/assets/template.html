@@ -1154,10 +1154,10 @@ function start() {
      * and the one most likely to be wrong. */
     if (site.returned === site.entered) return ' av-code-site--caught';
     /* Entered more times than it returned, and nothing from it is on the
-     * stack: at least one of those entries left by raising. Read from the
+     * stack: at least one of those entries left by throwing. Read from the
      * site's own counts and not from st.errorPath, which holds where an error
      * is NOW — a failure a handler caught and the run then ran past leaves
-     * errorPath empty while the call it came from stays failed. */
+     * errorPath empty while the call it came from still threw. */
     return ' av-code-site--path';
   }
 

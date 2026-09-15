@@ -878,7 +878,7 @@ test('no mark the walk made is missing from the tree', () => {
 test('a failure is not hidden by a frame that succeeded at the same step', () => {
   // Two frames one row speaks for, marking the SAME step differently. Merging
   // by insertion order would take the deeper chain, which is the one that
-  // landed — and the row would report a clean record beside its own raised
+  // returned — and the row would report a clean record beside its own thrown
   // stripe, contradicting itself on one line.
   const walk = runNamed(recursive, 'the deeper frame lands and the shallower one fails').trace;
   const rows = G.treeRows(recursive, walk, null, undefined, G.fold(recursive, walk));

@@ -773,7 +773,7 @@ test('the text marks where each row stood on an error that is still live at the 
   const r = run(groundtrack, [file, '--text', 'the store is down']);
   assert.equal(r.code, 0, r.stderr);
   assert.deepEqual(errorLines(r.stdout), ['', 'error path: propagated', '', 'error path: thrown StoreDown']);
-  // The row that raised is the lookup by alias. The lookup by id is the same
+  // The row that threw is the lookup by alias. The lookup by id is the same
   // node from another call site, and it took no part.
   const rows = textRows(r.stdout);
   assert.ok(rows[3].some(l => l.includes('by alias')));
@@ -865,7 +865,7 @@ test('the page tree marks the error path from the row, with a word and a rule fo
   // and both sit in the row's own ink flow until a role paints them.
   assert.match(tree, /class="tr-gl/, 'the glyph is drawn before the name');
   assert.match(html, /\.gt-chip\b[^{]*\{[^}]*border:/, 'the chip is a hairline border, not a fill');
-  assert.match(tree, /tr-err-tag/, 'the tag stays beside the row that raised');
+  assert.match(tree, /tr-err-tag/, 'the tag stays beside the row that threw');
 
   // The stripe is the third channel and the only one that IS a hue.
   for (const cls of ['tr--thrown', 'tr--onpath', 'tr--caught']) {
@@ -873,7 +873,7 @@ test('the page tree marks the error path from the row, with a word and a rule fo
   }
   // Thrown takes a fourth signal the other two do not, in ink rather than hue,
   // because it is the position a reader looks for first.
-  assert.match(html, /\.tr--thrown\b[^{]*\{[^}]*border-bottom:[^;]*var\(--av-ink\)/, 'the raise is ruled under, in ink');
+  assert.match(html, /\.tr--thrown\b[^{]*\{[^}]*border-bottom:[^;]*var\(--av-ink\)/, 'the throw is ruled under, in ink');
   // The glyph and the word each take their OWN caught modifier. One shared
   // modifier string reads fine in the deck theme, where both roles resolve to
   // a colour, and paints the caught word redline in the site theme, where the
@@ -883,7 +883,7 @@ test('the page tree marks the error path from the row, with a word and a rule fo
     assert.match(html, new RegExp(`\\.${cls}\\b[^{]*\\{[^}]*var\\(--av-path-caught\\)`), `${cls} asks for the caught role`);
   }
   assert.match(html, /\.gt-chip\b[^{]*\{[^}]*border:/, 'the chip is a hairline border, not a fill');
-  assert.match(tree, /tr-err-tag/, 'the tag stays beside the row that raised');
+  assert.match(tree, /tr-err-tag/, 'the tag stays beside the row that threw');
   // The drawing is not this change: its box still reads the path by node.
   const box = between(html, 'function nodeBox(', '/* -- the tree');
   assert.doesNotMatch(box, /row\.error\b|\.error\.how|tr-err|tr-gl/);
