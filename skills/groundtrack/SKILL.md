@@ -244,7 +244,8 @@ in a plain text fence.
 - **One row is a call site**, not a node. A node called twice appears twice.
 - **A repeated node is marked and stopped**, or a cycle never terminates.
 - **Every `error` tag on a row carries its failure kind**, `fail` or `die`.
-  The kind is derived from the file and never written in it. A tag the file gives no kind
+  The renderer derives the kind from the file's `throw` steps and `raised`
+  objects. The `error` list never states it. A tag the file gives no kind
   for prints bare.
 - **Suggest the longest trace.** It is the only rule that names exactly one run
   in every worked example, with no tie.
