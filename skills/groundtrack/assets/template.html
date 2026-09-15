@@ -265,6 +265,23 @@ input[type=checkbox] { accent-color: var(--av-ink); margin: 0 var(--av-s1) 0 0; 
 .wire--flow { stroke-dasharray: 6 6; animation: flow 1.2s linear infinite; }
 .wire--flow-rev { stroke-dasharray: 6 6; animation: flow-rev 1.2s linear infinite; }
 
+/* PROTOTYPE #88 — throwaway. Recursion marks and the variant switcher. */
+.rc-chip { display: inline-flex; align-items: center; gap: 4px; border: var(--av-rule-hair) solid var(--av-ink); padding: 0 5px;
+  font-size: var(--av-t-micro); font-weight: 600; white-space: nowrap; }
+.rc-glyph { display: inline-block; margin-left: 6px; font-weight: 600; }
+.rc-n { font-size: var(--av-t-micro); font-weight: 600; margin-left: 2px; }
+.rc-ico { display: inline-block; }
+@keyframes rc-spin { to { transform: rotate(360deg); } }
+.rc-spin { animation: rc-spin 1.2s linear infinite; }
+@media (prefers-reduced-motion: reduce) { .rc-spin { animation: none; } }
+#proto-bar { position: fixed; left: 50%; bottom: 18px; transform: translateX(-50%); z-index: 9999; display: flex; align-items: center; gap: 10px;
+  background: #111; color: #fff; font: 600 13px/1 system-ui, sans-serif; padding: 8px 14px; border-radius: 999px;
+  box-shadow: 0 6px 24px rgba(0,0,0,.35); }
+#proto-bar button { background: #333; color: #fff; border: 0; border-radius: 999px; padding: 5px 10px; font: inherit; cursor: pointer; white-space: nowrap; }
+#proto-bar button[aria-pressed="true"] { background: #f5c518; color: #111; }
+#proto-bar .pb-label { min-width: 250px; text-align: center; }
+#proto-bar .pb-sep { width: 1px; height: 18px; background: #555; }
+
 /* A node is a part on the drawing. Its states are line weights: the open one
    carries an outline set off the box, one on the stack a hairline outside it,
    one the run has never called a hairline box in construction ink. */
@@ -888,16 +905,31 @@ function start() {
     );
     for (const e of LAYOUT.edges) {
       const key = e.from + '>' + e.to;
-      const live = onStack.has(e.from) && onStack.has(e.to);
+      /* PROTOTYPE #88: a back edge is live only while its two frames sit next
+         to each other on the stack, caller under callee. */
+      const adjacent = st.frames.some((f, i) => i > 0 && st.frames[i - 1].nodeId === e.from && f.nodeId === e.to);
+      const live = e.back ? adjacent : onStack.has(e.from) && onStack.has(e.to);
       const walked = taken.has(key);
       const cut = CUTS.some(c => c.layer === S.layer && c.from === e.from && c.to === e.to);
       const cold = cut || !reach.has(e.to);
       const inked = !cold && (live || walked);
       let cls = 'wire' + (cold ? '' : live ? ' wire--live' : walked ? ' wire--walked' : '') + (cut ? ' wire--cut' : '');
-      if (S.redraw && S.redraw.from === e.from && S.redraw.to === e.to) cls += ' wire--flow';
-      if (S.redraw && S.redraw.from === e.to && S.redraw.to === e.from) cls += ' wire--flow-rev';
-      parts.push('<path class="' + cls + '" d="' + e.call + '" marker-end="url(#' + (inked ? 'ar-ink' : 'ar-cold') + ')"></path>');
-      if (e.hasE) parts.push('<path class="wire wire--err" d="' + e.err + '" marker-end="url(#ar-cold)"></path>');
+      /* PROTOTYPE #88: the move's direction picks which wire animates, so a
+         mutual pair's return no longer lights the other wire too. */
+      const d = S.redraw && S.redraw.dir;
+      const forward = d === 'call' || d === 'unreturn';
+      if (S.redraw && forward && S.redraw.from === e.from && S.redraw.to === e.to) cls += ' wire--flow';
+      if (S.redraw && !forward && S.redraw.from === e.to && S.redraw.to === e.from) cls += ' wire--flow-rev';
+      let path = e.call, errPath = e.err;
+      if (e.back) {
+        if (e.self) { path = PROTO.v === 'C' ? e.loop : null; errPath = e.loopErr; }
+        else if (PROTO.v === 'B') { path = e.arc; errPath = e.arcErr; }
+        else { path = e.side; errPath = e.sideErr; }
+        if (!path) continue;
+        cls += ' wire--back';
+      }
+      parts.push('<path class="' + cls + '" d="' + path + '" marker-end="url(#' + (inked ? 'ar-ink' : 'ar-cold') + ')"></path>');
+      if (e.hasE && (!e.back || PROTO.err)) parts.push('<path class="wire wire--err" d="' + errPath + '" marker-end="url(#ar-cold)"></path>');
     }
     parts.push('</g>');
     return (
@@ -958,11 +990,25 @@ function start() {
     const cutNote = CUTS.filter(c => c.layer === S.layer && c.to === id).length
       ? '<div class="nd-cut">cut under ' + esc(S.layer) + '</div>'
       : '';
+    /* PROTOTYPE #88: the self-call mark. A shows a chip in the top row, B a
+       glyph by the name, C nothing (the loop wire carries it). The count is how
+       many frames of this node are open; it spins while that is more than one. */
+    const selfCalls = LAYOUT.edges.some(e => e.self && e.from === id);
+    const frameCount = st.frames.filter(f => f.nodeId === id).length;
+    const spin = PROTO.motion && frameCount > 1 ? ' rc-spin' : '';
+    const count = frameCount > 1 ? '<span class="rc-n">×' + frameCount + '</span>' : '';
+    const rcChip = selfCalls && PROTO.v === 'A'
+      ? '<span class="rc-chip chip-help" data-help="Calls itself. The count is how many of its frames are open.">' +
+        '<span class="rc-ico' + spin + '">↻</span> calls itself' + count + '</span>'
+      : '';
+    const rcGlyph = selfCalls && PROTO.v === 'B'
+      ? '<span class="rc-glyph chip-help" data-help="Calls itself"><span class="rc-ico' + spin + '">↻</span></span>' + count
+      : '';
     return (
       '<div class="' + cls + '" data-node="' + id + '" style="left:' + p.x + 'px;top:' + p.y +
       'px;width:' + LAYOUT.width + 'px">' +
-      '<div class="nd-top"><span class="av-label chip-help" data-help="' + HELP.role + '">' + esc(n.role) + '</span>' + chip + '</div>' +
-      '<div class="nd-name">' + esc(n.name) + '</div>' +
+      '<div class="nd-top"><span class="av-label chip-help" data-help="' + HELP.role + '">' + esc(n.role) + '</span>' + rcChip + chip + '</div>' +
+      '<div class="nd-name">' + esc(n.name) + rcGlyph + '</div>' +
       '<div class="nd-loc">' + esc(n.loc) + '</div>' +
       '<div class="nd-ch">' + channelKey('success') + '<span>' + esc(ch.success || '—') + '</span>' +
       channelKey('error') + '<span>' + E + '</span>' + channelKey('requirements') + '<span>' + R + '</span></div>' +
@@ -1370,7 +1416,7 @@ function start() {
       /* Stepping back over a call redraws it callee to caller, so unwinding
          reads as unwinding. */
       const b = G.back(S.states, S.at);
-      S.redraw = b.redraw ? { from: b.redraw.from, to: b.redraw.to } : null;
+      S.redraw = b.redraw ? { from: b.redraw.from, to: b.redraw.to, dir: b.redraw.dir } : null;
     }
     S.at = to;
     follow();
@@ -1812,6 +1858,64 @@ function start() {
     if (e.key === 'ArrowRight') step(1);
     if (e.key === 'ArrowLeft') step(-1);
   });
+
+  /* PROTOTYPE #88 — throwaway. ?variant=A|B|C&err=1&motion=0. The arrow keys
+     already step the walk here, so [ and ] cycle the variant. */
+  const PROTO_NAMES = {
+    A: 'chip in the top row · side-lane wire',
+    B: 'glyph by the name · bowed arc wire',
+    C: 'no mark · loop wire on the box · side-lane wire',
+  };
+  const PROTO_KEYS = Object.keys(PROTO_NAMES);
+  const protoRead = () => {
+    const q = new URLSearchParams(location.search);
+    const v = (q.get('variant') || 'A').toUpperCase();
+    return { v: PROTO_NAMES[v] ? v : 'A', err: q.get('err') === '1', motion: q.get('motion') !== '0' };
+  };
+  var PROTO = protoRead();
+  function protoWrite() {
+    const q = new URLSearchParams(location.search);
+    q.set('variant', PROTO.v);
+    q.set('err', PROTO.err ? '1' : '0');
+    q.set('motion', PROTO.motion ? '1' : '0');
+    history.replaceState(null, '', location.pathname + '?' + q.toString());
+    protoBar();
+    render();
+  }
+  function protoCycle(d) {
+    const i = PROTO_KEYS.indexOf(PROTO.v);
+    PROTO.v = PROTO_KEYS[(i + d + PROTO_KEYS.length) % PROTO_KEYS.length];
+    protoWrite();
+  }
+  function protoBar() {
+    let bar = document.getElementById('proto-bar');
+    if (!bar) {
+      bar = document.createElement('div');
+      bar.id = 'proto-bar';
+      document.body.appendChild(bar);
+      bar.addEventListener('click', function (e) {
+        const b = e.target.closest('button');
+        if (!b) return;
+        if (b.dataset.act === 'prev') protoCycle(-1);
+        if (b.dataset.act === 'next') protoCycle(1);
+        if (b.dataset.act === 'err') { PROTO.err = !PROTO.err; protoWrite(); }
+        if (b.dataset.act === 'motion') { PROTO.motion = !PROTO.motion; protoWrite(); }
+      });
+    }
+    bar.innerHTML =
+      '<button data-act="prev" title="[">‹</button>' +
+      '<span class="pb-label">' + PROTO.v + ' (' + PROTO_NAMES[PROTO.v] + ')</span>' +
+      '<button data-act="next" title="]">›</button><span class="pb-sep"></span>' +
+      '<button data-act="err" aria-pressed="' + PROTO.err + '">error wire on back edges</button>' +
+      '<button data-act="motion" aria-pressed="' + PROTO.motion + '">motion</button>';
+  }
+  window.addEventListener('keydown', function (e) {
+    const t = e.target;
+    if (t && (['SELECT', 'INPUT', 'TEXTAREA'].indexOf(t.tagName) >= 0 || t.isContentEditable)) return;
+    if (e.key === '[') protoCycle(-1);
+    if (e.key === ']') protoCycle(1);
+  });
+  protoBar();
 
   fillRunPicker();
   syncControls();

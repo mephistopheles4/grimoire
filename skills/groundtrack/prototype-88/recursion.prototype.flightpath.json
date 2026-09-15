@@ -1,0 +1,302 @@
+{
+  "id": "prototype-88-recursion",
+  "title": "PROTOTYPE #88 · how the drawing shows recursion",
+  "blurb": "Throwaway. Four recursive graphs to judge the self-call mark and the back-edge wire. Switch variants with the bar at the bottom, or [ and ]. Step the walk with the arrow keys.",
+  "env": {},
+  "nodes": {
+    "scan": {
+      "name": "scan",
+      "role": "service",
+      "loc": "src/scan.ts:3",
+      "params": ["dir"],
+      "channels": { "success": "the rows found", "error": ["WriteFailed"], "requirements": ["the row store"] },
+      "touches": [],
+      "enteredBy": [],
+      "steps": [
+        { "op": "if", "cond": "dir has a child", "then": "down", "else": "leaf" },
+        { "op": "call", "label": "down", "target": "scan", "args": { "dir": "child" }, "bind": "rows" },
+        { "op": "effect", "label": "leaf", "kind": "db.put", "desc": "record the row", "args": { "dir": "dir" } },
+        { "op": "return", "expr": "rows" }
+      ]
+    },
+    "fetchPart": {
+      "name": "fetchPart",
+      "role": "service",
+      "loc": "src/parts.ts:10",
+      "params": ["id"],
+      "channels": { "success": "a resolved part", "error": ["FetchFailed"], "requirements": ["the parts API"] },
+      "touches": [],
+      "enteredBy": [],
+      "steps": [
+        { "op": "effect", "kind": "http.get", "desc": "fetch the part", "args": { "id": "id" }, "bind": "part" },
+        { "op": "call", "target": "resolveRefs", "args": { "part": "part" }, "bind": "refs" },
+        { "op": "return", "expr": "part" }
+      ]
+    },
+    "resolveRefs": {
+      "name": "resolveRefs",
+      "role": "service",
+      "loc": "src/parts.ts:31",
+      "params": ["part"],
+      "channels": { "success": "the part's references", "error": ["FetchFailed"], "requirements": [] },
+      "touches": [],
+      "enteredBy": [],
+      "steps": [
+        { "op": "if", "cond": "part has a reference", "then": "again", "else": "done" },
+        { "op": "call", "label": "again", "target": "fetchPart", "args": { "id": "part.ref" } },
+        { "op": "return", "label": "done", "expr": "refs" }
+      ]
+    },
+    "resolve": {
+      "name": "resolve",
+      "role": "handler",
+      "loc": "src/build.ts:5",
+      "params": ["spec"],
+      "channels": { "success": "a built spec", "error": ["WriteFailed"], "requirements": [] },
+      "touches": [],
+      "enteredBy": [],
+      "steps": [
+        { "op": "call", "target": "expand", "args": { "spec": "spec" } },
+        { "op": "call", "target": "emit", "args": { "spec": "spec" } },
+        { "op": "return", "expr": "spec" }
+      ]
+    },
+    "expand": {
+      "name": "expand",
+      "role": "service",
+      "loc": "src/build.ts:22",
+      "params": ["spec"],
+      "channels": { "success": "the expanded spec", "error": ["WriteFailed"], "requirements": [] },
+      "touches": [],
+      "enteredBy": [],
+      "steps": [
+        { "op": "if", "cond": "spec includes another spec", "then": "again", "else": "stop" },
+        { "op": "call", "label": "again", "target": "resolve", "args": { "spec": "spec.include" } },
+        { "op": "return", "label": "stop", "expr": "spec" }
+      ]
+    },
+    "emit": {
+      "name": "emit",
+      "role": "service",
+      "loc": "src/build.ts:40",
+      "params": ["spec"],
+      "channels": { "success": "the output path", "error": ["WriteFailed"], "requirements": [] },
+      "touches": [],
+      "enteredBy": [],
+      "steps": [
+        { "op": "call", "target": "write", "args": { "spec": "spec" } },
+        { "op": "return", "expr": "path" }
+      ]
+    },
+    "write": {
+      "name": "write",
+      "role": "io",
+      "loc": "src/fs.ts:8",
+      "params": ["spec"],
+      "channels": { "success": "the output path", "error": ["WriteFailed"], "requirements": ["the output directory"] },
+      "touches": [],
+      "enteredBy": [],
+      "steps": [
+        { "op": "effect", "kind": "fs.write", "desc": "write the file", "args": { "spec": "spec" } },
+        { "op": "return", "expr": "path" }
+      ]
+    },
+    "walkDir": {
+      "name": "walkDir",
+      "role": "service",
+      "loc": "src/walk.ts:4",
+      "params": ["dir"],
+      "channels": { "success": "the files under dir", "error": ["ReadFailed"], "requirements": ["the filesystem"] },
+      "touches": [],
+      "enteredBy": [],
+      "steps": [
+        { "op": "if", "cond": "entry is a directory", "then": "down", "else": "across" },
+        { "op": "call", "label": "down", "target": "walkDir", "args": { "dir": "entry" } },
+        { "op": "goto", "to": "out" },
+        { "op": "call", "label": "across", "target": "followLink", "args": { "link": "entry" } },
+        { "op": "return", "label": "out", "expr": "files" }
+      ]
+    },
+    "followLink": {
+      "name": "followLink",
+      "role": "service",
+      "loc": "src/walk.ts:30",
+      "params": ["link"],
+      "channels": { "success": "the files behind the link", "error": ["ReadFailed"], "requirements": [] },
+      "touches": [],
+      "enteredBy": [],
+      "steps": [
+        { "op": "if", "cond": "link points at a directory", "then": "back", "else": "stop" },
+        { "op": "call", "label": "back", "target": "walkDir", "args": { "dir": "link.target" } },
+        { "op": "return", "label": "stop", "expr": "files" }
+      ]
+    }
+  },
+  "graphs": [
+    {
+      "id": "self",
+      "title": "1 · a self call",
+      "blurb": "scan calls itself.",
+      "entry": "scan",
+      "presets": [
+        {
+          "name": "three frames down",
+          "blurb": "The walk goes three frames deep and climbs back out.",
+          "input": { "dir": "/src" },
+          "trace": {
+            "provenance": "authored",
+            "steps": [
+              { "k": "if", "at": 0, "next": 1 },
+              { "k": "call", "at": 1, "to": "scan", "next": 2 },
+              { "k": "if", "at": 0, "next": 1 },
+              { "k": "call", "at": 1, "to": "scan", "next": 2 },
+              { "k": "if", "at": 0, "next": 2 },
+              { "k": "effect", "at": 2, "kind": "db.put", "desc": "record the row", "next": 3, "result": { "ok": true } },
+              { "k": "return", "at": 3, "value": "[]" },
+              { "k": "effect", "at": 2, "kind": "db.put", "desc": "record the row", "next": 3, "result": { "ok": true } },
+              { "k": "return", "at": 3, "value": "[]" },
+              { "k": "effect", "at": 2, "kind": "db.put", "desc": "record the row", "next": 3, "result": { "ok": true } },
+              { "k": "return", "at": 3, "value": "[]" },
+              { "k": "done", "result": "[]" }
+            ]
+          }
+        },
+        {
+          "name": "the deepest write fails",
+          "blurb": "Three frames down, the write fails and nothing catches it.",
+          "input": { "dir": "/src" },
+          "trace": {
+            "provenance": "authored",
+            "steps": [
+              { "k": "if", "at": 0, "next": 1 },
+              { "k": "call", "at": 1, "to": "scan", "next": 2 },
+              { "k": "if", "at": 0, "next": 1 },
+              { "k": "call", "at": 1, "to": "scan", "next": 2 },
+              { "k": "if", "at": 0, "next": 2 },
+              { "k": "effect", "at": 2, "kind": "db.put", "desc": "record the row", "raised": { "tag": "WriteFailed", "message": "the row store refused the write", "cause": "fail" } },
+              { "k": "uncaught", "tag": "WriteFailed", "message": "the row store refused the write", "cause": "fail" }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "mutual",
+      "title": "2 · a mutual pair",
+      "blurb": "fetchPart calls resolveRefs, which calls fetchPart.",
+      "entry": "fetchPart",
+      "presets": [
+        {
+          "name": "round the loop twice",
+          "blurb": "Two parts are fetched, one through the other's reference.",
+          "input": { "id": "p-1" },
+          "trace": {
+            "provenance": "authored",
+            "steps": [
+              { "k": "effect", "at": 0, "kind": "http.get", "desc": "fetch the part", "next": 1, "result": { "ref": "p-2" } },
+              { "k": "call", "at": 1, "to": "resolveRefs", "next": 2 },
+              { "k": "if", "at": 0, "next": 1 },
+              { "k": "call", "at": 1, "to": "fetchPart", "next": 2 },
+              { "k": "effect", "at": 0, "kind": "http.get", "desc": "fetch the part", "next": 1, "result": { "ref": null } },
+              { "k": "call", "at": 1, "to": "resolveRefs", "next": 2 },
+              { "k": "if", "at": 0, "next": 2 },
+              { "k": "return", "at": 2, "value": "[]" },
+              { "k": "return", "at": 2, "value": "p-2" },
+              { "k": "return", "at": 2, "value": "[p-2]" },
+              { "k": "return", "at": 2, "value": "p-1" },
+              { "k": "done", "result": "p-1" }
+            ]
+          }
+        },
+        {
+          "name": "the second fetch fails",
+          "blurb": "The fetch through the reference fails and nothing catches it.",
+          "input": { "id": "p-1" },
+          "trace": {
+            "provenance": "authored",
+            "steps": [
+              { "k": "effect", "at": 0, "kind": "http.get", "desc": "fetch the part", "next": 1, "result": { "ref": "p-2" } },
+              { "k": "call", "at": 1, "to": "resolveRefs", "next": 2 },
+              { "k": "if", "at": 0, "next": 1 },
+              { "k": "call", "at": 1, "to": "fetchPart", "next": 2 },
+              { "k": "effect", "at": 0, "kind": "http.get", "desc": "fetch the part", "raised": { "tag": "FetchFailed", "message": "503 from the parts API", "cause": "fail" } },
+              { "k": "uncaught", "tag": "FetchFailed", "message": "503 from the parts API", "cause": "fail" }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "wider",
+      "title": "3 · a pair beside a plain branch",
+      "blurb": "resolve calls expand and emit; expand calls resolve back; emit calls write.",
+      "entry": "resolve",
+      "presets": [
+        {
+          "name": "one nested spec",
+          "blurb": "The spec includes one other spec, and both are written.",
+          "input": { "spec": "app" },
+          "trace": {
+            "provenance": "authored",
+            "steps": [
+              { "k": "call", "at": 0, "to": "expand", "next": 1 },
+              { "k": "if", "at": 0, "next": 1 },
+              { "k": "call", "at": 1, "to": "resolve", "next": 2 },
+              { "k": "call", "at": 0, "to": "expand", "next": 1 },
+              { "k": "if", "at": 0, "next": 2 },
+              { "k": "return", "at": 2, "value": "lib" },
+              { "k": "call", "at": 1, "to": "emit", "next": 2 },
+              { "k": "call", "at": 0, "to": "write", "next": 1 },
+              { "k": "effect", "at": 0, "kind": "fs.write", "desc": "write the file", "next": 1, "result": { "ok": true } },
+              { "k": "return", "at": 1, "value": "out/lib" },
+              { "k": "return", "at": 1, "value": "out/lib" },
+              { "k": "return", "at": 2, "value": "lib" },
+              { "k": "return", "at": 2, "value": "app" },
+              { "k": "call", "at": 1, "to": "emit", "next": 2 },
+              { "k": "call", "at": 0, "to": "write", "next": 1 },
+              { "k": "effect", "at": 0, "kind": "fs.write", "desc": "write the file", "next": 1, "result": { "ok": true } },
+              { "k": "return", "at": 1, "value": "out/app" },
+              { "k": "return", "at": 1, "value": "out/app" },
+              { "k": "return", "at": 2, "value": "app" },
+              { "k": "done", "result": "app" }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "both",
+      "title": "4 · a self call inside a mutual pair",
+      "blurb": "walkDir calls itself and followLink; followLink calls walkDir back.",
+      "entry": "walkDir",
+      "presets": [
+        {
+          "name": "down, across, back, across",
+          "blurb": "One directory down, then a link, then back into walkDir, then another link that stops.",
+          "input": { "dir": "/" },
+          "trace": {
+            "provenance": "authored",
+            "steps": [
+              { "k": "if", "at": 0, "next": 1 },
+              { "k": "call", "at": 1, "to": "walkDir", "next": 2 },
+              { "k": "if", "at": 0, "next": 3 },
+              { "k": "call", "at": 3, "to": "followLink", "next": 4 },
+              { "k": "if", "at": 0, "next": 1 },
+              { "k": "call", "at": 1, "to": "walkDir", "next": 2 },
+              { "k": "if", "at": 0, "next": 3 },
+              { "k": "call", "at": 3, "to": "followLink", "next": 4 },
+              { "k": "if", "at": 0, "next": 2 },
+              { "k": "return", "at": 2, "value": "[]" },
+              { "k": "return", "at": 4, "value": "[]" },
+              { "k": "return", "at": 2, "value": "[]" },
+              { "k": "return", "at": 4, "value": "[]" },
+              { "k": "goto", "at": 2, "next": 4 },
+              { "k": "return", "at": 4, "value": "[]" },
+              { "k": "done", "result": "[]" }
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

@@ -611,9 +611,26 @@ const Groundtrack = (() => {
       throw new Error('layout needs a graph view: a file lists graphs and has no entry of its own');
     }
     const ids = [...reachable(prog, prog.entry)];
+    /* PROTOTYPE #88 — throwaway. A back edge is a call into a node still on the
+     * depth-first walk from the entry, in call order. Depth ignores back edges
+     * and keeps longest-path over the rest. */
+    const backKeys = new Set();
+    {
+      const onPath = new Set(), finished = new Set();
+      (function walkBack(id) {
+        onPath.add(id);
+        for (const c of calleesOf(prog, id)) {
+          if (onPath.has(c)) backKeys.add(id + '>' + c);
+          else if (!finished.has(c)) walkBack(c);
+        }
+        onPath.delete(id);
+        finished.add(id);
+      })(prog.entry);
+    }
+    const isBack = (a, b) => backKeys.has(a + '>' + b);
     const depth = bareFrom(ids.map(i => [i, 0]));
     for (let k = 0; k < ids.length; k++) {
-      for (const id of ids) for (const c of calleesOf(prog, id)) if (depth[c] < depth[id] + 1) depth[c] = depth[id] + 1;
+      for (const id of ids) for (const c of calleesOf(prog, id)) if (!isBack(id, c) && depth[c] < depth[id] + 1) depth[c] = depth[id] + 1;
     }
 
     const order = [], seen = new Set();
@@ -676,11 +693,49 @@ const Groundtrack = (() => {
       for (const id of row) rightEdge = Math.max(rightEdge, pos[id].x + W);
       y += Math.max(...row.map(id => H[id])) + GAP_Y;
     }
-    const canvasW = Math.max(sheetW + PAD * 2, rightEdge + PAD);
+    let canvasW = Math.max(sheetW + PAD * 2, rightEdge + PAD);
 
     const edges = [];
+    /* PROTOTYPE #88: back edges carry every variant's geometry; the template
+     * picks one from ?variant=. */
+    const lanes = bare();
     for (const from of ids) {
       for (const to of calleesOf(prog, from)) {
+        if (!isBack(from, to)) continue;
+        const a = pos[from], b = pos[to];
+        const hasE = ((prog.nodes[to].channels || {}).error || []).length > 0;
+        if (from === to) {
+          /* On the left side, so it never shares the right-hand lane a
+           * back edge between two nodes runs in. */
+          const x = a.x, y = a.y, h = a.h;
+          edges.push({
+            from, to, back: true, self: true, hasE,
+            loop: `M${x},${y + h - 44} L${x - 26},${y + h - 44} L${x - 26},${y + 44} L${x},${y + 44}`,
+            loopErr: `M${x},${y + 58} L${x - 12},${y + 58} L${x - 12},${y + h - 58} L${x},${y + h - 58}`,
+          });
+          continue;
+        }
+        const colRight = Math.max(a.x, b.x) + W;
+        const n = (lanes[colRight] = (lanes[colRight] || 0) + 1) - 1;
+        const lane = colRight + 16 + n * 18;
+        const ay = a.y + 44, by = b.y + 64;
+        canvasW = Math.max(canvasW, lane + 12 + PAD);
+        /* The arc leaves the caller's left side and bows out into the margin,
+         * entering the callee's left side — no corner, so it cannot be read as
+         * a forward wire. */
+        const lx = a.x, rx = b.x;
+        edges.push({
+          from, to, back: true, self: false, hasE,
+          side: `M${a.x + W},${ay} L${lane},${ay} L${lane},${by} L${b.x + W},${by}`,
+          sideErr: `M${b.x + W},${by + 14} L${lane - 8},${by + 14} L${lane - 8},${ay - 14} L${a.x + W},${ay - 14}`,
+          arc: `M${lx},${ay} C${lx - 70},${ay} ${rx - 70},${by} ${rx},${by}`,
+          arcErr: `M${rx},${by + 14} C${rx - 50},${by + 14} ${lx - 50},${ay - 14} ${lx},${ay - 14}`,
+        });
+      }
+    }
+    for (const from of ids) {
+      for (const to of calleesOf(prog, from)) {
+        if (isBack(from, to)) continue;
         const a = pos[from], b = pos[to];
         const sx = a.x + W / 2 - 10, sy = a.y + a.h;
         const ex = b.x + W / 2 - 10, ey = b.y;
