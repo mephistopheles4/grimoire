@@ -42,8 +42,8 @@ a bound the reader did not choose.
 Every node carries three channels, and they are the point of the drawing.
 
 - **success** — what flows out of the node.
-- **error** — where it breaks: the failure tags it can throw. Each tag is a
-  **fail** or a **die**.
+- **error** — where it breaks: the tags it can throw as a **fail**. A **die**
+  never appears in this list.
 - **requirements** — what it needs to work.
 
 The two failure kinds are different facts. A fail is an expected error, and a
@@ -243,7 +243,8 @@ in a plain text fence.
   the reader.
 - **One row is a call site**, not a node. A node called twice appears twice.
 - **A repeated node is marked and stopped**, or a cycle never terminates.
-- **Every `error` tag on a row carries its failure kind**, `fail` or `die`.
+- **An `error` tag carries its failure kind when the file states one**, `fail`
+  or `die`.
   The renderer derives the kind from the file's `throw` steps and `raised`
   objects. The `error` list never states it. A tag the file gives no kind
   for prints bare.

@@ -21,11 +21,12 @@ A zero-dependency renderer turns it into one self-contained page.
 Every node carries three channels, and they are the point of the drawing.
 
 - **success** — what flows out of the node.
-- **error** — where it breaks. Each failure tag is a **fail** or a **die**. A
-  fail is an expected error a caller is meant to catch. A die is a defect
-  nothing is meant to catch. The kind prints beside the tag in the tree, the
-  text output and the contract tab, derived from the file rather than written
-  in it.
+- **error** — where it breaks: the tags it can throw as a **fail**. A fail is
+  an expected error a caller is meant to catch. A **die** is a defect nothing
+  is meant to catch, and it never appears in this list. The kind prints beside
+  the tag in the tree, the text output and the contract tab. The renderer
+  derives it from the file's `throw` steps and `raised` objects. A tag with
+  neither prints bare.
 - **requirements** — what it needs to work.
 
 ## Use it

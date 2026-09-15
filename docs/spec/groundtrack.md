@@ -59,8 +59,8 @@ Every node on the graph carries three channels, in the framing the skill
 borrows from Effect:
 
 - **success** — what flows out of the node.
-- **error** — where it breaks: the failure tags it can throw, each one a fail
-  or a die.
+- **error** — where it breaks: the tags it can throw as a fail. A die is a
+  defect, and never appears in this list.
 - **requirements** — what it needs to work.
 
 The page draws the graph and steps a cursor over a recorded trace. Nothing is

@@ -199,7 +199,7 @@ names a node id. `cause` is `fail` or `die`.
 step of the same node.
 
 **`label` is a jump target and only a jump target.** An effect's readable name
-is `desc`. A trace move's readable name is `desc`.
+is `desc`. An effect move's readable name is `desc` too.
 
 ## A run
 
