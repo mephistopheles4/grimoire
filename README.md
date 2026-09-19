@@ -7,9 +7,9 @@
 <p align="center"><strong>A spellbook of agent skills for AI. Cast wisely.</strong></p>
 
 <p align="center">
-  <a href="skills/eagle-eye"><img src="docs/brand/eagle-eye/eagle-eye-mark.svg" width="56" alt=""></a>
+  <a href="skills/eagle-eye"><img src="docs/brand/eagle-eye/eagle-eye-mark.svg" width="56" alt="eagle-eye"></a>
   &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
-  <a href="skills/groundtrack"><img src="docs/brand/groundtrack/groundtrack-mark.svg" width="56" alt=""></a>
+  <a href="skills/groundtrack"><img src="docs/brand/groundtrack/groundtrack-mark.svg" width="56" alt="groundtrack"></a>
   <br>
   <a href="skills/eagle-eye"><code>eagle-eye</code></a>
   &nbsp;&nbsp;&nbsp;&nbsp;
