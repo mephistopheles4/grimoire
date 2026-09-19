@@ -9,7 +9,8 @@
 //              not. Reads no box and opens no connection. The skill's offer to
 //              run the audit hangs on this answer.
 //   --dry-run  print the request body for the first argued edge, and send it
-//              nowhere. Needs no key.
+//              nowhere. On standard error, state how many requests a real run
+//              sends and their rough size. Needs no key.
 //   --json     also write the ranking to <path>. The box file is never written.
 //
 // Exit codes, each one tested in tests/audit.test.mjs:
@@ -72,6 +73,13 @@ const MIN_CONTROLS = 4;
 const CALIBRATED = 'weakly connected';
 
 const RETRY_DELAY_MS = 250;
+
+// A rough size for the dry run's estimate, not a tokenizer. It is labelled as
+// an estimate wherever it prints. Three, not the usual four: the #96 study's
+// service counted about 1,400 input tokens a request, and four characters a
+// token put these bodies near 1,000. An estimate that errs high is the safe
+// one to show before a yes.
+const CHARS_PER_TOKEN = 3;
 
 const EXIT = { ok: 0, box: 1, usage: 2, noKey: 3, service: 4, endpoint: 5 };
 
@@ -304,8 +312,34 @@ function bodyFor(e) {
   };
 }
 
+// Every request a real run would send: the argued edges, then the controls.
+const { controls, good } = shuffle();
+
+// The cache holds answers only: no state, no key, no usage. It is keyed by a
+// hash of the endpoint and the body, so answers from a test fake never serve a
+// real run, and a changed box asks again.
+const cacheDir = process.env[CACHE_VAR] || join(tmpdir(), 'eagle-eye-audit');
+
+// The dry run states the size of a real run, and never a price. The skill's
+// offer to the user repeats this count: a price is the provider's to change,
+// and a count stays true. Standard output keeps one parseable request body, so
+// the size goes to standard error.
 if (dryRun) {
-  console.log(argued.length ? JSON.stringify(bodyFor(argued[0]), null, 2) : `${boxPath}: no argued edge, so there is no request to show.`);
+  if (!argued.length) {
+    console.log(`${boxPath}: no argued edge, so there is no request to show.`);
+    process.exit(EXIT.ok);
+  }
+  const bodies = [...argued, ...controls].map(bodyFor);
+  const waiting = bodies.filter(b => !cached(cacheFileFor(b)));
+  const done = bodies.length - waiting.length;
+  const tokens = waiting.reduce((n, b) => n + Math.ceil(JSON.stringify(b).length / CHARS_PER_TOKEN), 0);
+  console.log(JSON.stringify(bodies[0], null, 2));
+  console.error(
+    waiting.length
+      ? `A real run sends ${waiting.length} requests: ${argued.length} argued edges and ${controls.length} controls, ${done ? `${done} already cached` : 'none cached'}. ` +
+          `That is about ${tokens.toLocaleString('en-US')} input tokens, estimated at ${CHARS_PER_TOKEN} characters a token. Nothing was sent.`
+      : `A real run sends nothing: all ${bodies.length} requests are already cached. Nothing was sent.`,
+  );
   process.exit(EXIT.ok);
 }
 
@@ -338,12 +372,6 @@ if (!hasKey()) stop(EXIT.noKey, SETUP);
 const key = process.env[KEY_VAR].trim();
 
 // --- the service -------------------------------------------------------------
-//
-// The cache holds answers only: no state, no key, no usage. It is keyed by a
-// hash of the endpoint and the body, so answers from a test fake never serve a
-// real run, and a changed box asks again.
-
-const cacheDir = process.env[CACHE_VAR] || join(tmpdir(), 'eagle-eye-audit');
 
 // The pinned response shape: `answers`, holding every pattern asked, each a
 // Noul with a probability. Returns the scores or a reason it is refused.
@@ -360,6 +388,11 @@ function scoresFrom(json) {
     scores[n] = a.noul;
   }
   return { scores };
+}
+
+function cacheFileFor(body) {
+  const hash = createHash('sha256').update(`${endpoint}\n${JSON.stringify(body)}`).digest('hex').slice(0, 32);
+  return join(cacheDir, `${hash}.json`);
 }
 
 function cached(file) {
@@ -415,8 +448,7 @@ async function post(body) {
 
 async function score(e) {
   const body = bodyFor(e);
-  const hash = createHash('sha256').update(`${endpoint}\n${JSON.stringify(body)}`).digest('hex').slice(0, 32);
-  const file = join(cacheDir, `${hash}.json`);
+  const file = cacheFileFor(body);
   const hit = cached(file);
   if (hit) return hit;
   const { scores, refused } = await post(body);
@@ -441,7 +473,6 @@ async function score(e) {
 // from under node.
 class Refused extends Error {}
 
-const { controls, good } = shuffle();
 const ranked = [];
 const scoredControls = [];
 try {

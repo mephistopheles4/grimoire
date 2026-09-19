@@ -92,10 +92,14 @@ rows. A cell that closes half the box is usually a position, not an option.
    as `no`. On `no`, or with no `audit.mjs`, say nothing about the audit.
    When the user asks for the audit and the probe says `no`, run the audit. It
    sends nothing. It prints the steps to set a key, and you give those steps to
-   the user. Never ask for the key. Never write it into a file. On `yes`, say
-   one sentence to the user. It states three facts: the audit is
-   available, it sends this box's text to the model provider, and it costs less
-   than one cent. Offer it once in a conversation. Run it only when the user
+   the user. Never ask for the key. Never write it into a file.
+
+   On `yes`, run the audit with `--dry-run` first. It sends nothing. It prints
+   how many requests a real run sends, and their rough size. Then say one
+   sentence to the user. It states three facts: the audit is available, it
+   sends this box's text to the model provider, and the number of requests.
+   Never state a price, because the provider sets it and can change it. Offer
+   the audit once in a conversation. Run it only when the user
    says yes. Skip the question only when the user already said yes in this
    conversation. Your instructions can also give that yes.
 

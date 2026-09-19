@@ -151,6 +151,13 @@ test('--dry-run prints one request body with the rich state, and sends nothing',
     assert.equal(svc.seen.length, 0);
     assertNoKey(r);
 
+    // The size, on standard error so standard output stays one parseable body.
+    // The skill's offer states this count rather than a price, because a
+    // price is the provider's to change. Five argued edges and six controls,
+    // none cached yet.
+    assert.match(r.stderr, /A real run sends 11 requests: 5 argued edges and 6 controls, none cached\./);
+    assert.match(r.stderr, /about [\d,]+ input tokens/);
+
     const body = JSON.parse(r.stdout);
     assert.equal(body.model, 'jev-latest');
     assert.equal(Object.keys(body.questions).length, 8);

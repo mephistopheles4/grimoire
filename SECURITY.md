@@ -210,7 +210,10 @@ and it is opt-in twice over.
   options, the label, the row name and question, the option's own `why`,
   `notes` and `src`. Nothing else from the disk is read into a request.
   `--dry-run` prints one body and sends nothing, so a reader can see exactly
-  this before any of it leaves.
+  this before any of it leaves. It also states how many requests a real run
+  sends and their rough size, and the skill's offer repeats that count. It
+  names no price: the provider sets the price and can change it, and a count
+  stays true.
 - **To whom.** TypeSafe. What the provider does with the text is its policy,
   not this repository's. A box holds whatever its author wrote into it, so do
   not audit a box whose text you would not send.
