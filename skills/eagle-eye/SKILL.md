@@ -170,6 +170,14 @@ rows. A cell that closes half the box is usually a position, not an option.
    ```bash
    node <skill base directory>/render.mjs <box.json> --sel "eagle-eye: opt-a, opt-b"
    ```
+
+   **When a set does not hold, check its edges before you change it.** The
+   user often asks how to make a set hold. `--sel` prints each conflict and
+   each requirement not met, with the edge's `why` and tier. Check each of
+   those edges against the eight weakness patterns first. A wrong edge makes a
+   good set look broken, and it is the cheapest fix. Give each weak edge one
+   disposition, as in step 4. Then propose a change to an option for what
+   still fails.
 9. **Debrief.** When the user accepts a set, close the loop in chat. Three
    things, in three or four sentences:
 
@@ -494,6 +502,9 @@ not format** — the block above is unchanged, and Copy still copies all of it.
 - **Acting on a restore code without echoing it.** The user pastes ids they
   cannot check by reading. Say the set back in words first, or a misread
   becomes the record.
+- **Changing the set before you check the edge that blocks it.** An argued
+  edge can be wrong, and then the set holds as it is. Check the edges behind
+  each conflict first. See step 8.
 - **Reading each edge and never the chain.** Sound edges can join into an
   unsound argument. The *chain* finding names the join. Read it. Then say
   whether the box states the relation it derives.
