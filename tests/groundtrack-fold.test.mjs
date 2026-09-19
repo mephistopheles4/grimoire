@@ -1225,6 +1225,33 @@ test('a back edge detours round a box beside it, and runs straight where there i
   assert.ok(pts[2].y < branch.pos.b.y, 'the detour runs above the caller\'s row');
 });
 
+test('no two back edges draw along the same line', () => {
+  // Four siblings each call the entry back. The first three have a box beside
+  // them, so they all detour through the one gap above their row — and each
+  // needs its own height there, or two wires collapse into one.
+  const l = G.layout(shaped('a', { a: ['b', 'c', 'd', 'e'], b: ['a'], c: ['a'], d: ['a'], e: ['a'] }, ['a']));
+  const legs = [];
+  for (const e of l.edges.filter(e => e.back)) {
+    for (const d of [e.call, e.err]) {
+      const pts = points(d);
+      for (let i = 1; i < pts.length; i++) legs.push({ p: pts[i - 1], q: pts[i], who: `${e.from}>${e.to}` });
+    }
+  }
+  const span = (a, b) => [Math.min(a, b), Math.max(a, b)];
+  for (let i = 0; i < legs.length; i++) {
+    for (let j = i + 1; j < legs.length; j++) {
+      const [s, t] = [legs[i], legs[j]];
+      if (s.who === t.who) continue;
+      const flat = s.p.y === s.q.y && t.p.y === t.q.y && s.p.y === t.p.y;
+      const upright = s.p.x === s.q.x && t.p.x === t.q.x && s.p.x === t.p.x;
+      if (!flat && !upright) continue;
+      const [a0, a1] = flat ? span(s.p.x, s.q.x) : span(s.p.y, s.q.y);
+      const [b0, b1] = flat ? span(t.p.x, t.q.x) : span(t.p.y, t.q.y);
+      assert.ok(Math.min(a1, b1) <= Math.max(a0, b0), `${s.who} and ${t.who} share a line`);
+    }
+  }
+});
+
 test('no back-edge wire, or its error wire, crosses a box', () => {
   for (const [name, make] of [['self', selfCall], ['pair', mutualPair], ['pair beside a branch', pairBesideBranch], ['self and pair', selfAndPair]]) {
     const l = G.layout(make());

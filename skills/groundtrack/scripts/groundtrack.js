@@ -739,7 +739,12 @@ const Groundtrack = (() => {
       const into = place(to, (makes[to] || []).length + takes[to].indexOf(from));
       const ay = out.y + 14, by = into.y, sa = out.stub, sb = into.stub;
       const lane = rightEdge + 24 + n * 20;
-      const lift = 12 + (n % 2) * 20;
+      /* How far into the gap between rows a detour runs. Three heights, 12
+       * apart, so three back edges detouring through one gap keep three lines
+       * with their error wires between; a fourth shares the first's. Past 36
+       * the gap below a callee's row and the gap above its caller's, when the
+       * rows are neighbours, would cross. */
+      const lift = 12 + (n % 3) * 12;
       const ya = rowTop[depth[from]] - lift, yb = rowBottom[depth[to]] + lift;
       canvasW = Math.max(canvasW, lane + PAD);
       /* The caller's end reaches the lane at `ay`, or by the gap above its
