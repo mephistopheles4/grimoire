@@ -1225,6 +1225,42 @@ test('a back edge detours round a box beside it, and runs straight where there i
   assert.ok(pts[2].y < branch.pos.b.y, 'the detour runs above the caller\'s row');
 });
 
+test('a back edge climbs the nearest clear lane, not the drawing\'s far edge', () => {
+  // b calls a back, and c sits right of b on its row. Nothing sits right of a
+  // on the row above, so once the wire has gone round the top of c it can
+  // climb just past a: the lane runs over c's column, never down past c.
+  const l = G.layout(pairBesideBranch());
+  const pts = points(edgeOf(l, 'b', 'a').call);
+  // The lane is the upright leg that reaches a's height; the stub beside b is
+  // an upright leg too, and a short one.
+  const lane = pts.find((p, i) => i > 0 && p.x === pts[i - 1].x && p.y < l.pos.a.y + l.pos.a.h);
+  assert.ok(lane, 'the wire climbs to a');
+  assert.ok(lane.x < l.pos.c.x + l.width, `the lane at ${lane.x} swings out past c`);
+});
+
+test('a back edge\'s lane keeps clear of the forward wires it climbs beside', () => {
+  // The nearest lane right of a can land in the column where a's call into c
+  // comes down, between that call and its error wire. Eight is the least room
+  // that still reads as two lines.
+  const uprights = d => {
+    const pts = points(d);
+    return pts.slice(1).map((q, i) => [pts[i], q]).filter(([p, q]) => p.x === q.x)
+      .map(([p, q]) => ({ x: p.x, top: Math.min(p.y, q.y), bottom: Math.max(p.y, q.y) }));
+  };
+  for (const [name, make] of [['pair', mutualPair], ['pair beside a branch', pairBesideBranch], ['self and pair', selfAndPair]]) {
+    const l = G.layout(make());
+    const fwd = l.edges.filter(e => !e.back).flatMap(e => uprights(e.call).concat(uprights(e.err)));
+    for (const e of l.edges.filter(e => e.back && !e.self)) {
+      for (const u of uprights(e.call).concat(uprights(e.err))) {
+        for (const f of fwd) {
+          if (u.top >= f.bottom || u.bottom <= f.top) continue;
+          assert.ok(Math.abs(u.x - f.x) >= 8, `${name}: ${e.from}>${e.to} climbs ${Math.abs(u.x - f.x)} from a forward wire`);
+        }
+      }
+    }
+  }
+});
+
 test('no two back edges draw along the same line', () => {
   // Four siblings each call the entry back. The first three have a box beside
   // them, so they all detour through the one gap above their row — and each
