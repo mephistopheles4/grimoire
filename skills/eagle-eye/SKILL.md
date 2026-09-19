@@ -80,6 +80,32 @@ rows. A cell that closes half the box is usually a position, not an option.
    (see `reference/writing-edges.md`). An edge that fails the check is
    flagged. A flag tells you which edge to reread first. It is not a verdict.
 
+   **A tool can rank the argued edges first.** `audit.mjs` sits next to this
+   file, in the skill base directory. Before you offer it, ask it whether a
+   key is in the environment:
+
+   ```bash
+   node <skill base directory>/audit.mjs --probe
+   ```
+
+   The probe prints `yes` or `no`, and it sends nothing. On `no`, or with no
+   `audit.mjs`, say nothing about the audit. On `yes`, say one sentence to the
+   user. It states three facts: the audit is available, it sends this box's text
+   to the model provider, and it costs less than one cent. Offer it once in a
+   conversation. Run it only when the user says yes. Run it without the
+   question only when the user said so earlier in this conversation, or in
+   instructions you were given.
+
+   ```bash
+   node <skill base directory>/audit.mjs <scratch>/<topic>.box.json
+   ```
+
+   The tool compares each argued edge with controls that it builds from the
+   sourced and measured edges in the box. It flags an edge that scores among
+   those controls. A box with too few such edges gets a ranking with no flags,
+   and the tool says so. A score never changes a tier. Never write a score into
+   the box file. A second run sends only the edges that changed.
+
    Give each flagged edge one disposition, and say it in chat:
 
    - **Rewrite** the `why` so the link is explicit.
