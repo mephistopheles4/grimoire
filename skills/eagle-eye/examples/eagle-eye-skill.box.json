@@ -362,7 +362,7 @@
         [
           "data-json",
           "req",
-          "The round trip reads the export against a separate box file in a stable format. Embedded in page removes that file, and YAML is easier to get wrong.",
+          "The round trip reads the separate box file with JSON.parse. A YAML file fails that parse, and Embedded in page has no separate file.",
           "argued"
         ]
       ],

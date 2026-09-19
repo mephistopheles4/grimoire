@@ -424,8 +424,15 @@ async function score(e) {
   const answers = Object.fromEntries(NAMES.map(n => [n, { type: 'noul', noul: scores[n] }]));
   // Owner-only where the platform honours a mode. The default folder sits in a
   // directory other local accounts may share; SECURITY.md states what is left.
-  mkdirSync(cacheDir, { recursive: true, mode: 0o700 });
-  writeFileSync(file, JSON.stringify({ answers }));
+  // A cache that cannot be written costs a request next time, nothing more. The
+  // request has already gone out, so a throw here would lose a paid answer and
+  // exit 1, which means an unreadable box.
+  try {
+    mkdirSync(cacheDir, { recursive: true, mode: 0o700 });
+    writeFileSync(file, JSON.stringify({ answers }));
+  } catch {
+    // a miss next time
+  }
   return scores;
 }
 

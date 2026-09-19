@@ -14,7 +14,7 @@
 import { test, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { createServer } from 'node:http';
-import { mkdtempSync, readFileSync, readdirSync, rmSync } from 'node:fs';
+import { mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { audit, root, runAsync } from './helpers.mjs';
@@ -296,6 +296,23 @@ test('a second run against a warm cache sends nothing, and the cache holds answe
       assert.ok(!text.includes(KEY), `${f} holds the key`);
       assert.deepEqual(Object.keys(JSON.parse(text)), ['answers'], `${f} holds more than answers`);
     }
+  } finally {
+    await svc.close();
+  }
+});
+
+test('a cache that cannot be written costs a request next time, and nothing else', async () => {
+  // Point the cache at a file, so creating the directory fails. The requests
+  // have already gone out by then, so the run must still print its ranking
+  // rather than die with exit 1, which means an unreadable box.
+  const notADir = join(work, 'cache-is-a-file');
+  writeFileSync(notADir, 'not a directory');
+  const svc = await fake();
+  try {
+    const r = await runAudit([portable], { EAGLE_EYE_AUDIT_ENDPOINT: svc.url, TYPESAFE_API_KEY: KEY, EAGLE_EYE_AUDIT_CACHE: notADir });
+    assert.equal(r.code, 0, r.stderr);
+    assert.equal(svc.seen.length, 1);
+    assert.match(r.stdout, /^Uncalibrated:/m);
   } finally {
     await svc.close();
   }
