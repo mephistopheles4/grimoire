@@ -399,7 +399,7 @@ compares a skill's behaviour against its stated purpose, and is arguably the
 failure this repository could actually ship — needs a provider credential and
 is a separate decision nobody has taken.
 
-**Seven rules are baselined, and every finding from them is wrong.** The numbers
+**Seven rules were baselined first, and every finding from them is wrong.** The numbers
 move, and watching them move is the point. Triage counted fifteen findings from
 six rules at an earlier commit. The first run of this workflow counted
 twenty-two from five, on a tree that had grown a workflow, two baselines, a gate
@@ -428,6 +428,22 @@ writing:
 by rule: AR2×7, AS3×5, EA3×2, MP3×1, RA2×2, RP1×6
 ```
 
+**Then the edge audit brought three more, and two of them are right.** A
+script that reads a key and posts a box's text to a model provider is exactly
+what this scanner exists to see, and it saw it. `E1` fires on the endpoint in
+`audit.mjs` and on its quotation in this file: data does leave for that URL, on
+purpose, after a yes, as [What the edge audit sends](#what-the-edge-audit-sends)
+states. `LP3` fires only when the skill directory is scanned on its own: the
+skill declares no permission list, and a permission list is one host's format
+that the portable skill text does not carry. Both are **accepted rather than
+reasoned away**, and their reasons say so. The third, `PE3`, is wrong: it reads
+the string `.env` in the setup message that tells a user a project `.env` is
+*not* read. Measured with the pinned scanner on this branch, at the root:
+
+```text
+by rule: AR2×7, AS3×7, E1×2, EA3×5, MP3×1, PE3×4, RA2×2, RP1×6
+```
+
 So: **the counts drift as prose is edited, and the rule identifiers do not.**
 That is the whole case for keying the baseline on the rule rather than on the
 text a fingerprint would bind to. A new rule cannot appear quietly — it fails
@@ -435,9 +451,9 @@ the build, and costs one more entry below with a written reason, never a
 rewording. The gate prints the tally on every run, so drift is visible in the
 log rather than discovered later.
 [`.skillspector-baseline.yaml`](.skillspector-baseline.yaml) suppresses the
-seven by rule identifier, with a reason per entry:
+ten by rule identifier, with a reason per entry:
 
-| Rule | | Why it is a false positive |
+| Rule | | Why it is suppressed |
 | --- | --- | --- |
 | `AR2` | Anti-Refusal Statement | `SKILL.md` tells the agent that a preview pane may render the page without script, so do not judge it from one. It adds a caveat; it does not suppress one. |
 | `AS3` | Skill Enumeration | A `README.md` line naming the one skill this repository ships, and the decision records quoting it. Naming your own product is not enumerating somebody else's. |
@@ -446,6 +462,9 @@ seven by rule identifier, with a reason per entry:
 | `MP3` | Memory Manipulation | A comment in the page template describing how **Reset** discards the reader's overrides and **Undo** offers them back. It documents a button. |
 | `RA2` | Session Persistence | The `CONTRIBUTING.md` rule forbidding a fixed path inside a skill, and the test proving that rule fires. A guard and its test, reported as the risk they prevent. |
 | `RP1` | Unpinned MCP server | The `README.md` install command and quotations of it. `skills` is the Vercel Labs installer run through `npx`, not an MCP server. |
+| `PE3` | Credential Access | The string `.env` in the edge audit's setup message and its test, which tell a user a project `.env` is **not** read. The script reads its key from the environment only. |
+| `E1` | External Transmission | **Not a false positive; accepted.** The edge audit posts a box's text to the model provider's endpoint, only when run with a key after a yes. See [What the edge audit sends](#what-the-edge-audit-sends). |
+| `LP3` | MCP Least Privilege | **Accepted.** The skill declares no permission list, because that list is one host's format and the skill text runs in agents that read none. Fires only on a scan of the skill directory. |
 
 **Keyed by rule identifier and not by fingerprint**, which is a trade stated
 rather than hidden. A fingerprint is bound to the text it was taken from and
@@ -462,7 +481,7 @@ Letting a regex edit that prose is the trap, and refusing it is a decision.
 finds a baseline only at the top of the directory it was pointed at, and a
 reader scanning a skill is pointed at the skill. So
 [`skills/eagle-eye/.skillspector-baseline.yaml`](skills/eagle-eye/.skillspector-baseline.yaml)
-repeats the three rules that fire inside it, and
+repeats the seven rules that fire inside it, and
 [`skills/groundtrack/.skillspector-baseline.yaml`](skills/groundtrack/.skillspector-baseline.yaml)
 the one that fires inside it. `node scripts/check.mjs` fails when a skill file
 disagrees with the root — same rule, same words, same scope — so a suppression
