@@ -120,11 +120,16 @@ An edge that fails the audit goes to `suspected`. **Name the pattern first, so
 the debrief can count it:**
 
 ```text
-weakly connected: coh-step req deb-chat — a manual check does not force a manual record.
+weakly connected: coh-step req deb-chat — a manual check does not force a manual record. Why: "The check is manual, so the record is manual too."
 ```
 
-The pattern name, then the edge, then the why. The box file keeps this after
-the session ends, so it is the only record of what the audit rejected.
+The pattern name, then the edge, then the reason. Then `Why:` and the rejected
+`why`, word for word, in quotes. The box file keeps this after the session
+ends, so it is the only record of what the audit rejected.
+
+**Keep the rejected `why`.** A reason says what was wrong. It does not say
+what the edge said. A later test of the audit compares its scores against real
+rejected edges, and only the original sentence gives it one.
 
 ## Strawmen
 

@@ -77,9 +77,25 @@ rows. A cell that closes half the box is usually a position, not an option.
    `argued` (your reasoning). No edge without a why. An edge inside a row is a
    swap, not an edge.
 4. **Audit.** Check every `argued` edge against the eight weakness patterns
-   (see `reference/writing-edges.md`). Rewrite it, or move it to `suspected`,
-   where it is listed but colours nothing. Name the pattern at the front of the
-   `suspected` string. That string is the only record after the session ends.
+   (see `reference/writing-edges.md`). An edge that fails the check is
+   flagged. A flag tells you which edge to reread first. It is not a verdict.
+
+   Give each flagged edge one disposition, and say it in chat:
+
+   - **Rewrite** the `why` so the link is explicit.
+   - **Suspect** it: move it to `suspected`, with the pattern named at the
+     front.
+   - **Keep** it, and give the reason.
+
+   A rewrite that adds a factual claim names a `src`, or the edge stays
+   `argued`. Audit the rewritten edges again, and only those. Stop after two
+   rounds. The audit stops when every flagged edge has a disposition. It never
+   stops on a score.
+
+   A `suspected` edge is listed on the page but colours nothing. Its string
+   keeps the pattern, the edge, the reason, and the rejected `why` word for
+   word. That string is the only record after the session ends. A later test of
+   the audit needs the rejected `why`, and the reason alone cannot rebuild it.
 
    The renderer walks the **chains** for you. The *chain* finding names the
    longest run of edges that compose, the relation it derives, and whether the
