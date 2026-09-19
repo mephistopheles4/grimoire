@@ -77,9 +77,9 @@ audit above reads one edge at a time. The *chain* finding reads the join.
 | `req` | `conf` | yes | The source **rules out** the far option. |
 | `conf` | anything | no | The source removes the target from the set. The target's own edges never fire. |
 
-That last row is the one that misleads. Count every option that is both a
-source and a target, and the example box — 34 edges — reports 28 chains. Apply
-the rule, and it reports one.
+That last row is the one that misleads. Count every pair where one edge's
+target is the next edge's source, and the example box — 27 edges — reports 15
+chains. Apply the rule, and it reports none.
 
 A chain can hold more than two edges. Each `req` edge carries the run forward,
 and one `conf` edge closes it. A run of `req` edges derives *requires*. A run
