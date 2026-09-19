@@ -90,6 +90,17 @@ test('with no key it sends nothing, exits 3, and names the variable it looked fo
     assert.equal(svc.seen.length, 0);
     assert.match(r.stderr, /TYPESAFE_API_KEY/);
     assert.match(r.stderr, /Nothing was sent/);
+    // The absent-key message is the setup guide, because it is the one place
+    // under skills/ allowed to name the provider and the variable. It names
+    // both places a key persists across sessions, says a project .env is not
+    // read, and tells the user to keep the key out of the chat.
+    assert.match(r.stderr, /docs\.typesafe\.ai/);
+    assert.match(r.stderr, /settings/);
+    assert.match(r.stderr, /shell profile/);
+    assert.match(r.stderr, /\.env is not read/);
+    assert.match(r.stderr, /Never paste the key into a chat/);
+    // Standard output stays empty, so nothing on it reads as a ranking.
+    assert.equal(r.stdout, '');
   } finally {
     await svc.close();
   }

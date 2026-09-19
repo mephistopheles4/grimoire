@@ -216,7 +216,11 @@ and it is opt-in twice over.
   not audit a box whose text you would not send.
 - **The key.** Read from `TYPESAFE_API_KEY` and nowhere else: not a flag, not a
   file. It is never printed and never written. With no key the script sends
-  nothing, exits `3` and names the variable it looked for. `--probe` answers
+  nothing, exits `3` and prints how to set one: the variable, the two places a
+  key persists across sessions, that a project `.env` is not read, and never
+  to paste the key into a chat. The skill tells the agent to pass those steps
+  on, only when the user asks for the audit, and never to ask for the key or
+  write it into a file. A key typed into a chat lands in the transcript. `--probe` answers
   `yes` or `no`, never the value, and opens no connection. The tests hold all
   four, with a fake key they look for in every stream and every cache file.
 - **The override.** `EAGLE_EYE_AUDIT_ENDPOINT` exists so the tests can point

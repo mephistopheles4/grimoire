@@ -316,9 +316,25 @@ if (!argued.length) {
 
 // --- the key -----------------------------------------------------------------
 
-if (!hasKey()) {
-  stop(EXIT.noKey, `No ${KEY_VAR} in the environment. Nothing was sent.`);
-}
+// The absent-key message doubles as the setup guide. The skill prose may not
+// name the provider or this variable, so this is the one place a user can
+// learn them. The agent passes it on; the user sets the key. An agent that
+// took the key in chat would put it in a transcript, so the guide says not to.
+const SETUP = [
+  `No ${KEY_VAR} in the environment. Nothing was sent.`,
+  '',
+  'The audit is optional. It sends a box\'s text to TypeSafe, the provider of the Jev model.',
+  'To turn it on, get a key from TypeSafe (docs.typesafe.ai) and set it yourself, once,',
+  'where every new session reads it:',
+  '',
+  `  - your agent's settings, if it can set environment variables for every session`,
+  `  - your shell profile: setx ${KEY_VAR} <key> on Windows, or an export line in ~/.zshrc or ~/.bashrc`,
+  '',
+  `A key in a project .env is not read. Start a new session after you set ${KEY_VAR}.`,
+  'Never paste the key into a chat. The agent does not need to see it.',
+].join('\n');
+
+if (!hasKey()) stop(EXIT.noKey, SETUP);
 const key = process.env[KEY_VAR].trim();
 
 // --- the service -------------------------------------------------------------
