@@ -1209,6 +1209,22 @@ test('a back edge between two nodes leaves the caller\'s right edge and enters t
   assert.deepEqual(Object.keys(fwd).sort(), ['call', 'err', 'from', 'hasE', 'to']);
 });
 
+test('a back edge detours round a box beside it, and runs straight where there is none', () => {
+  // Nothing sits to the right of either end of the pair, so the wire is three
+  // legs: out to the lane, along it, and in. A detour there draws a jog that
+  // avoids nothing.
+  const pair = G.layout(mutualPair());
+  assert.equal(points(edgeOf(pair, 'b', 'a').call).length, 4);
+  assert.equal(points(edgeOf(pair, 'b', 'a').err).length, 4);
+  // Beside the branch, c sits right of b on b's row, so b's end detours round
+  // it through the gap above the row. Nothing sits right of a, so a's end
+  // still comes straight in off the lane.
+  const branch = G.layout(pairBesideBranch());
+  const pts = points(edgeOf(branch, 'b', 'a').call);
+  assert.equal(pts.length, 6);
+  assert.ok(pts[2].y < branch.pos.b.y, 'the detour runs above the caller\'s row');
+});
+
 test('no back-edge wire, or its error wire, crosses a box', () => {
   for (const [name, make] of [['self', selfCall], ['pair', mutualPair], ['pair beside a branch', pairBesideBranch], ['self and pair', selfAndPair]]) {
     const l = G.layout(make());
