@@ -1229,7 +1229,14 @@ test('no two back edges draw along the same line', () => {
   // Four siblings each call the entry back. The first three have a box beside
   // them, so they all detour through the one gap above their row — and each
   // needs its own height there, or two wires collapse into one.
-  const l = G.layout(shaped('a', { a: ['b', 'c', 'd', 'e'], b: ['a'], c: ['a'], d: ['a'], e: ['a'] }, ['a']));
+  sameLineFree(G.layout(shaped('a', { a: ['b', 'c', 'd', 'e'], b: ['a'], c: ['a'], d: ['a'], e: ['a'] }, ['a'])));
+  // Two detours through that gap with two other back edges between them in
+  // the graph's order. A height counted over the whole graph gives these two
+  // the same one; it has to be counted per gap.
+  sameLineFree(G.layout(shaped('a', { a: ['b', 'c', 'e', 'f'], b: ['a'], c: ['x'], x: ['y', 'c'], y: ['c'], e: ['a'], f: [] }, ['a'])));
+});
+
+function sameLineFree(l) {
   const legs = [];
   for (const e of l.edges.filter(e => e.back)) {
     for (const d of [e.call, e.err]) {
@@ -1250,7 +1257,7 @@ test('no two back edges draw along the same line', () => {
       assert.ok(Math.min(a1, b1) <= Math.max(a0, b0), `${s.who} and ${t.who} share a line`);
     }
   }
-});
+}
 
 test('no back-edge wire, or its error wire, crosses a box', () => {
   for (const [name, make] of [['self', selfCall], ['pair', mutualPair], ['pair beside a branch', pairBesideBranch], ['self and pair', selfAndPair]]) {

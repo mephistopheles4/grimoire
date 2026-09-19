@@ -733,19 +733,25 @@ const Groundtrack = (() => {
      * The error wire runs the same route the other way, eight inside it, and
      * crosses its own call nowhere. */
     const besideRight = id => ids.some(k => k !== id && depth[k] === depth[id] && pos[k].x > pos[id].x);
+
+    /* How far into a gap between rows a detour runs, counted per side of
+     * each gap: a caller's end detours along the top of the gap above its
+     * row, a callee's along the bottom of the gap below its. Three heights,
+     * 12 apart, so three detours along one side keep three lines with their
+     * error wires between; a fourth shares the first's. Past 36 the two sides
+     * of one gap would cross. */
+    const detours = bare();
+    const lift = side => {
+      const k = (detours[side] = (detours[side] || 0) + 1) - 1;
+      return 12 + (k % 3) * 12;
+    };
+
     const backWire = (from, to, n) => {
       const a = pos[from], b = pos[to];
       const out = place(from, makes[from].indexOf(to));
       const into = place(to, (makes[to] || []).length + takes[to].indexOf(from));
       const ay = out.y + 14, by = into.y, sa = out.stub, sb = into.stub;
       const lane = rightEdge + 24 + n * 20;
-      /* How far into the gap between rows a detour runs. Three heights, 12
-       * apart, so three back edges detouring through one gap keep three lines
-       * with their error wires between; a fourth shares the first's. Past 36
-       * the gap below a callee's row and the gap above its caller's, when the
-       * rows are neighbours, would cross. */
-      const lift = 12 + (n % 3) * 12;
-      const ya = rowTop[depth[from]] - lift, yb = rowBottom[depth[to]] + lift;
       canvasW = Math.max(canvasW, lane + PAD);
       /* The caller's end reaches the lane at `ay`, or by the gap above its
        * row at `ya`; the callee's end leaves it at `by`, or by the gap below
@@ -753,6 +759,7 @@ const Groundtrack = (() => {
       const call = [[a.x + W, ay]];
       const err = [[a.x + W, ay - 14]];
       if (besideRight(from)) {
+        const ya = rowTop[depth[from]] - lift(`above ${depth[from]}`);
         call.push([sa, ay], [sa, ya], [lane, ya]);
         err.push([sa - 8, ay - 14], [sa - 8, ya - 8], [lane - 8, ya - 8]);
       } else {
@@ -760,6 +767,7 @@ const Groundtrack = (() => {
         err.push([lane - 8, ay - 14]);
       }
       if (besideRight(to)) {
+        const yb = rowBottom[depth[to]] + lift(`below ${depth[to]}`);
         call.push([lane, yb], [sb, yb], [sb, by]);
         err.push([lane - 8, yb + 8], [sb - 8, yb + 8], [sb - 8, by + 14]);
       } else {
