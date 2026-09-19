@@ -33,9 +33,11 @@
 //
 // What it is for (issue #96): a ranking of a box's argued edges, by how well
 // each `why` produces its relation, so the agent knows which to reread first.
-// Every run calibrates against the box's own shuffled controls rather than a
-// fixed cut-off, and flags an argued edge that scores among them. A score is a
-// place to reread first. It never moves a tier, and this file never writes a box.
+// It calibrates against the box's own shuffled controls rather than a fixed
+// cut-off. With MIN_CONTROLS or more, an argued edge that scores at or above
+// the lowest control is flagged, including one above the highest. With fewer,
+// the ranking prints as uncalibrated and flags nothing. A score is a place to
+// reread first. It never moves a tier, and this file never writes a box.
 //
 // Environment:
 //
