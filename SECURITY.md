@@ -221,8 +221,9 @@ and it is opt-in twice over.
   four, with a fake key they look for in every stream and every cache file.
 - **The override.** `EAGLE_EYE_AUDIT_ENDPOINT` exists so the tests can point
   the script at the fake. Whatever URL it names receives the key and the box
-  text, so it accepts only `127.0.0.0/8`, `::1` and `localhost`, and it is
-  checked before the key is read. Anything else exits `5` with nothing read and
+  text, so it accepts only an address in `127.0.0.0/8`, or `::1`. Not the name
+  `localhost`, which a hosts file can point anywhere. It is checked before the
+  key is read. Anything else exits `5` with nothing read and
   nothing sent.
 - **The cache.** Responses are cached under the system temporary directory,
   keyed by a hash of the endpoint and the body, so a second run costs nothing.

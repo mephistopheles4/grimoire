@@ -179,9 +179,9 @@ const dryRun = args.includes('--dry-run');
 //
 // Whatever URL the override names receives the bearer token and the box text.
 // So it is checked first, before the key is read, before the probe answers, and
-// before the box is opened. Only an address literal on this machine passes, or
-// the name localhost: a test fake needs nothing more, and anything more is a
-// place the key could go.
+// before the box is opened. Only a loopback address literal passes. Not the
+// name localhost: a name is resolved, and a hosts file can point it anywhere.
+// A test fake needs nothing more, and anything more is a place the key could go.
 
 function loopback(raw) {
   let url;
@@ -192,7 +192,7 @@ function loopback(raw) {
   }
   if (url.protocol !== 'http:' && url.protocol !== 'https:') return null;
   const host = url.hostname.replace(/^\[|\]$/g, '');
-  if (host === 'localhost' || host === '::1') return url.href;
+  if (host === '::1') return url.href;
   if (isIP(host) === 4 && host.startsWith('127.')) return url.href;
   return null;
 }
@@ -204,7 +204,7 @@ if (override !== undefined && override !== '') {
   if (!endpoint) {
     stop(
       EXIT.endpoint,
-      `${ENDPOINT_VAR} names an address that is not loopback. Only 127.0.0.0/8, ::1 and localhost are accepted, because that URL would receive the key and the box text. Nothing was read or sent.`,
+      `${ENDPOINT_VAR} names an address that is not loopback. Only an address in 127.0.0.0/8, or ::1, is accepted, because that URL would receive the key and the box text. Nothing was read or sent.`,
     );
   }
 }
@@ -305,8 +305,7 @@ function bodyFor(e) {
 }
 
 if (dryRun) {
-  if (!argued.length) stop(EXIT.ok, `${boxPath}: no argued edge, so there is no request to show.`);
-  console.log(JSON.stringify(bodyFor(argued[0]), null, 2));
+  console.log(argued.length ? JSON.stringify(bodyFor(argued[0]), null, 2) : `${boxPath}: no argued edge, so there is no request to show.`);
   process.exit(EXIT.ok);
 }
 

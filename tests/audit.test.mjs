@@ -119,7 +119,7 @@ test('--probe says yes or no, never the value, and opens no connection', async (
 });
 
 test('an endpoint override that is not loopback is refused before the key is read', async () => {
-  for (const url of ['https://example.com/v1/systemone', 'http://10.0.0.1/x', 'http://127.0.0.1.example.com/x', 'not a url']) {
+  for (const url of ['https://example.com/v1/systemone', 'http://10.0.0.1/x', 'http://127.0.0.1.example.com/x', 'http://localhost:9/x', 'not a url']) {
     // No key is set. Were the key read first, this would exit 3 and say so.
     const r = await runAudit([decisions], { EAGLE_EYE_AUDIT_ENDPOINT: url });
     assert.equal(r.code, 5, `${url}: ${r.stderr}`);
