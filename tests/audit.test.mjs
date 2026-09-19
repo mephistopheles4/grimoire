@@ -156,30 +156,27 @@ test('--dry-run prints one request body with the rich state, and sends nothing',
     assert.equal(Object.keys(body.questions).length, 8);
     for (const q of Object.values(body.questions)) assert.equal(q.type, 'noul');
 
-    // The first argued edge in the decisions box: publishing to npm requires
-    // the renderer to be a published command. Written out from the file by
-    // hand, not recomputed the way the tool does it.
+    // The first argued edge in the decisions box: publishing in somebody
+    // else's marketplace rules out promising answers on issues. Written out
+    // from the file by hand, not recomputed the way the tool does it. The
+    // source option carries no notes, so the state carries none for it.
     assert.match(body.state.box.problem, /^The skill works on one machine/);
     const { edge } = body.state;
-    assert.equal(edge.why, 'The package publishes a command. The skill must call that command, not a file path.');
-    assert.match(edge.claim, /^requirement/);
+    assert.equal(edge.why, 'The author does not own the tracker, so the author cannot promise an answer.');
+    assert.match(edge.claim, /^conflict/);
     assert.deepEqual(edge.source, {
-      option: 'Publish to npm. A command copies the skill files into place.',
-      row: 'Install route',
-      question: 'What does the README tell a stranger to run?',
-      why: 'npm gives a registry name, a version number, and one familiar command.',
-      notes: [
-        'The renderer imports only node built-in modules. Verified: no external import in render.mjs or lib/eagle-eye.js.',
-        'So npm adds a name and a version, and nothing more. It still cannot place SKILL.md where Claude Code reads it.',
-      ],
+      option: 'Add the skill to a marketplace that somebody else owns. Publish no repo.',
+      row: 'What the repo holds',
+      question: 'Does the repo carry one skill, three skills, or a marketplace?',
+      why: 'The later answer. Put the skill in an existing marketplace and publish no repo of your own.',
       src: 'assistant proposal, /eagle-eye session 2026-08-26',
     });
     assert.deepEqual(edge.target, {
-      option: 'Call a published command line tool instead of a file.',
-      row: 'How the skill finds its renderer',
-      question: 'What command does SKILL.md tell Claude to run?',
-      why: 'A published command replaces the file path with a name.',
-      notes: ['It adds a network fetch on first run, and a second thing to publish and version.'],
+      option: 'Issues welcome. The author reads pull requests case by case.',
+      row: 'Support posture',
+      question: 'What does the author promise a reader who has a problem?',
+      why: 'A middle posture. Readers report problems, and the author keeps control of the text.',
+      notes: ['A skill is prose. A patch to prose is harder to review than a patch to code.'],
       src: 'assistant proposal, /eagle-eye session 2026-08-26',
     });
   } finally {
@@ -192,7 +189,7 @@ test('--dry-run prints one request body with the rich state, and sends nothing',
 // edge's target is a shuffled control, and scores high on weakly connected.
 // One argued edge is made to score inside the controls' range, and one just
 // under it. Everything else scores low.
-const INSIDE = 'You cannot publish Pages from a repo you do not own.';
+const INSIDE = 'Under this option the author publishes no repository, so there is no repository to serve Pages from.';
 const UNDER = 'The host repo sets the version scheme.';
 function decisionsReply() {
   const box = JSON.parse(readFileSync(decisions, 'utf8'));
@@ -226,9 +223,9 @@ test('the kept decisions box ranks, calibrates on six shuffled controls, and fla
     assert.equal(r.code, 0, r.stderr);
     assertNoKey(r);
 
-    // Fourteen argued edges and six controls, one request each, each carrying
-    // the key as a bearer token.
-    assert.equal(svc.seen.length, 20);
+    // Five argued edges and six controls, one request each, each carrying the
+    // key as a bearer token.
+    assert.equal(svc.seen.length, 11);
     for (const s of svc.seen) assert.equal(s.auth, `Bearer ${KEY}`);
 
     assert.match(r.stdout, /Calibrated: 6 shuffled controls score 0\.60 to 0\.80 on weakly connected/);
@@ -236,7 +233,7 @@ test('the kept decisions box ranks, calibrates on six shuffled controls, and fla
     assert.match(r.stdout, /It is not a verdict/);
 
     const all = blocks(r.stdout);
-    assert.equal(all.length, 14);
+    assert.equal(all.length, 5);
     const flagged = all.filter(b => b.startsWith('FLAG'));
     assert.equal(flagged.length, 1);
     assert.equal(flagged[0], all[0], 'the flagged edge ranks first');
@@ -250,7 +247,7 @@ test('the kept decisions box ranks, calibrates on six shuffled controls, and fla
     const json = JSON.parse(readFileSync(sidecar, 'utf8'));
     assert.equal(json.calibrated, true);
     assert.equal(json.floor, 4);
-    assert.equal(json.edges.length, 14);
+    assert.equal(json.edges.length, 5);
     assert.equal(json.controls.length, 6);
     assert.deepEqual(
       json.edges.filter(e => e.flagged).map(e => `${e.source} ${e.kind} ${e.target}`),
@@ -268,11 +265,11 @@ test('a box with no sourced edge gets an uncalibrated ranking, and says so in on
   try {
     const r = await runAudit([portable], { EAGLE_EYE_AUDIT_ENDPOINT: svc.url, TYPESAFE_API_KEY: KEY });
     assert.equal(r.code, 0, r.stderr);
-    assert.equal(svc.seen.length, 5);
+    assert.equal(svc.seen.length, 1);
     const lines = r.stdout.split(/\r?\n/).filter(l => l.startsWith('Uncalibrated:'));
     assert.deepEqual(lines, ['Uncalibrated: 0 shuffled controls from 0 sourced or measured edges, and the floor is 4. No edge is flagged.']);
     const all = blocks(r.stdout);
-    assert.equal(all.length, 5);
+    assert.equal(all.length, 1);
     assert.ok(all.every(b => !b.startsWith('FLAG')));
   } finally {
     await svc.close();
@@ -286,14 +283,14 @@ test('a second run against a warm cache sends nothing, and the cache holds answe
     const env = { EAGLE_EYE_AUDIT_ENDPOINT: svc.url, TYPESAFE_API_KEY: KEY, EAGLE_EYE_AUDIT_CACHE: cache };
     const first = await runAudit([decisions], env);
     assert.equal(first.code, 0, first.stderr);
-    assert.equal(svc.seen.length, 20);
+    assert.equal(svc.seen.length, 11);
     const second = await runAudit([decisions], env);
     assert.equal(second.code, 0, second.stderr);
-    assert.equal(svc.seen.length, 20, 'the second run asked again');
+    assert.equal(svc.seen.length, 11, 'the second run asked again');
     assert.equal(second.stdout, first.stdout);
 
     const files = readdirSync(cache);
-    assert.equal(files.length, 20);
+    assert.equal(files.length, 11);
     for (const f of files) {
       const text = readFileSync(join(cache, f), 'utf8');
       assert.ok(!text.includes(KEY), `${f} holds the key`);
@@ -338,8 +335,8 @@ test('a first 5xx is retried once, and a second one fails', async () => {
   try {
     const r = await runAudit([portable], { EAGLE_EYE_AUDIT_ENDPOINT: once.url, TYPESAFE_API_KEY: KEY });
     assert.equal(r.code, 0, r.stderr);
-    // Five edges, and one of them asked twice.
-    assert.equal(once.seen.length, 6);
+    // One edge, asked twice.
+    assert.equal(once.seen.length, 2);
   } finally {
     await once.close();
   }
