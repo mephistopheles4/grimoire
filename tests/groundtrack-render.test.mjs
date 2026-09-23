@@ -788,12 +788,28 @@ test('the text marks where each row stood on an error that is still live at the 
   assert.equal(check(file).code, 0, 'the derived file is a legal program');
   const r = run(groundtrack, [file, '--text', 'the store is down']);
   assert.equal(r.code, 0, r.stderr);
-  assert.deepEqual(errorLines(r.stdout), ['', 'error path: propagated', '', 'error path: thrown StoreDown']);
+  // greet is still open when the error reaches the top, so it propagated too.
+  assert.deepEqual(errorLines(r.stdout), ['error path: propagated', 'error path: propagated', '', 'error path: thrown StoreDown']);
   // The row that threw is the lookup by alias. The lookup by id is the same
   // node from another call site, and it took no part.
   const rows = textRows(r.stdout);
   assert.ok(rows[3].some(l => l.includes('by alias')));
   assert.ok(rows[2].some(l => l.includes('by id')));
+});
+
+test('a walk that leaves the propagates out marks the same frames as one that writes them', () => {
+  // The move that reaches the top propagates every frame still open, so a
+  // propagate per crossed frame is optional. Drop both from the three-frame
+  // run: the file is still legal, and the text reads exactly as it did.
+  const file = derive(prog => {
+    errorPastTwoSites(prog);
+    const steps = prog.graphs[0].presets[1].trace.steps;
+    prog.graphs[0].presets[1].trace.steps = steps.filter(m => m.k !== 'propagate');
+  });
+  assert.equal(check(file).code, 0, check(file).stderr);
+  const r = run(groundtrack, [file, '--text', 'the store is down']);
+  assert.equal(r.code, 0, r.stderr);
+  assert.deepEqual(errorLines(r.stdout), ['error path: propagated', 'error path: propagated', '', 'error path: thrown StoreDown']);
 });
 
 test('the text marks nothing when the walk ends with no error live', () => {
