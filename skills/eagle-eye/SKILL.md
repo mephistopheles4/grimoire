@@ -95,13 +95,19 @@ rows. A cell that closes half the box is usually a position, not an option.
    the user. Never ask for the key. Never write it into a file.
 
    On `yes`, run the audit with `--dry-run` first. It sends nothing. It prints
-   how many requests a real run sends, and their rough size. Then say one
-   sentence to the user. It states three facts: the audit is available, it
-   sends this box's text to the model provider, and the number of requests.
+   how many requests a real run sends, and their rough size. Then tell the
+   user four facts:
+
+   - The audit is available.
+   - It sends this box's text to the model provider.
+   - It sends this number of requests, of about this size.
+   - The provider charges each request to the user's key.
+
    Never state a price, because the provider sets it and can change it. Offer
-   the audit once in a conversation. Run it only when the user
-   says yes. Skip the question only when the user already said yes in this
-   conversation. Your instructions can also give that yes.
+   the audit once in a conversation. Run it only when the user says yes. Skip
+   the question only when the user already said yes in this conversation. Your
+   instructions can also give that yes. Without the question, still state the
+   four facts before you run it.
 
    ```bash
    node <skill base directory>/audit.mjs <scratch>/<topic>.box.json
@@ -111,7 +117,8 @@ rows. A cell that closes half the box is usually a position, not an option.
    sourced and measured edges in the box. It flags an edge that scores among
    those controls. A box with too few such edges gets a ranking with no flags,
    and the tool says so. A score never changes a tier. Never write a score into
-   the box file. A second run sends only the edges that changed.
+   the box file. The last line says how many requests the run sent. Give that
+   line to the user.
 
    Give each flagged edge one disposition, and say it in chat:
 
@@ -121,8 +128,9 @@ rows. A cell that closes half the box is usually a position, not an option.
    - **Keep** it, and give the reason.
 
    A rewrite that adds a factual claim names a `src`, or the edge stays
-   `argued`. Audit the rewritten edges again, and only those. Stop after two
-   rounds. The audit stops when every flagged edge has a disposition. It never
+   `argued`. To check the rewritten edges, run the audit again. A second run
+   sends every edge again, so it charges again. Run `--dry-run`, state the four
+   facts, and ask again. Stop after two rounds. The audit stops when every flagged edge has a disposition. It never
    stops on a score.
 
    A `suspected` edge is listed on the page but colours nothing. Its string
