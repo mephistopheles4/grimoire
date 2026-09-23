@@ -155,9 +155,15 @@ test('the renderer no longer prints the finding under its term of art', () => {
 });
 
 test('--sel refuses an option id that is not in the box', () => {
+  // A usage error, the code the audit gives the same id: both read the code
+  // with one parser. It was an uncaught throw, exit 1 and a stack trace.
   const r = run(renderer, [exampleBox, '--sel', 'eagle-eye: no-such-option']);
-  assert.notEqual(r.code, 0);
-  assert.match(r.stderr, /no-such-option/);
+  assert.equal(r.code, 2);
+  assert.match(r.stderr, /--sel: unknown option "no-such-option"/);
+  assert.doesNotMatch(r.stderr, /at Object|at Module/);
+  // An id a plain object finds on its prototype is unknown too, not a crash.
+  const proto = run(renderer, [exampleBox, '--sel', 'eagle-eye: constructor']);
+  assert.equal(proto.code, 2, proto.stderr);
 });
 
 // ---- chains ----
