@@ -340,7 +340,7 @@ test('answers from two models in one run are refused with exit 4, and nothing mo
 });
 
 test('an answer that names no model is refused, because the report could not say what scored it', async () => {
-  for (const model of [undefined, '', 42]) {
+  for (const model of [undefined, '', '   ', 42]) {
     const svc = await fake(body => ({ body: { model, answers: flat(body, 0.2) } }));
     try {
       const r = await runAudit([portable], { EAGLE_EYE_AUDIT_ENDPOINT: svc.url, TYPESAFE_API_KEY: KEY });

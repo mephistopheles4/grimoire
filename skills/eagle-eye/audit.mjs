@@ -377,6 +377,9 @@ const key = process.env[KEY_VAR].trim();
 // Noul with a probability, and `model`, naming the version that answered.
 // The service documents `model` as required. Returns the scores, or a reason
 // it is refused. `post` records the model, so a refused answer still names it.
+// A model name the report can print: a string with something besides spaces.
+const named = model => typeof model === 'string' && model.trim() !== '';
+
 function scoresFrom(json) {
   if (!json || typeof json !== 'object' || !json.answers || typeof json.answers !== 'object') {
     return { refused: 'the response has no answers field' };
@@ -389,7 +392,7 @@ function scoresFrom(json) {
     }
     scores[n] = a.noul;
   }
-  if (typeof json.model !== 'string' || !json.model) {
+  if (!named(json.model)) {
     return { refused: 'the response names no model, so the report could not say what scored it' };
   }
   return { scores };
@@ -443,7 +446,7 @@ async function post(body) {
     } catch {
       return { refused: 'the response is not JSON' };
     }
-    if (json && typeof json.model === 'string' && json.model) models.add(json.model);
+    if (json && named(json.model)) models.add(json.model);
     return scoresFrom(json);
   }
 }
