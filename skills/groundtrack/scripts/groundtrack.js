@@ -991,7 +991,7 @@ const Groundtrack = (() => {
    *
    *  `not called`, `running`, `waiting`, `returned`, `threw`. The last two are
    *  the two ways a frame exits, and both are scoped to the frame: `threw`
-   *  says this frame left by raising, and nothing about whether a caller
+   *  says this frame left by throwing, and nothing about whether a caller
    *  caught it. The error path says that.
    *
    *  Read from the counts and never from the error path, which holds where an

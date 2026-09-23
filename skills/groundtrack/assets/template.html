@@ -942,8 +942,9 @@ function start() {
       'nd' + (cold ? ' nd--cold' : '') + (onStack ? ' nd--active' : '') +
       (erroring ? ' nd--error' : '') + (S.open === id ? ' nd--sel' : '');
     /* The module's word, summed over every site that entered this node: a box
-       is a node and not a path. `threw` takes the caution role an effect that
-       threw already takes — one condition, one colour. */
+       is a node and not a path. `threw` asks for the path role, as an effect
+       that threw does — one condition, one role, and never caution directly,
+       which the site theme folds to ink. */
     const state = G.nodeState(st, id);
     const chip = state === 'running'
       ? '<span class="av-label chip-help" style="margin-left:auto" data-help="The frame the cursor is in">running</span>'
@@ -952,7 +953,7 @@ function start() {
         : state === 'returned'
           ? '<span style="margin-left:auto"><span class="av-state av-state--normal chip-help" data-help="Entered and returned earlier in this run">returned</span></span>'
           : state === 'threw'
-            ? '<span style="margin-left:auto"><span class="av-state av-state--caution chip-help" data-help="Entered earlier in this run, and a frame of it left by throwing. Whether a caller caught the error is the error path\'s to say">threw</span></span>'
+            ? '<span style="margin-left:auto"><span class="av-state caut chip-help" data-help="Entered earlier in this run, and a frame of it left by throwing. Whether a caller caught the error is the error path\'s to say">threw</span></span>'
             : '';
     const E = (ch.error || []).length ? (ch.error || []).map(esc).join(' &middot; ') : '<span class="none">never</span>';
     const R = rOf(id).length ? esc(rOf(id).join(', ')) : '<span class="none">none</span>';

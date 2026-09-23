@@ -654,7 +654,7 @@ Settled placements:
   `returned` and `threw`, and `--text` prints the same five. The drawing's
   node chip prints the same word, summed over every site that entered the node.
 - **`returned` and `threw` are the two ways a frame leaves, and each is scoped
-  to the frame.** `threw` says this frame left by raising. It says nothing
+  to the frame.** `threw` says this frame left by throwing. It says nothing
   about whether a caller caught the error — that is the error path's job. A
   frame whose error a caller caught still reads `threw`; the caller that caught
   it and then returned reads `returned`. The word is read from the call site's

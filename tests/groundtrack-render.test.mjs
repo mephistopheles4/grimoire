@@ -602,7 +602,7 @@ test('the run the reader names is the run that prints', () => {
   assert.match(r.stdout, /run "\?tune= flat"/);
 });
 
-test('the text says a frame that left by raising threw, beside its own error', () => {
+test('the text says a frame that left by throwing threw, beside its own error', () => {
   // It read `returned` on the line above `error path: thrown SendFailed` (#83).
   const r = run(groundtrack, [exampleFlightpath, '--text', 'the post fails']);
   assert.equal(r.code, 0);

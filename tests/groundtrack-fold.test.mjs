@@ -917,7 +917,7 @@ test('a call step sums its copies, because the listing shows a node and not a pa
 const stateRows = (prog, walk, at) =>
   G.treeRows(prog, walk, null, at, G.fold(prog, walk)).map(r => [r.id, r.state]);
 
-test('a frame that left by raising reads threw, not returned', () => {
+test('a frame that left by throwing reads threw, not returned', () => {
   // The shipped example's own case: greet raises SendFailed and nothing
   // catches it. Its row sat beside its own thrown error reading `returned`.
   assert.deepEqual(stateRows(greet, runNamed(greet, 'the post fails').trace), [
@@ -975,12 +975,14 @@ test('a site entered twice and returned once, with no frame open, reads threw', 
   assert.deepEqual(stateRows(prog, walk), [['a', 'returned'], ['b', 'threw']]);
 });
 
-test('the other three states are unchanged by the fourth', () => {
+test('the other four states are unchanged by threw', () => {
   // Equal counts still read returned; never entered still reads not called;
   // an open frame still reads running or waiting, whatever its counts say.
   const walk = runNamed(greet, 'a known user').trace;
   assert.deepEqual(stateRows(greet, walk), [['greet', 'returned'], ['lookupName', 'returned']]);
   assert.deepEqual(stateRows(greet, walk, 0), [['greet', 'running'], ['lookupName', 'not called']]);
+  const inLookup = walk.steps.findIndex(m => m.k === 'call') + 1;
+  assert.deepEqual(stateRows(greet, walk, inLookup), [['greet', 'waiting'], ['lookupName', 'running']]);
   const post = runNamed(greet, 'the post fails').trace;
   // The cursor just past the raise: greet threw, but its frame is still open.
   const raisedAt = post.steps.findIndex(m => m.raised) + 1;
