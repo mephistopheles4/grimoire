@@ -414,4 +414,5 @@ exits zero. Each one is a thing you may have meant.
 - **A call edge a layer cuts.**
 - **A handler for a tag the file throws as a die.** Legal, and it should be on purpose.
 - **A `pure` node that runs an effect.** The finding names the node and its
-  first `effect` step. Fix the role or the step, or say why you mean it.
+  first `effect` step. Fix the role or the step, or write one line that says
+  why the role stands.
