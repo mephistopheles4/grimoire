@@ -104,10 +104,9 @@ rows. A cell that closes half the box is usually a position, not an option.
    - The provider charges each request to the user's key.
 
    Never state a price, because the provider sets it and can change it. Offer
-   the audit once in a conversation. Run it only when the user says yes. Skip
-   the question only when the user already said yes in this conversation. Your
-   instructions can also give that yes. Without the question, still state the
-   four facts before you run it.
+   the audit once in a conversation. Run it only when the user says yes. A yes
+   from the user covers one run. Your instructions can give a yes for every
+   run. With that yes, do not ask. Still state the four facts before each run.
 
    ```bash
    node <skill base directory>/audit.mjs <scratch>/<topic>.box.json
@@ -117,8 +116,8 @@ rows. A cell that closes half the box is usually a position, not an option.
    sourced and measured edges in the box. It flags an edge that scores among
    those controls. A box with too few such edges gets a ranking with no flags,
    and the tool says so. A score never changes a tier. Never write a score into
-   the box file. The last line says how many requests the run sent. Give that
-   line to the user.
+   the box file. The last line on standard error says how many requests the
+   run sent. Give that line to the user.
 
    Give each flagged edge one disposition, and say it in chat:
 
@@ -129,9 +128,10 @@ rows. A cell that closes half the box is usually a position, not an option.
 
    A rewrite that adds a factual claim names a `src`, or the edge stays
    `argued`. To check the rewritten edges, run the audit again. A second run
-   sends every edge again, so it charges again. Run `--dry-run`, state the four
-   facts, and ask again. Stop after two rounds. The audit stops when every flagged edge has a disposition. It never
-   stops on a score.
+   sends every edge again, so the provider charges again. The second run is
+   not a new offer. It is a new charge, so it needs a new yes. Run `--dry-run`
+   first. State the four facts. Then ask. Stop after two rounds. The audit
+   stops when every flagged edge has a disposition. It never stops on a score.
 
    A `suspected` edge is listed on the page but colours nothing. Its string
    keeps the pattern, the edge, the reason, and the rejected `why` word for
