@@ -389,11 +389,12 @@ test('--sel scores only the configuration\'s argued edges, against the full run\
     // Each scored edge carries the flag the full run gives it.
     const full = await runAudit([decisions, '--json', fullSidecar], env);
     assert.equal(full.code, 0, full.stderr);
-    const fullFlags = new Map(JSON.parse(readFileSync(fullSidecar, 'utf8')).edges.map(e => [`${e.source} ${e.kind} ${e.target}`, e.flagged]));
+    const fullJson = JSON.parse(readFileSync(fullSidecar, 'utf8'));
+    const fullFlags = new Map(fullJson.edges.map(e => [`${e.source} ${e.kind} ${e.target}`, e.flagged]));
     const scored = json.edges.filter(e => e.scored !== false);
     assert.equal(scored.length, 2);
     for (const e of scored) assert.equal(e.flagged, fullFlags.get(`${e.source} ${e.kind} ${e.target}`), `${e.source} ${e.kind} ${e.target}`);
-    assert.equal(json.threshold, JSON.parse(readFileSync(fullSidecar, 'utf8')).threshold);
+    assert.equal(json.threshold, fullJson.threshold);
 
     assert.deepEqual(readFileSync(decisions), before, 'the box file changed');
   } finally {

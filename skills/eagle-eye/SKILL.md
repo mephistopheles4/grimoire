@@ -119,10 +119,10 @@ rows. A cell that closes half the box is usually a position, not an option.
    the box file. The last line on standard error says how many requests the
    run sent. Give that line to the user.
 
-   Exit code 4 means that the provider refused the run or could not be
-   reached. Tell the user in one line that the audit failed. Then check the
-   argued edges by hand, against the eight patterns. Do not run the audit
-   again in a loop.
+   Exit code 4 means that the audit failed. The provider refuses the run, the
+   audit cannot reach it, or its answer has the wrong shape. Tell the user in
+   one line that the audit failed. Then check the argued edges by hand,
+   against the eight weakness patterns. Do not run the audit again in a loop.
 
    Give each flagged edge one disposition, and say it in chat:
 
@@ -196,8 +196,8 @@ rows. A cell that closes half the box is usually a position, not an option.
    disposition, as in step 4. Then propose a change to an option for what
    still fails.
 
-   When the probe says `yes`, the audit can rank those edges first. Give it
-   the same `--sel` that the renderer got:
+   The audit can rank those edges first. If step 4 did not run the probe, run
+   it now. On `yes`, give the audit the same `--sel` that the renderer got:
 
    ```bash
    node <skill base directory>/audit.mjs <box.json> --sel "eagle-eye: opt-a, opt-b"
@@ -205,10 +205,10 @@ rows. A cell that closes half the box is usually a position, not an option.
 
    It scores only the argued edges that make the set fail. It lists a sourced
    or measured edge, and does not send it. The rules of step 4 apply to this
-   run. It is a new charge, so it needs a new yes. Run it with `--dry-run` and
-   the same `--sel` first. State the four facts. Then ask. If the user refused
-   the audit in step 4, do not offer it again. If the audit fails, check the
-   edges by hand.
+   run. After a yes in step 4, this run is not a new offer. It is a new charge,
+   so it needs a new yes. Run it with `--dry-run` and the same `--sel` first.
+   State the four facts. Then ask. If the user says no in step 4, do not offer
+   the audit again. If the audit fails, check the edges by hand.
 9. **Debrief.** When the user accepts a set, close the loop in chat. Three
    things, in three or four sentences:
 

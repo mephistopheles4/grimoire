@@ -50,7 +50,8 @@
 // says so before a yes, and a real run ends by saying how many it sent and
 // which model version answered. Nothing is cached: each run asks for every
 // edge and every control anew, and a --sel run sends every control beside its
-// active argued edges (issue #99 assumed a cache here). The alias can still move mid-run, and the
+// active argued edges (issue #99 assumed a cache here). The alias can still
+// move mid-run, and the
 // closing line names both versions when it does. Whether a cache should come
 // back is issue #107.
 //
