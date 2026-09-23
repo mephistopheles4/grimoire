@@ -228,10 +228,13 @@ and it is opt-in twice over.
   it, so do not audit a box whose text you would not send.
   - **OpenRouter is a middleman.** It passes the request on to TypeSafe, so
     the text reaches two companies. The request pins TypeSafe as the only
-    upstream, with no fallback to another. OpenRouter keeps no request text
-    unless the account has logging turned on
+    upstream, with no fallback to another. The dry run names both companies.
+    OpenRouter keeps no request text unless the account opts in
     ([its policy](https://openrouter.ai/docs/guides/privacy/data-collection)).
-    An account with logging on logs every box it audits.
+    It has two separate opt-ins, both off by default. *Input & Output
+    Logging* stores prompts and completions for the account to review.
+    *Use of Inputs/Outputs* lets OpenRouter use them to improve its product.
+    An account with either one on applies it to every box it audits.
   - **The OpenRouter endpoint is alpha.** OpenRouter documents it as an alpha
     feature, with no stability promise. The dry run and the setup text say so.
     The script refuses an answer of the wrong shape, as it does on either

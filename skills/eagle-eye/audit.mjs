@@ -115,6 +115,9 @@ const PROVIDERS = [
     model: '~typesafe/jev-latest',
     extra: { provider: { only: ['typesafe'], allow_fallbacks: false } },
     alpha: true,
+    // The company the box text reaches after this one. A user agrees to send
+    // it to both, so the dry run names both.
+    upstream: 'TypeSafe',
   },
 ];
 const [TYPESAFE, OPENROUTER] = PROVIDERS;
@@ -528,7 +531,9 @@ if (dryRun) {
   const tokens = bodies.reduce((n, b) => n + Math.ceil(JSON.stringify(b).length / CHARS_PER_TOKEN), 0);
   console.log(JSON.stringify(bodies[0], null, 2));
   console.error(
-    `A real run sends ${requests(bodies.length)} to ${route.name}: ${argued.length} argued edges and ${controls.length} controls. ` +
+    `A real run sends ${requests(bodies.length)} to ${route.name}` +
+      (route.upstream ? `, which passes them on to ${route.upstream}` : '') +
+      `: ${argued.length} argued edges and ${controls.length} controls. ` +
       `Each request is charged to your key, at ${route.name}'s price. ` +
       (route.alpha ? `${route.name} serves this model on an endpoint it labels alpha, so its shape can change. ` : '') +
       `That is about ${tokens.toLocaleString('en-US')} input tokens, estimated at ${CHARS_PER_TOKEN} characters a token. Nothing was sent.`,
@@ -557,7 +562,8 @@ const SETUP = [
   `  - ${TYPESAFE.keyVar}: a key from TypeSafe, which makes Jev (docs.typesafe.ai).`,
   `  - ${OPENROUTER.keyVar}: a key from OpenRouter, which passes requests on to TypeSafe.`,
   '    OpenRouter serves Jev on an endpoint it labels alpha, so its shape can change.',
-  '    OpenRouter keeps no request text unless your account has logging turned on.',
+  '    OpenRouter keeps no request text unless your account opts in to logging, or to',
+  '    letting OpenRouter use your inputs and outputs.',
   '',
   `When both are set, ${TYPESAFE.keyVar} is used. Set the key yourself, once, where every new session reads it:`,
   '',

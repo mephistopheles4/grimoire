@@ -103,7 +103,7 @@ rows. A cell that closes half the box is usually a position, not an option.
    user four facts:
 
    - The audit is available.
-   - It sends this box's text to the provider that the dry run names.
+   - It sends this box's text to each company that the dry run names.
    - It sends this number of requests, of about this size.
    - The provider charges each request to the user's key.
 

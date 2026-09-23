@@ -186,7 +186,8 @@ test('--dry-run and --provider name the provider a run would use, and say when i
     const env = { EAGLE_EYE_AUDIT_ENDPOINT: svc.url, OPENROUTER_API_KEY: OR_KEY };
     const dry = await runAudit([decisions, '--dry-run'], env);
     assert.equal(dry.code, 0, dry.stderr);
-    assert.match(dry.stderr, /A real run sends 11 requests to OpenRouter: 5 argued edges and 6 controls\./);
+    // Both companies the text reaches, named before the user says yes.
+    assert.match(dry.stderr, /A real run sends 11 requests to OpenRouter, which passes them on to TypeSafe: 5 argued edges and 6 controls\./);
     assert.match(dry.stderr, /at OpenRouter's price/);
     assert.match(dry.stderr, /alpha/);
     assert.equal(JSON.parse(dry.stdout).model, '~typesafe/jev-latest');
