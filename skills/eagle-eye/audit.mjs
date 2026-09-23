@@ -452,7 +452,7 @@ async function score(e) {
   const { scores, refused } = await post(bodyFor(e));
   if (refused) throw new Refused(refused);
   if (models.size > 1) {
-    throw new Refused(`the service answered with ${[...models].join(' and then with ')}, so the scores do not compare`);
+    throw new Refused(`the service answered with ${[...models].join(' and ')}, so the scores do not compare`);
   }
   return scores;
 }
