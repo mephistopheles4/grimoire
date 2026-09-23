@@ -43,6 +43,9 @@ if (!boxPath) usage();
 // box being readable — and it exits 2, the code a missing box path produces.
 const missingValue = n => args.some((a, i) => a === n && (args[i + 1] === undefined || args[i + 1].startsWith('--')));
 if (missingValue('--sel') || missingValue('--out')) usage();
+// A second --sel is refused, as the audit refuses it. `flag` reads the first and the audit's loop
+// read the last, so a line with two named a different set in each script.
+if (args.filter(a => a === '--sel').length > 1) usage();
 
 const TIERS = new Set(['measured', 'sourced', 'argued']);
 const KINDS = new Set(['conf', 'req']);

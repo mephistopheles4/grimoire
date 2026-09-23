@@ -194,6 +194,9 @@ for (let i = 0; i < args.length; i++) {
   } else if (a === '--sel') {
     // A restore code never begins with --, so a following flag is a missing
     // value, as it is in the renderer.
+    // A second --sel is refused, in both scripts: the renderer would read the
+    // first and this loop the last, so each would name a different set.
+    if (selCode !== undefined) usage();
     selCode = args[++i];
     if (selCode === undefined || selCode.startsWith('--')) usage();
   } else if (a.startsWith('--')) {
@@ -303,6 +306,12 @@ for (const [source, entry] of Object.entries(box.rel)) {
 // --sel prints. A sourced or measured active edge is listed and never scored:
 // the controls are built from those edges, so scoring one against them is
 // circular, and the fix for a doubtful one is its source, not its wording.
+//
+// One difference, and it is display against evidence. A conflict drawn from
+// both ends prints once in the renderer, whichever end it met first. Here each
+// direction is its own edge with its own `why` and tier, so both count: an
+// argued mirror of a sourced conflict is scored, not hidden behind it. The
+// selected set, and so which pairs conflict, is still the library's.
 let argued = edges.filter(e => e.tier === 'argued');
 let unscored = [];
 let holds;
@@ -318,8 +327,11 @@ if (selCode !== undefined) {
   } catch (e) {
     stop(EXIT.usage, `--sel: ${e.message}`);
   }
-  const { conflicts, unmet } = EagleEye.analyse(box, parsed.sel, parsed.touched);
-  const active = [...conflicts, ...unmet].map(e => ({ source: e.from, target: e.to, kind: e.kind, why: e.why, tier: e.tier }));
+  const { selected, unmet } = EagleEye.analyse(box, parsed.sel, parsed.touched);
+  const conflicts = edges.filter(
+    e => e.kind === 'conf' && selected.has(e.source) && selected.has(e.target) && options.get(e.source).row !== options.get(e.target).row,
+  );
+  const active = [...conflicts, ...unmet.map(e => ({ source: e.from, target: e.to, kind: e.kind, why: e.why, tier: e.tier }))];
   argued = active.filter(e => e.tier === 'argued');
   unscored = active.filter(e => e.tier !== 'argued');
   holds = !active.length;

@@ -694,3 +694,11 @@ test('a --sel with no value exits 2 with the usage line, not a stack trace', () 
   assert.match(r.stderr, /usage: node render\.mjs/);
   assert.equal(/TypeError/.test(r.stderr), false, 'a usage error is not a crash');
 });
+
+test('a second --sel exits 2, as it does in the audit', () => {
+  // The flag reader takes the first --sel and the audit would take the last,
+  // so a line with two named two configurations. Both refuse it instead.
+  const r = run(renderer, [exampleBox, '--sel', 'eagle-eye: none', '--sel', 'eagle-eye: build-prompt']);
+  assert.equal(r.code, 2, `${r.stdout}\n${r.stderr}`);
+  assert.match(r.stderr, /usage: node render\.mjs/);
+});

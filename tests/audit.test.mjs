@@ -14,7 +14,7 @@
 import { test, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { createServer } from 'node:http';
-import { mkdtempSync, readFileSync, readdirSync, rmSync } from 'node:fs';
+import { mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { audit, renderer, root, run, runAsync } from './helpers.mjs';
@@ -453,6 +453,32 @@ test('--sel --dry-run counts the configuration\'s requests and sends nothing', a
   }
 });
 
+test('--sel scores an argued conflict whose mirror is sourced, which the renderer prints once', async () => {
+  // The renderer prints a conflict drawn from both ends once. That is display.
+  // Each direction is its own edge with its own evidence, so the audit scores
+  // the argued one and lists the sourced one, whichever the renderer printed.
+  const box = JSON.parse(readFileSync(decisions, 'utf8'));
+  box.rel['proof-pages'].rel = [
+    ...(box.rel['proof-pages'].rel ?? []),
+    ['scope-guest', 'conf', 'Pages serves a repository the author owns.', 'sourced', 'GitHub Pages documentation'],
+  ];
+  const mirrored = join(work, 'mirrored.json');
+  writeFileSync(mirrored, JSON.stringify(box));
+  const svc = await fake(decisionsReply());
+  const sidecar = join(work, 'mirrored-sel.json');
+  try {
+    const r = await runAudit([mirrored, '--sel', 'eagle-eye: scope-guest', '--json', sidecar], { EAGLE_EYE_AUDIT_ENDPOINT: svc.url, TYPESAFE_API_KEY: KEY });
+    assert.equal(r.code, 0, r.stderr);
+    const json = JSON.parse(readFileSync(sidecar, 'utf8'));
+    assert.deepEqual(
+      json.edges.map(e => `${e.source} ${e.kind} ${e.target} ${e.scored}`).sort(),
+      ['proof-pages conf scope-guest false', 'scope-guest conf proof-pages true'],
+    );
+  } finally {
+    await svc.close();
+  }
+});
+
 test('--sel refuses an unknown id, a missing value, and a following flag with exit 2', async () => {
   const svc = await fake();
   try {
@@ -464,7 +490,10 @@ test('--sel refuses an unknown id, a missing value, and a following flag with ex
     // An id a plain object would find on its prototype is still unknown.
     const proto = await runAudit([decisions, '--sel', 'eagle-eye: constructor'], env);
     assert.equal(proto.code, 2, proto.stderr);
-    for (const args of [[decisions, '--sel'], [decisions, '--sel', '--json', join(work, 'x.json')]]) {
+    // A second --sel is refused rather than read: the renderer and the audit
+    // would otherwise each pick a different one of the two.
+    const twice = [decisions, '--sel', 'eagle-eye: none', '--sel', FAILING];
+    for (const args of [[decisions, '--sel'], [decisions, '--sel', '--json', join(work, 'x.json')], twice]) {
       const r = await runAudit(args, env);
       assert.equal(r.code, 2, `${args.join(' ')}: ${r.stderr}`);
       assert.match(r.stderr, /^usage:/);
