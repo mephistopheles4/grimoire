@@ -572,6 +572,37 @@ test('an E tag nothing beneath the node can produce is a finding', () => {
   assert.match(r.stdout, /greet declares error tag "NeverRaised", and nothing beneath it produces that tag/);
 });
 
+test('a pure node that runs an effect is a finding naming the node and its first effect step', () => {
+  // lookupName's effect is its step 0. A second effect after it must not
+  // move the finding, and must not print a second one.
+  const file = derive(prog => {
+    prog.nodes.lookupName.role = 'pure';
+    prog.nodes.lookupName.steps.push({ op: 'effect', kind: 'log.write', desc: 'note the lookup', label: 'late' });
+  });
+  const r = check(file);
+  assert.equal(r.code, 0, r.stderr);
+  const lines = r.stdout.split('\n').filter(l => /is marked pure/.test(l));
+  assert.deepEqual(lines, ['lookupName is marked pure, which claims no effects, and lookupName[0] runs one: db.get "read the name row"']);
+});
+
+test('a pure node with no effect step, and an effect under any other role, are no finding', () => {
+  // greet runs an effect as a handler, lookupName as io. Neither is pure.
+  assert.doesNotMatch(check(exampleFlightpath).stdout, /is marked pure/);
+
+  // Pure and effect-free: the claim holds, so there is nothing to say. The
+  // pull-request example has four such nodes and effects under io.
+  const layered = JSON.parse(readFileSync(layeredFlightpath, 'utf8'));
+  const pure = Object.values(layered.nodes).filter(x => x.role === 'pure');
+  assert.ok(pure.length && pure.every(x => !x.steps.some(s => s.op === 'effect')), 'the fixture still has effect-free pure nodes');
+  const r = check(layeredFlightpath);
+  assert.equal(r.code, 0, r.stderr);
+  assert.doesNotMatch(r.stdout, /is marked pure/);
+
+  // The rule reads the exact word and no other.
+  const near = check(derive(prog => { prog.nodes.lookupName.role = 'Pure'; }));
+  assert.doesNotMatch(near.stdout, /is marked pure/);
+});
+
 /* -- the text output ------------------------------------------------------ */
 
 // The shipped pull-request example states two graphs, so every reading of it
@@ -779,6 +810,10 @@ const textRows = stdout =>
   }, []);
 const errorLines = stdout => textRows(stdout).map(b => (b.find(l => l.includes('error path:')) || '').trim());
 
+/** Where each row stands when StoreDown reaches the top: greet, loadProfile,
+ *  the lookup by id, the lookup by alias. */
+const storeDownPath = ['error path: propagated', 'error path: propagated', '', 'error path: thrown StoreDown'];
+
 test('the text marks where each row stood on an error that is still live at the end', () => {
   // --text folds to the end of the walk, so the error it can show is one that
   // reached the top. A limit, stated: a catch never shows here. A return ends
@@ -788,12 +823,28 @@ test('the text marks where each row stood on an error that is still live at the 
   assert.equal(check(file).code, 0, 'the derived file is a legal program');
   const r = run(groundtrack, [file, '--text', 'the store is down']);
   assert.equal(r.code, 0, r.stderr);
-  assert.deepEqual(errorLines(r.stdout), ['', 'error path: propagated', '', 'error path: thrown StoreDown']);
+  // greet is still open when the error reaches the top, so it propagated too.
+  assert.deepEqual(errorLines(r.stdout), storeDownPath);
   // The row that threw is the lookup by alias. The lookup by id is the same
   // node from another call site, and it took no part.
   const rows = textRows(r.stdout);
   assert.ok(rows[3].some(l => l.includes('by alias')));
   assert.ok(rows[2].some(l => l.includes('by id')));
+});
+
+test('a walk that leaves the propagates out marks the same frames as one that writes them', () => {
+  // The move that reaches the top propagates every frame still open, so a
+  // propagate per crossed frame is optional. Drop both from the three-frame
+  // run: the file is still legal, and the text reads exactly as it did.
+  const file = derive(prog => {
+    errorPastTwoSites(prog);
+    const trace = runs(prog).find(p => p.name === 'the store is down').trace;
+    trace.steps = trace.steps.filter(m => m.k !== 'propagate');
+  });
+  assert.equal(check(file).code, 0, check(file).stderr);
+  const r = run(groundtrack, [file, '--text', 'the store is down']);
+  assert.equal(r.code, 0, r.stderr);
+  assert.deepEqual(errorLines(r.stdout), storeDownPath);
 });
 
 test('the text marks nothing when the walk ends with no error live', () => {

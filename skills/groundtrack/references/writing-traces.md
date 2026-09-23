@@ -62,7 +62,9 @@ Then decide which kind of failure it is:
 
 - **The effect throws.** The effect move carries `raised`. A `propagate`
   follows for each frame the error leaves. Then comes either an `uncaught`, or
-  a `catch` in a frame whose call step declares that tag.
+  a `catch` in a frame whose call step declares that tag. Before an
+  `uncaught`, the `propagate` moves are optional. The `uncaught` pops every
+  frame still open, and the error path records each one.
 - **The effect returns a failure value the code inspects.** The effect move
   carries `next` to the `if` that inspects it, and the `if` routes to the
   `throw` step.
@@ -102,8 +104,9 @@ The rest is on you. Before you call the file done:
 - Read every `onError` you wrote and find the line in the material that catches
   that tag. If there is no such line, delete the handler.
 - Read every `error` list and find what throws each tag.
-- Read every `role` and check the node does what the word says. A node marked
-  pure that runs an effect is a claim the page prints and nothing tests.
+- Read every `role` and check the node does what the word says. `--check`
+  reports a node marked `pure` that runs an effect. No check reads any other
+  role word.
 
 ## Provenance is not decoration
 

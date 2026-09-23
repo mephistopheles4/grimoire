@@ -131,8 +131,13 @@ numbers. `why` says in one sentence why the change touches this file.
 
 ### role
 
-Any word. The page prints it and nothing branches on it. The words in use are
-`pure`, `io`, `handler`, `agent` and `prototype`. Add one when none fits.
+Any word. The page prints it and nothing branches on it except the
+pure-with-effect finding. The words in use are `pure`, `io`, `handler`,
+`agent` and `prototype`. Add one when none fits.
+
+**`pure` claims the node runs no effect.** `--check` reports a node whose role
+is exactly `pure` and whose steps include an `effect` step. See
+[Findings](#findings).
 
 ### channels
 
@@ -256,7 +261,7 @@ demand a field of moves that cannot have it.
 | `catch` | `at`, `goto`, `next` | The step at `at` declares this `goto` in its `onError`. The cursor moves to `next`, the step labelled `goto`. |
 | `propagate` | — | Pop a frame the error leaves. |
 | `done` | `result?` | The entry frame returned. |
-| `uncaught` | `tag`, `message`, `cause` | Nothing caught the error. |
+| `uncaught` | `tag`, `message`, `cause` | Nothing caught the error. Pop every frame still open. |
 
 ### Frames
 
@@ -267,9 +272,12 @@ demand a field of moves that cannot have it.
   resumes when the callee returns. It is set when the call is made, *before*
   the callee is pushed, which is why a caller's cursor is already past its own
   guard while the callee runs.
-- **A frame is popped by a return or a propagate**, and by nothing else.
-- **The two terminal moves are stack-free.** They arrive after the last frame
-  has gone.
+- **A frame is popped by a return, a propagate or an uncaught**, and by
+  nothing else.
+- **The two terminal moves treat open frames differently.** A
+  `done` arrives after the last frame has gone. An `uncaught` can arrive with
+  frames still open. It pops them, and the error path records each one as
+  propagated, innermost first.
 
 ### An effect carries `next` or `raised`, never both
 
@@ -318,7 +326,8 @@ proves a trace against the graph it belongs to, entering at that graph's entry.
   step's `kind`.
 - A catch names a step whose `onError` declares that `goto`, and lands
   on it.
-- Frames push and pop in order, and the terminal move arrives with none open.
+- Frames push and pop in order. A `done` arrives with none open. An `uncaught`
+  can arrive with frames open, and the check below reads them.
 - **A tag claimed uncaught is refused when a frame in its way declares a
   handler for it.** A frame is in the way when it is suspended at a call.
 - **A refusal names the move that emptied the frame stack**, not the first move
@@ -408,3 +417,6 @@ exits zero. Each one is a thing you may have meant.
   have written and not yet connected is a work in progress.
 - **A call edge a layer cuts.**
 - **A handler for a tag the file throws as a die.** Legal, and it should be on purpose.
+- **A `pure` node that runs an effect.** The finding names the node and its
+  first `effect` step. Fix the role or the step, or write one line that says
+  why the role stands.
