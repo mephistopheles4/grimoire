@@ -289,7 +289,7 @@ test('a box with no sourced edge gets an uncalibrated ranking, and says so in on
 
 test('nothing is cached: a second run asks for every edge and every control again', async () => {
   // A cache served one model's answers after the alias had moved on (#106).
-  // Every run is now one set of requests, so it is one model's answers.
+  // Every run now asks the service for every edge and every control anew.
   const svc = await fake(decisionsReply());
   try {
     const env = { EAGLE_EYE_AUDIT_ENDPOINT: svc.url, TYPESAFE_API_KEY: KEY };
