@@ -375,7 +375,7 @@ const Groundtrack = (() => {
      * reaches the top, the top frame on a throw or a catch. The
      * tree is one row per call site and has to know which row an entry is,
      * and it cannot work that out later: by the time the cursor sits on the
-     * catch, the frames that threw and unwound are gone. The entry for an
+     * catch, the frames that threw and propagated are gone. The entry for an
      * error reaching the top names neither. */
     let errorPath = [];
     /* BY PATH FROM THE ENTRY, which is what the tree reads. A chain key is the
@@ -1078,13 +1078,13 @@ const Groundtrack = (() => {
      * same holds. The chain tells both apart, which `caller#step` could not.
      *
      * The frame an error starts in is on the fold's path twice — it threw,
-     * then it unwound — and only the first is a position. The row where the
+     * then it propagated — and only the first is a position. The row where the
      * error started says so; `propagated` is for the frames it crossed. A
      * frame that throws and catches its own error says both, in path order.
      *
      * The entry for an error reaching the top names no chain, so it matches no
-     * row and makes none. Nor do the frames still open when it gets there:
-     * nothing unwound them, so the fold did not put them on the path. */
+     * row and makes none. The frames still open when it gets there are on the
+     * path before it: that move propagates each of them. */
     for (const e of end.errorPath) {
       if (e.chain === undefined) continue;
       const i = speaksFor(e.chain);

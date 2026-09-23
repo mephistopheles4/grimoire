@@ -531,7 +531,7 @@ test('every error-path entry that names a node carries the call site of its fram
 });
 
 test('an error that reaches the top propagates the frames still open, then names no node and no site', () => {
-  // greet raised in its own frame, and that frame is still open when the
+  // greet threw in its own frame, and that frame is still open when the
   // error reaches the top. So the frame says both, in path order: it threw,
   // and then the error left it.
   const s = G.fold(greet, runNamed(greet, 'the post fails').trace);
@@ -544,7 +544,7 @@ test('an error that reaches the top propagates the frames still open, then names
 });
 
 test('an error that reaches the top with frames open puts every frame it crossed on the path', () => {
-  // Three frames deep, the innermost raises, and the walk writes one
+  // Three frames deep, the innermost throws, and the walk writes one
   // propagate for three frames crossed. No shipped example reaches this. The
   // fold derives the two the walk left out, innermost first, each with its
   // own frame's call site, and the top comes last.

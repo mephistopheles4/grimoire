@@ -269,7 +269,7 @@ demand a field of moves that cannot have it.
   guard while the callee runs.
 - **A frame is popped by a return, a propagate or an uncaught**, and by
   nothing else.
-- **The two terminal moves treat open frames differently, on purpose.** A
+- **The two terminal moves treat open frames differently.** A
   `done` arrives after the last frame has gone. An `uncaught` can arrive with
   frames still open. It pops them, and the error path records each one as
   propagated, innermost first.

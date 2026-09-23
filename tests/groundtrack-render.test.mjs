@@ -779,6 +779,10 @@ const textRows = stdout =>
   }, []);
 const errorLines = stdout => textRows(stdout).map(b => (b.find(l => l.includes('error path:')) || '').trim());
 
+/** Where each row stands when StoreDown reaches the top: greet, loadProfile,
+ *  the lookup by id, the lookup by alias. */
+const storeDownPath = ['error path: propagated', 'error path: propagated', '', 'error path: thrown StoreDown'];
+
 test('the text marks where each row stood on an error that is still live at the end', () => {
   // --text folds to the end of the walk, so the error it can show is one that
   // reached the top. A limit, stated: a catch never shows here. A return ends
@@ -789,7 +793,7 @@ test('the text marks where each row stood on an error that is still live at the 
   const r = run(groundtrack, [file, '--text', 'the store is down']);
   assert.equal(r.code, 0, r.stderr);
   // greet is still open when the error reaches the top, so it propagated too.
-  assert.deepEqual(errorLines(r.stdout), ['error path: propagated', 'error path: propagated', '', 'error path: thrown StoreDown']);
+  assert.deepEqual(errorLines(r.stdout), storeDownPath);
   // The row that threw is the lookup by alias. The lookup by id is the same
   // node from another call site, and it took no part.
   const rows = textRows(r.stdout);
@@ -803,13 +807,13 @@ test('a walk that leaves the propagates out marks the same frames as one that wr
   // run: the file is still legal, and the text reads exactly as it did.
   const file = derive(prog => {
     errorPastTwoSites(prog);
-    const steps = prog.graphs[0].presets[1].trace.steps;
-    prog.graphs[0].presets[1].trace.steps = steps.filter(m => m.k !== 'propagate');
+    const trace = runs(prog).find(p => p.name === 'the store is down').trace;
+    trace.steps = trace.steps.filter(m => m.k !== 'propagate');
   });
   assert.equal(check(file).code, 0, check(file).stderr);
   const r = run(groundtrack, [file, '--text', 'the store is down']);
   assert.equal(r.code, 0, r.stderr);
-  assert.deepEqual(errorLines(r.stdout), ['error path: propagated', 'error path: propagated', '', 'error path: thrown StoreDown']);
+  assert.deepEqual(errorLines(r.stdout), storeDownPath);
 });
 
 test('the text marks nothing when the walk ends with no error live', () => {
