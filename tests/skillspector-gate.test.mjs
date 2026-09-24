@@ -431,6 +431,20 @@ test('a finding is a table row on the summary, and a pipe in it does not break t
   assert.match(readFileSync(file, 'utf8'), /^\| XX9 \| LOW \| SKILL\.md:3 \| left \\\| right \|$/m);
 });
 
+test('a backslash before a pipe does not break the table either', () => {
+  // Escaping the pipe alone turns `\|` into `\\|`: an escaped backslash, then a
+  // bare pipe that ends the cell. Raised by CodeQL on this gate.
+  const r = clean();
+  r.issues = [
+    { id: 'XX9', severity: 'LOW', location: { file: 'SKILL.md', start_line: 3 }, message: 'left \\| right' },
+  ];
+  const file = summaryPath();
+  gateWithSummary(report(r), file);
+  const row = readFileSync(file, 'utf8').split('\n').find(l => l.startsWith('| XX9 '));
+  // The backslash doubled, then the pipe escaped: three backslashes and a pipe.
+  assert.equal(row, '| XX9 | LOW | SKILL.md:3 | left \\\\\\| right |');
+});
+
 test('a report the gate cannot read is red on the summary too', () => {
   // A section missing from the page reads as a skill nobody scanned.
   const file = summaryPath();

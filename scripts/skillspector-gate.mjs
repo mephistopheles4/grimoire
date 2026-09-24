@@ -64,10 +64,13 @@ function writeSummary() {
 
 // One table cell. A pipe or a line break would end the cell early, and the text
 // is the scanner's, which echoes what it matched, so angle brackets are escaped
-// too rather than handed to the page as markup.
+// too rather than handed to the page as markup. Backslashes are escaped first:
+// otherwise a `\|` in the text becomes `\\|`, an escaped backslash followed by
+// a pipe that ends the cell.
 const cell = v => {
   const s = String(v ?? '')
     .replace(/\r?\n/g, ' ')
+    .replace(/\\/g, '\\\\')
     .replace(/\|/g, '\\|')
     .replace(/</g, '&lt;')
     .trim();
