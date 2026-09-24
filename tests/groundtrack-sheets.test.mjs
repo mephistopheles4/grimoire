@@ -88,6 +88,6 @@ test('author text reaches a sheet as text, never as markup', () => {
   const file = derive(p => { p.tour = [stop({ now: '<script>alert(1)</script> & done' })]; });
   const { r, two } = drawn(file);
   assert.equal(r.code, 0, r.stderr);
-  assert.doesNotMatch(two, /<script>/);
+  assert.doesNotMatch(two, /<script\b/i, 'no script element, in any case');
   assert.match(two, /&lt;script&gt;alert\(1\)&lt;\/script&gt; &amp; done/);
 });
