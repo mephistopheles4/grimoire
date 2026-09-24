@@ -838,5 +838,51 @@
         }
       ]
     }
+  ],
+  "tour": [
+    {
+      "region": "start",
+      "now": "This box designs eagle-eye on itself. It has 13 decisions, and one chosen option in each."
+    },
+    {
+      "region": "index",
+      "now": "Each row is one decision, with its chosen option after the dot. As chosen, no row conflicts with another."
+    },
+    {
+      "region": "verdict",
+      "now": "As chosen, the set holds. Every edge behind this verdict is argued. Nobody measured one."
+    },
+    {
+      "region": "cards",
+      "open": "build",
+      "now": "The row \"How it is built\" is open. The chosen option is a skill with a renderer. Each card says what that option requires and what it rules out."
+    },
+    {
+      "region": "verdict",
+      "set": { "build": "build-prompt" },
+      "now": "One option changed: the skill is built from a prompt only. The verdict is now \"does not hold\"."
+    },
+    {
+      "region": "findings",
+      "set": { "build": "build-prompt" },
+      "now": "Two conflicts. A round trip needs an export format that stays the same, and predict-then-reveal is page state. A prompt-only build has neither."
+    },
+    {
+      "region": "sheet",
+      "view": "sheet",
+      "now": "The same box as one grid, back at the chosen set. Each chosen option is marked in its row."
+    },
+    {
+      "region": "presets",
+      "now": "The author's walks through this box. Pick \"Change one option\" to see a stress test step by step."
+    },
+    {
+      "region": "coach",
+      "now": "Turn Coach on, then change an option. Predict the rows it affects before the page shows you."
+    },
+    {
+      "region": "export",
+      "now": "When you finish, Export gives one line. Paste it back to the agent, and it reads your options."
+    }
   ]
 }

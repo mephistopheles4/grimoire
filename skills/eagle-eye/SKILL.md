@@ -396,6 +396,32 @@ on its own only for `'sheet'`.
 nothing* tell the reader what they are about to see. *Optimal* and *maintainable*
 state the answer the box exists to test.
 
+## The tour
+
+**A box may carry a tour.** A tour walks a first-time reader through the page.
+Each stop frames one region. The page says what the region is. The stop says
+what the reader sees there now.
+
+A stop names a `region` and writes `now`. It may change options with `set`, open
+a row with `open`, and pick the `view`. A stop states its whole page. What it
+leaves out is the default: the chosen set, no row open, the findings view.
+
+The regions are `views`, `presets`, `coach`, `export`, `reset`, `index`,
+`verdict`, `start`, `findings`, `cards` and `sheet`.
+
+- **Show the page before the argument.** Start with the brief, the index and
+  the verdict as chosen.
+- **Then change one option.** Use the break test. Show the verdict move, then
+  the findings that explain it.
+- **End on the controls.** The sheet, the presets, coach and export.
+- **Write what changed, not what the region is.** `now` says what this box puts
+  in the region.
+
+The renderer refuses a stop whose state does not show its region. The sheet
+needs `"view": "sheet"`. The option cards need a row open. The brief and the
+findings need no row open. The page turns coach off during the tour. When the
+tour ends, the page puts back the reader's options.
+
 ## Coach mode
 
 Opt-in, on the page. After an override the grid stays uncoloured until the
@@ -458,7 +484,9 @@ row, every option has a
 `short`, edge targets exist and sit in another row, tier in {measured, sourced,
 argued}, a non-argued edge names its `src`, every edge has a why, and two or
 more presets of which one changes an option. `who`, `when` and a preset's
-`reframe` are optional, and a present one must not be blank. It warns on a row
+`reframe` are optional, and a present one must not be blank. A `tour` is
+optional too. Each stop names a region the page has and a `now`, and its state
+must show its region. See [The tour](#the-tour). It warns on a row
 with no `problem`, on a row with no strawman, and on a strawman that is the
 chosen option.
 

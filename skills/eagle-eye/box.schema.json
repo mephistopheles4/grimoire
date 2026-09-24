@@ -106,6 +106,21 @@
           }
         }
       }
+    },
+    "tour": {
+      "type": "array",
+      "minItems": 1,
+      "description": "Optional. The page's own walk for a first-time reader: each stop frames one region and says what the reader sees there now. The page says what each region is. A stop states its whole page: the chosen set with `set` swapped in, the row in `open`, the `view`; what it leaves out is the default. render.mjs refuses a stop whose state does not show its region. See SKILL.md, 'The tour'.",
+      "items": {
+        "type": "object", "required": ["region", "now"], "additionalProperties": false,
+        "properties": {
+          "region": { "enum": ["views", "presets", "coach", "export", "reset", "index", "verdict", "start", "findings", "cards", "sheet"] },
+          "now": { "type": "string", "minLength": 1, "pattern": "\\S", "description": "What the reader sees in the region at this stop. One or two sentences." },
+          "set": { "type": "object", "additionalProperties": { "type": "string" }, "description": "{dimId: optionId}, swapped into the chosen set for this stop." },
+          "open": { "type": "string", "description": "dim id to open. The option cards need one; the brief and the findings need none." },
+          "view": { "enum": ["findings", "sheet"], "description": "Default findings. The sheet region needs sheet." }
+        }
+      }
     }
   }
 }

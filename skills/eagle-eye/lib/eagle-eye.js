@@ -218,6 +218,54 @@ const EagleEye = (() => {
     return { optById, chosenOf, selected, overrides, conflicts, unmet, met, closed, pulled, verdict, basis, moves, affected, suspected: box.suspected || [] };
   }
 
-  return { analyse, index, parseSel, esc };
+  // The tour. A box may carry a walk through its own page: each stop frames one
+  // region and says what the reader sees there now. The box names a region; it
+  // never names an element. What each region is for is written here, once, so
+  // every box explains the verdict in the same words.
+  //
+  // `view` is the view a region is drawn in, or null when both views show it.
+  // `open` says whether the region needs a row open (true), needs none (false),
+  // or does not care (null). An array, not a map keyed by name: a region name
+  // is box text until it is matched, and `constructor` must match nothing.
+  const TOUR_REGIONS = [
+    { name: 'views', label: 'views', what: 'Two views of one box. Findings reads it row by row. Sheet shows it as one grid.', view: null, open: null },
+    { name: 'presets', label: 'presets', what: 'Walks the author prepared. Each one changes options and shows what follows.', view: null, open: null },
+    { name: 'coach', label: 'coach', what: 'When it is on, you predict which rows a change affects before the page shows you.', view: null, open: null },
+    { name: 'export', label: 'export', what: 'One line to paste back to the agent, so it reads the options you chose.', view: null, open: null },
+    { name: 'reset', label: 'reset', what: 'Puts back the chosen set. Undo offers your options again.', view: null, open: null },
+    { name: 'index', label: 'index', what: 'One row for each decision. The dot says if the selected option meets its edges.', view: 'findings', open: null },
+    { name: 'verdict', label: 'verdict', what: 'Whether the selected options hold together, and how strong the edges behind that are.', view: 'findings', open: null },
+    { name: 'start', label: 'brief', what: 'What the box decides, for whom, and by when.', view: 'findings', open: false },
+    { name: 'findings', label: 'findings', what: 'Each conflict, each requirement not met, and each move worth making next.', view: 'findings', open: false },
+    { name: 'cards', label: 'option cards', what: 'Every option in the open row, with what it requires and what it rules out.', view: 'findings', open: true },
+    { name: 'sheet', label: 'sheet', what: 'Every decision is a row and every option a column. The selected ones are marked.', view: 'sheet', open: null },
+  ];
+  const TOUR_VIEWS = ['findings', 'sheet'];
+  const tourRegion = name => TOUR_REGIONS.find(r => r.name === name);
+
+  // Where the tour's card goes, given the box of the region, the card's size and
+  // the window's: below the region, then above, then right, then left, and
+  // inside its bottom-right corner when no side has room. 12px from every edge.
+  function tourCardAt(box, card, win){
+    const E = 12, GAP = 9;
+    const cx = x => Math.max(E, Math.min(x, win.width - card.width - E));
+    const cy = y => Math.max(E, Math.min(y, win.height - card.height - E));
+    if (box.bottom + GAP + card.height <= win.height - E) return { left: cx(box.left), top: box.bottom + GAP, side: 'below' };
+    if (box.top - GAP - card.height >= E) return { left: cx(box.left), top: box.top - GAP - card.height, side: 'above' };
+    if (box.right + GAP + card.width <= win.width - E) return { left: box.right + GAP, top: cy(box.top), side: 'right' };
+    if (box.left - GAP - card.width >= E) return { left: box.left - GAP - card.width, top: cy(box.top), side: 'left' };
+    return { left: cx(box.right - card.width - GAP), top: cy(box.bottom - card.height - GAP), side: 'inside' };
+  }
+
+  // The tour control, rendered by render.mjs into the page so a test can find
+  // it. A box with no tour gets it switched off, with the reason as its note.
+  function tourButtonMarkup(box){
+    const n = ((box && box.tour) || []).length;
+    return n
+      ? `<button class="chip chip--tour" id="tour" type="button" aria-haspopup="dialog" title="Walk this page with the box's own tour: ${n} stops. The arrow keys step it. Escape ends it.">Tour</button>`
+      : '<button class="chip chip--tour" id="tour" type="button" aria-disabled="true" title="This box carries no tour.">Tour</button>';
+  }
+
+  return { analyse, index, parseSel, esc, TOUR_REGIONS, TOUR_VIEWS, tourRegion, tourCardAt, tourButtonMarkup };
 })();
 if (typeof module !== 'undefined') module.exports = EagleEye;

@@ -702,3 +702,100 @@ test('a second --sel exits 2, as it does in the audit', () => {
   assert.equal(r.code, 2, `${r.stdout}\n${r.stderr}`);
   assert.match(r.stderr, /usage: node render\.mjs/);
 });
+
+/* -- the tour -----------------------------------------------------------------
+ *
+ * A box may carry a tour: the page's own walk, one region at a time. A stop
+ * names a region and says what the reader sees there now; it may change
+ * options from the chosen set, open a row, and pick the view. The page says
+ * what each region is. */
+
+const tourStop = (over = {}) => ({ region: 'verdict', now: 'As chosen, nothing conflicts.', ...over });
+let tn = 0;
+function withBoxTour(tour) {
+  const box = JSON.parse(readFileSync(exampleBox, 'utf8'));
+  if (tour === undefined) delete box.tour; else box.tour = tour;
+  const p = join(work, `tour-${tn++}.box.json`);
+  writeFileSync(p, JSON.stringify(box, null, 2));
+  return p;
+}
+const checkBox = file => run(renderer, [file, '--check']);
+
+test('a tour stop that names a region the page has is accepted', () => {
+  const r = checkBox(withBoxTour([tourStop()]));
+  assert.equal(r.code, 0, r.stderr);
+});
+
+test('a tour stop that names a region the page does not have is refused, constructor included', () => {
+  for (const region of ['grid', 'constructor']) {
+    const r = checkBox(withBoxTour([tourStop({ region })]));
+    assert.equal(r.code, 1, region);
+    assert.match(r.stderr, new RegExp(`error: tour\\[0\\]\\.region: "${region}" is not a region of the page`));
+  }
+});
+test('a tour that is not a list, or an empty one, or a stop with an unknown key or no now, is refused', () => {
+  const cases = [
+    [{ stop: tourStop() }, /error: tour: must be an array of stops/],
+    [[], /error: tour: state at least one stop, or leave the field out/],
+    [[tourStop({ target: '#verdict' })], /error: tour\[0\]: unknown key "target"/],
+    [[{ region: 'verdict' }], /error: tour\[0\]\.now: required/],
+    [[tourStop({ now: '  ' })], /error: tour\[0\]\.now: required/],
+  ];
+  for (const [tour, pattern] of cases) {
+    const r = checkBox(withBoxTour(tour));
+    assert.equal(r.code, 1, JSON.stringify(tour));
+    assert.match(r.stderr, pattern);
+  }
+});
+
+test('a tour stop changes only options the box has, opens only a row it has, and names a view the page has', () => {
+  const cases = [
+    [tourStop({ set: { constructor: 'build-prompt' } }), /error: tour\[0\]\.set: no row "constructor"/],
+    [tourStop({ set: { build: 'constructor' } }), /error: tour\[0\]\.set: "constructor" is not an option of "build"/],
+    [tourStop({ set: { build: 'home-repo' } }), /error: tour\[0\]\.set: "home-repo" is not an option of "build"/],
+    [tourStop({ region: 'cards', open: 'constructor' }), /error: tour\[0\]\.open: no row "constructor"/],
+    [tourStop({ view: 'grid' }), /error: tour\[0\]\.view: "grid" is not findings or sheet/],
+  ];
+  for (const [s, pattern] of cases) {
+    const r = checkBox(withBoxTour([s]));
+    assert.equal(r.code, 1, JSON.stringify(s));
+    assert.match(r.stderr, pattern);
+  }
+  assert.equal(checkBox(withBoxTour([tourStop({ set: { build: 'build-prompt' }, open: 'build', region: 'cards' })])).code, 0);
+});
+
+test('a tour stop puts the page in a state that shows its region', () => {
+  const cases = [
+    [tourStop({ region: 'sheet' }), /error: tour\[0\]: the sheet is drawn in the sheet view — add "view": "sheet"/],
+    [tourStop({ region: 'index', view: 'sheet' }), /error: tour\[0\]: the index is drawn in the findings view/],
+    [tourStop({ region: 'cards' }), /error: tour\[0\]: the option cards show only with a row open — add "open"/],
+    [tourStop({ region: 'findings', open: 'build' }), /error: tour\[0\]: the findings show only with no row open — leave "open" out/],
+  ];
+  for (const [s, pattern] of cases) {
+    const r = checkBox(withBoxTour([s]));
+    assert.equal(r.code, 1, JSON.stringify(s));
+    assert.match(r.stderr, pattern);
+  }
+  assert.equal(checkBox(withBoxTour([tourStop({ region: 'sheet', view: 'sheet' })])).code, 0);
+});
+test('the page offers the tour beside the scheme control, and says why not when the box has none', () => {
+  const page = file => {
+    const out = join(work, `tour-page-${tn++}.html`);
+    const r = run(renderer, [file, '--out', out]);
+    assert.equal(r.code, 0, r.stderr);
+    return readFileSync(out, 'utf8');
+  };
+  // The module's source is inlined too and holds the same markup as a string.
+  const buttons = html => html.match(/(?<![`'])<button[^>]*id="tour"[^>]*>/g) || [];
+  const html = page(withBoxTour([tourStop(), tourStop({ region: 'index' })]));
+  const on = buttons(html);
+  assert.equal(on.length, 1);
+  assert.doesNotMatch(on[0], /aria-disabled/);
+  assert.match(on[0], /2 stops/);
+  const group = html.slice(html.lastIndexOf('<div class="group">', html.indexOf('id="schemeToggle"')), html.indexOf('id="schemeToggle"'));
+  assert.match(group, /id="tour"/, 'the tour control shares the scheme control\'s group');
+  const off = buttons(page(withBoxTour(undefined)));
+  assert.equal(off.length, 1);
+  assert.match(off[0], /aria-disabled="true"/);
+  assert.match(off[0], /carries no tour/);
+});

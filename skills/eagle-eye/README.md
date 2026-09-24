@@ -20,7 +20,12 @@ back.
 option and watch the grid recolour. That page was written by the skill, about
 itself.
 
+**[Take the tour of the page →][tour]** Open the skill's own design box and
+press `Tour` at the top right. It walks the page one region at a time, changes
+one option, and shows the verdict move.
+
 [demo]: https://mephistopheles4.github.io/grimoire/
+[tour]: https://mephistopheles4.github.io/grimoire/skills-eagle-eye-examples-eagle-eye-skill.html
 
 ## Use it
 
