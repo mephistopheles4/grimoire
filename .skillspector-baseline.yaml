@@ -59,3 +59,5 @@ rules:
     reason: "Not a false positive, and accepted. The edge audit posts a box's text to the model provider's endpoint by design, and only when a user runs it with a key after saying yes. SECURITY.md, What the edge audit sends, states what leaves the machine and when."
   - rule_id: "LP3"
     reason: "Accepted. The skill declares no permission list, because a permission list is one host's format and this skill's text runs in agents that read none. Its one script that reaches the network runs only after the user says yes, and SKILL.md and SECURITY.md say what it sends."
+  - rule_id: "P2"
+    reason: "False positive. The rule reads get inside any HTML comment with no word boundary, so the word together in a page-template comment about two buttons wrapping as one group matches it (upstream NVIDIA/SkillSpector issue 297). The comments are notes on layout for a maintainer, and no agent reads the rendered page as instructions."
