@@ -411,5 +411,72 @@
         }
       ]
     }
+  ],
+  "tour": [
+    {
+      "region": "plan",
+      "run": "no such user",
+      "move": 0,
+      "now": "This tour follows the run where the lookup finds no row. greet calls lookupName, and nothing else runs."
+    },
+    {
+      "region": "run",
+      "run": "no such user",
+      "move": 0,
+      "now": "\"no such user\" is picked. Two of the three runs fail, each in its own way."
+    },
+    {
+      "region": "cutaway",
+      "run": "no such user",
+      "move": 1,
+      "tab": "source",
+      "now": "The cursor is on greet's call to lookupName. This is the only call that can fail."
+    },
+    {
+      "region": "callStack",
+      "run": "no such user",
+      "move": 5,
+      "now": "lookupName is on top of greet, and it has just thrown NoSuchUser."
+    },
+    {
+      "region": "errorPath",
+      "run": "no such user",
+      "move": 7,
+      "now": "The throw leaves lookupName and lands in greet's catch. The run goes on."
+    },
+    {
+      "region": "effectsLedger",
+      "run": "no such user",
+      "move": 9,
+      "now": "Two effects so far: the read that found no row, then the POST of the fallback line."
+    },
+    {
+      "region": "errorPath",
+      "run": "the post fails",
+      "move": 10,
+      "now": "In this run the POST itself throws SendFailed, and nothing catches it."
+    },
+    {
+      "region": "cutaway",
+      "run": "a known user",
+      "move": 0,
+      "tab": "files",
+      "now": "The two files this change touches: one edited, one new."
+    },
+    {
+      "region": "tools",
+      "run": "a known user",
+      "move": 0,
+      "layer": "tests",
+      "now": "Under the tests layer, the name store is a fixed map from greet.test.ts."
+    },
+    {
+      "region": "controls",
+      "run": "a known user",
+      "move": 0,
+      "layer": "production",
+      "tab": "source",
+      "now": "Back at the start of the run that succeeds. Step it yourself."
+    }
   ]
 }

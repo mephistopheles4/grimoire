@@ -28,7 +28,9 @@ const Groundtrack = require(resolve(here, 'groundtrack.js'));
 /* -- the shape, exactly as references/flightpath-file.md states it ---------- */
 
 const CORE = ['id', 'title', 'blurb', 'env', 'nodes', 'graphs'];
-const OPTIONAL = ['files', 'layers', 'sheet'];
+const OPTIONAL = ['files', 'layers', 'sheet', 'tour'];
+const TOUR_STOP = ['region', 'run', 'move', 'now'];
+const TOUR_STOP_OPTIONAL = ['graph', 'tab', 'view', 'layer'];
 const GRAPH = ['id', 'title', 'blurb', 'entry', 'presets'];
 const NODE = ['name', 'role', 'loc', 'params', 'channels', 'steps', 'touches', 'enteredBy'];
 const FILE = ['path', 'change', 'why', 'adds', 'dels'];
@@ -285,6 +287,52 @@ function shape(prog, r) {
       });
     });
   });
+
+  if (prog.tour !== undefined) tourShape(prog, r);
+}
+
+/* A tour is read after the graphs, because a stop names a graph and a run on
+ * it. Whether its move is inside the run waits for the walks: that needs the
+ * run folded, and a fold of a walk that is not a legal path means nothing. */
+function tourShape(prog, r) {
+  if (!Array.isArray(prog.tour)) return r.shape('tour', 'expected an array');
+  if (!prog.tour.length) return r.shape('tour', 'state at least one stop, or leave the key out. An empty tour offers the reader a walk with nothing in it.');
+  prog.tour.forEach((s, i) => {
+    const w = `tour[${i}]`;
+    keys(r, w, s, TOUR_STOP, TOUR_STOP_OPTIONAL);
+    if (!isObj(s)) return;
+    if (!Groundtrack.tourRegion(s.region)) r.shape(`${w}.region`, `"${s.region}" is not a region of the page — one of ${Groundtrack.TOUR_REGIONS.map(g => g.name).join(', ')}`);
+    else if (s.region === 'sheet' && prog.graphs.length < 2) r.shape(`${w}.region`, 'this file states one graph, so the page has no sheet picker to frame');
+    if (s.now !== undefined && (typeof s.now !== 'string' || !s.now.trim())) r.shape(`${w}.now`, 'is blank — the page prints it as what the reader sees at this stop');
+
+    /* The graph by id and the run by name, the way --text takes them. Both are
+     * matched against what the file declares and never used as keys. One
+     * graph needs no naming; two need it, for the reason --text needs --graph. */
+    let graph;
+    if (s.graph === undefined) {
+      if (prog.graphs.length > 1) r.shape(`${w}.graph`, `this file states ${prog.graphs.length} graphs, so a stop names the one it is on`);
+      else graph = prog.graphs[0];
+    } else {
+      graph = prog.graphs.find(g => isObj(g) && g.id === s.graph);
+      if (!graph) r.shape(`${w}.graph`, `"${s.graph}" is not a graph of this file`);
+    }
+    if (graph && !graph.presets.some(p => isObj(p) && p.name === s.run)) r.shape(`${w}.run`, `"${s.run}" is not a run of graph "${graph.id}"`);
+    if (s.tab !== undefined && !Groundtrack.TOUR_TABS.includes(s.tab)) r.shape(`${w}.tab`, `"${s.tab}" is not one of ${Groundtrack.TOUR_TABS.join(', ')}`);
+    if (s.view !== undefined && !Groundtrack.TOUR_VIEWS.includes(s.view)) r.shape(`${w}.view`, `"${s.view}" is not one of ${Groundtrack.TOUR_VIEWS.join(', ')}`);
+    if (s.layer !== undefined && !(isObj(prog.layers) && Object.hasOwn(prog.layers, s.layer)))
+      r.shape(`${w}.layer`, `"${s.layer}" is not a layer this file declares`);
+    if (!Number.isInteger(s.move) || s.move < 0) r.shape(`${w}.move`, `expected a whole number from 0, the move the page shows as "n / last" — got ${JSON.stringify(s.move)}`);
+  });
+}
+
+/* Is each stop's move inside its run? Counted the way the page counts: the
+ * fold holds one state before the first step, so a run of n steps has moves 0
+ * to n. Read only once every walk is a legal path. */
+function tourMoves(prog, r) {
+  Groundtrack.tourStops(prog).forEach((t, i) => {
+    const last = Groundtrack.fold(Groundtrack.graphView(prog, t.graph), prog.graphs[t.graph].presets[t.run].trace).length - 1;
+    if (t.move > last) r.shape(`tour[${i}].move`, `move ${t.move} is past the end of run "${prog.tour[i].run}", whose last move is ${last}`);
+  });
 }
 
 /* -- pass 3: is the walk a legal path? -------------------------------------
@@ -505,6 +553,7 @@ export function check(prog, fileLabel) {
   /* Each walk is validated against the graph it belongs to, entering at that
    * graph's entry. Every rule below that is unchanged. */
   prog.graphs.forEach((g, gi) => g.presets.forEach((_, pi) => path(prog, gi, pi, r)));
+  if (!r.list.length && prog.tour !== undefined) tourMoves(prog, r);
   return r.list;
 }
 
@@ -677,6 +726,27 @@ export function text(prog, graphIndex, runIndex) {
     for (const fx of row.effects) L.push(`${pad}   · ${fx.kind}  ${fx.desc} — ${fx.mark}`);
   }
 
+  /* The tour is the file's, not the run's, so it prints whichever run was
+   * asked for. One line a stop: where it takes the page, then what the reader
+   * sees there. The graph is named only when there is more than one. */
+  if (prog.tour) {
+    const stops = Groundtrack.tourStops(prog);
+    L.push('');
+    L.push(`tour of this file, ${stops.length} stop${stops.length === 1 ? '' : 's'}:`);
+    stops.forEach((t, n) => {
+      const where = [
+        t.region.label,
+        ...(prog.graphs.length > 1 ? [`graph "${prog.graphs[t.graph].id}"`] : []),
+        `run "${prog.graphs[t.graph].presets[t.run].name}"`,
+        `move ${t.move}`,
+        ...(t.tab ? [`tab ${t.tab}`] : []),
+        ...(t.view ? [`view ${t.view}`] : []),
+        ...(t.layer ? [`layer ${t.layer}`] : []),
+      ];
+      L.push(`  ${n + 1}. ${where.join(' · ')} — ${t.now}`);
+    });
+  }
+
   const others = view.presets.filter((_, j) => j !== i);
   if (others.length) {
     L.push('');
@@ -773,6 +843,7 @@ export function page(prog) {
     .replace('/*AVIATION*/', () => aviation)
     .replace('/*FONTS*/', () => faces)
     .replace('<!--SHEETS-->', () => picker)
+    .replace('<!--TOUR-->', () => Groundtrack.tourButtonMarkup(prog))
     .replace('/*DATA*/', () => data)
     .replace('/*MODULE*/', () => moduleSource);
 }

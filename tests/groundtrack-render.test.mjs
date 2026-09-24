@@ -24,7 +24,15 @@ import { groundtrack, examples, exampleFlightpath, layeredFlightpath, run, error
 const work = mkdtempSync(join(tmpdir(), 'grimoire-groundtrack-'));
 after(() => rmSync(work, { recursive: true, force: true }));
 
-const base = () => JSON.parse(readFileSync(exampleFlightpath, 'utf8'));
+/* Without its tour. A tour names runs and moves, so every mutation below that
+ * renames a run, shortens a trace or adds a graph would break it, and each
+ * test would fail on the tour rather than on what it is about. The tour tests
+ * write their own. */
+const base = () => {
+  const prog = JSON.parse(readFileSync(exampleFlightpath, 'utf8'));
+  delete prog.tour;
+  return prog;
+};
 
 /** Write a derived program to the scratch directory and return its path. */
 let n = 0;
@@ -1517,3 +1525,151 @@ test('the renderer run through a linked skill directory answers as it does throu
   }
 });
 
+
+/* -- the tour ---------------------------------------------------------------
+ *
+ * A tour is the file's own walk through the page. The file names a region,
+ * a run by name, a move, and what the reader sees there now. What a region is
+ * for is the page's text, not the file's.
+ */
+
+const stop = (over = {}) => ({ region: 'callStack', run: 'no such user', move: 5, now: 'lookupName has just thrown.', ...over });
+const withTour = (...stops) => derive(p => { p.tour = stops; });
+
+test('a tour stop that names a region the page has is accepted', () => {
+  const r = check(withTour(stop()));
+  assert.equal(r.code, 0, r.stderr);
+});
+
+test('a tour stop that names a region the page does not have is refused', () => {
+  const r = check(withTour(stop({ region: 'stack' })));
+  assert.equal(r.code, 1);
+  assert.match(r.stderr, /tour\[0\]\.region: "stack" is not a region of the page/);
+});
+
+test('a tour that is not a list, or an empty one, is refused', () => {
+  const notList = check(derive(p => { p.tour = { stop: stop() }; }));
+  assert.equal(notList.code, 1);
+  assert.match(notList.stderr, /: tour: expected an array/);
+  const empty = check(withTour());
+  assert.equal(empty.code, 1);
+  assert.match(empty.stderr, /: tour: state at least one stop, or leave the key out/);
+});
+
+test('a tour stop with an unknown key, or no now, is refused', () => {
+  const extra = check(withTour(stop({ target: '#stack' })));
+  assert.equal(extra.code, 1);
+  assert.match(extra.stderr, /tour\[0\]: unknown key "target"/);
+  const { now, ...silent } = stop();
+  const r = check(withTour(silent));
+  assert.equal(r.code, 1);
+  assert.match(r.stderr, /tour\[0\]: missing required key "now"/);
+});
+
+test('a tour stop whose now is blank is refused, because the page prints it', () => {
+  const r = check(withTour(stop({ now: '  ' })));
+  assert.equal(r.code, 1);
+  assert.match(r.stderr, /tour\[0\]\.now: is blank/);
+});
+
+test('a tour stop names a run of its graph by name, and nothing else resolves', () => {
+  const r = check(withTour(stop({ run: 'nobody' })));
+  assert.equal(r.code, 1);
+  assert.match(r.stderr, /tour\[0\]\.run: "nobody" is not a run of graph "greet"/);
+  // A run name is author text, so it is matched and never used as a key.
+  const proto = check(withTour(stop({ run: 'constructor' })));
+  assert.equal(proto.code, 1);
+  assert.match(proto.stderr, /tour\[0\]\.run: "constructor" is not a run of graph "greet"/);
+  const region = check(withTour(stop({ region: 'constructor' })));
+  assert.equal(region.code, 1);
+  assert.match(region.stderr, /tour\[0\]\.region: "constructor" is not a region of the page/);
+});
+
+test('a tour stop names its graph when the file states more than one, and only a graph it has', () => {
+  const two = stops => derive(p => { addSecondGraph(p); p.tour = stops; });
+  const unnamed = check(two([stop()]));
+  assert.equal(unnamed.code, 1);
+  assert.match(unnamed.stderr, /tour\[0\]\.graph: this file states 2 graphs, so a stop names the one it is on/);
+  const wrong = check(two([stop({ graph: 'constructor' })]));
+  assert.equal(wrong.code, 1);
+  assert.match(wrong.stderr, /tour\[0\]\.graph: "constructor" is not a graph of this file/);
+  const second = check(two([stop({ graph: 'panel-apply', run: 'a known user', move: 2 })]));
+  assert.equal(second.code, 0, second.stderr);
+});
+
+test('a tour stop moves only to a move its run has, counted the way the page counts', () => {
+  // "no such user" is eleven steps, so the page counts 0 to 11 and 11 is its last move.
+  assert.equal(check(withTour(stop({ move: 11 }))).code, 0);
+  const past = check(withTour(stop({ move: 12 })));
+  assert.equal(past.code, 1);
+  assert.match(past.stderr, /tour\[0\]\.move: move 12 is past the end of run "no such user", whose last move is 11/);
+  // "the post fails" is ten steps, so the same move is one too far there.
+  const shorter = check(withTour(stop({ run: 'the post fails', move: 11 })));
+  assert.equal(shorter.code, 1);
+  assert.match(shorter.stderr, /whose last move is 10/);
+  for (const move of [-1, 2.5, '5']) {
+    const r = check(withTour(stop({ move })));
+    assert.equal(r.code, 1, `move ${JSON.stringify(move)}`);
+    assert.match(r.stderr, /tour\[0\]\.move: expected a whole number from 0/);
+  }
+});
+
+test('a tour stop may open a tab, a view and a layer the page has, and no other', () => {
+  assert.equal(check(withTour(stop({ tab: 'files', view: 'tree', layer: 'tests' }))).code, 0);
+  const tab = check(withTour(stop({ tab: 'diff' })));
+  assert.equal(tab.code, 1);
+  assert.match(tab.stderr, /tour\[0\]\.tab: "diff" is not one of source, files, contract/);
+  const view = check(withTour(stop({ view: 'list' })));
+  assert.equal(view.code, 1);
+  assert.match(view.stderr, /tour\[0\]\.view: "list" is not one of plan, tree/);
+  const layer = check(withTour(stop({ layer: 'constructor' })));
+  assert.equal(layer.code, 1);
+  assert.match(layer.stderr, /tour\[0\]\.layer: "constructor" is not a layer this file declares/);
+  const none = check(derive(p => { delete p.layers; p.tour = [stop({ layer: 'tests' })]; }));
+  assert.equal(none.code, 1);
+  assert.match(none.stderr, /tour\[0\]\.layer: "tests" is not a layer this file declares/);
+});
+
+test('the text prints the tour, one line per stop, and a file with no tour prints none', () => {
+  const file = withTour(stop(), stop({ region: 'cutaway', run: 'a known user', move: 0, tab: 'files', now: 'The files this change touches.' }));
+  const r = run(groundtrack, [file, '--text']);
+  assert.equal(r.code, 0, r.stderr);
+  const lines = r.stdout.split('\n');
+  const at = lines.indexOf('tour of this file, 2 stops:');
+  assert.ok(at > 0, r.stdout);
+  assert.deepEqual(lines.slice(at + 1, at + 3), [
+    '  1. call stack · run "no such user" · move 5 — lookupName has just thrown.',
+    '  2. cutaway · run "a known user" · move 0 · tab files — The files this change touches.',
+  ]);
+  const bare = run(groundtrack, [derive(p => { delete p.tour; }), '--text']);
+  assert.equal(bare.code, 0, bare.stderr);
+  assert.doesNotMatch(bare.stdout, /tour of this file/);
+});
+
+test('the page offers the tour when the file carries one, and says why not when it does not', () => {
+  const page = file => {
+    const out = join(work, `page-${n++}.html`);
+    const r = run(groundtrack, [file, '--out', out]);
+    assert.equal(r.code, 0, r.stderr);
+    return readFileSync(out, 'utf8');
+  };
+  // The page inlines the module, whose source holds the same markup as a
+  // quoted string. Only an element in the document counts, not that string.
+  const buttons = html => html.match(/(?<!')<button[^>]*id="tour"[^>]*>/g) || [];
+  const on = buttons(page(withTour(stop(), stop({ region: 'errorPath', move: 6 }))));
+  assert.equal(on.length, 1);
+  assert.doesNotMatch(on[0], /aria-disabled/);
+  assert.match(on[0], /2 stops/);
+  const off = buttons(page(derive(p => { delete p.tour; })));
+  assert.equal(off.length, 1);
+  assert.match(off[0], /aria-disabled="true"/);
+  assert.match(off[0], /carries no tour/);
+});
+
+test('a tour stop framing the sheet picker needs a file that has one', () => {
+  const r = check(withTour(stop({ region: 'sheet' })));
+  assert.equal(r.code, 1);
+  assert.match(r.stderr, /tour\[0\]\.region: this file states one graph, so the page has no sheet picker to frame/);
+  const two = check(derive(p => { addSecondGraph(p); p.tour = [stop({ region: 'sheet', graph: 'greet' })]; }));
+  assert.equal(two.code, 0, two.stderr);
+});

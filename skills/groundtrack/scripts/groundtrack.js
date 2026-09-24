@@ -210,6 +210,70 @@ const Groundtrack = (() => {
     );
   }
 
+  /* -- the tour ---------------------------------------------------------------
+   *
+   * A tour is a file's own walk through the page: each stop frames one region
+   * at one move of one run, and says what the reader sees there now. The file
+   * names a region; it never names an element. Which element a region is
+   * belongs to the page, and what a region is for belongs here, written once,
+   * so every file explains the call stack in the same words and a file cannot
+   * get it wrong.
+   *
+   * An array and not a map keyed by name, because a region name is author text
+   * until the validator has matched it — see tourRegion. */
+  const TOUR_REGIONS = [
+    { name: 'sheet', label: 'sheet', what: 'Which graph of this change is drawn. Each entry point is its own sheet.' },
+    { name: 'run', label: 'runs', what: 'The recorded runs. Everything else on the page follows the one picked here.' },
+    { name: 'controls', label: 'step controls', what: 'Step one move at a time, or play the run. The arrow keys do the same.' },
+    { name: 'plan', label: 'the drawing', what: 'The change as a call graph: one box per function the change touches.' },
+    { name: 'tools', label: 'tools', what: 'Redraw the same graph under another layer, or as an indented tree.' },
+    { name: 'callStack', label: 'call stack', what: 'Who called whom, right now. The running node sits on top.' },
+    { name: 'arguments', label: 'arguments', what: 'The values this run started from.' },
+    { name: 'errorPath', label: 'error path', what: 'Where a throw travels, and where it stops.' },
+    { name: 'effectsLedger', label: 'effects ledger', what: 'Every read and write to the outside world, in order.' },
+    { name: 'cutaway', label: 'cutaway', what: 'One node opened up: its source, the files it changes, or its contract.' },
+    { name: 'titleBlock', label: 'title block', what: 'What this file is: its nodes, runs, changed files and provenance.' },
+    { name: 'trace', label: 'trace', what: 'The whole run as one line. Drag it to move the cursor.' },
+  ];
+  const TOUR_TABS = ['source', 'files', 'contract'];
+  const TOUR_VIEWS = ['plan', 'tree'];
+
+  /** The region a stop names, or undefined. A name is matched, never used as
+   *  a key, so `constructor` finds nothing. */
+  function tourRegion(name) {
+    return TOUR_REGIONS.find(r => r.name === name);
+  }
+
+  /** Where each stop takes the page, by index: the sheet, the run on it, and
+   *  the move. Graph and run are named in the file and indexed on the page. A
+   *  stop the validator would refuse resolves to null rather than a guess. */
+  function tourStops(prog) {
+    const graphs = (prog && prog.graphs) || [];
+    return ((prog && prog.tour) || []).map(stop => {
+      const gi = stop.graph === undefined ? 0 : graphs.findIndex(g => g.id === stop.graph);
+      const graph = graphs[gi];
+      const ri = graph ? graph.presets.findIndex(p => p.name === stop.run) : -1;
+      const region = tourRegion(stop.region);
+      if (ri < 0 || !region) return null;
+      return {
+        graph: gi, run: ri, move: stop.move, region, now: stop.now,
+        tab: stop.tab, view: stop.view, layer: stop.layer,
+      };
+    });
+  }
+
+  /** The tour control, rendered here for the reason the sheet picker is: a
+   *  control the page's script creates is in no page as a string, so no test
+   *  could find it. Every page has one. A file with no tour gets it switched
+   *  off with the reason as its help note — aria-disabled rather than
+   *  disabled, so the note can still show. */
+  function tourButtonMarkup(prog) {
+    const n = ((prog && prog.tour) || []).length;
+    return n
+      ? '<button class="btn btn-tour" id="tour" type="button" aria-haspopup="dialog" data-help="Walk this page with the file\'s own tour: ' + n + ' stops on real runs. The arrow keys step it, and escape ends it.">tour</button>'
+      : '<button class="btn btn-tour" id="tour" type="button" aria-disabled="true" data-help="This file carries no tour, so there is no walk to take.">tour</button>';
+  }
+
   /** What one entry reaches through call edges. That set is what a graph draws. */
   function reachable(prog, entry) {
     const seen = new Set();
@@ -576,6 +640,22 @@ const Groundtrack = (() => {
       above = true;
     }
     return { left, top: Math.max(TIP_EDGE, top), lead, above };
+  }
+
+  /** Where the tour's card goes, given the box of the region it explains, the
+   *  card's size and the window's. Below the region, from its left edge; then
+   *  above; then to its right; then to its left. A region can be most of the
+   *  window — the drawing is — and one with no room on any side keeps the card
+   *  inside its bottom-right corner, over the region rather than off the
+   *  window. Same margins as the help note. */
+  function tourCardAt(box, card, win) {
+    const clampX = x => Math.max(TIP_EDGE, Math.min(x, win.width - card.width - TIP_EDGE));
+    const clampY = y => Math.max(TIP_EDGE, Math.min(y, win.height - card.height - TIP_EDGE));
+    if (box.bottom + TIP_GAP + card.height <= win.height - TIP_EDGE) return { left: clampX(box.left), top: box.bottom + TIP_GAP, side: 'below' };
+    if (box.top - TIP_GAP - card.height >= TIP_EDGE) return { left: clampX(box.left), top: box.top - TIP_GAP - card.height, side: 'above' };
+    if (box.right + TIP_GAP + card.width <= win.width - TIP_EDGE) return { left: box.right + TIP_GAP, top: clampY(box.top), side: 'right' };
+    if (box.left - TIP_GAP - card.width >= TIP_EDGE) return { left: box.left - TIP_GAP - card.width, top: clampY(box.top), side: 'left' };
+    return { left: clampX(box.right - card.width - TIP_GAP), top: clampY(box.bottom - card.height - TIP_GAP), side: 'inside' };
   }
 
   /* -- the derived cut -----------------------------------------------------
@@ -1391,6 +1471,7 @@ const Groundtrack = (() => {
     return best;
   }
 
-  return { esc, ID, bare, hardenKeys, KINDS, ERROR_POSITION, graphView, sheetState, sheetPickerMarkup, sheetFactsMarkup, reachable, labelsOf, callSites, calleesOf, effectsOf, failureKinds, tagFate, complexityOf, fold, back, tipAt, cutEdges, layout, wireLive, wireFlow, countMark, callCounts, walkState, nodeState, treeRows, unaccountedFiles, filesOf, fileTree, filesMarkup, suggestRun, renamedToken };
+  return { esc, ID, bare, hardenKeys, KINDS, ERROR_POSITION, graphView, sheetState, sheetPickerMarkup, sheetFactsMarkup,
+    TOUR_REGIONS, TOUR_TABS, TOUR_VIEWS, tourRegion, tourStops, tourButtonMarkup, tourCardAt, reachable, labelsOf, callSites, calleesOf, effectsOf, failureKinds, tagFate, complexityOf, fold, back, tipAt, cutEdges, layout, wireLive, wireFlow, countMark, callCounts, walkState, nodeState, treeRows, unaccountedFiles, filesOf, fileTree, filesMarkup, suggestRun, renamedToken };
 })();
 if (typeof module !== 'undefined') module.exports = Groundtrack;

@@ -103,9 +103,18 @@ logs it. The debugging session drops where the data was worth having. The
    findings you kept**, each with the line you wrote for it. A reader who never
    sees the finding cannot disagree with your answer.
 
-7. **Render the page**, and say where it is.
+7. **Write the tour.** A tour walks a first-time reader through the page, one
+   region at a time. Pick the run that shows the most, usually one that fails.
+   Stop where something happens: the call that can fail, the throw, the catch,
+   the effects. Each stop names a region, a run, a move, and says in `now` what
+   the reader sees there. Do not say what the region is. The page says that.
+   See the `tour` section of
+   [`references/flightpath-file.md`](references/flightpath-file.md). Validate
+   again.
 
-8. **State the limit.** The validator proves the trace is a legal path. It
+8. **Render the page**, and say where it is.
+
+9. **State the limit.** The validator proves the trace is a legal path. It
    cannot prove which branch an `if` took or what an effect returned. Those
    stay your claims. Say this when you hand the page over.
 
@@ -196,6 +205,13 @@ The contract tab states one number per node: its cyclomatic complexity, as
 drawn. One, plus one for each `if`, each error handler and each backward jump.
 It measures the drawing, and the drawing is what you chose to draw.
 
+**The tour control walks the file's tour.** Each stop moves the page to its
+sheet, run and move, and opens any tab, view or layer it names. A frame marks
+the region. A card beside it says what the region is and what the reader sees
+there now. The arrow keys step the tour while it runs. Escape ends it. Nothing
+starts a tour but the control. A file with no tour switches the control off and
+says why.
+
 The page makes no network request. Open it by double-clicking, or send it to
 somebody else.
 
@@ -256,6 +272,9 @@ in a plain text fence.
   in every worked example, with no tie.
 - **List every run you did not print**, by name, with the blurb its author
   wrote. The reader overrules your suggestion from that line alone.
+- **Print the tour when the file carries one**, one line a stop, after the
+  rows. Each line names the region, the run and the move, then says `now`. The
+  tour belongs to the file, so it prints for whichever run you print.
 - **Print one line of provenance above everything**, so the reader knows
   whether they read a claim or a recording.
 
