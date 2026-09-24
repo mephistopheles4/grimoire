@@ -50,6 +50,7 @@ if (args.filter(a => a === '--sel').length > 1) usage();
 const TIERS = new Set(['measured', 'sourced', 'argued']);
 const KINDS = new Set(['conf', 'req']);
 const ID = /^[a-z0-9][a-z0-9-]*$/;
+const TOUR_KEYS = new Set(['region', 'now', 'set', 'open', 'view']);
 
 function validate(box) {
   const errors = [], warnings = [];
@@ -159,6 +160,39 @@ function validate(box) {
     if (!box.presets.some(p => (p.steps || []).some(s => s.set && Object.keys(s.set).length)))
       err('presets: every preset only walks the chosen set. At least one must carry a "set" step, so the reader meets a configuration that is not the baseline.');
   }
+  // The tour is optional: the page's own walk, one region at a time. It is
+  // checked the way presets are, and each stop must put the page in a state
+  // that shows its region — the sheet needs the sheet view, the option cards
+  // need a row open. See SKILL.md, "The tour".
+  if (box.tour !== undefined) {
+    if (!Array.isArray(box.tour)) err('tour: must be an array of stops');
+    else if (!box.tour.length) err('tour: state at least one stop, or leave the field out');
+    else box.tour.forEach((s, i) => {
+      const at = `tour[${i}]`;
+      if (!s || typeof s !== 'object' || Array.isArray(s)) { err(`${at}: must be an object`); return; }
+      Object.keys(s).forEach(k => { if (!TOUR_KEYS.has(k)) err(`${at}: unknown key "${k}"`); });
+      const region = EagleEye.tourRegion(s.region);
+      if (!region) err(`${at}.region: "${s.region}" is not a region of the page`);
+      if (typeof s.now !== 'string' || !s.now.trim()) err(`${at}.now: required — say what the reader sees in the region at this stop`);
+      // Rows and options are matched against the Set and the Map built above, never
+      // looked up on a plain object, so `constructor` is not a row.
+      if (s.set !== undefined) {
+        if (!s.set || typeof s.set !== 'object' || Array.isArray(s.set)) err(`${at}.set: must map a row id to one of its option ids`);
+        else Object.entries(s.set).forEach(([d, o]) => {
+          if (!dimIds.has(d)) err(`${at}.set: no row "${d}"`);
+          else if (optIds.get(o) !== d) err(`${at}.set: "${o}" is not an option of "${d}"`);
+        });
+      }
+      if (s.open !== undefined && !dimIds.has(s.open)) err(`${at}.open: no row "${s.open}"`);
+      if (s.view !== undefined && !EagleEye.TOUR_VIEWS.includes(s.view)) err(`${at}.view: "${s.view}" is not findings or sheet`);
+      if (!region) return;
+      const view = s.view || 'findings';
+      if (region.view && region.view !== view)
+        err(`${at}: the ${region.label} is drawn in the ${region.view} view${region.view === 'sheet' ? ' — add "view": "sheet"' : ''}`);
+      if (region.open === true && s.open === undefined) err(`${at}: the ${region.label} show only with a row open — add "open"`);
+      if (region.open === false && s.open !== undefined) err(`${at}: the ${region.label} show only with no row open — leave "open" out`);
+    });
+  }
   return { errors, warnings, stats: { dims: box.dims.length, opts: optIds.size, edges: edgeCount, argued, strawmen: box.dims.reduce((n, d) => n + d.opts.filter(o => o.strawman).length, 0) } };
 }
 
@@ -233,6 +267,7 @@ const html = template
   .replace('/*TITLE*/', () => box.title.replace(/[<>&]/g, ''))
   .replace('/*AVIATION*/', () => aviation)
   .replace('/*FONTS*/', () => faces)
+  .replace('<!--TOUR-->', () => EagleEye.tourButtonMarkup(box))
   .replace('/*DATA*/', () => data)
   .replace('/*MODULE*/', () => module);
 // The default page is named .local.html, not .html. A default render writes

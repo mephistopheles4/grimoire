@@ -293,6 +293,21 @@ details[open] > :not(summary){animation:ee-unfold .22s var(--ease) both}
 .tip.show{opacity:1;visibility:visible;transform:none}
 .tip .ttl{color:var(--av-ink);font-weight:600;margin-bottom:6px}
 .tip .foot{margin-top:var(--sp-2);display:flex;gap:var(--sp-2);flex-wrap:wrap}
+/* THE TOUR. The box's own walk through this page. A frame marks one region in
+   the focus treatment — 2px caution, 2px off the box — because a tour stop is
+   an attention state. The rest of the page recedes under a wash of its own
+   paper, drawn as a spread shadow on the frame: the design system's rule 5
+   exception for a dense interface. The paper token lightens a light page and
+   darkens a dark one, and never tints. The card sits above the wash. */
+.chip--tour[aria-disabled=true]{color:var(--av-ink-70);border-color:var(--av-ink-12);cursor:default}
+.tour-frame{position:fixed;z-index:19;pointer-events:none;outline:2px solid var(--av-caution);outline-offset:2px;box-shadow:0 0 0 200vmax color-mix(in srgb,var(--av-paper) 72%,transparent)}
+.tour-card{position:fixed;z-index:21;width:min(44ch,calc(100vw - 24px));max-height:calc(100vh - 24px);overflow-y:auto;box-sizing:border-box;padding:var(--sp-3);background:var(--av-paper);color:var(--av-ink);border:2px solid var(--av-ink)}
+.tour-frame[hidden],.tour-card[hidden]{display:none}
+.tour-card .tour-head{display:flex;justify-content:space-between;gap:var(--sp-2)}
+.tour-card p{margin:var(--sp-2) 0 0}
+.tour-card .tour-now{font-weight:600}
+.tour-card .tour-nav{display:flex;gap:6px;margin-top:var(--sp-3)}
+.tour-card .tour-nav .end{margin-left:auto}
 .titleblock{display:grid;grid-template-columns:1.2fr 1fr 1fr 1fr .8fr;border-top:2px solid var(--av-ink)}
 .titleblock > div{padding:var(--sp-3) var(--sp-4);border-right:1px solid var(--av-ink-12);display:flex;flex-direction:column;gap:var(--sp-1);min-width:0}
 .titleblock > div:last-child{border-right:0}
@@ -347,7 +362,7 @@ details[open] > :not(summary){animation:ee-unfold .22s var(--ease) both}
       <div class="group"><button class="chip ghost" id="coachToggle">Coach: off</button><button class="chip ghost" id="exportBtn">Export</button><button class="chip ghost" id="reset">Reset</button></div>
       <!-- The scheme control, last in the row so it sits top right. Both
            drawings ship; one carries [hidden]. See .chip--scheme. -->
-      <div class="group"><button class="chip chip--scheme" id="schemeToggle" type="button">
+      <div class="group"><!--TOUR--><button class="chip chip--scheme" id="schemeToggle" type="button">
         <svg class="scheme-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="miter" aria-hidden="true"><path d="M16.124 4 A 9 9 0 1 0 16.124 20 A 8 8 0 0 1 16.124 4 Z"></path></svg>
         <svg class="scheme-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="miter" aria-hidden="true" hidden><circle cx="12" cy="12" r="5"></circle><line x1="19.6" y1="12" x2="22.4" y2="12"></line><line x1="18.582" y1="8.2" x2="21.007" y2="6.8"></line><line x1="15.8" y1="5.418" x2="17.2" y2="2.993"></line><line x1="12" y1="4.4" x2="12" y2="1.6"></line><line x1="8.2" y1="5.418" x2="6.8" y2="2.993"></line><line x1="5.418" y1="8.2" x2="2.993" y2="6.8"></line><line x1="4.4" y1="12" x2="1.6" y2="12"></line><line x1="5.418" y1="15.8" x2="2.993" y2="17.2"></line><line x1="8.2" y1="18.582" x2="6.8" y2="21.007"></line><line x1="12" y1="19.6" x2="12" y2="22.4"></line><line x1="15.8" y1="18.582" x2="17.2" y2="21.007"></line><line x1="18.582" y1="15.8" x2="21.007" y2="17.2"></line></svg>
       </button></div>
@@ -791,6 +806,91 @@ function paintPresets(){
   markSteps();
 }
 function markSteps(){ $('presetSteps').querySelectorAll('button').forEach((b, i) => { b.classList.toggle('done', i < stepIdx); b.classList.toggle('next', i === stepIdx); }); }
+
+// ---- the tour: the box's own walk through this page ----
+// Each stop states the whole page: the chosen set with the stop's `set` swapped in, the row it
+// opens, and the view. What it leaves out is the default, so a stop shows the same page from either
+// direction. Coach is off while the tour runs, and ending the tour puts back what the reader had,
+// coach included. The card's text is set as text: `now` is the box's.
+const TOUR = BOX.tour || [];
+const REGION_EL = {
+  views: () => $('viewFind').parentNode, presets: () => $('presetGroup'), coach: () => $('coachToggle'),
+  export: () => $('exportBtn'), reset: () => $('reset'),
+  index: () => document.querySelector('#view .index'), verdict: () => document.querySelector('#view .verdict-bar'),
+  start: () => document.querySelector('#view .right .body > div'),
+  findings: () => { const f = document.querySelector('#view .find'); return f ? f.parentNode : document.querySelector('#view .right .body'); },
+  cards: () => document.querySelector('#view .cards') || document.querySelector('#view .right .body'),
+  sheet: () => document.querySelector('#view .grid'),
+};
+const tourFrame = document.createElement('div'); tourFrame.className = 'tour-frame'; tourFrame.hidden = true;
+const tourCard = document.createElement('div'); tourCard.className = 'tour-card'; tourCard.hidden = true;
+tourCard.setAttribute('role', 'dialog'); tourCard.setAttribute('aria-label', 'Tour of this page');
+tourCard.innerHTML = '<div class="tour-head"><span class="label" id="tourRegion"></span><span class="label" id="tourCount"></span></div>'
+  + '<p id="tourWhat" class="annot"></p><p id="tourNow" class="tour-now" aria-live="polite"></p>'
+  + '<div class="tour-nav"><button class="chip" id="tourPrev" type="button">Back</button><button class="chip on" id="tourNext" type="button">Next</button><button class="chip ghost end" id="tourEnd" type="button">End</button></div>';
+document.body.append(tourFrame, tourCard);
+let tourAt = -1, tourFrom = null;
+function placeTour(){
+  if (tourAt < 0) return;
+  const el = REGION_EL[EagleEye.tourRegion(TOUR[tourAt].region).name]();
+  if (!el) return;
+  const b = el.getBoundingClientRect();
+  Object.assign(tourFrame.style, { left: b.left + 'px', top: b.top + 'px', width: b.width + 'px', height: b.height + 'px' });
+  const at = EagleEye.tourCardAt(b, tourCard.getBoundingClientRect(), { width: innerWidth, height: innerHeight });
+  tourCard.style.left = at.left + 'px'; tourCard.style.top = at.top + 'px';
+}
+function showStop(i){
+  tourAt = Math.max(0, Math.min(TOUR.length - 1, i));
+  const s = TOUR[tourAt], region = EagleEye.tourRegion(s.region);
+  Object.assign(sel, chosenOf); touched.clear(); pending = null; openRow = null;
+  Object.entries(s.set || {}).forEach(([d, o]) => { if (Object.hasOwn(optById, o) && optById[o].dim.id === d) { sel[d] = o; touched.add(d); } });
+  if (s.open) openDim(s.open);
+  view = s.view || 'findings';
+  update();
+  $('tourRegion').textContent = region.label;
+  $('tourCount').textContent = `${tourAt + 1} / ${TOUR.length}`;
+  $('tourWhat').textContent = region.what;
+  $('tourNow').textContent = s.now;
+  $('tourPrev').disabled = tourAt === 0;
+  $('tourNext').textContent = tourAt === TOUR.length - 1 ? 'Done' : 'Next';
+  tourFrame.hidden = false; tourCard.hidden = false;
+  // The page scrolls as one document. A region that fits is brought to the middle of the window,
+  // clear of both edges; one taller than the window is brought to its top.
+  const el = REGION_EL[region.name]();
+  if (el) el.scrollIntoView({ block: el.getBoundingClientRect().height < innerHeight * 0.8 ? 'center' : 'start', inline: 'nearest' });
+  placeTour();
+}
+function endTour(){
+  if (tourAt < 0) return;
+  tourAt = -1; tourFrame.hidden = true; tourCard.hidden = true;
+  restoreState(tourFrom.state); setCoach(tourFrom.coach); update();
+  $('tour').setAttribute('aria-pressed', 'false'); $('tour').focus();
+}
+const nextStop = () => (tourAt === TOUR.length - 1 ? endTour() : showStop(tourAt + 1));
+if (TOUR.length) {
+  $('tour').setAttribute('aria-pressed', 'false');
+  $('tour').addEventListener('click', () => {
+    if (tourAt >= 0) return endTour();
+    tourFrom = { state: snapshotState(), coach };
+    setCoach(false);
+    $('tour').setAttribute('aria-pressed', 'true');
+    showStop(0); $('tourNext').focus();
+  });
+  $('tourPrev').addEventListener('click', () => showStop(tourAt - 1));
+  $('tourNext').addEventListener('click', nextStop);
+  $('tourEnd').addEventListener('click', endTour);
+  addEventListener('resize', placeTour);
+  addEventListener('scroll', placeTour, true);
+  new ResizeObserver(placeTour).observe(document.body);
+  // While a tour runs, the arrows step it and Escape ends it. A text field keeps its own keys.
+  addEventListener('keydown', e => {
+    if (tourAt < 0 || (e.target && ['INPUT', 'TEXTAREA'].includes(e.target.tagName))) return;
+    if (e.key === 'Escape') { e.preventDefault(); endTour(); }
+    else if (e.key === 'ArrowRight') { e.preventDefault(); nextStop(); }
+    else if (e.key === 'ArrowLeft') { e.preventDefault(); showStop(tourAt - 1); }
+  });
+}
+
 paintPresets(); paintReset(); decodeHash(); update();
 </script>
 </body>
