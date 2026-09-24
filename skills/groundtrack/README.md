@@ -49,6 +49,22 @@ computed while you watch. Every branch an `if` took, every value an effect
 returned, and every catch is a literal in the file. That is what makes the trace
 a list of checkable claims rather than a program you have to believe.
 
+**[Take the tour on the worked example →](https://mephistopheles4.github.io/grimoire/skills-groundtrack-examples-greet.html)**
+Press `tour` at the top right. It walks the page on a real run, one region at a
+time.
+
+The two sheets below are drawn from the same file and its tour, so they say
+what the page says. The first is the page with every region numbered and every
+pane it hides until you click. The second is the tour's walk through one run.
+
+<p align="center">
+  <img src="../../docs/brand/example-greet-sheet-1.svg" width="100%" alt="The groundtrack page on the greet example, with each region numbered and named in a parts list, and the rail, the files tab, the contract tab, the tree and the tests layer drawn as separate views">
+</p>
+
+<p align="center">
+  <img src="../../docs/brand/example-greet-sheet-2.svg" width="100%" alt="The greet tour, stop by stop: the page at each move that changes, with the region the stop explains framed and what the reader sees there written under it">
+</p>
+
 A change with several graphs is one page with several sheets. On the page you
 can:
 
@@ -67,6 +83,9 @@ can:
   with ctrl and the wheel.
 - Redraw the graph under a **layer**. Flip to the test layer, and a node that
   still reaches the real network is a design defect you can see.
+- **Take the tour**, when the file carries one. Each stop moves the page to a
+  run and a move, frames one region, and says what it is and what you see in
+  it now. The arrow keys step it; escape ends it.
 
 The page makes no network request. Three monospace faces ship with the skill
 and are inlined into it.
