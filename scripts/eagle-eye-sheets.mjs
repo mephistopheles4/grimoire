@@ -33,7 +33,15 @@ const skill = resolve(here, '..', 'skills', 'eagle-eye');
 const E = createRequire(import.meta.url)(resolve(skill, 'lib', 'eagle-eye.js'));
 const ASSETS = resolve(skill, 'assets');
 
-const strip = s => { let p, o = String(s); do { p = o; o = o.replace(/<[^>]+>/g, ''); } while (o !== p); return o; };
+/* A finding's text is HTML the module built for the page: tags, and box text
+ * through its esc, which writes & and < as entities and nothing else. Tags go,
+ * then those two entities turn back into text — &lt; first, so a literal
+ * "&amp;lt;" stays what it was — and T escapes the result once. */
+const strip = s => {
+  let p, o = String(s);
+  do { p = o; o = o.replace(/<[^>]+>/g, ''); } while (o !== p);
+  return o.replace(/&lt;/g, '<').replace(/&amp;/g, '&');
+};
 const TONE = { 'does not hold': CAUTION, incomplete: CAUTION, consistent: NORMAL, 'as chosen': INK };
 
 /* -- a page state ----------------------------------------------------------

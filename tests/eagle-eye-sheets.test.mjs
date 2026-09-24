@@ -87,3 +87,12 @@ test('box text reaches a sheet as text, never as markup', () => {
   assert.doesNotMatch(two, /<script\b/i);
   assert.match(two, /&lt;script&gt;alert\(1\)&lt;\/script&gt; &amp; done/);
 });
+
+test('a name the module escaped for the page prints once-escaped on the sheet, never twice', () => {
+  // "row with no edges" names the Name row in the findings at the break test.
+  const file = derive(b => { b.dims.find(d => d.id === 'name').name = 'Name & mark'; });
+  const { r, one } = drawn(file);
+  assert.equal(r.code, 0, r.stderr);
+  assert.match(one, /Name &amp; mark/);
+  assert.doesNotMatch(one, /&amp;amp;/);
+});
