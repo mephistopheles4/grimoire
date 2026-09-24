@@ -7,7 +7,7 @@ contract for any patch.
 
 `scripts/` at the repository root holds this repository's own checks — the one
 command, the site build, and the table that says which renderer owns which
-artifact. `skills/groundtrack/scripts/` holds that skill's renderer and the one
+artifact — and the script that draws the groundtrack README's two sheets. `skills/groundtrack/scripts/` holds that skill's renderer and the one
 module it inlines into the page. The path always says which is which.
 
 ## Agent skills

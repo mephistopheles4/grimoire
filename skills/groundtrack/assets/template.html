@@ -1237,15 +1237,11 @@ function start() {
     return '<div class="av-code">' + (n.steps || [])
       .map(function (s, i) {
         const site = 'av-code-site' + siteClass(st, S.open, s, i);
-        const body =
-          s.op === 'comment' ? '<span class="av-code-note">' + esc(s.comment) + '</span>'
-          : s.op === 'var' ? '<span class="av-code-kw">var</span> <span class="av-code-name">' + esc(s.name) + '</span> <span class="av-code-note">=</span> <span class="av-code-lit">' + esc(s.expr) + '</span>'
-          : s.op === 'if' ? '<span class="av-code-kw">if</span> <span class="av-code-lit">' + esc(s.cond) + '</span> <span class="av-code-note">&rarr;</span> <span class="av-code-name">' + esc(s.then) + '</span> <span class="av-code-kw">else</span> <span class="av-code-name">' + esc(s.else) + '</span>'
-          : s.op === 'goto' ? '<span class="av-code-kw">goto</span> <span class="av-code-name">' + esc(s.to) + '</span>'
-          : s.op === 'call' ? '<span class="av-code-kw">call</span> <span class="' + site + '">' + esc(s.target) + '</span>'
-          : s.op === 'effect' ? '<span class="av-code-kw">effect</span> <span class="' + site + '">' + esc(s.kind) + '</span> <span class="av-code-note">' + esc(s.desc) + '</span>'
-          : s.op === 'throw' ? '<span class="av-code-kw">throw</span> <span class="av-code-name">' + esc(s.tag) + '</span> <span class="av-code-lit">' + esc(s.cause) + '</span> <span class="av-code-note">' + esc(s.message) + '</span>'
-          : '<span class="av-code-kw">return</span> <span class="av-code-lit">' + esc(s.expr) + '</span>';
+        /* The words are the module's, so the drawing prints a step the same
+         * way; the page adds only the classes and the walk's mark on a site. */
+        const body = G.stepTokens(s)
+          .map(function (t) { return '<span class="' + (t.k === 'site' ? site : 'av-code-' + t.k) + '">' + esc(t.t) + '</span>'; })
+          .join(' ');
         const aside = s.aside ? '<div class="av-code-note">' + esc(s.aside) + '</div>' : '';
         const handlers = (s.onError || [])
           .map(function (h) { return '<div class="av-code-note">on ' + esc(h.tag) + ' &rarr; ' + esc(h.goto) + '</div>'; })

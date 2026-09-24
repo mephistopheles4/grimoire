@@ -70,6 +70,18 @@ node docs/brand/cards.mjs
 The script reads the marks beside it and writes the three cards beside it.
 Change a tagline there, not in the SVG.
 
+## The groundtrack sheets
+
+`example-greet-sheet-1.svg` and `example-greet-sheet-2.svg` are the two
+drawings the groundtrack README shows. `scripts/groundtrack-sheets.mjs` draws
+them from the greet example's tour, so they say what its page says. Nothing
+checks that they are current. Redraw them after a change to the page, the
+renderer or the example:
+
+```bash
+node scripts/groundtrack-sheets.mjs skills/groundtrack/examples/greet.flightpath.json docs/brand
+```
+
 ## Tokens
 
 | Token | Value | Rule |
