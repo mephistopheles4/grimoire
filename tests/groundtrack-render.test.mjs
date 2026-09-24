@@ -1681,3 +1681,15 @@ test('a tour on a graph whose runs are malformed is refused, never a stack trace
   assert.match(r.stderr, /graphs\[0\]\.presets: expected an array/);
   assert.doesNotMatch(r.stderr, /TypeError|at shape|at tourShape/);
 });
+test('the tour control and the scheme control sit in one group, so a narrow window never parts them', () => {
+  const out = join(work, `page-${n++}.html`);
+  const r = run(groundtrack, [withTour(stop()), '--out', out]);
+  assert.equal(r.code, 0, r.stderr);
+  const html = readFileSync(out, 'utf8');
+  const open = html.indexOf('<div class="head-end">');
+  assert.ok(open > 0, 'the group is in the page');
+  const group = html.slice(open, html.indexOf('</div>', open));
+  assert.match(group, /(?<!')<button[^>]*id="tour"/, 'the tour control is inside it');
+  assert.match(group, /id="schemeToggle"/, 'the scheme control is inside it');
+  assert.ok(group.indexOf('id="tour"') < group.indexOf('id="schemeToggle"'), 'tour first, scheme at the end');
+});

@@ -589,19 +589,26 @@ input[type=checkbox] { accent-color: var(--av-ink); margin: 0 var(--av-s1) 0 0; 
 
    The frame is the focus treatment — 2px caution, 2px off the box — because a
    tour stop is an attention state and focus is the one place the system spends
-   the reserved colour on the interface. Nothing dims the rest of the page: the
-   system has no translucent overlay, and the page stays readable around the
-   stop. The card is the help note's vocabulary at the rule weight of an object
-   outline, since it carries controls and the note does not.
+   the reserved colour on the interface. The rest of the page recedes under a
+   wash of its own paper, so the eye lands on the stop. That wash is the
+   system's rule 5 exception — a shadow for depth once a dense interface has
+   more layers than line weight can separate — built from the paper token, so
+   it lightens a light sheet and darkens a dark one, and never tints. It is a
+   spread shadow on the frame, not a sheet over the page: the region inside
+   the frame is untouched, and the card sits above it. The card is the help
+   note's vocabulary at the rule weight of an object outline, since it carries
+   controls and the note does not.
 
-   The control sits right of the lockup and takes the row's slack, so the scheme
-   control closes up beside it rather than keeping the row's gap. */
-.btn-tour { margin-left: auto; }
-.btn-tour + .btn-scheme { margin-left: calc(var(--av-s1) - var(--av-s3)); }
+   The control sits beside the scheme control in one group, .head-end, which
+   takes the row's slack. The two wrap as one, so a narrow window never parts
+   them. */
+.head-end { margin-left: auto; display: flex; align-items: center; gap: var(--av-s1); flex: none; }
+.head-end .btn-scheme { margin-left: 0; }
 .btn-tour[aria-disabled=true] { color: var(--av-ink-70); border-color: var(--av-ink-12); }
 .btn-tour[aria-pressed=true] { border-color: var(--av-ink); }
 .tour-frame { position: fixed; z-index: 19; pointer-events: none;
-  outline: 2px solid var(--av-caution); outline-offset: 2px; }
+  outline: 2px solid var(--av-caution); outline-offset: 2px;
+  box-shadow: 0 0 0 200vmax color-mix(in srgb, var(--av-paper) 72%, transparent); }
 /* Never taller than the window less a margin each side, and it scrolls inside
    past that, so a long `now` on a short window keeps back, next and end in
    reach. The module's tourCardAt counts on the card fitting. */
@@ -681,15 +688,19 @@ button[data-help][aria-disabled=true] { cursor: help; }
         <span class="av-annot head-blurb" id="runBlurb"></span>
       </div>
     </div>
-    <!-- The tour control, beside the scheme control, rendered by the module
-         so a test can find it. See .btn-tour. -->
+    <!-- The tour control and the scheme control, one group at the right of
+         the lockup row so a narrow window wraps them together rather than
+         between them. See .head-end. -->
+    <div class="head-end">
+    <!-- The tour control, rendered by the module so a test can find it. -->
     <!--TOUR-->
-    <!-- The scheme control, top right of the lockup row. Both drawings ship;
-         one carries [hidden]. See .btn-scheme. -->
+    <!-- The scheme control. Both drawings ship; one carries [hidden]. See
+         .btn-scheme. -->
     <button class="btn btn-scheme" id="schemeToggle" type="button">
       <svg class="scheme-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="miter" aria-hidden="true"><path d="M16.124 4 A 9 9 0 1 0 16.124 20 A 8 8 0 0 1 16.124 4 Z"></path></svg>
       <svg class="scheme-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="miter" aria-hidden="true" hidden><circle cx="12" cy="12" r="5"></circle><line x1="19.6" y1="12" x2="22.4" y2="12"></line><line x1="18.582" y1="8.2" x2="21.007" y2="6.8"></line><line x1="15.8" y1="5.418" x2="17.2" y2="2.993"></line><line x1="12" y1="4.4" x2="12" y2="1.6"></line><line x1="8.2" y1="5.418" x2="6.8" y2="2.993"></line><line x1="5.418" y1="8.2" x2="2.993" y2="6.8"></line><line x1="4.4" y1="12" x2="1.6" y2="12"></line><line x1="5.418" y1="15.8" x2="2.993" y2="17.2"></line><line x1="8.2" y1="18.582" x2="6.8" y2="21.007"></line><line x1="12" y1="19.6" x2="12" y2="22.4"></line><line x1="15.8" y1="18.582" x2="17.2" y2="21.007"></line><line x1="18.582" y1="15.8" x2="21.007" y2="17.2"></line></svg>
     </button>
+    </div>
    </div>
    <!-- Everything that drives the run, under the lockup and in the order a
         reader chooses it: the sheet, then the run on it, then the controls

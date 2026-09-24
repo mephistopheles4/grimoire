@@ -207,8 +207,8 @@ It measures the drawing, and the drawing is what you chose to draw.
 
 **The tour control walks the file's tour.** Each stop moves the page to its
 sheet, run and move, and opens any tab, view or layer it names. A frame marks
-the region. A card beside it says what the region is and what the reader sees
-there now. The arrow keys step the tour while it runs. Escape ends it. Nothing
+the region, and the rest of the page dims. A card beside it says what the
+region is and what the reader sees there now. The arrow keys step the tour while it runs. Escape ends it. Nothing
 starts a tour but the control. A file with no tour switches the control off and
 says why.
 
