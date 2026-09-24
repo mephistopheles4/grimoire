@@ -42,7 +42,7 @@ not take, and `SECURITY.md` explains why that matters more than it looks.
 run only the suite while you work on it:
 
 ```bash
-node --test tests/esc.test.mjs tests/render.test.mjs tests/check.test.mjs tests/build-pages.test.mjs tests/skillspector-gate.test.mjs tests/groundtrack-fold.test.mjs tests/groundtrack-render.test.mjs tests/registry.test.mjs tests/audit.test.mjs
+node --test tests/esc.test.mjs tests/render.test.mjs tests/check.test.mjs tests/build-pages.test.mjs tests/skillspector-gate.test.mjs tests/groundtrack-fold.test.mjs tests/groundtrack-render.test.mjs tests/groundtrack-sheets.test.mjs tests/registry.test.mjs tests/audit.test.mjs
 ```
 
 **The suite never reaches the network.** eagle-eye's edge audit is the one

@@ -210,6 +210,25 @@ const Groundtrack = (() => {
     );
   }
 
+  /** One step as the source view prints it: a list of tokens, each a kind
+   *  and its text, read left to right with a space between. The kinds are the
+   *  listing's own — kw, name, lit, note — and site, the call or effect a
+   *  walk can mark. The page wraps each in a span and the drawing in a tspan,
+   *  so the two print a step the same way because one function says how. */
+  function stepTokens(s) {
+    const T = (k, t) => ({ k, t: String(t) });
+    switch (s.op) {
+      case 'comment': return [T('note', s.comment)];
+      case 'var': return [T('kw', 'var'), T('name', s.name), T('note', '='), T('lit', s.expr)];
+      case 'if': return [T('kw', 'if'), T('lit', s.cond), T('note', '→'), T('name', s.then), T('kw', 'else'), T('name', s.else)];
+      case 'goto': return [T('kw', 'goto'), T('name', s.to)];
+      case 'call': return [T('kw', 'call'), T('site', s.target)];
+      case 'effect': return [T('kw', 'effect'), T('site', s.kind), T('note', s.desc)];
+      case 'throw': return [T('kw', 'throw'), T('name', s.tag), T('lit', s.cause), T('note', s.message)];
+      default: return [T('kw', 'return'), T('lit', s.expr)];
+    }
+  }
+
   /* -- the tour ---------------------------------------------------------------
    *
    * A tour is a file's own walk through the page: each stop frames one region
@@ -1477,6 +1496,6 @@ const Groundtrack = (() => {
   }
 
   return { esc, ID, bare, hardenKeys, KINDS, ERROR_POSITION, graphView, sheetState, sheetPickerMarkup, sheetFactsMarkup,
-    TOUR_REGIONS, TOUR_TABS, TOUR_VIEWS, tourRegion, tourStops, tourButtonMarkup, tourCardAt, reachable, labelsOf, callSites, calleesOf, effectsOf, failureKinds, tagFate, complexityOf, fold, back, tipAt, cutEdges, layout, wireLive, wireFlow, countMark, callCounts, walkState, nodeState, treeRows, unaccountedFiles, filesOf, fileTree, filesMarkup, suggestRun, renamedToken };
+    TOUR_REGIONS, TOUR_TABS, TOUR_VIEWS, tourRegion, tourStops, tourButtonMarkup, tourCardAt, stepTokens, reachable, labelsOf, callSites, calleesOf, effectsOf, failureKinds, tagFate, complexityOf, fold, back, tipAt, cutEdges, layout, wireLive, wireFlow, countMark, callCounts, walkState, nodeState, treeRows, unaccountedFiles, filesOf, fileTree, filesMarkup, suggestRun, renamedToken };
 })();
 if (typeof module !== 'undefined') module.exports = Groundtrack;
