@@ -1686,10 +1686,15 @@ function start() {
     applyTransform();
   }, { passive: false });
   $('zoomFit').addEventListener('click', function () {
+    /* Fit scales the drawing to the tighter side of the pane, then centres it,
+       so the slack on the looser side splits evenly instead of piling up on
+       the right. 72 is the canvas padding, twice. */
     const box = $('plan').getBoundingClientRect();
-    S.panX = 0;
-    S.panY = 0;
-    setZoom(Math.min(box.width / (LAYOUT.canvasW + 72), box.height / (LAYOUT.canvasH + 72)));
+    const w = LAYOUT.canvasW + 72, h = LAYOUT.canvasH + 72;
+    const z = Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, Math.min(box.width / w, box.height / h)));
+    S.panX = (box.width - w * z) / 2;
+    S.panY = (box.height - h * z) / 2;
+    setZoom(z);
   });
 
   [...document.querySelectorAll('.tab')].forEach(function (t) {
