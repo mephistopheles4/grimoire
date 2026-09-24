@@ -340,5 +340,51 @@
         }
       ]
     }
+  ],
+  "tour": [
+    {
+      "region": "start",
+      "now": "This box decides what the skill text says once other agents install it. It sets the wording, the package, the lead route, and the layout."
+    },
+    {
+      "region": "index",
+      "now": "Four rows, one chosen option each. Two rows carry no edge in this box."
+    },
+    {
+      "region": "verdict",
+      "now": "As chosen, no edge in this box reaches this set. Nothing here has been tested by a rule yet."
+    },
+    {
+      "region": "cards",
+      "open": "voice",
+      "now": "The row \"How much Claude Code the text keeps\" is open. The chosen option replaces four Claude Code lines with wording that fits any agent."
+    },
+    {
+      "region": "verdict",
+      "set": { "voice": "voice-keep" },
+      "now": "One option changed: the text keeps its Claude Code wording. The verdict is now \"does not hold\"."
+    },
+    {
+      "region": "findings",
+      "set": { "voice": "voice-keep" },
+      "now": "One conflict: the installer serves every agent, but the kept lines send a slash command their agent lacks."
+    },
+    {
+      "region": "sheet",
+      "view": "sheet",
+      "now": "The same box as one grid, back at the chosen set. Each chosen option is marked in its row."
+    },
+    {
+      "region": "presets",
+      "now": "Four walks through this box, from the recommended set to dropping the marketplace."
+    },
+    {
+      "region": "coach",
+      "now": "Turn Coach on, then change an option. Predict which rows change before the page shows you."
+    },
+    {
+      "region": "export",
+      "now": "Export gives one line to paste back to the agent. It reads the options you chose."
+    }
   ]
 }
