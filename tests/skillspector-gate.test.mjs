@@ -1,6 +1,7 @@
 // The gate decides pass from fail for the SkillSpector workflow, and the
 // workflow is the only caller. So the seam under test is the one the workflow
-// uses: a report path in, an exit code and a message out.
+// uses: a report path and a label in, an exit code, a message and a section of
+// the run's summary page out.
 //
 // The scanner is not run here. It is a Python tool that installs on the
 // runner, and a test that needed it would need an install step — the thing
@@ -16,14 +17,20 @@
 
 import { test, after } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { root, run } from './helpers.mjs';
+import { root, run as runScript } from './helpers.mjs';
 
 const gate = join(root, 'scripts', 'skillspector-gate.mjs');
 const work = mkdtempSync(join(tmpdir(), 'grimoire-gate-'));
 after(() => rmSync(work, { recursive: true, force: true }));
+
+// Every run below clears GITHUB_STEP_SUMMARY unless a test sets it. This suite
+// runs inside the `check` job on a runner, where the variable names that job's
+// real summary page, and every red case here would otherwise land on it.
+const run = (script, args = [], opts = {}) =>
+  runScript(script, args, { ...opts, env: { GITHUB_STEP_SUMMARY: null, ...opts.env } });
 
 let n = 0;
 function report(value) {
@@ -114,6 +121,23 @@ test('a failing report names the rule, the severity and the file', () => {
   assert.match(out.stderr, /skills\/eagle-eye\/SKILL\.md:12/);
 });
 
+test('a finding that matched no line is described by its explanation', () => {
+  // The shape LP3 arrives in: a rule about what a manifest lacks has no line
+  // to quote, so `finding` is null and the text is in `explanation`. Printing
+  // the null left a red gate with an empty line where the reason should be.
+  const r = clean();
+  r.issues = [
+    {
+      id: 'XX9',
+      severity: 'MEDIUM',
+      location: { file: 'SKILL.md', start_line: 1, end_line: null },
+      finding: null,
+      explanation: 'placeholder explanation for the gate test',
+    },
+  ];
+  assert.match(assertFails(report(r), /XX9/).stderr, /placeholder explanation for the gate test/);
+});
+
 test('a finding with no location is still reported', () => {
   // A report shape the gate has not seen must not throw. An exception here is
   // a red workflow with a stack trace instead of a finding.
@@ -149,24 +173,59 @@ test('a file read only in part fails', () => {
   assertFails(report(r), /1 file\(s\) only in part/);
 });
 
+// A ledger exception in the shape SkillSpector 2.11.0 writes, field for field.
+// The two below are the ones that turned this workflow red: the whole-tree
+// scan's bytecode walk running out of its five seconds, and a link whose text
+// named a path that exists only from the repository root.
+const runtimeLimit = () => ({
+  outcome: 'partial',
+  phase: 'static',
+  reason_code: 'runtime_limit',
+  message: 'Inspection reached its configured runtime limit.',
+  path: 'docs/brand/grimoire',
+  start_line: null,
+  end_line: null,
+  fatal: false,
+  analyzers: ['static_patterns_supply_chain_bytecode_runtime_limit'],
+});
+const unresolved = () => ({
+  outcome: 'partial',
+  phase: 'reference_resolution',
+  reason_code: 'reference_unresolved',
+  message: 'A local path-like reference could not be resolved unambiguously.',
+  path: 'SKILL.md',
+  start_line: 84,
+  end_line: 84,
+  fatal: false,
+});
+
 test('an exception the scanner recorded while reading fails', () => {
   const r = clean();
-  r.analysis_completeness.ledger_exceptions = [{ path: 'skills/eagle-eye/lib/template.html', reason: 'too large' }];
+  r.analysis_completeness.ledger_exceptions = [runtimeLimit()];
   assertFails(report(r), /1 exception\(s\) while reading/);
 });
 
-test('and it says which one, because the report is gone by the time anyone reads the run', () => {
+test('and it says which one and why, because the report is gone by the time anyone reads the run', () => {
   // The workflow writes the report outside the checkout and keeps nothing, so
-  // a count on its own is a red gate a contributor cannot act on — which is
-  // exactly what happened on the run that prompted this.
+  // a count on its own is a red gate a contributor cannot act on. So was a path
+  // on its own: this gate once read a `reason` field the scanner never writes,
+  // and printed three red runs as bare directory names.
   const r = clean();
-  r.analysis_completeness.ledger_exceptions = [
-    { path: 'skills/eagle-eye/lib/template.html', reason: 'too large' },
-    { path: 'docs/spec/groundtrack.md', reason: 'decode error' },
-  ];
+  r.analysis_completeness.ledger_exceptions = [runtimeLimit(), unresolved()];
   const out = assertFails(report(r), /2 exception\(s\) while reading/);
-  assert.match(out.stderr, /skills\/eagle-eye\/lib\/template\.html: too large/);
-  assert.match(out.stderr, /docs\/spec\/groundtrack\.md: decode error/);
+  assert.match(out.stderr, /docs\/brand\/grimoire: runtime_limit — Inspection reached its configured runtime limit\./);
+  assert.match(out.stderr, /\[static_patterns_supply_chain_bytecode_runtime_limit\]/);
+  assert.match(out.stderr, /SKILL\.md:84: reference_unresolved/);
+  assert.match(out.stderr, /\(partial, reference_resolution\)/);
+});
+
+test('a field the gate does not format is printed as itself, not dropped', () => {
+  // The scanner owns this shape. A field this gate has not heard of is exactly
+  // the one a reader needs, so it is appended rather than skipped.
+  const r = clean();
+  r.analysis_completeness.ledger_exceptions = [{ ...runtimeLimit(), error_class: 'PermissionError' }];
+  const out = assertFails(report(r), /1 exception\(s\) while reading/);
+  assert.match(out.stderr, /"error_class":"PermissionError"/);
 });
 
 test('an exception in a shape the gate does not know is printed as itself, not dropped', () => {
@@ -296,4 +355,104 @@ test('a suppression the gate cannot identify is tallied, not dropped', () => {
   r.suppressed_count = 1;
   r.suppressed = [null];
   assert.match(assertPasses(report(r)).stdout, /unidentified×1/);
+});
+
+// The label. The workflow scans each skill separately and passes the skill's
+// directory, so a red line names the skill rather than a temporary path.
+
+test('a red gate names what was scanned when given a label', () => {
+  const r = clean();
+  r.issues = [null];
+  const out = run(gate, [report(r), '--label', 'skills/eagle-eye']);
+  assert.equal(out.code, 1);
+  assert.match(out.stderr, /^skills\/eagle-eye: the SkillSpector gate is red/m);
+});
+
+test('a red gate names the report path when given no label', () => {
+  const r = clean();
+  r.issues = [null];
+  const p = report(r);
+  assert.ok(assertFails(p, /gate is red/).stderr.includes(`${p}: the SkillSpector gate is red`));
+});
+
+test('a label with no value fails with usage rather than labelling nothing', () => {
+  const out = run(gate, [report(clean()), '--label']);
+  assert.equal(out.code, 1);
+  assert.match(out.stderr, /usage/);
+});
+
+test('a second report path fails with usage rather than judging one of them', () => {
+  const out = run(gate, [report(clean()), report(clean())]);
+  assert.equal(out.code, 1);
+  assert.match(out.stderr, /usage/);
+});
+
+// The summary page. GITHUB_STEP_SUMMARY names a file the runner renders as
+// markdown on the run's page. The seam is the same one the workflow uses: the
+// variable set, the file read back.
+
+const summaryPath = () => join(work, `summary-${n++}.md`);
+function gateWithSummary(path, file, args = []) {
+  return run(gate, [path, ...args], { env: { GITHUB_STEP_SUMMARY: file } });
+}
+
+test('a passing gate writes its verdict and the suppression tally to the summary', () => {
+  const r = clean();
+  r.suppressed_count = 3;
+  r.suppressed = [{ rule_id: 'RP1' }, { rule_id: 'AS3' }, { rule_id: 'RP1' }];
+  const file = summaryPath();
+  assert.equal(gateWithSummary(report(r), file, ['--label', 'skills/eagle-eye']).code, 0);
+  const page = readFileSync(file, 'utf8');
+  assert.match(page, /^### skills\/eagle-eye: pass$/m);
+  assert.match(page, /3 suppressed by the baseline/);
+  assert.match(page, /Read 30 of 30 components/);
+  assert.match(page, /AS3×1, RP1×2/);
+});
+
+test('an exception is a table row with its reason code on the summary', () => {
+  const r = clean();
+  r.analysis_completeness.ledger_exceptions = [unresolved()];
+  const file = summaryPath();
+  assert.equal(gateWithSummary(report(r), file, ['--label', 'skills/groundtrack']).code, 1);
+  const page = readFileSync(file, 'utf8');
+  assert.match(page, /^### skills\/groundtrack: red$/m);
+  assert.match(page, /^\| SKILL\.md:84 \| reference_unresolved \| A local path-like reference/m);
+});
+
+test('a finding is a table row on the summary, and a pipe in it does not break the table', () => {
+  // The message is the scanner's and echoes the text it matched. A pipe in it
+  // would end the cell early and shift every column after it.
+  const r = clean();
+  r.issues = [
+    { id: 'XX9', severity: 'LOW', location: { file: 'SKILL.md', start_line: 3 }, message: 'left | right' },
+  ];
+  const file = summaryPath();
+  gateWithSummary(report(r), file);
+  assert.match(readFileSync(file, 'utf8'), /^\| XX9 \| LOW \| SKILL\.md:3 \| left \\\| right \|$/m);
+});
+
+test('a report the gate cannot read is red on the summary too', () => {
+  // A section missing from the page reads as a skill nobody scanned.
+  const file = summaryPath();
+  assert.equal(gateWithSummary(join(work, 'never-written.json'), file, ['--label', 'skills/x']).code, 1);
+  const page = readFileSync(file, 'utf8');
+  assert.match(page, /^### skills\/x: red$/m);
+  assert.match(page, /cannot read/);
+});
+
+test('each run appends a section rather than replacing the page', () => {
+  const file = summaryPath();
+  gateWithSummary(report(clean()), file, ['--label', 'skills/one']);
+  gateWithSummary(report(clean()), file, ['--label', 'skills/two']);
+  const page = readFileSync(file, 'utf8');
+  assert.match(page, /### skills\/one: pass/);
+  assert.match(page, /### skills\/two: pass/);
+});
+
+test('a summary it cannot write is said out loud and leaves the verdict alone', () => {
+  // The exit code is the verdict. A page the runner could not take must not
+  // turn a clean scan red, and must not pass without a word either.
+  const out = gateWithSummary(report(clean()), work);
+  assert.equal(out.code, 0, `${out.stdout}${out.stderr}`);
+  assert.match(out.stderr, /could not write the run summary/);
 });

@@ -323,7 +323,7 @@ repository, and that distinction matters more than it looks:
 | CodeQL (default setup) | static analysis of the JavaScript, including `lib/template.html` |
 | Private vulnerability reporting | the channel this file points at |
 | Branch protection on `main` | pull request required, `check` must pass, no bypass |
-| `skillspector` as a required status check | a SkillSpector finding blocking a merge, rather than being merged over |
+| `skillspector`'s `scan` job as a required status check | a SkillSpector finding blocking a merge, rather than being merged over |
 | `zizmor` as a required status check | a workflow-security finding blocking a merge, rather than being merged over |
 | Pages, built from Actions | what the `pages` workflow deploys to a public URL |
 
@@ -439,6 +439,39 @@ compares a skill's behaviour against its stated purpose, and is arguably the
 failure this repository could actually ship — needs a provider credential and
 is a separate decision nobody has taken.
 
+**Each skill is scanned on its own, with its own baseline, and the repository
+root is not scanned.** A skill directory is what installs: `npx skills add`
+copies one, and the plugin route hands an agent nothing else as prose to obey.
+The rest of the tree is CodeQL's (the JavaScript), zizmor's (the workflows), or
+prose no agent is given. One job runs per skill, listed from the tree on every
+run so a new skill cannot go unscanned, and one job named `scan` passes only
+when every skill did.
+
+It scanned the root until the root stopped fitting inside the scanner, and that
+was measured rather than guessed. SkillSpector caps a whole scan at sixty
+seconds and its shipped-bytecode walk at five, both on the wall clock, and
+neither can be changed from outside. A root scan took about sixty seconds on a
+runner. The bytecode walk takes half a millisecond on its own and ran past five
+seconds inside the scan — ten runs out of ten in an Ubuntu 24.04 container held
+to a four-CPU quota, and again with the walk instrumented on four pinned CPUs —
+starved by the scanner's other analyzer threads. Either cap marks a clean tree
+as partly read, the gate is right to fail on that, and `main` went red on it
+three times in a day. In that container, where the root scan took 33 seconds
+against a runner's 60, one skill scans in five to eight seconds and the walk
+finishes in under two. A runner will be slower than that, and the margin is
+wide enough to absorb it; the first runs of the per-skill jobs are where that
+stops being an estimate. A scan rooted at a skill also reads it the way an
+installed copy is read: the first one found a link in `groundtrack`'s
+`SKILL.md` whose text named a path that exists only from the repository root.
+
+**The gate says why a scan was incomplete, not only where.** Each exception the
+scanner records carries a `reason_code` and a `message`, and the gate prints
+both. An earlier version read a field the scanner does not write, so those
+three red runs printed bare directory names and the cause looked unknowable
+until the scan was reproduced. Each skill's verdict is also written to the
+run's summary page, as a table, so a reader can see which skill went red
+without opening a log.
+
 **Seven rules were baselined first, and every finding from them is wrong.** The numbers
 move, and watching them move is the point. Triage counted fifteen findings from
 six rules at an earlier commit. The first run of this workflow counted
@@ -511,7 +544,7 @@ eleven by rule identifier, with a reason per entry:
 | `PE3` | Credential Access | The string `.env` in the edge audit's setup message and its test, which tell a user a project `.env` is **not** read. The script reads its key from the environment only. |
 | `E1` | External Transmission | **Not a false positive; accepted.** The edge audit posts a box's text to the model provider's endpoint, only when run with a key after a yes. See [What the edge audit sends](#what-the-edge-audit-sends). |
 | `P2` | Hidden Instructions | An HTML comment in `groundtrack`'s page template saying two buttons wrap *together*. The rule matches *get* inside any word. The comments are layout notes for a maintainer. |
-| `LP3` | MCP Least Privilege | **Accepted.** The skill declares no permission list, because that list is one host's format and the skill text runs in agents that read none. Fires only on a scan of the skill directory. |
+| `LP3` | MCP Least Privilege | **Accepted.** Neither skill declares a permission list, because that list is one host's format and the skill text runs in agents that read none. Fires only on a scan of a skill directory, which is what CI runs now, so both skills' baselines carry it. |
 
 **Keyed by rule identifier and not by fingerprint**, which is a trade stated
 rather than hidden. A fingerprint is bound to the text it was taken from and
@@ -525,16 +558,20 @@ on a security rule in `CONTRIBUTING.md` and on the test that proves it works.
 Letting a regex edit that prose is the trap, and refusing it is a decision.
 
 **There is one baseline file per scannable directory, so three.** The scanner
-finds a baseline only at the top of the directory it was pointed at, and a
-reader scanning a skill is pointed at the skill. So
+finds a baseline only at the top of the directory it was pointed at. The
+workflow points it at each skill, and so does a reader scanning a skill. So
 [`skills/eagle-eye/.skillspector-baseline.yaml`](skills/eagle-eye/.skillspector-baseline.yaml)
-repeats the seven rules that fire inside it, and
+repeats the rules that fire inside it, and
 [`skills/groundtrack/.skillspector-baseline.yaml`](skills/groundtrack/.skillspector-baseline.yaml)
-the one that fires inside it. `node scripts/check.mjs` fails when a skill file
-disagrees with the root — same rule, same words, same scope — so a suppression
-cannot be argued one way in one file and another way in another. What that check
-does not hold is that every skill has a file of its own: it fails when `skills/`
-carries no baseline at all, not when one skill under it is missing one.
+the ones that fire inside it. The root file is for a reader who scans the whole
+repository, which is what the plugin route installs; CI no longer reads it.
+`node scripts/check.mjs` fails when a skill file disagrees with the root — same
+rule, same words, same scope — so a suppression cannot be argued one way in one
+file and another way in another. What that check does not hold is that every
+skill has a file of its own: it fails when `skills/` carries no baseline at
+all, not when one skill under it is missing one. The workflow holds that
+instead. A skill scanned without the baseline it needs goes red there, with
+the findings named.
 
 **Scanning this repository yourself gets the reasons, not silence.** With no
 flags the scanner reports the unchanged score and tells you a baseline was
@@ -570,6 +607,15 @@ empty `results` array under an unchanged `category` is exactly what marks the
 last upload's alerts fixed. **The reasons are still published**, in the baseline
 above and under `--show-suppressed`; what changed is that they are no longer
 published as unresolved alerts.
+
+**Each skill uploads under a category of its own, `skillspector/<skill>`.** A
+scan rooted at a skill writes every path relative to that skill, and GitHub
+reads a relative path from the repository root, so the strip also puts the
+skill's directory back on each path before the upload. The single
+`skillspector` category the root scan used had no open alert when it was
+retired, so the split orphaned nothing. A skill that is renamed or removed does
+orphan its category — no upload under that name comes again — and any alert
+still open there has to be closed by hand.
 
 **SkillSpector also reaches this repository through CodeRabbit**, which ran
 2.8.2 against pull request 9. That finding arrived inside a collapsed block

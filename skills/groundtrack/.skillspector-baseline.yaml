@@ -1,9 +1,15 @@
 # SkillSpector baseline for this skill.
 #
 # You are reading this because you scanned this directory before installing
-# what is in it, which is the right thing to do with a skill. Two of
-# SkillSpector's rules fire on the files here, and this file says why each is
-# wrong, so you can disagree with a reason rather than with silence.
+# what is in it, which is the right thing to do with a skill. Three of
+# SkillSpector's rules fire on the files here. Two are wrong, one is right and
+# accepted, and this file says which and why, so you can disagree with a reason
+# rather than with silence.
+#
+# The accepted one is on `SKILL.md`: the skill declares no permission list. A
+# permission list is one host's format, and this skill's text runs in agents
+# that read none. Its renderer reads the file you give it and writes one page
+# where you tell it to; it reaches no network.
 #
 # The first finding is on `assets/OFL.txt`, which is the SIL Open Font Licence. That
 # file is here because the licence requires it: three weights of IBM Plex Mono
@@ -41,6 +47,8 @@ version: 2
 fingerprints: []
 
 rules:
+  - rule_id: "LP3"
+    reason: "Accepted. The skill declares no permission list, because a permission list is one host's format and the skill's text runs in agents that read none. SECURITY.md in the repository says which script reaches the network, when it runs, and what it sends."
   - rule_id: "EA3"
     reason: "False positive. The phrase NOT LIMITED TO, in the warranty disclaimer of the SIL Open Font Licence that ships beside the vendored font faces. It is a legal text the licence requires us to carry verbatim, not an instruction an agent obeys, and its wording is not ours to change."
   - rule_id: "P2"

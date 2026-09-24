@@ -434,10 +434,12 @@ for (const f of files.filter(f => /\.(mjs|js)$/.test(f))) {
 // SkillSpector scans the prose this repository ships, and the workflow at
 // .github/workflows/skillspector.yml fails on any finding a baseline does not
 // cover. The baseline is therefore the argument, and there is a copy of it per
-// directory somebody might scan: one at the repository root, one at the top of
-// each skill that needs it. Copies, because the scanner finds a baseline only
-// at the top of the directory it was pointed at, and a reader scanning a skill
-// is pointed at the skill.
+// directory somebody might scan: one at the top of each skill that needs it,
+// and one at the repository root. Copies, because the scanner finds a baseline
+// only at the top of the directory it was pointed at. The workflow scans each
+// skill with the skill's own file, and so does a reader scanning a skill. The
+// root file is for a reader who scans the whole repository, which is what the
+// plugin route installs.
 //
 // Copies drift. The root file covers seven rules, a skill file the ones that
 // fire inside it, and this rule holds the overlap to the same words. A rule
@@ -447,6 +449,9 @@ for (const f of files.filter(f => /\.(mjs|js)$/.test(f))) {
 // Every baseline under skills/ is read, not a named pair. What this does not
 // hold is that each skill has one: it fails when skills/ carries no baseline
 // at all, which is the shape of the tree having lost the argument entirely.
+// The workflow holds the rest. It scans each skill with that skill's own file,
+// so a skill that needs a baseline and lacks one goes red there, with the
+// findings named — only the scanner knows where a finding lands.
 //
 // The reader below is written by hand and reads exactly the shape these two
 // files are allowed to have: three top-level keys, and a list of entries with
@@ -564,13 +569,13 @@ try {
 } catch (e) {
   if (e.code !== 'ENOENT') throw e;
   fail(
-    `${BASELINE} is missing from the repository root — the SkillSpector workflow passes it explicitly, and without it every known false positive turns the gate red with no reason attached.`,
+    `${BASELINE} is missing from the repository root — a reader who scans the whole repository, which is what the plugin route installs, would get every known false positive with no reason attached, and the skill baselines would have nothing to agree with.`,
   );
 }
 
 if (!skillBaselines.length) {
   fail(
-    `no ${BASELINE} under skills/ — a reader who scans the skill rather than the repository sees the findings and none of the reasons.`,
+    `no ${BASELINE} under skills/ — a reader who scans the skill rather than the repository sees the findings and none of the reasons, and so does the SkillSpector workflow, which scans each skill with its own file.`,
   );
 }
 for (const path of skillBaselines) {

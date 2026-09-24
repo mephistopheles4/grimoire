@@ -2,7 +2,7 @@
 // Remove the baseline-suppressed results from a SARIF report before it is
 // uploaded, so the Security tab carries only what the gate would fail on.
 //
-//   node scripts/skillspector-strip-suppressed.mjs <in.sarif> <out.sarif>
+//   node scripts/skillspector-strip-suppressed.mjs <in.sarif> <out.sarif> [--prefix <dir>/]
 //
 // **Why this exists, measured rather than assumed.** SkillSpector keeps a
 // baselined finding in its SARIF and marks it `suppressions: [{ kind:
@@ -27,6 +27,19 @@
 // point a kept finding at the wrong rule. A rule descriptor left with no
 // finding under it costs a reader nothing.
 //
+// **Except the paths, when asked, and only the paths.** The workflow scans each
+// skill on its own, and the scanner writes every path relative to the directory
+// it was pointed at, with no flag to change that: a finding in
+// skills/eagle-eye/SKILL.md arrives as `SKILL.md`. GitHub resolves a relative
+// path against the repository root, so that alert would point at a file that
+// does not exist. `--prefix skills/eagle-eye/` puts the directory back on every
+// relative `uri` in an artifact location — the results, the scanner's own
+// notifications, and the `artifacts` list. Nothing is renumbered, so the index
+// argument above still holds. An absolute URI is left as it was and counted. A
+// location carrying a `uriBaseId` fails instead: its path is relative to a base
+// this script cannot see, and a guessed prefix would be a wrong path that looks
+// right. The scanner writes none today.
+//
 // **It never drops what it cannot read.** A result that is not an object, or
 // whose `suppressions` is not an array, is kept and said out loud. The one
 // mistake this script can make is a silent removal, so every branch that
@@ -44,10 +57,32 @@
 
 import { readFileSync, writeFileSync } from 'node:fs';
 
-const [, , input, output] = process.argv;
-if (!input || !output) {
-  console.error('usage: node scripts/skillspector-strip-suppressed.mjs <in.sarif> <out.sarif>');
+const USAGE = 'usage: node scripts/skillspector-strip-suppressed.mjs <in.sarif> <out.sarif> [--prefix <dir>/]';
+const positional = [];
+let prefix = null;
+const args = process.argv.slice(2);
+for (let i = 0; i < args.length; i += 1) {
+  if (args[i] === '--prefix') {
+    prefix = args[i + 1] ?? '';
+    i += 1;
+  } else {
+    positional.push(args[i]);
+  }
+}
+const [input, output] = positional;
+if (!input || !output || positional.length > 2 || prefix === '') {
+  console.error(USAGE);
   process.exit(1);
+}
+if (prefix !== null) {
+  // A repository-relative directory, written the way a SARIF uri is: forward
+  // slashes, no scheme, no leading slash, no step upward. Anything else would
+  // put a path in the Security tab that the repository does not have.
+  if (/^[a-z][a-z0-9+.-]*:/i.test(prefix) || prefix.startsWith('/') || prefix.includes('\\') || prefix.split('/').includes('..')) {
+    console.error(`--prefix ${prefix}: not a directory relative to the repository root`);
+    process.exit(1);
+  }
+  if (!prefix.endsWith('/')) prefix += '/';
 }
 
 const die = message => {
@@ -119,6 +154,38 @@ report.runs.forEach((run, i) => {
   });
 });
 
+// The paths, when asked. After the filter, so a dropped result is not counted.
+let prefixed = 0;
+let absolute = 0;
+if (prefix !== null) {
+  const rebase = (loc, where) => {
+    if (loc === null || typeof loc !== 'object' || typeof loc.uri !== 'string') return;
+    if (loc.uriBaseId !== undefined) {
+      die(`${where} carries a uriBaseId ("${loc.uriBaseId}"), so its path is relative to a base this step cannot see`);
+    }
+    if (/^[a-z][a-z0-9+.-]*:/i.test(loc.uri) || loc.uri.startsWith('/')) {
+      absolute += 1;
+      return;
+    }
+    loc.uri = `${prefix}${loc.uri}`;
+    prefixed += 1;
+  };
+  const walk = (v, where) => {
+    if (Array.isArray(v)) v.forEach((x, i) => walk(x, `${where}[${i}]`));
+    else if (v !== null && typeof v === 'object') {
+      for (const [k, x] of Object.entries(v)) {
+        if (k === 'artifactLocation') rebase(x, `${where}.${k}`);
+        walk(x, `${where}.${k}`);
+      }
+    }
+  };
+  report.runs.forEach((run, i) => {
+    walk(run, `runs[${i}]`);
+    // The one artifact location SARIF does not call `artifactLocation`.
+    if (Array.isArray(run.artifacts)) run.artifacts.forEach((a, j) => rebase(a?.location, `runs[${i}].artifacts[${j}].location`));
+  });
+}
+
 try {
   writeFileSync(output, `${JSON.stringify(report, null, 2)}\n`);
 } catch (e) {
@@ -131,6 +198,10 @@ console.log(`ok: stripped ${total} suppressed result(s), kept ${kept}`);
 if (total) {
   const tally = [...removed].sort(([a], [b]) => (a < b ? -1 : 1)).map(([id, n]) => `${id}×${n}`);
   console.log(`      by rule: ${tally.join(', ')}`);
+}
+if (prefix !== null) {
+  console.log(`ok: put ${prefix} in front of ${prefixed} relative path(s)`);
+  if (absolute) console.log(`note: left ${absolute} absolute URI(s) as they were`);
 }
 if (unreadable) {
   console.log(

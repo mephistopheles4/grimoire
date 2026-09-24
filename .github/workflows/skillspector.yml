@@ -6,9 +6,9 @@
 # tool poisoning. It is not a style checker on our source. It is a scanner for
 # the thing we publish.
 #
-# This gate fails on any finding .skillspector-baseline.yaml does not cover, at
-# any severity. It does not read the scanner's exit code and it does not read
-# the risk score, and the reason is measured: a file carrying an instruction
+# This gate fails on any finding a skill's baseline does not cover, at any
+# severity. It does not read the scanner's exit code and it does not read the
+# risk score, and the reason is measured: a file carrying an instruction
 # override and a credential read was added to this tree during triage, the
 # scanner found both, and it exited 0 — two findings across thirty files score
 # 42, under the tool's fifty-point threshold. That threshold answers "should I
@@ -17,7 +17,9 @@
 #
 # **This workflow blocks no merge until it is added to the required status
 # checks**, which is a repository setting no file here can read or change.
-# SECURITY.md records the reliance beside the others.
+# SECURITY.md records the reliance beside the others. The job to require is
+# `scan`, at the bottom: it is the one name that does not change when a skill
+# is added.
 #
 # **Dependabot does not watch the scanner pin.** Its github-actions ecosystem
 # reads `uses:` lines, and the scanner arrives through a `run:` line with a git
@@ -39,22 +41,89 @@ permissions:
   contents: read
 
 jobs:
-  scan:
+  # Which skills there are, read from the tree on every run rather than listed
+  # here. A skill added without a line in this file would be a skill nobody
+  # scans, and a gate that quietly does nothing reads as a gate that passed. A
+  # skill is a directory under skills/ with a SKILL.md in it, which is how
+  # CONTRIBUTING.md defines one.
+  skills:
+    name: list the skills
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    outputs:
+      skills: ${{ steps.list.outputs.skills }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      # jq ships on the ubuntu-24.04 image. An empty list fails here by name
+      # rather than as a matrix with nothing in it, because no skills is a tree
+      # that lost them, not a tree with nothing to scan.
+      - name: List the skills
+        id: list
+        run: |
+          skills=$(for d in skills/*/; do if [ -f "${d}SKILL.md" ]; then basename "$d"; fi; done | jq -R . | jq -cs .)
+          if [ "$skills" = "[]" ]; then
+            echo "no directory under skills/ holds a SKILL.md — there is nothing to scan, and that is not a pass"
+            exit 1
+          fi
+          echo "skills=${skills}" >> "$GITHUB_OUTPUT"
+          echo "skills to scan: ${skills}"
+
+  # One job per skill. Each one scans a single skill directory with that
+  # skill's own baseline, gates on it, and writes its verdict to the run's
+  # summary page.
+  #
+  # **Each skill, not the repository root.** A skill directory is what installs:
+  # `npx skills add` copies one, and the plugin route hands an agent nothing else
+  # as prose to obey. The rest of the tree is covered elsewhere — the JavaScript
+  # by CodeQL, the workflows by zizmor — or is prose no agent is given.
+  #
+  # This scanned the root until the root stopped fitting inside the scanner.
+  # SkillSpector caps a whole scan at sixty seconds and its shipped-bytecode walk
+  # at five, both on the wall clock, and neither can be changed from outside. A
+  # root scan took about sixty seconds on this runner. The bytecode walk takes
+  # half a millisecond on its own and ran past five seconds inside the scan,
+  # starved by the scanner's other analyzer threads. Either cap marks a clean tree
+  # partially read, the gate is right to fail on that, and which run it happened
+  # on was luck. Measured in a four-CPU container that ran the root scan in 33
+  # seconds against this runner's 60, one skill scans in five to eight seconds,
+  # with the walk done in under two. SECURITY.md has the rest of the measurement.
+  #
+  # It also reads a skill the way an installed copy reads it. A link in
+  # skills/groundtrack/SKILL.md named a path that resolved from the repository
+  # root and not from inside the skill; the root scan could not see that, and
+  # the first scan rooted at the skill did.
+  skill:
+    name: scan skills/${{ matrix.skill }}
+    needs: skills
     runs-on: ubuntu-24.04
     permissions:
       contents: read
       # For the SARIF upload. A pull request from a fork gets a read-only token
       # whatever this says, which is why the upload step is skipped there.
       security-events: write
+    strategy:
+      # Every skill reports, not only the first one to go red.
+      fail-fast: false
+      matrix:
+        skill: ${{ fromJSON(needs.skills.outputs.skills) }}
+    env:
+      # Through the environment rather than spliced into each script. A
+      # directory name is text a pull request controls, and `${{ }}` inside a
+      # `run:` block is template injection.
+      SKILL: ${{ matrix.skill }}
     steps:
       # persist-credentials: false because this job installs a third-party tool
-      # and points it at the whole tree. The default writes the job's token into
+      # and points it at the tree. The default writes the job's token into
       # .git/config as an http.extraheader, so the checkout leaves a credential
-      # in the working directory that the scanner then reads. Nothing here runs
-      # an authenticated git command — no fetch, no push, and the version-bump
-      # rule that needs history lives in the other workflow — so the credential
-      # buys nothing and costs a token sitting under a scanner's nose. Raised by
-      # zizmor as `artipacked`, through CodeRabbit, on this pull request.
+      # in the working directory for a scanner to read. Nothing here runs an
+      # authenticated git command — no fetch, no push, and the version-bump rule
+      # that needs history lives in the other workflow — so the credential buys
+      # nothing and costs a token sitting under a scanner's nose. Raised by
+      # zizmor as `artipacked`, through CodeRabbit, on the pull request that
+      # added this workflow.
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
@@ -83,11 +152,11 @@ jobs:
       - name: Check the entry point runs
         run: skillspector --help > /dev/null
 
-      # The repository root, not skills/. Two reasons, both measured: the root
-      # is where the findings actually are, and SARIF paths are written
-      # relative to the scan root with no flag to rebase them — scanning
-      # skills/ emits eagle-eye/SKILL.md, which GitHub resolves against the
-      # repository root and cannot match to a file.
+      # The skill's own baseline, when it has one. The scanner finds a baseline
+      # only where it is told to, and a skill with nothing to suppress ships no
+      # file — scripts/check.mjs refuses a baseline with no rules in it. A skill
+      # that needed one and lacks it has unsuppressed findings, and the gate
+      # below names them.
       #
       # --no-llm is the whole analysis story here: static patterns, AST and
       # YARA, no model call, no API key, no login, no secret. The semantic pass
@@ -99,10 +168,9 @@ jobs:
       # partial analysis into exit 1; it is not used, and not only because the
       # exit code is not the signal. Its condition is the report's is_complete
       # flag, which the scanner clears whenever its reference pass meets a
-      # relative link it did not follow — this repository's markdown is full of
-      # those. scripts/skillspector-gate.mjs reads the coverage counts instead,
-      # which say whether the scanner actually skipped something, and carries
-      # the argument for the difference.
+      # relative link it did not follow. scripts/skillspector-gate.mjs reads the
+      # coverage counts instead, which say whether the scanner actually skipped
+      # something, and carries the argument for the difference.
       #
       # No `|| true` anywhere. A blanket one swallows the error case with
       # everything else.
@@ -111,10 +179,14 @@ jobs:
       # each finding matched, so one left in the working tree is a file the
       # next scan reads — a component that is not in this repository, and an
       # alert pointing at a path nobody can open.
-      - name: Scan the repository
+      - name: Scan the skill
         run: |
+          baseline=()
+          if [ -f "skills/${SKILL}/.skillspector-baseline.yaml" ]; then
+            baseline=(--baseline "skills/${SKILL}/.skillspector-baseline.yaml")
+          fi
           status=0
-          skillspector scan . --no-llm --baseline .skillspector-baseline.yaml --format json --output "${RUNNER_TEMP}/skillspector-report.json" || status=$?
+          skillspector scan "skills/${SKILL}" --no-llm "${baseline[@]}" --format json --output "${RUNNER_TEMP}/skillspector-report.json" || status=$?
           if [ "$status" -gt 1 ]; then
             echo "skillspector exited ${status} — the scan errored rather than finding something"
             exit 1
@@ -131,8 +203,12 @@ jobs:
       # scripts/skillspector-strip-suppressed.mjs, with what was measured.
       - name: Write the SARIF report
         run: |
+          baseline=()
+          if [ -f "skills/${SKILL}/.skillspector-baseline.yaml" ]; then
+            baseline=(--baseline "skills/${SKILL}/.skillspector-baseline.yaml")
+          fi
           status=0
-          skillspector scan . --no-llm --baseline .skillspector-baseline.yaml --format sarif --output "${RUNNER_TEMP}/skillspector.sarif" || status=$?
+          skillspector scan "skills/${SKILL}" --no-llm "${baseline[@]}" --format sarif --output "${RUNNER_TEMP}/skillspector.sarif" || status=$?
           if [ "$status" -gt 1 ]; then
             echo "skillspector exited ${status} — the SARIF pass errored"
             exit 1
@@ -143,13 +219,19 @@ jobs:
       # this was confirmed against the repository rather than inferred: the
       # uploaded report fetched back from the analyses API had the property
       # stored — re-serialised as `{"state": "accepted"}` — beside an alert
-      # GitHub opened anyway. Twenty-three of them, every one a rule
-      # .skillspector-baseline.yaml argues away by name, sat open in the
-      # Security tab while every run of this workflow was green.
+      # GitHub opened anyway. Twenty-three of them, every one a rule the
+      # baseline argues away by name, sat open in the Security tab while every
+      # run of this workflow was green.
       #
       # So the upload carries what the gate would go red on, and nothing else.
-      # The reasons for the rest are in the baseline and in `--show-suppressed`,
+      # The reasons for the rest are in the baselines and in `--show-suppressed`,
       # which is where a reader can disagree with them.
+      #
+      # --prefix puts the skill's directory back on every path. The scanner
+      # writes paths relative to the directory it scanned, with no flag to change
+      # that, and GitHub resolves a relative path against the repository root —
+      # so without it an alert on skills/eagle-eye/SKILL.md would point at a
+      # SKILL.md at the root that does not exist.
       #
       # It runs unconditionally, unlike the upload below. A pull request that
       # bumps the scanner and changes the report shape should go red on the pull
@@ -162,7 +244,8 @@ jobs:
         run: |
           node scripts/skillspector-strip-suppressed.mjs \
             "${RUNNER_TEMP}/skillspector.sarif" \
-            "${RUNNER_TEMP}/skillspector-upload.sarif"
+            "${RUNNER_TEMP}/skillspector-upload.sarif" \
+            --prefix "skills/${SKILL}/"
 
       # On push only. A pull request from a fork carries a read-only token and
       # cannot write a code-scanning result, so uploading there fails on a
@@ -180,18 +263,47 @@ jobs:
       # It uploads even when the strip left nothing, and that is the point
       # rather than an oversight. GitHub marks an alert fixed when the next
       # upload under the same category stops carrying it, so an empty results
-      # array is what closes the findings the baseline argued away. `category`
-      # is how GitHub matches this upload to the last one, which is why it does
-      # not change: renaming it would leave every open alert open forever.
+      # array is what closes the findings the baseline argued away.
+      #
+      # **One category per skill**, because each job uploads on its own and
+      # GitHub matches an upload to the last one by category. When this workflow
+      # scanned the root it uploaded under `skillspector` alone, and that
+      # category had no open alert when it was retired, so splitting it orphaned
+      # nothing. A skill renamed or removed does orphan its category: no upload
+      # under that name comes again, so its open alerts stay open until somebody
+      # closes them by hand.
       - name: Upload SARIF
         if: github.event_name == 'push'
         uses: github/codeql-action/upload-sarif@1c5b675653bb5c22dbe9b12b556ec555138e09fd # v4.38.1
         with:
           sarif_file: ${{ runner.temp }}/skillspector-upload.sarif
-          category: skillspector
+          category: skillspector/${{ matrix.skill }}
 
-      # The gate, and the last word. A small Node script rather than a line of
-      # shell, because a decision inside a workflow is a decision no test can
-      # reach; this one is covered by tests/skillspector-gate.test.mjs.
+      # The gate, and the last word for this skill. A small Node script rather
+      # than a line of shell, because a decision inside a workflow is a decision
+      # no test can reach; this one is covered by
+      # tests/skillspector-gate.test.mjs. It also appends this skill's section
+      # to the run's summary page.
       - name: Gate on unsuppressed findings
-        run: node scripts/skillspector-gate.mjs "${RUNNER_TEMP}/skillspector-report.json"
+        run: node scripts/skillspector-gate.mjs "${RUNNER_TEMP}/skillspector-report.json" --label "skills/${SKILL}"
+
+  # One name for the whole scan. The per-skill jobs are named after skills, so
+  # the set of names changes whenever a skill is added, and a required status
+  # check needs a name that does not. This job is that name — `scan`, which the
+  # single job before it carried — and it is red unless the listing and every
+  # skill's gate passed. It runs unless the run was cancelled, so a failure
+  # upstream reaches it as a failure rather than a skip. It has no `name:` on
+  # purpose: a job's name is its check name, and this one's is its id.
+  scan:
+    needs: [skills, skill]
+    if: ${{ !cancelled() }}
+    runs-on: ubuntu-24.04
+    permissions: {}
+    steps:
+      - name: Every skill passed its gate
+        env:
+          LISTED: ${{ needs.skills.result }}
+          SCANNED: ${{ needs.skill.result }}
+        run: |
+          echo "listing the skills: ${LISTED}; scanning each one: ${SCANNED}"
+          [ "$LISTED" = success ] && [ "$SCANNED" = success ]
