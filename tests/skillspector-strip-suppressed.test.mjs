@@ -271,6 +271,13 @@ test('a prefix with no trailing slash gets one, rather than gluing two names tog
   assert.equal(uriOf(r.report.runs[0].results[0]).uri, 'skills/eagle-eye/README.md');
 });
 
+test('a directory name that is not URI-safe is percent-encoded, segment by segment', () => {
+  // A `#` would start a fragment and cut the path short, and a space is not
+  // allowed in a URI at all. The slashes between segments stay slashes.
+  const r = assertPrefixes(sarif(report(result('ZZ9', false))), 'skills/a b#c/');
+  assert.equal(uriOf(r.report.runs[0].results[0]).uri, 'skills/a%20b%23c/README.md');
+});
+
 test('an absolute URI is left as it was, and counted', () => {
   const one = result('ZZ9', false);
   uriOf(one).uri = 'file:///elsewhere/README.md';

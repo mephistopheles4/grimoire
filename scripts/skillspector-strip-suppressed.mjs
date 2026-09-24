@@ -83,6 +83,11 @@ if (prefix !== null) {
     process.exit(1);
   }
   if (!prefix.endsWith('/')) prefix += '/';
+  // The prefix is a directory name and the result is a URI. A `#` would start
+  // a fragment and a space is not allowed at all, so each segment is
+  // percent-encoded and the slashes between them are kept. The workflow passes
+  // a raw directory name, so nothing here is encoded twice.
+  prefix = prefix.split('/').map(encodeURIComponent).join('/');
 }
 
 const die = message => {
