@@ -81,7 +81,7 @@ logs it. The debugging session drops where the data was worth having. The
 
    Read [`references/flightpath-file.md`](references/flightpath-file.md) for
    the shape, and
-   [`skills/groundtrack/examples/greet.flightpath.json`](examples/greet.flightpath.json)
+   [`examples/greet.flightpath.json`](examples/greet.flightpath.json)
    for a complete legal file. Write the nodes and the graphs first. Validate.
    Then write the traces, one at a time.
 

@@ -663,8 +663,10 @@ test('a tree with no baseline under any skill fails', () => {
 
 test('one skill keeping its baseline is not enough to excuse the other', () => {
   // Stated as the limit it is: with eagle-eye's baseline still there, removing
-  // groundtrack's passes. If this ever needs to fail, the check needs the
-  // scanner's report, and that lives in the workflow rather than here.
+  // groundtrack's passes here. It fails in the SkillSpector workflow instead,
+  // which scans groundtrack with groundtrack's own file and names the findings
+  // it no longer suppresses. Only the scanner's report knows that, and the
+  // report lives on the runner rather than here.
   const dir = tree();
   rmSync(join(dir, 'skills', 'groundtrack', baselineName));
   assertPasses(dir);

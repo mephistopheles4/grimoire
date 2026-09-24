@@ -1,10 +1,20 @@
 #!/usr/bin/env node
 // The pass-or-fail decision for the SkillSpector workflow.
 //
-//   node scripts/skillspector-gate.mjs <report.json>
+//   node scripts/skillspector-gate.mjs <report.json> [--label <what was scanned>]
 //
 // Exit 0 when the scan completed and the baseline left nothing behind. Exit 1,
-// with the reason on stderr, otherwise.
+// with the reason on stderr, otherwise. The label names the scan in every line
+// the gate prints — the workflow passes the skill directory — and defaults to
+// the report's path.
+//
+// When GITHUB_STEP_SUMMARY is set, the same verdict is appended to that file
+// as markdown, which is the run's summary page. The workflow scans each skill
+// separately, so a run has one section per skill, and a reader sees which one
+// went red and why without opening a log. The summary carries what the log
+// already carries and nothing more: the reports themselves are written outside
+// the checkout and kept by no step, because a report echoes the text each
+// finding matched.
 //
 // This is a separate script and not a line of YAML because a decision inside a
 // workflow is a decision no test can reach. Every rule below is covered by
@@ -26,17 +36,76 @@
 //
 // **The severity.** One unsuppressed finding fails, LOW included. A severity
 // floor is a number to defend at every review; the baseline is a list of
-// reasons to defend once. .skillspector-baseline.yaml carries the seven rules
-// this repository has argued about, and anything outside it is new.
+// reasons to defend once. Each skill's .skillspector-baseline.yaml carries the
+// rules this repository has argued about inside that skill, and anything
+// outside it is new.
 //
 // The report's `issues` array already excludes what the baseline suppressed —
 // those move to `suppressed` and count toward neither the score nor this gate.
 
-import { readFileSync } from 'node:fs';
+import { appendFileSync, readFileSync } from 'node:fs';
 
-const path = process.argv[2];
+const USAGE = 'usage: node scripts/skillspector-gate.mjs <report.json> [--label <what was scanned>]';
+
+// The summary page, as markdown. Every exit below writes it, the refusals
+// included: a section missing from the page reads as a skill nobody scanned.
+// Failing to write it is said out loud and does not change the verdict, which
+// is the exit code's job.
+const summaryFile = process.env.GITHUB_STEP_SUMMARY;
+const summary = [];
+function writeSummary() {
+  if (!summaryFile) return;
+  try {
+    appendFileSync(summaryFile, `${summary.join('\n')}\n\n`);
+  } catch (e) {
+    console.error(`note: could not write the run summary to ${summaryFile}: ${e.code || e.message}`);
+  }
+}
+
+// One table cell. A pipe or a line break would end the cell early, and the text
+// is the scanner's, which echoes what it matched, so angle brackets are escaped
+// too rather than handed to the page as markup. Backslashes are escaped first:
+// otherwise a `\|` in the text becomes `\\|`, an escaped backslash followed by
+// a pipe that ends the cell.
+const cell = v => {
+  const s = String(v ?? '')
+    .replace(/\r?\n/g, ' ')
+    .replace(/\\/g, '\\\\')
+    .replace(/\|/g, '\\|')
+    .replace(/</g, '&lt;')
+    .trim();
+  return s || '—';
+};
+
+const args = process.argv.slice(2);
+let path;
+let label;
+for (let i = 0; i < args.length; i += 1) {
+  if (args[i] === '--label') {
+    label = args[i + 1];
+    i += 1;
+    if (!label) {
+      console.error(USAGE);
+      process.exit(1);
+    }
+  } else if (path === undefined) {
+    path = args[i];
+  } else {
+    console.error(USAGE);
+    process.exit(1);
+  }
+}
 if (!path) {
-  console.error('usage: node scripts/skillspector-gate.mjs <report.json>');
+  console.error(USAGE);
+  process.exit(1);
+}
+const name = label ?? path;
+
+// The report could not be judged at all. Red, on both pages.
+function refuse(message) {
+  console.error(message);
+  summary.push(`### ${cell(name)}: red`, '', cell(message));
+  writeSummary();
   process.exit(1);
 }
 
@@ -46,23 +115,24 @@ try {
 } catch (e) {
   // A scan that wrote no report did not run. Reading that as a clean tree is
   // the failure this repository already wrote a commit about.
-  console.error(`cannot read ${path}: ${e.code || e.message}`);
-  process.exit(1);
+  refuse(`cannot read ${path}: ${e.code || e.message}`);
 }
 
 let report;
 try {
   report = JSON.parse(raw);
 } catch (e) {
-  console.error(`${path} is not JSON: ${e.message}`);
-  process.exit(1);
+  refuse(`${path} is not JSON: ${e.message}`);
 }
 if (report === null || typeof report !== 'object' || Array.isArray(report)) {
-  console.error(`${path} is not a JSON object`);
-  process.exit(1);
+  refuse(`${path} is not a JSON object`);
 }
 
 const failures = [];
+// Rows for the summary page, beside the one-line failures. The log prints them
+// as indented lines, and the page as tables.
+let exceptionRows = [];
+let findingRows = [];
 
 // Absent is not the same as true, for either field below. The scanner emits
 // both today. A version that stops emitting one should turn this red and be
@@ -123,20 +193,22 @@ if (done === null || typeof done !== 'object' || Array.isArray(done)) {
     if (skipped > 0) failures.push(`the scan left ${skipped} file(s) entirely uninspected`);
     if (partial > 0) failures.push(`the scan read ${partial} file(s) only in part`);
     if (done.ledger_exceptions.length) {
-      // SAY WHICH ONES. The count alone is a red gate nobody can act on: the
-      // report is written outside the checkout and no step keeps it, so a
-      // contributor reading the run sees "1 exception" and has no way to learn
-      // which file or why. The entries are already in hand here. They are
-      // echoed rather than parsed, because the scanner owns their shape and a
-      // reader needs whatever it actually said — an entry that is neither a
-      // path nor a reason is still printed, as itself.
-      const said = e =>
-        e && typeof e === 'object' && !Array.isArray(e)
-          ? [e.path, e.reason].filter(Boolean).join(': ') || JSON.stringify(e)
-          : String(e);
+      // SAY WHICH ONES, AND WHY. The count alone is a red gate nobody can act
+      // on: the report is written outside the checkout and no step keeps it, so
+      // a contributor reading the run sees "1 exception" and has no way to learn
+      // which file or why. The entries are already in hand here.
+      //
+      // The scanner writes the why as `reason_code` and `message`. An earlier
+      // version of this gate read a `reason` field the scanner never writes, so
+      // three red runs on main printed bare paths and the cause looked
+      // unknowable; the code was `runtime_limit` every time. So the fields it
+      // documents are formatted, and every other field is appended as itself —
+      // the scanner owns this shape, and a field the gate has not heard of is
+      // exactly the one a reader needs to see.
+      exceptionRows = done.ledger_exceptions.map(describeException);
       failures.push(
         `the scanner recorded ${done.ledger_exceptions.length} exception(s) while reading the tree:\n` +
-          done.ledger_exceptions.map(e => `      ${said(e)}`).join('\n'),
+          exceptionRows.map(e => `      ${e.line}`).join('\n'),
       );
     }
   }
@@ -159,36 +231,82 @@ if (Array.isArray(issues) && issues.length) {
   // `i` is read defensively for the same reason the fields are. A finding the
   // gate cannot describe still has to be printed as a finding, because the
   // alternative is a stack trace where the reason for the red should be.
-  const describe = i =>
+  //
+  // The text is the first of three fields that holds one. SkillSpector 2.11.0
+  // writes `finding` as null on a rule that matched no line — LP3, which fires
+  // on what a manifest lacks — and says what it means in `explanation`.
+  findingRows = issues.map(i =>
     i === null || typeof i !== 'object'
-      ? `    a finding the gate cannot read: ${JSON.stringify(i)}`
-      : `    ${i.id ?? '?'} ${i.severity ?? '?'} ${where(i)}\n      ${i.message ?? i.finding ?? ''}`;
-  failures.push(`${issues.length} unsuppressed finding(s):\n${issues.map(describe).join('\n')}`);
+      ? { unreadable: JSON.stringify(i) }
+      : {
+          id: i.id ?? '?',
+          severity: i.severity ?? '?',
+          where: where(i),
+          message: i.message ?? i.finding ?? i.explanation ?? '',
+        },
+  );
+  const describe = r =>
+    r.unreadable !== undefined
+      ? `    a finding the gate cannot read: ${r.unreadable}`
+      : `    ${r.id} ${r.severity} ${r.where}\n      ${r.message}`;
+  failures.push(`${issues.length} unsuppressed finding(s):\n${findingRows.map(describe).join('\n')}`);
 }
 
 if (failures.length) {
-  console.error(`${path}: the SkillSpector gate is red.\n`);
+  console.error(`${name}: the SkillSpector gate is red.\n`);
   for (const f of failures) console.error(`  - ${f}`);
-  console.error(
-    '\nA finding here is either real or a false positive worth writing down. If it is\n' +
-      'a false positive, add a rule-keyed entry to .skillspector-baseline.yaml with a\n' +
-      'reason a stranger can read — and to skills/eagle-eye/.skillspector-baseline.yaml\n' +
-      'as well if the rule fires inside the skill. Do not reword the prose, the comment\n' +
-      'or the test the finding landed on to satisfy a pattern matcher.',
-  );
+  const advice =
+    'An exception or a short count is not a finding. It says the scanner did not read\n' +
+    'everything, and its reason code says why.\n\n' +
+    'A finding is either real or a false positive worth writing down. If it is a false\n' +
+    "positive, add a rule-keyed entry with a reason a stranger can read to the skill's\n" +
+    'own .skillspector-baseline.yaml — create it if the skill has none — and the same\n' +
+    'entry, in the same words, to .skillspector-baseline.yaml at the repository root.\n' +
+    'scripts/check.mjs holds the two together. Do not reword the prose, the comment or\n' +
+    'the test the finding landed on to satisfy a pattern matcher.';
+  console.error(`\n${advice}`);
+
+  summary.push(`### ${cell(name)}: red`, '');
+  for (const f of failures) summary.push(`- ${cell(f.split('\n')[0].replace(/:$/, ''))}`);
+  if (exceptionRows.length) {
+    summary.push('', '| Where | Reason | Message | Phase | Analyzers |', '| --- | --- | --- | --- | --- |');
+    for (const e of exceptionRows) {
+      summary.push(`| ${cell(e.where)} | ${cell(e.reason)} | ${cell(e.message)} | ${cell(e.phase)} | ${cell(e.analyzers)} |`);
+    }
+  }
+  if (findingRows.length) {
+    summary.push('', '| Rule | Severity | Where | Message |', '| --- | --- | --- | --- |');
+    for (const r of findingRows) {
+      summary.push(
+        r.unreadable !== undefined
+          ? `| — | — | — | a finding the gate cannot read: ${cell(r.unreadable)} |`
+          : `| ${cell(r.id)} | ${cell(r.severity)} | ${cell(r.where)} | ${cell(r.message)} |`,
+      );
+    }
+  }
+  // The log wraps at eighty columns and the page wraps itself, so each
+  // paragraph is joined back into one line there.
+  summary.push('', advice.split('\n\n').map(p => p.replace(/\n/g, ' ')).join('\n\n'));
+  writeSummary();
   process.exit(1);
 }
+
+summary.push(`### ${cell(name)}: pass`, '');
 
 // Passing quietly on a status the scanner itself calls partial would be the
 // silence this repository keeps writing commits about. Every count came back
 // clean, so the run is not failed — and it is not hidden either.
 if (done.is_complete !== true) {
   const why = Array.isArray(done.limitations) && done.limitations.length ? `: ${done.limitations.join('; ')}` : '';
-  console.log(`note: the scanner calls this run "${done.status ?? 'unknown'}", with every coverage count clean${why}`);
+  const note = `note: the scanner calls this run "${done.status ?? 'unknown'}", with every coverage count clean${why}`;
+  console.log(note);
+  summary.push(`- ${cell(note)}`);
 }
 
 const suppressed = typeof report.suppressed_count === 'number' ? report.suppressed_count : 0;
 console.log(`ok: no unsuppressed finding, ${suppressed} suppressed by the baseline`);
+summary.push(`- No unsuppressed finding, ${suppressed} suppressed by the baseline.`);
+summary.push(`- Read ${done.scanned_components} of ${done.total_components} components.`);
 
 // Which rules, and how many each. A count alone says a number was silenced; it
 // does not say whether the rules the baseline argues about are still the ones
@@ -204,4 +322,39 @@ if (Array.isArray(report.suppressed) && report.suppressed.length) {
   }
   const tally = [...perRule].sort(([a], [b]) => (a < b ? -1 : 1)).map(([id, n]) => `${id}×${n}`);
   console.log(`      by rule: ${tally.join(', ')}`);
+  summary.push(`- Suppressed by rule: ${cell(tally.join(', '))}.`);
+}
+writeSummary();
+
+// One ledger exception, as a line for the log and the parts of a table row.
+// Hoisted, so the check above can call it.
+function describeException(e) {
+  if (e === null || typeof e !== 'object' || Array.isArray(e)) {
+    const s = String(e);
+    return { line: s, where: s };
+  }
+  const known = new Set(['path', 'start_line', 'end_line', 'reason_code', 'message', 'phase', 'outcome', 'fatal', 'analyzers']);
+  const where = e.path ? (e.start_line ? `${e.path}:${e.start_line}` : String(e.path)) : '';
+  const why = [e.reason_code, e.message].filter(Boolean).join(' — ');
+  const context = [e.outcome, e.phase].filter(Boolean).join(', ');
+  const analyzers = Array.isArray(e.analyzers) ? e.analyzers.join(', ') : '';
+  const rest = Object.fromEntries(Object.entries(e).filter(([k]) => !known.has(k)));
+  const extra = Object.keys(rest).length ? JSON.stringify(rest) : '';
+  const line =
+    [
+      [where, why].filter(Boolean).join(': '),
+      context && `(${context})`,
+      analyzers && `[${analyzers}]`,
+      extra,
+    ]
+      .filter(Boolean)
+      .join(' ') || JSON.stringify(e);
+  return {
+    line,
+    where: where || line,
+    reason: e.reason_code,
+    message: [e.message, extra].filter(Boolean).join(' '),
+    phase: context,
+    analyzers,
+  };
 }
