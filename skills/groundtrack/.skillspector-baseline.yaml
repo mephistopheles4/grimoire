@@ -44,4 +44,4 @@ rules:
   - rule_id: "EA3"
     reason: "False positive. The phrase NOT LIMITED TO, in the warranty disclaimer of the SIL Open Font Licence that ships beside the vendored font faces. It is a legal text the licence requires us to carry verbatim, not an instruction an agent obeys, and its wording is not ours to change."
   - rule_id: "P2"
-    reason: "False positive. The rule reads get inside any HTML comment with no word boundary, so the word together in a page-template comment about two buttons wrapping as one group matches it (upstream NVIDIA/SkillSpector issue 297). The comments are notes on layout for a maintainer, and no agent reads the rendered page as instructions."
+    reason: "False positive. The rule reads get inside any HTML comment with no word boundary, so the word together in a page-template comment about two buttons wrapping as one group matches it. The comments are notes on layout for a maintainer, and no agent reads the rendered page as instructions."
