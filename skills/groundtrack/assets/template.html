@@ -583,6 +583,45 @@ input[type=checkbox] { accent-color: var(--av-ink); margin: 0 var(--av-s1) 0 0; 
 .tip::before { content: ''; position: absolute; left: var(--tip-lead, var(--av-s2)); top: -7px; width: 5px; height: 5px;
   border-radius: 50%; background: var(--av-ink); transform: translateX(-50%); }
 .tip--above::before { top: auto; bottom: -7px; }
+
+/* THE TOUR. The file's own walk through the page: a frame on one region and a
+   card that says what the region is and what the reader sees in it now.
+
+   The frame is the focus treatment — 2px caution, 2px off the box — because a
+   tour stop is an attention state and focus is the one place the system spends
+   the reserved colour on the interface. The rest of the page recedes under a
+   wash of its own paper, so the eye lands on the stop. That wash is the
+   system's rule 5 exception — a shadow for depth once a dense interface has
+   more layers than line weight can separate — built from the paper token, so
+   it lightens a light sheet and darkens a dark one, and never tints. It is a
+   spread shadow on the frame, not a sheet over the page: the region inside
+   the frame is untouched, and the card sits above it. The card is the help
+   note's vocabulary at the rule weight of an object outline, since it carries
+   controls and the note does not.
+
+   The control sits beside the scheme control in one group, .head-end, which
+   takes the row's slack. The two wrap as one, so a narrow window never parts
+   them. */
+.head-end { margin-left: auto; display: flex; align-items: center; gap: var(--av-s1); flex: none; }
+.head-end .btn-scheme { margin-left: 0; }
+.btn-tour[aria-disabled=true] { color: var(--av-ink-70); border-color: var(--av-ink-12); }
+.btn-tour[aria-pressed=true] { border-color: var(--av-ink); }
+.tour-frame { position: fixed; z-index: 19; pointer-events: none;
+  outline: 2px solid var(--av-caution); outline-offset: 2px;
+  box-shadow: 0 0 0 200vmax color-mix(in srgb, var(--av-paper) 72%, transparent); }
+/* Never taller than the window less a margin each side, and it scrolls inside
+   past that, so a long `now` on a short window keeps back, next and end in
+   reach. The module's tourCardAt counts on the card fitting. */
+.tour-card { position: fixed; z-index: 21; width: min(44ch, calc(100vw - 2 * var(--av-s2))); box-sizing: border-box;
+  max-height: calc(100vh - 2 * var(--av-s2)); overflow-y: auto;
+  padding: var(--av-s2); background: var(--av-paper); color: var(--av-ink);
+  border: var(--av-rule-bold) solid var(--av-ink); font-size: var(--av-t-annot); line-height: 1.5; }
+.tour-frame[hidden], .tour-card[hidden] { display: none; }
+.tour-head { display: flex; justify-content: space-between; gap: var(--av-s2); }
+.tour-what { margin: var(--av-s1) 0 0; color: var(--av-ink-80); }
+.tour-now { margin: var(--av-s1) 0 0; font-weight: 600; }
+.tour-nav { display: flex; gap: var(--av-s1); margin-top: var(--av-s2); }
+.tour-nav .tour-end { margin-left: auto; }
 /* A control that carries a help note keeps the cursor its job gives it. The
    two grips said col-resize and row-resize and were shown as an arrow, because
    `inherit` here took the parent's cursor and outranked the grip's own rule. */
@@ -649,12 +688,19 @@ button[data-help][aria-disabled=true] { cursor: help; }
         <span class="av-annot head-blurb" id="runBlurb"></span>
       </div>
     </div>
-    <!-- The scheme control, top right of the lockup row. Both drawings ship;
-         one carries [hidden]. See .btn-scheme. -->
+    <!-- The tour control and the scheme control, one group at the right of
+         the lockup row so a narrow window wraps them together rather than
+         between them. See .head-end. -->
+    <div class="head-end">
+    <!-- The tour control, rendered by the module so a test can find it. -->
+    <!--TOUR-->
+    <!-- The scheme control. Both drawings ship; one carries [hidden]. See
+         .btn-scheme. -->
     <button class="btn btn-scheme" id="schemeToggle" type="button">
       <svg class="scheme-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="miter" aria-hidden="true"><path d="M16.124 4 A 9 9 0 1 0 16.124 20 A 8 8 0 0 1 16.124 4 Z"></path></svg>
       <svg class="scheme-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="miter" aria-hidden="true" hidden><circle cx="12" cy="12" r="5"></circle><line x1="19.6" y1="12" x2="22.4" y2="12"></line><line x1="18.582" y1="8.2" x2="21.007" y2="6.8"></line><line x1="15.8" y1="5.418" x2="17.2" y2="2.993"></line><line x1="12" y1="4.4" x2="12" y2="1.6"></line><line x1="8.2" y1="5.418" x2="6.8" y2="2.993"></line><line x1="5.418" y1="8.2" x2="2.993" y2="6.8"></line><line x1="4.4" y1="12" x2="1.6" y2="12"></line><line x1="5.418" y1="15.8" x2="2.993" y2="17.2"></line><line x1="8.2" y1="18.582" x2="6.8" y2="21.007"></line><line x1="12" y1="19.6" x2="12" y2="22.4"></line><line x1="15.8" y1="18.582" x2="17.2" y2="21.007"></line><line x1="18.582" y1="15.8" x2="21.007" y2="17.2"></line></svg>
     </button>
+    </div>
    </div>
    <!-- Everything that drives the run, under the lockup and in the order a
         reader chooses it: the sheet, then the run on it, then the controls
@@ -1821,8 +1867,136 @@ function start() {
   window.addEventListener('scroll', hideTip, true);
   window.addEventListener('resize', hideTip);
 
+  /* THE TOUR. Each stop takes the page where the file says — sheet, run, move,
+     and any tab, view or layer — the way the page's own controls would, then
+     frames the region and hangs the card beside it. Where a stop resolves to is
+     the module's reading of the file; which element a region is, is the
+     page's. The card's text is set as text: `now` is the file's. */
+  const TOUR = G.tourStops(PROG);
+  const REGION_EL = {
+    sheet: () => sheetPicker,
+    run: () => $('run'),
+    controls: () => document.querySelector('.btn-group'),
+    plan: () => $('plan'),
+    tools: () => document.querySelector('.side-head'),
+    callStack: () => $('stack').parentNode,
+    arguments: () => $('inputs').parentNode,
+    errorPath: () => $('errpath').parentNode,
+    effectsLedger: () => $('ledger').parentNode,
+    cutaway: () => $('cut'),
+    titleBlock: () => $('titleblock'),
+    trace: () => document.querySelector('.trace'),
+  };
+  const tourBtn = $('tour');
+  const tourFrame = document.createElement('div');
+  tourFrame.className = 'tour-frame';
+  tourFrame.hidden = true;
+  const tourCard = document.createElement('div');
+  tourCard.className = 'tour-card';
+  tourCard.setAttribute('role', 'dialog');
+  tourCard.setAttribute('aria-label', 'Tour of this page');
+  tourCard.hidden = true;
+  tourCard.innerHTML =
+    '<div class="tour-head"><span class="av-label" id="tourRegion"></span><span class="av-annot" id="tourCount"></span></div>' +
+    '<p class="tour-what" id="tourWhat"></p><p class="tour-now" id="tourNow" aria-live="polite"></p>' +
+    '<div class="tour-nav"><button class="btn" id="tourPrev" type="button">back</button>' +
+    '<button class="btn" id="tourNext" type="button">next</button>' +
+    '<button class="btn tour-end" id="tourEnd" type="button">end</button></div>';
+  document.body.appendChild(tourFrame);
+  document.body.appendChild(tourCard);
+  let tourAt = -1;
+  let tourFrom = null;
+
+  function placeTour() {
+    if (tourAt < 0) return;
+    const el = REGION_EL[TOUR[tourAt].region.name]();
+    if (!el) return;
+    const box = el.getBoundingClientRect();
+    tourFrame.style.left = box.left + 'px';
+    tourFrame.style.top = box.top + 'px';
+    tourFrame.style.width = box.width + 'px';
+    tourFrame.style.height = box.height + 'px';
+    const at = G.tourCardAt(box, tourCard.getBoundingClientRect(), { width: window.innerWidth, height: window.innerHeight });
+    tourCard.style.left = at.left + 'px';
+    tourCard.style.top = at.top + 'px';
+  }
+  function showStop(i) {
+    tourAt = Math.max(0, Math.min(TOUR.length - 1, i));
+    const t = TOUR[tourAt];
+    hideTip();
+    stopPlaying();
+    let fresh = false;
+    if (t.graphIndex !== sheetAt) {
+      fresh = useSheet(t.graphIndex);
+      fillRunPicker();
+    }
+    if (S.run !== t.runIndex) {
+      S.run = t.runIndex;
+      S.states = G.fold(SHEET, SHEET.presets[S.run].trace);
+    }
+    jumpTo(t.move);
+    /* What no stop up to this one has named is what the page showed when the
+       tour began, so going back puts it back rather than keeping a later
+       stop's. */
+    S.tab = t.tab || tourFrom.tab;
+    S.tree = t.view ? t.view === 'tree' : tourFrom.tree;
+    S.layer = t.layer || tourFrom.layer;
+    syncControls();
+    render();
+    if (fresh) $('zoomFit').click();
+    $('tourRegion').textContent = t.region.label;
+    $('tourCount').textContent = (tourAt + 1) + ' / ' + TOUR.length;
+    $('tourWhat').textContent = t.region.what;
+    $('tourNow').textContent = t.now;
+    $('tourPrev').disabled = tourAt === 0;
+    $('tourNext').textContent = tourAt === TOUR.length - 1 ? 'done' : 'next';
+    tourFrame.hidden = false;
+    tourCard.hidden = false;
+    /* The rail and the cutaway scroll, so a region can be below their fold.
+       Brought into view first, or the frame is drawn off the window. */
+    REGION_EL[t.region.name]().scrollIntoView({ block: 'nearest', inline: 'nearest' });
+    placeTour();
+  }
+  function endTour() {
+    if (tourAt < 0) return;
+    tourAt = -1;
+    tourFrame.hidden = true;
+    tourCard.hidden = true;
+    tourBtn.setAttribute('aria-pressed', 'false');
+    tourBtn.focus();
+  }
+  function nextStop() {
+    if (tourAt === TOUR.length - 1) endTour();
+    else showStop(tourAt + 1);
+  }
+  if (TOUR.length) {
+    tourBtn.setAttribute('aria-pressed', 'false');
+    tourBtn.addEventListener('click', function () {
+      if (tourAt >= 0) return endTour();
+      tourFrom = { tab: S.tab, tree: S.tree, layer: S.layer };
+      tourBtn.setAttribute('aria-pressed', 'true');
+      showStop(0);
+      $('tourNext').focus();
+    });
+    $('tourPrev').addEventListener('click', function () { showStop(tourAt - 1); });
+    $('tourNext').addEventListener('click', nextStop);
+    $('tourEnd').addEventListener('click', endTour);
+    /* The page moves under a stop — a resize, a drag of either split, the
+       cutaway growing — so the frame and the card follow it. */
+    window.addEventListener('resize', placeTour);
+    window.addEventListener('scroll', placeTour, true);
+    new ResizeObserver(placeTour).observe($('root'));
+  }
+
   window.addEventListener('keydown', function (e) {
     if (e.key === 'Escape') hideTip();
+    /* While a tour runs, the arrows step the tour rather than the run: the
+       tour is moving the run itself. Escape ends it. */
+    if (tourAt >= 0) {
+      if (e.key === 'Escape') { e.preventDefault(); return endTour(); }
+      if (e.key === 'ArrowRight') { e.preventDefault(); return nextStop(); }
+      if (e.key === 'ArrowLeft') { e.preventDefault(); return showStop(tourAt - 1); }
+    }
     // A form control gets its own arrow keys. Without this, an arrow pressed
     // on the run picker steps the run and then the select's own change
     // handler reseeds it, so the step is spent and thrown away — and an arrow

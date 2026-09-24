@@ -1,14 +1,17 @@
 # SkillSpector baseline for this skill.
 #
 # You are reading this because you scanned this directory before installing
-# what is in it, which is the right thing to do with a skill. One of
-# SkillSpector's rules fires on the files here, and this file says why it is
+# what is in it, which is the right thing to do with a skill. Two of
+# SkillSpector's rules fire on the files here, and this file says why each is
 # wrong, so you can disagree with a reason rather than with silence.
 #
-# The finding is on `assets/OFL.txt`, which is the SIL Open Font Licence. That
+# The first finding is on `assets/OFL.txt`, which is the SIL Open Font Licence. That
 # file is here because the licence requires it: three weights of IBM Plex Mono
 # ship in `assets/` and are inlined into every page this skill renders, and the
 # licence asks that its text travel with them. See `assets/FONTS.md`.
+#
+# The second is on the HTML comments in `assets/template.html`. The rule looks
+# for "get" inside a comment and has no word boundary, so "together" matches.
 #
 # The scanner reports the score unchanged and applies none of this unless you
 # ask. Apply it with --use-shipped-baseline, and read what it covered with
@@ -40,3 +43,5 @@ fingerprints: []
 rules:
   - rule_id: "EA3"
     reason: "False positive. The phrase NOT LIMITED TO, in the warranty disclaimer of the SIL Open Font Licence that ships beside the vendored font faces. It is a legal text the licence requires us to carry verbatim, not an instruction an agent obeys, and its wording is not ours to change."
+  - rule_id: "P2"
+    reason: "False positive. The rule reads get inside any HTML comment with no word boundary, so the word together in a page-template comment about two buttons wrapping as one group matches it. The comments are notes on layout for a maintainer, and no agent reads the rendered page as instructions."

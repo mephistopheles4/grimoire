@@ -1849,3 +1849,50 @@ test('a note never runs off the window, and its leader never runs off the note',
 });
 
 
+
+/* -- the tour card -----------------------------------------------------------
+ *
+ * The tour frames a region and hangs its card beside it. A region can be most
+ * of the window — the drawing, the rail — so the card tries below, above,
+ * right and left of it, and only when none has room sits inside its corner. */
+
+const CARD = { width: 360, height: 150 };
+
+test('a tour card hangs below its region, from the region\'s left edge', () => {
+  const at = G.tourCardAt(boxAt(316, 76, 561, 30), CARD, WIN);
+  assert.deepEqual(at, { left: 316, top: 115, side: 'below' });
+});
+
+test('a region too tall for a card above or below gets it on its right', () => {
+  const at = G.tourCardAt(boxAt(8, 119, 656, 600), CARD, WIN);
+  assert.deepEqual(at, { left: 673, top: 119, side: 'right' });
+});
+
+test('a tall region at the window\'s right edge gets its card on its left', () => {
+  const at = G.tourCardAt(boxAt(1000, 119, 272, 600), CARD, WIN);
+  assert.deepEqual(at, { left: 631, top: 119, side: 'left' });
+});
+
+test('a region with no room on any side keeps the card inside its corner, and inside the window', () => {
+  const at = G.tourCardAt(boxAt(0, 0, 1280, 820), CARD, WIN);
+  assert.deepEqual(at, { left: 908, top: 658, side: 'inside' });
+});
+
+/* -- where a tour's stops take the page --------------------------------------
+ *
+ * A stop sets only what it names, and what it leaves out stays as the stops
+ * before it left it. So each stop resolves to the same page going back as it
+ * did going forward. Read off the shipped greet tour: a tab at stops 3, 8 and
+ * 10, a layer at stops 9 and 10. */
+
+test('each tour stop carries forward the tab and layer the stops before it set', () => {
+  const prog = JSON.parse(readFileSync(exampleFlightpath, 'utf8'));
+  const stops = G.tourStops(prog);
+  const at = i => ({ tab: stops[i].tab, layer: stops[i].layer, view: stops[i].view });
+  assert.deepEqual(at(0), { tab: undefined, layer: undefined, view: undefined }, 'before any stop names one, the page keeps its own');
+  assert.deepEqual(at(6), { tab: 'source', layer: undefined, view: undefined });
+  assert.deepEqual(at(8), { tab: 'files', layer: 'tests', view: undefined }, 'stop 9 names only the layer');
+  assert.deepEqual(at(9), { tab: 'source', layer: 'production', view: undefined });
+  assert.equal(stops[6].graphIndex, 0);
+  assert.equal(stops[6].runIndex, 2, '"the post fails" is the third run');
+});

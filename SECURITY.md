@@ -117,8 +117,10 @@ names, and a node's location. All of it is a stranger's text.
   interpolated attribute on the page holds a node id, an index, a fixed class
   name, or one of the page's own fixed help strings — the `data-help` text the
   page's tooltip reads off the channel keys, the holds and the stamps, which
-  is written in the template and never comes from the file. The tooltip sets
-  it as text content, never as markup.
+  is written in the template and never comes from the file. The tour control's
+  help string is the one built outside the template: the module writes it, and
+  the only thing it takes from the file is the count of stops, a number. The
+  tooltip sets every help string as text content, never as markup.
 - **Ids are validated rather than escaped.** A node id that does not match
   `^[A-Za-z0-9][A-Za-z0-9-]*$` is refused by the validator, so an id reaching
   an attribute is a known-safe string by the time the page sees it.
@@ -482,6 +484,12 @@ the string `.env` in the setup message that tells a user a project `.env` is
 by rule: AR2×7, AS3×7, E1×2, EA3×5, MP3×1, PE3×4, RA2×2, RP1×6
 ```
 
+**Then the tour brought `P2`, and it is a matcher bug.** `P2` reads an HTML
+comment for words such as *get*, *send* and *system*, and matches *get* with no
+word boundary, so it finds *get* inside other words.
+A comment in `groundtrack`'s page template says the tour and scheme controls
+wrap *together*, and that is the whole finding. The comment was not reworded.
+
 So: **the counts drift as prose is edited, and the rule identifiers do not.**
 That is the whole case for keying the baseline on the rule rather than on the
 text a fingerprint would bind to. A new rule cannot appear quietly — it fails
@@ -489,7 +497,7 @@ the build, and costs one more entry below with a written reason, never a
 rewording. The gate prints the tally on every run, so drift is visible in the
 log rather than discovered later.
 [`.skillspector-baseline.yaml`](.skillspector-baseline.yaml) suppresses the
-ten by rule identifier, with a reason per entry:
+eleven by rule identifier, with a reason per entry:
 
 | Rule | | Why it is suppressed |
 | --- | --- | --- |
@@ -502,6 +510,7 @@ ten by rule identifier, with a reason per entry:
 | `RP1` | Unpinned MCP server | The `README.md` install command and quotations of it. `skills` is the Vercel Labs installer run through `npx`, not an MCP server. |
 | `PE3` | Credential Access | The string `.env` in the edge audit's setup message and its test, which tell a user a project `.env` is **not** read. The script reads its key from the environment only. |
 | `E1` | External Transmission | **Not a false positive; accepted.** The edge audit posts a box's text to the model provider's endpoint, only when run with a key after a yes. See [What the edge audit sends](#what-the-edge-audit-sends). |
+| `P2` | Hidden Instructions | An HTML comment in `groundtrack`'s page template saying two buttons wrap *together*. The rule matches *get* inside any word. The comments are layout notes for a maintainer. |
 | `LP3` | MCP Least Privilege | **Accepted.** The skill declares no permission list, because that list is one host's format and the skill text runs in agents that read none. Fires only on a scan of the skill directory. |
 
 **Keyed by rule identifier and not by fingerprint**, which is a trade stated

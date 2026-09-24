@@ -18,7 +18,7 @@ The repository's test suite is what binds this document to the validator.
    you choose.
 3. **Nothing runs.** Every expression field is text the page prints. No program
    evaluates it, so it may say anything a reader understands.
-4. **Every part of the core is required.** Three fields sit outside the core,
+4. **Every part of the core is required.** Four fields sit outside the core,
    and each is optional on its own.
 
 **Leave an optional field out rather than write it empty.** `"files": []`
@@ -26,7 +26,7 @@ claims a change that touched nothing, which is a different statement from *this
 file says nothing about changed files*. The validator refuses the empty list
 for that reason.
 
-## The core and the three optional fields
+## The core and the four optional fields
 
 groundtrack draws two kinds of thing. A **change** is work already done: a
 written change, a branch, a set of edits. A **plan** is work not yet done: a
@@ -35,8 +35,8 @@ carry traces.
 
 **The core is every file's:** `id`, `title`, `blurb`, `env`, `nodes`, `graphs`.
 
-**Three fields are optional, and each stands alone:** `files`, `layers`,
-`sheet`.
+**Four fields are optional, and each stands alone:** `files`, `layers`,
+`sheet`, `tour`.
 
 They do not divide plans from changes. A plan can touch files. A change can
 need no test layer.
@@ -93,6 +93,7 @@ thing, so nothing accepts both.
 | `nodes` | object | The change's one node map, author-keyed by node id. See [a node](#a-node). |
 | `graphs` | array | The graphs. See [a graph](#a-graph). |
 | `sheet` | object | `scopeRule` (string) and `graphsNotDrawn` (array of strings). |
+| `tour` | array | The page's own walk, one stop at a time. See [tour](#tour). |
 
 ## A graph
 
@@ -115,6 +116,50 @@ Each entry: `path`, `change`, `why`, `adds`, `dels`.
 
 `change` is one of `new`, `edit`, `delete`, `forbidden`. `adds` and `dels` are
 numbers. `why` says in one sentence why the change touches this file.
+
+## tour
+
+A tour walks a first-time reader through the page. Each stop frames one region
+of the page at one move of one run. The page says what the region is. The stop
+says what the reader sees there now.
+
+```json
+"tour": [
+  { "region": "callStack", "run": "no such user", "move": 5,
+    "now": "lookupName is on top of greet, and it has just thrown NoSuchUser." },
+  { "region": "cutaway", "run": "a known user", "move": 0, "tab": "files",
+    "now": "The two files this change touches: one edited, one new." }
+]
+```
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `region` | string | The part of the page this stop frames. One of the names below. |
+| `run` | string | The name of a run of the stop's graph. |
+| `move` | number | The move the page shows as `n / last`. A run of n trace steps has moves 0 to n. |
+| `now` | string | One or two sentences: what the reader sees in the region at this move. |
+| `graph` | string | Optional. The id of the graph the stop is on. Required when the file states more than one graph. |
+| `tab` | string | Optional. The cutaway tab to open: `source`, `files` or `contract`. |
+| `view` | string | Optional. `plan` for the drawing, `tree` for the indented tree. |
+| `layer` | string | Optional. A layer the file declares in `layers`. |
+
+**The regions** are `sheet`, `run`, `controls`, `plan`, `tools`, `callStack`,
+`arguments`, `errorPath`, `effectsLedger`, `cutaway`, `titleBlock` and `trace`.
+`sheet` exists only on a file with more than one graph.
+
+- **Write what changed, not what the region is.** The page already says what a
+  call stack is. `now` says what this run put in it.
+- **A stop sets only what it names.** A tab, view or layer a stop leaves out
+  stays as the stops before it set it. Before any stop names one, the page
+  keeps its own. A stop shows the same page going back as going forward.
+- **The validator checks every stop.** It refuses a region the page does not
+  have and a run the graph does not have. It refuses a move past the end of
+  the run.
+- **The validator reads the moves last.** It counts a run's moves only when
+  every trace is a legal path. So a move past the end shows after the other
+  refusals are fixed.
+- **The tour is optional.** The validator refuses an empty tour. Leave the key
+  out instead.
 
 ## A node
 
