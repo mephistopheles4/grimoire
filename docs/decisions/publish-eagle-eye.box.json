@@ -706,5 +706,51 @@
         }
       ]
     }
+  ],
+  "tour": [
+    {
+      "region": "start",
+      "now": "This box decides how eagle-eye becomes a public repository. It sets the install route, the repo shape, the licence, and the security posture."
+    },
+    {
+      "region": "index",
+      "now": "Eight rows, one chosen option each. As chosen, none of the eight conflicts with another."
+    },
+    {
+      "region": "verdict",
+      "now": "As chosen, the set holds. One edge holds it together, and that edge is sourced, not measured."
+    },
+    {
+      "region": "cards",
+      "open": "security",
+      "now": "The row \"Security posture\" is open. The chosen option requires CI plus tags, and it rules out an archived repo."
+    },
+    {
+      "region": "verdict",
+      "set": { "scope": "scope-guest" },
+      "now": "One option changed: the skill joins somebody else's repo. The verdict is now \"does not hold\"."
+    },
+    {
+      "region": "findings",
+      "set": { "scope": "scope-guest" },
+      "now": "One conflict: this option publishes no repository, so there is no repository to serve the live page from."
+    },
+    {
+      "region": "sheet",
+      "view": "sheet",
+      "now": "The same box as one grid, back at the chosen set. Each chosen option is marked in its row."
+    },
+    {
+      "region": "presets",
+      "now": "Five walks through this box, from the stacks posture to a licence-free strawman."
+    },
+    {
+      "region": "coach",
+      "now": "Turn Coach on, then change an option. Predict which rows change before the page shows you."
+    },
+    {
+      "region": "export",
+      "now": "Export gives one line to paste back to the agent. It reads the options you chose."
+    }
   ]
 }
