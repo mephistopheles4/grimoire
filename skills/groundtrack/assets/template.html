@@ -1890,6 +1890,7 @@ function start() {
   document.body.appendChild(tourFrame);
   document.body.appendChild(tourCard);
   let tourAt = -1;
+  let tourFrom = null;
 
   function placeTour() {
     if (tourAt < 0) return;
@@ -1910,18 +1911,21 @@ function start() {
     hideTip();
     stopPlaying();
     let fresh = false;
-    if (t.graph !== sheetAt) {
-      fresh = useSheet(t.graph);
+    if (t.graphIndex !== sheetAt) {
+      fresh = useSheet(t.graphIndex);
       fillRunPicker();
     }
-    if (S.run !== t.run) {
-      S.run = t.run;
+    if (S.run !== t.runIndex) {
+      S.run = t.runIndex;
       S.states = G.fold(SHEET, SHEET.presets[S.run].trace);
     }
     jumpTo(t.move);
-    if (t.tab) S.tab = t.tab;
-    if (t.view) S.tree = t.view === 'tree';
-    if (t.layer) S.layer = t.layer;
+    /* What no stop up to this one has named is what the page showed when the
+       tour began, so going back puts it back rather than keeping a later
+       stop's. */
+    S.tab = t.tab || tourFrom.tab;
+    S.tree = t.view ? t.view === 'tree' : tourFrom.tree;
+    S.layer = t.layer || tourFrom.layer;
     syncControls();
     render();
     if (fresh) $('zoomFit').click();
@@ -1954,6 +1958,7 @@ function start() {
     tourBtn.setAttribute('aria-pressed', 'false');
     tourBtn.addEventListener('click', function () {
       if (tourAt >= 0) return endTour();
+      tourFrom = { tab: S.tab, tree: S.tree, layer: S.layer };
       tourBtn.setAttribute('aria-pressed', 'true');
       showStop(0);
       $('tourNext').focus();

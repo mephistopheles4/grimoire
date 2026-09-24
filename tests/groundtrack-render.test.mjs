@@ -1637,9 +1637,11 @@ test('the text prints the tour, one line per stop, and a file with no tour print
   const lines = r.stdout.split('\n');
   const at = lines.indexOf('tour of this file, 2 stops:');
   assert.ok(at > 0, r.stdout);
-  assert.deepEqual(lines.slice(at + 1, at + 3), [
+  assert.deepEqual(lines.slice(at + 1, at + 5), [
     '  1. call stack · run "no such user" · move 5 — lookupName has just thrown.',
+    '     what it is: Who called whom, right now. The running node sits on top.',
     '  2. cutaway · run "a known user" · move 0 · tab files — The files this change touches.',
+    '     what it is: One node opened up: its source, the files it changes, or its contract.',
   ]);
   const bare = run(groundtrack, [derive(p => { delete p.tour; }), '--text']);
   assert.equal(bare.code, 0, bare.stderr);

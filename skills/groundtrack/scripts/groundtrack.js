@@ -244,21 +244,26 @@ const Groundtrack = (() => {
     return TOUR_REGIONS.find(r => r.name === name);
   }
 
-  /** Where each stop takes the page, by index: the sheet, the run on it, and
-   *  the move. Graph and run are named in the file and indexed on the page. A
-   *  stop the validator would refuse resolves to null rather than a guess. */
+  /** Where each stop takes the page: the sheet and the run on it by index, the
+   *  move, and the tab, view and layer. Graph and run are named in the file
+   *  and indexed on the page. A stop sets only what it names, so a tab, view
+   *  or layer it leaves out is the one the stops before it set — which makes a
+   *  stop the same page going back as going forward. Undefined means no stop
+   *  has named one yet, and the page keeps its own. A stop the validator
+   *  would refuse resolves to null rather than a guess. */
   function tourStops(prog) {
     const graphs = (prog && prog.graphs) || [];
+    let tab, view, layer;
     return ((prog && prog.tour) || []).map(stop => {
-      const gi = stop.graph === undefined ? 0 : graphs.findIndex(g => g.id === stop.graph);
-      const graph = graphs[gi];
-      const ri = graph ? graph.presets.findIndex(p => p.name === stop.run) : -1;
+      if (stop.tab !== undefined) tab = stop.tab;
+      if (stop.view !== undefined) view = stop.view;
+      if (stop.layer !== undefined) layer = stop.layer;
+      const graphIndex = stop.graph === undefined ? 0 : graphs.findIndex(g => g.id === stop.graph);
+      const graph = graphs[graphIndex];
+      const runIndex = graph ? graph.presets.findIndex(p => p.name === stop.run) : -1;
       const region = tourRegion(stop.region);
-      if (ri < 0 || !region) return null;
-      return {
-        graph: gi, run: ri, move: stop.move, region, now: stop.now,
-        tab: stop.tab, view: stop.view, layer: stop.layer,
-      };
+      if (runIndex < 0 || !region) return null;
+      return { graphIndex, runIndex, move: stop.move, region, now: stop.now, tab, view, layer };
     });
   }
 

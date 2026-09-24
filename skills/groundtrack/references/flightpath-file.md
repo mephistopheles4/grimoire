@@ -150,11 +150,16 @@ says what the reader sees there now.
 - **Write what changed, not what the region is.** The page already says what a
   call stack is. `now` says what this run put in it.
 - **A stop sets only what it names.** A tab, view or layer a stop leaves out
-  stays as the last stop left it. Name it again to put it back.
-- **The validator checks every stop.** A region the page does not have, a run
-  the graph does not have, and a move past the end of the run are refused.
-- **The tour is optional, and an empty tour is refused.** Leave the key out
-  instead.
+  stays as the stops before it set it. Before any stop names one, the page
+  keeps its own. A stop shows the same page going back as going forward.
+- **The validator checks every stop.** It refuses a region the page does not
+  have and a run the graph does not have. It refuses a move past the end of
+  the run.
+- **The validator reads the moves last.** It counts a run's moves only when
+  every trace is a legal path. So a move past the end shows after the other
+  refusals are fixed.
+- **The tour is optional.** The validator refuses an empty tour. Leave the key
+  out instead.
 
 ## A node
 

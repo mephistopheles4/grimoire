@@ -330,7 +330,7 @@ function tourShape(prog, r) {
  * to n. Read only once every walk is a legal path. */
 function tourMoves(prog, r) {
   Groundtrack.tourStops(prog).forEach((t, i) => {
-    const last = Groundtrack.fold(Groundtrack.graphView(prog, t.graph), prog.graphs[t.graph].presets[t.run].trace).length - 1;
+    const last = Groundtrack.fold(Groundtrack.graphView(prog, t.graphIndex), prog.graphs[t.graphIndex].presets[t.runIndex].trace).length - 1;
     if (t.move > last) r.shape(`tour[${i}].move`, `move ${t.move} is past the end of run "${prog.tour[i].run}", whose last move is ${last}`);
   });
 }
@@ -727,23 +727,27 @@ export function text(prog, graphIndex, runIndex) {
   }
 
   /* The tour is the file's, not the run's, so it prints whichever run was
-   * asked for. One line a stop: where it takes the page, then what the reader
-   * sees there. The graph is named only when there is more than one. */
+   * asked for. Two lines a stop: where it takes the page and what the reader
+   * sees there, then what the region is, in the page's words. A tab, view or
+   * layer prints once a stop has set it, because the page keeps it from then
+   * on. The graph is named only when there is more than one. */
   if (prog.tour) {
     const stops = Groundtrack.tourStops(prog);
     L.push('');
     L.push(`tour of this file, ${stops.length} stop${stops.length === 1 ? '' : 's'}:`);
     stops.forEach((t, n) => {
+      const graph = prog.graphs[t.graphIndex];
       const where = [
         t.region.label,
-        ...(prog.graphs.length > 1 ? [`graph "${prog.graphs[t.graph].id}"`] : []),
-        `run "${prog.graphs[t.graph].presets[t.run].name}"`,
+        ...(prog.graphs.length > 1 ? [`graph "${graph.id}"`] : []),
+        `run "${graph.presets[t.runIndex].name}"`,
         `move ${t.move}`,
         ...(t.tab ? [`tab ${t.tab}`] : []),
         ...(t.view ? [`view ${t.view}`] : []),
         ...(t.layer ? [`layer ${t.layer}`] : []),
       ];
       L.push(`  ${n + 1}. ${where.join(' · ')} — ${t.now}`);
+      L.push(`     what it is: ${t.region.what}`);
     });
   }
 

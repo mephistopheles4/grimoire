@@ -117,8 +117,10 @@ names, and a node's location. All of it is a stranger's text.
   interpolated attribute on the page holds a node id, an index, a fixed class
   name, or one of the page's own fixed help strings — the `data-help` text the
   page's tooltip reads off the channel keys, the holds and the stamps, which
-  is written in the template and never comes from the file. The tooltip sets
-  it as text content, never as markup.
+  is written in the template and never comes from the file. The tour control's
+  help string is the one built outside the template: the module writes it, and
+  the only thing it takes from the file is the count of stops, a number. The
+  tooltip sets every help string as text content, never as markup.
 - **Ids are validated rather than escaped.** A node id that does not match
   `^[A-Za-z0-9][A-Za-z0-9-]*$` is refused by the validator, so an id reaching
   an attribute is a known-safe string by the time the page sees it.
