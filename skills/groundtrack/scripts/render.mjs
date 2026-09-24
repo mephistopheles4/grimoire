@@ -316,7 +316,10 @@ function tourShape(prog, r) {
       graph = prog.graphs.find(g => isObj(g) && g.id === s.graph);
       if (!graph) r.shape(`${w}.graph`, `"${s.graph}" is not a graph of this file`);
     }
-    if (graph && !graph.presets.some(p => isObj(p) && p.name === s.run)) r.shape(`${w}.run`, `"${s.run}" is not a run of graph "${graph.id}"`);
+    /* A graph whose runs are not a list is already refused above, and the
+     * graphs pass goes on past it, so this reads the list only when it is one. */
+    if (graph && Array.isArray(graph.presets) && !graph.presets.some(p => isObj(p) && p.name === s.run))
+      r.shape(`${w}.run`, `"${s.run}" is not a run of graph "${graph.id}"`);
     if (s.tab !== undefined && !Groundtrack.TOUR_TABS.includes(s.tab)) r.shape(`${w}.tab`, `"${s.tab}" is not one of ${Groundtrack.TOUR_TABS.join(', ')}`);
     if (s.view !== undefined && !Groundtrack.TOUR_VIEWS.includes(s.view)) r.shape(`${w}.view`, `"${s.view}" is not one of ${Groundtrack.TOUR_VIEWS.join(', ')}`);
     if (s.layer !== undefined && !(isObj(prog.layers) && Object.hasOwn(prog.layers, s.layer)))

@@ -1675,3 +1675,9 @@ test('a tour stop framing the sheet picker needs a file that has one', () => {
   const two = check(derive(p => { addSecondGraph(p); p.tour = [stop({ region: 'sheet', graph: 'greet' })]; }));
   assert.equal(two.code, 0, two.stderr);
 });
+test('a tour on a graph whose runs are malformed is refused, never a stack trace', () => {
+  const r = check(derive(p => { delete only(p).presets; p.tour = [stop()]; }));
+  assert.equal(r.code, 1);
+  assert.match(r.stderr, /graphs\[0\]\.presets: expected an array/);
+  assert.doesNotMatch(r.stderr, /TypeError|at shape|at tourShape/);
+});

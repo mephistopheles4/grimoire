@@ -602,7 +602,11 @@ input[type=checkbox] { accent-color: var(--av-ink); margin: 0 var(--av-s1) 0 0; 
 .btn-tour[aria-pressed=true] { border-color: var(--av-ink); }
 .tour-frame { position: fixed; z-index: 19; pointer-events: none;
   outline: 2px solid var(--av-caution); outline-offset: 2px; }
+/* Never taller than the window less a margin each side, and it scrolls inside
+   past that, so a long `now` on a short window keeps back, next and end in
+   reach. The module's tourCardAt counts on the card fitting. */
 .tour-card { position: fixed; z-index: 21; width: min(44ch, calc(100vw - 2 * var(--av-s2))); box-sizing: border-box;
+  max-height: calc(100vh - 2 * var(--av-s2)); overflow-y: auto;
   padding: var(--av-s2); background: var(--av-paper); color: var(--av-ink);
   border: var(--av-rule-bold) solid var(--av-ink); font-size: var(--av-t-annot); line-height: 1.5; }
 .tour-frame[hidden], .tour-card[hidden] { display: none; }
