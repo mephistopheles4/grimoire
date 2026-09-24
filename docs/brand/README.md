@@ -82,6 +82,18 @@ renderer or the example:
 node scripts/groundtrack-sheets.mjs skills/groundtrack/examples/greet.flightpath.json docs/brand
 ```
 
+## The eagle-eye sheets
+
+`eagle-eye-skill-sheet-1.svg` and `eagle-eye-skill-sheet-2.svg` are the two drawings
+the eagle-eye README shows. `scripts/eagle-eye-sheets.mjs` draws them from the
+skill's own design box and its tour, so they say what its page says. Nothing
+checks that they are current. Redraw them after a change to the page, the
+script or the box:
+
+```bash
+node scripts/eagle-eye-sheets.mjs skills/eagle-eye/examples/eagle-eye-skill.box.json docs/brand
+```
+
 ## Tokens
 
 | Token | Value | Rule |

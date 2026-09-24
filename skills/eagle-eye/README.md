@@ -24,6 +24,19 @@ itself.
 press `Tour` at the top right. It walks the page one region at a time, changes
 one option, and shows the verdict move.
 
+The two sheets below are drawn from that box and its tour, so they say what
+the page says. The first is the page after one option changes, with every
+region numbered and every pane it hides until you click. The second is the
+tour's walk.
+
+<p align="center">
+  <img src="../../docs/brand/eagle-eye-skill-sheet-1.svg" width="100%" alt="The eagle-eye page on the skill's own design box after one option changes to Prompt-only, with each region numbered and named in a parts list, and the option cards, the sheet, the export box and the coach prediction drawn as separate views">
+</p>
+
+<p align="center">
+  <img src="../../docs/brand/eagle-eye-skill-sheet-2.svg" width="100%" alt="The eagle-eye tour, stop by stop: the page at each stop that changes it, with the region the stop explains framed and what the reader sees there written under it">
+</p>
+
 [demo]: https://mephistopheles4.github.io/grimoire/
 [tour]: https://mephistopheles4.github.io/grimoire/skills-eagle-eye-examples-eagle-eye-skill.html
 
