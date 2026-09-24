@@ -727,7 +727,9 @@ $('reset').addEventListener('click', () => {
   if (hadOverrides || hadPreset) { undoSnap = before; paintReset(); }
 });
 const setCoach = on => { coach = on; pending = null; $('coachToggle').textContent = `Coach: ${on ? 'on' : 'off'}`; $('coachToggle').classList.toggle('on', on); $('coachToggle').classList.toggle('ghost', !on); };
-$('coachToggle').addEventListener('click', () => { setCoach(!coach); update(); });
+// Coach stays off while a tour runs: a prediction would veil the stop the tour is showing. The tour
+// saved the reader's setting and puts it back when it ends.
+$('coachToggle').addEventListener('click', () => { if (tourAt >= 0) return; setCoach(!coach); update(); });
 $('exportBtn').addEventListener('click', () => { const b = $('exportBox'); b.hidden = !b.hidden; $('exportStatus').textContent = ''; paintExport(); });
 
 /* THE SCHEME CONTROL. The attribute on <html> is the whole of the mechanism —
@@ -842,6 +844,9 @@ function placeTour(){
 function showStop(i){
   tourAt = Math.max(0, Math.min(TOUR.length - 1, i));
   const s = TOUR[tourAt], region = EagleEye.tourRegion(s.region);
+  // A preset's reframe describes the preset's grid, not a stop's. Ending the tour restores the
+  // reader's preset along with everything else.
+  clearPreset();
   Object.assign(sel, chosenOf); touched.clear(); pending = null; openRow = null;
   Object.entries(s.set || {}).forEach(([d, o]) => { if (Object.hasOwn(optById, o) && optById[o].dim.id === d) { sel[d] = o; touched.add(d); } });
   if (s.open) openDim(s.open);
@@ -863,6 +868,7 @@ function showStop(i){
 function endTour(){
   if (tourAt < 0) return;
   tourAt = -1; tourFrame.hidden = true; tourCard.hidden = true;
+  $('coachToggle').removeAttribute('aria-disabled');
   restoreState(tourFrom.state); setCoach(tourFrom.coach); update();
   $('tour').setAttribute('aria-pressed', 'false'); $('tour').focus();
 }
@@ -873,6 +879,7 @@ if (TOUR.length) {
     if (tourAt >= 0) return endTour();
     tourFrom = { state: snapshotState(), coach };
     setCoach(false);
+    $('coachToggle').setAttribute('aria-disabled', 'true');
     $('tour').setAttribute('aria-pressed', 'true');
     showStop(0); $('tourNext').focus();
   });
