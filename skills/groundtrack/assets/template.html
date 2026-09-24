@@ -1688,12 +1688,14 @@ function start() {
   $('zoomFit').addEventListener('click', function () {
     /* Fit scales the drawing to the tighter side of the pane, then centres it,
        so the slack on the looser side splits evenly instead of piling up on
-       the right. 72 is the canvas padding, twice. */
+       the right. 72 is the canvas padding, twice. A drawing too big to fit
+       even at the smallest zoom keeps its top-left in view on the side it
+       overflows, because that is where the entry node is. */
     const box = $('plan').getBoundingClientRect();
     const w = LAYOUT.canvasW + 72, h = LAYOUT.canvasH + 72;
     const z = Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, Math.min(box.width / w, box.height / h)));
-    S.panX = (box.width - w * z) / 2;
-    S.panY = (box.height - h * z) / 2;
+    S.panX = Math.max(0, (box.width - w * z) / 2);
+    S.panY = Math.max(0, (box.height - h * z) / 2);
     setZoom(z);
   });
 
