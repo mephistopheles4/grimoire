@@ -3501,5 +3501,82 @@
         }
       ]
     }
+  ],
+  "tour": [
+    {
+      "region": "sheet",
+      "graph": "first-paint",
+      "run": "the sheet 404s",
+      "move": 0,
+      "now": "This file draws two sheets: first paint and panel apply. The tour opens on first paint, which resolves the species."
+    },
+    {
+      "region": "plan",
+      "graph": "first-paint",
+      "run": "the sheet 404s",
+      "move": 0,
+      "now": "This tour follows the run where the sheet 404s. buildShelf resolves rosewood, then bindSheet's fetch fails to load it."
+    },
+    {
+      "region": "run",
+      "graph": "first-paint",
+      "run": "the sheet 404s",
+      "move": 0,
+      "now": "First paint offers six runs. This one, the sheet 404s, makes the fetch fail so the catch shows."
+    },
+    {
+      "region": "cutaway",
+      "graph": "first-paint",
+      "run": "the sheet 404s",
+      "move": 12,
+      "tab": "files",
+      "now": "bindSheet's own files: the woodwork module, and the new sapele sheet, though this run fetches rosewood."
+    },
+    {
+      "region": "cutaway",
+      "graph": "first-paint",
+      "run": "the sheet 404s",
+      "move": 12,
+      "tab": "source",
+      "now": "The cursor sits on bindSheet's fetch, about to request rosewood's now-missing sheet."
+    },
+    {
+      "region": "callStack",
+      "graph": "first-paint",
+      "run": "the sheet 404s",
+      "move": 13,
+      "now": "bindSheet sits on top of buildShelf, and its fetch has just thrown SheetMissing."
+    },
+    {
+      "region": "errorPath",
+      "graph": "first-paint",
+      "run": "the sheet 404s",
+      "move": 14,
+      "now": "SheetMissing is caught inside bindSheet itself. The cursor jumps to its own warn step, not to buildShelf."
+    },
+    {
+      "region": "effectsLedger",
+      "graph": "first-paint",
+      "run": "the sheet 404s",
+      "move": 17,
+      "now": "Two effects have run: the failed fetch, then the warning that the sheet did not load."
+    },
+    {
+      "region": "tools",
+      "graph": "first-paint",
+      "run": "the sheet 404s",
+      "move": 0,
+      "layer": "tests",
+      "now": "Under Tests, bindSheet takes a fake loader and applyWoodFibre takes a fixed canvas, in place of the real ones."
+    },
+    {
+      "region": "controls",
+      "graph": "panel-apply",
+      "run": "pick sapele in the panel",
+      "move": 0,
+      "layer": "production",
+      "tab": "source",
+      "now": "Panel apply is next: picking sapele here asks for a rebuild, not a live swap. Step it yourself."
+    }
   ]
 }

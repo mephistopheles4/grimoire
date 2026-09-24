@@ -666,6 +666,8 @@ test('two graphs of one change may each have a run of that name', () => {
   // Uniqueness is per graph, and the two sheets of the shipped example are
   // where that stops being a rule on paper.
   const prog = JSON.parse(readFileSync(layeredFlightpath, 'utf8'));
+  // The tour names runs, and this renames one. It is not what the test is about.
+  delete prog.tour;
   const name = prog.graphs[0].presets[0].name;
   prog.graphs[1].presets[0].name = name;
   const p = join(work, `shared-run-${n++}.flightpath.json`);

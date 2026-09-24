@@ -2263,5 +2263,71 @@
         }
       ]
     }
+  ],
+  "tour": [
+    {
+      "region": "plan",
+      "run": "the texture ships first",
+      "move": 0,
+      "now": "The drawing shows the map calling six tickets in a chain, ending at #299."
+    },
+    {
+      "region": "run",
+      "run": "the texture ships first",
+      "move": 0,
+      "now": "Five runs are recorded here. This one ships the texture before ticket 1 lands."
+    },
+    {
+      "region": "cutaway",
+      "run": "the texture ships first",
+      "move": 0,
+      "tab": "files",
+      "now": "The files tab lists all thirteen files this map's tickets touch, including one forbidden file."
+    },
+    {
+      "region": "callStack",
+      "run": "the texture ships first",
+      "move": 7,
+      "now": "t302 sits on top of the map, just entered to build the rosewood sheet."
+    },
+    {
+      "region": "errorPath",
+      "run": "the texture ships first",
+      "move": 9,
+      "now": "t302 throws ShimmerOnMain: without ticket 1, all 46 coplanar pairs would become visible at once."
+    },
+    {
+      "region": "errorPath",
+      "run": "the texture ships first",
+      "move": 11,
+      "now": "The map catches ShimmerOnMain and jumps to the shimmer label, to land ticket 1 late."
+    },
+    {
+      "region": "effectsLedger",
+      "run": "the texture ships first",
+      "move": 16,
+      "now": "Ticket 1's two effects land here: the coplanar PR, then G51 at 46 pairs before, 0 after."
+    },
+    {
+      "region": "errorPath",
+      "run": "the texture ships first",
+      "move": 20,
+      "now": "ShippedAShimmer reaches the top uncaught. It is a die: every visitor before the fix saw the flicker."
+    },
+    {
+      "region": "plan",
+      "run": "the texture ships first",
+      "move": 20,
+      "view": "tree",
+      "now": "The tree lists t301 twice, once for each call site that reaches it in this run."
+    },
+    {
+      "region": "controls",
+      "run": "the texture ships first",
+      "move": 0,
+      "tab": "source",
+      "view": "plan",
+      "now": "Controls are back at source view, ready to step through this run yourself."
+    }
   ]
 }
