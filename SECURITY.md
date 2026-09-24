@@ -544,7 +544,7 @@ eleven by rule identifier, with a reason per entry:
 | `PE3` | Credential Access | The string `.env` in the edge audit's setup message and its test, which tell a user a project `.env` is **not** read. The script reads its key from the environment only. |
 | `E1` | External Transmission | **Not a false positive; accepted.** The edge audit posts a box's text to the model provider's endpoint, only when run with a key after a yes. See [What the edge audit sends](#what-the-edge-audit-sends). |
 | `P2` | Hidden Instructions | An HTML comment in `groundtrack`'s page template saying two buttons wrap *together*. The rule matches *get* inside any word. The comments are layout notes for a maintainer. |
-| `LP3` | MCP Least Privilege | **Accepted.** Neither skill declares a permission list, because that list is one host's format and the skill text runs in agents that read none. Fires only on a scan of a skill directory, which is what CI runs now, so both skills' baselines carry it. |
+| `LP3` | MCP Least Privilege | **Accepted.** Neither skill declares a permission list, because that list is one host's format and the skill text runs in agents that read none. Fires only on a scan of a skill directory. On `eagle-eye` it fires in CI. On `groundtrack` it fires only when the filesystem marks every file executable, as a Windows drive seen through WSL or a container mount does; measured on one tree at mode 644 and 755. Its baseline carries the entry for a reader scanning from there. |
 
 **Keyed by rule identifier and not by fingerprint**, which is a trade stated
 rather than hidden. A fingerprint is bound to the text it was taken from and

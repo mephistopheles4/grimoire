@@ -1,12 +1,16 @@
 # SkillSpector baseline for this skill.
 #
 # You are reading this because you scanned this directory before installing
-# what is in it, which is the right thing to do with a skill. Three of
-# SkillSpector's rules fire on the files here. Two are wrong, one is right and
-# accepted, and this file says which and why, so you can disagree with a reason
-# rather than with silence.
+# what is in it, which is the right thing to do with a skill. Two of
+# SkillSpector's rules fire on the files here, and a third fires depending on
+# where the files sit. The two are wrong, the third is right and accepted, and
+# this file says which and why, so you can disagree with a reason rather than
+# with silence.
 #
-# The accepted one is on `SKILL.md`: the skill declares no permission list. A
+# The accepted one is on `SKILL.md`: the skill declares no permission list. It
+# fires only when the filesystem marks every file executable — a Windows drive
+# seen through WSL or a container mount does — because the scanner decides
+# what is code partly from that mark. On an ordinary checkout it stays quiet. A
 # permission list is one host's format, and this skill's text runs in agents
 # that read none. Its renderer reads the file you give it and writes one page
 # where you tell it to; it reaches no network.
