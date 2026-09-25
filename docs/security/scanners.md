@@ -176,9 +176,9 @@ its category, and any alert still open there has to be closed by hand.
 
 ### CodeRabbit
 
-CodeRabbit also runs SkillSpector and zizmor on pull requests. It reports inside
-a review, cannot be configured or baselined, and cannot fail anything. Nothing
-here relies on it.
+CodeRabbit has run SkillSpector and zizmor on pull requests here, reporting
+inside a review while its own check said `pass`. That run cannot be configured
+or baselined and cannot fail anything, so nothing here relies on it.
 
 ## zizmor: the workflows
 
