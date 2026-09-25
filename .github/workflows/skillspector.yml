@@ -89,7 +89,7 @@ jobs:
   # partially read, the gate is right to fail on that, and which run it happened
   # on was luck. Measured in a four-CPU container that ran the root scan in 33
   # seconds against this runner's 60, one skill scans in five to eight seconds,
-  # with the walk done in under two. SECURITY.md has the rest of the measurement.
+  # with the walk done in under two. docs/security/scanners.md has the rest.
   #
   # It also reads a skill the way an installed copy reads it. A link in
   # skills/groundtrack/SKILL.md named a path that resolved from the repository
