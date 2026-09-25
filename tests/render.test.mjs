@@ -794,6 +794,9 @@ test('the page offers the tour beside the scheme control, and says why not when 
   assert.match(on[0], /2 stops/);
   const group = html.slice(html.lastIndexOf('<div class="group">', html.indexOf('id="schemeToggle"')), html.indexOf('id="schemeToggle"'));
   assert.match(group, /id="tour"/, 'the tour control shares the scheme control\'s group');
+  const end = html.slice(html.indexOf('<div class="head-end">'), html.indexOf('<div class="preset-note"'));
+  assert.ok(end.indexOf('id="tour"') >= 0 && end.indexOf('id="tour"') < end.indexOf('id="coachToggle"'), 'the page tools sit at the right, above the session actions');
+  for (const id of ['coachToggle', 'exportBtn', 'reset']) assert.match(end, new RegExp(`id="${id}"`), `${id} sits under the page tools`);
   const off = buttons(page(withBoxTour(undefined)));
   assert.equal(off.length, 1);
   assert.match(off[0], /aria-disabled="true"/);
