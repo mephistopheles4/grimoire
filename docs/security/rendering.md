@@ -20,7 +20,7 @@ Both skills pair two guards.
 
 The escape is enough only because **author text never reaches an HTML
 attribute.** Every interpolated attribute holds an id, an index, a number, a
-fixed class name, or a help string written in the template itself. Ids are
+fixed class name, or a help string that carries no author text. Ids are
 validated rather than escaped: eagle-eye accepts `^[a-z0-9][a-z0-9-]*$`,
 groundtrack `^[A-Za-z0-9][A-Za-z0-9-]*$`.
 
