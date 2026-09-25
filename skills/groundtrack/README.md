@@ -35,7 +35,7 @@ pane it hides until you click. The second is the tour's walk through one run.
 </p>
 
 [demo]: https://mephistopheles4.github.io/grimoire/skills-groundtrack-examples-pr-313.html
-[complex]: https://mephistopheles4.github.io/grimoire/skills-groundtrack-examples-pr-382.html
+[complex]: https://mephistopheles4.github.io/grimoire/docs-examples-pr-382.html
 [tour]: https://mephistopheles4.github.io/grimoire/skills-groundtrack-examples-greet.html
 
 ## Use it
@@ -128,7 +128,7 @@ second artifact that can silently disagree with the first is not worth having.
 | [`scripts/groundtrack.js`](scripts/groundtrack.js) | The one module the page and the tests both run. |
 | [`references/flightpath-file.md`](references/flightpath-file.md) | The shape of a flightpath file. |
 | [`references/writing-traces.md`](references/writing-traces.md) | How to write a trace, and the two mistakes measurement says you will make. |
-| [`examples/`](examples) | Four complete files: a small one that uses every move kind, a real pull request with a test layer, a larger pull request drawn as seven sheets, and a plan of sixteen tickets. |
+| [`examples/`](examples) | Three complete files: a small one that uses every move kind, a real pull request with a test layer, and a plan of sixteen tickets. |
 | [`assets/`](assets) | The page template and the three vendored faces. |
 
 ## The honesty property, and its limit

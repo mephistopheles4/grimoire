@@ -160,5 +160,5 @@ Security problems go through private reporting, not a public issue:
 
 [eagle-demo]: https://mephistopheles4.github.io/grimoire/docs-decisions-publish-eagle-eye.html
 [track-demo]: https://mephistopheles4.github.io/grimoire/skills-groundtrack-examples-pr-313.html
-[track-complex]: https://mephistopheles4.github.io/grimoire/skills-groundtrack-examples-pr-382.html
+[track-complex]: https://mephistopheles4.github.io/grimoire/docs-examples-pr-382.html
 [gallery]: https://mephistopheles4.github.io/grimoire/
