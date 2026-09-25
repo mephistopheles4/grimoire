@@ -223,9 +223,9 @@ rows. A cell that closes half the box is usually a position, not an option.
      box and the last, and say what changed it.
    - **One thing to watch next time.** The pattern that appeared most often.
 
-   The audit names a pattern each time it rejects an edge. Those names reach
-   the chat and stop there, so the next author repeats the same faults. This
-   step is where the box teaches. Say it in words, never in ids.
+   The audit names a pattern each time it rejects an edge, one edge at a time.
+   This step adds them up, so the author sees the whole. Say it in words, never
+   in ids.
 
 ## The seven findings
 
