@@ -23,8 +23,9 @@ calls for it — a reference book it knows when to open. Grimoire holds two, and
 both do the same kind of work: they take something you can only hold in your
 head and put it on a page you can look at.
 
-**[See one before you install anything.][eagle-demo]** That page is a live
-decision grid about whether to publish this repository. Click an option and
+**[See one before you install anything.][gallery]** The gallery holds every
+page the two skills have drawn. Start with [a live decision grid][eagle-demo]
+about whether to publish this repository. Click an option and
 watch it recolour. eagle-eye wrote it, about itself.
 
 ## Install
@@ -109,7 +110,8 @@ self-contained page you can step a cursor across, and prints the same graph as
 an indented tree on request. Not for a conversation, because nothing durable
 exists to check the graph against.
 
-**Live: [a pull request, stepped through][track-demo].**
+**Live: [a pull request, stepped through][track-demo].** For a complex sheet,
+see [a larger pull request with 88 nodes][track-complex].
 Every published page is in [the gallery][gallery].
 
 The three channels, what a layer redraws, the page's controls, and the honesty
@@ -158,4 +160,5 @@ Security problems go through private reporting, not a public issue:
 
 [eagle-demo]: https://mephistopheles4.github.io/grimoire/docs-decisions-publish-eagle-eye.html
 [track-demo]: https://mephistopheles4.github.io/grimoire/skills-groundtrack-examples-pr-313.html
+[track-complex]: https://mephistopheles4.github.io/grimoire/skills-groundtrack-examples-pr-382.html
 [gallery]: https://mephistopheles4.github.io/grimoire/

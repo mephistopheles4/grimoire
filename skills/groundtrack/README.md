@@ -16,18 +16,27 @@ by hand. That file states one change: one node map, and a list of graphs, each
 an entry point with recorded traces from it.
 A zero-dependency renderer turns it into one self-contained page.
 
-## The three channels
+**Live example: [a pull request, stepped through][demo].** For a complex
+sheet, see [a larger pull request drawn as seven sheets][complex].
 
-Every node carries three channels, and they are the point of the drawing.
+**[Take the tour on the worked example →][tour]** Press `tour` at the top
+right. It walks the page on a real run, one region at a time.
 
-- **success** — what flows out of the node.
-- **error** — where it breaks: the tags it can throw as a **fail**. A fail is
-  an expected error a caller is meant to catch. A **die** is a defect nothing
-  is meant to catch, and it never appears in this list. The kind prints beside
-  the tag in the tree, the text output and the contract tab. The renderer
-  derives it from the file's `throw` steps and `raised` objects. A tag with
-  neither prints bare.
-- **requirements** — what it needs to work.
+The two sheets below are drawn from the worked example and its tour, so they
+say what the page says. The first is the page with every region numbered and every
+pane it hides until you click. The second is the tour's walk through one run.
+
+<p align="center">
+  <img src="../../docs/brand/example-greet-sheet-1.svg" width="100%" alt="The groundtrack page on the greet example, with each region numbered and named in a parts list, and the rail, the files tab, the contract tab, the tree and the tests layer drawn as separate views">
+</p>
+
+<p align="center">
+  <img src="../../docs/brand/example-greet-sheet-2.svg" width="100%" alt="The greet tour, stop by stop: the page at each move that changes, with the region the stop explains framed and what the reader sees there written under it">
+</p>
+
+[demo]: https://mephistopheles4.github.io/grimoire/skills-groundtrack-examples-pr-313.html
+[complex]: https://mephistopheles4.github.io/grimoire/skills-groundtrack-examples-pr-382.html
+[tour]: https://mephistopheles4.github.io/grimoire/skills-groundtrack-examples-greet.html
 
 ## Use it
 
@@ -42,28 +51,25 @@ namespaces it:
 It works on a plan already made or work already done. It does not work on a
 conversation, because nothing durable exists to check the graph against.
 
+## The three channels
+
+Every node carries three channels, and they are the point of the drawing.
+
+- **success** — what flows out of the node.
+- **error** — where it breaks: the tags it can throw as a **fail**. A fail is
+  an expected error a caller is meant to catch. A **die** is a defect nothing
+  is meant to catch, and it never appears in this list. The kind prints beside
+  the tag in the tree, the text output and the contract tab. The renderer
+  derives it from the file's `throw` steps and `raised` objects. A tag with
+  neither prints bare.
+- **requirements** — what it needs to work.
+
 ## The page
 
 The page draws one graph and steps a cursor over one recorded trace. Nothing is
 computed while you watch. Every branch an `if` took, every value an effect
 returned, and every catch is a literal in the file. That is what makes the trace
 a list of checkable claims rather than a program you have to believe.
-
-**[Take the tour on the worked example →](https://mephistopheles4.github.io/grimoire/skills-groundtrack-examples-greet.html)**
-Press `tour` at the top right. It walks the page on a real run, one region at a
-time.
-
-The two sheets below are drawn from the same file and its tour, so they say
-what the page says. The first is the page with every region numbered and every
-pane it hides until you click. The second is the tour's walk through one run.
-
-<p align="center">
-  <img src="../../docs/brand/example-greet-sheet-1.svg" width="100%" alt="The groundtrack page on the greet example, with each region numbered and named in a parts list, and the rail, the files tab, the contract tab, the tree and the tests layer drawn as separate views">
-</p>
-
-<p align="center">
-  <img src="../../docs/brand/example-greet-sheet-2.svg" width="100%" alt="The greet tour, stop by stop: the page at each move that changes, with the region the stop explains framed and what the reader sees there written under it">
-</p>
 
 A change with several graphs is one page with several sheets. On the page you
 can:
@@ -122,7 +128,7 @@ second artifact that can silently disagree with the first is not worth having.
 | [`scripts/groundtrack.js`](scripts/groundtrack.js) | The one module the page and the tests both run. |
 | [`references/flightpath-file.md`](references/flightpath-file.md) | The shape of a flightpath file. |
 | [`references/writing-traces.md`](references/writing-traces.md) | How to write a trace, and the two mistakes measurement says you will make. |
-| [`examples/`](examples) | Three complete files: a small one that uses every move kind, a real pull request with a test layer, and a plan of sixteen tickets. |
+| [`examples/`](examples) | Four complete files: a small one that uses every move kind, a real pull request with a test layer, a larger pull request drawn as seven sheets, and a plan of sixteen tickets. |
 | [`assets/`](assets) | The page template and the three vendored faces. |
 
 ## The honesty property, and its limit
