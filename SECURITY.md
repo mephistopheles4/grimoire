@@ -32,6 +32,12 @@ neither the renderer nor the page makes a network request.
 One script can send data, and only when somebody runs it: eagle-eye's optional
 edge audit. See [What the edge audit sends](#what-the-edge-audit-sends).
 
+The attacks worth planning for, scenario by scenario, with what stops each
+one and what still gets through: [docs/security/threat-model.md](docs/security/threat-model.md).
+It records the repository settings as they were read on 2026-09-25. The
+[platform table](#what-the-platform-is-relied-on-for) below lists what the
+project relies on, which is not always what is switched on.
+
 The realistic risks:
 
 - **A file from a stranger.** Box and flightpath files are made to be shared. A
@@ -118,7 +124,7 @@ switched on right now. If that matters to you, check the settings themselves.
 | Private vulnerability reporting | the channel at the top of this file |
 | Branch protection on `main` | pull request required, `check` must pass, no bypass |
 | SkillSpector's `scan` job as a required check | a SkillSpector finding blocks a merge |
-| zizmor as a required check | a workflow finding blocks a merge |
+| zizmor's `audit` job as a required check | a workflow finding blocks a merge |
 | Pages, built from Actions | what the `pages` workflow deploys to a public URL |
 
 [`.github/dependabot.yml`](.github/dependabot.yml) is in the tree and asks for
