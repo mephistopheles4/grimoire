@@ -1141,10 +1141,28 @@ const Groundtrack = (() => {
    *  of its size, at the page's micro size of 12px — a figure the page cannot
    *  hand this module without a DOM, so it moves when that size does. */
   const COUNT_ADVANCE = 7.2;
+  /* The page asks for every box it draws, so each answer is one lookup: a
+   * layout's self-call wires by node, and a state's open frames by node, are
+   * each counted once and kept for as long as that layout or state lives.
+   * Scanning every wire and every frame per box made a page of 20,000 boxes
+   * pay for 20,000 scans. */
+  const selfLoops = new WeakMap();
+  const openFrames = new WeakMap();
   function countMark(lay, state, id) {
-    const loop = lay.edges.find(e => e.self && e.from === id);
-    const n = state.frames.filter(f => f.nodeId === id).length;
-    if (!loop || n < 2) return null;
+    if (!selfLoops.has(lay)) {
+      const loops = new Map();
+      for (const e of lay.edges) if (e.self && !loops.has(e.from)) loops.set(e.from, e);
+      selfLoops.set(lay, loops);
+    }
+    const loop = selfLoops.get(lay).get(id);
+    if (!loop) return null;
+    if (!openFrames.has(state)) {
+      const counts = new Map();
+      for (const f of state.frames) counts.set(f.nodeId, (counts.get(f.nodeId) || 0) + 1);
+      openFrames.set(state, counts);
+    }
+    const n = openFrames.get(state).get(id) || 0;
+    if (n < 2) return null;
     const text = '×' + n;
     return { text, at: text.length * COUNT_ADVANCE <= loop.count.room ? { x: loop.count.x, y: loop.count.y } : null };
   }
