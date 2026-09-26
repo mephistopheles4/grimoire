@@ -64,6 +64,13 @@ cp -r grimoire/skills/eagle-eye ~/.claude/skills/
 cp -r grimoire/skills/groundtrack ~/.claude/skills/
 ```
 
+**Pinned to one commit**, if you want a copy that only changes when you
+choose. Use the full 40-character commit SHA:
+
+```bash
+npx skills@latest add mephistopheles4/grimoire#<commit-sha>
+```
+
 Neither skill names a fixed path to its own renderer, so each runs from
 wherever it lands. eagle-eye has been run from three directories: the author's
 skills folder, the plugin install, and a copy made by `skills`.
