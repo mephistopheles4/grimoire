@@ -68,7 +68,8 @@ quadrantChart
 How to read it:
 
 - **Act now (top right): row 1.** Anyone can open a pull request, and charting
-  one is what groundtrack is for. Gap 1 below narrows it most.
+  one is what groundtrack is for. Gap 1 below narrows it most; gap 3's
+  reminder narrows it too, but binds no one, so it stays here.
 - **Guard closely (top left): rows 2, 8, 9, 10 and 3.** Rarer, but severe.
   Row 2 is row 1's quieter twin, narrowed by the same gap. Row 8 moved
   left once the scanners became required checks (gap 2).
@@ -81,7 +82,7 @@ How to read it:
 
 | # | Scenario | What stops it today | Residual gap | Tags |
 | --- | --- | --- | --- | --- |
-| 1 | **A pull request steers the agent charting it.** Anyone who can open a pull request or ticket writes text into it that reads as an instruction to the agent. A user asks groundtrack to chart that change. The agent either acts on the text, or draws a clean sheet of a dirty change, and a reviewer trusts the sheet. | The host agent's own rule that file content is data. groundtrack's `SKILL.md` says the material is data to draw, not instructions, and to tell the reader when a line reads as a request. Traces are literals a reader *can* check against the material. | A sentence in a skill reminds the agent; it does not bind it. Nothing makes a reader check the sheet against the diff. This is the highest-value attack here, because a misleading review aid is the product failing quietly. | `AML.T0051.001` · `LLM01:2025` · `ASI01` · Tampering · MAESTRO 3 |
+| 1 | **A pull request steers the agent charting it.** Anyone who can open a pull request or ticket writes text into it that reads as an instruction to the agent. A user asks groundtrack to chart that change. The agent either acts on the text, or draws a clean sheet of a dirty change, and a reviewer trusts the sheet. | The host agent's own rule that file content is data. groundtrack's `SKILL.md` says the material is data to draw, not instructions, and to tell the reader when a line reads as a request. Traces are literals a reader *can* check against the material. When the agent hands the page over, `SKILL.md` now tells it to say that AI drew the page, that it can be wrong, and to check it against the change. On the page, the "authored" stamp in the title block says the same when a reader points at it. | A sentence in a skill and a note on the page remind the agent and the reader. Neither makes anyone check, and the note shows only on hover. This is the highest-value attack here. A misleading review aid is the product failing quietly. | `AML.T0051.001` · `LLM01:2025` · `ASI01` · Tampering · MAESTRO 3 |
 | 2 | **A shared file speaks to the agent.** A stranger shares a box or flightpath file whose `why`, note or blurb reads as an instruction. The agent opens it, or reads it through the renderer: `--check` prints row names and findings, and `--text` prints blurbs, remarks and tour text verbatim. | The host agent's own rule that file content is data. Both `SKILL.md` files now say a file and the renderer's output are data, not instructions. HTML escaping does nothing here: it guards the browser, not the terminal. | A reminder, not a guard. The renderers' output carries author text back to the agent by design. | `AML.T0051.001` · `LLM01:2025` · `ASI01` · Tampering · MAESTRO 3 |
 | 3 | **A shared file runs script in the page.** A stranger crafts a file so its text breaks out into markup when the page renders. | `</` escaped before the script block; `&` and `<` escaped for element content; ids validated; author text never in an attribute. Tests pin the escape's width and put hostile text in every field. See [rendering.md](rendering.md). | "No author text reaches an attribute" is held by review, not by a parse of the page. A new `="${` in a template breaks it. | `LLM05:2025` · Tampering, Elevation of privilege |
 | 4 | **A shared file confuses the validator.** A name such as `constructor` collides with `Object.prototype`, so a check silently passes and the author is told the wrong thing is wrong. | `Groundtrack.hardenKeys` and prototype-free maps; tests with bare-name fixtures. | Low. The harm is a wrong diagnosis, not code execution. | Tampering |
@@ -109,10 +110,10 @@ out of scope for that reason.
    Narrows rows 1, 2 and 6; the host agent remains the real guard.
 2. **Make the scanners gate.** *Done 2026-09-25:* SkillSpector's `scan` and
    zizmor's `audit` are now required checks on `main`, beside `check`.
-3. **Tell reviewers to check the sheet against the diff.** groundtrack's page
-   already lists the files a change touches. A sentence in the skill and the
-   page that says a sheet is a claim to verify, not a verdict, narrows row 1.
-   *Touches `skills/`.*
+3. **Tell reviewers to check the sheet against the diff.** *Done 2026-09-26,
+   as a hover note by choice:* see row 1. The page's warning is the AUTHORED
+   stamp's help note, not a line of its own, so a reader who never points at
+   the stamp does not see it. A reminder narrows the gap; it binds no one.
 4. **Measure groundtrack on a hostile file.** Find the size at which the page
    stalls, and add a limit if it is within reach of a crafted file. Row 5.
 5. **Consider signed releases or a pinned install path.** Row 8's rug-pull

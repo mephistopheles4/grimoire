@@ -304,10 +304,12 @@ test('the tab\'s three groups cover every file the change states', () => {
   assert.ok(first.mine.includes('src/greet.ts') && first.others.includes('src/greet.ts'));
 });
 
-test('the tab asks about this sheet and the check asks about the change', () => {
-  // Story 28 wants the tab's third group labelled as this sheet's; story 29
-  // wants the check's finding taken across every graph. Two questions, so two
-  // answers, and the same function gives both.
+test('a sheet asks what its own nodes miss, and the check asks about the change', () => {
+  // `filesOf().unaccounted` answers for one sheet: the files no node on it
+  // accounts for. `unaccountedFiles()` answers for the change, across every
+  // graph, and feeds the check's finding. Two questions, so two answers. The
+  // tab's third group is neither: it lists every file in the change (see
+  // docs/spec/groundtrack.md, "The page").
   const prog = twoGraphs();
   prog.files = [
     { path: 'src/shout.ts', change: 'edit', why: 'the other entry', adds: 1, dels: 0 },
