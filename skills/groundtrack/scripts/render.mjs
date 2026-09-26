@@ -1086,11 +1086,15 @@ const USAGE =
   '  --text [run]   print the tree to stdout for one run, by name or index\n' +
   '  --graph <id>   which graph --text reads. Needed when the file states more than one';
 
+/** The command, as a function that returns its exit code. It never calls
+ * `process.exit`: on Linux and macOS a write to a piped stdout is
+ * asynchronous, and exiting at once cuts off whatever has not drained yet.
+ * Setting `process.exitCode` lets Node finish writing, then exit. */
 function main(argv) {
   const args = argv.slice(2);
   const usage = () => {
     console.error(USAGE);
-    process.exit(2);
+    return 2;
   };
 
   const has = n => args.includes(n);
@@ -1106,10 +1110,10 @@ function main(argv) {
    * line, or followed by another flag. --text's value is optional, so it is
    * not refused for a missing one; --out and --graph are. */
   const missingValue = n => args.some((a, i) => a === n && (args[i + 1] === undefined || args[i + 1].startsWith('--')));
-  if (missingValue('--out') || missingValue('--graph')) usage();
+  if (missingValue('--out') || missingValue('--graph')) return usage();
 
   const positional = args.filter((a, i) => !a.startsWith('--') && !VALUED.includes(args[i - 1]));
-  if (positional.length !== 1) usage();
+  if (positional.length !== 1) return usage();
   const file = positional[0];
 
   const outPath = has('--out') ? valueOf('--out') : undefined;
@@ -1123,14 +1127,14 @@ function main(argv) {
     prog = Groundtrack.hardenKeys(JSON.parse(readFileSync(file, 'utf8')));
   } catch (e) {
     console.error(`cannot read ${file}: ${e.message}`);
-    process.exit(2);
+    return 2;
   }
 
   const errs = check(prog, file);
   if (errs.length) {
     for (const e of errs) console.error(e);
     console.error(`${file}: ${errs.length} refusal(s)`);
-    process.exit(1);
+    return 1;
   }
 
   const notes = findings(prog);
@@ -1146,7 +1150,7 @@ function main(argv) {
     console.error(
       `${file}: --graph names the one graph a reading is of, and only --text is one. --check validates every graph, and the page carries every graph and offers a sheet picker over them — it does not open on a named sheet. Drop --graph, or add --text.`,
     );
-    process.exit(2);
+    return 2;
   }
 
   /* A graph the reader named, refused by name when the file has not got it. */
@@ -1155,7 +1159,7 @@ function main(argv) {
     graphIndex = prog.graphs.findIndex(g => g.id === graphArg);
     if (graphIndex < 0) {
       console.error(`${file}: no graph called "${graphArg}". This file has: ${prog.graphs.map(g => `"${g.id}"`).join(', ')}`);
-      process.exit(1);
+      return 1;
     }
   }
 
@@ -1165,7 +1169,7 @@ function main(argv) {
     console.error(
       `ok: ${prog.title} — ${Object.keys(prog.nodes).length} node(s), ${prog.graphs.length} graph(s), ${runs} run(s), ${notes.length} finding(s)`,
     );
-    process.exit(0);
+    return 0;
   }
 
   if (wantText) {
@@ -1176,7 +1180,7 @@ function main(argv) {
     if (prog.graphs.length > 1 && graphArg === undefined) {
       for (const g of prog.graphs) console.log(`${g.id}  ${g.title}`);
       console.error(`${file}: this file states ${prog.graphs.length} graphs. Name one with --graph <id>; the ids are listed above.`);
-      process.exit(1);
+      return 1;
     }
     const graph = prog.graphs[graphIndex];
     let index;
@@ -1187,11 +1191,11 @@ function main(argv) {
         console.error(
           `${file}: no run called "${runArg}" in graph "${graph.id}". That graph has: ${graph.presets.map(p => `"${p.name}"`).join(', ')}`,
         );
-        process.exit(1);
+        return 1;
       }
     }
     console.log(text(prog, graphIndex, index));
-    process.exit(0);
+    return 0;
   }
 
   /* A run writes its file and its page to scratch, never beside its input, so
@@ -1202,7 +1206,7 @@ function main(argv) {
       `${file}: name the page to write with --out. This renderer writes no page beside its input, because a page dropped next to the file it was made from is an artifact nobody asked for and nothing cleans up.`,
     );
     console.error(USAGE);
-    process.exit(2);
+    return 2;
   }
 
   /* An output path equal to the input overwrites the program with its own
@@ -1211,9 +1215,9 @@ function main(argv) {
   const target = resolve(outPath);
   const refuseSelf = () => {
     console.error(`${file}: --out names the file being rendered. Write the page somewhere else; this would replace the program with its own drawing.`);
-    process.exit(2);
+    return 2;
   };
-  if (source === target) refuseSelf();
+  if (source === target) return refuseSelf();
   /* Two names can be one file. Comparing the text of the paths does not see a
    * symbolic link or a hard link, so the identity is read off the filesystem
    * as well. Only when both sides report a real device and inode: some
@@ -1222,7 +1226,7 @@ function main(argv) {
   try {
     const a = statSync(source);
     const b = statSync(target);
-    if (a.dev && a.ino && a.dev === b.dev && a.ino === b.ino) refuseSelf();
+    if (a.dev && a.ino && a.dev === b.dev && a.ino === b.ino) return refuseSelf();
   } catch (e) {
     /* No such target yet is the ordinary case and means nothing to compare. */
     if (e.code !== 'ENOENT') throw e;
@@ -1231,7 +1235,7 @@ function main(argv) {
   writeFileSync(target, page(prog));
   console.error(`wrote ${target}`);
   for (const n of notes) console.log(n);
-  process.exit(0);
+  return 0;
 }
 
 // This file is a command, not a module: nothing imports it. It used to run
@@ -1239,5 +1243,5 @@ function main(argv) {
 // symlinked skill directory the two never matched, so every command exited 0
 // having done nothing. A check that says nothing reads as a file with no
 // refusals. Run unconditionally, so no path can reach the silent case.
-main(process.argv);
+process.exitCode = main(process.argv);
 

@@ -748,6 +748,23 @@ test('a 20,000-node chain no entry reaches gives findings, not a crash', () => {
   assert.doesNotMatch(r.stdout, /declares error tag "Snapped"/);
 });
 
+test('a --check that prints far more than a pipe holds prints every finding it counts', () => {
+  // Over 1 MB of findings on a piped stdout. On Linux and macOS a pipe write
+  // is asynchronous, and a renderer that exited straight after printing cut
+  // the output off after the first chunk. Windows writes synchronously, so
+  // this test only proves itself on a POSIX runner: CI is where it bites.
+  const file = derive(prog => {
+    for (let i = 0; i < 20000; i++) prog.nodes[`far${i}`] = node(`far${i}`, { steps: [{ op: 'return', expr: 'null' }] });
+  });
+  const r = run(groundtrack, [file, '--check'], { maxBuffer: 16 * 1024 * 1024 });
+  assert.equal(r.code, 0, r.stderr);
+  assert.ok(r.stdout.length > 1024 * 1024, `only ${r.stdout.length} bytes of stdout`);
+  const counted = Number(/(\d+) finding\(s\)/.exec(r.stderr)[1]);
+  const printed = r.stdout.split('\n').filter(Boolean);
+  assert.equal(printed.length, counted);
+  assert.ok(printed.includes("no graph's entry reaches far19999, so no sheet draws it"));
+});
+
 test('a pure node that runs an effect is a finding naming the node and its first effect step', () => {
   // lookupName's effect is its step 0. A second effect after it must not
   // move the finding, and must not print a second one.
