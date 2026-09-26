@@ -1061,6 +1061,22 @@ test('the shipped pull-request example draws one sheet control per graph', () =>
   }
 });
 
+test('the claim line sits in the head, before the sheet and run pickers, and appears nowhere else', () => {
+  // Gap 3 of the threat model: a reader is told the page is a claim to check,
+  // not a verdict, on the row every reader sees before opening a tab or a
+  // pane. Checked on the shipped two-graph example, so the sheet picker is
+  // there to be read against too.
+  const html = pageOf(layeredFlightpath);
+  const head = headOf(html);
+  const claim = 'A claim to check against its source, not a verdict.';
+  assert.ok(head.includes(claim), 'the claim reads in the head');
+  assert.ok(head.indexOf(claim) < head.indexOf('id="sheet"'), 'before the sheet picker');
+  assert.ok(head.indexOf(claim) < head.indexOf('id="run"'), 'before the run picker');
+  // Not repeated in a tab or a pane — the cutaway's tabs, the rail, and the
+  // footer title block are all outside the head this slices out.
+  assert.equal(html.split(claim).length - 1, 1, 'the claim prints once, not per pane');
+});
+
 test('the sheet picker sits in the head, left of the run picker', () => {
   // The locked spec's tempo table: a sheet changes slower than a run and
   // changes everything beneath it, so it reads first.

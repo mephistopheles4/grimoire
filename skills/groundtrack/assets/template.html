@@ -126,10 +126,10 @@ body { height: 100vh; box-sizing: border-box; padding: var(--av-s1);
   overflow: hidden; }
 
 /* Head — the pickers and the step controls. It drives the run.
-   Two rows: the lockup and the step controls above, the pickers below. The
-   pickers went under the title because a select wide enough to read a run's
-   blurb crowds the title off a narrow screen when both share a row, and the
-   sheet picker made that row one control longer. */
+   The lockup and the claim line stack above; the pickers and step controls
+   sit below. The pickers went under the title because a select wide enough
+   to read a run's blurb crowds the title off a narrow screen when both share
+   a row, and the sheet picker made that row one control longer. */
 /* min-width 0 on both, or the grid does not hold them: a grid item's automatic
    minimum is its content, so a picker wider than the pane widens the whole
    head, and the head widens the column instead of the picker shrinking. */
@@ -173,18 +173,10 @@ body { height: 100vh; box-sizing: border-box; padding: var(--av-s1);
 /* A blurb is a sentence, so the cap is generous — 34rem clipped the shipped
    examples on a wide screen. Narrow screens still ellipsis it, by flex shrink. */
 .head-blurb { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 52rem; }
-/* The claim line. Its own row rather than a third line in the lockup, because
-   the lockup mark is sized to exactly two (see the note above .head-text) and
-   this line says the same thing regardless of which sheet or run is on. Muted
-   to the micro size the rest of the chrome's captions read at, so it does not
-   compete with the title. */
+/* The claim line. Its own row, not a third lockup line — see the note above
+   .head-text. Muted to the chrome's micro caption size. */
 .head-claim-row { min-width: 0; }
 .head-claim { font-size: var(--av-t-micro); color: var(--av-ink-70); }
-/* The claim line. Muted below the blurb, the same micro size the rest of the
-   chrome reads at, so it reads as a caption on the lockup and not a second
-   headline competing with it. */
-.head-claim { font-size: var(--av-t-micro); color: var(--av-ink-70); white-space: nowrap;
-  overflow: hidden; text-overflow: ellipsis; max-width: 52rem; }
 select, button, input { font: inherit; font-size: var(--av-t-micro); color: var(--av-ink);
   background: var(--av-paper); border: var(--av-rule-hair) solid var(--av-ink-30); border-radius: 0;
   padding: 4px var(--av-s2); }
@@ -714,13 +706,9 @@ button[data-help][aria-disabled=true] { cursor: help; }
     </button>
     </div>
    </div>
-   <!-- The claim, stated once, on the row every reader sees before they open a
-        tab or a pane. Static text: it says the same thing whichever sheet or
-        run is on, so it is not part of the lockup (which the mark's height is
-        sized to, two rows exactly — see .head-mark above) and not a third
-        head-row (the pickers and step controls are the only things counted as
-        one). -->
-   <div class="head-claim-row"><span class="av-annot head-claim">A claim to check against the diff, not a verdict.</span></div>
+   <!-- The claim, stated once, before a reader opens a tab or a pane. Its own
+        row, not a third lockup line — see the note above .head-text. -->
+   <div class="head-claim-row"><span class="av-annot head-claim">A claim to check against its source, not a verdict.</span></div>
    <!-- Everything that drives the run, under the lockup and in the order a
         reader chooses it: the sheet, then the run on it, then the controls
         that step that run. The sheet reads first because it changes slower

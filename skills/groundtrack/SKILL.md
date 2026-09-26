@@ -119,8 +119,8 @@ logs it. The debugging session drops where the data was worth having. The
    [`references/flightpath-file.md`](references/flightpath-file.md). Validate
    again.
 
-8. **Render the page**, and say where it is. Say that the sheet is a claim to
-   check against the diff, not a verdict.
+8. **Render the page**, and say where it is. Say that the page is a claim to
+   check against the material, not a verdict.
 
 9. **State the limit.** The validator proves the trace is a legal path. It
    cannot prove which branch an `if` took or what an effect returned. Those
@@ -166,7 +166,7 @@ graph to read asks.
 The page draws one graph and steps a cursor over one recorded trace.
 
 **A file with several graphs is one page with several sheets.** The head holds
-two rows: the title above, and below it the sheet picker, the run picker and the
+the title, then the claim line, then the sheet picker, the run picker and the
 step controls. The sheet picker lists each graph by title. A one-graph file
 shows none.
 
