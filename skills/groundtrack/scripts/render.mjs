@@ -41,20 +41,17 @@ const CHANGE = ['new', 'edit', 'delete', 'forbidden'];
  * that drifted would refuse a cause the page then printed. */
 const CAUSE = Groundtrack.KINDS;
 
-/* -- four size limits --------------------------------------------------------
+/* -- three size limits -------------------------------------------------------
  *
- * Each limit is a recursion or blow-up guard: it stops a real crash or a
- * real exponential cost, never a plain slow file. */
+ * Each limit bounds one cost that a small file can make large: a recursion
+ * deep enough to overflow the call stack, a tree with more rows than a page
+ * can draw, or a scan whose work grows as the product of two counts. */
 
-/** How deep a graph's own call structure goes, counted node to node with no
- *  trace read at all. `treeRows` (the page's tree view and `--text`)
- *  recurses once per node over this same structure, so a graph that goes
- *  deeper than a real function call stack safely can crash it outright. A
- *  thousand calls deep is far past any real call graph. This does not cover
- *  every recursive reader: the finding that reads a node's reachable tags
- *  walks every node in the file, reachable from a graph's entry or not, so
- *  a long chain of nodes no graph's entry reaches can still overflow the
- *  stack there. That gap predates this change and is not fixed here. */
+/** How deep a graph's own call structure goes, counted in calls from its
+ *  entry, with no trace read at all. The entry is 0 calls deep. `treeRows`
+ *  (the page's tree view and `--text`) recurses once per call over this
+ *  same structure, so a call graph deep enough can overflow the call stack
+ *  and crash it. A thousand calls deep is far past any real call graph. */
 const MAX_GRAPH_DEPTH = 1000;
 
 /** The tree view's own row count. `treeRows` draws one row per distinct
@@ -63,46 +60,38 @@ const MAX_GRAPH_DEPTH = 1000;
  *  than it has nodes. */
 const MAX_TREE_ROWS = 20000;
 
-/** How many characters a node id may hold. An id reaches the page as an
- *  attribute and a JavaScript object key, and `treeRows` builds one chain
- *  key per row by joining the ids on it together — so a long id makes every
- *  chain that carries it longer to build and to compare. Measured at three
- *  lengths against the worst file that passes the other two limits here,
- *  128 characters cost no more than 64 does; the limit is set there rather
- *  than lower, because a real descriptive id already reaches into the
- *  twenties and 64 would leave it comparatively little room to grow. */
-const MAX_ID_LENGTH = 128;
+/** The work `cutEdges` (groundtrack.js) does, counted before it runs. For
+ *  each layer that renames a token, `cutEdges` searches every call step's
+ *  argument text once per renamed token, and records one cut per match. So
+ *  a layer costs its renamed tokens times the sum of the argument
+ *  characters and the call steps, and the file costs the sum over its
+ *  layers. A cut costs at least three units, because the shortest argument
+ *  text is two characters and one call step adds one, so the same count
+ *  also bounds how many cuts `--check` prints and the page draws. */
+const MAX_CUTEDGES_WORK = 1000000;
 
-/** The work `cutEdges` (groundtrack.js) does, bounded before it ever runs.
- *  `cutEdges` scans every call step in the file once per distinct renamed
- *  token a layer names, matching by substring — so its cost is the file's
- *  call steps times the renamed tokens summed across every layer, and a
- *  file can hold few nodes and few layers and still carry both numbers
- *  large. Refused here rather than in `cutEdges` itself: counting tokens
- *  and call steps reads no string a caller supplied, only how many there
- *  are, so this is cheap on a file of any shape, unlike the scan it stops. */
-const MAX_CUTEDGES_WORK = 72000000;
+/** A count as a reader writes it, with thousands separated: 20,000. */
+const count = n => n.toLocaleString('en-US');
 
-/** `cutEdges`'s own cost, without running it: the file's call steps, times
- *  the distinct renamed tokens named in each layer, summed across layers —
- *  the same two counts `cutEdges` reads, before either is matched against
- *  the other. */
+/** `cutEdges`'s own cost, without running it: for each layer, its renamed
+ *  tokens times the sum of every call step's argument characters and the
+ *  number of call steps, summed over the layers. The tokens come from the
+ *  same `layerTokens` that `cutEdges` reads, so the two cannot count
+ *  different tokens. */
 function cutEdgesWork(prog) {
   let callSteps = 0;
+  let argChars = 0;
   for (const n of Object.values(prog.nodes)) {
     if (!isObj(n) || !Array.isArray(n.steps)) continue;
-    for (const s of n.steps) if (isObj(s) && s.op === 'call') callSteps += 1;
+    for (const s of n.steps) {
+      if (!isObj(s) || s.op !== 'call') continue;
+      callSteps += 1;
+      argChars += JSON.stringify(s.args || {}).length;
+    }
   }
   let work = 0;
-  for (const layer of Object.values(prog.layers || {})) {
-    const tokens = new Set();
-    for (const ov of Object.values((isObj(layer) && layer.nodes) || {})) {
-      for (const r of (isObj(ov) && Array.isArray(ov.requirements) && ov.requirements) || []) {
-        const tok = Groundtrack.renamedToken(r);
-        if (tok) tokens.add(tok);
-      }
-    }
-    work += tokens.size * callSteps;
+  for (const layer of Object.values(isObj(prog.layers) ? prog.layers : {})) {
+    work += Groundtrack.layerTokens(layer).size * (argChars + callSteps);
   }
   return work;
 }
@@ -257,12 +246,6 @@ function shape(prog, r) {
 
   for (const [id, n] of Object.entries(prog.nodes)) {
     if (!Groundtrack.ID.test(id)) r.shape(`nodes.${id}`, 'a node id must be plain letters, digits and hyphens — it reaches the page as an attribute');
-    /* `fold`'s `sites` table keys one entry per call chain by joining the
-     * ids on it end to end, so a long id makes every chain that carries it
-     * longer to hold and to clone. Refused by length here, not folded into
-     * the pattern above: a name this long is refused for its length
-     * whatever characters it uses. */
-    if (id.length > MAX_ID_LENGTH) r.shape(`nodes.${id}`, `a node id is ${id.length} characters, more than the ${MAX_ID_LENGTH} groundtrack allows`);
     keys(r, `nodes.${id}`, n, NODE);
     if (!isObj(n)) continue;
     if (typeof n.role === 'string' && !n.role.trim()) r.shape(`nodes.${id}.role`, 'is blank — role is an open word, and the page prints it');
@@ -337,12 +320,12 @@ function shape(prog, r) {
       if (walk.overDepth) {
         r.shape(
           `graphs[${gi}]`,
-          `this graph's own call structure goes more than ${MAX_GRAPH_DEPTH} calls deep from "${g.entry}", counting no trace at all. The tree view recurses once per node over this same structure, and a call graph this deep crashes it rather than running slowly. Shorten the deepest call chain, or split the change into more than one graph.`,
+          `this graph's own call structure goes more than ${count(MAX_GRAPH_DEPTH)} calls deep from "${g.entry}", counting no trace at all. The tree view recurses once per call over this structure, and a call graph this deep can crash it. Shorten the deepest chain of calls. Or split the change into more than one graph.`,
         );
       } else if (walk.overRows) {
         r.shape(
           `graphs[${gi}]`,
-          `this graph's tree view would draw more than ${MAX_TREE_ROWS} rows once every call site is unfolded from "${g.entry}". The tree view draws one row per distinct path from the entry, not one per node, so a call graph that calls the same nodes from more than one place draws far more rows than it has nodes. Flatten the call graph, or split the change into more than one graph.`,
+          `this graph's tree view would draw more than ${count(MAX_TREE_ROWS)} rows from "${g.entry}". The tree view draws one row per path from the entry, not one row per node. A graph that calls the same nodes from more than one place draws more rows than it has nodes. Flatten the call graph. Or split the change into more than one graph.`,
         );
       }
     }
@@ -386,7 +369,7 @@ function shape(prog, r) {
    * not after it has already run long. */
   const work = cutEdgesWork(prog);
   if (work > MAX_CUTEDGES_WORK) {
-    r.shape('layers', `this file's layers name renamed tokens that would cost ${work} call-step comparisons to check against every call step, more than the ${MAX_CUTEDGES_WORK} groundtrack allows. Rename fewer tokens, or under fewer layers.`);
+    r.shape('layers', `this file's layers would cost ${count(work)} units of work to find the calls they cut, more than the ${count(MAX_CUTEDGES_WORK)} groundtrack allows. A layer costs its renamed tokens times the sum of the argument characters and the call steps in the file. Rename fewer tokens. Or rename them in fewer layers. Or shorten the call arguments.`);
   }
 
   if (prog.tour !== undefined) tourShape(prog, r);
@@ -398,6 +381,17 @@ function shape(prog, r) {
 function tourShape(prog, r) {
   if (!Array.isArray(prog.tour)) return r.shape('tour', 'expected an array');
   if (!prog.tour.length) return r.shape('tour', 'state at least one stop, or leave the key out. An empty tour offers the reader a walk with nothing in it.');
+  /* Graphs by id and each graph's run names, built once rather than
+   * searched once per stop, so many stops over many graphs cost their sum
+   * and not their product. Maps, so a name is matched and never used as an
+   * object key; the first graph with an id is the one a search would find. */
+  const graphById = new Map();
+  for (const g of prog.graphs) if (isObj(g) && !graphById.has(g.id)) graphById.set(g.id, g);
+  const runNames = new Map();
+  const hasRun = (graph, name) => {
+    if (!runNames.has(graph)) runNames.set(graph, new Set(graph.presets.filter(isObj).map(p => p.name)));
+    return runNames.get(graph).has(name);
+  };
   prog.tour.forEach((s, i) => {
     const w = `tour[${i}]`;
     keys(r, w, s, TOUR_STOP, TOUR_STOP_OPTIONAL);
@@ -414,12 +408,12 @@ function tourShape(prog, r) {
       if (prog.graphs.length > 1) r.shape(`${w}.graph`, `this file states ${prog.graphs.length} graphs, so a stop names the one it is on`);
       else graph = prog.graphs[0];
     } else {
-      graph = prog.graphs.find(g => isObj(g) && g.id === s.graph);
+      graph = graphById.get(s.graph);
       if (!graph) r.shape(`${w}.graph`, `"${s.graph}" is not a graph of this file`);
     }
     /* A graph whose runs are not a list is already refused above, and the
      * graphs pass goes on past it, so this reads the list only when it is one. */
-    if (graph && Array.isArray(graph.presets) && !graph.presets.some(p => isObj(p) && p.name === s.run))
+    if (graph && Array.isArray(graph.presets) && !hasRun(graph, s.run))
       r.shape(`${w}.run`, `"${s.run}" is not a run of graph "${graph.id}"`);
     if (s.tab !== undefined && !Groundtrack.TOUR_TABS.includes(s.tab)) r.shape(`${w}.tab`, `"${s.tab}" is not one of ${Groundtrack.TOUR_TABS.join(', ')}`);
     if (s.view !== undefined && !Groundtrack.TOUR_VIEWS.includes(s.view)) r.shape(`${w}.view`, `"${s.view}" is not one of ${Groundtrack.TOUR_VIEWS.join(', ')}`);
@@ -725,21 +719,116 @@ export function findings(prog) {
     }
   });
 
-  const tagsOf = (id, seen = new Set()) => {
-    if (seen.has(id)) return new Set();
-    seen.add(id);
-    const set = new Set(raisedInWalks[id] || []);
-    for (const s of prog.nodes[id].steps || []) {
-      if (s.op === 'throw') set.add(s.tag);
-      for (const h of s.onError || []) set.add(h.tag);
-      if (s.op === 'call' && isNode(prog, s.target)) for (const t of tagsOf(s.target, seen)) set.add(t);
+  /* Which of the tags the file declares each node can produce, itself or
+   * through anything it calls, worked out for every node at once. Asking
+   * node by node walks everything beneath each one again, so a long chain
+   * costs the square of its length. So the nodes are grouped into cycles
+   * first, callees before callers, and each group's tags are its own plus
+   * its callees' groups' tags, read once.
+   *
+   * Tarjan's grouping, with a list of open nodes rather than a recursion:
+   * this reads every node in the file, including a chain no graph's entry
+   * reaches, so no limit on a graph's depth keeps a recursion here inside
+   * the call stack. A group's tags are one bit per declared tag. A group
+   * that adds no tag of its own and calls one other group shares that
+   * group's bits rather than copying them. */
+  const ids = Object.keys(prog.nodes);
+  const indexOf = new Map(ids.map((id, i) => [id, i]));
+  const bitOf = new Map();
+  for (const id of ids) for (const t of (prog.nodes[id].channels || {}).error || []) if (!bitOf.has(t)) bitOf.set(t, bitOf.size);
+  const words = Math.max(1, Math.ceil(bitOf.size / 32));
+  const none = new Uint32Array(words);
+  const calleesOf = i => {
+    const out = [];
+    for (const s of prog.nodes[ids[i]].steps || []) if (s.op === 'call' && isNode(prog, s.target)) out.push(indexOf.get(s.target));
+    return out;
+  };
+  const ownBits = i => {
+    const out = [];
+    const add = t => {
+      const b = bitOf.get(t);
+      if (b !== undefined) out.push(b);
+    };
+    for (const t of raisedInWalks[ids[i]] || []) add(t);
+    for (const s of prog.nodes[ids[i]].steps || []) {
+      if (s.op === 'throw') add(s.tag);
+      for (const h of s.onError || []) add(h.tag);
     }
-    return set;
+    return out;
+  };
+  const order = new Int32Array(ids.length).fill(-1);
+  const low = new Int32Array(ids.length);
+  const group = new Int32Array(ids.length).fill(-1);
+  const onStack = new Uint8Array(ids.length);
+  const callees = new Array(ids.length);
+  const groupBits = [];
+  const stack = [];
+  let counter = 0;
+  const open = v => {
+    order[v] = low[v] = counter++;
+    stack.push(v);
+    onStack[v] = 1;
+    callees[v] = calleesOf(v);
+  };
+  for (let root = 0; root < ids.length; root++) {
+    if (order[root] !== -1) continue;
+    open(root);
+    const walk = [{ v: root, next: 0 }];
+    while (walk.length) {
+      const top = walk[walk.length - 1];
+      const v = top.v;
+      if (top.next < callees[v].length) {
+        const w = callees[v][top.next++];
+        if (order[w] === -1) {
+          open(w);
+          walk.push({ v: w, next: 0 });
+        } else if (onStack[w]) low[v] = Math.min(low[v], order[w]);
+        continue;
+      }
+      walk.pop();
+      if (walk.length) {
+        const u = walk[walk.length - 1].v;
+        low[u] = Math.min(low[u], low[v]);
+      }
+      if (low[v] !== order[v]) continue;
+      /* v closes a group. Every callee of its members is in this group or
+       * in one closed before it. */
+      const g = groupBits.length;
+      const members = [];
+      let w;
+      do {
+        w = stack.pop();
+        onStack[w] = 0;
+        group[w] = g;
+        members.push(w);
+      } while (w !== v);
+      const own = [];
+      const below = new Set();
+      for (const m of members) {
+        for (const b of ownBits(m)) own.push(b);
+        for (const c of callees[m]) if (group[c] !== g) below.add(group[c]);
+      }
+      let bits;
+      if (!own.length && below.size === 0) bits = none;
+      else if (!own.length && below.size === 1) bits = groupBits[below.values().next().value];
+      else {
+        bits = new Uint32Array(words);
+        for (const c of below) {
+          const cb = groupBits[c];
+          for (let x = 0; x < words; x++) bits[x] |= cb[x];
+        }
+        for (const b of own) bits[b >>> 5] |= 1 << (b & 31);
+      }
+      groupBits.push(bits);
+    }
+  }
+  const canProduce = (id, tag) => {
+    const b = bitOf.get(tag);
+    return ((groupBits[group[indexOf.get(id)]][b >>> 5] >>> (b & 31)) & 1) === 1;
   };
   for (const [id, n] of Object.entries(prog.nodes)) {
-    const can = tagsOf(id);
     for (const tag of (n.channels || {}).error || []) {
-      if (!can.has(tag)) out.push(`${id} declares error tag "${tag}", and nothing beneath it produces that tag`);
+      if (!canProduce(id, tag)) out.push(`${id} declares error tag "${tag}", and nothing beneath it produces that tag`);
     }
   }
 

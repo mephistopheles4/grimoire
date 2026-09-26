@@ -864,6 +864,23 @@ if (refusals.length) {
 function start() {
   const layerNames = Object.keys(PROG.layers || {});
   const CUTS = G.cutEdges(PROG);
+  /* The cuts under each layer, indexed once: the call steps cut, the edges
+     cut, and the nodes a cut call leads into. Every question the drawing asks
+     about a cut is then one lookup, not a scan of every cut in the file for
+     every call step it draws. Keyed by a Map, so a layer name is never an
+     object key; ids hold no '#' or '>', so a joined key names one thing. */
+  const CUT_INDEX = new Map();
+  for (const c of CUTS) {
+    if (!CUT_INDEX.has(c.layer)) CUT_INDEX.set(c.layer, { steps: new Set(), edges: new Set(), into: new Set() });
+    const ix = CUT_INDEX.get(c.layer);
+    ix.steps.add(c.from + '#' + c.at);
+    ix.edges.add(c.from + '>' + c.to);
+    ix.into.add(c.to);
+  }
+  const cutsNow = () => CUT_INDEX.get(S.layer);
+  const isCutStep = (from, at) => { const ix = cutsNow(); return !!ix && ix.steps.has(from + '#' + at); };
+  const isCutEdge = (from, to) => { const ix = cutsNow(); return !!ix && ix.edges.has(from + '>' + to); };
+  const isCutInto = id => { const ix = cutsNow(); return !!ix && ix.into.has(id); };
   /* tag -> its kinds, for the whole file. Named apart from the module's KINDS,
      which is the list of the three kinds themselves. The contract tab asks
      this about one node's declared tags; a tree row is handed the same
@@ -902,24 +919,30 @@ function start() {
     const ov = layer && layer.nodes && layer.nodes[id];
     return ov && ov.requirements ? ov.requirements : (PROG.nodes[id].channels || {}).requirements || [];
   };
-  const cutsFrom = (from, at) => CUTS.filter(c => c.layer === S.layer && c.from === from && c.at === at);
   const layerEntry = () => {
     const layer = S.layer ? PROG.layers[S.layer] : null;
     return (layer && layer.entry) || SHEET.entry;
   };
   /* Everything the call edges cannot reach from the layer's own entry draws as
-     unreached. The geometry is untouched; only the ink changes. */
+     unreached. The geometry is untouched; only the ink changes.
+
+     A list of nodes still to read, not a recursion: a layer's entry can be
+     any node in the file, including the head of a chain no graph's entry
+     reaches, so no limit on a graph's depth bounds how deep this goes. */
   const reachable = () => {
-    const seen = new Set();
-    (function go(id) {
-      if (seen.has(id)) return;
-      seen.add(id);
+    const start = layerEntry();
+    const seen = new Set([start]);
+    const todo = [start];
+    while (todo.length) {
+      const id = todo.pop();
       (PROG.nodes[id].steps || []).forEach((s, i) => {
         if (s.op !== 'call' || !PROG.nodes[s.target]) return;
-        if (cutsFrom(id, i).length) return;
-        go(s.target);
+        if (isCutStep(id, i)) return;
+        if (seen.has(s.target)) return;
+        seen.add(s.target);
+        todo.push(s.target);
       });
-    })(layerEntry());
+    }
     return seen;
   };
 
@@ -939,7 +962,7 @@ function start() {
       const key = e.from + '>' + e.to;
       const live = G.wireLive(st, e);
       const walked = taken.has(key);
-      const cut = CUTS.some(c => c.layer === S.layer && c.from === e.from && c.to === e.to);
+      const cut = isCutEdge(e.from, e.to);
       const cold = cut || !reach.has(e.to);
       const inked = !cold && (live || walked);
       let cls = 'wire' + (cold ? '' : live ? ' wire--live' : walked ? ' wire--walked' : '') + (cut ? ' wire--cut' : '');
@@ -1016,8 +1039,8 @@ function start() {
         );
       })
       .join('');
-    const cutNote = CUTS.filter(c => c.layer === S.layer && c.to === id).length
-      ? '<div class="nd-cut">cut under ' + esc(S.layer) + '</div>'
+    const cutNote = isCutInto(id)
+      ?'<div class="nd-cut">cut under ' + esc(S.layer) + '</div>'
       : '';
     /* The recursion count sits beside the loop wire. Only when it is too wide
        for the loop's corner does it come into the box, here. */
