@@ -47,6 +47,52 @@ that obeys text.** The browser page matters too, but it is the smaller prize.
 | 11 | **A box skews the audit's ranking.** Box text is written to push a weak edge down the ranking, so nobody rereads it. | A score never changes an edge's tier. The ranking only orders rereading. | Low and accepted. | `AML.T0051.001` · Tampering |
 | 12 | **The provider keeps the text.** After a yes, the box's text sits under the provider's policy, and an OpenRouter account with logging on stores it. | The dry run names every company that receives it. [edge-audit.md](edge-audit.md) states the opt-ins. | Accepted. The repository cannot see or change a provider's policy. | `AML.T0057` · `LLM02:2025` · Information disclosure |
 
+## Likelihood and impact
+
+The chart places each row by its **residual** risk: what is left after today's
+guards. The numbers are judgement, not measurement, and they are here to rank
+the rows, not to score them.
+
+- **Likelihood** asks how easy the attack is and how often the path occurs. A
+  pull request anyone can open scores high. A stolen maintainer token scores low.
+- **Impact** asks what the attacker gets. Control of an agent on many machines
+  scores highest. A wrong error message scores lowest.
+
+```mermaid
+quadrantChart
+  title Residual risk by scenario
+  x-axis Unlikely --> Likely
+  y-axis Minor --> Severe
+  quadrant-1 Act now
+  quadrant-2 Guard closely
+  quadrant-3 Accept
+  quadrant-4 Watch
+  1 PR steers agent: [0.62, 0.85]
+  2 Shared file steers agent: [0.38, 0.75]
+  3 Script in page: [0.10, 0.55]
+  4 Validator confused: [0.15, 0.10]
+  5 Page hangs: [0.22, 0.15]
+  6 Planted standing yes: [0.20, 0.45]
+  7 Tampered restore code: [0.08, 0.22]
+  8 Poisoned skill update: [0.20, 0.95]
+  9 Hijacked CI action: [0.10, 0.70]
+  10 Agent leaks key: [0.28, 0.68]
+  11 Audit ranking skewed: [0.18, 0.30]
+  12 Provider keeps text: [0.52, 0.20]
+```
+
+How to read it:
+
+- **Act now (top right): row 1.** Anyone can open a pull request, and charting
+  one is what groundtrack is for. Gap 1 below narrows it most.
+- **Guard closely (top left): rows 2, 8, 9, 10 and 3.** Rarer, but severe.
+  Row 2 is row 1's quieter twin and closes with the same gap. Row 8 drops
+  furthest if the scanners become required checks (gap 2).
+- **Watch (bottom right): row 12.** It happens by design whenever an account
+  has logging on, and the harm is bounded to text the user chose to send.
+- **Accept (bottom left): rows 4, 5, 6, 7 and 11.** Row 6 sits nearest the
+  middle and closes with gap 1.
+
 ## The last line of defence is not ours
 
 For rows 1, 2, 6 and 10, the final guard is the host agent's rule that text in a
