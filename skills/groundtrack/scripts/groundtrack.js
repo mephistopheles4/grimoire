@@ -907,9 +907,9 @@ const Groundtrack = (() => {
          * the sort below: a comparator that searches the row it is sorting
          * turns one sort into one scan per comparison, and a wide row pays
          * for both at once. */
-        const order = bareFrom(row.map((id, i) => [id, i]));
+        const rowIndex = bareFrom(row.map((id, i) => [id, i]));
         let x = PAD;
-        for (const id of row.slice().sort((a, b) => want[a] - want[b] || order[a] - order[b])) {
+        for (const id of row.slice().sort((a, b) => want[a] - want[b] || rowIndex[a] - rowIndex[b])) {
           x = Math.max(want[id] === Infinity ? rightEdge + GAP_X : want[id], x);
           pos[id] = { x, y, h: H[id] };
           x += W + GAP_X;
