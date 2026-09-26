@@ -453,8 +453,14 @@ const Groundtrack = (() => {
      * site from the entry down to it. A step names one line of source and is
      * what the cutaway asks about; a chain names one path through the graph
      * and is what the tree asks about. They differ exactly when one subtree is
-     * drawn more than once, which is the case `site` alone cannot read. */
-    let frames = [{ nodeId: prog.entry, pc: 0, callAt: undefined, site: '@entry', chain: ['@entry'] }];
+     * drawn more than once, which is the case `site` alone cannot read.
+     *
+     * A chain is frozen when its frame is pushed, and every state shares it
+     * rather than copying it. Copying every open frame's chain into every
+     * state cost the square of the depth on each move, and nothing ever
+     * changes a chain once its frame exists — a call builds its callee a new
+     * one. Freezing makes that a fact a reader cannot break by accident. */
+    let frames = [{ nodeId: prog.entry, pc: 0, callAt: undefined, site: '@entry', chain: Object.freeze(['@entry']) }];
     let ledger = [];
     let visited = [prog.entry];
     let edges = [];
@@ -502,7 +508,7 @@ const Groundtrack = (() => {
 
     const states = [];
 
-    const clone = () => frames.map(f => ({ ...f, chain: f.chain.slice() }));
+    const clone = () => frames.map(f => ({ ...f }));
     /* A change made while a move runs belongs to the state that move is about
      * to push, which is the next index in `states`. Two changes to one value
      * in the same move leave one entry, holding the second. */
@@ -634,7 +640,7 @@ const Groundtrack = (() => {
              * already past it by now. */
             top.callAt = m.at;
             const key = `${top.nodeId}#${m.at}`;
-            const chain = top.chain.concat([key]);
+            const chain = Object.freeze(top.chain.concat([key]));
             bump(chain, 'entered');
             count(m.to, 'entered');
             frames.push({ nodeId: m.to, pc: 0, callAt: undefined, site: key, chain });
