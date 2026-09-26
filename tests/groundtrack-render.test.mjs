@@ -490,6 +490,45 @@ test('a 128-character node id validates, and 129 is refused by the limit', () =>
   assert.match(overLimit.stderr, /a node id is 129 characters, more than the 128 groundtrack allows/);
 });
 
+/** One node `e` with `callSteps` distinct call sites to `leaf`, and one
+ *  layer renaming `tokens` distinct tokens on `leaf` — the shape
+ *  `cutEdges`'s own cost is counted from: call steps times renamed tokens,
+ *  summed across layers. `callSteps` and `tokens` are chosen so their
+ *  product lands exactly on the count under test, at the smallest pair of
+ *  factors near its square root — smaller than any lopsided pair would be. */
+function withCutEdgesWork(prog, callSteps, tokens) {
+  const e = [];
+  for (let i = 0; i < callSteps; i++) e.push({ op: 'call', target: 'leaf', args: { a: `zz${i}` } });
+  e.push({ op: 'return', expr: 'null' });
+  prog.nodes = {
+    e: node('e', { steps: e }),
+    leaf: node('leaf', { steps: [{ op: 'return', expr: 'null' }] }),
+  };
+  prog.layers = { L0: { nodes: { leaf: { requirements: Array.from({ length: tokens }, (_, i) => `q${i} -> w`) } } } };
+  only(prog).entry = 'e';
+  // One call site touched for real, its `next` set straight to the closing
+  // return — the same trick `withTreeRows` uses: a legal walk through one
+  // of the many call sites `e` declares, without describing every other one.
+  only(prog).presets = [{
+    name: 'one call site', blurb: 'one call touched for real', input: {},
+    trace: { provenance: 'authored', steps: [{ k: 'call', at: 0, to: 'leaf', next: callSteps }, { k: 'return', at: 0 }, { k: 'return', at: callSteps }] },
+  }];
+  return prog;
+}
+
+test("cutEdges' own work stays at 72,000,000, and 72,000,001 is refused by the limit", () => {
+  // 8,000 x 9,000 = 72,000,000, the pair closest to the square root; the
+  // row count this leaves under (9,001) also stays under the row limit,
+  // so only the work limit is what either file is judged on.
+  const atLimit = check(derive(p => withCutEdgesWork(p, 9000, 8000)));
+  assert.equal(atLimit.code, 0, atLimit.stderr);
+  // 72,000,001 has no small factor pair — consecutive integers share none —
+  // so this is the closest pair under 20,000 on each side: 6,323 x 11,387.
+  const overLimit = check(derive(p => withCutEdgesWork(p, 11387, 6323)));
+  assert.equal(overLimit.code, 1);
+  assert.match(overLimit.stderr, /this file's layers name renamed tokens that would cost 72000001 call-step comparisons/);
+});
+
 /** A linear chain of `depth` nodes, n0 through n(depth-1), each calling the
  *  next. n0 is reshaped so the one run only ever executes a `return` — its
  *  call to n1 sits at a second step no run ever reaches — because entering

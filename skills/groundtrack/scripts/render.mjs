@@ -41,7 +41,7 @@ const CHANGE = ['new', 'edit', 'delete', 'forbidden'];
  * that drifted would refuse a cause the page then printed. */
 const CAUSE = Groundtrack.KINDS;
 
-/* -- three size limits -------------------------------------------------------
+/* -- four size limits --------------------------------------------------------
  *
  * Each limit is a recursion or blow-up guard: it stops a real crash or a
  * real exponential cost, never a plain slow file. */
@@ -72,6 +72,40 @@ const MAX_TREE_ROWS = 20000;
  *  than lower, because a real descriptive id already reaches into the
  *  twenties and 64 would leave it comparatively little room to grow. */
 const MAX_ID_LENGTH = 128;
+
+/** The work `cutEdges` (groundtrack.js) does, bounded before it ever runs.
+ *  `cutEdges` scans every call step in the file once per distinct renamed
+ *  token a layer names, matching by substring — so its cost is the file's
+ *  call steps times the renamed tokens summed across every layer, and a
+ *  file can hold few nodes and few layers and still carry both numbers
+ *  large. Refused here rather than in `cutEdges` itself: counting tokens
+ *  and call steps reads no string a caller supplied, only how many there
+ *  are, so this is cheap on a file of any shape, unlike the scan it stops. */
+const MAX_CUTEDGES_WORK = 72000000;
+
+/** `cutEdges`'s own cost, without running it: the file's call steps, times
+ *  the distinct renamed tokens named in each layer, summed across layers —
+ *  the same two counts `cutEdges` reads, before either is matched against
+ *  the other. */
+function cutEdgesWork(prog) {
+  let callSteps = 0;
+  for (const n of Object.values(prog.nodes)) {
+    if (!isObj(n) || !Array.isArray(n.steps)) continue;
+    for (const s of n.steps) if (isObj(s) && s.op === 'call') callSteps += 1;
+  }
+  let work = 0;
+  for (const layer of Object.values(prog.layers || {})) {
+    const tokens = new Set();
+    for (const ov of Object.values((isObj(layer) && layer.nodes) || {})) {
+      for (const r of (isObj(ov) && Array.isArray(ov.requirements) && ov.requirements) || []) {
+        const tok = Groundtrack.renamedToken(r);
+        if (tok) tokens.add(tok);
+      }
+    }
+    work += tokens.size * callSteps;
+  }
+  return work;
+}
 
 const STEP = {
   comment: { req: ['comment'], opt: [] },
@@ -346,6 +380,14 @@ function shape(prog, r) {
       });
     });
   });
+
+  /* Counted here, before anything below this pass calls `cutEdges`: a file
+   * that would cost too much for it to scan is refused before the scan,
+   * not after it has already run long. */
+  const work = cutEdgesWork(prog);
+  if (work > MAX_CUTEDGES_WORK) {
+    r.shape('layers', `this file's layers name renamed tokens that would cost ${work} call-step comparisons to check against every call step, more than the ${MAX_CUTEDGES_WORK} groundtrack allows. Rename fewer tokens, or under fewer layers.`);
+  }
 
   if (prog.tour !== undefined) tourShape(prog, r);
 }

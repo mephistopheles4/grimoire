@@ -80,7 +80,7 @@ list what enters where.
 `presets` fails with a message naming `graphs`. There is one way to say one
 thing, so nothing accepts both.
 
-**Three size limits, each one measured, not guessed.** Each guards against a
+**Four size limits, each one measured, not guessed.** Each guards against a
 crash or a blow-up, not against a merely large file.
 
 - **A graph's call structure goes at most 1,000 calls deep.** This counts
@@ -94,6 +94,10 @@ crash or a blow-up, not against a merely large file.
 - **A node id holds at most 128 characters.** A long id costs more to carry
   and to compare wherever the renderer tracks a path through the graph.
   Shorten the id.
+- **A layer's renamed tokens, times the file's call steps, add up to at most
+  72,000,000.** A layer's rename is checked against every call step in the
+  file. Many call steps and many renamed tokens together cost their
+  product to check. Rename fewer tokens, or under fewer layers.
 
 ## Top level
 
