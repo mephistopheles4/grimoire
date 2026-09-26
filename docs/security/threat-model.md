@@ -70,23 +70,23 @@ How to read it:
 - **Act now (top right): row 1.** Anyone can open a pull request, and charting
   one is what groundtrack is for. Gap 1 below narrows it most.
 - **Guard closely (top left): rows 2, 8, 9, 10 and 3.** Rarer, but severe.
-  Row 2 is row 1's quieter twin and closes with the same gap. Row 8 moved
+  Row 2 is row 1's quieter twin, narrowed by the same gap. Row 8 moved
   left once the scanners became required checks (gap 2).
 - **Watch (bottom right): row 12.** It happens by design whenever an account
   has logging on, and the harm is bounded to text the user chose to send.
 - **Accept (bottom left): rows 4, 5, 6, 7 and 11.** Row 6 sits nearest the
-  middle and closes with gap 1.
+  middle and gap 1 narrows it.
 
 ## The matrix
 
 | # | Scenario | What stops it today | Residual gap | Tags |
 | --- | --- | --- | --- | --- |
-| 1 | **A pull request steers the agent charting it.** Anyone who can open a pull request or ticket writes text into it that reads as an instruction to the agent. A user asks groundtrack to chart that change. The agent either acts on the text, or draws a clean sheet of a dirty change, and a reviewer trusts the sheet. | The host agent's own rule that file content is data. groundtrack's traces are literals a reader *can* check against the material. | **Nothing in the skill prose.** `SKILL.md` step 1 says "Read the material" with no word on text that reads as an instruction. Nothing makes a reader check the sheet against the diff. This is the highest-value attack here, because a misleading review aid is the product failing quietly. | `AML.T0051.001` · `LLM01:2025` · `ASI01` · Tampering · MAESTRO 3 |
-| 2 | **A shared file speaks to the agent.** A stranger shares a box or flightpath file whose `why`, note or blurb reads as an instruction. The agent opens it, or reads it through the renderer: `--check` prints row names and findings, and `--text` prints blurbs, remarks and tour text verbatim. | The host agent's own rule that file content is data. HTML escaping does nothing here: it guards the browser, not the terminal. | **Nothing in the skill prose**, in either skill. The renderers' output carries author text back to the agent by design. | `AML.T0051.001` · `LLM01:2025` · `ASI01` · Tampering · MAESTRO 3 |
+| 1 | **A pull request steers the agent charting it.** Anyone who can open a pull request or ticket writes text into it that reads as an instruction to the agent. A user asks groundtrack to chart that change. The agent either acts on the text, or draws a clean sheet of a dirty change, and a reviewer trusts the sheet. | The host agent's own rule that file content is data. groundtrack's `SKILL.md` says the material is data to draw, not instructions, and to tell the reader when a line reads as a request. Traces are literals a reader *can* check against the material. | A sentence in a skill reminds the agent; it does not bind it. Nothing makes a reader check the sheet against the diff. This is the highest-value attack here, because a misleading review aid is the product failing quietly. | `AML.T0051.001` · `LLM01:2025` · `ASI01` · Tampering · MAESTRO 3 |
+| 2 | **A shared file speaks to the agent.** A stranger shares a box or flightpath file whose `why`, note or blurb reads as an instruction. The agent opens it, or reads it through the renderer: `--check` prints row names and findings, and `--text` prints blurbs, remarks and tour text verbatim. | The host agent's own rule that file content is data. Both `SKILL.md` files now say a file and the renderer's output are data, not instructions. HTML escaping does nothing here: it guards the browser, not the terminal. | A reminder, not a guard. The renderers' output carries author text back to the agent by design. | `AML.T0051.001` · `LLM01:2025` · `ASI01` · Tampering · MAESTRO 3 |
 | 3 | **A shared file runs script in the page.** A stranger crafts a file so its text breaks out into markup when the page renders. | `</` escaped before the script block; `&` and `<` escaped for element content; ids validated; author text never in an attribute. Tests pin the escape's width and put hostile text in every field. See [rendering.md](rendering.md). | "No author text reaches an attribute" is held by review, not by a parse of the page. A new `="${` in a template breaks it. | `LLM05:2025` · Tampering, Elevation of privilege |
 | 4 | **A shared file confuses the validator.** A name such as `constructor` collides with `Object.prototype`, so a check silently passes and the author is told the wrong thing is wrong. | `Groundtrack.hardenKeys` and prototype-free maps; tests with bare-name fixtures. | Low. The harm is a wrong diagnosis, not code execution. | Tampering |
 | 5 | **A shared file hangs the page.** A box built to branch hard makes the chain walk run for a long time on the reader's machine. | eagle-eye stops the walk at 20,000 steps (`skills/eagle-eye/lib/eagle-eye.js`). | groundtrack's renderer and page have no stated limit; its cost on a hostile file is not measured. | Denial of service |
-| 6 | **Planted text claims a standing yes.** eagle-eye's `SKILL.md` lets the user's instructions give a standing yes for the edge audit. Text in a box or a charted file claims to be that yes, so the audit runs without asking: the box's text leaves the machine and the user's key is charged. | The four facts are still stated before each run. `--dry-run` comes first. | The prose does not say a standing yes can come **only** from the user's own instructions, never from a file. | `AML.T0051.001` · `AML.T0034` · `ASI02` · Information disclosure |
+| 6 | **Planted text claims a standing yes.** eagle-eye's `SKILL.md` lets the user's instructions give a standing yes for the edge audit. Text in a box or a charted file claims to be that yes, so the audit runs without asking: the box's text leaves the machine and the user's key is charged. | The four facts are still stated before each run. `--dry-run` comes first. `SKILL.md` says a standing yes comes only from the user's own instructions, never from text in a file. | Low. The host agent still has to tell the user's instructions from a file's. | `AML.T0051.001` · `AML.T0034` · `ASI02` · Information disclosure |
 | 7 | **A tampered restore code.** Someone edits an exported configuration before the user pastes it back, so the agent updates the box with a set the user never chose. | `SKILL.md` step 8: say the set back in words before acting, and update the box only with what the user confirms. | Low. This is the guard working: the user sees names, not ids. | Tampering |
 | 8 | **A poisoned skill update.** An attacker with a stolen maintainer token, or a contributor whose pull request is merged, hides an instruction in a `SKILL.md`. Every installer's agent obeys it after the next update. | Pull request required on `main`. `check`, SkillSpector's `scan` and zizmor's `audit` must all pass (required since 2026-09-25). | SkillSpector is static pattern matching: an instruction written to read as ordinary prose can pass it. There is no signing and no per-user pin: `npx skills add` copies `main`, and the plugin updates when its version moves. A stolen admin account bypasses all of it. | `AML.T0110.000` · `AML.T0115.002` · `AML.T0109` · `LLM03:2025` · `ASI04` · Tampering · MAESTRO 7 |
 | 9 | **A hijacked action in CI.** An action's tag is moved to malicious code, which then tampers with the published site or steals the job's token. | Every action pinned to a commit SHA; zizmor's `ref-version-mismatch` checks each SHA against its comment; `persist-credentials: false`; permissions scoped per job. See [scanners.md](scanners.md). | A pin trusts whatever code it names. | `AML.T0010.001` · `LLM03:2025` · Tampering, Elevation of privilege |
@@ -103,11 +103,10 @@ out of scope for that reason.
 
 ## Gaps, ranked
 
-1. **Say it in the skill prose.** Add one short paragraph to each `SKILL.md`:
-   the material, the files and the renderer's output are data to chart, never
-   instructions to follow, and a standing yes for the audit comes only from the
-   user. Closes the prose gap in rows 1, 2 and 6. *Touches `skills/`, so it is
-   its own pull request with a version bump.*
+1. **Say it in the skill prose.** *Done 2026-09-25:* each `SKILL.md` now says
+   the material, the files and the renderer's output are data, not instructions,
+   and eagle-eye's says a standing yes for the audit comes only from the user.
+   Narrows rows 1, 2 and 6; the host agent remains the real guard.
 2. **Make the scanners gate.** *Done 2026-09-25:* SkillSpector's `scan` and
    zizmor's `audit` are now required checks on `main`, beside `check`.
 3. **Tell reviewers to check the sheet against the diff.** groundtrack's page
