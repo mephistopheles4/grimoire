@@ -80,6 +80,29 @@ list what enters where.
 `presets` fails with a message naming `graphs`. There is one way to say one
 thing, so nothing accepts both.
 
+**Two size limits, both measured rather than guessed.** `docs/security/threat-model.md`
+row 5 asked what a crafted file costs the renderer; both numbers below are
+sized from that measurement, and the pull request that added them states the
+machine, the file sizes and the times.
+
+- **A trace holds at most 2,000 moves.** `fold` (`groundtrack.js`) clones
+  every open frame's call chain on every move and keys a table by it, so its
+  cost worsens faster than the move count — close to cubic, measured on a
+  deep self-recursion. A trace over the limit is refused before any walk
+  reads it, naming the count and the limit. Split a longer run into more than
+  one, or shorten it; the longest trace any shipped example carries is 60
+  moves.
+- **A graph's tree view draws at most 20,000 rows.** The page's tree toggle
+  and `--text` (`treeRows` in `groundtrack.js`) unfold every distinct path
+  from a graph's entry, not every node once, so a call graph that fans out
+  and back in draws exponentially more rows than it has nodes — two nodes
+  calling the same two nodes, 20 layers deep, is 41 nodes and over a million
+  rows. The validator counts what the tree view would draw, the same way the
+  tree does, and stops counting the moment it passes the limit — so checking
+  it costs no more than the limit's worth of work, however large the file.
+  Flatten the call graph, or split the change into more than one graph, to
+  fall under it.
+
 ## Top level
 
 | Field | Type | Meaning |

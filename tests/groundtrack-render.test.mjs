@@ -454,6 +454,93 @@ test('an absent optional field is not refused, and the empty one is', () => {
   assert.equal(check(derive(p => { p.files = []; })).code, 1);
 });
 
+/* -- the two limits gap 4 of the threat model asks for --------------------
+ *
+ * docs/security/threat-model.md row 5: a crafted flightpath file could make
+ * the renderer or the page run for a long time. Both limits are refused in
+ * `shape()`, before any walk is read, so the cost of the pattern they refuse
+ * is never paid at all — a test on each side proves that boundary, not just
+ * that a huge file is eventually refused. */
+
+/** A trace of `moves` effect steps in one node, looping on itself and then
+ *  returning. Long on purpose and cheap to build: every move is the same
+ *  shape, so this reaches the trace-length limit without needing the deep
+ *  call stack `selfRecursive` in helpers.mjs builds for a different test. */
+function withTraceLength(prog, moves) {
+  delete prog.layers;
+  prog.nodes = {
+    entry: {
+      name: 'entry', role: 'impure', loc: 'src/entry.ts:1', params: [],
+      channels: { success: 'void', error: [], requirements: [] },
+      touches: ['src/entry.ts'], enteredBy: [],
+      steps: [{ op: 'effect', kind: 'read', desc: 'loop body' }, { op: 'return', expr: 'null' }],
+    },
+  };
+  const steps = [];
+  for (let i = 0; i < moves; i++) steps.push({ k: 'effect', at: 0, kind: 'read', desc: 'loop body', next: i === moves - 1 ? 1 : 0 });
+  steps.push({ k: 'return', at: 1 });
+  steps.push({ k: 'done' });
+  only(prog).entry = 'entry';
+  only(prog).presets = [{ name: 'loop', blurb: 'a trace with many moves', input: {}, trace: { provenance: 'authored', steps } }];
+  return prog;
+}
+
+test('a trace of 2,000 moves validates, and 2,001 is refused by the limit', () => {
+  // withTraceLength(p, m) writes m effect moves plus a return and a done, so
+  // the boundary sits two below the count named in each call.
+  const atLimit = check(derive(p => withTraceLength(p, 1998)));
+  assert.equal(atLimit.code, 0, atLimit.stderr);
+  const overLimit = check(derive(p => withTraceLength(p, 1999)));
+  assert.equal(overLimit.code, 1);
+  assert.match(overLimit.stderr, /this trace has 2001 moves, more than the 2000 groundtrack folds/);
+});
+
+/** Two nodes per layer, each calling both nodes of the next layer — the shape
+ *  `treeRows` (groundtrack.js) unfolds one row per distinct path rather than
+ *  one per node, so its row count is 2^depth from a graph of about 2*depth
+ *  nodes. The row count this limit refuses is a property of the call
+ *  graph's shape, read at the shape pass before any trace is folded — so the
+ *  one run here walks a single path straight down the "a" side and back,
+ *  which is enough to be a legal walk without describing the fan-out at all. */
+function diamondProgram(prog, depth) {
+  const node = (id, overrides) => ({
+    name: id, role: 'pure', loc: 'src/diamond.ts:1', params: [],
+    channels: { success: 'void', error: [], requirements: [] },
+    touches: ['src/diamond.ts'], enteredBy: [],
+    ...overrides,
+  });
+  delete prog.layers;
+  const nodes = { entry: node('entry', { steps: [{ op: 'call', target: 'l0a' }, { op: 'return', expr: 'null' }] }) };
+  for (let i = 0; i < depth; i++) {
+    const last = i === depth - 1;
+    for (const side of ['a', 'b']) {
+      nodes[`l${i}${side}`] = node(`l${i}${side}`, {
+        steps: last
+          ? [{ op: 'return', expr: 'null' }]
+          : [{ op: 'call', target: `l${i + 1}a` }, { op: 'call', target: `l${i + 1}b` }, { op: 'return', expr: 'null' }],
+      });
+    }
+  }
+  const steps = [{ k: 'call', at: 0, to: 'l0a', next: 1 }];
+  for (let i = 0; i < depth - 1; i++) steps.push({ k: 'call', at: 0, to: `l${i + 1}a`, next: 2 });
+  steps.push({ k: 'return', at: 0 });
+  for (let i = depth - 2; i >= 0; i--) steps.push({ k: 'return', at: 2 });
+  steps.push({ k: 'return', at: 1 });
+  steps.push({ k: 'done' });
+  prog.nodes = nodes;
+  only(prog).entry = 'entry';
+  only(prog).presets = [{ name: 'down the a side', blurb: 'one straight path through the fan-out', input: {}, trace: { provenance: 'authored', steps } }];
+  return prog;
+}
+
+test('a call graph that draws 2^14 tree rows validates, and 2^15 is refused by the limit', () => {
+  const atLimit = check(derive(p => diamondProgram(p, 14)));
+  assert.equal(atLimit.code, 0, atLimit.stderr);
+  const overLimit = check(derive(p => diamondProgram(p, 15)));
+  assert.equal(overLimit.code, 1);
+  assert.match(overLimit.stderr, /this graph's tree view would draw more than 20000 rows/);
+});
+
 /* -- findings are not refusals -------------------------------------------- */
 
 test('a finding prints on standard output and the exit code stays zero', () => {

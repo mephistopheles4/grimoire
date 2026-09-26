@@ -41,6 +41,72 @@ const CHANGE = ['new', 'edit', 'delete', 'forbidden'];
  * that drifted would refuse a cause the page then printed. */
 const CAUSE = Groundtrack.KINDS;
 
+/* -- the two limits gap 4 of the threat model asks for ----------------------
+ *
+ * docs/security/threat-model.md row 5: groundtrack stated no limit and its
+ * cost on a hostile file was not measured. It now is (the pull request that
+ * added these two constants states the machine, the sizes and the times);
+ * both limits below stop a plausibly-shared file well short of where
+ * measurement found the renderer stall or crash, with room to spare for a
+ * real change.
+ *
+ * Neither limit is the walk's own 20,000-step stop in
+ * skills/eagle-eye/lib/eagle-eye.js, and neither should be read as matching
+ * it: eagle-eye's walk is linear in its step count, so 20,000 steps is
+ * 20,000 units of work. Both of groundtrack's costs below are worse than
+ * linear in the number they bound, so a limit of the same size would still
+ * be minutes of work at the boundary. Each number here is instead sized from
+ * this renderer's own measured growth, worked back from a few seconds at the
+ * limit. */
+
+/* `fold` (groundtrack.js) cost worsens faster than the move count: it clones
+ * every open frame's call chain on every move, and keys a table by that
+ * chain. A single self-recursive node's trace measured close to cubic —
+ * doubling the moves from 800 to 1,600 (400 to 800 call/return levels) took
+ * the fold from 830ms to 6.06s, near 7x for 2x the moves — and a trace of
+ * 3,003 moves (1,000 levels) exhausted a 4GB heap in about a minute. 2,000
+ * moves keeps the worst pattern measured (deep self-recursion) under 10s on
+ * the machine the pull request names, and is more than 30x the longest trace
+ * any shipped example carries today. */
+const MAX_TRACE_MOVES = 2000;
+
+/* groundtrack's tree view (the page's tree toggle and `--text`) unfolds
+ * every DISTINCT PATH from a graph's entry, stopping only where a node
+ * repeats on the path it is reached by — so it is the shape of the call
+ * graph that costs, not its node count. A graph that calls two nodes which
+ * each call the same two nodes, D layers deep, draws roughly 2^D rows from a
+ * file of about 2*D nodes: 20 layers (41 nodes, under 12KB) took 1.6s to
+ * unfold and 22 layers exhausted a 4GB heap. This is measured at the shape
+ * pass, before any trace is read, by a bounded walk that mirrors the tree's
+ * own rule and stops counting the moment it passes the cap — so checking it
+ * costs at most one cap's worth of work, on a file of any size. 20,000 rows
+ * is the same size as eagle-eye's own chain-walk stop, and is far past any
+ * ordinary call graph: every shipped example draws under 40 rows. */
+const MAX_TREE_ROWS = 20000;
+
+/** How many rows groundtrack's tree view would draw from `entry`, or `cap +
+ *  1` the moment that would be exceeded — never more, so a file built to
+ *  make this expensive cannot make counting it expensive too. Mirrors
+ *  `treeRows`'s own walk in groundtrack.js: a row is drawn for every call
+ *  site reached, a node repeating on its own path stops that branch after
+ *  the row for it, and a call to an id that is not a node is skipped rather
+ *  than walked. */
+function drawnRowCount(prog, entry, cap) {
+  let count = 0;
+  (function walk(id, path) {
+    if (count > cap) return;
+    const node = prog.nodes[id];
+    if (!node) return;
+    count += 1;
+    if (count > cap || path.includes(id)) return;
+    for (const s of node.steps || []) {
+      if (s.op === 'call' && isNode(prog, s.target)) walk(s.target, path.concat([id]));
+      if (count > cap) return;
+    }
+  })(entry, []);
+  return count;
+}
+
 const STEP = {
   comment: { req: ['comment'], opt: [] },
   var: { req: ['name', 'expr'], opt: [] },
@@ -253,6 +319,19 @@ function shape(prog, r) {
     } else graphIds.add(g.id);
 
     if (!isNode(prog, g.entry)) r.shape(`graphs[${gi}].entry`, `"${g.entry}" is not a node`);
+    else {
+      /* Measured here, once per graph, rather than in the tree view or
+       * --text: a file built to make the tree expensive must not make this
+       * check expensive too, and `drawnRowCount` stops counting the moment
+       * it passes the cap. */
+      const rows = drawnRowCount(prog, g.entry, MAX_TREE_ROWS);
+      if (rows > MAX_TREE_ROWS) {
+        r.shape(
+          `graphs[${gi}]`,
+          `this graph's tree view would draw more than ${MAX_TREE_ROWS} rows once every call site is unfolded from "${g.entry}". groundtrack's tree view and --text unfold every distinct path from the entry rather than every node once, so a call graph that fans out and back in draws exponentially more rows than it has nodes. Flatten the call graph, or split the change into more than one graph.`,
+        );
+      }
+    }
 
     /* Run names are unique per graph, not per file, so two graphs may each
      * have a happy path. */
@@ -280,6 +359,17 @@ function shape(prog, r) {
         r.shape(`graphs[${gi}].presets[${i}].trace.provenance`, `"${p.trace.provenance}" is not authored or captured`);
       if (!Array.isArray(p.trace.steps)) return r.shape(`graphs[${gi}].presets[${i}].trace.steps`, 'expected an array');
       if (!p.trace.steps.length) r.shape(`graphs[${gi}].presets[${i}].trace.steps`, 'a trace with no moves shows nothing');
+      /* `fold` in groundtrack.js clones every open frame's chain on every
+       * move and keys a table by it, so its cost worsens faster than the
+       * move count — measured close to cubic for a deep self-recursion.
+       * Refused here, before any walk reads the trace, so the cost of a
+       * trace this long is never paid at all. */
+      if (p.trace.steps.length > MAX_TRACE_MOVES) {
+        r.shape(
+          `graphs[${gi}].presets[${i}].trace.steps`,
+          `this trace has ${p.trace.steps.length} moves, more than the ${MAX_TRACE_MOVES} groundtrack folds. A deep or long-repeating trace costs the fold worse than one move at a time, so this is refused rather than run. Shorten the run, or split it into more than one.`,
+        );
+      }
       p.trace.steps.forEach((m, j) => {
         const w = `graphs[${gi}].presets[${i}].trace.steps[${j}]`;
         if (!isObj(m) || !MOVE[m.k]) return r.shape(w, `k "${m && m.k}" is not a move kind`);
