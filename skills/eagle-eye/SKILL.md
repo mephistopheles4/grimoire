@@ -144,8 +144,9 @@ rows. A cell that closes half the box is usually a position, not an option.
    A rewrite that adds a factual claim names a `src`, or the edge stays
    `argued`. To check the rewritten edges, run the audit again. A second run
    sends every edge again, so the provider charges again. The second run is
-   not a new offer. It is a new charge, so it needs a new yes. Run `--dry-run`
-   first. State the four facts. Then ask. Stop after two rounds. The audit
+   not a new offer. It is a new charge. Run `--dry-run` first. State the four
+   facts. Then ask, unless the user's own instructions gave a yes for every
+   run. Stop after two rounds. The audit
    stops when every flagged edge has a disposition. It never stops on a score.
 
    A `suspected` edge is listed on the page but colours nothing. Its string
@@ -215,9 +216,9 @@ rows. A cell that closes half the box is usually a position, not an option.
 
    It scores only the argued edges that make the set fail. It lists a sourced
    or measured edge, and does not send it. The rules of step 4 apply to this
-   run. After a yes in step 4, this run is not a new offer. It is a new charge,
-   so it needs a new yes. Run it with `--dry-run` and the same `--sel` first.
-   State the four facts. Then ask. If the user says no in step 4, do not offer
+   run. After a yes in step 4, this run is not a new offer. It is a new charge.
+   Run it with `--dry-run` and the same `--sel` first. State the four facts.
+   Then ask, unless the user's own instructions gave a yes for every run. If the user says no in step 4, do not offer
    the audit again. If the audit fails, check the edges by hand.
 9. **Debrief.** When the user accepts a set, close the loop in chat. Three
    things, in three or four sentences:
