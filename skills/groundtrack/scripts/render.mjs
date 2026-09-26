@@ -48,10 +48,11 @@ const CAUSE = Groundtrack.KINDS;
  * can draw, or a scan whose work grows as the product of two counts. */
 
 /** How deep a graph's own call structure goes, counted in calls from its
- *  entry, with no trace read at all. The entry is 0 calls deep. `treeRows`
- *  (the page's tree view and `--text`) recurses once per call over this
- *  same structure, so a call graph deep enough can overflow the call stack
- *  and crash it. A thousand calls deep is far past any real call graph. */
+ *  entry, with no trace read at all. The entry is 0 calls deep. The tree
+ *  view walks this structure with an explicit stack, but `reachable`, which
+ *  picks the nodes a graph draws, recurses once per call along it, so a call
+ *  graph deep enough can overflow the call stack and crash it. A thousand
+ *  calls deep is far past any real call graph. */
 const MAX_GRAPH_DEPTH = 1000;
 
 /** The tree view's own row count. `treeRows` draws one row per distinct
@@ -282,11 +283,8 @@ function shape(prog, r) {
     else {
       /* Measured here, once per graph, rather than in the tree view or
        * --text: a file built to make either one expensive must not make
-       * this check expensive too. `boundedGraphWalk` stops growing either
-       * number the moment it passes its cap, walks with an explicit stack
-       * rather than one JavaScript call per node, and reads a node's steps
-       * defensively — so it runs safely on a file no earlier pass has
-       * passed judgement on yet. */
+       * this check expensive too. `boundedGraphWalk` counts the tree view's
+       * own rows and stops at the first one past either cap. */
       const walk = Groundtrack.boundedGraphWalk(prog, g.entry, MAX_TREE_ROWS, MAX_GRAPH_DEPTH);
       if (walk.overDepth) {
         r.shape(

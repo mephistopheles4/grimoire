@@ -326,11 +326,13 @@ const Groundtrack = (() => {
     return m;
   };
 
-  /** The call steps of one node, in order. A node called twice is two sites. */
+  /** The call steps of one node, in order. A node called twice is two sites.
+   *  Reads `steps` defensively: the renderer walks a file's tree through
+   *  this before the rest of validation has judged it. */
   const callSites = node => {
     const out = [];
-    (node.steps || []).forEach((s, i) => {
-      if (s.op === 'call') out.push({ at: i, target: s.target, label: s.label, aside: s.aside });
+    (Array.isArray(node.steps) ? node.steps : []).forEach((s, i) => {
+      if (s && s.op === 'call') out.push({ at: i, target: s.target, label: s.label, aside: s.aside });
     });
     return out;
   };
@@ -1366,82 +1368,63 @@ const Groundtrack = (() => {
    * stopped, or a cycle never terminates.
    */
 
-  /** Whether the tree `treeRows` below would draw from `entry` passes two
-   *  caps, without drawing it: a cap on how many rows it would hold, and a
-   *  cap on how many calls deep the deepest one goes. Both stop counting
-   *  the instant either is passed, so this costs at most one cap's worth of
-   *  work on a file of any shape or size.
+  /** THE TREE'S ROWS, one at a time, in the order the tree draws them. The
+   *  one place that says what a row is: one row per call site reached from
+   *  `entry`, and a node already open on the path that reached it gets a
+   *  row marked `repeat` and stops there, or a cycle never ends. A repeat
+   *  never joins the path and never leaves it: the node stays on the path
+   *  until the frame that first opened it closes.
    *
-   *  Mirrors `treeRows`'s own rule for what a row is: one row per call site
-   *  reached, and a node repeating on the path that reached it stops that
-   *  branch there rather than walking it again. `treeRows` recurses over
-   *  this same call graph once per node, so the depth cap here is also a
-   *  cap on how deep it would ever recurse — which is what makes it a cap
-   *  on `treeRows`'s safety, not only on the row count. A reader that walks
-   *  nodes no entry reaches is not covered by it, and walks without
-   *  recursion instead.
+   *  Each row is `{ id, node, depth, link, site, parent, repeat }`: `link`
+   *  is the call step that reached it, `caller#step`, and `site` that step;
+   *  `parent` is the index of the row above it, in yield order. Depth is
+   *  counted in calls: the entry is 0 calls deep.
    *
-   *  An explicit stack, never the call stack: a node with no branch calling
-   *  the next one thousands deep is a graph a caller can write by hand, and
-   *  a walk that recursed one JavaScript call per node would fail before
-   *  either cap said why. `node.steps` is read defensively rather than
-   *  assumed to be an array — this walk earns its keep by running safely on
-   *  a file the rest of validation has not passed judgement on yet.
-   *
-   *  Depth is counted in calls, not nodes: the entry is 0 calls deep, and a
-   *  chain of 1,001 nodes is 1,000 calls deep. `rows` is the number of rows
-   *  counted, which is exactly `treeRows`'s length while neither cap is
-   *  passed, and stops one past `rowCap` when that cap is. */
-  function boundedGraphWalk(prog, entry, rowCap, depthCap) {
-    let rows = 0;
-    let overRows = false;
-    let overDepth = false;
-    if (!prog.nodes[entry]) return { rows, overRows, overDepth };
+   *  A generator, so a reader can stop at any row and the walk does no more
+   *  work than that. An explicit stack, never the call stack: a node with
+   *  no branch calling the next one thousands deep is a graph a caller can
+   *  write by hand. */
+  function* treeWalk(prog, entry) {
+    if (!prog.nodes[entry]) return;
     const onPath = new Set();
-    /* One stack entry per open call: the node it is at, the call targets
-     * still to walk from it, where in that list the next one starts, and
-     * whether it repeats a node already open on its path. Pushed once per
-     * node reached, exactly where the recursive version would have made a
-     * call. */
-    const stack = [{ id: entry, targets: null, next: 0, repeat: false }];
-    const targetsOf = id => {
-      const node = prog.nodes[id];
-      const steps = node && Array.isArray(node.steps) ? node.steps : [];
-      const out = [];
-      for (const s of steps) if (s && s.op === 'call' && prog.nodes[s.target]) out.push(s.target);
-      return out;
-    };
+    let rows = 0;
+    /* One entry per open call: its row, and the calls still to walk from it. */
+    const stack = [{ id: entry, link: '@entry', site: null, parent: undefined, calls: null, next: 0 }];
     while (stack.length) {
       const top = stack[stack.length - 1];
-      if (top.targets === null) {
-        /* First time this frame is on top: it is the row `treeRows` draws
-         * for this call site. */
-        rows += 1;
-        if (rows > rowCap) overRows = true;
-        if (stack.length - 1 > depthCap) overDepth = true;
-        /* A node already open on this path stops here, the way `treeRows`
-         * stops a repeat rather than walking it again. A repeat frame never
-         * joins the path and never leaves it: the frame that opened the node
-         * is still open below it, and the node stays on the path until that
-         * frame closes. */
+      if (top.calls === null) {
+        const node = prog.nodes[top.id];
         top.repeat = onPath.has(top.id);
-        if (top.repeat) top.targets = [];
-        else {
-          top.targets = targetsOf(top.id);
-          onPath.add(top.id);
-        }
+        top.row = rows++;
+        yield { id: top.id, node, depth: stack.length - 1, link: top.link, site: top.site, parent: top.parent, repeat: top.repeat };
+        top.calls = top.repeat ? [] : callSites(node).filter(s => prog.nodes[s.target]);
+        if (!top.repeat) onPath.add(top.id);
       }
-      /* Once either cap is passed, no further branch is worth walking: both
-       * numbers can only grow from here, and the file is refused either way.
-       * This unwinds the stack instead of pushing, which is at most the
-       * depth already reached — itself bounded by `depthCap` by the time
-       * `overDepth` is what tripped it. */
-      if (overRows || overDepth || top.next >= top.targets.length) {
+      if (top.next >= top.calls.length) {
         if (!top.repeat) onPath.delete(top.id);
         stack.pop();
         continue;
       }
-      stack.push({ id: top.targets[top.next++], targets: null, next: 0, repeat: false });
+      const s = top.calls[top.next++];
+      stack.push({ id: s.target, link: `${top.id}#${s.at}`, site: s, parent: top.row, calls: null, next: 0 });
+    }
+  }
+
+  /** Whether the tree from `entry` passes two caps, without drawing it: how
+   *  many rows it holds, and how many calls deep its deepest row is. It
+   *  counts `treeWalk`'s rows and stops at the first row past either cap,
+   *  so it costs at most one cap's worth of work on a file of any shape or
+   *  size. `rows` is the tree's length while neither cap is passed, and
+   *  stops one past `rowCap` when that cap is. */
+  function boundedGraphWalk(prog, entry, rowCap, depthCap) {
+    let rows = 0;
+    let overRows = false;
+    let overDepth = false;
+    for (const row of treeWalk(prog, entry)) {
+      rows += 1;
+      if (rows > rowCap) overRows = true;
+      if (row.depth > depthCap) overDepth = true;
+      if (overRows || overDepth) break;
     }
     return { rows, overRows, overDepth };
   }
@@ -1517,36 +1500,16 @@ const Groundtrack = (() => {
      * the same way. */
     const kinds = failureKinds(prog);
 
-    /* THE ROWS THE TREE DRAWS, and the chain each one stands for. Walked
-     * before any mark is read, because which row a mark belongs to is a
-     * question about the whole set of rows and cannot be answered one row at
-     * a time. A repeated node is drawn once more and stopped, or a cycle never
-     * terminates — so the walk can run deeper than the rows go.
-     *
-     * A row holds no copy of its chain. It holds the rows below it, each
-     * found by the one link that leads there, so a chain is found by
-     * following its links down from the entry's row. A chain joined into
-     * one string key is as long as the tree is deep, and a table of keys
-     * that long costs far more to build and to search than its size
-     * suggests. The nodes open above a row are one set, grown on the way
-     * down and shrunk on the way back, rather than a list copied per row. */
+    /* THE ROWS THE TREE DRAWS, from `treeWalk`. All of them before any mark
+     * is read, because which row a mark belongs to is a question about the
+     * whole set of rows. A row holds no copy of its chain. It holds the rows
+     * below it, each found by the one link that leads there, so a chain is
+     * found by following its links down from the entry's row. */
     const drawn = [];
-    const onPath = new Set();
-    (function walkNode(id, link, depth, site, parent) {
-      const node = prog.nodes[id];
-      if (!node) return;
-      const repeat = onPath.has(id);
-      const at = drawn.length;
-      drawn.push({ id, node, depth, site, repeat, below: new Map(), entered: 0, returned: 0, effects: bare(), open: false, how: [] });
-      if (parent !== undefined) drawn[parent].below.set(link, at);
-      if (repeat) return;
-      onPath.add(id);
-      for (const s of callSites(node)) {
-        if (!prog.nodes[s.target]) continue;
-        walkNode(s.target, `${id}#${s.at}`, depth + 1, s, at);
-      }
-      onPath.delete(id);
-    })(prog.entry, '@entry', 0, null, undefined);
+    for (const r of treeWalk(prog, prog.entry)) {
+      drawn.push({ id: r.id, node: r.node, depth: r.depth, site: r.site, repeat: r.repeat, below: new Map(), entered: 0, returned: 0, effects: bare(), open: false, how: [] });
+      if (r.parent !== undefined) drawn[r.parent].below.set(r.link, drawn.length - 1);
+    }
 
     /* WHICH ROW SPEAKS FOR A CHAIN. Its own row where the tree draws one, and
      * otherwise the row whose chain is the longest prefix of it.
