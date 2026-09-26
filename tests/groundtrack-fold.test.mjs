@@ -305,9 +305,10 @@ test('the tab\'s three groups cover every file the change states', () => {
 });
 
 test('the tab asks about this sheet and the check asks about the change', () => {
-  // Story 28 wants the tab's third group labelled as this sheet's; story 29
-  // wants the check's finding taken across every graph. Two questions, so two
-  // answers, and the same function gives both.
+  // docs/spec/groundtrack.md, "The page": the files tab's third group is every
+  // file the sheet's nodes don't account for; the check's finding is taken
+  // across every graph. Two questions, so two answers, and the same function
+  // gives both.
   const prog = twoGraphs();
   prog.files = [
     { path: 'src/shout.ts', change: 'edit', why: 'the other entry', adds: 1, dels: 0 },

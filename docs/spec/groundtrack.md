@@ -1,15 +1,16 @@
 # groundtrack — the locked spec
 
-The destination of [the map, #25](https://github.com/mephistopheles4/grimoire/issues/25).
-Sixteen tickets closed; this document is what they decided, in one place.
-
-**This file is canonical.** Where a ticket and this file disagree, the ticket is
-the record of the argument and this file is the instruction.
+**This file is canonical.** Where a ticket and this file disagree, the ticket
+is the record of the argument and this file is the instruction. Where this
+file is silent, the ticket resolution stands.
 
 **A session that changes the skill's behaviour amends the section that
 described the old behaviour, in place**, rather than appending a correction at
 the end. The current shape of `skills/groundtrack/` is what this file states;
 where a decision below has since changed, it reads as the change already made.
+
+This document collects what [the map, #25](https://github.com/mephistopheles4/grimoire/issues/25)
+and its sixteen tickets decided, in one place.
 
 ---
 
@@ -50,14 +51,13 @@ recorded traces from it. A zero-dependency renderer turns that file into a
 single self-contained HTML page.
 
 Every node carries three channels, in the framing the skill borrows from
-[Effect](https://dev.to/derangga/call-graph-planning-adapting-effects-mental-model-for-ai-558h):
-**success** (what flows out), **error** (the tags it can throw as a fail — a die
-is a defect and never appears here), and **requirements** (what it needs to
-work). The page draws the graph and steps a cursor over a recorded trace.
-Nothing is computed at read time: every branch an `if` took, every value an
-effect returned, and every catch, is a literal in the file. That is what makes
-the trace a list of checkable claims rather than a program a reader has to
-believe.
+Effect: **success** (what flows out), **error** (the tags it can throw as a
+fail — a die is a defect and never appears here), and **requirements** (what it
+needs to work). The page draws the graph and steps a cursor over a recorded
+trace. Nothing is computed at read time: every branch an `if` took, every value
+an effect returned, and every catch, is a literal in the file. That is what
+makes the trace a list of checkable claims rather than a program a reader has
+to believe.
 
 A **layer** redraws the same graph under a different set of dependencies — the
 test layer being the obvious one. Flip the toggle and a node that still reaches
@@ -98,7 +98,8 @@ naming here because the rest of this file leans on them:
 
 **The skill is `groundtrack`.** One word, no hyphen. Directory
 `skills/groundtrack/`, invoked as `/groundtrack`, and `/grimoire:groundtrack`
-under the plugin. `eagle-eye`'s hyphen is incidental, not a convention.
+under the plugin. `eagle-eye` — the sibling skill this document calls *the
+incumbent* below — has a hyphen, which is incidental, not a convention.
 
 **Its artifact is `<topic>.flightpath.json`.** The two words are placed by
 where they are read: the skill name is taught once and used deliberately, so it
@@ -112,6 +113,13 @@ own.** Not in its description, its body, or its examples — [ADR
 0001](../adr/0001-skills-own-their-vocabulary.md) states the repository-wide
 rule and the test; this skill is the reason the rule is single-tier rather than
 a floor with `groundtrack` held to something stricter.
+
+**Where a word in the file format or on the page comes from (#90).** C# and
+Java runtime words first; JavaScript's word when the two disagree; plain
+English when neither has one. The contract's three channels are named
+`success`, `error` and `requirements`. Breaking the file format to rename
+something already shipped is allowed: nothing reads the old shape after the
+break, and no compatibility shim ships alongside the new one.
 
 **Evocative on the door, plain language inside.** The name is a metaphor. The
 prose is not: page and reference text follow the same controlled-English rules
@@ -228,11 +236,11 @@ decisions below are the reasons behind that shape, not a second copy of it.
   to notice. One measured run went 34 → 36 → 36 → 36 → 36 errors and finished
   blaming the checker, when the whole fault was a spurious propagate one move
   earlier than the refusal pointed.
-- **An `uncaught` may arrive with frames still open**, and pops them, recording
-  each as propagated, innermost first — the asymmetry with `done`, which
-  arrives after the last frame has gone, is deliberate: the uncaught check
-  reads those open frames for a handler that should have caught the tag, and it
-  would have nothing to read if the move required none.
+- **An `uncaught` may arrive with frames still open.** It pops them, recording
+  each as propagated, innermost first. `done` arrives only after the last frame
+  has gone; the asymmetry is deliberate. The uncaught check reads those open
+  frames for a handler that should have caught the tag. It would have nothing
+  to read if the move required none.
 
 ### The validator is the schema
 
@@ -259,6 +267,11 @@ holds changes, and each control sits with what it acts on.
 | Cutaway, below | one node — source, files, contract | changes when a different node is opened |
 | Footer band | title-block cells, sheet facts, the trace band | states the sheet; only the trace band moves |
 
+**The sheet picker sits in the head, to the left of the run picker, because a
+sheet changes slower than a run and changes everything beneath it.** A one-graph
+file shows no picker at all, since a control that does nothing is worse than no
+control.
+
 Settled placements:
 
 - **The tools are the rail's header, not a block.** One row per tool with a
@@ -271,15 +284,20 @@ Settled placements:
 - **The view toggle switches the plan between the drawing and a tree.** The
   tree is the text format rendered from the same file and the same trace, on
   paper. Stepping works in tree mode; only the animation goes.
+- **The files tab shows three groups around the open node: what it changes,
+  what the other nodes on this sheet change, and every file in the change, not
+  only the ones no node accounts for.** The first two groups leave each other's
+  files out, so without the third, a reader could not see where one node's
+  file sits in the whole change; see
+  [`SKILL.md`](../../skills/groundtrack/SKILL.md) for the current wording. The
+  grouping is a pure function in the shared module, because the tab is built
+  at runtime and the rendered page as a string cannot show what it draws.
 - **The tree marks the error path, row by row, with a stripe, a glyph and a
-  word**, never a hue alone — a stripe inset down the row's left edge is where
-  a reader enters a row, just inside the row-state border, which is drafting
-  order: the object outline outermost, its annotation within. Rows are matched
-  by call site, never by node, so a node called from several places is marked
-  only where the error went. That word is read off the row's filtered path and
-  never off the fold's raw entries — the fold records a throwing frame as
-  thrown and then as propagated as the error leaves it, so the raw last entry
-  would strip the mark off the one row a reader looks for first.
+  word, never a hue alone.** Rows are matched by call site, never by node, so a
+  node called from several places is marked only where the error went. See
+  [ADR 0002](../adr/0002-the-sheet-asks-for-a-role.md) for the stripe/glyph/word
+  mechanism itself, and why it reads off the row's filtered path rather than
+  the fold's raw entries.
 - **The tree tells the frame the trace is in from the frames waiting under
   it.** The row states are `not called`, `running`, `waiting`, `returned` and
   `threw`. `threw` says this frame left by throwing; it says nothing about
@@ -305,12 +323,15 @@ Settled placements:
   the thing when clamped inside the window. Hanging from a thing's left edge and
   then clamping led to nothing the reader was pointing at.
 
-Measured facts that govern the layout: the fit is height-bound in every
-configuration (deleting the whole side rail changes the drawing's scale by 0%,
-so the rail is free); the scale block speaks in ratios, never percentages; pan
-and zoom are load-bearing, because the drawing does not fit at 1:1 in any
-arrangement; and a call site's remark is the only shrinkable element on its
-row, because one remark once overflowed a row by 600 pixels on its own.
+Measured facts that govern the layout:
+
+- **The fit is height-bound in every configuration.** Deleting the whole side
+  rail changes the drawing's scale by 0%, so the rail is free.
+- **The scale block speaks in ratios, never percentages.**
+- **Pan and zoom are load-bearing.** The drawing does not fit at 1:1 in any
+  arrangement.
+- **A call site's remark is the only shrinkable element on its row.** One
+  remark once overflowed a row by 600 pixels on its own.
 
 **The player may derive, never decide.** It pushes a frame, pops a frame,
 appends a ledger row and moves a cursor. It evaluates nothing — the page
@@ -323,16 +344,15 @@ draws its own entry's reachable set — not the whole map with the rest cold —
 and keeps its own run, cursor, layer, view and open node. The picker is
 rendered into the page rather than built by its script, on the same bargain
 the files tab makes: it is the one control counting *one per graph, or none*
-depends on, and no test could count a control built at runtime. A one-graph
-file shows no picker.
+depends on, and no test could count a control built at runtime.
 
 **Author text on the page follows this repository's rendering security
 policy.** [`docs/security/rendering.md`](../security/rendering.md) states the
-escape, why it is narrow, and the rule this skill added for the field the
-incumbent has not got — a node's location, which is a path or URL and the
-thing most likely to be reached for as an attribute: author text goes into
-element content, never an attribute, and an id reaching an attribute is
-validated rather than escaped.
+escape and why it is narrow. It also states the rule this skill added for a
+field the incumbent has not got. That field is a node's location, a path or a
+URL. A URL is the thing most likely to be reached for as an attribute. Author
+text goes into element content, never an attribute; an id reaching an
+attribute is validated rather than escaped.
 
 ### The text output
 
@@ -387,13 +407,12 @@ to write a page**; `--check` and the text output write nothing.
 ### Wiring into the repository
 
 **Both root scripts read one registry: a table of artifact glob to renderer
-path**, keyed on repository-relative path rather than basename. The current
-site walker keyed on basename, so two artifacts sharing a file name would
-resolve to one output and the second would silently overwrite the first —
-publishing a second artifact type made that reachable. Flattening a path onto a
-page name is not injective, so the build refuses two paths that ask for the
-same page name rather than overwriting, before it renders anything. Case
-folding is in the key because the filesystem the site is built from folds case.
+path**, keyed on repository-relative path rather than basename — publishing a
+second artifact type is what made a basename collision reachable. See
+[`CONTRIBUTING.md`](../../CONTRIBUTING.md) for the page-naming rule this
+keying exists to satisfy: two artifacts sharing a basename in different
+directories both publish, and two paths that flatten to the same page name are
+refused before anything renders.
 
 **One worked example renders into the published site.** *Disposable by
 default* governs what a reader's run leaves behind, not whether the repository
@@ -431,7 +450,7 @@ seam — so only what is specific to groundtrack follows here.
 **One new seam, and two existing ones reused.**
 
 - **Seam 1 — the renderer's command line.** New, and the only new one:
-  `node scripts/render.mjs <file> [--check|--out <page>|--text [<run>]]`.
+  `node scripts/render.mjs <file> [--check|--out <page>|--text [<run>] [--graph <id>]]`.
   Everything the skill does is observable here, and the contract matches what
   the root check already speaks — refusals on stderr with a non-zero exit, the
   answer on stdout — or the registry could not drive it without a special case.
