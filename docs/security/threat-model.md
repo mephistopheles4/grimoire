@@ -58,7 +58,7 @@ quadrantChart
   5 Page hangs: [0.22, 0.15]
   6 Planted standing yes: [0.20, 0.45]
   7 Tampered restore code: [0.14, 0.24]
-  8 Poisoned skill update: [0.20, 0.95]
+  8 Poisoned skill update: [0.14, 0.95]
   9 Hijacked CI action: [0.12, 0.85]
   10 Agent leaks key: [0.32, 0.64]
   11 Audit ranking skewed: [0.18, 0.30]
@@ -70,8 +70,8 @@ How to read it:
 - **Act now (top right): row 1.** Anyone can open a pull request, and charting
   one is what groundtrack is for. Gap 1 below narrows it most.
 - **Guard closely (top left): rows 2, 8, 9, 10 and 3.** Rarer, but severe.
-  Row 2 is row 1's quieter twin and closes with the same gap. Row 8 drops
-  furthest if the scanners become required checks (gap 2).
+  Row 2 is row 1's quieter twin and closes with the same gap. Row 8 moved
+  left once the scanners became required checks (gap 2).
 - **Watch (bottom right): row 12.** It happens by design whenever an account
   has logging on, and the harm is bounded to text the user chose to send.
 - **Accept (bottom left): rows 4, 5, 6, 7 and 11.** Row 6 sits nearest the
@@ -88,8 +88,8 @@ How to read it:
 | 5 | **A shared file hangs the page.** A box built to branch hard makes the chain walk run for a long time on the reader's machine. | eagle-eye stops the walk at 20,000 steps (`skills/eagle-eye/lib/eagle-eye.js`). | groundtrack's renderer and page have no stated limit; its cost on a hostile file is not measured. | Denial of service |
 | 6 | **Planted text claims a standing yes.** eagle-eye's `SKILL.md` lets the user's instructions give a standing yes for the edge audit. Text in a box or a charted file claims to be that yes, so the audit runs without asking: the box's text leaves the machine and the user's key is charged. | The four facts are still stated before each run. `--dry-run` comes first. | The prose does not say a standing yes can come **only** from the user's own instructions, never from a file. | `AML.T0051.001` · `AML.T0034` · `ASI02` · Information disclosure |
 | 7 | **A tampered restore code.** Someone edits an exported configuration before the user pastes it back, so the agent updates the box with a set the user never chose. | `SKILL.md` step 8: say the set back in words before acting, and update the box only with what the user confirms. | Low. This is the guard working: the user sees names, not ids. | Tampering |
-| 8 | **A poisoned skill update.** An attacker with a stolen maintainer token, or a contributor whose pull request is merged, hides an instruction in a `SKILL.md`. Every installer's agent obeys it after the next update. | Pull request required on `main`; `check` must pass. SkillSpector scans each skill's prose on every pull request. | **SkillSpector's `scan` and zizmor were not required checks when this was read (2026-09-25); only `check` was.** A finding reports but does not block. There is no signing and no per-user pin: `npx skills add` copies `main`, and the plugin updates when its version moves. A stolen admin account bypasses all of it. | `AML.T0110.000` · `AML.T0115.002` · `AML.T0109` · `LLM03:2025` · `ASI04` · Tampering · MAESTRO 7 |
-| 9 | **A hijacked action in CI.** An action's tag is moved to malicious code, which then tampers with the published site or steals the job's token. | Every action pinned to a commit SHA; zizmor's `ref-version-mismatch` checks each SHA against its comment; `persist-credentials: false`; permissions scoped per job. See [scanners.md](scanners.md). | A pin trusts whatever code it names. zizmor gates only if required (see row 8). | `AML.T0010.001` · `LLM03:2025` · Tampering, Elevation of privilege |
+| 8 | **A poisoned skill update.** An attacker with a stolen maintainer token, or a contributor whose pull request is merged, hides an instruction in a `SKILL.md`. Every installer's agent obeys it after the next update. | Pull request required on `main`. `check`, SkillSpector's `scan` and zizmor's `audit` must all pass (required since 2026-09-25). | SkillSpector is static pattern matching: an instruction written to read as ordinary prose can pass it. There is no signing and no per-user pin: `npx skills add` copies `main`, and the plugin updates when its version moves. A stolen admin account bypasses all of it. | `AML.T0110.000` · `AML.T0115.002` · `AML.T0109` · `LLM03:2025` · `ASI04` · Tampering · MAESTRO 7 |
+| 9 | **A hijacked action in CI.** An action's tag is moved to malicious code, which then tampers with the published site or steals the job's token. | Every action pinned to a commit SHA; zizmor's `ref-version-mismatch` checks each SHA against its comment; `persist-credentials: false`; permissions scoped per job. See [scanners.md](scanners.md). | A pin trusts whatever code it names. | `AML.T0010.001` · `LLM03:2025` · Tampering, Elevation of privilege |
 | 10 | **The agent is talked into leaking the key.** Planted text asks the agent to print its environment, or to point the audit at an attacker's server. | `audit.mjs` never prints or writes the key. The endpoint override accepts only a loopback address. `SKILL.md` says never to ask for the key or write it to a file. | The script cannot stop the agent itself from printing an environment variable. That boundary belongs to the host agent. | `AML.T0055` · `AML.T0086` · `LLM02:2025` · `ASI03` · Information disclosure |
 | 11 | **A box skews the audit's ranking.** Box text is written to push a weak edge down the ranking, so nobody rereads it. | A score never changes an edge's tier. The ranking only orders rereading. | Low and accepted. | `AML.T0051.001` · Tampering |
 | 12 | **The provider keeps the text.** After a yes, the box's text sits under the provider's policy, and an OpenRouter account with logging on stores it. | The dry run names every company that receives it. [edge-audit.md](edge-audit.md) states the opt-ins. | Accepted. The repository cannot see or change a provider's policy. | `AML.T0057` · `LLM02:2025` · Information disclosure |
@@ -108,9 +108,8 @@ out of scope for that reason.
    instructions to follow, and a standing yes for the audit comes only from the
    user. Closes the prose gap in rows 1, 2 and 6. *Touches `skills/`, so it is
    its own pull request with a version bump.*
-2. **Make the scanners gate.** Add SkillSpector's `scan` job and zizmor to the
-   required checks on `main`. Closes the main gap in rows 8 and 9. *A
-   repository setting: the maintainer decides.*
+2. **Make the scanners gate.** *Done 2026-09-25:* SkillSpector's `scan` and
+   zizmor's `audit` are now required checks on `main`, beside `check`.
 3. **Tell reviewers to check the sheet against the diff.** groundtrack's page
    already lists the files a change touches. A sentence in the skill and the
    page that says a sheet is a claim to verify, not a verdict, narrows row 1.
@@ -124,5 +123,6 @@ out of scope for that reason.
 
 A row changes when its guard or its gap does. A new skill, a new script that
 opens a connection, or a new place where the agent reads a stranger's text each
-needs a row. The IDs cite ATLAS 2026.09, OWASP LLM 2025 and OWASP Agentic 2026, and the repository settings in row 8 were read on 2026-09-25;
-a newer release may renumber them.
+needs a row. The IDs cite ATLAS 2026.09, OWASP LLM 2025 and OWASP Agentic
+2026; a newer release may renumber them. The repository settings in row 8 were
+read on 2026-09-25.

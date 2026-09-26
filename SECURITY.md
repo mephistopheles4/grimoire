@@ -124,7 +124,7 @@ switched on right now. If that matters to you, check the settings themselves.
 | Private vulnerability reporting | the channel at the top of this file |
 | Branch protection on `main` | pull request required, `check` must pass, no bypass |
 | SkillSpector's `scan` job as a required check | a SkillSpector finding blocks a merge |
-| zizmor as a required check | a workflow finding blocks a merge |
+| zizmor's `audit` job as a required check | a workflow finding blocks a merge |
 | Pages, built from Actions | what the `pages` workflow deploys to a public URL |
 
 [`.github/dependabot.yml`](.github/dependabot.yml) is in the tree and asks for
