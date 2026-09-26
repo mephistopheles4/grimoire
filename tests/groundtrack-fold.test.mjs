@@ -1079,6 +1079,8 @@ test('writing into one state\'s views reaches no other state', () => {
     s.visited.push('injected');
     s.edges.push('injected>injected');
     s.errorPath.push({ nodeId: 'injected', how: 'thrown' });
+    s.frames.forEach(f => { f.pc = 99; });
+    s.frames.push({ nodeId: 'injected' });
   };
 
   const early = G.fold(loop, loopWalk);
