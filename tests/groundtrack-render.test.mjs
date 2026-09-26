@@ -543,6 +543,16 @@ test('a call structure 1,000 calls deep validates, and 1,001 is refused by the l
   assert.match(overLimit.stderr, /this graph's own call structure goes more than 1,000 calls deep/);
 });
 
+test("a node whose steps are not a list is refused by name, before the tree's walk can crash on it", () => {
+  // The limits walk a graph's tree before the rest of validation has judged
+  // the file, so the walk reads `steps` defensively. Without that, a number
+  // here threw a stack trace instead of a refusal.
+  const r = check(derive(p => { p.nodes[only(p).entry].steps = 5; }));
+  assert.equal(r.code, 1);
+  assert.match(r.stderr, /steps/);
+  assert.doesNotMatch(r.stderr, /TypeError|\n\s+at /);
+});
+
 test('three nodes that each call themselves and each other validate', () => {
   // Every call back into a node already open is a repeat row, and the node
   // stays on the path until the frame that opened it closes. Sixteen rows,

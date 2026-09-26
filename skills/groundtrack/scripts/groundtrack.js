@@ -326,6 +326,10 @@ const Groundtrack = (() => {
     return m;
   };
 
+  /** A link: one call step, `caller#step`. The fold, the tree and the call
+   *  counts all name a call step this way, so they build it here. */
+  const linkOf = (id, at) => `${id}#${at}`;
+
   /** The call steps of one node, in order. A node called twice is two sites.
    *  Reads `steps` defensively: the renderer walks a file's tree through
    *  this before the rest of validation has judged it. */
@@ -733,15 +737,17 @@ const Groundtrack = (() => {
 
     moves.forEach((m, i) => {
       let moved = null;
+      /* The top frame and its site as the move found them. `setTop` puts a
+       * new cell in place, so after it these are the old frame: read only
+       * what no move changes from them — `nodeId`, `site`, `chain`. */
       const top = stack && stack.frame;
       const topSite = stack && stack.site;
 
       if (m.k === 'propagate') {
-        const gone = top;
-        if (gone) {
+        if (top) {
           stack = stack.below;
-          moved = { from: gone.nodeId, to: stack ? stack.frame.nodeId : null, dir: 'propagate' };
-          extendPath([{ nodeId: gone.nodeId, site: gone.site, chain: gone.chain, how: 'propagated' }]);
+          moved = { from: top.nodeId, to: stack ? stack.frame.nodeId : null, dir: 'propagate' };
+          extendPath([{ nodeId: top.nodeId, site: top.site, chain: top.chain, how: 'propagated' }]);
         }
       } else if (m.k === 'done') {
         stack = null;
@@ -771,7 +777,7 @@ const Groundtrack = (() => {
              * call — it is what the uncaught check reads, and the cursor is
              * already past it by now. */
             setTop({ pc: m.next, callAt: m.at });
-            const key = `${top.nodeId}#${m.at}`;
+            const key = linkOf(top.nodeId, m.at);
             stack = { frame: { nodeId: m.to, pc: 0, callAt: undefined, site: key, chain: Object.freeze(top.chain.concat([key])) }, site: reach(topSite, key), below: stack };
             bump(stack.site, 'entered');
             count(m.to, 'entered');
@@ -1406,7 +1412,7 @@ const Groundtrack = (() => {
         continue;
       }
       const s = top.calls[top.next++];
-      stack.push({ id: s.target, link: `${top.id}#${s.at}`, site: s, parent: top.row, calls: null, next: 0 });
+      stack.push({ id: s.target, link: linkOf(top.id, s.at), site: s, parent: top.row, calls: null, next: 0 });
     }
   }
 
@@ -1449,7 +1455,7 @@ const Groundtrack = (() => {
    *  for a walk's state are the tree's and are not invented here.
    */
   function callCounts(state, nodeId, at) {
-    const step = `${nodeId}#${at}`;
+    const step = linkOf(nodeId, at);
     const out = { entered: 0, returned: 0, open: false };
     for (const site of state.siteTree) {
       if (site.link !== step) continue;
@@ -1530,17 +1536,20 @@ const Groundtrack = (() => {
      * link at a time, for a frame's chain and for a site of the fold's tree
      * alike. A place is the row reached and the rows still below it: none,
      * once a link has found no row. */
+    /* The rows below a place whose path has missed. An empty map and not a
+     * break, because a site steps from its parent's place one link at a
+     * time and has no loop to break out of. */
     const NOWHERE = new Map();
-    const down = (at, link) => {
-      const row = at.below.get(link);
-      return row === undefined ? { row: at.row, below: NOWHERE } : { row, below: drawn[row].below };
+    const down = (place, link) => {
+      const row = place.below.get(link);
+      return row === undefined ? { row: place.row, below: NOWHERE } : { row, below: drawn[row].below };
     };
     const entryPlace = drawn.length ? { row: 0, below: drawn[0].below } : undefined;
     const speaksFor = chain => {
       if (!entryPlace) return undefined;
-      let at = entryPlace;
-      for (let n = 1; n < chain.length; n += 1) at = down(at, chain[n]);
-      return at.row;
+      let place = entryPlace;
+      for (let n = 1; n < chain.length; n += 1) place = down(place, chain[n]);
+      return place.row;
     };
 
     /* Every signal a row carries, gathered onto the row that speaks for it.
@@ -1548,9 +1557,9 @@ const Groundtrack = (() => {
      * cannot disagree about which row it belongs to. */
     const placeOf = new Map(); /* site -> its place */
     for (const site of entryPlace ? end.siteTree : []) {
-      const at = site.parent ? down(placeOf.get(site.parent), site.link) : entryPlace;
-      placeOf.set(site, at);
-      const i = at.row;
+      const place = site.parent ? down(placeOf.get(site.parent), site.link) : entryPlace;
+      placeOf.set(site, place);
+      const i = place.row;
       drawn[i].entered += site.entered;
       drawn[i].returned += site.returned;
       /* A FAILURE IS NEVER OVERWRITTEN BY A SUCCESS. Where several chains land
