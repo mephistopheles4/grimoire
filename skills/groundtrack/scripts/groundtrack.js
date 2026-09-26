@@ -490,8 +490,14 @@ const Groundtrack = (() => {
      * A history is appended to, never edited, once its state has been pushed.
      * That is what keeps an earlier state's table fixed while later moves run:
      * a later move adds entries stamped with a later index, and an earlier
-     * state's read skips them. */
-    const sites = new Map(); /* chain key -> { born, entered: history, returned: history, effects: Map("node[at]" -> history) } */
+     * state's read skips them.
+     *
+     * The table is a tree of sites rather than a map of keys, each site found
+     * from its parent by its last link. Joining a chain into its key on every
+     * move cost the depth times the id length each time, and the key is only
+     * needed when a state's table is read — so it is built then, once per
+     * site, from the parent's. */
+    const sites = []; /* every site, in the order a move first entered it: { parent, link, key, born, entered: history, returned: history, effects: Map("node[at]" -> history), below: Map(link -> site) } */
     /* The same marks again, keyed by node rather than by call site. The tree
      * shows one row per call site and wants the first; the drawing shows one
      * box per node and wants the second. Without this the drawing loses a
@@ -530,37 +536,58 @@ const Groundtrack = (() => {
       }
       return history[lo][1];
     };
-    const touch = chain => {
-      const key = chainKey(chain);
-      if (!sites.has(key)) sites.set(key, { born: states.length, entered: [[states.length, 0]], returned: [[states.length, 0]], effects: new Map() });
-      return sites.get(key);
+    /* Which site a frame's chain is. Keyed by the chain array itself, which
+     * a frame keeps for as long as it is open, so finding a frame's site
+     * reads no string at all. */
+    const siteOf = new WeakMap();
+    /* The site a new frame's chain reaches: its parent's child by the call's
+     * link, made the first time any frame reaches it. The entry's site has
+     * no parent, and its key is its one link. */
+    const reach = (chain, parent, link) => {
+      let site = parent && parent.below.get(link);
+      if (!site) {
+        site = { parent, link, key: parent ? null : link, born: states.length, entered: [[states.length, 0]], returned: [[states.length, 0]], effects: new Map(), below: new Map() };
+        if (parent) parent.below.set(link, site);
+        sites.push(site);
+      }
+      siteOf.set(chain, site);
+      return site;
     };
-    const bump = (chain, field) => {
-      const history = touch(chain)[field];
+    const bump = (site, field) => {
+      const history = site[field];
       record(history, history[history.length - 1][1] + 1);
     };
-    const mark = (chain, at, outcome) => {
-      const effects = touch(chain).effects;
-      if (!effects.has(at)) effects.set(at, []);
-      record(effects.get(at), outcome);
+    const mark = (site, at, outcome) => {
+      if (!site.effects.has(at)) site.effects.set(at, []);
+      record(site.effects.get(at), outcome);
     };
-    /* THE TABLE AS IT STOOD AT STATE `at`, rebuilt from the histories. A Map
-     * iterates in insertion order and a site or an effect is inserted by the
-     * move that first touches it, so both walks can stop at the first one
-     * born after `at`, and the keys come out in the order the old copied
-     * table held them. The cost is the size of the table returned, however
-     * many moves came after it. Built on `bare()` like every other table
-     * keyed by a stranger's string. */
+    /* A site's chain key, the same string `chainKey` joins, built from the
+     * nearest ancestor that already has one and kept on every site between.
+     * A loop and not a recursion, because a walk may nest deeper than the
+     * call stack reading it. */
+    const keyOf = site => {
+      const unbuilt = [];
+      for (let s = site; s.key === null; s = s.parent) unbuilt.push(s);
+      let key = unbuilt.length ? unbuilt[unbuilt.length - 1].parent.key : site.key;
+      for (let n = unbuilt.length - 1; n >= 0; n -= 1) key = unbuilt[n].key = `${key}/${unbuilt[n].link}`;
+      return key;
+    };
+    /* THE TABLE AS IT STOOD AT STATE `at`, rebuilt from the histories. A site
+     * or an effect is added by the move that first touches it, so both walks
+     * can stop at the first one born after `at`, and the keys come out in
+     * the order the old copied table held them. The cost is the size of the
+     * table returned, however many moves came after it. Built on `bare()`
+     * like every other table keyed by a stranger's string. */
     const sitesAt = at => {
       const out = bare();
-      for (const [key, site] of sites) {
+      for (const site of sites) {
         if (site.born > at) break;
         const effects = bare();
         for (const [where, history] of site.effects) {
           if (history[0][0] > at) break;
           effects[where] = valueAt(history, at);
         }
-        out[key] = { entered: valueAt(site.entered, at), returned: valueAt(site.returned, at), effects };
+        out[keyOf(site)] = { entered: valueAt(site.entered, at), returned: valueAt(site.returned, at), effects };
       }
       return out;
     };
@@ -577,7 +604,7 @@ const Groundtrack = (() => {
       nodeCalls = Object.assign(bare(), nodeCalls, { [id]: { ...was, [field]: was[field] + 1 } });
     };
 
-    bump(['@entry'], 'entered');
+    bump(reach(frames[0].chain, null, '@entry'), 'entered');
     count(prog.entry, 'entered');
 
     const seedSites = sitesOf(states.length);
@@ -641,7 +668,7 @@ const Groundtrack = (() => {
             top.callAt = m.at;
             const key = `${top.nodeId}#${m.at}`;
             const chain = Object.freeze(top.chain.concat([key]));
-            bump(chain, 'entered');
+            bump(reach(chain, siteOf.get(top.chain), key), 'entered');
             count(m.to, 'entered');
             frames.push({ nodeId: m.to, pc: 0, callAt: undefined, site: key, chain });
             if (!visited.includes(m.to)) visited.push(m.to);
@@ -651,7 +678,7 @@ const Groundtrack = (() => {
           }
           case 'effect': {
             const outcome = m.raised !== undefined ? 'threw' : 'returned';
-            mark(top.chain, `${top.nodeId}[${m.at}]`, outcome);
+            mark(siteOf.get(top.chain), `${top.nodeId}[${m.at}]`, outcome);
             nodeEffects = { ...nodeEffects, [`${top.nodeId}[${m.at}]`]: outcome };
             ledger = ledger.concat([
               {
@@ -682,7 +709,7 @@ const Groundtrack = (() => {
           case 'return': {
             const gone = frames.pop();
             if (gone) {
-              bump(gone.chain, 'returned');
+              bump(siteOf.get(gone.chain), 'returned');
               count(gone.nodeId, 'returned');
             }
             if (frames.length) {
