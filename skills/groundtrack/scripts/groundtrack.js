@@ -455,112 +455,144 @@ const Groundtrack = (() => {
      * and is what the tree asks about. They differ exactly when one subtree is
      * drawn more than once, which is the case `site` alone cannot read.
      *
-     * A chain is frozen when its frame is pushed, and every state shares it
-     * rather than copying it. Copying every open frame's chain into every
-     * state cost the square of the depth on each move, and nothing ever
-     * changes a chain once its frame exists — a call builds its callee a new
-     * one. Freezing makes that a fact a reader cannot break by accident. */
+     * A chain is frozen when its frame is pushed, and every state and every
+     * error path entry shares it rather than copying it. Copying every open
+     * frame's chain into every state cost the square of the depth on each
+     * move, and nothing ever changes a chain once its frame exists — a call
+     * builds its callee a new one. Freezing keeps it that way for a reader
+     * too: this module is not strict, so writing an index of a frozen chain
+     * is silently ignored and a push throws, and either way the chain every
+     * state shares stays as it was. */
     let frames = [{ nodeId: prog.entry, pc: 0, callAt: undefined, site: '@entry', chain: Object.freeze(['@entry']) }];
-    let ledger = [];
-    let visited = [prog.entry];
-    let edges = [];
+
+    /* ONE COPY OF THE WALK, AND A VIEW OF IT PER STATE. Every state carries
+     * the ledger, the nodes visited, the edges taken, the error path and the
+     * three tables below as they stood at that state. Copying them into each
+     * state made a move cost as much as every move before it, so a long run
+     * folded in time that grew with the square of its length, and with depth
+     * and id length besides (#144).
+     *
+     * So each is kept once, in a form a later move can only add to. A list
+     * grows at its end, and a state remembers how long it was. A table's
+     * values are histories — see `record` below. A state builds its own view
+     * from those the first time something reads it, and keeps it: see
+     * `pushState`. A later move adds only what an earlier state's view
+     * leaves out, so it cannot change what an earlier state says. */
+    const ledger = [];
+    const visited = [prog.entry];
+    const seen = new Set(visited);
+    const edges = [];
     /* Every entry that names a node also names the call site of its frame —
      * the popped frame on a propagate, each frame still open when an error
      * reaches the top, the top frame on a throw or a catch. The
      * tree is one row per call site and has to know which row an entry is,
      * and it cannot work that out later: by the time the cursor sits on the
      * catch, the frames that threw and propagated are gone. The entry for an
-     * error reaching the top names neither. */
-    let errorPath = [];
+     * error reaching the top names neither.
+     *
+     * The path is not a list that only grows: a throw starts it again and a
+     * return clears it. But a path only ever grows at its end until it is
+     * started again, so every path the walk has is one run of this log, from
+     * `pathStart` to the log's end at that state. */
+    const errorLog = [];
+    let pathStart = 0;
     /* BY PATH FROM THE ENTRY, which is what the tree reads. A chain key is the
      * frame's chain joined: `@entry/greet#0/loadProfile#1`. No node id can hold
      * the separator — an id is letters, digits and hyphens — so a chain splits
      * back into its links unambiguously.
-     *
-     * Every state carries this table as it stood at that state, and it is the
-     * one field here that grows with the whole walk rather than with what is
-     * open. Copying it whole into every state made a move cost as much as
-     * every chain entered before it, so a long run folded in time that grew
-     * with moves, depth and id length multiplied together (#144). So the table
-     * is kept once, and each value in it is a history instead: a list of
-     * `[state index, value]`, appended when the value changes and never
-     * rewritten afterwards. A state reads its own table back from those
-     * histories only when something asks for it — see `sitesAt` below.
-     *
-     * A history is appended to, never edited, once its state has been pushed.
-     * That is what keeps an earlier state's table fixed while later moves run:
-     * a later move adds entries stamped with a later index, and an earlier
-     * state's read skips them.
      *
      * The table is a tree of sites rather than a map of keys, each site found
      * from its parent by its last link. Joining a chain into its key on every
      * move cost the depth times the id length each time, and the key is only
      * needed when a state's table is read — so it is built then, once per
      * site, from the parent's. */
-    const sites = []; /* every site, in the order a move first entered it: { parent, link, key, born, entered: history, returned: history, effects: Map("node[at]" -> history), below: Map(link -> site) } */
+    const sites = []; /* every site, in the order a move first entered it: { parent, link, key, entered: history, returned: history, effects: Map("node[at]" -> history), below: Map(link -> site) } */
     /* The same marks again, keyed by node rather than by call site. The tree
      * shows one row per call site and wants the first; the drawing shows one
      * box per node and wants the second. Without this the drawing loses a
      * node's effect marks the moment its frame returns, while the tree keeps
      * them — one graph seen two ways, disagreeing. */
-    let nodeEffects = {};
+    const nodeEffects = new Map(); /* "node[at]" -> history of outcomes */
     /* The call counts again, keyed by node, for the same reason: the drawing's
      * box has no chain in hand, so it reads what every site that entered the
-     * node did, summed. Keyed by a bare node id, which is a stranger's string,
-     * so the table has no prototype — and it is rebuilt on every change rather
-     * than cloned through JSON, which would give it one back. */
-    let nodeCalls = bare();
+     * node did, summed. */
+    const nodeCalls = new Map(); /* node id -> history of { entered, returned } */
     let ended = null;
 
     const states = [];
 
     const clone = () => frames.map(f => ({ ...f }));
-    /* A change made while a move runs belongs to the state that move is about
-     * to push, which is the next index in `states`. Two changes to one value
-     * in the same move leave one entry, holding the second. */
-    const record = (history, value) => {
-      const last = history[history.length - 1];
-      if (last && last[0] === states.length) last[1] = value;
-      else history.push([states.length, value]);
+
+    /* A HISTORY is every value one thing has held, each stamped with the
+     * index of the state that first held it. A change made while a move runs
+     * belongs to the state that move is about to push, which is the next
+     * index in `states`, so two changes in one move leave one entry holding
+     * the second. Once that state is pushed its entry is never touched again,
+     * and that is what keeps an earlier state's view fixed while later moves
+     * run: they add entries stamped later, which its read skips. */
+    const history = () => ({ stamps: [], values: [] });
+    const record = (h, value) => {
+      const last = h.stamps.length - 1;
+      if (last >= 0 && h.stamps[last] === states.length) h.values[last] = value;
+      else {
+        h.stamps.push(states.length);
+        h.values.push(value);
+      }
     };
-    /* The value a history held at state `at`: the last entry stamped at or
+    const latest = h => h.values[h.values.length - 1];
+    const firstStamp = h => h.stamps[0];
+    /* The value a history held at state `stateIx`: the last one stamped at or
      * before it. A binary search, because a site entered in a loop keeps one
-     * entry per pass. The caller has already checked that the first entry is
-     * stamped at or before `at`, so there is always one to return. */
-    const valueAt = (history, at) => {
-      let lo = 0, hi = history.length - 1;
+     * entry per pass. The caller has already checked that the first stamp is
+     * at or before `stateIx`, so there is always one to return. */
+    const valueAt = (h, stateIx) => {
+      let lo = 0, hi = h.stamps.length - 1;
       while (lo < hi) {
         const mid = (lo + hi + 1) >> 1;
-        if (history[mid][0] <= at) lo = mid;
+        if (h.stamps[mid] <= stateIx) lo = mid;
         else hi = mid - 1;
       }
-      return history[lo][1];
+      return h.values[lo];
     };
+    /* A table of histories as it stood at state `stateIx`. A Map iterates in
+     * the order its keys went in, and a key goes in with its first value, so
+     * the walk can stop at the first key born after `stateIx`, and the keys
+     * come out in the order moves first entered them. Built on `bare()` like
+     * every other table keyed by a stranger's string, and each value passed
+     * through `copy` so that no two states share one. */
+    const tableAt = (table, stateIx, copy) => {
+      const out = bare();
+      for (const [key, h] of table) {
+        if (firstStamp(h) > stateIx) break;
+        out[key] = copy(valueAt(h, stateIx));
+      }
+      return out;
+    };
+    const setIn = (table, key, value) => {
+      if (!table.has(key)) table.set(key, history());
+      record(table.get(key), value);
+    };
+
     /* Which site a frame's chain is. Keyed by the chain array itself, which
      * a frame keeps for as long as it is open, so finding a frame's site
      * reads no string at all. */
-    const siteOf = new WeakMap();
+    const siteByChain = new WeakMap();
     /* The site a new frame's chain reaches: its parent's child by the call's
      * link, made the first time any frame reaches it. The entry's site has
      * no parent, and its key is its one link. */
     const reach = (chain, parent, link) => {
       let site = parent && parent.below.get(link);
       if (!site) {
-        site = { parent, link, key: parent ? null : link, born: states.length, entered: [[states.length, 0]], returned: [[states.length, 0]], effects: new Map(), below: new Map() };
+        site = { parent, link, key: parent ? null : link, entered: history(), returned: history(), effects: new Map(), below: new Map() };
+        record(site.entered, 0);
+        record(site.returned, 0);
         if (parent) parent.below.set(link, site);
         sites.push(site);
       }
-      siteOf.set(chain, site);
+      siteByChain.set(chain, site);
       return site;
     };
-    const bump = (site, field) => {
-      const history = site[field];
-      record(history, history[history.length - 1][1] + 1);
-    };
-    const mark = (site, at, outcome) => {
-      if (!site.effects.has(at)) site.effects.set(at, []);
-      record(site.effects.get(at), outcome);
-    };
+    const bump = (site, field) => record(site[field], latest(site[field]) + 1);
     /* A site's chain key, the same string `chainKey` joins, built from the
      * nearest ancestor that already has one and kept on every site between.
      * A loop and not a recursion, because a walk may nest deeper than the
@@ -572,58 +604,86 @@ const Groundtrack = (() => {
       for (let n = unbuilt.length - 1; n >= 0; n -= 1) key = unbuilt[n].key = `${key}/${unbuilt[n].link}`;
       return key;
     };
-    /* THE TABLE AS IT STOOD AT STATE `at`, rebuilt from the histories. A site
-     * or an effect is added by the move that first touches it, so both walks
-     * can stop at the first one born after `at`, and the keys come out in
-     * the order the old copied table held them. The cost is the size of the
-     * table returned, however many moves came after it. Built on `bare()`
-     * like every other table keyed by a stranger's string. */
-    const sitesAt = at => {
+    /* THE CALL-SITE TABLE AS IT STOOD AT STATE `stateIx`. Sites go into
+     * `sites` in the order moves first entered them, so the walk stops at
+     * the first one born later. The cost is the size of the table returned,
+     * however many moves came after it. */
+    const sitesTableAt = stateIx => {
       const out = bare();
       for (const site of sites) {
-        if (site.born > at) break;
-        const effects = bare();
-        for (const [where, history] of site.effects) {
-          if (history[0][0] > at) break;
-          effects[where] = valueAt(history, at);
-        }
-        out[keyOf(site)] = { entered: valueAt(site.entered, at), returned: valueAt(site.returned, at), effects };
+        if (firstStamp(site.entered) > stateIx) break;
+        out[keyOf(site)] = {
+          entered: valueAt(site.entered, stateIx),
+          returned: valueAt(site.returned, stateIx),
+          effects: tableAt(site.effects, stateIx, outcome => outcome),
+        };
       }
       return out;
     };
-    /* A state's `sites`, read on first use and kept. Kept so that a reader
-     * walking its keys does not rebuild the table once per key, and kept per
-     * state so that a reader who writes into one state's table reaches no
-     * other state's. */
-    const sitesOf = at => {
-      let table = null;
-      return () => table || (table = sitesAt(at));
-    };
     const count = (id, field) => {
-      const was = nodeCalls[id] || { entered: 0, returned: 0 };
-      nodeCalls = Object.assign(bare(), nodeCalls, { [id]: { ...was, [field]: was[field] + 1 } });
+      const was = nodeCalls.has(id) ? latest(nodeCalls.get(id)) : { entered: 0, returned: 0 };
+      setIn(nodeCalls, id, { ...was, [field]: was[field] + 1 });
+    };
+
+    /* A view built the first time something reads it, and kept. Kept so
+     * that a reader walking a table's keys does not rebuild it once per key,
+     * and kept per state so that a reader who writes into one state's view
+     * reaches no other state's. */
+    const lazily = build => {
+      let built = false, view;
+      return () => {
+        if (!built) {
+          view = build();
+          built = true;
+        }
+        return view;
+      };
+    };
+    /* Push the state the walk is in now. It remembers how long each list
+     * was and where the error path starts, and builds each view from those
+     * on first read. The fields are in the order every state has always had,
+     * because the order is what JSON prints. */
+    const pushState = (i, move, moved) => {
+      const stateIx = states.length;
+      const ledgerLength = ledger.length, visitedLength = visited.length, edgesLength = edges.length;
+      const pathFrom = pathStart, pathTo = errorLog.length;
+      const views = {
+        ledger: lazily(() => ledger.slice(0, ledgerLength)),
+        visited: lazily(() => visited.slice(0, visitedLength)),
+        edges: lazily(() => edges.slice(0, edgesLength)),
+        errorPath: lazily(() => errorLog.slice(pathFrom, pathTo)),
+        sites: lazily(() => sitesTableAt(stateIx)),
+        nodeEffects: lazily(() => tableAt(nodeEffects, stateIx, outcome => outcome)),
+        nodeCalls: lazily(() => tableAt(nodeCalls, stateIx, calls => ({ ...calls }))),
+      };
+      states.push({
+        i,
+        move,
+        frames: clone(),
+        get ledger() { return views.ledger(); },
+        get visited() { return views.visited(); },
+        get edges() { return views.edges(); },
+        get errorPath() { return views.errorPath(); },
+        get sites() { return views.sites(); },
+        get nodeEffects() { return views.nodeEffects(); },
+        get nodeCalls() { return views.nodeCalls(); },
+        ended,
+        moved,
+      });
+    };
+    /* The error path starts again from `entries`, or empties when there are
+     * none; or it grows by them. */
+    const extendPath = entries => {
+      for (const e of entries) errorLog.push(e);
+    };
+    const startPath = entries => {
+      pathStart = errorLog.length;
+      extendPath(entries);
     };
 
     bump(reach(frames[0].chain, null, '@entry'), 'entered');
     count(prog.entry, 'entered');
-
-    const seedSites = sitesOf(states.length);
-    states.push({
-      i: -1,
-      move: null,
-      frames: clone(),
-      ledger: [],
-      visited: visited.slice(),
-      edges: [],
-      errorPath: [],
-      get sites() {
-        return seedSites();
-      },
-      nodeEffects: {},
-      nodeCalls,
-      ended: null,
-      moved: null,
-    });
+    pushState(-1, null, null);
 
     moves.forEach((m, i) => {
       let moved = null;
@@ -633,7 +693,7 @@ const Groundtrack = (() => {
         const gone = frames.pop();
         if (gone) {
           moved = { from: gone.nodeId, to: frames.length ? frames[frames.length - 1].nodeId : null, dir: 'propagate' };
-          errorPath = errorPath.concat([{ nodeId: gone.nodeId, site: gone.site, chain: gone.chain.slice(), how: 'propagated' }]);
+          extendPath([{ nodeId: gone.nodeId, site: gone.site, chain: gone.chain, how: 'propagated' }]);
         }
       } else if (m.k === 'done') {
         frames = [];
@@ -646,8 +706,8 @@ const Groundtrack = (() => {
         const crossed = frames
           .slice()
           .reverse()
-          .map(f => ({ nodeId: f.nodeId, site: f.site, chain: f.chain.slice(), how: 'propagated' }));
-        errorPath = errorPath.concat(crossed, [{ nodeId: null, how: 'reached the top uncaught', tag: m.tag, message: m.message, cause: m.cause }]);
+          .map(f => ({ nodeId: f.nodeId, site: f.site, chain: f.chain, how: 'propagated' }));
+        extendPath(crossed.concat([{ nodeId: null, how: 'reached the top uncaught', tag: m.tag, message: m.message, cause: m.cause }]));
         frames = [];
         ended = 'uncaught';
       } else if (top) {
@@ -668,55 +728,56 @@ const Groundtrack = (() => {
             top.callAt = m.at;
             const key = `${top.nodeId}#${m.at}`;
             const chain = Object.freeze(top.chain.concat([key]));
-            bump(reach(chain, siteOf.get(top.chain), key), 'entered');
+            bump(reach(chain, siteByChain.get(top.chain), key), 'entered');
             count(m.to, 'entered');
             frames.push({ nodeId: m.to, pc: 0, callAt: undefined, site: key, chain });
-            if (!visited.includes(m.to)) visited.push(m.to);
-            edges = edges.concat([`${top.nodeId}>${m.to}`]);
+            if (!seen.has(m.to)) {
+              seen.add(m.to);
+              visited.push(m.to);
+            }
+            edges.push(`${top.nodeId}>${m.to}`);
             moved = { from: top.nodeId, to: m.to, dir: 'call' };
             break;
           }
           case 'effect': {
             const outcome = m.raised !== undefined ? 'threw' : 'returned';
-            mark(siteOf.get(top.chain), `${top.nodeId}[${m.at}]`, outcome);
-            nodeEffects = { ...nodeEffects, [`${top.nodeId}[${m.at}]`]: outcome };
-            ledger = ledger.concat([
-              {
-                nodeId: top.nodeId,
-                at: m.at,
-                kind: m.kind,
-                desc: m.desc,
-                outcome,
-                result: m.result,
-                attempt: m.attempt,
-                raised: m.raised,
-              },
-            ]);
+            setIn(siteByChain.get(top.chain).effects, `${top.nodeId}[${m.at}]`, outcome);
+            setIn(nodeEffects, `${top.nodeId}[${m.at}]`, outcome);
+            ledger.push({
+              nodeId: top.nodeId,
+              at: m.at,
+              kind: m.kind,
+              desc: m.desc,
+              outcome,
+              result: m.result,
+              attempt: m.attempt,
+              raised: m.raised,
+            });
             if (m.raised !== undefined) {
-              errorPath = [{ nodeId: top.nodeId, site: top.site, chain: top.chain.slice(), how: 'thrown', tag: m.raised.tag, message: m.raised.message, cause: m.raised.cause }];
+              startPath([{ nodeId: top.nodeId, site: top.site, chain: top.chain, how: 'thrown', tag: m.raised.tag, message: m.raised.message, cause: m.raised.cause }]);
             } else {
               top.pc = m.next;
             }
             break;
           }
           case 'throw':
-            errorPath = [{ nodeId: top.nodeId, site: top.site, chain: top.chain.slice(), how: 'thrown', tag: m.tag, message: m.message, cause: m.cause }];
+            startPath([{ nodeId: top.nodeId, site: top.site, chain: top.chain, how: 'thrown', tag: m.tag, message: m.message, cause: m.cause }]);
             break;
           case 'catch':
             top.pc = m.next;
-            errorPath = errorPath.concat([{ nodeId: top.nodeId, site: top.site, chain: top.chain.slice(), how: 'caught', goto: m.goto }]);
+            extendPath([{ nodeId: top.nodeId, site: top.site, chain: top.chain, how: 'caught', goto: m.goto }]);
             break;
           case 'return': {
             const gone = frames.pop();
             if (gone) {
-              bump(siteOf.get(gone.chain), 'returned');
+              bump(siteByChain.get(gone.chain), 'returned');
               count(gone.nodeId, 'returned');
             }
             if (frames.length) {
               frames[frames.length - 1].callAt = undefined;
               moved = { from: gone.nodeId, to: frames[frames.length - 1].nodeId, dir: 'return' };
             }
-            errorPath = [];
+            startPath([]);
             break;
           }
           default:
@@ -724,23 +785,7 @@ const Groundtrack = (() => {
         }
       }
 
-      const movedSites = sitesOf(states.length);
-      states.push({
-        i,
-        move: m,
-        frames: clone(),
-        ledger: ledger.slice(),
-        visited: visited.slice(),
-        edges: edges.slice(),
-        errorPath: errorPath.slice(),
-        get sites() {
-          return movedSites();
-        },
-        nodeEffects,
-        nodeCalls,
-        ended,
-        moved,
-      });
+      pushState(i, m, moved);
     });
 
     return states;
