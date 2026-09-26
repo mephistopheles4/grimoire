@@ -18,10 +18,25 @@ by a byte.
   was. A table's values are histories: each value is stamped with the state
   that wrote it, and a state reads the last value stamped at or before it. A
   later move adds entries an earlier state's read skips, so it can never
-  change what an earlier state says.
+  change what an earlier state says. The open frames do not grow at one end,
+  because a return drops a frame. They keep the same promise another way: a
+  state holds its top cell, and no cell changes after a state can see it.
 - **A frame's chain is frozen and shared.** A chain is frozen when its frame
   is pushed. Every state and every error path entry shares it. A call builds
   its callee a new chain; nothing changes one in place.
+- **Open frames are a shared stack.** A move that changes the top frame puts
+  a new cell in its place with `setTop`. It never changes a cell that an
+  earlier state can see.
+- **`frames` copies each frame on read.** The cells are shared, so a reader
+  who writes into a frame must reach a copy.
+- **`siteTree` is a read seam outside the printed output.** It lists a
+  state's call sites parent first, each with its `parent` and its `link`. It
+  must stay non-enumerable, so JSON and a deep comparison skip it. A spread
+  or a `structuredClone` of a state drops it too.
+- **No reader builds or splits a site key.** Readers walk `siteTree`. Only
+  the printed `sites` table joins a path into a key, in `keyOf`.
+- **The rule for a repeated node lives once, in `treeWalk`.** The tree view
+  and the renderer's row limit both read their rows from it.
 - **Views are built on read, and only the last one is kept.** Keeping every
   state's view once read put the copies back: a page stepped through a long
   run held every state's ledger at once, and grew past 12 GB. Each view is
@@ -76,5 +91,8 @@ a state read again after that returns a fresh object. A caller that kept the
 earlier view still holds it, writes and all, but the state's next read does
 not see those writes. No reader relies on either.
 
-`fold` still copies the list of open frames on each move. #147 would share it,
-and would let the tree view read `fold`'s call sites directly.
+`fold` no longer copies the open frames on each move (#147). A state holds
+the top cell of the shared stack, and the tree view reads `fold`'s call
+sites directly through `siteTree`. Building `frames` on read costs the page
+more when it reads every state's frames in turn; see the threat model's
+"Row 5, measured".

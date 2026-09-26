@@ -129,14 +129,19 @@ and 10,000 characters on the long-chain file check in 0.12 s, 0.17 s and
 
 **Two costs inside `fold` used to miss the target, and #147 removed both.**
 The tree view and the call counts no longer read call-chain keys, and `fold`
-no longer copies every open frame on each move. Before is origin/main at
-0.24.10, after is 0.24.11, on the same machine.
+no longer copies every open frame on each move. Before is 0.24.10, after
+0.24.11, same machine. The page column is after only.
 
-| Cost | File | `--check` | `--text` | Page, first draw |
+| Cost | File | `--check` | `--text` | Page, first draw (after) |
 | --- | --- | --- | --- | --- |
 | Call-chain keys longer than 16,383 characters | A 125-node chain of 128-character ids, whose last node calls a leaf from 19,000 sites, and a run that enters each one (6.7 MB) | 0.75 s → 0.44 s | 145 s → 0.64 s | 0.44 s |
 | The same, through recursion | One node that recurses 900 frames deep in its run, then calls a leaf from 10,000 sites (1.4 MB) | 0.95 s → 0.25 s | 95 s → 0.39 s | 1.1 s |
 | A copy of every open frame on each move | A run that walks a 999-node chain and then 19,001 sites at its foot (2.7 MB) | 4.2 s → 0.64 s | 181 s → 1.2 s | 0.73 s |
+
+**One page cost grew, and is known.** `frames` is now built when a state is
+read, not stored on it. The source tab's `ranPcs` reads every state's frames
+on each redraw. On a row 5 file that redraw went from about 147–333 ms to
+641–691 ms, while `fold` itself went from 1,585 ms to 220 ms.
 
 Measured on an AMD Ryzen 9 9950X3D (16 cores), 64 GB of RAM, Windows 11 Pro for
 Workstations, Node v24.14.1, and headless Chrome 154 for the page's first draw.

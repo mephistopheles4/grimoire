@@ -49,10 +49,11 @@ const CAUSE = Groundtrack.KINDS;
 
 /** How deep a graph's own call structure goes, counted in calls from its
  *  entry, with no trace read at all. The entry is 0 calls deep. The tree
- *  view walks this structure with an explicit stack, but `reachable`, which
- *  picks the nodes a graph draws, recurses once per call along it, so a call
- *  graph deep enough can overflow the call stack and crash it. A thousand
- *  calls deep is far past any real call graph. */
+ *  view walks this structure with an explicit stack, but three walks still
+ *  recurse once per call along it: `reachable`, which picks the nodes a
+ *  graph draws, and the layout's `walk` (its back edges) and `dfs` (its draw
+ *  order). A call graph deep enough can overflow the call stack and crash
+ *  them. A thousand calls deep is far past any real call graph. */
 const MAX_GRAPH_DEPTH = 1000;
 
 /** The tree view's own row count. `treeRows` draws one row per distinct
@@ -289,7 +290,7 @@ function shape(prog, r) {
       if (walk.overDepth) {
         r.shape(
           `graphs[${gi}]`,
-          `this graph's own call structure goes more than ${count(MAX_GRAPH_DEPTH)} calls deep from "${g.entry}", counting no trace at all. The tree view recurses once per call over this structure, and a call graph this deep can crash it. Shorten the deepest chain of calls. Or split the change into more than one graph.`,
+          `this graph's own call structure goes more than ${count(MAX_GRAPH_DEPTH)} calls deep from "${g.entry}", counting no trace at all. The drawing recurses once per call over this structure, to pick its nodes and to lay them out, and a call graph this deep can crash it. Shorten the deepest chain of calls. Or split the change into more than one graph.`,
         );
       } else if (walk.overRows) {
         r.shape(
