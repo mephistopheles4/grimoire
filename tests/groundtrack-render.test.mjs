@@ -748,6 +748,25 @@ test('a 20,000-node chain no entry reaches gives findings, not a crash', () => {
   assert.doesNotMatch(r.stdout, /declares error tag "Snapped"/);
 });
 
+test('a tag thrown inside a call cycle is produced for every node in it, and one nothing throws is not', () => {
+  // ping and pong call each other, and pong throws Lost. Grouping the cycle
+  // must give ping pong's tags, not stop at the first node it reopens.
+  const file = derive(prog => {
+    prog.nodes.ping = node('ping', {
+      channels: { success: 'void', error: ['Lost', 'Never'], requirements: [] },
+      steps: [{ op: 'call', target: 'pong' }, { op: 'return', expr: 'null' }],
+    });
+    prog.nodes.pong = node('pong', {
+      channels: { success: 'void', error: ['Lost'], requirements: [] },
+      steps: [{ op: 'call', target: 'ping' }, { op: 'throw', tag: 'Lost', message: 'the ball went out', cause: 'fail' }],
+    });
+  });
+  const r = run(groundtrack, [file, '--check']);
+  assert.equal(r.code, 0, r.stderr);
+  assert.match(r.stdout, /ping declares error tag "Never", and nothing beneath it produces that tag/);
+  assert.doesNotMatch(r.stdout, /declares error tag "Lost"/);
+});
+
 test('a --check that prints far more than a pipe holds prints every finding it counts', () => {
   // Over 1 MB of findings on a piped stdout. On Linux and macOS a pipe write
   // is asynchronous, and a renderer that exited straight after printing cut

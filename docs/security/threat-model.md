@@ -98,15 +98,14 @@ How to read it:
 ## Row 5, measured
 
 **The renderer's three commands finish in under 1 s on every file measured,
-up to 25 MB, that passes the three limits, except for the two `fold` costs
-below.** The
-target is 3 s for each of `--check`, `--out` and `--text`. The page's first
-draw is not held to that target. A page of 20,000 separate boxes takes about
-6 s, and nearly all of it is the browser building the boxes.
+up to 25 MB, that passes the three limits, except for the `fold` costs
+below.** The target is 3 s for each of `--check`, `--out` and `--text`. The
+page's first draw is not held to that target. A page of 20,000 separate boxes
+takes about 6 s, and nearly all of it is the browser building the boxes.
 
-All numbers were measured with #145 applied. #145 rewrites `fold` so that it
-shares its tables between moves, and it merges before #143. Each file below
-is the worst one measured that passes every limit, for the cost it drives.
+All numbers were measured with `fold` sharing its tables between moves (#145).
+Each file below is the worst one measured that passes every limit, for the
+cost it drives.
 
 | Cost it drives | Worst passing file | `--check` | `--out` | `--text` | Page, first draw |
 | --- | --- | --- | --- | --- | --- |
@@ -125,20 +124,15 @@ deepest graph is 14 calls deep, 71 times under the limit. Its largest tree
 view is 304 rows, 66 times under. Its search for cut calls costs 77,415 units,
 12.9 times under.
 
-**What changed on the way.** None of these costs needed a new limit. Before
-the fixes, the long-chain file took 79 s in `--text`. The 20,000-node chain
-crashed `--check` with a RangeError. Tour stops over 30,000 graphs took 4.6 s
-to check. The page took 31.8 s to draw the cut-search file, and 3.1 s to mark
-self-calls on 20,000 boxes. A layer whose entry heads a long chain crashed the
-page when a reader chose it.
-
 **Node ids have no length limit.** Cost follows file size. Ids of 128, 1,000
 and 10,000 characters on the long-chain file check in 0.12 s, 0.17 s and
 0.68 s, at 3.5 MB, 22.7 MB and 221 MB. A limit of 128 characters did not stop
 the first `fold` cost below, either.
 
-**Two costs still miss the target.** Both are inside `fold`, and both pass
-every limit. The page reads the same `fold` output on every draw.
+**Two costs still miss the target, and are accepted.** Both are inside `fold`,
+both pass every limit, and the page reads the same `fold` output on every
+draw. #147 would remove both. Until then they stand as this row rates them:
+a crafted file can stall the reader's own machine, and nothing worse.
 
 | Cost | File | `--check` | `--text` |
 | --- | --- | --- | --- |
@@ -168,14 +162,12 @@ out of scope for that reason.
    as a hover note by choice:* see row 1. The page's warning is the AUTHORED
    stamp's help note, not a line of its own, so a reader who never points at
    the stamp does not see it. A reminder narrows the gap; it binds no one.
-4. **Measure groundtrack on a hostile file.** *Partly done 2026-09-26:* see
+4. **Measure groundtrack on a hostile file.** *Done 2026-09-26:* see
    [row 5, measured](#row-5-measured). Three limits, and fixes that make
    other costs grow with the file, hold the renderer's three commands under
-   1 s on every file measured up to 25 MB that passes. Two costs inside `fold` still stall `--text` and the page. `fold` joins
-   each call chain into one string key, and V8 hashes a string longer than
-   16,383 characters by its length alone. `fold` also copies every open
-   frame on each move. The fix is for `fold` to key its call sites by link,
-   the way `treeRows` now does, and to share frames between moves. Row 5.
+   1 s on every file measured up to 25 MB that passes. Two costs inside
+   `fold` remain and are accepted at row 5's low rating. #147 would remove
+   them.
 5. **Consider signed releases or a pinned install path.** Row 8's rug-pull
    exposure. Worth revisiting once the project has users who would pin.
 

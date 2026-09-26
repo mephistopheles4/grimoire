@@ -767,6 +767,36 @@ const Groundtrack = (() => {
     return cuts;
   }
 
+  /** What `cutEdges` will cost, counted without running it, so the renderer
+   *  can refuse a file before the search starts. For each layer that renames
+   *  a token, `cutEdges` searches every call step's argument text once per
+   *  token and records one cut per match. So a layer costs its renamed
+   *  tokens times the sum of the argument characters and the call steps, and
+   *  a file costs the sum over its layers. A cut costs at least three units —
+   *  the shortest argument text is two characters, and its call step adds
+   *  one — so the same count also bounds how many cuts there can be.
+   *
+   *  Read before the file is known to be well formed, so it reads nodes and
+   *  steps defensively, as `layerTokens` reads a layer. */
+  function cutEdgesWork(prog) {
+    const isObj = v => v !== null && typeof v === 'object' && !Array.isArray(v);
+    let callSteps = 0;
+    let argChars = 0;
+    for (const n of Object.values(isObj(prog.nodes) ? prog.nodes : {})) {
+      if (!isObj(n) || !Array.isArray(n.steps)) continue;
+      for (const s of n.steps) {
+        if (!isObj(s) || s.op !== 'call') continue;
+        callSteps += 1;
+        argChars += JSON.stringify(s.args || {}).length;
+      }
+    }
+    let work = 0;
+    for (const layer of Object.values(isObj(prog.layers) ? prog.layers : {})) {
+      work += layerTokens(layer).size * (argChars + callSteps);
+    }
+    return work;
+  }
+
   /* -- the drawing ---------------------------------------------------------
    *
    * Depth is the longest path from the entry, so a node called from two depths
@@ -858,16 +888,7 @@ const Groundtrack = (() => {
      * block, and 22 for each effect row under it. The two small type sizes
      * moved up one step, and these moved with them. */
     const H = Object.fromEntries(ids.map(id => [id, 163 + effectsOf(prog.nodes[id]).length * 22]));
-    /* A plain loop rather than `Math.max(...values)`: a row this spreads
-     * into an argument list can hold every node the graph draws, and an
-     * argument list has no such limit spelled out for it to stay safely
-     * under. A loop has no limit to be under. */
-    const maxOf = values => {
-      let m = 0;
-      for (const v of values) if (v > m) m = v;
-      return m;
-    };
-    const widest = maxOf(Object.values(rows).map(r => r.length));
+    const widest = Math.max(...Object.values(rows).map(r => r.length));
     const sheetW = widest * W + (widest - 1) * GAP_X;
 
     /* A node sits under the nodes that call it. A caller centres its callees
@@ -886,7 +907,7 @@ const Groundtrack = (() => {
     for (const d of Object.keys(rows).sort((a, b) => a - b)) {
       const row = rows[d];
       rowTop[d] = y;
-      rowBottom[d] = y + maxOf(row.map(id => H[id]));
+      rowBottom[d] = y + Math.max(...row.map(id => H[id]));
       if (d === '0') {
         const rowW = row.length * W + (row.length - 1) * GAP_X;
         let x = PAD + (sheetW - rowW) / 2;
@@ -916,7 +937,7 @@ const Groundtrack = (() => {
         }
       }
       for (const id of row) rightEdge = Math.max(rightEdge, pos[id].x + W);
-      y += maxOf(row.map(id => H[id])) + GAP_Y;
+      y += Math.max(...row.map(id => H[id])) + GAP_Y;
     }
     let canvasW = Math.max(sheetW + PAD * 2, rightEdge + PAD);
 
@@ -1699,6 +1720,6 @@ const Groundtrack = (() => {
   }
 
   return { esc, ID, bare, hardenKeys, KINDS, ERROR_POSITION, graphView, sheetState, sheetPickerMarkup, sheetFactsMarkup,
-    TOUR_REGIONS, TOUR_TABS, TOUR_VIEWS, tourRegion, tourStops, tourButtonMarkup, tourCardAt, stepTokens, reachable, boundedGraphWalk, labelsOf, callSites, calleesOf, effectsOf, failureKinds, tagFate, complexityOf, fold, back, tipAt, layerTokens, cutEdges, layout, wireLive, wireFlow, countMark, callCounts, walkState, nodeState, treeRows, unaccountedFiles, filesOf, fileTree, filesMarkup, suggestRun, renamedToken };
+    TOUR_REGIONS, TOUR_TABS, TOUR_VIEWS, tourRegion, tourStops, tourButtonMarkup, tourCardAt, stepTokens, reachable, boundedGraphWalk, labelsOf, callSites, calleesOf, effectsOf, failureKinds, tagFate, complexityOf, fold, back, tipAt, layerTokens, cutEdges, cutEdgesWork, layout, wireLive, wireFlow, countMark, callCounts, walkState, nodeState, treeRows, unaccountedFiles, filesOf, fileTree, filesMarkup, suggestRun, renamedToken };
 })();
 if (typeof module !== 'undefined') module.exports = Groundtrack;

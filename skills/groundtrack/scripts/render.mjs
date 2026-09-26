@@ -60,41 +60,12 @@ const MAX_GRAPH_DEPTH = 1000;
  *  than it has nodes. */
 const MAX_TREE_ROWS = 20000;
 
-/** The work `cutEdges` (groundtrack.js) does, counted before it runs. For
- *  each layer that renames a token, `cutEdges` searches every call step's
- *  argument text once per renamed token, and records one cut per match. So
- *  a layer costs its renamed tokens times the sum of the argument
- *  characters and the call steps, and the file costs the sum over its
- *  layers. A cut costs at least three units, because the shortest argument
- *  text is two characters and one call step adds one, so the same count
- *  also bounds how many cuts `--check` prints and the page draws. */
+/** The most work `cutEdges` may do, in the units `Groundtrack.cutEdgesWork`
+ *  counts. It also bounds how many cuts `--check` prints and the page draws. */
 const MAX_CUTEDGES_WORK = 1000000;
 
 /** A count as a reader writes it, with thousands separated: 20,000. */
 const count = n => n.toLocaleString('en-US');
-
-/** `cutEdges`'s own cost, without running it: for each layer, its renamed
- *  tokens times the sum of every call step's argument characters and the
- *  number of call steps, summed over the layers. The tokens come from the
- *  same `layerTokens` that `cutEdges` reads, so the two cannot count
- *  different tokens. */
-function cutEdgesWork(prog) {
-  let callSteps = 0;
-  let argChars = 0;
-  for (const n of Object.values(prog.nodes)) {
-    if (!isObj(n) || !Array.isArray(n.steps)) continue;
-    for (const s of n.steps) {
-      if (!isObj(s) || s.op !== 'call') continue;
-      callSteps += 1;
-      argChars += JSON.stringify(s.args || {}).length;
-    }
-  }
-  let work = 0;
-  for (const layer of Object.values(isObj(prog.layers) ? prog.layers : {})) {
-    work += Groundtrack.layerTokens(layer).size * (argChars + callSteps);
-  }
-  return work;
-}
 
 const STEP = {
   comment: { req: ['comment'], opt: [] },
@@ -367,7 +338,7 @@ function shape(prog, r) {
   /* Counted here, before anything below this pass calls `cutEdges`: a file
    * that would cost too much for it to scan is refused before the scan,
    * not after it has already run long. */
-  const work = cutEdgesWork(prog);
+  const work = Groundtrack.cutEdgesWork(prog);
   if (work > MAX_CUTEDGES_WORK) {
     r.shape('layers', `this file's layers would cost ${count(work)} units of work to find the calls they cut, more than the ${count(MAX_CUTEDGES_WORK)} groundtrack allows. A layer costs its renamed tokens times the sum of the argument characters and the call steps in the file. Rename fewer tokens. Or rename them in fewer layers. Or shorten the call arguments.`);
   }
@@ -665,73 +636,20 @@ export function check(prog, fileLabel) {
   return r.list;
 }
 
-/* -- findings -------------------------------------------------------------
+/* Which of the tags the file declares each node can produce, itself or
+ * through anything it calls, worked out for every node at once. Asking
+ * node by node walks everything beneath each one again, so a long chain
+ * costs the square of its length. So the nodes are grouped into cycles
+ * first, callees before callers, and each group's tags are its own plus
+ * its callees' groups' tags, read once.
  *
- * A finding is not a refusal. Each one is computed from the file alone with no
- * run, each one is a thing a reader may have meant, and none of them makes the
- * file illegal. The two the spec left unplaced are here rather than in the
- * validator for that reason: neither is a graph-versus-walk contradiction, and
- * refusing a file for one would refuse a file that says exactly what its
- * author meant.
- */
-export function findings(prog) {
-  const out = [];
-
-  /* One file edited by several nodes. Legal, and worth seeing: it is the shape
-   * a change takes when one file carries two concerns. */
-  /* Keyed by a changed file's path, which nothing validates. */
-  const editors = Groundtrack.bare();
-  for (const [id, n] of Object.entries(prog.nodes)) {
-    for (const p of n.touches || []) (editors[p] = editors[p] || []).push(id);
-  }
-  for (const [p, ids] of Object.entries(editors)) {
-    if (ids.length > 1) out.push(`several nodes edit ${p}: ${ids.join(', ')}`);
-  }
-
-  /* A node no graph's entry reaches. It is drawn by no sheet, so it is worth
-   * seeing — but it is legal, because a node the author has written and not
-   * yet connected is a work in progress and not a contradiction. */
-  const reached = new Set();
-  for (const g of prog.graphs) for (const id of Groundtrack.reachable(prog, g.entry)) reached.add(id);
-  for (const id of Object.keys(prog.nodes)) {
-    if (!reached.has(id)) out.push(`no graph's entry reaches ${id}, so no sheet draws it`);
-  }
-
-  /* An error list declaring a tag nothing beneath it can produce.
-   *
-   * A node produces a tag three ways: it throws it, a step of it declares a
-   * handler for it, or one of its effects raised it in a walk this file
-   * carries. The third source is why this reads the walks. A step gives an
-   * effect no failure set — the shape has no field for one, on purpose — so a
-   * rule that read the steps alone would report every effect that can fail,
-   * which is most of them, and the finding would mean nothing.
-   */
-  /* Keyed by a node id, and an id is no safer here than any other author
-   * string — the pattern that guards it is about attributes. */
-  const raisedInWalks = Groundtrack.bare();
-  prog.graphs.forEach((g, gi) => {
-    const view = Groundtrack.graphView(prog, gi);
-    for (const p of g.presets) {
-      const states = Groundtrack.fold(view, p.trace);
-      for (const l of states[states.length - 1].ledger) {
-        if (l.raised) (raisedInWalks[l.nodeId] = raisedInWalks[l.nodeId] || new Set()).add(l.raised.tag);
-      }
-    }
-  });
-
-  /* Which of the tags the file declares each node can produce, itself or
-   * through anything it calls, worked out for every node at once. Asking
-   * node by node walks everything beneath each one again, so a long chain
-   * costs the square of its length. So the nodes are grouped into cycles
-   * first, callees before callers, and each group's tags are its own plus
-   * its callees' groups' tags, read once.
-   *
-   * Tarjan's grouping, with a list of open nodes rather than a recursion:
-   * this reads every node in the file, including a chain no graph's entry
-   * reaches, so no limit on a graph's depth keeps a recursion here inside
-   * the call stack. A group's tags are one bit per declared tag. A group
-   * that adds no tag of its own and calls one other group shares that
-   * group's bits rather than copying them. */
+ * Tarjan's grouping, with a list of open nodes rather than a recursion:
+ * this reads every node in the file, including a chain no graph's entry
+ * reaches, so no limit on a graph's depth keeps a recursion here inside
+ * the call stack. A group's tags are one bit per declared tag. A group
+ * that adds no tag of its own and calls one other group shares that
+ * group's bits rather than copying them. */
+function producibleTags(prog, raisedInWalks) {
   const ids = Object.keys(prog.nodes);
   const indexOf = new Map(ids.map((id, i) => [id, i]));
   const bitOf = new Map();
@@ -822,10 +740,67 @@ export function findings(prog) {
       groupBits.push(bits);
     }
   }
-  const canProduce = (id, tag) => {
+  return (id, tag) => {
     const b = bitOf.get(tag);
     return ((groupBits[group[indexOf.get(id)]][b >>> 5] >>> (b & 31)) & 1) === 1;
   };
+}
+
+/* -- findings -------------------------------------------------------------
+ *
+ * A finding is not a refusal. Each one is computed from the file alone with no
+ * run, each one is a thing a reader may have meant, and none of them makes the
+ * file illegal. The two the spec left unplaced are here rather than in the
+ * validator for that reason: neither is a graph-versus-walk contradiction, and
+ * refusing a file for one would refuse a file that says exactly what its
+ * author meant.
+ */
+export function findings(prog) {
+  const out = [];
+
+  /* One file edited by several nodes. Legal, and worth seeing: it is the shape
+   * a change takes when one file carries two concerns. */
+  /* Keyed by a changed file's path, which nothing validates. */
+  const editors = Groundtrack.bare();
+  for (const [id, n] of Object.entries(prog.nodes)) {
+    for (const p of n.touches || []) (editors[p] = editors[p] || []).push(id);
+  }
+  for (const [p, ids] of Object.entries(editors)) {
+    if (ids.length > 1) out.push(`several nodes edit ${p}: ${ids.join(', ')}`);
+  }
+
+  /* A node no graph's entry reaches. It is drawn by no sheet, so it is worth
+   * seeing — but it is legal, because a node the author has written and not
+   * yet connected is a work in progress and not a contradiction. */
+  const reached = new Set();
+  for (const g of prog.graphs) for (const id of Groundtrack.reachable(prog, g.entry)) reached.add(id);
+  for (const id of Object.keys(prog.nodes)) {
+    if (!reached.has(id)) out.push(`no graph's entry reaches ${id}, so no sheet draws it`);
+  }
+
+  /* An error list declaring a tag nothing beneath it can produce.
+   *
+   * A node produces a tag three ways: it throws it, a step of it declares a
+   * handler for it, or one of its effects raised it in a walk this file
+   * carries. The third source is why this reads the walks. A step gives an
+   * effect no failure set — the shape has no field for one, on purpose — so a
+   * rule that read the steps alone would report every effect that can fail,
+   * which is most of them, and the finding would mean nothing.
+   */
+  /* Keyed by a node id, and an id is no safer here than any other author
+   * string — the pattern that guards it is about attributes. */
+  const raisedInWalks = Groundtrack.bare();
+  prog.graphs.forEach((g, gi) => {
+    const view = Groundtrack.graphView(prog, gi);
+    for (const p of g.presets) {
+      const states = Groundtrack.fold(view, p.trace);
+      for (const l of states[states.length - 1].ledger) {
+        if (l.raised) (raisedInWalks[l.nodeId] = raisedInWalks[l.nodeId] || new Set()).add(l.raised.tag);
+      }
+    }
+  });
+
+  const canProduce = producibleTags(prog, raisedInWalks);
   for (const [id, n] of Object.entries(prog.nodes)) {
     for (const tag of (n.channels || {}).error || []) {
       if (!canProduce(id, tag)) out.push(`${id} declares error tag "${tag}", and nothing beneath it produces that tag`);
