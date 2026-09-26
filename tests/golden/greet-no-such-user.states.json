@@ -1,0 +1,925 @@
+[
+  {
+    "i": -1,
+    "move": null,
+    "frames": [
+      {
+        "nodeId": "greet",
+        "pc": 0,
+        "site": "@entry",
+        "chain": [
+          "@entry"
+        ]
+      }
+    ],
+    "ledger": [],
+    "visited": [
+      "greet"
+    ],
+    "edges": [],
+    "errorPath": [],
+    "sites": {
+      "@entry": {
+        "entered": 1,
+        "returned": 0,
+        "effects": {}
+      }
+    },
+    "nodeEffects": {},
+    "nodeCalls": {
+      "greet": {
+        "entered": 1,
+        "returned": 0
+      }
+    },
+    "ended": null,
+    "moved": null
+  },
+  {
+    "i": 0,
+    "move": {
+      "k": "comment",
+      "at": 0,
+      "next": 1
+    },
+    "frames": [
+      {
+        "nodeId": "greet",
+        "pc": 1,
+        "site": "@entry",
+        "chain": [
+          "@entry"
+        ]
+      }
+    ],
+    "ledger": [],
+    "visited": [
+      "greet"
+    ],
+    "edges": [],
+    "errorPath": [],
+    "sites": {
+      "@entry": {
+        "entered": 1,
+        "returned": 0,
+        "effects": {}
+      }
+    },
+    "nodeEffects": {},
+    "nodeCalls": {
+      "greet": {
+        "entered": 1,
+        "returned": 0
+      }
+    },
+    "ended": null,
+    "moved": null
+  },
+  {
+    "i": 1,
+    "move": {
+      "k": "call",
+      "at": 1,
+      "to": "lookupName",
+      "next": 2
+    },
+    "frames": [
+      {
+        "nodeId": "greet",
+        "pc": 2,
+        "callAt": 1,
+        "site": "@entry",
+        "chain": [
+          "@entry"
+        ]
+      },
+      {
+        "nodeId": "lookupName",
+        "pc": 0,
+        "site": "greet#1",
+        "chain": [
+          "@entry",
+          "greet#1"
+        ]
+      }
+    ],
+    "ledger": [],
+    "visited": [
+      "greet",
+      "lookupName"
+    ],
+    "edges": [
+      "greet>lookupName"
+    ],
+    "errorPath": [],
+    "sites": {
+      "@entry": {
+        "entered": 1,
+        "returned": 0,
+        "effects": {}
+      },
+      "@entry/greet#1": {
+        "entered": 1,
+        "returned": 0,
+        "effects": {}
+      }
+    },
+    "nodeEffects": {},
+    "nodeCalls": {
+      "greet": {
+        "entered": 1,
+        "returned": 0
+      },
+      "lookupName": {
+        "entered": 1,
+        "returned": 0
+      }
+    },
+    "ended": null,
+    "moved": {
+      "from": "greet",
+      "to": "lookupName",
+      "dir": "call"
+    }
+  },
+  {
+    "i": 2,
+    "move": {
+      "k": "effect",
+      "at": 0,
+      "kind": "db.get",
+      "desc": "read the name row",
+      "next": 1,
+      "result": null
+    },
+    "frames": [
+      {
+        "nodeId": "greet",
+        "pc": 2,
+        "callAt": 1,
+        "site": "@entry",
+        "chain": [
+          "@entry"
+        ]
+      },
+      {
+        "nodeId": "lookupName",
+        "pc": 1,
+        "site": "greet#1",
+        "chain": [
+          "@entry",
+          "greet#1"
+        ]
+      }
+    ],
+    "ledger": [
+      {
+        "nodeId": "lookupName",
+        "at": 0,
+        "kind": "db.get",
+        "desc": "read the name row",
+        "outcome": "returned",
+        "result": null
+      }
+    ],
+    "visited": [
+      "greet",
+      "lookupName"
+    ],
+    "edges": [
+      "greet>lookupName"
+    ],
+    "errorPath": [],
+    "sites": {
+      "@entry": {
+        "entered": 1,
+        "returned": 0,
+        "effects": {}
+      },
+      "@entry/greet#1": {
+        "entered": 1,
+        "returned": 0,
+        "effects": {
+          "lookupName[0]": "returned"
+        }
+      }
+    },
+    "nodeEffects": {
+      "lookupName[0]": "returned"
+    },
+    "nodeCalls": {
+      "greet": {
+        "entered": 1,
+        "returned": 0
+      },
+      "lookupName": {
+        "entered": 1,
+        "returned": 0
+      }
+    },
+    "ended": null,
+    "moved": null
+  },
+  {
+    "i": 3,
+    "move": {
+      "k": "if",
+      "at": 1,
+      "next": 3
+    },
+    "frames": [
+      {
+        "nodeId": "greet",
+        "pc": 2,
+        "callAt": 1,
+        "site": "@entry",
+        "chain": [
+          "@entry"
+        ]
+      },
+      {
+        "nodeId": "lookupName",
+        "pc": 3,
+        "site": "greet#1",
+        "chain": [
+          "@entry",
+          "greet#1"
+        ]
+      }
+    ],
+    "ledger": [
+      {
+        "nodeId": "lookupName",
+        "at": 0,
+        "kind": "db.get",
+        "desc": "read the name row",
+        "outcome": "returned",
+        "result": null
+      }
+    ],
+    "visited": [
+      "greet",
+      "lookupName"
+    ],
+    "edges": [
+      "greet>lookupName"
+    ],
+    "errorPath": [],
+    "sites": {
+      "@entry": {
+        "entered": 1,
+        "returned": 0,
+        "effects": {}
+      },
+      "@entry/greet#1": {
+        "entered": 1,
+        "returned": 0,
+        "effects": {
+          "lookupName[0]": "returned"
+        }
+      }
+    },
+    "nodeEffects": {
+      "lookupName[0]": "returned"
+    },
+    "nodeCalls": {
+      "greet": {
+        "entered": 1,
+        "returned": 0
+      },
+      "lookupName": {
+        "entered": 1,
+        "returned": 0
+      }
+    },
+    "ended": null,
+    "moved": null
+  },
+  {
+    "i": 4,
+    "move": {
+      "k": "throw",
+      "at": 3,
+      "tag": "NoSuchUser",
+      "message": "no row for that id",
+      "cause": "fail"
+    },
+    "frames": [
+      {
+        "nodeId": "greet",
+        "pc": 2,
+        "callAt": 1,
+        "site": "@entry",
+        "chain": [
+          "@entry"
+        ]
+      },
+      {
+        "nodeId": "lookupName",
+        "pc": 3,
+        "site": "greet#1",
+        "chain": [
+          "@entry",
+          "greet#1"
+        ]
+      }
+    ],
+    "ledger": [
+      {
+        "nodeId": "lookupName",
+        "at": 0,
+        "kind": "db.get",
+        "desc": "read the name row",
+        "outcome": "returned",
+        "result": null
+      }
+    ],
+    "visited": [
+      "greet",
+      "lookupName"
+    ],
+    "edges": [
+      "greet>lookupName"
+    ],
+    "errorPath": [
+      {
+        "nodeId": "lookupName",
+        "site": "greet#1",
+        "chain": [
+          "@entry",
+          "greet#1"
+        ],
+        "how": "thrown",
+        "tag": "NoSuchUser",
+        "message": "no row for that id",
+        "cause": "fail"
+      }
+    ],
+    "sites": {
+      "@entry": {
+        "entered": 1,
+        "returned": 0,
+        "effects": {}
+      },
+      "@entry/greet#1": {
+        "entered": 1,
+        "returned": 0,
+        "effects": {
+          "lookupName[0]": "returned"
+        }
+      }
+    },
+    "nodeEffects": {
+      "lookupName[0]": "returned"
+    },
+    "nodeCalls": {
+      "greet": {
+        "entered": 1,
+        "returned": 0
+      },
+      "lookupName": {
+        "entered": 1,
+        "returned": 0
+      }
+    },
+    "ended": null,
+    "moved": null
+  },
+  {
+    "i": 5,
+    "move": {
+      "k": "propagate"
+    },
+    "frames": [
+      {
+        "nodeId": "greet",
+        "pc": 2,
+        "callAt": 1,
+        "site": "@entry",
+        "chain": [
+          "@entry"
+        ]
+      }
+    ],
+    "ledger": [
+      {
+        "nodeId": "lookupName",
+        "at": 0,
+        "kind": "db.get",
+        "desc": "read the name row",
+        "outcome": "returned",
+        "result": null
+      }
+    ],
+    "visited": [
+      "greet",
+      "lookupName"
+    ],
+    "edges": [
+      "greet>lookupName"
+    ],
+    "errorPath": [
+      {
+        "nodeId": "lookupName",
+        "site": "greet#1",
+        "chain": [
+          "@entry",
+          "greet#1"
+        ],
+        "how": "thrown",
+        "tag": "NoSuchUser",
+        "message": "no row for that id",
+        "cause": "fail"
+      },
+      {
+        "nodeId": "lookupName",
+        "site": "greet#1",
+        "chain": [
+          "@entry",
+          "greet#1"
+        ],
+        "how": "propagated"
+      }
+    ],
+    "sites": {
+      "@entry": {
+        "entered": 1,
+        "returned": 0,
+        "effects": {}
+      },
+      "@entry/greet#1": {
+        "entered": 1,
+        "returned": 0,
+        "effects": {
+          "lookupName[0]": "returned"
+        }
+      }
+    },
+    "nodeEffects": {
+      "lookupName[0]": "returned"
+    },
+    "nodeCalls": {
+      "greet": {
+        "entered": 1,
+        "returned": 0
+      },
+      "lookupName": {
+        "entered": 1,
+        "returned": 0
+      }
+    },
+    "ended": null,
+    "moved": {
+      "from": "lookupName",
+      "to": "greet",
+      "dir": "propagate"
+    }
+  },
+  {
+    "i": 6,
+    "move": {
+      "k": "catch",
+      "at": 1,
+      "goto": "plain",
+      "next": 5
+    },
+    "frames": [
+      {
+        "nodeId": "greet",
+        "pc": 5,
+        "callAt": 1,
+        "site": "@entry",
+        "chain": [
+          "@entry"
+        ]
+      }
+    ],
+    "ledger": [
+      {
+        "nodeId": "lookupName",
+        "at": 0,
+        "kind": "db.get",
+        "desc": "read the name row",
+        "outcome": "returned",
+        "result": null
+      }
+    ],
+    "visited": [
+      "greet",
+      "lookupName"
+    ],
+    "edges": [
+      "greet>lookupName"
+    ],
+    "errorPath": [
+      {
+        "nodeId": "lookupName",
+        "site": "greet#1",
+        "chain": [
+          "@entry",
+          "greet#1"
+        ],
+        "how": "thrown",
+        "tag": "NoSuchUser",
+        "message": "no row for that id",
+        "cause": "fail"
+      },
+      {
+        "nodeId": "lookupName",
+        "site": "greet#1",
+        "chain": [
+          "@entry",
+          "greet#1"
+        ],
+        "how": "propagated"
+      },
+      {
+        "nodeId": "greet",
+        "site": "@entry",
+        "chain": [
+          "@entry"
+        ],
+        "how": "caught",
+        "goto": "plain"
+      }
+    ],
+    "sites": {
+      "@entry": {
+        "entered": 1,
+        "returned": 0,
+        "effects": {}
+      },
+      "@entry/greet#1": {
+        "entered": 1,
+        "returned": 0,
+        "effects": {
+          "lookupName[0]": "returned"
+        }
+      }
+    },
+    "nodeEffects": {
+      "lookupName[0]": "returned"
+    },
+    "nodeCalls": {
+      "greet": {
+        "entered": 1,
+        "returned": 0
+      },
+      "lookupName": {
+        "entered": 1,
+        "returned": 0
+      }
+    },
+    "ended": null,
+    "moved": null
+  },
+  {
+    "i": 7,
+    "move": {
+      "k": "var",
+      "at": 5,
+      "next": 6
+    },
+    "frames": [
+      {
+        "nodeId": "greet",
+        "pc": 6,
+        "callAt": 1,
+        "site": "@entry",
+        "chain": [
+          "@entry"
+        ]
+      }
+    ],
+    "ledger": [
+      {
+        "nodeId": "lookupName",
+        "at": 0,
+        "kind": "db.get",
+        "desc": "read the name row",
+        "outcome": "returned",
+        "result": null
+      }
+    ],
+    "visited": [
+      "greet",
+      "lookupName"
+    ],
+    "edges": [
+      "greet>lookupName"
+    ],
+    "errorPath": [
+      {
+        "nodeId": "lookupName",
+        "site": "greet#1",
+        "chain": [
+          "@entry",
+          "greet#1"
+        ],
+        "how": "thrown",
+        "tag": "NoSuchUser",
+        "message": "no row for that id",
+        "cause": "fail"
+      },
+      {
+        "nodeId": "lookupName",
+        "site": "greet#1",
+        "chain": [
+          "@entry",
+          "greet#1"
+        ],
+        "how": "propagated"
+      },
+      {
+        "nodeId": "greet",
+        "site": "@entry",
+        "chain": [
+          "@entry"
+        ],
+        "how": "caught",
+        "goto": "plain"
+      }
+    ],
+    "sites": {
+      "@entry": {
+        "entered": 1,
+        "returned": 0,
+        "effects": {}
+      },
+      "@entry/greet#1": {
+        "entered": 1,
+        "returned": 0,
+        "effects": {
+          "lookupName[0]": "returned"
+        }
+      }
+    },
+    "nodeEffects": {
+      "lookupName[0]": "returned"
+    },
+    "nodeCalls": {
+      "greet": {
+        "entered": 1,
+        "returned": 0
+      },
+      "lookupName": {
+        "entered": 1,
+        "returned": 0
+      }
+    },
+    "ended": null,
+    "moved": null
+  },
+  {
+    "i": 8,
+    "move": {
+      "k": "effect",
+      "at": 6,
+      "kind": "http.post",
+      "desc": "POST the greeting",
+      "next": 7,
+      "result": {
+        "ok": true
+      }
+    },
+    "frames": [
+      {
+        "nodeId": "greet",
+        "pc": 7,
+        "callAt": 1,
+        "site": "@entry",
+        "chain": [
+          "@entry"
+        ]
+      }
+    ],
+    "ledger": [
+      {
+        "nodeId": "lookupName",
+        "at": 0,
+        "kind": "db.get",
+        "desc": "read the name row",
+        "outcome": "returned",
+        "result": null
+      },
+      {
+        "nodeId": "greet",
+        "at": 6,
+        "kind": "http.post",
+        "desc": "POST the greeting",
+        "outcome": "returned",
+        "result": {
+          "ok": true
+        }
+      }
+    ],
+    "visited": [
+      "greet",
+      "lookupName"
+    ],
+    "edges": [
+      "greet>lookupName"
+    ],
+    "errorPath": [
+      {
+        "nodeId": "lookupName",
+        "site": "greet#1",
+        "chain": [
+          "@entry",
+          "greet#1"
+        ],
+        "how": "thrown",
+        "tag": "NoSuchUser",
+        "message": "no row for that id",
+        "cause": "fail"
+      },
+      {
+        "nodeId": "lookupName",
+        "site": "greet#1",
+        "chain": [
+          "@entry",
+          "greet#1"
+        ],
+        "how": "propagated"
+      },
+      {
+        "nodeId": "greet",
+        "site": "@entry",
+        "chain": [
+          "@entry"
+        ],
+        "how": "caught",
+        "goto": "plain"
+      }
+    ],
+    "sites": {
+      "@entry": {
+        "entered": 1,
+        "returned": 0,
+        "effects": {
+          "greet[6]": "returned"
+        }
+      },
+      "@entry/greet#1": {
+        "entered": 1,
+        "returned": 0,
+        "effects": {
+          "lookupName[0]": "returned"
+        }
+      }
+    },
+    "nodeEffects": {
+      "lookupName[0]": "returned",
+      "greet[6]": "returned"
+    },
+    "nodeCalls": {
+      "greet": {
+        "entered": 1,
+        "returned": 0
+      },
+      "lookupName": {
+        "entered": 1,
+        "returned": 0
+      }
+    },
+    "ended": null,
+    "moved": null
+  },
+  {
+    "i": 9,
+    "move": {
+      "k": "return",
+      "at": 7,
+      "value": "Hello there"
+    },
+    "frames": [],
+    "ledger": [
+      {
+        "nodeId": "lookupName",
+        "at": 0,
+        "kind": "db.get",
+        "desc": "read the name row",
+        "outcome": "returned",
+        "result": null
+      },
+      {
+        "nodeId": "greet",
+        "at": 6,
+        "kind": "http.post",
+        "desc": "POST the greeting",
+        "outcome": "returned",
+        "result": {
+          "ok": true
+        }
+      }
+    ],
+    "visited": [
+      "greet",
+      "lookupName"
+    ],
+    "edges": [
+      "greet>lookupName"
+    ],
+    "errorPath": [],
+    "sites": {
+      "@entry": {
+        "entered": 1,
+        "returned": 1,
+        "effects": {
+          "greet[6]": "returned"
+        }
+      },
+      "@entry/greet#1": {
+        "entered": 1,
+        "returned": 0,
+        "effects": {
+          "lookupName[0]": "returned"
+        }
+      }
+    },
+    "nodeEffects": {
+      "lookupName[0]": "returned",
+      "greet[6]": "returned"
+    },
+    "nodeCalls": {
+      "greet": {
+        "entered": 1,
+        "returned": 1
+      },
+      "lookupName": {
+        "entered": 1,
+        "returned": 0
+      }
+    },
+    "ended": null,
+    "moved": null
+  },
+  {
+    "i": 10,
+    "move": {
+      "k": "done",
+      "result": "Hello there"
+    },
+    "frames": [],
+    "ledger": [
+      {
+        "nodeId": "lookupName",
+        "at": 0,
+        "kind": "db.get",
+        "desc": "read the name row",
+        "outcome": "returned",
+        "result": null
+      },
+      {
+        "nodeId": "greet",
+        "at": 6,
+        "kind": "http.post",
+        "desc": "POST the greeting",
+        "outcome": "returned",
+        "result": {
+          "ok": true
+        }
+      }
+    ],
+    "visited": [
+      "greet",
+      "lookupName"
+    ],
+    "edges": [
+      "greet>lookupName"
+    ],
+    "errorPath": [],
+    "sites": {
+      "@entry": {
+        "entered": 1,
+        "returned": 1,
+        "effects": {
+          "greet[6]": "returned"
+        }
+      },
+      "@entry/greet#1": {
+        "entered": 1,
+        "returned": 0,
+        "effects": {
+          "lookupName[0]": "returned"
+        }
+      }
+    },
+    "nodeEffects": {
+      "lookupName[0]": "returned",
+      "greet[6]": "returned"
+    },
+    "nodeCalls": {
+      "greet": {
+        "entered": 1,
+        "returned": 1
+      },
+      "lookupName": {
+        "entered": 1,
+        "returned": 0
+      }
+    },
+    "ended": "done",
+    "moved": null
+  }
+]
