@@ -483,7 +483,7 @@ test('an effect mark outlives the frame that produced it', () => {
   assert.equal(end.nodeEffects['lookupName[0]'], 'returned');
   assert.equal(end.nodeEffects['greet[6]'], 'returned');
   // And it is still cumulative-to-the-cursor, not the whole walk at once.
-  assert.deepEqual(s[0].nodeEffects, {});
+  assert.deepEqual(Object.keys(s[0].nodeEffects), []);
 });
 
 test('the ledger grows one row per effect, in order, with what the walk claims', () => {
@@ -922,40 +922,133 @@ test('a failure is not hidden by a frame that succeeded at the same step', () =>
   assert.deepEqual(repeat.effects.map(e => e.mark), ['threw'], 'so it must not also say the step recorded cleanly');
 });
 
-test('a state keeps the call-site table it had, whatever moves came after it', () => {
-  // The fold keeps one table for the whole walk and each state reads its own
-  // view of it, rather than every state carrying a copy (#144). So the one
-  // property the sharing must keep is this: a later move never changes what
-  // an earlier state says. The check is against a walk that stopped at that
-  // state, which had no later move to leak. The recursive runs enter one
-  // site again and again and mark one step twice, so a count or a mark from
-  // later in the walk has somewhere to show up if it leaks. The states are
-  // read last first, so no earlier read can have fixed a table in place.
-  for (const prog of [greet, recursive]) {
-    for (const run of prog.presets) {
-      const states = G.fold(prog, run.trace);
-      for (let at = states.length - 1; at >= 0; at -= 1) {
-        const stopped = G.fold(prog, { ...run.trace, steps: run.trace.steps.slice(0, at) }).pop();
-        assert.deepEqual(states[at].sites, stopped.sites, `${run.name} / cursor ${at}`);
+/* -- what one state says, whatever the others do --------------------------
+ *
+ * The fold keeps one copy of the walk and each state builds its own view of
+ * it on first read, rather than every state carrying a copy (#144). The
+ * property that sharing must keep: a later move never changes what an
+ * earlier state says, and a reader writing into one state's view changes no
+ * other state. */
+
+/* A loop that enters one call site three times. The effect under it
+ * returns, then throws and is caught, then returns — so the counts, the mark
+ * and the error path each change while the chain stays the same, and a value
+ * from a later pass has somewhere to leak into an earlier one. The fold reads
+ * nothing of the graph but its entry. */
+const loop = { entry: 'loop' };
+const loopWalk = {
+  steps: [
+    { k: 'call', at: 0, to: 'work', next: 1 },
+    { k: 'effect', at: 0, kind: 'db.get', desc: 'read a row', next: 1, result: 1 },
+    { k: 'return', at: 1 },
+    { k: 'if', at: 1, next: 0 },
+    { k: 'call', at: 0, to: 'work', next: 1 },
+    { k: 'effect', at: 0, kind: 'db.get', desc: 'read a row', raised: { tag: 'Down', message: 'the store is down' } },
+    { k: 'propagate', at: 0 },
+    { k: 'catch', at: 0, next: 1, goto: 'again' },
+    { k: 'if', at: 1, next: 0 },
+    { k: 'call', at: 0, to: 'work', next: 1 },
+    { k: 'effect', at: 0, kind: 'db.get', desc: 'read a row', next: 1, result: 2 },
+    { k: 'return', at: 1 },
+    { k: 'if', at: 1, next: 2 },
+    { k: 'return', at: 2 },
+  ],
+};
+
+/* Every run to check: the loop, the recursive graph, and every run of the
+ * shipped files whose walks re-enter a chain — map-300-woodwork and the
+ * large pr-382 example. */
+const everyRun = () => {
+  const runs = [{ name: 'loop', prog: loop, walk: loopWalk }];
+  for (const run of recursive.presets) runs.push({ name: `recursive / ${run.name}`, prog: recursive, walk: run.trace });
+  for (const path of [join(examples, 'map-300-woodwork.flightpath.json'), join(root, 'docs', 'examples', 'pr-382.flightpath.json')]) {
+    const file = G.hardenKeys(JSON.parse(readFileSync(path, 'utf8')));
+    file.graphs.forEach((g, i) => {
+      const v = G.graphView(file, i);
+      for (const run of v.presets) runs.push({ name: `${path} / ${g.id} / ${run.name}`, prog: v, walk: run.trace });
+    });
+  }
+  return runs;
+};
+
+test('every state prints exactly what a walk stopped at that state prints', () => {
+  // A walk cut off at a state had no later move to leak, so it is the
+  // answer. Compared as JSON text, so the order of a table's keys is held
+  // too, and every field is — the frames as well as the views. The states
+  // are read from the last to the first, so no state's view is built before
+  // every move after it has run: a view that wrongly read the walk as it
+  // ends shows up at the states nearest the start.
+  for (const { name, prog, walk } of everyRun()) {
+    const states = G.fold(prog, walk);
+    for (let n = states.length - 1; n >= 0; n -= 1) {
+      const stopped = G.fold(prog, { ...walk, steps: walk.steps.slice(0, n) }).pop();
+      assert.equal(JSON.stringify(states[n]), JSON.stringify(stopped), `${name} / cursor ${n}`);
+    }
+  }
+});
+
+test('a table lists its keys in the order moves first entered them', () => {
+  // The walk-stopped-here test cannot see an order that is wrong the same
+  // way in both folds, so the order is pinned on its own: each state's keys
+  // are the state before's, in the same order, with any new ones after. The
+  // entry is entered before any move, so it comes first. Compared as JSON
+  // text, which is the order a reader of the JSON sees.
+  const keysOf = table => JSON.stringify(Object.keys(table));
+  const grewAtEnd = (before, after) => after.startsWith(before.slice(0, -1)) && (before === '[]' || after === before || after[before.length - 1] === ',');
+  for (const { name, prog, walk } of everyRun()) {
+    const states = G.fold(prog, walk);
+    assert.equal(Object.keys(states[0].sites)[0], '@entry', name);
+    for (let n = 1; n < states.length; n += 1) {
+      const [was, now] = [states[n - 1], states[n]];
+      for (const field of ['sites', 'nodeEffects', 'nodeCalls']) {
+        assert.ok(grewAtEnd(keysOf(was[field]), keysOf(now[field])), `${name} / cursor ${n} / ${field}: ${keysOf(was[field])} then ${keysOf(now[field])}`);
+      }
+      for (const key of Object.keys(was.sites)) {
+        assert.ok(grewAtEnd(keysOf(was.sites[key].effects), keysOf(now.sites[key].effects)), `${name} / cursor ${n} / ${key} effects`);
       }
     }
   }
 });
 
-test('writing into one state\'s call-site table reaches no other state', () => {
-  // Each state's table is its own object, so a reader that edits one cannot
-  // change what another state says, the way it could not when every state
-  // held a copy.
-  const walk = runNamed(recursive, 'three frames down').trace;
-  const states = G.fold(recursive, walk);
-  const before = states.map(s => JSON.stringify(s.sites));
-  const end = states[states.length - 1];
-  for (const key of Object.keys(end.sites)) {
-    end.sites[key].entered = 99;
-    end.sites[key].effects.injected = 'returned';
+test('every frame\'s chain is frozen, in every state and on every error path entry', () => {
+  // States share each chain rather than copying it, so a chain a reader
+  // could change would change it for every state at once.
+  for (const { name, prog, walk } of everyRun()) {
+    G.fold(prog, walk).forEach((s, n) => {
+      for (const f of s.frames) assert.ok(Object.isFrozen(f.chain), `${name} / cursor ${n} / frame ${f.nodeId}`);
+      for (const e of s.errorPath) if (e.chain) assert.ok(Object.isFrozen(e.chain), `${name} / cursor ${n} / path ${e.how}`);
+    });
   }
-  end.sites['@entry/injected#0'] = { entered: 1, returned: 0, effects: {} };
-  states.slice(0, -1).forEach((s, at) => assert.equal(JSON.stringify(s.sites), before[at], `cursor ${at}`));
+});
+
+test('writing into one state\'s views reaches no other state', () => {
+  // Each state's views are its own objects, the way each state's copies
+  // were. Written in two orders: into an early state before any later one
+  // has been read, and into the last state after every earlier one has.
+  const expected = G.fold(loop, loopWalk).map(s => JSON.stringify(s));
+  const scribble = s => {
+    for (const key of Object.keys(s.sites)) {
+      s.sites[key].entered = 99;
+      s.sites[key].effects.injected = 'threw';
+    }
+    s.sites['@entry/injected#0'] = { entered: 1, returned: 0, effects: {} };
+    for (const key of Object.keys(s.nodeCalls)) s.nodeCalls[key].entered = 99;
+    s.nodeCalls.injected = { entered: 1, returned: 0 };
+    s.nodeEffects['injected[0]'] = 'threw';
+    s.ledger.push({ nodeId: 'injected' });
+    s.visited.push('injected');
+    s.edges.push('injected>injected');
+    s.errorPath.push({ nodeId: 'injected', how: 'thrown' });
+  };
+
+  const early = G.fold(loop, loopWalk);
+  scribble(early[2]);
+  early.forEach((s, n) => n !== 2 && assert.equal(JSON.stringify(s), expected[n], `after writing into cursor 2, cursor ${n}`));
+
+  const late = G.fold(loop, loopWalk);
+  late.forEach(s => JSON.stringify(s));
+  scribble(late[late.length - 1]);
+  late.slice(0, -1).forEach((s, n) => assert.equal(JSON.stringify(s), expected[n], `after writing into the last cursor, cursor ${n}`));
 });
 
 test('a call step sums its copies, because the listing shows a node and not a path', () => {
