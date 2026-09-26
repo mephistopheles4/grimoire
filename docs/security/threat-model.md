@@ -110,8 +110,10 @@ out of scope for that reason.
    Narrows rows 1, 2 and 6; the host agent remains the real guard.
 2. **Make the scanners gate.** *Done 2026-09-25:* SkillSpector's `scan` and
    zizmor's `audit` are now required checks on `main`, beside `check`.
-3. **Tell reviewers to check the sheet against the diff.** *Done 2026-09-25:*
-   see row 1. A reminder narrows the gap; it binds no one.
+3. **Tell reviewers to check the sheet against the diff.** *Done 2026-09-26,
+   as a hover note by choice:* see row 1. The page's warning is the AUTHORED
+   stamp's help note, not a line of its own, so a reader who never points at
+   the stamp does not see it. A reminder narrows the gap; it binds no one.
 4. **Measure groundtrack on a hostile file.** Find the size at which the page
    stalls, and add a limit if it is within reach of a crafted file. Row 5.
 5. **Consider signed releases or a pinned install path.** Row 8's rug-pull
