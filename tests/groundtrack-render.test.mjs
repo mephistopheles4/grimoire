@@ -454,89 +454,168 @@ test('an absent optional field is not refused, and the empty one is', () => {
   assert.equal(check(derive(p => { p.files = []; })).code, 1);
 });
 
-/* -- the two limits gap 4 of the threat model asks for --------------------
+/* -- four size limits ------------------------------------------------------
  *
- * docs/security/threat-model.md row 5: a crafted flightpath file could make
- * the renderer or the page run for a long time. Both limits are refused in
- * `shape()`, before any walk is read, so the cost of the pattern they refuse
- * is never paid at all — a test on each side proves that boundary, not just
- * that a huge file is eventually refused. */
+ * A crafted flightpath file can make the renderer or the page run for a
+ * long time. Each limit below is refused in `shape()`, before any expensive
+ * walk runs, so a test on each side proves the boundary itself — not just
+ * that a huge file is eventually refused. Every boundary is the exact count
+ * named in the refusal, never a stand-in for it. */
 
-/** A trace of `moves` effect steps in one node, looping on itself and then
- *  returning. Long on purpose and cheap to build: every move is the same
- *  shape, so this reaches the trace-length limit without needing the deep
- *  call stack `selfRecursive` in helpers.mjs builds for a different test. */
+const node = (id, overrides) => ({
+  name: id, role: 'pure', loc: 'src/g.ts:1', params: [],
+  channels: { success: 'void', error: [], requirements: [] },
+  touches: ['src/g.ts'], enteredBy: [],
+  ...overrides,
+});
+
+/** A trace of exactly `moves` effect steps in one node, looping on itself
+ *  and then returning. Flat on purpose: this is the moves limit alone,
+ *  never nesting a call, so it cannot also trip the nesting limit. */
 function withTraceLength(prog, moves) {
   delete prog.layers;
-  prog.nodes = {
-    entry: {
-      name: 'entry', role: 'impure', loc: 'src/entry.ts:1', params: [],
-      channels: { success: 'void', error: [], requirements: [] },
-      touches: ['src/entry.ts'], enteredBy: [],
-      steps: [{ op: 'effect', kind: 'read', desc: 'loop body' }, { op: 'return', expr: 'null' }],
-    },
-  };
+  prog.nodes = { entry: node('entry', { role: 'impure', steps: [{ op: 'effect', kind: 'read', desc: 'loop body' }, { op: 'return', expr: 'null' }] }) };
+  const body = moves - 1; // one of the moves is the closing return
   const steps = [];
-  for (let i = 0; i < moves; i++) steps.push({ k: 'effect', at: 0, kind: 'read', desc: 'loop body', next: i === moves - 1 ? 1 : 0 });
+  for (let i = 0; i < body; i++) steps.push({ k: 'effect', at: 0, kind: 'read', desc: 'loop body', next: i === body - 1 ? 1 : 0 });
   steps.push({ k: 'return', at: 1 });
-  steps.push({ k: 'done' });
   only(prog).entry = 'entry';
   only(prog).presets = [{ name: 'loop', blurb: 'a trace with many moves', input: {}, trace: { provenance: 'authored', steps } }];
   return prog;
 }
 
 test('a trace of 2,000 moves validates, and 2,001 is refused by the limit', () => {
-  // withTraceLength(p, m) writes m effect moves plus a return and a done, so
-  // the boundary sits two below the count named in each call.
-  const atLimit = check(derive(p => withTraceLength(p, 1998)));
+  const atLimit = check(derive(p => withTraceLength(p, 2000)));
   assert.equal(atLimit.code, 0, atLimit.stderr);
-  const overLimit = check(derive(p => withTraceLength(p, 1999)));
+  const overLimit = check(derive(p => withTraceLength(p, 2001)));
   assert.equal(overLimit.code, 1);
   assert.match(overLimit.stderr, /this trace has 2001 moves, more than the 2000 groundtrack folds/);
 });
 
-/** Two nodes per layer, each calling both nodes of the next layer — the shape
- *  `treeRows` (groundtrack.js) unfolds one row per distinct path rather than
- *  one per node, so its row count is 2^depth from a graph of about 2*depth
- *  nodes. The row count this limit refuses is a property of the call
- *  graph's shape, read at the shape pass before any trace is folded — so the
- *  one run here walks a single path straight down the "a" side and back,
- *  which is enough to be a legal walk without describing the fan-out at all. */
-function diamondProgram(prog, depth) {
-  const node = (id, overrides) => ({
-    name: id, role: 'pure', loc: 'src/diamond.ts:1', params: [],
-    channels: { success: 'void', error: [], requirements: [] },
-    touches: ['src/diamond.ts'], enteredBy: [],
-    ...overrides,
-  });
+/** One self-recursive node, a trace that nests exactly `depth` calls deep
+ *  and then unwinds — flat in move count relative to its depth, so this is
+ *  the nesting limit alone. */
+function withNestingDepth(prog, depth) {
   delete prog.layers;
-  const nodes = { entry: node('entry', { steps: [{ op: 'call', target: 'l0a' }, { op: 'return', expr: 'null' }] }) };
+  prog.nodes = { rec: node('rec', { steps: [{ op: 'if', cond: 'more', then: 'again', else: 'base' }, { op: 'call', target: 'rec', label: 'again' }, { op: 'return', expr: 'x', label: 'base' }] }) };
+  const steps = [];
   for (let i = 0; i < depth; i++) {
-    const last = i === depth - 1;
-    for (const side of ['a', 'b']) {
-      nodes[`l${i}${side}`] = node(`l${i}${side}`, {
-        steps: last
-          ? [{ op: 'return', expr: 'null' }]
-          : [{ op: 'call', target: `l${i + 1}a` }, { op: 'call', target: `l${i + 1}b` }, { op: 'return', expr: 'null' }],
-      });
-    }
+    steps.push({ k: 'if', at: 0, next: 1 });
+    steps.push({ k: 'call', at: 1, to: 'rec', next: 2 });
   }
-  const steps = [{ k: 'call', at: 0, to: 'l0a', next: 1 }];
-  for (let i = 0; i < depth - 1; i++) steps.push({ k: 'call', at: 0, to: `l${i + 1}a`, next: 2 });
-  steps.push({ k: 'return', at: 0 });
-  for (let i = depth - 2; i >= 0; i--) steps.push({ k: 'return', at: 2 });
-  steps.push({ k: 'return', at: 1 });
-  steps.push({ k: 'done' });
-  prog.nodes = nodes;
-  only(prog).entry = 'entry';
-  only(prog).presets = [{ name: 'down the a side', blurb: 'one straight path through the fan-out', input: {}, trace: { provenance: 'authored', steps } }];
+  steps.push({ k: 'if', at: 0, next: 2 });
+  steps.push({ k: 'return', at: 2 });
+  for (let i = 0; i < depth; i++) steps.push({ k: 'return', at: 2 });
+  only(prog).entry = 'rec';
+  only(prog).presets = [{ name: 'deep', blurb: 'a trace that nests many calls deep', input: {}, trace: { provenance: 'authored', steps } }];
   return prog;
 }
 
-test('a call graph that draws 2^14 tree rows validates, and 2^15 is refused by the limit', () => {
-  const atLimit = check(derive(p => diamondProgram(p, 14)));
+test('a trace nesting 130 calls deep validates, and 131 is refused by the limit', () => {
+  const atLimit = check(derive(p => withNestingDepth(p, 130)));
   assert.equal(atLimit.code, 0, atLimit.stderr);
-  const overLimit = check(derive(p => diamondProgram(p, 15)));
+  const overLimit = check(derive(p => withNestingDepth(p, 131)));
+  assert.equal(overLimit.code, 1);
+  assert.match(overLimit.stderr, /this trace nests 131 calls deep, more than the 130 groundtrack folds/);
+});
+
+/** `runsOfDepth` runs of `depth` nested calls each, in one graph, each also
+ *  named in the tour so the same file exercises the total-moves limit and a
+ *  multi-stop tour together. Every run is well under the nesting and moves
+ *  limits on its own, so only their sum can trip the limit under test. */
+function withTotalMoves(prog, runsOfDepth, depth) {
+  delete prog.layers;
+  prog.nodes = { rec: node('rec', { steps: [{ op: 'if', cond: 'more', then: 'again', else: 'base' }, { op: 'call', target: 'rec', label: 'again' }, { op: 'return', expr: 'x', label: 'base' }] }) };
+  const oneRun = [];
+  for (let i = 0; i < depth; i++) {
+    oneRun.push({ k: 'if', at: 0, next: 1 });
+    oneRun.push({ k: 'call', at: 1, to: 'rec', next: 2 });
+  }
+  oneRun.push({ k: 'if', at: 0, next: 2 });
+  oneRun.push({ k: 'return', at: 2 });
+  for (let i = 0; i < depth; i++) oneRun.push({ k: 'return', at: 2 });
+  const presets = [];
+  const tour = [];
+  for (let i = 0; i < runsOfDepth; i++) {
+    presets.push({ name: `run${i}`, blurb: 'one of many runs', input: {}, trace: { provenance: 'authored', steps: oneRun } });
+    tour.push({ region: 'controls', run: `run${i}`, move: 1, now: `stop ${i}` });
+  }
+  only(prog).entry = 'rec';
+  only(prog).presets = presets;
+  prog.tour = tour;
+  return prog;
+}
+
+test('16,000 moves across every run validates, and 16,032 is refused by the limit', () => {
+  // Each run nests 10 calls deep (32 moves) — far under the nesting limit —
+  // so only the sum across every run can be why either file is judged.
+  const atLimit = check(derive(p => withTotalMoves(p, 500, 10))); // 500 * 32 = 16,000
+  assert.equal(atLimit.code, 0, atLimit.stderr);
+  const overLimit = check(derive(p => withTotalMoves(p, 501, 10))); // 501 * 32 = 16,032
+  assert.equal(overLimit.code, 1);
+  assert.match(overLimit.stderr, /this file's runs hold 16032 moves in all, more than the 16000 groundtrack folds/);
+});
+
+/** A linear chain of `depth` nodes, n0 through n(depth-1), each calling the
+ *  next. n0 is reshaped so the one run only ever executes a `return` — its
+ *  call to n1 sits at a second step no run ever reaches — because entering
+ *  n1 for real would force the run to call n2 in turn and so on all the way
+ *  down, which is the nesting limit's shape, not this one. This isolates
+ *  the graph's own call structure, read with no trace at all. */
+function withGraphDepth(prog, depth) {
+  delete prog.layers;
+  const nodes = {};
+  for (let i = 1; i < depth; i++) {
+    const last = i === depth - 1;
+    nodes[`n${i}`] = node(`n${i}`, { steps: last ? [{ op: 'return', expr: 'null' }] : [{ op: 'call', target: `n${i + 1}` }, { op: 'return', expr: 'null' }] });
+  }
+  nodes.n0 = node('n0', { steps: [{ op: 'return', expr: 'null' }, { op: 'call', target: 'n1' }] });
+  prog.nodes = nodes;
+  only(prog).entry = 'n0';
+  only(prog).presets = [{ name: 'shallow', blurb: 'the one run never calls past n0', input: {}, trace: { provenance: 'authored', steps: [{ k: 'return', at: 0 }] } }];
+  return prog;
+}
+
+test("a 1,000-deep call structure validates, and 1,001 is refused by the limit", () => {
+  const atLimit = check(derive(p => withGraphDepth(p, 1000)));
+  assert.equal(atLimit.code, 0, atLimit.stderr);
+  const overLimit = check(derive(p => withGraphDepth(p, 1001)));
+  assert.equal(overLimit.code, 1);
+  assert.match(overLimit.stderr, /this graph's own call structure goes more than 1000 calls deep/);
+});
+
+/** An entry calling `leaves` distinct nodes side by side — breadth, not
+ *  depth — so the tree view draws `leaves + 1` rows while the call
+ *  structure itself is only two calls deep. This reaches the row limit
+ *  without also tripping the graph-depth limit above it. */
+function withTreeRows(prog, leaves) {
+  delete prog.layers;
+  const nodes = {};
+  const steps = [];
+  for (let i = 0; i < leaves; i++) {
+    nodes[`leaf${i}`] = node(`leaf${i}`, { steps: [{ op: 'return', expr: 'null' }] });
+    steps.push({ op: 'call', target: `leaf${i}` });
+  }
+  steps.push({ op: 'return', expr: 'null' });
+  nodes.entry = node('entry', { steps });
+  prog.nodes = nodes;
+  only(prog).entry = 'entry';
+  // One call touched for real, its `next` set straight to the closing
+  // return: a legal walk through one call site of the many `entry` states,
+  // without describing every other one.
+  only(prog).presets = [{
+    name: 'one call site',
+    blurb: 'one call touched for real; the rest are declared, not walked',
+    input: {},
+    trace: { provenance: 'authored', steps: [{ k: 'call', at: 0, to: 'leaf0', next: leaves }, { k: 'return', at: 0 }, { k: 'return', at: leaves }] },
+  }];
+  return prog;
+}
+
+test('a call graph that draws 20,000 tree rows validates, and 20,001 is refused by the limit', () => {
+  const atLimit = check(derive(p => withTreeRows(p, 19999))); // 19,999 leaves + entry = 20,000 rows
+  assert.equal(atLimit.code, 0, atLimit.stderr);
+  const overLimit = check(derive(p => withTreeRows(p, 20000))); // 20,001 rows
   assert.equal(overLimit.code, 1);
   assert.match(overLimit.stderr, /this graph's tree view would draw more than 20000 rows/);
 });

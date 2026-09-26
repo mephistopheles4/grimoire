@@ -80,26 +80,26 @@ list what enters where.
 `presets` fails with a message naming `graphs`. There is one way to say one
 thing, so nothing accepts both.
 
-**Two size limits, both measured rather than guessed.** `docs/security/threat-model.md`
-row 5 asked what a crafted file costs the renderer; both numbers below are
-sized from that measurement, and the pull request that added them states the
-machine, the file sizes and the times.
+**Five size limits, each one measured, not guessed.** Each stops one file
+shape that costs too much to run. Every limit refuses before the run or the
+walk it would slow down.
 
-- **A trace holds at most 2,000 moves.** `fold` (`groundtrack.js`) clones
-  every open frame's call chain on every move and keys a table by it, so its
-  cost worsens faster than the move count — close to cubic, measured on a
-  deep self-recursion. A trace over the limit is refused before any walk
-  reads it, naming the count and the limit. Split a longer run into more than
-  one, or shorten it; the longest trace any shipped example carries is 60
-  moves.
-- **A graph's tree view draws at most 20,000 rows.** The page's tree toggle
-  and `--text` (`treeRows` in `groundtrack.js`) unfold every distinct path
-  from a graph's entry, not every node once, so a call graph that fans out
-  and back in draws exponentially more rows than it has nodes — two nodes
-  calling the same two nodes, 20 layers deep, is 41 nodes and over a million
-  rows. The validator counts what the tree view would draw, the same way the
-  tree does, and stops counting the moment it passes the limit — so checking
-  it costs no more than the limit's worth of work, however large the file.
+- **A run holds at most 2,000 moves.** A long run costs more than its move
+  count alone suggests. Split a long run, or shorten it.
+- **A run nests at most 130 calls deep.** A run can hold few moves and still
+  nest deep. Deep nesting costs far more than a flat run of the same length.
+  Shorten the deepest chain of calls, or split the run where it returns to
+  the top.
+- **A file's runs hold at most 16,000 moves in all.** Many small runs still
+  add up. Record fewer runs, or shorten the ones the file carries.
+- **A graph's call structure goes at most 1,000 calls deep.** This counts
+  calls between nodes, with no run read at all. A deeper graph can crash the
+  tree view rather than run slowly. Shorten the deepest chain of calls, or
+  split the change into more than one graph.
+- **A graph's tree view draws at most 20,000 rows.** The tree view draws one
+  row per path from the entry, not one row per node. A graph that calls the
+  same nodes from more than one place draws far more rows than it has nodes.
+  Flatten the call graph, or split the change into more than one graph.
   Flatten the call graph, or split the change into more than one graph, to
   fall under it.
 
