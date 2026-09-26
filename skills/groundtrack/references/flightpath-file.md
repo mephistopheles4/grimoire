@@ -80,6 +80,23 @@ list what enters where.
 `presets` fails with a message naming `graphs`. There is one way to say one
 thing, so nothing accepts both.
 
+**Three size limits.** The renderer refuses a file that goes over any one of them.
+Each limit bounds a cost that a small file can make large.
+
+- **A graph's call structure goes at most 1,000 calls deep.** The entry is 0
+  calls deep. The renderer counts calls between nodes and reads no run. The
+  tree view recurses once per call, so a deeper graph can crash it. Shorten
+  the deepest chain of calls. Or split the change into more than one graph.
+- **A graph's tree view draws at most 20,000 rows.** The tree view draws one
+  row per path from the entry, not one row per node. A graph that calls the
+  same nodes from more than one place draws more rows than it has nodes.
+  Flatten the call graph. Or split the change into more than one graph.
+- **The cut calls cost at most 1,000,000 units of work to find.** The
+  renderer searches every call argument for each token that a layer
+  renames. A layer costs its renamed tokens times a sum. The sum is the
+  characters of every call argument plus the number of call steps. The file
+  costs the total over its layers. Rename fewer tokens. Or rename them in
+  fewer layers. Or shorten the call arguments.
 ## Top level
 
 | Field | Type | Meaning |

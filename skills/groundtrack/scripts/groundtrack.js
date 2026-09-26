@@ -273,13 +273,34 @@ const Groundtrack = (() => {
   function tourStops(prog) {
     const graphs = (prog && prog.graphs) || [];
     let tab, view, layer;
+    /* Graphs by id and runs by name, each looked up in a table built once
+     * rather than by a scan per stop: a tour of many stops over a file of
+     * many graphs would otherwise pay for one against the other. A Map, so a
+     * name is matched and never read as a key of an object, and the first of
+     * two equal names wins, as a scan from the front would find it. */
+    const graphOf = new Map();
+    graphs.forEach((g, i) => {
+      if (!graphOf.has(g.id)) graphOf.set(g.id, i);
+    });
+    const runsOf = new Map();
+    const runIndexOf = (graphIndex, name) => {
+      if (!runsOf.has(graphIndex)) {
+        const runs = new Map();
+        graphs[graphIndex].presets.forEach((p, i) => {
+          if (!runs.has(p.name)) runs.set(p.name, i);
+        });
+        runsOf.set(graphIndex, runs);
+      }
+      const i = runsOf.get(graphIndex).get(name);
+      return i === undefined ? -1 : i;
+    };
     return ((prog && prog.tour) || []).map(stop => {
       if (stop.tab !== undefined) tab = stop.tab;
       if (stop.view !== undefined) view = stop.view;
       if (stop.layer !== undefined) layer = stop.layer;
-      const graphIndex = stop.graph === undefined ? 0 : graphs.findIndex(g => g.id === stop.graph);
+      const graphIndex = stop.graph === undefined ? 0 : graphOf.has(stop.graph) ? graphOf.get(stop.graph) : -1;
       const graph = graphs[graphIndex];
-      const runIndex = graph ? graph.presets.findIndex(p => p.name === stop.run) : -1;
+      const runIndex = graph ? runIndexOf(graphIndex, stop.run) : -1;
       const region = tourRegion(stop.region);
       if (runIndex < 0 || !region) return null;
       return { graphIndex, runIndex, move: stop.move, region, now: stop.now, tab, view, layer };
@@ -329,11 +350,20 @@ const Groundtrack = (() => {
     return out;
   };
 
-  /** Distinct callees, in first-call order. Used by the drawing, not the tree. */
+  /** Distinct callees, in first-call order. Used by the drawing, not the tree.
+   *
+   *  Read a node's own membership set rather than `out.includes`: a node
+   *  that calls many distinct others turns a scan of the growing list into
+   *  one comparison per call site already seen, and a node the drawing has
+   *  to lay out beside just as many siblings pays for both at once. */
   const calleesOf = (prog, id) => {
     const out = [];
+    const seen = new Set();
     for (const s of prog.nodes[id].steps || []) {
-      if (s.op === 'call' && prog.nodes[s.target] && !out.includes(s.target)) out.push(s.target);
+      if (s.op === 'call' && prog.nodes[s.target] && !seen.has(s.target)) {
+        seen.add(s.target);
+        out.push(s.target);
+      }
     }
     return out;
   };
@@ -859,28 +889,79 @@ const Groundtrack = (() => {
    */
   const renamedToken = r => String(r).split(/→|->/)[0].trim();
 
+  /** Every renamed token one layer's overrides name, once each, in the order
+   *  they first appear. The overridden node's own id plays no part in the
+   *  cut — the cut is the argument list and nothing else — so the tokens are
+   *  collected across all of a layer's overrides before anything is scanned
+   *  for them. A token two overrides both name is one entry here, which is
+   *  also what keeps a caller's step from being cut twice under the same
+   *  layer for the same token.
+   *
+   *  The renderer counts what `cutEdges` will cost from this same list,
+   *  before the file is known to be well formed, so it reads a layer
+   *  defensively rather than assuming its shape. */
+  function layerTokens(layer) {
+    const tokens = new Set();
+    const nodes = layer && typeof layer === 'object' && layer.nodes && typeof layer.nodes === 'object' ? layer.nodes : {};
+    for (const ov of Object.values(nodes)) {
+      for (const r of ov && Array.isArray(ov.requirements) ? ov.requirements : []) {
+        const tok = renamedToken(r);
+        if (tok) tokens.add(tok);
+      }
+    }
+    return tokens;
+  }
+
   function cutEdges(prog) {
     const cuts = [];
     for (const [ln, layer] of Object.entries(prog.layers || {})) {
-      for (const [nid, ov] of Object.entries((layer && layer.nodes) || {})) {
-        const tokens = ((ov && ov.requirements) || []).map(renamedToken).filter(Boolean);
-        for (const [callerId, caller] of Object.entries(prog.nodes)) {
-          (caller.steps || []).forEach((s, i) => {
-            if (s.op !== 'call') return;
-            const args = JSON.stringify(s.args || {});
-            /* The rule is the argument list and nothing else. A prototype also
-             * cut every call the renamed node itself makes, which cuts edges
-             * the substitution never touched — it is a node rule wearing a
-             * token rule's clothes, and a layer renames a token, never a
-             * node. */
-            for (const tok of tokens) {
-              if (args.includes(tok)) cuts.push({ layer: ln, from: callerId, at: i, to: s.target, token: tok });
-            }
-          });
-        }
+      const tokens = layerTokens(layer);
+      if (!tokens.size) continue;
+      for (const [callerId, caller] of Object.entries(prog.nodes)) {
+        (caller.steps || []).forEach((s, i) => {
+          if (s.op !== 'call') return;
+          const args = JSON.stringify(s.args || {});
+          /* A prototype also cut every call the renamed node itself makes,
+           * which cuts edges the substitution never touched — it is a node
+           * rule wearing a token rule's clothes, and a layer renames a
+           * token, never a node. */
+          for (const tok of tokens) {
+            if (args.includes(tok)) cuts.push({ layer: ln, from: callerId, at: i, to: s.target, token: tok });
+          }
+        });
       }
     }
     return cuts;
+  }
+
+  /** What `cutEdges` will cost, counted without running it, so the renderer
+   *  can refuse a file before the search starts. For each layer that renames
+   *  a token, `cutEdges` searches every call step's argument text once per
+   *  token and records one cut per match. So a layer costs its renamed
+   *  tokens times the sum of the argument characters and the call steps, and
+   *  a file costs the sum over its layers. A cut costs at least three units —
+   *  the shortest argument text is two characters, and its call step adds
+   *  one — so the same count also bounds how many cuts there can be.
+   *
+   *  Read before the file is known to be well formed, so it reads nodes and
+   *  steps defensively, as `layerTokens` reads a layer. */
+  function cutEdgesWork(prog) {
+    const isObj = v => v !== null && typeof v === 'object' && !Array.isArray(v);
+    let callSteps = 0;
+    let argChars = 0;
+    for (const n of Object.values(isObj(prog.nodes) ? prog.nodes : {})) {
+      if (!isObj(n) || !Array.isArray(n.steps)) continue;
+      for (const s of n.steps) {
+        if (!isObj(s) || s.op !== 'call') continue;
+        callSteps += 1;
+        argChars += JSON.stringify(s.args || {}).length;
+      }
+    }
+    let work = 0;
+    for (const layer of Object.values(isObj(prog.layers) ? prog.layers : {})) {
+      work += layerTokens(layer).size * (argChars + callSteps);
+    }
+    return work;
   }
 
   /* -- the drawing ---------------------------------------------------------
@@ -908,6 +989,15 @@ const Groundtrack = (() => {
       throw new Error('layout needs a graph view: a file lists graphs and has no entry of its own');
     }
     const ids = [...reachable(prog, prog.entry)];
+    /* `calleesOf` reads a node's own steps fresh every time, which is right
+     * for a caller that asks about one node once. This one asks about every
+     * node several times over — once per round of the depth relaxation
+     * below, on top of the back-edge walk, the draw order and the wiring —
+     * so a node with many callees would have its own steps rescanned that
+     * many times again for no new answer. Cached here, once per node, for
+     * the rest of this one call. */
+    const calleesCache = bare();
+    const callees = id => (calleesCache[id] || (calleesCache[id] = calleesOf(prog, id)));
 
     /* A BACK EDGE is a call into a node still on the depth-first walk from
      * the entry, callees visited in call order. A call from a node to itself
@@ -919,7 +1009,7 @@ const Groundtrack = (() => {
     const onWalk = new Set(), done = new Set();
     (function walk(id) {
       onWalk.add(id);
-      for (const c of calleesOf(prog, id)) {
+      for (const c of callees(id)) {
         if (onWalk.has(c)) backs.add(`${id}>${c}`);
         else if (!done.has(c)) walk(c);
       }
@@ -929,10 +1019,23 @@ const Groundtrack = (() => {
     const isBack = (from, to) => backs.has(`${from}>${to}`);
 
     const depth = bareFrom(ids.map(i => [i, 0]));
+    /* A depth can only ever grow, and a round that grows none has reached
+     * the graph's real depth — so this stops there rather than running the
+     * full `ids.length` rounds a graph with no back edge at all could never
+     * need. A graph that is one caller wide and thousands of nodes deep
+     * still takes every round it needs; one that is thousands of nodes wide
+     * and two deep takes two, not thousands. */
     for (let k = 0; k < ids.length; k++) {
+      let grew = false;
       for (const id of ids) {
-        for (const c of calleesOf(prog, id)) if (!isBack(id, c) && depth[c] < depth[id] + 1) depth[c] = depth[id] + 1;
+        for (const c of callees(id)) {
+          if (!isBack(id, c) && depth[c] < depth[id] + 1) {
+            depth[c] = depth[id] + 1;
+            grew = true;
+          }
+        }
       }
+      if (!grew) break;
     }
 
     const order = [], seen = new Set();
@@ -940,7 +1043,7 @@ const Groundtrack = (() => {
       if (seen.has(id)) return;
       seen.add(id);
       order.push(id);
-      calleesOf(prog, id).forEach(dfs);
+      callees(id).forEach(dfs);
     })(prog.entry);
 
     const rows = {};
@@ -983,13 +1086,18 @@ const Groundtrack = (() => {
         const asks = bareFrom(row.map(id => [id, []]));
         for (const c of ids) {
           if (!pos[c]) continue;
-          const kids = calleesOf(prog, c).filter(k => asks[k]);
+          const kids = callees(c).filter(k => asks[k]);
           kids.forEach((k, i) => asks[k].push(pos[c].x + (i - (kids.length - 1) / 2) * (W + GAP_X)));
         }
         const want = bare();
         for (const id of row) want[id] = asks[id].length ? asks[id].reduce((s, v) => s + v, 0) / asks[id].length : Infinity;
+        /* A row's own order, read once rather than by `row.indexOf` inside
+         * the sort below: a comparator that searches the row it is sorting
+         * turns one sort into one scan per comparison, and a wide row pays
+         * for both at once. */
+        const rowIndex = bareFrom(row.map((id, i) => [id, i]));
         let x = PAD;
-        for (const id of row.slice().sort((a, b) => want[a] - want[b] || row.indexOf(a) - row.indexOf(b))) {
+        for (const id of row.slice().sort((a, b) => want[a] - want[b] || rowIndex[a] - rowIndex[b])) {
           x = Math.max(want[id] === Infinity ? rightEdge + GAP_X : want[id], x);
           pos[id] = { x, y, h: H[id] };
           x += W + GAP_X;
@@ -1008,7 +1116,7 @@ const Groundtrack = (() => {
      * gap 48 wide, so past four heights, or three stubs, they stack on the
      * last. */
     const pairs = [];
-    for (const from of ids) for (const to of calleesOf(prog, from)) if (isBack(from, to) && from !== to) pairs.push([from, to]);
+    for (const from of ids) for (const to of callees(from)) if (isBack(from, to) && from !== to) pairs.push([from, to]);
     const makes = bare(), takes = bare();
     for (const [f, t] of pairs) {
       (makes[f] = makes[f] || []).push(t);
@@ -1055,7 +1163,7 @@ const Groundtrack = (() => {
      * of one reads as the same line, so these are in the way too. */
     const flows = [];
     for (const from of ids) {
-      for (const to of calleesOf(prog, from)) {
+      for (const to of callees(from)) {
         if (isBack(from, to)) continue;
         const { sx, sy, ex, ey, my } = forward(from, to);
         flows.push({ x: sx, top: sy, bottom: my }, { x: sx + 20, top: sy, bottom: my + 12 });
@@ -1166,7 +1274,7 @@ const Groundtrack = (() => {
 
     const edges = [];
     for (const from of ids) {
-      for (const to of calleesOf(prog, from)) {
+      for (const to of callees(from)) {
         const hasE = ((prog.nodes[to].channels || {}).error || []).length > 0;
         if (isBack(from, to)) {
           const self = from === to;
@@ -1221,10 +1329,28 @@ const Groundtrack = (() => {
    *  of its size, at the page's micro size of 12px — a figure the page cannot
    *  hand this module without a DOM, so it moves when that size does. */
   const COUNT_ADVANCE = 7.2;
+  /* The page asks for every box it draws, so each answer is one lookup: a
+   * layout's self-call wires by node, and a state's open frames by node, are
+   * each counted once and kept for as long as that layout or state lives.
+   * Scanning every wire and every frame per box made a page of 20,000 boxes
+   * pay for 20,000 scans. */
+  const selfLoops = new WeakMap();
+  const openFrames = new WeakMap();
   function countMark(lay, state, id) {
-    const loop = lay.edges.find(e => e.self && e.from === id);
-    const n = state.frames.filter(f => f.nodeId === id).length;
-    if (!loop || n < 2) return null;
+    if (!selfLoops.has(lay)) {
+      const loops = new Map();
+      for (const e of lay.edges) if (e.self && !loops.has(e.from)) loops.set(e.from, e);
+      selfLoops.set(lay, loops);
+    }
+    const loop = selfLoops.get(lay).get(id);
+    if (!loop) return null;
+    if (!openFrames.has(state)) {
+      const counts = new Map();
+      for (const f of state.frames) counts.set(f.nodeId, (counts.get(f.nodeId) || 0) + 1);
+      openFrames.set(state, counts);
+    }
+    const n = openFrames.get(state).get(id) || 0;
+    if (n < 2) return null;
     const text = '×' + n;
     return { text, at: text.length * COUNT_ADVANCE <= loop.count.room ? { x: loop.count.x, y: loop.count.y } : null };
   }
@@ -1235,6 +1361,86 @@ const Groundtrack = (() => {
    * and the text matches the tree on the page. A repeated node is marked and
    * stopped, or a cycle never terminates.
    */
+
+  /** Whether the tree `treeRows` below would draw from `entry` passes two
+   *  caps, without drawing it: a cap on how many rows it would hold, and a
+   *  cap on how many calls deep the deepest one goes. Both stop counting
+   *  the instant either is passed, so this costs at most one cap's worth of
+   *  work on a file of any shape or size.
+   *
+   *  Mirrors `treeRows`'s own rule for what a row is: one row per call site
+   *  reached, and a node repeating on the path that reached it stops that
+   *  branch there rather than walking it again. `treeRows` recurses over
+   *  this same call graph once per node, so the depth cap here is also a
+   *  cap on how deep it would ever recurse — which is what makes it a cap
+   *  on `treeRows`'s safety, not only on the row count. A reader that walks
+   *  nodes no entry reaches is not covered by it, and walks without
+   *  recursion instead.
+   *
+   *  An explicit stack, never the call stack: a node with no branch calling
+   *  the next one thousands deep is a graph a caller can write by hand, and
+   *  a walk that recursed one JavaScript call per node would fail before
+   *  either cap said why. `node.steps` is read defensively rather than
+   *  assumed to be an array — this walk earns its keep by running safely on
+   *  a file the rest of validation has not passed judgement on yet.
+   *
+   *  Depth is counted in calls, not nodes: the entry is 0 calls deep, and a
+   *  chain of 1,001 nodes is 1,000 calls deep. `rows` is the number of rows
+   *  counted, which is exactly `treeRows`'s length while neither cap is
+   *  passed, and stops one past `rowCap` when that cap is. */
+  function boundedGraphWalk(prog, entry, rowCap, depthCap) {
+    let rows = 0;
+    let overRows = false;
+    let overDepth = false;
+    if (!prog.nodes[entry]) return { rows, overRows, overDepth };
+    const onPath = new Set();
+    /* One stack entry per open call: the node it is at, the call targets
+     * still to walk from it, where in that list the next one starts, and
+     * whether it repeats a node already open on its path. Pushed once per
+     * node reached, exactly where the recursive version would have made a
+     * call. */
+    const stack = [{ id: entry, targets: null, next: 0, repeat: false }];
+    const targetsOf = id => {
+      const node = prog.nodes[id];
+      const steps = node && Array.isArray(node.steps) ? node.steps : [];
+      const out = [];
+      for (const s of steps) if (s && s.op === 'call' && prog.nodes[s.target]) out.push(s.target);
+      return out;
+    };
+    while (stack.length) {
+      const top = stack[stack.length - 1];
+      if (top.targets === null) {
+        /* First time this frame is on top: it is the row `treeRows` draws
+         * for this call site. */
+        rows += 1;
+        if (rows > rowCap) overRows = true;
+        if (stack.length - 1 > depthCap) overDepth = true;
+        /* A node already open on this path stops here, the way `treeRows`
+         * stops a repeat rather than walking it again. A repeat frame never
+         * joins the path and never leaves it: the frame that opened the node
+         * is still open below it, and the node stays on the path until that
+         * frame closes. */
+        top.repeat = onPath.has(top.id);
+        if (top.repeat) top.targets = [];
+        else {
+          top.targets = targetsOf(top.id);
+          onPath.add(top.id);
+        }
+      }
+      /* Once either cap is passed, no further branch is worth walking: both
+       * numbers can only grow from here, and the file is refused either way.
+       * This unwinds the stack instead of pushing, which is at most the
+       * depth already reached — itself bounded by `depthCap` by the time
+       * `overDepth` is what tripped it. */
+      if (overRows || overDepth || top.next >= top.targets.length) {
+        if (!top.repeat) onPath.delete(top.id);
+        stack.pop();
+        continue;
+      }
+      stack.push({ id: top.targets[top.next++], targets: null, next: 0, repeat: false });
+    }
+    return { rows, overRows, overDepth };
+  }
 
   /** Three of the four words the fold writes on the error path, each its own
    *  position — `reached the top uncaught` names no node, so it needs none.
@@ -1311,21 +1517,32 @@ const Groundtrack = (() => {
      * before any mark is read, because which row a mark belongs to is a
      * question about the whole set of rows and cannot be answered one row at
      * a time. A repeated node is drawn once more and stopped, or a cycle never
-     * terminates — so the walk can run deeper than the rows go. */
+     * terminates — so the walk can run deeper than the rows go.
+     *
+     * A row holds no copy of its chain. It holds the rows below it, each
+     * found by the one link that leads there, so a chain is found by
+     * following its links down from the entry's row. A chain joined into
+     * one string key is as long as the tree is deep, and a table of keys
+     * that long costs far more to build and to search than its size
+     * suggests. The nodes open above a row are one set, grown on the way
+     * down and shrunk on the way back, rather than a list copied per row. */
     const drawn = [];
-    (function walkNode(id, chain, depth, path, site) {
+    const onPath = new Set();
+    (function walkNode(id, link, depth, site, parent) {
       const node = prog.nodes[id];
       if (!node) return;
-      const repeat = path.includes(id);
-      drawn.push({ id, node, chain, depth, site, repeat, entered: 0, returned: 0, effects: bare(), open: false, how: [] });
+      const repeat = onPath.has(id);
+      const at = drawn.length;
+      drawn.push({ id, node, depth, site, repeat, below: new Map(), entered: 0, returned: 0, effects: bare(), open: false, how: [] });
+      if (parent !== undefined) drawn[parent].below.set(link, at);
       if (repeat) return;
+      onPath.add(id);
       for (const s of callSites(node)) {
         if (!prog.nodes[s.target]) continue;
-        walkNode(s.target, chain.concat([`${id}#${s.at}`]), depth + 1, path.concat([id]), s);
+        walkNode(s.target, `${id}#${s.at}`, depth + 1, s, at);
       }
-    })(prog.entry, ['@entry'], 0, [], null);
-
-    const rowOf = new Map(drawn.map((r, i) => [chainKey(r.chain), i]));
+      onPath.delete(id);
+    })(prog.entry, '@entry', 0, null, undefined);
 
     /* WHICH ROW SPEAKS FOR A CHAIN. Its own row where the tree draws one, and
      * otherwise the row whose chain is the longest prefix of it.
@@ -1338,13 +1555,20 @@ const Groundtrack = (() => {
      *
      * A chain under a callee the file never defines lands the same way, on the
      * nearest drawn ancestor, because the tree skips a call to a node it has
-     * no definition for. */
+     * no definition for.
+     *
+     * Every prefix of a drawn row's chain is a drawn row too, its ancestor,
+     * so the longest prefix with a row is where following the links down
+     * from the entry's row first finds no row. */
     const speaksFor = chain => {
-      for (let n = chain.length; n > 0; n -= 1) {
-        const i = rowOf.get(chainKey(chain.slice(0, n)));
-        if (i !== undefined) return i;
+      if (!drawn.length || chain[0] !== '@entry') return undefined;
+      let i = 0;
+      for (let n = 1; n < chain.length; n += 1) {
+        const below = drawn[i].below.get(chain[n]);
+        if (below === undefined) break;
+        i = below;
       }
-      return undefined;
+      return i;
     };
 
     /* Every signal a row carries, gathered onto the row that speaks for it.
@@ -1663,6 +1887,6 @@ const Groundtrack = (() => {
   }
 
   return { esc, ID, bare, hardenKeys, KINDS, ERROR_POSITION, graphView, sheetState, sheetPickerMarkup, sheetFactsMarkup,
-    TOUR_REGIONS, TOUR_TABS, TOUR_VIEWS, tourRegion, tourStops, tourButtonMarkup, tourCardAt, stepTokens, reachable, labelsOf, callSites, calleesOf, effectsOf, failureKinds, tagFate, complexityOf, fold, back, tipAt, cutEdges, layout, wireLive, wireFlow, countMark, callCounts, walkState, nodeState, treeRows, unaccountedFiles, filesOf, fileTree, filesMarkup, suggestRun, renamedToken };
+    TOUR_REGIONS, TOUR_TABS, TOUR_VIEWS, tourRegion, tourStops, tourButtonMarkup, tourCardAt, stepTokens, reachable, boundedGraphWalk, labelsOf, callSites, calleesOf, effectsOf, failureKinds, tagFate, complexityOf, fold, back, tipAt, layerTokens, cutEdges, cutEdgesWork, layout, wireLive, wireFlow, countMark, callCounts, walkState, nodeState, treeRows, unaccountedFiles, filesOf, fileTree, filesMarkup, suggestRun, renamedToken };
 })();
 if (typeof module !== 'undefined') module.exports = Groundtrack;

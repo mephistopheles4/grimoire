@@ -454,6 +454,148 @@ test('an absent optional field is not refused, and the empty one is', () => {
   assert.equal(check(derive(p => { p.files = []; })).code, 1);
 });
 
+/* -- three size limits ------------------------------------------------------
+ *
+ * A crafted flightpath file can crash the tree view with a deep call graph,
+ * make it draw an unreasonable number of rows, or make the search for cut
+ * calls run long. Each limit below is refused in `shape()`, before any
+ * expensive walk runs. A test on each side proves the boundary itself, not
+ * only that a huge file is refused in the end. Every boundary is the exact
+ * count the refusal names. */
+
+const node = (id, overrides) => ({
+  name: id, role: 'pure', loc: 'src/g.ts:1', params: [],
+  channels: { success: 'void', error: [], requirements: [] },
+  touches: ['src/g.ts'], enteredBy: [],
+  ...overrides,
+});
+
+/** One call from `e` to `leaf` whose argument text is `argChars` characters
+ *  long, and one layer renaming `tokens` distinct tokens that match nothing.
+ *  The search for cut calls then costs `tokens` times (`argChars` + 1): the
+ *  argument characters plus the one call step. */
+function withCutEdgesWork(prog, tokens, argChars) {
+  const args = { a: 'z'.repeat(argChars - '{"a":""}'.length) };
+  assert.equal(JSON.stringify(args).length, argChars);
+  prog.nodes = {
+    e: node('e', { steps: [{ op: 'call', target: 'leaf', args }, { op: 'return', expr: 'null' }] }),
+    leaf: node('leaf', { steps: [{ op: 'return', expr: 'null' }] }),
+  };
+  prog.layers = { L0: { nodes: { leaf: { requirements: Array.from({ length: tokens }, (_, i) => `q${i} -> w`) } } } };
+  only(prog).entry = 'e';
+  only(prog).presets = [{
+    name: 'one call', blurb: 'calls the leaf once', input: {},
+    trace: { provenance: 'authored', steps: [{ k: 'call', at: 0, to: 'leaf', next: 1 }, { k: 'return', at: 0 }, { k: 'return', at: 1 }] },
+  }];
+  return prog;
+}
+
+test('finding cut calls may cost 1,000,000 units of work, and 1,000,001 is refused by the limit', () => {
+  // 1,000 tokens x (999 argument characters + 1 call step) = 1,000,000.
+  const atLimit = check(derive(p => withCutEdgesWork(p, 1000, 999)));
+  assert.equal(atLimit.code, 0, atLimit.stderr);
+  // 1,000,001 = 101 x 9,901: 101 tokens x (9,900 argument characters + 1).
+  const overLimit = check(derive(p => withCutEdgesWork(p, 101, 9900)));
+  assert.equal(overLimit.code, 1);
+  assert.match(overLimit.stderr, /this file's layers would cost 1,000,001 units of work to find the calls they cut, more than the 1,000,000 groundtrack allows/);
+});
+
+test('argument characters count toward the cut search once per layer that renames a token', () => {
+  // One call with a long argument, renamed under many layers. Each layer
+  // searches the whole argument again, so the cost is per layer.
+  // 400 layers x 1 token x (2,499 characters + 1 call step) = 1,000,000.
+  const file = count => derive(p => {
+    withCutEdgesWork(p, 1, 2499);
+    p.layers = {};
+    for (let l = 0; l < count; l++) p.layers[`L${l}`] = { nodes: { leaf: { requirements: [`q${l} -> w`] } } };
+  });
+  const atLimit = check(file(400));
+  assert.equal(atLimit.code, 0, atLimit.stderr);
+  const overLimit = check(file(401));
+  assert.equal(overLimit.code, 1);
+  assert.match(overLimit.stderr, /this file's layers would cost 1,002,500 units of work/);
+});
+/** A linear chain `calls` calls deep: nodes n0 through n(calls), each calling
+ *  the next. n0 is reshaped so the one run only ever executes a `return` —
+ *  its call to n1 sits at a second step no run ever reaches — because
+ *  entering n1 for real would force the run to call n2 in turn and so on
+ *  all the way down. This isolates the graph's own call structure, read
+ *  with no trace at all. */
+function withGraphDepth(prog, calls) {
+  delete prog.layers;
+  const nodes = {};
+  for (let i = 1; i <= calls; i++) {
+    const last = i === calls;
+    nodes[`n${i}`] = node(`n${i}`, { steps: last ? [{ op: 'return', expr: 'null' }] : [{ op: 'call', target: `n${i + 1}` }, { op: 'return', expr: 'null' }] });
+  }
+  nodes.n0 = node('n0', { steps: [{ op: 'return', expr: 'null' }, { op: 'call', target: 'n1' }] });
+  prog.nodes = nodes;
+  only(prog).entry = 'n0';
+  only(prog).presets = [{ name: 'shallow', blurb: 'the one run never calls past n0', input: {}, trace: { provenance: 'authored', steps: [{ k: 'return', at: 0 }] } }];
+  return prog;
+}
+
+test('a call structure 1,000 calls deep validates, and 1,001 is refused by the limit', () => {
+  const atLimit = check(derive(p => withGraphDepth(p, 1000))); // 1,001 nodes
+  assert.equal(atLimit.code, 0, atLimit.stderr);
+  const overLimit = check(derive(p => withGraphDepth(p, 1001))); // 1,002 nodes
+  assert.equal(overLimit.code, 1);
+  assert.match(overLimit.stderr, /this graph's own call structure goes more than 1,000 calls deep/);
+});
+
+test('three nodes that each call themselves and each other validate', () => {
+  // Every call back into a node already open is a repeat row, and the node
+  // stays on the path until the frame that opened it closes. Sixteen rows,
+  // three calls deep.
+  const knotted = derive(p => {
+    delete p.layers;
+    const calls = { a: ['a', 'b', 'c'], b: ['b', 'a', 'c'], c: ['c', 'a', 'b'] };
+    p.nodes = {};
+    for (const [id, targets] of Object.entries(calls)) {
+      p.nodes[id] = node(id, { steps: [{ op: 'return', expr: 'null' }, ...targets.map(target => ({ op: 'call', target }))] });
+    }
+    only(p).entry = 'a';
+    only(p).presets = [{ name: 'shallow', blurb: 'returns at once', input: {}, trace: { provenance: 'authored', steps: [{ k: 'return', at: 0 }] } }];
+  });
+  const r = check(knotted);
+  assert.equal(r.code, 0, r.stderr);
+});
+/** An entry calling `leaves` distinct nodes side by side — breadth, not
+ *  depth — so the tree view draws `leaves + 1` rows while the call
+ *  structure itself is only two calls deep. This reaches the row limit
+ *  without also tripping the graph-depth limit above it. */
+function withTreeRows(prog, leaves) {
+  delete prog.layers;
+  const nodes = {};
+  const steps = [];
+  for (let i = 0; i < leaves; i++) {
+    nodes[`leaf${i}`] = node(`leaf${i}`, { steps: [{ op: 'return', expr: 'null' }] });
+    steps.push({ op: 'call', target: `leaf${i}` });
+  }
+  steps.push({ op: 'return', expr: 'null' });
+  nodes.entry = node('entry', { steps });
+  prog.nodes = nodes;
+  only(prog).entry = 'entry';
+  // One call touched for real, its `next` set straight to the closing
+  // return: a legal walk through one call site of the many `entry` states,
+  // without describing every other one.
+  only(prog).presets = [{
+    name: 'one call site',
+    blurb: 'one call touched for real; the rest are declared, not walked',
+    input: {},
+    trace: { provenance: 'authored', steps: [{ k: 'call', at: 0, to: 'leaf0', next: leaves }, { k: 'return', at: 0 }, { k: 'return', at: leaves }] },
+  }];
+  return prog;
+}
+
+test('a call graph that draws 20,000 tree rows validates, and 20,001 is refused by the limit', () => {
+  const atLimit = check(derive(p => withTreeRows(p, 19999))); // 19,999 leaves + entry = 20,000 rows
+  assert.equal(atLimit.code, 0, atLimit.stderr);
+  const overLimit = check(derive(p => withTreeRows(p, 20000))); // 20,001 rows
+  assert.equal(overLimit.code, 1);
+  assert.match(overLimit.stderr, /this graph's tree view would draw more than 20,000 rows/);
+});
+
 /* -- findings are not refusals -------------------------------------------- */
 
 test('a finding prints on standard output and the exit code stays zero', () => {
@@ -578,6 +720,68 @@ test('an E tag nothing beneath the node can produce is a finding', () => {
   const r = check(file);
   assert.equal(r.code, 0);
   assert.match(r.stdout, /greet declares error tag "NeverRaised", and nothing beneath it produces that tag/);
+});
+
+test('a 20,000-node chain no entry reaches gives findings, not a crash', () => {
+  // The tag finding reads every node, reached or not, so no limit on a
+  // graph's depth bounds how deep it goes. Every link declares the tag only
+  // the last one throws, so each link asks what the whole chain below it can
+  // produce.
+  const file = derive(prog => {
+    const links = 20000;
+    for (let i = 0; i < links; i++) {
+      const last = i === links - 1;
+      prog.nodes[`link${i}`] = node(`link${i}`, {
+        channels: { success: 'void', error: ['Snapped'], requirements: [] },
+        steps: last
+          ? [{ op: 'throw', tag: 'Snapped', message: 'the last link snapped', cause: 'fail' }]
+          : [{ op: 'call', target: `link${i + 1}` }, { op: 'return', expr: 'null' }],
+      });
+    }
+    prog.nodes.link0.channels.error.push('NeverRaised');
+  });
+  // Twenty thousand unreached nodes are twenty thousand finding lines.
+  const r = run(groundtrack, [file, '--check'], { maxBuffer: 16 * 1024 * 1024 });
+  assert.equal(r.code, 0, r.stderr);
+  assert.match(r.stdout, /no graph's entry reaches link19999, so no sheet draws it/);
+  assert.match(r.stdout, /link0 declares error tag "NeverRaised", and nothing beneath it produces that tag/);
+  assert.doesNotMatch(r.stdout, /declares error tag "Snapped"/);
+});
+
+test('a tag thrown inside a call cycle is produced for every node in it, and one nothing throws is not', () => {
+  // ping and pong call each other, and pong throws Lost. Grouping the cycle
+  // must give ping pong's tags, not stop at the first node it reopens.
+  const file = derive(prog => {
+    prog.nodes.ping = node('ping', {
+      channels: { success: 'void', error: ['Lost', 'Never'], requirements: [] },
+      steps: [{ op: 'call', target: 'pong' }, { op: 'return', expr: 'null' }],
+    });
+    prog.nodes.pong = node('pong', {
+      channels: { success: 'void', error: ['Lost'], requirements: [] },
+      steps: [{ op: 'call', target: 'ping' }, { op: 'throw', tag: 'Lost', message: 'the ball went out', cause: 'fail' }],
+    });
+  });
+  const r = run(groundtrack, [file, '--check']);
+  assert.equal(r.code, 0, r.stderr);
+  assert.match(r.stdout, /ping declares error tag "Never", and nothing beneath it produces that tag/);
+  assert.doesNotMatch(r.stdout, /declares error tag "Lost"/);
+});
+
+test('a --check that prints far more than a pipe holds prints every finding it counts', () => {
+  // Over 1 MB of findings on a piped stdout. On Linux and macOS a pipe write
+  // is asynchronous, and a renderer that exited straight after printing cut
+  // the output off after the first chunk. Windows writes synchronously, so
+  // this test only proves itself on a POSIX runner: CI is where it bites.
+  const file = derive(prog => {
+    for (let i = 0; i < 20000; i++) prog.nodes[`far${i}`] = node(`far${i}`, { steps: [{ op: 'return', expr: 'null' }] });
+  });
+  const r = run(groundtrack, [file, '--check'], { maxBuffer: 16 * 1024 * 1024 });
+  assert.equal(r.code, 0, r.stderr);
+  assert.ok(r.stdout.length > 1024 * 1024, `only ${r.stdout.length} bytes of stdout`);
+  const counted = Number(/(\d+) finding\(s\)/.exec(r.stderr)[1]);
+  const printed = r.stdout.split('\n').filter(Boolean);
+  assert.equal(printed.length, counted);
+  assert.ok(printed.includes("no graph's entry reaches far19999, so no sheet draws it"));
 });
 
 test('a pure node that runs an effect is a finding naming the node and its first effect step', () => {
@@ -891,6 +1095,49 @@ test('the text names the contract in words, not letters', () => {
   assert.match(r.stdout, /success a greeting line {3}error NoSuchUser fail · SendFailed fail {3}requirements the name store/);
   assert.doesNotMatch(r.stdout, /(^| {3})[AER] /m);
   assert.match(r.stdout, /requirements under tests: /);
+});
+
+test('a layer note prints once for a node the tree draws in more than one row', () => {
+  // The tree draws one row per call site, so a node called from two places
+  // is two rows — but its layer requirements are a fact about the node, the
+  // same at both. A node reached from thousands of call sites, each
+  // repeating the same note, is what turned a normal-sized note into text
+  // too large for one string to hold. One node, two call sites, is enough
+  // to prove the fix prints the note once rather than once per row.
+  const file = derive(prog => {
+    prog.nodes = {
+      caller: node('caller', {
+        steps: [
+          { op: 'call', target: 'leaf', aside: 'first site' },
+          { op: 'call', target: 'leaf', aside: 'second site' },
+          { op: 'return', expr: 'null' },
+        ],
+      }),
+      leaf: node('leaf', {
+        channels: { success: 'void', error: [], requirements: ['a token'] },
+        steps: [{ op: 'return', expr: 'null' }],
+      }),
+    };
+    prog.layers = { tests: { nodes: { leaf: { requirements: ['a token -> renamed'] } } } };
+    only(prog).entry = 'caller';
+    only(prog).presets = [{
+      name: 'twice', blurb: 'calls leaf from two sites', input: {},
+      trace: {
+        provenance: 'authored',
+        steps: [
+          { k: 'call', at: 0, to: 'leaf', next: 1 }, { k: 'return', at: 0 },
+          { k: 'call', at: 1, to: 'leaf', next: 2 }, { k: 'return', at: 0 },
+          { k: 'return', at: 2 },
+        ],
+      },
+    }];
+  });
+  const r = check(file);
+  assert.equal(r.code, 0, r.stderr);
+  const text = run(groundtrack, [file, '--text']);
+  assert.equal(text.code, 0, text.stderr);
+  const matches = text.stdout.match(/requirements under tests: /g) || [];
+  assert.equal(matches.length, 1, `expected the note once, found ${matches.length}`);
 });
 
 /* -- the page as a string ------------------------------------------------- */

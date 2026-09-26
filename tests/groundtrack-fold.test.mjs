@@ -639,6 +639,19 @@ test('a renamed token in a call step argument cuts that edge', () => {
   );
 });
 
+test('two overrides in one layer naming the same token cut a call once, not twice', () => {
+  // The rule is the argument list alone, and the overridden node's own id
+  // plays no part in it — so two different overrides in one layer that both
+  // rename the same token must not cut the same call site twice over.
+  const prog = JSON.parse(JSON.stringify(layered));
+  const call = prog.nodes.buildShelf.steps.find(s => s.op === 'call' && s.target === 'bindSheet');
+  call.args = { loader: 'THREE.TextureLoader' };
+  prog.layers.tests.nodes.bindSheet.requirements = ['THREE.TextureLoader -> fake()'];
+  prog.layers.tests.nodes.applyWoodFibre.requirements = ['THREE.TextureLoader -> fake()'];
+  const cuts = G.cutEdges(prog);
+  assert.equal(cuts.length, 1);
+});
+
 test('a token that appears in no call argument cuts nothing', () => {
   const prog = JSON.parse(JSON.stringify(layered));
   prog.layers.tests.nodes.bindSheet.requirements = ['SomethingNobodyPasses -> a double'];
@@ -2051,4 +2064,63 @@ test('each tour stop carries forward the tab and layer the stops before it set',
   assert.deepEqual(at(9), { tab: 'source', layer: 'production', view: undefined });
   assert.equal(stops[6].graphIndex, 0);
   assert.equal(stops[6].runIndex, 2, '"the post fails" is the third run');
+});
+/* -- the validator's walk counts what the tree draws ------------------------ */
+
+/* The renderer refuses a graph by the rows and the depth `boundedGraphWalk`
+ * counts, so the count has to be the tree's own. A node that repeats on its
+ * path is drawn once and stopped; the node stays on the path until the frame
+ * that first opened it closes, not until the repeat row does. */
+const noMoves = { provenance: 'authored', steps: [] };
+const walkRows = prog => G.boundedGraphWalk(prog, prog.entry, 1e6, 1e6).rows;
+
+test('a self-call beside sibling calls counts the rows the tree draws', () => {
+  // a calls a, then b; b calls a. Both calls back to a are repeat rows.
+  const prog = shaped('a', { a: ['a', 'b'], b: ['a'] }, []);
+  assert.equal(G.treeRows(prog, noMoves).length, 4);
+  assert.equal(walkRows(prog), 4);
+});
+
+test('a mutual cycle counts the rows the tree draws', () => {
+  const prog = mutualPair();
+  assert.equal(G.treeRows(prog, noMoves).length, 3);
+  assert.equal(walkRows(prog), 3);
+});
+
+test("three nodes that each call themselves and each other stay far inside the depth limit", () => {
+  // Sixteen rows, three calls deep. A walk that dropped a node from its path
+  // when a repeat row closed walked this without end, and refused it for
+  // depth.
+  const prog = shaped('a', { a: ['a', 'b', 'c'], b: ['b', 'a', 'c'], c: ['c', 'a', 'b'] }, []);
+  const walk = G.boundedGraphWalk(prog, prog.entry, 20000, 1000);
+  assert.equal(walk.rows, 16);
+  assert.equal(walk.overDepth, false);
+  assert.equal(G.treeRows(prog, noMoves).length, 16);
+});
+
+test("the walk's row count is the tree's row count on every cyclic shape", () => {
+  const shapes = {
+    selfCall: selfCall(),
+    mutualPair: mutualPair(),
+    pairBesideBranch: pairBesideBranch(),
+    selfAndPair: selfAndPair(),
+    selfThenSibling: shaped('a', { a: ['a', 'b'], b: ['a'] }, []),
+    threeKnotted: shaped('a', { a: ['a', 'b', 'c'], b: ['b', 'a', 'c'], c: ['c', 'a', 'b'] }, []),
+    diamondBack: shaped('a', { a: ['b', 'c'], b: ['d'], c: ['d'], d: ['a', 'd'] }, []),
+  };
+  for (const [name, prog] of Object.entries(shapes)) {
+    assert.equal(walkRows(prog), G.treeRows(prog, noMoves).length, name);
+  }
+});
+
+test('the walk counts depth in calls: the entry is 0 calls deep', () => {
+  const calls = {};
+  for (let i = 0; i < 1000; i++) calls[`n${i}`] = [`n${i + 1}`];
+  calls.n1000 = [];
+  const atLimit = shaped('n0', calls, []); // 1,001 nodes, 1,000 calls deep
+  assert.equal(G.boundedGraphWalk(atLimit, 'n0', 20000, 1000).overDepth, false);
+  calls.n1000 = ['n1001'];
+  calls.n1001 = [];
+  const overLimit = shaped('n0', calls, []); // 1,002 nodes, 1,001 calls deep
+  assert.equal(G.boundedGraphWalk(overLimit, 'n0', 20000, 1000).overDepth, true);
 });

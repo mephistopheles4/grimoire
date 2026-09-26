@@ -369,6 +369,7 @@ export function run(script, args = [], opts = {}) {
     cwd: opts.cwd || root,
     env,
     encoding: 'utf8',
+    ...(opts.maxBuffer ? { maxBuffer: opts.maxBuffer } : {}),
   });
   if (r.error) throw r.error;
   return { code: r.status, stdout: r.stdout || '', stderr: r.stderr || '' };

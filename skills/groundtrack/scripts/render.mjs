@@ -41,6 +41,32 @@ const CHANGE = ['new', 'edit', 'delete', 'forbidden'];
  * that drifted would refuse a cause the page then printed. */
 const CAUSE = Groundtrack.KINDS;
 
+/* -- three size limits -------------------------------------------------------
+ *
+ * Each limit bounds one cost that a small file can make large: a recursion
+ * deep enough to overflow the call stack, a tree with more rows than a page
+ * can draw, or a scan whose work grows as the product of two counts. */
+
+/** How deep a graph's own call structure goes, counted in calls from its
+ *  entry, with no trace read at all. The entry is 0 calls deep. `treeRows`
+ *  (the page's tree view and `--text`) recurses once per call over this
+ *  same structure, so a call graph deep enough can overflow the call stack
+ *  and crash it. A thousand calls deep is far past any real call graph. */
+const MAX_GRAPH_DEPTH = 1000;
+
+/** The tree view's own row count. `treeRows` draws one row per distinct
+ *  path from a graph's entry, not one per node, so a graph that calls two
+ *  nodes which each call the same two nodes draws exponentially more rows
+ *  than it has nodes. */
+const MAX_TREE_ROWS = 20000;
+
+/** The most work `cutEdges` may do, in the units `Groundtrack.cutEdgesWork`
+ *  counts. It also bounds how many cuts `--check` prints and the page draws. */
+const MAX_CUTEDGES_WORK = 1000000;
+
+/** A count as a reader writes it, with thousands separated: 20,000. */
+const count = n => n.toLocaleString('en-US');
+
 const STEP = {
   comment: { req: ['comment'], opt: [] },
   var: { req: ['name', 'expr'], opt: [] },
@@ -253,6 +279,27 @@ function shape(prog, r) {
     } else graphIds.add(g.id);
 
     if (!isNode(prog, g.entry)) r.shape(`graphs[${gi}].entry`, `"${g.entry}" is not a node`);
+    else {
+      /* Measured here, once per graph, rather than in the tree view or
+       * --text: a file built to make either one expensive must not make
+       * this check expensive too. `boundedGraphWalk` stops growing either
+       * number the moment it passes its cap, walks with an explicit stack
+       * rather than one JavaScript call per node, and reads a node's steps
+       * defensively — so it runs safely on a file no earlier pass has
+       * passed judgement on yet. */
+      const walk = Groundtrack.boundedGraphWalk(prog, g.entry, MAX_TREE_ROWS, MAX_GRAPH_DEPTH);
+      if (walk.overDepth) {
+        r.shape(
+          `graphs[${gi}]`,
+          `this graph's own call structure goes more than ${count(MAX_GRAPH_DEPTH)} calls deep from "${g.entry}", counting no trace at all. The tree view recurses once per call over this structure, and a call graph this deep can crash it. Shorten the deepest chain of calls. Or split the change into more than one graph.`,
+        );
+      } else if (walk.overRows) {
+        r.shape(
+          `graphs[${gi}]`,
+          `this graph's tree view would draw more than ${count(MAX_TREE_ROWS)} rows from "${g.entry}". The tree view draws one row per path from the entry, not one row per node. A graph that calls the same nodes from more than one place draws more rows than it has nodes. Flatten the call graph. Or split the change into more than one graph.`,
+        );
+      }
+    }
 
     /* Run names are unique per graph, not per file, so two graphs may each
      * have a happy path. */
@@ -288,6 +335,14 @@ function shape(prog, r) {
     });
   });
 
+  /* Counted here, before anything below this pass calls `cutEdges`: a file
+   * that would cost too much for it to scan is refused before the scan,
+   * not after it has already run long. */
+  const work = Groundtrack.cutEdgesWork(prog);
+  if (work > MAX_CUTEDGES_WORK) {
+    r.shape('layers', `this file's layers would cost ${count(work)} units of work to find the calls they cut, more than the ${count(MAX_CUTEDGES_WORK)} groundtrack allows. A layer costs its renamed tokens times the sum of the argument characters and the call steps in the file. Rename fewer tokens. Or rename them in fewer layers. Or shorten the call arguments.`);
+  }
+
   if (prog.tour !== undefined) tourShape(prog, r);
 }
 
@@ -297,6 +352,17 @@ function shape(prog, r) {
 function tourShape(prog, r) {
   if (!Array.isArray(prog.tour)) return r.shape('tour', 'expected an array');
   if (!prog.tour.length) return r.shape('tour', 'state at least one stop, or leave the key out. An empty tour offers the reader a walk with nothing in it.');
+  /* Graphs by id and each graph's run names, built once rather than
+   * searched once per stop, so many stops over many graphs cost their sum
+   * and not their product. Maps, so a name is matched and never used as an
+   * object key; the first graph with an id is the one a search would find. */
+  const graphById = new Map();
+  for (const g of prog.graphs) if (isObj(g) && !graphById.has(g.id)) graphById.set(g.id, g);
+  const runNames = new Map();
+  const hasRun = (graph, name) => {
+    if (!runNames.has(graph)) runNames.set(graph, new Set(graph.presets.filter(isObj).map(p => p.name)));
+    return runNames.get(graph).has(name);
+  };
   prog.tour.forEach((s, i) => {
     const w = `tour[${i}]`;
     keys(r, w, s, TOUR_STOP, TOUR_STOP_OPTIONAL);
@@ -313,12 +379,12 @@ function tourShape(prog, r) {
       if (prog.graphs.length > 1) r.shape(`${w}.graph`, `this file states ${prog.graphs.length} graphs, so a stop names the one it is on`);
       else graph = prog.graphs[0];
     } else {
-      graph = prog.graphs.find(g => isObj(g) && g.id === s.graph);
+      graph = graphById.get(s.graph);
       if (!graph) r.shape(`${w}.graph`, `"${s.graph}" is not a graph of this file`);
     }
     /* A graph whose runs are not a list is already refused above, and the
      * graphs pass goes on past it, so this reads the list only when it is one. */
-    if (graph && Array.isArray(graph.presets) && !graph.presets.some(p => isObj(p) && p.name === s.run))
+    if (graph && Array.isArray(graph.presets) && !hasRun(graph, s.run))
       r.shape(`${w}.run`, `"${s.run}" is not a run of graph "${graph.id}"`);
     if (s.tab !== undefined && !Groundtrack.TOUR_TABS.includes(s.tab)) r.shape(`${w}.tab`, `"${s.tab}" is not one of ${Groundtrack.TOUR_TABS.join(', ')}`);
     if (s.view !== undefined && !Groundtrack.TOUR_VIEWS.includes(s.view)) r.shape(`${w}.view`, `"${s.view}" is not one of ${Groundtrack.TOUR_VIEWS.join(', ')}`);
@@ -330,10 +396,20 @@ function tourShape(prog, r) {
 
 /* Is each stop's move inside its run? Counted the way the page counts: the
  * fold holds one state before the first step, so a run of n steps has moves 0
- * to n. Read only once every walk is a legal path. */
+ * to n. Read only once every walk is a legal path.
+ *
+ * A tour can point more than one stop at the same run, and a fold is not
+ * cheap to redo — so each run is folded once here and read by every stop
+ * that names it, rather than once per stop. */
 function tourMoves(prog, r) {
+  const lastMoveOf = new Map();
   Groundtrack.tourStops(prog).forEach((t, i) => {
-    const last = Groundtrack.fold(Groundtrack.graphView(prog, t.graphIndex), prog.graphs[t.graphIndex].presets[t.runIndex].trace).length - 1;
+    const key = `${t.graphIndex}:${t.runIndex}`;
+    if (!lastMoveOf.has(key)) {
+      const trace = prog.graphs[t.graphIndex].presets[t.runIndex].trace;
+      lastMoveOf.set(key, Groundtrack.fold(Groundtrack.graphView(prog, t.graphIndex), trace).length - 1);
+    }
+    const last = lastMoveOf.get(key);
     if (t.move > last) r.shape(`tour[${i}].move`, `move ${t.move} is past the end of run "${prog.tour[i].run}", whose last move is ${last}`);
   });
 }
@@ -560,6 +636,116 @@ export function check(prog, fileLabel) {
   return r.list;
 }
 
+/* Which of the tags the file declares each node can produce, itself or
+ * through anything it calls, worked out for every node at once. Asking
+ * node by node walks everything beneath each one again, so a long chain
+ * costs the square of its length. So the nodes are grouped into cycles
+ * first, callees before callers, and each group's tags are its own plus
+ * its callees' groups' tags, read once.
+ *
+ * Tarjan's grouping, with a list of open nodes rather than a recursion:
+ * this reads every node in the file, including a chain no graph's entry
+ * reaches, so no limit on a graph's depth keeps a recursion here inside
+ * the call stack. A group's tags are one bit per declared tag. A group
+ * that adds no tag of its own and calls one other group shares that
+ * group's bits rather than copying them. */
+function producibleTags(prog, raisedInWalks) {
+  const ids = Object.keys(prog.nodes);
+  const indexOf = new Map(ids.map((id, i) => [id, i]));
+  const bitOf = new Map();
+  for (const id of ids) for (const t of (prog.nodes[id].channels || {}).error || []) if (!bitOf.has(t)) bitOf.set(t, bitOf.size);
+  const words = Math.max(1, Math.ceil(bitOf.size / 32));
+  const none = new Uint32Array(words);
+  const calleesOf = i => {
+    const out = [];
+    for (const s of prog.nodes[ids[i]].steps || []) if (s.op === 'call' && isNode(prog, s.target)) out.push(indexOf.get(s.target));
+    return out;
+  };
+  const ownBits = i => {
+    const out = [];
+    const add = t => {
+      const b = bitOf.get(t);
+      if (b !== undefined) out.push(b);
+    };
+    for (const t of raisedInWalks[ids[i]] || []) add(t);
+    for (const s of prog.nodes[ids[i]].steps || []) {
+      if (s.op === 'throw') add(s.tag);
+      for (const h of s.onError || []) add(h.tag);
+    }
+    return out;
+  };
+  const order = new Int32Array(ids.length).fill(-1);
+  const low = new Int32Array(ids.length);
+  const group = new Int32Array(ids.length).fill(-1);
+  const onStack = new Uint8Array(ids.length);
+  const callees = new Array(ids.length);
+  const groupBits = [];
+  const stack = [];
+  let counter = 0;
+  const open = v => {
+    order[v] = low[v] = counter++;
+    stack.push(v);
+    onStack[v] = 1;
+    callees[v] = calleesOf(v);
+  };
+  for (let root = 0; root < ids.length; root++) {
+    if (order[root] !== -1) continue;
+    open(root);
+    const walk = [{ v: root, next: 0 }];
+    while (walk.length) {
+      const top = walk[walk.length - 1];
+      const v = top.v;
+      if (top.next < callees[v].length) {
+        const w = callees[v][top.next++];
+        if (order[w] === -1) {
+          open(w);
+          walk.push({ v: w, next: 0 });
+        } else if (onStack[w]) low[v] = Math.min(low[v], order[w]);
+        continue;
+      }
+      walk.pop();
+      if (walk.length) {
+        const u = walk[walk.length - 1].v;
+        low[u] = Math.min(low[u], low[v]);
+      }
+      if (low[v] !== order[v]) continue;
+      /* v closes a group. Every callee of its members is in this group or
+       * in one closed before it. */
+      const g = groupBits.length;
+      const members = [];
+      let w;
+      do {
+        w = stack.pop();
+        onStack[w] = 0;
+        group[w] = g;
+        members.push(w);
+      } while (w !== v);
+      const own = [];
+      const below = new Set();
+      for (const m of members) {
+        for (const b of ownBits(m)) own.push(b);
+        for (const c of callees[m]) if (group[c] !== g) below.add(group[c]);
+      }
+      let bits;
+      if (!own.length && below.size === 0) bits = none;
+      else if (!own.length && below.size === 1) bits = groupBits[below.values().next().value];
+      else {
+        bits = new Uint32Array(words);
+        for (const c of below) {
+          const cb = groupBits[c];
+          for (let x = 0; x < words; x++) bits[x] |= cb[x];
+        }
+        for (const b of own) bits[b >>> 5] |= 1 << (b & 31);
+      }
+      groupBits.push(bits);
+    }
+  }
+  return (id, tag) => {
+    const b = bitOf.get(tag);
+    return ((groupBits[group[indexOf.get(id)]][b >>> 5] >>> (b & 31)) & 1) === 1;
+  };
+}
+
 /* -- findings -------------------------------------------------------------
  *
  * A finding is not a refusal. Each one is computed from the file alone with no
@@ -614,21 +800,10 @@ export function findings(prog) {
     }
   });
 
-  const tagsOf = (id, seen = new Set()) => {
-    if (seen.has(id)) return new Set();
-    seen.add(id);
-    const set = new Set(raisedInWalks[id] || []);
-    for (const s of prog.nodes[id].steps || []) {
-      if (s.op === 'throw') set.add(s.tag);
-      for (const h of s.onError || []) set.add(h.tag);
-      if (s.op === 'call' && isNode(prog, s.target)) for (const t of tagsOf(s.target, seen)) set.add(t);
-    }
-    return set;
-  };
+  const canProduce = producibleTags(prog, raisedInWalks);
   for (const [id, n] of Object.entries(prog.nodes)) {
-    const can = tagsOf(id);
     for (const tag of (n.channels || {}).error || []) {
-      if (!can.has(tag)) out.push(`${id} declares error tag "${tag}", and nothing beneath it produces that tag`);
+      if (!canProduce(id, tag)) out.push(`${id} declares error tag "${tag}", and nothing beneath it produces that tag`);
     }
   }
 
@@ -701,6 +876,21 @@ export function text(prog, graphIndex, runIndex) {
   L.push(`run "${run.name}" — ${run.blurb}`);
   L.push('');
 
+  /* One node can hold many rows — a node called from more than one place is
+   * drawn once per call site — so its layer text is worked out once here,
+   * by node id, rather than rescanning every layer for every row. Built in
+   * the same layer order the per-row loop used to read, so a node's lines
+   * print in that order either way. */
+  const layerLines = Groundtrack.bare();
+  for (const [ln, layer] of Object.entries(prog.layers || {})) {
+    for (const [nid, ov] of Object.entries((layer && layer.nodes) || {})) {
+      if (ov && ov.requirements && ov.requirements.length) {
+        (layerLines[nid] = layerLines[nid] || []).push(`requirements under ${ln}: ${ov.requirements.join(', ')}`);
+      }
+    }
+  }
+  const layerPrinted = new Set();
+
   for (const row of rows) {
     const pad = '  '.repeat(row.depth);
     const arrow = row.depth ? '-> ' : '';
@@ -722,9 +912,16 @@ export function text(prog, graphIndex, runIndex) {
       if (row.site.label) L.push(`${pad}   at "${row.site.label}"`);
       if (row.site.aside) L.push(`${pad}   ${row.site.aside}`);
     }
-    for (const [ln, layer] of Object.entries(prog.layers || {})) {
-      const ov = layer.nodes && layer.nodes[row.id];
-      if (ov && ov.requirements && ov.requirements.length) L.push(`${pad}   requirements under ${ln}: ${ov.requirements.join(', ')}`);
+    /* Printed once per node, at the first row that draws it, never once per
+     * row: a layer's requirements are a fact about the node, unchanged by
+     * which call site reached it, and a node with many call sites — the
+     * tree draws one row per site, not per node — would otherwise repeat
+     * the same line once per site. On a node reached from thousands of
+     * sites that repetition is what turned a normal-sized note into output
+     * too large for one string to hold. */
+    if (!layerPrinted.has(row.id)) {
+      for (const line of layerLines[row.id] || []) L.push(`${pad}   ${line}`);
+      layerPrinted.add(row.id);
     }
     for (const fx of row.effects) L.push(`${pad}   · ${fx.kind}  ${fx.desc} — ${fx.mark}`);
   }
@@ -864,11 +1061,15 @@ const USAGE =
   '  --text [run]   print the tree to stdout for one run, by name or index\n' +
   '  --graph <id>   which graph --text reads. Needed when the file states more than one';
 
+/** The command, as a function that returns its exit code. It never calls
+ * `process.exit`: on Linux and macOS a write to a piped stdout is
+ * asynchronous, and exiting at once cuts off whatever has not drained yet.
+ * Setting `process.exitCode` lets Node finish writing, then exit. */
 function main(argv) {
   const args = argv.slice(2);
   const usage = () => {
     console.error(USAGE);
-    process.exit(2);
+    return 2;
   };
 
   const has = n => args.includes(n);
@@ -884,10 +1085,10 @@ function main(argv) {
    * line, or followed by another flag. --text's value is optional, so it is
    * not refused for a missing one; --out and --graph are. */
   const missingValue = n => args.some((a, i) => a === n && (args[i + 1] === undefined || args[i + 1].startsWith('--')));
-  if (missingValue('--out') || missingValue('--graph')) usage();
+  if (missingValue('--out') || missingValue('--graph')) return usage();
 
   const positional = args.filter((a, i) => !a.startsWith('--') && !VALUED.includes(args[i - 1]));
-  if (positional.length !== 1) usage();
+  if (positional.length !== 1) return usage();
   const file = positional[0];
 
   const outPath = has('--out') ? valueOf('--out') : undefined;
@@ -901,14 +1102,14 @@ function main(argv) {
     prog = Groundtrack.hardenKeys(JSON.parse(readFileSync(file, 'utf8')));
   } catch (e) {
     console.error(`cannot read ${file}: ${e.message}`);
-    process.exit(2);
+    return 2;
   }
 
   const errs = check(prog, file);
   if (errs.length) {
     for (const e of errs) console.error(e);
     console.error(`${file}: ${errs.length} refusal(s)`);
-    process.exit(1);
+    return 1;
   }
 
   const notes = findings(prog);
@@ -924,7 +1125,7 @@ function main(argv) {
     console.error(
       `${file}: --graph names the one graph a reading is of, and only --text is one. --check validates every graph, and the page carries every graph and offers a sheet picker over them — it does not open on a named sheet. Drop --graph, or add --text.`,
     );
-    process.exit(2);
+    return 2;
   }
 
   /* A graph the reader named, refused by name when the file has not got it. */
@@ -933,7 +1134,7 @@ function main(argv) {
     graphIndex = prog.graphs.findIndex(g => g.id === graphArg);
     if (graphIndex < 0) {
       console.error(`${file}: no graph called "${graphArg}". This file has: ${prog.graphs.map(g => `"${g.id}"`).join(', ')}`);
-      process.exit(1);
+      return 1;
     }
   }
 
@@ -943,7 +1144,7 @@ function main(argv) {
     console.error(
       `ok: ${prog.title} — ${Object.keys(prog.nodes).length} node(s), ${prog.graphs.length} graph(s), ${runs} run(s), ${notes.length} finding(s)`,
     );
-    process.exit(0);
+    return 0;
   }
 
   if (wantText) {
@@ -954,7 +1155,7 @@ function main(argv) {
     if (prog.graphs.length > 1 && graphArg === undefined) {
       for (const g of prog.graphs) console.log(`${g.id}  ${g.title}`);
       console.error(`${file}: this file states ${prog.graphs.length} graphs. Name one with --graph <id>; the ids are listed above.`);
-      process.exit(1);
+      return 1;
     }
     const graph = prog.graphs[graphIndex];
     let index;
@@ -965,11 +1166,11 @@ function main(argv) {
         console.error(
           `${file}: no run called "${runArg}" in graph "${graph.id}". That graph has: ${graph.presets.map(p => `"${p.name}"`).join(', ')}`,
         );
-        process.exit(1);
+        return 1;
       }
     }
     console.log(text(prog, graphIndex, index));
-    process.exit(0);
+    return 0;
   }
 
   /* A run writes its file and its page to scratch, never beside its input, so
@@ -980,7 +1181,7 @@ function main(argv) {
       `${file}: name the page to write with --out. This renderer writes no page beside its input, because a page dropped next to the file it was made from is an artifact nobody asked for and nothing cleans up.`,
     );
     console.error(USAGE);
-    process.exit(2);
+    return 2;
   }
 
   /* An output path equal to the input overwrites the program with its own
@@ -989,9 +1190,9 @@ function main(argv) {
   const target = resolve(outPath);
   const refuseSelf = () => {
     console.error(`${file}: --out names the file being rendered. Write the page somewhere else; this would replace the program with its own drawing.`);
-    process.exit(2);
+    return 2;
   };
-  if (source === target) refuseSelf();
+  if (source === target) return refuseSelf();
   /* Two names can be one file. Comparing the text of the paths does not see a
    * symbolic link or a hard link, so the identity is read off the filesystem
    * as well. Only when both sides report a real device and inode: some
@@ -1000,7 +1201,7 @@ function main(argv) {
   try {
     const a = statSync(source);
     const b = statSync(target);
-    if (a.dev && a.ino && a.dev === b.dev && a.ino === b.ino) refuseSelf();
+    if (a.dev && a.ino && a.dev === b.dev && a.ino === b.ino) return refuseSelf();
   } catch (e) {
     /* No such target yet is the ordinary case and means nothing to compare. */
     if (e.code !== 'ENOENT') throw e;
@@ -1009,7 +1210,7 @@ function main(argv) {
   writeFileSync(target, page(prog));
   console.error(`wrote ${target}`);
   for (const n of notes) console.log(n);
-  process.exit(0);
+  return 0;
 }
 
 // This file is a command, not a module: nothing imports it. It used to run
@@ -1017,5 +1218,5 @@ function main(argv) {
 // symlinked skill directory the two never matched, so every command exited 0
 // having done nothing. A check that says nothing reads as a file with no
 // refusals. Run unconditionally, so no path can reach the silent case.
-main(process.argv);
+process.exitCode = main(process.argv);
 
