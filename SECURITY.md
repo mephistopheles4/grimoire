@@ -32,6 +32,9 @@ neither the renderer nor the page makes a network request.
 One script can send data, and only when somebody runs it: eagle-eye's optional
 edge audit. See [What the edge audit sends](#what-the-edge-audit-sends).
 
+The attacks worth planning for, scenario by scenario, with what stops each
+one and what still gets through: [docs/security/threat-model.md](docs/security/threat-model.md).
+
 The realistic risks:
 
 - **A file from a stranger.** Box and flightpath files are made to be shared. A
