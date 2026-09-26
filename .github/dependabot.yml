@@ -9,11 +9,11 @@
 # Dependabot rewrites the SHA and the comment together, so the comment stays
 # true through an update. It cannot tell you the comment was true to begin
 # with. .github/workflows/zizmor.yml now can: `ref-version-mismatch` resolves
-# each SHA at GitHub and fails on a comment that does not match it. SECURITY.md
-# carries the pairing.
+# each SHA at GitHub and fails on a comment that does not match it.
+# docs/security/scanners.md carries the pairing.
 #
 # This file is itself audited only when zizmor is rooted at the repository, and
-# it is not — SECURITY.md says why. So `dependabot-cooldown` does not fire here
+# it is not — docs/security/scanners.md says why. So `dependabot-cooldown` does not fire here
 # and this schedule is nobody's finding.
 version: 2
 updates:

@@ -22,7 +22,7 @@ over the skill prose and fails on any finding the baselines do not cover. The
 other runs zizmor over `.github/workflows/` and fails on any finding at all —
 there is no baseline for it, because there is nothing to suppress. Both install
 their scanner on the runner and never on your machine, so the command above
-stays the only one you need. See [`SECURITY.md`](SECURITY.md) for what each one
+stays the only one you need. See [`docs/security/scanners.md`](docs/security/scanners.md) for what each one
 covers, what it suppresses, and why.
 
 It walks what `.gitignore` does not exclude, so a worktree under

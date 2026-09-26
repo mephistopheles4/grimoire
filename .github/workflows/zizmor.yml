@@ -88,7 +88,7 @@ jobs:
       # payoff rather than a default nobody looked at.
       #
       # **`ref-version-mismatch` is an online audit, and it closes a gap
-      # SECURITY.md names out loud.** That file says every action here is pinned
+      # docs/security/scanners.md names out loud.** That file says every action here is pinned
       # to a commit with a version-shaped comment, and that *nothing checks the
       # comment is true* — a hand-edit swapping in a different valid SHA under
       # an unchanged comment would pass. This audit resolves the SHA at GitHub
@@ -179,7 +179,7 @@ jobs:
       # version. That matters more than it reads: zizmor has no per-entry reason
       # field, so a suppression here would carry its argument only as a YAML
       # comment the tool never reads and no check here can require.
-      # SECURITY.md carries the cost.
+      # docs/security/scanners.md carries the cost.
       #
       # **This file shares a name with that configuration file and is not it.**
       # Config discovery is anchored at the repository root, not at the
@@ -228,7 +228,7 @@ jobs:
             11|12|13|14)
               echo "zizmor exited ${status} — the audit found something, listed above."
               echo "Fix it, or argue it in the pull request. There is no baseline file here"
-              echo "to hide it in, and SECURITY.md says why adding one is a cost."
+              echo "to hide it in, and docs/security/scanners.md says why adding one is a cost."
               exit 1
               ;;
             *)

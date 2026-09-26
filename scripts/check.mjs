@@ -140,8 +140,8 @@ for (const skill of files.filter(f => f.endsWith('SKILL.md'))) {
 // 3. The single-pass tag strip does not come back.
 // CodeQL raised js/incomplete-multi-character-sanitization on this exact form,
 // in two files, on the first scan. The output is not an HTML sink and the
-// bypass is hard to build, so this guard holds a shape, not a hole. SECURITY.md
-// carries the triage.
+// bypass is hard to build, so this guard holds a shape, not a hole.
+// docs/security/scanners.md carries the triage.
 const SINGLE_PASS = /=>\s*s\.replace\(\/<\[\^>\]\+>\/g/;
 for (const f of files.filter(f => /\.(mjs|js|html)$/.test(f))) {
   readFileSync(f, 'utf8')
@@ -174,7 +174,7 @@ for (const f of files.filter(f => /\.(mjs|js|html)$/.test(f))) {
 //
 // Only the bare fence is checked. markdownlint reports about forty long lines
 // in this tree at its defaults, and that is a separate decision nobody has
-// taken. See SECURITY.md for why no linter is installed to take it.
+// taken. See docs/security/scanners.md for why no linter is installed.
 const FENCE = /^\s*(`{3,}|~{3,})\s*(\S*)/;
 for (const md of files.filter(f => f.endsWith('.md'))) {
   let open = null;
