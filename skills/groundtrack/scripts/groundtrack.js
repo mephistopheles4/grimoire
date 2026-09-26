@@ -469,8 +469,23 @@ const Groundtrack = (() => {
     /* BY PATH FROM THE ENTRY, which is what the tree reads. A chain key is the
      * frame's chain joined: `@entry/greet#0/loadProfile#1`. No node id can hold
      * the separator — an id is letters, digits and hyphens — so a chain splits
-     * back into its links unambiguously. */
-    let sites = bare(); /* chain key -> { entered, returned, effects: { "node[at]": outcome } } */
+     * back into its links unambiguously.
+     *
+     * Every state carries this table as it stood at that state, and it is the
+     * one field here that grows with the whole walk rather than with what is
+     * open. Copying it whole into every state made a move cost as much as
+     * every chain entered before it, so a long run folded in time that grew
+     * with moves, depth and id length multiplied together (#144). So the table
+     * is kept once, and each value in it is a history instead: a list of
+     * `[state index, value]`, appended when the value changes and never
+     * rewritten afterwards. A state reads its own table back from those
+     * histories only when something asks for it — see `sitesAt` below.
+     *
+     * A history is appended to, never edited, once its state has been pushed.
+     * That is what keeps an earlier state's table fixed while later moves run:
+     * a later move adds entries stamped with a later index, and an earlier
+     * state's read skips them. */
+    const sites = new Map(); /* chain key -> { born, entered: history, returned: history, effects: Map("node[at]" -> history) } */
     /* The same marks again, keyed by node rather than by call site. The tree
      * shows one row per call site and wants the first; the drawing shows one
      * box per node and wants the second. Without this the drawing loses a
@@ -485,32 +500,97 @@ const Groundtrack = (() => {
     let nodeCalls = bare();
     let ended = null;
 
+    const states = [];
+
     const clone = () => frames.map(f => ({ ...f, chain: f.chain.slice() }));
-    const touch = chain => (sites[chainKey(chain)] = sites[chainKey(chain)] || { entered: 0, returned: 0, effects: bare() });
+    /* A change made while a move runs belongs to the state that move is about
+     * to push, which is the next index in `states`. Two changes to one value
+     * in the same move leave one entry, holding the second. */
+    const record = (history, value) => {
+      const last = history[history.length - 1];
+      if (last && last[0] === states.length) last[1] = value;
+      else history.push([states.length, value]);
+    };
+    /* The value a history held at state `at`: the last entry stamped at or
+     * before it. A binary search, because a site entered in a loop keeps one
+     * entry per pass. The caller has already checked that the first entry is
+     * stamped at or before `at`, so there is always one to return. */
+    const valueAt = (history, at) => {
+      let lo = 0, hi = history.length - 1;
+      while (lo < hi) {
+        const mid = (lo + hi + 1) >> 1;
+        if (history[mid][0] <= at) lo = mid;
+        else hi = mid - 1;
+      }
+      return history[lo][1];
+    };
+    const touch = chain => {
+      const key = chainKey(chain);
+      if (!sites.has(key)) sites.set(key, { born: states.length, entered: [[states.length, 0]], returned: [[states.length, 0]], effects: new Map() });
+      return sites.get(key);
+    };
+    const bump = (chain, field) => {
+      const history = touch(chain)[field];
+      record(history, history[history.length - 1][1] + 1);
+    };
+    const mark = (chain, at, outcome) => {
+      const effects = touch(chain).effects;
+      if (!effects.has(at)) effects.set(at, []);
+      record(effects.get(at), outcome);
+    };
+    /* THE TABLE AS IT STOOD AT STATE `at`, rebuilt from the histories. A Map
+     * iterates in insertion order and a site or an effect is inserted by the
+     * move that first touches it, so both walks can stop at the first one
+     * born after `at`, and the keys come out in the order the old copied
+     * table held them. The cost is the size of the table returned, however
+     * many moves came after it. Built on `bare()` like every other table
+     * keyed by a stranger's string. */
+    const sitesAt = at => {
+      const out = bare();
+      for (const [key, site] of sites) {
+        if (site.born > at) break;
+        const effects = bare();
+        for (const [where, history] of site.effects) {
+          if (history[0][0] > at) break;
+          effects[where] = valueAt(history, at);
+        }
+        out[key] = { entered: valueAt(site.entered, at), returned: valueAt(site.returned, at), effects };
+      }
+      return out;
+    };
+    /* A state's `sites`, read on first use and kept. Kept so that a reader
+     * walking its keys does not rebuild the table once per key, and kept per
+     * state so that a reader who writes into one state's table reaches no
+     * other state's. */
+    const sitesOf = at => {
+      let table = null;
+      return () => table || (table = sitesAt(at));
+    };
     const count = (id, field) => {
       const was = nodeCalls[id] || { entered: 0, returned: 0 };
       nodeCalls = Object.assign(bare(), nodeCalls, { [id]: { ...was, [field]: was[field] + 1 } });
     };
 
-    touch(['@entry']).entered = 1;
+    bump(['@entry'], 'entered');
     count(prog.entry, 'entered');
 
-    const states = [
-      {
-        i: -1,
-        move: null,
-        frames: clone(),
-        ledger: [],
-        visited: visited.slice(),
-        edges: [],
-        errorPath: [],
-        sites: JSON.parse(JSON.stringify(sites)),
-        nodeEffects: {},
-        nodeCalls,
-        ended: null,
-        moved: null,
+    const seedSites = sitesOf(states.length);
+    states.push({
+      i: -1,
+      move: null,
+      frames: clone(),
+      ledger: [],
+      visited: visited.slice(),
+      edges: [],
+      errorPath: [],
+      get sites() {
+        return seedSites();
       },
-    ];
+      nodeEffects: {},
+      nodeCalls,
+      ended: null,
+      moved: null,
+    });
 
     moves.forEach((m, i) => {
       let moved = null;
@@ -555,7 +635,7 @@ const Groundtrack = (() => {
             top.callAt = m.at;
             const key = `${top.nodeId}#${m.at}`;
             const chain = top.chain.concat([key]);
-            touch(chain).entered += 1;
+            bump(chain, 'entered');
             count(m.to, 'entered');
             frames.push({ nodeId: m.to, pc: 0, callAt: undefined, site: key, chain });
             if (!visited.includes(m.to)) visited.push(m.to);
@@ -565,7 +645,7 @@ const Groundtrack = (() => {
           }
           case 'effect': {
             const outcome = m.raised !== undefined ? 'threw' : 'returned';
-            touch(top.chain).effects[`${top.nodeId}[${m.at}]`] = outcome;
+            mark(top.chain, `${top.nodeId}[${m.at}]`, outcome);
             nodeEffects = { ...nodeEffects, [`${top.nodeId}[${m.at}]`]: outcome };
             ledger = ledger.concat([
               {
@@ -596,7 +676,7 @@ const Groundtrack = (() => {
           case 'return': {
             const gone = frames.pop();
             if (gone) {
-              touch(gone.chain).returned += 1;
+              bump(gone.chain, 'returned');
               count(gone.nodeId, 'returned');
             }
             if (frames.length) {
@@ -611,6 +691,7 @@ const Groundtrack = (() => {
         }
       }
 
+      const movedSites = sitesOf(states.length);
       states.push({
         i,
         move: m,
@@ -619,7 +700,9 @@ const Groundtrack = (() => {
         visited: visited.slice(),
         edges: edges.slice(),
         errorPath: errorPath.slice(),
-        sites: JSON.parse(JSON.stringify(sites)),
+        get sites() {
+          return movedSites();
+        },
         nodeEffects,
         nodeCalls,
         ended,

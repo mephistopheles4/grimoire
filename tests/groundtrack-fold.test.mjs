@@ -922,6 +922,42 @@ test('a failure is not hidden by a frame that succeeded at the same step', () =>
   assert.deepEqual(repeat.effects.map(e => e.mark), ['threw'], 'so it must not also say the step recorded cleanly');
 });
 
+test('a state keeps the call-site table it had, whatever moves came after it', () => {
+  // The fold keeps one table for the whole walk and each state reads its own
+  // view of it, rather than every state carrying a copy (#144). So the one
+  // property the sharing must keep is this: a later move never changes what
+  // an earlier state says. The check is against a walk that stopped at that
+  // state, which had no later move to leak. The recursive runs enter one
+  // site again and again and mark one step twice, so a count or a mark from
+  // later in the walk has somewhere to show up if it leaks. The states are
+  // read last first, so no earlier read can have fixed a table in place.
+  for (const prog of [greet, recursive]) {
+    for (const run of prog.presets) {
+      const states = G.fold(prog, run.trace);
+      for (let at = states.length - 1; at >= 0; at -= 1) {
+        const stopped = G.fold(prog, { ...run.trace, steps: run.trace.steps.slice(0, at) }).pop();
+        assert.deepEqual(states[at].sites, stopped.sites, `${run.name} / cursor ${at}`);
+      }
+    }
+  }
+});
+
+test('writing into one state\'s call-site table reaches no other state', () => {
+  // Each state's table is its own object, so a reader that edits one cannot
+  // change what another state says, the way it could not when every state
+  // held a copy.
+  const walk = runNamed(recursive, 'three frames down').trace;
+  const states = G.fold(recursive, walk);
+  const before = states.map(s => JSON.stringify(s.sites));
+  const end = states[states.length - 1];
+  for (const key of Object.keys(end.sites)) {
+    end.sites[key].entered = 99;
+    end.sites[key].effects.injected = 'returned';
+  }
+  end.sites['@entry/injected#0'] = { entered: 1, returned: 0, effects: {} };
+  states.slice(0, -1).forEach((s, at) => assert.equal(JSON.stringify(s.sites), before[at], `cursor ${at}`));
+});
+
 test('a call step sums its copies, because the listing shows a node and not a path', () => {
   // The cutaway lists ONE node's source and marks each call line by what the
   // walk did with it. It has a node and a step index in hand and no path, so
