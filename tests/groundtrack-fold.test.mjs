@@ -1065,7 +1065,10 @@ test('writing into one state\'s views reaches no other state', () => {
   // Each state's views are its own objects, the way each state's copies
   // were. Written in two orders: into an early state before any later one
   // has been read, and into the last state after every earlier one has.
-  const expected = G.fold(loop, loopWalk).map(s => JSON.stringify(s));
+  // `siteTree` is not printed, so each state is read as its JSON and its
+  // site tree together.
+  const read = s => JSON.stringify(s) + JSON.stringify(s.siteTree.map(t => [t.link, t.entered, t.returned, t.effects]));
+  const expected = G.fold(loop, loopWalk).map(read);
   const scribble = s => {
     for (const key of Object.keys(s.sites)) {
       s.sites[key].entered = 99;
@@ -1079,16 +1082,52 @@ test('writing into one state\'s views reaches no other state', () => {
     s.visited.push('injected');
     s.edges.push('injected>injected');
     s.errorPath.push({ nodeId: 'injected', how: 'thrown' });
+    s.frames.forEach(f => { f.pc = 99; });
+    s.frames.push({ nodeId: 'injected' });
+    s.siteTree.forEach(t => {
+      t.entered = 99;
+      t.effects.injected = 'threw';
+    });
+    s.siteTree.push({ parent: null, link: 'injected#0', entered: 1, returned: 0, effects: {} });
   };
 
   const early = G.fold(loop, loopWalk);
   scribble(early[2]);
-  early.forEach((s, n) => n !== 2 && assert.equal(JSON.stringify(s), expected[n], `after writing into cursor 2, cursor ${n}`));
+  early.forEach((s, n) => n !== 2 && assert.equal(read(s), expected[n], `after writing into cursor 2, cursor ${n}`));
 
   const late = G.fold(loop, loopWalk);
-  late.forEach(s => JSON.stringify(s));
+  late.forEach(read);
   scribble(late[late.length - 1]);
-  late.slice(0, -1).forEach((s, n) => assert.equal(JSON.stringify(s), expected[n], `after writing into the last cursor, cursor ${n}`));
+  late.slice(0, -1).forEach((s, n) => assert.equal(read(s), expected[n], `after writing into the last cursor, cursor ${n}`));
+});
+
+test("siteTree lists a state's sites parent first, and each printed key is its parent's key, a slash and its link", () => {
+  // The tree view and the call counts read `siteTree`; the printed table is
+  // `sites`. The golden file cannot see `siteTree`, so this ties the two.
+  for (const { name, prog, walk } of everyRun()) {
+    G.fold(prog, walk).forEach((s, n) => {
+      const keys = Object.keys(s.sites);
+      const keyOf = new Map();
+      assert.equal(s.siteTree.length, keys.length, `${name} / cursor ${n}`);
+      s.siteTree.forEach((site, k) => {
+        if (site.parent === null) assert.equal(site.link, '@entry', `${name} / cursor ${n}`);
+        else assert.ok(keyOf.has(site.parent), `${name} / cursor ${n}: ${site.link} comes before its parent`);
+        const key = site.parent === null ? site.link : `${keyOf.get(site.parent)}/${site.link}`;
+        keyOf.set(site, key);
+        assert.equal(key, keys[k], `${name} / cursor ${n}`);
+        assert.deepEqual({ entered: site.entered, returned: site.returned, effects: site.effects }, s.sites[key], `${name} / cursor ${n} / ${key}`);
+      });
+    });
+  }
+});
+
+test('siteTree is not enumerable, so JSON and a spread both leave it out', () => {
+  const s = G.fold(greet, runNamed(greet, 'a known user').trace).pop();
+  assert.equal(Object.getOwnPropertyDescriptor(s, 'siteTree').enumerable, false);
+  assert.ok(s.siteTree.length > 0);
+  assert.ok(!Object.keys(s).includes('siteTree'));
+  assert.ok(!JSON.stringify(s).includes('siteTree'));
+  assert.equal({ ...s }.siteTree, undefined);
 });
 
 test('a call step sums its copies, because the listing shows a node and not a path', () => {
@@ -2065,12 +2104,12 @@ test('each tour stop carries forward the tab and layer the stops before it set',
   assert.equal(stops[6].graphIndex, 0);
   assert.equal(stops[6].runIndex, 2, '"the post fails" is the third run');
 });
-/* -- the validator's walk counts what the tree draws ------------------------ */
+/* -- a repeated node, and the validator's count of it ------------------------ */
 
-/* The renderer refuses a graph by the rows and the depth `boundedGraphWalk`
- * counts, so the count has to be the tree's own. A node that repeats on its
- * path is drawn once and stopped; the node stays on the path until the frame
- * that first opened it closes, not until the repeat row does. */
+/* A node that repeats on its path is drawn once and stopped; the node stays on
+ * the path until the frame that first opened it closes, not until the repeat
+ * row does. The tree and the renderer's limit read one walker, so each test
+ * pins the count itself, not only that the two agree. */
 const noMoves = { provenance: 'authored', steps: [] };
 const walkRows = prog => G.boundedGraphWalk(prog, prog.entry, 1e6, 1e6).rows;
 
@@ -2096,21 +2135,6 @@ test("three nodes that each call themselves and each other stay far inside the d
   assert.equal(walk.rows, 16);
   assert.equal(walk.overDepth, false);
   assert.equal(G.treeRows(prog, noMoves).length, 16);
-});
-
-test("the walk's row count is the tree's row count on every cyclic shape", () => {
-  const shapes = {
-    selfCall: selfCall(),
-    mutualPair: mutualPair(),
-    pairBesideBranch: pairBesideBranch(),
-    selfAndPair: selfAndPair(),
-    selfThenSibling: shaped('a', { a: ['a', 'b'], b: ['a'] }, []),
-    threeKnotted: shaped('a', { a: ['a', 'b', 'c'], b: ['b', 'a', 'c'], c: ['c', 'a', 'b'] }, []),
-    diamondBack: shaped('a', { a: ['b', 'c'], b: ['d'], c: ['d'], d: ['a', 'd'] }, []),
-  };
-  for (const [name, prog] of Object.entries(shapes)) {
-    assert.equal(walkRows(prog), G.treeRows(prog, noMoves).length, name);
-  }
 });
 
 test('the walk counts depth in calls: the entry is 0 calls deep', () => {

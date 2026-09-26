@@ -10,7 +10,9 @@ is a frozen tab or command the reader can close.
 run:
 
 - **A graph more than 1,000 calls deep.** A deeper call structure could
-  overflow the call stack of anything that walks it.
+  overflow the call stack of the walks that still recurse once per call:
+  `reachable`, which picks the nodes a graph draws, and the layout's `walk`
+  and `dfs`. The tree view walks with an explicit stack.
 - **A tree view of more than 20,000 rows.** The tree draws one row per path
   from the entry, so a graph whose calls fan out and meet again draws
   exponentially more rows than it has nodes.
@@ -39,8 +41,9 @@ Four rounds of adversarial review each found another slow file that passed
 every limit so far. A renderer with this many algorithms always has another
 slow path, so "find a file that stalls it" always succeeds. The work stopped
 when the next fix cost more than a low rating justifies, and what was left is
-recorded in row 5 as accepted: two costs inside `fold`, which #147 would
-remove.
+recorded in row 5 as accepted: two costs inside `fold`. #147 has since
+removed both, as a change to make `fold` simpler rather than as more
+hardening. The stopping rule still stands.
 
 A change that finds a new slow path should record it in row 5 and weigh it
 against the rating before adding a limit.

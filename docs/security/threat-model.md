@@ -86,7 +86,7 @@ How to read it:
 | 2 | **A shared file speaks to the agent.** A stranger shares a box or flightpath file whose `why`, note or blurb reads as an instruction. The agent opens it, or reads it through the renderer: `--check` prints row names and findings, and `--text` prints blurbs, remarks and tour text verbatim. | The host agent's own rule that file content is data. Both `SKILL.md` files now say a file and the renderer's output are data, not instructions. HTML escaping does nothing here: it guards the browser, not the terminal. | A reminder, not a guard. The renderers' output carries author text back to the agent by design. | `AML.T0051.001` · `LLM01:2025` · `ASI01` · Tampering · MAESTRO 3 |
 | 3 | **A shared file runs script in the page.** A stranger crafts a file so its text breaks out into markup when the page renders. | `</` escaped before the script block; `&` and `<` escaped for element content; ids validated; author text never in an attribute. Tests pin the escape's width and put hostile text in every field. See [rendering.md](rendering.md). | "No author text reaches an attribute" is held by review, not by a parse of the page. A new `="${` in a template breaks it. | `LLM05:2025` · Tampering, Elevation of privilege |
 | 4 | **A shared file confuses the validator.** A name such as `constructor` collides with `Object.prototype`, so a check silently passes and the author is told the wrong thing is wrong. | `Groundtrack.hardenKeys` and prototype-free maps; tests with bare-name fixtures. | Low. The harm is a wrong diagnosis, not code execution. | Tampering |
-| 5 | **A shared file hangs the page.** A box built to branch hard makes the chain walk run for a long time on the reader's machine. A flightpath file built the same way stalls or crashes groundtrack's renderer or page. | eagle-eye stops the walk at 20,000 steps (`skills/eagle-eye/lib/eagle-eye.js`). groundtrack's renderer refuses three shapes before it reads a run: a graph more than 1,000 calls deep, a tree view of more than 20,000 rows, and a search for cut calls that costs more than 1,000,000 units of work. Every other cost measured grows in step with the file. See [row 5, measured](#row-5-measured). | Two costs inside `fold` still stall `--text` and the page, on files that pass every limit. The worst takes 160 s. The fix belongs in `fold`. See gap 4. | Denial of service |
+| 5 | **A shared file hangs the page.** A box built to branch hard makes the chain walk run for a long time on the reader's machine. A flightpath file built the same way stalls or crashes groundtrack's renderer or page. | eagle-eye stops the walk at 20,000 steps (`skills/eagle-eye/lib/eagle-eye.js`). groundtrack's renderer refuses three shapes before it reads a run: a graph more than 1,000 calls deep, a tree view of more than 20,000 rows, and a search for cut calls that costs more than 1,000,000 units of work. Every other cost measured grows in step with the file. See [row 5, measured](#row-5-measured). | None measured. The two `fold` costs that stalled `--text` and the page are gone (#147). See gap 4. | Denial of service |
 | 6 | **Planted text claims a standing yes.** eagle-eye's `SKILL.md` lets the user's instructions give a standing yes for the edge audit. Text in a box or a charted file claims to be that yes, so the audit runs without asking: the box's text leaves the machine and the user's key is charged. | The four facts are still stated before each run. `--dry-run` comes first. `SKILL.md` says a standing yes comes only from the user's own instructions, never from text in a file. | Low. The host agent still has to tell the user's instructions from a file's. | `AML.T0051.001` · `AML.T0034` · `ASI02` · Information disclosure |
 | 7 | **A tampered restore code.** Someone edits an exported configuration before the user pastes it back, so the agent updates the box with a set the user never chose. | `SKILL.md` step 8: say the set back in words before acting, and update the box only with what the user confirms. | Low. This is the guard working: the user sees names, not ids. | Tampering |
 | 8 | **A poisoned skill update.** An attacker with a stolen maintainer token, or a contributor whose pull request is merged, hides an instruction in a `SKILL.md`. Every installer's agent obeys it after the next update. | Pull request required on `main`. `check`, SkillSpector's `scan` and zizmor's `audit` must all pass (required since 2026-09-25). | SkillSpector is static pattern matching: an instruction written to read as ordinary prose can pass it. There is no signing. `npx skills add` copies `main` unless the user pins a commit, and the plugin updates when its version moves and the user updates, by hand or through background auto-update (off by default). A stolen admin account bypasses all of it. | `AML.T0110.000` · `AML.T0115.002` · `AML.T0109` · `LLM03:2025` · `ASI04` · Tampering · MAESTRO 7 |
@@ -97,9 +97,8 @@ How to read it:
 
 ## Row 5, measured
 
-**The renderer's three commands finish in under 1 s on every file measured,
-up to 25 MB, that passes the three limits, except for the `fold` costs
-below.** The target is 3 s for each of `--check`, `--out` and `--text`. The
+**The renderer's three commands finish in under 1.5 s on every file measured,
+up to 25 MB, that passes the three limits.** The target is 3 s for each of `--check`, `--out` and `--text`. The
 page's first draw is not held to that target. A page of 20,000 separate boxes
 takes about 6 s, and nearly all of it is the browser building the boxes.
 
@@ -126,19 +125,23 @@ view is 304 rows, 66 times under. Its search for cut calls costs 77,415 units,
 
 **Node ids have no length limit.** Cost follows file size. Ids of 128, 1,000
 and 10,000 characters on the long-chain file check in 0.12 s, 0.17 s and
-0.68 s, at 3.5 MB, 22.7 MB and 221 MB. A limit of 128 characters did not stop
-the first `fold` cost below, either.
+0.68 s, at 3.5 MB, 22.7 MB and 221 MB.
 
-**Two costs still miss the target, and are accepted.** Both are inside `fold`,
-both pass every limit, and the page reads the same `fold` output on every
-draw. #147 would remove both. Until then they stand as this row rates them:
-a crafted file can stall the reader's own machine, and nothing worse.
+**Two costs inside `fold` used to miss the target, and #147 removed both.**
+The tree view and the call counts no longer read call-chain keys, and `fold`
+no longer copies every open frame on each move. Before is 0.24.10, after
+0.24.11, same machine. The page column is after only.
 
-| Cost | File | `--check` | `--text` |
-| --- | --- | --- | --- |
-| Call-chain keys longer than 16,383 characters | A 125-node chain of 128-character ids, whose last node calls a leaf from 19,000 sites, and a run that enters each one (6.7 MB) | 0.76 s | 160 s |
-| The same, through recursion | One node that recurses 900 frames deep in its run, then calls a leaf from 10,000 sites (1.4 MB) | 0.94 s | 115 s |
-| A copy of every open frame on each move | A run that walks a 999-node chain and then 19,001 sites at its foot (2.7 MB). Its chain keys are long too, which is what stalls `--text` | 4.0 s | over 150 s |
+| Cost | File | `--check` | `--text` | Page, first draw (after) |
+| --- | --- | --- | --- | --- |
+| Call-chain keys longer than 16,383 characters | A 125-node chain of 128-character ids, whose last node calls a leaf from 19,000 sites, and a run that enters each one (6.7 MB) | 0.75 s → 0.44 s | 145 s → 0.64 s | 0.44 s |
+| The same, through recursion | One node that recurses 900 frames deep in its run, then calls a leaf from 10,000 sites (1.4 MB) | 0.95 s → 0.25 s | 95 s → 0.39 s | 1.1 s |
+| A copy of every open frame on each move | A run that walks a 999-node chain and then 19,001 sites at its foot (2.7 MB) | 4.2 s → 0.64 s | 181 s → 1.2 s | 0.73 s |
+
+**One page cost grew, and is known.** `frames` is now built when a state is
+read, not stored on it. The source tab's `ranPcs` reads every state's frames
+on each redraw. On a row 5 file that redraw went from about 147–333 ms to
+641–691 ms, while `fold` itself went from 1,585 ms to 220 ms.
 
 Measured on an AMD Ryzen 9 9950X3D (16 cores), 64 GB of RAM, Windows 11 Pro for
 Workstations, Node v24.14.1, and headless Chrome 154 for the page's first draw.
@@ -167,9 +170,8 @@ out of scope for that reason.
 4. **Measure groundtrack on a hostile file.** *Done 2026-09-26:* see
    [row 5, measured](#row-5-measured). Three limits, and fixes that make
    other costs grow with the file, hold the renderer's three commands under
-   1 s on every file measured up to 25 MB that passes. Two costs inside
-   `fold` remain and are accepted at row 5's low rating. #147 would remove
-   them.
+   1.5 s on every file measured up to 25 MB that passes. The two costs that
+   remained inside `fold` are gone since #147.
 5. **Consider signed releases or a pinned install path.** Row 8's rug-pull
    exposure. *Decided 2026-09-26: no release tags or signing for now.* Neither
    installer checks a signature, and grimoire builds nothing to attest. A

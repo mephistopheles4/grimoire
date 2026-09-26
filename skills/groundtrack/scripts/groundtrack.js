@@ -53,21 +53,6 @@ const Groundtrack = (() => {
   /** `bare()` seeded from entries, for the tables built in one go. */
   const bareFrom = entries => Object.assign(bare(), Object.fromEntries(entries));
 
-  /** A frame's chain of call sites from the entry, as one table key.
-   *
-   *  A link is one call site, `caller#step`, and that names one line of
-   *  source. It does NOT name one place in the tree: a subtree drawn twice
-   *  puts the same link under both copies. The chain from the entry does name
-   *  one place, which is why the tree keys by this and not by the last link.
-   *
-   *  Neither half of a link can hold the separator: an id is letters, digits
-   *  and hyphens by `ID` above, and a step is an array index because
-   *  `render.mjs` refuses a move whose `at` is not a number. So a chain splits
-   *  back into its links unambiguously — on an invariant enforced outside this
-   *  function, and half of it outside this file. */
-  const chainKey = chain => chain.join('/');
-  const chainLinks = key => key.split('/');
-
   /** Rebuild a parsed file's author-keyed maps with no prototype.
    *
    * The tables this module builds are `bare()` by construction. **The biggest
@@ -341,11 +326,17 @@ const Groundtrack = (() => {
     return m;
   };
 
-  /** The call steps of one node, in order. A node called twice is two sites. */
+  /** A link: one call step, `caller#step`. The fold, the tree and the call
+   *  counts all name a call step this way, so they build it here. */
+  const linkOf = (id, at) => `${id}#${at}`;
+
+  /** The call steps of one node, in order. A node called twice is two sites.
+   *  Reads `steps` defensively: the renderer walks a file's tree through
+   *  this before the rest of validation has judged it. */
   const callSites = node => {
     const out = [];
-    (node.steps || []).forEach((s, i) => {
-      if (s.op === 'call') out.push({ at: i, target: s.target, label: s.label, aside: s.aside });
+    (Array.isArray(node.steps) ? node.steps : []).forEach((s, i) => {
+      if (s && s.op === 'call') out.push({ at: i, target: s.target, label: s.label, aside: s.aside });
     });
     return out;
   };
@@ -491,8 +482,24 @@ const Groundtrack = (() => {
      * move, and nothing ever changes a chain once its frame exists — a call
      * builds its callee a new one. Freezing keeps it that way for a reader
      * too. A write into a frozen chain from strict code throws; from sloppy
-     * code it is ignored; either way the shared chain does not change. */
-    let frames = [{ nodeId: prog.entry, pc: 0, callAt: undefined, site: '@entry', chain: Object.freeze(['@entry']) }];
+     * code it is ignored; either way the shared chain does not change.
+     *
+     * THE OPEN FRAMES ARE SHARED TOO, as a stack of cells no move changes:
+     * a call puts a cell on top, a return takes one off, and a move that
+     * changes the top frame puts a changed copy in its place. A state holds
+     * its top cell and shares every cell below it. A cell also holds its
+     * frame's site in the table below, so no move looks a site up. */
+    let stack = null; /* { frame, site, below } */
+    const setTop = change => {
+      stack = { ...stack, frame: { ...stack.frame, ...change } };
+    };
+    /* A state's frames, outermost first, each copied so that a reader's
+     * write reaches no other state. */
+    const framesOf = cell => {
+      const out = [];
+      for (let c = cell; c; c = c.below) out.push({ ...c.frame });
+      return out.reverse();
+    };
 
     /* ONE COPY OF THE WALK, AND A VIEW OF IT PER STATE. Every state carries
      * the ledger, the nodes visited, the edges taken, the error path and the
@@ -525,16 +532,10 @@ const Groundtrack = (() => {
      * `pathStart` to the log's end at that state. */
     const errorLog = [];
     let pathStart = 0;
-    /* BY PATH FROM THE ENTRY, which is what the tree reads. A chain key is the
-     * frame's chain joined: `@entry/greet#0/loadProfile#1`. No node id can hold
-     * the separator — an id is letters, digits and hyphens — so a chain splits
-     * back into its links unambiguously.
-     *
-     * The table is a tree of sites rather than a map of keys, each site found
-     * from its parent by its last link. Joining a chain into its key on every
-     * move cost the depth times the id length each time, and the key is only
-     * needed when a state's table is read — so it is built then, once per
-     * site, from the parent's. */
+    /* BY PATH FROM THE ENTRY, which is what the tree reads. A link,
+     * `caller#step`, names one line of source but not one place in the
+     * tree: a subtree drawn twice puts the same link under both copies. So
+     * this is a tree of sites, each found from its parent by its link. */
     const sites = []; /* every site, in the order a move first entered it: { parent, link, key, entered: history, returned: history, effects: Map("node[at]" -> history), below: Map(link -> site) } */
     /* The same marks again, keyed by node rather than by call site. The tree
      * shows one row per call site and wants the first; the drawing shows one
@@ -549,8 +550,6 @@ const Groundtrack = (() => {
     let ended = null;
 
     const states = [];
-
-    const clone = () => frames.map(f => ({ ...f }));
 
     /* A HISTORY is every value one thing has held, each stamped with the
      * index of the state that first held it. A change made while a move runs
@@ -604,14 +603,10 @@ const Groundtrack = (() => {
       record(table.get(key), value);
     };
 
-    /* Which site a frame's chain is. Keyed by the chain array itself, which
-     * a frame keeps for as long as it is open, so finding a frame's site
-     * reads no string at all. */
-    const siteByChain = new WeakMap();
-    /* The site a new frame's chain reaches: its parent's child by the call's
-     * link, made the first time any frame reaches it. The entry's site has
-     * no parent, and its key is its one link. */
-    const reach = (chain, parent, link) => {
+    /* The site a call reaches: its parent's child by the call's link, made
+     * the first time any frame reaches it. The entry's site has no parent,
+     * and its key is its one link. */
+    const reach = (parent, link) => {
       let site = parent && parent.below.get(link);
       if (!site) {
         site = { parent, link, key: parent ? null : link, entered: history(), returned: history(), effects: new Map(), below: new Map() };
@@ -620,14 +615,15 @@ const Groundtrack = (() => {
         if (parent) parent.below.set(link, site);
         sites.push(site);
       }
-      siteByChain.set(chain, site);
       return site;
     };
     const bump = (site, field) => record(site[field], latest(site[field]) + 1);
-    /* A site's chain key, the same string `chainKey` joins, built from the
-     * nearest ancestor that already has one and kept on every site between.
-     * A loop and not a recursion, because a walk may nest deeper than the
-     * call stack reading it. */
+    /* A site's key in the `sites` table: its links from the entry joined by
+     * `/`, as in `@entry/greet#0/loadProfile#1`. No link holds a `/` (an id
+     * is letters, digits and hyphens; `render.mjs` refuses a non-numeric
+     * `at`), so two paths never share a key. Built from the nearest ancestor
+     * that has one and kept on every site between, in a loop and not a
+     * recursion, because a walk may nest deeper than the call stack. */
     const keyOf = site => {
       const unbuilt = [];
       for (let s = site; s.key === null; s = s.parent) unbuilt.push(s);
@@ -635,19 +631,33 @@ const Groundtrack = (() => {
       for (let n = unbuilt.length - 1; n >= 0; n -= 1) key = unbuilt[n].key = `${key}/${unbuilt[n].link}`;
       return key;
     };
-    /* THE CALL-SITE TABLE AS IT STOOD AT STATE `stateIndex`. Sites go into
-     * `sites` in the order moves first entered them, so the walk stops at
-     * the first one born later. The cost is the size of the table returned,
-     * however many moves came after it. */
+    /* What one site had done by state `stateIndex`. */
+    const siteAt = (site, stateIndex) => ({
+      entered: valueAt(site.entered, stateIndex),
+      returned: valueAt(site.returned, stateIndex),
+      effects: tableAt(site.effects, stateIndex, outcome => outcome),
+    });
+    /* THE CALL SITES AS THEY STOOD AT STATE `stateIndex`, two ways: the
+     * printed table, keyed by path, and the list this module's readers walk,
+     * each entry holding its `parent` entry and its `link`. Sites go into
+     * `sites` in the order moves first entered them, so a parent comes first
+     * and each walk stops at the first site born later. */
     const sitesTableAt = stateIndex => {
       const out = bare();
       for (const site of sites) {
         if (firstStamp(site.entered) > stateIndex) break;
-        out[keyOf(site)] = {
-          entered: valueAt(site.entered, stateIndex),
-          returned: valueAt(site.returned, stateIndex),
-          effects: tableAt(site.effects, stateIndex, outcome => outcome),
-        };
+        out[keyOf(site)] = siteAt(site, stateIndex);
+      }
+      return out;
+    };
+    const siteTreeAt = stateIndex => {
+      const out = [];
+      const entryOf = new Map(); /* site -> its entry in `out` */
+      for (const site of sites) {
+        if (firstStamp(site.entered) > stateIndex) break;
+        const entry = { parent: site.parent ? entryOf.get(site.parent) : null, link: site.link, ...siteAt(site, stateIndex) };
+        entryOf.set(site, entry);
+        out.push(entry);
       }
       return out;
     };
@@ -659,7 +669,7 @@ const Groundtrack = (() => {
     /* WHERE EACH STATE STANDS in the walk: its index, how long each list
      * was, and which run of the error log is its path. A view is built from
      * this and nothing else. */
-    const marks = new WeakMap(); /* state -> { stateIndex, ledger, visited, edges, pathFrom, pathTo } */
+    const marks = new WeakMap(); /* state -> { stateIndex, stack, ledger, visited, edges, pathFrom, pathTo } */
     /* The view last built for each field, and the state it was built for.
      *
      * Only the last one is kept. Keeping every state's view once it was read
@@ -687,6 +697,7 @@ const Groundtrack = (() => {
      * sheet on its first draw, and eighty thousand states each holding seven
      * closures was most of the fold's memory. */
     const views = {
+      frames: viewOf('frames', mark => framesOf(mark.stack)),
       ledger: viewOf('ledger', mark => upTo(ledger, mark.ledger)),
       visited: viewOf('visited', mark => upTo(visited, mark.visited)),
       edges: viewOf('edges', mark => upTo(edges, mark.edges)),
@@ -696,15 +707,17 @@ const Groundtrack = (() => {
       nodeCalls: viewOf('nodeCalls', mark => tableAt(nodeCalls, mark.stateIndex, calls => ({ ...calls }))),
     };
     /* Push the state the walk is in now. The fields are in the order every
-     * state has always had, because the order is what JSON prints: three
-     * values, the seven views, then two values. */
+     * state has always had, because the order is what JSON prints: two
+     * values, the eight views, then two values. `siteTree` is not printed,
+     * so it is not enumerable: JSON and a deep comparison both skip it. */
     const getters = {};
     for (const field of Object.keys(views)) getters[field] = { get: views[field], enumerable: true, configurable: true };
+    getters.siteTree = { get: viewOf('siteTree', mark => siteTreeAt(mark.stateIndex)), enumerable: false, configurable: true };
     const pushState = (i, move, moved) => {
-      const state = Object.defineProperties({ i, move, frames: clone() }, getters);
+      const state = Object.defineProperties({ i, move }, getters);
       state.ended = ended;
       state.moved = moved;
-      marks.set(state, { stateIndex: states.length, ledger: ledger.length, visited: visited.length, edges: edges.length, pathFrom: pathStart, pathTo: errorLog.length });
+      marks.set(state, { stateIndex: states.length, stack, ledger: ledger.length, visited: visited.length, edges: edges.length, pathFrom: pathStart, pathTo: errorLog.length });
       states.push(state);
     };
     /* The error path starts again from `entries`, or empties when there are
@@ -717,34 +730,37 @@ const Groundtrack = (() => {
       extendPath(entries);
     };
 
-    bump(reach(frames[0].chain, null, '@entry'), 'entered');
+    stack = { frame: { nodeId: prog.entry, pc: 0, callAt: undefined, site: '@entry', chain: Object.freeze(['@entry']) }, site: reach(null, '@entry'), below: null };
+    bump(stack.site, 'entered');
     count(prog.entry, 'entered');
     pushState(-1, null, null);
 
     moves.forEach((m, i) => {
       let moved = null;
-      const top = frames[frames.length - 1];
+      /* The top frame and its site as the move found them. `setTop` puts a
+       * new cell in place, so after it these are the old frame: read only
+       * what no move changes from them — `nodeId`, `site`, `chain`. */
+      const top = stack && stack.frame;
+      const topSite = stack && stack.site;
 
       if (m.k === 'propagate') {
-        const gone = frames.pop();
-        if (gone) {
-          moved = { from: gone.nodeId, to: frames.length ? frames[frames.length - 1].nodeId : null, dir: 'propagate' };
-          extendPath([{ nodeId: gone.nodeId, site: gone.site, chain: gone.chain, how: 'propagated' }]);
+        if (top) {
+          stack = stack.below;
+          moved = { from: top.nodeId, to: stack ? stack.frame.nodeId : null, dir: 'propagate' };
+          extendPath([{ nodeId: top.nodeId, site: top.site, chain: top.chain, how: 'propagated' }]);
         }
       } else if (m.k === 'done') {
-        frames = [];
+        stack = null;
         ended = 'done';
       } else if (m.k === 'uncaught') {
         /* The error leaves every frame still open on its way to the top, so
          * each one propagated, innermost first. The walk may write a
          * propagate per frame or leave them to this move; the path reads the
          * same either way. */
-        const crossed = frames
-          .slice()
-          .reverse()
-          .map(f => ({ nodeId: f.nodeId, site: f.site, chain: f.chain, how: 'propagated' }));
+        const crossed = [];
+        for (let c = stack; c; c = c.below) crossed.push({ nodeId: c.frame.nodeId, site: c.frame.site, chain: c.frame.chain, how: 'propagated' });
         extendPath(crossed.concat([{ nodeId: null, how: 'reached the top uncaught', tag: m.tag, message: m.message, cause: m.cause }]));
-        frames = [];
+        stack = null;
         ended = 'uncaught';
       } else if (top) {
 
@@ -753,20 +769,18 @@ const Groundtrack = (() => {
           case 'var':
           case 'if':
           case 'goto':
-            top.pc = m.next;
+            setTop({ pc: m.next });
             break;
           case 'call': {
-            top.pc = m.next;
             /* The call's own next is the caller's continuation, set before the
              * callee is pushed. callAt is the step whose onError guards this
              * call — it is what the uncaught check reads, and the cursor is
              * already past it by now. */
-            top.callAt = m.at;
-            const key = `${top.nodeId}#${m.at}`;
-            const chain = Object.freeze(top.chain.concat([key]));
-            bump(reach(chain, siteByChain.get(top.chain), key), 'entered');
+            setTop({ pc: m.next, callAt: m.at });
+            const key = linkOf(top.nodeId, m.at);
+            stack = { frame: { nodeId: m.to, pc: 0, callAt: undefined, site: key, chain: Object.freeze(top.chain.concat([key])) }, site: reach(topSite, key), below: stack };
+            bump(stack.site, 'entered');
             count(m.to, 'entered');
-            frames.push({ nodeId: m.to, pc: 0, callAt: undefined, site: key, chain });
             if (!seen.has(m.to)) {
               seen.add(m.to);
               visited.push(m.to);
@@ -777,7 +791,7 @@ const Groundtrack = (() => {
           }
           case 'effect': {
             const outcome = m.raised !== undefined ? 'threw' : 'returned';
-            recordAt(siteByChain.get(top.chain).effects, `${top.nodeId}[${m.at}]`, outcome);
+            recordAt(topSite.effects, `${top.nodeId}[${m.at}]`, outcome);
             recordAt(nodeEffects, `${top.nodeId}[${m.at}]`, outcome);
             ledger.push({
               nodeId: top.nodeId,
@@ -792,7 +806,7 @@ const Groundtrack = (() => {
             if (m.raised !== undefined) {
               startPath([{ nodeId: top.nodeId, site: top.site, chain: top.chain, how: 'thrown', tag: m.raised.tag, message: m.raised.message, cause: m.raised.cause }]);
             } else {
-              top.pc = m.next;
+              setTop({ pc: m.next });
             }
             break;
           }
@@ -800,18 +814,16 @@ const Groundtrack = (() => {
             startPath([{ nodeId: top.nodeId, site: top.site, chain: top.chain, how: 'thrown', tag: m.tag, message: m.message, cause: m.cause }]);
             break;
           case 'catch':
-            top.pc = m.next;
+            setTop({ pc: m.next });
             extendPath([{ nodeId: top.nodeId, site: top.site, chain: top.chain, how: 'caught', goto: m.goto }]);
             break;
           case 'return': {
-            const gone = frames.pop();
-            if (gone) {
-              bump(siteByChain.get(gone.chain), 'returned');
-              count(gone.nodeId, 'returned');
-            }
-            if (frames.length) {
-              frames[frames.length - 1].callAt = undefined;
-              moved = { from: gone.nodeId, to: frames[frames.length - 1].nodeId, dir: 'return' };
+            stack = stack.below;
+            bump(topSite, 'returned');
+            count(top.nodeId, 'returned');
+            if (stack) {
+              setTop({ callAt: undefined });
+              moved = { from: top.nodeId, to: stack.frame.nodeId, dir: 'return' };
             }
             startPath([]);
             break;
@@ -1362,82 +1374,63 @@ const Groundtrack = (() => {
    * stopped, or a cycle never terminates.
    */
 
-  /** Whether the tree `treeRows` below would draw from `entry` passes two
-   *  caps, without drawing it: a cap on how many rows it would hold, and a
-   *  cap on how many calls deep the deepest one goes. Both stop counting
-   *  the instant either is passed, so this costs at most one cap's worth of
-   *  work on a file of any shape or size.
+  /** THE TREE'S ROWS, one at a time, in the order the tree draws them. The
+   *  one place that says what a row is: one row per call site reached from
+   *  `entry`, and a node already open on the path that reached it gets a
+   *  row marked `repeat` and stops there, or a cycle never ends. A repeat
+   *  never joins the path and never leaves it: the node stays on the path
+   *  until the frame that first opened it closes.
    *
-   *  Mirrors `treeRows`'s own rule for what a row is: one row per call site
-   *  reached, and a node repeating on the path that reached it stops that
-   *  branch there rather than walking it again. `treeRows` recurses over
-   *  this same call graph once per node, so the depth cap here is also a
-   *  cap on how deep it would ever recurse — which is what makes it a cap
-   *  on `treeRows`'s safety, not only on the row count. A reader that walks
-   *  nodes no entry reaches is not covered by it, and walks without
-   *  recursion instead.
+   *  Each row is `{ id, node, depth, link, site, parent, repeat }`: `link`
+   *  is the call step that reached it, `caller#step`, and `site` that step;
+   *  `parent` is the index of the row above it, in yield order. Depth is
+   *  counted in calls: the entry is 0 calls deep.
    *
-   *  An explicit stack, never the call stack: a node with no branch calling
-   *  the next one thousands deep is a graph a caller can write by hand, and
-   *  a walk that recursed one JavaScript call per node would fail before
-   *  either cap said why. `node.steps` is read defensively rather than
-   *  assumed to be an array — this walk earns its keep by running safely on
-   *  a file the rest of validation has not passed judgement on yet.
-   *
-   *  Depth is counted in calls, not nodes: the entry is 0 calls deep, and a
-   *  chain of 1,001 nodes is 1,000 calls deep. `rows` is the number of rows
-   *  counted, which is exactly `treeRows`'s length while neither cap is
-   *  passed, and stops one past `rowCap` when that cap is. */
-  function boundedGraphWalk(prog, entry, rowCap, depthCap) {
-    let rows = 0;
-    let overRows = false;
-    let overDepth = false;
-    if (!prog.nodes[entry]) return { rows, overRows, overDepth };
+   *  A generator, so a reader can stop at any row and the walk does no more
+   *  work than that. An explicit stack, never the call stack: a node with
+   *  no branch calling the next one thousands deep is a graph a caller can
+   *  write by hand. */
+  function* treeWalk(prog, entry) {
+    if (!prog.nodes[entry]) return;
     const onPath = new Set();
-    /* One stack entry per open call: the node it is at, the call targets
-     * still to walk from it, where in that list the next one starts, and
-     * whether it repeats a node already open on its path. Pushed once per
-     * node reached, exactly where the recursive version would have made a
-     * call. */
-    const stack = [{ id: entry, targets: null, next: 0, repeat: false }];
-    const targetsOf = id => {
-      const node = prog.nodes[id];
-      const steps = node && Array.isArray(node.steps) ? node.steps : [];
-      const out = [];
-      for (const s of steps) if (s && s.op === 'call' && prog.nodes[s.target]) out.push(s.target);
-      return out;
-    };
+    let rows = 0;
+    /* One entry per open call: its row, and the calls still to walk from it. */
+    const stack = [{ id: entry, link: '@entry', site: null, parent: undefined, calls: null, next: 0 }];
     while (stack.length) {
       const top = stack[stack.length - 1];
-      if (top.targets === null) {
-        /* First time this frame is on top: it is the row `treeRows` draws
-         * for this call site. */
-        rows += 1;
-        if (rows > rowCap) overRows = true;
-        if (stack.length - 1 > depthCap) overDepth = true;
-        /* A node already open on this path stops here, the way `treeRows`
-         * stops a repeat rather than walking it again. A repeat frame never
-         * joins the path and never leaves it: the frame that opened the node
-         * is still open below it, and the node stays on the path until that
-         * frame closes. */
+      if (top.calls === null) {
+        const node = prog.nodes[top.id];
         top.repeat = onPath.has(top.id);
-        if (top.repeat) top.targets = [];
-        else {
-          top.targets = targetsOf(top.id);
-          onPath.add(top.id);
-        }
+        top.row = rows++;
+        yield { id: top.id, node, depth: stack.length - 1, link: top.link, site: top.site, parent: top.parent, repeat: top.repeat };
+        top.calls = top.repeat ? [] : callSites(node).filter(s => prog.nodes[s.target]);
+        if (!top.repeat) onPath.add(top.id);
       }
-      /* Once either cap is passed, no further branch is worth walking: both
-       * numbers can only grow from here, and the file is refused either way.
-       * This unwinds the stack instead of pushing, which is at most the
-       * depth already reached — itself bounded by `depthCap` by the time
-       * `overDepth` is what tripped it. */
-      if (overRows || overDepth || top.next >= top.targets.length) {
+      if (top.next >= top.calls.length) {
         if (!top.repeat) onPath.delete(top.id);
         stack.pop();
         continue;
       }
-      stack.push({ id: top.targets[top.next++], targets: null, next: 0, repeat: false });
+      const s = top.calls[top.next++];
+      stack.push({ id: s.target, link: linkOf(top.id, s.at), site: s, parent: top.row, calls: null, next: 0 });
+    }
+  }
+
+  /** Whether the tree from `entry` passes two caps, without drawing it: how
+   *  many rows it holds, and how many calls deep its deepest row is. It
+   *  counts `treeWalk`'s rows and stops at the first row past either cap,
+   *  so it costs at most one cap's worth of work on a file of any shape or
+   *  size. `rows` is the tree's length while neither cap is passed, and
+   *  stops one past `rowCap` when that cap is. */
+  function boundedGraphWalk(prog, entry, rowCap, depthCap) {
+    let rows = 0;
+    let overRows = false;
+    let overDepth = false;
+    for (const row of treeWalk(prog, entry)) {
+      rows += 1;
+      if (rows > rowCap) overRows = true;
+      if (row.depth > depthCap) overDepth = true;
+      if (overRows || overDepth) break;
     }
     return { rows, overRows, overDepth };
   }
@@ -1452,9 +1445,9 @@ const Groundtrack = (() => {
    *  The cutaway lists one node's source and marks each call line by what the
    *  walk did with it. It asks about a node and a step index and holds no
    *  path, because a listing of one node is not a path through the graph — so
-   *  it cannot read the fold's table, which is keyed by the chain from the
-   *  entry. A step the tree draws in two places is one line of source here,
-   *  and its answer is both places together.
+   *  it sums every site in the fold's tree whose link is this step. A step
+   *  the tree draws in two places is one line of source here, and its answer
+   *  is both places together.
    *
    *  This lives in the module rather than in the template for the reason
    *  SECURITY.md gives: a function inside the page is a function no test can
@@ -1462,12 +1455,12 @@ const Groundtrack = (() => {
    *  for a walk's state are the tree's and are not invented here.
    */
   function callCounts(state, nodeId, at) {
-    const step = `${nodeId}#${at}`;
+    const step = linkOf(nodeId, at);
     const out = { entered: 0, returned: 0, open: false };
-    for (const key of Object.keys(state.sites)) {
-      if (chainLinks(key).pop() !== step) continue;
-      out.entered += state.sites[key].entered;
-      out.returned += state.sites[key].returned;
+    for (const site of state.siteTree) {
+      if (site.link !== step) continue;
+      out.entered += site.entered;
+      out.returned += site.returned;
     }
     out.open = state.frames.some(f => f.site === step);
     return out;
@@ -1513,36 +1506,16 @@ const Groundtrack = (() => {
      * the same way. */
     const kinds = failureKinds(prog);
 
-    /* THE ROWS THE TREE DRAWS, and the chain each one stands for. Walked
-     * before any mark is read, because which row a mark belongs to is a
-     * question about the whole set of rows and cannot be answered one row at
-     * a time. A repeated node is drawn once more and stopped, or a cycle never
-     * terminates — so the walk can run deeper than the rows go.
-     *
-     * A row holds no copy of its chain. It holds the rows below it, each
-     * found by the one link that leads there, so a chain is found by
-     * following its links down from the entry's row. A chain joined into
-     * one string key is as long as the tree is deep, and a table of keys
-     * that long costs far more to build and to search than its size
-     * suggests. The nodes open above a row are one set, grown on the way
-     * down and shrunk on the way back, rather than a list copied per row. */
+    /* THE ROWS THE TREE DRAWS, from `treeWalk`. All of them before any mark
+     * is read, because which row a mark belongs to is a question about the
+     * whole set of rows. A row holds no copy of its chain. It holds the rows
+     * below it, each found by the one link that leads there, so a chain is
+     * found by following its links down from the entry's row. */
     const drawn = [];
-    const onPath = new Set();
-    (function walkNode(id, link, depth, site, parent) {
-      const node = prog.nodes[id];
-      if (!node) return;
-      const repeat = onPath.has(id);
-      const at = drawn.length;
-      drawn.push({ id, node, depth, site, repeat, below: new Map(), entered: 0, returned: 0, effects: bare(), open: false, how: [] });
-      if (parent !== undefined) drawn[parent].below.set(link, at);
-      if (repeat) return;
-      onPath.add(id);
-      for (const s of callSites(node)) {
-        if (!prog.nodes[s.target]) continue;
-        walkNode(s.target, `${id}#${s.at}`, depth + 1, s, at);
-      }
-      onPath.delete(id);
-    })(prog.entry, '@entry', 0, null, undefined);
+    for (const r of treeWalk(prog, prog.entry)) {
+      drawn.push({ id: r.id, node: r.node, depth: r.depth, site: r.site, repeat: r.repeat, below: new Map(), entered: 0, returned: 0, effects: bare(), open: false, how: [] });
+      if (r.parent !== undefined) drawn[r.parent].below.set(r.link, drawn.length - 1);
+    }
 
     /* WHICH ROW SPEAKS FOR A CHAIN. Its own row where the tree draws one, and
      * otherwise the row whose chain is the longest prefix of it.
@@ -1559,26 +1532,36 @@ const Groundtrack = (() => {
      *
      * Every prefix of a drawn row's chain is a drawn row too, its ancestor,
      * so the longest prefix with a row is where following the links down
-     * from the entry's row first finds no row. */
+     * from the entry's row first finds no row. `down` takes that step, one
+     * link at a time, for a frame's chain and for a site of the fold's tree
+     * alike. A place is the row reached and the rows still below it: none,
+     * once a link has found no row. */
+    /* The rows below a place whose path has missed. An empty map and not a
+     * break, because a site steps from its parent's place one link at a
+     * time and has no loop to break out of. */
+    const NOWHERE = new Map();
+    const down = (place, link) => {
+      const row = place.below.get(link);
+      return row === undefined ? { row: place.row, below: NOWHERE } : { row, below: drawn[row].below };
+    };
+    const entryPlace = drawn.length ? { row: 0, below: drawn[0].below } : undefined;
     const speaksFor = chain => {
-      if (!drawn.length || chain[0] !== '@entry') return undefined;
-      let i = 0;
-      for (let n = 1; n < chain.length; n += 1) {
-        const below = drawn[i].below.get(chain[n]);
-        if (below === undefined) break;
-        i = below;
-      }
-      return i;
+      if (!entryPlace) return undefined;
+      let place = entryPlace;
+      for (let n = 1; n < chain.length; n += 1) place = down(place, chain[n]);
+      return place.row;
     };
 
     /* Every signal a row carries, gathered onto the row that speaks for it.
      * One pass per source, so a chain is attributed once and the four signals
      * cannot disagree about which row it belongs to. */
-    for (const key of Object.keys(end.sites)) {
-      const i = speaksFor(chainLinks(key));
-      if (i === undefined) continue;
-      drawn[i].entered += end.sites[key].entered;
-      drawn[i].returned += end.sites[key].returned;
+    const placeOf = new Map(); /* site -> its place */
+    for (const site of entryPlace ? end.siteTree : []) {
+      const place = site.parent ? down(placeOf.get(site.parent), site.link) : entryPlace;
+      placeOf.set(site, place);
+      const i = place.row;
+      drawn[i].entered += site.entered;
+      drawn[i].returned += site.returned;
       /* A FAILURE IS NEVER OVERWRITTEN BY A SUCCESS. Where several chains land
        * on one row — a recursion running below the drawn rows — two frames can
        * mark the same step with different outcomes, and the row has one mark to
@@ -1586,9 +1569,9 @@ const Groundtrack = (() => {
        * frame, which is an accident of the order the fold entered them: the row
        * would report a clean record beside its own thrown stripe and contradict
        * itself on one line. The failure is the half a reader must not lose. */
-      for (const at of Object.keys(end.sites[key].effects)) {
-        if (drawn[i].effects[at] === 'threw') continue;
-        drawn[i].effects[at] = end.sites[key].effects[at];
+      for (const step of Object.keys(site.effects)) {
+        if (drawn[i].effects[step] === 'threw') continue;
+        drawn[i].effects[step] = site.effects[step];
       }
     }
     for (const f of end.frames) {
