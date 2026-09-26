@@ -23,6 +23,6 @@ The five canonical roles, each label string equal to its name. See `docs/agents/
 
 ### Domain docs
 
-Single-context — `CONTEXT.md` and `docs/adr/` at the repo root. Neither exists yet. `/domain-modeling` writes them when a term or a decision actually lands, not before. See `docs/agents/domain.md`.
+Single-context — `CONTEXT.md` and `docs/adr/` at the repo root. `CONTEXT.md` does not exist yet; `/domain-modeling` writes it when a term actually lands, not before. `docs/adr/` holds the decisions made so far. Read the ones that touch the code you are about to change: 0003 before changing groundtrack's `fold`, 0004 before adding or changing a size limit in its renderer. See `docs/agents/domain.md`.
 
 `docs/decisions/` holds kept eagle-eye box files. A box is a working surface, so most stay in scratch and never land here.
