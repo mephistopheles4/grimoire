@@ -73,10 +73,10 @@ quadrantChart
   4 Validator confused: [0.15, 0.10]
   5 Page hangs: [0.22, 0.15]
   6 Planted standing yes: [0.20, 0.45]
-  7 Tampered restore code: [0.08, 0.22]
+  7 Tampered restore code: [0.14, 0.24]
   8 Poisoned skill update: [0.20, 0.95]
-  9 Hijacked CI action: [0.10, 0.70]
-  10 Agent leaks key: [0.28, 0.68]
+  9 Hijacked CI action: [0.12, 0.85]
+  10 Agent leaks key: [0.32, 0.64]
   11 Audit ranking skewed: [0.18, 0.30]
   12 Provider keeps text: [0.52, 0.20]
 ```
