@@ -637,6 +637,19 @@ test('a renamed token in a call step argument cuts that edge', () => {
   );
 });
 
+test('two overrides in one layer naming the same token cut a call once, not twice', () => {
+  // The rule is the argument list alone, and the overridden node's own id
+  // plays no part in it — so two different overrides in one layer that both
+  // rename the same token must not cut the same call site twice over.
+  const prog = JSON.parse(JSON.stringify(layered));
+  const call = prog.nodes.buildShelf.steps.find(s => s.op === 'call' && s.target === 'bindSheet');
+  call.args = { loader: 'THREE.TextureLoader' };
+  prog.layers.tests.nodes.bindSheet.requirements = ['THREE.TextureLoader -> fake()'];
+  prog.layers.tests.nodes.applyWoodFibre.requirements = ['THREE.TextureLoader -> fake()'];
+  const cuts = G.cutEdges(prog);
+  assert.equal(cuts.length, 1);
+});
+
 test('a token that appears in no call argument cuts nothing', () => {
   const prog = JSON.parse(JSON.stringify(layered));
   prog.layers.tests.nodes.bindSheet.requirements = ['SomethingNobodyPasses -> a double'];

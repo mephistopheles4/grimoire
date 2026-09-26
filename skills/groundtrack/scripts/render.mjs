@@ -41,55 +41,24 @@ const CHANGE = ['new', 'edit', 'delete', 'forbidden'];
  * that drifted would refuse a cause the page then printed. */
 const CAUSE = Groundtrack.KINDS;
 
-/* -- five size limits --------------------------------------------------------
+/* -- three size limits -------------------------------------------------------
  *
- * Each limit stops one measured cost driver, before the run or the walk it
- * would slow down. Every number is sized from a real measurement of this
- * renderer, never guessed, and every one leaves at least an order of
- * magnitude over the largest shipped example.
- *
- * A run's own move count bounds one cost, and a graph's tree-view row count
- * bounds another — but neither alone bounds the renderer's worst case. A
- * run that is flat but nests one call inside the next, all the way to the
- * moves limit, still costs seconds to fold. A graph whose entry reaches
- * thousands of nodes in a straight line stays under the row limit while
- * still recursing that deep to draw them. The two limits below close both
- * gaps: one bounds how deep a single run nests open calls; the other
- * bounds how deep a graph's own call structure goes, with no run read at
- * all. */
-
-/** A trace's own move count. `fold` (groundtrack.js) grows a ledger array by
- *  one on every move and copies the whole thing back out on the next, so a
- *  trace that is mostly effects in a row costs closer to the square of its
- *  move count than to the count itself. This alone is not what stops a deep
- *  trace — see MAX_NESTING_DEPTH below — but it does stop a shallow one from
- *  running long simply by having many moves. */
-const MAX_TRACE_MOVES = 2000;
-
-/** The most calls open at once during one trace — the deepest the trace
- *  ever nests, not how long it runs. `fold` clones every open call's chain
- *  on every move and keys a table by it, so a trace that nests deep costs
- *  closer to the cube of that depth than to its move count. A trace at the
- *  moves limit above but flat — one call open the whole time — costs very
- *  little; one that nests to this limit costs seconds either way. Counted
- *  by one pass over the moves, one call for `k: "call"` and back one for
- *  `k: "return"` or `k: "propagate"`. */
-const MAX_NESTING_DEPTH = 130;
-
-/** Every run's moves, summed across every graph and every run in the file.
- *  `findings()` folds every run once, so many runs that each pass the two
- *  limits above can still fold enough data between them to run the process
- *  out of memory. This is sized with room for a real change with many
- *  recorded runs, not just one. */
-const MAX_TOTAL_MOVES = 16000;
+ * Each limit is a recursion or blow-up guard: it stops a real crash or a
+ * real exponential cost, never a plain slow file. A separate cost — `fold`
+ * cloning its `sites` table on every move, which scales with a trace's
+ * moves times how deep it nests times how long its node ids are — is not
+ * capped here. Bounding it without also refusing a real complex change
+ * needs `fold` to stop cloning that table, which is its own change. */
 
 /** How deep a graph's own call structure goes, counted node to node with no
- *  trace involved at all. `treeRows` (the page's tree view and `--text`)
- *  and the finding that reads a node's reachable tags both walk this same
- *  structure by calling themselves once per node, so a graph that goes
- *  deeper than a real function call stack safely can crashes them outright
- *  rather than running slowly. A thousand calls deep is far past anything a
- *  real call graph reaches and comfortably short of that crash. */
+ *  trace read at all. `treeRows` (the page's tree view and `--text`)
+ *  recurses once per node over this same structure, so a graph that goes
+ *  deeper than a real function call stack safely can crash it outright. A
+ *  thousand calls deep is far past any real call graph. This does not cover
+ *  every recursive reader: the finding that reads a node's reachable tags
+ *  walks every node in the file, reachable from a graph's entry or not, so
+ *  a long chain of nodes no graph's entry reaches can still overflow the
+ *  stack there. That gap predates this change and is not fixed here. */
 const MAX_GRAPH_DEPTH = 1000;
 
 /** The tree view's own row count. `treeRows` draws one row per distinct
@@ -98,22 +67,12 @@ const MAX_GRAPH_DEPTH = 1000;
  *  than it has nodes. */
 const MAX_TREE_ROWS = 20000;
 
-/** The nesting depth of one trace, by one pass over its moves: how many
- *  calls are open when the trace goes deepest. Returns `cap + 1` the moment
- *  that would be exceeded, so a trace built to make this expensive cannot
- *  make counting it expensive too. */
-function nestingDepth(steps, cap) {
-  let depth = 0;
-  let deepest = 0;
-  for (const m of steps) {
-    if (!isObj(m)) continue;
-    if (m.k === 'call') depth += 1;
-    else if (m.k === 'return' || m.k === 'propagate') depth = Math.max(0, depth - 1);
-    if (depth > deepest) deepest = depth;
-    if (deepest > cap) return deepest;
-  }
-  return deepest;
-}
+/** How many characters a node id may hold. An id reaches the page as an
+ *  attribute and a JavaScript object key, and `fold`'s `sites` table keys
+ *  one entry per call chain by joining ids together — so a long id makes
+ *  every chain that carries it longer to hold and to clone. Sixty-four
+ *  characters is far past any id a real function name needs. */
+const MAX_ID_LENGTH = 64;
 
 const STEP = {
   comment: { req: ['comment'], opt: [] },
@@ -265,6 +224,12 @@ function shape(prog, r) {
 
   for (const [id, n] of Object.entries(prog.nodes)) {
     if (!Groundtrack.ID.test(id)) r.shape(`nodes.${id}`, 'a node id must be plain letters, digits and hyphens — it reaches the page as an attribute');
+    /* `fold`'s `sites` table keys one entry per call chain by joining the
+     * ids on it end to end, so a long id makes every chain that carries it
+     * longer to hold and to clone. Refused by length here, not folded into
+     * the pattern above: a name this long is refused for its length
+     * whatever characters it uses. */
+    if (id.length > MAX_ID_LENGTH) r.shape(`nodes.${id}`, `a node id is ${id.length} characters, more than the ${MAX_ID_LENGTH} groundtrack allows`);
     keys(r, `nodes.${id}`, n, NODE);
     if (!isObj(n)) continue;
     if (typeof n.role === 'string' && !n.role.trim()) r.shape(`nodes.${id}.role`, 'is blank — role is an open word, and the page prints it');
@@ -314,8 +279,6 @@ function shape(prog, r) {
   if (!Array.isArray(prog.graphs)) return r.shape('graphs', 'expected an array');
   if (!prog.graphs.length) return r.shape('graphs', 'state at least one graph — a graph is an entry point and the runs from it');
   const graphIds = new Set();
-  /* Summed across every graph and every run, below. */
-  let totalMoves = 0;
   prog.graphs.forEach((g, gi) => {
     keys(r, `graphs[${gi}]`, g, GRAPH);
     if (!isObj(g)) return;
@@ -341,7 +304,7 @@ function shape(prog, r) {
       if (walk.overDepth) {
         r.shape(
           `graphs[${gi}]`,
-          `this graph's own call structure goes more than ${MAX_GRAPH_DEPTH} calls deep from "${g.entry}", counting no trace at all. The tree view and a finding both walk this structure by calling themselves once per node, and a call graph this deep crashes them rather than running slowly. Shorten the deepest call chain, or split the change into more than one graph.`,
+          `this graph's own call structure goes more than ${MAX_GRAPH_DEPTH} calls deep from "${g.entry}", counting no trace at all. The tree view recurses once per node over this same structure, and a call graph this deep crashes it rather than running slowly. Shorten the deepest call chain, or split the change into more than one graph.`,
         );
       } else if (walk.overRows) {
         r.shape(
@@ -377,28 +340,6 @@ function shape(prog, r) {
         r.shape(`graphs[${gi}].presets[${i}].trace.provenance`, `"${p.trace.provenance}" is not authored or captured`);
       if (!Array.isArray(p.trace.steps)) return r.shape(`graphs[${gi}].presets[${i}].trace.steps`, 'expected an array');
       if (!p.trace.steps.length) r.shape(`graphs[${gi}].presets[${i}].trace.steps`, 'a trace with no moves shows nothing');
-      totalMoves += p.trace.steps.length;
-      /* `fold` grows a ledger array by one move at a time and copies the
-       * whole thing back out on the next, so a long flat trace still costs
-       * more than its move count alone would suggest. Refused here, before
-       * any walk reads the trace. */
-      if (p.trace.steps.length > MAX_TRACE_MOVES) {
-        r.shape(
-          `graphs[${gi}].presets[${i}].trace.steps`,
-          `this trace has ${p.trace.steps.length} moves, more than the ${MAX_TRACE_MOVES} groundtrack folds. Shorten the run, or split it into more than one.`,
-        );
-      }
-      /* `fold` clones every open call's chain on every move and keys a
-       * table by it, so a trace that nests deep costs far more than one
-       * that runs long but stays flat. Counted by one pass over the moves,
-       * before any of them is folded. */
-      const nesting = nestingDepth(p.trace.steps, MAX_NESTING_DEPTH);
-      if (nesting > MAX_NESTING_DEPTH) {
-        r.shape(
-          `graphs[${gi}].presets[${i}].trace.steps`,
-          `this trace nests ${nesting} calls deep, more than the ${MAX_NESTING_DEPTH} groundtrack folds. Shorten the deepest chain of calls, or split the run where it returns to the top.`,
-        );
-      }
       p.trace.steps.forEach((m, j) => {
         const w = `graphs[${gi}].presets[${i}].trace.steps[${j}]`;
         if (!isObj(m) || !MOVE[m.k]) return r.shape(w, `k "${m && m.k}" is not a move kind`);
@@ -406,13 +347,6 @@ function shape(prog, r) {
       });
     });
   });
-  /* A finding folds every run once, so many runs that each pass the two
-   * limits above can still add up to more folding than the process should
-   * do in one file. Checked once, after every run's own moves are counted,
-   * naming the file rather than one run. */
-  if (totalMoves > MAX_TOTAL_MOVES) {
-    r.shape('graphs', `this file's runs hold ${totalMoves} moves in all, more than the ${MAX_TOTAL_MOVES} groundtrack folds across one file. Record fewer runs, or shorten the ones it carries.`);
-  }
 
   if (prog.tour !== undefined) tourShape(prog, r);
 }
@@ -837,6 +771,20 @@ export function text(prog, graphIndex, runIndex) {
   L.push(`run "${run.name}" — ${run.blurb}`);
   L.push('');
 
+  /* One node can hold many rows — a node called from more than one place is
+   * drawn once per call site — so its layer text is worked out once here,
+   * by node id, rather than rescanning every layer for every row. Built in
+   * the same layer order the per-row loop used to read, so a node's lines
+   * print in that order either way. */
+  const layerLines = Groundtrack.bare();
+  for (const [ln, layer] of Object.entries(prog.layers || {})) {
+    for (const [nid, ov] of Object.entries((layer && layer.nodes) || {})) {
+      if (ov && ov.requirements && ov.requirements.length) {
+        (layerLines[nid] = layerLines[nid] || []).push(`requirements under ${ln}: ${ov.requirements.join(', ')}`);
+      }
+    }
+  }
+
   for (const row of rows) {
     const pad = '  '.repeat(row.depth);
     const arrow = row.depth ? '-> ' : '';
@@ -858,10 +806,7 @@ export function text(prog, graphIndex, runIndex) {
       if (row.site.label) L.push(`${pad}   at "${row.site.label}"`);
       if (row.site.aside) L.push(`${pad}   ${row.site.aside}`);
     }
-    for (const [ln, layer] of Object.entries(prog.layers || {})) {
-      const ov = layer.nodes && layer.nodes[row.id];
-      if (ov && ov.requirements && ov.requirements.length) L.push(`${pad}   requirements under ${ln}: ${ov.requirements.join(', ')}`);
-    }
+    for (const line of layerLines[row.id] || []) L.push(`${pad}   ${line}`);
     for (const fx of row.effects) L.push(`${pad}   · ${fx.kind}  ${fx.desc} — ${fx.mark}`);
   }
 

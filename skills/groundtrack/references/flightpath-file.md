@@ -80,18 +80,9 @@ list what enters where.
 `presets` fails with a message naming `graphs`. There is one way to say one
 thing, so nothing accepts both.
 
-**Five size limits, each one measured, not guessed.** Each stops one file
-shape that costs too much to run. Every limit refuses before the run or the
-walk it would slow down.
+**Three size limits, each one measured, not guessed.** Each guards against a
+crash or a blow-up, not against a merely large file.
 
-- **A run holds at most 2,000 moves.** A long run costs more than its move
-  count alone suggests. Split a long run, or shorten it.
-- **A run nests at most 130 calls deep.** A run can hold few moves and still
-  nest deep. Deep nesting costs far more than a flat run of the same length.
-  Shorten the deepest chain of calls, or split the run where it returns to
-  the top.
-- **A file's runs hold at most 16,000 moves in all.** Many small runs still
-  add up. Record fewer runs, or shorten the ones the file carries.
 - **A graph's call structure goes at most 1,000 calls deep.** This counts
   calls between nodes, with no run read at all. A deeper graph can crash the
   tree view rather than run slowly. Shorten the deepest chain of calls, or
@@ -100,8 +91,9 @@ walk it would slow down.
   row per path from the entry, not one row per node. A graph that calls the
   same nodes from more than one place draws far more rows than it has nodes.
   Flatten the call graph, or split the change into more than one graph.
-  Flatten the call graph, or split the change into more than one graph, to
-  fall under it.
+- **A node id holds at most 64 characters.** A long id costs more to carry
+  and to compare wherever the renderer tracks a path through the graph.
+  Shorten the id.
 
 ## Top level
 

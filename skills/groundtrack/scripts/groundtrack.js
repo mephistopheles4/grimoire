@@ -1122,32 +1122,33 @@ const Groundtrack = (() => {
    * stopped, or a cycle never terminates.
    */
 
-  /** Two numbers about the tree `treeRows` below would draw from `entry`,
-   *  without drawing it: how many rows, and how many calls deep the deepest
-   *  one goes. Both stop growing the instant they pass their own cap, so
-   *  this costs at most one cap's worth of work on a file of any shape or
-   *  size.
+  /** Whether the tree `treeRows` below would draw from `entry` passes two
+   *  caps, without drawing it: a cap on how many rows it would hold, and a
+   *  cap on how many calls deep the deepest one goes. Both stop counting
+   *  the instant either is passed, so this costs at most one cap's worth of
+   *  work on a file of any shape or size.
    *
    *  Mirrors `treeRows`'s own rule for what a row is: one row per call site
    *  reached, and a node repeating on the path that reached it stops that
-   *  branch there rather than walking it again. `treeRows` and the finding
-   *  that reads a node's reachable tags both recurse over this same call
-   *  graph, so the depth this returns is also the deepest either of them
-   *  would ever recurse — which is what makes a cap on it a cap on their
-   *  safety, not only on the row count.
+   *  branch there rather than walking it again. `treeRows` recurses over
+   *  this same call graph once per node, so the depth cap here is also a
+   *  cap on how deep it would ever recurse — which is what makes it a cap
+   *  on `treeRows`'s safety, not only on the row count. It is not a cap on
+   *  every reader of this call graph: the finding that reads a node's
+   *  reachable tags walks every node in the file, not only what a graph's
+   *  entry reaches, so it is not made safe by this.
    *
    *  An explicit stack, never the call stack: a node with no branch calling
    *  the next one thousands deep is a graph a caller can write by hand, and
    *  a walk that recursed one JavaScript call per node would fail before
-   *  either number said why. `node.steps` is read defensively rather than
+   *  either cap said why. `node.steps` is read defensively rather than
    *  assumed to be an array — this walk earns its keep by running safely on
    *  a file the rest of validation has not passed judgement on yet. */
   function boundedGraphWalk(prog, entry, rowCap, depthCap) {
     let rows = 0;
-    let maxDepth = 0;
     let overRows = false;
     let overDepth = false;
-    if (!prog.nodes[entry]) return { rows, maxDepth, overRows, overDepth };
+    if (!prog.nodes[entry]) return { overRows, overDepth };
     const onPath = new Set();
     /* One stack entry per open call: the node it is at, the call targets
      * still to walk from it, and where in that list the next one starts.
@@ -1168,7 +1169,6 @@ const Groundtrack = (() => {
          * for this call site. */
         rows += 1;
         if (rows > rowCap) overRows = true;
-        if (stack.length > maxDepth) maxDepth = stack.length;
         if (stack.length > depthCap) overDepth = true;
         /* A node already open on this path stops here, the way `treeRows`
          * stops a repeat rather than walking it again. */
@@ -1187,7 +1187,7 @@ const Groundtrack = (() => {
       }
       stack.push({ id: top.targets[top.next++], targets: null, next: 0 });
     }
-    return { rows, maxDepth, overRows, overDepth };
+    return { overRows, overDepth };
   }
 
   /** Three of the four words the fold writes on the error path, each its own

@@ -454,13 +454,14 @@ test('an absent optional field is not refused, and the empty one is', () => {
   assert.equal(check(derive(p => { p.files = []; })).code, 1);
 });
 
-/* -- four size limits ------------------------------------------------------
+/* -- three size limits ------------------------------------------------------
  *
- * A crafted flightpath file can make the renderer or the page run for a
- * long time. Each limit below is refused in `shape()`, before any expensive
- * walk runs, so a test on each side proves the boundary itself — not just
- * that a huge file is eventually refused. Every boundary is the exact count
- * named in the refusal, never a stand-in for it. */
+ * A crafted flightpath file can make the renderer or the page crash, or
+ * make its tree view draw an unreasonable number of rows. Each limit below
+ * is refused in `shape()`, before any expensive walk runs, so a test on
+ * each side proves the boundary itself — not just that a huge file is
+ * eventually refused. Every boundary is the exact count named in the
+ * refusal, never a stand-in for it. */
 
 const node = (id, overrides) => ({
   name: id, role: 'pure', loc: 'src/g.ts:1', params: [],
@@ -469,91 +470,24 @@ const node = (id, overrides) => ({
   ...overrides,
 });
 
-/** A trace of exactly `moves` effect steps in one node, looping on itself
- *  and then returning. Flat on purpose: this is the moves limit alone,
- *  never nesting a call, so it cannot also trip the nesting limit. */
-function withTraceLength(prog, moves) {
-  delete prog.layers;
-  prog.nodes = { entry: node('entry', { role: 'impure', steps: [{ op: 'effect', kind: 'read', desc: 'loop body' }, { op: 'return', expr: 'null' }] }) };
-  const body = moves - 1; // one of the moves is the closing return
-  const steps = [];
-  for (let i = 0; i < body; i++) steps.push({ k: 'effect', at: 0, kind: 'read', desc: 'loop body', next: i === body - 1 ? 1 : 0 });
-  steps.push({ k: 'return', at: 1 });
-  only(prog).entry = 'entry';
-  only(prog).presets = [{ name: 'loop', blurb: 'a trace with many moves', input: {}, trace: { provenance: 'authored', steps } }];
-  return prog;
-}
-
-test('a trace of 2,000 moves validates, and 2,001 is refused by the limit', () => {
-  const atLimit = check(derive(p => withTraceLength(p, 2000)));
+test('a 64-character node id validates, and 65 is refused by the limit', () => {
+  const atLimit = check(derive(p => {
+    delete p.layers;
+    const id = 'n'.repeat(64);
+    p.nodes = { [id]: node(id, { steps: [{ op: 'return', expr: 'null' }] }) };
+    only(p).entry = id;
+    only(p).presets = [{ name: 'run', blurb: 'run', input: {}, trace: { provenance: 'authored', steps: [{ k: 'return', at: 0 }] } }];
+  }));
   assert.equal(atLimit.code, 0, atLimit.stderr);
-  const overLimit = check(derive(p => withTraceLength(p, 2001)));
+  const overLimit = check(derive(p => {
+    delete p.layers;
+    const id = 'n'.repeat(65);
+    p.nodes = { [id]: node(id, { steps: [{ op: 'return', expr: 'null' }] }) };
+    only(p).entry = id;
+    only(p).presets = [{ name: 'run', blurb: 'run', input: {}, trace: { provenance: 'authored', steps: [{ k: 'return', at: 0 }] } }];
+  }));
   assert.equal(overLimit.code, 1);
-  assert.match(overLimit.stderr, /this trace has 2001 moves, more than the 2000 groundtrack folds/);
-});
-
-/** One self-recursive node, a trace that nests exactly `depth` calls deep
- *  and then unwinds — flat in move count relative to its depth, so this is
- *  the nesting limit alone. */
-function withNestingDepth(prog, depth) {
-  delete prog.layers;
-  prog.nodes = { rec: node('rec', { steps: [{ op: 'if', cond: 'more', then: 'again', else: 'base' }, { op: 'call', target: 'rec', label: 'again' }, { op: 'return', expr: 'x', label: 'base' }] }) };
-  const steps = [];
-  for (let i = 0; i < depth; i++) {
-    steps.push({ k: 'if', at: 0, next: 1 });
-    steps.push({ k: 'call', at: 1, to: 'rec', next: 2 });
-  }
-  steps.push({ k: 'if', at: 0, next: 2 });
-  steps.push({ k: 'return', at: 2 });
-  for (let i = 0; i < depth; i++) steps.push({ k: 'return', at: 2 });
-  only(prog).entry = 'rec';
-  only(prog).presets = [{ name: 'deep', blurb: 'a trace that nests many calls deep', input: {}, trace: { provenance: 'authored', steps } }];
-  return prog;
-}
-
-test('a trace nesting 130 calls deep validates, and 131 is refused by the limit', () => {
-  const atLimit = check(derive(p => withNestingDepth(p, 130)));
-  assert.equal(atLimit.code, 0, atLimit.stderr);
-  const overLimit = check(derive(p => withNestingDepth(p, 131)));
-  assert.equal(overLimit.code, 1);
-  assert.match(overLimit.stderr, /this trace nests 131 calls deep, more than the 130 groundtrack folds/);
-});
-
-/** `runsOfDepth` runs of `depth` nested calls each, in one graph, each also
- *  named in the tour so the same file exercises the total-moves limit and a
- *  multi-stop tour together. Every run is well under the nesting and moves
- *  limits on its own, so only their sum can trip the limit under test. */
-function withTotalMoves(prog, runsOfDepth, depth) {
-  delete prog.layers;
-  prog.nodes = { rec: node('rec', { steps: [{ op: 'if', cond: 'more', then: 'again', else: 'base' }, { op: 'call', target: 'rec', label: 'again' }, { op: 'return', expr: 'x', label: 'base' }] }) };
-  const oneRun = [];
-  for (let i = 0; i < depth; i++) {
-    oneRun.push({ k: 'if', at: 0, next: 1 });
-    oneRun.push({ k: 'call', at: 1, to: 'rec', next: 2 });
-  }
-  oneRun.push({ k: 'if', at: 0, next: 2 });
-  oneRun.push({ k: 'return', at: 2 });
-  for (let i = 0; i < depth; i++) oneRun.push({ k: 'return', at: 2 });
-  const presets = [];
-  const tour = [];
-  for (let i = 0; i < runsOfDepth; i++) {
-    presets.push({ name: `run${i}`, blurb: 'one of many runs', input: {}, trace: { provenance: 'authored', steps: oneRun } });
-    tour.push({ region: 'controls', run: `run${i}`, move: 1, now: `stop ${i}` });
-  }
-  only(prog).entry = 'rec';
-  only(prog).presets = presets;
-  prog.tour = tour;
-  return prog;
-}
-
-test('16,000 moves across every run validates, and 16,032 is refused by the limit', () => {
-  // Each run nests 10 calls deep (32 moves) — far under the nesting limit —
-  // so only the sum across every run can be why either file is judged.
-  const atLimit = check(derive(p => withTotalMoves(p, 500, 10))); // 500 * 32 = 16,000
-  assert.equal(atLimit.code, 0, atLimit.stderr);
-  const overLimit = check(derive(p => withTotalMoves(p, 501, 10))); // 501 * 32 = 16,032
-  assert.equal(overLimit.code, 1);
-  assert.match(overLimit.stderr, /this file's runs hold 16032 moves in all, more than the 16000 groundtrack folds/);
+  assert.match(overLimit.stderr, /a node id is 65 characters, more than the 64 groundtrack allows/);
 });
 
 /** A linear chain of `depth` nodes, n0 through n(depth-1), each calling the
