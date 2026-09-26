@@ -173,6 +173,18 @@ body { height: 100vh; box-sizing: border-box; padding: var(--av-s1);
 /* A blurb is a sentence, so the cap is generous — 34rem clipped the shipped
    examples on a wide screen. Narrow screens still ellipsis it, by flex shrink. */
 .head-blurb { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 52rem; }
+/* The claim line. Its own row rather than a third line in the lockup, because
+   the lockup mark is sized to exactly two (see the note above .head-text) and
+   this line says the same thing regardless of which sheet or run is on. Muted
+   to the micro size the rest of the chrome's captions read at, so it does not
+   compete with the title. */
+.head-claim-row { min-width: 0; }
+.head-claim { font-size: var(--av-t-micro); color: var(--av-ink-70); }
+/* The claim line. Muted below the blurb, the same micro size the rest of the
+   chrome reads at, so it reads as a caption on the lockup and not a second
+   headline competing with it. */
+.head-claim { font-size: var(--av-t-micro); color: var(--av-ink-70); white-space: nowrap;
+  overflow: hidden; text-overflow: ellipsis; max-width: 52rem; }
 select, button, input { font: inherit; font-size: var(--av-t-micro); color: var(--av-ink);
   background: var(--av-paper); border: var(--av-rule-hair) solid var(--av-ink-30); border-radius: 0;
   padding: 4px var(--av-s2); }
@@ -702,6 +714,13 @@ button[data-help][aria-disabled=true] { cursor: help; }
     </button>
     </div>
    </div>
+   <!-- The claim, stated once, on the row every reader sees before they open a
+        tab or a pane. Static text: it says the same thing whichever sheet or
+        run is on, so it is not part of the lockup (which the mark's height is
+        sized to, two rows exactly — see .head-mark above) and not a third
+        head-row (the pickers and step controls are the only things counted as
+        one). -->
+   <div class="head-claim-row"><span class="av-annot head-claim">A claim to check against the diff, not a verdict.</span></div>
    <!-- Everything that drives the run, under the lockup and in the order a
         reader chooses it: the sheet, then the run on it, then the controls
         that step that run. The sheet reads first because it changes slower
