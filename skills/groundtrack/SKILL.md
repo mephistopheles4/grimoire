@@ -119,7 +119,8 @@ logs it. The debugging session drops where the data was worth having. The
    [`references/flightpath-file.md`](references/flightpath-file.md). Validate
    again.
 
-8. **Render the page**, and say where it is.
+8. **Render the page**, and say where it is. Tell the reader that AI drew it,
+   that it can be wrong, and to check it against the change.
 
 9. **State the limit.** The validator proves the trace is a legal path. It
    cannot prove which branch an `if` took or what an effect returned. Those
