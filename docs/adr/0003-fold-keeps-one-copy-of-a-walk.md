@@ -70,9 +70,11 @@ Node built-ins only, and the page is one self-contained file.
 ## Consequences
 
 `fold` is harder to read than a loop that copies. The rules above and the
-tests that guard them are what make it safe to change. A state read again
-after another state was read returns a fresh object, and a write into a view
-lasts only until the next read of another state; no reader relies on either.
+tests that guard them are what make it safe to change. `fold` keeps only the
+last view it built for each field, so reading another state replaces it, and
+a state read again after that returns a fresh object. A caller that kept the
+earlier view still holds it, writes and all, but the state's next read does
+not see those writes. No reader relies on either.
 
 `fold` still copies the list of open frames on each move. #147 would share it,
 and would let the tree view read `fold`'s call sites directly.
