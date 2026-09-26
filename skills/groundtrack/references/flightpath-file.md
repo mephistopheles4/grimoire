@@ -91,7 +91,7 @@ crash or a blow-up, not against a merely large file.
   row per path from the entry, not one row per node. A graph that calls the
   same nodes from more than one place draws far more rows than it has nodes.
   Flatten the call graph, or split the change into more than one graph.
-- **A node id holds at most 64 characters.** A long id costs more to carry
+- **A node id holds at most 128 characters.** A long id costs more to carry
   and to compare wherever the renderer tracks a path through the graph.
   Shorten the id.
 

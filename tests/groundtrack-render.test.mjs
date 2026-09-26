@@ -470,10 +470,10 @@ const node = (id, overrides) => ({
   ...overrides,
 });
 
-test('a 64-character node id validates, and 65 is refused by the limit', () => {
+test('a 128-character node id validates, and 129 is refused by the limit', () => {
   const atLimit = check(derive(p => {
     delete p.layers;
-    const id = 'n'.repeat(64);
+    const id = 'n'.repeat(128);
     p.nodes = { [id]: node(id, { steps: [{ op: 'return', expr: 'null' }] }) };
     only(p).entry = id;
     only(p).presets = [{ name: 'run', blurb: 'run', input: {}, trace: { provenance: 'authored', steps: [{ k: 'return', at: 0 }] } }];
@@ -481,13 +481,13 @@ test('a 64-character node id validates, and 65 is refused by the limit', () => {
   assert.equal(atLimit.code, 0, atLimit.stderr);
   const overLimit = check(derive(p => {
     delete p.layers;
-    const id = 'n'.repeat(65);
+    const id = 'n'.repeat(129);
     p.nodes = { [id]: node(id, { steps: [{ op: 'return', expr: 'null' }] }) };
     only(p).entry = id;
     only(p).presets = [{ name: 'run', blurb: 'run', input: {}, trace: { provenance: 'authored', steps: [{ k: 'return', at: 0 }] } }];
   }));
   assert.equal(overLimit.code, 1);
-  assert.match(overLimit.stderr, /a node id is 65 characters, more than the 64 groundtrack allows/);
+  assert.match(overLimit.stderr, /a node id is 129 characters, more than the 128 groundtrack allows/);
 });
 
 /** A linear chain of `depth` nodes, n0 through n(depth-1), each calling the
@@ -991,6 +991,52 @@ test('the text names the contract in words, not letters', () => {
   assert.match(r.stdout, /success a greeting line {3}error NoSuchUser fail · SendFailed fail {3}requirements the name store/);
   assert.doesNotMatch(r.stdout, /(^| {3})[AER] /m);
   assert.match(r.stdout, /requirements under tests: /);
+});
+
+test('a layer note prints once for a node the tree draws in more than one row', () => {
+  // The tree draws one row per call site, so a node called from two places
+  // is two rows — but its layer requirements are a fact about the node, the
+  // same at both. A node reached from thousands of call sites, each
+  // repeating the same note, is what turned a normal-sized note into text
+  // too large for one string to hold. One node, two call sites, is enough
+  // to prove the fix prints the note once rather than once per row.
+  const file = derive(prog => {
+    prog.nodes = {
+      caller: {
+        name: 'caller', role: 'pure', loc: 'src/caller.ts:1', params: [],
+        channels: { success: 'void', error: [], requirements: [] }, touches: [], enteredBy: [],
+        steps: [
+          { op: 'call', target: 'leaf', aside: 'first site' },
+          { op: 'call', target: 'leaf', aside: 'second site' },
+          { op: 'return', expr: 'null' },
+        ],
+      },
+      leaf: {
+        name: 'leaf', role: 'pure', loc: 'src/leaf.ts:1', params: [],
+        channels: { success: 'void', error: [], requirements: ['a token'] }, touches: [], enteredBy: [],
+        steps: [{ op: 'return', expr: 'null' }],
+      },
+    };
+    prog.layers = { tests: { nodes: { leaf: { requirements: ['a token -> renamed'] } } } };
+    only(prog).entry = 'caller';
+    only(prog).presets = [{
+      name: 'twice', blurb: 'calls leaf from two sites', input: {},
+      trace: {
+        provenance: 'authored',
+        steps: [
+          { k: 'call', at: 0, to: 'leaf', next: 1 }, { k: 'return', at: 0 },
+          { k: 'call', at: 1, to: 'leaf', next: 2 }, { k: 'return', at: 0 },
+          { k: 'return', at: 2 },
+        ],
+      },
+    }];
+  });
+  const r = check(file);
+  assert.equal(r.code, 0, r.stderr);
+  const text = run(groundtrack, [file, '--text']);
+  assert.equal(text.code, 0, text.stderr);
+  const matches = text.stdout.match(/requirements under tests: /g) || [];
+  assert.equal(matches.length, 1, `expected the note once, found ${matches.length}`);
 });
 
 /* -- the page as a string ------------------------------------------------- */

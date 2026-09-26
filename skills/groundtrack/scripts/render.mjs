@@ -44,11 +44,7 @@ const CAUSE = Groundtrack.KINDS;
 /* -- three size limits -------------------------------------------------------
  *
  * Each limit is a recursion or blow-up guard: it stops a real crash or a
- * real exponential cost, never a plain slow file. A separate cost — `fold`
- * cloning its `sites` table on every move, which scales with a trace's
- * moves times how deep it nests times how long its node ids are — is not
- * capped here. Bounding it without also refusing a real complex change
- * needs `fold` to stop cloning that table, which is its own change. */
+ * real exponential cost, never a plain slow file. */
 
 /** How deep a graph's own call structure goes, counted node to node with no
  *  trace read at all. `treeRows` (the page's tree view and `--text`)
@@ -68,11 +64,14 @@ const MAX_GRAPH_DEPTH = 1000;
 const MAX_TREE_ROWS = 20000;
 
 /** How many characters a node id may hold. An id reaches the page as an
- *  attribute and a JavaScript object key, and `fold`'s `sites` table keys
- *  one entry per call chain by joining ids together — so a long id makes
- *  every chain that carries it longer to hold and to clone. Sixty-four
- *  characters is far past any id a real function name needs. */
-const MAX_ID_LENGTH = 64;
+ *  attribute and a JavaScript object key, and `treeRows` builds one chain
+ *  key per row by joining the ids on it together — so a long id makes every
+ *  chain that carries it longer to build and to compare. Measured at three
+ *  lengths against the worst file that passes the other two limits here,
+ *  128 characters cost no more than 64 does; the limit is set there rather
+ *  than lower, because a real descriptive id already reaches into the
+ *  twenties and 64 would leave it comparatively little room to grow. */
+const MAX_ID_LENGTH = 128;
 
 const STEP = {
   comment: { req: ['comment'], opt: [] },
@@ -784,6 +783,7 @@ export function text(prog, graphIndex, runIndex) {
       }
     }
   }
+  const layerPrinted = new Set();
 
   for (const row of rows) {
     const pad = '  '.repeat(row.depth);
@@ -806,7 +806,17 @@ export function text(prog, graphIndex, runIndex) {
       if (row.site.label) L.push(`${pad}   at "${row.site.label}"`);
       if (row.site.aside) L.push(`${pad}   ${row.site.aside}`);
     }
-    for (const line of layerLines[row.id] || []) L.push(`${pad}   ${line}`);
+    /* Printed once per node, at the first row that draws it, never once per
+     * row: a layer's requirements are a fact about the node, unchanged by
+     * which call site reached it, and a node with many call sites — the
+     * tree draws one row per site, not per node — would otherwise repeat
+     * the same line once per site. On a node reached from thousands of
+     * sites that repetition is what turned a normal-sized note into output
+     * too large for one string to hold. */
+    if (!layerPrinted.has(row.id)) {
+      for (const line of layerLines[row.id] || []) L.push(`${pad}   ${line}`);
+      layerPrinted.add(row.id);
+    }
     for (const fx of row.effects) L.push(`${pad}   · ${fx.kind}  ${fx.desc} — ${fx.mark}`);
   }
 
