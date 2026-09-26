@@ -1061,20 +1061,15 @@ test('the shipped pull-request example draws one sheet control per graph', () =>
   }
 });
 
-test('the claim line sits in the head, before the sheet and run pickers, and appears nowhere else', () => {
-  // Gap 3 of the threat model: a reader is told the page is a claim to check,
-  // not a verdict, on the row every reader sees before opening a tab or a
-  // pane. Checked on the shipped two-graph example, so the sheet picker is
-  // there to be read against too.
+test('the authored stamp says an AI drew the page and to check it against the change', () => {
+  // Gap 3 of the threat model: the reader is told the page can be wrong. The
+  // stamp in the title block already says the trace was written, not
+  // recorded, so the warning is its help note rather than a second line.
   const html = pageOf(layeredFlightpath);
-  const head = headOf(html);
-  const claim = 'A claim to check against its source, not a verdict.';
-  assert.ok(head.includes(claim), 'the claim reads in the head');
-  assert.ok(head.indexOf(claim) < head.indexOf('id="sheet"'), 'before the sheet picker');
-  assert.ok(head.indexOf(claim) < head.indexOf('id="run"'), 'before the run picker');
-  // Not repeated in a tab or a pane — the cutaway's tabs, the rail, and the
-  // footer title block are all outside the head this slices out.
-  assert.equal(html.split(claim).length - 1, 1, 'the claim prints once, not per pane');
+  const warning = 'Drawn by AI, which can make mistakes. Check it against the change.';
+  assert.ok(html.includes(`authored: '${warning}'`), 'the authored help note carries the warning');
+  assert.ok(html.includes('(authored ? HELP.authored : HELP.captured)'), 'the stamp reads its help from that note');
+  assert.equal(html.split(warning).length - 1, 1, 'the warning is stated once');
 });
 
 test('the sheet picker sits in the head, left of the run picker', () => {

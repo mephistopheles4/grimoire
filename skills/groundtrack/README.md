@@ -75,9 +75,9 @@ A change with several graphs is one page with several sheets. On the page you
 can:
 
 - **Pick a sheet**, when the file states more than one graph. The sheet picker,
-  the run picker and the step controls sit in the head, under the title and the
-  claim line. A sheet draws what its entry reaches, and keeps its own run,
-  cursor, layer, view and open node.
+  the run picker and the step controls share the head's second row, under the
+  title. A sheet draws what its entry reaches, and keeps its own run, cursor,
+  layer, view and open node.
 - Step forward and back, play the run, and hold it on the next effect or the
   next error.
 - Read the call stack, the arguments, the error path, and the effects ledger.
