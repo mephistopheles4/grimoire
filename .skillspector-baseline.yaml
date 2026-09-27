@@ -30,9 +30,8 @@
 # baseline the author shipped — applied only if they pass
 # `--use-shipped-baseline`. Read it with `--show-suppressed`.
 #
-# The two skill directories each repeat the rules that fire inside them,
-# because a baseline is only found at the top of the directory actually
-# scanned. `node scripts/check.mjs` fails if a repeated entry disagrees with
+# Each skill directory repeats the rules that fire inside it, because a
+# baseline is only found at the top of the directory actually scanned. `node scripts/check.mjs` fails if a repeated entry disagrees with
 # this one.
 
 version: 2
@@ -44,7 +43,7 @@ rules:
   - rule_id: "AS3"
     reason: "False positive. A README line naming the one skill this repository ships, and the decision records quoting that line. Naming your own product is not enumerating somebody else's."
   - rule_id: "EA2"
-    reason: "False positive. The why text on an edge in the example box file. It is content the renderer prints for a reader, not an instruction the agent acts on alone."
+    reason: "False positive. Two texts that describe what an agent may do on its own and give no such instruction: the why text on an edge in an example box file, which a renderer prints for a reader, and a code comment in a format check explaining why an unlisted frontmatter key fails. Neither is an instruction an agent acts on."
   - rule_id: "EA3"
     reason: "False positive. The phrase NOT LIMITED TO, in the warranty disclaimer of the SIL Open Font Licence that ships beside the vendored font faces. It is a legal text the licence requires us to carry verbatim, not an instruction an agent obeys, and its wording is not ours to change."
   - rule_id: "MP3"
