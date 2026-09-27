@@ -7,17 +7,11 @@
 <p align="center"><strong>A spellbook of agent skills for AI. Cast wisely.</strong></p>
 
 <p align="center">
-  <a href="skills/eagle-eye"><img src="docs/brand/eagle-eye/eagle-eye-mark.svg" width="56" alt="eagle-eye"></a>
-  &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
-  <a href="skills/groundtrack"><img src="docs/brand/groundtrack/groundtrack-mark.svg" width="56" alt="groundtrack"></a>
-  &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
-  <a href="skills/contract"><img src="docs/brand/contract/contract-mark.svg" width="56" alt="contract"></a>
-  <br>
-  <a href="skills/eagle-eye"><code>eagle-eye</code></a>
+  <a href="skills/eagle-eye"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/brand/eagle-eye/eagle-eye-sigil-dark.svg"><img src="docs/brand/eagle-eye/eagle-eye-sigil-light.svg" width="112" alt="eagle-eye"></picture></a>
   &nbsp;&nbsp;&nbsp;&nbsp;
-  <a href="skills/groundtrack"><code>groundtrack</code></a>
+  <a href="skills/contract"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/brand/contract/contract-sigil-dark.svg"><img src="docs/brand/contract/contract-sigil-light.svg" width="112" alt="contract"></picture></a>
   &nbsp;&nbsp;&nbsp;&nbsp;
-  <a href="skills/contract"><code>contract</code></a>
+  <a href="skills/groundtrack"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/brand/groundtrack/groundtrack-sigil-dark.svg"><img src="docs/brand/groundtrack/groundtrack-sigil-light.svg" width="112" alt="groundtrack"></picture></a>
 </p>
 
 ---

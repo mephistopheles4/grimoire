@@ -54,7 +54,9 @@ chrome, so no mark has a paper-ground variant.
 | `favicon.svg` | 16px. Heavier strokes again, and the figure reduced to what survives there. |
 
 `grimoire-mark-bare.svg` is the chevron on no ground, for a known paper ground
-only.
+only. The three skill directories also hold a generated
+`<name>-sigil-light.svg` and `<name>-sigil-dark.svg`, the mark with its name
+under it; see [the sigils](#the-sigils).
 
 **The geometry is final.** Every coordinate sits on a construction line, and a
 nudged endpoint shows as a drafting error at large sizes. Do not redraw or tidy
@@ -75,8 +77,37 @@ They are generated, not drawn by hand:
 node docs/brand/cards.mjs
 ```
 
-The script reads the marks beside it and writes the four cards beside it.
-Change a tagline there, not in the SVG.
+The script reads the marks beside it and writes the four cards beside it, and
+the six sigils below. Change a tagline there, not in the SVG.
+
+## The sigils
+
+`<name>/<name>-sigil-light.svg` and `<name>/<name>-sigil-dark.svg`, for
+eagle-eye, contract and groundtrack, are the skill row at the top of the root
+README. Each one is the skill's large mark, on its own ink tile, with the
+skill's name set under it in the wordmark's semibold face. The canvas around
+the tile is transparent, so the name sits on the page itself. The light
+variant sets the name in ink for GitHub's light theme; the dark variant sets
+it in paper for the dark theme. The amber stays in the mark.
+
+The README wraps each pair in a `<picture>`: a `<source>` with
+`media="(prefers-color-scheme: dark)"` names the dark variant, and the `<img>`
+inside names the light one. GitHub documents this as the way to serve an image
+per theme.
+
+The name is part of the image because a caption beside an image drifts. HTML
+on GitHub keeps no styles, so a row of marks and a row of names each centre
+as a whole line, and the name under a mark lands wherever the line puts it.
+Inside the image the name is anchored on the mark's centre line, so it is
+centred by construction.
+
+All six share one canvas, 192 by 160, with the mark's 24-unit box at 96 and
+the name at 22. The README shows them at width 112, which puts the mark at
+56px, the size its amber needs to read. Like the cards, a sigil inlines its
+face and fetches nothing.
+
+`cards.mjs` writes them. Do not edit a sigil by hand; change the script and
+run it again.
 
 ## The groundtrack sheets
 
