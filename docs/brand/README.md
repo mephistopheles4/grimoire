@@ -1,6 +1,6 @@
 # Brand marks
 
-Three marks, one for the repository and one for each skill. Every mark is one
+Four marks, one for the repository and one for each skill. Every mark is one
 24-unit SVG box drawn in the drafting language the pages use: paper, ink, and
 amber for the one thing that asks to be looked at.
 
@@ -9,11 +9,13 @@ amber for the one thing that asks to be looked at.
 | grimoire | the repository | [`grimoire/`](grimoire) |
 | eagle-eye | `skills/eagle-eye/` | [`eagle-eye/`](eagle-eye) |
 | groundtrack | `skills/groundtrack/` | [`groundtrack/`](groundtrack) |
+| contract | `skills/contract/` | [`contract/`](contract) |
 
 <p>
   <img src="grimoire/grimoire-mark.svg" width="96" alt="grimoire mark">
   <img src="eagle-eye/eagle-eye-mark.svg" width="96" alt="eagle-eye mark">
   <img src="groundtrack/groundtrack-mark.svg" width="96" alt="groundtrack mark">
+  <img src="contract/contract-mark.svg" width="96" alt="contract mark">
 </p>
 
 ## The marks
@@ -32,6 +34,12 @@ amber: the finding pulled out of the assembly for inspection.
 sleepers rotate from horizontal at the entry to vertical at the exit, so the
 bottom reads as a stack of bars and the top has become a track. A short straight
 run continues past the turn, and the amber sleeper at its head is the cursor.
+
+**contract.** A sheet of terms, three clause rules with the last one short, and
+a wax seal pressed across the sheet's right edge. The sheet cannot be opened
+without breaking the seal, which is what the check reports when a sealed file
+is edited by hand. The seal is the amber; a hairline ring inside it reads as
+pressed wax at large sizes and is dropped in the small variants.
 
 ## Which file to use
 
@@ -56,8 +64,8 @@ intact.
 
 ## The cards
 
-`grimoire-card.svg`, `eagle-eye-card.svg` and `groundtrack-card.svg` are the
-1280 by 640 social cards. Each one is self-contained: the two faces it sets
+`grimoire-card.svg`, `eagle-eye-card.svg`, `groundtrack-card.svg` and
+`contract-card.svg` are the 1280 by 640 social cards. Each one is self-contained: the two faces it sets
 type in are inlined from the copies groundtrack ships, so a card renders the
 same in a README, in a browser and in a link preview, and fetches nothing.
 
@@ -67,7 +75,7 @@ They are generated, not drawn by hand:
 node docs/brand/cards.mjs
 ```
 
-The script reads the marks beside it and writes the three cards beside it.
+The script reads the marks beside it and writes the four cards beside it.
 Change a tagline there, not in the SVG.
 
 ## The groundtrack sheets
@@ -101,7 +109,7 @@ node scripts/eagle-eye-sheets.mjs skills/eagle-eye/examples/eagle-eye-skill.box.
 | paper | `#FAFAF7` | ground |
 | ink | `#22262B` | every line and mass |
 | caution | `#B45309` | attention required, and nothing else |
-| normal | `#15803D` | nominal state, and nothing else; unused in the three marks |
+| normal | `#15803D` | nominal state, and nothing else; unused in the four marks |
 | neutrals | ink at 80 / 70 / 55 / 30 / 12 / 5% alpha | never a sampled grey; text never below 70 |
 
 Line weights are the depth system: 0.22 hairline, 0.9 to 1.05 thin, 1.4 to
@@ -109,7 +117,7 @@ Line weights are the depth system: 0.22 hairline, 0.9 to 1.05 thin, 1.4 to
 vanishes.
 
 **Amber is spent once per mark.** In eagle-eye it is the detached apex; in
-groundtrack it is the cursor sleeper. A second amber element would mean
+groundtrack it is the cursor sleeper; in contract it is the seal. A second amber element would mean
 neither.
 
 Corner radius is zero everywhere. No gradients, no shadows, no blur.

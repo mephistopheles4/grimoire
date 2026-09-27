@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// The three social cards, 1280 by 640, written as self-contained SVG.
+// The four social cards, 1280 by 640, written as self-contained SVG.
 //
 //   node docs/brand/cards.mjs
 //
@@ -58,6 +58,12 @@ const CARDS = [
     title: 'Groundtrack',
     tagline: ['A plan or a change, as a call', 'graph you can step through.'],
     footer: 'grimoire · skills/groundtrack',
+  },
+  {
+    name: 'contract',
+    title: 'Contract',
+    tagline: ['Agree the terms,', 'then seal the file.'],
+    footer: 'grimoire · skills/contract',
   },
 ];
 

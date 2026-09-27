@@ -10,10 +10,14 @@
   <a href="skills/eagle-eye"><img src="docs/brand/eagle-eye/eagle-eye-mark.svg" width="56" alt="eagle-eye"></a>
   &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
   <a href="skills/groundtrack"><img src="docs/brand/groundtrack/groundtrack-mark.svg" width="56" alt="groundtrack"></a>
+  &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+  <a href="skills/contract"><img src="docs/brand/contract/contract-mark.svg" width="56" alt="contract"></a>
   <br>
   <a href="skills/eagle-eye"><code>eagle-eye</code></a>
   &nbsp;&nbsp;&nbsp;&nbsp;
   <a href="skills/groundtrack"><code>groundtrack</code></a>
+  &nbsp;&nbsp;&nbsp;&nbsp;
+  <a href="skills/contract"><code>contract</code></a>
 </p>
 
 ---
@@ -128,7 +132,7 @@ The three channels, what a layer redraws, the page's controls, and the honesty
 property's stated limit:
 [`skills/groundtrack/README.md`](skills/groundtrack).
 
-## [contract](skills/contract)
+## <img src="docs/brand/contract/contract-mark-solid.svg" width="32" align="absmiddle" alt=""> [contract](skills/contract)
 
 **Agree the terms first. The prompt is build output.**
 
