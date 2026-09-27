@@ -57,7 +57,9 @@ Make it once, before the first run, and copy it into each case's folder:
    `commit-checker/CONTRACT.md` beside it, with a title, a `Version: 0.1.0`
    line, answers to questions 1–7, and a change log with a "Questions
    touched" column.
-2. Seal the pair: `node skills/contract/scripts/check.mjs --seal <folder>`.
+2. Seal the pair: `node skills/contract/scripts/check.mjs --seal '<folder>'`,
+   with the folder's path in single quotes, so a path with a space in it
+   stays one argument.
 3. Confirm that the seal exits 0.
 
 In each case that uses it, copy `commit-checker/` into the throwaway folder's

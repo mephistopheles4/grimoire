@@ -824,7 +824,7 @@ describe('v4', () => {
     });
   });
 
-  describe('31 an unquoted value YAML reads as null, a boolean or a number is cannot-check', () => {
+  describe('31 an unquoted value YAML reads as null, a boolean, a number or a date is cannot-check', () => {
     const bad = [
       'description: ~',
       'description: true',
@@ -836,6 +836,20 @@ describe('v4', () => {
       'description: 1e3',
       'description: +12_000',
       'description: .5',
+      'description: 017',
+      'description: 2026-09-27',
+      'description: 2026-9-7',
+      'description: 2026-09-27 10:00:00',
+      'description: 2026-09-27T10:00:00Z',
+      'description: 2026-09-27t10:00:00',
+      'description: 2026-09-27\u{9}10:00:00',
+      'description: 0x1F',
+      'description: -0x1F',
+      'description: 0b101',
+      'description: 0o17',
+      'description: 1:30',
+      'description: 190:20:30.15',
+      'description: -1:30',
     ];
     for (const line of bad) {
       test(`${line} -> 1`, () => {
@@ -848,11 +862,30 @@ describe('v4', () => {
     test('a metadata value of 42 -> 1', () => {
       expect(run([skill({ fm: [...defaultFm('demo'), 'metadata:', '  owner: 42'] })]), 1, 'CANNOT-CHECK frontmatter: SKILL.md line 5');
     });
+    test('a metadata value of 2026-09-27 -> 1; quoted -> 0', () => {
+      expect(run([skill({ fm: [...defaultFm('demo'), 'metadata:', '  since: 2026-09-27'] })]), 1, 'CANNOT-CHECK frontmatter: SKILL.md line 5: an unquoted value YAML reads');
+      expect(run([skill({ fm: [...defaultFm('demo'), 'metadata:', '  since: "2026-09-27"'] })]), 0, 'PASS metadata');
+    });
     test('name: 123 -> 1; name: "123" -> 0', () => {
       expect(run([skill({ folder: '123', fm: ['name: 123', 'description: A test skill.'] })]), 1, 'CANNOT-CHECK frontmatter: SKILL.md line 2');
       expect(run([skill({ folder: '123', fm: ['name: "123"', 'description: A test skill.'] })]), 0, 'PASS name: 123');
     });
-    const good = ['description: "true"', "description: 'null'", 'description: 1.0.0', 'description: yesterday', 'description: Notes on things'];
+    const good = [
+      'description: "true"',
+      "description: 'null'",
+      'description: 1.0.0',
+      'description: yesterday',
+      'description: Notes on things',
+      'description: "2026-09-27"',
+      'description: 1.2.3',
+      'description: release-2026',
+      'description: abc:def',
+      'description: v1:30',
+      'description: 2026-09-270',
+      'description: 1:60',
+      'description: 1:60:30',
+      'description: 0x',
+    ];
     for (const line of good) {
       test(`${line} -> 0`, () => {
         expect(run([skill({ fm: ['name: demo', line] })]), 0, 'PASS description');

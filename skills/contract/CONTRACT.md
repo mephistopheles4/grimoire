@@ -1,9 +1,9 @@
 # Contract: contract
 
-Version: 0.4.5
+Version: 0.4.6
 
 *Type: skill. Template: `references/template.md`, draft 8. Level: Thorough.
-Status: draft 0.4.5, 2026-09-27. The skill's `SKILL.md` is generated from this
+Status: draft 0.4.6, 2026-09-27. The skill's `SKILL.md` is generated from this
 file. To change the skill, amend this file, generate `SKILL.md` again, and
 seal it.*
 
@@ -293,6 +293,7 @@ decision.
 | 0.4.3 | 2026-09-27 | Marks only; no clause text changed, so no section of `SKILL.md` is regenerated. The owner read the target and questions 1 to 6 and confirmed them. Questions 8 to 20 go back to *Proposed*, because the owner has not read them yet. **Decided** 2026-09-27 | The builder had marked them Confirmed from plan approvals. Question 13 counts Confirmed answers, so an unread Confirmed mark is false | Target step, 1, 8–18, 20 (marks only) |
 | 0.4.4 | 2026-09-27 | The seal writes the version into the mark unquoted. A version is numbers separated by at least two dots, such as 0.5.0, with an optional `-` or `+` suffix. The seal refuses any other version and writes nothing. New contracts start at 0.1.0. **Decided** 2026-09-27 | The seal writes the version unquoted so scanners do not read it as a file name; bare-number versions are refused, because unquoted they read as numbers, not text. A quoted version read to the repository's prose scanner as a file that is not there, and failed its gate | 7, 18, 19 |
 | 0.4.5 | 2026-09-27 | Add the folder's SkillSpector baseline: EA2 is off for the whole skill (owner accepted the breadth; narrow suppression is an open follow-up). No clause changed. **Decided** 2026-09-27 | The repository's prose scanner flagged a code comment in the check that explains why an unlisted frontmatter key fails. The comment is not an instruction, so it stays as written. The owner accepted the breadth (security review of plan v7, findings 5 to 7) | None; a file added to the folder |
+| 0.4.6 | 2026-09-27 | The check refuses unquoted dates, timestamps, hex, octal, binary and base-60 values as cannot check. No clause changed. **Decided** 2026-09-27 | YAML loaders read them as non-text (review of the pull request) | None; a file in the folder changed |
 
 ### Flag log
 

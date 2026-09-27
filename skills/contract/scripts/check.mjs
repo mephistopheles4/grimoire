@@ -119,13 +119,21 @@ const BINARY_RE = /\.(woff2|png|jpg|gif|webp)$/i;
 const SEAL_TEMP_RE = /^\.SKILL\.md\.[0-9]+\.[0-9a-f]{12}\.tmp$/;
 const PLAIN_BAD_START = '{}[]&*!|>%@`#,\'"';
 
-// A plain (unquoted) value that YAML reads as null, a boolean or a number.
-// This check reads every plain value as text, and a loader that reads the
-// same file would not, so the two would disagree about what the file says.
+// A plain (unquoted) value that YAML reads as null, a boolean, a number or a
+// date. This check reads every plain value as text, and a loader that reads
+// the same file would not, so the two would disagree about what the file says.
 // Such a value is "cannot check"; quoted, it is text to both. The word list is
 // matched in any case. The number patterns are the one pattern the format
 // gives, split into flat halves so none has a nested quantifier, and tried
-// after one leading sign is taken off.
+// after one leading sign is taken off. A leading zero, as in 017, is YAML 1.1
+// octal; the plain digit pattern already refuses it. The other number forms
+// are tried after the same sign: hexadecimal (0x1F), binary (0b101), octal
+// (0o17) and YAML 1.1 base 60 (1:30 or 190:20:30.15), checked a part at a time
+// between the colons. A date or a timestamp, such as 2026-09-27 or
+// 2026-09-27T10:00:00Z, is refused by its start alone: four digits, a month
+// and a day of one or two digits each, then the end or a T, a t, a space or a
+// tab. That is broader than the loaders' own date rule, and refusing a near
+// miss is safe.
 const YAML_WORDS = new Set(['~', 'null', 'true', 'false', 'yes', 'no', 'on', 'off']);
 const YAML_NUMBER_RES = [
   /^\.[0-9]+$/,
@@ -134,7 +142,14 @@ const YAML_NUMBER_RES = [
   /^[0-9][0-9_]*\.[0-9]*$/,
   /^[0-9][0-9_]*[eE][-+]?[0-9]+$/,
   /^[0-9][0-9_]*\.[0-9]*[eE][-+]?[0-9]+$/,
+  /^0x[0-9A-Fa-f_]+$/,
+  /^0b[01_]+$/,
+  /^0o[0-7_]+$/,
 ];
+const YAML_DATE_RE = /^[0-9]{4}-[0-9]{1,2}-[0-9]{1,2}(?:$|[Tt \u{9}])/u;
+const BASE60_FIRST_RE = /^[0-9][0-9_]*$/;
+const BASE60_PART_RE = /^[0-5]?[0-9]$/;
+const BASE60_LAST_FRACTION_RE = /^[0-5]?[0-9]\.[0-9_]*$/;
 
 // The seal writes contract-version as a plain (unquoted) value, because a
 // quoted dotted value reads to some prose scanners as the name of a file that
@@ -414,14 +429,28 @@ function parseSingleQuoted(raw, ln) {
   return out;
 }
 
-/** True when YAML would read this plain value as null, a boolean or a number. */
+/** True when a value split on its colons is a YAML 1.1 base-60 number (see YAML_WORDS). */
+function yamlBase60(unsigned) {
+  const parts = unsigned.split(':');
+  if (parts.length < 2) return false;
+  if (!BASE60_FIRST_RE.test(parts[0])) return false;
+  for (let i = 1; i < parts.length - 1; i += 1) {
+    if (!BASE60_PART_RE.test(parts[i])) return false;
+  }
+  const last = parts[parts.length - 1];
+  return BASE60_PART_RE.test(last) || BASE60_LAST_FRACTION_RE.test(last);
+}
+
+/** True when YAML would read this plain value as null, a boolean, a number or a date. */
 function yamlReadsAsNonText(v) {
   const lower = v.toLowerCase();
   if (YAML_WORDS.has(lower)) return true;
+  if (YAML_DATE_RE.test(v)) return true;
   const unsigned = v[0] === '-' || v[0] === '+' ? v.slice(1) : v;
   const unsignedLower = unsigned.toLowerCase();
   if (unsignedLower === '.inf' || unsignedLower === '.nan') return true;
-  return YAML_NUMBER_RES.some(re => re.test(unsigned));
+  if (YAML_NUMBER_RES.some(re => re.test(unsigned))) return true;
+  return yamlBase60(unsigned);
 }
 
 /** A one-line value after "key: ". Quoted or plain; anything else is cannot-check. */
@@ -442,7 +471,7 @@ function parseScalar(raw, ln) {
   }
   if (v.includes(' #') || v.includes('\t#')) throw new CannotCheck(ln, 'a trailing comment after a value');
   if (yamlReadsAsNonText(v)) {
-    throw new CannotCheck(ln, 'an unquoted value YAML reads as null, a boolean or a number (quote it to use it as text)');
+    throw new CannotCheck(ln, 'an unquoted value YAML reads as null, a boolean, a number or a date, such as a hex, octal, binary or base-60 number or a timestamp (quote it to use it as text)');
   }
   return v;
 }
