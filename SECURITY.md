@@ -32,6 +32,13 @@ neither the renderer nor the page makes a network request.
 One script can send data, and only when somebody runs it: eagle-eye's optional
 edge audit. See [What the edge audit sends](#what-the-edge-audit-sends).
 
+One script rewrites a file a person hands it, and only when asked:
+`skills/contract/scripts/check.mjs`. Under `--seal` it rewrites the mark lines
+of the one file it is given, and nothing else, then prints the real path it
+wrote. It sends nothing. A valid seal proves the familiar and its contract
+are unchanged since they were sealed. For a skill, the familiar is every file
+in its folder except `CONTRACT.md`. It does not prove who sealed them.
+
 The attacks worth planning for, scenario by scenario, with what stops each
 one and what still gets through: [docs/security/threat-model.md](docs/security/threat-model.md).
 It records the repository settings as they were read on 2026-09-25. The

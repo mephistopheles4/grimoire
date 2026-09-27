@@ -200,6 +200,87 @@ test('a skill directory with no SKILL.md fails', () => {
   assertFails(dir, /skills\/newcomer\/ has no SKILL\.md/);
 });
 
+// ---- the format check over every skill ----
+// check.mjs runs skills/contract/scripts/check.mjs on every skills/*/ folder.
+// The fixture skills below are written into the copy at run time and never
+// committed: a SKILL.md anywhere in the tree is a skill to the check, and a
+// broken one would fail it. Each is sealed by the copy's own format check,
+// for the reason every test here runs the copy's own check.mjs.
+
+const formatCheckIn = dir => join(dir, 'skills', 'contract', 'scripts', 'check.mjs');
+
+function fixtureSkill(dir, name, { contract, body = '# Fixture\n\nBody text.\n' } = {}) {
+  const skill = join(dir, 'skills', name);
+  mkdirSync(skill);
+  writeFileSync(join(skill, 'SKILL.md'), `---\nname: ${name}\ndescription: A fixture skill that exists only inside this test.\n---\n\n${body}`);
+  if (contract !== undefined) {
+    writeFileSync(join(skill, 'CONTRACT.md'), contract);
+    const r = run(formatCheckIn(dir), ['--seal', skill], { cwd: dir });
+    assert.equal(r.code, 0, `the fixture did not seal:\n${r.stdout}${r.stderr}`);
+  }
+  return skill;
+}
+
+const fixtureContract = 'Version: 1\n\n# Contract\n\nWhat this fixture is for.\n';
+
+// The control half of each test below is asserted on what the check says
+// about the fixture, not on a pass of the whole tree, so it holds whatever
+// else the tree carries.
+function assertFixtureClean(dir, name) {
+  const r = run(checkIn(dir), [], { cwd: dir });
+  assert.doesNotMatch(r.stderr, new RegExp(`skills/${name}/`), `the fixture failed before anything was broken:\n${r.stderr}`);
+  assert.match(r.stdout, new RegExp(`^ok {4}skills/${name}/ \\(format\\)$`, 'm'));
+}
+
+test('a sealed skill whose CONTRACT.md drifted fails, naming the skill', () => {
+  // The mark says the SKILL.md and its contract are unchanged since the
+  // seal. A clause added to the contract afterwards is a contract the
+  // SKILL.md was never regenerated from.
+  const dir = tree();
+  const skill = fixtureSkill(dir, 'sealed-fixture', { contract: fixtureContract });
+  assertFixtureClean(dir, 'sealed-fixture');
+  appendFileSync(join(skill, 'CONTRACT.md'), '\nA clause added after the seal.\n');
+  const r = assertFails(dir, /skills\/sealed-fixture\/ fails the format check/);
+  assert.match(r.stderr, /FAIL contract-digest: line \d+: the seal is broken/);
+});
+
+test('a sealed SKILL.md whose CONTRACT.md is gone fails, naming the skill', () => {
+  const dir = tree();
+  const skill = fixtureSkill(dir, 'sealed-fixture', { contract: fixtureContract });
+  assertFixtureClean(dir, 'sealed-fixture');
+  rmSync(join(skill, 'CONTRACT.md'));
+  const r = assertFails(dir, /skills\/sealed-fixture\/ fails the format check/);
+  assert.match(r.stderr, /marked, but its contract is missing/);
+});
+
+test('a frontmatter key the format check does not know fails an unmarked skill too', () => {
+  // A key that widens what the agent may do, added to a skill built from no
+  // contract. Nothing lists it, so it is a change nobody reviewed.
+  const dir = tree();
+  const p = skillMd(dir);
+  const text = readFileSync(p, 'utf8');
+  const nameLine = /^name: eagle-eye(\r?\n)/m;
+  assert.match(text, nameLine, 'the fixture edit found no name line');
+  writeFileSync(p, text.replace(nameLine, 'name: eagle-eye$1permissionMode: acceptEdits$1'));
+  const r = assertFails(dir, /skills\/eagle-eye\/ fails the format check/);
+  assert.match(r.stderr, /unknown key "permissionMode"/);
+});
+
+test('a format-check warning passes, and is printed as a note', () => {
+  const dir = tree();
+  const body = `${Array.from({ length: 600 }, (_, i) => `line ${i + 1}`).join('\n')}\n`;
+  fixtureSkill(dir, 'long-fixture', { body });
+  assertFixtureClean(dir, 'long-fixture');
+  const r = run(checkIn(dir), [], { cwd: dir });
+  assert.match(r.stdout, /^note: skills\/long-fixture\/ WARN body-length: /m);
+});
+
+test('a missing format check fails rather than skipping every skill', () => {
+  const dir = tree();
+  rmSync(formatCheckIn(dir));
+  assertFails(dir, /skills\/contract\/scripts\/check\.mjs is missing, so no skill's frontmatter, mark or contract was checked/);
+});
+
 test('the single-pass tag strip cannot come back', () => {
   // CodeQL raised this shape twice on the first scan. The guard holds the
   // shape, not the hole, and this test holds the guard.

@@ -50,18 +50,40 @@ function writeArtifact(dir, relPath, source, patch) {
 
 /* -- the table itself ------------------------------------------------------ */
 
+/**
+ * The skills that owe the registry a row: the ones that ship an examples/
+ * directory. Same scope as scripts/check.mjs and CONTRIBUTING's step 2 — a
+ * prose-only skill produces no artifact, so there is no renderer for a row to
+ * name.
+ */
+function skillsThatShipExamples(skillsDir) {
+  return readdirSync(skillsDir, { withFileTypes: true })
+    .filter(e => e.isDirectory())
+    .map(e => e.name)
+    .filter(s => existsSync(join(skillsDir, s, 'examples')));
+}
+
 test('the registry has a row for every skill that ships artifacts', () => {
   // A skill with no row is reported rather than skipped. A gate that quietly
   // does nothing reads as a gate that passed.
-  const skills = readdirSync(join(root, 'skills'), { withFileTypes: true })
-    .filter(e => e.isDirectory())
-    .map(e => e.name);
+  const skills = skillsThatShipExamples(join(root, 'skills'));
+  assert.ok(skills.length, 'no skill ships examples/, so this test checked nothing');
   for (const s of skills) {
     assert.ok(
       ARTIFACTS.some(a => a.renderer.startsWith(`skills/${s}/`)),
       `skills/${s}/ has no registry row`,
     );
   }
+});
+
+test('a prose-only skill owes the registry no row', () => {
+  // The table test above once asked every skill for a row, so the first skill
+  // with nothing to render failed it while the check and CONTRIBUTING both
+  // said it was fine.
+  const dir = join(work, `case-${n++}`);
+  newSkill(dir, 'proseonly', false);
+  newSkill(dir, 'renders', true);
+  assert.deepEqual(skillsThatShipExamples(join(dir, 'skills')), ['renders']);
 });
 
 test('every row names a renderer that is on disk', () => {

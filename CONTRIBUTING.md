@@ -14,8 +14,9 @@ That is the contract, and it is still one command. It validates every
 artifact in the tree with the renderer its registry row names, checks that no
 file a skill ships has grown a fixed path back, fails on a code fence that declares no
 language, fails on a dependency, fails when the two SkillSpector baselines
-disagree, and runs the test suite in `tests/`. CI runs it as a required check
-called `check`. `main` takes no direct pushes.
+disagree, runs every skill through the format check in
+`skills/contract/scripts/check.mjs`, and runs the test suite in `tests/`. CI
+runs it as a required check called `check`. `main` takes no direct pushes.
 
 Two more workflows scan things the command above does not. One runs SkillSpector
 over the skill prose and fails on any finding the baselines do not cover. The
@@ -42,7 +43,7 @@ not take, and `SECURITY.md` explains why that matters more than it looks.
 run only the suite while you work on it:
 
 ```bash
-node --test tests/esc.test.mjs tests/render.test.mjs tests/check.test.mjs tests/build-pages.test.mjs tests/skillspector-gate.test.mjs tests/groundtrack-fold.test.mjs tests/groundtrack-render.test.mjs tests/groundtrack-sheets.test.mjs tests/eagle-eye-sheets.test.mjs tests/registry.test.mjs tests/audit.test.mjs
+node --test tests/esc.test.mjs tests/render.test.mjs tests/check.test.mjs tests/build-pages.test.mjs tests/skillspector-gate.test.mjs tests/groundtrack-fold.test.mjs tests/groundtrack-render.test.mjs tests/groundtrack-sheets.test.mjs tests/eagle-eye-sheets.test.mjs tests/registry.test.mjs tests/audit.test.mjs tests/contract-check.test.mjs
 ```
 
 **The suite never reaches the network.** eagle-eye's edge audit is the one
@@ -164,6 +165,24 @@ work already done*, or *any walk through a plan one decision at a time*. A
 skill that couples itself to vocabulary the reader may not have is a skill that
 stops working when they do not have it. Why this test and not a narrower one:
 [`docs/adr/0001-skills-own-their-vocabulary.md`](docs/adr/0001-skills-own-their-vocabulary.md).
+
+**`skills/contract/SKILL.md` is generated from its `CONTRACT.md`.** Do not
+edit the `SKILL.md` by hand. Change the contract and raise its `Version:`
+line, generate the `SKILL.md` again, then seal it:
+
+```bash
+node skills/contract/scripts/check.mjs --seal skills/contract
+```
+
+The seal writes a mark into the frontmatter: the contract's version, a digest
+of the skill's folder and a digest of the contract. The folder's digest covers
+every file in `skills/contract/` except `CONTRACT.md`, the check script and the
+template included. So a change to any of them needs a new seal, and a stray
+file such as `.DS_Store` breaks it. `node scripts/check.mjs` fails when a
+covered file changed after the seal. The seal proves only that those files
+are unchanged since they were sealed. It proves nothing about who sealed them,
+because anyone can run the command. So a reviewer reads every changed file in
+full, and reviews the `SKILL.md` as shipped prose, whatever its seal says.
 
 **Changing the export format touches three places.** The page writes it,
 `SKILL.md` specifies it, and the agent reads it back. All three in one commit,

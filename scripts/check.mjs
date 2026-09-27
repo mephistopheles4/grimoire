@@ -9,7 +9,8 @@
 //    directory under every install route, so a path naming one is a defect.
 // 3. The single-pass tag strip does not come back, and no code fence in any
 //    markdown file declares no language.
-// 4. Every plugin in the marketplace manifest exists on disk with a manifest.
+// 4. Every plugin in the marketplace manifest exists on disk with a manifest,
+//    and every skill passes the format check the contract skill ships.
 // 5. A change to a skill carries a version bump.
 // 6. Nothing in the tree takes a dependency: no manifest, no lockfile, and no
 //    import of a bare specifier.
@@ -20,7 +21,7 @@
 
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { basename, join, relative, sep } from 'node:path';
-import { execFileSync } from 'node:child_process';
+import { execFileSync, spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { walk } from './lib/tree.mjs';
 import { ARTIFACTS, rowFor } from './lib/registry.mjs';
@@ -231,6 +232,53 @@ for (const e of readdirSync(join(root, 'skills'), { withFileTypes: true })) {
   } catch {
     fail(
       `skills/${e.name}/ has no SKILL.md — the default scan reads one level, so a category folder needs a "skills" array in plugin.json`,
+    );
+  }
+}
+
+// 4b. Every skill passes the format check.
+//
+// A skill's frontmatter is read by the runtime before a word of its prose: the
+// name it is invoked by, the description that decides when it loads, and any
+// key that changes what the agent may do without asking. The frontmatter-name
+// rule above reads one key. This runs the check the contract skill ships over
+// every skill directory, so an unknown key, a field over its limit, or a
+// sealed SKILL.md whose CONTRACT.md has drifted or gone goes red here, and
+// not on an installer's machine.
+//
+// It is the same script, called the same way, that a person runs on a skill
+// they are building. A second reader of the same format here would be a
+// second place for the rules to drift. Its exit code is the verdict: 0 passes,
+// warnings included, and anything else fails and names the skill. A warning,
+// such as a body longer than the advised 500 lines, is printed as a note.
+//
+// The script is looked up in the tree being checked, and its absence fails. A
+// gate that silently does nothing reads as a gate that passed.
+const formatCheck = join(root, 'skills', 'contract', 'scripts', 'check.mjs');
+let formatCheckThere = false;
+try {
+  formatCheckThere = statSync(formatCheck).isFile();
+} catch (err) {
+  if (err.code !== 'ENOENT') throw err;
+}
+if (!formatCheckThere) {
+  fail(
+    `skills/contract/scripts/check.mjs is missing, so no skill's frontmatter, mark or contract was checked — restore the contract skill's format check`,
+  );
+} else {
+  for (const e of readdirSync(join(root, 'skills'), { withFileTypes: true })) {
+    if (!e.isDirectory()) continue;
+    const r = spawnSync(process.execPath, [formatCheck, join(root, 'skills', e.name)], { cwd: root, encoding: 'utf8' });
+    const lines = (r.stdout || '').split('\n').filter(l => l !== '');
+    if (r.status === 0) {
+      console.log(`ok    skills/${e.name}/ (format)`);
+      for (const w of lines.filter(l => l.startsWith('WARN '))) console.log(`note: skills/${e.name}/ ${w}`);
+      continue;
+    }
+    const why = lines.filter(l => !l.startsWith('PASS ') && !l.startsWith('RESULT:'));
+    const exit = r.error ? r.error.code : r.status ?? r.signal;
+    fail(
+      `skills/${e.name}/ fails the format check (skills/contract/scripts/check.mjs, exit ${exit}):\n${why.map(l => `      ${l}`).join('\n')}`,
     );
   }
 }
