@@ -63,8 +63,8 @@ the familiar does, amend the contract, then generate the file again.
 Copy the contract with the familiar. They travel together.
 
 **The version line.** The line after the contract's title reads
-`Version: X.Y`. Each amendment raises the version and adds a row to the
-change log (question 7).
+`Version: X.Y.Z`, starting at 0.1.0. Each amendment raises the version and
+adds a row to the change log (question 7).
 
 **The mark.** When the file is generated, a check writes three keys into the
 file's frontmatter: the contract's version, a digest of the file, and a digest

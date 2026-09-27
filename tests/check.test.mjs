@@ -221,7 +221,7 @@ function fixtureSkill(dir, name, { contract, body = '# Fixture\n\nBody text.\n' 
   return skill;
 }
 
-const fixtureContract = 'Version: 1\n\n# Contract\n\nWhat this fixture is for.\n';
+const fixtureContract = 'Version: 1.0.0\n\n# Contract\n\nWhat this fixture is for.\n';
 
 // The control half of each test below is asserted on what the check says
 // about the fixture, not on a pass of the whole tree, so it holds whatever

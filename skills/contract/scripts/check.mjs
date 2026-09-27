@@ -136,6 +136,18 @@ const YAML_NUMBER_RES = [
   /^[0-9][0-9_]*\.[0-9]*[eE][-+]?[0-9]+$/,
 ];
 
+// The seal writes contract-version as a plain (unquoted) value, because a
+// quoted dotted value reads to some prose scanners as the name of a file that
+// is not there. So the seal takes only one shape of version: numbers separated
+// by at least two dots, such as 0.5.0, then optionally a - or + and a suffix
+// of letters, digits, dots and hyphens. PyYAML reads that shape as text, and
+// the contract's question 19 keeps other loaders open. A bare number such as
+// 0.5 reads as a number, and a date such as 2026-09-27 reads as a date to
+// PyYAML, so both are refused. Checked in flat pieces, so no regex has a
+// nested quantifier.
+const VERSION_PART_RE = /^[0-9]+$/;
+const VERSION_SUFFIX_RE = /^[0-9A-Za-z.-]+$/;
+
 class Refusal extends Error {
   constructor(rule, reason) {
     super(reason);
@@ -1213,6 +1225,21 @@ function escapeDq(s) {
   return s.replaceAll('\\', '\\\\').replaceAll('"', '\\"');
 }
 
+/** True when the seal may write this version as a plain value (see VERSION_PART_RE). */
+function sealableVersion(v) {
+  let cut = -1;
+  for (let i = 0; i < v.length; i += 1) {
+    if (v[i] === '-' || v[i] === '+') {
+      cut = i;
+      break;
+    }
+  }
+  const core = cut < 0 ? v : v.slice(0, cut);
+  const parts = core.split('.');
+  if (parts.length < 3 || !parts.every(p => VERSION_PART_RE.test(p))) return false;
+  return cut < 0 || VERSION_SUFFIX_RE.test(v.slice(cut + 1));
+}
+
 /**
  * Write the mark, or throw Refusal with nothing written.
  *
@@ -1255,6 +1282,26 @@ function runSeal(loc, report) {
   }
   const facts = contractFacts(con.lines);
   if (facts.version === null) throw new Refusal('contract-version', `${conLabel} has no "Version:" line`);
+  // The reason is fixed text. The version came from a file a stranger may
+  // have written, so it is never echoed.
+  if (!sealableVersion(facts.version)) {
+    throw new Refusal(
+      'contract-version',
+      `the Version line in ${conLabel} must be numbers separated by at least two dots, such as 0.5.0, with an optional - or + suffix; a bare number such as 0.5 is refused`,
+    );
+  }
+  // The same value read back the way the check reads it. The shape above
+  // already rules out every value that fails here; this holds if it drifts.
+  let readBack;
+  try {
+    readBack = parseScalar(facts.version, 1);
+  } catch (err) {
+    if (!(err instanceof CannotCheck)) throw err;
+    readBack = null;
+  }
+  if (readBack !== facts.version) {
+    throw new Refusal('contract-version', `the Version line in ${conLabel} would not read back unchanged once written`);
+  }
 
   const scratch = new Report();
   invisibleRule(fam, famLabel, scratch);
@@ -1282,7 +1329,9 @@ function runSeal(loc, report) {
     'familiar-digest': folder === null ? digest(canon) : folderDigest(canon, folder),
     'contract-digest': digest(withOneTrailingLf(con.lines)),
   };
-  const markLine = k => `  ${k}: "${escapeDq(values[k])}"`;
+  // contract-version is written plain (see sealableVersion); the digests stay
+  // quoted.
+  const markLine = k => (k === 'contract-version' ? `  ${k}: ${values[k]}` : `  ${k}: "${escapeDq(values[k])}"`);
 
   // Change nothing but the mark. A mark key already there is rewritten in
   // place; a missing one goes after the last metadata entry; with no metadata
@@ -1312,11 +1361,24 @@ function runSeal(loc, report) {
   // Before writing, the new text must parse and keep the canonical form the
   // digest was taken over. A seal that broke its own file would be refused
   // by the next check, after the file was already changed.
+  // A text that would not parse is refused here too, never thrown past the
+  // seal, and the contract-version it would hold must be the Version line.
   const newLines = raw.map(l => l.text);
   const newClose = findFrontmatter(newLines);
-  const newFm = parseFrontmatter(newLines, newClose);
+  if (newClose < 0) throw new Refusal('seal', 'internal error: the sealed text would have no frontmatter');
+  let newFm;
+  try {
+    newFm = parseFrontmatter(newLines, newClose);
+  } catch (err) {
+    if (!(err instanceof CannotCheck)) throw err;
+    throw new Refusal('seal', 'internal error: the sealed text would not parse');
+  }
   if (canonicalFamiliar(newLines, newFm.metadata) !== canon) {
     throw new Refusal('seal', 'internal error: the sealed text would not keep its canonical form');
+  }
+  const newCv = newFm.metadata ? newFm.metadata.entries.get('contract-version') : undefined;
+  if (!newCv || newCv.value !== facts.version) {
+    throw new Refusal('seal', "internal error: the sealed contract-version would not match the contract's Version line");
   }
 
   // A temporary file in the same folder, then a rename over the familiar. The

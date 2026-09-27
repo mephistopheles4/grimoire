@@ -54,7 +54,7 @@ Make it once, before the first run, and copy it into each case's folder:
    description and a short body. Give the body at least three `##`
    sections, each citing its contract questions in the heading, for example
    `## When to stop and ask (questions 3, 10)`. Write a
-   `commit-checker/CONTRACT.md` beside it, with a title, a `Version: 0.1`
+   `commit-checker/CONTRACT.md` beside it, with a title, a `Version: 0.1.0`
    line, answers to questions 1–7, and a change log with a "Questions
    touched" column.
 2. Seal the pair: `node skills/contract/scripts/check.mjs --seal <folder>`.

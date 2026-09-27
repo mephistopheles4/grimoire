@@ -78,7 +78,7 @@ function expect(r, code, ...prefixes) {
   assert.equal(results[0], code === 0 ? 'RESULT: pass' : 'RESULT: fail', show(r));
 }
 
-const CONTRACT = 'Version: 1\n\n# Contract\n\nWhat this familiar is for.\n';
+const CONTRACT = 'Version: 1.0.0\n\n# Contract\n\nWhat this familiar is for.\n';
 
 // A skill's digest covers its whole folder and cannot say which file changed.
 const BROKEN = "FAIL familiar-digest: the seal is broken; a file in the familiar's folder changed since it was sealed";
@@ -341,7 +341,7 @@ describe('S10', () => {
       expect(r, 1, 'FAIL keys: unknown key "permissionMode" at line 4');
     });
     test('permissionMode listed in Extra keys, sealed -> 0', () => {
-      const dir = skill({ fm: [...defaultFm('demo'), 'permissionMode: x'], contract: 'Version: 1\nExtra keys: tools, permissionMode\n' });
+      const dir = skill({ fm: [...defaultFm('demo'), 'permissionMode: x'], contract: 'Version: 1.0.0\nExtra keys: tools, permissionMode\n' });
       const c = sealAndCheck(dir);
       assert.ok(has(c, 'PASS keys'), show(c));
     });
@@ -390,7 +390,7 @@ describe('S10', () => {
       expect(run([dir]), 1, 'FAIL familiar-digest');
     });
     test('add permissionMode: x (contract allows it) -> 1 familiar-digest', () => {
-      const dir = skill({ contract: 'Version: 1\nExtra keys: permissionMode\n' });
+      const dir = skill({ contract: 'Version: 1.0.0\nExtra keys: permissionMode\n' });
       sealAndCheck(dir);
       editFile(join(dir, 'SKILL.md'), 'name: demo\n', 'name: demo\npermissionMode: x\n');
       expect(run([dir]), 1, 'FAIL familiar-digest', 'PASS keys');
@@ -416,13 +416,13 @@ describe('S10', () => {
     test('change Version: only -> 1 contract-version', () => {
       const dir = skill({ contract: CONTRACT });
       sealAndCheck(dir);
-      editFile(join(dir, 'CONTRACT.md'), 'Version: 1', 'Version: 2');
+      editFile(join(dir, 'CONTRACT.md'), 'Version: 1.0.0', 'Version: 2.0.0');
       expect(run([dir]), 1, 'FAIL contract-version');
     });
     test("hand-edit the mark's contract-version -> 1 contract-version (digests still pass)", () => {
       const dir = skill({ contract: CONTRACT });
       sealAndCheck(dir);
-      editFile(join(dir, 'SKILL.md'), 'contract-version: "1"', 'contract-version: "9"');
+      editFile(join(dir, 'SKILL.md'), 'contract-version: 1.0.0', 'contract-version: 9.0.0');
       expect(run([dir]), 1, 'FAIL contract-version', 'PASS familiar-digest', 'PASS contract-digest');
     });
   });
@@ -717,7 +717,7 @@ describe('v4', () => {
   });
 
   describe('28 the seal changes the mark lines and nothing else, byte for byte', () => {
-    const MARK = /^ {2}(contract-version|familiar-digest|contract-digest): "/;
+    const MARK = /^ {2}(contract-version|familiar-digest|contract-digest): /;
     function sealedOnlyTheMark(text, addsMetadata) {
       const dir = skill({ text, contract: CONTRACT });
       const p = join(dir, 'SKILL.md');
@@ -1336,6 +1336,99 @@ describe('v5 the seal covers the whole skill folder', () => {
       hash.update(bytes);
     }
     assert.equal(digestOf(join(dir, 'SKILL.md')), `sha256:${hash.digest('hex')}`);
+  });
+});
+
+// ------------------------------------------------------------------ v7
+
+// The seal writes contract-version as a plain value, because a quoted dotted
+// value reads to a prose scanner as the name of a file that is not there. So
+// it takes one shape only, numbers separated by at least two dots with an
+// optional - or + suffix, and refuses every other version with nothing
+// written. Reading stays lenient: a mark sealed before, quoted, still checks.
+describe('v7 the seal writes contract-version plain', () => {
+  const SHAPE = 'FAIL contract-version: the Version line in CONTRACT.md must be numbers separated by at least two dots, such as 0.5.0';
+  const contractAt = v => `Version: ${v}\n\n# Contract\n\nWhat this familiar is for.\n`;
+  const markLines = text => text.split('\n').filter(l => l.startsWith('  contract-version:'));
+
+  test('Version: 0.4.3 -> sealed as a plain value, and the check passes', () => {
+    const dir = skill({ contract: contractAt('0.4.3') });
+    sealAndCheck(dir);
+    assert.deepEqual(markLines(readFileSync(join(dir, 'SKILL.md'), 'utf8')), ['  contract-version: 0.4.3']);
+  });
+
+  test('a - or + suffix is sealed plain too', () => {
+    for (const v of ['1.2.3-rc.1', '1.2.3+build-5', '10.20.30.40']) {
+      const dir = skill({ contract: contractAt(v) });
+      sealAndCheck(dir);
+      assert.deepEqual(markLines(readFileSync(join(dir, 'SKILL.md'), 'utf8')), [`  contract-version: ${v}`], v);
+    }
+  });
+
+  describe('any other version -> 2, the folder byte for byte unchanged', () => {
+    for (const v of ['"0.5"', 'x:', '2026-09-27', '0.5', '1', '1.2', '1..2', '1.2.3-', '1.2.3-a+b', "'1.2.3'", 'v1.2.3']) {
+      test(`Version: ${v}`, () => {
+        const dir = skill({ contract: contractAt(v) });
+        const fam = readFileSync(join(dir, 'SKILL.md'));
+        const con = readFileSync(join(dir, 'CONTRACT.md'));
+        const r = run(['--seal', dir]);
+        expect(r, 2, SHAPE, 'FAIL seal: refused; nothing written');
+        assert.deepEqual(readFileSync(join(dir, 'SKILL.md')), fam, 'the familiar changed');
+        assert.deepEqual(readFileSync(join(dir, 'CONTRACT.md')), con, 'the contract changed');
+        assert.deepEqual(listing(dir), ['CONTRACT.md', 'SKILL.md'], 'something was left behind');
+      });
+    }
+  });
+
+  test('the refusal never echoes the version', () => {
+    const r = run(['--seal', skill({ contract: contractAt('ZQXSECRET') })]);
+    expect(r, 2, SHAPE);
+    assert.ok(!r.out.includes('ZQXSECRET'), show(r));
+  });
+
+  test('an agent whose contract has Version: 0.5 -> 2, the file unchanged', () => {
+    const dir = fresh();
+    const file = join(dir, 'x.md');
+    writeFileSync(file, familiarText(defaultFm('x')));
+    writeFileSync(join(dir, 'x.contract.md'), contractAt('0.5'));
+    const before = readFileSync(file);
+    const r = run(['--seal', file]);
+    expect(r, 2, 'FAIL contract-version: the Version line in x.contract.md must be numbers separated', 'FAIL seal: refused; nothing written');
+    assert.deepEqual(readFileSync(file), before);
+  });
+
+  test('a mark sealed before, with contract-version quoted -> still 0', () => {
+    const dir = skill({ contract: CONTRACT });
+    sealAndCheck(dir);
+    editFile(join(dir, 'SKILL.md'), '  contract-version: 1.0.0\n', '  contract-version: "1.0.0"\n');
+    expect(run([dir]), 0, 'PASS contract-version', 'PASS familiar-digest', 'PASS contract-digest');
+  });
+
+  test('a mark sealed before over a bare-number Version: 1, quoted -> still 0', () => {
+    // The seal refuses Version: 1 now, so the old mark is written by hand: the
+    // familiar's digest leaves the mark lines out, and the contract's is the
+    // sha256 of its text with one final line feed.
+    const dir = skill({ contract: CONTRACT });
+    sealAndCheck(dir);
+    const old = 'Version: 1\n\n# Contract\n\nWhat this familiar is for.\n';
+    writeFileSync(join(dir, 'CONTRACT.md'), old);
+    const p = join(dir, 'SKILL.md');
+    const text = readFileSync(p, 'utf8');
+    const conDigest = `sha256:${createHash('sha256').update(old, 'utf8').digest('hex')}`;
+    const next = text
+      .replace('  contract-version: 1.0.0\n', '  contract-version: "1"\n')
+      .replace(/ {2}contract-digest: "sha256:[0-9a-f]{64}"/, `  contract-digest: "${conDigest}"`);
+    assert.notEqual(next, text, 'fixture edit did nothing');
+    writeFileSync(p, next);
+    expect(run([dir]), 0, 'PASS contract-version', 'PASS familiar-digest', 'PASS contract-digest');
+  });
+
+  test('a second seal over a quoted mark rewrites it plain, in place', () => {
+    const dir = skill({ contract: CONTRACT });
+    sealAndCheck(dir);
+    editFile(join(dir, 'SKILL.md'), '  contract-version: 1.0.0\n', '  contract-version: "1.0.0"\n');
+    sealAndCheck(dir);
+    assert.deepEqual(markLines(readFileSync(join(dir, 'SKILL.md'), 'utf8')), ['  contract-version: 1.0.0']);
   });
 });
 

@@ -2,9 +2,9 @@
 name: contract
 description: Interviews a person to agree the terms for a new skill or agent, writes those terms down as a contract, then generates the skill's or agent's file from that contract and checks its format. Use when someone wants to build a reusable skill or agent, turn a prompt they keep pasting into one, change a skill or agent that has a contract file beside it, or write a contract for one that has none. The skill calls what it builds a familiar. Not for a one-off prompt, not for running or using a skill or agent that already exists, and not for a legal or business contract.
 metadata:
-  contract-version: "0.4.3"
-  familiar-digest: "sha256:2b5b3fe2fdcc422c31dfda765e5e855e1feda27a1dbc5cd190c7c76017b2048c"
-  contract-digest: "sha256:9d8911404df48d80574f71327d47faf98a92d7e3a8a1d013a08d368540574c95"
+  contract-version: 0.4.4
+  familiar-digest: "sha256:06e75c651216653c7ee656932006f4f39b5cd159f037d8bc3f6e4c0060fdf34c"
+  contract-digest: "sha256:7b9667a4bd677e2ffc78f6aa1c5761cfbc5faa207c1aefd8e38f342fdbaf4a72"
 ---
 
 # contract
@@ -321,9 +321,10 @@ at any time. Handle it the same way.
   checkpoint after that. You may write it before question 2 has an answer,
   because it is the person's record.
 - **Shape.** The title is `# Contract: <name>`. The next line is
-  `Version: 0.1` for a new contract. Then the type, the level, the date, a
-  line that explains the marks, the target, and the template's headings and
-  tables.
+  `Version: 0.1.0` for a new contract. A version is numbers separated by at
+  least two dots. The seal writes it unquoted, so it refuses a bare number
+  such as 0.1. Then the type, the level, the date, a line that explains the
+  marks, the target, and the template's headings and tables.
 - **Existing file.** If a file with that path exists and you did not write it
   in this session, ask before you overwrite it.
 
@@ -479,7 +480,7 @@ wants any change to it.
    the row's "Questions touched" with the question numbers it changes.
 4. **Test again.** Apply the template test of each question the change
    touches. Refuse a rule with no reason.
-5. **Raise the version** on the contract's `Version:` line.
+5. **Raise the version** on the contract's `Version:` line, say 0.1.0 to 0.2.0.
 6. **Generate the file again,** into `familiars/`, with the contract beside
    it. Read "Questions touched" in the newest change-log row. Regenerate
    exactly the sections whose `##` heading cites one of those questions.
