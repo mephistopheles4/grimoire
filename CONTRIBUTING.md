@@ -136,14 +136,22 @@ twenty words or fewer, no idiom. See
 A patch that breaks the rule the skill teaches is the worst kind of patch here.
 groundtrack's prose follows the same controlled English.
 
-**A skill names no vocabulary this repository does not own.** Not in its
-description, not in its body, not in its examples. No outside skill name,
-command name, or tool-specific noun.
+**A skill depends on nothing the reader does not have.** It needs no other
+skill, command or tool to do its job, and it hands off to none. The test is
+one question: *does this skill still work for a reader who has only this
+repository and the tools it says it targets?*
 
-The test is one question a stranger can run: *does this sentence stay true and
-checkable for a reader who has only this repository?* A borrowed name fails it
-twice — the reader cannot resolve it, and the sentence asserts something about
-a tool they do not have.
+**Naming a tool the skill is built for is normal.** A skill that writes,
+reads or checks files for a named tool names that tool, its file format and
+its keys, because the reader using that feature has the tool. The rest of its
+prose still says *the agent*, and never asserts a named tool's behaviour as
+if every reader had it.
+
+**For everything that is not a target, the test is per sentence.** One
+question a stranger can run: *does this sentence stay true and checkable for a
+reader who has only this repository and the tools the skill says it targets?*
+A borrowed name fails it twice — the reader cannot resolve it, and the
+sentence asserts something about a tool they do not have.
 
 **The test is per sentence, not per word.** Ordinary English that collides with
 an outside name is fine: *during brainstorming* costs the reader nothing. A
@@ -162,8 +170,11 @@ claim. It covers the field only. The `why` beside it obeys the rule.
 State a skill's occasion as a bare fact instead: *for a plan already made or
 work already done*, or *any walk through a plan one decision at a time*. A
 skill that couples itself to vocabulary the reader may not have is a skill that
-stops working when they do not have it. Why this test and not a narrower one:
+stops working when they do not have it. Why the per-sentence test and not a
+narrower one:
 [`docs/adr/0001-skills-own-their-vocabulary.md`](docs/adr/0001-skills-own-their-vocabulary.md).
+Why a skill may name the tools it targets:
+[`docs/adr/0005-skills-name-their-targets.md`](docs/adr/0005-skills-name-their-targets.md).
 
 **Changing the export format touches three places.** The page writes it,
 `SKILL.md` specifies it, and the agent reads it back. All three in one commit,
