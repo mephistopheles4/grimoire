@@ -6,7 +6,10 @@ anything is built. A small familiar takes about ten minutes. A serious one
 takes about an hour. The answers are the contract. The familiar's file is
 generated from the contract.*
 
-*Draft 8. It uses the word familiar, asks for the name in question 1, marks
+*Draft 9. It moves the practice test into a file of its own, beside the
+familiar. It asks where a familiar's trigger lives, how its record is
+reviewed, and which files the seal does not cover.
+Draft 8 used the word familiar, asks for the name in question 1, marks
 each clause Enforced or Promised, and adds the rule that the file is generated
 from the contract. It also adds agent files with a contract beside them.
 Each heading of the generated file cites its questions, and the change log
@@ -55,12 +58,16 @@ the familiar does, amend the contract, then generate the file again.
 
 **Where each file lives.**
 
-| Type | The familiar | Its contract |
-|---|---|---|
-| Skill | `<name>/SKILL.md` | `<name>/CONTRACT.md` |
-| Agent | `<name>.md` | `<name>.contract.md`, in the same folder |
+| Type | The familiar | Its contract | Its practice test |
+|---|---|---|---|
+| Skill | `<name>/SKILL.md` | `<name>/CONTRACT.md` | `<name>.practice-test.md`, beside the folder |
+| Agent | `<name>.md` | `<name>.contract.md`, in the same folder | `<name>.practice-test.md`, in the same folder |
 
-Copy the contract with the familiar. They travel together.
+Copy the contract with the familiar. They travel together. The practice test
+stays behind: it holds the expected answers, so it never goes inside a
+skill's folder, where it would install with the familiar. The contract's
+question 12 points to it. An existing file of that name is overwritten only
+after you say yes. The mark does not cover the practice-test file.
 
 **The version line.** The line after the contract's title reads
 `Version: X.Y.Z`, starting at 0.1.0. Each amendment raises the version and
@@ -186,9 +193,16 @@ Split the work four ways:
   also keep three abilities that the familiar must never take away: to check
   the work yourself, to explain why it is right, and to know when to stop.
 - **Stop and ask:** the moments when the familiar tells you and waits. Write
-  each one as "when X happens", not as a hope.
+  each one as "when X happens", not as a hope. If the familiar records what
+  it did, give a stop its own record value, such as "stopped and waiting", or
+  "proposed, not built" for a stop that proposes without producing.
 
 Mark each item Enforced or Promised (see "How each clause is held").
+
+**What makes it fire.** Say what makes the familiar step in, and where that
+trigger lives: the description, an instruction line, or a hook that you
+install. Then say what happens when it does not fire. A contract cannot hold
+a trigger. A hook is yours to install; the contract only records it.
 
 *The test:* every item sits in exactly one place. An item in two places is an
 item that nobody owns.
@@ -221,6 +235,10 @@ it is. It never merges two findings into one. *Skill:* the shape of what it
 produces, how it shows its confidence, and where the result lives: removed
 after the session, or kept.
 
+If it records an outcome each time, list the values. Include one for a stop
+that proposes without producing, "proposed, not built", and one for a stop
+that waits for you, "stopped and waiting".
+
 *The test:* a person who did not watch the work can act on it.
 
 ### 5. What tools does it need?
@@ -231,6 +249,10 @@ The shortest list that does the job. *Agent:* the tool list in its file.
 If the file needs frontmatter keys that the Agent Skills specification does
 not name, list them on the `Extra keys` line (see "How the contract is
 kept").
+
+A tool file outside the familiar's folder is not sealed: the mark covers the
+folder only. If you name one, say so here. At Thorough, also list it under
+question 19.
 
 *The test:* each tool has a reason. "It might need it" is not a reason.
 
@@ -299,6 +321,10 @@ repeats that back in words before it acts.
 
 ### 12. Prove it works: a practice test
 
+Write the practice test in its own file, `<name>.practice-test.md`, beside
+the familiar and never inside a skill's folder (see "How the contract is
+kept"). Here, in the contract, only point to that file.
+
 Two to six made-up problems that it must catch, each with the answer you
 expect. Write them in terms that it can actually see. Include one decoy that
 it must not flag. Mark each problem that an automatic check catches anyway.
@@ -362,6 +388,11 @@ to ignore is worse than none. It looks like a safeguard and protects nothing.
 "Another familiar catches the same three problems twice in a row" is visible.
 So is "you dismissed seven of its last ten findings".
 
+**Say how its record is reviewed.** Four parts: what the familiar records,
+what a review of that record reads, at what threshold the review runs, and
+who proposes a change. The familiar changes nothing by itself. Each proposal
+becomes a row in the change log (question 7).
+
 ### 14. How hard should it think?
 
 *Agent:* which model it runs on, how much effort it spends, and when a second
@@ -419,6 +450,9 @@ rules to behave, the gap is further up this contract.
 
 Open questions are normal before first use. Use of the familiar settles them.
 More thought does not.
+
+List each tool file from question 5 that sits outside the familiar's folder.
+The seal does not cover it, so a change to it goes unnoticed.
 
 ### 20. Where do the ideas come from?
 
