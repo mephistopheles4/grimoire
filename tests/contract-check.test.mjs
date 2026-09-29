@@ -550,7 +550,7 @@ describe('S10', () => {
       writeFileSync(join(dir, 'agy-agent.contract.md'), contract);
 
       expect(run(['--seal', file]), 0, 'PASS seal: wrote ');
-      expect(run([file]), 0, 'PASS name-matches-file', 'PASS familiar-digest', 'PASS contract-digest', 'PASS keys');
+      expect(run([file]), 0, 'PASS name-matches-file', 'PASS familiar-digest', 'PASS contract-digest', 'PASS keys', 'PASS contract-version');
     });
 
     test('codex agent in TOML format, sealed with a trailing comment block and tamper checked -> 0', () => {
@@ -602,7 +602,7 @@ describe('S10', () => {
       writeFileSync(join(dir, 'claude-agent.contract.md'), contract);
 
       expect(run(['--seal', file]), 0, 'PASS seal: wrote ');
-      expect(run([file]), 0, 'PASS name-matches-file', 'PASS familiar-digest', 'PASS contract-digest', 'PASS keys');
+      expect(run([file]), 0, 'PASS name-matches-file', 'PASS familiar-digest', 'PASS contract-digest', 'PASS keys', 'PASS contract-version');
     });
 
     test('both .md and .toml exist for same stem -> 1 (ambiguity refusal)', () => {
@@ -1951,6 +1951,16 @@ describe('v8 the .toml reader fails closed, and the contract names its target', 
     test('text on the opening line starts the value', () => {
       const lines = ['name = "cx"', `description = """${'d'.repeat(1023)}`, '"""', 'developer_instructions = "Review."'];
       exact(run([codex({ lines }).file]), 0, 'PASS description');
+    });
+    test('spaces after an opening """ are part of the value, so the newline after them is too -> 1 sandbox-mode', () => {
+      // TOML trims a newline only straight after the delimiter. Read as
+      // trimmed, this value would be "read-only" and pass.
+      const lines = [...CODEX, 'sandbox_mode = """  ', 'read-only"""'];
+      exact(run([codex({ lines }).file]), 1, 'FAIL sandbox-mode: line 6: must be "read-only" or "workspace-write"');
+    });
+    test("spaces after an opening ''' are part of the value too -> 1 sandbox-mode", () => {
+      const lines = [...CODEX, "sandbox_mode = '''\t", "read-only'''"];
+      exact(run([codex({ lines }).file]), 1, 'FAIL sandbox-mode: line 6: must be "read-only" or "workspace-write"');
     });
     test('a one-line """ value -> 0', () => {
       const lines = ['name = "cx"', 'description = """A test agent."""', 'developer_instructions = """Review."""'];

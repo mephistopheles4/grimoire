@@ -929,9 +929,12 @@ function parseToml(fam, extras) {
     if (!TOP_KEY_RE.test(key)) throw new CannotCheck(ln, 'a key outside the readable subset');
     if (key === 'metadata') throw new CannotCheck(ln, TOML_REASON.metadata);
     if (top.has(key)) throw new CannotCheck(ln, `duplicate key "${clean(key)}"`);
+    // Not trimmed at the end: after an opening """ or ''' the spaces are text,
+    // and so is the line ending after them. Each branch of tomlValue allows
+    // trailing spaces where TOML does.
     const rest = body.slice(eq + 1);
-    const v = trimEndSpaces(rest.slice(leading(rest).width));
-    if (v === '') throw new CannotCheck(ln, 'an empty value');
+    const v = rest.slice(leading(rest).width);
+    if (trimEndSpaces(v) === '') throw new CannotCheck(ln, 'an empty value');
     const r = tomlValue(v, ln, key, extras);
     if (r.open) open = r.open;
     else top.set(key, { kind: 'text', value: r.value, line: ln });
