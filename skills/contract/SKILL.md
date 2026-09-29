@@ -3,8 +3,8 @@ name: contract
 description: Builds a reusable skill or agent from terms a person agrees, and keeps those terms as a contract its file is generated from. Use when someone wants a new skill or agent, wants to turn a prompt they keep pasting into one, or wants to change or write the contract for one. Not for a one-off prompt, for running a skill or agent that already exists, or for a legal or business contract.
 metadata:
   contract-version: 0.5.0
-  familiar-digest: "sha256:0c5eddb2c90afe6c0db6c0e2713e13b0f86928d3cab4fefeb995b394eec77f94"
-  contract-digest: "sha256:90f85d500ef84661d704c5ec5bfc8ce2e26c2b5a312a118a2145a07d9b80062f"
+  familiar-digest: "sha256:f77b84eb945ce2ee0a0b4083bc4a708892e1682d32e9443b49706eefe0a85187"
+  contract-digest: "sha256:892dac9e5bc9be0c9596aae99825548217899aa1f02bd9c8453ddc11dffb885e"
 ---
 
 # contract
@@ -317,7 +317,7 @@ at any time. Handle it the same way.
    "ok" or "fine", say what it covers before you mark anything: which drafts
    become Confirmed, whether the level holds, and whether a review is
    wanted. Mark each answer:
-   - *Proposed*: you drafted it, and the person has not looked yet;
+   - *Proposed*: you drafted it, and the person has not confirmed it yet;
    - **Confirmed**: the person accepted your draft without a change;
    - **Decided**, with the date: the person's own words, or a draft they
      rewrote.

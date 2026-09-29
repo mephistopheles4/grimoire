@@ -94,7 +94,7 @@ each such key in the contract, on one line that starts with the words
 
 **How answers are marked.** Every answer carries one of three marks:
 
-- *Proposed*: the agent drafted it, and you have not looked at it yet.
+- *Proposed*: the agent drafted it, and you have not confirmed it yet.
 - **Confirmed**: you accepted a draft without a change.
 - **Decided**, with a date: your own words, or a draft you rewrote.
 
