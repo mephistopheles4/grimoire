@@ -147,6 +147,8 @@ its keys, because the reader using that feature has the tool. The rest of its
 prose still says *the agent*, and never asserts a named tool's behaviour as
 if every reader had it.
 
+**For everything that is not a target, the test is per sentence.** One question a stranger can run: *does this sentence stay true and checkable for a reader who has only this repository and the tools the skill says it targets?* A borrowed name fails it twice — the reader cannot resolve it, and the sentence asserts something about a tool they do not have.
+
 **The test is per sentence, not per word.** Ordinary English that collides with
 an outside name is fine: *during brainstorming* costs the reader nothing. A
 sentence built on a named tool's behaviour is not, even when every word in it
@@ -164,7 +166,7 @@ claim. It covers the field only. The `why` beside it obeys the rule.
 State a skill's occasion as a bare fact instead: *for a plan already made or
 work already done*, or *any walk through a plan one decision at a time*. A
 skill that couples itself to vocabulary the reader may not have is a skill that
-stops working when they do not have it. Why this test and not a narrower one:
+stops working when they do not have it. Why the per-sentence test and not a narrower one:
 [`docs/adr/0001-skills-own-their-vocabulary.md`](docs/adr/0001-skills-own-their-vocabulary.md).
 Why a skill may name the tools it targets:
 [`docs/adr/0005-skills-name-their-targets.md`](docs/adr/0005-skills-name-their-targets.md).

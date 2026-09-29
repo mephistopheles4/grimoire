@@ -7,7 +7,7 @@ its file format and its keys, because the reader using that feature has the
 tool. The rest of its prose still says *the agent*, and never asserts a named
 tool's behaviour as if every reader had it. The test is one question: *does
 this skill still work for a reader who has only this repository and the tools
-it says it targets?* The occasion was pull request 155, which reads and checks
+it says it targets?* The occasion was issue #154, implemented in pull request 155, which reads and checks
 agent files for Claude Code, Antigravity and Codex. On 2026-09-29 the owner
 decided to "point it more at dependencies … it's normal we talk about the
 tools we are building skills for".
