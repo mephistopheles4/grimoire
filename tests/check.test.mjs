@@ -52,7 +52,7 @@ const manifest = dir => join(dir, '.claude-plugin', 'plugin.json');
 const setVersion = (dir, v) => writeJson(manifest(dir), { ...readJson(manifest(dir)), version: v });
 
 function assertPasses(dir) {
-  const r = run(checkIn(dir), [], { cwd: dir });
+  const r = run(checkIn(dir), [], { cwd: dir, env: { GITHUB_BASE_REF: null } });
   assert.equal(r.code, 0, `expected a pass, got:\n${r.stdout}${r.stderr}`);
   return r;
 }
@@ -60,7 +60,7 @@ function assertPasses(dir) {
 // Fails with this message, rather than merely fails. A check that goes red for
 // the wrong reason is a check nobody can act on.
 function assertFails(dir, pattern) {
-  const r = run(checkIn(dir), [], { cwd: dir });
+  const r = run(checkIn(dir), [], { cwd: dir, env: { GITHUB_BASE_REF: null } });
   assert.equal(r.code, 1, `expected a failure, got:\n${r.stdout}${r.stderr}`);
   assert.match(r.stderr, pattern);
   return r;

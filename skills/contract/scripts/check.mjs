@@ -1,13 +1,15 @@
 #!/usr/bin/env node
-// Format check for a familiar — a skill's SKILL.md, or an agent's <name>.md —
-// and the contract it was built from. Zero dependencies.
+// Format check for a familiar — a skill's SKILL.md, or an agent's <name>.md or
+// <name>.toml — and the contract it was built from. Zero dependencies.
 //
 //   node check.mjs <path>           check
 //   node check.mjs --seal <path>    write the mark, then check
 //
 // <path> is a skill folder, the SKILL.md inside one, or an agent file ending
-// .md whose contract sits beside it as <name>.contract.md. For a skill, the
-// seal covers every file in its folder but CONTRACT.md (see "the folder").
+// .md or .toml whose contract sits beside it as <name>.contract.md. A .md file
+// holds YAML frontmatter. A .toml file is a Codex agent file, and its mark is
+// three comment lines at its end (see "toml"). For a skill, the seal covers
+// every file in its folder but CONTRACT.md (see "the folder").
 //
 // Exit 0 pass (warnings allowed), 1 fail or cannot check, 2 usage or refusal.
 // The exit code is the verdict, and the skill reads the code rather than the
@@ -16,10 +18,11 @@
 // already matched the name pattern, and every character it does echo from a
 // file or a folder name is cleaned first.
 //
-// The files this reads may come from a stranger, so the reader below is not a
-// YAML parser and does not try to be. It reads one small subset of the format
-// and calls everything else "cannot check", which is a failure. A reader that
-// guessed at the rest would pass a file whose meaning it had not read.
+// The files this reads may come from a stranger, so the readers below are not
+// a YAML parser or a TOML parser and do not try to be. Each reads one small
+// subset of its format and calls everything else "cannot check", which is a
+// failure. A reader that guessed at the rest would pass a file whose meaning
+// it had not read.
 //
 // Node 20 or later, ESM, node: built-ins only. No regex here has a nested
 // quantifier, and none runs over a whole file: every regex is applied to one
@@ -86,12 +89,27 @@ const ECHO_MAX = 80;
 
 const MARK_KEYS = ['contract-version', 'familiar-digest', 'contract-digest'];
 const KNOWN_KEYS = new Set(['name', 'description', 'compatibility', 'license', 'allowed-tools', 'metadata']);
+// A .toml file has keys of its own. Codex drops an agent file with a key it
+// does not know rather than obeying it, so every other key, license and
+// compatibility included, needs the contract's `Extra keys:` line.
+const TOML_KNOWN_KEYS = new Set(['name', 'description', 'developer_instructions', 'sandbox_mode']);
+// The two sandbox_mode values a .toml may hold, whatever the contract says.
+const SANDBOX_MODES = new Set(['read-only', 'workspace-write']);
+// A contract's `Target:` names the tool the familiar is built for, and so the
+// file ending that familiar needs. A Map, so a target such as "constructor"
+// is simply not in it.
+const TARGETS = new Map([
+  ['claude', '.md'],
+  ['antigravity', '.md'],
+  ['codex', '.toml'],
+]);
 
-// Top-level keys admit upper case, because a runtime key such as
-// `permissionMode` has to parse before the unknown-key rule can refuse it, or
-// pass it when the contract lists it. Metadata keys stay lower case: the mark
-// lives there, and nothing else this check reads does.
-const TOP_KEY_RE = /^[A-Za-z][A-Za-z0-9-]*$/;
+// Top-level keys admit upper case and "_", because a runtime key such as
+// `permissionMode` or `developer_instructions` has to parse before the
+// unknown-key rule can refuse it, or pass it when the contract lists it.
+// Metadata keys stay lower case: the mark lives there, and nothing else this
+// check reads does.
+const TOP_KEY_RE = /^[A-Za-z][A-Za-z0-9_-]*$/;
 const META_KEY_RE = /^[a-z][a-z0-9-]*$/;
 // Lower-case letters, digits and hyphens, and nameShapeOk() adds the rest: no
 // leading, trailing or double hyphen. Written flat so it has no nested
@@ -99,7 +117,12 @@ const META_KEY_RE = /^[a-z][a-z0-9-]*$/;
 const NAME_CHARS_RE = /^[a-z0-9-]+$/;
 const VERSION_RE = /^Version: (\S+)$/;
 const EXTRA_RE = /^Extra keys: (.*)$/;
+// Any line that starts "Target:", however it goes on, so a second one cannot
+// hide by its spacing.
+const TARGET_RE = /^Target:(.*)$/;
 const MARK_LINE_RE = /^ {2}(contract-version|familiar-digest|contract-digest): .*$/;
+// A flow sequence's item: a plain word, before the YAML value rules run on it.
+const FLOW_ITEM_RE = /^[A-Za-z0-9_-]+$/;
 const BLOCK_HEADERS = new Set(['>', '|', '>-', '|-']);
 
 // A name under a skill folder. Every file in this repository's skills fits.
@@ -182,17 +205,26 @@ class CannotCheck extends Error {
 // ---------------------------------------------------------------- output
 
 // Characters a file must not hold, because they change what a reader sees
-// without being seen: tag characters, bidirectional overrides and isolates,
-// zero-width characters, the word joiner, and a byte-order mark anywhere but
-// the one leading mark the reader strips.
+// without being seen: every default-ignorable code point, which takes in tag
+// characters, zero-width characters, the word joiner, the soft hyphen,
+// variation selectors and Hangul fillers; the bidirectional marks, overrides
+// and isolates, named on their own as well; and a byte-order mark anywhere
+// but the one leading mark the reader strips. A model reads each of them
+// while a person sees nothing. No default-ignorable code point sits below
+// U+00AD, the soft hyphen, so the common case never reaches the regex.
+const DEFAULT_IGNORABLE_RE = /^\p{Default_Ignorable_Code_Point}$/u;
+
 function isInvisible(cp) {
+  if (cp < 0xad) return false;
   return (
     (cp >= 0xe0000 && cp <= 0xe007f) ||
     (cp >= 0x202a && cp <= 0x202e) ||
     (cp >= 0x2066 && cp <= 0x2069) ||
-    (cp >= 0x200b && cp <= 0x200d) ||
+    (cp >= 0x200b && cp <= 0x200f) ||
+    cp === 0x061c ||
     cp === 0x2060 ||
-    cp === 0xfeff
+    cp === 0xfeff ||
+    DEFAULT_IGNORABLE_RE.test(String.fromCodePoint(cp))
   );
 }
 
@@ -453,13 +485,40 @@ function yamlReadsAsNonText(v) {
   return yamlBase60(unsigned);
 }
 
-/** A one-line value after "key: ". Quoted or plain; anything else is cannot-check. */
-function parseScalar(raw, ln) {
+/** A flow sequence's items, split on commas, with spaces and tabs trimmed from each. */
+function flowItems(inner) {
+  return inner.split(',').map(part => trimEndSpaces(part.slice(leading(part).width)));
+}
+
+/**
+ * A one-line value after "key: ". Quoted or plain; anything else is
+ * cannot-check. `extras` is the contract's Extra keys, or null under
+ * `metadata:`.
+ *
+ * A flow sequence such as `[a, b]` is read only for a key the contract lists,
+ * and never under `metadata:`, whose extras are null. Each item is a plain word
+ * and passes the same rules as a plain value, so no item is null, a boolean, a
+ * number or a date. Any other `[` falls through to the indicator rule below.
+ */
+function parseScalar(raw, ln, key, extras) {
   if (raw[0] === '"') return parseDoubleQuoted(raw, ln);
   if (raw[0] === "'") return parseSingleQuoted(raw, ln);
   const v = trimEndSpaces(raw);
   if (v === '') throw new CannotCheck(ln, 'an empty value');
   if (v[0] === '\t') throw new CannotCheck(ln, 'a tab before a value');
+  if (v[0] === '[' && v.endsWith(']') && extras && extras.has(key)) {
+    const inner = v.slice(1, -1);
+    if (trimEndSpaces(inner.slice(leading(inner).width)) === '') return v;
+    for (const item of flowItems(inner)) {
+      if (!FLOW_ITEM_RE.test(item) || item === '-' || yamlReadsAsNonText(item)) {
+        throw new CannotCheck(
+          ln,
+          'a flow sequence item that is not a plain word of letters, digits, "_" and "-", or that YAML reads as null, a boolean, a number or a date',
+        );
+      }
+    }
+    return v;
+  }
   if (PLAIN_BAD_START.includes(v[0])) {
     throw new CannotCheck(ln, 'a value starting with a flow, anchor, alias, tag, block or other indicator character');
   }
@@ -470,6 +529,10 @@ function parseScalar(raw, ln) {
     throw new CannotCheck(ln, 'a colon followed by a space inside an unquoted value (quote the value)');
   }
   if (v.includes(' #') || v.includes('\t#')) throw new CannotCheck(ln, 'a trailing comment after a value');
+  if (v === 'true' || v === 'false') {
+    if (extras && extras.has(key)) return v;
+    // Otherwise let it fall through to yamlReadsAsNonText to fail
+  }
   if (yamlReadsAsNonText(v)) {
     throw new CannotCheck(ln, 'an unquoted value YAML reads as null, a boolean, a number or a date, such as a hex, octal, binary or base-60 number or a timestamp (quote it to use it as text)');
   }
@@ -567,7 +630,7 @@ function readMetadata(lines, start, close, headerIdx) {
     if (rest[0] !== ' ') throw new CannotCheck(ln, `metadata key "${clean(key)}" is not followed by ": "`);
     const raw = skipSpaces(rest);
     if (raw[0] === '|' || raw[0] === '>') throw new CannotCheck(ln, `metadata key "${clean(key)}" holds a block value`);
-    entries.set(key, { value: parseScalar(raw, ln), line: ln });
+    entries.set(key, { value: parseScalar(raw, ln, key, null), line: ln });
     childIdx.push(j);
     j += 1;
   }
@@ -581,7 +644,7 @@ function readMetadata(lines, start, close, headerIdx) {
  * A key seen twice is "cannot check", not "last one wins". Two loaders can
  * pick different copies, so a duplicate is a file that says two things.
  */
-function parseFrontmatter(lines, close) {
+function parseFrontmatter(lines, close, extras) {
   const top = new Map();
   let metadata = null;
   let i = 1;
@@ -621,22 +684,297 @@ function parseFrontmatter(lines, close) {
       i = block.end;
       continue;
     }
-    top.set(key, { kind: 'text', value: parseScalar(raw, ln), line: ln });
+    top.set(key, { kind: 'text', value: parseScalar(raw, ln, key, extras), line: ln });
     i += 1;
   }
   return { top, metadata };
 }
 
+// ---------------------------------------------------------------- toml
+//
+// A .toml familiar is a Codex agent file. The reader takes one subset of TOML
+// and calls everything else "cannot check": top-level `key = value` lines,
+// blank lines, whole-line comments, and the seal block. A value is a string,
+// or an unquoted true or false for a key the contract lists. A table, an
+// array, an inline table, a number, a date, a dotted or quoted key and any
+// text after a value's close, a comment included, are refused. `[mcp_servers]`
+// and the like are valid to Codex, but a table is where a key hides from this
+// check, so none is read.
+//
+// Strings are read the narrow way, as parseDoubleQuoted reads YAML. A basic
+// string, "…" or """…""", takes the escapes \" and \\ and no other: a \u
+// escape could spell a character the invisible-character rule never sees in
+// the raw text. A literal string, '…' or '''…''', takes none, and two single
+// quotes in a row inside one are refused. A close with a longer quote run
+// than its delimiter is refused too, so the reader closes a string exactly
+// where TOML does, and a key after it cannot hide inside it.
+//
+// The seal is three comment lines at the very end of the file, which Codex
+// reads past. They are found by the same pass that knows whether a line is
+// inside a string: the same three lines inside a string are text, and stay in
+// the digest. Any other comment that names a mark key, in any case or form,
+// is refused, because it would read as a seal to a person or a model.
+
+// The seal block, one fully anchored pattern per line, in MARK_KEYS order.
+// The version takes the characters sealableVersion() allows, and no quote.
+const TOML_SEAL_RES = [
+  /^# contract-version = "([0-9A-Za-z.+-]+)"$/,
+  /^# familiar-digest = "(sha256:[0-9a-f]{64})"$/,
+  /^# contract-digest = "(sha256:[0-9a-f]{64})"$/,
+];
+// A comment's text that names a mark key. Looser than the block on purpose:
+// any case, any spacing, any separator and any quoting.
+const TOML_DECOY_RE = /contract-version|familiar-digest|contract-digest/i;
+// The leading run of bare-key characters on a key line. TOP_KEY_RE decides
+// afterwards whether the key is one this check reads.
+const TOML_BARE_KEY_RE = /^[A-Za-z0-9_-]+/;
+// A value TOML reads as a number or a date: a sign or a digit first, or inf
+// or nan.
+const TOML_NUMBER_START_RE = /^[-+0-9]/;
+const TOML_INF_NAN_RE = /^(?:inf|nan)(?:$|[ \t])/;
+
+const TOML_REASON = {
+  table: 'a table header ([table] or [[array]]); this check reads top-level keys only',
+  dotted: 'a dotted or quoted key',
+  notKv: 'a line that is not "key = value", a comment or a blank line',
+  metadata: 'a top-level "metadata" key, which stops Codex loading the agent',
+  array: 'an array value (this check reads only strings, true and false)',
+  inline: 'an inline table value (this check reads only strings, true and false)',
+  number: 'a number or a date value (this check reads only strings, true and false)',
+  other: 'a value that is not a quoted string, true or false',
+  bool: 'an unquoted true or false on a key the contract does not list on its "Extra keys:" line',
+  afterQuote: 'text after a closing quote (for example a trailing comment)',
+  afterValue: 'text after a value (for example a trailing comment)',
+  escape: 'a backslash escape other than \\" or \\\\',
+  twoSingle: 'two single quotes in a row inside a literal string (a TOML literal string has no escapes)',
+  longClose: 'a closing quote run longer than the three-quote delimiter',
+  decoy: 'a comment that names a seal key but is not part of the seal block (three exact lines at the end of the file)',
+};
+
+/** True for a .toml agent file, whose reader, keys and seal are its own. */
+function isTomlFamiliar(loc) {
+  return loc.mode === 'agent' && loc.familiarName.endsWith('.toml');
+}
+
+/**
+ * TOML's own rules for a line's characters, which the file reader is looser
+ * about. A line ends in LF or CRLF only: the reader splits on a lone CR, and
+ * TOML refuses one. No control character but tab, inside a string or out:
+ * no C0 control and no DEL, which TOML refuses as well.
+ */
+function tomlLineRules(raw, ln) {
+  if (raw.eol === '\r') throw new CannotCheck(ln, 'a carriage return with no line feed after it');
+  const t = raw.text;
+  for (let i = 0; i < t.length; i += 1) {
+    const c = t.charCodeAt(i);
+    if ((c < 0x20 && c !== 9) || c === 0x7f) throw new CannotCheck(ln, `a control character other than tab (${hex4(c)})`);
+  }
+}
+
+/**
+ * Read a basic string's text from s[i] to its close. `quotes` is 1 or 3.
+ * Returns { value, end }, where end is the index just past the close, or -1
+ * when the line ends first. Only \" and \\ are escapes. In a """ string one
+ * or two quotes are text, three close it, and more than three are refused.
+ */
+function scanBasic(s, i, quotes, ln) {
+  let out = '';
+  let j = i;
+  while (j < s.length) {
+    const ch = s[j];
+    if (ch === '\\') {
+      const next = s[j + 1];
+      if (next !== '"' && next !== '\\') throw new CannotCheck(ln, TOML_REASON.escape);
+      out += next;
+      j += 2;
+    } else if (ch === '"') {
+      if (quotes === 1) return { value: out, end: j + 1 };
+      let run = 0;
+      while (s[j + run] === '"') run += 1;
+      if (run > 3) throw new CannotCheck(ln, TOML_REASON.longClose);
+      if (run === 3) return { value: out, end: j + 3 };
+      out += s.slice(j, j + run);
+      j += run;
+    } else {
+      out += ch;
+      j += 1;
+    }
+  }
+  return { value: out, end: -1 };
+}
+
+/**
+ * Read a literal string's text from s[i] to its close, as scanBasic does, with
+ * no escapes. Two single quotes in a row are refused, and in a ''' string a
+ * run of more than three is refused as well.
+ */
+function scanLiteral(s, i, quotes, ln) {
+  let j = i;
+  for (;;) {
+    const at = s.indexOf("'", j);
+    if (at < 0) return { value: s.slice(i), end: -1 };
+    let run = 0;
+    while (s[at + run] === "'") run += 1;
+    if (quotes === 1) {
+      if (run > 1) throw new CannotCheck(ln, TOML_REASON.twoSingle);
+      return { value: s.slice(i, at), end: at + 1 };
+    }
+    if (run > 3) throw new CannotCheck(ln, TOML_REASON.longClose);
+    if (run === 3) return { value: s.slice(i, at), end: at + 3 };
+    if (run === 2) throw new CannotCheck(ln, TOML_REASON.twoSingle);
+    j = at + 1;
+  }
+}
+
+/** Nothing but spaces and tabs may follow a string's close. */
+function afterClose(s, end, ln) {
+  if (trimEndSpaces(s.slice(end)) !== '') throw new CannotCheck(ln, TOML_REASON.afterQuote);
+}
+
+/**
+ * One value after "key = ". Returns { value } when the value ends on this
+ * line, or { open } for a multiline string that goes on past it.
+ */
+function tomlValue(v, ln, key, extras) {
+  const multi = v.startsWith('"""') ? '"""' : v.startsWith("'''") ? "'''" : null;
+  if (multi) {
+    const literal = multi === "'''";
+    const r = literal ? scanLiteral(v, 3, 3, ln) : scanBasic(v, 3, 3, ln);
+    if (r.end >= 0) {
+      afterClose(v, r.end, ln);
+      return { value: r.value };
+    }
+    // A line ending right after the opening quotes is not part of the value.
+    return { open: { key, line: ln, delimiter: multi, literal, parts: r.value === '' ? [] : [r.value] } };
+  }
+  if (v[0] === '"' || v[0] === "'") {
+    const r = v[0] === '"' ? scanBasic(v, 1, 1, ln) : scanLiteral(v, 1, 1, ln);
+    if (r.end < 0) {
+      throw new CannotCheck(ln, `a ${v[0] === '"' ? 'double' : 'single'}-quoted value that does not close on its line`);
+    }
+    afterClose(v, r.end, ln);
+    return { value: r.value };
+  }
+  for (const word of ['true', 'false']) {
+    if (!v.startsWith(word)) continue;
+    const rest = v.slice(word.length);
+    if (rest !== '' && rest[0] !== ' ' && rest[0] !== '\t') break;
+    if (trimEndSpaces(rest) !== '') throw new CannotCheck(ln, TOML_REASON.afterValue);
+    if (!extras.has(key)) throw new CannotCheck(ln, TOML_REASON.bool);
+    return { value: word };
+  }
+  if (v[0] === '[') throw new CannotCheck(ln, TOML_REASON.array);
+  if (v[0] === '{') throw new CannotCheck(ln, TOML_REASON.inline);
+  if (TOML_NUMBER_START_RE.test(v) || TOML_INF_NAN_RE.test(v)) throw new CannotCheck(ln, TOML_REASON.number);
+  throw new CannotCheck(ln, TOML_REASON.other);
+}
+
+/**
+ * Parse a .toml familiar. Returns { top, seal }: top maps key -> { kind:
+ * 'text', value, line }, and seal is { kind: 'toml', start, entries } for the
+ * block at the end of the file, or null. Throws CannotCheck.
+ *
+ * A key seen twice is "cannot check", as in the frontmatter, and a key whose
+ * value runs over several lines takes the same key and duplicate rules.
+ */
+function parseToml(fam, extras) {
+  // TOML has no byte-order mark, and one outside the digest could decide
+  // whether the file loads without breaking the seal.
+  if (fam.bom) throw new CannotCheck(1, 'a byte-order mark (a .toml file must not start with one)');
+  const lines = fam.lines;
+  // The file's own lines: a final line ending leaves one empty entry after them.
+  const count = lines[lines.length - 1] === '' ? lines.length - 1 : lines.length;
+  let sealStart = -1;
+  if (count >= 3 && TOML_SEAL_RES.every((re, k) => re.test(lines[count - 3 + k]))) sealStart = count - 3;
+
+  const top = new Map();
+  let seal = null;
+  let open = null;
+  for (let i = 0; i < lines.length; i += 1) {
+    const ln = i + 1;
+    tomlLineRules(fam.rawLines[i], ln);
+    const line = lines[i];
+    if (open) {
+      const r = open.literal ? scanLiteral(line, 0, 3, ln) : scanBasic(line, 0, 3, ln);
+      open.parts.push(r.value);
+      if (r.end < 0) continue;
+      afterClose(line, r.end, ln);
+      top.set(open.key, { kind: 'text', value: open.parts.join('\n'), line: open.line });
+      open = null;
+      continue;
+    }
+    // Reached outside a string, so it is the seal, and nothing follows it.
+    // Its other two lines take the line rules too, the last one's ending
+    // included, since the loop stops here.
+    if (i === sealStart) {
+      tomlLineRules(fam.rawLines[i + 1], ln + 1);
+      tomlLineRules(fam.rawLines[i + 2], ln + 2);
+      seal = { kind: 'toml', start: i, entries: new Map() };
+      MARK_KEYS.forEach((k, j) => seal.entries.set(k, { value: TOML_SEAL_RES[j].exec(lines[i + j])[1], line: ln + j }));
+      break;
+    }
+    const lead = leading(line).width;
+    if (lead === line.length) continue;
+    const body = line.slice(lead);
+    if (body[0] === '#') {
+      if (TOML_DECOY_RE.test(body)) throw new CannotCheck(ln, TOML_REASON.decoy);
+      continue;
+    }
+    if (body[0] === '[') throw new CannotCheck(ln, TOML_REASON.table);
+    const m = TOML_BARE_KEY_RE.exec(body);
+    const key = m ? m[0] : '';
+    const eq = key.length + leading(body.slice(key.length)).width;
+    const next = body[eq];
+    if (next === '.' || (key === '' && (next === '"' || next === "'"))) throw new CannotCheck(ln, TOML_REASON.dotted);
+    if (key === '' || next !== '=') {
+      if (key !== '' && (next === '"' || next === "'")) throw new CannotCheck(ln, TOML_REASON.dotted);
+      throw new CannotCheck(ln, TOML_REASON.notKv);
+    }
+    // Line number only, for the reason readMetadata gives.
+    if (!TOP_KEY_RE.test(key)) throw new CannotCheck(ln, 'a key outside the readable subset');
+    if (key === 'metadata') throw new CannotCheck(ln, TOML_REASON.metadata);
+    if (top.has(key)) throw new CannotCheck(ln, `duplicate key "${clean(key)}"`);
+    // Not trimmed at the end: after an opening """ or ''' the spaces are text,
+    // and so is the line ending after them. Each branch of tomlValue allows
+    // trailing spaces where TOML does.
+    const rest = body.slice(eq + 1);
+    const v = rest.slice(leading(rest).width);
+    if (trimEndSpaces(v) === '') throw new CannotCheck(ln, 'an empty value');
+    const r = tomlValue(v, ln, key, extras);
+    if (r.open) open = r.open;
+    else top.set(key, { kind: 'text', value: r.value, line: ln });
+  }
+  if (open) throw new CannotCheck(open.line, `unclosed multiline string (${open.delimiter})`);
+  return { top, seal };
+}
+
+/**
+ * The one reader for a familiar, whatever its format. Returns { top, seal },
+ * or null for a .md file with no frontmatter. Throws CannotCheck. `seal` says
+ * where the mark is: the frontmatter's `metadata:` block ({ kind: 'yaml',
+ * entries, headerIdx, childIdx }), the comment block at the end of a .toml
+ * ({ kind: 'toml', start, entries }), or null when there is neither.
+ */
+function parseFamiliar(fam, loc, extras) {
+  if (isTomlFamiliar(loc)) return parseToml(fam, extras);
+  const close = findFrontmatter(fam.lines);
+  if (close < 0) return null;
+  const fm = parseFrontmatter(fam.lines, close, extras);
+  return { top: fm.top, seal: fm.metadata ? { kind: 'yaml', ...fm.metadata } : null };
+}
+
 // ---------------------------------------------------------------- contract
 
 /**
- * The two lines of a contract this check reads: the first `Version: <v>` and
- * the first `Extra keys: <k>, <k>`. An entry in Extra keys that is not
+ * The lines of a contract this check reads: the first `Version: <v>`, the
+ * first `Extra keys: <k>, <k>`, and every `Target:` line, so that a second
+ * one anywhere in the file is seen. An entry in Extra keys that is not
  * key-shaped is dropped, which can only make the unknown-key rule stricter.
  */
 function contractFacts(lines) {
   let version = null;
   let extras = null;
+  const targets = [];
   for (const line of lines) {
     if (version === null) {
       const m = VERSION_RE.exec(line);
@@ -652,9 +990,10 @@ function contractFacts(lines) {
         }
       }
     }
-    if (version !== null && extras !== null) break;
+    const t = TARGET_RE.exec(line);
+    if (t) targets.push(trimEndSpaces(t[1].slice(leading(t[1]).width)));
   }
-  return { version, extras: extras ?? new Set() };
+  return { version, extras: extras ?? new Set(), targets };
 }
 
 // ---------------------------------------------------------------- digests
@@ -668,20 +1007,24 @@ function withOneTrailingLf(lines) {
 }
 
 /**
- * Canonical form of the familiar: the whole file, normalised, with the mark
- * lines inside the metadata block removed (and `metadata:` too, when the mark
- * was all it held). The digest covers the frontmatter as well as the body, so
- * a key added after the seal breaks it.
+ * Canonical form of the familiar, given the seal parseFamiliar found. For a
+ * .md file: the whole file, normalised, with the mark lines inside the
+ * metadata block removed (and `metadata:` too, when the mark was all it held).
+ * For a .toml file: every line before the seal block, or every line when there
+ * is none. Either way the lines are joined as withOneTrailingLf joins them, so
+ * trailing blank lines are not covered, by design. The digest covers the keys
+ * as well as the text, so a key added after the seal breaks it.
  */
-function canonicalFamiliar(lines, metadata) {
+function canonicalFamiliar(lines, seal) {
+  if (seal && seal.kind === 'toml') return withOneTrailingLf(lines.slice(0, seal.start));
   const drop = new Set();
-  if (metadata) {
+  if (seal) {
     let kept = 0;
-    for (const idx of metadata.childIdx) {
+    for (const idx of seal.childIdx) {
       if (MARK_LINE_RE.test(lines[idx])) drop.add(idx);
       else kept += 1;
     }
-    if (kept === 0) drop.add(metadata.headerIdx);
+    if (kept === 0) drop.add(seal.headerIdx);
   }
   return withOneTrailingLf(lines.filter((_, i) => !drop.has(i)));
 }
@@ -1013,19 +1356,29 @@ function locate(arg) {
     return locateSkill(dirname(abs), [{ rule: 'familiar-file', reason: `file must be named SKILL.md (found "${clean(name)}")` }]);
   }
   if (name.toLowerCase().endsWith('.contract.md')) throw new Refusal('path', "give the familiar's file, not its contract");
-  if (!name.endsWith('.md')) throw new Refusal('path', 'the path must be a skill folder, its SKILL.md, or an agent file ending .md');
+  if (!name.endsWith('.md') && !name.endsWith('.toml')) throw new Refusal('path', 'the path must be a skill folder, its SKILL.md, or an agent file ending .md or .toml');
   const dir = dirname(abs);
-  const stem = name.slice(0, -3);
+  const stem = name.endsWith('.md') ? name.slice(0, -3) : name.slice(0, -5);
   const contractName = `${stem}.contract.md`;
   const wanted = contractName.toLowerCase();
   const problems = [];
   let contractExists = false;
+  // An agent in both formats is two familiars for one contract, whichever
+  // file the path names.
+  let mdExists = false;
+  let tomlExists = false;
   for (const e of readdirSync(dir)) {
     if (e === contractName) contractExists = true;
     else if (e.toLowerCase() === wanted) {
       problems.push({ rule: 'contract-file', reason: `file must be named "${clean(contractName)}" (found "${clean(e)}")` });
     }
+    if (e.toLowerCase() === `${stem.toLowerCase()}.md`) mdExists = true;
+    if (e.toLowerCase() === `${stem.toLowerCase()}.toml`) tomlExists = true;
   }
+  if (mdExists && tomlExists) {
+    problems.push({ rule: 'path', reason: `both .md and .toml exist for stem "${clean(stem)}" creating ambiguity` });
+  }
+
   return {
     mode: 'agent',
     dir,
@@ -1035,7 +1388,7 @@ function locate(arg) {
     contractName,
     contractPath: join(dir, contractName),
     contractExists,
-    contractVariant: problems.length > 0,
+    contractVariant: problems.some(p => p.rule === 'contract-file'),
     expectedName: stem,
     nameRule: 'name-matches-file',
     problems,
@@ -1055,18 +1408,20 @@ function codePoints(s) {
 }
 
 /**
- * The field rules on a parsed frontmatter. Records into report.
+ * The field rules on a parsed familiar. Records into report.
  *
  * Any key the rules do not name fails unless the contract lists it on its
  * `Extra keys:` line. A key a runtime reads, such as one that sets how much
  * the agent may do without asking, is a change nobody reviewed unless the
- * contract says it was wanted.
+ * contract says it was wanted. A .toml file has its own known keys.
  */
 function fieldRules(fm, loc, extras, report) {
   const { top } = fm;
+  const toml = isTomlFamiliar(loc);
+  const known = toml ? TOML_KNOWN_KEYS : KNOWN_KEYS;
   let unknown = 0;
   for (const [key, entry] of top) {
-    if (!KNOWN_KEYS.has(key) && !extras.has(key)) {
+    if (!known.has(key) && !extras.has(key)) {
       unknown += 1;
       report.fail('keys', `unknown key "${clean(key)}" at line ${entry.line}`);
     }
@@ -1100,6 +1455,11 @@ function fieldRules(fm, loc, extras, report) {
   else if (codePoints(desc.value) > DESCRIPTION_MAX) report.fail('description', `line ${desc.line}: longer than ${DESCRIPTION_MAX} characters`);
   else report.pass('description');
 
+  if (toml) {
+    tomlKeyRules(top, report);
+    return;
+  }
+
   const compat = top.get('compatibility');
   if (compat) {
     const len = codePoints(compat.value);
@@ -1119,6 +1479,52 @@ function fieldRules(fm, loc, extras, report) {
     if (meta.kind !== 'map') report.fail('metadata', `line ${meta.line}: must be a map of text values`);
     else report.pass('metadata');
   }
+}
+
+/**
+ * The .toml keys past name and description. developer_instructions is the
+ * agent's prompt, so it must be there and hold text. sandbox_mode sets what
+ * the agent may do without asking, so a contract listing it cannot widen it:
+ * the check, not the contract, keeps it to its two narrow values, and never
+ * echoes it.
+ */
+function tomlKeyRules(top, report) {
+  const di = top.get('developer_instructions');
+  if (!di) report.fail('developer_instructions', 'missing (required)');
+  else if (di.value.trim() === '') report.fail('developer_instructions', `line ${di.line}: empty`);
+  else report.pass('developer_instructions');
+
+  const sm = top.get('sandbox_mode');
+  if (!sm) return;
+  if (SANDBOX_MODES.has(sm.value)) report.pass('sandbox-mode');
+  else report.fail('sandbox-mode', `line ${sm.line}: must be "read-only" or "workspace-write"`);
+}
+
+/**
+ * The contract's `Target:` line against the familiar. Records into report.
+ * An agent's contract names the tool it is built for, which fixes the file
+ * ending; with none, the check warns, because the ending was then chosen by
+ * nobody on record. A skill is the same format everywhere, so its contract
+ * names none. The target is echoed only once it is one of the known three.
+ */
+function targetRule(facts, loc, report) {
+  const t = facts.targets;
+  if (t.length > 1) {
+    report.cannot('target', 'the contract has more than one "Target:" line');
+    return;
+  }
+  if (loc.mode === 'skill') {
+    if (t.length === 1) report.fail('target', "a skill's contract names a target; only an agent's contract has a \"Target:\" line");
+    return;
+  }
+  if (t.length === 0) {
+    report.warn('target', 'the contract names no target');
+    return;
+  }
+  const needs = TARGETS.get(t[0]);
+  if (needs === undefined) report.fail('target', 'the "Target:" line must name claude, antigravity or codex');
+  else if (needs !== (isTomlFamiliar(loc) ? '.toml' : '.md')) report.fail('target', `the contract names ${t[0]}, which needs a ${needs} file`);
+  else report.pass('target', t[0]);
 }
 
 function invisibleRule(file, label, report) {
@@ -1168,32 +1574,39 @@ function runCheck(loc, report) {
   if (con) invisibleRule(con, conLabel, report);
   const folder = loc.mode === 'skill' ? folderRules(loc, report) : null;
 
-  const close = findFrontmatter(fam.lines);
-  if (close < 0) {
+  const toml = isTomlFamiliar(loc);
+  const facts = con ? contractFacts(con.lines) : { version: null, extras: new Set(), targets: [] };
+  if (con) targetRule(facts, loc, report);
+
+  const formatRule = toml ? 'toml' : 'frontmatter';
+  let fm;
+  try {
+    fm = parseFamiliar(fam, loc, facts.extras);
+  } catch (err) {
+    if (!(err instanceof CannotCheck)) throw err;
+    report.cannot(formatRule, `${famLabel} line ${err.line}: ${err.reason}`);
+    return;
+  }
+  if (fm === null) {
     report.fail('frontmatter', 'no frontmatter (the first line must be --- and a later line must be ---)');
     return;
   }
-  let fm;
-  try {
-    fm = parseFrontmatter(fam.lines, close);
-  } catch (err) {
-    if (!(err instanceof CannotCheck)) throw err;
-    report.cannot('frontmatter', `${famLabel} line ${err.line}: ${err.reason}`);
-    return;
-  }
-  report.pass('frontmatter');
+  report.pass(formatRule);
 
-  const facts = con ? contractFacts(con.lines) : { version: null, extras: new Set() };
   fieldRules(fm, loc, facts.extras, report);
 
-  // Advice, not a rule: a long body still loads. A warning never fails.
-  const bodyLines = bodyLineCount(fam.lines, close);
-  if (bodyLines > BODY_LINES_MAX) report.warn('body-length', `body is ${bodyLines} lines; the advised limit is ${BODY_LINES_MAX}`);
-  else report.pass('body-length');
+  // Advice, not a rule: a long body still loads. A warning never fails. A
+  // .toml file has no body apart from its keys, so it gets no line at all: a
+  // pass for a rule that did not run would be a false report.
+  if (!toml) {
+    const bodyLines = bodyLineCount(fam.lines, findFrontmatter(fam.lines));
+    if (bodyLines > BODY_LINES_MAX) report.warn('body-length', `body is ${bodyLines} lines; the advised limit is ${BODY_LINES_MAX}`);
+    else report.pass('body-length');
+  }
 
   // The mark and the contract travel together. Either one alone is a file
   // somebody changed without the other, so both halves of the mismatch fail.
-  const entries = fm.metadata ? fm.metadata.entries : new Map();
+  const entries = fm.seal ? fm.seal.entries : new Map();
   const present = MARK_KEYS.filter(k => entries.has(k));
   const hasMark = present.length > 0;
   if (hasMark && present.length < MARK_KEYS.length) {
@@ -1231,7 +1644,7 @@ function runCheck(loc, report) {
   // In skill mode the digest cannot say which file changed, so the failure
   // names none.
   const fd = entries.get('familiar-digest');
-  const canon = canonicalFamiliar(fam.lines, fm.metadata);
+  const canon = canonicalFamiliar(fam.lines, fm.seal);
   if (loc.mode === 'agent') {
     if (fd.value !== digest(canon)) {
       report.fail('familiar-digest', `line ${fd.line}: the seal is broken; ${famLabel} changed since it was sealed`);
@@ -1270,6 +1683,67 @@ function sealableVersion(v) {
 }
 
 /**
+ * Write the mark into a .md file's lines, which change in place. Nothing but
+ * the mark changes. A mark key already there is rewritten in place; a missing
+ * one goes after the last metadata entry; with no metadata block, `metadata:`
+ * and the three keys go just before the closing `---`. An inserted line takes
+ * the line ending of the line above it. contract-version is written plain
+ * (see sealableVersion); the digests stay quoted.
+ */
+function writeYamlMark(raw, meta, values, close) {
+  const markLine = k => (k === 'contract-version' ? `  ${k}: ${values[k]}` : `  ${k}: "${escapeDq(values[k])}"`);
+  let insertAfter;
+  let toInsert;
+  if (meta) {
+    const have = new Map();
+    for (const idx of meta.childIdx) {
+      const key = raw[idx].text.slice(2, raw[idx].text.indexOf(':'));
+      if (MARK_KEYS.includes(key)) have.set(key, idx);
+    }
+    for (const [k, idx] of have) raw[idx].text = markLine(k);
+    toInsert = MARK_KEYS.filter(k => !have.has(k)).map(markLine);
+    insertAfter = meta.childIdx.length > 0 ? meta.childIdx[meta.childIdx.length - 1] : meta.headerIdx;
+  } else {
+    toInsert = ['metadata:', ...MARK_KEYS.map(markLine)];
+    insertAfter = close - 1;
+  }
+  const eol = raw[insertAfter].eol || '\n';
+  raw.splice(insertAfter + 1, 0, ...toInsert.map(text => ({ text, eol })));
+}
+
+/**
+ * Write the seal block into a .toml file's lines, which change in place. A
+ * block already there is rewritten line for line, each keeping its ending.
+ * Otherwise the block goes directly after the file's last line, and each of
+ * its lines takes the file's own ending: that of the last line that has one,
+ * or LF. A last line with no ending gets that one first. The values need no
+ * escape: sealableVersion() allows no quote or backslash, and a digest is hex.
+ */
+function writeTomlMark(raw, seal, values) {
+  const block = MARK_KEYS.map(k => `# ${k} = "${values[k]}"`);
+  if (seal) {
+    block.forEach((text, j) => {
+      raw[seal.start + j].text = text;
+    });
+    return;
+  }
+  let eol = '\n';
+  for (let i = raw.length - 1; i >= 0; i -= 1) {
+    if (raw[i].eol !== '') {
+      eol = raw[i].eol;
+      break;
+    }
+  }
+  // A file that ends in a line ending leaves one empty entry after its last
+  // line, and the block goes before it.
+  const last = raw[raw.length - 1];
+  let at = raw.length;
+  if (last.text === '') at -= 1;
+  else last.eol = eol;
+  raw.splice(at, 0, ...block.map(text => ({ text, eol })));
+}
+
+/**
  * Write the mark, or throw Refusal with nothing written.
  *
  * Every refusal comes before the write. A seal over a file that fails, or
@@ -1294,22 +1768,17 @@ function runSeal(loc, report) {
   const con = readText(loc.contractPath);
   if (!con.ok) throw new Refusal('contract-read', `${conLabel} ${con.why}`);
 
+  // The contract's own rules: the invisible-character rule, and its target
+  // against the familiar. A missing target only warns, so it seals.
+  const facts = contractFacts(con.lines);
   const conScratch = new Report();
-  if (!invisibleRule(con, conLabel, conScratch)) {
-    for (const l of conScratch.lines) if (!l.startsWith('PASS ')) report.lines.push(l);
+  invisibleRule(con, conLabel, conScratch);
+  targetRule(facts, loc, conScratch);
+  if (conScratch.failed) {
+    for (const l of conScratch.lines) if (l.startsWith('FAIL ') || l.startsWith('CANNOT-CHECK ')) report.lines.push(l);
     throw new Refusal('contract-rules', `${conLabel} fails its file rules`);
   }
 
-  const close = findFrontmatter(fam.lines);
-  if (close < 0) throw new Refusal('frontmatter', 'no frontmatter');
-  let fm;
-  try {
-    fm = parseFrontmatter(fam.lines, close);
-  } catch (err) {
-    if (!(err instanceof CannotCheck)) throw err;
-    throw new Refusal('frontmatter', `cannot check ${famLabel} line ${err.line}: ${err.reason}`);
-  }
-  const facts = contractFacts(con.lines);
   if (facts.version === null) throw new Refusal('contract-version', `${conLabel} has no "Version:" line`);
   // The reason is fixed text. The version came from a file a stranger may
   // have written, so it is never echoed.
@@ -1323,7 +1792,7 @@ function runSeal(loc, report) {
   // already rules out every value that fails here; this holds if it drifts.
   let readBack;
   try {
-    readBack = parseScalar(facts.version, 1);
+    readBack = parseScalar(facts.version, 1, null, null);
   } catch (err) {
     if (!(err instanceof CannotCheck)) throw err;
     readBack = null;
@@ -1331,6 +1800,16 @@ function runSeal(loc, report) {
   if (readBack !== facts.version) {
     throw new Refusal('contract-version', `the Version line in ${conLabel} would not read back unchanged once written`);
   }
+
+  const toml = isTomlFamiliar(loc);
+  let fm;
+  try {
+    fm = parseFamiliar(fam, loc, facts.extras);
+  } catch (err) {
+    if (!(err instanceof CannotCheck)) throw err;
+    throw new Refusal(toml ? 'toml' : 'frontmatter', `cannot check ${famLabel} line ${err.line}: ${err.reason}`);
+  }
+  if (fm === null) throw new Refusal('frontmatter', 'no frontmatter');
 
   const scratch = new Report();
   invisibleRule(fam, famLabel, scratch);
@@ -1352,62 +1831,43 @@ function runSeal(loc, report) {
     }
   }
 
-  const canon = canonicalFamiliar(fam.lines, fm.metadata);
+  const canon = canonicalFamiliar(fam.lines, fm.seal);
   const values = {
     'contract-version': facts.version,
     'familiar-digest': folder === null ? digest(canon) : folderDigest(canon, folder),
     'contract-digest': digest(withOneTrailingLf(con.lines)),
   };
-  // contract-version is written plain (see sealableVersion); the digests stay
-  // quoted.
-  const markLine = k => (k === 'contract-version' ? `  ${k}: ${values[k]}` : `  ${k}: "${escapeDq(values[k])}"`);
 
-  // Change nothing but the mark. A mark key already there is rewritten in
-  // place; a missing one goes after the last metadata entry; with no metadata
-  // block, `metadata:` and the three keys go just before the closing `---`.
-  // An inserted line takes the line ending of the line above it.
   const raw = fam.rawLines.map(l => ({ text: l.text, eol: l.eol }));
-  const meta = fm.metadata;
-  let insertAfter;
-  let toInsert;
-  if (meta) {
-    const have = new Map();
-    for (const idx of meta.childIdx) {
-      const key = raw[idx].text.slice(2, raw[idx].text.indexOf(':'));
-      if (MARK_KEYS.includes(key)) have.set(key, idx);
-    }
-    for (const [k, idx] of have) raw[idx].text = markLine(k);
-    toInsert = MARK_KEYS.filter(k => !have.has(k)).map(markLine);
-    insertAfter = meta.childIdx.length > 0 ? meta.childIdx[meta.childIdx.length - 1] : meta.headerIdx;
-  } else {
-    toInsert = ['metadata:', ...MARK_KEYS.map(markLine)];
-    insertAfter = close - 1;
-  }
-  const eol = raw[insertAfter].eol || '\n';
-  raw.splice(insertAfter + 1, 0, ...toInsert.map(text => ({ text, eol })));
+  if (toml) writeTomlMark(raw, fm.seal, values);
+  else writeYamlMark(raw, fm.seal, values, findFrontmatter(fam.lines));
   const out = (fam.bom ? '\u{FEFF}' : '') + raw.map(l => l.text + l.eol).join('');
 
-  // Before writing, the new text must parse and keep the canonical form the
-  // digest was taken over. A seal that broke its own file would be refused
-  // by the next check, after the file was already changed.
-  // A text that would not parse is refused here too, never thrown past the
-  // seal, and the contract-version it would hold must be the Version line.
+  // Before writing, the new text must parse, through the same reader the
+  // check uses, and keep the canonical form the digest was taken over. A seal
+  // that broke its own file would be refused by the next check, after the
+  // file was already changed. A text that would not parse is refused here
+  // too, never thrown past the seal, and the mark it would hold must be the
+  // mark just written, with the contract's Version line.
   const newLines = raw.map(l => l.text);
-  const newClose = findFrontmatter(newLines);
-  if (newClose < 0) throw new Refusal('seal', 'internal error: the sealed text would have no frontmatter');
   let newFm;
   try {
-    newFm = parseFrontmatter(newLines, newClose);
+    newFm = parseFamiliar({ bom: fam.bom, rawLines: raw, lines: newLines }, loc, facts.extras);
   } catch (err) {
     if (!(err instanceof CannotCheck)) throw err;
     throw new Refusal('seal', 'internal error: the sealed text would not parse');
   }
-  if (canonicalFamiliar(newLines, newFm.metadata) !== canon) {
+  if (newFm === null) throw new Refusal('seal', 'internal error: the sealed text would have no frontmatter');
+  if (canonicalFamiliar(newLines, newFm.seal) !== canon) {
     throw new Refusal('seal', 'internal error: the sealed text would not keep its canonical form');
   }
-  const newCv = newFm.metadata ? newFm.metadata.entries.get('contract-version') : undefined;
+  const newEntries = newFm.seal ? newFm.seal.entries : new Map();
+  const newCv = newEntries.get('contract-version');
   if (!newCv || newCv.value !== facts.version) {
     throw new Refusal('seal', "internal error: the sealed contract-version would not match the contract's Version line");
+  }
+  if (!MARK_KEYS.every(k => newEntries.has(k) && newEntries.get(k).value === values[k])) {
+    throw new Refusal('seal', 'internal error: the sealed mark would not read back as it was written');
   }
 
   // A temporary file in the same folder, then a rename over the familiar. The
