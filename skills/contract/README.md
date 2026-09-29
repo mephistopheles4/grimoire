@@ -47,6 +47,10 @@ or agent. It also steps in for a prompt they keep pasting, and for a change to
 a familiar with a contract. It stays quiet for a one-off prompt. It also stays
 quiet for a request to run a familiar that already exists.
 
+To try the skill before a release, install it with the "Pinned to one commit"
+route in the [root README](../../README.md), using a commit from the pull
+request.
+
 ## How it works
 
 The skill interviews the person through a template of 20 questions. The person
@@ -60,8 +64,9 @@ picks a type and a level first:
 
 The skill asks one group of questions at a time. It drafts what it can from
 what the person said, and marks each draft *Proposed*. A pause, called a
-**checkpoint**, follows each group. At a checkpoint, the person corrects every
-draft in one pass. The skill never writes the answer to question 2: what the
+**checkpoint**, follows each group. At a checkpoint, the skill asks about at
+most three answers, the ones that need the person's own words. The other
+drafts stay *Proposed* until the go. The skill never writes the answer to question 2: what the
 familiar notices that nothing else does. The person writes it.
 
 When the person gives the go, the skill generates the familiar's file from
@@ -166,4 +171,5 @@ expected answers written before any run.
 | [`SKILL.md`](SKILL.md) | The skill. It is generated from the contract, so do not edit it by hand. |
 | [`CONTRACT.md`](CONTRACT.md) | This skill's own contract. Change the skill here, then generate and seal again. |
 | [`references/template.md`](references/template.md) | The 20 questions, with the test for each one. |
+| [`references/amend.md`](references/amend.md) | Amend mode: how the skill changes a familiar that has a contract. It is generated from the contract, like `SKILL.md`. |
 | [`scripts/check.mjs`](scripts/check.mjs) | The check and the seal. It uses only built-in modules, so it needs no install. |

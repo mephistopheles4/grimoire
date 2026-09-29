@@ -6,12 +6,15 @@ anything is built. A small familiar takes about ten minutes. A serious one
 takes about an hour. The answers are the contract. The familiar's file is
 generated from the contract.*
 
-*Draft 8. It uses the word familiar, asks for the name in question 1, marks
-each clause Enforced or Promised, and adds the rule that the file is generated
-from the contract. It also adds agent files with a contract beside them.
-Each heading of the generated file cites its questions, and the change log
-names the questions that each version touched. A "show me good" step before
-question 1 finds the target output.
+*Draft 9. It moves the practice test into a file of its own, beside the
+familiar. It asks where a familiar's trigger lives, how its record is
+reviewed, and which files the seal does not cover.
+Draft 8 used the word familiar, asked for the name in question 1, marked
+each clause Enforced or Promised, and added the rule that the file is
+generated from the contract. It also added agent files with a contract beside
+them, cited the questions in each heading of the generated file, and named
+the questions that each version touched in the change log. It added a "show
+me good" step before question 1, to find the target output.
 Draft 7 added "try it before you review it twice" to question 12. Draft 6
 added a balance against false alarms. Earlier drafts rewrote the text in
 plain language and added "when it is unsure".*
@@ -25,10 +28,8 @@ plain language and added "when it is unsure".*
   same name as the skill. `SKILL.md` is an open format that many agents read.
   See the Agent Skills specification: https://agentskills.io/specification.
 - An **agent** is a familiar that the main agent sends off to do one job
-  alone and report back. It supports three target harnesses:
-  - Claude Code (`claude`): format `<name>.md`
-  - Google Antigravity (`antigravity`): format `<name>.md`
-  - OpenAI Codex (`codex`): format `<name>.toml`
+  alone and report back. It lives in one file, in the format your tool uses
+  for agents.
 
 Some questions ask different things for each type. They say so.
 
@@ -57,12 +58,16 @@ the familiar does, amend the contract, then generate the file again.
 
 **Where each file lives.**
 
-| Type | The familiar | Its contract |
-|---|---|---|
-| Skill | `<name>/SKILL.md` | `<name>/CONTRACT.md` |
-| Agent | `<name>.md` or `<name>.toml` | `<name>.contract.md`, in the same folder |
+| Type | The familiar | Its contract | Its practice test |
+|---|---|---|---|
+| Skill | `<name>/SKILL.md` | `<name>/CONTRACT.md` | `<name>.practice-test.md`, beside the folder |
+| Agent | `<name>.md` | `<name>.contract.md`, in the same folder | `<name>.practice-test.md`, in the same folder |
 
-Copy the contract with the familiar. They travel together. The contract `<name>.contract.md` sits beside the agent file. It serves as the single source for generating any of these targets.
+Copy the contract with the familiar. They travel together. The practice test
+stays behind: it holds the expected answers, so it never goes inside a
+skill's folder, where it would install with the familiar. The contract's
+question 12 points to it. An existing file of that name is overwritten only
+after you say yes. The mark does not cover the practice-test file.
 
 **The version line.** The line after the contract's title reads
 `Version: X.Y.Z`, starting at 0.1.0. Each amendment raises the version and
@@ -89,7 +94,7 @@ each such key in the contract, on one line that starts with the words
 
 **How answers are marked.** Every answer carries one of three marks:
 
-- *Proposed*: the agent drafted it, and you have not looked at it yet.
+- *Proposed*: the agent drafted it, and you have not confirmed it yet.
 - **Confirmed**: you accepted a draft without a change.
 - **Decided**, with a date: your own words, or a draft you rewrote.
 
@@ -188,9 +193,16 @@ Split the work four ways:
   also keep three abilities that the familiar must never take away: to check
   the work yourself, to explain why it is right, and to know when to stop.
 - **Stop and ask:** the moments when the familiar tells you and waits. Write
-  each one as "when X happens", not as a hope.
+  each one as "when X happens", not as a hope. If the familiar records what
+  it did, give a stop its own record value, such as "stopped and waiting", or
+  "proposed, not built" for a stop that proposes without producing.
 
 Mark each item Enforced or Promised (see "How each clause is held").
+
+**What makes it fire.** Say what makes the familiar step in, and where that
+trigger lives: the description, an instruction line, or a hook that you
+install. Then say what happens when it does not fire. A hook is yours to
+install; the contract only records it.
 
 *The test:* every item sits in exactly one place. An item in two places is an
 item that nobody owns.
@@ -223,31 +235,24 @@ it is. It never merges two findings into one. *Skill:* the shape of what it
 produces, how it shows its confidence, and where the result lives: removed
 after the session, or kept.
 
+If it records an outcome each time, list the values. Include one for a stop
+that proposes without producing, "proposed, not built", and one for a stop
+that waits for you, "stopped and waiting".
+
 *The test:* a person who did not watch the work can act on it.
 
 ### 5. What tools does it need?
 
-The shortest list that does the job. *Skill:* the tools and scripts that it
-calls.
-
-*Agent:* Question 5 records the canonical Intent string instead of
-vendor-specific tool names. This choice preserves vendor neutrality. The
-build step maps these intents to the target harness's tools.
-
-| Intent | Claude Code Tool | Antigravity Tool | Codex Mode |
-| :--- | :--- | :--- | :--- |
-| File Read / Search | `Read`, `Glob`, `Grep` | `view_file` | Read access |
-| File Create | `Write` | `write_to_file` | `workspace-write` |
-| File Modify | `Edit` | `replace_file_content` | `workspace-write` |
-| Shell Execution | `Bash`, `PowerShell` | `run_command` | Sandbox terminal |
-| Web Fetch / Read | `WebFetch` | `read_url_content` | Network access |
-| Web Search | `WebSearch` | `search_web` | Network search |
+The shortest list that does the job. *Agent:* the tool list in its file.
+*Skill:* the tools and scripts that it calls.
 
 If the file needs frontmatter keys that the Agent Skills specification does
 not name, list them on the `Extra keys` line (see "How the contract is
-kept"). When targeting Google Antigravity, list required keys beyond the
-base specification (`subagent`, `mainAgent`, `commandExecutionPolicy`,
-`tools`) on the `Extra keys:` line.
+kept").
+
+A tool file outside the familiar's folder is not sealed: the mark covers the
+folder only. If you name one, say so here. At Thorough, also list it under
+question 19.
 
 *The test:* each tool has a reason. "It might need it" is not a reason.
 
@@ -316,6 +321,10 @@ repeats that back in words before it acts.
 
 ### 12. Prove it works: a practice test
 
+Write the practice test in its own file, `<name>.practice-test.md`, beside
+the familiar and never inside a skill's folder (see "How the contract is
+kept"). Here, in the contract, only point to that file.
+
 Two to six made-up problems that it must catch, each with the answer you
 expect. Write them in terms that it can actually see. Include one decoy that
 it must not flag. Mark each problem that an automatic check catches anyway.
@@ -379,6 +388,11 @@ to ignore is worse than none. It looks like a safeguard and protects nothing.
 "Another familiar catches the same three problems twice in a row" is visible.
 So is "you dismissed seven of its last ten findings".
 
+**Say how its record is reviewed.** Four parts: what the familiar records,
+what a review of that record reads, at what threshold the review runs, and
+who proposes a change. The familiar changes nothing by itself. Each proposal
+becomes a row in the change log (question 7).
+
 ### 14. How hard should it think?
 
 *Agent:* which model it runs on, how much effort it spends, and when a second
@@ -436,6 +450,9 @@ rules to behave, the gap is further up this contract.
 
 Open questions are normal before first use. Use of the familiar settles them.
 More thought does not.
+
+List each tool file from question 5 that sits outside the familiar's folder.
+The seal does not cover it, so a change to it goes unnoticed.
 
 ### 20. Where do the ideas come from?
 
