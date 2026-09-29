@@ -635,8 +635,10 @@ describe('S10', () => {
 
   describe('22 control characters never reach the output', () => {
     test('a key name holding an ANSI escape -> reported by line only, no ESC byte', () => {
+      // The character rule refuses the ESC before the key is read at all.
       const r = run([skill({ fm: ['name: demo', '\u{1B}[31mevil: x', 'description: A test skill.'] })]);
-      expect(r, 1, 'CANNOT-CHECK frontmatter: SKILL.md line 3: a key outside the readable subset');
+      expect(r, 1);
+      assert.ok(r.lines.includes('CANNOT-CHECK characters: SKILL.md line 3 holds U+001B'), show(r));
       assert.ok(!r.out.includes('\u{1B}'), 'ESC byte in the output');
       assert.ok(!r.out.includes('evil'), 'text from before the colon was echoed');
     });
@@ -836,8 +838,14 @@ describe('v4', () => {
     test('CRLF with no final line ending', () => {
       sealedOnlyTheMark(familiarText(fm, '# Demo\n\nBody.').replaceAll('\n', '\r\n'), true);
     });
-    test('lone CR endings', () => {
-      sealedOnlyTheMark(familiarText(fm, '# Demo\n\nBody.\n').replaceAll('\n', '\r'), true);
+    test('lone CR endings -> the seal refuses, and the file is unchanged', () => {
+      const dir = skill({ text: familiarText(fm, '# Demo\n\nBody.\n').replaceAll('\n', '\r'), contract: CONTRACT });
+      const p = join(dir, 'SKILL.md');
+      const before = readFileSync(p);
+      const r = run(['--seal', dir]);
+      expect(r, 2, 'FAIL seal: refused; nothing written');
+      assert.ok(r.lines.includes('CANNOT-CHECK characters: SKILL.md line 1 holds a carriage return with no line feed after it'), show(r));
+      assert.deepEqual(readFileSync(p), before);
     });
     test('BOM and CRLF, with a metadata block holding only a comment', () => {
       sealedOnlyTheMark(`\u{FEFF}${familiarText([...fm, 'metadata:', '  # nothing yet'])}`.replaceAll('\n', '\r\n'), false);
@@ -895,8 +903,10 @@ describe('v4', () => {
       assert.ok(!r.out.includes('\u{202E}'), 'U+202E reached the output');
     });
     test('a key holding U+2028 is not echoed at all', () => {
+      // The character rule refuses the separator before the key is read at all.
       const r = run([skill({ fm: ['name: demo', 'na\u{2028}me: x', 'description: A test skill.'] })]);
-      expect(r, 1, 'CANNOT-CHECK frontmatter: SKILL.md line 3: a key outside the readable subset');
+      expect(r, 1);
+      assert.ok(r.lines.includes('CANNOT-CHECK characters: SKILL.md line 3 holds U+2028'), show(r));
       assert.ok(!r.out.includes('\u{2028}'), 'U+2028 reached the output');
     });
     test('an echoed name is cut to 80 characters', () => {
@@ -2382,6 +2392,222 @@ describe('v8 the .toml reader fails closed, and the contract names its target', 
       const dir = both();
       writeFileSync(join(dir, 'x.Contract.md'), CONTRACT);
       exact(run([join(dir, 'x.toml')]), 1, AMBIGUOUS, 'FAIL contract-file: file must be named "x.contract.md" (found "x.Contract.md")');
+    });
+  });
+});
+
+// ------------------------------------------------------------------ v10 the character rule
+
+// Line and paragraph separators, NEL, every C0 control but tab, DEL, every C1
+// control, U+FFFE, U+FFFF and a lone CR are cannot-check in every text file
+// the check reads. Each case asserts its whole reason line, and that the
+// character itself never reaches the output.
+describe('v10 the character rule refuses separators and control characters', () => {
+  const TCLAUDE = 'Version: 1.0.0\nTarget: claude\n\n# Contract\n\nWhat this familiar is for.\n';
+  const TCODEX = 'Version: 1.0.0\nTarget: codex\n\n# Contract\n\nWhat this familiar is for.\n';
+  const CODEX = ['name = "cx"', 'description = "A test Codex agent."', 'developer_instructions = """', 'You review code.', '"""'];
+  const LONE_CR = 'a carriage return with no line feed after it';
+  const TOML_SEP = u => `a line or paragraph separator, a C1 control character or a noncharacter (${u})`;
+  const holds = (label, line, what) => `CANNOT-CHECK characters: ${label} line ${line} holds ${what}`;
+  const NOT_WRITTEN = 'FAIL seal: refused; nothing written';
+
+  /** Write <stem>.md, an agent in YAML frontmatter, and its contract. */
+  function agent({ fm, body, text, stem = 'x', contract } = {}) {
+    const dir = fresh();
+    const file = join(dir, `${stem}.md`);
+    writeFileSync(file, text ?? familiarText(fm ?? defaultFm(stem), body));
+    if (contract !== undefined) writeFileSync(join(dir, `${stem}.contract.md`), contract);
+    return { dir, file };
+  }
+
+  /** Write <stem>.toml, a Codex agent, and its contract. */
+  function codex({ lines = CODEX, stem = 'cx', contract } = {}) {
+    const dir = fresh();
+    const file = join(dir, `${stem}.toml`);
+    writeFileSync(file, `${lines.join('\n')}\n`);
+    if (contract !== undefined) writeFileSync(join(dir, `${stem}.contract.md`), contract);
+    return { dir, file };
+  }
+
+  /** The exit code, each line printed exactly as given, and the character kept out of the output. */
+  function refused(r, code, ch, ...lines) {
+    expect(r, code);
+    for (const l of lines) assert.ok(r.lines.includes(l), `missing the line "${l}"\n${show(r)}`);
+    if (ch) assert.ok(!r.out.includes(ch), `the refused character reached the output\n${show(r)}`);
+  }
+
+  /** An agent with `description: A B`, sealed against a claude contract. */
+  function sealedAgent() {
+    const a = agent({ fm: ['name: x', 'description: A B'], contract: TCLAUDE });
+    expect(run(['--seal', a.file]), 0, 'PASS seal: wrote ');
+    return a;
+  }
+
+  describe('a) a plain value of an agent .md', () => {
+    const SHOWN = ['PASS frontmatter', 'PASS keys', 'PASS name', 'PASS description', 'PASS target', 'PASS contract', 'PASS familiar-digest', 'PASS contract-digest'];
+    test('control: a space in the value, sealed -> 0, with every PASS line', () => {
+      const { file } = sealedAgent();
+      expect(run([file]), 0, ...SHOWN);
+    });
+    test('refuses U+2028 in the value -> 1, and prints no PASS or WARN line', () => {
+      const { file } = sealedAgent();
+      editFile(file, 'description: A B', 'description: A\u{2028}B');
+      const r = run([file]);
+      refused(r, 1, '\u{2028}', holds('x.md', 3, 'U+2028'));
+      assert.deepEqual(r.lines.filter(l => l.startsWith('PASS ') || l.startsWith('WARN ')), [], show(r));
+    });
+  });
+
+  test('b) refuses U+2028 in a metadata value -> 1', () => {
+    const { file } = agent({ fm: [...defaultFm('x'), 'metadata:', '  owner: team\u{2028}x'] });
+    refused(run([file]), 1, '\u{2028}', holds('x.md', 5, 'U+2028'));
+  });
+
+  test('c) refuses U+2028 inside a | block -> 1', () => {
+    const { file } = agent({ fm: ['name: x', 'description: |', '  First\u{2028}line.', '  Second line.'] });
+    refused(run([file]), 1, '\u{2028}', holds('x.md', 4, 'U+2028'));
+  });
+
+  describe('d) the other separators', () => {
+    test('refuses U+2029 in frontmatter -> 1', () => {
+      const { file } = agent({ fm: ['name: x', 'description: A\u{2029}B'] });
+      refused(run([file]), 1, '\u{2029}', holds('x.md', 3, 'U+2029'));
+    });
+    test('refuses U+0085 in frontmatter -> 1', () => {
+      const { file } = agent({ fm: ['name: x', 'description: A\u{85}B'] });
+      refused(run([file]), 1, '\u{85}', holds('x.md', 3, 'U+0085'));
+    });
+  });
+
+  test('e) refuses U+2028 in the body, after the closing --- -> 1', () => {
+    const { file } = agent({ body: '# X\n\nBody\u{2028}text.\n' });
+    refused(run([file]), 1, '\u{2028}', holds('x.md', 7, 'U+2028'));
+  });
+
+  test('f) refuses U+2028 in a SKILL.md, in skill mode -> 1', () => {
+    const dir = skill({ fm: ['name: demo', 'description: A\u{2028}B'] });
+    refused(run([dir]), 1, '\u{2028}', holds('SKILL.md', 3, 'U+2028'));
+  });
+
+  describe("g) refuses U+2028 on the contract lines the check reads", () => {
+    const CON = ['Version: 1.0.0', 'Target: claude', 'Extra keys: model', '', '# Contract', '', 'What this familiar is for.'];
+    for (const [label, at] of [['Version:', 0], ['Target:', 1], ['Extra keys:', 2]]) {
+      test(`at the end of the ${label} line -> 1`, () => {
+        const lines = CON.map((l, i) => (i === at ? `${l}\u{2028}` : l));
+        const { file } = agent({ contract: `${lines.join('\n')}\n` });
+        refused(run([file]), 1, '\u{2028}', holds('x.contract.md', at + 1, 'U+2028'));
+      });
+    }
+  });
+
+  describe('h) refuses C0 controls, DEL and a lone CR in every file it reads', () => {
+    const cases = [
+      ['NUL', '\u{0}', 'U+0000'],
+      ['ESC', '\u{1B}', 'U+001B'],
+      ['backspace', '\u{8}', 'U+0008'],
+      ['VT', '\u{B}', 'U+000B'],
+      ['FF', '\u{C}', 'U+000C'],
+      ['DEL', '\u{7F}', 'U+007F'],
+      ['a lone CR', '\r', LONE_CR],
+    ];
+    for (const [label, ch, what] of cases) {
+      test(`${label} in an agent .md -> 1`, () => {
+        const { file } = agent({ fm: ['name: x', `description: A${ch}B`] });
+        refused(run([file]), 1, ch === '\r' ? null : ch, holds('x.md', 3, what));
+      });
+      test(`${label} in a SKILL.md -> 1`, () => {
+        const dir = skill({ fm: ['name: demo', `description: A${ch}B`] });
+        refused(run([dir]), 1, ch === '\r' ? null : ch, holds('SKILL.md', 3, what));
+      });
+      test(`${label} in a contract -> 1`, () => {
+        const { file } = agent({ contract: `Version: 1.0.0\nTarget: claude\n\n# Contract\n\nA${ch}B\n` });
+        refused(run([file]), 1, ch === '\r' ? null : ch, holds('x.contract.md', 6, what));
+      });
+    }
+  });
+
+  describe('i) refuses C1 controls and the two noncharacters YAML does not allow', () => {
+    for (const [ch, what] of [['\u{80}', 'U+0080'], ['\u{9F}', 'U+009F'], ['\u{FFFE}', 'U+FFFE'], ['\u{FFFF}', 'U+FFFF']]) {
+      test(`${what} in frontmatter -> 1`, () => {
+        const { file } = agent({ fm: ['name: x', `description: A${ch}B`] });
+        refused(run([file]), 1, ch, holds('x.md', 3, what));
+      });
+    }
+  });
+
+  describe("j) refuses them in every other text file in a skill's folder", () => {
+    for (const [ch, what] of [['\u{2028}', 'U+2028'], ['\u{1B}', 'U+001B']]) {
+      test(`${what} in references/x.md -> 1`, () => {
+        const dir = skill();
+        put(dir, 'references/x.md', `# Notes\n\nA${ch}B\n`);
+        refused(run([dir]), 1, ch, `CANNOT-CHECK folder: "references/x.md" line 3 holds ${what}`);
+      });
+    }
+  });
+
+  test('k) refuses U+2028 in a .toml with its own reason -> 1', () => {
+    const { file } = codex({ lines: ['name = "cx"', 'description = "A\u{2028}B"', ...CODEX.slice(2)] });
+    const r = run([file]);
+    refused(r, 1, '\u{2028}', `CANNOT-CHECK toml: cx.toml line 2: ${TOML_SEP('U+2028')}`);
+    assert.ok(!r.out.includes('a control character other than tab'), show(r));
+  });
+
+  test('every line that holds one is reported, in the familiar and the contract', () => {
+    const { file } = agent({
+      fm: ['name: x', 'description: A\u{2028}B', 'metadata:', '  owner: team\u{1B}x'],
+      contract: 'Version: 1.0.0\nTarget: claude\n\n# Contract\n\nA\u{85}B\n',
+    });
+    const r = run([file]);
+    const want = [holds('x.md', 3, 'U+2028'), holds('x.md', 5, 'U+001B'), holds('x.contract.md', 6, 'U+0085')];
+    refused(r, 1, null, ...want);
+    assert.deepEqual(r.lines.filter(l => l.startsWith('CANNOT-CHECK characters: ')), want, show(r));
+  });
+
+  describe('l) the seal refuses each, and writes nothing', () => {
+    test('U+2028 in a plain value of an agent .md -> 2', () => {
+      const { file } = agent({ fm: ['name: x', 'description: A\u{2028}B'], contract: TCLAUDE });
+      const before = readFileSync(file);
+      refused(run(['--seal', file]), 2, '\u{2028}', holds('x.md', 3, 'U+2028'), NOT_WRITTEN);
+      assert.deepEqual(readFileSync(file), before);
+    });
+    test("U+2028 on the contract's Version: line -> 2", () => {
+      const { file } = agent({ contract: 'Version: 1.0.0\u{2028}\nTarget: claude\n\n# Contract\n' });
+      const before = readFileSync(file);
+      refused(run(['--seal', file]), 2, '\u{2028}', holds('x.contract.md', 1, 'U+2028'), NOT_WRITTEN);
+      assert.deepEqual(readFileSync(file), before);
+    });
+    test('U+2028 in references/x.md -> 2, SKILL.md unchanged', () => {
+      const dir = skill({ contract: CONTRACT });
+      put(dir, 'references/x.md', '# Notes\n\nA\u{2028}B\n');
+      const before = readFileSync(join(dir, 'SKILL.md'));
+      const r = run(['--seal', dir]);
+      refused(r, 2, '\u{2028}', 'CANNOT-CHECK folder: "references/x.md" line 3 holds U+2028', 'FAIL folder-rules: the folder fails its file rules', NOT_WRITTEN);
+      assert.deepEqual(readFileSync(join(dir, 'SKILL.md')), before);
+    });
+    test('U+2028 in a .toml -> 2', () => {
+      const { file } = codex({ lines: ['name = "cx"', 'description = "A\u{2028}B"', ...CODEX.slice(2)], contract: TCODEX });
+      const before = readFileSync(file);
+      refused(run(['--seal', file]), 2, '\u{2028}', `FAIL toml: cannot check cx.toml line 2: ${TOML_SEP('U+2028')}`, NOT_WRITTEN);
+      assert.deepEqual(readFileSync(file), before);
+    });
+  });
+
+  describe('still allowed', () => {
+    test('U+00A0 in a plain value -> 0', () => {
+      expect(run([agent({ fm: ['name: x', 'description: A\u{A0}B'] }).file]), 0, 'PASS description');
+    });
+    test('a tab inside a quoted value -> 0', () => {
+      expect(run([agent({ fm: ['name: x', 'description: "A\tB"'] }).file]), 0, 'PASS description');
+    });
+    test('a leading byte-order mark on an agent .md, sealed -> 0', () => {
+      const { file } = agent({ text: `\u{FEFF}${familiarText(defaultFm('x'))}`, contract: TCLAUDE });
+      expect(run(['--seal', file]), 0, 'PASS seal: wrote ');
+      expect(run([file]), 0, 'PASS familiar-digest', 'PASS contract-digest');
+    });
+    test('a CRLF agent .md, sealed -> 0', () => {
+      const { file } = agent({ text: familiarText(defaultFm('x')).replaceAll('\n', '\r\n'), contract: TCLAUDE });
+      expect(run(['--seal', file]), 0, 'PASS seal: wrote ');
+      expect(run([file]), 0, 'PASS familiar-digest', 'PASS contract-digest');
     });
   });
 });

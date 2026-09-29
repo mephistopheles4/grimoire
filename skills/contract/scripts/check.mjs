@@ -287,8 +287,10 @@ class Report {
 
 /**
  * Split decoded text into lines, keeping each line's own terminator. The seal
- * writes lines back with the ending they came with, so a CRLF or lone-CR file
- * keeps its endings and changes only in the mark lines.
+ * writes lines back with the ending they came with, so a CRLF file keeps its
+ * endings and changes only in the mark lines. A lone CR ends a line here too,
+ * and is kept as that line's ending so the character rule can see it: a file
+ * holding one is refused, never sealed (see isRefusedChar).
  */
 function splitRaw(text) {
   const out = [];
@@ -311,7 +313,9 @@ function splitRaw(text) {
 
 /**
  * Read one file: size from the open file before reading, a bounded read,
- * strict UTF-8, one leading BOM stripped, CRLF and lone CR normalised to LF.
+ * strict UTF-8, one leading BOM stripped, CRLF normalised to LF. A lone CR
+ * also ends a line in `lines` and `text`, and stays in its line's `eol` in
+ * `rawLines`, where the character rule finds it and refuses the file.
  * Returns { ok: true, bom, rawLines, lines, text } or { ok: false, why }.
  *
  * The size comes from the open descriptor rather than the path, so a file
@@ -371,6 +375,42 @@ function findInvisible(text) {
 
 function hex4(cp) {
   return `U+${cp.toString(16).toUpperCase().padStart(4, '0')}`;
+}
+
+// The character rule: characters no text file the check reads may hold. A
+// line or paragraph separator (U+2028, U+2029) or NEL (U+0085) starts a new
+// line for some readers and not others, and so does a lone CR. Every other C0
+// control but tab, DEL and every C1 control can move a terminal's cursor or
+// read as a line break to some tool, and U+FFFE and U+FFFF are outside the
+// characters YAML allows. A file holding one reads one way to this check and
+// another way to some loader, so it is cannot-check: refused, not read. The
+// rule is its own function, kept apart from isInvisible and mustClean, so
+// neither of those changes meaning. Every code point here is in the Basic
+// Multilingual Plane, and none is a surrogate, so one UTF-16 code unit is
+// enough to test.
+function isRefusedChar(c) {
+  return (c < 0x20 && c !== 9) || (c >= 0x7f && c <= 0x9f) || c === 0x2028 || c === 0x2029 || c === 0xfffe || c === 0xffff;
+}
+
+/**
+ * Every line of a file readText read that holds a refused character, with the
+ * first one on each line: [{ line, what }]. Each line's own text and its own
+ * ending are scanned, never the joined text, whose endings are all LF.
+ */
+function findRefused(file) {
+  const hits = [];
+  file.rawLines.forEach((raw, i) => {
+    const t = raw.text;
+    for (let j = 0; j < t.length; j += 1) {
+      const c = t.charCodeAt(j);
+      if (isRefusedChar(c)) {
+        hits.push({ line: i + 1, what: hex4(c) });
+        return;
+      }
+    }
+    if (raw.eol === '\r') hits.push({ line: i + 1, what: 'a carriage return with no line feed after it' });
+  });
+  return hits;
 }
 
 // ---------------------------------------------------------------- frontmatter
@@ -760,7 +800,10 @@ function isTomlFamiliar(loc) {
  * TOML's own rules for a line's characters, which the file reader is looser
  * about. A line ends in LF or CRLF only: the reader splits on a lone CR, and
  * TOML refuses one. No control character but tab, inside a string or out:
- * no C0 control and no DEL, which TOML refuses as well.
+ * no C0 control and no DEL, which TOML refuses as well. Then the rest of the
+ * character rule (see isRefusedChar), with a reason of its own: no line or
+ * paragraph separator, no C1 control and no U+FFFE or U+FFFF. These run after
+ * the C0 and DEL loop, so a line holding both kinds keeps the older reason.
  */
 function tomlLineRules(raw, ln) {
   if (raw.eol === '\r') throw new CannotCheck(ln, 'a carriage return with no line feed after it');
@@ -768,6 +811,12 @@ function tomlLineRules(raw, ln) {
   for (let i = 0; i < t.length; i += 1) {
     const c = t.charCodeAt(i);
     if ((c < 0x20 && c !== 9) || c === 0x7f) throw new CannotCheck(ln, `a control character other than tab (${hex4(c)})`);
+  }
+  for (let i = 0; i < t.length; i += 1) {
+    const c = t.charCodeAt(i);
+    if (isRefusedChar(c)) {
+      throw new CannotCheck(ln, `a line or paragraph separator, a C1 control character or a noncharacter (${hex4(c)})`);
+    }
   }
 }
 
@@ -1146,8 +1195,9 @@ function listFolder(root) {
  * A covered text file's bytes as hashed: strict UTF-8 with no NUL, and each
  * CRLF made LF, which is the one change git makes to a text file on checkout.
  * A lone CR is refused, not made LF: a shell reads `# note\rcmd` as one
- * comment, and an editor shows it as two lines. Returns { why } or
- * { bytes, text }.
+ * comment, and an editor shows it as two lines. After those two, the rest of
+ * the character rule (see isRefusedChar), reported with its line and code
+ * point. Returns { why } or { bytes, text }.
  */
 function textBytes(buf) {
   let text;
@@ -1166,6 +1216,13 @@ function textBytes(buf) {
     }
     out[n] = buf[i];
     n += 1;
+  }
+  // Every CR left is half of a CRLF, and an LF ends a line.
+  let line = 1;
+  for (let i = 0; i < text.length; i += 1) {
+    const c = text.charCodeAt(i);
+    if (c === 10) line += 1;
+    else if (c !== 13 && isRefusedChar(c)) return { why: `line ${line} holds ${hex4(c)}` };
   }
   return { bytes: out.subarray(0, n), text };
 }
@@ -1527,6 +1584,21 @@ function targetRule(facts, loc, report) {
   else report.pass('target', t[0]);
 }
 
+/** The character rule on one file readText read. Records every hit; true when there is none. */
+function charactersRule(file, label, report) {
+  const hits = findRefused(file);
+  for (const h of hits) report.cannot('characters', `${label} line ${h.line} holds ${h.what}`);
+  return hits.length === 0;
+}
+
+/** The character rule under --seal: the hits, then a Refusal, so nothing is written. */
+function refuseCharacters(file, label, report) {
+  const scratch = new Report();
+  if (charactersRule(file, label, scratch)) return;
+  report.lines.push(...scratch.lines);
+  throw new Refusal('characters', `${label} holds a character this check refuses`);
+}
+
 function invisibleRule(file, label, report) {
   const hit = findInvisible(file.text);
   if (hit) report.fail('invisible-characters', `${label} line ${hit.line} holds ${hex4(hit.cp)}`);
@@ -1570,11 +1642,20 @@ function runCheck(loc, report) {
   let con = null;
   if (loc.contractExists) con = loadFile(loc.contractPath, 'contract', conLabel, report);
 
+  // The character rule, before any other rule reads either file, so that no
+  // PASS or WARN line is built from a file this check read one way and a
+  // loader could read another. Both files are scanned in full, and every line
+  // that holds one is reported. A .toml familiar takes the rule in
+  // tomlLineRules instead, line by line as its reader goes.
+  const toml = isTomlFamiliar(loc);
+  const famClean = toml || charactersRule(fam, famLabel, report);
+  const conClean = !con || charactersRule(con, conLabel, report);
+  if (!famClean || !conClean) return;
+
   invisibleRule(fam, famLabel, report);
   if (con) invisibleRule(con, conLabel, report);
   const folder = loc.mode === 'skill' ? folderRules(loc, report) : null;
 
-  const toml = isTomlFamiliar(loc);
   const facts = con ? contractFacts(con.lines) : { version: null, extras: new Set(), targets: [] };
   if (con) targetRule(facts, loc, report);
 
@@ -1767,6 +1848,9 @@ function runSeal(loc, report) {
   if (!fam.ok) throw new Refusal('familiar-read', `${famLabel} ${fam.why}`);
   const con = readText(loc.contractPath);
   if (!con.ok) throw new Refusal('contract-read', `${conLabel} ${con.why}`);
+  // The character rule first, as in the check, before any line of the
+  // contract is read for its meaning.
+  refuseCharacters(con, conLabel, report);
 
   // The contract's own rules: the invisible-character rule, and its target
   // against the familiar. A missing target only warns, so it seals.
@@ -1802,6 +1886,8 @@ function runSeal(loc, report) {
   }
 
   const toml = isTomlFamiliar(loc);
+  // A .toml familiar takes the character rule in its reader, tomlLineRules.
+  if (!toml) refuseCharacters(fam, famLabel, report);
   let fm;
   try {
     fm = parseFamiliar(fam, loc, facts.extras);
