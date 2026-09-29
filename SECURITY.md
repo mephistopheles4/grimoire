@@ -39,6 +39,14 @@ wrote. It sends nothing. A valid seal proves the familiar and its contract
 are unchanged since they were sealed. For a skill, the familiar is every file
 in its folder except `CONTRACT.md`. It does not prove who sealed them.
 
+A Codex agent file (`.toml`) is read through a narrow subset of TOML. The
+check reads top-level `key = value` lines, whole-line comments, and strings
+that take no escape but `\"` and `\\`. Anything else, a table included, is
+"cannot check", which fails. Its mark is three comment lines at the very end
+of the file, because Codex will not load an agent file with a `[metadata]`
+table. `sandbox_mode` may be only `read-only` or `workspace-write`, whatever
+the contract lists.
+
 The attacks worth planning for, scenario by scenario, with what stops each
 one and what still gets through: [docs/security/threat-model.md](docs/security/threat-model.md).
 It records the repository settings as they were read on 2026-09-25. The
