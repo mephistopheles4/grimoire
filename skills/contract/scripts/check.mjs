@@ -91,7 +91,7 @@ const KNOWN_KEYS = new Set(['name', 'description', 'compatibility', 'license', '
 // `permissionMode` has to parse before the unknown-key rule can refuse it, or
 // pass it when the contract lists it. Metadata keys stay lower case: the mark
 // lives there, and nothing else this check reads does.
-const TOP_KEY_RE = /^[A-Za-z][A-Za-z0-9-]*$/;
+const TOP_KEY_RE = /^[A-Za-z][A-Za-z0-9_-]*$/;
 const META_KEY_RE = /^[a-z][a-z0-9-]*$/;
 // Lower-case letters, digits and hyphens, and nameShapeOk() adds the rest: no
 // leading, trailing or double hyphen. Written flat so it has no nested
@@ -454,12 +454,27 @@ function yamlReadsAsNonText(v) {
 }
 
 /** A one-line value after "key: ". Quoted or plain; anything else is cannot-check. */
-function parseScalar(raw, ln) {
+function parseScalar(raw, ln, key, extras) {
   if (raw[0] === '"') return parseDoubleQuoted(raw, ln);
   if (raw[0] === "'") return parseSingleQuoted(raw, ln);
   const v = trimEndSpaces(raw);
   if (v === '') throw new CannotCheck(ln, 'an empty value');
   if (v[0] === '\t') throw new CannotCheck(ln, 'a tab before a value');
+  if (v.startsWith('[') && v.endsWith(']')) {
+    if (key !== 'tools' && !(extras && extras.has(key))) {
+      throw new CannotCheck(ln, 'flow sequences are only allowed for tools or Extra keys');
+    }
+    const inner = v.slice(1, -1);
+    if (inner.trim() !== '') {
+      const tokens = inner.split(',');
+      for (const t of tokens) {
+        if (!/^[A-Za-z0-9_-]+$/.test(t.trim())) {
+          throw new CannotCheck(ln, 'a flow sequence with an invalid identifier');
+        }
+      }
+    }
+    return v;
+  }
   if (PLAIN_BAD_START.includes(v[0])) {
     throw new CannotCheck(ln, 'a value starting with a flow, anchor, alias, tag, block or other indicator character');
   }
@@ -470,6 +485,10 @@ function parseScalar(raw, ln) {
     throw new CannotCheck(ln, 'a colon followed by a space inside an unquoted value (quote the value)');
   }
   if (v.includes(' #') || v.includes('\t#')) throw new CannotCheck(ln, 'a trailing comment after a value');
+  if (v === 'true' || v === 'false') {
+    if (extras && extras.has(key)) return v;
+    // Otherwise let it fall through to yamlReadsAsNonText to fail
+  }
   if (yamlReadsAsNonText(v)) {
     throw new CannotCheck(ln, 'an unquoted value YAML reads as null, a boolean, a number or a date, such as a hex, octal, binary or base-60 number or a timestamp (quote it to use it as text)');
   }
@@ -567,7 +586,7 @@ function readMetadata(lines, start, close, headerIdx) {
     if (rest[0] !== ' ') throw new CannotCheck(ln, `metadata key "${clean(key)}" is not followed by ": "`);
     const raw = skipSpaces(rest);
     if (raw[0] === '|' || raw[0] === '>') throw new CannotCheck(ln, `metadata key "${clean(key)}" holds a block value`);
-    entries.set(key, { value: parseScalar(raw, ln), line: ln });
+    entries.set(key, { value: parseScalar(raw, ln, key, null), line: ln });
     childIdx.push(j);
     j += 1;
   }
@@ -581,7 +600,7 @@ function readMetadata(lines, start, close, headerIdx) {
  * A key seen twice is "cannot check", not "last one wins". Two loaders can
  * pick different copies, so a duplicate is a file that says two things.
  */
-function parseFrontmatter(lines, close) {
+function parseFrontmatter(lines, close, extras) {
   const top = new Map();
   let metadata = null;
   let i = 1;
@@ -621,9 +640,104 @@ function parseFrontmatter(lines, close) {
       i = block.end;
       continue;
     }
-    top.set(key, { kind: 'text', value: parseScalar(raw, ln), line: ln });
+    top.set(key, { kind: 'text', value: parseScalar(raw, ln, key, extras), line: ln });
     i += 1;
   }
+  return { top, metadata };
+}
+
+function parseToml(text, lines) {
+  const top = new Map();
+  let metadata = null;
+  let inString = false;
+  let stringStartLine = 1;
+  let currentTable = null;
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    const ln = i + 1;
+
+    if (inString) {
+      let stringCount = 0;
+      let pos = 0;
+      while ((pos = line.indexOf('"""', pos)) !== -1) {
+        let slashes = 0;
+        let p = pos - 1;
+        while (p >= 0 && line[p] === '\\') { slashes++; p--; }
+        if (slashes % 2 === 0) stringCount++;
+        pos += 3;
+      }
+      if (stringCount % 2 === 1) inString = false;
+      continue;
+    }
+
+    const t = line.trim();
+    if (t === '' || t.startsWith('#')) continue;
+
+    if (t.startsWith('[')) {
+      if (!t.endsWith(']')) throw new CannotCheck(ln, 'unclosed table header');
+      const tableName = t.slice(1, -1).trim();
+      if (tableName === 'metadata') {
+        if (metadata !== null) throw new CannotCheck(ln, 'duplicate [metadata] table');
+        metadata = { headerIdx: i, entries: new Map(), childIdx: [], end: lines.length };
+        currentTable = 'metadata';
+      } else {
+        if (metadata !== null) throw new CannotCheck(ln, '[metadata] must be the terminal table');
+        currentTable = tableName;
+      }
+      continue;
+    }
+
+    const eq = t.indexOf('=');
+    if (eq > 0) {
+      const key = t.slice(0, eq).trim();
+      const val = t.slice(eq + 1).trim();
+
+      let stringCount = 0;
+      let pos = 0;
+      while ((pos = val.indexOf('"""', pos)) !== -1) {
+        let slashes = 0;
+        let p = pos - 1;
+        while (p >= 0 && val[p] === '\\') { slashes++; p--; }
+        if (slashes % 2 === 0) stringCount++;
+        pos += 3;
+      }
+      if (stringCount % 2 === 1) {
+        inString = true;
+        stringStartLine = ln;
+      }
+
+      if (currentTable === 'metadata') {
+        if (!META_KEY_RE.test(key)) throw new CannotCheck(ln, 'metadata key outside readable subset');
+        if (metadata.entries.has(key)) throw new CannotCheck(ln, `duplicate metadata key "${clean(key)}"`);
+        let parsedVal = val;
+        if (val.startsWith('"') && val.endsWith('"')) {
+          parsedVal = val.slice(1, -1);
+        }
+        metadata.entries.set(key, { value: parsedVal, line: ln });
+        metadata.childIdx.push(i);
+      } else if (currentTable === null) {
+        if (!TOP_KEY_RE.test(key)) throw new CannotCheck(ln, 'a key outside the readable subset');
+        if (top.has(key)) throw new CannotCheck(ln, `duplicate key "${clean(key)}"`);
+        let parsedVal = val;
+        if (val.startsWith('"') && val.endsWith('"') && !val.startsWith('"""')) {
+          parsedVal = val.slice(1, -1);
+        } else if (val.startsWith("'") && val.endsWith("'") && !val.startsWith("'''")) {
+          parsedVal = val.slice(1, -1);
+        }
+        top.set(key, { kind: 'text', value: parsedVal, line: ln });
+      }
+    } else {
+      if (currentTable === 'metadata') {
+        throw new CannotCheck(ln, 'a line under "metadata" that is not "key = value"');
+      }
+    }
+  }
+
+  if (inString) {
+    throw new CannotCheck(stringStartLine, 'unclosed multiline string (""")');
+  }
+
   return { top, metadata };
 }
 
@@ -673,15 +787,25 @@ function withOneTrailingLf(lines) {
  * was all it held). The digest covers the frontmatter as well as the body, so
  * a key added after the seal breaks it.
  */
-function canonicalFamiliar(lines, metadata) {
+function canonicalFamiliar(lines, metadata, isToml) {
   const drop = new Set();
   if (metadata) {
-    let kept = 0;
-    for (const idx of metadata.childIdx) {
-      if (MARK_LINE_RE.test(lines[idx])) drop.add(idx);
-      else kept += 1;
+    if (isToml) {
+      const MARK_LINE_RE_TOML = /^(contract-version|familiar-digest|contract-digest)\s*=\s*.*$/;
+      let kept = 0;
+      for (const idx of metadata.childIdx) {
+        if (MARK_LINE_RE_TOML.test(lines[idx])) drop.add(idx);
+        else kept += 1;
+      }
+      if (kept === 0) drop.add(metadata.headerIdx);
+    } else {
+      let kept = 0;
+      for (const idx of metadata.childIdx) {
+        if (MARK_LINE_RE.test(lines[idx])) drop.add(idx);
+        else kept += 1;
+      }
+      if (kept === 0) drop.add(metadata.headerIdx);
     }
-    if (kept === 0) drop.add(metadata.headerIdx);
   }
   return withOneTrailingLf(lines.filter((_, i) => !drop.has(i)));
 }
@@ -1006,26 +1130,39 @@ function locate(arg) {
   if (!st) throw new Refusal('path', 'the path does not exist or cannot be read');
   if (st.isDirectory()) return locateSkill(abs, []);
   const name = basename(abs);
-  // A skill's own SKILL.md means the skill. Read as an agent file, its stem
-  // would be "SKILL" and every reason printed after that would mislead.
   if (name === 'SKILL.md') return locateSkill(dirname(abs), []);
   if (name.toLowerCase() === 'skill.md') {
     return locateSkill(dirname(abs), [{ rule: 'familiar-file', reason: `file must be named SKILL.md (found "${clean(name)}")` }]);
   }
   if (name.toLowerCase().endsWith('.contract.md')) throw new Refusal('path', "give the familiar's file, not its contract");
-  if (!name.endsWith('.md')) throw new Refusal('path', 'the path must be a skill folder, its SKILL.md, or an agent file ending .md');
+  if (!name.endsWith('.md') && !name.endsWith('.toml')) throw new Refusal('path', 'the path must be a skill folder, its SKILL.md, or an agent file ending .md or .toml');
   const dir = dirname(abs);
-  const stem = name.slice(0, -3);
+  
+  let stem;
+  if (name.endsWith('.md')) stem = name.slice(0, -3);
+  else stem = name.slice(0, -5);
+  
   const contractName = `${stem}.contract.md`;
   const wanted = contractName.toLowerCase();
   const problems = [];
   let contractExists = false;
+  
+  let mdExists = false;
+  let tomlExists = false;
+  
   for (const e of readdirSync(dir)) {
     if (e === contractName) contractExists = true;
     else if (e.toLowerCase() === wanted) {
       problems.push({ rule: 'contract-file', reason: `file must be named "${clean(contractName)}" (found "${clean(e)}")` });
     }
+    if (e.toLowerCase() === `${stem.toLowerCase()}.md`) mdExists = true;
+    if (e.toLowerCase() === `${stem.toLowerCase()}.toml`) tomlExists = true;
   }
+  
+  if (mdExists && tomlExists) {
+    problems.push({ rule: 'path', reason: `both .md and .toml exist for stem "${clean(stem)}" creating ambiguity` });
+  }
+
   return {
     mode: 'agent',
     dir,
@@ -1035,7 +1172,7 @@ function locate(arg) {
     contractName,
     contractPath: join(dir, contractName),
     contractExists,
-    contractVariant: problems.length > 0,
+    contractVariant: problems.some(p => p.rule === 'contract-file'),
     expectedName: stem,
     nameRule: 'name-matches-file',
     problems,
@@ -1168,28 +1305,47 @@ function runCheck(loc, report) {
   if (con) invisibleRule(con, conLabel, report);
   const folder = loc.mode === 'skill' ? folderRules(loc, report) : null;
 
-  const close = findFrontmatter(fam.lines);
-  if (close < 0) {
-    report.fail('frontmatter', 'no frontmatter (the first line must be --- and a later line must be ---)');
-    return;
-  }
-  let fm;
-  try {
-    fm = parseFrontmatter(fam.lines, close);
-  } catch (err) {
-    if (!(err instanceof CannotCheck)) throw err;
-    report.cannot('frontmatter', `${famLabel} line ${err.line}: ${err.reason}`);
-    return;
-  }
-  report.pass('frontmatter');
-
+  const isToml = loc.mode === 'agent' && loc.familiarName.endsWith('.toml');
+  
   const facts = con ? contractFacts(con.lines) : { version: null, extras: new Set() };
+
+  let fm;
+  if (isToml) {
+    try {
+      fm = parseToml(fam.text, fam.lines);
+    } catch (err) {
+      if (!(err instanceof CannotCheck)) throw err;
+      report.cannot('toml', `${famLabel} line ${err.line}: ${err.reason}`);
+      return;
+    }
+    report.pass('toml');
+  } else {
+    const close = findFrontmatter(fam.lines);
+    if (close < 0) {
+      report.fail('frontmatter', 'no frontmatter (the first line must be --- and a later line must be ---)');
+      return;
+    }
+    try {
+      fm = parseFrontmatter(fam.lines, close, facts.extras);
+    } catch (err) {
+      if (!(err instanceof CannotCheck)) throw err;
+      report.cannot('frontmatter', `${famLabel} line ${err.line}: ${err.reason}`);
+      return;
+    }
+    report.pass('frontmatter');
+  }
+
   fieldRules(fm, loc, facts.extras, report);
 
   // Advice, not a rule: a long body still loads. A warning never fails.
-  const bodyLines = bodyLineCount(fam.lines, close);
-  if (bodyLines > BODY_LINES_MAX) report.warn('body-length', `body is ${bodyLines} lines; the advised limit is ${BODY_LINES_MAX}`);
-  else report.pass('body-length');
+  if (!isToml) {
+    const close = findFrontmatter(fam.lines);
+    const bodyLines = bodyLineCount(fam.lines, close);
+    if (bodyLines > BODY_LINES_MAX) report.warn('body-length', `body is ${bodyLines} lines; the advised limit is ${BODY_LINES_MAX}`);
+    else report.pass('body-length');
+  } else {
+    report.pass('body-length'); // Doesn't apply in the same way to TOML
+  }
 
   // The mark and the contract travel together. Either one alone is a file
   // somebody changed without the other, so both halves of the mismatch fail.
@@ -1231,7 +1387,7 @@ function runCheck(loc, report) {
   // In skill mode the digest cannot say which file changed, so the failure
   // names none.
   const fd = entries.get('familiar-digest');
-  const canon = canonicalFamiliar(fam.lines, fm.metadata);
+  const canon = canonicalFamiliar(fam.lines, fm.metadata, isToml);
   if (loc.mode === 'agent') {
     if (fd.value !== digest(canon)) {
       report.fail('familiar-digest', `line ${fd.line}: the seal is broken; ${famLabel} changed since it was sealed`);
@@ -1300,15 +1456,6 @@ function runSeal(loc, report) {
     throw new Refusal('contract-rules', `${conLabel} fails its file rules`);
   }
 
-  const close = findFrontmatter(fam.lines);
-  if (close < 0) throw new Refusal('frontmatter', 'no frontmatter');
-  let fm;
-  try {
-    fm = parseFrontmatter(fam.lines, close);
-  } catch (err) {
-    if (!(err instanceof CannotCheck)) throw err;
-    throw new Refusal('frontmatter', `cannot check ${famLabel} line ${err.line}: ${err.reason}`);
-  }
   const facts = contractFacts(con.lines);
   if (facts.version === null) throw new Refusal('contract-version', `${conLabel} has no "Version:" line`);
   // The reason is fixed text. The version came from a file a stranger may
@@ -1323,13 +1470,34 @@ function runSeal(loc, report) {
   // already rules out every value that fails here; this holds if it drifts.
   let readBack;
   try {
-    readBack = parseScalar(facts.version, 1);
+    readBack = parseScalar(facts.version, 1, null, null);
   } catch (err) {
     if (!(err instanceof CannotCheck)) throw err;
     readBack = null;
   }
   if (readBack !== facts.version) {
     throw new Refusal('contract-version', `the Version line in ${conLabel} would not read back unchanged once written`);
+  }
+
+  const isToml = loc.mode === 'agent' && loc.familiarName.endsWith('.toml');
+
+  let fm;
+  if (isToml) {
+    try {
+      fm = parseToml(fam.text, fam.lines);
+    } catch (err) {
+      if (!(err instanceof CannotCheck)) throw err;
+      throw new Refusal('toml', `cannot check ${famLabel} line ${err.line}: ${err.reason}`);
+    }
+  } else {
+    const close = findFrontmatter(fam.lines);
+    if (close < 0) throw new Refusal('frontmatter', 'no frontmatter');
+    try {
+      fm = parseFrontmatter(fam.lines, close, facts.extras);
+    } catch (err) {
+      if (!(err instanceof CannotCheck)) throw err;
+      throw new Refusal('frontmatter', `cannot check ${famLabel} line ${err.line}: ${err.reason}`);
+    }
   }
 
   const scratch = new Report();
@@ -1352,15 +1520,19 @@ function runSeal(loc, report) {
     }
   }
 
-  const canon = canonicalFamiliar(fam.lines, fm.metadata);
+  const canon = canonicalFamiliar(fam.lines, fm.metadata, isToml);
   const values = {
     'contract-version': facts.version,
     'familiar-digest': folder === null ? digest(canon) : folderDigest(canon, folder),
     'contract-digest': digest(withOneTrailingLf(con.lines)),
   };
-  // contract-version is written plain (see sealableVersion); the digests stay
-  // quoted.
-  const markLine = k => (k === 'contract-version' ? `  ${k}: ${values[k]}` : `  ${k}: "${escapeDq(values[k])}"`);
+  // contract-version is written plain in yaml, quoted in toml
+  const markLine = k => {
+    if (isToml) {
+      return `${k} = "${escapeDq(values[k])}"`;
+    }
+    return k === 'contract-version' ? `  ${k}: ${values[k]}` : `  ${k}: "${escapeDq(values[k])}"`;
+  };
 
   // Change nothing but the mark. A mark key already there is rewritten in
   // place; a missing one goes after the last metadata entry; with no metadata
@@ -1370,19 +1542,40 @@ function runSeal(loc, report) {
   const meta = fm.metadata;
   let insertAfter;
   let toInsert;
-  if (meta) {
-    const have = new Map();
-    for (const idx of meta.childIdx) {
-      const key = raw[idx].text.slice(2, raw[idx].text.indexOf(':'));
-      if (MARK_KEYS.includes(key)) have.set(key, idx);
+  if (isToml) {
+    if (meta) {
+      const have = new Map();
+      for (const idx of meta.childIdx) {
+        const key = raw[idx].text.split('=')[0].trim();
+        if (MARK_KEYS.includes(key)) have.set(key, idx);
+      }
+      for (const [k, idx] of have) raw[idx].text = markLine(k);
+      toInsert = MARK_KEYS.filter(k => !have.has(k)).map(markLine);
+      insertAfter = meta.childIdx.length > 0 ? meta.childIdx[meta.childIdx.length - 1] : meta.headerIdx;
+    } else {
+      toInsert = ['[metadata]', ...MARK_KEYS.map(markLine)];
+      insertAfter = raw.length - 1;
+      if (raw.length > 0 && !raw[raw.length - 1].eol) {
+        raw[raw.length - 1].eol = '\n';
+      }
     }
-    for (const [k, idx] of have) raw[idx].text = markLine(k);
-    toInsert = MARK_KEYS.filter(k => !have.has(k)).map(markLine);
-    insertAfter = meta.childIdx.length > 0 ? meta.childIdx[meta.childIdx.length - 1] : meta.headerIdx;
   } else {
-    toInsert = ['metadata:', ...MARK_KEYS.map(markLine)];
-    insertAfter = close - 1;
+    if (meta) {
+      const have = new Map();
+      for (const idx of meta.childIdx) {
+        const key = raw[idx].text.slice(2, raw[idx].text.indexOf(':'));
+        if (MARK_KEYS.includes(key)) have.set(key, idx);
+      }
+      for (const [k, idx] of have) raw[idx].text = markLine(k);
+      toInsert = MARK_KEYS.filter(k => !have.has(k)).map(markLine);
+      insertAfter = meta.childIdx.length > 0 ? meta.childIdx[meta.childIdx.length - 1] : meta.headerIdx;
+    } else {
+      toInsert = ['metadata:', ...MARK_KEYS.map(markLine)];
+      const close = findFrontmatter(fam.lines);
+      insertAfter = close - 1;
+    }
   }
+  
   const eol = raw[insertAfter].eol || '\n';
   raw.splice(insertAfter + 1, 0, ...toInsert.map(text => ({ text, eol })));
   const out = (fam.bom ? '\u{FEFF}' : '') + raw.map(l => l.text + l.eol).join('');
@@ -1393,16 +1586,27 @@ function runSeal(loc, report) {
   // A text that would not parse is refused here too, never thrown past the
   // seal, and the contract-version it would hold must be the Version line.
   const newLines = raw.map(l => l.text);
-  const newClose = findFrontmatter(newLines);
-  if (newClose < 0) throw new Refusal('seal', 'internal error: the sealed text would have no frontmatter');
+  
   let newFm;
-  try {
-    newFm = parseFrontmatter(newLines, newClose);
-  } catch (err) {
-    if (!(err instanceof CannotCheck)) throw err;
-    throw new Refusal('seal', 'internal error: the sealed text would not parse');
+  if (isToml) {
+    try {
+      newFm = parseToml(out, newLines); // parseToml just ignores text/out actually, it takes lines
+    } catch (err) {
+      if (!(err instanceof CannotCheck)) throw err;
+      throw new Refusal('seal', 'internal error: the sealed text would not parse');
+    }
+  } else {
+    const newClose = findFrontmatter(newLines);
+    if (newClose < 0) throw new Refusal('seal', 'internal error: the sealed text would have no frontmatter');
+    try {
+      newFm = parseFrontmatter(newLines, newClose, facts.extras);
+    } catch (err) {
+      if (!(err instanceof CannotCheck)) throw err;
+      throw new Refusal('seal', 'internal error: the sealed text would not parse');
+    }
   }
-  if (canonicalFamiliar(newLines, newFm.metadata) !== canon) {
+  
+  if (canonicalFamiliar(newLines, newFm.metadata, isToml) !== canon) {
     throw new Refusal('seal', 'internal error: the sealed text would not keep its canonical form');
   }
   const newCv = newFm.metadata ? newFm.metadata.entries.get('contract-version') : undefined;

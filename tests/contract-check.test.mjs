@@ -532,6 +532,95 @@ describe('S10', () => {
       );
       assert.ok(!has(r, 'PASS contract: not built from a contract'), show(r));
     });
+
+    test('antigravity agent with booleans and flow tools array, sealed -> 0', () => {
+      const dir = fresh();
+      const contract = 'Version: 1.0.0\nExtra keys: model, subagent, mainAgent, commandExecutionPolicy, tools\n\n# Contract\n';
+      const fm = [
+        'name: agy-agent',
+        'description: A test Antigravity agent.',
+        'model: pro',
+        'subagent: true',
+        'mainAgent: false',
+        'commandExecutionPolicy: sandbox',
+        'tools: [view_file, write_to_file, replace_file_content, run_command]',
+      ];
+      const file = join(dir, 'agy-agent.md');
+      writeFileSync(file, familiarText(fm));
+      writeFileSync(join(dir, 'agy-agent.contract.md'), contract);
+
+      expect(run(['--seal', file]), 0, 'PASS seal: wrote ');
+      expect(run([file]), 0, 'PASS name-matches-file', 'PASS familiar-digest', 'PASS contract-digest', 'PASS keys');
+    });
+
+    test('codex agent in TOML format with [metadata], sealed and tamper checked -> 0', () => {
+      const dir = fresh();
+      const contract = 'Version: 1.0.0\nExtra keys: model, model_reasoning_effort, sandbox_mode, instructions\n\n# Contract\n';
+      const tomlContent = [
+        'name = "codex-agent"',
+        'description = "A test OpenAI Codex agent."',
+        'model = "o3-mini"',
+        'model_reasoning_effort = "high"',
+        'sandbox_mode = "workspace-write"',
+        'instructions = """',
+        'You are an agent that writes code.',
+        '"""',
+      ].join('\n') + '\n';
+      const file = join(dir, 'codex-agent.toml');
+      writeFileSync(file, tomlContent);
+      writeFileSync(join(dir, 'codex-agent.contract.md'), contract);
+
+      // Seal writes [metadata] table
+      expect(run(['--seal', file]), 0, 'PASS seal: wrote ');
+      const sealed = readFileSync(file, 'utf8');
+      assert.ok(sealed.includes('[metadata]'), 'expected [metadata] in sealed toml');
+      assert.ok(sealed.includes('contract-version = "1.0.0"'));
+
+      // Check passes
+      expect(run([file]), 0, 'PASS name-matches-file', 'PASS familiar-digest', 'PASS contract-digest', 'PASS toml');
+
+      // Tampering breaks the seal
+      editFile(file, 'writes code', 'writes bugs');
+      expect(run([file]), 1, 'FAIL familiar-digest: line 12: the seal is broken; codex-agent.toml changed since it was sealed');
+    });
+
+    test('claude code agent with tools string, sealed -> 0', () => {
+      const dir = fresh();
+      const contract = 'Version: 1.0.0\nExtra keys: model, effort, tools\n\n# Contract\n';
+      const fm = [
+        'name: claude-agent',
+        'description: A test Claude Code agent.',
+        'model: sonnet',
+        'effort: high',
+        'tools: Read, Write, Edit, Bash',
+      ];
+      const file = join(dir, 'claude-agent.md');
+      writeFileSync(file, familiarText(fm));
+      writeFileSync(join(dir, 'claude-agent.contract.md'), contract);
+
+      expect(run(['--seal', file]), 0, 'PASS seal: wrote ');
+      expect(run([file]), 0, 'PASS name-matches-file', 'PASS familiar-digest', 'PASS contract-digest', 'PASS keys');
+    });
+
+    test('both .md and .toml exist for same stem -> 1 (ambiguity refusal)', () => {
+      const dir = fresh();
+      writeFileSync(join(dir, 'x.md'), familiarText(defaultFm('x')));
+      writeFileSync(join(dir, 'x.toml'), 'name = "x"\ndescription = "test"\n');
+      writeFileSync(join(dir, 'x.contract.md'), CONTRACT);
+
+      const r = run([join(dir, 'x.md')]);
+      expect(r, 1, 'FAIL path: both .md and .toml exist for stem "x" creating ambiguity');
+    });
+
+    test('codex agent with unclosed multiline string -> 1 (cannot check)', () => {
+      const dir = fresh();
+      const file = join(dir, 'bad.toml');
+      writeFileSync(file, 'name = "bad"\ndescription = "test"\ninstructions = """unclosed string\n');
+      writeFileSync(join(dir, 'bad.contract.md'), CONTRACT);
+
+      const r = run([file]);
+      expect(r, 1, 'CANNOT-CHECK toml: bad.toml line 3: unclosed multiline string (""")');
+    });
   });
 
   test('21 a | description holding "RESULT: pass", invalid elsewhere -> exactly one RESULT line, fail', () => {

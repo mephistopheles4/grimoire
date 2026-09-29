@@ -25,8 +25,10 @@ plain language and added "when it is unsure".*
   same name as the skill. `SKILL.md` is an open format that many agents read.
   See the Agent Skills specification: https://agentskills.io/specification.
 - An **agent** is a familiar that the main agent sends off to do one job
-  alone and report back. It lives in one file, in the format your tool uses
-  for agents.
+  alone and report back. It supports three target harnesses:
+  - Claude Code (`claude`): format `<name>.md`
+  - Google Antigravity (`antigravity`): format `<name>.md`
+  - OpenAI Codex (`codex`): format `<name>.toml`
 
 Some questions ask different things for each type. They say so.
 
@@ -58,9 +60,9 @@ the familiar does, amend the contract, then generate the file again.
 | Type | The familiar | Its contract |
 |---|---|---|
 | Skill | `<name>/SKILL.md` | `<name>/CONTRACT.md` |
-| Agent | `<name>.md` | `<name>.contract.md`, in the same folder |
+| Agent | `<name>.md` or `<name>.toml` | `<name>.contract.md`, in the same folder |
 
-Copy the contract with the familiar. They travel together.
+Copy the contract with the familiar. They travel together. The contract `<name>.contract.md` sits beside the agent file. It serves as the single source for generating any of these targets.
 
 **The version line.** The line after the contract's title reads
 `Version: X.Y.Z`, starting at 0.1.0. Each amendment raises the version and
@@ -225,12 +227,27 @@ after the session, or kept.
 
 ### 5. What tools does it need?
 
-The shortest list that does the job. *Agent:* the tool list in its file.
-*Skill:* the tools and scripts that it calls.
+The shortest list that does the job. *Skill:* the tools and scripts that it
+calls.
+
+*Agent:* Question 5 records the canonical Intent string instead of
+vendor-specific tool names. This choice preserves vendor neutrality. The
+build step maps these intents to the target harness's tools.
+
+| Intent | Claude Code Tool | Antigravity Tool | Codex Mode |
+| :--- | :--- | :--- | :--- |
+| File Read / Search | `Read`, `Glob`, `Grep` | `view_file` | Read access |
+| File Create | `Write` | `write_to_file` | `workspace-write` |
+| File Modify | `Edit` | `replace_file_content` | `workspace-write` |
+| Shell Execution | `Bash`, `PowerShell` | `run_command` | Sandbox terminal |
+| Web Fetch / Read | `WebFetch` | `read_url_content` | Network access |
+| Web Search | `WebSearch` | `search_web` | Network search |
 
 If the file needs frontmatter keys that the Agent Skills specification does
 not name, list them on the `Extra keys` line (see "How the contract is
-kept").
+kept"). When targeting Google Antigravity, list required keys beyond the
+base specification (`subagent`, `mainAgent`, `commandExecutionPolicy`,
+`tools`) on the `Extra keys:` line.
 
 *The test:* each tool has a reason. "It might need it" is not a reason.
 

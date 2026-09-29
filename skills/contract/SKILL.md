@@ -2,9 +2,9 @@
 name: contract
 description: Interviews a person to agree the terms for a new skill or agent, writes those terms down as a contract, then generates the skill's or agent's file from that contract and checks its format. Use when someone wants to build a reusable skill or agent, turn a prompt they keep pasting into one, change a skill or agent that has a contract file beside it, or write a contract for one that has none. The skill calls what it builds a familiar. Not for a one-off prompt, not for running or using a skill or agent that already exists, and not for a legal or business contract.
 metadata:
-  contract-version: 0.4.7
-  familiar-digest: "sha256:7df6bc96a0cae2b3ca07077884b1b5b170aa0a6d9c1deffdd3728f9eeef67ddb"
-  contract-digest: "sha256:c95677ed644047454ba8f68e063f0af737e581ac73f935a567d31ee6b7e0c1ee"
+  contract-version: 0.5.0
+  familiar-digest: "sha256:8f26e20be018eb428b523f24019baf00031545d5fde0a5bcdb0be31e81dc6223"
+  contract-digest: "sha256:a1c1401cf3597efe5586437dc5104f34ff0a43afa618373ef9211724d8601d38"
 ---
 
 # contract
@@ -331,24 +331,26 @@ at any time. Handle it the same way.
 ## Step 5. Build, after the go (questions 4, 5, 6, 15, 18)
 
 Build only when the person gives the go at the last checkpoint for their
-level. Before you build, confirm two things: question 2 has the person's
-own answer, and a target exists.
+level. Confirm question 2 has the person's own answer and a target exists.
+Ask the person to specify the target harness (`claude`, `antigravity`, or `codex`).
 
 > **Warning: write only under `familiars/`.** Stop and ask when a build needs
 > a tool not listed in question 5, or an action not listed in question 6.
 > That includes network access, a package install, and a write anywhere else.
 
-**Where the familiar goes.**
+**Where the familiar goes.** Translate tool intents from Question 5 with `references/template.md`.
 
-| Type | The familiar | Its contract |
-|---|---|---|
-| Skill | `familiars/<name>/SKILL.md` | `familiars/<name>/CONTRACT.md` |
-| Agent | `familiars/<name>.md` | `familiars/<name>.contract.md` |
+| Target harness | The familiar | Its contract | Target schema format |
+|---|---|---|---|
+| Skill (any) | `familiars/<name>/SKILL.md` | `familiars/<name>/CONTRACT.md` | Standard YAML frontmatter |
+| Claude Code | `familiars/<name>.md` | `familiars/<name>.contract.md` | Frontmatter; `tools:` comma string |
+| Antigravity | `familiars/<name>.md` | `familiars/<name>.contract.md` | Frontmatter; `tools:` flow array; list extras |
+| OpenAI Codex | `familiars/<name>.toml` | `familiars/<name>.contract.md` | TOML format; instructions in `"""` |
 
 **Frontmatter.**
 
 - `name`: the name exactly as decided. For an agent, it is also the file name
-  without `.md`.
+  without `.md` or `.toml`.
 - `description`: from question 1, in the third person. Say what it does, when
   it steps in and when it stays out. Keep it to 1,024 characters, on one
   line. Do not put a colon and a space, or a space and `#`, in it. If you
@@ -387,8 +389,7 @@ files are part of the familiar too.
 ## Step 6. Seal, then check (questions 3, 4, 5, 18)
 
 These are the only shell commands this skill runs. Put each path in single
-quotes, exactly as shown. The path is the skill's folder, or the agent's
-file.
+quotes: the skill's folder or the agent's file (`.md` or `.toml`).
 
 ```text
 node '<skill base directory>/scripts/check.mjs' --seal '<path>'

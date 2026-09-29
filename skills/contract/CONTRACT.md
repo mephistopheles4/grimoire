@@ -1,9 +1,9 @@
 # Contract: contract
 
-Version: 0.4.7
+Version: 0.5.0
 
 *Type: skill. Template: `references/template.md`, draft 8. Level: Thorough.
-Status: draft 0.4.7, 2026-09-27. The skill's `SKILL.md` is generated from this
+Status: draft 0.5.0, 2026-09-29. The skill's `SKILL.md` is generated from this
 file. To change the skill, amend this file, generate `SKILL.md` again, and
 seal it.*
 
@@ -222,8 +222,9 @@ at the checkpoint, not one at a time.
    each flag raised at a checkpoint, and whether the person acted on it or
    dismissed it.
 2. **The familiar** (kept, not installed). A skill folder, or an agent file
-   with its contract beside it, under `familiars/`. **Nothing is
-   installed.**
+   in the target harness format (`.md` for Claude Code or Antigravity, `.toml`
+   for OpenAI Codex) with its contract beside it, under `familiars/`.
+   **Nothing is installed.**
 3. **The check's output**, word for word, and its exit code. The exit code is
    the verdict.
 4. **The practice test**, in the contract under question 12: the cases, the
@@ -245,7 +246,13 @@ familiar, or decide not to, from these five parts alone.
 | Read | To read the template, an existing contract, or an existing familiar |
 | Write, Edit | To write the contract and the familiar, under `familiars/` only |
 | One shell command, in two forms | To run the check, and to seal. A deterministic check must be code, not a model's opinion |
-| `scripts/check.mjs` | The check and the seal. For a skill, the seal covers every file in its folder except `CONTRACT.md`, so the check reads them all. Node built-in modules only, so it needs no install |
+| `scripts/check.mjs` | The check and the seal. For a skill, the seal covers every file in its folder except `CONTRACT.md`, so the check reads them all. For an agent, it checks and seals `.md` or `.toml`. Node built-in modules only, so it needs no install |
+
+**Target harnesses and tool mapping:** For agents, Question 5 records the
+canonical Intent string. The build step maps intents to target tools using the
+canonical mapping table in `references/template.md`. Antigravity requires extra
+keys (`subagent`, `mainAgent`, `commandExecutionPolicy`, `tools`) listed under
+`Extra keys:`.
 
 **Not on the list:** network access, and any tool that installs, publishes or
 starts a session. The skill never writes a hook, a settings file or a
@@ -295,6 +302,7 @@ decision.
 | 0.4.5 | 2026-09-27 | Add the folder's SkillSpector baseline: EA2 is off for the whole skill (owner accepted the breadth; narrow suppression is an open follow-up). No clause changed. **Decided** 2026-09-27 | The repository's prose scanner flagged a code comment in the check that explains why an unlisted frontmatter key fails. The comment is not an instruction, so it stays as written. The owner accepted the breadth (security review of plan v7, findings 5 to 7) | None; a file added to the folder |
 | 0.4.6 | 2026-09-27 | The check refuses unquoted dates, timestamps, hex, octal, binary and base-60 values as cannot check. No clause changed. **Decided** 2026-09-27 | YAML loaders read them as non-text (review of the pull request) | None; a file in the folder changed |
 | 0.4.7 | 2026-09-27 | Add the skill's README. No clause changed. **Decided** 2026-09-27 | Every skill here has a README; the owner asked for one | None; a file added to the folder |
+| 0.5.0 | 2026-09-29 | Multi-harness compatibility for agents: support Claude Code (.md), Google Antigravity (.md), and OpenAI Codex (.toml) from a single contract, with canonical tool intent mapping and zero-dependency TOML sealing. **Decided** 2026-09-29 | Issue #152 / PR #153 / Issue #154: vendor-neutral contracts with target-specific agent generation and cryptographic sealing across harnesses | 4, 5, 7, 18 |
 
 ### Flag log
 
@@ -537,6 +545,7 @@ different model is an escalation, and the call is yours.
 | Fill the change log's "Questions touched" at amend time, while the person confirms; regenerate exactly the sections whose heading cites a question in the latest row | The same: what changed is a lookup. Every other section stays word for word | Promised. See question 19, item 8 |
 | Say that a mark proves no authorship; review a shipped file as prose | Failure 15 | Promised |
 | Keep `SKILL.md` under 500 lines; move detail to `references/` | The specification's guidance on file size | Promised |
+| Support Claude Code, Antigravity, and Codex agent targets; use canonical tool mapping and terminal [metadata] for TOML | Multi-harness compatibility (Issue #152 / Issue #154) | Promised (Enforced once the check's tests are confirmed) |
 
 ### 19. Open questions
 
