@@ -759,14 +759,15 @@ function isTomlFamiliar(loc) {
 /**
  * TOML's own rules for a line's characters, which the file reader is looser
  * about. A line ends in LF or CRLF only: the reader splits on a lone CR, and
- * TOML refuses one. No control character but tab, inside a string or out.
+ * TOML refuses one. No control character but tab, inside a string or out:
+ * no C0 control and no DEL, which TOML refuses as well.
  */
 function tomlLineRules(raw, ln) {
   if (raw.eol === '\r') throw new CannotCheck(ln, 'a carriage return with no line feed after it');
   const t = raw.text;
   for (let i = 0; i < t.length; i += 1) {
     const c = t.charCodeAt(i);
-    if (c < 0x20 && c !== 9) throw new CannotCheck(ln, `a control character other than tab (${hex4(c)})`);
+    if ((c < 0x20 && c !== 9) || c === 0x7f) throw new CannotCheck(ln, `a control character other than tab (${hex4(c)})`);
   }
 }
 
@@ -903,7 +904,11 @@ function parseToml(fam, extras) {
       continue;
     }
     // Reached outside a string, so it is the seal, and nothing follows it.
+    // Its other two lines take the line rules too, the last one's ending
+    // included, since the loop stops here.
     if (i === sealStart) {
+      tomlLineRules(fam.rawLines[i + 1], ln + 1);
+      tomlLineRules(fam.rawLines[i + 2], ln + 2);
       seal = { kind: 'toml', start: i, entries: new Map() };
       MARK_KEYS.forEach((k, j) => seal.entries.set(k, { value: TOML_SEAL_RES[j].exec(lines[i + j])[1], line: ln + j }));
       break;

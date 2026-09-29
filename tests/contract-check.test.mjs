@@ -1984,6 +1984,38 @@ describe('v8 the .toml reader fails closed, and the contract names its target', 
       exact(r, 1, cannot(6, R.ctrl('U+001B')));
       assert.ok(!r.out.includes('\u{1B}'), 'ESC byte in the output');
     });
+    test('a raw DEL in a string -> 1', () => {
+      const r = run([codex({ lines: ['name = "cx"', 'description = "A\u{7F}B"', ...CODEX.slice(2)] }).file]);
+      exact(r, 1, cannot(2, R.ctrl('U+007F')));
+      assert.ok(!r.out.includes('\u{7F}'), 'DEL byte in the output');
+    });
+    test('a raw DEL in a comment -> 1', () => {
+      exact(run([codex({ lines: [...CODEX, '# note \u{7F}'] }).file]), 1, cannot(6, R.ctrl('U+007F')));
+    });
+    // The seal block's lines take the same rules as every other line. A seal
+    // written clean, then a lone CR put in after the fact.
+    const crInBlock = [
+      ['after seal line 2', /(# familiar-digest = "sha256:[0-9a-f]{64}")\n/, 7],
+      ['at the end of seal line 3', /(# contract-digest = "sha256:[0-9a-f]{64}")\n$/, 8],
+    ];
+    for (const [label, re, line] of crInBlock) {
+      test(`a lone CR ${label} -> 1 cannot-check`, () => {
+        const { file } = codex({ contract: TCON });
+        sealCodex(file);
+        const text = readFileSync(file, 'utf8');
+        assert.ok(re.test(text), 'fixture edit: the seal line was not found');
+        writeFileSync(file, text.replace(re, '$1\r'));
+        exact(run([file]), 1, cannot(line, R.cr));
+      });
+      test(`a lone CR ${label} -> --seal refuses, and writes nothing`, () => {
+        const { file } = codex({ contract: TCON });
+        sealCodex(file);
+        writeFileSync(file, readFileSync(file, 'utf8').replace(re, '$1\r'));
+        const before = readFileSync(file);
+        exact(run(['--seal', file]), 2, `FAIL toml: cannot check cx.toml line ${line}: ${R.cr}`, 'FAIL seal: refused; nothing written');
+        assert.deepEqual(readFileSync(file), before);
+      });
+    }
     test('a tab inside a string -> 0', () => {
       exact(run([codex({ lines: ['name = "cx"', 'description = "A\ttest."', ...CODEX.slice(2)] }).file]), 0, 'PASS toml');
     });
