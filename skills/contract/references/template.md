@@ -9,12 +9,12 @@ generated from the contract.*
 *Draft 9. It moves the practice test into a file of its own, beside the
 familiar. It asks where a familiar's trigger lives, how its record is
 reviewed, and which files the seal does not cover.
-Draft 8 used the word familiar, asks for the name in question 1, marks
-each clause Enforced or Promised, and adds the rule that the file is generated
-from the contract. It also adds agent files with a contract beside them.
-Each heading of the generated file cites its questions, and the change log
-names the questions that each version touched. A "show me good" step before
-question 1 finds the target output.
+Draft 8 used the word familiar, asked for the name in question 1, marked
+each clause Enforced or Promised, and added the rule that the file is
+generated from the contract. It also added agent files with a contract beside
+them, cited the questions in each heading of the generated file, and named
+the questions that each version touched in the change log. It added a "show
+me good" step before question 1, to find the target output.
 Draft 7 added "try it before you review it twice" to question 12. Draft 6
 added a balance against false alarms. Earlier drafts rewrote the text in
 plain language and added "when it is unsure".*
@@ -201,8 +201,8 @@ Mark each item Enforced or Promised (see "How each clause is held").
 
 **What makes it fire.** Say what makes the familiar step in, and where that
 trigger lives: the description, an instruction line, or a hook that you
-install. Then say what happens when it does not fire. A contract cannot hold
-a trigger. A hook is yours to install; the contract only records it.
+install. Then say what happens when it does not fire. A hook is yours to
+install; the contract only records it.
 
 *The test:* every item sits in exactly one place. An item in two places is an
 item that nobody owns.
