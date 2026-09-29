@@ -1,5 +1,10 @@
 # Skills own their vocabulary
 
+*Partly superseded by [0005](0005-skills-name-their-targets.md): the
+"tool-specific noun" clause and the "host platform is not an exception"
+consequence. The opening question now also allows the tools a skill names as
+its targets.*
+
 A skill in this repository names no vocabulary the repository does not own — no
 outside skill name, command name, or tool-specific noun — in its description,
 its body, or its examples. The plugin ships to strangers, and every example
