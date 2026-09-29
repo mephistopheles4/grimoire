@@ -646,28 +646,42 @@ function parseFrontmatter(lines, close, extras) {
   return { top, metadata };
 }
 
+function findClosingTripleQuote(line, delim, startPos = 0) {
+  let pos = startPos;
+  while ((pos = line.indexOf(delim, pos)) !== -1) {
+    if (delim === "'''") return pos;
+    let slashes = 0;
+    let p = pos - 1;
+    while (p >= 0 && line[p] === '\\') { slashes++; p--; }
+    if (slashes % 2 === 0) return pos;
+    pos += 3;
+  }
+  return -1;
+}
+
 function parseToml(text, lines) {
   const top = new Map();
   let metadata = null;
-  let inString = false;
-  let stringStartLine = 1;
+  let multiline = null;
   let currentTable = null;
 
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
     const ln = i + 1;
 
-    if (inString) {
-      let stringCount = 0;
-      let pos = 0;
-      while ((pos = line.indexOf('"""', pos)) !== -1) {
-        let slashes = 0;
-        let p = pos - 1;
-        while (p >= 0 && line[p] === '\\') { slashes++; p--; }
-        if (slashes % 2 === 0) stringCount++;
-        pos += 3;
+    if (multiline) {
+      const closePos = findClosingTripleQuote(line, multiline.delimiter);
+      if (closePos !== -1) {
+        multiline.lines.push(line.slice(0, closePos));
+        const after = line.slice(closePos + 3).trim();
+        if (after !== '' && !after.startsWith('#')) {
+          throw new CannotCheck(ln, 'trailing text after multiline string closes');
+        }
+        top.set(multiline.key, { kind: 'text', value: multiline.lines.join('\n'), line: multiline.startLine });
+        multiline = null;
+      } else {
+        multiline.lines.push(line);
       }
-      if (stringCount % 2 === 1) inString = false;
       continue;
     }
 
@@ -693,37 +707,53 @@ function parseToml(text, lines) {
       const key = t.slice(0, eq).trim();
       const val = t.slice(eq + 1).trim();
 
-      let stringCount = 0;
-      let pos = 0;
-      while ((pos = val.indexOf('"""', pos)) !== -1) {
-        let slashes = 0;
-        let p = pos - 1;
-        while (p >= 0 && val[p] === '\\') { slashes++; p--; }
-        if (slashes % 2 === 0) stringCount++;
-        pos += 3;
-      }
-      if (stringCount % 2 === 1) {
-        inString = true;
-        stringStartLine = ln;
+      if (val.startsWith('"""') || val.startsWith("'''")) {
+        if (currentTable === 'metadata') {
+          throw new CannotCheck(ln, 'metadata values cannot be multiline strings');
+        }
+        const delim = val.slice(0, 3);
+        const closePos = findClosingTripleQuote(val, delim, 3);
+        if (closePos !== -1) {
+          const after = val.slice(closePos + 3).trim();
+          if (after !== '' && !after.startsWith('#')) {
+            throw new CannotCheck(ln, 'trailing text after multiline string closes');
+          }
+          let content = val.slice(3, closePos);
+          if (content.startsWith('\n')) content = content.slice(1);
+          top.set(key, { kind: 'text', value: content, line: ln });
+        } else {
+          let content = val.slice(3);
+          if (content.startsWith('\n')) content = content.slice(1);
+          multiline = { key, delimiter: delim, startLine: ln, lines: [content] };
+        }
+        continue;
       }
 
       if (currentTable === 'metadata') {
         if (!META_KEY_RE.test(key)) throw new CannotCheck(ln, 'metadata key outside readable subset');
         if (metadata.entries.has(key)) throw new CannotCheck(ln, `duplicate metadata key "${clean(key)}"`);
-        let parsedVal = val;
-        if (val.startsWith('"') && val.endsWith('"')) {
-          parsedVal = val.slice(1, -1);
-        }
+        if (!val.startsWith('"')) throw new CannotCheck(ln, 'metadata values must be double-quoted');
+        
+        const parsedVal = parseDoubleQuoted(val, ln);
         metadata.entries.set(key, { value: parsedVal, line: ln });
         metadata.childIdx.push(i);
       } else if (currentTable === null) {
         if (!TOP_KEY_RE.test(key)) throw new CannotCheck(ln, 'a key outside the readable subset');
         if (top.has(key)) throw new CannotCheck(ln, `duplicate key "${clean(key)}"`);
-        let parsedVal = val;
-        if (val.startsWith('"') && val.endsWith('"') && !val.startsWith('"""')) {
-          parsedVal = val.slice(1, -1);
-        } else if (val.startsWith("'") && val.endsWith("'") && !val.startsWith("'''")) {
-          parsedVal = val.slice(1, -1);
+        
+        let parsedVal;
+        if (val.startsWith('"')) {
+          parsedVal = parseDoubleQuoted(val, ln);
+        } else if (val.startsWith("'")) {
+          parsedVal = parseSingleQuoted(val, ln);
+        } else {
+          // Unquoted boolean checking
+          if (val === 'true' || val === 'false') {
+             // For unquoted booleans in TOML, we accept them if they're known to be valid
+             parsedVal = val;
+          } else {
+            throw new CannotCheck(ln, 'an unquoted value in TOML');
+          }
         }
         top.set(key, { kind: 'text', value: parsedVal, line: ln });
       }
@@ -734,8 +764,8 @@ function parseToml(text, lines) {
     }
   }
 
-  if (inString) {
-    throw new CannotCheck(stringStartLine, 'unclosed multiline string (""")');
+  if (multiline) {
+    throw new CannotCheck(multiline.startLine, `unclosed multiline string (${multiline.delimiter})`);
   }
 
   return { top, metadata };

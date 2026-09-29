@@ -1674,3 +1674,91 @@ describe('probes P1-P7', () => {
     assert.deepEqual(readFileSync(join(dir, 'SKILL.md')), first);
   });
 });
+
+describe('multi-harness multiline and unquoted toml string tests', () => {
+  const CONTRACT_TEXT = 'Version: 1.0.0\nExtra keys: subagent, mainAgent, commandExecutionPolicy, tools, contract-version\n\n# Contract\n';
+
+  test('Multiline literal string \'\'\' ignores embedded table headers and keys', () => {
+    const dir = join(base, 'toml-multi-literal');
+    mkdirSync(dir, { recursive: true });
+    
+    const toml = [
+      'name = "demo"',
+      'description = \'\'\'',
+      'This is a test.',
+      '[metadata]',
+      'other = "ignored"',
+      '\'\'\''
+    ].join('\n');
+    
+    const file = join(dir, 'demo.toml');
+    writeFileSync(file, toml);
+    writeFileSync(join(dir, 'demo.contract.md'), CONTRACT_TEXT);
+    
+    const rSeal = spawnSync(process.execPath, [SCRIPT, '--seal', file], { encoding: 'utf8', cwd: base });
+    assert.equal(rSeal.status, 0, 'Seal passed: ' + rSeal.stdout + rSeal.stderr);
+    
+    const rCheck = spawnSync(process.execPath, [SCRIPT, file], { encoding: 'utf8', cwd: base });
+    assert.equal(rCheck.status, 0, 'Multiline literal string check passed: ' + rCheck.stdout);
+  });
+
+  test('Multiline description = """...""" accumulates actual content and fails if > 1024 chars', () => {
+    const dir = join(base, 'toml-multi-length');
+    mkdirSync(dir, { recursive: true });
+    
+    const longText = 'x'.repeat(1025);
+    const toml = [
+      'name = "demo"',
+      `description = """\n${longText}\n"""`
+    ].join('\n');
+    
+    const file = join(dir, 'demo.toml');
+    writeFileSync(file, toml);
+    writeFileSync(join(dir, 'demo.contract.md'), CONTRACT_TEXT);
+    
+    const rCheck = spawnSync(process.execPath, [SCRIPT, file], { encoding: 'utf8', cwd: base });
+    assert.equal(rCheck.status, 1, 'Length check failed');
+    assert.ok(rCheck.stdout.includes('longer than 1024 characters'), 'Error message matches: ' + rCheck.stdout);
+  });
+
+  test('Single-line string with trailing comment/text throws CannotCheck', () => {
+    const dir = join(base, 'toml-trailing');
+    mkdirSync(dir, { recursive: true });
+    
+    const toml = [
+      'name = "demo"',
+      'description = "demo" trailing',
+      'subagent = "true"',
+      '[metadata]',
+      'contract-version = "1.0.0"'
+    ].join('\n');
+    
+    const file = join(dir, 'demo.toml');
+    writeFileSync(file, toml);
+    writeFileSync(join(dir, 'demo.contract.md'), CONTRACT_TEXT);
+    
+    const rCheck = spawnSync(process.execPath, [SCRIPT, file], { encoding: 'utf8', cwd: base });
+    assert.equal(rCheck.status, 1, 'Trailing text check failed');
+  });
+
+  test('Unquoted metadata value throws CannotCheck', () => {
+    const dir = join(base, 'toml-unquoted-metadata');
+    mkdirSync(dir, { recursive: true });
+    
+    const toml = [
+      'name = "demo"',
+      'description = "demo"',
+      '[metadata]',
+      'contract-version = 1.0.0'
+    ].join('\n');
+    
+    const file = join(dir, 'demo.toml');
+    writeFileSync(file, toml);
+    writeFileSync(join(dir, 'demo.contract.md'), CONTRACT_TEXT);
+    
+    const rCheck = spawnSync(process.execPath, [SCRIPT, file], { encoding: 'utf8', cwd: base });
+    assert.equal(rCheck.status, 1, 'Unquoted metadata check failed');
+    assert.ok(rCheck.stdout.includes('metadata values must be double-quoted'), 'Error message matches: ' + rCheck.stdout);
+  });
+});
+

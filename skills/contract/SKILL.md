@@ -3,7 +3,7 @@ name: contract
 description: Interviews a person to agree the terms for a new skill or agent, writes those terms down as a contract, then generates the skill's or agent's file from that contract and checks its format. Use when someone wants to build a reusable skill or agent, turn a prompt they keep pasting into one, change a skill or agent that has a contract file beside it, or write a contract for one that has none. The skill calls what it builds a familiar. Not for a one-off prompt, not for running or using a skill or agent that already exists, and not for a legal or business contract.
 metadata:
   contract-version: 0.5.0
-  familiar-digest: "sha256:8f26e20be018eb428b523f24019baf00031545d5fde0a5bcdb0be31e81dc6223"
+  familiar-digest: "sha256:d50008ef6def0a0738db0fe1353fbe5bb19abfcd45661c2e690adf846ef19054"
   contract-digest: "sha256:a1c1401cf3597efe5586437dc5104f34ff0a43afa618373ef9211724d8601d38"
 ---
 
