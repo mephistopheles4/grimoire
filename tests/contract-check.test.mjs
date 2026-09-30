@@ -679,9 +679,13 @@ describe('S10', () => {
   describe("24 this repository's own skills pass as they stand", () => {
     // Read in place, not copied: the folder name, the file and anything beside
     // it are exactly what scripts/check.mjs will see.
-    for (const name of ['eagle-eye', 'groundtrack']) {
+    // eagle-eye is generated from its CONTRACT.md and sealed; groundtrack is not.
+    for (const [name, contract] of [
+      ['eagle-eye', 'PASS contract: marked, contract present'],
+      ['groundtrack', 'PASS contract: not built from a contract'],
+    ]) {
       test(name, () => {
-        expect(run([join(root, 'skills', name)]), 0, `PASS name: ${name}`, 'PASS contract: not built from a contract');
+        expect(run([join(root, 'skills', name)]), 0, `PASS name: ${name}`, contract);
       });
     }
   });

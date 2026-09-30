@@ -163,7 +163,7 @@ function validate(box) {
   // The tour is optional: the page's own walk, one region at a time. It is
   // checked the way presets are, and each stop must put the page in a state
   // that shows its region — the sheet needs the sheet view, the option cards
-  // need a row open. See SKILL.md, "The tour".
+  // need a row open. See reference/box-file.md, "The tour in detail".
   if (box.tour !== undefined) {
     if (!Array.isArray(box.tour)) err('tour: must be an array of stops');
     else if (!box.tour.length) err('tour: state at least one stop, or leave the field out');

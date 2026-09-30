@@ -39,6 +39,11 @@ function tree() {
   }
   cpSync(join(root, '.gitignore'), join(dir, '.gitignore'));
   cpSync(join(root, baselineName), join(dir, baselineName));
+  // eagle-eye is sealed, so any edit to it breaks its mark. A test that edits
+  // a skill and expects a pass edits this unsealed fixture instead. It carries a
+  // copy of eagle-eye's baseline, so the two-baseline agreement rules see it too.
+  const fixture = fixtureSkill(dir, 'unsealed-fixture');
+  cpSync(join(root, 'skills', 'eagle-eye', baselineName), join(fixture, baselineName));
   return dir;
 }
 
@@ -48,6 +53,8 @@ const skillBaselineIn = dir => join(dir, 'skills', 'eagle-eye', baselineName);
 const readJson = p => JSON.parse(readFileSync(p, 'utf8'));
 const writeJson = (p, v) => writeFileSync(p, JSON.stringify(v, null, 2));
 const skillMd = dir => join(dir, 'skills', 'eagle-eye', 'SKILL.md');
+const fixtureMd = dir => join(dir, 'skills', 'unsealed-fixture', 'SKILL.md');
+const fixtureBaselineIn = dir => join(dir, 'skills', 'unsealed-fixture', baselineName);
 const manifest = dir => join(dir, '.claude-plugin', 'plugin.json');
 const setVersion = (dir, v) => writeJson(manifest(dir), { ...readJson(manifest(dir)), version: v });
 
@@ -182,7 +189,7 @@ test('a fixed path outside skills/ does not fail, because nothing ships it', () 
 
 test('a fixed path inside a block quote does not fail, because it is an example', () => {
   const dir = tree();
-  appendFileSync(skillMd(dir), '\n> Never write ~/.claude/skills/ into a skill.\n');
+  appendFileSync(fixtureMd(dir), '\n> Never write ~/.claude/skills/ into a skill.\n');
   assertPasses(dir);
 });
 
@@ -256,14 +263,17 @@ test('a sealed SKILL.md whose CONTRACT.md is gone fails, naming the skill', () =
 test('a frontmatter key the format check does not know fails an unmarked skill too', () => {
   // A key that widens what the agent may do, added to a skill built from no
   // contract. Nothing lists it, so it is a change nobody reviewed.
+  // The unsealed fixture is that skill: eagle-eye is sealed, and an edit to it
+  // would also break its mark.
   const dir = tree();
-  const p = skillMd(dir);
+  const p = fixtureMd(dir);
   const text = readFileSync(p, 'utf8');
-  const nameLine = /^name: eagle-eye(\r?\n)/m;
+  const nameLine = /^name: unsealed-fixture(\r?\n)/m;
   assert.match(text, nameLine, 'the fixture edit found no name line');
-  writeFileSync(p, text.replace(nameLine, 'name: eagle-eye$1permissionMode: acceptEdits$1'));
-  const r = assertFails(dir, /skills\/eagle-eye\/ fails the format check/);
+  writeFileSync(p, text.replace(nameLine, 'name: unsealed-fixture$1permissionMode: acceptEdits$1'));
+  const r = assertFails(dir, /skills\/unsealed-fixture\/ fails the format check/);
   assert.match(r.stderr, /unknown key "permissionMode"/);
+  assert.doesNotMatch(r.stderr, /familiar-digest/, 'an unmarked skill has no seal to break');
 });
 
 test('a format-check warning passes, and is printed as a note', () => {
@@ -407,7 +417,7 @@ test('a shelf and a book with the same name fail', () => {
 test('the check reports every failure at once, not the first one', () => {
   // A gate that stops at the first problem costs a round trip per problem.
   const dir = tree();
-  appendFileSync(skillMd(dir), '\nSee ~/.claude/skills/ for the file.\n');
+  appendFileSync(fixtureMd(dir), '\nSee ~/.claude/skills/ for the file.\n');
   const p = join(dir, '.claude-plugin', 'marketplace.json');
   const m = readJson(p);
   m.plugins[0].version = '9.9.9';
@@ -431,9 +441,21 @@ test('a code fence with no language fails, naming the file and the line', () => 
   assertFails(dir, new RegExp(`SKILL\\.md:${fenceLine} opens a code fence with no language`));
 });
 
+test('a bare fence in the fixture skill fails, naming its file', () => {
+  // The control for the pass tests below, which edit the fixture: their pass
+  // proves something only while the fence rule reads the fixture's file.
+  const dir = tree();
+  const lines = readFileSync(fixtureMd(dir), 'utf8').split('\n');
+  const fenceLine = lines.length + 1;
+  lines.push('```', 'a block that says nothing about itself', '```', '');
+  writeFileSync(fixtureMd(dir), lines.join('\n'));
+  assert.equal(lines[fenceLine - 1], '```');
+  assertFails(dir, new RegExp(`skills/unsealed-fixture/SKILL\\.md:${fenceLine} opens a code fence with no language`));
+});
+
 test('a fence that declares a language passes', () => {
   const dir = tree();
-  appendFileSync(skillMd(dir), '\n```bash\nnode scripts/check.mjs\n```\n');
+  appendFileSync(fixtureMd(dir), '\n```bash\nnode scripts/check.mjs\n```\n');
   assertPasses(dir);
 });
 
@@ -442,13 +464,13 @@ test('a closing fence is not read as a bare opening fence', () => {
   // in the tree: sixteen hits, thirteen of them closing. This is the test that
   // says the state machine is the point.
   const dir = tree();
-  appendFileSync(skillMd(dir), '\n```text\nfirst\n```\n\n```text\nsecond\n```\n');
+  appendFileSync(fixtureMd(dir), '\n```text\nfirst\n```\n\n```text\nsecond\n```\n');
   assertPasses(dir);
 });
 
 test('a tilde fence inside a backtick block does not close it', () => {
   const dir = tree();
-  appendFileSync(skillMd(dir), '\n```text\n~~~\nstill inside\n~~~\n```\n');
+  appendFileSync(fixtureMd(dir), '\n```text\n~~~\nstill inside\n~~~\n```\n');
   assertPasses(dir);
 });
 
@@ -459,7 +481,7 @@ test('a longer fence may hold a shorter one, which does not close it', () => {
   // failing correct markdown. This repository documents fenced blocks, so that
   // file is one somebody here would write.
   const dir = tree();
-  appendFileSync(skillMd(dir), '\n````markdown\n```\nan inner example fence\n```\n````\n');
+  appendFileSync(fixtureMd(dir), '\n````markdown\n```\nan inner example fence\n```\n````\n');
   assertPasses(dir);
 });
 
@@ -518,7 +540,7 @@ test('a skill change with no version bump fails', () => {
 test('the same skill change passes once the version moves', () => {
   const dir = tree();
   const git = repo(dir);
-  appendFileSync(skillMd(dir), '\nOne more sentence, and a release to carry it.\n');
+  appendFileSync(fixtureMd(dir), '\nOne more sentence, and a release to carry it.\n');
   setVersion(dir, '99.0.0');
   git('commit', '-aqm', 'change the skill and bump the version');
   assertPasses(dir);
@@ -564,7 +586,7 @@ test('a bump past what the base released passes', () => {
   const git = repo(dir);
   baseMovesAhead(git, () => setVersion(dir, '99.0.0'));
   setVersion(dir, '99.0.1');
-  appendFileSync(skillMd(dir), '\nOne more sentence, and the next version to carry it.\n');
+  appendFileSync(fixtureMd(dir), '\nOne more sentence, and the next version to carry it.\n');
   git('commit', '-aqm', 'change the skill and bump past main');
   assertPasses(dir);
 });
@@ -575,7 +597,7 @@ test('a base that moved without releasing does not trip the comparison', () => {
   const git = repo(dir);
   baseMovesAhead(git, () => appendFileSync(join(dir, 'scripts', 'build-pages.mjs'), '\n// a comment, releasing nothing\n'));
   setVersion(dir, '99.0.0');
-  appendFileSync(skillMd(dir), '\nOne more sentence, released by this branch.\n');
+  appendFileSync(fixtureMd(dir), '\nOne more sentence, released by this branch.\n');
   git('commit', '-aqm', 'change the skill and bump');
   assertPasses(dir);
 });
@@ -593,7 +615,7 @@ test('a base tip with no manifest says which comparison was skipped', () => {
   const original = readJson(manifest(dir));
   baseMovesAhead(git, () => git('rm', '-q', '.claude-plugin/plugin.json'));
   writeJson(manifest(dir), { ...original, version: '99.0.0' });
-  appendFileSync(skillMd(dir), '\nOne more sentence, against a base with no manifest.\n');
+  appendFileSync(fixtureMd(dir), '\nOne more sentence, against a base with no manifest.\n');
   git('add', '-A');
   git('commit', '-qm', 'change the skill and bump, with no manifest on the base');
   const r = assertPasses(dir);
@@ -732,8 +754,8 @@ test('a tree with no baseline under any skill fails', () => {
   // than an oversight: only the scanner knows which directory a finding lands
   // in, so nothing here can say which skills need a baseline of their own. It
   // catches the practice being abandoned wholesale, and the agreement rules
-  // below cover every baseline that does ship. Both skills carry one today,
-  // so this test has to remove both.
+  // below cover every baseline that does ship. Every skill in the copy carries
+  // one today, the test fixture included, so this test removes them all.
   const dir = tree();
   for (const skill of readdirSync(join(dir, 'skills'))) {
     const p = join(dir, 'skills', skill, baselineName);
@@ -831,11 +853,16 @@ test('a rule narrowed to a file in one baseline and not the other fails', () => 
 });
 
 test('a rule narrowed to the same file in both baselines passes', () => {
+  // Every skill baseline that suppresses AR2 is compared with the root, so
+  // each one is narrowed the same way. eagle-eye's baseline sits inside its
+  // sealed folder, so the copy's own format check seals it again after the edit.
   const dir = tree();
-  for (const p of [rootBaselineIn(dir), skillBaselineIn(dir)]) {
+  for (const p of [rootBaselineIn(dir), skillBaselineIn(dir), fixtureBaselineIn(dir)]) {
     const text = readFileSync(p, 'utf8');
     writeFileSync(p, text.replace('  - rule_id: "AR2"\n', '  - rule_id: "AR2"\n    file: "*SKILL.md"\n'));
   }
+  const reseal = run(formatCheckIn(dir), ['--seal', join(dir, 'skills', 'eagle-eye')], { cwd: dir });
+  assert.equal(reseal.code, 0, `eagle-eye did not seal again:\n${reseal.stdout}${reseal.stderr}`);
   assertPasses(dir);
 });
 
