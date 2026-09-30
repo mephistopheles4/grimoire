@@ -3,7 +3,7 @@ name: eagle-eye
 description: Steps in when a discussion holds three or more open decisions and at least two of them are coupled, so that one choice changes what is possible in another, or when someone asks for it by name (/eagle-eye, an eagle-eye view, or a morphological box). Stays out when the person insists on the quick route, and for two independent choices.
 metadata:
   contract-version: 0.1.0
-  familiar-digest: "sha256:7622e41c5fcd5544866839a4553462729a9d59805741659407eb1d504cad03e3"
+  familiar-digest: "sha256:d3eb05595cfed115512bddcf51a738f256df2d4a80cbc7ca480d558c9c3f2965"
   contract-digest: "sha256:945fff5e42d904da8063bbe8fe9faac172eeb83ba0b8820e744c559d1f4c46b4"
 ---
 
@@ -391,7 +391,7 @@ Eagle-eye keeps one line per use, so that the person can check that it fires
 when it is needed, and can tell when it should be retired.
 
 **Where.** The path in the `EAGLE_EYE_LOG` environment variable. With no
-variable set, `.eagle-eye/log.jsonl` in the person's home folder. Never inside
+variable set, `~/.eagle-eye/log.jsonl` in the person's home folder. Never inside
 the skill's folder, because the seal covers that folder. Read the variable
 with a shell. With none set, get the home folder from the shell and build the
 absolute path: file tools do not expand `~`.
