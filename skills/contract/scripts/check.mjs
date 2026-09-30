@@ -12,11 +12,15 @@
 // every file in its folder but CONTRACT.md (see "the folder").
 //
 // Exit 0 pass (warnings allowed), 1 fail or cannot check, 2 usage or refusal.
-// The exit code is the verdict, and the skill reads the code rather than the
-// text. The text is for a person, and it is built so that nothing a file says
-// can speak through it: it never echoes a field value, except a `name` that
-// already matched the name pattern, and every character it does echo from a
-// file or a folder name is cleaned first.
+// The exit code is the verdict. The skill also shows the person each WARN
+// line, but no line of text changes the verdict. The text is built so that
+// nothing a file says can speak through it: it never echoes a field value,
+// except a `name` that already matched the name pattern, and every character
+// it does echo from a file or a folder name is cleaned first.
+//
+// A setting the check does not know to be harmless is flagged, not refused:
+// the person chose it, and the check says so. A few settings known to let the
+// agent do more without asking get a sharper danger warning (see DANGER).
 //
 // The files this reads may come from a stranger, so the readers below are not
 // a YAML parser or a TOML parser and do not try to be. Each reads one small
@@ -89,12 +93,61 @@ const ECHO_MAX = 80;
 
 const MARK_KEYS = ['contract-version', 'familiar-digest', 'contract-digest'];
 const KNOWN_KEYS = new Set(['name', 'description', 'compatibility', 'license', 'allowed-tools', 'metadata']);
-// A .toml file has keys of its own. Codex drops an agent file with a key it
-// does not know rather than obeying it, so every other key, license and
-// compatibility included, needs the contract's `Extra keys:` line.
+// A .toml file has keys of its own. Every other key, license and
+// compatibility included, needs the contract's `Extra keys:` line, as a .md
+// file's does, and then passes with any value.
 const TOML_KNOWN_KEYS = new Set(['name', 'description', 'developer_instructions', 'sandbox_mode']);
-// The two sandbox_mode values a .toml may hold, whatever the contract says.
-const SANDBOX_MODES = new Set(['read-only', 'workspace-write']);
+
+// The settings this check warns on. Neither kind of warning fails the check,
+// and neither refuses a value: the person chose the setting, and the check
+// says so. Warnings run only on keys that passed the keys rule.
+//
+// DANGER, by file kind, then by key: a setting known to let the agent do more
+// without asking. A value in `safe` prints nothing; any other value, or any
+// value at all when `safe` is null, prints the row's line. The value is never
+// echoed, and the key and label come from this table. A Map, so a key such as
+// "constructor" is simply not in it.
+//
+// Mirror of references/binding-*.md; change both.
+const warnRow = (safe, label) => ({ safe: safe === null ? null : new Set(safe), label });
+const ACT_OUTSIDE = 'may let the agent act outside a sandbox';
+const OUTSIDE_FILE = 'loads instructions from a file the seal does not cover';
+const DANGER = new Map([
+  [
+    '.toml',
+    new Map([
+      ['sandbox_mode', warnRow(['read-only', 'workspace-write'], ACT_OUTSIDE)],
+      ['default_permissions', warnRow([':read-only', ':workspace'], ACT_OUTSIDE)],
+      ['approval_policy', warnRow(['on-request'], 'may let the agent run commands without asking')],
+      ['approvals_reviewer', warnRow(['user'], 'may let something other than the person approve commands')],
+      ['web_search', warnRow(['disabled', 'cached'], 'may let the agent reach the live web')],
+      ['model_instructions_file', warnRow(null, OUTSIDE_FILE)],
+      ['experimental_instructions_file', warnRow(null, OUTSIDE_FILE)],
+      ['experimental_compact_prompt_file', warnRow(null, OUTSIDE_FILE)],
+      ['model_catalog_json', warnRow(null, 'loads a file the seal does not cover')],
+      ['openai_base_url', warnRow(null, "sends the agent's work to a server the file names")],
+    ]),
+  ],
+  [
+    '.md',
+    new Map([
+      ['permissionMode', warnRow(['default', 'plan', 'manual', 'dontAsk'], 'may let the agent act without asking')],
+      ['allowed-tools', warnRow(null, 'may let the agent use tools without asking')],
+      ['omitClaudeMd', warnRow(null, "starts the agent without the person's CLAUDE.md files")],
+      ['initialPrompt', warnRow(null, 'sends a first message the person did not type')],
+    ]),
+  ],
+]);
+// HARMLESS, by file kind: listed keys that print nothing. Every other key the
+// contract lists, outside the known keys and DANGER, prints the plainer
+// `unreviewed` warning. Sets, for the reason DANGER is a Map.
+const HARMLESS = new Map([
+  ['.toml', new Set(['model', 'model_reasoning_effort'])],
+  ['.md', new Set(['tools', 'model', 'effort'])],
+]);
+// The sandbox_mode values that print PASS sandbox-mode: its DANGER row's safe
+// set, so the two cannot drift apart.
+const SANDBOX_MODES = DANGER.get('.toml').get('sandbox_mode').safe;
 // A contract's `Target:` names the tool the familiar is built for, and so the
 // file ending that familiar needs. A Map, so a target such as "constructor"
 // is simply not in it.
@@ -146,18 +199,24 @@ const PLAIN_BAD_START = '{}[]&*!|>%@`#,\'"';
 // date. This check reads every plain value as text, and a loader that reads
 // the same file would not, so the two would disagree about what the file says.
 // Such a value is "cannot check"; quoted, it is text to both. The word list is
-// matched in any case. The number patterns are the one pattern the format
-// gives, split into flat halves so none has a nested quantifier, and tried
-// after one leading sign is taken off. A leading zero, as in 017, is YAML 1.1
+// matched in any case, and holds YAML 1.1's y and n as well. The number
+// patterns are the one pattern the format gives, split into flat halves so
+// none has a nested quantifier, and tried after one leading sign is taken off,
+// on the value in lower case with every "_" removed: loaders differ on the
+// case of a prefix and on where an underscore may sit among the digits, so
+// the check refuses the whole class rather than guess which reading a loader
+// takes. Refusing a near miss is safe. A leading zero, as in 017, is YAML 1.1
 // octal; the plain digit pattern already refuses it. The other number forms
 // are tried after the same sign: hexadecimal (0x1F), binary (0b101), octal
 // (0o17) and YAML 1.1 base 60 (1:30 or 190:20:30.15), checked a part at a time
-// between the colons. A date or a timestamp, such as 2026-09-27 or
-// 2026-09-27T10:00:00Z, is refused by its start alone: four digits, a month
-// and a day of one or two digits each, then the end or a T, a t, a space or a
-// tab. That is broader than the loaders' own date rule, and refusing a near
-// miss is safe.
-const YAML_WORDS = new Set(['~', 'null', 'true', 'false', 'yes', 'no', 'on', 'off']);
+// between the colons. A base prefix followed only by underscores, such as
+// 0x_, is refused before the underscores are removed, since removing them
+// would leave a bare prefix; a bare 0x with no underscore stays text. A date
+// or a timestamp, such as 2026-09-27 or 2026-09-27T10:00:00Z, is refused by
+// its start alone: four digits, a month and a day of one or two digits each,
+// then the end or a T, a t, a space or a tab. That is broader than the
+// loaders' own date rule, and refusing a near miss is safe.
+const YAML_WORDS = new Set(['~', 'null', 'true', 'false', 'yes', 'no', 'on', 'off', 'y', 'n']);
 const YAML_NUMBER_RES = [
   /^\.[0-9]+$/,
   /^\.[0-9]+[eE][-+]?[0-9]+$/,
@@ -169,6 +228,7 @@ const YAML_NUMBER_RES = [
   /^0b[01_]+$/,
   /^0o[0-7_]+$/,
 ];
+const BASE_PREFIX_UNDERSCORES_RE = /^0[xXbBoO]_+$/;
 const YAML_DATE_RE = /^[0-9]{4}-[0-9]{1,2}-[0-9]{1,2}(?:$|[Tt \u{9}])/u;
 const BASE60_FIRST_RE = /^[0-9][0-9_]*$/;
 const BASE60_PART_RE = /^[0-5]?[0-9]$/;
@@ -287,8 +347,10 @@ class Report {
 
 /**
  * Split decoded text into lines, keeping each line's own terminator. The seal
- * writes lines back with the ending they came with, so a CRLF or lone-CR file
- * keeps its endings and changes only in the mark lines.
+ * writes lines back with the ending they came with, so a CRLF file keeps its
+ * endings and changes only in the mark lines. A lone CR ends a line here too,
+ * and is kept as that line's ending so the character rule can see it: a file
+ * holding one is refused, never sealed (see isRefusedChar).
  */
 function splitRaw(text) {
   const out = [];
@@ -311,7 +373,9 @@ function splitRaw(text) {
 
 /**
  * Read one file: size from the open file before reading, a bounded read,
- * strict UTF-8, one leading BOM stripped, CRLF and lone CR normalised to LF.
+ * strict UTF-8, one leading BOM stripped, CRLF normalised to LF. A lone CR
+ * also ends a line in `lines` and `text`, and stays in its line's `eol` in
+ * `rawLines`, where the character rule finds it and refuses the file.
  * Returns { ok: true, bom, rawLines, lines, text } or { ok: false, why }.
  *
  * The size comes from the open descriptor rather than the path, so a file
@@ -371,6 +435,42 @@ function findInvisible(text) {
 
 function hex4(cp) {
   return `U+${cp.toString(16).toUpperCase().padStart(4, '0')}`;
+}
+
+// The character rule: characters no text file the check reads may hold. A
+// line or paragraph separator (U+2028, U+2029) or NEL (U+0085) starts a new
+// line for some readers and not others, and so does a lone CR. Every other C0
+// control but tab, DEL and every C1 control can move a terminal's cursor or
+// read as a line break to some tool, and U+FFFE and U+FFFF are outside the
+// characters YAML allows. A file holding one reads one way to this check and
+// another way to some loader, so it is cannot-check: refused, not read. The
+// rule is its own function, kept apart from isInvisible and mustClean, so
+// neither of those changes meaning. Every code point here is in the Basic
+// Multilingual Plane, and none is a surrogate, so one UTF-16 code unit is
+// enough to test.
+function isRefusedChar(c) {
+  return (c < 0x20 && c !== 9) || (c >= 0x7f && c <= 0x9f) || c === 0x2028 || c === 0x2029 || c === 0xfffe || c === 0xffff;
+}
+
+/**
+ * Every line of a file readText read that holds a refused character, with the
+ * first one on each line: [{ line, what }]. Each line's own text and its own
+ * ending are scanned, never the joined text, whose endings are all LF.
+ */
+function findRefused(file) {
+  const hits = [];
+  file.rawLines.forEach((raw, i) => {
+    const t = raw.text;
+    for (let j = 0; j < t.length; j += 1) {
+      const c = t.charCodeAt(j);
+      if (isRefusedChar(c)) {
+        hits.push({ line: i + 1, what: hex4(c) });
+        return;
+      }
+    }
+    if (raw.eol === '\r') hits.push({ line: i + 1, what: 'a carriage return with no line feed after it' });
+  });
+  return hits;
 }
 
 // ---------------------------------------------------------------- frontmatter
@@ -479,10 +579,15 @@ function yamlReadsAsNonText(v) {
   if (YAML_WORDS.has(lower)) return true;
   if (YAML_DATE_RE.test(v)) return true;
   const unsigned = v[0] === '-' || v[0] === '+' ? v.slice(1) : v;
-  const unsignedLower = unsigned.toLowerCase();
-  if (unsignedLower === '.inf' || unsignedLower === '.nan') return true;
-  if (YAML_NUMBER_RES.some(re => re.test(unsigned))) return true;
-  return yamlBase60(unsigned);
+  // A base prefix followed only by underscores, such as 0x_, which removing
+  // the underscores below would leave as a bare prefix the patterns read as
+  // text. A bare 0x with no underscore stays text.
+  if (BASE_PREFIX_UNDERSCORES_RE.test(unsigned)) return true;
+  // Lower case, every "_" removed: see YAML_WORDS for why the whole class.
+  const bare = unsigned.toLowerCase().replaceAll('_', '');
+  if (bare === '.inf' || bare === '.nan') return true;
+  if (YAML_NUMBER_RES.some(re => re.test(bare))) return true;
+  return yamlBase60(bare);
 }
 
 /** A flow sequence's items, split on commas, with spaces and tabs trimmed from each. */
@@ -529,6 +634,11 @@ function parseScalar(raw, ln, key, extras) {
     throw new CannotCheck(ln, 'a colon followed by a space inside an unquoted value (quote the value)');
   }
   if (v.includes(' #') || v.includes('\t#')) throw new CannotCheck(ln, 'a trailing comment after a value');
+  // A plain = is YAML 1.1's value key and a plain << its merge key, so a
+  // loader may read either as something other than text.
+  if (v === '=' || v === '<<') {
+    throw new CannotCheck(ln, 'an unquoted = or <<, which YAML reads as the value key or the merge key (quote it to use it as text)');
+  }
   if (v === 'true' || v === 'false') {
     if (extras && extras.has(key)) return v;
     // Otherwise let it fall through to yamlReadsAsNonText to fail
@@ -684,7 +794,12 @@ function parseFrontmatter(lines, close, extras) {
       i = block.end;
       continue;
     }
-    top.set(key, { kind: 'text', value: parseScalar(raw, ln, key, extras), line: ln });
+    // parseScalar takes a plain value starting "[" only as a flow list, and
+    // refuses every other one, so a value that parsed from such a start is a
+    // flow list. The warning rules compare its items one by one; a quoted
+    // "[plan]" is text, and is compared whole.
+    const value = parseScalar(raw, ln, key, extras);
+    top.set(key, { kind: 'text', value, line: ln, flow: raw[0] === '[' });
     i += 1;
   }
   return { top, metadata };
@@ -713,7 +828,9 @@ function parseFrontmatter(lines, close, extras) {
 // reads past. They are found by the same pass that knows whether a line is
 // inside a string: the same three lines inside a string are text, and stay in
 // the digest. Any other comment that names a mark key, in any case or form,
-// is refused, because it would read as a seal to a person or a model.
+// is refused, because it would read as a seal to a person or a model. So is a
+// key named like one, listed or not: no tool reads such a key, and it too
+// would read as a seal.
 
 // The seal block, one fully anchored pattern per line, in MARK_KEYS order.
 // The version takes the characters sealableVersion() allows, and no quote.
@@ -722,8 +839,9 @@ const TOML_SEAL_RES = [
   /^# familiar-digest = "(sha256:[0-9a-f]{64})"$/,
   /^# contract-digest = "(sha256:[0-9a-f]{64})"$/,
 ];
-// A comment's text that names a mark key. Looser than the block on purpose:
-// any case, any spacing, any separator and any quoting.
+// A comment's text, or a key, that names a mark key. Looser than the block on
+// purpose: any case, any spacing, any separator and any quoting, and anywhere
+// in the key.
 const TOML_DECOY_RE = /contract-version|familiar-digest|contract-digest/i;
 // The leading run of bare-key characters on a key line. TOP_KEY_RE decides
 // afterwards whether the key is one this check reads.
@@ -749,6 +867,7 @@ const TOML_REASON = {
   twoSingle: 'two single quotes in a row inside a literal string (a TOML literal string has no escapes)',
   longClose: 'a closing quote run longer than the three-quote delimiter',
   decoy: 'a comment that names a seal key but is not part of the seal block (three exact lines at the end of the file)',
+  decoyKey: 'a key named like a seal key; the seal is three comment lines at the end of the file',
 };
 
 /** True for a .toml agent file, whose reader, keys and seal are its own. */
@@ -760,7 +879,10 @@ function isTomlFamiliar(loc) {
  * TOML's own rules for a line's characters, which the file reader is looser
  * about. A line ends in LF or CRLF only: the reader splits on a lone CR, and
  * TOML refuses one. No control character but tab, inside a string or out:
- * no C0 control and no DEL, which TOML refuses as well.
+ * no C0 control and no DEL, which TOML refuses as well. Then the rest of the
+ * character rule (see isRefusedChar), with a reason of its own: no line or
+ * paragraph separator, no C1 control and no U+FFFE or U+FFFF. These run after
+ * the C0 and DEL loop, so a line holding both kinds keeps the older reason.
  */
 function tomlLineRules(raw, ln) {
   if (raw.eol === '\r') throw new CannotCheck(ln, 'a carriage return with no line feed after it');
@@ -768,6 +890,12 @@ function tomlLineRules(raw, ln) {
   for (let i = 0; i < t.length; i += 1) {
     const c = t.charCodeAt(i);
     if ((c < 0x20 && c !== 9) || c === 0x7f) throw new CannotCheck(ln, `a control character other than tab (${hex4(c)})`);
+  }
+  for (let i = 0; i < t.length; i += 1) {
+    const c = t.charCodeAt(i);
+    if (isRefusedChar(c)) {
+      throw new CannotCheck(ln, `a line or paragraph separator, a C1 control character or a noncharacter (${hex4(c)})`);
+    }
   }
 }
 
@@ -933,6 +1061,7 @@ function parseToml(fam, extras) {
     // Line number only, for the reason readMetadata gives.
     if (!TOP_KEY_RE.test(key)) throw new CannotCheck(ln, 'a key outside the readable subset');
     if (key === 'metadata') throw new CannotCheck(ln, TOML_REASON.metadata);
+    if (TOML_DECOY_RE.test(key)) throw new CannotCheck(ln, TOML_REASON.decoyKey);
     if (top.has(key)) throw new CannotCheck(ln, `duplicate key "${clean(key)}"`);
     // Not trimmed at the end: after an opening """ or ''' the spaces are text,
     // and so is the line ending after them. Each branch of tomlValue allows
@@ -1146,8 +1275,9 @@ function listFolder(root) {
  * A covered text file's bytes as hashed: strict UTF-8 with no NUL, and each
  * CRLF made LF, which is the one change git makes to a text file on checkout.
  * A lone CR is refused, not made LF: a shell reads `# note\rcmd` as one
- * comment, and an editor shows it as two lines. Returns { why } or
- * { bytes, text }.
+ * comment, and an editor shows it as two lines. After those two, the rest of
+ * the character rule (see isRefusedChar), reported with its line and code
+ * point. Returns { why } or { bytes, text }.
  */
 function textBytes(buf) {
   let text;
@@ -1166,6 +1296,13 @@ function textBytes(buf) {
     }
     out[n] = buf[i];
     n += 1;
+  }
+  // Every CR left is half of a CRLF, and an LF ends a line.
+  let line = 1;
+  for (let i = 0; i < text.length; i += 1) {
+    const c = text.charCodeAt(i);
+    if (c === 10) line += 1;
+    else if (c !== 13 && isRefusedChar(c)) return { why: `line ${line} holds ${hex4(c)}` };
   }
   return { bytes: out.subarray(0, n), text };
 }
@@ -1411,9 +1548,10 @@ function codePoints(s) {
  * The field rules on a parsed familiar. Records into report.
  *
  * Any key the rules do not name fails unless the contract lists it on its
- * `Extra keys:` line. A key a runtime reads, such as one that sets how much
- * the agent may do without asking, is a change nobody reviewed unless the
- * contract says it was wanted. A .toml file has its own known keys.
+ * `Extra keys:` line, in a .md file and a .toml file alike, each with its own
+ * known keys. A listed key passes with any value: the check refuses no value
+ * for what it lets the agent do. It warns instead, once per key, on every key
+ * that passed and that it does not know to be harmless (see warningRules).
  */
 function fieldRules(fm, loc, extras, report) {
   const { top } = fm;
@@ -1421,10 +1559,9 @@ function fieldRules(fm, loc, extras, report) {
   const known = toml ? TOML_KNOWN_KEYS : KNOWN_KEYS;
   let unknown = 0;
   for (const [key, entry] of top) {
-    if (!known.has(key) && !extras.has(key)) {
-      unknown += 1;
-      report.fail('keys', `unknown key "${clean(key)}" at line ${entry.line}`);
-    }
+    if (known.has(key) || extras.has(key)) continue;
+    unknown += 1;
+    report.fail('keys', `unknown key "${clean(key)}" at line ${entry.line}`);
   }
   if (unknown === 0) report.pass('keys');
 
@@ -1457,6 +1594,7 @@ function fieldRules(fm, loc, extras, report) {
 
   if (toml) {
     tomlKeyRules(top, report);
+    warningRules(top, toml, known, extras, report);
     return;
   }
 
@@ -1479,14 +1617,16 @@ function fieldRules(fm, loc, extras, report) {
     if (meta.kind !== 'map') report.fail('metadata', `line ${meta.line}: must be a map of text values`);
     else report.pass('metadata');
   }
+
+  warningRules(top, toml, known, extras, report);
 }
 
 /**
  * The .toml keys past name and description. developer_instructions is the
  * agent's prompt, so it must be there and hold text. sandbox_mode sets what
- * the agent may do without asking, so a contract listing it cannot widen it:
- * the check, not the contract, keeps it to its two narrow values, and never
- * echoes it.
+ * the agent may do without asking. It takes any value: one of its two narrow
+ * values prints PASS sandbox-mode, and any other prints nothing here, since
+ * its danger warning comes from warningRules. Its value is never echoed.
  */
 function tomlKeyRules(top, report) {
   const di = top.get('developer_instructions');
@@ -1495,9 +1635,49 @@ function tomlKeyRules(top, report) {
   else report.pass('developer_instructions');
 
   const sm = top.get('sandbox_mode');
-  if (!sm) return;
-  if (SANDBOX_MODES.has(sm.value)) report.pass('sandbox-mode');
-  else report.fail('sandbox-mode', `line ${sm.line}: must be "read-only" or "workspace-write"`);
+  if (sm && SANDBOX_MODES.has(sm.value)) report.pass('sandbox-mode');
+}
+
+/**
+ * True when a DANGER row's value is in its safe set. A row with no safe set
+ * is never safe, whatever its value, an empty flow list `[]` included: a
+ * loader may read an empty list as a setting that is on. On a row with a safe
+ * set, a flow list, `[a, b]`, is safe when every item is, and an empty one
+ * holds nothing to warn on. Any other value, a quoted "[a]" included, is
+ * compared whole.
+ */
+function dangerSafe(row, entry) {
+  if (row.safe === null) return false;
+  if (entry.flow) {
+    const inner = entry.value.slice(1, -1);
+    if (trimEndSpaces(inner.slice(leading(inner).width)) === '') return true;
+    return flowItems(inner).every(item => row.safe.has(item));
+  }
+  if (entry.kind !== 'text') return false;
+  return row.safe.has(entry.value);
+}
+
+/**
+ * The warnings, one line per key at most, on each key that passed the keys
+ * rule: a known key or one the contract lists. A key that failed it has its
+ * FAIL line already. A key with a DANGER row prints the row's line unless its
+ * value is safe. Any other key outside the known keys and HARMLESS prints the
+ * plainer `unreviewed` line, with the key cleaned. No value is ever echoed.
+ * Both are warnings: they never fail the check, and --seal still seals.
+ */
+function warningRules(top, toml, known, extras, report) {
+  const kind = toml ? '.toml' : '.md';
+  const danger = DANGER.get(kind);
+  const harmless = HARMLESS.get(kind);
+  for (const [key, entry] of top) {
+    if (!known.has(key) && !extras.has(key)) continue;
+    const row = danger.get(key);
+    if (row !== undefined) {
+      if (!dangerSafe(row, entry)) report.warn('danger', `${key} at line ${entry.line} ${row.label}`);
+    } else if (!known.has(key) && !harmless.has(key)) {
+      report.warn('unreviewed', `${clean(key)} at line ${entry.line} is a setting this check does not review`);
+    }
+  }
 }
 
 /**
@@ -1525,6 +1705,34 @@ function targetRule(facts, loc, report) {
   if (needs === undefined) report.fail('target', 'the "Target:" line must name claude, antigravity or codex');
   else if (needs !== (isTomlFamiliar(loc) ? '.toml' : '.md')) report.fail('target', `the contract names ${t[0]}, which needs a ${needs} file`);
   else report.pass('target', t[0]);
+}
+
+/** The character rule's hits in one file readText read, each with the file's label. */
+function characterHits(file, label) {
+  return findRefused(file).map(h => ({ label, ...h }));
+}
+
+// The most hit lines the character rule prints in one run, counted across the
+// familiar and the contract. The rest are counted in one summary line, so a
+// file with a hit on every line cannot flood the output, and twenty are enough
+// to find and fix before the next run.
+const CHARACTER_HITS_MAX = 20;
+
+/** Record the character rule's hits: the first CHARACTER_HITS_MAX, then a count of the rest. */
+function reportCharacters(hits, report) {
+  for (const h of hits.slice(0, CHARACTER_HITS_MAX)) report.cannot('characters', `${h.label} line ${h.line} holds ${h.what}`);
+  const rest = hits.length - CHARACTER_HITS_MAX;
+  if (rest > 0) report.cannot('characters', `${rest} more ${rest === 1 ? 'line holds' : 'lines hold'} a refused character`);
+}
+
+/** The character rule under --seal: the hits, then a Refusal, so nothing is written. */
+function refuseCharacters(file, label, report) {
+  const hits = characterHits(file, label);
+  if (hits.length === 0) return;
+  const scratch = new Report();
+  reportCharacters(hits, scratch);
+  report.lines.push(...scratch.lines);
+  throw new Refusal('characters', `${label} holds a character this check refuses`);
 }
 
 function invisibleRule(file, label, report) {
@@ -1570,11 +1778,23 @@ function runCheck(loc, report) {
   let con = null;
   if (loc.contractExists) con = loadFile(loc.contractPath, 'contract', conLabel, report);
 
+  // The character rule, before any other rule reads either file, so that no
+  // PASS or WARN line is built from a file this check read one way and a
+  // loader could read another. Both files are scanned in full, and each line
+  // that holds one is reported, up to CHARACTER_HITS_MAX lines across the
+  // two. A .toml familiar takes the rule in tomlLineRules instead, line by
+  // line as its reader goes.
+  const toml = isTomlFamiliar(loc);
+  const hits = [...(toml ? [] : characterHits(fam, famLabel)), ...(con ? characterHits(con, conLabel) : [])];
+  if (hits.length > 0) {
+    reportCharacters(hits, report);
+    return;
+  }
+
   invisibleRule(fam, famLabel, report);
   if (con) invisibleRule(con, conLabel, report);
   const folder = loc.mode === 'skill' ? folderRules(loc, report) : null;
 
-  const toml = isTomlFamiliar(loc);
   const facts = con ? contractFacts(con.lines) : { version: null, extras: new Set(), targets: [] };
   if (con) targetRule(facts, loc, report);
 
@@ -1767,6 +1987,9 @@ function runSeal(loc, report) {
   if (!fam.ok) throw new Refusal('familiar-read', `${famLabel} ${fam.why}`);
   const con = readText(loc.contractPath);
   if (!con.ok) throw new Refusal('contract-read', `${conLabel} ${con.why}`);
+  // The character rule first, as in the check, before any line of the
+  // contract is read for its meaning.
+  refuseCharacters(con, conLabel, report);
 
   // The contract's own rules: the invisible-character rule, and its target
   // against the familiar. A missing target only warns, so it seals.
@@ -1802,6 +2025,8 @@ function runSeal(loc, report) {
   }
 
   const toml = isTomlFamiliar(loc);
+  // A .toml familiar takes the character rule in its reader, tomlLineRules.
+  if (!toml) refuseCharacters(fam, famLabel, report);
   let fm;
   try {
     fm = parseFamiliar(fam, loc, facts.extras);

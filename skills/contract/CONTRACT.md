@@ -1,9 +1,9 @@
 # Contract: contract
 
-Version: 0.5.0
+Version: 0.6.0
 
-*Type: skill. Template: `references/template.md`, draft 9. Level: Thorough.
-Status: draft 0.5.0, 2026-09-29. The skill's `SKILL.md` is generated from this
+*Type: skill. Template: `references/template.md`, draft 10. Level: Thorough.
+Status: draft 0.6.0, 2026-09-30. The skill's `SKILL.md` is generated from this
 file. To change the skill, amend this file, generate `SKILL.md` again, and
 seal it.*
 
@@ -44,6 +44,14 @@ that nobody has confirmed on this build yet.
   familiar must not flag it.
 - **Target:** the output the person wants the familiar to produce, found in
   the show-me-good step before question 1.
+- **Binding:** a file in this skill's references folder that maps the
+  contract's plain words for one tool to that tool's names and keys. One per
+  tool.
+- **The tool it is built for:** the tool an agent is built for, named on its
+  contract's Target line. Not the same as the target above.
+- **Warning:** a line the check prints that does not fail it, such as one for
+  a setting it does not know to be harmless. A danger warning is the sharper
+  kind, for a few known settings.
 
 ## Checkpoints
 
@@ -244,6 +252,9 @@ same pass. The confirmations happen at the checkpoint, not one at a time.
    Promised clause as untested. *Proposed:* it names the practice-test file
    as not sealed, and each tool file that question 5 names outside the
    familiar's folder as not sealed. The seal covers only the folder.
+   *Proposed:* for an agent, it also names the tool version its binding was
+   last checked against, each limit the binding marks Promised, and each
+   warning the check printed.
 
 *The test:* a person who did not watch the interview can install the
 familiar, or decide not to, from these five parts alone.
@@ -258,11 +269,29 @@ familiar, or decide not to, from these five parts alone.
 | Write, Edit | To write the contract, the familiar and its practice-test file, under `familiars/` only. *Proposed* |
 | One shell command, in two forms | To run the check, and to seal. A deterministic check must be code, not a model's opinion |
 | `scripts/check.mjs` | The check and the seal. For a skill, the seal covers every file in its folder except `CONTRACT.md`, so the check reads them all. Node built-in modules only, so it needs no install |
+| references/binding-claude.md, binding-antigravity.md, binding-codex.md | To map an agent's plain capabilities to the tool it is built for, and to list the settings the check warns on for that tool. One file per tool, each with the tool version it was last checked against. The split is **Decided** 2026-09-30; the files' text is *Proposed* |
+| references/show-me-good.md | The show-me-good step, read at the start of each new interview. *Proposed* |
 
 **Not on the list:** network access, and any tool that installs, publishes or
 starts a session. The skill never writes a hook, a settings file or a
 permission list. The built skill does not rely on `allowed-tools`, because
 the specification marks it experimental.
+
+**An agent's capabilities are written in plain words** (**Decided**
+2026-09-30). The contract says what the agent may do, such as "reads files;
+writes only in the project folder; no network", and never names one tool's
+tools or keys. The binding for the tool it is built for does that mapping.
+
+**The skill asks, and does not refuse** (**Decided** 2026-09-30). *Proposed
+wording:* each extra key is asked about, and its exact value is recorded
+beside its name under question 5, marked **Decided**. The line that lists
+extra keys names keys only, so a listing alone approves no value.
+
+**A warning is shown, not hidden** (**Decided** 2026-09-30). *Proposed
+wording:* when the person decides a value the binding lists as flagged, the
+skill says so then. After the seal, it shows each warning the check printed
+as a warning block, and again in the hand-back, before the person installs
+anything.
 
 ### 6. Does it do anything beyond reading, and writing its own notes?
 
@@ -308,6 +337,8 @@ decision.
 | 0.4.6 | 2026-09-27 | The check refuses unquoted dates, timestamps, hex, octal, binary and base-60 values as cannot check. No clause changed. **Decided** 2026-09-27 | YAML loaders read them as non-text (review of the pull request) | None; a file in the folder changed |
 | 0.4.7 | 2026-09-27 | Add the skill's README. No clause changed. **Decided** 2026-09-27 | Every skill here has a README; the owner asked for one | None; a file added to the folder |
 | 0.5.0 | 2026-09-29 | The practice test moves to its own file beside the familiar. At most three questions at a checkpoint, and a one-word yes is restated. Files outside the folder are named as not sealed. Question 13 gains a review of the record, and question 3 asks where the trigger lives. Dictated answers, a real output as the target, and quoted formats. Amend mode moves to `references/amend.md`. A shorter description. Two open questions gain evidence, and one is added. *Proposed* now means not yet confirmed, rather than not yet looked at, in the marks line here, in `SKILL.md` and in the template. New clause text is *Proposed*; the description is **Decided**. **Decided** 2026-09-29 | A field report on the first real use of this skill, 2026-09-29: 7 medium and 7 low findings. The owner took 12 of them, recorded the missing generator as an open question, and left where a contract lives to its own security plan. The owner picked the description | 1, 3, 4, 5, 6, 10, 11, 12, 13, 15, 18, 19 |
+| 0.5.1 | 2026-09-29 | The check refuses line and paragraph separators and control characters in every text file it reads (tab and CRLF line endings are still allowed). It allows only named extra keys in a Codex agent file. It also refuses more YAML number and key forms. The change also adds OH3 to the folder's SkillSpector baseline, a false positive on the comment that explains the output cap. No clause changed. **Decided** 2026-09-29 | Pre-merge security review of the multi-harness check | None; a file in the folder changed |
+| 0.6.0 | 2026-09-30 | An agent's contract states its capabilities in plain words; a binding for each tool (Claude Code, Antigravity, Codex) maps them to that tool's names and keys, lists the settings the check warns on, and records the tool version it was last checked against. The contract names the tool on its Target line; the skill asks at question 5 when the line is missing. The check no longer refuses a setting's value: it warns on every listed setting it does not know to be harmless, with a sharper danger warning for a few, and the skill shows each warning. Each extra key needs Decided words and its value in the contract. The show-me-good step moves to references/show-me-good.md. The status line now reads 0.6.0. Practice cases B7a to B7c. The owner's decisions are **Decided** 2026-09-30; new clause text is *Proposed* | The owner wants tool churn held behind one seam, and the check not to limit a person's own choices while it still signals danger (2026-09-30); issue 154's T2 and T3; security item A-2 | 4, 5, 7, 12, 18, 19 |
 
 ### Flag log
 
@@ -426,7 +457,8 @@ install with the skill. It has three parts:
   Promised stop in question 3, plus one agent build, two amend cases, one
   case with no target example, and two decoy answers. One amend case checks that a changed clause changes only its
   own section of the file. Version 0.5.0 adds one case for each change it
-  makes to the skill's behaviour, B17 to B25b.
+  makes to the skill's behaviour, B17 to B25b. Version 0.6.0 adds B7a to
+  B7c, one agent build for each other tool.
 - **C. The check:** `tests/contract-check.test.mjs`. It runs in the
   repository's `check` gate.
 
@@ -573,6 +605,11 @@ different model is an escalation, and the call is yours.
 | Cite, in each `##` heading of the generated file or of a generated file in `references/`, the contract questions the section comes from | Amend mode then finds the sections to regenerate by lookup, not by judgement | Promised |
 | Fill the change log's "Questions touched" at amend time, while the person confirms; regenerate exactly the sections, in the generated file or in a generated file in `references/`, whose heading cites a question in the latest row | The same: what changed is a lookup. Every other section stays word for word | Promised. See question 19, item 8 |
 | Say that a mark proves no authorship; review a shipped file as prose | Failure 15 | Promised |
+| For an agent, write capabilities in plain words; build from the contract and the binding for its tool, and nothing else | The owner's split; failure 11 | Promised |
+| For an agent with no Target line, ask which tool at question 5; write the line as the tool name alone, with its mark on the next line | Failure 11; the check reads everything after the colon | Promised. The file-ending match: Promised (Enforced once the check's tests are confirmed), tests in `tests/contract-check.test.mjs` beside "an unknown target -> 1, and never echoed" |
+| Ask about each extra key; record its value as Decided; before the seal, check each value in the file against the contract | A listing names a key, never its value (security review, 2026-09-30) | Promised |
+| Say so when the person picks a flagged value; show every warning the check prints after the seal and in the hand-back | The owner's banner rule, 2026-09-30 | Promised. The warnings themselves: Promised (Enforced once the check's tests are confirmed) |
+| Stop and ask when a binding cannot map a capability, such as fetching web pages for a Codex agent; put a limit the binding marks Promised in the unsettled list and carry on | Failure 11; stop 10 | Promised |
 | Keep the body under 500 lines; move detail to `references/` | The specification's guidance on file size | Promised |
 
 ### 19. Open questions
@@ -581,7 +618,7 @@ different model is an escalation, and the call is yours.
 |---|---|---|---|
 | 1 | Do newcomers read the word "familiar" well? | Nobody new has used it yet | The practice test runs |
 | 2 | Does a simple agent need more than Quick? | No Quick contract for an agent exists yet | Two Quick contracts are written after release |
-| 3 | Does every agent tool accept a `metadata` key in the frontmatter? | *Proposed.* Two tools were used. On 2026-09-29, agy 1.2.12 loaded a sealed `.md` agent with its `metadata:` map, and the agent ran. Reported by the session working on pull request 155, 2026-09-29, from its own runs; not reproduced here | *Proposed.* A tool refuses the key, or each tool a person names has loaded one |
+| 3 | Does every agent tool accept a `metadata` key in the frontmatter? | *Proposed.* Two tools were used. On 2026-09-29, agy 1.2.12 loaded a sealed `.md` agent with its `metadata:` map, and the agent ran. Reported by the session working on pull request 155, 2026-09-29, from its own runs; not reproduced here. *Proposed.* Codex 0.159.0 refuses a metadata table, so a Codex agent's mark is three comment lines instead (2026-09-29) | *Proposed.* A tool refuses the key, or each tool a person names has loaded one |
 | 4 | Where does the person install a familiar? | It depends on the person's tool and folders | The person names it, in each unsettled list |
 | 5 | Two runs or three for this skill's practice test? | The owner's build plan sets two; the template says three for Thorough | The first full run, and its cost |
 | 6 | Should the check also confirm that every question for the level has an answer? | That is a second job for one small check | After three contracts, if gaps slip through |
@@ -590,6 +627,8 @@ different model is an escalation, and the call is yours.
 | 9 | This skill's own target | The show-me-good step was added after this contract's interview. The contract proposes itself as the target | The owner decides, before the practice test runs |
 | 10 | Does every tool that loads a familiar read its version as text? Versions must not be bare numbers, and the seal refuses one such as 0.5, because the mark holds the version unquoted | On 2026-09-27, PyYAML 6.0.3 read numbers separated by two dots as text, a bare 0.5 as a number and a date as a date. js-yaml is expected to agree, but nobody ran it. No other loader was tried | A second tool loads a sealed familiar, or a loader reads its version as anything but text |
 | 11 | *Proposed.* Should the seal cover a tool file outside the familiar's folder? | *Proposed.* The seal covers the folder only. In the field report of 2026-09-29, the familiar kept its tool outside its folder on purpose: one copy, with its tests beside it. Question 5 had no way to name that file. Today such a file is not sealed, and the unsettled list says so | *Proposed.* A second familiar keeps a tool outside its folder, or an unsealed tool file changes without notice |
+| 12 | *Proposed.* Does each binding still hold for the tool the person runs? | Tools change often. Claude Code's binding was read from its docs, not loaded; Antigravity's tool names are the tool's own report | A binding is re-checked against a newer version, and its Last checked line moves |
+| 13 | *Proposed.* Which settings belong on the danger list, and which are harmless? | Both lists hold known settings only; every other listed setting gets the plainer warning | A tool adds a setting that widens what an agent may do, or a person is surprised by one |
 
 ### 20. Where do the ideas come from?
 

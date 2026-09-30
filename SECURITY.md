@@ -35,17 +35,34 @@ edge audit. See [What the edge audit sends](#what-the-edge-audit-sends).
 One script rewrites a file a person hands it, and only when asked:
 `skills/contract/scripts/check.mjs`. Under `--seal` it rewrites the mark lines
 of the one file it is given, and nothing else, then prints the real path it
-wrote. It sends nothing. A valid seal proves the familiar and its contract
-are unchanged since they were sealed. For a skill, the familiar is every file
-in its folder except `CONTRACT.md`. It does not prove who sealed them.
+wrote. If a `.toml` file's last line has no line ending, it adds one before
+the mark. It writes the new text to a temporary file beside the old one, then
+renames it over the old one. It sends nothing. A valid seal proves the
+familiar and its contract are unchanged since they were sealed. For a skill,
+the familiar is every file in its folder except `CONTRACT.md`. It does not
+prove who sealed them.
+
+The check refuses, as "cannot check", any text file it reads that holds a line
+or paragraph separator (U+2028, U+2029), a C1 control character (U+0080 to
+U+009F, NEL among them), a C0 control character other than tab, DEL, U+FFFE,
+U+FFFF, or a carriage return with no line feed after it. That covers the
+familiar, its contract, and every other text file in a skill's folder. Tab
+and CRLF line endings are allowed.
 
 A Codex agent file (`.toml`) is read through a narrow subset of TOML. The
 check reads top-level `key = value` lines, whole-line comments, and strings
-that take no escape but `\"` and `\\`. Anything else, a table included, is
+that take no escape but `\"` and `\\`. It reads an unquoted `true` or `false`
+only for a key the contract lists. Anything else, a table included, is
 "cannot check", which fails. Its mark is three comment lines at the very end
 of the file, because Codex will not load an agent file with a `[metadata]`
-table. `sandbox_mode` may be only `read-only` or `workspace-write`, whatever
-the contract lists.
+table. A key named like a mark key is "cannot check" too, listed or not.
+
+In a `.toml` file, a `SKILL.md` or an agent's `.md` file, a key the check does
+not know passes only when the contract's `Extra keys:` line lists it, and then
+with any value. The check refuses no value for what it lets the agent do. It
+prints a warning for every listed setting it does not know to be harmless,
+and a sharper danger warning for a few settings on a fixed list, such as
+`sandbox_mode` and `permissionMode`. A warning does not fail the check.
 
 The attacks worth planning for, scenario by scenario, with what stops each
 one and what still gets through: [docs/security/threat-model.md](docs/security/threat-model.md).
@@ -157,3 +174,8 @@ are the setting above.
   text is under the provider's policy.
 - **A malicious maintainer account.** Branch protection raises the cost of a
   bad commit. It does not survive a stolen admin account.
+- **A familiar and contract from someone else.** A pass and a valid seal say
+  the files are well formed and unchanged since sealing, not that anyone
+  reviewed them. Keys the contract lists pass with any value. The check warns
+  on each one it does not know to be harmless; that warning is a prompt to
+  read, not a review.

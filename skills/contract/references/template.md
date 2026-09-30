@@ -6,7 +6,9 @@ anything is built. A small familiar takes about ten minutes. A serious one
 takes about an hour. The answers are the contract. The familiar's file is
 generated from the contract.*
 
-*Draft 9. It moves the practice test into a file of its own, beside the
+*Draft 10 states an agent's capabilities in plain words, and names the tool
+it is built for.
+Draft 9. It moves the practice test into a file of its own, beside the
 familiar. It asks where a familiar's trigger lives, how its record is
 reviewed, and which files the seal does not cover.
 Draft 8 used the word familiar, asked for the name in question 1, marked
@@ -61,7 +63,7 @@ the familiar does, amend the contract, then generate the file again.
 | Type | The familiar | Its contract | Its practice test |
 |---|---|---|---|
 | Skill | `<name>/SKILL.md` | `<name>/CONTRACT.md` | `<name>.practice-test.md`, beside the folder |
-| Agent | `<name>.md` | `<name>.contract.md`, in the same folder | `<name>.practice-test.md`, in the same folder |
+| Agent | `<name>.md`, or `<name>.toml` for Codex | `<name>.contract.md`, in the same folder | `<name>.practice-test.md`, in the same folder |
 
 Copy the contract with the familiar. They travel together. The practice test
 stays behind: it holds the expected answers, so it never goes inside a
@@ -91,6 +93,20 @@ Every other section keeps its exact text.
 Skills specification. An agent file often needs keys that its tool reads. List
 each such key in the contract, on one line that starts with the words
 `Extra keys` and a colon, with the key names after it, separated by commas.
+
+**The tool it is built for.** An agent's contract names one tool, on a line
+that holds only the word Target, a colon and the tool: claude, antigravity
+or codex. Put its answer mark, such as **Decided** with the date, on the
+next line, never on that line. The check fails when the file's ending does
+not fit that tool: a Codex agent is a `.toml` file, and the other two are
+`.md` files. It does not check that the tool names or keys inside belong to
+that tool. A skill's contract has no such line. If the line is missing, the
+agent asks you at question 5.
+
+**Warnings.** The check does not refuse a setting's value because of what it
+lets the agent do. It warns on each listed setting it does not know to be
+harmless, with a sharper danger warning for a few, and still passes. The
+agent shows you each one before you install anything.
 
 **How answers are marked.** Every answer carries one of three marks:
 
@@ -160,7 +176,7 @@ First, **its name**. You give it with the type and the level, before the
 target. The name is 1–64 characters, only `a`–`z`, `0`–`9` and
 `-`. It does not start or end with `-`, and it holds no `--`. For a skill,
 the name is also the folder name. For an agent, it is the file name without
-`.md`.
+its ending.
 
 Then one sentence: what it does, and for whom. Then two more lines: **when it
 steps in**, and **when it stays out**. Name the nearest situation where it
@@ -243,7 +259,30 @@ that waits for you, "stopped and waiting".
 
 ### 5. What tools does it need?
 
-The shortest list that does the job. *Agent:* the tool list in its file.
+The shortest list that does the job. *Agent:* say what it may do in plain
+words, never in one tool's names. Pick from these capabilities, each with a
+reason:
+
+| Capability | In plain words |
+|---|---|
+| Read files | It reads and searches files in the project folder |
+| Create files | It writes new files in the project folder |
+| Change files | It edits existing files in the project folder |
+| Run commands | It runs shell commands |
+| Fetch web pages | It reads a page at an address |
+| Search the web | It sends a search to the web |
+
+Then state its limits in the same words, for example "writes only in the
+project folder; no network". The agent maps these words to the tool it is
+built for. Some limits a tool's file cannot hold; the binding for that tool
+says which, and they go into the unsettled list as Promised. A capability
+the tool cannot give at all stops the build, and the agent asks you.
+
+**Extra keys and their values.** For each key the file needs beyond the
+specification's, write its exact value beside its name, in your own words,
+marked **Decided**. The `Extra keys` line names the key; this answer approves
+the value.
+
 *Skill:* the tools and scripts that it calls.
 
 If the file needs frontmatter keys that the Agent Skills specification does

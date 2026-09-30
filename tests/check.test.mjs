@@ -79,6 +79,14 @@ test('the real repository passes its own check', () => {
   assert.match(r.stdout, /^ok: \d+ artifact file\(s\), \d+ plugin\(s\)$/m);
 });
 
+test('the real repository runs the format check over the contract skill itself', () => {
+  // The skill that ships the format check is a skill too. Skipping it would
+  // leave the checker's own folder the one folder nothing checks.
+  const r = run(check);
+  assert.equal(r.code, 0, `${r.stdout}\n${r.stderr}`);
+  assert.match(r.stdout, /^ok {4}skills\/contract\/ \(format\)$/m);
+});
+
 test('an untouched copy of the tree passes', () => {
   assertPasses(tree());
 });

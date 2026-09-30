@@ -34,6 +34,17 @@ implementation.
 
 ## Use it
 
+**Read before you install.** The check confirms that a skill or agent file is
+well formed, and unchanged since it was sealed with its contract. It does not
+confirm that anyone reviewed either file, and anyone can write both. The
+check does not refuse a setting's value because of what it lets the agent do.
+It warns on every listed setting it does not know to be harmless, with a
+sharper danger warning for a few, such as settings that let the agent act
+without asking, reach the live web, or read instructions from outside the
+file. A warning is a prompt to read, not a review. The list of tools an agent
+is given is not warned on; read it. Read a shared skill or agent and its contract
+before you use it, as you would any code from someone else.
+
 Ask for it by name. The installer route keeps the plain name; the plugin route
 namespaces it:
 
@@ -172,4 +183,8 @@ expected answers written before any run.
 | [`CONTRACT.md`](CONTRACT.md) | This skill's own contract. Change the skill here, then generate and seal again. |
 | [`references/template.md`](references/template.md) | The 20 questions, with the test for each one. |
 | [`references/amend.md`](references/amend.md) | Amend mode: how the skill changes a familiar that has a contract. It is generated from the contract, like `SKILL.md`. |
+| [`references/show-me-good.md`](references/show-me-good.md) | The show-me-good step: how the skill finds the target output before question 1. |
+| [`references/binding-claude.md`](references/binding-claude.md) | How the skill builds an agent for Claude Code: the file, its keys, the settings the check warns on, its seal, and the tool version it was last checked against. |
+| [`references/binding-antigravity.md`](references/binding-antigravity.md) | How the skill builds an agent for Antigravity: the file, its keys, the settings the check warns on, its seal, and the tool version it was last checked against. |
+| [`references/binding-codex.md`](references/binding-codex.md) | How the skill builds an agent for Codex: the file, its keys, the settings the check warns on, its seal, and the tool version it was last checked against. |
 | [`scripts/check.mjs`](scripts/check.mjs) | The check and the seal. It uses only built-in modules, so it needs no install. |
