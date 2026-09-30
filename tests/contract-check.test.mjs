@@ -2591,6 +2591,12 @@ describe('v10 the character rule refuses separators and control characters', () 
       assert.ok(!r.lines.includes(holds('x.contract.md', 14, 'U+2028')), show(r));
       assert.equal(listed(r).at(-1), 'CANNOT-CHECK characters: 1 more line holds a refused character', show(r));
     });
+    test('23 -> 1, twenty lines and a summary naming the three more', () => {
+      const r = run([spread(11).file]);
+      refused(r, 1, '\u{2028}', holds('x.contract.md', 13, 'U+2028'), 'CANNOT-CHECK characters: 3 more lines hold a refused character');
+      assert.equal(listed(r).length, 21, show(r));
+      assert.equal(listed(r).at(-1), 'CANNOT-CHECK characters: 3 more lines hold a refused character', show(r));
+    });
   });
 
   describe('l) the seal refuses each, and writes nothing', () => {
@@ -2761,5 +2767,38 @@ describe('v10 the extra keys a .toml may hold, and the permissionMode values', (
       exact(r, 1, 'FAIL keys: unknown key "model" at line 6');
     });
   });
+});
+
+// ------------------------------------------------------------------ v10 more YAML forms
+
+// YAML reads a number's prefix in any case and takes an underscore anywhere in
+// its digits, reads y and n as booleans, and reads a plain = or << as a key of
+// its own. Each is cannot-check unquoted, and text once quoted.
+describe('v10 the YAML reader refuses more number, boolean and key forms', () => {
+  const NON_TEXT =
+    'an unquoted value YAML reads as null, a boolean, a number or a date, such as a hex, octal, binary or base-60 number or a timestamp (quote it to use it as text)';
+  const SPECIAL_KEY = 'an unquoted = or <<, which YAML reads as the value key or the merge key (quote it to use it as text)';
+  const cases = [
+    ['1.2_3', NON_TEXT],
+    ['.1_2', NON_TEXT],
+    ['0X1F', NON_TEXT],
+    ['-0X1F', NON_TEXT],
+    ['0B101', NON_TEXT],
+    ['0O17', NON_TEXT],
+    ['y', NON_TEXT],
+    ['N', NON_TEXT],
+    ['=', SPECIAL_KEY],
+    ['<<', SPECIAL_KEY],
+  ];
+  for (const [value, reason] of cases) {
+    test(`description: ${value} -> 1 cannot-check`, () => {
+      const r = run([skill({ fm: ['name: demo', `description: ${value}`] })]);
+      expect(r, 1);
+      assert.ok(r.lines.includes(`CANNOT-CHECK frontmatter: SKILL.md line 3: ${reason}`), show(r));
+    });
+    test(`description: "${value}" -> 0`, () => {
+      expect(run([skill({ fm: ['name: demo', `description: "${value}"`] })]), 0, 'PASS description');
+    });
+  }
 });
 

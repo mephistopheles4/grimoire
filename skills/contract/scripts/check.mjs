@@ -154,9 +154,13 @@ const PLAIN_BAD_START = '{}[]&*!|>%@`#,\'"';
 // date. This check reads every plain value as text, and a loader that reads
 // the same file would not, so the two would disagree about what the file says.
 // Such a value is "cannot check"; quoted, it is text to both. The word list is
-// matched in any case. The number patterns are the one pattern the format
-// gives, split into flat halves so none has a nested quantifier, and tried
-// after one leading sign is taken off. A leading zero, as in 017, is YAML 1.1
+// matched in any case, and holds YAML 1.1's y and n as well. The number
+// patterns are the one pattern the format gives, split into flat halves so
+// none has a nested quantifier, and tried after one leading sign is taken off,
+// on the value in lower case with every "_" removed: loaders differ on the
+// case of a prefix and on where an underscore may sit among the digits, so
+// the check refuses the whole class rather than guess which reading a loader
+// takes. Refusing a near miss is safe. A leading zero, as in 017, is YAML 1.1
 // octal; the plain digit pattern already refuses it. The other number forms
 // are tried after the same sign: hexadecimal (0x1F), binary (0b101), octal
 // (0o17) and YAML 1.1 base 60 (1:30 or 190:20:30.15), checked a part at a time
@@ -165,7 +169,7 @@ const PLAIN_BAD_START = '{}[]&*!|>%@`#,\'"';
 // and a day of one or two digits each, then the end or a T, a t, a space or a
 // tab. That is broader than the loaders' own date rule, and refusing a near
 // miss is safe.
-const YAML_WORDS = new Set(['~', 'null', 'true', 'false', 'yes', 'no', 'on', 'off']);
+const YAML_WORDS = new Set(['~', 'null', 'true', 'false', 'yes', 'no', 'on', 'off', 'y', 'n']);
 const YAML_NUMBER_RES = [
   /^\.[0-9]+$/,
   /^\.[0-9]+[eE][-+]?[0-9]+$/,
@@ -527,10 +531,11 @@ function yamlReadsAsNonText(v) {
   if (YAML_WORDS.has(lower)) return true;
   if (YAML_DATE_RE.test(v)) return true;
   const unsigned = v[0] === '-' || v[0] === '+' ? v.slice(1) : v;
-  const unsignedLower = unsigned.toLowerCase();
-  if (unsignedLower === '.inf' || unsignedLower === '.nan') return true;
-  if (YAML_NUMBER_RES.some(re => re.test(unsigned))) return true;
-  return yamlBase60(unsigned);
+  // Lower case, every "_" removed: see YAML_WORDS for why the whole class.
+  const bare = unsigned.toLowerCase().replaceAll('_', '');
+  if (bare === '.inf' || bare === '.nan') return true;
+  if (YAML_NUMBER_RES.some(re => re.test(bare))) return true;
+  return yamlBase60(bare);
 }
 
 /** A flow sequence's items, split on commas, with spaces and tabs trimmed from each. */
@@ -577,6 +582,11 @@ function parseScalar(raw, ln, key, extras) {
     throw new CannotCheck(ln, 'a colon followed by a space inside an unquoted value (quote the value)');
   }
   if (v.includes(' #') || v.includes('\t#')) throw new CannotCheck(ln, 'a trailing comment after a value');
+  // A plain = is YAML 1.1's value key and a plain << its merge key, so a
+  // loader may read either as something other than text.
+  if (v === '=' || v === '<<') {
+    throw new CannotCheck(ln, 'an unquoted = or <<, which YAML reads as the value key or the merge key (quote it to use it as text)');
+  }
   if (v === 'true' || v === 'false') {
     if (extras && extras.has(key)) return v;
     // Otherwise let it fall through to yamlReadsAsNonText to fail
