@@ -2,9 +2,9 @@
 name: contract
 description: Builds a reusable skill or agent from terms a person agrees, and keeps those terms as a contract its file is generated from. Use when someone wants a new skill or agent, wants to turn a prompt they keep pasting into one, or wants to change or write the contract for one. Not for a one-off prompt, for running a skill or agent that already exists, or for a legal or business contract.
 metadata:
-  contract-version: 0.5.1
-  familiar-digest: "sha256:36475964bf37170128b434555bb346c8aa04ef8e32436a3c87f690493a643394"
-  contract-digest: "sha256:ebc631b94286fceeb1b91fc36d9e6d8b412dc206da0675602010046b3d2c552f"
+  contract-version: 0.6.0
+  familiar-digest: "sha256:f8b404bdd9f9158f27347f8c7850e08dfd5087162a3cbb8bd9651fa0a808602e"
+  contract-digest: "sha256:bdc1ce715c5765192622d041d1d6d7b3dadc2b33dcac94768d1dbcf6f414ae6a"
 ---
 
 # contract
@@ -116,36 +116,10 @@ file. Use all 20 questions if no level was given.
 
 ## Show me good, before question 1 (questions 3, 4, 10, 12, 17, 18)
 
-People often do not know what good looks like until they see it. So at every
-level, Quick included, find a **target** before question 1: the output the
-person wants the familiar to produce. Amend mode skips this step.
-
-- **The person has a real example of that output.** Record it in the
-  contract as the target, marked **Decided**. Draft no samples.
-- **An existing familiar has a real output you can point to,** in the files
-  or the session. Offer it as the target, marked *Proposed* until the person
-  confirms it.
-- **The person has none.** Draft two or three samples of the familiar's
-  output. Make them differ on purpose, one named axis each: for example,
-  short and direct, warm and detailed, or formal. Ask the person to pick
-  one, mix them, or reject all, and to say why.
-
-The person judges. You only offer. Samples are text in the conversation and
-the contract. They never run, install or send anything.
-
-**Record in the contract:** each sample, marked "drafted, not real"; the
-winner, as the target; and each loser, with the person's reason. Use the
-reasons later. The target shapes question 4. The winner fills question 17's
-"good" column, and the losers fill its "so-so" column. A loser's reason often
-becomes a rule in question 18. The practice test's expected answers follow
-the target.
-
-**When no sample is right,** draft again, and change the axis the person
-named. The interview may continue, but nothing is built until a target
-exists.
-
-Question 9 stays separate. The target is what to aim at. Question 9 is the
-evidence after use.
+At every level, before question 1, find a **target**: the output the
+person wants the familiar to produce. Read `references/show-me-good.md`
+in the skill base directory, and follow it. Amend mode skips this step.
+Nothing is built until a target exists.
 
 ## Step 2. What you were given (questions 3, 10)
 
@@ -247,9 +221,16 @@ applies it.
 ### Questions 5, 6, 13 and 18
 
 - **Question 5 (tools):** the fewest tools that do the job, each with a
-  reason. List each frontmatter key beyond the specification's on one
-  contract line: `Extra keys:`, then the names, comma-separated. The check
-  fails any unlisted key.
+  reason. For an agent, name capabilities in plain words, never one
+  tool's names: "reads files; writes only in the project folder; no
+  network". Then, unless the contract has a `Target:` line, ask which
+  tool it is built for, and read `references/binding-<tool>.md` in the
+  skill base directory. Ask what that binding says to ask. Record each
+  extra key's exact value, marked **Decided**. When the person picks a
+  value the binding lists as warned on, say so then. List each
+  frontmatter key beyond the specification's on one contract line:
+  `Extra keys:`, then the names, comma-separated. The check fails any
+  unlisted key.
 - **Question 6 (actions):** "Nothing" is a good answer. Record it as given.
   Do not flag it as missing.
 - **Question 13 (retire it):** always include the "cries wolf" condition. Say
@@ -342,10 +323,10 @@ at any time. Handle it the same way.
   checkpoint after that. You may write it before question 2 has an answer,
   because it is the person's record.
 - **Shape.** The title is `# Contract: <name>`. The next line is
-  `Version: 0.1.0` for a new contract. A version is numbers separated by at
-  least two dots. The seal writes it unquoted, so it refuses a bare number
-  such as 0.1. Then the type, the level, the date, a line that explains the
-  marks, the target, and the template's headings and tables.
+  `Version:`, then 0.1.0 for a new contract. A version is numbers separated
+  by at least two dots. The seal writes it unquoted, so it refuses a bare
+  number such as 0.1. Then the type, the level, the date, a line that
+  explains the marks, the target, and the template's headings and tables.
 - **Practice test file.** At Standard and Thorough, the practice test goes in
   `familiars/<name>.practice-test.md`, beside the familiar, never inside a
   skill's folder. The seal does not cover it.
@@ -356,31 +337,31 @@ at any time. Handle it the same way.
 ## Step 5. Build, after the go (questions 4, 5, 6, 15, 18)
 
 Build only when the person gives the go at the last checkpoint for their
-level. Before you build, confirm two things: question 2 has the person's
-own answer, and a target exists.
+level. Before you build, confirm: question 2 has the person's own answer;
+a target exists; and, for an agent, the contract names its tool on a
+`Target:` line that holds only the tool name, and records each extra
+key's value as **Decided**. If any is missing, ask for it first. Build an
+agent from the contract and its binding only.
 
 > **Warning: write only under `familiars/`.** Stop and ask when a build needs
 > a tool not listed in question 5, or an action not listed in question 6.
 > That includes network access, a package install, and a write anywhere else.
 
-**Where the familiar goes.**
-
-| Type | The familiar | Its contract | Its practice test |
-|---|---|---|---|
-| Skill | `familiars/<name>/SKILL.md` | `familiars/<name>/CONTRACT.md` | `familiars/<name>.practice-test.md` |
-| Agent | `familiars/<name>.md` | `familiars/<name>.contract.md` | `familiars/<name>.practice-test.md` |
+**Where the familiar goes:** a skill's is `familiars/<name>/SKILL.md`.
+An agent's is the file its binding names, beside
+`familiars/<name>.contract.md`.
 
 **Frontmatter.**
 
 - `name`: the name exactly as decided. For an agent, it is also the file name
-  without `.md`.
+  without its ending.
 - `description`: from question 1, in the third person. Say what it does, when
   it steps in and when it stays out. Keep it to 1,024 characters, on one
   line. Do not put a colon and a space, or a space and `#`, in it. If you
   need either, wrap the whole value in double quotes.
 - `compatibility`: only when the familiar really needs one tool or
   environment. Say what, in 500 characters or fewer.
-- For an agent: the keys the person's tool reads, and only the ones listed on
+- For an agent: the keys its binding names, and only the ones listed on
   the contract's `Extra keys:` line.
 - Do not write the mark by hand. The seal writes it (Step 6).
 - Do not rely on `allowed-tools`. The specification marks it experimental.
@@ -415,6 +396,11 @@ files are part of the familiar too.
 These are the only shell commands this skill runs. Put each path in single
 quotes, exactly as shown. The path is the skill's folder, or the agent's
 file.
+For a Codex agent, the seal writes the mark as comment lines at the end.
+
+Before you seal an agent, check each extra key's value in the file
+against the contract. After the seal, show each `WARN` line in the
+output to the person as a warning block, in plain words.
 
 ```text
 node '<skill base directory>/scripts/check.mjs' --seal '<path>'
@@ -473,6 +459,9 @@ Hand back five parts, in this order:
    question, and where to install the familiar. Name as not sealed the
    practice-test file, and each tool file that question 5 names outside the
    familiar's folder. At Quick, add each Promised clause as untested.
+   For an agent, name its binding's last-checked version, each limit the
+   binding marks Promised, and each warning the check printed, before any
+   install.
 
 A person who did not watch the interview must be able to install the
 familiar, or decide not to, from these five parts alone. The unsettled list
