@@ -60,8 +60,11 @@ the contract lists. Past its own keys, the file may hold only `model` and
 `model_reasoning_effort`, each only when the contract lists it. Any other key
 fails, whatever the contract lists.
 
-In a `SKILL.md` or an agent's `.md` file, `permissionMode` may be only
-`default`, `plan`, `manual` or `dontAsk`, whatever the contract lists.
+In a `SKILL.md` or an agent's `.md` file, a key the check does not know passes
+only when the contract's `Extra keys:` line lists it, and then with any value.
+The check passes it unchanged, `permissionMode` included. It treats the
+contract's listing as the review and does not judge what the key lets the
+agent do.
 
 The attacks worth planning for, scenario by scenario, with what stops each
 one and what still gets through: [docs/security/threat-model.md](docs/security/threat-model.md).
@@ -173,3 +176,6 @@ are the setting above.
   text is under the provider's policy.
 - **A malicious maintainer account.** Branch protection raises the cost of a
   bad commit. It does not survive a stolen admin account.
+- **A familiar and contract from someone else.** A pass and a valid seal say
+  the files are well formed and unchanged since sealing, not that anyone
+  reviewed them. Keys the contract lists pass with any value.

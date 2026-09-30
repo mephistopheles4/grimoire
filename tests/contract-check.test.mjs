@@ -345,7 +345,7 @@ describe('S10', () => {
       expect(r, 1, 'FAIL keys: unknown key "permissionMode" at line 4');
     });
     test('permissionMode listed in Extra keys, sealed -> 0', () => {
-      const dir = skill({ fm: [...defaultFm('demo'), 'permissionMode: plan'], contract: 'Version: 1.0.0\nExtra keys: tools, permissionMode\n' });
+      const dir = skill({ fm: [...defaultFm('demo'), 'permissionMode: x'], contract: 'Version: 1.0.0\nExtra keys: tools, permissionMode\n' });
       const c = sealAndCheck(dir);
       assert.ok(has(c, 'PASS keys'), show(c));
     });
@@ -2648,17 +2648,16 @@ describe('v10 the character rule refuses separators and control characters', () 
   });
 });
 
-// ------------------------------------------------------------------ v10 keys a contract cannot widen
+// ------------------------------------------------------------------ v10 the extra keys a file may hold
 
-// A .toml may hold only a fixed set of extra keys, whatever the contract lists,
-// and an agent .md's permissionMode may hold only the values no wider than
-// default. Each red case asserts its whole reason line, and a refused value is
-// never echoed.
-describe('v10 the extra keys a .toml may hold, and the permissionMode values', () => {
+// A .toml may hold only a fixed set of extra keys, whatever the contract lists.
+// In a .md file, a key the contract lists passes with whatever value it holds,
+// and the value is never echoed; a key it does not list fails. Each red case
+// asserts its whole reason line.
+describe('v10 the extra keys a .toml may hold, and a listed key in a .md file', () => {
   const CODEX = ['name = "cx"', 'description = "A test Codex agent."', 'developer_instructions = """', 'You review code.', '"""'];
   const tomlCon = extra => `Version: 1.0.0\nTarget: codex\n${extra}\n\n# Contract\n\nWhat this familiar is for.\n`;
   const mdCon = extra => `Version: 1.0.0\nTarget: claude\n${extra}\n\n# Contract\n\nWhat this familiar is for.\n`;
-  const PM_REASON = 'must be "default", "plan", "manual" or "dontAsk"';
   const NOT_WRITTEN = 'FAIL seal: refused; nothing written';
 
   function codex({ lines = CODEX, contract } = {}) {
@@ -2705,46 +2704,22 @@ describe('v10 the extra keys a .toml may hold, and the permissionMode values', (
     });
   });
 
-  describe('permissionMode, listed, holds only a value no wider than default', () => {
-    const refusedValues = [
-      ['bypassPermissions', ['permissionMode: bypassPermissions'], 'bypassPermissions'],
-      ['"bypassPermissions" (quoted)', ['permissionMode: "bypassPermissions"'], 'bypassPermissions'],
-      ['acceptEdits', ['permissionMode: acceptEdits'], 'acceptEdits'],
-      ['auto', ['permissionMode: auto'], 'auto'],
-      ['Plan', ['permissionMode: Plan'], 'Plan'],
-      ['AUTO', ['permissionMode: AUTO'], 'AUTO'],
-      ['[plan]', ['permissionMode: [plan]'], '[plan]'],
-      ['a | block holding plan', ['permissionMode: |', '  plan'], null],
-    ];
-    for (const [label, lines, echo] of refusedValues) {
-      test(`${label} -> 1 from permission-mode, the value never echoed`, () => {
-        const r = run([agent({ fm: [...defaultFm('x'), ...lines], contract: mdCon('Extra keys: permissionMode') }).file]);
-        exact(r, 1, `FAIL permission-mode: line 4: ${PM_REASON}`, 'PASS keys');
-        if (echo) assert.ok(!r.out.includes(echo), show(r));
-      });
-    }
-    test('bypassPermissions -> the seal refuses, and writes nothing', () => {
-      const { file } = agent({ fm: [...defaultFm('x'), 'permissionMode: bypassPermissions'], contract: mdCon('Extra keys: permissionMode') });
-      const before = readFileSync(file);
-      const r = run(['--seal', file]);
-      exact(r, 2, `FAIL permission-mode: line 4: ${PM_REASON}`, NOT_WRITTEN);
-      assert.ok(!r.out.includes('bypassPermissions'), show(r));
-      assert.deepEqual(readFileSync(file), before);
+  describe('a key a .md file adds passes with its value only when the contract lists it', () => {
+    const fm = [...defaultFm('x'), 'permissionMode: bypassPermissions'];
+    test('listed -> the seal writes it and the check passes, and the value is never printed', () => {
+      const { file } = agent({ fm, contract: mdCon('Extra keys: permissionMode') });
+      const s = run(['--seal', file]);
+      expect(s, 0, 'PASS seal: wrote ');
+      assert.ok(!s.out.includes('bypassPermissions'), show(s));
+      const c = run([file]);
+      exact(c, 0, 'PASS keys', 'PASS familiar-digest', 'PASS contract-digest');
+      assert.ok(!c.out.includes('bypassPermissions'), show(c));
     });
-    const allowed = [
-      ['default', ['permissionMode: default']],
-      ['plan', ['permissionMode: plan']],
-      ['manual', ['permissionMode: manual']],
-      ['dontAsk', ['permissionMode: dontAsk']],
-      ['a >- block holding plan', ['permissionMode: >-', '  plan']],
-    ];
-    for (const [label, lines] of allowed) {
-      test(`${label}, sealed -> 0`, () => {
-        const { file } = agent({ fm: [...defaultFm('x'), ...lines], contract: mdCon('Extra keys: permissionMode') });
-        expect(run(['--seal', file]), 0, 'PASS seal: wrote ');
-        exact(run([file]), 0, 'PASS permission-mode', 'PASS keys', 'PASS familiar-digest');
-      });
-    }
+    test('not listed -> 1 unknown key, and the value is never printed', () => {
+      const r = run([agent({ fm, contract: mdCon('') }).file]);
+      exact(r, 1, 'FAIL keys: unknown key "permissionMode" at line 4');
+      assert.ok(!r.out.includes('bypassPermissions'), show(r));
+    });
   });
 
   describe('held by a mutation', () => {

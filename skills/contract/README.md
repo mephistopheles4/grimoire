@@ -34,6 +34,15 @@ implementation.
 
 ## Use it
 
+**Read before you install.** The check confirms that a skill or agent file is
+well formed, and unchanged since it was sealed with its contract. It does not
+confirm that anyone reviewed either file, and anyone can write both. Apart
+from a few fixed limits, the check does not judge what a file's settings let
+the agent do. A setting the file may hold, or one its contract lists, passes
+unchanged, whatever value is written. That includes settings that let the
+agent act without asking. Read a shared skill or agent and its contract
+before you use it, as you would any code from someone else.
+
 Ask for it by name. The installer route keeps the plain name; the plugin route
 namespaces it:
 

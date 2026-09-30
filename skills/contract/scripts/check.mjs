@@ -100,9 +100,6 @@ const TOML_KNOWN_KEYS = new Set(['name', 'description', 'developer_instructions'
 const TOML_EXTRA_KEYS = new Set(['model', 'model_reasoning_effort']);
 // The two sandbox_mode values a .toml may hold, whatever the contract says.
 const SANDBOX_MODES = new Set(['read-only', 'workspace-write']);
-// The permissionMode values an agent .md may hold, whatever the contract says:
-// the ones no wider than default. Matched exactly, in this case.
-const PERMISSION_MODES = new Set(['default', 'plan', 'manual', 'dontAsk']);
 // A contract's `Target:` names the tool the familiar is built for, and so the
 // file ending that familiar needs. A Map, so a target such as "constructor"
 // is simply not in it.
@@ -1569,17 +1566,6 @@ function fieldRules(fm, loc, extras, report) {
   if (meta) {
     if (meta.kind !== 'map') report.fail('metadata', `line ${meta.line}: must be a map of text values`);
     else report.pass('metadata');
-  }
-
-  // permissionMode sets what the agent may do without asking, so a contract
-  // listing it cannot widen it: the check keeps it to the values no wider
-  // than default, as it keeps sandbox_mode, and never echoes it. The value
-  // compared is the one the reader parsed, so a block's final line feed, a
-  // flow sequence or another case fails too.
-  const pm = top.get('permissionMode');
-  if (pm) {
-    if (pm.kind === 'text' && PERMISSION_MODES.has(pm.value)) report.pass('permission-mode');
-    else report.fail('permission-mode', `line ${pm.line}: must be "default", "plan", "manual" or "dontAsk"`);
   }
 }
 
