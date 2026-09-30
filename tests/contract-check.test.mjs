@@ -2800,5 +2800,20 @@ describe('v10 the YAML reader refuses more number, boolean and key forms', () =>
       expect(run([skill({ fm: ['name: demo', `description: "${value}"`] })]), 0, 'PASS description');
     });
   }
+
+  // A base prefix followed only by underscores is refused as a number form,
+  // while a bare 0x, 0b or 0o stays text (block 31).
+  for (const value of ['0x_', '0b_', '-0x_', '+0b_', '0o_']) {
+    test(`description: ${value} -> 1 cannot-check`, () => {
+      const r = run([skill({ fm: ['name: demo', `description: ${value}`] })]);
+      expect(r, 1);
+      assert.ok(r.lines.includes(`CANNOT-CHECK frontmatter: SKILL.md line 3: ${NON_TEXT}`), show(r));
+    });
+  }
+  test('a metadata value of 0x__ -> 1 cannot-check', () => {
+    const r = run([skill({ fm: [...defaultFm('demo'), 'metadata:', '  owner: 0x__'] })]);
+    expect(r, 1);
+    assert.ok(r.lines.includes(`CANNOT-CHECK frontmatter: SKILL.md line 5: ${NON_TEXT}`), show(r));
+  });
 });
 

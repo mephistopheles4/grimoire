@@ -181,7 +181,8 @@ const YAML_NUMBER_RES = [
   /^0b[01_]+$/,
   /^0o[0-7_]+$/,
 ];
-const YAML_DATE_RE = /^[0-9]{4}-[0-9]{1,2}-[0-9]{1,2}(?:$|[Tt \u{9}])/u;
+const BASE_PREFIX_UNDERSCORES_RE = /^0[xXbBoO]_+$/;
+const YAML_DATE_RE =/^[0-9]{4}-[0-9]{1,2}-[0-9]{1,2}(?:$|[Tt \u{9}])/u;
 const BASE60_FIRST_RE = /^[0-9][0-9_]*$/;
 const BASE60_PART_RE = /^[0-5]?[0-9]$/;
 const BASE60_LAST_FRACTION_RE = /^[0-5]?[0-9]\.[0-9_]*$/;
@@ -531,6 +532,10 @@ function yamlReadsAsNonText(v) {
   if (YAML_WORDS.has(lower)) return true;
   if (YAML_DATE_RE.test(v)) return true;
   const unsigned = v[0] === '-' || v[0] === '+' ? v.slice(1) : v;
+  // A base prefix followed only by underscores, such as 0x_, which removing
+  // the underscores below would leave as a bare prefix the patterns read as
+  // text. A bare 0x with no underscore stays text.
+  if (BASE_PREFIX_UNDERSCORES_RE.test(unsigned)) return true;
   // Lower case, every "_" removed: see YAML_WORDS for why the whole class.
   const bare = unsigned.toLowerCase().replaceAll('_', '');
   if (bare === '.inf' || bare === '.nan') return true;
