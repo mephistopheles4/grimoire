@@ -48,8 +48,15 @@ Ask for it by name:
 /eagle-eye <topic>
 ```
 
-Or let it trigger. It fires on three or more open decisions, where one choice
-changes what is possible in another. Two independent choices never earn a box.
+Or let it offer. On three or more open decisions, where at least two are
+coupled (one choice changes what is possible in another), it says how many it
+sees and asks before it builds a box. Two independent choices never earn a
+box, and it stays out when you ask for the quick route.
+
+It can keep a usage log, one line per use, so you can see when it helps and
+when it should be retired. It asks before it writes the first line. The log
+lives at `.eagle-eye/log.jsonl` in your home folder, or at the path in
+`EAGLE_EYE_LOG`.
 
 ## What the page tells you
 
@@ -91,12 +98,13 @@ node skills/eagle-eye/render.mjs <box.json> --out page.html
 
 | Path | What it is |
 | --- | --- |
-| [`SKILL.md`](SKILL.md) | The skill. The prose an agent follows. |
+| [`SKILL.md`](SKILL.md) | The skill. The prose an agent follows, generated from its contract. |
+| [`CONTRACT.md`](CONTRACT.md) | The terms the skill is generated from. Change this, not `SKILL.md`. |
 | [`render.mjs`](render.mjs) | The renderer and the validator. |
 | [`audit.mjs`](audit.mjs) | An optional audit of the argued edges. It ranks them, so you know which to reread first. It sends the box's text to the model provider, and only when you run it with a key. The provider charges each request to that key. |
 | [`box.schema.json`](box.schema.json) | The shape of a box file. |
 | [`lib/`](lib) | The one module the page and the tests both run. |
-| [`reference/`](reference) | How to write an edge, and the rest of the reference. |
+| [`reference/`](reference) | How to write an edge, the edge audit, and the box file in detail. |
 | [`examples/`](examples) | A complete box: the skill's own design, boxed. |
 
 The renderer names no fixed path to itself, so this directory runs from

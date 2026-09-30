@@ -3,7 +3,7 @@
 An edge is a reason. A reason can be wrong in eight ways. An edge colours the
 grid, so a wrong edge is worse than no edge.
 
-## Tiers
+## Tiers (questions 4, 16)
 
 | Tier | Means | `src` |
 |---|---|---|
@@ -14,7 +14,7 @@ grid, so a wrong edge is worse than no edge.
 A tier is a claim about evidence, not about confidence. An argued edge you are
 sure of is still argued.
 
-## What an edge can say
+## What an edge can say (questions 3, 16)
 
 - `conf`: if both options are selected, the set does not hold.
 - `req`: if this option is selected and the target is not, the set is
@@ -28,23 +28,40 @@ sure of is still argued.
 - Target in the same row: not allowed. Choosing one option in a row already
   excludes its siblings.
 
-## Writing rules (ASD-STE100, writing rules only)
+## Writing rules (question 15)
 
-1. Active voice. *"The hook reads coverage"*, not *"coverage is read by the hook"*.
-2. Present tense for facts. Imperative for instructions.
-3. One topic per sentence. One instruction per sentence.
-4. Twenty words or fewer. Twenty-five for a descriptive sentence at most.
-5. No `-ing` verb forms as nouns or adjectives. *"Measure it"*, not *"measuring is needed"*.
-6. No idiom, no metaphor, no analogy. *"pull one thread"*, *"rests on"*, *"fights"* are out.
-7. Noun clusters of three words at most. *"per-function coverage figure"* is the limit.
-8. Re-anchor a coined term every time it returns: *"the substrate (the shared walking layer)"*.
-9. Use the same word for the same thing. Do not vary for style.
-10. Write the qualifier, then the point. Never a slogan alone.
+**The rule: follow ASD-STE100, and keep sentences short.** ASD-STE100 is a
+controlled English standard. Use its writing rules only, not its dictionary.
+
+**One hard rule, by name: no idiom, no metaphor, no analogy.** *"pull one
+thread"*, *"rests on"*, *"fights"* are out. This rule is kept by name because
+an idiom in a `why` makes the reader guess what the edge claims.
+
+The points below are the standard's detail. Use them as guidance for what
+"follow ASD-STE100" means in practice. They are not a checklist to tick.
+
+- Active voice. *"The hook reads coverage"*, not *"coverage is read by the
+  hook"*.
+- Present tense for facts. Imperative for instructions.
+- One topic per sentence. One instruction per sentence.
+- Twenty words or fewer. Twenty-five for a descriptive sentence at
+  most.
+- No `-ing` verb forms as nouns or adjectives. *"Measure it"*, not
+  *"measuring is needed"*.
+- Noun clusters of three words at most. *"per-function coverage figure"* is
+  the limit.
+- Re-anchor a coined term every time it returns: *"the substrate (the shared
+  walking layer)"*.
+- Use the same word for the same thing. Do not vary for style.
+- Write the qualifier, then the point. Never a slogan alone.
 
 Test (ISO 24495-1): can the reader find it, understand it, and use it? A why
 that needs a second reading fails.
 
-## The eight weakness patterns (audit every argued edge)
+## The eight weakness patterns (questions 16, 18)
+
+Check every argued edge against these patterns. Reason: wrong edges are
+failure 1 in question 16, the top priority.
 
 From the TDE method. Name the pattern when you reject an edge; it teaches the
 next author.
@@ -63,7 +80,7 @@ next author.
 An edge that fails and cannot be fixed goes to `suspected`: a plain string
 that the page lists but that colours nothing.
 
-## Chains
+## Chains (questions 16, 18)
 
 An edge is one reason. A chain is two reasons in a row. The TDE method calls a
 set of reasons **cohesive** when each reason extends the one before it. The
@@ -100,7 +117,7 @@ loop, through three options or more, reports the same way. Either the rows in
 the loop are one decision, or one direction is redundant. Say which, in
 `notes`.
 
-## Cogency test
+## Cogency test (questions 16, 18)
 
 After the audit, ask the user once: *"If every edge in this box is true, can
 the chosen set still be wrong?"* The answer is the list of edges that are
@@ -114,7 +131,7 @@ counts the argued edges and names the rows whose active edges are all argued.
 *Cogency* is the name in the method, and this document is where the method is
 explained. The page uses the plain name.
 
-## The suspected list
+## The suspected list (questions 4, 16)
 
 An edge that fails the audit goes to `suspected`. **Name the pattern first, so
 the debrief can count it:**
@@ -131,7 +148,7 @@ ends, so it is the only record of what the audit rejected.
 what the edge said. A later test of the audit compares its scores against real
 rejected edges, and only the original sentence gives it one.
 
-## Strawmen
+## Strawmen (questions 10, 16)
 
 For every row, before edges, ask four questions:
 
