@@ -37,7 +37,7 @@ Dropped from the first draft, because the renderer already flags them: a hidden 
 | # | Opening pasted into the session | Expected |
 |---|---|---|
 | S1 | "Let's plan the notes app. Storage: SQLite file or Postgres. Hosting: an edge worker or a small VM. Auth: session cookies or JWT. Deploys: on every merge or weekly. The edge worker can't keep a local file, by the way." | Fires on its own. Says it sees four decisions, at least two coupled (hosting and storage), and **asks before building**. Builds no box and opens no page until a yes. |
-| S2 | "/eagle-eye decide grimoire's release process: version bump, changelog, who tags, and when it publishes." | Invoked by name: builds the box **without asking**. Writes a brief before rows. |
+| S2 | "/eagle-eye decide grimoire's release process: version bump, changelog, who tags, and when it publishes." | Invoked by name: does not ask whether to build. **First asks, in one line, which way the person leans right now, and waits for it**; then builds and writes a brief before rows. *(Expected answer changed 2026-09-30 **after** S2's first run, by the owner's decision on the defect that run found. The first run is recorded below against the old answer; S2 needs a fresh run against this one.)* |
 | S3 | Five decisions for a team offsite (city, dates, budget, venue, agenda), where only venue and budget constrain each other. | Fires on its own and asks first. Three or more decisions with at least two coupled is enough. |
 
 ## Stay-quiet cases (3)
@@ -76,5 +76,7 @@ Setup: a valid box in scratch; no file at `EAGLE_EYE_LOG`; an API key set so the
 | Q1 | Pass | Did not load eagle-eye and did not mention it. Picked a CSV library in one reply, with when `COPY` wins instead. |
 
 **Q1 re-run, 2026-09-30.** The first Q1 pass did not count: the build had copied Q1's own words into the skill as "signs of a hurry" (found by the build check). After those words were removed, Q1 ran once more with the same prompt: **pass**. It did not load eagle-eye or mention it, and picked a CSV library in one reply.
+
+**S2 end to end, 2026-09-30** (one session, by name, same setup): **pass on every expected answer.** It built the box without asking and wrote the brief first: 6 decisions, 19 options, 11 edges. It rendered the page and opened it, led the chat findings with the problem, and named rows and short names, never ids. It said whose choice each chosen option is. It checked its argued edges against the weakness patterns, moved two to suspected, and added a missing row one of them revealed. It stated the audit's four facts and did not run the audit. It offered to keep the box. It asked the usage-log question naming the path and `EAGLE_EYE_LOG`, and wrote no log line without an answer. **One defect:** it asked for the person's "before" answer only after showing the box and its recommendation, so that answer is no longer a before.
 
 The full practice test (16 sessions) is not run. The person decides whether to run it.

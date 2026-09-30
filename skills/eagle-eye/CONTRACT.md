@@ -68,10 +68,11 @@ Version: 0.1.0
 | When the model audit could run: run a dry run, state the four facts (it is available; what it sends and to whom; how many requests of what size; the person's key pays), then wait for a yes in chat. | Promised | **Confirmed** |
 | When the person pastes a restore code from the page: say the set back in words, and change the box only with what they confirm. | Promised | **Confirmed** |
 | When no usage log exists: ask once whether it may keep one line per use, name the path and the `EAGLE_EYE_LOG` variable that changes it, and say why. Write no use line until the person says yes in chat. On a no, write only the declined marker. | Promised | *Proposed* (derived from questions 6 and 13; reconciled 2026-09-30 with question 13's declined marker, Decided) |
+| When eagle-eye is asked for by name and the discussion does not already show which set the person leans to: ask, in one line, which way they lean right now, and wait for that line before building. | Promised | **Decided, 2026-09-30** (option B, after the end-to-end run asked it only after showing the box) |
 
 **What makes it fire.** **Decided, 2026-09-30.**
 
-- By name (`/eagle-eye`, or asking for an eagle-eye view or a morphological box): build the box without asking.
+- By name (`/eagle-eye`, or asking for an eagle-eye view or a morphological box): build the box without asking whether to. First take the person's current leaning, from the discussion or by the one-line stop above. **Decided, 2026-09-30.**
 - On its own, from the description: ask first (stop above).
 - The person is clearly in a hurry: it does not fire.
 - The trigger lives in the description. No hook. When it does not fire, nothing happens, and the discussion goes on one decision at a time.
@@ -99,6 +100,7 @@ Extra keys: none.
 | 0.1.0 | 2026-09-30 | Contract written for the existing eagle-eye skill. | grimoire #157: the first test of `contract` on a complex skill. | all |
 | 0.1.0 | 2026-09-30 | Practice test cut from 3 full runs (42 sessions) to 16 sessions: 8, then 4, then 4. | Token cost (the owner). Level stays Thorough. | 12 |
 | 0.1.0 | 2026-09-30 | After the build check (result-checker, REFUTED): a hurry is explicit and the built file lists no trigger phrases; a "no" to the log is stored as a declined marker; question 20 names no provider; "two independent choices" recorded as a stay-out line. | The owner's picks on findings F1, F5, F6; F3 as a fix. | 1, 13, 19, 20 |
+| 0.1.0 | 2026-09-30 | The person's "before" answer is taken before any box is shown: a by-name request asks for the current leaning in one line and waits for it. | The end-to-end run asked it after showing the box and its recommendation, so it was no longer a before (the owner picked option B). | 3, 13 |
 | 0.1.0 | 2026-09-30 | The familiar is built at `skills/eagle-eye/`, with this contract beside it; the practice test moves to `docs/practice-tests/eagle-eye.md`. | The owner's decision: the skill already ships from `skills/`, and the repository keeps practice tests in `docs/practice-tests/`. | 12 |
 
 ---

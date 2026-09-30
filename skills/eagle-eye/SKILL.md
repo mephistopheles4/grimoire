@@ -3,8 +3,8 @@ name: eagle-eye
 description: Steps in when a discussion holds three or more open decisions and at least two of them are coupled, so that one choice changes what is possible in another, or when someone asks for it by name (/eagle-eye, an eagle-eye view, or a morphological box). Stays out when the person insists on the quick route, and for two independent choices.
 metadata:
   contract-version: 0.1.0
-  familiar-digest: "sha256:d3eb05595cfed115512bddcf51a738f256df2d4a80cbc7ca480d558c9c3f2965"
-  contract-digest: "sha256:945fff5e42d904da8063bbe8fe9faac172eeb83ba0b8820e744c559d1f4c46b4"
+  familiar-digest: "sha256:af20d34561747d9e43f0bcf77b8c68e43ab91e013a06e7ec9326d3d71ca83446"
+  contract-digest: "sha256:ad1c2fda6e421af9d35f2a36e09a3cf69a654983a3d5d4a555d071b7b0b6698f"
 ---
 
 # Eagle-eye
@@ -56,7 +56,8 @@ that has a few options. Stay out.
 
 **How it fires.** Reason: the owner's firing rule (question 3).
 
-- **By name:** build the box without asking.
+- **By name:** build the box without asking whether to. First take the
+  person's current leaning, from the discussion or by the fifth stop below.
 - **On its own,** because the discussion matches the lines above: ask first.
   See the first stop below.
 - **The person is clearly in a hurry:** do not fire. Do not mention eagle-eye.
@@ -67,23 +68,25 @@ stop below still applies.
 
 ## When to stop and ask (questions 3, 6, 11, 13)
 
-Stop and wait for the person at each of these four moments:
+Stop and wait for the person at each of these five moments:
 
 - When eagle-eye fires on its own, not by name: say how many coupled decisions it sees, and ask before it builds a box or opens a page. Build nothing until the person says yes.
 - When the model audit could run: run a dry run, state the four facts (it is available; what it sends and to whom; how many requests of what size; the person's key pays), then wait for a yes in chat.
 - When the person pastes a restore code from the page: say the set back in words, and change the box only with what they confirm.
 - When no usage log exists: ask once whether it may keep one line per use, name the path and the `EAGLE_EYE_LOG` variable that changes it, and say why. Write no use line until the person says yes in chat. On a no, write only the declined marker.
+- When eagle-eye is asked for by name and the discussion does not already show which set the person leans to: ask, in one line, which way they lean right now, and wait for that line before building.
 
 For the first stop, say it in one line: *"I see N decisions, and M of them are
 coupled. Shall I lay them out as a box?"* A chat table for two or three
 decisions counts as building too. Ask before it.
 
 The second stop is in step 4 (detail in `reference/audit.md`), the third in
-step 8, the fourth in [Usage record](#usage-record-questions-6-13).
+step 8, the fourth in [Usage record](#usage-record-questions-6-13), the fifth
+before step 1 of the procedure.
 
 **When it is unsure: it decides, and shows you.** Mark whose choice each
 chosen option is, and the tier of each edge. Do not stop to ask about a
-choice the box can show. The four stops above still hold.
+choice the box can show. The five stops above still hold.
 
 ## Who does what (questions 3, 5, 6)
 
@@ -95,10 +98,8 @@ decisions, and keeps the box in scratch unless the person asks to keep it.
 **The person** picks and accepts the chosen set, decides whether to keep the
 box, and decides whether to pay for the audit. The person keeps three
 abilities that eagle-eye never takes away: to check the work, to explain why
-it is right, and to know when to stop.
-
-**Tools.** Node, to run `render.mjs` and the optional `audit.mjs`, both in the
-skill base directory; and the system's command that opens a file in a browser.
+it is right, and to know when to stop. **Tools:** Node, for `render.mjs` and
+the optional `audit.mjs`, and the system's command that opens a browser.
 
 **Actions beyond its own notes.** Two, and each waits for the person's yes in
 chat: the audit, which sends the box's text to a model provider and charges
@@ -129,8 +130,7 @@ then reproduces the offered answers and produces nothing new.
 configurations of the real dimensions. Put them in `presets`, so the reader
 clicks each one and sees what it costs.
 
-One sign catches this late: a single option that rules out most of the other
-rows. A cell that closes half the box is usually a position, not an option.
+A single option that rules out most of the other rows is usually a position.
 
 ## Procedure (questions 3, 4, 10, 16, 18)
 
@@ -141,8 +141,10 @@ strawman, or an edge with no reason: name the gap. Do not fill it with a guess.
 
 **Before you build, get the person's answer before the box:** the set they
 lean to now, in one line. Take it from the discussion, or ask it in the offer.
-By name, ask it beside the build, and do not wait. With no answer, record
-"not stated". The usage record and the debrief compare it with the decision.
+By name, when the discussion does not show it, ask in one line and wait for
+that line (the fifth stop). Show no box, table or recommendation before it.
+If they state no leaning, record "not stated". The usage record and the
+debrief compare it with the decision.
 
 1. **Brief.** Write the `problem`: what this box decides, for a reader who
    does not know the domain. Add `who` and `when` if you can. See
@@ -431,11 +433,9 @@ at the end, or append with a shell. Never write the new line alone. The
 fields, the marker and the commands are in `reference/usage-record.md`.
 
 **Review.** Count three signals, each on its own, over the last 10 lines:
-**cries wolf** (the person declined the offer), **rubber stamp** (the person
-accepted the set without changing a row), and **nothing changes** (the
-decision after the box is the one held before it). When any one reaches 5 of
-the last 10, ask the person for a review. At 10 lines, and every 10 after,
-report the three counts. See `reference/usage-record.md`.
+**cries wolf**, **rubber stamp** and **nothing changes** (defined in
+`reference/usage-record.md`). When any one reaches 5 of the last 10, ask the
+person for a review. At 10 lines, and every 10 after, report the counts.
 
 > **Warning: the record proposes, and changes nothing by itself.** Never cut,
 > retune or edit the skill because of a count. Only the person's review can
@@ -451,9 +451,8 @@ is a controlled English standard; use its writing rules.
 **One hard rule, by name: no idiom, no metaphor, no analogy.** An idiom in a
 `why` makes the reader guess what the edge claims.
 
-The standard's detail (active voice, present tense, one instruction per
-sentence, short noun clusters, one word for one thing) is guidance, not a
-checklist. It is in `reference/writing-edges.md`, "Writing rules".
+The standard's detail is guidance, not a checklist: see
+`reference/writing-edges.md`, "Writing rules".
 
 Test (ISO 24495-1): can the reader find it, understand it, and use it?
 
@@ -474,9 +473,8 @@ causes, are in `reference/box-file.md`, "Common mistakes".
 
 ## What it hands back (questions 4, 8)
 
-A box file, the rendered page, findings in chat that open with the problem,
-and a debrief after the person accepts a set. The shape is the same each run;
-the content changes, and two runs may cut the rows differently.
+A box file, the page, findings led by the problem, and a debrief after a set
+is accepted. Same shape each run; two runs may cut the rows differently.
 
 ## Export format (questions 4, 18)
 
