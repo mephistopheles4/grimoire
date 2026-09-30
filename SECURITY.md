@@ -35,17 +35,33 @@ edge audit. See [What the edge audit sends](#what-the-edge-audit-sends).
 One script rewrites a file a person hands it, and only when asked:
 `skills/contract/scripts/check.mjs`. Under `--seal` it rewrites the mark lines
 of the one file it is given, and nothing else, then prints the real path it
-wrote. It sends nothing. A valid seal proves the familiar and its contract
-are unchanged since they were sealed. For a skill, the familiar is every file
-in its folder except `CONTRACT.md`. It does not prove who sealed them.
+wrote. If a `.toml` file's last line has no line ending, it adds one before
+the mark. It writes the new text to a temporary file beside the old one, then
+renames it over the old one. It sends nothing. A valid seal proves the
+familiar and its contract are unchanged since they were sealed. For a skill,
+the familiar is every file in its folder except `CONTRACT.md`. It does not
+prove who sealed them.
+
+The check refuses, as "cannot check", any text file it reads that holds a line
+or paragraph separator (U+2028, U+2029), a C1 control character (U+0080 to
+U+009F, NEL among them), a C0 control character other than tab, DEL, U+FFFE,
+U+FFFF, or a carriage return with no line feed after it. That covers the
+familiar, its contract, and every other text file in a skill's folder. Tab
+and CRLF line endings are allowed.
 
 A Codex agent file (`.toml`) is read through a narrow subset of TOML. The
 check reads top-level `key = value` lines, whole-line comments, and strings
-that take no escape but `\"` and `\\`. Anything else, a table included, is
+that take no escape but `\"` and `\\`. It reads an unquoted `true` or `false`
+only for a key the contract lists. Anything else, a table included, is
 "cannot check", which fails. Its mark is three comment lines at the very end
 of the file, because Codex will not load an agent file with a `[metadata]`
 table. `sandbox_mode` may be only `read-only` or `workspace-write`, whatever
-the contract lists.
+the contract lists. Past its own keys, the file may hold only `model` and
+`model_reasoning_effort`, each only when the contract lists it. Any other key
+fails, whatever the contract lists.
+
+In a `SKILL.md` or an agent's `.md` file, `permissionMode` may be only
+`default`, `plan`, `manual` or `dontAsk`, whatever the contract lists.
 
 The attacks worth planning for, scenario by scenario, with what stops each
 one and what still gets through: [docs/security/threat-model.md](docs/security/threat-model.md).

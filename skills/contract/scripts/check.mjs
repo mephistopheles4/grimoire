@@ -164,11 +164,13 @@ const PLAIN_BAD_START = '{}[]&*!|>%@`#,\'"';
 // octal; the plain digit pattern already refuses it. The other number forms
 // are tried after the same sign: hexadecimal (0x1F), binary (0b101), octal
 // (0o17) and YAML 1.1 base 60 (1:30 or 190:20:30.15), checked a part at a time
-// between the colons. A date or a timestamp, such as 2026-09-27 or
-// 2026-09-27T10:00:00Z, is refused by its start alone: four digits, a month
-// and a day of one or two digits each, then the end or a T, a t, a space or a
-// tab. That is broader than the loaders' own date rule, and refusing a near
-// miss is safe.
+// between the colons. A base prefix followed only by underscores, such as
+// 0x_, is refused before the underscores are removed, since removing them
+// would leave a bare prefix; a bare 0x with no underscore stays text. A date
+// or a timestamp, such as 2026-09-27 or 2026-09-27T10:00:00Z, is refused by
+// its start alone: four digits, a month and a day of one or two digits each,
+// then the end or a T, a t, a space or a tab. That is broader than the
+// loaders' own date rule, and refusing a near miss is safe.
 const YAML_WORDS = new Set(['~', 'null', 'true', 'false', 'yes', 'no', 'on', 'off', 'y', 'n']);
 const YAML_NUMBER_RES = [
   /^\.[0-9]+$/,
@@ -182,7 +184,7 @@ const YAML_NUMBER_RES = [
   /^0o[0-7_]+$/,
 ];
 const BASE_PREFIX_UNDERSCORES_RE = /^0[xXbBoO]_+$/;
-const YAML_DATE_RE =/^[0-9]{4}-[0-9]{1,2}-[0-9]{1,2}(?:$|[Tt \u{9}])/u;
+const YAML_DATE_RE = /^[0-9]{4}-[0-9]{1,2}-[0-9]{1,2}(?:$|[Tt \u{9}])/u;
 const BASE60_FIRST_RE = /^[0-9][0-9_]*$/;
 const BASE60_PART_RE = /^[0-5]?[0-9]$/;
 const BASE60_LAST_FRACTION_RE = /^[0-5]?[0-9]\.[0-9_]*$/;
