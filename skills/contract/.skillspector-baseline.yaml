@@ -1,11 +1,11 @@
 # SkillSpector baseline for this skill.
 #
 # You are reading this because you scanned this directory before installing
-# what is in it, which is the right thing to do with a skill. One of
-# SkillSpector's rules fires on the files here, and this file says why, so you
+# what is in it, which is the right thing to do with a skill. Two of
+# SkillSpector's rules fire on the files here, and this file says why, so you
 # can disagree with a reason rather than with silence.
 #
-# The rule is EA2, Autonomous Decision Making. It fires on a code comment in
+# The first rule is EA2, Autonomous Decision Making. It fires on a code comment in
 # scripts/check.mjs that explains why the check fails a frontmatter key the
 # contract does not list: such a key can change what an agent may do on its
 # own. The comment gives no instruction. It is the security reason the check
@@ -22,6 +22,15 @@
 # entry at the repository root. Narrower suppression for one skill is an open
 # follow-up. It needs a change to that check, with its own review.
 #
+# The second rule is OH3, Unbounded Output. It fires on a code comment in
+# scripts/check.mjs that explains the cap on how many lines of refusals the
+# check prints, which exists so a hostile file cannot flood the output. The
+# comment describes the limit, not unbounded output, so it was not reworded
+# to quiet the rule. This entry is keyed by rule identifier too, so OH3 is off
+# for this whole skill, not only for that comment, and a new OH3 finding
+# anywhere in this directory would be suppressed as well. The owner accepted
+# that breadth on 2026-09-30, for the same reason as EA2's.
+#
 # The scanner reports the score unchanged and applies none of this unless you
 # ask. Apply it with --use-shipped-baseline, and read what it covered with
 # --show-suppressed.
@@ -29,8 +38,8 @@
 # Nothing here was reworded to satisfy a pattern matcher.
 #
 # This file sits inside the skill's sealed folder, so the seal covers it. The
-# repository root carries the same entry, and the repository's check refuses a
-# change that makes the two disagree. So a change to the shared reason at the
+# repository root carries the same entries, and the repository's check refuses
+# a change that makes the two disagree. So a change to the shared reason at the
 # root forces the same change here, and a new seal of this folder.
 
 version: 2
@@ -39,3 +48,5 @@ fingerprints: []
 rules:
   - rule_id: "EA2"
     reason: "False positive. Two texts that describe what an agent may do on its own and give no such instruction: the why text on an edge in an example box file, which a renderer prints for a reader, and a code comment in a format check explaining why an unlisted frontmatter key fails. Neither is an instruction an agent acts on."
+  - rule_id: "OH3"
+    reason: "False positive. A code comment in a format check that explains the cap on how many lines of refusals it prints, which exists so a hostile file cannot flood the output. The comment describes the limit, not unbounded output."

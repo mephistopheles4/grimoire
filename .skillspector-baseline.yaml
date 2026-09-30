@@ -60,3 +60,5 @@ rules:
     reason: "Accepted. The skill declares no permission list, because a permission list is one host's format and the skill's text runs in agents that read none. SECURITY.md in the repository says which script reaches the network, when it runs, and what it sends."
   - rule_id: "P2"
     reason: "False positive. The rule reads get inside any HTML comment with no word boundary, so the word together in a page-template comment about two buttons wrapping as one group matches it. The comments are notes on layout for a maintainer, and no agent reads the rendered page as instructions."
+  - rule_id: "OH3"
+    reason: "False positive. A code comment in a format check that explains the cap on how many lines of refusals it prints, which exists so a hostile file cannot flood the output. The comment describes the limit, not unbounded output."
