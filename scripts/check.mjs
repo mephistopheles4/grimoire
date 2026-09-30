@@ -107,10 +107,11 @@ for (const e of readdirSync(join(root, 'skills'), { withFileTypes: true })) {
 //
 // Scoped to skills/ and not to the whole tree, because the rule is about what
 // lands on somebody else's computer under an install route nobody here
-// chooses. A repository script is not that, and tests/check.test.mjs carries
-// all three of these patterns on purpose — as the strings that prove the rule
-// works. Counted from the file rather than remembered: an earlier draft of this
-// comment said two, and the third was added in the same change that wrote it.
+// chooses. A repository script is not that, and tests/check-paths.test.mjs
+// carries all three of these patterns on purpose — as the strings that prove
+// the rule works. Counted from the file rather than remembered: an earlier
+// draft of this comment said two, and the third was added in the same change
+// that wrote it.
 const FIXED = [/~\/\.claude/, /\/home\/[a-z]/i, /C:\\Users\\/i];
 // A minified file is one long line, and a refusal nobody can read is a refusal
 // nobody acts on.
@@ -668,7 +669,7 @@ for (const path of skillBaselines) {
 // others, and a glob is the shell's job on one platform and Node's on another.
 // A list of paths means the same thing everywhere.
 //
-// GRIMOIRE_IN_TEST breaks the loop. tests/check.test.mjs runs this script, and
+// GRIMOIRE_IN_TEST breaks the loop. tests/check-*.test.mjs run this script, and
 // this script runs the suite. The variable tells the child which of the two is
 // already happening.
 if (process.env.GRIMOIRE_IN_TEST) {

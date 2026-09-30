@@ -175,7 +175,7 @@ Every stop in the contract's question 3 is Promised. Each one has a case.
 
 ## Part C. The check
 
-`tests/contract-check.test.mjs` tests `skills/contract/scripts/check.mjs`
+`tests/contract-check-*.test.mjs` test `skills/contract/scripts/check.mjs`
 through its command line. It runs in `node scripts/check.mjs`, and so in the
 repository's `check` gate on every pull request. It is code, so its repeats
 cannot differ. It needs no separate run here.
