@@ -187,6 +187,8 @@ Measure the first session before you run the rest.
 
 - **The merge set:** 6 sessions, one per case.
 
+The optional full run, every case twice:
+
 - **Part A:** 8 cases × 2 runs = 16 new sessions. One step-in session was
   measured at about 118,000 input tokens, most of it read from the cache.
 - **Part B:** 29 cases × 2 runs = 58 sessions. Each costs more than one A
