@@ -2971,6 +2971,22 @@ describe('warnings on settings the check does not know to be harmless', () => {
     test('permissionMode: [] -> 0 with no warning', () => {
       for (const r of mdWith('permissionMode', '[]')) assert.ok(!has(r, 'WARN '), show(r));
     });
+    test('permissionMode: [ ] -> 0 with no warning', () => {
+      for (const r of mdWith('permissionMode', '[ ]')) assert.ok(!has(r, 'WARN '), show(r));
+    });
+    // A row with no safe set warns on an empty list too: a loader may read
+    // an empty list as a setting that is on.
+    for (const [key, , , label] of MD_ROWS.filter(([, safe]) => safe.length === 0)) {
+      for (const empty of ['[]', '[ ]']) {
+        test(`${key}: ${empty} -> 0 with its danger line, once, after --seal`, () => {
+          const line = `WARN danger: ${key} at line 4 ${label}`;
+          for (const r of mdWith(key, empty)) {
+            exact(r, 0, line);
+            once(r, line);
+          }
+        });
+      }
+    }
     test('permissionMode: "[plan]", quoted, is text and compared whole -> 0 with the danger line', () => {
       for (const r of mdWith('permissionMode', '"[plan]"')) {
         exact(r, 0, want);

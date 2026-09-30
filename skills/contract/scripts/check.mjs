@@ -1639,19 +1639,21 @@ function tomlKeyRules(top, report) {
 }
 
 /**
- * True when a DANGER row's value is in its safe set. A flow list, `[a, b]`,
- * is safe when every item is, and an empty one holds nothing to warn on, on
- * any row. Otherwise a row with no safe set is never safe. Any other value,
- * a quoted "[a]" included, is compared whole.
+ * True when a DANGER row's value is in its safe set. A row with no safe set
+ * is never safe, whatever its value, an empty flow list `[]` included: a
+ * loader may read an empty list as a setting that is on. On a row with a safe
+ * set, a flow list, `[a, b]`, is safe when every item is, and an empty one
+ * holds nothing to warn on. Any other value, a quoted "[a]" included, is
+ * compared whole.
  */
 function dangerSafe(row, entry) {
+  if (row.safe === null) return false;
   if (entry.flow) {
     const inner = entry.value.slice(1, -1);
     if (trimEndSpaces(inner.slice(leading(inner).width)) === '') return true;
-    if (row.safe === null) return false;
     return flowItems(inner).every(item => row.safe.has(item));
   }
-  if (row.safe === null || entry.kind !== 'text') return false;
+  if (entry.kind !== 'text') return false;
   return row.safe.has(entry.value);
 }
 
