@@ -123,13 +123,15 @@ Each suppression is keyed by **rule**, with a written reason.
 | `PE3` | Credential Access | The string `.env` in the edge audit's setup message, which tells a user a project `.env` is **not** read. |
 | `E1` | External Transmission | **Accepted, not a false positive.** The edge audit posts a box's text to the provider after a yes. See [the edge audit](edge-audit.md). |
 | `P2` | Hidden Instructions | A layout comment in `groundtrack`'s template. The rule matches *get* inside *together*. |
+| `OH3` | Unbounded Output | A code comment in `contract`'s format check that explains the cap on how many lines of refusals it prints, which exists so a hostile file cannot flood the output. **On `contract` it is off for the whole skill.** The owner accepted that breadth on 2026-09-30, as for `EA2`. |
 | `LP3` | MCP Least Privilege | **Accepted.** Neither skill declares a permission list, because that is one host's format and the skills run in agents that read none. On `groundtrack` it fires only when every file is marked executable, as on a Windows drive seen through WSL. |
 
 **Open: narrower suppression for one skill.** An entry keyed by rule cannot be
 narrowed to one file today. `node scripts/check.mjs` holds each skill's entry to
-the root's words and scope, so the `contract` skill's `EA2` entry covers its
-whole directory, not only the comment it is about. A new `EA2` finding anywhere
-in that skill would be suppressed and would not fail the build. Narrowing it
+the root's words and scope, so the `contract` skill's `EA2` and `OH3` entries
+cover its whole directory, not only the comments they are about. A new `EA2` or
+`OH3` finding anywhere in that skill would be suppressed and would not fail the
+build. Narrowing it
 needs a change to that rule, with its own review. Until then the breadth is
 written in the skill's baseline header.
 
