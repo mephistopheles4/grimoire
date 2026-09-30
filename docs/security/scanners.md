@@ -131,9 +131,8 @@ narrowed to one file today. `node scripts/check.mjs` holds each skill's entry to
 the root's words and scope, so the `contract` skill's `EA2` and `OH3` entries
 cover its whole directory, not only the comments they are about. A new `EA2` or
 `OH3` finding anywhere in that skill would be suppressed and would not fail the
-build. Narrowing it
-needs a change to that rule, with its own review. Until then the breadth is
-written in the skill's baseline header.
+build. Narrowing it needs a change to that rule, with its own review. Until then
+the breadth is written in the skill's baseline header.
 
 **A shared reason is sealed.** The `contract` skill's seal covers every file in
 its folder, its baseline included. A change to a reason the root shares with
