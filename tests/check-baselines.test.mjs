@@ -8,6 +8,18 @@ import { join } from 'node:path';
 import { root } from './helpers.mjs';
 import { baselineName, tree, rootBaselineIn, skillBaselineIn, assertPasses, assertFails } from './check-fixture.mjs';
 
+// Rule 7: the two SkillSpector baselines agree.
+//
+// The baselines are the argument for every finding this repository has decided
+// is wrong, and the workflow fails on anything they do not cover. So the
+// failure worth testing is not a scan — it is a suppression that stopped
+// meaning what it says: a reason reworded in one file, a rule added to one and
+// not the other, a fingerprint creeping in, or a shape the hand-written reader
+// would have to guess at.
+//
+// No scan runs here. The scanner is a Python tool that installs on a runner,
+// and this repository has no install step.
+
 test('the two baselines as shipped agree', () => {
   assertPasses(tree());
 });

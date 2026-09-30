@@ -90,10 +90,11 @@ export function assertFails(dir, pattern) {
 
 // ---- the format check over every skill ----
 // check.mjs runs skills/contract/scripts/check.mjs on every skills/*/ folder.
-// The fixture skills below are written into the copy at run time and never
-// committed: a SKILL.md anywhere in the tree is a skill to the check, and a
-// broken one would fail it. Each is sealed by the copy's own format check,
-// for the reason every test here runs the copy's own check.mjs.
+// The fixture skills the format-check tests use (check-format.test.mjs) are
+// written into the copy at run time and never committed: a SKILL.md anywhere
+// in the tree is a skill to the check, and a broken one would fail it. Each is
+// sealed by the copy's own format check, for the reason every test of
+// scripts/check.mjs runs the copy's own check.mjs.
 
 export const formatCheckIn = dir => join(dir, 'skills', 'contract', 'scripts', 'check.mjs');
 
@@ -111,18 +112,19 @@ export function fixtureSkill(dir, name, { contract, body = '# Fixture\n\nBody te
 
 export const fixtureContract = 'Version: 1.0.0\n\n# Contract\n\nWhat this fixture is for.\n';
 
-// The control half of each test below is asserted on what the check says
-// about the fixture, not on a pass of the whole tree, so it holds whatever
-// else the tree carries.
+// The control half of each format-check test is asserted on what the check
+// says about the fixture, not on a pass of the whole tree, so it holds
+// whatever else the tree carries.
 export function assertFixtureClean(dir, name) {
   const r = run(checkIn(dir), [], { cwd: dir });
   assert.doesNotMatch(r.stderr, new RegExp(`skills/${name}/`), `the fixture failed before anything was broken:\n${r.stderr}`);
   assert.match(r.stdout, new RegExp(`^ok {4}skills/${name}/ \\(format\\)$`, 'm'));
 }
 
-// The version-bump rule needs a merge base, so the tests below build one.
-// Every other test in this file runs against a copy with no .git at all, which
-// puts the rule on its "cannot resolve" path and proves only that it says so.
+// The version-bump rule needs a merge base, so the tests in
+// check-version.test.mjs build one. Every other test of scripts/check.mjs runs
+// against a copy with no .git at all, which puts the rule on its "cannot
+// resolve" path and proves only that it says so.
 export function repo(dir) {
   const git = (...args) =>
     execFileSync('git', ['-c', 'user.name=test', '-c', 'user.email=test@example.com', ...args], {
@@ -138,30 +140,18 @@ export function repo(dir) {
   return git;
 }
 
-// The four tests below move origin/main ahead of the branch, which is the
-// shape the rule could not see while it read the version at the merge base
-// only. `reset --soft` is what builds it: it rewinds the branch to the fork
-// point and leaves the newer commit's tree in the working directory, so the
-// branch carries the same edit the base just took. A checkout would rewrite
-// the working tree, and the check reads plugin.json from there.
+// Four tests in check-version.test.mjs move origin/main ahead of the branch,
+// which is the shape the rule could not see while it read the version at the
+// merge base only. `reset --soft` is what builds it: it rewinds the branch to
+// the fork point and leaves the newer commit's tree in the working directory,
+// so the branch carries the same edit the base just took. A checkout would
+// rewrite the working tree, and the check reads plugin.json from there.
 export function baseMovesAhead(git, edit) {
   edit();
   git('commit', '-aqm', 'the sibling branch that landed first');
   git('update-ref', 'refs/remotes/origin/main', 'HEAD');
   git('reset', '-q', '--soft', 'HEAD~1');
 }
-
-// Rule 7: the two SkillSpector baselines agree.
-//
-// The baselines are the argument for every finding this repository has decided
-// is wrong, and the workflow fails on anything they do not cover. So the
-// failure worth testing is not a scan — it is a suppression that stopped
-// meaning what it says: a reason reworded in one file, a rule added to one and
-// not the other, a fingerprint creeping in, or a shape the hand-written reader
-// would have to guess at.
-//
-// No scan runs here. The scanner is a Python tool that installs on a runner,
-// and this repository has no install step.
 
 export const baselineBody = rules =>
   `version: 2\nfingerprints: []\n\nrules:\n${rules.map(r => `  - rule_id: "${r.id}"\n    reason: "${r.reason}"\n`).join('')}`;
