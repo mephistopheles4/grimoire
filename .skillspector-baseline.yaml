@@ -41,7 +41,7 @@ rules:
   - rule_id: "AR2"
     reason: "False positive. SKILL.md tells the agent that a preview pane may render the page without script, so do not judge it from one. That adds a caveat; it does not suppress one."
   - rule_id: "AS3"
-    reason: "False positive. A README line naming the one skill this repository ships, and the decision records quoting that line. Naming your own product is not enumerating somebody else's."
+    reason: "False positive. A README line naming the one skill this repository ships, the decision records quoting that line, and a skill's contract naming the SKILL.md it was drafted from. Naming your own product or its own source file is not enumerating somebody else's."
   - rule_id: "EA2"
     reason: "False positive. Two texts that describe what an agent may do on its own and give no such instruction: the why text on an edge in an example box file, which a renderer prints for a reader, and a code comment in a format check explaining why an unlisted frontmatter key fails. Neither is an instruction an agent acts on."
   - rule_id: "EA3"
