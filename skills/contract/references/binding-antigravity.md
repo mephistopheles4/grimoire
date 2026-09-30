@@ -7,7 +7,7 @@ steps, or here. A fact missing from all of them is a gap: stop and ask.
 
 ## Last checked (questions 4, 5)
 
-agy 1.2.12, on 2026-09-29. Name this version in the unsettled list.
+agy 1.2.13, on 2026-09-30. Name this version in the unsettled list.
 
 ## The file (questions 4, 5)
 
@@ -34,20 +34,25 @@ Step 5. The seal writes the mark under `metadata:` (loaded).
 |---|---|---|
 | Read files | `view_file` | Loaded |
 | Create files | `write_to_file` | Loaded |
-| Change files | `replace_file_content` | Tool list |
-| Run commands | `run_command` | Tool list |
-| Fetch web pages | `read_url_content` | Tool list |
-| Search the web | `search_web` | Tool list |
+| Change files | `replace_file_content` | Loaded |
+| Run commands | `run_command` | Loaded |
+| Fetch web pages | `read_url_content` | Loaded |
+| Search the web | `search_web` | Loaded |
 
-Loaded means a sealed file with that name ran in agy 1.2.12; its effect was
-not tested. Tool list means the agy 1.2.12 tool list, 2026-09-29, as the
-tool reported it.
+Loaded means a sealed file listing that name ran in agy 1.2.13, on
+2026-09-30; its effect was not tested.
 
 **Limits this file cannot hold.** Say each in the unsettled list, as
 Promised:
 
+- A `tools` list cannot limit where the agent writes. Granting
+  `write_to_file` or `replace_file_content` makes "writes only in the
+  project folder" Promised.
 - Granting `run_command` makes "writes only in the project folder" and "no
   network" Promised.
+- The list may not be every tool agy gives the agent. An agent listing only
+  `view_file` reported `manage_task` as well in agy 1.2.13; that is its own
+  report, not tested. So "only these tools" is Promised.
 
 ## Keys that let it do more without asking (questions 5, 18)
 

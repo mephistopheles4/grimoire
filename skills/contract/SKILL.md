@@ -2,9 +2,9 @@
 name: contract
 description: Builds a reusable skill or agent from terms a person agrees, and keeps those terms as a contract its file is generated from. Use when someone wants a new skill or agent, wants to turn a prompt they keep pasting into one, or wants to change or write the contract for one. Not for a one-off prompt, for running a skill or agent that already exists, or for a legal or business contract.
 metadata:
-  contract-version: 0.6.0
-  familiar-digest: "sha256:47bc38267bfa962f351f01ec1394330a2dcdd1342fe1e572f82ef9e7cb928ca9"
-  contract-digest: "sha256:ce3895243d191feca6aa7dbe49dc7e9faf6f573ad5ebfe0d5c68677a5251f99e"
+  contract-version: 0.6.1
+  familiar-digest: "sha256:7753420d9370f9c17306170fa13af5dfa1c8bb4c9e635c52dcf8848bba85a40f"
+  contract-digest: "sha256:1460c073f53f559fd91f27e3a3b73f16e14604a705ad5cd60f5e69ca97ca27ca"
 ---
 
 # contract
@@ -67,8 +67,10 @@ in one plain sentence:
   your drafts there and decides.
 - **Frontmatter:** the settings block at the top of the file, between two
   `---` lines.
-- **Mark:** three frontmatter keys that the check writes. They show whether
-  the file or its contract changed since the check wrote them.
+- **Mark:** three lines that the check writes: keys under `metadata:` in a
+  `.md` file's frontmatter, or three `#` comment lines at the end of a Codex
+  `.toml` file. They show whether the file or its contract changed since the
+  check wrote them.
 - **Seal:** the check's command that writes the mark. Like a wax seal, it
   shows whether the files changed since, not who wrote them.
 

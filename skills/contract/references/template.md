@@ -75,13 +75,14 @@ after you say yes. The mark does not cover the practice-test file.
 `Version: X.Y.Z`, starting at 0.1.0. Each amendment raises the version and
 adds a row to the change log (question 7).
 
-**The mark.** When the file is generated, a check writes three keys into the
-file's frontmatter: the contract's version, a digest of the file, and a digest
-of the contract. A digest is a short fingerprint of a file's exact text. The
-check fails when either file changes after the mark was written. The mark
-proves one thing only: the two files have not changed since the last mark. It
-does not prove who wrote them. Review the familiar's text whatever its mark
-says.
+**The mark.** When the file is generated, a check writes three lines into the
+file: the contract's version, a digest of the file, and a digest of the
+contract. In a `.md` file they are keys in the frontmatter; in a Codex `.toml`
+file they are comment lines at the end. A digest is a short fingerprint of a
+file's exact text. The check fails when either file changes after the mark
+was written. The mark proves one thing only: the two files have not changed
+since the last mark. It does not prove who wrote them. Review the familiar's
+text whatever its mark says.
 
 **Section headings.** Each `##` heading in the familiar's file cites the
 contract questions that its section comes from. For example:
@@ -89,10 +90,12 @@ contract questions that its section comes from. For example:
 exactly the sections whose heading cites a question the amendment touched.
 Every other section keeps its exact text.
 
-**Extra frontmatter keys.** The check accepts only the keys in the Agent
-Skills specification. An agent file often needs keys that its tool reads. List
-each such key in the contract, on one line that starts with the words
-`Extra keys` and a colon, with the key names after it, separated by commas.
+**Extra frontmatter keys.** The check accepts only the keys it knows: in a
+`.md` file, the keys in the Agent Skills specification; in a `.toml` file, the
+keys the Codex binding names. An agent file often needs keys that its tool
+reads. List each such key in the contract, on one line that starts with the
+words `Extra keys` and a colon, with the key names after it, separated by
+commas.
 
 **The tool it is built for.** An agent's contract names one tool, on a line
 that holds only the word Target, a colon and the tool: claude, antigravity

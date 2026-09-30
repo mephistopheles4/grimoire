@@ -5,11 +5,14 @@
 # SkillSpector's rules fire on the files here, and this file says why, so you
 # can disagree with a reason rather than with silence.
 #
-# The first rule is EA2, Autonomous Decision Making. It fires on a code comment in
-# scripts/check.mjs that explains why the check fails a frontmatter key the
-# contract does not list: such a key can change what an agent may do on its
-# own. The comment gives no instruction. It is the security reason the check
-# fails that key, so it was not reworded or moved to quiet the rule.
+# The first rule is EA2, Autonomous Decision Making. It fires on text that names
+# what an agent may do without asking, in order to warn about it: the check's
+# danger labels and comments in scripts/check.mjs, the bindings' headings and
+# warning tables in references/, and a README line. It also fires on the step
+# in SKILL.md and CONTRACT.md that lists unconfirmed drafts as Proposed
+# without asking about each one; that keeps them unconfirmed until the person
+# agrees. None of it tells an agent to act without the person, so none of it
+# was reworded or moved to quiet the rule.
 #
 # Read this before you install. The entry is keyed by rule identifier, so EA2
 # is off for this whole skill, not only for that comment. That includes
@@ -47,6 +50,6 @@ fingerprints: []
 
 rules:
   - rule_id: "EA2"
-    reason: "False positive. Two texts that describe what an agent may do on its own and give no such instruction: the why text on an edge in an example box file, which a renderer prints for a reader, and a code comment in a format check explaining why an unlisted frontmatter key fails. Neither is an instruction an agent acts on."
+    reason: "False positive. Texts that describe what an agent may do on its own and give no such instruction: the why text on an edge in an example box file, which a renderer prints for a reader; the labels, headings and comments in a format check, its bindings and its README that name the settings the check warns on because they let an agent act without asking; a step that lists unconfirmed drafts as Proposed without asking about each one, which keeps them unconfirmed until the person agrees; and eagle-eye's rule that when the person asks for the box by name, it builds the box without asking again, because the request is the go-ahead. None tells an agent to act without the person's say-so."
   - rule_id: "OH3"
     reason: "False positive. A code comment in a format check that explains the cap on how many lines of refusals it prints, which exists so a hostile file cannot flood the output. The comment describes the limit, not unbounded output."

@@ -1,9 +1,9 @@
 # Contract: contract
 
-Version: 0.6.0
+Version: 0.6.1
 
 *Type: skill. Template: `references/template.md`, draft 10. Level: Thorough.
-Status: draft 0.6.0, 2026-09-30. The skill's `SKILL.md` is generated from this
+Status: draft 0.6.1, 2026-09-30. The skill's `SKILL.md` is generated from this
 file. To change the skill, amend this file, generate `SKILL.md` again, and
 seal it.*
 
@@ -32,8 +32,10 @@ that nobody has confirmed on this build yet.
   agent file, between two `---` lines.
 - **Digest:** a short fingerprint of exact content: one file's text, or every
   file in a skill's folder. Any change to that content changes the digest.
-- **Mark:** three frontmatter keys that the check writes: the contract's
-  version, the familiar's digest and the contract's digest.
+- **Mark:** three lines that the check writes: the contract's version, the
+  familiar's digest and the contract's digest. In a `.md` file they are keys
+  under `metadata:` in the frontmatter; in a Codex `.toml` file they are three
+  `#` comment lines at the end.
 - **Seal:** the check's command that writes the mark. Like a wax seal, it
   shows whether the files changed since, not who wrote them.
 - **Checkpoint:** the pause after each group of questions, where the person
@@ -339,6 +341,7 @@ decision.
 | 0.5.0 | 2026-09-29 | The practice test moves to its own file beside the familiar. At most three questions at a checkpoint, and a one-word yes is restated. Files outside the folder are named as not sealed. Question 13 gains a review of the record, and question 3 asks where the trigger lives. Dictated answers, a real output as the target, and quoted formats. Amend mode moves to `references/amend.md`. A shorter description. Two open questions gain evidence, and one is added. *Proposed* now means not yet confirmed, rather than not yet looked at, in the marks line here, in `SKILL.md` and in the template. New clause text is *Proposed*; the description is **Decided**. **Decided** 2026-09-29 | A field report on the first real use of this skill, 2026-09-29: 7 medium and 7 low findings. The owner took 12 of them, recorded the missing generator as an open question, and left where a contract lives to its own security plan. The owner picked the description | 1, 3, 4, 5, 6, 10, 11, 12, 13, 15, 18, 19 |
 | 0.5.1 | 2026-09-29 | The check refuses line and paragraph separators and control characters in every text file it reads (tab and CRLF line endings are still allowed). It allows only named extra keys in a Codex agent file. It also refuses more YAML number and key forms. The change also adds OH3 to the folder's SkillSpector baseline, a false positive on the comment that explains the output cap. No clause changed. **Decided** 2026-09-29 | Pre-merge security review of the multi-harness check | None; a file in the folder changed |
 | 0.6.0 | 2026-09-30 | An agent's contract states its capabilities in plain words; a binding for each tool (Claude Code, Antigravity, Codex) maps them to that tool's names and keys, lists the settings the check warns on, and records the tool version it was last checked against. The contract names the tool on its Target line; the skill asks at question 5 when the line is missing. The check no longer refuses a setting's value: it warns on every listed setting it does not know to be harmless, with a sharper danger warning for a few, and the skill shows each warning. Each extra key needs Decided words and its value in the contract. The show-me-good step moves to references/show-me-good.md. The status line now reads 0.6.0. Practice cases B7a to B7c. The owner's decisions are **Decided** 2026-09-30; new clause text is *Proposed* | The owner wants tool churn held behind one seam, and the check not to limit a person's own choices while it still signals danger (2026-09-30); issue 154's T2 and T3; security item A-2 | 4, 5, 7, 12, 18, 19 |
+| 0.6.1 | 2026-09-30 | Wording only; no rule changed. The mark is described for both file kinds: keys under `metadata:` in a `.md` file, three comment lines at the end of a Codex `.toml` file. The Antigravity binding is checked against agy 1.2.13 and names two Promised limits: a tools list cannot limit where the agent writes, and agy may give the agent tools beyond the list. The folder's SkillSpector baseline gives EA2 a reason that matches what it now covers. **Decided** 2026-09-30 | Fresh pre-merge security review of pull request 153 (findings S2, S4, S5, S6); harness re-probe, 2026-09-30 | Words used here, 4, 5, 7 |
 
 ### Flag log
 
