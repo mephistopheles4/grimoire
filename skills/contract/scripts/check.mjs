@@ -93,8 +93,16 @@ const KNOWN_KEYS = new Set(['name', 'description', 'compatibility', 'license', '
 // does not know rather than obeying it, so every other key, license and
 // compatibility included, needs the contract's `Extra keys:` line.
 const TOML_KNOWN_KEYS = new Set(['name', 'description', 'developer_instructions', 'sandbox_mode']);
+// The only other keys a .toml may hold, and each still needs the contract's
+// `Extra keys:` line. A key outside this set fails whatever the contract
+// lists, because a contract cannot vouch for a key whose effect on what the
+// agent may do nobody here has read. Neither of these widens it.
+const TOML_EXTRA_KEYS = new Set(['model', 'model_reasoning_effort']);
 // The two sandbox_mode values a .toml may hold, whatever the contract says.
 const SANDBOX_MODES = new Set(['read-only', 'workspace-write']);
+// The permissionMode values an agent .md may hold, whatever the contract says:
+// the ones no wider than default. Matched exactly, in this case.
+const PERMISSION_MODES = new Set(['default', 'plan', 'manual', 'dontAsk']);
 // A contract's `Target:` names the tool the familiar is built for, and so the
 // file ending that familiar needs. A Map, so a target such as "constructor"
 // is simply not in it.
@@ -1470,7 +1478,9 @@ function codePoints(s) {
  * Any key the rules do not name fails unless the contract lists it on its
  * `Extra keys:` line. A key a runtime reads, such as one that sets how much
  * the agent may do without asking, is a change nobody reviewed unless the
- * contract says it was wanted. A .toml file has its own known keys.
+ * contract says it was wanted. A .toml file has its own known keys, and may
+ * add only a key in TOML_EXTRA_KEYS, which the contract must still list. A
+ * key the contract lists outside that set fails with a reason of its own.
  */
 function fieldRules(fm, loc, extras, report) {
   const { top } = fm;
@@ -1478,9 +1488,16 @@ function fieldRules(fm, loc, extras, report) {
   const known = toml ? TOML_KNOWN_KEYS : KNOWN_KEYS;
   let unknown = 0;
   for (const [key, entry] of top) {
-    if (!known.has(key) && !extras.has(key)) {
+    if (known.has(key)) continue;
+    if (!extras.has(key)) {
       unknown += 1;
       report.fail('keys', `unknown key "${clean(key)}" at line ${entry.line}`);
+    } else if (toml && !TOML_EXTRA_KEYS.has(key)) {
+      unknown += 1;
+      report.fail(
+        'keys',
+        `key "${clean(key)}" at line ${entry.line} is outside the extra keys a .toml may hold (model, model_reasoning_effort), even when the contract lists it`,
+      );
     }
   }
   if (unknown === 0) report.pass('keys');
@@ -1536,6 +1553,17 @@ function fieldRules(fm, loc, extras, report) {
     if (meta.kind !== 'map') report.fail('metadata', `line ${meta.line}: must be a map of text values`);
     else report.pass('metadata');
   }
+
+  // permissionMode sets what the agent may do without asking, so a contract
+  // listing it cannot widen it: the check keeps it to the values no wider
+  // than default, as it keeps sandbox_mode, and never echoes it. The value
+  // compared is the one the reader parsed, so a block's final line feed, a
+  // flow sequence or another case fails too.
+  const pm = top.get('permissionMode');
+  if (pm) {
+    if (pm.kind === 'text' && PERMISSION_MODES.has(pm.value)) report.pass('permission-mode');
+    else report.fail('permission-mode', `line ${pm.line}: must be "default", "plan", "manual" or "dontAsk"`);
+  }
 }
 
 /**
@@ -1584,17 +1612,30 @@ function targetRule(facts, loc, report) {
   else report.pass('target', t[0]);
 }
 
-/** The character rule on one file readText read. Records every hit; true when there is none. */
-function charactersRule(file, label, report) {
-  const hits = findRefused(file);
-  for (const h of hits) report.cannot('characters', `${label} line ${h.line} holds ${h.what}`);
-  return hits.length === 0;
+/** The character rule's hits in one file readText read, each with the file's label. */
+function characterHits(file, label) {
+  return findRefused(file).map(h => ({ label, ...h }));
+}
+
+// The most hit lines the character rule prints in one run, counted across the
+// familiar and the contract. The rest are counted in one summary line, so a
+// file with a hit on every line cannot flood the output, and twenty are enough
+// to find and fix before the next run.
+const CHARACTER_HITS_MAX = 20;
+
+/** Record the character rule's hits: the first CHARACTER_HITS_MAX, then a count of the rest. */
+function reportCharacters(hits, report) {
+  for (const h of hits.slice(0, CHARACTER_HITS_MAX)) report.cannot('characters', `${h.label} line ${h.line} holds ${h.what}`);
+  const rest = hits.length - CHARACTER_HITS_MAX;
+  if (rest > 0) report.cannot('characters', `${rest} more ${rest === 1 ? 'line holds' : 'lines hold'} a refused character`);
 }
 
 /** The character rule under --seal: the hits, then a Refusal, so nothing is written. */
 function refuseCharacters(file, label, report) {
+  const hits = characterHits(file, label);
+  if (hits.length === 0) return;
   const scratch = new Report();
-  if (charactersRule(file, label, scratch)) return;
+  reportCharacters(hits, scratch);
   report.lines.push(...scratch.lines);
   throw new Refusal('characters', `${label} holds a character this check refuses`);
 }
@@ -1644,13 +1685,16 @@ function runCheck(loc, report) {
 
   // The character rule, before any other rule reads either file, so that no
   // PASS or WARN line is built from a file this check read one way and a
-  // loader could read another. Both files are scanned in full, and every line
-  // that holds one is reported. A .toml familiar takes the rule in
-  // tomlLineRules instead, line by line as its reader goes.
+  // loader could read another. Both files are scanned in full, and each line
+  // that holds one is reported, up to CHARACTER_HITS_MAX lines across the
+  // two. A .toml familiar takes the rule in tomlLineRules instead, line by
+  // line as its reader goes.
   const toml = isTomlFamiliar(loc);
-  const famClean = toml || charactersRule(fam, famLabel, report);
-  const conClean = !con || charactersRule(con, conLabel, report);
-  if (!famClean || !conClean) return;
+  const hits = [...(toml ? [] : characterHits(fam, famLabel)), ...(con ? characterHits(con, conLabel) : [])];
+  if (hits.length > 0) {
+    reportCharacters(hits, report);
+    return;
+  }
 
   invisibleRule(fam, famLabel, report);
   if (con) invisibleRule(con, conLabel, report);

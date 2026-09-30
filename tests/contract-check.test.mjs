@@ -83,6 +83,10 @@ const CONTRACT = 'Version: 1.0.0\n\n# Contract\n\nWhat this familiar is for.\n';
 // A skill's digest covers its whole folder and cannot say which file changed.
 const BROKEN = "FAIL familiar-digest: the seal is broken; a file in the familiar's folder changed since it was sealed";
 
+// The keys rule's reason for a .toml key the contract lists that is outside
+// the fixed set of extra keys a .toml may hold.
+const TOML_EXTRA_REASON = 'is outside the extra keys a .toml may hold (model, model_reasoning_effort), even when the contract lists it';
+
 function familiarText(fm, body = '# Demo\n\nBody text.\n') {
   return `---\n${fm.join('\n')}\n---\n${body}`;
 }
@@ -341,7 +345,7 @@ describe('S10', () => {
       expect(r, 1, 'FAIL keys: unknown key "permissionMode" at line 4');
     });
     test('permissionMode listed in Extra keys, sealed -> 0', () => {
-      const dir = skill({ fm: [...defaultFm('demo'), 'permissionMode: x'], contract: 'Version: 1.0.0\nExtra keys: tools, permissionMode\n' });
+      const dir = skill({ fm: [...defaultFm('demo'), 'permissionMode: plan'], contract: 'Version: 1.0.0\nExtra keys: tools, permissionMode\n' });
       const c = sealAndCheck(dir);
       assert.ok(has(c, 'PASS keys'), show(c));
     });
@@ -902,11 +906,11 @@ describe('v4', () => {
       expect(r, 1, 'FAIL name-matches-file: name "x" differs from the file stem "x?"');
       assert.ok(!r.out.includes('\u{202E}'), 'U+202E reached the output');
     });
-    test('a key holding U+2028 is not echoed at all', () => {
-      // The character rule refuses the separator before the key is read at all.
-      const r = run([skill({ fm: ['name: demo', 'na\u{2028}me: x', 'description: A test skill.'] })]);
+    test('a value holding U+2028 is refused and not echoed at all', () => {
+      // The character rule refuses the separator before the value is read at all.
+      const r = run([skill({ fm: ['name: de\u{2028}mo', 'description: A test skill.'] })]);
       expect(r, 1);
-      assert.ok(r.lines.includes('CANNOT-CHECK characters: SKILL.md line 3 holds U+2028'), show(r));
+      assert.ok(r.lines.includes('CANNOT-CHECK characters: SKILL.md line 2 holds U+2028'), show(r));
       assert.ok(!r.out.includes('\u{2028}'), 'U+2028 reached the output');
     });
     test('an echoed name is cut to 80 characters', () => {
@@ -1893,9 +1897,10 @@ describe('v8 the .toml reader fails closed, and the contract names its target', 
     test('an unquoted true on a key the contract does not list -> 1 (D2)', () => {
       exact(run([codex({ lines: [...CODEX, 'hide = true'] }).file]), 1, cannot(6, R.bool));
     });
-    test('an unquoted false on a listed key, sealed -> 0', () => {
+    test('an unquoted false on a listed key is read, then fails keys, since hide is not a key a .toml may add -> 1', () => {
+      // The reader still takes the listed false; the key rule refuses the key.
       const { file } = codex({ lines: [...CODEX, 'hide = false'], contract: conWith('Target: codex\nExtra keys: hide') });
-      exact(sealCodex(file), 0, 'PASS keys');
+      exact(run([file]), 1, 'PASS toml', `FAIL keys: key "hide" at line 6 ${TOML_EXTRA_REASON}`);
     });
     test('text after true -> 1', () => {
       const r = run([codex({ lines: [...CODEX, 'hide = true # note'], contract: conWith('Extra keys: hide') }).file]);
@@ -2491,9 +2496,10 @@ describe('v10 the character rule refuses separators and control characters', () 
 
   describe("g) refuses U+2028 on the contract lines the check reads", () => {
     const CON = ['Version: 1.0.0', 'Target: claude', 'Extra keys: model', '', '# Contract', '', 'What this familiar is for.'];
+    const WITH_LS = ['Version: 1.0\u{2028}.0', 'Target: cla\u{2028}ude', 'Extra keys: mo\u{2028}del'];
     for (const [label, at] of [['Version:', 0], ['Target:', 1], ['Extra keys:', 2]]) {
-      test(`at the end of the ${label} line -> 1`, () => {
-        const lines = CON.map((l, i) => (i === at ? `${l}\u{2028}` : l));
+      test(`inside the ${label} line -> 1`, () => {
+        const lines = CON.map((l, i) => (i === at ? WITH_LS[at] : l));
         const { file } = agent({ contract: `${lines.join('\n')}\n` });
         refused(run([file]), 1, '\u{2028}', holds('x.contract.md', at + 1, 'U+2028'));
       });
@@ -2563,6 +2569,30 @@ describe('v10 the character rule refuses separators and control characters', () 
     assert.deepEqual(r.lines.filter(l => l.startsWith('CANNOT-CHECK characters: ')), want, show(r));
   });
 
+  describe('at most 20 lines are reported, counted across the familiar and the contract', () => {
+    // Twelve body lines of the familiar and `n` lines of the contract each hold one.
+    const bodyLine = i => `Line ${i} A\u{2028}B`;
+    function spread(n) {
+      const body = `# X\n\n${Array.from({ length: 12 }, (_, i) => bodyLine(i + 1)).join('\n')}\n`;
+      const contract = `Version: 1.0.0\nTarget: claude\n\n# Contract\n\n${Array.from({ length: n }, (_, i) => bodyLine(i + 1)).join('\n')}\n`;
+      return agent({ body, contract });
+    }
+    const listed = r => r.lines.filter(l => l.startsWith('CANNOT-CHECK characters: '));
+    test('exactly 20 -> 1, twenty lines and no summary', () => {
+      const r = run([spread(8).file]);
+      refused(r, 1, '\u{2028}', holds('x.md', 7, 'U+2028'), holds('x.contract.md', 13, 'U+2028'));
+      assert.equal(listed(r).length, 20, show(r));
+      assert.ok(!listed(r).some(l => l.includes(' more line')), show(r));
+    });
+    test('21 -> 1, twenty lines and a summary naming the one more', () => {
+      const r = run([spread(9).file]);
+      refused(r, 1, '\u{2028}', holds('x.contract.md', 13, 'U+2028'), 'CANNOT-CHECK characters: 1 more line holds a refused character');
+      assert.equal(listed(r).length, 21, show(r));
+      assert.ok(!r.lines.includes(holds('x.contract.md', 14, 'U+2028')), show(r));
+      assert.equal(listed(r).at(-1), 'CANNOT-CHECK characters: 1 more line holds a refused character', show(r));
+    });
+  });
+
   describe('l) the seal refuses each, and writes nothing', () => {
     test('U+2028 in a plain value of an agent .md -> 2', () => {
       const { file } = agent({ fm: ['name: x', 'description: A\u{2028}B'], contract: TCLAUDE });
@@ -2571,7 +2601,7 @@ describe('v10 the character rule refuses separators and control characters', () 
       assert.deepEqual(readFileSync(file), before);
     });
     test("U+2028 on the contract's Version: line -> 2", () => {
-      const { file } = agent({ contract: 'Version: 1.0.0\u{2028}\nTarget: claude\n\n# Contract\n' });
+      const { file } = agent({ contract: 'Version: 1.0\u{2028}.0\nTarget: claude\n\n# Contract\n' });
       const before = readFileSync(file);
       refused(run(['--seal', file]), 2, '\u{2028}', holds('x.contract.md', 1, 'U+2028'), NOT_WRITTEN);
       assert.deepEqual(readFileSync(file), before);
@@ -2608,6 +2638,127 @@ describe('v10 the character rule refuses separators and control characters', () 
       const { file } = agent({ text: familiarText(defaultFm('x')).replaceAll('\n', '\r\n'), contract: TCLAUDE });
       expect(run(['--seal', file]), 0, 'PASS seal: wrote ');
       expect(run([file]), 0, 'PASS familiar-digest', 'PASS contract-digest');
+    });
+  });
+});
+
+// ------------------------------------------------------------------ v10 keys a contract cannot widen
+
+// A .toml may hold only a fixed set of extra keys, whatever the contract lists,
+// and an agent .md's permissionMode may hold only the values no wider than
+// default. Each red case asserts its whole reason line, and a refused value is
+// never echoed.
+describe('v10 the extra keys a .toml may hold, and the permissionMode values', () => {
+  const CODEX = ['name = "cx"', 'description = "A test Codex agent."', 'developer_instructions = """', 'You review code.', '"""'];
+  const tomlCon = extra => `Version: 1.0.0\nTarget: codex\n${extra}\n\n# Contract\n\nWhat this familiar is for.\n`;
+  const mdCon = extra => `Version: 1.0.0\nTarget: claude\n${extra}\n\n# Contract\n\nWhat this familiar is for.\n`;
+  const PM_REASON = 'must be "default", "plan", "manual" or "dontAsk"';
+  const NOT_WRITTEN = 'FAIL seal: refused; nothing written';
+
+  function codex({ lines = CODEX, contract } = {}) {
+    const dir = fresh();
+    const file = join(dir, 'cx.toml');
+    writeFileSync(file, `${lines.join('\n')}\n`);
+    if (contract !== undefined) writeFileSync(join(dir, 'cx.contract.md'), contract);
+    return { dir, file };
+  }
+
+  function agent({ fm, contract } = {}) {
+    const dir = fresh();
+    const file = join(dir, 'x.md');
+    writeFileSync(file, familiarText(fm ?? defaultFm('x')));
+    if (contract !== undefined) writeFileSync(join(dir, 'x.contract.md'), contract);
+    return { dir, file };
+  }
+
+  /** The exit code, and each line printed exactly as given. */
+  function exact(r, code, ...lines) {
+    expect(r, code);
+    for (const l of lines) assert.ok(r.lines.includes(l), `missing the line "${l}"\n${show(r)}`);
+  }
+
+  describe('a .toml key the contract lists, outside the extra keys a .toml may hold', () => {
+    for (const [key, value] of [['approval_policy', '"never"'], ['web_search', '"live"'], ['model_instructions_file', '"x"']]) {
+      test(`${key}, listed -> 1 from keys`, () => {
+        const r = run([codex({ lines: [...CODEX, `${key} = ${value}`], contract: tomlCon(`Extra keys: ${key}`) }).file]);
+        exact(r, 1, `FAIL keys: key "${key}" at line 6 ${TOML_EXTRA_REASON}`);
+        assert.ok(!has(r, 'PASS keys'), show(r));
+      });
+    }
+    test('approval_policy, listed -> the seal refuses, and writes nothing', () => {
+      const { file } = codex({ lines: [...CODEX, 'approval_policy = "never"'], contract: tomlCon('Extra keys: approval_policy') });
+      const before = readFileSync(file);
+      exact(run(['--seal', file]), 2, `FAIL keys: key "approval_policy" at line 6 ${TOML_EXTRA_REASON}`, NOT_WRITTEN);
+      assert.deepEqual(readFileSync(file), before);
+    });
+    test('model and model_reasoning_effort, listed and present, sealed -> 0', () => {
+      const lines = [...CODEX, 'model = "o3"', 'model_reasoning_effort = "high"'];
+      const { file } = codex({ lines, contract: tomlCon('Extra keys: model, model_reasoning_effort') });
+      expect(run(['--seal', file]), 0, 'PASS seal: wrote ');
+      exact(run([file]), 0, 'PASS keys', 'PASS familiar-digest', 'PASS contract-digest');
+    });
+  });
+
+  describe('permissionMode, listed, holds only a value no wider than default', () => {
+    const refusedValues = [
+      ['bypassPermissions', ['permissionMode: bypassPermissions'], 'bypassPermissions'],
+      ['"bypassPermissions" (quoted)', ['permissionMode: "bypassPermissions"'], 'bypassPermissions'],
+      ['acceptEdits', ['permissionMode: acceptEdits'], 'acceptEdits'],
+      ['auto', ['permissionMode: auto'], 'auto'],
+      ['Plan', ['permissionMode: Plan'], 'Plan'],
+      ['AUTO', ['permissionMode: AUTO'], 'AUTO'],
+      ['[plan]', ['permissionMode: [plan]'], '[plan]'],
+      ['a | block holding plan', ['permissionMode: |', '  plan'], null],
+    ];
+    for (const [label, lines, echo] of refusedValues) {
+      test(`${label} -> 1 from permission-mode, the value never echoed`, () => {
+        const r = run([agent({ fm: [...defaultFm('x'), ...lines], contract: mdCon('Extra keys: permissionMode') }).file]);
+        exact(r, 1, `FAIL permission-mode: line 4: ${PM_REASON}`, 'PASS keys');
+        if (echo) assert.ok(!r.out.includes(echo), show(r));
+      });
+    }
+    test('bypassPermissions -> the seal refuses, and writes nothing', () => {
+      const { file } = agent({ fm: [...defaultFm('x'), 'permissionMode: bypassPermissions'], contract: mdCon('Extra keys: permissionMode') });
+      const before = readFileSync(file);
+      const r = run(['--seal', file]);
+      exact(r, 2, `FAIL permission-mode: line 4: ${PM_REASON}`, NOT_WRITTEN);
+      assert.ok(!r.out.includes('bypassPermissions'), show(r));
+      assert.deepEqual(readFileSync(file), before);
+    });
+    const allowed = [
+      ['default', ['permissionMode: default']],
+      ['plan', ['permissionMode: plan']],
+      ['manual', ['permissionMode: manual']],
+      ['dontAsk', ['permissionMode: dontAsk']],
+      ['a >- block holding plan', ['permissionMode: >-', '  plan']],
+    ];
+    for (const [label, lines] of allowed) {
+      test(`${label}, sealed -> 0`, () => {
+        const { file } = agent({ fm: [...defaultFm('x'), ...lines], contract: mdCon('Extra keys: permissionMode') });
+        expect(run(['--seal', file]), 0, 'PASS seal: wrote ');
+        exact(run([file]), 0, 'PASS permission-mode', 'PASS keys', 'PASS familiar-digest');
+      });
+    }
+  });
+
+  describe('held by a mutation', () => {
+    test('name = true in a .toml -> 1 cannot-check, since the contract does not list name', () => {
+      exact(
+        run([codex({ lines: ['name = true', ...CODEX.slice(1)] }).file]),
+        1,
+        'CANNOT-CHECK toml: cx.toml line 1: an unquoted true or false on a key the contract does not list on its "Extra keys:" line',
+      );
+    });
+    test('subagent: true in an agent .md whose contract has no Extra keys line -> 1 cannot-check', () => {
+      exact(
+        run([agent({ fm: [...defaultFm('x'), 'subagent: true'], contract: mdCon('') }).file]),
+        1,
+        'CANNOT-CHECK frontmatter: x.md line 4: an unquoted value YAML reads as null, a boolean, a number or a date, such as a hex, octal, binary or base-60 number or a timestamp (quote it to use it as text)',
+      );
+    });
+    test('model in a .toml, present but not listed -> 1 unknown key', () => {
+      const r = run([codex({ lines: [...CODEX, 'model = "x"'], contract: tomlCon('') }).file]);
+      exact(r, 1, 'FAIL keys: unknown key "model" at line 6');
     });
   });
 });
