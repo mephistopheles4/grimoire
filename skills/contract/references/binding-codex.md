@@ -28,8 +28,8 @@ TOML, and calls everything else "cannot check".
 - **Lines:** top-level `key = value` lines, blank lines and whole-line `#`
   comments only. No table header, such as `[metadata]` or `[mcp_servers]`,
   and no dotted or quoted key. Codex drops an agent file with a `[metadata]`
-  table, or a `metadata` key, and the check reads no table. No key may be
-  named contract-version, familiar-digest or contract-digest.
+  table, or a `metadata` key, and the check reads no table. No key may
+  contain contract-version, familiar-digest or contract-digest, in any case.
 - **Values:** write strings. No number, date, array or inline table, no empty
   value, and nothing after a value, not even a comment. Each key once.
 - **Strings:** a basic string, `"…"` or `"""…"""`, takes only the escapes

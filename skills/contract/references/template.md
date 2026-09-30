@@ -96,11 +96,12 @@ each such key in the contract, on one line that starts with the words
 
 **The tool it is built for.** An agent's contract names one tool, on a line
 that holds only the word Target, a colon and the tool: claude, antigravity
-or codex. Put its mark on the next line, never on that line. The check fails
-when the file's ending does not fit that tool: a Codex agent is a `.toml`
-file, and the other two are `.md` files. It does not check that the tool
-names or keys inside belong to that tool. A skill's contract has no such
-line. If the line is missing, the agent asks you at question 5.
+or codex. Put its answer mark, such as **Decided** with the date, on the
+next line, never on that line. The check fails when the file's ending does
+not fit that tool: a Codex agent is a `.toml` file, and the other two are
+`.md` files. It does not check that the tool names or keys inside belong to
+that tool. A skill's contract has no such line. If the line is missing, the
+agent asks you at question 5.
 
 **Warnings.** The check does not refuse a setting's value because of what it
 lets the agent do. It warns on each listed setting it does not know to be

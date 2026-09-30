@@ -3,8 +3,8 @@ name: contract
 description: Builds a reusable skill or agent from terms a person agrees, and keeps those terms as a contract its file is generated from. Use when someone wants a new skill or agent, wants to turn a prompt they keep pasting into one, or wants to change or write the contract for one. Not for a one-off prompt, for running a skill or agent that already exists, or for a legal or business contract.
 metadata:
   contract-version: 0.6.0
-  familiar-digest: "sha256:38d7163e9c04d5c953dc1a211a56963073a64821d4f0f0323b8f59ee66f6f430"
-  contract-digest: "sha256:bdc1ce715c5765192622d041d1d6d7b3dadc2b33dcac94768d1dbcf6f414ae6a"
+  familiar-digest: "sha256:1d639a5bc1497712d4b07c28c4c7811c6a31fc10b53915677464e54c376a15de"
+  contract-digest: "sha256:ce3895243d191feca6aa7dbe49dc7e9faf6f573ad5ebfe0d5c68677a5251f99e"
 ---
 
 # contract
@@ -223,9 +223,9 @@ applies it.
 - **Question 5 (tools):** the fewest tools that do the job, each with a
   reason. For an agent, name capabilities in plain words, never one
   tool's names: "reads files; writes only in the project folder; no
-  network". Then, unless the contract has a `Target:` line, ask which
-  tool it is built for, and read `references/binding-<tool>.md` in the
-  skill base directory. Ask what that binding says to ask. Record each
+  network". Unless the contract has a `Target:` line, ask which tool it
+  is built for. Then read `references/binding-<tool>.md` in the skill
+  base directory. Ask what that binding says to ask. Record each
   extra key's exact value, marked **Decided**. When the person picks a
   value the binding lists as warned on, say so then. List each
   frontmatter key beyond the specification's on one contract line:
