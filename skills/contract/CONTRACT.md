@@ -1,9 +1,9 @@
 # Contract: contract
 
-Version: 0.6.1
+Version: 0.6.2
 
 *Type: skill. Template: `references/template.md`, draft 10. Level: Thorough.
-Status: draft 0.6.1, 2026-09-30. The skill's `SKILL.md` is generated from this
+Status: draft 0.6.2, 2026-09-30. The skill's `SKILL.md` is generated from this
 file. To change the skill, amend this file, generate `SKILL.md` again, and
 seal it.*
 
@@ -342,6 +342,7 @@ decision.
 | 0.5.1 | 2026-09-29 | The check refuses line and paragraph separators and control characters in every text file it reads (tab and CRLF line endings are still allowed). It allows only named extra keys in a Codex agent file. It also refuses more YAML number and key forms. The change also adds OH3 to the folder's SkillSpector baseline, a false positive on the comment that explains the output cap. No clause changed. **Decided** 2026-09-29 | Pre-merge security review of the multi-harness check | None; a file in the folder changed |
 | 0.6.0 | 2026-09-30 | An agent's contract states its capabilities in plain words; a binding for each tool (Claude Code, Antigravity, Codex) maps them to that tool's names and keys, lists the settings the check warns on, and records the tool version it was last checked against. The contract names the tool on its Target line; the skill asks at question 5 when the line is missing. The check no longer refuses a setting's value: it warns on every listed setting it does not know to be harmless, with a sharper danger warning for a few, and the skill shows each warning. Each extra key needs Decided words and its value in the contract. The show-me-good step moves to references/show-me-good.md. The status line now reads 0.6.0. Practice cases B7a to B7c. The owner's decisions are **Decided** 2026-09-30; new clause text is *Proposed* | The owner wants tool churn held behind one seam, and the check not to limit a person's own choices while it still signals danger (2026-09-30); issue 154's T2 and T3; security item A-2 | 4, 5, 7, 12, 18, 19 |
 | 0.6.1 | 2026-09-30 | Wording only; no rule changed. The mark is described for both file kinds: keys under `metadata:` in a `.md` file, three comment lines at the end of a Codex `.toml` file. The Antigravity binding is checked against agy 1.2.13 and names two Promised limits: a tools list cannot limit where the agent writes, and agy may give the agent tools beyond the list. The folder's SkillSpector baseline gives EA2 a reason that matches what it now covers. The check's tests are split across `tests/contract-check-*.test.mjs` so they run in parallel; no test changed. **Decided** 2026-09-30 | Fresh pre-merge security review of pull request 153 (findings S2, S4, S5, S6); harness re-probe, 2026-09-30 | Words used here, 4, 5, 7 |
+| 0.6.2 | 2026-09-30 | The practice test's pass rule before merge: six cases once each (A1, A6, A8, B7b, B8, B11), backed by field reports from real uses; the full run, each case twice, stays as an optional fuller check. Question 19's item 5 is now whether that is enough. No section of `SKILL.md` changes: question 12 here is this skill's own test, not the ones it writes. **Decided** 2026-09-30 | The owner: about 70 sessions is more than anybody spends proving a skill, and real use is the better calibration | 12, 19 |
 
 ### Flag log
 
@@ -465,10 +466,16 @@ install with the skill. It has three parts:
 - **C. The check:** `tests/contract-check-*.test.mjs`. They run in the
   repository's `check` gate.
 
-Each case runs twice (**Decided** 2026-09-26, the owner's build plan). The
-template's figure for Thorough is three runs; question 19 keeps this open.
-The expected answers are written before any run. **Any false alarm fails the
-run.** You run it, not the skill.
+**The pass rule before this skill merges** (**Decided** 2026-09-30, the
+owner): six cases pass once each, in fresh sessions. They are A1, A6 and A8
+from part A, and B7b, B8 and B11 from part B. Field reports from real uses
+back them. Two exist: a field report on this skill's pull request
+(2026-09-29), and eagle-eye rebuilt from a contract (2026-09-30). Each later
+real use ends with a short field report, and what it got wrong becomes an
+amendment. The other cases stay in the file as an optional fuller run, each
+case twice, as the owner's build plan set (2026-09-26). The expected answers
+are written before any run. **Any false alarm fails the run.** You run it,
+not the skill.
 
 ### 13. When would you retire it?
 
@@ -623,7 +630,7 @@ different model is an escalation, and the call is yours.
 | 2 | Does a simple agent need more than Quick? | No Quick contract for an agent exists yet | Two Quick contracts are written after release |
 | 3 | Does every agent tool accept a `metadata` key in the frontmatter? | *Proposed.* Two tools were used. On 2026-09-29, agy 1.2.12 loaded a sealed `.md` agent with its `metadata:` map, and the agent ran. Reported by the session working on pull request 155, 2026-09-29, from its own runs; not reproduced here. *Proposed.* Codex 0.159.0 refuses a metadata table, so a Codex agent's mark is three comment lines instead (2026-09-29) | *Proposed.* A tool refuses the key, or each tool a person names has loaded one |
 | 4 | Where does the person install a familiar? | It depends on the person's tool and folders | The person names it, in each unsettled list |
-| 5 | Two runs or three for this skill's practice test? | The owner's build plan sets two; the template says three for Thorough | The first full run, and its cost |
+| 5 | Is six cases plus field reports enough for this skill's practice test? | The owner chose it on 2026-09-30 over the full run, about 70 sessions, which nobody building a skill would spend. Field reports have not yet been compared with what the unrun cases cover | A field report finds a failure that one of the unrun cases covers |
 | 6 | Should the check also confirm that every question for the level has an answer? | That is a second job for one small check | After three contracts, if gaps slip through |
 | 7 | The real example (question 9) | The skill has not run yet | Its first real use |
 | 8 | Should a check enforce the section-scoped amend rule? For example, a mode of the check that compares the new file with the previously sealed one, and fails when a section outside the touched questions changed | Today the rule is Promised. The digest cannot tell a small rewrite from a full one. *Proposed.* A field report on this skill's pull request, 2026-09-29, found it in use: agents applied each amendment with their own patch scripts, and the seal could not tell. The seal proves integrity, not derivation. The report's next step is a small generator for the parts that are deterministic, such as the tables and the stops word for word | Amend rounds show whether the Promised rule holds |

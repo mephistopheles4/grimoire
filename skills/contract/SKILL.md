@@ -2,9 +2,9 @@
 name: contract
 description: Builds a reusable skill or agent from terms a person agrees, and keeps those terms as a contract its file is generated from. Use when someone wants a new skill or agent, wants to turn a prompt they keep pasting into one, or wants to change or write the contract for one. Not for a one-off prompt, for running a skill or agent that already exists, or for a legal or business contract.
 metadata:
-  contract-version: 0.6.1
+  contract-version: 0.6.2
   familiar-digest: "sha256:b1eaceed53f7f86df088c54a1b40c03244c6377b2836bcdd7587e8ed1fca5863"
-  contract-digest: "sha256:4b80344125fa90bd098bd035decd98f8ae78e100fc682653e4747db2150a6faa"
+  contract-digest: "sha256:dd8756d23c5cdede4d7ed70a417fc07c5781b0b4410beace578731238c5546d1"
 ---
 
 # contract

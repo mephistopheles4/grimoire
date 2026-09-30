@@ -11,11 +11,12 @@ version, with its why.
 **Who runs it.** The owner, or an agent or session the owner chooses. Never
 the session that built the skill. The skill never runs this test itself.
 
-**Pass rule.** Every case in A and B behaves as expected in **each of two
-runs**. Any false alarm fails the run. A false alarm is a step-in on a
-stay-quiet case, or a flag on a decoy. Two runs, not the template's three for
-Thorough, is the owner's decision in the build plan (contract question 19,
-item 5).
+**Pass rule before merge.** A1, A6, A8, B7b, B8 and B11 each behave as
+expected in **one run**, each in a fresh session, and field reports from real
+uses back them (contract question 12, **Decided** 2026-09-30). Any false alarm
+fails the run. A false alarm is a step-in on a stay-quiet case, or a flag on a
+decoy. The full run, every case in A and B in each of two runs, stays as an
+optional fuller check.
 
 ## Words used here
 
@@ -183,6 +184,8 @@ cannot differ. It needs no separate run here.
 ## Cost
 
 Measure the first session before you run the rest.
+
+- **The merge set:** 6 sessions, one per case.
 
 - **Part A:** 8 cases × 2 runs = 16 new sessions. One step-in session was
   measured at about 118,000 input tokens, most of it read from the cache.
