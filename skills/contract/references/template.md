@@ -103,9 +103,9 @@ names or keys inside belong to that tool. A skill's contract has no such
 line. If the line is missing, the agent asks you at question 5.
 
 **Warnings.** The check does not refuse a setting's value because of what it
-lets the agent do. It warns on each setting it does not know to be harmless,
-with a sharper danger warning for a few, and still passes. The agent shows
-you each one before you install anything.
+lets the agent do. It warns on each listed setting it does not know to be
+harmless, with a sharper danger warning for a few, and still passes. The
+agent shows you each one before you install anything.
 
 **How answers are marked.** Every answer carries one of three marks:
 
