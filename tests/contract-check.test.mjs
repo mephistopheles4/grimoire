@@ -2817,3 +2817,43 @@ describe('v10 the YAML reader refuses more number, boolean and key forms', () =>
   });
 });
 
+// ------------------------------------------------------------------ v10 held by a mutation: the folder
+
+// Each case closes a gap a mutation found in the folder rules: a behaviour
+// that could be removed with every earlier test still green.
+describe('v10 the folder rules, held by a mutation', () => {
+  /**
+   * Each line printed exactly as given, then the exit code. The lines come
+   * first, so a mutation that drops a rule fails on the line it dropped.
+   */
+  function exact(r, code, ...lines) {
+    for (const l of lines) assert.ok(r.lines.includes(l), `missing the line "${l}"\n${show(r)}`);
+    expect(r, code);
+  }
+
+  test('assets/x.png.md is text, not an image: an invisible character in it -> 1', () => {
+    const dir = skill();
+    put(dir, 'assets/x.png.md', 'A hid\u{200B}den mark.\n');
+    exact(run([dir]), 1, 'FAIL invisible-characters: assets/x.png.md line 1 holds U+200B');
+  });
+
+  for (const nested of ['references/SKILL.md', 'references/CONTRACT.md']) {
+    test(`a nested ${nested} is covered by the seal: edited after sealing -> 1`, () => {
+      const dir = skill({ contract: CONTRACT });
+      put(dir, nested, '# Nested\n\nFirst line.\n');
+      sealAndCheck(dir);
+      editFile(join(dir, ...nested.split('/')), 'First line.', 'First line, edited.');
+      exact(run([dir]), 1, BROKEN);
+    });
+  }
+
+  test('a file named caf\u{E9}.md in the folder -> 1 cannot-check', t => {
+    const dir = skill();
+    if (!tryPut(dir, 'caf\u{E9}.md', '# Notes\n')) {
+      t.skip('this file system refuses or changes the name');
+      return;
+    }
+    exact(run([dir]), 1, 'CANNOT-CHECK folder: "caf\u{E9}.md" holds a character outside A-Z, a-z, 0-9, ".", "_" and "-"');
+  });
+});
+
