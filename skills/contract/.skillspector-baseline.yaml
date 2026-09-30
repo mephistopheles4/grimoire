@@ -15,7 +15,7 @@
 # was reworded or moved to quiet the rule.
 #
 # Read this before you install. The entry is keyed by rule identifier, so EA2
-# is off for this whole skill, not only for that comment. That includes
+# is off for this whole skill, not only for the texts above. That includes
 # SKILL.md, the text an agent obeys, and references/template.md, which seeds
 # every file this skill generates. A new EA2 finding anywhere in this
 # directory would be suppressed too, and would not fail a scan. The owner

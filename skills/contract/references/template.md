@@ -77,9 +77,9 @@ adds a row to the change log (question 7).
 
 **The mark.** When the file is generated, a check writes three lines into the
 file: the contract's version, a digest of the file, and a digest of the
-contract. In a `.md` file they are keys in the frontmatter; in a Codex `.toml`
-file they are comment lines at the end. A digest is a short fingerprint of a
-file's exact text. The check fails when either file changes after the mark
+contract. In a `.md` file they are keys under `metadata:` in the frontmatter;
+in a Codex `.toml` file they are comment lines at the end. A digest is a short
+fingerprint of a file's exact text. The check fails when either file changes after the mark
 was written. The mark proves one thing only: the two files have not changed
 since the last mark. It does not prove who wrote them. Review the familiar's
 text whatever its mark says.

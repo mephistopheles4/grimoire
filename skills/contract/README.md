@@ -28,9 +28,9 @@ implementation.
 - **Contract:** the answered questions. These are the terms the person agrees
   with the familiar.
 - **Mark:** three lines that the check writes into the familiar's file: in
-  the settings at the top of a `.md` file, or as comments at the end of a
-  Codex `.toml` file. They show whether the familiar or its contract changed
-  since.
+  the settings at the top of a `.md` file, under `metadata:`, or as comments at
+  the end of a Codex `.toml` file. They show whether the familiar or its
+  contract changed since.
 - **Seal:** the check's command that writes the mark. Like a wax seal, it
   shows whether the files changed since, not who wrote them.
 
