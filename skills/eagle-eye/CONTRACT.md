@@ -1,6 +1,6 @@
 # Contract: eagle-eye
 
-Version: 0.1.0
+Version: 0.1.1
 
 - **Type:** skill
 - **Level:** Thorough
@@ -102,6 +102,7 @@ Extra keys: none.
 | 0.1.0 | 2026-09-30 | After the build check (result-checker, REFUTED): a hurry is explicit and the built file lists no trigger phrases; a "no" to the log is stored as a declined marker; question 20 names no provider; "two independent choices" recorded as a stay-out line. | The owner's picks on findings F1, F5, F6; F3 as a fix. | 1, 13, 19, 20 |
 | 0.1.0 | 2026-09-30 | The person's "before" answer is taken before any box is shown: a by-name request asks for the current leaning in one line and waits for it. | The end-to-end run asked it after showing the box and its recommendation, so it was no longer a before (the owner picked option B). | 3, 13 |
 | 0.1.0 | 2026-09-30 | The familiar is built at `skills/eagle-eye/`, with this contract beside it; the practice test moves to `docs/practice-tests/eagle-eye.md`. | The owner's decision: the skill already ships from `skills/`, and the repository keeps practice tests in `docs/practice-tests/`. | 12 |
+| 0.1.1 | 2026-09-30 | No clause changed. The generated file is brought back to the contract in two places: a use line is only appended to the log, never written back whole (question 13 says it appends), and the 2–3 decision table stays in chat, with no box file, page, export or audit run (question 3's depth rule). | Review of pull request 153: read-and-write-back can lose a line when two sessions write at once, and the procedure sent the chat-table route through the file steps. | 3, 13 |
 
 ---
 

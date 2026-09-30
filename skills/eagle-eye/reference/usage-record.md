@@ -69,13 +69,13 @@ secret and nothing personal into a line: the file outlives the conversation.
 ## Add a line and keep the others (question 13)
 
 A plain file write replaces the whole file, and the review needs every
-earlier line. Use one of these:
+earlier line. So append the new line, and never write the file whole: two
+sessions that each read the file and write it back can drop each other's
+line.
 
-- **Read, then write back.** Read the whole file, add the new line at the
-  end, and write the whole text back.
-- **Append with a shell.** For example `printf '%s\n' '<line>' >> <path>`, or
-  `Add-Content -Path <path> -Value '<line>'` in PowerShell. Quote the line so
-  the shell does not change it.
+Append with a shell. For example `printf '%s\n' '<line>' >> <path>`, or
+`Add-Content -Path <path> -Value '<line>'` in PowerShell. Quote the line so the
+shell does not change it.
 
 After the write, read the last line back, and check that the earlier lines
 are still there.

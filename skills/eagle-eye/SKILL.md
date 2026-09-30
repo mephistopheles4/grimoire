@@ -2,9 +2,9 @@
 name: eagle-eye
 description: Steps in when a discussion holds three or more open decisions and at least two of them are coupled, so that one choice changes what is possible in another, or when someone asks for it by name (/eagle-eye, an eagle-eye view, or a morphological box). Stays out when the person insists on the quick route, and for two independent choices.
 metadata:
-  contract-version: 0.1.0
-  familiar-digest: "sha256:ab89196fbe71737a1edcb6f8712f8441877629dc2b841d61538e925938a1d499"
-  contract-digest: "sha256:ad1c2fda6e421af9d35f2a36e09a3cf69a654983a3d5d4a555d071b7b0b6698f"
+  contract-version: 0.1.1
+  familiar-digest: "sha256:b52f4dc0cb481dcf288c24054da66479975eeb5ab356418a08cb60c7e6872814"
+  contract-digest: "sha256:09cfc4917c1952787f928c89c2fd99dde1b20d4c290e808dece059e3ae1d37ab"
 ---
 
 # Eagle-eye
@@ -171,7 +171,7 @@ debrief compare it with the decision.
    which edge to reread first. It is not a verdict.
 
    `audit.mjs` can rank the argued edges first. Its `--probe` says whether
-   a key is set, and sends nothing.
+   a key is set, and sends nothing. It needs a box file, so not a chat table.
 
    > **Warning: the audit sends the box's text to a model provider, and the
    > person's key pays.** On a probe `yes`, run `--dry-run` first. State the
@@ -195,7 +195,9 @@ debrief compare it with the decision.
    it is: the spec's, the owner's, or your recommendation.
 6. **Presets.** Write at least two, and make at least one of them change an
    option. See [Presets](#presets-questions-4-17).
-7. **Render and read.** Write `<topic>.box.json` to a **scratch directory**:
+7. **Render and read.** With 2–3 decisions, give the table and its edges in
+   chat, and go on to step 9: no file, no page. With 4 or more, write
+   `<topic>.box.json` to a **scratch directory**:
    the temporary path your tool reports, or the system temporary directory.
    See [Where a box lives](#where-a-box-lives-questions-3-4-11).
 
@@ -428,9 +430,9 @@ and after in the debrief.
 asked for by name, declined or built, whether any row changed, the person's
 answer before the box beside the decision after it, and a one-line reason.
 Write it when the person declines the offer, or after the debrief. **Keep
-every line already there:** read the file and write it back with the new line
-at the end, or append with a shell. Never write the new line alone. The
-fields, the marker and the commands are in `reference/usage-record.md`.
+every line already there:** append the new line with a shell. Never replace
+the file: two sessions that write at once would lose a line. The fields, the
+marker and the commands are in `reference/usage-record.md`.
 
 **Review.** Count three signals, each on its own, over the last 10 lines:
 **cries wolf**, **rubber stamp** and **nothing changes** (defined in
