@@ -12,11 +12,15 @@
 // every file in its folder but CONTRACT.md (see "the folder").
 //
 // Exit 0 pass (warnings allowed), 1 fail or cannot check, 2 usage or refusal.
-// The exit code is the verdict, and the skill reads the code rather than the
-// text. The text is for a person, and it is built so that nothing a file says
-// can speak through it: it never echoes a field value, except a `name` that
-// already matched the name pattern, and every character it does echo from a
-// file or a folder name is cleaned first.
+// The exit code is the verdict. The skill also shows the person each WARN
+// line, but no line of text changes the verdict. The text is built so that
+// nothing a file says can speak through it: it never echoes a field value,
+// except a `name` that already matched the name pattern, and every character
+// it does echo from a file or a folder name is cleaned first.
+//
+// A setting the check does not know to be harmless is flagged, not refused:
+// the person chose it, and the check says so. A few settings known to let the
+// agent do more without asking get a sharper danger warning (see DANGER).
 //
 // The files this reads may come from a stranger, so the readers below are not
 // a YAML parser or a TOML parser and do not try to be. Each reads one small
@@ -89,17 +93,61 @@ const ECHO_MAX = 80;
 
 const MARK_KEYS = ['contract-version', 'familiar-digest', 'contract-digest'];
 const KNOWN_KEYS = new Set(['name', 'description', 'compatibility', 'license', 'allowed-tools', 'metadata']);
-// A .toml file has keys of its own. Codex drops an agent file with a key it
-// does not know rather than obeying it, so every other key, license and
-// compatibility included, needs the contract's `Extra keys:` line.
+// A .toml file has keys of its own. Every other key, license and
+// compatibility included, needs the contract's `Extra keys:` line, as a .md
+// file's does, and then passes with any value.
 const TOML_KNOWN_KEYS = new Set(['name', 'description', 'developer_instructions', 'sandbox_mode']);
-// The only other keys a .toml may hold, and each still needs the contract's
-// `Extra keys:` line. A key outside this set fails whatever the contract
-// lists, because a contract cannot vouch for a key whose effect on what the
-// agent may do nobody here has read. Neither of these widens it.
-const TOML_EXTRA_KEYS = new Set(['model', 'model_reasoning_effort']);
-// The two sandbox_mode values a .toml may hold, whatever the contract says.
-const SANDBOX_MODES = new Set(['read-only', 'workspace-write']);
+
+// The settings this check warns on. Neither kind of warning fails the check,
+// and neither refuses a value: the person chose the setting, and the check
+// says so. Warnings run only on keys that passed the keys rule.
+//
+// DANGER, by file kind, then by key: a setting known to let the agent do more
+// without asking. A value in `safe` prints nothing; any other value, or any
+// value at all when `safe` is null, prints the row's line. The value is never
+// echoed, and the key and label come from this table. A Map, so a key such as
+// "constructor" is simply not in it.
+//
+// Mirror of references/binding-*.md; change both.
+const warnRow = (safe, label) => ({ safe: safe === null ? null : new Set(safe), label });
+const ACT_OUTSIDE = 'may let the agent act outside a sandbox';
+const OUTSIDE_FILE = 'loads instructions from a file the seal does not cover';
+const DANGER = new Map([
+  [
+    '.toml',
+    new Map([
+      ['sandbox_mode', warnRow(['read-only', 'workspace-write'], ACT_OUTSIDE)],
+      ['default_permissions', warnRow([':read-only', ':workspace'], ACT_OUTSIDE)],
+      ['approval_policy', warnRow(['on-request'], 'may let the agent run commands without asking')],
+      ['approvals_reviewer', warnRow(['user'], 'may let something other than the person approve commands')],
+      ['web_search', warnRow(['disabled', 'cached'], 'may let the agent reach the live web')],
+      ['model_instructions_file', warnRow(null, OUTSIDE_FILE)],
+      ['experimental_instructions_file', warnRow(null, OUTSIDE_FILE)],
+      ['experimental_compact_prompt_file', warnRow(null, OUTSIDE_FILE)],
+      ['model_catalog_json', warnRow(null, 'loads a file the seal does not cover')],
+      ['openai_base_url', warnRow(null, "sends the agent's work to a server the file names")],
+    ]),
+  ],
+  [
+    '.md',
+    new Map([
+      ['permissionMode', warnRow(['default', 'plan', 'manual', 'dontAsk'], 'may let the agent act without asking')],
+      ['allowed-tools', warnRow(null, 'may let the agent use tools without asking')],
+      ['omitClaudeMd', warnRow(null, "starts the agent without the person's CLAUDE.md files")],
+      ['initialPrompt', warnRow(null, 'sends a first message the person did not type')],
+    ]),
+  ],
+]);
+// HARMLESS, by file kind: listed keys that print nothing. Every other key the
+// contract lists, outside the known keys and DANGER, prints the plainer
+// `unreviewed` warning. Sets, for the reason DANGER is a Map.
+const HARMLESS = new Map([
+  ['.toml', new Set(['model', 'model_reasoning_effort'])],
+  ['.md', new Set(['tools', 'model', 'effort'])],
+]);
+// The sandbox_mode values that print PASS sandbox-mode: its DANGER row's safe
+// set, so the two cannot drift apart.
+const SANDBOX_MODES = DANGER.get('.toml').get('sandbox_mode').safe;
 // A contract's `Target:` names the tool the familiar is built for, and so the
 // file ending that familiar needs. A Map, so a target such as "constructor"
 // is simply not in it.
@@ -746,7 +794,12 @@ function parseFrontmatter(lines, close, extras) {
       i = block.end;
       continue;
     }
-    top.set(key, { kind: 'text', value: parseScalar(raw, ln, key, extras), line: ln });
+    // parseScalar takes a plain value starting "[" only as a flow list, and
+    // refuses every other one, so a value that parsed from such a start is a
+    // flow list. The warning rules compare its items one by one; a quoted
+    // "[plan]" is text, and is compared whole.
+    const value = parseScalar(raw, ln, key, extras);
+    top.set(key, { kind: 'text', value, line: ln, flow: raw[0] === '[' });
     i += 1;
   }
   return { top, metadata };
@@ -775,7 +828,9 @@ function parseFrontmatter(lines, close, extras) {
 // reads past. They are found by the same pass that knows whether a line is
 // inside a string: the same three lines inside a string are text, and stay in
 // the digest. Any other comment that names a mark key, in any case or form,
-// is refused, because it would read as a seal to a person or a model.
+// is refused, because it would read as a seal to a person or a model. So is a
+// key named like one, listed or not: no tool reads such a key, and it too
+// would read as a seal.
 
 // The seal block, one fully anchored pattern per line, in MARK_KEYS order.
 // The version takes the characters sealableVersion() allows, and no quote.
@@ -784,8 +839,9 @@ const TOML_SEAL_RES = [
   /^# familiar-digest = "(sha256:[0-9a-f]{64})"$/,
   /^# contract-digest = "(sha256:[0-9a-f]{64})"$/,
 ];
-// A comment's text that names a mark key. Looser than the block on purpose:
-// any case, any spacing, any separator and any quoting.
+// A comment's text, or a key, that names a mark key. Looser than the block on
+// purpose: any case, any spacing, any separator and any quoting, and anywhere
+// in the key.
 const TOML_DECOY_RE = /contract-version|familiar-digest|contract-digest/i;
 // The leading run of bare-key characters on a key line. TOP_KEY_RE decides
 // afterwards whether the key is one this check reads.
@@ -811,6 +867,7 @@ const TOML_REASON = {
   twoSingle: 'two single quotes in a row inside a literal string (a TOML literal string has no escapes)',
   longClose: 'a closing quote run longer than the three-quote delimiter',
   decoy: 'a comment that names a seal key but is not part of the seal block (three exact lines at the end of the file)',
+  decoyKey: 'a key named like a seal key; the seal is three comment lines at the end of the file',
 };
 
 /** True for a .toml agent file, whose reader, keys and seal are its own. */
@@ -1004,6 +1061,7 @@ function parseToml(fam, extras) {
     // Line number only, for the reason readMetadata gives.
     if (!TOP_KEY_RE.test(key)) throw new CannotCheck(ln, 'a key outside the readable subset');
     if (key === 'metadata') throw new CannotCheck(ln, TOML_REASON.metadata);
+    if (TOML_DECOY_RE.test(key)) throw new CannotCheck(ln, TOML_REASON.decoyKey);
     if (top.has(key)) throw new CannotCheck(ln, `duplicate key "${clean(key)}"`);
     // Not trimmed at the end: after an opening """ or ''' the spaces are text,
     // and so is the line ending after them. Each branch of tomlValue allows
@@ -1490,11 +1548,10 @@ function codePoints(s) {
  * The field rules on a parsed familiar. Records into report.
  *
  * Any key the rules do not name fails unless the contract lists it on its
- * `Extra keys:` line. A key a runtime reads, such as one that sets how much
- * the agent may do without asking, is a change nobody reviewed unless the
- * contract says it was wanted. A .toml file has its own known keys, and may
- * add only a key in TOML_EXTRA_KEYS, which the contract must still list. A
- * key the contract lists outside that set fails with a reason of its own.
+ * `Extra keys:` line, in a .md file and a .toml file alike, each with its own
+ * known keys. A listed key passes with any value: the check refuses no value
+ * for what it lets the agent do. It warns instead, once per key, on every key
+ * that passed and that it does not know to be harmless (see warningRules).
  */
 function fieldRules(fm, loc, extras, report) {
   const { top } = fm;
@@ -1502,17 +1559,9 @@ function fieldRules(fm, loc, extras, report) {
   const known = toml ? TOML_KNOWN_KEYS : KNOWN_KEYS;
   let unknown = 0;
   for (const [key, entry] of top) {
-    if (known.has(key)) continue;
-    if (!extras.has(key)) {
-      unknown += 1;
-      report.fail('keys', `unknown key "${clean(key)}" at line ${entry.line}`);
-    } else if (toml && !TOML_EXTRA_KEYS.has(key)) {
-      unknown += 1;
-      report.fail(
-        'keys',
-        `key "${clean(key)}" at line ${entry.line} is outside the extra keys a .toml may hold (model, model_reasoning_effort), even when the contract lists it`,
-      );
-    }
+    if (known.has(key) || extras.has(key)) continue;
+    unknown += 1;
+    report.fail('keys', `unknown key "${clean(key)}" at line ${entry.line}`);
   }
   if (unknown === 0) report.pass('keys');
 
@@ -1545,6 +1594,7 @@ function fieldRules(fm, loc, extras, report) {
 
   if (toml) {
     tomlKeyRules(top, report);
+    warningRules(top, toml, known, extras, report);
     return;
   }
 
@@ -1567,14 +1617,16 @@ function fieldRules(fm, loc, extras, report) {
     if (meta.kind !== 'map') report.fail('metadata', `line ${meta.line}: must be a map of text values`);
     else report.pass('metadata');
   }
+
+  warningRules(top, toml, known, extras, report);
 }
 
 /**
  * The .toml keys past name and description. developer_instructions is the
  * agent's prompt, so it must be there and hold text. sandbox_mode sets what
- * the agent may do without asking, so a contract listing it cannot widen it:
- * the check, not the contract, keeps it to its two narrow values, and never
- * echoes it.
+ * the agent may do without asking. It takes any value: one of its two narrow
+ * values prints PASS sandbox-mode, and any other prints nothing here, since
+ * its danger warning comes from warningRules. Its value is never echoed.
  */
 function tomlKeyRules(top, report) {
   const di = top.get('developer_instructions');
@@ -1583,9 +1635,47 @@ function tomlKeyRules(top, report) {
   else report.pass('developer_instructions');
 
   const sm = top.get('sandbox_mode');
-  if (!sm) return;
-  if (SANDBOX_MODES.has(sm.value)) report.pass('sandbox-mode');
-  else report.fail('sandbox-mode', `line ${sm.line}: must be "read-only" or "workspace-write"`);
+  if (sm && SANDBOX_MODES.has(sm.value)) report.pass('sandbox-mode');
+}
+
+/**
+ * True when a DANGER row's value is in its safe set. A flow list, `[a, b]`,
+ * is safe when every item is, and an empty one holds nothing to warn on, on
+ * any row. Otherwise a row with no safe set is never safe. Any other value,
+ * a quoted "[a]" included, is compared whole.
+ */
+function dangerSafe(row, entry) {
+  if (entry.flow) {
+    const inner = entry.value.slice(1, -1);
+    if (trimEndSpaces(inner.slice(leading(inner).width)) === '') return true;
+    if (row.safe === null) return false;
+    return flowItems(inner).every(item => row.safe.has(item));
+  }
+  if (row.safe === null || entry.kind !== 'text') return false;
+  return row.safe.has(entry.value);
+}
+
+/**
+ * The warnings, one line per key at most, on each key that passed the keys
+ * rule: a known key or one the contract lists. A key that failed it has its
+ * FAIL line already. A key with a DANGER row prints the row's line unless its
+ * value is safe. Any other key outside the known keys and HARMLESS prints the
+ * plainer `unreviewed` line, with the key cleaned. No value is ever echoed.
+ * Both are warnings: they never fail the check, and --seal still seals.
+ */
+function warningRules(top, toml, known, extras, report) {
+  const kind = toml ? '.toml' : '.md';
+  const danger = DANGER.get(kind);
+  const harmless = HARMLESS.get(kind);
+  for (const [key, entry] of top) {
+    if (!known.has(key) && !extras.has(key)) continue;
+    const row = danger.get(key);
+    if (row !== undefined) {
+      if (!dangerSafe(row, entry)) report.warn('danger', `${key} at line ${entry.line} ${row.label}`);
+    } else if (!known.has(key) && !harmless.has(key)) {
+      report.warn('unreviewed', `${clean(key)} at line ${entry.line} is a setting this check does not review`);
+    }
+  }
 }
 
 /**

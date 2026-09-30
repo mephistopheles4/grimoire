@@ -78,14 +78,19 @@ function expect(r, code, ...prefixes) {
   assert.equal(results[0], code === 0 ? 'RESULT: pass' : 'RESULT: fail', show(r));
 }
 
+// A line printed exactly once. A warning is one line per key, so a second
+// copy is a rule that ran twice.
+function once(r, line) {
+  assert.equal(r.lines.filter(l => l === line).length, 1, `want the line "${line}" exactly once\n${show(r)}`);
+}
+
+// The danger warning for sandbox_mode at a line.
+const SANDBOX_DANGER = n => `WARN danger: sandbox_mode at line ${n} may let the agent act outside a sandbox`;
+
 const CONTRACT = 'Version: 1.0.0\n\n# Contract\n\nWhat this familiar is for.\n';
 
 // A skill's digest covers its whole folder and cannot say which file changed.
 const BROKEN = "FAIL familiar-digest: the seal is broken; a file in the familiar's folder changed since it was sealed";
-
-// The keys rule's reason for a .toml key the contract lists that is outside
-// the fixed set of extra keys a .toml may hold.
-const TOML_EXTRA_REASON = 'is outside the extra keys a .toml may hold (model, model_reasoning_effort), even when the contract lists it';
 
 function familiarText(fm, body = '# Demo\n\nBody text.\n') {
   return `---\n${fm.join('\n')}\n---\n${body}`;
@@ -1897,10 +1902,14 @@ describe('v8 the .toml reader fails closed, and the contract names its target', 
     test('an unquoted true on a key the contract does not list -> 1 (D2)', () => {
       exact(run([codex({ lines: [...CODEX, 'hide = true'] }).file]), 1, cannot(6, R.bool));
     });
-    test('an unquoted false on a listed key is read, then fails keys, since hide is not a key a .toml may add -> 1', () => {
-      // The reader still takes the listed false; the key rule refuses the key.
+    test('an unquoted false on a listed key is read, and passes keys with an unreviewed warning, sealed -> 0', () => {
+      // The reader takes the listed false; the key rule passes the listed key,
+      // and the warning says the check does not review what it does.
       const { file } = codex({ lines: [...CODEX, 'hide = false'], contract: conWith('Target: codex\nExtra keys: hide') });
-      exact(run([file]), 1, 'PASS toml', `FAIL keys: key "hide" at line 6 ${TOML_EXTRA_REASON}`);
+      const r = sealCodex(file);
+      const want = 'WARN unreviewed: hide at line 6 is a setting this check does not review';
+      exact(r, 0, 'PASS toml', 'PASS keys', want);
+      assert.equal(r.lines.filter(l => l === want).length, 1, show(r));
     });
     test('text after true -> 1', () => {
       const r = run([codex({ lines: [...CODEX, 'hide = true # note'], contract: conWith('Extra keys: hide') }).file]);
@@ -1947,9 +1956,13 @@ describe('v8 the .toml reader fails closed, and the contract names its target', 
       const lines = [...CODEX.slice(0, 2), "developer_instructions = '''", "You review code.''''"];
       exact(run([codex({ lines }).file]), 1, cannot(4, R.longClose));
     });
-    test('H2: \\"""" closes where TOML closes, so the key after it is read -> 1 sandbox-mode', () => {
+    test('H2: \\"""" closes where TOML closes, so the key after it is read -> 0 with the sandbox_mode danger line at line 3', () => {
+      // The line number proves the key after the close was read as a key.
       const lines = ['name = "cx"', `description = """A test${BS}""""`, 'sandbox_mode = "danger-full-access"', 'developer_instructions = "Review."'];
-      exact(run([codex({ lines }).file]), 1, 'FAIL sandbox-mode: line 3: must be "read-only" or "workspace-write"', 'PASS description');
+      const r = run([codex({ lines }).file]);
+      exact(r, 0, SANDBOX_DANGER(3), 'PASS description');
+      once(r, SANDBOX_DANGER(3));
+      assert.ok(!has(r, 'PASS sandbox-mode') && !has(r, 'FAIL sandbox-mode'), show(r));
     });
     test('a one-line basic string that does not close -> 1', () => {
       exact(run([codex({ lines: ['name = "cx', ...CODEX.slice(1)] }).file]), 1, cannot(1, R.unclosedBasic));
@@ -1967,15 +1980,21 @@ describe('v8 the .toml reader fails closed, and the contract names its target', 
       const lines = ['name = "cx"', `description = """${'d'.repeat(1023)}`, '"""', 'developer_instructions = "Review."'];
       exact(run([codex({ lines }).file]), 0, 'PASS description');
     });
-    test('spaces after an opening """ are part of the value, so the newline after them is too -> 1 sandbox-mode', () => {
+    test('spaces after an opening """ are part of the value, so the newline after them is too -> 0 with the sandbox_mode danger line', () => {
       // TOML trims a newline only straight after the delimiter. Read as
-      // trimmed, this value would be "read-only" and pass.
+      // trimmed, this value would be "read-only" and print no danger line.
       const lines = [...CODEX, 'sandbox_mode = """  ', 'read-only"""'];
-      exact(run([codex({ lines }).file]), 1, 'FAIL sandbox-mode: line 6: must be "read-only" or "workspace-write"');
+      const r = run([codex({ lines }).file]);
+      exact(r, 0, SANDBOX_DANGER(6));
+      once(r, SANDBOX_DANGER(6));
+      assert.ok(!has(r, 'PASS sandbox-mode') && !has(r, 'FAIL sandbox-mode'), show(r));
     });
-    test("spaces after an opening ''' are part of the value too -> 1 sandbox-mode", () => {
+    test("spaces after an opening ''' are part of the value too -> 0 with the sandbox_mode danger line", () => {
       const lines = [...CODEX, "sandbox_mode = '''\t", "read-only'''"];
-      exact(run([codex({ lines }).file]), 1, 'FAIL sandbox-mode: line 6: must be "read-only" or "workspace-write"');
+      const r = run([codex({ lines }).file]);
+      exact(r, 0, SANDBOX_DANGER(6));
+      once(r, SANDBOX_DANGER(6));
+      assert.ok(!has(r, 'PASS sandbox-mode') && !has(r, 'FAIL sandbox-mode'), show(r));
     });
     test('a one-line """ value -> 0', () => {
       const lines = ['name = "cx"', 'description = """A test agent."""', 'developer_instructions = """Review."""'];
@@ -2249,21 +2268,28 @@ describe('v8 the .toml reader fails closed, and the contract names its target', 
     });
   });
 
-  describe('D9 sandbox_mode is enforced', () => {
-    test('danger-full-access -> 1, with no Extra keys entry needed, and the value never echoed', () => {
+  describe('D9 sandbox_mode is flagged, not refused', () => {
+    test('danger-full-access -> 0 with the danger line, with no Extra keys entry needed, and the value never echoed', () => {
       const r = run([codex({ lines: [...CODEX, 'sandbox_mode = "danger-full-access"'] }).file]);
-      exact(r, 1, 'FAIL sandbox-mode: line 6: must be "read-only" or "workspace-write"', 'PASS keys');
-      assert.ok(!r.out.includes('danger'), show(r));
+      exact(r, 0, SANDBOX_DANGER(6), 'PASS keys');
+      once(r, SANDBOX_DANGER(6));
+      assert.ok(!has(r, 'PASS sandbox-mode') && !has(r, 'FAIL sandbox-mode'), show(r));
+      assert.ok(!r.out.includes('danger-full-access'), show(r));
     });
-    test('danger-full-access -> the seal refuses, and writes nothing', () => {
+    test('danger-full-access -> the seal writes the mark, and the danger line prints once', () => {
       const { file } = codex({ lines: [...CODEX, 'sandbox_mode = "danger-full-access"'], contract: TCON });
-      const before = readFileSync(file);
-      exact(run(['--seal', file]), 2, 'FAIL sandbox-mode: line 6: must be "read-only" or "workspace-write"', 'FAIL seal: refused; nothing written');
-      assert.deepEqual(readFileSync(file), before);
+      const r = run(['--seal', file]);
+      exact(r, 0, 'PASS contract-version', 'PASS familiar-digest', 'PASS contract-digest', SANDBOX_DANGER(6));
+      assert.ok(has(r, 'PASS seal: wrote '), show(r));
+      once(r, SANDBOX_DANGER(6));
+      assert.ok(!r.out.includes('danger-full-access'), show(r));
+      assert.ok(readFileSync(file, 'utf8').includes('# familiar-digest = "sha256:'), 'the mark was not written');
     });
     for (const v of ['read-only', 'workspace-write']) {
       test(`${v} -> 0`, () => {
-        exact(run([codex({ lines: [...CODEX, `sandbox_mode = "${v}"`] }).file]), 0, 'PASS sandbox-mode', 'PASS keys');
+        const r = run([codex({ lines: [...CODEX, `sandbox_mode = "${v}"`] }).file]);
+        exact(r, 0, 'PASS sandbox-mode', 'PASS keys');
+        assert.ok(!has(r, 'WARN '), show(r));
       });
     }
   });
@@ -2650,11 +2676,11 @@ describe('v10 the character rule refuses separators and control characters', () 
 
 // ------------------------------------------------------------------ v10 the extra keys a file may hold
 
-// A .toml may hold only a fixed set of extra keys, whatever the contract lists.
-// In a .md file, a key the contract lists passes with whatever value it holds,
-// and the value is never echoed; a key it does not list fails. Each red case
-// asserts its whole reason line.
-describe('v10 the extra keys a .toml may hold, and a listed key in a .md file', () => {
+// In a .toml file and a .md file alike, a key the contract lists passes with
+// whatever value it holds, and the value is never echoed; a key it does not
+// list fails. A listed key the check does not know to be harmless prints a
+// warning, and the check still passes. Each case asserts its whole line.
+describe('v10 the extra keys a file may hold, listed in its contract', () => {
   const CODEX = ['name = "cx"', 'description = "A test Codex agent."', 'developer_instructions = """', 'You review code.', '"""'];
   const tomlCon = extra => `Version: 1.0.0\nTarget: codex\n${extra}\n\n# Contract\n\nWhat this familiar is for.\n`;
   const mdCon = extra => `Version: 1.0.0\nTarget: claude\n${extra}\n\n# Contract\n\nWhat this familiar is for.\n`;
@@ -2682,42 +2708,53 @@ describe('v10 the extra keys a .toml may hold, and a listed key in a .md file', 
     for (const l of lines) assert.ok(r.lines.includes(l), `missing the line "${l}"\n${show(r)}`);
   }
 
-  describe('a .toml key the contract lists, outside the extra keys a .toml may hold', () => {
-    for (const [key, value] of [['approval_policy', '"never"'], ['web_search', '"live"'], ['model_instructions_file', '"x"']]) {
-      test(`${key}, listed -> 1 from keys`, () => {
-        const r = run([codex({ lines: [...CODEX, `${key} = ${value}`], contract: tomlCon(`Extra keys: ${key}`) }).file]);
-        exact(r, 1, `FAIL keys: key "${key}" at line 6 ${TOML_EXTRA_REASON}`);
-        assert.ok(!has(r, 'PASS keys'), show(r));
+  describe('a .toml key the contract lists passes keys, and a dangerous one is flagged', () => {
+    const lists = [
+      ['approval_policy', '"never"', 'may let the agent run commands without asking'],
+      ['web_search', '"live"', 'may let the agent reach the live web'],
+      ['model_instructions_file', '"x"', 'loads instructions from a file the seal does not cover'],
+    ];
+    for (const [key, value, label] of lists) {
+      test(`${key}, listed -> PASS keys and its danger line, and the seal writes the mark`, () => {
+        const want = `WARN danger: ${key} at line 6 ${label}`;
+        const { file } = codex({ lines: [...CODEX, `${key} = ${value}`], contract: tomlCon(`Extra keys: ${key}`) });
+        const s = run(['--seal', file]);
+        exact(s, 0, 'PASS keys', want);
+        assert.ok(has(s, 'PASS seal: wrote '), show(s));
+        once(s, want);
+        const r = run([file]);
+        exact(r, 0, 'PASS keys', want, 'PASS familiar-digest', 'PASS contract-digest');
+        once(r, want);
       });
     }
-    test('approval_policy, listed -> the seal refuses, and writes nothing', () => {
-      const { file } = codex({ lines: [...CODEX, 'approval_policy = "never"'], contract: tomlCon('Extra keys: approval_policy') });
-      const before = readFileSync(file);
-      exact(run(['--seal', file]), 2, `FAIL keys: key "approval_policy" at line 6 ${TOML_EXTRA_REASON}`, NOT_WRITTEN);
-      assert.deepEqual(readFileSync(file), before);
-    });
     test('model and model_reasoning_effort, listed and present, sealed -> 0', () => {
       const lines = [...CODEX, 'model = "o3"', 'model_reasoning_effort = "high"'];
       const { file } = codex({ lines, contract: tomlCon('Extra keys: model, model_reasoning_effort') });
       expect(run(['--seal', file]), 0, 'PASS seal: wrote ');
-      exact(run([file]), 0, 'PASS keys', 'PASS familiar-digest', 'PASS contract-digest');
+      const r = run([file]);
+      exact(r, 0, 'PASS keys', 'PASS familiar-digest', 'PASS contract-digest');
+      assert.ok(!has(r, 'WARN '), show(r));
     });
   });
 
   describe('a key a .md file adds passes with its value only when the contract lists it', () => {
     const fm = [...defaultFm('x'), 'permissionMode: bypassPermissions'];
-    test('listed -> the seal writes it and the check passes, and the value is never printed', () => {
+    const want = 'WARN danger: permissionMode at line 4 may let the agent act without asking';
+    test('listed -> the seal writes it and the check passes with the danger line, and the value is never printed', () => {
       const { file } = agent({ fm, contract: mdCon('Extra keys: permissionMode') });
       const s = run(['--seal', file]);
       expect(s, 0, 'PASS seal: wrote ');
+      once(s, want);
       assert.ok(!s.out.includes('bypassPermissions'), show(s));
       const c = run([file]);
-      exact(c, 0, 'PASS keys', 'PASS familiar-digest', 'PASS contract-digest');
+      exact(c, 0, 'PASS keys', 'PASS familiar-digest', 'PASS contract-digest', want);
+      once(c, want);
       assert.ok(!c.out.includes('bypassPermissions'), show(c));
     });
     test('not listed -> 1 unknown key, and the value is never printed', () => {
       const r = run([agent({ fm, contract: mdCon('') }).file]);
       exact(r, 1, 'FAIL keys: unknown key "permissionMode" at line 4');
+      assert.ok(!has(r, 'WARN '), show(r));
       assert.ok(!r.out.includes('bypassPermissions'), show(r));
     });
   });
@@ -2741,6 +2778,273 @@ describe('v10 the extra keys a .toml may hold, and a listed key in a .md file', 
       const r = run([codex({ lines: [...CODEX, 'model = "x"'], contract: tomlCon('') }).file]);
       exact(r, 1, 'FAIL keys: unknown key "model" at line 6');
     });
+  });
+});
+
+// ------------------------------------------------------------------ warnings
+
+// A setting the check does not know to be harmless is flagged, not refused. A
+// few known settings print a sharper danger line unless their value is safe;
+// every other listed key outside a short harmless set prints the plainer
+// unreviewed line. Both exit 0, and --seal still seals. Every warning is
+// asserted as a whole line, printed exactly once. The canary value only ever
+// checks for echo: it appears in no label, file name or echoed name.
+describe('warnings on settings the check does not know to be harmless', () => {
+  const CODEX = ['name = "cx"', 'description = "A test Codex agent."', 'developer_instructions = """', 'You review code.', '"""'];
+  const tomlCon = extra => `Version: 1.0.0\nTarget: codex\n${extra}\n\n# Contract\n\nWhat this familiar is for.\n`;
+  const mdCon = extra => `Version: 1.0.0\nTarget: claude\n${extra}\n\n# Contract\n\nWhat this familiar is for.\n`;
+  const NOT_WRITTEN = 'FAIL seal: refused; nothing written';
+  const CANARY = 'zq-canary-7f3';
+  const DECOY_KEY = 'a key named like a seal key; the seal is three comment lines at the end of the file';
+
+  function codex({ lines = CODEX, contract } = {}) {
+    const dir = fresh();
+    const file = join(dir, 'cx.toml');
+    writeFileSync(file, `${lines.join('\n')}\n`);
+    if (contract !== undefined) writeFileSync(join(dir, 'cx.contract.md'), contract);
+    return { dir, file };
+  }
+
+  function agent({ fm, contract } = {}) {
+    const dir = fresh();
+    const file = join(dir, 'x.md');
+    writeFileSync(file, familiarText(fm ?? defaultFm('x')));
+    if (contract !== undefined) writeFileSync(join(dir, 'x.contract.md'), contract);
+    return { dir, file };
+  }
+
+  /** The exit code, and each line printed exactly as given. */
+  function exact(r, code, ...lines) {
+    expect(r, code);
+    for (const l of lines) assert.ok(r.lines.includes(l), `missing the line "${l}"\n${show(r)}`);
+  }
+
+  /** Seal, then check. Both runs exit 0; returns both. */
+  function sealThenCheck(file) {
+    const s = run(['--seal', file]);
+    expect(s, 0, 'PASS seal: wrote ');
+    const c = run([file]);
+    expect(c, 0, 'PASS keys', 'PASS familiar-digest', 'PASS contract-digest');
+    return [s, c];
+  }
+
+  /** A .toml file holding `key = "value"` at line 6, listed, sealed then checked. */
+  function tomlWith(key, value) {
+    return sealThenCheck(codex({ lines: [...CODEX, `${key} = "${value}"`], contract: tomlCon(`Extra keys: ${key}`) }).file);
+  }
+
+  /** A .md agent holding `key: value` at line 4, listed, sealed then checked. */
+  function mdWith(key, value) {
+    return sealThenCheck(agent({ fm: [...defaultFm('x'), `${key}: ${value}`], contract: mdCon(`Extra keys: ${key}`) }).file);
+  }
+
+  const TOML_ROWS = [
+    ['sandbox_mode', ['read-only', 'workspace-write'], 'danger-full-access', 'may let the agent act outside a sandbox'],
+    ['default_permissions', [':read-only', ':workspace'], ':danger-full-access', 'may let the agent act outside a sandbox'],
+    ['approval_policy', ['on-request'], 'never', 'may let the agent run commands without asking'],
+    ['approvals_reviewer', ['user'], 'auto_review', 'may let something other than the person approve commands'],
+    ['web_search', ['disabled', 'cached'], 'live', 'may let the agent reach the live web'],
+    ['model_instructions_file', [], 'prompts/extra.md', 'loads instructions from a file the seal does not cover'],
+    ['experimental_instructions_file', [], 'prompts/extra.md', 'loads instructions from a file the seal does not cover'],
+    ['experimental_compact_prompt_file', [], 'prompts/compact.md', 'loads instructions from a file the seal does not cover'],
+    ['model_catalog_json', [], 'catalog/models.json', 'loads a file the seal does not cover'],
+    ['openai_base_url', [], 'https://example.test/v1', "sends the agent's work to a server the file names"],
+  ];
+  const MD_ROWS = [
+    ['permissionMode', ['default', 'plan', 'manual', 'dontAsk'], 'bypassPermissions', 'may let the agent act without asking'],
+    ['allowed-tools', [], 'Bash', 'may let the agent use tools without asking'],
+    ['omitClaudeMd', [], 'true', "starts the agent without the person's CLAUDE.md files"],
+    ['initialPrompt', [], '"Read the README first, then wait."', 'sends a first message the person did not type'],
+  ];
+
+  describe('each .toml danger row', () => {
+    for (const [key, safe, bad, label] of TOML_ROWS) {
+      const want = `WARN danger: ${key} at line 6 ${label}`;
+      for (const v of safe) {
+        test(`${key} = "${v}" -> 0 with no warning`, () => {
+          for (const r of tomlWith(key, v)) assert.ok(!has(r, 'WARN '), show(r));
+        });
+      }
+      test(`${key} = "${bad}" -> 0 with its danger line, once`, () => {
+        for (const r of tomlWith(key, bad)) {
+          exact(r, 0, want);
+          once(r, want);
+        }
+      });
+      test(`${key} holding the canary -> 0 with its danger line, once, and the value never echoed`, () => {
+        for (const r of tomlWith(key, CANARY)) {
+          exact(r, 0, want);
+          once(r, want);
+          assert.ok(!r.out.includes(CANARY), show(r));
+        }
+      });
+    }
+  });
+
+  describe('each .md danger row', () => {
+    for (const [key, safe, bad, label] of MD_ROWS) {
+      const want = `WARN danger: ${key} at line 4 ${label}`;
+      for (const v of safe) {
+        test(`${key}: ${v} -> 0 with no warning`, () => {
+          for (const r of mdWith(key, v)) assert.ok(!has(r, 'WARN '), show(r));
+        });
+      }
+      test(`${key}: ${bad} -> 0 with its danger line, once`, () => {
+        for (const r of mdWith(key, bad)) {
+          exact(r, 0, want);
+          once(r, want);
+        }
+      });
+      test(`${key} holding the canary -> 0 with its danger line, once, and the value never echoed`, () => {
+        for (const r of mdWith(key, CANARY)) {
+          exact(r, 0, want);
+          once(r, want);
+          assert.ok(!r.out.includes(CANARY), show(r));
+        }
+      });
+    }
+    test('the .md rows apply to a SKILL.md too: allowed-tools -> 0 with its danger line, once', () => {
+      const want = 'WARN danger: allowed-tools at line 4 may let the agent use tools without asking';
+      const r = run([skill({ fm: [...defaultFm('demo'), 'allowed-tools: Read'] })]);
+      exact(r, 0, 'PASS allowed-tools', want);
+      once(r, want);
+    });
+  });
+
+  describe('unreviewed keys', () => {
+    const want = n => `WARN unreviewed: zq_unreviewed at line ${n} is a setting this check does not review`;
+    test('a listed .toml key outside the known, harmless and danger keys -> 0 with the unreviewed line, once, and the value never echoed', () => {
+      for (const r of tomlWith('zq_unreviewed', CANARY)) {
+        exact(r, 0, want(6));
+        once(r, want(6));
+        assert.ok(!r.out.includes(CANARY), show(r));
+      }
+    });
+    test('a listed .md key outside the known, harmless and danger keys -> 0 with the unreviewed line, once, and the value never echoed', () => {
+      for (const r of mdWith('zq_unreviewed', CANARY)) {
+        exact(r, 0, want(4));
+        once(r, want(4));
+        assert.ok(!r.out.includes(CANARY), show(r));
+      }
+    });
+    test('a listed key named constructor -> 0 with one unreviewed line, in a .toml and a .md file, and no internal error', () => {
+      for (const r of tomlWith('constructor', 'x')) {
+        const line = 'WARN unreviewed: constructor at line 6 is a setting this check does not review';
+        exact(r, 0, line);
+        once(r, line);
+        assert.ok(!has(r, 'CANNOT-CHECK internal'), show(r));
+      }
+      for (const r of mdWith('constructor', 'x')) {
+        const line = 'WARN unreviewed: constructor at line 4 is a setting this check does not review';
+        exact(r, 0, line);
+        once(r, line);
+        assert.ok(!has(r, 'CANNOT-CHECK internal'), show(r));
+      }
+    });
+  });
+
+  describe('harmless keys print nothing', () => {
+    test('model and model_reasoning_effort, listed in a .toml -> 0 with no warning', () => {
+      const lines = [...CODEX, 'model = "o3"', 'model_reasoning_effort = "high"'];
+      const { file } = codex({ lines, contract: tomlCon('Extra keys: model, model_reasoning_effort') });
+      for (const r of sealThenCheck(file)) assert.ok(!has(r, 'WARN '), show(r));
+    });
+    test('tools, model and effort, listed in a .md file -> 0 with no warning', () => {
+      const fm = [...defaultFm('x'), 'tools: [Read, Glob, Grep]', 'model: sonnet', 'effort: high'];
+      const { file } = agent({ fm, contract: mdCon('Extra keys: tools, model, effort') });
+      for (const r of sealThenCheck(file)) assert.ok(!has(r, 'WARN '), show(r));
+    });
+  });
+
+  describe('flow lists are compared item by item', () => {
+    const want = 'WARN danger: permissionMode at line 4 may let the agent act without asking';
+    test('permissionMode: [plan] -> 0 with no warning', () => {
+      for (const r of mdWith('permissionMode', '[plan]')) assert.ok(!has(r, 'WARN '), show(r));
+    });
+    test('permissionMode: [plan, <canary>] -> 0 with one danger line, and the value never echoed', () => {
+      for (const r of mdWith('permissionMode', `[plan, ${CANARY}]`)) {
+        exact(r, 0, want);
+        once(r, want);
+        assert.ok(!r.out.includes(CANARY), show(r));
+      }
+    });
+    test('permissionMode: [] -> 0 with no warning', () => {
+      for (const r of mdWith('permissionMode', '[]')) assert.ok(!has(r, 'WARN '), show(r));
+    });
+    test('permissionMode: "[plan]", quoted, is text and compared whole -> 0 with the danger line', () => {
+      for (const r of mdWith('permissionMode', '"[plan]"')) {
+        exact(r, 0, want);
+        once(r, want);
+      }
+    });
+  });
+
+  test('a safe sandbox_mode beside a dangerous listed default_permissions -> PASS sandbox-mode and the default_permissions danger line', () => {
+    const lines = [...CODEX, 'sandbox_mode = "read-only"', 'default_permissions = ":danger-full-access"'];
+    const want = 'WARN danger: default_permissions at line 7 may let the agent act outside a sandbox';
+    for (const r of sealThenCheck(codex({ lines, contract: tomlCon('Extra keys: default_permissions') }).file)) {
+      exact(r, 0, 'PASS sandbox-mode', want);
+      once(r, want);
+      assert.ok(!has(r, 'WARN danger: sandbox_mode'), show(r));
+    }
+  });
+
+  test('two flagged keys under --seal -> 0, each danger line once, after the keys line and before contract-version', () => {
+    const lines = [...CODEX, 'sandbox_mode = "danger-full-access"', 'approval_policy = "never"'];
+    const { file } = codex({ lines, contract: tomlCon('Extra keys: approval_policy') });
+    const r = run(['--seal', file]);
+    const wants = [SANDBOX_DANGER(6), 'WARN danger: approval_policy at line 7 may let the agent run commands without asking'];
+    exact(r, 0, 'PASS keys', 'PASS contract-version', ...wants);
+    assert.ok(has(r, 'PASS seal: wrote '), show(r));
+    const keys = r.lines.indexOf('PASS keys');
+    const cv = r.lines.indexOf('PASS contract-version');
+    for (const w of wants) {
+      once(r, w);
+      const at = r.lines.indexOf(w);
+      assert.ok(keys < at && at < cv, `"${w}" is not between the keys line and contract-version\n${show(r)}`);
+    }
+  });
+
+  describe('a key that failed the keys rule gets no warning', () => {
+    const lines = [...CODEX, 'approval_policy = "never"'];
+    const fail = 'FAIL keys: unknown key "approval_policy" at line 6';
+    test('an unlisted approval_policy -> 1, the FAIL keys line and no WARN line', () => {
+      const r = run([codex({ lines, contract: tomlCon('') }).file]);
+      exact(r, 1, fail);
+      assert.deepEqual(r.lines.filter(l => l.startsWith('FAIL keys')), [fail], show(r));
+      assert.ok(!has(r, 'WARN '), show(r));
+    });
+    test('an unlisted approval_policy under --seal -> 2, the FAIL keys line and no WARN line, and nothing written', () => {
+      const { file } = codex({ lines, contract: tomlCon('') });
+      const before = readFileSync(file);
+      const r = run(['--seal', file]);
+      exact(r, 2, fail, NOT_WRITTEN);
+      assert.deepEqual(r.lines.filter(l => l.startsWith('FAIL keys')), [fail], show(r));
+      assert.ok(!has(r, 'WARN '), show(r));
+      assert.deepEqual(readFileSync(file), before);
+    });
+  });
+
+  describe('a .toml key named like a seal key is cannot-check', () => {
+    const cases = [
+      ['familiar-digest', 'Extra keys: familiar-digest'],
+      ['familiar-digest', ''],
+      ['Familiar-Digest', 'Extra keys: Familiar-Digest'],
+      ['contract-version', ''],
+      ['my-contract-digest', 'Extra keys: my-contract-digest'],
+    ];
+    for (const [key, extra] of cases) {
+      const why = `CANNOT-CHECK toml: cx.toml line 6: ${DECOY_KEY}`;
+      test(`${key}${extra ? ', listed' : ', unlisted'} -> 1 cannot-check`, () => {
+        exact(run([codex({ lines: [...CODEX, `${key} = "x"`], contract: tomlCon(extra) }).file]), 1, why);
+      });
+      test(`${key}${extra ? ', listed' : ', unlisted'} -> the seal refuses, and writes nothing`, () => {
+        const { file } = codex({ lines: [...CODEX, `${key} = "x"`], contract: tomlCon(extra) });
+        const before = readFileSync(file);
+        exact(run(['--seal', file]), 2, `FAIL toml: cannot check cx.toml line 6: ${DECOY_KEY}`, NOT_WRITTEN);
+        assert.deepEqual(readFileSync(file), before);
+      });
+    }
   });
 });
 

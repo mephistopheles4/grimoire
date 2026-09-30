@@ -36,11 +36,13 @@ implementation.
 
 **Read before you install.** The check confirms that a skill or agent file is
 well formed, and unchanged since it was sealed with its contract. It does not
-confirm that anyone reviewed either file, and anyone can write both. Apart
-from a few fixed limits, the check does not judge what a file's settings let
-the agent do. A setting the file may hold, or one its contract lists, passes
-unchanged, whatever value is written. That includes settings that let the
-agent act without asking. Read a shared skill or agent and its contract
+confirm that anyone reviewed either file, and anyone can write both. The
+check does not refuse a setting's value because of what it lets the agent do.
+It warns on every setting it does not know to be harmless, with a sharper
+danger warning for a few, such as settings that let the agent act without
+asking, reach the live web, or read instructions from outside the file. A
+warning is a prompt to read, not a review. The list of tools an agent is given
+is not warned on; read it. Read a shared skill or agent and its contract
 before you use it, as you would any code from someone else.
 
 Ask for it by name. The installer route keeps the plain name; the plugin route

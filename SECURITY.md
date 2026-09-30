@@ -55,16 +55,14 @@ that take no escape but `\"` and `\\`. It reads an unquoted `true` or `false`
 only for a key the contract lists. Anything else, a table included, is
 "cannot check", which fails. Its mark is three comment lines at the very end
 of the file, because Codex will not load an agent file with a `[metadata]`
-table. `sandbox_mode` may be only `read-only` or `workspace-write`, whatever
-the contract lists. Past its own keys, the file may hold only `model` and
-`model_reasoning_effort`, each only when the contract lists it. Any other key
-fails, whatever the contract lists.
+table. A key named like a mark key is "cannot check" too, listed or not.
 
-In a `SKILL.md` or an agent's `.md` file, a key the check does not know passes
-only when the contract's `Extra keys:` line lists it, and then with any value.
-The check passes it unchanged, `permissionMode` included. It treats the
-contract's listing as the review and does not judge what the key lets the
-agent do.
+In a `.toml` file, a `SKILL.md` or an agent's `.md` file, a key the check does
+not know passes only when the contract's `Extra keys:` line lists it, and then
+with any value. The check refuses no value for what it lets the agent do. It
+prints a warning for every listed setting it does not know to be harmless,
+and a sharper danger warning for a few settings on a fixed list, such as
+`sandbox_mode` and `permissionMode`. A warning does not fail the check.
 
 The attacks worth planning for, scenario by scenario, with what stops each
 one and what still gets through: [docs/security/threat-model.md](docs/security/threat-model.md).
@@ -178,4 +176,6 @@ are the setting above.
   bad commit. It does not survive a stolen admin account.
 - **A familiar and contract from someone else.** A pass and a valid seal say
   the files are well formed and unchanged since sealing, not that anyone
-  reviewed them. Keys the contract lists pass with any value.
+  reviewed them. Keys the contract lists pass with any value. The check warns
+  on each one it does not know to be harmless; that warning is a prompt to
+  read, not a review.
