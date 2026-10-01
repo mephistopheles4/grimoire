@@ -15,7 +15,8 @@ the session that built the skill. The skill never runs this test itself.
 expected in **one run**, each in a fresh session, and field reports from real
 uses back them (contract question 12, **Decided** 2026-09-30). Any false alarm
 fails the run. A false alarm is a step-in on a stay-quiet case, a load of
-`contract` in part A before the request is sent, or a flag on a decoy. The
+`contract` during a warm-up turn (in part A before the request is sent, in
+part B before the opening line is sent), or a flag on a decoy. The
 full run, every case in A and B in each of two runs, stays as an optional
 fuller check.
 
@@ -32,8 +33,9 @@ fuller check.
 - **Tier:** quick, standard or thorough. The owner's global instructions
   make a session propose one for new work and stop. It is not the skill's
   own level, although the words are the same.
-- **Warm-up turn:** a first message on the case's topic that asks for no
-  skill or agent. Every case in parts A and B sends one before its request.
+- **Warm-up turn:** a first message that asks for no skill or agent. Each
+  part A case has its own, on its topic. Every part B case that starts a
+  session sends one shared commit-message warm-up.
 - **Fixed reply:** one of the two replies that step 6 of part A allows. The
   tester sends nothing else when a session stops and waits.
 
@@ -78,10 +80,9 @@ skill. Every A case gets a warm-up, the stay-quiet cases and the decoy
 included. So the expected answer never decides whether a case has a warm-up,
 and a stay-quiet case cannot pass only because the first turn stopped. The
 owner decided the warm-up, the fixed replies and the false alarm on
-2026-09-30. On 2026-10-01 the owner added the point to stop and record, and
-a warm-up for part B too, because a test should not run under a known
-conflict, and the global instructions can change at any time (contract
-version 0.6.3).
+2026-09-30. On 2026-10-01 the owner added when to stop and record (step 7),
+and a warm-up for part B too. A test should not run under a known conflict,
+and the global instructions can change at any time (contract version 0.6.3).
 
 **The sealed pair.** A3, A6, A7 and B8 need a skill that has a contract.
 Make it once, before the first run, and copy it into each case's folder:
