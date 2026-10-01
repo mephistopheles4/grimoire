@@ -16,7 +16,7 @@ expected in **one run**, each in a fresh session, and field reports from real
 uses back them (contract question 12, **Decided** 2026-09-30). Any false alarm
 fails the run. A false alarm is a step-in on a stay-quiet case, a load of
 `contract` during a warm-up turn (in part A before the request is sent, in
-part B before the opening line is sent), or a flag on a decoy. The
+part B before the opening line or request is sent), or a flag on a decoy. The
 full run, every case in A and B in each of two runs, stays as an optional
 fuller check.
 
@@ -37,7 +37,8 @@ fuller check.
   part A case has its own, on its topic. Every part B case that starts a
   session sends one shared commit-message warm-up.
 - **Fixed reply:** one of the two replies that step 6 of part A allows. The
-  tester sends nothing else when a session stops and waits.
+  tester sends nothing else when a session stops and waits after a warm-up
+  turn, or after a part A request.
 
 ## Part A. When it steps in
 
@@ -61,8 +62,9 @@ them, in a throwaway folder, and never for the whole account.
    (quick, standard or thorough), reply with that tier word. If it asks
    anything else, reply "Just answer my question, please." After the
    request, give at most two fixed replies.
-7. Stop and record at the session's first reply to the request that is not
-   a stop and wait, or after the second fixed reply, whichever comes first.
+7. Stop and record at the session's first reply after the request that is
+   not a stop and wait, or when the session has answered the second fixed
+   reply, whichever comes first.
    Record **stepped in** when the session loaded `contract` on the request's
    turn or after it. The session's transcript shows which skill it loaded.
    Otherwise record **stayed quiet**. Note which other helper stepped in
@@ -141,7 +143,7 @@ turn as the first message: "Here is a commit message I am about to push:
 gives part A's fixed replies (step 6). When the session has answered the
 warm-up, the tester sends the case's own opening line or request, and from
 then on reads only from the scripted file. A load of `contract` before the
-opening line is a false alarm, as in part A. **Every B case builds the same
+opening line or request is a false alarm, as in part A. **Every B case builds the same
 familiar**, a commit-message checker, as a skill at Thorough,
 unless the case says otherwise. Before the first run, the owner writes the
 scripted file: a short answer to each question for that familiar, a name, and
