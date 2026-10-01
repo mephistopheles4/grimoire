@@ -247,7 +247,7 @@ const win = process.platform === 'win32';
 // #165's dry run saw a rule match only the bare forward-slash path. So each
 // form a session writes is a rule of its own, for the same script.
 for (const variant of VARIANTS) {
-  test(`on ${variant}, every send's settings file writes a script rule bare and single-quoted, with forward slashes and the platform's own`, () => {
+  test(`on ${variant}, every send's settings file writes a script rule bare or quoted, with forward slashes, the platform's own or the skill's template`, () => {
     const sb = sandbox();
     mkdirSync(join(sb.skill, 'scripts'));
     writeFileSync(join(sb.skill, 'scripts', 'check.mjs'), 'process.exit(0)');
@@ -260,28 +260,39 @@ for (const variant of VARIANTS) {
     // The skill's template, <skill base directory>/scripts/check.mjs, with
     // the base directory put in as the harness gives it (#171's live run).
     const mixed = `${base}/scripts/check.mjs`;
+    const paths = [...new Set([forward, native, mixed])];
+    const quoted = paths.flatMap(p => [`'${p}'`, `"${p}"`]);
     const sends = allowsPerSend(sb);
     assert.equal(sends.length, 2);
     for (const allow of sends) {
-      for (const tail of ['*', '--seal *']) {
-        for (const tool of ['Bash', 'PowerShell']) {
-          for (const c of [`node ${forward} ${tail}`, `node '${forward}' ${tail}`, `node '${native}' ${tail}`, `node '${mixed}' ${tail}`]) {
-            assert.ok(allow.includes(`${tool}(${c})`), `no ${tool}(${c}) in:\n${allow.join('\n')}`);
-          }
-        }
-        for (const c of [`node ${native} ${tail}`, `node ${mixed} ${tail}`]) assert.ok(allow.includes(`PowerShell(${c})`), allow.join('\n'));
-        // Near-miss: Git Bash reads an unquoted backslash as an escape, so
-        // node C:\x\check.mjs would run C:xcheck.mjs, a path relative to the
-        // drive's current folder, where a session can plant a file. That
-        // form is never written for Bash.
-        if (win) {
-          for (const c of [`node ${native} ${tail}`, `node ${mixed} ${tail}`]) assert.ok(!allow.includes(`Bash(${c})`), `Bash takes a bare backslash path:\n${allow.join('\n')}`);
-        }
-      }
-      // No other quoting, and no rule written twice.
-      assert.ok(!allow.some(r => r.includes('"')), allow.join('\n'));
+      const want = ['*', '--seal *'].flatMap(tail => [
+        ...[forward, ...quoted].map(p => `Bash(node ${p} ${tail})`),
+        ...[...paths, ...quoted].map(p => `PowerShell(node ${p} ${tail})`),
+      ]);
+      const got = allow.filter(r => r.includes('check.mjs'));
+      assert.deepEqual([...got].sort(), [...new Set(want)].sort(), got.join('\n'));
+      // Near-miss: Git Bash reads an unquoted backslash as an escape, so
+      // node C:\x\check.mjs would run C:xcheck.mjs, a path relative to the
+      // drive's current folder, where a session can plant a file. That form
+      // is never written for Bash.
+      if (win) assert.ok(!got.some(r => /^Bash\(node [^'"]*\\/.test(r)), `Bash takes a bare backslash path:\n${got.join('\n')}`);
       assert.equal(new Set(allow).size, allow.length, `a rule is written twice:\n${allow.join('\n')}`);
     }
+  });
+}
+
+// A quoted form must mean the same path in both shells: inside double quotes
+// $ and ` expand, and a space or a quote would need quoting of its own.
+for (const [what, folder] of [['a space', 'tmp x'], ['a $', 'tmp$x'], ['a backtick', 'tmp`x']]) {
+  test(`start refuses a script rule when the skill copy's path holds ${what}`, () => {
+    const sb = sandbox();
+    const tmp = join(sb.dir, folder);
+    mkdirSync(tmp);
+    Object.assign(sb.env, { TEMP: tmp, TMP: tmp, TMPDIR: tmp });
+    mkdirSync(join(sb.skill, 'scripts'));
+    writeFileSync(join(sb.skill, 'scripts', 'check.mjs'), 'process.exit(0)');
+    refused(cli(sb, ['start', '--variant', 'clean', ...base(sb), '--rule', 'node <skill>/scripts/check.mjs *']), /holds a space, a quote, a \$ or a backtick/);
+    assert.ok(!existsSync(join(tmp, 'grimoire-practice')) || readdirSync(join(tmp, 'grimoire-practice')).length === 0, 'a refused start left a run behind');
   });
 }
 
@@ -313,7 +324,7 @@ test('an append to a test value\'s path is written for PowerShell only, at that 
     const paths = [...new Set(['logs/eagle-eye-log.jsonl', join('logs', 'eagle-eye-log.jsonl'), fwd(abs), abs])];
     for (const allow of allowsPerSend(sb)) {
       const appends = allow.filter(r => r.includes('eagle-eye-log'));
-      const want = paths.flatMap(p => [`PowerShell(Add-Content -Path ${p} -Value *)`, `PowerShell(Add-Content -Path '${p}' -Value *)`]);
+      const want = paths.flatMap(p => [p, `'${p}'`, `"${p}"`]).map(p => `PowerShell(Add-Content -Path ${p} -Value *)`);
       assert.deepEqual([...appends].sort(), [...want].sort(), `${variant}:\n${appends.join('\n')}`);
       // Bash needs none: Claude Code already lets a redirect write into the
       // work folder under the Edit rule (#171's probe).

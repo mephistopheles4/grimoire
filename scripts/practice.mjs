@@ -233,10 +233,11 @@ function checkRuleValues(state) {
 // The rule as Claude Code reads it, for each shell, with <skill> replaced by
 // the copy's path. Each form is the same command as a session writes it:
 //
-//   a script path bare or in single quotes, with forward slashes, with the
-//   platform's own, or with the base directory in the platform's form and the
-//   rest as the skill writes it, because the harness hands a skill its base
-//   directory in the platform's form and a skill may say to quote it. Bash
+//   a script path bare or in single or double quotes, with forward slashes,
+//   with the platform's own, or with the base directory in the platform's
+//   form and the rest as the skill writes it, because the harness hands a
+//   skill its base directory in the platform's form, a skill may say to quote
+//   it, and a session may quote a path the skill left bare. Bash
 //   never gets a bare backslash form: Git Bash reads an unquoted backslash as
 //   an escape, so node C:\x\run.mjs runs C:xrun.mjs, a path relative to the
 //   drive's current folder, where a session could plant a file of its own.
@@ -245,7 +246,7 @@ function checkRuleValues(state) {
 //   PowerShell is its own variable, $HOME, not an environment value.
 //
 //   an append with PowerShell's Add-Content, the path relative or absolute, in
-//   either slash form, bare or quoted. Bash gets none: Claude Code already
+//   either slash form, bare or in either quotes. Bash gets none: Claude Code already
 //   lets a redirect write into the work folder under the Edit rule (#171's
 //   probe). The final * takes the line; Claude Code denies a subexpression, a
 //   parenthesised command, a pipe or a second command in it (the same probe).
@@ -258,28 +259,32 @@ function expandRule(r, state, work) {
   if (r.kind === 'append') {
     const rel = state.values[r.name];
     const abs = join(work, ...rel.split('/'));
-    noSpaceOrQuote(abs);
+    plainPath(abs);
     const paths = unique([rel, join(...rel.split('/')), forward(abs), abs]);
-    return paths.flatMap(p => [`PowerShell(Add-Content -Path ${p} -Value *)`, `PowerShell(Add-Content -Path '${p}' -Value *)`]);
+    return [...paths, ...quotedForms(paths)].map(p => `PowerShell(Add-Content -Path ${p} -Value *)`);
   }
   const copy = copyOf(work, state.skills[0]);
   const native = join(copy, ...r.rel);
   // The skill's own template, <skill base directory>/<path>, with the base
   // directory put in as the harness gives it.
   const mixed = `${copy}/${r.rel.join('/')}`;
-  noSpaceOrQuote(native);
+  plainPath(native);
   const tail = [...r.fixed, ...(r.wild ? ['*'] : [])].map(w => ` ${w}`).join('');
   const command = path => `${r.program} ${path}${tail}`;
-  const quoted = [`'${forward(native)}'`, `'${native}'`, `'${mixed}'`];
-  const bash = unique([forward(native), ...quoted]).map(command);
-  const powershell = unique([forward(native), ...quoted, native, mixed]).map(command);
-  return [...bash.map(c => `Bash(${c})`), ...powershell.map(c => `PowerShell(${c})`)];
+  const paths = unique([forward(native), native, mixed]);
+  const bash = [forward(native), ...quotedForms(paths)].map(command);
+  const powershell = [...paths, ...quotedForms(paths)].map(command);
+  return unique([...bash.map(c => `Bash(${c})`), ...powershell.map(c => `PowerShell(${c})`)]);
 }
 
 const unique = list => [...new Set(list)];
+const quotedForms = paths => paths.flatMap(p => [`'${p}'`, `"${p}"`]);
 
-function noSpaceOrQuote(path) {
-  if (/\s|["']/.test(path)) refuse(`the path ${oneLine(forward(path))} holds a space or a quote, so a command must quote it and a rule could not match`);
+// A path a rule writes quoted must mean the same file in both shells, quoted
+// either way: inside double quotes $ and ` expand. And a space or a quote
+// would need quoting of its own, so no written form could match.
+function plainPath(path) {
+  if (/[\s"'$`]/.test(path)) refuse(`the path ${oneLine(forward(path))} holds a space, a quote, a $ or a backtick, so a quoted command might not name it and a rule could not match`);
 }
 
 // A script rule names a file that exists in the skill under test's source at
