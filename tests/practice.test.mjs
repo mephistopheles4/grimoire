@@ -237,6 +237,155 @@ test('a script rule and a git rule are written for both shell tools, with the sk
   assert.match(cli(sb, ['report', id]).stdout, /^tool rules: node <skill>\/scripts\/check\.mjs \*; node <skill>\/scripts\/check\.mjs --seal; git status \*; git show$/m);
 });
 
+// The allow rules each send's settings file held, as the fake received them.
+const allowsPerSend = sb => calls(sb).map(c => c.settings.permissions.allow);
+const VARIANTS = ['clean', 'owner-pact', 'user-skills', 'full-account'];
+const win = process.platform === 'win32';
+
+// The harness gives a skill's base directory in the platform's own form, so
+// on Windows with backslashes, and a skill may tell the session to quote it.
+// #165's dry run saw a rule match only the bare forward-slash path. So each
+// form a session writes is a rule of its own, for the same script.
+for (const variant of VARIANTS) {
+  test(`on ${variant}, every send's settings file writes a script rule bare or quoted, with forward slashes, the platform's own or the skill's template`, () => {
+    const sb = sandbox();
+    mkdirSync(join(sb.skill, 'scripts'));
+    writeFileSync(join(sb.skill, 'scripts', 'check.mjs'), 'process.exit(0)');
+    const id = start(sb, ['--variant', variant, '--rule', 'node <skill>/scripts/check.mjs *', '--rule', 'node <skill>/scripts/check.mjs --seal *']);
+    assert.equal(cli(sb, ['send', id], 'one').code, 0);
+    assert.equal(cli(sb, ['send', id], 'two').code, 0);
+    const base = join(workDir(sb, id), '.claude', 'skills', 'probe-skill');
+    const native = join(base, 'scripts', 'check.mjs');
+    const forward = fwd(native);
+    // The skill's template, <skill base directory>/scripts/check.mjs, with
+    // the base directory put in as the harness gives it (#171's live run).
+    const mixed = `${base}/scripts/check.mjs`;
+    const paths = [...new Set([forward, native, mixed])];
+    const quoted = paths.flatMap(p => [`'${p}'`, `"${p}"`]);
+    const sends = allowsPerSend(sb);
+    assert.equal(sends.length, 2);
+    for (const allow of sends) {
+      const want = ['*', '--seal *'].flatMap(tail => [
+        ...[forward, ...quoted].map(p => `Bash(node ${p} ${tail})`),
+        ...[...paths, ...quoted].map(p => `PowerShell(node ${p} ${tail})`),
+      ]);
+      const got = allow.filter(r => r.includes('check.mjs'));
+      assert.deepEqual([...got].sort(), [...new Set(want)].sort(), got.join('\n'));
+      // Near-miss: Git Bash reads an unquoted backslash as an escape, so
+      // node C:\x\check.mjs would run C:xcheck.mjs, a path relative to the
+      // drive's current folder, where a session can plant a file. That form
+      // is never written for Bash.
+      if (win) assert.ok(!got.some(r => /^Bash\(node [^'"]*\\/.test(r)), `Bash takes a bare backslash path:\n${got.join('\n')}`);
+      assert.equal(new Set(allow).size, allow.length, `a rule is written twice:\n${allow.join('\n')}`);
+    }
+  });
+}
+
+// A quoted form must mean the same path in both shells: inside double quotes
+// $ and ` expand, and a space or a quote would need quoting of its own. A
+// bare comma makes PowerShell read two paths.
+for (const [what, folder] of [['a space', 'tmp x'], ['a $', 'tmp$x'], ['a backtick', 'tmp`x'], ['a comma', 'tmp,x']]) {
+  test(`start refuses a script rule when the skill copy's path holds ${what}`, () => {
+    const sb = sandbox();
+    const tmp = join(sb.dir, folder);
+    mkdirSync(tmp);
+    Object.assign(sb.env, { TEMP: tmp, TMP: tmp, TMPDIR: tmp });
+    mkdirSync(join(sb.skill, 'scripts'));
+    writeFileSync(join(sb.skill, 'scripts', 'check.mjs'), 'process.exit(0)');
+    refused(cli(sb, ['start', '--variant', 'clean', ...base(sb), '--rule', 'node <skill>/scripts/check.mjs *']), /holds a space, a quote, a comma, a \$ or a backtick/);
+    assert.ok(!existsSync(join(tmp, 'grimoire-practice')) || readdirSync(join(tmp, 'grimoire-practice')).length === 0, 'a refused start left a run behind');
+  });
+
+  test(`start refuses an append rule when the work folder's path holds ${what}`, () => {
+    const sb = sandbox();
+    const tmp = join(sb.dir, folder);
+    mkdirSync(tmp);
+    Object.assign(sb.env, { TEMP: tmp, TMP: tmp, TMPDIR: tmp });
+    refused(cli(sb, ['start', '--variant', 'clean', ...base(sb), '--value', 'X_LOG=x.jsonl', '--rule', '>> $X_LOG']), /holds a space, a quote, a comma, a \$ or a backtick/);
+    assert.ok(!existsSync(join(tmp, 'grimoire-practice')) || readdirSync(join(tmp, 'grimoire-practice')).length === 0, 'a refused start left a run behind');
+  });
+}
+
+test('an environment read is written exactly as the skill wrote it for each shell, on every send and every variant', () => {
+  for (const variant of VARIANTS) {
+    const sb = sandbox();
+    const id = start(sb, ['--variant', variant, '--value', 'EAGLE_EYE_LOG=eagle-eye-log.jsonl', '--rule', '$EAGLE_EYE_LOG', '--rule', '$HOME']);
+    assert.equal(cli(sb, ['send', id], 'one').code, 0);
+    assert.equal(cli(sb, ['send', id], 'two').code, 0);
+    for (const allow of allowsPerSend(sb)) {
+      for (const r of ['Bash(echo "$EAGLE_EYE_LOG")', 'PowerShell($env:EAGLE_EYE_LOG)', 'Bash(echo "$HOME")', 'PowerShell($HOME)']) {
+        assert.ok(allow.includes(r), `${variant}: no ${r} in:\n${allow.join('\n')}`);
+      }
+      // Near-misses: no wildcard, and no other spelling of the read.
+      const reads = allow.filter(r => r.includes('$'));
+      assert.equal(reads.length, 4, `${variant}:\n${reads.join('\n')}`);
+      assert.ok(!reads.some(r => r.includes('*')), reads.join('\n'));
+    }
+  }
+});
+
+test('an append to a test value\'s path is written for PowerShell only, at that path in the work folder, on every send and every variant', () => {
+  for (const variant of VARIANTS) {
+    const sb = sandbox();
+    const id = start(sb, ['--variant', variant, '--value', 'EAGLE_EYE_LOG=logs/eagle-eye-log.jsonl', '--rule', '>> $EAGLE_EYE_LOG']);
+    assert.equal(cli(sb, ['send', id], 'one').code, 0);
+    assert.equal(cli(sb, ['send', id], 'two').code, 0);
+    const abs = join(workDir(sb, id), 'logs', 'eagle-eye-log.jsonl');
+    const paths = [...new Set(['logs/eagle-eye-log.jsonl', join('logs', 'eagle-eye-log.jsonl'), fwd(abs), abs])];
+    for (const allow of allowsPerSend(sb)) {
+      const appends = allow.filter(r => r.includes('eagle-eye-log'));
+      const want = paths.flatMap(p => [p, `'${p}'`, `"${p}"`]).map(p => `PowerShell(Add-Content -Path ${p} -Value *)`);
+      assert.deepEqual([...appends].sort(), [...want].sort(), `${variant}:\n${appends.join('\n')}`);
+      // Bash needs none: Claude Code already lets a redirect write into the
+      // work folder under the Edit rule (#171's probe).
+      assert.ok(!allow.some(r => r.startsWith('Bash(') && r.includes('eagle-eye-log')), allow.join('\n'));
+    }
+  }
+});
+
+const SHAPE = /is not \$NAME or >> \$NAME/;
+const UNSET = /a value the case does not set/;
+const NOT_IN_WORK = /not a relative path of plain names in the work folder/;
+const VALUE_RULE_REFUSALS = [
+  ['a read of a value the case does not set', ['--rule', '$OTHER_VALUE'], UNSET],
+  ['a read of a runner value the case does not set', ['--rule', '$PATH'], UNSET],
+  ['a read with a wildcard', ['--value', 'X_LOG=x.jsonl', '--rule', '$X_LOG *'], SHAPE],
+  ['a read of a lower-case name', ['--rule', '$home'], SHAPE],
+  ['a read in a shell\'s own spelling', ['--value', 'X_LOG=x.jsonl', '--rule', 'echo "$X_LOG"'], /script/],
+  ['an append to the home folder', ['--rule', '>> $HOME'], /home folder/],
+  ['an append to a value the case does not set', ['--rule', '>> $X_LOG'], UNSET],
+  ['an append to an absolute path', ['--value', `X_LOG=${fwd(join(tmpdir(), 'x.jsonl'))}`, '--rule', '>> $X_LOG'], NOT_IN_WORK],
+  ['an append to a path with a drive', ['--value', 'X_LOG=C:x.jsonl', '--rule', '>> $X_LOG'], NOT_IN_WORK],
+  ['an append to a path with ..', ['--value', 'X_LOG=../x.jsonl', '--rule', '>> $X_LOG'], NOT_IN_WORK],
+  ['an append to a path with a backslash', ['--value', 'X_LOG=logs\\x.jsonl', '--rule', '>> $X_LOG'], NOT_IN_WORK],
+  ['an append to a path with a space', ['--value', 'X_LOG=x y.jsonl', '--rule', '>> $X_LOG'], NOT_IN_WORK],
+  ['an append to a path with a quote', ['--value', 'X_LOG=x\'.jsonl', '--rule', '>> $X_LOG'], NOT_IN_WORK],
+  ['an append to a path with a wildcard', ['--value', 'X_LOG=*.jsonl', '--rule', '>> $X_LOG'], NOT_IN_WORK],
+  ['an append under the session\'s own setup', ['--value', 'X_LOG=.claude/x.jsonl', '--rule', '>> $X_LOG'], NOT_IN_WORK],
+  ['an append with a wildcard', ['--value', 'X_LOG=x.jsonl', '--rule', '>> $X_LOG *'], SHAPE],
+  ['an append to a name PowerShell reads as a parameter', ['--value', 'X_LOG=logs/-x.jsonl', '--rule', '>> $X_LOG'], NOT_IN_WORK],
+  // Windows drops a trailing dot, so CLAUDE.md. is CLAUDE.md.
+  ['an append to a name ending in a dot', ['--value', 'X_LOG=CLAUDE.md.', '--rule', '>> $X_LOG'], NOT_IN_WORK],
+  ['an append to a folder name ending in a dot', ['--value', 'X_LOG=docs./agents.md', '--rule', '>> $X_LOG'], NOT_IN_WORK],
+  // The session's own setup, and Windows device names, which name no file in
+  // the work folder whatever folder they sit in or extension they carry.
+  ['an append to an instruction file', ['--value', 'X_LOG=CLAUDE.md', '--rule', '>> $X_LOG'], /instruction file or a device/],
+  ['an append to an instruction file in another case and folder', ['--value', 'X_LOG=docs/agents.MD', '--rule', '>> $X_LOG'], /instruction file or a device/],
+  ['an append to a device name', ['--value', 'X_LOG=CON', '--rule', '>> $X_LOG'], /instruction file or a device/],
+  ['an append to a device name with an extension', ['--value', 'X_LOG=logs/nul.jsonl', '--rule', '>> $X_LOG'], /instruction file or a device/],
+  ['an append to a numbered device name', ['--value', 'X_LOG=com1.txt', '--rule', '>> $X_LOG'], /instruction file or a device/],
+];
+
+for (const [what, args, reason] of VALUE_RULE_REFUSALS) {
+  test(`start refuses ${what}`, () => {
+    const sb = sandbox();
+    const r = cli(sb, ['start', '--variant', 'clean', ...base(sb), ...args]);
+    refused(r, /^practice: refused: the tool rule /);
+    assert.match(r.stderr, reason);
+    noRuns(sb);
+  });
+}
+
 const RULE_REFUSALS = [
   ['a git command outside status, diff, log and show', 'git push *'],
   ['a bare git wildcard', 'git *'],
@@ -444,6 +593,16 @@ for (const variant of ['user-skills', 'full-account']) {
     assert.ok(!rep.includes(LIVE_SECRET) && !rep.includes('another-real-key') && !rep.includes('LIVE_TOKEN'), 'the report printed the environment block');
   });
 }
+
+// On Windows an environment name matches without regard to case, so a
+// settings value under eagle_eye_log replaces the test value EAGLE_EYE_LOG.
+test('the collision line compares names as the platform does', () => {
+  const sb = sandbox();
+  liveFolders(sb);
+  writeFileSync(join(sb.home, '.claude', 'settings.json'), JSON.stringify({ env: { eagle_eye_log: 'elsewhere.jsonl' } }));
+  const id = start(sb, ['--variant', 'user-skills', '--value', 'EAGLE_EYE_LOG=usage.log']);
+  assert.match(cli(sb, ['report', id]).stdout, new RegExp(`^user settings environment names that collide with a test value: ${win ? 'EAGLE_EYE_LOG' : 'none'}$`, 'm'));
+});
 
 test('clean prints no user permission block', () => {
   const sb = sandbox();

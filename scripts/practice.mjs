@@ -29,14 +29,22 @@
 // a fake key. It is always a literal written in the case, never the runner's
 // own value passed through.
 //
-// --rule allows one command, in one of two shapes: a script in the skill under
-// test, written as `node <skill>/scripts/check.mjs *`, or `git status *` and
-// its diff, log and show siblings. See "tool rules" below.
+// --rule allows one command, in one of four shapes: a script in the skill
+// under test, written as `node <skill>/scripts/check.mjs *`; `git status *`
+// and its diff, log and show siblings; `$NAME`, a shell read of HOME or a test
+// value; and `>> $NAME`, a shell append to the path a test value names. See
+// "tool rules" below.
 //
 // The posture is hygiene, not a boundary (ADR 0006). It denies the obvious
 // mistakes, backs up the owner's live folders at start and checks them at
 // report, and masks what it prints. The threat model's practice-runner row
 // says what it does not stop.
+//
+// A read rule shows the session an environment value. On clean and
+// owner-pact the session's environment holds no secret by construction: it is
+// the system list below, the temp folder and the case's own test values. On
+// user-skills and full-account the user settings add their own values, keys
+// among them; the threat model's row covers that.
 //
 // Runs live under <system temp>/grimoire-practice/<run-id>/: the run state,
 // the settings file, the transcript, backup/ with its manifest, and work/,
@@ -141,7 +149,7 @@ const configFolder = () => process.env.CLAUDE_CONFIG_DIR || join(homedir(), '.cl
 // ---- tool rules ----
 //
 // A case allows commands by literal rules in its practice-test doc. The runner
-// takes two shapes and refuses any other, because every allowed command is a
+// takes four shapes and refuses any other, because every allowed command is a
 // way to write or run code:
 //
 //   a script rule: a program, <skill>/<path of a script in the skill under
@@ -152,17 +160,35 @@ const configFolder = () => process.env.CLAUDE_CONFIG_DIR || join(homedir(), '.cl
 //
 //   a git rule: git, one of status, diff, log or show, an optional final *.
 //
+//   a read: $NAME, a shell read of one environment value. NAME is HOME or a
+//   value the case sets with --value.
+//
+//   an append: >> $NAME, a shell append to the path a test value names. The
+//   value is a relative path of plain names, so the file is in the work folder.
+//
 // Each rule is written for both shell tools, because Claude Code checks a
-// rule against the tool that runs the command.
+// rule against the tool that runs the command. Claude Code compares a rule
+// with the command as the session wrote it, quotes and slashes included
+// (#165's dry run, #171's probe), so a rule is written in each form a skill's
+// own wording produces. That changes the form, never the scope: the same
+// script, the same value, the same file.
 
 const GIT_COMMANDS = ['status', 'diff', 'log', 'show'];
 const PROGRAM_WORD = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
 const PATH_PART = /^[A-Za-z0-9_-][A-Za-z0-9._-]*$/;
 const FIXED_WORD = /^[A-Za-z0-9._=:,@+/-]+$/;
+const READ = /^\$([A-Z_][A-Z0-9_]*)$/;
+const APPEND = /^>> \$([A-Z_][A-Z0-9_]*)$/;
 
 function parseRule(text) {
   const bad = why => refuse(`the tool rule ${oneLine(text)} ${why}`);
   if (typeof text !== 'string') bad('is not a string');
+  if (text.startsWith('$') || text.startsWith('>')) {
+    const read = READ.exec(text);
+    const append = APPEND.exec(text);
+    if (!read && !append) bad('is not $NAME or >> $NAME, with the name in capitals and nothing after it');
+    return read ? { kind: 'read', name: read[1] } : { kind: 'append', name: append[1] };
+  }
   if (text.startsWith('-')) bad('starts with -');
   const words = text.split(' ');
   if (words.some(w => !w)) bad('has an empty word: write single spaces between words');
@@ -187,12 +213,93 @@ function parseRule(text) {
   return { kind: 'script', program, rel, fixed, wild };
 }
 
-// The rule as Claude Code reads it, with <skill> replaced by the copy's path.
-function expandRule(r, copy) {
-  if (r.kind === 'git') return `${r.words.join(' ')}${r.wild ? ' *' : ''}`;
-  const path = `${forward(copy)}/${r.rel.join('/')}`;
-  if (/\s|["']/.test(path)) refuse(`the skill copy's path ${oneLine(path)} holds a space or a quote, so a command must quote it and a rule could not match`);
-  return [r.program, path, ...r.fixed].join(' ') + (r.wild ? ' *' : '');
+// A read names HOME or a test value. An append names a test value whose path
+// is relative and of plain names only, so never the session's own setup under
+// .claude, an instruction file or a device. A relative path resolves against
+// the session's current folder, which starts as the work folder. They need
+// the run's values, so they are checked here rather than in parseRule.
+function checkRuleValues(state) {
+  for (const text of state.rules) {
+    const r = parseRule(text);
+    const bad = why => refuse(`the tool rule ${oneLine(text)} ${why}`);
+    if (r.kind === 'append' && r.name === 'HOME') bad('appends to the home folder; an append names a test value whose path is in the work folder');
+    if (r.kind === 'read' && r.name === 'HOME') continue;
+    if ((r.kind === 'read' || r.kind === 'append') && !Object.hasOwn(state.values, r.name)) bad(`names ${r.name}, a value the case does not set with --value`);
+    if (r.kind !== 'append') continue;
+    const parts = state.values[r.name].split('/');
+    // A leading - would read as a PowerShell parameter, and Windows drops a
+    // trailing dot, so CLAUDE.md. would be CLAUDE.md.
+    if (!parts.every(p => PATH_PART.test(p) && !p.startsWith('-') && !p.endsWith('.'))) {
+      bad(`appends to ${r.name}, whose value ${oneLine(state.values[r.name])} is not a relative path of plain names in the work folder`);
+    }
+    const lower = parts.map(p => p.toLowerCase());
+    if (lower.some(p => INSTRUCTIONS.some(i => i.toLowerCase() === p) || DEVICE.test(p))) {
+      bad(`appends to ${r.name}, whose value ${oneLine(state.values[r.name])} names an instruction file or a device`);
+    }
+  }
+}
+
+// A Windows device name names no file, in any folder and with any extension.
+const DEVICE = /^(con|prn|aux|nul|com[0-9]|lpt[0-9])(\..*)?$/;
+
+// The rule as Claude Code reads it, for each shell, with <skill> replaced by
+// the copy's path. Each form is the same command as a session writes it:
+//
+//   a script path bare or in single or double quotes, with forward slashes,
+//   with the platform's own, or with the base directory in the platform's
+//   form and the rest as the skill writes it, because the harness hands a
+//   skill its base directory in the platform's form, a skill may say to quote
+//   it, and a session may quote a path the skill left bare. Bash
+//   never gets a bare backslash form: Git Bash reads an unquoted backslash as
+//   an escape, so node C:\x\run.mjs runs C:xrun.mjs, a path relative to the
+//   drive's current folder, where a session could plant a file of its own.
+//
+//   a read in the spelling eagle-eye's usage record gives each shell. HOME in
+//   PowerShell is its own variable, $HOME, not an environment value.
+//
+//   an append with PowerShell's Add-Content, the path relative or absolute, in
+//   either slash form, bare or in either quotes. Bash gets none: Claude Code already
+//   lets a redirect write into the work folder under the Edit rule (#171's
+//   probe). The final * takes the line. In #171's probes Claude Code denied
+//   every other thing tried there: a subexpression, a parenthesised or array
+//   expression, an environment value, a pipe, an output redirect, and a
+//   second command after ; or on a new line that no rule allows.
+function expandRule(r, state, work) {
+  const both = c => [`Bash(${c})`, `PowerShell(${c})`];
+  if (r.kind === 'git') return both(`${r.words.join(' ')}${r.wild ? ' *' : ''}`);
+  if (r.kind === 'read') {
+    return [`Bash(echo "$${r.name}")`, r.name === 'HOME' ? 'PowerShell($HOME)' : `PowerShell($env:${r.name})`];
+  }
+  if (r.kind === 'append') {
+    const rel = state.values[r.name];
+    const abs = join(work, ...rel.split('/'));
+    plainPath(abs);
+    const paths = unique([rel, join(...rel.split('/')), forward(abs), abs]);
+    return [...paths, ...quotedForms(paths)].map(p => `PowerShell(Add-Content -Path ${p} -Value *)`);
+  }
+  const copy = copyOf(work, state.skills[0]);
+  const native = join(copy, ...r.rel);
+  // The skill's own template, <skill base directory>/<path>, with the base
+  // directory put in as the harness gives it.
+  const mixed = `${copy}/${r.rel.join('/')}`;
+  plainPath(native);
+  const tail = [...r.fixed, ...(r.wild ? ['*'] : [])].map(w => ` ${w}`).join('');
+  const command = path => `${r.program} ${path}${tail}`;
+  const paths = unique([forward(native), native, mixed]);
+  const bash = [forward(native), ...quotedForms(paths)].map(command);
+  const powershell = [...paths, ...quotedForms(paths)].map(command);
+  return unique([...bash.map(c => `Bash(${c})`), ...powershell.map(c => `PowerShell(${c})`)]);
+}
+
+const unique = list => [...new Set(list)];
+const quotedForms = paths => paths.flatMap(p => [`'${p}'`, `"${p}"`]);
+
+// A path a rule writes quoted must mean the same file in both shells, quoted
+// either way: inside double quotes $ and ` expand. A bare comma makes
+// PowerShell read two paths, so an append would write to both. And a space or
+// a quote would need quoting of its own, so no written form could match.
+function plainPath(path) {
+  if (/[\s"'$`,]/.test(path)) refuse(`the path ${oneLine(forward(path))} holds a space, a quote, a comma, a $ or a backtick, so a quoted command might not name it and a rule could not match`);
 }
 
 // A script rule names a file that exists in the skill under test's source at
@@ -214,9 +321,8 @@ function settingsFor(state, dir) {
   const s = {};
   if (v.exclude) s.claudeMdExcludes = [forward(globalFile())];
   s.disableAllHooks = true;
-  const commands = state.rules.map(t => expandRule(parseRule(t), copyOf(work, state.skills[0])));
   s.permissions = {
-    allow: [rule('Edit', work, '/**'), ...commands.flatMap(c => [`Bash(${c})`, `PowerShell(${c})`])],
+    allow: [rule('Edit', work, '/**'), ...unique(state.rules.flatMap(t => expandRule(parseRule(t), state, work)))],
     deny: [
       // The skill under test: its copy is what the run tests. Companion
       // skills get no deny rule, but a session cannot edit them either:
@@ -440,6 +546,7 @@ function checkValues(state) {
   checkConfigFolder(state.variant);
   if (!Array.isArray(state.rules)) refuse('the run state no longer matches what its variant gives; start a new run');
   state.rules.forEach(parseRule);
+  checkRuleValues(state);
   // The title comes from a file, so it is never used as a plain-object key.
   const title = state.skills[0]?.title;
   const only = (Object.hasOwn(RUNNER_ONLY_CASES, title) ? RUNNER_ONLY_CASES[title] : [])
@@ -1196,7 +1303,10 @@ function report(argv) {
     L.push(`user permission block, from ${join(configFolder(), 'settings.json')}:`);
     L.push(perms === undefined ? '  none' : JSON.stringify(perms, null, 2).split('\n').map(l => `  ${one(l)}`).join('\n'));
     const env = us && Object.hasOwn(us, 'env') && us.env !== null && typeof us.env === 'object' ? us.env : {};
-    const collide = Object.keys(state.values).filter(name => Object.hasOwn(env, name));
+    // Windows matches environment names without regard to case.
+    const key = n => (process.platform === 'win32' ? n.toUpperCase() : n);
+    const names = new Set(Object.keys(env).map(key));
+    const collide = Object.keys(state.values).filter(name => names.has(key(name)));
     L.push(`user settings environment names that collide with a test value: ${collide.join(', ') || 'none'}`);
   }
   L.push(`turns: ${state.turns.length}`);
