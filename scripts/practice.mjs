@@ -38,7 +38,7 @@
 
 import { spawnSync } from 'node:child_process';
 import { createHash, randomBytes } from 'node:crypto';
-import { appendFileSync, closeSync, existsSync, lstatSync, mkdirSync, openSync, readFileSync, readdirSync, rmSync, rmdirSync, realpathSync, statSync, unlinkSync, writeFileSync } from 'node:fs';
+import { appendFileSync, closeSync, existsSync, fstatSync, lstatSync, mkdirSync, openSync, readFileSync, readSync, readdirSync, rmSync, rmdirSync, realpathSync, statSync, unlinkSync, writeFileSync } from 'node:fs';
 import { homedir, tmpdir, userInfo } from 'node:os';
 import { basename, delimiter, dirname, extname, isAbsolute, join, relative, resolve } from 'node:path';
 
@@ -244,7 +244,7 @@ const STARTUP_NAMES = new Set([
   // Claude Code's own: one wraps every shell command, one names the shell.
   'CLAUDE_CODE_SHELL_PREFIX', 'CLAUDE_CODE_GIT_BASH_PATH',
   // Files a shell reads when it starts.
-  'BASH_ENV', 'ENV', 'PSMODULEPATH',
+  'BASH_ENV', 'ENV', 'PSMODULEPATH', 'CLAUDE_ENV_FILE',
 ]);
 const STARTUP_PREFIXES = ['NODE_', 'GIT_', 'DYLD_', 'BUN_'];
 const startupName = name => STARTUP_NAMES.has(name) || STARTUP_PREFIXES.some(p => name.startsWith(p)) || SYSTEM.includes(name);
@@ -428,8 +428,13 @@ function start(args) {
   checkValues(state);
   // A literal that equals the runner's own value is that value passed through,
   // whatever the tester meant by it.
+  // Under any name: a long value equal to one the runner holds is that value,
+  // whatever it is called now. A short one like 1 or true is no evidence.
+  const own = Object.values(inherited());
   for (const [name, value] of Object.entries(state.values)) {
-    if (inherited()[name] === value) refuse(`the value of ${name} equals the runner's own value, so it would be passed through; write a test value`);
+    if (inherited()[name] === value || (value.length >= 8 && own.includes(value))) {
+      refuse(`the value of ${name} equals one of the runner's own values, so it would be passed through; write a test value`);
+    }
   }
   checkAncestors(runsRoot());
   const program = findProgram();
@@ -490,10 +495,19 @@ function openRun(argv, command) {
   if (!RUN_ID.test(id)) refuse(`bad run id ${oneLine(id)}; a run id looks like 20261001-120000-0a1b2c3d`);
   const dir = join(runsRoot(), id);
   if (!existsSync(join(dir, STATE))) refuse(`unknown run ${id} under ${runsRoot()}`);
-  plainFile(join(dir, STATE));
+  try {
+    plainFile(join(dir, STATE));
+  } catch (e) {
+    // End cannot mark such a run ended, so the copy of the skill stays.
+    if (command === 'end' && e instanceof Refusal) refuse(`the run record is not a plain file, so the run cannot be ended; delete ${oneLine(join(dir, 'work'))} by hand`);
+    throw e;
+  }
   let state;
   try { state = JSON.parse(readFileSync(join(dir, STATE), 'utf8')); } catch { /* refused below */ }
-  if (!state || typeof state !== 'object' || !Array.isArray(state.turns) || !Array.isArray(state.skills)) {
+  const isObject = v => v !== null && typeof v === 'object' && !Array.isArray(v);
+  if (!isObject(state) || !Array.isArray(state.turns) || !Array.isArray(state.skills) || !state.skills.length
+    || !isObject(state.values) || !Array.isArray(state.envNames) || !isObject(state.globalFile) || !Array.isArray(state.copied)
+    || !isObject(state.program) || !Array.isArray(state.flags) || !isObject(state.settings)) {
     refuse(`the run state of ${id} is not readable; start a new run`);
   }
   return { id, dir, work: join(dir, 'work'), state };
@@ -555,15 +569,19 @@ function send(argv) {
   // Standard output goes to a file, not a buffer: a long turn's events can
   // pass any buffer limit, and a cut-off transcript would read as a short turn.
   const attempt = state.attempts + 1;
-  const fd = openSync(out, 'w');
+  const fd = openSync(out, 'w+');
   let r;
+  let raw;
   try {
     r = launch(state.program, args, { cwd: work, env: sessionEnv(state, work), input: message, stdio: ['pipe', fd, 'pipe'] });
+    // Read back through the runner's own handle, not by name: the session ran
+    // in between, and a name can be pointed somewhere else.
+    raw = readAll(fd);
   } finally {
     closeSync(fd);
   }
   state.attempts = attempt;
-  const raw = readFileSync(out, 'utf8');
+  plainFile(join(dir, 'transcript.jsonl'));
   appendFileSync(join(dir, 'transcript.jsonl'), raw);
   rmSync(out);
   const ev = events(raw);
@@ -685,9 +703,11 @@ function report(argv) {
     L.push(`  permission denials: ${t.denials.length || 'none'}`);
     for (const d of t.denials) L.push(`    ${flat(d.tool)} ${flat(d.input).slice(0, 300)}`);
   }
-  if (existsSync(work) && lstatSync(work).isSymbolicLink()) {
+  let workStat = null;
+  try { workStat = lstatSync(work); } catch { /* deleted at end */ }
+  if (workStat?.isSymbolicLink()) {
     L.push('work folder files: the work folder is a link, not listed');
-  } else if (existsSync(work)) {
+  } else if (workStat) {
     const files = [];
     const temp = [];
     const copied = new Set(state.copied.map(forward));
@@ -717,6 +737,19 @@ function listFiles(root, visit, rel = '') {
     if (st.isDirectory()) listFiles(root, visit, r);
     else visit(st.isSymbolicLink() ? `${r} (a link, not followed)` : r);
   }
+}
+
+// The whole of an open file, from its start, whatever its handle's position.
+function readAll(fd) {
+  const size = fstatSync(fd).size;
+  const buf = Buffer.alloc(size);
+  let got = 0;
+  while (got < size) {
+    const n = readSync(fd, buf, got, size - got, got);
+    if (!n) break;
+    got += n;
+  }
+  return buf.subarray(0, got).toString('utf8');
 }
 
 const sha256 = buf => createHash('sha256').update(buf).digest('hex');

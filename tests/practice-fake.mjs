@@ -16,7 +16,7 @@
 // - `fake-log/` gets one JSON file per call: the arguments, standard input as
 //   base64, the environment and the working folder.
 
-import { mkdirSync, readdirSync, readFileSync, writeFileSync, existsSync } from 'node:fs';
+import { linkSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync, existsSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { homedir } from 'node:os';
 
@@ -46,6 +46,13 @@ for (const [rel, content] of Object.entries(t.write || {})) {
   const path = join(process.cwd(), rel);
   mkdirSync(dirname(path), { recursive: true });
   writeFileSync(path, content);
+}
+// A hard link put where a runner file was, as a session reaching outside its
+// work folder could do. Each key is relative to the working folder.
+for (const [rel, target] of Object.entries(t.hardlink || {})) {
+  const path = join(process.cwd(), rel);
+  rmSync(path, { force: true });
+  linkSync(target, path);
 }
 // A file in the temp folder the runner gave the session.
 for (const [rel, content] of Object.entries(t.writeTemp || {})) {

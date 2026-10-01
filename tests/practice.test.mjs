@@ -691,3 +691,71 @@ test('the ancestor check also walks the real path, when the temp folder is reach
   refused(r, /ancestor/);
   assert.match(r.stderr, /AGENTS\.md/);
 });
+
+// ---- review round 2 (security-reviewer on the fix commit) ----
+
+test('a send refuses to append to a transcript the session swapped for a link during the turn', () => {
+  const sb = sandbox();
+  const victim = join(sb.dir, 'victim.txt');
+  writeFileSync(victim, 'keep');
+  plan(sb, [{ reply: 'one' }, { reply: 'two', hardlink: { '../transcript.jsonl': victim } }]);
+  const id = start(sb);
+  assert.equal(cli(sb, ['send', id], 'one').code, 0);
+  const r = cli(sb, ['send', id], 'two');
+  assert.notEqual(r.code, 0);
+  assert.match(r.stderr, /transcript\.jsonl/);
+  assert.equal(readFileSync(victim, 'utf8'), 'keep');
+});
+
+test('start refuses a test value equal to any of the runner\'s own values, under any name', () => {
+  const sb = sandbox({ SOME_SECRET: 'abcdefgh123' });
+  const r = cli(sb, ['start', '--variant', 'clean', ...base(sb), '--value', 'OTHER=abcdefgh123']);
+  refused(r, /own values/);
+  assert.doesNotMatch(r.stderr, /SOME_SECRET|abcdefgh123/);
+  // A short everyday value is no evidence of a pass-through.
+  const ok = sandbox({ SOME_FLAG: 'true' });
+  assert.equal(cli(ok, ['start', '--variant', 'clean', ...base(ok), '--value', 'OTHER=true']).code, 0);
+});
+
+test('start refuses CLAUDE_ENV_FILE, a file a shell reads before each command', () => {
+  const sb = sandbox();
+  refused(cli(sb, ['start', '--variant', 'clean', ...base(sb), '--value', 'CLAUDE_ENV_FILE=x']), /CLAUDE_ENV_FILE/);
+});
+
+test('end on a run whose record is a link says the work folder is left to delete by hand', () => {
+  const sb = sandbox();
+  const id = start(sb);
+  const file = join(runDir(sb, id), 'state.json');
+  const copy = join(sb.dir, 'state-copy.json');
+  writeFileSync(copy, readFileSync(file));
+  rmSync(file);
+  linkSync(copy, file);
+  const r = cli(sb, ['end', id]);
+  refused(r, /delete .*work.* by hand/);
+  // The reason quotes the path JSON-escaped, so look for the run id in it.
+  assert.ok(r.stderr.includes(id), r.stderr);
+});
+
+test('a run record missing its parts is refused in one line', () => {
+  const sb = sandbox();
+  const id = start(sb);
+  const file = join(runDir(sb, id), 'state.json');
+  const s = JSON.parse(readFileSync(file, 'utf8'));
+  delete s.values;
+  delete s.globalFile;
+  writeFileSync(file, JSON.stringify(s));
+  for (const command of ['send', 'report']) refused(cli(sb, [command, id], 'hi'), /run state/);
+});
+
+test('the report names a work folder that is a broken link as a link, not as deleted', () => {
+  const sb = sandbox();
+  const id = start(sb);
+  const gone = join(sb.dir, 'gone');
+  mkdirSync(gone);
+  rmSync(workDir(sb, id), { recursive: true });
+  symlinkSync(gone, workDir(sb, id), 'junction');
+  rmSync(gone, { recursive: true });
+  const rep = cli(sb, ['report', id]).stdout;
+  assert.match(rep, /work folder is a link/);
+  assert.doesNotMatch(rep, /deleted at end/);
+});
