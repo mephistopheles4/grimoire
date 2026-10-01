@@ -8,6 +8,7 @@ export const root = join(fileURLToPath(import.meta.url), '..', '..');
 export const renderer = join(root, 'skills', 'eagle-eye', 'render.mjs');
 export const audit = join(root, 'skills', 'eagle-eye', 'audit.mjs');
 export const check = join(root, 'scripts', 'check.mjs');
+export const practice = join(root, 'scripts', 'practice.mjs');
 export const exampleBox = join(root, 'skills', 'eagle-eye', 'examples', 'eagle-eye-skill.box.json');
 export const buildPages = join(root, 'scripts', 'build-pages.mjs');
 export const groundtrack = join(root, 'skills', 'groundtrack', 'scripts', 'render.mjs');
@@ -370,6 +371,7 @@ export function run(script, args = [], opts = {}) {
     env,
     encoding: 'utf8',
     ...(opts.maxBuffer ? { maxBuffer: opts.maxBuffer } : {}),
+    ...(opts.input !== undefined ? { input: opts.input } : {}),
   });
   if (r.error) throw r.error;
   return { code: r.status, stdout: r.stdout || '', stderr: r.stderr || '' };
