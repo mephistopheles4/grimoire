@@ -759,3 +759,22 @@ test('the report names a work folder that is a broken link as a link, not as del
   assert.match(rep, /work folder is a link/);
   assert.doesNotMatch(rep, /deleted at end/);
 });
+
+// ---- review round 3 (CodeRabbit on PR #169) ----
+
+for (const variant of ['owner-pact', 'full-account']) {
+  test(`${variant}: a send after the global file changed, or its config folder moved, is refused`, () => {
+    const sb = sandbox();
+    mkdirSync(join(sb.home, '.claude'));
+    const file = join(sb.home, '.claude', 'CLAUDE.md');
+    writeFileSync(file, 'version one\n');
+    const id = start(sb, ['--variant', variant]);
+    assert.equal(cli(sb, ['send', id], 'one').code, 0);
+    writeFileSync(file, 'version two\n');
+    refused(cli(sb, ['send', id], 'two'), /global instructions file changed/);
+    writeFileSync(file, 'version one\n');
+    sb.env.CLAUDE_CONFIG_DIR = join(sb.dir, 'other-config');
+    refused(cli(sb, ['send', id], 'three'), /global instructions file changed/);
+    assert.equal(calls(sb).length, 1);
+  });
+}

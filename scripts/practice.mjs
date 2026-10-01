@@ -81,6 +81,17 @@ function checkConfigFolder(variant) {
   }
 }
 
+// A variant that loads the global file records which version of it ran, so
+// two runs under different versions are never compared as equal. Send
+// computes it again and refuses a change, because a turn under another version
+// would sit in the same run under the first one's hash.
+function globalRecord(variant) {
+  const global = globalFile();
+  return VARIANTS[variant].exclude
+    ? { path: forward(global), excluded: true }
+    : { path: forward(global), excluded: false, sha256: existsSync(global) ? sha256(readFileSync(global)) : null };
+}
+
 function settingsFor(state) {
   const v = VARIANTS[state.variant];
   const s = {};
@@ -426,8 +437,6 @@ function start(args) {
     sessionId: null, attempts: 0, turns: [], ended: null,
   };
   checkValues(state);
-  // A literal that equals the runner's own value is that value passed through,
-  // whatever the tester meant by it.
   // Under any name: a long value equal to one the runner holds is that value,
   // whatever it is called now. A short one like 1 or true is no evidence.
   const own = Object.values(inherited());
@@ -476,12 +485,7 @@ function made(dir, id, state, skills, setup, program) {
   if (setup) copyTree(setup, work);
   state.flags = flagsFor(state, join(dir, 'settings.json'));
   state.settings = settingsFor(state);
-  // A variant that loads the global file records which version of it ran, so
-  // two runs under different versions are never compared as equal.
-  const global = globalFile();
-  state.globalFile = VARIANTS[state.variant].exclude
-    ? { path: forward(global), excluded: true }
-    : { path: forward(global), excluded: false, sha256: existsSync(global) ? sha256(readFileSync(global)) : null };
+  state.globalFile = globalRecord(state.variant);
   save(dir, state);
   process.stdout.write(`${id}\n`);
   process.stderr.write(`started run ${id} on variant ${state.variant}; the session works in ${work}\n`);
@@ -553,6 +557,9 @@ function send(argv) {
   const rebuilt = flagsFor(state, join(dir, 'settings.json'));
   if (JSON.stringify(rebuilt) !== JSON.stringify(state.flags) || JSON.stringify(settings) !== JSON.stringify(state.settings)) {
     refuse('the run state no longer matches what its variant gives; start a new run');
+  }
+  if (JSON.stringify(globalRecord(state.variant)) !== JSON.stringify(state.globalFile)) {
+    refuse('the global instructions file changed since start, or its config folder moved; start a new run');
   }
   const message = readFileSync(0);
   if (!message.length) refuse('no message on standard input');
