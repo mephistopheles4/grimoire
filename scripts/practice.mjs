@@ -38,7 +38,7 @@
 
 import { spawnSync } from 'node:child_process';
 import { createHash, randomBytes } from 'node:crypto';
-import { appendFileSync, closeSync, existsSync, lstatSync, mkdirSync, openSync, readFileSync, readdirSync, rmSync, rmdirSync, statSync, unlinkSync, writeFileSync } from 'node:fs';
+import { appendFileSync, closeSync, existsSync, lstatSync, mkdirSync, openSync, readFileSync, readdirSync, rmSync, rmdirSync, realpathSync, statSync, unlinkSync, writeFileSync } from 'node:fs';
 import { homedir, tmpdir, userInfo } from 'node:os';
 import { basename, delimiter, dirname, extname, isAbsolute, join, relative, resolve } from 'node:path';
 
@@ -68,6 +68,18 @@ function globalFile() {
   return join(dir, 'CLAUDE.md');
 }
 const forward = p => p.replace(/\\/g, '/');
+
+// A relative config folder would resolve against the work folder in the
+// session and against somewhere else here. And the exclusion is a pattern, so
+// a path holding pattern characters might not match the file it names: the
+// global file would load while the report said it was excluded.
+function checkConfigFolder(variant) {
+  const dir = process.env.CLAUDE_CONFIG_DIR;
+  if (dir && !isAbsolute(dir)) refuse(`CLAUDE_CONFIG_DIR is ${oneLine(dir)}; the runner needs an absolute path`);
+  if (VARIANTS[variant]?.exclude && /[[\]{}()!*?+@]/.test(forward(globalFile()))) {
+    refuse(`the global file's path ${oneLine(forward(globalFile()))} holds pattern characters, so the exclusion might not match it`);
+  }
+}
 
 function settingsFor(state) {
   const v = VARIANTS[state.variant];
@@ -170,6 +182,9 @@ const SYSTEM = [
   'PROGRAMFILES', 'PROGRAMFILES(X86)', 'PROGRAMW6432', 'COMMONPROGRAMFILES', 'COMMONPROGRAMFILES(X86)', 'COMMONPROGRAMW6432',
   'SYSTEMROOT', 'SYSTEMDRIVE', 'WINDIR', 'COMSPEC', 'PATHEXT', 'OS', 'PROCESSOR_ARCHITECTURE', 'NUMBER_OF_PROCESSORS',
   'USERNAME', 'USERDOMAIN', 'COMPUTERNAME', 'USER', 'LOGNAME', 'SHELL', 'LANG', 'LC_ALL', 'LC_CTYPE', 'TERM', 'TZ',
+  // Node on Windows copies this one into every child's environment whether
+  // it is passed or not, so it is listed to keep the report true.
+  'LOGONSERVER',
 ];
 
 // The runner's own environment, by upper-cased name. On Windows a name like
@@ -224,10 +239,15 @@ const NAME = /^[A-Z_][A-Z0-9_]*$/;
 // not set them, even as a literal. A name on the system list above is refused
 // too, because it would replace a value the session needs to start.
 const STARTUP_NAMES = new Set([
-  'NODE_OPTIONS', 'NODE_PATH', 'PATH', 'TEMP', 'TMP', 'TMPDIR', 'CLAUDE_CONFIG_DIR', 'USERPROFILE', 'HOME',
+  'PATH', 'TEMP', 'TMP', 'TMPDIR', 'CLAUDE_CONFIG_DIR', 'USERPROFILE', 'HOME',
   'LD_PRELOAD', 'LD_LIBRARY_PATH',
+  // Claude Code's own: one wraps every shell command, one names the shell.
+  'CLAUDE_CODE_SHELL_PREFIX', 'CLAUDE_CODE_GIT_BASH_PATH',
+  // Files a shell reads when it starts.
+  'BASH_ENV', 'ENV', 'PSMODULEPATH',
 ]);
-const startupName = name => STARTUP_NAMES.has(name) || name.startsWith('GIT_') || name.startsWith('DYLD_') || SYSTEM.includes(name);
+const STARTUP_PREFIXES = ['NODE_', 'GIT_', 'DYLD_', 'BUN_'];
+const startupName = name => STARTUP_NAMES.has(name) || STARTUP_PREFIXES.some(p => name.startsWith(p)) || SYSTEM.includes(name);
 
 // The cases that plant an instruction, and eagle-eye's session that needs a
 // fake key, run only where the posture is the runner's alone. On a variant
@@ -237,7 +257,12 @@ const startupName = name => STARTUP_NAMES.has(name) || name.startsWith('GIT_') |
 const RUNNER_ONLY_CASES = { contract: ['B3', 'B25b'], 'eagle-eye': ['session-4', 'P1', 'P2', 'P3', 'P4'] };
 const RUNNER_ONLY_VARIANTS = ['clean', 'owner-pact'];
 
-const oneLine = s => JSON.stringify(String(s).slice(0, 80));
+// A value quoted in a reason: escaped onto one line, and cut from the front
+// when long, because the end of a path is the part that names the file.
+const oneLine = s => {
+  const t = String(s);
+  return JSON.stringify(t.length > 120 ? `…${t.slice(-119)}` : t);
+};
 
 function checkValues(state) {
   if (state.variant === 'desktop-app') refuse('desktop-app is a manual procedure on the shared page, not a runner variant: the app cannot take flags');
@@ -250,7 +275,11 @@ function checkValues(state) {
     if (startupName(name)) refuse(`a case may not set ${name}: it changes how programs start or where their state lives`);
     if (typeof value !== 'string' || value.includes('\0') || value.length > 4096) refuse(`the value of ${name} is not a literal the runner can pass`);
   }
-  const only = (RUNNER_ONLY_CASES[state.skills[0]?.title] || []).find(c => c.toLowerCase() === state.case?.toLowerCase());
+  checkConfigFolder(state.variant);
+  // The title comes from a file, so it is never used as a plain-object key.
+  const title = state.skills[0]?.title;
+  const only = (Object.hasOwn(RUNNER_ONLY_CASES, title) ? RUNNER_ONLY_CASES[title] : [])
+    .find(c => c.toLowerCase() === state.case?.toLowerCase());
   if (only && !RUNNER_ONLY_VARIANTS.includes(state.variant)) {
     refuse(`case ${only} of ${state.skills[0].title} runs only on ${RUNNER_ONLY_VARIANTS.join(' and ')}, where the posture is the runner's alone`);
   }
@@ -343,7 +372,18 @@ function ownConfigFolders() {
 // Claude Code reads instruction files from every folder above the one it runs
 // in, and a repository's .claude folder above it would load as a project. So
 // the work folder must have neither above it.
+//
+// The names are walked as written, and again as the file system resolves
+// them, because a temp folder reached through a link has other ancestors.
 function checkAncestors(from) {
+  let near = resolve(from);
+  while (!existsSync(near) && dirname(near) !== near) near = dirname(near);
+  const starts = [resolve(from)];
+  try { starts.push(realpathSync.native(near)); } catch { /* nothing to resolve */ }
+  for (const s of starts) walkUp(s);
+}
+
+function walkUp(from) {
   const own = ownConfigFolders();
   for (let d = resolve(from); ; d = dirname(d)) {
     for (const name of INSTRUCTIONS) {
@@ -386,6 +426,11 @@ function start(args) {
     sessionId: null, attempts: 0, turns: [], ended: null,
   };
   checkValues(state);
+  // A literal that equals the runner's own value is that value passed through,
+  // whatever the tester meant by it.
+  for (const [name, value] of Object.entries(state.values)) {
+    if (inherited()[name] === value) refuse(`the value of ${name} equals the runner's own value, so it would be passed through; write a test value`);
+  }
   checkAncestors(runsRoot());
   const program = findProgram();
 
@@ -393,6 +438,17 @@ function start(args) {
   const dir = join(runsRoot(), id);
   mkdirSync(runsRoot(), { recursive: true });
   mkdirSync(dir);
+  // From here a failure removes the half-made run, so no copy of the skill
+  // stays where end cannot reach it.
+  try {
+    made(dir, id, state, skills, setup, program);
+  } catch (e) {
+    remove(dir);
+    throw e;
+  }
+}
+
+function made(dir, id, state, skills, setup, program) {
   const work = join(dir, 'work');
   mkdirSync(join(work, '.tmp'), { recursive: true });
   state.id = id;
@@ -402,7 +458,6 @@ function start(args) {
   // that cannot answer it would not run a turn either.
   const v = launch(program, ['--version'], { cwd: work, env: sessionEnv(state, work), encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
   if (v.status !== 0 || !String(v.stdout).trim()) {
-    rmSync(dir, { recursive: true, force: true });
     refuse(`the program ${oneLine(program.path)} did not answer --version (exit ${v.status})`);
   }
   program.version = clean(String(v.stdout).trim().split('\n')[0]).slice(0, 200);
@@ -419,12 +474,12 @@ function start(args) {
   // A variant that loads the global file records which version of it ran, so
   // two runs under different versions are never compared as equal.
   const global = globalFile();
-  state.globalFile = VARIANTS[o.variant].exclude
+  state.globalFile = VARIANTS[state.variant].exclude
     ? { path: forward(global), excluded: true }
     : { path: forward(global), excluded: false, sha256: existsSync(global) ? sha256(readFileSync(global)) : null };
-  writeFileSync(join(dir, STATE), JSON.stringify(state, null, 2));
+  save(dir, state);
   process.stdout.write(`${id}\n`);
-  process.stderr.write(`started run ${id} on variant ${o.variant}; the session works in ${work}\n`);
+  process.stderr.write(`started run ${id} on variant ${state.variant}; the session works in ${work}\n`);
 }
 
 // A run named on the command line. The id is checked against its generated
@@ -435,7 +490,29 @@ function openRun(argv, command) {
   if (!RUN_ID.test(id)) refuse(`bad run id ${oneLine(id)}; a run id looks like 20261001-120000-0a1b2c3d`);
   const dir = join(runsRoot(), id);
   if (!existsSync(join(dir, STATE))) refuse(`unknown run ${id} under ${runsRoot()}`);
-  return { id, dir, work: join(dir, 'work'), state: JSON.parse(readFileSync(join(dir, STATE), 'utf8')) };
+  plainFile(join(dir, STATE));
+  let state;
+  try { state = JSON.parse(readFileSync(join(dir, STATE), 'utf8')); } catch { /* refused below */ }
+  if (!state || typeof state !== 'object' || !Array.isArray(state.turns) || !Array.isArray(state.skills)) {
+    refuse(`the run state of ${id} is not readable; start a new run`);
+  }
+  return { id, dir, work: join(dir, 'work'), state };
+}
+
+// The runner's own files in the run directory are written only as plain
+// files. A link, or a hard link shared with a file elsewhere, would turn the
+// runner's write into a write somewhere else.
+function plainFile(path) {
+  let st;
+  try { st = lstatSync(path); } catch { return; }
+  if (!st.isFile() || st.nlink > 1) refuse(`${basename(path)} in the run directory is not a plain file; start a new run`);
+}
+
+// The work folder must be the folder start made, not a link to another one.
+function plainFolder(path) {
+  let st;
+  try { st = lstatSync(path); } catch { refuse('the work folder is gone; start a new run'); }
+  if (st.isSymbolicLink() || !st.isDirectory()) refuse('the work folder is a link or not a folder; start a new run');
 }
 
 // ---- send ----
@@ -466,15 +543,18 @@ function send(argv) {
   const message = readFileSync(0);
   if (!message.length) refuse('no message on standard input');
   if (state.sessionId !== null && !UUID.test(state.sessionId)) refuse('the run state no longer matches what its variant gives; start a new run');
+  if (!Number.isSafeInteger(state.attempts) || state.attempts < 0) refuse('the run state no longer matches what its variant gives; start a new run');
   const work = join(dir, 'work');
+  plainFolder(work);
+  const out = join(dir, `attempt-${state.attempts + 1}.jsonl`);
+  for (const f of ['settings.json', 'transcript.jsonl', basename(out)]) plainFile(join(dir, f));
   // Written again before every turn, so a change to the file between turns
   // never reaches the session.
   writeFileSync(join(dir, 'settings.json'), JSON.stringify(settings, null, 2));
   const args = state.sessionId ? [...rebuilt, '--resume', state.sessionId] : rebuilt;
   // Standard output goes to a file, not a buffer: a long turn's events can
   // pass any buffer limit, and a cut-off transcript would read as a short turn.
-  const attempt = (state.attempts || 0) + 1;
-  const out = join(dir, `attempt-${attempt}.jsonl`);
+  const attempt = state.attempts + 1;
   const fd = openSync(out, 'w');
   let r;
   try {
@@ -499,8 +579,11 @@ function send(argv) {
   if (!state.sessionId) state.sessionId = reported;
   state.turns.push(turn);
   save(dir, state);
-  process.stdout.write(`--- session reply, turn ${turn.n} (untrusted text from the session) ---\n${clean(result?.result ?? '')}\n--- end of session reply ---\n`);
-  process.stdout.write(`skills loaded on this turn: ${turn.skillsLoaded.length ? turn.skillsLoaded.map(clean).join(', ') : 'none'}\n`);
+  // The frame carries a token the session cannot know, so a reply that
+  // prints a closing line of its own does not close the frame.
+  const token = randomBytes(8).toString('hex');
+  process.stdout.write(`--- session reply, turn ${turn.n} (untrusted text from the session) [${token}] ---\n${clean(result?.result ?? '')}\n--- end of session reply [${token}] ---\n`);
+  process.stdout.write(`skills loaded on this turn: ${turn.skillsLoaded.length ? turn.skillsLoaded.map(flat).join(', ') : 'none'}\n`);
   if (reported !== state.sessionId) fail(`the session reported id ${reported}, not ${state.sessionId}: the earlier turns may be lost`);
   if (r.status !== 0 || !result || result.is_error) fail(`the turn did not complete (program exit ${r.status}${result ? `, result ${clean(String(result.subtype))}` : ', no result event'})`);
 }
@@ -539,6 +622,10 @@ function summarise(ev, sessionId, exit) {
 // retitle the terminal or hide what it says.
 const clean = s => String(s).replace(/\r\n?/g, '\n').replace(/[\u{0}-\u{8}\u{b}-\u{1f}\u{7f}-\u{9f}\u{202a}-\u{202e}\u{2066}-\u{2069}]/gu, '');
 
+// A field meant to be one line stays one line, so a name the session chose
+// cannot start a line that reads as the runner's.
+const flat = s => clean(s).replace(/[\n\t]+/g, ' ');
+
 // ---- report ----
 
 // The run record. Everything in it is a field the runner wrote, or a name or
@@ -561,9 +648,9 @@ function report(argv) {
   L.push(g.excluded
     ? `global instructions: excluded ${g.path}`
     : `global instructions: layered ${g.path}, ${g.sha256 ? `sha256 ${g.sha256}` : 'absent'}`);
-  L.push(`program: ${p.path} (${p.fromVariable ? 'from GRIMOIRE_PRACTICE_PROGRAM' : 'from the path search'}), version ${clean(p.version)}`);
-  L.push(`skill under test: ${state.skills[0].title}`);
-  if (state.skills.length > 1) L.push(`companion skills: ${state.skills.slice(1).map(s => s.title).join(', ')}`);
+  L.push(`program: ${p.path} (${p.fromVariable ? 'from GRIMOIRE_PRACTICE_PROGRAM' : 'from the path search'}), version ${flat(p.version)}`);
+  L.push(`skill under test: ${flat(state.skills[0].title)}`);
+  if (state.skills.length > 1) L.push(`companion skills: ${state.skills.slice(1).map(s => flat(s.title)).join(', ')}`);
   L.push(`setup: ${state.setup ?? 'none'}`);
   L.push(`environment names: ${state.envNames.join(', ')}`);
   L.push(`test values: ${Object.keys(state.values).join(', ') || 'none'}`);
@@ -572,17 +659,17 @@ function report(argv) {
   for (const t of state.turns) {
     L.push(`turn ${t.n} session ${t.sessionId}${t.sessionId !== state.sessionId ? ' (CHANGED: not the run\'s session)' : ''}`);
     const list = (label, key) => {
-      const now = t.startup[key].map(clean);
+      const now = t.startup[key].map(flat);
       if (t === first) return L.push(`  ${label}: ${now.join(', ') || 'none'}`);
-      const was = first.startup[key].map(clean);
+      const was = first.startup[key].map(flat);
       const added = now.filter(x => !was.includes(x));
       const removed = was.filter(x => !now.includes(x));
       if (!added.length && !removed.length) return L.push(`  ${label}: same as turn 1`);
       L.push(`  ${label}: CHANGED from turn 1${added.length ? `, added ${added.join(', ')}` : ''}${removed.length ? `, removed ${removed.join(', ')}` : ''}`);
     };
     const one = (label, key) => {
-      const now = clean(t.startup[key]);
-      if (t === first || now === clean(first.startup[key])) return L.push(`  ${label}: ${now}`);
+      const now = flat(t.startup[key]);
+      if (t === first || now === flat(first.startup[key])) return L.push(`  ${label}: ${now}`);
       L.push(`  ${label}: CHANGED from turn 1: ${now}`);
     };
     list('agents', 'agents');
@@ -594,11 +681,13 @@ function report(argv) {
     one('API key source', 'apiKeySource');
     one('model', 'model');
     L.push(`  hook events: ${t.hookEvents}`);
-    L.push(`  skills loaded: ${t.skillsLoaded.map(clean).join(', ') || 'none'}`);
+    L.push(`  skills loaded: ${t.skillsLoaded.map(flat).join(', ') || 'none'}`);
     L.push(`  permission denials: ${t.denials.length || 'none'}`);
-    for (const d of t.denials) L.push(`    ${clean(d.tool)} ${clean(d.input).replace(/\n/g, ' ').slice(0, 300)}`);
+    for (const d of t.denials) L.push(`    ${flat(d.tool)} ${flat(d.input).slice(0, 300)}`);
   }
-  if (existsSync(work)) {
+  if (existsSync(work) && lstatSync(work).isSymbolicLink()) {
+    L.push('work folder files: the work folder is a link, not listed');
+  } else if (existsSync(work)) {
     const files = [];
     const temp = [];
     const copied = new Set(state.copied.map(forward));
@@ -608,10 +697,10 @@ function report(argv) {
       else if (!copied.has(r)) files.push(r);
     });
     L.push('work folder files, without the copied skills:');
-    for (const f of files) L.push(`  ${clean(f)}`);
+    for (const f of files) L.push(`  ${flat(f)}`);
     if (!files.length) L.push('  none');
     L.push('temp folder files:');
-    for (const f of temp) L.push(`  ${clean(f)}`);
+    for (const f of temp) L.push(`  ${flat(f)}`);
     if (!temp.length) L.push('  none');
   } else {
     L.push('work folder files: the work folder was deleted at end');
@@ -633,7 +722,10 @@ function listFiles(root, visit, rel = '') {
 const sha256 = buf => createHash('sha256').update(buf).digest('hex');
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-const save = (dir, state) => writeFileSync(join(dir, STATE), JSON.stringify(state, null, 2));
+const save = (dir, state) => {
+  plainFile(join(dir, STATE));
+  writeFileSync(join(dir, STATE), JSON.stringify(state, null, 2));
+};
 
 // The session ran, but the turn did not complete. Not a refusal: something was
 // sent, and the evidence is on disk.
