@@ -89,7 +89,7 @@ past the rules. An allowed command writes anywhere it is pointed. Git runs a
 program that its own configuration names. The user's own allow rules merge
 into the posture. That is expected, because every allowed command is a way to
 write or run code. As of 2026-10-01, Claude Code has no operating-system
-sandbox on Windows, so the rules are only a rule check. Rules that call
+sandbox on native Windows, so the rules are only a rule check. Rules that call
 themselves a sandbox claim a boundary that they cannot hold. Each round also
 adds rules that a reader must understand.
 
