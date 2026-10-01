@@ -82,9 +82,10 @@ report prints the user settings' permission block, never the environment
 block. It names each user settings environment value that collides with a
 test value, by name only.
 
-**On `full-account`, an MCP server that reads a token from the environment
-fails.** The session's environment comes from a named list, so the token is
-not there.
+**On `full-account`, your MCP servers load,** with their own keys and
+headers, and they can reach off the machine. A server that reads a token
+from the environment fails there, because the session's environment comes
+from a named list.
 
 **Some cases run only on `clean` and `owner-pact`.** These are the cases
 that plant an instruction, and any case that needs a fake key. On those two
@@ -110,8 +111,9 @@ The desktop app cannot take flags, so the runner cannot drive it.
 6. Delete the folder.
 
 This procedure has no posture. The session runs under your own permission
-mode and hooks, and it can reach everything your account can. Never run a
-case on it that is limited to `clean` and `owner-pact`.
+mode and hooks, and it can reach everything your account can. It takes no
+test values either. Never run a case on it that is limited to `clean` and
+`owner-pact`, or a case whose doc needs a test value.
 
 ### The posture: hygiene, not a boundary
 
@@ -164,6 +166,9 @@ stop.
   system list, the temp folder and the case's test values. On `user-skills`
   and `full-account` your user settings add their own values, keys among
   them.
+- **A relative append path follows the session.** After a `cd`, an append
+  to a relative path lands in the new current folder. On the variants that
+  load user settings, that can be one of your extra folders.
 - **Masking catches known key shapes,** and values the runner holds of 8 or
   more characters. A secret the session reads in another form can reach a
   report.
@@ -217,8 +222,9 @@ matches. So a turn never runs without the variant's settings.
 | `--rule` | One tool rule. Give it once for each rule the case lists |
 | `--value` | One test value, `NAME=literal`. Give it once for each value |
 
-**Exit codes:** 0 means done. 1 means refused, with a one-line reason;
-nothing ran. 2 means the session ran but the turn did not complete, or `end`
+**Exit codes:** 0 means done. 1 means refused, with a one-line reason, or
+the runner stopped on an error. A refusal before a turn means no session
+ran. 2 means the session ran but the turn did not complete, or `end`
 could not delete everything.
 
 **`start` refuses** an unknown variant, a skill folder with no `SKILL.md`, a
@@ -243,8 +249,8 @@ other:
 - **A read, `$NAME`:** a shell read of `HOME` or of a test value the case
   sets.
 - **An append, `>> $NAME`:** a PowerShell append to the path a test value
-  names. The value must be a relative path of plain names, so the file is in
-  the work folder.
+  names. The value must be a relative path of plain names. It resolves
+  against the session's current folder, which starts as the work folder.
 
 The runner writes each rule for both shell tools, Bash and PowerShell,
 because Claude Code checks a rule against the tool that runs the command.
@@ -271,17 +277,19 @@ is edit-denied and checked.
 ### Test values
 
 `--value NAME=literal` sets one value in the session's environment, such as
-a fake key. Write the literal in the case. The runner refuses a value equal
-to your shell's value of the same name, and a value of 8 or more characters
-equal to any value in your shell. So a real key cannot pass through.
+a fake key. Write the literal in the case, and make it fake: the case docs
+are public. The runner refuses a value equal to your shell's value of the
+same name, and a value of 8 or more characters equal to any value in your
+shell. It cannot tell whether a value you type is a real key, and it does
+not compare a value with your user settings.
 
 - The name matches `^[A-Z_][A-Z0-9_]*$`.
 - The runner refuses names that change how a program starts or where its
   state lives, such as `PATH`, `TEMP`, `HOME`, `CLAUDE_CONFIG_DIR`,
   `NODE_OPTIONS` and any `GIT_*` name.
-- A relative path resolves against the work folder, because the session runs
-  there. Use one when a value must point inside the work folder: the folder's
-  path does not exist before `start`.
+- A relative path resolves against the session's current folder, which
+  starts as the work folder. Use one when a value must point inside the work
+  folder: the folder's path does not exist before `start`.
 
 The report lists the names of the test values, never the values.
 
@@ -312,8 +320,9 @@ waits, the case's doc says which fixed reply to send. Keep the line that
 `start` prints on standard error with the manifest's SHA-256: a restore
 checks the backups against it.
 
-In the report, read turn 2's `skills loaded`. When it names `contract`,
-record **stepped in**. A load on turn 1, the warm-up, is a false alarm.
+In the report, read `skills loaded` on turn 2, the request, and on any later
+turn, after a fixed reply. When it names `contract` there, record **stepped
+in**. A load on turn 1, the warm-up, is a false alarm.
 
 ## Recording
 
@@ -374,15 +383,24 @@ need it.
 **When `end` keeps the backups,** a live place changed. Read the report's
 "live folders changed since start" lines, and restore from the backup:
 
-1. Check the manifest first. Compute the SHA-256 of
-   `backup/manifest.json`, and compare it with the line `start` printed. If
-   they differ, the backups cannot be trusted.
-2. Copy back each changed place from `backup/`. The folder names are
+1. **Check the manifest.** Compute the SHA-256 of `backup/manifest.json`,
+   and compare it with the line `start` printed. If they differ, the backups
+   cannot be trusted. A match proves only that the manifest is unchanged, not
+   the backed-up files.
+2. **Check each backed-up file against the manifest.** For a folder, the
+   manifest's `live` entry lists each file's path and its SHA-256 at start.
+   For `CLAUDE.md`, the entry holds one SHA-256. A file in `backup/` whose
+   hash differs changed after start. Do not restore it.
+3. **Make each changed place match its backup.** The backup folders are
    `user-skills`, `agent-skills`, `user-agents` and `repo-skills`. The files
-   are `settings.json` and `CLAUDE.md`.
-3. The settings file's backup has no environment block, so no key sits in
-   the run directory. Merge your environment block back into it by hand.
-4. Delete the run directory.
+   are `settings.json` and `CLAUDE.md`. Copy back each file the report lists
+   as modified or removed. Delete each file it lists as added: a skill the
+   session added to a live folder would load in your next session.
+4. **Read the settings backup before you copy it back.** It has no
+   environment block, so no key sits in the run directory, and its manifest
+   hash is of the live file, so no hash can check it. Merge your environment
+   block back into it by hand.
+5. Delete the run directory.
 
 ## What the baseline cannot remove
 

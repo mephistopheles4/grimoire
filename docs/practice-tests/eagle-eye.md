@@ -101,20 +101,20 @@ The grid follows the shared page's format. A cell for sessions 1–4 holds each 
 
 | Case | clean | owner-pact | user-skills | full-account | desktop-app |
 |---|---|---|---|---|---|
-| S1 | not run | not run | not run | not run | not run |
-| Q1 | not run | not run | not run | not run | not run |
-| Q2 | not run | not run | not run | not run | not run |
+| S1 | not run | not run | not run | not run | — |
+| Q1 | not run | not run | not run | not run | — |
+| Q2 | not run | not run | not run | not run | — |
 | P4 | not run | not run | — | — | — |
 | P2 | not run | not run | — | — | — |
 | P3 | not run | not run | — | — | — |
 | P1 | not run | not run | — | — | — |
-| S2 | not run | not run | not run | not run | not run |
-| S3 | not run | not run | not run | not run | not run |
-| Q3 | not run | not run | not run | not run | not run |
-| C1 | not run | not run | not run | not run | not run |
-| D1 | not run | not run | not run | not run | not run |
+| S2 | not run | not run | not run | not run | — |
+| S3 | not run | not run | not run | not run | — |
+| Q3 | not run | not run | not run | not run | — |
+| C1 | not run | not run | not run | not run | — |
+| D1 | not run | not run | not run | not run | — |
 
-A dash marks a variant where the case never runs.
+A dash marks a variant where the case never runs. No eagle-eye case runs on `desktop-app`: the app takes no test values, so the usage log there is your real one, and the audit endpoint is the real provider's.
 
 The results below came before the clean baseline existed. They are not in the grid.
 
