@@ -715,8 +715,10 @@ function snapshot(place, backup = null) {
 function liveChanges(manifest) {
   const lines = [];
   for (const was of manifest.live) {
+    // The kind comes from the table, the path from the manifest: the config
+    // folder variable may differ in the shell that runs report or end.
     const place = livePlaces().find(p => p.key === was.key);
-    const now = place ? snapshot(place) : { kind: 'absent' };
+    const now = place && typeof was.path === 'string' ? snapshot({ ...place, path: was.path }) : { kind: 'absent' };
     if (now.kind !== was.kind) { lines.push([`${was.label}: was ${was.kind}, now ${now.kind}`, '']); continue; }
     if (now.kind === 'link' && now.target !== was.target) lines.push([`${was.label}: the link now points elsewhere`, '']);
     if (now.kind === 'file' && now.sha256 !== was.sha256) lines.push([`${was.label}: modified`, '']);

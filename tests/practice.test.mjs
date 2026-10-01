@@ -746,6 +746,22 @@ test('the report refuses a run record whose runner fields are out of shape', () 
   refused(cli(sb, ['report', id]), /run state/);
 });
 
+// ---- review round 3 (CodeRabbit on PR #170) ----
+
+test('report and end check the live places where start found them, whatever the config folder variable says now', () => {
+  const config = join(work, `config-live-${n}`);
+  const sb = sandbox({ CLAUDE_CONFIG_DIR: config });
+  mkdirSync(join(config, 'skills', 'live-skill'), { recursive: true });
+  writeFileSync(join(config, 'skills', 'live-skill', 'SKILL.md'), 'live\n');
+  const id = start(sb);
+  writeFileSync(join(config, 'skills', 'live-skill', 'SKILL.md'), 'tampered\n');
+  sb.env.CLAUDE_CONFIG_DIR = null;
+  assert.match(cli(sb, ['report', id]).stdout, /^ {2}user skills: modified live-skill\/SKILL\.md$/m);
+  const r = cli(sb, ['end', id]);
+  assert.equal(r.code, 0, r.stderr);
+  assert.match(r.stderr, /kept the backups/);
+});
+
 test('the transcript loses control characters, even written as JSON escapes', () => {
   const sb = sandbox();
   plan(sb, [{ reply: 'red\u{1b}[31mtext\u{7}\u{202e}end' }]);
