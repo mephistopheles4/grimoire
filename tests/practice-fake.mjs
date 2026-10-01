@@ -54,6 +54,13 @@ for (const [rel, target] of Object.entries(t.hardlink || {})) {
   rmSync(path, { force: true });
   linkSync(target, path);
 }
+// A file in the home folder, as a session writing outside its work folder
+// could plant one in the owner's live folders.
+for (const [rel, content] of Object.entries(t.writeHome || {})) {
+  const path = join(home, rel);
+  mkdirSync(dirname(path), { recursive: true });
+  writeFileSync(path, content);
+}
 // A file in the temp folder the runner gave the session.
 for (const [rel, content] of Object.entries(t.writeTemp || {})) {
   writeFileSync(join(process.env.TEMP || process.env.TMPDIR, rel), content);
@@ -73,6 +80,7 @@ if (!t.silent) {
     apiKeySource: t.apiKeySource ?? 'none', claude_code_version: '9.9.9',
     agents: t.agents ?? ['claude', 'Explore', 'general-purpose', 'Plan'],
     skills: t.skills ?? ['probe-skill', 'dataviz', 'run'],
+    slash_commands: t.slashCommands ?? ['probe-skill', 'dataviz', 'run', 'compact', 'clear'],
     plugins: (t.plugins ?? ['cc-plugin-agents-md', 'cc-plugin-telemetry']).map(name => ({ name, path: 'builtin', source: `${name}@builtin` })),
     per_turn_effort_active: false,
   });
