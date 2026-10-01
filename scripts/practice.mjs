@@ -219,7 +219,11 @@ function settingsFor(state, dir) {
     allow: [rule('Edit', work, '/**'), ...commands.flatMap(c => [`Bash(${c})`, `PowerShell(${c})`])],
     deny: [
       // The skill under test: its copy is what the run tests. Companion
-      // skills stay editable, because B8 tests how a skill treats them.
+      // skills get no deny rule, but a session cannot edit them either:
+      // Claude Code protects every write under .claude/ in "don't ask" mode,
+      // and an allow rule cannot pre-approve one (#164's smoke check 4). That
+      // is a platform limit the owner accepted. An attempted edit shows in the
+      // report's denials. This rule stays, because it states the intent.
       rule('Edit', copyOf(work, state.skills[0]), '/**'),
       // The session's own setup.
       rule('Edit', join(work, '.claude', 'settings.json')),
