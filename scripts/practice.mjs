@@ -214,9 +214,10 @@ function parseRule(text) {
 }
 
 // A read names HOME or a test value. An append names a test value whose path
-// stays in the work folder: relative, plain names only, never the session's
-// own setup under .claude. They need the run's values, so they are checked
-// here rather than in parseRule.
+// is relative and of plain names only, so never the session's own setup under
+// .claude, an instruction file or a device. A relative path resolves against
+// the session's current folder, which starts as the work folder. They need
+// the run's values, so they are checked here rather than in parseRule.
 function checkRuleValues(state) {
   for (const text of state.rules) {
     const r = parseRule(text);
@@ -224,11 +225,21 @@ function checkRuleValues(state) {
     if (r.kind === 'append' && r.name === 'HOME') bad('appends to the home folder; an append names a test value whose path is in the work folder');
     if (r.kind === 'read' && r.name === 'HOME') continue;
     if ((r.kind === 'read' || r.kind === 'append') && !Object.hasOwn(state.values, r.name)) bad(`names ${r.name}, a value the case does not set with --value`);
-    if (r.kind === 'append' && !state.values[r.name].split('/').every(p => PATH_PART.test(p))) {
+    if (r.kind !== 'append') continue;
+    const parts = state.values[r.name].split('/');
+    // A leading - would read as a PowerShell parameter.
+    if (!parts.every(p => PATH_PART.test(p) && !p.startsWith('-'))) {
       bad(`appends to ${r.name}, whose value ${oneLine(state.values[r.name])} is not a relative path of plain names in the work folder`);
+    }
+    const lower = parts.map(p => p.toLowerCase());
+    if (lower.some(p => INSTRUCTIONS.some(i => i.toLowerCase() === p) || DEVICE.test(p))) {
+      bad(`appends to ${r.name}, whose value ${oneLine(state.values[r.name])} names an instruction file or a device`);
     }
   }
 }
+
+// A Windows device name names no file, in any folder and with any extension.
+const DEVICE = /^(con|prn|aux|nul|com[0-9¹²³]|lpt[0-9¹²³])(\..*)?$/;
 
 // The rule as Claude Code reads it, for each shell, with <skill> replaced by
 // the copy's path. Each form is the same command as a session writes it:
@@ -248,8 +259,10 @@ function checkRuleValues(state) {
 //   an append with PowerShell's Add-Content, the path relative or absolute, in
 //   either slash form, bare or in either quotes. Bash gets none: Claude Code already
 //   lets a redirect write into the work folder under the Edit rule (#171's
-//   probe). The final * takes the line; Claude Code denies a subexpression, a
-//   parenthesised command, a pipe or a second command in it (the same probe).
+//   probe). The final * takes the line. In #171's probes Claude Code denied
+//   every other thing tried there: a subexpression, a parenthesised or array
+//   expression, an environment value, a pipe, an output redirect, and a
+//   second command after ; or on a new line.
 function expandRule(r, state, work) {
   const both = c => [`Bash(${c})`, `PowerShell(${c})`];
   if (r.kind === 'git') return both(`${r.words.join(' ')}${r.wild ? ' *' : ''}`);
@@ -1288,7 +1301,10 @@ function report(argv) {
     L.push(`user permission block, from ${join(configFolder(), 'settings.json')}:`);
     L.push(perms === undefined ? '  none' : JSON.stringify(perms, null, 2).split('\n').map(l => `  ${one(l)}`).join('\n'));
     const env = us && Object.hasOwn(us, 'env') && us.env !== null && typeof us.env === 'object' ? us.env : {};
-    const collide = Object.keys(state.values).filter(name => Object.hasOwn(env, name));
+    // Windows matches environment names without regard to case.
+    const key = n => (process.platform === 'win32' ? n.toUpperCase() : n);
+    const names = new Set(Object.keys(env).map(key));
+    const collide = Object.keys(state.values).filter(name => names.has(key(name)));
     L.push(`user settings environment names that collide with a test value: ${collide.join(', ') || 'none'}`);
   }
   L.push(`turns: ${state.turns.length}`);

@@ -294,6 +294,15 @@ for (const [what, folder] of [['a space', 'tmp x'], ['a $', 'tmp$x'], ['a backti
     refused(cli(sb, ['start', '--variant', 'clean', ...base(sb), '--rule', 'node <skill>/scripts/check.mjs *']), /holds a space, a quote, a \$ or a backtick/);
     assert.ok(!existsSync(join(tmp, 'grimoire-practice')) || readdirSync(join(tmp, 'grimoire-practice')).length === 0, 'a refused start left a run behind');
   });
+
+  test(`start refuses an append rule when the work folder's path holds ${what}`, () => {
+    const sb = sandbox();
+    const tmp = join(sb.dir, folder);
+    mkdirSync(tmp);
+    Object.assign(sb.env, { TEMP: tmp, TMP: tmp, TMPDIR: tmp });
+    refused(cli(sb, ['start', '--variant', 'clean', ...base(sb), '--value', 'X_LOG=x.jsonl', '--rule', '>> $X_LOG']), /holds a space, a quote, a \$ or a backtick/);
+    assert.ok(!existsSync(join(tmp, 'grimoire-practice')) || readdirSync(join(tmp, 'grimoire-practice')).length === 0, 'a refused start left a run behind');
+  });
 }
 
 test('an environment read is written exactly as the skill wrote it for each shell, on every send and every variant', () => {
@@ -353,6 +362,14 @@ const VALUE_RULE_REFUSALS = [
   ['an append to a path with a wildcard', ['--value', 'X_LOG=*.jsonl', '--rule', '>> $X_LOG'], NOT_IN_WORK],
   ['an append under the session\'s own setup', ['--value', 'X_LOG=.claude/x.jsonl', '--rule', '>> $X_LOG'], NOT_IN_WORK],
   ['an append with a wildcard', ['--value', 'X_LOG=x.jsonl', '--rule', '>> $X_LOG *'], SHAPE],
+  ['an append to a name PowerShell reads as a parameter', ['--value', 'X_LOG=logs/-x.jsonl', '--rule', '>> $X_LOG'], NOT_IN_WORK],
+  // The session's own setup, and Windows device names, which name no file in
+  // the work folder whatever folder they sit in or extension they carry.
+  ['an append to an instruction file', ['--value', 'X_LOG=CLAUDE.md', '--rule', '>> $X_LOG'], /instruction file or a device/],
+  ['an append to an instruction file in another case and folder', ['--value', 'X_LOG=docs/agents.MD', '--rule', '>> $X_LOG'], /instruction file or a device/],
+  ['an append to a device name', ['--value', 'X_LOG=CON', '--rule', '>> $X_LOG'], /instruction file or a device/],
+  ['an append to a device name with an extension', ['--value', 'X_LOG=logs/nul.jsonl', '--rule', '>> $X_LOG'], /instruction file or a device/],
+  ['an append to a numbered device name', ['--value', 'X_LOG=com1.txt', '--rule', '>> $X_LOG'], /instruction file or a device/],
 ];
 
 for (const [what, args, reason] of VALUE_RULE_REFUSALS) {
@@ -572,6 +589,16 @@ for (const variant of ['user-skills', 'full-account']) {
     assert.ok(!rep.includes(LIVE_SECRET) && !rep.includes('another-real-key') && !rep.includes('LIVE_TOKEN'), 'the report printed the environment block');
   });
 }
+
+// On Windows an environment name matches without regard to case, so a
+// settings value under eagle_eye_log replaces the test value EAGLE_EYE_LOG.
+test('the collision line compares names as the platform does', () => {
+  const sb = sandbox();
+  liveFolders(sb);
+  writeFileSync(join(sb.home, '.claude', 'settings.json'), JSON.stringify({ env: { eagle_eye_log: 'elsewhere.jsonl' } }));
+  const id = start(sb, ['--variant', 'user-skills', '--value', 'EAGLE_EYE_LOG=usage.log']);
+  assert.match(cli(sb, ['report', id]).stdout, new RegExp(`^user settings environment names that collide with a test value: ${win ? 'EAGLE_EYE_LOG' : 'none'}$`, 'm'));
+});
 
 test('clean prints no user permission block', () => {
   const sb = sandbox();
