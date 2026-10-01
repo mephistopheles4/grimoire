@@ -1,17 +1,19 @@
 # SkillSpector baseline for this skill.
 #
 # You are reading this because you scanned this directory before installing
-# what is in it, which is the right thing to do with a skill. Seven of
+# what is in it, which is the right thing to do with a skill. Nine of
 # SkillSpector's rules have fired on the files here, and this file says why for
 # each one, so you can disagree with a reason rather than with silence.
 #
-# Five are wrong. Two are not, and are accepted on purpose: this skill ships an
+# Six are wrong. Three are not, and are accepted on purpose. This skill ships an
 # optional edge audit that sends a box's text to a model provider, but only
 # when you run it with a key and say yes. E1 names that transmission, and LP3
-# names that the skill declares no permission list. Read those two reasons
+# names that the skill declares no permission list. It also keeps a usage log,
+# one line per use in a file in your home folder, across sessions, but only
+# after you say yes. RA2 names that persistence. Read those three reasons
 # before you install.
 #
-# Which of the seven fire on any given scan depends on the prose, and the prose
+# Which of the nine fire on any given scan depends on the prose, and the prose
 # is edited constantly. An entry matching nothing today is an argument that was
 # made once and kept.
 #
@@ -37,14 +39,18 @@ fingerprints: []
 rules:
   - rule_id: "AR2"
     reason: "False positive. SKILL.md tells the agent that a preview pane may render the page without script, so do not judge it from one. That adds a caveat; it does not suppress one."
+  - rule_id: "AS3"
+    reason: "False positive. A README line naming the one skill this repository ships, the decision records quoting that line, and a skill's contract naming the SKILL.md it was drafted from. Naming your own product or its own source file is not enumerating somebody else's."
   - rule_id: "EA2"
-    reason: "False positive. The why text on an edge in the example box file. It is content the renderer prints for a reader, not an instruction the agent acts on alone."
+    reason: "False positive. Texts that describe what an agent may do on its own and give no such instruction: the why text on an edge in an example box file, which a renderer prints for a reader; the labels, headings and comments in a format check, its bindings and its README that name the settings the check warns on because they let an agent act without asking; a step that lists unconfirmed drafts as Proposed without asking about each one, which keeps them unconfirmed until the person agrees; and eagle-eye's rule that when the person asks for the box by name, it builds the box without asking again, because the request is the go-ahead. None tells an agent to act without the person's say-so."
   - rule_id: "EA3"
     reason: "False positive. The phrase NOT LIMITED TO, in the warranty disclaimer of the SIL Open Font Licence that ships beside the vendored font faces. It is a legal text the licence requires us to carry verbatim, not an instruction an agent obeys, and its wording is not ours to change."
   - rule_id: "LP3"
     reason: "Accepted. The skill declares no permission list, because a permission list is one host's format and the skill's text runs in agents that read none. SECURITY.md in the repository says which script reaches the network, when it runs, and what it sends."
   - rule_id: "MP3"
     reason: "False positive. A comment in the page template describing how Reset discards the reader's overrides and Undo offers them back. It documents a button, not an agent's memory."
+  - rule_id: "RA2"
+    reason: "Two findings, one rule. False positive: the CONTRIBUTING.md rule forbidding a fixed path inside a skill, and the test proving that rule fires; a guard and its test, both reported as the risk they exist to prevent. Not a false positive, and accepted: eagle-eye's usage log keeps one line per use in a file in the person's home folder, across sessions, and only after the person says yes in chat. A no is stored as one declined marker. The skill never writes inside its own folder."
   - rule_id: "PE3"
     reason: "False positive. The string .env in the edge audit's setup message and in its test, which tell a user that a project .env file is not read. The script reads its key from the environment only and opens no credential file."
   - rule_id: "E1"

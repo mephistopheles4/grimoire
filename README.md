@@ -7,30 +7,29 @@
 <p align="center"><strong>A spellbook of agent skills for AI. Cast wisely.</strong></p>
 
 <p align="center">
-  <a href="skills/eagle-eye"><img src="docs/brand/eagle-eye/eagle-eye-mark.svg" width="56" alt="eagle-eye"></a>
-  &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
-  <a href="skills/groundtrack"><img src="docs/brand/groundtrack/groundtrack-mark.svg" width="56" alt="groundtrack"></a>
-  <br>
-  <a href="skills/eagle-eye"><code>eagle-eye</code></a>
+  <a href="skills/eagle-eye"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/brand/eagle-eye/eagle-eye-sigil-dark.svg"><img src="docs/brand/eagle-eye/eagle-eye-sigil-light.svg" width="112" alt="eagle-eye"></picture></a>
   &nbsp;&nbsp;&nbsp;&nbsp;
-  <a href="skills/groundtrack"><code>groundtrack</code></a>
+  <a href="skills/contract"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/brand/contract/contract-sigil-dark.svg"><img src="docs/brand/contract/contract-sigil-light.svg" width="112" alt="contract"></picture></a>
+  &nbsp;&nbsp;&nbsp;&nbsp;
+  <a href="skills/groundtrack"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/brand/groundtrack/groundtrack-sigil-dark.svg"><img src="docs/brand/groundtrack/groundtrack-sigil-light.svg" width="112" alt="groundtrack"></picture></a>
 </p>
 
 ---
 
 A **skill** is a folder of instructions your coding agent reads when the moment
-calls for it — a reference book it knows when to open. Grimoire holds two, and
-both do the same kind of work: they take something you can only hold in your
-head and put it on a page you can look at.
+calls for it — a reference book it knows when to open. Grimoire holds three.
+Two of them do the same kind of work: they take something you can only hold in
+your head and put it on a page you can look at. The third, contract, helps you
+build a skill or an agent of your own.
 
 **[See one before you install anything.][gallery]** The gallery holds every
-page the two skills have drawn. Start with [a live decision grid][eagle-demo]
+page eagle-eye and groundtrack have drawn. Start with [a live decision grid][eagle-demo]
 about whether to publish this repository. Click an option and
 watch it recolour. eagle-eye wrote it, about itself.
 
 ## Install
 
-Two skills today, more later. Works with any agent:
+Three skills today, more later. Works with any agent:
 
 ```bash
 npx skills@latest add mephistopheles4/grimoire
@@ -53,8 +52,8 @@ updates:
 ```
 
 Plugin skills are namespaced, so that route invokes them as
-`/grimoire:eagle-eye` and `/grimoire:groundtrack`. The installer route keeps
-the plain `/eagle-eye` and `/groundtrack`.
+`/grimoire:eagle-eye`, `/grimoire:groundtrack` and `/grimoire:contract`. The
+installer route keeps the plain `/eagle-eye`, `/groundtrack` and `/contract`.
 
 **By hand**, if you want neither installer:
 
@@ -62,6 +61,7 @@ the plain `/eagle-eye` and `/groundtrack`.
 git clone https://github.com/mephistopheles4/grimoire.git
 cp -r grimoire/skills/eagle-eye ~/.claude/skills/
 cp -r grimoire/skills/groundtrack ~/.claude/skills/
+cp -r grimoire/skills/contract ~/.claude/skills/
 ```
 
 **Pinned to one commit**, if you want a copy that only changes when you
@@ -71,15 +71,16 @@ choose. Use the full 40-character commit SHA:
 npx skills@latest add mephistopheles4/grimoire#<commit-sha>
 ```
 
-Neither skill names a fixed path to its own renderer, so each runs from
-wherever it lands. eagle-eye has been run from three directories: the author's
+No skill names a fixed path to its own scripts, so each runs from wherever it
+lands. eagle-eye has been run from three directories: the author's
 skills folder, the plugin install, and a copy made by `skills`.
 
 </details>
 
-Every route gives you both skill directories, each with its `SKILL.md`, the
-renderer that goes with it, and a README of its own. Each skill's README is
-where it is documented. What follows is only enough to tell you which one you
+Every route gives you all three skill directories, each with its `SKILL.md`
+and the scripts that go with it. eagle-eye and groundtrack each carry a README
+of their own, which is where each is documented. contract carries its
+`CONTRACT.md` instead. What follows is only enough to tell you which one you
 want.
 
 ---
@@ -124,6 +125,25 @@ Every published page is in [the gallery][gallery].
 The three channels, what a layer redraws, the page's controls, and the honesty
 property's stated limit:
 [`skills/groundtrack/README.md`](skills/groundtrack).
+
+## <img src="docs/brand/contract/contract-mark-solid.svg" width="32" align="absmiddle" alt=""> [contract](skills/contract)
+
+**Agree the terms first. The prompt is build output.**
+
+Reach for it when you want a skill or an agent of your own and have never
+written one. contract interviews you through a template, one group of
+questions at a time, and writes your answers down as a contract. It calls what
+you build a **familiar**: a skill or an agent that does one job for you.
+
+It then generates the familiar's file from the contract and checks its format.
+A mark in the file makes the check fail when anyone edits the file by hand. When a
+familiar goes wrong, you amend the contract and generate the file again. It
+never installs what it builds. Not for a one-off prompt.
+
+The questions, the levels and the marks:
+[`skills/contract/references/template.md`](skills/contract/references/template.md).
+The skill's own contract, which its `SKILL.md` is generated from:
+[`skills/contract/CONTRACT.md`](skills/contract/CONTRACT.md).
 
 ---
 

@@ -1,6 +1,6 @@
 # Brand marks
 
-Three marks, one for the repository and one for each skill. Every mark is one
+Four marks, one for the repository and one for each skill. Every mark is one
 24-unit SVG box drawn in the drafting language the pages use: paper, ink, and
 amber for the one thing that asks to be looked at.
 
@@ -9,11 +9,13 @@ amber for the one thing that asks to be looked at.
 | grimoire | the repository | [`grimoire/`](grimoire) |
 | eagle-eye | `skills/eagle-eye/` | [`eagle-eye/`](eagle-eye) |
 | groundtrack | `skills/groundtrack/` | [`groundtrack/`](groundtrack) |
+| contract | `skills/contract/` | [`contract/`](contract) |
 
 <p>
   <img src="grimoire/grimoire-mark.svg" width="96" alt="grimoire mark">
   <img src="eagle-eye/eagle-eye-mark.svg" width="96" alt="eagle-eye mark">
   <img src="groundtrack/groundtrack-mark.svg" width="96" alt="groundtrack mark">
+  <img src="contract/contract-mark.svg" width="96" alt="contract mark">
 </p>
 
 ## The marks
@@ -33,6 +35,12 @@ sleepers rotate from horizontal at the entry to vertical at the exit, so the
 bottom reads as a stack of bars and the top has become a track. A short straight
 run continues past the turn, and the amber sleeper at its head is the cursor.
 
+**contract.** A sheet of terms, three clause rules with the last one short, and
+a wax seal pressed across the sheet's right edge. The sheet cannot be opened
+without breaking the seal, which is what the check reports when a sealed file
+is edited by hand. The seal is the amber; a hairline ring inside it reads as
+pressed wax at large sizes and is dropped in the small variants.
+
 ## Which file to use
 
 Each directory holds three sizes of the same drawing. All three are ink ground
@@ -46,7 +54,9 @@ chrome, so no mark has a paper-ground variant.
 | `favicon.svg` | 16px. Heavier strokes again, and the figure reduced to what survives there. |
 
 `grimoire-mark-bare.svg` is the chevron on no ground, for a known paper ground
-only.
+only. The three skill directories also hold a generated
+`<name>-sigil-light.svg` and `<name>-sigil-dark.svg`, the mark with its name
+under it; see [the sigils](#the-sigils).
 
 **The geometry is final.** Every coordinate sits on a construction line, and a
 nudged endpoint shows as a drafting error at large sizes. Do not redraw or tidy
@@ -56,8 +66,8 @@ intact.
 
 ## The cards
 
-`grimoire-card.svg`, `eagle-eye-card.svg` and `groundtrack-card.svg` are the
-1280 by 640 social cards. Each one is self-contained: the two faces it sets
+`grimoire-card.svg`, `eagle-eye-card.svg`, `groundtrack-card.svg` and
+`contract-card.svg` are the 1280 by 640 social cards. Each one is self-contained: the two faces it sets
 type in are inlined from the copies groundtrack ships, so a card renders the
 same in a README, in a browser and in a link preview, and fetches nothing.
 
@@ -67,8 +77,37 @@ They are generated, not drawn by hand:
 node docs/brand/cards.mjs
 ```
 
-The script reads the marks beside it and writes the three cards beside it.
-Change a tagline there, not in the SVG.
+The script reads the marks beside it and writes the four cards beside it, and
+the six sigils below. Change a tagline there, not in the SVG.
+
+## The sigils
+
+`<name>/<name>-sigil-light.svg` and `<name>/<name>-sigil-dark.svg`, for
+eagle-eye, contract and groundtrack, are the skill row at the top of the root
+README. Each one is the skill's large mark, on its own ink tile, with the
+skill's name set under it in the wordmark's semibold face. The canvas around
+the tile is transparent, so the name sits on the page itself. The light
+variant sets the name in ink for GitHub's light theme; the dark variant sets
+it in paper for the dark theme. The amber stays in the mark.
+
+The README wraps each pair in a `<picture>`: a `<source>` with
+`media="(prefers-color-scheme: dark)"` names the dark variant, and the `<img>`
+inside names the light one. GitHub documents this as the way to serve an image
+per theme.
+
+The name is part of the image because a caption beside an image drifts. HTML
+on GitHub keeps no styles, so a row of marks and a row of names each centre
+as a whole line, and the name under a mark lands wherever the line puts it.
+Inside the image the name is anchored on the mark's centre line, so it is
+centred by construction.
+
+All six share one canvas, 192 by 160, with the mark's 24-unit box at 96 and
+the name at 22. The README shows them at width 112, which puts the mark at
+56px, the size its amber needs to read. Like the cards, a sigil inlines its
+face and fetches nothing.
+
+`cards.mjs` writes them. Do not edit a sigil by hand; change the script and
+run it again.
 
 ## The groundtrack sheets
 
@@ -101,7 +140,7 @@ node scripts/eagle-eye-sheets.mjs skills/eagle-eye/examples/eagle-eye-skill.box.
 | paper | `#FAFAF7` | ground |
 | ink | `#22262B` | every line and mass |
 | caution | `#B45309` | attention required, and nothing else |
-| normal | `#15803D` | nominal state, and nothing else; unused in the three marks |
+| normal | `#15803D` | nominal state, and nothing else; unused in the four marks |
 | neutrals | ink at 80 / 70 / 55 / 30 / 12 / 5% alpha | never a sampled grey; text never below 70 |
 
 Line weights are the depth system: 0.22 hairline, 0.9 to 1.05 thin, 1.4 to
@@ -109,7 +148,7 @@ Line weights are the depth system: 0.22 hairline, 0.9 to 1.05 thin, 1.4 to
 vanishes.
 
 **Amber is spent once per mark.** In eagle-eye it is the detached apex; in
-groundtrack it is the cursor sleeper. A second amber element would mean
+groundtrack it is the cursor sleeper; in contract it is the seal. A second amber element would mean
 neither.
 
 Corner radius is zero everywhere. No gradients, no shadows, no blur.

@@ -10,8 +10,9 @@ can find their way in. [`SECURITY.md`](../../SECURITY.md) is the summary.
 grimoire runs nothing on a server. An attacker reaches a user through one of
 four doors:
 
-1. **A file they wrote** — a box or flightpath file, or the pull request,
-   ticket or diff an agent is asked to chart.
+1. **A file they wrote** — a box or flightpath file, a skill or agent file
+   and its contract, or the pull request, ticket or diff an agent is asked
+   to chart.
 2. **The skill prose itself** — a change to a `SKILL.md` that reaches every
    installer on the next update.
 3. **The CI and publishing path** — the workflows and the actions they run.
@@ -63,6 +64,7 @@ quadrantChart
   10 Agent leaks key: [0.32, 0.64]
   11 Audit ranking skewed: [0.18, 0.30]
   12 Provider keeps text: [0.52, 0.20]
+  13 Shared familiar steers agent: [0.28, 0.75]
 ```
 
 How to read it:
@@ -70,9 +72,10 @@ How to read it:
 - **Act now (top right): row 1.** Anyone can open a pull request, and charting
   one is what groundtrack is for. Gap 1 below narrows it most; gap 3's
   reminder narrows it too, but binds no one, so it stays here.
-- **Guard closely (top left): rows 2, 8, 9, 10 and 3.** Rarer, but severe.
-  Row 2 is row 1's quieter twin, narrowed by the same gap. Row 8 moved
-  left once the scanners became required checks (gap 2).
+- **Guard closely (top left): rows 2, 13, 8, 9, 10 and 3.** Rarer, but
+  severe. Row 2 is row 1's quieter twin, narrowed by the same gap. Row 13 is
+  row 2 for the contract skill, plus a seal that can be read as a review.
+  Row 8 moved left once the scanners became required checks (gap 2).
 - **Watch (bottom right): row 12.** It happens by design whenever an account
   has logging on, and the harm is bounded to text the user chose to send.
 - **Accept (bottom left): rows 4, 5, 6, 7 and 11.** Row 6 sits nearest the
@@ -94,6 +97,7 @@ How to read it:
 | 10 | **The agent is talked into leaking the key.** Planted text asks the agent to print its environment, or to point the audit at an attacker's server. | `audit.mjs` never prints or writes the key. The endpoint override accepts only a loopback address. `SKILL.md` says never to ask for the key or write it to a file. | The script cannot stop the agent itself from printing an environment variable. That boundary belongs to the host agent. | `AML.T0055` · `AML.T0086` · `LLM02:2025` · `ASI03` · Information disclosure |
 | 11 | **A box skews the audit's ranking.** Box text is written to push a weak edge down the ranking, so nobody rereads it. | A score never changes an edge's tier. The ranking only orders rereading. | Low and accepted. | `AML.T0051.001` · Tampering |
 | 12 | **The provider keeps the text.** After a yes, the box's text sits under the provider's policy, and an OpenRouter account with logging on stores it. | The dry run names every company that receives it. [edge-audit.md](edge-audit.md) states the opt-ins. | Accepted. The repository cannot see or change a provider's policy. | `AML.T0057` · `LLM02:2025` · Information disclosure |
+| 13 | **A shared familiar or contract steers the agent, or a seal is read as a review.** A stranger shares a skill or agent file, or the contract it was built from, whose text reads as an instruction. The contract skill reads it in an interview or while amending it, and the agent obeys: it installs the file, widens what the agent may do, or copies an order into the new file. Or a reader sees a valid mark on a shared `SKILL.md` and trusts it as reviewed. | `skills/contract/SKILL.md` says a file, a pasted diff and the check's own output are data, not instructions. An answer drafted from a file for the tools, the actions or a stop needs the person's own words, marked Decided. The skill writes only under `familiars/`, asks before it overwrites a file anywhere else, and never writes a hook, a settings file or a permission list. `skills/contract/scripts/check.mjs` gives its verdict as an exit code, echoes no field value, and cleans every character it echoes. A key the contract does not list fails. The familiar, its contract and every other text file in a skill's folder are "cannot check" if they hold a line or paragraph separator (U+2028, U+2029), a C1 control character (NEL included), a C0 control character other than tab, DEL, U+FFFE, U+FFFF or a lone CR; tab and CRLF line endings are allowed. A Codex agent file (`.toml`) is read through a narrow subset of TOML: top-level `key = value` lines, whole-line comments, and strings that take no escape but `\"` and `\\`. An unquoted `true` or `false` is read only for a key the contract lists. A table such as `[mcp_servers]`, an array, a number, a dotted key, any other escape, a comment after a value, a byte-order mark, a lone CR, or a control character other than tab (DEL included) is "cannot check", on every line, the mark's included. Its known keys are `name`, `description`, `developer_instructions` and `sandbox_mode`; any other key passes only when the contract lists it, and then with any value. The check refuses no value for what it lets the agent do: it warns on every listed setting it does not know to be harmless, with a sharper danger warning for a few settings on a fixed list, and a warning does not fail the check. Its mark is three comment lines at the very end of the file, and any other comment that names a mark key, and a key named like one, is refused. An agent's contract names its target, and the file's ending must match it. The invisible-character rule covers every default-ignorable code point and the bidirectional marks. For a skill, the mark's familiar digest covers every file in the folder but `CONTRACT.md`, so a hand edit to a script or a reference file breaks the seal as an edit to `SKILL.md` does. On every skill folder, sealed or not, the check refuses a link or junction anywhere under it, a name outside `A-Z a-z 0-9 . _ -` or one Windows keeps for a device, a text file that is not UTF-8, holds a NUL or holds a lone CR, and a folder past 256 entries, 8 folders deep, 1 MiB a text file, 4 MiB a font or image or 16 MiB in all; it applies the invisible-character rule to every text file, and names a seal's leftover temporary file rather than skipping it. `--seal` refuses a symlink, a failing file, folder or contract, and a failed write, and then writes nothing; it writes a temporary file beside the familiar and replaces the familiar by a rename, and it adds a line ending to a `.toml` file's last line when that line has none, before the mark. `scripts/check.mjs` runs the check over every skill here. | A valid seal proves that the familiar and its contract have not changed since they were sealed, and nothing about who sealed them: anyone can compute a SHA-256. For a skill, the familiar is every file in its folder but `CONTRACT.md`; an empty folder is not covered. On Windows, a cloud placeholder or another reparse point that is not a link may read as a regular file, and reading it may start a download. That is a hypothesis from the security review, not tested. The `.toml` reader has no reference TOML parser to compare against, because the check takes no dependencies; its subset is kept narrow so that each form it accepts reads the same to TOML. A shipped or shared familiar, and its contract, are reviewed as prose whatever the mark says. In a `.md` or a `.toml` file, a key the contract lists passes with any value. The danger list names known settings only, and every other unknown setting gets the plainer `unreviewed` warning. A file the agent file points to is outside the seal. A stranger who writes both files can widen what the agent may do without asking; a warning is a prompt to read, not a review. The write scope is held by prose and by the person: `--seal` follows a junction or link in a parent folder and writes where it points, and prints the real path so the person can see where the write landed. The data rule is a reminder, as in row 2. | `AML.T0051.001` · `LLM01:2025` · `ASI01` · `ASI04` · Tampering, Elevation of privilege · MAESTRO 3 |
 
 ## Row 5, measured
 
@@ -148,8 +152,8 @@ Workstations, Node v24.14.1, and headless Chrome 154 for the page's first draw.
 
 ## The last line of defence is not ours
 
-For rows 1, 2, 6 and 10, the final guard is the host agent's rule that text in a
-file is data, not a command. grimoire cannot enforce that rule. A skill can
+For rows 1, 2, 6, 10 and 13, the final guard is the host agent's rule that text
+in a file is data, not a command. grimoire cannot enforce that rule. A skill can
 remind the agent of it and cannot replace it. `SECURITY.md` puts the host agent
 out of scope for that reason.
 

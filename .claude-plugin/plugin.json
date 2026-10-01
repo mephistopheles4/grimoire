@@ -1,7 +1,7 @@
 {
   "name": "grimoire",
-  "version": "0.24.11",
-  "description": "A spellbook of agent skills for AI. Cast wisely. Two skills: eagle-eye, which lays coupled decisions out as a morphological box and renders one self-contained page that reads any configuration back; and groundtrack, which turns a plan or a written change into a call graph with recorded traces through it, on a page a reader can step.",
+  "version": "0.27.0",
+  "description": "A spellbook of agent skills for AI. Cast wisely. Three skills: eagle-eye, which lays coupled decisions out as a morphological box and renders one self-contained page that reads any configuration back; groundtrack, which turns a plan or a written change into a call graph with recorded traces through it, on a page a reader can step; and contract, which interviews a person to agree the terms for a skill or an agent of their own, then generates its file from that contract and checks its format.",
   "author": {
     "name": "Ayman Diab",
     "url": "https://github.com/mephistopheles4"
@@ -17,6 +17,8 @@
     "brainstorming",
     "call-graph",
     "code-review",
-    "agent-skills"
+    "agent-skills",
+    "skill-authoring",
+    "contract"
   ]
 }

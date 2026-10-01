@@ -1,5 +1,6 @@
 #!/usr/bin/env node
-// The three social cards, 1280 by 640, written as self-contained SVG.
+// The four social cards, 1280 by 640, written as self-contained SVG, and the
+// three skill sigils the root README shows (see the end of this file).
 //
 //   node docs/brand/cards.mjs
 //
@@ -59,6 +60,12 @@ const CARDS = [
     tagline: ['A plan or a change, as a call', 'graph you can step through.'],
     footer: 'grimoire · skills/groundtrack',
   },
+  {
+    name: 'contract',
+    title: 'Contract',
+    tagline: ['Agree the terms,', 'then seal the file.'],
+    footer: 'grimoire · skills/contract',
+  },
 ];
 
 const esc = s => s.replace(/&/g, '&amp;').replace(/</g, '&lt;');
@@ -104,4 +111,38 @@ for (const c of CARDS) {
   const out = join(here, `${c.name}-card.svg`);
   writeFileSync(out, card(c));
   console.log(`wrote ${out}`);
+}
+
+// The sigils: each skill's mark with its name set under it, 192 by 160, on a
+// transparent canvas. The root README shows them in a row at width 112, which
+// puts the mark's 24-unit box at 56px. A caption beside an image centres as its
+// own line and drifts from the mark; a name inside the image cannot. The name
+// is anchored on the mark's centre line, so it is centred by construction.
+// Each skill gets two: the name in ink for a light page and in paper for a
+// dark one. The README picks between them with a <picture>.
+const SIGILS = ['eagle-eye', 'contract', 'groundtrack'];
+const THEMES = { light: INK, dark: PAPER };
+
+function sigil(name, fill) {
+  const W = 192, H = 160, MARK = 96;
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" role="img" aria-labelledby="t">
+<title id="t">${esc(name)}</title>
+<style>
+${face(600, 'IBMPlexMono-SemiBold-Latin1.woff2')}
+text{font-family:'IBM Plex Mono',ui-monospace,Menlo,Consolas,monospace}
+</style>
+<svg x="${(W - MARK) / 2}" y="16" width="${MARK}" height="${MARK}" viewBox="0 0 24 24">
+${markBody(name)}
+</svg>
+<text x="${W / 2}" y="140" font-size="22" font-weight="600" fill="${fill}" text-anchor="middle">${esc(name)}</text>
+</svg>
+`;
+}
+
+for (const name of SIGILS) {
+  for (const [theme, fill] of Object.entries(THEMES)) {
+    const out = join(here, name, `${name}-sigil-${theme}.svg`);
+    writeFileSync(out, sigil(name, fill));
+    console.log(`wrote ${out}`);
+  }
 }

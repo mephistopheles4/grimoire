@@ -30,9 +30,8 @@
 # baseline the author shipped — applied only if they pass
 # `--use-shipped-baseline`. Read it with `--show-suppressed`.
 #
-# The two skill directories each repeat the rules that fire inside them,
-# because a baseline is only found at the top of the directory actually
-# scanned. `node scripts/check.mjs` fails if a repeated entry disagrees with
+# Each skill directory repeats the rules that fire inside it, because a
+# baseline is only found at the top of the directory actually scanned. `node scripts/check.mjs` fails if a repeated entry disagrees with
 # this one.
 
 version: 2
@@ -42,15 +41,15 @@ rules:
   - rule_id: "AR2"
     reason: "False positive. SKILL.md tells the agent that a preview pane may render the page without script, so do not judge it from one. That adds a caveat; it does not suppress one."
   - rule_id: "AS3"
-    reason: "False positive. A README line naming the one skill this repository ships, and the decision records quoting that line. Naming your own product is not enumerating somebody else's."
+    reason: "False positive. A README line naming the one skill this repository ships, the decision records quoting that line, and a skill's contract naming the SKILL.md it was drafted from. Naming your own product or its own source file is not enumerating somebody else's."
   - rule_id: "EA2"
-    reason: "False positive. The why text on an edge in the example box file. It is content the renderer prints for a reader, not an instruction the agent acts on alone."
+    reason: "False positive. Texts that describe what an agent may do on its own and give no such instruction: the why text on an edge in an example box file, which a renderer prints for a reader; the labels, headings and comments in a format check, its bindings and its README that name the settings the check warns on because they let an agent act without asking; a step that lists unconfirmed drafts as Proposed without asking about each one, which keeps them unconfirmed until the person agrees; and eagle-eye's rule that when the person asks for the box by name, it builds the box without asking again, because the request is the go-ahead. None tells an agent to act without the person's say-so."
   - rule_id: "EA3"
     reason: "False positive. The phrase NOT LIMITED TO, in the warranty disclaimer of the SIL Open Font Licence that ships beside the vendored font faces. It is a legal text the licence requires us to carry verbatim, not an instruction an agent obeys, and its wording is not ours to change."
   - rule_id: "MP3"
     reason: "False positive. A comment in the page template describing how Reset discards the reader's overrides and Undo offers them back. It documents a button, not an agent's memory."
   - rule_id: "RA2"
-    reason: "False positive. The CONTRIBUTING.md rule forbidding a fixed path inside a skill, and the test proving that rule fires. A guard and its test, both reported as the risk they exist to prevent."
+    reason: "Two findings, one rule. False positive: the CONTRIBUTING.md rule forbidding a fixed path inside a skill, and the test proving that rule fires; a guard and its test, both reported as the risk they exist to prevent. Not a false positive, and accepted: eagle-eye's usage log keeps one line per use in a file in the person's home folder, across sessions, and only after the person says yes in chat. A no is stored as one declined marker. The skill never writes inside its own folder."
   - rule_id: "RP1"
     reason: "False positive. The README install command and quotations of it. skills is the Vercel Labs installer run through npx, not an MCP server, so there is no server version to pin."
   - rule_id: "PE3"
@@ -61,3 +60,5 @@ rules:
     reason: "Accepted. The skill declares no permission list, because a permission list is one host's format and the skill's text runs in agents that read none. SECURITY.md in the repository says which script reaches the network, when it runs, and what it sends."
   - rule_id: "P2"
     reason: "False positive. The rule reads get inside any HTML comment with no word boundary, so the word together in a page-template comment about two buttons wrapping as one group matches it. The comments are notes on layout for a maintainer, and no agent reads the rendered page as instructions."
+  - rule_id: "OH3"
+    reason: "False positive. A code comment in a format check that explains the cap on how many lines of refusals it prints, which exists so a hostile file cannot flood the output. The comment describes the limit, not unbounded output."
