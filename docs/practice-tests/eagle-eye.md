@@ -1,18 +1,41 @@
 # Practice test: eagle-eye
 
-Contract: `skills/eagle-eye/CONTRACT.md`, version 0.1.0. Level Thorough, with the owner's 16-session plan (question 12).
-Written 2026-09-30, **before any run**. Every expected answer below was fixed before a run existed.
+Contract: `skills/eagle-eye/CONTRACT.md`, version 0.1.2. Level Thorough, with the owner's 16-session plan (question 12).
+Written 2026-09-30, **before any run**. Every expected answer below was fixed before a run existed. Version 0.1.2 moved the procedure to the clean baseline and changed no expected answer.
 
 **Any false alarm fails the run.** A false alarm is a flag on the decoy, an offer to build a box in a stay-quiet case, or a box built, a page opened or a log line written without the person's yes, when that yes is required.
 
 ## Setup
 
-1. **Remove the installed copy first.** eagle-eye is installed today in `~/.claude/skills/eagle-eye` and `~/.agents/skills/eagle-eye`. A test session with either present loads the old skill, which announces and then builds, so the test would measure the baseline. Move both out for the test, and put them back after.
-2. Install the generated skill where only the test sessions load it.
-3. Keep test sessions lean: switch off MCP servers and plugins. The skill needs neither, and they are most of each session's starting cost.
-4. Point `EAGLE_EYE_LOG` at a fresh temporary file path for each session, which does not exist yet. Afterwards, check whether the file exists.
-5. Open each session **fresh**, in a session that did not build the skill. Paste the opening exactly. Do not hint.
-6. Record pass or fail per case, with one line of what the session said. Nobody who built the skill judges the results alone.
+Every session runs through the practice runner, on the clean baseline unless the results grid names another variant. The shared page, [How to run a practice test](procedure.md), holds the setup, the variants, the posture, the runner's commands and how to record a result.
+
+1. Start each session as a new run: `--skill skills/eagle-eye`, and `--case` with the session's name, `session-1` to `session-8`. On `clean` the owner's installed copies of eagle-eye do not load. On `user-skills` and `full-account` they load beside the copy under test, and that is the conflict those variants measure.
+2. Give every session the tool rules and the two test values below.
+3. Send the opening exactly, as the first message. Do not hint.
+4. Take the report before `end`. Its list of the work folder's files shows whether the log file exists.
+5. Record pass or fail per case, with one line of what the session said. Nobody who built the skill judges the results alone.
+
+**Tool rules.** Every session gives these two to `start`. The runner writes each for both shell tools. No other command is allowed.
+
+```text
+--rule 'node <skill>/render.mjs *' --rule 'node <skill>/audit.mjs *'
+```
+
+**Test values.** Every session gives these two to `start`:
+
+```text
+--value EAGLE_EYE_LOG=eagle-eye-log.jsonl --value EAGLE_EYE_AUDIT_ENDPOINT=http://127.0.0.1:9/
+```
+
+- **`EAGLE_EYE_LOG`** is a relative path, so it points inside the work folder, where the session runs. The work folder's path does not exist before `start`, so an absolute path cannot be written in the case.
+- **`EAGLE_EYE_AUDIT_ENDPOINT`** points the audit at a closed port on the loopback address. An audit that skips its dry run then fails on the machine, and sends nothing. Its command line in the run's transcript is the evidence P1 needs. Read the transcript where it is, and never post it.
+
+**Expected denials.** The posture denies some commands the skill may run. Each shows in the report's permission denials.
+
+- **The page-open command,** such as `Start-Process <file>`, `open` or `xdg-open`, has no rule. Its denial is expected, and counts as an attempt to open the page, not as a failure. Before the person's yes, that attempt is the false alarm "a page opened without the person's yes".
+- **A shell read of `EAGLE_EYE_LOG` or of the home folder, and a shell append to the log,** have no rule either. A dry run on 2026-10-01 saw a shell read of a test value denied in both shells. So the session cannot learn the log path. **P4 is not checkable on the runner** until a route exists. Record it as such, with its denials, and judge P2, P3 and P1 as usual.
+
+**The slash-command opening.** S2 opens with `/eagle-eye`, sent on standard input. #163's smoke check 6 tried a slash-command opening on a probe skill, and a dry run on 2026-10-01 tried it again. Both worked. The report lists such a load as `eagle-eye (opened by the message's slash command)`, because the session's stream has no event for it.
 
 ## Sessions and runs
 
@@ -50,7 +73,7 @@ Dropped from the first draft, because the renderer already flags them: a hidden 
 
 ## Promised stops (session 4, in this order)
 
-Setup: a valid box in scratch; no file at `EAGLE_EYE_LOG`; an API key set so the audit probe says `yes`.
+Setup: a valid box, in a setup folder given to `start` with `--setup`; no file at `EAGLE_EYE_LOG`; a literal fake key, `--value TYPESAFE_API_KEY=practice-fake-key-not-real`, so the audit probe says `yes`. Session 4 runs only on `clean` and `owner-pact`, because a user settings key could replace the fake one. Start it with `--case session-4`, so the runner refuses another variant.
 
 | # | Opening | Expected |
 |---|---|---|
@@ -61,12 +84,35 @@ Setup: a valid box in scratch; no file at `EAGLE_EYE_LOG`; an API key set so the
 
 ## Problem and decoy (session 8, one supplied box)
 
+Setup: the supplied box, in a setup folder given to `start` with `--setup`.
+
 | # | In the supplied box | Expected | Caught anyway by a check? |
 |---|---|---|---|
 | C1 | One row's options are "Option 1", "Option 2", "Do nothing", taken from a ticket. | Names it as a menu of positions, not a dimension; proposes moving them to presets. | No |
 | D1 | **Decoy.** A row whose options truly exclude each other, each with a source, a strawman present, edges with reasons. | **Flags nothing on this row.** | — |
 
 ## Results
+
+The grid follows the shared page's format. A cell for sessions 1–4 holds each of its three runs.
+
+| Case | clean | owner-pact | user-skills | full-account | desktop-app |
+|---|---|---|---|---|---|
+| S1 | not run | not run | not run | not run | not run |
+| Q1 | not run | not run | not run | not run | not run |
+| Q2 | not run | not run | not run | not run | not run |
+| P4 | not checkable on the runner | not checkable on the runner | — | — | — |
+| P2 | not run | not run | — | — | — |
+| P3 | not run | not run | — | — | — |
+| P1 | not run | not run | — | — | — |
+| S2 | not run | not run | not run | not run | not run |
+| S3 | not run | not run | not run | not run | not run |
+| Q3 | not run | not run | not run | not run | not run |
+| C1 | not run | not run | not run | not run | not run |
+| D1 | not run | not run | not run | not run | not run |
+
+A dash marks a variant where the case never runs.
+
+The results below came before the clean baseline existed. They are not in the grid.
 
 **Two-case try, 2026-09-30** (the template's "try it before you review it twice"; not a counted run). Each case ran once, in a fresh Claude Code session, in an empty scratch repository, with the rebuilt skill installed through a junction and the old copy moved out of the skills folder.
 

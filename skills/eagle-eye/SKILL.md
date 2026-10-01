@@ -2,9 +2,9 @@
 name: eagle-eye
 description: Steps in when a discussion holds three or more open decisions and at least two of them are coupled, so that one choice changes what is possible in another, or when someone asks for it by name (/eagle-eye, an eagle-eye view, or a morphological box). Stays out when the person insists on the quick route, and for two independent choices.
 metadata:
-  contract-version: 0.1.1
+  contract-version: 0.1.2
   familiar-digest: "sha256:b52f4dc0cb481dcf288c24054da66479975eeb5ab356418a08cb60c7e6872814"
-  contract-digest: "sha256:09cfc4917c1952787f928c89c2fd99dde1b20d4c290e808dece059e3ae1d37ab"
+  contract-digest: "sha256:4156116e07f44560636efce02957186d70e471c2284d4a0984f65311ccdd461b"
 ---
 
 # Eagle-eye

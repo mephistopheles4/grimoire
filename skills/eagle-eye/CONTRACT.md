@@ -1,6 +1,6 @@
 # Contract: eagle-eye
 
-Version: 0.1.1
+Version: 0.1.2
 
 - **Type:** skill
 - **Level:** Thorough
@@ -103,6 +103,7 @@ Extra keys: none.
 | 0.1.0 | 2026-09-30 | The person's "before" answer is taken before any box is shown: a by-name request asks for the current leaning in one line and waits for it. | The end-to-end run asked it after showing the box and its recommendation, so it was no longer a before (the owner picked option B). | 3, 13 |
 | 0.1.0 | 2026-09-30 | The familiar is built at `skills/eagle-eye/`, with this contract beside it; the practice test moves to `docs/practice-tests/eagle-eye.md`. | The owner's decision: the skill already ships from `skills/`, and the repository keeps practice tests in `docs/practice-tests/`. | 12 |
 | 0.1.1 | 2026-09-30 | No clause changed. The generated file is brought back to the contract in two places: a use line is only appended to the log, never written back whole (question 13 says it appends), and the 2–3 decision table stays in chat, with no box file, page, export or audit run (question 3's depth rule). | Review of pull request 153: read-and-write-back can lose a line when two sessions write at once, and the procedure sent the chat-table route through the file steps. | 3, 13 |
+| 0.1.2 | 2026-10-01 | No clause changed. The practice test runs on the clean baseline: each session in its own run through the repository's practice runner, which loads only the skill under test and what the tool ships. Its setup drops the steps that moved the installed copies out and switched off MCP servers and plugins. `EAGLE_EYE_LOG` points inside the run's work folder, the audit endpoint points at a closed loopback port, and session 4 uses a literal fake key and runs only on the `clean` and `owner-pact` variants. The test lists its tool rules and the denials it expects, and marks P4 not checkable on the runner, because a session there cannot read a variable with a shell. No expected answer changes. No section of `SKILL.md` changes: question 12 here is this skill's own test. | The owner: a practice test runs in a sandbox with no possible conflicts, and conflicts are added back on purpose, one named variant at a time (issue 161, ADR 0007). A changed procedure is a new version. | 12 |
 
 ---
 
@@ -129,7 +130,7 @@ Extra keys: none.
 
 ## 12. Practice test
 
-**Confirmed, 2026-09-30** (the 16-session plan, at checkpoint 2). In its own file, outside the skill's folder: `docs/practice-tests/eagle-eye.md`. 3 step-in cases, 3 stay-quiet cases, 4 cases for the Promised stops, 1 problem and 1 decoy. Run 1: all 8 sessions. Runs 2 and 3: only the 4 sessions where luck matters most. 16 sessions in all. Any false alarm fails the run. Written before any run. Not sealed.
+**Confirmed, 2026-09-30** (the 16-session plan, at checkpoint 2). In its own file, outside the skill's folder: `docs/practice-tests/eagle-eye.md`. 3 step-in cases, 3 stay-quiet cases, 4 cases for the Promised stops, 1 problem and 1 decoy. Run 1: all 8 sessions. Runs 2 and 3: only the 4 sessions where luck matters most. 16 sessions in all. Any false alarm fails the run. Written before any run. Not sealed. Each session runs on the clean baseline, through the repository's practice runner (`docs/practice-tests/procedure.md`), since 0.1.2.
 
 **Deviation from Thorough.** The template asks for 3 full runs. The owner cut it for token cost ("42 sessions is a lot… this is definitely gonna hurt my limits"). Two problem cases were dropped because the renderer already flags them (hidden chain, missing strawman); two look-alike quiet cases were merged.
 
