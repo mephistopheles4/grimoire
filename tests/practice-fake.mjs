@@ -14,7 +14,7 @@
 // - `fake-plan.json` holds `{ turns: [...] }`, one entry per message the fake
 //   receives. The last entry repeats once they run out.
 // - `fake-log/` gets one JSON file per call: the arguments, standard input as
-//   base64, the environment and the working folder.
+//   base64, the environment, the working folder and the settings file.
 
 import { linkSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync, existsSync } from 'node:fs';
 import { dirname, join } from 'node:path';
@@ -35,8 +35,12 @@ if (argv.includes('--version')) {
 
 const stdin = readFileSync(0);
 const prompts = readdirSync(log).filter(f => JSON.parse(readFileSync(join(log, f), 'utf8')).kind === 'prompt').length;
+// The settings file as this turn received it, because the runner writes it
+// again before every send.
+const settingsAt = argv.indexOf('--settings');
+const settings = settingsAt >= 0 && existsSync(argv[settingsAt + 1]) ? JSON.parse(readFileSync(argv[settingsAt + 1], 'utf8')) : null;
 writeFileSync(join(log, `call-${String(calls).padStart(3, '0')}.json`),
-  JSON.stringify({ kind: 'prompt', ...record, stdin: stdin.toString('base64') }));
+  JSON.stringify({ kind: 'prompt', ...record, settings, stdin: stdin.toString('base64') }));
 
 const planFile = join(home, 'fake-plan.json');
 const turns = existsSync(planFile) ? JSON.parse(readFileSync(planFile, 'utf8')).turns || [] : [];
