@@ -61,8 +61,10 @@ A6 also gives these four:
 --rule 'git status *' --rule 'git diff *' --rule 'git log *' --rule 'git show *'
 ```
 
-The runner writes each rule for both shell tools. No other command is
-allowed.
+The runner writes each rule for both shell tools, in every form the skill's
+own wording produces. The skill quotes the script's path, and the harness
+gives its folder with the platform's own slashes, so both forms matter (see
+the shared page). No other command is allowed.
 
 ## Part A. When it steps in
 
@@ -331,6 +333,10 @@ Sonnet and not on Haiku.
   proposal and a stop. A request sent as the first message would test that
   stop, not the skill, and a stay-quiet case could pass only because the
   first turn stopped. The warm-up turn moves the request past it.
+- **A denial that comes from the pact.** Sonnet often adds
+  `; "exit code: $LASTEXITCODE"` to a PowerShell command, and no rule allows
+  the compound. Read that denial from the report as the pact's, not the
+  skill's.
 
 ## Results
 

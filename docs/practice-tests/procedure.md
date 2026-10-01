@@ -159,6 +159,11 @@ stop.
 - **Git can run a program** that its own configuration names.
 - **Reads reach most of your home folder.** The read denies bind the agent's
   read tools only, and they cover a few named files.
+- **A read rule shows the session an environment value.** On `clean` and
+  `owner-pact` the environment holds no secret by construction: it holds the
+  system list, the temp folder and the case's test values. On `user-skills`
+  and `full-account` your user settings add their own values, keys among
+  them.
 - **Masking catches known key shapes,** and values the runner holds of 8 or
   more characters. A secret the session reads in another form can reach a
   report.
@@ -174,10 +179,15 @@ stop.
   that. The owner accepted this as a platform limit (#164). A case reads an
   attempted edit from the report's denials. A case that needs the edit to
   land is not checkable on the runner.
-- **A shell command with no rule is denied,** including a read of an
-  environment variable such as `echo "$NAME"` or `$env:NAME`. A dry run on
-  2026-10-01 saw both forms denied. A case whose skill needs one says so in
-  its practice-test doc.
+- **A shell command with no rule is denied.** That includes a read of an
+  environment variable, such as `echo "$NAME"` or `$env:NAME`, unless a read
+  rule names it. A session that wraps several commands in a script of its own
+  is denied too, because no rule names that script.
+- **A compound command is denied when no rule covers each part.** On a
+  variant that loads the owner's pact, Sonnet often adds
+  `; "exit code: $LASTEXITCODE"` to a PowerShell command. No rule allows the
+  compound, so it is denied. That denial comes from the pact, not from the
+  skill. A case reads it from the report's denials.
 
 ## Running a case
 
@@ -215,12 +225,13 @@ could not delete everything.
 link in a copied folder, and a setup folder that holds a `.claude` folder, an
 MCP config or an instruction file. It refuses a work folder with an
 instruction file or a project settings folder above it. It refuses a tool
-rule outside the two shapes, a named value it does not take, and a case run
-on a variant it is limited from.
+rule outside the four shapes, a read or append rule whose name the case does
+not set, a named value it does not take, and a case run on a variant it is
+limited from.
 
 ### Tool rules
 
-A tool rule allows one command. The runner takes two shapes and refuses any
+A tool rule allows one command. The runner takes four shapes and refuses any
 other:
 
 - **A script in the skill under test:** a program, then `<skill>/` and the
@@ -229,11 +240,33 @@ other:
   for the copy's path, which exists only after `start`.
 - **A git command:** `git`, then one of `status`, `diff`, `log` or `show`,
   then an optional final `*`.
+- **A read, `$NAME`:** a shell read of `HOME` or of a test value the case
+  sets.
+- **An append, `>> $NAME`:** a PowerShell append to the path a test value
+  names. The value must be a relative path of plain names, so the file is in
+  the work folder.
 
 The runner writes each rule for both shell tools, Bash and PowerShell,
-because Claude Code checks a rule against the tool that runs the command. A
-script in a companion skill is refused, because only the skill under test is
-edit-denied and checked.
+because Claude Code checks a rule against the tool that runs the command.
+Claude Code compares a rule with the command exactly as the session wrote it,
+quotes and slashes included. So the runner writes each rule in every form
+that the skill's own wording produces. That changes the form, never the
+scope:
+
+- **A script rule** is written bare, in single quotes and in double quotes.
+  Each of those uses forward slashes, backslashes, or the base directory as
+  the harness gives it with the rest of the path as the skill writes it.
+  Bash never gets a bare backslash path, because Git Bash reads an unquoted
+  backslash as an escape.
+- **A read rule** is `echo "$NAME"` for Bash, and `$env:NAME` for PowerShell,
+  or `$HOME` for the home folder.
+- **An append rule** is `Add-Content -Path <path> -Value *` for PowerShell,
+  with the path relative or absolute, in either slash form, bare or quoted.
+  A Bash `>>` append into the work folder needs no rule, because the edit
+  rule for the work folder already allows it.
+
+A script in a companion skill is refused, because only the skill under test
+is edit-denied and checked.
 
 ### Test values
 

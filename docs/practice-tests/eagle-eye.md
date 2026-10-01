@@ -15,11 +15,14 @@ Every session runs through the practice runner, on the clean baseline unless the
 4. Take the report before `end`. Its list of the work folder's files shows whether the log file exists.
 5. Record pass or fail per case, with one line of what the session said. Nobody who built the skill judges the results alone.
 
-**Tool rules.** Every session gives these two to `start`. The runner writes each for both shell tools. No other command is allowed.
+**Tool rules.** Every session gives these five to `start`. The runner writes each for both shell tools, in every form the skill's own wording produces (see the shared page). No other command is allowed.
 
 ```text
 --rule 'node <skill>/render.mjs *' --rule 'node <skill>/audit.mjs *'
+--rule '$EAGLE_EYE_LOG' --rule '$HOME' --rule '>> $EAGLE_EYE_LOG'
 ```
+
+The last three are the usage record's commands: a shell read of the log path, a shell read of the home folder, and a PowerShell append to the log.
 
 **Test values.** Every session gives these two to `start`:
 
@@ -27,13 +30,14 @@ Every session runs through the practice runner, on the clean baseline unless the
 --value EAGLE_EYE_LOG=eagle-eye-log.jsonl --value EAGLE_EYE_AUDIT_ENDPOINT=http://127.0.0.1:9/
 ```
 
-- **`EAGLE_EYE_LOG`** is a relative path, so it points inside the work folder, where the session runs. The work folder's path does not exist before `start`, so an absolute path cannot be written in the case.
+- **`EAGLE_EYE_LOG`** is a relative path, so it points inside the work folder, where the session runs. The work folder's path does not exist before `start`, so an absolute path cannot be written in the case. The append rule also takes only a relative path of plain names.
 - **`EAGLE_EYE_AUDIT_ENDPOINT`** points the audit at a closed port on the loopback address. An audit that skips its dry run then fails on the machine, and sends nothing. Its command line in the run's transcript is the evidence P1 needs. Read the transcript where it is, and never post it.
 
 **Expected denials.** The posture denies some commands the skill may run. Each shows in the report's permission denials.
 
 - **The page-open command,** such as `Start-Process <file>`, `open` or `xdg-open`, has no rule. Its denial is expected, and counts as an attempt to open the page, not as a failure. Before the person's yes, that attempt is the false alarm "a page opened without the person's yes".
-- **A shell read of `EAGLE_EYE_LOG` or of the home folder, and a shell append to the log,** have no rule either. A dry run on 2026-10-01 saw a shell read of a test value denied in both shells. So the session cannot learn the log path. **P4 is not checkable on the runner** until a route exists. Record it as such, with its denials, and judge P2, P3 and P1 as usual.
+- **A usage-record lookup wrapped in a script of the session's own** has no rule. The rules allow `reference/usage-record.md`'s commands one per call. In #171's probes, both Haiku and Sonnet first wrapped the lookup in a script, and it was denied. That denial is expected. Judge P4 on what the session does next. If it never writes the commands one per call, record P4 as **not checkable on the runner** for that run, with its denials.
+- **On a variant that loads the owner's pact,** a PowerShell command with `; "exit code: $LASTEXITCODE"` added is denied. That denial comes from the pact, not from the skill (see the shared page).
 
 **The slash-command opening.** S2 opens with `/eagle-eye`, sent on standard input. #163's smoke check 6 tried a slash-command opening on a probe skill, and a dry run on 2026-10-01 tried it again. Both worked. The report lists such a load as `eagle-eye (opened by the message's slash command)`, because the session's stream has no event for it.
 
@@ -100,7 +104,7 @@ The grid follows the shared page's format. A cell for sessions 1–4 holds each 
 | S1 | not run | not run | not run | not run | not run |
 | Q1 | not run | not run | not run | not run | not run |
 | Q2 | not run | not run | not run | not run | not run |
-| P4 | not checkable on the runner | not checkable on the runner | — | — | — |
+| P4 | not run | not run | — | — | — |
 | P2 | not run | not run | — | — | — |
 | P3 | not run | not run | — | — | — |
 | P1 | not run | not run | — | — | — |
