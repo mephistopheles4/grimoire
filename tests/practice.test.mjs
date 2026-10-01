@@ -380,7 +380,7 @@ test('a link in a live folder is recorded as a link, never followed, and start g
   const id = start(sb);
   const backup = join(runDir(sb, id), 'backup');
   assert.ok(!existsSync(join(backup, 'user-skills', 'linked')), 'the backup followed a link');
-  assert.match(readFileSync(join(backup, 'manifest.json'), 'utf8'), /"linked",\s*"link"/);
+  assert.match(readFileSync(join(backup, 'manifest.json'), 'utf8'), /"linked",\s*"link -> [^"]*installed-elsewhere"/);
   assert.match(cli(sb, ['report', id]).stdout, /^live folders: unchanged since start$/m);
 });
 
@@ -507,7 +507,8 @@ test('a value the runner holds, a user settings value or a known key shape is ma
     }
   }
   assert.match(r.stdout, /^env says \[masked\], quoted \[masked\], settings \[masked\], shapes \[masked\] \[masked\]$/m);
-  assert.match(r.stdout, /^masked: 6 values that look like credentials or match a value the runner holds$/m);
+  // Five in the reply, and four kept for the report: the skill name, the agent and the denial's two.
+  assert.match(r.stdout, /^masked: 9 values that look like credentials or match a value the runner holds$/m);
   assert.match(rep.stdout, /^ {4}Bash \{"command":"echo \[masked\] \[masked\]"\}$/m);
   // A value with an ordinary name is not masked, so runner fields survive.
   assert.ok(rep.stdout.includes(`program: ${fake} (from GRIMOIRE_PRACTICE_PROGRAM)`), rep.stdout);
@@ -569,6 +570,127 @@ for (const [what, message] of [
     assert.match(r.stdout, /^skills loaded on this turn: none$/m);
   });
 }
+
+// ---- review round 1 (result-checker and security-reviewer on #164) ----
+
+test('a key shape after a JSON escape, or glued to a word, is masked in the report and the run state', () => {
+  const sb = sandbox();
+  const generic = `sk-or-v1-${'c'.repeat(40)}`;
+  plan(sb, [{
+    tools: ['Read', `T${SHAPED}`],
+    denials: [{ tool_name: 'Write', tool_use_id: 't', tool_input: { file_path: 'C:/o/.env', content: `key:\n${SHAPED}\n\t${GH}\n${generic}\n` } }],
+  }]);
+  const id = start(sb);
+  assert.equal(cli(sb, ['send', id], 'go').code, 0);
+  const rep = cli(sb, ['report', id]).stdout;
+  const state = readFileSync(join(runDir(sb, id), 'state.json'), 'utf8');
+  for (const [where, text] of [['the report', rep], ['the run state', state]]) {
+    for (const secret of [SHAPED, GH, generic]) assert.ok(!text.includes(secret), `${where} holds ${secret}`);
+  }
+});
+
+test('a file name holding a private-key marker cannot blank out the rest of the report', () => {
+  const sb = sandbox();
+  liveFolders(sb);
+  plan(sb, [{
+    write: { '-----BEGIN PRIVATE KEY----- x': 'x', 'after.txt': 'y' },
+    writeHome: { '.claude/skills/live-skill/SKILL.md': 'tampered\n' },
+  }]);
+  const id = start(sb);
+  assert.equal(cli(sb, ['send', id], 'go').code, 0);
+  const rep = cli(sb, ['report', id]).stdout;
+  assert.match(rep, /^ {2}after\.txt$/m);
+  assert.match(rep, /^ {2}user skills: modified live-skill\/SKILL\.md$/m);
+  assert.match(rep, /^summary: run .*; live folders changed \(1\); /m);
+});
+
+test('the report goes ahead when a copied skill folder, or the whole .claude folder, is gone', () => {
+  const sb = sandbox();
+  const id = start(sb, ['--skill', skillAt(sb, 'commit-checker')]);
+  assert.equal(cli(sb, ['send', id], 'go').code, 0);
+  rmSync(join(workDir(sb, id), '.claude', 'skills', 'commit-checker'), { recursive: true });
+  let r = cli(sb, ['report', id]);
+  assert.equal(r.code, 0, r.stderr);
+  assert.match(r.stdout, /^ {2}removed \.claude\/skills\/commit-checker\/SKILL\.md$/m);
+  rmSync(join(workDir(sb, id), '.claude'), { recursive: true });
+  r = cli(sb, ['report', id]);
+  assert.equal(r.code, 0, r.stderr);
+  assert.match(r.stdout, /^ {2}removed \.claude\/skills\/probe-skill\/SKILL\.md$/m);
+  assert.match(r.stdout, /^summary: /m);
+});
+
+test('a live place that is a link is named as not checked, and a link retargeted inside a live folder shows', () => {
+  const sb = sandbox();
+  liveFolders(sb);
+  const a = join(sb.dir, 'target-a');
+  const b = join(sb.dir, 'target-b');
+  for (const d of [a, b]) mkdirSync(d);
+  symlinkSync(a, join(sb.home, '.claude', 'skills', 'linked'), 'junction');
+  const elsewhere = join(sb.dir, 'agents-elsewhere');
+  mkdirSync(elsewhere);
+  rmSync(join(sb.home, '.claude', 'agents'), { recursive: true });
+  symlinkSync(elsewhere, join(sb.home, '.claude', 'agents'), 'junction');
+  const id = start(sb);
+  rmSync(join(sb.home, '.claude', 'skills', 'linked'));
+  symlinkSync(b, join(sb.home, '.claude', 'skills', 'linked'), 'junction');
+  const rep = cli(sb, ['report', id]).stdout;
+  assert.match(rep, /^ {2}user skills: modified linked$/m);
+  assert.match(rep, /^live folders not checked: user agents \(a link\)$/m);
+  assert.match(rep, /^summary: .*; live folders changed \(1\), 1 not checked; /m);
+});
+
+test('a send refused after the session ran leaves no raw copy of the turn\'s output', () => {
+  const sb = sandbox();
+  const victim = join(sb.dir, 'victim.txt');
+  writeFileSync(victim, 'keep');
+  plan(sb, [{ reply: 'one' }, { reply: 'two', hardlink: { '../transcript.jsonl': victim } }]);
+  const id = start(sb);
+  assert.equal(cli(sb, ['send', id], 'one').code, 0);
+  assert.notEqual(cli(sb, ['send', id], 'two').code, 0);
+  assert.deepEqual(readdirSync(runDir(sb, id)).filter(f => f.startsWith('attempt-')), []);
+});
+
+test('the user permission block loses control characters', () => {
+  const sb = sandbox();
+  mkdirSync(join(sb.home, '.claude'), { recursive: true });
+  writeFileSync(join(sb.home, '.claude', 'settings.json'), JSON.stringify({ permissions: { allow: ['Bash(x\u{7f}\u{9b}\u{202e} *)'] } }));
+  const id = start(sb, ['--variant', 'user-skills']);
+  const rep = cli(sb, ['report', id]).stdout;
+  assert.match(rep, /"Bash\(x \*\)"/);
+  assert.doesNotMatch(rep, /[\u{7f}-\u{9f}\u{202a}-\u{202e}]/u);
+});
+
+test('a runner value under an ordinary name is masked in session text, unless it is a path', () => {
+  const url = 'postgres://user:pa55word@db.example/app';
+  const sb = sandbox({ DATABASE_URL: url, TOOLS_HOME: dirname(fake) });
+  plan(sb, [{ reply: `db ${url} tools ${dirname(fake)}` }]);
+  const id = start(sb);
+  const r = cli(sb, ['send', id], 'go');
+  assert.ok(!r.stdout.includes(url), r.stdout);
+  assert.ok(r.stdout.includes(`tools ${dirname(fake)}`), r.stdout);
+});
+
+test('session text loses invisible format characters, and the masked count ignores a literal [masked]', () => {
+  const sb = sandbox();
+  plan(sb, [{ reply: 'a\u{200b}b\u{2028}c\u{e0041}d\u{feff}e [masked]' }]);
+  const id = start(sb);
+  const r = cli(sb, ['send', id], 'go');
+  assert.match(r.stdout, /^abcde \[masked\]$/m);
+  assert.doesNotMatch(r.stdout, /^masked: /m);
+});
+
+test('a send refuses when the copy of the skill under test was swapped for a link', () => {
+  const sb = sandbox();
+  const id = start(sb);
+  const copy = join(workDir(sb, id), '.claude', 'skills', 'probe-skill');
+  const twin = join(sb.dir, 'twin');
+  mkdirSync(twin);
+  writeFileSync(join(twin, 'SKILL.md'), readFileSync(join(copy, 'SKILL.md')));
+  rmSync(copy, { recursive: true });
+  symlinkSync(twin, copy, 'junction');
+  refused(cli(sb, ['send', id], 'go'), /skill under test/);
+  assert.equal(calls(sb).length, 0);
+});
 
 test('the transcript loses control characters, even written as JSON escapes', () => {
   const sb = sandbox();
