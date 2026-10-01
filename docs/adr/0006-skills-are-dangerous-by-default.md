@@ -49,9 +49,9 @@ rating:
 ## When grimoire warns
 
 Claude Code's plugin warning and `SECURITY.md` already tell the user to trust
-a skill before they install it, so grimoire never repeats that. grimoire warns only on
-one of four triggers. Each trigger is outside what the trust at install time
-covered.
+a skill before they install it, so grimoire never repeats that. grimoire warns
+only on one of four triggers. Each trigger is outside what the trust at
+install time covered.
 
 - **A stranger's text reaches the agent.** Examples are a pull request to
   chart and a shared file. The skill tells the agent that the material is
