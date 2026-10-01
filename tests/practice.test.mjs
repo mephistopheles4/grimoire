@@ -510,7 +510,7 @@ test('a value the runner holds, a user settings value or a known key shape is ma
   // Five in the reply, and four kept for the report: the skill name, the agent and the denial's two.
   assert.match(r.stdout, /^masked: 9 values that look like credentials or match a value the runner holds$/m);
   assert.match(rep.stdout, /^ {4}Bash \{"command":"echo \[masked\] \[masked\]"\}$/m);
-  // A value with an ordinary name is not masked, so runner fields survive.
+  // A path is not a held value, so runner fields holding one survive.
   assert.ok(rep.stdout.includes(`program: ${fake} (from GRIMOIRE_PRACTICE_PROGRAM)`), rep.stdout);
   // Hashes and session ids are not key shapes.
   assert.match(rep.stdout, /^turn 1 session 0f1e2d3c-4b5a-4968-8776-655443322110$/m);
@@ -690,6 +690,59 @@ test('a send refuses when the copy of the skill under test was swapped for a lin
   symlinkSync(twin, copy, 'junction');
   refused(cli(sb, ['send', id], 'go'), /skill under test/);
   assert.equal(calls(sb).length, 0);
+});
+
+// ---- review round 2 (security-reviewer and result-checker on the fix commit) ----
+
+test('a secret-named value that starts with a slash is still masked, though it looks like a path', () => {
+  const secret = '/abcDEF123+secret/value';
+  const sb = sandbox({ AWS_SECRET_ACCESS_KEY: secret });
+  plan(sb, [{ reply: `leak ${secret}` }]);
+  const id = start(sb);
+  const r = cli(sb, ['send', id], 'go');
+  assert.ok(!r.stdout.includes(secret), r.stdout);
+});
+
+test('a generic key glued to a letter by an invisible character is still masked', () => {
+  const key = `sk-or-v1-${'c'.repeat(40)}`;
+  const sb = sandbox();
+  plan(sb, [{ reply: `a\u{200b}${key}` }]);
+  const id = start(sb);
+  const r = cli(sb, ['send', id], 'go');
+  assert.ok(!r.stdout.includes(key), r.stdout);
+  assert.ok(!readFileSync(join(runDir(sb, id), 'transcript.jsonl'), 'utf8').includes(key));
+});
+
+test('a runner word in a change line is never masked, even when a runner value equals it', () => {
+  const sb = sandbox({ PLAIN_WORD: 'modified' });
+  liveFolders(sb);
+  plan(sb, [{ writeHome: { '.claude/skills/live-skill/SKILL.md': 'tampered\n' } }]);
+  const id = start(sb);
+  assert.equal(cli(sb, ['send', id], 'go').code, 0);
+  assert.match(cli(sb, ['report', id]).stdout, /^ {2}user skills: modified live-skill\/SKILL\.md$/m);
+});
+
+test('end names a live place it could not check, even when nothing changed', () => {
+  const sb = sandbox();
+  liveFolders(sb);
+  const elsewhere = join(sb.dir, 'agents-elsewhere');
+  mkdirSync(elsewhere);
+  rmSync(join(sb.home, '.claude', 'agents'), { recursive: true });
+  symlinkSync(elsewhere, join(sb.home, '.claude', 'agents'), 'junction');
+  const id = start(sb);
+  const r = cli(sb, ['end', id]);
+  assert.equal(r.code, 0, r.stderr);
+  assert.match(r.stderr, /deleted the backups: .*not checked: user agents \(a link\)/);
+});
+
+test('the report refuses a run record whose runner fields are out of shape', () => {
+  const sb = sandbox();
+  const id = start(sb);
+  const file = join(runDir(sb, id), 'state.json');
+  const s = JSON.parse(readFileSync(file, 'utf8'));
+  s.model = 'haiku\nsummary: forged';
+  writeFileSync(file, JSON.stringify(s));
+  refused(cli(sb, ['report', id]), /run state/);
 });
 
 test('the transcript loses control characters, even written as JSON escapes', () => {

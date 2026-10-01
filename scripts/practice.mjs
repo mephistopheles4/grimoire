@@ -710,33 +710,40 @@ function snapshot(place, backup = null) {
   return { ...out, backup: 'whole' };
 }
 
-// Each place's changes since the manifest, as report lines.
+// Each place's changes since the manifest, as [runner text, path] pairs; the
+// path is empty when the change is the place's own.
 function liveChanges(manifest) {
   const lines = [];
   for (const was of manifest.live) {
     const place = livePlaces().find(p => p.key === was.key);
     const now = place ? snapshot(place) : { kind: 'absent' };
-    if (now.kind !== was.kind) { lines.push(`${was.label}: was ${was.kind}, now ${now.kind}`); continue; }
-    if (now.kind === 'link' && now.target !== was.target) lines.push(`${was.label}: the link now points elsewhere`);
-    if (now.kind === 'file' && now.sha256 !== was.sha256) lines.push(`${was.label}: modified`);
-    if (now.kind === 'folder') for (const c of diffEntries(was.entries, now.entries)) lines.push(`${was.label}: ${c}`);
+    if (now.kind !== was.kind) { lines.push([`${was.label}: was ${was.kind}, now ${now.kind}`, '']); continue; }
+    if (now.kind === 'link' && now.target !== was.target) lines.push([`${was.label}: the link now points elsewhere`, '']);
+    if (now.kind === 'file' && now.sha256 !== was.sha256) lines.push([`${was.label}: modified`, '']);
+    if (now.kind === 'folder') for (const [verb, r] of diffEntries(was.entries, now.entries)) lines.push([`${was.label}: ${verb}`, r]);
   }
   return lines;
 }
+
+// A change line: the runner's words as they are, the path cleaned and masked.
+const changeLine = ([text, path]) => (path ? `${text} ${one(path)}` : text);
 
 // The places start could not back up or hash: a link, which is never
 // followed, or a place it could not read. The report names each one, so
 // "unchanged" never covers a place nobody checked.
 const CHECKED = ['folder', 'file', 'absent'];
 const notChecked = manifest => manifest.live.filter(p => !CHECKED.includes(p.kind));
+const placeName = p => `${p.label} (${p.kind === 'link' ? 'a link' : p.kind})`;
 
-// What changed between two entry lists: added, modified and removed paths.
+// What changed between two entry lists, as [verb, path] pairs: added,
+// modified and removed. The verb is the runner's; the path may be the
+// session's, so only the path is masked when it is printed.
 function diffEntries(was, now) {
   const before = new Map(was);
   const after = new Map(now);
   const out = [];
-  for (const [r, h] of now) if (!before.has(r)) out.push(`added ${r}`); else if (before.get(r) !== h) out.push(`modified ${r}`);
-  for (const [r] of was) if (!after.has(r)) out.push(`removed ${r}`);
+  for (const [r, h] of now) if (!before.has(r)) out.push(['added', r]); else if (before.get(r) !== h) out.push(['modified', r]);
+  for (const [r] of was) if (!after.has(r)) out.push(['removed', r]);
   return out;
 }
 
@@ -952,8 +959,8 @@ function send(argv) {
   } finally {
     closeSync(fd);
     // The raw events are unmasked, so they never outlive this send, whatever
-    // refuses below. rmSync removes a link as itself.
-    rmSync(out, { force: true });
+    // refuses below. remove() takes a link as itself, and never throws.
+    remove(out);
   }
   state.attempts = attempt;
   const kept = scrubTranscript(raw);
@@ -1043,9 +1050,9 @@ const flat = s => clean(s).replace(/[\n\t]+/g, ' ');
 // any output is put together: by known key shapes, and by exact value for the
 // values the runner holds. Those are its own environment values that the
 // session never receives, and the user settings environment values, read
-// fresh here and never written anywhere. A path or a list of paths is not
-// held, because every run path starts with one, and a value shorter than 8
-// characters is no evidence. The runner's own fields are never masked, so a
+// fresh here and never written anywhere. A path or a list of paths under an
+// ordinary name is not held, because every run path starts with one, and a
+// value shorter than 8 characters is no evidence. The runner's own fields are never masked, so a
 // session cannot hide them.
 
 const MASK = '[masked]';
@@ -1068,13 +1075,16 @@ const KEY_SHAPES = [
 ];
 
 const pathLike = v => v.split(delimiter).every(p => p && isAbsolute(p));
+// A name that says secret holds its value whatever the value looks like: a
+// base64 key can start with a slash.
+const SECRET_NAME = /KEY|TOKEN|SECRET|PASSW|CREDENTIAL|AUTH|COOKIE|SESSION|PRIVATE|^(ANTHROPIC|CLAUDE_CODE|OPENAI|OPENROUTER|AWS|AZURE|GOOGLE|GH|GITHUB|GITLAB|NPM|HF)_/i;
 
 let held = null;
 function heldValues() {
   if (held) return held;
   const values = new Set();
   for (const [name, value] of Object.entries(inherited())) {
-    if (!SYSTEM.includes(name) && value.length >= 8 && !pathLike(value)) values.add(value);
+    if (!SYSTEM.includes(name) && value.length >= 8 && (SECRET_NAME.test(name) || !pathLike(value))) values.add(value);
   }
   const us = userSettings();
   const env = us && Object.hasOwn(us, 'env') && us.env !== null && typeof us.env === 'object' ? us.env : {};
@@ -1100,11 +1110,12 @@ function mask(s) {
   return out;
 }
 
-// Session text as the runner keeps or prints it: cleaned, then masked.
-const scrub = s => mask(clean(s));
+// Session text as the runner keeps or prints it: masked, cleaned, and masked
+// again, because stripping an invisible character can glue a key to a word.
+const scrub = s => mask(clean(mask(s)));
 
 // A field the runner prints on one line: flattened, then masked.
-const one = s => mask(flat(s));
+const one = s => mask(flat(mask(s)));
 
 // The flag that goes with masking.
 const masked = n => (n ? `masked: ${n} value${n === 1 ? '' : 's'} that look like credentials or match a value the runner holds\n` : '');
@@ -1128,8 +1139,26 @@ function scrubTranscript(raw) {
 
 // The run record. Everything in it is a field the runner wrote, or a name or
 // list the session reported, cleaned. It prints names, never a named value.
+// The report prints the record's runner fields as they are, so it checks
+// their shapes first, as send checks what it rebuilds.
+function checkRecord(state, id) {
+  const bad = () => refuse(`the run state of ${id} is not readable; start a new run`);
+  const iso = v => typeof v === 'string' && /^\d{4}-\d{2}-\d{2}T[\d:.]+Z$/.test(v);
+  if (state.id !== id || !Object.hasOwn(VARIANTS, state.variant) || !MODEL.test(state.model) || !EFFORTS.includes(state.effort)
+    || (state.case !== null && !CASE.test(state.case)) || (state.sessionId !== null && !UUID.test(state.sessionId))
+    || !/^[0-9a-f]{64}$/.test(state.manifest) || !iso(state.created) || (state.ended !== null && !iso(state.ended))
+    || (state.setup !== null && (typeof state.setup !== 'string' || /[\u{0}-\u{1f}\u{7f}-\u{9f}]/u.test(state.setup)))
+    || !state.envNames.every(n => typeof n === 'string' && /^[A-Z_][A-Z0-9_()]*$/.test(n))
+    || !Object.keys(state.values).every(n => NAME.test(n))) bad();
+  state.rules.forEach(parseRule);
+  for (const t of state.turns) {
+    if (!UUID.test(String(t?.sessionId)) || !Number.isSafeInteger(t.n) || !Number.isSafeInteger(t.hookEvents)) bad();
+  }
+}
+
 function report(argv) {
-  const { dir, state, work } = openRun(argv, 'report');
+  const { id, dir, state, work } = openRun(argv, 'report');
+  checkRecord(state, id);
   maskCount = 0;
   const v = VARIANTS[state.variant] || {};
   const g = state.globalFile;
@@ -1217,7 +1246,7 @@ function report(argv) {
     if (manifest) {
       copiedSummary = changes.length ? `changed (${changes.length})` : 'unchanged';
       L.push(changes.length ? 'copied skills changed since start:' : 'copied skills: unchanged since start');
-      for (const c of changes) L.push(`  ${one(c)}`);
+      for (const c of changes) L.push(`  ${changeLine(c)}`);
     }
     const files = [];
     const temp = [];
@@ -1240,9 +1269,9 @@ function report(argv) {
     const live = liveChanges(manifest);
     liveSummary = live.length ? `changed (${live.length})` : 'unchanged';
     L.push(live.length ? 'live folders changed since start:' : 'live folders: unchanged since start');
-    for (const c of live) L.push(`  ${one(c)}`);
+    for (const c of live) L.push(`  ${changeLine(c)}`);
     const skipped = notChecked(manifest);
-    if (skipped.length) L.push(`live folders not checked: ${skipped.map(s => `${s.label} (${s.kind === 'link' ? 'a link' : s.kind})`).join(', ')}`);
+    if (skipped.length) L.push(`live folders not checked: ${skipped.map(placeName).join(', ')}`);
     if (skipped.length) liveSummary += `, ${skipped.length} not checked`;
   }
   // The line for a results grid: runner-written fields only, never session text.
@@ -1321,7 +1350,8 @@ function end(argv) {
   } else {
     const kept = remove(backup);
     if (kept) fail(`the run ended, but ${kept} backup entr${kept === 1 ? 'y' : 'ies'} in ${backup} could not be deleted`);
-    process.stderr.write('deleted the backups: the live folders did not change since start\n');
+    const skipped = notChecked(manifest);
+    process.stderr.write(`deleted the backups: the live folders did not change since start${skipped.length ? `; not checked: ${skipped.map(placeName).join(', ')}` : ''}\n`);
   }
 }
 
