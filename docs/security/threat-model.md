@@ -189,6 +189,6 @@ out of scope for that reason.
 
 A row changes when its guard or its gap does. A new skill, a new script that
 opens a connection, a script that starts an agent session, or a new place
-where the agent reads a stranger's text each needs a row. The IDs cite ATLAS 2026.09, OWASP LLM 2025 and OWASP Agentic
-2026; a newer release may renumber them. The repository settings in row 8 were
-read on 2026-09-25.
+where the agent reads a stranger's text each needs a row. The IDs cite ATLAS
+2026.09, OWASP LLM 2025 and OWASP Agentic 2026; a newer release may renumber
+them. The repository settings in row 8 were read on 2026-09-25.
