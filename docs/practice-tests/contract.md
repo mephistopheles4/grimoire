@@ -14,9 +14,10 @@ the session that built the skill. The skill never runs this test itself.
 **Pass rule before merge.** A1, A6, A8, B7b, B8 and B11 each behave as
 expected in **one run**, each in a fresh session, and field reports from real
 uses back them (contract question 12, **Decided** 2026-09-30). Any false alarm
-fails the run. A false alarm is a step-in on a stay-quiet case, or a flag on a
-decoy. The full run, every case in A and B in each of two runs, stays as an
-optional fuller check.
+fails the run. A false alarm is a step-in on a stay-quiet case, a load of
+`contract` in part A before the request is sent, or a flag on a decoy. The
+full run, every case in A and B in each of two runs, stays as an optional
+fuller check.
 
 ## Words used here
 
@@ -41,12 +42,35 @@ them, in a throwaway folder, and never for the whole account.
 2. Copy `skills/contract/` into that folder's project skills folder. Do not
    install it for the whole account.
 3. Do the case's setup, if it has one.
-4. Start a new session in that folder. Send the request as the first
-   message, with nothing else.
-5. Record **stepped in** when the session loaded `contract`. The session's
-   transcript shows which skill it loaded. Otherwise record **stayed quiet**.
-   Note which other helper stepped in instead, if one did.
-6. Delete the folder. Afterwards, no copy of `contract` is active anywhere.
+4. Start a new session in that folder. Send the case's warm-up turn, from
+   the warm-up table below the cases, as the first message, with nothing
+   else.
+5. When the session has answered the warm-up, send the request as your
+   next message, with nothing else.
+6. After the warm-up or the request, the session may stop and wait. Give
+   only these fixed replies, never your own words. If it proposes a tier
+   (quick, standard or thorough), reply with that tier word. If it asks
+   anything else, reply "Just answer my question, please." After the
+   request, give at most two fixed replies.
+7. Stop and record at the session's first reply to the request that is not
+   a stop and wait, or after the second fixed reply, whichever comes first.
+   Record **stepped in** when the session loaded `contract` on the request's
+   turn or after it. The session's transcript shows which skill it loaded.
+   Otherwise record **stayed quiet**. Note which other helper stepped in
+   instead, if one did. A load of `contract` before the request is sent is
+   a **false alarm** in every case, because no warm-up asks for a skill or
+   an agent.
+8. Delete the folder. Afterwards, no copy of `contract` is active anywhere.
+
+**Why a warm-up turn.** In real use, nobody opens a conversation with "build
+me a skill". A person repeats something over a few turns, then asks to turn
+it into a skill or an agent. So the request comes mid-conversation, after the
+owner's global instructions have done their first-turn work: a tier proposal,
+then a stop. A request sent as the first message tests that stop, not the
+skill. Every A case gets a warm-up, the stay-quiet cases and the decoy
+included. So the expected answer never decides whether a case has a warm-up,
+and a stay-quiet case cannot pass only because the first turn stopped. The owner
+decided this on 2026-09-30 (contract version 0.6.3).
 
 **The sealed pair.** A3, A6, A7 and B8 need a skill that has a contract.
 Make it once, before the first run, and copy it into each case's folder:
@@ -82,9 +106,28 @@ A3 steps in although it is a one-rule change. The owner decided that any
 change to a familiar with a contract goes through the contract (contract
 question 1).
 
+**The warm-up turns.** Each one stays on the case's topic and asks for no
+skill or agent.
+
+| # | Warm-up turn |
+|---|---|
+| A1 | "Here is a commit message I am about to push: 'fix stuff'. Is it a good one?" |
+| A2 | "Here is a review prompt I use: 'Read the diff. List the bugs first, then the style issues, each with its line number.' Is it clear?" |
+| A3 | "What does my commit-checker skill check today?" |
+| A4 | "What does my review agent in `reviewer.md` do?" |
+| A5 | "What makes a summary of a news article good?" |
+| A6 | "What is in the staged commit?" |
+| A7 | "What does my commit-checker skill check today?" |
+| A8 | "What is the supplier agreement in this folder about, in one sentence?" |
+
 ## Part B. What it does once it runs
 
-Each B case starts as A does, in a fresh throwaway folder. **Every B case
+Each B case starts as A does, with steps 1 to 3, in a fresh throwaway
+folder. Then it starts a new session there and sends its own opening line
+or request as the first message. It has no warm-up turn. If the session
+stops to propose a tier before the scripted file has a line to give, the
+tester gives part A's fixed replies (step 6), then carries on with the
+scripted file. **Every B case
 builds the same familiar**, a commit-message checker, as a skill at Thorough,
 unless the case says otherwise. Before the first run, the owner writes the
 scripted file: a short answer to each question for that familiar, a name, and
@@ -189,8 +232,9 @@ Measure the first session before you run the rest.
 
 The optional full run, every case twice:
 
-- **Part A:** 8 cases × 2 runs = 16 new sessions. One step-in session was
-  measured at about 118,000 input tokens, most of it read from the cache.
+- **Part A:** 8 cases × 2 runs = 16 new sessions. One step-in session, sent as
+  a single first message before the warm-up turn existed, was measured at
+  about 118,000 input tokens, most of it read from the cache.
 - **Part B:** 29 cases × 2 runs = 58 sessions. Each costs more than one A
   session, because it runs a full interview. B13 reads a file that another
   case built, so it adds little.
