@@ -4,7 +4,7 @@
 //
 //   node scripts/practice.mjs start --variant <name> --skill <dir> [--skill <dir>]...
 //        [--setup <dir>] [--case <name>] --model <model> --effort <level>
-//        [--value NAME=literal]...
+//        [--value NAME=literal]... [--rule "<tool rule>"]...
 //   node scripts/practice.mjs send <run-id>      (the message on standard input)
 //   node scripts/practice.mjs report <run-id>
 //   node scripts/practice.mjs end <run-id>
@@ -29,9 +29,18 @@
 // a fake key. It is always a literal written in the case, never the runner's
 // own value passed through.
 //
+// --rule allows one command, in one of two shapes: a script in the skill under
+// test, written as `node <skill>/scripts/check.mjs *`, or `git status *` and
+// its diff, log and show siblings. See "tool rules" below.
+//
+// The posture is hygiene, not a boundary (ADR 0006). It denies the obvious
+// mistakes, backs up the owner's live folders at start and checks them at
+// report, and masks what it prints. The threat model's practice-runner row
+// says what it does not stop.
+//
 // Runs live under <system temp>/grimoire-practice/<run-id>/: the run state,
-// the settings file, the transcript, and work/, the folder the session runs
-// in. The session's temp folder is work/.tmp.
+// the settings file, the transcript, backup/ with its manifest, and work/,
+// the folder the session runs in. The session's temp folder is work/.tmp.
 //
 // Exit codes: 0 done; 1 refused, with a one-line reason; 2 the session ran but
 // the turn did not complete, or end could not delete everything.
@@ -41,6 +50,7 @@ import { createHash, randomBytes } from 'node:crypto';
 import { appendFileSync, closeSync, existsSync, fstatSync, lstatSync, mkdirSync, openSync, readFileSync, readSync, readdirSync, rmSync, rmdirSync, realpathSync, statSync, unlinkSync, writeFileSync } from 'node:fs';
 import { homedir, tmpdir, userInfo } from 'node:os';
 import { basename, delimiter, dirname, extname, isAbsolute, join, relative, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 const STATE = 'state.json';
 const runsRoot = () => join(tmpdir(), 'grimoire-practice');
@@ -64,8 +74,7 @@ const VARIANTS = {
 // a glob and a backslash is a glob escape: a backslash path would silently
 // fail to match and load the file.
 function globalFile() {
-  const dir = process.env.CLAUDE_CONFIG_DIR || join(homedir(), '.claude');
-  return join(dir, 'CLAUDE.md');
+  return join(configFolder(), 'CLAUDE.md');
 }
 const forward = p => p.replace(/\\/g, '/');
 
@@ -92,11 +101,147 @@ function globalRecord(variant) {
     : { path: forward(global), excluded: false, sha256: existsSync(global) ? sha256(readFileSync(global)) : null };
 }
 
-function settingsFor(state) {
+// ---- the posture ----
+//
+// Hygiene, not a boundary (ADR 0006): it keeps the cheap, obvious mistakes
+// out, and the threat model's practice-runner row says what it does not stop.
+
+// The tools that reach off the machine or schedule work. They are denied by
+// name in the settings file and disallowed on the command line too, so a
+// session never sees them. Smoke check 1 recorded a real session's tool list;
+// a new tool of either kind goes here.
+const OFF_MACHINE = [
+  'SendMessage', 'RemoteTrigger', 'PushNotification', 'ListAgents',
+  'Artifact', 'ArtifactComments', 'ArtifactData', 'DesignSync',
+  'CronCreate', 'CronDelete', 'CronList', 'ScheduleWakeup', 'Workflow',
+  'WebFetch', 'WebSearch',
+];
+
+// An absolute path as a Read or Edit rule writes it: two leading slashes, and
+// on Windows the drive as a lower-case folder, so C:\x becomes //c/x. The
+// smoke run settles this form; a change to it belongs here and nowhere else.
+function rulePath(abs) {
+  const p = forward(resolve(abs));
+  return /^[A-Za-z]:\//.test(p) ? `//${p[0].toLowerCase()}${p.slice(2)}` : `/${p}`;
+}
+
+// A rule is a pattern, so a path holding pattern characters might not match
+// the file it names, and the rule would silently do nothing.
+const PATTERN = /[[\]{}()!*?+@]/;
+function rule(tool, abs, tail = '') {
+  if (PATTERN.test(forward(abs))) refuse(`the path ${oneLine(forward(abs))} holds pattern characters, so a permission rule might not match it`);
+  return `${tool}(${rulePath(abs)}${tail})`;
+}
+
+// The user's config folder, and the files in and beside it the session may
+// not read. The global state file sits in the home folder, or in the config
+// folder when CLAUDE_CONFIG_DIR names one; both are denied.
+const configFolder = () => process.env.CLAUDE_CONFIG_DIR || join(homedir(), '.claude');
+
+// ---- tool rules ----
+//
+// A case allows commands by literal rules in its practice-test doc. The runner
+// takes two shapes and refuses any other, because every allowed command is a
+// way to write or run code:
+//
+//   a script rule: a program, <skill>/<path of a script in the skill under
+//   test>, optional fixed words, an optional final *. <skill> stands for the
+//   copy's absolute path, which exists only once start has made the run. The
+//   copy is edit-denied and hash-checked, so a companion skill's script is
+//   refused.
+//
+//   a git rule: git, one of status, diff, log or show, an optional final *.
+//
+// Each rule is written for both shell tools, because Claude Code checks a
+// rule against the tool that runs the command.
+
+const GIT_COMMANDS = ['status', 'diff', 'log', 'show'];
+const PROGRAM_WORD = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
+const PATH_PART = /^[A-Za-z0-9_-][A-Za-z0-9._-]*$/;
+const FIXED_WORD = /^[A-Za-z0-9._=:,@+/-]+$/;
+
+function parseRule(text) {
+  const bad = why => refuse(`the tool rule ${oneLine(text)} ${why}`);
+  if (typeof text !== 'string') bad('is not a string');
+  if (text.startsWith('-')) bad('starts with -');
+  const words = text.split(' ');
+  if (words.some(w => !w)) bad('has an empty word: write single spaces between words');
+  const wild = words.at(-1) === '*';
+  if (wild) words.pop();
+  if (words.includes('*')) bad('has a wildcard that is not its last word');
+  const [program, script, ...fixed] = words;
+  if (!PROGRAM_WORD.test(program ?? '')) bad('does not start with a program name');
+  if (program === 'git') {
+    if (!GIT_COMMANDS.includes(script) || fixed.length) bad(`is not git and one of ${GIT_COMMANDS.join(', ')}, with an optional final *`);
+    return { kind: 'git', words, wild };
+  }
+  if (script === undefined) bad('names no script');
+  if (!script.startsWith('<skill>/')) {
+    bad(isAbsolute(script) || /^[A-Za-z]:/.test(script)
+      ? 'names a script outside the skill under test; write its path as <skill>/...'
+      : 'does not name its script as <skill>/<path in the skill under test>');
+  }
+  const rel = script.slice('<skill>/'.length).split('/');
+  if (!rel.every(p => PATH_PART.test(p))) bad('has a script path with .., a glob character or another character the runner does not take');
+  if (!fixed.every(w => FIXED_WORD.test(w))) bad('has a fixed word with a character the runner does not take');
+  return { kind: 'script', program, rel, fixed, wild };
+}
+
+// The rule as Claude Code reads it, with <skill> replaced by the copy's path.
+function expandRule(r, copy) {
+  if (r.kind === 'git') return `${r.words.join(' ')}${r.wild ? ' *' : ''}`;
+  const path = `${forward(copy)}/${r.rel.join('/')}`;
+  if (/\s|["']/.test(path)) refuse(`the skill copy's path ${oneLine(path)} holds a space or a quote, so a command must quote it and a rule could not match`);
+  return [r.program, path, ...r.fixed].join(' ') + (r.wild ? ' *' : '');
+}
+
+// A script rule names a file that exists in the skill under test: its source
+// at start, its copy before each send.
+function checkRuleFiles(state, root) {
+  for (const text of state.rules) {
+    const r = parseRule(text);
+    if (r.kind === 'script' && !isFile(join(root, ...r.rel))) refuse(`the tool rule ${oneLine(text)} names a script that is not an existing file`);
+  }
+}
+
+const copyOf = (work, skill) => join(work, '.claude', 'skills', skill.name);
+
+function settingsFor(state, dir) {
   const v = VARIANTS[state.variant];
+  const work = join(dir, 'work');
+  const config = configFolder();
+  const home = homedir();
   const s = {};
   if (v.exclude) s.claudeMdExcludes = [forward(globalFile())];
   s.disableAllHooks = true;
+  const commands = state.rules.map(t => expandRule(parseRule(t), copyOf(work, state.skills[0])));
+  s.permissions = {
+    allow: [rule('Edit', work, '/**'), ...commands.flatMap(c => [`Bash(${c})`, `PowerShell(${c})`])],
+    deny: [
+      // The skill under test: its copy is what the run tests. Companion
+      // skills stay editable, because B8 tests how a skill treats them.
+      rule('Edit', copyOf(work, state.skills[0]), '/**'),
+      // The session's own setup.
+      rule('Edit', join(work, '.claude', 'settings.json')),
+      rule('Edit', join(work, '.claude', 'settings.local.json')),
+      rule('Edit', join(work, '.mcp.json')),
+      ...INSTRUCTIONS.map(name => rule('Edit', work, `/**/${name}`)),
+      rule('Edit', work, '/**/.git/**'),
+      rule('Edit', work, '/**/.gitattributes'),
+      // The owner's secrets, and the run's backups of the live folders.
+      rule('Read', join(config, '.credentials.json')),
+      rule('Read', join(config, 'settings.json')),
+      rule('Read', join(config, 'settings.local.json')),
+      rule('Read', join(config, '.claude.json')),
+      rule('Read', join(home, '.claude.json')),
+      rule('Read', join(home, '.ssh'), '/**'),
+      rule('Read', join(home, '.aws'), '/**'),
+      rule('Read', join(home, '.git-credentials')),
+      rule('Read', join(home, '.npmrc')),
+      rule('Read', join(dir, 'backup'), '/**'),
+      ...OFF_MACHINE,
+    ],
+  };
   return s;
 }
 
@@ -107,7 +252,9 @@ function flagsFor(state, settingsPath) {
     '--setting-sources', v.sources,
     ...(v.strictMcp ? ['--strict-mcp-config'] : []),
     '--settings', settingsPath,
-    '--permission-mode', 'dontAsk',
+    // One argument per tool, the form Claude Code documents. The list takes
+    // every argument up to the next flag, so a flag must follow it.
+    '--permission-mode', 'dontAsk', '--disallowedTools', ...OFF_MACHINE,
     '--model', state.model, '--effort', state.effort,
   ];
 }
@@ -287,6 +434,8 @@ function checkValues(state) {
     if (typeof value !== 'string' || value.includes('\0') || value.length > 4096) refuse(`the value of ${name} is not a literal the runner can pass`);
   }
   checkConfigFolder(state.variant);
+  if (!Array.isArray(state.rules)) refuse('the run state no longer matches what its variant gives; start a new run');
+  state.rules.forEach(parseRule);
   // The title comes from a file, so it is never used as a plain-object key.
   const title = state.skills[0]?.title;
   const only = (Object.hasOwn(RUNNER_ONLY_CASES, title) ? RUNNER_ONLY_CASES[title] : [])
@@ -303,10 +452,10 @@ function parseValue(v) {
 }
 
 const SINGLE = ['--variant', '--setup', '--case', '--model', '--effort'];
-const MULTI = ['--skill', '--value'];
+const MULTI = ['--skill', '--value', '--rule'];
 
 function parseStart(args) {
-  const o = { skill: [], value: [] };
+  const o = { skill: [], value: [], rule: [] };
   for (let i = 0; i < args.length; i += 2) {
     const flag = args[i];
     if (!SINGLE.includes(flag) && !MULTI.includes(flag)) refuse(`unknown option ${oneLine(flag).slice(1, -1)}`);
@@ -418,6 +567,187 @@ function copyTree(from, to) {
   return files;
 }
 
+// ---- the manifest ----
+//
+// One file in the run's backup folder holds the hash of every copied skill
+// file at start. Start prints the manifest's own SHA-256, so a reference also
+// lives outside the run directory, and every send checks the manifest against
+// the hash start recorded before trusting it.
+
+const MANIFEST = join('backup', 'manifest.json');
+
+// Every entry under a folder, as [forward-slashed path, what it is]: a file's
+// SHA-256, or 'link', 'unreadable' or 'other'. It never follows a link and
+// never stops at an entry it cannot read. With `copyTo`, it also copies each
+// file it read there, so the hash and the copy are of the same bytes.
+function tree(root, copyTo = null) {
+  const out = [];
+  const visit = rel => {
+    for (const name of readdirSync(join(root, rel)).sort()) {
+      const r = rel ? `${rel}/${name}` : name;
+      const p = join(root, r);
+      let st;
+      try { st = lstatSync(p); } catch { out.push([r, 'unreadable']); continue; }
+      if (st.isSymbolicLink()) out.push([r, 'link']);
+      else if (st.isDirectory()) {
+        if (copyTo) mkdirSync(join(copyTo, r), { recursive: true });
+        try { visit(r); } catch { out.push([`${r}/`, 'unreadable']); }
+      } else if (st.isFile()) {
+        let bytes;
+        try { bytes = readFileSync(p); } catch { out.push([r, 'unreadable']); continue; }
+        if (copyTo) writeFileSync(join(copyTo, r), bytes);
+        out.push([r, sha256(bytes)]);
+      } else out.push([r, 'other']);
+    }
+  };
+  visit('');
+  return out;
+}
+
+const copiedPrefix = skill => `.claude/skills/${skill.name}/`;
+
+function copiedHashes(work, skills) {
+  return skills.flatMap(s => tree(copyOf(work, s)).map(([r, h]) => [copiedPrefix(s) + r, h]));
+}
+
+function writeManifest(dir, manifest) {
+  const file = join(dir, MANIFEST);
+  plainFile(file);
+  const text = JSON.stringify(manifest, null, 2);
+  writeFileSync(file, text);
+  return sha256(Buffer.from(text));
+}
+
+// The manifest, once its bytes match the hash start recorded.
+function readManifest(dir, state) {
+  const file = join(dir, MANIFEST);
+  plainFile(file);
+  let bytes;
+  try { bytes = readFileSync(file); } catch { refuse('the backup manifest is gone; start a new run'); }
+  if (sha256(bytes) !== state.manifest) refuse(`the backup manifest changed since start (start printed sha256 ${state.manifest}); start a new run`);
+  return JSON.parse(bytes.toString('utf8'));
+}
+
+// ---- the live folders ----
+//
+// Start copies the owner's six live places into the run's backup folder and
+// hashes them. Report hashes them again and lists any change; end deletes the
+// backups when nothing changed. Detection and undo are what hygiene can
+// promise: an allowed command can still write here, and could overwrite the
+// backups too.
+//
+// The settings file is backed up without its environment block, so no key
+// sits in the run directory. Its hash is of the live bytes, so a change to the
+// environment block still shows.
+
+const REPO_SKILLS = join(dirname(fileURLToPath(import.meta.url)), '..', 'skills');
+
+function livePlaces() {
+  const config = configFolder();
+  return [
+    { key: 'user-skills', label: 'user skills', path: join(config, 'skills'), folder: true },
+    { key: 'agent-skills', label: 'shared agent skills', path: join(homedir(), '.agents', 'skills'), folder: true },
+    { key: 'user-agents', label: 'user agents', path: join(config, 'agents'), folder: true },
+    { key: 'settings.json', label: 'user settings', path: join(config, 'settings.json'), settings: true },
+    { key: 'CLAUDE.md', label: 'global instructions', path: globalFile() },
+    { key: 'repo-skills', label: 'this repository\'s skills', path: resolve(REPO_SKILLS), folder: true },
+  ];
+}
+
+// The user settings file as an object, or null. Read in memory only: its
+// environment block never reaches a file the runner writes.
+function userSettings() {
+  try {
+    const s = JSON.parse(readFileSync(join(configFolder(), 'settings.json'), 'utf8'));
+    return s !== null && typeof s === 'object' && !Array.isArray(s) ? s : null;
+  } catch { return null; }
+}
+
+// One place as it is now: what it is, and its hashes. With `backup`, the
+// place is copied there as it is read.
+function snapshot(place, backup = null) {
+  let st;
+  try { st = lstatSync(place.path); } catch { return { kind: 'absent' }; }
+  if (st.isSymbolicLink()) return { kind: 'link' };
+  if (place.folder) {
+    if (!st.isDirectory()) return { kind: 'not a folder' };
+    const to = backup && join(backup, place.key);
+    if (to) mkdirSync(to);
+    try { return { kind: 'folder', entries: tree(place.path, to) }; } catch { return { kind: 'unreadable' }; }
+  }
+  if (!st.isFile()) return { kind: 'not a file' };
+  let bytes;
+  try { bytes = readFileSync(place.path); } catch { return { kind: 'unreadable' }; }
+  const out = { kind: 'file', sha256: sha256(bytes) };
+  if (!backup) return out;
+  if (place.settings) {
+    let s = null;
+    try { s = JSON.parse(bytes.toString('utf8')); } catch { /* not JSON */ }
+    if (s === null || typeof s !== 'object' || Array.isArray(s)) return { ...out, backup: 'none: not a JSON object' };
+    delete s.env;
+    writeFileSync(join(backup, place.key), JSON.stringify(s, null, 2));
+    return { ...out, backup: 'without its environment block' };
+  }
+  writeFileSync(join(backup, place.key), bytes);
+  return { ...out, backup: 'whole' };
+}
+
+// Each place's changes since the manifest, as report lines.
+function liveChanges(manifest) {
+  const lines = [];
+  for (const was of manifest.live) {
+    const place = livePlaces().find(p => p.key === was.key);
+    const now = place ? snapshot(place) : { kind: 'absent' };
+    if (now.kind !== was.kind) { lines.push(`${was.label}: was ${was.kind}, now ${now.kind}`); continue; }
+    if (now.kind === 'file' && now.sha256 !== was.sha256) lines.push(`${was.label}: modified`);
+    if (now.kind === 'folder') for (const c of diffEntries(was.entries, now.entries)) lines.push(`${was.label}: ${c}`);
+  }
+  return lines;
+}
+
+// What changed between two entry lists: added, modified and removed paths.
+function diffEntries(was, now) {
+  const before = new Map(was);
+  const after = new Map(now);
+  const out = [];
+  for (const [r, h] of now) if (!before.has(r)) out.push(`added ${r}`); else if (before.get(r) !== h) out.push(`modified ${r}`);
+  for (const [r] of was) if (!after.has(r)) out.push(`removed ${r}`);
+  return out;
+}
+
+// The manifest if its bytes still match start's hash, or null.
+function manifestIfIntact(dir, state) {
+  try { return readManifest(dir, state); } catch (e) { if (e instanceof Refusal) return null; throw e; }
+}
+
+// ---- pre-turn checks ----
+//
+// They catch a write the deny rules missed, at the moment it matters: before
+// the next turn runs under it.
+
+function preTurn(state, dir, work) {
+  const copied = new Set(state.copied.map(forward));
+  listFiles(work, rel => {
+    const r = forward(rel);
+    if (copied.has(r)) return;
+    const lower = r.toLowerCase();
+    const kind = ['.claude/settings.json', '.claude/settings.local.json'].includes(lower) ? 'a project settings file'
+      : lower === '.mcp.json' ? 'an MCP config'
+        : INSTRUCTIONS.some(i => i.toLowerCase() === basename(lower)) ? 'an instruction file' : null;
+    if (kind) refuse(`the work folder holds ${kind} that setup did not put there, ${oneLine(r)}; start a new run`);
+  });
+  const sut = state.skills[0];
+  const prefix = copiedPrefix(sut);
+  const was = readManifest(dir, state).copied.filter(([r]) => r.startsWith(prefix));
+  let now;
+  try { now = tree(copyOf(work, sut)).map(([r, h]) => [prefix + r, h]); } catch { now = []; }
+  if (JSON.stringify(now) !== JSON.stringify(was)) {
+    const before = new Map(was);
+    const first = now.find(([r, h]) => before.get(r) !== h)?.[0] ?? was.find(([r]) => !now.some(([s]) => s === r))?.[0];
+    refuse(`the copy of the skill under test changed since start, at ${oneLine(first ?? prefix)}; start a new run`);
+  }
+}
+
 // ---- start ----
 
 function newId() {
@@ -433,10 +763,11 @@ function start(args) {
   const state = {
     id: null, created: new Date().toISOString(), variant: o.variant, case: o.case ?? null,
     model: o.model, effort: o.effort, skills, setup,
-    values: Object.fromEntries(o.value.map(parseValue)),
+    values: Object.fromEntries(o.value.map(parseValue)), rules: o.rule,
     sessionId: null, attempts: 0, turns: [], ended: null,
   };
   checkValues(state);
+  checkRuleFiles(state, skills[0].source);
   // Under any name: a long value equal to one the runner holds is that value,
   // whatever it is called now. A short one like 1 or true is no evidence.
   const own = Object.values(inherited());
@@ -484,11 +815,16 @@ function made(dir, id, state, skills, setup, program) {
   }
   if (setup) copyTree(setup, work);
   state.flags = flagsFor(state, join(dir, 'settings.json'));
-  state.settings = settingsFor(state);
+  state.settings = settingsFor(state, dir);
   state.globalFile = globalRecord(state.variant);
+  const backup = join(dir, 'backup');
+  mkdirSync(backup);
+  const live = livePlaces().map(p => ({ key: p.key, label: p.label, path: p.path, ...snapshot(p, backup) }));
+  state.manifest = writeManifest(dir, { copied: copiedHashes(work, skills), live });
   save(dir, state);
   process.stdout.write(`${id}\n`);
   process.stderr.write(`started run ${id} on variant ${state.variant}; the session works in ${work}\n`);
+  process.stderr.write(`backup manifest sha256 ${state.manifest}: keep this line, so a restore can check the backups against it\n`);
 }
 
 // A run named on the command line. The id is checked against its generated
@@ -511,7 +847,8 @@ function openRun(argv, command) {
   const isObject = v => v !== null && typeof v === 'object' && !Array.isArray(v);
   if (!isObject(state) || !Array.isArray(state.turns) || !Array.isArray(state.skills) || !state.skills.length
     || !isObject(state.values) || !Array.isArray(state.envNames) || !isObject(state.globalFile) || !Array.isArray(state.copied)
-    || !isObject(state.program) || !Array.isArray(state.flags) || !isObject(state.settings)) {
+    || !isObject(state.program) || !Array.isArray(state.flags) || !isObject(state.settings)
+    || !Array.isArray(state.rules) || typeof state.manifest !== 'string') {
     refuse(`the run state of ${id} is not readable; start a new run`);
   }
   return { id, dir, work: join(dir, 'work'), state };
@@ -553,20 +890,23 @@ function send(argv) {
   // The flags and the settings are rebuilt from the variant table, never read
   // back. What start recorded must equal that rebuild, or something changed
   // the run since start, and this turn would run under conditions nobody chose.
-  const settings = settingsFor(state);
+  // The global file is checked before the settings, because a moved config
+  // folder changes the settings' rules too, and its reason names the cause.
+  const changed = 'the run state no longer matches what its variant gives; start a new run';
   const rebuilt = flagsFor(state, join(dir, 'settings.json'));
-  if (JSON.stringify(rebuilt) !== JSON.stringify(state.flags) || JSON.stringify(settings) !== JSON.stringify(state.settings)) {
-    refuse('the run state no longer matches what its variant gives; start a new run');
-  }
+  if (JSON.stringify(rebuilt) !== JSON.stringify(state.flags)) refuse(changed);
   if (JSON.stringify(globalRecord(state.variant)) !== JSON.stringify(state.globalFile)) {
     refuse('the global instructions file changed since start, or its config folder moved; start a new run');
   }
+  const settings = settingsFor(state, dir);
+  if (JSON.stringify(settings) !== JSON.stringify(state.settings)) refuse(changed);
   const message = readFileSync(0);
   if (!message.length) refuse('no message on standard input');
   if (state.sessionId !== null && !UUID.test(state.sessionId)) refuse('the run state no longer matches what its variant gives; start a new run');
   if (!Number.isSafeInteger(state.attempts) || state.attempts < 0) refuse('the run state no longer matches what its variant gives; start a new run');
   const work = join(dir, 'work');
   plainFolder(work);
+  preTurn(state, dir, work);
   const out = join(dir, `attempt-${state.attempts + 1}.jsonl`);
   for (const f of ['settings.json', 'transcript.jsonl', basename(out)]) plainFile(join(dir, f));
   // Written again before every turn, so a change to the file between turns
@@ -588,8 +928,9 @@ function send(argv) {
     closeSync(fd);
   }
   state.attempts = attempt;
+  const kept = scrubTranscript(raw);
   plainFile(join(dir, 'transcript.jsonl'));
-  appendFileSync(join(dir, 'transcript.jsonl'), raw);
+  appendFileSync(join(dir, 'transcript.jsonl'), kept);
   rmSync(out);
   const ev = events(raw);
   const init = ev.find(e => e.type === 'system' && e.subtype === 'init');
@@ -599,7 +940,7 @@ function send(argv) {
     save(dir, state);
     fail(`the session reported no session id (program exit ${r.status}), so this send did not count as a turn; its events are in the run's transcript`);
   }
-  const turn = summarise(ev, reported, r.status);
+  const turn = summarise(ev, reported, r.status, message.toString('utf8'));
   turn.n = state.turns.length + 1;
   if (!state.sessionId) state.sessionId = reported;
   state.turns.push(turn);
@@ -607,8 +948,9 @@ function send(argv) {
   // The frame carries a token the session cannot know, so a reply that
   // prints a closing line of its own does not close the frame.
   const token = randomBytes(8).toString('hex');
-  process.stdout.write(`--- session reply, turn ${turn.n} (untrusted text from the session) [${token}] ---\n${clean(result?.result ?? '')}\n--- end of session reply [${token}] ---\n`);
-  process.stdout.write(`skills loaded on this turn: ${turn.skillsLoaded.length ? turn.skillsLoaded.map(flat).join(', ') : 'none'}\n`);
+  const shown = `--- session reply, turn ${turn.n} (untrusted text from the session) [${token}] ---\n${scrub(result?.result ?? '')}\n--- end of session reply [${token}] ---\n`
+    + `skills loaded on this turn: ${turn.skillsLoaded.length ? turn.skillsLoaded.map(flat).join(', ') : 'none'}\n`;
+  process.stdout.write(shown + masked(shown));
   if (reported !== state.sessionId) fail(`the session reported id ${reported}, not ${state.sessionId}: the earlier turns may be lost`);
   if (r.status !== 0 || !result || result.is_error) fail(`the turn did not complete (program exit ${r.status}${result ? `, result ${clean(String(result.subtype))}` : ', no result event'})`);
 }
@@ -616,30 +958,41 @@ function send(argv) {
 // What a turn's events say, kept in the run state for the report. The lists
 // come from the session's own start-up event, so the report shows what loaded
 // rather than what was asked for.
-function summarise(ev, sessionId, exit) {
+function summarise(ev, sessionId, exit, message) {
   const init = ev.find(e => e.type === 'system' && e.subtype === 'init') || {};
   const result = ev.find(e => e.type === 'result') || {};
-  const strings = v => (Array.isArray(v) ? v.map(x => String(typeof x === 'object' && x ? x.name : x)) : []);
+  // Kept cleaned and masked, so the run state holds no more than the report.
+  const strings = v => (Array.isArray(v) ? v.map(x => scrub(typeof x === 'object' && x ? x.name : x)) : []);
   return {
     sessionId, exit,
     startup: {
       agents: strings(init.agents),
       plugins: strings(init.plugins),
       skills: strings(init.skills),
-      mcp: Array.isArray(init.mcp_servers) ? init.mcp_servers.map(m => `${m?.name} (${m?.status})`) : [],
+      mcp: Array.isArray(init.mcp_servers) ? init.mcp_servers.map(m => scrub(`${m?.name} (${m?.status})`)) : [],
       tools: strings(init.tools),
-      permissionMode: String(init.permissionMode),
-      apiKeySource: String(init.apiKeySource),
-      model: String(init.model),
+      permissionMode: scrub(init.permissionMode),
+      apiKeySource: scrub(init.apiKeySource),
+      model: scrub(init.model),
     },
     hookEvents: ev.filter(e => e.type === 'system' && /^hook_/.test(String(e.subtype))).length,
     skillsLoaded: ev.filter(e => e.type === 'assistant')
       .flatMap(e => (Array.isArray(e.message?.content) ? e.message.content : []))
       .filter(c => c?.type === 'tool_use' && c.name === 'Skill')
-      .map(c => String(c.input?.skill)),
+      .map(c => scrub(c.input?.skill))
+      .concat(slashSkill(init, message)),
     denials: (Array.isArray(result.permission_denials) ? result.permission_denials : [])
-      .map(d => ({ tool: String(d?.tool_name), input: JSON.stringify(d?.tool_input ?? null) })),
+      .map(d => ({ tool: scrub(d?.tool_name), input: scrub(JSON.stringify(d?.tool_input ?? null)) })),
   };
+}
+
+// A skill opened by a slash command leaves no event in the stream, so the
+// runner reads it from the message it sent: a first word /<name>, counted only
+// when the session's own start-up lists name it as a command and as a skill.
+function slashSkill(init, message) {
+  const m = /^\/([A-Za-z0-9][A-Za-z0-9:._-]*)(?:\s|$)/.exec(message);
+  const lists = v => Array.isArray(v) && v.some(x => String(x) === m[1]);
+  return m && lists(init.slash_commands) && lists(init.skills) ? [`${scrub(m[1])} (opened by the message's slash command)`] : [];
 }
 
 // Session text loses every control character but newline and tab, and the
@@ -651,12 +1004,83 @@ const clean = s => String(s).replace(/\r\n?/g, '\n').replace(/[\u{0}-\u{8}\u{b}-
 // cannot start a line that reads as the runner's.
 const flat = s => clean(s).replace(/[\n\t]+/g, ' ');
 
+// ---- masking ----
+//
+// A result gets posted, and session text could carry a secret. So everything
+// the runner prints or keeps from a session is masked: by known key shapes,
+// and by exact value for the values the runner holds. Those are its own
+// environment values under a secret-like name, and the user settings
+// environment values, read fresh here and never written anywhere. A value
+// under an ordinary name, such as a path, is not masked, so the runner's own
+// fields stay readable. A value shorter than 8 characters is no evidence.
+
+const MASK = '[masked]';
+const KEY_SHAPES = [
+  /\bsk-ant-[A-Za-z0-9_-]{20,}/g,
+  /\bsk-(?:or-|proj-)?[A-Za-z0-9_-]{20,}/g,
+  /\b(?:ghp|gho|ghu|ghs|ghr)_[A-Za-z0-9]{30,}/g,
+  /\bgithub_pat_[A-Za-z0-9_]{30,}/g,
+  /\b(?:AKIA|ASIA)[0-9A-Z]{16}\b/g,
+  /\bAIza[0-9A-Za-z_-]{35}/g,
+  /\bxox[abprs]-[A-Za-z0-9-]{10,}/g,
+  /\bnpm_[A-Za-z0-9]{36}/g,
+  /\bhf_[A-Za-z0-9]{30,}/g,
+  /\beyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}/g,
+  /-----BEGIN [A-Z ]*PRIVATE KEY-----[\s\S]*?(?:-----END [A-Z ]*PRIVATE KEY-----|$)/g,
+];
+const SECRET_NAME = /KEY|TOKEN|SECRET|PASSW|CREDENTIAL|AUTH|COOKIE|SESSION|PRIVATE|^(ANTHROPIC|CLAUDE_CODE|OPENAI|OPENROUTER|AWS|AZURE|GOOGLE|GH|GITHUB|GITLAB|NPM|HF)_/i;
+
+let held = null;
+function heldValues() {
+  if (held) return held;
+  const values = new Set();
+  for (const [name, value] of Object.entries(inherited())) {
+    if (!SYSTEM.includes(name) && SECRET_NAME.test(name) && value.length >= 8) values.add(value);
+  }
+  const us = userSettings();
+  const env = us && Object.hasOwn(us, 'env') && us.env !== null && typeof us.env === 'object' ? us.env : {};
+  for (const value of Object.values(env)) if (typeof value === 'string' && value.length >= 8) values.add(value);
+  // A value also appears JSON-escaped, in a denial's input or a transcript.
+  for (const v of [...values]) values.add(JSON.stringify(v).slice(1, -1));
+  held = [...values].sort((a, b) => b.length - a.length);
+  return held;
+}
+
+function mask(s) {
+  let out = String(s);
+  for (const v of heldValues()) out = out.split(v).join(MASK);
+  for (const shape of KEY_SHAPES) out = out.replace(shape, MASK);
+  return out;
+}
+
+// Session text as the runner keeps or prints it: cleaned, then masked.
+const scrub = s => mask(clean(s));
+
+// The flag that goes with masking, for a whole piece of output.
+function masked(text) {
+  const n = text.split(MASK).length - 1;
+  return n ? `masked: ${n} value${n === 1 ? '' : 's'} that look like credentials or match a value the runner holds\n` : '';
+}
+
+// A transcript line is parsed, so a control character written as a JSON
+// escape goes too, and every string in it is cleaned and masked.
+function scrubTranscript(raw) {
+  const deep = v => (typeof v === 'string' ? scrub(v)
+    : Array.isArray(v) ? v.map(deep)
+      : v !== null && typeof v === 'object' ? Object.fromEntries(Object.entries(v).map(([k, x]) => [scrub(k), deep(x)]))
+        : v);
+  return raw.split(/\r?\n/).map(line => {
+    if (!line.trim()) return line;
+    try { return JSON.stringify(deep(JSON.parse(line))); } catch { return scrub(line); }
+  }).join('\n');
+}
+
 // ---- report ----
 
 // The run record. Everything in it is a field the runner wrote, or a name or
 // list the session reported, cleaned. It prints names, never a named value.
 function report(argv) {
-  const { state, work } = openRun(argv, 'report');
+  const { dir, state, work } = openRun(argv, 'report');
   const v = VARIANTS[state.variant] || {};
   const g = state.globalFile;
   const p = state.program;
@@ -679,6 +1103,20 @@ function report(argv) {
   L.push(`setup: ${state.setup ?? 'none'}`);
   L.push(`environment names: ${state.envNames.join(', ')}`);
   L.push(`test values: ${Object.keys(state.values).join(', ') || 'none'}`);
+  L.push(`tool rules: ${state.rules.join('; ') || 'none'}`);
+  // On a variant that loads user settings, the owner's own allow rules merge
+  // into the posture, and the settings' environment values reach the session.
+  // So the report shows the permission part, and never the environment part,
+  // whose names it gives only where they would replace a test value.
+  if (v.sources?.split(',').includes('user')) {
+    const us = userSettings();
+    const perms = us && Object.hasOwn(us, 'permissions') ? us.permissions : undefined;
+    L.push(`user permission block, from ${join(configFolder(), 'settings.json')}:`);
+    L.push(perms === undefined ? '  none' : JSON.stringify(perms, null, 2).split('\n').map(l => `  ${l}`).join('\n'));
+    const env = us && Object.hasOwn(us, 'env') && us.env !== null && typeof us.env === 'object' ? us.env : {};
+    const collide = Object.keys(state.values).filter(name => Object.hasOwn(env, name));
+    L.push(`user settings environment names that collide with a test value: ${collide.join(', ') || 'none'}`);
+  }
   L.push(`turns: ${state.turns.length}`);
   const first = state.turns[0];
   for (const t of state.turns) {
@@ -710,20 +1148,35 @@ function report(argv) {
     L.push(`  permission denials: ${t.denials.length || 'none'}`);
     for (const d of t.denials) L.push(`    ${flat(d.tool)} ${flat(d.input).slice(0, 300)}`);
   }
+  const manifest = manifestIfIntact(dir, state);
+  L.push(manifest
+    ? `backup manifest: sha256 ${state.manifest}, as start printed it`
+    : `backup manifest: CHANGED since start, or gone; start printed sha256 ${state.manifest}, and the checks below cannot be trusted`);
+  let copiedSummary = 'not checked';
+  let liveSummary = 'not checked';
   let workStat = null;
   try { workStat = lstatSync(work); } catch { /* deleted at end */ }
   if (workStat?.isSymbolicLink()) {
     L.push('work folder files: the work folder is a link, not listed');
   } else if (workStat) {
+    // A copied file the session left as it was is not listed; a changed one is.
+    const was = manifest ? manifest.copied : [];
+    const now = copiedHashes(work, state.skills);
+    const changes = diffEntries(was, now);
+    const unchanged = new Set(now.filter(([r, h]) => new Map(was).get(r) === h).map(([r]) => r));
+    if (manifest) {
+      copiedSummary = changes.length ? `changed (${changes.length})` : 'unchanged';
+      L.push(changes.length ? 'copied skills changed since start:' : 'copied skills: unchanged since start');
+      for (const c of changes) L.push(`  ${flat(c)}`);
+    }
     const files = [];
     const temp = [];
-    const copied = new Set(state.copied.map(forward));
-    listFiles(work, rel => {
-      const r = forward(rel);
+    listFiles(work, (rel, link) => {
+      const r = forward(rel) + (link ? ' (a link, not followed)' : '');
       if (r === '.tmp' || r.startsWith('.tmp/')) { if (r !== '.tmp') temp.push(r.slice(5)); }
-      else if (!copied.has(r)) files.push(r);
+      else if (!unchanged.has(r)) files.push(r);
     });
-    L.push('work folder files, without the copied skills:');
+    L.push('work folder files, without the unchanged copied skills:');
     for (const f of files) L.push(`  ${flat(f)}`);
     if (!files.length) L.push('  none');
     L.push('temp folder files:');
@@ -732,7 +1185,21 @@ function report(argv) {
   } else {
     L.push('work folder files: the work folder was deleted at end');
   }
-  process.stdout.write(`${L.join('\n')}\n`);
+  // Outside the work folder: the owner's live places.
+  if (manifest) {
+    const live = liveChanges(manifest);
+    liveSummary = live.length ? `changed (${live.length})` : 'unchanged';
+    L.push(live.length ? 'live folders changed since start:' : 'live folders: unchanged since start');
+    for (const c of live) L.push(`  ${flat(c)}`);
+  }
+  // The line for a results grid: runner-written fields only, never session text.
+  const loaded = state.turns.filter(t => t.skillsLoaded.length).length;
+  const denials = state.turns.reduce((n, t) => n + t.denials.length, 0);
+  L.push(`summary: run ${state.id}; variant ${state.variant}; case ${state.case ?? 'none'}; model ${state.model}; effort ${state.effort} (requested); `
+    + `turns ${state.turns.length}; turns with a skill loaded ${loaded}; denials ${denials}; `
+    + `copied skills ${copiedSummary}; live folders ${liveSummary}; manifest sha256 ${state.manifest}`);
+  const text = mask(`${L.join('\n')}\n`);
+  process.stdout.write(text + masked(text));
 }
 
 // Every file and link under a folder, never following a link. A link is listed
@@ -742,7 +1209,7 @@ function listFiles(root, visit, rel = '') {
     const r = rel ? join(rel, name) : name;
     const st = lstatSync(join(root, r));
     if (st.isDirectory()) listFiles(root, visit, r);
-    else visit(st.isSymbolicLink() ? `${r} (a link, not followed)` : r);
+    else visit(r, st.isSymbolicLink());
   }
 }
 
@@ -785,6 +1252,19 @@ function end(argv) {
   state.ended = new Date().toISOString();
   save(dir, state);
   process.stderr.write(`ended run ${state.id}; the record stays in ${dir}\n`);
+  // The backups go only when the live folders show no change since start, so
+  // a change can still be undone from them.
+  const backup = join(dir, 'backup');
+  const manifest = manifestIfIntact(dir, state);
+  if (!manifest) {
+    process.stderr.write(`kept the backups in ${backup}: the manifest changed since start, so the live folders could not be checked\n`);
+  } else if (liveChanges(manifest).length) {
+    process.stderr.write(`kept the backups in ${backup}: the live folders changed since start; see report\n`);
+  } else {
+    const kept = remove(backup);
+    if (kept) fail(`the run ended, but ${kept} backup entr${kept === 1 ? 'y' : 'ies'} in ${backup} could not be deleted`);
+    process.stderr.write('deleted the backups: the live folders did not change since start\n');
+  }
 }
 
 // Removes a tree without following links: a link is removed as itself, and
@@ -822,10 +1302,10 @@ try {
   else refuse('usage: practice.mjs start|send|report|end ...');
 } catch (e) {
   if (e instanceof Failure) {
-    process.stderr.write(`practice: ${e.message}\n`);
+    process.stderr.write(mask(`practice: ${e.message}\n`));
     process.exit(2);
   }
   if (!(e instanceof Refusal)) throw e;
-  process.stderr.write(`practice: refused: ${e.message}\n`);
+  process.stderr.write(mask(`practice: refused: ${e.message}\n`));
   process.exit(1);
 }
