@@ -282,8 +282,9 @@ for (const variant of VARIANTS) {
 }
 
 // A quoted form must mean the same path in both shells: inside double quotes
-// $ and ` expand, and a space or a quote would need quoting of its own.
-for (const [what, folder] of [['a space', 'tmp x'], ['a $', 'tmp$x'], ['a backtick', 'tmp`x']]) {
+// $ and ` expand, and a space or a quote would need quoting of its own. A
+// bare comma makes PowerShell read two paths.
+for (const [what, folder] of [['a space', 'tmp x'], ['a $', 'tmp$x'], ['a backtick', 'tmp`x'], ['a comma', 'tmp,x']]) {
   test(`start refuses a script rule when the skill copy's path holds ${what}`, () => {
     const sb = sandbox();
     const tmp = join(sb.dir, folder);
@@ -291,7 +292,7 @@ for (const [what, folder] of [['a space', 'tmp x'], ['a $', 'tmp$x'], ['a backti
     Object.assign(sb.env, { TEMP: tmp, TMP: tmp, TMPDIR: tmp });
     mkdirSync(join(sb.skill, 'scripts'));
     writeFileSync(join(sb.skill, 'scripts', 'check.mjs'), 'process.exit(0)');
-    refused(cli(sb, ['start', '--variant', 'clean', ...base(sb), '--rule', 'node <skill>/scripts/check.mjs *']), /holds a space, a quote, a \$ or a backtick/);
+    refused(cli(sb, ['start', '--variant', 'clean', ...base(sb), '--rule', 'node <skill>/scripts/check.mjs *']), /holds a space, a quote, a comma, a \$ or a backtick/);
     assert.ok(!existsSync(join(tmp, 'grimoire-practice')) || readdirSync(join(tmp, 'grimoire-practice')).length === 0, 'a refused start left a run behind');
   });
 
@@ -300,7 +301,7 @@ for (const [what, folder] of [['a space', 'tmp x'], ['a $', 'tmp$x'], ['a backti
     const tmp = join(sb.dir, folder);
     mkdirSync(tmp);
     Object.assign(sb.env, { TEMP: tmp, TMP: tmp, TMPDIR: tmp });
-    refused(cli(sb, ['start', '--variant', 'clean', ...base(sb), '--value', 'X_LOG=x.jsonl', '--rule', '>> $X_LOG']), /holds a space, a quote, a \$ or a backtick/);
+    refused(cli(sb, ['start', '--variant', 'clean', ...base(sb), '--value', 'X_LOG=x.jsonl', '--rule', '>> $X_LOG']), /holds a space, a quote, a comma, a \$ or a backtick/);
     assert.ok(!existsSync(join(tmp, 'grimoire-practice')) || readdirSync(join(tmp, 'grimoire-practice')).length === 0, 'a refused start left a run behind');
   });
 }
@@ -363,6 +364,9 @@ const VALUE_RULE_REFUSALS = [
   ['an append under the session\'s own setup', ['--value', 'X_LOG=.claude/x.jsonl', '--rule', '>> $X_LOG'], NOT_IN_WORK],
   ['an append with a wildcard', ['--value', 'X_LOG=x.jsonl', '--rule', '>> $X_LOG *'], SHAPE],
   ['an append to a name PowerShell reads as a parameter', ['--value', 'X_LOG=logs/-x.jsonl', '--rule', '>> $X_LOG'], NOT_IN_WORK],
+  // Windows drops a trailing dot, so CLAUDE.md. is CLAUDE.md.
+  ['an append to a name ending in a dot', ['--value', 'X_LOG=CLAUDE.md.', '--rule', '>> $X_LOG'], NOT_IN_WORK],
+  ['an append to a folder name ending in a dot', ['--value', 'X_LOG=docs./agents.md', '--rule', '>> $X_LOG'], NOT_IN_WORK],
   // The session's own setup, and Windows device names, which name no file in
   // the work folder whatever folder they sit in or extension they carry.
   ['an append to an instruction file', ['--value', 'X_LOG=CLAUDE.md', '--rule', '>> $X_LOG'], /instruction file or a device/],

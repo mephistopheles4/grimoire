@@ -227,8 +227,9 @@ function checkRuleValues(state) {
     if ((r.kind === 'read' || r.kind === 'append') && !Object.hasOwn(state.values, r.name)) bad(`names ${r.name}, a value the case does not set with --value`);
     if (r.kind !== 'append') continue;
     const parts = state.values[r.name].split('/');
-    // A leading - would read as a PowerShell parameter.
-    if (!parts.every(p => PATH_PART.test(p) && !p.startsWith('-'))) {
+    // A leading - would read as a PowerShell parameter, and Windows drops a
+    // trailing dot, so CLAUDE.md. would be CLAUDE.md.
+    if (!parts.every(p => PATH_PART.test(p) && !p.startsWith('-') && !p.endsWith('.'))) {
       bad(`appends to ${r.name}, whose value ${oneLine(state.values[r.name])} is not a relative path of plain names in the work folder`);
     }
     const lower = parts.map(p => p.toLowerCase());
@@ -239,7 +240,7 @@ function checkRuleValues(state) {
 }
 
 // A Windows device name names no file, in any folder and with any extension.
-const DEVICE = /^(con|prn|aux|nul|com[0-9¹²³]|lpt[0-9¹²³])(\..*)?$/;
+const DEVICE = /^(con|prn|aux|nul|com[0-9]|lpt[0-9])(\..*)?$/;
 
 // The rule as Claude Code reads it, for each shell, with <skill> replaced by
 // the copy's path. Each form is the same command as a session writes it:
@@ -262,7 +263,7 @@ const DEVICE = /^(con|prn|aux|nul|com[0-9¹²³]|lpt[0-9¹²³])(\..*)?$/;
 //   probe). The final * takes the line. In #171's probes Claude Code denied
 //   every other thing tried there: a subexpression, a parenthesised or array
 //   expression, an environment value, a pipe, an output redirect, and a
-//   second command after ; or on a new line.
+//   second command after ; or on a new line that no rule allows.
 function expandRule(r, state, work) {
   const both = c => [`Bash(${c})`, `PowerShell(${c})`];
   if (r.kind === 'git') return both(`${r.words.join(' ')}${r.wild ? ' *' : ''}`);
@@ -294,10 +295,11 @@ const unique = list => [...new Set(list)];
 const quotedForms = paths => paths.flatMap(p => [`'${p}'`, `"${p}"`]);
 
 // A path a rule writes quoted must mean the same file in both shells, quoted
-// either way: inside double quotes $ and ` expand. And a space or a quote
-// would need quoting of its own, so no written form could match.
+// either way: inside double quotes $ and ` expand. A bare comma makes
+// PowerShell read two paths, so an append would write to both. And a space or
+// a quote would need quoting of its own, so no written form could match.
 function plainPath(path) {
-  if (/[\s"'$`]/.test(path)) refuse(`the path ${oneLine(forward(path))} holds a space, a quote, a $ or a backtick, so a quoted command might not name it and a rule could not match`);
+  if (/[\s"'$`,]/.test(path)) refuse(`the path ${oneLine(forward(path))} holds a space, a quote, a comma, a $ or a backtick, so a quoted command might not name it and a rule could not match`);
 }
 
 // A script rule names a file that exists in the skill under test's source at
