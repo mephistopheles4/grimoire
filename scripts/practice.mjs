@@ -233,12 +233,13 @@ function checkRuleValues(state) {
 // The rule as Claude Code reads it, for each shell, with <skill> replaced by
 // the copy's path. Each form is the same command as a session writes it:
 //
-//   a script path bare or in single quotes, with forward slashes or with the
-//   platform's own, because the harness hands a skill its base directory in
-//   the platform's form and a skill may say to quote it. Bash never gets the
-//   bare backslash form: Git Bash reads an unquoted backslash as an escape,
-//   so node C:\x\run.mjs runs C:xrun.mjs, a path relative to the drive's
-//   current folder, where a session could plant a file of its own.
+//   a script path bare or in single quotes, with forward slashes, with the
+//   platform's own, or with the base directory in the platform's form and the
+//   rest as the skill writes it, because the harness hands a skill its base
+//   directory in the platform's form and a skill may say to quote it. Bash
+//   never gets a bare backslash form: Git Bash reads an unquoted backslash as
+//   an escape, so node C:\x\run.mjs runs C:xrun.mjs, a path relative to the
+//   drive's current folder, where a session could plant a file of its own.
 //
 //   a read in the spelling eagle-eye's usage record gives each shell. HOME in
 //   PowerShell is its own variable, $HOME, not an environment value.
@@ -261,12 +262,17 @@ function expandRule(r, state, work) {
     const paths = unique([rel, join(...rel.split('/')), forward(abs), abs]);
     return paths.flatMap(p => [`PowerShell(Add-Content -Path ${p} -Value *)`, `PowerShell(Add-Content -Path '${p}' -Value *)`]);
   }
-  const native = join(copyOf(work, state.skills[0]), ...r.rel);
+  const copy = copyOf(work, state.skills[0]);
+  const native = join(copy, ...r.rel);
+  // The skill's own template, <skill base directory>/<path>, with the base
+  // directory put in as the harness gives it.
+  const mixed = `${copy}/${r.rel.join('/')}`;
   noSpaceOrQuote(native);
   const tail = [...r.fixed, ...(r.wild ? ['*'] : [])].map(w => ` ${w}`).join('');
   const command = path => `${r.program} ${path}${tail}`;
-  const bash = unique([forward(native), `'${forward(native)}'`, `'${native}'`]).map(command);
-  const powershell = unique([forward(native), `'${forward(native)}'`, `'${native}'`, native]).map(command);
+  const quoted = [`'${forward(native)}'`, `'${native}'`, `'${mixed}'`];
+  const bash = unique([forward(native), ...quoted]).map(command);
+  const powershell = unique([forward(native), ...quoted, native, mixed]).map(command);
   return [...bash.map(c => `Bash(${c})`), ...powershell.map(c => `PowerShell(${c})`)];
 }
 

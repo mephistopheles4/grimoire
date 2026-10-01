@@ -254,23 +254,29 @@ for (const variant of VARIANTS) {
     const id = start(sb, ['--variant', variant, '--rule', 'node <skill>/scripts/check.mjs *', '--rule', 'node <skill>/scripts/check.mjs --seal *']);
     assert.equal(cli(sb, ['send', id], 'one').code, 0);
     assert.equal(cli(sb, ['send', id], 'two').code, 0);
-    const native = join(workDir(sb, id), '.claude', 'skills', 'probe-skill', 'scripts', 'check.mjs');
+    const base = join(workDir(sb, id), '.claude', 'skills', 'probe-skill');
+    const native = join(base, 'scripts', 'check.mjs');
     const forward = fwd(native);
+    // The skill's template, <skill base directory>/scripts/check.mjs, with
+    // the base directory put in as the harness gives it (#171's live run).
+    const mixed = `${base}/scripts/check.mjs`;
     const sends = allowsPerSend(sb);
     assert.equal(sends.length, 2);
     for (const allow of sends) {
       for (const tail of ['*', '--seal *']) {
         for (const tool of ['Bash', 'PowerShell']) {
-          for (const c of [`node ${forward} ${tail}`, `node '${forward}' ${tail}`, `node '${native}' ${tail}`]) {
+          for (const c of [`node ${forward} ${tail}`, `node '${forward}' ${tail}`, `node '${native}' ${tail}`, `node '${mixed}' ${tail}`]) {
             assert.ok(allow.includes(`${tool}(${c})`), `no ${tool}(${c}) in:\n${allow.join('\n')}`);
           }
         }
-        assert.ok(allow.includes(`PowerShell(node ${native} ${tail})`), allow.join('\n'));
+        for (const c of [`node ${native} ${tail}`, `node ${mixed} ${tail}`]) assert.ok(allow.includes(`PowerShell(${c})`), allow.join('\n'));
         // Near-miss: Git Bash reads an unquoted backslash as an escape, so
         // node C:\x\check.mjs would run C:xcheck.mjs, a path relative to the
         // drive's current folder, where a session can plant a file. That
         // form is never written for Bash.
-        if (win) assert.ok(!allow.includes(`Bash(node ${native} ${tail})`), `Bash takes a bare backslash path:\n${allow.join('\n')}`);
+        if (win) {
+          for (const c of [`node ${native} ${tail}`, `node ${mixed} ${tail}`]) assert.ok(!allow.includes(`Bash(${c})`), `Bash takes a bare backslash path:\n${allow.join('\n')}`);
+        }
       }
       // No other quoting, and no rule written twice.
       assert.ok(!allow.some(r => r.includes('"')), allow.join('\n'));
