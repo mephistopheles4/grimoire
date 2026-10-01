@@ -33,21 +33,23 @@ Cheap hygiene is still worth adding.
 ## What the test does not cover
 
 The test covers what a skill can do. It does not cover a defect in this
-repository's own files. Those files are the ones that `SECURITY.md` puts in
-scope: the manifests, the skill prose, the renderers and page templates, the
-edge audit, the check scripts and the CI workflows. A defect in one of them
-stays an ordinary finding to fix. So does a defect in anything they print or
-post. A sentence in a grimoire skill that tells the agent something wrong is a
-defect. Three examples are a bug, not a rating:
+repository's own files. Those files are everything that `SECURITY.md` puts in
+scope. It lists the manifests, the skill prose, the renderers and page
+templates, the edge audit, the check scripts and the CI workflows. A defect in
+any of them stays an ordinary finding to fix. So does a defect in anything
+they print or post. A grimoire skill has a defect when a sentence in it tells
+the agent something wrong. It also has one when it leaves out a warning that
+one of the four triggers below calls for. Three examples are a bug, not a
+rating:
 
 - a renderer that lets a file run script in the page (row 3);
 - an edge audit that prints its key (row 10);
-- skill prose that lets a file give the audit's standing yes (row 6).
+- skill prose that says a file may give the audit's standing yes (row 6).
 
 ## When grimoire warns
 
-The install warning and `SECURITY.md` already tell the user to trust a skill
-before they install it, so grimoire never repeats that. grimoire warns only on
+Claude Code's plugin warning and `SECURITY.md` already tell the user to trust
+a skill before they install it, so grimoire never repeats that. grimoire warns only on
 one of four triggers. Each trigger is outside what the trust at install time
 covered.
 
