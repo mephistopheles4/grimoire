@@ -1,9 +1,9 @@
 # Contract: contract
 
-Version: 0.6.3
+Version: 0.6.4
 
 *Type: skill. Template: `references/template.md`, draft 10. Level: Thorough.
-Status: draft 0.6.3, 2026-10-01. The skill's `SKILL.md` is generated from this
+Status: draft 0.6.4, 2026-10-01. The skill's `SKILL.md` is generated from this
 file. To change the skill, amend this file, generate `SKILL.md` again, and
 seal it.*
 
@@ -344,6 +344,7 @@ decision.
 | 0.6.1 | 2026-09-30 | Wording only; no rule changed. The mark is described for both file kinds: keys under `metadata:` in a `.md` file, three comment lines at the end of a Codex `.toml` file. The Antigravity binding is checked against agy 1.2.13 and names two Promised limits: a tools list cannot limit where the agent writes, and agy may give the agent tools beyond the list. The folder's SkillSpector baseline gives EA2 a reason that matches what it now covers. The check's tests are split across `tests/contract-check-*.test.mjs` so they run in parallel; no test changed. **Decided** 2026-09-30 | Fresh pre-merge security review of pull request 153 (findings S2, S4, S5, S6); harness re-probe, 2026-09-30 | Words used here, 4, 5, 7 |
 | 0.6.2 | 2026-09-30 | The practice test's pass rule before merge: six cases once each (A1, A6, A8, B7b, B8, B11), backed by field reports from real uses; the full run, each case twice, stays as an optional fuller check. Question 19's item 5 is now whether that is enough. No section of `SKILL.md` changes: question 12 here is this skill's own test, not the ones it writes. **Decided** 2026-09-30 | The owner: about 70 sessions is more than anybody spends proving a skill, and real use is the better calibration | 12, 19 |
 | 0.6.3 | 2026-10-01 | The practice test's part A sends each request mid-conversation. Every A case, the stay-quiet cases and the decoy included, opens with a warm-up turn on the same topic, written in the test before any run. The request is the next turn. A load of `contract` on the request's turn or after it counts; a load before the request is a false alarm in every case. When the session stops and waits, the tester gives only fixed replies: the proposed tier word, or "Just answer my question, please.", at most two after the request; the tester records at the first reply to the request that is not a stop, or after the second fixed reply. Part B reuses part A's first three steps, then sends one shared warm-up turn and the same fixed replies before the case's own opening line or request; a load before it is a false alarm. No expected answer changes. No section of `SKILL.md` changes: question 12 here is this skill's own test, not the ones it writes. **Decided** 2026-09-30 (warm-up, fixed replies, false alarm) and 2026-10-01 (when to stop and record, and part B's warm-up) | The owner: in real use, nobody opens a conversation with "build me a skill". A person repeats something over a few turns, then asks to turn it into a skill, so the skill steps in on turn two or three. By then the owner's global instructions have done their first-turn tier proposal and stop. A request sent as the first message tested that collision, not the skill (issue 152, the A1 comments). Every case gets a warm-up, so the tester never picks the form by the expected answer. Fixed replies keep the tester's own words out of the run, and a load on a warm-up is the skill firing on the wrong turn. Part B gets a warm-up too (owner, 2026-10-01): a test should not run under a known conflict, and the owner's global instructions can change at any time. Isolated runs, with no global instructions, are the longer-term aim | 12 |
+| 0.6.4 | 2026-10-01 | The pass rule before merge is deferred. The skill merges on its field reports and the repository's `check` gate. The merge set (A1, A6, A8, B7b, B8, B11, once each) stays, and runs after the merge in isolated sessions with no global instructions loaded, once that setup exists. Question 19's item 5 records the deferral. No section of `SKILL.md` changes: question 12 here is this skill's own test, not the ones it writes. **Decided** 2026-10-01 | The owner: building isolated runs takes time, and the skill should not wait on it while real use can produce field reports. The first merge-set run (2026-10-01) passed A8 and B11; A1, B7b and B8 were confounded by the owner's global instructions, which triage each new piece of work, so they measured the environment more than the skill | 12, 19 |
 
 ### Flag log
 
@@ -467,13 +468,16 @@ install with the skill. It has three parts:
 - **C. The check:** `tests/contract-check-*.test.mjs`. They run in the
   repository's `check` gate.
 
-**The pass rule before this skill merges** (**Decided** 2026-09-30, the
-owner): six cases pass once each, in fresh sessions. They are A1, A6 and A8
-from part A, and B7b, B8 and B11 from part B. Field reports from real uses
-back them. Two exist: a field report on this skill's pull request
-(2026-09-29), and eagle-eye rebuilt from a contract (2026-09-30). Each later
-real use ends with a short field report, and what it got wrong becomes an
-amendment. The other cases stay in the file as an optional fuller run, each
+**The pass rule before this skill merges** (**Decided** 2026-10-01, the
+owner): deferred. The skill merges on its field reports and the
+repository's `check` gate. Two field reports exist: one on this skill's pull
+request (2026-09-29), and eagle-eye rebuilt from a contract (2026-09-30).
+Each later real use ends with a short field report, and what it got wrong
+becomes an amendment. The merge set stays: A1, A6 and A8 from part A, and
+B7b, B8 and B11 from part B, each once, in fresh sessions. It runs after
+the merge, in isolated sessions with no global instructions loaded, once
+that setup exists. A8 and B11 passed on 2026-10-01. A1, B7b and B8 were
+confounded by the owner's global instructions, and A6 has not run. The other cases stay in the file as an optional fuller run, each
 case twice, as the owner's build plan set (2026-09-26). The expected answers
 are written before any run. **Any false alarm fails the run.** You run it,
 not the skill.
@@ -631,7 +635,7 @@ different model is an escalation, and the call is yours.
 | 2 | Does a simple agent need more than Quick? | No Quick contract for an agent exists yet | Two Quick contracts are written after release |
 | 3 | Does every agent tool accept a `metadata` key in the frontmatter? | *Proposed.* Two tools were used. On 2026-09-29, agy 1.2.12 loaded a sealed `.md` agent with its `metadata:` map, and the agent ran. Reported by the session working on pull request 155, 2026-09-29, from its own runs; not reproduced here. *Proposed.* Codex 0.159.0 refuses a metadata table, so a Codex agent's mark is three comment lines instead (2026-09-29) | *Proposed.* A tool refuses the key, or each tool a person names has loaded one |
 | 4 | Where does the person install a familiar? | It depends on the person's tool and folders | The person names it, in each unsettled list |
-| 5 | Is six cases plus field reports enough for this skill's practice test? | The owner chose it on 2026-09-30 over the full run, about 70 sessions, which nobody building a skill would spend. Field reports have not yet been compared with what the unrun cases cover | A field report finds a failure that one of the unrun cases covers |
+| 5 | Is six cases plus field reports enough for this skill's practice test? | The owner chose it on 2026-09-30 over the full run, about 70 sessions, which nobody building a skill would spend. On 2026-10-01 the owner deferred it past the merge, until isolated runs exist; field reports carry the merge. Field reports have not yet been compared with what the unrun cases cover | A field report finds a failure that one of the unrun cases covers |
 | 6 | Should the check also confirm that every question for the level has an answer? | That is a second job for one small check | After three contracts, if gaps slip through |
 | 7 | The real example (question 9) | The skill has not run yet | Its first real use |
 | 8 | Should a check enforce the section-scoped amend rule? For example, a mode of the check that compares the new file with the previously sealed one, and fails when a section outside the touched questions changed | Today the rule is Promised. The digest cannot tell a small rewrite from a full one. *Proposed.* A field report on this skill's pull request, 2026-09-29, found it in use: agents applied each amendment with their own patch scripts, and the seal could not tell. The seal proves integrity, not derivation. The report's next step is a small generator for the parts that are deterministic, such as the tables and the stops word for word | Amend rounds show whether the Promised rule holds |

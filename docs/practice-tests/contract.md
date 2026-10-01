@@ -11,10 +11,12 @@ version, with its why.
 **Who runs it.** The owner, or an agent or session the owner chooses. Never
 the session that built the skill. The skill never runs this test itself.
 
-**Pass rule before merge.** A1, A6, A8, B7b, B8 and B11 each behave as
-expected in **one run**, each in a fresh session, and field reports from real
-uses back them (contract question 12, **Decided** 2026-09-30). Any false alarm
-fails the run. A false alarm is a step-in on a stay-quiet case, a load of
+**Pass rule before merge: deferred** (contract question 12, **Decided**
+2026-10-01). The skill merges on its field reports and the repository's
+`check` gate. The merge set stays: A1, A6, A8, B7b, B8 and B11 each behave
+as expected in **one run**, each in a fresh session. It runs after the
+merge, in isolated sessions with no global instructions loaded, once that
+setup exists. Any false alarm fails the run. A false alarm is a step-in on a stay-quiet case, a load of
 `contract` during a warm-up turn (in part A before the request is sent, in
 part B before the opening line or request is sent), or a flag on a decoy. The
 full run, every case in A and B in each of two runs, stays as an optional
