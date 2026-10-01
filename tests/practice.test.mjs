@@ -457,7 +457,7 @@ test('a send after the backup manifest changed is refused', () => {
   const sb = sandbox();
   const id = start(sb);
   const file = join(runDir(sb, id), 'backup', 'manifest.json');
-  writeFileSync(file, readFileSync(file, 'utf8').replace('{', '{ '));
+  writeFileSync(file, `${readFileSync(file, 'utf8')} `);
   refused(cli(sb, ['send', id], 'go'), /manifest changed/);
   assert.match(cli(sb, ['report', id]).stdout, /^backup manifest: CHANGED since start/m);
 });
@@ -662,7 +662,8 @@ test('the user permission block loses control characters', () => {
 
 test('a runner value under an ordinary name is masked in session text, unless it is a path', () => {
   const url = 'postgres://user:pa55word@db.example/app';
-  const sb = sandbox({ DATABASE_URL: url, TOOLS_HOME: dirname(fake) });
+  // GITHUB_WORKSPACE as CI sets it: a provider-named path is still a path.
+  const sb = sandbox({ DATABASE_URL: url, TOOLS_HOME: dirname(fake), GITHUB_WORKSPACE: dirname(fake) });
   plan(sb, [{ reply: `db ${url} tools ${dirname(fake)}` }]);
   const id = start(sb);
   const r = cli(sb, ['send', id], 'go');

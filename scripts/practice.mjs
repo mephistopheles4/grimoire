@@ -1076,8 +1076,9 @@ const KEY_SHAPES = [
 
 const pathLike = v => v.split(delimiter).every(p => p && isAbsolute(p));
 // A name that says secret holds its value whatever the value looks like: a
-// base64 key can start with a slash.
-const SECRET_NAME = /KEY|TOKEN|SECRET|PASSW|CREDENTIAL|AUTH|COOKIE|SESSION|PRIVATE|^(ANTHROPIC|CLAUDE_CODE|OPENAI|OPENROUTER|AWS|AZURE|GOOGLE|GH|GITHUB|GITLAB|NPM|HF)_/i;
+// base64 key can start with a slash. A provider's name alone does not, so a
+// path such as GITHUB_WORKSPACE stays readable.
+const SECRET_NAME = /KEY|TOKEN|SECRET|PASSW|CREDENTIAL|AUTH|COOKIE|SESSION|PRIVATE/i;
 
 let held = null;
 function heldValues() {
