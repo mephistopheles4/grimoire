@@ -29,6 +29,13 @@ fuller check.
   loads skills from, for that project only.
 - **Scripted file:** a file of answers that the owner writes once, before the
   first run. The tester reads from it in every B case.
+- **Tier:** quick, standard or thorough. The owner's global instructions
+  make a session propose one for new work and stop. It is not the skill's
+  own level, although the words are the same.
+- **Warm-up turn:** a first message on the case's topic that asks for no
+  skill or agent. Every case in parts A and B sends one before its request.
+- **Fixed reply:** one of the two replies that step 6 of part A allows. The
+  tester sends nothing else when a session stops and waits.
 
 ## Part A. When it steps in
 
@@ -69,8 +76,12 @@ owner's global instructions have done their first-turn work: a tier proposal,
 then a stop. A request sent as the first message tests that stop, not the
 skill. Every A case gets a warm-up, the stay-quiet cases and the decoy
 included. So the expected answer never decides whether a case has a warm-up,
-and a stay-quiet case cannot pass only because the first turn stopped. The owner
-decided this on 2026-09-30 (contract version 0.6.3).
+and a stay-quiet case cannot pass only because the first turn stopped. The
+owner decided the warm-up, the fixed replies and the false alarm on
+2026-09-30. On 2026-10-01 the owner added the point to stop and record, and
+a warm-up for part B too, because a test should not run under a known
+conflict, and the global instructions can change at any time (contract
+version 0.6.3).
 
 **The sealed pair.** A3, A6, A7 and B8 need a skill that has a contract.
 Make it once, before the first run, and copy it into each case's folder:
@@ -123,12 +134,14 @@ skill or agent.
 ## Part B. What it does once it runs
 
 Each B case starts as A does, with steps 1 to 3, in a fresh throwaway
-folder. Then it starts a new session there and sends its own opening line
-or request as the first message. It has no warm-up turn. If the session
-stops to propose a tier before the scripted file has a line to give, the
-tester gives part A's fixed replies (step 6), then carries on with the
-scripted file. **Every B case
-builds the same familiar**, a commit-message checker, as a skill at Thorough,
+folder. Then it starts a new session there and sends one shared warm-up
+turn as the first message: "Here is a commit message I am about to push:
+'fix stuff'. Is it a good one?" If the session stops and waits, the tester
+gives part A's fixed replies (step 6). When the session has answered the
+warm-up, the tester sends the case's own opening line or request, and from
+then on reads only from the scripted file. A load of `contract` before the
+opening line is a false alarm, as in part A. **Every B case builds the same
+familiar**, a commit-message checker, as a skill at Thorough,
 unless the case says otherwise. Before the first run, the owner writes the
 scripted file: a short answer to each question for that familiar, a name, and
 the lines below. The tester reads from the scripted file in every run. Only
