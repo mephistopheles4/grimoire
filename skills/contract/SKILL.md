@@ -3,8 +3,8 @@ name: contract
 description: Builds a reusable skill or agent from terms a person agrees, and keeps those terms as a contract its file is generated from. Use when someone wants a new skill or agent, wants to turn a prompt they keep pasting into one, or wants to change or write the contract for one. Not for a one-off prompt, for running a skill or agent that already exists, or for a legal or business contract.
 metadata:
   contract-version: 0.7.0
-  familiar-digest: "sha256:3b699bb13cf9cdd26a541d3236ea0eaf2d601487653d4ea72b50c1a42a3fb9ba"
-  contract-digest: "sha256:872559f155f3a686e6b1c069a46cc36102f15f054e98915d98213686af5f1d09"
+  familiar-digest: "sha256:8afc22f04a55a3eccbc8728be0e7f349a07022204995615b728ca1b07f23068c"
+  contract-digest: "sha256:0f2d88b85c13df38840ac5994df1b1f213d1fd118ee997a4cd8d4873083b0422"
 ---
 
 # contract
@@ -442,13 +442,14 @@ passes.
   comes from a decision, show the output, and say which decision causes it.
   Do not call the build done.
 - Act on three warnings only, once. Fix `body-length` on the `SKILL.md` you
-  just generated, and `contents` on a file you wrote in this run. If
+  just generated: move detail only into a new file, or one you wrote in
+  this session. Fix `contents` on a file you wrote in this session. If
   `description-xml` names a description not yet **Decided**, redraft it in
   the contract, still *Proposed*. Show the new draft at hand-back. Build and
   seal again. If the warning stays, stop and ask.
-- Record every other warning. Change nothing for it. Before you add a
-  contents list to a file you did not write in this run, ask. A yes covers
-  the edit and the reseal.
+- Record every other warning. Change nothing for it. Before you write to a
+  file you did not write in this session, ask. A yes covers the edit and
+  the reseal.
 - The check says nothing about whether the familiar is any good. Say so.
 
 > **Warning: if the check fails twice on the same file, stop and ask.** Do

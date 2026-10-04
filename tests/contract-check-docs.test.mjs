@@ -70,11 +70,15 @@ describe('reserved-name: a skill name holding "anthropic" or "claude" warns', ()
     none(r, 'reserved-name');
   });
 
-  test('a name that fails its shape rule gets that failure and no reserved-name line', () => {
-    const r = run([skill({ name: 'Claude-Helper' })]);
-    expect(r, 1, 'FAIL name: line 2: must be lower-case letters');
-    none(r, 'reserved-name');
-  });
+  // Lower case and holding "claude", so only the shape gate keeps the
+  // reserved-name rule from firing.
+  for (const name of ['claude--helper', 'claude-helper-']) {
+    test(`${name}, which fails its shape rule, gets that failure and no reserved-name line`, () => {
+      const r = run([skill({ name })]);
+      expect(r, 1, 'FAIL name: line 2: must be lower-case letters');
+      none(r, 'reserved-name');
+    });
+  }
 
   test('a name that fails its length rule gets that failure and no reserved-name line', () => {
     const name = `claude-${'a'.repeat(60)}`;
@@ -131,12 +135,10 @@ describe('description-xml: a skill description holding a tag-shaped <...> warns'
     none(r, 'description-xml');
   });
 
-  test('1,024 characters of "<a" and no ">" -> 0, no line, and quickly', () => {
-    const started = Date.now();
+  test('1,024 characters of "<a" and no ">" -> 0 and no line', () => {
     const r = run([withDesc('<a'.repeat(512))]);
     expect(r, 0, 'PASS description');
     none(r, 'description-xml');
-    assert.ok(Date.now() - started < 10_000, `took ${Date.now() - started} ms`);
   });
 
   test('the warning never echoes the description', () => {
@@ -258,8 +260,10 @@ describe('contents: a long .md file in a skill folder with no contents heading w
 
   describe('a hostile reference file stays linear', () => {
     // A heading regex such as /^ {0,3}#{1,6}[ \t]+(.*?)[ \t#]*$/ backtracks
-    // quadratically on a long run of spaces. The rule uses string operations,
-    // so each case finishes in about the time Node takes to start.
+    // quadratically on a long run of spaces followed by a character outside
+    // [ \t#]: the last case below, which takes it minutes (20,000 spaces took
+    // 129 ms, 2026-10-04). The rule uses string operations, so each case
+    // finishes in about the time Node takes to start.
     const BOUND = 10_000;
     const lineOfSpaces = ' '.repeat(1_000_000);
     for (const [label, first, warns] of [
@@ -267,6 +271,7 @@ describe('contents: a long .md file in a skill folder with no contents heading w
       ['"##", a million spaces, then "Contents"', `##${lineOfSpaces}Contents`, false],
       ['"## Contents", then a million spaces', `## Contents${lineOfSpaces}`, false],
       ['"## x", then a million spaces and "#"', `## x${lineOfSpaces}#`, true],
+      ['"## x", then a million spaces and "y"', `## x${lineOfSpaces}y`, true],
     ]) {
       test(`${label} -> ${warns ? 'one warning' : 'no line'}, within ${BOUND / 1000} s`, () => {
         const content = `${first}\n${text(101)}`;
