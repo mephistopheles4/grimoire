@@ -12,7 +12,7 @@ node scripts/check.mjs
 
 That is the contract, and it is still one command. It validates every
 artifact in the tree with the renderer its registry row names, checks that no
-file a skill ships has grown a fixed path back, fails on a code fence that declares no
+file a skill or the mod ships has grown a fixed path back, fails on a code fence that declares no
 language, fails on a dependency, fails when the two SkillSpector baselines
 disagree, runs every skill through the format check in
 `skills/contract/scripts/check.mjs`, and runs the test suite in `tests/`. CI
@@ -89,8 +89,12 @@ needs to argue for itself in the pull request body before anybody reads the
 diff. See [`SECURITY.md`](SECURITY.md) for why this matters more than it looks.
 
 `node scripts/check.mjs` enforces this. It fails on a `package.json`, a
-lockfile, and any `.mjs` or `.js` file importing a bare specifier — an import
-path that is not relative, not absolute, and not a `node:` builtin. It reads
+lockfile, and any code file importing a bare specifier — an import path that
+is not relative, not absolute, and not a `node:` builtin. Code means every
+suffix Node or the Claude Code engine loads: `.ts`, `.tsx`, `.jsx`, `.js`,
+`.mjs`, `.cjs`, `.mts` and `.cts`. Inside the mod (see below), `claude-code`
+and the paths under it, such as `claude-code/testing`, are builtins too,
+because the engine supplies them; anywhere else they are a package. It reads
 code and not prose, so a comment is skipped. Until this check existed the rule
 held only because the tree gave it nowhere to land.
 
@@ -197,6 +201,16 @@ are unchanged since they were sealed. It proves nothing about who sealed them,
 because anyone can run the command. So a reviewer reads every changed file in
 full, and reviews the `SKILL.md` as shipped prose, whatever its seal says.
 
+**The mod is held to the same rules.** The plugin can also ship a Claude Code
+mod: a hooks module the engine runs in every session the plugin is installed
+in. Its files live in `brigade/`, and in `hooks/`, where the engine reads
+`hooks/hooks.json` at the plugin's root. The check holds both folders to the
+fixed-path rule and the version bump, as it holds `skills/`. A mod kept in any
+other folder is outside those rules until `MOD_DIRS` in `scripts/check.mjs`
+names it. The engine writes its own type declarations into
+`.claude-plugin/types/` at every load; `.gitignore` excludes them, so never
+commit them and the check never reads them.
+
 **Changing the export format touches three places.** The page writes it,
 `SKILL.md` specifies it, and the agent reads it back. All three in one commit,
 or none.
@@ -211,7 +225,8 @@ or none.
    a gate that quietly does nothing reads as a gate that passed. A prose-only
    skill produces no artifact and needs no row.
 3. Bump `version` in `.claude-plugin/plugin.json`. The check fails without it,
-   because Claude Code ships an update only when that field moves. It also
+   because Claude Code ships an update only when that field moves. The same
+   holds for a change to the mod. It also
    fails when `main` already carries the version you bumped to, which is what
    happens when a sibling branch lands first. Rebase and bump again.
 

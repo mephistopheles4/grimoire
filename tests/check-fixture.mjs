@@ -73,6 +73,22 @@ export const manifest = dir => join(dir, '.claude-plugin', 'plugin.json');
 
 export const setVersion = (dir, v) => writeJson(manifest(dir), { ...readJson(manifest(dir)), version: v });
 
+// A file of the mod, written into the copy at run time. No mod is committed
+// yet, so the tests of the rules that cover one write its files here, the way
+// the format-check tests write their fixture skills. `rel` is a forward-slash
+// path from the copy's root, such as 'brigade/hooks/register.tsx'.
+export function modFile(dir, rel, text) {
+  const p = join(dir, ...rel.split('/'));
+  mkdirSync(join(p, '..'), { recursive: true });
+  writeFileSync(p, text);
+  return p;
+}
+
+// An import line, assembled rather than written whole. Written whole, a line
+// in this file would carry the shape the dependency rule reads, and the suite
+// would fail its own check.
+export const importLine = (names, spec) => `import ${names} from ${"'"}${spec}${"'"};\n`;
+
 export function assertPasses(dir) {
   const r = run(checkIn(dir), [], { cwd: dir, env: { GITHUB_BASE_REF: null } });
   assert.equal(r.code, 0, `expected a pass, got:\n${r.stdout}${r.stderr}`);

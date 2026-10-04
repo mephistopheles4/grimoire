@@ -7,7 +7,7 @@ import assert from 'node:assert/strict';
 import { rmSync, readFileSync, writeFileSync, appendFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { check, run } from './helpers.mjs';
-import { n, tree, checkIn, fixtureMd, manifest, assertPasses, assertFails, formatCheckIn, fixtureSkill, fixtureContract, assertFixtureClean } from './check-fixture.mjs';
+import { n, tree, checkIn, fixtureMd, manifest, assertPasses, assertFails, formatCheckIn, fixtureSkill, fixtureContract, assertFixtureClean, modFile, importLine } from './check-fixture.mjs';
 
 test('a sealed skill whose CONTRACT.md drifted fails, naming the skill', () => {
   // The mark says the SKILL.md and its contract are unchanged since the
@@ -145,4 +145,56 @@ test('a node: builtin and a relative path are not dependencies', () => {
   const dir = tree();
   appendFileSync(join(dir, 'scripts', 'build-pages.mjs'), "\nimport { sep as s2 } from 'node:path';\nimport './lib/tree.mjs';\n");
   assertPasses(dir);
+});
+
+// ---- a mod's hooks module ----
+// The engine loads a mod's module and supplies `claude-code` itself, so inside
+// the mod that one name is no dependency. Everywhere else it is a package name
+// like any other.
+
+test('a .tsx file in the mod importing claude-code or claude-code/testing passes', () => {
+  const dir = tree();
+  modFile(
+    dir,
+    'brigade/hooks/register.tsx',
+    importLine('{ atom, read }', 'claude-code') +
+      importLine('type { Register }', 'claude-code') +
+      importLine('{ harness }', 'claude-code/testing') +
+      importLine('type { Card }', '../types') +
+      'export const register: Register = (on) => {};\n',
+  );
+  assertPasses(dir);
+});
+
+test('the engine name read whole: claude-code-x in a .tsx file fails, naming the file', () => {
+  // A prefix match would let any package whose name starts with the engine's
+  // walk through as a builtin.
+  const dir = tree();
+  modFile(dir, 'brigade/hooks/register.tsx', importLine('{ x }', 'claude-code-x'));
+  assertFails(dir, /brigade\/hooks\/register\.tsx:\d+ imports "claude-code-x"/);
+});
+
+test('any other bare specifier in a .ts file of the mod fails, naming the file', () => {
+  const dir = tree();
+  modFile(dir, 'brigade/hooks/roster.ts', importLine('chalk', 'chalk'));
+  assertFails(dir, /brigade\/hooks\/roster\.ts:\d+ imports "chalk"/);
+});
+
+test('a bare require in any suffix the engine loads fails, not only .ts and .tsx', () => {
+  // The engine loads .ts, .tsx, .jsx, .js, .mjs, .cjs, .mts and .cts. A
+  // suffix the rule did not read would be a way round it.
+  const dir = tree();
+  const q = "'";
+  modFile(dir, 'brigade/hooks/old.cts', `const c = require(${q}chalk${q});\n`);
+  modFile(dir, 'brigade/hooks/view.mts', importLine('chalk', 'chalk'));
+  const r = assertFails(dir, /brigade\/hooks\/old\.cts:\d+ imports "chalk"/);
+  assert.match(r.stderr, /brigade\/hooks\/view\.mts:\d+ imports "chalk"/);
+});
+
+test('claude-code outside the mod is a dependency like any other', () => {
+  // Outside the engine the name resolves from node_modules, so a repository
+  // script importing it has taken a package.
+  const dir = tree();
+  appendFileSync(join(dir, 'scripts', 'build-pages.mjs'), `\n${importLine('{ atom }', 'claude-code')}`);
+  assertFails(dir, /scripts\/build-pages\.mjs:\d+ imports "claude-code"/);
 });
