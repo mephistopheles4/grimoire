@@ -90,7 +90,8 @@ diff. See [`SECURITY.md`](SECURITY.md) for why this matters more than it looks.
 
 `node scripts/check.mjs` enforces this. It fails on a `package.json`, a
 lockfile, and any code file importing a bare specifier — an import path that
-is not relative, not absolute, and not a `node:` builtin. Code means every
+is not relative, not absolute, and not a `node:` builtin. A path starting with
+`//` names a host, so it counts as a package, not as absolute. Code means every
 suffix Node or the Claude Code engine loads: `.ts`, `.tsx`, `.jsx`, `.js`,
 `.mjs`, `.cjs`, `.mts` and `.cts`. Inside the mod (see below), `claude-code`
 and the paths under it, such as `claude-code/testing`, are builtins too,
