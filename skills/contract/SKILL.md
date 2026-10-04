@@ -4,7 +4,7 @@ description: Builds a reusable skill or agent from terms a person agrees, and ke
 metadata:
   contract-version: 0.7.0
   familiar-digest: "sha256:719e34d5cdb9793cfb6f2c768e97849e2bc81de87ff8efd90c965a3bfb5592b6"
-  contract-digest: "sha256:6be2ba749ae976faac77653f71965d3821c83fb0d721a38a3cd88781e6f63fa8"
+  contract-digest: "sha256:febd3609dc98dc793a4e6412e22e3e186e0960356abae7315ddafea282c538d1"
 ---
 
 # contract
