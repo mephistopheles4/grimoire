@@ -30,7 +30,11 @@
 //
 // Node 20 or later, ESM, node: built-ins only. No regex here has a nested
 // quantifier, and none runs over a whole file: every regex is applied to one
-// line or one value.
+// line or one value. None runs on a line of a reference file either: such a
+// line can be a megabyte long, and a pattern with no nested quantifier can
+// still take time that grows with the square of its length, as a heading
+// pattern does on a long run of spaces. The contents rule uses string
+// operations only.
 
 import {
   closeSync,
@@ -97,6 +101,29 @@ const KNOWN_KEYS = new Set(['name', 'description', 'compatibility', 'license', '
 // compatibility included, needs the contract's `Extra keys:` line, as a .md
 // file's does, and then passes with any value.
 const TOML_KNOWN_KEYS = new Set(['name', 'description', 'developer_instructions', 'sandbox_mode']);
+
+// Three warnings follow Anthropic's Skills docs for a skill. Its overview
+// says a name cannot contain "anthropic" or "claude" and a description cannot
+// contain XML tags, and its best-practices page says a reference file over
+// 100 lines opens with a contents list. The open Agent Skills specification
+// sets none of them, so each only warns, and only on a skill: an agent file
+// gets none. Like every warning, none of them fails the check or blocks a
+// seal, and none echoes the text it read.
+const ANTHROPIC_RULE = "a rule Anthropic's Skills docs set and the open Agent Skills specification does not";
+// Matched as substrings of a name that already passed its shape rule, so the
+// name is ASCII lower case and a substring test is exact.
+const RESERVED_WORDS = ['anthropic', 'claude'];
+// A tag shape: "<", an optional "/", a letter, then up to the rest of a
+// description's length of characters other than "<", ">" or a line break,
+// then ">". So <b>, </b> and <name> match, and a < b, x -> y and <3 do not.
+// The middle class stops at the next "<", so the matches tried from one "<"
+// never overlap those tried from the next, and one pass is linear in the
+// description's length, which DESCRIPTION_MAX bounds anyway.
+const TAG_RE = /<\/?[A-Za-z][^<>\r\n]{0,1024}>/;
+// A .md file in a skill's folder over this many lines needs a Contents
+// heading within its first CONTENTS_WINDOW lines.
+const CONTENTS_LINES_MAX = 100;
+const CONTENTS_WINDOW = 30;
 
 // The settings this check warns on. Neither kind of warning fails the check,
 // and neither refuses a value: the person chose the setting, and the check
@@ -1309,8 +1336,10 @@ function textBytes(buf) {
 
 /**
  * Read the listed files. Returns { ok: false, why } or { ok: true, contents,
- * invisible }, where contents are { rel, bytes } as hashed and invisible holds
- * the first invisible character of each text file that has one.
+ * invisible }, where contents are { rel, bytes } as hashed, with `text` as
+ * well for a text file: its decoded text, with one leading byte-order mark
+ * stripped and its line endings as they are on disk. invisible holds the
+ * first invisible character of each text file that has one.
  *
  * Each file is opened, and its descriptor must name the same regular file the
  * listing saw, so an entry swapped for a link after the listing is refused
@@ -1355,8 +1384,9 @@ function readListed(files) {
     }
     const t = textBytes(buf);
     if (t.why) return { ok: false, why: `"${clean(f.rel)}" ${t.why}` };
-    contents.push({ rel: f.rel, bytes: t.bytes });
-    const hit = findInvisible(t.text.charCodeAt(0) === 0xfeff ? t.text.slice(1) : t.text);
+    const text = t.text.charCodeAt(0) === 0xfeff ? t.text.slice(1) : t.text;
+    contents.push({ rel: f.rel, bytes: t.bytes, text });
+    const hit = findInvisible(text);
     if (hit) invisible.push({ rel: f.rel, ...hit });
   }
   return { ok: true, contents, invisible };
@@ -1385,7 +1415,82 @@ function folderRules(loc, report) {
     report.fail('invisible-characters', `${clean(hit.rel)} line ${hit.line} holds ${hex4(hit.cp)}`);
   }
   if (read.invisible.length === 0) report.pass('invisible-characters', 'every other text file in the folder');
+  contentsRule(read.contents, report);
   return read.contents;
+}
+
+/**
+ * Lines in a text, counted as bodyLineCount counts a body's: a final line
+ * ending does not start a new line, and an empty text has none. One pass, no
+ * regex.
+ */
+function lineCount(text) {
+  let n = 1;
+  for (let i = text.indexOf('\n'); i >= 0; i = text.indexOf('\n', i + 1)) n += 1;
+  if (text === '' || text.endsWith('\n')) n -= 1;
+  return n;
+}
+
+function isSpaceOrTab(c) {
+  return c === ' ' || c === '\t';
+}
+
+/**
+ * True when s[start, end) is a Markdown heading whose text is "Contents", in
+ * any case: at most three spaces, one to six "#", a space or a tab, then the
+ * text, with spaces, tabs and a closing run of "#" trimmed as Markdown trims
+ * them. String operations only, so a megabyte-long line costs one pass.
+ */
+function isContentsHeading(s, start, end) {
+  let i = start;
+  while (i < end && i - start < 4 && s[i] === ' ') i += 1;
+  if (i - start > 3) return false;
+  const hashes = i;
+  while (i < end && s[i] === '#') i += 1;
+  if (i - hashes < 1 || i - hashes > 6) return false;
+  if (i >= end || !isSpaceOrTab(s[i])) return false;
+  let e = end;
+  while (e > i && isSpaceOrTab(s[e - 1])) e -= 1;
+  // A closing run of "#" counts only after a space or a tab.
+  let h = e;
+  while (h > i && s[h - 1] === '#') h -= 1;
+  if (h < e && isSpaceOrTab(s[h - 1])) e = h;
+  while (e > i && isSpaceOrTab(s[e - 1])) e -= 1;
+  while (i < e && isSpaceOrTab(s[i])) i += 1;
+  return e - i === 8 && s.slice(i, e).toLowerCase() === 'contents';
+}
+
+/** True when one of a text's first CONTENTS_WINDOW lines is a Contents heading. */
+function hasContentsHeading(text) {
+  let start = 0;
+  for (let k = 0; k < CONTENTS_WINDOW && start <= text.length; k += 1) {
+    const nl = text.indexOf('\n', start);
+    const end = nl < 0 ? text.length : nl;
+    const stop = end > start && text[end - 1] === '\r' ? end - 1 : end;
+    if (isContentsHeading(text, start, stop)) return true;
+    start = end + 1;
+  }
+  return false;
+}
+
+/**
+ * The contents rule, on the text the folder walk already read: it opens no
+ * file and follows no link of its own. Each .md file but the top-level
+ * README.md, which is for people and not read by the agent, warns when it is
+ * over CONTENTS_LINES_MAX lines with no Contents heading in its first
+ * CONTENTS_WINDOW. SKILL.md and CONTRACT.md at the top are not in the walk's
+ * list. One line per file, in path order, naming the file and never quoting
+ * it.
+ */
+function contentsRule(contents, report) {
+  const files = contents.filter(f => f.text !== undefined && f.rel.endsWith('.md') && f.rel !== 'README.md');
+  files.sort((a, b) => (a.rel < b.rel ? -1 : a.rel > b.rel ? 1 : 0));
+  for (const f of files) {
+    const n = lineCount(f.text);
+    if (n > CONTENTS_LINES_MAX && !hasContentsHeading(f.text)) {
+      report.warn('contents', `"${clean(f.rel)}" has ${n} lines and no Contents heading in its first ${CONTENTS_WINDOW} (${ANTHROPIC_RULE})`);
+    }
+  }
 }
 
 /**
@@ -1579,6 +1684,7 @@ function fieldRules(fm, loc, extras, report) {
     } else {
       valid = true;
       report.pass('name', v);
+      if (loc.mode === 'skill') reservedNameRule(v, report);
     }
     const where = loc.mode === 'skill' ? 'folder' : 'file stem';
     if (v === loc.expectedName) report.pass(loc.nameRule);
@@ -1590,7 +1696,12 @@ function fieldRules(fm, loc, extras, report) {
   if (!desc) report.fail('description', 'missing (required)');
   else if (desc.value.trim() === '') report.fail('description', `line ${desc.line}: empty`);
   else if (codePoints(desc.value) > DESCRIPTION_MAX) report.fail('description', `line ${desc.line}: longer than ${DESCRIPTION_MAX} characters`);
-  else report.pass('description');
+  else {
+    report.pass('description');
+    if (loc.mode === 'skill' && TAG_RE.test(desc.value)) {
+      report.warn('description-xml', `line ${desc.line}: the description holds an XML tag (${ANTHROPIC_RULE})`);
+    }
+  }
 
   if (toml) {
     tomlKeyRules(top, report);
@@ -1619,6 +1730,17 @@ function fieldRules(fm, loc, extras, report) {
   }
 
   warningRules(top, toml, known, extras, report);
+}
+
+/**
+ * A skill name, already valid, that holds a reserved word warns once, naming
+ * each word it holds. The words come from RESERVED_WORDS, never the name.
+ */
+function reservedNameRule(name, report) {
+  const found = RESERVED_WORDS.filter(w => name.includes(w));
+  if (found.length === 0) return;
+  const words = found.length === 1 ? `word "${found[0]}"` : `words ${found.map(w => `"${w}"`).join(' and ')}`;
+  report.warn('reserved-name', `the name holds the reserved ${words} (${ANTHROPIC_RULE})`);
 }
 
 /**

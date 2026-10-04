@@ -2,9 +2,9 @@
 name: contract
 description: Builds a reusable skill or agent from terms a person agrees, and keeps those terms as a contract its file is generated from. Use when someone wants a new skill or agent, wants to turn a prompt they keep pasting into one, or wants to change or write the contract for one. Not for a one-off prompt, for running a skill or agent that already exists, or for a legal or business contract.
 metadata:
-  contract-version: 0.6.5
-  familiar-digest: "sha256:b1eaceed53f7f86df088c54a1b40c03244c6377b2836bcdd7587e8ed1fca5863"
-  contract-digest: "sha256:6953e50a3f2c03c68b72ccf2af1ac9fe02ed9da0fdd1ff6d955b93714d7002fd"
+  contract-version: 0.7.0
+  familiar-digest: "sha256:719e34d5cdb9793cfb6f2c768e97849e2bc81de87ff8efd90c965a3bfb5592b6"
+  contract-digest: "sha256:6be2ba749ae976faac77653f71965d3821c83fb0d721a38a3cd88781e6f63fa8"
 ---
 
 # contract
@@ -441,6 +441,13 @@ passes.
 - Never change a **Decided** answer to make the check pass. When the failure
   comes from a decision, show the output, and say which decision causes it.
   Do not call the build done.
+- Act on three warnings only, once. Fix `body-length` on the `SKILL.md` you
+  just generated, and `contents` on a file you wrote in this run. Redraft a
+  description not yet **Decided** after `description-xml`, in the contract,
+  still *Proposed*. Then build and seal again. If it stays, stop and ask.
+- Record every other warning, and change nothing for it. For `contents` on
+  a file you did not write in this run, ask first. A yes covers the edit
+  and the reseal.
 - The check says nothing about whether the familiar is any good. Say so.
 
 > **Warning: if the check fails twice on the same file, stop and ask.** Do
