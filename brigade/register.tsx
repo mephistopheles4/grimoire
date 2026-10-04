@@ -9,7 +9,11 @@ import {
   checkRoster,
   configFromRoot,
   configFromTranscript,
+  dataFolder,
+  dataFromEnv,
+  dataId,
   lookup,
+  marketplaceFromRoot,
   oneLine,
   parseAgents,
   report,
@@ -75,22 +79,28 @@ const noop = () => {}
 let timers: Timer[] = []
 
 // Where this lead session's roster file is, or why it cannot be named. The
-// config folder comes from where the plugin was installed, else from the
-// transcript path the engine reported at this session's start; with
-// neither, nothing is read.
-async function where($: EngineInterface): Promise<{ file: string; config: string } | { error: string }> {
+// roster lives in the plugin's data folder, which the plugin's skill reaches
+// as ${CLAUDE_PLUGIN_DATA}. A mod's environment does not carry that variable
+// on 2.1.289, so it is read first and the folder is otherwise built by the
+// plugin-manifest reference's rule: <config>/plugins/data/<id>. The config
+// folder comes from where the plugin was installed, else from the transcript
+// path the engine reported at this session's start; with neither, nothing is
+// read. The config folder also locates other sessions' transcripts.
+async function where($: EngineInterface): Promise<{ file: string; config?: string } | { error: string }> {
   const id = await $.session.id()
   if (!SESSION_ID.test(id)) return { error: 'the session id is not the engine\'s shape, so no roster file is named. Nothing was read.' }
   const start = await read($, started)
   const config =
     configFromRoot($.plugin.root) ??
     (start.sessionId === id ? configFromTranscript(start.transcript, id) : undefined)
-  if (config === undefined) {
+  const plugin = dataId($.plugin.name, marketplaceFromRoot($.plugin.root))
+  const data = dataFromEnv(await $.env.get('CLAUDE_PLUGIN_DATA')) ?? (config === undefined ? undefined : dataFolder(config, plugin))
+  if (data === undefined) {
     return {
-      error: `Cannot find the Claude config folder from where the plugin was loaded (${oneLine($.plugin.root, 200)}). The roster would be <Claude config folder>/brigade/${id}.json. Nothing was read.`,
+      error: `Cannot find the plugin's data folder from where the plugin was loaded (${oneLine($.plugin.root, 200)}). The roster would be <Claude config folder>/plugins/data/${plugin}/brigade/${id}.json. Nothing was read.`,
     }
   }
-  return { file: rosterFile(config, id), config }
+  return config === undefined ? { file: rosterFile(data, id) } : { file: rosterFile(data, id), config }
 }
 
 async function loadRoster($: EngineInterface) {
@@ -136,7 +146,7 @@ async function pollAgents($: EngineInterface) {
     // only a roster member's, by the id the engine listed, once per session,
     // and keep the misses too.
     const at = await where($)
-    if ('error' in at) return
+    if ('error' in at || at.config === undefined) return
     const members = new Set((await read($, roster)).cards.filter(c => c.desktopId === undefined && c.url === undefined).map(c => c.title))
     const seen = new Set(await read($, looked))
     for (const row of rows.value) {

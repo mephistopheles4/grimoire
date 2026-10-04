@@ -11,20 +11,22 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { tree, manifest, readJson, writeJson, assertPasses, assertFails, modFile, importLine } from './check-fixture.mjs';
 
-// A small mod of the layout the plugin ships: the manifest names a hooks file
-// and a contract in brigade/, and the hooks file names a module beside it.
+// A small mod of the layout the plugin ships, which is the one the mods
+// reference documents: hooks/hooks.json at the plugin's root names a module in
+// brigade/, and the manifest names the contract there. A test of the
+// manifest's own "hooks" key passes one.
 // Every test starts from this and breaks one thing, so its control is the
 // same tree unbroken.
-function withMod(dir, { hooks = './brigade/hooks.json', types = './brigade/types/index.d.ts' } = {}) {
+function withMod(dir, { hooks, types = './brigade/types/index.d.ts' } = {}) {
   const m = readJson(manifest(dir));
-  writeJson(manifest(dir), { ...m, hooks, types });
-  modFile(dir, 'brigade/hooks.json', '{ "modules": ["./register.tsx"] }\n');
+  writeJson(manifest(dir), hooks === undefined ? { ...m, types } : { ...m, hooks, types });
+  modFile(dir, 'hooks/hooks.json', '{ "modules": ["../brigade/register.tsx"] }\n');
   modFile(dir, 'brigade/register.tsx', `${importLine('type { Register }', 'claude-code')}export const register: Register = () => {};\n`);
   modFile(dir, 'brigade/types/index.d.ts', "declare module 'claude-code' { interface PluginState { grimoire: { n: number } } }\n");
   return dir;
 }
 
-test('a manifest naming a hooks file and a module inside the mod passes', () => {
+test('the documented layout passes: hooks/hooks.json naming a module in brigade/', () => {
   assertPasses(withMod(tree()));
 });
 
@@ -39,21 +41,21 @@ test('a hooks/hooks.json naming a module outside the mod fails, naming the modul
 
 test('a module path that climbs with backslashes is read the same way', () => {
   const dir = withMod(tree());
-  modFile(dir, 'brigade/hooks.json', '{ "modules": ["..\\\\lib\\\\m.tsx"] }\n');
+  modFile(dir, 'hooks/hooks.json', '{ "modules": ["..\\\\lib\\\\m.tsx"] }\n');
   modFile(dir, 'lib/m.tsx', 'export const register = () => {};\n');
-  assertFails(dir, /brigade\/hooks\.json names the module .* which is lib\/m\.tsx — outside the mod's folders/);
+  assertFails(dir, /hooks\/hooks\.json names the module .* which is lib\/m\.tsx — outside the mod's folders/);
 });
 
 test('an absolute module path fails, because no install route puts the plugin there', () => {
   const dir = withMod(tree());
-  modFile(dir, 'brigade/hooks.json', '{ "modules": ["/opt/m.tsx"] }\n');
-  assertFails(dir, /brigade\/hooks\.json names the module "\/opt\/m\.tsx", an absolute path/);
+  modFile(dir, 'hooks/hooks.json', '{ "modules": ["/opt/m.tsx"] }\n');
+  assertFails(dir, /hooks\/hooks\.json names the module "\/opt\/m\.tsx", an absolute path/);
 });
 
 test('a module the hooks file names and the tree does not hold fails', () => {
   const dir = withMod(tree());
-  modFile(dir, 'brigade/hooks.json', '{ "modules": ["./gone.tsx"] }\n');
-  assertFails(dir, /brigade\/hooks\.json names the module "\.\/gone\.tsx", and brigade\/gone\.tsx is not there/);
+  modFile(dir, 'hooks/hooks.json', '{ "modules": ["../brigade/gone.tsx"] }\n');
+  assertFails(dir, /hooks\/hooks\.json names the module "\.\.\/brigade\/gone\.tsx", and brigade\/gone\.tsx is not there/);
 });
 
 test('a manifest "hooks" key naming a file outside the mod fails', () => {
@@ -63,8 +65,15 @@ test('a manifest "hooks" key naming a file outside the mod fails', () => {
   assertFails(dir, /plugin\.json "hooks" names "\.\/lib\/hooks\.json", which is lib\/hooks\.json — outside the mod's folders/);
 });
 
+test('a manifest "hooks" key naming a hooks file inside the mod passes', () => {
+  const dir = withMod(tree(), { hooks: './brigade/hooks.json' });
+  modFile(dir, 'brigade/hooks.json', '{ "modules": ["./register.tsx"] }\n');
+  assertPasses(dir);
+});
+
 test('a manifest "hooks" list is read entry by entry', () => {
   const dir = withMod(tree(), { hooks: ['./brigade/hooks.json', './lib/hooks.json'] });
+  modFile(dir, 'brigade/hooks.json', '{ "modules": ["./register.tsx"] }\n');
   modFile(dir, 'lib/hooks.json', '{ "modules": [] }\n');
   assertFails(dir, /plugin\.json "hooks" names "\.\/lib\/hooks\.json", which is lib\/hooks\.json — outside the mod's folders/);
 });
@@ -78,16 +87,16 @@ test('a hooks file holding anything but "modules" fails, because a command hook 
   const dir = withMod(tree());
   modFile(
     dir,
-    'brigade/hooks.json',
-    '{ "modules": ["./register.tsx"], "hooks": { "SessionStart": [{ "hooks": [{ "type": "command", "command": "node x.js" }] }] } }\n',
+    'hooks/hooks.json',
+    '{ "modules": ["../brigade/register.tsx"], "hooks": { "SessionStart": [{ "hooks": [{ "type": "command", "command": "node x.js" }] }] } }\n',
   );
-  assertFails(dir, /brigade\/hooks\.json holds "hooks" — the check reads only "modules"/);
+  assertFails(dir, /hooks\/hooks\.json holds "hooks" — the check reads only "modules"/);
 });
 
 test('a hooks file that is not JSON fails, naming it', () => {
   const dir = withMod(tree());
-  modFile(dir, 'brigade/hooks.json', '{ modules: [ ./register.tsx ] }\n');
-  assertFails(dir, /brigade\/hooks\.json is not JSON/);
+  modFile(dir, 'hooks/hooks.json', '{ modules: [ ../brigade/register.tsx ] }\n');
+  assertFails(dir, /hooks\/hooks\.json is not JSON/);
 });
 
 test('a manifest "types" key naming a file outside the mod fails', () => {

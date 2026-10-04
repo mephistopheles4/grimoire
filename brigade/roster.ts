@@ -24,6 +24,7 @@ export const SESSION_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9
 // embeddings, overrides and isolates, the marks, and the zero-width ones.
 const CONTROL = /[\u{0}-\u{1F}\u{7F}-\u{9F}\u{2028}\u{2029}]/gu
 const HIDDEN = /[\u{61C}\u{200B}-\u{200F}\u{202A}-\u{202E}\u{2060}-\u{2069}\u{FEFF}]/gu
+const CONTROL_TEST = /[\u{0}-\u{1F}\u{7F}-\u{9F}]/u
 
 /** Text made safe to draw on one line: controls become spaces, hidden
  *  characters go, runs of space fold, and it is cut to `max` with an ellipsis. */
@@ -132,15 +133,45 @@ export function checkRoster(raw: string): Checked<Roster> {
   return { value: out }
 }
 
-// The config folder from where the plugin was installed: the engine keeps an
-// installed plugin under <config>/plugins/cache/<marketplace>/... or reads it
-// from <config>/plugins/marketplaces/<marketplace>. The last such segment
-// wins, so a config folder whose own path holds the words still resolves.
-const INSTALLED = /^(.+)[\\/]plugins[\\/](?:cache|marketplaces)[\\/][^\\/]+(?:[\\/]|$)/
+// The config folder and the marketplace from where the plugin was installed:
+// the engine keeps an installed plugin under
+// <config>/plugins/cache/<marketplace>/... or reads it from
+// <config>/plugins/marketplaces/<marketplace>. The last such segment wins, so
+// a config folder whose own path holds the words still resolves.
+const INSTALLED = /^(.+)[\\/]plugins[\\/](?:cache|marketplaces)[\\/]([^\\/]+)(?:[\\/]|$)/
 
 /** The config folder the plugin's own location names, or undefined. */
 export function configFromRoot(root: string): string | undefined {
   return INSTALLED.exec(root)?.[1]
+}
+
+/** The marketplace the plugin's own location names, or undefined: a plugin
+ *  loaded from a folder of its own (`--plugin-dir`) has none. */
+export function marketplaceFromRoot(root: string): string | undefined {
+  return INSTALLED.exec(root)?.[2]
+}
+
+/** The plugin's data folder id, by the plugin-manifest reference's rule: the
+ *  identifier `<name>@<marketplace>`, or `<name>@inline` for a plugin loaded
+ *  from a folder, with every character but a letter, digit, `_` or `-` made
+ *  `-`. */
+export function dataId(name: string, marketplace: string | undefined): string {
+  return `${name}@${marketplace ?? 'inline'}`.replace(/[^A-Za-z0-9_-]/g, '-')
+}
+
+/** The plugin's data folder under a config folder: what `${CLAUDE_PLUGIN_DATA}`
+ *  names for the plugin's other parts. */
+export function dataFolder(config: string, id: string): string {
+  const sep = sepOf(config)
+  return `${config}${sep}plugins${sep}data${sep}${id}`
+}
+
+/** `CLAUDE_PLUGIN_DATA` as the environment gives it, when it reads as an
+ *  absolute folder; a mod's environment does not carry it on 2.1.289. */
+export function dataFromEnv(value: string | undefined): string | undefined {
+  if (value === undefined || value.length > 1000 || CONTROL_TEST.test(value)) return undefined
+  const trimmed = value.replace(/[\\/]+$/, '')
+  return /^(?:[A-Za-z]:[\\/]|\/)/.test(trimmed) && !/(?:^|[\\/])\.\.(?:[\\/]|$)/.test(trimmed) ? trimmed : undefined
 }
 
 /** The config folder above the engine's transcript path for this session:
@@ -153,10 +184,11 @@ export function configFromTranscript(transcript: string, sessionId: string): str
 
 const sepOf = (dir: string) => (dir.includes('\\') ? '\\' : '/')
 
-/** The roster file of one lead session, named by its checked session id. */
-export function rosterFile(config: string, sessionId: string): string {
-  const sep = sepOf(config)
-  return `${config}${sep}brigade${sep}${sessionId}.json`
+/** The roster file of one lead session in the plugin's data folder, named by
+ *  its checked session id. */
+export function rosterFile(data: string, sessionId: string): string {
+  const sep = sepOf(data)
+  return `${data}${sep}brigade${sep}${sessionId}.json`
 }
 
 /** A row of `claude agents --json`, as far as the pane uses it. */
