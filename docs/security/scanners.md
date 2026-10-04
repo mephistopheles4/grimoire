@@ -200,7 +200,7 @@ or baselined and cannot fail anything, so nothing here relies on it.
 [`.github/workflows/zizmor.yml`](../../.github/workflows/zizmor.yml) audits
 `.github/workflows/` on every pull request and every push to `main`.
 
-**The pin.** `zizmor==1.30.0` from PyPI. This is weaker than a commit pin.
+**The pin.** `zizmor==1.30.1` from PyPI. This is weaker than a commit pin.
 zizmor is Rust and ships as a prebuilt wheel; a git install needs a Rust
 toolchain, and hash-pinning the wheel needs a requirements file, which is the
 dependency manifest this repository refuses. PyPI never reuses a version
