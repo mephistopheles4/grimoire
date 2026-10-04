@@ -119,7 +119,7 @@ const RESERVED_WORDS = ['anthropic', 'claude'];
 // The middle class stops at the next "<", so the matches tried from one "<"
 // never overlap those tried from the next, and one pass is linear in the
 // description's length, which DESCRIPTION_MAX bounds anyway.
-const TAG_RE = /<\/?[A-Za-z][^<>\r\n]{0,1024}>/;
+const TAG_RE = new RegExp(`<\\/?[A-Za-z][^<>\\r\\n]{0,${DESCRIPTION_MAX}}>`);
 // A .md file in a skill's folder over this many lines needs a Contents
 // heading within its first CONTENTS_WINDOW lines.
 const CONTENTS_LINES_MAX = 100;
@@ -1419,6 +1419,11 @@ function folderRules(loc, report) {
   return read.contents;
 }
 
+/** Path order by UTF-16 code unit, as the digest and the contents rule list files. */
+function byRel(a, b) {
+  return a.rel < b.rel ? -1 : a.rel > b.rel ? 1 : 0;
+}
+
 /**
  * Lines in a text, counted as bodyLineCount counts a body's: a final line
  * ending does not start a new line, and an empty text has none. One pass, no
@@ -1449,15 +1454,15 @@ function isContentsHeading(s, start, end) {
   while (i < end && s[i] === '#') i += 1;
   if (i - hashes < 1 || i - hashes > 6) return false;
   if (i >= end || !isSpaceOrTab(s[i])) return false;
-  let e = end;
-  while (e > i && isSpaceOrTab(s[e - 1])) e -= 1;
+  let textEnd = end;
+  while (textEnd > i && isSpaceOrTab(s[textEnd - 1])) textEnd -= 1;
   // A closing run of "#" counts only after a space or a tab.
-  let h = e;
-  while (h > i && s[h - 1] === '#') h -= 1;
-  if (h < e && isSpaceOrTab(s[h - 1])) e = h;
-  while (e > i && isSpaceOrTab(s[e - 1])) e -= 1;
-  while (i < e && isSpaceOrTab(s[i])) i += 1;
-  return e - i === 8 && s.slice(i, e).toLowerCase() === 'contents';
+  let runStart = textEnd;
+  while (runStart > i && s[runStart - 1] === '#') runStart -= 1;
+  if (runStart < textEnd && isSpaceOrTab(s[runStart - 1])) textEnd = runStart;
+  while (textEnd > i && isSpaceOrTab(s[textEnd - 1])) textEnd -= 1;
+  while (i < textEnd && isSpaceOrTab(s[i])) i += 1;
+  return textEnd - i === 8 && s.slice(i, textEnd).toLowerCase() === 'contents';
 }
 
 /** True when one of a text's first CONTENTS_WINDOW lines is a Contents heading. */
@@ -1484,7 +1489,7 @@ function hasContentsHeading(text) {
  */
 function contentsRule(contents, report) {
   const files = contents.filter(f => f.text !== undefined && f.rel.endsWith('.md') && f.rel !== 'README.md');
-  files.sort((a, b) => (a.rel < b.rel ? -1 : a.rel > b.rel ? 1 : 0));
+  files.sort(byRel);
   for (const f of files) {
     const n = lineCount(f.text);
     if (n > CONTENTS_LINES_MAX && !hasContentsHeading(f.text)) {
@@ -1502,7 +1507,7 @@ function contentsRule(contents, report) {
  */
 function folderDigest(canon, contents) {
   const all = [...contents, { rel: 'SKILL.md', bytes: Buffer.from(canon, 'utf8') }];
-  all.sort((a, b) => (a.rel < b.rel ? -1 : a.rel > b.rel ? 1 : 0));
+  all.sort(byRel);
   const hash = createHash('sha256');
   for (const f of all) {
     hash.update(Buffer.from(f.rel, 'utf8'));

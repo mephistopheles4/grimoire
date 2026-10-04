@@ -9,13 +9,13 @@ import { describe, test } from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { fresh, run, has, show, expect, once, CONTRACT, familiarText, defaultFm, skill, sealAndCheck, trySymlink, put } from './contract-fixture.mjs';
+import { fresh, run, has, show, expect, once, CONTRACT, familiarText, skill, sealAndCheck, trySymlink, put } from './contract-fixture.mjs';
 
 const RULE = "a rule Anthropic's Skills docs set and the open Agent Skills specification does not";
 const CANARY = 'zq-canary-5d1';
 
 /** The exit code, and each line printed exactly as given, exactly once. */
-function exact(r, code, ...lines) {
+function exactlyOnce(r, code, ...lines) {
   expect(r, code);
   for (const l of lines) once(r, l);
 }
@@ -29,9 +29,9 @@ function none(r, rule) {
 /** Seal, then check: both exit 0, and both print each line exactly once. */
 function sealThenCheck(dir, ...lines) {
   const s = run(['--seal', dir]);
-  exact(s, 0, ...lines);
+  exactlyOnce(s, 0, ...lines);
   assert.ok(has(s, 'PASS seal: wrote '), show(s));
-  exact(sealAndCheck(dir), 0, ...lines);
+  exactlyOnce(sealAndCheck(dir), 0, ...lines);
 }
 
 /** An agent .md file with no contract. */
@@ -60,7 +60,7 @@ describe('reserved-name: a skill name holding "anthropic" or "claude" warns', ()
     ['anthropic-claude', 'words "anthropic" and "claude"'],
   ]) {
     test(`${name} -> 0 with the warning, once`, () => {
-      exact(run([skill({ name })]), 0, `PASS name: ${name}`, want(words));
+      exactlyOnce(run([skill({ name })]), 0, `PASS name: ${name}`, want(words));
     });
   }
 
@@ -108,7 +108,7 @@ describe('description-xml: a skill description holding a tag-shaped <...> warns'
 
   for (const d of ['Makes text <b>bold.', 'Ends a tag </b> here.', 'Fills in <name> for you.', 'Wraps <a href="x">a link</a>.']) {
     test(`"${d}" -> 0 with the warning, once`, () => {
-      exact(run([withDesc(d)]), 0, 'PASS description', want);
+      exactlyOnce(run([withDesc(d)]), 0, 'PASS description', want);
     });
   }
 
@@ -122,7 +122,7 @@ describe('description-xml: a skill description holding a tag-shaped <...> warns'
 
   test('a block description holding a tag on its second line -> 0 with the warning', () => {
     const dir = skill({ fm: ['name: demo', 'description: >', '  Does one thing,', '  and <b>only</b> that.'] });
-    exact(run([dir]), 0, 'PASS description', want);
+    exactlyOnce(run([dir]), 0, 'PASS description', want);
   });
 
   test('a description over 1,024 characters gets the length failure and no XML line', () => {
@@ -141,7 +141,7 @@ describe('description-xml: a skill description holding a tag-shaped <...> warns'
 
   test('the warning never echoes the description', () => {
     const r = run([withDesc(`Wraps <b>${CANARY}</b>.`)]);
-    exact(r, 0, want);
+    exactlyOnce(r, 0, want);
     assert.ok(!r.out.includes(CANARY), show(r));
   });
 
@@ -182,25 +182,25 @@ describe('contents: a long .md file in a skill folder with no contents heading w
 
   test('100 lines, no heading -> 0 and no line', () => quiet(withFiles({ 'references/long.md': text(100) })));
   test('101 lines, no heading -> 0 with the warning, once', () => {
-    exact(run([withFiles({ 'references/long.md': text(101) })]), 0, want('references/long.md', 101));
+    exactlyOnce(run([withFiles({ 'references/long.md': text(101) })]), 0, want('references/long.md', 101));
   });
   test('101 lines, "## Contents" on line 30 -> 0 and no line', () => quiet(withFiles({ 'references/long.md': text(101, 30) })));
   test('101 lines, "## Contents" on line 31 -> 0 with the warning', () => {
-    exact(run([withFiles({ 'references/long.md': text(101, 31) })]), 0, want('references/long.md', 101));
+    exactlyOnce(run([withFiles({ 'references/long.md': text(101, 31) })]), 0, want('references/long.md', 101));
   });
 
   describe('lines are counted as the body-line count counts them', () => {
     const bare = n => text(n).slice(0, -1);
     test('100 lines and no final line break -> no line', () => quiet(withFiles({ 'references/long.md': bare(100) })));
     test('101 lines and no final line break -> the warning', () => {
-      exact(run([withFiles({ 'references/long.md': bare(101) })]), 0, want('references/long.md', 101));
+      exactlyOnce(run([withFiles({ 'references/long.md': bare(101) })]), 0, want('references/long.md', 101));
     });
     test('100 lines and one more empty line -> the warning at 101', () => {
-      exact(run([withFiles({ 'references/long.md': `${text(100)}\n` })]), 0, want('references/long.md', 101));
+      exactlyOnce(run([withFiles({ 'references/long.md': `${text(100)}\n` })]), 0, want('references/long.md', 101));
     });
     test('100 CRLF lines -> no line; 101 -> the warning', () => {
       quiet(withFiles({ 'references/long.md': text(100).replaceAll('\n', '\r\n') }));
-      exact(run([withFiles({ 'references/long.md': text(101).replaceAll('\n', '\r\n') })]), 0, want('references/long.md', 101));
+      exactlyOnce(run([withFiles({ 'references/long.md': text(101).replaceAll('\n', '\r\n') })]), 0, want('references/long.md', 101));
     });
     test('a CRLF "## Contents" line counts as the heading', () => {
       quiet(withFiles({ 'references/long.md': text(101, 1).replaceAll('\n', '\r\n') }));
@@ -216,7 +216,7 @@ describe('contents: a long .md file in a skill folder with no contents heading w
     }
     for (const heading of ['##Contents', '    ## Contents', '####### Contents', '## Table of Contents', '## Contents list', 'Contents', '> ## Contents', '## Content']) {
       test(`"${heading}" -> the warning`, () => {
-        exact(run([withFiles({ 'references/long.md': text(101, 5, heading) })]), 0, want('references/long.md', 101));
+        exactlyOnce(run([withFiles({ 'references/long.md': text(101, 5, heading) })]), 0, want('references/long.md', 101));
       });
     }
   });
@@ -224,13 +224,13 @@ describe('contents: a long .md file in a skill folder with no contents heading w
   describe('which files it reads', () => {
     test('a long top-level README.md -> no line', () => quiet(withFiles({ 'README.md': text(150) })));
     test('a long README.md under references/ -> the warning', () => {
-      exact(run([withFiles({ 'references/README.md': text(150) })]), 0, want('references/README.md', 150));
+      exactlyOnce(run([withFiles({ 'references/README.md': text(150) })]), 0, want('references/README.md', 150));
     });
     test('a long top-level .md file other than README.md -> the warning', () => {
-      exact(run([withFiles({ 'guide.md': text(120) })]), 0, want('guide.md', 120));
+      exactlyOnce(run([withFiles({ 'guide.md': text(120) })]), 0, want('guide.md', 120));
     });
     test('a long .md file two folders down -> the warning', () => {
-      exact(run([withFiles({ 'references/deep/long.md': text(101) })]), 0, want('references/deep/long.md', 101));
+      exactlyOnce(run([withFiles({ 'references/deep/long.md': text(101) })]), 0, want('references/deep/long.md', 101));
     });
     test('a long file that is not .md -> no line', () => quiet(withFiles({ 'references/long.txt': text(200), 'scripts/run.mjs': text(200) })));
     test('a long SKILL.md body -> the body-length warning and no contents line', () => {
@@ -246,12 +246,12 @@ describe('contents: a long .md file in a skill folder with no contents heading w
       const r = run([withFiles({ 'references/b.md': text(130), 'references/a.md': text(110) })]);
       const a = want('references/a.md', 110);
       const b = want('references/b.md', 130);
-      exact(r, 0, a, b);
+      exactlyOnce(r, 0, a, b);
       assert.ok(r.lines.indexOf(a) < r.lines.indexOf(b), show(r));
     });
     test("the warning never echoes the file's contents", () => {
       const r = run([withFiles({ 'references/long.md': `${CANARY}\n${text(120)}` })]);
-      exact(r, 0, want('references/long.md', 121));
+      exactlyOnce(r, 0, want('references/long.md', 121));
       assert.ok(!r.out.includes(CANARY), show(r));
     });
   });
@@ -275,7 +275,7 @@ describe('contents: a long .md file in a skill folder with no contents heading w
         const started = Date.now();
         const r = run([dir]);
         const took = Date.now() - started;
-        if (warns) exact(r, 0, want('references/long.md', 102));
+        if (warns) exactlyOnce(r, 0, want('references/long.md', 102));
         else quiet(dir);
         assert.ok(took < BOUND, `took ${took} ms`);
       });
