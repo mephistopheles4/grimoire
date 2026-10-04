@@ -16,13 +16,15 @@
 // 6. Nothing in the tree takes a dependency: no manifest, no lockfile, and no
 //    import of a bare specifier. The mod's module may import the engine's own
 //    `claude-code`, which the engine supplies.
+//    6b. Every pointer the engine follows to the mod's code, and every
+//    relative import in it, lands inside the mod's folders.
 // 7. The SkillSpector baselines agree, so a rule reasoned away at the
 //    repository root is reasoned away the same way inside a skill.
 // 8. The test suite passes. `node --test` ships with Node, so the tests cost no
 //    dependency and this stays one command.
 
 import { readdirSync, readFileSync, statSync } from 'node:fs';
-import { basename, join, relative, sep } from 'node:path';
+import { basename, join, posix, relative, sep } from 'node:path';
 import { execFileSync, spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { walk } from './lib/tree.mjs';
@@ -515,6 +517,107 @@ for (const f of files.filter(f => CODE.test(f))) {
         fail(
           `${rel(f)}:${i + 1} imports "${spec}" — import a relative path or a node: builtin instead. A bare specifier is a dependency, and this repository has none, so nothing installs it and the file does not load. See CONTRIBUTING.md, "Do not add a dependency".`,
         );
+      }
+    });
+}
+
+// 6b. The engine runs only code the mod's folders hold.
+//
+// The rules above know the mod by folder name, which holds only while the
+// code the engine runs sits in those folders. The engine finds that code
+// through pointers: the manifest's "hooks" key, hooks/hooks.json at the
+// plugin's root, and the "modules" each hooks file lists, each path relative
+// to the hooks file. The module then imports the plugin's own files, and the
+// engine loads each one it reaches. A pointer or an import out of the mod's
+// folders would run code no rule here reads, so each one is resolved and held
+// inside them. The manifest's "types" key names the mod's state contract and
+// is held there too, so the mod stays in one place.
+//
+// It reads paths as text: backslashes as separators, `.` and `..` folded. A
+// symbolic link inside a mod folder pointing out of it is not followed. The
+// walk reads what git would commit, and a link is a file a reviewer sees in
+// the diff. A hooks file holding anything but "modules" is refused rather
+// than read, because a command hook runs a shell command this check cannot
+// follow, and a key this check does not know is a pointer it cannot hold.
+const MOD_OUTSIDE = "outside the mod's folders (" + MOD_DIRS.map(d => `${d}/`).join(', ') + ') — the engine would run code no rule here reads';
+// The path a pointer lands on, from the repository root, or why it has none.
+function landing(fromDir, spec) {
+  const s = spec.replace(/\\/g, '/');
+  if (s.startsWith('/') || /^[A-Za-z]:/.test(s)) return { why: 'an absolute path' };
+  const p = posix.normalize(posix.join(fromDir, s));
+  if (p === '..' || p.startsWith('../')) return { why: 'a path out of the repository' };
+  return { p };
+}
+const isFile = p => {
+  try {
+    return statSync(join(root, ...p.split('/'))).isFile();
+  } catch {
+    return false;
+  }
+};
+// One pointer: where it lands, that it lands inside the mod, and that the file
+// is there. Returns the landing path when all three hold.
+function pointer(what, fromDir, spec) {
+  const at = landing(fromDir, spec);
+  if (at.why) return void fail(`${what} "${spec}", ${at.why} — no install route puts the plugin there`);
+  if (!underMod(at.p)) return void fail(`${what} "${spec}", which is ${at.p} — ${MOD_OUTSIDE}`);
+  if (!isFile(at.p)) return void fail(`${what} "${spec}", and ${at.p} is not there — the engine would fail to load it`);
+  return at.p;
+}
+function hooksFile(src) {
+  let parsed;
+  try {
+    parsed = JSON.parse(readFileSync(join(root, ...src.split('/')), 'utf8'));
+  } catch (e) {
+    return fail(`${src} is not JSON (${e.message}) — the engine cannot read which modules it names, and neither can this check`);
+  }
+  if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) {
+    return fail(`${src} is not a JSON object with a "modules" list`);
+  }
+  for (const key of Object.keys(parsed).filter(k => k !== 'modules')) {
+    fail(`${src} holds "${key}" — the check reads only "modules", so anything else is engine-run code it cannot follow`);
+  }
+  const mods = parsed.modules ?? [];
+  if (!Array.isArray(mods) || mods.some(m => typeof m !== 'string')) {
+    return fail(`${src} "modules" is not a list of paths`);
+  }
+  for (const m of mods) pointer(`${src} names the module`, posix.dirname(src), m);
+}
+const manifestHooks = plugin.hooks === undefined ? [] : plugin.hooks;
+if (typeof manifestHooks !== 'string' && !(Array.isArray(manifestHooks) && manifestHooks.every(h => typeof h === 'string'))) {
+  fail(`.claude-plugin/plugin.json "hooks" is not a path or a list of paths — the check cannot read where it leads`);
+} else {
+  const named = (typeof manifestHooks === 'string' ? [manifestHooks] : manifestHooks)
+    .map(h => pointer('.claude-plugin/plugin.json "hooks" names', '', h))
+    .filter(Boolean);
+  // The engine reads hooks/hooks.json at the plugin's root as well, whatever
+  // the manifest says, so a file there is read like one the manifest names.
+  if (isFile('hooks/hooks.json') && !named.includes('hooks/hooks.json')) named.push('hooks/hooks.json');
+  for (const src of named) hooksFile(src);
+}
+if (plugin.types !== undefined) {
+  if (typeof plugin.types !== 'string') fail(`.claude-plugin/plugin.json "types" is not a path`);
+  else pointer('.claude-plugin/plugin.json "types" names', '', plugin.types);
+}
+// Relative imports from the mod: the same specifiers rule 6 reads, resolved
+// from the importing file. Only where they land is held here; whether the file
+// is there is the engine's to say, since an import may leave out the suffix.
+for (const f of files.filter(f => CODE.test(f) && underMod(rel(f)))) {
+  const src = rel(f);
+  readFileSync(f, 'utf8')
+    .split('\n')
+    .forEach((line, i) => {
+      if (COMMENT.test(line)) return;
+      const found = [];
+      for (const re of [FROM, SIDE_EFFECT, WRAPPED]) {
+        const m = re.exec(line);
+        if (m) found.push(m[2]);
+      }
+      for (const re of CALLED) for (const m of line.matchAll(re)) found.push(m[2]);
+      for (const spec of found.filter(s => s.startsWith('.'))) {
+        const at = landing(posix.dirname(src), spec);
+        if (at.why) fail(`${src}:${i + 1} imports "${spec}", ${at.why}`);
+        else if (!underMod(at.p)) fail(`${src}:${i + 1} imports "${spec}", which is ${at.p} — ${MOD_OUTSIDE}`);
       }
     });
 }
