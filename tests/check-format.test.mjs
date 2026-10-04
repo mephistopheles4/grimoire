@@ -73,6 +73,15 @@ test('the single-pass tag strip cannot come back', () => {
   assertFails(dir, /strips tags in one pass/);
 });
 
+test('the single-pass tag strip cannot come back in the mod, which draws untrusted text', () => {
+  // The guard read .mjs, .js and .html. The mod is TypeScript and shows text
+  // other sessions wrote, so its suffixes are read as well.
+  const dir = tree();
+  const singlePass = 'const naive = s => s.replace(/<[^' + '>]+>/g, "");\n';
+  modFile(dir, 'brigade/hooks/card.tsx', singlePass);
+  assertFails(dir, /brigade\/hooks\/card\.tsx:1 strips tags in one pass/);
+});
+
 // ---- zero dependencies ----
 // check.mjs opens with "Zero dependencies, one command" and CONTRIBUTING says
 // it twice as a rule for patches. Nothing enforced it: no check mentioned
@@ -187,14 +196,42 @@ test('a bare require in any suffix the engine loads fails, not only .ts and .tsx
   const q = "'";
   modFile(dir, 'brigade/hooks/old.cts', `const c = require(${q}chalk${q});\n`);
   modFile(dir, 'brigade/hooks/view.mts', importLine('chalk', 'chalk'));
+  modFile(dir, 'brigade/hooks/card.jsx', importLine('chalk', 'chalk'));
+  modFile(dir, 'brigade/hooks/legacy.cjs', `const c = require(${q}chalk${q});\n`);
   const r = assertFails(dir, /brigade\/hooks\/old\.cts:\d+ imports "chalk"/);
-  assert.match(r.stderr, /brigade\/hooks\/view\.mts:\d+ imports "chalk"/);
+  for (const name of ['view\\.mts', 'card\\.jsx', 'legacy\\.cjs']) {
+    assert.match(r.stderr, new RegExp(`brigade/hooks/${name}:\\d+ imports "chalk"`));
+  }
+});
+
+test('the hooks folder at the plugin root is the mod too: claude-code passes there, a package fails', () => {
+  const dir = tree();
+  modFile(dir, 'hooks/register.tsx', importLine('type { Register }', 'claude-code'));
+  assertPasses(dir);
+  modFile(dir, 'hooks/roster.ts', importLine('chalk', 'chalk'));
+  assertFails(dir, /hooks\/roster\.ts:\d+ imports "chalk"/);
+});
+
+test('a dot segment under claude-code fails, because it steps out of the engine name', () => {
+  // `claude-code/../chalk` resolves, under Node's rules, to the package chalk.
+  const dir = tree();
+  modFile(dir, 'brigade/hooks/register.tsx', importLine('chalk', 'claude-code/../chalk'));
+  assertFails(dir, /brigade\/hooks\/register\.tsx:\d+ imports "claude-code\/\.\.\/chalk"/);
+});
+
+test('a protocol-relative specifier is a package, not an absolute path', () => {
+  // Resolved against a file URL, `//host/x` names a host: a download.
+  const dir = tree();
+  modFile(dir, 'brigade/hooks/register.tsx', importLine('chalk', '//esm.sh/chalk'));
+  assertFails(dir, /brigade\/hooks\/register\.tsx:\d+ imports "\/\/esm\.sh\/chalk"/);
 });
 
 test('claude-code outside the mod is a dependency like any other', () => {
   // Outside the engine the name resolves from node_modules, so a repository
-  // script importing it has taken a package.
+  // script or a skill importing it has taken a package.
   const dir = tree();
   appendFileSync(join(dir, 'scripts', 'build-pages.mjs'), `\n${importLine('{ atom }', 'claude-code')}`);
-  assertFails(dir, /scripts\/build-pages\.mjs:\d+ imports "claude-code"/);
+  modFile(dir, 'skills/unsealed-fixture/lib/x.ts', importLine('{ atom }', 'claude-code'));
+  const r = assertFails(dir, /scripts\/build-pages\.mjs:\d+ imports "claude-code"/);
+  assert.match(r.stderr, /skills\/unsealed-fixture\/lib\/x\.ts:\d+ imports "claude-code"/);
 });

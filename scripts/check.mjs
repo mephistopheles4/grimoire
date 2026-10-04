@@ -52,6 +52,9 @@ for (const n of walkNotes) console.log(`note: ${n}`);
 const MOD_DIRS = ['brigade', 'hooks'];
 const underMod = src => MOD_DIRS.some(d => src.startsWith(`${d}/`));
 const isShipped = src => src.startsWith('skills/') || underMod(src);
+// Code: every suffix Node or the engine loads a module from. The rules that
+// read code read all of them, so a suffix is never a way round one.
+const CODE = /\.(ts|tsx|jsx|js|mjs|cjs|mts|cts)$/;
 
 // 1. Artifacts validate, against the renderer their registry row names.
 //
@@ -163,7 +166,7 @@ for (const skill of files.filter(f => f.endsWith('SKILL.md'))) {
 // bypass is hard to build, so this guard holds a shape, not a hole.
 // docs/security/scanners.md carries the triage.
 const SINGLE_PASS = /=>\s*s\.replace\(\/<\[\^>\]\+>\/g/;
-for (const f of files.filter(f => /\.(mjs|js|html)$/.test(f))) {
+for (const f of files.filter(f => CODE.test(f) || f.endsWith('.html'))) {
   readFileSync(f, 'utf8')
     .split('\n')
     .forEach((line, i) => {
@@ -482,15 +485,20 @@ const CALLED = [
   /\brequire\s*\(\s*(['"])([^'"]+)\1/g,
 ];
 // A relative path, an absolute path and a node: builtin all resolve with
-// nothing installed. Everything else is a package.
-const bare = spec => !spec.startsWith('.') && !spec.startsWith('/') && !spec.startsWith('node:');
+// nothing installed. Everything else is a package. A leading `//` is not an
+// absolute path: resolved against a file URL it names a host, which is a
+// download, so it counts as a package.
+const bare = spec =>
+  spec.startsWith('//') || (!spec.startsWith('.') && !spec.startsWith('/') && !spec.startsWith('node:'));
 // Inside the mod, the engine supplies one more: `claude-code` and the paths
 // under it, such as `claude-code/testing`. The name is matched whole, because
-// a prefix match would pass `claude-code-x`, which is somebody's package.
-// Outside the mod nothing supplies it — Node would look in node_modules — so
-// there it is a dependency like any other.
-const engine = spec => spec === 'claude-code' || spec.startsWith('claude-code/');
-const CODE = /\.(ts|tsx|jsx|js|mjs|cjs|mts|cts)$/;
+// a prefix match would pass `claude-code-x`, which is somebody's package. Each
+// segment under it starts with a letter or a digit, so `claude-code/../chalk`
+// cannot step out of the engine's name into a package's. Outside the mod
+// nothing supplies it — Node would look in node_modules — so there it is a
+// dependency like any other.
+const ENGINE = /^claude-code(\/[A-Za-z0-9][\w.-]*)*$/;
+const engine = spec => ENGINE.test(spec);
 for (const f of files.filter(f => CODE.test(f))) {
   const inMod = underMod(rel(f));
   readFileSync(f, 'utf8')

@@ -58,7 +58,10 @@ test('the engine-generated type files are not walked, because .gitignore exclude
   // The engine lays its own declarations into .claude-plugin/types/ at every
   // load from a folder the person owns. They are its files, not this
   // repository's, and they may name packages and the machine's own paths.
-  // The same content in the mod is the control: it fails there.
+  // The import is what makes the pass mean something: the dependency rule
+  // reads the whole tree, so it would fail here without the .gitignore line.
+  // The fixed path could not, since that rule reads only what ships. The same
+  // content in the mod is the control: it fails there, on both rules.
   const dir = tree();
   const text = `${importLine('{ x }', 'some-package')}// generated under ~/.claude/plugins\n`;
   modFile(dir, '.claude-plugin/types/claude-code/index.d.ts', text);
