@@ -73,8 +73,8 @@ intact.
 
 ## The cards
 
-`grimoire-card.svg`, `eagle-eye-card.svg`, `groundtrack-card.svg` and
-`contract-card.svg` are the 1280 by 640 social cards. Each one is self-contained: the two faces it sets
+`grimoire-card.svg`, `eagle-eye-card.svg`, `groundtrack-card.svg`,
+`contract-card.svg` and `head-chef-card.svg` are the 1280 by 640 social cards. Each one is self-contained: the two faces it sets
 type in are inlined from the copies groundtrack ships, so a card renders the
 same in a README, in a browser and in a link preview, and fetches nothing.
 
@@ -84,7 +84,7 @@ They are generated, not drawn by hand:
 node docs/brand/cards.mjs
 ```
 
-The script reads the marks beside it and writes the four cards beside it, and
+The script reads the marks beside it and writes the five cards beside it, and
 the sigils below. Change a tagline there, not in the SVG.
 
 ## The sigils

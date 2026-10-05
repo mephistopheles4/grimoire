@@ -1,0 +1,32 @@
+# SkillSpector baseline for this skill.
+#
+# You are reading this because you scanned this directory before installing
+# what is in it, which is the right thing to do with a skill. One of
+# SkillSpector's rules fires on the files here. It is wrong, and this file
+# says why, so you can disagree with a reason rather than with silence.
+#
+# The finding is on `README.md`, where a sentence names the `npx skills`
+# installer to say what that route installs and what it does not. The rule
+# reads any `npx` with no version as an MCP server that could change under
+# you. It is a quotation of the install command, not a server, and the skill
+# itself runs nothing through npx.
+#
+# The scanner reports the score unchanged and applies none of this unless you
+# ask. Apply it with --use-shipped-baseline, and read what it covered with
+# --show-suppressed.
+#
+# The entry is keyed by rule identifier rather than by a fingerprint of the
+# text it matched, so it survives an edit to the prose, and it suppresses the
+# rule across this directory. Nothing here was reworded to satisfy a pattern
+# matcher.
+#
+# The repository this skill comes from carries the same entry, in the same
+# words, in the file at its root. Its check refuses a change that makes the
+# two disagree.
+
+version: 2
+fingerprints: []
+
+rules:
+  - rule_id: "RP1"
+    reason: "False positive. The README install command and quotations of it. skills is the Vercel Labs installer run through npx, not an MCP server, so there is no server version to pin."

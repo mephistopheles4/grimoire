@@ -7,23 +7,23 @@
 <p align="center"><strong>A spellbook of agent skills for AI. Cast wisely.</strong></p>
 
 <p align="center">
-  <a href="skills/eagle-eye"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/brand/eagle-eye/eagle-eye-sigil-dark.svg"><img src="docs/brand/eagle-eye/eagle-eye-sigil-light.svg" width="112" alt="eagle-eye"></picture></a>
-  &nbsp;&nbsp;&nbsp;&nbsp;
   <a href="skills/contract"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/brand/contract/contract-sigil-dark.svg"><img src="docs/brand/contract/contract-sigil-light.svg" width="112" alt="contract"></picture></a>
   &nbsp;&nbsp;&nbsp;&nbsp;
-  <a href="skills/groundtrack"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/brand/groundtrack/groundtrack-sigil-dark.svg"><img src="docs/brand/groundtrack/groundtrack-sigil-light.svg" width="112" alt="groundtrack"></picture></a>
-  &nbsp;&nbsp;&nbsp;&nbsp;
   <a href="skills/head-chef"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/brand/head-chef/head-chef-sigil-dark.svg"><img src="docs/brand/head-chef/head-chef-sigil-light.svg" width="112" alt="head-chef"></picture></a>
+  &nbsp;&nbsp;&nbsp;&nbsp;
+  <a href="skills/eagle-eye"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/brand/eagle-eye/eagle-eye-sigil-dark.svg"><img src="docs/brand/eagle-eye/eagle-eye-sigil-light.svg" width="112" alt="eagle-eye"></picture></a>
+  &nbsp;&nbsp;&nbsp;&nbsp;
+  <a href="skills/groundtrack"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/brand/groundtrack/groundtrack-sigil-dark.svg"><img src="docs/brand/groundtrack/groundtrack-sigil-light.svg" width="112" alt="groundtrack"></picture></a>
 </p>
 
 ---
 
 A **skill** is a folder of instructions your coding agent reads when the moment
 calls for it — a reference book it knows when to open. Grimoire holds four.
-Two of them do the same kind of work: they take something you can only hold in
-your head and put it on a page you can look at. The third, contract, helps you
-build a skill or an agent of your own. The fourth, head-chef, lets one Claude
-Desktop session start and lead others, and comes with a pane that shows them.
+contract helps you build a skill or an agent of your own. head-chef lets one
+Claude Desktop session start and lead others, and comes with a pane that shows
+them. eagle-eye and groundtrack do the same kind of work: they take something
+you can only hold in your head and put it on a page you can look at.
 
 **[See one before you install anything.][gallery]** The gallery holds every
 page eagle-eye and groundtrack have drawn. Start with [a live decision grid][eagle-demo]
@@ -93,12 +93,53 @@ skills folder, the plugin install, and a copy made by `skills`.
 
 Every route gives you all four skill directories, each with its `SKILL.md`
 and the scripts that go with it. Only the plugin route also gives you the
-Brigade pane. eagle-eye and groundtrack each carry a README of their own,
-which is where each is documented. contract and head-chef carry their
-`CONTRACT.md` instead. What follows is only enough to tell you which one you
-want.
+Brigade pane. Each skill carries a README of its own, which is where it is
+documented; contract and head-chef also carry the `CONTRACT.md` their
+`SKILL.md` is generated from. What follows is only enough to tell you which
+one you want.
 
 ---
+
+## <img src="docs/brand/contract/contract-mark-solid.svg" width="32" align="absmiddle" alt=""> [contract](skills/contract)
+
+**Agree the terms first. The prompt is build output.**
+
+Reach for it when you want a skill or an agent of your own and have never
+written one. contract interviews you through a template, one group of
+questions at a time, and writes your answers down as a contract. It calls what
+you build a **familiar**: a skill or an agent that does one job for you.
+
+It then generates the familiar's file from the contract and checks its format.
+A mark in the file makes the check fail when anyone edits the file by hand. When a
+familiar goes wrong, you amend the contract and generate the file again. It
+never installs what it builds. Not for a one-off prompt.
+
+The questions, the levels and the marks:
+[`skills/contract/references/template.md`](skills/contract/references/template.md).
+The skill's own contract, which its `SKILL.md` is generated from:
+[`skills/contract/CONTRACT.md`](skills/contract/CONTRACT.md).
+
+## <img src="docs/brand/head-chef/head-chef-mark-solid.svg" width="32" align="absmiddle" alt=""> [head-chef](skills/head-chef)
+
+**Lead the sessions; let them do the work.**
+
+Reach for it in Claude Desktop when you want work to run in another session,
+or want to lead several at once. head-chef starts each session in the
+background, or as a Desktop session you work in, with the model and effort
+set. It points the session to where its brief lives, takes its milestone
+reports, relays between sessions, and cleans a session up when you say it is
+done. It takes the when and the why from your own process, and it never
+counts a message from another session as your yes. Not for work in the same
+session.
+
+`/brigade` opens the Brigade pane: one card per session the lead started, with
+its work, phase, settings, live busy or idle state and latest report. It needs
+the plugin install above. The skill works without it.
+
+What it does, what counts as your yes, and how cleanup refuses:
+[`skills/head-chef/README.md`](skills/head-chef). The skill's contract, which
+its `SKILL.md` is generated from:
+[`skills/head-chef/CONTRACT.md`](skills/head-chef/CONTRACT.md).
 
 ## <img src="docs/brand/eagle-eye/eagle-eye-mark-solid.svg" width="32" align="absmiddle" alt=""> [eagle-eye](skills/eagle-eye)
 
@@ -140,45 +181,6 @@ Every published page is in [the gallery][gallery].
 The three channels, what a layer redraws, the page's controls, and the honesty
 property's stated limit:
 [`skills/groundtrack/README.md`](skills/groundtrack).
-
-## <img src="docs/brand/contract/contract-mark-solid.svg" width="32" align="absmiddle" alt=""> [contract](skills/contract)
-
-**Agree the terms first. The prompt is build output.**
-
-Reach for it when you want a skill or an agent of your own and have never
-written one. contract interviews you through a template, one group of
-questions at a time, and writes your answers down as a contract. It calls what
-you build a **familiar**: a skill or an agent that does one job for you.
-
-It then generates the familiar's file from the contract and checks its format.
-A mark in the file makes the check fail when anyone edits the file by hand. When a
-familiar goes wrong, you amend the contract and generate the file again. It
-never installs what it builds. Not for a one-off prompt.
-
-The questions, the levels and the marks:
-[`skills/contract/references/template.md`](skills/contract/references/template.md).
-The skill's own contract, which its `SKILL.md` is generated from:
-[`skills/contract/CONTRACT.md`](skills/contract/CONTRACT.md).
-
-## <img src="docs/brand/head-chef/head-chef-mark-solid.svg" width="32" align="absmiddle" alt=""> [head-chef](skills/head-chef)
-
-**Lead the sessions; let them do the work.**
-
-Reach for it in Claude Desktop when you want work to run in another session,
-or want to lead several at once. head-chef starts each session in the
-background, or as a Desktop session you work in, with the model and effort
-set. It points the session to where its brief lives, takes its milestone
-reports, relays between sessions, and cleans a session up when you say it is
-done. It takes the when and the why from your own process, and it never
-counts a message from another session as your yes. Not for work in the same
-session.
-
-`/brigade` opens the Brigade pane: one card per session the lead started, with
-its work, phase, settings, live busy or idle state and latest report. It needs
-the plugin install above. The skill works without it.
-
-The skill's contract, which its `SKILL.md` is generated from:
-[`skills/head-chef/CONTRACT.md`](skills/head-chef/CONTRACT.md).
 
 ---
 
