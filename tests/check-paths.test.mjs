@@ -57,6 +57,14 @@ test('a fixed path in the hooks folder the engine reads at the plugin root fails
   assertFails(dir, /hooks\/shared\.ts:1 holds a fixed path/);
 });
 
+test('a fixed path in a data file of the mod fails, not only in its code', () => {
+  // A JSON file beside the module, which the engine never reads as a hooks
+  // file, so the fixed-path rule is the one reason this fails.
+  const dir = tree();
+  modFile(dir, 'hooks/roster-example.json', '{ "where": "~/.claude/brigade/roster.json" }\n');
+  assertFails(dir, /hooks\/roster-example\.json:1 holds a fixed path/);
+});
+
 test('the engine-generated type files are not walked, because .gitignore excludes them', () => {
   // The engine lays its own declarations into .claude-plugin/types/ at every
   // load from a folder the person owns. They are its files, not this

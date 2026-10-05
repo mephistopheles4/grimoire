@@ -23,7 +23,7 @@
 // 8. The test suite passes. `node --test` ships with Node, so the tests cost no
 //    dependency and this stays one command.
 
-import { readdirSync, readFileSync, statSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { basename, join, posix, relative, sep } from 'node:path';
 import { execFileSync, spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
@@ -602,17 +602,20 @@ if (plugin.types !== undefined) {
 // Relative paths in the mod's code. Rule 6 reads import lines in the shapes
 // a formatter writes, which a hand can step round: a comment in front of the
 // keyword, the path on the next line, a semicolon first. So here every quoted
-// string in a mod code file that starts with `./` or `../` is resolved from
+// string in a mod code file that starts with `./` or `../`, or the same with a
+// backslash, is resolved from
 // that file, on every line, comments included, and fails when it lands out of
 // the mod's folders. A string that is no import costs a false failure only if
 // it climbs out, which nothing in the mod has reason to write. Only where it
 // lands is held; whether the file is there is the engine's to say, since an
-// import may leave out the suffix.
+// import may leave out the suffix. It reads paths as written text: a string
+// spelled with escapes or continued across lines is not seen, and review
+// reads the diff for those, as it does for a computed path.
 //
 // An absolute import path is refused in the mod too, on the lines rule 6
 // reads: no install route puts the plugin anywhere a fixed path could name,
 // so it can only reach code outside it.
-const RELATIVE = /(['"`])(\.{1,2}\/[^'"`\n]*)\1/g;
+const RELATIVE = /(['"`])(\.{1,2}(?:\/|\\\\)[^'"`\n]*)\1/g;
 for (const f of files.filter(f => CODE.test(f) && underMod(rel(f)))) {
   const src = rel(f);
   readFileSync(f, 'utf8')
@@ -641,6 +644,11 @@ for (const f of files.filter(f => CODE.test(f) && underMod(rel(f)))) {
 for (const e of readdirSync(root, { withFileTypes: true })) {
   const twin = MOD_DIRS.find(d => d.toLowerCase() === e.name.toLowerCase() && d !== e.name);
   if (twin) fail(`${e.name}/ at the root is ${twin}/ in another case — an install that folds case loads it, and the check reads only ${twin}/. Rename it ${twin}/.`);
+}
+// The same for the hooks file inside its folder: `hooks/Hooks.json` loads where
+// case folds and is read by nothing here.
+for (const e of existsSync(join(root, 'hooks')) ? readdirSync(join(root, 'hooks')) : []) {
+  if (e !== 'hooks.json' && e.toLowerCase() === 'hooks.json') fail(`hooks/${e} is hooks/hooks.json in another case — an install that folds case loads it, and the check reads only hooks/hooks.json. Rename it.`);
 }
 
 // 7. The SkillSpector baselines agree.

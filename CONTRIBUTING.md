@@ -209,10 +209,10 @@ live in `brigade/`; `hooks/hooks.json` at the plugin's root, the file the mods
 reference requires, names the module as `../brigade/register.tsx`. The check
 holds both folders to the fixed-path rule and the version bump, as it holds
 `skills/`. It also holds the code the engine runs inside them: each module a
-hooks file names, every quoted `./` or `../` path in the mod's code, and the
-manifest's `hooks` and `types` paths must land in `brigade/` or `hooks/`, an
-import may not be an absolute path, a mod folder may not be spelled in another
-case, and a hooks file may
+hooks file names, every quoted `./` or `../` path in the mod's code, with either slash, and
+the manifest's `hooks` and `types` paths must land in `brigade/` or `hooks/`;
+an import line the check reads may not hold an absolute path; neither mod
+folder nor `hooks/hooks.json` may be spelled in another case; and a hooks file may
 hold nothing but `modules`, because a settings hook there would run a command
 no rule reads. A mod kept in any other folder is outside those rules until
 `MOD_DIRS` in `scripts/check.mjs` names it. The engine writes its own type declarations into

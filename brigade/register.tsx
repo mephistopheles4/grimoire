@@ -226,9 +226,10 @@ export const register: Register = on => {
   })
 
   on('command.run', { command: 'brigade' }, async $ => {
-    // Open first: a pane another plugin refuses starts no reads.
+    // Open first, and start the reads only once the engine lists the pane: a
+    // pane another plugin refuses or answers for starts no reads.
     const opened = await $.ui.open({ id: PANE, title: TITLE })
-    await arm($)
+    if ((await $.ui.panes()).some(p => p.id === PANE)) await arm($)
     const at = await where($)
     const named = 'error' in at ? at.error : `Roster file: ${at.file}`
     return {
@@ -349,14 +350,14 @@ export const register: Register = on => {
       <Box flexDirection="column">
         <Box flexDirection="row" columnGap={1}>
           <Text dimColor>Roster</Text>
-          <Text dimColor wrap="truncate-start">
+          <Text dimColor wrap="wrap">
             {paths.current === '' ? 'not named yet' : paths.current}
           </Text>
         </Box>
         {paths.previous !== '' && (
           <Box flexDirection="row" columnGap={1}>
             <Text dimColor>Before</Text>
-            <Text dimColor wrap="truncate-start">
+            <Text dimColor wrap="wrap">
               {paths.previous}
             </Text>
           </Box>

@@ -179,6 +179,20 @@ test('an absolute import path in the mod fails', () => {
 test('a mod folder spelled in another case fails, because an install that folds case loads it', () => {
   const dir = withMod(tree());
   rmSync(join(dir, 'hooks'), { recursive: true, force: true });
-  modFile(dir, 'Hooks/hooks.json', '{ "modules": ["../lib/m.tsx"] }\n');
+  // It names the real module, so on a disk that folds case, where the check
+  // also reads it as hooks/hooks.json, nothing but the case rule fires.
+  modFile(dir, 'Hooks/hooks.json', '{ "modules": ["../brigade/register.tsx"] }\n');
   assertFails(dir, /Hooks\/ at the root is hooks\/ in another case/);
+});
+test('a relative import written with backslashes is read the same way', () => {
+  const dir = withMod(tree());
+  modFile(dir, 'brigade/extra.ts', `import { y } from ${q}..\\\\scripts\\\\lib\\\\tree.mjs${q};\n`);
+  assertFails(dir, /brigade\/extra\.ts:1 imports .*, which is scripts\/lib\/tree\.mjs — outside the mod's folders/);
+});
+
+test('the hooks file spelled in another case fails, because an install that folds case loads it', () => {
+  const dir = withMod(tree());
+  rmSync(join(dir, 'hooks', 'hooks.json'));
+  modFile(dir, 'hooks/Hooks.json', '{ "modules": ["../brigade/register.tsx"] }\n');
+  assertFails(dir, /hooks\/Hooks\.json is hooks\/hooks\.json in another case/);
 });
