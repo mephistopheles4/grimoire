@@ -4,7 +4,7 @@ description: Steps in when a discussion holds three or more open decisions and a
 metadata:
   contract-version: 0.2.0
   familiar-digest: "sha256:4f62320b721291a59b9d84c5d832cd46c5befceabd7bcba2c7798e1c3cf8f3e7"
-  contract-digest: "sha256:a5c84787df51324dd26b486ea9db15694e9324ecea6d5372ba91b056ff962d01"
+  contract-digest: "sha256:25fad3348ea6e676482701b2f4761d696fd67dbfabcf62cbcffc6f9711e5a845"
 ---
 
 # Eagle-eye

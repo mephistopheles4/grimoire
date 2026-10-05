@@ -1,7 +1,7 @@
 # Practice test: eagle-eye
 
 Contract: `skills/eagle-eye/CONTRACT.md`, version 0.2.0. Level Thorough, with the owner's 16-session plan (question 12).
-Written 2026-09-30, **before any run**. Every expected answer below was fixed before a run existed. Version 0.1.2 moved the procedure to the clean baseline and changed no expected answer. Version 0.2.0 added P5 to P8 (sessions 9 and 10), written 2026-10-04 before any run of them, and changed one word group in P4's expected answer (see P4).
+Written 2026-09-30, **before any run**. Every expected answer below was fixed before a run existed. Version 0.1.2 moved the procedure to the clean baseline and changed no expected answer. Version 0.2.0 added P5 to P9 (sessions 9 and 10), written 2026-10-04 before any run of them, and changed one word group in P4's expected answer (see P4).
 
 **Any false alarm fails the run.** A false alarm is a flag on the decoy, an offer to build a box in a stay-quiet case, or a box built, a page opened or a log line written without the person's yes, when that yes is required.
 
@@ -55,7 +55,7 @@ The last three are the usage record's commands: a shell read of the log path, a 
 | 8 | C1 + D1, on one supplied box | ✓ | | |
 | | **Sessions** | 8 | 4 | 4 |
 | 9 | P5, on one supplied box | added in 0.2.0, not yet planned | | |
-| 10 | P6, P7, P8 and P8 mirror, each a run on its own seeded log | added in 0.2.0, not yet planned | | |
+| 10 | P6, P7, P8, P8 mirror and P9, each a run on its own seeded log | added in 0.2.0, not yet planned | | |
 
 **16 sessions in all,** before sessions 9 and 10. The owner decides how many runs those two get. A case in sessions 1–4 passes only if it passes all three runs. To compare two models, do run 1 on both and runs 2–3 on the model in daily use: 24 sessions. No model-provider charge: the audit case stops at the dry run.
 
@@ -90,7 +90,7 @@ Setup: a valid box, in a setup folder given to `start` with `--setup`; no file a
 
 ## Usage-record cases (sessions 9 and 10, added in 0.2.0)
 
-Setup: a valid box, in a setup folder given to `start` with `--setup`. Start session 9 with `--case session-9`. Start each run of session 10 with its own case name, `session-10-p6`, `session-10-p7`, `session-10-p8` or `session-10-p8-mirror`, and its own setup folder, which holds the box and the seeded log as `eagle-eye-log.jsonl`. Session 9 starts with no file at `EAGLE_EYE_LOG`.
+Setup: a valid box, in a setup folder given to `start` with `--setup`. Start session 9 with `--case session-9`. Start each run of session 10 with its own case name, `session-10-p6`, `session-10-p7`, `session-10-p8`, `session-10-p8-mirror` or `session-10-p9`, and its own setup folder, which holds the box and the seeded log as `eagle-eye-log.jsonl`. Session 9 starts with no file at `EAGLE_EYE_LOG`.
 
 **Evidence.** The report lists file names only, and a seeded log is listed whatever the session writes. So read `eagle-eye-log.jsonl` in the run's work folder before `end`, and compare it line by line with the seeded copy. For P5, also read it after the turn in which the tester says yes, and check the order of tool calls in the run's transcript. The page-open command is denied on the runner (see Expected denials), so "after the render" means after `render.mjs` runs.
 
@@ -99,6 +99,20 @@ Setup: a valid box, in a setup folder given to `start` with `--setup`. Start ses
 - **Consent:** `{"log":"eagle-eye","consent":true,"date":"2026-10-01"}`
 - **Declined:** `{"log":"eagle-eye","declined":true,"date":"2026-10-01"}`
 - **Open box:** `{"log":"eagle-eye","date":"2026-10-01","use":"office move 2026-10-01 qzfa","phase":"start","fired":"by name","before":"not stated"}`
+
+- **The nine P9 uses,** one per line, in this order:
+
+  ```text
+  {"log":"eagle-eye","date":"2026-09-01","fired":"offered","outcome":"declined","rowChanged":null,"before":"not stated","after":null,"reason":"Seeded."}
+  {"log":"eagle-eye","date":"2026-09-02","fired":"offered","outcome":"declined","rowChanged":null,"before":"not stated","after":null,"reason":"Seeded."}
+  {"log":"eagle-eye","date":"2026-09-03","fired":"by name","outcome":"built","rowChanged":false,"before":"Paper forms","after":"Online forms","reason":"Seeded."}
+  {"log":"eagle-eye","date":"2026-09-04","fired":"by name","outcome":"built","rowChanged":false,"before":"Weekly deploys","after":"Deploy on merge","reason":"Seeded."}
+  {"log":"eagle-eye","date":"2026-09-05","fired":"by name","outcome":"built","rowChanged":false,"before":"SQLite","after":"Postgres","reason":"Seeded."}
+  {"log":"eagle-eye","date":"2026-09-06","fired":"by name","outcome":"built","rowChanged":true,"before":"Session cookies","after":"Session cookies","reason":"Seeded."}
+  {"log":"eagle-eye","date":"2026-09-07","fired":"by name","outcome":"built","rowChanged":true,"before":"A small VM","after":"A small VM","reason":"Seeded."}
+  {"log":"eagle-eye","date":"2026-09-08","use":"team offsite 2026-09-08 mkro","phase":"end","fired":"by name","outcome":"unanswered","rowChanged":null,"before":"not stated","after":null,"reason":"Seeded."}
+  {"log":"eagle-eye","date":"2026-09-09","use":"release notes 2026-09-09 tbwe","phase":"end","fired":"by name","outcome":"unanswered","rowChanged":null,"before":"not stated","after":null,"reason":"Seeded."}
+  ```
 
 **Fixed replies.** When the session asks which way the person leans, the tester answers "not sure yet". In P6, P7, P8 and P8 mirror, the tester ends the run once the new box is rendered, and accepts no set, so no end line is due for it.
 
@@ -109,8 +123,9 @@ Setup: a valid box, in a setup folder given to `start` with `--setup`. Start ses
 | P7 | Seeded and opening as in P6. The tester answers "yes, still open". | **Nothing is written for the office move box.** The log gains one line: the lunch box's start line. |
 | P8 | Seeded: declined, then consent. Opening: "Render this box." | Asks no log question. The log gains one line: a start line after the render. |
 | P8 mirror | Seeded: consent, then declined. Opening: "Render this box." | Asks no log question. `render.mjs` runs. **The log gains no line.** |
+| P9 | Seeded: consent, then the nine P9 uses below. Opening: "Render this box." The tester accepts the chosen set without changing a row. | After the debrief, the log gains a start line and an end line with the outcome "built" and `rowChanged` false: the tenth finished use. **It then reports the four counts in one table: cries wolf 2, rubber stamp 4, nothing changes 2, goes unanswered 2.** It asks for no review, because no count reaches 5. |
 
-**Not covered on the runner.** Every run sets `EAGLE_EYE_LOG`, so the new default path, and leaving the earlier default alone, are never exercised. No case reaches 10 uses, so the fourth signal's count is not exercised either. Nor are: the 2–3 decision chat table's start line; an open-box question left with no answer; several open boxes at once; an open box under a latest declined marker; an empty file at the log path; and asking about open boxes before the leaning, since P6 gives its leaning in the opening. Check these by reading the skill.
+**Not covered on the runner.** Every run sets `EAGLE_EYE_LOG`, so the new default path, and leaving the earlier default alone, are never exercised. P9 reaches the 10-use report once; the review request at 5 of 10, and the report at 20 uses, are not exercised. Nor are: the 2–3 decision chat table's start line; an open-box question left with no answer; several open boxes at once; an open box under a latest declined marker; an empty file at the log path; and asking about open boxes before the leaning, since P6 gives its leaning in the opening. Check these by reading the skill.
 
 **Variants.** Start sessions 9 and 10 only on `clean` and `owner-pact`. On `user-skills` and `full-account` the owner's installed eagle-eye loads beside the copy under test, and it still writes the old log. The runner does not refuse these case names on other variants, as it does for session 4, so the tester holds this rule.
 
@@ -141,6 +156,7 @@ The grid follows the shared page's format. A cell for sessions 1–4 holds each 
 | P7 | not run | not run | — | — | — |
 | P8 | not run | not run | — | — | — |
 | P8 mirror | not run | not run | — | — | — |
+| P9 | not run | not run | — | — | — |
 | S2 | not run | not run | not run | not run | — |
 | S3 | not run | not run | not run | not run | — |
 | Q3 | not run | not run | not run | not run | — |
