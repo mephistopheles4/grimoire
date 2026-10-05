@@ -43,7 +43,7 @@ not take, and `SECURITY.md` explains why that matters more than it looks.
 run only the suite while you work on it:
 
 ```bash
-node --test tests/audit.test.mjs tests/build-pages.test.mjs tests/check-baseline-rules.test.mjs tests/check-baselines.test.mjs tests/check-format.test.mjs tests/check-manifests.test.mjs tests/check-paths.test.mjs tests/check-test-step.test.mjs tests/check-tree.test.mjs tests/check-version.test.mjs tests/contract-check-folder.test.mjs tests/contract-check-rules.test.mjs tests/contract-check-seal.test.mjs tests/contract-check-toml.test.mjs tests/eagle-eye-sheets.test.mjs tests/esc.test.mjs tests/groundtrack-fold.test.mjs tests/groundtrack-render.test.mjs tests/groundtrack-sheets.test.mjs tests/practice.test.mjs tests/registry.test.mjs tests/render.test.mjs tests/skillspector-gate.test.mjs tests/skillspector-strip-suppressed.test.mjs
+node --test tests/audit.test.mjs tests/build-pages.test.mjs tests/check-baseline-rules.test.mjs tests/check-baselines.test.mjs tests/check-format.test.mjs tests/check-manifests.test.mjs tests/check-mod.test.mjs tests/check-paths.test.mjs tests/check-test-step.test.mjs tests/check-tree.test.mjs tests/check-version.test.mjs tests/contract-check-folder.test.mjs tests/contract-check-rules.test.mjs tests/contract-check-seal.test.mjs tests/contract-check-toml.test.mjs tests/eagle-eye-sheets.test.mjs tests/esc.test.mjs tests/groundtrack-fold.test.mjs tests/groundtrack-render.test.mjs tests/groundtrack-sheets.test.mjs tests/practice.test.mjs tests/registry.test.mjs tests/render.test.mjs tests/skillspector-gate.test.mjs tests/skillspector-strip-suppressed.test.mjs
 ```
 
 **The suite never reaches the network.** eagle-eye's edge audit is the one
@@ -204,11 +204,18 @@ full, and reviews the `SKILL.md` as shipped prose, whatever its seal says.
 
 **The mod is held to the same rules.** The plugin can also ship a Claude Code
 mod: a hooks module the engine runs in every session the plugin is installed
-in. Its files live in `brigade/`, and in `hooks/`, where the engine reads
-`hooks/hooks.json` at the plugin's root. The check holds both folders to the
-fixed-path rule and the version bump, as it holds `skills/`. A mod kept in any
-other folder is outside those rules until `MOD_DIRS` in `scripts/check.mjs`
-names it. The engine writes its own type declarations into
+in. Today that is Brigade, the `/brigade` pane. Its code and its state contract
+live in `brigade/`; `hooks/hooks.json` at the plugin's root, the file the mods
+reference requires, names the module as `../brigade/register.tsx`. The check
+holds both folders to the fixed-path rule and the version bump, as it holds
+`skills/`. It also holds the code the engine runs inside them: each module a
+hooks file names, every quoted `./` or `../` path in the mod's code, with either slash, and
+the manifest's `hooks` and `types` paths must land in `brigade/` or `hooks/`;
+an import line the check reads may not hold an absolute path; neither mod
+folder nor `hooks/hooks.json` may be spelled in another case; and a hooks file may
+hold nothing but `modules`, because a settings hook there would run a command
+no rule reads. A mod kept in any other folder is outside those rules until
+`MOD_DIRS` in `scripts/check.mjs` names it. The engine writes its own type declarations into
 `.claude-plugin/types/` at every load; `.gitignore` excludes them, so never
 commit them and the check never reads them.
 

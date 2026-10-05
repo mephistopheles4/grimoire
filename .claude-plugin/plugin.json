@@ -1,7 +1,7 @@
 {
   "name": "grimoire",
-  "version": "0.28.0",
-  "description": "A spellbook of agent skills for AI. Cast wisely. Three skills: eagle-eye, which lays coupled decisions out as a morphological box and renders one self-contained page that reads any configuration back; groundtrack, which turns a plan or a written change into a call graph with recorded traces through it, on a page a reader can step; and contract, which interviews a person to agree the terms for a skill or an agent of their own, then generates its file from that contract and checks its format.",
+  "version": "0.29.0",
+  "description": "A spellbook of agent skills for AI. Cast wisely. Three skills: eagle-eye, which lays coupled decisions out as a morphological box and renders one self-contained page that reads any configuration back; groundtrack, which turns a plan or a written change into a call graph with recorded traces through it, on a page a reader can step; and contract, which interviews a person to agree the terms for a skill or an agent of their own, then generates its file from that contract and checks its format. And one pane for Claude Code: Brigade, opened with /brigade, which shows the sessions a lead session started, each with its work, phase, live busy or idle state and latest report.",
   "author": {
     "name": "Ayman Diab",
     "url": "https://github.com/mephistopheles4"
@@ -9,6 +9,7 @@
   "homepage": "https://mephistopheles4.github.io/grimoire/",
   "repository": "https://github.com/mephistopheles4/grimoire",
   "license": "MIT",
+  "types": "./brigade/types/index.d.ts",
   "keywords": [
     "decisions",
     "morphological-box",

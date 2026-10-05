@@ -19,11 +19,18 @@
 
 import { after } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtempSync, rmSync, cpSync, readFileSync, writeFileSync, mkdirSync } from 'node:fs';
+import { mkdtempSync, rmSync, cpSync, readFileSync, writeFileSync, mkdirSync, existsSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { root, run } from './helpers.mjs';
+
+// The engine writes its own type declarations into .claude-plugin/types/ at
+// every load of the mod from a checkout. They are ignored, not this tree's, and
+// left out of every copy: a test that removes .gitignore would otherwise walk
+// them and fail on the engine's imports, in any checkout the mod has loaded
+// from.
+export const notEngineTypes = src => !/[\\/]\.claude-plugin[\\/]types(?:[\\/]|$)/.test(src);
 
 export const work = mkdtempSync(join(tmpdir(), 'grimoire-check-'));
 
@@ -41,7 +48,13 @@ export function tree() {
   const dir = join(work, `case-${n++}`);
   mkdirSync(dir);
   for (const part of ['scripts', 'skills', '.claude-plugin']) {
-    cpSync(join(root, part), join(dir, part), { recursive: true });
+    cpSync(join(root, part), join(dir, part), { recursive: true, filter: notEngineTypes });
+  }
+  // The mod's folders travel too, when the tree has them: plugin.json names
+  // the mod's contract and hooks/hooks.json names its module, and the check
+  // fails a pointer to a file that is not there.
+  for (const part of ['brigade', 'hooks']) {
+    if (existsSync(join(root, part))) cpSync(join(root, part), join(dir, part), { recursive: true });
   }
   cpSync(join(root, '.gitignore'), join(dir, '.gitignore'));
   cpSync(join(root, baselineName), join(dir, baselineName));
@@ -73,9 +86,10 @@ export const manifest = dir => join(dir, '.claude-plugin', 'plugin.json');
 
 export const setVersion = (dir, v) => writeJson(manifest(dir), { ...readJson(manifest(dir)), version: v });
 
-// A file of the mod, written into the copy at run time. No mod is committed
-// yet, so the tests of the rules that cover one write its files here, the way
-// the format-check tests write their fixture skills. `rel` is a forward-slash
+// A file of the mod, written into the copy at run time. The tests of the rules
+// that cover the mod write the files they break here, the way the
+// format-check tests write their fixture skills, so a test holds whatever the
+// committed mod looks like. `rel` is a forward-slash
 // path from the copy's root, such as 'brigade/hooks/register.tsx'.
 export function modFile(dir, rel, text) {
   const p = join(dir, ...rel.split('/'));

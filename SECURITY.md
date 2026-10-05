@@ -16,18 +16,32 @@ You will get an honest answer and, if the finding is real, a fix.
 ## Scope
 
 **In scope:** everything in this repository. That means both manifests, every
-`SKILL.md`, the renderers and page templates, the edge audit, the check
-scripts, and the CI workflows.
+`SKILL.md`, the renderers and page templates, the edge audit, the Brigade
+mod in `brigade/` and `hooks/`, the check scripts, and the CI workflows.
 
 **Out of scope:** Claude Code itself, your own box and flightpath files and what
 you put in them, and wherever you host a page the renderer wrote.
 
 ## What this project is, in threat terms
 
-grimoire is a set of agent skills. A skill is prose an agent follows, plus a
-renderer that turns a JSON file into one self-contained HTML page. There is no
-server, no account and no database. Node runs the renderer on your machine, and
-neither the renderer nor the page makes a network request.
+grimoire is a set of agent skills and one Claude Code mod. A skill is prose an
+agent follows, plus a renderer that turns a JSON file into one self-contained
+HTML page. There is no server, no account and no database. Node runs the
+renderer on your machine, and neither the renderer nor the page makes a network
+request.
+
+**The Brigade mod is code Claude Code runs in every session that has the
+plugin.** It is a hooks module, `brigade/register.tsx`, named by
+`hooks/hooks.json`, and it runs with the session's own rights. At session start
+it registers `/brigade` and does nothing else. While its pane is open it runs
+`claude agents --json`, reads the lead session's roster file from the plugin's
+data folder, and reads other sessions' transcripts to find a session's link. It
+writes no file and makes no network request. Its one other process is
+`explorer.exe`, given a `claude://` link when the owner presses Open in app.
+Everything it reads is checked and drawn as text. Review any change under
+`brigade/` or `hooks/` as a change to code that runs on every installer's
+machine: [row 15 of the threat model](docs/security/threat-model.md#the-matrix)
+has the guards and the gaps.
 
 One script can send data, and only when somebody runs it: eagle-eye's optional
 edge audit. See [What the edge audit sends](#what-the-edge-audit-sends).
@@ -78,6 +92,11 @@ The realistic risks:
 - **A skill is an instruction file an agent obeys.** Whoever can change a
   `SKILL.md` can change what an agent does on a reader's machine. Branch
   protection guards this.
+- **The mod is code that runs in every session.** Whoever can change
+  `brigade/` or `hooks/` changes what runs in every session of every
+  installer. Branch protection and `scripts/check.mjs`, which holds the mod to
+  its folders, guard this. The SkillSpector job scans `skills/` only, so it
+  does not read the mod.
 - **A dependency.** The renderers import Node built-in modules only, so there is
   no dependency tree to poison. That is true now, not a promise about later.
   `scripts/check.mjs` fails on a `package.json` or a lockfile.
