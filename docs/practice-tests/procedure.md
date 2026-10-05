@@ -90,7 +90,8 @@ from a named list.
 **Some cases run only on `clean` and `owner-pact`.** These are the cases
 that plant an instruction, and any case that needs a fake key. On those two
 variants the posture is the runner's alone. The runner knows these cases by
-name: the contract skill's B3 and B25b, and eagle-eye's session 4. A new
+name: the contract skill's B3 and B25b, eagle-eye's session 4 and P1 to P4,
+and head-chef's session 1, which asks for a real launch. A new
 skill's case of this kind joins that list in the runner. Always give
 `--case`. With it, the runner refuses such a case on another variant.
 Without it, nothing stops the run.

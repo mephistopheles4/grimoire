@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// The four social cards, 1280 by 640, written as self-contained SVG, and the
+// The five social cards, 1280 by 640, written as self-contained SVG, and the
 // skill sigils the root README shows (see the end of this file).
 //
 //   node docs/brand/cards.mjs
@@ -65,6 +65,12 @@ const CARDS = [
     title: 'Contract',
     tagline: ['Agree the terms,', 'then seal the file.'],
     footer: 'grimoire · skills/contract',
+  },
+  {
+    name: 'head-chef',
+    title: 'Head-chef',
+    tagline: ['Lead the sessions;', 'let them do the work.'],
+    footer: 'grimoire · skills/head-chef',
   },
 ];
 
