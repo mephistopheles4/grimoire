@@ -99,6 +99,9 @@ secret and nothing personal into a line: the file outlives the conversation.
 A start line with no end line of the same `use` is an open box. The person
 may have dropped it, or it may still be open in another session.
 
+This applies only while a log is kept: when the latest marker is the declined
+marker, ask nothing about open boxes and write nothing.
+
 When you read the log at the start of a use, find the open boxes. Ask about
 them first, before the person's leaning and before any box. For each one, ask
 the person in one line:

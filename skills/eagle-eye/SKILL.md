@@ -3,7 +3,7 @@ name: eagle-eye
 description: Steps in when a discussion holds three or more open decisions and at least two of them are coupled, so that one choice changes what is possible in another, or when someone asks for it by name (/eagle-eye, an eagle-eye view, or a morphological box). Stays out when the person insists on the quick route, and for two independent choices.
 metadata:
   contract-version: 0.2.0
-  familiar-digest: "sha256:98d46295b29bdec0b67f3a918d439fc6a86bb918d4f0f73d4ffd4f55dc8b037f"
+  familiar-digest: "sha256:4f62320b721291a59b9d84c5d832cd46c5befceabd7bcba2c7798e1c3cf8f3e7"
   contract-digest: "sha256:a5c84787df51324dd26b486ea9db15694e9324ecea6d5372ba91b056ff962d01"
 ---
 
@@ -409,7 +409,7 @@ Never read, move or delete the earlier default, `~/.eagle-eye/log.jsonl`.
   conversation.
 - **A file whose every line is an eagle-eye line** (a use line, a start line,
   a consent marker or a declined marker): it is the log. When the last marker
-  in it is the declined marker, never ask again and write no use line.
+  in it is the declined marker, never ask again and write nothing.
 - **Anything else:** leave the file alone. Tell the person what is there, and
   ask where to keep the log.
 
@@ -431,8 +431,8 @@ before and after in the debrief.
 **Lines.** A built box writes a **start line** when first shown and an **end
 line** with the same key after the debrief; a declined offer writes one line.
 **Append with a shell; never replace the file,** or parallel writes lose a
-line. A start line with no end line is an **open box**, maybe live elsewhere:
-at the start of a use, ask the person if each is still open, and on a no
+line. A start line with no end line is an **open box**, maybe live elsewhere: at
+a use's start, while a log is kept, ask if each is still open; on a no
 append its end line as "unanswered". Detail: `reference/usage-record.md`.
 
 **Review.** Count four signals, each on its own, over the last 10 finished

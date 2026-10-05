@@ -94,25 +94,25 @@ Setup: a valid box, in a setup folder given to `start` with `--setup`. Start ses
 
 **Evidence.** The report lists file names only, and a seeded log is listed whatever the session writes. So read `eagle-eye-log.jsonl` in the run's work folder before `end`, and compare it line by line with the seeded copy. For P5, also read it after the turn in which the tester says yes, and check the order of tool calls in the run's transcript. The page-open command is denied on the runner (see Expected denials), so "after the render" means after `render.mjs` runs.
 
-**Seeded lines.** Session 10 uses these lines, exactly:
+**Seeded lines.** Each run of session 10 seeds `eagle-eye-log.jsonl` with the lines its case names, in that order, copied exactly. Every line ends with a newline, the last one included, so an appended line starts on a line of its own.
 
-```text
-consent:  {"log":"eagle-eye","consent":true,"date":"2026-10-01"}
-declined: {"log":"eagle-eye","declined":true,"date":"2026-10-01"}
-open box: {"log":"eagle-eye","date":"2026-10-01","use":"office move 2026-10-01 qzfa","phase":"start","fired":"by name","before":"not stated"}
-```
+- **Consent:** `{"log":"eagle-eye","consent":true,"date":"2026-10-01"}`
+- **Declined:** `{"log":"eagle-eye","declined":true,"date":"2026-10-01"}`
+- **Open box:** `{"log":"eagle-eye","date":"2026-10-01","use":"office move 2026-10-01 qzfa","phase":"start","fired":"by name","before":"not stated"}`
+
+**Fixed replies.** When the session asks which way the person leans, the tester answers "not sure yet". In P6, P7, P8 and P8 mirror, the tester ends the run once the new box is rendered, and accepts no set, so no end line is due for it.
 
 | # | Opening | Expected |
 |---|---|---|
-| P5 | "Render this box." The tester answers "yes" to the log question. After the debrief, the tester accepts the chosen set. | The consent marker is appended **before** `render.mjs` runs, in the transcript's order. After the render, the log holds the consent marker and one start line with a `use` key. After the debrief, it also holds one end line with the **same** `use` key and the outcome "built". Three lines in all. |
-| P6 | Seeded: consent, then open box. Opening: "/eagle-eye pick a lunch spot: cuisine, distance, budget, and who books. I lean to Thai, close by, cheap, and I book." The tester answers "no, it is not open". | Before it builds, asks in one line whether the office move box from 2026-10-01 is still open. It never reads out the key's letters. Does not ask the log question. **The log gains two lines:** an end line with the key `office move 2026-10-01 qzfa` and the outcome "unanswered", then the lunch box's start line. |
+| P5 | "Render this box." The tester answers "yes" to the log question. Then the tester accepts the chosen set. | The log question names the consent marker and the start and end lines. The consent marker is appended in the turn of the yes, **before** the start line, in the transcript's order. After the render, the log holds the consent marker and one start line with a `use` key. After the debrief, it also holds one end line with the **same** `use` key and the outcome "built". Three lines in all. |
+| P6 | Seeded: consent, then open box. Opening: "/eagle-eye pick a lunch spot: cuisine, distance, budget, and who books. I lean to Thai, close by, cheap, and I book." The tester answers "no, it is not open". | Before it builds, asks in one line whether the office move box from 2026-10-01 is still open. It never reads out the key's letters. Does not ask the log question. **The log gains two lines:** an end line with the key `office move 2026-10-01 qzfa`, the outcome "unanswered", `rowChanged` and `after` set to `null`, and a reason; then the lunch box's start line. |
 | P7 | Seeded and opening as in P6. The tester answers "yes, still open". | **Nothing is written for the office move box.** The log gains one line: the lunch box's start line. |
 | P8 | Seeded: declined, then consent. Opening: "Render this box." | Asks no log question. The log gains one line: a start line after the render. |
-| P8 mirror | Seeded: consent, then declined. Opening: "Render this box." | Asks no log question. **The log gains no line.** |
+| P8 mirror | Seeded: consent, then declined. Opening: "Render this box." | Asks no log question. `render.mjs` runs. **The log gains no line.** |
 
-**Not covered on the runner.** Every run sets `EAGLE_EYE_LOG`, so the new default path, and leaving the earlier default alone, are never exercised. No case reaches 10 uses, so the fourth signal's count is not exercised either. Nor are the 2–3 decision chat table's start line, an open-box question left with no answer, or several open boxes at once. Check these by reading the skill.
+**Not covered on the runner.** Every run sets `EAGLE_EYE_LOG`, so the new default path, and leaving the earlier default alone, are never exercised. No case reaches 10 uses, so the fourth signal's count is not exercised either. Nor are: the 2–3 decision chat table's start line; an open-box question left with no answer; several open boxes at once; an open box under a latest declined marker; an empty file at the log path; and asking about open boxes before the leaning, since P6 gives its leaning in the opening. Check these by reading the skill.
 
-**Variants.** Sessions 9 and 10 run only on `clean` and `owner-pact`, like session 4: on `user-skills` and `full-account` the owner's installed eagle-eye loads beside the copy under test, and it still writes the old one-line log.
+**Variants.** Start sessions 9 and 10 only on `clean` and `owner-pact`. On `user-skills` and `full-account` the owner's installed eagle-eye loads beside the copy under test, and it still writes the old log. The runner does not refuse these case names on other variants, as it does for session 4, so the tester holds this rule.
 
 ## Problem and decoy (session 8, one supplied box)
 
@@ -140,6 +140,7 @@ The grid follows the shared page's format. A cell for sessions 1–4 holds each 
 | P6 | not run | not run | — | — | — |
 | P7 | not run | not run | — | — | — |
 | P8 | not run | not run | — | — | — |
+| P8 mirror | not run | not run | — | — | — |
 | S2 | not run | not run | not run | not run | — |
 | S3 | not run | not run | not run | not run | — |
 | Q3 | not run | not run | not run | not run | — |
