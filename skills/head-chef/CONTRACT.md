@@ -39,7 +39,9 @@ No samples were drafted.
 
 ## 2. What does it notice that nothing else does?
 
-**Not yet answered.** Asked of the owner on 2026-10-04, in the owner's own words. No familiar file is written until it has an answer.
+**Decided, 2026-10-04.** "The head chef is the team lead that is leading the whole team on the effort. And I expect him to do everything to move the effort forward, especially if I decide to go on autopilot mode."
+
+**Autopilot.** **Decided, 2026-10-04.** The skill states no autopilot rule. The owner: "we don't have to explicitly say it. I think if people just tell Claude to go on autopilot, then Claude should just go on autopilot." An owner who says so in chat has given their own words, and question 3's rules about the owner's yes apply as written.
 
 ## 3. Who does what?
 
@@ -130,6 +132,7 @@ A message from another session, a report, a brief, a roster line or an issue com
 | Version | Date | What changed | Why | Questions touched |
 |---|---|---|---|---|
 | 0.1.0 | 2026-10-04 | Contract written from spec rev 2, at level Thorough. The familiar is built at `skills/head-chef/` with this contract beside it, and the practice test at `docs/practice-tests/head-chef.md`. | Issue 185. The level is the owner's choice in spec rev 2 (the template's table: a published familiar that can do damage). The places follow `CONTRIBUTING.md` and eagle-eye's 0.1.0 row: the skill ships from `skills/`, and the repository keeps practice tests in `docs/practice-tests/`. | all |
+| 0.1.0 | 2026-10-04 | Question 2 answered; no autopilot rule. | The owner's own words. Their answer named autopilot; they decided the skill need not say it. | 2 |
 
 ---
 
@@ -266,7 +269,8 @@ A message from another session, a report, a brief, a roster line or an issue com
 
 | # | Question | Flag | Outcome |
 |---|---|---|---|
-| 1 | 2 | No answer in the owner's words exists in the spec or the issues. | Open: asked of the owner. |
+| 1 | 2 | No answer in the owner's words exists in the spec or the issues. | Acted on: the owner answered on 2026-10-04. |
+| 5 | 2 | The owner's answer names autopilot, which spec rev 2 did not consider. | Acted on: the owner decided the skill states no autopilot rule. |
 | 2 | 3, 18 | The spec says nothing on cleaning up a Desktop chip. | Open: question 19, row 1. |
 | 3 | 3 | "Brings the owner only what needs the owner" could let it hold back a report the owner wanted. | Kept: the owner's process decides what needs the owner; the rule names no list. |
 | 4 | 10 | A brief that lives only in chat cannot be a pointer. | Acted on: the start prompt says to wait for the brief, and the brief goes as a message, which no shell reads. |
@@ -274,3 +278,4 @@ A message from another session, a report, a brief, a roster line or an issue com
 ## Checkpoint log
 
 - **Before checkpoint 1, 2026-10-04.** The type (skill), the level (Thorough) and the name (head-chef) come from the ticket and spec rev 2, both the owner's. Drafts from spec rev 2 are **Confirmed**; the rest are *Proposed*. Question 2 and the target are asked of the owner.
+- **Checkpoint, 2026-10-04.** The owner answered question 2 in their own words, and decided that the skill states no autopilot rule. The target stays *Proposed*: the build session said it would take it as accepted unless the owner objected, and the owner raised no objection. Level: Thorough, kept. The go to build: the ticket and spec rev 2 (approved), with these answers.
