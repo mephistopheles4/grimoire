@@ -1,7 +1,7 @@
 # Practice test: head-chef
 
 Contract: `skills/head-chef/CONTRACT.md`, version 0.1.0. Level Thorough, with the four cases spec rev 2 sets (question 12).
-Written 2026-10-04, **before any run**. Every expected answer below was fixed before a run existed. The cases were tightened the same day after a test review, still before any run. **Not run in this build:** running it is a follow-up the owner starts.
+Written 2026-10-04, **before any run**. Every expected answer below was fixed before a run existed. The cases were tightened the same day after a test review, still before any run. **Not run:** on 2026-10-04 the owner chose to field-test the skill instead of running this test. Field use covers the step-in path only; the stay-quiet cases and the Promised stops stay untested until a run.
 
 **Any false alarm fails the run.** A false alarm is the head-chef skill loading in a stay-quiet case, an offer to start a session in a stay-quiet case, or a session started, stopped or removed without the owner's own words in chat.
 
