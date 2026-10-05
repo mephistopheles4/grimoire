@@ -1,6 +1,6 @@
 # Brand marks
 
-Four marks, one for the repository and one for each skill. Every mark is one
+Five marks, one for the repository and one for each skill. Every mark is one
 24-unit SVG box drawn in the drafting language the pages use: paper, ink, and
 amber for the one thing that asks to be looked at.
 
@@ -10,12 +10,14 @@ amber for the one thing that asks to be looked at.
 | eagle-eye | `skills/eagle-eye/` | [`eagle-eye/`](eagle-eye) |
 | groundtrack | `skills/groundtrack/` | [`groundtrack/`](groundtrack) |
 | contract | `skills/contract/` | [`contract/`](contract) |
+| head-chef | `skills/head-chef/` | [`head-chef/`](head-chef) |
 
 <p>
   <img src="grimoire/grimoire-mark.svg" width="96" alt="grimoire mark">
   <img src="eagle-eye/eagle-eye-mark.svg" width="96" alt="eagle-eye mark">
   <img src="groundtrack/groundtrack-mark.svg" width="96" alt="groundtrack mark">
   <img src="contract/contract-mark.svg" width="96" alt="contract mark">
+  <img src="head-chef/head-chef-mark.svg" width="96" alt="head-chef mark">
 </p>
 
 ## The marks
@@ -41,6 +43,11 @@ without breaking the seal, which is what the check reports when a sealed file
 is edited by hand. The seal is the amber; a hairline ring inside it reads as
 pressed wax at large sizes and is dropped in the small variants.
 
+**head-chef.** One loop above three, the head chef running the brigade's
+loops one level up. Hairlines carry the brief down from the upper loop to each
+of the three below and are dropped in the small variants. The amber loop is the
+session that has just reported back.
+
 ## Which file to use
 
 Each directory holds three sizes of the same drawing. All three are ink ground
@@ -54,7 +61,7 @@ chrome, so no mark has a paper-ground variant.
 | `favicon.svg` | 16px. Heavier strokes again, and the figure reduced to what survives there. |
 
 `grimoire-mark-bare.svg` is the chevron on no ground, for a known paper ground
-only. The three skill directories also hold a generated
+only. The skill directories also hold a generated
 `<name>-sigil-light.svg` and `<name>-sigil-dark.svg`, the mark with its name
 under it; see [the sigils](#the-sigils).
 
@@ -78,12 +85,12 @@ node docs/brand/cards.mjs
 ```
 
 The script reads the marks beside it and writes the four cards beside it, and
-the six sigils below. Change a tagline there, not in the SVG.
+the sigils below. Change a tagline there, not in the SVG.
 
 ## The sigils
 
 `<name>/<name>-sigil-light.svg` and `<name>/<name>-sigil-dark.svg`, for
-eagle-eye, contract and groundtrack, are the skill row at the top of the root
+eagle-eye, contract, groundtrack and head-chef, are the skill row at the top of the root
 README. Each one is the skill's large mark, on its own ink tile, with the
 skill's name set under it in the wordmark's semibold face. The canvas around
 the tile is transparent, so the name sits on the page itself. The light
@@ -101,7 +108,7 @@ as a whole line, and the name under a mark lands wherever the line puts it.
 Inside the image the name is anchored on the mark's centre line, so it is
 centred by construction.
 
-All six share one canvas, 192 by 160, with the mark's 24-unit box at 96 and
+All of them share one canvas, 192 by 160, with the mark's 24-unit box at 96 and
 the name at 22. The README shows them at width 112, which puts the mark at
 56px, the size its amber needs to read. Like the cards, a sigil inlines its
 face and fetches nothing.
@@ -140,7 +147,7 @@ node scripts/eagle-eye-sheets.mjs skills/eagle-eye/examples/eagle-eye-skill.box.
 | paper | `#FAFAF7` | ground |
 | ink | `#22262B` | every line and mass |
 | caution | `#B45309` | attention required, and nothing else |
-| normal | `#15803D` | nominal state, and nothing else; unused in the four marks |
+| normal | `#15803D` | nominal state, and nothing else; unused in the marks |
 | neutrals | ink at 80 / 70 / 55 / 30 / 12 / 5% alpha | never a sampled grey; text never below 70 |
 
 Line weights are the depth system: 0.22 hairline, 0.9 to 1.05 thin, 1.4 to
@@ -148,7 +155,8 @@ Line weights are the depth system: 0.22 hairline, 0.9 to 1.05 thin, 1.4 to
 vanishes.
 
 **Amber is spent once per mark.** In eagle-eye it is the detached apex; in
-groundtrack it is the cursor sleeper; in contract it is the seal. A second amber element would mean
+groundtrack it is the cursor sleeper; in contract it is the seal; in head-chef
+it is the loop that reported. A second amber element would mean
 neither.
 
 Corner radius is zero everywhere. No gradients, no shadows, no blur.
