@@ -43,6 +43,14 @@ Everything it reads is checked and drawn as text. Review any change under
 machine: [row 15 of the threat model](docs/security/threat-model.md#the-matrix)
 has the guards and the gaps.
 
+**One skill tells the agent to start other agent sessions and to delete their
+worktrees: head-chef.** It runs no script of its own. The agent runs
+`claude --bg --remote-control`, `claude stop`, `claude rm` and `git` for it,
+and only on the owner's own words in chat. Remote Control makes each session it
+starts drivable from any device signed in to the owner's account.
+[Row 16 of the threat model](docs/security/threat-model.md#the-matrix) has the
+guards and the gaps.
+
 One script can send data, and only when somebody runs it: eagle-eye's optional
 edge audit. See [What the edge audit sends](#what-the-edge-audit-sends).
 

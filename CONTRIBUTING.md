@@ -183,7 +183,7 @@ Why a skill may name the tools it targets:
 [`docs/adr/0005-skills-name-their-targets.md`](docs/adr/0005-skills-name-their-targets.md).
 
 **A skill with a `CONTRACT.md` beside its `SKILL.md` is generated from it.**
-Today that is `skills/contract/` and `skills/eagle-eye/`. Do not edit such a
+Today that is `skills/contract/`, `skills/eagle-eye/` and `skills/head-chef/`. Do not edit such a
 `SKILL.md` by hand. Change the contract and raise its `Version:` line,
 generate the `SKILL.md` again, then seal it:
 
@@ -195,7 +195,7 @@ The seal writes a mark into the frontmatter: the contract's version, a digest
 of the skill's folder and a digest of the contract. The folder's digest covers
 every file in `skills/<name>/` except `CONTRACT.md`: for `contract`, the check
 script and the template; for `eagle-eye`, the renderer, the audit and the
-reference files. So a change to any of them needs a new seal, and a stray
+reference files; for `head-chef`, nothing else today. So a change to any of them needs a new seal, and a stray
 file such as `.DS_Store` breaks it. `node scripts/check.mjs` fails when a
 covered file changed after the seal. The seal proves only that those files
 are unchanged since they were sealed. It proves nothing about who sealed them,
