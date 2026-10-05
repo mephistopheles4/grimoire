@@ -51,19 +51,23 @@ const reports = atom({ plugin: 'grimoire', key: 'reports' } as const, [])
 const dismissed = atom({ plugin: 'grimoire', key: 'dismissed' } as const, [])
 const doneTodos = atom({ plugin: 'grimoire', key: 'doneTodos' } as const, [])
 
-// The live-state label: what `claude agents` says, as a colored pill.
-const pill = (status: string | undefined) =>
+// Colours are the app's own theme keys, so the pane follows the person's
+// theme, light or dark, as the rest of Claude Code does.
+//
+// The live state: what `claude agents` says.
+const liveState = (status: string | undefined) =>
   status === 'busy'
-    ? { text: 'busy', bg: '#16a34a' }
+    ? { text: 'busy', color: 'success' }
     : status === 'idle'
-      ? { text: 'idle', bg: '#d97706' }
-      : { text: status ?? 'not running', bg: '#6b7280' }
+      ? { text: 'idle', color: 'warning' }
+      : { text: status ?? 'not running', color: 'inactive' }
 
+// The status the head chef wrote on the card.
 const MARK = new Map<Card['status'], { mark: string; color: string }>([
-  ['needs-you', { mark: '●', color: '#f59e0b' }],
-  ['working', { mark: '◐', color: '#3b82f6' }],
-  ['done', { mark: '✓', color: '#22c55e' }],
-  ['stopped', { mark: '○', color: '#9ca3af' }],
+  ['needs-you', { mark: '●', color: 'warning' }],
+  ['working', { mark: '◐', color: 'suggestion' }],
+  ['done', { mark: '✓', color: 'success' }],
+  ['stopped', { mark: '○', color: 'inactive' }],
 ])
 
 // A button's key: the verb, the card's place, and its title folded to letters
@@ -294,92 +298,104 @@ export const register: Register = on => {
     const needsYou = shown.filter(({ c }) => c.status === 'needs-you')
     const open = todos.map((t, i) => ({ t, i })).filter(({ t }) => !ticked.has(t.id))
 
+    // One card: the status mark, the title and its live state on one line,
+    // then the work and settings, the phase and the latest report, each cut
+    // to the pane's width rather than wrapped.
     const card = ({ c, i }: { c: Card; i: number }) => {
-      const mark = MARK.get(c.status) ?? { mark: '?', color: '#9ca3af' }
-      const state = pill(running.get(c.title))
+      const mark = MARK.get(c.status) ?? { mark: '?', color: 'inactive' }
+      const state = liveState(running.get(c.title))
       const report = last(c.title)
+      const closed = c.status === 'done' || c.status === 'stopped'
       return (
-        <Box flexDirection="column" marginBottom={2}>
-          <Box flexDirection="row" columnGap={1} marginBottom={1}>
+        <Box flexDirection="column" marginBottom={1}>
+          <Box flexDirection="row" columnGap={1}>
             <Text color={mark.color}>{mark.mark}</Text>
-            <Text bold>{oneLine(c.title, 80)}</Text>
-            <Text color="#ffffff" backgroundColor={state.bg}>{` ${state.text} `}</Text>
-            {appLink(c, found.get(c.title)) !== undefined && (
-              <Button key={keyFor('open', i, c.title)} variant="secondary" onPress={noop}>
-                Open in app
-              </Button>
-            )}
-          </Box>
-          <Text dimColor>
-            {oneLine(c.work, 160)} · {oneLine(c.settings, 80)}
-          </Text>
-          <Text>{oneLine(c.phase, 160)}</Text>
-          {report !== undefined && (
-            <Text dimColor wrap="truncate-end">
-              {report.at} ↳ {report.line}
+            <Text bold wrap="truncate-end">
+              {oneLine(c.title, 80)}
             </Text>
-          )}
-          {(c.status === 'done' || c.status === 'stopped') && (
-            <Box flexDirection="row" columnGap={1} marginTop={1}>
-              <Text dimColor>Archive it in the sidebar, then </Text>
-              <Button key={keyFor('dismiss', i, c.title)} variant="secondary" onPress={noop}>
-                Dismiss
-              </Button>
-            </Box>
-          )}
+            <Text color={state.color}>{state.text}</Text>
+          </Box>
+          <Box flexDirection="column" marginLeft={2}>
+            <Text dimColor wrap="truncate-end">
+              {oneLine(c.work, 160)} · {oneLine(c.settings, 80)}
+            </Text>
+            <Text wrap="truncate-end">{oneLine(c.phase, 160)}</Text>
+            {report !== undefined && (
+              <Text dimColor wrap="truncate-end">
+                {report.at} ↳ {report.line}
+              </Text>
+            )}
+            {(appLink(c, found.get(c.title)) !== undefined || closed) && (
+              <Box flexDirection="row" columnGap={2}>
+                {appLink(c, found.get(c.title)) !== undefined && (
+                  <Button key={keyFor('open', i, c.title)} onPress={noop}>
+                    Open in app
+                  </Button>
+                )}
+                {closed && (
+                  <Button key={keyFor('dismiss', i, c.title)} dimColor onPress={noop}>
+                    Dismiss
+                  </Button>
+                )}
+              </Box>
+            )}
+            {closed && <Text dimColor>Archive it in the sidebar when you are done with it.</Text>}
+          </Box>
         </Box>
       )
     }
 
     return (
       <Box flexDirection="column">
-        <Text dimColor wrap="truncate-end">
-          {paths.current === '' ? 'Roster: not named yet' : `Roster: ${paths.current}`}
-        </Text>
-        {paths.previous !== '' && (
-          <Text dimColor wrap="truncate-end">
-            Before a clear or a resume: {paths.previous}
+        <Box flexDirection="row" columnGap={1}>
+          <Text dimColor>Roster</Text>
+          <Text dimColor wrap="truncate-start">
+            {paths.current === '' ? 'not named yet' : paths.current}
           </Text>
-        )}
-        {error !== '' && <Text color="#ef4444">{error}</Text>}
-        {pollError !== '' && <Text color="#ef4444">{pollError}</Text>}
-        <Box flexDirection="column" marginTop={1} marginBottom={2}>
-          <Text bold>
-            ▾ Waiting on you <Text dimColor>· {needsYou.length + open.length}</Text>
-          </Text>
-          <Box flexDirection="column" marginLeft={2} marginTop={1} rowGap={1}>
-            {needsYou.map(({ c, i }) => (
-              <Box flexDirection="row" columnGap={1}>
-                <Text color="#f59e0b">●</Text>
-                <Text>
-                  {oneLine(c.title, 80)}: {oneLine(c.phase, 120)}
-                </Text>
-              </Box>
-            ))}
-            {open.map(({ t, i }) => (
-              <Box flexDirection="row" columnGap={1}>
-                <Button key={keyFor('todo', i, t.id)} plain dimColor onPress={noop}>
-                  ☐
-                </Button>
-                <Text>{oneLine(t.text, 160)}</Text>
-                {t.session !== undefined && cards.some(c => c.title === t.session && appLink(c, found.get(c.title)) !== undefined) && (
-                  <Button key={keyFor('go', i, t.id)} variant="secondary" onPress={noop}>
-                    Open in app
-                  </Button>
-                )}
-              </Box>
-            ))}
-            {needsYou.length + open.length === 0 && <Text dimColor>Nothing.</Text>}
-          </Box>
         </Box>
-        <Box flexDirection="column" marginBottom={2}>
-          <Text bold>
-            ▾ Sessions <Text dimColor>· {shown.length}</Text>
-          </Text>
-          <Box flexDirection="column" marginLeft={2} marginTop={1}>
-            {shown.map(card)}
-            {shown.length === 0 && error === '' && <Text dimColor>No cards in the roster yet.</Text>}
+        {paths.previous !== '' && (
+          <Box flexDirection="row" columnGap={1}>
+            <Text dimColor>Before</Text>
+            <Text dimColor wrap="truncate-start">
+              {paths.previous}
+            </Text>
           </Box>
+        )}
+        {error !== '' && <Text color="error">{error}</Text>}
+        {pollError !== '' && <Text color="error">{pollError}</Text>}
+        <Box flexDirection="column" marginTop={1} marginBottom={1}>
+          <Text bold>
+            Waiting on you <Text dimColor>{needsYou.length + open.length}</Text>
+          </Text>
+          {needsYou.map(({ c }) => (
+            <Box flexDirection="row" columnGap={1}>
+              <Text color="warning">●</Text>
+              <Text wrap="truncate-end">
+                {oneLine(c.title, 80)}: {oneLine(c.phase, 120)}
+              </Text>
+            </Box>
+          ))}
+          {open.map(({ t, i }) => (
+            <Box flexDirection="row" columnGap={1}>
+              <Button key={keyFor('todo', i, t.id)} plain dimColor onPress={noop}>
+                ☐
+              </Button>
+              <Text wrap="truncate-end">{oneLine(t.text, 160)}</Text>
+              {t.session !== undefined && cards.some(c => c.title === t.session && appLink(c, found.get(c.title)) !== undefined) && (
+                <Button key={keyFor('go', i, t.id)} onPress={noop}>
+                  Open in app
+                </Button>
+              )}
+            </Box>
+          ))}
+          {needsYou.length + open.length === 0 && <Text dimColor>Nothing waits on you.</Text>}
+        </Box>
+        <Box flexDirection="column">
+          <Text bold>
+            Sessions <Text dimColor>{shown.length}</Text>
+          </Text>
+          {shown.map(card)}
+          {shown.length === 0 && error === '' && <Text dimColor>No cards in the roster yet.</Text>}
         </Box>
         {inbox.length === 0 && <Text dimColor>No reports since the pane opened.</Text>}
       </Box>
