@@ -1,6 +1,6 @@
 # Contract: eagle-eye
 
-Version: 0.1.2
+Version: 0.2.0
 
 - **Type:** skill
 - **Level:** Thorough
@@ -67,7 +67,7 @@ Version: 0.1.2
 | When eagle-eye fires on its own, not by name: say how many coupled decisions it sees, and ask before it builds a box or opens a page. Build nothing until the person says yes. | Promised | **Decided, 2026-09-30** (replaces the baseline's "say it, then build") |
 | When the model audit could run: run a dry run, state the four facts (it is available; what it sends and to whom; how many requests of what size; the person's key pays), then wait for a yes in chat. | Promised | **Confirmed** |
 | When the person pastes a restore code from the page: say the set back in words, and change the box only with what they confirm. | Promised | **Confirmed** |
-| When no usage log exists: ask once whether it may keep one line per use, name the path and the `EAGLE_EYE_LOG` variable that changes it, and say why. Write no use line until the person says yes in chat. On a no, write only the declined marker. | Promised | *Proposed* (derived from questions 6 and 13; reconciled 2026-09-30 with question 13's declined marker, Decided) |
+| When no usage log exists: ask once whether it may keep a usage log (a consent marker, then a start and an end line per box), name the path and the `EAGLE_EYE_LOG` variable that changes it, and say why. Write nothing to the log until the person says yes in chat. On a yes, write the consent marker at once. On a no, write only the declined marker. | Promised | **Decided, 2026-10-04** (issue 188 added the consent marker; derived from questions 6 and 13) |
 | When eagle-eye is asked for by name and the discussion does not already show which set the person leans to: ask, in one line, which way they lean right now, and wait for that line before building. | Promised | **Decided, 2026-09-30** (option B, after the end-to-end run asked it only after showing the box) |
 
 **What makes it fire.** **Decided, 2026-09-30.**
@@ -104,6 +104,7 @@ Extra keys: none.
 | 0.1.0 | 2026-09-30 | The familiar is built at `skills/eagle-eye/`, with this contract beside it; the practice test moves to `docs/practice-tests/eagle-eye.md`. | The owner's decision: the skill already ships from `skills/`, and the repository keeps practice tests in `docs/practice-tests/`. | 12 |
 | 0.1.1 | 2026-09-30 | No clause changed. The generated file is brought back to the contract in two places: a use line is only appended to the log, never written back whole (question 13 says it appends), and the 2–3 decision table stays in chat, with no box file, page, export or audit run (question 3's depth rule). | Review of pull request 153: read-and-write-back can lose a line when two sessions write at once, and the procedure sent the chat-table route through the file steps. | 3, 13 |
 | 0.1.2 | 2026-10-01 | No clause changed. The practice test runs on the clean baseline: each session in its own run through the repository's practice runner, which loads only the skill under test and what the tool ships. Its setup drops the steps that moved the installed copies out and switched off MCP servers and plugins. `EAGLE_EYE_LOG` points inside the run's work folder, the audit endpoint points at a closed loopback port, and session 4 uses a literal fake key and runs only on the `clean` and `owner-pact` variants. The test lists its tool rules, the usage record's shell reads and append among them, and the denials it expects. P4 is checkable when the session writes the usage record's commands one per call. No expected answer changes. No section of `SKILL.md` changes: question 12 here is this skill's own test. | The owner: a practice test runs in a sandbox with no possible conflicts, and conflicts are added back on purpose, one named variant at a time (issue 161, ADR 0007). A changed procedure is a new version. | 12 |
+| 0.2.0 | 2026-10-04 | The yes to the usage log is stored at once as a consent marker, and the later of two markers holds. A built box writes a start line and an end line with one key. An open box is asked about at the next use; on a no it gets an "unanswered" end line, and a fourth signal counts those. The default log moves to `.grimoire/eagle-eye/log.jsonl`, and the earlier default is ignored. Practice cases P5 to P9 are added and not run, and P4's expected answer says "a usage log" instead of "one line per use". | Issue 188: parallel sessions each asked the log question, because a yes was stored only with the first use line at a debrief, and a dropped box wrote nothing. The owner chose the set in an eagle-eye box on 2026-10-04. | 3, 6, 12, 13 |
 
 ---
 
@@ -130,7 +131,7 @@ Extra keys: none.
 
 ## 12. Practice test
 
-**Confirmed, 2026-09-30** (the 16-session plan, at checkpoint 2). In its own file, outside the skill's folder: `docs/practice-tests/eagle-eye.md`. 3 step-in cases, 3 stay-quiet cases, 4 cases for the Promised stops, 1 problem and 1 decoy. Run 1: all 8 sessions. Runs 2 and 3: only the 4 sessions where luck matters most. 16 sessions in all. Any false alarm fails the run. Written before any run. Not sealed. Each session runs on the clean baseline, through the repository's practice runner (`docs/practice-tests/procedure.md`), since 0.1.2.
+**Confirmed, 2026-09-30** (the 16-session plan, at checkpoint 2). In its own file, outside the skill's folder: `docs/practice-tests/eagle-eye.md`. 3 step-in cases, 3 stay-quiet cases, 4 cases for the Promised stops, 1 problem and 1 decoy. Run 1: all 8 sessions. Runs 2 and 3: only the 4 sessions where luck matters most. 16 sessions in all. Any false alarm fails the run. Written before any run. Not sealed. Each session runs on the clean baseline, through the repository's practice runner (`docs/practice-tests/procedure.md`), since 0.1.2. Version 0.2.0 adds usage-record cases P5 to P9, in sessions 9 and 10. They are written before any run, and the owner decides when to run them.
 
 **Deviation from Thorough.** The template asks for 3 full runs. The owner cut it for token cost ("42 sessions is a lot… this is definitely gonna hurt my limits"). Two problem cases were dropped because the renderer already flags them (hidden chain, missing strawman); two look-alike quiet cases were merged.
 
@@ -153,16 +154,18 @@ Row names and short names in chat, never ids; ids only in the box file and the r
 - **Cries wolf:** the person turns down its offer to build a box.
 - **Rubber stamp:** the person accepts the chosen set without changing a row.
 - **Nothing changes:** the decision after the box is the one the person held before it.
+- **Goes unanswered:** the person asked for a box, or accepted the offer, and never answered it. **Decided, 2026-10-04** (issue 188).
 
 Why a review and not a cut: in the clinical-alert evidence, the share of appropriate overrides ranged from 12% to 92% by alert, and unchanged acceptance and an unchanged decision are also what good advice produces (`157-sweep-self-improving-skills.md`, implications 1–2).
 
 **How its record is kept.** **Confirmed, 2026-09-30** (the owner: "your recommendation looks good").
 
-- **What it records:** one line per use: whether the box was offered or invoked by name, declined or built, whether any row changed, and the person's answer before the box beside the decision after it.
-- **Where:** the path in the `EAGLE_EYE_LOG` environment variable; otherwise a default in the person's home folder. Never inside the skill's folder, because the seal covers that folder.
-- **Consent:** when no log exists, it asks once, and says why: to check that it fires when needed and to tell the person when it should be retired. On a no, it writes one "declined" marker at the log path and never asks again, and records no use. **Decided, 2026-09-30** (picked after the build check, finding F5). It appends only to a file that already holds eagle-eye lines; any other file at the path is left alone, and it asks.
-- **When it cannot keep a record** (a declined marker, or a place that will not last, such as a temporary cloud session): it writes no use line, and the debrief states the before and after in chat.
-- **Review:** at 10 recorded uses, and every 10 after, it reports the three counts to the person. It proposes; it changes nothing by itself. Each proposal becomes a change-log row. *Proposed.*
+- **What it records:** one finished use per box: whether the box was offered or invoked by name, declined, built or left unanswered, whether any row changed, and the person's answer before the box beside the decision after it. A built box writes a start line when it is first shown, and an end line with the same key at the debrief. A declined offer writes one line. **Decided, 2026-10-04** (issue 188).
+- **Where:** the file named by the `EAGLE_EYE_LOG` environment variable; otherwise `.grimoire/eagle-eye/log.jsonl` in the person's home folder. A log at the earlier default, `.eagle-eye/log.jsonl`, is ignored: never read, moved or deleted. Never inside the skill's folder, because the seal covers that folder. **Decided, 2026-10-04** (issue 188: the owner will keep other logs under `.grimoire/`; the consent question names only what is built today).
+- **Consent:** when no log exists, it asks once, and says why: to check that it fires when needed and to tell the person when it should be retired. On a no, it writes one "declined" marker at the log path and never asks again, and records no use. **Decided, 2026-09-30** (picked after the build check, finding F5). On a yes, it writes one consent marker at once, so a parallel session sees the yes before any use ends. When two sessions asked at once and the log holds both markers, the later line holds. **Decided, 2026-10-04** (issue 188). It appends only to a file that already holds eagle-eye lines; any other file at the path is left alone, and it asks.
+- **Unanswered boxes:** a start line with no end line is an open box. At the next use, it asks the person whether each open box is still open. On a no, it appends an end line with the outcome "unanswered". On a yes, or no answer, it writes nothing. **Decided, 2026-10-04** (issue 188: a box asked for and never answered is a signal, and with parallel sessions an open box can still be live).
+- **When it cannot keep a record** (the latest marker is the declined marker, or a place that will not last, such as a temporary cloud session): it writes no line of any kind, and the debrief states the before and after in chat.
+- **Review:** at 10 recorded uses, and every 10 after, it reports the four counts to the person. It proposes; it changes nothing by itself. Each proposal becomes a change-log row. *Proposed;* the fourth count is **Decided, 2026-10-04** (issue 188).
 
 **Confirmed, 2026-09-30:** the offer names the default path **and** the variable that changes it, because the owner expects few people to know the variable exists ("They probably won't know it exists").
 
@@ -194,7 +197,7 @@ The owner's answer, given before any draft (**Decided, 2026-09-30**): "The bigge
 | Page | Only the chosen set shown | At least two presets, one changing an option; the brief first | The renderer refuses fewer than two presets |
 | Findings in chat | Findings listed by id, no problem stated | Opens with the problem in plain words; names rows and short names | Writing rule (question 15) |
 | Debrief | Skipped, or a summary of the box | Which weakness patterns appeared, what got stronger, one thing to watch | Promised (untested) |
-| Usage record | — | One line per use with a reason (question 13) | untested |
+| Usage record | — | A consent marker, then a start and an end line per box, with a reason (question 13) | untested |
 
 ## 18. Every rule has a reason
 

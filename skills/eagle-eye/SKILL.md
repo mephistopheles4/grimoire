@@ -2,9 +2,9 @@
 name: eagle-eye
 description: Steps in when a discussion holds three or more open decisions and at least two of them are coupled, so that one choice changes what is possible in another, or when someone asks for it by name (/eagle-eye, an eagle-eye view, or a morphological box). Stays out when the person insists on the quick route, and for two independent choices.
 metadata:
-  contract-version: 0.1.2
-  familiar-digest: "sha256:b52f4dc0cb481dcf288c24054da66479975eeb5ab356418a08cb60c7e6872814"
-  contract-digest: "sha256:8685f6f1c487aa29ba6f196d8f64925740da53ef9097dc2773931da50f8f92dd"
+  contract-version: 0.2.0
+  familiar-digest: "sha256:4f62320b721291a59b9d84c5d832cd46c5befceabd7bcba2c7798e1c3cf8f3e7"
+  contract-digest: "sha256:25fad3348ea6e676482701b2f4761d696fd67dbfabcf62cbcffc6f9711e5a845"
 ---
 
 # Eagle-eye
@@ -73,7 +73,7 @@ Stop and wait for the person at each of these five moments:
 - When eagle-eye fires on its own, not by name: say how many coupled decisions it sees, and ask before it builds a box or opens a page. Build nothing until the person says yes.
 - When the model audit could run: run a dry run, state the four facts (it is available; what it sends and to whom; how many requests of what size; the person's key pays), then wait for a yes in chat.
 - When the person pastes a restore code from the page: say the set back in words, and change the box only with what they confirm.
-- When no usage log exists: ask once whether it may keep one line per use, name the path and the `EAGLE_EYE_LOG` variable that changes it, and say why. Write no use line until the person says yes in chat. On a no, write only the declined marker.
+- When no usage log exists: ask once whether it may keep a usage log (a consent marker, then a start and an end line per box), name the path and the `EAGLE_EYE_LOG` variable that changes it, and say why. Write nothing to the log until the person says yes in chat. On a yes, write the consent marker at once. On a no, write only the declined marker.
 - When eagle-eye is asked for by name and the discussion does not already show which set the person leans to: ask, in one line, which way they lean right now, and wait for that line before building.
 
 For the first stop, say it in one line: *"I see N decisions, and M of them are
@@ -103,8 +103,9 @@ the optional `audit.mjs`, and the system's command that opens a browser.
 
 **Actions beyond its own notes.** Two, and each waits for the person's yes in
 chat: the audit, which sends the box's text to a model provider and charges
-the person's key; and the usage log, one line per use outside the skill's
-folder (on a no, one declined marker). A box goes into the project's decision
+the person's key; and the usage log outside the skill's folder (on a yes, a
+consent marker, then a start and an end line per use; on a no, one declined
+marker). A box goes into the project's decision
 records only when the person asks.
 
 ## Depth follows the number of decisions (questions 3, 19)
@@ -143,8 +144,8 @@ strawman, or an edge with no reason: name the gap. Do not fill it with a guess.
 lean to now, in one line. Take it from the discussion, or ask it in the offer.
 By name, when the discussion does not show it, ask in one line and wait for
 that line (the fifth stop). Show no box, table or recommendation before it.
-If they state no leaning, record "not stated". The usage record and the
-debrief compare it with the decision.
+If they state no leaning, record "not stated". The debrief compares it with
+the decision. Ask about open boxes (Usage record) before the leaning.
 
 1. **Brief.** Write the `problem`: what this box decides, for a reader who
    does not know the domain. Add `who` and `when` if you can. See
@@ -196,7 +197,9 @@ debrief compare it with the decision.
 6. **Presets.** Write at least two, and make at least one of them change an
    option. See [Presets](#presets-questions-4-17).
 7. **Render and read.** With 2–3 decisions, give the table and its edges in
-   chat, and go on to step 9: no file, no page. With 4 or more, write
+   chat, and go on to step 9: no file, no page. On either route, append the
+   start line once the table or page is shown, when a log is kept. See
+   [Usage record](#usage-record-questions-6-13). With 4 or more, write
    `<topic>.box.json` to a **scratch directory**:
    the temporary path your tool reports, or the system temporary directory.
    See [Where a box lives](#where-a-box-lives-questions-3-4-11).
@@ -248,7 +251,7 @@ debrief compare it with the decision.
 
    Say it in words, never in ids. When no usage record is kept, also state
    the person's answer before the box beside the decision after it.
-10. **Usage record.** Write the line for this use. See
+10. **Usage record.** Write the end line for this use. See
     [Usage record](#usage-record-questions-6-13).
 
 ## The seven findings (questions 4, 16, 18)
@@ -391,23 +394,22 @@ the debrief.
 
 ## Usage record (questions 6, 13)
 
-Eagle-eye keeps one line per use, so that the person can check that it fires
-when it is needed, and can tell when it should be retired.
+Eagle-eye keeps one record per use, so that the person can check that it
+fires when it is needed, and can tell when it should be retired.
 
-**Where.** The path in the `EAGLE_EYE_LOG` environment variable. With no
-variable set, `~/.eagle-eye/log.jsonl` in the person's home folder. Never inside
-the skill's folder, because the seal covers that folder. Read the variable
-with a shell. With none set, get the home folder from the shell and build the
-absolute path: file tools do not expand `~`.
+**Where.** The file in `EAGLE_EYE_LOG`, read with a shell. With none set,
+`~/.grimoire/eagle-eye/log.jsonl`: get the home folder from the shell, since
+file tools do not expand `~`. Never the skill's folder, which the seal covers.
+Never read, move or delete the earlier default, `~/.eagle-eye/log.jsonl`.
 
 **Read the path before you write.** Read it with your file tool or a shell; a
 "not found" error means no file.
 
 - **No file:** ask (the fourth stop), unless the person said yes in this
   conversation.
-- **A file whose every line is an eagle-eye line** (a use line, or the
-  declined marker): it is the log. With the declined marker, never ask again
-  and write no use line.
+- **A file whose every line is an eagle-eye line** (a use line, a start line,
+  a consent marker or a declined marker): it is the log. When the last marker
+  in it is the declined marker, never ask again and write nothing.
 - **Anything else:** leave the file alone. Tell the person what is there, and
   ask where to keep the log.
 
@@ -418,26 +420,25 @@ absolute path: file tools do not expand `~`.
 **Consent.** Ask once: at the first build or render, or when the person
 declines the offer. Name the path and `EAGLE_EYE_LOG` (most people do not know
 the variable exists). Say why: to check that it fires when needed, and to tell
-the person when it should be retired. On a no, write one declined marker at
-the path, and never ask again. On a yes, create no empty file: the folder and
-the file come into being with the first use line.
+the person when it should be retired. Name no other use. On a no, write one
+declined marker, and never ask again. **On a yes, append one consent marker at
+once,** so other sessions see it. When both markers are there, the later holds.
 
-**No record** (a declined marker, or a place that will not last, such as a
-temporary cloud session or a CI run): write no use line, and state the before
-and after in the debrief.
+**No record** (the latest marker is a no, or a place that will not last, such
+as a cloud session or a CI run): write no line of any kind, and state the
+before and after in the debrief.
 
-**What each line holds.** One JSON object per line: whether it was offered or
-asked for by name, declined or built, whether any row changed, the person's
-answer before the box beside the decision after it, and a one-line reason.
-Write it when the person declines the offer, or after the debrief. **Keep
-every line already there:** append the new line with a shell. Never replace
-the file: two sessions that write at once would lose a line. The fields, the
-marker and the commands are in `reference/usage-record.md`.
+**Lines.** A built box writes a **start line** when first shown and an **end
+line** with the same key after the debrief; a declined offer writes one line.
+**Append with a shell; never replace the file,** or parallel writes lose a
+line. A start line with no end line is an **open box**, maybe live elsewhere: at
+a use's start, while a log is kept, ask if each is still open; on a no
+append its end line as "unanswered". Detail: `reference/usage-record.md`.
 
-**Review.** Count three signals, each on its own, over the last 10 lines:
-**cries wolf**, **rubber stamp** and **nothing changes** (defined in
-`reference/usage-record.md`). When any one reaches 5 of the last 10, ask the
-person for a review. At 10 lines, and every 10 after, report the counts.
+**Review.** Count four signals, each on its own, over the last 10 finished
+uses (not start lines or markers): **cries wolf**, **rubber stamp**,
+**nothing changes** and **goes unanswered**. When any one reaches 5 of the
+last 10, ask the person for a review. At 10 uses, and every 10 after, report.
 
 > **Warning: the record proposes, and changes nothing by itself.** Never cut,
 > retune or edit the skill because of a count. Only the person's review can

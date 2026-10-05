@@ -9,8 +9,8 @@
 # optional edge audit that sends a box's text to a model provider, but only
 # when you run it with a key and say yes. E1 names that transmission, and LP3
 # names that the skill declares no permission list. It also keeps a usage log,
-# one line per use in a file in your home folder, across sessions, but only
-# after you say yes. RA2 names that persistence. Read those three reasons
+# a few lines per use (a start and an end line per box) in a file in your home
+# folder, across sessions, but only after you say yes. RA2 names that persistence. Read those three reasons
 # before you install.
 #
 # Which of the nine fire on any given scan depends on the prose, and the prose
@@ -50,7 +50,7 @@ rules:
   - rule_id: "MP3"
     reason: "False positive. A comment in the page template describing how Reset discards the reader's overrides and Undo offers them back. It documents a button, not an agent's memory."
   - rule_id: "RA2"
-    reason: "Two findings, one rule. False positive: the CONTRIBUTING.md rule forbidding a fixed path inside a skill, and the test proving that rule fires; a guard and its test, both reported as the risk they exist to prevent. Not a false positive, and accepted: eagle-eye's usage log keeps one line per use in a file in the person's home folder, across sessions, and only after the person says yes in chat. A no is stored as one declined marker. The skill never writes inside its own folder."
+    reason: "Two findings, one rule. False positive: the CONTRIBUTING.md rule forbidding a fixed path inside a skill, and the test proving that rule fires; a guard and its test, both reported as the risk they exist to prevent. Not a false positive, and accepted: eagle-eye's usage log keeps a start and an end line per box in a file in the person's home folder, across sessions, and only after the person says yes in chat. A no is stored as one declined marker. The skill never writes inside its own folder."
   - rule_id: "PE3"
     reason: "False positive. The string .env in the edge audit's setup message and in its test, which tell a user that a project .env file is not read. The script reads its key from the environment only and opens no credential file."
   - rule_id: "E1"
