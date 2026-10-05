@@ -25,6 +25,13 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { root, run } from './helpers.mjs';
 
+// The engine writes its own type declarations into .claude-plugin/types/ at
+// every load of the mod from a checkout. They are ignored, not this tree's, and
+// left out of every copy: a test that removes .gitignore would otherwise walk
+// them and fail on the engine's imports, in any checkout the mod has loaded
+// from.
+export const notEngineTypes = src => !/[\\/]\.claude-plugin[\\/]types(?:[\\/]|$)/.test(src);
+
 export const work = mkdtempSync(join(tmpdir(), 'grimoire-check-'));
 
 after(() => rmSync(work, { recursive: true, force: true }));
@@ -41,12 +48,11 @@ export function tree() {
   const dir = join(work, `case-${n++}`);
   mkdirSync(dir);
   for (const part of ['scripts', 'skills', '.claude-plugin']) {
-    cpSync(join(root, part), join(dir, part), { recursive: true });
+    cpSync(join(root, part), join(dir, part), { recursive: true, filter: notEngineTypes });
   }
   // The mod's folders travel too, when the tree has them: plugin.json names
-  // the mod's hooks file and contract, and the check fails a pointer to a file
-  // that is not there. The engine's generated types under .claude-plugin/ are
-  // excluded by .gitignore, so the walk skips them in the copy as here.
+  // the mod's contract and hooks/hooks.json names its module, and the check
+  // fails a pointer to a file that is not there.
   for (const part of ['brigade', 'hooks']) {
     if (existsSync(join(root, part))) cpSync(join(root, part), join(dir, part), { recursive: true });
   }

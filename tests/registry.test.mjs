@@ -24,12 +24,16 @@ after(() => rmSync(work, { recursive: true, force: true }));
 
 let n = 0;
 
+// The engine's own type declarations, written into .claude-plugin/types/ at
+// every load of the mod from a checkout: ignored, and never copied.
+const notEngineTypes = src => !/[\\/]\.claude-plugin[\\/]types(?:[\\/]|$)/.test(src);
+
 /** Everything both root scripts read: the scripts, the skills, the manifests. */
 function tree() {
   const dir = join(work, `case-${n++}`);
   mkdirSync(dir);
   for (const part of ['scripts', 'skills', '.claude-plugin']) {
-    cpSync(join(root, part), join(dir, part), { recursive: true });
+    cpSync(join(root, part), join(dir, part), { recursive: true, filter: notEngineTypes });
   }
   // The mod's folders, which plugin.json and hooks/hooks.json point into; the
   // check fails a pointer to a file that is not there.

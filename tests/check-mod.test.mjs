@@ -9,6 +9,8 @@
 
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { rmSync } from 'node:fs';
+import { join } from 'node:path';
 import { tree, manifest, readJson, writeJson, assertPasses, assertFails, modFile, importLine } from './check-fixture.mjs';
 
 // A small mod of the layout the plugin ships, which is the one the mods
@@ -72,7 +74,9 @@ test('a manifest "hooks" key naming a hooks file inside the mod passes', () => {
 });
 
 test('a manifest "hooks" list is read entry by entry', () => {
-  const dir = withMod(tree(), { hooks: ['./brigade/hooks.json', './lib/hooks.json'] });
+  // The outside entry comes first, so a check that read only the last one
+  // would pass this.
+  const dir = withMod(tree(), { hooks: ['./lib/hooks.json', './brigade/hooks.json'] });
   modFile(dir, 'brigade/hooks.json', '{ "modules": ["./register.tsx"] }\n');
   modFile(dir, 'lib/hooks.json', '{ "modules": [] }\n');
   assertFails(dir, /plugin\.json "hooks" names "\.\/lib\/hooks\.json", which is lib\/hooks\.json — outside the mod's folders/);
@@ -119,4 +123,62 @@ test('a relative import between the two mod folders passes', () => {
   modFile(dir, 'hooks/shared.ts', 'export const x = 1;\n');
   const r = assertPasses(dir);
   assert.doesNotMatch(r.stderr, /outside the mod's folders/);
+});
+
+test('a manifest-named hooks file inside the mod has its modules read too', () => {
+  const dir = withMod(tree(), { hooks: './brigade/hooks.json' });
+  modFile(dir, 'brigade/hooks.json', '{ "modules": ["../lib/m.tsx"] }\n');
+  modFile(dir, 'lib/m.tsx', 'export const register = () => {};\n');
+  assertFails(dir, /brigade\/hooks\.json names the module "\.\.\/lib\/m\.tsx", which is lib\/m\.tsx — outside the mod's folders/);
+});
+
+test('a hooks file that is JSON but not an object fails', () => {
+  const dir = withMod(tree());
+  modFile(dir, 'hooks/hooks.json', '["../brigade/register.tsx"]\n');
+  assertFails(dir, /hooks\/hooks\.json is not a JSON object with a "modules" list/);
+});
+
+test('a "modules" value that is not a list of paths fails', () => {
+  const dir = withMod(tree());
+  modFile(dir, 'hooks/hooks.json', '{ "modules": "../brigade/register.tsx" }\n');
+  assertFails(dir, /hooks\/hooks\.json "modules" is not a list of paths/);
+});
+
+test('a manifest "types" value that is not a path fails', () => {
+  const dir = withMod(tree(), { types: ['./brigade/types/index.d.ts'] });
+  assertFails(dir, /plugin\.json "types" is not a path/);
+});
+
+test('a relative import that climbs out of the repository fails', () => {
+  const dir = withMod(tree());
+  modFile(dir, 'brigade/register.tsx', importLine('{ x }', '../../elsewhere/m.ts'));
+  assertFails(dir, /brigade\/register\.tsx:1 imports "\.\.\/\.\.\/elsewhere\/m\.ts", a path out of the repository/);
+});
+
+// Three ways to write an import that the line patterns of the dependency rule
+// do not read. Each loads in the engine, so each is held all the same.
+const q = "'";
+for (const [name, text, line] of [
+  ['behind a comment', `/* x */ import { y } from ${q}../scripts/lib/tree.mjs${q};\n`, 1],
+  ['with its path on the next line', `import { y } from\n  ${q}../scripts/lib/tree.mjs${q};\n`, 2],
+  ['after a semicolon', `;import { y } from ${q}../scripts/lib/tree.mjs${q};\n`, 1],
+]) {
+  test(`a relative import out of the mod ${name} fails`, () => {
+    const dir = withMod(tree());
+    modFile(dir, 'brigade/extra.ts', text);
+    assertFails(dir, new RegExp(`brigade/extra\\.ts:${line} imports "\\.\\./scripts/lib/tree\\.mjs", which is scripts/lib/tree\\.mjs — outside the mod's folders`));
+  });
+}
+
+test('an absolute import path in the mod fails', () => {
+  const dir = withMod(tree());
+  modFile(dir, 'brigade/extra.ts', importLine('{ y }', '/opt/lib/m.ts'));
+  assertFails(dir, /brigade\/extra\.ts:1 imports "\/opt\/lib\/m\.ts", an absolute path/);
+});
+
+test('a mod folder spelled in another case fails, because an install that folds case loads it', () => {
+  const dir = withMod(tree());
+  rmSync(join(dir, 'hooks'), { recursive: true, force: true });
+  modFile(dir, 'Hooks/hooks.json', '{ "modules": ["../lib/m.tsx"] }\n');
+  assertFails(dir, /Hooks\/ at the root is hooks\/ in another case/);
 });

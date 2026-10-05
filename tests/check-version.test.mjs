@@ -3,7 +3,7 @@
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { appendFileSync } from 'node:fs';
+import { appendFileSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { tree, readJson, writeJson, skillMd, fixtureMd, manifest, setVersion, assertPasses, assertFails, repo, baseMovesAhead, modFile } from './check-fixture.mjs';
 
@@ -28,8 +28,12 @@ test('the same skill change passes once the version moves', () => {
 test('a change to the mod with no version bump fails', () => {
   // The mod ships in the same plugin, so an edit to it reaches nobody until
   // the version moves, exactly as a skill edit does. The base has no mod
-  // folder at all, which is also the shape of the commit that first adds one.
+  // folder at all, which is also the shape of the commit that first adds one:
+  // the copy's own mod and the manifest's pointer into it are taken out first.
   const dir = tree();
+  for (const part of ['brigade', 'hooks']) rmSync(join(dir, part), { recursive: true, force: true });
+  const { types, ...rest } = readJson(manifest(dir));
+  writeJson(manifest(dir), rest);
   const git = repo(dir);
   modFile(dir, 'brigade/hooks/register.tsx', 'export const register = () => {};\n');
   git('add', '-A');
@@ -41,9 +45,10 @@ test('a change to the mod with no version bump fails', () => {
 test('a change to the hooks folder at the plugin root with no version bump fails', () => {
   const dir = tree();
   const git = repo(dir);
-  modFile(dir, 'hooks/hooks.json', '{ "modules": ["../brigade/hooks/register.tsx"] }\n');
+  // A new file there, so the tree changes and every pointer still lands.
+  modFile(dir, 'hooks/shared.ts', 'export const x = 1;\n');
   git('add', '-A');
-  git('commit', '-qm', 'point the engine at the mod');
+  git('commit', '-qm', 'add a file to the hooks folder');
   assertFails(dir, /1 skill or mod file\(s\) changed since origin\/main, but version is still/);
 });
 

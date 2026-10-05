@@ -599,14 +599,30 @@ if (plugin.types !== undefined) {
   if (typeof plugin.types !== 'string') fail(`.claude-plugin/plugin.json "types" is not a path`);
   else pointer('.claude-plugin/plugin.json "types" names', '', plugin.types);
 }
-// Relative imports from the mod: the same specifiers rule 6 reads, resolved
-// from the importing file. Only where they land is held here; whether the file
-// is there is the engine's to say, since an import may leave out the suffix.
+// Relative paths in the mod's code. Rule 6 reads import lines in the shapes
+// a formatter writes, which a hand can step round: a comment in front of the
+// keyword, the path on the next line, a semicolon first. So here every quoted
+// string in a mod code file that starts with `./` or `../` is resolved from
+// that file, on every line, comments included, and fails when it lands out of
+// the mod's folders. A string that is no import costs a false failure only if
+// it climbs out, which nothing in the mod has reason to write. Only where it
+// lands is held; whether the file is there is the engine's to say, since an
+// import may leave out the suffix.
+//
+// An absolute import path is refused in the mod too, on the lines rule 6
+// reads: no install route puts the plugin anywhere a fixed path could name,
+// so it can only reach code outside it.
+const RELATIVE = /(['"`])(\.{1,2}\/[^'"`\n]*)\1/g;
 for (const f of files.filter(f => CODE.test(f) && underMod(rel(f)))) {
   const src = rel(f);
   readFileSync(f, 'utf8')
     .split('\n')
     .forEach((line, i) => {
+      for (const m of line.matchAll(RELATIVE)) {
+        const at = landing(posix.dirname(src), m[2]);
+        if (at.why) fail(`${src}:${i + 1} imports "${m[2]}", ${at.why}`);
+        else if (!underMod(at.p)) fail(`${src}:${i + 1} imports "${m[2]}", which is ${at.p} — ${MOD_OUTSIDE}`);
+      }
       if (COMMENT.test(line)) return;
       const found = [];
       for (const re of [FROM, SIDE_EFFECT, WRAPPED]) {
@@ -614,12 +630,17 @@ for (const f of files.filter(f => CODE.test(f) && underMod(rel(f)))) {
         if (m) found.push(m[2]);
       }
       for (const re of CALLED) for (const m of line.matchAll(re)) found.push(m[2]);
-      for (const spec of found.filter(s => s.startsWith('.'))) {
-        const at = landing(posix.dirname(src), spec);
-        if (at.why) fail(`${src}:${i + 1} imports "${spec}", ${at.why}`);
-        else if (!underMod(at.p)) fail(`${src}:${i + 1} imports "${spec}", which is ${at.p} — ${MOD_OUTSIDE}`);
+      for (const spec of found.filter(s => /^(?:[\\/]|[A-Za-z]:)/.test(s))) {
+        fail(`${src}:${i + 1} imports "${spec}", an absolute path — no install route puts the plugin there`);
       }
     });
+}
+// A mod folder spelled in another case. The gate runs where case counts, and
+// an install on Windows or macOS folds it, so `Hooks/hooks.json` would load
+// there and be read by nothing here.
+for (const e of readdirSync(root, { withFileTypes: true })) {
+  const twin = MOD_DIRS.find(d => d.toLowerCase() === e.name.toLowerCase() && d !== e.name);
+  if (twin) fail(`${e.name}/ at the root is ${twin}/ in another case — an install that folds case loads it, and the check reads only ${twin}/. Rename it ${twin}/.`);
 }
 
 // 7. The SkillSpector baselines agree.

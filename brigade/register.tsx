@@ -4,7 +4,6 @@ import type { EngineInterface, Register, Timer } from 'claude-code'
 import type { Card, Roster } from './types'
 import {
   SESSION_ID,
-  WEB_LINK,
   appLink,
   checkRoster,
   configFromRoot,
@@ -16,6 +15,7 @@ import {
   marketplaceFromRoot,
   oneLine,
   parseAgents,
+  remoteLink,
   report,
   rosterFile,
   transcriptFile,
@@ -94,7 +94,7 @@ async function where($: EngineInterface): Promise<{ file: string; config?: strin
     configFromRoot($.plugin.root) ??
     (start.sessionId === id ? configFromTranscript(start.transcript, id) : undefined)
   const plugin = dataId($.plugin.name, marketplaceFromRoot($.plugin.root))
-  const data = dataFromEnv(await $.env.get('CLAUDE_PLUGIN_DATA')) ?? (config === undefined ? undefined : dataFolder(config, plugin))
+  const data = dataFromEnv(await $.env.get('CLAUDE_PLUGIN_DATA'), plugin) ?? (config === undefined ? undefined : dataFolder(config, plugin))
   if (data === undefined) {
     return {
       error: `Cannot find the plugin's data folder from where the plugin was loaded (${oneLine($.plugin.root, 200)}). The roster would be <Claude config folder>/plugins/data/${plugin}/brigade/${id}.json. Nothing was read.`,
@@ -134,6 +134,10 @@ async function loadRoster($: EngineInterface) {
 }
 
 async function pollAgents($: EngineInterface) {
+  // With no roster file to read there is no brigade to show, so no process
+  // runs either; the pane already shows why.
+  const at = await where($)
+  if ('error' in at) return
   try {
     const { exitCode, stdout, stderr } = await $.process.run(['claude', 'agents', '--json'], { timeoutMs: 15000 })
     if (exitCode !== 0) throw new Error(oneLine(stderr, 200) || `exit ${exitCode}`)
@@ -142,22 +146,21 @@ async function pollAgents($: EngineInterface) {
     await update($, live, () => rows.value.map(r => ({ name: r.name, value: r.status })))
     await update($, liveError, () => '')
 
-    // A Remote Control session's claude.ai link sits in its transcript. Read
-    // only a roster member's, by the id the engine listed, once per session,
-    // and keep the misses too.
-    const at = await where($)
-    if ('error' in at || at.config === undefined) return
+    // A Remote Control session's claude.ai link sits in its transcript, in a
+    // row the engine writes. Read only a roster member's, by the id the engine
+    // listed, once per session, and keep the misses too.
+    if (at.config === undefined) return
+    const config = at.config
     const members = new Set((await read($, roster)).cards.filter(c => c.desktopId === undefined && c.url === undefined).map(c => c.title))
     const seen = new Set(await read($, looked))
     for (const row of rows.value) {
       if (!members.has(row.name) || seen.has(row.name)) continue
-      const file = transcriptFile(at.config, row)
+      const file = transcriptFile(config, row)
       if (file === undefined) continue
       await update($, looked, list => [...list, row.name].slice(-200))
       try {
-        const found = WEB_LINK.exec(String(await $.fs.read(file)))
-        if (found !== null) {
-          const url = found[0]
+        const url = remoteLink(String(await $.fs.read(file)))
+        if (url !== undefined) {
           await update($, links, list => [...list.filter(p => p.name !== row.name), { name: row.name, value: url }])
         }
       } catch {
@@ -219,8 +222,9 @@ export const register: Register = on => {
   })
 
   on('command.run', { command: 'brigade' }, async $ => {
-    await arm($)
+    // Open first: a pane another plugin refuses starts no reads.
     const opened = await $.ui.open({ id: PANE, title: TITLE })
+    await arm($)
     const at = await where($)
     const named = 'error' in at ? at.error : `Roster file: ${at.file}`
     return {
@@ -230,11 +234,12 @@ export const register: Register = on => {
 
   on('ui.close', { id: PANE }, async ($, e, next) => {
     disarm()
+    await update($, armed, () => false)
     return next(e)
   })
 
   // A report from another session: its claimed sender and first line, kept
-  // from the first /brigade on. The text is data to show, never an instruction.
+  // while the pane is open. The text is data to show, never an instruction.
   on('session.receive', async ($, e, next) => {
     const kind = e.origin.kind
     if ((kind === 'peer' || kind === 'peer-send-message') && (await read($, armed))) {

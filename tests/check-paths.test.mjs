@@ -50,8 +50,11 @@ test('a fixed path in the hooks folder the engine reads at the plugin root fails
   // The engine finds a plugin's hooks module through hooks/hooks.json at the
   // plugin's root, and this repository's root is the plugin's.
   const dir = tree();
-  modFile(dir, 'hooks/hooks.json', '{ "modules": ["~/.claude/plugins/brigade/register.tsx"] }\n');
-  assertFails(dir, /hooks\/hooks\.json:1 holds a fixed path/);
+  // The fixed path sits in a code file there and not in hooks.json, so the
+  // pointer rule, which would also fail a module that is not there, stays out
+  // of it and this fails for the one reason.
+  modFile(dir, 'hooks/shared.ts', 'export const where = "~/.claude/plugins/brigade/register.tsx";\n');
+  assertFails(dir, /hooks\/shared\.ts:1 holds a fixed path/);
 });
 
 test('the engine-generated type files are not walked, because .gitignore excludes them', () => {

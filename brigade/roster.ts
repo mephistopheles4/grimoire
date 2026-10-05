@@ -20,10 +20,12 @@ const MAX_ID = 100
 // The engine's session ids, and so the roster files' names.
 export const SESSION_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 
-// C0 and C1 controls, and the characters that reorder or hide text: the bidi
-// embeddings, overrides and isolates, the marks, and the zero-width ones.
+// C0 and C1 controls, and the characters that reorder or hide text: every
+// default-ignorable code point (the zero-width ones, the variation selectors,
+// the tag block, the soft hyphen and the rest), and the bidi marks,
+// embeddings, overrides and isolates, some of which are not in that set.
 const CONTROL = /[\u{0}-\u{1F}\u{7F}-\u{9F}\u{2028}\u{2029}]/gu
-const HIDDEN = /[\u{61C}\u{200B}-\u{200F}\u{202A}-\u{202E}\u{2060}-\u{2069}\u{FEFF}]/gu
+const HIDDEN = /[\p{Default_Ignorable_Code_Point}\u{61C}\u{200E}\u{200F}\u{202A}-\u{202E}\u{2066}-\u{2069}]/gu
 const CONTROL_TEST = /[\u{0}-\u{1F}\u{7F}-\u{9F}]/u
 
 /** Text made safe to draw on one line: controls become spaces, hidden
@@ -118,8 +120,12 @@ export function checkRoster(raw: string): Checked<Roster> {
   for (const [i, v] of cards.entries()) {
     const c = card(i, v)
     if ('error' in c) return c
-    if (titles.has(c.value.title)) return { error: `card ${i + 1} repeats the title of an earlier card` }
-    titles.add(c.value.title)
+    // Compared as drawn, so two titles that differ only in a hidden
+    // character cannot pose as one card.
+    const drawn = oneLine(c.value.title, MAX_TITLE)
+    if (drawn === '') return { error: `card ${i + 1} title is empty once hidden characters go` }
+    if (titles.has(drawn)) return { error: `card ${i + 1} repeats the title of an earlier card` }
+    titles.add(drawn)
     out.cards.push(c.value)
   }
   const ids = new Set<string>()
@@ -166,12 +172,17 @@ export function dataFolder(config: string, id: string): string {
   return `${config}${sep}plugins${sep}data${sep}${id}`
 }
 
-/** `CLAUDE_PLUGIN_DATA` as the environment gives it, when it reads as an
- *  absolute folder; a mod's environment does not carry it on 2.1.289. */
-export function dataFromEnv(value: string | undefined): string | undefined {
+/** `CLAUDE_PLUGIN_DATA` as the environment gives it, when it reads as a local
+ *  absolute folder named for this plugin's own id. A mod's environment does
+ *  not carry it on 2.1.289, so a value here was inherited from whatever
+ *  started the session, such as another plugin's hook, and one naming
+ *  another plugin's folder, a network share or a climb is not used. */
+export function dataFromEnv(value: string | undefined, id: string): string | undefined {
   if (value === undefined || value.length > 1000 || CONTROL_TEST.test(value)) return undefined
   const trimmed = value.replace(/[\\/]+$/, '')
-  return /^(?:[A-Za-z]:[\\/]|\/)/.test(trimmed) && !/(?:^|[\\/])\.\.(?:[\\/]|$)/.test(trimmed) ? trimmed : undefined
+  if (/^[\\/]{2}/.test(trimmed) || !/^(?:[A-Za-z]:[\\/]|\/)/.test(trimmed)) return undefined
+  if (/(?:^|[\\/])\.\.(?:[\\/]|$)/.test(trimmed)) return undefined
+  return trimmed.split(/[\\/]/).pop() === id ? trimmed : undefined
 }
 
 /** The config folder above the engine's transcript path for this session:
@@ -224,8 +235,30 @@ export function transcriptFile(config: string, row: AgentRow): string | undefine
   return `${config}${sep}projects${sep}${row.cwd.replace(/[:\\/.]/g, '-')}${sep}${row.sessionId}.jsonl`
 }
 
-// A Remote Control session's link as its transcript carries it.
-export const WEB_LINK = /https:\/\/claude\.ai\/code\/session_[A-Za-z0-9]{1,80}/
+// A Remote Control session's link, whole.
+const WEB_LINK = /^https:\/\/claude\.ai\/code\/session_[A-Za-z0-9]{1,80}$/
+
+/** A Remote Control session's link from its transcript, or undefined: only
+ *  from a row the engine itself writes when Remote Control starts, a system
+ *  row of subtype `bridge_status` carrying `url`, the last one in the file.
+ *  A link quoted in a prompt, a brief or a relayed message sits inside another
+ *  row's text and is never read. */
+export function remoteLink(transcript: string): string | undefined {
+  let found: string | undefined
+  for (const line of transcript.split('\n')) {
+    if (!line.includes('"bridge_status"')) continue
+    let row: unknown
+    try {
+      row = JSON.parse(line)
+    } catch {
+      continue
+    }
+    if (isRecord(row) && row.type === 'system' && row.subtype === 'bridge_status' && typeof row.url === 'string' && WEB_LINK.test(row.url)) {
+      found = row.url
+    }
+  }
+  return found
+}
 
 /** The app's own link to a card's session, of one of the two known shapes,
  *  or undefined: a Desktop session by its local id, or a Remote Control
@@ -235,7 +268,7 @@ export function appLink(c: Card, found: string | undefined): string | undefined 
     return `claude://claude.ai/epitaxy/${c.desktopId}`
   }
   const web = c.url ?? found
-  return web !== undefined && /^https:\/\/claude\.ai\/code\/session_[A-Za-z0-9]{1,80}$/.test(web)
+  return web !== undefined && WEB_LINK.test(web)
     ? `claude://claude.ai/code/${web.slice('https://claude.ai/code/'.length)}`
     : undefined
 }
