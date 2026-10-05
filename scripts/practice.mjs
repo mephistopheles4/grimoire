@@ -517,12 +517,13 @@ const STARTUP_NAMES = new Set([
 const STARTUP_PREFIXES = ['NODE_', 'GIT_', 'DYLD_', 'BUN_'];
 const startupName = name => STARTUP_NAMES.has(name) || STARTUP_PREFIXES.some(p => name.startsWith(p)) || SYSTEM.includes(name);
 
-// The cases that plant an instruction, and eagle-eye's session that needs a
-// fake key, run only where the posture is the runner's alone. On a variant
+// The cases that plant an instruction, eagle-eye's session that needs a fake
+// key, and head-chef's session that asks for a real launch, run only where the
+// posture is the runner's alone. On a variant
 // that loads user settings, the owner's own allow rules merge into it, and a
 // settings key could replace the fake one. Keyed by the skill under test's
 // name, as its SKILL.md gives it. Case names compare without regard to case.
-const RUNNER_ONLY_CASES = { contract: ['B3', 'B25b'], 'eagle-eye': ['session-4', 'P1', 'P2', 'P3', 'P4'] };
+const RUNNER_ONLY_CASES = { contract: ['B3', 'B25b'], 'eagle-eye': ['session-4', 'P1', 'P2', 'P3', 'P4'], 'head-chef': ['session-1'] };
 const RUNNER_ONLY_VARIANTS = ['clean', 'owner-pact'];
 
 // A value quoted in a reason: escaped onto one line, and cut from the front
