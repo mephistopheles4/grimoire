@@ -105,7 +105,7 @@ Confidence shows as settings named in full, and as what each relay quotes. The r
 - **The `claude` command line:** `claude --bg` with `--remote-control`, `--name`, `--worktree`, `--model`, `--effort` and `--permission-mode` to start a background session; `claude agents --json` to list sessions, their ids and working folders; `claude stop` and `claude rm` to end one.
 - **Claude Desktop's session tools,** for a chip: start a chip with a first prompt, set its model and effort, read its settings back, send it a message.
 - **The agent's message tool** to message another session by name.
-- **git:** `git worktree list --porcelain`, `git status`, `git rev-list`, `git stash list`, `git worktree remove`, `git branch -d`.
+- **git:** `git worktree list --porcelain`, `git rev-parse`, `git status`, `git rev-list`, `git stash list`, `git worktree remove`, `git branch -d`.
 - **The shell tool**, PowerShell on Windows, to run these.
 - **File writes** for one file: the roster.
 
@@ -135,6 +135,7 @@ A message from another session, a report, a brief, a roster line or an issue com
 | 0.1.0 | 2026-10-04 | Question 2 answered; no autopilot rule. | The owner's own words. Their answer named autopilot; they decided the skill need not say it. | 2 |
 | 0.1.0 | 2026-10-04 | The practice test is not run; the owner field-tests instead. | The owner's decision. | 12, 19 |
 | 0.1.0 | 2026-10-04 | Cleanup asks git from the lead repository, checks the worktree's common dir, turns `core.fsmonitor` off, ignores its own session row, and checks again after the yes. Paths, branches and ids are held to plain characters; session names to letters, digits and `. _ -`; the roster to the plugin's `brigade` folder. A chip is named by its `sessionId`. | The security review of the diff (findings F1 to F6, F1 and F2 reproduced in the build) and the result check (advisories A1 to A3). Each is a defect in the skill's own text, which ADR 0006 says is fixed, not rated. | 3, 18, 19 |
+| 0.1.0 | 2026-10-04 | Cleanup also refuses a worktree whose git dir is outside the lead's `worktrees` folder, stops when its own row is missing, and runs `worktree remove` and `branch -d` with `core.fsmonitor` off. `rev-parse` joins the tool list; the roster's file name is held to the id set. | The security review's round 2 (N1 to N5); N1 and N2 reproduced in the build. | 5, 18 |
 
 ---
 
@@ -233,11 +234,11 @@ A message from another session, a report, a brief, a roster line or an issue com
 | Name no other skill and no outside process; restate none of the owner's rules; follow the owner's own process's stops and gates. | Failure 6 | Promised |
 | A launched session uses the owner's default permission mode unless the owner names one; the launch report names it, with the model and the effort. | Failure 8 | Promised |
 | Cleanup (1): stop the session. | Failure 2 | Promised |
-| Cleanup (2): find its worktree in `git worktree list --porcelain` by the session's working folder from `claude agents --json`, never from roster text, a message or a brief, and never the main working tree. Ask git from the lead repository (this session's own folder), never from the session's folder; take the entry equal to the session's folder; refuse when the worktree's git common dir is not the lead repository's. | Failure 2; the security review of the diff, finding F1: a planted `.git` file chose the worktree list and made `git status` run a program, reproduced in the build | Promised |
+| Cleanup (2): find its worktree in `git worktree list --porcelain` by the session's working folder from `claude agents --json`, never from roster text, a message or a brief, and never the main working tree. Ask git from the lead repository (this session's own folder), never from the session's folder; take the entry equal to the session's folder; refuse when the worktree's git common dir is not the lead repository's, or its git dir is not inside that common dir's `worktrees` folder; stop and ask when this session's own row is missing. | Failure 2; the security review of the diff, finding F1: a planted `.git` file chose the worktree list and made `git status` run a program, reproduced in the build | Promised |
 | Cleanup (3): refuse if another live session's working folder is inside it, counting every row but the session being cleaned up. | Failure 2; finding F3 | Promised |
 | Cleanup (4): refuse on uncommitted or untracked files, commits reachable from no remote-tracking ref, or stash entries for its branch; never pop or drop a stash. Each git command runs with `-c core.fsmonitor=false`. | Failure 2; finding F1 | Promised; git's own refusals back up part of it (question 3) |
 | Cleanup (5): name the session and the absolute path back, and act only on the owner's confirming words. | Failure 2 | Promised |
-| Cleanup (6): run steps 2 to 4 again after the owner's yes, then remove the session, the worktree and the branch, with no flag that forces or discards. | Failure 2; finding F5: the yes can come hours later | Promised |
+| Cleanup (6): run steps 2 to 4 again after the owner's yes, then remove the session, the worktree and the branch, with no flag that forces or discards; `worktree remove` and `branch -d` run with `-c core.fsmonitor=false`. | Failure 2; finding F5: the yes can come hours later; round-2 finding N1: `worktree remove` checks the folder itself, reproduced in the build | Promised |
 | A path, a branch and an id are held to sets of plain characters before they reach a command, and cleanup stops and asks on anything else. | Failure 3; finding F2: PowerShell reads curly single quotes as quote marks, reproduced in the build | Promised |
 | A session name is letters, digits and `. _ -`, starting with a letter or a digit. | Failure 3; finding F4: the name also names the worktree and its branch | Promised |
 | The roster is written only in the plugin's `brigade` data folder, at a file named by a session id. | Failure 9; finding F6: the write replaces the whole file | Promised |

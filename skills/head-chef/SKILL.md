@@ -3,8 +3,8 @@ name: head-chef
 description: Makes this Claude Desktop session the lead of a brigade, the Claude Code sessions it starts. It starts each one in the background or as a Desktop session with the model and effort set, points it to where its brief lives, takes its milestone reports, relays between sessions, keeps the Brigade pane's roster when the pane is there, and cleans up a session and its worktree when the owner says it is done. Use when someone asks for work to run in another session, to start or hand off to a new session, or to lead several sessions, or types /head-chef. Not for work in this same session, and not for a question about how sessions work.
 metadata:
   contract-version: 0.1.0
-  familiar-digest: "sha256:aa690ab98bec0db5101c6dbd70e19660b3088d0ce0d015768977c887cac8263b"
-  contract-digest: "sha256:3c3216a50f15319b183a670f628d9919b044bf273385bd3e1294025e3394ae53"
+  familiar-digest: "sha256:147951570f8f5fedef62b816fb4797fe0dcccfa026bfef243dc86497fbaf7837"
+  contract-digest: "sha256:c49e210a09ec5d6fe1fd2a9e0943679adecb16b47a6e701571788dfb0378c7ef"
 ---
 
 # Head chef
@@ -233,7 +233,8 @@ ${CLAUDE_PLUGIN_DATA}/brigade/${CLAUDE_SESSION_ID}.json
 - **If that path still shows `${`,** this skill was not installed with its
   plugin, so there is no pane. Write no roster.
 - **If `/brigade` names a different file in that same `brigade` folder,**
-  named by a session id and ending in `.json`, use that one. After a clear or
+  named by a session id (letters, digits and `-` only, not starting with
+  `-`) and ending in `.json`, use that one. After a clear or
   a resume, the session id changes, and `/brigade` names the current file.
   Never write a roster anywhere else. Reason: the head chef writes the whole
   file, so a wrong path would overwrite another file (failure 9).
@@ -293,7 +294,8 @@ name could end the quoted text and run a command (failure 3).
 **Ask git from the lead repository, never from the session's folder.** The
 **lead repository** is the git repository of this session's own working
 folder: the `cwd` of the row in `claude agents --json` whose `sessionId` is
-`${CLAUDE_SESSION_ID}`. The head chef launched the session from there. Reason:
+`${CLAUDE_SESSION_ID}`. The head chef launched the session from there. If no
+row has that `sessionId`, stop and ask. Reason:
 a session can rewrite its folder's `.git` file to point at a repository it
 planted, which then chooses the worktree list git prints and can make
 `git status` run a program (failure 2).
@@ -319,15 +321,20 @@ is inside another when it is equal to it, or starts with it and then a `/`.
    **refuse** when the two lines differ:
 
    ```powershell
-   git -C '<folder>' rev-parse --path-format=absolute --git-common-dir
+   git -c core.fsmonitor=false -C '<folder>' rev-parse --path-format=absolute --git-common-dir
    ```
+
+   Then run `git -c core.fsmonitor=false -C '<worktree>' rev-parse
+   --absolute-git-dir`, and **refuse** unless its line is inside the
+   `worktrees` folder of that common dir. A `.git` file can point at a
+   planted folder that still names the lead's common dir; this catches it.
 
 3. **Refuse if another session works inside it.** Run `claude agents --json`
    again. Refuse when the `cwd` of any row other than the session being
    cleaned up is inside the worktree path.
 4. **Refuse on unsaved work.** Run each command, and refuse when it prints
-   anything. `-c core.fsmonitor=false` stops git from running a program while
-   it reads the folder.
+   anything. `-c core.fsmonitor=false` turns off git's file-watcher program,
+   which git would otherwise run while it reads the folder.
 
    ```powershell
    git -c core.fsmonitor=false -C '<worktree>' status --porcelain --untracked-files=all
@@ -362,10 +369,11 @@ is inside another when it is equal to it, or starts with it and then a `/`.
    - A background session: `claude rm '<id>'`. It also removes a worktree it
      made.
    - Run `git -C '<lead folder>' worktree list --porcelain` again. If the
-     path is still there: `git -C '<lead folder>' worktree remove
-     '<worktree>'`.
-   - If the branch is still there: `git -C '<lead folder>' branch -d
-     '<branch>'`.
+     path is still there: `git -c core.fsmonitor=false -C '<lead folder>'
+     worktree remove '<worktree>'`. It checks the folder itself first, so
+     the flag matters here too.
+   - If the branch is still there: `git -c core.fsmonitor=false -C '<lead
+     folder>' branch -d '<branch>'`.
    - When a command refuses, stop, show what it said, and do nothing more.
 7. **Remind the owner to archive the sidebar entry.** No tool can. Then
    remove the card from the roster.
@@ -405,8 +413,8 @@ These are the moments when the head chef tells the owner and waits:
 - **Claude Desktop's session tools,** for a chip: start a session, set its
   model, set its effort, read a session, send a message.
 - **The agent's message tool,** to message a session by name.
-- **git:** `worktree list --porcelain`, `status`, `rev-list`, `stash list`,
-  `worktree remove`, `branch -d`.
+- **git:** `worktree list --porcelain`, `rev-parse`, `status`, `rev-list`,
+  `stash list`, `worktree remove`, `branch -d`.
 - **The shell tool,** PowerShell on Windows.
 - **One file write:** the roster.
 
