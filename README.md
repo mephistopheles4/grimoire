@@ -12,6 +12,8 @@
   <a href="skills/contract"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/brand/contract/contract-sigil-dark.svg"><img src="docs/brand/contract/contract-sigil-light.svg" width="112" alt="contract"></picture></a>
   &nbsp;&nbsp;&nbsp;&nbsp;
   <a href="skills/groundtrack"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/brand/groundtrack/groundtrack-sigil-dark.svg"><img src="docs/brand/groundtrack/groundtrack-sigil-light.svg" width="112" alt="groundtrack"></picture></a>
+  &nbsp;&nbsp;&nbsp;&nbsp;
+  <a href="skills/head-chef"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/brand/head-chef/head-chef-sigil-dark.svg"><img src="docs/brand/head-chef/head-chef-sigil-light.svg" width="112" alt="head-chef"></picture></a>
 </p>
 
 ---
@@ -158,7 +160,7 @@ The questions, the levels and the marks:
 The skill's own contract, which its `SKILL.md` is generated from:
 [`skills/contract/CONTRACT.md`](skills/contract/CONTRACT.md).
 
-## [head-chef](skills/head-chef)
+## <img src="docs/brand/head-chef/head-chef-mark-solid.svg" width="32" align="absmiddle" alt=""> [head-chef](skills/head-chef)
 
 **Lead the sessions; let them do the work.**
 
