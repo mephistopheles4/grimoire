@@ -177,17 +177,28 @@ async function pollAgents($: EngineInterface) {
 }
 
 // Start the reads, once: a second /brigade while they run starts nothing.
+// The timers are taken before the first await, so two arms that overlap
+// cannot both pass the check. Each arm carries its generation, and a close
+// moves the generation on, so neither its first reads nor a tick already
+// queued run after the pane closed.
+let generation = 0
 async function arm($: EngineInterface) {
+  if (timers.length === 0) {
+    const mine = ++generation
+    const live = () => generation === mine
+    timers = [
+      $.clock.every(ROSTER_MS, () => void (live() && loadRoster($))),
+      $.clock.every(AGENTS_MS, () => void (live() && pollAgents($))),
+    ]
+    await update($, armed, () => true)
+    if (live()) await loadRoster($)
+    if (live()) await pollAgents($)
+    return
+  }
   await update($, armed, () => true)
-  if (timers.length > 0) return
-  await loadRoster($)
-  await pollAgents($)
-  timers = [
-    $.clock.every(ROSTER_MS, () => void loadRoster($)),
-    $.clock.every(AGENTS_MS, () => void pollAgents($)),
-  ]
 }
 function disarm() {
+  generation++
   for (const t of timers) t.cancel()
   timers = []
 }
