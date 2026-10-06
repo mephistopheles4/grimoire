@@ -1,10 +1,10 @@
 ---
 name: contract
 description: Builds a reusable skill or agent from terms a person agrees, and keeps those terms as a contract its file is generated from. Use when someone wants a new skill or agent, wants to turn a prompt they keep pasting into one, or wants to change or write the contract for one. Not for a one-off prompt, for running a skill or agent that already exists, or for a legal or business contract.
-compatibility: Needs Node.js 20 or later to run scripts/check.mjs. No install and no other dependencies.
+compatibility: Needs Node.js 20 or later to run check.mjs. No install and no other dependencies.
 metadata:
   contract-version: 0.8.1
-  familiar-digest: "sha256:ff3935b87fd000af43388c15f7dca6c47abbf2908033ff14c68b246426661c55"
+  familiar-digest: "sha256:239883530375cb75cd074cf794cfb396b1fe56dfdb73ba6dfd8e250456bce16f"
   contract-digest: "sha256:550228b7ca576b816452b42cd0167813ee19f5f57e4fc857aebddadd158ce089"
 ---
 
