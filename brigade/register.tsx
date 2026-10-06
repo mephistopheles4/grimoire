@@ -186,14 +186,39 @@ async function pollAgents($: EngineInterface) {
 // the session draws somewhere other than the terminal, the one place the
 // image shows its rows, and only as the local summary estimate, which sends
 // no request. Only the fields the section draws are stored. A failed reading
-// keeps the last one.
+// keeps the last one, and a reading that started before the pane closed is
+// dropped, so it cannot land over a fresh one after a reopen.
 async function readUsage($: EngineInterface) {
+  const mine = generation
   try {
     const image = (await $.session.surfaces()).some(s => s !== 'terminal')
     const reading = await $.session.usage(image ? { breakdown: 'summary' } : undefined)
-    await update($, usage, () => snapshotFrom(reading))
+    if (generation === mine) await update($, usage, () => snapshotFrom(reading))
   } catch {
     // No reading this time: the section keeps what it showed.
+  }
+}
+
+// The measure hook's reads, one at a time. A measurement that comes while one
+// runs asks for one more after it, so a burst folds into one trailing read,
+// an older reading never lands after a newer one, and a reading that hung
+// holds at most one waiting behind it. A close ends the run.
+let measuring = -1
+let again = false
+async function measureUsage($: EngineInterface) {
+  const mine = generation
+  if (measuring === mine) {
+    again = true
+    return
+  }
+  measuring = mine
+  try {
+    do {
+      again = false
+      await readUsage($)
+    } while (again && generation === mine)
+  } finally {
+    if (measuring === mine) measuring = -1
   }
 }
 
@@ -282,7 +307,7 @@ export const register: Register = on => {
   // passes the event on, unchanged, on every path, and does not wait for the
   // read: a reading that hung would otherwise hold up every hook after it.
   on('session.measure', ($, e, next) => {
-    if (timers.length > 0) void readUsage($)
+    if (timers.length > 0) void measureUsage($)
     return next(e)
   })
 
