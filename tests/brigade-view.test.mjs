@@ -473,3 +473,159 @@ test('a stored snapshot of the wrong shape is checked again: the view never thro
   }
   assert.deepEqual(usageView({ limits: [{ kind: 'k', percent: 'x' }], context: {} }, 'desktop', NOW), { kind: 'none' });
 });
+
+// --- tick and undo ---------------------------------------------------------
+
+const { GRACE_MS, settleTicks, sweepTicks, ticksFrom, toggleTick, waitingCount } = view;
+const tick = (name, ms) => ({ name, value: String(NOW + ms) });
+
+test('the grace period is 30 seconds', () => {
+  assert.equal(GRACE_MS, 30000);
+});
+
+test('a press ticks a to-do with its time, and a second press undoes it', () => {
+  const once = toggleTick([], 'a', NOW);
+  assert.deepEqual(once, [{ name: 'a', value: String(NOW) }]);
+  const twice = toggleTick(once, 'a', NOW + 5000);
+  assert.deepEqual(twice, []);
+  // Another to-do's tick is left as it was.
+  assert.deepEqual(toggleTick([tick('b', 0)], 'a', NOW), [tick('b', 0), { name: 'a', value: String(NOW) }]);
+  assert.deepEqual(toggleTick([tick('b', 0), tick('a', 0)], 'a', NOW), [tick('b', 0)]);
+});
+
+test('a sweep keeps a tick under 30 s and moves one at 30 s or more to done', () => {
+  const ticking = [tick('young', 0), tick('edge', 0), tick('old', 0)];
+  const at = (name, ms) => sweepTicks([tick(name, 0)], NOW + ms, [name]);
+  assert.deepEqual(at('young', 29900), { ticking: [tick('young', 0)], done: [] });
+  assert.deepEqual(at('edge', 30000), { ticking: [], done: ['edge'] });
+  assert.deepEqual(at('old', 600000), { ticking: [], done: ['old'] });
+  const mixed = sweepTicks([tick('young', 1000), tick('old', 0)], NOW + 30500, ['young', 'old']);
+  assert.deepEqual(mixed, { ticking: [tick('young', 1000)], done: ['old'] });
+  assert.equal(ticking.length, 3, 'the sweep does not change its input');
+});
+
+test('a tick whose value is not a finite number is due at the next sweep', () => {
+  for (const value of ['x', '', 'NaN', 'Infinity', '1e400', undefined, null, 5, {}]) {
+    const r = sweepTicks([{ name: 'a', value }], NOW, ['a']);
+    assert.deepEqual(r, { ticking: [], done: ['a'] }, String(value));
+  }
+});
+
+test('a tick dated more than the grace period ahead of the clock is due, so it cannot stay forever', () => {
+  assert.deepEqual(sweepTicks([tick('a', 31000)], NOW, ['a']), { ticking: [], done: ['a'] });
+  // A clock that stepped back a little keeps the tick.
+  assert.deepEqual(sweepTicks([tick('a', 2000)], NOW, ['a']), { ticking: [tick('a', 2000)], done: [] });
+});
+
+test('a tick whose to-do left the roster is dropped, not moved to done', () => {
+  assert.deepEqual(sweepTicks([tick('gone', 0), tick('kept', 0)], NOW + 1000, ['kept']), { ticking: [tick('kept', 0)], done: [] });
+  assert.deepEqual(sweepTicks([tick('gone', 0)], NOW + 60000, []), { ticking: [], done: [] });
+});
+
+test('a sweep after a failed or missing roster load keeps every tick, due ones included', () => {
+  const ticking = [tick('a', 0), tick('b', -60000)];
+  assert.deepEqual(sweepTicks(ticking, NOW + 1000, undefined), { ticking, done: [] });
+});
+
+test('stored ticks of the wrong shape are checked: names must be text, repeats and extras go', () => {
+  for (const stored of [undefined, null, 'x', 5, {}, { length: 2 }]) assert.deepEqual(ticksFrom(stored), [], String(stored));
+  assert.deepEqual(ticksFrom([null, 'a', { name: 5, value: '1' }, { name: '', value: '1' }, { value: '1' }, tick('a', 0), tick('a', 5)]), [tick('a', 0)]);
+  // A value that is not text is kept as an empty value, which is due.
+  assert.deepEqual(ticksFrom([{ name: 'a', value: 7 }]), [{ name: 'a', value: '' }]);
+  assert.equal(ticksFrom(Array.from({ length: 80 }, (_, i) => tick(`t${i}`, 0))).length, 50);
+  assert.equal(ticksFrom([{ name: 'x'.repeat(201), value: '1' }]).length, 0);
+  // `constructor` is a name like any other.
+  assert.deepEqual(sweepTicks([tick('constructor', 0)], NOW + 30000, ['constructor']), { ticking: [], done: ['constructor'] });
+  assert.deepEqual(toggleTick('not a list', '__proto__', NOW), [{ name: '__proto__', value: String(NOW) }]);
+});
+
+// A store whose update reads, applies the function and writes only if nothing
+// wrote in between, trying again on a miss, as the engine's `update` does.
+function store(initial) {
+  let value = initial;
+  let version = 0;
+  const calls = [];
+  return {
+    get: () => value,
+    set: v => {
+      value = v;
+      version += 1;
+    },
+    calls,
+    // `between` runs after the read and before the write, once, to stand in
+    // for a press that lands while the sweep is working.
+    update(between) {
+      return async fn => {
+        for (;;) {
+          const seen = version;
+          const next = fn(value);
+          calls.push(next);
+          if (between !== undefined) {
+            const run = between;
+            between = undefined;
+            run();
+          }
+          if (version === seen) {
+            value = next;
+            version += 1;
+            return next;
+          }
+        }
+      };
+    },
+  };
+}
+
+test('the sweep works out its due ids inside the ticking update, so an undo that lands mid-sweep is not moved to done', async () => {
+  const ticking = store([tick('a', 0)]);
+  const done = store([]);
+  // The press's undo lands after the sweep's first read: the write misses, the
+  // update runs the function again on the fresh state, and nothing is due.
+  const undo = () => ticking.set(toggleTick(ticking.get(), 'a', NOW + 30000));
+  const moved = await settleTicks(ticking.update(undo), done.update(), NOW + 30000, ['a']);
+  assert.equal(ticking.calls.length, 2, 'the first write missed and the function ran again');
+  assert.deepEqual(moved, []);
+  assert.deepEqual(done.get(), []);
+  assert.deepEqual(ticking.get(), []);
+});
+
+test('a sweep moves its due ids to done once, however often its update runs', async () => {
+  const ticking = store([tick('a', 0), tick('b', 20000)]);
+  const done = store(['a']);
+  const other = () => ticking.set([...ticking.get()]);
+  const moved = await settleTicks(ticking.update(other), done.update(), NOW + 30000, ['a', 'b']);
+  assert.deepEqual(moved, ['a']);
+  assert.deepEqual(done.get(), ['a'], 'an id already done is not added again');
+  assert.deepEqual(ticking.get(), [tick('b', 20000)]);
+  const later = await settleTicks(ticking.update(), done.update(), NOW + 50000, ['a', 'b']);
+  assert.deepEqual(later, ['b']);
+  assert.deepEqual(done.get(), ['a', 'b']);
+});
+
+test('a sweep after a failed or missing roster load writes nothing', async () => {
+  const ticking = store([tick('a', 0)]);
+  const done = store([]);
+  assert.deepEqual(await settleTicks(ticking.update(), done.update(), NOW + 60000, undefined), []);
+  assert.equal(ticking.calls.length, 0);
+  assert.equal(done.calls.length, 0);
+  assert.deepEqual(ticking.get(), [tick('a', 0)]);
+});
+
+test('the "Waiting on you" count leaves out ticking and done to-dos', () => {
+  const todos = [{ id: 'a' }, { id: 'b' }, { id: 'c' }, { id: 'd' }];
+  assert.equal(waitingCount(2, todos, [], []), 6);
+  assert.equal(waitingCount(2, todos, ['a'], [tick('b', 0)]), 4);
+  assert.equal(waitingCount(0, todos, ['a', 'b'], [tick('c', 0), tick('d', 0)]), 0);
+  // Stored values of the wrong shape count nothing out, and never throw.
+  assert.equal(waitingCount(1, todos, 'x', { name: 'a' }), 5);
+});
+
+test('the state contract declares ticking under the plugin\'s manifest name', () => {
+  const types = readFileSync(join(root, 'brigade/types/index.d.ts'), 'utf8');
+  const manifest = JSON.parse(readFileSync(join(root, '.claude-plugin/plugin.json'), 'utf8'));
+  const block = types.slice(types.indexOf('interface PluginState'));
+  assert.ok(block.includes(`${manifest.name}: {`), 'the values sit under the manifest name');
+  assert.match(block, /\n\s+ticking: Pair\[\]\n/);
+  const register = readFileSync(join(root, 'brigade/register.tsx'), 'utf8');
+  assert.match(register, /atom\(\{ plugin: 'grimoire', key: 'ticking' \} as const, \[\]\)/);
+});

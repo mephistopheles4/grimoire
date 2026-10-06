@@ -20,11 +20,12 @@ import {
   rosterFile,
   transcriptFile,
 } from './roster.ts'
-import { EMPTY_USAGE, snapshotFrom, usageView } from './view.ts'
+import { EMPTY_USAGE, settleTicks, snapshotFrom, ticksFrom, toggleTick, usageView, waitingCount } from './view.ts'
 
-// The Brigade pane: one card per session a lead session started, with its
-// work, phase, settings, live busy or idle state and latest report, the
-// owner's to-dos, and at the bottom this session's own rate limits and
+// The Brigade pane: one card per session a lead session started, each in a
+// rounded box with its work, phase, settings, live busy or idle state and
+// latest report; the owner's to-dos in one box, each ticked with a press that
+// a second press undoes; and at the bottom this session's own rate limits and
 // context. The head chef writes the roster file; this pane only reads it, and
 // reads it only while the pane is open. The usage section is worked out in
 // view.ts, as plain values; this file reads and stores the reading and turns
@@ -54,6 +55,7 @@ const looked = atom({ plugin: 'grimoire', key: 'looked' } as const, [])
 const reports = atom({ plugin: 'grimoire', key: 'reports' } as const, [])
 const dismissed = atom({ plugin: 'grimoire', key: 'dismissed' } as const, [])
 const doneTodos = atom({ plugin: 'grimoire', key: 'doneTodos' } as const, [])
+const ticking = atom({ plugin: 'grimoire', key: 'ticking' } as const, [])
 const usage = atom({ plugin: 'grimoire', key: 'usage' } as const, EMPTY_USAGE)
 
 // Colours are the app's own theme keys, so the pane follows the person's
@@ -112,12 +114,14 @@ async function where($: EngineInterface): Promise<{ file: string; config?: strin
   return config === undefined ? { file: rosterFile(data, id) } : { file: rosterFile(data, id), config }
 }
 
-async function loadRoster($: EngineInterface) {
+// Resolves the to-do ids of the roster it loaded, or undefined when it loaded
+// none: no file named, no file, or a file that failed its check.
+async function loadRoster($: EngineInterface): Promise<string[] | undefined> {
   const at = await where($)
   if ('error' in at) {
     await update($, rosterError, () => at.error)
     await update($, roster, () => ({ cards: [], todos: [] }))
-    return
+    return undefined
   }
   // After a clear or a resume the session id changes, and so does the file:
   // name the new one and the one before it.
@@ -128,7 +132,7 @@ async function loadRoster($: EngineInterface) {
     if (!(await $.fs.exists(at.file))) {
       await update($, roster, () => ({ cards: [], todos: [] }))
       await update($, rosterError, () => '')
-      return
+      return undefined
     }
     const stat = await $.fs.stat(at.file)
     if (stat.size > MAX_ROSTER_BYTES) throw new Error(`the roster is over ${MAX_ROSTER_BYTES} bytes`)
@@ -137,8 +141,26 @@ async function loadRoster($: EngineInterface) {
     const value: Roster = checked.value
     await update($, roster, () => value)
     await update($, rosterError, () => '')
+    return value.todos.map(t => t.id)
   } catch (err) {
     await update($, rosterError, () => `Roster not shown: ${oneLine(String(err instanceof Error ? err.message : err), 200)}`)
+    return undefined
+  }
+}
+
+// After each roster load: move the ticks past their grace period to done, and
+// drop a tick whose to-do left the roster. The rules are in view.ts; a load
+// that read no roster changes no tick.
+async function sweepTodos($: EngineInterface, todoIds: string[] | undefined) {
+  try {
+    await settleTicks(
+      fn => update($, ticking, fn),
+      fn => update($, doneTodos, fn),
+      await $.clock.now(),
+      todoIds,
+    )
+  } catch {
+    // The next roster tick sweeps again.
   }
 }
 
@@ -233,7 +255,7 @@ async function arm($: EngineInterface) {
     const mine = ++generation
     const live = () => generation === mine
     timers = [
-      $.clock.every(ROSTER_MS, () => void (live() && loadRoster($))),
+      $.clock.every(ROSTER_MS, () => void (live() && loadRoster($).then(ids => live() && sweepTodos($, ids)))),
       $.clock.every(AGENTS_MS, () => void (live() && pollAgents($))),
     ]
     await update($, armed, () => true)
@@ -334,7 +356,9 @@ export const register: Register = on => {
       const item = current.todos[i]
       if (item === undefined || slug(item.id) !== folded) return { element: e.element }
       if (verb === 'todo') {
-        await update($, doneTodos, list => [...list, item.id])
+        // A tick, or a second press inside the grace period that undoes it.
+        const now = await $.clock.now()
+        await update($, ticking, list => toggleTick(list, item.id, now))
         return { element: e.element }
       }
       const who = current.cards.find(c => c.title === item.session)
@@ -365,43 +389,68 @@ export const register: Register = on => {
     const running = lookup(await read($, live))
     const found = lookup(await read($, links))
     const inbox = await read($, reports)
-    const ticked = new Set(await read($, doneTodos))
+    const done = await read($, doneTodos)
+    const ticked = new Set(done)
+    const ticks = await read($, ticking)
+    const crossed = new Set(ticksFrom(ticks).map(p => p.name))
     const last = (title: string) => [...inbox].reverse().find(r => r.from === oneLine(title, 80))
 
     const shown = cards.map((c, i) => ({ c, i })).filter(({ c }) => !hidden.has(c.title))
     const needsYou = shown.filter(({ c }) => c.status === 'needs-you')
+    // A ticked to-do stays in the list, crossed out, until the sweep moves it.
     const open = todos.map((t, i) => ({ t, i })).filter(({ t }) => !ticked.has(t.id))
+    const waiting = waitingCount(needsYou.length, todos, done, ticks)
 
-    // One card: the status mark, the title and its live state on one line,
-    // then the work and settings, the phase and the latest report, each cut
-    // to the pane's width rather than wrapped.
+    // One card, in a rounded box: amber when it needs the owner, dim
+    // otherwise. The status mark, the title and its live state on one line,
+    // the title cut first so the state stays in view. Then the phase, the
+    // work, the settings and the latest report, each on its own line and cut
+    // to the pane's width, and the buttons on their own row.
     const card = ({ c, i }: { c: Card; i: number }) => {
       const mark = MARK.get(c.status) ?? { mark: '?', color: 'inactive' }
       const state = liveState(running.get(c.title))
       const report = last(c.title)
       const closed = c.status === 'done' || c.status === 'stopped'
+      const needs = c.status === 'needs-you'
+      const canOpen = appLink(c, found.get(c.title)) !== undefined
       return (
-        <Box flexDirection="column" marginBottom={1}>
+        <Box
+          flexDirection="column"
+          borderStyle="round"
+          borderColor={needs ? 'warning' : 'inactive'}
+          borderDimColor={!needs}
+          paddingX={1}
+          marginBottom={1}
+        >
           <Box flexDirection="row" columnGap={1}>
-            <Text color={mark.color}>{mark.mark}</Text>
-            <Text bold wrap="truncate-end">
-              {oneLine(c.title, 80)}
-            </Text>
-            <Text color={state.color}>{state.text}</Text>
+            <Box flexShrink={0}>
+              <Text color={mark.color}>{mark.mark}</Text>
+            </Box>
+            <Box flexGrow={1} flexShrink={1} minWidth={0}>
+              <Text bold wrap="truncate-end">
+                {oneLine(c.title, 80)}
+              </Text>
+            </Box>
+            <Box flexShrink={0}>
+              <Text color={state.color}>{state.text}</Text>
+            </Box>
           </Box>
-          <Box flexDirection="column" marginLeft={2}>
-            <Text dimColor wrap="truncate-end">
-              {oneLine(c.work, 160)} · {oneLine(c.settings, 80)}
-            </Text>
+          <Box flexDirection="column" marginLeft={2} marginTop={1}>
             <Text wrap="truncate-end">{oneLine(c.phase, 160)}</Text>
+            <Text dimColor wrap="truncate-end">
+              {oneLine(c.work, 160)}
+            </Text>
+            <Text dimColor wrap="truncate-end">
+              {oneLine(c.settings, 80)}
+            </Text>
             {report !== undefined && (
               <Text dimColor wrap="truncate-end">
                 {report.at} ↳ {report.line}
               </Text>
             )}
-            {(appLink(c, found.get(c.title)) !== undefined || closed) && (
-              <Box flexDirection="row" columnGap={2}>
-                {appLink(c, found.get(c.title)) !== undefined && (
+            {(canOpen || closed) && (
+              <Box flexDirection="row" columnGap={2} marginTop={1}>
+                {canOpen && (
                   <Button key={keyFor('open', i, c.title)} onPress={noop}>
                     Open in app
                   </Button>
@@ -438,36 +487,66 @@ export const register: Register = on => {
         {error !== '' && <Text color="error">{error}</Text>}
         {pollError !== '' && <Text color="error">{pollError}</Text>}
         <Box flexDirection="column" marginTop={1} marginBottom={1}>
-          <Text bold>
-            Waiting on you <Text dimColor>{needsYou.length + open.length}</Text>
-          </Text>
-          {needsYou.map(({ c }) => (
-            <Box flexDirection="row" columnGap={1}>
-              <Text color="warning">●</Text>
-              <Text wrap="truncate-end">
-                {oneLine(c.title, 80)}: {oneLine(c.phase, 120)}
-              </Text>
-            </Box>
-          ))}
-          {open.map(({ t, i }) => (
-            <Box flexDirection="row" columnGap={1}>
-              <Button key={keyFor('todo', i, t.id)} plain dimColor onPress={noop}>
-                ☐
-              </Button>
-              <Text wrap="truncate-end">{oneLine(t.text, 160)}</Text>
-              {t.session !== undefined && cards.some(c => c.title === t.session && appLink(c, found.get(c.title)) !== undefined) && (
-                <Button key={keyFor('go', i, t.id)} onPress={noop}>
-                  Open in app
-                </Button>
-              )}
-            </Box>
-          ))}
-          {needsYou.length + open.length === 0 && <Text dimColor>Nothing waits on you.</Text>}
+          <Box marginBottom={1}>
+            <Text bold>
+              Waiting on you <Text dimColor>{waiting}</Text>
+            </Text>
+          </Box>
+          {/* One rounded box, a line between rows. A card that needs the
+              owner has a fixed two-cell gutter for its mark, top-aligned; a
+              to-do has its checkbox there, a full button. The text may shrink,
+              so a long line wraps inside the box. */}
+          <Box flexDirection="column" borderStyle="round" borderColor="inactive" borderDimColor paddingX={1} rowGap={1}>
+            {needsYou.map(({ c }) => (
+              <Box flexDirection="row" alignItems="flex-start">
+                <Box width={2} flexShrink={0}>
+                  <Text color="warning">●</Text>
+                </Box>
+                <Box flexDirection="column" flexGrow={1} flexShrink={1} minWidth={0}>
+                  <Text bold wrap="truncate-end">
+                    {oneLine(c.title, 80)}
+                  </Text>
+                  <Text dimColor wrap="wrap">
+                    {oneLine(c.phase, 160)}
+                  </Text>
+                </Box>
+              </Box>
+            ))}
+            {open.map(({ t, i }) => {
+              const isTicked = crossed.has(t.id)
+              return (
+                <Box flexDirection="row" alignItems="flex-start" columnGap={1}>
+                  {/* Blank and dim at rest, a tick once pressed; a second
+                      press inside the grace period undoes it. */}
+                  <Box flexShrink={0}>
+                    <Button key={keyFor('todo', i, t.id)} dimColor={!isTicked} onPress={noop}>
+                      {isTicked ? '✓' : ' '}
+                    </Button>
+                  </Box>
+                  <Box flexGrow={1} flexShrink={1} minWidth={0}>
+                    <Text wrap="wrap" strikethrough={isTicked} dimColor={isTicked}>
+                      {oneLine(t.text, 160)}
+                    </Text>
+                  </Box>
+                  {t.session !== undefined && cards.some(c => c.title === t.session && appLink(c, found.get(c.title)) !== undefined) && (
+                    <Box flexShrink={0}>
+                      <Button key={keyFor('go', i, t.id)} onPress={noop}>
+                        Open
+                      </Button>
+                    </Box>
+                  )}
+                </Box>
+              )
+            })}
+            {needsYou.length + open.length === 0 && <Text dimColor>Nothing waits on you.</Text>}
+          </Box>
         </Box>
         <Box flexDirection="column">
-          <Text bold>
-            Sessions <Text dimColor>{shown.length}</Text>
-          </Text>
+          <Box marginBottom={1}>
+            <Text bold>
+              Sessions <Text dimColor>{shown.length}</Text>
+            </Text>
+          </Box>
           {shown.map(card)}
           {shown.length === 0 && error === '' && <Text dimColor>No cards in the roster yet.</Text>}
         </Box>

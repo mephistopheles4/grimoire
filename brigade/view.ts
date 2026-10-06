@@ -1,10 +1,13 @@
 import { oneLine } from './roster.ts'
-import type { UsageCategory, UsageLimit, UsageSnapshot } from './types'
+import type { Pair, UsageCategory, UsageLimit, UsageSnapshot } from './types'
 
 // What the Brigade pane draws, worked out from plain values: the render hook
 // in register.tsx only turns these results into elements. Plain TypeScript
 // with erasable syntax only and no engine import, so `node --test` imports
 // this file as it is.
+//
+// The to-dos: a tick that can be undone for a grace period, then moves the
+// to-do to done.
 //
 // The usage section: this session's own rate limits and context fill, at the
 // bottom of the pane. On the terminal it is rows of text bars. Everywhere else
@@ -356,4 +359,105 @@ function usageSvg(s: UsageSnapshot, now: number): Extract<UsageView, { kind: 'sv
     `<svg xmlns="${XMLNS}" width="${num(W)}" height="${height}" viewBox="0 0 ${num(W)} ${height}">` +
     `<style>${STYLE}</style>${parts.join('')}</svg>`
   return { kind: 'svg', source, alt: oneLine(`Usage: ${alt.join('; ')}`, 2000), width: W, height: Number(height) }
+}
+
+// --- Tick and undo ---------------------------------------------------------
+//
+// A press on a to-do's box ticks it: the to-do stays, crossed out, for the
+// grace period, and a second press inside it undoes the tick. The roster
+// timer's sweep then moves it to done. `ticking` holds pairs of to-do id and
+// tick time, in epoch ms as text.
+
+/** How long a ticked to-do stays, crossed out, before the sweep moves it. */
+export const GRACE_MS = 30000
+const MAX_TICKS = 50
+
+/** The stored ticks, checked again: a list of pairs whose name is text within
+ *  the stored cap, the first of a repeated name kept, at most 50. A value
+ *  that is not text is kept as an empty value, which the sweep counts as due.
+ *  Plugin state is the engine's, and another plugin may rewrite it. */
+export function ticksFrom(stored: unknown): Pair[] {
+  const out: Pair[] = []
+  if (!Array.isArray(stored)) return out
+  const names = new Set<string>()
+  for (const p of stored) {
+    if (out.length >= MAX_TICKS) break
+    if (!isRecord(p) || typeof p.name !== 'string' || p.name === '' || p.name.length > MAX_STORED_TEXT || names.has(p.name)) continue
+    names.add(p.name)
+    out.push({ name: p.name, value: typeof p.value === 'string' ? p.value : '' })
+  }
+  return out
+}
+
+/** A press: tick the to-do with the press time, or undo its tick. */
+export function toggleTick(stored: unknown, id: string, now: number): Pair[] {
+  const ticking = ticksFrom(stored)
+  return ticking.some(p => p.name === id) ? ticking.filter(p => p.name !== id) : [...ticking, { name: id, value: String(now) }]
+}
+
+// Due: the grace period has passed, the time is not a number, or the time is
+// more than a grace period ahead of the clock, so a planted far-future time
+// cannot keep a to-do crossed out for good.
+const isDue = (p: Pair, now: number) => {
+  const age = now - Number(p.value)
+  return !Number.isFinite(age) || age >= GRACE_MS || age <= -GRACE_MS
+}
+
+/** The sweep: a tick whose to-do is no longer in the roster is dropped, a due
+ *  one moves to `done`, and the rest stay. `todoIds` is undefined when the
+ *  roster load failed or found no file: then every tick stays, due ones too,
+ *  so a brief miss cannot silently undo a tick. */
+export function sweepTicks(stored: unknown, now: number, todoIds: readonly string[] | undefined): { ticking: Pair[]; done: string[] } {
+  const ticking = ticksFrom(stored)
+  if (todoIds === undefined) return { ticking, done: [] }
+  const present = new Set(todoIds)
+  const kept: Pair[] = []
+  const done: string[] = []
+  for (const p of ticking) {
+    if (!present.has(p.name)) continue
+    if (isDue(p, now)) done.push(p.name)
+    else kept.push(p)
+  }
+  return { ticking: kept, done }
+}
+
+/** One write to a stored value, as the engine's `update` makes it: the
+ *  function may run more than once, and the last run's result is written. */
+export type Updater<T> = (fn: (value: T) => T) => Promise<unknown>
+
+/** The roster timer's sweep, carried out. The due ids are worked out inside
+ *  the `ticking` update, from the value that update writes over, so an undo
+ *  that lands between a read and a write cannot be lost to a stale read. Then
+ *  those ids, and no others, are added to `doneTodos`, each once. With no
+ *  roster load to go by (`todoIds` undefined) nothing is written. Resolves the
+ *  ids it moved. */
+export async function settleTicks(
+  ticking: Updater<Pair[]>,
+  doneTodos: Updater<string[]>,
+  now: number,
+  todoIds: readonly string[] | undefined,
+): Promise<string[]> {
+  if (todoIds === undefined) return []
+  let due: string[] = []
+  await ticking(list => {
+    const swept = sweepTicks(list, now, todoIds)
+    due = swept.done
+    return swept.ticking
+  })
+  if (due.length > 0) {
+    const moved = due
+    await doneTodos(list => {
+      const had = Array.isArray(list) ? list : []
+      const seen = new Set(had)
+      return [...had, ...moved.filter(id => !seen.has(id))]
+    })
+  }
+  return due
+}
+
+/** The count beside "Waiting on you": the cards that need the owner, plus the
+ *  to-dos that are neither done nor ticking. */
+export function waitingCount(needsYou: number, todos: readonly { id: string }[], done: unknown, ticking: unknown): number {
+  const out = new Set([...(Array.isArray(done) ? done : []), ...ticksFrom(ticking).map(p => p.name)])
+  return needsYou + todos.filter(t => !out.has(t.id)).length
 }

@@ -65,6 +65,10 @@ declare module 'claude-code' {
       reports: Report[]
       dismissed: string[]
       doneTodos: string[]
+      /** Ticked to-dos still inside their grace period: the to-do's id and
+       *  the tick's time in epoch ms, as text. A second press removes one;
+       *  the roster timer's sweep moves a due one to `doneTodos`. */
+      ticking: Pair[]
       /** This session's last usage reading, read while the pane is open. */
       usage: UsageSnapshot
     }
