@@ -1,0 +1,1 @@
+{ "name": "brigade-native", "version": "0.1.0", "description": "Prototype: Brigade pane with native-looking usage and context bars (/brigade-native)", "types": "./brigade/types/index.d.ts" }
