@@ -35,10 +35,13 @@ plugin.** It is a hooks module, `brigade/register.tsx`, named by
 `hooks/hooks.json`, and it runs with the session's own rights. At session start
 it registers `/brigade` and does nothing else. While its pane is open it runs
 `claude agents --json`, reads the lead session's roster file from the plugin's
-data folder, and reads other sessions' transcripts to find a session's link. It
-writes no file and makes no network request. Its one other process is
+data folder, and reads other sessions' transcripts to find a session's link.
+It also reads this session's own usage, its rate limits and context, when the
+pane opens and each time the engine measures the session; it asks only for
+the local summary estimate of the context breakdown, which sends no request.
+It writes no file and makes no network request. Its one other process is
 `explorer.exe`, given a `claude://` link when the owner presses Open in app.
-Everything it reads is checked and drawn as text. Review any change under
+Everything it reads is checked and drawn as text, in the usage image too. Review any change under
 `brigade/` or `hooks/` as a change to code that runs on every installer's
 machine: [row 15 of the threat model](docs/security/threat-model.md#the-matrix)
 has the guards and the gaps.

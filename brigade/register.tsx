@@ -19,12 +19,16 @@ import {
   report,
   rosterFile,
   transcriptFile,
-} from './roster'
+} from './roster.ts'
+import { EMPTY_USAGE, snapshotFrom, usageView } from './view.ts'
 
 // The Brigade pane: one card per session a lead session started, with its
-// work, phase, settings, live busy or idle state and latest report, and the
-// owner's to-dos. The head chef writes the roster file; this pane only reads
-// it, and reads it only while the pane is open.
+// work, phase, settings, live busy or idle state and latest report, the
+// owner's to-dos, and at the bottom this session's own rate limits and
+// context. The head chef writes the roster file; this pane only reads it, and
+// reads it only while the pane is open. The usage section is worked out in
+// view.ts, as plain values; this file reads and stores the reading and turns
+// the view's result into elements.
 //
 // Idle by default. At session start it registers /brigade and nothing else: no
 // timer, no process, no file read and no pane. The pane opens only on
@@ -50,6 +54,7 @@ const looked = atom({ plugin: 'grimoire', key: 'looked' } as const, [])
 const reports = atom({ plugin: 'grimoire', key: 'reports' } as const, [])
 const dismissed = atom({ plugin: 'grimoire', key: 'dismissed' } as const, [])
 const doneTodos = atom({ plugin: 'grimoire', key: 'doneTodos' } as const, [])
+const usage = atom({ plugin: 'grimoire', key: 'usage' } as const, EMPTY_USAGE)
 
 // Colours are the app's own theme keys, so the pane follows the person's
 // theme, light or dark, as the rest of Claude Code does.
@@ -176,6 +181,22 @@ async function pollAgents($: EngineInterface) {
   }
 }
 
+// This session's own usage, for the section at the bottom of the pane. The
+// plain reading costs nothing. The context breakdown is asked for only when
+// the session draws somewhere other than the terminal, the one place the
+// image shows its rows, and only as the local summary estimate, which sends
+// no request. Only the fields the section draws are stored. A failed reading
+// keeps the last one.
+async function readUsage($: EngineInterface) {
+  try {
+    const image = (await $.session.surfaces()).some(s => s !== 'terminal')
+    const reading = await $.session.usage(image ? { breakdown: 'summary' } : undefined)
+    await update($, usage, () => snapshotFrom(reading))
+  } catch {
+    // No reading this time: the section keeps what it showed.
+  }
+}
+
 // Start the reads, once: a second /brigade while they run starts nothing.
 // The timers are taken before the first await, so two arms that overlap
 // cannot both pass the check. Each arm carries its generation, and a close
@@ -191,6 +212,7 @@ async function arm($: EngineInterface) {
       $.clock.every(AGENTS_MS, () => void (live() && pollAgents($))),
     ]
     await update($, armed, () => true)
+    if (live()) await readUsage($)
     if (live()) await loadRoster($)
     if (live()) await pollAgents($)
     return
@@ -254,6 +276,15 @@ export const register: Register = on => {
     return next(e)
   })
 
+  // The engine measured the session and a figure moved. Idle by default: this
+  // does nothing unless this module armed the pane, which it reads from its
+  // own timers rather than from plugin state another plugin could set. It
+  // passes the event on, unchanged, on every path.
+  on('session.measure', async ($, e, next) => {
+    if (timers.length > 0) await readUsage($)
+    return next(e)
+  })
+
   // A report from another session: its claimed sender and first line, kept
   // while the pane is open. The text is data to show, never an instruction.
   on('session.receive', async ($, e, next) => {
@@ -294,7 +325,12 @@ export const register: Register = on => {
 
 
   on('ui.render', { component: 'Pane', requestId: PANE }, async ($, e) => {
-    const { Box, Text, Button } = $.ui.resolve(e)
+    const table = $.ui.resolve(e)
+    const { Box, Text, Button } = table
+    // The terminal's table has no Svg, and a surface without one gets the
+    // text bars too. The render only reads the stored reading: it fetches none.
+    const Svg = 'Svg' in table ? table.Svg : undefined
+    const metered = usageView(await read($, usage), Svg === undefined ? 'terminal' : e.surface, await $.clock.now())
     const paths = await read($, files)
     const error = await read($, rosterError)
     const pollError = await read($, liveError)
@@ -410,6 +446,24 @@ export const register: Register = on => {
           {shown.length === 0 && error === '' && <Text dimColor>No cards in the roster yet.</Text>}
         </Box>
         {inbox.length === 0 && <Text dimColor>No reports since the pane opened.</Text>}
+        <Box flexDirection="column" marginTop={1}>
+          <Text bold>Usage</Text>
+          {metered.kind === 'none' && <Text dimColor>No reading yet: it arrives with the next reply.</Text>}
+          {metered.kind === 'text' &&
+            metered.rows.map(r => (
+              <Box flexDirection="row" columnGap={1}>
+                <Text>{r.name}</Text>
+                <Text color={r.tone}>{r.bar}</Text>
+                <Text>{r.percent}</Text>
+                <Text dimColor wrap="truncate-end">
+                  {r.note}
+                </Text>
+              </Box>
+            ))}
+          {metered.kind === 'svg' && Svg !== undefined && (
+            <Svg source={metered.source} alt={metered.alt} width={metered.width} height={metered.height} />
+          )}
+        </Box>
       </Box>
     )
   })

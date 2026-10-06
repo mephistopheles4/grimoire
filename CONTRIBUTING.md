@@ -30,8 +30,13 @@ It walks what `.gitignore` does not exclude, so a worktree under
 `.claude/worktrees/` is not descended into and not checked. Only the root
 `.gitignore` is read.
 
-You need Node 20 or later and nothing else. There is no install step, because
-there are no dependencies.
+You need Node 22.18 or later and nothing else. There is no install step, because
+there are no dependencies. The skills' own scripts run on Node 20, but the one
+command needs 22.18: `tests/brigade-view.test.mjs` imports the Brigade mod's
+TypeScript modules as they are, and Node strips their types by default only
+from 22.18 (23.6 on the 23 line). On an older Node that test fails with a
+message naming the version. Checked on 2026-10-06: 22.17.1 fails, 22.18.0
+passes.
 
 ## Tests
 
@@ -43,7 +48,7 @@ not take, and `SECURITY.md` explains why that matters more than it looks.
 run only the suite while you work on it:
 
 ```bash
-node --test tests/audit.test.mjs tests/build-pages.test.mjs tests/check-baseline-rules.test.mjs tests/check-baselines.test.mjs tests/check-format.test.mjs tests/check-manifests.test.mjs tests/check-mod.test.mjs tests/check-paths.test.mjs tests/check-test-step.test.mjs tests/check-tree.test.mjs tests/check-version.test.mjs tests/contract-check-docs.test.mjs tests/contract-check-folder.test.mjs tests/contract-check-rules.test.mjs tests/contract-check-seal.test.mjs tests/contract-check-toml.test.mjs tests/eagle-eye-sheets.test.mjs tests/esc.test.mjs tests/groundtrack-fold.test.mjs tests/groundtrack-render.test.mjs tests/groundtrack-sheets.test.mjs tests/practice.test.mjs tests/registry.test.mjs tests/render.test.mjs tests/skillspector-gate.test.mjs tests/skillspector-strip-suppressed.test.mjs
+node --test tests/audit.test.mjs tests/brigade-view.test.mjs tests/build-pages.test.mjs tests/check-baseline-rules.test.mjs tests/check-baselines.test.mjs tests/check-format.test.mjs tests/check-manifests.test.mjs tests/check-mod.test.mjs tests/check-paths.test.mjs tests/check-test-step.test.mjs tests/check-tree.test.mjs tests/check-version.test.mjs tests/contract-check-docs.test.mjs tests/contract-check-folder.test.mjs tests/contract-check-rules.test.mjs tests/contract-check-seal.test.mjs tests/contract-check-toml.test.mjs tests/eagle-eye-sheets.test.mjs tests/esc.test.mjs tests/groundtrack-fold.test.mjs tests/groundtrack-render.test.mjs tests/groundtrack-sheets.test.mjs tests/practice.test.mjs tests/registry.test.mjs tests/render.test.mjs tests/skillspector-gate.test.mjs tests/skillspector-strip-suppressed.test.mjs
 ```
 
 **The suite never reaches the network.** eagle-eye's edge audit is the one
@@ -65,7 +70,11 @@ malformed one to a temporary directory at run time. `tests/render.test.mjs` and
 
 **Test at the seam a reader uses.** The renderer's seam is its command line, and
 the check's seam is its exit code and its output. A test that reaches inside
-either one breaks on a refactor that changed no behaviour.
+either one breaks on a refactor that changed no behaviour. The Brigade mod's
+seam is its view module, `brigade/view.ts`: plain TypeScript with no engine
+import, which `tests/brigade-view.test.mjs` imports directly to check what
+the pane would draw, as strings. Keep it to erasable syntax (no enums,
+namespaces or parameter properties), so Node can strip its types.
 
 That is also why a `git worktree` needs no setup here. Add one and run the
 check; there is nothing to install, link, or copy first.

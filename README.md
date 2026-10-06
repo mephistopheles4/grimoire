@@ -133,7 +133,8 @@ counts a message from another session as your yes. Not for work in the same
 session.
 
 `/brigade` opens the Brigade pane: one card per session the lead started, with
-its work, phase, settings, live busy or idle state and latest report. It needs
+its work, phase, settings, live busy or idle state and latest report. At its
+bottom it shows the lead session's own rate limits and context. It needs
 the plugin install above. The skill works without it.
 
 What it does, what counts as your yes, and how cleanup refuses:

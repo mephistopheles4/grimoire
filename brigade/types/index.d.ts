@@ -34,6 +34,20 @@ export type Files = { current: string; previous: string }
 /** What the engine said at session start: the id and its transcript path. */
 export type Start = { sessionId: string; transcript: string }
 
+/** One rate-limit window: its kind, how much of it is used, when it resets. */
+export type UsageLimit = { kind: string; percent: number; resetsAt?: string }
+
+/** One row of the context breakdown: its name, what it is, its tokens. */
+export type UsageCategory = { name: string; kind: string; tokens: number }
+
+/** This session's usage as the pane last read it: only the fields it draws.
+ *  `categories` is absent when no breakdown was asked for. */
+export type UsageSnapshot = {
+  limits: UsageLimit[]
+  context: { percent?: number; tokens?: number; window?: number }
+  categories?: UsageCategory[]
+}
+
 declare module 'claude-code' {
   interface PluginState {
     grimoire: {
@@ -51,6 +65,8 @@ declare module 'claude-code' {
       reports: Report[]
       dismissed: string[]
       doneTodos: string[]
+      /** This session's last usage reading, read while the pane is open. */
+      usage: UsageSnapshot
     }
   }
 }
