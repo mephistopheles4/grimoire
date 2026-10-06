@@ -37,7 +37,8 @@ it registers `/brigade` and does nothing else. While its pane is open it runs
 `claude agents --json`, reads the lead session's roster file from the plugin's
 data folder, and reads other sessions' transcripts to find a session's link.
 It also reads this session's own usage, its rate limits and context, when the
-pane opens and each time the engine measures the session; it asks only for
+pane opens and, while it stays open, each time the engine measures the
+session; it asks only for
 the local summary estimate of the context breakdown, which sends no request.
 It writes no file and makes no network request. Its one other process is
 `explorer.exe`, given a `claude://` link when the owner presses Open in app.

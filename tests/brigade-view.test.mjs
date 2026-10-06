@@ -60,11 +60,17 @@ const snapshot = (over = {}) => ({
 
 // Every attribute in the source, as [tag, name, value]. Outside text is
 // escaped, so a `<` in the source opens a real tag and a `"` ends a value.
+// A tag whose attributes are not all written name="value" matches no tag here,
+// so the openings are counted too, and a tag left unread fails the check.
 function attributes(source) {
   const out = [];
+  let tags = 0;
   for (const tag of source.matchAll(/<([a-zA-Z]+)((?:\s+[^\s=>/]+="[^"]*")*)\s*\/?>/g)) {
+    tags += 1;
     for (const a of tag[2].matchAll(/([^\s=]+)="([^"]*)"/g)) out.push([tag[1], a[1], a[2]]);
   }
+  const openings = source.match(/<[a-zA-Z]+/g)?.length ?? 0;
+  assert.equal(tags, openings, 'every tag the source opens is read for its attributes');
   return out;
 }
 
@@ -127,6 +133,7 @@ test('a non-terminal surface gets an SVG: a bar per rate limit, "Resets in ... �
     // The legend: dot, name and tokens per drawn row, in two columns.
     assert.equal(v.source.match(/<circle /g).length, 4);
     for (const name of ['System prompt', 'Messages', 'Free space', 'Autocompact buffer']) assert.ok(v.source.includes(`>${name}</text>`));
+    assert.deepEqual([...new Set([...v.source.matchAll(/<circle [^>]*cx="([^"]+)"/g)].map(m => m[1]))], ['4', '244'], 'two columns');
     assert.ok(!v.source.includes('deferred'));
     assert.ok(!v.source.includes('Empty row'));
     assert.ok(v.source.includes('>3.1k</text>') && v.source.includes('>40k</text>'));
@@ -140,7 +147,7 @@ test('the alt text names each bar and its percentage', () => {
   const { alt } = svgOf(snapshot());
   assert.match(alt, /Current session 64%/);
   assert.match(alt, /Weekly limit 13%/);
-  assert.match(alt, /Context 22%: System prompt 3\.1k, Messages 40k, Free space 120k, Autocompact buffer 37k/);
+  assert.match(alt, /Context 23%: System prompt 3\.1k, Messages 40k, Free space 120k, Autocompact buffer 37k/);
 });
 
 test('a bar is amber from 75% and red from 90%', () => {
@@ -178,8 +185,7 @@ test('with no rate limits and no breakdown the view is "nothing yet" on every su
   for (const surface of SURFACES) {
     assert.deepEqual(usageView(EMPTY_USAGE, surface, NOW), { kind: 'none' });
     assert.deepEqual(usageView({ limits: [], context: {}, categories: [] }, surface, NOW), { kind: 'none' });
-    // A context reading alone is still no rate limit and no breakdown.
-    assert.deepEqual(usageView({ limits: [], context: { percent: 40, tokens: 1, window: 2 } }, surface, NOW), { kind: 'none' });
+
     // A breakdown of deferred and empty rows only draws nothing.
     const bare = { limits: [], context: {}, categories: [{ name: 'x', kind: 'deferred', tokens: 5 }, { name: 'y', kind: 'used', tokens: 0 }] };
     assert.deepEqual(usageView(bare, surface, NOW), { kind: 'none' });
@@ -286,18 +292,26 @@ test('the legend holds at most 12 categories', () => {
 
 test('an SVG over 131,072 characters falls back to the text bars', () => {
   assert.equal(SVG_MAX, 131072);
-  const limits = Array.from({ length: 400 }, (_, i) => ({ kind: `k${'<'.repeat(28)}${i}`, percent: 50, resetsAt: at(i * MIN) }));
+  const limits = Array.from({ length: 20 }, (_, i) => ({ kind: `k${'<'.repeat(28)}${i}`, percent: 50, resetsAt: at(i * MIN) }));
   const s = { limits, context: {} };
+  const size = usageView(s, 'desktop', NOW).source.length;
+  // The default cap is the engine's: at that cap this snapshot is an image.
+  assert.equal(usageView(s, 'desktop', NOW, SVG_MAX).kind, 'svg');
+  // One character under its size, it falls back on every image surface.
   for (const surface of IMAGE_SURFACES) {
-    const v = usageView(s, surface, NOW);
+    const v = usageView(s, surface, NOW, size - 1);
     assert.equal(v.kind, 'text', `${surface} falls back`);
-    assert.equal(v.rows.length, 400);
+    assert.equal(v.rows.length, 20);
   }
-  // Just under the cap it is still an image.
-  const few = { limits: limits.slice(0, 50), context: {} };
-  assert.equal(usageView(few, 'desktop', NOW).kind, 'svg');
+  assert.equal(usageView(s, 'desktop', NOW, size).kind, 'svg');
+  // The stored caps keep the largest snapshot far below the engine's cap.
+  const largest = {
+    limits: Array.from({ length: 30 }, (_, i) => ({ kind: `${'<'.repeat(200)}`, percent: 99, resetsAt: at(i * MIN) })),
+    context: { percent: 99, tokens: 1e10, window: 1e10 },
+    categories: Array.from({ length: 60 }, () => ({ name: '&'.repeat(200), kind: 'used', tokens: 1e10 })),
+  };
+  assert.ok(usageView(largest, 'desktop', NOW).source.length < SVG_MAX / 4);
 });
-
 // --- rate-limit names ------------------------------------------------------
 
 test('rate-limit kinds that name a prototype member draw as text on every surface', () => {
@@ -410,4 +424,52 @@ test('token counts read "Nk" from 10,000, "N.Nk" from 1,000, and "N" below', () 
   assert.deepEqual([0, 999, 1000, 1049, 9999, 10000, 46000, 123456].map(tokens), ['0', '999', '1.0k', '1.0k', '9.9k', '10k', '46k', '123k']);
   assert.equal(tokens(NaN), '0');
   assert.equal(tokens(-1), '0');
+});
+
+// --- after move 4's review -------------------------------------------------
+
+test('a context reading with no rate limit shows a Context row, on the terminal and as text on every other surface', () => {
+  const s = { limits: [], context: { percent: 40, tokens: 80000, window: 200000 } };
+  for (const surface of SURFACES) {
+    const v = usageView(s, surface, NOW);
+    assert.equal(v.kind, 'text', surface);
+    assert.deepEqual(v.rows.map(r => [r.name, r.percent, r.note]), [['Context', '40%', '80k of 200k']]);
+  }
+});
+
+test('the image and the terminal show one context figure for one reading', () => {
+  const s = snapshot();
+  const image = svgOf(s);
+  const row = usageView(s, 'terminal', NOW).rows[0];
+  assert.ok(image.source.includes('>46k / 200k · 23%</text>'));
+  assert.deepEqual([row.percent, row.note], ['23%', '46k of 200k']);
+  // Without the engine's reading, the figures are summed from the rows.
+  const summed = svgOf(snapshot({ context: {} }));
+  assert.ok(summed.source.includes('>43k / 200k · 22%</text>'));
+  assert.match(summed.alt, /Context 22%/);
+});
+
+test('a stored snapshot of the wrong shape is checked again: the view never throws and every attribute stays on the allowlist', () => {
+  const stored = [
+    undefined,
+    null,
+    'x',
+    { limits: 'x', context: null },
+    { context: { percent: 'x' } },
+    { limits: [{ kind: 5, percent: 1 }, { kind: 'ok', percent: 'x' }, null], context: {} },
+    { limits: [], context: {}, categories: [{ name: null, kind: 'used', tokens: 5 }, { name: 'odd', kind: 'other', tokens: 5 }, { name: 'n', kind: 7, tokens: 5 }] },
+    { limits: Array.from({ length: 500 }, () => ({ kind: 'k', percent: 1 })), context: {} },
+    { limits: [{ kind: 'five_hour', percent: 10 }], context: {}, categories: [{ name: 'a', kind: 'used', tokens: 5 }, { name: 'odd', kind: 'other', tokens: 5 }] },
+  ];
+  for (const s of stored) {
+    for (const surface of SURFACES) {
+      const v = usageView(s, surface, NOW);
+      if (v.kind === 'svg') {
+        assertAllowlisted(v.source);
+        assert.ok(!v.source.includes('odd'));
+      }
+      if (v.kind === 'text') assert.ok(v.rows.length <= 21, 'the stored caps hold on the way out too');
+    }
+  }
+  assert.deepEqual(usageView({ limits: [{ kind: 'k', percent: 'x' }], context: {} }, 'desktop', NOW), { kind: 'none' });
 });

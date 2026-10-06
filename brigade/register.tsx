@@ -279,9 +279,10 @@ export const register: Register = on => {
   // The engine measured the session and a figure moved. Idle by default: this
   // does nothing unless this module armed the pane, which it reads from its
   // own timers rather than from plugin state another plugin could set. It
-  // passes the event on, unchanged, on every path.
-  on('session.measure', async ($, e, next) => {
-    if (timers.length > 0) await readUsage($)
+  // passes the event on, unchanged, on every path, and does not wait for the
+  // read: a reading that hung would otherwise hold up every hook after it.
+  on('session.measure', ($, e, next) => {
+    if (timers.length > 0) void readUsage($)
     return next(e)
   })
 

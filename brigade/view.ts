@@ -31,40 +31,61 @@ const inRange = (v: unknown, max: number): v is number =>
   typeof v === 'number' && Number.isFinite(v) && v >= 0 && v <= max
 const storedText = (v: unknown): v is string => typeof v === 'string' && v.length <= MAX_STORED_TEXT
 
+// One rate limit, one context and one list of breakdown rows, each checked.
+// A reading names a limit's percent `percentUsed`; a stored snapshot, `percent`.
+function limitsFrom(rows: unknown, percentKey: 'percentUsed' | 'percent'): UsageLimit[] {
+  const out: UsageLimit[] = []
+  if (!Array.isArray(rows)) return out
+  for (const r of rows.slice(0, MAX_LIMITS)) {
+    if (!isRecord(r) || !storedText(r.kind) || !inRange(r[percentKey], MAX_PERCENT)) continue
+    const limit: UsageLimit = { kind: r.kind, percent: r[percentKey] as number }
+    if (typeof r.resetsAt === 'string' && r.resetsAt.length <= 40) limit.resetsAt = r.resetsAt
+    out.push(limit)
+  }
+  return out
+}
+
+function contextFrom(ctx: unknown): UsageSnapshot['context'] {
+  const out: UsageSnapshot['context'] = {}
+  if (!isRecord(ctx)) return out
+  if (inRange(ctx.percent, MAX_PERCENT)) out.percent = ctx.percent
+  if (inRange(ctx.tokens, MAX_TOKENS)) out.tokens = ctx.tokens
+  if (inRange(ctx.window, MAX_TOKENS)) out.window = ctx.window
+  return out
+}
+
+function categoriesFrom(rows: unknown[]): UsageCategory[] {
+  const out: UsageCategory[] = []
+  for (const c of rows.slice(0, MAX_CATEGORIES)) {
+    if (!isRecord(c) || !storedText(c.name) || typeof c.kind !== 'string' || !KINDS.has(c.kind) || !inRange(c.tokens, MAX_TOKENS)) continue
+    out.push({ name: c.name, kind: c.kind, tokens: c.tokens })
+  }
+  return out
+}
+
 /** The fields the view draws from a `$.session.usage()` reading, each checked:
  *  per rate limit its kind, percent and reset time; the context's percent,
  *  tokens and window; per breakdown row its name, kind and tokens. A field
  *  that fails its check is left out, and a row whose kind or number fails is
  *  dropped. */
 export function snapshotFrom(reading: unknown): UsageSnapshot {
-  const out: UsageSnapshot = { limits: [], context: {} }
-  if (!isRecord(reading)) return out
-  if (Array.isArray(reading.rateLimits)) {
-    for (const r of reading.rateLimits.slice(0, MAX_LIMITS)) {
-      if (!isRecord(r) || !storedText(r.kind) || !inRange(r.percentUsed, MAX_PERCENT)) continue
-      const limit: UsageLimit = { kind: r.kind, percent: r.percentUsed }
-      if (typeof r.resetsAt === 'string' && r.resetsAt.length <= 40) limit.resetsAt = r.resetsAt
-      out.limits.push(limit)
-    }
-  }
-  const ctx = reading.context
-  if (isRecord(ctx)) {
-    if (inRange(ctx.percent, MAX_PERCENT)) out.context.percent = ctx.percent
-    if (inRange(ctx.tokens, MAX_TOKENS)) out.context.tokens = ctx.tokens
-    if (inRange(ctx.window, MAX_TOKENS)) out.context.window = ctx.window
-    const b = ctx.breakdown
-    if (isRecord(b) && Array.isArray(b.categories)) {
-      const categories: UsageCategory[] = []
-      for (const c of b.categories.slice(0, MAX_CATEGORIES)) {
-        if (!isRecord(c) || !storedText(c.name) || !KINDS.has(String(c.kind)) || !inRange(c.tokens, MAX_TOKENS)) continue
-        categories.push({ name: c.name, kind: String(c.kind), tokens: c.tokens })
-      }
-      out.categories = categories
-    }
-  }
+  if (!isRecord(reading)) return { limits: [], context: {} }
+  const out: UsageSnapshot = { limits: limitsFrom(reading.rateLimits, 'percentUsed'), context: contextFrom(reading.context) }
+  const b = isRecord(reading.context) ? reading.context.breakdown : undefined
+  if (isRecord(b) && Array.isArray(b.categories)) out.categories = categoriesFrom(b.categories)
   return out
 }
 
+/** A stored snapshot checked again before it is drawn, by the same rules.
+ *  Only `snapshotFrom` writes it, but plugin state is the engine's, and the
+ *  engine lets another plugin rewrite a value as it is set: a value of the
+ *  wrong shape draws as far as it checks, and never throws. */
+export function storedSnapshot(stored: unknown): UsageSnapshot {
+  if (!isRecord(stored)) return { limits: [], context: {} }
+  const out: UsageSnapshot = { limits: limitsFrom(stored.limits, 'percent'), context: contextFrom(stored.context) }
+  if (Array.isArray(stored.categories)) out.categories = categoriesFrom(stored.categories)
+  return out
+}
 const KINDS = new Set(['used', 'free', 'buffer', 'deferred'])
 
 // The names the app gives its own windows. Looked up in a Map, never a plain
@@ -163,16 +184,20 @@ export const LEGEND_MAX = 12
 const drawnCategories = (s: UsageSnapshot) =>
   (s.categories ?? []).filter(c => c.kind !== 'deferred' && Number.isFinite(c.tokens) && c.tokens > 0)
 
-/** The usage section for one surface at one moment. With no rate limit and no
- *  breakdown it is nothing yet, on every surface. The terminal gets text bars:
- *  a Context row from the context's percent and tokens, then a row per rate
- *  limit. Every other surface gets the SVG, or the text bars when the SVG
- *  would pass the engine's cap. */
-export function usageView(s: UsageSnapshot, surface: string, now: number): UsageView {
-  if (s.limits.length === 0 && drawnCategories(s).length === 0) return { kind: 'none' }
+/** The usage section for one surface at one moment, from the stored snapshot,
+ *  checked again here. With no rate limit, no breakdown and no context reading
+ *  it is nothing yet, on every surface. The terminal gets text bars: a Context
+ *  row from the context's percent and tokens, then a row per rate limit. Every
+ *  other surface gets the SVG, or the text bars when there is no rate limit
+ *  and no breakdown to draw or the SVG would pass the engine's cap. max is
+ *  that cap; the stored caps keep a real snapshot far below it, so a test
+ *  passes a smaller one to reach the fallback. */
+export function usageView(stored: unknown, surface: string, now: number, max = SVG_MAX): UsageView {
+  const s = storedSnapshot(stored)
+  if (s.limits.length === 0 && drawnCategories(s).length === 0 && s.context.percent === undefined) return { kind: 'none' }
   if (surface !== 'terminal') {
     const svg = usageSvg(s, now)
-    if (svg !== undefined && svg.source.length <= SVG_MAX) return svg
+    if (svg !== undefined && svg.source.length <= max) return svg
   }
   const rows = textRows(s, now)
   return rows.length === 0 ? { kind: 'none' } : { kind: 'text', rows }
@@ -279,17 +304,23 @@ function usageSvg(s: UsageSnapshot, now: number): Extract<UsageView, { kind: 'sv
 
   const shown = drawnCategories(s)
   if (shown.length > 0) {
-    // The window is every row the bar draws, free space and buffer included;
-    // what is used is the rows of kind `used`.
+    // The bar's segments are the breakdown's rows, free space and buffer
+    // included. The figures beside it are the engine's own context reading,
+    // the ones the terminal's Context row shows, so one reading shows one
+    // figure everywhere; only without that reading are they summed from the
+    // rows: used is the rows of kind `used`, the window every row drawn.
     const total = shown.reduce((sum, c) => sum + c.tokens, 0)
     const used = shown.filter(c => c.kind === 'used')
-    const usedTokens = used.reduce((sum, c) => sum + c.tokens, 0)
-    const usedPercent = total > 0 ? (usedTokens / total) * 100 : 0
-    const cls = (c: UsageCategory) => (c.kind === 'free' ? 'free' : c.kind === 'buffer' ? 'buffer' : `c${used.indexOf(c) % 7}`)
+    const { percent: ctxPercent, tokens: ctxTokens, window: ctxWindow } = s.context
+    const engine = ctxPercent !== undefined && ctxTokens !== undefined && ctxWindow !== undefined
+    const usedTokens = engine ? ctxTokens : used.reduce((sum, c) => sum + c.tokens, 0)
+    const windowTokens = engine ? ctxWindow : total
+    const usedPercent = engine ? ctxPercent : total > 0 ? (usedTokens / total) * 100 : 0
+    const cls = (c: UsageCategory) => (c.kind === 'free' ? 'free' : c.kind === 'buffer' ? 'buffer' : `c${Math.max(0, used.indexOf(c)) % 7}`)
 
     parts.push(`<text x="0" y="${num(y + 12)}">${svgText('Context', MAX_KIND)}</text>`)
     parts.push(
-      `<text class="muted" x="${num(W)}" y="${num(y + 12)}" text-anchor="end">${svgText(`${tokens(usedTokens)} / ${tokens(total)} · ${percentText(usedPercent)}`, 80)}</text>`,
+      `<text class="muted" x="${num(W)}" y="${num(y + 12)}" text-anchor="end">${svgText(`${tokens(usedTokens)} / ${tokens(windowTokens)} · ${percentText(usedPercent)}`, 80)}</text>`,
     )
     parts.push(`<clipPath id="cb"><rect x="0" y="${num(y + 20)}" width="${num(W)}" height="8" rx="4"/></clipPath>`)
     parts.push(`<rect class="track" x="0" y="${num(y + 20)}" width="${num(W)}" height="8" rx="4"/>`)
