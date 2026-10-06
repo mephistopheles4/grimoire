@@ -234,6 +234,7 @@ describe('contents: a long .md file in a skill folder with no contents heading w
       ['after a shorter run that does not close a longer fence', ['````', '```', '## Contents', '````']],
       ['after the other fence character, which does not close it', ['```', '~~~', '## Contents', '```']],
       ['after a closing run with text after it, which does not close it', ['```', '``` x', '## Contents', '```']],
+      ['in a tilde fence whose opening line holds a backtick', ['~~~ a`b', '## Contents', '~~~']],
     ]) {
       test(`${label} -> the warning`, () => {
         exactlyOnce(run([withFiles({ 'references/long.md': withBlock(block) })]), 0, want('references/long.md', 101));
@@ -242,6 +243,7 @@ describe('contents: a long .md file in a skill folder with no contents heading w
     for (const [label, block] of [
       ['after a closed fence', ['```', 'code', '```', '## Contents']],
       ['after a closed tilde fence with a longer closing run', ['~~~', 'code', '~~~~~', '## Contents']],
+      ['after a closing run followed by spaces and a tab', ['```', 'code', '```  \t', '## Contents']],
       ['after "``", which is too short to open a fence', ['``', '## Contents']],
       ['after a backtick run whose info string holds a backtick, which opens no fence', ['``` a`b', '## Contents']],
       ['after a run indented four spaces, which opens no fence', ['    ```', '## Contents']],
