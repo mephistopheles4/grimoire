@@ -335,9 +335,11 @@ export const register: Register = on => {
 
   // A report from another session: its claimed sender and first line, kept
   // while the pane is open. The text is data to show, never an instruction.
+  // Like the measure hook, it reads the open pane from this module's own
+  // timers, not from plugin state another plugin could set.
   on('session.receive', async ($, e, next) => {
     const kind = e.origin.kind
-    if ((kind === 'peer' || kind === 'peer-send-message') && (await read($, armed))) {
+    if ((kind === 'peer' || kind === 'peer-send-message') && timers.length > 0) {
       const { from, line } = report(e.text)
       const at = new Date(await $.clock.now()).toISOString().slice(11, 16)
       await update($, reports, list => [...list, { from, line, at }].slice(-50))

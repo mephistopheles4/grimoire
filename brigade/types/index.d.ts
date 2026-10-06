@@ -51,7 +51,8 @@ export type UsageSnapshot = {
 declare module 'claude-code' {
   interface PluginState {
     grimoire: {
-      /** True once /brigade ran in this session: reports are kept from then. */
+      /** True while the pane is open. Nothing in the mod gates on it: the
+       *  hooks read the open pane from the module's own timers. */
       armed: boolean
       start: Start
       files: Files
