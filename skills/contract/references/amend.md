@@ -26,6 +26,8 @@ wants any change to it.
    section word for word. A small diff stays reviewable, and the digest
    cannot tell a small rewrite from a full one. The first build from a new
    contract is still a full generation.
+   Also regenerate a file's contents list whenever any heading in that file
+   changes, for each file you write in this run.
 7. **Update the practice test** when the change touches question 12, or
    adds or changes a Promised stop. Write the new cases and their expected
    answers into `familiars/<name>.practice-test.md`, before any run. If that

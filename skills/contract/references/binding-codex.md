@@ -5,6 +5,16 @@ the contract names codex as the tool the agent is built for. Everything the
 file needs is in the contract, the template, the skill's steps, or here. A
 fact missing from all of them is a gap: stop and ask.
 
+## Contents
+
+- Last checked (questions 4, 5)
+- The file (questions 4, 5)
+- Capabilities (questions 5, 6)
+- Keys that let it do more without asking (questions 5, 18)
+- Settings the check warns on (questions 5, 18)
+- The mark (questions 5, 18)
+- Example (questions 4, 5)
+
 ## Last checked (questions 4, 5)
 
 Codex 0.159.0, on 2026-09-29. Codex changes often. Name this version in the

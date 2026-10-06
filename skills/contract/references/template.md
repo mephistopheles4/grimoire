@@ -6,20 +6,34 @@ anything is built. A small familiar takes about ten minutes. A serious one
 takes about an hour. The answers are the contract. The familiar's file is
 generated from the contract.*
 
-*Draft 10 states an agent's capabilities in plain words, and names the tool
-it is built for.
-Draft 9. It moves the practice test into a file of its own, beside the
-familiar. It asks where a familiar's trigger lives, how its record is
-reviewed, and which files the seal does not cover.
-Draft 8 used the word familiar, asked for the name in question 1, marked
-each clause Enforced or Promised, and added the rule that the file is
-generated from the contract. It also added agent files with a contract beside
-them, cited the questions in each heading of the generated file, and named
-the questions that each version touched in the change log. It added a "show
-me good" step before question 1, to find the target output.
-Draft 7 added "try it before you review it twice" to question 12. Draft 6
-added a balance against false alarms. Earlier drafts rewrote the text in
-plain language and added "when it is unsure".*
+## Contents
+
+- Before you start: two choices
+- How the contract is kept
+- Before question 1: show me good
+- The Quick questions (1–7)
+  - 1. What is it for?
+  - 2. What does it notice that nothing else does?
+  - 3. Who does what?
+  - 4. What does it hand back?
+  - 5. What tools does it need?
+  - 6. Does it do anything beyond reading, and writing its own notes?
+  - 7. What changed, and why?
+- The Standard questions (8–15)
+  - 8. How alike should its answers be?
+  - 9. A real example of it at its best
+  - 10. What does it need to start?
+  - 11. Where does a person decide?
+  - 12. Prove it works: a practice test
+  - 13. When would you retire it?
+  - 14. How hard should it think?
+  - 15. How does it write?
+- The Thorough questions (16–20)
+  - 16. How does it go wrong?
+  - 17. Good versus so-so
+  - 18. Every rule has a reason
+  - 19. Open questions
+  - 20. Where do the ideas come from?
 
 ## Before you start: two choices
 
@@ -180,6 +194,12 @@ target. The name is 1–64 characters, only `a`–`z`, `0`–`9` and
 `-`. It does not start or end with `-`, and it holds no `--`. For a skill,
 the name is also the folder name. For an agent, it is the file name without
 its ending.
+
+Anthropic's Skills docs reserve two words: a skill's name may not hold
+"anthropic" or "claude". If you pick a name that holds either, you are told
+here, before anything is written. You may keep it. It is then recorded
+**Decided**, with that noted. The open Agent Skills specification has no such
+rule.
 
 Then one sentence: what it does, and for whom. Then two more lines: **when it
 steps in**, and **when it stays out**. Name the nearest situation where it
@@ -379,17 +399,31 @@ is noise. Give the quiet cases at least as much weight:
 |---|---|---|
 | Situations where it must step in | 2 | 3 |
 | Situations where it must stay quiet, including the stay-out case from question 1 | 2 | 3 or more |
-| Times you run the whole test | 2 | 3 |
+| Times you run the whole test, scored | 2 | 3 |
+| Runs without the familiar, not scored (the comparison run) | 0 | 1 |
 
 One run can be luck. That is why the test runs more than once.
+
+**The comparison run (Thorough).** Run the step-in cases once more with the
+familiar not loaded. Use the same set-up as the scored runs, never a looser
+one. Do not score it by "any false alarm fails". If it catches every made-up
+problem the familiar catches, log a flag against question 2 in the flag log,
+and show it to the person. They decide what the flag means: the familiar may
+add nothing that the agent does not do alone.
+
+**Record each run's model.** Write the model that each run used beside its
+result. When question 14 names more than one model, run each named model at
+least once. The scored runs are then the level's count or the number of named
+models, whichever is larger. When question 14 names none, record the model
+that each run used, with nothing to match.
 
 **Test the Promised stops.** Every stop in question 3 marked Promised gets at
 least one practice case. Only the instructions hold a Promised stop, so only
 a run shows whether it holds.
 
 *The test:* write the expected answers before you run it. **Any false alarm
-fails the run.** A false alarm is a flag on the decoy, or a word where it had
-to stay quiet. A check that never failed was never tested.
+fails a scored run.** A false alarm is a flag on the decoy, or a word where
+it had to stay quiet. A check that never failed was never tested.
 
 #### Try it before you review it twice
 
