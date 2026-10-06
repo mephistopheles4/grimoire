@@ -1,6 +1,6 @@
 # Contract: eagle-eye
 
-Version: 0.2.0
+Version: 0.2.1
 
 - **Type:** skill
 - **Level:** Thorough
@@ -105,6 +105,7 @@ Extra keys: none.
 | 0.1.1 | 2026-09-30 | No clause changed. The generated file is brought back to the contract in two places: a use line is only appended to the log, never written back whole (question 13 says it appends), and the 2–3 decision table stays in chat, with no box file, page, export or audit run (question 3's depth rule). | Review of pull request 153: read-and-write-back can lose a line when two sessions write at once, and the procedure sent the chat-table route through the file steps. | 3, 13 |
 | 0.1.2 | 2026-10-01 | No clause changed. The practice test runs on the clean baseline: each session in its own run through the repository's practice runner, which loads only the skill under test and what the tool ships. Its setup drops the steps that moved the installed copies out and switched off MCP servers and plugins. `EAGLE_EYE_LOG` points inside the run's work folder, the audit endpoint points at a closed loopback port, and session 4 uses a literal fake key and runs only on the `clean` and `owner-pact` variants. The test lists its tool rules, the usage record's shell reads and append among them, and the denials it expects. P4 is checkable when the session writes the usage record's commands one per call. No expected answer changes. No section of `SKILL.md` changes: question 12 here is this skill's own test. | The owner: a practice test runs in a sandbox with no possible conflicts, and conflicts are added back on purpose, one named variant at a time (issue 161, ADR 0007). A changed procedure is a new version. | 12 |
 | 0.2.0 | 2026-10-04 | The yes to the usage log is stored at once as a consent marker, and the later of two markers holds. A built box writes a start line and an end line with one key. An open box is asked about at the next use; on a no it gets an "unanswered" end line, and a fourth signal counts those. The default log moves to `.grimoire/eagle-eye/log.jsonl`, and the earlier default is ignored. Practice cases P5 to P9 are added and not run, and P4's expected answer says "a usage log" instead of "one line per use". | Issue 188: parallel sessions each asked the log question, because a yes was stored only with the first use line at a debrief, and a dropped box wrote nothing. The owner chose the set in an eagle-eye box on 2026-10-04. | 3, 6, 12, 13 |
+| 0.2.1 | 2026-10-06 | No clause changed. A Contents list is added at the top of the four long reference files (audit, box-file, usage-record, writing-edges), one bullet per heading in file order. No other line changed, no heading renamed. | Issue 194, from 176: the check warns on a reference file over 100 lines with no contents list in its first 30. | none |
 
 ---
 

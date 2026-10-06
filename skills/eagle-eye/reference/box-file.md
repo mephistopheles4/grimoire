@@ -3,6 +3,16 @@
 This file holds the detail behind the brief, the rows, the presets, the tour
 and the renderer's checks. `SKILL.md` holds the steps and the stops.
 
+## Contents
+
+- An example brief (questions 4, 9, 15)
+- Challenge the premise with a row (questions 10, 16)
+- The problem statement (questions 10, 15)
+- Presets in detail (questions 4, 17)
+- The tour in detail (question 4)
+- What the renderer checks (questions 3, 4)
+- Common mistakes (questions 16, 17, 18)
+
 ## An example brief (questions 4, 9, 15)
 
 > **problem.** The gate blocks a merge when a build is red. Nobody has said who
