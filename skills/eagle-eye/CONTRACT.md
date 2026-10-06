@@ -1,6 +1,6 @@
 # Contract: eagle-eye
 
-Version: 0.2.1
+Version: 0.2.2
 
 - **Type:** skill
 - **Level:** Thorough
@@ -85,7 +85,7 @@ Version: 0.2.1
 
 ## 5. What tools does it need?
 
-**Confirmed.** Node, to run `render.mjs` and the optional `audit.mjs`; the system's command that opens a file in the browser. Both scripts sit inside the skill folder, so the seal covers them.
+**Confirmed.** Node.js 20 or later, to run `render.mjs` and the optional `audit.mjs`; the system's command that opens a file in the browser. Both scripts sit inside the skill folder, so the seal covers them.
 
 Extra keys: none.
 
@@ -106,6 +106,7 @@ Extra keys: none.
 | 0.1.2 | 2026-10-01 | No clause changed. The practice test runs on the clean baseline: each session in its own run through the repository's practice runner, which loads only the skill under test and what the tool ships. Its setup drops the steps that moved the installed copies out and switched off MCP servers and plugins. `EAGLE_EYE_LOG` points inside the run's work folder, the audit endpoint points at a closed loopback port, and session 4 uses a literal fake key and runs only on the `clean` and `owner-pact` variants. The test lists its tool rules, the usage record's shell reads and append among them, and the denials it expects. P4 is checkable when the session writes the usage record's commands one per call. No expected answer changes. No section of `SKILL.md` changes: question 12 here is this skill's own test. | The owner: a practice test runs in a sandbox with no possible conflicts, and conflicts are added back on purpose, one named variant at a time (issue 161, ADR 0007). A changed procedure is a new version. | 12 |
 | 0.2.0 | 2026-10-04 | The yes to the usage log is stored at once as a consent marker, and the later of two markers holds. A built box writes a start line and an end line with one key. An open box is asked about at the next use; on a no it gets an "unanswered" end line, and a fourth signal counts those. The default log moves to `.grimoire/eagle-eye/log.jsonl`, and the earlier default is ignored. Practice cases P5 to P9 are added and not run, and P4's expected answer says "a usage log" instead of "one line per use". | Issue 188: parallel sessions each asked the log question, because a yes was stored only with the first use line at a debrief, and a dropped box wrote nothing. The owner chose the set in an eagle-eye box on 2026-10-04. | 3, 6, 12, 13 |
 | 0.2.1 | 2026-10-06 | No clause changed. A Contents list is added at the top of the four long reference files (audit, box-file, usage-record, writing-edges), one bullet per heading in file order. No other line changed, no heading renamed. | Issue 194, from 176: the check warns on a reference file over 100 lines with no contents list in its first 30. | none |
+| 0.2.2 | 2026-10-06 | No clause changed beyond question 5's tools line, which now names Node.js 20 or later. `SKILL.md` gains one `compatibility` frontmatter line; its body does not change. **Decided** 2026-10-06 | Issue 181, from 176: a person installing the skill can see the runtime it needs before a script fails. The floor was confirmed by running every script entry point under Node 20.0.0 and scanning for newer APIs. The owner approved the row and version step. | 5 |
 
 ---
 
