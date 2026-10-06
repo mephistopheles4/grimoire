@@ -223,6 +223,36 @@ describe('contents: a long .md file in a skill folder with no contents heading w
     }
   });
 
+  describe('a "## Contents" line inside a code fence is not a heading', () => {
+    /** 101 lines with `block` spliced in from line 3. */
+    const withBlock = block => `${['line 1', 'line 2', ...block, ...Array.from({ length: 99 - block.length }, (_, i) => `line ${i + 3 + block.length}`)].join('\n')}\n`;
+    for (const [label, block] of [
+      ['in a backtick fence', ['```markdown', '## Contents', '```']],
+      ['in a tilde fence', ['~~~', '## Contents', '~~~']],
+      ['in a fence indented three spaces', ['   ```', '## Contents', '   ```']],
+      ['in a fence that never closes', ['```', '## Contents']],
+      ['after a shorter run that does not close a longer fence', ['````', '```', '## Contents', '````']],
+      ['after the other fence character, which does not close it', ['```', '~~~', '## Contents', '```']],
+      ['after a closing run with text after it, which does not close it', ['```', '``` x', '## Contents', '```']],
+    ]) {
+      test(`${label} -> the warning`, () => {
+        exactlyOnce(run([withFiles({ 'references/long.md': withBlock(block) })]), 0, want('references/long.md', 101));
+      });
+    }
+    for (const [label, block] of [
+      ['after a closed fence', ['```', 'code', '```', '## Contents']],
+      ['after a closed tilde fence with a longer closing run', ['~~~', 'code', '~~~~~', '## Contents']],
+      ['after "``", which is too short to open a fence', ['``', '## Contents']],
+      ['after a backtick run whose info string holds a backtick, which opens no fence', ['``` a`b', '## Contents']],
+      ['after a run indented four spaces, which opens no fence', ['    ```', '## Contents']],
+    ]) {
+      test(`${label} -> no line`, () => quiet(withFiles({ 'references/long.md': withBlock(block) })));
+    }
+    test('a CRLF fence closes as an LF one does', () => {
+      quiet(withFiles({ 'references/long.md': withBlock(['```', 'code', '```', '## Contents']).replaceAll('\n', '\r\n') }));
+    });
+  });
+
   describe('which files it reads', () => {
     test('a long top-level README.md -> no line', () => quiet(withFiles({ 'README.md': text(150) })));
     test('a long README.md under references/ -> the warning', () => {
@@ -272,6 +302,9 @@ describe('contents: a long .md file in a skill folder with no contents heading w
       ['"## Contents", then a million spaces', `## Contents${lineOfSpaces}`, false],
       ['"## x", then a million spaces and "#"', `## x${lineOfSpaces}#`, true],
       ['"## x", then a million spaces and "y"', `## x${lineOfSpaces}y`, true],
+      ['a million backticks, which open a fence', '`'.repeat(1_000_000), true],
+      ['"```", a million spaces, then a backtick', `\`\`\`${lineOfSpaces}\``, true],
+      ['"~~~", a million spaces, then "~"', `~~~${lineOfSpaces}~`, true],
     ]) {
       test(`${label} -> ${warns ? 'one warning' : 'no line'}, within ${BOUND / 1000} s`, () => {
         const content = `${first}\n${text(101)}`;

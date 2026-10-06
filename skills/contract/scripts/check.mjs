@@ -1465,14 +1465,53 @@ function isContentsHeading(s, start, end) {
   return textEnd - i === 8 && s.slice(i, textEnd).toLowerCase() === 'contents';
 }
 
-/** True when one of a text's first CONTENTS_WINDOW lines is a Contents heading. */
+/**
+ * When s[start, end) is a code-fence line, { mark, length, after }: at most
+ * three spaces, then three or more "`" or "~", with `after` the index past
+ * that run. A "`" run followed by another "`" on its line is not a fence, as
+ * Markdown reads it. Otherwise null. Every scan stops at `end`.
+ */
+function fenceAt(s, start, end) {
+  let i = start;
+  while (i < end && i - start < 4 && s[i] === ' ') i += 1;
+  if (i - start > 3) return null;
+  const mark = s[i];
+  if (mark !== '`' && mark !== '~') return null;
+  const run = i;
+  while (i < end && s[i] === mark) i += 1;
+  if (i - run < 3) return null;
+  if (mark === '`') {
+    for (let j = i; j < end; j += 1) if (s[j] === '`') return null;
+  }
+  return { mark, length: i - run, after: i };
+}
+
+/** True when s[start, end) closes `open`: its mark, at least as long, then only spaces or tabs. */
+function closesFence(open, s, start, end) {
+  const f = fenceAt(s, start, end);
+  if (f === null || f.mark !== open.mark || f.length < open.length) return false;
+  for (let j = f.after; j < end; j += 1) if (!isSpaceOrTab(s[j])) return false;
+  return true;
+}
+
+/**
+ * True when one of a text's first CONTENTS_WINDOW lines is a Contents heading.
+ * A line inside a code fence is code, not a heading; a fence left open runs
+ * to the end of the file.
+ */
 function hasContentsHeading(text) {
   let start = 0;
+  let open = null;
   for (let k = 0; k < CONTENTS_WINDOW && start <= text.length; k += 1) {
     const nl = text.indexOf('\n', start);
     const end = nl < 0 ? text.length : nl;
     const stop = end > start && text[end - 1] === '\r' ? end - 1 : end;
-    if (isContentsHeading(text, start, stop)) return true;
+    if (open !== null) {
+      if (closesFence(open, text, start, stop)) open = null;
+    } else {
+      open = fenceAt(text, start, stop);
+      if (open === null && isContentsHeading(text, start, stop)) return true;
+    }
     start = end + 1;
   }
   return false;
