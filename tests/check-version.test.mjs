@@ -3,16 +3,16 @@
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { appendFileSync } from 'node:fs';
+import { appendFileSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
-import { tree, readJson, writeJson, skillMd, fixtureMd, manifest, setVersion, assertPasses, assertFails, repo, baseMovesAhead } from './check-fixture.mjs';
+import { tree, readJson, writeJson, skillMd, fixtureMd, manifest, setVersion, assertPasses, assertFails, repo, baseMovesAhead, modFile } from './check-fixture.mjs';
 
 test('a skill change with no version bump fails', () => {
   const dir = tree();
   const git = repo(dir);
   appendFileSync(skillMd(dir), '\nOne more sentence, shipped to nobody.\n');
   git('commit', '-aqm', 'change the skill');
-  const r = assertFails(dir, /skill file\(s\) changed since origin\/main, but version is still/);
+  const r = assertFails(dir, /skill or mod file\(s\) changed since origin\/main, but version is still/);
   assert.match(r.stderr, /plugin users receive no update/);
 });
 
@@ -25,7 +25,44 @@ test('the same skill change passes once the version moves', () => {
   assertPasses(dir);
 });
 
-test('a change outside skills/ needs no bump', () => {
+test('a change to the mod with no version bump fails', () => {
+  // The mod ships in the same plugin, so an edit to it reaches nobody until
+  // the version moves, exactly as a skill edit does. The base has no mod
+  // folder at all, which is also the shape of the commit that first adds one:
+  // the copy's own mod and the manifest's pointer into it are taken out first.
+  const dir = tree();
+  for (const part of ['brigade', 'hooks']) rmSync(join(dir, part), { recursive: true, force: true });
+  const { types, ...rest } = readJson(manifest(dir));
+  writeJson(manifest(dir), rest);
+  const git = repo(dir);
+  modFile(dir, 'brigade/hooks/register.tsx', 'export const register = () => {};\n');
+  git('add', '-A');
+  git('commit', '-qm', 'add the mod');
+  const r = assertFails(dir, /1 skill or mod file\(s\) changed since origin\/main, but version is still/);
+  assert.match(r.stderr, /plugin users receive no update/);
+});
+
+test('a change to the hooks folder at the plugin root with no version bump fails', () => {
+  const dir = tree();
+  const git = repo(dir);
+  // A new file there, so the tree changes and every pointer still lands.
+  modFile(dir, 'hooks/shared.ts', 'export const x = 1;\n');
+  git('add', '-A');
+  git('commit', '-qm', 'add a file to the hooks folder');
+  assertFails(dir, /1 skill or mod file\(s\) changed since origin\/main, but version is still/);
+});
+
+test('the same mod change passes once the version moves', () => {
+  const dir = tree();
+  const git = repo(dir);
+  modFile(dir, 'brigade/hooks/register.tsx', 'export const register = () => {};\n');
+  setVersion(dir, '99.0.0');
+  git('add', '-A');
+  git('commit', '-qm', 'add the mod and bump the version');
+  assertPasses(dir);
+});
+
+test('a change outside skills/ and the mod needs no bump', () => {
   const dir = tree();
   const git = repo(dir);
   appendFileSync(join(dir, 'scripts', 'build-pages.mjs'), '\n// a comment, releasing nothing\n');

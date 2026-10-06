@@ -1077,6 +1077,7 @@ const START_REFUSALS = [
   ['B3 on user-skills', sb => ['--variant', 'user-skills', '--skill', skillAt(sb, 'contract'), '--case', 'B3', '--model', 'haiku', '--effort', 'low'], /B3.*clean.*owner-pact/],
   ['B25b on full-account', sb => ['--variant', 'full-account', '--skill', skillAt(sb, 'contract'), '--case', 'b25b', '--model', 'haiku', '--effort', 'low'], /B25b/i],
   ['eagle-eye session 4 on user-skills', sb => ['--variant', 'user-skills', '--skill', skillAt(sb, 'eagle-eye'), '--case', 'session-4', '--model', 'haiku', '--effort', 'low'], /session-4/],
+  ['head-chef session 1 on full-account', sb => ['--variant', 'full-account', '--skill', skillAt(sb, 'head-chef'), '--case', 'session-1', '--model', 'haiku', '--effort', 'low'], /session-1.*clean.*owner-pact/],
   ['a setup folder with a project settings file', sb => ['--variant', 'clean', ...base(sb), '--setup', setupWith(sb, { '.claude/settings.json': '{}' })], /\.claude/],
   ['a setup folder with an MCP config', sb => ['--variant', 'clean', ...base(sb), '--setup', setupWith(sb, { '.mcp.json': '{}' })], /\.mcp\.json/],
   ['a setup folder with an instruction file, however deep', sb => ['--variant', 'clean', ...base(sb), '--setup', setupWith(sb, { 'docs/deep/agents.md': 'x' })], /agents\.md/i],

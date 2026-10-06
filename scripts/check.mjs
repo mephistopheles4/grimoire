@@ -5,22 +5,26 @@
 //
 // 1. Every artifact in the tree validates against the renderer its registry
 //    row names, and every skill that ships artifacts has a row.
-// 2. No file a skill ships carries a fixed path. A skill lands in a different
-//    directory under every install route, so a path naming one is a defect.
+// 2. No file a skill or the mod ships carries a fixed path. Both land in a
+//    different directory under every install route, so a path naming one is
+//    a defect.
 // 3. The single-pass tag strip does not come back, and no code fence in any
 //    markdown file declares no language.
 // 4. Every plugin in the marketplace manifest exists on disk with a manifest,
 //    and every skill passes the format check the contract skill ships.
-// 5. A change to a skill carries a version bump.
+// 5. A change to a skill or the mod carries a version bump.
 // 6. Nothing in the tree takes a dependency: no manifest, no lockfile, and no
-//    import of a bare specifier.
+//    import of a bare specifier. The mod's module may import the engine's own
+//    `claude-code`, which the engine supplies.
+//    6b. Every pointer the engine follows to the mod's code, and every
+//    relative import in it, lands inside the mod's folders.
 // 7. The SkillSpector baselines agree, so a rule reasoned away at the
 //    repository root is reasoned away the same way inside a skill.
 // 8. The test suite passes. `node --test` ships with Node, so the tests cost no
 //    dependency and this stays one command.
 
-import { readdirSync, readFileSync, statSync } from 'node:fs';
-import { basename, join, relative, sep } from 'node:path';
+import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
+import { basename, join, posix, relative, sep } from 'node:path';
 import { execFileSync, spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { walk } from './lib/tree.mjs';
@@ -35,6 +39,24 @@ const rel = p => relative(root, p).split(sep).join('/');
 // carries why, and it is shared with build-pages.mjs so the two cannot drift.
 const { files, notes: walkNotes } = walk(root);
 for (const n of walkNotes) console.log(`note: ${n}`);
+
+// What ships besides the skills: the Claude Code mod. The engine loads its
+// hooks module and runs it in every session the plugin is installed in, so it
+// is held to the rules a skill is held to — no fixed path, no dependency, and
+// a version bump on any change. Two folders, because the engine reads
+// hooks/hooks.json at the plugin's root, which is this repository's root, and
+// that file may name a module kept in the mod's own folder beside skills/. A
+// mod kept anywhere else is outside these rules until it is named here.
+//
+// The engine also writes its own type declarations into .claude-plugin/types/
+// at every load from a folder the person owns. Those are the engine's files,
+// not this repository's: .gitignore excludes them, so the walk never sees them.
+const MOD_DIRS = ['brigade', 'hooks'];
+const underMod = src => MOD_DIRS.some(d => src.startsWith(`${d}/`));
+const isShipped = src => src.startsWith('skills/') || underMod(src);
+// Code: every suffix Node or the engine loads a module from. The rules that
+// read code read all of them, so a suffix is never a way round one.
+const CODE = /\.(ts|tsx|jsx|js|mjs|cjs|mts|cts)$/;
 
 // 1. Artifacts validate, against the renderer their registry row names.
 //
@@ -99,15 +121,16 @@ for (const e of readdirSync(join(root, 'skills'), { withFileTypes: true })) {
   }
 }
 
-// 2. No fixed paths in anything a skill ships.
+// 2. No fixed paths in anything a skill or the mod ships.
 //
 // This read files named SKILL.md, so the three patterns never ran against a
 // skill's lib/, reference/, renderer or schema. A hardcoded home directory
 // anywhere but the skill's own prose passed the gate that exists to catch it.
 //
-// Scoped to skills/ and not to the whole tree, because the rule is about what
-// lands on somebody else's computer under an install route nobody here
-// chooses. A repository script is not that, and tests/check-paths.test.mjs
+// Scoped to skills/ and the mod's folders and not to the whole tree, because
+// the rule is about what lands on somebody else's computer under an install
+// route nobody here chooses. A repository script is not that, and
+// tests/check-paths.test.mjs
 // carries all three of these patterns on purpose — as the strings that prove
 // the rule works. Counted from the file rather than remembered: an earlier
 // draft of this comment said two, and the third was added in the same change
@@ -116,7 +139,7 @@ const FIXED = [/~\/\.claude/, /\/home\/[a-z]/i, /C:\\Users\\/i];
 // A minified file is one long line, and a refusal nobody can read is a refusal
 // nobody acts on.
 const excerpt = s => (s.length > 120 ? `${s.slice(0, 117)}...` : s);
-for (const shipped of files.filter(f => rel(f).startsWith('skills/'))) {
+for (const shipped of files.filter(f => isShipped(rel(f)))) {
   // The block-quote exemption is markdown only. `>` opens a quotation in prose
   // and means nothing in JavaScript, JSON or HTML, so honouring it everywhere
   // would let a fixed path walk through the gate on any line that happened to
@@ -145,7 +168,7 @@ for (const skill of files.filter(f => f.endsWith('SKILL.md'))) {
 // bypass is hard to build, so this guard holds a shape, not a hole.
 // docs/security/scanners.md carries the triage.
 const SINGLE_PASS = /=>\s*s\.replace\(\/<\[\^>\]\+>\/g/;
-for (const f of files.filter(f => /\.(mjs|js|html)$/.test(f))) {
+for (const f of files.filter(f => CODE.test(f) || f.endsWith('.html'))) {
   readFileSync(f, 'utf8')
     .split('\n')
     .forEach((line, i) => {
@@ -353,7 +376,10 @@ if (!mergeBase) {
 } else if (mergeBase === git('rev-parse', 'HEAD')) {
   console.log(`note: nothing ahead of ${baseRef} — version bump check skipped`);
 } else {
-  const touched = git('diff', '--name-only', `${mergeBase}..HEAD`, '--', 'skills');
+  // The mod ships in the same plugin and reaches nobody without a bump either.
+  // A pathspec naming a folder the base never had is not an error to git, so
+  // the commit that first adds the mod is read like any other.
+  const touched = git('diff', '--name-only', `${mergeBase}..HEAD`, '--', 'skills', ...MOD_DIRS);
   const before = git('show', `${mergeBase}:.claude-plugin/plugin.json`);
   if (!touched) {
     // nothing to release
@@ -366,7 +392,7 @@ if (!mergeBase) {
     const was = JSON.parse(before).version;
     if (was === plugin.version) {
       fail(
-        `${files} skill file(s) changed since ${baseRef}, but version is still ${plugin.version} — plugin users receive no update`,
+        `${files} skill or mod file(s) changed since ${baseRef}, but version is still ${plugin.version} — plugin users receive no update`,
       );
     } else {
       // Read here and not beside `before`, because a branch that never moved
@@ -382,7 +408,7 @@ if (!mergeBase) {
         console.log(`note: no plugin.json at the tip of ${baseRef} — the released-version comparison was skipped`);
       } else if (JSON.parse(atBaseTip).version === plugin.version) {
         fail(
-          `${files} skill file(s) changed since ${baseRef}, and the version moved to ${plugin.version}, but ${baseRef} is already at ${plugin.version} — something landed there after this branch forked, so plugin users receive no update. Rebase onto ${baseRef} and bump again.`,
+          `${files} skill or mod file(s) changed since ${baseRef}, and the version moved to ${plugin.version}, but ${baseRef} is already at ${plugin.version} — something landed there after this branch forked, so plugin users receive no update. Rebase onto ${baseRef} and bump again.`,
         );
       }
     }
@@ -402,10 +428,14 @@ if (!mergeBase) {
 // relative nor a node builtin — is a dependency whether or not a manifest
 // declares it.
 //
-// Say the width, twice over. The rule reads .mjs and .js files only, so the
+// Say the width, twice over. The rule reads every suffix the Claude Code
+// engine loads a mod's module from — .ts, .tsx, .jsx, .js, .mjs, .cjs, .mts
+// and .cts — which covers Node's own as well. It does not read HTML, so the
 // inline script in lib/template.html is not scanned — a dynamic import there
 // would pass. That file loads in a browser from a file: URL and has nowhere to
-// resolve a bare specifier from, so the gap is stated rather than closed.
+// resolve a bare specifier from, so the gap is stated rather than closed. A
+// TypeScript `/// <reference types="..." />` line is a comment to this rule
+// and is not read either.
 //
 // Within a file it reads string literals: a from-clause, a side-effect import,
 // a dynamic import and a require. A computed path cannot be read here and is
@@ -457,9 +487,22 @@ const CALLED = [
   /\brequire\s*\(\s*(['"])([^'"]+)\1/g,
 ];
 // A relative path, an absolute path and a node: builtin all resolve with
-// nothing installed. Everything else is a package.
-const bare = spec => !spec.startsWith('.') && !spec.startsWith('/') && !spec.startsWith('node:');
-for (const f of files.filter(f => /\.(mjs|js)$/.test(f))) {
+// nothing installed. Everything else is a package. A leading `//` is not an
+// absolute path: resolved against a file URL it names a host, which is a
+// download, so it counts as a package.
+const bare = spec =>
+  spec.startsWith('//') || (!spec.startsWith('.') && !spec.startsWith('/') && !spec.startsWith('node:'));
+// Inside the mod, the engine supplies one more: `claude-code` and the paths
+// under it, such as `claude-code/testing`. The name is matched whole, because
+// a prefix match would pass `claude-code-x`, which is somebody's package. Each
+// segment under it starts with a letter or a digit, so `claude-code/../chalk`
+// cannot step out of the engine's name into a package's. Outside the mod
+// nothing supplies it — Node would look in node_modules — so there it is a
+// dependency like any other.
+const ENGINE = /^claude-code(\/[A-Za-z0-9][\w.-]*)*$/;
+const engine = spec => ENGINE.test(spec);
+for (const f of files.filter(f => CODE.test(f))) {
+  const inMod = underMod(rel(f));
   readFileSync(f, 'utf8')
     .split('\n')
     .forEach((line, i) => {
@@ -470,12 +513,142 @@ for (const f of files.filter(f => /\.(mjs|js)$/.test(f))) {
         if (m) found.push(m[2]);
       }
       for (const re of CALLED) for (const m of line.matchAll(re)) found.push(m[2]);
-      for (const spec of found.filter(bare)) {
+      for (const spec of found.filter(s => bare(s) && !(inMod && engine(s)))) {
         fail(
           `${rel(f)}:${i + 1} imports "${spec}" — import a relative path or a node: builtin instead. A bare specifier is a dependency, and this repository has none, so nothing installs it and the file does not load. See CONTRIBUTING.md, "Do not add a dependency".`,
         );
       }
     });
+}
+
+// 6b. The engine runs only code the mod's folders hold.
+//
+// The rules above know the mod by folder name, which holds only while the
+// code the engine runs sits in those folders. The engine finds that code
+// through pointers: the manifest's "hooks" key, hooks/hooks.json at the
+// plugin's root, and the "modules" each hooks file lists, each path relative
+// to the hooks file. The module then imports the plugin's own files, and the
+// engine loads each one it reaches. A pointer or an import out of the mod's
+// folders would run code no rule here reads, so each one is resolved and held
+// inside them. The manifest's "types" key names the mod's state contract and
+// is held there too, so the mod stays in one place.
+//
+// It reads paths as text: backslashes as separators, `.` and `..` folded. A
+// symbolic link inside a mod folder pointing out of it is not followed. The
+// walk reads what git would commit, and a link is a file a reviewer sees in
+// the diff. A hooks file holding anything but "modules" is refused rather
+// than read, because a command hook runs a shell command this check cannot
+// follow, and a key this check does not know is a pointer it cannot hold.
+const MOD_OUTSIDE = "outside the mod's folders (" + MOD_DIRS.map(d => `${d}/`).join(', ') + ') — the engine would run code no rule here reads';
+// The path a pointer lands on, from the repository root, or why it has none.
+function landing(fromDir, spec) {
+  const s = spec.replace(/\\/g, '/');
+  if (s.startsWith('/') || /^[A-Za-z]:/.test(s)) return { why: 'an absolute path' };
+  const p = posix.normalize(posix.join(fromDir, s));
+  if (p === '..' || p.startsWith('../')) return { why: 'a path out of the repository' };
+  return { p };
+}
+const isFile = p => {
+  try {
+    return statSync(join(root, ...p.split('/'))).isFile();
+  } catch {
+    return false;
+  }
+};
+// One pointer: where it lands, that it lands inside the mod, and that the file
+// is there. Returns the landing path when all three hold.
+function pointer(what, fromDir, spec) {
+  const at = landing(fromDir, spec);
+  if (at.why) return void fail(`${what} "${spec}", ${at.why} — no install route puts the plugin there`);
+  if (!underMod(at.p)) return void fail(`${what} "${spec}", which is ${at.p} — ${MOD_OUTSIDE}`);
+  if (!isFile(at.p)) return void fail(`${what} "${spec}", and ${at.p} is not there — the engine would fail to load it`);
+  return at.p;
+}
+function hooksFile(src) {
+  let parsed;
+  try {
+    parsed = JSON.parse(readFileSync(join(root, ...src.split('/')), 'utf8'));
+  } catch (e) {
+    return fail(`${src} is not JSON (${e.message}) — the engine cannot read which modules it names, and neither can this check`);
+  }
+  if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) {
+    return fail(`${src} is not a JSON object with a "modules" list`);
+  }
+  for (const key of Object.keys(parsed).filter(k => k !== 'modules')) {
+    fail(`${src} holds "${key}" — the check reads only "modules", so anything else is engine-run code it cannot follow`);
+  }
+  const mods = parsed.modules ?? [];
+  if (!Array.isArray(mods) || mods.some(m => typeof m !== 'string')) {
+    return fail(`${src} "modules" is not a list of paths`);
+  }
+  for (const m of mods) pointer(`${src} names the module`, posix.dirname(src), m);
+}
+const manifestHooks = plugin.hooks === undefined ? [] : plugin.hooks;
+if (typeof manifestHooks !== 'string' && !(Array.isArray(manifestHooks) && manifestHooks.every(h => typeof h === 'string'))) {
+  fail(`.claude-plugin/plugin.json "hooks" is not a path or a list of paths — the check cannot read where it leads`);
+} else {
+  const named = (typeof manifestHooks === 'string' ? [manifestHooks] : manifestHooks)
+    .map(h => pointer('.claude-plugin/plugin.json "hooks" names', '', h))
+    .filter(Boolean);
+  // The engine reads hooks/hooks.json at the plugin's root as well, whatever
+  // the manifest says, so a file there is read like one the manifest names.
+  if (isFile('hooks/hooks.json') && !named.includes('hooks/hooks.json')) named.push('hooks/hooks.json');
+  for (const src of named) hooksFile(src);
+}
+if (plugin.types !== undefined) {
+  if (typeof plugin.types !== 'string') fail(`.claude-plugin/plugin.json "types" is not a path`);
+  else pointer('.claude-plugin/plugin.json "types" names', '', plugin.types);
+}
+// Relative paths in the mod's code. Rule 6 reads import lines in the shapes
+// a formatter writes, which a hand can step round: a comment in front of the
+// keyword, the path on the next line, a semicolon first. So here every quoted
+// string in a mod code file that starts with `./` or `../`, or the same with a
+// backslash, is resolved from
+// that file, on every line, comments included, and fails when it lands out of
+// the mod's folders. A string that is no import costs a false failure only if
+// it climbs out, which nothing in the mod has reason to write. Only where it
+// lands is held; whether the file is there is the engine's to say, since an
+// import may leave out the suffix. It reads paths as written text: a string
+// spelled with escapes or continued across lines is not seen, and review
+// reads the diff for those, as it does for a computed path.
+//
+// An absolute import path is refused in the mod too, on the lines rule 6
+// reads: no install route puts the plugin anywhere a fixed path could name,
+// so it can only reach code outside it.
+const RELATIVE = /(['"`])(\.{1,2}(?:\/|\\\\)[^'"`\n]*)\1/g;
+for (const f of files.filter(f => CODE.test(f) && underMod(rel(f)))) {
+  const src = rel(f);
+  readFileSync(f, 'utf8')
+    .split('\n')
+    .forEach((line, i) => {
+      for (const m of line.matchAll(RELATIVE)) {
+        const at = landing(posix.dirname(src), m[2]);
+        if (at.why) fail(`${src}:${i + 1} imports "${m[2]}", ${at.why}`);
+        else if (!underMod(at.p)) fail(`${src}:${i + 1} imports "${m[2]}", which is ${at.p} — ${MOD_OUTSIDE}`);
+      }
+      if (COMMENT.test(line)) return;
+      const found = [];
+      for (const re of [FROM, SIDE_EFFECT, WRAPPED]) {
+        const m = re.exec(line);
+        if (m) found.push(m[2]);
+      }
+      for (const re of CALLED) for (const m of line.matchAll(re)) found.push(m[2]);
+      for (const spec of found.filter(s => /^(?:[\\/]|[A-Za-z]:)/.test(s))) {
+        fail(`${src}:${i + 1} imports "${spec}", an absolute path — no install route puts the plugin there`);
+      }
+    });
+}
+// A mod folder spelled in another case. The gate runs where case counts, and
+// an install on Windows or macOS folds it, so `Hooks/hooks.json` would load
+// there and be read by nothing here.
+for (const e of readdirSync(root, { withFileTypes: true })) {
+  const twin = MOD_DIRS.find(d => d.toLowerCase() === e.name.toLowerCase() && d !== e.name);
+  if (twin) fail(`${e.name}/ at the root is ${twin}/ in another case — an install that folds case loads it, and the check reads only ${twin}/. Rename it ${twin}/.`);
+}
+// The same for the hooks file inside its folder: `hooks/Hooks.json` loads where
+// case folds and is read by nothing here.
+for (const e of existsSync(join(root, 'hooks')) ? readdirSync(join(root, 'hooks')) : []) {
+  if (e !== 'hooks.json' && e.toLowerCase() === 'hooks.json') fail(`hooks/${e} is hooks/hooks.json in another case — an install that folds case loads it, and the check reads only hooks/hooks.json. Rename it.`);
 }
 
 // 7. The SkillSpector baselines agree.

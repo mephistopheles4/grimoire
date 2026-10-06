@@ -1,6 +1,10 @@
 node_modules/
 site/
 .claude/worktrees/
+# Type declarations the Claude Code engine writes at every load of the mod,
+# and the tsconfig.json it writes at the plugin's root to extend them.
+.claude-plugin/types/
+/tsconfig.json
 *.local.*
 .DS_Store
 Thumbs.db

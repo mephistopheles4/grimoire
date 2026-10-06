@@ -9,7 +9,7 @@
     {
       "name": "grimoire",
       "source": "./",
-      "description": "A spellbook of agent skills for AI. Cast wisely. Three skills: eagle-eye, which lays coupled decisions out as a morphological box and renders a page that reads any configuration back; groundtrack, which draws a plan or a written change as a call graph a reader can step through; and contract, which interviews a person to agree the terms for a skill or an agent, then generates its file from that contract.",
+      "description": "A spellbook of agent skills for AI. Cast wisely. Four skills: eagle-eye, which lays coupled decisions out as a morphological box and renders a page that reads any configuration back; groundtrack, which draws a plan or a written change as a call graph a reader can step through; contract, which interviews a person to agree the terms for a skill or an agent, then generates its file from that contract; and head-chef, which lets a Claude Desktop session start and lead other sessions. And one pane, Brigade, opened with /brigade, which shows them.",
       "category": "productivity",
       "keywords": ["decisions", "morphological-box", "zwicky", "design-review", "brainstorming", "call-graph", "code-review", "skill-authoring", "contract"]
     }

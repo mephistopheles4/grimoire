@@ -12,7 +12,7 @@ node scripts/check.mjs
 
 That is the contract, and it is still one command. It validates every
 artifact in the tree with the renderer its registry row names, checks that no
-file a skill ships has grown a fixed path back, fails on a code fence that declares no
+file a skill or the mod ships has grown a fixed path back, fails on a code fence that declares no
 language, fails on a dependency, fails when the two SkillSpector baselines
 disagree, runs every skill through the format check in
 `skills/contract/scripts/check.mjs`, and runs the test suite in `tests/`. CI
@@ -43,7 +43,7 @@ not take, and `SECURITY.md` explains why that matters more than it looks.
 run only the suite while you work on it:
 
 ```bash
-node --test tests/audit.test.mjs tests/build-pages.test.mjs tests/check-baseline-rules.test.mjs tests/check-baselines.test.mjs tests/check-format.test.mjs tests/check-manifests.test.mjs tests/check-paths.test.mjs tests/check-test-step.test.mjs tests/check-tree.test.mjs tests/check-version.test.mjs tests/contract-check-docs.test.mjs tests/contract-check-folder.test.mjs tests/contract-check-rules.test.mjs tests/contract-check-seal.test.mjs tests/contract-check-toml.test.mjs tests/eagle-eye-sheets.test.mjs tests/esc.test.mjs tests/groundtrack-fold.test.mjs tests/groundtrack-render.test.mjs tests/groundtrack-sheets.test.mjs tests/practice.test.mjs tests/registry.test.mjs tests/render.test.mjs tests/skillspector-gate.test.mjs tests/skillspector-strip-suppressed.test.mjs
+node --test tests/audit.test.mjs tests/build-pages.test.mjs tests/check-baseline-rules.test.mjs tests/check-baselines.test.mjs tests/check-format.test.mjs tests/check-manifests.test.mjs tests/check-mod.test.mjs tests/check-paths.test.mjs tests/check-test-step.test.mjs tests/check-tree.test.mjs tests/check-version.test.mjs tests/contract-check-docs.test.mjs tests/contract-check-folder.test.mjs tests/contract-check-rules.test.mjs tests/contract-check-seal.test.mjs tests/contract-check-toml.test.mjs tests/eagle-eye-sheets.test.mjs tests/esc.test.mjs tests/groundtrack-fold.test.mjs tests/groundtrack-render.test.mjs tests/groundtrack-sheets.test.mjs tests/practice.test.mjs tests/registry.test.mjs tests/render.test.mjs tests/skillspector-gate.test.mjs tests/skillspector-strip-suppressed.test.mjs
 ```
 
 **The suite never reaches the network.** eagle-eye's edge audit is the one
@@ -89,8 +89,13 @@ needs to argue for itself in the pull request body before anybody reads the
 diff. See [`SECURITY.md`](SECURITY.md) for why this matters more than it looks.
 
 `node scripts/check.mjs` enforces this. It fails on a `package.json`, a
-lockfile, and any `.mjs` or `.js` file importing a bare specifier — an import
-path that is not relative, not absolute, and not a `node:` builtin. It reads
+lockfile, and any code file importing a bare specifier — an import path that
+is not relative, not absolute, and not a `node:` builtin. A path starting with
+`//` names a host, so it counts as a package, not as absolute. Code means every
+suffix Node or the Claude Code engine loads: `.ts`, `.tsx`, `.jsx`, `.js`,
+`.mjs`, `.cjs`, `.mts` and `.cts`. Inside the mod (see below), `claude-code`
+and the paths under it, such as `claude-code/testing`, are builtins too,
+because the engine supplies them; anywhere else they are a package. It reads
 code and not prose, so a comment is skipped. Until this check existed the rule
 held only because the tree gave it nowhere to land.
 
@@ -178,7 +183,7 @@ Why a skill may name the tools it targets:
 [`docs/adr/0005-skills-name-their-targets.md`](docs/adr/0005-skills-name-their-targets.md).
 
 **A skill with a `CONTRACT.md` beside its `SKILL.md` is generated from it.**
-Today that is `skills/contract/` and `skills/eagle-eye/`. Do not edit such a
+Today that is `skills/contract/`, `skills/eagle-eye/` and `skills/head-chef/`. Do not edit such a
 `SKILL.md` by hand. Change the contract and raise its `Version:` line,
 generate the `SKILL.md` again, then seal it:
 
@@ -190,12 +195,29 @@ The seal writes a mark into the frontmatter: the contract's version, a digest
 of the skill's folder and a digest of the contract. The folder's digest covers
 every file in `skills/<name>/` except `CONTRACT.md`: for `contract`, the check
 script and the template; for `eagle-eye`, the renderer, the audit and the
-reference files. So a change to any of them needs a new seal, and a stray
+reference files; for `head-chef`, its README and its SkillSpector baseline. So a change to any of them needs a new seal, and a stray
 file such as `.DS_Store` breaks it. `node scripts/check.mjs` fails when a
 covered file changed after the seal. The seal proves only that those files
 are unchanged since they were sealed. It proves nothing about who sealed them,
 because anyone can run the command. So a reviewer reads every changed file in
 full, and reviews the `SKILL.md` as shipped prose, whatever its seal says.
+
+**The mod is held to the same rules.** The plugin can also ship a Claude Code
+mod: a hooks module the engine runs in every session the plugin is installed
+in. Today that is Brigade, the `/brigade` pane. Its code and its state contract
+live in `brigade/`; `hooks/hooks.json` at the plugin's root, the file the mods
+reference requires, names the module as `../brigade/register.tsx`. The check
+holds both folders to the fixed-path rule and the version bump, as it holds
+`skills/`. It also holds the code the engine runs inside them: each module a
+hooks file names, every quoted `./` or `../` path in the mod's code, with either slash, and
+the manifest's `hooks` and `types` paths must land in `brigade/` or `hooks/`;
+an import line the check reads may not hold an absolute path; neither mod
+folder nor `hooks/hooks.json` may be spelled in another case; and a hooks file may
+hold nothing but `modules`, because a settings hook there would run a command
+no rule reads. A mod kept in any other folder is outside those rules until
+`MOD_DIRS` in `scripts/check.mjs` names it. The engine writes its own type declarations into
+`.claude-plugin/types/` at every load; `.gitignore` excludes them, so never
+commit them and the check never reads them.
 
 **Changing the export format touches three places.** The page writes it,
 `SKILL.md` specifies it, and the agent reads it back. All three in one commit,
@@ -211,7 +233,8 @@ or none.
    a gate that quietly does nothing reads as a gate that passed. A prose-only
    skill produces no artifact and needs no row.
 3. Bump `version` in `.claude-plugin/plugin.json`. The check fails without it,
-   because Claude Code ships an update only when that field moves. It also
+   because Claude Code ships an update only when that field moves. The same
+   holds for a change to the mod. It also
    fails when `main` already carries the version you bumped to, which is what
    happens when a sibling branch lands first. Rebase and bump again.
 
