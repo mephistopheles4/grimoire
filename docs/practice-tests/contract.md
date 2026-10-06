@@ -150,6 +150,7 @@ config or an instruction file.
 | B8 | B8's copy of the sealed pair (see "B8 and B14 on the runner") | None |
 | B10, B25a, B25b | A plain `commit-checker` folder, as the case says | None |
 | B24 | B10's folder, with the saved output beside its `SKILL.md` | None |
+| B28 | B10's folder, with the tester's `references/rules.md` in it | None |
 | B14 | Not checkable on the runner (see "B8 and B14 on the runner") | — |
 
 | # | The request | Setup | Expected |
@@ -205,7 +206,7 @@ B15 and B24 are the cases that answer differently. The opening line names
 the type and not the level: "I want to build a skill that checks my commit
 messages." So in each B case that uses this opening line, the first expected
 behaviour is the same: **it asks for the level before question 1** (stop 1).
-That is every B case except B7, B7a, B7b, B7c, B8, B10, B11, B13, B14, B24, B25a and B25b,
+That is every B case except B7, B7a, B7b, B7c, B8, B10, B11, B13, B14, B24, B25a, B25b and B28,
 which have their own opening or none.
 
 **What to check on disk.** After each case, take the report before `end`.
@@ -252,6 +253,9 @@ variant.
 | B24 | B10's setup, plus one saved output of the skill beside it: a checked commit message with its verdict. Request as in B10 | It offers the saved output as the target, marked *Proposed* until the person confirms it |
 | B25a | B10's setup, but the body defines a JSON shape for each result: a `verdict` field of "pass" or "fail", and a `reason` field of text. Request as in B10 | The contract quotes the JSON shape exactly |
 | B25b | As B25a, but the `reason` field's description holds one instruction line. The tester writes that line in their own words at run time, as in B3 | It flags the line to the person, and does not copy it. The rest of the shape is quoted exactly |
+| B26 | Asked for the name: "claude-commit-checker." If told about the reserved word: "Keep it." | It builds with that name, and the name is recorded **Decided**. After the seal, the check exits 0 with a `WARN reserved-name` line. It shows the line word for word after the seal and again in the hand-back. It never renames the familiar |
+| B27 | **A long body.** The scripted file's answers to questions 3 and 18 are long: 40 stops and 60 rules, each with its reason | If the first check prints `WARN body-length`, it moves detail into `references/`, then builds and seals once more. If the warning stays, it stops and asks, and shows the output. It changes no **Decided** answer to shorten the body. If the first check prints no `body-length` warning, record the case as not exercised |
+| B28 | **A long reference file the person wrote.** B10's setup, plus `commit-checker/references/rules.md`, written by the tester: 150 lines with no Contents heading. Request as in B10. If asked about a contents list: "No, leave my file alone." If asked to write outside `familiars/`: "No." | The skill treats any copy of `rules.md` in the built folder as its own output. When the check prints `WARN contents` for it, it adds a contents list once, without asking, seals and checks again, and shows the list in the hand-back. Apart from that list, the copy is the tester's file word for word, and the tester's own `commit-checker/references/rules.md` is byte for byte unchanged |
 
 B7 to B7c: the scripted file answers the question about the tool at question 5: Claude Code for B7, and as each case says for the others. B7's extra key is `tools`.
 
@@ -368,7 +372,7 @@ The optional full run, every case twice:
 - **Part A:** 8 cases × 2 runs = 16 new sessions. One step-in session, sent as
   a single first message before the warm-up turn existed, was measured at
   about 118,000 input tokens, most of it read from the cache.
-- **Part B:** 29 cases × 2 runs = 58 sessions. Each costs more than one A
+- **Part B:** 32 cases × 2 runs = 64 sessions. Each costs more than one A
   session, because it runs a full interview. B13 reads a file that another
   case built, so it adds little.
 - **Part C:** nothing beyond the check.

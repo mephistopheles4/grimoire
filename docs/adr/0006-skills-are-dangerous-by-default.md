@@ -69,6 +69,12 @@ install time covered.
 
 A proposed warning that fits none of the four triggers is cut.
 
+Added 2026-10-04, issue #176: the four triggers govern warnings about risk.
+The contract check's format
+advice is a separate class. `body-length` and the warnings that follow
+Anthropic's Skills docs are lint about a file's shape against a stated spec.
+They never fail and never refuse, and the triggers do not apply to them.
+
 ## Considered Options
 
 The four options were weighed for the practice runner that #161 plans. The
