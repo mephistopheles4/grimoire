@@ -1,6 +1,7 @@
 ---
 name: groundtrack
 description: Use for a plan already made or work already done, when a reader needs to see its shape — what calls what, what each part hands back, where it breaks, and what it needs to work. Writes one call graph with recorded traces through it, renders a self-contained page, and prints the same graph as an indented tree on request. Not for a conversation with nothing durable behind it.
+compatibility: Needs Node.js 20 or later to run render.mjs. No install and no other dependencies.
 ---
 
 # groundtrack
