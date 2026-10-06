@@ -4,6 +4,17 @@ This file holds the detail of the usage record. `SKILL.md` holds its stop:
 ask once, name the path and `EAGLE_EYE_LOG`, say why, and write nothing to the
 log until the person says yes in chat. Nothing in this file removes that stop.
 
+## Contents
+
+- Find the path (questions 5, 13)
+- Read it before you write (question 13)
+- The markers (question 13)
+- What each use line holds (question 13)
+- Open boxes (question 13)
+- Add a line and keep the others (question 13)
+- The four signals (question 13)
+- Review (questions 7, 13)
+
 ## Find the path (questions 5, 13)
 
 1. Read the variable with a shell: `echo "$EAGLE_EYE_LOG"` in a POSIX shell,

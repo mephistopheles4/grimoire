@@ -4,6 +4,16 @@ This file holds the detail of the optional edge audit. `SKILL.md` holds its
 stop: the dry run, the four facts, and the wait for a yes in chat. Read that
 stop first. Nothing in this file removes it.
 
+## Contents
+
+- What the audit is (questions 5, 6, 14)
+- The probe (questions 3, 6)
+- Who can say yes (questions 3, 6)
+- The run (questions 4, 14, 16, 18)
+- Dispositions (questions 4, 16, 18)
+- A second round (questions 3, 6)
+- The audit on one configuration (questions 3, 4, 16)
+
 ## What the audit is (questions 5, 6, 14)
 
 `audit.mjs` sits next to `SKILL.md`, in the skill base directory. It ranks
