@@ -2,9 +2,9 @@
 name: contract
 description: Builds a reusable skill or agent from terms a person agrees, and keeps those terms as a contract its file is generated from. Use when someone wants a new skill or agent, wants to turn a prompt they keep pasting into one, or wants to change or write the contract for one. Not for a one-off prompt, for running a skill or agent that already exists, or for a legal or business contract.
 metadata:
-  contract-version: 0.7.1
-  familiar-digest: "sha256:58cd20b7023fce00530c1979b2ea1f6f8a74099c6f78416df9a7b39ecf3d269a"
-  contract-digest: "sha256:ab434f1f8e114bf72e5b5d04041f84118c5d151c14a42ed27173860b3d95e1a7"
+  contract-version: 0.7.2
+  familiar-digest: "sha256:f20434ac7ed6a05415fa128883ab13f30904ee8eaf2a2c7c4c032202ab2ce997"
+  contract-digest: "sha256:c685cc0abbef035cab703749b534cb03d524ec213280e3e6e67cc4b1aa98e9f0"
 ---
 
 # contract
@@ -442,14 +442,14 @@ passes.
   comes from a decision, show the output, and say which decision causes it.
   Do not call the build done.
 - Act on three warnings only, once. Fix `body-length` on the `SKILL.md` you
-  just generated: move detail only into a new file, or one you wrote in
-  this session. Fix `contents` on a file you wrote in this session. If
-  `description-xml` names a description not yet **Decided**, redraft it in
-  the contract, still *Proposed*. Show the new draft at hand-back. Build and
-  seal again. If the warning stays, stop and ask.
-- Record every other warning. Change nothing for it. Before you write to a
-  file you did not write in this session, ask. A yes covers the edit and
-  the reseal.
+  just generated: move detail into `references/`. Fix `contents` on any
+  reference file in the folder, without asking. Every file you write,
+  generate or copy there is your output, whoever first wrote the text. Show
+  each contents list you add at hand-back. If `description-xml` names a
+  description not yet **Decided**, redraft it in the contract, still
+  *Proposed*. Show the new draft at hand-back. Build and seal again. If the
+  warning stays, stop and ask.
+- Record every other warning. Change nothing for it.
 - The check says nothing about whether the familiar is any good. Say so.
 
 > **Warning: if the check fails twice on the same file, stop and ask.** Do
