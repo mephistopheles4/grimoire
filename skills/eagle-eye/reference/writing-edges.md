@@ -3,6 +3,17 @@
 An edge is a reason. A reason can be wrong in eight ways. An edge colours the
 grid, so a wrong edge is worse than no edge.
 
+## Contents
+
+- Tiers (questions 4, 16)
+- What an edge can say (questions 3, 16)
+- Writing rules (question 15)
+- The eight weakness patterns (questions 16, 18)
+- Chains (questions 16, 18)
+- Cogency test (questions 16, 18)
+- The suspected list (questions 4, 16)
+- Strawmen (questions 10, 16)
+
 ## Tiers (questions 4, 16)
 
 | Tier | Means | `src` |

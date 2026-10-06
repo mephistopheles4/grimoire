@@ -5,6 +5,18 @@ A trace is a list of moves you write by hand. Read
 about getting a trace right, and about the two mistakes that measurement says
 you will actually make.
 
+## Contents
+
+- The loop
+- Follow the code, not the diagram
+- The cursor is a fact, not an inference
+- A failure is one move
+- The two things measurement says you will get wrong
+  - One: a spurious pop
+  - Two: a handler the program has not got
+- Provenance is not decoration
+- What a good trace shows
+
 ## The loop
 
 Write the file. Run the validator. Read the refusal. Fix it. Run it again.

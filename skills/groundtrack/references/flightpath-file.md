@@ -10,6 +10,33 @@ This document is the shape you write against. `scripts/render.mjs` enforces it.
 second artifact that can silently disagree with the first is not worth having.
 The repository's test suite is what binds this document to the validator.
 
+## Contents
+
+- The four rules
+- The core and the four optional fields
+- One change, one file
+- Top level
+- A graph
+- files
+- tour
+- A node
+  - role
+  - channels
+  - fail and die
+  - enteredBy
+- A step
+- A run
+- The trace
+  - The eight moves that run a step
+  - The four moves that move a frame
+  - Frames
+  - An effect carries `next` or `raised`, never both
+  - A tape covering a call and a failure, in full
+- What the validator proves
+- What a refusal says
+- layers
+- Findings
+
 ## The four rules
 
 1. **One name, one meaning.** No field name means two things.
