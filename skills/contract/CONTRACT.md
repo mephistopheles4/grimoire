@@ -3,7 +3,7 @@
 Version: 0.8.1
 
 *Type: skill. Template: `references/template.md`, draft 11. Level: Thorough.
-Status: draft 0.8.0, 2026-10-06. The skill's `SKILL.md` is generated from this
+Status: draft 0.8.1, 2026-10-06. The skill's `SKILL.md` is generated from this
 file. To change the skill, amend this file, generate `SKILL.md` again, and
 seal it.*
 

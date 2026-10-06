@@ -5,7 +5,7 @@ compatibility: Needs Node.js 20 or later to run scripts/check.mjs. No install an
 metadata:
   contract-version: 0.8.1
   familiar-digest: "sha256:ff3935b87fd000af43388c15f7dca6c47abbf2908033ff14c68b246426661c55"
-  contract-digest: "sha256:2400f447164269610c22a8e88a1cc595efba49782c28dca7c5a9a8bc422dd484"
+  contract-digest: "sha256:550228b7ca576b816452b42cd0167813ee19f5f57e4fc857aebddadd158ce089"
 ---
 
 # contract
