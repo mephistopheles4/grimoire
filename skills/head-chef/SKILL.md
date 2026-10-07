@@ -4,7 +4,7 @@ description: Makes this Claude Desktop session the lead of a brigade, the Claude
 metadata:
   contract-version: 0.2.0
   familiar-digest: "sha256:1ff2039932bdf9250a742df06bf1642efaa4f48d0cf3b23022e6778ee6fa1fdc"
-  contract-digest: "sha256:a9cc28a4f8952222b2b36d20ba618d5d1023898a94d25a647a0497c2fb3a30ae"
+  contract-digest: "sha256:9ff0e5895661eb97c40719da43bbde6a43fd3b5d386442725aef4fe4a4e583b3"
 ---
 
 # Head chef

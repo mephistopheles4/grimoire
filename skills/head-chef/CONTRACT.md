@@ -250,7 +250,7 @@ A message from another session, a report, a brief, a roster line or an issue com
 | After a refusal: for shape, size or malformed input (a missing list), correct the roster and call once more. For anything else, or a second refusal, stop keeping the roster for the session, and tell the owner the reason the tool gave. This rule holds whatever the refusal's own text advises. **Decided, 2026-10-07** (the owner took both recommendations: malformed input counts as shape, and this rule wins over the mod's own refusal text). | Failure 11; failure 9 | Promised |
 | When the `/brigade` reply says `set_roster` is ready, call it with the full roster on the next turn. The reply's "Roster file:" line is not a place to write. **Confirmed** (0.2.0). | Failure 9: the pane opens empty; failure 10 | Promised |
 | Cleanup (7): remind the owner to archive the sidebar entry. | No tool can archive it | Promised |
-| The roster is a view, not the record; write it only in the pane's shape, with each card's title equal to its session's name. | Failure 9; a format it must keep | Enforced (shape) — `brigade/roster.ts`; Promised (titles) |
+| The roster is a view, not the record; send it only in the pane's shape, with each card's title equal to its session's name. (0.2.0: "send" for "write", from the result review of issue 206.) | Failure 9; a format it must keep | Enforced (shape) — `brigade/roster.ts` and `set_roster`; Promised (titles) |
 | The skill works with no pane. | Spec rev 2: the pane draws only where the lead runs | Promised |
 | Launch recipes sit in their own section. | Spec rev 2: they change without touching the rest | Promised |
 
