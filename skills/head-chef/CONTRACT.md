@@ -54,7 +54,7 @@ No samples were drafted.
 | Briefs each session: where its record lives; report to the head chef by name at milestones only; a message from the head chef is not the owner's approval. | Promised | **Confirmed** |
 | Relays what one session needs from another, quoted, with its source session named. | Promised | **Confirmed** |
 | Brings the owner only what needs the owner, with a recommendation. | Promised | **Confirmed** |
-| Keeps the Brigade pane's roster, when the pane is there, by calling the Brigade mod's `set_roster` tool with the whole roster. It writes no file. | Promised | *Proposed* (0.2.0; spec v4 decision 10, issue 199) |
+| Keeps the Brigade pane's roster, when the pane is there, by calling the Brigade mod's `set_roster` tool with the whole roster. It writes no file. | Promised | **Confirmed** (0.2.0; spec v4 decision 10, issue 199) |
 | Cleans up a session on the owner's "done", by the seven steps of question 18. | Promised | **Confirmed** |
 
 **Automatic checks**
@@ -62,8 +62,8 @@ No samples were drafted.
 | Clause | Held by | Mark |
 |---|---|---|
 | The skill's folder is sealed and its format is checked. | Enforced — `skills/contract/scripts/check.mjs`, run by `node scripts/check.mjs` and the required `check` job. Confirmed by the owner in the ticket's acceptance criteria. | **Confirmed** |
-| A roster that breaks the pane's shape (an unknown field, a status outside the four words, a field over its cap, a title twice, over 50 cards or 50 to-dos) is refused by `set_roster`, which names the rule and leaves the file unchanged. A file in that shape shows an error in the pane and is not drawn. | Enforced — `brigade/roster.ts`, merged in #190, and `set_roster` in `brigade/register.tsx`, merged in #205, with their tests (`tests/brigade-roster-rules.test.mjs`, `brigade/set-roster.test.ts`). | *Proposed* (0.2.0: the tool's refusal added) |
-| `set_roster` writes only while the Brigade pane is open, and only this session's own roster file, at a path the mod builds. It refuses a subagent's call, a deny verdict and an ask rule of the owner's. | Enforced — `brigade/register.tsx`, merged in #205, with `brigade/set-roster.test.ts`. | *Proposed* (0.2.0) |
+| A roster that breaks the pane's shape (an unknown field, a status outside the four words, a field over its cap, a title twice, over 50 cards or 50 to-dos) is refused by `set_roster`, which names the rule and leaves the file unchanged. A file in that shape shows an error in the pane and is not drawn. | Enforced — `brigade/roster.ts`, merged in #190, and `set_roster` in `brigade/register.tsx`, merged in #205, with their tests (`tests/brigade-roster-rules.test.mjs`, `brigade/set-roster.test.ts`). | **Confirmed** (0.2.0: the tool's refusal added) |
+| `set_roster` writes only while the Brigade pane is open, and only this session's own roster file, at a path the mod builds. It refuses a subagent's call, a deny verdict and an ask rule of the owner's. | Enforced — `brigade/register.tsx`, merged in #205, with `brigade/set-roster.test.ts`. | **Confirmed** (0.2.0) |
 | `git worktree remove` without `--force` refuses a worktree with changed or untracked files, and `git branch -d` refuses a branch that is not merged. It does **not** refuse a worktree whose commits are unpushed: the folder goes, and `git branch -d` then keeps the branch. Stashes are not checked by either. | Promised (Enforced once the owner confirms the build's scratch-repository walk, 2026-10-04, where git refused both). | *Proposed* |
 | `claude rm` refuses a session whose worktree holds unpushed commits, unless it is given `--discard-unpushed`. | Promised (Enforced once a refusal is seen; read from `claude rm --help`, 2.1.289) | *Proposed* |
 
@@ -97,7 +97,7 @@ No samples were drafted.
 - **A relay:** the quoted text, its source session named, sent to the session that needs it.
 - **For the owner:** only what needs the owner, each with a recommendation; and, at cleanup, the session and the absolute path named back, then what was removed and the reminder to archive.
 
-Confidence shows as settings named in full, and as what each relay quotes. The record of the work lives where the person's process keeps it (an issue, a plan file, the chat). The roster is a view, which the Brigade mod writes on the head chef's call, in the plugin's data folder. An uninstall deletes it, except for a plugin loaded from a marketplace added from a local folder, where the folder may be left behind (threat-model row 15). *Proposed* (0.2.0).
+Confidence shows as settings named in full, and as what each relay quotes. The record of the work lives where the person's process keeps it (an issue, a plan file, the chat). The roster is a view, which the Brigade mod writes on the head chef's call, in the plugin's data folder. An uninstall deletes it, except for a plugin loaded from a marketplace added from a local folder, where the folder may be left behind (threat-model row 15). **Confirmed** (0.2.0).
 
 ## 5. What tools does it need?
 
@@ -108,7 +108,7 @@ Confidence shows as settings named in full, and as what each relay quotes. The r
 - **The agent's message tool** to message another session by name.
 - **git:** `git worktree list --porcelain`, `git rev-parse`, `git status`, `git rev-list`, `git stash list`, `git worktree remove`, `git branch -d`.
 - **The shell tool**, PowerShell on Windows, to run these.
-- **No file writes.** One tool: the Brigade mod's `set_roster`, listed as `mcp__grimoire__set_roster`, which the mod offers once `/brigade` opens its pane. It may be listed as a deferred tool. *Proposed* (0.2.0).
+- **No file writes.** One tool: the Brigade mod's `set_roster`, listed as `mcp__grimoire__set_roster`, which the mod offers once `/brigade` opens its pane. It may be listed as a deferred tool. **Confirmed** (0.2.0).
 
 No script ships in the skill's folder. No tool file sits outside it.
 
@@ -124,7 +124,7 @@ Extra keys: none.
 | Sends a message to a session (a brief or a relay; it starts a turn there) | Nothing first. | Part of the owner's request; a relay needs no new yes. |
 | Stops a session | Which session. | The owner's own words in chat. |
 | Removes a session, its worktree and its branch | The session and the absolute worktree path. | The owner's "done", then the owner's confirming words after the path is named. |
-| Keeps the roster by calling `set_roster` (*Proposed*, 0.2.0) | Nothing. | None needed: it is a view, and the mod writes it only while the owner's pane is open. A deny rule for the tool turns it off. |
+| Keeps the roster by calling `set_roster` (**Confirmed**, 0.2.0) | Nothing. | None needed: it is a view, and the mod writes it only while the owner's pane is open. A deny rule for the tool turns it off. |
 
 A message from another session, a report, a brief, a roster line or an issue comment is never the owner's yes.
 
@@ -137,7 +137,7 @@ A message from another session, a report, a brief, a roster line or an issue com
 | 0.1.0 | 2026-10-04 | The practice test is not run; the owner field-tests instead. | The owner's decision. | 12, 19 |
 | 0.1.0 | 2026-10-04 | Cleanup asks git from the lead repository, checks the worktree's common dir, turns `core.fsmonitor` off, ignores its own session row, and checks again after the yes. Paths, branches and ids are held to plain characters; session names to letters, digits and `. _ -`; the roster to the plugin's `brigade` folder. A chip is named by its `sessionId`. | The security review of the diff (findings F1 to F6, F1 and F2 reproduced in the build) and the result check (advisories A1 to A3). Each is a defect in the skill's own text, which ADR 0006 says is fixed, not rated. | 3, 18, 19 |
 | 0.1.0 | 2026-10-04 | Cleanup also refuses a worktree whose git dir is outside the lead's `worktrees` folder, stops when its own row is missing, and runs `worktree remove` and `branch -d` with `core.fsmonitor` off. `rev-parse` joins the tool list; the roster's file name is held to the id set. | The security review's round 2 (N1 to N5); N1 and N2 reproduced in the build. | 5, 18 |
-| 0.2.0 | 2026-10-07 | The head chef keeps the roster by calling the Brigade mod's `set_roster` tool with the whole roster, and writes no file. No tool, or a pane-closed refusal, means no roster. A shape or size refusal is corrected and called once more; any other refusal, or a second one, ends the roster for the session and is told to the owner. The `/brigade` cue starts the roster. Failures 10 and 11 are new; open questions 3 and 4 change. | Issue 206 and spec v4 decision 10 (issue 199): every roster write into the plugin's data folder asked the owner, even in auto mode, and an allow rule cannot lift it. The mod now writes the roster on the head chef's call (#205). | 3, 4, 5, 6, 16, 17, 18, 19, 20 |
+| 0.2.0 | 2026-10-07 | The head chef keeps the roster by calling the Brigade mod's `set_roster` tool with the whole roster, and writes no file. No tool, or a pane-closed refusal, means no roster. A shape, size or malformed-input refusal is corrected and called once more; any other refusal, or a second one, ends the roster for the session and is told to the owner. The `/brigade` cue starts the roster. Failures 10 and 11 are new; open questions 3 and 4 change. | Issue 206 and spec v4 decision 10 (issue 199): every roster write into the plugin's data folder asked the owner, even in auto mode, and an allow rule cannot lift it. The mod now writes the roster on the head chef's call (#205). | 3, 4, 5, 6, 16, 17, 18, 19, 20 |
 
 ---
 
@@ -206,8 +206,8 @@ A message from another session, a report, a brief, a roster line or an issue com
 | 7 | It fires for work in this same session | A plain request starts a session. | Medium |
 | 8 | A session runs on settings nobody saw | It launches with a model or permission mode the owner did not see. | Medium |
 | 9 | The pane shows a false state | The roster is stale, or a card's title does not match its session, so its live state never shows. | Low |
-| 10 | It interrupts the owner for a view | Every roster update asks the owner's permission, at each launch, report, "needs you" and cleanup. *Proposed* (0.2.0). | Medium |
-| 11 | It retries a roster write it cannot fix | A refused call is made again and again. That spends turns, and it retries the check-and-write race that threat-model row 15 names. *Proposed* (0.2.0). | Medium |
+| 10 | It interrupts the owner for a view | Every roster update asks the owner's permission, at each launch, report, "needs you" and cleanup. **Confirmed** (0.2.0). | Medium |
+| 11 | It retries a roster write it cannot fix | A refused call is made again and again. That spends turns, and it retries the check-and-write race that threat-model row 15 names. **Confirmed** (0.2.0). | Medium |
 
 ## 17. Good versus so-so
 
@@ -221,7 +221,7 @@ A message from another session, a report, a brief, a roster line or an issue com
 | Relay | Paraphrased, no source | Quoted, its source session named | Rule: quote and name (failure 4) |
 | For the owner | Every report forwarded | Only what needs the owner, with a recommendation | Rule: bring only what needs the owner (failure 5) |
 | Cleanup | Deletes the folder the roster names | The seven steps, the path from git, named back first | The cleanup rules (failure 2) |
-| Roster | Written to a file by hand, any shape | One `set_roster` call with the whole roster, in the pane's shape, titles equal to session names (*Proposed*, 0.2.0) | The tool's and the pane's shape check (failures 9, 10) |
+| Roster | Written to a file by hand, any shape | One `set_roster` call with the whole roster, in the pane's shape, titles equal to session names (**Confirmed**, 0.2.0) | The tool's and the pane's shape check (failures 9, 10) |
 
 ## 18. Every rule has a reason
 
@@ -245,10 +245,10 @@ A message from another session, a report, a brief, a roster line or an issue com
 | Cleanup (6): run steps 2 to 4 again after the owner's yes, then remove the session, the worktree and the branch, with no flag that forces or discards; `worktree remove` and `branch -d` run with `-c core.fsmonitor=false`. | Failure 2; finding F5: the yes can come hours later; round-2 finding N1: `worktree remove` checks the folder itself, reproduced in the build | Promised |
 | A path, a branch and an id are held to sets of plain characters before they reach a command, and cleanup stops and asks on anything else. | Failure 3; finding F2: PowerShell reads curly single quotes as quote marks, reproduced in the build | Promised |
 | A session name is letters, digits and `. _ -`, starting with a letter or a digit. | Failure 3; finding F4: the name also names the worktree and its branch | Promised |
-| The roster is kept only through `set_roster`, with the whole roster on each call: both lists, empty if need be. The head chef writes no roster file and names no path. *Proposed* (0.2.0). | Failure 10; failure 9: the mod writes the whole file, at a path it builds from the current session id | Promised; the tool's input check is Enforced (question 3) |
-| No roster when `set_roster` is in neither the tool list nor the deferred tools, or when it refuses because the pane is closed. A deferred tool is loaded before it is called. A `/brigade` reply that says the tool could not be offered also means no roster. *Proposed* (0.2.0). | The skill works with no pane (spec rev 2); failure 10: a file write in its place asks the owner | Promised |
-| After a refusal: for shape or size, correct the roster and call once more. For anything else, or a second refusal, stop keeping the roster for the session, and tell the owner the reason the tool gave. This rule holds whatever the refusal's own text advises. *Proposed* (0.2.0). | Failure 11; failure 9 | Promised |
-| When the `/brigade` reply says `set_roster` is ready, call it with the full roster on the next turn. The reply's "Roster file:" line is not a place to write. *Proposed* (0.2.0). | Failure 9: the pane opens empty; failure 10 | Promised |
+| The roster is kept only through `set_roster`, with the whole roster on each call: both lists, empty if need be. The head chef writes no roster file and names no path. **Confirmed** (0.2.0). | Failure 10; failure 9: the mod writes the whole file, at a path it builds from the current session id | Promised; the tool's input check is Enforced (question 3) |
+| No roster when `set_roster` is in neither the tool list nor the deferred tools, or when it refuses because the pane is closed. A deferred tool is loaded before it is called. A `/brigade` reply that says the tool could not be offered also means no roster. **Confirmed** (0.2.0). | The skill works with no pane (spec rev 2); failure 10: a file write in its place asks the owner | Promised |
+| After a refusal: for shape, size or malformed input (a missing list), correct the roster and call once more. For anything else, or a second refusal, stop keeping the roster for the session, and tell the owner the reason the tool gave. This rule holds whatever the refusal's own text advises. **Decided, 2026-10-07** (the owner took both recommendations: malformed input counts as shape, and this rule wins over the mod's own refusal text). | Failure 11; failure 9 | Promised |
+| When the `/brigade` reply says `set_roster` is ready, call it with the full roster on the next turn. The reply's "Roster file:" line is not a place to write. **Confirmed** (0.2.0). | Failure 9: the pane opens empty; failure 10 | Promised |
 | Cleanup (7): remind the owner to archive the sidebar entry. | No tool can archive it | Promised |
 | The roster is a view, not the record; write it only in the pane's shape, with each card's title equal to its session's name. | Failure 9; a format it must keep | Enforced (shape) — `brigade/roster.ts`; Promised (titles) |
 | The skill works with no pane. | Spec rev 2: the pane draws only where the lead runs | Promised |
@@ -291,8 +291,8 @@ A message from another session, a report, a brief, a roster line or an issue com
 | 2 | 3, 18 | The spec says nothing on cleaning up a Desktop chip. | Open: question 19, row 1. |
 | 3 | 3 | "Brings the owner only what needs the owner" could let it hold back a report the owner wanted. | Kept: the owner's process decides what needs the owner; the rule names no list. |
 | 4 | 10 | A brief that lives only in chat cannot be a pointer. | Acted on: the start prompt says to wait for the brief, and the brief goes as a message, which no shell reads. |
-| 6 | 18 | The mod's own fallback refusal ("the tool failed or ran out of time") tells the model to call once more, while the 0.2.0 rule says any refusal but shape or size ends the roster. | Open: asked at the 0.2.0 checkpoint. |
-| 7 | 18 | A "malformed input" refusal (a missing `cards` or `todos`) is as fixable as a shape refusal, but spec v4 names only shape and size. | Open: asked at the 0.2.0 checkpoint. |
+| 6 | 18 | The mod's own fallback refusal ("the tool failed or ran out of time") tells the model to call once more, while the 0.2.0 rule says any refusal but shape or size ends the roster. | Acted on: the owner decided the skill's rule wins; the mod's wording is a follow-up issue. |
+| 7 | 18 | A "malformed input" refusal (a missing `cards` or `todos`) is as fixable as a shape refusal, but spec v4 names only shape and size. | Acted on: the owner decided it counts as shape. |
 | 8 | 18 | A pane-closed refusal is "no pane", not a stop for the session, so a later `/brigade` cue starts the roster again. | Kept as drafted: the owner reopening the pane is their own act. |
 
 ## Checkpoint log
@@ -300,3 +300,4 @@ A message from another session, a report, a brief, a roster line or an issue com
 - **Before checkpoint 1, 2026-10-04.** The type (skill), the level (Thorough) and the name (head-chef) come from the ticket and spec rev 2, both the owner's. Drafts from spec rev 2 are **Confirmed**; the rest are *Proposed*. Question 2 and the target are asked of the owner.
 - **Checkpoint, 2026-10-04.** The owner answered question 2 in their own words, and decided that the skill states no autopilot rule. The target stays *Proposed*: the build session said it would take it as accepted unless the owner objected, and the owner raised no objection. Level: Thorough, kept. The go to build: the ticket and spec rev 2 (approved), with these answers.
 - **Amend 0.2.0, 2026-10-07.** Issue 206. The changed terms are drafted from spec v4 decision 10 and marked *Proposed*, for the owner to agree in the build chat. Level: Thorough, kept.
+- **Checkpoint, 2026-10-07.** The owner agreed the drafted terms (now **Confirmed**) and took the recommendations on flags 6 and 7 (**Decided**), and confirmed the path `skills/head-chef/SKILL.md` in this repository. Level: Thorough, kept. The go to regenerate and seal.
