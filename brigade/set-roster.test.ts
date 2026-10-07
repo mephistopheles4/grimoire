@@ -132,6 +132,7 @@ type World = ReturnType<typeof makeFs> & {
   holdWrite: boolean
   release: () => void
   errors: string[]
+  files: string[]
   clock: ReturnType<typeof mock.clock>
   sid: string
 }
@@ -152,6 +153,7 @@ function world(on: On, setup: (w: World) => void = w => w.dirs(`${CONFIG}\\plugi
     holdWrite: false,
     release: () => {},
     errors: [] as string[],
+    files: [] as string[],
     clock: undefined as unknown as ReturnType<typeof mock.clock>,
     sid: SID,
   })
@@ -203,6 +205,7 @@ function world(on: On, setup: (w: World) => void = w => w.dirs(`${CONFIG}\\plugi
       w.log.push(`roster ${JSON.stringify(e.value)}`)
     }
     if (e.key === 'rosterError') w.errors.push(String(e.value))
+    if (e.key === 'files') w.files.push(String(e.value?.current ?? ''))
     return next(e)
   })
   on('classic.SessionStart', () => ({}))
@@ -285,6 +288,10 @@ test('no tool before /brigade, and the tool after it; the reply names the tool a
   expect(reply.text).toBe('Brigade pane opened. `set_roster` is ready: call it with the full roster.')
   expect(reply.text).not.toContain('Roster file:')
   expect(reply.text).not.toContain(SID)
+  // The path left the reply because the pane names it to the owner: the
+  // pane's top line draws the file it was given.
+  await w.clock.settle()
+  expect(w.files.at(-1)).toBe(FILE)
 })
 
 test('when the config folder cannot be found, the reply names no path and the pane keeps the full reason', async ($, on) => {
@@ -297,7 +304,8 @@ test('when the config folder cannot be found, the reply names no path and the pa
   expect(reply.text).not.toContain('Cannot find')
   expect(reply.text).not.toContain('\\')
   expect(reply.text).not.toContain('plugins/data')
-  expect(w.errors.some(e => e.startsWith('Cannot find the Claude config folder'))).toBe(true)
+  const full = new RegExp(`^Cannot find the Claude config folder from where the plugin was loaded \\(.+\\)\\. The roster would be <Claude config folder>/plugins/data/grimoire-inline/brigade/${SID}\\.json\\. Nothing was read\\.$`)
+  expect(w.errors.some(e => full.test(e))).toBe(true)
 })
 
 test('when the tool cannot be offered, the reply says to keep no roster', async ($, on) => {
@@ -306,6 +314,8 @@ test('when the tool cannot be offered, the reply says to keep no roster', async 
   await start($)
   const reply = await brigade($)
   expect(reply.text).toMatch(/^Brigade pane opened\. `set_roster` could not be offered \(.+\); keep no roster\.$/)
+  // The brackets carry the engine's own reason, here the forced one.
+  expect(reply.text).toMatch(/could not be offered \([^)]*forced register failure\); keep no roster\.$/)
 })
 
 test('a /clear or a resume offers the tool again while the pane is open, and not while it is closed', async ($, on) => {
