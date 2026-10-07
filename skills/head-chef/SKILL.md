@@ -237,10 +237,9 @@ current session id (failure 9).
   your deferred tools, there is no pane. Keep no roster, and carry on. A
   deferred tool is loaded before it is called.
 - **The cue.** When the `/brigade` reply says `set_roster` is ready, call it
-  with the full roster on your next turn. The reply's "Roster file:" line
-  names where the mod writes; it is not a place for you to write. When the
-  reply says the tool could not be offered, there is no tool: keep no
-  roster. Reason: the pane opens empty until the first call (failure 9).
+  with the full roster on your next turn. When the reply says the tool
+  could not be offered, there is no tool: keep no roster. Reason: the pane
+  opens empty until the first call (failure 9).
 - **A refusal because the pane is closed** means no pane. Keep no roster
   until a `/brigade` reply says the tool is ready again.
 - **A refusal for shape, size or malformed input** (a missing list): correct

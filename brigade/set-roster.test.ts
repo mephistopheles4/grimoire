@@ -292,7 +292,7 @@ test('when the config folder cannot be found, the reply names no path and the pa
   // No session start, so no transcript path names the config folder.
   const reply = await brigade($)
   await w.clock.settle()
-  expect(reply.text).toContain(' The pane cannot name the roster file, so it shows none; the pane says why.')
+  expect(reply.text).toBe('Brigade pane opened. The pane cannot name the roster file, so it shows none; the pane says why. `set_roster` is ready: call it with the full roster.')
   expect(reply.text).not.toContain('Roster file:')
   expect(reply.text).not.toContain('Cannot find')
   expect(reply.text).not.toContain('\\')
