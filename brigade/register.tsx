@@ -279,7 +279,10 @@ function disarm() {
 // hook's reads and the report keeping all end with it.
 async function rosterTick($: EngineInterface, live: () => boolean) {
   try {
-    if (!(await $.ui.panes()).some(p => p.id === PANE)) {
+    const listed = (await $.ui.panes()).some(p => p.id === PANE)
+    // A close or a fresh arm while the answer was on its way: act on nothing.
+    if (!live()) return
+    if (!listed) {
       disarm()
       await update($, armed, () => false)
       return
