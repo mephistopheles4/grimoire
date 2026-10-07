@@ -93,8 +93,14 @@ const keyFor = (verb: string, i: number, title: string) => `${verb}-${i}-${slug(
 // A Button must carry onPress. The ui.press hook below answers every press
 // itself, so this bottom of the chain never runs.
 const noop = () => {}
-// A to-do's checkbox: its label at rest, and the width of its slot in cells.
-const UNTICKED = '\u{2003}'
+// A to-do's checkbox. A desktop draws a native button as wide as its label,
+// and folds a plain space away, so the blank at rest there is an en space and
+// a four-per-em space: 0.75 em, the width of the ✓ (0.749 em, measured in
+// Segoe UI's fallback), so the box keeps its size when ticked. The terminal
+// draws every one of them a cell wide, so it keeps one plain space. The slot
+// is as wide as the terminal's `[ ✓ ]`.
+const UNTICKED = '\u{2002}\u{2005}'
+const UNTICKED_TERMINAL = ' '
 const CHECK_CELLS = 5
 
 // The module's own timers. A reload starts the module over and the engine
@@ -602,14 +608,12 @@ export const register: Register = on => {
               return (
                 <Box flexDirection="row" alignItems="flex-start" columnGap={1}>
                   {/* Blank and dim at rest, a tick once pressed; a second
-                      press inside the grace period undoes it. At rest the
-                      label is an em space: a desktop folds a plain space
-                      away and draws the box narrower than a ticked one. The
-                      slot is as wide as the terminal's `[ ✓ ]`, so the text
-                      starts at one edge either way. */}
+                      press inside the grace period undoes it. The blank is
+                      as wide as the tick, and the slot fixed, so neither the
+                      box nor the text moves when it is ticked. */}
                   <Box width={CHECK_CELLS} flexShrink={0}>
                     <Button key={keyFor('todo', i, t.id)} dimColor={!isTicked} onPress={noop}>
-                      {isTicked ? '✓' : UNTICKED}
+                      {isTicked ? '✓' : e.surface === 'terminal' ? UNTICKED_TERMINAL : UNTICKED}
                     </Button>
                   </Box>
                   <Box flexGrow={1} flexShrink={1} minWidth={0}>
