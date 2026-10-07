@@ -576,10 +576,13 @@ export function lastCall(text: string, mtimeMs: number): LastCall | undefined {
 }
 
 /** A live state that means the session is working: its cache is warm. */
-export const isWorking = (state: string | undefined) => state === 'busy' || state === 'running'
+// A background row with no `status` says it in `state`, which reads `working`
+// while it works.
+export const isWorking = (state: string | undefined) => state === 'busy' || state === 'running' || state === 'working'
 
-/** A live state as the card draws it, with its theme colour: `busy` and
- *  `running` success, `idle` and `blocked` warning, anything else inactive. */
+/** A live state as the card draws it, with its theme colour: `busy`,
+ *  `running` and `working` success, `idle` and `blocked` warning, anything
+ *  else inactive. */
 export function liveState(state: string | undefined): { text: string; color: string } {
   if (state === undefined) return { text: 'not running', color: 'inactive' }
   return { text: state, color: isWorking(state) ? 'success' : state === 'idle' || state === 'blocked' ? 'warning' : 'inactive' }
@@ -679,13 +682,14 @@ export type WarmthIo = {
  *
  *  Only a roster member is read, by the transcript path its one row names. A
  *  name on two rows is shared: neither transcript is read. Each path must
- *  stat as a regular file, not a link. One over 4 MiB is not read and
- *  records "too large". A transcript is read only when its modified time
- *  differs from the one `memory` holds for its path, and never while its
- *  session is busy or running. `memory` gets an entry only after a read and
- *  a parse that succeeded, so a failed read is tried again at the next poll;
- *  the record is then the last good one. A member busy since before its
- *  first read records `unread`. Paths no member names leave it. */
+ *  stat as a regular file, the file itself not a link. One over 4 MiB is not
+ *  read and records "too large". A transcript is read only when its modified
+ *  time differs from the one `memory` holds for its path, and never while
+ *  its session is working (`busy`, `running` or `working`). `memory` gets an
+ *  entry only after a read and a parse that succeeded, so a failed read is
+ *  tried again at the next poll; the record is then the last good one. A
+ *  working member with no known call records `unread`. Paths no member
+ *  names leave it. */
 export async function readWarmth(
   rows: readonly AgentRow[],
   titles: readonly string[],
@@ -724,9 +728,10 @@ export async function readWarmth(
     }
     const call = memory.get(path)?.call
     if (call !== undefined) out.push({ name, kind: 'call', ...call })
-    // Busy since before its first read: its transcript is there, but no read
-    // runs while it works, so its card says it is working, with no size.
-    else if (isWorking(row.status) && !memory.has(path)) out.push({ name, kind: 'unread' })
+    // Working with no known call: never read, or read before its first model
+    // call. No read runs while it works, so its card says it is working, with
+    // no size.
+    else if (isWorking(row.status)) out.push({ name, kind: 'unread' })
   }
   for (const path of [...memory.keys()]) if (!named.has(path)) memory.delete(path)
   return out

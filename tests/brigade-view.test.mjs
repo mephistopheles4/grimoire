@@ -830,6 +830,7 @@ test('stored warmth records are checked again: wrong shapes go, and none reaches
 test('live states: busy and running are success, idle and blocked warning, others inactive', () => {
   assert.deepEqual(liveState('busy'), { text: 'busy', color: 'success' });
   assert.deepEqual(liveState('running'), { text: 'running', color: 'success' });
+  assert.deepEqual(liveState('working'), { text: 'working', color: 'success' });
   assert.deepEqual(liveState('idle'), { text: 'idle', color: 'warning' });
   assert.deepEqual(liveState('blocked'), { text: 'blocked', color: 'warning' });
   assert.deepEqual(liveState('?'), { text: '?', color: 'inactive' });
@@ -907,7 +908,6 @@ test('the re-read memory is a Map keyed by transcript path, set only after a suc
   assert.equal(reads.length, 2, 'and is retried at the next poll');
   files[pathOf(0)].fail = false;
   await readWarmth([agent('A', 0)], ['A'], CONFIG, memory, io);
-  assert.ok(memory instanceof Map);
   assert.deepEqual([...memory.keys()], [pathOf(0)]);
   assert.equal(memory.get(pathOf(0)).mtimeMs, MTIME);
 });
@@ -1052,11 +1052,14 @@ test('a busy member whose transcript has not been read yet shows "warm (working)
   // Once read, a busy member keeps its last size rather than this line.
   await readWarmth([agent('A', 0, 'idle')], ['A'], CONFIG, memory, io);
   assert.equal((await readWarmth([agent('A', 0, 'busy')], ['A'], CONFIG, memory, io))[0].kind, 'call');
-  // A transcript that held no valid call, read before: no line while busy.
+  // A transcript read before its first model call: working, with no size,
+  // and not read again while it works.
   const empty = fakeFs({ [pathOf(1)]: { text: file(JSON.stringify({ type: 'user' })) } });
   const mem2 = new Map();
-  await readWarmth([agent('B', 1, 'idle')], ['B'], CONFIG, mem2, empty.io);
-  assert.deepEqual(await readWarmth([agent('B', 1, 'busy')], ['B'], CONFIG, mem2, empty.io), []);
+  assert.deepEqual(await readWarmth([agent('B', 1, 'idle')], ['B'], CONFIG, mem2, empty.io), []);
+  empty.io.stat = async () => ({ kind: 'file', size: 10, mtimeMs: MTIME + 1, isLink: false });
+  assert.deepEqual(await readWarmth([agent('B', 1, 'busy')], ['B'], CONFIG, mem2, empty.io), [{ name: 'B', kind: 'unread' }]);
+  assert.equal(empty.reads.length, 1);
 });
 
 test('a stored "unread" record is kept by the check', () => {
@@ -1079,4 +1082,49 @@ test('a close while the only transcript is being read stores nothing', async () 
   const memory = new Map();
   assert.equal(await readWarmth([agent('A', 0)], ['A'], CONFIG, memory, closing), undefined);
   assert.equal(memory.size, 0);
+});
+
+test('with two calls that wrote cache, the newest one sets the window, in either order', () => {
+  const t1 = file(row({ ms: -10 * MIN, write: '5m' }), row({ ms: -5 * MIN, write: '1h' }), row({ ms: -MIN, write: 'none' }));
+  assert.equal(lastCall(t1, MTIME)?.windowMs, HOUR);
+  const t2 = file(row({ ms: -10 * MIN, write: '1h' }), row({ ms: -5 * MIN, write: '5m' }), row({ ms: -MIN, write: 'none' }));
+  assert.equal(lastCall(t2, MTIME)?.windowMs, 5 * MIN);
+});
+
+test('a modified time that goes back is a change too: the transcript is read again', async () => {
+  const files = { [pathOf(0)]: { text: file(row({ ms: -MIN })), mtimeMs: MTIME } };
+  const { io, reads } = fakeFs(files);
+  const memory = new Map();
+  await readWarmth([agent('A', 0)], ['A'], CONFIG, memory, io);
+  // A restore from a backup: older contents, an older modified time.
+  files[pathOf(0)] = { text: file(row({ ms: -70 * MIN })), mtimeMs: MTIME - HOUR };
+  const out = await readWarmth([agent('A', 0)], ['A'], CONFIG, memory, io);
+  assert.equal(reads.length, 2);
+  assert.equal(out[0].at, NOW - 70 * MIN);
+});
+
+test('a token count of 1e400 in valid JSON parses to Infinity and spoils the row', () => {
+  const valid = row({ ms: -5 * MIN });
+  for (const field of ['input_tokens', 'cache_creation_input_tokens', 'cache_read_input_tokens', 'ephemeral_1h_input_tokens']) {
+    const line = row({ ms: -MIN }).replace(new RegExp(`"${field}":\\d+`), `"${field}":1e400`);
+    assert.ok(line.includes('1e400'), field);
+    assert.equal(JSON.parse(line).type, 'assistant', 'the row is valid JSON');
+    assert.equal(lastCall(file(valid, line), MTIME)?.at, NOW - 5 * MIN, field);
+  }
+});
+
+test('a background row that says "working" counts as working: not read, and no countdown', async () => {
+  const { io, reads } = fakeFs({ [pathOf(0)]: { text: file(row({ ms: -MIN })) } });
+  assert.deepEqual(await readWarmth([agent('A', 0, 'working')], ['A'], CONFIG, new Map(), io), [{ name: 'A', kind: 'unread' }]);
+  assert.equal(reads.length, 0);
+  assert.deepEqual(warmthLine(call(70 * MIN), 'working', 'needs-you', NOW), { tone: 'dim', text: '◆ cache warm (working) · 150k context' });
+});
+
+test('the pane keeps its re-read memory in a Map of the view module\'s ReadMemory type', () => {
+  const register = readFileSync(join(root, 'brigade/register.tsx'), 'utf8');
+  assert.match(register, /\nconst memory: ReadMemory = new Map\(\)\n/);
+  assert.equal(register.match(/\bmemory\b/g)?.length, 2, 'declared once and handed to readWarmth once');
+  assert.match(register, /readWarmth\(rows\.value, cards\.map\(c => c\.title\), config, memory, \{/);
+  const v = readFileSync(join(root, 'brigade/view.ts'), 'utf8');
+  assert.match(v, /export type ReadMemory = Map<string, \{ mtimeMs: number; call: LastCall \| undefined \}>/);
 });

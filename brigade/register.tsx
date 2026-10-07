@@ -210,7 +210,7 @@ async function pollAgents($: EngineInterface, open: () => boolean) {
       // Transcripts are found under the config folder: with none, no card
       // gets a warmth line or a link.
       if (at.config === undefined) {
-        await update($, warmth, () => [])
+        if (open()) await update($, warmth, () => [])
         return
       }
       const config = at.config
@@ -237,6 +237,7 @@ async function pollAgents($: EngineInterface, open: () => boolean) {
         if (file === undefined) continue
         if (!open()) return
         await update($, looked, list => [...list, row.name].slice(-200))
+        if (!open()) return
         try {
           const url = remoteLink(String(await $.fs.read(file)))
           if (url !== undefined) {
