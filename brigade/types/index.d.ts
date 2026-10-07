@@ -51,10 +51,11 @@ export type UsageSnapshot = {
 /** One card's cache warmth, from its session's transcript: the last real
  *  model call's time, its context tokens and its cache window (absent when no
  *  call that wrote cache says it); or unknown, because the transcript is too
- *  large to read or two sessions share the card's name. */
+ *  large to read or two sessions share the card's name; or not read yet,
+ *  because the session has been working since the pane first saw it. */
 export type Warmth =
   | { name: string; kind: 'call'; at: number; tokens: number; windowMs?: number }
-  | { name: string; kind: 'too-large' | 'shared' }
+  | { name: string; kind: 'too-large' | 'shared' | 'unread' }
 
 declare module 'claude-code' {
   interface PluginState {

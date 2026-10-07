@@ -585,7 +585,12 @@ export function liveState(state: string | undefined): { text: string; color: str
   return { text: state, color: isWorking(state) ? 'success' : state === 'idle' || state === 'blocked' ? 'warning' : 'inactive' }
 }
 
-const KINDS_OF_WARMTH = new Set(['call', 'too-large', 'shared'])
+const KINDS_OF_WARMTH = new Set(['call', 'too-large', 'shared', 'unread'])
+const OTHER_KINDS = new Map<string, 'too-large' | 'shared' | 'unread'>([
+  ['too-large', 'too-large'],
+  ['shared', 'shared'],
+  ['unread', 'unread'],
+])
 const WINDOWS = new Set([SHORT_MS, HOUR_MS])
 
 /** The stored warmth records, checked again: plugin state is the engine's,
@@ -607,7 +612,9 @@ export function warmthFrom(stored: unknown): Warmth[] {
       if (w.windowMs !== undefined) call.windowMs = w.windowMs
       out.push(call)
     } else {
-      out.push({ name: w.name, kind: w.kind === 'shared' ? 'shared' : 'too-large' })
+      const kind = OTHER_KINDS.get(w.kind)
+      if (kind === undefined) continue
+      out.push({ name: w.name, kind })
     }
     names.add(w.name)
   }
@@ -620,7 +627,8 @@ const span = (mins: number) => (mins >= 60 ? `${Math.floor(mins / 60)} hr ${mins
 /** One card's ◆ line: its tone (`dim` or a theme colour), its text, and a
  *  nudge for a large card that waits on the owner, or undefined with no
  *  record. A transcript too large to read and a name two sessions share
- *  read unknown, whatever the live state. A working session is warm. Else
+ *  read unknown, whatever the live state. A working session is warm, with no
+ *  size when its transcript has not been read yet. Else
  *  the idle time sets the band: more than 15 min left green, 15 min or less
  *  amber, none left red; with no known window, no countdown. The nudge needs
  *  status `needs-you`, 100,000 or more tokens, a known window and a session
@@ -634,6 +642,7 @@ export function warmthLine(
   if (w === undefined) return undefined
   if (w.kind === 'too-large') return { tone: 'dim', text: '◆ cache unknown · transcript too large to read' }
   if (w.kind === 'shared') return { tone: 'dim', text: '◆ cache unknown · two sessions share this name' }
+  if (w.kind === 'unread') return isWorking(state) ? { tone: 'dim', text: '◆ cache warm (working)' } : undefined
   const size = `${tokens(w.tokens)} context`
   if (isWorking(state)) return { tone: 'dim', text: `◆ cache warm (working) · ${size}` }
   const idle = Math.max(0, now - w.at)
@@ -675,7 +684,8 @@ export type WarmthIo = {
  *  differs from the one `memory` holds for its path, and never while its
  *  session is busy or running. `memory` gets an entry only after a read and
  *  a parse that succeeded, so a failed read is tried again at the next poll;
- *  the record is then the last good one. Paths no member names leave it. */
+ *  the record is then the last good one. A member busy since before its
+ *  first read records `unread`. Paths no member names leave it. */
 export async function readWarmth(
   rows: readonly AgentRow[],
   titles: readonly string[],
@@ -714,6 +724,9 @@ export async function readWarmth(
     }
     const call = memory.get(path)?.call
     if (call !== undefined) out.push({ name, kind: 'call', ...call })
+    // Busy since before its first read: its transcript is there, but no read
+    // runs while it works, so its card says it is working, with no size.
+    else if (isWorking(row.status) && !memory.has(path)) out.push({ name, kind: 'unread' })
   }
   for (const path of [...memory.keys()]) if (!named.has(path)) memory.delete(path)
   return out

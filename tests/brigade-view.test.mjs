@@ -928,7 +928,7 @@ test('a busy or running member is not read, and keeps its last record', async ()
   const files = { [pathOf(0)]: { text: file(row({ ms: -MIN })) }, [pathOf(1)]: { text: file(row({ ms: -MIN })) } };
   const { io, reads } = fakeFs(files);
   const memory = new Map();
-  assert.deepEqual(await readWarmth([agent('A', 0, 'busy'), agent('B', 1, 'running')], ['A', 'B'], CONFIG, memory, io), []);
+  assert.deepEqual(await readWarmth([agent('A', 0, 'busy'), agent('B', 1, 'running')], ['A', 'B'], CONFIG, memory, io), [{ name: 'A', kind: 'unread' }, { name: 'B', kind: 'unread' }]);
   assert.equal(reads.length, 0);
   await readWarmth([agent('A', 0, 'idle')], ['A'], CONFIG, memory, io);
   files[pathOf(0)].mtimeMs = MTIME + 1;
@@ -1032,4 +1032,33 @@ test('a busy member is still checked for size, so a transcript too large to read
   const { io, reads } = fakeFs({ [pathOf(0)]: { text: '', size: MAX_TRANSCRIPT_BYTES + 1 } });
   assert.deepEqual(await readWarmth([agent('A', 0, 'busy')], ['A'], CONFIG, new Map(), io), [{ name: 'A', kind: 'too-large' }]);
   assert.equal(reads.length, 0);
+});
+
+test('a busy member whose transcript has not been read yet shows "warm (working)" with no size, with no read', async () => {
+  const { io, reads } = fakeFs({ [pathOf(0)]: { text: file(row({ ms: -MIN })) } });
+  const memory = new Map();
+  const out = await readWarmth([agent('A', 0, 'busy')], ['A'], CONFIG, memory, io);
+  assert.deepEqual(out, [{ name: 'A', kind: 'unread' }]);
+  assert.equal(reads.length, 0);
+  assert.deepEqual(warmthLine(out[0], 'busy', 'needs-you', NOW), { tone: 'dim', text: '◆ cache warm (working)' });
+  assert.deepEqual(warmthLine(out[0], 'running', 'needs-you', NOW), { tone: 'dim', text: '◆ cache warm (working)' });
+  // Not working, it has no line: the next poll reads it.
+  assert.equal(warmthLine(out[0], 'idle', 'needs-you', NOW), undefined);
+  // A missing or non-file transcript gives no record, busy or not.
+  for (const f of [undefined, { kind: 'dir', text: '' }]) {
+    const fs = fakeFs(f === undefined ? {} : { [pathOf(0)]: f });
+    assert.deepEqual(await readWarmth([agent('A', 0, 'busy')], ['A'], CONFIG, new Map(), fs.io), []);
+  }
+  // Once read, a busy member keeps its last size rather than this line.
+  await readWarmth([agent('A', 0, 'idle')], ['A'], CONFIG, memory, io);
+  assert.equal((await readWarmth([agent('A', 0, 'busy')], ['A'], CONFIG, memory, io))[0].kind, 'call');
+  // A transcript that held no valid call, read before: no line while busy.
+  const empty = fakeFs({ [pathOf(1)]: { text: file(JSON.stringify({ type: 'user' })) } });
+  const mem2 = new Map();
+  await readWarmth([agent('B', 1, 'idle')], ['B'], CONFIG, mem2, empty.io);
+  assert.deepEqual(await readWarmth([agent('B', 1, 'busy')], ['B'], CONFIG, mem2, empty.io), []);
+});
+
+test('a stored "unread" record is kept by the check', () => {
+  assert.deepEqual(warmthFrom([{ name: 'A', kind: 'unread' }]), [{ name: 'A', kind: 'unread' }]);
 });
