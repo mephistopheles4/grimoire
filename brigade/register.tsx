@@ -228,7 +228,9 @@ async function pollAgents($: EngineInterface, open: () => boolean) {
 
       // A Remote Control session's claude.ai link sits in its transcript, in a
       // row the engine writes. Read only a roster member's, by the id the engine
-      // listed, once per session, and keep the misses too.
+      // listed, once per session, and keep the misses too. The read comes
+      // first and is kept only if the pane is still open, so a close during
+      // it records nothing and the next open tries again.
       const members = new Set(cards.filter(c => c.desktopId === undefined && c.url === undefined).map(c => c.title))
       const seen = new Set(await read($, looked))
       for (const row of rows.value) {
@@ -236,15 +238,12 @@ async function pollAgents($: EngineInterface, open: () => boolean) {
         const file = transcriptFile(config, row)
         if (file === undefined) continue
         if (!open()) return
-        await update($, looked, list => [...list, row.name].slice(-200))
+        // No transcript yet, or none for this kind of session: no link.
+        const url = await $.fs.read(file).then(t => remoteLink(String(t)), () => undefined)
         if (!open()) return
-        try {
-          const url = remoteLink(String(await $.fs.read(file)))
-          if (url !== undefined) {
-            await update($, links, list => [...list.filter(p => p.name !== row.name), { name: row.name, value: url }])
-          }
-        } catch {
-          // No transcript yet, or none for this kind of session: no link.
+        await update($, looked, list => [...list, row.name].slice(-200))
+        if (url !== undefined && open()) {
+          await update($, links, list => [...list.filter(p => p.name !== row.name), { name: row.name, value: url }])
         }
       }
     } catch (err) {
