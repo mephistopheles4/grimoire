@@ -389,6 +389,13 @@ export function ticksFrom(stored: unknown): Pair[] {
   return out
 }
 
+/** The stored done list, checked again: the text entries of a list, and
+ *  nothing from any other shape, so a value another plugin wrote cannot make
+ *  the render throw. */
+export function idsFrom(stored: unknown): string[] {
+  return Array.isArray(stored) ? stored.filter((v): v is string => typeof v === 'string') : []
+}
+
 /** A press: tick the to-do with the press time, or undo its tick. */
 export function toggleTick(stored: unknown, id: string, now: number): Pair[] {
   const ticking = ticksFrom(stored)
@@ -447,7 +454,7 @@ export async function settleTicks(
   if (due.length > 0) {
     const moved = due
     await doneTodos(list => {
-      const had = Array.isArray(list) ? list : []
+      const had = idsFrom(list)
       const seen = new Set(had)
       return [...had, ...moved.filter(id => !seen.has(id))]
     })
@@ -458,6 +465,6 @@ export async function settleTicks(
 /** The count beside "Waiting on you": the cards that need the owner, plus the
  *  to-dos that are neither done nor ticking. */
 export function waitingCount(needsYou: number, todos: readonly { id: string }[], done: unknown, ticking: unknown): number {
-  const out = new Set([...(Array.isArray(done) ? done : []), ...ticksFrom(ticking).map(p => p.name)])
+  const out = new Set([...idsFrom(done), ...ticksFrom(ticking).map(p => p.name)])
   return needsYou + todos.filter(t => !out.has(t.id)).length
 }

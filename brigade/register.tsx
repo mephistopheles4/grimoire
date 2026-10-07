@@ -3,6 +3,7 @@ import type { EngineInterface, Register, Timer } from 'claude-code'
 
 import type { Card, Roster } from './types'
 import {
+  MAX_TEXT,
   SESSION_ID,
   appLink,
   checkRoster,
@@ -20,7 +21,7 @@ import {
   rosterFile,
   transcriptFile,
 } from './roster.ts'
-import { EMPTY_USAGE, settleTicks, snapshotFrom, ticksFrom, toggleTick, usageView, waitingCount } from './view.ts'
+import { EMPTY_USAGE, idsFrom, settleTicks, snapshotFrom, ticksFrom, toggleTick, usageView, waitingCount } from './view.ts'
 
 // The Brigade pane: one card per session a lead session started, each in a
 // rounded box with its work, phase, settings, live busy or idle state and
@@ -255,7 +256,7 @@ async function arm($: EngineInterface) {
     const mine = ++generation
     const live = () => generation === mine
     timers = [
-      $.clock.every(ROSTER_MS, () => void (live() && loadRoster($).then(ids => live() && sweepTodos($, ids)))),
+      $.clock.every(ROSTER_MS, () => void (live() && rosterTick($, live))),
       $.clock.every(AGENTS_MS, () => void (live() && pollAgents($))),
     ]
     await update($, armed, () => true)
@@ -270,6 +271,25 @@ function disarm() {
   generation++
   for (const t of timers) t.cancel()
   timers = []
+}
+
+// The roster timer's tick. The engine drops a pane whose drawing threw
+// without telling its close hook, so each tick first checks that the pane is
+// still listed, and stops every read when it is not: the timers, the measure
+// hook's reads and the report keeping all end with it.
+async function rosterTick($: EngineInterface, live: () => boolean) {
+  try {
+    if (!(await $.ui.panes()).some(p => p.id === PANE)) {
+      disarm()
+      await update($, armed, () => false)
+      return
+    }
+  } catch {
+    // No answer this time: the next tick asks again.
+    return
+  }
+  const ids = await loadRoster($)
+  if (live()) await sweepTodos($, ids)
 }
 
 // The pane's Link takes https only, so the app link goes to Windows' own
@@ -391,7 +411,7 @@ export const register: Register = on => {
     const running = lookup(await read($, live))
     const found = lookup(await read($, links))
     const inbox = await read($, reports)
-    const done = await read($, doneTodos)
+    const done = idsFrom(await read($, doneTodos))
     const ticked = new Set(done)
     const ticks = await read($, ticking)
     const crossed = new Set(ticksFrom(ticks).map(p => p.name))
@@ -509,7 +529,7 @@ export const register: Register = on => {
                     {oneLine(c.title, 80)}
                   </Text>
                   <Text dimColor wrap="wrap">
-                    {oneLine(c.phase, 160)}
+                    {oneLine(c.phase, MAX_TEXT)}
                   </Text>
                 </Box>
               </Box>
@@ -527,7 +547,7 @@ export const register: Register = on => {
                   </Box>
                   <Box flexGrow={1} flexShrink={1} minWidth={0}>
                     <Text wrap="wrap" strikethrough={isTicked} dimColor={isTicked}>
-                      {oneLine(t.text, 160)}
+                      {oneLine(t.text, MAX_TEXT)}
                     </Text>
                   </Box>
                   {t.session !== undefined && cards.some(c => c.title === t.session && appLink(c, found.get(c.title)) !== undefined) && (

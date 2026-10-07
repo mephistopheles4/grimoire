@@ -620,6 +620,18 @@ test('the "Waiting on you" count leaves out ticking and done to-dos', () => {
   assert.equal(waitingCount(1, todos, 'x', { name: 'a' }), 5);
 });
 
+test('the stored done list is checked: only text entries of a list count, and no shape throws', async () => {
+  const { idsFrom } = view;
+  for (const stored of [undefined, null, 'ab', 5, {}, { length: 2 }, { 0: 'a', length: 1 }]) assert.deepEqual(idsFrom(stored), [], String(stored));
+  assert.deepEqual(idsFrom(['a', 5, null, 'b', {}]), ['a', 'b']);
+  // The count and the sweep's append read it through the same check.
+  assert.equal(waitingCount(0, [{ id: 'a' }], { length: 1, 0: 'a' }, []), 1);
+  const done = store({ length: 2 });
+  const ticking = store([tick('a', 0)]);
+  await settleTicks(ticking.update(), done.update(), NOW + 30000, ['a']);
+  assert.deepEqual(done.get(), ['a']);
+});
+
 test('the state contract declares ticking under the plugin\'s manifest name', () => {
   const types = readFileSync(join(root, 'brigade/types/index.d.ts'), 'utf8');
   const manifest = JSON.parse(readFileSync(join(root, '.claude-plugin/plugin.json'), 'utf8'));

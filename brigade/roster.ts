@@ -14,7 +14,9 @@ export const STATUSES: readonly Status[] = ['working', 'needs-you', 'done', 'sto
 const MAX_CARDS = 50
 const MAX_TODOS = 50
 const MAX_TITLE = 80
-const MAX_TEXT = 300
+/** The cap on a card's or to-do's text field; the pane draws a wrapped field
+ *  whole up to it. */
+export const MAX_TEXT = 300
 const MAX_ID = 100
 
 // The engine's session ids, and so the roster files' names.
