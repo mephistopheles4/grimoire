@@ -48,7 +48,7 @@ not take, and `SECURITY.md` explains why that matters more than it looks.
 run only the suite while you work on it:
 
 ```bash
-node --test tests/audit.test.mjs tests/brigade-view.test.mjs tests/build-pages.test.mjs tests/check-baseline-rules.test.mjs tests/check-baselines.test.mjs tests/check-format.test.mjs tests/check-manifests.test.mjs tests/check-mod.test.mjs tests/check-paths.test.mjs tests/check-test-step.test.mjs tests/check-tree.test.mjs tests/check-version.test.mjs tests/contract-check-docs.test.mjs tests/contract-check-folder.test.mjs tests/contract-check-rules.test.mjs tests/contract-check-seal.test.mjs tests/contract-check-toml.test.mjs tests/eagle-eye-sheets.test.mjs tests/esc.test.mjs tests/groundtrack-fold.test.mjs tests/groundtrack-render.test.mjs tests/groundtrack-sheets.test.mjs tests/practice.test.mjs tests/registry.test.mjs tests/render.test.mjs tests/skillspector-gate.test.mjs tests/skillspector-strip-suppressed.test.mjs
+node --test tests/audit.test.mjs tests/brigade-roster-rules.test.mjs tests/brigade-view.test.mjs tests/build-pages.test.mjs tests/check-baseline-rules.test.mjs tests/check-baselines.test.mjs tests/check-format.test.mjs tests/check-manifests.test.mjs tests/check-mod.test.mjs tests/check-paths.test.mjs tests/check-test-step.test.mjs tests/check-tree.test.mjs tests/check-version.test.mjs tests/contract-check-docs.test.mjs tests/contract-check-folder.test.mjs tests/contract-check-rules.test.mjs tests/contract-check-seal.test.mjs tests/contract-check-toml.test.mjs tests/eagle-eye-sheets.test.mjs tests/esc.test.mjs tests/groundtrack-fold.test.mjs tests/groundtrack-render.test.mjs tests/groundtrack-sheets.test.mjs tests/practice.test.mjs tests/registry.test.mjs tests/render.test.mjs tests/skillspector-gate.test.mjs tests/skillspector-strip-suppressed.test.mjs
 ```
 
 **The suite never reaches the network.** eagle-eye's edge audit is the one
@@ -73,8 +73,32 @@ the check's seam is its exit code and its output. A test that reaches inside
 either one breaks on a refactor that changed no behaviour. The Brigade mod's
 seam is its view module, `brigade/view.ts`: plain TypeScript with no engine
 import, which `tests/brigade-view.test.mjs` imports directly to check what
-the pane would draw, as strings. Keep it to erasable syntax (no enums,
-namespaces or parameter properties), so Node can strip its types.
+the pane would draw, as strings. Its roster module, `brigade/roster.ts`, is the
+second seam: `tests/brigade-roster-rules.test.mjs` imports it to check the
+roster's shape rules, its byte cap and the path rule that decides whether the
+roster file may be read or written. Keep both to erasable syntax (no enums,
+namespaces or parameter properties), so Node can strip their types.
+
+**Two more gates for the mod's `set_roster` tool, run on your own machine.**
+They need Claude Code, which CI does not install: installing it there would
+put a fetched dependency on the publishing path. Run both before a pull
+request that touches `brigade/`, and say in it that you did:
+
+```bash
+claude plugin test .
+node scripts/record-brigade-stats.mjs
+```
+
+The first runs `brigade/set-roster.test.ts` under the engine's own plugin test
+runner, which drives the tool the way the model calls it. That runner gives a
+plugin no file system, so the test answers every `stat`, read and write from a
+small file system in memory, and its answers about links come from
+`brigade/recorded-stats.ts`. The second builds real junctions, symbolic links
+and hard links in a temporary folder, asks the installed Claude Code to `stat`
+each one through a throwaway probe plugin, and fails if the answers differ from
+that recording; `--write` records them anew. It makes no model call. On Windows
+it needs Developer Mode for symbolic links, and a link it cannot create fails
+it rather than being skipped.
 
 That is also why a `git worktree` needs no setup here. Add one and run the
 check; there is nothing to install, link, or copy first.
