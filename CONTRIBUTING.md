@@ -81,8 +81,10 @@ namespaces or parameter properties), so Node can strip their types.
 
 **Two more gates for the mod's `set_roster` tool, run on your own machine.**
 They need Claude Code, which CI does not install: installing it there would
-put a fetched dependency on the publishing path. Run both before a pull
-request that touches `brigade/`, and say in it that you did:
+put a fetched dependency on the publishing path. Before a pull request that
+touches `brigade/`, run the first on any platform, and the second on Windows,
+and say in the pull request which you ran. Off Windows, say that the recording
+gate could not run there:
 
 ```bash
 claude plugin test .
