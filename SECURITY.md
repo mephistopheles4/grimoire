@@ -43,7 +43,15 @@ once. It also reads this session's own usage, its rate limits and context, when 
 pane opens and, while it stays open, each time the engine measures the
 session; it asks only for
 the local summary estimate of the context breakdown, which sends no request.
-It writes no file and makes no network request. Its one other process is
+It makes no network request. It writes one file, the lead session's roster,
+through a tool the model calls, `set_roster`, which skips Claude Code's
+permission prompt. So that write has no human and no classifier review; every
+call is still recorded in the transcript as the tool's result. The tool exists
+only once the owner runs `/brigade`, writes only while the pane is open, and
+refuses a subagent's call, a deny verdict, an owner's ask rule, plan and
+don't-ask modes as far as the session has reported its mode, any input outside
+the roster's shape and size, and any link on the way to the file. A deny rule for `mcp__grimoire__set_roster` removes it
+from the session; the owner's own hooks do not stop it. Its one other process is
 `explorer.exe`, given a `claude://` link when the owner presses Open in app.
 Everything it reads is checked and drawn as text, in the usage image too. Review any change under
 `brigade/` or `hooks/` as a change to code that runs on every installer's
