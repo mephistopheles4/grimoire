@@ -641,3 +641,395 @@ test('the state contract declares ticking under the plugin\'s manifest name', ()
   const register = readFileSync(join(root, 'brigade/register.tsx'), 'utf8');
   assert.match(register, /atom\(\{ plugin: 'grimoire', key: 'ticking' \} as const, \[\]\)/);
 });
+// --- cache warmth ------------------------------------------------------------
+
+const { MAX_TRANSCRIPT_BYTES, NUDGE_TOKENS, lastCall, liveState, readWarmth, warmthFrom, warmthLine } = view;
+const { parseAgents } = roster;
+const HOUR = 60 * MIN;
+
+// A transcript row as Claude Code writes it, with only the fields the parser
+// reads. `usage` overrides the token counts; `extra` the row's own fields.
+const row = ({ ms = 0, usage = {}, write = '1h', extra = {}, model = 'claude-opus-5-5' } = {}) =>
+  JSON.stringify({
+    type: 'assistant',
+    timestamp: at(ms),
+    isSidechain: false,
+    message: {
+      model,
+      usage: {
+        input_tokens: 6,
+        cache_creation_input_tokens: write === 'none' ? 0 : 1000,
+        cache_read_input_tokens: 150000,
+        output_tokens: 300,
+        cache_creation: {
+          ephemeral_5m_input_tokens: write === '5m' ? 1000 : 0,
+          ephemeral_1h_input_tokens: write === '1h' ? 1000 : 0,
+        },
+        ...usage,
+      },
+    },
+    ...extra,
+  });
+const file = (...rows) => rows.join('\n') + '\n';
+const MTIME = NOW;
+
+test('the last-call parser takes the last real model call: its time, context tokens and window', () => {
+  const t = file(JSON.stringify({ type: 'user', timestamp: at(-2 * MIN) }), row({ ms: -MIN }));
+  assert.deepEqual(lastCall(t, MTIME), { at: NOW - MIN, tokens: 151006, windowMs: HOUR });
+});
+
+test('a call that wrote only 5-minute cache has a 5-minute window, and one hour otherwise', () => {
+  assert.equal(lastCall(file(row({ write: '5m' })), MTIME)?.windowMs, 5 * MIN);
+  assert.equal(lastCall(file(row({ write: '1h' })), MTIME)?.windowMs, HOUR);
+  const both = row({ usage: { cache_creation: { ephemeral_5m_input_tokens: 5, ephemeral_1h_input_tokens: 5 } } });
+  assert.equal(lastCall(file(both), MTIME)?.windowMs, HOUR);
+});
+
+test('a call that only read the cache takes its window from the last earlier call that wrote it, else the window is unknown', () => {
+  const t = file(row({ ms: -3 * MIN, write: '5m' }), row({ ms: -2 * MIN, write: 'none' }), row({ ms: -MIN, write: 'none' }));
+  assert.deepEqual(lastCall(t, MTIME), { at: NOW - MIN, tokens: 150006, windowMs: 5 * MIN });
+  const none = lastCall(file(row({ ms: -MIN, write: 'none' })), MTIME);
+  assert.deepEqual(none, { at: NOW - MIN, tokens: 150006 });
+  assert.equal('windowMs' in none, false);
+  // A row that wrote cache but fails a check does not give the window.
+  const bad = file(row({ ms: -3 * MIN, write: '5m', extra: { isSidechain: true } }), row({ ms: -MIN, write: 'none' }));
+  assert.equal(lastCall(bad, MTIME)?.windowMs, undefined);
+});
+
+test('a valid row followed by each kind of skipped row: the valid one wins', () => {
+  const valid = row({ ms: -5 * MIN });
+  const skipped = {
+    synthetic: row({ ms: -MIN, model: '<synthetic>', usage: { input_tokens: 0, cache_creation_input_tokens: 0, cache_read_input_tokens: 0 } }),
+    'API error': row({ ms: -MIN, extra: { isApiErrorMessage: true } }),
+    sidechain: row({ ms: -MIN, extra: { isSidechain: true } }),
+    'zero context': row({ ms: -MIN, usage: { input_tokens: 0, cache_creation_input_tokens: 0, cache_read_input_tokens: 0 } }),
+    'a day after the file': row({ ms: 1440 * MIN }),
+    'not UTC': row({ ms: -MIN }).replace(/"timestamp":"([^"]+)Z"/, '"timestamp":"$1+00:00"'),
+    unparseable: row({ ms: -MIN }).replace(/"timestamp":"[^"]+"/, '"timestamp":"2026-13-40T99:00:00Z"'),
+    'no timestamp': row({ ms: -MIN }).replace(/"timestamp":"[^"]+",/, ''),
+    'not JSON': row({ ms: -MIN }).slice(0, -1),
+    'usage not an object': row({ ms: -MIN }).replace(/"usage":\{/, '"usage":7,"x":{'),
+  };
+  for (const [kind, line] of Object.entries(skipped)) {
+    assert.equal(lastCall(file(valid, line), MTIME)?.at, NOW - 5 * MIN, kind);
+  }
+});
+
+test('a row is accepted up to two minutes past the file\'s modified time, and refused after', () => {
+  assert.equal(lastCall(file(row({ ms: 2 * MIN })), MTIME)?.at, NOW + 2 * MIN);
+  assert.equal(lastCall(file(row({ ms: 2 * MIN + 1 })), MTIME), undefined);
+});
+
+test('token fields must be absent or finite non-negative integers up to 10,000,000', () => {
+  const valid = row({ ms: -5 * MIN });
+  for (const v of [-1, 1.5, 10000001, '5', null, true, 1e400, Number.NaN]) {
+    for (const field of ['input_tokens', 'cache_creation_input_tokens', 'cache_read_input_tokens']) {
+      const line = row({ ms: -MIN }).replace(new RegExp(`"${field}":\\d+`), `"${field}":${typeof v === 'string' ? JSON.stringify(v) : String(v)}`);
+      assert.equal(lastCall(file(valid, line), MTIME)?.at, NOW - 5 * MIN, `${field} = ${String(v)}`);
+    }
+  }
+  // Absent fields count as 0; 10,000,000 is the top.
+  const sparse = JSON.stringify({ type: 'assistant', timestamp: at(-MIN), message: { model: 'm', usage: { cache_read_input_tokens: 10000000 } } });
+  assert.deepEqual(lastCall(file(sparse), MTIME), { at: NOW - MIN, tokens: 10000000 });
+  // A cache-write count out of range spoils the row too.
+  const badWrite = row({ ms: -MIN, usage: { cache_creation: { ephemeral_5m_input_tokens: -5, ephemeral_1h_input_tokens: 0 } } });
+  assert.equal(lastCall(file(valid, badWrite), MTIME)?.at, NOW - 5 * MIN);
+});
+
+test('no assistant row, or no valid one, means no record', () => {
+  assert.equal(lastCall('', MTIME), undefined);
+  assert.equal(lastCall(file(JSON.stringify({ type: 'user', timestamp: at(0) })), MTIME), undefined);
+  assert.equal(lastCall(file(row({ extra: { isApiErrorMessage: true } })), MTIME), undefined);
+});
+
+// The classifier. A record as the poll stores it.
+const call = (idleMs, tokens = 150000, windowMs = HOUR) => ({ name: 'S', kind: 'call', at: NOW - idleMs, tokens, windowMs });
+
+test('the warmth bands: working dim, more than 15 min left green, 15 min or less amber, cold red', () => {
+  assert.deepEqual(warmthLine(call(10 * MIN), 'busy', 'working', NOW), { tone: 'dim', text: '◆ cache warm (working) · 150k context' });
+  assert.equal(warmthLine(call(10 * MIN), 'running', 'working', NOW)?.tone, 'dim');
+  assert.deepEqual(warmthLine(call(10 * MIN), 'idle', 'working', NOW), { tone: 'success', text: '◆ cache warm · idle 10 min · cold in 50 min · 150k context' });
+  assert.deepEqual(warmthLine(call(50 * MIN), 'idle', 'working', NOW), { tone: 'warning', text: '◆ cache warm · idle 50 min · cold in 10 min · 150k context' });
+  assert.deepEqual(warmthLine(call(70 * MIN), 'idle', 'working', NOW), { tone: 'error', text: '◆ cache cold · idle 1 hr 10 min · 150k context' });
+});
+
+test('the 15-minute and 0-minute edges', () => {
+  assert.equal(warmthLine(call(45 * MIN - 1), 'idle', 'working', NOW)?.tone, 'success');
+  assert.equal(warmthLine(call(45 * MIN), 'idle', 'working', NOW)?.tone, 'warning');
+  assert.match(warmthLine(call(45 * MIN), 'idle', 'working', NOW)?.text ?? '', /cold in 15 min/);
+  assert.equal(warmthLine(call(HOUR - 1), 'idle', 'working', NOW)?.tone, 'warning');
+  assert.match(warmthLine(call(HOUR - 1), 'idle', 'working', NOW)?.text ?? '', /cold in 1 min/);
+  assert.equal(warmthLine(call(HOUR), 'idle', 'working', NOW)?.tone, 'error');
+  // A 5-minute window is amber from the start.
+  assert.equal(warmthLine(call(MIN, 150000, 5 * MIN), 'idle', 'working', NOW)?.tone, 'warning');
+  // A call time ahead of the clock reads as idle 0.
+  assert.match(warmthLine(call(-MIN), 'idle', 'working', NOW)?.text ?? '', /idle 0 min · cold in 1 hr 0 min/);
+});
+
+test('the nudge: only a needs-you card with 100,000 or more known tokens that is not working', () => {
+  assert.equal(NUDGE_TOKENS, 100000);
+  assert.equal(warmthLine(call(50 * MIN, 100000), 'idle', 'needs-you', NOW)?.nudge, 'Reply within 10 min to keep the cache.');
+  assert.equal(warmthLine(call(50 * MIN, 99999), 'idle', 'needs-you', NOW)?.nudge, undefined);
+  assert.equal(
+    warmthLine(call(70 * MIN, 182400), 'idle', 'needs-you', NOW)?.nudge,
+    'Replying re-reads about 182k tokens at full price. Consider a hand-off through the issue to a fresh session.',
+  );
+  // More than 15 min left: no nudge yet.
+  assert.equal(warmthLine(call(45 * MIN - 1, 150000), 'idle', 'needs-you', NOW)?.nudge, undefined);
+  assert.equal(warmthLine(call(45 * MIN, 150000), 'idle', 'needs-you', NOW)?.nudge, 'Reply within 15 min to keep the cache.');
+  // Not needing the owner, or working: no nudge.
+  for (const status of ['working', 'done', 'stopped']) assert.equal(warmthLine(call(70 * MIN), 'idle', status, NOW)?.nudge, undefined, status);
+  assert.equal(warmthLine(call(70 * MIN), 'busy', 'needs-you', NOW)?.nudge, undefined);
+  assert.equal(warmthLine(call(70 * MIN), 'running', 'needs-you', NOW)?.nudge, undefined);
+  // A blocked or not-running session that needs the owner still gets it.
+  assert.ok(warmthLine(call(70 * MIN), 'blocked', 'needs-you', NOW)?.nudge);
+  assert.ok(warmthLine(call(70 * MIN), undefined, 'needs-you', NOW)?.nudge);
+});
+
+test('an unknown window shows no countdown and no nudge', () => {
+  const r = { name: 'S', kind: 'call', at: NOW - 70 * MIN, tokens: 150000 };
+  assert.deepEqual(warmthLine(r, 'idle', 'needs-you', NOW), { tone: 'dim', text: '◆ cache window unknown · idle 1 hr 10 min · 150k context' });
+});
+
+test('a transcript too large to read, or a name two sessions share, shows unknown: never warm, never a nudge, even while working', () => {
+  for (const live of ['idle', 'busy', undefined]) {
+    assert.deepEqual(warmthLine({ name: 'S', kind: 'too-large' }, live, 'needs-you', NOW), { tone: 'dim', text: '◆ cache unknown · transcript too large to read' });
+    assert.deepEqual(warmthLine({ name: 'S', kind: 'shared' }, live, 'needs-you', NOW), { tone: 'dim', text: '◆ cache unknown · two sessions share this name' });
+  }
+});
+
+test('no record, no line', () => {
+  assert.equal(warmthLine(undefined, 'idle', 'needs-you', NOW), undefined);
+});
+
+test('stored warmth records are checked again: wrong shapes go, and none reaches a prototype', () => {
+  const good = call(MIN);
+  assert.deepEqual(warmthFrom([good, { name: 'T', kind: 'too-large' }, { name: 'U', kind: 'shared' }]), [good, { name: 'T', kind: 'too-large' }, { name: 'U', kind: 'shared' }]);
+  for (const stored of [undefined, null, 'x', 5, {}, { length: 1, 0: good }]) assert.deepEqual(warmthFrom(stored), [], String(stored));
+  const bad = [
+    { ...good, name: 5 },
+    { ...good, name: '' },
+    { ...good, name: 'x'.repeat(301) },
+    { ...good, kind: 'warm' },
+    { ...good, kind: 'constructor' },
+    { ...good, at: Number.NaN },
+    { ...good, at: '5' },
+    { ...good, tokens: -1 },
+    { ...good, tokens: 1.5 },
+    { ...good, tokens: 30000001 },
+    { ...good, windowMs: 1000 },
+  ];
+  for (const b of bad) assert.deepEqual(warmthFrom([b]), [], JSON.stringify(b));
+  // An absent window stays absent; a repeated name keeps the first; at most 50.
+  const { windowMs, ...noWindow } = good;
+  assert.deepEqual(warmthFrom([noWindow]), [noWindow]);
+  assert.deepEqual(warmthFrom([good, { ...good, tokens: 1 }]), [good]);
+  assert.equal(warmthFrom(Array.from({ length: 60 }, (_, i) => ({ ...good, name: `S${i}` }))).length, 50);
+});
+
+test('live states: busy and running are success, idle and blocked warning, others inactive', () => {
+  assert.deepEqual(liveState('busy'), { text: 'busy', color: 'success' });
+  assert.deepEqual(liveState('running'), { text: 'running', color: 'success' });
+  assert.deepEqual(liveState('idle'), { text: 'idle', color: 'warning' });
+  assert.deepEqual(liveState('blocked'), { text: 'blocked', color: 'warning' });
+  assert.deepEqual(liveState('?'), { text: '?', color: 'inactive' });
+  assert.deepEqual(liveState('constructor'), { text: 'constructor', color: 'inactive' });
+  assert.deepEqual(liveState(undefined), { text: 'not running', color: 'inactive' });
+});
+
+test('the agents-row parser reads an interactive row\'s status and a background row\'s state', () => {
+  const sid = '11111111-2222-4333-8444-555555555555';
+  const rows = parseAgents(JSON.stringify([
+    { name: 'Interactive', status: 'busy', sessionId: sid, cwd: 'C:\\w' },
+    { name: 'Background', state: 'blocked', sessionId: sid, cwd: 'C:\\w' },
+    { name: 'Both', status: 'idle', state: 'blocked' },
+    { name: 'Neither' },
+    { name: 'Hostile', state: '\u{202E}x\ny'.repeat(10) },
+  ]));
+  assert.ok('value' in rows);
+  assert.deepEqual(rows.value.map(r => r.status), ['busy', 'blocked', 'idle', '?', rows.value[4].status]);
+  assert.ok(rows.value[4].status.length <= 20 && !/[\n\u{202E}]/u.test(rows.value[4].status));
+});
+
+// The read decision, with a fake file system.
+const CONFIG = 'C:\\cfg';
+const SID = ['11111111-2222-4333-8444-555555555555', '22222222-3333-4444-8555-666666666666', '33333333-4444-4555-8666-777777777777'];
+const agent = (name, i, status = 'idle') => ({ name, status, sessionId: SID[i], cwd: 'C:\\work' });
+const pathOf = i => `${CONFIG}\\projects\\C--work\\${SID[i]}.jsonl`;
+
+function fakeFs(files) {
+  const reads = [];
+  const stats = [];
+  return {
+    reads,
+    stats,
+    io: {
+      live: () => true,
+      stat: async p => {
+        stats.push(p);
+        const f = files[p];
+        if (f === undefined) throw new Error('ENOENT');
+        return { kind: f.kind ?? 'file', size: f.size ?? f.text.length, mtimeMs: f.mtimeMs ?? MTIME, isLink: f.isLink ?? false };
+      },
+      read: async p => {
+        reads.push(p);
+        const f = files[p];
+        if (f === undefined || f.fail) throw new Error('read failed');
+        return f.text;
+      },
+    },
+  };
+}
+
+test('a transcript is read once, and again only when its modified time changes', async () => {
+  const files = { [pathOf(0)]: { text: file(row({ ms: -MIN })) } };
+  const { io, reads } = fakeFs(files);
+  const memory = new Map();
+  const rows = [agent('A', 0)];
+  const first = await readWarmth(rows, ['A'], CONFIG, memory, io);
+  assert.deepEqual(first, [{ name: 'A', kind: 'call', at: NOW - MIN, tokens: 151006, windowMs: HOUR }]);
+  assert.equal(reads.length, 1);
+  assert.deepEqual(await readWarmth(rows, ['A'], CONFIG, memory, io), first);
+  assert.equal(reads.length, 1, 'unchanged: not read again');
+  files[pathOf(0)] = { text: file(row({ ms: -MIN }), row({ ms: 0 })), mtimeMs: MTIME + 1 };
+  const second = await readWarmth(rows, ['A'], CONFIG, memory, io);
+  assert.equal(reads.length, 2, 'changed: read again');
+  assert.equal(second[0].at, NOW);
+});
+
+test('the re-read memory is a Map keyed by transcript path, set only after a successful read and parse', async () => {
+  const files = { [pathOf(0)]: { text: file(row()), fail: true } };
+  const { io, reads } = fakeFs(files);
+  const memory = new Map();
+  assert.deepEqual(await readWarmth([agent('A', 0)], ['A'], CONFIG, memory, io), []);
+  assert.equal(memory.size, 0, 'a failed read leaves no entry');
+  await readWarmth([agent('A', 0)], ['A'], CONFIG, memory, io);
+  assert.equal(reads.length, 2, 'and is retried at the next poll');
+  files[pathOf(0)].fail = false;
+  await readWarmth([agent('A', 0)], ['A'], CONFIG, memory, io);
+  assert.ok(memory instanceof Map);
+  assert.deepEqual([...memory.keys()], [pathOf(0)]);
+  assert.equal(memory.get(pathOf(0)).mtimeMs, MTIME);
+});
+
+test('a failed re-read keeps the last good record and is retried', async () => {
+  const files = { [pathOf(0)]: { text: file(row({ ms: -MIN })) } };
+  const { io, reads } = fakeFs(files);
+  const memory = new Map();
+  await readWarmth([agent('A', 0)], ['A'], CONFIG, memory, io);
+  files[pathOf(0)] = { text: '', mtimeMs: MTIME + 1, fail: true };
+  const kept = await readWarmth([agent('A', 0)], ['A'], CONFIG, memory, io);
+  assert.equal(kept[0].at, NOW - MIN);
+  await readWarmth([agent('A', 0)], ['A'], CONFIG, memory, io);
+  assert.equal(reads.length, 3);
+});
+
+test('a busy or running member is not read, and keeps its last record', async () => {
+  const files = { [pathOf(0)]: { text: file(row({ ms: -MIN })) }, [pathOf(1)]: { text: file(row({ ms: -MIN })) } };
+  const { io, reads } = fakeFs(files);
+  const memory = new Map();
+  assert.deepEqual(await readWarmth([agent('A', 0, 'busy'), agent('B', 1, 'running')], ['A', 'B'], CONFIG, memory, io), []);
+  assert.equal(reads.length, 0);
+  await readWarmth([agent('A', 0, 'idle')], ['A'], CONFIG, memory, io);
+  files[pathOf(0)].mtimeMs = MTIME + 1;
+  const busy = await readWarmth([agent('A', 0, 'busy')], ['A'], CONFIG, memory, io);
+  assert.equal(reads.length, 1);
+  assert.equal(busy[0].at, NOW - MIN, 'the last known record');
+});
+
+test('a path that is not a regular file is not read', async () => {
+  for (const f of [{ kind: 'dir', text: '' }, { kind: 'other', text: '' }, { isLink: true, text: file(row()) }]) {
+    const { io, reads } = fakeFs({ [pathOf(0)]: f });
+    assert.deepEqual(await readWarmth([agent('A', 0)], ['A'], CONFIG, new Map(), io), [], JSON.stringify(f));
+    assert.equal(reads.length, 0);
+  }
+  // A missing transcript: no read, no record.
+  const { io, reads } = fakeFs({});
+  assert.deepEqual(await readWarmth([agent('A', 0)], ['A'], CONFIG, new Map(), io), []);
+  assert.equal(reads.length, 0);
+});
+
+test('a transcript over 4 MiB is not read and records "too large"', async () => {
+  assert.equal(MAX_TRANSCRIPT_BYTES, 4 * 1024 * 1024);
+  const { io, reads } = fakeFs({ [pathOf(0)]: { text: '', size: MAX_TRANSCRIPT_BYTES + 1 }, [pathOf(1)]: { text: file(row()), size: MAX_TRANSCRIPT_BYTES } });
+  const out = await readWarmth([agent('A', 0), agent('B', 1)], ['A', 'B'], CONFIG, new Map(), io);
+  assert.deepEqual(out.map(w => [w.name, w.kind]), [['A', 'too-large'], ['B', 'call']]);
+  assert.deepEqual(reads, [pathOf(1)]);
+});
+
+test('a name on two rows is reported as shared, and neither transcript is read', async () => {
+  const files = { [pathOf(0)]: { text: file(row()) }, [pathOf(1)]: { text: file(row()) } };
+  const { io, reads, stats } = fakeFs(files);
+  const out = await readWarmth([agent('A', 0), agent('A', 1)], ['A'], CONFIG, new Map(), io);
+  assert.deepEqual(out, [{ name: 'A', kind: 'shared' }]);
+  assert.equal(reads.length + stats.length, 0);
+});
+
+test('only roster members are read', async () => {
+  const files = { [pathOf(0)]: { text: file(row()) }, [pathOf(1)]: { text: file(row()) } };
+  const { io, reads } = fakeFs(files);
+  const out = await readWarmth([agent('A', 0), agent('Other', 1)], ['A'], CONFIG, new Map(), io);
+  assert.deepEqual(out.map(w => w.name), ['A']);
+  assert.deepEqual(reads, [pathOf(0)]);
+});
+
+test('a name that moves to another session and back reads the right transcript', async () => {
+  const files = { [pathOf(0)]: { text: file(row({ ms: -10 * MIN })) }, [pathOf(1)]: { text: file(row({ ms: -2 * MIN })) } };
+  const { io } = fakeFs(files);
+  const memory = new Map();
+  assert.equal((await readWarmth([agent('A', 0)], ['A'], CONFIG, memory, io))[0].at, NOW - 10 * MIN);
+  assert.equal((await readWarmth([agent('A', 1)], ['A'], CONFIG, memory, io))[0].at, NOW - 2 * MIN);
+  assert.equal((await readWarmth([agent('A', 0)], ['A'], CONFIG, memory, io))[0].at, NOW - 10 * MIN);
+  // A shared spell in between does not leave the card on the other session.
+  await readWarmth([agent('A', 0), agent('A', 1)], ['A'], CONFIG, memory, io);
+  assert.equal((await readWarmth([agent('A', 0)], ['A'], CONFIG, memory, io))[0].at, NOW - 10 * MIN);
+});
+
+test('a transcript with no valid row records nothing and is not read again until it changes', async () => {
+  const files = { [pathOf(0)]: { text: file(JSON.stringify({ type: 'user' })) } };
+  const { io, reads } = fakeFs(files);
+  const memory = new Map();
+  assert.deepEqual(await readWarmth([agent('A', 0)], ['A'], CONFIG, memory, io), []);
+  assert.deepEqual(await readWarmth([agent('A', 0)], ['A'], CONFIG, memory, io), []);
+  assert.equal(reads.length, 1);
+});
+
+test('the memory keeps only the current members\' paths', async () => {
+  const files = { [pathOf(0)]: { text: file(row()) }, [pathOf(1)]: { text: file(row()) } };
+  const { io } = fakeFs(files);
+  const memory = new Map();
+  await readWarmth([agent('A', 0), agent('B', 1)], ['A', 'B'], CONFIG, memory, io);
+  assert.equal(memory.size, 2);
+  await readWarmth([agent('A', 0)], ['A'], CONFIG, memory, io);
+  assert.deepEqual([...memory.keys()], [pathOf(0)]);
+});
+
+test('a close mid-poll stops the reads and stores nothing', async () => {
+  const files = { [pathOf(0)]: { text: file(row()) }, [pathOf(1)]: { text: file(row()) } };
+  const { io, reads } = fakeFs(files);
+  let open = true;
+  const closing = { ...io, live: () => open, read: async p => { open = false; return io.read(p); } };
+  assert.equal(await readWarmth([agent('A', 0), agent('B', 1)], ['A', 'B'], CONFIG, new Map(), closing), undefined);
+  assert.equal(reads.length, 1);
+});
+
+test('the state contract declares warmth under the plugin\'s manifest name', () => {
+  const types = readFileSync(join(root, 'brigade/types/index.d.ts'), 'utf8');
+  const block = types.slice(types.indexOf('interface PluginState'));
+  assert.match(block, /\n\s+warmth: Warmth\[\]\n/);
+  const register = readFileSync(join(root, 'brigade/register.tsx'), 'utf8');
+  assert.match(register, /atom\(\{ plugin: 'grimoire', key: 'warmth' \} as const, \[\]\)/);
+});
+
+test('the agents poll has an in-flight guard: a tick that finds a poll running does nothing', () => {
+  const register = readFileSync(join(root, 'brigade/register.tsx'), 'utf8');
+  const poll = register.slice(register.indexOf('async function pollAgents'));
+  assert.match(poll, /^async function pollAgents[^{]*\{\s*(?:\/\/[^\n]*\n\s*)*if \(polling\) return\n\s*polling = true\n\s*try \{/);
+  assert.match(poll, /\} finally \{\n\s*polling = false\n\s*\}/);
+});
+
+test('a busy member is still checked for size, so a transcript too large to read stays unknown while it works', async () => {
+  const { io, reads } = fakeFs({ [pathOf(0)]: { text: '', size: MAX_TRANSCRIPT_BYTES + 1 } });
+  assert.deepEqual(await readWarmth([agent('A', 0, 'busy')], ['A'], CONFIG, new Map(), io), [{ name: 'A', kind: 'too-large' }]);
+  assert.equal(reads.length, 0);
+});

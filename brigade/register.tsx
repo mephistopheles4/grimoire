@@ -21,11 +21,25 @@ import {
   rosterFile,
   transcriptFile,
 } from './roster.ts'
-import { EMPTY_USAGE, idsFrom, settleTicks, snapshotFrom, ticksFrom, toggleTick, usageView, waitingCount } from './view.ts'
+import {
+  EMPTY_USAGE,
+  idsFrom,
+  liveState,
+  readWarmth,
+  settleTicks,
+  snapshotFrom,
+  ticksFrom,
+  toggleTick,
+  usageView,
+  waitingCount,
+  warmthFrom,
+  warmthLine,
+} from './view.ts'
+import type { ReadMemory } from './view.ts'
 
 // The Brigade pane: one card per session a lead session started, each in a
-// rounded box with its work, phase, settings, live busy or idle state and
-// latest report; the owner's to-dos in one box, each ticked with a press that
+// rounded box with its work, phase, settings, live busy or idle state, cache
+// warmth and latest report; the owner's to-dos in one box, each ticked with a press that
 // a second press undoes; and at the bottom this session's own rate limits and
 // context. The head chef writes the roster file; this pane only reads it, and
 // reads it only while the pane is open. The usage section is worked out in
@@ -58,18 +72,12 @@ const dismissed = atom({ plugin: 'grimoire', key: 'dismissed' } as const, [])
 const doneTodos = atom({ plugin: 'grimoire', key: 'doneTodos' } as const, [])
 const ticking = atom({ plugin: 'grimoire', key: 'ticking' } as const, [])
 const usage = atom({ plugin: 'grimoire', key: 'usage' } as const, EMPTY_USAGE)
+const warmth = atom({ plugin: 'grimoire', key: 'warmth' } as const, [])
 
 // Colours are the app's own theme keys, so the pane follows the person's
-// theme, light or dark, as the rest of Claude Code does.
+// theme, light or dark, as the rest of Claude Code does. The live state's
+// colours are in view.ts.
 //
-// The live state: what `claude agents` says.
-const liveState = (status: string | undefined) =>
-  status === 'busy'
-    ? { text: 'busy', color: 'success' }
-    : status === 'idle'
-      ? { text: 'idle', color: 'warning' }
-      : { text: status ?? 'not running', color: 'inactive' }
-
 // The status the head chef wrote on the card.
 const MARK = new Map<Card['status'], { mark: string; color: string }>([
   ['needs-you', { mark: '●', color: 'warning' }],
@@ -165,42 +173,75 @@ async function sweepTodos($: EngineInterface, todoIds: string[] | undefined) {
   }
 }
 
-async function pollAgents($: EngineInterface) {
-  // With no roster file to read there is no brigade to show, so no process
-  // runs either; the pane already shows why.
-  const at = await where($)
-  if ('error' in at) return
-  try {
-    const { exitCode, stdout, stderr } = await $.process.run(['claude', 'agents', '--json'], { timeoutMs: 15000 })
-    if (exitCode !== 0) throw new Error(oneLine(stderr, 200) || `exit ${exitCode}`)
-    const rows = parseAgents(stdout)
-    if ('error' in rows) throw new Error(rows.error)
-    await update($, live, () => rows.value.map(r => ({ name: r.name, value: r.status })))
-    await update($, liveError, () => '')
+// What the warmth reads remember of each transcript, keyed by its path. A
+// reload starts it over, which costs one read per member.
+const memory: ReadMemory = new Map()
+let polling = false
 
-    // A Remote Control session's claude.ai link sits in its transcript, in a
-    // row the engine writes. Read only a roster member's, by the id the engine
-    // listed, once per session, and keep the misses too.
-    if (at.config === undefined) return
-    const config = at.config
-    const members = new Set((await read($, roster)).cards.filter(c => c.desktopId === undefined && c.url === undefined).map(c => c.title))
-    const seen = new Set(await read($, looked))
-    for (const row of rows.value) {
-      if (!members.has(row.name) || seen.has(row.name)) continue
-      const file = transcriptFile(config, row)
-      if (file === undefined) continue
-      await update($, looked, list => [...list, row.name].slice(-200))
-      try {
-        const url = remoteLink(String(await $.fs.read(file)))
-        if (url !== undefined) {
-          await update($, links, list => [...list.filter(p => p.name !== row.name), { name: row.name, value: url }])
-        }
-      } catch {
-        // No transcript yet, or none for this kind of session: no link.
+async function pollAgents($: EngineInterface, open: () => boolean) {
+  // One poll at a time: `claude agents` may take up to 15 s and the
+  // transcript reads add to that, so a tick that finds the last poll still
+  // running does nothing.
+  if (polling) return
+  polling = true
+  try {
+    // With no roster file to read there is no brigade to show, so no process
+    // runs either; the pane already shows why.
+    const at = await where($)
+    if ('error' in at) return
+    try {
+      const { exitCode, stdout, stderr } = await $.process.run(['claude', 'agents', '--json'], { timeoutMs: 15000 })
+      if (!open()) return
+      if (exitCode !== 0) throw new Error(oneLine(stderr, 200) || `exit ${exitCode}`)
+      const rows = parseAgents(stdout)
+      if ('error' in rows) throw new Error(rows.error)
+      await update($, live, () => rows.value.map(r => ({ name: r.name, value: r.status })))
+      await update($, liveError, () => '')
+
+      // Transcripts are found under the config folder: with none, no card
+      // gets a warmth line or a link.
+      if (at.config === undefined) {
+        await update($, warmth, () => [])
+        return
       }
+      const config = at.config
+      const cards = (await read($, roster)).cards
+
+      // Each roster member's cache warmth, from its transcript's last model
+      // call. The rules for what is read, and when, are in view.ts.
+      const found = await readWarmth(rows.value, cards.map(c => c.title), config, memory, {
+        live: open,
+        stat: path => $.fs.stat(path),
+        read: async path => String(await $.fs.read(path)),
+      })
+      if (found === undefined || !open()) return
+      await update($, warmth, () => found)
+
+      // A Remote Control session's claude.ai link sits in its transcript, in a
+      // row the engine writes. Read only a roster member's, by the id the engine
+      // listed, once per session, and keep the misses too.
+      const members = new Set(cards.filter(c => c.desktopId === undefined && c.url === undefined).map(c => c.title))
+      const seen = new Set(await read($, looked))
+      for (const row of rows.value) {
+        if (!members.has(row.name) || seen.has(row.name)) continue
+        const file = transcriptFile(config, row)
+        if (file === undefined) continue
+        if (!open()) return
+        await update($, looked, list => [...list, row.name].slice(-200))
+        try {
+          const url = remoteLink(String(await $.fs.read(file)))
+          if (url !== undefined) {
+            await update($, links, list => [...list.filter(p => p.name !== row.name), { name: row.name, value: url }])
+          }
+        } catch {
+          // No transcript yet, or none for this kind of session: no link.
+        }
+      }
+    } catch (err) {
+      await update($, liveError, () => `claude agents: ${oneLine(String(err instanceof Error ? err.message : err), 200)}`)
     }
-  } catch (err) {
-    await update($, liveError, () => `claude agents: ${oneLine(String(err instanceof Error ? err.message : err), 200)}`)
+  } finally {
+    polling = false
   }
 }
 
@@ -257,12 +298,12 @@ async function arm($: EngineInterface) {
     const live = () => generation === mine
     timers = [
       $.clock.every(ROSTER_MS, () => void (live() && rosterTick($, live))),
-      $.clock.every(AGENTS_MS, () => void (live() && pollAgents($))),
+      $.clock.every(AGENTS_MS, () => void (live() && pollAgents($, live))),
     ]
     await update($, armed, () => true)
     if (live()) await readUsage($)
     if (live()) await loadRoster($)
-    if (live()) await pollAgents($)
+    if (live()) await pollAgents($, live)
     return
   }
   await update($, armed, () => true)
@@ -405,7 +446,10 @@ export const register: Register = on => {
     // The terminal's table has no Svg, and a surface without one gets the
     // text bars too. The render only reads the stored reading: it fetches none.
     const Svg = 'Svg' in table ? table.Svg : undefined
-    const metered = usageView(await read($, usage), Svg === undefined ? 'terminal' : e.surface, await $.clock.now())
+    // The clock moves the warmth line too: the roster timer's redraws every
+    // 5 s move its countdown.
+    const now = await $.clock.now()
+    const metered = usageView(await read($, usage), Svg === undefined ? 'terminal' : e.surface, now)
     const paths = await read($, files)
     const error = await read($, rosterError)
     const pollError = await read($, liveError)
@@ -413,6 +457,7 @@ export const register: Register = on => {
     const hidden = new Set(await read($, dismissed))
     const running = lookup(await read($, live))
     const found = lookup(await read($, links))
+    const warm = new Map(warmthFrom(await read($, warmth)).map(w => [w.name, w]))
     const inbox = await read($, reports)
     const done = idsFrom(await read($, doneTodos))
     const ticked = new Set(done)
@@ -428,12 +473,14 @@ export const register: Register = on => {
 
     // One card, in a rounded box: amber when it needs the owner, dim
     // otherwise. The status mark, the title and its live state on one line,
-    // the title cut first so the state stays in view. Then the phase, the
-    // work, the settings and the latest report, each on its own line and cut
-    // to the pane's width, and the buttons on their own row.
+    // the title cut first so the state stays in view. Then the ◆ warmth line
+    // and its nudge, which wraps, the phase, the work, the settings and the
+    // latest report, each on its own line and cut to the pane's width, and
+    // the buttons on their own row.
     const card = ({ c, i }: { c: Card; i: number }) => {
       const mark = MARK.get(c.status) ?? { mark: '?', color: 'inactive' }
       const state = liveState(running.get(c.title))
+      const warmLine = warmthLine(warm.get(c.title), running.get(c.title), c.status, now)
       const report = last(c.title)
       const closed = c.status === 'done' || c.status === 'stopped'
       const needs = c.status === 'needs-you'
@@ -461,6 +508,16 @@ export const register: Register = on => {
             </Box>
           </Box>
           <Box flexDirection="column" marginLeft={2} marginTop={1}>
+            {warmLine !== undefined && (
+              <Text {...(warmLine.tone === 'dim' ? { dimColor: true } : { color: warmLine.tone })} wrap="truncate-end">
+                {warmLine.text}
+              </Text>
+            )}
+            {warmLine?.nudge !== undefined && (
+              <Text color="warning" wrap="wrap">
+                {warmLine.nudge}
+              </Text>
+            )}
             <Text wrap="truncate-end">{oneLine(c.phase, 160)}</Text>
             <Text dimColor wrap="truncate-end">
               {oneLine(c.work, 160)}

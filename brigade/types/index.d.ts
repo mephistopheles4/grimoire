@@ -48,6 +48,14 @@ export type UsageSnapshot = {
   categories?: UsageCategory[]
 }
 
+/** One card's cache warmth, from its session's transcript: the last real
+ *  model call's time, its context tokens and its cache window (absent when no
+ *  call that wrote cache says it); or unknown, because the transcript is too
+ *  large to read or two sessions share the card's name. */
+export type Warmth =
+  | { name: string; kind: 'call'; at: number; tokens: number; windowMs?: number }
+  | { name: string; kind: 'too-large' | 'shared' }
+
 declare module 'claude-code' {
   interface PluginState {
     grimoire: {
@@ -72,6 +80,9 @@ declare module 'claude-code' {
       ticking: Pair[]
       /** This session's last usage reading, read while the pane is open. */
       usage: UsageSnapshot
+      /** Each roster member's cache warmth, from the agents poll while the
+       *  pane is open. Checked again before it is drawn. */
+      warmth: Warmth[]
     }
   }
 }

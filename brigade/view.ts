@@ -1,5 +1,6 @@
-import { oneLine } from './roster.ts'
-import type { Pair, UsageCategory, UsageLimit, UsageSnapshot } from './types'
+import { oneLine, transcriptFile } from './roster.ts'
+import type { AgentRow } from './roster.ts'
+import type { Pair, UsageCategory, UsageLimit, UsageSnapshot, Warmth } from './types'
 
 // What the Brigade pane draws, worked out from plain values: the render hook
 // in register.tsx only turns these results into elements. Plain TypeScript
@@ -8,6 +9,9 @@ import type { Pair, UsageCategory, UsageLimit, UsageSnapshot } from './types'
 //
 // The to-dos: a tick that can be undone for a grace period, then moves the
 // to-do to done.
+//
+// The cache warmth: each card's ◆ line, read from the last real model call in
+// its session's transcript, and which transcripts the agents poll reads.
 //
 // The usage section: this session's own rate limits and context fill, at the
 // bottom of the pane. On the terminal it is rows of text bars. Everywhere else
@@ -467,4 +471,250 @@ export async function settleTicks(
 export function waitingCount(needsYou: number, todos: readonly { id: string }[], done: unknown, ticking: unknown): number {
   const out = new Set([...idsFrom(done), ...ticksFrom(ticking).map(p => p.name)])
   return needsYou + todos.filter(t => !out.has(t.id)).length
+}
+
+// --- Cache warmth ----------------------------------------------------------
+//
+// A session's prompt cache lasts for the window its last cache write asked
+// for, one hour or five minutes, from its last model call. The ◆ line says
+// how long the session has been idle, when it goes cold, and how big its
+// context is. All of it comes from the session's own transcript, text another
+// session wrote, so every row is checked for shape and size before it counts.
+
+/** The engine refuses to read a file over 4 MiB, so the pane does not try. */
+export const MAX_TRANSCRIPT_BYTES = 4 * 1024 * 1024
+/** From this many context tokens a cold cache costs enough to nudge about. */
+export const NUDGE_TOKENS = 100000
+
+const MIN_MS = 60000
+const HOUR_MS = 60 * MIN_MS
+const SHORT_MS = 5 * MIN_MS
+const AMBER_MS = 15 * MIN_MS
+// A row may claim a time up to this much past the file's modified time, for
+// the clock's slack; a later one claims to be newer than the file it is in.
+const SLACK_MS = 2 * MIN_MS
+const MAX_COUNT = 10000000
+const MAX_WARMTH = 50
+const MAX_NAME = 300
+
+/** The last real model call in a transcript: its time, its context tokens,
+ *  and its cache window when a call that wrote cache says it. */
+export type LastCall = { at: number; tokens: number; windowMs?: number }
+
+// The time Claude Code writes, ISO in UTC: an offset is refused.
+const UTC = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,9})?Z$/
+
+// A token count as a row may give it: absent counts as 0, else a whole
+// number from 0 to 10,000,000. Anything else spoils the row.
+const count = (v: unknown): number | undefined =>
+  v === undefined ? 0 : typeof v === 'number' && Number.isInteger(v) && v >= 0 && v <= MAX_COUNT ? v : undefined
+
+// One transcript line as a model call, or undefined when it is not a real one
+// or fails a check: a `<synthetic>` row, an API error, a sidechain, an offset
+// or unreadable time, a time past `latest`, a count out of range, or no
+// context at all. Claude Code writes an assistant-shaped row with zero usage
+// when a turn ends on an error, and taking it would show a cold session warm.
+function callRow(line: string, latest: number): LastCall | undefined {
+  let r: unknown
+  try {
+    r = JSON.parse(line)
+  } catch {
+    return undefined
+  }
+  if (!isRecord(r) || r.type !== 'assistant' || typeof r.timestamp !== 'string') return undefined
+  if (r.isApiErrorMessage === true || r.isSidechain === true) return undefined
+  const m = r.message
+  if (!isRecord(m) || !isRecord(m.usage) || m.model === '<synthetic>') return undefined
+  if (!UTC.test(r.timestamp)) return undefined
+  const at = isoTime(r.timestamp)
+  if (at === undefined || at > latest) return undefined
+  const u = m.usage
+  const input = count(u.input_tokens)
+  const made = count(u.cache_creation_input_tokens)
+  const cached = count(u.cache_read_input_tokens)
+  if (input === undefined || made === undefined || cached === undefined) return undefined
+  let short: number | undefined = 0
+  let long: number | undefined = 0
+  if (u.cache_creation !== undefined) {
+    if (!isRecord(u.cache_creation)) return undefined
+    short = count(u.cache_creation.ephemeral_5m_input_tokens)
+    long = count(u.cache_creation.ephemeral_1h_input_tokens)
+    if (short === undefined || long === undefined) return undefined
+  }
+  const tokens = input + made + cached
+  if (tokens === 0) return undefined
+  const call: LastCall = { at, tokens }
+  if (long > 0) call.windowMs = HOUR_MS
+  else if (short > 0) call.windowMs = SHORT_MS
+  return call
+}
+
+/** The last real model call in a transcript's text, or undefined. Scans from
+ *  the end for the first row that passes every check, then on back, in the
+ *  same scan, for the last row that wrote cache, whose window it takes: a
+ *  call that only read the cache does not say its window. With no such row
+ *  the window is unknown. `mtimeMs` is the file's modified time, used only to
+ *  refuse a row that claims a time more than 2 minutes after it, never as
+ *  the call's time. */
+export function lastCall(text: string, mtimeMs: number): LastCall | undefined {
+  if (!Number.isFinite(mtimeMs)) return undefined
+  const latest = mtimeMs + SLACK_MS
+  const lines = text.split('\n')
+  let found: LastCall | undefined
+  for (let i = lines.length - 1; i >= 0; i--) {
+    const line = lines[i] ?? ''
+    if (!line.includes('"assistant"')) continue
+    const call = callRow(line, latest)
+    if (call === undefined) continue
+    found ??= { at: call.at, tokens: call.tokens }
+    if (call.windowMs !== undefined) {
+      found.windowMs = call.windowMs
+      break
+    }
+  }
+  return found
+}
+
+/** A live state that means the session is working: its cache is warm. */
+export const isWorking = (state: string | undefined) => state === 'busy' || state === 'running'
+
+/** A live state as the card draws it, with its theme colour: `busy` and
+ *  `running` success, `idle` and `blocked` warning, anything else inactive. */
+export function liveState(state: string | undefined): { text: string; color: string } {
+  if (state === undefined) return { text: 'not running', color: 'inactive' }
+  return { text: state, color: isWorking(state) ? 'success' : state === 'idle' || state === 'blocked' ? 'warning' : 'inactive' }
+}
+
+const KINDS_OF_WARMTH = new Set(['call', 'too-large', 'shared'])
+const WINDOWS = new Set([SHORT_MS, HOUR_MS])
+
+/** The stored warmth records, checked again: plugin state is the engine's,
+ *  and another plugin may rewrite it. A record of the wrong shape goes, a
+ *  repeated name keeps the first, and at most 50 stay. */
+export function warmthFrom(stored: unknown): Warmth[] {
+  const out: Warmth[] = []
+  if (!Array.isArray(stored)) return out
+  const names = new Set<string>()
+  for (const w of stored) {
+    if (out.length >= MAX_WARMTH) break
+    if (!isRecord(w) || typeof w.name !== 'string' || w.name === '' || w.name.length > MAX_NAME || names.has(w.name)) continue
+    if (typeof w.kind !== 'string' || !KINDS_OF_WARMTH.has(w.kind)) continue
+    if (w.kind === 'call') {
+      if (typeof w.at !== 'number' || !Number.isFinite(w.at)) continue
+      if (typeof w.tokens !== 'number' || !Number.isInteger(w.tokens) || w.tokens < 0 || w.tokens > 3 * MAX_COUNT) continue
+      if (w.windowMs !== undefined && (typeof w.windowMs !== 'number' || !WINDOWS.has(w.windowMs))) continue
+      const call: Warmth = { name: w.name, kind: 'call', at: w.at, tokens: w.tokens }
+      if (w.windowMs !== undefined) call.windowMs = w.windowMs
+      out.push(call)
+    } else {
+      out.push({ name: w.name, kind: w.kind === 'shared' ? 'shared' : 'too-large' })
+    }
+    names.add(w.name)
+  }
+  return out
+}
+
+// "N min" under an hour, "N hr N min" from an hour.
+const span = (mins: number) => (mins >= 60 ? `${Math.floor(mins / 60)} hr ${mins % 60} min` : `${mins} min`)
+
+/** One card's ◆ line: its tone (`dim` or a theme colour), its text, and a
+ *  nudge for a large card that waits on the owner, or undefined with no
+ *  record. A transcript too large to read and a name two sessions share
+ *  read unknown, whatever the live state. A working session is warm. Else
+ *  the idle time sets the band: more than 15 min left green, 15 min or less
+ *  amber, none left red; with no known window, no countdown. The nudge needs
+ *  status `needs-you`, 100,000 or more tokens, a known window and a session
+ *  that is not working. */
+export function warmthLine(
+  w: Warmth | undefined,
+  state: string | undefined,
+  status: string,
+  now: number,
+): { tone: 'dim' | 'success' | 'warning' | 'error'; text: string; nudge?: string } | undefined {
+  if (w === undefined) return undefined
+  if (w.kind === 'too-large') return { tone: 'dim', text: '◆ cache unknown · transcript too large to read' }
+  if (w.kind === 'shared') return { tone: 'dim', text: '◆ cache unknown · two sessions share this name' }
+  const size = `${tokens(w.tokens)} context`
+  if (isWorking(state)) return { tone: 'dim', text: `◆ cache warm (working) · ${size}` }
+  const idle = Math.max(0, now - w.at)
+  const idleText = span(Math.floor(idle / MIN_MS))
+  if (w.windowMs === undefined) return { tone: 'dim', text: `◆ cache window unknown · idle ${idleText} · ${size}` }
+  const left = w.windowMs - idle
+  const large = status === 'needs-you' && w.tokens >= NUDGE_TOKENS
+  if (left <= 0) {
+    const cold = { tone: 'error' as const, text: `◆ cache cold · idle ${idleText} · ${size}` }
+    return large
+      ? { ...cold, nudge: `Replying re-reads about ${tokens(w.tokens)} tokens at full price. Consider a hand-off through the issue to a fresh session.` }
+      : cold
+  }
+  const leftText = span(Math.ceil(left / MIN_MS))
+  const text = `◆ cache warm · idle ${idleText} · cold in ${leftText} · ${size}`
+  if (left > AMBER_MS) return { tone: 'success', text }
+  return large ? { tone: 'warning', text, nudge: `Reply within ${leftText} to keep the cache.` } : { tone: 'warning', text }
+}
+
+/** What the agents poll remembers of each transcript it read, keyed by path:
+ *  its modified time at that read and the last call parsed from it. */
+export type ReadMemory = Map<string, { mtimeMs: number; call: LastCall | undefined }>
+
+/** The file system as the poll reaches it, and whether the pane is still
+ *  open. `stat` and `read` may reject. */
+export type WarmthIo = {
+  live: () => boolean
+  stat: (path: string) => Promise<{ kind: string; size: number; mtimeMs: number; isLink?: boolean }>
+  read: (path: string) => Promise<string>
+}
+
+/** The agents poll's warmth reads, and the records they give, or undefined
+ *  when the pane closed on the way, so nothing is stored.
+ *
+ *  Only a roster member is read, by the transcript path its one row names. A
+ *  name on two rows is shared: neither transcript is read. Each path must
+ *  stat as a regular file, not a link. One over 4 MiB is not read and
+ *  records "too large". A transcript is read only when its modified time
+ *  differs from the one `memory` holds for its path, and never while its
+ *  session is busy or running. `memory` gets an entry only after a read and
+ *  a parse that succeeded, so a failed read is tried again at the next poll;
+ *  the record is then the last good one. Paths no member names leave it. */
+export async function readWarmth(
+  rows: readonly AgentRow[],
+  titles: readonly string[],
+  config: string,
+  memory: ReadMemory,
+  io: WarmthIo,
+): Promise<Warmth[] | undefined> {
+  const members = new Set(titles)
+  const byName = new Map<string, AgentRow[]>()
+  for (const r of rows) {
+    if (members.has(r.name)) byName.set(r.name, [...(byName.get(r.name) ?? []), r])
+  }
+  const out: Warmth[] = []
+  const named = new Set<string>()
+  for (const [name, list] of byName) {
+    const row = list[0]
+    if (list.length > 1 || row === undefined) {
+      out.push({ name, kind: 'shared' })
+      continue
+    }
+    const path = transcriptFile(config, row)
+    if (path === undefined) continue
+    named.add(path)
+    if (!io.live()) return undefined
+    const stat = await io.stat(path).catch(() => undefined)
+    if (!io.live()) return undefined
+    if (stat === undefined || stat.kind !== 'file' || stat.isLink === true || !Number.isFinite(stat.mtimeMs)) continue
+    if (!Number.isFinite(stat.size) || stat.size > MAX_TRANSCRIPT_BYTES) {
+      out.push({ name, kind: 'too-large' })
+      continue
+    }
+    if (!isWorking(row.status) && memory.get(path)?.mtimeMs !== stat.mtimeMs) {
+      const text = await io.read(path).catch(() => undefined)
+      if (!io.live()) return undefined
+      if (text !== undefined) memory.set(path, { mtimeMs: stat.mtimeMs, call: lastCall(text, stat.mtimeMs) })
+    }
+    const call = memory.get(path)?.call
+    if (call !== undefined) out.push({ name, kind: 'call', ...call })
+  }
+  for (const path of [...memory.keys()]) if (!named.has(path)) memory.delete(path)
+  return out
 }
