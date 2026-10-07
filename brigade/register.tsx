@@ -93,6 +93,9 @@ const keyFor = (verb: string, i: number, title: string) => `${verb}-${i}-${slug(
 // A Button must carry onPress. The ui.press hook below answers every press
 // itself, so this bottom of the chain never runs.
 const noop = () => {}
+// A to-do's checkbox: its label at rest, and the width of its slot in cells.
+const UNTICKED = '\u{2003}'
+const CHECK_CELLS = 5
 
 // The module's own timers. A reload starts the module over and the engine
 // drops the old timers with it.
@@ -599,10 +602,14 @@ export const register: Register = on => {
               return (
                 <Box flexDirection="row" alignItems="flex-start" columnGap={1}>
                   {/* Blank and dim at rest, a tick once pressed; a second
-                      press inside the grace period undoes it. */}
-                  <Box flexShrink={0}>
+                      press inside the grace period undoes it. At rest the
+                      label is an em space: a desktop folds a plain space
+                      away and draws the box narrower than a ticked one. The
+                      slot is as wide as the terminal's `[ ✓ ]`, so the text
+                      starts at one edge either way. */}
+                  <Box width={CHECK_CELLS} flexShrink={0}>
                     <Button key={keyFor('todo', i, t.id)} dimColor={!isTicked} onPress={noop}>
-                      {isTicked ? '✓' : ' '}
+                      {isTicked ? '✓' : UNTICKED}
                     </Button>
                   </Box>
                   <Box flexGrow={1} flexShrink={1} minWidth={0}>
@@ -648,7 +655,9 @@ export const register: Register = on => {
               </Box>
             ))}
           {metered.kind === 'svg' && Svg !== undefined && (
-            <Svg source={metered.source} alt={metered.alt} width={metered.width} height={metered.height} />
+            <Box flexDirection="column" alignItems="center">
+              <Svg source={metered.source} alt={metered.alt} width={metered.width} height={metered.height} />
+            </Box>
           )}
         </Box>
       </Box>
