@@ -128,6 +128,7 @@ type World = ReturnType<typeof makeFs> & {
   toasts: string[]
   existsCalls: string[]
   failCheck: boolean
+  failRegister: boolean
   holdWrite: boolean
   release: () => void
   errors: string[]
@@ -147,6 +148,7 @@ function world(on: On, setup: (w: World) => void = w => w.dirs(`${CONFIG}\\plugi
     toasts: [] as string[],
     existsCalls: [] as string[],
     failCheck: false,
+    failRegister: false,
     holdWrite: false,
     release: () => {},
     errors: [] as string[],
@@ -191,6 +193,7 @@ function world(on: On, setup: (w: World) => void = w => w.dirs(`${CONFIG}\\plugi
     return w.verdict
   })
   on('tool.register', ($, e: any) => {
+    if (w.failRegister) return { deny: 'forced register failure' }
     w.registered.push(e.name)
     return { value: { tool: `mcp__grimoire__${e.name}` } }
   })
@@ -269,14 +272,40 @@ test('two calls made at once both complete, one after the other, and the file ho
 
 // --- the pane's lifecycle -----------------------------------------------------
 
-test('no tool before /brigade, and the tool after it; the reply names the file and the tool', async ($, on) => {
+test('no tool before /brigade, and the tool after it; the reply names the tool and no roster path', async ($, on) => {
   const w = world(on)
   await start($)
   expect(w.registered).toEqual([])
   const reply = await brigade($)
   expect(w.registered).toEqual(['set_roster'])
-  expect(reply.text).toContain(`Roster file: ${FILE}`)
-  expect(reply.text).toContain('`set_roster` is ready: call it with the full roster.')
+  // The expected value changed in #213 (spec v3 decision 3 on #212): the
+  // reply used to carry "Roster file: <path>". No skill reads that line from
+  // head-chef 0.2.0 on, Desktop rendered its path without the backslash
+  // before .claude, and the pane's own top line shows the path to the owner.
+  expect(reply.text).toBe('Brigade pane opened. `set_roster` is ready: call it with the full roster.')
+  expect(reply.text).not.toContain('Roster file:')
+  expect(reply.text).not.toContain(SID)
+})
+
+test('when the config folder cannot be found, the reply names no path and the pane keeps the full reason', async ($, on) => {
+  const w = world(on)
+  // No session start, so no transcript path names the config folder.
+  const reply = await brigade($)
+  await w.clock.settle()
+  expect(reply.text).toContain(' The pane cannot name the roster file, so it shows none; the pane says why.')
+  expect(reply.text).not.toContain('Roster file:')
+  expect(reply.text).not.toContain('Cannot find')
+  expect(reply.text).not.toContain('\\')
+  expect(reply.text).not.toContain('plugins/data')
+  expect(w.errors.some(e => e.startsWith('Cannot find the Claude config folder'))).toBe(true)
+})
+
+test('when the tool cannot be offered, the reply says to keep no roster', async ($, on) => {
+  const w = world(on)
+  w.failRegister = true
+  await start($)
+  const reply = await brigade($)
+  expect(reply.text).toMatch(/^Brigade pane opened\. `set_roster` could not be offered \(.+\); keep no roster\.$/)
 })
 
 test('a /clear or a resume offers the tool again while the pane is open, and not while it is closed', async ($, on) => {
@@ -435,7 +464,8 @@ test("a call that outlasts the hook's budget is answered by the engine's .catch,
   const first = call($, GOOD)
   const r = await call($, { cards: [card('gamma')], todos: [] })
   expect(r.ok).toBe(false)
-  expect(r.text).toContain('set_roster refused: error: the tool failed or ran out of time')
+  expect(r.text).toBe('set_roster refused: error: the tool failed or ran out of time. The roster may or may not have been kept; stop keeping the roster and tell the owner.')
+  expect(r.text).not.toContain('once more')
   // Then the first write goes through, the queue moves on, and the abandoned
   // second call writes nothing.
   w.holdWrite = false

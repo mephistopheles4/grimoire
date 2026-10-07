@@ -585,13 +585,16 @@ export const register: Register = on => {
         await offerTool($)
         ready = ` \`${TOOL}\` is ready: call it with the full roster.`
       } catch (err) {
-        ready = ` \`${TOOL}\` could not be offered (${oneLine(String(err instanceof Error ? err.message : err), 200)}); keep the roster as before.`
+        ready = ` \`${TOOL}\` could not be offered (${oneLine(String(err instanceof Error ? err.message : err), 200)}); keep no roster.`
       }
     }
+    // The reply names no roster path: no skill reads one, and the pane's own
+    // top line shows it to the owner. When no file can be named, the pane
+    // keeps the full reason.
     const at = await where($)
-    const named = 'error' in at ? at.error : `Roster file: ${at.file}`
+    const named = 'error' in at ? ' The pane cannot name the roster file, so it shows none; the pane says why.' : ''
     return {
-      text: `${opened.isPlaced ? 'Brigade pane opened.' : `Brigade pane is open but not shown: ${opened.reason}.`} ${named}${ready}`,
+      text: `${opened.isPlaced ? 'Brigade pane opened.' : `Brigade pane is open but not shown: ${opened.reason}.`}${named}${ready}`,
     }
   })
 
@@ -607,7 +610,7 @@ export const register: Register = on => {
       return progress.written ? failedAfterWrite(why) : refuse(why)
     }
   }).catch(() => ({
-    deny: 'set_roster refused: error: the tool failed or ran out of time. The roster may or may not have been kept; call it once more, and if it is refused again, stop keeping the roster.',
+    deny: 'set_roster refused: error: the tool failed or ran out of time. The roster may or may not have been kept; stop keeping the roster and tell the owner.',
   }))
 
   on('ui.close', { id: PANE }, async ($, e, next) => {
