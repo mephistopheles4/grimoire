@@ -269,3 +269,129 @@ test('the recording covers every link kind the guard is tested against', () => {
   assert.equal(RECORDED.stats['broken-file-symlink'].realPath, 'none');
   assert.equal(RECORDED.stats['hard-link'].isLink, false);
 });
+
+// --- Open in app: the route's pure rules -----------------------------------------
+//
+// Spec v3 on #212, decisions 5 and 10. Which card a press may send to the
+// Desktop app's tool, whether the engine lists that tool, whether the owner's
+// rules allow it, and what the app's answer means. The press itself is held
+// by brigade/set-roster.test.ts under the engine's runner; the ceiling is held
+// here, since the 2.1.289 engine declares none on a verdict.
+
+const { appLink, listsOpenTool, readOpenAnswer, rulesAllowTool, toolSession } = roster;
+const LOCAL = 'local_0123abcd-4567-89ab-cdef-0123456789ab';
+
+test('only a Desktop id of the checked shape goes to the tool; every other card shape takes the link alone', () => {
+  assert.equal(toolSession(card('a', { desktopId: LOCAL })), LOCAL);
+  for (const over of [
+    {},
+    { url: 'https://claude.ai/code/session_ABC123' },
+    { bgId: 'bg1' },
+    { desktopId: 'local_NOT-HEX' },
+    { desktopId: `${LOCAL}\n` },
+    { desktopId: `local_${'a'.repeat(81)}` },
+    { desktopId: 'session_ABC123' },
+    { desktopId: `x${LOCAL}` },
+  ]) {
+    assert.equal(toolSession(card('a', over)), undefined, JSON.stringify(over));
+  }
+});
+
+test('appLink is unchanged: a checked Desktop id, else a Remote Control link, else none', () => {
+  assert.equal(appLink(card('a', { desktopId: LOCAL }), undefined), `claude://claude.ai/epitaxy/${LOCAL}`);
+  assert.equal(appLink(card('a', { url: 'https://claude.ai/code/session_ABC123' }), undefined), 'claude://claude.ai/code/session_ABC123');
+  assert.equal(appLink(card('a', { bgId: 'bg1' }), 'https://claude.ai/code/session_BG1'), 'claude://claude.ai/code/session_BG1');
+  assert.equal(appLink(card('a', { bgId: 'bg1' }), undefined), undefined);
+  assert.equal(appLink(card('a', { desktopId: 'local_NOT-HEX' }), undefined), undefined);
+  assert.equal(appLink(card('a', { url: 'https://evil.example/code/session_A' }), undefined), undefined);
+});
+
+test('the tool is listed only under its exact name, in a list', () => {
+  assert.equal(listsOpenTool([{ name: 'mcp__ccd_window__open_session_in', description: '', mcp: true }]), true);
+  assert.equal(listsOpenTool([{ name: 'Bash' }, { name: 'mcp__ccd_window__open_session_in' }]), true);
+  for (const tools of [
+    [],
+    [{ name: 'mcp__ccd_window__open_session_in_v2' }],
+    [{ name: 'mcp__ccd window__open_session_in' }],
+    [{ name: 'MCP__CCD_WINDOW__OPEN_SESSION_IN' }],
+    [null, 'mcp__ccd_window__open_session_in'],
+    { name: 'mcp__ccd_window__open_session_in' },
+    undefined,
+    'mcp__ccd_window__open_session_in',
+  ]) {
+    assert.equal(listsOpenTool(tools), false, JSON.stringify(tools));
+  }
+});
+
+test("the owner's rules: allow and a mode's ask go on; a deny, a rule's ask, a lower ceiling or anything else stops", () => {
+  for (const v of [
+    { decision: 'allow' },
+    { decision: 'ask' },
+    { decision: 'ask', reason: 'the mode asks' },
+    { decision: 'allow', ceiling: 'allow' },
+    { decision: 'ask', ceiling: 'allow' },
+  ]) {
+    assert.equal(rulesAllowTool(v), true, JSON.stringify(v));
+  }
+  for (const v of [
+    { decision: 'deny' },
+    { decision: 'deny', reason: 'no' },
+    { decision: 'ask', rule: 'mcp__ccd_window__open_session_in' },
+    { decision: 'ask', rule: 'mcp__ccd_window' },
+    { decision: 'ask', rule: '' },
+    { decision: 'allow', ceiling: 'ask' },
+    { decision: 'allow', ceiling: 'deny' },
+    { decision: 'ask', ceiling: 'ask' },
+    { decision: 'allow', ceiling: null },
+    { decision: 'maybe' },
+    {},
+    null,
+    undefined,
+    'allow',
+  ]) {
+    assert.equal(rulesAllowTool(v), false, JSON.stringify(v));
+  }
+});
+
+test("the app's answer has exactly one of three outcomes, and nothing in reading it throws", () => {
+  const text = (t, isError = false) => ({ content: [{ type: 'text', text: t }], isError });
+  assert.deepEqual(readOpenAnswer(text('Opened session in a split pane.\nMore')), { opened: true, toast: 'Opened session in a split pane.' });
+  assert.deepEqual(readOpenAnswer(text('Opened\r\nMore')), { opened: true, toast: 'Opened' });
+  assert.deepEqual(readOpenAnswer(text('Opened\u{2028}More')), { opened: true, toast: 'Opened' });
+  // Success without text: the fixed line.
+  for (const content of [[], [{ type: 'image', data: '', mimeType: 'image/png' }], [{ type: 'text', text: 7 }], [{ type: 'text' }], [null], [{ type: 'text', text: '' }], [{ type: 'text', text: '\nlater' }]]) {
+    assert.deepEqual(readOpenAnswer({ content, isError: false }), { opened: true, toast: 'Opened in the app.' }, JSON.stringify(content));
+  }
+  // Not a success: the link route, with the app's words when it refused in text.
+  assert.deepEqual(readOpenAnswer(text('was not started from this session.\nUse window', true)), {
+    opened: false,
+    reason: 'The app did not open it: was not started from this session.',
+  });
+  for (const answer of [
+    { content: [], isError: true },
+    { content: [{ type: 'image' }], isError: true },
+    { content: [{ type: 'text', text: 'ok' }] },
+    { content: [{ type: 'text', text: 'ok' }], isError: 'false' },
+    { content: [{ type: 'text', text: 'ok' }], isError: 0 },
+    { content: 'ok', isError: false },
+    { content: { 0: { type: 'text', text: 'ok' } }, isError: false },
+    null,
+    undefined,
+    'Opened',
+    [],
+  ]) {
+    assert.deepEqual(readOpenAnswer(answer), { opened: false }, JSON.stringify(answer));
+  }
+});
+
+test("the app's text is cleaned and cut to 200 characters, whether it opened or refused", () => {
+  const raw = `\u{1B}[31mOpened\u{7}\u{200B} \u{2066}split\u{2069}\u{202E}\t${'x'.repeat(400)}`;
+  const opened = readOpenAnswer({ content: [{ type: 'text', text: raw }], isError: false });
+  assert.equal(opened.opened, true);
+  assert.equal([...opened.toast].length, 200);
+  assert.ok(opened.toast.startsWith('[31mOpened split xxx'), opened.toast);
+  assert.ok(opened.toast.endsWith('…'));
+  assert.doesNotMatch(opened.toast, /[\u{0}-\u{1F}\u{7F}-\u{9F}\u{200B}\u{202E}\u{2066}\u{2069}]/u);
+  const refused = readOpenAnswer({ content: [{ type: 'text', text: raw }], isError: true });
+  assert.equal(refused.reason, `The app did not open it: ${opened.toast}`);
+});

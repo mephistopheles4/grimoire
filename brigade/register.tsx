@@ -5,6 +5,11 @@ import type { Card, Roster } from './types'
 import {
   MAX_ROSTER_BYTES,
   MAX_TEXT,
+  OPEN_NAME,
+  OPEN_SERVER,
+  OPEN_TARGET,
+  OPEN_TOOL,
+  OPEN_WAIT_MS,
   SESSION_ID,
   STATUSES,
   appLink,
@@ -13,16 +18,20 @@ import {
   configFromTranscript,
   dataFolder,
   dataId,
+  listsOpenTool,
   lookup,
   marketplaceFromRoot,
   oneLine,
   parseAgents,
   placeRoster,
+  readOpenAnswer,
   remoteLink,
   report,
   rosterFile,
+  rulesAllowTool,
   serialize,
   statRejection,
+  toolSession,
   transcriptFile,
 } from './roster.ts'
 import type { StatAnswer } from './roster.ts'
@@ -358,12 +367,63 @@ async function rosterTick($: EngineInterface, live: () => boolean) {
   if (live()) await sweepTodos($, ids)
 }
 
+// The Desktop ids whose press is in its tool route now. A second press for
+// one of them is ignored until the route ends, so a press inside the wait
+// sends no second call and cannot run the link route twice. The card's button
+// and its to-do's share the mark, since both name the same id.
+const opening = new Set<string>()
+
+// Open in app, first through the Desktop app's own tool, which shows a session
+// this lead started in a split beside it. The tool is called only when the
+// engine lists it by its exact name and the owner's rules allow it, and its
+// answer is read as untrusted. No permission prompt sees this call, so those
+// checks stand in for one. Any refusal, rejection, throw or a wait past 5 s
+// on the engine's clock ends the route, and the press goes on to the link.
+// Resolves true when the app said it opened the session.
+async function viaTool($: EngineInterface, session: string): Promise<boolean> {
+  if (!listsOpenTool(await $.tool.list())) return false
+  const args = { session_id: session, target: OPEN_TARGET }
+  if (!rulesAllowTool(await $.tool.check({ tool: OPEN_TOOL, input: args }))) return false
+  let timer: Timer | undefined
+  const late = new Promise<'late'>(res => {
+    timer = $.clock.after(OPEN_WAIT_MS, () => res('late'))
+  })
+  const call = $.mcp.call(OPEN_SERVER, OPEN_NAME, args)
+  // A call that answers or fails after the wait is dropped here, unread. A
+  // late success may still show the split after the link route ran.
+  call.catch(() => undefined)
+  try {
+    const answer = await Promise.race([call, late])
+    if (answer === 'late') return false
+    const outcome = readOpenAnswer(answer)
+    if (outcome.opened) {
+      $.ui.toast(outcome.toast)
+      return true
+    }
+    if (outcome.reason !== undefined) $.ui.toast(outcome.reason)
+    return false
+  } finally {
+    timer?.cancel()
+  }
+}
+
 // The pane's Link takes https only, so the app link goes to Windows' own
 // handler for claude://. Only a link of the two known shapes goes, built
-// from a checked id, as one argument with no shell.
+// from a checked id, as one argument with no shell. A card with a Desktop id
+// tries the app's own tool first, one press at a time.
 async function openInApp($: EngineInterface, c: Card) {
   const app = appLink(c, lookup(await read($, links)).get(c.title))
   if (app === undefined) return
+  const session = toolSession(c)
+  if (session !== undefined) {
+    if (opening.has(session)) return
+    opening.add(session)
+    try {
+      if (await viaTool($, session).catch(() => false)) return
+    } finally {
+      opening.delete(session)
+    }
+  }
   const { exitCode } = await $.process.run(['explorer.exe', app])
   // explorer.exe exits 1 even when it hands the link on, so say what was sent.
   $.ui.toast(`Opening ${oneLine(c.title, 40)} in the app (${exitCode})`)

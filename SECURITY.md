@@ -43,7 +43,8 @@ once. It also reads this session's own usage, its rate limits and context, when 
 pane opens and, while it stays open, each time the engine measures the
 session; it asks only for
 the local summary estimate of the context breakdown, which sends no request.
-It makes no network request. It writes one file, the lead session's roster,
+It makes no network request of its own; its one tool call, below, goes to
+whatever connected server answers to the name `ccd_window`. It writes one file, the lead session's roster,
 through a tool the model calls, `set_roster`, which skips Claude Code's
 permission prompt. So that write has no human and no classifier review; every
 call is still recorded in the transcript as the tool's result. The tool exists
@@ -51,8 +52,17 @@ only once the owner runs `/brigade`, writes only while the pane is open, and
 refuses a subagent's call, a deny verdict, an owner's ask rule, plan and
 don't-ask modes as far as the session has reported its mode, any input outside
 the roster's shape and size, and any link on the way to the file. A deny rule for `mcp__grimoire__set_roster` removes it
-from the session; the owner's own hooks do not stop it. Its one other process is
-`explorer.exe`, given a `claude://` link when the owner presses Open in app.
+from the session; the owner's own hooks do not stop it. When the owner presses
+Open in app on a card with a Desktop id, it first calls the Claude Desktop
+app's own tool, `open_session_in` on the server named `ccd_window`, sending
+only that card's checked session id and the fixed target `split`, so the app
+shows the session beside the lead. That call also skips the permission prompt,
+and the owner's own hooks do not see it. It is made only when the engine lists
+`mcp__ccd_window__open_session_in` by that exact name and the engine's verdict
+for it is not a deny or an ask naming a rule, so a deny or ask rule for that
+tool, exact or for `mcp__ccd_window`, stops it. When that call is refused,
+fails or takes over 5 seconds, its one other process is `explorer.exe`, given a
+`claude://` link, as before.
 Everything it reads is checked and drawn as text, in the usage image too. Review any change under
 `brigade/` or `hooks/` as a change to code that runs on every installer's
 machine: [row 15 of the threat model](docs/security/threat-model.md#the-matrix)

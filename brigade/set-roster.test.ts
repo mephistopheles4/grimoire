@@ -13,6 +13,9 @@
 //
 // Each test checks what the owner and the pane would see: the file's text
 // after the call, and the text the call returns.
+//
+// The last section presses the pane's Open in app buttons, with the engine's
+// tool list, verdict, Desktop tool and processes answered by the hooks below.
 
 import { expect, mock, test } from 'claude-code/testing'
 import type { On } from 'claude-code'
@@ -20,6 +23,7 @@ import type { On } from 'claude-code'
 import { RECORDED } from './recorded-stats.ts'
 
 const TOOL = 'mcp__grimoire__set_roster'
+const OPEN_TOOL = 'mcp__ccd_window__open_session_in'
 const SID = '11111111-2222-3333-4444-555555555555'
 const CONFIG = 'C:\\cfg\\.claude'
 const TRANSCRIPT = `${CONFIG}\\projects\\C--work\\${SID}.jsonl`
@@ -135,6 +139,14 @@ type World = ReturnType<typeof makeFs> & {
   files: string[]
   clock: ReturnType<typeof mock.clock>
   sid: string
+  checks: string[]
+  tools: unknown
+  failList: boolean
+  lists: number
+  mcp: (args: Record<string, unknown>) => unknown
+  mcpCalls: { server: string; tool: string; args: Record<string, unknown> }[]
+  procs: string[][]
+  agents: string
 }
 
 // The engine beneath the plugin: the file system, the pane record, the
@@ -156,6 +168,14 @@ function world(on: On, setup: (w: World) => void = w => w.dirs(`${CONFIG}\\plugi
     files: [] as string[],
     clock: undefined as unknown as ReturnType<typeof mock.clock>,
     sid: SID,
+    checks: [] as string[],
+    tools: [{ name: OPEN_TOOL, description: 'Open a session', mcp: true }] as unknown,
+    failList: false,
+    lists: 0,
+    mcp: (() => ({ value: { content: [{ type: 'text', text: 'Opened session in a split pane (pane 1) beside this one.' }], isError: false } })) as World['mcp'],
+    mcpCalls: [] as World['mcpCalls'],
+    procs: [] as string[][],
+    agents: '[]',
   })
   w.dirs(CONFIG)
   setup(w)
@@ -190,7 +210,8 @@ function world(on: On, setup: (w: World) => void = w => w.dirs(`${CONFIG}\\plugi
     return { value: undefined }
   })
   on('session.id', () => ({ value: w.sid }))
-  on('tool.check', () => {
+  on('tool.check', ($, e: any) => {
+    w.checks.push(String(e.tool))
     if (w.failCheck) throw new Error('forced')
     return w.verdict
   })
@@ -205,6 +226,7 @@ function world(on: On, setup: (w: World) => void = w => w.dirs(`${CONFIG}\\plugi
       w.log.push(`roster ${JSON.stringify(e.value)}`)
     }
     if (e.key === 'rosterError') w.errors.push(String(e.value))
+    if (e.key === 'ticking') w.log.push(`state ticking ${JSON.stringify(e.value)}`)
     if (e.key === 'files') w.files.push(String(e.value?.current ?? ''))
     return next(e)
   })
@@ -214,6 +236,22 @@ function world(on: On, setup: (w: World) => void = w => w.dirs(`${CONFIG}\\plugi
   on('session.start', ($, e: any) => ({ cwd: e.cwd }))
   on('command.register', ($, e: any) => ({ value: { command: e.name } }))
   on('classic.UserPromptSubmit', () => ({}))
+  on('tool.list', () => {
+    w.lists++
+    return w.failList ? { deny: 'forced list failure' } : { value: w.tools }
+  })
+  on('mcp.call', ($, e: any) => {
+    w.mcpCalls.push({ server: e.server, tool: e.tool, args: e.args })
+    return w.mcp(e.args) as any
+  })
+  // The pane's own poll runs `claude agents --json` on its timer; it lists
+  // `w.agents`, no session by default. Every process, explorer.exe among them,
+  // is recorded.
+  on('process.run', ($, e: any) => {
+    w.procs.push([...e.argv])
+    const stdout = e.argv[0] === 'claude' ? w.agents : ''
+    return { value: { exitCode: e.argv[0] === 'explorer.exe' ? 1 : 0, stdout, stderr: '', isStdoutTruncated: false, isStderrTruncated: false } }
+  })
   return w
 }
 
@@ -634,4 +672,232 @@ test('with plugins absent the call is refused', async ($, on) => {
   expect(r.ok).toBe(false)
   expect(r.text).toContain('path: the config folder has no plugins folder')
   expect(w.log.filter(l => l.startsWith('write '))).toEqual([])
+})
+
+// --- Open in app --------------------------------------------------------------
+//
+// Spec v3 on #212, decision 5. A press is raised as the engine raises it, on
+// the pane's button key: `open-<index>-<slug>` for a card, `go-<index>-<slug>`
+// for a to-do's Open. The pane loads the seeded roster on /brigade. The
+// pane's own `claude agents --json` poll runs on its timer, so these tests
+// look for explorer.exe only.
+
+const DESKTOP = 'local_0123abcd-4567-89ab-cdef-0123456789ab'
+const SEEDED = {
+  cards: [
+    card('alpha', { desktopId: DESKTOP }),
+    card('beta', { url: 'https://claude.ai/code/session_ABC123' }),
+    card('gamma', { bgId: 'bg1' }),
+    card('delta', { desktopId: 'local_NOT-HEX' }),
+  ],
+  todos: [{ id: 't1', text: 'look', session: 'alpha' }],
+}
+const LINK = `claude://claude.ai/epitaxy/${DESKTOP}`
+
+// The pane drawn on the desktop, so a press reaches a Button it drew.
+const PANE_PROPS = { title: 'Brigade', isFocused: false, bodyColumns: 80, placement: 'dock', scroll: { offset: 0, bodyRows: 200 }, view: {} }
+let mounted: any
+async function pane(on: On, $: any) {
+  const w = world(on, w => {
+    w.dirs(BRIGADE)
+    w.put(FILE, { type: 'file', data: { text: JSON.stringify(SEEDED) } })
+  })
+  await start($)
+  await brigade($)
+  await w.clock.settle()
+  mounted = await $.ui.mount({ plugin: 'grimoire', surface: 'desktop', component: 'Pane', requestId: 'brigade', props: PANE_PROPS })
+  return w
+}
+const press = (_$: any, key: string) => mounted.press({ key })
+const explorer = (w: World) => w.procs.filter(p => p[0] === 'explorer.exe')
+const answer = (text: unknown, isError: unknown = false, type = 'text') => ({ value: { content: [{ type, text }], isError } })
+
+test('a press on a Desktop card asks the app to show it in a split, with that id and nothing else, and runs no explorer.exe', async ($, on) => {
+  const w = await pane(on, $)
+  w.mcp = () => answer('Opened session local_x in a split pane (pane 1) beside this one.\nSecond line.')
+  await press($, 'open-0-alpha')
+  expect(w.mcpCalls).toEqual([{ server: 'ccd_window', tool: 'open_session_in', args: { session_id: DESKTOP, target: 'split' } }])
+  expect(w.checks).toEqual([OPEN_TOOL])
+  expect(explorer(w)).toEqual([])
+  expect(w.toasts.at(-1)).toBe('Opened session local_x in a split pane (pane 1) beside this one.')
+})
+
+test("a to-do's Open takes the same route as its card", async ($, on) => {
+  const w = await pane(on, $)
+  await press($, 'go-0-t1')
+  expect(w.mcpCalls.map(c => c.args)).toEqual([{ session_id: DESKTOP, target: 'split' }])
+  expect(explorer(w)).toEqual([])
+  w.mcp = () => answer('was not started from this session', true)
+  await press($, 'go-0-t1')
+  expect(explorer(w)).toEqual([['explorer.exe', LINK]])
+})
+
+for (const [name, tools] of [
+  ['no tool at all, as in the terminal', []],
+  ['a near name', [{ name: 'mcp__ccd_window__open_session_in_v2', description: '', mcp: true }]],
+  ['the name with a space for the underscore', [{ name: 'mcp__ccd window__open_session_in', description: '', mcp: true }]],
+  ['a list that is not a list', { name: OPEN_TOOL }],
+] as const) {
+  test(`a tool list with ${name} asks no verdict, makes no call and takes the link route`, async ($, on) => {
+    const w = await pane(on, $)
+    w.tools = tools
+    await press($, 'open-0-alpha')
+    expect(w.checks).toEqual([])
+    expect(w.mcpCalls).toEqual([])
+    expect(explorer(w)).toEqual([['explorer.exe', LINK]])
+    expect(w.toasts.at(-1)).toBe('Opening alpha in the app (1)')
+  })
+}
+
+test('a rejected tool list, verdict or call each takes the link route, and none throws out of the press', async ($, on) => {
+  const w = await pane(on, $)
+  w.failList = true
+  await press($, 'open-0-alpha')
+  expect(w.checks).toEqual([])
+  w.failList = false
+  w.failCheck = true
+  await press($, 'open-0-alpha')
+  expect(w.checks).toEqual([OPEN_TOOL])
+  expect(w.mcpCalls).toEqual([])
+  w.failCheck = false
+  w.mcp = () => ({ deny: 'no such server' })
+  await press($, 'open-0-alpha')
+  expect(w.mcpCalls.length).toBe(1)
+  expect(explorer(w)).toEqual([['explorer.exe', LINK], ['explorer.exe', LINK], ['explorer.exe', LINK]])
+})
+
+test("a deny and an ask naming a rule each skip the call; an ask naming none is a mode's and calls", async ($, on) => {
+  const w = await pane(on, $)
+  w.verdict = { decision: 'deny', reason: 'the owner denies it' }
+  await press($, 'open-0-alpha')
+  w.verdict = { decision: 'ask', rule: 'mcp__ccd_window' }
+  await press($, 'open-0-alpha')
+  expect(w.mcpCalls).toEqual([])
+  expect(explorer(w).length).toBe(2)
+  w.verdict = { decision: 'ask' }
+  await press($, 'open-0-alpha')
+  expect(w.mcpCalls.length).toBe(1)
+  expect(explorer(w).length).toBe(2)
+})
+
+test("the app's refusal takes the link route, and the toast says the app did not open it, in its words, cleaned", async ($, on) => {
+  const w = await pane(on, $)
+  w.mcp = () => answer('local_x was not started from this session\u{202E}, and this tool only arranges this session.\nMore.', true)
+  await press($, 'open-0-alpha')
+  expect(explorer(w)).toEqual([['explorer.exe', LINK]])
+  expect(w.toasts.slice(-2)).toEqual([
+    'The app did not open it: local_x was not started from this session, and this tool only arranges this session.',
+    'Opening alpha in the app (1)',
+  ])
+})
+
+// Spec v3, Testing Decisions: one expected outcome for each untrusted answer.
+for (const [name, value, outcome] of [
+  ['isError absent', { content: [{ type: 'text', text: 'ok' }] }, 'link'],
+  ['isError a string', { content: [{ type: 'text', text: 'ok' }], isError: 'false' }, 'link'],
+  ['content not a list', { content: 'ok', isError: false }, 'link'],
+  ['isError false with an empty list', { content: [], isError: false }, 'fixed'],
+  ['isError false with a first block not of type text', { content: [{ type: 'image', data: '', mimeType: 'image/png' }], isError: false }, 'fixed'],
+  ['isError false with a text block whose text is not a string', { content: [{ type: 'text', text: 7 }], isError: false }, 'fixed'],
+  ['isError true with no text block', { content: [], isError: true }, 'link'],
+] as const) {
+  test(`an answer with ${name} ${outcome === 'link' ? 'takes the link route' : 'toasts the fixed line'}, and nothing throws`, async ($, on) => {
+    const w = await pane(on, $)
+    w.mcp = () => ({ value })
+    await press($, 'open-0-alpha')
+    if (outcome === 'link') {
+      expect(explorer(w)).toEqual([['explorer.exe', LINK]])
+      expect(w.toasts.some(t => t.startsWith('The app did not open it'))).toBe(false)
+    } else {
+      expect(explorer(w)).toEqual([])
+      expect(w.toasts.at(-1)).toBe('Opened in the app.')
+    }
+  })
+}
+
+test('tool text with controls, bidi marks or a long line reaches the toast cleaned and cut to 200 characters', async ($, on) => {
+  const w = await pane(on, $)
+  w.mcp = () => answer(`\u{1B}[31mOpened\u{7}\u{200B} \u{2066}split\u{2069}\t${'x'.repeat(400)}`)
+  await press($, 'open-0-alpha')
+  const shown = w.toasts.at(-1) ?? ''
+  expect(shown.startsWith('[31mOpened split xxx')).toBe(true)
+  expect([...shown].length).toBe(200)
+  expect(shown.endsWith('…')).toBe(true)
+  expect(/[\u{0}-\u{1F}\u{7F}-\u{9F}\u{200B}\u{2066}\u{2069}]/u.test(shown)).toBe(false)
+})
+
+test('a call not answered within 5 seconds of the engine clock takes the link route', async ($, on) => {
+  const w = await pane(on, $)
+  let answerLate: (v: unknown) => void = () => {}
+  w.mcp = () => new Promise(res => (answerLate = res))
+  const pressed = press($, 'open-0-alpha')
+  await w.clock.advance(4999)
+  expect(explorer(w)).toEqual([])
+  await w.clock.advance(1)
+  await pressed
+  expect(explorer(w)).toEqual([['explorer.exe', LINK]])
+  // The answer that comes after the fallback is dropped, unread.
+  answerLate(answer('Opened late'))
+  await w.clock.settle()
+  expect(w.toasts.includes('Opened late')).toBe(false)
+})
+
+test('a second press on the same card while the first waits makes no second call; after it ends, a press calls again', async ($, on) => {
+  const w = await pane(on, $)
+  let release: (v: unknown) => void = () => {}
+  w.mcp = () => new Promise(res => (release = res))
+  const first = press($, 'open-0-alpha')
+  await w.clock.settle()
+  await press($, 'open-0-alpha')
+  await press($, 'go-0-t1')
+  expect(w.mcpCalls.length).toBe(1)
+  expect(explorer(w)).toEqual([])
+  release(answer('Opened'))
+  await first
+  w.mcp = () => answer('Opened again')
+  await press($, 'open-0-alpha')
+  expect(w.mcpCalls.length).toBe(2)
+  expect(w.toasts.at(-1)).toBe('Opened again')
+})
+
+test('a to-do tick still works while an Open in app press waits for the app', async ($, on) => {
+  const w = await pane(on, $)
+  let release: (v: unknown) => void = () => {}
+  w.mcp = () => new Promise(res => (release = res))
+  const first = press($, 'open-0-alpha')
+  await w.clock.settle()
+  await press($, 'todo-0-t1')
+  expect(w.log.some(l => l.startsWith('state ticking'))).toBe(true)
+  release(answer('Opened'))
+  await first
+})
+
+test('a card with only a url, or only a background id, makes no tool list and no call', async ($, on) => {
+  // The background card's Remote Control link comes from its transcript, as
+  // the pane's poll finds it, so its button is drawn too.
+  const BG = '99999999-8888-7777-6666-555555555555'
+  const w = await pane(on, $)
+  w.agents = JSON.stringify([{ name: 'gamma', status: 'idle', sessionId: BG, cwd: 'C:\\work' }])
+  w.put(`${CONFIG}\\projects\\C--work\\${BG}.jsonl`, {
+    type: 'file',
+    data: { text: JSON.stringify({ type: 'system', subtype: 'bridge_status', url: 'https://claude.ai/code/session_BG1' }) },
+  })
+  w.dirs(`${CONFIG}\\projects\\C--work`)
+  await w.clock.advance(10000)
+  await press($, 'open-1-beta')
+  await press($, 'open-2-gamma')
+  expect(w.lists).toBe(0)
+  expect(w.mcpCalls).toEqual([])
+  expect(explorer(w)).toEqual([
+    ['explorer.exe', 'claude://claude.ai/code/session_ABC123'],
+    ['explorer.exe', 'claude://claude.ai/code/session_BG1'],
+  ])
+})
+
+test('a Desktop id outside the local_ shape draws no Open in app and makes neither call', async ($, on) => {
+  const w = await pane(on, $)
+  expect(await mounted.find({ key: 'open-0-alpha' })).toBeDefined()
+  expect(await mounted.find({ key: 'open-3-delta' })).toBeUndefined()
+  expect(w.lists).toBe(0)
+  expect(w.mcpCalls).toEqual([])
 })
