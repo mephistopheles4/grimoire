@@ -29,7 +29,12 @@ jobs:
         with:
           fetch-depth: 0
           persist-credentials: false
+      # check-latest: true because the one command needs Node 22.18 or later
+      # (CONTRIBUTING.md): tests/brigade-view.test.mjs imports the mod's .ts
+      # files, and Node strips their types by default only from 22.18. Without
+      # it, '22' may resolve to an older 22 the runner has cached.
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: '22'
+          check-latest: true
       - run: node scripts/check.mjs
