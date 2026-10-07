@@ -47,8 +47,8 @@ import type { ReadMemory } from './view.ts'
 // warmth and latest report; the owner's to-dos in one box, each ticked with a press that
 // a second press undoes; and at the bottom this session's own rate limits and
 // context. The pane reads the roster file while it is open. The head chef
-// fills it, either with its own file write or through the set_roster tool
-// below, which writes the file for it with no permission prompt. The usage
+// fills it through the set_roster tool below, which writes the file for it
+// with no permission prompt; the head chef writes no file itself. The usage
 // section is worked out in view.ts, as plain values; this file reads and
 // stores the reading and turns the view's result into elements.
 //

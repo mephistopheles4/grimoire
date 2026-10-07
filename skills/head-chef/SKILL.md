@@ -2,9 +2,9 @@
 name: head-chef
 description: Makes this Claude Desktop session the lead of a brigade, the Claude Code sessions it starts. It starts each one in the background or as a Desktop session with the model and effort set, points it to where its brief lives, takes its milestone reports, relays between sessions, keeps the Brigade pane's roster when the pane is there, and cleans up a session and its worktree when the owner says it is done. Use when someone asks for work to run in another session, to start or hand off to a new session, or to lead several sessions, or types /head-chef. Not for work in this same session, and not for a question about how sessions work.
 metadata:
-  contract-version: 0.1.0
-  familiar-digest: "sha256:f22bcc72c4d8caf0f496a11ee29519db94a8dba86c1e0d5305cdb48162265ef4"
-  contract-digest: "sha256:c49e210a09ec5d6fe1fd2a9e0943679adecb16b47a6e701571788dfb0378c7ef"
+  contract-version: 0.2.0
+  familiar-digest: "sha256:1ff2039932bdf9250a742df06bf1642efaa4f48d0cf3b23022e6778ee6fa1fdc"
+  contract-digest: "sha256:9ff0e5895661eb97c40719da43bbde6a43fd3b5d386442725aef4fe4a4e583b3"
 ---
 
 # Head chef
@@ -224,25 +224,35 @@ session, and the owner's to-dos. **The skill works with no pane.** Reason: the
 pane draws only where the lead session runs, so a lead seen from a phone shows
 none.
 
-The roster file is:
+**Keep the roster only by calling `set_roster`, and write no file.** The
+Brigade mod offers this tool once `/brigade` opens the pane; it is listed as
+`mcp__grimoire__set_roster`. Pass the whole roster on each call: both lists,
+`cards` and `todos`, empty if need be. Name no path: the mod writes the file
+for this session, on the head chef's call. Reason: a file
+write of the head chef's own asks the owner each time, even in auto mode
+(failure 10), and the mod writes the whole file at a path it builds from the
+current session id (failure 9).
 
-```text
-${CLAUDE_PLUGIN_DATA}/brigade/${CLAUDE_SESSION_ID}.json
-```
+- **No tool, no roster.** When `set_roster` is in neither your tool list nor
+  your deferred tools, there is no pane. Keep no roster, and carry on. A
+  deferred tool is loaded before it is called.
+- **The cue.** When the `/brigade` reply says `set_roster` is ready, call it
+  with the full roster on your next turn. The reply's "Roster file:" line
+  names where the mod writes; it is not a place for you to write. When the
+  reply says the tool could not be offered, there is no tool: keep no
+  roster. Reason: the pane opens empty until the first call (failure 9).
+- **A refusal because the pane is closed** means no pane. Keep no roster
+  until a `/brigade` reply says the tool is ready again.
+- **A refusal for shape, size or malformed input** (a missing list): correct
+  the roster, and call once more.
+- **Any other refusal, or a second refusal:** stop keeping the roster for the
+  rest of this session, and tell the owner the reason the tool gave. This
+  holds whatever the refusal's own text advises. Reason: a refusal you cannot
+  fix, made again and again, spends turns and retries a race the mod's
+  guards name (failure 11).
 
-- **If that path still shows `${`,** this skill was not installed with its
-  plugin, so there is no pane. Write no roster.
-- **If `/brigade` names a different file in that same `brigade` folder,**
-  named by a session id (letters, digits and `-` only, not starting with
-  `-`) and ending in `.json`, use that one. After a clear or
-  a resume, the session id changes, and `/brigade` names the current file.
-  Never write a roster anywhere else. Reason: the head chef writes the whole
-  file, so a wrong path would overwrite another file (failure 9).
-- Create the `brigade` folder when it is missing. Write the whole file each
-  time. The head chef is its only writer.
-
-**Write only the pane's shape.** Reason: the pane refuses any other shape,
-and then shows an error, not the cards (failure 9).
+**Send only the pane's shape.** Reason: the tool refuses any other shape, and
+the pane shows an error, not the cards (failure 9).
 
 ```json
 {
@@ -416,7 +426,8 @@ These are the moments when the head chef tells the owner and waits:
 - **git:** `worktree list --porcelain`, `rev-parse`, `status`, `rev-list`,
   `stash list`, `worktree remove`, `branch -d`.
 - **The shell tool,** PowerShell on Windows.
-- **One file write:** the roster.
+- **No file writes; one tool, `set_roster`,** which the Brigade mod offers,
+  to keep the roster. The mod writes it, on the head chef's call.
 
 The owner keeps every other step: each yes, each "done", and archiving the
 sidebar entry.

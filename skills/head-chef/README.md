@@ -91,8 +91,9 @@ yours: no tool can.
 
 `/brigade` opens the Brigade pane: one card per session the head chef
 started, with its work, phase, settings, live busy or idle state and latest
-report, and your to-dos. The head chef keeps the roster in the plugin's data
-folder. The pane only draws where the lead session runs, so a lead you drive
+report, and your to-dos. The head chef keeps the roster by calling the pane's
+`set_roster` tool, so updates ask you nothing; a deny rule for that tool turns
+them off. The pane only draws where the lead session runs, so a lead you drive
 from your phone shows none. The skill does not need it.
 
 ## What it never does
