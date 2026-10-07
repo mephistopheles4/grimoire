@@ -1,11 +1,16 @@
 import type { Card, Pair, Roster, Status, Todo } from './types'
 
 // What the Brigade pane reads from outside itself, checked before it is drawn
-// or used: the roster file the head chef writes, the rows `claude agents
-// --json` prints, the transcript paths the engine reports and the reports
-// other sessions send. Every one is text another process wrote, so each is
-// held to a shape, cut to a length and shown as text only. Nothing here runs,
-// and nothing here builds a command or a path from roster text.
+// or used: the roster, the rows `claude agents --json` prints, the transcript
+// paths the engine reports and the reports other sessions send. Every one is
+// text another process wrote, so each is held to a shape, cut to a length and
+// shown as text only. Nothing here runs, and nothing here builds a command or
+// a path from roster text.
+//
+// The roster has two users, and both take their rules from here so the two
+// cannot drift: the pane, which reads the file, and the set_roster tool, which
+// writes it. The shape check, the byte cap and the decision whether a roster
+// path may be read or written are each one function below.
 
 export const STATUSES: readonly Status[] = ['working', 'needs-you', 'done', 'stopped']
 
@@ -28,7 +33,6 @@ export const SESSION_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9
 // embeddings, overrides and isolates, some of which are not in that set.
 const CONTROL = /[\u{0}-\u{1F}\u{7F}-\u{9F}\u{2028}\u{2029}]/gu
 const HIDDEN = /[\p{Default_Ignorable_Code_Point}\u{61C}\u{200E}\u{200F}\u{202A}-\u{202E}\u{2066}-\u{2069}]/gu
-const CONTROL_TEST = /[\u{0}-\u{1F}\u{7F}-\u{9F}]/u
 
 /** Text made safe to draw on one line: controls become spaces, hidden
  *  characters go, runs of space fold, and it is cut to `max` with an ellipsis. */
@@ -100,9 +104,12 @@ function todo(i: number, v: unknown): Checked<Todo> {
   return { value: out }
 }
 
-/** The roster file's text, checked: `{ cards, todos }` with every field a
- *  string of its length, the status from the fixed set, and no title twice. */
-export function checkRoster(raw: string): Checked<Roster> {
+/** The roster's text, checked: `{ cards, todos }` with every field a string
+ *  of its length, the status from the fixed set, no title twice and no to-do
+ *  id twice. The pane reads a missing list as empty. `strict` requires both
+ *  lists, as the writer does of a file it would overwrite: `{}` is then no
+ *  roster, so a hard link to some other JSON file is not taken for one. */
+export function checkRoster(raw: string, strict = false): Checked<Roster> {
   let parsed: unknown
   try {
     parsed = JSON.parse(raw)
@@ -111,6 +118,11 @@ export function checkRoster(raw: string): Checked<Roster> {
   }
   const f = fields('the roster', parsed, ['cards', 'todos'])
   if ('error' in f) return f
+  if (strict) {
+    for (const k of ['cards', 'todos'] as const) {
+      if (!Object.hasOwn(f.value, k)) return { error: `the roster has no "${k}" list` }
+    }
+  }
   const cards = f.value.cards ?? []
   const todos = f.value.todos ?? []
   if (!Array.isArray(cards)) return { error: 'the roster\'s "cards" is not a list' }
@@ -141,6 +153,123 @@ export function checkRoster(raw: string): Checked<Roster> {
   return { value: out }
 }
 
+/** The cap on a roster file, in bytes: the pane reads no larger file, and the
+ *  writer saves none. */
+export const MAX_ROSTER_BYTES = 256 * 1024
+
+/** A checked roster as the text the writer saves, measured in UTF-8 bytes
+ *  against the cap: what is measured is what is written. */
+export function serialize(roster: Roster): Checked<string> {
+  const text = JSON.stringify(roster)
+  const bytes = new TextEncoder().encode(text).length
+  return bytes > MAX_ROSTER_BYTES ? { error: `the roster is ${bytes} bytes, over the cap of ${MAX_ROSTER_BYTES}` } : { value: text }
+}
+
+// --- the roster path ---------------------------------------------------------
+//
+// Whether a roster path may be read or written, decided from `stat` answers
+// alone. The engine offers no write that refuses a link, and a write follows
+// one: through a broken file link it creates the link's target, and through a
+// hard link it replaces the other file's text. So before each write, and each
+// read, every folder from the config folder down is looked at, then the file.
+//
+// The answers come from the caller, so the rule runs the same against the
+// engine and against recorded answers in a test. A `stat` the engine rejects
+// reaches a mod as a message alone, with no error code: a missing path's ends
+// "failed: ENOENT" (measured on 2.1.292), and only that one means missing.
+
+/** What `$.fs.stat(path, { resolve: true })` answered, as far as the rule
+ *  reads it. `isLink` is the path's own; `kind` and `realPath` are where it
+ *  leads, `realPath` absent when it leads nowhere. */
+export type StatFound = { kind: 'file' | 'dir' | 'other'; size: number; isLink: boolean; realPath?: string }
+
+/** One `stat`: found, missing, or refused for any other reason. */
+export type StatAnswer = { found: StatFound } | { missing: true } | { failed: string }
+
+/** A rejected `stat`'s message, sorted: missing only for ENOENT. */
+export function statRejection(message: string): StatAnswer {
+  return /(?:^|[\s:])ENOENT$/.test(message.trim()) ? { missing: true } : { failed: oneLine(message, 200) }
+}
+
+/** Where the roster may go: `existing` is the file there now, which a writer
+ *  must still find to be a roster before it overwrites it. */
+export type Placed = { file: string; existing?: { size: number } } | { refused: string }
+
+// The folders below the config folder, in order. `plugins` is the engine's
+// own and must be there; the mod may create the rest.
+const FOLDERS = (plugin: string) => ['plugins', 'data', plugin, 'brigade']
+
+// A path as the real-path compare reads it: one separator, no trailing one,
+// and case folded where the file system ignores it.
+const norm = (path: string, fold: boolean) => {
+  const flat = path.replace(/[\\/]+/g, '/').replace(/(.)\/$/, '$1')
+  return fold ? flat.toLowerCase() : flat
+}
+
+/** Whether the file system under this path ignores case: Windows' and,
+ *  by its default home and volumes, macOS'. Elsewhere the compare is exact,
+ *  which can only refuse more. */
+export function foldsCase(path: string): boolean {
+  return /^(?:[A-Za-z]:[\\/]|[\\/]{2})/.test(path) || /^\/(?:Users|Volumes)\//.test(path)
+}
+
+/** Decides whether this session's roster file under the config folder may be
+ *  read or written, asking `stat` (resolving) of each folder on the way and
+ *  then of the file.
+ *
+ *  Refused: a session id or data id not of their shape; a config folder that
+ *  does not resolve; `plugins` missing; any folder that is a link, broken or
+ *  not, or is not a folder; any `stat` that fails other than as missing, or
+ *  finds a path with no real path; any folder whose real path is not the
+ *  config folder's real path joined with the same names, which is the
+ *  decisive control, since only junctions and file links were measured for
+ *  `isLink`; and a file that is a link, is not a plain file, or lands
+ *  anywhere but in the checked folder. A missing folder below `plugins` ends
+ *  the walk: the write creates it and everything below it. */
+export async function placeRoster(
+  config: string,
+  plugin: string,
+  sessionId: string,
+  stat: (path: string) => Promise<StatAnswer>,
+): Promise<Placed> {
+  if (!SESSION_ID.test(sessionId)) return { refused: 'path: the session id is not the engine\'s shape' }
+  if (!/^[A-Za-z0-9_-]{1,200}$/.test(plugin)) return { refused: 'path: the plugin\'s data id is not of its shape' }
+  const sep = sepOf(config)
+  const fold = foldsCase(config)
+  const top = await stat(config)
+  if (!('found' in top) || top.found.kind !== 'dir' || top.found.realPath === undefined) {
+    return { refused: 'path: the config folder does not resolve to a folder' }
+  }
+  const real = norm(top.found.realPath, fold)
+  let at = config
+  let expected = real
+  for (const name of FOLDERS(plugin)) {
+    at = `${at}${sep}${name}`
+    expected = `${expected}/${fold ? name.toLowerCase() : name}`
+    const s = await stat(at)
+    if ('missing' in s) {
+      if (name === 'plugins') return { refused: 'path: the config folder has no plugins folder' }
+      return { file: `${config}${sep}${FOLDERS(plugin).join(sep)}${sep}${sessionId}.json` }
+    }
+    if ('failed' in s) return { refused: `path: ${name} could not be read (${s.failed})` }
+    if (s.found.isLink) return { refused: `link: ${name} is a link` }
+    if (s.found.kind !== 'dir') return { refused: `path: ${name} is not a folder` }
+    if (s.found.realPath === undefined || norm(s.found.realPath, fold) !== expected) {
+      return { refused: `link: ${name} does not lead where its name says` }
+    }
+  }
+  const file = `${at}${sep}${sessionId}.json`
+  const s = await stat(file)
+  if ('missing' in s) return { file }
+  if ('failed' in s) return { refused: `path: the roster file could not be read (${s.failed})` }
+  if (s.found.isLink) return { refused: 'link: the roster file is a link' }
+  if (s.found.kind !== 'file') return { refused: 'path: the roster path is not a plain file' }
+  if (s.found.realPath === undefined || norm(s.found.realPath, fold) !== `${expected}/${fold ? `${sessionId}.json`.toLowerCase() : `${sessionId}.json`}`) {
+    return { refused: 'link: the roster file does not lead where its name says' }
+  }
+  return { file, existing: { size: s.found.size } }
+}
+
 // The config folder and the marketplace from where the plugin was installed:
 // the engine keeps an installed plugin under
 // <config>/plugins/cache/<marketplace>/... or reads it from
@@ -167,24 +296,12 @@ export function dataId(name: string, marketplace: string | undefined): string {
   return `${name}@${marketplace ?? 'inline'}`.replace(/[^A-Za-z0-9_-]/g, '-')
 }
 
-/** The plugin's data folder under a config folder: what `${CLAUDE_PLUGIN_DATA}`
- *  names for the plugin's other parts. */
+/** The plugin's data folder under a config folder, built from the config
+ *  folder alone: `CLAUDE_PLUGIN_DATA` is not read, since a mod's environment
+ *  usually lacks it and another plugin can set it. */
 export function dataFolder(config: string, id: string): string {
   const sep = sepOf(config)
   return `${config}${sep}plugins${sep}data${sep}${id}`
-}
-
-/** `CLAUDE_PLUGIN_DATA` as the environment gives it, when it reads as a local
- *  absolute folder named for this plugin's own id. A mod's environment does
- *  not carry it on 2.1.289, so a value here was inherited from whatever
- *  started the session, such as another plugin's hook, and one naming
- *  another plugin's folder, a network share or a climb is not used. */
-export function dataFromEnv(value: string | undefined, id: string): string | undefined {
-  if (value === undefined || value.length > 1000 || CONTROL_TEST.test(value)) return undefined
-  const trimmed = value.replace(/[\\/]+$/, '')
-  if (/^[\\/]{2}/.test(trimmed) || !/^(?:[A-Za-z]:[\\/]|\/)/.test(trimmed)) return undefined
-  if (/(?:^|[\\/])\.\.(?:[\\/]|$)/.test(trimmed)) return undefined
-  return trimmed.split(/[\\/]/).pop() === id ? trimmed : undefined
 }
 
 /** The config folder above the engine's transcript path for this session:

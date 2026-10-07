@@ -3,24 +3,29 @@ import type { EngineInterface, Register, Timer } from 'claude-code'
 
 import type { Card, Roster } from './types'
 import {
+  MAX_ROSTER_BYTES,
   MAX_TEXT,
   SESSION_ID,
+  STATUSES,
   appLink,
   checkRoster,
   configFromRoot,
   configFromTranscript,
   dataFolder,
-  dataFromEnv,
   dataId,
   lookup,
   marketplaceFromRoot,
   oneLine,
   parseAgents,
+  placeRoster,
   remoteLink,
   report,
   rosterFile,
+  serialize,
+  statRejection,
   transcriptFile,
 } from './roster.ts'
+import type { StatAnswer } from './roster.ts'
 import {
   EMPTY_USAGE,
   idsFrom,
@@ -41,13 +46,14 @@ import type { ReadMemory } from './view.ts'
 // rounded box with its work, phase, settings, live busy or idle state, cache
 // warmth and latest report; the owner's to-dos in one box, each ticked with a press that
 // a second press undoes; and at the bottom this session's own rate limits and
-// context. The head chef writes the roster file; this pane only reads it, and
-// reads it only while the pane is open. The usage section is worked out in
-// view.ts, as plain values; this file reads and stores the reading and turns
-// the view's result into elements.
+// context. The pane reads the roster file while it is open. The head chef
+// fills it, either with its own file write or through the set_roster tool
+// below, which writes the file for it with no permission prompt. The usage
+// section is worked out in view.ts, as plain values; this file reads and
+// stores the reading and turns the view's result into elements.
 //
 // Idle by default. At session start it registers /brigade and nothing else: no
-// timer, no process, no file read and no pane. The pane opens only on
+// timer, no process, no file read, no tool and no pane. The pane opens only on
 // /brigade, and closing it stops every timer. A message from another session
 // never opens it.
 
@@ -55,7 +61,7 @@ const PANE = 'brigade'
 const TITLE = 'Brigade'
 const ROSTER_MS = 5000
 const AGENTS_MS = 10000
-const MAX_ROSTER_BYTES = 256 * 1024
+const TOOL = 'set_roster'
 
 // The values are the plugin's, so they sit under its manifest name.
 const armed = atom({ plugin: 'grimoire', key: 'armed' } as const, false)
@@ -108,14 +114,15 @@ const CHECK_CELLS = 5
 let timers: Timer[] = []
 
 // Where this lead session's roster file is, or why it cannot be named. The
-// roster lives in the plugin's data folder, which the plugin's skill reaches
-// as ${CLAUDE_PLUGIN_DATA}. A mod's environment does not carry that variable
-// on 2.1.289, so it is read first and the folder is otherwise built by the
-// plugin-manifest reference's rule: <config>/plugins/data/<id>. The config
-// folder comes from where the plugin was installed, else from the transcript
-// path the engine reported at this session's start; with neither, nothing is
-// read. The config folder also locates other sessions' transcripts.
-async function where($: EngineInterface): Promise<{ file: string; config?: string } | { error: string }> {
+// roster lives in the plugin's data folder, built by the plugin-manifest
+// reference's rule from the config folder alone: <config>/plugins/data/<id>.
+// `CLAUDE_PLUGIN_DATA` is never read: a mod's environment usually lacks it,
+// and another plugin can set it. The config folder comes from where the plugin
+// was installed, else from the transcript path the engine reported at this
+// session's start; with neither, nothing is read or written. The config folder
+// also locates other sessions' transcripts.
+type Where = { file: string; config: string; plugin: string; id: string }
+async function where($: EngineInterface): Promise<Where | { error: string }> {
   const id = await $.session.id()
   if (!SESSION_ID.test(id)) return { error: 'the session id is not the engine\'s shape, so no roster file is named. Nothing was read.' }
   const start = await read($, started)
@@ -123,17 +130,25 @@ async function where($: EngineInterface): Promise<{ file: string; config?: strin
     configFromRoot($.plugin.root) ??
     (start.sessionId === id ? configFromTranscript(start.transcript, id) : undefined)
   const plugin = dataId($.plugin.name, marketplaceFromRoot($.plugin.root))
-  const data = dataFromEnv(await $.env.get('CLAUDE_PLUGIN_DATA'), plugin) ?? (config === undefined ? undefined : dataFolder(config, plugin))
-  if (data === undefined) {
+  if (config === undefined) {
     return {
-      error: `Cannot find the plugin's data folder from where the plugin was loaded (${oneLine($.plugin.root, 200)}). The roster would be <Claude config folder>/plugins/data/${plugin}/brigade/${id}.json. Nothing was read.`,
+      error: `Cannot find the Claude config folder from where the plugin was loaded (${oneLine($.plugin.root, 200)}). The roster would be <Claude config folder>/plugins/data/${plugin}/brigade/${id}.json. Nothing was read.`,
     }
   }
-  return config === undefined ? { file: rosterFile(data, id) } : { file: rosterFile(data, id), config }
+  return { file: rosterFile(dataFolder(config, plugin), id), config, plugin, id }
 }
 
+// One `stat` for the path rule in roster.ts: resolving, and a rejection
+// sorted into missing or failed by its message.
+const statOf = ($: EngineInterface) => (path: string): Promise<StatAnswer> =>
+  $.fs.stat(path, { resolve: true }).then(
+    found => ({ found }),
+    err => statRejection(String(err instanceof Error ? err.message : err)),
+  )
+
 // Resolves the to-do ids of the roster it loaded, or undefined when it loaded
-// none: no file named, no file, or a file that failed its check.
+// none: no file named, no file, or a file that failed its check. The file is
+// read only where the path rule allows it, so the pane follows no link either.
 async function loadRoster($: EngineInterface): Promise<string[] | undefined> {
   const at = await where($)
   if ('error' in at) {
@@ -147,14 +162,15 @@ async function loadRoster($: EngineInterface): Promise<string[] | undefined> {
     f.current === at.file ? f : { current: at.file, previous: f.current },
   )
   try {
-    if (!(await $.fs.exists(at.file))) {
+    const placed = await placeRoster(at.config, at.plugin, at.id, statOf($))
+    if ('refused' in placed) throw new Error(placed.refused)
+    if (placed.existing === undefined) {
       await update($, roster, () => ({ cards: [], todos: [] }))
       await update($, rosterError, () => '')
       return undefined
     }
-    const stat = await $.fs.stat(at.file)
-    if (stat.size > MAX_ROSTER_BYTES) throw new Error(`the roster is over ${MAX_ROSTER_BYTES} bytes`)
-    const checked = checkRoster(String(await $.fs.read(at.file)))
+    if (placed.existing.size > MAX_ROSTER_BYTES) throw new Error(`the roster is over ${MAX_ROSTER_BYTES} bytes`)
+    const checked = checkRoster(String(await $.fs.read(placed.file)))
     if ('error' in checked) throw new Error(checked.error)
     const value: Roster = checked.value
     await update($, roster, () => value)
@@ -207,12 +223,7 @@ async function pollAgents($: EngineInterface, open: () => boolean) {
       await update($, live, () => rows.value.map(r => ({ name: r.name, value: r.status })))
       await update($, liveError, () => '')
 
-      // Transcripts are found under the config folder: with none, no card
-      // gets a warmth line or a link.
-      if (at.config === undefined) {
-        if (open()) await update($, warmth, () => [])
-        return
-      }
+      // Transcripts are found under the config folder.
       const config = at.config
       const cards = (await read($, roster)).cards
 
@@ -356,6 +367,143 @@ async function openInApp($: EngineInterface, c: Card) {
   $.ui.toast(`Opening ${oneLine(c.title, 40)} in the app (${exitCode})`)
 }
 
+// --- set_roster ---------------------------------------------------------------
+//
+// The tool the head chef keeps the roster with. A file write of its own into
+// the plugin's data folder asks the owner every time, in every mode, because
+// Claude Code protects that folder; this tool writes the same file with no
+// prompt. So it is guarded here instead: it is offered only once the owner
+// opens the pane, writes only while the engine lists the pane open, refuses a
+// subagent's call, a deny verdict and an owner's ask rule, takes only a roster
+// that passes the shared check and cap, writes only the one file the path rule
+// in roster.ts allows, and never names a path from its input.
+
+const TOOL_NAME = 'mcp__grimoire__set_roster'
+
+const DESCRIPTION =
+  "Keeps the Brigade pane's roster for this lead session. Pass the whole roster every time, every card and every to-do; it replaces the last one. Both lists are required; two empty lists are an empty roster. It works only while the Brigade pane is open, which the owner opens with /brigade, and refuses otherwise. A refusal names the rule that failed."
+
+const field = (max: number) => ({ type: 'string', maxLength: max })
+const SCHEMA = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['cards', 'todos'],
+  properties: {
+    cards: {
+      type: 'array',
+      maxItems: 50,
+      items: {
+        type: 'object',
+        additionalProperties: false,
+        required: ['title', 'status'],
+        properties: {
+          title: field(80),
+          work: field(MAX_TEXT),
+          phase: field(MAX_TEXT),
+          settings: field(MAX_TEXT),
+          status: { type: 'string', enum: [...STATUSES] },
+          desktopId: field(100),
+          bgId: field(100),
+          url: field(100),
+        },
+      },
+    },
+    todos: {
+      type: 'array',
+      maxItems: 50,
+      items: {
+        type: 'object',
+        additionalProperties: false,
+        required: ['id', 'text'],
+        properties: { id: field(40), text: field(MAX_TEXT), session: field(80) },
+      },
+    },
+  },
+}
+
+// The engine's own fields on a tool call. Everything else is the model's
+// input and goes to the shared check whole, so an unknown key is refused.
+const ENVELOPE = ['tool', 'tool_use_id', 'agentId', 'consent']
+
+// The permission mode the last prompt ran in, when the engine says. Plan and
+// don't-ask modes refuse the write; a mode not yet seen refuses nothing, and
+// one that changed since the last prompt errs toward refusing.
+const REFUSING_MODES = ['plan', 'dontAsk']
+let mode: string | undefined
+
+const refuse = (rule: string) => ({ deny: `set_roster refused: ${rule}. The roster file is unchanged.` })
+
+const paneOpen = async ($: EngineInterface) => (await $.ui.panes()).some(p => p.id === PANE)
+
+async function offerTool($: EngineInterface) {
+  await $.tool.register({ name: TOOL, description: DESCRIPTION, inputSchema: SCHEMA })
+}
+
+// Writes run one after another, so two calls in one turn cannot interleave
+// their checks and writes.
+let writing: Promise<unknown> = Promise.resolve()
+function oneAtATime<T>(work: () => Promise<T>): Promise<T> {
+  const run = writing.then(work, work)
+  writing = run.catch(() => undefined)
+  return run
+}
+
+async function setRoster($: EngineInterface, e: Record<string, unknown>) {
+  if (e.agentId !== undefined) return refuse("subagent: only the lead session's own turns keep the roster")
+  if (!(await paneOpen($))) return refuse('pane closed; roster not kept')
+
+  // Own entries copied into a fresh object, so no key reaches a prototype.
+  const input = Object.fromEntries(Object.entries(e).filter(([k]) => !ENVELOPE.includes(k)))
+
+  const verdict = await $.tool.check({ tool: TOOL_NAME, input })
+  if (verdict.decision === 'deny') return refuse(`deny verdict: ${oneLine(verdict.reason ?? 'a rule denies this tool', 200)}`)
+  if (verdict.decision === 'ask' && verdict.rule !== undefined) {
+    return refuse(`ask rule: the owner's rule ${oneLine(verdict.rule, 120)} covers this tool`)
+  }
+  if (mode !== undefined && REFUSING_MODES.includes(mode)) return refuse(`permission mode: ${mode}`)
+
+  for (const k of ['cards', 'todos']) {
+    if (!Object.hasOwn(input, k)) return refuse(`malformed input: "${k}" is missing; pass both lists, empty if need be`)
+  }
+  const checked = checkRoster(JSON.stringify(input), true)
+  if ('error' in checked) return refuse(`shape: ${checked.error}`)
+  const text = serialize(checked.value)
+  if ('error' in text) return refuse(`size: ${text.error}`)
+  const value = checked.value
+  const at = await where($)
+  if ('error' in at) return refuse(`path: ${at.error}`)
+
+  return oneAtATime(async () => {
+    if (!(await paneOpen($))) return refuse('pane closed; roster not kept')
+    const placed = await placeRoster(at.config, at.plugin, at.id, statOf($))
+    if ('refused' in placed) return refuse(placed.refused)
+    // A file already there is overwritten only if it is a roster, both lists
+    // and all. What it holds otherwise is never echoed.
+    if (placed.existing !== undefined) {
+      const isRoster =
+        placed.existing.size <= MAX_ROSTER_BYTES && !('error' in checkRoster(String(await $.fs.read(placed.file)), true))
+      if (!isRoster) {
+        return refuse(`not a roster: ${placed.file} holds something other than a roster, so it is not overwritten. Ask the owner to delete that file`)
+      }
+    }
+    await $.fs.write(placed.file, text.value)
+    // A link swapped in between the check and the write is caught here, after
+    // the fact, and said loudly. A hard link is not.
+    const after = await $.fs.stat(placed.file).catch(() => undefined)
+    if (after === undefined || after.isLink) {
+      const warning = `Brigade: after the roster write, ${placed.file} is a link or cannot be looked at. Something changed it between the check and the write; check that file and where it leads.`
+      await update($, rosterError, () => warning)
+      $.ui.toast(warning, { timeoutMs: 15000 })
+      return { deny: `set_roster wrote the roster, but the path then ${after === undefined ? 'could not be looked at' : 'was a link'}. The owner has been told; stop keeping the roster and tell them.` }
+    }
+    // Only now does the pane change: it redraws at once, and the 5 s poll
+    // stays the reader for changes made elsewhere.
+    await update($, roster, () => value)
+    await update($, rosterError, () => '')
+    return { result: `Roster kept: ${value.cards.length} card(s), ${value.todos.length} to-do(s).` }
+  })
+}
+
 export const register: Register = on => {
   on('session.start', async ($, e, next) => {
     await $.command.register({
@@ -363,32 +511,73 @@ export const register: Register = on => {
       description: 'Show the Brigade pane: the sessions this lead session started',
     })
     // A reload of the module while the pane stays up finds it in the engine's
-    // record. Only then do the reads start again; a fresh session has no pane.
-    if ((await $.ui.panes()).some(p => p.id === PANE)) await arm($)
+    // record. Only then do the reads start again, and the tool is offered
+    // again; a fresh session has no pane and no tool.
+    if (await paneOpen($)) {
+      await arm($)
+      await offerTool($)
+    }
     return next(e)
   })
 
   // The engine's own record of this session: its id and transcript path, the
   // one place the config folder can be read from when the plugin's location
-  // does not name it. A clear or a resume fires this again with the new id.
+  // does not name it. A clear or a resume fires this again with the new id,
+  // and session.start does not, so the tool is offered again here while the
+  // pane is open; registering a name again replaces it.
   on('classic.SessionStart', async ($, e, next) => {
     if (SESSION_ID.test(e.session_id) && typeof e.transcript_path === 'string') {
       await update($, started, () => ({ sessionId: e.session_id, transcript: e.transcript_path }))
     }
+    if (typeof e.permission_mode === 'string') mode = e.permission_mode
+    try {
+      if (await paneOpen($)) await offerTool($)
+    } catch {
+      // No tool this time: the next /brigade offers it again.
+    }
+    return next(e)
+  })
+
+  // The mode each prompt runs in, as far as the engine tells a hook.
+  on('classic.UserPromptSubmit', ($, e, next) => {
+    if (typeof e.permission_mode === 'string') mode = e.permission_mode
     return next(e)
   })
 
   on('command.run', { command: 'brigade' }, async $ => {
-    // Open first, and start the reads only once the engine lists the pane: a
-    // pane another plugin refuses or answers for starts no reads.
+    // Open first, and start the reads and offer the tool only once the engine
+    // lists the pane: a pane another plugin refuses or answers for starts
+    // neither.
     const opened = await $.ui.open({ id: PANE, title: TITLE })
-    if ((await $.ui.panes()).some(p => p.id === PANE)) await arm($)
+    let ready = ''
+    if (await paneOpen($)) {
+      await arm($)
+      try {
+        await offerTool($)
+        ready = ` \`${TOOL}\` is ready: call it with the full roster.`
+      } catch (err) {
+        ready = ` \`${TOOL}\` could not be offered (${oneLine(String(err instanceof Error ? err.message : err), 200)}); keep the roster as before.`
+      }
+    }
     const at = await where($)
     const named = 'error' in at ? at.error : `Roster file: ${at.file}`
     return {
-      text: opened.isPlaced ? `Brigade pane opened. ${named}` : `Brigade pane is open but not shown: ${opened.reason}. ${named}`,
+      text: `${opened.isPlaced ? 'Brigade pane opened.' : `Brigade pane is open but not shown: ${opened.reason}.`} ${named}${ready}`,
     }
   })
+
+  // The tool, answered here and nowhere beneath: every path returns its own
+  // answer. A throw inside becomes a refusal in code, and the engine's .catch
+  // answers for a throw, an overrun or a wrong shape the code did not catch.
+  on('tool.call', { tool: TOOL_NAME }, async ($, e) => {
+    try {
+      return await setRoster($, e as unknown as Record<string, unknown>)
+    } catch (err) {
+      return refuse(`error: ${oneLine(String(err instanceof Error ? err.message : err), 200)}`)
+    }
+  }).catch(() => ({
+    deny: 'set_roster refused: error: the tool failed or ran out of time. The roster may or may not have been kept; call it once more, and if it is refused again, stop keeping the roster.',
+  }))
 
   on('ui.close', { id: PANE }, async ($, e, next) => {
     disarm()
