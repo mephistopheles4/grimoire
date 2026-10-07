@@ -1062,3 +1062,21 @@ test('a busy member whose transcript has not been read yet shows "warm (working)
 test('a stored "unread" record is kept by the check', () => {
   assert.deepEqual(warmthFrom([{ name: 'A', kind: 'unread' }]), [{ name: 'A', kind: 'unread' }]);
 });
+
+test('a <synthetic> row is skipped even when its usage looks real', () => {
+  const t = file(row({ ms: -5 * MIN }), row({ ms: -MIN, model: '<synthetic>' }));
+  assert.equal(lastCall(t, MTIME)?.at, NOW - 5 * MIN);
+});
+
+test('a modified time that is not a finite number gives no record', () => {
+  for (const m of [Number.NaN, Infinity, -Infinity]) assert.equal(lastCall(file(row()), m), undefined, String(m));
+});
+
+test('a close while the only transcript is being read stores nothing', async () => {
+  const { io } = fakeFs({ [pathOf(0)]: { text: file(row()) } });
+  let open = true;
+  const closing = { ...io, live: () => open, read: async p => { open = false; return io.read(p); } };
+  const memory = new Map();
+  assert.equal(await readWarmth([agent('A', 0)], ['A'], CONFIG, memory, closing), undefined);
+  assert.equal(memory.size, 0);
+});
