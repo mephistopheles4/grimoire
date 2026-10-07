@@ -14,7 +14,9 @@ export const STATUSES: readonly Status[] = ['working', 'needs-you', 'done', 'sto
 const MAX_CARDS = 50
 const MAX_TODOS = 50
 const MAX_TITLE = 80
-const MAX_TEXT = 300
+/** The cap on a card's or to-do's text field; the pane draws a wrapped field
+ *  whole up to it. */
+export const MAX_TEXT = 300
 const MAX_ID = 100
 
 // The engine's session ids, and so the roster files' names.
@@ -202,11 +204,15 @@ export function rosterFile(data: string, sessionId: string): string {
   return `${data}${sep}brigade${sep}${sessionId}.json`
 }
 
-/** A row of `claude agents --json`, as far as the pane uses it. */
+/** A row of `claude agents --json`, as far as the pane uses it. `status` is
+ *  the live state: an interactive row's `status`, else a background row's
+ *  `state`. */
 export type AgentRow = { name: string; status: string; sessionId?: string; cwd?: string }
 
 /** The rows `claude agents --json` printed, each field checked; a row with
- *  no name is dropped, and a session id that is not the engine's shape too. */
+ *  no name is dropped, and a session id that is not the engine's shape too.
+ *  An interactive row says its live state in `status` (`busy`, `idle`), a
+ *  background row in `state` (`blocked`, for one). */
 export function parseAgents(stdout: string): Checked<AgentRow[]> {
   let parsed: unknown
   try {
@@ -218,7 +224,8 @@ export function parseAgents(stdout: string): Checked<AgentRow[]> {
   const rows: AgentRow[] = []
   for (const r of parsed.slice(0, 500)) {
     if (!isRecord(r) || typeof r.name !== 'string' || r.name === '' || r.name.length > MAX_TEXT) continue
-    const row: AgentRow = { name: r.name, status: typeof r.status === 'string' ? oneLine(r.status, 20) : '?' }
+    const state = typeof r.status === 'string' ? r.status : typeof r.state === 'string' ? r.state : undefined
+    const row: AgentRow = { name: r.name, status: state === undefined ? '?' : oneLine(state, 20) }
     if (typeof r.sessionId === 'string' && SESSION_ID.test(r.sessionId)) row.sessionId = r.sessionId
     if (typeof r.cwd === 'string' && r.cwd.length <= 1000) row.cwd = r.cwd
     rows.push(row)

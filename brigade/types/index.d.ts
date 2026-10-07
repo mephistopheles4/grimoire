@@ -34,10 +34,34 @@ export type Files = { current: string; previous: string }
 /** What the engine said at session start: the id and its transcript path. */
 export type Start = { sessionId: string; transcript: string }
 
+/** One rate-limit window: its kind, how much of it is used, when it resets. */
+export type UsageLimit = { kind: string; percent: number; resetsAt?: string }
+
+/** One row of the context breakdown: its name, what it is, its tokens. */
+export type UsageCategory = { name: string; kind: string; tokens: number }
+
+/** This session's usage as the pane last read it: only the fields it draws.
+ *  `categories` is absent when no breakdown was asked for. */
+export type UsageSnapshot = {
+  limits: UsageLimit[]
+  context: { percent?: number; tokens?: number; window?: number }
+  categories?: UsageCategory[]
+}
+
+/** One card's cache warmth, from its session's transcript: the last real
+ *  model call's time, its context tokens and its cache window (absent when no
+ *  call that wrote cache says it); or unknown, because the transcript is too
+ *  large to read or two sessions share the card's name; or not read yet,
+ *  because the session has been working since the pane first saw it. */
+export type Warmth =
+  | { name: string; kind: 'call'; at: number; tokens: number; windowMs?: number }
+  | { name: string; kind: 'too-large' | 'shared' | 'unread' }
+
 declare module 'claude-code' {
   interface PluginState {
     grimoire: {
-      /** True once /brigade ran in this session: reports are kept from then. */
+      /** True while the pane is open. Nothing in the mod gates on it: the
+       *  hooks read the open pane from the module's own timers. */
       armed: boolean
       start: Start
       files: Files
@@ -51,6 +75,15 @@ declare module 'claude-code' {
       reports: Report[]
       dismissed: string[]
       doneTodos: string[]
+      /** Ticked to-dos still inside their grace period: the to-do's id and
+       *  the tick's time in epoch ms, as text. A second press removes one;
+       *  the roster timer's sweep moves a due one to `doneTodos`. */
+      ticking: Pair[]
+      /** This session's last usage reading, read while the pane is open. */
+      usage: UsageSnapshot
+      /** Each roster member's cache warmth, from the agents poll while the
+       *  pane is open. Checked again before it is drawn. */
+      warmth: Warmth[]
     }
   }
 }
