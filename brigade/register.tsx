@@ -163,7 +163,9 @@ async function loadRoster($: EngineInterface): Promise<string[] | undefined> {
   )
   try {
     const placed = await placeRoster(at.config, at.plugin, at.id, statOf($))
-    if ('refused' in placed) throw new Error(placed.refused)
+    if ('refused' in placed) {
+      throw new Error(placed.refused.startsWith('link:') ? `${placed.refused}; the roster path must not pass through a link or junction` : placed.refused)
+    }
     if (placed.existing === undefined) {
       await update($, roster, () => ({ cards: [], todos: [] }))
       await update($, rosterError, () => '')
@@ -425,13 +427,19 @@ const SCHEMA = {
 // input and goes to the shared check whole, so an unknown key is refused.
 const ENVELOPE = ['tool', 'tool_use_id', 'agentId', 'consent']
 
-// The permission mode the last prompt ran in, when the engine says. Plan and
-// don't-ask modes refuse the write; a mode not yet seen refuses nothing, and
-// one that changed since the last prompt errs toward refusing.
+// The permission mode the session last reported, from each prompt and from
+// every other tool call. Plan and don't-ask modes refuse the write. A mode not
+// yet seen, as after a reload before the next prompt or tool call, refuses
+// nothing: refusing it would end the roster for the session after every
+// resume. A switch made since the last report is not seen until the next one.
 const REFUSING_MODES = ['plan', 'dontAsk']
 let mode: string | undefined
 
 const refuse = (rule: string) => ({ deny: `set_roster refused: ${rule}. The roster file is unchanged.` })
+// Once the write has started, a failure cannot say the file is unchanged.
+const failedAfterWrite = (why: string) => ({
+  deny: `set_roster failed after the write began: ${why}. The roster may or may not have been kept; stop keeping the roster and tell the owner.`,
+})
 
 const paneOpen = async ($: EngineInterface) => (await $.ui.panes()).some(p => p.id === PANE)
 
@@ -440,7 +448,10 @@ async function offerTool($: EngineInterface) {
 }
 
 // Writes run one after another, so two calls in one turn cannot interleave
-// their checks and writes.
+// their checks and writes. A call whose dispatch was abandoned while it
+// waited, because it ran out of time or the owner interrupted it, writes
+// nothing when its turn comes. A write that never returns holds the queue
+// until the module reloads; row 15 names it.
 let writing: Promise<unknown> = Promise.resolve()
 function oneAtATime<T>(work: () => Promise<T>): Promise<T> {
   const run = writing.then(work, work)
@@ -448,7 +459,10 @@ function oneAtATime<T>(work: () => Promise<T>): Promise<T> {
   return run
 }
 
-async function setRoster($: EngineInterface, e: Record<string, unknown>) {
+// What a call has done so far, so a failure says the right thing about the file.
+type Progress = { written: boolean }
+
+async function setRoster($: EngineInterface, e: Record<string, unknown>, signal: AbortSignal, progress: Progress) {
   if (e.agentId !== undefined) return refuse("subagent: only the lead session's own turns keep the roster")
   if (!(await paneOpen($))) return refuse('pane closed; roster not kept')
 
@@ -460,6 +474,8 @@ async function setRoster($: EngineInterface, e: Record<string, unknown>) {
   if (verdict.decision === 'ask' && verdict.rule !== undefined) {
     return refuse(`ask rule: the owner's rule ${oneLine(verdict.rule, 120)} covers this tool`)
   }
+  // An organisation's ceiling below allow: the tool may never run unasked.
+  if (verdict.ceiling !== undefined && verdict.ceiling !== 'allow') return refuse(`organisation ceiling: ${verdict.ceiling}`)
   if (mode !== undefined && REFUSING_MODES.includes(mode)) return refuse(`permission mode: ${mode}`)
 
   for (const k of ['cards', 'todos']) {
@@ -474,7 +490,9 @@ async function setRoster($: EngineInterface, e: Record<string, unknown>) {
   if ('error' in at) return refuse(`path: ${at.error}`)
 
   return oneAtATime(async () => {
+    if (signal.aborted) return refuse('abandoned: the call ran out of time or was interrupted before its turn')
     if (!(await paneOpen($))) return refuse('pane closed; roster not kept')
+    if (mode !== undefined && REFUSING_MODES.includes(mode)) return refuse(`permission mode: ${mode}`)
     const placed = await placeRoster(at.config, at.plugin, at.id, statOf($))
     if ('refused' in placed) return refuse(placed.refused)
     // A file already there is overwritten only if it is a roster, both lists
@@ -486,15 +504,21 @@ async function setRoster($: EngineInterface, e: Record<string, unknown>) {
         return refuse(`not a roster: ${placed.file} holds something other than a roster, so it is not overwritten. Ask the owner to delete that file`)
       }
     }
+    if (signal.aborted) return refuse('abandoned: the call ran out of time or was interrupted before its write')
+    progress.written = true
     await $.fs.write(placed.file, text.value)
-    // A link swapped in between the check and the write is caught here, after
-    // the fact, and said loudly. A hard link is not.
-    const after = await $.fs.stat(placed.file).catch(() => undefined)
-    if (after === undefined || after.isLink) {
-      const warning = `Brigade: after the roster write, ${placed.file} is a link or cannot be looked at. Something changed it between the check and the write; check that file and where it leads.`
+    // A link swapped in between the check and the write, at the file or at
+    // any folder above it, is caught here by the same path rule, after the
+    // fact, and said loudly. A hard link is not.
+    const after = await placeRoster(at.config, at.plugin, at.id, statOf($)).catch(err => ({
+      refused: `the check failed (${oneLine(String(err instanceof Error ? err.message : err), 200)})`,
+    }))
+    const why = 'refused' in after ? after.refused : after.existing === undefined ? 'the file is not there' : undefined
+    if (why !== undefined) {
+      const warning = `Brigade: after the roster write, the roster path failed its check: ${why}. Something changed it between the check and the write; check ${placed.file} and where it leads.`
       await update($, rosterError, () => warning)
       $.ui.toast(warning, { timeoutMs: 15000 })
-      return { deny: `set_roster wrote the roster, but the path then ${after === undefined ? 'could not be looked at' : 'was a link'}. The owner has been told; stop keeping the roster and tell them.` }
+      return failedAfterWrite(`the path then failed its check (${why}); the owner has been told`)
     }
     // Only now does the pane change: it redraws at once, and the 5 s poll
     // stays the reader for changes made elsewhere.
@@ -538,8 +562,13 @@ export const register: Register = on => {
     return next(e)
   })
 
-  // The mode each prompt runs in, as far as the engine tells a hook.
+  // The mode each prompt runs in, and each other tool call, as far as the
+  // engine tells a hook. These only note the mode and pass the event on.
   on('classic.UserPromptSubmit', ($, e, next) => {
+    if (typeof e.permission_mode === 'string') mode = e.permission_mode
+    return next(e)
+  })
+  on('classic.PreToolUse', ($, e, next) => {
     if (typeof e.permission_mode === 'string') mode = e.permission_mode
     return next(e)
   })
@@ -569,11 +598,13 @@ export const register: Register = on => {
   // The tool, answered here and nowhere beneath: every path returns its own
   // answer. A throw inside becomes a refusal in code, and the engine's .catch
   // answers for a throw, an overrun or a wrong shape the code did not catch.
-  on('tool.call', { tool: TOOL_NAME }, async ($, e) => {
+  on('tool.call', { tool: TOOL_NAME }, async ($, e, next) => {
+    const progress: Progress = { written: false }
     try {
-      return await setRoster($, e as unknown as Record<string, unknown>)
+      return await setRoster($, e as unknown as Record<string, unknown>, next.signal, progress)
     } catch (err) {
-      return refuse(`error: ${oneLine(String(err instanceof Error ? err.message : err), 200)}`)
+      const why = `error: ${oneLine(String(err instanceof Error ? err.message : err), 200)}`
+      return progress.written ? failedAfterWrite(why) : refuse(why)
     }
   }).catch(() => ({
     deny: 'set_roster refused: error: the tool failed or ran out of time. The roster may or may not have been kept; call it once more, and if it is refused again, stop keeping the roster.',

@@ -49,8 +49,8 @@ permission prompt. So that write has no human and no classifier review; every
 call is still recorded in the transcript as the tool's result. The tool exists
 only once the owner runs `/brigade`, writes only while the pane is open, and
 refuses a subagent's call, a deny verdict, an owner's ask rule, plan and
-don't-ask modes, any input outside the roster's shape and size, and any link
-on the way to the file. A deny rule for `mcp__grimoire__set_roster` removes it
+don't-ask modes as far as the session has reported its mode, any input outside
+the roster's shape and size, and any link on the way to the file. A deny rule for `mcp__grimoire__set_roster` removes it
 from the session; the owner's own hooks do not stop it. Its one other process is
 `explorer.exe`, given a `claude://` link when the owner presses Open in app.
 Everything it reads is checked and drawn as text, in the usage image too. Review any change under

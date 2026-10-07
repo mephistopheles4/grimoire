@@ -18,10 +18,19 @@
 // link kind no test models. On Windows a symbolic link needs Developer Mode
 // or an elevated shell; a junction and a hard link need neither.
 //
-// It runs the local `claude` and makes no model call: the probe answers a
-// slash command itself. It is a local gate, not part of the one command,
-// because CI has no Claude Code and installing it there would put a fetched
-// dependency on the publishing path.
+// It runs the local `claude` with no settings sources, so the owner's own
+// settings, hooks and plugins stay out of the session whose answers become
+// the tests' fixtures. It makes no model call while the probe loads: the probe
+// answers a slash command itself, and if it did not load, the run fails on the
+// missing record (the command then reached the model as a prompt, on Haiku).
+// It is a local gate, not part of the one command, because CI has no Claude
+// Code and installing it there would put a fetched dependency on the
+// publishing path.
+//
+// Windows only. The recording holds what the engine answered on Windows, and
+// the tests are built on it; macOS and Linux are not measured (threat model,
+// row 15). On another platform the script says so and fails, rather than
+// comparing against answers from another system or overwriting them.
 
 import { execFileSync } from 'node:child_process';
 import { linkSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
@@ -32,6 +41,13 @@ import { fileURLToPath } from 'node:url';
 const root = join(fileURLToPath(import.meta.url), '..', '..');
 const OUT = join(root, 'brigade', 'recorded-stats.ts');
 const write = process.argv.includes('--write');
+
+if (process.platform !== 'win32') {
+  console.error(
+    `This gate records Windows only, and this is ${process.platform}. brigade/recorded-stats.ts holds what Claude Code answered on Windows, and the tests are built on it; there is no ${process.platform} recording to compare with, and writing one would replace the Windows one. macOS and Linux are not measured: see the threat model, row 15.`,
+  );
+  process.exit(1);
+}
 
 const scratch = mkdtempSync(join(tmpdir(), 'brigade-stats-'));
 const fx = join(scratch, 'fx');
@@ -112,7 +128,7 @@ try {
   const env = { ...process.env };
   delete env.NODE_OPTIONS;
   const version = execFileSync('claude', ['--version'], { encoding: 'utf8', env }).trim().split(/\s/)[0];
-  const raw = execFileSync('claude', ['-p', '--plugin-dir', probe, `/record-stats ${all.map(a => a.path).join('|')}`], {
+  const raw = execFileSync('claude', ['-p', '--setting-sources', '', '--model', 'haiku', '--plugin-dir', probe, `/record-stats ${all.map(a => a.path).join('|')}`], {
     encoding: 'utf8',
     env,
     timeout: 120000,

@@ -109,7 +109,7 @@ function makeFs() {
     if (there?.type === 'link') return write(there.target, text)
     if (there?.type === 'file') there.data.text = text
     else put(at, { type: 'file', data: { text } })
-    log.push(`write ${at}`)
+    log.push(`write ${at} ${text.slice(0, 200)}`)
   }
   const text = (p: string) => {
     const n = walk(p, true)?.node
@@ -129,6 +129,9 @@ type World = ReturnType<typeof makeFs> & {
   existsCalls: string[]
   failCheck: boolean
   holdWrite: boolean
+  release: () => void
+  errors: string[]
+  clock: ReturnType<typeof mock.clock>
   sid: string
 }
 
@@ -145,18 +148,21 @@ function world(on: On, setup: (w: World) => void = w => w.dirs(`${CONFIG}\\plugi
     existsCalls: [] as string[],
     failCheck: false,
     holdWrite: false,
+    release: () => {},
+    errors: [] as string[],
+    clock: undefined as unknown as ReturnType<typeof mock.clock>,
     sid: SID,
   })
   w.dirs(CONFIG)
   setup(w)
-  mock.clock(on)
+  w.clock = mock.clock(on)
   on('fs.stat', ($, e: any) => {
     w.log.push(`stat ${e.path}`)
     const s = w.stat(e.path)
     return s === undefined ? { deny: ENOENT } : { value: e.resolve ? s : { ...s, realPath: undefined } }
   })
   on('fs.write', async ($, e: any) => {
-    if (w.holdWrite) await new Promise(() => {})
+    if (w.holdWrite) await new Promise<void>(res => (w.release = res))
     w.write(e.path, e.text)
     return { value: undefined }
   })
@@ -193,9 +199,14 @@ function world(on: On, setup: (w: World) => void = w => w.dirs(`${CONFIG}\\plugi
       w.roster.push(e.value)
       w.log.push(`roster ${JSON.stringify(e.value)}`)
     }
+    if (e.key === 'rosterError') w.errors.push(String(e.value))
     return next(e)
   })
   on('classic.SessionStart', () => ({}))
+  // A reload the test raises: the session's own answers for session.start and
+  // the command it registers again.
+  on('session.start', ($, e: any) => ({ cwd: e.cwd }))
+  on('command.register', ($, e: any) => ({ value: { command: e.name } }))
   on('classic.UserPromptSubmit', () => ({}))
   return w
 }
@@ -322,10 +333,13 @@ test('__proto__ at the top level and nested never reaches a prototype or the fil
   await brigade($)
   const top = await call($, JSON.parse('{"cards":[],"todos":[],"__proto__":{"polluted":1}}'))
   const nested = await call($, JSON.parse('{"cards":[{"title":"a","status":"working","__proto__":{"polluted":1}}],"todos":[]}'))
-  // The engine drops a __proto__ key on the way in, or the check refuses it:
-  // either way none is written and no object gains the key.
-  for (const r of [top, nested]) if (!r.ok) expect(r.text).toMatch(/shape: .*__proto__/)
-  expect(w.text(FILE) ?? '').not.toContain('polluted')
+  // Measured on 2.1.292: the engine drops a __proto__ key, at the top level and
+  // nested, before the call reaches the mod, so both calls write what is left.
+  // Where one does reach it, the shared check refuses it, which
+  // tests/brigade-roster-rules.test.mjs holds on the raw text.
+  expect(top).toEqual({ ok: true, text: 'Roster kept: 0 card(s), 0 to-do(s).' })
+  expect(nested).toEqual({ ok: true, text: 'Roster kept: 1 card(s), 0 to-do(s).' })
+  expect(JSON.parse(w.text(FILE) ?? 'null')).toEqual({ cards: [{ title: 'a', work: '', phase: '', settings: '', status: 'working' }], todos: [] })
   expect(({} as Record<string, unknown>).polluted).toBeUndefined()
 })
 
@@ -406,21 +420,29 @@ test('a forced error inside the tool comes back as a refusal, and nothing is wri
   w.failCheck = true
   const r = await call($, GOOD)
   expect(r.ok).toBe(false)
-  expect(r.text).toMatch(/^set_roster refused: error: /)
+  // The code's own catch names the failing call; the engine's .catch could not.
+  expect(r.text).toMatch(/^set_roster refused: error: .*tool\.check/)
   expect(w.text(FILE)).toBeUndefined()
 })
 
-test("a call that outlasts the hook's budget is answered by the engine's .catch, in the refusal shape", { timeoutMs: 30000 }, async ($, on) => {
+test("a call that outlasts the hook's budget is answered by the engine's .catch, and writes nothing when its turn comes", { timeoutMs: 30000 }, async ($, on) => {
   const w = world(on)
   await start($)
   await brigade($)
   w.holdWrite = true
-  // The first call's write never returns, so the second waits in the queue
-  // until its budget runs out.
-  void call($, GOOD)
-  const r = await call($, GOOD)
+  // The first call's write is held, so the second waits in the queue until
+  // its budget runs out and the engine's .catch answers it.
+  const first = call($, GOOD)
+  const r = await call($, { cards: [card('gamma')], todos: [] })
   expect(r.ok).toBe(false)
   expect(r.text).toContain('set_roster refused: error: the tool failed or ran out of time')
+  // Then the first write goes through, the queue moves on, and the abandoned
+  // second call writes nothing.
+  w.holdWrite = false
+  w.release()
+  await first
+  await w.clock.settle()
+  expect(w.log.filter(l => l.startsWith('write ') && l.includes('gamma'))).toEqual([])
 })
 
 // --- the path guard -----------------------------------------------------------
@@ -452,7 +474,12 @@ for (const [name, setup, rule] of linkCases) {
   })
 }
 
-for (const [name, text] of [['a file that is not a roster', 'not json at all, a secret'], ['a file holding {} (a hard link to another file)', '{}']] as const) {
+for (const [name, text] of [
+  ['a file that is not a roster', 'not json at all, a secret'],
+  ['a file holding {} (a hard link to another file)', '{}'],
+  // Valid JSON whose check error would quote its key, if the refusal echoed it.
+  ['a JSON file with a key of its own', '{"cards":[],"todos":[],"secret":"the owner\'s note"}'],
+] as const) {
   test(`${name} at the roster path is refused, left unchanged, and not echoed`, async ($, on) => {
     const w = world(on, w => {
       w.dirs(BRIGADE)
@@ -480,22 +507,52 @@ test('an existing roster is overwritten', async ($, on) => {
   expect(JSON.parse(w.text(FILE) ?? 'null')).toEqual(GOOD)
 })
 
-test('a path that becomes a link after the write is told to the owner loudly', async ($, on) => {
-  const w = world(on)
+// The write lands, then the file or a folder above it is swapped for a link
+// before the check after it.
+for (const [name, swap, rule] of [
+  ['the file', (w: World) => { w.dirs(ELSEWHERE); w.put(FILE, { type: 'link', kind: 'file-symlink', target: `${ELSEWHERE}\\x.json` }) }, 'link: the roster file is a link'],
+  ['the brigade folder', (w: World) => { w.dirs(`${ELSEWHERE}\\b`); w.put(BRIGADE, { type: 'link', kind: 'junction', target: `${ELSEWHERE}\\b` }) }, 'link: brigade is a link'],
+] as const) {
+  test(`${name} becoming a link after the write is told to the owner loudly`, async ($, on) => {
+    const w = world(on)
+    await start($)
+    await brigade($)
+    const write = w.write
+    w.write = (p, t) => {
+      write(p, t)
+      swap(w)
+    }
+    const r = await call($, GOOD)
+    expect(r.ok).toBe(false)
+    expect(r.text).toContain(`set_roster failed after the write began: the path then failed its check (${rule})`)
+    expect(r.text).toContain('may or may not have been kept')
+    expect(w.toasts.some(t => t.includes(rule))).toBe(true)
+    expect(w.errors.some(e => e.includes(rule))).toBe(true)
+  })
+}
+
+test("the pane's own read refuses a roster path through a link, and says so", async ($, on) => {
+  const w = world(on, w => {
+    w.dirs(DATA)
+    w.dirs(`${ELSEWHERE}\\b`)
+    w.put(`${ELSEWHERE}\\b\\${SID}.json`, { type: 'file', data: { text: JSON.stringify(GOOD) } })
+    w.put(BRIGADE, { type: 'link', kind: 'junction', target: `${ELSEWHERE}\\b` })
+  })
   await start($)
   await brigade($)
-  // The write lands, then the file is swapped for a link before the check
-  // after it.
-  const write = w.write
-  w.write = (p, t) => {
-    write(p, t)
-    w.dirs(ELSEWHERE)
-    w.put(FILE, { type: 'link', kind: 'file-symlink', target: `${ELSEWHERE}\\x.json` })
-  }
-  const r = await call($, GOOD)
-  expect(r.ok).toBe(false)
-  expect(r.text).toContain('the path then was a link')
-  expect(w.toasts.some(t => t.includes('is a link'))).toBe(true)
+  expect(w.errors.some(e => e.includes('link: brigade is a link; the roster path must not pass through a link or junction'))).toBe(true)
+  // Nothing was read through the link into the pane.
+  expect(w.roster.some(r => JSON.stringify(r).includes('alpha'))).toBe(false)
+})
+
+test('a reload with the pane open offers the tool again; one with the pane closed does not', async ($, on) => {
+  const w = world(on)
+  await start($)
+  await ($ as any).session.start({ cwd: 'C:\\work', surface: null, isInteractive: false })
+  expect(w.registered).toEqual([])
+  await brigade($)
+  await ($ as any).session.start({ cwd: 'C:\\work', surface: null, isInteractive: false })
+  expect(w.registered).toEqual(['set_roster', 'set_roster'])
 })
 
 test('a session id outside the engine\'s shape is refused', async ($, on) => {

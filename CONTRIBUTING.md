@@ -96,9 +96,12 @@ small file system in memory, and its answers about links come from
 `brigade/recorded-stats.ts`. The second builds real junctions, symbolic links
 and hard links in a temporary folder, asks the installed Claude Code to `stat`
 each one through a throwaway probe plugin, and fails if the answers differ from
-that recording; `--write` records them anew. It makes no model call. On Windows
-it needs Developer Mode for symbolic links, and a link it cannot create fails
-it rather than being skipped.
+that recording; `--write` records them anew. It loads none of your settings,
+hooks or plugins into that session, and makes no model call while the probe
+loads. It runs on Windows only, where the recording was made: on macOS or Linux
+it says so and fails, since there is no recording there to compare with. It
+needs Developer Mode for symbolic links, and a link it cannot create fails it
+rather than being skipped.
 
 That is also why a `git worktree` needs no setup here. Add one and run the
 check; there is nothing to install, link, or copy first.
