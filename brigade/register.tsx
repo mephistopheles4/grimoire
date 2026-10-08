@@ -374,8 +374,9 @@ async function rosterTick($: EngineInterface, live: () => boolean) {
 const opening = new Set<string>()
 
 // Open in app, first through the Desktop app's own tool, which shows a session
-// this lead started in a split beside it. The tool is called only when the
-// engine lists it by its exact name and the owner's rules allow it, and its
+// this lead started in a split beside it. The tool is called only where the
+// Desktop app draws the session, when the engine lists the tool by its exact
+// name and the owner's rules allow it, and its
 // answer is read as untrusted. No permission prompt sees this call, so those
 // checks stand in for one. Any refusal, rejection, throw or a wait past 5 s
 // on the engine's clock, from the tool list to the answer, ends the route, and
@@ -404,6 +405,9 @@ async function viaTool($: EngineInterface, session: string): Promise<boolean> {
 // nothing; a call already made may still show the split after the link route
 // ran.
 async function askTool($: EngineInterface, session: string, over: () => boolean): Promise<boolean> {
+  // Only where the Desktop app draws this session: elsewhere its server is
+  // absent, and a server of the same name would be the only one to answer.
+  if (!(await $.session.surfaces()).includes('desktop')) return false
   if (!listsOpenTool(await $.tool.list())) return false
   const args = { session_id: session, target: OPEN_TARGET }
   if (!rulesAllowTool(await $.tool.check({ tool: OPEN_TOOL, input: args }))) return false

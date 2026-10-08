@@ -142,6 +142,7 @@ type World = ReturnType<typeof makeFs> & {
   checks: string[]
   checkInputs: unknown[]
   stall: '' | 'tool list' | 'verdict'
+  surfaces: string[]
   tools: unknown
   failList: boolean
   lists: number
@@ -173,6 +174,7 @@ function world(on: On, setup: (w: World) => void = w => w.dirs(`${CONFIG}\\plugi
     checks: [] as string[],
     checkInputs: [] as unknown[],
     stall: '' as World['stall'],
+    surfaces: ['desktop'],
     tools: [{ name: OPEN_TOOL, description: 'Open a session', mcp: true }] as unknown,
     failList: false,
     lists: 0,
@@ -242,6 +244,8 @@ function world(on: On, setup: (w: World) => void = w => w.dirs(`${CONFIG}\\plugi
   on('session.start', ($, e: any) => ({ cwd: e.cwd }))
   on('command.register', ($, e: any) => ({ value: { command: e.name } }))
   on('classic.UserPromptSubmit', () => ({}))
+  // Where the session is drawn: the Desktop app, unless a test says otherwise.
+  on('session.surfaces', () => ({ value: w.surfaces }))
   on('tool.list', () => {
     w.lists++
     if (w.stall === 'tool list') return new Promise<never>(() => {})
@@ -933,5 +937,19 @@ for (const stalled of ['tool list', 'verdict'] as const) {
     await again
     expect(w.lists).toBe(before + 1)
     expect(explorer(w).length).toBe(2)
+  })
+}
+// Only where the Desktop app draws the session: in the terminal its server is
+// absent, so a server of the same name would be the only one to answer.
+for (const surfaces of [['terminal'], ['terminal', 'mobile'], []]) {
+  test(`a session drawn on ${JSON.stringify(surfaces)} asks no tool list, makes no call and takes the link route`, async ($, on) => {
+    const w = await pane(on, $)
+    w.surfaces = surfaces
+    w.verdict = { decision: 'allow' }
+    await press($, 'open-0-alpha')
+    expect(w.lists).toBe(0)
+    expect(w.checks).toEqual([])
+    expect(w.mcpCalls).toEqual([])
+    expect(explorer(w)).toEqual([['explorer.exe', LINK]])
   })
 }

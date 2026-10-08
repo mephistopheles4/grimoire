@@ -57,7 +57,8 @@ Open in app on a card with a Desktop id, it first calls the Claude Desktop
 app's own tool, `open_session_in` on the server named `ccd_window`, sending
 only that card's checked session id and the fixed target `split`, so the app
 shows the session beside the lead. That call also skips the permission prompt,
-and the owner's own hooks do not see it. It is made only when the engine lists
+and the owner's own hooks do not see it. It is made only where the Desktop app
+draws the session, and only when the engine lists
 `mcp__ccd_window__open_session_in` by that exact name and the engine's verdict
 for it is not a deny or an ask naming a rule, so a deny or ask rule for that
 tool stops it. An exact deny rule was seen to stop it on Desktop 2.1.289; a
