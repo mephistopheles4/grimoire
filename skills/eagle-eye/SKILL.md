@@ -4,7 +4,7 @@ description: Steps in when a discussion holds three or more open decisions and a
 compatibility: Needs Node.js 20 or later to run render.mjs and audit.mjs. No install and no other dependencies.
 metadata:
   contract-version: 0.2.2
-  familiar-digest: "sha256:47ddcdc5592f093e83886fea165d61a5ce4d776af155c2bc5c89df42e656baeb"
+  familiar-digest: "sha256:d121741139744cb3a2d0f22e43f1d98c1d8d1f419ed42a7afbb6845e15074292"
   contract-digest: "sha256:5cbb215488a2521f28a59d4ad68d1fde68267e4aa75e2d8d26efb12f0795046e"
 ---
 

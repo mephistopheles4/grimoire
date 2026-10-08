@@ -48,7 +48,7 @@ rules:
   - rule_id: "LP3"
     reason: "Accepted. The skill declares no permission list, because a permission list is one host's format and the skill's text runs in agents that read none. SECURITY.md in the repository says which script reaches the network, when it runs, and what it sends."
   - rule_id: "MP3"
-    reason: "False positive. A comment in the page template describing how Reset discards the reader's overrides and Undo offers them back. It documents a button, not an agent's memory."
+    reason: "False positive. Two kinds of line, neither an agent's memory: a comment in eagle-eye's page template describing how Reset discards the reader's overrides and Undo offers them back, which documents a button; and head-chef's relay scripts deleting a closed question or relay from their own state file with the JavaScript delete operator."
   - rule_id: "RA2"
     reason: "Two findings, one rule. False positive: the CONTRIBUTING.md rule forbidding a fixed path inside a skill, and the test proving that rule fires; a guard and its test, both reported as the risk they exist to prevent. Not a false positive, and accepted: eagle-eye's usage log keeps a start and an end line per box in a file in the person's home folder, across sessions, and only after the person says yes in chat. A no is stored as one declined marker. The skill never writes inside its own folder."
   - rule_id: "PE3"

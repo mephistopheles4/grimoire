@@ -1,9 +1,10 @@
 # SkillSpector baseline for this skill.
 #
 # You are reading this because you scanned this directory before installing
-# what is in it, which is the right thing to do with a skill. Two of
-# SkillSpector's rules fire on the files here. Both are wrong, and this file
-# says why, so you can disagree with a reason rather than with silence.
+# what is in it, which is the right thing to do with a skill. Five of
+# SkillSpector's rules fire on the files here. Four are wrong and one is
+# accepted, and this file says why, so you can disagree with a reason rather
+# than with silence.
 #
 # The first finding is on `README.md`, where a sentence names the `npx skills`
 # installer to say what that route installs and what it does not. The rule
@@ -14,6 +15,12 @@
 # The second is on `CONTRACT.md`, whose checkpoint log names the skill's own
 # `SKILL.md`, the file the contract generates. The rule reads any path to a
 # `SKILL.md` as one skill reading another's. The skill reads no other skill.
+#
+# The third, fourth and fifth fire on the relay scripts in `scripts/`: a
+# skill that ships a script declares no permission list (accepted, since a
+# permission list is one host's format); a `delete` of a closed entry in the
+# scripts' own state reads as tampering with an agent's memory; and a function
+# returning the relay rule it parsed reads as leaking a system prompt.
 #
 # The scanner reports the score unchanged and applies none of this unless you
 # ask. Apply it with --use-shipped-baseline, and read what it covered with
@@ -36,3 +43,9 @@ rules:
     reason: "False positive. A README line naming the one skill this repository ships, the decision records quoting that line, and a skill's contract naming the SKILL.md it was drafted from. Naming your own product or its own source file is not enumerating somebody else's."
   - rule_id: "RP1"
     reason: "False positive. The README install command and quotations of it. skills is the Vercel Labs installer run through npx, not an MCP server, so there is no server version to pin."
+  - rule_id: "LP3"
+    reason: "Accepted. The skill declares no permission list, because a permission list is one host's format and the skill's text runs in agents that read none. SECURITY.md in the repository says which script reaches the network, when it runs, and what it sends."
+  - rule_id: "MP3"
+    reason: "False positive. Two kinds of line, neither an agent's memory: a comment in eagle-eye's page template describing how Reset discards the reader's overrides and Undo offers them back, which documents a button; and head-chef's relay scripts deleting a closed question or relay from their own state file with the JavaScript delete operator."
+  - rule_id: "P6"
+    reason: "False positive. head-chef's relay scripts return the relay rule they parsed from a start prompt to their own code. It is a value the script checks and prints nowhere, not a system prompt or a hidden instruction."
