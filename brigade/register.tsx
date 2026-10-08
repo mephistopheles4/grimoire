@@ -5,6 +5,11 @@ import type { Card, Roster } from './types'
 import {
   MAX_ROSTER_BYTES,
   MAX_TEXT,
+  OPEN_NAME,
+  OPEN_SERVER,
+  OPEN_TARGET,
+  OPEN_TOOL,
+  OPEN_WAIT_MS,
   SESSION_ID,
   STATUSES,
   appLink,
@@ -13,16 +18,20 @@ import {
   configFromTranscript,
   dataFolder,
   dataId,
+  listsOpenTool,
   lookup,
   marketplaceFromRoot,
   oneLine,
   parseAgents,
   placeRoster,
+  readOpenAnswer,
   remoteLink,
   report,
   rosterFile,
+  rulesAllowTool,
   serialize,
   statRejection,
+  toolSession,
   transcriptFile,
 } from './roster.ts'
 import type { StatAnswer } from './roster.ts'
@@ -358,12 +367,78 @@ async function rosterTick($: EngineInterface, live: () => boolean) {
   if (live()) await sweepTodos($, ids)
 }
 
+// The Desktop ids whose press is in its tool route now. A second press for
+// one of them is ignored until the route ends, so a press inside the wait
+// sends no second call and cannot run the link route twice. The card's button
+// and its to-do's share the mark, since both name the same id.
+const opening = new Set<string>()
+
+// Open in app, first through the Desktop app's own tool, which shows a session
+// this lead started in a split beside it. The tool is called only where the
+// Desktop app draws the session, when the engine lists the tool by its exact
+// name and the owner's rules allow it, and its
+// answer is read as untrusted. No permission prompt sees this call, so those
+// checks stand in for one. Any refusal, rejection, throw or a wait past 5 s
+// on the engine's clock, from the tool list to the answer, ends the route, and
+// the press goes on to the link. Resolves true when the app said it opened
+// the session.
+async function viaTool($: EngineInterface, session: string): Promise<boolean> {
+  let over = false
+  let timer: Timer | undefined
+  const waited = new Promise<false>(res => {
+    timer = $.clock.after(OPEN_WAIT_MS, () => {
+      over = true
+      res(false)
+    })
+  })
+  const route = askTool($, session, () => over)
+  // A route that ends or fails after the wait is dropped here, unread.
+  route.catch(() => undefined)
+  try {
+    return await Promise.race([route, waited])
+  } finally {
+    timer?.cancel()
+  }
+}
+
+// The tool route itself. After the wait is over it makes no call and shows
+// nothing; a call already made may still show the split after the link route
+// ran.
+async function askTool($: EngineInterface, session: string, over: () => boolean): Promise<boolean> {
+  // Only where the Desktop app draws this session: elsewhere its server is
+  // absent, and a server of the same name would be the only one to answer.
+  if (!(await $.session.surfaces()).includes('desktop')) return false
+  if (!listsOpenTool(await $.tool.list())) return false
+  const args = { session_id: session, target: OPEN_TARGET }
+  if (!rulesAllowTool(await $.tool.check({ tool: OPEN_TOOL, input: args }))) return false
+  if (over()) return false
+  const outcome = readOpenAnswer(await $.mcp.call(OPEN_SERVER, OPEN_NAME, args))
+  if (over()) return false
+  if (outcome.opened) {
+    $.ui.toast(outcome.toast)
+    return true
+  }
+  if (outcome.reason !== undefined) $.ui.toast(outcome.reason)
+  return false
+}
+
 // The pane's Link takes https only, so the app link goes to Windows' own
 // handler for claude://. Only a link of the two known shapes goes, built
-// from a checked id, as one argument with no shell.
+// from a checked id, as one argument with no shell. A card with a Desktop id
+// tries the app's own tool first, one press at a time.
 async function openInApp($: EngineInterface, c: Card) {
   const app = appLink(c, lookup(await read($, links)).get(c.title))
   if (app === undefined) return
+  const session = toolSession(c)
+  if (session !== undefined) {
+    if (opening.has(session)) return
+    opening.add(session)
+    try {
+      if (await viaTool($, session).catch(() => false)) return
+    } finally {
+      opening.delete(session)
+    }
+  }
   const { exitCode } = await $.process.run(['explorer.exe', app])
   // explorer.exe exits 1 even when it hands the link on, so say what was sent.
   $.ui.toast(`Opening ${oneLine(c.title, 40)} in the app (${exitCode})`)
@@ -585,13 +660,16 @@ export const register: Register = on => {
         await offerTool($)
         ready = ` \`${TOOL}\` is ready: call it with the full roster.`
       } catch (err) {
-        ready = ` \`${TOOL}\` could not be offered (${oneLine(String(err instanceof Error ? err.message : err), 200)}); keep the roster as before.`
+        ready = ` \`${TOOL}\` could not be offered (${oneLine(String(err instanceof Error ? err.message : err), 200)}); keep no roster.`
       }
     }
+    // The reply names no roster path: no skill reads one, and the pane's own
+    // top line shows it to the owner. When no file can be named, the pane
+    // keeps the full reason.
     const at = await where($)
-    const named = 'error' in at ? at.error : `Roster file: ${at.file}`
+    const named = 'error' in at ? ' The pane cannot name the roster file, so it shows none; the pane says why.' : ''
     return {
-      text: `${opened.isPlaced ? 'Brigade pane opened.' : `Brigade pane is open but not shown: ${opened.reason}.`} ${named}${ready}`,
+      text: `${opened.isPlaced ? 'Brigade pane opened.' : `Brigade pane is open but not shown: ${opened.reason}.`}${named}${ready}`,
     }
   })
 
@@ -607,7 +685,7 @@ export const register: Register = on => {
       return progress.written ? failedAfterWrite(why) : refuse(why)
     }
   }).catch(() => ({
-    deny: 'set_roster refused: error: the tool failed or ran out of time. The roster may or may not have been kept; call it once more, and if it is refused again, stop keeping the roster.',
+    deny: 'set_roster refused: error: the tool failed or ran out of time. The roster may or may not have been kept; stop keeping the roster and tell the owner.',
   }))
 
   on('ui.close', { id: PANE }, async ($, e, next) => {

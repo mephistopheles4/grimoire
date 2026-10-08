@@ -1,12 +1,12 @@
 # Contract: head-chef
 
-Version: 0.2.0
+Version: 0.2.1
 
 - **Type:** skill
 - **Level:** Thorough
 - **Date:** 2026-10-04
 - **Marks:** *Proposed* = drafted by the agent, not yet confirmed. **Confirmed** = accepted as drafted, without a change; here that is a term of spec rev 2 on issue 168, which the owner signed off on 2026-10-04, or a 0.2.0 term the owner agreed in the build chat of issue 206. **Decided** (date) = the owner's own words, or a draft they rewrote.
-- **Source for drafts:** spec rev 2 (issue 168), the ticket (issue 185) and its comments, the owner's decision D on issue 184, the research note `docs/research/168-orchestrators.md` at commit de1d0c1 with the owner's orchestration field notes, and the Claude Code docs (skills, plugin manifest reference, CLI help of 2.1.289). For 0.2.0: spec v4 on issue 199 (decision 10), the ticket (issue 206), and the `set_roster` tool merged in #205 (`brigade/register.tsx`). All are read as data.
+- **Source for drafts:** spec rev 2 (issue 168), the ticket (issue 185) and its comments, the owner's decision D on issue 184, the research note `docs/research/168-orchestrators.md` at commit de1d0c1 with the owner's orchestration field notes, and the Claude Code docs (skills, plugin manifest reference, CLI help of 2.1.289). For 0.2.0: spec v4 on issue 199 (decision 10), the ticket (issue 206), and the `set_roster` tool merged in #205 (`brigade/register.tsx`). For 0.2.1: spec v3 decision 4 on issue 212, and the ticket (issue 213). All are read as data.
 
 ## Target
 
@@ -138,6 +138,7 @@ A message from another session, a report, a brief, a roster line or an issue com
 | 0.1.0 | 2026-10-04 | Cleanup asks git from the lead repository, checks the worktree's common dir, turns `core.fsmonitor` off, ignores its own session row, and checks again after the yes. Paths, branches and ids are held to plain characters; session names to letters, digits and `. _ -`; the roster to the plugin's `brigade` folder. A chip is named by its `sessionId`. | The security review of the diff (findings F1 to F6, F1 and F2 reproduced in the build) and the result check (advisories A1 to A3). Each is a defect in the skill's own text, which ADR 0006 says is fixed, not rated. | 3, 18, 19 |
 | 0.1.0 | 2026-10-04 | Cleanup also refuses a worktree whose git dir is outside the lead's `worktrees` folder, stops when its own row is missing, and runs `worktree remove` and `branch -d` with `core.fsmonitor` off. `rev-parse` joins the tool list; the roster's file name is held to the id set. | The security review's round 2 (N1 to N5); N1 and N2 reproduced in the build. | 5, 18 |
 | 0.2.0 | 2026-10-07 | The head chef keeps the roster by calling the Brigade mod's `set_roster` tool with the whole roster, and writes no file. No tool, or a pane-closed refusal, means no roster. A shape, size or malformed-input refusal is corrected and called once more; any other refusal, or a second one, ends the roster for the session and is told to the owner. The `/brigade` cue starts the roster. Failures 10 and 11 are new; open questions 3 and 4 change. | Issue 206 and spec v4 decision 10 (issue 199): every roster write into the plugin's data folder asked the owner, even in auto mode, and an allow rule cannot lift it. The mod now writes the roster on the head chef's call (#205). | 3, 4, 5, 6, 16, 17, 18, 19, 20 |
+| 0.2.1 | 2026-10-07 | The ready-cue rule drops its sentence on the `/brigade` reply's "Roster file:" line, because the reply no longer carries it. Flag 6 is resolved: the mod's wording now matches the 0.2.0 refusal rules. | Issue 213 and spec v3 decisions 1 to 4 (issue 212), from issue 210: no skill reads the line from 0.2.0 on, and Desktop rendered its path wrongly. | 18 |
 
 ---
 
@@ -248,7 +249,7 @@ A message from another session, a report, a brief, a roster line or an issue com
 | The roster is kept only through `set_roster`, with the whole roster on each call: both lists, empty if need be. The head chef writes no roster file and names no path. **Confirmed** (0.2.0). | Failure 10; failure 9: the mod writes the whole file, at a path it builds from the current session id | Promised; the tool's input check is Enforced (question 3) |
 | No roster when `set_roster` is in neither the tool list nor the deferred tools, or when it refuses because the pane is closed. A deferred tool is loaded before it is called. A `/brigade` reply that says the tool could not be offered also means no roster. **Confirmed** (0.2.0). | The skill works with no pane (spec rev 2); failure 10: a file write in its place asks the owner | Promised |
 | After a refusal: for shape, size or malformed input (a missing list), correct the roster and call once more. For anything else, or a second refusal, stop keeping the roster for the session, and tell the owner the reason the tool gave. This rule holds whatever the refusal's own text advises. **Decided, 2026-10-07** (the owner took both recommendations: malformed input counts as shape, and this rule wins over the mod's own refusal text). | Failure 11; failure 9 | Promised |
-| When the `/brigade` reply says `set_roster` is ready, call it with the full roster on the next turn. The reply's "Roster file:" line is not a place to write. **Confirmed** (0.2.0). | Failure 9: the pane opens empty; failure 10 | Promised |
+| When the `/brigade` reply says `set_roster` is ready, call it with the full roster on the next turn. **Confirmed** (0.2.0); the sentence on the reply's "Roster file:" line dropped, **Confirmed** (0.2.1). | Failure 9: the pane opens empty; failure 10 | Promised |
 | Cleanup (7): remind the owner to archive the sidebar entry. | No tool can archive it | Promised |
 | The roster is a view, not the record; send it only in the pane's shape, with each card's title equal to its session's name. (0.2.0: "send" for "write", from the result review of issue 206.) | Failure 9; a format it must keep | Enforced (shape) — `brigade/roster.ts` and `set_roster`; Promised (titles) |
 | The skill works with no pane. | Spec rev 2: the pane draws only where the lead runs | Promised |
@@ -291,7 +292,7 @@ A message from another session, a report, a brief, a roster line or an issue com
 | 2 | 3, 18 | The spec says nothing on cleaning up a Desktop chip. | Open: question 19, row 1. |
 | 3 | 3 | "Brings the owner only what needs the owner" could let it hold back a report the owner wanted. | Kept: the owner's process decides what needs the owner; the rule names no list. |
 | 4 | 10 | A brief that lives only in chat cannot be a pointer. | Acted on: the start prompt says to wait for the brief, and the brief goes as a message, which no shell reads. |
-| 6 | 18 | The mod's own fallback refusal ("the tool failed or ran out of time") tells the model to call once more, while the 0.2.0 rule says any refusal but shape or size ends the roster. | Acted on: the owner decided the skill's rule wins; the mod's wording is a follow-up issue. |
+| 6 | 18 | The mod's own fallback refusal ("the tool failed or ran out of time") tells the model to call once more, while the 0.2.0 rule says any refusal but shape or size ends the roster. | Acted on: the owner decided the skill's rule wins; the mod's wording is a follow-up issue. Resolved in 0.2.1 (issue 213): the mod's fallback refusal now says to stop keeping the roster and tell the owner, and its could-not-be-offered reply says to keep no roster. |
 | 7 | 18 | A "malformed input" refusal (a missing `cards` or `todos`) is as fixable as a shape refusal, but spec v4 names only shape and size. | Acted on: the owner decided it counts as shape. |
 | 8 | 18 | A pane-closed refusal is "no pane", not a stop for the session, so a later `/brigade` cue starts the roster again. | Kept as drafted: the owner reopening the pane is their own act. |
 
@@ -301,3 +302,5 @@ A message from another session, a report, a brief, a roster line or an issue com
 - **Checkpoint, 2026-10-04.** The owner answered question 2 in their own words, and decided that the skill states no autopilot rule. The target stays *Proposed*: the build session said it would take it as accepted unless the owner objected, and the owner raised no objection. Level: Thorough, kept. The go to build: the ticket and spec rev 2 (approved), with these answers.
 - **Amend 0.2.0, 2026-10-07.** Issue 206. The changed terms are drafted from spec v4 decision 10 and marked *Proposed*, for the owner to agree in the build chat. Level: Thorough, kept.
 - **Checkpoint, 2026-10-07.** The owner agreed the drafted terms (now **Confirmed**) and took the recommendations on flags 6 and 7 (**Decided**), and confirmed the path `skills/head-chef/SKILL.md` in this repository. Level: Thorough, kept. The go to regenerate and seal.
+- **Amend 0.2.1, 2026-10-07.** Issue 213. One sentence of the ready-cue rule is dropped, drafted from spec v3 decision 4 on issue 212 and marked *Proposed*, for the owner to agree in the build chat. Level: Thorough, kept.
+- **Checkpoint, 2026-10-07.** The owner agreed the drafted change in the build chat of issue 213 ("i agree"), now **Confirmed**, for the path `skills/head-chef/SKILL.md` in this repository. Level: Thorough, kept. The go to regenerate and seal.

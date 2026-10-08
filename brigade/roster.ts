@@ -384,17 +384,81 @@ export function remoteLink(transcript: string): string | undefined {
   return found
 }
 
+// A Desktop session's local id, whole: the one shape both routes of Open in
+// app take from a card.
+const DESKTOP_ID = /^local_[0-9a-f-]{1,80}$/
+
 /** The app's own link to a card's session, of one of the two known shapes,
  *  or undefined: a Desktop session by its local id, or a Remote Control
  *  session by its claude.ai path under the app's scheme. */
 export function appLink(c: Card, found: string | undefined): string | undefined {
-  if (c.desktopId !== undefined && /^local_[0-9a-f-]{1,80}$/.test(c.desktopId)) {
+  if (c.desktopId !== undefined && DESKTOP_ID.test(c.desktopId)) {
     return `claude://claude.ai/epitaxy/${c.desktopId}`
   }
   const web = c.url ?? found
   return web !== undefined && WEB_LINK.test(web)
     ? `claude://claude.ai/code/${web.slice('https://claude.ai/code/'.length)}`
     : undefined
+}
+
+// Open in app through the Desktop app's own tool, which shows a session this
+// lead started beside it. The tool, its server and the target are constants:
+// no roster text names any of them, and only a checked Desktop id is sent.
+export const OPEN_TOOL = 'mcp__ccd_window__open_session_in'
+export const OPEN_SERVER = 'ccd_window'
+export const OPEN_NAME = 'open_session_in'
+export const OPEN_TARGET = 'split'
+export const OPEN_WAIT_MS = 5000
+export const OPENED = 'Opened in the app.'
+export const NOT_OPENED = 'The app did not open it: '
+
+/** The session id a press asks the Desktop app's tool to show, or undefined
+ *  when the card takes the link route alone: only a Desktop id of the checked
+ *  shape. A background card, a Remote Control link or any other text in the
+ *  card never reaches the tool. */
+export function toolSession(c: Card): string | undefined {
+  return c.desktopId !== undefined && DESKTOP_ID.test(c.desktopId) ? c.desktopId : undefined
+}
+
+/** Whether the engine lists the Desktop app's tool by exactly its name. The
+ *  owner's rules are matched on that name, so the press asks about no other;
+ *  the terminal lists none. The list is read as untrusted. */
+export function listsOpenTool(tools: unknown): boolean {
+  return Array.isArray(tools) && tools.some(t => isRecord(t) && t.name === OPEN_TOOL)
+}
+
+/** Whether the owner's rules let a press call the tool, from the engine's
+ *  verdict, read as untrusted: `allow`, or an `ask` that names no rule, which
+ *  is a mode's; and an organisation's ceiling, where the engine reports one, of
+ *  `allow`. A `deny`, an `ask` naming a rule, a lower ceiling or anything else
+ *  keeps the press on the link route. */
+export function rulesAllowTool(verdict: unknown): boolean {
+  if (!isRecord(verdict)) return false
+  if (verdict.ceiling !== undefined && verdict.ceiling !== 'allow') return false
+  if (verdict.decision === 'allow') return true
+  return verdict.decision === 'ask' && verdict.rule === undefined
+}
+
+// The first line of a text block, made safe to draw and cut to the pane's
+// one-line length. The line is taken before cleaning, which folds breaks.
+const firstLine = (text: string) => oneLine(text.split(/\r\n|[\n\r\u{2028}\u{2029}]/u)[0] ?? '', 200)
+
+/** What the Desktop app's answer means, read as untrusted, since another
+ *  plugin can answer in the app's place. Exactly one of three outcomes:
+ *  opened with the answer's first line to show; opened with no text, shown as
+ *  a fixed line; or not opened, with the app's own reason when it gave one as
+ *  text. Nothing in it throws. */
+export function readOpenAnswer(answer: unknown): { opened: true; toast: string } | { opened: false; reason?: string } {
+  try {
+    if (!isRecord(answer) || !Array.isArray(answer.content) || typeof answer.isError !== 'boolean') return { opened: false }
+    const first: unknown = answer.content[0]
+    const text = isRecord(first) && first.type === 'text' && typeof first.text === 'string' ? firstLine(first.text) : ''
+    if (answer.isError === false) return { opened: true, toast: text === '' ? OPENED : text }
+    return text === '' ? { opened: false } : { opened: false, reason: `${NOT_OPENED}${text}` }
+  } catch {
+    // A field that throws when read is not an answer.
+    return { opened: false }
+  }
 }
 
 // The wrapper the engine puts round a message from another session. Only a
