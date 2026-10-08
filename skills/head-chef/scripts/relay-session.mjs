@@ -1,10 +1,12 @@
 #!/usr/bin/env node
 // What a session runs to ask the owner by relay, to take a relayed answer, to
-// post its fixed record lines, and to clean up:
+// post its fixed record lines, to close its questions when the owner answers
+// in its own chat, and to clean up:
 //
 //   node relay-session.mjs ask --record <issue link> --file <question file>
 //   node relay-session.mjs take --record <issue link>
 //   node relay-session.mjs post --record <issue link> --kind report|milestone-miss|question-miss [--link <link>]
+//   node relay-session.mjs close
 //   node relay-session.mjs end
 //
 // This file builds the real inputs and the two runners, and does nothing

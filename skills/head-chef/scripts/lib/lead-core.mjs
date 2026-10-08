@@ -265,18 +265,25 @@ function relay(opts, ctx) {
     const rows = listRows(ctx);
     const name = leadCheck(rows, q.sessionId);
 
-    if (screen(words)) return askOwn('screened', ["Ask the owner to rephrase, or to answer in the session's own chat."]);
-    if (words.toLowerCase() === 'done') return askOwn('done', ['Ask the owner whether this answers the question or ends the session.']);
+    // Every outcome that asks the owner something moves the mark past the
+    // words just read, so the owner's next message is read alone.
+    const askOwner = (reason, line) => {
+      q.mark = typed[0].id;
+      save(state);
+      return askOwn(reason, [line]);
+    };
+    if (screen(words)) return askOwner('screened', "Ask the owner to rephrase, or to answer in the session's own chat.");
+    if (words.toLowerCase() === 'done') return askOwner('done', 'Ask the owner whether this answers the question or ends the session.');
     const letter = pick(words, q.choices);
-    if (!letter) return askOwn('letter', ['Ask the owner for the letter.']);
-    if (q.choices[letter].trim().toLowerCase() === 'done') return askOwn('done', ['Ask the owner whether this answers the question or ends the session.']);
+    if (!letter) return askOwner('letter', 'Ask the owner for the letter.');
+    if (q.choices[letter].trim().toLowerCase() === 'done') return askOwner('done', 'Ask the owner whether this answers the question or ends the session.');
     const open = Object.values(state.questions).filter(x => !x.relayed);
     if (open.length > 1) {
       const n = name || '';
       const re = new RegExp(`(?<![A-Za-z0-9._-])${n.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(?![A-Za-z0-9._-])`);
-      if (!n || !re.test(words)) return askOwn('which-question', ['Ask the owner which question this answers.']);
+      if (!n || !re.test(words)) return askOwner('which-question', 'Ask the owner which question this answers.');
     }
-    if (!name) return askOwn('not-found', ['The asking session has no single current name; tell the owner to answer in its own chat.']);
+    if (!name) return askOwner('not-found', 'The asking session has no single current name; tell the owner to answer in its own chat.');
 
     const notices = [];
     const bare = /^[A-Fa-f][).,]?$/.test(words) || words.toLowerCase() === q.choices[letter].toLowerCase();
@@ -335,7 +342,7 @@ function check(opts, ctx) {
       const isReply = TOOK.test(first) || FAILED.test(first) || NOT_RECORDED.test(first);
       if (!isReply) {
         // A report: every relay to this session with no reply by now.
-        for (const rl of state.relays.filter(x => x.sessionId === sid && x.at < r.off)) {
+        for (const rl of state.relays.filter(x => x.sessionId === sid && x.at <= r.off)) {
           alarms.push(`ALARM: no reply from ${nameOf(sid)} to the answer you relayed for "${rl.question}" by its next report; it may not have landed.`);
           dropRelay(rl);
         }
@@ -357,10 +364,12 @@ function check(opts, ctx) {
         } else if (rl) {
           alarms.push(`ALARM: ${nameOf(sid)} took choice ${took[1]} for "${rl.question}", but you relayed choice ${rl.letter}. Post a correction on ${rl.record}.`);
           dropRelay(rl);
-        } else {
-          const where = state.noted[sid].record;
-          alarms.push(`ALARM: ${nameOf(sid)} took an answer you never relayed${noted ? ` for "${noted.question}"` : ''}. Post a correction on ${where}.`);
-          if (noted) delete state.questions[code];
+        } else if (noted) {
+          alarms.push(`ALARM: ${nameOf(sid)} took an answer you never relayed for "${noted.question}". Post a correction on ${state.noted[sid].record}.`);
+          delete state.questions[code];
+        } else if (!unknownNoticed) {
+          unknownNoticed = true;
+          lines.push(`Notice: ${nameOf(sid)} replied about a code you never noted.`);
         }
       } else if (rl) {
         alarms.push(`ALARM: ${nameOf(sid)} refused the answer you relayed for "${rl.question}"; it did not land.`);

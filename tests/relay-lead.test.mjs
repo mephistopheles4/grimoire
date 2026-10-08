@@ -207,12 +207,17 @@ test('relay asks for the letter, for which message, and whether "done" ends the 
   const r1 = answer(w, 'take your recommendation');
   expectResult(r1, 3, 'RESULT: ask-in-own-chat letter');
   assert.ok(r1.lines.includes('Ask the owner for the letter.'));
-  w.append(IDS.lead, typed('B', desk));
-  const r2 = w.lead('relay', '--code', C1);
-  expectResult(r2, 3, 'RESULT: ask-in-own-chat which-message');
-  const r3 = answer(w, 'B');
-  expectResult(r3, 0, 'RESULT: ok');
-  assert.ok(r3.lines[0].startsWith('Relaying choice B) cut it'));
+  // The owner's next message is read alone.
+  const r2 = answer(w, 'B');
+  expectResult(r2, 0, 'RESULT: ok');
+  assert.ok(r2.lines[0].startsWith('Relaying choice B) cut it'));
+
+  const w5 = world();
+  question(w5);
+  w5.append(IDS.lead, typed('A', desk), typed('B', desk));
+  expectResult(w5.lead('relay', '--code', C1), 3, 'RESULT: ask-in-own-chat which-message');
+  const r5 = answer(w5, 'B');
+  assert.ok(r5.lines[0].startsWith('Relaying choice B) cut it'), show(r5));
 
   const w2 = world();
   question(w2);
@@ -258,9 +263,7 @@ test('with two open questions the words must name the asking session', () => {
   question(w, C2, qText('build-8', 'Other?'), 'build-8');
   expectResult(answer(w, 'A', C1), 3, 'RESULT: ask-in-own-chat which-question');
   const r = answer(w, 'A, build-7', C1);
-  expectResult(r, 3, 'RESULT: ask-in-own-chat which-message');
-  const r2 = answer(w, 'A, build-7', C1);
-  expectResult(r2, 0, 'RESULT: ok');
+  expectResult(r, 0, 'RESULT: ok');
 });
 
 test('a malformed message after the owner\'s reply is not taken as the owner\'s words', () => {

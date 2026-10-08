@@ -16,6 +16,7 @@ const SPEC = {
   ask: ['--record', '--file'],
   take: ['--record'],
   post: ['--record', '--kind', '--link?'],
+  close: [],
   end: [],
 };
 
@@ -175,7 +176,7 @@ function take(opts, ctx) {
     const last = compacted.length ? Math.max(...compacted) : -1;
     let closed = 0;
     for (const code of Object.keys(state.open)) {
-      if (state.open[code].askOffset < last) { delete state.open[code]; closed++; }
+      if (state.open[code].askOffset <= last) { delete state.open[code]; closed++; }
     }
     if (closed) {
       save(state);
@@ -299,8 +300,25 @@ function postLine(opts, ctx) {
       state.unmatchedPosted = false;
       save(state);
     }
+    // A question that could not be delivered is closed with every other
+    // open one; asking again makes a fresh code.
+    if (kind === 'question-miss' && Object.keys(state.open).length) {
+      state.open = {};
+      save(state);
+    }
     return post(ctx, parseRecord(sp.record), line) ? ok([`Posted the ${kind} line.`]) : askOwn('post-failed');
   });
 }
 
-const COMMANDS = { ask, take, post: postLine };
+// Any answer closes the code: run when the owner answers in the session's
+// own chat. It closes every open question, and posts nothing.
+function close(opts, ctx) {
+  return withState(ctx, 'session', fresh, (state, save) => {
+    const n = Object.keys(state.open).length;
+    state.open = {};
+    save(state);
+    return ok([`Closed ${n} open question${n === 1 ? '' : 's'} for relay.`]);
+  });
+}
+
+const COMMANDS = { ask, take, post: postLine, close };

@@ -16,12 +16,13 @@ import assert from 'node:assert/strict';
 import * as fs from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { pathToFileURL } from 'node:url';
 import { root } from './helpers.mjs';
 
 export const SCRIPTS = join(root, 'skills', 'head-chef', 'scripts');
-export const { runSession } = await import(`file://${join(SCRIPTS, 'lib', 'session-core.mjs').replace(/\\/g, '/')}`);
-export const { runLead, pick } = await import(`file://${join(SCRIPTS, 'lib', 'lead-core.mjs').replace(/\\/g, '/')}`);
-export const core = await import(`file://${join(SCRIPTS, 'lib', 'relay-core.mjs').replace(/\\/g, '/')}`);
+export const { runSession } = await import(pathToFileURL(join(SCRIPTS, 'lib', 'session-core.mjs')).href);
+export const { runLead, pick } = await import(pathToFileURL(join(SCRIPTS, 'lib', 'lead-core.mjs')).href);
+export const core = await import(pathToFileURL(join(SCRIPTS, 'lib', 'relay-core.mjs')).href);
 
 // The only ids a fixture may hold.
 export const IDS = {

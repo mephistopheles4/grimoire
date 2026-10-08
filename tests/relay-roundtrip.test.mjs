@@ -97,7 +97,7 @@ test('a relay whose words hold a backslash escape, copied changed by a model, is
   send(w, SESSION_NAME, IDS.lead, asked);
   w.lead('show');
   const bs = String.fromCharCode(92);
-  w.append(IDS.lead, typed(`A ${bs}u0041`, desk));
+  w.append(IDS.lead, typed(`A, ${bs}u0041`, desk));
   const code = /Code: ([0-9a-f]{8})/.exec(messageOf(asked))[1];
   const relayed = w.lead('relay', '--code', code);
   assert.ok(relayed.lines.some(l => l.startsWith('Notice: the words hold a backslash')), show(relayed));
