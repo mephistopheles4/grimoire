@@ -3,8 +3,8 @@ name: head-chef
 description: Makes this Claude Desktop session the lead of a brigade, the Claude Code sessions it starts. It starts each one in the background or as a Desktop session with the model and effort set, points it to where its brief lives, takes its milestone reports, relays between sessions, keeps the Brigade pane's roster when the pane is there, and cleans up a session and its worktree when the owner says it is done. Use when someone asks for work to run in another session, to start or hand off to a new session, or to lead several sessions, or types /head-chef. Not for work in this same session, and not for a question about how sessions work.
 metadata:
   contract-version: 0.3.0
-  familiar-digest: "sha256:43f361a8f4808dddc287dfc2597ed54b53d002409d112610f805a41e7c07d0e5"
-  contract-digest: "sha256:328131e40e30f379916223da1c2e7ecb38876b666a44eed7b6f8f2c68b881584"
+  familiar-digest: "sha256:dff36a88e01eafb043c6554dad97905b22cbeeb46c1fceca946ca8d56e5c7873"
+  contract-digest: "sha256:6b901c06caca369407b7453cefc07533f4f7fa4f99d43fa82ff1e192b99f3dd8"
 ---
 
 # Head chef
@@ -257,9 +257,11 @@ session's rows with the last turn's. Reason: a milestone that never arrived
 as a message, a session waiting in its own chat, or a session that vanished
 must still reach the owner (failure 14).
 
-- **A background row whose `state` is `blocked`:** its turn has ended, and it
-  waits in its own chat. Tell the owner once for each wait: "<session> is
-  waiting for you in its own chat."
+- **A background row whose `state` is `blocked`:** it waits for input in its
+  own chat. Tell the owner once for each wait: "<session> is waiting for you
+  in its own chat."
+- **A background row whose `state` is `done`:** its work has ended. Read its
+  record for the end-of-work report, as below.
 - **No row:** the session ended, crashed or left the list. Tell the owner
   once.
 - **An interactive row has no `state`,** only `status`, `idle` or `busy`. A

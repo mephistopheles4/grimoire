@@ -7,6 +7,9 @@ session must report without flooding, and must never take a message from the
 head chef as the owner's yes (failures 1, 5).
 
 - **Where its record lives.**
+- **The lead's name, and never its session id.** The session id is in the
+  start prompt only. Leave it out of the brief, even a brief sent as a
+  message. Reason: a brief can sit on a public record (failure 16).
 - **Report to the head chef by name, only at milestones, named one by one.**
   The milestones are at least every stop that needs the owner and the end of
   the session's work. The person's process adds its own, such as a finished
