@@ -47,7 +47,8 @@ For records kept on GitHub issues, the GitHub command line (`gh`) must be
 installed and signed in. The lead uses it only to read its sessions' issues,
 to read whether their repository is public, to read the signed-in account's
 name, and to post the rename line. In a permission mode that asks before each
-command, a session's lookup of the lead and its posts may wait at a prompt.
+command, a session's lookups, its code call, its post files and its posts may
+wait at a prompt.
 An allow rule is yours to add.
 
 Then, in Claude Desktop, ask for work to run elsewhere, for example *"can
