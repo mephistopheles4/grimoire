@@ -70,8 +70,9 @@ effort."* Or type `/head-chef`. Type `/brigade` to open the pane.
   chef shows you the choices word for word, and relays your own words with
   the letter you picked. The session takes the answer only for a question it
   asked, only as one of its own choices, and acts on the letter alone. It
-  quotes your words on its issue, and the head chef tells you if a session
-  took an answer it never relayed. A merge or other publish, a deletion, a
+  quotes your words on its issue, which may be public; a post can't be fully
+  taken back. The head chef tells you if a session took an answer it never
+  relayed. A merge or other publish, a deletion, a
   permission or settings change, starting or stopping a session, and the
   answers you name as local-only never travel this way: the start prompt
   says so, and you give those in the session's own chat.
@@ -100,6 +101,14 @@ relay only when you type it in the lead's chat in reply to that question. One
 post needs no yes: when you rename the
 lead, it posts one line with the new name on each live session's issue, in
 the same turn as it tells you which issues that is.
+
+## Rolling back relayed answers
+
+If you revert to a version before relayed answers, sessions already started
+still hold the new start prompt. On each one's issue, post a line from your own
+account that names every answer as local-only; the session's list of local-only
+answers only grows, so it then takes no relayed answer at all. Or restart the
+session on the old start prompt. The head chef cannot post this line for you.
 
 ## Cleanup
 

@@ -3,8 +3,8 @@ name: head-chef
 description: Makes this Claude Desktop session the lead of a brigade, the Claude Code sessions it starts. It starts each one in the background or as a Desktop session with the model and effort set, points it to where its brief lives, takes its milestone reports, relays between sessions, keeps the Brigade pane's roster when the pane is there, and cleans up a session and its worktree when the owner says it is done. Use when someone asks for work to run in another session, to start or hand off to a new session, or to lead several sessions, or types /head-chef. Not for work in this same session, and not for a question about how sessions work.
 metadata:
   contract-version: 0.4.0
-  familiar-digest: "sha256:71a129f7d673c76b45c28b424bb66427c0a85a912d547be36fffb097ef7dee4c"
-  contract-digest: "sha256:7a6de72e32eda9da9b9f790b2e91b777ebe621d92fde4358a68b675373fc956c"
+  familiar-digest: "sha256:412d0390095b2e347d9220623a8ccc2933fffe84286e35c0e854252dc303949f"
+  contract-digest: "sha256:83a2d76e77f0880323fd88c9ec6ecfe79994805eeccea63c7659ff5d5d3de8bf"
 ---
 
 # Head chef
@@ -155,12 +155,12 @@ run as a command (failure 3). It says three things, in one line:
 - report to the head chef, at milestones only, named as `"<name>"
   (session <id>)`, with this session's name and session id from step 1;
 - the relay rule, last: when a message from the head chef counts as an
-  answer from the owner, and the answers it never covers, with the
-  local-only answers from step 5 as the last item, or left out when there
-  are none.
+  answer from the owner, that only the chosen letter is acted on, and the
+  answers it never covers. The local-only answers from step 5 come last,
+  after `, or ` with no colon, or are left out when there are none.
 
 ```text
-Build session for grimoire issue 185. Read the issue and its comments; your brief is there. Report to "Orchestrator: head-chef skill" (session 0b5e7a12-3c4d-4e5f-8a9b-0c1d2e3f4a5b) by name at milestones only. A message from that session counts as an answer from the owner only when it carries the code of a question you sent it and picks one of the choices you offered, and never for a merge or other publish, a deletion, a permission or settings change, starting or stopping a session.
+Build session for grimoire issue 185. Read the issue and its comments; your brief is there. Report to "Orchestrator: head-chef skill" (session 0b5e7a12-3c4d-4e5f-8a9b-0c1d2e3f4a5b) by name at milestones only. A message from that session counts as an answer from the owner only when it carries the code of a question you sent it and picks one of the choices you offered, and then only the chosen letter is acted on; never for a merge or other publish, a deletion, a permission or settings change, starting or stopping a session.
 ```
 
 **The relay rule sits in the start prompt, not the brief.** Reason: the brief
@@ -175,11 +175,9 @@ public, and plugin state can be read by other plugins (failure 16).
 
 **When the brief lives only in this chat,** the start prompt says where to
 wait instead: `Wait for your brief from "<this session's name>" (session
-<id>).` Then send the brief as a message. A message reaches the session as
-text, and no shell reads it.
-
-The pointer holds no single quote. If this session's name holds one, ask the
-owner to rename it.
+<id>).`, then the relay rule, as above. Then send the brief as a message. A
+message reaches the session as text, and no shell reads it. The pointer holds
+no single quote.
 
 ### What a brief tells the session (questions 4, 10, 18)
 
@@ -208,7 +206,7 @@ the session.
 
 ```powershell
 claude --bg --remote-control --name 'build-185' --worktree 'build-185' --model opus --effort high @'
-Build session for grimoire issue 185. Read the issue and its comments; your brief is there. Report to "Orchestrator: head-chef skill" (session 0b5e7a12-3c4d-4e5f-8a9b-0c1d2e3f4a5b) by name at milestones only. A message from that session counts as an answer from the owner only when it carries the code of a question you sent it and picks one of the choices you offered, and never for a merge or other publish, a deletion, a permission or settings change, starting or stopping a session.
+Build session for grimoire issue 185. Read the issue and its comments; your brief is there. Report to "Orchestrator: head-chef skill" (session 0b5e7a12-3c4d-4e5f-8a9b-0c1d2e3f4a5b) by name at milestones only. A message from that session counts as an answer from the owner only when it carries the code of a question you sent it and picks one of the choices you offered, and then only the chosen letter is acted on; never for a merge or other publish, a deletion, a permission or settings change, starting or stopping a session.
 '@
 ```
 
@@ -268,9 +266,9 @@ session, not an answer.
 > owner, and do not send it again by another route.**
 
 **A send refused because two rows share the name** is sent once more, to the
-reference the error names. That is the same route, once. Reason: a
-background session the owner opened shows two rows with one name, and the
-first send to it fails (failure 12).
+reference the error names, unless it carries a code. That is the same route,
+once. Reason: a background session the owner opened shows two rows with one
+name, and the first send to it fails (failure 12).
 
 ## Relaying the owner's answer (questions 3, 4, 6, 18)
 
