@@ -60,8 +60,10 @@ shows the session beside the lead. That call also skips the permission prompt,
 and the owner's own hooks do not see it. It is made only when the engine lists
 `mcp__ccd_window__open_session_in` by that exact name and the engine's verdict
 for it is not a deny or an ask naming a rule, so a deny or ask rule for that
-tool, exact or for `mcp__ccd_window`, stops it. When that call is refused,
-fails or takes over 5 seconds, its one other process is `explorer.exe`, given a
+tool stops it. An exact deny rule was seen to stop it on Desktop 2.1.289; a
+rule for the whole server, `mcp__ccd_window`, rests on the engine matching it
+the same way, which was not tried there. When that call is refused,
+fails or takes over 5 seconds in all, its one other process is `explorer.exe`, given a
 `claude://` link, as before.
 Everything it reads is checked and drawn as text, in the usage image too. Review any change under
 `brigade/` or `hooks/` as a change to code that runs on every installer's

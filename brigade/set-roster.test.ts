@@ -140,6 +140,8 @@ type World = ReturnType<typeof makeFs> & {
   clock: ReturnType<typeof mock.clock>
   sid: string
   checks: string[]
+  checkInputs: unknown[]
+  stall: '' | 'tool list' | 'verdict'
   tools: unknown
   failList: boolean
   lists: number
@@ -169,6 +171,8 @@ function world(on: On, setup: (w: World) => void = w => w.dirs(`${CONFIG}\\plugi
     clock: undefined as unknown as ReturnType<typeof mock.clock>,
     sid: SID,
     checks: [] as string[],
+    checkInputs: [] as unknown[],
+    stall: '' as World['stall'],
     tools: [{ name: OPEN_TOOL, description: 'Open a session', mcp: true }] as unknown,
     failList: false,
     lists: 0,
@@ -212,6 +216,8 @@ function world(on: On, setup: (w: World) => void = w => w.dirs(`${CONFIG}\\plugi
   on('session.id', () => ({ value: w.sid }))
   on('tool.check', ($, e: any) => {
     w.checks.push(String(e.tool))
+    w.checkInputs.push(e.input)
+    if (w.stall === 'verdict') return new Promise<never>(() => {})
     if (w.failCheck) throw new Error('forced')
     return w.verdict
   })
@@ -238,6 +244,7 @@ function world(on: On, setup: (w: World) => void = w => w.dirs(`${CONFIG}\\plugi
   on('classic.UserPromptSubmit', () => ({}))
   on('tool.list', () => {
     w.lists++
+    if (w.stall === 'tool list') return new Promise<never>(() => {})
     return w.failList ? { deny: 'forced list failure' } : { value: w.tools }
   })
   on('mcp.call', ($, e: any) => {
@@ -718,6 +725,8 @@ test('a press on a Desktop card asks the app to show it in a split, with that id
   await press($, 'open-0-alpha')
   expect(w.mcpCalls).toEqual([{ server: 'ccd_window', tool: 'open_session_in', args: { session_id: DESKTOP, target: 'split' } }])
   expect(w.checks).toEqual([OPEN_TOOL])
+  // The verdict is asked about the call as it will be made.
+  expect(w.checkInputs).toEqual([{ session_id: DESKTOP, target: 'split' }])
   expect(explorer(w)).toEqual([])
   expect(w.toasts.at(-1)).toBe('Opened session local_x in a split pane (pane 1) beside this one.')
 })
@@ -867,7 +876,10 @@ test('a to-do tick still works while an Open in app press waits for the app', as
   const first = press($, 'open-0-alpha')
   await w.clock.settle()
   await press($, 'todo-0-t1')
-  expect(w.log.some(l => l.startsWith('state ticking'))).toBe(true)
+  // The tick lands on the to-do pressed, while the first press still waits.
+  expect(w.log.filter(l => l.startsWith('state ticking')).at(-1)).toContain('"t1"')
+  expect(w.mcpCalls.length).toBe(1)
+  expect(explorer(w)).toEqual([])
   release(answer('Opened'))
   await first
 })
@@ -894,10 +906,32 @@ test('a card with only a url, or only a background id, makes no tool list and no
   ])
 })
 
-test('a Desktop id outside the local_ shape draws no Open in app and makes neither call', async ($, on) => {
-  const w = await pane(on, $)
+// No press can reach either call for such a card, since its button is never
+// drawn; the shape rule itself is held in tests/brigade-roster-rules.test.mjs.
+test('a Desktop id outside the local_ shape draws no Open in app', async ($, on) => {
+  await pane(on, $)
   expect(await mounted.find({ key: 'open-0-alpha' })).toBeDefined()
   expect(await mounted.find({ key: 'open-3-delta' })).toBeUndefined()
-  expect(w.lists).toBe(0)
-  expect(w.mcpCalls).toEqual([])
 })
+// The 5-second wait covers the whole tool route, the tool list and the
+// verdict included, so a question that never comes back cannot hold the
+// one-press mark.
+for (const stalled of ['tool list', 'verdict'] as const) {
+  test(`a ${stalled} that never answers takes the link route at 5 seconds, and the next press tries again`, async ($, on) => {
+    const w = await pane(on, $)
+    w.stall = stalled
+    const pressed = press($, 'open-0-alpha')
+    await w.clock.advance(4999)
+    expect(explorer(w)).toEqual([])
+    await w.clock.advance(1)
+    await pressed
+    expect(explorer(w)).toEqual([['explorer.exe', LINK]])
+    expect(w.mcpCalls).toEqual([])
+    const before = w.lists
+    const again = press($, 'open-0-alpha')
+    await w.clock.advance(5000)
+    await again
+    expect(w.lists).toBe(before + 1)
+    expect(explorer(w).length).toBe(2)
+  })
+}

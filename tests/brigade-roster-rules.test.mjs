@@ -395,3 +395,9 @@ test("the app's text is cleaned and cut to 200 characters, whether it opened or 
   const refused = readOpenAnswer({ content: [{ type: 'text', text: raw }], isError: true });
   assert.equal(refused.reason, `The app did not open it: ${opened.toast}`);
 });
+test('an answer whose field throws when read is not an answer, and the reader does not throw', () => {
+  const answer = { content: [], get isError() { throw new Error('planted'); } };
+  assert.deepEqual(readOpenAnswer(answer), { opened: false });
+  const block = { get type() { throw new Error('planted'); } };
+  assert.deepEqual(readOpenAnswer({ content: [block], isError: false }), { opened: false });
+});

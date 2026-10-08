@@ -449,11 +449,16 @@ const firstLine = (text: string) => oneLine(text.split(/\r\n|[\n\r\u{2028}\u{202
  *  a fixed line; or not opened, with the app's own reason when it gave one as
  *  text. Nothing in it throws. */
 export function readOpenAnswer(answer: unknown): { opened: true; toast: string } | { opened: false; reason?: string } {
-  if (!isRecord(answer) || !Array.isArray(answer.content) || typeof answer.isError !== 'boolean') return { opened: false }
-  const first: unknown = answer.content[0]
-  const text = isRecord(first) && first.type === 'text' && typeof first.text === 'string' ? firstLine(first.text) : ''
-  if (answer.isError === false) return { opened: true, toast: text === '' ? OPENED : text }
-  return text === '' ? { opened: false } : { opened: false, reason: `${NOT_OPENED}${text}` }
+  try {
+    if (!isRecord(answer) || !Array.isArray(answer.content) || typeof answer.isError !== 'boolean') return { opened: false }
+    const first: unknown = answer.content[0]
+    const text = isRecord(first) && first.type === 'text' && typeof first.text === 'string' ? firstLine(first.text) : ''
+    if (answer.isError === false) return { opened: true, toast: text === '' ? OPENED : text }
+    return text === '' ? { opened: false } : { opened: false, reason: `${NOT_OPENED}${text}` }
+  } catch {
+    // A field that throws when read is not an answer.
+    return { opened: false }
+  }
 }
 
 // The wrapper the engine puts round a message from another session. Only a

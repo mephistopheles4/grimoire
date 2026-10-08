@@ -378,33 +378,44 @@ const opening = new Set<string>()
 // engine lists it by its exact name and the owner's rules allow it, and its
 // answer is read as untrusted. No permission prompt sees this call, so those
 // checks stand in for one. Any refusal, rejection, throw or a wait past 5 s
-// on the engine's clock ends the route, and the press goes on to the link.
-// Resolves true when the app said it opened the session.
+// on the engine's clock, from the tool list to the answer, ends the route, and
+// the press goes on to the link. Resolves true when the app said it opened
+// the session.
 async function viaTool($: EngineInterface, session: string): Promise<boolean> {
-  if (!listsOpenTool(await $.tool.list())) return false
-  const args = { session_id: session, target: OPEN_TARGET }
-  if (!rulesAllowTool(await $.tool.check({ tool: OPEN_TOOL, input: args }))) return false
+  let over = false
   let timer: Timer | undefined
-  const late = new Promise<'late'>(res => {
-    timer = $.clock.after(OPEN_WAIT_MS, () => res('late'))
+  const waited = new Promise<false>(res => {
+    timer = $.clock.after(OPEN_WAIT_MS, () => {
+      over = true
+      res(false)
+    })
   })
-  const call = $.mcp.call(OPEN_SERVER, OPEN_NAME, args)
-  // A call that answers or fails after the wait is dropped here, unread. A
-  // late success may still show the split after the link route ran.
-  call.catch(() => undefined)
+  const route = askTool($, session, () => over)
+  // A route that ends or fails after the wait is dropped here, unread.
+  route.catch(() => undefined)
   try {
-    const answer = await Promise.race([call, late])
-    if (answer === 'late') return false
-    const outcome = readOpenAnswer(answer)
-    if (outcome.opened) {
-      $.ui.toast(outcome.toast)
-      return true
-    }
-    if (outcome.reason !== undefined) $.ui.toast(outcome.reason)
-    return false
+    return await Promise.race([route, waited])
   } finally {
     timer?.cancel()
   }
+}
+
+// The tool route itself. After the wait is over it makes no call and shows
+// nothing; a call already made may still show the split after the link route
+// ran.
+async function askTool($: EngineInterface, session: string, over: () => boolean): Promise<boolean> {
+  if (!listsOpenTool(await $.tool.list())) return false
+  const args = { session_id: session, target: OPEN_TARGET }
+  if (!rulesAllowTool(await $.tool.check({ tool: OPEN_TOOL, input: args }))) return false
+  if (over()) return false
+  const outcome = readOpenAnswer(await $.mcp.call(OPEN_SERVER, OPEN_NAME, args))
+  if (over()) return false
+  if (outcome.opened) {
+    $.ui.toast(outcome.toast)
+    return true
+  }
+  if (outcome.reason !== undefined) $.ui.toast(outcome.reason)
+  return false
 }
 
 // The pane's Link takes https only, so the app link goes to Windows' own
