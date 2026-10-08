@@ -116,6 +116,7 @@ named its cleanup back, before the first release.
 | File | What it is |
 | --- | --- |
 | `SKILL.md` | The skill. Generated from the contract, and sealed. |
+| `references/brief.md` | What a brief tells each session. Generated with `SKILL.md`, and sealed. |
 | `CONTRACT.md` | The terms it was built from, with the reason for each rule. |
 | `README.md` | This page. |
 
