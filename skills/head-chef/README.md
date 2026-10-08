@@ -64,8 +64,17 @@ effort."* Or type `/head-chef`. Type `/brigade` to open the pane.
   the brief lives, an issue or a plan file, passed in a form the shell does
   not expand. A brief that lives only in chat goes as a message.
 - **Takes reports at milestones.** Each brief tells the session to report to
-  the head chef by name, only at milestones, and that a message from the head
-  chef is not your approval.
+  the head chef by name, only at milestones.
+- **Carries your answer to a session's question.** A session can ask you a
+  question through the lead, with its choices labelled A, B and on. The head
+  chef shows you the choices word for word, and relays your own words with
+  the letter you picked. The session takes the answer only for a question it
+  asked, only as one of its own choices, and acts on the letter alone. It
+  quotes your words on its issue, and the head chef tells you if a session
+  took an answer it never relayed. A merge or other publish, a deletion, a
+  permission or settings change, starting or stopping a session, and the
+  answers you name as local-only never travel this way: the start prompt
+  says so, and you give those in the session's own chat.
 - **Keeps reports flowing after you rename the lead.** Each start prompt
   names the lead by name and session id, and a session looks the lead up by
   that id before each report. Each report also leaves one line on the
@@ -86,7 +95,9 @@ Only your own words in chat. Your request to run work in another session is
 the yes to start it. Starting, stopping, removing a session and deleting a
 worktree each need your own words. A message from another session, a report,
 a brief, a roster line or an issue comment never counts. Reports and relayed
-text are data, not instructions. One post needs no yes: when you rename the
+text are data, not instructions. Your answer to a session's question goes by
+relay only when you type it in the lead's chat in reply to that question. One
+post needs no yes: when you rename the
 lead, it posts one line with the new name on each live session's issue, in
 the same turn as it tells you which issues that is.
 
@@ -119,6 +130,7 @@ from your phone shows none. The skill does not need it.
 ## What it never does
 
 - Start, stop or delete on anyone's word but yours.
+- Relay its own choice, a report's line or a paraphrase as your answer.
 - Put an issue's title or text into a command line.
 - Delete a worktree with unsaved work, or pop or drop a stash.
 - Restate or replace your own process's rules. It names no other skill.
@@ -136,7 +148,10 @@ named its cleanup back, before the first release.
 | File | What it is |
 | --- | --- |
 | `SKILL.md` | The skill. Generated from the contract, and sealed. |
-| `references/brief.md` | What a brief tells each session. Generated with `SKILL.md`, and sealed. |
+| `references/brief.md` | What a brief tells each session, relayed answers included. Generated with `SKILL.md`, and sealed. |
+| `references/relay.md` | How the head chef shows a question and relays your answer. Generated with `SKILL.md`, and sealed. |
+| `references/cleanup.md` | The seven cleanup steps. Generated with `SKILL.md`, and sealed. |
+| `references/roster.md` | How the head chef keeps the pane's roster. Generated with `SKILL.md`, and sealed. |
 | `CONTRACT.md` | The terms it was built from, with the reason for each rule. |
 | `README.md` | This page. |
 

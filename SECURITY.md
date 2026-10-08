@@ -75,7 +75,10 @@ has the guards and the gaps.
 worktrees: head-chef.** It runs no script of its own. The agent runs
 `claude --bg --remote-control`, `claude stop`, `claude rm` and `git` for it,
 and only on the owner's own words in chat. Remote Control makes each session it
-starts drivable from any device signed in to the owner's account.
+starts drivable from any device signed in to the owner's account. A session may
+take the owner's answer by relay, only for a question it asked, and never for a
+publish, a deletion, a permission or settings change, or starting or stopping a
+session. Each relayed answer is quoted on the session's record.
 [Row 16 of the threat model](docs/security/threat-model.md#the-matrix) has the
 guards and the gaps.
 
