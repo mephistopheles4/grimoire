@@ -400,3 +400,30 @@ test('round 2, integrity F7: two reports in a row raise the no-reply alarm once'
   const r = w.lead('check');
   assert.ok(!r.lines.some(l => l.startsWith('ALARM')), show(r));
 });
+test('CodeRabbit: a program reached through a link resolves to its real file, and a link into the working folder does not', () => {
+  const dir = fs.mkdtempSync(join(tmpdir(), 'relay-link-'));
+  const name = process.platform === 'win32' ? 'gh.exe' : 'gh';
+  try {
+    for (const d of ['cellar', 'bin', 'work', 'bin2']) fs.mkdirSync(join(dir, d));
+    for (const d of ['cellar', 'work']) {
+      fs.writeFileSync(join(dir, d, name), 'x');
+      if (process.platform !== 'win32') fs.chmodSync(join(dir, d, name), 0o755);
+    }
+    let linked = true;
+    try {
+      fs.symlinkSync(join(dir, 'cellar', name), join(dir, 'bin', name), 'file');
+      fs.symlinkSync(join(dir, 'work', name), join(dir, 'bin2', name), 'file');
+    } catch (e) {
+      // Windows refuses a file link without Developer Mode; CI on Linux runs the whole case.
+      assert.equal(process.platform, 'win32', String(e));
+      linked = false;
+    }
+    if (linked) {
+      const found = programs.resolveProgram('gh', join(dir, 'bin'), process.platform, join(dir, 'work'));
+      assert.equal(found && fs.realpathSync(found), fs.realpathSync(join(dir, 'cellar', name)), 'a link outside the working folder resolves');
+      assert.equal(programs.resolveProgram('gh', join(dir, 'bin2'), process.platform, join(dir, 'work')), null, 'a link to a program in the working folder does not');
+    }
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});

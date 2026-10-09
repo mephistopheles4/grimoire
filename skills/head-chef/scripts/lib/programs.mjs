@@ -4,7 +4,7 @@
 // fixed working folder outside any repository.
 
 import { execFileSync } from 'node:child_process';
-import { lstatSync, accessSync, realpathSync, constants } from 'node:fs';
+import { statSync, accessSync, realpathSync, constants } from 'node:fs';
 import { isAbsolute, join, resolve, dirname } from 'node:path';
 import { tmpdir } from 'node:os';
 
@@ -28,12 +28,17 @@ export function resolveProgram(name, pathEnv, platform, cwd) {
     const d = real(resolve(dir));
     if (!d || (here && fold(d) === fold(here))) continue;
     const file = join(dir, platform === 'win32' ? `${name}.exe` : name);
+    // A program is often a link to a versioned file (Homebrew, npm, the
+    // native installer): follow it, require a regular file at the end, and
+    // hold that real file to the working-folder rule too.
+    const target = real(file);
+    if (!target) continue;
     try {
-      if (!lstatSync(file).isFile()) continue;
-      if (platform !== 'win32') accessSync(file, constants.X_OK);
-      const where = real(dirname(file));
+      if (!statSync(target).isFile()) continue;
+      if (platform !== 'win32') accessSync(target, constants.X_OK);
+      const where = real(dirname(target));
       if (!where || (here && fold(where) === fold(here))) continue;
-      return file;
+      return target;
     } catch { /* not here */ }
   }
   return null;

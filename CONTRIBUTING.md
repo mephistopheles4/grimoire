@@ -233,7 +233,7 @@ The seal writes a mark into the frontmatter: the contract's version, a digest
 of the skill's folder and a digest of the contract. The folder's digest covers
 every file in `skills/<name>/` except `CONTRACT.md`: for `contract`, the check
 script and the template; for `eagle-eye`, the renderer, the audit and the
-reference files; for `head-chef`, its README, its reference files and its SkillSpector baseline. So a change to any of them needs a new seal, and a stray
+reference files; for `head-chef`, its README, its reference files, its relay scripts in `scripts/` and its SkillSpector baseline. So a change to any of them needs a new seal, and a stray
 file such as `.DS_Store` breaks it. `node scripts/check.mjs` fails when a
 covered file changed after the seal. The seal proves only that those files
 are unchanged since they were sealed. It proves nothing about who sealed them,
