@@ -1,8 +1,8 @@
 # SkillSpector baseline for this skill.
 #
 # You are reading this because you scanned this directory before installing
-# what is in it, which is the right thing to do with a skill. Five of
-# SkillSpector's rules fire on the files here. Four are wrong and one is
+# what is in it, which is the right thing to do with a skill. Six of
+# SkillSpector's rules fire on the files here. Five are wrong and one is
 # accepted, and this file says why, so you can disagree with a reason rather
 # than with silence.
 #
@@ -20,7 +20,8 @@
 # skill that ships a script declares no permission list (accepted, since a
 # permission list is one host's format); a `delete` of a closed entry in the
 # scripts' own state reads as tampering with an agent's memory; and a function
-# returning the relay rule it parsed reads as leaking a system prompt.
+# returning the relay rule it parsed reads as leaking a system prompt; and a
+# copy of the environment handed to `gh` reads as opening a credential file.
 #
 # The scanner reports the score unchanged and applies none of this unless you
 # ask. Apply it with --use-shipped-baseline, and read what it covered with
@@ -49,3 +50,5 @@ rules:
     reason: "False positive. Two kinds of line, neither an agent's memory: a comment in eagle-eye's page template describing how Reset discards the reader's overrides and Undo offers them back, which documents a button; and head-chef's relay scripts deleting a closed question or relay from their own state file with the JavaScript delete operator."
   - rule_id: "P6"
     reason: "False positive. head-chef's relay scripts return the relay rule they parsed from a start prompt to their own code. It is a value the script checks and prints nowhere, not a system prompt or a hidden instruction."
+  - rule_id: "PE3"
+    reason: "False positive. Two kinds of line, neither opening a credential file: the string .env in eagle-eye's edge audit setup message and its test, which tell a user that a project .env file is not read, since the audit reads its key from the environment only; and head-chef's relay scripts copying process.env for the gh they start, with the host and repository settings removed."

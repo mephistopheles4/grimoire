@@ -52,6 +52,6 @@ rules:
   - rule_id: "RA2"
     reason: "Two findings, one rule. False positive: the CONTRIBUTING.md rule forbidding a fixed path inside a skill, and the test proving that rule fires; a guard and its test, both reported as the risk they exist to prevent. Not a false positive, and accepted: eagle-eye's usage log keeps a start and an end line per box in a file in the person's home folder, across sessions, and only after the person says yes in chat. A no is stored as one declined marker. The skill never writes inside its own folder."
   - rule_id: "PE3"
-    reason: "False positive. The string .env in the edge audit's setup message and in its test, which tell a user that a project .env file is not read. The script reads its key from the environment only and opens no credential file."
+    reason: "False positive. Two kinds of line, neither opening a credential file: the string .env in eagle-eye's edge audit setup message and its test, which tell a user that a project .env file is not read, since the audit reads its key from the environment only; and head-chef's relay scripts copying process.env for the gh they start, with the host and repository settings removed."
   - rule_id: "E1"
     reason: "Not a false positive, and accepted. The edge audit posts a box's text to the model provider's endpoint by design, and only when a user runs it with a key after saying yes. SECURITY.md, What the edge audit sends, states what leaves the machine and when."
