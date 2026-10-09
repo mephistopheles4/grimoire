@@ -21,7 +21,7 @@ runs it as a required check called `check`. `main` takes no direct pushes.
 Three more workflows check things the command above does not. One runs SkillSpector
 over the skill prose and fails on any finding the baselines do not cover, and on
 any file it reads only in part unless `.skillspector-allowances.json` accepts that
-partial read by name. The command above holds each accepted file to its content
+partial read by name, or a finding that reports a reference to an accepted file. The command above holds each accepted file to its content
 hash, so an edit to one fails until its entry is updated in the same pull request. One
 runs zizmor over `.github/workflows/` and fails on any finding at all —
 there is no baseline for it, because there is nothing to suppress. The third runs

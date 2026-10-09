@@ -90,7 +90,7 @@
         "static_patterns_system_prompt_leakage"
       ],
       "sha256": "850360df8992e69e658d8b798008465e3d431bd442d01525408cfda54801f45b",
-      "reason": "The skill's contract. The marker pass cannot settle a directive in it and gives up on undoing marker tricks there; the plain scan still reads the whole file under every listed check."
+      "reason": "The skill's contract. The marker pass reads a removal verb followed by a quote as the start of a \"remove the marker\" directive and cannot settle it; here that is the git command names in code spans, such as `worktree remove`, and prose on deleting a session that needs the owner's words. Measured on 2026-10-09: with those verbs disguised in a scratch copy, the give-up goes away; each matching line was read by hand and none is a disguised directive. The plain scan still reads the whole file under every listed check."
     },
     {
       "skill": "head-chef",
@@ -122,7 +122,7 @@
         "static_patterns_tool_misuse"
       ],
       "sha256": "4162e65f6c84e6513db04d56603c6c77c26378eb7b6d67be5632be7d3f295542",
-      "reason": "The skill's instructions. The marker pass cannot settle a directive in it and gives up on undoing marker tricks there; the plain scan still reads the whole file under every listed check."
+      "reason": "The skill's instructions. The marker pass reads a removal verb followed by a quote as the start of a \"remove the marker\" directive and cannot settle it; here that is the git command names in code spans, such as `worktree remove`. Measured on 2026-10-09: with those verbs disguised in a scratch copy, the give-up goes away; each matching line was read by hand and none is a disguised directive. The plain scan still reads the whole file under every listed check."
     },
     {
       "skill": "head-chef",
@@ -153,7 +153,7 @@
         "static_patterns_system_prompt_leakage"
       ],
       "sha256": "3fd9239a317da3d3038390f9bc1b364707324b416fd3b2d296f6a5c718995583",
-      "reason": "The relay checker, whose line-ending normalisation, a replace call on the relayed text, reads to the marker pass as a removal directive it cannot settle; the plain scan still reads the whole file under every listed check."
+      "reason": "The relay checker. The marker pass reads a removal verb followed by a quote as the start of a \"remove the marker\" directive and cannot settle it; here that is the quoted word lists, such as 'delete' and 'remove', the checker matches relayed answers against. Measured on 2026-10-09: with those verbs disguised in a scratch copy, the give-up goes away; each matching line was read by hand and none is a disguised directive. The plain scan still reads the whole file under every listed check."
     },
     {
       "skill": "head-chef",

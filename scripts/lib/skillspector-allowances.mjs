@@ -213,12 +213,12 @@ const sortedEqual = (a, b) => {
  * text did not parse.
  *
  * Returns:
- *   - `allowedExceptions`: indices into `exceptions` an entry accepts.
- *   - `allowedFiles`: the files whose every exception is accepted.
+ *   - `acceptedExceptions`: indices into `exceptions` an entry accepts.
+ *   - `acceptedFiles`: the files whose every exception is accepted.
  *   - `acceptedAe1`: indices into `ae1` an entry accepts.
  *   - `refusedAe1`: { index, why } for the rest.
- *   - `unused`: one line per entry for this skill that matched nothing, or a
- *     reference whose count disagrees.
+ *   - `unused`: one line per entry for this skill that matched nothing.
+ *   - `miscounted`: one line per reference whose count disagrees with the scan.
  */
 export function judge(skill, { exceptions, ae1 }, allowances) {
   const entries = new Map();
@@ -226,7 +226,7 @@ export function judge(skill, { exceptions, ae1 }, allowances) {
   const refs = new Map();
   for (const r of allowances.references) if (r.skill === skill) refs.set(JSON.stringify([r.from, r.target]), { entry: r, seen: [] });
 
-  const allowedExceptions = new Set();
+  const acceptedExceptions = new Set();
   const byFile = new Map();
   exceptions.forEach((x, i) => {
     const file = typeof x.path === 'string' ? x.path : null;
@@ -238,17 +238,20 @@ export function judge(skill, { exceptions, ae1 }, allowances) {
         ok = true;
       }
     }
-    if (ok) allowedExceptions.add(i);
+    if (ok) acceptedExceptions.add(i);
+    // An exception with no path still counts against a file, one no real path
+    // can equal: the NUL character never appears in a path the scanner writes,
+    // so that file is never an accepted one.
     const k = file ?? '\u{0}unknown';
     byFile.set(k, (byFile.get(k) ?? true) && ok);
   });
-  const allowedFiles = new Set([...byFile].filter(([, ok]) => ok).map(([f]) => f));
+  const acceptedFiles = new Set([...byFile].filter(([, ok]) => ok).map(([f]) => f));
 
   const refusedAe1 = [];
   ae1.forEach((f, i) => {
     if (!f.tagged) return refusedAe1.push({ index: i, why: `it is not tagged ${AE1_TAG}` });
     if (f.target === null) return refusedAe1.push({ index: i, why: 'its text does not parse as a reference to a partly read file' });
-    if (!allowedFiles.has(f.target)) return refusedAe1.push({ index: i, why: `its target ${f.target} is not a file the allowance accepts in this scan` });
+    if (!acceptedFiles.has(f.target)) return refusedAe1.push({ index: i, why: `its target ${f.target} is not a file the allowance accepts in this scan` });
     const ref = refs.get(JSON.stringify([f.from, f.target]));
     if (!ref) return refusedAe1.push({ index: i, why: `no references entry names ${f.from} to ${f.target}` });
     ref.seen.push(i);
@@ -257,11 +260,12 @@ export function judge(skill, { exceptions, ae1 }, allowances) {
   // ones: which of them is "the new one" is not something the report says.
   const acceptedAe1 = new Set();
   const unused = [];
+  const miscounted = [];
   for (const { entry, seen } of refs.values()) {
     if (!seen.length) {
-      unused.push(`references entry ${entry.from} -> ${entry.target} matched no AE1 finding`);
+      unused.push(`references entry ${entry.from} -> ${entry.target} matched no AE1 finding the allowance accepts`);
     } else if (seen.length !== entry.count) {
-      unused.push(`references entry ${entry.from} -> ${entry.target} expects ${entry.count} AE1 finding(s) and the scan has ${seen.length}`);
+      miscounted.push(`references entry ${entry.from} -> ${entry.target} expects ${entry.count} AE1 finding(s) and the scan has ${seen.length}`);
       for (const i of seen) refusedAe1.push({ index: i, why: `the pair has ${seen.length} finding(s) and its entry expects ${entry.count}` });
     } else {
       for (const i of seen) acceptedAe1.add(i);
@@ -271,7 +275,7 @@ export function judge(skill, { exceptions, ae1 }, allowances) {
     if (!used) unused.push(`exception entry ${entry.path} (${entry.reason_code}) matched no ledger exception`);
   }
   refusedAe1.sort((a, b) => a.index - b.index);
-  return { allowedExceptions, allowedFiles, acceptedAe1, refusedAe1, unused };
+  return { acceptedExceptions, acceptedFiles, acceptedAe1, refusedAe1, unused, miscounted };
 }
 
 // One JSON-report AE1 finding, read for `judge`.
@@ -318,9 +322,10 @@ export function checkAgainstTree(allowances, { isSkill, readFile }) {
   return problems;
 }
 
-// What changed against the base: entries added, removed or re-hashed, and
-// references added, removed or recounted. `before` may be null when the base
-// has no file.
+// What changed against the base: entries added, removed, re-hashed or with
+// changed checks, and references added, removed or recounted. A re-hash and a
+// change of checks on one entry are two lines, so neither hides the other.
+// `before` may be null when the base has no file.
 export function diffAllowances(before, after) {
   const lines = [];
   const index = (list, key) => new Map((list ?? []).map(x => [key(x), x]));
@@ -329,8 +334,10 @@ export function diffAllowances(before, after) {
   for (const [k, e] of now) {
     const old = was.get(k);
     if (!old) lines.push(`added exception ${e.skill}/${e.path} (${e.reason_code})`);
-    else if (old.sha256 !== e.sha256) lines.push(`re-hashed exception ${e.skill}/${e.path} (${e.reason_code})`);
-    else if (!sortedEqual(old.analyzers, e.analyzers)) lines.push(`changed the checks on exception ${e.skill}/${e.path} (${e.reason_code})`);
+    else {
+      if (old.sha256 !== e.sha256) lines.push(`re-hashed exception ${e.skill}/${e.path} (${e.reason_code})`);
+      if (!sortedEqual(old.analyzers, e.analyzers)) lines.push(`changed the checks on exception ${e.skill}/${e.path} (${e.reason_code})`);
+    }
   }
   for (const [k, e] of was) if (!now.has(k)) lines.push(`removed exception ${e.skill}/${e.path} (${e.reason_code})`);
   const wasR = index(before?.references, referenceKey);

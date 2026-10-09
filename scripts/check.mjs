@@ -25,7 +25,7 @@
 // 8. The test suite passes. `node --test` ships with Node, so the tests cost no
 //    dependency and this stays one command.
 
-import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
+import { appendFileSync, existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { basename, join, posix, relative, sep } from 'node:path';
 import { execFileSync, spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
@@ -876,6 +876,23 @@ for (const path of skillBaselines) {
       if (changes.length) {
         console.log(`note: ${ALLOWANCES} changed against ${baseRef}; review each by hand:`);
         for (const c of changes) console.log(`note:   ${c}`);
+        // In CI, also where a reviewer already looks. A re-hash passes this
+        // check by design, so a line in a green job's log is a line nobody
+        // reads: each change is a warning on the pull request too, and a list
+        // on the run's summary page. Names only, never a hash.
+        if (process.env.GITHUB_ACTIONS === 'true') {
+          for (const c of changes) console.log(`::warning title=SkillSpector allowance changed::${c} — review the file by hand`);
+        }
+        if (process.env.GITHUB_STEP_SUMMARY) {
+          try {
+            appendFileSync(
+              process.env.GITHUB_STEP_SUMMARY,
+              `### ${ALLOWANCES} changed against ${baseRef}\n\nReview each by hand:\n\n${changes.map(c => `- ${c}`).join('\n')}\n\n`,
+            );
+          } catch (e) {
+            console.error(`note: could not write the run summary: ${e.code || e.message}`);
+          }
+        }
       }
     }
   }

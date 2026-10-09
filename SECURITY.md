@@ -203,11 +203,13 @@ the test override: [`docs/security/edge-audit.md`](docs/security/edge-audit.md).
 
 - **CodeQL** reads the JavaScript, including the page templates.
 - **SkillSpector** reads each skill's prose and fails on any finding the
-  baseline does not cover, and on any file it reads only in part. Every
-  suppression carries a written reason. The one exception is a partial read
-  someone has accepted by name, with a reason, for one of two reason codes, and
-  pinned to the file's content so any edit to it shows in review: see
-  [Partial reads](docs/security/scanners.md#partial-reads).
+  baseline does not cover, and on any file it reads only in part. A partial
+  read is the one exception, when someone has accepted it by name, with a
+  reason, for one of two reason codes, and pinned it to the file's content so
+  any edit to it shows in review. A finding that only reports a reference to
+  such a file passes too, when its count matches. See
+  [Partial reads](docs/security/scanners.md#partial-reads). Every suppression
+  carries a written reason.
 - **zizmor** audits the workflows and fails on any finding. There is no
   baseline, because there is nothing to suppress.
 - **Every action is pinned to a commit SHA**, and zizmor checks each SHA
@@ -218,7 +220,7 @@ the test override: [`docs/security/edge-audit.md`](docs/security/edge-audit.md).
   weaker. It is a schema check, not a security scanner.
 
 A scan that errors or reads only part of the tree fails, rather than passing
-quietly. What each scanner covers, what it suppresses, and why:
+quietly, unless the partial read is one accepted by name. What each scanner covers, what it suppresses, and why:
 [`docs/security/scanners.md`](docs/security/scanners.md).
 
 ## What the platform is relied on for

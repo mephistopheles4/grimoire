@@ -1,9 +1,10 @@
 #!/usr/bin/env node
 // The pass-or-fail decision for the SkillSpector workflow.
 //
-//   node scripts/skillspector-gate.mjs <report.json> [--label <what was scanned>]
+//   node scripts/skillspector-gate.mjs <report.json> [--label <what was scanned>] [--allowances <file>]
 //
-// Exit 0 when the scan completed and the baseline left nothing behind. Exit 1,
+// Exit 0 when the scan completed and the baseline, or the allowance when one is
+// given, left nothing behind. Exit 1,
 // with the reason on stderr, otherwise. The label names the scan in every line
 // the gate prints — the workflow passes the skill directory — and defaults to
 // the report's path.
@@ -242,10 +243,13 @@ if (done === null || typeof done !== 'object' || Array.isArray(done)) {
           : {};
       const ae1 = Array.isArray(report.issues) ? report.issues.filter(isAe1).map(readJsonAe1) : [];
       verdict = judge(skill, { exceptions: done.ledger_exceptions.map(read), ae1 }, allowances);
-      shortAllowed = verdict.allowedFiles.size;
-      refusedExceptions = done.ledger_exceptions.filter((_, i) => !verdict.allowedExceptions.has(i));
-      acceptedExceptionRows = done.ledger_exceptions.filter((_, i) => verdict.allowedExceptions.has(i)).map(describeException);
+      shortAllowed = verdict.acceptedFiles.size;
+      refusedExceptions = done.ledger_exceptions.filter((_, i) => !verdict.acceptedExceptions.has(i));
+      acceptedExceptionRows = done.ledger_exceptions.filter((_, i) => verdict.acceptedExceptions.has(i)).map(describeException);
       for (const u of verdict.unused) failures.push(`the allowance for ${skill} has an entry this scan does not need: ${u}`);
+      for (const m of verdict.miscounted) {
+        failures.push(`the allowance for ${skill} has a references count that disagrees with the scan: ${m} — fix the count, or the reference that changed it`);
+      }
     }
     if (allowances ? total - scanned !== shortAllowed : scanned < total) {
       failures.push(
@@ -347,6 +351,12 @@ if (failures.length) {
         `in ${ALLOWANCES}, keyed by skill, file, reason code and checks, with\n` +
         'a reason and the file\'s content hash. docs/security/scanners.md says when. No other\n' +
         'reason code can be accepted, and a baseline entry never accepts a partial read.\n\n'
+      : '') +
+    (allowances && refusedWhy.size
+      ? 'An AE1 finding refused above reports a reference to a file the scanner read in\n' +
+        `part. It passes only through the references entry in ${ALLOWANCES},\n` +
+        'whose count must equal the findings for that pair. A baseline entry is not the\n' +
+        'route: one for AE1 would silence it for every file in the skill, accepted or not.\n\n'
       : '') +
     'A finding is either real or a false positive worth writing down. If it is a false\n' +
     "positive, add a rule-keyed entry with a reason a stranger can read to the skill's\n" +

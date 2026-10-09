@@ -663,7 +663,7 @@ test('an unused exception entry is refused', () => {
 test('an unused references entry is refused', () => {
   const r = accepted();
   r.issues = [];
-  allowedFails(r, /references entry SKILL\.md -> lib\/long\.mjs matched no AE1 finding/);
+  allowedFails(r, /references entry SKILL\.md -> lib\/long\.mjs matched no AE1 finding the allowance accepts/);
 });
 
 test('entries for another skill are not this scan\'s business', () => {
@@ -710,4 +710,30 @@ test('skill and file names that are also object keys are judged as names', () =>
     // And an entry under one of those names accepts nothing in another skill.
     allowedFails(r, /the allowance does not accept/, a, 'skills/demo');
   }
+});
+test('an AE1 finding from another file is judged by its own pair, not its target alone', () => {
+  // The referring file is half the key. A reference to an accepted file from a
+  // file no entry names is refused, and the entry's own pair still counts.
+  const r = accepted();
+  r.issues = [ae1(), ae1('lib/long.mjs', { location: { file: 'README.md', start_line: 2 } })];
+  allowedFails(r, /AE1 HIGH README\.md:2[\s\S]*no references entry names README\.md to lib\/long\.mjs/);
+});
+
+test('one reference swapped for another on the same pair keeps the count and passes', () => {
+  // Documented, not hidden: the gate counts references per pair, so a moved
+  // line passes. The new text is still read in full by every plain check, and
+  // docs/security/scanners.md leaves the swap to review.
+  const r = accepted();
+  r.issues = [ae1('lib/long.mjs', { location: { file: 'SKILL.md', start_line: 40 } })];
+  allowedPasses(r);
+});
+
+test('a miscount is reported as a miscount, not as an entry the scan does not need', () => {
+  const r = accepted();
+  r.issues = [ae1(), ae1()];
+  const out = allowedFails(r, /has a references count that disagrees with the scan: references entry SKILL\.md -> lib\/long\.mjs expects 1/);
+  assert.doesNotMatch(out.stderr, /entry this scan does not need: references entry/);
+  // The advice names the allowance and turns the reader away from a baseline.
+  assert.match(out.stderr, /passes only through the references entry in \.skillspector-allowances\.json/);
+  assert.match(out.stderr, /A baseline entry is not the\nroute/);
 });

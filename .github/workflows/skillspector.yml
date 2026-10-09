@@ -7,7 +7,10 @@
 # the thing we publish.
 #
 # This gate fails on any finding a skill's baseline does not cover, at any
-# severity. It does not read the scanner's exit code and it does not read the
+# severity, except a partial read .skillspector-allowances.json accepts and a
+# finding that only reports a reference to one (docs/security/scanners.md,
+# Partial reads). It does not read the scanner's exit code and it does not
+# read the
 # risk score, and the reason is measured: a file carrying an instruction
 # override and a credential read was added to this tree during triage, the
 # scanner found both, and it exited 0 — two findings across thirty files score
@@ -250,7 +253,7 @@ jobs:
       # draws fresh finding ids, so nothing here is joined to the JSON report.
       # Without it, every accepted AE1 finding would open an alert while the
       # gate below is green.
-      - name: Strip the baseline-suppressed results
+      - name: Strip the baseline-suppressed and allowance-accepted results
         run: |
           node scripts/skillspector-strip-suppressed.mjs \
             "${RUNNER_TEMP}/skillspector.sarif" \

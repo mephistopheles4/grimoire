@@ -1,8 +1,9 @@
 #!/usr/bin/env node
 // Remove the baseline-suppressed results from a SARIF report before it is
-// uploaded, so the Security tab carries only what the gate would fail on.
+// uploaded, and, when asked, the AE1 results the allowance accepts, so the
+// Security tab carries only what the gate would fail on.
 //
-//   node scripts/skillspector-strip-suppressed.mjs <in.sarif> <out.sarif> [--prefix <dir>/]
+//   node scripts/skillspector-strip-suppressed.mjs <in.sarif> <out.sarif> [--prefix <dir>/] [--allowances <file> --label skills/<name>]
 //
 // **Why this exists, measured rather than assumed.** SkillSpector keeps a
 // baselined finding in its SARIF and marks it `suppressions: [{ kind:

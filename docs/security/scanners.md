@@ -91,6 +91,13 @@ file read partly or not at all, an exception while reading, an execution the
 scanner does not call successful, or a status of `failed`. It prints each
 exception's `reason_code` and `message`, so a red run says why.
 
+The gate judges completeness from those counts, not from the report's
+`is_complete` flag. The scanner marks a run `partial` whenever it meets a
+relative link it did not follow, and this repository's Markdown is full of
+them. Gating on the flag would fail every run for a reason that is not "the
+scanner missed something". A `partial` run with clean counts passes, with its
+status printed.
+
 **Except a partial read someone has accepted.** Two reason codes can be
 accepted, file by file, in
 [`.skillspector-allowances.json`](../../.skillspector-allowances.json), and no
@@ -116,17 +123,33 @@ and carries a reason. The rules that hold it:
 - **An AE1 finding is accepted only on an accepted file.** AE1 says a file
   refers to one the scanner read in part. It passes only when its target is an
   accepted file, and the number of findings from that file to that target
-  equals the entry's `count`. A new instruction pointing at an accepted file
-  therefore goes red.
-- **An unused entry fails.** An entry the scan did not need, or a count that
-  disagrees, turns the gate red until it is removed.
+  equals the entry's `count`. A change in the number of references from one
+  file to an accepted file therefore goes red. One reference swapped for
+  another keeps the count and passes; the new text is still read in full by
+  every plain check, and review is the guard.
+- **An unused entry fails.** An entry the scan did not need turns the gate red
+  until it is removed.
+- **A count that disagrees fails.** It stays red until the entry's `count`, or
+  the reference that changed it, is fixed.
+- **The counts are matched, not the file names.** The report counts partly read
+  files but names them only through its exceptions, so the gate checks that the
+  number of partly read files equals the number of accepted ones. A file the
+  scanner counted as partial with no exception recorded would be matched by
+  count alone. No such report has been seen.
 - **Every entry pins its file's content.** The scanner records a give-up once
   per file, reason and check, with no count and no place, so a second give-up
   inside an accepted file is invisible to the gate. Each entry carries the
   file's SHA-256 (line endings normalised to LF), and `node scripts/check.mjs`
   fails when it no longer matches. Any edit to an accepted file therefore puts
   the allowance in the same diff, where review sees it. The failure says what
-  to review by hand, and never prints a new hash to paste.
+  to review by hand, and never prints a new hash to paste. To compute the new
+  value after that review, run
+  `node --input-type=module -e "import {contentHash} from './scripts/lib/skillspector-allowances.mjs'; import {readFileSync} from 'node:fs'; console.log(contentHash(readFileSync(process.argv[1])))" skills/<skill>/<file>`
+  from the repository root. A plain `sha256sum` on a Windows checkout with CRLF
+  line endings gives a different value.
+- **Every entry added, removed or re-hashed is named.** `node scripts/check.mjs`
+  lists each one against `main`, in its log and, in CI, on the run's summary
+  page and as a warning on the pull request, so a re-hash is hard to miss.
 - **A `static_parse_limit` entry also hides a marker-pass give-up inside
   `static_patterns_tool_misuse`.** When both passes give up inside that one
   check, the scanner reports only the parse code. The other twelve checks
@@ -139,11 +162,6 @@ someone scanning it, and an entry change would reseal the skill. The cost is
 that a reader who scans an installed skill with 2.11.2 sees the partial reads
 with no shipped explanation. This page is that explanation.
 
-It judges completeness from those counts, not from the report's `is_complete`
-flag. The scanner marks a run `partial` whenever it meets a relative link it
-did not follow, and this repository's Markdown is full of them. Gating on the
-flag would fail every run for a reason that is not "the scanner missed
-something". A `partial` run with clean counts passes, with its status printed.
 
 ### One scan per skill
 
@@ -174,9 +192,10 @@ name. In plain words, the two reasons are:
 - **The command parser gave up** (`static_parse_limit`). A long expression ran
   past the span the destructive-command check follows. Every other check read
   the file.
-- **The marker pass gave up** (`obfuscated_instruction_text`). Ordinary code or
-  prose, such as a line-ending `.replace(...)` call, read as a "remove the
-  marker" directive the pass could not settle. The plain scan read the file.
+- **The marker pass gave up** (`obfuscated_instruction_text`). A removal verb
+  followed by a quote, such as the git command `worktree remove` in a code span
+  or a quoted list of verbs in code, read as the start of a "remove the marker"
+  directive the pass could not settle. The plain scan read the file.
 
 [`.skillspector-allowances.json`](../../.skillspector-allowances.json) lists
 each accepted file with its reason. The reasons live there and nowhere else, so
