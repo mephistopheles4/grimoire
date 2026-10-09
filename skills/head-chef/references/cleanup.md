@@ -92,7 +92,7 @@ is inside another when it is equal to it, or starts with it and then a `/`.
 5. **Name it back, and wait.**
 
    ```text
-   Ready to remove session "build-185" (fc252ad7), its worktree C:/Users/me/repo/.claude/worktrees/build-185 and its branch worktree-build-185. Nothing unsaved found. Say yes to remove them.
+   Ready to remove session "build-185" (fc252ad7), its worktree <repo>/.claude/worktrees/build-185 and its branch worktree-build-185. Nothing unsaved found. Say yes to remove them.
    ```
 
    > **Stop and ask: when cleanup is ready to delete: name the session and the

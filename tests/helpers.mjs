@@ -392,8 +392,12 @@ export function runAsync(script, args = [], opts = {}) {
   });
 }
 
+// GITHUB_ACTIONS is cleared unless a test sets it. scripts/check.mjs fails its
+// tracked-file rule in CI when the tree is not a repository, and every tree a
+// test copies is not one, so in CI every test of the check would go red for
+// that reason alone.
 function childEnv(extra) {
-  const env = { ...process.env, GRIMOIRE_IN_TEST: '1', ...extra };
+  const env = { ...process.env, GRIMOIRE_IN_TEST: '1', GITHUB_ACTIONS: null, ...extra };
   for (const [k, v] of Object.entries(env)) if (v === null) delete env[k];
   // Node sets NODE_TEST_CONTEXT for anything a test file spawns, and a
   // `node --test` that sees it refuses to run: "run() is being called
