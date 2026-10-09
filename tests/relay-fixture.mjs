@@ -21,6 +21,7 @@ import { root } from './helpers.mjs';
 
 export const SCRIPTS = join(root, 'skills', 'head-chef', 'scripts');
 export const { runSession } = await import(pathToFileURL(join(SCRIPTS, 'lib', 'session-core.mjs')).href);
+export const programs = await import(pathToFileURL(join(SCRIPTS, 'lib', 'programs.mjs')).href);
 export const { runLead, pick } = await import(pathToFileURL(join(SCRIPTS, 'lib', 'lead-core.mjs')).href);
 export const core = await import(pathToFileURL(join(SCRIPTS, 'lib', 'relay-core.mjs')).href);
 
@@ -112,6 +113,7 @@ export class World {
     this.comments = [];
     this.calls = [];
     this.posts = [];
+    this.postStates = [];
     this.failPost = 0; // fail the next n posts
     this.failRead = false;
     this.nextComment = 1001;
@@ -139,7 +141,7 @@ export class World {
     return f;
   }
 
-  gh(args) {
+  gh(args, sid) {
     this.calls.push(['gh', ...args]);
     if (args[0] === 'api' && args[1] === 'user') return this.failRead ? { ok: false, stdout: '' } : { ok: true, stdout: `${this.login}\n` };
     if (args[0] === 'issue' && args[1] === 'comment') {
@@ -148,11 +150,14 @@ export class World {
       const id = this.nextComment++;
       const url = `${RECORD}#issuecomment-${id}`;
       this.posts.push(body);
+      // The caller's state on disk at the moment of the post, so a test can
+      // check that state was written first.
+      try { this.postStates.push(JSON.parse(fs.readFileSync(join(this.config, 'plugins', 'data', 'grimoire-relay', `${sid}.json`), 'utf8'))); } catch { this.postStates.push(null); }
       this.comments.push({ id, user: { login: this.login }, body, created_at: 't1', updated_at: 't1', html_url: url });
       return { ok: true, stdout: `${url}\n` };
     }
     if (args[0] === 'api' && /^repos\/owner\/repo$/.test(args[1])) {
-      return this.failRead ? { ok: false, stdout: '' } : { ok: true, stdout: JSON.stringify({ private: this.issue.private, visibility: this.issue.private ? 'private' : 'public' }) };
+      return this.failRead ? { ok: false, stdout: '' } : { ok: true, stdout: JSON.stringify({ private: this.issue.private, visibility: this.issue.visibility ?? (this.issue.private ? 'private' : 'public') }) };
     }
     if (args[0] === 'api' && /^repos\/owner\/repo\/issues\/7$/.test(args[1])) {
       return this.failRead ? { ok: false, stdout: '' } : { ok: true, stdout: JSON.stringify(this.issue) };
@@ -186,17 +191,23 @@ export class World {
         for (let i = 0; i < n; i++) b[i] = (0xa0 + this.counter++) & 0xff;
         return b;
       },
-      gh: (a) => this.gh(a),
+      gh: (a) => this.gh(a, sid),
       claude: (a) => this.claude(a),
     };
   }
 
+  // Every call through these two also runs the leak check on what it printed
+  // and on every post so far.
   session(...argv) {
-    return runSession(argv, this.ctx(IDS.session));
+    const r = runSession(argv, this.ctx(IDS.session));
+    assertClean(this, r);
+    return r;
   }
 
   lead(...argv) {
-    return runLead(argv, this.ctx(IDS.lead));
+    const r = runLead(argv, this.ctx(IDS.lead));
+    assertClean(this, r);
+    return r;
   }
 
   stateFiles() {
@@ -244,9 +255,9 @@ export function assertClean(world, result) {
   if (!result) return;
   let inBlock = false;
   for (const line of result.lines) {
-    if (line === '-----BEGIN MESSAGE-----') inBlock = true;
+    if (line === '-----BEGIN MESSAGE-----' || line === '-----BEGIN RULE-----') inBlock = true;
     if (!inBlock) for (const re of LEAKS) assert.ok(!re.test(stripLinks(line)), `an output line leaks ${re}: ${line}`);
-    if (line === '-----END MESSAGE-----') inBlock = false;
+    if (line === '-----END MESSAGE-----' || line === '-----END RULE-----') inBlock = false;
   }
 }
 

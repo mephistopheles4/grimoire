@@ -12,18 +12,26 @@ import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import * as fs from 'node:fs';
 import { homedir, tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { isAbsolute, join } from 'node:path';
+import { createHash } from 'node:crypto';
 import { root } from './helpers.mjs';
 import { IDS, FIXTURE_IDS, RECORD } from './relay-fixture.mjs';
 
 const SESSION = join(root, 'skills', 'head-chef', 'scripts', 'relay-session.mjs');
 const LEAD = join(root, 'skills', 'head-chef', 'scripts', 'relay-lead.mjs');
-const REAL_STATE = join(homedir(), '.claude', 'plugins', 'data', 'grimoire-relay');
+const CONFIG = process.env.CLAUDE_CONFIG_DIR && isAbsolute(process.env.CLAUDE_CONFIG_DIR) ? process.env.CLAUDE_CONFIG_DIR : join(homedir(), '.claude');
+const REAL_STATE = join(CONFIG, 'plugins', 'data', 'grimoire-relay');
 const win = process.platform === 'win32';
 
 let scratch;
 let canary;
-const listReal = () => { try { return fs.readdirSync(REAL_STATE).sort().join('\n'); } catch { return 'absent'; } };
+// A digest of the real folder's listing, never the listing: its file names are
+// live session ids, and a failed assertion prints both sides.
+const listReal = () => {
+  let names;
+  try { names = fs.readdirSync(REAL_STATE).sort().join('\n'); } catch { names = 'absent'; }
+  return createHash('sha256').update(names).digest('hex');
+};
 
 before(() => {
   canary = listReal();
@@ -49,7 +57,7 @@ before(() => {
 
 after(() => {
   fs.rmSync(scratch, { recursive: true, force: true });
-  assert.equal(listReal(), canary, 'the real relay-state folder changed');
+  assert.ok(listReal() === canary, 'the real relay-state folder changed');
 });
 
 function run(script, args, { sid = IDS.session } = {}) {
@@ -108,7 +116,7 @@ test('rule prints the relay sentence with this script folder\'s path, or refuses
   const dir = join(root, 'skills', 'head-chef', 'scripts').replace(/\\/g, '/');
   if (/^[A-Za-z0-9/:._~-]+$/.test(dir)) {
     expectExit(r, 0, 'RESULT: ok');
-    assert.ok(r.lines[1].includes(`${dir}/relay-session.mjs for ${RECORD};`));
+    assert.ok(r.lines[2].includes(`${dir}/relay-session.mjs for ${RECORD};`));
   } else {
     expectExit(r, 1, 'RESULT: refused path');
   }

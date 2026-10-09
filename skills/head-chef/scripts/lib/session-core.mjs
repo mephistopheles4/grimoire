@@ -112,13 +112,19 @@ function ask(opts, ctx) {
       if (hit) return askOwn(hit);
     }
     const rec = parseRecord(sp.record);
+    // The owner account's later local-only lines bind this question too.
+    const login = ownerLogin(ctx);
+    const entries = login && recordEntries(ctx, rec);
+    if (!Array.isArray(entries)) return askOwn('read-failed');
+    const later = recordLocalOnly(entries, login);
+    if ([q.question, ...Object.values(q.choices)].some(t => hitsLocalOnly(t, later))) return askOwn('local-only');
     return withState(ctx, 'session', fresh, (state, save) => {
       const qkey = sha256(q.question);
       if ((state.forced[qkey] || 0) >= 2) return askOwn('closed-twice');
       const rows = rowsFn();
       const own = new Set(rows.filter(r => r.sessionId === env.sessionId).map(r => r.name));
       const [me] = own;
-      if (own.size !== 1 || !NAME.test(me) || rows.some(r => r.sessionId !== env.sessionId && r.name === me)) {
+      if (own.size !== 1 || !NAME.test(me) || hitsIdentifiers(me) || rows.some(r => r.sessionId !== env.sessionId && r.name === me)) {
         return askOwn('no-name');
       }
       const lead = leadCheck(rows, sp.leadId);
@@ -198,7 +204,7 @@ function take(opts, ctx) {
       if (owner) return owner;
       const login = ownerLogin(ctx);
       const entries = login && recordEntries(ctx, rec);
-      if (!entries) endAsk('read-failed', lines);
+      if (!Array.isArray(entries)) endAsk('read-failed', lines);
       owner = recordLocalOnly(entries, login);
       return owner;
     };
@@ -217,8 +223,10 @@ function take(opts, ctx) {
       else if (!q) failed = 2;
       else if (!blk.intact || !relay || !Object.hasOwn(q.choices, relay.letter) || q.choices[relay.letter] !== relay.words) failed = 3;
       else {
-        const words = q.choices[relay.letter];
-        if (hitsFloor(words) || hitsLocalOnly(words, sp.localOnly) || hitsLocalOnly(words, ownerLines())) failed = 4;
+        // Check 4 holds the chosen words and the question's own wording to
+        // the floor and every local-only list.
+        const texts = [q.question, q.choices[relay.letter]];
+        if (texts.some(t => hitsFloor(t) || hitsLocalOnly(t, sp.localOnly) || hitsLocalOnly(t, ownerLines()))) failed = 4;
         else if (hitsIdentifiers(relay.owner)) { failed = 4; screened = true; }
       }
 

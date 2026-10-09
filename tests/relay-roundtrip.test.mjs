@@ -17,7 +17,7 @@ function launch(localOnly) {
   const file = localOnly ? w.questionFile(localOnly, 'lo.txt') : null;
   const rule = w.lead('rule', '--record', RECORD, ...(file ? ['--file', file] : []));
   expectResult(rule, 0, 'RESULT: ok');
-  const prompt = `Build session for repo issue 7. Read the issue and its comments; your brief is there. Report to "${LEAD_NAME}" (session ${IDS.lead}) by name at milestones only. ${rule.lines[1]}`;
+  const prompt = `Build session for repo issue 7. Read the issue and its comments; your brief is there. Report to "${LEAD_NAME}" (session ${IDS.lead}) by name at milestones only. ${rule.lines[rule.lines.indexOf('-----BEGIN RULE-----') + 1]}`;
   w.write(IDS.session, [...metaRecords(), typed(prompt)]);
   expectResult(w.lead('note', '--bg-id', 'abcd1234', '--record', RECORD), 0, 'RESULT: ok');
   return w;

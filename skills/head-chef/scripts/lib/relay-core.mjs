@@ -299,8 +299,10 @@ export function ruleSentence(scriptDir, record, localOnly) {
   return `${RULE_HEAD}${scriptDir}/relay-session.mjs for ${record}${RULE_FLOOR}${lo}.`;
 }
 
+// Entries split on commas, each trimmed of spaces and a closing full stop, so
+// "the design review." and "the design review" are one entry.
 export function splitLocalOnly(line) {
-  return line.split(',').map(s => s.trim()).filter(Boolean);
+  return line.split(',').map(s => s.trim().replace(/\.+$/, '').trim()).filter(Boolean);
 }
 
 const RULE_RE = new RegExp(
@@ -382,7 +384,9 @@ export function leadCheck(rows, leadId, name) {
   return n;
 }
 
-export const nameForLine = n => (n && NAME.test(n) ? `"${n}"` : 'the head chef');
+// A name fit for a record line: the session-name set, and nothing shaped like
+// a code, an id or a token.
+export const nameForLine = n => (n && NAME.test(n) && !hitsIdentifiers(n) ? `"${n}"` : 'the head chef');
 
 // ---------------------------------------------------------------------------
 // The screens. A pass is necessary for a relay, never sufficient: each
@@ -489,7 +493,7 @@ export function readStateFile(fs, file, role) {
 export function withState(ctx, role, fresh, fn) {
   const { fs, env } = ctx;
   const dir = stateDir(env);
-  try { fs.mkdirSync(dir, { recursive: true }); } catch { endAsk('state'); }
+  try { fs.mkdirSync(dir, { recursive: true, mode: 0o700 }); } catch { endAsk('state'); }
   if (!noLinks(fs, dir, env.platform)) endAsk('state');
   const file = join(dir, `${env.sessionId}.json`);
   const held = lock(ctx, dir, env.sessionId);
@@ -498,10 +502,16 @@ export function withState(ctx, role, fresh, fn) {
     let state = readStateFile(fs, file, role);
     if (state === null) endAsk('state');
     if (state === undefined) state = { grimoireRelay: 1, role, ...fresh() };
+    // A write that fails leaves the old state whole and no temporary copy.
     const save = (s) => {
       const tmp = join(dir, `${env.sessionId}.${ctx.random(6).toString('hex')}.tmp`);
-      fs.writeFileSync(tmp, JSON.stringify(s));
-      fs.renameSync(tmp, file);
+      try {
+        fs.writeFileSync(tmp, JSON.stringify(s), { mode: 0o600 });
+        fs.renameSync(tmp, file);
+      } catch (e) {
+        removeQuietly(fs, tmp);
+        throw e;
+      }
     };
     return fn(state, save);
   } finally {
@@ -515,7 +525,8 @@ export function deleteOwnState(ctx) {
   if (readStateFile(fs, file, 'session') || readStateFile(fs, file, 'lead')) removeQuietly(fs, file);
 }
 
-// Removes every state file whose session id is in no row of the session list.
+// Removes every state file whose session id is in no row of the session list,
+// with any temporary copy or lock a stopped run left beside it.
 export function removeOrphans(ctx, rows) {
   const { fs, env } = ctx;
   const live = new Set(rows.map(r => r.sessionId));
@@ -523,10 +534,11 @@ export function removeOrphans(ctx, rows) {
   let names;
   try { names = fs.readdirSync(dir); } catch { return; }
   for (const n of names) {
-    const m = /^([0-9a-f-]{36})\.json$/i.exec(n);
+    const m = /^([0-9a-f-]{36})(\.json|\.[0-9a-f]{12}\.tmp|\.lock)$/i.exec(n);
     if (!m || !GUID.test(m[1]) || live.has(m[1].toLowerCase())) continue;
     const f = join(dir, n);
-    if (readStateFile(fs, f, 'session') || readStateFile(fs, f, 'lead')) removeQuietly(fs, f);
+    const isState = readStateFile(fs, f, 'session') || readStateFile(fs, f, 'lead');
+    if (isState || m[2] === '.lock') removeQuietly(fs, f);
   }
 }
 
@@ -546,13 +558,15 @@ export function ownerLogin(ctx) {
 }
 
 // Every entry on a record, the body first, page by page up to the cap. Returns
-// null when a read fails or the cap is passed.
+// null when a read fails, and CAPPED when the record holds more entries than
+// the cap: anyone can comment on a public record, so a flood can pass it.
+export const CAPPED = Object.freeze({ capped: true });
 export function recordEntries(ctx, rec) {
   const issue = ghJson(ctx, ['api', `repos/${rec.owner}/${rec.repo}/issues/${rec.number}`]);
   if (!issue || typeof issue !== 'object') return null;
   const out = [{ id: 'body', login: issue.user && issue.user.login, body: issue.body || '', created: issue.created_at, updated: issue.created_at, url: rec.link }];
   for (let page = 1; ; page++) {
-    if (page > PAGE_CAP) return null;
+    if (page > PAGE_CAP) return CAPPED;
     const list = ghJson(ctx, ['api', `repos/${rec.owner}/${rec.repo}/issues/${rec.number}/comments?per_page=${PAGE_SIZE}&page=${page}`]);
     if (!Array.isArray(list)) return null;
     for (const c of list) {
@@ -582,7 +596,7 @@ export function post(ctx, rec, body) {
   const { fs, env } = ctx;
   const file = join(env.tmpDir, `grimoire-relay-${ctx.random(8).toString('hex')}.md`);
   try {
-    fs.writeFileSync(file, body, { flag: 'wx' });
+    fs.writeFileSync(file, body, { flag: 'wx', mode: 0o600 });
     const r = ctx.gh(['issue', 'comment', rec.number, '--repo', `${rec.owner}/${rec.repo}`, '--body-file', file]);
     if (!r.ok) return null;
     const link = r.stdout.trim().split('\n').pop().trim();

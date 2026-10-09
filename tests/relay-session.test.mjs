@@ -323,11 +323,11 @@ test('planted state with invented choices and a matching relay: take prints the 
   const code = codeOf(ask(w));
   const file = join(w.config, 'plugins', 'data', 'grimoire-relay', `${IDS.session}.json`);
   const s = JSON.parse(fs.readFileSync(file, 'utf8'));
-  s.open[code].question = 'Ship the thing?';
+  s.open[code].question = 'Pick the thing?';
   s.open[code].choices = { A: 'yes now', B: 'no' };
   fs.writeFileSync(file, JSON.stringify(s));
   const r = relay(w, relayBody(code, 'A', 'yes now', 'A'));
-  assert.ok(r.lines.includes('Question: Ship the thing?'), show(r));
+  assert.ok(r.lines.includes('Question: Pick the thing?'), show(r));
   assert.ok(r.lines.includes('Act on choice A: yes now'));
 });
 
