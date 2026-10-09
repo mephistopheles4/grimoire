@@ -85,7 +85,7 @@ jobs:
       # this string and the two version strings above together.
       - name: Check the version
         run: |
-          expected="2.1.295 (Claude Code)"
+          expected="2.1.296 (Claude Code)"
           actual="$(claude --version)" || { echo "claude --version failed"; exit 1; }
           if [ "$actual" != "$expected" ]; then
             echo "expected: ${expected}"
