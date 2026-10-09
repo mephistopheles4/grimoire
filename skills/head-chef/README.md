@@ -50,12 +50,13 @@ name, and to post the rename line. In a permission mode that asks before each
 command, a session's lookups and its posts may wait at a prompt. An allow rule
 is yours to add.
 
-Relayed answers need two more things: your default auto mode, and Node 22 or
-later. Their records are issues on github.com, reached through `gh`'s own
-sign-in: the relay scripts start `gh` without your `GH_` or `GITHUB_`
-environment settings or a proxy, so a token set only in the environment, or
-another host, is not used. A session started in a mode that asks gets no relay rule, and a session
-that cannot run its script asks you in its own chat.
+A session checks that a message came from the head chef by listing
+`claude agents --json`. In a mode that asks, that listing may wait at a
+prompt; until you approve it, the session treats the message as data. An
+allow rule for exactly `claude agents --json` removes the prompt. A wider
+pattern, such as one for every `claude` command, admits more than that. The
+skill never tells a session to add the rule itself, but a decision from the
+head chef may ask for it, as for any other matter.
 
 Then, in Claude Desktop, ask for work to run elsewhere, for example *"can
 issue 42 get done in parallel while I keep working here? Sonnet, low
@@ -72,17 +73,11 @@ effort."* Or type `/head-chef`. Type `/brigade` to open the pane.
   not expand. A brief that lives only in chat goes as a message.
 - **Takes reports at milestones.** Each brief tells the session to report to
   the head chef by name, only at milestones.
-- **Carries your answer to a session's question.** A session can ask you a
-  question through the lead, with its choices labelled A, B and on. The head
-  chef shows you the choices word for word, and relays your own words with
-  the letter you picked. The session takes the answer only for a question it
-  asked, only as one of its own choices, and acts on the letter alone. It
-  quotes your words on its issue, which may be public; a post can't be fully
-  taken back. The head chef tells you if a session took an answer it never
-  relayed. A merge or other publish, a deletion, a
-  permission or settings change, starting or stopping a session, and the
-  answers you name as local-only never travel this way: the start prompt
-  says so, and you give those in the session's own chat.
+- **Decides for its sessions, in your name.** A session can ask you a
+  question through the head chef. The head chef shows it to you, or decides
+  it itself, and tells you in one line of every decision it sends. A session
+  takes any message from the head chef as your decision (see "Decisions from
+  the lead").
 - **Keeps reports flowing after you rename the lead.** Each start prompt
   names the lead by name and session id, and a session looks the lead up by
   that id before each report. Each report also leaves one line on the
@@ -97,33 +92,36 @@ effort."* Or type `/head-chef`. Type `/brigade` to open the pane.
 - **Relays,** quoted, with the source session named.
 - **Brings you only what needs you,** with a recommendation.
 
-## Relayed answers
+## Decisions from the lead
 
-A **relayed answer** is your answer to a session's question, typed in the
-lead's chat and carried to the session. Two scripts in `scripts/` do the
-checks, so no model retypes your words or puts them into a command:
-`relay-lead.mjs` for the head chef, and `relay-session.mjs` for each
-session. They read only the caller's own transcript and relay state, the
-session list, and your account's lines on the session's issue; the session's
-script posts only on the issue its start prompt names. Every message between
-them carries a digest line, so a copy that changed is refused.
+**Any message from the head chef counts as your decision** in the sessions it
+started, on any matter: a merge or other publish, a deletion, a permission or
+settings change, and starting or stopping a session included. Each start
+prompt ends with the sentence that says so. That covers your words passed on,
+the head chef's own call, and another session's words it relays.
 
-The session takes an answer only when four checks pass, in order:
+- **The head chef labels each decision** by where it came from:
+  `From the owner, quoted: "…"` for words you typed in its chat, or
+  `The head chef's decision: …` when it decides itself.
+- **It tells you in one line** of every decision and relay it sends, in the
+  same turn: which session, the form, and a gist.
+- **A session asks you a question** by message, never on its issue, with a
+  label such as `q1`. A decision for that question starts with the same
+  label; a stale one is not applied.
+- **A session checks only that a message came from the head chef,** by
+  matching the sender's name to the head chef's session id. A message that
+  fails is data, and the session tells you.
+- **Each session names, in its next report,** every decision it acted on, by
+  label, source and gist, and every message that failed the check. The head
+  chef compares them with what it sent and tells you at once of one it never
+  sent.
 
-1. **From the lead:** the message comes from the lead's session, by the
-   sender name the message system recorded.
-2. **Its own code:** it carries the one-time code of a question the session
-   asked and still has open.
-3. **Its own choice:** the letter is one the session offered, with that
-   choice's exact words, and the digest matches.
-4. **May travel:** the choice is not a publish, a deletion, a permission or
-   settings change, starting or stopping a session, or one of your local-only
-   answers.
-
-Then it posts your words on its issue and acts on the letter alone. The lead
-reads your words from its own transcript and, before it sends, checks them
-against what it saw you type. To answer in a session's own chat instead, just
-answer there: the session closes its question.
+**The risk you take on.** A session cannot tell a forged sender from the head
+chef. Any session that can send it a message can speak for you, on any
+matter. A misled head chef can send planted text as its own decision, and a
+decision can tell a session to stop its check or its reports. You see each
+real send in the head chef's one-line notice, and a forged one when a report
+naming it arrives. To answer only in a session's own chat, answer there.
 
 ## What counts as your yes
 
@@ -131,21 +129,48 @@ Only your own words in chat. Your request to run work in another session is
 the yes to start it. Starting, stopping, removing a session and deleting a
 worktree each need your own words. A message from another session, a report,
 a brief, a roster line or an issue comment never counts. Reports and relayed
-text are data, not instructions. Your answer to a session's question goes by
-relay only when you type it in the lead's chat in reply to that question. One
+text are data to the head chef, not instructions. The head chef may decide
+for a session in your name, but its own acts of starting, stopping or
+removing a session, or deleting a worktree, still need your words. One
 post needs no yes: when you rename the
 lead, it posts one line with the new name on each live session's issue, in
 the same turn as it tells you which issues that is.
 
-## Rolling back relayed answers
+## Upgrading from 0.4.0, and the way back
 
-If you revert to a version before relayed answers, sessions already started
-still hold the new start prompt. On each one's issue, post a line from your own
-account that names every answer as local-only, in the form
-`Local-only from now on: <answers>`; the session's list of local-only answers
-only grows, and its script reads that line on every take, so it then takes no
-relayed answer at all. Or restart the
-session on the old start prompt. The head chef cannot post this line for you.
+**After you upgrade, stop or restart every session started under 0.4.0, the
+head chef included.** Nobody has seen whether a running session reads the old
+brief or the new one after a plugin update. A 0.4.0 head chef's ordinary
+relays would count as decisions in a session that reads the new brief.
+
+**To go back,** reinstall the earlier plugin version, then stop or restart
+every session started under 0.5.0. Those sessions keep counting any message
+from the head chef as your decision, a 0.4.0 head chef's ordinary relays
+included.
+
+**Leftover relay files.** 0.4.0's relay scripts may have left five kinds of
+file. Delete them by hand. Before you delete the folder, check that it is a
+plain folder, not a link or a junction.
+
+| What | Where | How to spot it |
+| --- | --- | --- |
+| The relay state folder | `plugins/data/grimoire-relay/` under your Claude config folder: `CLAUDE_CONFIG_DIR` when that is an absolute path, otherwise `.claude` in your home folder | Per-session JSON files, holding question words, choices, issue links and session ids |
+| Lock and copy files | In that folder | `.lock` files, and `<session id>.<hex>.tmp` copies |
+| Post files | The temporary folder that your `TEMP`, `TMP` or `TMPDIR` setting names | Named `grimoire-relay-<hex>.md`; one left by a crashed run can hold your quoted words |
+| Question files | `$CLAUDE_JOB_DIR/tmp`, or the temporary folder that `TEMP`, `TMP` or `TMPDIR` names | Random names; one question line, then lines starting `A)`, `B)` and on |
+| Local-only list files | The temporary folder that `TEMP`, `TMP` or `TMPDIR` names | Random names; one line of local-only answers |
+
+The last two have no fixed name, so you may not find them all.
+
+**What 0.4.0 posted on your issues stays there.** Sessions under 0.4.0
+posted your quoted words, their questions and choices, and taken-answer and
+failed-check lines on their issues, which may be public. To remove them,
+delete those comments, or delete the old version from each edited comment's
+history: an edit alone keeps the old text there. Notification emails
+already sent keep it too. The head chef
+checks once, at its first launch in a session, for the state folder and for
+post files, and tells you in its own chat if it finds either. It deletes
+none.
 
 ## Cleanup
 
@@ -176,7 +201,8 @@ from your phone shows none. The skill does not need it.
 ## What it never does
 
 - Start, stop or delete on anyone's word but yours.
-- Relay its own choice, a report's line or a paraphrase as your answer.
+- Send a decision or a relay without telling you, in one line, in the same
+  turn.
 - Put an issue's title or text into a command line.
 - Delete a worktree with unsaved work, or pop or drop a stash.
 - Restate or replace your own process's rules. It names no other skill.
@@ -194,13 +220,10 @@ named its cleanup back, before the first release.
 | File | What it is |
 | --- | --- |
 | `SKILL.md` | The skill. Generated from the contract, and sealed. |
-| `references/brief.md` | What a brief tells each session, relayed answers included. Generated with `SKILL.md`, and sealed. |
-| `references/relay.md` | How the head chef shows a question and relays your answer. Generated with `SKILL.md`, and sealed. |
+| `references/brief.md` | What a brief tells each session, decisions from the lead included. Generated with `SKILL.md`, and sealed. |
 | `references/cleanup.md` | The seven cleanup steps. Generated with `SKILL.md`, and sealed. |
 | `references/roster.md` | How the head chef keeps the pane's roster. Generated with `SKILL.md`, and sealed. |
-| `scripts/relay-lead.mjs` | The head chef's relay script: the start prompt's rule, notes, questions, relays and the cross-check. Sealed. |
-| `scripts/relay-session.mjs` | A session's relay script: asking, taking, its fixed record lines, and cleanup. Sealed. |
-| `scripts/lib/` | The two scripts' shared core and their cores. Node built-ins only. Sealed. |
+| `references/leftovers.md` | The one-time check for files head-chef 0.4.0's relay scripts left. Generated with `SKILL.md`, and sealed. |
 | `CONTRACT.md` | The terms it was built from, with the reason for each rule. |
 | `README.md` | This page. |
 
