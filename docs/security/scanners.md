@@ -1,8 +1,10 @@
 # The scanners, and what each one gates
 
 Three scanners read this repository in CI: CodeQL reads the JavaScript,
-SkillSpector reads the skill prose, and zizmor reads the workflows. This page
-says what each covers, what it suppresses, and why.
+SkillSpector reads the skill prose, and zizmor reads the workflows. A fourth
+check is a schema check rather than a security scanner: Claude Code's plugin
+validator reads the manifests and the skills. This page says what each covers,
+what it suppresses, and why.
 [`SECURITY.md`](../../SECURITY.md) is the summary.
 
 One rule runs through all of them: **a check that reports and changes nothing
@@ -259,11 +261,92 @@ and `id-token: write` moved from the workflow onto the `deploy` job, and the
 findings, and one asks for a behaviour change: a concurrency group cancels runs
 in flight. That is a style decision nobody has taken.
 
+## The plugin validator: the manifests and the skills
+
+[`.github/workflows/plugin-validate.yml`](../../.github/workflows/plugin-validate.yml)
+runs `claude plugin validate --strict` on every pull request and every push to
+`main`. `scripts/check.mjs` checks the rules that span files, such as the two
+manifests agreeing. The validator checks each file against the schema Claude
+Code itself loads, and `--strict` fails on an unknown field the runtime would
+ignore in silence. Neither replaces the other.
+
+**Three runs, named one by one.** The job validates `.`, then
+`.claude-plugin/plugin.json`, then `skills`. It records each exit status and
+fails at the end, so one red target cannot hide the next. What one run covers
+depends on the version: on 2.1.289, `.` read only the marketplace manifest. On
+2.1.296 it also reads the plugin manifest and `hooks/hooks.json`, and still not
+`skills/`.
+
+**The exit code is the gate.** On 2.1.296 a missing path, a mistyped path, an
+empty folder and a file that is not JSON all exit `1`, so no output is parsed.
+
+### What it catches, and what it does not
+
+Measured on 2.1.296:
+
+- **It catches** an unknown field in either manifest, a `SKILL.md` whose
+  frontmatter does not parse, and a manifest that is not valid JSON.
+- **It does not catch** an unknown key in a `SKILL.md`'s frontmatter, or a
+  skill folder with no `SKILL.md` at all. `skills/` is a weak check. A missing
+  `SKILL.md` is `scripts/check.mjs`'s to catch, and it does.
+- **It does not check a skill's name or description** against Anthropic's
+  skill rules: it passes a name holding "claude" and a description holding an
+  XML tag. It does reject a reserved **plugin** name.
+
+### The pin
+
+**`@anthropic-ai/claude-code-linux-x64@2.1.296`**, written three times in the
+workflow: the package in the fetch step, the tarball's file name below it, and
+the string `2.1.296 (Claude Code)` the version step compares against. That step
+fails on any other output, so a missing binary or a wrong version fails before
+the gate can read as clean.
+
+**Fetched, not installed.** `npm pack` downloads the platform package's tarball
+and `tar` unpacks it outside the checkout. The package holds one executable and
+no scripts. Nothing runs an install, so no package script can run and no
+`package.json` or lockfile is written. The wrapper package,
+`@anthropic-ai/claude-code`, would need its postinstall script to put the binary
+in place. zizmor's `adhoc-packages` audit flags `npm install` as an install
+outside a lockfile, and a lockfile is the manifest this repository refuses.
+
+**As strong as zizmor's pin, and no stronger.** npm never re-publishes a version
+number, so this is close to a content pin and is not one. Checking the
+tarball's sha512 against a hash in the workflow would make it one. That is
+deferred until the job gains a token, a secret or a write permission, or a
+registry incident touches this package. Row 9 of the
+[threat model](threat-model.md) records the gap.
+
+**Dependabot does not watch it**: the CLI arrives through a `run:` line. A bump
+is a reviewed pull request.
+
+### Bumping it
+
+**When.** When a Claude Code release note mentions plugins, marketplaces,
+skills or `plugin validate`, or three months after the last bump, whichever
+comes first. Without a trigger the pin drifts behind the version people run,
+and the check validates against a stale schema.
+
+**How.**
+
+1. Change the version in all three places in the workflow together.
+2. On a branch, rerun the probes: a clean tree passes all three targets, and an
+   unknown field fails each manifest.
+3. Run `.` and read which files it says it validated. If that list changed, say
+   so in the pull request.
+
+### Reproducing a red run
+
+Run `claude plugin validate --strict <target>` on the target that failed, with
+your own Claude Code. Compare `claude --version` with the pin first: another
+version can disagree with CI.
+
 ## What is deliberately not installed
 
 - **No dependencies.** The renderers import Node built-ins only, and the tests
-  run on `node --test`. There is no dependency tree to poison, and no install
-  step. `scripts/check.mjs` fails on a `package.json` or a lockfile.
+  run on `node --test`. There is no dependency tree to poison, and nothing in
+  the repository's own code to install. `scripts/check.mjs` fails on a
+  `package.json` or a lockfile. The one package CI fetches is Claude Code, for
+  the plugin validator, and only on the runner.
 - **No Markdown linter.** markdownlint would report about forty long lines at
   its defaults. `scripts/check.mjs` checks one thing instead: every code fence
   names its language.

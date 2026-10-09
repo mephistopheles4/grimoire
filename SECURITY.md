@@ -207,6 +207,9 @@ the test override: [`docs/security/edge-audit.md`](docs/security/edge-audit.md).
   baseline, because there is nothing to suppress.
 - **Every action is pinned to a commit SHA**, and zizmor checks each SHA
   matches its version comment.
+- **Claude Code's plugin validator** checks the two manifests and `skills/`
+  against the schema Claude Code loads, at a pinned version, and fails on any
+  field it does not recognise. It is a schema check, not a security scanner.
 
 A scan that errors or reads only part of the tree fails, rather than passing
 quietly. What each scanner covers, what it suppresses, and why:
@@ -228,6 +231,7 @@ switched on right now. If that matters to you, check the settings themselves.
 | Branch protection on `main` | pull request required, `check` must pass, no bypass |
 | SkillSpector's `scan` job as a required check | a SkillSpector finding blocks a merge |
 | zizmor's `audit` job as a required check | a workflow finding blocks a merge |
+| Plugin validator's `validate` job as a required check | a manifest or skill the schema rejects blocks a merge |
 | Pages, built from Actions | what the `pages` workflow deploys to a public URL |
 
 [`.github/dependabot.yml`](.github/dependabot.yml) is in the tree and asks for
