@@ -129,9 +129,11 @@ background, or as a Desktop session you work in, with the model and effort
 set. It points the session to where its brief lives, takes its milestone
 reports, relays between sessions, and cleans a session up when you say it is
 done. It takes the when and the why from your own process, and it never
-counts a message from another session as your yes. A session can take your
-answer to its own question through the lead, only as one of the choices it
-offered. Not for work in the same session.
+counts a message from another session as your yes to start, stop or delete.
+The sessions it starts take any message from the lead as your decision, on
+any matter, and the lead tells you in one line of each one it sends. A
+session cannot tell a forged sender from the lead; read the skill's README
+before you install. Not for work in the same session.
 
 `/brigade` opens the Brigade pane: one card per session the lead started, with
 its work, phase, settings, live busy or idle state, cache warmth and latest

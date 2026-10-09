@@ -18,11 +18,14 @@ disagree, runs every skill through the format check in
 `skills/contract/scripts/check.mjs`, and runs the test suite in `tests/`. CI
 runs it as a required check called `check`. `main` takes no direct pushes.
 
-Two more workflows scan things the command above does not. One runs SkillSpector
-over the skill prose and fails on any finding the baselines do not cover. The
-other runs zizmor over `.github/workflows/` and fails on any finding at all —
-there is no baseline for it, because there is nothing to suppress. Both install
-their scanner on the runner and never on your machine, so the command above
+Three more workflows check things the command above does not. One runs SkillSpector
+over the skill prose and fails on any finding the baselines do not cover. One
+runs zizmor over `.github/workflows/` and fails on any finding at all —
+there is no baseline for it, because there is nothing to suppress. The third runs
+`claude plugin validate --strict` on the two manifests and `skills/`, at a pinned
+Claude Code version, and fails on any field the schema does not recognise in
+either manifest; its check of `skills/` is weaker. All
+three put their tool on the runner and never on your machine, so the command above
 stays the only one you need. See [`docs/security/scanners.md`](docs/security/scanners.md) for what each one
 covers, what it suppresses, and why.
 
@@ -48,7 +51,7 @@ not take, and `SECURITY.md` explains why that matters more than it looks.
 run only the suite while you work on it:
 
 ```bash
-node --test tests/audit.test.mjs tests/brigade-roster-rules.test.mjs tests/brigade-view.test.mjs tests/build-pages.test.mjs tests/check-baseline-rules.test.mjs tests/check-baselines.test.mjs tests/check-format.test.mjs tests/check-manifests.test.mjs tests/check-mod.test.mjs tests/check-paths.test.mjs tests/check-test-step.test.mjs tests/check-tree.test.mjs tests/check-version.test.mjs tests/contract-check-docs.test.mjs tests/contract-check-folder.test.mjs tests/contract-check-rules.test.mjs tests/contract-check-seal.test.mjs tests/contract-check-toml.test.mjs tests/eagle-eye-sheets.test.mjs tests/esc.test.mjs tests/groundtrack-fold.test.mjs tests/groundtrack-render.test.mjs tests/groundtrack-sheets.test.mjs tests/practice.test.mjs tests/registry.test.mjs tests/relay-cases.test.mjs tests/relay-cli.test.mjs tests/relay-lead.test.mjs tests/relay-review.test.mjs tests/relay-roundtrip.test.mjs tests/relay-session.test.mjs tests/render.test.mjs tests/skillspector-gate.test.mjs tests/skillspector-strip-suppressed.test.mjs
+node --test tests/audit.test.mjs tests/brigade-roster-rules.test.mjs tests/brigade-view.test.mjs tests/build-pages.test.mjs tests/check-baseline-rules.test.mjs tests/check-baselines.test.mjs tests/check-format.test.mjs tests/check-manifests.test.mjs tests/check-mod.test.mjs tests/check-paths.test.mjs tests/check-test-step.test.mjs tests/check-tree.test.mjs tests/check-version.test.mjs tests/contract-check-docs.test.mjs tests/contract-check-folder.test.mjs tests/contract-check-rules.test.mjs tests/contract-check-seal.test.mjs tests/contract-check-toml.test.mjs tests/eagle-eye-sheets.test.mjs tests/esc.test.mjs tests/groundtrack-fold.test.mjs tests/groundtrack-render.test.mjs tests/groundtrack-sheets.test.mjs tests/practice.test.mjs tests/registry.test.mjs tests/render.test.mjs tests/skillspector-gate.test.mjs tests/skillspector-strip-suppressed.test.mjs
 ```
 
 **The suite never reaches the network.** eagle-eye's edge audit is the one
@@ -80,8 +83,10 @@ roster file may be read or written. Keep both to erasable syntax (no enums,
 namespaces or parameter properties), so Node can strip their types.
 
 **Two more gates for the mod's `set_roster` tool, run on your own machine.**
-They need Claude Code, which CI does not install: installing it there would
-put a fetched dependency on the publishing path. Before a pull request that
+They drive a live Claude Code session, so they run where you have one. CI fetches
+Claude Code in one place only, the plugin validator's workflow, and that is not
+the publishing path: the job has `contents: read`, holds no token or secret,
+writes nothing, and the `pages` workflow does not depend on it. Before a pull request that
 touches `brigade/`, run the first on any platform, and the second on Windows,
 and say in the pull request which you ran. Off Windows, say that the recording
 gate could not run there:
@@ -233,7 +238,7 @@ The seal writes a mark into the frontmatter: the contract's version, a digest
 of the skill's folder and a digest of the contract. The folder's digest covers
 every file in `skills/<name>/` except `CONTRACT.md`: for `contract`, the check
 script and the template; for `eagle-eye`, the renderer, the audit and the
-reference files; for `head-chef`, its README, its reference files, its relay scripts in `scripts/` and its SkillSpector baseline. So a change to any of them needs a new seal, and a stray
+reference files; for `head-chef`, its README, its reference files and its SkillSpector baseline. So a change to any of them needs a new seal, and a stray
 file such as `.DS_Store` breaks it. `node scripts/check.mjs` fails when a
 covered file changed after the seal. The seal proves only that those files
 are unchanged since they were sealed. It proves nothing about who sealed them,

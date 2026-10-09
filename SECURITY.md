@@ -81,29 +81,23 @@ has the guards and the gaps.
 **One skill tells the agent to start other agent sessions and to delete their
 worktrees: head-chef.** The agent runs `claude --bg --remote-control`,
 `claude stop`, `claude rm` and `git` for it, and only on the owner's own words
-in chat. head-chef also runs two scripts of its own, for relayed answers:
-`relay-lead.mjs` for the lead and `relay-session.mjs` for each session. They
-read the caller's own transcript and relay state, the session list (names and
-ids), and the owner account's name. The session's script reads the entries by
-that account on the start prompt's record; the lead's reads them on each noted
-session's record, with that record's visibility, and the local-only list file
-the head chef writes before a launch. They start `gh` and `claude` from an
-absolute path with argument lists, never a program from the working folder and
-never through a shell. The session's script posts only on the start prompt's
-record; the lead's posts nothing. Remote Control makes each session it
-starts drivable from any device signed in to the owner's account. A session may
-take the owner's answer by relay, only for a question it asked, and never for a
-publish, a deletion, a permission or settings change, or starting or stopping a
-session. Each relayed answer is quoted on the session's record.
+in chat. From 0.5.0, a session takes any message from the head chef as the
+owner's decision, on any matter, a merge, a deletion, a permission change and
+starting or stopping a session included. It checks only that the sender's
+name maps to the head chef's session id, so any session that can send it a
+message can speak for the owner; the owner accepted that risk on 2026-10-09.
+head-chef runs no script of its own. What leaves the session: sessions post
+fixed report and miss lines and their own milestone content, and the head
+chef posts the rename line, on records that may be public; questions
+and decisions go by message only, never on a record; and Remote Control makes
+each session it starts, with its transcript, drivable and readable from any
+device signed in to the owner's account.
 [Row 16 of the threat model](docs/security/threat-model.md#the-matrix) has the
 guards and the gaps.
 
-Two scripts can send data, and only when somebody runs them. eagle-eye's
+One script can send data, and only when somebody runs it. eagle-eye's
 optional edge audit sends to a provider: see
-[What the edge audit sends](#what-the-edge-audit-sends). head-chef's session
-script posts through `gh` on the record its start prompt names: a question,
-the owner's quoted words when it takes an answer, and fixed lines, never a code
-or a session id.
+[What the edge audit sends](#what-the-edge-audit-sends).
 
 One script rewrites a file a person hands it, and only when asked:
 `skills/contract/scripts/check.mjs`. Under `--seal` it rewrites the mark lines
@@ -139,7 +133,8 @@ and a sharper danger warning for a few settings on a fixed list, such as
 
 The attacks worth planning for, scenario by scenario, with what stops each
 one and what still gets through: [docs/security/threat-model.md](docs/security/threat-model.md).
-It records the repository settings as they were read on 2026-09-25. The
+It records the repository settings as they were read on 2026-09-25, and the
+plugin validator's required check as confirmed on 2026-10-09. The
 [platform table](#what-the-platform-is-relied-on-for) below lists what the
 project relies on, which is not always what is switched on.
 
@@ -214,6 +209,10 @@ the test override: [`docs/security/edge-audit.md`](docs/security/edge-audit.md).
   baseline, because there is nothing to suppress.
 - **Every action is pinned to a commit SHA**, and zizmor checks each SHA
   matches its version comment.
+- **Claude Code's plugin validator** checks the two manifests and `skills/`
+  against the schema Claude Code loads, at a pinned version. It fails on any
+  field it does not recognise in either manifest; its check of `skills/` is
+  weaker. It is a schema check, not a security scanner.
 
 A scan that errors or reads only part of the tree fails, rather than passing
 quietly. What each scanner covers, what it suppresses, and why:
@@ -235,6 +234,7 @@ switched on right now. If that matters to you, check the settings themselves.
 | Branch protection on `main` | pull request required, `check` must pass, no bypass |
 | SkillSpector's `scan` job as a required check | a SkillSpector finding blocks a merge |
 | zizmor's `audit` job as a required check | a workflow finding blocks a merge |
+| Plugin validator's `validate` job as a required check | a manifest or skill the schema rejects blocks a merge |
 | Pages, built from Actions | what the `pages` workflow deploys to a public URL |
 
 [`.github/dependabot.yml`](.github/dependabot.yml) is in the tree and asks for

@@ -67,6 +67,6 @@ the pane shows an error, not the cards (failure 9).
   local id.
 - **Update it** at a launch, at each milestone report, when a session needs
   the owner, and after cleanup, which removes the card.
-- **No relay code and no session id** go on a card or a to-do, not even in a
-  to-do for a session's question. Reason: other plugins can read the pane's
-  file (failure 16).
+- **No session id, and no question or decision text,** go on a card or a
+  to-do, not even in a to-do for a session's question. Reason: other plugins
+  can read the pane's file (failure 16).
