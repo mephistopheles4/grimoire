@@ -52,26 +52,69 @@
 // same category stops carrying it, so the empty array is exactly what closes
 // the findings the baseline argued away. It is written, and it is uploaded.
 //
+// **The AE1 findings the allowance accepts go too, when asked.** With
+// `--allowances .skillspector-allowances.json --label skills/<name>`, an AE1
+// result — a reference to a file the scanner read in part — is dropped only
+// when the gate's own rules accept its pair in this SARIF: the target is a file
+// whose every partial read the allowance accepts, and the pair's count equals
+// its entry. scripts/lib/skillspector-allowances.mjs holds those rules, so the
+// two steps cannot read the file two ways. Without this, every accepted AE1
+// finding opens an alert while the gate is green.
+//
+// It judges from the SARIF alone. The workflow scans twice, once per format,
+// and each scan draws fresh finding ids, so a join to the JSON report by id
+// would match nothing — or, worse, the wrong thing. It drops nothing by id. A
+// result whose key it cannot read is kept, and so is every result of a pair the
+// gate would refuse.
+//
 // tests/skillspector-strip-suppressed.test.mjs drives every rule above with
 // reports written by hand, and never runs the scanner.
 
 import { readFileSync, writeFileSync } from 'node:fs';
+import { AE1_TAG, AE1_TEXT, judge, readAllowances, skillFromLabel } from './lib/skillspector-allowances.mjs';
 
-const USAGE = 'usage: node scripts/skillspector-strip-suppressed.mjs <in.sarif> <out.sarif> [--prefix <dir>/]';
+const USAGE =
+  'usage: node scripts/skillspector-strip-suppressed.mjs <in.sarif> <out.sarif> [--prefix <dir>/] [--allowances <file> --label skills/<name>]';
 const positional = [];
 let prefix = null;
+let allowancesPath = null;
+let label = null;
 const args = process.argv.slice(2);
 for (let i = 0; i < args.length; i += 1) {
   if (args[i] === '--prefix') {
     prefix = args[i + 1] ?? '';
+    i += 1;
+  } else if (args[i] === '--allowances') {
+    allowancesPath = args[i + 1] ?? '';
+    i += 1;
+  } else if (args[i] === '--label') {
+    label = args[i + 1] ?? '';
     i += 1;
   } else {
     positional.push(args[i]);
   }
 }
 const [input, output] = positional;
-if (!input || !output || positional.length > 2 || prefix === '') {
+if (!input || !output || positional.length > 2 || prefix === '' || allowancesPath === '' || label === '') {
   console.error(USAGE);
+  process.exit(1);
+}
+let allowances = null;
+let skill = null;
+if (allowancesPath !== null) {
+  skill = skillFromLabel(label);
+  if (!skill) {
+    console.error(`--allowances needs --label skills/<name>, and the label is ${JSON.stringify(label)}`);
+    process.exit(1);
+  }
+  const read = readAllowances(allowancesPath, allowancesPath);
+  if (!read.value) {
+    console.error(`the allowance file cannot be used:\n${read.problems.map(p => `  ${p}`).join('\n')}`);
+    process.exit(1);
+  }
+  allowances = read.value;
+} else if (label !== null) {
+  console.error(`--label is read only with --allowances\n${USAGE}`);
   process.exit(1);
 }
 if (prefix !== null) {
@@ -159,6 +202,47 @@ report.runs.forEach((run, i) => {
   });
 });
 
+// The accepted AE1 findings, when asked. After the baseline filter, so the
+// counts are the ones the gate sees, and before the paths are rebased, so each
+// uri is still relative to the skill the way the allowance writes it.
+const droppedPairs = new Map();
+if (allowances) {
+  const isObj = v => v !== null && typeof v === 'object' && !Array.isArray(v);
+  const uriOf = x => {
+    const u = x?.locations?.[0]?.physicalLocation?.artifactLocation?.uri;
+    return typeof u === 'string' ? u : null;
+  };
+  report.runs.forEach(run => {
+    // The ledger exceptions. Notes the scanner marks out of scope — the
+    // baseline file, a binary font — are not partial reads and never were.
+    // Everything else that names a file is judged, so a shape this step has
+    // not seen is refused rather than skipped.
+    const exceptions = [];
+    for (const inv of Array.isArray(run.invocations) ? run.invocations : []) {
+      for (const n of Array.isArray(inv?.toolExecutionNotifications) ? inv.toolExecutionNotifications : []) {
+        const p = isObj(n?.properties) ? n.properties : {};
+        const path = uriOf(n);
+        if (path === null || p.outcome === 'out_of_scope') continue;
+        exceptions.push({ path, reason_code: p.reasonCode, analyzers: p.analyzers, outcome: p.outcome, fatal: p.fatal, phase: p.phase });
+      }
+    }
+    const ae1Results = run.results.filter(r => isObj(r) && r.ruleId === 'AE1');
+    const ae1 = ae1Results.map(r => {
+      const finding = typeof r.properties?.finding === 'string' ? r.properties.finding : '';
+      const m = AE1_TEXT.exec(finding);
+      return { from: uriOf(r), target: m ? m[1] : null, tagged: Array.isArray(r.properties?.tags) && r.properties.tags.includes(AE1_TAG) };
+    });
+    const verdict = judge(skill, { exceptions, ae1 }, allowances);
+    const drop = new Set([...verdict.acceptedAe1].map(i => ae1Results[i]));
+    for (const i of verdict.acceptedAe1) {
+      const pair = `${ae1[i].from} -> ${ae1[i].target}`;
+      droppedPairs.set(pair, (droppedPairs.get(pair) ?? 0) + 1);
+    }
+    run.results = run.results.filter(r => !drop.has(r));
+    kept -= drop.size;
+  });
+}
+
 // The paths, when asked. After the filter, so a dropped result is not counted.
 let prefixed = 0;
 let absolute = 0;
@@ -203,6 +287,11 @@ console.log(`ok: stripped ${total} suppressed result(s), kept ${kept}`);
 if (total) {
   const tally = [...removed].sort(([a], [b]) => (a < b ? -1 : 1)).map(([id, n]) => `${id}×${n}`);
   console.log(`      by rule: ${tally.join(', ')}`);
+}
+if (allowances) {
+  const n = [...droppedPairs.values()].reduce((a, b) => a + b, 0);
+  console.log(`ok: stripped ${n} AE1 result(s) the allowance accepts, in ${droppedPairs.size} pair(s)`);
+  for (const [pair, count] of [...droppedPairs].sort(([a], [b]) => (a < b ? -1 : 1))) console.log(`      ${pair} ×${count}`);
 }
 if (prefix !== null) {
   console.log(`ok: put ${prefix} in front of ${prefixed} relative path(s)`);

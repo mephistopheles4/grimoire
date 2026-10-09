@@ -42,10 +42,31 @@
 //
 // The report's `issues` array already excludes what the baseline suppressed —
 // those move to `suppressed` and count toward neither the score nor this gate.
+//
+// **The allowance, when asked.** `--allowances <file>` names
+// .skillspector-allowances.json, the partial reads this repository has looked
+// at and accepted. scripts/lib/skillspector-allowances.mjs reads it and holds
+// the argument. With it, the label must be `skills/<name>`, and:
+//
+//   - a ledger exception passes only when an entry for that skill matches its
+//     file, reason code and exact checks, and it is a static, non-fatal,
+//     partial read;
+//   - the short counts must equal the number of files so accepted, each count
+//     on its own;
+//   - an AE1 finding passes only when it points at an accepted file and its
+//     pair's count equals the entry's;
+//   - an entry for this skill that matched nothing is red, because an
+//     allowance nobody needs is an allowance waiting for something to hide.
+//
+// The gate does not check an entry's content hash. scripts/check.mjs does, on
+// every pull request. Without `--allowances` the gate behaves as it did before
+// the allowance existed.
 
 import { appendFileSync, readFileSync } from 'node:fs';
+import { ALLOWANCES, REASON_CODES, isAe1, judge, readAllowances, readJsonAe1, skillFromLabel } from './lib/skillspector-allowances.mjs';
 
-const USAGE = 'usage: node scripts/skillspector-gate.mjs <report.json> [--label <what was scanned>]';
+const USAGE =
+  'usage: node scripts/skillspector-gate.mjs <report.json> [--label <what was scanned>] [--allowances <file>]';
 
 // The summary page, as markdown. Every exit below writes it, the refusals
 // included: a section missing from the page reads as a skill nobody scanned.
@@ -80,14 +101,17 @@ const cell = v => {
 const args = process.argv.slice(2);
 let path;
 let label;
+let allowancesPath;
 for (let i = 0; i < args.length; i += 1) {
-  if (args[i] === '--label') {
-    label = args[i + 1];
+  if (args[i] === '--label' || args[i] === '--allowances') {
+    const v = args[i + 1];
     i += 1;
-    if (!label) {
+    if (!v) {
       console.error(USAGE);
       process.exit(1);
     }
+    if (args[i - 1] === '--label') label = v;
+    else allowancesPath = v;
   } else if (path === undefined) {
     path = args[i];
   } else {
@@ -127,6 +151,23 @@ try {
 if (report === null || typeof report !== 'object' || Array.isArray(report)) {
   refuse(`${path} is not a JSON object`);
 }
+
+// The allowance, read before anything is judged. A missing or malformed file
+// refuses the run: treating it as empty would be quiet, and treating it as
+// absent would drop the argument the workflow passed on purpose.
+let allowances = null;
+let skill = null;
+if (allowancesPath !== undefined) {
+  skill = skillFromLabel(label);
+  if (!skill) refuse(`--allowances needs --label skills/<name>, and the label is ${JSON.stringify(label ?? null)}`);
+  const read = readAllowances(allowancesPath, allowancesPath);
+  if (!read.value) refuse(`the allowance file cannot be used:\n${read.problems.map(p => `      ${p}`).join('\n')}`);
+  allowances = read.value;
+}
+// What the allowance accepted, for the log and the page. Filled below.
+let verdict = null;
+let acceptedExceptionRows = [];
+let acceptedFindingRows = [];
 
 const failures = [];
 // Rows for the summary page, beside the one-line failures. The log prints them
@@ -189,10 +230,39 @@ if (done === null || typeof done !== 'object' || Array.isArray(done)) {
   } else {
     if (done.execution_successful !== true) failures.push('the scanner does not call its own execution successful');
     if (done.status === 'failed') failures.push('the scan failed (status "failed")');
-    if (scanned < total) failures.push(`the scan read ${scanned} of ${total} components`);
+    // With the allowance, each count is re-derived from the files it accepts,
+    // and each is checked on its own: a short component count with no matching
+    // partial file is something else going unread.
+    let shortAllowed = 0;
+    let refusedExceptions = done.ledger_exceptions;
+    if (allowances) {
+      const read = x =>
+        x !== null && typeof x === 'object' && !Array.isArray(x)
+          ? { path: x.path, reason_code: x.reason_code, analyzers: x.analyzers, outcome: x.outcome, fatal: x.fatal, phase: x.phase }
+          : {};
+      const ae1 = Array.isArray(report.issues) ? report.issues.filter(isAe1).map(readJsonAe1) : [];
+      verdict = judge(skill, { exceptions: done.ledger_exceptions.map(read), ae1 }, allowances);
+      shortAllowed = verdict.allowedFiles.size;
+      refusedExceptions = done.ledger_exceptions.filter((_, i) => !verdict.allowedExceptions.has(i));
+      acceptedExceptionRows = done.ledger_exceptions.filter((_, i) => verdict.allowedExceptions.has(i)).map(describeException);
+      for (const u of verdict.unused) failures.push(`the allowance for ${skill} has an entry this scan does not need: ${u}`);
+    }
+    if (allowances ? total - scanned !== shortAllowed : scanned < total) {
+      failures.push(
+        allowances
+          ? `the scan read ${scanned} of ${total} components, and the allowance accepts ${shortAllowed} file(s) as read in part`
+          : `the scan read ${scanned} of ${total} components`,
+      );
+    }
     if (skipped > 0) failures.push(`the scan left ${skipped} file(s) entirely uninspected`);
-    if (partial > 0) failures.push(`the scan read ${partial} file(s) only in part`);
-    if (done.ledger_exceptions.length) {
+    if (allowances ? partial !== shortAllowed : partial > 0) {
+      failures.push(
+        allowances
+          ? `the scan read ${partial} file(s) only in part, and the allowance accepts ${shortAllowed}`
+          : `the scan read ${partial} file(s) only in part`,
+      );
+    }
+    if (refusedExceptions.length) {
       // SAY WHICH ONES, AND WHY. The count alone is a red gate nobody can act
       // on: the report is written outside the checkout and no step keeps it, so
       // a contributor reading the run sees "1 exception" and has no way to learn
@@ -205,18 +275,30 @@ if (done === null || typeof done !== 'object' || Array.isArray(done)) {
       // documents are formatted, and every other field is appended as itself —
       // the scanner owns this shape, and a field the gate has not heard of is
       // exactly the one a reader needs to see.
-      exceptionRows = done.ledger_exceptions.map(describeException);
+      exceptionRows = refusedExceptions.map(describeException);
       failures.push(
-        `the scanner recorded ${done.ledger_exceptions.length} exception(s) while reading the tree:\n` +
+        `the scanner recorded ${refusedExceptions.length} exception(s)${allowances ? ' the allowance does not accept' : ''} while reading the tree:\n` +
           exceptionRows.map(e => `      ${e.line}`).join('\n'),
       );
     }
   }
 }
 
-const issues = report.issues;
+let issues = report.issues;
 if (!Array.isArray(issues)) {
   failures.push('the report has no "issues" array — an absent list is not an empty one');
+}
+
+// The AE1 findings the allowance accepts leave the list, and are said out loud
+// below. The ones it refuses stay, each with why. With no verdict — a report
+// whose coverage could not be read — nothing is accepted.
+const refusedWhy = new Map();
+if (Array.isArray(issues) && verdict) {
+  const ae1 = issues.filter(isAe1);
+  for (const r of verdict.refusedAe1) refusedWhy.set(ae1[r.index], r.why);
+  const accepted = new Set([...verdict.acceptedAe1].map(i => ae1[i]));
+  acceptedFindingRows = [...accepted].map(i => ({ where: i.location?.file ?? '', target: readJsonAe1(i).target }));
+  issues = issues.filter(i => !accepted.has(i));
 }
 
 if (Array.isArray(issues) && issues.length) {
@@ -242,7 +324,9 @@ if (Array.isArray(issues) && issues.length) {
           id: i.id ?? '?',
           severity: i.severity ?? '?',
           where: where(i),
-          message: i.message ?? i.finding ?? i.explanation ?? '',
+          message: [i.message ?? i.finding ?? i.explanation ?? '', refusedWhy.has(i) && `(the allowance refuses it: ${refusedWhy.get(i)})`]
+            .filter(Boolean)
+            .join(' '),
         },
   );
   const describe = r =>
@@ -258,6 +342,12 @@ if (failures.length) {
   const advice =
     'An exception or a short count is not a finding. It says the scanner did not read\n' +
     'everything, and its reason code says why.\n\n' +
+    (allowances && exceptionRows.length
+      ? `An exception with reason code ${[...REASON_CODES.keys()].join(' or ')} can be accepted\n` +
+        `in ${ALLOWANCES}, keyed by skill, file, reason code and checks, with\n` +
+        'a reason and the file\'s content hash. docs/security/scanners.md says when. No other\n' +
+        'reason code can be accepted, and a baseline entry never accepts a partial read.\n\n'
+      : '') +
     'A finding is either real or a false positive worth writing down. If it is a false\n' +
     "positive, add a rule-keyed entry with a reason a stranger can read to the skill's\n" +
     'own .skillspector-baseline.yaml — create it if the skill has none — and the same\n' +
@@ -298,7 +388,7 @@ summary.push(`### ${cell(name)}: pass`, '');
 // clean, so the run is not failed — and it is not hidden either.
 if (done.is_complete !== true) {
   const why = Array.isArray(done.limitations) && done.limitations.length ? `: ${done.limitations.join('; ')}` : '';
-  const note = `note: the scanner calls this run "${done.status ?? 'unknown'}", with every coverage count clean${why}`;
+  const note = `note: the scanner calls this run "${done.status ?? 'unknown'}", with every coverage count clean${allowances ? ` or accepted by ${ALLOWANCES}` : ''}${why}`;
   console.log(note);
   summary.push(`- ${cell(note)}`);
 }
@@ -323,6 +413,24 @@ if (Array.isArray(report.suppressed) && report.suppressed.length) {
   const tally = [...perRule].sort(([a], [b]) => (a < b ? -1 : 1)).map(([id, n]) => `${id}×${n}`);
   console.log(`      by rule: ${tally.join(', ')}`);
   summary.push(`- Suppressed by rule: ${cell(tally.join(', '))}.`);
+}
+
+// What the allowance accepted, apart from the baseline's tally. A green run
+// that read files in part says which, every time, so the acceptance never
+// becomes the background.
+if (allowances) {
+  console.log(`ok: ${acceptedExceptionRows.length} partial read(s) and ${acceptedFindingRows.length} AE1 finding(s) accepted by ${ALLOWANCES}`);
+  summary.push(`- Accepted by ${ALLOWANCES}: ${acceptedExceptionRows.length} partial read(s), ${acceptedFindingRows.length} AE1 finding(s).`);
+  for (const e of acceptedExceptionRows) console.log(`      partial: ${e.where}: ${e.reason} [${e.analyzers}]`);
+  for (const f of acceptedFindingRows) console.log(`      AE1: ${f.where} -> ${f.target}`);
+  if (acceptedExceptionRows.length) {
+    summary.push('', '| Accepted partial read | Reason | Analyzers |', '| --- | --- | --- |');
+    for (const e of acceptedExceptionRows) summary.push(`| ${cell(e.where)} | ${cell(e.reason)} | ${cell(e.analyzers)} |`);
+  }
+  if (acceptedFindingRows.length) {
+    summary.push('', '| Accepted AE1 from | To a file read in part |', '| --- | --- |');
+    for (const f of acceptedFindingRows) summary.push(`| ${cell(f.where)} | ${cell(f.target)} |`);
+  }
 }
 writeSummary();
 

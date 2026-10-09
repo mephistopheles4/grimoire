@@ -1,0 +1,237 @@
+{
+  "version": 1,
+  "exceptions": [
+    {
+      "skill": "contract",
+      "path": "scripts/check.mjs",
+      "reason_code": "static_parse_limit",
+      "analyzers": [
+        "static_patterns_tool_misuse"
+      ],
+      "sha256": "3c51db946a5a756c21381843301b8d36dfd56d26eda0e1a0bba80d079d90da1b",
+      "reason": "The contract skill's format check script. The destructive-command parser stops partway through a long expression and marks the file partial for that one check; every other check reads it in full. The entry also accepts a marker-pass give-up inside that one check, which the scanner reports under this code."
+    },
+    {
+      "skill": "eagle-eye",
+      "path": "audit.mjs",
+      "reason_code": "static_parse_limit",
+      "analyzers": [
+        "static_patterns_tool_misuse"
+      ],
+      "sha256": "c5b6da22759f7bad116c4d307fdf1d0acc9673f9bf7c986277cb88bf0988b009",
+      "reason": "The edge audit script. The destructive-command parser stops partway through a long expression and marks the file partial for that one check; every other check reads it in full. The entry also accepts a marker-pass give-up inside that one check, which the scanner reports under this code."
+    },
+    {
+      "skill": "eagle-eye",
+      "path": "lib/template.html",
+      "reason_code": "static_parse_limit",
+      "analyzers": [
+        "static_patterns_tool_misuse"
+      ],
+      "sha256": "9a7450dbd6987c239c57c8841c79e515e5ee6ba92934dbdbb46f66f36e07a444",
+      "reason": "The page template the renderer fills in. The destructive-command parser stops partway through a long expression and marks the file partial for that one check; every other check reads it in full. The entry also accepts a marker-pass give-up inside that one check, which the scanner reports under this code."
+    },
+    {
+      "skill": "eagle-eye",
+      "path": "reference/usage-record.md",
+      "reason_code": "static_parse_limit",
+      "analyzers": [
+        "static_patterns_tool_misuse"
+      ],
+      "sha256": "5b8b42ae5f3f5dab45c2b766fa530a1b67b90f9c95e646e65224bd458e45d6c3",
+      "reason": "Reference prose on the usage record. The destructive-command parser stops partway through a long expression and marks the file partial for that one check; every other check reads it in full. The entry also accepts a marker-pass give-up inside that one check, which the scanner reports under this code."
+    },
+    {
+      "skill": "eagle-eye",
+      "path": "render.mjs",
+      "reason_code": "static_parse_limit",
+      "analyzers": [
+        "static_patterns_tool_misuse"
+      ],
+      "sha256": "6bd65c47ecd060b1166257f58cf46ee5372372d5ee016c7ada04a5ffcf58cfd3",
+      "reason": "The box renderer. The destructive-command parser stops partway through a long expression and marks the file partial for that one check; every other check reads it in full. The entry also accepts a marker-pass give-up inside that one check, which the scanner reports under this code."
+    },
+    {
+      "skill": "groundtrack",
+      "path": "scripts/groundtrack.js",
+      "reason_code": "static_parse_limit",
+      "analyzers": [
+        "static_patterns_tool_misuse"
+      ],
+      "sha256": "a4fa1fdb7b6bc4c42a109551c3f5983e46c7ea58a863d4d0647c4ed0bbce0f6e",
+      "reason": "The page module the renderer inlines. The destructive-command parser stops partway through a long expression and marks the file partial for that one check; every other check reads it in full. The entry also accepts a marker-pass give-up inside that one check, which the scanner reports under this code."
+    },
+    {
+      "skill": "groundtrack",
+      "path": "scripts/render.mjs",
+      "reason_code": "static_parse_limit",
+      "analyzers": [
+        "static_patterns_tool_misuse"
+      ],
+      "sha256": "d053180cfc1e3cbd9579a460e8636a4539de751ec7dc1227dea8b83680d8dec5",
+      "reason": "The flightpath renderer and validator. The destructive-command parser stops partway through a long expression and marks the file partial for that one check; every other check reads it in full. The entry also accepts a marker-pass give-up inside that one check, which the scanner reports under this code."
+    },
+    {
+      "skill": "head-chef",
+      "path": "CONTRACT.md",
+      "reason_code": "obfuscated_instruction_text",
+      "analyzers": [
+        "static_patterns_agent_snooping",
+        "static_patterns_anti_refusal",
+        "static_patterns_deserialization",
+        "static_patterns_excessive_agency",
+        "static_patterns_harmful_content",
+        "static_patterns_memory_poisoning",
+        "static_patterns_privilege_escalation",
+        "static_patterns_prompt_injection",
+        "static_patterns_rogue_agent",
+        "static_patterns_ssrf",
+        "static_patterns_supply_chain",
+        "static_patterns_system_prompt_leakage"
+      ],
+      "sha256": "850360df8992e69e658d8b798008465e3d431bd442d01525408cfda54801f45b",
+      "reason": "The skill's contract. The marker pass cannot settle a directive in it and gives up on undoing marker tricks there; the plain scan still reads the whole file under every listed check."
+    },
+    {
+      "skill": "head-chef",
+      "path": "CONTRACT.md",
+      "reason_code": "static_parse_limit",
+      "analyzers": [
+        "static_patterns_tool_misuse"
+      ],
+      "sha256": "850360df8992e69e658d8b798008465e3d431bd442d01525408cfda54801f45b",
+      "reason": "The skill's contract. The destructive-command parser stops partway through a long expression and marks the file partial for that one check; every other check reads it in full. The entry also accepts a marker-pass give-up inside that one check, which the scanner reports under this code."
+    },
+    {
+      "skill": "head-chef",
+      "path": "SKILL.md",
+      "reason_code": "obfuscated_instruction_text",
+      "analyzers": [
+        "static_patterns_agent_snooping",
+        "static_patterns_anti_refusal",
+        "static_patterns_deserialization",
+        "static_patterns_excessive_agency",
+        "static_patterns_harmful_content",
+        "static_patterns_memory_poisoning",
+        "static_patterns_privilege_escalation",
+        "static_patterns_prompt_injection",
+        "static_patterns_rogue_agent",
+        "static_patterns_ssrf",
+        "static_patterns_supply_chain",
+        "static_patterns_system_prompt_leakage",
+        "static_patterns_tool_misuse"
+      ],
+      "sha256": "4162e65f6c84e6513db04d56603c6c77c26378eb7b6d67be5632be7d3f295542",
+      "reason": "The skill's instructions. The marker pass cannot settle a directive in it and gives up on undoing marker tricks there; the plain scan still reads the whole file under every listed check."
+    },
+    {
+      "skill": "head-chef",
+      "path": "scripts/lib/lead-core.mjs",
+      "reason_code": "static_parse_limit",
+      "analyzers": [
+        "static_patterns_tool_misuse"
+      ],
+      "sha256": "a26324589737fc77998cdc572e698c1f67895fcc02f0dc8bcb151f3ae11845e2",
+      "reason": "The lead's shared core module. The destructive-command parser stops partway through a long expression and marks the file partial for that one check; every other check reads it in full. The entry also accepts a marker-pass give-up inside that one check, which the scanner reports under this code."
+    },
+    {
+      "skill": "head-chef",
+      "path": "scripts/lib/relay-core.mjs",
+      "reason_code": "obfuscated_instruction_text",
+      "analyzers": [
+        "static_patterns_agent_snooping",
+        "static_patterns_anti_refusal",
+        "static_patterns_deserialization",
+        "static_patterns_excessive_agency",
+        "static_patterns_harmful_content",
+        "static_patterns_memory_poisoning",
+        "static_patterns_privilege_escalation",
+        "static_patterns_prompt_injection",
+        "static_patterns_rogue_agent",
+        "static_patterns_ssrf",
+        "static_patterns_supply_chain",
+        "static_patterns_system_prompt_leakage"
+      ],
+      "sha256": "3fd9239a317da3d3038390f9bc1b364707324b416fd3b2d296f6a5c718995583",
+      "reason": "The relay checker, whose line-ending normalisation, a replace call on the relayed text, reads to the marker pass as a removal directive it cannot settle; the plain scan still reads the whole file under every listed check."
+    },
+    {
+      "skill": "head-chef",
+      "path": "scripts/lib/relay-core.mjs",
+      "reason_code": "static_parse_limit",
+      "analyzers": [
+        "static_patterns_tool_misuse"
+      ],
+      "sha256": "3fd9239a317da3d3038390f9bc1b364707324b416fd3b2d296f6a5c718995583",
+      "reason": "The relay checker. The destructive-command parser stops partway through a long expression and marks the file partial for that one check; every other check reads it in full. The entry also accepts a marker-pass give-up inside that one check, which the scanner reports under this code."
+    },
+    {
+      "skill": "head-chef",
+      "path": "scripts/lib/session-core.mjs",
+      "reason_code": "static_parse_limit",
+      "analyzers": [
+        "static_patterns_tool_misuse"
+      ],
+      "sha256": "d610fb173a1e2b30d36a6fa7089f1f1b67127f3aabd92e51f93a62fe094d8f8c",
+      "reason": "The session's shared core module. The destructive-command parser stops partway through a long expression and marks the file partial for that one check; every other check reads it in full. The entry also accepts a marker-pass give-up inside that one check, which the scanner reports under this code."
+    },
+    {
+      "skill": "head-chef",
+      "path": "scripts/relay-lead.mjs",
+      "reason_code": "static_parse_limit",
+      "analyzers": [
+        "static_patterns_tool_misuse"
+      ],
+      "sha256": "4746ae49199f53c674c489d3de2ab9cfb7617ab9cde3bb4028c9a3a7077308bb",
+      "reason": "The lead's relay script. The destructive-command parser stops partway through a long expression and marks the file partial for that one check; every other check reads it in full. The entry also accepts a marker-pass give-up inside that one check, which the scanner reports under this code."
+    },
+    {
+      "skill": "head-chef",
+      "path": "scripts/relay-session.mjs",
+      "reason_code": "static_parse_limit",
+      "analyzers": [
+        "static_patterns_tool_misuse"
+      ],
+      "sha256": "e22cb73f9bb4a1742ab9db2a199bc0c5adbe76165d5d583ac953596c5033202b",
+      "reason": "The session's relay script. The destructive-command parser stops partway through a long expression and marks the file partial for that one check; every other check reads it in full. The entry also accepts a marker-pass give-up inside that one check, which the scanner reports under this code."
+    }
+  ],
+  "references": [
+    {
+      "skill": "eagle-eye",
+      "from": "SKILL.md",
+      "target": "render.mjs",
+      "count": 2
+    },
+    {
+      "skill": "eagle-eye",
+      "from": "SKILL.md",
+      "target": "audit.mjs",
+      "count": 2
+    },
+    {
+      "skill": "eagle-eye",
+      "from": "SKILL.md",
+      "target": "reference/usage-record.md",
+      "count": 1
+    },
+    {
+      "skill": "head-chef",
+      "from": "SKILL.md",
+      "target": "CONTRACT.md",
+      "count": 1
+    },
+    {
+      "skill": "head-chef",
+      "from": "SKILL.md",
+      "target": "scripts/relay-lead.mjs",
+      "count": 1
+    },
+    {
+      "skill": "head-chef",
+      "from": "SKILL.md",
+      "target": "scripts/relay-session.mjs",
+      "count": 1
+    }
+  ]
+}
