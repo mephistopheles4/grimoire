@@ -220,8 +220,10 @@ test('every entry added, removed or re-hashed against the base is listed by name
   git('commit', '-aqm', 'change the allowance');
   const r = run(checkIn(dir), [], { cwd: dir, env: { GITHUB_BASE_REF: null } });
   assert.match(r.stdout, /changed against origin\/main; review each by hand/);
-  assert.match(r.stdout, new RegExp(`removed exception ${first.skill}/${first.path.replace(/[.]/g, '\\.')} \\(${first.reason_code}\\)`));
-  assert.match(r.stdout, new RegExp(`re-hashed exception ${second.skill}/${second.path.replace(/[.]/g, '\\.')} \\(${second.reason_code}\\)`));
+  // Plain substrings, not a pattern built from the entry: a path is text, and
+  // escaping it into a regular expression is one more thing to get wrong.
+  assert.ok(r.stdout.includes(`removed exception ${first.skill}/${first.path} (${first.reason_code})`), r.stdout);
+  assert.ok(r.stdout.includes(`re-hashed exception ${second.skill}/${second.path} (${second.reason_code})`), r.stdout);
   assert.match(r.stdout, /added exception groundtrack\/SKILL\.md \(static_parse_limit\)/);
   assert.match(r.stdout, /recounted reference/);
   assert.doesNotMatch(r.stdout, /[0-9a-f]{64}/);
