@@ -9,7 +9,6 @@
   "homepage": "https://mephistopheles4.github.io/grimoire/",
   "repository": "https://github.com/mephistopheles4/grimoire",
   "license": "MIT",
-  "bogusField": "C3 probe, reverted in the next commit",
   "types": "./brigade/types/index.d.ts",
   "keywords": [
     "decisions",
