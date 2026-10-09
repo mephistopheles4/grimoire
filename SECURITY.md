@@ -43,6 +43,9 @@ once. It also reads this session's own usage, its rate limits and context, when 
 pane opens and, while it stays open, each time the engine measures the
 session; it asks only for
 the local summary estimate of the context breakdown, which sends no request.
+On an Open in app press it reads three environment variables, `OS`,
+`SystemRoot` and `windir`, only to tell whether each is set or `OS` is
+`Windows_NT`; it never stores, shows or sends them.
 It makes no network request of its own; its one tool call, below, goes to
 whatever connected server answers to the name `ccd_window`. It writes one file, the lead session's roster,
 through a tool the model calls, `set_roster`, which skips Claude Code's
@@ -64,8 +67,11 @@ for it is not a deny or an ask naming a rule, so a deny or ask rule for that
 tool stops it. An exact deny rule was seen to stop it on Desktop 2.1.289; a
 rule for the whole server, `mcp__ccd_window`, rests on the engine matching it
 the same way, which was not tried there. When that call is refused,
-fails or takes over 5 seconds in all, its one other process is `explorer.exe`, given a
-`claude://` link, as before.
+fails or takes over 5 seconds in all, or the card has no Desktop id, its one
+other process is the host's opener, given a `claude://` link: `explorer.exe`
+on Windows, as before, `/usr/bin/open` on macOS and `/usr/bin/xdg-open` on
+Linux, the last two by absolute path. On a host it cannot identify it runs
+nothing.
 Everything it reads is checked and drawn as text, in the usage image too. Review any change under
 `brigade/` or `hooks/` as a change to code that runs on every installer's
 machine: [row 15 of the threat model](docs/security/threat-model.md#the-matrix)
