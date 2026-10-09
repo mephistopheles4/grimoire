@@ -202,7 +202,11 @@ the test override: [`docs/security/edge-audit.md`](docs/security/edge-audit.md).
 
 - **CodeQL** reads the JavaScript, including the page templates.
 - **SkillSpector** reads each skill's prose and fails on any finding the
-  baseline does not cover. Every suppression carries a written reason.
+  baseline does not cover, and on any file it reads only in part. Every
+  suppression carries a written reason. The one exception is a partial read
+  someone has accepted by name, with a reason, for one of two reason codes, and
+  pinned to the file's content so any edit to it shows in review: see
+  [Partial reads](docs/security/scanners.md#partial-reads).
 - **zizmor** audits the workflows and fails on any finding. There is no
   baseline, because there is nothing to suppress.
 - **Every action is pinned to a commit SHA**, and zizmor checks each SHA

@@ -40,10 +40,13 @@ export let n = 0;
 
 export const baselineName = '.skillspector-baseline.yaml';
 
+export const allowancesName = '.skillspector-allowances.json';
+
 // A copy of everything check.mjs reads: the script, the renderer and its
 // module, one box file to validate, both manifests, the repository's
-// SkillSpector baseline — the skill's own copy travels inside skills/ — and
-// .gitignore, which the walk reads to decide what it does not enter.
+// SkillSpector baseline — the skill's own copy travels inside skills/ — the
+// SkillSpector allowance, and .gitignore, which the walk reads to decide what
+// it does not enter.
 export function tree() {
   const dir = join(work, `case-${n++}`);
   mkdirSync(dir);
@@ -58,6 +61,9 @@ export function tree() {
   }
   cpSync(join(root, '.gitignore'), join(dir, '.gitignore'));
   cpSync(join(root, baselineName), join(dir, baselineName));
+  // The SkillSpector allowance, whose entries name files under skills/ and
+  // pin their content, so the copy above keeps every hash true.
+  cpSync(join(root, allowancesName), join(dir, allowancesName));
   // eagle-eye is sealed, so any edit to it breaks its mark. A test that edits
   // a skill and expects a pass edits this unsealed fixture instead. It carries a
   // copy of eagle-eye's baseline, so the two-baseline agreement rules see it too.

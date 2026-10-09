@@ -19,7 +19,10 @@ disagree, runs every skill through the format check in
 runs it as a required check called `check`. `main` takes no direct pushes.
 
 Three more workflows check things the command above does not. One runs SkillSpector
-over the skill prose and fails on any finding the baselines do not cover. One
+over the skill prose and fails on any finding the baselines do not cover, and on
+any file it reads only in part unless `.skillspector-allowances.json` accepts that
+partial read by name. The command above holds each accepted file to its content
+hash, so an edit to one fails until its entry is updated in the same pull request. One
 runs zizmor over `.github/workflows/` and fails on any finding at all —
 there is no baseline for it, because there is nothing to suppress. The third runs
 `claude plugin validate --strict` on the two manifests and `skills/`, at a pinned
@@ -51,7 +54,7 @@ not take, and `SECURITY.md` explains why that matters more than it looks.
 run only the suite while you work on it:
 
 ```bash
-node --test tests/audit.test.mjs tests/brigade-roster-rules.test.mjs tests/brigade-view.test.mjs tests/build-pages.test.mjs tests/check-baseline-rules.test.mjs tests/check-baselines.test.mjs tests/check-format.test.mjs tests/check-manifests.test.mjs tests/check-mod.test.mjs tests/check-paths.test.mjs tests/check-test-step.test.mjs tests/check-tree.test.mjs tests/check-version.test.mjs tests/contract-check-docs.test.mjs tests/contract-check-folder.test.mjs tests/contract-check-rules.test.mjs tests/contract-check-seal.test.mjs tests/contract-check-toml.test.mjs tests/eagle-eye-sheets.test.mjs tests/esc.test.mjs tests/groundtrack-fold.test.mjs tests/groundtrack-render.test.mjs tests/groundtrack-sheets.test.mjs tests/practice.test.mjs tests/registry.test.mjs tests/relay-cases.test.mjs tests/relay-cli.test.mjs tests/relay-lead.test.mjs tests/relay-review.test.mjs tests/relay-roundtrip.test.mjs tests/relay-session.test.mjs tests/render.test.mjs tests/skillspector-gate.test.mjs tests/skillspector-strip-suppressed.test.mjs
+node --test tests/audit.test.mjs tests/brigade-roster-rules.test.mjs tests/brigade-view.test.mjs tests/build-pages.test.mjs tests/check-allowances.test.mjs tests/check-baseline-rules.test.mjs tests/check-baselines.test.mjs tests/check-format.test.mjs tests/check-manifests.test.mjs tests/check-mod.test.mjs tests/check-paths.test.mjs tests/check-test-step.test.mjs tests/check-tree.test.mjs tests/check-version.test.mjs tests/contract-check-docs.test.mjs tests/contract-check-folder.test.mjs tests/contract-check-rules.test.mjs tests/contract-check-seal.test.mjs tests/contract-check-toml.test.mjs tests/eagle-eye-sheets.test.mjs tests/esc.test.mjs tests/groundtrack-fold.test.mjs tests/groundtrack-render.test.mjs tests/groundtrack-sheets.test.mjs tests/practice.test.mjs tests/registry.test.mjs tests/relay-cases.test.mjs tests/relay-cli.test.mjs tests/relay-lead.test.mjs tests/relay-review.test.mjs tests/relay-roundtrip.test.mjs tests/relay-session.test.mjs tests/render.test.mjs tests/skillspector-gate.test.mjs tests/skillspector-strip-suppressed.test.mjs
 ```
 
 **The suite never reaches the network.** eagle-eye's edge audit is the one

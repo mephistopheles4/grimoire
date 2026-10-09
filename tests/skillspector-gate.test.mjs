@@ -470,3 +470,244 @@ test('a summary it cannot write is said out loud and leaves the verdict alone', 
   assert.equal(out.code, 0, `${out.stdout}${out.stderr}`);
   assert.match(out.stderr, /could not write the run summary/);
 });
+
+// ---- the allowance ----
+//
+// `--allowances` names .skillspector-allowances.json, the partial reads this
+// repository has accepted. scripts/lib/skillspector-allowances.mjs holds the
+// rules; these tests drive them through the gate, the way the workflow does.
+// Every case is the accepted report below with exactly one thing changed.
+
+const HASH = 'a'.repeat(64);
+const TM = 'static_patterns_tool_misuse';
+
+// An allowance accepting one parse-limit read of lib/long.mjs in the skill
+// `demo`, and one AE1 reference to it from SKILL.md.
+const allowance = () => ({
+  version: 1,
+  exceptions: [
+    { skill: 'demo', path: 'lib/long.mjs', reason_code: 'static_parse_limit', analyzers: [TM], sha256: HASH, reason: 'A neutral reason for the test.' },
+  ],
+  references: [{ skill: 'demo', from: 'SKILL.md', target: 'lib/long.mjs', count: 1 }],
+});
+function allowanceFile(value) {
+  const p = join(work, `allow-${n++}.json`);
+  writeFileSync(p, typeof value === 'string' ? value : `${JSON.stringify(value, null, 2)}\n`);
+  return p;
+}
+const partialException = (path = 'lib/long.mjs', over = {}) => ({
+  outcome: 'partial',
+  phase: 'static',
+  reason_code: 'static_parse_limit',
+  message: 'The parser stopped early.',
+  path,
+  start_line: 1,
+  end_line: 1,
+  fatal: false,
+  analyzers: [TM],
+  ...over,
+});
+const ae1 = (target = 'lib/long.mjs', over = {}) => ({
+  id: 'AE1',
+  severity: 'HIGH',
+  location: { file: 'SKILL.md', start_line: 5 },
+  finding: `${target} (partial)`,
+  tags: ['target-disposition:partial'],
+  ...over,
+});
+// The scan the allowance above accepts: one file read in part, one component
+// short, and one AE1 finding pointing at it.
+const accepted = () => {
+  const r = clean();
+  r.analysis_completeness.is_complete = false;
+  r.analysis_completeness.status = 'partial';
+  r.analysis_completeness.scanned_components = 29;
+  r.analysis_completeness.partially_inspected_files = 1;
+  r.analysis_completeness.ledger_exceptions = [partialException()];
+  r.issues = [ae1()];
+  return r;
+};
+const withAllowance = (r, a = allowance(), label = 'skills/demo') => run(gate, [report(r), '--label', label, '--allowances', allowanceFile(a)]);
+function allowedPasses(r, a) {
+  const out = withAllowance(r, a);
+  assert.equal(out.code, 0, `expected a pass, got:\n${out.stdout}${out.stderr}`);
+  return out;
+}
+function allowedFails(r, pattern, a, label) {
+  const out = withAllowance(r, a, label);
+  assert.equal(out.code, 1, `expected a failure, got:\n${out.stdout}${out.stderr}`);
+  assert.match(out.stderr, pattern);
+  return out;
+}
+
+test('the allowance accepts its partial read and its AE1 finding, and says so', () => {
+  const out = allowedPasses(accepted());
+  assert.match(out.stdout, /1 partial read\(s\) and 1 AE1 finding\(s\) accepted by \.skillspector-allowances\.json/);
+  assert.match(out.stdout, /partial: lib\/long\.mjs:1: static_parse_limit/);
+  assert.match(out.stdout, /AE1: SKILL\.md -> lib\/long\.mjs/);
+});
+
+test('the same report without --allowances is red, as before the allowance existed', () => {
+  const out = run(gate, [report(accepted()), '--label', 'skills/demo']);
+  assert.equal(out.code, 1);
+  assert.match(out.stderr, /the scan read 1 file\(s\) only in part/);
+  assert.doesNotMatch(out.stderr, /skillspector-allowances/);
+});
+
+test('the summary lists what the allowance accepted, apart from the baseline tally', () => {
+  const file = summaryPath();
+  const out = run(gate, [report(accepted()), '--label', 'skills/demo', '--allowances', allowanceFile(allowance())], {
+    env: { GITHUB_STEP_SUMMARY: file },
+  });
+  assert.equal(out.code, 0, `${out.stdout}${out.stderr}`);
+  const page = readFileSync(file, 'utf8');
+  assert.match(page, /Accepted by \.skillspector-allowances\.json: 1 partial read\(s\), 1 AE1 finding\(s\)/);
+  assert.match(page, /^\| lib\/long\.mjs:1 \| static_parse_limit \| static_patterns_tool_misuse \|$/m);
+  assert.match(page, /^\| SKILL\.md \| lib\/long\.mjs \|$/m);
+});
+
+test('an exception with a reason code outside the two is refused', () => {
+  const r = accepted();
+  r.analysis_completeness.ledger_exceptions = [partialException('lib/long.mjs', { reason_code: 'runtime_limit' })];
+  const out = allowedFails(r, /1 exception\(s\) the allowance does not accept[\s\S]*runtime_limit/);
+  assert.match(out.stderr, /can be accepted\nin \.skillspector-allowances\.json/);
+});
+
+test('an allowed file with an extra check is refused', () => {
+  const r = accepted();
+  r.analysis_completeness.ledger_exceptions = [partialException('lib/long.mjs', { analyzers: [TM, 'static_patterns_ssrf'] })];
+  allowedFails(r, /the allowance does not accept[\s\S]*static_patterns_ssrf/);
+});
+
+test('an allowed file with a check missing is refused too', () => {
+  // Exact, not a subset. A list that shrank is a scanner that changed, and
+  // that is worth a look before anything is accepted.
+  const a = allowance();
+  a.exceptions[0].analyzers = ['static_patterns_ssrf', TM];
+  allowedFails(accepted(), /the allowance does not accept/, a);
+});
+
+test('an allowed reason code with fatal true is refused', () => {
+  const r = accepted();
+  r.analysis_completeness.ledger_exceptions = [partialException('lib/long.mjs', { fatal: true })];
+  allowedFails(r, /the allowance does not accept/);
+});
+
+test('an allowed reason code in a phase other than static is refused', () => {
+  const r = accepted();
+  r.analysis_completeness.ledger_exceptions = [partialException('lib/long.mjs', { phase: 'discovery' })];
+  allowedFails(r, /the allowance does not accept/);
+});
+
+test('an allowed reason code with an outcome other than partial is refused', () => {
+  const r = accepted();
+  r.analysis_completeness.ledger_exceptions = [partialException('lib/long.mjs', { outcome: 'skipped' })];
+  allowedFails(r, /the allowance does not accept/);
+});
+
+test('an entirely uninspected file is refused whatever the allowance says', () => {
+  const r = accepted();
+  r.analysis_completeness.entirely_uninspected_files = 1;
+  allowedFails(r, /1 file\(s\) entirely uninspected/);
+});
+
+test('a short component with no matching partial file is refused', () => {
+  const r = accepted();
+  r.analysis_completeness.scanned_components = 28;
+  allowedFails(r, /read 28 of 30 components, and the allowance accepts 1 file\(s\) as read in part/);
+});
+
+test('a partial count with no matching exception is refused', () => {
+  const r = accepted();
+  r.analysis_completeness.partially_inspected_files = 2;
+  r.analysis_completeness.scanned_components = 28;
+  allowedFails(r, /read 2 file\(s\) only in part, and the allowance accepts 1/);
+});
+
+test('an AE1 finding on a file without an entry is refused', () => {
+  const r = accepted();
+  r.issues = [ae1(), ae1('other.mjs')];
+  allowedFails(r, /AE1 HIGH SKILL\.md:5[\s\S]*other\.mjs is not a file the allowance accepts/);
+});
+
+test('an AE1 finding on a target that is not partial is refused', () => {
+  const r = accepted();
+  r.issues = [ae1('lib/long.mjs', { tags: ['target-disposition:missing'] })];
+  allowedFails(r, /not tagged target-disposition:partial/);
+});
+
+test('an AE1 count above its entry is refused', () => {
+  const r = accepted();
+  r.issues = [ae1(), ae1()];
+  allowedFails(r, /expects 1 AE1 finding\(s\) and the scan has 2/);
+});
+
+test('an AE1 count below its entry is refused', () => {
+  const a = allowance();
+  a.references[0].count = 2;
+  allowedFails(accepted(), /expects 2 AE1 finding\(s\) and the scan has 1/, a);
+});
+
+test('an AE1 text the gate cannot parse is refused', () => {
+  const r = accepted();
+  r.issues = [ae1('lib/long.mjs', { finding: 'lib/long.mjs (not read)' })];
+  allowedFails(r, /does not parse as a reference to a partly read file/);
+});
+
+test('an unused exception entry is refused', () => {
+  const a = allowance();
+  a.exceptions.push({ ...a.exceptions[0], path: 'lib/fixed.mjs' });
+  allowedFails(accepted(), /entry this scan does not need: exception entry lib\/fixed\.mjs \(static_parse_limit\) matched no ledger exception/, a);
+});
+
+test('an unused references entry is refused', () => {
+  const r = accepted();
+  r.issues = [];
+  allowedFails(r, /references entry SKILL\.md -> lib\/long\.mjs matched no AE1 finding/);
+});
+
+test('entries for another skill are not this scan\'s business', () => {
+  const a = allowance();
+  a.exceptions.push({ ...a.exceptions[0], skill: 'elsewhere' });
+  allowedPasses(accepted(), a);
+});
+
+test('a missing allowance file is refused, not read as empty', () => {
+  const out = run(gate, [report(clean()), '--label', 'skills/demo', '--allowances', join(work, 'never-written.json')]);
+  assert.equal(out.code, 1);
+  assert.match(out.stderr, /the allowance file cannot be used[\s\S]*cannot read/);
+});
+
+test('a malformed allowance file is refused', () => {
+  const a = allowance();
+  a.exceptions[0].reason_code = 'runtime_limit';
+  allowedFails(accepted(), /the allowance file cannot be used[\s\S]*"reason_code" "runtime_limit" is not one of/, a);
+});
+
+test('a label that is not skills/<name> is refused', () => {
+  for (const label of ['demo', 'skills/demo/lib', 'skills/..', 'other/demo']) {
+    allowedFails(accepted(), /--allowances needs --label skills\/<name>/, allowance(), label);
+  }
+  const out = run(gate, [report(accepted()), '--allowances', allowanceFile(allowance())]);
+  assert.equal(out.code, 1);
+  assert.match(out.stderr, /--allowances needs --label skills\/<name>/);
+});
+
+test('skill and file names that are also object keys are judged as names', () => {
+  // `constructor` and `__proto__` would answer from the prototype of a plain
+  // object. Every lookup is a Map, so they match their own entries and nothing
+  // else.
+  for (const name of ['constructor', '__proto__']) {
+    const a = allowance();
+    a.exceptions[0].skill = name;
+    a.exceptions[0].path = name;
+    a.references[0] = { skill: name, from: 'SKILL.md', target: name, count: 1 };
+    const r = accepted();
+    r.analysis_completeness.ledger_exceptions = [partialException(name)];
+    r.issues = [ae1(name)];
+    const out = withAllowance(r, a, `skills/${name}`);
+    assert.equal(out.code, 0, `${name}: expected a pass, got:\n${out.stdout}${out.stderr}`);
+    // And an entry under one of those names accepts nothing in another skill.
+    allowedFails(r, /the allowance does not accept/, a, 'skills/demo');
+  }
+});

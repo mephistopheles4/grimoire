@@ -81,15 +81,19 @@ jobs:
   # by CodeQL, the workflows by zizmor — or is prose no agent is given.
   #
   # This scanned the root until the root stopped fitting inside the scanner.
-  # SkillSpector caps a whole scan at sixty seconds and its shipped-bytecode walk
-  # at five, both on the wall clock, and neither can be changed from outside. A
-  # root scan took about sixty seconds on this runner. The bytecode walk takes
-  # half a millisecond on its own and ran past five seconds inside the scan,
-  # starved by the scanner's other analyzer threads. Either cap marks a clean tree
-  # partially read, the gate is right to fail on that, and which run it happened
-  # on was luck. Measured in a four-CPU container that ran the root scan in 33
-  # seconds against this runner's 60, one skill scans in five to eight seconds,
-  # with the walk done in under two. docs/security/scanners.md has the rest.
+  # SkillSpector 2.11.0 capped a whole scan at sixty seconds and its
+  # shipped-bytecode walk at five, both on the wall clock, and neither could be
+  # changed from outside. A root scan took about sixty seconds on this runner.
+  # The bytecode walk takes half a millisecond on its own and ran past five
+  # seconds inside the scan, starved by the scanner's other analyzer threads.
+  # Either cap marked a clean tree partially read, the gate was right to fail on
+  # that, and which run it happened on was luck. Measured in a four-CPU
+  # container that ran the root scan in 33 seconds against this runner's 60, one
+  # skill scans in five to eight seconds, with the walk done in under two.
+  # 2.11.1 raised the whole-scan deadline to 600 seconds and made it
+  # configurable through SKILLSPECTOR_MAX_WORKFLOW_SECONDS, which removes the
+  # reason the root scan was dropped. It stays dropped for the reason below.
+  # docs/security/scanners.md has the rest.
   #
   # It also reads a skill the way an installed copy reads it. A link in
   # skills/groundtrack/SKILL.md named a path that resolved from the repository
@@ -139,11 +143,11 @@ jobs:
       # contributor's machine, which is the point: the check script runs on
       # Node with nothing installed, and this is a Python tool.
       #
-      # SkillSpector v2.11.0. A fork of this scanner exists under a different
+      # SkillSpector v2.11.2. A fork of this scanner exists under a different
       # owner, so the owner is part of the pin, not decoration.
       - name: Install SkillSpector
         run: |
-          pipx install "git+https://github.com/NVIDIA/SkillSpector.git@b7241089d7ec15d8b30df980dacbb428214732b9" # v2.11.0
+          pipx install "git+https://github.com/NVIDIA/SkillSpector.git@69dcdfb74487d361ba4c811d088cfdea2ff3a9dc" # v2.11.2
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
 
       # Verified, not assumed. An install that put no entry point on the PATH
@@ -240,12 +244,20 @@ jobs:
       # The stripped file is written beside the report, outside the checkout,
       # for the same reason: a SARIF echoes the text each finding matched, and
       # one left in the working tree is a file the next scan reads.
+      #
+      # --allowances drops the AE1 results .skillspector-allowances.json
+      # accepts, by the gate's own rules and from this SARIF alone: each scan
+      # draws fresh finding ids, so nothing here is joined to the JSON report.
+      # Without it, every accepted AE1 finding would open an alert while the
+      # gate below is green.
       - name: Strip the baseline-suppressed results
         run: |
           node scripts/skillspector-strip-suppressed.mjs \
             "${RUNNER_TEMP}/skillspector.sarif" \
             "${RUNNER_TEMP}/skillspector-upload.sarif" \
-            --prefix "skills/${SKILL}/"
+            --prefix "skills/${SKILL}/" \
+            --allowances .skillspector-allowances.json \
+            --label "skills/${SKILL}"
 
       # On push only. A pull request from a fork carries a read-only token and
       # cannot write a code-scanning result, so uploading there fails on a
@@ -284,8 +296,12 @@ jobs:
       # no test can reach; this one is covered by
       # tests/skillspector-gate.test.mjs. It also appends this skill's section
       # to the run's summary page.
+      #
+      # --allowances names the partial reads this repository has accepted. It is
+      # held to the files it names, and their content, by scripts/check.mjs on
+      # every pull request; docs/security/scanners.md has the argument.
       - name: Gate on unsuppressed findings
-        run: node scripts/skillspector-gate.mjs "${RUNNER_TEMP}/skillspector-report.json" --label "skills/${SKILL}"
+        run: node scripts/skillspector-gate.mjs "${RUNNER_TEMP}/skillspector-report.json" --label "skills/${SKILL}" --allowances .skillspector-allowances.json
 
   # One name for the whole scan. The per-skill jobs are named after skills, so
   # the set of names changes whenever a skill is added, and a required status
