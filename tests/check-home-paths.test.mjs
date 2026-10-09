@@ -87,8 +87,8 @@ for (const [twin, real] of [['Skills', 'skills'], ['.Claude-plugin', '.claude-pl
     if (names.includes(real) && names.includes(twin)) {
       t.diagnostic('case-sensitive: ran the check');
       writeFileSync(join(dir, twin, 'README.md'), 'a twin\n');
-      const at = twin.replace(/[.]/g, '\\.');
-      assertFails(dir, new RegExp(`${at}/ at the root is ${real.replace(/[.]/g, '\\.')}/ in another case`));
+      const r = assertFails(dir, /at the root is .+ in another case/);
+      assert.ok(r.stderr.includes(`${twin}/ at the root is ${real}/ in another case`), r.stderr);
     } else {
       t.diagnostic('case folds: asserted caseTwin only');
       assert.equal(caseTwin(twin, real), true);
