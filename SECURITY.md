@@ -72,15 +72,31 @@ machine: [row 15 of the threat model](docs/security/threat-model.md#the-matrix)
 has the guards and the gaps.
 
 **One skill tells the agent to start other agent sessions and to delete their
-worktrees: head-chef.** It runs no script of its own. The agent runs
-`claude --bg --remote-control`, `claude stop`, `claude rm` and `git` for it,
-and only on the owner's own words in chat. Remote Control makes each session it
-starts drivable from any device signed in to the owner's account.
+worktrees: head-chef.** The agent runs `claude --bg --remote-control`,
+`claude stop`, `claude rm` and `git` for it, and only on the owner's own words
+in chat. head-chef also runs two scripts of its own, for relayed answers:
+`relay-lead.mjs` for the lead and `relay-session.mjs` for each session. They
+read the caller's own transcript and relay state, the session list (names and
+ids), and the owner account's name. The session's script reads the entries by
+that account on the start prompt's record; the lead's reads them on each noted
+session's record, with that record's visibility, and the local-only list file
+the head chef writes before a launch. They start `gh` and `claude` from an
+absolute path with argument lists, never a program from the working folder and
+never through a shell. The session's script posts only on the start prompt's
+record; the lead's posts nothing. Remote Control makes each session it
+starts drivable from any device signed in to the owner's account. A session may
+take the owner's answer by relay, only for a question it asked, and never for a
+publish, a deletion, a permission or settings change, or starting or stopping a
+session. Each relayed answer is quoted on the session's record.
 [Row 16 of the threat model](docs/security/threat-model.md#the-matrix) has the
 guards and the gaps.
 
-One script can send data, and only when somebody runs it: eagle-eye's optional
-edge audit. See [What the edge audit sends](#what-the-edge-audit-sends).
+Two scripts can send data, and only when somebody runs them. eagle-eye's
+optional edge audit sends to a provider: see
+[What the edge audit sends](#what-the-edge-audit-sends). head-chef's session
+script posts through `gh` on the record its start prompt names: a question,
+the owner's quoted words when it takes an answer, and fixed lines, never a code
+or a session id.
 
 One script rewrites a file a person hands it, and only when asked:
 `skills/contract/scripts/check.mjs`. Under `--seal` it rewrites the mark lines
