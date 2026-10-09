@@ -48,7 +48,7 @@ not take, and `SECURITY.md` explains why that matters more than it looks.
 run only the suite while you work on it:
 
 ```bash
-node --test tests/audit.test.mjs tests/brigade-roster-rules.test.mjs tests/brigade-view.test.mjs tests/build-pages.test.mjs tests/check-baseline-rules.test.mjs tests/check-baselines.test.mjs tests/check-format.test.mjs tests/check-manifests.test.mjs tests/check-mod.test.mjs tests/check-paths.test.mjs tests/check-test-step.test.mjs tests/check-tree.test.mjs tests/check-version.test.mjs tests/contract-check-docs.test.mjs tests/contract-check-folder.test.mjs tests/contract-check-rules.test.mjs tests/contract-check-seal.test.mjs tests/contract-check-toml.test.mjs tests/eagle-eye-sheets.test.mjs tests/esc.test.mjs tests/groundtrack-fold.test.mjs tests/groundtrack-render.test.mjs tests/groundtrack-sheets.test.mjs tests/practice.test.mjs tests/registry.test.mjs tests/relay-cases.test.mjs tests/relay-cli.test.mjs tests/relay-lead.test.mjs tests/relay-review.test.mjs tests/relay-roundtrip.test.mjs tests/relay-session.test.mjs tests/render.test.mjs tests/skillspector-gate.test.mjs tests/skillspector-strip-suppressed.test.mjs
+node --test tests/audit.test.mjs tests/brigade-roster-rules.test.mjs tests/brigade-view.test.mjs tests/build-pages.test.mjs tests/check-baseline-rules.test.mjs tests/check-baselines.test.mjs tests/check-format.test.mjs tests/check-manifests.test.mjs tests/check-mod.test.mjs tests/check-paths.test.mjs tests/check-test-step.test.mjs tests/check-tree.test.mjs tests/check-version.test.mjs tests/contract-check-docs.test.mjs tests/contract-check-folder.test.mjs tests/contract-check-rules.test.mjs tests/contract-check-seal.test.mjs tests/contract-check-toml.test.mjs tests/eagle-eye-sheets.test.mjs tests/esc.test.mjs tests/groundtrack-fold.test.mjs tests/groundtrack-render.test.mjs tests/groundtrack-sheets.test.mjs tests/practice.test.mjs tests/registry.test.mjs tests/render.test.mjs tests/skillspector-gate.test.mjs tests/skillspector-strip-suppressed.test.mjs
 ```
 
 **The suite never reaches the network.** eagle-eye's edge audit is the one
@@ -233,7 +233,7 @@ The seal writes a mark into the frontmatter: the contract's version, a digest
 of the skill's folder and a digest of the contract. The folder's digest covers
 every file in `skills/<name>/` except `CONTRACT.md`: for `contract`, the check
 script and the template; for `eagle-eye`, the renderer, the audit and the
-reference files; for `head-chef`, its README, its reference files, its relay scripts in `scripts/` and its SkillSpector baseline. So a change to any of them needs a new seal, and a stray
+reference files; for `head-chef`, its README, its reference files and its SkillSpector baseline. So a change to any of them needs a new seal, and a stray
 file such as `.DS_Store` breaks it. `node scripts/check.mjs` fails when a
 covered file changed after the seal. The seal proves only that those files
 are unchanged since they were sealed. It proves nothing about who sealed them,
