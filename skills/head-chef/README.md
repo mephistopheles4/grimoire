@@ -51,7 +51,10 @@ command, a session's lookups and its posts may wait at a prompt. An allow rule
 is yours to add.
 
 Relayed answers need two more things: your default auto mode, and Node 22 or
-later. A session started in a mode that asks gets no relay rule, and a session
+later. Their records are issues on github.com, reached through `gh`'s own
+sign-in: the relay scripts start `gh` without your `GH_` or `GITHUB_`
+environment settings or a proxy, so a token set only in the environment, or
+another host, is not used. A session started in a mode that asks gets no relay rule, and a session
 that cannot run its script asks you in its own chat.
 
 Then, in Claude Desktop, ask for work to run elsewhere, for example *"can

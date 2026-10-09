@@ -9,7 +9,7 @@ import {
   readConfinedFile, removeQuietly, screen, hitsFloor, hitsLocalOnly, hitsIdentifiers,
   withState, deleteOwnState, post, fence, utcTime, sha256, parseBlock, messageLines,
   asMessage, isCompaction, ownerLogin, recordEntries, recordLocalOnly, nameForLine,
-  NAME, CODE, LETTERS,
+  NAME, CODE, LETTERS, safeName,
 } from './relay-core.mjs';
 
 const SPEC = {
@@ -124,10 +124,10 @@ function ask(opts, ctx) {
       const rows = rowsFn();
       const own = new Set(rows.filter(r => r.sessionId === env.sessionId).map(r => r.name));
       const [me] = own;
-      if (own.size !== 1 || !NAME.test(me) || hitsIdentifiers(me) || rows.some(r => r.sessionId !== env.sessionId && r.name === me)) {
+      if (own.size !== 1 || !safeName(me) || rows.some(r => r.sessionId !== env.sessionId && r.name === me)) {
         return askOwn('no-name');
       }
-      const lead = leadCheck(rows, sp.leadId);
+      const lead = safeName(leadCheck(rows, sp.leadId));
       if (!lead) {
         const miss = `Question not delivered to ${nameForLine(looseLeadName(rows, sp.leadId))} at ${utcTime(env.now())}; see the question above.`;
         post(ctx, rec, `${questionLine(me, q)}\n\n${miss}`);
@@ -198,7 +198,7 @@ function take(opts, ctx) {
     if (!messages.length) return ok([...lines, 'No relayed answer to handle.']);
 
     const rows = rowsFn();
-    const leadName = leadCheck(rows, sp.leadId);
+    const leadName = safeName(leadCheck(rows, sp.leadId));
     let owner = null;
     const ownerLines = () => {
       if (owner) return owner;

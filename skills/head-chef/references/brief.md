@@ -120,11 +120,12 @@ a model's copy of text can change it (failures 3, 13, 19).
   `$CLAUDE_JOB_DIR/tmp` when that is set, and otherwise in the system's
   temporary folder, with a fresh random name. Then run `ask --record <link>
   --file <file>`. Before you send the printed block, compare the question and
-  choices in it with the ones you wrote; on any difference, send nothing and
-  tell the owner in your own chat. Otherwise send it, unchanged, to the
-  printed name. When you stop before `ask` runs, or `ask` ends in `refused`
-  or `ask-in-own-chat`, delete the question file yourself if it is still
-  there. A question whose answer may not travel is never asked by relay: ask
+  choices in it with the ones you wrote. On any difference, send nothing, run
+  `close`, and tell the owner in your own chat that your record now holds a
+  question you did not write, naming the record. Otherwise send it,
+  unchanged, to the printed name. When you stop before `ask` runs, or `ask`
+  ends in anything but `RESULT: ok`, delete the question file yourself if it
+  is still there. A question whose answer may not travel is never asked by relay: ask
   it in your own chat, as a stop.
 - **When a message arrives** whose last line is a `Code:` line, or that is in
   the relayed-answer form, run `take --record <link>`. Never run the checks

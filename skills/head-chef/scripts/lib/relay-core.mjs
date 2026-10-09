@@ -384,9 +384,14 @@ export function leadCheck(rows, leadId, name) {
   return n;
 }
 
-// A name fit for a record line: the session-name set, and nothing shaped like
-// a code, an id or a token.
-export const nameForLine = n => (n && NAME.test(n) && !hitsIdentifiers(n) ? `"${n}"` : 'the head chef');
+// A session name the scripts may print, post or send to: the session-name
+// set, holding nothing shaped like a session id or a token. A date or a long
+// word in a name is fine; a code alone carries nothing a transcript lacks.
+const ID_IN_NAME = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}|(?<![A-Za-z0-9])(?:ghp_|gho_|ghu_|ghs_|ghr_|github_pat_|sk-|xox[abprs]-|AKIA)/i;
+export const safeName = n => (typeof n === 'string' && NAME.test(n) && !ID_IN_NAME.test(n) ? n : null);
+
+// A name fit for a record line, or "the head chef".
+export const nameForLine = n => (safeName(n) ? `"${n}"` : 'the head chef');
 
 // ---------------------------------------------------------------------------
 // The screens. A pass is necessary for a relay, never sufficient: each
@@ -537,8 +542,17 @@ export function removeOrphans(ctx, rows) {
     const m = /^([0-9a-f-]{36})(\.json|\.[0-9a-f]{12}\.tmp|\.lock)$/i.exec(n);
     if (!m || !GUID.test(m[1]) || live.has(m[1].toLowerCase())) continue;
     const f = join(dir, n);
-    const isState = readStateFile(fs, f, 'session') || readStateFile(fs, f, 'lead');
-    if (isState || m[2] === '.lock') removeQuietly(fs, f);
+    if (m[2] === '.json') {
+      if (readStateFile(fs, f, 'session') || readStateFile(fs, f, 'lead')) removeQuietly(fs, f);
+    } else if (m[2] === '.lock') {
+      // A lock goes only once stale: a session missing from the list may
+      // still be running.
+      try { if (env.now() - fs.statSync(f).mtimeMs > LOCK_STALE_MS) removeQuietly(fs, f); } catch { /* gone */ }
+    } else {
+      // A temporary copy is named by the script alone, and a stopped write
+      // can leave it cut short, so it goes by its name.
+      removeQuietly(fs, f);
+    }
   }
 }
 

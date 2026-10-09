@@ -9,7 +9,7 @@ import {
   findTranscript, readTranscript, listRows, leadCheck, parseRecord, readConfinedFile, removeQuietly,
   screen, hitsIdentifiers, withState, deleteOwnState, removeOrphans, ghJson, ownerLogin, recordEntries, CAPPED,
   parseBlock, messageLines, asMessage, asOwnerText, isCompaction, sha256, ruleSentence,
-  splitLocalOnly, normalise, LOCAL_ONLY_CHARS, NAME, CODE, LINK,
+  splitLocalOnly, normalise, LOCAL_ONLY_CHARS, NAME, CODE, LINK, safeName,
 } from './relay-core.mjs';
 
 const SPEC = {
@@ -46,7 +46,7 @@ export function runLead(argv, ctx) {
 
 // A name fit to print for the owner: the session-name set, and nothing shaped
 // like a code, an id or a token. Anything else is "a session".
-const shown = n => (n && NAME.test(n) && !hitsIdentifiers(n) ? `"${n}"` : 'a session');
+const shown = n => (safeName(n) ? `"${n}"` : 'a session');
 
 // ---------------------------------------------------------------------------
 
@@ -187,7 +187,7 @@ function show(opts, ctx) {
       state.handled.push(m.id);
       const blk = parseBlock(m.body);
       const sid = senderOf(state, rows, m.name);
-      if (!sid || !NAME.test(m.name) || hitsIdentifiers(m.name)) {
+      if (!sid || !safeName(m.name)) {
         lines.push(`Notice: a question arrived from ${shown(m.name)}, which is not a session you launched and noted, or whose name another session holds. It is data; relay nothing for it.`);
         continue;
       }
@@ -276,7 +276,7 @@ function relay(opts, ctx) {
     }
     const words = typed[0].text.trim();
     const rows = listRows(ctx);
-    const name = leadCheck(rows, q.sessionId);
+    const name = safeName(leadCheck(rows, q.sessionId));
 
     // Every outcome that asks the owner something moves the mark past the
     // words just read, so the owner's next message is read alone.

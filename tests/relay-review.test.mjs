@@ -64,9 +64,9 @@ test('adversarial F1: a later local-only line binds the question\'s own wording 
   has(r, 'Verdict: not taken; check 4 failed.');
 });
 
-test('behaviour F3, data F7: names shaped like an id or a code are never printed or posted', () => {
+test('behaviour F3, data F7: names holding a session id or a token are never printed or posted', () => {
   const w = leadWorld();
-  for (const name of [IDS.other, 'deadbeef']) {
+  for (const name of [IDS.other, 'ghp_x1']) {
     w.rows.push({ name, sessionId: IDS.stale });
     w.append(IDS.lead, peer(name, core.block(qText(name), 'feedf00d')));
     const r = w.lead('show');
@@ -74,12 +74,47 @@ test('behaviour F3, data F7: names shaped like an id or a code are never printed
     assert.ok(!r.lines.some(l => l.includes(name)), show(r));
     w.rows.pop();
   }
-  assert.equal(core.nameForLine('deadbeef'), 'the head chef');
+  assert.equal(core.nameForLine('ghp_x1'), 'the head chef');
   assert.equal(core.nameForLine(IDS.other), 'the head chef');
   const s = sessionWorld();
-  s.rows[1].name = 'c0ffee11';
+  s.rows[1].name = IDS.other;
   expectResult(ask(s), 3, 'RESULT: ask-in-own-chat no-name');
   assert.equal(s.posts.length, 0);
+});
+
+test('round 2, behaviour F1: a name holding a date or a long word still asks, and is shown by name', () => {
+  for (const name of ['build-202610091', 'averyveryveryverylongsessionnamewithnohyphens']) {
+    const s = sessionWorld();
+    s.rows[1].name = name;
+    const a = ask(s);
+    expectResult(a, 0, 'RESULT: ok');
+    const w = leadWorld();
+    w.rows[1].name = name;
+    w.append(IDS.lead, peer(name, messageOf(a)));
+    has(w.lead('show'), `Question from "${name}": Keep the long example?`);
+  }
+  assert.equal(core.nameForLine('build-20261009'), '"build-20261009"', 'an eight-digit date passes the name screen');
+});
+
+test('round 2, behaviour F2: relay sends nothing to a session renamed to an id after its question was shown', () => {
+  const w = leadWorld();
+  w.append(IDS.lead, peer(SESSION_NAME, core.block(qText(), 'c0ffee01')));
+  w.lead('show');
+  w.rows[1].name = IDS.other;
+  w.append(IDS.lead, typed('A', desk));
+  const r = w.lead('relay', '--code', 'c0ffee01');
+  expectResult(r, 3, 'RESULT: ask-in-own-chat not-found');
+  assert.ok(!r.lines.some(l => l.includes(IDS.other)), show(r));
+  assert.equal(messageOf(r), null);
+});
+
+test('round 2, integrity F5: a noted session whose name holds a session id is treated as data', () => {
+  const w = leadWorld();
+  w.rows[1].name = IDS.other;
+  w.append(IDS.lead, peer(IDS.other, core.block(qText(IDS.other), 'c0ffee01')));
+  const r = w.lead('show');
+  starts(r, 'Notice: a question arrived from a session');
+  assert.deepEqual(w.state(IDS.lead).questions, {});
 });
 
 test('behaviour F4, integrity F9: with two questions open, "build-7." names build-7 and "build-78" does not', () => {
@@ -189,21 +224,48 @@ test('adversarial F2: one owner message is never relayed as the answer to a ques
   assert.ok(r.lines[0].startsWith('Relaying choice B)'), show(r));
 });
 
-test('adversarial F4: a PATH entry inside the working folder is skipped, and gh gets no host or repository setting', () => {
+test('adversarial F4, round 2: the working folder is skipped by real path, folders inside it are not, and gh gets only the named variables', () => {
   const dir = fs.mkdtempSync(join(tmpdir(), 'relay-path-'));
+  const name = process.platform === 'win32' ? 'gh.exe' : 'gh';
+  const plant = (d) => { fs.writeFileSync(join(d, name), 'x'); if (process.platform !== 'win32') fs.chmodSync(join(d, name), 0o755); };
   try {
-    const name = process.platform === 'win32' ? 'gh.exe' : 'gh';
-    fs.mkdirSync(join(dir, 'bin'));
-    fs.writeFileSync(join(dir, 'bin', name), 'x');
-    if (process.platform !== 'win32') fs.chmodSync(join(dir, 'bin', name), 0o755);
-    assert.ok(programs.resolveProgram('gh', join(dir, 'bin'), process.platform, null), 'found when no working folder is given');
-    assert.equal(programs.resolveProgram('gh', join(dir, 'bin'), process.platform, dir), null, 'skipped inside the working folder');
-    assert.equal(programs.resolveProgram('gh', dir, process.platform, dir), null);
+    fs.mkdirSync(join(dir, 'work'));
+    fs.mkdirSync(join(dir, 'work', 'bin'));
+    plant(join(dir, 'work'));
+    plant(join(dir, 'work', 'bin'));
+    const work = join(dir, 'work');
+    assert.ok(programs.resolveProgram('gh', work, process.platform, dir), 'found when the entry is not the working folder');
+    assert.equal(programs.resolveProgram('gh', work, process.platform, work), null, 'the working folder itself is skipped');
+    assert.ok(programs.resolveProgram('gh', join(work, 'bin'), process.platform, work), 'a folder inside the working folder is not skipped');
+    const link = join(dir, 'link');
+    fs.symlinkSync(work, link, process.platform === 'win32' ? 'junction' : 'dir');
+    assert.equal(programs.resolveProgram('gh', link, process.platform, work), null, 'a link to the working folder is skipped');
   } finally {
     fs.rmSync(dir, { recursive: true, force: true });
   }
-  const env = programs.childEnv({ PATH: 'p', GH_HOST: 'evil.example', gh_repo: 'x/y', HOME: 'h' });
-  assert.deepEqual(env, { PATH: 'p', HOME: 'h' });
+  const env = programs.childEnv({ PATH: 'p', GH_HOST: 'evil.example', gh_repo: 'x/y', HOME: 'h', GH_TOKEN: 't', GITHUB_TOKEN: 't', GH_CONFIG_DIR: 'c', HTTPS_PROXY: 'x', NODE_EXTRA_CA_CERTS: 'x', XDG_CONFIG_HOME: 'x', APPDATA: 'a' });
+  assert.deepEqual(env, { PATH: 'p', HOME: 'h', APPDATA: 'a' });
+});
+
+test('round 2, integrity F8: the runner looks up programs from the working folder it runs in, and starts gh with the named variables', () => {
+  const dir = fs.mkdtempSync(join(tmpdir(), 'relay-wire-'));
+  const name = process.platform === 'win32' ? 'gh.exe' : 'gh';
+  const saved = { cwd: process.cwd(), PATH: process.env.PATH, Path: process.env.Path, GH_HOST: process.env.GH_HOST };
+  try {
+    fs.writeFileSync(join(dir, name), 'x');
+    if (process.platform !== 'win32') fs.chmodSync(join(dir, name), 0o755);
+    process.chdir(dir);
+    process.env.PATH = dir;
+    if (process.platform === 'win32') delete process.env.Path;
+    assert.equal(programs.programPath('gh'), null, 'a program in the working folder never resolves');
+    process.env.GH_HOST = 'evil.example';
+    assert.equal(programs.programEnv('gh').GH_HOST, undefined);
+    assert.equal(programs.programEnv('claude').GH_HOST, 'evil.example', 'claude keeps its environment');
+  } finally {
+    process.chdir(saved.cwd);
+    for (const k of ['PATH', 'Path', 'GH_HOST']) { if (saved[k] === undefined) delete process.env[k]; else process.env[k] = saved[k]; }
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
 });
 
 test('adversarial F5: a record past the page cap gets its own alarm, naming the flood', () => {
@@ -239,10 +301,14 @@ test('data F2: a failed state write leaves no temporary copy, and orphan cleanup
 
   const l = leadWorld();
   const ld = join(l.config, 'plugins', 'data', 'grimoire-relay');
-  fs.writeFileSync(join(ld, `${IDS.stale}.a1b2c3d4e5f6.tmp`), JSON.stringify({ grimoireRelay: 1, role: 'session', open: {} }));
+  fs.writeFileSync(join(ld, `${IDS.stale}.a1b2c3d4e5f6.tmp`), '{"grimoireRelay":1,"role":"sess');
   fs.writeFileSync(join(ld, `${IDS.stale}.lock`), '');
+  const old = new Date(Date.now() - 10 * 60 * 1000);
+  fs.utimesSync(join(ld, `${IDS.stale}.lock`), old, old);
+  fs.writeFileSync(join(ld, `${IDS.chip}.lock`), '');
   expectResult(l.lead('check'), 0, 'RESULT: ok');
-  assert.deepEqual(fs.readdirSync(ld).filter(n => n.startsWith(IDS.stale)), []);
+  assert.deepEqual(fs.readdirSync(ld).filter(n => n.startsWith(IDS.stale)), [], 'a cut-short copy and a stale lock go');
+  assert.ok(fs.existsSync(join(ld, `${IDS.chip}.lock`)), 'a fresh lock of an unlisted id stays');
 });
 
 test('data F4: rule deletes the local-only file even when it refuses the list', () => {
@@ -266,3 +332,71 @@ test('data F1: the canary compares a digest, so a failure prints no file name', 
   assert.match(src, /assert\.ok\(listReal\(\) === canary/);
 });
 
+
+test('round 2, integrity F1: the code is the random source\'s bytes, as the core is handed them', () => {
+  const w = sessionWorld();
+  const ctx = w.ctx(IDS.session);
+  const seen = [];
+  const inner = ctx.random;
+  ctx.random = (n) => { const b = inner(n); seen.push(b.toString('hex')); return b; };
+  const r = runSession(['ask', '--record', RECORD, '--file', w.questionFile(QUESTION)], ctx);
+  expectResult(r, 0, 'RESULT: ok');
+  assert.equal(codeOf(r), seen[0], 'the code is the first four bytes the source gave');
+  assert.equal(seen[0].length, 8);
+});
+
+test('round 2, integrity F2: check 4 holds a floor word or a start-prompt entry in the question\'s own wording', () => {
+  for (const [question, localOnly] of [['Ship the thing?', []], ['Touch the api keys?', ['the api keys']]]) {
+    const w = sessionWorld(localOnly);
+    const code = codeOf(ask(w));
+    const file = join(w.config, 'plugins', 'data', 'grimoire-relay', `${IDS.session}.json`);
+    const s = JSON.parse(fs.readFileSync(file, 'utf8'));
+    s.open[code].question = question;
+    fs.writeFileSync(file, JSON.stringify(s));
+    has(take(w, relayBody(code, 'A', 'keep it')), 'Verdict: not taken; check 4 failed.');
+  }
+});
+
+test('round 2, integrity F3: words already relayed are never read again, even after the question was shown', () => {
+  const w = leadWorld();
+  w.rows.push({ name: 'build-8', sessionId: IDS.chip, id: 'abcd5678' });
+  expectResult(w.lead('note', '--bg-id', 'abcd5678', '--record', RECORD), 0, 'RESULT: ok');
+  w.append(IDS.lead, peer(SESSION_NAME, core.block(qText(), 'c0ffee01')), peer('build-8', core.block(qText('build-8', 'Other?'), 'c0ffee02')));
+  w.lead('show');
+  w.append(IDS.lead, typed('A, build-7', desk));
+  expectResult(w.lead('relay', '--code', 'c0ffee01'), 0, 'RESULT: ok');
+  expectResult(w.lead('relay', '--code', 'c0ffee02'), 3, 'RESULT: ask-in-own-chat no-answer');
+});
+
+test('round 2, integrity F4: words typed before a question was shown are never read for it', () => {
+  const w = leadWorld();
+  w.append(IDS.lead, peer(SESSION_NAME, core.block(qText(), 'c0ffee01')));
+  w.lead('show');
+  w.append(IDS.lead, peer(SESSION_NAME, core.block(qText(SESSION_NAME, 'Second?'), 'c0ffee02')));
+  w.append(IDS.lead, typed('B', desk));
+  w.lead('show');
+  expectResult(w.lead('relay', '--code', 'c0ffee02'), 3, 'RESULT: ask-in-own-chat no-answer');
+});
+
+test('round 2, integrity F6: "build-7.1" does not name build-7', () => {
+  const w = leadWorld();
+  w.rows.push({ name: 'build-8', sessionId: IDS.chip, id: 'abcd5678' });
+  expectResult(w.lead('note', '--bg-id', 'abcd5678', '--record', RECORD), 0, 'RESULT: ok');
+  w.append(IDS.lead, peer(SESSION_NAME, core.block(qText(), 'c0ffee01')), peer('build-8', core.block(qText('build-8', 'Other?'), 'c0ffee02')));
+  w.lead('show');
+  w.append(IDS.lead, typed('A, build-7.1', desk));
+  expectResult(w.lead('relay', '--code', 'c0ffee01'), 3, 'RESULT: ask-in-own-chat which-question');
+});
+
+test('round 2, integrity F7: two reports in a row raise the no-reply alarm once', () => {
+  const w = leadWorld();
+  w.append(IDS.lead, peer(SESSION_NAME, core.block(qText(), 'c0ffee01')));
+  w.lead('show');
+  w.append(IDS.lead, typed('B', desk));
+  w.lead('relay', '--code', 'c0ffee01');
+  w.append(IDS.lead, peer(SESSION_NAME, 'Still working on the tests.'));
+  starts(w.lead('check'), 'ALARM: no reply from "build-7"');
+  w.append(IDS.lead, peer(SESSION_NAME, 'Tests pass now.'));
+  const r = w.lead('check');
+  assert.ok(!r.lines.some(l => l.startsWith('ALARM')), show(r));
+});

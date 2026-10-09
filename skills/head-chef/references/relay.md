@@ -66,7 +66,9 @@ node <skill base directory>/scripts/relay-lead.mjs check
   `-----BEGIN RULE-----` and `-----END RULE-----`, exactly as printed.
   `RESULT: refused local-only` is the stop in `SKILL.md`: ask the owner to
   restate the list, and launch nothing. `RESULT: refused path`: launch with
-  no relay rule, and say why.
+  no relay rule, and say why. When `rule` ends in anything but `RESULT: ok`,
+  delete the list file yourself if it is still there: `rule` deletes it only
+  once it has read it.
 - **The note.** Right after the launch:
   - a background session: `note --bg-id <id> --record <link>`, with the id
     `claude --bg` printed;
