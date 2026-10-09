@@ -231,4 +231,5 @@ opens a connection, a script that starts an agent session, a new place
 where the agent reads a stranger's text, or a new call the mod makes through
 `$` each needs a row. The IDs cite ATLAS
 2026.09, OWASP LLM 2025 and OWASP Agentic 2026; a newer release may renumber
-them. The repository settings in row 8 were read on 2026-09-25.
+them. The repository settings in row 8 were read on 2026-09-25, except the
+plugin validator's required check, which the owner confirmed on 2026-10-09.
