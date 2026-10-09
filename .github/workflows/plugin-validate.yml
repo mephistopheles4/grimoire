@@ -1,0 +1,125 @@
+# Check the plugin's manifests and skills against Claude Code's own schema.
+#
+# scripts/check.mjs holds the rules that span files: the two manifests agree,
+# the source is "./", the marketplace entry carries no version, each skill has a
+# SKILL.md. It does not read either manifest against the schema Claude Code
+# itself loads. `claude plugin validate --strict` does, and it fails on an
+# unknown field the runtime would ignore in silence. **A check that reports and
+# changes nothing reads as a check that passed**, so this one is a gate.
+#
+# **Its own file, not a job in check.yml.** `check` installs nothing, which is
+# what CONTRIBUTING.md promises, and this job installs Claude Code. A status
+# check is the unit branch protection requires, and a step cannot be required
+# at all — the argument zizmor.yml makes for its own file.
+#
+# **This workflow blocks no merge until it is added to the required status
+# checks**, which is a repository setting no file here can read or change.
+# SECURITY.md records the reliance beside the others.
+#
+# **Dependabot does not watch the Claude Code pin.** It reads `uses:` lines, and
+# the CLI arrives through a `run:` line — the same blind spot zizmor.yml and
+# skillspector.yml carry. A new CLI version can stop recognising a field, and
+# --strict then turns this gate red on files nobody changed, so the version is
+# exact and a bump is a reviewed pull request. docs/security/scanners.md says
+# how to bump it and what prompts one.
+#
+# **Not on the publishing path.** The job reads the checkout and writes nothing:
+# `contents: read`, no token, no secret, and pages.yml does not depend on it.
+
+name: plugin-validate
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    # Pinned, as zizmor.yml pins it, because the install below names a
+    # platform package: linux, x64, glibc.
+    runs-on: ubuntu-24.04
+    env:
+      # An update mid-job would replace the pinned binary in silence, and
+      # nothing this job does needs the network once the fetch is done.
+      DISABLE_AUTOUPDATER: '1'
+      CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '1'
+    steps:
+      # persist-credentials: false. Nothing here runs a git command, and the
+      # CLI below runs with no credential of any kind: no token in env, and
+      # none left in .git/config.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      # **The platform package, not the wrapper.** @anthropic-ai/claude-code
+      # copies the native binary into place from a postinstall script. Without
+      # that script its `claude` is a placeholder that prints "claude native
+      # binary not installed" and exits 1. The binary itself ships in
+      # @anthropic-ai/claude-code-linux-x64, which has no scripts and no `bin`:
+      # a tarball holding one executable file, `package/claude`.
+      #
+      # **Fetched and unpacked, not installed.** `npm pack` downloads the pinned
+      # tarball and `tar` unpacks it; nothing runs an install, so no package
+      # script can run and no package.json or lockfile is written. `npm install`
+      # was the first route, and zizmor's `adhoc-packages` audit flags it as an
+      # install outside a lockfile — a lockfile being the manifest this tree
+      # refuses. Both land outside the checkout. The runner image's own npm
+      # does the fetch; no setup-node step.
+      #
+      # **How strong the pin is.** npm never re-publishes a version number, so
+      # this is close to a content pin and is not one, the same as zizmor's
+      # PyPI pin. docs/security/threat-model.md row 9 records the gap.
+      - name: Fetch Claude Code
+        run: |
+          mkdir -p "$RUNNER_TEMP/claude"
+          npm pack --ignore-scripts --pack-destination "$RUNNER_TEMP/claude" "@anthropic-ai/claude-code-linux-x64@2.1.296"
+          tar -xzf "$RUNNER_TEMP/claude/anthropic-ai-claude-code-linux-x64-2.1.296.tgz" -C "$RUNNER_TEMP/claude"
+          echo "$RUNNER_TEMP/claude/package" >> "$GITHUB_PATH"
+
+      # Checked, not assumed. A missing binary, a placeholder or a different
+      # version fails here, before the gate below can read as clean. Change
+      # this string and the two version strings above together.
+      - name: Check the version
+        run: |
+          expected="2.1.296 (Claude Code)"
+          actual="$(claude --version)" || { echo "claude --version failed"; exit 1; }
+          if [ "$actual" != "$expected" ]; then
+            echo "expected: ${expected}"
+            echo "got:      ${actual}"
+            exit 1
+          fi
+          echo "ok: ${actual}"
+
+      # The gate.
+      #
+      # **Three runs, every time.** What one run covers is a property of the
+      # CLI version, not of the command: on 2.1.289 `.` read only the
+      # marketplace manifest, and on 2.1.296 it reads the plugin manifest and
+      # hooks/hooks.json too, and still not skills/. So each target is named.
+      # Each status is recorded and the step fails at the end, so one red
+      # target cannot hide the next.
+      #
+      # **The exit code is the gate.** A missing path, a mistyped one and an
+      # empty folder all exit 1 on 2.1.296, measured, so no output is parsed.
+      # `|| status=$?` records the status under `bash -e`; it is not
+      # `|| true`, and nothing is allowed to fail quietly.
+      - name: Validate the manifests and skills
+        run: |
+          failed=0
+          for target in . .claude-plugin/plugin.json skills; do
+            status=0
+            claude plugin validate --strict "$target" || status=$?
+            if [ "$status" -eq 0 ]; then
+              echo "ok: ${target}"
+            else
+              echo "FAILED: ${target} exited ${status}"
+              failed=1
+            fi
+          done
+          if [ "$failed" -ne 0 ]; then
+            echo "A target failed --strict, listed above. Fix the field, or argue it in the pull request."
+            exit 1
+          fi
