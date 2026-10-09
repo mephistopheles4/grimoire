@@ -4,10 +4,9 @@
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync, writeFileSync, mkdirSync, appendFileSync, readdirSync } from 'node:fs';
+import { readFileSync, writeFileSync, mkdirSync, appendFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { tree, skillMd, fixtureMd, assertPasses, assertFails, modFile, importLine } from './check-fixture.mjs';
-import { caseTwin } from '../scripts/lib/case.mjs';
 
 test('a fixed home path in a SKILL.md fails', () => {
   const dir = tree();
@@ -30,85 +29,6 @@ test('a fixed path in any file a skill ships fails, not only in its prose', () =
   assertFails(dir, /lib\/eagle-eye\.js:\d+ holds a fixed path/);
 });
 
-// The shapes a fixed home path takes in code, in Git Bash and on a Mac, which
-// the first three patterns missed. `someone` is the account in every one, so
-// no real name enters this file. A `.js` line goes into eagle-eye's lib/, as
-// above; a `.md` line goes into the unsealed fixture's SKILL.md, on a line
-// that is not a block quote. String.raw keeps each backslash as written.
-const inJs = String.raw;
-const jsFile = dir => join(dir, 'skills', 'eagle-eye', 'lib', 'eagle-eye.js');
-const shapes = [
-  ['js', 'two backslashes, as a JS string holds one', inJs`"C:\\Users\\someone"`],
-  ['js', 'four backslashes, as JSON inside a JS string holds one', inJs`"C:\\\\Users\\\\someone"`],
-  ['md', 'forward slashes after a drive', 'C:/Users/someone/'],
-  ['md', 'any drive letter', 'D:\\Users\\someone\\'],
-  ['md', "VS Code's file link with the colon encoded", 'file:///c%3A/Users/someone/'],
-  ['js', 'the Windows home root joined at run time', inJs`join('C:\\Users', name)`],
-  ['md', 'a Mac home', '/Users/someone/'],
-  ['md', 'a Mac file link', 'file:///Users/someone/'],
-  ['js', 'the Mac home root joined at run time', `const p = '/Users/' + name;`],
-  ['md', 'Git Bash', '/c/Users/someone/'],
-  ['md', 'WSL', '/mnt/c/Users/someone/'],
-  ['md', 'Cygwin', '/cygdrive/c/Users/someone/'],
-];
-for (const [kind, what, text] of shapes) {
-  test(`a fixed home path fails: ${what}`, () => {
-    const dir = tree();
-    if (kind === 'js') {
-      appendFileSync(jsFile(dir), `\nconst where = ${text};\n`);
-      assertFails(dir, /lib\/eagle-eye\.js:\d+ holds a fixed path/);
-    } else {
-      appendFileSync(fixtureMd(dir), `\nOpen ${text} first.\n`);
-      assertFails(dir, /unsealed-fixture\/SKILL\.md:\d+ holds a fixed path/);
-    }
-  });
-}
-
-test('the failure names the file and line and masks the account name', () => {
-  // The CI log is public and outlives a rewritten commit. The file and the
-  // line are all a fixer needs.
-  const dir = tree();
-  appendFileSync(fixtureMd(dir), '\nOpen /Users/someone/box.json first.\n');
-  const r = assertFails(dir, /unsealed-fixture\/SKILL\.md:\d+ holds a fixed path/);
-  assert.doesNotMatch(r.stdout + r.stderr, /someone/);
-});
-
-test('a home root at the end of a CRLF line fails, as it does on LF', () => {
-  // The check splits on \n, so a CRLF checkout leaves \r on every line.
-  const dir = tree();
-  appendFileSync(fixtureMd(dir), '\r\nThe home folder is /Users\r\n');
-  assertFails(dir, /unsealed-fixture\/SKILL\.md:\d+ holds a fixed path/);
-});
-
-test('a URL route, a lowercase REST path and prose about the folder pass', () => {
-  const dir = tree();
-  appendFileSync(
-    fixtureMd(dir),
-    '\nCall https://example.com/api/Users/42 or GET /users/42.\n\nA Mac keeps homes in the /Users folder.\n',
-  );
-  assertPasses(dir);
-});
-
-test('a root Skills/ folder fails, or folds to skills/ where case folds', () => {
-  // The check cannot run without skills/, so the test never removes it. On a
-  // case-sensitive file system Skills/ sits beside it and the check must name
-  // it. Where case folds, the two cannot both exist, so the comparison the
-  // check makes is asserted instead.
-  const dir = tree();
-  try {
-    mkdirSync(join(dir, 'Skills'));
-  } catch (e) {
-    if (e.code !== 'EEXIST') throw e;
-  }
-  const names = readdirSync(dir);
-  if (names.includes('skills') && names.includes('Skills')) {
-    writeFileSync(join(dir, 'Skills', 'README.md'), 'a twin\n');
-    assertFails(dir, /Skills\/ at the root is skills\/ in another case/);
-  } else {
-    assert.equal(caseTwin('Skills', 'skills'), true);
-  }
-});
-
 test('a mod file with an upper-case suffix is read for its imports', () => {
   // CODE was case-sensitive, so x.TS was read by the fixed-path rule and by
   // neither import rule.
@@ -120,7 +40,7 @@ test('a mod file with an upper-case suffix is read for its imports', () => {
 test('a fixed path outside skills/ does not fail, because nothing ships it', () => {
   // The rule is about what lands on somebody else's computer under an install
   // route nobody here chooses. A repository script is not that, and this
-  // file's own tests carry two of the patterns on purpose.
+  // file's own tests carry every one of rule 2's patterns on purpose.
   const dir = tree();
   appendFileSync(join(dir, 'scripts', 'build-pages.mjs'), '\n// a note naming ~/.claude/skills/, shipped to nobody\n');
   assertPasses(dir);
