@@ -425,14 +425,18 @@ async function askTool($: EngineInterface, session: string, over: () => boolean)
   return false
 }
 
-// The links whose opener is running now. A second press on one of them does
-// nothing until the run settles, either way, as `opening` does for the tool
-// route.
+// The links with a link-route press in progress, from host detection through
+// the opener's run. Any press on one of them, a Desktop card's included, does
+// nothing until that press ends, whether its run succeeds or fails, as
+// `opening` does for the tool route.
 const linking = new Set<string>()
 
 // The files that prove a Unix host, in order: macOS' own version file, which
 // System Integrity Protection guards, then Linux's opener itself.
-const MAC_PROBE = '/System/Library/CoreServices/SystemVersion.plist'
+const PROBES = [
+  ['macos', '/System/Library/CoreServices/SystemVersion.plist'],
+  ['linux', XDG_OPEN],
+] as const
 
 // The host the link route opens on, worked out on each press, or undefined.
 // The engine gives a mod no platform field. Windows is known first, by its
@@ -448,7 +452,7 @@ async function hostOs($: EngineInterface): Promise<HostOs | undefined> {
     if ((await $.env.get('SystemRoot')) !== undefined) return 'windows'
     if ((await $.env.get('windir')) !== undefined) return 'windows'
     const stat = statOf($)
-    for (const [os, path] of [['macos', MAC_PROBE], ['linux', XDG_OPEN]] as const) {
+    for (const [os, path] of PROBES) {
       const s = await stat(path)
       if ('missing' in s) continue
       if ('failed' in s || s.found.kind !== 'file' || s.found.realPath === undefined) return undefined
@@ -469,7 +473,7 @@ async function hostOs($: EngineInterface): Promise<HostOs | undefined> {
 // one press at a time.
 async function openInApp($: EngineInterface, c: Card) {
   const app = appLink(c, lookup(await read($, links)).get(c.title))
-  if (app === undefined) return
+  if (app === undefined || linking.has(app)) return
   const session = toolSession(c)
   if (session !== undefined) {
     if (opening.has(session)) return
@@ -495,7 +499,8 @@ async function openInApp($: EngineInterface, c: Card) {
       $.ui.toast(`Could not open ${oneLine(c.title, 40)} with ${argv[0]}.`)
       return
     }
-    // explorer.exe exits 1 even when it hands the link on, so say what was sent.
+    // explorer.exe exits 1 even when it hands the link on, so on every host the
+    // toast reports the exit code rather than judging it.
     $.ui.toast(`Opening ${oneLine(c.title, 40)} in the app (${ran.exitCode})`)
   } finally {
     linking.delete(app)

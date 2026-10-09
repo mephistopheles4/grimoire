@@ -404,9 +404,12 @@ export function appLink(c: Card, found: string | undefined): string | undefined 
 /** The host systems the link route has an opener for. */
 export type HostOs = 'windows' | 'macos' | 'linux'
 
-// The link route's programs. Windows' is looked up by name, as measured; the
-// other two are absolute, root-owned on a normal install, so neither the
-// user's PATH nor the project folder can supply a stand-in.
+// The link route's programs. Windows' is looked up by name, as measured in the
+// threat model's row 15. The other two are absolute, root-owned on a normal
+// install, so neither the user's PATH nor the project folder can supply a
+// stand-in for the opener itself. On Linux the opener then starts its desktop
+// helper, or a fallback browser, by name on the inherited PATH, from the
+// session's working folder.
 export const EXPLORER = 'explorer.exe'
 export const MAC_OPEN = '/usr/bin/open'
 export const XDG_OPEN = '/usr/bin/xdg-open'

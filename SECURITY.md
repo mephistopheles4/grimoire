@@ -70,8 +70,9 @@ the same way, which was not tried there. When that call is refused,
 fails or takes over 5 seconds in all, or the card has no Desktop id, its one
 other process is the host's opener, given a `claude://` link: `explorer.exe`
 on Windows, as before, `/usr/bin/open` on macOS and `/usr/bin/xdg-open` on
-Linux, the last two by absolute path. On a host it cannot identify it runs
-nothing.
+Linux, the last two by absolute path. The absolute path pins only the opener:
+on Linux it then starts its desktop helper, or a fallback browser, by name on
+the inherited PATH. On a host it cannot identify it runs nothing.
 Everything it reads is checked and drawn as text, in the usage image too. Review any change under
 `brigade/` or `hooks/` as a change to code that runs on every installer's
 machine: [row 15 of the threat model](docs/security/threat-model.md#the-matrix)
