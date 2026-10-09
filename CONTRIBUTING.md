@@ -23,8 +23,9 @@ over the skill prose and fails on any finding the baselines do not cover. One
 runs zizmor over `.github/workflows/` and fails on any finding at all —
 there is no baseline for it, because there is nothing to suppress. The third runs
 `claude plugin validate --strict` on the two manifests and `skills/`, at a pinned
-Claude Code version, and fails on any field the schema does not recognise. All
-three install their tool on the runner and never on your machine, so the command above
+Claude Code version, and fails on any field the schema does not recognise in
+either manifest; its check of `skills/` is weaker. All
+three put their tool on the runner and never on your machine, so the command above
 stays the only one you need. See [`docs/security/scanners.md`](docs/security/scanners.md) for what each one
 covers, what it suppresses, and why.
 

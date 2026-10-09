@@ -23,9 +23,9 @@
 // the tests' fixtures. It makes no model call while the probe loads: the probe
 // answers a slash command itself, and if it did not load, the run fails on the
 // missing record (the command then reached the model as a prompt, on Haiku).
-// It is a local gate, not part of the one command, because CI has no Claude
-// Code and installing it there would put a fetched dependency on the
-// publishing path.
+// It is a local gate, not part of the one command, because it drives a live
+// Claude Code session. CI fetches Claude Code in one place only, the plugin
+// validator's workflow, which holds no token and is not the publishing path.
 //
 // Windows only. The recording holds what the engine answered on Windows, and
 // the tests are built on it; macOS and Linux are not measured (threat model,

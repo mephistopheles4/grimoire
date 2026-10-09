@@ -285,7 +285,9 @@ empty folder and a file that is not JSON all exit `1`, so no output is parsed.
 Measured on 2.1.296:
 
 - **It catches** an unknown field in either manifest, a `SKILL.md` whose
-  frontmatter does not parse, and a manifest that is not valid JSON.
+  frontmatter does not parse, and a manifest that is not valid JSON. The
+  unknown field fails only under `--strict`: without the flag it is a warning
+  and the run exits `0`.
 - **It does not catch** an unknown key in a `SKILL.md`'s frontmatter, or a
   skill folder with no `SKILL.md` at all. `skills/` is a weak check. A missing
   `SKILL.md` is `scripts/check.mjs`'s to catch, and it does.
@@ -295,7 +297,7 @@ Measured on 2.1.296:
 
 ### The pin
 
-**`@anthropic-ai/claude-code-linux-x64@2.1.296`**, written three times in the
+**`@anthropic-ai/claude-code-linux-x64@2.1.296`**, set on 2026-10-09, written three times in the
 workflow: the package in the fetch step, the tarball's file name below it, and
 the string `2.1.296 (Claude Code)` the version step compares against. That step
 fails on any other output, so a missing binary or a wrong version fails before
@@ -328,11 +330,18 @@ and the check validates against a stale schema.
 
 **How.**
 
-1. Change the version in all three places in the workflow together.
-2. On a branch, rerun the probes: a clean tree passes all three targets, and an
-   unknown field fails each manifest.
-3. Run `.` and read which files it says it validated. If that list changed, say
-   so in the pull request.
+1. Change the version in all three places in the workflow together, and the
+   date beside the pin above.
+2. Open the pull request, and let CI read the probes. The bump commit itself
+   must pass all three targets. Then push a commit that adds an unknown field
+   to `.claude-plugin/plugin.json`, and one that adds it to
+   `.claude-plugin/marketplace.json`: `validate` must go red on each. Revert
+   both, and it must go green. Put the run links in the pull request.
+3. Run `claude plugin validate --strict .` at the new version and read which
+   files it says it validated. If that list changed, say so in the pull
+   request.
+4. Re-measure the list under "What it catches", and update every `2.1.296` in
+   this section and in the workflow's comments.
 
 ### Reproducing a red run
 

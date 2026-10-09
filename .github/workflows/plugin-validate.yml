@@ -8,7 +8,7 @@
 # changes nothing reads as a check that passed**, so this one is a gate.
 #
 # **Its own file, not a job in check.yml.** `check` installs nothing, which is
-# what CONTRIBUTING.md promises, and this job installs Claude Code. A status
+# what CONTRIBUTING.md promises, and this job fetches Claude Code. A status
 # check is the unit branch protection requires, and a step cannot be required
 # at all — the argument zizmor.yml makes for its own file.
 #
@@ -38,7 +38,7 @@ permissions:
 
 jobs:
   validate:
-    # Pinned, as zizmor.yml pins it, because the install below names a
+    # Pinned, as zizmor.yml pins it, because the fetch below names a
     # platform package: linux, x64, glibc.
     runs-on: ubuntu-24.04
     env:
@@ -62,12 +62,13 @@ jobs:
       # a tarball holding one executable file, `package/claude`.
       #
       # **Fetched and unpacked, not installed.** `npm pack` downloads the pinned
-      # tarball and `tar` unpacks it; nothing runs an install, so no package
-      # script can run and no package.json or lockfile is written. `npm install`
-      # was the first route, and zizmor's `adhoc-packages` audit flags it as an
-      # install outside a lockfile — a lockfile being the manifest this tree
-      # refuses. Both land outside the checkout. The runner image's own npm
-      # does the fetch; no setup-node step.
+      # tarball and `tar` unpacks it. The tarball and the unpacked folder land
+      # in $RUNNER_TEMP, outside the checkout. Nothing runs an install, so no
+      # package script can run and no package.json or lockfile is written.
+      # `npm install` was the first route, and zizmor's `adhoc-packages` audit
+      # flags it as an install outside a lockfile — a lockfile being the
+      # manifest this tree refuses. The runner image's own npm does the fetch;
+      # no setup-node step.
       #
       # **How strong the pin is.** npm never re-publishes a version number, so
       # this is close to a content pin and is not one, the same as zizmor's
