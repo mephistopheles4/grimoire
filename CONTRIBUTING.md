@@ -18,11 +18,14 @@ disagree, runs every skill through the format check in
 `skills/contract/scripts/check.mjs`, and runs the test suite in `tests/`. CI
 runs it as a required check called `check`. `main` takes no direct pushes.
 
-Two more workflows scan things the command above does not. One runs SkillSpector
-over the skill prose and fails on any finding the baselines do not cover. The
-other runs zizmor over `.github/workflows/` and fails on any finding at all —
-there is no baseline for it, because there is nothing to suppress. Both install
-their scanner on the runner and never on your machine, so the command above
+Three more workflows check things the command above does not. One runs SkillSpector
+over the skill prose and fails on any finding the baselines do not cover. One
+runs zizmor over `.github/workflows/` and fails on any finding at all —
+there is no baseline for it, because there is nothing to suppress. The third runs
+`claude plugin validate --strict` on the two manifests and `skills/`, at a pinned
+Claude Code version, and fails on any field the schema does not recognise in
+either manifest; its check of `skills/` is weaker. All
+three put their tool on the runner and never on your machine, so the command above
 stays the only one you need. See [`docs/security/scanners.md`](docs/security/scanners.md) for what each one
 covers, what it suppresses, and why.
 
@@ -80,8 +83,10 @@ roster file may be read or written. Keep both to erasable syntax (no enums,
 namespaces or parameter properties), so Node can strip their types.
 
 **Two more gates for the mod's `set_roster` tool, run on your own machine.**
-They need Claude Code, which CI does not install: installing it there would
-put a fetched dependency on the publishing path. Before a pull request that
+They drive a live Claude Code session, so they run where you have one. CI fetches
+Claude Code in one place only, the plugin validator's workflow, and that is not
+the publishing path: the job has `contents: read`, holds no token or secret,
+writes nothing, and the `pages` workflow does not depend on it. Before a pull request that
 touches `brigade/`, run the first on any platform, and the second on Windows,
 and say in the pull request which you ran. Off Windows, say that the recording
 gate could not run there:
