@@ -1,6 +1,6 @@
 {
   "name": "grimoire",
-  "version": "0.40.1",
+  "version": "0.41.1",
   "description": "A spellbook of agent skills for AI. Cast wisely. Four skills: eagle-eye, which lays coupled decisions out as a morphological box and renders one self-contained page that reads any configuration back; groundtrack, which turns a plan or a written change into a call graph with recorded traces through it, on a page a reader can step; contract, which interviews a person to agree the terms for a skill or an agent of their own, then generates its file from that contract and checks its format; and head-chef, which makes a Claude Desktop session the lead of the sessions it starts, with their model and effort set, their milestone reports, relays between them, and cleanup when the owner says a session is done. And one pane for Claude Code: Brigade, opened with /brigade, which shows the sessions a lead session started, each with its work, phase, live busy or idle state, cache warmth and latest report, and the lead session's own rate limits and context.",
   "author": {
     "name": "Ayman Diab",
