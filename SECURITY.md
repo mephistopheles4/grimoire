@@ -132,7 +132,8 @@ and a sharper danger warning for a few settings on a fixed list, such as
 
 The attacks worth planning for, scenario by scenario, with what stops each
 one and what still gets through: [docs/security/threat-model.md](docs/security/threat-model.md).
-It records the repository settings as they were read on 2026-09-25. The
+It records the repository settings as they were read on 2026-09-25, and the
+plugin validator's required check as confirmed on 2026-10-09. The
 [platform table](#what-the-platform-is-relied-on-for) below lists what the
 project relies on, which is not always what is switched on.
 
