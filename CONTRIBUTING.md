@@ -34,7 +34,9 @@ covers, what it suppresses, and why.
 
 It walks what `.gitignore` does not exclude, so a worktree under
 `.claude/worktrees/` is not descended into and not checked. Only the root
-`.gitignore` is read.
+`.gitignore` is read. A file git tracks that `.gitignore` matches fails, because
+it would ship with no rule reading it; in CI the check also fails when it
+cannot ask git which files it tracks.
 
 You need Node 22.18 or later and nothing else. There is no install step, because
 there are no dependencies. The skills' own scripts run on Node 20, but the one
@@ -54,7 +56,7 @@ not take, and `SECURITY.md` explains why that matters more than it looks.
 run only the suite while you work on it:
 
 ```bash
-node --test tests/audit.test.mjs tests/brigade-roster-rules.test.mjs tests/brigade-view.test.mjs tests/build-pages.test.mjs tests/check-allowances.test.mjs tests/check-baseline-rules.test.mjs tests/check-baselines.test.mjs tests/check-format.test.mjs tests/check-manifests.test.mjs tests/check-mod.test.mjs tests/check-paths.test.mjs tests/check-test-step.test.mjs tests/check-tree.test.mjs tests/check-version.test.mjs tests/contract-check-docs.test.mjs tests/contract-check-folder.test.mjs tests/contract-check-rules.test.mjs tests/contract-check-seal.test.mjs tests/contract-check-toml.test.mjs tests/eagle-eye-sheets.test.mjs tests/esc.test.mjs tests/groundtrack-fold.test.mjs tests/groundtrack-render.test.mjs tests/groundtrack-sheets.test.mjs tests/practice.test.mjs tests/registry.test.mjs tests/render.test.mjs tests/skillspector-gate.test.mjs tests/skillspector-strip-suppressed.test.mjs
+node --test tests/audit.test.mjs tests/brigade-roster-rules.test.mjs tests/brigade-view.test.mjs tests/build-pages.test.mjs tests/case.test.mjs tests/check-allowances.test.mjs tests/check-baseline-rules.test.mjs tests/check-baselines.test.mjs tests/check-format.test.mjs tests/check-home-paths.test.mjs tests/check-home-shapes.test.mjs tests/check-manifests.test.mjs tests/check-mod.test.mjs tests/check-paths.test.mjs tests/check-test-step.test.mjs tests/check-tracked.test.mjs tests/check-tree.test.mjs tests/check-version.test.mjs tests/contract-check-docs.test.mjs tests/contract-check-folder.test.mjs tests/contract-check-rules.test.mjs tests/contract-check-seal.test.mjs tests/contract-check-toml.test.mjs tests/eagle-eye-sheets.test.mjs tests/esc.test.mjs tests/groundtrack-fold.test.mjs tests/groundtrack-render.test.mjs tests/groundtrack-sheets.test.mjs tests/practice.test.mjs tests/registry.test.mjs tests/render.test.mjs tests/skillspector-gate.test.mjs tests/skillspector-strip-suppressed.test.mjs
 ```
 
 **The suite never reaches the network.** eagle-eye's edge audit is the one
@@ -76,7 +78,11 @@ malformed one to a temporary directory at run time. `tests/render.test.mjs` and
 
 **Test at the seam a reader uses.** The renderer's seam is its command line, and
 the check's seam is its exit code and its output. A test that reaches inside
-either one breaks on a refactor that changed no behaviour. The Brigade mod's
+either one breaks on a refactor that changed no behaviour. The check's two small
+helpers, `scripts/lib/case.mjs` and `scripts/lib/printable.mjs`, are seams of
+their own: `tests/case.test.mjs` imports them for the cases a file system
+cannot hold, and the check's tests drive the same cases through its output
+where it can. The Brigade mod's
 seam is its view module, `brigade/view.ts`: plain TypeScript with no engine
 import, which `tests/brigade-view.test.mjs` imports directly to check what
 the pane would draw, as strings. Its roster module, `brigade/roster.ts`, is the
@@ -172,11 +178,18 @@ has taken. The rule catches a bare fence and nothing else.
 **Never write a fixed path to a file inside a skill.** A skill can be installed
 as a plugin, copied by hand, or vendored into a project, and each lands in a
 different directory. Reference the skill base directory the harness supplies.
-`scripts/check.mjs` fails on `~/.claude/` appearing in any file under `skills/`
-— the prose, the library, the reference pages, the renderer and the schema. A
+`scripts/check.mjs` fails on `~/.claude/` or a home path appearing in any file
+under `skills/`, `brigade/` or `hooks/` — the prose, the library, the
+reference pages, the renderer and the schema. A home path is a Linux, Windows
+or Mac home in any of the shapes a terminal or an editor writes it:
+`C:\Users\…`, `C:/Users/…`, `/Users/…`, Git Bash's `/c/Users/…` and the WSL
+and Cygwin forms. An example path takes a placeholder instead, such as
+`<repo>/.claude/worktrees/build-185`; there is no per-line opt-out. A
 block-quoted line in a markdown file is exempt, because a quoted example is not
 an instruction. Only markdown is exempted: `>` is quotation in prose and is
-nothing in JavaScript, JSON or HTML.
+nothing in JavaScript, JSON or HTML. The check also fails a file git tracks
+that `.gitignore` matches, because nothing reads it and it still ships: remove
+the ignore line, or untrack the file.
 
 **Keep the frontmatter `name`.** Claude Code takes the skill's invocation name
 from it, so the name survives whatever the install directory is called.
@@ -257,8 +270,9 @@ holds both folders to the fixed-path rule and the version bump, as it holds
 `skills/`. It also holds the code the engine runs inside them: each module a
 hooks file names, every quoted `./` or `../` path in the mod's code, with either slash, and
 the manifest's `hooks` and `types` paths must land in `brigade/` or `hooks/`;
-an import line the check reads may not hold an absolute path; neither mod
-folder nor `hooks/hooks.json` may be spelled in another case; and a hooks file may
+an import line the check reads may not hold an absolute path; no shipped root
+folder (`skills/`, `.claude-plugin/`, `brigade/`, `hooks/`) nor
+`hooks/hooks.json` may be spelled in another case; and a hooks file may
 hold nothing but `modules`, because a settings hook there would run a command
 no rule reads. A mod kept in any other folder is outside those rules until
 `MOD_DIRS` in `scripts/check.mjs` names it. The engine writes its own type declarations into

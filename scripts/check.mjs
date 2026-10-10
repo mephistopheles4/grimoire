@@ -8,6 +8,8 @@
 // 2. No file a skill or the mod ships carries a fixed path. Both land in a
 //    different directory under every install route, so a path naming one is
 //    a defect.
+//    2b. For every rule, not only 2: every file git tracks is one the walk
+//    read, so no rule here skips a file that ships.
 // 3. The single-pass tag strip does not come back, and no code fence in any
 //    markdown file declares no language.
 // 4. Every plugin in the marketplace manifest exists on disk with a manifest,
@@ -25,18 +27,24 @@
 // 8. The test suite passes. `node --test` ships with Node, so the tests cost no
 //    dependency and this stays one command.
 
-import { appendFileSync, existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
-import { basename, join, posix, relative, sep } from 'node:path';
+import { appendFileSync, existsSync, lstatSync, readdirSync, readFileSync, realpathSync, statSync } from 'node:fs';
+import { basename, join, posix, relative, resolve, sep } from 'node:path';
 import { execFileSync, spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { walk } from './lib/tree.mjs';
 import { ARTIFACTS, rowFor } from './lib/registry.mjs';
 import { ALLOWANCES, checkAgainstTree, diffAllowances, parseAllowances, readAllowances } from './lib/skillspector-allowances.mjs';
+import { caseTwin } from './lib/case.mjs';
+import { masked, printable, shown } from './lib/printable.mjs';
 
 const root = join(fileURLToPath(import.meta.url), '..', '..');
 const failures = [];
 const fail = m => failures.push(m);
-const rel = p => relative(root, p).split(sep).join('/');
+const relRaw = p => relative(root, p).split(sep).join('/');
+// Every path a failure names comes through here, so a file name holding a
+// line break prints on one line and a home in it prints masked. The rules
+// below only test a path's prefix and suffix, which neither touches.
+const rel = p => shown(relRaw(p));
 
 // The walk reads .gitignore rather than a hardcoded skip set. scripts/lib/tree.mjs
 // carries why, and it is shared with build-pages.mjs so the two cannot drift.
@@ -58,8 +66,9 @@ const MOD_DIRS = ['brigade', 'hooks'];
 const underMod = src => MOD_DIRS.some(d => src.startsWith(`${d}/`));
 const isShipped = src => src.startsWith('skills/') || underMod(src);
 // Code: every suffix Node or the engine loads a module from. The rules that
-// read code read all of them, so a suffix is never a way round one.
-const CODE = /\.(ts|tsx|jsx|js|mjs|cjs|mts|cts)$/;
+// read code read all of them, so a suffix is never a way round one. In any
+// case, too: an install that folds case loads x.TS as it loads x.ts.
+const CODE = /\.(ts|tsx|jsx|js|mjs|cjs|mts|cts)$/i;
 
 // 1. Artifacts validate, against the renderer their registry row names.
 //
@@ -134,13 +143,32 @@ for (const e of readdirSync(join(root, 'skills'), { withFileTypes: true })) {
 // the rule is about what lands on somebody else's computer under an install
 // route nobody here chooses. A repository script is not that, and
 // tests/check-paths.test.mjs
-// carries all three of these patterns on purpose — as the strings that prove
+// carries all five of these patterns on purpose — as the strings that prove
 // the rule works. Counted from the file rather than remembered: an earlier
 // draft of this comment said two, and the third was added in the same change
 // that wrote it.
-const FIXED = [/~\/\.claude/, /\/home\/[a-z]/i, /C:\\Users\\/i];
+//
+// The five, in order: the config folder under a home; a Linux home; a
+// Windows home after any drive letter, with any number of backslashes, a
+// forward slash or VS Code's encoded colon, and the bare root a name is
+// joined to; a Mac home, a file link to one, and the bare root; and the same
+// Windows home as Git Bash, WSL and Cygwin write it. `/Users` is matched
+// case-sensitively, because lowercase /users/42 is a REST route. It must not
+// follow a word character, a dot or a dash, so a URL route such as
+// api/Users/42 passes. A `$` after a root is a template or shell variable
+// joined to it. `\r?$` because a CRLF checkout leaves `\r` on every
+// line split here. The rule reads text as written; what it does not catch,
+// and why, is threat-model row 17, the one list of those to keep in step.
+const FIXED = [
+  /~\/\.claude/,
+  /\/home\/[a-z$]/i,
+  /(?<![A-Za-z])[A-Za-z](?::|%3A)(?:\\+|\/)Users(?!\w)/i,
+  /(?<![\w.-])\/Users(?:\/[A-Za-z]|\/?(?=['"`$]|\r?$))/,
+  /(?<![\w.-])(?:\/mnt|\/cygdrive)?\/[A-Za-z]\/Users(?:\/[A-Za-z]|\/?(?=['"`$]|\r?$))/,
+];
 // A minified file is one long line, and a refusal nobody can read is a refusal
-// nobody acts on.
+// nobody acts on. The CI log is public and outlives a rewritten commit, so the
+// account name is masked before the line is cut; see scripts/lib/printable.mjs.
 const excerpt = s => (s.length > 120 ? `${s.slice(0, 117)}...` : s);
 for (const shipped of files.filter(f => isShipped(rel(f)))) {
   // The block-quote exemption is markdown only. `>` opens a quotation in prose
@@ -153,10 +181,98 @@ for (const shipped of files.filter(f => isShipped(rel(f)))) {
     .split('\n')
     .forEach((line, i) => {
       if (quotable && line.trimStart().startsWith('>')) return;
-      for (const re of FIXED) {
-        if (re.test(line)) fail(`${rel(shipped)}:${i + 1} holds a fixed path: ${excerpt(line.trim())}`);
+      // One failure a line: C:/Users/ matches two patterns, and one fix
+      // clears both.
+      if (FIXED.some(re => re.test(line))) {
+        fail(`${rel(shipped)}:${i + 1} holds a fixed path: ${printable(excerpt(masked(line.trim())))}`);
       }
     });
+}
+
+// 2b. Every file git tracks is one the walk read.
+//
+// The walk skips what .gitignore matches, tracked or not. A file git tracks
+// that also matches an ignore line ships in the plugin, and no rule here reads
+// it. It gets there by `git add -f`, or by a pull request that adds an ignore
+// line matching a file already shipped — a one-line housekeeping edit in
+// review. `*.local.*` matches at any depth, and a local settings file is the
+// one most likely to hold a person's own paths.
+//
+// The rule compares what git tracks with what the walk read, rather than
+// asking git what it ignores. The walk reads .gitignore with its own reader,
+// which trims both ends of a line where git trims only trailing spaces, so a
+// line differing from a name by a trailing tab hides the file from the walk
+// and not from git. Comparing with the walk's own list closes that whole
+// class, whatever the cause. The whole tree, because rules 3 and 6 read the
+// whole tree too.
+//
+// It needs this root to be the top of a git work tree. A tree copied for a
+// test is not one, so locally the rule says so and skips. In CI it fails
+// instead: a broken git step or a moved checkout must not turn the gate green.
+const NOT_TOP = 'not the top of a git work tree, or git failed';
+const samePath = (a, b) => (process.platform === 'win32' ? a.toLowerCase() === b.toLowerCase() : a === b);
+function isWorkTreeTop() {
+  const top = git('rev-parse', '--show-toplevel');
+  if (!top) return false;
+  try {
+    return samePath(realpathSync.native(resolve(top)), realpathSync.native(root));
+  } catch {
+    return false;
+  }
+}
+if (!isWorkTreeTop()) {
+  if (process.env.GITHUB_ACTIONS === 'true') {
+    fail(`the tracked-file check cannot run: ${NOT_TOP}. In CI that is a broken checkout, not a pass.`);
+  } else {
+    console.log(`note: ${NOT_TOP} — tracked-file check skipped`);
+  }
+} else {
+  // -z so a name comes back as written, not quoted; -s for the mode, which is
+  // how a submodule shows. Not through git(), which trims the output. Read as
+  // bytes, because a name that is not UTF-8 decodes to a different name, the
+  // lookup on disk then misses it, and it would read as deleted.
+  let listed = null;
+  try {
+    listed = execFileSync('git', ['ls-files', '-z', '-c', '-s'], { cwd: root, stdio: ['ignore', 'pipe', 'ignore'], maxBuffer: 64 * 1024 * 1024 });
+  } catch {
+    fail('the tracked-file check cannot run: git ls-files failed');
+  }
+  const walked = new Set(files.map(f => relRaw(f)).map(p => (process.platform === 'win32' ? p.toLowerCase() : p)));
+  const entries = [];
+  for (let at = 0; listed && at < listed.length; ) {
+    const end = listed.indexOf(0, at);
+    entries.push(listed.subarray(at, end === -1 ? listed.length : end));
+    at = end === -1 ? listed.length : end + 1;
+  }
+  for (const bytes of entries.filter(b => b.length)) {
+    const entry = bytes.toString('utf8');
+    const tab = entry.indexOf('\t');
+    const mode = entry.slice(0, entry.indexOf(' '));
+    const path = entry.slice(tab + 1);
+    if (!Buffer.from(entry, 'utf8').equals(bytes)) {
+      fail(`${shown(path)} is tracked by git under a name that is not UTF-8, so the check cannot read it, and it ships. Rename it.`);
+      continue;
+    }
+    if (mode === '160000') {
+      fail(`${shown(path)} is a submodule — the check never reads its content, and it ships. Vendor the files or remove it.`);
+      continue;
+    }
+    let st;
+    try {
+      st = lstatSync(join(root, ...path.split('/')));
+    } catch (e) {
+      // Deleted on disk and not yet committed: nothing here ships it. Any
+      // other error is a file the check could not look at, which is a failure.
+      if (e.code === 'ENOENT') continue;
+      fail(`${shown(path)} is tracked by git and the check could not read it (${e.code}) — it ships unread.`);
+      continue;
+    }
+    if (!st.isFile() && !st.isSymbolicLink()) continue;
+    if (walked.has(process.platform === 'win32' ? path.toLowerCase() : path)) continue;
+    fail(
+      `${shown(path)} is tracked by git, and the check never read it, because .gitignore matches it — so it ships unread. Read it for home paths or secrets first. Then either untrack it (its content stays in history, so rotate any secret found), or remove the ignore line so the check reads it.`,
+    );
+  }
 }
 
 for (const skill of files.filter(f => f.endsWith('SKILL.md'))) {
@@ -518,7 +634,7 @@ for (const f of files.filter(f => CODE.test(f))) {
       for (const re of CALLED) for (const m of line.matchAll(re)) found.push(m[2]);
       for (const spec of found.filter(s => bare(s) && !(inMod && engine(s)))) {
         fail(
-          `${rel(f)}:${i + 1} imports "${spec}" — import a relative path or a node: builtin instead. A bare specifier is a dependency, and this repository has none, so nothing installs it and the file does not load. See CONTRIBUTING.md, "Do not add a dependency".`,
+          `${rel(f)}:${i + 1} imports "${shown(spec)}" — import a relative path or a node: builtin instead. A bare specifier is a dependency, and this repository has none, so nothing installs it and the file does not load. See CONTRIBUTING.md, "Do not add a dependency".`,
         );
       }
     });
@@ -562,9 +678,10 @@ const isFile = p => {
 // is there. Returns the landing path when all three hold.
 function pointer(what, fromDir, spec) {
   const at = landing(fromDir, spec);
-  if (at.why) return void fail(`${what} "${spec}", ${at.why} — no install route puts the plugin there`);
-  if (!underMod(at.p)) return void fail(`${what} "${spec}", which is ${at.p} — ${MOD_OUTSIDE}`);
-  if (!isFile(at.p)) return void fail(`${what} "${spec}", and ${at.p} is not there — the engine would fail to load it`);
+  const said = shown(spec);
+  if (at.why) return void fail(`${what} "${said}", ${at.why} — no install route puts the plugin there`);
+  if (!underMod(at.p)) return void fail(`${what} "${said}", which is ${shown(at.p)} — ${MOD_OUTSIDE}`);
+  if (!isFile(at.p)) return void fail(`${what} "${said}", and ${shown(at.p)} is not there — the engine would fail to load it`);
   return at.p;
 }
 function hooksFile(src) {
@@ -572,13 +689,13 @@ function hooksFile(src) {
   try {
     parsed = JSON.parse(readFileSync(join(root, ...src.split('/')), 'utf8'));
   } catch (e) {
-    return fail(`${src} is not JSON (${e.message}) — the engine cannot read which modules it names, and neither can this check`);
+    return fail(`${src} is not JSON (${shown(e.message)}) — the engine cannot read which modules it names, and neither can this check`);
   }
   if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) {
     return fail(`${src} is not a JSON object with a "modules" list`);
   }
   for (const key of Object.keys(parsed).filter(k => k !== 'modules')) {
-    fail(`${src} holds "${key}" — the check reads only "modules", so anything else is engine-run code it cannot follow`);
+    fail(`${src} holds "${shown(key)}" — the check reads only "modules", so anything else is engine-run code it cannot follow`);
   }
   const mods = parsed.modules ?? [];
   if (!Array.isArray(mods) || mods.some(m => typeof m !== 'string')) {
@@ -626,8 +743,8 @@ for (const f of files.filter(f => CODE.test(f) && underMod(rel(f)))) {
     .forEach((line, i) => {
       for (const m of line.matchAll(RELATIVE)) {
         const at = landing(posix.dirname(src), m[2]);
-        if (at.why) fail(`${src}:${i + 1} imports "${m[2]}", ${at.why}`);
-        else if (!underMod(at.p)) fail(`${src}:${i + 1} imports "${m[2]}", which is ${at.p} — ${MOD_OUTSIDE}`);
+        if (at.why) fail(`${src}:${i + 1} imports "${shown(m[2])}", ${at.why}`);
+        else if (!underMod(at.p)) fail(`${src}:${i + 1} imports "${shown(m[2])}", which is ${shown(at.p)} — ${MOD_OUTSIDE}`);
       }
       if (COMMENT.test(line)) return;
       const found = [];
@@ -637,21 +754,23 @@ for (const f of files.filter(f => CODE.test(f) && underMod(rel(f)))) {
       }
       for (const re of CALLED) for (const m of line.matchAll(re)) found.push(m[2]);
       for (const spec of found.filter(s => /^(?:[\\/]|[A-Za-z]:)/.test(s))) {
-        fail(`${src}:${i + 1} imports "${spec}", an absolute path — no install route puts the plugin there`);
+        fail(`${src}:${i + 1} imports "${shown(spec)}", an absolute path — no install route puts the plugin there`);
       }
     });
 }
-// A mod folder spelled in another case. The gate runs where case counts, and
-// an install on Windows or macOS folds it, so `Hooks/hooks.json` would load
-// there and be read by nothing here.
+// A shipped root folder spelled in another case. The gate runs where case
+// counts, and an install on Windows or macOS folds it, so `Hooks/hooks.json`
+// would load there and be read by nothing here. skills/ for the same reason,
+// and .claude-plugin/, whose manifest rule 6b reads by its exact name.
+const ROOT_DIRS = ['skills', '.claude-plugin', ...MOD_DIRS];
 for (const e of readdirSync(root, { withFileTypes: true })) {
-  const twin = MOD_DIRS.find(d => d.toLowerCase() === e.name.toLowerCase() && d !== e.name);
-  if (twin) fail(`${e.name}/ at the root is ${twin}/ in another case — an install that folds case loads it, and the check reads only ${twin}/. Rename it ${twin}/.`);
+  const twin = ROOT_DIRS.find(d => caseTwin(e.name, d));
+  if (twin) fail(`${shown(e.name)}/ at the root is ${twin}/ in another case — an install that folds case loads it, and the check reads only ${twin}/. Rename it ${twin}/.`);
 }
 // The same for the hooks file inside its folder: `hooks/Hooks.json` loads where
 // case folds and is read by nothing here.
 for (const e of existsSync(join(root, 'hooks')) ? readdirSync(join(root, 'hooks')) : []) {
-  if (e !== 'hooks.json' && e.toLowerCase() === 'hooks.json') fail(`hooks/${e} is hooks/hooks.json in another case — an install that folds case loads it, and the check reads only hooks/hooks.json. Rename it.`);
+  if (caseTwin(e, 'hooks.json')) fail(`hooks/${shown(e)} is hooks/hooks.json in another case — an install that folds case loads it, and the check reads only hooks/hooks.json. Rename it.`);
 }
 
 // 7. The SkillSpector baselines agree.

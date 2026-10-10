@@ -89,7 +89,7 @@
         "static_patterns_supply_chain",
         "static_patterns_system_prompt_leakage"
       ],
-      "sha256": "501355746280f7cfd98fc987de79c0fc7a489d807601e0dedc64083b3640ab32",
+      "sha256": "375424bc5cb2d94baf048c0d8c2682f4fc3f9bdb86d9b41a4a8fc85c59eb49ee",
       "reason": "The skill's contract. The marker pass reads a removal verb followed by a quote as the start of a \"remove the marker\" directive and cannot settle it; here that is the git command names in code spans, such as `worktree remove`, and prose on deleting a session that needs the owner's words. Measured on 2026-10-09: with those verbs disguised in a scratch copy, the give-up goes away; each matching line was read by hand and none is a disguised directive. The plain scan still reads the whole file under every listed check."
     },
     {
@@ -99,7 +99,7 @@
       "analyzers": [
         "static_patterns_tool_misuse"
       ],
-      "sha256": "501355746280f7cfd98fc987de79c0fc7a489d807601e0dedc64083b3640ab32",
+      "sha256": "375424bc5cb2d94baf048c0d8c2682f4fc3f9bdb86d9b41a4a8fc85c59eb49ee",
       "reason": "The skill's contract. The destructive-command parser stops partway through a long expression and marks the file partial for that one check; every other check reads it in full. The entry also accepts a marker-pass give-up inside that one check, which the scanner reports under this code."
     },
     {
@@ -121,7 +121,7 @@
         "static_patterns_system_prompt_leakage",
         "static_patterns_tool_misuse"
       ],
-      "sha256": "8cd53c2e59a498aac5a7563d064233bb938d1dcd7a840366d74e2f08998047f3",
+      "sha256": "63c005bfd467eb2e262eaea247021c9c8500a0dec3b99840941650f8f65ef90b",
       "reason": "The skill's instructions. The marker pass reads a removal verb followed by a quote as the start of a \"remove the marker\" directive and cannot settle it; here that is the git command names in code spans, such as `worktree remove`. Measured on 2026-10-09: with those verbs disguised in a scratch copy, the give-up goes away; each matching line was read by hand and none is a disguised directive. The plain scan still reads the whole file under every listed check."
     }
   ],

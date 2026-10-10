@@ -107,7 +107,8 @@ function rulesFor(root) {
 // about comes back from here, which is the answer both callers want — a box
 // file nobody has committed yet still has to validate. Nor is it every rule
 // git would apply: .git/info/exclude, a global core.excludesFile and a nested
-// .gitignore in a subdirectory are all unread.
+// .gitignore in a subdirectory are all unread. A file git tracks that this
+// walk skips is caught by rule 2b in scripts/check.mjs.
 export function walk(root) {
   const { rules, notes } = rulesFor(root);
   const files = [];

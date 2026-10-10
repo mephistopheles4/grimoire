@@ -29,10 +29,18 @@ test('a fixed path in any file a skill ships fails, not only in its prose', () =
   assertFails(dir, /lib\/eagle-eye\.js:\d+ holds a fixed path/);
 });
 
+test('a mod file with an upper-case suffix is read for its imports', () => {
+  // CODE was case-sensitive, so x.TS was read by the fixed-path rule and by
+  // neither import rule.
+  const dir = tree();
+  modFile(dir, 'brigade/x.TS', importLine('{ x }', 'some-package'));
+  assertFails(dir, /brigade\/x\.TS:1 imports "some-package"/);
+});
+
 test('a fixed path outside skills/ does not fail, because nothing ships it', () => {
   // The rule is about what lands on somebody else's computer under an install
   // route nobody here chooses. A repository script is not that, and this
-  // file's own tests carry two of the patterns on purpose.
+  // file's own tests carry every one of rule 2's patterns on purpose.
   const dir = tree();
   appendFileSync(join(dir, 'scripts', 'build-pages.mjs'), '\n// a note naming ~/.claude/skills/, shipped to nobody\n');
   assertPasses(dir);
