@@ -229,8 +229,8 @@ pure-with-effect finding. The words in use are `pure`, `io`, `handler`,
 is exactly `pure` and whose steps include an `effect` step. See
 [Findings](#findings).
 
-**`mutates` means the node changes an argument it was handed, in place.** It
-is not `pure`, and unlike `io` nothing leaves the program.
+**`mutates` means the node changes one of its arguments in place.** It is not
+`pure`, and unlike `io` nothing leaves the program.
 
 ### channels
 
