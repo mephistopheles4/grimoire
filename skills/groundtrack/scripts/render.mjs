@@ -20,6 +20,7 @@ import { readFileSync, writeFileSync, statSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createRequire } from 'node:module';
+import { createHash } from 'node:crypto';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const require = createRequire(import.meta.url);
@@ -604,6 +605,12 @@ function path(prog, gi, pi, r) {
         break;
       }
       case 'return':
+        /* `void` says nothing flows out, so a value handed back contradicts
+         * the node's own contract. Read off the frame being popped, before it
+         * goes. A null is still a value handed back. The value itself is never
+         * quoted: it is recorded run data, and can hold anything. */
+        if (isObj(node.channels) && node.channels.success === 'void' && Object.hasOwn(m, 'value'))
+          bad(i, `a return move carries a value out of ${f.nodeId}, whose success channel is void — drop the value, or name what ${f.nodeId} returns in channels.success`);
         frames.pop();
         noteEmpty(i, 'return');
         /* The caller resumed, so its call's onError is no longer in any
@@ -745,6 +752,46 @@ function producibleTags(prog, raisedInWalks) {
   };
 }
 
+/* A name's SHA-256 digest, taken over its UTF-16 units. Encoding it as UTF-8
+ * first would turn every unpaired surrogate into U+FFFD, and two names that
+ * differ only there would share a digest. */
+const digest = s => createHash('sha256').update(s, 'utf16le').digest('hex');
+
+/* A stranger's string as one quoted token on one line. JSON escapes the
+ * controls below space; this escapes what it leaves raw and a terminal, a
+ * line-splitting tool or a model reading the output can still act on: every
+ * control character, every character Unicode says to draw as nothing (the
+ * marks that reorder text, the joiners, the tag block, the variation
+ * selectors), and the line and paragraph separators. */
+const UNSAFE = /[\p{Cc}\p{Default_Ignorable_Code_Point}\u{2028}\u{2029}]/gu;
+/* Past this many characters a name prints as its first ones, its length and
+ * the start of its digest. An escape is up to six characters for one in the
+ * file, so a name of 90,000,000 DEL characters escaped whole passed V8's
+ * string limit and ended the command in a stack trace. This bounds what is
+ * printed; it refuses nothing. */
+const PRINTED = 200;
+/* Each UTF-16 unit as its own `\uXXXX`, so a character above U+FFFF prints
+ * as its surrogate pair: still a well-formed JSON escape. */
+const quoted = s => {
+  const token = JSON.stringify(s.slice(0, PRINTED)).replace(UNSAFE, c => [...Array(c.length).keys()].map(i => `\\u${c.charCodeAt(i).toString(16).padStart(4, '0')}`).join(''));
+  return s.length > PRINTED ? `${token} (the first ${PRINTED} of ${count(s.length)} characters, sha256 ${digest(s).slice(0, 16)})` : token;
+};
+
+/* A Set of a stranger's names whose cost stays linear. V8 hashes a string
+ * longer than 16,383 characters by its length alone, so a Set of many long
+ * names of one length compares each against all the others: a 95 MB file
+ * of such params took 13.5 s. Past that length a name is held by its
+ * digest instead, in a Set of its own so it never meets a short name. */
+const LONG_NAME = 16383;
+const nameSet = () => {
+  const short = new Set();
+  const long = new Set();
+  return {
+    add: n => (n.length > LONG_NAME ? long.add(digest(n)) : short.add(n)),
+    has: n => (n.length > LONG_NAME ? long.has(digest(n)) : short.has(n)),
+  };
+};
+
 /* -- findings -------------------------------------------------------------
  *
  * A finding is not a refusal. Each one is computed from the file alone with no
@@ -830,6 +877,51 @@ export function findings(prog) {
       const s = n.steps[at];
       out.push(`${id} is marked pure, which claims no effects, and ${id}[${at}] runs one: ${s.kind} "${s.desc}"`);
     }
+  }
+
+  /* A call step passing an arg name its callee's params do not name. Often
+   * meant — an options object's fields, a word naming a route — so it is a
+   * finding. Only an object `args` is compared: its keys are the callee's
+   * param names. A param's name is what precedes its first `=`, and a rest
+   * param accepts every name.
+   *
+   * `params` has never been type-checked, so a callee whose params are not
+   * all strings is skipped rather than refused. Each callee is worked out
+   * once and its verdict kept, the skip included, so many calls into one
+   * long list cost their sum and not their product. A Set (`nameSet`),
+   * because a name is a stranger's string and never an object key. Each
+   * name is printed quoted, so a line break in one cannot split the line,
+   * and with the characters JSON leaves raw escaped too (see `quoted`). */
+  const accepts = new Map();
+  const acceptsOf = id => {
+    if (!accepts.has(id)) {
+      const ps = prog.nodes[id].params;
+      let verdict = null;
+      if (Array.isArray(ps) && ps.every(p => typeof p === 'string')) {
+        const names = nameSet();
+        let rest = false;
+        for (const p of ps) {
+          /* Cut at the first `=` rather than split at every one: a param
+           * of a million `=` would otherwise build a list a million long. */
+          const eq = p.indexOf('=');
+          const name = (eq < 0 ? p : p.slice(0, eq)).trim();
+          if (name.startsWith('...')) rest = true;
+          else names.add(name);
+        }
+        verdict = { names, rest };
+      }
+      accepts.set(id, verdict);
+    }
+    return accepts.get(id);
+  };
+  for (const [id, n] of Object.entries(prog.nodes)) {
+    (n.steps || []).forEach((s, at) => {
+      if (s.op !== 'call' || !isObj(s.args) || !isNode(prog, s.target)) return;
+      const callee = acceptsOf(s.target);
+      if (!callee || callee.rest) return;
+      const unnamed = Object.keys(s.args).filter(a => !callee.names.has(a));
+      if (unnamed.length) out.push(`${id}[${at}] calls ${s.target} with args its params do not name: ${unnamed.map(quoted).join(', ')}`);
+    });
   }
 
   /* Files in the change that no node accounts for, by name. A

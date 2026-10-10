@@ -19,7 +19,7 @@ import { mkdtempSync, rmSync, writeFileSync, readFileSync, existsSync, readdirSy
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createHash } from 'node:crypto';
-import { groundtrack, examples, exampleFlightpath, layeredFlightpath, run, errorPastTwoSites } from './helpers.mjs';
+import { root, groundtrack, examples, exampleFlightpath, layeredFlightpath, run, errorPastTwoSites } from './helpers.mjs';
 
 const work = mkdtempSync(join(tmpdir(), 'grimoire-groundtrack-'));
 after(() => rmSync(work, { recursive: true, force: true }));
@@ -45,6 +45,9 @@ function derive(mutate) {
 }
 
 const check = file => run(groundtrack, [file, '--check']);
+
+/** The largest real sheet, which the size limits are measured against. */
+const pr382 = join(root, 'docs', 'examples', 'pr-382.flightpath.json');
 
 // The small example states one change and one graph, and every mutator below
 // reaches into that graph's runs. Named so the reshape reads as one thing
@@ -111,14 +114,18 @@ test('every shipped worked example validates', () => {
   }
 });
 
-test('the two structural checks change the verdict on no shipped example', () => {
-  // The pair earns its place by costing nothing elsewhere. This is the half
-  // worth pinning: the check that refuses a green-and-wrong file must not
-  // start refusing files that were green and right.
+test('the structural checks change the verdict on no shipped example', () => {
+  // These checks earn their place by costing nothing elsewhere. This is the
+  // half worth pinning: a check that refuses a green-and-wrong file must not
+  // start refusing files that were green and right. The args finding is
+  // held to the same bar: every shipped example names its args as its
+  // callees do.
   for (const f of readdirSync(examples).filter(x => x.endsWith('.flightpath.json'))) {
     const r = check(join(examples, f));
     assert.doesNotMatch(r.stderr, /is uncaught, but/);
     assert.doesNotMatch(r.stderr, /emptied the frame stack/);
+    assert.doesNotMatch(r.stderr, /whose success channel is void/);
+    assert.doesNotMatch(r.stdout, / with args its params do not name: /, f);
   }
 });
 
@@ -412,6 +419,120 @@ test('an uncaught move whose cause does not match the error travelling is refuse
     r.stderr,
     /graphs\[0\]\.presets\[2\]\.trace\.steps\[\d+\]: graph "greet", run "the post fails", move \d+: "SendFailed" reached the top as a die, but the error travelling is a fail/,
   );
+});
+
+/* -- a void node hands nothing back --------------------------------------- */
+
+// lookupName returns "Ada" at move 4 of "a known user" and of "the post
+// fails". Declare its success channel void, and those two moves contradict
+// the node's own contract. Its return step is step 2.
+const voidLookup = prog => {
+  prog.nodes.lookupName.channels.success = 'void';
+};
+const voidRefusals = stderr => stderr.split('\n').filter(l => /whose success channel is void/.test(l));
+
+test('a return move carrying a value out of a void node is refused, in the walk-refusal shape', () => {
+  const r = check(derive(voidLookup));
+  assert.equal(r.code, 1, r.stdout);
+  assert.match(
+    r.stderr,
+    /case-\d+\.flightpath\.json: graphs\[0\]\.presets\[0\]\.trace\.steps\[4\]: graph "greet", run "a known user", move 4: a return move carries a value out of lookupName, whose success channel is void — drop the value, or name what lookupName returns in channels\.success/,
+  );
+  assert.equal(voidRefusals(r.stderr).length, 2, r.stderr);
+});
+
+test('a return move carrying null out of a void node is refused too', () => {
+  // Present and null is still a value handed back. Only the first run keeps
+  // its move's value key, set to null; the third run's is dropped.
+  const r = check(
+    derive(prog => {
+      voidLookup(prog);
+      runs(prog)[0].trace.steps[4].value = null;
+      delete runs(prog)[2].trace.steps[4].value;
+    }),
+  );
+  assert.equal(r.code, 1, r.stdout);
+  const lines = voidRefusals(r.stderr);
+  assert.equal(lines.length, 1, r.stderr);
+  assert.match(lines[0], /run "a known user", move 4:/);
+});
+
+test('a return move with no value out of a void node passes', () => {
+  const r = check(
+    derive(prog => {
+      voidLookup(prog);
+      for (const p of runs(prog)) for (const m of p.trace.steps) if (m.k === 'return' && m.at === 2) delete m.value;
+    }),
+  );
+  assert.equal(r.code, 0, r.stderr);
+  assert.doesNotMatch(r.stderr, /whose success channel is void/);
+});
+
+test('a return move carrying a value out of a node that is not void passes', () => {
+  // Both of the example's nodes return a value, and neither is void.
+  const r = check(exampleFlightpath);
+  assert.equal(r.code, 0, r.stderr);
+  assert.doesNotMatch(r.stderr, /whose success channel is void/);
+});
+
+test('only the exact word void is reserved', () => {
+  for (const word of ['Void', 'undefined', 'VoidResult', ' void']) {
+    const r = check(derive(prog => { prog.nodes.lookupName.channels.success = word; }));
+    assert.equal(r.code, 0, `${JSON.stringify(word)}:\n${r.stderr}`);
+  }
+});
+
+test('the void refusal never prints the value the move carries', () => {
+  // A value is recorded run data and can hold anything.
+  const sentinel = 'recorded-7f3a9c41-never-printed';
+  const r = check(
+    derive(prog => {
+      voidLookup(prog);
+      runs(prog)[0].trace.steps[4].value = { token: sentinel };
+      runs(prog)[2].trace.steps[4].value = sentinel;
+    }),
+  );
+  assert.equal(r.code, 1, r.stdout);
+  assert.equal(voidRefusals(r.stderr).length, 2, r.stderr);
+  assert.ok(!r.stderr.includes(sentinel), r.stderr);
+  assert.ok(!r.stdout.includes(sentinel), r.stdout);
+});
+
+test('the pre-fix pr-313 shape is refused at each return out of worldSpaceUvs, and the shipped example is not', () => {
+  // Before #241 every return out of worldSpaceUvs in the first-paint graph
+  // carried a value, while the node declared void. Rebuilt here by putting a
+  // value back on each of those moves. A frame is tracked the way the walk
+  // tracks it: a call pushes, a return or a propagate pops, an uncaught
+  // clears.
+  const shipped = check(layeredFlightpath);
+  assert.equal(shipped.code, 0, shipped.stderr);
+  assert.doesNotMatch(shipped.stderr, /whose success channel is void/);
+
+  const prog = JSON.parse(readFileSync(layeredFlightpath, 'utf8'));
+  assert.equal(prog.nodes.worldSpaceUvs.channels.success, 'void');
+  const graph = prog.graphs.find(g => g.id === 'first-paint');
+  let added = 0;
+  for (const p of graph.presets) {
+    const frames = [graph.entry];
+    for (const m of p.trace.steps) {
+      if (m.k === 'call') frames.push(m.to);
+      else if (m.k === 'return' || m.k === 'propagate') {
+        if (m.k === 'return' && frames[frames.length - 1] === 'worldSpaceUvs') {
+          m.value = { uvs: 'written' };
+          added++;
+        }
+        frames.pop();
+      } else if (m.k === 'uncaught') frames.length = 0;
+    }
+  }
+  assert.equal(added, 6, 'the issue measured six returns out of worldSpaceUvs');
+  const file = join(work, `case-${n++}.flightpath.json`);
+  writeFileSync(file, JSON.stringify(prog, null, 2));
+  const r = check(file);
+  assert.equal(r.code, 1, r.stdout);
+  const lines = voidRefusals(r.stderr);
+  assert.equal(lines.length, added, r.stderr);
+  for (const l of lines) assert.match(l, /graph "first-paint", run "[^"]+", move \d+: a return move carries a value out of worldSpaceUvs, whose success channel is void/);
 });
 
 test('the old one-graph shape is refused, and the message names graphs', () => {
@@ -823,6 +944,278 @@ test('a pure node with no effect step, and an effect under any other role, are n
   // The rule reads the exact word and no other.
   const near = check(derive(prog => { prog.nodes.lookupName.role = 'Pure'; }));
   assert.doesNotMatch(near.stdout, /is marked pure/);
+});
+
+/* -- a call's args against its callee's params ----------------------------
+ *
+ * greet's step 1 calls lookupName with { id }, and lookupName's params are
+ * [id]. Each test below changes one side. */
+
+const argLines = stdout => stdout.split('\n').filter(l => / with args its params do not name: /.test(l));
+const greetArgs = args => prog => {
+  prog.nodes.greet.steps[1].args = args;
+};
+
+test('a call passing args its callee does not name is one finding line naming every one', () => {
+  const r = check(derive(greetArgs({ id: 'userId', via: 'the cache', locale: 'env.locale' })));
+  assert.equal(r.code, 0, r.stderr);
+  assert.deepEqual(argLines(r.stdout), ['greet[1] calls lookupName with args its params do not name: "via", "locale"']);
+});
+
+test('a call whose args all match its callee is no finding', () => {
+  const r = check(exampleFlightpath);
+  assert.equal(r.code, 0, r.stderr);
+  assert.deepEqual(argLines(r.stdout), []);
+});
+
+test('a param written with a default matches the arg of its name', () => {
+  for (const param of ['id = DEFAULT_ID', '  id=null  ', 'id = a = b']) {
+    const r = check(derive(prog => { prog.nodes.lookupName.params = [param]; }));
+    assert.equal(r.code, 0, r.stderr);
+    assert.deepEqual(argLines(r.stdout), [], JSON.stringify(param));
+  }
+});
+
+test('a rest param accepts any arg name', () => {
+  for (const params of [['...rest'], ['first', '...others'], ['...opts = {}'], ['  ...rest']]) {
+    const r = check(
+      derive(prog => {
+        prog.nodes.lookupName.params = params;
+        greetArgs({ id: 'userId', anything: 'x', at: 'y' })(prog);
+      }),
+    );
+    assert.equal(r.code, 0, r.stderr);
+    assert.deepEqual(argLines(r.stdout), [], JSON.stringify(params));
+  }
+});
+
+test('a callee that takes nothing and is passed args is a finding', () => {
+  const r = check(derive(prog => { prog.nodes.lookupName.params = []; }));
+  assert.equal(r.code, 0, r.stderr);
+  assert.deepEqual(argLines(r.stdout), ['greet[1] calls lookupName with args its params do not name: "id"']);
+});
+
+test('a call whose args are a string, a list or null is not compared', () => {
+  // The string form is legal and names no parameter. A list's positions and
+  // a null are not names either, and nothing upstream refuses them.
+  for (const args of ['userId, via the cache', ['userId', 'the cache'], null]) {
+    const r = check(derive(greetArgs(args)));
+    assert.equal(r.code, 0, `${JSON.stringify(args)}:\n${r.stderr}`);
+    assert.doesNotMatch(r.stderr, /TypeError|at Object|at file:/);
+    assert.deepEqual(argLines(r.stdout), [], JSON.stringify(args));
+  }
+});
+
+test('a param holding a long run of = signs reads as the name before the first one', () => {
+  // Read by cutting at the first `=`, never by splitting at every one.
+  const r = check(derive(prog => { prog.nodes.lookupName.params = [`id ${'='.repeat(2000000)}`]; }));
+  assert.equal(r.code, 0, r.stderr);
+  assert.deepEqual(argLines(r.stdout), []);
+});
+
+test('a callee whose params are not a list of strings is skipped, under --check and --text', () => {
+  // The call passes an arg no param names, so a compared callee would print
+  // a line. params has never been type-checked, so these are skipped rather
+  // than refused.
+  for (const params of [null, 'id', [1], ['id', 2], [null]]) {
+    const file = derive(prog => {
+      prog.nodes.lookupName.params = params;
+      greetArgs({ id: 'userId', via: 'the cache' })(prog);
+    });
+    for (const flag of ['--check', '--text']) {
+      const r = run(groundtrack, [file, flag]);
+      assert.equal(r.code, 0, `${JSON.stringify(params)} ${flag}:\n${r.stderr}`);
+      assert.doesNotMatch(r.stderr, /TypeError|at Object|at file:|is not a function/);
+      assert.deepEqual(argLines(r.stdout), [], `${JSON.stringify(params)} ${flag}`);
+    }
+  }
+});
+
+test('an arg or param named after a prototype member neither crashes nor misreports', () => {
+  // A literal `__proto__:` in an object written here sets the prototype and
+  // never reaches the file. Defined as an own key, it serialises as one, and
+  // JSON.parse reads it back as an own key.
+  const prototypeArgs = () => {
+    const args = { id: 'userId', constructor: 'c' };
+    Object.defineProperty(args, '__proto__', { value: 'p', enumerable: true, configurable: true, writable: true });
+    return args;
+  };
+  const unnamed = derive(greetArgs(prototypeArgs()));
+  assert.match(readFileSync(unnamed, 'utf8'), /"__proto__": "p"/, 'the fixture carries __proto__ as an own key');
+  const r = check(unnamed);
+  assert.equal(r.code, 0, r.stderr);
+  assert.doesNotMatch(r.stderr, /TypeError|Cannot read|at Object/);
+  assert.deepEqual(argLines(r.stdout), ['greet[1] calls lookupName with args its params do not name: "constructor", "__proto__"']);
+
+  // Named as params too, both match.
+  const named = check(
+    derive(prog => {
+      greetArgs(prototypeArgs())(prog);
+      prog.nodes.lookupName.params = ['id', 'constructor', '__proto__'];
+    }),
+  );
+  assert.equal(named.code, 0, named.stderr);
+  assert.deepEqual(argLines(named.stdout), []);
+
+  // A callee whose id is a prototype member is read through the own-property
+  // test, on a step no walk runs.
+  const callee = check(
+    derive(prog => {
+      prog.nodes.constructor = node('constructor', { params: ['x'], steps: [{ op: 'return', expr: 'null' }] });
+      prog.nodes.lookupName.steps.push({ op: 'call', target: 'constructor', label: 'ghost', args: { x: '1', y: '2' } });
+    }),
+  );
+  assert.equal(callee.code, 0, callee.stderr);
+  assert.deepEqual(argLines(callee.stdout), ['lookupName[4] calls constructor with args its params do not name: "y"']);
+});
+
+test('an arg name holding a line break prints as one quoted finding line', () => {
+  // A raw line break would split one finding into two lines, the second one
+  // forged by the file.
+  const name = `via${String.fromCharCode(10)}no graph's entry reaches greet, so no sheet draws it`;
+  const r = check(derive(greetArgs({ id: 'userId', [name]: 'x' })));
+  assert.equal(r.code, 0, r.stderr);
+  const printed = r.stdout.split('\n').filter(Boolean);
+  assert.deepEqual(argLines(r.stdout), [`greet[1] calls lookupName with args its params do not name: ${JSON.stringify(name)}`]);
+  assert.ok(!printed.includes("no graph's entry reaches greet, so no sheet draws it"), r.stdout);
+  assert.equal(printed.length, Number(/(\d+) finding\(s\)/.exec(r.stderr)[1]));
+});
+
+test('a name past 16,383 characters matches only itself, and prints bounded', () => {
+  // Past that length a name is held by its digest. Two names of one length
+  // that differ only in the last character must still be told apart.
+  const long = end => `${'a'.repeat(19999)}${end}`;
+  const r = check(
+    derive(prog => {
+      prog.nodes.lookupName.params = ['id', long('b')];
+      greetArgs({ id: 'userId', [long('b')]: 'x', [long('c')]: 'y' })(prog);
+    }),
+  );
+  assert.equal(r.code, 0, r.stderr);
+  // Printed as its first 200 characters, its length and its digest's start.
+  const digest = createHash('sha256').update(long('c'), 'utf16le').digest('hex').slice(0, 16);
+  assert.deepEqual(argLines(r.stdout), [
+    `greet[1] calls lookupName with args its params do not name: ${JSON.stringify('a'.repeat(200))} (the first 200 of 20,000 characters, sha256 ${digest})`,
+  ]);
+});
+
+test('two long names that differ only in an unpaired surrogate are told apart', () => {
+  // Hashed as UTF-8, both would turn into U+FFFD and share a digest.
+  const long = unit => `${'a'.repeat(20000)}${String.fromCharCode(unit)}`;
+  const r = check(
+    derive(prog => {
+      prog.nodes.lookupName.params = ['id', long(0xd800)];
+      greetArgs({ id: 'userId', [long(0xdc00)]: 'x' })(prog);
+    }),
+  );
+  assert.equal(r.code, 0, r.stderr);
+  assert.equal(argLines(r.stdout).length, 1, r.stdout);
+});
+
+test('an arg name of millions of escaped characters prints a bounded line', () => {
+  // Escaped whole, each DEL prints as six characters, and a long enough name
+  // passed V8's string limit and ended the command in a stack trace.
+  const name = String.fromCharCode(0x7f).repeat(1000000);
+  const file = derive(prog => {
+    delete prog.layers;
+    greetArgs({ id: 'userId', [name]: 'x' })(prog);
+  });
+  for (const flag of ['--check', '--text']) {
+    const r = run(groundtrack, [file, flag]);
+    assert.equal(r.code, 0, `${flag}:\n${r.stderr.slice(0, 2000)}`);
+    assert.doesNotMatch(r.stderr, /RangeError|at file:/);
+  }
+  const lines = argLines(check(file).stdout);
+  assert.equal(lines.length, 1);
+  assert.ok(lines[0].length < 1500, `${lines[0].length} characters`);
+  assert.match(lines[0], /\(the first 200 of 1,000,000 characters, sha256 [0-9a-f]{16}\)$/);
+});
+
+test('an arg name holding a character JSON leaves raw prints it escaped', () => {
+  // JSON escapes only the controls below space. These pass it raw, and a
+  // terminal or a tool that splits on Unicode line breaks can act on them:
+  // DEL, a C1 control, the soft hyphen, the line and paragraph separators,
+  // a direction override and isolate, a zero-width space, a byte order mark,
+  // a Hangul filler, a variation selector, and a tag character, which a
+  // terminal draws as nothing and a model reads. One above U+FFFF prints as
+  // its surrogate pair, so the escape stays well-formed JSON.
+  const points = [0x7f, 0x85, 0x9b, 0xad, 0x2028, 0x2029, 0x202e, 0x2066, 0x200b, 0xfeff, 0x3164, 0xfe0f, 0xe0041];
+  const name = `via${points.map(p => String.fromCodePoint(p)).join('')}end`;
+  const r = check(derive(greetArgs({ id: 'userId', [name]: 'x' })));
+  assert.equal(r.code, 0, r.stderr);
+  const lines = argLines(r.stdout);
+  assert.equal(lines.length, 1, r.stdout);
+  const escaped = c => [...c].flatMap(ch => [...Array(ch.length).keys()].map(i => `\\u${ch.charCodeAt(i).toString(16).padStart(4, '0')}`)).join('');
+  for (const p of points) {
+    const c = String.fromCodePoint(p);
+    assert.ok(!r.stdout.includes(c), `U+${p.toString(16)} printed raw`);
+    assert.ok(lines[0].includes(escaped(c)), `U+${p.toString(16)} not escaped:\n${lines[0]}`);
+  }
+  // The printed token reads back as the name.
+  assert.equal(JSON.parse(lines[0].split(': ')[1]), name);
+  assert.equal(r.stdout.split(/\r\n|[\n\r\u{85}\u{2028}\u{2029}]/u).filter(Boolean).length, Number(/(\d+) finding\(s\)/.exec(r.stderr)[1]));
+});
+
+test('pr-382 still validates, and its call sites are compared with their callees', () => {
+  // The largest real sheet sits outside the skill's examples folder, so the
+  // shipped-examples test does not read it. It keeps its findings unanswered:
+  // it is the sheet the size limits are measured against.
+  const r = check(pr382);
+  assert.equal(r.code, 0, r.stderr);
+  assert.doesNotMatch(r.stderr, /whose success channel is void/);
+  // 20 call sites naming 38 args when this check landed: the probe that sized
+  // it counted 43 before defaults were stripped. A change to the sheet or to
+  // the rule that moves either number should say why.
+  const lines = argLines(r.stdout);
+  assert.equal(lines.length, 20, lines.join('\n'));
+  assert.equal(lines.reduce((sum, l) => sum + l.split(': ')[1].split(', ').length, 0), 38, lines.join('\n'));
+  assert.equal(r.stdout.split('\n').filter(Boolean).length, Number(/(\d+) finding\(s\)/.exec(r.stderr)[1]));
+  // A word naming a route, and an options object's fields: the two kinds the
+  // finding is expected to report on a real file.
+  assert.ok(lines.includes('panel-apply[0] calls apply-live with args its params do not name: "via"'), lines.join('\n'));
+  assert.ok(lines.includes('boot[16] calls mount-diagnostics with args its params do not name: "books", "handle", "fallback", "record"'), lines.join('\n'));
+  // A default written inside a param matches: mount takes `target = surface`,
+  // describe-fallback and notice-for `addressAsksForShadows = false`, and
+  // write-settings `base = DEFAULT_SETTINGS`. Their call sites print nothing.
+  for (const site of ['remount-in-place[0] ', 'black-box-tick[2] ', 'tell[4] ', 'panel-apply[2] ']) {
+    assert.ok(!lines.some(l => l.startsWith(site)), `${site}\n${lines.join('\n')}`);
+  }
+});
+
+test('comparing args with params costs their sum, not their product', () => {
+  // 20,000 call steps into a callee with 20,000 params, and as many into one
+  // whose params list ends with the number 0, which the check skips. Working
+  // a callee's names out again at every call costs 800,000,000 names; once
+  // per callee costs 40,000. The calls sit on a node no entry reaches, so
+  // the tree view does not draw them.
+  //
+  // Two cheaper mistakes pass this bound: forgetting a skipped callee's
+  // verdict (0.98 s here) and keeping names in a list rather than a Set
+  // (1.49 s; 18.5 s against 1.9 s on an 8 MB file built for it). Neither
+  // gap is wide enough for a wall-clock bound that a slow runner keeps.
+  const calls = 20000;
+  const file = derive(prog => {
+    delete prog.layers;
+    const params = Array.from({ length: calls }, (_, i) => `p${i} = ${i}`);
+    prog.nodes.wide = node('wide', { params, steps: [{ op: 'return', expr: 'null' }] });
+    prog.nodes.mixed = node('mixed', { params: [...params.slice(1), 0], steps: [{ op: 'return', expr: 'null' }] });
+    const steps = [];
+    for (let i = 0; i < calls; i++) {
+      steps.push({ op: 'call', target: 'wide', args: { [`p${i}`]: 'x' } });
+      steps.push({ op: 'call', target: 'mixed', args: { [`p${i}`]: 'x' } });
+    }
+    steps.push({ op: 'return', expr: 'null' });
+    prog.nodes.far = node('far', { steps });
+  });
+  const started = performance.now();
+  const r = check(file);
+  const took = performance.now() - started;
+  assert.equal(r.code, 0, r.stderr);
+  assert.deepEqual(argLines(r.stdout), []);
+  // On the threat model's machine this file checks in 0.52 s, and a renderer
+  // that works each callee out again at every call takes 71 s. The bound sits
+  // far from both, so a slow runner passes and the product fails.
+  assert.ok(took < 15000, `--check took ${Math.round(took)} ms`);
 });
 
 /* -- the text output ------------------------------------------------------ */

@@ -213,7 +213,7 @@ says what the reader sees there now.
 | `name` | string | What a reader calls this node. |
 | `role` | string | What kind of thing the node is. See [role](#role). |
 | `loc` | string | Where the node lives: a path, a ticket, a URL. |
-| `params` | array of strings | The names this node takes in. |
+| `params` | array of strings | The names this node takes in. A name may carry its default after `=`, as in `target = surface`. A name that starts with `...` takes the rest. |
 | `channels` | object | `success`, `error`, `requirements`. See [channels](#channels). |
 | `steps` | array | The node's body. See [a step](#a-step). |
 | `touches` | array of strings | Paths from `files` this node changes. |
@@ -237,6 +237,12 @@ is exactly `pure` and whose steps include an `effect` step. See
 - `success` — a string. What flows out of the node.
 - `error` — an array of strings. The failure tags the node can throw.
 - `requirements` — an array of strings. What the node needs to work.
+
+**`void` means nothing flows out.** Only the exact word `void` has this
+meaning. `Void`, `undefined` and `VoidResult` mean what you wrote. A return
+move out of a `void` node carries no `value`. The validator refuses one that
+does, and a `value` of `null` too. The node's `return` step still needs an
+`expr`, as every `return` step does.
 
 **Never write a tag's kind here.** `error` is a list of tags, and
 nothing more.
@@ -293,6 +299,11 @@ not a rule in the program.
 `then`, `else` and `to` name a `label` on a step of the **same** node. `target`
 names a node id. `cause` is `fail` or `die`.
 
+`args` is a string or an object. **On a `call` step, an object's keys are the
+callee's param names.** `--check` compares them with the callee's `params`. See
+[Findings](#findings). An effect has no callee, so `--check` does not compare
+its `args`.
+
 `onError` is an array of `{ tag, goto, bind? }`. `goto` names a `label` on a
 step of the same node.
 
@@ -345,7 +356,7 @@ demand a field of moves that cannot have it.
 | `call` | `at`, `to`, `next` — `next` is where **this** frame resumes |
 | `effect` | `at`, `kind`, `desc`, and then **either** `next` (+ `result?`, `attempt?`) **or** `raised` — `attempt` counts the tries of an effect that ran more than once |
 | `throw` | `at`, `tag`, `message`, `cause` |
-| `return` | `at`, `value?` |
+| `return` | `at`, `value?` — never a `value` out of a `void` node |
 
 ### The four moves that move a frame
 
@@ -437,6 +448,9 @@ proves a trace against the graph it belongs to, entering at that graph's entry.
   top.** There is no third ending.
 - **A fail is in the error list of every node it leaves, and a die is in none.**
 - **A throw move and an uncaught move repeat the cause the error carries.**
+- **A return move out of a `void` node carries no `value`.** The refusal names
+  the node and both fixes: drop the value, or name what the node returns in
+  `channels.success`. It never prints the value.
 
 **What it cannot prove.** Which branch an `if` took, and what an effect
 returned. Both are claims you make. In practice a wrong branch is often caught
@@ -513,3 +527,13 @@ exits zero. Each one is a thing you may have meant.
 - **A `pure` node that runs an effect.** The finding names the node and its
   first `effect` step. Fix the role or the step, or write one line that says
   why the role stands.
+- **A call step whose `args` name something the callee's `params` do not.**
+  One line per call step names the caller, the step, the callee and every
+  such name. Each name is in quotes, with its control and invisible
+  characters escaped. A name longer than 200 characters prints as its first
+  200, its length and the start of its digest. A param matches by the name before its `=`. A callee
+  with a `...` param takes every name. The check skips an `args` that is not
+  an object. It also skips a callee whose `params` are not all strings. Fix
+  the call site when a name is a typo or `params` no longer lists what the
+  callee takes. Write one line that says why when the args are an options
+  object's fields or a route word.

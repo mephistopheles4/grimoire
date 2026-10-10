@@ -162,6 +162,8 @@ cost it drives.
 | The error-tag finding | A chain of 20,000 nodes that no entry reaches, each declaring a tag (4.9 MB) | 0.27 s | 0.29 s | 0.23 s | 0.21 s |
 | Tour stops and graphs | 30,000 graphs and 30,000 tour stops (7.4 MB) | 0.40 s | 0.43 s | 0.55 s | 0.61 s |
 | Tour stops and runs | 30,000 runs and 30,000 tour stops (4.9 MB) | 0.37 s | 0.38 s | 0.40 s | 0.35 s |
+| A call's args against its callee's params (no limit) | 20,000 calls into a node with 20,000 params, and 20,000 into one whose params list ends with the number 0, which the check skips (5.95 MB) | 0.52 s | 1.01 s | 1.02 s | not run: the page does not compare them |
+| Long param names (no limit) | One callee with 5,000 params of 20,000 characters that differ only at the end, and a call passing one (95 MB). V8 hashes a string that long by its length alone, so a plain Set of them took 13.5 s; names that long are held by their SHA-256 digest | 0.41 s | 0.65 s | 0.38 s | not run: the page does not compare them |
 | Node id length (no limit) | The long-chain file above, with ids of 1,000 characters (22.7 MB) | 0.17 s | 0.23 s | 0.52 s | 0.87 s |
 | For comparison | `docs/examples/pr-382.flightpath.json` (7 graphs, 88 nodes) | 0.11 s | 0.11 s | 0.16 s | 0.12 s |
 
@@ -169,6 +171,21 @@ cost it drives.
 deepest graph is 14 calls deep, 71 times under the limit. Its largest tree
 view is 304 rows, 66 times under. Its search for cut calls costs 77,415 units,
 12.9 times under.
+
+**Refusal output is not bounded, and that is accepted.** Every refusal in a
+walk repeats the run's name, and nothing caps how many refusals one run
+makes. A 2.1 MB file with a 10,000-character run name and 10,000 return moves
+that each carry a value out of a `void` node prints 99 MB of refusals in
+3.1 s. The volume is the run name's length times the refusal count. It
+predates the `void` refusal (#245), which adds one more way to reach it. The
+renderer exits with the refusal, and nothing reads the file further. Weighed
+against row 5's low rating under ADR 0004, no cap is added.
+
+**A printed arg name is bounded.** The args finding prints a name past 200
+characters as its first 200, its length and the start of its digest. Escaped
+whole, a name of 90,000,000 DEL characters (86 MB) passed V8's string limit
+and ended `--check` in a stack trace after 14.7 s. Bounded, it checks in
+0.57 s. This bounds what is printed and refuses nothing.
 
 **Node ids have no length limit.** Cost follows file size. Ids of 128, 1,000
 and 10,000 characters on the long-chain file check in 0.12 s, 0.17 s and
