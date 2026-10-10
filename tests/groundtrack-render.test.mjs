@@ -1081,7 +1081,7 @@ test('an arg name holding a line break prints as one quoted finding line', () =>
   assert.equal(printed.length, Number(/(\d+) finding\(s\)/.exec(r.stderr)[1]));
 });
 
-test('a name past 16,383 characters matches only itself', () => {
+test('a name past 16,383 characters matches only itself, and prints bounded', () => {
   // Past that length a name is held by its digest. Two names of one length
   // that differ only in the last character must still be told apart.
   const long = end => `${'a'.repeat(19999)}${end}`;
@@ -1092,7 +1092,43 @@ test('a name past 16,383 characters matches only itself', () => {
     }),
   );
   assert.equal(r.code, 0, r.stderr);
-  assert.deepEqual(argLines(r.stdout), [`greet[1] calls lookupName with args its params do not name: ${JSON.stringify(long('c'))}`]);
+  // Printed as its first 200 characters, its length and its digest's start.
+  const digest = createHash('sha256').update(long('c'), 'utf16le').digest('hex').slice(0, 16);
+  assert.deepEqual(argLines(r.stdout), [
+    `greet[1] calls lookupName with args its params do not name: ${JSON.stringify('a'.repeat(200))} (the first 200 of 20,000 characters, sha256 ${digest})`,
+  ]);
+});
+
+test('two long names that differ only in an unpaired surrogate are told apart', () => {
+  // Hashed as UTF-8, both would turn into U+FFFD and share a digest.
+  const long = unit => `${'a'.repeat(20000)}${String.fromCharCode(unit)}`;
+  const r = check(
+    derive(prog => {
+      prog.nodes.lookupName.params = ['id', long(0xd800)];
+      greetArgs({ id: 'userId', [long(0xdc00)]: 'x' })(prog);
+    }),
+  );
+  assert.equal(r.code, 0, r.stderr);
+  assert.equal(argLines(r.stdout).length, 1, r.stdout);
+});
+
+test('an arg name of millions of escaped characters prints a bounded line', () => {
+  // Escaped whole, each DEL prints as six characters, and a long enough name
+  // passed V8's string limit and ended the command in a stack trace.
+  const name = String.fromCharCode(0x7f).repeat(1000000);
+  const file = derive(prog => {
+    delete prog.layers;
+    greetArgs({ id: 'userId', [name]: 'x' })(prog);
+  });
+  for (const flag of ['--check', '--text']) {
+    const r = run(groundtrack, [file, flag]);
+    assert.equal(r.code, 0, `${flag}:\n${r.stderr.slice(0, 2000)}`);
+    assert.doesNotMatch(r.stderr, /RangeError|at file:/);
+  }
+  const lines = argLines(check(file).stdout);
+  assert.equal(lines.length, 1);
+  assert.ok(lines[0].length < 1500, `${lines[0].length} characters`);
+  assert.match(lines[0], /\(the first 200 of 1,000,000 characters, sha256 [0-9a-f]{16}\)$/);
 });
 
 test('an arg name holding a character JSON leaves raw prints it escaped', () => {

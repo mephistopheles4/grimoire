@@ -752,6 +752,11 @@ function producibleTags(prog, raisedInWalks) {
   };
 }
 
+/* A name's SHA-256 digest, taken over its UTF-16 units. Encoding it as UTF-8
+ * first would turn every unpaired surrogate into U+FFFD, and two names that
+ * differ only there would share a digest. */
+const digest = s => createHash('sha256').update(s, 'utf16le').digest('hex');
+
 /* A stranger's string as one quoted token on one line. JSON escapes the
  * controls below space; this escapes what it leaves raw and a terminal, a
  * line-splitting tool or a model reading the output can still act on: every
@@ -759,19 +764,25 @@ function producibleTags(prog, raisedInWalks) {
  * marks that reorder text, the joiners, the tag block, the variation
  * selectors), and the line and paragraph separators. */
 const UNSAFE = /[\p{Cc}\p{Default_Ignorable_Code_Point}\u{2028}\u{2029}]/gu;
+/* Past this many characters a name prints as its first ones, its length and
+ * the start of its digest. An escape is up to six characters for one in the
+ * file, so a name of 90,000,000 DEL characters escaped whole passed V8's
+ * string limit and ended the command in a stack trace. This bounds what is
+ * printed; it refuses nothing. */
+const PRINTED = 200;
 /* Each UTF-16 unit as its own `\uXXXX`, so a character above U+FFFF prints
  * as its surrogate pair: still a well-formed JSON escape. */
-const quoted = s =>
-  JSON.stringify(s).replace(UNSAFE, c => [...Array(c.length).keys()].map(i => `\\u${c.charCodeAt(i).toString(16).padStart(4, '0')}`).join(''));
+const quoted = s => {
+  const token = JSON.stringify(s.slice(0, PRINTED)).replace(UNSAFE, c => [...Array(c.length).keys()].map(i => `\\u${c.charCodeAt(i).toString(16).padStart(4, '0')}`).join(''));
+  return s.length > PRINTED ? `${token} (the first ${PRINTED} of ${count(s.length)} characters, sha256 ${digest(s).slice(0, 16)})` : token;
+};
 
 /* A Set of a stranger's names whose cost stays linear. V8 hashes a string
  * longer than 16,383 characters by its length alone, so a Set of many long
  * names of one length compares each against all the others: a 95 MB file
  * of such params took 13.5 s. Past that length a name is held by its
- * SHA-256 digest instead, in a Set of its own so it never meets a short
- * name. */
+ * digest instead, in a Set of its own so it never meets a short name. */
 const LONG_NAME = 16383;
-const digest = s => createHash('sha256').update(s).digest('hex');
 const nameSet = () => {
   const short = new Set();
   const long = new Set();

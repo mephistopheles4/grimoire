@@ -172,6 +172,21 @@ deepest graph is 14 calls deep, 71 times under the limit. Its largest tree
 view is 304 rows, 66 times under. Its search for cut calls costs 77,415 units,
 12.9 times under.
 
+**Refusal output is not bounded, and that is accepted.** Every refusal in a
+walk repeats the run's name, and nothing caps how many refusals one run
+makes. A 2.1 MB file with a 10,000-character run name and 10,000 return moves
+that each carry a value out of a `void` node prints 99 MB of refusals in
+3.1 s. The volume is the run name's length times the refusal count. It
+predates the `void` refusal (#245), which adds one more way to reach it. The
+renderer exits with the refusal, and nothing reads the file further. Weighed
+against row 5's low rating under ADR 0004, no cap is added.
+
+**A printed arg name is bounded.** The args finding prints a name past 200
+characters as its first 200, its length and the start of its digest. Escaped
+whole, a name of 90,000,000 DEL characters (86 MB) passed V8's string limit
+and ended `--check` in a stack trace after 14.7 s. Bounded, it checks in
+0.57 s. This bounds what is printed and refuses nothing.
+
 **Node ids have no length limit.** Cost follows file size. Ids of 128, 1,000
 and 10,000 characters on the long-chain file check in 0.12 s, 0.17 s and
 0.68 s, at 3.5 MB, 22.7 MB and 221 MB.

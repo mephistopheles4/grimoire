@@ -530,7 +530,8 @@ exits zero. Each one is a thing you may have meant.
 - **A call step whose `args` name something the callee's `params` do not.**
   One line per call step names the caller, the step, the callee and every
   such name. Each name is in quotes, with its control and invisible
-  characters escaped. A param matches by the name before its `=`. A callee
+  characters escaped. A name longer than 200 characters prints as its first
+  200, its length and the start of its digest. A param matches by the name before its `=`. A callee
   with a `...` param takes every name. The check skips an `args` that is not
   an object. It also skips a callee whose `params` are not all strings. Fix
   the call site when a name is a typo or `params` no longer lists what the
