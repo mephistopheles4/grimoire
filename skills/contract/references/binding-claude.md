@@ -211,7 +211,7 @@ contract says `Kind: main agent file` and `Target: claude`:
 ---
 metadata:
   contract-version: 0.1.0
-  familiar-digest: "sha256:5d994d88feb5775426eedccfa2bdc8854cba7caa9058fa1e47be3fcfe81489c6"
+  familiar-digest: "sha256:a47c32190c5d1a221385e02e0198078d19c8254cce2e7a0560eb813f64aaa6f4"
   contract-digest: "sha256:b86e22c7a9225299543b19555e6b272fd1fb4776e91ec077c0d95de9ab5b4018"
 ---
 # Project rules
