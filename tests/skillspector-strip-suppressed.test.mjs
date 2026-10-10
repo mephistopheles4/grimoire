@@ -307,3 +307,140 @@ test('with no prefix, no path changes', () => {
   assert.equal(uriOf(r.report.runs[0].results[0]).uri, 'README.md');
   assert.doesNotMatch(r.stdout, /in front of/);
 });
+
+// ---- the allowance ----
+//
+// With `--allowances` and `--label`, an AE1 result is dropped only when the
+// gate's own rules accept its pair in this SARIF. The rules live in
+// scripts/lib/skillspector-allowances.mjs; these tests drive them through the
+// strip step, from the SARIF alone, the way the workflow does.
+
+const TM = 'static_patterns_tool_misuse';
+const allowance = () => ({
+  version: 1,
+  exceptions: [
+    { skill: 'demo', path: 'lib/long.mjs', reason_code: 'static_parse_limit', analyzers: [TM], sha256: 'a'.repeat(64), reason: 'A neutral reason for the test.' },
+  ],
+  references: [{ skill: 'demo', from: 'SKILL.md', target: 'lib/long.mjs', count: 2 }],
+});
+function allowanceFile(value = allowance()) {
+  const p = join(work, `allow-${n++}.json`);
+  writeFileSync(p, `${JSON.stringify(value, null, 2)}\n`);
+  return p;
+}
+// A notification in the shape SkillSpector 2.11.2 writes for a ledger
+// exception, and one it writes for a file it leaves out of scope.
+const note = (uri, props) => ({
+  message: { text: 'a neutral note' },
+  level: 'warning',
+  locations: [{ physicalLocation: { artifactLocation: { uri } } }],
+  properties: props,
+});
+const partialNote = (uri = 'lib/long.mjs', over = {}) =>
+  note(uri, { outcome: 'partial', phase: 'static', reasonCode: 'static_parse_limit', fatal: false, analyzers: [TM], ...over });
+// An AE1 result. The id is a fresh one each time, as the scanner draws them,
+// and matches no JSON report: the strip never joins the two.
+let fresh = 0;
+const ae1Result = (target = 'lib/long.mjs', over = {}) => ({
+  ruleId: 'AE1',
+  message: { text: 'AE1 matched a line' },
+  level: 'error',
+  locations: [{ physicalLocation: { artifactLocation: { uri: 'SKILL.md' }, region: { startLine: 5 } } }],
+  properties: { findingId: `sarif-only-${fresh++}`, finding: `${target} (partial)`, tags: ['target-disposition:partial'] },
+  ...over,
+});
+const withNotes = (r, ...notes) => {
+  r.runs[0].invocations = [{ executionSuccessful: true, toolExecutionNotifications: notes }];
+  return r;
+};
+const acceptedSarif = () =>
+  withNotes(report(ae1Result(), ae1Result(), result('ZZ9', false)), partialNote(), note('font.woff2', { outcome: 'out_of_scope', phase: 'static', reasonCode: 'binary_content', fatal: false }));
+function stripAllowed(r, a = allowance(), label = 'skills/demo') {
+  const path = out();
+  const res = run(strip, [sarif(r), path, '--allowances', allowanceFile(a), '--label', label]);
+  assert.equal(res.code, 0, `expected a pass, got:\n${res.stdout}${res.stderr}`);
+  return { ...res, report: JSON.parse(readFileSync(path, 'utf8')) };
+}
+const ruleIds = r => r.report.runs[0].results.map(x => x.ruleId);
+
+test('the AE1 results the allowance accepts are dropped, and everything else is kept', () => {
+  const r = stripAllowed(acceptedSarif());
+  assert.deepEqual(ruleIds(r), ['ZZ9']);
+  assert.match(r.stdout, /stripped 2 AE1 result\(s\) the allowance accepts, in 1 pair\(s\)/);
+  assert.match(r.stdout, /SKILL\.md -> lib\/long\.mjs ×2/);
+});
+
+test('without --allowances an AE1 result is kept, as before', () => {
+  const path = out();
+  const res = run(strip, [sarif(acceptedSarif()), path]);
+  assert.equal(res.code, 0);
+  assert.deepEqual(JSON.parse(readFileSync(path, 'utf8')).runs[0].results.map(x => x.ruleId), ['AE1', 'AE1', 'ZZ9']);
+});
+
+test('the ids are never read: SARIF ids that match no JSON report still drop', () => {
+  // The workflow scans twice and each scan draws fresh ids. A join by id would
+  // drop nothing, or the wrong thing.
+  const s = acceptedSarif();
+  for (const x of s.runs[0].results) if (x.properties) x.properties.findingId = `unmatched-${fresh++}`;
+  assert.deepEqual(ruleIds(stripAllowed(s)), ['ZZ9']);
+});
+
+test('a pair whose count the gate would refuse keeps every one of its results', () => {
+  const s = acceptedSarif();
+  s.runs[0].results.push(ae1Result());
+  assert.deepEqual(ruleIds(stripAllowed(s)), ['AE1', 'AE1', 'ZZ9', 'AE1']);
+});
+
+test('an AE1 result whose key cannot be read is kept', () => {
+  const s = acceptedSarif();
+  s.runs[0].results.push(ae1Result('lib/long.mjs', { locations: [] }), ae1Result('lib/long.mjs', { properties: { finding: 'unreadable text', tags: ['target-disposition:partial'] } }));
+  const r = stripAllowed(s);
+  assert.deepEqual(ruleIds(r), ['ZZ9', 'AE1', 'AE1']);
+});
+
+test('an AE1 result whose target has an exception outside the allowance is kept', () => {
+  const s = withNotes(report(ae1Result(), ae1Result()), partialNote(), partialNote('lib/long.mjs', { reasonCode: 'runtime_limit' }));
+  assert.deepEqual(ruleIds(stripAllowed(s)), ['AE1', 'AE1']);
+});
+
+test('an AE1 result whose target the SARIF does not show as partial is kept', () => {
+  const s = withNotes(report(ae1Result(), ae1Result()));
+  assert.deepEqual(ruleIds(stripAllowed(s)), ['AE1', 'AE1']);
+});
+
+test('an AE1 result not tagged as a partial target is kept', () => {
+  const s = acceptedSarif();
+  s.runs[0].results[1].properties.tags = ['target-disposition:missing'];
+  assert.deepEqual(ruleIds(stripAllowed(s)), ['AE1', 'AE1', 'ZZ9']);
+});
+
+test('entries for another skill drop nothing here', () => {
+  assert.deepEqual(ruleIds(stripAllowed(acceptedSarif(), allowance(), 'skills/elsewhere')), ['AE1', 'AE1', 'ZZ9']);
+});
+
+test('the paths are still rebased after the allowance is judged', () => {
+  // The allowance writes paths relative to the skill, as the scanner does. The
+  // prefix goes on afterwards, so the order of the two is part of the rule.
+  const path = out();
+  const res = run(strip, [sarif(acceptedSarif()), path, '--prefix', 'skills/demo/', '--allowances', allowanceFile(), '--label', 'skills/demo']);
+  assert.equal(res.code, 0, `${res.stdout}${res.stderr}`);
+  const kept = JSON.parse(readFileSync(path, 'utf8')).runs[0].results;
+  assert.deepEqual(kept.map(x => x.ruleId), ['ZZ9']);
+  assert.equal(kept[0].locations[0].physicalLocation.artifactLocation.uri, 'skills/demo/README.md');
+});
+
+test('--allowances without a skills/<name> label fails', () => {
+  assertFails([sarif(acceptedSarif()), out(), '--allowances', allowanceFile()], /--allowances needs --label skills\/<name>/);
+  assertFails([sarif(acceptedSarif()), out(), '--allowances', allowanceFile(), '--label', 'demo'], /--allowances needs --label skills\/<name>/);
+});
+
+test('--label without --allowances fails rather than being ignored', () => {
+  assertFails([sarif(acceptedSarif()), out(), '--label', 'skills/demo'], /--label is read only with --allowances/);
+});
+
+test('a missing or malformed allowance file fails rather than dropping nothing', () => {
+  assertFails([sarif(acceptedSarif()), out(), '--allowances', join(work, 'never-written.json'), '--label', 'skills/demo'], /cannot read/);
+  const bad = join(work, `allow-${n++}.json`);
+  writeFileSync(bad, '{"version": 1}');
+  assertFails([sarif(acceptedSarif()), out(), '--allowances', bad, '--label', 'skills/demo'], /cannot be used/);
+});
