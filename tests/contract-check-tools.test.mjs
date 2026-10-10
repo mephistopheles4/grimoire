@@ -20,6 +20,7 @@ const SHAPE = 'an MCP tool must be written mcp__<server>__<tool>, or mcp__<serve
 const COMMA = 'a quoted item holding a comma; write each tool as its own item';
 const BLOCK = 'write tools as a flow list or on one line';
 const MISSING = 'WARN tools-missing: no tools listed, so the agent may get every tool';
+const EMPTY_LIST = 'WARN tools-missing: an empty tools list, so the agent gets no tools';
 const INDICATOR = 'a value starting with a flow, anchor, alias, tag, block or other indicator character';
 const grant = n => `WARN danger: tools item ${n} at line 4 grants every current and future tool of one server, write tools included`;
 const item = (n, why) => `FAIL tools-item: item ${n} at line 4: ${why}`;
@@ -76,9 +77,17 @@ describe('an accepted wildcard passes, warns once per item, and seals', () => {
       const r = sealTwice(agent(value));
       exact(r, 0, 'PASS keys', grant(n));
       once(r, grant(n));
-      assert.ok(!r.out.includes('Claude_Browser'), `the server name was echoed\n${show(r)}`);
+      const server = /mcp__(.+?)__\*/.exec(value)[1];
+      const s = run(['--seal', agent(value)]);
+      for (const out of [r.out, r.err, s.out, s.err]) assert.ok(!out.includes(server), `the server name was echoed\n${show(r)}\n${show(s)}`);
     });
   }
+
+  test('a wildcard beside an unlisted tools key -> the keys failure, and no grant warning', () => {
+    const r = run([agent('Read, mcp__srv__*', { contract: 'Version: 1.0.0\nTarget: claude\n\n# Contract\n' })]);
+    exact(r, 1, 'FAIL keys: unknown key "tools" at line 4');
+    assert.ok(!has(r, 'WARN danger: tools'), show(r));
+  });
 
   test('two wildcards -> two warnings, one per item', () => {
     const r = sealTwice(agent('[mcp__a__*, Read, mcp__b__*]'));
@@ -222,18 +231,19 @@ describe('a file sealed under 0.8.1 with a bare server entry now fails', () => {
 // ------------------------------------------------------------------ tools-missing
 
 describe('tools-missing: an agent .md with no tools warns, and still seals', () => {
-  for (const [label, value] of [
-    ['no tools key', null],
-    ['an empty flow list', '[]'],
-    ['an empty flow list with a space', '[ ]'],
-    ['an empty quoted value', '""'],
-    ['a blank quoted value', '"  "'],
-    ["an empty single-quoted value", "''"],
+  for (const [label, value, want] of [
+    ['no tools key', null, MISSING],
+    ['an empty flow list', '[]', EMPTY_LIST],
+    ['an empty flow list with a space', '[ ]', EMPTY_LIST],
+    ['an empty quoted value', '""', MISSING],
+    ['a blank quoted value', '"  "', MISSING],
+    ["an empty single-quoted value", "''", MISSING],
   ]) {
     test(`${label} -> 0 with the warning once, sealed`, () => {
       const r = sealTwice(agent(value));
-      exact(r, 0, MISSING);
-      once(r, MISSING);
+      exact(r, 0, want);
+      once(r, want);
+      assert.ok(!has(r, want === MISSING ? EMPTY_LIST : MISSING), show(r));
     });
   }
 

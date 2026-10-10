@@ -44,8 +44,10 @@ Claude Code may load the file differently. Five load tests ran:
 | Its contract | `familiars/<name>.contract.md` |
 | Where Claude Code loads it | `.claude/agents/` in a project, or the `agents` folder in the person's own Claude Code settings folder |
 
-A contract may sit beside its agent in `.claude/agents/`: it has no `name`
-frontmatter, so Claude Code does not load it as an agent.
+A contract may sit beside its agent in `.claude/agents/`: it has no
+frontmatter, so Claude Code does not load it as an agent. The check fails a
+contract whose first line is `---`, so a contract cannot carry a `name` and
+load as a second agent.
 
 The file is YAML frontmatter, between two `---` lines, then the body: the
 agent's instructions. The frontmatter follows the rules in the skill's
@@ -56,9 +58,11 @@ Step 5. The seal writes the mark under `metadata:`.
   record it **Decided** with its value, list it on `Extra keys`, and carry
   on.
 - **Always write `tools:`** in flow form, such as `tools: [Read, Glob, Grep]`,
-  and list `tools` on `Extra keys`. Without it, or with an empty list, the
-  check warns `tools-missing`. With no `tools:` key, the agent gets every
-  tool the session has. With `tools: []`, it gets none.
+  and list `tools` on `Extra keys`. With no `tools:` key, the agent gets
+  every tool the session has, and the check warns `tools-missing`: "no tools
+  listed, so the agent may get every tool". With `tools: []`, it gets none,
+  and the check warns `tools-missing`: "an empty tools list, so the agent
+  gets no tools".
 - **A whole connected server** is written `mcp__<server>__*`, and only so.
   The check fails a bare `*`, `mcp__*`, a partial such as `mcp__<server>__get_*`,
   and a bare `mcp__<server>`, which Claude Code also reads as the whole
@@ -110,6 +114,10 @@ Promised:
   settings and connected servers.
 - The person's other `CLAUDE.md` files and rules load beside it.
 - An `@` import pulls in a file the seal does not cover.
+- Kept in `familiars/`, the file loads as instructions as soon as the session
+  reads another file in that folder, as any `CLAUDE.md` in a subfolder does.
+  A file brought there to amend reaches the session as instructions, the
+  same as any tampered `CLAUDE.md`.
 
 ## Capabilities (questions 5, 6)
 
@@ -148,7 +156,9 @@ session mode can override it; say so in the unsettled list.
 
 ## Settings the check warns on (questions 5, 18)
 
-The check never refuses a value here. It prints a danger warning for:
+The check never refuses a value here. It prints a warning for each row,
+under rule `danger`, except the `@` import row, which prints under rule
+`import`:
 
 | Key | Unless its value is |
 |---|---|
@@ -160,9 +170,10 @@ The check never refuses a value here. It prints a danger warning for:
 | an `@` import line in a `CLAUDE.md` body | always, once per line: it loads instructions from a file the seal does not cover |
 
 It prints a plainer warning for any other listed key except `tools`,
-`model` and `effort`. In a `CLAUDE.md`, it prints a plainer warning for
-every key but `metadata`, since Claude Code ignores it there. It also warns
-`tools-missing` on an agent with no `tools`, or an empty list. The check
+`model` and `effort`. In a `CLAUDE.md`, `name`, `description` and `tools`
+fail, and every other key but `metadata` warns under rule `ignored-key`,
+since Claude Code ignores it there. It also warns `tools-missing` on an
+agent with no `tools`, or an empty list, as "The file" says. The check
 applies the key rows to every `.md` file, a skill's `SKILL.md` and a
 `CLAUDE.md` included. When the person picks a value this table flags, tell
 them then. Show each warning the check prints after the seal, and again in

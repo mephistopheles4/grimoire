@@ -184,6 +184,13 @@ one-line list included. Rewrite a bare server entry as `mcp__<server>__*`,
 and seal again. Each whole-server item now prints a danger warning, and an
 agent with no tools, or an empty list, prints a `tools-missing` warning.
 
+Two more files that passed before now fail:
+
+- **An agent named `claude`.** Its `claude.md` now reads as a wrongly cased
+  `CLAUDE.md`. Rename the agent and seal again.
+- **A contract that starts with a `---` line.** A contract holds no
+  frontmatter. Remove the block and seal again.
+
 **New in this version:**
 
 - A third kind of familiar, the main agent file: Claude Code's `CLAUDE.md`,

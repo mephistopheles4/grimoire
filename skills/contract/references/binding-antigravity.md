@@ -63,8 +63,12 @@ None checked.
 The check applies its `.md` settings to every `.md` file, so a key named in
 the Claude Code binding's list warns here too; none is specific to
 Antigravity. Any other listed key except `tools`, `model` and `effort` gets
-the plainer warning. When the person picks a value that list flags, tell
-them then. Show each warning the check prints after the seal, and again in
+the plainer warning. The `tools` rules run here too: each item must be a
+plain tool name, `mcp__<server>__<tool>` or `mcp__<server>__*`, every other
+form that holds a `*` or starts with `mcp` fails, and an agent with no
+`tools` or an empty list warns `tools-missing`. What Antigravity does with an
+`mcp__` item or an empty list is untested. When the person picks a value
+that list flags, tell them then. Show each warning the check prints after the seal, and again in
 the hand-back.
 
 ## The mark (questions 5, 18)

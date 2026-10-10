@@ -113,7 +113,7 @@ describe('the frontmatter of a CLAUDE.md', () => {
       const before = readFileSync(file);
       const r = run(['--seal', file]);
       exact(r, 2, want, NOT_WRITTEN);
-      assert.ok(!r.out.includes(CANARY), show(r));
+      assert.ok(!r.out.includes(CANARY) && !r.err.includes(CANARY), show(r));
       assert.deepEqual(readFileSync(file), before);
     });
   }
@@ -190,6 +190,7 @@ describe('an @ import in the body warns once per line, never with its path', () 
     ['in a numbered list item', `1. @docs/${CANARY}.md`],
     ['after a list marker with no space', `-@docs/${CANARY}.md`],
     ['after a tab', `Read\t@docs/${CANARY}.md`],
+    ['after a no-break space', `Read\u{A0}@docs/${CANARY}.md`],
     ['twice on one line', `@a/${CANARY}.md and @b/${CANARY}.md`],
   ]) {
     test(`${label} -> 0 with one warning`, () => {
@@ -203,7 +204,7 @@ describe('an @ import in the body warns once per line, never with its path', () 
     none(run([main({ text: `${BODY}Mail a@b.example.\n` }).file]), 'import');
   });
   test('an @ inside the frontmatter -> no warning', () => {
-    none(run([main({ text: familiarText(['zq_other: "@x"'], BODY) }).file]), 'import');
+    none(run([main({ text: familiarText(['zq_other: see @x'], BODY) }).file]), 'import');
   });
   test('two import lines -> two warnings', () => {
     const r = run([main({ text: `${BODY}@a.md\n@b.md\n` }).file]);
@@ -242,6 +243,39 @@ describe('the contract beside a CLAUDE.md', () => {
       assert.deepEqual(readFileSync(file), before);
     });
   }
+});
+
+describe('a contract that opens with a frontmatter block', () => {
+  const want = label => `FAIL contract-frontmatter: ${label} starts with a "---" line; a contract holds no frontmatter`;
+  const framed = `---\nname: x\ndescription: ${CANARY}\n---\n${conWith('Target: claude', 'Kind: agent')}`;
+
+  /** An agent .md file and the given contract beside it. */
+  function agentWith(contract) {
+    const dir = fresh();
+    const file = join(dir, 'x.md');
+    writeFileSync(file, familiarText(defaultFm('x')));
+    writeFileSync(join(dir, 'x.contract.md'), contract);
+    return file;
+  }
+
+  test('beside an agent -> 1, and the seal refuses, never echoing its values', () => {
+    const file = agentWith(framed);
+    const before = readFileSync(file);
+    const s = run(['--seal', file]);
+    exact(s, 2, want('x.contract.md'), NOT_WRITTEN);
+    assert.deepEqual(readFileSync(file), before);
+    const r = run([file]);
+    exact(r, 1, want('x.contract.md'));
+    for (const out of [r.out, r.err, s.out, s.err]) assert.ok(!out.includes(CANARY), `${show(r)}\n${show(s)}`);
+  });
+  test('beside a CLAUDE.md -> 1', () => {
+    exact(run([main({ contract: `---\n---\n${MAIN_CON}` }).file]), 1, want('CLAUDE.contract.md'));
+  });
+  test('a "---" line later in the contract -> no failure', () => {
+    const file = agentWith(`${conWith('Target: claude')}\n---\n`);
+    expect(run(['--seal', file]), 0, 'PASS seal: wrote ');
+    none(run([file]), 'contract-frontmatter');
+  });
 });
 
 describe('the Kind line', () => {
@@ -303,7 +337,7 @@ describe('the Kind line', () => {
       assert.deepEqual(readFileSync(file), before);
       const r = run([file]);
       exact(r, 1, want);
-      assert.ok(!r.out.includes(CANARY), show(r));
+      for (const out of [r.out, r.err, s.out, s.err]) assert.ok(!out.includes(CANARY), `${show(r)}\n${show(s)}`);
     });
   }
 
@@ -323,9 +357,14 @@ describe('the Kind line', () => {
 // ------------------------------------------------------------------ the seal
 
 describe('sealing a CLAUDE.md', () => {
+  /** The text a CLAUDE.md with no frontmatter is digested as: one that starts with an empty block. */
+  function noBlock(text) {
+    return canonical(`---\n---\n${text}`);
+  }
+
   /** The mark block the seal writes at the very top of a file with no frontmatter. */
   function topBlock(text, eol = '\n') {
-    const famDigest = sha(canonical(text));
+    const famDigest = sha(noBlock(text));
     const conDigest = sha(canonical(MAIN_CON));
     return [
       '---',
@@ -359,10 +398,22 @@ describe('sealing a CLAUDE.md', () => {
     assert.ok(sealed.includes(`  familiar-digest: "${sha(canonical(text))}"`), sealed);
   });
 
-  test('an empty block before the seal: its digest is the body alone', () => {
+  test('an empty block before the seal: its digest is the same as the body with no block', () => {
     const { file } = main({ text: `---\n---\n${BODY}`, contract: MAIN_CON });
     const sealed = sealTwice(file);
-    assert.ok(sealed.includes(`  familiar-digest: "${sha(canonical(BODY))}"`), sealed);
+    assert.ok(sealed.includes(`  familiar-digest: "${sha(noBlock(BODY))}"`), sealed);
+  });
+
+  test('a line moved out of the top block into a second block below it breaks the seal', () => {
+    const { file } = main({ text: familiarText(['# note'], BODY), contract: MAIN_CON });
+    sealTwice(file);
+    const lines = readFileSync(file, 'utf8').split('\n');
+    const note = lines.indexOf('# note');
+    lines.splice(note, 1);
+    const close = lines.indexOf('---', 1);
+    lines.splice(close + 1, 0, '---', '# note', '---');
+    writeFileSync(file, lines.join('\n'));
+    expect(run([file]), 1, 'FAIL familiar-digest: ');
   });
 
   for (const [label, line] of [
@@ -396,4 +447,15 @@ describe('sealing a CLAUDE.md', () => {
   test('a contract present beside an unsealed CLAUDE.md -> 1, not sealed', () => {
     exact(run([main({ contract: MAIN_CON }).file]), 1, 'FAIL contract: contract present, but the file is not sealed');
   });
+});
+
+// ------------------------------------------------------------------ the modes
+
+// No command line reaches an unknown mode, so this one test reads the check's
+// source: every comparison on a mode goes through isMode, which throws on a
+// mode it does not know. A raw comparison would read a new mode as another.
+test('every mode comparison in the check goes through isMode', () => {
+  const source = readFileSync(new URL('../skills/contract/scripts/check.mjs', import.meta.url), 'utf8');
+  const raw = source.split('\n').map(l => l.trim()).filter(l => /\.mode\s*[!=]==|[!=]==\s*[\w.]*\.mode\b/.test(l));
+  assert.deepEqual(raw, ['return loc.mode === mode;']);
 });

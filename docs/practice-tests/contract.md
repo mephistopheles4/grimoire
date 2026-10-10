@@ -30,8 +30,8 @@ their results.
 
 ## Words used here
 
-- **Familiar:** a skill or an agent built to do one job. The skill's own word
-  for what it builds.
+- **Familiar:** a skill, an agent or a main agent file built to do one job.
+  The skill's own word for what it builds.
 - **Run:** one case, in one variant, in one fresh session that the practice
   runner starts. Its work folder is new and empty, apart from what the run
   copies in, and `end` deletes it.

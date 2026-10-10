@@ -1,10 +1,10 @@
 # The contract template
 
-*A familiar is a skill or an agent that you build to do one job for you. The
-contract is the terms you agree with it. Answer the questions below before
-anything is built. A small familiar takes about ten minutes. A serious one
-takes about an hour. The answers are the contract. The familiar's file is
-generated from the contract.*
+*A familiar is a skill, an agent or a main agent file that you build to do
+one job for you. The contract is the terms you agree with it. Answer the
+questions below before anything is built. A small familiar takes about ten
+minutes. A serious one takes about an hour. The answers are the contract.
+The familiar's file is generated from the contract.*
 
 ## Contents
 

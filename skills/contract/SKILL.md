@@ -4,14 +4,14 @@ description: Builds a reusable skill, agent or main agent file (CLAUDE.md) from 
 compatibility: Needs Node.js 20 or later to run check.mjs. No install and no other dependencies.
 metadata:
   contract-version: 0.9.0
-  familiar-digest: "sha256:72ede13babd38bd3abe530272117f03850edc53bc70426b22ceb16b303aaba5d"
-  contract-digest: "sha256:153b93b4c6711f5aed2d696dabdfa4a2d33b182b7f713a8c4262bc5efd01fa00"
+  familiar-digest: "sha256:14d5458b0f6cc4401d708f42fc97be81a579a9f7e940b21c9aba3074091378ae"
+  contract-digest: "sha256:c67a3cd996eb8f338d5bb0c6597cc12ec7ba2cde6e8bf29574026334d8a53262"
 ---
 
 # contract
 
-A **familiar** is a skill or an agent that a person builds to do one job for
-them. This skill interviews the person through a template. Their answers are
+A **familiar** is a skill, an agent or a main agent file that a person builds
+to do one job for them. This skill interviews the person through a template. Their answers are
 the **contract**: the terms they agree with the familiar. You write the
 contract, generate the familiar's file from it, and check the file's format.
 
@@ -91,8 +91,8 @@ paraphrase the questions from that file. Do not restate them from memory.
 Ask for these before question 1. Start nothing else until you have all
 three.
 
-1. **What are you making: a skill, an agent or a main agent file?** Offer a
-   main agent file only when it is built for claude.
+1. **What are you making: a skill, an agent or a main agent file?** Offer all
+   three. A main agent file is built for claude: record that as its target.
 2. **Which level: Quick, Standard or Thorough?** Show the level table.
 3. **What is its name?** The name is part of question 1.
 
