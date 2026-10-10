@@ -4,7 +4,7 @@ description: Builds a reusable skill, agent or main agent file (CLAUDE.md) from 
 compatibility: Needs Node.js 20 or later to run check.mjs. No install and no other dependencies.
 metadata:
   contract-version: 0.9.0
-  familiar-digest: "sha256:35c849fec4815ed58c5d5c8fe63e344e61847fd24b34e134c9d5cd24d448b752"
+  familiar-digest: "sha256:72ede13babd38bd3abe530272117f03850edc53bc70426b22ceb16b303aaba5d"
   contract-digest: "sha256:153b93b4c6711f5aed2d696dabdfa4a2d33b182b7f713a8c4262bc5efd01fa00"
 ---
 
@@ -61,7 +61,7 @@ in one plain sentence:
 - **Agent:** a familiar that the main agent sends off to do one job alone and
   report back. It lives in one file, in the format the person's tool uses.
 - **Main agent file:** the instructions that govern the main session. Claude
-  Code reads it as `CLAUDE.md` at the start of every session.
+  Code reads it as CLAUDE.md at the start of every session.
 - **Contract:** the answered questions. The familiar's file is generated from
   it.
 - **Level:** how many questions you ask: Quick (1–7), Standard (1–15) or
@@ -325,7 +325,7 @@ at any time. Handle it the same way.
 
 - **Where.** A skill's contract is `familiars/<name>/CONTRACT.md`. An agent's
   contract is `familiars/<name>.contract.md`. A main agent file's is
-  `familiars/CLAUDE.contract.md`. `familiars/` sits in the current working
+  CLAUDE.contract.md, in `familiars/`. `familiars/` sits in the current working
   folder. Create it if it is missing.
 - **When.** Write it first at the first checkpoint. Update it at each
   checkpoint after that. You may write it before question 2 has an answer,
@@ -357,7 +357,7 @@ an agent or a main agent file from the contract and its binding only.
 
 **Where the familiar goes:** a skill's is `familiars/<name>/SKILL.md`.
 An agent's is the file its binding names, beside
-`familiars/<name>.contract.md`. A main agent file's is `familiars/CLAUDE.md`.
+`familiars/<name>.contract.md`. A main agent file's is CLAUDE.md, in `familiars/`.
 
 **Frontmatter.** A main agent file gets none: the seal adds the mark.
 
@@ -406,7 +406,7 @@ description.
 
 These are the only shell commands this skill runs. Put each path in single
 quotes, exactly as shown. The path is the skill's folder, the agent's file,
-or the `CLAUDE.md`.
+or the CLAUDE.md.
 For a Codex agent, the seal writes the mark as comment lines at the end.
 
 Before you seal an agent, check each extra key's value in the file
