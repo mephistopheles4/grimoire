@@ -201,9 +201,10 @@
           "op": "call",
           "target": "worldSpaceUvs",
           "args": {
-            "lay": "resolved.lay"
+            "geometry": "member.geometry",
+            "sheet": "resolved.lay",
+            "grain": "member.grain"
           },
-          "bind": "uvs",
           "aside": "flattened: really called per member from buildMember, scene.ts:1625"
         },
         {
@@ -322,7 +323,9 @@
       "name": "worldSpaceUvs",
       "loc": "packages/site/src/shelf/woodwork.ts:650",
       "params": [
-        "lay"
+        "geometry",
+        "sheet",
+        "grain"
       ],
       "channels": {
         "success": "void",
@@ -332,11 +335,11 @@
       "steps": [
         {
           "op": "comment",
-          "comment": "Writes each member's world-space period into its UVs IN PLACE. The 0..1 values are gone, so re-laying means new geometry — which is why a species change is rebuild-class and there is no live path to offer."
+          "comment": "Writes each member's world-space period into the UVs of `geometry` IN PLACE. The 0..1 values are gone, so re-laying means new geometry — which is why a species change is rebuild-class and there is no live path to offer."
         },
         {
           "op": "return",
-          "expr": "('uvs laid at ' + lay.unitsPerTile + ' world units')"
+          "expr": "undefined"
         }
       ],
       "touches": [
@@ -822,8 +825,7 @@
               },
               {
                 "k": "return",
-                "at": 1,
-                "value": "uvs laid at 7.68 world units"
+                "at": 1
               },
               {
                 "k": "if",
@@ -1027,8 +1029,7 @@
               },
               {
                 "k": "return",
-                "at": 1,
-                "value": "uvs laid at 1.6 world units"
+                "at": 1
               },
               {
                 "k": "if",
@@ -1232,8 +1233,7 @@
               },
               {
                 "k": "return",
-                "at": 1,
-                "value": "uvs laid at 7.68 world units"
+                "at": 1
               },
               {
                 "k": "if",
@@ -1434,8 +1434,7 @@
               },
               {
                 "k": "return",
-                "at": 1,
-                "value": "uvs laid at 7.68 world units"
+                "at": 1
               },
               {
                 "k": "if",
@@ -1616,8 +1615,7 @@
               },
               {
                 "k": "return",
-                "at": 1,
-                "value": "uvs laid at 7.68 world units"
+                "at": 1
               },
               {
                 "k": "if",
@@ -1842,8 +1840,7 @@
               },
               {
                 "k": "return",
-                "at": 1,
-                "value": "uvs laid at 7.68 world units"
+                "at": 1
               },
               {
                 "k": "if",
