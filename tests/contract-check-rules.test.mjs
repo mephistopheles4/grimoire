@@ -335,7 +335,9 @@ describe('v10 the extra keys a file may hold, listed in its contract', () => {
     test('not listed -> 1 unknown key, and the value is never printed', () => {
       const r = run([agent({ fm, contract: mdCon('') }).file]);
       exact(r, 1, 'FAIL keys: unknown key "permissionMode" at line 4');
-      assert.ok(!has(r, 'WARN '), show(r));
+      // The agent lists no tools, so it gets the tools-missing warning, and
+      // only that one: a key that failed the keys rule gets no warning.
+      assert.deepEqual(r.lines.filter(l => l.startsWith('WARN ')), ['WARN tools-missing: no tools listed, so the agent may get every tool'], show(r));
       assert.ok(!r.out.includes('bypassPermissions'), show(r));
     });
   });
@@ -414,9 +416,14 @@ describe('warnings on settings the check does not know to be harmless', () => {
     return sealThenCheck(codex({ lines: [...CODEX, `${key} = "${value}"`], contract: tomlCon(`Extra keys: ${key}`) }).file);
   }
 
-  /** A .md agent holding `key: value` at line 4, listed, sealed then checked. */
+  /**
+   * A .md agent holding `key: value` at line 4, listed, sealed then checked.
+   * It lists one tool at line 5, so the tools-missing warning stays out of
+   * the cases that assert no warning at all.
+   */
   function mdWith(key, value) {
-    return sealThenCheck(agent({ fm: [...defaultFm('x'), `${key}: ${value}`], contract: mdCon(`Extra keys: ${key}`) }).file);
+    const fm = [...defaultFm('x'), `${key}: ${value}`, 'tools: [Read]'];
+    return sealThenCheck(agent({ fm, contract: mdCon(`Extra keys: ${key}, tools`) }).file);
   }
 
   const TOML_ROWS = [

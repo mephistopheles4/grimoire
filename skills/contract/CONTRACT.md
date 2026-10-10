@@ -1,9 +1,10 @@
 # Contract: contract
 
-Version: 0.8.1
+Version: 0.9.0
+Kind: skill
 
-*Type: skill. Template: `references/template.md`, draft 11. Level: Thorough.
-Status: draft 0.8.1, 2026-10-06. The skill's `SKILL.md` is generated from this
+*Type: skill. Template: `references/template.md`, draft 12. Level: Thorough.
+Status: draft 0.9.0, 2026-10-09. The skill's `SKILL.md` is generated from this
 file. To change the skill, amend this file, generate `SKILL.md` again, and
 seal it.*
 
@@ -24,8 +25,14 @@ that nobody has confirmed on this build yet.
 
 ## Words used here
 
-- **Familiar:** a skill or an agent that a person builds to do one job for
-  them. This skill's own word for the thing it builds.
+- **Familiar:** a skill, an agent or a main agent file that a person builds
+  to do one job for them. This skill's own word for the thing it builds.
+- **Main agent file:** the instructions that govern the main session. Claude
+  Code reads it as `CLAUDE.md`, at user level or project level, and loads it
+  at the start of every session in its scope. *Proposed*; the third kind is
+  **Decided** in the 0.9.0 row of question 7.
+- **Kind line:** the contract line that names what the familiar is:
+  `Kind: skill`, `Kind: agent` or `Kind: main agent file`.
 - **Contract:** the answered template. The terms the person agrees with the
   familiar. The familiar's file is generated from it.
 - **Frontmatter:** the short block of settings at the top of a `SKILL.md` or
@@ -99,10 +106,13 @@ contract, and the file is generated again.
   familiar's contract, such as a legal or business agreement.
 
 **Description for the built file** (**Decided** 2026-09-29: the owner picked
-this shorter variant; third person, under the 1,024-character limit):
+this shorter variant; third person, under the 1,024-character limit. Its
+first sentence names the main agent file since 0.9.0, by issue 166's spec,
+S13, approved by the owner):
 
-> Builds a reusable skill or agent from terms a person agrees, and keeps those
-> terms as a contract its file is generated from. Use when someone wants a new
+> Builds a reusable skill, agent or main agent file (CLAUDE.md) from terms a
+> person agrees, and keeps those terms as a contract its file is generated
+> from. Use when someone wants a new
 > skill or agent, wants to turn a prompt they keep pasting into one, or wants
 > to change or write the contract for one. Not for a one-off prompt, for
 > running a skill or agent that already exists, or for a legal or business
@@ -263,9 +273,9 @@ same pass. The confirmations happen at the checkpoint, not one at a time.
    answer carries its mark. A flag log records
    each flag raised at a checkpoint, and whether the person acted on it or
    dismissed it.
-2. **The familiar** (kept, not installed). A skill folder, or an agent file
-   with its contract beside it, under `familiars/`. **Nothing is
-   installed.**
+2. **The familiar** (kept, not installed). A skill folder, an agent file,
+   or a `CLAUDE.md`, with its contract beside it, under `familiars/`.
+   **Nothing is installed.**
 3. **The check's output**, word for word, and its exit code. The exit code is
    the verdict.
 4. **The practice test** (*Proposed*), in its own file,
@@ -281,7 +291,10 @@ same pass. The confirmations happen at the checkpoint, not one at a time.
    familiar's folder as not sealed. The seal covers only the folder.
    *Proposed:* for an agent, it also names the tool version its binding was
    last checked against, each limit the binding marks Promised, and each
-   warning the check printed.
+   warning the check printed. *Proposed:* for a main agent file, the same,
+   with the binding's Promised limits for that file: it cannot limit the
+   session's tools, the person's other `CLAUDE.md` files and rules load
+   beside it, and an `@` import pulls in a file the seal does not cover.
 
 *The test:* a person who did not watch the interview can install the
 familiar, or decide not to, from these five parts alone.
@@ -308,6 +321,24 @@ the specification marks it experimental.
 2026-09-30). The contract says what the agent may do, such as "reads files;
 writes only in the project folder; no network", and never names one tool's
 tools or keys. The binding for the tool it is built for does that mapping.
+
+**A main agent file names no tools** (*Proposed*, from issue 166's spec, S3).
+Its question 5 lists the capabilities its instructions rely on, in the same
+plain words. The session's tools come from the person's settings and
+connected servers, so "the file cannot limit tools" is Promised. Only Claude
+Code has one here, so its contract names claude, and the file is `CLAUDE.md`
+with `CLAUDE.contract.md` beside it. It is offered only when the tool it is
+built for is claude.
+
+**Every new contract writes a Kind line** (*Proposed*, from the same spec,
+S5): `Kind: skill`, `Kind: agent` or `Kind: main agent file`, beside the
+`Version:` line. The check requires it beside a `CLAUDE.md`, and fails a
+line that does not match the file.
+
+**Every tool of one connected service** (*Proposed*, from the same spec,
+S6). The binding writes it as `mcp__<server>__*`, its one accepted form.
+Question 6 then names what the service's tools can do, the kinds of data it
+holds and the kinds of place its tools can send data, in kinds only.
 
 **The skill asks, and does not refuse** (**Decided** 2026-09-30). *Proposed
 wording:* each extra key is asked about, and its exact value is recorded
@@ -376,8 +407,9 @@ decision.
 | 0.7.2 | 2026-10-06 | Every file the skill writes, generates or copies into a familiar's folder is its own output, whoever first wrote the text. Step 6 fixes `contents` on any reference file in the folder, once, without asking, and shows each list it adds at hand-back; it moves `body-length` detail into the familiar's `references/`. Owning a file lets it fix the file's shape; the file's text is still data, and Step 6 says so. It no longer asks before it writes to a file it did not write in this session. The write scope, only under `familiars/` and the exact path asked for anywhere else, and the rule that files are data, are unchanged. Practice case B28 now expects the contents list, shown at hand-back, and the tester's own file unchanged. New clause text is *Proposed*. **Decided** 2026-10-06 | The owner's amendment to issue 176's spec, revision 3, recorded on issue 176 on 2026-10-06, prompted by code review of the pull request for issue 179: "anything the skill produces becomes owned by the skill." Text copied into a familiar can steer a later agent that loads it; the threat model's row for this skill accepts that residual risk, as ADR 0006 does | 3, 12, 18 |
 | 0.8.0 | 2026-10-06 | *Proposed.* The practice test the skill writes gains, at Thorough, one comparison run of the step-in cases without the familiar. It is not scored by "any false alarm fails"; a run that catches every problem the familiar catches puts a flag against question 2. Each run records its model, and when question 14 names several models the scored runs are the level's count or the number of named models, whichever is larger. A generated reference file over 100 lines opens with a `## Contents` heading that lists its `##` and `###` headings, and amend mode regenerates the list when a heading changes. Question 1 in the template tells the person about the reserved words when they pick a name. Step 6, the threat model and ADR 0006 do not change. Regenerated in `SKILL.md`: the opening data rule (from question 3's data clause, which now names files the skill owns), question 12's section in Step 3, Step 5 and Step 7's item 4; every other section holds word for word. To keep the budget, SKILL.md's question 12 paragraph no longer says that the contract only points to the practice-test file; the template and question 4 still do. Step 5 says the ## Contents heading cites no question, so it does not clash with the rule that each generated heading cites questions. The template gains a contents list and loses its draft history, which moves into the note below. `references/binding-codex.md` gains a contents list; amend mode, the template and the practice test gain the matching text and case B29 and B30. New clause text is *Proposed*. **Decided** 2026-10-06 | Issue 176's spec, revision 3, and its addendum notes on issue 180, approved by the owner: the page asks for a contents list in long reference files, a way to see whether a familiar adds anything, and a record of the model behind a result. The owner's default for N1 of issue 179's security review: every file the skill reads is data, including those it now owns | 1, 3, 4, 12, 18 |
 | 0.8.1 | 2026-10-06 | No clause changed beyond question 5's tools line, which now names Node.js 20 or later for `scripts/check.mjs`. `SKILL.md` gains one `compatibility` frontmatter line; its body does not change. **Decided** 2026-10-06 | Issue 181, from 176: a person installing the skill can see the runtime it needs before a script fails. The floor was confirmed by running every script entry point under Node 20.0.0 and scanning for newer APIs. The owner approved the row and version step. | 5 |
+| 0.9.0 | 2026-10-09 | A third kind of familiar, the **main agent file**: Claude Code's `CLAUDE.md`, with `CLAUDE.contract.md` beside it. The seal adds a frontmatter block at its very top holding only the mark; `name`, `description` and `tools` fail there, other keys warn, a byte-order mark fails, and each `@` import line warns. Contracts gain a `Kind:` line, required beside a `CLAUDE.md` and optional elsewhere. An agent's `tools` list accepts a whole connected server, written `mcp__<server>__*`, with one danger warning per such item, and fails every other form that holds a `*` or starts with `mcp`. **This breaks** files that pass under 0.8.1: a bare server entry, such as `mcp__<server>`, and a refused form in a one-line list now fail. Rewrite each as `mcp__<server>__*`. An agent with no tools, or an empty list, warns `tools-missing`. The Claude binding records the load tests the build ran. **Rollback:** revert the merge and publish the next patch version; sealed `CLAUDE.md` files and sealed agents with a wildcard entry then stop passing. Regenerated in `SKILL.md`: the sections citing questions 1, 4, 5, 15 and 18; every other section holds word for word. New clause text is *Proposed*. **Decided** 2026-10-09 | Issue 166's spec, final revision, approved by the owner from chat, built under issue 233: a person can seal Claude Code's main agent file the way they seal a sub-agent, and a sub-agent that names a whole server can be sealed. The owner decided the mark's place, the wildcard's one form, the warning for a missing tools list, and no strict mode | Words used here, 1, 4, 5, 15, 18, 19 |
 
-**The template's draft history,** moved here in 0.8.0 from the top of `references/template.md`, so the interview does not load it each time. Draft 11 adds a contents list, a reserved-word note at question 1, and the comparison run and the model record at question 12. Draft 10 states an agent's capabilities in plain words, and names the tool it is built for. Draft 9 moves the practice test into a file of its own, beside the familiar. It asks where a familiar's trigger lives, how its record is reviewed, and which files the seal does not cover. Draft 8 used the word familiar, asked for the name in question 1, marked each clause Enforced or Promised, and added the rule that the file is generated from the contract. It also added agent files with a contract beside them, cited the questions in each heading of the generated file, and named the questions that each version touched in the change log. It added a "show me good" step before question 1, to find the target output. Draft 7 added "try it before you review it twice" to question 12. Draft 6 added a balance against false alarms. Earlier drafts rewrote the text in plain language and added "when it is unsure".
+**The template's draft history,** moved here in 0.8.0 from the top of `references/template.md`, so the interview does not load it each time. Draft 12 adds the main agent file as a third answer to "What are you making?", with its wording at questions 1, 3, 4, 5, 6 and 12, the Kind line, and a capability for every tool of one connected service. Draft 11 adds a contents list, a reserved-word note at question 1, and the comparison run and the model record at question 12. Draft 10 states an agent's capabilities in plain words, and names the tool it is built for. Draft 9 moves the practice test into a file of its own, beside the familiar. It asks where a familiar's trigger lives, how its record is reviewed, and which files the seal does not cover. Draft 8 used the word familiar, asked for the name in question 1, marked each clause Enforced or Promised, and added the rule that the file is generated from the contract. It also added agent files with a contract beside them, cited the questions in each heading of the generated file, and named the questions that each version touched in the change log. It added a "show me good" step before question 1, to find the target output. Draft 7 added "try it before you review it twice" to question 12. Draft 6 added a balance against false alarms. Earlier drafts rewrote the text in plain language and added "when it is unsure".
 
 ### Flag log
 
@@ -577,7 +609,9 @@ different model is an escalation, and the call is yours.
   Each `##` heading of the built file cites the contract questions its
   section comes from, for example `## When to stop and ask (questions 3, 10)`.
 - **Written for a newcomer.** A person who writes their first familiar can
-  understand it. It explains a term the first time it uses one.
+  understand it. It explains a term the first time it uses one. *Proposed:*
+  that includes each of the three kinds of familiar, the main agent file
+  among them.
 
 ---
 
@@ -669,6 +703,10 @@ different model is an escalation, and the call is yours.
 | Tell the person, when they pick a skill's name, that a name holding "anthropic" or "claude" breaks Anthropic's Skills docs; if they keep it, record the name Decided with that noted | The check's `reserved-name` rule only warns after the build. Hearing it at question 1 lets the person pick another name before anything is written; failure 8 | Promised |
 | Open each reference file it generates over 100 lines with a `## Contents` heading, exactly so, citing no question, that lists the file's `##` and `###` headings; in amend mode, regenerate that list whenever a heading in the file changes, for files written in that run | The check's `contents` rule only warns after the build. A heading that cites a question would no longer match the rule's fixed heading. A list that no longer matches its file misleads the agent that reads it; failure 9 | Promised. The check's `contents` rule shows a missing list, not a stale one |
 | At Thorough, add one comparison run of the step-in cases without the familiar, not scored by "any false alarm fails"; flag question 2 when it catches every problem the familiar catches. Record each run's model. When question 14 names several models, score at least the level's count or the number of named models, whichever is larger | Question 2 claims what the familiar notices that nothing else does, and no other run measures that claim. A run with no model recorded cannot be compared with another. Question 14 names the models a person plans to use | Promised |
+| For a main agent file, write no frontmatter; let the seal add a block at the very top holding only the mark; write `Kind: main agent file` and `Target: claude` in its contract | Claude Code strips a frontmatter block at the very top of `CLAUDE.md` (observed, not documented). With `name`, `description` or `tools`, the same file copied into an agents folder loads as a sub-agent | Promised. The check fails those three keys, a missing or different Kind line and any target but claude: Promised (Enforced once the check's tests are confirmed), tests in `tests/contract-check-main.test.mjs` |
+| Write `Kind:` in every new contract | It records what the familiar is, so the check can tell a contract for one kind beside a file of another | Promised. The check fails a Kind line that does not match the file: Promised (Enforced once the check's tests are confirmed), same tests |
+| Write a whole connected server as `mcp__<server>__*`, and only so; list `ToolSearch` beside a server whose tools are deferred | A whole-server grant then has one written form, so the binding's guidance always applies to it. Claude Code also reads a bare `mcp__<server>` as the whole server | Promised. The check fails every other form that holds a `*` or starts with `mcp`, in every way the list can be written: Promised (Enforced once the check's tests are confirmed), tests in `tests/contract-check-tools.test.mjs` |
+| Always write an agent's `tools` list | Without it, or with an empty list, the agent may get every tool | Promised. The check's `tools-missing` rule warns and never fails; same tests |
 | Act on three warnings only, once: fix `body-length` on the `SKILL.md` just generated, moving detail into the familiar's `references/`, and `contents` on any reference file in the familiar's folder, without asking, showing each list added at hand-back, and redraft in the contract a description not yet Decided that `description-xml` names, showing the new draft at hand-back. Record every other warning and change nothing for it | Every file the skill writes, generates or copies into a familiar's folder is its own output, whoever first wrote the text, so its shape is the skill's to fix, and its text is still data: the owner's decision of 2026-10-06. The person's decisions stay theirs: failure 2. Text copied into a familiar can still steer a later agent that loads it; the threat model's row for this skill accepts that, as ADR 0006 does | Promised |
 
 ### 19. Open questions
@@ -686,7 +724,7 @@ different model is an escalation, and the call is yours.
 | 9 | This skill's own target | The show-me-good step was added after this contract's interview. The contract proposes itself as the target | The owner decides, before the practice test runs |
 | 10 | Does every tool that loads a familiar read its version as text? Versions must not be bare numbers, and the seal refuses one such as 0.5, because the mark holds the version unquoted | On 2026-09-27, PyYAML 6.0.3 read numbers separated by two dots as text, a bare 0.5 as a number and a date as a date. js-yaml is expected to agree, but nobody ran it. No other loader was tried | A second tool loads a sealed familiar, or a loader reads its version as anything but text |
 | 11 | *Proposed.* Should the seal cover a tool file outside the familiar's folder? | *Proposed.* The seal covers the folder only. In the field report of 2026-09-29, the familiar kept its tool outside its folder on purpose: one copy, with its tests beside it. Question 5 had no way to name that file. Today such a file is not sealed, and the unsettled list says so | *Proposed.* A second familiar keeps a tool outside its folder, or an unsealed tool file changes without notice |
-| 12 | *Proposed.* Does each binding still hold for the tool the person runs? | Tools change often. Claude Code's binding was read from its docs, not loaded; Antigravity's tool names are the tool's own report | A binding is re-checked against a newer version, and its Last checked line moves |
+| 12 | *Proposed.* Does each binding still hold for the tool the person runs? | Tools change often. Claude Code's binding records the sealed files its build loaded, on one version; Antigravity's tool names are the tool's own report | A binding is re-checked against a newer version, and its Last checked line moves |
 | 13 | *Proposed.* Which settings belong on the danger list, and which are harmless? | Both lists hold known settings only; every other listed setting gets the plainer warning | A tool adds a setting that widens what an agent may do, or a person is surprised by one |
 
 ### 20. Where do the ideas come from?

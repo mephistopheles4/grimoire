@@ -1,15 +1,25 @@
 # Binding: Claude Code
 
-This file maps a contract's plain words to a Claude Code agent file. Read it
-when the contract names claude as the tool the agent is built for.
-Everything the file needs is in the contract, the template, the skill's
-steps, or here. A fact missing from all of them is a gap: stop and ask.
+This file maps a contract's plain words to a Claude Code file: an agent
+file, or the main agent file, `CLAUDE.md`. Read it when the contract names
+claude as the tool the familiar is built for. Everything the file needs is
+in the contract, the template, the skill's steps, or here. A fact missing
+from all of them is a gap: stop and ask.
+
+## Contents
+
+- Last checked (questions 4, 5)
+- The file (questions 4, 5)
+- The main agent file (questions 4, 5)
+- Capabilities (questions 5, 6)
+- Keys that let it do more without asking (questions 5, 18)
+- Settings the check warns on (questions 5, 18)
+- The mark (questions 5, 18)
+- Example (questions 4, 5)
 
 ## Last checked (questions 4, 5)
 
-Claude Code's sub-agents page, code.claude.com/docs/en/sub-agents, read on
-2026-09-30. No agent file was loaded to check it. Name this in the unsettled
-list.
+LOAD-TEST-RESULTS
 
 ## The file (questions 4, 5)
 
@@ -18,6 +28,8 @@ list.
 | The familiar | `familiars/<name>.md` |
 | Its contract | `familiars/<name>.contract.md` |
 | Where Claude Code loads it | `.claude/agents/` in a project, or the `agents` folder in the person's own Claude Code settings folder |
+
+LOAD-TEST-2-INSTALL
 
 The file is YAML frontmatter, between two `---` lines, then the body: the
 agent's instructions. The frontmatter follows the rules in the skill's
@@ -28,7 +40,59 @@ Step 5. The seal writes the mark under `metadata:`.
   record it **Decided** with its value, list it on `Extra keys`, and carry
   on.
 - **Always write `tools:`** in flow form, such as `tools: [Read, Glob, Grep]`,
-  and list `tools` on `Extra keys`. Without it, the agent gets every tool.
+  and list `tools` on `Extra keys`. Without it, or with an empty list, the
+  check warns `tools-missing`. LOAD-TEST-5-EMPTY
+- **A whole connected server** is written `mcp__<server>__*`, and only so.
+  The check fails a bare `*`, `mcp__*`, a partial such as `mcp__<server>__get_*`,
+  and a bare `mcp__<server>`, which Claude Code also reads as the whole
+  server: write `mcp__<server>__*` instead. One named tool of a server is
+  `mcp__<server>__<tool>`.
+- **When a server's tools are deferred,** list `ToolSearch` beside the
+  server, as in `tools: [Read, ToolSearch, mcp__<server>__*]`. Without it,
+  the agent cannot load the deferred tools.
+- **Names are lower case.** An agent named `explore` loads beside Claude
+  Code's built-in `Explore`, not over it.
+
+## The main agent file (questions 4, 5)
+
+The main agent file holds the instructions that govern the main session.
+Claude Code loads it at the start of every session in its scope. Nothing
+picks it up by situation, and nothing sends it off.
+
+| Part | Where |
+|---|---|
+| The familiar | `familiars/CLAUDE.md` |
+| Its contract | `familiars/CLAUDE.contract.md` |
+| Where Claude Code loads it | the project folder, or the person's own Claude Code settings folder |
+
+- **Frontmatter.** The file may start with a frontmatter block, at the very
+  top. Before the seal it holds nothing this binding asks for: write none.
+  The seal writes it, holding only `metadata:` with the three mark keys.
+  Claude Code strips a frontmatter block at the very top of `CLAUDE.md`
+  before the model sees it. This is observed, not documented: the docs
+  describe the stripping only for `.claude/rules/`.
+- **Keys.** `name`, `description` and `tools` fail. Claude Code finds a
+  sub-agent by its `name`, not its file name, so with them a `CLAUDE.md`
+  copied into an agents folder loads as a sub-agent. Any other key warns:
+  Claude Code ignores it when the file loads as `CLAUDE.md`. The danger rows
+  below still apply to it.
+- **Text.** No byte-order mark: whether Claude Code strips the block after
+  one is untested. No line below the block that reads as a mark key, such
+  as `contract-version:`.
+- **Imports.** Claude Code's memory docs say an `@` import works anywhere in
+  the file, mid-sentence and in list items included. Each import pulls in a
+  file the seal does not cover, and the check warns once per line holding
+  one.
+- **The contract** names claude on its `Target:` line and says
+  `Kind: main agent file`. The check fails it otherwise.
+
+**Limits this file cannot hold.** Say each in the unsettled list, as
+Promised:
+
+- The file cannot limit the session's tools. They come from the person's
+  settings and connected servers.
+- The person's other `CLAUDE.md` files and rules load beside it.
+- An `@` import pulls in a file the seal does not cover.
 
 ## Capabilities (questions 5, 6)
 
@@ -40,12 +104,24 @@ Step 5. The seal writes the mark under `metadata:`.
 | Run commands | `Bash`, or `PowerShell` on Windows | Docs, read 2026-09-30 |
 | Fetch web pages | `WebFetch` | Docs, read 2026-09-30 |
 | Search the web | `WebSearch` | Docs, read 2026-09-30 |
+| Use a connected server's tools | `mcp__<server>__*` | LOAD-TEST-1-SOURCE |
+
+The main agent file names none of these: the session's tools come from the
+person's settings and connected servers. Its question 5 lists the
+capabilities the instructions rely on.
 
 **Limits this file cannot hold.** Say each in the unsettled list, as
 Promised:
 
 - A `tools` list cannot limit where the agent writes.
 - Granting `Bash` or `PowerShell` also makes "no network" Promised.
+- With `mcp__<server>__*`, the list cannot limit which of the server's tools
+  the agent uses. The grant covers every current and future tool of that
+  server, write tools included.
+- The grant covers whichever configured server's name maps to that prefix
+  once Claude Code replaces the characters it does not allow, a project's
+  own server or a plugin's included. Question 6 asks the person to check
+  for look-alike server names.
 
 ## Keys that let it do more without asking (questions 5, 18)
 
@@ -59,21 +135,27 @@ The check never refuses a value here. It prints a danger warning for:
 
 | Key | Unless its value is |
 |---|---|
-| `permissionMode` | `default`, `plan`, `manual` or `dontAsk`; in a list, every item one of these; an empty list |
+| `permissionMode` | `default`, `plan`, `manual` or `dontAsk`; in a list, every item one of these; an empty list. Any other value may let the agent act without asking |
 | `allowed-tools` | always, an empty list included: it may let the agent use tools without asking |
 | `omitClaudeMd` | always, an empty list included: it starts the agent without the person's CLAUDE.md files |
 | `initialPrompt` | always, an empty list included: it sends a first message the person did not type |
+| a `tools` item written `mcp__<server>__*` | always, once per item: it grants every current and future tool of one server, write tools included |
+| an `@` import line in a `CLAUDE.md` body | always, once per line: it loads instructions from a file the seal does not cover |
 
 It prints a plainer warning for any other listed key except `tools`,
-`model` and `effort`. The check applies these settings to every `.md` file,
-a skill's `SKILL.md` included. When the person picks a value this table
-flags, tell them then. Show each warning the check prints after the seal,
-and again in the hand-back.
+`model` and `effort`. In a `CLAUDE.md`, it prints a plainer warning for
+every key but `metadata`, since Claude Code ignores it there. It also warns
+`tools-missing` on an agent with no `tools`, or an empty list. The check
+applies the key rows to every `.md` file, a skill's `SKILL.md` and a
+`CLAUDE.md` included. When the person picks a value this table flags, tell
+them then. Show each warning the check prints after the seal, and again in
+the hand-back.
 
 ## The mark (questions 5, 18)
 
 The seal writes the mark as three keys under `metadata:` in the
-frontmatter. Never write them by hand.
+frontmatter. In a `CLAUDE.md` with no frontmatter, it adds a block at the
+very top that holds only the mark. Never write them by hand.
 
 ## Example (questions 4, 5)
 
@@ -92,4 +174,20 @@ tools: [Read, Glob, Grep]
 Read the staged commit messages. Report each one that breaks a rule, with
 the rule and the message. Change no file. When a rule is unclear, list it as
 unsettled.
+```
+
+A short main agent file, after the seal, as the check writes it. Its
+contract says `Kind: main agent file` and `Target: claude`:
+
+```markdown
+---
+metadata:
+  contract-version: 0.1.0
+  familiar-digest: "sha256:5d994d88feb5775426eedccfa2bdc8854cba7caa9058fa1e47be3fcfe81489c6"
+  contract-digest: "sha256:b86e22c7a9225299543b19555e6b272fd1fb4776e91ec077c0d95de9ab5b4018"
+---
+# Project rules
+
+Run the tests before every commit. Ask before you push.
+When a rule here is unclear, say which one, and wait.
 ```
