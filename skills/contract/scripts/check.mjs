@@ -2017,7 +2017,7 @@ function codePoints(s) {
  *
  * A CLAUDE.md takes mainFieldRules instead.
  */
-function fieldRules(fm, loc, extras, report) {
+function fieldRules(fm, loc, extras, report, targets = []) {
   const { top } = fm;
   if (isMode(loc, 'main')) {
     mainFieldRules(top, report);
@@ -2088,7 +2088,7 @@ function fieldRules(fm, loc, extras, report) {
   }
 
   metadataRule(top, report);
-  if (isMode(loc, 'agent')) toolsRules(top, extras, report);
+  if (isMode(loc, 'agent')) toolsRules(top, extras, report, targets.length === 1 && targets[0] === 'claude');
   warningRules(top, toml, known, extras, report);
 }
 
@@ -2137,8 +2137,9 @@ function toolsEmpty(entry) {
  *
  * tools-missing: no `tools` key, or one that lists nothing, warns. It never
  * fails. With no key, or an empty or blank value, Claude Code may give the
- * agent every tool. With an empty flow list, `tools: []`, the agent gets none,
- * as load test 5 in references/binding-claude.md found.
+ * agent every tool. With an empty flow list, `tools: []`, an agent built for
+ * claude gets none, as load test 5 in references/binding-claude.md found;
+ * for any other target that is untested, so it gets the first text.
  *
  * tools-item: each item goes through toolsItemOk, in every written form. A
  * flow list is split on the commas outside quotes, with each quoted item
@@ -2149,9 +2150,9 @@ function toolsEmpty(entry) {
  * never the item. Each accepted whole-server item warns once, when `tools`
  * passed the keys rule.
  */
-function toolsRules(top, extras, report) {
+function toolsRules(top, extras, report, claude) {
   const entry = top.get('tools');
-  if (entry && entry.flow && toolsEmpty(entry)) report.warn('tools-missing', TOOLS_MISSING.emptyList);
+  if (claude && entry && entry.flow && toolsEmpty(entry)) report.warn('tools-missing', TOOLS_MISSING.emptyList);
   else if (!entry || toolsEmpty(entry)) report.warn('tools-missing', TOOLS_MISSING.none);
   if (!entry) return;
   if (entry.block) {
@@ -2308,10 +2309,12 @@ function kindRule(facts, loc, report) {
  * A contract holds no frontmatter. One that opens with a `---` line could
  * carry a `name`, and Claude Code loads any .md file in an agents folder that
  * does as an agent, with every tool when it lists none. The binding lets a
- * contract sit beside its agent there, so the check refuses that first line.
+ * contract sit beside its agent there, so the check refuses that first line,
+ * trailing spaces or tabs included. It flags such a file only when it runs:
+ * Claude Code loads one from an agents folder whether or not it was checked.
  */
 function contractFrameRule(con, label, report) {
-  if (con.lines[0] === '---') report.fail('contract-frontmatter', `${label} starts with a "---" line; a contract holds no frontmatter`);
+  if (con.lines.length > 0 && trimEndSpaces(con.lines[0]) === '---') report.fail('contract-frontmatter', `${label} starts with a "---" line; a contract holds no frontmatter`);
 }
 
 /** The character rule's hits in one file readText read, each with the file's label. */
@@ -2424,7 +2427,7 @@ function runCheck(loc, report) {
   }
   report.pass(formatRule);
 
-  fieldRules(fm, loc, facts.extras, report);
+  fieldRules(fm, loc, facts.extras, report, facts.targets);
 
   // Advice, not a rule: a long body still loads. A warning never fails. A
   // .toml file has no body apart from its keys, so it gets no line at all: a
@@ -2663,7 +2666,7 @@ function runSeal(loc, report) {
 
   const scratch = new Report();
   invisibleRule(fam, famLabel, scratch);
-  fieldRules(fm, loc, facts.extras, scratch);
+  fieldRules(fm, loc, facts.extras, scratch, facts.targets);
   if (scratch.failed) {
     for (const l of scratch.lines) if (!l.startsWith('PASS ')) report.lines.push(l);
     throw new Refusal('field-rules', `${famLabel} fails the field rules`);

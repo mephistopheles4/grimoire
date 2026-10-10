@@ -247,6 +247,12 @@ describe('tools-missing: an agent .md with no tools warns, and still seals', () 
     });
   }
 
+  test('an empty flow list built for antigravity -> the may-get-every-tool text, since only Claude Code was tested', () => {
+    const r = sealTwice(agent('[]', { contract: CON.replace('Target: claude', 'Target: antigravity') }));
+    exact(r, 0, MISSING);
+    assert.ok(!has(r, EMPTY_LIST), show(r));
+  });
+
   test('a bare tools: with nothing after it -> 0 with the warning once, sealed', () => {
     const dir = fresh();
     const file = join(dir, 'x.md');

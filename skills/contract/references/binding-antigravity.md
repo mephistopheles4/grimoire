@@ -66,8 +66,8 @@ Antigravity. Any other listed key except `tools`, `model` and `effort` gets
 the plainer warning. The `tools` rules run here too: each item must be a
 plain tool name, `mcp__<server>__<tool>` or `mcp__<server>__*`, every other
 form that holds a `*` or starts with `mcp` fails, and an agent with no
-`tools` or an empty list warns `tools-missing`. What Antigravity does with an
-`mcp__` item or an empty list is untested. When the person picks a value
+`tools` or an empty list warns `tools-missing` that it may get every tool.
+What Antigravity does with an `mcp__` item or an empty list is untested. When the person picks a value
 that list flags, tell them then. Show each warning the check prints after the seal, and again in
 the hand-back.
 

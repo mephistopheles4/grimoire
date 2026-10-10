@@ -46,8 +46,10 @@ Claude Code may load the file differently. Five load tests ran:
 
 A contract may sit beside its agent in `.claude/agents/`: it has no
 frontmatter, so Claude Code does not load it as an agent. The check fails a
-contract whose first line is `---`, so a contract cannot carry a `name` and
-load as a second agent.
+contract whose first line is `---`, which could carry a `name`. It flags
+such a file only when it runs: a contract with frontmatter in an agents
+folder loads as a second agent whether or not it was checked, so check a
+shared contract before you put it there.
 
 The file is YAML frontmatter, between two `---` lines, then the body: the
 agent's instructions. The frontmatter follows the rules in the skill's

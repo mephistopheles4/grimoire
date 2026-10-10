@@ -268,6 +268,13 @@ describe('a contract that opens with a frontmatter block', () => {
     exact(r, 1, want('x.contract.md'));
     for (const out of [r.out, r.err, s.out, s.err]) assert.ok(!out.includes(CANARY), `${show(r)}\n${show(s)}`);
   });
+  for (const [label, opener] of [['a trailing space', '--- '], ['a trailing tab', '---\t']]) {
+    test(`an opener with ${label} -> 1, and the seal refuses`, () => {
+      const file = agentWith(framed.replace(/^---\n/, `${opener}\n`));
+      exact(run([file]), 1, want('x.contract.md'));
+      exact(run(['--seal', file]), 2, want('x.contract.md'), NOT_WRITTEN);
+    });
+  }
   test('beside a CLAUDE.md -> 1', () => {
     exact(run([main({ contract: `---\n---\n${MAIN_CON}` }).file]), 1, want('CLAUDE.contract.md'));
   });
