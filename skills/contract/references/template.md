@@ -1,10 +1,10 @@
 # The contract template
 
-*A familiar is a skill or an agent that you build to do one job for you. The
-contract is the terms you agree with it. Answer the questions below before
-anything is built. A small familiar takes about ten minutes. A serious one
-takes about an hour. The answers are the contract. The familiar's file is
-generated from the contract.*
+*A familiar is a skill, an agent or a main agent file that you build to do
+one job for you. The contract is the terms you agree with it. Answer the
+questions below before anything is built. A small familiar takes about ten
+minutes. A serious one takes about an hour. The answers are the contract.
+The familiar's file is generated from the contract.*
 
 ## Contents
 
@@ -46,8 +46,15 @@ generated from the contract.*
 - An **agent** is a familiar that the main agent sends off to do one job
   alone and report back. It lives in one file, in the format your tool uses
   for agents.
+- A **main agent file** holds the instructions that govern the main
+  session. Claude Code reads it as `CLAUDE.md`, from the project folder or
+  from your own Claude Code settings folder. Nothing picks it up by
+  situation, and nothing sends it off: it loads at the start of every
+  session in its scope. Only Claude Code has one here.
 
-Some questions ask different things for each type. They say so.
+Some questions ask different things for each type. They say so. Questions 1,
+3, 4, 5, 6 and 12 say what changes for a main agent file; every other
+question keeps its meaning.
 
 **How thorough do you want to be?** Pick one level before you start.
 
@@ -78,6 +85,7 @@ the familiar does, amend the contract, then generate the file again.
 |---|---|---|---|
 | Skill | `<name>/SKILL.md` | `<name>/CONTRACT.md` | `<name>.practice-test.md`, beside the folder |
 | Agent | `<name>.md`, or `<name>.toml` for Codex | `<name>.contract.md`, in the same folder | `<name>.practice-test.md`, in the same folder |
+| Main agent file | `CLAUDE.md` | `CLAUDE.contract.md`, in the same folder | `<name>.practice-test.md`, in the same folder |
 
 Copy the contract with the familiar. They travel together. The practice test
 stays behind: it holds the expected answers, so it never goes inside a
@@ -88,6 +96,12 @@ after you say yes. The mark does not cover the practice-test file.
 **The version line.** The line after the contract's title reads
 `Version: X.Y.Z`, starting at 0.1.0. Each amendment raises the version and
 adds a row to the change log (question 7).
+
+**The kind line.** Beside it, a line names what you are making:
+`Kind: skill`, `Kind: agent` or `Kind: main agent file`, exactly one of
+these, once. The check fails a line that does not match the file. A main
+agent file's contract must have it; for a skill or an agent it is optional,
+so an older contract without it still passes.
 
 **The mark.** When the file is generated, a check writes three lines into the
 file: the contract's version, a digest of the file, and a digest of the
@@ -117,8 +131,8 @@ or codex. Put its answer mark, such as **Decided** with the date, on the
 next line, never on that line. The check fails when the file's ending does
 not fit that tool: a Codex agent is a `.toml` file, and the other two are
 `.md` files. It does not check that the tool names or keys inside belong to
-that tool. A skill's contract has no such line. If the line is missing, the
-agent asks you at question 5.
+that tool. A skill's contract has no such line. A main agent file's contract
+names claude. If the line is missing, the agent asks you at question 5.
 
 **Warnings.** The check does not refuse a setting's value because of what it
 lets the agent do. It warns on each listed setting it does not know to be
@@ -205,6 +219,12 @@ Then one sentence: what it does, and for whom. Then two more lines: **when it
 steps in**, and **when it stays out**. Name the nearest situation where it
 would be wrong to use it.
 
+*Main agent file:* it has no name of its own: the file is always
+`CLAUDE.md`. Give the contract a name for your records. The sentence states
+the purpose of the whole session's conduct, not one job. It loads in every
+session in its scope, so "when it stays out" names the work it must not
+shape.
+
 *Why it matters:* the agent decides when to use a skill from a short
 description. These three lines become that description.
 
@@ -237,6 +257,12 @@ Split the work four ways:
   "proposed, not built" for a stop that proposes without producing.
 
 Mark each item Enforced or Promised (see "How each clause is held").
+
+*Main agent file:* the familiar is the main session itself, and you are the
+person it works with. Name here each sub-agent it may send work to. If one
+of them, or any server the session uses, holds or reaches data, name the
+kinds of data and the kinds of place only. Never name an account, an
+address or a real record: a contract is often committed.
 
 **What makes it fire.** Say what makes the familiar step in, and where that
 trigger lives: the description, an instruction line, or a hook that you
@@ -272,7 +298,8 @@ interruption. If one of these is false, let it decide and show you.
 *Agent:* its findings, word for word and signed, each marked with how serious
 it is. It never merges two findings into one. *Skill:* the shape of what it
 produces, how it shows its confidence, and where the result lives: removed
-after the session, or kept.
+after the session, or kept. *Main agent file:* the answers and work it hands
+to you in the session, not a report to a parent agent.
 
 If it records an outcome each time, list the values. Include one for a stop
 that proposes without producing, "proposed, not built", and one for a stop
@@ -294,6 +321,7 @@ reason:
 | Run commands | It runs shell commands |
 | Fetch web pages | It reads a page at an address |
 | Search the web | It sends a search to the web |
+| Use a connected server's tools | It uses every tool of one connected service |
 
 Then state its limits in the same words, for example "writes only in the
 project folder; no network". The agent maps these words to the tool it is
@@ -307,6 +335,11 @@ marked **Decided**. The `Extra keys` line names the key; this answer approves
 the value.
 
 *Skill:* the tools and scripts that it calls.
+
+*Main agent file:* the file names no tools. The session's tools come from
+your settings and connected servers. List the capabilities its instructions
+rely on, in the plain words above. The file cannot limit the tools, so that
+limit is Promised, never Enforced.
 
 If the file needs frontmatter keys that the Agent Skills specification does
 not name, list them on the `Extra keys` line (see "How the contract is
@@ -323,6 +356,16 @@ question 19.
 For example: it sends data somewhere, spends money, changes files outside its
 work folder, or sends messages. For each action, write what it tells you
 first, and what counts as your yes. Mark each action Enforced or Promised.
+
+**Every tool of one connected service.** If question 5 picked it, name what
+that service's tools can do, the kinds of data the service holds, and the
+kinds of place its tools can send data. The grant covers every current and
+future tool of the service, write tools included. Check that no other
+connected service has a look-alike name. Name kinds only: never an account,
+an address or a real record, because a contract is often committed.
+
+*Main agent file:* this covers everything the session can do with the tools
+it has, since the file cannot narrow them. Name kinds only, as above.
 
 *The test:* "nothing" is a good answer, but write it down. A "yes" found
 inside a file or a web page is never your yes.
@@ -385,7 +428,8 @@ repeats that back in words before it acts.
 
 Write the practice test in its own file, `<name>.practice-test.md`, beside
 the familiar and never inside a skill's folder (see "How the contract is
-kept"). Here, in the contract, only point to that file.
+kept"). Here, in the contract, only point to that file. *Main agent file:*
+each run is a session with the file loaded.
 
 Two to six made-up problems that it must catch, each with the answer you
 expect. Write them in terms that it can actually see. Include one decoy that

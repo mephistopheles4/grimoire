@@ -8,7 +8,7 @@
       "analyzers": [
         "static_patterns_tool_misuse"
       ],
-      "sha256": "3c51db946a5a756c21381843301b8d36dfd56d26eda0e1a0bba80d079d90da1b",
+      "sha256": "d6947e8a85645f94cec5869235eedda517f6cbd07f1ee7c3e3b1fa15f6aac4b2",
       "reason": "The contract skill's format check script. The destructive-command parser stops partway through a long expression and marks the file partial for that one check; every other check reads it in full. The entry also accepts a marker-pass give-up inside that one check, which the scanner reports under this code."
     },
     {

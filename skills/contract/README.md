@@ -19,24 +19,27 @@ implementation.
 
 ## The words it uses
 
-- **Familiar:** a skill or an agent that a person builds to do one job for
-  them. This is the skill's own word for what it builds.
+- **Familiar:** a skill, an agent or a main agent file that a person builds
+  to do one job for them. This is the skill's own word for what it builds.
 - **Skill:** instructions that the agent picks up by itself when a situation
   matches.
 - **Agent:** a familiar that the main agent sends off to do one job alone and
   report back.
+- **Main agent file:** the instructions that govern the main session. Claude
+  Code reads it as `CLAUDE.md`, and loads it at the start of every session.
 - **Contract:** the answered questions. These are the terms the person agrees
   with the familiar.
 - **Mark:** three lines that the check writes into the familiar's file: in
   the settings at the top of a `.md` file, under `metadata:`, or as comments at
-  the end of a Codex `.toml` file. They show whether the familiar or its
-  contract changed since.
+  the end of a Codex `.toml` file. In a `CLAUDE.md` with no settings block,
+  the check adds one at the very top that holds only the mark. They show
+  whether the familiar or its contract changed since.
 - **Seal:** the check's command that writes the mark. Like a wax seal, it
   shows whether the files changed since, not who wrote them.
 
 ## Use it
 
-**Read before you install.** The check confirms that a skill or agent file is
+**Read before you install.** The check confirms that a skill, agent or `CLAUDE.md` file is
 well formed, and unchanged since it was sealed with its contract. It does not
 confirm that anyone reviewed either file, and anyone can write both. The
 check does not refuse a setting's value because of what it lets the agent do.
@@ -44,8 +47,9 @@ It warns on every listed setting it does not know to be harmless, with a
 sharper danger warning for a few, such as settings that let the agent act
 without asking, reach the live web, or read instructions from outside the
 file. A warning is a prompt to read, not a review. The list of tools an agent
-is given is not warned on; read it. Read a shared skill or agent and its contract
-before you use it, as you would any code from someone else.
+is given is warned on only when it is missing or empty, or when it grants a
+whole connected server; read it. Read a shared skill, agent or `CLAUDE.md`
+and its contract before you use it, as you would any code from someone else.
 
 Ask for it by name. The installer route keeps the plain name; the plugin route
 namespaces it:
@@ -146,7 +150,7 @@ They can install the familiar, or not.
 ## Check and seal a familiar
 
 The skill runs only these two commands. Put each path in single quotes, as
-shown. The path is a skill's folder, or an agent's file.
+shown. The path is a skill's folder, an agent's file, or a `CLAUDE.md`.
 
 ```text
 node '<skill base directory>/scripts/check.mjs' --seal '<path>'
@@ -169,6 +173,36 @@ except the contract.
 familiar as prose, whatever its mark says. The check also says nothing about
 whether the familiar is any good.
 
+## Changes in 0.9.0
+
+**This version breaks files that passed before.** In an agent's `tools`
+list, the check now fails a bare server entry, such as `mcp__notes`, and
+any other form that holds a `*` or starts with `mcp` but is not one of two
+shapes: one tool, `mcp__<server>__<tool>`, or a whole server,
+`mcp__<server>__*`. It fails them in every way the list can be written, a
+one-line list included. Rewrite a bare server entry as `mcp__<server>__*`,
+and seal again. Each whole-server item now prints a danger warning, and an
+agent with no tools, or an empty list, prints a `tools-missing` warning.
+
+Two more files that passed before now fail:
+
+- **An agent named `claude`.** Its `claude.md` now reads as a wrongly cased
+  `CLAUDE.md`. Rename the agent and seal again.
+- **A contract that starts with a `---` line.** A contract holds no
+  frontmatter. Remove the block and seal again.
+
+**New in this version:**
+
+- A third kind of familiar, the main agent file: Claude Code's `CLAUDE.md`,
+  with `CLAUDE.contract.md` beside it.
+- A `Kind:` line in each contract. It is required beside a `CLAUDE.md`, and
+  optional for a skill or an agent, so older contracts still pass.
+
+**To roll back,** revert the change and publish the next patch version.
+Sealed `CLAUDE.md` files and sealed agents with a whole-server entry then
+stop passing. A tool that pins this check by its digest must pin it again
+after either change.
+
 ## The practice test
 
 The practice test for this skill is in
@@ -186,7 +220,7 @@ expected answers written before any run.
 | [`references/template.md`](references/template.md) | The 20 questions, with the test for each one. |
 | [`references/amend.md`](references/amend.md) | Amend mode: how the skill changes a familiar that has a contract. It is generated from the contract, like `SKILL.md`. |
 | [`references/show-me-good.md`](references/show-me-good.md) | The show-me-good step: how the skill finds the target output before question 1. |
-| [`references/binding-claude.md`](references/binding-claude.md) | How the skill builds an agent for Claude Code: the file, its keys, the settings the check warns on, its seal, and the tool version it was last checked against. |
+| [`references/binding-claude.md`](references/binding-claude.md) | How the skill builds an agent or a main agent file (`CLAUDE.md`) for Claude Code: the files, their keys, the settings the check warns on, the seal, and the tool version it was last checked against. |
 | [`references/binding-antigravity.md`](references/binding-antigravity.md) | How the skill builds an agent for Antigravity: the file, its keys, the settings the check warns on, its seal, and the tool version it was last checked against. |
 | [`references/binding-codex.md`](references/binding-codex.md) | How the skill builds an agent for Codex: the file, its keys, the settings the check warns on, its seal, and the tool version it was last checked against. |
 | [`scripts/check.mjs`](scripts/check.mjs) | The check and the seal. It uses only built-in modules, so it needs no install. |

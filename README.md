@@ -20,9 +20,9 @@
 
 A **skill** is a folder of instructions your coding agent reads when the moment
 calls for it — a reference book it knows when to open. Grimoire holds four.
-contract helps you build a skill or an agent of your own. head-chef lets one
-Claude Desktop session start and lead others, and comes with a pane that shows
-them. eagle-eye and groundtrack do the same kind of work: they take something
+contract helps you build a skill, an agent or a CLAUDE.md of your own.
+head-chef lets one Claude Desktop session start and lead others, and comes
+with a pane that shows them. eagle-eye and groundtrack do the same kind of work: they take something
 you can only hold in your head and put it on a page you can look at.
 
 **[See one before you install anything.][gallery]** The gallery holds every
@@ -104,10 +104,11 @@ one you want.
 
 **Agree the terms first. The prompt is build output.**
 
-Reach for it when you want a skill or an agent of your own and have never
-written one. contract interviews you through a template, one group of
-questions at a time, and writes your answers down as a contract. It calls what
-you build a **familiar**: a skill or an agent that does one job for you.
+Reach for it when you want a skill, an agent or a CLAUDE.md of your own and
+have never written one. contract interviews you through a template, one group
+of questions at a time, and writes your answers down as a contract. It calls what
+you build a **familiar**: a skill, an agent or a main agent file (a
+CLAUDE.md) that does one job for you.
 
 It then generates the familiar's file from the contract and checks its format.
 A mark in the file makes the check fail when anyone edits the file by hand. When a

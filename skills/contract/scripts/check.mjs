@@ -1,13 +1,16 @@
 #!/usr/bin/env node
-// Format check for a familiar — a skill's SKILL.md, or an agent's <name>.md or
-// <name>.toml — and the contract it was built from. Zero dependencies.
+// Format check for a familiar — a skill's SKILL.md, an agent's <name>.md or
+// <name>.toml, or Claude Code's main agent file, CLAUDE.md — and the contract
+// it was built from. Zero dependencies.
 //
 //   node check.mjs <path>           check
 //   node check.mjs --seal <path>    write the mark, then check
 //
-// <path> is a skill folder, the SKILL.md inside one, or an agent file ending
-// .md or .toml whose contract sits beside it as <name>.contract.md. A .md file
-// holds YAML frontmatter. A .toml file is a Codex agent file, and its mark is
+// <path> is a skill folder, the SKILL.md inside one, an agent file ending .md
+// or .toml whose contract sits beside it as <name>.contract.md, or a CLAUDE.md
+// with CLAUDE.contract.md beside it. A .md file holds YAML frontmatter; in a
+// CLAUDE.md the block is optional, and the seal adds one at the very top (see
+// "the main agent file"). A .toml file is a Codex agent file, and its mark is
 // three comment lines at its end (see "toml"). For a skill, the seal covers
 // every file in its folder but CONTRACT.md (see "the folder").
 //
@@ -172,6 +175,14 @@ const HARMLESS = new Map([
   ['.toml', new Set(['model', 'model_reasoning_effort'])],
   ['.md', new Set(['tools', 'model', 'effort'])],
 ]);
+// Two warning lines DANGER cannot hold, because each is one per item or one
+// per line rather than one per key. A `tools` item in an agent .md written
+// mcp__<server>__* prints TOOLS_GRANT under rule `danger`, once per item. A
+// body line of a CLAUDE.md holding an @ import prints OUTSIDE_FILE under rule
+// `import`, once per line (see importRule).
+//
+// Mirror of references/binding-claude.md; change both.
+const TOOLS_GRANT = 'grants every current and future tool of one server, write tools included';
 // The sandbox_mode values that print PASS sandbox-mode: its DANGER row's safe
 // set, so the two cannot drift apart.
 const SANDBOX_MODES = DANGER.get('.toml').get('sandbox_mode').safe;
@@ -183,6 +194,48 @@ const TARGETS = new Map([
   ['antigravity', '.md'],
   ['codex', '.toml'],
 ]);
+// A contract's `Kind:` line names what the familiar is: optional beside a
+// skill or an agent, required beside a CLAUDE.md. KIND_OF maps each mode
+// locate() returns to the word its contract writes, and is also the one list
+// of modes: isMode() refuses any mode not in it. Maps, for the reason TARGETS
+// is one.
+const KIND_OF = new Map([
+  ['skill', 'skill'],
+  ['agent', 'agent'],
+  ['main', 'main agent file'],
+]);
+const KINDS = new Set(KIND_OF.values());
+const KIND_ARTICLE = new Map([
+  ['skill', 'a skill'],
+  ['agent', 'an agent'],
+]);
+
+// The main agent file: Claude Code's CLAUDE.md, with its contract beside it.
+const MAIN_NAME = 'CLAUDE.md';
+const MAIN_CONTRACT = 'CLAUDE.contract.md';
+// Keys a CLAUDE.md must not hold. Claude Code finds a sub-agent by its `name`,
+// not its file name, so with these the same file copied into an agents folder
+// loads as a sub-agent.
+const MAIN_REFUSED_KEYS = new Set(['name', 'description', 'tools']);
+// A list item that is a list marker before an @ import: "-", "*", "+", or
+// digits then "." or ")". Longer than this, the text before the @ is no
+// marker, and it is never sliced.
+const LIST_MARKER_MAX = 10;
+
+// Why a `tools` item in an agent .md fails (see toolsItemOk). None names the
+// item: it came from the file.
+const TOOLS_REASON = {
+  wildcard: 'a wildcard must name one whole server, written mcp__<server>__*',
+  shape: 'an MCP tool must be written mcp__<server>__<tool>, or mcp__<server>__* for a whole server',
+  comma: 'a quoted item holding a comma; write each tool as its own item',
+  block: 'write tools as a flow list or on one line',
+};
+// What the tools-missing warning says (see toolsRules). Mirror of
+// references/binding-claude.md; change both.
+const TOOLS_MISSING = {
+  none: 'no tools listed, so the agent may get every tool',
+  emptyList: 'an empty tools list, so the agent gets no tools',
+};
 
 // Top-level keys admit upper case and "_", because a runtime key such as
 // `permissionMode` or `developer_instructions` has to parse before the
@@ -198,10 +251,13 @@ const NAME_CHARS_RE = /^[a-z0-9-]+$/;
 const VERSION_RE = /^Version: (\S+)$/;
 const EXTRA_RE = /^Extra keys: (.*)$/;
 // Any line that starts "Target:", however it goes on, so a second one cannot
-// hide by its spacing.
+// hide by its spacing. A "Kind:" line is found the same way.
 const TARGET_RE = /^Target:(.*)$/;
+const KIND_RE = /^Kind:(.*)$/;
 const MARK_LINE_RE = /^ {2}(contract-version|familiar-digest|contract-digest): .*$/;
 // A flow sequence's item: a plain word, before the YAML value rules run on it.
+// Shared by every flow list. The `tools` list of an agent .md adds its own
+// item rule on top, toolsItemOk, and leaves this one as it is.
 const FLOW_ITEM_RE = /^[A-Za-z0-9_-]+$/;
 const BLOCK_HEADERS = new Set(['>', '|', '>-', '|-']);
 
@@ -622,35 +678,120 @@ function flowItems(inner) {
   return inner.split(',').map(part => trimEndSpaces(part.slice(leading(part).width)));
 }
 
+const FLOW_ITEM_REASON =
+  'a flow sequence item that is not a plain word of letters, digits, "_" and "-", or that YAML reads as null, a boolean, a number or a date';
+
+/** True when the empty-or-blank inner text of a flow list holds no item. */
+function flowEmpty(inner) {
+  return trimEndSpaces(inner.slice(leading(inner).width)) === '';
+}
+
+/**
+ * The items of a `tools` flow list, split on the commas outside quotes, with
+ * spaces and tabs trimmed from each. Each is { text, quoted }: a quoted item
+ * is read by the strict quoted readers, so it must close where the item ends,
+ * and is cannot-check otherwise. One pass, no regex.
+ */
+function toolsFlowItems(inner, ln) {
+  const parts = [];
+  let start = 0;
+  let quote = null;
+  for (let i = 0; i < inner.length; i += 1) {
+    const ch = inner[i];
+    if (quote === '"') {
+      if (ch === '\\') i += 1;
+      else if (ch === '"') quote = null;
+    } else if (quote === "'") {
+      if (ch === "'") quote = null;
+    } else if (ch === '"' || ch === "'") quote = ch;
+    else if (ch === ',') {
+      parts.push(inner.slice(start, i));
+      start = i + 1;
+    }
+  }
+  parts.push(inner.slice(start));
+  return parts.map(part => {
+    const p = trimEndSpaces(part.slice(leading(part).width));
+    if (p[0] === '"') return { text: parseDoubleQuoted(p, ln), quoted: true };
+    if (p[0] === "'") return { text: parseSingleQuoted(p, ln), quoted: true };
+    return { text: p, quoted: false };
+  });
+}
+
+/** True for an item the tools rule reads: one that holds a "*", or starts with "mcp" in any case. */
+function toolsRuleReads(item) {
+  return item.includes('*') || item.slice(0, 3).toLowerCase() === 'mcp';
+}
+
+/**
+ * The item rule of an agent's `tools` list. An item the rule reads (see
+ * toolsRuleReads) must be one of two shapes: mcp__<server>__<tool>, or
+ * mcp__<server>__* for a whole server. <server> is letters, digits, "_" and
+ * "-", holds no "__" (the first "__" ends it), and does not start or end with
+ * "_"; <tool> is the same characters, or the "*" alone. The prefix is exactly
+ * lower-case "mcp__". Any other item is a plain tool name, and passes.
+ * Returns { ok: true, grant } or { ok: false, why }; `grant` is true for a
+ * whole-server item. A bare server, mcp__<server>, grants the whole server
+ * too in Claude Code, so it fails with the wildcard's reason: a whole-server
+ * grant has one written form.
+ */
+function toolsItemOk(item) {
+  if (!toolsRuleReads(item)) return { ok: true, grant: false };
+  const bad = { ok: false, why: item.includes('*') ? TOOLS_REASON.wildcard : TOOLS_REASON.shape };
+  if (!item.startsWith('mcp__')) return bad;
+  const rest = item.slice(5);
+  const sep = rest.indexOf('__');
+  if (sep < 0) return { ok: false, why: TOOLS_REASON.wildcard };
+  const server = rest.slice(0, sep);
+  const tool = rest.slice(sep + 2);
+  if (!FLOW_ITEM_RE.test(server) || server.startsWith('_') || server.endsWith('_')) return bad;
+  if (tool === '*') return { ok: true, grant: true };
+  if (!FLOW_ITEM_RE.test(tool)) return bad;
+  return { ok: true, grant: false };
+}
+
 /**
  * A one-line value after "key: ". Quoted or plain; anything else is
  * cannot-check. `extras` is the contract's Extra keys, or null under
- * `metadata:`.
+ * `metadata:`. `agentMd` is true for the top-level keys of an agent .md, where
+ * the `tools` key takes its own item rule.
  *
  * A flow sequence such as `[a, b]` is read only for a key the contract lists,
  * and never under `metadata:`, whose extras are null. Each item is a plain word
  * and passes the same rules as a plain value, so no item is null, a boolean, a
  * number or a date. Any other `[` falls through to the indicator rule below.
+ *
+ * An agent's `tools` key is read a little wider, so that every item its own
+ * rule reads reaches that rule and fails there as a rule, never as
+ * cannot-check: a value starting "*", and, in a listed flow list, an item the
+ * rule reads, quoted or not, and a quoted item holding a comma. Every other
+ * item keeps the flow rule, so a quoted plain word is still cannot-check.
  */
-function parseScalar(raw, ln, key, extras) {
+function parseScalar(raw, ln, key, extras, agentMd = false) {
   if (raw[0] === '"') return parseDoubleQuoted(raw, ln);
   if (raw[0] === "'") return parseSingleQuoted(raw, ln);
   const v = trimEndSpaces(raw);
   if (v === '') throw new CannotCheck(ln, 'an empty value');
   if (v[0] === '\t') throw new CannotCheck(ln, 'a tab before a value');
+  const toolsKey = agentMd && key === 'tools';
   if (v[0] === '[' && v.endsWith(']') && extras && extras.has(key)) {
     const inner = v.slice(1, -1);
-    if (trimEndSpaces(inner.slice(leading(inner).width)) === '') return v;
-    for (const item of flowItems(inner)) {
-      if (!FLOW_ITEM_RE.test(item) || item === '-' || yamlReadsAsNonText(item)) {
-        throw new CannotCheck(
-          ln,
-          'a flow sequence item that is not a plain word of letters, digits, "_" and "-", or that YAML reads as null, a boolean, a number or a date',
-        );
+    if (flowEmpty(inner)) return v;
+    if (toolsKey) {
+      for (const item of toolsFlowItems(inner, ln)) {
+        if (toolsRuleReads(item.text) || (item.quoted && item.text.includes(','))) continue;
+        if (item.quoted || !FLOW_ITEM_RE.test(item.text) || item.text === '-' || yamlReadsAsNonText(item.text)) {
+          throw new CannotCheck(ln, FLOW_ITEM_REASON);
+        }
       }
+      return v;
+    }
+    for (const item of flowItems(inner)) {
+      if (!FLOW_ITEM_RE.test(item) || item === '-' || yamlReadsAsNonText(item)) throw new CannotCheck(ln, FLOW_ITEM_REASON);
     }
     return v;
   }
+  if (toolsKey && v[0] === '*') return v;
   if (PLAIN_BAD_START.includes(v[0])) {
     throw new CannotCheck(ln, 'a value starting with a flow, anchor, alias, tag, block or other indicator character');
   }
@@ -780,8 +921,12 @@ function readMetadata(lines, start, close, headerIdx) {
  *
  * A key seen twice is "cannot check", not "last one wins". Two loaders can
  * pick different copies, so a duplicate is a file that says two things.
+ *
+ * `agentMd` is true for an agent .md (see parseScalar). There a bare `tools:`
+ * reads as an empty value, for the tools-missing warning to see, and a block
+ * value on `tools` is marked `block`, for the tools rule to fail.
  */
-function parseFrontmatter(lines, close, extras) {
+function parseFrontmatter(lines, close, extras, agentMd = false) {
   const top = new Map();
   let metadata = null;
   let i = 1;
@@ -804,6 +949,11 @@ function parseFrontmatter(lines, close, extras) {
     if (!TOP_KEY_RE.test(key)) throw new CannotCheck(ln, 'a key outside the readable subset');
     if (top.has(key)) throw new CannotCheck(ln, `duplicate key "${clean(key)}"`);
     const rest = line.slice(colon + 1);
+    if (isBlank(rest) && agentMd && key === 'tools') {
+      top.set(key, { kind: 'text', value: '', line: ln });
+      i += 1;
+      continue;
+    }
     if (isBlank(rest)) {
       if (key !== 'metadata') throw new CannotCheck(ln, `key "${clean(key)}" has no value on its line`);
       metadata = readMetadata(lines, i + 1, close, i);
@@ -817,7 +967,7 @@ function parseFrontmatter(lines, close, extras) {
       const header = trimEndSpaces(raw);
       if (!BLOCK_HEADERS.has(header)) throw new CannotCheck(ln, `key "${clean(key)}" has a block header this check does not read`);
       const block = readBlock(lines, i + 1, close, header);
-      top.set(key, { kind: 'text', value: block.value, line: ln });
+      top.set(key, { kind: 'text', value: block.value, line: ln, block: true });
       i = block.end;
       continue;
     }
@@ -825,7 +975,7 @@ function parseFrontmatter(lines, close, extras) {
     // refuses every other one, so a value that parsed from such a start is a
     // flow list. The warning rules compare its items one by one; a quoted
     // "[plan]" is text, and is compared whole.
-    const value = parseScalar(raw, ln, key, extras);
+    const value = parseScalar(raw, ln, key, extras, agentMd);
     top.set(key, { kind: 'text', value, line: ln, flow: raw[0] === '[' });
     i += 1;
   }
@@ -897,9 +1047,19 @@ const TOML_REASON = {
   decoyKey: 'a key named like a seal key; the seal is three comment lines at the end of the file',
 };
 
-/** True for a .toml agent file, whose reader, keys and seal are its own. */
+/**
+ * True when loc.mode is `mode`. A mode outside KIND_OF throws, so no branch
+ * can read an unknown mode as one of the three: every mode comparison in this
+ * file goes through here.
+ */
+function isMode(loc, mode) {
+  if (!KIND_OF.has(loc.mode) || !KIND_OF.has(mode)) throw new Error('unknown mode');
+  return loc.mode === mode;
+}
+
+/** True for a .toml agent file, whose reader, keys and seal are its own. A CLAUDE.md is never one. */
 function isTomlFamiliar(loc) {
-  return loc.mode === 'agent' && loc.familiarName.endsWith('.toml');
+  return isMode(loc, 'agent') && loc.familiarName.endsWith('.toml');
 }
 
 /**
@@ -1104,33 +1264,121 @@ function parseToml(fam, extras) {
   return { top, seal };
 }
 
+// ---------------------------------------------------------------- the main agent file
+//
+// Claude Code's main agent file, CLAUDE.md, loads at the start of every
+// session in its scope. Claude Code strips a frontmatter block at its very
+// top before the model sees it: observed, not documented (the docs describe
+// the stripping only for .claude/rules/). So the block is optional,
+// and the mark goes there. With no block, the seal adds one holding only the
+// mark, and the canonical form drops a block the mark was all of (see
+// canonicalFamiliar), so the digest of a file is the same before its first
+// seal and after.
+//
+// The block holds no `name`, `description` or `tools` (see MAIN_REFUSED_KEYS).
+// Any other key warns, since Claude Code ignores it there. A byte-order mark
+// is refused, because whether Claude Code strips the block after one is
+// untested. A mark-shaped line anywhere below the block is refused as a
+// decoy, as a .toml's is: it would read as a seal to a person or a model.
+
 /**
- * The one reader for a familiar, whatever its format. Returns { top, seal },
- * or null for a .md file with no frontmatter. Throws CannotCheck. `seal` says
- * where the mark is: the frontmatter's `metadata:` block ({ kind: 'yaml',
- * entries, headerIdx, childIdx }), the comment block at the end of a .toml
- * ({ kind: 'toml', start, entries }), or null when there is neither.
+ * True when a body line reads as a mark key: optional spaces or tabs, a mark
+ * key in any case, optional spaces or tabs, then ":" or "=". Prose that names
+ * a key mid-line is not one. String operations only, so a long line costs one
+ * pass.
+ */
+function isDecoyMarkLine(line) {
+  const t = line.slice(leading(line).width);
+  const lower = t.slice(0, 16).toLowerCase();
+  const key = MARK_KEYS.find(k => lower.startsWith(k));
+  if (key === undefined) return false;
+  let i = key.length;
+  while (i < t.length && (t[i] === ' ' || t[i] === '\t')) i += 1;
+  return t[i] === ':' || t[i] === '=';
+}
+
+/** Parse a CLAUDE.md. Returns { top, seal, close }, with an empty `top` when there is no block. Throws CannotCheck. */
+function parseMain(fam, extras) {
+  if (fam.bom) throw new CannotCheck(1, 'a byte-order mark (a CLAUDE.md file must not start with one)');
+  const close = findFrontmatter(fam.lines);
+  const fm = close < 0 ? { top: new Map(), metadata: null } : parseFrontmatter(fam.lines, close, extras);
+  for (let i = close + 1; i < fam.lines.length; i += 1) {
+    if (isDecoyMarkLine(fam.lines[i])) {
+      throw new CannotCheck(i + 1, 'a line outside the top frontmatter block that reads as a mark key; the mark goes only in the block at the very top');
+    }
+  }
+  return { top: fm.top, seal: fm.metadata ? { kind: 'yaml', ...fm.metadata } : null, close };
+}
+
+/**
+ * True when the text before an @ is a list marker: "-", "*" or "+", or
+ * digits then "." or ")", after the line's leading spaces. Text longer than
+ * LIST_MARKER_MAX is never one, and is never sliced.
+ */
+function isListMarker(line, at) {
+  const start = leading(line).width;
+  if (at <= start || at - start > LIST_MARKER_MAX) return false;
+  const m = line.slice(start, at);
+  if (m === '-' || m === '*' || m === '+') return true;
+  const last = m[m.length - 1];
+  if (m.length < 2 || (last !== '.' && last !== ')')) return false;
+  for (let j = 0; j < m.length - 1; j += 1) if (m[j] < '0' || m[j] > '9') return false;
+  return true;
+}
+
+/**
+ * True when a body line holds an @ import as Claude Code reads one: an @ at
+ * the line's start, after any space character (a no-break space included,
+ * since the character rule lets one through), or after a list marker. It
+ * warns too often by design, inside a code span or on "a @ b", and never
+ * parses a code span.
+ */
+function holdsImport(line) {
+  for (let at = line.indexOf('@'); at >= 0; at = line.indexOf('@', at + 1)) {
+    if (at === 0 || /\s/u.test(line[at - 1]) || isListMarker(line, at)) return true;
+  }
+  return false;
+}
+
+/** The import warning: one per body line of a CLAUDE.md that holds an @ import, naming the line, never the path. */
+function importRule(lines, close, report) {
+  for (let i = close + 1; i < lines.length; i += 1) {
+    if (holdsImport(lines[i])) report.warn('import', `line ${i + 1} ${OUTSIDE_FILE}`);
+  }
+}
+
+/**
+ * The one reader for a familiar, whatever its format. Returns { top, seal,
+ * close }, or null for a skill's or an agent's .md file with no frontmatter.
+ * Throws CannotCheck. `seal` says where the mark is: the frontmatter's
+ * `metadata:` block ({ kind: 'yaml', entries, headerIdx, childIdx }), the
+ * comment block at the end of a .toml ({ kind: 'toml', start, entries }), or
+ * null when there is neither. `close` is the index of the frontmatter's
+ * closing `---`, or -1.
  */
 function parseFamiliar(fam, loc, extras) {
-  if (isTomlFamiliar(loc)) return parseToml(fam, extras);
+  if (isTomlFamiliar(loc)) return { ...parseToml(fam, extras), close: -1 };
+  if (isMode(loc, 'main')) return parseMain(fam, extras);
   const close = findFrontmatter(fam.lines);
   if (close < 0) return null;
-  const fm = parseFrontmatter(fam.lines, close, extras);
-  return { top: fm.top, seal: fm.metadata ? { kind: 'yaml', ...fm.metadata } : null };
+  const fm = parseFrontmatter(fam.lines, close, extras, isMode(loc, 'agent'));
+  return { top: fm.top, seal: fm.metadata ? { kind: 'yaml', ...fm.metadata } : null, close };
 }
 
 // ---------------------------------------------------------------- contract
 
 /**
  * The lines of a contract this check reads: the first `Version: <v>`, the
- * first `Extra keys: <k>, <k>`, and every `Target:` line, so that a second
- * one anywhere in the file is seen. An entry in Extra keys that is not
- * key-shaped is dropped, which can only make the unknown-key rule stricter.
+ * first `Extra keys: <k>, <k>`, and every `Target:` and `Kind:` line, so that
+ * a second one anywhere in the file is seen. An entry in Extra keys that is
+ * not key-shaped is dropped, which can only make the unknown-key rule
+ * stricter.
  */
 function contractFacts(lines) {
   let version = null;
   let extras = null;
   const targets = [];
+  const kinds = [];
   for (const line of lines) {
     if (version === null) {
       const m = VERSION_RE.exec(line);
@@ -1148,8 +1396,10 @@ function contractFacts(lines) {
     }
     const t = TARGET_RE.exec(line);
     if (t) targets.push(trimEndSpaces(t[1].slice(leading(t[1]).width)));
+    const k = KIND_RE.exec(line);
+    if (k) kinds.push(trimEndSpaces(k[1].slice(leading(k[1]).width)));
   }
-  return { version, extras: extras ?? new Set(), targets };
+  return { version, extras: extras ?? new Set(), targets, kinds };
 }
 
 // ---------------------------------------------------------------- digests
@@ -1170,8 +1420,15 @@ function withOneTrailingLf(lines) {
  * is none. Either way the lines are joined as withOneTrailingLf joins them, so
  * trailing blank lines are not covered, by design. The digest covers the keys
  * as well as the text, so a key added after the seal breaks it.
+ *
+ * For a CLAUDE.md (`main`), the top block's two `---` lines always stay under
+ * the digest, and a file with no block (`close` is -1) reads as one that
+ * starts with an empty block: the seal adds a block to a file that had none,
+ * so the file reads the same before the seal and after it. Keeping the `---`
+ * lines means a line moved out of the top block, into a second block below
+ * it, changes the digest.
  */
-function canonicalFamiliar(lines, seal) {
+function canonicalFamiliar(lines, seal, close = -1, main = false) {
   if (seal && seal.kind === 'toml') return withOneTrailingLf(lines.slice(0, seal.start));
   const drop = new Set();
   if (seal) {
@@ -1182,7 +1439,9 @@ function canonicalFamiliar(lines, seal) {
     }
     if (kept === 0) drop.add(seal.headerIdx);
   }
-  return withOneTrailingLf(lines.filter((_, i) => !drop.has(i)));
+  const kept = lines.filter((_, i) => !drop.has(i));
+  if (main && close < 0) kept.unshift('---', '---');
+  return withOneTrailingLf(kept);
 }
 
 function digest(text) {
@@ -1625,13 +1884,67 @@ function locateSkill(abs, extra) {
 }
 
 /**
+ * Main mode, for a path whose name is CLAUDE.md in any case. The file and its
+ * contract are found by listing the folder, as locateSkill finds SKILL.md:
+ * only an exact CLAUDE.md entry is a main agent file, and a case variant on
+ * disk fails, whatever case the person typed. A typed path that is not there
+ * still lists its folder, so a case-sensitive disk and one that folds case
+ * report the same variant. `typedExists` says the typed path was there.
+ */
+function locateMain(abs, typedExists) {
+  const dir = dirname(abs);
+  const problems = [];
+  let familiarExists = false;
+  let variant = false;
+  let contractExists = false;
+  let entries;
+  try {
+    entries = readdirSync(dir);
+  } catch {
+    throw new Refusal('path', 'the path does not exist or cannot be read');
+  }
+  for (const e of entries) {
+    const lower = e.toLowerCase();
+    if (e === MAIN_NAME) familiarExists = true;
+    else if (lower === 'claude.md') {
+      variant = true;
+      problems.push({ rule: 'familiar-file', reason: `file must be named ${MAIN_NAME} (found "${clean(e)}")` });
+    }
+    if (e === MAIN_CONTRACT) contractExists = true;
+    else if (lower === 'claude.contract.md') {
+      problems.push({ rule: 'contract-file', reason: `file must be named "${MAIN_CONTRACT}" (found "${clean(e)}")` });
+    }
+  }
+  if (!typedExists && !familiarExists && !variant) throw new Refusal('path', 'the path does not exist or cannot be read');
+  return {
+    mode: 'main',
+    dir,
+    familiarName: MAIN_NAME,
+    familiarPath: join(dir, MAIN_NAME),
+    familiarExists,
+    contractName: MAIN_CONTRACT,
+    contractPath: join(dir, MAIN_CONTRACT),
+    contractExists,
+    contractVariant: problems.some(p => p.rule === 'contract-file'),
+    // A CLAUDE.md has no name to compare: it holds no `name` key.
+    expectedName: null,
+    nameRule: null,
+    problems,
+  };
+}
+
+/**
  * Returns { mode, dir, familiarPath, familiarName, familiarExists,
  * contractPath, contractName, contractExists, contractVariant, expectedName,
- * nameRule, problems }. Throws Refusal for the exit-2 shapes.
+ * nameRule, problems }. Throws Refusal for the exit-2 shapes. `mode` is
+ * 'skill', 'agent' or 'main'.
  */
 function locate(arg) {
   const abs = resolve(arg);
   const st = lstatOrNull(abs);
+  // Before the refusal below: on a case-sensitive disk, a typed CLAUDE.md
+  // beside a claude.md is not there, and must still name the variant.
+  if (basename(abs).toLowerCase() === 'claude.md' && !(st && st.isDirectory())) return locateMain(abs, st !== null);
   if (!st) throw new Refusal('path', 'the path does not exist or cannot be read');
   if (st.isDirectory()) return locateSkill(abs, []);
   const name = basename(abs);
@@ -1701,9 +2014,15 @@ function codePoints(s) {
  * known keys. A listed key passes with any value: the check refuses no value
  * for what it lets the agent do. It warns instead, once per key, on every key
  * that passed and that it does not know to be harmless (see warningRules).
+ *
+ * A CLAUDE.md takes mainFieldRules instead.
  */
-function fieldRules(fm, loc, extras, report) {
+function fieldRules(fm, loc, extras, report, targets = []) {
   const { top } = fm;
+  if (isMode(loc, 'main')) {
+    mainFieldRules(top, report);
+    return;
+  }
   const toml = isTomlFamiliar(loc);
   const known = toml ? TOML_KNOWN_KEYS : KNOWN_KEYS;
   let unknown = 0;
@@ -1728,9 +2047,10 @@ function fieldRules(fm, loc, extras, report) {
     } else {
       valid = true;
       report.pass('name', v);
-      if (loc.mode === 'skill') reservedNameRule(v, report);
+      if (isMode(loc, 'skill')) reservedNameRule(v, report);
     }
-    const where = loc.mode === 'skill' ? 'folder' : 'file stem';
+    // Main mode returned above, so the stem is an agent's.
+    const where = isMode(loc, 'skill') ? 'folder' : 'file stem';
     if (v === loc.expectedName) report.pass(loc.nameRule);
     else if (valid) report.fail(loc.nameRule, `name "${v}" differs from the ${where} "${clean(loc.expectedName)}"`);
     else report.fail(loc.nameRule, `line ${name.line}: name differs from the ${where} "${clean(loc.expectedName)}"`);
@@ -1742,7 +2062,7 @@ function fieldRules(fm, loc, extras, report) {
   else if (codePoints(desc.value) > DESCRIPTION_MAX) report.fail('description', `line ${desc.line}: longer than ${DESCRIPTION_MAX} characters`);
   else {
     report.pass('description');
-    if (loc.mode === 'skill' && TAG_RE.test(desc.value)) {
+    if (isMode(loc, 'skill') && TAG_RE.test(desc.value)) {
       report.warn('description-xml', `line ${desc.line}: the description holds an XML tag (${ANTHROPIC_RULE})`);
     }
   }
@@ -1767,13 +2087,91 @@ function fieldRules(fm, loc, extras, report) {
     else report.pass(key);
   }
 
-  const meta = top.get('metadata');
-  if (meta) {
-    if (meta.kind !== 'map') report.fail('metadata', `line ${meta.line}: must be a map of text values`);
-    else report.pass('metadata');
-  }
-
+  metadataRule(top, report);
+  if (isMode(loc, 'agent')) toolsRules(top, extras, report, targets.length === 1 && targets[0] === 'claude');
   warningRules(top, toml, known, extras, report);
+}
+
+/** `metadata:` must be a map, in every .md file. */
+function metadataRule(top, report) {
+  const meta = top.get('metadata');
+  if (!meta) return;
+  if (meta.kind !== 'map') report.fail('metadata', `line ${meta.line}: must be a map of text values`);
+  else report.pass('metadata');
+}
+
+/**
+ * The field rules of a CLAUDE.md. `name`, `description` and `tools` fail (see
+ * MAIN_REFUSED_KEYS). `metadata` is checked as in any .md file. Every other
+ * key warns, naming the key and its line, never its value: Claude Code
+ * ignores it when the file loads as CLAUDE.md. It is not refused, since it
+ * does no harm there and the person may want it. The .md danger rows still
+ * apply to it.
+ */
+function mainFieldRules(top, report) {
+  let refused = 0;
+  for (const [key, entry] of top) {
+    if (!MAIN_REFUSED_KEYS.has(key)) continue;
+    refused += 1;
+    report.fail('keys', `"${key}" at line ${entry.line}: a main agent file must not hold it; with it, the file loads as a sub-agent from an agents folder`);
+  }
+  if (refused === 0) report.pass('keys');
+  metadataRule(top, report);
+  const danger = DANGER.get('.md');
+  for (const [key, entry] of top) {
+    if (MAIN_REFUSED_KEYS.has(key) || key === 'metadata') continue;
+    const row = danger.get(key);
+    if (row !== undefined && !dangerSafe(row, entry)) report.warn('danger', `${key} at line ${entry.line} ${row.label}`);
+    report.warn('ignored-key', `${clean(key)} at line ${entry.line}: Claude Code ignores it when the file loads as ${MAIN_NAME}`);
+  }
+}
+
+/** True when a `tools` entry lists nothing: an empty flow list, or an empty or blank value. */
+function toolsEmpty(entry) {
+  if (entry.flow) return flowEmpty(entry.value.slice(1, -1));
+  return entry.value.trim() === '';
+}
+
+/**
+ * The `tools` rules of an agent .md, run after parsing.
+ *
+ * tools-missing: no `tools` key, or one that lists nothing, warns. It never
+ * fails. With no key, or an empty or blank value, Claude Code may give the
+ * agent every tool. With an empty flow list, `tools: []`, an agent built for
+ * claude gets none, as load test 5 in references/binding-claude.md found;
+ * for any other target that is untested, so it gets the first text.
+ *
+ * tools-item: each item goes through toolsItemOk, in every written form. A
+ * flow list is split on the commas outside quotes, with each quoted item
+ * read by the strict readers; a one-line value, already read by parseScalar,
+ * is split on every comma, as Claude Code splits it. A quoted flow item that
+ * holds a comma fails, since it reads as one item here and two there. A
+ * block value fails whole. A failure names the item's position and line,
+ * never the item. Each accepted whole-server item warns once, when `tools`
+ * passed the keys rule.
+ */
+function toolsRules(top, extras, report, claude) {
+  const entry = top.get('tools');
+  if (claude && entry && entry.flow && toolsEmpty(entry)) report.warn('tools-missing', TOOLS_MISSING.emptyList);
+  else if (!entry || toolsEmpty(entry)) report.warn('tools-missing', TOOLS_MISSING.none);
+  if (!entry) return;
+  if (entry.block) {
+    report.fail('tools-item', `line ${entry.line}: ${TOOLS_REASON.block}`);
+    return;
+  }
+  const items = entry.flow
+    ? toolsFlowItems(entry.value.slice(1, -1), entry.line)
+    : entry.value.split(',').map(part => ({ text: part.trim(), quoted: false }));
+  items.forEach((item, k) => {
+    const where = `item ${k + 1} at line ${entry.line}`;
+    if (item.quoted && item.text.includes(',')) {
+      report.fail('tools-item', `${where}: ${TOOLS_REASON.comma}`);
+      return;
+    }
+    const r = toolsItemOk(item.text);
+    if (!r.ok) report.fail('tools-item', `${where}: ${r.why}`);
+    else if (r.grant && extras.has('tools')) report.warn('danger', `tools ${where} ${TOOLS_GRANT}`);
+  });
 }
 
 /**
@@ -1851,7 +2249,9 @@ function warningRules(top, toml, known, extras, report) {
  * An agent's contract names the tool it is built for, which fixes the file
  * ending; with none, the check warns, because the ending was then chosen by
  * nobody on record. A skill is the same format everywhere, so its contract
- * names none. The target is echoed only once it is one of the known three.
+ * names none. A CLAUDE.md is Claude Code's alone, so its contract names
+ * claude, and a missing line fails. The target is echoed only once it is one
+ * of the known three.
  */
 function targetRule(facts, loc, report) {
   const t = facts.targets;
@@ -1859,8 +2259,13 @@ function targetRule(facts, loc, report) {
     report.cannot('target', 'the contract has more than one "Target:" line');
     return;
   }
-  if (loc.mode === 'skill') {
+  if (isMode(loc, 'skill')) {
     if (t.length === 1) report.fail('target', "a skill's contract names a target; only an agent's contract has a \"Target:\" line");
+    return;
+  }
+  if (isMode(loc, 'main')) {
+    if (t.length === 1 && t[0] === 'claude') report.pass('target', 'claude');
+    else report.fail('target', 'a main agent file\'s contract must name claude on its "Target:" line');
     return;
   }
   if (t.length === 0) {
@@ -1871,6 +2276,45 @@ function targetRule(facts, loc, report) {
   if (needs === undefined) report.fail('target', 'the "Target:" line must name claude, antigravity or codex');
   else if (needs !== (isTomlFamiliar(loc) ? '.toml' : '.md')) report.fail('target', `the contract names ${t[0]}, which needs a ${needs} file`);
   else report.pass('target', t[0]);
+}
+
+/**
+ * The contract's `Kind:` line against the familiar. Records into report.
+ * Beside a skill or an agent the line is optional, so every contract written
+ * before it keeps passing; when present it must name what the path is. Beside
+ * a CLAUDE.md it is required and must say "main agent file". Two lines, or a
+ * value outside the three, fail. The kind is echoed only once it is one of
+ * the three.
+ */
+function kindRule(facts, loc, report) {
+  const k = facts.kinds;
+  const want = KIND_OF.get(loc.mode);
+  if (want === undefined) throw new Error('unknown mode');
+  if (k.length > 1) {
+    report.fail('kind', 'the contract has more than one "Kind:" line');
+    return;
+  }
+  const mainWant = 'a main agent file\'s contract must say "Kind: main agent file"';
+  if (k.length === 0) {
+    if (isMode(loc, 'main')) report.fail('kind', mainWant);
+    return;
+  }
+  if (!KINDS.has(k[0])) report.fail('kind', 'the "Kind:" line must say skill, agent or main agent file');
+  else if (k[0] === want) report.pass('kind', want);
+  else if (isMode(loc, 'main')) report.fail('kind', mainWant);
+  else report.fail('kind', `the contract's "Kind:" line does not match the familiar, which is ${KIND_ARTICLE.get(loc.mode)}`);
+}
+
+/**
+ * A contract holds no frontmatter. One that opens with a `---` line could
+ * carry a `name`, and Claude Code loads any .md file in an agents folder that
+ * does as an agent, with every tool when it lists none. The binding lets a
+ * contract sit beside its agent there, so the check refuses that first line,
+ * trailing spaces or tabs included. It flags such a file only when it runs:
+ * Claude Code loads one from an agents folder whether or not it was checked.
+ */
+function contractFrameRule(con, label, report) {
+  if (con.lines.length > 0 && trimEndSpaces(con.lines[0]) === '---') report.fail('contract-frontmatter', `${label} starts with a "---" line; a contract holds no frontmatter`);
 }
 
 /** The character rule's hits in one file readText read, each with the file's label. */
@@ -1935,7 +2379,7 @@ function runCheck(loc, report) {
   const conLabel = clean(loc.contractName);
   for (const p of loc.problems) report.fail(p.rule, p.reason);
   if (!loc.familiarExists) {
-    report.fail('familiar-file', 'no SKILL.md in the folder');
+    report.fail('familiar-file', `no ${famLabel} in the folder`);
     return;
   }
   const fam = loadFile(loc.familiarPath, 'familiar', famLabel, report);
@@ -1959,10 +2403,14 @@ function runCheck(loc, report) {
 
   invisibleRule(fam, famLabel, report);
   if (con) invisibleRule(con, conLabel, report);
-  const folder = loc.mode === 'skill' ? folderRules(loc, report) : null;
+  const folder = isMode(loc, 'skill') ? folderRules(loc, report) : null;
 
-  const facts = con ? contractFacts(con.lines) : { version: null, extras: new Set(), targets: [] };
-  if (con) targetRule(facts, loc, report);
+  const facts = con ? contractFacts(con.lines) : { version: null, extras: new Set(), targets: [], kinds: [] };
+  if (con) {
+    targetRule(facts, loc, report);
+    kindRule(facts, loc, report);
+    contractFrameRule(con, conLabel, report);
+  }
 
   const formatRule = toml ? 'toml' : 'frontmatter';
   let fm;
@@ -1979,16 +2427,18 @@ function runCheck(loc, report) {
   }
   report.pass(formatRule);
 
-  fieldRules(fm, loc, facts.extras, report);
+  fieldRules(fm, loc, facts.extras, report, facts.targets);
 
   // Advice, not a rule: a long body still loads. A warning never fails. A
   // .toml file has no body apart from its keys, so it gets no line at all: a
-  // pass for a rule that did not run would be a false report.
+  // pass for a rule that did not run would be a false report. A CLAUDE.md
+  // with no frontmatter is all body.
   if (!toml) {
-    const bodyLines = bodyLineCount(fam.lines, findFrontmatter(fam.lines));
+    const bodyLines = bodyLineCount(fam.lines, fm.close);
     if (bodyLines > BODY_LINES_MAX) report.warn('body-length', `body is ${bodyLines} lines; the advised limit is ${BODY_LINES_MAX}`);
     else report.pass('body-length');
   }
+  if (isMode(loc, 'main')) importRule(fam.lines, fm.close, report);
 
   // The mark and the contract travel together. Either one alone is a file
   // somebody changed without the other, so both halves of the mismatch fail.
@@ -2028,10 +2478,10 @@ function runCheck(loc, report) {
   else report.pass('contract-version');
 
   // In skill mode the digest cannot say which file changed, so the failure
-  // names none.
+  // names none. An agent and a CLAUDE.md are one file each.
   const fd = entries.get('familiar-digest');
-  const canon = canonicalFamiliar(fam.lines, fm.seal);
-  if (loc.mode === 'agent') {
+  const canon = canonicalFamiliar(fam.lines, fm.seal, fm.close, isMode(loc, 'main'));
+  if (isMode(loc, 'agent') || isMode(loc, 'main')) {
     if (fd.value !== digest(canon)) {
       report.fail('familiar-digest', `line ${fd.line}: the seal is broken; ${famLabel} changed since it was sealed`);
     } else report.pass('familiar-digest');
@@ -2075,9 +2525,18 @@ function sealableVersion(v) {
  * and the three keys go just before the closing `---`. An inserted line takes
  * the line ending of the line above it. contract-version is written plain
  * (see sealableVersion); the digests stay quoted.
+ *
+ * With no frontmatter at all (`close` is -1), which only a CLAUDE.md may
+ * have, a block holding only the mark goes at the very top, its lines taking
+ * the first line's ending, or LF when the file is one line with none.
  */
 function writeYamlMark(raw, meta, values, close) {
   const markLine = k => (k === 'contract-version' ? `  ${k}: ${values[k]}` : `  ${k}: "${escapeDq(values[k])}"`);
+  if (close < 0) {
+    const eol = raw[0].eol || '\n';
+    raw.splice(0, 0, ...['---', 'metadata:', ...MARK_KEYS.map(markLine), '---'].map(text => ({ text, eol })));
+    return;
+  }
   let insertAfter;
   let toInsert;
   if (meta) {
@@ -2140,7 +2599,7 @@ function runSeal(loc, report) {
   const famLabel = clean(loc.familiarName);
   const conLabel = clean(loc.contractName);
   if (loc.problems.length > 0) throw new Refusal(loc.problems[0].rule, loc.problems[0].reason);
-  if (!loc.familiarExists) throw new Refusal('familiar-file', 'no SKILL.md in the folder');
+  if (!loc.familiarExists) throw new Refusal('familiar-file', `no ${famLabel} in the folder`);
   // A symlink is refused rather than followed, so the seal writes the file
   // the path names and never a file somewhere else.
   const fst = lstatOrNull(loc.familiarPath);
@@ -2157,12 +2616,15 @@ function runSeal(loc, report) {
   // contract is read for its meaning.
   refuseCharacters(con, conLabel, report);
 
-  // The contract's own rules: the invisible-character rule, and its target
-  // against the familiar. A missing target only warns, so it seals.
+  // The contract's own rules: the invisible-character rule, its target and
+  // kind against the familiar, and no frontmatter. A missing target only
+  // warns beside an agent, so it seals.
   const facts = contractFacts(con.lines);
   const conScratch = new Report();
   invisibleRule(con, conLabel, conScratch);
   targetRule(facts, loc, conScratch);
+  kindRule(facts, loc, conScratch);
+  contractFrameRule(con, conLabel, conScratch);
   if (conScratch.failed) {
     for (const l of conScratch.lines) if (l.startsWith('FAIL ') || l.startsWith('CANNOT-CHECK ')) report.lines.push(l);
     throw new Refusal('contract-rules', `${conLabel} fails its file rules`);
@@ -2204,7 +2666,7 @@ function runSeal(loc, report) {
 
   const scratch = new Report();
   invisibleRule(fam, famLabel, scratch);
-  fieldRules(fm, loc, facts.extras, scratch);
+  fieldRules(fm, loc, facts.extras, scratch, facts.targets);
   if (scratch.failed) {
     for (const l of scratch.lines) if (!l.startsWith('PASS ')) report.lines.push(l);
     throw new Refusal('field-rules', `${famLabel} fails the field rules`);
@@ -2213,7 +2675,7 @@ function runSeal(loc, report) {
   // The seal covers the whole folder, so it refuses a folder the check would
   // fail or could not read: a mark over it would cover a file nobody checked.
   let folder = null;
-  if (loc.mode === 'skill') {
+  if (isMode(loc, 'skill')) {
     const folderScratch = new Report();
     folder = folderRules(loc, folderScratch);
     if (folderScratch.failed) {
@@ -2222,7 +2684,8 @@ function runSeal(loc, report) {
     }
   }
 
-  const canon = canonicalFamiliar(fam.lines, fm.seal);
+  const main = isMode(loc, 'main');
+  const canon = canonicalFamiliar(fam.lines, fm.seal, fm.close, main);
   const values = {
     'contract-version': facts.version,
     'familiar-digest': folder === null ? digest(canon) : folderDigest(canon, folder),
@@ -2231,7 +2694,7 @@ function runSeal(loc, report) {
 
   const raw = fam.rawLines.map(l => ({ text: l.text, eol: l.eol }));
   if (toml) writeTomlMark(raw, fm.seal, values);
-  else writeYamlMark(raw, fm.seal, values, findFrontmatter(fam.lines));
+  else writeYamlMark(raw, fm.seal, values, fm.close);
   const out = (fam.bom ? '\u{FEFF}' : '') + raw.map(l => l.text + l.eol).join('');
 
   // Before writing, the new text must parse, through the same reader the
@@ -2249,7 +2712,7 @@ function runSeal(loc, report) {
     throw new Refusal('seal', 'internal error: the sealed text would not parse');
   }
   if (newFm === null) throw new Refusal('seal', 'internal error: the sealed text would have no frontmatter');
-  if (canonicalFamiliar(newLines, newFm.seal) !== canon) {
+  if (canonicalFamiliar(newLines, newFm.seal, newFm.close, main) !== canon) {
     throw new Refusal('seal', 'internal error: the sealed text would not keep its canonical form');
   }
   const newEntries = newFm.seal ? newFm.seal.entries : new Map();

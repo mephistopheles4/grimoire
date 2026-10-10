@@ -1,17 +1,17 @@
 ---
 name: contract
-description: Builds a reusable skill or agent from terms a person agrees, and keeps those terms as a contract its file is generated from. Use when someone wants a new skill or agent, wants to turn a prompt they keep pasting into one, or wants to change or write the contract for one. Not for a one-off prompt, for running a skill or agent that already exists, or for a legal or business contract.
+description: Builds a reusable skill, agent or main agent file (CLAUDE.md) from terms a person agrees, and keeps those terms as a contract its file is generated from. Use when someone wants a new skill or agent, wants to turn a prompt they keep pasting into one, or wants to change or write the contract for one. Not for a one-off prompt, for running a skill or agent that already exists, or for a legal or business contract.
 compatibility: Needs Node.js 20 or later to run check.mjs. No install and no other dependencies.
 metadata:
-  contract-version: 0.8.1
-  familiar-digest: "sha256:239883530375cb75cd074cf794cfb396b1fe56dfdb73ba6dfd8e250456bce16f"
-  contract-digest: "sha256:550228b7ca576b816452b42cd0167813ee19f5f57e4fc857aebddadd158ce089"
+  contract-version: 0.9.0
+  familiar-digest: "sha256:575be11d43ecb4996a7acb8ef08b039ca829e753618532bc20bf860890eeaddf"
+  contract-digest: "sha256:c67a3cd996eb8f338d5bb0c6597cc12ec7ba2cde6e8bf29574026334d8a53262"
 ---
 
 # contract
 
-A **familiar** is a skill or an agent that a person builds to do one job for
-them. This skill interviews the person through a template. Their answers are
+A **familiar** is a skill, an agent or a main agent file that a person builds
+to do one job for them. This skill interviews the person through a template. Their answers are
 the **contract**: the terms they agree with the familiar. You write the
 contract, generate the familiar's file from it, and check the file's format.
 
@@ -55,11 +55,13 @@ skill. Say so to the person.
 The person may be new to this. Explain each word the first time you use it,
 in one plain sentence:
 
-- **Familiar:** a skill or an agent, built to do one job for the person.
+- **Familiar:** a skill, agent or main agent file, built for one job.
 - **Skill:** instructions the agent picks up by itself when a situation
   matches. It lives in a file named `SKILL.md`.
 - **Agent:** a familiar that the main agent sends off to do one job alone and
   report back. It lives in one file, in the format the person's tool uses.
+- **Main agent file:** the instructions that govern the main session. Claude
+  Code reads it as CLAUDE.md at the start of every session.
 - **Contract:** the answered questions. The familiar's file is generated from
   it.
 - **Level:** how many questions you ask: Quick (1–7), Standard (1–15) or
@@ -89,7 +91,8 @@ paraphrase the questions from that file. Do not restate them from memory.
 Ask for these before question 1. Start nothing else until you have all
 three.
 
-1. **What are you making: a skill or an agent?**
+1. **What are you making: a skill, an agent or a main agent file?** Offer all
+   three. A main agent file is built for claude: record that as its target.
 2. **Which level: Quick, Standard or Thorough?** Show the level table.
 3. **What is its name?** The name is part of question 1.
 
@@ -234,7 +237,7 @@ applies it.
   person picks a value the binding lists as warned on, say so then. List
   each frontmatter key beyond the specification's on one contract line:
   `Extra keys:`, then the names, comma-separated. The check fails any
-  unlisted key.
+  unlisted key. A main agent file names no tools, only capabilities.
 - **Question 6 (actions):** "Nothing" is a good answer. Record it as given.
   Do not flag it as missing.
 - **Question 13 (retire it):** always include the "cries wolf" condition. Say
@@ -321,15 +324,16 @@ at any time. Handle it the same way.
 ### The contract file
 
 - **Where.** A skill's contract is `familiars/<name>/CONTRACT.md`. An agent's
-  contract is `familiars/<name>.contract.md`. `familiars/` sits in the
-  current working folder. Create it if it is missing.
+  contract is `familiars/<name>.contract.md`. A main agent file's is
+  CLAUDE.contract.md, in `familiars/`. `familiars/` sits in the current working
+  folder. Create it if it is missing.
 - **When.** Write it first at the first checkpoint. Update it at each
   checkpoint after that. You may write it before question 2 has an answer,
   because it is the person's record.
 - **Shape.** The title is `# Contract: <name>`. The next line is
   `Version:`, then 0.1.0 for a new contract. A version is numbers separated
   by at least two dots. The seal writes it unquoted, so it refuses a bare
-  number such as 0.1. Then the type, the level, the date, a line that
+  number such as 0.1. Then the `Kind:` line, the level, the date, a line that
   explains the marks, the target, and the template's headings and tables.
 - **Practice test file.** At Standard and Thorough, the practice test goes in
   `familiars/<name>.practice-test.md`, beside the familiar, never inside a
@@ -342,10 +346,10 @@ at any time. Handle it the same way.
 
 Build only when the person gives the go at the last checkpoint for their
 level. Before you build, confirm: question 2 has the person's own answer;
-a target exists; and, for an agent, the contract names its tool on a
-`Target:` line that holds only the tool name, and records each extra
-key's value as **Decided**. If any is missing, ask for it first. Build an
-agent from the contract and its binding only.
+a target exists; and, for an agent or a main agent file, the contract names
+its tool on a `Target:` line that holds only the tool name, and records each
+extra key's value as **Decided**. If any is missing, ask for it first. Build
+an agent or a main agent file from the contract and its binding only.
 
 > **Warning: write only under `familiars/`.** Stop and ask when a build needs
 > a tool not listed in question 5, or an action not listed in question 6.
@@ -353,9 +357,9 @@ agent from the contract and its binding only.
 
 **Where the familiar goes:** a skill's is `familiars/<name>/SKILL.md`.
 An agent's is the file its binding names, beside
-`familiars/<name>.contract.md`.
+`familiars/<name>.contract.md`. A main agent file's is CLAUDE.md, in `familiars/`.
 
-**Frontmatter.**
+**Frontmatter.** A main agent file gets none: the seal adds the mark.
 
 - `name`: the name exactly as decided. For an agent, it is also the file name
   without its ending.
@@ -401,8 +405,8 @@ description.
 ## Step 6. Seal, then check (questions 3, 4, 5, 18)
 
 These are the only shell commands this skill runs. Put each path in single
-quotes, exactly as shown. The path is the skill's folder, or the agent's
-file.
+quotes, exactly as shown. The path is the skill's folder, the agent's file,
+or the CLAUDE.md.
 For a Codex agent, the seal writes the mark as comment lines at the end.
 
 Before you seal an agent, check each extra key's value in the file
@@ -475,9 +479,9 @@ Hand back five parts, in this order:
    question, and where to install the familiar. Name as not sealed the
    practice-test file, and each tool file that question 5 names outside the
    familiar's folder. At Quick, add each Promised clause as untested.
-   For an agent, name its binding's last-checked version, each limit the
-   binding marks Promised, and each warning the check printed, before any
-   install.
+   For an agent or a main agent file, name its binding's last-checked
+   version, each limit the binding marks Promised, and each warning the
+   check printed, before any install.
 
 A person who did not watch the interview must be able to install the
 familiar, or decide not to, from these five parts alone. The unsettled list
