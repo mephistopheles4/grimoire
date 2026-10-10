@@ -1081,21 +1081,42 @@ test('an arg name holding a line break prints as one quoted finding line', () =>
   assert.equal(printed.length, Number(/(\d+) finding\(s\)/.exec(r.stderr)[1]));
 });
 
+test('a name past 16,383 characters matches only itself', () => {
+  // Past that length a name is held by its digest. Two names of one length
+  // that differ only in the last character must still be told apart.
+  const long = end => `${'a'.repeat(19999)}${end}`;
+  const r = check(
+    derive(prog => {
+      prog.nodes.lookupName.params = ['id', long('b')];
+      greetArgs({ id: 'userId', [long('b')]: 'x', [long('c')]: 'y' })(prog);
+    }),
+  );
+  assert.equal(r.code, 0, r.stderr);
+  assert.deepEqual(argLines(r.stdout), [`greet[1] calls lookupName with args its params do not name: ${JSON.stringify(long('c'))}`]);
+});
+
 test('an arg name holding a character JSON leaves raw prints it escaped', () => {
   // JSON escapes only the controls below space. These pass it raw, and a
   // terminal or a tool that splits on Unicode line breaks can act on them:
   // DEL, a C1 control, the soft hyphen, the line and paragraph separators,
-  // a direction override and isolate, a zero-width space and a byte order mark.
-  const points = [0x7f, 0x85, 0x9b, 0xad, 0x2028, 0x2029, 0x202e, 0x2066, 0x200b, 0xfeff];
+  // a direction override and isolate, a zero-width space, a byte order mark,
+  // a Hangul filler, a variation selector, and a tag character, which a
+  // terminal draws as nothing and a model reads. One above U+FFFF prints as
+  // its surrogate pair, so the escape stays well-formed JSON.
+  const points = [0x7f, 0x85, 0x9b, 0xad, 0x2028, 0x2029, 0x202e, 0x2066, 0x200b, 0xfeff, 0x3164, 0xfe0f, 0xe0041];
   const name = `via${points.map(p => String.fromCodePoint(p)).join('')}end`;
   const r = check(derive(greetArgs({ id: 'userId', [name]: 'x' })));
   assert.equal(r.code, 0, r.stderr);
   const lines = argLines(r.stdout);
   assert.equal(lines.length, 1, r.stdout);
+  const escaped = c => [...c].flatMap(ch => [...Array(ch.length).keys()].map(i => `\\u${ch.charCodeAt(i).toString(16).padStart(4, '0')}`)).join('');
   for (const p of points) {
-    assert.ok(!r.stdout.includes(String.fromCodePoint(p)), `U+${p.toString(16)} printed raw`);
-    assert.ok(lines[0].includes(`\\u${p.toString(16).padStart(4, '0')}`), `U+${p.toString(16)} not escaped:\n${lines[0]}`);
+    const c = String.fromCodePoint(p);
+    assert.ok(!r.stdout.includes(c), `U+${p.toString(16)} printed raw`);
+    assert.ok(lines[0].includes(escaped(c)), `U+${p.toString(16)} not escaped:\n${lines[0]}`);
   }
+  // The printed token reads back as the name.
+  assert.equal(JSON.parse(lines[0].split(': ')[1]), name);
   assert.equal(r.stdout.split(/\r\n|[\n\r\u{85}\u{2028}\u{2029}]/u).filter(Boolean).length, Number(/(\d+) finding\(s\)/.exec(r.stderr)[1]));
 });
 

@@ -20,6 +20,7 @@ import { readFileSync, writeFileSync, statSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createRequire } from 'node:module';
+import { createHash } from 'node:crypto';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const require = createRequire(import.meta.url);
@@ -752,12 +753,33 @@ function producibleTags(prog, raisedInWalks) {
 }
 
 /* A stranger's string as one quoted token on one line. JSON escapes the
- * controls below space; this escapes what it leaves raw and a terminal or a
- * line-splitting tool can still act on: DEL and the C1 controls, the soft
- * hyphen, the line and paragraph separators, the marks that reorder text,
- * and the invisible joiners and spaces. */
-const UNSAFE = /[\u{7F}-\u{9F}\u{AD}\u{61C}\u{180E}\u{200B}-\u{200F}\u{2028}-\u{202E}\u{2060}-\u{2069}\u{FEFF}]/gu;
-const quoted = s => JSON.stringify(s).replace(UNSAFE, c => `\\u${c.codePointAt(0).toString(16).padStart(4, '0')}`);
+ * controls below space; this escapes what it leaves raw and a terminal, a
+ * line-splitting tool or a model reading the output can still act on: every
+ * control character, every character Unicode says to draw as nothing (the
+ * marks that reorder text, the joiners, the tag block, the variation
+ * selectors), and the line and paragraph separators. */
+const UNSAFE = /[\p{Cc}\p{Default_Ignorable_Code_Point}\u{2028}\u{2029}]/gu;
+/* Each UTF-16 unit as its own `\uXXXX`, so a character above U+FFFF prints
+ * as its surrogate pair: still a well-formed JSON escape. */
+const quoted = s =>
+  JSON.stringify(s).replace(UNSAFE, c => [...Array(c.length).keys()].map(i => `\\u${c.charCodeAt(i).toString(16).padStart(4, '0')}`).join(''));
+
+/* A Set of a stranger's names whose cost stays linear. V8 hashes a string
+ * longer than 16,383 characters by its length alone, so a Set of many long
+ * names of one length compares each against all the others: a 95 MB file
+ * of such params took 13.5 s. Past that length a name is held by its
+ * SHA-256 digest instead, in a Set of its own so it never meets a short
+ * name. */
+const LONG_NAME = 16383;
+const digest = s => createHash('sha256').update(s).digest('hex');
+const nameSet = () => {
+  const short = new Set();
+  const long = new Set();
+  return {
+    add: n => (n.length > LONG_NAME ? long.add(digest(n)) : short.add(n)),
+    has: n => (n.length > LONG_NAME ? long.has(digest(n)) : short.has(n)),
+  };
+};
 
 /* -- findings -------------------------------------------------------------
  *
@@ -855,17 +877,17 @@ export function findings(prog) {
    * `params` has never been type-checked, so a callee whose params are not
    * all strings is skipped rather than refused. Each callee is worked out
    * once and its verdict kept, the skip included, so many calls into one
-   * long list cost their sum and not their product. A Set, because a name
-   * is a stranger's string and never an object key. Each name is printed
-   * quoted, so a line break in one cannot split the line, and with the
-   * characters JSON leaves raw escaped too (see `quoted`). */
+   * long list cost their sum and not their product. A Set (`nameSet`),
+   * because a name is a stranger's string and never an object key. Each
+   * name is printed quoted, so a line break in one cannot split the line,
+   * and with the characters JSON leaves raw escaped too (see `quoted`). */
   const accepts = new Map();
   const acceptsOf = id => {
     if (!accepts.has(id)) {
       const ps = prog.nodes[id].params;
       let verdict = null;
       if (Array.isArray(ps) && ps.every(p => typeof p === 'string')) {
-        const names = new Set();
+        const names = nameSet();
         let rest = false;
         for (const p of ps) {
           /* Cut at the first `=` rather than split at every one: a param

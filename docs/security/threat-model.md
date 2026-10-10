@@ -163,6 +163,7 @@ cost it drives.
 | Tour stops and graphs | 30,000 graphs and 30,000 tour stops (7.4 MB) | 0.40 s | 0.43 s | 0.55 s | 0.61 s |
 | Tour stops and runs | 30,000 runs and 30,000 tour stops (4.9 MB) | 0.37 s | 0.38 s | 0.40 s | 0.35 s |
 | A call's args against its callee's params (no limit) | 20,000 calls into a node with 20,000 params, and 20,000 into one whose params list ends with the number 0, which the check skips (5.95 MB) | 0.52 s | 1.01 s | 1.02 s | not run: the page does not compare them |
+| Long param names (no limit) | One callee with 5,000 params of 20,000 characters that differ only at the end, and a call passing one (95 MB). V8 hashes a string that long by its length alone, so a plain Set of them took 13.5 s; names that long are held by their SHA-256 digest | 0.41 s | 0.65 s | 0.38 s | not run: the page does not compare them |
 | Node id length (no limit) | The long-chain file above, with ids of 1,000 characters (22.7 MB) | 0.17 s | 0.23 s | 0.52 s | 0.87 s |
 | For comparison | `docs/examples/pr-382.flightpath.json` (7 graphs, 88 nodes) | 0.11 s | 0.11 s | 0.16 s | 0.12 s |
 
