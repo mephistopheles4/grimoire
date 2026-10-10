@@ -223,11 +223,14 @@ says what the reader sees there now.
 
 Any word. The page prints it and nothing branches on it except the
 pure-with-effect finding. The words in use are `pure`, `io`, `handler`,
-`agent` and `prototype`. Add one when none fits.
+`agent`, `prototype` and `mutates`. Add one when none fits.
 
 **`pure` claims the node runs no effect.** `--check` reports a node whose role
 is exactly `pure` and whose steps include an `effect` step. See
 [Findings](#findings).
+
+**`mutates` means the node changes an argument it was handed, in place.** It
+is not `pure`, and unlike `io` nothing leaves the program.
 
 ### channels
 
