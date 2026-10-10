@@ -40,7 +40,7 @@ function tree() {
   for (const part of ['brigade', 'hooks']) {
     if (existsSync(join(root, part))) cpSync(join(root, part), join(dir, part), { recursive: true });
   }
-  for (const part of ['.gitignore', '.skillspector-baseline.yaml']) {
+  for (const part of ['.gitignore', '.skillspector-baseline.yaml', '.skillspector-allowances.json']) {
     cpSync(join(root, part), join(dir, part));
   }
   return dir;

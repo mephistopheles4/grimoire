@@ -58,11 +58,16 @@ code does. [SkillSpector](https://github.com/NVIDIA/SkillSpector) reads it, and
 [`.github/workflows/skillspector.yml`](../../.github/workflows/skillspector.yml)
 runs it on every pull request and every push to `main`.
 
-**The pin.** Commit `b7241089d7ec15d8b30df980dacbb428214732b9`, which is
-`v2.11.0` in the `NVIDIA` repository. The owner is part of the pin, because a
-fork exists elsewhere. **Dependabot does not watch this pin**: it reads `uses:`
-lines, and the scanner is installed from a `run:` line. A bump is a reviewed
-pull request.
+**The pin.** Commit `69dcdfb74487d361ba4c811d088cfdea2ff3a9dc`, which is the
+`v2.11.2` tag in the `NVIDIA` repository: a final release, not a pre-release,
+with no published advisory on 2026-10-09, the day it was pinned. The owner is
+part of the pin, because a fork exists elsewhere. **Dependabot does not watch
+this pin**: it reads `uses:` lines, and the scanner is installed from a `run:`
+line. A bump is a reviewed pull request.
+
+**The pin covers SkillSpector's own code only.** Fifteen of its dependencies
+are version ranges, which resolve fresh on every run. That was as true of
+2.11.0, and the [threat model](threat-model.md) carries it as residual risk.
 
 **Static analysis only.** The workflow runs `--no-llm`: patterns, AST and YARA,
 with no model call, no API key and no secret. The semantic pass, which compares
@@ -86,11 +91,77 @@ file read partly or not at all, an exception while reading, an execution the
 scanner does not call successful, or a status of `failed`. It prints each
 exception's `reason_code` and `message`, so a red run says why.
 
-It judges completeness from those counts, not from the report's `is_complete`
-flag. The scanner marks a run `partial` whenever it meets a relative link it
-did not follow, and this repository's Markdown is full of them. Gating on the
-flag would fail every run for a reason that is not "the scanner missed
-something". A `partial` run with clean counts passes, with its status printed.
+The gate judges completeness from those counts, not from the report's
+`is_complete` flag. The scanner marks a run `partial` whenever it meets a
+relative link it did not follow, and this repository's Markdown is full of
+them. Gating on the flag would fail every run for a reason that is not "the
+scanner missed something". A `partial` run with clean counts passes, with its
+status printed.
+
+**Except a partial read someone has accepted.** Two reason codes can be
+accepted, file by file, in
+[`.skillspector-allowances.json`](../../.skillspector-allowances.json), and no
+others:
+
+- **`static_parse_limit`:** the shell-aware destructive-command parser
+  (`static_patterns_tool_misuse`) followed a command past its fixed span and
+  stopped. Only that one check stops; every other check reads the file in full.
+- **`obfuscated_instruction_text`:** the declared-marker pass, which undoes
+  "remove the marker from this text" tricks, could not settle a directive. It
+  runs on top of the plain scan, so every check still reads the plain text in
+  full. It does not undo a marker trick where it gave up.
+
+Both name a deeper pass that gave up while the plain scan read everything. A
+deadline overrun, a missing reference, a file not read at all, or any other
+code stays red, so the allowance cannot drift into "accept any partial read".
+
+Each entry is keyed by skill, file, reason code and the exact list of checks,
+and carries a reason. The rules that hold it:
+
+- **The counts must match.** The short component count and the partial-file
+  count must each equal the number of accepted files.
+- **An AE1 finding is accepted only on an accepted file.** AE1 says a file
+  refers to one the scanner read in part. It passes only when its target is an
+  accepted file, and the number of findings from that file to that target
+  equals the entry's `count`. A change in the number of references from one
+  file to an accepted file therefore goes red. One reference swapped for
+  another keeps the count and passes; the new text is still read in full by
+  every plain check, and review is the guard.
+- **An unused entry fails.** An entry the scan did not need turns the gate red
+  until it is removed.
+- **A count that disagrees fails.** It stays red until the entry's `count`, or
+  the reference that changed it, is fixed.
+- **The counts are matched, not the file names.** The report counts partly read
+  files but names them only through its exceptions, so the gate checks that the
+  number of partly read files equals the number of accepted ones. A file the
+  scanner counted as partial with no exception recorded would be matched by
+  count alone. No such report has been seen.
+- **Every entry pins its file's content.** The scanner records a give-up once
+  per file, reason and check, with no count and no place, so a second give-up
+  inside an accepted file is invisible to the gate. Each entry carries the
+  file's SHA-256 (line endings normalised to LF), and `node scripts/check.mjs`
+  fails when it no longer matches. Any edit to an accepted file therefore puts
+  the allowance in the same diff, where review sees it. The failure says what
+  to review by hand, and never prints a new hash to paste. To compute the new
+  value after that review, run
+  `node --input-type=module -e "import {contentHash} from './scripts/lib/skillspector-allowances.mjs'; import {readFileSync} from 'node:fs'; console.log(contentHash(readFileSync(process.argv[1])))" skills/<skill>/<file>`
+  from the repository root. A plain `sha256sum` on a Windows checkout with CRLF
+  line endings gives a different value.
+- **Every entry added, removed or re-hashed is named.** `node scripts/check.mjs`
+  lists each one against `main`, in its log and, in CI, on the run's summary
+  page and as a warning on the pull request, so a re-hash is hard to miss.
+- **A `static_parse_limit` entry also hides a marker-pass give-up inside
+  `static_patterns_tool_misuse`.** When both passes give up inside that one
+  check, the scanner reports only the parse code. The other twelve checks
+  report their own marker give-ups, which need their own entry. The content
+  pin is the guard.
+
+The allowance lives at the repository root, not in each skill. The gate reads
+it, not SkillSpector, so a copy inside an installed skill would do nothing for
+someone scanning it, and an entry change would reseal the skill. The cost is
+that a reader who scans an installed skill with 2.11.2 sees the partial reads
+with no shipped explanation. This page is that explanation.
+
 
 ### One scan per skill
 
@@ -101,12 +172,34 @@ from the tree on every run, so a new skill cannot go unscanned. One job named
 `scan` passes only when every skill did. Each skill's result goes into the run
 summary as a table.
 
-The root scan was dropped because it stopped fitting inside the scanner.
-SkillSpector caps a whole scan at sixty seconds and one internal step at five,
-and neither can be changed from outside. The root scan took about sixty seconds
-on a runner, and under load the five-second step overran every time. Either
-overrun marks a clean tree as partly read, and `main` went red on it three times
-in a day. One skill scans in five to eight seconds.
+The root scan was dropped under 2.11.0, because it stopped fitting inside the
+scanner. 2.11.0 capped a whole scan at sixty seconds and one internal step at
+five, and neither could be changed from outside. The root scan took about sixty
+seconds on a runner, and under load the five-second step overran every time.
+Either overrun marked a clean tree as partly read, and `main` went red on it
+three times in a day. One skill scans in five to eight seconds.
+
+2.11.1 raised the whole-scan deadline to 600 seconds and made it configurable
+through `SKILLSPECTOR_MAX_WORKFLOW_SECONDS`. The root scan stays dropped for the
+first reason above: a skill directory is what installs.
+
+### Partial reads
+
+Under 2.11.2 the scanner reads some files in `contract`, `eagle-eye`,
+`groundtrack` and `head-chef` only in part, and the gate accepts each one by
+name. In plain words, the two reasons are:
+
+- **The command parser gave up** (`static_parse_limit`). A long expression ran
+  past the span the destructive-command check follows. Every other check read
+  the file.
+- **The marker pass gave up** (`obfuscated_instruction_text`). A removal verb
+  followed by a quote, such as the git command `worktree remove` in a code span,
+  read as the start of a "remove the marker"
+  directive the pass could not settle. The plain scan read the file.
+
+[`.skillspector-allowances.json`](../../.skillspector-allowances.json) lists
+each accepted file with its reason. The reasons live there and nowhere else, so
+nothing here drifts from them.
 
 ### The baseline
 
@@ -188,6 +281,11 @@ drops suppressed results before upload, tested by
 - A report it cannot parse fails the step.
 - It uploads even when nothing is left, because an empty upload is what marks
   the last upload's alerts fixed.
+- It also drops the AE1 results the allowance accepts, by the gate's own rules
+  and from the SARIF alone. The workflow scans twice, once per format, and each
+  scan draws fresh finding ids, so the step never joins the two reports. A
+  result it cannot read, and every result of a pair the gate would refuse, is
+  kept.
 
 Each skill uploads under its own category, `skillspector/<skill>`, with the
 skill's directory put back on each path. Renaming or removing a skill orphans
