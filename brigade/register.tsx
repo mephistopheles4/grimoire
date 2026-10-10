@@ -12,6 +12,7 @@ import {
   OPEN_WAIT_MS,
   SESSION_ID,
   STATUSES,
+  XDG_OPEN,
   appLink,
   checkRoster,
   configFromRoot,
@@ -22,6 +23,7 @@ import {
   lookup,
   marketplaceFromRoot,
   oneLine,
+  openerArgv,
   parseAgents,
   placeRoster,
   readOpenAnswer,
@@ -33,8 +35,9 @@ import {
   statRejection,
   toolSession,
   transcriptFile,
+  unixRealPath,
 } from './roster.ts'
-import type { StatAnswer } from './roster.ts'
+import type { HostOs, StatAnswer } from './roster.ts'
 import {
   EMPTY_USAGE,
   idsFrom,
@@ -422,13 +425,55 @@ async function askTool($: EngineInterface, session: string, over: () => boolean)
   return false
 }
 
-// The pane's Link takes https only, so the app link goes to Windows' own
-// handler for claude://. Only a link of the two known shapes goes, built
-// from a checked id, as one argument with no shell. A card with a Desktop id
-// tries the app's own tool first, one press at a time.
+// The links with a link-route press in progress, from host detection through
+// the opener's run. Any press on one of them, a Desktop card's included, does
+// nothing until that press ends, whether its run succeeds or fails, as
+// `opening` does for the tool route.
+const linking = new Set<string>()
+
+// The files that prove a Unix host, in order: macOS' own version file, which
+// System Integrity Protection guards, then Linux's opener itself.
+const PROBES = [
+  ['macos', '/System/Library/CoreServices/SystemVersion.plist'],
+  ['linux', XDG_OPEN],
+] as const
+
+// The host the link route opens on, worked out on each press, or undefined.
+// The engine gives a mod no platform field. Windows is known first, by its
+// environment, never by a file: on Windows an absolute Unix path resolves
+// under the drive's root, where any local user can plant it. A read that
+// fails means no host, never unset. A Unix answer needs its probe to answer a
+// file whose raw real path is a Unix one; a missing probe file moves on to the
+// next probe, and any other answer means no host. Each name is spelled at its
+// call, so `claude plugin validate` lists what the pane reads.
+async function hostOs($: EngineInterface): Promise<HostOs | undefined> {
+  try {
+    if ((await $.env.get('OS')) === 'Windows_NT') return 'windows'
+    if ((await $.env.get('SystemRoot')) !== undefined) return 'windows'
+    if ((await $.env.get('windir')) !== undefined) return 'windows'
+    const stat = statOf($)
+    for (const [os, path] of PROBES) {
+      const s = await stat(path)
+      if ('missing' in s) continue
+      if ('failed' in s || s.found.kind !== 'file' || s.found.realPath === undefined) return undefined
+      return unixRealPath(s.found.realPath) ? os : undefined
+    }
+    return undefined
+  } catch {
+    return undefined
+  }
+}
+
+// The pane's Link takes https only, so the app link goes to the host's own
+// handler for claude://, through the host's opener: explorer.exe on Windows,
+// /usr/bin/open on macOS, /usr/bin/xdg-open on Linux, and none on a host the
+// pane cannot prove. Only a link of the two known shapes goes, built from a
+// checked id, as one argument with no shell, one press per link at a time,
+// for at most 15 s. A card with a Desktop id tries the app's own tool first,
+// one press at a time.
 async function openInApp($: EngineInterface, c: Card) {
   const app = appLink(c, lookup(await read($, links)).get(c.title))
-  if (app === undefined) return
+  if (app === undefined || linking.has(app)) return
   const session = toolSession(c)
   if (session !== undefined) {
     if (opening.has(session)) return
@@ -439,9 +484,27 @@ async function openInApp($: EngineInterface, c: Card) {
       opening.delete(session)
     }
   }
-  const { exitCode } = await $.process.run(['explorer.exe', app])
-  // explorer.exe exits 1 even when it hands the link on, so say what was sent.
-  $.ui.toast(`Opening ${oneLine(c.title, 40)} in the app (${exitCode})`)
+  if (linking.has(app)) return
+  linking.add(app)
+  try {
+    const os = await hostOs($)
+    if (os === undefined) {
+      $.ui.toast('Open in app has no opener on this system.')
+      return
+    }
+    const argv = openerArgv(os, app)
+    const ran = await $.process.run(argv, { timeoutMs: 15000 }).catch(() => undefined)
+    // The rejection's own text is never shown: name the program instead.
+    if (ran === undefined) {
+      $.ui.toast(`Could not open ${oneLine(c.title, 40)} with ${argv[0]}.`)
+      return
+    }
+    // explorer.exe exits 1 even when it hands the link on, so on every host the
+    // toast reports the exit code rather than judging it.
+    $.ui.toast(`Opening ${oneLine(c.title, 40)} in the app (${ran.exitCode})`)
+  } finally {
+    linking.delete(app)
+  }
 }
 
 // --- set_roster ---------------------------------------------------------------

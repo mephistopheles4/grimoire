@@ -15,7 +15,8 @@
 // after the call, and the text the call returns.
 //
 // The last section presses the pane's Open in app buttons, with the engine's
-// tool list, verdict, Desktop tool and processes answered by the hooks below.
+// tool list, verdict, Desktop tool, processes, environment and host probes
+// answered by the hooks below.
 
 import { expect, mock, test } from 'claude-code/testing'
 import type { On } from 'claude-code'
@@ -124,6 +125,22 @@ function makeFs() {
 
 const ENOENT = RECORDED.rejections.missing.replace(/^.*\) /, '')
 
+// --- the host -----------------------------------------------------------------
+//
+// Spec v4 on #220, decision 1. The pane works out the host from three
+// environment variables and two probe files. A world is Windows unless a test
+// says otherwise, so every test above the host tests keeps its meaning.
+
+const WINDOWS = { OS: 'Windows_NT', SystemRoot: 'C:\\Windows', windir: 'C:\\Windows' }
+const MAC_PROBE = '/System/Library/CoreServices/SystemVersion.plist'
+const LINUX_PROBE = '/usr/bin/xdg-open'
+const PROBES = [MAC_PROBE, LINUX_PROBE]
+const asProbe = (path: string) => PROBES.find(p => p === path.replace(/^[A-Za-z]:/, '').replace(/\\/g, '/'))
+const OPENERS = ['explorer.exe', '/usr/bin/open', '/usr/bin/xdg-open']
+// A probe's answer: a stat as the engine gives it, or a rejection's message.
+type Probe = { kind: 'file' | 'dir' | 'other'; size: number; mtimeMs: number; isLink: boolean; realPath?: string } | { reject: string }
+const fileAt = (realPath?: string): Probe => ({ kind: 'file', size: 1, mtimeMs: 0, isLink: false, ...(realPath === undefined ? {} : { realPath }) })
+
 type World = ReturnType<typeof makeFs> & {
   open: boolean
   verdict: { decision: 'allow' | 'ask' | 'deny'; reason?: string; rule?: string }
@@ -150,6 +167,15 @@ type World = ReturnType<typeof makeFs> & {
   mcpCalls: { server: string; tool: string; args: Record<string, unknown> }[]
   procs: string[][]
   agents: string
+  env: Record<string, string>
+  failEnv: boolean
+  probes: Record<string, Probe>
+  probed: string[]
+  inits: unknown[]
+  failRun: boolean
+  holdRun: boolean
+  releaseRun: () => void
+  order: string[]
 }
 
 // The engine beneath the plugin: the file system, the pane record, the
@@ -182,11 +208,34 @@ function world(on: On, setup: (w: World) => void = w => w.dirs(`${CONFIG}\\plugi
     mcpCalls: [] as World['mcpCalls'],
     procs: [] as string[][],
     agents: '[]',
+    env: { ...WINDOWS } as Record<string, string>,
+    failEnv: false,
+    probes: {} as Record<string, Probe>,
+    probed: [] as string[],
+    inits: [] as unknown[],
+    failRun: false,
+    holdRun: false,
+    releaseRun: () => {},
+    order: [] as string[],
   })
   w.dirs(CONFIG)
   setup(w)
   w.clock = mock.clock(on)
   on('fs.stat', ($, e: any) => {
+    // The host probes are answered from `w.probes`, with the real path exactly
+    // as written, before the Windows-shaped file system. On Windows the engine
+    // hands the hook an absolute Unix path resolved under the current drive's
+    // root (`C:\System\…`), so a probe is known by its path with the drive
+    // letter dropped and its separators made `/`.
+    const probe = asProbe(e.path)
+    if (probe !== undefined) {
+      w.probed.push(probe)
+      const p = w.probes[probe]
+      if (p === undefined) return { deny: ENOENT }
+      if ('reject' in p) return { deny: p.reject }
+      // As the engine: a real path only when the caller asked to resolve.
+      return { value: e.resolve ? p : { ...p, realPath: undefined } }
+    }
     w.log.push(`stat ${e.path}`)
     const s = w.stat(e.path)
     return s === undefined ? { deny: ENOENT } : { value: e.resolve ? s : { ...s, realPath: undefined } }
@@ -251,15 +300,28 @@ function world(on: On, setup: (w: World) => void = w => w.dirs(`${CONFIG}\\plugi
     if (w.stall === 'tool list') return new Promise<never>(() => {})
     return w.failList ? { deny: 'forced list failure' } : { value: w.tools }
   })
+  on('env.get', ($, e: any) => {
+    if (w.failEnv) return { deny: 'forced env failure' }
+    return { value: Object.hasOwn(w.env, e.name) ? w.env[e.name] : undefined }
+  })
   on('mcp.call', ($, e: any) => {
+    w.order.push('mcp')
     w.mcpCalls.push({ server: e.server, tool: e.tool, args: e.args })
     return w.mcp(e.args) as any
   })
   // The pane's own poll runs `claude agents --json` on its timer; it lists
-  // `w.agents`, no session by default. Every process, explorer.exe among them,
-  // is recorded.
-  on('process.run', ($, e: any) => {
+  // `w.agents`, no session by default. Every process, an opener among them,
+  // is recorded, with what it was started with. An opener can be made to fail
+  // to start, or to run until released.
+  on('process.run', async ($, e: any) => {
     w.procs.push([...e.argv])
+    w.inits.push(e.init)
+    if (OPENERS.includes(e.argv[0])) {
+      w.order.push(`run ${e.argv[0]}`)
+      if (w.failRun) return { deny: 'spawn failed: SECRET_TOKEN=abc123' }
+      // One release lets every held opener go.
+      if (w.holdRun) await new Promise<void>(res => { const before = w.releaseRun; w.releaseRun = () => { before(); res() } })
+    }
     const stdout = e.argv[0] === 'claude' ? w.agents : ''
     return { value: { exitCode: e.argv[0] === 'explorer.exe' ? 1 : 0, stdout, stderr: '', isStdoutTruncated: false, isStderrTruncated: false } }
   })
@@ -691,7 +753,8 @@ test('with plugins absent the call is refused', async ($, on) => {
 // the pane's button key: `open-<index>-<slug>` for a card, `go-<index>-<slug>`
 // for a to-do's Open. The pane loads the seeded roster on /brigade. The
 // pane's own `claude agents --json` poll runs on its timer, so these tests
-// look for explorer.exe only.
+// look for the opener only. The world is Windows, so the opener is
+// explorer.exe; the host tests at the end change the host.
 
 const DESKTOP = 'local_0123abcd-4567-89ab-cdef-0123456789ab'
 const SEEDED = {
@@ -953,3 +1016,248 @@ for (const surfaces of [['terminal'], ['terminal', 'mobile'], []]) {
     expect(explorer(w)).toEqual([['explorer.exe', LINK]])
   })
 }
+// --- Open in app by host ------------------------------------------------------
+//
+// Spec v4 on #220, decisions 1, 6 and 9. The link route's program follows the
+// host the pane works out on each press; a host it cannot prove runs nothing.
+
+const BG_ID = '99999999-8888-7777-6666-555555555555'
+const BG_LINK = 'claude://claude.ai/code/session_BG1'
+const NO_OPENER = 'Open in app has no opener on this system.'
+const openers = (w: World) => w.procs.filter(p => OPENERS.includes(p[0]))
+
+// The pane, with a background card whose Remote Control link the pane's poll
+// finds in its transcript, as a head chef's `claude --bg` session has.
+async function background(on: On, $: any) {
+  const w = await pane(on, $)
+  w.agents = JSON.stringify([{ name: 'gamma', status: 'idle', sessionId: BG_ID, cwd: 'C:\\work' }])
+  w.put(`${CONFIG}\\projects\\C--work\\${BG_ID}.jsonl`, {
+    type: 'file',
+    data: { text: JSON.stringify({ type: 'system', subtype: 'bridge_status', url: 'https://claude.ai/code/session_BG1' }) },
+  })
+  w.dirs(`${CONFIG}\\projects\\C--work`)
+  await w.clock.advance(10000)
+  return w
+}
+const macos = (w: World) => {
+  w.env = {}
+  w.probes = { [MAC_PROBE]: fileAt(MAC_PROBE) }
+}
+// The macOS probe file is missing, so it rejects with ENOENT.
+const linux = (w: World) => {
+  w.env = {}
+  w.probes = { [LINUX_PROBE]: fileAt(LINUX_PROBE) }
+}
+
+test('on macOS, a press on a background card with a Remote Control link runs /usr/bin/open with that link and nothing else', async ($, on) => {
+  const w = await background(on, $)
+  macos(w)
+  await press($, 'open-2-gamma')
+  expect(openers(w)).toEqual([['/usr/bin/open', BG_LINK]])
+  // Nothing else: every process but the pane's own claude agents poll.
+  expect(w.procs.filter(p => p[0] !== 'claude')).toEqual([['/usr/bin/open', BG_LINK]])
+  expect(w.probed).toEqual([MAC_PROBE])
+  expect(w.toasts.at(-1)).toBe('Opening gamma in the app (0)')
+})
+
+test('on Linux, the macOS probe is missing (ENOENT), the Linux probe runs, and the press runs /usr/bin/xdg-open', async ($, on) => {
+  const w = await background(on, $)
+  linux(w)
+  await press($, 'open-2-gamma')
+  expect(w.probed).toEqual([MAC_PROBE, LINUX_PROBE])
+  expect(openers(w)).toEqual([['/usr/bin/xdg-open', BG_LINK]])
+  expect(w.toasts.at(-1)).toBe('Opening gamma in the app (0)')
+})
+
+test('on a system the pane cannot identify, a press runs nothing and says there is no opener', async ($, on) => {
+  const w = await background(on, $)
+  w.env = {}
+  await press($, 'open-2-gamma')
+  expect(w.probed).toEqual([MAC_PROBE, LINUX_PROBE])
+  expect(openers(w)).toEqual([])
+  expect(w.toasts.at(-1)).toBe(NO_OPENER)
+})
+
+test('on Windows, planted probe files are never looked at, and the press runs explorer.exe', async ($, on) => {
+  const w = await background(on, $)
+  w.probes = { [MAC_PROBE]: fileAt(MAC_PROBE), [LINUX_PROBE]: fileAt(LINUX_PROBE) }
+  await press($, 'open-2-gamma')
+  expect(w.probed).toEqual([])
+  expect(openers(w)).toEqual([['explorer.exe', BG_LINK]])
+})
+
+for (const env of [{ SystemRoot: 'C:\\Windows' }, { windir: 'C:\\Windows' }, { OS: 'Windows_NT' }]) {
+  test(`Windows is known from ${Object.keys(env)[0]} alone, before any probe`, async ($, on) => {
+    const w = await background(on, $)
+    w.env = env
+    w.probes = { [MAC_PROBE]: fileAt(MAC_PROBE) }
+    await press($, 'open-2-gamma')
+    expect(w.probed).toEqual([])
+    expect(openers(w)).toEqual([['explorer.exe', BG_LINK]])
+  })
+}
+
+// All three variables unset on Windows: the probes resolve under the drive's
+// root, where anyone can plant them, so their real paths are not Unix ones.
+for (const [name, mac, lin] of [
+  ['drive-letter', 'C:\\System\\Library\\CoreServices\\SystemVersion.plist', 'C:\\usr\\bin\\xdg-open'],
+  ['drive-letter with forward slashes', 'C:/System/Library/CoreServices/SystemVersion.plist', 'C:/usr/bin/xdg-open'],
+  ['backslash share-rooted', '\\\\server\\share\\System\\Library\\CoreServices\\SystemVersion.plist', '\\\\server\\share\\usr\\bin\\xdg-open'],
+  ['forward-slash share-rooted', '//server/share/System/Library/CoreServices/SystemVersion.plist', '//server/share/usr/bin/xdg-open'],
+] as const) {
+  test(`probe files with ${name} real paths and no Windows variable run nothing and say there is no opener`, async ($, on) => {
+    const w = await background(on, $)
+    w.env = {}
+    w.probes = { [MAC_PROBE]: fileAt(mac), [LINUX_PROBE]: fileAt(lin) }
+    await press($, 'open-2-gamma')
+    expect(openers(w)).toEqual([])
+    expect(w.toasts.at(-1)).toBe(NO_OPENER)
+  })
+}
+
+test('a planted macOS probe with a bad real path stops there: the Linux probe is not asked', async ($, on) => {
+  const w = await background(on, $)
+  w.env = {}
+  w.probes = { [MAC_PROBE]: fileAt('C:\\System\\Library\\CoreServices\\SystemVersion.plist'), [LINUX_PROBE]: fileAt(LINUX_PROBE) }
+  await press($, 'open-2-gamma')
+  expect(w.probed).toEqual([MAC_PROBE])
+  expect(openers(w)).toEqual([])
+})
+
+test('an environment read that rejects means no host: no probe, no process, and the no-opener toast', async ($, on) => {
+  const w = await background(on, $)
+  w.failEnv = true
+  w.probes = { [MAC_PROBE]: fileAt(MAC_PROBE) }
+  await press($, 'open-2-gamma')
+  expect(w.probed).toEqual([])
+  expect(openers(w)).toEqual([])
+  expect(w.toasts.at(-1)).toBe(NO_OPENER)
+})
+
+test('a probe that rejects other than as missing means no host, and the next probe is not asked', async ($, on) => {
+  const w = await background(on, $)
+  w.env = {}
+  w.probes = { [MAC_PROBE]: { reject: 'EACCES: permission denied' }, [LINUX_PROBE]: fileAt(LINUX_PROBE) }
+  await press($, 'open-2-gamma')
+  expect(w.probed).toEqual([MAC_PROBE])
+  expect(openers(w)).toEqual([])
+  expect(w.toasts.at(-1)).toBe(NO_OPENER)
+})
+
+for (const [name, probe] of [
+  ['no real path', fileAt()],
+  ['a folder', { kind: 'dir', size: 0, mtimeMs: 0, isLink: false, realPath: MAC_PROBE }],
+  ['something other than a file', { kind: 'other', size: 0, mtimeMs: 0, isLink: false, realPath: MAC_PROBE }],
+] as const) {
+  test(`a probe that answers with ${name} means no host`, async ($, on) => {
+    const w = await background(on, $)
+    w.env = {}
+    w.probes = { [MAC_PROBE]: probe, [LINUX_PROBE]: fileAt(LINUX_PROBE) }
+    await press($, 'open-2-gamma')
+    expect(w.probed).toEqual([MAC_PROBE])
+    expect(openers(w)).toEqual([])
+    expect(w.toasts.at(-1)).toBe(NO_OPENER)
+  })
+}
+
+test('on macOS, a Desktop card tries the tool route first, and runs /usr/bin/open only after it ends', async ($, on) => {
+  const w = await pane(on, $)
+  macos(w)
+  w.mcp = () => answer('was not started from this session', true)
+  await press($, 'open-0-alpha')
+  expect(w.order).toEqual(['mcp', 'run /usr/bin/open'])
+  expect(openers(w)).toEqual([['/usr/bin/open', LINK]])
+})
+
+test('on macOS, a Desktop card the app opens runs no opener and reads no host', async ($, on) => {
+  const w = await pane(on, $)
+  macos(w)
+  await press($, 'open-0-alpha')
+  expect(w.order).toEqual(['mcp'])
+  expect(w.probed).toEqual([])
+})
+
+test('an opener that cannot start shows the could-not-open toast naming the program, never the rejection, and the press does not throw', async ($, on) => {
+  const w = await background(on, $)
+  macos(w)
+  w.failRun = true
+  await press($, 'open-2-gamma')
+  expect(openers(w)).toEqual([['/usr/bin/open', BG_LINK]])
+  expect(w.toasts.at(-1)).toBe('Could not open gamma with /usr/bin/open.')
+  expect(w.toasts.some(t => t.includes('SECRET_TOKEN') || t.includes('spawn failed'))).toBe(false)
+})
+
+test('the opener runs with a 15-second limit, and a second press on a link in flight starts nothing until it settles', async ($, on) => {
+  const w = await background(on, $)
+  linux(w)
+  w.holdRun = true
+  const first = press($, 'open-2-gamma')
+  await w.clock.settle()
+  expect(openers(w)).toEqual([['/usr/bin/xdg-open', BG_LINK]])
+  expect(w.inits[w.procs.findIndex(p => p[0] === '/usr/bin/xdg-open')]).toEqual({ timeoutMs: 15000 })
+  await press($, 'open-2-gamma')
+  expect(openers(w).length).toBe(1)
+  w.releaseRun()
+  await first
+  w.holdRun = false
+  await press($, 'open-2-gamma')
+  expect(openers(w).length).toBe(2)
+})
+
+test('a press on another link runs while one link is in flight', async ($, on) => {
+  const w = await background(on, $)
+  macos(w)
+  w.holdRun = true
+  const first = press($, 'open-2-gamma')
+  await w.clock.settle()
+  const second = press($, 'open-1-beta')
+  await w.clock.settle()
+  expect(openers(w)).toEqual([['/usr/bin/open', BG_LINK], ['/usr/bin/open', 'claude://claude.ai/code/session_ABC123']])
+  w.releaseRun()
+  await Promise.all([first, second])
+})
+
+// Spec v4, decision 1: the Linux probe is held to the same checks as the
+// macOS one, reached when the macOS probe file is missing.
+for (const [name, probe] of [
+  ['a drive-letter real path', fileAt('C:\\usr\\bin\\xdg-open')],
+  ['a backslash share-rooted real path', fileAt('\\\\server\\share\\usr\\bin\\xdg-open')],
+  ['a forward-slash share-rooted real path', fileAt('//server/share/usr/bin/xdg-open')],
+  ['no real path', fileAt()],
+  ['a folder', { kind: 'dir', size: 0, mtimeMs: 0, isLink: false, realPath: LINUX_PROBE }],
+  ['a rejection other than missing', { reject: 'EACCES: permission denied' }],
+] as const) {
+  test(`with the macOS probe missing, a Linux probe that answers with ${name} means no host`, async ($, on) => {
+    const w = await background(on, $)
+    w.env = {}
+    w.probes = { [LINUX_PROBE]: probe }
+    await press($, 'open-2-gamma')
+    expect(w.probed).toEqual([MAC_PROBE, LINUX_PROBE])
+    expect(openers(w)).toEqual([])
+    expect(w.toasts.at(-1)).toBe(NO_OPENER)
+  })
+}
+
+test('an OS variable that is not Windows_NT is not Windows: the probes run', async ($, on) => {
+  const w = await background(on, $)
+  macos(w)
+  w.env = { OS: 'Darwin' }
+  await press($, 'open-2-gamma')
+  expect(w.probed).toEqual([MAC_PROBE])
+  expect(openers(w)).toEqual([['/usr/bin/open', BG_LINK]])
+})
+
+test('a Desktop card pressed again while its opener runs asks the app nothing and starts nothing', async ($, on) => {
+  const w = await pane(on, $)
+  macos(w)
+  w.mcp = () => answer('was not started from this session', true)
+  w.holdRun = true
+  const first = press($, 'open-0-alpha')
+  await w.clock.settle()
+  expect(w.mcpCalls.length).toBe(1)
+  await press($, 'open-0-alpha')
+  expect(w.mcpCalls.length).toBe(1)
+  expect(openers(w)).toEqual([['/usr/bin/open', LINK]])
+  w.releaseRun()
+  await first
+})
