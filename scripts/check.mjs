@@ -22,15 +22,18 @@
 //    relative import in it, lands inside the mod's folders.
 // 7. The SkillSpector baselines agree, so a rule reasoned away at the
 //    repository root is reasoned away the same way inside a skill.
+//    7b. The SkillSpector allowance is well formed, names files that exist,
+//    and pins each one by its current content.
 // 8. The test suite passes. `node --test` ships with Node, so the tests cost no
 //    dependency and this stays one command.
 
-import { existsSync, lstatSync, readdirSync, readFileSync, realpathSync, statSync } from 'node:fs';
+import { appendFileSync, existsSync, lstatSync, readdirSync, readFileSync, realpathSync, statSync } from 'node:fs';
 import { basename, join, posix, relative, resolve, sep } from 'node:path';
 import { execFileSync, spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { walk } from './lib/tree.mjs';
 import { ARTIFACTS, rowFor } from './lib/registry.mjs';
+import { ALLOWANCES, checkAgainstTree, diffAllowances, parseAllowances, readAllowances } from './lib/skillspector-allowances.mjs';
 import { caseTwin } from './lib/case.mjs';
 import { masked, printable, shown } from './lib/printable.mjs';
 
@@ -941,6 +944,75 @@ for (const path of skillBaselines) {
       fail(
         `${r.at}: ${r.rule_id} is narrowed to ${r.file ?? 'every file'} here and to ${mirror.file ?? 'every file'} in ${rel(rootBaseline)} — one rule, one scope`,
       );
+    }
+  }
+}
+
+// 7b. The SkillSpector allowance.
+//
+// .skillspector-allowances.json lists the partial reads this repository has
+// accepted, and the workflow's gate trusts it. The gate does not read the tree,
+// so this is where an entry is held to the files it names: the format, every
+// path, and the content hash. The hash is the point. The scanner records a
+// give-up once per file, reason and check, with no count and no place, so a
+// second give-up inside an accepted file is invisible to the gate. Pinning the
+// content makes every edit to an accepted file carry an allowance change in
+// the same diff, where review sees it. scripts/lib/skillspector-allowances.mjs
+// holds the reader; the gate and the strip step use the same one.
+//
+// A missing file fails rather than reading as empty. Empty lists are fine, so
+// the file can stay once every entry is gone.
+{
+  const at = join(root, ALLOWANCES);
+  const read = readAllowances(at);
+  for (const p of read.problems) fail(p);
+  if (read.value) {
+    const skillDir = s => join(root, 'skills', ...s.split('/'));
+    const problems = checkAgainstTree(read.value, {
+      isSkill: s => existsSync(join(skillDir(s), 'SKILL.md')),
+      readFile: (s, p) => {
+        try {
+          return readFileSync(join(skillDir(s), ...p.split('/')));
+        } catch (e) {
+          if (e.code === 'ENOENT' || e.code === 'EISDIR' || e.code === 'ENOTDIR') return null;
+          throw e;
+        }
+      },
+    });
+    for (const p of problems) fail(p);
+    // What changed against the base, by name. An allowance entry is the one
+    // place a partial read becomes acceptable, so every added, removed or
+    // re-hashed entry is printed for the reviewer, not left to the diff.
+    if (!mergeBase) {
+      console.log(`note: cannot resolve ${baseRef} — ${ALLOWANCES} change notice skipped`);
+    } else {
+      const before = git('show', `${baseRef}:${ALLOWANCES}`);
+      const parsedBefore = before === null ? null : parseAllowances(`${before}\n`, `${baseRef}:${ALLOWANCES}`).value;
+      if (before !== null && !parsedBefore) {
+        console.log(`note: ${ALLOWANCES} on ${baseRef} cannot be read — every entry here is listed as added`);
+      }
+      const changes = diffAllowances(parsedBefore, read.value);
+      if (changes.length) {
+        console.log(`note: ${ALLOWANCES} changed against ${baseRef}; review each by hand:`);
+        for (const c of changes) console.log(`note:   ${c}`);
+        // In CI, also where a reviewer already looks. A re-hash passes this
+        // check by design, so a line in a green job's log is a line nobody
+        // reads: each change is a warning on the pull request too, and a list
+        // on the run's summary page. Names only, never a hash.
+        if (process.env.GITHUB_ACTIONS === 'true') {
+          for (const c of changes) console.log(`::warning title=SkillSpector allowance changed::${c} — review the file by hand`);
+        }
+        if (process.env.GITHUB_STEP_SUMMARY) {
+          try {
+            appendFileSync(
+              process.env.GITHUB_STEP_SUMMARY,
+              `### ${ALLOWANCES} changed against ${baseRef}\n\nReview each by hand:\n\n${changes.map(c => `- ${c}`).join('\n')}\n\n`,
+            );
+          } catch (e) {
+            console.error(`note: could not write the run summary: ${e.code || e.message}`);
+          }
+        }
+      }
     }
   }
 }
