@@ -193,8 +193,8 @@ name. In plain words, the two reasons are:
   past the span the destructive-command check follows. Every other check read
   the file.
 - **The marker pass gave up** (`obfuscated_instruction_text`). A removal verb
-  followed by a quote, such as the git command `worktree remove` in a code span
-  or a quoted list of verbs in code, read as the start of a "remove the marker"
+  followed by a quote, such as the git command `worktree remove` in a code span,
+  read as the start of a "remove the marker"
   directive the pass could not settle. The plain scan read the file.
 
 [`.skillspector-allowances.json`](../../.skillspector-allowances.json) lists
