@@ -19,7 +19,22 @@ from all of them is a gap: stop and ask.
 
 ## Last checked (questions 4, 5)
 
-LOAD-TEST-RESULTS
+Claude Code 2.1.296, on the command line, headless, on Linux, on
+2026-10-10. Name this version in the unsettled list, and say that a newer
+Claude Code may load the file differently. Five load tests ran:
+
+1. A sealed agent with `tools: [Read, ToolSearch, mcp__<server>__*]` loaded
+   from a project's `.claude/agents/`, was listed, and called one of that
+   server's tools after loading it with `ToolSearch`. Its tool listing and a
+   tool search showed no other server's tools.
+2. A contract beside an agent in `.claude/agents/` was not listed as an
+   agent.
+3. In a sealed project `CLAUDE.md`, the body reached the model and the mark
+   did not. A canary line in `CLAUDE.contract.md` beside it did not reach
+   the model. The same held with CRLF line endings.
+4. A sealed `CLAUDE.md` in the person's own settings folder gave the same
+   result as test 3.
+5. An agent with `tools: []` had no tools.
 
 ## The file (questions 4, 5)
 
@@ -29,7 +44,8 @@ LOAD-TEST-RESULTS
 | Its contract | `familiars/<name>.contract.md` |
 | Where Claude Code loads it | `.claude/agents/` in a project, or the `agents` folder in the person's own Claude Code settings folder |
 
-LOAD-TEST-2-INSTALL
+A contract may sit beside its agent in `.claude/agents/`: it has no `name`
+frontmatter, so Claude Code does not load it as an agent.
 
 The file is YAML frontmatter, between two `---` lines, then the body: the
 agent's instructions. The frontmatter follows the rules in the skill's
@@ -41,7 +57,8 @@ Step 5. The seal writes the mark under `metadata:`.
   on.
 - **Always write `tools:`** in flow form, such as `tools: [Read, Glob, Grep]`,
   and list `tools` on `Extra keys`. Without it, or with an empty list, the
-  check warns `tools-missing`. LOAD-TEST-5-EMPTY
+  check warns `tools-missing`. With no `tools:` key, the agent gets every
+  tool the session has. With `tools: []`, it gets none.
 - **A whole connected server** is written `mcp__<server>__*`, and only so.
   The check fails a bare `*`, `mcp__*`, a partial such as `mcp__<server>__get_*`,
   and a bare `mcp__<server>`, which Claude Code also reads as the whole
@@ -69,8 +86,8 @@ picks it up by situation, and nothing sends it off.
   top. Before the seal it holds nothing this binding asks for: write none.
   The seal writes it, holding only `metadata:` with the three mark keys.
   Claude Code strips a frontmatter block at the very top of `CLAUDE.md`
-  before the model sees it. This is observed, not documented: the docs
-  describe the stripping only for `.claude/rules/`.
+  before the model sees it. This is observed in load tests 3 and 4, not
+  documented: the docs describe the stripping only for `.claude/rules/`.
 - **Keys.** `name`, `description` and `tools` fail. Claude Code finds a
   sub-agent by its `name`, not its file name, so with them a `CLAUDE.md`
   copied into an agents folder loads as a sub-agent. Any other key warns:
@@ -104,7 +121,7 @@ Promised:
 | Run commands | `Bash`, or `PowerShell` on Windows | Docs, read 2026-09-30 |
 | Fetch web pages | `WebFetch` | Docs, read 2026-09-30 |
 | Search the web | `WebSearch` | Docs, read 2026-09-30 |
-| Use a connected server's tools | `mcp__<server>__*` | LOAD-TEST-1-SOURCE |
+| Use a connected server's tools | `mcp__<server>__*` | Load test, 2026-10-10 |
 
 The main agent file names none of these: the session's tools come from the
 person's settings and connected servers. Its question 5 lists the
