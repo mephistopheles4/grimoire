@@ -751,6 +751,14 @@ function producibleTags(prog, raisedInWalks) {
   };
 }
 
+/* A stranger's string as one quoted token on one line. JSON escapes the
+ * controls below space; this escapes what it leaves raw and a terminal or a
+ * line-splitting tool can still act on: DEL and the C1 controls, the soft
+ * hyphen, the line and paragraph separators, the marks that reorder text,
+ * and the invisible joiners and spaces. */
+const UNSAFE = /[\u{7F}-\u{9F}\u{AD}\u{61C}\u{180E}\u{200B}-\u{200F}\u{2028}-\u{202E}\u{2060}-\u{2069}\u{FEFF}]/gu;
+const quoted = s => JSON.stringify(s).replace(UNSAFE, c => `\\u${c.codePointAt(0).toString(16).padStart(4, '0')}`);
+
 /* -- findings -------------------------------------------------------------
  *
  * A finding is not a refusal. Each one is computed from the file alone with no
@@ -849,7 +857,8 @@ export function findings(prog) {
    * once and its verdict kept, the skip included, so many calls into one
    * long list cost their sum and not their product. A Set, because a name
    * is a stranger's string and never an object key. Each name is printed
-   * quoted, so a line break in one cannot split the line. */
+   * quoted, so a line break in one cannot split the line, and with the
+   * characters JSON leaves raw escaped too (see `quoted`). */
   const accepts = new Map();
   const acceptsOf = id => {
     if (!accepts.has(id)) {
@@ -859,7 +868,10 @@ export function findings(prog) {
         const names = new Set();
         let rest = false;
         for (const p of ps) {
-          const name = p.split('=')[0].trim();
+          /* Cut at the first `=` rather than split at every one: a param
+           * of a million `=` would otherwise build a list a million long. */
+          const eq = p.indexOf('=');
+          const name = (eq < 0 ? p : p.slice(0, eq)).trim();
           if (name.startsWith('...')) rest = true;
           else names.add(name);
         }
@@ -875,7 +887,7 @@ export function findings(prog) {
       const callee = acceptsOf(s.target);
       if (!callee || callee.rest) return;
       const unnamed = Object.keys(s.args).filter(a => !callee.names.has(a));
-      if (unnamed.length) out.push(`${id}[${at}] calls ${s.target} with args its params do not name: ${unnamed.map(a => JSON.stringify(a)).join(', ')}`);
+      if (unnamed.length) out.push(`${id}[${at}] calls ${s.target} with args its params do not name: ${unnamed.map(quoted).join(', ')}`);
     });
   }
 

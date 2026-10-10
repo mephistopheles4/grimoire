@@ -114,15 +114,18 @@ test('every shipped worked example validates', () => {
   }
 });
 
-test('the two structural checks change the verdict on no shipped example', () => {
-  // The pair earns its place by costing nothing elsewhere. This is the half
-  // worth pinning: the check that refuses a green-and-wrong file must not
-  // start refusing files that were green and right.
+test('the structural checks change the verdict on no shipped example', () => {
+  // These checks earn their place by costing nothing elsewhere. This is the
+  // half worth pinning: a check that refuses a green-and-wrong file must not
+  // start refusing files that were green and right. The args finding is
+  // held to the same bar: every shipped example names its args as its
+  // callees do.
   for (const f of readdirSync(examples).filter(x => x.endsWith('.flightpath.json'))) {
     const r = check(join(examples, f));
     assert.doesNotMatch(r.stderr, /is uncaught, but/);
     assert.doesNotMatch(r.stderr, /emptied the frame stack/);
     assert.doesNotMatch(r.stderr, /whose success channel is void/);
+    assert.doesNotMatch(r.stdout, / with args its params do not name: /, f);
   }
 });
 
@@ -974,7 +977,7 @@ test('a param written with a default matches the arg of its name', () => {
 });
 
 test('a rest param accepts any arg name', () => {
-  for (const params of [['...rest'], ['first', '...others'], ['...opts = {}']]) {
+  for (const params of [['...rest'], ['first', '...others'], ['...opts = {}'], ['  ...rest']]) {
     const r = check(
       derive(prog => {
         prog.nodes.lookupName.params = params;
@@ -992,9 +995,20 @@ test('a callee that takes nothing and is passed args is a finding', () => {
   assert.deepEqual(argLines(r.stdout), ['greet[1] calls lookupName with args its params do not name: "id"']);
 });
 
-test('a call whose args are a string is not compared', () => {
-  // The string form is legal and names no parameter.
-  const r = check(derive(greetArgs('userId, via the cache')));
+test('a call whose args are a string, a list or null is not compared', () => {
+  // The string form is legal and names no parameter. A list's positions and
+  // a null are not names either, and nothing upstream refuses them.
+  for (const args of ['userId, via the cache', ['userId', 'the cache'], null]) {
+    const r = check(derive(greetArgs(args)));
+    assert.equal(r.code, 0, `${JSON.stringify(args)}:\n${r.stderr}`);
+    assert.doesNotMatch(r.stderr, /TypeError|at Object|at file:/);
+    assert.deepEqual(argLines(r.stdout), [], JSON.stringify(args));
+  }
+});
+
+test('a param holding a long run of = signs reads as the name before the first one', () => {
+  // Read by cutting at the first `=`, never by splitting at every one.
+  const r = check(derive(prog => { prog.nodes.lookupName.params = [`id ${'='.repeat(2000000)}`]; }));
   assert.equal(r.code, 0, r.stderr);
   assert.deepEqual(argLines(r.stdout), []);
 });
@@ -1067,6 +1081,24 @@ test('an arg name holding a line break prints as one quoted finding line', () =>
   assert.equal(printed.length, Number(/(\d+) finding\(s\)/.exec(r.stderr)[1]));
 });
 
+test('an arg name holding a character JSON leaves raw prints it escaped', () => {
+  // JSON escapes only the controls below space. These pass it raw, and a
+  // terminal or a tool that splits on Unicode line breaks can act on them:
+  // DEL, a C1 control, the soft hyphen, the line and paragraph separators,
+  // a direction override and isolate, a zero-width space and a byte order mark.
+  const points = [0x7f, 0x85, 0x9b, 0xad, 0x2028, 0x2029, 0x202e, 0x2066, 0x200b, 0xfeff];
+  const name = `via${points.map(p => String.fromCodePoint(p)).join('')}end`;
+  const r = check(derive(greetArgs({ id: 'userId', [name]: 'x' })));
+  assert.equal(r.code, 0, r.stderr);
+  const lines = argLines(r.stdout);
+  assert.equal(lines.length, 1, r.stdout);
+  for (const p of points) {
+    assert.ok(!r.stdout.includes(String.fromCodePoint(p)), `U+${p.toString(16)} printed raw`);
+    assert.ok(lines[0].includes(`\\u${p.toString(16).padStart(4, '0')}`), `U+${p.toString(16)} not escaped:\n${lines[0]}`);
+  }
+  assert.equal(r.stdout.split(/\r\n|[\n\r\u{85}\u{2028}\u{2029}]/u).filter(Boolean).length, Number(/(\d+) finding\(s\)/.exec(r.stderr)[1]));
+});
+
 test('pr-382 still validates, and its call sites are compared with their callees', () => {
   // The largest real sheet sits outside the skill's examples folder, so the
   // shipped-examples test does not read it. It keeps its findings unanswered:
@@ -1074,8 +1106,12 @@ test('pr-382 still validates, and its call sites are compared with their callees
   const r = check(pr382);
   assert.equal(r.code, 0, r.stderr);
   assert.doesNotMatch(r.stderr, /whose success channel is void/);
+  // 20 call sites naming 38 args when this check landed: the probe that sized
+  // it counted 43 before defaults were stripped. A change to the sheet or to
+  // the rule that moves either number should say why.
   const lines = argLines(r.stdout);
-  assert.ok(lines.length > 0, 'pr-382 has call sites whose args its callees do not name');
+  assert.equal(lines.length, 20, lines.join('\n'));
+  assert.equal(lines.reduce((sum, l) => sum + l.split(': ')[1].split(', ').length, 0), 38, lines.join('\n'));
   assert.equal(r.stdout.split('\n').filter(Boolean).length, Number(/(\d+) finding\(s\)/.exec(r.stderr)[1]));
   // A word naming a route, and an options object's fields: the two kinds the
   // finding is expected to report on a real file.
@@ -1091,10 +1127,15 @@ test('pr-382 still validates, and its call sites are compared with their callees
 
 test('comparing args with params costs their sum, not their product', () => {
   // 20,000 call steps into a callee with 20,000 params, and as many into one
-  // whose params end in a number and so are skipped. Working a callee's names
-  // out again at every call costs 800,000,000 names; once per callee costs
-  // 40,000. The calls sit on a node no entry reaches, so the tree view does
-  // not draw them.
+  // whose params list ends with the number 0, which the check skips. Working
+  // a callee's names out again at every call costs 800,000,000 names; once
+  // per callee costs 40,000. The calls sit on a node no entry reaches, so
+  // the tree view does not draw them.
+  //
+  // Two cheaper mistakes pass this bound: forgetting a skipped callee's
+  // verdict (0.98 s here) and keeping names in a list rather than a Set
+  // (1.49 s; 18.5 s against 1.9 s on an 8 MB file built for it). Neither
+  // gap is wide enough for a wall-clock bound that a slow runner keeps.
   const calls = 20000;
   const file = derive(prog => {
     delete prog.layers;

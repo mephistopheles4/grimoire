@@ -241,7 +241,8 @@ is exactly `pure` and whose steps include an `effect` step. See
 **`void` means nothing flows out.** Only the exact word `void` has this
 meaning. `Void`, `undefined` and `VoidResult` mean what you wrote. A return
 move out of a `void` node carries no `value`. The validator refuses one that
-does, and a `value` of `null` too.
+does, and a `value` of `null` too. The node's `return` step still needs an
+`expr`, as every `return` step does.
 
 **Never write a tag's kind here.** `error` is a list of tags, and
 nothing more.
@@ -298,9 +299,10 @@ not a rule in the program.
 `then`, `else` and `to` name a `label` on a step of the **same** node. `target`
 names a node id. `cause` is `fail` or `die`.
 
-`args` is a string or an object. **An object's keys are the callee's param
-names.** `--check` compares a call step's keys with the callee's `params`. See
-[Findings](#findings).
+`args` is a string or an object. **On a `call` step, an object's keys are the
+callee's param names.** `--check` compares them with the callee's `params`. See
+[Findings](#findings). An effect has no callee, so `--check` does not compare
+its `args`.
 
 `onError` is an array of `{ tag, goto, bind? }`. `goto` names a `label` on a
 step of the same node.
@@ -447,7 +449,8 @@ proves a trace against the graph it belongs to, entering at that graph's entry.
 - **A fail is in the error list of every node it leaves, and a die is in none.**
 - **A throw move and an uncaught move repeat the cause the error carries.**
 - **A return move out of a `void` node carries no `value`.** The refusal names
-  the node and both fixes. It never prints the value.
+  the node and both fixes: drop the value, or name what the node returns in
+  `channels.success`. It never prints the value.
 
 **What it cannot prove.** Which branch an `if` took, and what an effect
 returned. Both are claims you make. In practice a wrong branch is often caught
@@ -526,9 +529,10 @@ exits zero. Each one is a thing you may have meant.
   why the role stands.
 - **A call step whose `args` name something the callee's `params` do not.**
   One line per call step names the caller, the step, the callee and every
-  such name, each in quotes. A param matches by the name before its `=`. A
-  callee with a `...` param takes every name. A string `args` is not
-  compared, and neither is a callee whose `params` are not all strings. Fix
-  the call site when a name is a typo or `params` is out of date. Write one
-  line saying why when the args are the fields of an options object or a
-  word that names a route.
+  such name. Each name is in quotes, with its control and invisible
+  characters escaped. A param matches by the name before its `=`. A callee
+  with a `...` param takes every name. The check skips an `args` that is not
+  an object. It also skips a callee whose `params` are not all strings. Fix
+  the call site when a name is a typo or `params` no longer lists what the
+  callee takes. Write one line that says why when the args are an options
+  object's fields or a route word.
