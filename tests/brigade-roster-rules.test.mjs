@@ -306,6 +306,41 @@ test('appLink is unchanged: a checked Desktop id, else a Remote Control link, el
   assert.equal(appLink(card('a', { url: 'https://evil.example/code/session_A' }), undefined), undefined);
 });
 
+// Spec v4 on #220, decisions 1 and 4. The link route's program by host, and
+// the real-path shape a Unix answer needs. The host reads themselves are held
+// by brigade/set-roster.test.ts under the engine's runner.
+
+const { openerArgv, unixRealPath } = roster;
+
+test('openerArgv gives the one program for each host and the link, as two entries', () => {
+  for (const link of ['claude://claude.ai/epitaxy/' + LOCAL, 'claude://claude.ai/code/session_ABC123']) {
+    assert.deepEqual(openerArgv('windows', link), ['explorer.exe', link]);
+    assert.deepEqual(openerArgv('macos', link), ['/usr/bin/open', link]);
+    assert.deepEqual(openerArgv('linux', link), ['/usr/bin/xdg-open', link]);
+    for (const os of ['windows', 'macos', 'linux']) assert.equal(openerArgv(os, link).length, 2);
+  }
+});
+
+test('a Unix answer needs a raw real path with one leading / then a non-separator, and no \\ anywhere', () => {
+  for (const p of ['/System/Library/CoreServices/SystemVersion.plist', '/usr/bin/xdg-open', '/x']) {
+    assert.equal(unixRealPath(p), true, p);
+  }
+  for (const p of [
+    'C:\\System\\Library\\CoreServices\\SystemVersion.plist',
+    'C:/System/Library/CoreServices/SystemVersion.plist',
+    '\\\\server\\share\\System\\Library\\CoreServices\\SystemVersion.plist',
+    '//server/share/System/Library/CoreServices/SystemVersion.plist',
+    '/\\server\\share',
+    '/usr\\bin\\xdg-open',
+    '\\usr\\bin\\xdg-open',
+    'usr/bin/xdg-open',
+    '/',
+    '',
+  ]) {
+    assert.equal(unixRealPath(p), false, p);
+  }
+});
+
 test('the tool is listed only under its exact name, in a list', () => {
   assert.equal(listsOpenTool([{ name: 'mcp__ccd_window__open_session_in', description: '', mcp: true }]), true);
   assert.equal(listsOpenTool([{ name: 'Bash' }, { name: 'mcp__ccd_window__open_session_in' }]), true);
