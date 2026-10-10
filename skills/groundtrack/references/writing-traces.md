@@ -118,7 +118,9 @@ The rest is on you. Before you call the file done:
 - Read every `error` list and find what throws each tag.
 - Read every `role` and check the node does what the word says. `--check`
   reports a node marked `pure` that runs an effect. No check reads any other
-  role word.
+  role word. A node that writes an argument in place is not `pure`, and no
+  check catches it. Mark it `mutates`; see
+  [role](flightpath-file.md#role).
 
 ## Provenance is not decoration
 

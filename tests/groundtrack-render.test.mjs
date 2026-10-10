@@ -812,7 +812,7 @@ test('a pure node with no effect step, and an effect under any other role, are n
   assert.doesNotMatch(check(exampleFlightpath).stdout, /is marked pure/);
 
   // Pure and effect-free: the claim holds, so there is nothing to say. The
-  // pull-request example has four such nodes and effects under io.
+  // pull-request example has three such nodes and effects under io.
   const layered = JSON.parse(readFileSync(layeredFlightpath, 'utf8'));
   const pure = Object.values(layered.nodes).filter(x => x.role === 'pure');
   assert.ok(pure.length && pure.every(x => !x.steps.some(s => s.op === 'effect')), 'the fixture still has effect-free pure nodes');

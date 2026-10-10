@@ -342,7 +342,7 @@
       "touches": [
         "packages/site/src/shelf/woodwork.ts"
       ],
-      "role": "pure",
+      "role": "mutates",
       "enteredBy": [
         "packages/site/src/shelf/woodwork.test.ts"
       ]
