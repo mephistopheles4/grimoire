@@ -105,7 +105,10 @@ logs it. The debugging session drops where the data was worth having. The
    why the finding is what you meant. A node you have written and not yet
    connected is a finding you write the line for. You usually fix an `error` tag
    nothing beneath it produces. Draw what throws the tag, or drop a tag the
-   program never throws.
+   program never throws. A call can pass an arg its callee's `params` do not
+   name. Fix the call site when the name is a typo or `params` is out of date.
+   Write the line when the args are the fields of an options object, or a word
+   that names a route.
 
    Both answers are legitimate. Never skip this step. **Give the reader the
    findings you kept**, each with the line you wrote for it. A reader who never

@@ -604,6 +604,12 @@ function path(prog, gi, pi, r) {
         break;
       }
       case 'return':
+        /* `void` says nothing flows out, so a value handed back contradicts
+         * the node's own contract. Read off the frame being popped, before it
+         * goes. A null is still a value handed back. The value itself is never
+         * quoted: it is recorded run data, and can hold anything. */
+        if (isObj(node.channels) && node.channels.success === 'void' && Object.hasOwn(m, 'value'))
+          bad(i, `a return move carries a value out of ${f.nodeId}, whose success channel is void — drop the value, or name what ${f.nodeId} returns in channels.success`);
         frames.pop();
         noteEmpty(i, 'return');
         /* The caller resumed, so its call's onError is no longer in any
@@ -830,6 +836,47 @@ export function findings(prog) {
       const s = n.steps[at];
       out.push(`${id} is marked pure, which claims no effects, and ${id}[${at}] runs one: ${s.kind} "${s.desc}"`);
     }
+  }
+
+  /* A call step passing an arg name its callee's params do not name. Often
+   * meant — an options object's fields, a word naming a route — so it is a
+   * finding. Only an object `args` is compared: its keys are the callee's
+   * param names. A param's name is what precedes its first `=`, and a rest
+   * param accepts every name.
+   *
+   * `params` has never been type-checked, so a callee whose params are not
+   * all strings is skipped rather than refused. Each callee is worked out
+   * once and its verdict kept, the skip included, so many calls into one
+   * long list cost their sum and not their product. A Set, because a name
+   * is a stranger's string and never an object key. Each name is printed
+   * quoted, so a line break in one cannot split the line. */
+  const accepts = new Map();
+  const acceptsOf = id => {
+    if (!accepts.has(id)) {
+      const ps = prog.nodes[id].params;
+      let verdict = null;
+      if (Array.isArray(ps) && ps.every(p => typeof p === 'string')) {
+        const names = new Set();
+        let rest = false;
+        for (const p of ps) {
+          const name = p.split('=')[0].trim();
+          if (name.startsWith('...')) rest = true;
+          else names.add(name);
+        }
+        verdict = { names, rest };
+      }
+      accepts.set(id, verdict);
+    }
+    return accepts.get(id);
+  };
+  for (const [id, n] of Object.entries(prog.nodes)) {
+    (n.steps || []).forEach((s, at) => {
+      if (s.op !== 'call' || !isObj(s.args) || !isNode(prog, s.target)) return;
+      const callee = acceptsOf(s.target);
+      if (!callee || callee.rest) return;
+      const unnamed = Object.keys(s.args).filter(a => !callee.names.has(a));
+      if (unnamed.length) out.push(`${id}[${at}] calls ${s.target} with args its params do not name: ${unnamed.map(a => JSON.stringify(a)).join(', ')}`);
+    });
   }
 
   /* Files in the change that no node accounts for, by name. A
