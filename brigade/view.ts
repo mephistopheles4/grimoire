@@ -844,8 +844,12 @@ export function cacheBar(w: Warmth | undefined, state: string | undefined, now: 
 }
 
 /** The terminal's cache bar: 16 eighth-block cells, the end marks left to
- *  the caller. */
-export const cacheCells = (b: CacheBar): string => eighthBar(b.fraction, CACHE_CELLS)
+ *  the caller. A cold bar, empty, keeps a one-eighth cell at its start, as
+ *  the image keeps its stub, so it still reads red. */
+export function cacheCells(b: CacheBar): string {
+  const cells = eighthBar(b.fraction, CACHE_CELLS)
+  return b.cls === 'hot' && cells.trim() === '' ? `${EIGHTHS[0]}${' '.repeat(CACHE_CELLS - 1)}` : cells
+}
 
 // The three classes a cache bar's fill may take. Any other class it is handed
 // draws no fill. `done` is the shared green: a done session's colour and a

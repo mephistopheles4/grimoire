@@ -1465,7 +1465,10 @@ test('a call time or clock that is NaN or infinite throws nothing and gives no b
 test('the terminal cache bar is exactly 16 eighth-block cells, whatever the fraction', () => {
   assert.equal(CACHE_CELLS, 16);
   assert.equal(cacheCells(cacheBar(rec(10 * MIN), 'busy', NOW)), '█'.repeat(16));
-  assert.equal(cacheCells(cacheBar(rec(70 * MIN), 'idle', NOW)), ' '.repeat(16));
+  // A cold bar keeps a one-eighth cell, as the image keeps its red stub.
+  assert.equal(cacheCells(cacheBar(rec(70 * MIN), 'idle', NOW)), `▏${' '.repeat(15)}`);
+  assert.equal(cacheCells({ fraction: NaN, tone: 'error', cls: 'hot', text: 'cold' }), `▏${' '.repeat(15)}`);
+  assert.equal(cacheCells({ fraction: 0, tone: 'warning', cls: 'warn', text: 'x' }), ' '.repeat(16));
   // 50 of 60 minutes left: 13⅓ cells, rounded to the nearest eighth.
   assert.equal(cacheCells(cacheBar(rec(10 * MIN), 'idle', NOW)), `${'█'.repeat(13)}▍  `);
   for (const fraction of [NaN, Infinity, -Infinity, -1, 2, 1e300, -1e300, 0.5]) {

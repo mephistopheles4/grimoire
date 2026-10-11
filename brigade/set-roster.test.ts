@@ -1705,7 +1705,7 @@ for (const surface of SURFACES) {
       // 16 eighth-block cells in the tone's colour, between dim end marks.
       const bars = (await m.findAll({ type: 'Text', text: /^[█▏▎▍▌▋▊▉ ]{16}$/ })) as Drawn[]
       expect(bars.map(b => [b.text, b.props.color])).toEqual([
-        [' '.repeat(16), 'error'],
+        [`▏${' '.repeat(15)}`, 'error'],
         [`███▎${' '.repeat(12)}`, 'warning'],
         ['█'.repeat(16), 'success'],
       ])
