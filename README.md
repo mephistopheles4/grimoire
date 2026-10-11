@@ -142,8 +142,11 @@ before you install. Not for work in the same session.
 its work, phase, settings, live busy or idle state, cache warmth and latest
 report. A card that waits on you and holds a large context says when to reply
 to keep its cache, or suggests a hand-off once it has gone cold. At its bottom
-it shows the lead session's own rate limits and context. It needs
-the plugin install above. The skill works without it.
+it shows the lead session's own rate limits and context. A faint extension on
+the session and weekly limit bars shows where each will be at its reset if the
+current pace holds, and a red note says how early a limit runs out when that
+pace would pass 100%. It needs the plugin install above. The skill works
+without it.
 
 What it does, what counts as your yes, and how cleanup refuses:
 [`skills/head-chef/README.md`](skills/head-chef). The skill's contract, which

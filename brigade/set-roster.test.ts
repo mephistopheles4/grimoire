@@ -1344,6 +1344,107 @@ for (const surface of ['terminal', 'desktop'] as const) {
   })
 }
 
+// --- the usage projection -------------------------------------------------------
+//
+// Spec revision 3 on #251, S10; ticket #275. The reading's reset times are set
+// from the engine clock when the reading is asked for, so the projection
+// draws; the session limit's samples are planted as another plugin would
+// write them, since the kit's clock takes no readings 30 s apart here.
+
+const MIN_MS = 60000
+const projectedReading = (now: number) => ({
+  rateLimits: [
+    // 64% now, at 1% a minute from the planted samples: 100% in 36 minutes,
+    // two hours before the reset in 156.
+    { kind: 'five_hour', percentUsed: 64, resetsAt: new Date(now + 156 * MIN_MS).toISOString() },
+    // 12% in the 4 days since the week began: 21% at the reset in 3 days.
+    { kind: 'seven_day', percentUsed: 12, resetsAt: new Date(now + 3 * 1440 * MIN_MS).toISOString() },
+    { kind: 'gateway_hour', percentUsed: 50, resetsAt: new Date(now + 30 * MIN_MS).toISOString() },
+  ],
+  context: READING.context,
+})
+
+for (const surface of ['terminal', 'desktop'] as const) {
+  test(`${surface}: the pane mounts with a projection past 100%, a ░ or proj extension and a red "runs out about 2 hr early"`, async ($, on) => {
+    const written: unknown[] = []
+    const w = await pane(on, $, surface, w => {
+      w.put(FILE, { type: 'file', data: { text: JSON.stringify(EVERY_STATUS) } })
+      w.surfaces = [surface]
+      Object.defineProperty(w, 'usage', { get: () => projectedReading(w.clock.now()) })
+      w.plant = (key, value) => {
+        if (key !== 'samples') return value
+        written.push(value)
+        const now = w.clock.now()
+        return [{ at: now - 20 * MIN_MS, percent: 44 }, { at: now, percent: 64 }]
+      }
+    })
+    expect(await mounted.drawn()).toBeDefined()
+    // The pane's own reading wrote one sample of the session limit, at the clock.
+    expect(written.length).toBeGreaterThan(0)
+    const first = written[0] as { at: unknown; percent: unknown }[]
+    expect(first.length).toBe(1)
+    expect(first[0].percent).toBe(64)
+    expect(typeof first[0].at).toBe('number')
+    await mounted.redraw(PANE_PROPS)
+    if (surface === 'desktop') {
+      const image = (await mounted.findAll({ type: 'Svg' })).find((n: any) => String(n.props.alt).startsWith('Usage:'))
+      expect(image).toBeDefined()
+      const source = String(image.props.source)
+      expect(source).toContain('<rect class="proj" x="0" y="20" width="100%" height="6" rx="3"/>')
+      expect(source).toContain('<text class="hot" x="100%" y="12" text-anchor="end">runs out about 2 hr early · 64%</text>')
+      expect(source).toContain('<rect class="proj" x="0" y="58" width="21%" height="6" rx="3"/>')
+      // The gateway's limit draws its bar and no projection.
+      expect(source.match(/class="proj"/g)?.length).toBe(2)
+      expect(String(image.props.alt)).toContain('Current session 64%, on pace for 220% at reset, runs out about 2 hr early')
+    } else {
+      // 64% is twelve full cells and one at six eighths; the projection fills
+      // the rest, dim. 12% is two full cells and one at three eighths; 21% is
+      // 4.2 cells, so one ░ cell, then 16 blanks.
+      const ahead = await mounted.findAll({ type: 'Text', text: /^░+ *$/ })
+      expect(ahead.map((t: any) => t.text)).toEqual(['░'.repeat(7), `░${' '.repeat(16)}`])
+      for (const t of ahead) expect(t.props.dimColor).toBe(true)
+      const late = await mounted.findAll({ type: 'Text', text: /^runs out about 2 hr early$/ })
+      expect(late.length).toBe(1)
+      expect(late[0].props.color).toBe('error')
+      expect(late[0].props.dimColor).toBeUndefined()
+      // The weekly limit and the gateway's keep their reset times, dim.
+      const resets = await mounted.findAll({ type: 'Text', text: /^Resets in / })
+      expect(resets.map((t: any) => t.props.dimColor)).toEqual([true, true])
+    }
+  })
+}
+
+// Samples another plugin rewrote into shapes the buffer check refuses. One
+// mount per test, so each shape is its own test.
+const REFUSED_SAMPLES: [string, unknown][] = [
+  ['text', 'x'],
+  ['a time that is text', [{ at: 'now', percent: 64 }]],
+  ['a percent over 100', [{ at: 1, percent: 500 }]],
+  ['500 samples', Array.from({ length: 500 }, (_, i) => ({ at: i, percent: 1 }))],
+]
+for (const surface of ['terminal', 'desktop'] as const) {
+  for (const [name, planted] of REFUSED_SAMPLES) {
+    test(`${surface}: samples rewritten as ${name} draw no session-limit projection and throw nothing`, async ($, on) => {
+      await pane(on, $, surface, w => {
+        w.put(FILE, { type: 'file', data: { text: JSON.stringify(EVERY_STATUS) } })
+        w.surfaces = [surface]
+        Object.defineProperty(w, 'usage', { get: () => projectedReading(w.clock.now()) })
+        w.plant = (key, value) => (key === 'samples' ? planted : value)
+      })
+      expect(await mounted.drawn()).toBeDefined()
+      if (surface === 'desktop') {
+        const image = (await mounted.findAll({ type: 'Svg' })).find((n: any) => String(n.props.alt).startsWith('Usage:'))
+        // The weekly projection only: the session limit's needs samples.
+        expect(String(image.props.source).match(/class="proj"/g)?.length).toBe(1)
+        expect(String(image.props.source)).not.toContain('runs out')
+      } else {
+        expect((await mounted.findAll({ type: 'Text', text: /runs out/ })).length).toBe(0)
+        expect((await mounted.findAll({ type: 'Text', text: /^░+ *$/ })).length).toBe(1)
+      }
+    })
+  }
+}
+
 // --- severity groups and the DONE · STOPPED fold --------------------------------
 //
 // Spec revision 3 on #250, S5 and S10; ticket #254. Each test runs on both
