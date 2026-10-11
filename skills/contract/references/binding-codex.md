@@ -104,6 +104,15 @@ It prints a plainer warning for any other listed key except `model` and
 tell them then. Show each warning the check prints after the seal, and
 again in the hand-back.
 
+The warnings print first, above every other line, with the danger
+warnings before the rest. A danger line for a key in this table is never
+cut. Each other rule prints at most 20 lines, then one count line, such as
+`WARN unreviewed: 5 more not shown; every listed key is on the contract's
+"Extra keys:" line`. A warning names a key in double quotes, cut at 40
+characters with `...`. A count line is a warning too. When that one
+appears, show the contract's first `Extra keys:` line, the one the check
+reads, with each key's recorded value, beside the warnings.
+
 ## The mark (questions 5, 18)
 
 A Codex agent file has no frontmatter, so the seal writes the mark as three

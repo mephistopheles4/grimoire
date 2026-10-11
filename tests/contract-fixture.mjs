@@ -76,8 +76,34 @@ export function once(r, line) {
   assert.equal(r.lines.filter(l => l === line).length, 1, `want the line "${line}" exactly once\n${show(r)}`);
 }
 
+/** The WARN lines, in the order printed. */
+export function warns(r) {
+  return r.lines.filter(l => l.startsWith('WARN '));
+}
+
+// The warnings print first, as one block: no WARN line follows a line of any
+// other kind, so the line just above RESULT is one the check wrote about its
+// own verdict whenever any other line printed.
+export function warningsFirst(r) {
+  const body = r.lines.filter(l => !l.startsWith('RESULT:'));
+  const first = body.findIndex(l => !l.startsWith('WARN '));
+  if (first < 0) return;
+  assert.ok(body.slice(first).every(l => !l.startsWith('WARN ')), `a WARN line after a line of another kind\n${show(r)}`);
+  assert.ok(!body[body.length - 1].startsWith('WARN '), `the line above RESULT is a WARN line\n${show(r)}`);
+}
+
+// The lines of a warning flood: an unreviewed key at a line, the unreviewed
+// count line, and the initialPrompt danger line at a line.
+export const unreviewedLine = (key, n) => `WARN unreviewed: "${key}" at line ${n} is a setting this check does not review`;
+export const UNREVIEWED_MORE = n => `WARN unreviewed: ${n} more not shown; every listed key is on the contract's "Extra keys:" line`;
+export const PROMPT_DANGER = n => `WARN danger: "initialPrompt" at line ${n} sends a first message the person did not type`;
+
+// The 300 keys of the flood in #160's finding S3: initialPrompt is the 290th,
+// so with `tools` at line 4 it sits at line 294.
+export const FLOOD_KEYS = [...Array.from({ length: 289 }, (_, i) => `k${i + 1}`), 'initialPrompt', ...Array.from({ length: 10 }, (_, i) => `k${i + 290}`)];
+
 // The danger warning for sandbox_mode at a line.
-export const SANDBOX_DANGER = n => `WARN danger: sandbox_mode at line ${n} may let the agent act outside a sandbox`;
+export const SANDBOX_DANGER = n => `WARN danger: "sandbox_mode" at line ${n} may let the agent act outside a sandbox`;
 
 export const CONTRACT = 'Version: 1.0.0\n\n# Contract\n\nWhat this familiar is for.\n';
 

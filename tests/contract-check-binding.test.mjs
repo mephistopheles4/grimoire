@@ -48,7 +48,7 @@ function dangerLabel(key) {
   writeFileSync(file, familiarText([...defaultFm('x'), `${key}: zq-unsafe`, 'tools: [Read]']));
   writeFileSync(join(dir, 'x.contract.md'), `Version: 1.0.0\nTarget: claude\nExtra keys: ${key}, tools\n`);
   const r = run([file]);
-  const prefix = `WARN danger: ${key} at line 4 `;
+  const prefix = `WARN danger: "${key}" at line 4 `;
   const line = r.lines.find(l => l.startsWith(prefix));
   assert.ok(line, `no danger line for ${key}\n${show(r)}`);
   return line.slice(prefix.length);
@@ -74,7 +74,7 @@ describe('the binding and the check list the same .md settings', () => {
     writeFileSync(file, familiarText([...defaultFm('x'), 'tools: [mcp__s__*]']));
     writeFileSync(join(dir, 'x.contract.md'), 'Version: 1.0.0\nTarget: claude\nExtra keys: tools\n');
     const r = run([file]);
-    const prefix = 'WARN danger: tools item 1 at line 4 ';
+    const prefix = 'WARN danger: "tools" item 1 at line 4 ';
     const line = r.lines.find(l => l.startsWith(prefix));
     assert.ok(line, show(r));
     const row = bindingRows().find(([cell]) => cell.includes('mcp__<server>__*'));
