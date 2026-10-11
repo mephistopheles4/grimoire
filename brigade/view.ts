@@ -263,7 +263,7 @@ function textRows(s: UsageSnapshot, now: number): UsageRow[] {
 
 // The image cannot read the app's theme, so it carries a palette of its own
 // that only approximates the app's, with a dark-mode rule. The class names
-// here are the only ones the SVG uses. Exported so the allowlist test can
+// here are the only ones the SVG uses; `stopped` waits for the status strip. Exported so the allowlist test can
 // hold every image's style block to exactly this text.
 export const STYLE = [
   "text{font-family:system-ui,-apple-system,'Segoe UI',sans-serif;font-size:12px;fill:#3d3d3a}",
@@ -848,11 +848,14 @@ export function cacheBar(w: Warmth | undefined, state: string | undefined, now: 
 export const cacheCells = (b: CacheBar): string => eighthBar(b.fraction, CACHE_CELLS)
 
 // The three classes a cache bar's fill may take. Any other class it is handed
-// draws no fill.
+// draws no fill. `done` is the shared green: a done session's colour and a
+// warm cache's.
 const CACHE_CLASSES = new Set(['done', 'warn', 'hot'])
+// The image's height, the bar's top, and the bar's thickness, which is also
+// the stub's width.
 const CACHE_HEIGHT = 16
 const CACHE_Y = 5
-const CACHE_BAR = 6
+const CACHE_THICKNESS = 6
 
 /** The cache bar as an image for the surfaces with Svg, built from the bar's
  *  fraction and class alone. A rounded track the image's full width, a fixed
@@ -864,8 +867,8 @@ const CACHE_BAR = 6
 export function cacheBarSvg(b: CacheBar): Extract<UsageView, { kind: 'svg' }> {
   const f = unit(b.fraction)
   const y = num(CACHE_Y)
-  const h = num(CACHE_BAR)
-  const r = num(CACHE_BAR / 2)
+  const h = num(CACHE_THICKNESS)
+  const r = num(CACHE_THICKNESS / 2)
   // The stub is drawn at 0 too, so a cold bar, empty, still reads red.
   const fill = CACHE_CLASSES.has(b.cls)
     ? `<rect class="${b.cls}" x="0" y="${y}" width="${h}" height="${h}" rx="${r}"/>` +

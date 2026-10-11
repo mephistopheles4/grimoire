@@ -1636,6 +1636,16 @@ for (const surface of SURFACES) {
     const unknown = texts(all, '◆ cache window unknown · idle 10 min · 150k context')
     expect(unknown.length).toBe(1)
     expect(unknown[0]?.props.dimColor).toBe(true)
+    // One row after the cache block, before the phase: the bar row, its
+    // detail line and the nudge, or the dim line alone, sit in a column Box
+    // with a bottom margin of one row.
+    const holds = (n: any, text: string): boolean => n?.text === text || (n?.children ?? []).some((c: any) => holds(c, text))
+    const blocks = all.filter(b => b.type === 'Box' && b.props.flexDirection === 'column' && b.props.marginBottom === 1)
+    for (const label of ['◆ cache', '◆ cache window unknown · idle 10 min · 150k context']) {
+      const first = (b: Drawn) => b.children[0]
+      const count = label === '◆ cache' ? 3 : 1
+      expect(blocks.filter(b => holds(first(b), label)).length).toBe(count)
+    }
     // The old one-line ◆ text is gone where a bar draws.
     expect(text.includes('◆ cache cold ·')).toBe(false)
     expect(text.includes('◆ cache warm ·')).toBe(false)

@@ -824,8 +824,9 @@ export const register: Register = on => {
   on('ui.render', { component: 'Pane', requestId: PANE }, async ($, e) => {
     const table = $.ui.resolve(e)
     const { Box, Text, Button } = table
-    // The terminal's table has no Svg, and a surface without one gets the
-    // text bars too. The render only reads the stored reading: it fetches none.
+    // The terminal draws text bars whatever its table holds, and so does a
+    // surface with no Svg. The render only reads the stored reading: it
+    // fetches none.
     const Svg = 'Svg' in table ? table.Svg : undefined
     // The clock moves the warmth line too: the roster timer's redraws every
     // 5 s move its countdown.
@@ -902,47 +903,53 @@ export const register: Register = on => {
             </Box>
           </Box>
           <Box flexDirection="column" marginLeft={2} marginTop={1}>
-            {/* The bar takes the room between the label and its text, which
-                do not shrink; on a narrow pane the bar shrinks to its
-                minimum, not the text. The image, placed in percentages, spans
-                a column Box that grows. */}
-            {bar !== undefined && (
-              <Box flexDirection="row" columnGap={1}>
-                <Box flexShrink={0}>
-                  <Text dimColor>◆ cache</Text>
-                </Box>
-                {Svg !== undefined && image !== undefined ? (
-                  <Box flexDirection="column" flexGrow={1} minWidth={8}>
-                    <Svg source={image.source} alt={image.alt} height={image.height} />
-                  </Box>
-                ) : (
-                  <Box flexShrink={0}>
-                    <Text>
-                      <Text dimColor>▕</Text>
-                      <Text color={bar.tone}>{cacheCells(bar)}</Text>
-                      <Text dimColor>▏</Text>
-                    </Text>
+            {/* The cache block, then one row before the phase. On Svg
+                surfaces the image takes the room between the label and its
+                text, which do not shrink, so on a narrow pane the bar shrinks
+                to its minimum, not the text; the image, placed in
+                percentages, spans a column Box that grows. The terminal's 16
+                cells keep their width. */}
+            {(bar !== undefined || warmLine !== undefined) && (
+              <Box flexDirection="column" marginBottom={1}>
+                {bar !== undefined && (
+                  <Box flexDirection="row" columnGap={1}>
+                    <Box flexShrink={0}>
+                      <Text dimColor>◆ cache</Text>
+                    </Box>
+                    {Svg !== undefined && image !== undefined ? (
+                      <Box flexDirection="column" flexGrow={1} minWidth={8}>
+                        <Svg source={image.source} alt={image.alt} height={image.height} />
+                      </Box>
+                    ) : (
+                      <Box flexShrink={0}>
+                        <Text>
+                          <Text dimColor>▕</Text>
+                          <Text color={bar.tone}>{cacheCells(bar)}</Text>
+                          <Text dimColor>▏</Text>
+                        </Text>
+                      </Box>
+                    )}
+                    <Box flexShrink={0}>
+                      <Text color={bar.tone}>{bar.text}</Text>
+                    </Box>
                   </Box>
                 )}
-                <Box flexShrink={0}>
-                  <Text color={bar.tone}>{bar.text}</Text>
-                </Box>
+                {bar?.detail !== undefined && (
+                  <Text dimColor wrap="truncate-end">
+                    {bar.detail}
+                  </Text>
+                )}
+                {bar === undefined && warmLine !== undefined && (
+                  <Text dimColor wrap="truncate-end">
+                    {warmLine.text}
+                  </Text>
+                )}
+                {warmLine?.nudge !== undefined && (
+                  <Text color="warning" wrap="wrap">
+                    {warmLine.nudge}
+                  </Text>
+                )}
               </Box>
-            )}
-            {bar?.detail !== undefined && (
-              <Text dimColor wrap="truncate-end">
-                {bar.detail}
-              </Text>
-            )}
-            {bar === undefined && warmLine !== undefined && (
-              <Text dimColor wrap="truncate-end">
-                {warmLine.text}
-              </Text>
-            )}
-            {warmLine?.nudge !== undefined && (
-              <Text color="warning" wrap="wrap">
-                {warmLine.nudge}
-              </Text>
             )}
             <Text wrap="truncate-end">{oneLine(c.phase, 160)}</Text>
             <Text dimColor wrap="truncate-end">
