@@ -16,8 +16,10 @@ import type { Pair, UsageCategory, UsageLimit, UsageSnapshot, Warmth } from './t
 // The usage section: this session's own rate limits and context fill, at the
 // bottom of the pane. On the terminal it is rows of text bars. Everywhere else
 // it is an SVG image, built here as a string. Every piece of text in that
-// string goes through `svgText`, and every attribute value is a number this
-// module worked out or a name from the fixed set in `STYLE`.
+// string goes through `svgText`, and every attribute value is a number or
+// percentage this module worked out (`num`, `pct`), or a fixed name: a class
+// from `STYLE`, the one clip id, `end`, the one gap transform. The test's
+// attribute allowlist holds every image this module builds to those forms.
 
 /** A snapshot before the first reading: what the pane holds until one comes. */
 export const EMPTY_USAGE: UsageSnapshot = { limits: [], context: {} }
@@ -173,13 +175,34 @@ const TONE = new Map([
 /** One row of the terminal's text bars. `tone` is a theme colour key. */
 export type UsageRow = { name: string; bar: string; percent: string; note: string; tone: string }
 
-/** What the usage section draws: nothing yet, text bars, or an SVG image. */
+/** What the usage section draws: nothing yet, text bars, or an SVG image.
+ *  The image has a fixed height and no width: it is placed in percentages,
+ *  so it takes the width of the box it is drawn in. */
 export type UsageView =
   | { kind: 'none' }
   | { kind: 'text'; rows: UsageRow[] }
-  | { kind: 'svg'; source: string; alt: string; width: number; height: number }
+  | { kind: 'svg'; source: string; alt: string; height: number }
 
 const BAR_CELLS = 20
+
+// The partial cells, one to seven eighths full.
+const EIGHTHS = ['▏', '▎', '▍', '▌', '▋', '▊', '▉']
+
+/** A terminal bar of `cells` cells: full blocks, one partial block to the
+ *  nearest eighth of a cell, then blanks. The fraction is clamped to between
+ *  0 and 1, and one that is not a finite number is 0. It never throws and
+ *  always returns exactly `cells` characters, the end marks left to the
+ *  caller; a cell count that is not a positive whole number gives an empty
+ *  string. */
+export function eighthBar(fraction: number, cells: number): string {
+  const n = Number.isInteger(cells) && cells > 0 ? cells : 0
+  const f = Number.isFinite(fraction) ? Math.min(1, Math.max(0, fraction)) : 0
+  const eighths = Math.round(f * n * 8)
+  const full = Math.floor(eighths / 8)
+  const part = EIGHTHS[(eighths % 8) - 1] ?? ''
+  const drawn = '█'.repeat(full) + part
+  return drawn + ' '.repeat(n - [...drawn].length)
+}
 
 /** The engine's cap on an SVG's source. */
 export const SVG_MAX = 131072
@@ -213,10 +236,7 @@ export function usageView(stored: unknown, surface: string, now: number, max = S
 function textRows(s: UsageSnapshot, now: number): UsageRow[] {
   const rows: Omit<UsageRow, 'name'>[] = []
   const names: string[] = []
-  const cells = (p: number) => {
-    const filled = Math.max(0, Math.min(BAR_CELLS, Math.round((p / 100) * BAR_CELLS)))
-    return '█'.repeat(filled) + '░'.repeat(BAR_CELLS - filled)
-  }
+  const cells = (p: number) => eighthBar(p / 100, BAR_CELLS)
   const { percent, tokens: used, window } = s.context
   if (percent !== undefined && Number.isFinite(percent)) {
     names.push('Context')
@@ -243,8 +263,9 @@ function textRows(s: UsageSnapshot, now: number): UsageRow[] {
 
 // The image cannot read the app's theme, so it carries a palette of its own
 // that only approximates the app's, with a dark-mode rule. The class names
-// here are the only ones the SVG uses.
-const STYLE = [
+// here are the only ones the SVG uses. Exported so the allowlist test can
+// hold every image's style block to exactly this text.
+export const STYLE = [
   "text{font-family:system-ui,-apple-system,'Segoe UI',sans-serif;font-size:12px;fill:#3d3d3a}",
   '.muted{fill:#73726c}',
   '.track{fill:#e8e6dc}',
@@ -254,7 +275,6 @@ const STYLE = [
   '@media (prefers-color-scheme: dark){text{fill:#e8e6e1}.muted{fill:#9c9a92}.track,.free{fill:#3a3935}.buffer{fill:#4a4944}.ok{fill:#5aa2ef}.warn{fill:#e8a23a}.hot{fill:#ef6b62}}',
 ].join('')
 
-const W = 480
 const XMLNS = 'http://www.w3.org/2000/svg'
 
 // Code points XML forbids even escaped: a lone surrogate, U+FFFE and U+FFFF.
@@ -284,14 +304,23 @@ export function num(v: number, max = 100000): string {
   return String(Math.round(n * 100) / 100)
 }
 
-// A name on the left, a note on the right, and a thin rounded bar beneath.
+/** A number as a percentage attribute value: `num` up to 100, then `%`. */
+export const pct = (v: number): string => `${num(v, 100)}%`
+
+// A name on the left, a note on the right, and a thin rounded bar beneath,
+// placed in percentages so the row spans the image's width.
 function barRow(y: number, name: string, right: string, percent: number): string {
-  const fill = (Math.max(0, Math.min(100, percent)) / 100) * W
   return (
     `<text x="0" y="${num(y + 12)}">${svgText(name, MAX_KIND)}</text>` +
-    `<text class="muted" x="${num(W)}" y="${num(y + 12)}" text-anchor="end">${svgText(right, 80)}</text>` +
-    `<rect class="track" x="0" y="${num(y + 20)}" width="${num(W)}" height="6" rx="3"/>` +
-    (fill > 0 ? `<rect class="${level(percent)}" x="0" y="${num(y + 20)}" width="${num(Math.max(6, fill))}" height="6" rx="3"/>` : '')
+    `<text class="muted" x="100%" y="${num(y + 12)}" text-anchor="end">${svgText(right, 80)}</text>` +
+    `<rect class="track" x="0" y="${num(y + 20)}" width="100%" height="6" rx="3"/>` +
+    // A fill never narrower than 6 px: a pixel minimum cannot be written as
+    // a percentage, so a fixed 6 px stub sits under the percentage fill, and
+    // the two cover whichever is wider.
+    (percent > 0
+      ? `<rect class="${level(percent)}" x="0" y="${num(y + 20)}" width="6" height="6" rx="3"/>` +
+        `<rect class="${level(percent)}" x="0" y="${num(y + 20)}" width="${pct(percent)}" height="6" rx="3"/>`
+      : '')
   )
 }
 
@@ -327,42 +356,58 @@ function usageSvg(s: UsageSnapshot, now: number): Extract<UsageView, { kind: 'sv
 
     parts.push(`<text x="0" y="${num(y + 12)}">${svgText('Context', MAX_KIND)}</text>`)
     parts.push(
-      `<text class="muted" x="${num(W)}" y="${num(y + 12)}" text-anchor="end">${svgText(`${tokens(usedTokens)} / ${tokens(windowTokens)} · ${percentText(usedPercent)}`, 80)}</text>`,
+      `<text class="muted" x="100%" y="${num(y + 12)}" text-anchor="end">${svgText(`${tokens(usedTokens)} / ${tokens(windowTokens)} · ${percentText(usedPercent)}`, 80)}</text>`,
     )
-    parts.push(`<clipPath id="cb"><rect x="0" y="${num(y + 20)}" width="${num(W)}" height="8" rx="4"/></clipPath>`)
-    parts.push(`<rect class="track" x="0" y="${num(y + 20)}" width="${num(W)}" height="8" rx="4"/>`)
+    parts.push(`<clipPath id="cb"><rect x="0" y="${num(y + 20)}" width="100%" height="8" rx="4"/></clipPath>`)
+    parts.push(`<rect class="track" x="0" y="${num(y + 20)}" width="100%" height="8" rx="4"/>`)
     const segments: string[] = []
     let x = 0
     for (const c of shown) {
-      const w = total > 0 ? (c.tokens / total) * W : 0
-      // A hairline gap between used segments, as the app's segmented bar has.
-      const gap = c.kind === 'used' && w > 2 ? 1 : 0
-      segments.push(`<rect class="${cls(c)}" x="${num(x)}" y="${num(y + 20)}" width="${num(w - gap)}" height="8"/>`)
+      const w = total > 0 ? (c.tokens / total) * 100 : 0
+      // A gap between used segments, as the app's segmented bar has. A gap
+      // in pixels cannot be written in percentages, so the segment sits in a
+      // nested <svg> and its rect moves 2 px left: the nested <svg> cuts off
+      // what spills, leaving 2 px clear at its right edge at any width. `w`
+      // is the segment's percentage of the bar; at 1% or less the 2 px gap
+      // would eat most of it on a narrow pane, so it gets none.
+      if (c.kind === 'used' && w > 1) {
+        segments.push(
+          `<svg x="${pct(x)}" y="${num(y + 20)}" width="${pct(w)}" height="8"><rect class="${cls(c)}" width="100%" height="8" transform="translate(-2 0)"/></svg>`,
+        )
+      } else {
+        segments.push(`<rect class="${cls(c)}" x="${pct(x)}" y="${num(y + 20)}" width="${pct(w)}" height="8"/>`)
+      }
       x += w
     }
     parts.push(`<g clip-path="url(#cb)">${segments.join('')}</g>`)
     y += 40
 
-    // The legend: two columns of dot, name and tokens, at most LEGEND_MAX rows.
+    // The legend: two columns of dot, name and tokens, at most LEGEND_MAX
+    // rows. Each entry is a nested <svg> half the image wide, at 0 or 50%,
+    // so its dot and name can sit a fixed number of pixels in; the right
+    // column's entries sit 10 px further in, clear of the left column's
+    // tokens.
     const legend = shown.slice(0, LEGEND_MAX)
-    const col = W / 2
     legend.forEach((c, i) => {
-      const cx = (i % 2) * col
-      const cy = y + Math.floor(i / 2) * 18
-      parts.push(`<circle class="${cls(c)}" cx="${num(cx + 4)}" cy="${num(cy + 8)}" r="4"/>`)
-      parts.push(`<text x="${num(cx + 14)}" y="${num(cy + 12)}">${svgText(c.name, MAX_CATEGORY)}</text>`)
-      parts.push(`<text class="muted" x="${num(cx + col - 10)}" y="${num(cy + 12)}" text-anchor="end">${svgText(tokens(c.tokens), 20)}</text>`)
+      const inset = (i % 2) * 10
+      parts.push(
+        `<svg x="${i % 2 === 0 ? '0' : '50%'}" y="${num(y + Math.floor(i / 2) * 18)}" width="50%" height="18">` +
+          `<circle class="${cls(c)}" cx="${num(inset + 4)}" cy="8" r="4"/>` +
+          `<text x="${num(inset + 14)}" y="12">${svgText(c.name, MAX_CATEGORY)}</text>` +
+          `<text class="muted" x="100%" y="12" text-anchor="end">${svgText(tokens(c.tokens), 20)}</text>` +
+          '</svg>',
+      )
     })
     y += Math.ceil(legend.length / 2) * 18
     alt.push(`Context ${percentText(usedPercent)}: ${legend.map(c => `${oneLine(c.name, MAX_CATEGORY)} ${tokens(c.tokens)}`).join(', ')}`)
   }
 
   if (y === 0) return undefined
+  // No viewBox: nothing is scaled, so text keeps its size, and the image
+  // takes its box's width. Only the height is fixed.
   const height = num(y)
-  const source =
-    `<svg xmlns="${XMLNS}" width="${num(W)}" height="${height}" viewBox="0 0 ${num(W)} ${height}">` +
-    `<style>${STYLE}</style>${parts.join('')}</svg>`
-  return { kind: 'svg', source, alt: oneLine(`Usage: ${alt.join('; ')}`, 2000), width: W, height: Number(height) }
+  const source = `<svg xmlns="${XMLNS}" width="100%" height="${height}">` + `<style>${STYLE}</style>${parts.join('')}</svg>`
+  return { kind: 'svg', source, alt: oneLine(`Usage: ${alt.join('; ')}`, 2000), height: Number(height) }
 }
 
 // --- Tick and undo ---------------------------------------------------------
