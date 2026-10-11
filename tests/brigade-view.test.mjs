@@ -1539,7 +1539,7 @@ test('the to-do SVG: a rounded track and a rounded green fill with no clip, alt 
   // None done: the track alone.
   assert.ok(!withoutStyle(todoSvg(0, 3).source).includes('class="done"'));
   assert.equal(todoSvg(0, 3).alt, 'To-dos 0 of 3 done');
-  assert.match(withoutStyle(todoSvg(3, 3).source), /width="100%" height="6" rx="3"\/><\/svg>$/);
+  assert.match(withoutStyle(todoSvg(3, 3).source), /<rect class="done" x="0" y="3" width="100%" height="6" rx="3"\/><\/svg>$/);
 });
 
 test('the to-do SVG never throws on any number: not finite is 0, and done past the total is the total', () => {

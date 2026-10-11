@@ -1674,6 +1674,30 @@ for (const surface of SURFACES) {
     expect((await textOf(m)).includes('sessions')).toBe(false)
   })
 
+  test(`${surface}: cards that are stored but none shown read as no cards: all dismissed, or none with a known status`, async ($, on) => {
+    // Every card dismissed: one done card, pressed away.
+    await grouped(on, $, { cards: [card('only', { status: 'done' })], todos: [] })
+    const m = await mountOn($, surface)
+    await m.press({ key: 'fold' })
+    await m.press({ key: 'dismiss-0-only' })
+    const nodes = await drawnOf(m)
+    expect(nodes.some(n => n.type === 'Text' && n.text === 'No cards in the roster yet.')).toBe(true)
+    expect(nodes.some(n => n.type === 'Text' && /sessions?$/.test(n.text ?? ''))).toBe(false)
+    expect(imageBy(nodes, /^Status:/)).toBeUndefined()
+    expect(runsOf(nodes).length).toBe(0)
+  })
+
+  test(`${surface}: a roster whose only cards have unknown statuses reads as no cards`, async ($, on) => {
+    const w = await grouped(on, $, { cards: [card('one')], todos: [] }, (key, value) =>
+      key === 'roster' ? { ...value, cards: [{ ...card('odd'), status: 'paused' }, { ...card('proto'), status: '__proto__' }] } : value,
+    )
+    expect((w.roster.at(-1) as any).cards.length).toBe(2)
+    const nodes = await drawnOf(await mountOn($, surface))
+    expect(nodes.some(n => n.type === 'Text' && n.text === 'No cards in the roster yet.')).toBe(true)
+    expect(nodes.some(n => n.type === 'Text' && /sessions?$/.test(n.text ?? ''))).toBe(false)
+    expect(imageBy(nodes, /^Status:/)).toBeUndefined()
+    expect(runsOf(nodes).length).toBe(0)
+  })
   test(`${surface}: to-dos with no cards draw the bar and "0 sessions", with no strip`, async ($, on) => {
     await grouped(on, $, { cards: [], todos: TODOS })
     const m = await mountOn($, surface)
