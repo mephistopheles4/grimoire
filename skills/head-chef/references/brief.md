@@ -70,7 +70,9 @@ from the lead (failures 1, 5, 13).
 - **A hand-off line you write names the lead by name only,** as the brief
   does.
 - **Lines on the record hold nothing beyond their form:** no report text, no
-  error text, no local path, no code, no session id and no Desktop id. Post through a file
+  error text, no local path, no code, no session id and no Desktop id. A
+  **Desktop id** is Claude Desktop's own id for a session, which is not the
+  session id in the listing. Post through a file
   or a single-quoted here-string, never text built into a command. **Free
   text** is your own milestone content. It goes only through a file you write
   with the file tool, never through a here-string: a line in it could start

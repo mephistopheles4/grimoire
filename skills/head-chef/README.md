@@ -149,8 +149,8 @@ chef tells you about such a line instead.
   what it now shows.
 - **Text it posts** goes through a file named `grimoire-act-<random>.txt` in
   your temporary folder, deleted right after the act. It holds no session id,
-  token, secret, local path, error text, another session's report text or
-  personal data. What an act command prints is sent nowhere, so another
+  Desktop id, token, secret, local path, error text, another session's report
+  text or personal data. What an act command prints is sent nowhere, so another
   account's title or text does not reach the head chef through it.
 
 **The risks you take on.** A merge takes the pull request's head at merge

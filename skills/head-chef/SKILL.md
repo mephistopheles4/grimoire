@@ -152,9 +152,10 @@ a record anyone can comment on, and holds no single quote (failures 3, 13).
 
 **The session id goes only in the start prompt, a chip's first prompt, the wait line below, and
 messages that are not a brief.** Never put it in a brief, even one sent as a
-message, nor on a record, a roster card or a to-do. A Desktop id goes in no
-brief and on no record either; a roster card keeps a chip's `desktopId` (see
-`references/roster.md`). Reason: a record can be public, and plugin state can
+message, nor on a record, a roster card or a to-do. A **Desktop id** is
+Claude Desktop's own id for a session, which is not the session id in
+`claude agents --json`. It goes in no brief and on no record either; a roster
+card keeps a chip's `desktopId` (see `references/roster.md`). Reason: a record can be public, and plugin state can
 be read by other plugins (failure 16).
 
 **When the brief lives only in this chat,** the start prompt says where to
@@ -238,7 +239,8 @@ turn is held until the head chef sets them.
    a chip, every decision and relay included, with the agent's message tool,
    the default, or with Desktop's send tool, by the rule in "Relaying".
    Reason: both carry your name to an ordinary Desktop session, marked as
-   from another session, so the chip's sender check runs either way
+   from another session, so its sender check can run (measured 2026-10-11);
+   for a chip started from a task chip that is inferred, not measured
    (failure 13).
 
 ## Relaying (questions 3, 4, 18)
