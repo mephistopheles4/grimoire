@@ -6,7 +6,7 @@ import { before, describe, test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { fresh, run, has, show, expect, once, SANDBOX_DANGER, CONTRACT, BROKEN, familiarText, defaultFm, skill, sealAndCheck, editFile, put, tryPut } from './contract-fixture.mjs';
+import { fresh, run, has, show, expect, once, SANDBOX_DANGER, CONTRACT, BROKEN, familiarText, defaultFm, skill, sealAndCheck, editFile, put, tryPut, listing } from './contract-fixture.mjs';
 
 // ------------------------------------------------------------------ v10 the character rule
 
@@ -737,5 +737,132 @@ describe('v10 the folder rules, held by a mutation', () => {
       return;
     }
     exact(run([dir]), 1, 'CANNOT-CHECK folder: "caf\u{E9}.md" holds a character outside A-Z, a-z, 0-9, ".", "_" and "-"');
+  });
+});
+
+// ------------------------------------------------------------------ look-alike mark keys (#160 finding S7)
+
+// In a .md frontmatter, a key or a comment that names a mark key once folded
+// (NFKC, ASCII lower case, every dash and connector dropped) is cannot-check,
+// unless it is one of the three exact keys under `metadata:`. Each top-level
+// key is listed on the contract's `Extra keys:` line, so the case fails on the
+// new rule and not on the unknown-key rule. No refusal echoes the key, the
+// comment or the line.
+describe('a .md frontmatter key or comment named like a mark key is cannot-check', () => {
+  const KEY = 'a key named like a mark key; the mark is the three keys under "metadata:"';
+  const COMMENT = 'a comment that names a mark key; the mark is the three keys under "metadata:"';
+  const NOT_WRITTEN = 'FAIL seal: refused; nothing written';
+  const con = extra => `Version: 1.0.0\nTarget: claude\n${extra}\n\n# Contract\n\nWhat this familiar is for.\n`;
+  const FM = ['name: x', 'description: A B'];
+  // Full-width Latin letters, U+FF41 onwards, for the ASCII letters of a word.
+  const wide = s => [...s].map(c => (c >= 'a' && c <= 'z' ? String.fromCodePoint(0xff41 + c.charCodeAt(0) - 97) : c)).join('');
+
+  function agent(extraFm, contract) {
+    const dir = fresh();
+    const file = join(dir, 'x.md');
+    writeFileSync(file, familiarText([...FM, ...extraFm]));
+    writeFileSync(join(dir, 'x.contract.md'), contract);
+    return { dir, file };
+  }
+
+  /** The exit code, and each line printed exactly as given. */
+  function exact(r, code, ...lines) {
+    expect(r, code);
+    for (const l of lines) assert.ok(r.lines.includes(l), `missing the line "${l}"\n${show(r)}`);
+  }
+
+  // [label, frontmatter lines after name and description, Extra keys line, line refused, reason]
+  const cases = [
+    ['a suffixed key under metadata', ['metadata:', '  familiar-digest-old: "sha256:00"'], '', 5, KEY],
+    ['a top-level key with "_", listed', ['familiar_digest: "sha256:00"'], 'Extra keys: familiar_digest', 4, KEY],
+    ['a top-level key in camel case, listed', ['FamiliarDigest: "sha256:00"'], 'Extra keys: FamiliarDigest', 4, KEY],
+    ['the exact top-level contract-version, listed', ['contract-version: 1.0.0'], 'Extra keys: contract-version', 4, KEY],
+    ['a frontmatter comment', ['# familiar-digest: "sha256:00"'], '', 4, COMMENT],
+    ['a comment under metadata', ['metadata:', '  # familiar-digest: "sha256:00"', '  author: me'], '', 5, COMMENT],
+    ['a comment joined with U+2011', ['# familiar\u{2011}digest: "sha256:00"'], '', 4, COMMENT],
+    ['a comment joined with U+FF3F', ['# familiar\u{FF3F}digest: "sha256:00"'], '', 4, COMMENT],
+    ['a comment joined with U+2E3A', ['# familiar\u{2E3A}digest: "sha256:00"'], '', 4, COMMENT],
+    ['a comment in full-width letters', [`# ${wide('familiar-digest')}: "sha256:00"`], '', 4, COMMENT],
+  ];
+  for (const [label, extraFm, extra, line, reason] of cases) {
+    test(`${label} -> 1 cannot-check`, () => {
+      exact(run([agent(extraFm, con(extra)).file]), 1, `CANNOT-CHECK frontmatter: x.md line ${line}: ${reason}`);
+    });
+    test(`${label} -> the seal refuses, and writes nothing`, () => {
+      const { dir, file } = agent(extraFm, con(extra));
+      const before = readFileSync(file);
+      const names = listing(dir);
+      exact(run(['--seal', file]), 2, `FAIL frontmatter: cannot check x.md line ${line}: ${reason}`, NOT_WRITTEN);
+      assert.deepEqual(readFileSync(file), before);
+      assert.deepEqual(listing(dir), names);
+    });
+  }
+
+  // The separators the spec's probe found NFKC or the category test catches,
+  // and the minus sign, which is in neither category.
+  const SEPARATORS = [0x2011, 0x2e17, 0x2e3a, 0x2e3b, 0x05be, 0x1806, 0x203f, 0x2040, 0xfe31, 0xfe32, 0xfe4d, 0xfe4f, 0xff3f, 0x2212];
+  for (const cp of SEPARATORS) {
+    const u = `U+${cp.toString(16).toUpperCase().padStart(4, '0')}`;
+    test(`a comment joined with ${u} -> 1 cannot-check`, () => {
+      const r = run([agent([`# contract${String.fromCodePoint(cp)}version: 1.0.0`], con('')).file]);
+      exact(r, 1, `CANNOT-CHECK frontmatter: x.md line 4: ${COMMENT}`);
+    });
+  }
+
+  describe('no refusal echoes the key', () => {
+    const echoes = [
+      ['a duplicated top-level familiar_digest', ['familiar_digest: a', 'familiar_digest: b'], 'Extra keys: familiar_digest', 'familiar_digest'],
+      ['a block value on familiar-digest-old under metadata', ['metadata:', '  familiar-digest-old: |', '    x'], '', 'familiar-digest-old'],
+      // One case per refusal that echoes the key, so the look-alike rule
+      // must run before each of them.
+      ['a top-level familiar_digest with no value', ['familiar_digest:'], 'Extra keys: familiar_digest', 'familiar_digest'],
+      ['a top-level familiar_digest with no space after its colon', ['familiar_digest:x'], 'Extra keys: familiar_digest', 'familiar_digest'],
+      ['a top-level familiar_digest with a block header the check does not read', ['familiar_digest: >9', '  x'], 'Extra keys: familiar_digest', 'familiar_digest'],
+      ['a duplicated familiar-digest-old under metadata', ['metadata:', '  familiar-digest-old: a', '  familiar-digest-old: b'], '', 'familiar-digest-old'],
+      ['a familiar-digest-old with no value under metadata', ['metadata:', '  familiar-digest-old:'], '', 'familiar-digest-old'],
+      ['a familiar-digest-old with no space after its colon under metadata', ['metadata:', '  familiar-digest-old:x'], '', 'familiar-digest-old'],
+    ];
+    for (const [label, extraFm, extra, key] of echoes) {
+      const line = extraFm[0] === 'metadata:' ? 5 : 4;
+      test(`${label} -> 1 with the fixed reason, and the key never echoed`, () => {
+        const r = run([agent(extraFm, con(extra)).file]);
+        exact(r, 1, `CANNOT-CHECK frontmatter: x.md line ${line}: ${KEY}`);
+        assert.ok(!r.out.includes(key) && !r.err.includes(key), show(r));
+      });
+      test(`${label} under --seal -> 2 with the fixed reason, and the key never echoed`, () => {
+        const r = run(['--seal', agent(extraFm, con(extra)).file]);
+        exact(r, 2, `FAIL frontmatter: cannot check x.md line ${line}: ${KEY}`, NOT_WRITTEN);
+        assert.ok(!r.out.includes(key) && !r.err.includes(key), show(r));
+      });
+    }
+  });
+
+  test('a real mark with a look-alike comment beside it under metadata -> 1, and the seal refuses', () => {
+    const { file } = agent([], con(''));
+    expect(run(['--seal', file]), 0, 'PASS seal: wrote ');
+    editFile(file, '  contract-version: ', '  # contract-digest: "sha256:00"\n  contract-version: ');
+    const text = readFileSync(file, 'utf8');
+    const at = text.split('\n').indexOf('  # contract-digest: "sha256:00"') + 1;
+    exact(run([file]), 1, `CANNOT-CHECK frontmatter: x.md line ${at}: ${COMMENT}`);
+    exact(run(['--seal', file]), 2, `FAIL frontmatter: cannot check x.md line ${at}: ${COMMENT}`, NOT_WRITTEN);
+    assert.equal(readFileSync(file, 'utf8'), text);
+  });
+
+  describe('no over-reach', () => {
+    test('a clean agent seals, and the three exact mark keys pass', () => {
+      const { file } = agent([], con(''));
+      expect(run(['--seal', file]), 0, 'PASS seal: wrote ');
+      exact(run([file]), 0, 'PASS frontmatter', 'PASS familiar-digest', 'PASS contract-digest', 'PASS contract-version');
+    });
+    test('a prose comment with spaces, "# the contract version", seals and passes', () => {
+      const { file } = agent(['# the contract version is set by the seal'], con(''));
+      expect(run(['--seal', file]), 0, 'PASS seal: wrote ');
+      exact(run([file]), 0, 'PASS frontmatter', 'PASS familiar-digest');
+    });
+    test('a listed key that holds no mark key name, contract_note, seals and passes', () => {
+      const { file } = agent(['contract_note: x'], con('Extra keys: contract_note'));
+      expect(run(['--seal', file]), 0, 'PASS seal: wrote ');
+      exact(run([file]), 0, 'PASS keys', 'PASS familiar-digest');
+    });
   });
 });

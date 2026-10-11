@@ -8,8 +8,8 @@
       "analyzers": [
         "static_patterns_tool_misuse"
       ],
-      "sha256": "d6947e8a85645f94cec5869235eedda517f6cbd07f1ee7c3e3b1fa15f6aac4b2",
-      "reason": "The contract skill's format check script. The destructive-command parser stops partway through a long expression and marks the file partial for that one check; every other check reads it in full. The entry also accepts a marker-pass give-up inside that one check, which the scanner reports under this code."
+      "sha256": "76b415d78eb2b2aec77d9fb24fe8ead16664744fb768acf46abd4cf26799f29c",
+      "reason": "The contract skill's format check script. The destructive-command parser stops partway through a long expression and marks the file partial for that one check; every other check reads it in full. The entry also accepts a marker-pass give-up inside that one check, which the scanner reports under this code. Re-read on 2026-10-11 for contract 0.10.0 (issue 160): the new lines, a name fold, a line rule and their refusals for keys, comments and lines named like a mark key, were read by hand; they are string operations and single-code-point property tests, with no command, removal verb or disguised directive. Re-read on 2026-10-11 after the review round (issue 277): the changed lines are comments only, and hold none either."
     },
     {
       "skill": "eagle-eye",
