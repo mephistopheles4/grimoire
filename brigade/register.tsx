@@ -40,6 +40,8 @@ import type { HostOs, StatAnswer } from './roster.ts'
 import {
   EMPTY_USAGE,
   MAX_TRANSCRIPT_BYTES,
+  SVG_MAX,
+  addSample,
   cacheBar,
   cacheBarSvg,
   cacheCells,
@@ -102,6 +104,7 @@ const dismissed = atom({ plugin: 'grimoire', key: 'dismissed' } as const, [])
 const doneTodos = atom({ plugin: 'grimoire', key: 'doneTodos' } as const, [])
 const ticking = atom({ plugin: 'grimoire', key: 'ticking' } as const, [])
 const usage = atom({ plugin: 'grimoire', key: 'usage' } as const, EMPTY_USAGE)
+const samples = atom({ plugin: 'grimoire', key: 'samples' } as const, [])
 const warmth = atom({ plugin: 'grimoire', key: 'warmth' } as const, [])
 const doneOpen = atom({ plugin: 'grimoire', key: 'doneOpen' } as const, false)
 
@@ -307,15 +310,20 @@ async function pollAgents($: EngineInterface, open: () => boolean) {
 // plain reading costs nothing. The context breakdown is asked for only when
 // the session draws somewhere other than the terminal, the one place the
 // image shows its rows, and only as the local summary estimate, which sends
-// no request. Only the fields the section draws are stored. A failed reading
-// keeps the last one, and a reading that started before the pane closed is
-// dropped, so it cannot land over a fresh one after a reopen.
+// no request. Only the fields the section draws are stored. Each reading also
+// samples the session limit for its projection, by view.ts's rules. A failed
+// reading keeps the last one, and a reading that started before the pane
+// closed is dropped, so it cannot land over a fresh one after a reopen.
 async function readUsage($: EngineInterface) {
   const mine = generation
   try {
     const image = (await $.session.surfaces()).some(s => s !== 'terminal')
     const reading = await $.session.usage(image ? { breakdown: 'summary' } : undefined)
-    if (generation === mine) await update($, usage, () => snapshotFrom(reading))
+    if (generation !== mine) return
+    const snapshot = snapshotFrom(reading)
+    await update($, usage, () => snapshot)
+    const now = await $.clock.now()
+    if (generation === mine) await update($, samples, list => addSample(list, snapshot, now))
   } catch {
     // No reading this time: the section keeps what it showed.
   }
@@ -857,7 +865,7 @@ export const register: Register = on => {
     // and need no fallback.
     const surface = Svg === undefined ? 'terminal' : e.surface
     const Image = surface === 'terminal' ? undefined : Svg
-    const metered = usageView(await read($, usage), surface, now)
+    const metered = usageView(await read($, usage), surface, now, SVG_MAX, await read($, samples))
     const paths = await read($, files)
     const error = await read($, rosterError)
     const pollError = await read($, liveError)
@@ -1188,12 +1196,22 @@ export const register: Register = on => {
                 <Text>
                   <Text dimColor>▕</Text>
                   <Text color={r.tone}>{r.bar}</Text>
+                  {/* The projection's ░ cells and the blanks after them. */}
+                  {r.ahead !== '' && <Text dimColor>{r.ahead}</Text>}
                   <Text dimColor>▏</Text>
                 </Text>
                 <Text>{r.percent}</Text>
-                <Text dimColor wrap="truncate-end">
-                  {r.note}
-                </Text>
+                {/* Two branches, never dimColor={false}: Desktop refuses
+                    plain={false}, so no boolean prop is passed as false. */}
+                {r.noteTone === '' ? (
+                  <Text dimColor wrap="truncate-end">
+                    {r.note}
+                  </Text>
+                ) : (
+                  <Text color={r.noteTone} wrap="truncate-end">
+                    {r.note}
+                  </Text>
+                )}
               </Box>
             ))}
           {/* The image is placed in percentages: with no width prop, inside a
