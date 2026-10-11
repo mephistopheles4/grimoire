@@ -1232,6 +1232,9 @@ export function warmthLine(
   return large ? { tone: 'warning', text, nudge: `Reply within ${leftText} to keep the cache.` } : { tone: 'warning', text }
 }
 
+/** A warmth line with its trailing "· Nk context" dropped, for a card whose
+ *  context meter already shows the size (#287). Any other text is kept. */
+export const withoutSize = (text: string): string => text.replace(/ · [^·]* context$/, '')
 // --- The cache bar -----------------------------------------------------------
 //
 // A needs-you or working card draws its ◆ line as a bar that drains over the

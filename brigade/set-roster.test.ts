@@ -2638,6 +2638,25 @@ for (const surface of SURFACES) {
     for (const t of texts(all, '412k of 1M')) expect(t.props.color).toBeUndefined()
   })
 
+  test(`${surface}: a card with a meter but no cache window keeps its dim line without the size (#287)`, async ($, on) => {
+    let now: number | undefined
+    const w = await grouped(on, $, { cards: [card('work-nowin', { status: 'working' })], todos: [] }, (key, value) => {
+      if (now === undefined) return value
+      if (key === 'meters') return [meterRec('work-nowin', now, 150000)]
+      if (key === 'warmth') return [warmCall('work-nowin', 10 * MINUTE, now, 150000, null)]
+      if (key === 'live') return [{ name: 'work-nowin', value: 'idle' }]
+      return value
+    })
+    now = w.clock.now() + 10000
+    await w.clock.advance(10000)
+    await w.clock.settle()
+    const m = await mountOn($, surface)
+    const all = await nodes(m)
+    expect(texts(all, '◆ cache window unknown · idle 10 min').length).toBe(1)
+    expect(texts(all, '150k of 1M').length).toBe(1)
+    expect(String(all[0]?.text ?? '').includes('150k context')).toBe(false)
+  })
+
   test(`${surface}: a context text wider than the cache text sets the value column (#287)`, async ($, on) => {
     await metered(on, $, { cards: [card('work-wide', { status: 'working' })], todos: [] }, now => [meterRec('work-wide', now, 1300000, 200000)], { 'work-wide': 'busy' })
     const m = await mountOn($, surface)

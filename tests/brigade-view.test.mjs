@@ -3363,3 +3363,12 @@ test('the state contract declares tabs under the plugin\'s manifest name', () =>
   const register = readFileSync(join(root, 'brigade/register.tsx'), 'utf8');
   assert.match(register, /atom\(\{ plugin: 'grimoire', key: 'tabs' \} as const, \[\]\)/);
 });
+
+// behaviour-lens F1 on #287: a card with a meter but no cache window keeps its
+// dim warmth line, without the size the meter already shows.
+test('withoutSize drops a trailing context size and keeps every other line', () => {
+  assert.equal(view.withoutSize('◆ cache window unknown · idle 10 min · 150k context'), '◆ cache window unknown · idle 10 min');
+  assert.equal(view.withoutSize('◆ cache warm (working) · 1.2M context'), '◆ cache warm (working)');
+  assert.equal(view.withoutSize('◆ cache unknown · transcript too large to read'), '◆ cache unknown · transcript too large to read');
+  assert.equal(view.withoutSize('◆ cache warm (working)'), '◆ cache warm (working)');
+});

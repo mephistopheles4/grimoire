@@ -82,6 +82,7 @@ import {
   waitingCount,
   warmthFrom,
   warmthLine,
+  withoutSize,
 } from './view.ts'
 import type { Finder, ReadMemory, Spark } from './view.ts'
 
@@ -1109,7 +1110,7 @@ export const register: Register = on => {
 
                 {bar === undefined && warmLine !== undefined && (
                   <Text dimColor wrap="truncate-end">
-                    {warmLine.text}
+                    {meter !== undefined ? withoutSize(warmLine.text) : warmLine.text}
                   </Text>
                 )}
                 {meter !== undefined && (
