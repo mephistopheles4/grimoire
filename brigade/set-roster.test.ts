@@ -1764,7 +1764,7 @@ const nodes = async (m: any): Promise<Drawn[]> => {
 const texts = (all: Drawn[], text: string) => all.filter(n => n.type === 'Text' && n.text === text)
 
 for (const surface of SURFACES) {
-  test(`${surface}: needs-you and working cards draw ◆ cache, a bar and its short text with the idle time, the size on a bare context row, and the nudges unchanged`, async ($, on) => {
+  test(`${surface}: needs-you and working cards draw ◆ cache, a bar and its short text with the time left, the size on a bare context row, and the nudges unchanged`, async ($, on) => {
     await cached(on, $, CACHED, RECORDS)
     const m = await mountOn($, surface)
     const all = await nodes(m)
@@ -1772,10 +1772,10 @@ for (const surface of SURFACES) {
     // Three bars: cold, amber and working. The card with no known window
     // keeps warmthLine's text, dim.
     expect(texts(all, '◆ cache').length).toBe(3)
-    // The idle time sits in the short text, where a working card reads "warm
-    // (working)", and the dim line under the bar is gone (owner decision q2
-    // on #287).
-    for (const [short, tone] of [['idle 1 hr 10 min · cold', 'error'], ['idle 48 min · cold in 12 min', 'warning'], ['warm (working)', 'success']] as const) {
+    // The short text holds only the time left, where a working card reads
+    // "warm (working)": the header already says idle (owner, from chat,
+    // reversing q2 on #287). The dim line under the bar is gone.
+    for (const [short, tone] of [['cold', 'error'], ['cold in 12 min', 'warning'], ['warm (working)', 'success']] as const) {
       const found = texts(all, short)
       expect(found.length).toBe(1)
       expect(found[0]?.props.color).toBe(tone)
@@ -1796,6 +1796,8 @@ for (const surface of SURFACES) {
       const room = row.children[1]
       if (surface === 'desktop') expect([room.props.flexGrow, room.props.minWidth]).toEqual([1, 8])
       else expect(spoken(room)).toBe(' '.repeat(18))
+      // The size starts one gap after the bar's room, as the values above do.
+      expect(row.children[2].props.justifyContent).toBe('flex-start')
     }
     for (const [size, n] of [['182k', 1], ['150k', 2]] as const) {
       const found = texts(all, size)
@@ -1843,7 +1845,7 @@ for (const surface of SURFACES) {
     }
     const images = all.filter(n => n.type === 'Svg' && String(n.props.alt).startsWith('Cache'))
     if (surface === 'desktop') {
-      expect(images.map(n => n.props.alt).sort()).toEqual(['Cache idle 1 hr 10 min · cold', 'Cache idle 48 min · cold in 12 min', 'Cache warm (working)'])
+      expect(images.map(n => n.props.alt).sort()).toEqual(['Cache cold', 'Cache cold in 12 min', 'Cache warm (working)'])
       for (const image of images) {
         // Full width: no width prop, a fixed height, the markup in
         // percentages, no clip and no id.
@@ -2221,7 +2223,7 @@ for (const surface of SURFACES) {
     const m = await mountOn($, surface)
     const all = await nodes(m)
     expect(texts(all, '◆ cache').length).toBe(1)
-    expect(texts(all, 'idle 1 min · cold in 59 min').length).toBe(1)
+    expect(texts(all, 'cold in 59 min').length).toBe(1)
     expect(texts(all, '◆ transcript not found').length).toBe(0)
     expect(w.listings).toBe(1)
     expect(await m.find({ key: 'open-0-gamma' })).toBeDefined()
@@ -2615,8 +2617,9 @@ for (const surface of SURFACES) {
     expect(holders.length).toBeGreaterThan(0)
     for (const h of holders) expect(h.props.marginRight).toBe(2)
     // Item 3: each label sits in a Box of one fixed width, and each value in
-    // a Box of one width per card, its text at the right edge, so both bars
-    // start and end at the same place.
+    // a Box of one width per card, its text at the left edge, so both bars
+    // start and end at the same place and each value sits one gap after its
+    // bar, as each bar sits one gap after its label.
     const said = (n: any): string => (typeof n === 'string' ? n : n?.text ?? (n?.children ?? []).map(said).join(''))
     const around = (words: string[]) => all.filter(b => b.type === 'Box' && b.props.flexShrink === 0 && words.includes(said(b)))
     const labels = around(['◆ cache', '◆ context'])
@@ -2629,7 +2632,7 @@ for (const surface of SURFACES) {
       const widest = Math.max(...values.map((v: any) => said(v).length))
       for (const v of values) {
         expect(v.props.width).toBe(widest)
-        expect(v.props.justifyContent).toBe('flex-end')
+        expect(v.props.justifyContent).toBe('flex-start')
       }
     }
     // Item 4: the cache keeps its green; the context figure under 70% has no
@@ -2662,7 +2665,7 @@ for (const surface of SURFACES) {
     const m = await mountOn($, surface)
     const all = await nodes(m)
     expect(texts(all, '1.3M · over 200k').length).toBe(1)
-    const values = all.filter(b => b.type === 'Box' && b.props.justifyContent === 'flex-end' && ['warm (working)', '1.3M · over 200k'].includes(spoken(b)))
+    const values = all.filter(b => b.type === 'Box' && b.props.justifyContent === 'flex-start' && ['warm (working)', '1.3M · over 200k'].includes(spoken(b)))
     expect(values.map(b => b.props.width)).toEqual([16, 16])
   })
 

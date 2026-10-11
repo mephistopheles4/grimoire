@@ -1275,11 +1275,10 @@ export function cacheBar(w: Warmth | undefined, state: string | undefined, now: 
   const idle = Math.max(0, now - w.at)
   if (!Number.isFinite(idle)) return undefined
   const left = w.windowMs - idle
-  // The idle time sits where "warm (working)" sits on a working card (owner
-  // decision q2 on #287).
-  const idleText = `idle ${span(Math.floor(idle / MIN_MS))}`
-  if (left <= 0) return { fraction: 0, tone: 'error', cls: 'hot', text: `${idleText} · cold` }
-  const text = `${idleText} · cold in ${span(Math.ceil(left / MIN_MS))}`
+  // Only the time left: the card's header already says idle, so the bar
+  // carries no idle time (owner, from chat, reversing q2 on #287).
+  if (left <= 0) return { fraction: 0, tone: 'error', cls: 'hot', text: 'cold' }
+  const text = `cold in ${span(Math.ceil(left / MIN_MS))}`
   const fraction = unit(left / w.windowMs)
   return left > AMBER_MS ? { fraction, tone: 'success', cls: 'done', text } : { fraction, tone: 'warning', cls: 'warn', text }
 }
