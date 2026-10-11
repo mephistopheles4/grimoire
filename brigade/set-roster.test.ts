@@ -176,6 +176,7 @@ type World = ReturnType<typeof makeFs> & {
   holdRun: boolean
   releaseRun: () => void
   order: string[]
+  usage: unknown
 }
 
 // The engine beneath the plugin: the file system, the pane record, the
@@ -217,6 +218,7 @@ function world(on: On, setup: (w: World) => void = w => w.dirs(`${CONFIG}\\plugi
     holdRun: false,
     releaseRun: () => {},
     order: [] as string[],
+    usage: undefined as unknown,
   })
   w.dirs(CONFIG)
   setup(w)
@@ -295,6 +297,8 @@ function world(on: On, setup: (w: World) => void = w => w.dirs(`${CONFIG}\\plugi
   on('classic.UserPromptSubmit', () => ({}))
   // Where the session is drawn: the Desktop app, unless a test says otherwise.
   on('session.surfaces', () => ({ value: w.surfaces }))
+  // This session's usage reading, when a test gives one; else the kit's own.
+  on('session.usage', ($, e: any, next: any) => (w.usage === undefined ? next(e) : { value: w.usage }))
   on('tool.list', () => {
     w.lists++
     if (w.stall === 'tool list') return new Promise<never>(() => {})
@@ -771,15 +775,16 @@ const LINK = `claude://claude.ai/epitaxy/${DESKTOP}`
 // The pane drawn on the desktop, so a press reaches a Button it drew.
 const PANE_PROPS = { title: 'Brigade', isFocused: false, bodyColumns: 80, placement: 'dock', scroll: { offset: 0, bodyRows: 200 }, view: {} }
 let mounted: any
-async function pane(on: On, $: any) {
+async function pane(on: On, $: any, surface: 'terminal' | 'desktop' = 'desktop', setup: (w: World) => void = () => {}) {
   const w = world(on, w => {
     w.dirs(BRIGADE)
     w.put(FILE, { type: 'file', data: { text: JSON.stringify(SEEDED) } })
+    setup(w)
   })
   await start($)
   await brigade($)
   await w.clock.settle()
-  mounted = await $.ui.mount({ plugin: 'grimoire', surface: 'desktop', component: 'Pane', requestId: 'brigade', props: PANE_PROPS })
+  mounted = await $.ui.mount({ plugin: 'grimoire', surface, component: 'Pane', requestId: 'brigade', props: PANE_PROPS })
   return w
 }
 const press = (_$: any, key: string) => mounted.press({ key })
@@ -1261,3 +1266,71 @@ test('a Desktop card pressed again while its opener runs asks the app nothing an
   w.releaseRun()
   await first
 })
+// --- the usage image ----------------------------------------------------------
+
+// A usage reading with rate limits and a breakdown, so the desktop draws the
+// image: a pane with no reading draws "No reading yet" and no Svg at all.
+const READING = {
+  rateLimits: [
+    { kind: 'five_hour', percentUsed: 64 },
+    { kind: 'seven_day', percentUsed: 12 },
+  ],
+  context: {
+    percent: 23,
+    tokens: 46000,
+    window: 200000,
+    breakdown: {
+      categories: [
+        { name: 'System prompt', kind: 'used', tokens: 3100 },
+        { name: 'Messages', kind: 'used', tokens: 40000 },
+        { name: 'Free space', kind: 'free', tokens: 120000 },
+        { name: 'Autocompact buffer', kind: 'buffer', tokens: 36900 },
+      ],
+    },
+  },
+}
+
+// A roster holding every status, so a surface that refused any card's tree
+// would fail the mount.
+const EVERY_STATUS = {
+  cards: [card('alpha', { status: 'needs-you' }), card('beta'), card('gamma', { status: 'done' }), card('delta', { status: 'stopped' })],
+  todos: [{ id: 't1', text: 'look', session: 'alpha' }],
+}
+
+for (const surface of ['terminal', 'desktop'] as const) {
+  test(`the pane mounts on ${surface} with a usage reading, and the surface refuses no part of the tree`, async ($, on) => {
+    await pane(on, $, surface, w => {
+      w.put(FILE, { type: 'file', data: { text: JSON.stringify(EVERY_STATUS) } })
+      w.usage = READING
+      w.surfaces = [surface]
+    })
+    // A tree the surface refuses skips the plugin's render, and the mount
+    // above then rejects, naming the refusal (a Button given plain={false}
+    // was seen to fail both surfaces this way); drawn() reads the tree drawn.
+    expect(await mounted.drawn()).toBeDefined()
+    const image = await mounted.find({ type: 'Svg' })
+    if (surface === 'desktop') {
+      // Full width: no width prop, a fixed height, the markup in percentages,
+      // and a column Box that grows around it.
+      expect(image).toBeDefined()
+      expect(image.props.width).toBeUndefined()
+      expect(image.props.height).toBeGreaterThan(0)
+      expect(image.props.source).toMatch(/^<svg xmlns="http:\/\/www\.w3\.org\/2000\/svg" width="100%" height="\d+">/)
+      const boxes = await mounted.findAll({ type: 'Box' })
+      const around = boxes.filter((b: any) => b.children.some((c: any) => c?.type === 'Svg'))
+      expect(around.length).toBe(1)
+      expect(around[0].props.flexGrow).toBe(1)
+      expect(around[0].props.flexDirection).toBe('column')
+      expect(around[0].props.alignItems).toBeUndefined()
+    } else {
+      // The terminal draws text rows: 20 eighth-block cells between dim marks.
+      expect(image).toBeUndefined()
+      // Three rows, Context and two rate limits, with two end marks each.
+      const marks = await mounted.findAll({ type: 'Text', text: /^[▕▏]$/ })
+      expect(marks.length).toBe(6)
+      for (const m of marks) expect(m.props.dimColor).toBe(true)
+      const bars = await mounted.findAll({ type: 'Text', text: /^[█▏▎▍▌▋▊▉ ]{20}$/ })
+      expect(bars.map((b: any) => b.text)).toEqual([`████▋${' '.repeat(15)}`, `████████████▊${' '.repeat(7)}`, `██▍${' '.repeat(17)}`])
+    }
+  })
+}
