@@ -482,15 +482,15 @@ export type StatusLook = {
   word: string
   color: string
   cls: string
-  group: 'needsYou' | 'working' | 'closed'
+  group: 'needsYou' | 'working' | 'finished'
 }
 
-/** The four statuses, in the strip's order. */
+/** The four statuses, in display order: needs you, working, done, stopped. */
 export const STATUS: ReadonlyMap<string, StatusLook> = new Map([
   ['needs-you', { glyph: '●', word: 'needs you', color: 'warning', cls: 'warn', group: 'needsYou' }],
   ['working', { glyph: '◐', word: 'working', color: 'suggestion', cls: 'ok', group: 'working' }],
-  ['done', { glyph: '✓', word: 'done', color: 'success', cls: 'done', group: 'closed' }],
-  ['stopped', { glyph: '–', word: 'stopped', color: 'inactive', cls: 'stopped', group: 'closed' }],
+  ['done', { glyph: '✓', word: 'done', color: 'success', cls: 'done', group: 'finished' }],
+  ['stopped', { glyph: '–', word: 'stopped', color: 'inactive', cls: 'stopped', group: 'finished' }],
 ] as const)
 
 /** A stored status's look, or undefined for anything but the four words. */
@@ -501,14 +501,14 @@ export const statusOf = (status: unknown): StatusLook | undefined =>
  *  place, never its place inside a group: the press handler finds a card by
  *  roster place and title slug, and the slug folds many titles to one. */
 export type Placed<T> = { c: T; i: number }
-export type Groups<T> = { needsYou: Placed<T>[]; working: Placed<T>[]; closed: Placed<T>[] }
+export type Groups<T> = { needsYou: Placed<T>[]; working: Placed<T>[]; finished: Placed<T>[] }
 
 /** The stored cards in their groups, each in roster order. A card whose title
  *  is in `hidden`, the dismissed ones, is in none, and so is a card that is
  *  not a record or has no look; cards that are not a list give three empty
  *  groups. */
 export function groupCards<T>(cards: readonly T[], hidden: ReadonlySet<unknown>): Groups<T> {
-  const out: Groups<T> = { needsYou: [], working: [], closed: [] }
+  const out: Groups<T> = { needsYou: [], working: [], finished: [] }
   if (!Array.isArray(cards)) return out
   cards.forEach((c, i) => {
     if (!isRecord(c) || hidden.has(c.title)) return
@@ -529,13 +529,17 @@ export function foldLabel(open: unknown, cards: number, reports: number): string
   return `${isOpen(open) ? '▾' : '▸'} DONE · STOPPED  ${cards}${count}`
 }
 
+/** A card's title as drawn and as a report's sender is kept: cleaned and cut
+ *  to 80. A report belongs to the card whose drawn title is its sender, both
+ *  for the card's report line and for the toggle's count. */
+export const drawnTitle = (title: string): string => oneLine(title, 80)
+
 /** The reports since the pane opened whose sender is one of `titles`, matched
- *  by the title as drawn, cleaned and cut to 80, as a card's report line is.
- *  Every report counts, not one per card. An inbox entry of the wrong shape
+ *  by `drawnTitle`. Every report counts, not one per card. An inbox entry of the wrong shape
  *  counts nothing, and no shape throws. */
 export function reportCount(titles: readonly string[], inbox: unknown): number {
   if (!Array.isArray(inbox)) return 0
-  const drawn = new Set(titles.map(t => oneLine(t, 80)))
+  const drawn = new Set(titles.map(drawnTitle))
   return inbox.filter(r => isRecord(r) && typeof r.from === 'string' && drawn.has(r.from)).length
 }
 

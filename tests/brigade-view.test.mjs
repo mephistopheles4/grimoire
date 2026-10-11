@@ -1135,11 +1135,11 @@ test('the pane keeps its re-read memory in a Map of the view module\'s ReadMemor
 // one fixed Map, and the stored roster is drawn as stored, so a status outside
 // the four words, or one that names a prototype key, counts nowhere.
 
-const { STATUS, statusOf, groupCards, isOpen, foldLabel, reportCount } = view;
+const { STATUS, statusOf, groupCards, isOpen, foldLabel, reportCount, drawnTitle } = view;
 const cardOf = (title, status) => ({ title, work: 'w', phase: 'p', settings: 's', status });
 const placed = list => list.map(({ c, i }) => [i, c.title]);
 
-test('the status Map gives each of the four statuses its glyph, word, theme key and class, in strip order', () => {
+test('the status Map gives each of the four statuses its glyph, word, theme key and class, in display order', () => {
   assert.ok(STATUS instanceof Map, 'a Map, so no status text reaches a prototype');
   assert.deepEqual([...STATUS.keys()], ['needs-you', 'working', 'done', 'stopped']);
   const look = s => { const v = STATUS.get(s); return [v.glyph, v.word, v.color, v.cls]; };
@@ -1165,14 +1165,14 @@ test('cards sit under needs you, then working, then done and stopped together, e
   const g = groupCards(cards, new Set());
   assert.deepEqual(placed(g.needsYou), [[2, 'c'], [5, 'f']]);
   assert.deepEqual(placed(g.working), [[1, 'b'], [4, 'e']]);
-  assert.deepEqual(placed(g.closed), [[0, 'a'], [3, 'd'], [6, 'g']]);
+  assert.deepEqual(placed(g.finished), [[0, 'a'], [3, 'd'], [6, 'g']]);
 });
 
 test('a dismissed card is in no group, and an empty group is empty', () => {
   const g = groupCards([cardOf('a', 'done'), cardOf('b', 'working')], new Set(['a']));
   assert.deepEqual(placed(g.needsYou), []);
   assert.deepEqual(placed(g.working), [[1, 'b']]);
-  assert.deepEqual(placed(g.closed), []);
+  assert.deepEqual(placed(g.finished), []);
 });
 
 test('a stored card with a hostile or unknown status draws in no group, the rest keep their roster index, and nothing throws', () => {
@@ -1180,13 +1180,13 @@ test('a stored card with a hostile or unknown status draws in no group, the rest
   const cards = [cardOf('first', 'working'), ...statuses.map((s, i) => cardOf(`bad${i}`, s)), cardOf('last', 'done')];
   const g = groupCards(cards, new Set());
   assert.deepEqual(placed(g.working), [[0, 'first']]);
-  assert.deepEqual(placed(g.closed), [[cards.length - 1, 'last']]);
+  assert.deepEqual(placed(g.finished), [[cards.length - 1, 'last']]);
   assert.deepEqual(placed(g.needsYou), []);
   // A card that is not a record, and a roster whose cards are not a list.
-  assert.deepEqual(placed(groupCards([null, 7, 'done', cardOf('x', 'done')], new Set()).closed), [[3, 'x']]);
+  assert.deepEqual(placed(groupCards([null, 7, 'done', cardOf('x', 'done')], new Set()).finished), [[3, 'x']]);
   for (const stored of [undefined, null, 'cards', {}, { length: 1, 0: cardOf('x', 'done') }]) {
     const empty = groupCards(stored, new Set());
-    assert.deepEqual([empty.needsYou, empty.working, empty.closed], [[], [], []], String(stored));
+    assert.deepEqual([empty.needsYou, empty.working, empty.finished], [[], [], []], String(stored));
   }
 });
 
@@ -1215,7 +1215,9 @@ test('the report count is the inbox entries whose sender matches a done or stopp
   assert.equal(reportCount(['alpha'], inbox), 2);
   assert.equal(reportCount(['alpha', 'gamma'], inbox), 3);
   assert.equal(reportCount([], inbox), 0);
-  // Matched by the title as drawn: cleaned and cut to 80, as the sender is.
+  // Matched by the title as drawn: cleaned and cut to 80, as the sender is,
+  // by the one helper the card's report line uses too.
+  assert.equal(drawnTitle(`x${'y'.repeat(100)}`), roster.oneLine(`x${'y'.repeat(100)}`, 80));
   const long = `${'t'.repeat(90)}\u{202E}`;
   assert.equal(reportCount([long], [{ from: 't'.repeat(79) + '…', line: 'l', at: '' }]), 1);
   // An inbox of the wrong shape counts nothing, and never throws.

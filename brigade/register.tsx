@@ -41,6 +41,7 @@ import type { HostOs, StatAnswer } from './roster.ts'
 import {
   EMPTY_USAGE,
   foldLabel,
+  drawnTitle,
   groupCards,
   idsFrom,
   isOpen,
@@ -791,13 +792,13 @@ export const register: Register = on => {
       await update($, doneOpen, v => !isOpen(v))
       return { element: e.element }
     }
-    const [verb, place, folded] = e.element.split('-')
+    const [verb, place, slugged] = e.element.split('-')
     const i = Number(place)
     const current = await read($, roster)
 
     if (verb === 'todo' || verb === 'go') {
       const item = current.todos[i]
-      if (item === undefined || slug(item.id) !== folded) return { element: e.element }
+      if (item === undefined || slug(item.id) !== slugged) return { element: e.element }
       if (verb === 'todo') {
         // A tick, or a second press inside the grace period that undoes it.
         const now = await $.clock.now()
@@ -810,7 +811,7 @@ export const register: Register = on => {
     }
 
     const c = current.cards[i]
-    if (c === undefined || slug(c.title) !== folded) return { element: e.element }
+    if (c === undefined || slug(c.title) !== slugged) return { element: e.element }
     if (verb === 'open') await openInApp($, c)
     if (verb === 'dismiss') await update($, dismissed, list => [...list, c.title])
     return { element: e.element }
@@ -840,19 +841,21 @@ export const register: Register = on => {
     const ticked = new Set(done)
     const ticks = await read($, ticking)
     const crossed = new Set(ticksFrom(ticks).map(p => p.name))
-    const last = (title: string) => [...inbox].reverse().find(r => r.from === oneLine(title, 80))
+    const last = (title: string) => [...inbox].reverse().find(r => r.from === drawnTitle(title))
 
     // The cards in their groups, each with its place in the roster, which every
     // button key keeps. A status outside the four words draws in no group.
-    const { needsYou, working, closed: finished } = groupCards(cards, hidden)
-    const folded = await read($, doneOpen)
+    const { needsYou, working, finished } = groupCards(cards, hidden)
+    // As stored: read through isOpen, which takes only exactly true as open.
+    const openState = await read($, doneOpen)
     // A ticked to-do stays in the list, crossed out, until the sweep moves it.
     const open = todos.map((t, i) => ({ t, i })).filter(({ t }) => !ticked.has(t.id))
     const waiting = waitingCount(needsYou.length, todos, done, ticks)
 
     // One card, in a rounded box: amber when it needs the owner, dim
-    // otherwise. The status mark, the title and its live state on one line,
-    // the title cut first so the state stays in view. Then the ◆ warmth line
+    // otherwise. The status badge, glyph and word, the title and its live
+    // state on one line, the title cut first so the state stays in view.
+    // Then the ◆ warmth line
     // and its nudge, which wraps, the phase, the work, the settings and the
     // latest report, each on its own line and cut to the pane's width, and
     // the buttons on their own row.
@@ -862,7 +865,7 @@ export const register: Register = on => {
       const state = liveState(running.get(c.title))
       const warmLine = warmthLine(warm.get(c.title), running.get(c.title), c.status, now)
       const report = last(c.title)
-      const closed = c.status === 'done' || c.status === 'stopped'
+      const isFinished = look.group === 'finished'
       const needs = c.status === 'needs-you'
       const canOpen = appLink(c, found.get(c.title)) !== undefined
       return (
@@ -912,21 +915,21 @@ export const register: Register = on => {
                 {report.at} → {report.line}
               </Text>
             )}
-            {(canOpen || closed) && (
+            {(canOpen || isFinished) && (
               <Box flexDirection="row" columnGap={2} marginTop={1}>
                 {canOpen && (
                   <Button key={keyFor('open', i, c.title)} onPress={noop}>
                     Open in app
                   </Button>
                 )}
-                {closed && (
+                {isFinished && (
                   <Button key={keyFor('dismiss', i, c.title)} dimColor onPress={noop}>
                     Dismiss
                   </Button>
                 )}
               </Box>
             )}
-            {closed && <Text dimColor>Archive it in the sidebar when you are done with it.</Text>}
+            {isFinished && <Text dimColor>Archive it in the sidebar when you are done with it.</Text>}
           </Box>
         </Box>
       )
@@ -1030,12 +1033,12 @@ export const register: Register = on => {
           <Box flexDirection="column">
             {/* `plain` only as plain: Desktop refuses plain={false} and skips
                 the whole render. */}
-            <Box marginTop={1} marginBottom={isOpen(folded) ? 1 : 2}>
+            <Box marginTop={1} marginBottom={isOpen(openState) ? 1 : 2}>
               <Button key="fold" plain onPress={noop}>
-                {foldLabel(folded, finished.length, reportCount(finished.map(({ c }) => c.title), inbox))}
+                {foldLabel(openState, finished.length, reportCount(finished.map(({ c }) => c.title), inbox))}
               </Button>
             </Box>
-            {isOpen(folded) && finished.map(card)}
+            {isOpen(openState) && finished.map(card)}
           </Box>
         )}
         {needsYou.length + working.length + finished.length === 0 && error === '' && (

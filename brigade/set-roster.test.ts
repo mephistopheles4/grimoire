@@ -176,8 +176,8 @@ type World = ReturnType<typeof makeFs> & {
   holdRun: boolean
   releaseRun: () => void
   order: string[]
-  /** Another plugin that rewrites the roster as it is set, as row 15 names. */
-  plant?: (value: any) => any
+  /** Another plugin that rewrites the pane's state as it is set, as row 15 names. */
+  plant?: (key: string, value: any) => any
 }
 
 // The engine beneath the plugin: the file system, the pane record, the
@@ -280,7 +280,7 @@ function world(on: On, setup: (w: World) => void = w => w.dirs(`${CONFIG}\\plugi
     return { value: { tool: `mcp__grimoire__${e.name}` } }
   })
   on('state.set', ($, e: any, next: any) => {
-    if (e.key === 'roster' && w.plant !== undefined) e = { ...e, value: w.plant(e.value) }
+    if (w.plant !== undefined) e = { ...e, value: w.plant(e.key, e.value) }
     if (e.key === 'roster') {
       w.roster.push(e.value)
       w.log.push(`roster ${JSON.stringify(e.value)}`)
@@ -1286,9 +1286,9 @@ const ALL = {
   todos: [],
 }
 // Three titles that fold to one slug, `ab`, one in NEEDS YOU and two in
-// DONE · STOPPED: a group-local index would give the first closed card
+// DONE · STOPPED: a group-local index would give the first done or stopped card
 // index 0, which is the needs-you card's place in the roster.
-const FOLDED = {
+const SAME_SLUG = {
   cards: [
     card('A-b', { status: 'needs-you', desktopId: D1 }),
     card('a b', { status: 'done', desktopId: D2 }),
@@ -1297,7 +1297,7 @@ const FOLDED = {
   todos: [],
 }
 
-async function grouped(on: On, $: any, roster: unknown, plant?: (value: any) => any) {
+async function grouped(on: On, $: any, roster: unknown, plant?: (key: string, value: any) => any) {
   const w = world(on, w => {
     w.dirs(BRIGADE)
     w.put(FILE, { type: 'file', data: { text: JSON.stringify(roster) } })
@@ -1344,6 +1344,30 @@ for (const surface of SURFACES) {
     expect(text.includes('stop-one')).toBe(false)
     expect((await textOf(m)).includes('Sessions')).toBe(false)
     expect(await m.find({ key: 'fold' })).toBeDefined()
+    // Colour comes from the status Map: the badge and the heading both.
+    const drawn = (await m.findAll({})) as { type: string; props: Record<string, unknown>; text?: string }[]
+    const badge = drawn.find(n => n.type === 'Text' && n.text === '● needs you')
+    expect(badge?.props.color).toBe('warning')
+    const heading = drawn.find(n => n.type === 'Text' && n.props.bold === true && n.text === 'NEEDS YOU 2')
+    expect(heading?.props.color).toBe('warning')
+    expect(drawn.find(n => n.type === 'Text' && n.text === '◐ working')?.props.color).toBe('suggestion')
+  })
+
+  test(`${surface}: an empty group draws no heading`, async ($, on) => {
+    await grouped(on, $, { cards: [card('only', { status: 'done' })], todos: [] })
+    const m = await mountOn($, surface)
+    const text = await textOf(m)
+    expect(text.includes('▸ DONE · STOPPED  1')).toBe(true)
+    expect(text.includes('NEEDS YOU')).toBe(false)
+    expect(text.includes('WORKING')).toBe(false)
+    expect(text.includes('No cards in the roster yet.')).toBe(false)
+  })
+
+  test(`${surface}: a roster with no cards draws no group and says there are none`, async ($, on) => {
+    await grouped(on, $, { cards: [], todos: [] })
+    const text = await textOf(await mountOn($, surface))
+    expect(text.includes('No cards in the roster yet.')).toBe(true)
+    for (const name of ['NEEDS YOU', 'WORKING', 'DONE · STOPPED']) expect(text.includes(name)).toBe(false)
   })
 
   test(`${surface}: a fold press opens DONE · STOPPED, with full badges, and a second press closes it`, async ($, on) => {
@@ -1377,6 +1401,27 @@ for (const surface of SURFACES) {
     expect((await groupsOf(m)).includes('▸ DONE · STOPPED  2')).toBe(true)
   })
 
+  test(`${surface}: a second /brigade while the pane is open closes DONE · STOPPED too`, async ($, on) => {
+    await grouped(on, $, ALL)
+    const m = await mountOn($, surface)
+    await m.press({ key: 'fold' })
+    expect((await groupsOf(m)).includes('▾ DONE · STOPPED')).toBe(true)
+    await brigade($)
+    expect((await groupsOf(m)).includes('▸ DONE · STOPPED  2')).toBe(true)
+  })
+
+  for (const planted of ['true', 1] as const) {
+    test(`${surface}: a stored open state of ${JSON.stringify(planted)} draws the group closed, and a press cannot open it`, async ($, on) => {
+      await grouped(on, $, ALL, (key, value) => (key === 'doneOpen' ? planted : value))
+      const m = await mountOn($, surface)
+      const text = await groupsOf(m)
+      expect(text.includes('▸ DONE · STOPPED  2')).toBe(true)
+      expect(text.includes('done-one')).toBe(false)
+      await m.press({ key: 'fold' })
+      expect((await groupsOf(m)).includes('done-one')).toBe(false)
+    })
+  }
+
   test(`${surface}: the toggle counts the reports of its cards, and an open card's report line uses →`, async ($, on) => {
     await grouped(on, $, ALL)
     const send = (from: string, text: string) =>
@@ -1395,14 +1440,16 @@ for (const surface of SURFACES) {
   })
 
   test(`${surface}: titles that fold to one slug in different groups keep their roster index, so each press acts on its own card`, async ($, on) => {
-    const w = await grouped(on, $, FOLDED)
+    const w = await grouped(on, $, SAME_SLUG)
     const m = await mountOn($, surface)
     await m.press({ key: 'fold' })
     await m.redraw(PANE_PROPS)
     expect(await m.find({ key: 'dismiss-1-ab' })).toBeDefined()
     expect(await m.find({ key: 'dismiss-2-ab' })).toBeDefined()
-    // The group-local place of the first closed card is 0: never a key.
+    // The group-local place of the first done or stopped card is 0: never a key.
     expect(await m.find({ key: 'dismiss-0-ab' })).toBeUndefined()
+    // No working card: its group draws nothing, heading included.
+    expect((await groupsOf(m)).includes('WORKING')).toBe(false)
     await m.press({ key: 'open-1-ab' })
     await m.press({ key: 'open-0-ab' })
     expect(w.mcpCalls.map(c => c.args.session_id)).toEqual([D2, D1])
@@ -1419,10 +1466,13 @@ for (const surface of SURFACES) {
 
   test(`${surface}: a stored card with a hostile or unknown status draws in no group, and the pane still draws`, async ($, on) => {
     const bad = ['__proto__', 'constructor', 'paused', 5, null, { done: true }]
-    await grouped(on, $, ALL, value => ({
-      ...value,
-      cards: [...(value?.cards ?? []), ...bad.map((status, i) => ({ ...card(`odd-${i}`), status }))],
-    }))
+    const w = await grouped(on, $, ALL, (key, value) =>
+      key === 'roster'
+        ? { ...value, cards: [...(value?.cards ?? []), ...bad.map((status, i) => ({ ...card(`odd-${i}`), status }))] }
+        : value,
+    )
+    // The plant reached the stored roster: five good cards and six odd ones.
+    expect((w.roster.at(-1) as any).cards.length).toBe(11)
     const m = await mountOn($, surface)
     await m.press({ key: 'fold' })
     const text = await textOf(m)
