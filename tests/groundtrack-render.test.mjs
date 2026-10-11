@@ -1304,7 +1304,7 @@ test('comparing args with params costs their sum, not their product', () => {
   const took = performance.now() - started;
   assert.equal(r.code, 0, r.stderr);
   assert.deepEqual(argLines(r.stdout), []);
-  // On the threat model's machine this file checks in 0.17 s, and a
+  // On the machine #247 was built on, this file checks in 0.14 s, and a
   // renderer that works each callee out again at every call takes 74 s. The
   // bound sits far from both, so a slow runner passes and the product fails.
   assert.ok(took < 15000, `--check took ${Math.round(took)} ms`);
