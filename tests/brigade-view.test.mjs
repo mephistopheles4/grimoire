@@ -79,8 +79,9 @@ function attributes(source) {
 // attribute names, each with the forms its value may take, and nothing else.
 // The classes `done` and `stopped` and the id `st` are admitted for the
 // status strip, the to-do bar and the cache bar, which build them, as
-// threat-model row 15 says.
-const CLASSES = new Set(['muted', 'track', 'ok', 'warn', 'hot', 'free', 'buffer', 'c0', 'c1', 'c2', 'c3', 'c4', 'c5', 'c6', 'done', 'stopped']);
+// threat-model row 15 says. The class `proj` is admitted for the usage
+// image's projection (#275).
+const CLASSES = new Set(['muted', 'track', 'ok', 'warn', 'hot', 'free', 'buffer', 'c0', 'c1', 'c2', 'c3', 'c4', 'c5', 'c6', 'done', 'stopped', 'proj']);
 const LENGTHS = new Set(['width', 'height', 'x', 'y', 'rx', 'cx', 'cy', 'r']);
 const NUMBER = /^\d+(?:\.\d+)?$/;
 const PERCENT = /^(\d+(?:\.\d+)?)%$/;
@@ -276,7 +277,10 @@ test('the terminal gets text rows, never SVG: a Context row, then a row per rate
   // 23% of 20 cells is 4.6 cells: four full and one at five eighths, then
   // blanks to make 20. The dim end marks are the render's, not the bar's.
   assert.equal(v.rows[0].bar, `████▋${' '.repeat(15)}`);
-  for (const r of v.rows) assert.equal([...r.bar].length, 20);
+  // The weekly row draws its projection (#275), so its bar stops at the
+  // bar's end and the cells after it are the ░ cells and the blanks: the two
+  // together are always 20.
+  for (const r of v.rows) assert.equal([...(r.bar + r.ahead)].length, 20);
 });
 
 test('with no rate limits and no breakdown the view is "nothing yet" on every surface', () => {
@@ -606,6 +610,349 @@ test('a stored snapshot of the wrong shape is checked again: the view never thro
     }
   }
   assert.deepEqual(usageView({ limits: [{ kind: 'k', percent: 'x' }], context: {} }, 'desktop', NOW), { kind: 'none' });
+});
+
+// --- the usage projection --------------------------------------------------
+//
+// Spec revision 3 on #251, S10; ticket #275. The session limit's pace comes
+// from the samples the pane takes of it, the weekly limit's from its average
+// since the week began.
+
+const { MAX_SAMPLES, SAMPLE_MS, addSample, projection, roughTime, samplesFrom } = view;
+const DAY = 1440 * MIN;
+const sample = (ms, percent) => ({ at: NOW + ms, percent });
+const fiveHour = (percent, resetMs) => ({ kind: 'five_hour', percent, resetsAt: at(resetMs) });
+const sevenDay = (percent, resetMs) => ({ kind: 'seven_day', percent, resetsAt: at(resetMs) });
+// 44% twenty minutes ago and 64% now: a pace of 1% a minute.
+const PACED = [sample(-20 * MIN, 44), sample(0, 64)];
+
+test('the sample buffer keeps a sample at most every 30 s and at most 120', () => {
+  assert.equal(SAMPLE_MS, 30000);
+  assert.equal(MAX_SAMPLES, 120);
+  const reading = percent => ({ limits: [fiveHour(percent, 60 * MIN)], context: {} });
+  const first = addSample([], reading(10), NOW);
+  assert.deepEqual(first, [{ at: NOW, percent: 10 }]);
+  // Under 30 s after the last sample nothing is added; at 30 s one is.
+  assert.deepEqual(addSample(first, reading(11), NOW + 29999), first);
+  assert.deepEqual(addSample(first, reading(11), NOW + 30000), [{ at: NOW, percent: 10 }, { at: NOW + 30000, percent: 11 }]);
+  // A full buffer drops its oldest sample.
+  const full = Array.from({ length: 120 }, (_, i) => sample(i * SAMPLE_MS, 10));
+  const next = addSample(full, reading(10), NOW + 120 * SAMPLE_MS);
+  assert.equal(next.length, 120);
+  assert.deepEqual(next[0], sample(SAMPLE_MS, 10));
+  assert.deepEqual(next.at(-1), sample(120 * SAMPLE_MS, 10));
+});
+
+test('a lower percent than the last sample means the window reset: the buffer starts over', () => {
+  const kept = [sample(-10 * MIN, 50), sample(-5 * MIN, 60)];
+  assert.deepEqual(addSample(kept, { limits: [fiveHour(2, 300 * MIN)], context: {} }, NOW), [sample(0, 2)]);
+  // Inside 30 s too: a reset is never skipped.
+  assert.deepEqual(addSample([sample(-1000, 60)], { limits: [fiveHour(1, 300 * MIN)], context: {} }, NOW), [sample(0, 1)]);
+});
+
+test('a sample dated after the clock starts the buffer over, so a planted future time cannot stop the sampling', () => {
+  const planted = [sample(-MIN, 10), sample(DAY, 20)];
+  assert.deepEqual(addSample(planted, { limits: [fiveHour(30, 60 * MIN)], context: {} }, NOW), [sample(0, 30)]);
+});
+
+test('only the session limit is sampled, and never with a value the buffer check would refuse', () => {
+  const kept = [sample(-MIN, 10)];
+  const without = [
+    { limits: [], context: {} },
+    { limits: [sevenDay(40, DAY), { kind: 'gateway_hour', percent: 40, resetsAt: at(MIN) }], context: {} },
+    // Over 100% is outside the buffer's range: the buffer is kept as it is.
+    { limits: [fiveHour(100.5, MIN)], context: {} },
+  ];
+  for (const s of without) assert.deepEqual(addSample(kept, s, NOW), kept);
+  for (const bad of [NaN, Infinity, -Infinity]) assert.deepEqual(addSample(kept, { limits: [fiveHour(20, MIN)], context: {} }, bad), kept);
+  // A stored buffer that fails its check is treated as empty.
+  assert.deepEqual(addSample('x', { limits: [fiveHour(20, MIN)], context: {} }, NOW), [sample(0, 20)]);
+  // Every buffer it returns passes the check unchanged.
+  let buffer = [];
+  for (let i = 0; i < 300; i++) {
+    buffer = addSample(buffer, { limits: [fiveHour((i * 7) % 101, MIN)], context: {} }, NOW + i * 17000);
+    assert.deepEqual(samplesFrom(buffer), buffer);
+  }
+});
+
+test('samplesFrom treats a buffer that fails its checks as empty', () => {
+  const good = [sample(-2 * MIN, 0), sample(-MIN, 50.5), sample(0, 100)];
+  assert.deepEqual(samplesFrom(good), good);
+  assert.deepEqual(samplesFrom([{ at: NOW, percent: 5, extra: 'C:\\Users\\someone' }]), [{ at: NOW, percent: 5 }], 'only at and percent are kept');
+  const failing = {
+    'not a list': { 0: sample(0, 1) },
+    'a string': 'x',
+    'over 120 samples': Array.from({ length: 121 }, (_, i) => sample(i * SAMPLE_MS, 1)),
+    'a null sample': [sample(0, 1), null],
+    'a list as a sample': [[NOW, 1]],
+    'a time that is not finite': [{ at: Infinity, percent: 1 }],
+    'a time that is not a number': [{ at: String(NOW), percent: 1 }],
+    'a NaN percent': [{ at: NOW, percent: NaN }],
+    'a negative percent': [{ at: NOW, percent: -1 }],
+    'a percent over 100': [{ at: NOW, percent: 100.01 }],
+    'two samples at one time': [sample(0, 1), sample(0, 2)],
+    'times going back': [sample(0, 1), sample(-1, 2)],
+  };
+  for (const [name, stored] of Object.entries(failing)) assert.deepEqual(samplesFrom(stored), [], name);
+  for (const stored of [undefined, null, 0, {}, []]) assert.deepEqual(samplesFrom(stored), []);
+  // A collection that is not a list counts as empty, good samples or not.
+  assert.deepEqual(samplesFrom(new Set([sample(-20 * MIN, 44), sample(0, 64)])), []);
+  assert.deepEqual(samplesFrom(new Set(Array.from({ length: 121 }, (_, i) => sample(i * SAMPLE_MS, 1)))), []);
+});
+
+test('samplesFrom walks the list by position up to the length it checked, never by the list\'s own walker', () => {
+  // A list that reports one sample but walks 500: only the one it reports is read.
+  const long = [sample(0, 1)];
+  long[Symbol.iterator] = function* () { for (let i = 0; i < 500; i++) yield sample(i * SAMPLE_MS, 1); };
+  assert.deepEqual(samplesFrom(long), [sample(0, 1)]);
+  // A list that grows as it is read stops at the length it had.
+  const growing = [sample(0, 1)];
+  Object.defineProperty(growing, 0, { get() { growing.push(sample(growing.length * SAMPLE_MS, 1)); return sample(0, 1); } });
+  assert.equal(samplesFrom(growing).length, 1);
+  assert.ok(addSample(long, { limits: [fiveHour(2, 60 * MIN)], context: {} }, NOW + DAY).length <= 120);
+});
+
+test('samplesFrom reads each field once: a field that throws counts as a failed check, and one that changes keeps its first value', () => {
+  const throwing = { at: NOW, get percent() { throw new Error('rewritten'); } };
+  assert.deepEqual(samplesFrom([sample(-MIN, 10), throwing]), []);
+  const list = new Proxy([sample(-MIN, 10)], { get: (t, k) => { if (k === 'length') throw new Error('rewritten'); return t[k]; } });
+  assert.deepEqual(samplesFrom(list), []);
+  // 50 on the first read, then 500 and then a throw: the check and the copy see the same 50.
+  let reads = 0;
+  const shifting = { at: NOW, get percent() { reads += 1; if (reads === 1) return 50; if (reads === 2) return 500; throw new Error('rewritten'); } };
+  assert.deepEqual(samplesFrom([shifting]), [{ at: NOW, percent: 50 }]);
+  assert.equal(reads, 1);
+});
+
+test('the session limit projects from its recent pace: the oldest sample in the last 30 minutes to the newest', () => {
+  const limit = fiveHour(64, 30 * MIN);
+  // 1% a minute for the 30 minutes left: 94% at reset.
+  assert.deepEqual(projection(limit, PACED, NOW), { percent: 94 });
+  // A sample older than 30 minutes is left out of the pace; one at exactly 30 is in.
+  assert.deepEqual(projection(limit, [sample(-40 * MIN, 0), ...PACED], NOW), { percent: 94 });
+  assert.deepEqual(projection(limit, [sample(-30 * MIN, 34), sample(0, 64)], NOW), { percent: 94 });
+  // A sample after the clock is left out too: the pace runs from -20 min to -10 min.
+  assert.deepEqual(projection(limit, [sample(-20 * MIN, 44), sample(-10 * MIN, 54), sample(MIN, 99)], NOW), { percent: 94 });
+  // The newest sample need not be now: the pace is the change over the time between the two.
+  assert.deepEqual(projection(fiveHour(64, 30 * MIN), [sample(-25 * MIN, 44), sample(-5 * MIN, 64)], NOW), { percent: 94 });
+});
+
+test('the session limit\'s projection is hidden under 5 minutes between its samples, when flat or falling, and with no samples', () => {
+  const limit = fiveHour(64, 30 * MIN);
+  assert.equal(projection(limit, [], NOW), undefined);
+  assert.equal(projection(limit, [sample(0, 64)], NOW), undefined);
+  assert.equal(projection(limit, [sample(-5 * MIN + 1, 44), sample(0, 64)], NOW), undefined, 'just under 5 minutes');
+  assert.ok(projection(limit, [sample(-5 * MIN, 44), sample(0, 64)], NOW) !== undefined, 'at 5 minutes');
+  assert.equal(projection(limit, [sample(-20 * MIN, 64), sample(0, 64)], NOW), undefined, 'flat');
+  // All samples older than 30 minutes: no pace.
+  assert.equal(projection(limit, [sample(-50 * MIN, 10), sample(-31 * MIN, 64)], NOW), undefined);
+  // A falling pace is hidden too. samplesFrom never passes one, since a lower percent starts the buffer over.
+  assert.equal(projection(limit, [sample(-20 * MIN, 70), sample(0, 64)], NOW), undefined);
+});
+
+test('the weekly limit projects from its average pace since the week began, reset time minus 7 days, and takes no samples', () => {
+  // Reset in 3 d 4 hr: the week began 92 hours ago. 12.5% in 92 hours, kept up for 76 more.
+  const limit = sevenDay(12.5, 3 * DAY + 4 * 60 * MIN);
+  const p = projection(limit, [], NOW);
+  assert.ok(Math.abs(p.percent - (12.5 + (12.5 / 92) * 76)) < 1e-9, `${p.percent}`);
+  assert.equal(p.earlyMs, undefined);
+  // Samples never move it, the session limit's or anyone's.
+  assert.deepEqual(projection(limit, PACED, NOW), p);
+  assert.deepEqual(projection(limit, [sample(-20 * MIN, 0), sample(0, 100)], NOW), p);
+  // Under 1 hour since the week began, none; at 1 hour, one.
+  assert.equal(projection(sevenDay(1, 7 * DAY - 60 * MIN + 1), [], NOW), undefined);
+  assert.ok(projection(sevenDay(1, 7 * DAY - 60 * MIN), [], NOW) !== undefined);
+  // None at 0% used, and none when the reset is more than 7 days off, so the week has not begun.
+  assert.equal(projection(sevenDay(0, 3 * DAY), [], NOW), undefined);
+  assert.equal(projection(sevenDay(10, 7 * DAY + MIN), [], NOW), undefined);
+});
+
+test('only five_hour and seven_day with a parseable reset time get a projection: a gateway-named limit gets none', () => {
+  for (const kind of ['spend_limit', 'gateway_hour', 'Five_hour', 'five_hour ', 'constructor', '__proto__']) {
+    assert.equal(projection({ kind, percent: 50, resetsAt: at(30 * MIN) }, PACED, NOW), undefined, kind);
+  }
+  for (const resetsAt of [undefined, '', 'soon', '2026-13-01T00:00:00Z', '2026-04-31T00:00:00Z', at(30 * MIN).slice(0, 16)]) {
+    assert.equal(projection({ kind: 'five_hour', percent: 64, resetsAt }, PACED, NOW), undefined, `five_hour ${resetsAt}`);
+    assert.equal(projection({ kind: 'seven_day', percent: 64, resetsAt }, [], NOW), undefined, `seven_day ${resetsAt}`);
+  }
+  // A reset time now or past has no time left to project over.
+  assert.equal(projection(fiveHour(64, 0), PACED, NOW), undefined);
+  assert.equal(projection(fiveHour(64, -MIN), PACED, NOW), undefined);
+  assert.equal(projection(sevenDay(64, -MIN), [], NOW), undefined);
+  for (const bad of [NaN, Infinity, -Infinity]) assert.equal(projection(fiveHour(64, 30 * MIN), PACED, bad), undefined);
+});
+
+test('past 100% the projection says how early the limit runs out: reset time − (now + (100 − used) ÷ pace)', () => {
+  // 1% a minute from 64% reaches 100% in 36 minutes; the reset is in 156.
+  assert.deepEqual(projection(fiveHour(64, 156 * MIN), PACED, NOW), { percent: 220, earlyMs: 120 * MIN });
+  // 60% in 4 days is 15% a day: 100% in 2 d 16 hr, 8 hours before the reset in 3 days.
+  const weekly = projection(sevenDay(60, 3 * DAY), [], NOW);
+  assert.ok(Math.abs(weekly.percent - 105) < 1e-9);
+  assert.ok(Math.abs(weekly.earlyMs - 8 * 60 * MIN) < 1e-6);
+  // Exactly 100% at reset is not early.
+  assert.deepEqual(projection(fiveHour(64, 36 * MIN), PACED, NOW), { percent: 100 });
+});
+
+test('a limit already at or over 100% gets no early note and keeps its reset time (owner decision q1 A)', () => {
+  const rising = [sample(-20 * MIN, 90), sample(0, 100)];
+  // At or over 100%, as the row draws it rounded, the limit has run out: no
+  // projection at all, so no early note and no pace in the alt text.
+  assert.equal(projection(fiveHour(100, 60 * MIN), rising, NOW), undefined);
+  assert.equal(projection(sevenDay(100000, 3 * DAY), [], NOW), undefined);
+  assert.equal(projection(sevenDay(99.6, 3 * DAY), [], NOW), undefined, 'drawn as 100%');
+  // Below what the row draws as 100% the note still says how early.
+  assert.ok(projection(sevenDay(99.4, 3 * DAY), [], NOW).earlyMs > 0);
+  const drawn = usageView({ limits: [fiveHour(99.6, 60 * MIN)], context: {} }, 'terminal', NOW, SVG_MAX, rising);
+  assert.deepEqual([drawn.rows[0].percent, drawn.rows[0].note, drawn.rows[0].noteTone], ['100%', 'Resets in 1 hr 0 min', '']);
+  const terminal = usageView({ limits: [fiveHour(100, 60 * MIN)], context: {} }, 'terminal', NOW, SVG_MAX, rising);
+  assert.deepEqual([terminal.rows[0].note, terminal.rows[0].noteTone], ['Resets in 1 hr 0 min', '']);
+  const image = usageView({ limits: [fiveHour(100, 60 * MIN)], context: {} }, 'desktop', NOW, SVG_MAX, rising);
+  assert.ok(image.source.includes('<text class="muted" x="100%" y="12" text-anchor="end">Resets in 1 hr 0 min · 100%</text>'), image.source);
+  assert.ok(!image.source.includes('runs out') && !image.alt.includes('runs out'));
+  assert.equal(image.alt, 'Usage: Current session 100%');
+  assertAllowlisted(image.source);
+});
+
+test('a rough time reads minutes under an hour, hours under a day, then days, never 0', () => {
+  const cases = [
+    [1, '1 min'],
+    [0.4 * MIN, '1 min'],
+    [40 * MIN, '40 min'],
+    [59 * MIN, '59 min'],
+    [60 * MIN, '1 hr'],
+    [89 * MIN, '1 hr'],
+    [90 * MIN, '2 hr'],
+    [120 * MIN, '2 hr'],
+    [DAY, '1 d'],
+    [2.6 * DAY, '3 d'],
+  ];
+  for (const [ms, text] of cases) assert.equal(roughTime(ms), text, `${ms}`);
+  for (const bad of [NaN, Infinity, -Infinity, -5, 0]) assert.match(roughTime(bad), /^\d+ (?:min|hr|d)$/);
+});
+
+test('the image draws the projection as a faint proj bar under the fill, from 0 to the projected percent, capped at 100%', () => {
+  const s = { limits: [fiveHour(64, 30 * MIN), sevenDay(12.5, 3 * DAY + 4 * 60 * MIN)], context: {} };
+  for (const surface of IMAGE_SURFACES) {
+    const v = usageView(s, surface, NOW, SVG_MAX, PACED);
+    assert.equal(v.kind, 'svg');
+    // Track, then the projection, then the 6 px stub and the fill over it: the
+    // fill covers the projection up to the bar's end, so the faint part shows
+    // from the bar's end to the projected percent.
+    assert.ok(
+      v.source.includes(
+        '<rect class="track" x="0" y="20" width="100%" height="6" rx="3"/>' +
+          '<rect class="proj" x="0" y="20" width="94%" height="6" rx="3"/>' +
+          '<rect class="ok" x="0" y="20" width="6" height="6" rx="3"/><rect class="ok" x="0" y="20" width="64%" height="6" rx="3"/>',
+      ),
+      v.source,
+    );
+    assert.match(v.source, /<rect class="track" x="0" y="58" width="100%" height="6" rx="3"\/><rect class="proj" x="0" y="58" width="22\.83%" height="6" rx="3"\/><rect class="ok" x="0" y="58" width="6"/);
+    // The note keeps the reset time while the projection stays under 100%.
+    assert.ok(v.source.includes('<text class="muted" x="100%" y="12" text-anchor="end">Resets in 30 min · 64%</text>'));
+    assertAllowlisted(v.source);
+  }
+  // Past 100% the projection is drawn full, never past it.
+  const over = usageView({ limits: [fiveHour(64, 156 * MIN)], context: {} }, 'desktop', NOW, SVG_MAX, PACED);
+  assert.ok(over.source.includes('<rect class="proj" x="0" y="20" width="100%" height="6" rx="3"/>'));
+  assertAllowlisted(over.source);
+  // No projection, no proj bar: the class sits in the style block only.
+  assert.ok(!usageView({ limits: [fiveHour(64, 30 * MIN)], context: {} }, 'desktop', NOW).source.includes('class="proj"'));
+});
+
+test('past 100% the image\'s note reads "runs out about N early" in red, where the reset time was', () => {
+  const v = usageView({ limits: [fiveHour(64, 156 * MIN), sevenDay(60, 3 * DAY)], context: {} }, 'desktop', NOW, SVG_MAX, PACED);
+  assert.ok(v.source.includes('<text class="hot" x="100%" y="12" text-anchor="end">runs out about 2 hr early · 64%</text>'), v.source);
+  assert.ok(v.source.includes('<text class="hot" x="100%" y="50" text-anchor="end">runs out about 8 hr early · 60%</text>'), v.source);
+  assert.ok(!v.source.includes('Resets in'));
+  assertAllowlisted(v.source);
+});
+
+test('the image\'s alt text names the projection in fixed words and numbers', () => {
+  const under = usageView({ limits: [fiveHour(64, 30 * MIN)], context: {} }, 'desktop', NOW, SVG_MAX, PACED);
+  assert.equal(under.alt, 'Usage: Current session 64%, on pace for 94% at reset');
+  const over = usageView({ limits: [fiveHour(64, 156 * MIN), { kind: 'spend_limit', percent: 5, resetsAt: at(MIN) }], context: {} }, 'desktop', NOW, SVG_MAX, PACED);
+  assert.equal(over.alt, 'Usage: Current session 64%, on pace for 220% at reset, runs out about 2 hr early; Spend limit 5%');
+});
+
+test('the terminal draws the projection as dim ░ cells from the bar\'s end, and the bar and the cells after it are always 20', () => {
+  const v = usageView({ limits: [fiveHour(64, 30 * MIN), fiveHour(64, 156 * MIN), sevenDay(12.5, 3 * DAY + 4 * 60 * MIN)], context: {} }, 'terminal', NOW, SVG_MAX, PACED);
+  // 64% of 20 cells is 12.8: twelve full and one at six eighths. 94% is 18.8
+  // cells, so the projection takes the cells up to the 19th.
+  assert.deepEqual(
+    v.rows.map(r => [r.bar, r.ahead]),
+    [
+      ['████████████▊', `${'░'.repeat(6)} `],
+      ['████████████▊', '░'.repeat(7)],
+      ['██▌', `${'░'.repeat(2)}${' '.repeat(15)}`],
+    ],
+  );
+  for (const r of v.rows) assert.equal([...(r.bar + r.ahead)].length, 20);
+  assert.deepEqual(v.rows.map(r => [r.note, r.noteTone]), [
+    ['Resets in 30 min', ''],
+    ['runs out about 2 hr early', 'error'],
+    ['Resets in 3 d 4 hr', ''],
+  ]);
+  // No projection: the bar is its 20 cells as before, with nothing after it.
+  const plain = usageView({ limits: [fiveHour(64, 30 * MIN)], context: { percent: 23, tokens: 1, window: 2 } }, 'terminal', NOW);
+  assert.deepEqual(plain.rows.map(r => [r.bar, r.ahead, r.noteTone]), [
+    [`████▋${' '.repeat(15)}`, '', ''],
+    [`████████████▊${' '.repeat(7)}`, '', ''],
+  ]);
+});
+
+test('a rewritten samples value never throws or draws past full, and the usage image stays on the allowlist with the class list grown by proj only', () => {
+  const limits = [fiveHour(64, 156 * MIN), fiveHour(99.9, 30 * MIN), fiveHour(100, 30 * MIN), fiveHour(100000, 30 * MIN), sevenDay(100000, 3 * DAY), sevenDay(0.0001, 6 * DAY)];
+  const hostile = [
+    undefined,
+    null,
+    'x',
+    5,
+    {},
+    { length: 3 },
+    [null, 1, 'x'],
+    [sample(-20 * MIN, 0), sample(0, 100)],
+    [sample(-20 * MIN, -5), sample(0, 1e300)],
+    [{ at: -Infinity, percent: 0 }, { at: NOW, percent: 100 }],
+    [{ at: NOW - 20 * MIN, percent: 0, toString: 'x' }, { at: NOW, percent: 100, __proto__: { percent: 5 } }],
+    [sample(-20 * MIN, 0), sample(-20 * MIN + 1, 100)],
+    Array.from({ length: 5000 }, (_, i) => sample(i - 5000, 0)),
+    [sample(-Number.MAX_VALUE, 0), sample(0, 100)],
+    [sample(-20 * MIN, 0), sample(0, Number.MIN_VALUE)],
+  ];
+  const classes = new Set();
+  for (const samples of hostile) {
+    for (const surface of SURFACES) {
+      const v = usageView({ limits, context: {} }, surface, NOW, SVG_MAX, samples);
+      if (v.kind === 'svg') {
+        assertAllowlisted(v.source);
+        for (const m of v.source.matchAll(/class="([^"]+)"/g)) classes.add(m[1]);
+      } else {
+        for (const r of v.rows) {
+          assert.equal([...(r.bar + r.ahead)].length, 20);
+          assert.doesNotMatch(r.note, /NaN|Infinity|undefined/);
+        }
+      }
+    }
+  }
+  // The usage image's classes are today's, with proj the one new class.
+  const before = new Set(['muted', 'track', 'ok', 'warn', 'hot', 'free', 'buffer', 'c0', 'c1', 'c2', 'c3', 'c4', 'c5', 'c6']);
+  assert.deepEqual([...classes].filter(c => !before.has(c)), ['proj']);
+});
+
+test('the style block gives proj its faint blue fill, in light and dark', () => {
+  assert.match(view.STYLE, /\.proj\{fill:#a9cdf0\}/);
+  const dark = view.STYLE.slice(view.STYLE.indexOf('@media'));
+  assert.match(dark, /\.proj\{fill:#2f5f8f\}/);
+  assert.equal(view.STYLE.indexOf('.proj{fill:#a9cdf0}') < view.STYLE.indexOf('@media'), true, 'the light fill sits outside the dark rule');
+});
+
+test('the state contract declares samples under the plugin\'s manifest name, and the pane keeps them in an atom that starts empty', () => {
+  const types = readFileSync(join(root, 'brigade/types/index.d.ts'), 'utf8');
+  const block = types.slice(types.indexOf('interface PluginState'));
+  assert.match(block, /\n\s+samples: Sample\[\]\n/);
+  assert.match(types, /export type Sample = \{ at: number; percent: number \}/);
+  const register = readFileSync(join(root, 'brigade/register.tsx'), 'utf8');
+  assert.match(register, /atom\(\{ plugin: 'grimoire', key: 'samples' \} as const, \[\]\)/);
 });
 
 // --- tick and undo ---------------------------------------------------------

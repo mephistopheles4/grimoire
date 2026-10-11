@@ -48,6 +48,10 @@ export type UsageSnapshot = {
   categories?: UsageCategory[]
 }
 
+/** One reading of this session's own session limit (`five_hour`): when it
+ *  was taken, in epoch ms, and the percent used. */
+export type Sample = { at: number; percent: number }
+
 /** One card's cache warmth, from its session's transcript: the last real
  *  model call's time, its context tokens and its cache window (absent when no
  *  call that wrote cache says it); or unknown, because the transcript is too
@@ -80,6 +84,10 @@ declare module 'claude-code' {
       ticking: Pair[]
       /** This session's last usage reading, read while the pane is open. */
       usage: UsageSnapshot
+      /** This session's own session-limit percent, sampled from the usage
+       *  readings while the pane is open, for its projection: at most one
+       *  every 30 s, at most 120. Checked again before use. */
+      samples: Sample[]
       /** Each roster member's cache warmth, from the agents poll while the
        *  pane is open. Checked again before it is drawn. */
       warmth: Warmth[]
