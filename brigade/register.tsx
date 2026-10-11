@@ -1003,6 +1003,12 @@ export const register: Register = on => {
       const record = warm.get(c.title)
       const sizeOnly = bar !== undefined && meter === undefined && record?.kind === 'call' ? sizeText(record.tokens) : undefined
       const valueCells = Math.max(bar?.text.length ?? 0, meter?.text.length ?? 0, sizeOnly?.length ?? 0)
+      // Where images draw, the text is proportional and narrower than its
+      // cell count, so a fixed column leaves room after each value: there
+      // each value takes its own width and its bar grows to meet it. The
+      // width is left out, not handed undefined, as a precaution: the plugin
+      // test harness drops undefined props, so no test can tell the two apart.
+      const valueWidth = Image === undefined ? { width: valueCells } : {}
       const report = last(c.title)
       const needs = c.status === 'needs-you'
       const canOpen = appLink(c, found.get(c.title)) !== undefined
@@ -1104,7 +1110,7 @@ export const register: Register = on => {
                         </Text>
                       </Box>
                     )}
-                    <Box flexShrink={0} width={valueCells} justifyContent="flex-start">
+                    <Box flexShrink={0} {...valueWidth} justifyContent="flex-start">
                       <Text color={bar.tone}>{bar.text}</Text>
                     </Box>
                   </Box>
@@ -1133,7 +1139,7 @@ export const register: Register = on => {
                         </Text>
                       </Box>
                     )}
-                    <Box flexShrink={0} width={valueCells} justifyContent="flex-start">
+                    <Box flexShrink={0} {...valueWidth} justifyContent="flex-start">
                       {meter.cls === 'done' ? <Text>{meter.text}</Text> : <Text color={meter.tone}>{meter.text}</Text>}
                     </Box>
                   </Box>
@@ -1152,7 +1158,7 @@ export const register: Register = on => {
                         <Text>{' '.repeat(CACHE_CELLS + 2)}</Text>
                       </Box>
                     )}
-                    <Box flexShrink={0} width={valueCells} justifyContent="flex-start">
+                    <Box flexShrink={0} {...valueWidth} justifyContent="flex-start">
                       <Text>{sizeOnly}</Text>
                     </Box>
                   </Box>

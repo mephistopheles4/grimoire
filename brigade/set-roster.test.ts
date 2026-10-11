@@ -1798,6 +1798,19 @@ for (const surface of SURFACES) {
       else expect(spoken(room)).toBe(' '.repeat(18))
       // The size starts one gap after the bar's room, as the values above do.
       expect(row.children[2].props.justifyContent).toBe('flex-start')
+      // On desktop it takes its own width, as the values above do.
+      if (surface === 'desktop') expect('width' in row.children[2].props).toBe(false)
+    }
+    // On the terminal the size's width is its block's widest value text.
+    const isBare = (r: any) => r?.type === 'Box' && r.props.flexDirection === 'row' && spoken(r.children[0]) === '◆ context' && r.children.length === 3 && !/[▕▏]/.test(spoken(r.children[1]))
+    const bareBlocks = all.filter(b => b.type === 'Box' && b.props.flexDirection === 'column' && b.children?.some(isBare))
+    expect(bareBlocks.length).toBe(bare.length)
+    for (const block of bareBlocks) {
+      const rows = block.children.filter((r: any) => r?.type === 'Box' && r.props.flexDirection === 'row')
+      const widest = Math.max(...rows.map((r: any) => spoken(r.children.at(-1)).length))
+      const size = rows.find(isBare).children[2]
+      if (surface === 'desktop') expect('width' in size.props).toBe(false)
+      else expect(size.props.width).toBe(widest)
     }
     for (const [size, n] of [['182k', 1], ['150k', 2]] as const) {
       const found = texts(all, size)
@@ -2616,10 +2629,12 @@ for (const surface of SURFACES) {
     const holders = all.filter(b => b.type === 'Box' && b.props.marginLeft === 2)
     expect(holders.length).toBeGreaterThan(0)
     for (const h of holders) expect(h.props.marginRight).toBe(2)
-    // Item 3: each label sits in a Box of one fixed width, and each value in
-    // a Box of one width per card, its text at the left edge, so both bars
-    // start and end at the same place and each value sits one gap after its
-    // bar, as each bar sits one gap after its label.
+    // Item 3: each label sits in a Box of one fixed width, and each value
+    // starts at the left of its Box, one gap after its bar, as each bar sits
+    // one gap after its label. On the terminal each value Box has one width
+    // per card, so both bars end at the same place. On desktop it has no
+    // width: a cell count is wider than the proportional text it holds, so
+    // each value takes its own width and its bar grows to meet it.
     const said = (n: any): string => (typeof n === 'string' ? n : n?.text ?? (n?.children ?? []).map(said).join(''))
     const around = (words: string[]) => all.filter(b => b.type === 'Box' && b.props.flexShrink === 0 && words.includes(said(b)))
     const labels = around(['◆ cache', '◆ context'])
@@ -2631,7 +2646,8 @@ for (const surface of SURFACES) {
     for (const values of paired) {
       const widest = Math.max(...values.map((v: any) => said(v).length))
       for (const v of values) {
-        expect(v.props.width).toBe(widest)
+        if (surface === 'desktop') expect('width' in v.props).toBe(false)
+        else expect(v.props.width).toBe(widest)
         expect(v.props.justifyContent).toBe('flex-start')
       }
     }
@@ -2666,7 +2682,8 @@ for (const surface of SURFACES) {
     const all = await nodes(m)
     expect(texts(all, '1.3M · over 200k').length).toBe(1)
     const values = all.filter(b => b.type === 'Box' && b.props.justifyContent === 'flex-start' && ['warm (working)', '1.3M · over 200k'].includes(spoken(b)))
-    expect(values.map(b => b.props.width)).toEqual([16, 16])
+    if (surface === 'desktop') expect(values.map(b => 'width' in b.props)).toEqual([false, false])
+    else expect(values.map(b => b.props.width)).toEqual([16, 16])
   })
 
   test(`${surface}: a tab press switches its card's view: burn rate, then the context trend, then back`, async ($, on) => {
