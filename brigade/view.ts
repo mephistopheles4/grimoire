@@ -974,6 +974,102 @@ export function warmthLine(
   return large ? { tone: 'warning', text, nudge: `Reply within ${leftText} to keep the cache.` } : { tone: 'warning', text }
 }
 
+// --- The cache bar -----------------------------------------------------------
+//
+// A needs-you or working card draws its ◆ line as a bar that drains over the
+// cache window, with short text beside it and a dim line under it. The bar is
+// worked out here from the warmth record's numbers alone: no title, to-do,
+// report or usage text reaches it, and its alt text is fixed words and numbers.
+
+/** The terminal cache bar's width in cells. */
+export const CACHE_CELLS = 16
+
+/** A card's cache bar: how full it is, from 0 to 1, its theme colour key and
+ *  SVG class, its short text, and the dim line under it, absent when the
+ *  context size is unknown. */
+export type CacheBar = {
+  fraction: number
+  tone: 'success' | 'warning' | 'error'
+  cls: 'done' | 'warn' | 'hot'
+  text: string
+  detail?: string
+}
+
+// A fraction as a bar draws it: one that is not a finite number is 0, and any
+// other is clamped to between 0 and 1.
+const unit = (f: number) => (Number.isFinite(f) ? Math.min(1, Math.max(0, f)) : 0)
+
+/** One card's cache bar, or undefined for no bar. A working session is warm:
+ *  a full green bar, whether its record is a call or not read yet, and
+ *  whatever its window. Otherwise only a call with a known window has a bar:
+ *  the time left over the window, green with more than 15 min left, amber at
+ *  15 or less, and empty and red with none left, the same bands as
+ *  `warmthLine`. A transcript too large to read, a name two sessions share,
+ *  an unknown window and no record have none. Idle time is floored at 0, so
+ *  a call time ahead of the clock gives a full bar; an idle time that is not
+ *  a finite number gives no bar. */
+export function cacheBar(w: Warmth | undefined, state: string | undefined, now: number): CacheBar | undefined {
+  if (w === undefined || w.kind === 'too-large' || w.kind === 'shared') return undefined
+  const size = w.kind === 'call' ? `${tokens(w.tokens)} context` : undefined
+  if (isWorking(state)) {
+    const warm: CacheBar = { fraction: 1, tone: 'success', cls: 'done', text: 'warm (working)' }
+    if (size !== undefined) warm.detail = size
+    return warm
+  }
+  if (w.kind !== 'call' || w.windowMs === undefined) return undefined
+  const idle = Math.max(0, now - w.at)
+  if (!Number.isFinite(idle)) return undefined
+  const left = w.windowMs - idle
+  const detail = `idle ${span(Math.floor(idle / MIN_MS))} · ${size}`
+  if (left <= 0) return { fraction: 0, tone: 'error', cls: 'hot', text: 'cold', detail }
+  const text = `cold in ${span(Math.ceil(left / MIN_MS))}`
+  const fraction = unit(left / w.windowMs)
+  return left > AMBER_MS
+    ? { fraction, tone: 'success', cls: 'done', text, detail }
+    : { fraction, tone: 'warning', cls: 'warn', text, detail }
+}
+
+/** The terminal's cache bar: 16 eighth-block cells, the end marks left to
+ *  the caller. A cold bar, empty, keeps a one-eighth cell at its start, as
+ *  the image keeps its stub, so it still reads red. */
+export function cacheCells(b: CacheBar): string {
+  const cells = eighthBar(b.fraction, CACHE_CELLS)
+  return b.cls === 'hot' && cells.trim() === '' ? `${EIGHTHS[0]}${' '.repeat(CACHE_CELLS - 1)}` : cells
+}
+
+// The three classes a cache bar's fill may take. Any other class it is handed
+// draws no fill. `done` is the shared green: a done session's colour and a
+// warm cache's.
+const CACHE_CLASSES = new Set(['done', 'warn', 'hot'])
+// The image's height, the bar's top, and the bar's thickness, which is also
+// the stub's width.
+const CACHE_HEIGHT = 16
+const CACHE_Y = 5
+const CACHE_THICKNESS = 6
+
+/** The cache bar as an image for the surfaces with Svg, built from the bar's
+ *  fraction and class alone. A rounded track the image's full width, a fixed
+ *  6 px stub in the bar's class, and over it a rounded fill in percentages,
+ *  so a sliver stays seen; at 0 the stub alone. A class other than the three
+ *  tones' draws the track alone. No clipPath and no id, so many cache bars on
+ *  one pane share none. The fraction is clamped here too. The alt text is
+ *  "Cache" and the bar's text, cleaned to one line. */
+export function cacheBarSvg(b: CacheBar): Extract<UsageView, { kind: 'svg' }> {
+  const f = unit(b.fraction)
+  const y = num(CACHE_Y)
+  const h = num(CACHE_THICKNESS)
+  const r = num(CACHE_THICKNESS / 2)
+  // The stub is drawn at 0 too, so a cold bar, empty, still reads red.
+  const fill = CACHE_CLASSES.has(b.cls)
+    ? `<rect class="${b.cls}" x="0" y="${y}" width="${h}" height="${h}" rx="${r}"/>` +
+      (f > 0 ? `<rect class="${b.cls}" x="0" y="${y}" width="${pct(f * 100)}" height="${h}" rx="${r}"/>` : '')
+    : ''
+  const source =
+    `<svg xmlns="${XMLNS}" width="100%" height="${num(CACHE_HEIGHT)}"><style>${STYLE}</style>` +
+    `<rect class="track" x="0" y="${y}" width="100%" height="${h}" rx="${r}"/>${fill}</svg>`
+  return { kind: 'svg', source, alt: oneLine(`Cache ${b.text}`, 80), height: CACHE_HEIGHT }
+}
+
 /** What the agents poll remembers of each transcript it read, keyed by path:
  *  its modified time at that read and the last call parsed from it. */
 export type ReadMemory = Map<string, { mtimeMs: number; call: LastCall | undefined }>

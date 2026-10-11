@@ -40,6 +40,9 @@ import {
 import type { HostOs, StatAnswer } from './roster.ts'
 import {
   EMPTY_USAGE,
+  cacheBar,
+  cacheBarSvg,
+  cacheCells,
   foldLabel,
   drawnTitle,
   groupCards,
@@ -823,8 +826,7 @@ export const register: Register = on => {
   on('ui.render', { component: 'Pane', requestId: PANE }, async ($, e) => {
     const table = $.ui.resolve(e)
     const { Box, Text, Button } = table
-    // The terminal's table has no Svg, and a surface without one gets the
-    // text bars too. The render only reads the stored reading: it fetches none.
+    // The render only reads the stored reading: it fetches none.
     const Svg = 'Svg' in table ? table.Svg : undefined
     // The clock moves the warmth line too: the roster timer's redraws every
     // 5 s move its countdown.
@@ -874,17 +876,21 @@ export const register: Register = on => {
     // One card, in a rounded box: amber when it needs the owner, dim
     // otherwise. The status badge, glyph and word, the title and its live
     // state on one line, the title cut first so the state stays in view.
-    // Then the ◆ warmth line
-    // and its nudge, which wraps, the phase, the work, the settings and the
-    // latest report, each on its own line and cut to the pane's width, and
-    // the buttons on their own row.
+    // Then, on a needs-you or working card, the ◆ cache bar with its short
+    // text and the dim line under it, or the ◆ warmth line, dim, when there
+    // is no bar; and the nudge, which wraps. Then the phase, the work, the
+    // settings and the latest report, each on its own line and cut to the
+    // pane's width, and the buttons on their own row. A done or stopped card
+    // draws no ◆ line, bar or nudge: a finished session's cache means nothing.
     const card = ({ c, i }: { c: Card; i: number }) => {
       const look = statusOf(c.status)
       if (look === undefined) return null
       const state = liveState(running.get(c.title))
-      const warmLine = warmthLine(warm.get(c.title), running.get(c.title), c.status, now)
-      const report = last(c.title)
       const isFinished = look.group === 'finished'
+      const warmLine = isFinished ? undefined : warmthLine(warm.get(c.title), running.get(c.title), c.status, now)
+      const bar = isFinished ? undefined : cacheBar(warm.get(c.title), running.get(c.title), now)
+      const image = bar !== undefined && Image !== undefined ? cacheBarSvg(bar) : undefined
+      const report = last(c.title)
       const needs = c.status === 'needs-you'
       const canOpen = appLink(c, found.get(c.title)) !== undefined
       return (
@@ -912,15 +918,53 @@ export const register: Register = on => {
             </Box>
           </Box>
           <Box flexDirection="column" marginLeft={2} marginTop={1}>
-            {warmLine !== undefined && (
-              <Text {...(warmLine.tone === 'dim' ? { dimColor: true } : { color: warmLine.tone })} wrap="truncate-end">
-                {warmLine.text}
-              </Text>
-            )}
-            {warmLine?.nudge !== undefined && (
-              <Text color="warning" wrap="wrap">
-                {warmLine.nudge}
-              </Text>
+            {/* The cache block, then one row before the phase. Where images
+                draw, the image takes the room between the label and its
+                text, which do not shrink, so on a narrow pane the bar shrinks
+                to its minimum, not the text; the image, placed in
+                percentages, spans a column Box that grows. The terminal's 16
+                cells keep their width. */}
+            {(bar !== undefined || warmLine !== undefined) && (
+              <Box flexDirection="column" marginBottom={1}>
+                {bar !== undefined && (
+                  <Box flexDirection="row" columnGap={1}>
+                    <Box flexShrink={0}>
+                      <Text dimColor>◆ cache</Text>
+                    </Box>
+                    {Image !== undefined && image !== undefined ? (
+                      <Box flexDirection="column" flexGrow={1} minWidth={8}>
+                        <Image source={image.source} alt={image.alt} height={image.height} />
+                      </Box>
+                    ) : (
+                      <Box flexShrink={0}>
+                        <Text>
+                          <Text dimColor>▕</Text>
+                          <Text color={bar.tone}>{cacheCells(bar)}</Text>
+                          <Text dimColor>▏</Text>
+                        </Text>
+                      </Box>
+                    )}
+                    <Box flexShrink={0}>
+                      <Text color={bar.tone}>{bar.text}</Text>
+                    </Box>
+                  </Box>
+                )}
+                {bar?.detail !== undefined && (
+                  <Text dimColor wrap="truncate-end">
+                    {bar.detail}
+                  </Text>
+                )}
+                {bar === undefined && warmLine !== undefined && (
+                  <Text dimColor wrap="truncate-end">
+                    {warmLine.text}
+                  </Text>
+                )}
+                {warmLine?.nudge !== undefined && (
+                  <Text color="warning" wrap="wrap">
+                    {warmLine.nudge}
+                  </Text>
+                )}
+              </Box>
             )}
             <Text wrap="truncate-end">{oneLine(c.phase, 160)}</Text>
             <Text dimColor wrap="truncate-end">
