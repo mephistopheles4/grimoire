@@ -2,9 +2,9 @@
 name: head-chef
 description: Makes this Claude Desktop session the lead of a brigade, the Claude Code sessions it starts. It starts each one in the background or as a Desktop session with the model and effort set, points it to where its brief lives, takes its milestone reports, relays between sessions, keeps the Brigade pane's roster when the pane is there, and cleans up a session and its worktree when the owner says it is done. Use when someone asks for work to run in another session, to start or hand off to a new session, or to lead several sessions, or types /head-chef. Not for work in this same session, and not for a question about how sessions work.
 metadata:
-  contract-version: 0.6.0
-  familiar-digest: "sha256:fd78a6b3af2a2d947efa73fe0755d83ea778eef2204bdd7e43bf82e0306c2dc8"
-  contract-digest: "sha256:95052201b5af46ad6394cce467b8cd3d74e00e174e5930964b6454d2623a0212"
+  contract-version: 0.7.0
+  familiar-digest: "sha256:c0ece7fd7ddfe154039e551d765daa214524298088bcfa856b7e1e530eae5e12"
+  contract-digest: "sha256:00dfc4248b3a6c6422608795c009e5bd73faf82fb6fbb4acdf672fc88505203a"
 ---
 
 # Head chef
@@ -152,8 +152,10 @@ a record anyone can comment on, and holds no single quote (failures 3, 13).
 
 **The session id goes only in the start prompt, a chip's first prompt, the wait line below, and
 messages that are not a brief.** Never put it in a brief, even one sent as a
-message, nor on a record, a roster card or a to-do. Reason: a record can be
-public, and plugin state can be read by other plugins (failure 16).
+message, nor on a record, a roster card or a to-do. A Desktop id goes in no
+brief and on no record either; a roster card keeps a chip's `desktopId` (see
+`references/roster.md`). Reason: a record can be public, and plugin state can
+be read by other plugins (failure 16).
 
 **When the brief lives only in this chat,** the start prompt says where to
 wait instead, then the same last sentence:
@@ -231,12 +233,13 @@ turn is held until the head chef sets them.
    tools that set them.
 3. Read the chip's settings back with the session tool that reads a session.
    Go on only when they match.
-4. Send the start prompt, in the pointer form, with the agent's message tool,
-   never with Desktop's own send tool. It carries this session's id; a brief
-   sent after it does not (failure 16). Send every message to a chip the same
-   way, every decision and relay included. Reason: Desktop's send tool
-   records no sender, so the chip's sender check cannot run, and the text
-   arrives as the chip's own turn (failure 13).
+4. Send the start prompt, in the pointer form. It carries this session's id;
+   a brief sent after it does not (failure 16). Send it, and every message to
+   a chip, every decision and relay included, with the agent's message tool,
+   the default, or with Desktop's send tool, by the rule in "Relaying".
+   Reason: both carry your name to an ordinary Desktop session, marked as
+   from another session, so the chip's sender check runs either way
+   (failure 13).
 
 ## Relaying (questions 3, 4, 18)
 
@@ -266,6 +269,16 @@ with another id, send nothing more, and tell the owner to stop or rename the
 session that holds the name, then resend: every message counts as a
 decision there (failure 13).
 
+**Two tools reach a session.** The agent's message tool reaches every
+session in `claude agents --json`; use it by default. Desktop's send tool
+reaches Desktop sessions only. Send with Desktop's send tool only to a chip,
+and only to the Desktop id you kept for it: the id Desktop's own tool gave at
+launch, or its roster card's `desktopId`. With no such id, use the agent's
+message tool, under the resend rule above. Never pick a Desktop session by
+its title. Reason: Desktop lists only its 20 most recently active sessions by
+default, and reaches SSH and WSL sessions that the listing does not show, so
+a title can match a session you cannot see (failure 13).
+
 ## Deciding for a session (questions 3, 4, 6, 18)
 
 **A session takes any message from you as the owner's decision,** on any
@@ -287,8 +300,8 @@ of 2026-10-09, accepting that a session cannot tell a forged sender from you
   in one line, in the same turn:** which session, the form, and a gist.
   Reason: the owner can see and correct every call made in their name, and a
   mislabelled send still shows (failure 15).
-- **Never put a session id, a token, a secret, a local path or error text**
-  in a question, a decision or a relay. When the owner's words hold one, ask
+- **Never put a session id, a Desktop id, a token, a secret, a local path or
+  error text** in a question, a decision or a relay. When the owner's words hold one, ask
   the owner to rephrase, or to answer in that session's own chat. They go by
   message only, never on a record, a roster card or a to-do (failure 16).
 
@@ -548,8 +561,9 @@ These are the moments when the head chef tells the owner and waits:
   `claude agents --json`; `claude stop`; `claude rm`.
 - **Claude Desktop's session tools,** for a chip: start a session (and keep
   the session id it gives), set its model, set its effort, read a session,
-  send a message.
-- **The agent's message tool,** to message a session by name.
+  send a message. The send tool reaches Desktop sessions only, by Desktop id.
+- **The agent's message tool,** to message a session by name. It reaches
+  every session in the listing.
 - **git:** `worktree list --porcelain`, `rev-parse`, `status`, `rev-list`,
   `stash list`, `worktree remove`, `branch -d`.
 - **The shell tool,** PowerShell on Windows.
