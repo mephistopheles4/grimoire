@@ -178,7 +178,7 @@ describe('v8 the .toml reader fails closed, and the contract names its target', 
       // and the warning says the check does not review what it does.
       const { file } = codex({ lines: [...CODEX, 'hide = false'], contract: conWith('Target: codex\nExtra keys: hide') });
       const r = sealCodex(file);
-      const want = 'WARN unreviewed: hide at line 6 is a setting this check does not review';
+      const want = 'WARN unreviewed: "hide" at line 6 is a setting this check does not review';
       exact(r, 0, 'PASS toml', 'PASS keys', want);
       assert.equal(r.lines.filter(l => l === want).length, 1, show(r));
     });

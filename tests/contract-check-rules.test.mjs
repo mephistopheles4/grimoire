@@ -6,7 +6,7 @@ import { before, describe, test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { fresh, run, has, show, expect, once, SANDBOX_DANGER, CONTRACT, BROKEN, familiarText, defaultFm, skill, sealAndCheck, editFile, put, tryPut, listing } from './contract-fixture.mjs';
+import { fresh, run, has, show, expect, once, warns, warningsFirst, unreviewedLine, UNREVIEWED_MORE, PROMPT_DANGER, FLOOD_KEYS, SANDBOX_DANGER, CONTRACT, BROKEN, familiarText, defaultFm, skill, sealAndCheck, editFile, put, tryPut, listing } from './contract-fixture.mjs';
 
 // ------------------------------------------------------------------ v10 the character rule
 
@@ -297,7 +297,7 @@ describe('v10 the extra keys a file may hold, listed in its contract', () => {
     ];
     for (const [key, value, label] of lists) {
       test(`${key}, listed -> PASS keys and its danger line, and the seal writes the mark`, () => {
-        const want = `WARN danger: ${key} at line 6 ${label}`;
+        const want = `WARN danger: "${key}" at line 6 ${label}`;
         const { file } = codex({ lines: [...CODEX, `${key} = ${value}`], contract: tomlCon(`Extra keys: ${key}`) });
         const s = run(['--seal', file]);
         exact(s, 0, 'PASS keys', want);
@@ -320,7 +320,7 @@ describe('v10 the extra keys a file may hold, listed in its contract', () => {
 
   describe('a key a .md file adds passes with its value only when the contract lists it', () => {
     const fm = [...defaultFm('x'), 'permissionMode: bypassPermissions'];
-    const want = 'WARN danger: permissionMode at line 4 may let the agent act without asking';
+    const want = 'WARN danger: "permissionMode" at line 4 may let the agent act without asking';
     test('listed -> the seal writes it and the check passes with the danger line, and the value is never printed', () => {
       const { file } = agent({ fm, contract: mdCon('Extra keys: permissionMode') });
       const s = run(['--seal', file]);
@@ -447,7 +447,7 @@ describe('warnings on settings the check does not know to be harmless', () => {
 
   describe('each .toml danger row', () => {
     for (const [key, safe, bad, label] of TOML_ROWS) {
-      const want = `WARN danger: ${key} at line 6 ${label}`;
+      const want = `WARN danger: "${key}" at line 6 ${label}`;
       for (const v of safe) {
         test(`${key} = "${v}" -> 0 with no warning`, () => {
           for (const r of tomlWith(key, v)) assert.ok(!has(r, 'WARN '), show(r));
@@ -471,7 +471,7 @@ describe('warnings on settings the check does not know to be harmless', () => {
 
   describe('each .md danger row', () => {
     for (const [key, safe, bad, label] of MD_ROWS) {
-      const want = `WARN danger: ${key} at line 4 ${label}`;
+      const want = `WARN danger: "${key}" at line 4 ${label}`;
       for (const v of safe) {
         test(`${key}: ${v} -> 0 with no warning`, () => {
           for (const r of mdWith(key, v)) assert.ok(!has(r, 'WARN '), show(r));
@@ -492,7 +492,7 @@ describe('warnings on settings the check does not know to be harmless', () => {
       });
     }
     test('the .md rows apply to a SKILL.md too: allowed-tools -> 0 with its danger line, once', () => {
-      const want = 'WARN danger: allowed-tools at line 4 may let the agent use tools without asking';
+      const want = 'WARN danger: "allowed-tools" at line 4 may let the agent use tools without asking';
       const r = run([skill({ fm: [...defaultFm('demo'), 'allowed-tools: Read'] })]);
       exact(r, 0, 'PASS allowed-tools', want);
       once(r, want);
@@ -500,7 +500,7 @@ describe('warnings on settings the check does not know to be harmless', () => {
   });
 
   describe('unreviewed keys', () => {
-    const want = n => `WARN unreviewed: zq_unreviewed at line ${n} is a setting this check does not review`;
+    const want = n => `WARN unreviewed: "zq_unreviewed" at line ${n} is a setting this check does not review`;
     test('a listed .toml key outside the known, harmless and danger keys -> 0 with the unreviewed line, once, and the value never echoed', () => {
       for (const r of tomlWith('zq_unreviewed', CANARY)) {
         exact(r, 0, want(6));
@@ -517,13 +517,13 @@ describe('warnings on settings the check does not know to be harmless', () => {
     });
     test('a listed key named constructor -> 0 with one unreviewed line, in a .toml and a .md file, and no internal error', () => {
       for (const r of tomlWith('constructor', 'x')) {
-        const line = 'WARN unreviewed: constructor at line 6 is a setting this check does not review';
+        const line = 'WARN unreviewed: "constructor" at line 6 is a setting this check does not review';
         exact(r, 0, line);
         once(r, line);
         assert.ok(!has(r, 'CANNOT-CHECK internal'), show(r));
       }
       for (const r of mdWith('constructor', 'x')) {
-        const line = 'WARN unreviewed: constructor at line 4 is a setting this check does not review';
+        const line = 'WARN unreviewed: "constructor" at line 4 is a setting this check does not review';
         exact(r, 0, line);
         once(r, line);
         assert.ok(!has(r, 'CANNOT-CHECK internal'), show(r));
@@ -545,7 +545,7 @@ describe('warnings on settings the check does not know to be harmless', () => {
   });
 
   describe('flow lists are compared item by item', () => {
-    const want = 'WARN danger: permissionMode at line 4 may let the agent act without asking';
+    const want = 'WARN danger: "permissionMode" at line 4 may let the agent act without asking';
     test('permissionMode: [plan] -> 0 with no warning', () => {
       for (const r of mdWith('permissionMode', '[plan]')) assert.ok(!has(r, 'WARN '), show(r));
     });
@@ -567,7 +567,7 @@ describe('warnings on settings the check does not know to be harmless', () => {
     for (const [key, , , label] of MD_ROWS.filter(([, safe]) => safe.length === 0)) {
       for (const empty of ['[]', '[ ]']) {
         test(`${key}: ${empty} -> 0 with its danger line, once, after --seal`, () => {
-          const line = `WARN danger: ${key} at line 4 ${label}`;
+          const line = `WARN danger: "${key}" at line 4 ${label}`;
           for (const r of mdWith(key, empty)) {
             exact(r, 0, line);
             once(r, line);
@@ -585,28 +585,28 @@ describe('warnings on settings the check does not know to be harmless', () => {
 
   test('a safe sandbox_mode beside a dangerous listed default_permissions -> PASS sandbox-mode and the default_permissions danger line', () => {
     const lines = [...CODEX, 'sandbox_mode = "read-only"', 'default_permissions = ":danger-full-access"'];
-    const want = 'WARN danger: default_permissions at line 7 may let the agent act outside a sandbox';
+    const want = 'WARN danger: "default_permissions" at line 7 may let the agent act outside a sandbox';
     for (const r of sealThenCheck(codex({ lines, contract: tomlCon('Extra keys: default_permissions') }).file)) {
       exact(r, 0, 'PASS sandbox-mode', want);
       once(r, want);
-      assert.ok(!has(r, 'WARN danger: sandbox_mode'), show(r));
+      assert.ok(!has(r, 'WARN danger: "sandbox_mode"'), show(r));
     }
   });
 
-  test('two flagged keys under --seal -> 0, each danger line once, after the keys line and before contract-version', () => {
+  test('two flagged keys under --seal -> 0, each danger line once, in the warning block before the keys line', () => {
     const lines = [...CODEX, 'sandbox_mode = "danger-full-access"', 'approval_policy = "never"'];
     const { file } = codex({ lines, contract: tomlCon('Extra keys: approval_policy') });
     const r = run(['--seal', file]);
-    const wants = [SANDBOX_DANGER(6), 'WARN danger: approval_policy at line 7 may let the agent run commands without asking'];
+    const wants = [SANDBOX_DANGER(6), 'WARN danger: "approval_policy" at line 7 may let the agent run commands without asking'];
     exact(r, 0, 'PASS keys', 'PASS contract-version', ...wants);
     assert.ok(has(r, 'PASS seal: wrote '), show(r));
     const keys = r.lines.indexOf('PASS keys');
-    const cv = r.lines.indexOf('PASS contract-version');
     for (const w of wants) {
       once(r, w);
       const at = r.lines.indexOf(w);
-      assert.ok(keys < at && at < cv, `"${w}" is not between the keys line and contract-version\n${show(r)}`);
+      assert.ok(at < keys, `"${w}" is not before the keys line\n${show(r)}`);
     }
+    warningsFirst(r);
   });
 
   describe('a key that failed the keys rule gets no warning', () => {
@@ -649,6 +649,96 @@ describe('warnings on settings the check does not know to be harmless', () => {
         assert.deepEqual(readFileSync(file), before);
       });
     }
+  });
+});
+
+// ------------------------------------------------------------------ ranked and capped warnings (#160 finding S3)
+
+// The warnings print first, as one block: rank 1 (danger, import,
+// tools-missing), then rank 2. Each group prints at most 20 lines and one
+// count line for the rest, except the DANGER-table key lines, which the table
+// bounds. Every echoed key is quoted and cut at 40 characters.
+describe('warnings print first, ranked, and capped at 20 a group', () => {
+  const mdCon = extra => `Version: 1.0.0\nTarget: claude\n${extra}\n\n# Contract\n\nWhat this familiar is for.\n`;
+  const unreviewed = unreviewedLine;
+  const MORE = UNREVIEWED_MORE;
+  const PROMPT = PROMPT_DANGER;
+  const MISSING = 'WARN tools-missing: no tools listed, so the agent may get every tool';
+  const ks = (from, count) => Array.from({ length: count }, (_, i) => `k${from + i}`);
+
+  /** An agent listing `tools: [Read]` at line 4, unless tools is false, then each key in turn, every one listed. */
+  function flood(keys, { tools = true, body } = {}) {
+    const dir = fresh();
+    const file = join(dir, 'x.md');
+    const head = tools ? [...defaultFm('x'), 'tools: [Read]'] : defaultFm('x');
+    writeFileSync(file, familiarText([...head, ...keys.map(k => `${k}: v`)], body));
+    writeFileSync(join(dir, 'x.contract.md'), mdCon(`Extra keys: ${[...(tools ? ['tools'] : []), ...keys].join(', ')}`));
+    return file;
+  }
+
+  test('300 listed keys, initialPrompt at line 294 -> the danger line, 20 unreviewed lines and one count line, first', () => {
+    const keys = FLOOD_KEYS;
+    const file = flood(keys);
+    const want = [PROMPT(294), ...keys.slice(0, 20).map((k, i) => unreviewed(k, i + 5)), MORE(279)];
+    // Unsealed, the check fails on the missing mark; sealed, it passes.
+    const unsealed = run([file]);
+    const sealing = run(['--seal', file]);
+    const sealed = run([file]);
+    expect(unsealed, 1, 'FAIL contract: ');
+    expect(sealing, 0, 'PASS seal: wrote ');
+    expect(sealed, 0, 'PASS familiar-digest');
+    for (const r of [unsealed, sealing, sealed]) {
+      assert.deepEqual(warns(r), want, show(r));
+      warningsFirst(r);
+    }
+  });
+
+  test('exactly 20 unreviewed keys -> all 20 lines and no count line', () => {
+    const r = run([flood(ks(1, 20))]);
+    assert.deepEqual(warns(r), ks(1, 20).map((k, i) => unreviewed(k, i + 5)), show(r));
+  });
+
+  test('21 unreviewed keys -> 20 lines and "1 more not shown"', () => {
+    const r = run([flood(ks(1, 21))]);
+    assert.deepEqual(warns(r), [...ks(1, 20).map((k, i) => unreviewed(k, i + 5)), MORE(1)], show(r));
+  });
+
+  test('no tools and 30 unreviewed keys -> tools-missing before every unreviewed line', () => {
+    const r = run([flood(ks(1, 30), { tools: false })]);
+    assert.deepEqual(warns(r), [MISSING, ...ks(1, 20).map((k, i) => unreviewed(k, i + 4)), MORE(10)], show(r));
+  });
+
+  test('a long body beside an unreviewed flood -> the body-length line still prints', () => {
+    const body = `# x\n${'line\n'.repeat(600)}`;
+    const r = run([flood(ks(1, 30), { body })]);
+    const lines = warns(r);
+    assert.ok(lines.some(l => l.startsWith('WARN body-length: ')), show(r));
+    assert.equal(lines.filter(l => l.startsWith('WARN unreviewed: "')).length, 20, show(r));
+    warningsFirst(r);
+  });
+
+  test('a 41-character key -> its first 40, then "...", inside the quotes', () => {
+    const key = `zq_${'a'.repeat(38)}`;
+    assert.equal(key.length, 41);
+    const r = run([flood([key])]);
+    assert.deepEqual(warns(r), [`WARN unreviewed: "${key.slice(0, 40)}..." at line 5 is a setting this check does not review`], show(r));
+  });
+
+  test('a 40-character key -> whole, with no "..."', () => {
+    const key = `zq_${'a'.repeat(37)}`;
+    const r = run([flood([key])]);
+    assert.deepEqual(warns(r), [unreviewed(key, 5)], show(r));
+  });
+
+  test('two rank-2 groups that overflow -> both count lines, in the order their groups first raised a line', () => {
+    // The contents rule runs before the key rules, so its group is raised first.
+    const dir = skill({ fm: [...defaultFm('demo'), ...ks(1, 21).map(k => `${k}: v`)], contract: `Version: 1.0.0\nExtra keys: ${ks(1, 21).join(', ')}\n\n# Contract\n` });
+    for (let i = 1; i <= 21; i += 1) put(dir, `references/r${String(i).padStart(2, '0')}.md`, 'line\n'.repeat(101));
+    const lines = warns(run([dir]));
+    assert.equal(lines.length, 42, lines.join('\n'));
+    assert.ok(lines.slice(0, 20).every(l => l.startsWith('WARN contents: "references/r')), lines.join('\n'));
+    assert.deepEqual(lines.slice(20, 40), ks(1, 20).map((k, i) => unreviewed(k, i + 4)), lines.join('\n'));
+    assert.deepEqual(lines.slice(40), ['WARN contents: 1 more not shown', MORE(1)], lines.join('\n'));
   });
 });
 

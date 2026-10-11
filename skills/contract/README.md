@@ -46,9 +46,12 @@ check does not refuse a setting's value because of what it lets the agent do.
 It warns on every listed setting it does not know to be harmless, with a
 sharper danger warning for a few, such as settings that let the agent act
 without asking, reach the live web, or read instructions from outside the
-file. A warning is a prompt to read, not a review. The list of tools an agent
-is given is warned on only when it is missing or empty, or when it grants a
-whole connected server; read it. Read a shared skill, agent or `CLAUDE.md`
+file. A warning is a prompt to read, not a review. The warnings print first,
+the danger, import and missing-tools warnings before the rest, at most 20 of a
+rule and then a count of the rest. A danger warning for a setting in the
+check's danger table is never cut. The list of tools an agent is given is
+warned on only when it is missing or empty, or when it grants a whole
+connected server; read it. Read a shared skill, agent or `CLAUDE.md`
 and its contract before you use it, as you would any code from someone else.
 
 Ask for it by name. The installer route keeps the plain name; the plugin route
@@ -172,6 +175,31 @@ except the contract.
 **A mark proves no authorship.** Anyone can compute one. Read a shipped
 familiar as prose, whatever its mark says. The check also says nothing about
 whether the familiar is any good.
+
+## Changes in 0.11.0
+
+**The check's warnings are easier to read.** No exit code changes: a file
+that passed still passes, and one that failed still fails.
+
+- **They print first,** as one block above every other line, on every run.
+  A refused seal included. The line just above `RESULT:` is then always one
+  about the check's own verdict.
+- **The sharpest come first:** `danger`, `import` and `tools-missing`, then
+  the rest, each in the order the check found them.
+- **Each rule prints at most 20 lines,** then one count line after the
+  lines of its rank, such as `WARN import: 5 more not shown; each is a body
+  line holding an @ import`. The `unreviewed` count line says the rest are
+  on the contract's `Extra keys:` line, and the `tools` items of `danger`
+  are counted apart. A danger line for a
+  setting the check names, such as `initialPrompt`, is never cut, however
+  many other warnings there are.
+- **A warning names a key in double quotes,** cut at 40 characters with
+  `...`: `WARN unreviewed: "k1" at line 5 is a setting this check does not
+  review`.
+
+**To roll back,** revert the change and publish the next patch version. A
+tool that reads the warning lines by their place or their unquoted text must
+read them again.
 
 ## Changes in 0.10.0
 
