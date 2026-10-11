@@ -1302,9 +1302,9 @@ const wtPath = (name, i = 0) => `${PROJECTS}\\${WT(name)}\\${SID[i]}.jsonl`;
 const entry = (name, shape = 'folder') => ({ name, ...RECORDED.list.entries[shape], size: 0, mtimeMs: MTIME });
 const transcript = () => ({ text: file(row({ ms: -MIN })) });
 // One poll's find for a member: the projects folder asked, then the finder.
-async function find(fs, cache, r = agent('A', 0)) {
-  await readProjects(CONFIG, fs.io, cache);
-  return findTranscript(CONFIG, r, fs.io, cache);
+async function find(fs, finder, r = agent('A', 0)) {
+  await readProjects(CONFIG, fs.io, finder);
+  return findTranscript(CONFIG, r, fs.io, finder);
 }
 
 test('the list fakes carry exactly the fields the engine listed, and every link and junction lists as a link that is not a folder', () => {
@@ -1410,18 +1410,18 @@ test('the place check compares as the roster path rule does: case folded on a Wi
   assert.equal((await find(upper, newFinder()))?.path, pathOf(0));
   const LINUX = '/home/u/.claude';
   const lp = `${LINUX}/projects/-work/${SID[0]}.jsonl`;
-  const linux = sensitive => {
-    const files = { [lp]: { ...transcript(), realPath: sensitive ? lp.replace('/home/u', '/home/U') : lp } };
+  const linux = caseDiffers => {
+    const files = { [lp]: { ...transcript(), realPath: caseDiffers ? lp.replace('/home/u', '/home/U') : lp } };
     const fs = fakeFs(files);
     fs.io.stat = async p => (p === `${LINUX}/projects` ? { kind: 'dir', size: 0, mtimeMs: 0, isLink: false, realPath: p } : fakeFs(files).io.stat(p));
     return fs;
   };
   const r = { name: 'A', status: 'idle', sessionId: SID[0], cwd: '/work' };
-  for (const [sensitive, expected] of [[false, lp], [true, undefined]]) {
-    const fs = linux(sensitive);
-    const cache = newFinder();
-    await readProjects(LINUX, fs.io, cache);
-    assert.equal((await findTranscript(LINUX, r, fs.io, cache))?.path, expected, String(sensitive));
+  for (const [caseDiffers, expected] of [[false, lp], [true, undefined]]) {
+    const fs = linux(caseDiffers);
+    const finder = newFinder();
+    await readProjects(LINUX, fs.io, finder);
+    assert.equal((await findTranscript(LINUX, r, fs.io, finder))?.path, expected, `caseDiffers ${caseDiffers}`);
   }
 });
 
@@ -1435,7 +1435,7 @@ test('with no real projects folder nothing is found and nothing is listed', asyn
 
 test('a rejected listing, stat or clock counts as no hit and throws nothing, and its message is kept nowhere', async () => {
   const secret = `EACCES: ${PROJECTS}\\${WT('a')} token=abc123`;
-  const kept = cache => JSON.stringify({ ...cache, remembered: [...cache.remembered] });
+  const kept = finder => JSON.stringify({ ...finder, remembered: [...finder.remembered] });
   const cases = [
     fakeFs({ [wtPath('a')]: transcript() }, { listing: () => { throw new Error(secret); } }),
     fakeFs({ [wtPath('a')]: { reject: secret } }, { listing: [entry(WT('a'))] }),
@@ -1446,9 +1446,9 @@ test('a rejected listing, stat or clock counts as no hit and throws nothing, and
   // An engine with no listing behaves as a rejected one.
   delete cases[3].io.list;
   for (const fs of cases) {
-    const cache = newFinder();
-    assert.equal(await find(fs, cache), undefined);
-    assert.ok(!kept(cache).includes('abc123') && !kept(cache).includes('EACCES'));
+    const finder = newFinder();
+    assert.equal(await find(fs, finder), undefined);
+    assert.ok(!kept(finder).includes('abc123') && !kept(finder).includes('EACCES'));
   }
   // A listing that is not a list, or holds entries of the wrong shape, finds nothing.
   for (const listing of [null, 'x', { length: 1, 0: entry(WT('a')) }, [null, 5, { name: 5, kind: 'dir', isLink: false }, { name: WT('a'), kind: 'dir' }]]) {
@@ -1463,29 +1463,29 @@ test('the listing runs at most once a minute, and a miss and a hit are each reme
   const files = {};
   let listing = [entry(WT('a'))];
   const fs = fakeFs(files, { clock, listing: () => listing });
-  const cache = newFinder();
-  assert.equal(await find(fs, cache), undefined);
+  const finder = newFinder();
+  assert.equal(await find(fs, finder), undefined);
   assert.equal(fs.lists.length, 1);
   // Planted after the miss: the miss stands until the next listing, and the
   // candidates are not looked in again.
   files[wtPath('a')] = transcript();
   clock.now = NOW + 59999;
   const before = fs.stats.length;
-  assert.equal(await find(fs, cache), undefined);
+  assert.equal(await find(fs, finder), undefined);
   assert.equal(fs.lists.length, 1);
   assert.equal(fs.stats.length - before, 2, 'the projects folder and the cwd path only');
   clock.now = NOW + 60000;
-  assert.equal((await find(fs, cache))?.path, wtPath('a'));
+  assert.equal((await find(fs, finder))?.path, wtPath('a'));
   assert.equal(fs.lists.length, 2);
   // The hit stands until the next listing, even with the folder gone from the
   // listing, and it still passes the place check before each use.
   listing = [];
   clock.now = NOW + 90000;
-  assert.equal((await find(fs, cache))?.path, wtPath('a'));
+  assert.equal((await find(fs, finder))?.path, wtPath('a'));
   assert.equal(fs.lists.length, 2);
   assert.equal(fs.stats.at(-1), wtPath('a'));
   clock.now = NOW + 120000;
-  assert.equal(await find(fs, cache), undefined);
+  assert.equal(await find(fs, finder), undefined);
   assert.equal(fs.lists.length, 3);
 });
 
@@ -1493,12 +1493,12 @@ test('a remembered hit that fails the place check is no transcript, though remem
   const clock = { now: NOW };
   const files = { [wtPath('a')]: transcript() };
   const fs = fakeFs(files, { clock, listing: [entry(WT('a'))] });
-  const cache = newFinder();
-  assert.equal((await find(fs, cache))?.path, wtPath('a'));
+  const finder = newFinder();
+  assert.equal((await find(fs, finder))?.path, wtPath('a'));
   for (const swapped of [{ ...transcript(), isLink: true }, { ...transcript(), realPath: 'C:\\elsewhere\\t.jsonl' }, { ...transcript(), realPath: undefined }]) {
     files[wtPath('a')] = swapped;
     clock.now += 1000;
-    assert.equal(await find(fs, cache), undefined, JSON.stringify(swapped));
+    assert.equal(await find(fs, finder), undefined, JSON.stringify(swapped));
   }
   assert.equal(fs.lists.length, 1);
 });
@@ -1507,45 +1507,104 @@ test('a second hit planted after a remembered one drops it at the next listing',
   const clock = { now: NOW };
   const files = { [wtPath('a')]: transcript() };
   const fs = fakeFs(files, { clock, listing: [entry(WT('a')), entry(WT('b'))] });
-  const cache = newFinder();
-  assert.equal((await find(fs, cache))?.path, wtPath('a'));
+  const finder = newFinder();
+  assert.equal((await find(fs, finder))?.path, wtPath('a'));
   files[wtPath('b')] = transcript();
   clock.now = NOW + 30000;
-  assert.equal((await find(fs, cache))?.path, wtPath('a'));
+  assert.equal((await find(fs, finder))?.path, wtPath('a'));
   clock.now = NOW + 60000;
-  assert.equal(await find(fs, cache), undefined);
+  assert.equal(await find(fs, finder), undefined);
 });
 
 test('the warmth reads ask the projects folder once a poll, find a worktree member, and record not found for a member with no transcript', async () => {
   const files = { [pathOf(0)]: transcript(), [wtPath('b', 1)]: { text: file(row({ ms: -2 * MIN })) } };
   const fs = fakeFs(files, { listing: [entry(WT('b'))] });
   const memory = new Map();
-  const cache = newFinder();
+  const finder = newFinder();
   const rows = [agent('A', 0), agent('B', 1), agent('C', 2)];
-  const out = await readWarmth(rows, ['A', 'B', 'C'], CONFIG, memory, fs.io, cache);
+  const out = await readWarmth(rows, ['A', 'B', 'C'], CONFIG, memory, fs.io, finder);
   assert.deepEqual(out.map(w => [w.name, w.kind, w.at]), [['A', 'call', NOW - MIN], ['B', 'call', NOW - 2 * MIN], ['C', 'not-found', undefined]]);
   assert.equal(fs.stats.filter(p => p === PROJECTS).length, 1);
   assert.equal(fs.lists.length, 1, 'one listing for both members that missed');
   // The poll's found paths, by name, for the link reads; none for C.
-  assert.deepEqual([...cache.byName].map(([n, f]) => [n, f?.path]), [['A', pathOf(0)], ['B', wtPath('b', 1)], ['C', undefined]]);
+  assert.deepEqual([...finder.byName].map(([n, f]) => [n, f?.path]), [['A', pathOf(0)], ['B', wtPath('b', 1)], ['C', undefined]]);
   // No record holds a path or a listed name.
   assert.ok(!JSON.stringify(out).includes('cfg') && !JSON.stringify(out).includes('claude-worktrees'));
   // A member that leaves the roster leaves the memory.
-  assert.deepEqual([...cache.remembered.keys()].sort(), [SID[1], SID[2]]);
-  await readWarmth([agent('A', 0)], ['A'], CONFIG, memory, fs.io, cache);
-  assert.deepEqual([...cache.remembered.keys()], []);
-  assert.deepEqual([...cache.byName.keys()], ['A']);
+  assert.deepEqual([...finder.remembered.keys()].sort(), [SID[1], SID[2]]);
+  await readWarmth([agent('A', 0)], ['A'], CONFIG, memory, fs.io, finder);
+  assert.deepEqual([...finder.remembered.keys()], []);
+  assert.deepEqual([...finder.byName.keys()], ['A']);
 });
 
 test('a name two rows share, or a row with no session id, is never looked for', async () => {
   const fs = fakeFs({ [pathOf(0)]: transcript() }, { listing: [entry(WT('a'))] });
-  const cache = newFinder();
+  const finder = newFinder();
   const bare = { name: 'B', status: 'idle', cwd: 'C:\\work' };
-  const out = await readWarmth([agent('A', 0), agent('A', 1), bare], ['A', 'B'], CONFIG, new Map(), fs.io, cache);
+  const out = await readWarmth([agent('A', 0), agent('A', 1), bare], ['A', 'B'], CONFIG, new Map(), fs.io, finder);
   assert.deepEqual(out, [{ name: 'A', kind: 'shared' }]);
   assert.deepEqual(fs.stats, []);
   assert.deepEqual(fs.lists, []);
-  assert.equal(cache.byName.size, 0);
+  assert.equal(finder.byName.size, 0);
+});
+
+test('the place check compares with where the projects folder really is, not with how it is spelled', async () => {
+  const MOVED = 'D:\\moved\\projects';
+  const under = (root, i = 0) => `${root}\\C--work\\${SID[i]}.jsonl`;
+  // The projects folder resolves elsewhere, as through a linked config
+  // folder: a transcript under the real folder is found.
+  const moved = fakeFs({ [PROJECTS]: { kind: 'dir', text: '', realPath: MOVED }, [pathOf(0)]: { ...transcript(), realPath: under(MOVED) } });
+  assert.equal((await find(moved, newFinder()))?.path, pathOf(0));
+  // A transcript that resolves under the spelled folder, while the real one
+  // is elsewhere, is not.
+  const spelled = fakeFs({ [PROJECTS]: { kind: 'dir', text: '', realPath: MOVED }, [pathOf(0)]: transcript() });
+  assert.equal(await find(spelled, newFinder()), undefined);
+});
+
+test('a clock answer that is not a number lists nothing and is never kept: the next real time lists, and the minute runs from it', async () => {
+  const clock = { now: Number.NaN };
+  const files = {};
+  const fs = fakeFs(files, { clock, listing: [entry(WT('a')), entry(WT('b'))] });
+  const finder = newFinder();
+  for (let i = 0; i < 3; i++) assert.equal(await find(fs, finder), undefined);
+  assert.equal(fs.lists.length, 0);
+  assert.equal(finder.listedAt, undefined);
+  files[wtPath('a')] = transcript();
+  clock.now = NOW;
+  assert.equal((await find(fs, finder))?.path, wtPath('a'));
+  assert.equal(fs.lists.length, 1);
+  // Not a number again: no listing, and the remembered hit stands.
+  files[wtPath('b')] = transcript();
+  for (const bad of [Number.NaN, Infinity, -Infinity]) {
+    clock.now = bad;
+    assert.equal((await find(fs, finder))?.path, wtPath('a'), String(bad));
+  }
+  assert.equal(fs.lists.length, 1);
+  assert.equal(finder.listedAt, NOW);
+  // A minute after the last real listing: listed again, two hits, none.
+  clock.now = NOW + 60000;
+  assert.equal(await find(fs, finder), undefined);
+  assert.equal(fs.lists.length, 2);
+});
+
+test('the finder keeps only listed names that hold the worktree marker, as the folder spells them', async () => {
+  const listing = [entry('C--work'), entry('C--other'), entry(WT('a')), entry('C--other--CLAUDE-WORKTREES-x'), entry(`${WT('f')}`, 'file')];
+  const fs = fakeFs({}, { listing });
+  const finder = newFinder();
+  await find(fs, finder);
+  assert.deepEqual(finder.names, [WT('a'), 'C--other--CLAUDE-WORKTREES-x']);
+});
+
+test('the link read: a new found path is read, the same one skipped, and with none found a stored link goes, even one this module no longer remembers', () => {
+  const { linkStep } = view;
+  assert.equal(linkStep('p', undefined, false), 'read');
+  assert.equal(linkStep('p', 'q', true), 'read');
+  assert.equal(linkStep('p', 'p', true), 'skip');
+  assert.equal(linkStep(undefined, 'p', true), 'drop');
+  assert.equal(linkStep(undefined, 'p', false), 'drop');
+  // After a reload: no remembered path, a stored link, and nothing found.
+  assert.equal(linkStep(undefined, undefined, true), 'drop');
+  assert.equal(linkStep(undefined, undefined, false), 'skip');
 });
 
 test('the not-found line: "◆ transcript not found", dim, whatever the live state, with no cache bar; the stored check keeps it', () => {

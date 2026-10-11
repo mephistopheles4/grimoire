@@ -48,6 +48,7 @@ import {
   groupCards,
   idsFrom,
   isOpen,
+  linkStep,
   liveState,
   newFinder,
   readWarmth,
@@ -273,17 +274,20 @@ async function pollAgents($: EngineInterface, open: () => boolean) {
       // finder's result for this poll, which passed the place check: again
       // whenever the found path changes, the misses kept too, and nothing
       // over the read cap. A link from a path the finder dropped, or from one
-      // it moved off, goes. A name the finder did not look for, one with no
-      // row or one two rows share, is left as it was. The read comes first
-      // and is kept only if the pane is still open, so a close during it
-      // records nothing and the next poll tries again.
+      // it moved off, goes, and so does a stored link when nothing is found,
+      // even after a reload has emptied `linkFrom`. A name the finder did not
+      // look for, one with no row or one two rows share, is left as it was.
+      // The read comes first and is kept only if the pane is still open, so a
+      // close during it records nothing and the next poll tries again.
       const members = new Set(cards.filter(c => c.desktopId === undefined && c.url === undefined).map(c => c.title))
+      const stored = new Set((await read($, links)).map(p => p.name))
       for (const [name, at] of finder.byName) {
-        if (!members.has(name) || linkFrom.get(name) === at?.path) continue
+        const step = linkStep(at?.path, linkFrom.get(name), stored.has(name))
+        if (!members.has(name) || step === 'skip') continue
         if (!open()) return
         // No transcript, one too large, or none for this kind of session: no link.
         const url =
-          at === undefined || !(at.size <= MAX_TRANSCRIPT_BYTES)
+          at === undefined || step === 'drop' || !(at.size <= MAX_TRANSCRIPT_BYTES)
             ? undefined
             : await $.fs.read(at.path).then(t => remoteLink(String(t)), () => undefined)
         if (!open()) return

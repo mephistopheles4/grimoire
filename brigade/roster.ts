@@ -356,14 +356,6 @@ export function parseAgents(stdout: string): Checked<AgentRow[]> {
  *  and dot made a dash, which leaves no separator in it. */
 export const projectFolder = (cwd: string): string => cwd.replace(/[:\\/.]/g, '-')
 
-/** The transcript of a session the engine listed: its folder is the working
- *  directory's projects folder name, and its name is the checked session id. */
-export function transcriptFile(config: string, row: AgentRow): string | undefined {
-  if (row.sessionId === undefined || row.cwd === undefined || !SESSION_ID.test(row.sessionId)) return undefined
-  const sep = sepOf(config)
-  return `${config}${sep}projects${sep}${projectFolder(row.cwd)}${sep}${row.sessionId}.jsonl`
-}
-
 // A Remote Control session's link, whole.
 const WEB_LINK = /^https:\/\/claude\.ai\/code\/session_[A-Za-z0-9]{1,80}$/
 

@@ -1091,8 +1091,11 @@ export type ReadMemory = Map<string, { mtimeMs: number; call: LastCall | undefin
 // gives is taken only when a resolving `stat` finds a regular file, not
 // itself a link, whose real path is the expected file inside the real
 // projects folder: a link at the file or at any folder above it inside
-// `projects`, swapped in at any time, fails at the next read. Nothing found
-// is never an error: a rejection counts as no hit and its message is dropped.
+// `projects`, swapped in at any time, fails at the next check. The check and
+// the read are two engine calls, and the read follows links, so a swap between
+// them, or a hard link, is not caught: threat-model row 15 names that gap.
+// Nothing found is never an error: a rejection counts as no hit and its
+// message is dropped.
 
 /** A listing of more entries than this is not looked at. */
 export const MAX_LISTING = 5000
@@ -1168,8 +1171,8 @@ async function placed(config: string, folder: string, sessionId: string, io: Fin
 }
 
 // The projects folder's listing, as the folder names a worktree folder could
-// have: folders that are not links, with a name of at most 255 characters
-// and no separator. A listing of more than 5,000 entries, one that is not a
+// have: folders that are not links, with a name of at most 255 characters,
+// no separator and `--claude-worktrees-` in it. No other name is kept. A listing of more than 5,000 entries, one that is not a
 // list, or a rejected one is no names at all.
 async function listNames(config: string, io: FinderIo): Promise<string[] | undefined> {
   let entries: unknown
@@ -1180,10 +1183,12 @@ async function listNames(config: string, io: FinderIo): Promise<string[] | undef
     return undefined
   }
   if (!Array.isArray(entries) || entries.length > MAX_LISTING) return undefined
+  const fold = foldsCase(config)
+  const marker = pathKey(WORKTREES, fold)
   const names: string[] = []
   for (const e of entries) {
     if (!isRecord(e) || e.kind !== 'dir' || e.isLink !== false || typeof e.name !== 'string') continue
-    if (e.name === '' || e.name.length > MAX_FOLDER || /[\\/]/.test(e.name)) continue
+    if (e.name === '' || e.name.length > MAX_FOLDER || /[\\/]/.test(e.name) || !pathKey(e.name, fold).includes(marker)) continue
     names.push(e.name)
   }
   return names
@@ -1212,7 +1217,9 @@ export async function findTranscript(config: string, row: AgentRow, io: FinderIo
     const now = await io.now()
     if (!io.live()) return undefined
     const last = finder.listedAt
-    if (last === undefined || !Number.isFinite(now) || now < last || now - last >= LIST_EVERY_MS) {
+    // A clock answer that is not a number lists nothing and is never kept:
+    // the last listing and the memory stand until a real time comes.
+    if (Number.isFinite(now) && (last === undefined || now < last || now - last >= LIST_EVERY_MS)) {
       finder.listedAt = now
       finder.remembered.clear()
       finder.names = await listNames(config, io)
@@ -1251,7 +1258,7 @@ export async function findTranscript(config: string, row: AgentRow, io: FinderIo
  *  projects folder once for the poll and keeps each member's result in
  *  `finder.byName` for the link reads. A name on two rows is shared: neither
  *  transcript is looked for. A member the finder finds nowhere records "not
- *  found". The finder's place check stands in for the old file check, and
+ *  found". Each found transcript has passed the finder's place check, and
  *  one over 4 MiB is not read and records "too large". A transcript is read
  *  only when its modified time differs from the one `memory` holds for its
  *  path, and never while its session is working (`busy`, `running` or
@@ -1321,6 +1328,17 @@ export async function readWarmth(
   for (const path of [...memory.keys()]) if (!named.has(path)) memory.delete(path)
   for (const id of [...finder.remembered.keys()]) if (!ids.has(id)) finder.remembered.delete(id)
   return out
+}
+
+/** What the link read does for a member the finder looked for this poll,
+ *  from the path it found (`found`), the path the link was last read from
+ *  (`from`) and whether a link is stored for the member: `read` a found
+ *  path the link was not read from, `skip` one it was, and with none found
+ *  `drop` the stored link, even one whose path this module no longer holds,
+ *  as after a reload; with no link either, `skip`. */
+export function linkStep(found: string | undefined, from: string | undefined, stored: boolean): 'read' | 'drop' | 'skip' {
+  if (found !== undefined) return found === from ? 'skip' : 'read'
+  return from !== undefined || stored ? 'drop' : 'skip'
 }
 
 /** The file system as the poll reaches it, and whether the pane is still
