@@ -1557,3 +1557,173 @@ for (const surface of SURFACES) {
     expect(text.includes('paused')).toBe(false)
   })
 }
+// --- the cache bar ---------------------------------------------------------------
+//
+// Spec revision 3 on #250, S6 and S8; ticket #257. The warmth records and live
+// states are planted as the agents poll stores them: the poll runs again on
+// its 10 s timer after the clock is read, so each record's time is set from
+// the clock the render reads. Each test runs on both surfaces.
+
+const MINUTE = 60000
+// Cards for every row of S6's table, and a done and a stopped card whose
+// records would draw a bar if they were drawn.
+const CACHED = {
+  cards: [
+    card('need-cold', { status: 'needs-you' }),
+    card('need-amber', { status: 'needs-you' }),
+    card('work-busy', { status: 'working' }),
+    card('work-unknown', { status: 'working' }),
+    card('done-one', { status: 'done' }),
+    card('stop-one', { status: 'stopped' }),
+  ],
+  todos: [],
+}
+const LIVE: Record<string, string> = { 'need-cold': 'idle', 'need-amber': 'idle', 'work-busy': 'busy', 'work-unknown': 'idle', 'done-one': 'idle', 'stop-one': 'idle' }
+const HOSTILE_TITLE = 'a<b>&amp;"q"\'s\'</svg><script>x</script>z'
+
+// Plants the live states and warmth records once the clock is known, then
+// runs one more poll so they are stored. Resolves the render's clock.
+async function cached(on: On, $: any, roster: unknown, records: (now: number) => unknown[], live: Record<string, string> = LIVE, rosterPlant?: (value: any) => any) {
+  let now: number | undefined
+  const w = await grouped(on, $, roster, (key, value) => {
+    if (key === 'roster' && rosterPlant !== undefined) return rosterPlant(value)
+    if (now === undefined) return value
+    if (key === 'warmth') return records(now)
+    if (key === 'live') return Object.entries(live).map(([name, v]) => ({ name, value: v }))
+    return value
+  })
+  now = (await $.clock.now()) + 10000
+  await w.clock.advance(10000)
+  await w.clock.settle()
+  return w
+}
+const warmCall = (name: string, idleMs: number, now: number, tokens = 150000, windowMs: number | null = 60 * MINUTE) =>
+  windowMs === null ? { name, kind: 'call', at: now - idleMs, tokens } : { name, kind: 'call', at: now - idleMs, tokens, windowMs }
+const RECORDS = (now: number) => [
+  warmCall('need-cold', 70 * MINUTE, now, 182400),
+  warmCall('need-amber', 48 * MINUTE, now),
+  warmCall('work-busy', 10 * MINUTE, now),
+  warmCall('work-unknown', 10 * MINUTE, now, 150000, null),
+  warmCall('done-one', 70 * MINUTE, now, 182400),
+  warmCall('stop-one', 48 * MINUTE, now),
+]
+type Drawn = { type: string; props: Record<string, any>; text?: string; children: any[] }
+const nodes = async (m: any): Promise<Drawn[]> => {
+  await m.redraw(PANE_PROPS)
+  return (await m.findAll({})) as Drawn[]
+}
+const texts = (all: Drawn[], text: string) => all.filter(n => n.type === 'Text' && n.text === text)
+
+for (const surface of SURFACES) {
+  test(`${surface}: needs-you and working cards draw ◆ cache, a bar and its short text, the dim detail line, and the nudges unchanged`, async ($, on) => {
+    await cached(on, $, CACHED, RECORDS)
+    const m = await mountOn($, surface)
+    const all = await nodes(m)
+    const text = String(all[0]?.text ?? '')
+    // Three bars: cold, amber and working. The card with no known window
+    // keeps warmthLine's text, dim.
+    expect(texts(all, '◆ cache').length).toBe(3)
+    for (const [short, tone] of [['cold', 'error'], ['cold in 12 min', 'warning'], ['warm (working)', 'success']] as const) {
+      const found = texts(all, short)
+      expect(found.length).toBe(1)
+      expect(found[0]?.props.color).toBe(tone)
+    }
+    for (const detail of ['idle 1 hr 10 min · 182k context', 'idle 48 min · 150k context', '150k context']) {
+      const found = texts(all, detail)
+      expect(found.length).toBe(1)
+      expect(found[0]?.props.dimColor).toBe(true)
+    }
+    const unknown = texts(all, '◆ cache window unknown · idle 10 min · 150k context')
+    expect(unknown.length).toBe(1)
+    expect(unknown[0]?.props.dimColor).toBe(true)
+    // The old one-line ◆ text is gone where a bar draws.
+    expect(text.includes('◆ cache cold ·')).toBe(false)
+    expect(text.includes('◆ cache warm ·')).toBe(false)
+    // The nudges are warmthLine's, unchanged.
+    expect(text.includes('Replying re-reads about 182k tokens at full price. Consider a hand-off through the issue to a fresh session.')).toBe(true)
+    expect(text.includes('Reply within 12 min to keep the cache.')).toBe(true)
+    const images = all.filter(n => n.type === 'Svg' && String(n.props.alt).startsWith('Cache'))
+    if (surface === 'desktop') {
+      expect(images.map(n => n.props.alt).sort()).toEqual(['Cache cold', 'Cache cold in 12 min', 'Cache warm (working)'])
+      for (const image of images) {
+        // Full width: no width prop, a fixed height, the markup in
+        // percentages, no clip and no id.
+        expect(image.props.width).toBeUndefined()
+        expect(image.props.height).toBeGreaterThan(0)
+        expect(image.props.source).toMatch(/^<svg xmlns="http:\/\/www\.w3\.org\/2000\/svg" width="100%" height="\d+">/)
+        expect(image.props.source.includes('clip')).toBe(false)
+        expect(image.props.source.includes(' id=')).toBe(false)
+      }
+      // Each image sits in a column Box that grows, with a minimum width,
+      // between the label and the text, which do not shrink.
+      const around = all.filter(b => b.type === 'Box' && b.children.some((c: any) => c?.type === 'Svg' && String(c.props.alt).startsWith('Cache')))
+      expect(around.length).toBe(3)
+      for (const b of around) {
+        expect(b.props.flexDirection).toBe('column')
+        expect(b.props.flexGrow).toBe(1)
+        expect(b.props.minWidth).toBe(8)
+      }
+      const holdsBar = (c: any) => c?.type === 'Box' && (c.children ?? []).some((cc: any) => cc?.type === 'Svg' && String(cc.props.alt).startsWith('Cache'))
+      const rows = all.filter(b => b.type === 'Box' && b.props.flexDirection === 'row' && b.children.some(holdsBar))
+      expect(rows.length).toBe(3)
+      for (const row of rows) {
+        const [label, , short] = row.children as Drawn[]
+        expect(label?.props.flexShrink).toBe(0)
+        expect(short?.props.flexShrink).toBe(0)
+      }
+    } else {
+      expect(images.length).toBe(0)
+      // 16 eighth-block cells in the tone's colour, between dim end marks.
+      const bars = all.filter(n => n.type === 'Text' && /^[█▏▎▍▌▋▊▉ ]{16}$/u.test(String(n.text)))
+      expect(bars.map(b => [b.text, b.props.color])).toEqual([
+        [' '.repeat(16), 'error'],
+        [`███▎${' '.repeat(12)}`, 'warning'],
+        ['█'.repeat(16), 'success'],
+      ])
+    }
+  })
+
+  test(`${surface}: done and stopped cards draw no ◆ line, bar or nudge`, async ($, on) => {
+    await cached(on, $, CACHED, RECORDS)
+    const m = await mountOn($, surface)
+    await m.press({ key: 'fold' })
+    const all = await nodes(m)
+    const text = String(all[0]?.text ?? '')
+    // The group is open: its cards are drawn.
+    expect(text.includes('done-one')).toBe(true)
+    expect(text.includes('stop-one')).toBe(true)
+    // Still three bars and one unknown line, all from the needs-you and
+    // working cards; the 182k nudge only once, from need-cold.
+    expect(texts(all, '◆ cache').length).toBe(3)
+    expect(text.split('◆').length - 1).toBe(4)
+    expect(text.split('Replying re-reads').length - 1).toBe(1)
+    expect(text.split('Reply within').length - 1).toBe(1)
+    const from = text.indexOf('▾ DONE · STOPPED')
+    expect(from).toBeGreaterThan(-1)
+    const finished = text.slice(from)
+    expect(finished.includes('◆')).toBe(false)
+    expect(finished.includes('context')).toBe(false)
+    expect(all.filter(n => n.type === 'Svg' && String(n.props.alt).startsWith('Cache')).length).toBe(surface === 'desktop' ? 3 : 0)
+  })
+
+  test(`${surface}: a hostile card title never reaches a cache bar's source or alt, and the pane still draws`, async ($, on) => {
+    await cached(
+      on,
+      $,
+      { cards: [card('plain', { status: 'needs-you' })], todos: [] },
+      now => [warmCall(HOSTILE_TITLE, 48 * MINUTE, now), warmCall('plain', 10 * MINUTE, now)],
+      { [HOSTILE_TITLE]: 'idle', plain: 'idle' },
+      value => ({ ...value, cards: [...(value?.cards ?? []), card(HOSTILE_TITLE, { status: 'needs-you' })] }),
+    )
+    const m = await mountOn($, surface)
+    const all = await nodes(m)
+    expect(texts(all, '◆ cache').length).toBe(2)
+    const images = all.filter(n => n.type === 'Svg' && String(n.props.alt).startsWith('Cache'))
+    expect(images.length).toBe(surface === 'desktop' ? 2 : 0)
+    for (const image of images) {
+      for (const out of [String(image.props.source), String(image.props.alt)]) {
+        for (const piece of ['script', '<b>', '&amp;amp;', 'plain', 'q"']) expect(out.includes(piece)).toBe(false)
+      }
+    }
+  })
+}

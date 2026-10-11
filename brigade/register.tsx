@@ -40,6 +40,9 @@ import {
 import type { HostOs, StatAnswer } from './roster.ts'
 import {
   EMPTY_USAGE,
+  cacheBar,
+  cacheBarSvg,
+  cacheCells,
   foldLabel,
   drawnTitle,
   groupCards,
@@ -855,17 +858,21 @@ export const register: Register = on => {
     // One card, in a rounded box: amber when it needs the owner, dim
     // otherwise. The status badge, glyph and word, the title and its live
     // state on one line, the title cut first so the state stays in view.
-    // Then the ◆ warmth line
-    // and its nudge, which wraps, the phase, the work, the settings and the
-    // latest report, each on its own line and cut to the pane's width, and
-    // the buttons on their own row.
+    // Then, on a needs-you or working card, the ◆ cache bar with its short
+    // text and the dim line under it, or the ◆ warmth line, dim, when there
+    // is no bar; and the nudge, which wraps. Then the phase, the work, the
+    // settings and the latest report, each on its own line and cut to the
+    // pane's width, and the buttons on their own row. A done or stopped card
+    // draws no ◆ line, bar or nudge: a finished session's cache means nothing.
     const card = ({ c, i }: { c: Card; i: number }) => {
       const look = statusOf(c.status)
       if (look === undefined) return null
       const state = liveState(running.get(c.title))
-      const warmLine = warmthLine(warm.get(c.title), running.get(c.title), c.status, now)
-      const report = last(c.title)
       const isFinished = look.group === 'finished'
+      const warmLine = isFinished ? undefined : warmthLine(warm.get(c.title), running.get(c.title), c.status, now)
+      const bar = isFinished ? undefined : cacheBar(warm.get(c.title), running.get(c.title), now)
+      const image = bar !== undefined && Svg !== undefined ? cacheBarSvg(bar) : undefined
+      const report = last(c.title)
       const needs = c.status === 'needs-you'
       const canOpen = appLink(c, found.get(c.title)) !== undefined
       return (
@@ -893,8 +900,40 @@ export const register: Register = on => {
             </Box>
           </Box>
           <Box flexDirection="column" marginLeft={2} marginTop={1}>
-            {warmLine !== undefined && (
-              <Text {...(warmLine.tone === 'dim' ? { dimColor: true } : { color: warmLine.tone })} wrap="truncate-end">
+            {/* The bar takes the room between the label and its text, which
+                do not shrink; on a narrow pane the bar shrinks to its
+                minimum, not the text. The image, placed in percentages, spans
+                a column Box that grows. */}
+            {bar !== undefined && (
+              <Box flexDirection="row" columnGap={1}>
+                <Box flexShrink={0}>
+                  <Text dimColor>◆ cache</Text>
+                </Box>
+                {Svg !== undefined && image !== undefined ? (
+                  <Box flexDirection="column" flexGrow={1} minWidth={8}>
+                    <Svg source={image.source} alt={image.alt} height={image.height} />
+                  </Box>
+                ) : (
+                  <Box flexShrink={0}>
+                    <Text>
+                      <Text dimColor>▕</Text>
+                      <Text color={bar.tone}>{cacheCells(bar)}</Text>
+                      <Text dimColor>▏</Text>
+                    </Text>
+                  </Box>
+                )}
+                <Box flexShrink={0}>
+                  <Text color={bar.tone}>{bar.text}</Text>
+                </Box>
+              </Box>
+            )}
+            {bar?.detail !== undefined && (
+              <Text dimColor wrap="truncate-end">
+                {bar.detail}
+              </Text>
+            )}
+            {bar === undefined && warmLine !== undefined && (
+              <Text dimColor wrap="truncate-end">
                 {warmLine.text}
               </Text>
             )}

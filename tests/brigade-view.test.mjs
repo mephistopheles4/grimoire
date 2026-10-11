@@ -77,9 +77,9 @@ function attributes(source) {
 
 // The allowlist every SVG this module builds is held to: a fixed set of
 // attribute names, each with the forms its value may take, and nothing else.
-// The classes `done` and `stopped` and the id `st` are admitted for the
-// status strip, to-do bar and cache bar still to come, as threat-model row 15
-// says; no image builds them yet.
+// The cache bar builds `done`. The class `stopped` and the id `st` are
+// admitted for the status strip and to-do bar still to come, as threat-model
+// row 15 says; no image builds them yet.
 const CLASSES = new Set(['muted', 'track', 'ok', 'warn', 'hot', 'free', 'buffer', 'c0', 'c1', 'c2', 'c3', 'c4', 'c5', 'c6', 'done', 'stopped']);
 const LENGTHS = new Set(['width', 'height', 'x', 'y', 'rx', 'cx', 'cy', 'r']);
 const NUMBER = /^\d+(?:\.\d+)?$/;
@@ -1366,4 +1366,190 @@ test('the state contract declares doneOpen as a boolean, and the pane keeps it i
   assert.match(block, /\n\s+doneOpen: boolean\n/);
   const register = readFileSync(join(root, 'brigade/register.tsx'), 'utf8');
   assert.match(register, /atom\(\{ plugin: 'grimoire', key: 'doneOpen' \} as const, false\)/);
+});
+
+// --- the cache bar -----------------------------------------------------------
+//
+// Spec revision 3 on #250, S6 and S8; ticket #257. `cacheBar` turns a card's
+// warmth record into a fraction, a tone and short text, or no bar; the bar is
+// drawn from those numbers alone, so no title, to-do, report or usage text can
+// reach it.
+
+const { CACHE_CELLS, cacheBar, cacheBarSvg, cacheCells } = view;
+// A record whose last call was `idleMs` ago, as the poll stores it.
+// `null` for a window that is unknown, since `undefined` takes the default.
+const rec = (idleMs, windowMs = HOUR, tokens = 150000, name = 'S') => {
+  const r = { name, kind: 'call', at: NOW - idleMs, tokens };
+  if (windowMs !== null) r.windowMs = windowMs;
+  return r;
+};
+const barOf = b => (b === undefined ? undefined : [b.fraction, b.tone, b.cls, b.text]);
+
+test('the cache bar per S6: working full and green, then a draining bar green above 15 min left, amber at 15 or less, red and empty when cold', () => {
+  // Working, with a call or not read yet: full, green, "warm (working)".
+  assert.deepEqual(barOf(cacheBar(rec(10 * MIN), 'busy', NOW)), [1, 'success', 'done', 'warm (working)']);
+  assert.deepEqual(barOf(cacheBar({ name: 'S', kind: 'unread' }, 'running', NOW)), [1, 'success', 'done', 'warm (working)']);
+  assert.deepEqual(barOf(cacheBar(rec(70 * MIN), 'working', NOW)), [1, 'success', 'done', 'warm (working)']);
+  // Working wins over an unknown window, as it does for an unread record,
+  // which has no window at all.
+  assert.deepEqual(barOf(cacheBar(rec(10 * MIN, null), 'busy', NOW)), [1, 'success', 'done', 'warm (working)']);
+  // A known window: left ÷ window, green over 15 min left.
+  assert.deepEqual(barOf(cacheBar(rec(10 * MIN), 'idle', NOW)), [50 / 60, 'success', 'done', 'cold in 50 min']);
+  // 15 min or less left: amber.
+  assert.deepEqual(barOf(cacheBar(rec(48 * MIN), 'idle', NOW)), [12 / 60, 'warning', 'warn', 'cold in 12 min']);
+  // None left: empty and red.
+  assert.deepEqual(barOf(cacheBar(rec(70 * MIN), 'idle', NOW)), [0, 'error', 'hot', 'cold']);
+  assert.deepEqual(barOf(cacheBar(rec(HOUR), undefined, NOW)), [0, 'error', 'hot', 'cold']);
+});
+
+test('the cache bar keeps warmthLine\'s band edges: 15 min left is amber, 0 left is cold, and a 5-minute window is amber from the start', () => {
+  for (const [idle, tone] of [[45 * MIN - 1, 'success'], [45 * MIN, 'warning'], [HOUR - 1, 'warning'], [HOUR, 'error']]) {
+    assert.equal(cacheBar(rec(idle), 'idle', NOW)?.tone, tone, `idle ${idle}`);
+    // The bar and the line it replaces agree on the band.
+    assert.equal(cacheBar(rec(idle), 'idle', NOW)?.tone, warmthLine(rec(idle), 'idle', 'working', NOW)?.tone);
+  }
+  assert.equal(cacheBar(rec(45 * MIN), 'idle', NOW)?.text, 'cold in 15 min');
+  assert.equal(cacheBar(rec(HOUR - 1), 'idle', NOW)?.text, 'cold in 1 min');
+  assert.deepEqual(barOf(cacheBar(rec(MIN, 5 * MIN), 'idle', NOW)), [4 / 5, 'warning', 'warn', 'cold in 4 min']);
+  // Over an hour left reads in hours, as warmthLine does.
+  assert.equal(cacheBar(rec(0), 'idle', NOW)?.text, 'cold in 1 hr 0 min');
+});
+
+test('no bar for an unknown window, a transcript too large or shared, working or not, an unread record not working, or no record', () => {
+  for (const state of ['idle', 'blocked', undefined, 'busy', 'running', 'working']) {
+    assert.equal(cacheBar({ name: 'S', kind: 'too-large' }, state, NOW), undefined, `too-large ${state}`);
+    assert.equal(cacheBar({ name: 'S', kind: 'shared' }, state, NOW), undefined, `shared ${state}`);
+    assert.equal(cacheBar(undefined, state, NOW), undefined, `none ${state}`);
+  }
+  for (const state of ['idle', 'blocked', undefined]) {
+    assert.equal(cacheBar(rec(10 * MIN, null), state, NOW), undefined, `unknown window ${state}`);
+    assert.equal(cacheBar({ name: 'S', kind: 'unread' }, state, NOW), undefined, `unread ${state}`);
+  }
+});
+
+test('the dim detail line keeps what the short text drops: idle time and size, or the size alone while working, or nothing when the size is unknown', () => {
+  assert.equal(cacheBar(rec(10 * MIN), 'idle', NOW)?.detail, 'idle 10 min · 150k context');
+  assert.equal(cacheBar(rec(70 * MIN), 'idle', NOW)?.detail, 'idle 1 hr 10 min · 150k context');
+  assert.equal(cacheBar(rec(10 * MIN), 'busy', NOW)?.detail, '150k context');
+  assert.equal(cacheBar({ name: 'S', kind: 'unread' }, 'busy', NOW)?.detail, undefined);
+});
+
+test('idle time is floored at 0, so a call time ahead of the clock gives a full bar, never past full', () => {
+  for (const ahead of [MIN, HOUR, 1e12]) {
+    const b = cacheBar(rec(-ahead), 'idle', NOW);
+    assert.deepEqual(barOf(b), [1, 'success', 'done', 'cold in 1 hr 0 min'], `ahead ${ahead}`);
+    assert.equal(b.detail, 'idle 0 min · 150k context');
+  }
+});
+
+test('a call time or clock that is NaN or infinite throws nothing and gives no bar or a finite fraction from 0 to 1, with no NaN or Infinity in its text', () => {
+  const bad = [NaN, Infinity, -Infinity];
+  const cases = [];
+  for (const v of bad) {
+    cases.push([{ name: 'S', kind: 'call', at: v, tokens: 150000, windowMs: HOUR }, NOW]);
+    cases.push([rec(10 * MIN), v]);
+    cases.push([{ name: 'S', kind: 'call', at: NOW, tokens: v, windowMs: HOUR }, NOW]);
+  }
+  for (const [w, now] of cases) {
+    for (const state of ['idle', 'busy', undefined]) {
+      const b = cacheBar(w, state, now);
+      if (b === undefined) continue;
+      assert.ok(Number.isFinite(b.fraction) && b.fraction >= 0 && b.fraction <= 1, JSON.stringify([w, now, state]));
+      assert.doesNotMatch(`${b.text} ${b.detail ?? ''}`, /NaN|Infinity/);
+      assert.equal([...cacheCells(b)].length, CACHE_CELLS);
+      assertAllowlisted(cacheBarSvg(b).source);
+    }
+  }
+});
+
+test('the terminal cache bar is exactly 16 eighth-block cells, whatever the fraction', () => {
+  assert.equal(CACHE_CELLS, 16);
+  assert.equal(cacheCells(cacheBar(rec(10 * MIN), 'busy', NOW)), '█'.repeat(16));
+  assert.equal(cacheCells(cacheBar(rec(70 * MIN), 'idle', NOW)), ' '.repeat(16));
+  // 50 of 60 minutes left: 13⅓ cells, rounded to the nearest eighth.
+  assert.equal(cacheCells(cacheBar(rec(10 * MIN), 'idle', NOW)), `${'█'.repeat(13)}▍  `);
+  for (const fraction of [NaN, Infinity, -Infinity, -1, 2, 1e300, -1e300, 0.5]) {
+    const cells = cacheCells({ fraction, tone: 'success', cls: 'done', text: 'x' });
+    assert.equal([...cells].length, 16, String(fraction));
+    assert.match(cells, /^█*[▏▎▍▌▋▊▉]? *$/u);
+  }
+});
+
+test('the cache bar image: full width, a rounded track and a rounded fill in the tone\'s class, no clipPath and no id, under 2 KB, on the allowlist', () => {
+  const b = cacheBar(rec(48 * MIN), 'idle', NOW);
+  const v = cacheBarSvg(b);
+  assert.match(v.source, /^<svg xmlns="http:\/\/www\.w3\.org\/2000\/svg" width="100%" height="\d+">/);
+  assert.ok(!v.source.includes('viewBox'));
+  assert.ok(!('width' in v), 'the view carries no width');
+  assert.ok(Number.isFinite(v.height) && v.height > 0);
+  assert.ok(v.source.includes(`height="${v.height}"`));
+  assert.match(v.source, /<rect class="track" x="0" y="[\d.]+" width="100%" height="[\d.]+" rx="[\d.]+"\/>/);
+  assert.match(v.source, /<rect class="warn" x="0" y="[\d.]+" width="20%" height="[\d.]+" rx="[\d.]+"\/>/);
+  assert.ok(!v.source.includes('clipPath') && !v.source.includes('clip-path') && !v.source.includes(' id='));
+  assert.ok(v.source.length < 2048, `${v.source.length} characters`);
+  assertAllowlisted(v.source);
+  // Every class it draws is the track or one of the three tones.
+  const all = [rec(10 * MIN), rec(48 * MIN), rec(70 * MIN)].map(r => cacheBarSvg(cacheBar(r, 'idle', NOW)).source);
+  all.push(cacheBarSvg(cacheBar(rec(MIN), 'busy', NOW)).source);
+  const classes = new Set(all.flatMap(s => [...s.matchAll(/class="([^"]+)"/g)].map(m => m[1])));
+  assert.deepEqual([...classes].sort(), ['done', 'hot', 'track', 'warn']);
+  // The style block gives `done` its own fill, light and dark.
+  assert.match(view.STYLE, /\.done\{fill:#[0-9a-f]{6}\}/);
+  assert.match(view.STYLE, /@media \(prefers-color-scheme: dark\)\{[^]*\.done\{fill:#[0-9a-f]{6}\}/);
+});
+
+test('a cold bar draws its track and a red stub only, so it reads red; any fill draws over the same stub, so a sliver stays seen', () => {
+  const cold = cacheBarSvg(cacheBar(rec(70 * MIN), 'idle', NOW)).source;
+  assert.equal(cold.match(/<rect /g).length, 2);
+  assert.match(cold, /<rect class="track" [^>]*\/><rect class="hot" x="0" y="[\d.]+" width="6" height="[\d.]+" rx="[\d.]+"\/><\/svg>$/);
+  const sliver = cacheBarSvg(cacheBar(rec(HOUR - 1000), 'idle', NOW)).source;
+  assert.match(sliver, /<rect class="warn" x="0" y="[\d.]+" width="6" height="[\d.]+" rx="[\d.]+"\/><rect class="warn" x="0" y="[\d.]+" width="0\.03%"/);
+});
+
+test('the cache bar image clamps any fraction it is given: the stub alone at 0 or below or for a number that is not finite, and full at 1 or above', () => {
+  for (const fraction of [NaN, Infinity, -Infinity, -1, 0]) {
+    const s = cacheBarSvg({ fraction, tone: 'error', cls: 'hot', text: 'cold' }).source;
+    assert.equal(s.match(/<rect /g).length, 2, String(fraction));
+    assert.equal(s.match(/width="[\d.]+%"/g).length, 2, 'only the image and its track are in percentages');
+    assertAllowlisted(s);
+  }
+  for (const fraction of [1, 2, 1e300]) {
+    const s = cacheBarSvg({ fraction, tone: 'success', cls: 'done', text: 'x' }).source;
+    assert.match(s, /width="100%" height="[\d.]+" rx="[\d.]+"\/><\/svg>$/, String(fraction));
+    assertAllowlisted(s);
+  }
+});
+
+test('the cache bar image takes its class from the three tones only: any other class it is handed draws the track alone', () => {
+  for (const cls of ['x', '" onload="x', HOSTILE, 'ok', 'c0', 'constructor', 'track']) {
+    const s = cacheBarSvg({ fraction: 0.5, tone: 'success', cls, text: 'x' }).source;
+    assertAllowlisted(s);
+    assert.equal(s.match(/<rect /g).length, 1, cls);
+    assert.ok(!s.includes('onload') && !s.includes('<script'));
+  }
+});
+
+test('the cache bar alt is "Cache" and the bar\'s text, fixed words and numbers', () => {
+  assert.equal(cacheBarSvg(cacheBar(rec(48 * MIN), 'idle', NOW)).alt, 'Cache cold in 12 min');
+  assert.equal(cacheBarSvg(cacheBar(rec(70 * MIN), 'idle', NOW)).alt, 'Cache cold');
+  assert.equal(cacheBarSvg(cacheBar(rec(MIN), 'busy', NOW)).alt, 'Cache warm (working)');
+  // The image is drawn from the bar's numbers and class alone: text it is
+  // handed never reaches its source, and reaches its alt cleaned to one line.
+  const v = cacheBarSvg({ fraction: 0.5, tone: 'warning', cls: 'warn', text: HOSTILE });
+  assert.ok(!v.source.includes('script') && !v.source.includes('<b>'));
+  assert.ok(!/[\u{0}-\u{1F}\u{7F}-\u{9F}\u{202E}\u{2066}\u{200D}]/u.test(v.alt));
+  assertAllowlisted(v.source);
+});
+
+test('a hostile card title or session name never reaches the cache bar\'s source, alt or text', () => {
+  for (const state of ['idle', 'busy']) {
+    for (const idle of [10 * MIN, 48 * MIN, 70 * MIN]) {
+      const b = cacheBar(rec(idle, HOUR, 150000, HOSTILE), state, NOW);
+      const v = cacheBarSvg(b);
+      for (const out of [v.source, v.alt, b.text, b.detail ?? '']) {
+        for (const piece of ['<b>', 'script', 'rtl', '&amp;', 'q"', LONE]) assert.ok(!out.includes(piece), `${piece} in ${out}`);
+      }
+      assertAllowlisted(v.source);
+    }
+  }
 });
