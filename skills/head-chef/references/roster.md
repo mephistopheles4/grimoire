@@ -64,7 +64,9 @@ the pane shows an error, not the cards (failure 9).
   40, its `text` at most 300, its `session` at most 80. At most 50 cards and
   50 to-dos. No other field, no title twice, no to-do id twice.
 - **`bgId`** is the id `claude --bg` printed. **`desktopId`** is a chip's
-  local id.
+  Desktop id, kept only as `SKILL.md`'s "Relaying" says: from Desktop's own
+  tool output at launch, or the owner's own words in chat. The card holds
+  that kept id; a value read back from the pane is never a source for it.
 - **Update it** at a launch, at each milestone report, when a session needs
   the owner, and after cleanup, which removes the card.
 - **No session id, and no question or decision text,** go on a card or a
