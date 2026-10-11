@@ -1644,12 +1644,33 @@ for (const surface of SURFACES) {
     const firsts = blocks.map(b => b.children[0])
     expect(firsts.filter((f: any) => f?.type === 'Box' && said(f).startsWith('◆ cache')).length).toBe(3)
     expect(firsts.filter((f: any) => f?.type === 'Text' && said(f) === '◆ cache window unknown · idle 10 min · 150k context').length).toBe(1)
-    // The old one-line ◆ text is gone where a bar draws.
+    // Each block holds its lines and nothing else, and the phase comes
+    // straight after it.
+    const COLD_NUDGE = 'Replying re-reads about 182k tokens at full price. Consider a hand-off through the issue to a fresh session.'
+    const AMBER_NUDGE = 'Reply within 12 min to keep the cache.'
+    const cacheBlocks = blocks.filter(b => said(b.children[0]).startsWith('◆ cache'))
+    expect(cacheBlocks.map(b => b.children.slice(1).map(said)).sort()).toEqual(
+      [
+        [],
+        ['150k context'],
+        ['idle 1 hr 10 min · 182k context', COLD_NUDGE],
+        ['idle 48 min · 150k context', AMBER_NUDGE],
+      ].sort(),
+    )
+    const holders = all.filter(b => b.type === 'Box' && b.props.marginLeft === 2 && b.children.some((c: any) => c?.props?.marginBottom === 1))
+    expect(holders.length).toBe(4)
+    for (const h of holders) {
+      const at = h.children.findIndex((c: any) => c?.props?.marginBottom === 1)
+      expect(said(h.children[at + 1])).toBe('p')
+    }    // The old one-line ◆ text is gone where a bar draws.
     expect(text.includes('◆ cache cold ·')).toBe(false)
     expect(text.includes('◆ cache warm ·')).toBe(false)
     // The nudges are warmthLine's, unchanged.
-    expect(text.includes('Replying re-reads about 182k tokens at full price. Consider a hand-off through the issue to a fresh session.')).toBe(true)
-    expect(text.includes('Reply within 12 min to keep the cache.')).toBe(true)
+    for (const nudge of [COLD_NUDGE, AMBER_NUDGE]) {
+      const found = texts(all, nudge)
+      expect(found.length).toBe(1)
+      expect(found[0]?.props.color).toBe('warning')
+    }
     const images = all.filter(n => n.type === 'Svg' && String(n.props.alt).startsWith('Cache'))
     if (surface === 'desktop') {
       expect(images.map(n => n.props.alt).sort()).toEqual(['Cache cold', 'Cache cold in 12 min', 'Cache warm (working)'])
