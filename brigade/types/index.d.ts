@@ -58,6 +58,14 @@ export type Warmth =
   | { name: string; kind: 'call'; at: number; tokens: number; windowMs?: number }
   | { name: string; kind: 'too-large' | 'shared' | 'unread' | 'not-found' }
 
+/** One card's call series, from its session's transcript: the time of the
+ *  read that gave it, the context window of its model's family from a fixed
+ *  table (absent when the table has none), the new tokens of each of the 30
+ *  minutes up to that read, oldest first, and the context size of each of
+ *  the last 30 calls, oldest first. Numbers only: no path, model or message
+ *  id is kept. */
+export type Meter = { name: string; at: number; window?: number; burn?: number[]; context?: number[] }
+
 declare module 'claude-code' {
   interface PluginState {
     grimoire: {
@@ -83,6 +91,9 @@ declare module 'claude-code' {
       /** Each roster member's cache warmth, from the agents poll while the
        *  pane is open. Checked again before it is drawn. */
       warmth: Warmth[]
+      /** Each roster member's call series, from the same reads as its
+       *  warmth. Checked again before it is drawn. */
+      meters: Meter[]
       /** Whether the DONE · STOPPED group is open: set false each time the
        *  pane opens, and flipped by a press. Read as open only when it is
        *  exactly true, since another plugin can rewrite it. */

@@ -777,18 +777,34 @@ test('the state contract declares ticking under the plugin\'s manifest name', ()
 });
 // --- cache warmth ------------------------------------------------------------
 
-const { MAX_TRANSCRIPT_BYTES, NUDGE_TOKENS, lastCall, liveState, readWarmth, warmthFrom, warmthLine } = view;
+const { MAX_TRANSCRIPT_BYTES, NUDGE_TOKENS, callSeries, liveState, readCalls, warmthFrom, warmthLine } = view;
 const { parseAgents } = roster;
 const HOUR = 60 * MIN;
 
+// The last call as the cache bar reads it. Since #271 (spec revision 3 on
+// #251, S5) `callSeries` replaced `lastCall` as the parser; the cache bar's
+// tests below call it through this name with their expected values unchanged,
+// which is the check that the cache bar is unchanged.
+const lastCall = (text, mtimeMs) => callSeries(text, mtimeMs, mtimeMs)?.last;
+// The warmth records of one poll. Since #271 the poll's successor,
+// `readCalls`, gives the warmth records and the meters together.
+const readWarmth = async (...args) => (await readCalls(...args))?.warmth;
+
+// Each row's own message id, one per call as Claude Code writes them, all of
+// one length so a fixture's size does not depend on how many rows came first.
+let ids = 0;
+const nextId = () => `msg_${String((ids += 1)).padStart(8, '0')}`;
+
 // A transcript row as Claude Code writes it, with only the fields the parser
-// reads. `usage` overrides the token counts; `extra` the row's own fields.
-const row = ({ ms = 0, usage = {}, write = '1h', extra = {}, model = 'claude-opus-5-5' } = {}) =>
+// reads. `usage` overrides the token counts; `extra` the row's own fields;
+// `id` the message id, a new one by default and none when null.
+const row = ({ ms = 0, usage = {}, write = '1h', extra = {}, model = 'claude-opus-5-5', id = nextId() } = {}) =>
   JSON.stringify({
     type: 'assistant',
     timestamp: at(ms),
     isSidechain: false,
     message: {
+      ...(id === null ? {} : { id }),
       model,
       usage: {
         input_tokens: 6,
@@ -857,13 +873,14 @@ test('a row is accepted up to two minutes past the file\'s modified time, and re
 test('token fields must be absent or finite non-negative integers up to 10,000,000', () => {
   const valid = row({ ms: -5 * MIN });
   for (const v of [-1, 1.5, 10000001, '5', null, true, 1e400, Number.NaN]) {
-    for (const field of ['input_tokens', 'cache_creation_input_tokens', 'cache_read_input_tokens']) {
+    // output_tokens joined the list in #271 (S5): it is read with the same check.
+    for (const field of ['input_tokens', 'cache_creation_input_tokens', 'cache_read_input_tokens', 'output_tokens']) {
       const line = row({ ms: -MIN }).replace(new RegExp(`"${field}":\\d+`), `"${field}":${typeof v === 'string' ? JSON.stringify(v) : String(v)}`);
       assert.equal(lastCall(file(valid, line), MTIME)?.at, NOW - 5 * MIN, `${field} = ${String(v)}`);
     }
   }
   // Absent fields count as 0; 10,000,000 is the top.
-  const sparse = JSON.stringify({ type: 'assistant', timestamp: at(-MIN), message: { model: 'm', usage: { cache_read_input_tokens: 10000000 } } });
+  const sparse = JSON.stringify({ type: 'assistant', timestamp: at(-MIN), message: { id: nextId(), model: 'm', usage: { cache_read_input_tokens: 10000000 } } });
   assert.deepEqual(lastCall(file(sparse), MTIME), { at: NOW - MIN, tokens: 10000000 });
   // A cache-write count out of range spoils the row too.
   const badWrite = row({ ms: -MIN, usage: { cache_creation: { ephemeral_5m_input_tokens: -5, ephemeral_1h_input_tokens: 0 } } });
@@ -1074,16 +1091,21 @@ test('a failed re-read keeps the last good record and is retried', async () => {
   assert.equal(reads.length, 3);
 });
 
-test('a busy or running member is not read, and keeps its last record', async () => {
+test('a busy or running member is read too, and keeps its last record between reads', async () => {
+  // The expected values changed in #271 (spec revision 3 on #251, S4): a
+  // working member is now read, at most once a minute and at most 5 a poll,
+  // where it was never read. The budget's own tests are under "the call
+  // series" below.
   const files = { [pathOf(0)]: { text: file(row({ ms: -MIN })) }, [pathOf(1)]: { text: file(row({ ms: -MIN })) } };
   const { io, reads } = fakeFs(files);
   const memory = new Map();
-  assert.deepEqual(await readWarmth([agent('A', 0, 'busy'), agent('B', 1, 'running')], ['A', 'B'], CONFIG, memory, io), [{ name: 'A', kind: 'unread' }, { name: 'B', kind: 'unread' }]);
-  assert.equal(reads.length, 0);
-  await readWarmth([agent('A', 0, 'idle')], ['A'], CONFIG, memory, io);
+  const first = await readWarmth([agent('A', 0, 'busy'), agent('B', 1, 'running')], ['A', 'B'], CONFIG, memory, io);
+  assert.deepEqual(first.map(w => [w.name, w.kind, w.at]), [['A', 'call', NOW - MIN], ['B', 'call', NOW - MIN]]);
+  assert.equal(reads.length, 2);
+  // Changed inside the minute: not read again, and the last record stands.
   files[pathOf(0)].mtimeMs = MTIME + 1;
   const busy = await readWarmth([agent('A', 0, 'busy')], ['A'], CONFIG, memory, io);
-  assert.equal(reads.length, 1);
+  assert.equal(reads.length, 2);
   assert.equal(busy[0].at, NOW - MIN, 'the last known record');
 });
 
@@ -1188,7 +1210,11 @@ test('a busy member is still checked for size, so a transcript too large to read
 });
 
 test('a busy member whose transcript has not been read yet shows "warm (working)" with no size, with no read', async () => {
-  const { io, reads } = fakeFs({ [pathOf(0)]: { text: file(row({ ms: -MIN })) } });
+  // Changed in #271 (spec revision 3 on #251, S4): a working member is now
+  // read when the budget reaches it, so a first poll reads it. It stays
+  // unread while the clock answers no number, as here, or while the budget
+  // passes it over.
+  const { io, reads } = fakeFs({ [pathOf(0)]: { text: file(row({ ms: -MIN })) } }, { clock: { now: Number.NaN } });
   const memory = new Map();
   const out = await readWarmth([agent('A', 0, 'busy')], ['A'], CONFIG, memory, io);
   assert.deepEqual(out, [{ name: 'A', kind: 'unread' }]);
@@ -1207,7 +1233,7 @@ test('a busy member whose transcript has not been read yet shows "warm (working)
   await readWarmth([agent('A', 0, 'idle')], ['A'], CONFIG, memory, io);
   assert.equal((await readWarmth([agent('A', 0, 'busy')], ['A'], CONFIG, memory, io))[0].kind, 'call');
   // A transcript read before its first model call: working, with no size,
-  // and not read again while it works.
+  // and, since #271, not read again within the minute while it works.
   const emptyFiles = { [pathOf(1)]: { text: file(JSON.stringify({ type: 'user' })) } };
   const empty = fakeFs(emptyFiles);
   const mem2 = new Map();
@@ -1262,7 +1288,8 @@ test('a modified time that goes back is a change too: the transcript is read aga
 
 test('a token count of 1e400 in valid JSON parses to Infinity and spoils the row', () => {
   const valid = row({ ms: -5 * MIN });
-  for (const field of ['input_tokens', 'cache_creation_input_tokens', 'cache_read_input_tokens', 'ephemeral_1h_input_tokens']) {
+  // output_tokens joined the list in #271 (S5): it is read with the same check.
+  for (const field of ['input_tokens', 'cache_creation_input_tokens', 'cache_read_input_tokens', 'output_tokens', 'ephemeral_1h_input_tokens']) {
     const line = row({ ms: -MIN }).replace(new RegExp(`"${field}":\\d+`), `"${field}":1e400`);
     assert.ok(line.includes('1e400'), field);
     assert.equal(JSON.parse(line).type, 'assistant', 'the row is valid JSON');
@@ -1270,20 +1297,28 @@ test('a token count of 1e400 in valid JSON parses to Infinity and spoils the row
   }
 });
 
-test('a background row that says "working" counts as working: not read, and no countdown', async () => {
-  const { io, reads } = fakeFs({ [pathOf(0)]: { text: file(row({ ms: -MIN })) } });
-  assert.deepEqual(await readWarmth([agent('A', 0, 'working')], ['A'], CONFIG, new Map(), io), [{ name: 'A', kind: 'unread' }]);
-  assert.equal(reads.length, 0);
+test('a background row that says "working" counts as working: read under the working budget, and no countdown', async () => {
+  // Changed in #271 (spec revision 3 on #251, S4): it was never read. Now,
+  // as a working member, it is read at most once a minute.
+  const files = { [pathOf(0)]: { text: file(row({ ms: -MIN })) } };
+  const { io, reads } = fakeFs(files);
+  const memory = new Map();
+  assert.deepEqual((await readWarmth([agent('A', 0, 'working')], ['A'], CONFIG, memory, io)).map(w => w.kind), ['call']);
+  files[pathOf(0)].mtimeMs = MTIME + 1;
+  await readWarmth([agent('A', 0, 'working')], ['A'], CONFIG, memory, io);
+  assert.equal(reads.length, 1, 'changed inside the minute: not read again');
   assert.deepEqual(warmthLine(call(70 * MIN), 'working', 'needs-you', NOW), { tone: 'dim', text: '◆ cache warm (working) · 150k context' });
 });
 
 test('the pane keeps its re-read memory in a Map of the view module\'s ReadMemory type', () => {
+  // Changed in #271: the poll's successor is readCalls, and the memory keeps
+  // each read's time and call series in place of its last call.
   const register = readFileSync(join(root, 'brigade/register.tsx'), 'utf8');
   assert.match(register, /\nconst memory: ReadMemory = new Map\(\)\n/);
-  assert.equal(register.match(/\bmemory\b/g)?.length, 2, 'declared once and handed to readWarmth once');
-  assert.match(register, /readWarmth\(rows\.value, cards\.map\(c => c\.title\), config, memory, \{/);
+  assert.equal(register.match(/\bmemory\b/g)?.length, 2, 'declared once and handed to readCalls once');
+  assert.match(register, /readCalls\(rows\.value, cards\.map\(c => c\.title\), config, memory, \{/);
   const v = readFileSync(join(root, 'brigade/view.ts'), 'utf8');
-  assert.match(v, /export type ReadMemory = Map<string, \{ mtimeMs: number; call: LastCall \| undefined \}>/);
+  assert.match(v, /export type ReadMemory = Map<string, \{ mtimeMs: number; readAt: number; series: CallSeries \| undefined \}>/);
 });
 
 // --- finding a member's transcript --------------------------------------------
@@ -2136,4 +2171,507 @@ test('the style block gives the strip\'s and to-do bar\'s classes done and stopp
   const dark = view.STYLE.slice(view.STYLE.indexOf('@media'));
   assert.match(dark, /\.done\{fill:#[0-9a-f]{6}\}/);
   assert.match(dark, /\.stopped\{fill:#[0-9a-f]{6}\}/);
+});
+
+// --- the call series and the context meter ------------------------------------
+//
+// Spec revision 3 on #251, S4, S5 and S6; ticket #271. A read gives the call
+// series: the last call as the cache bar reads it, the window from a fixed
+// table by model family, the burn buckets and the context series. The poll
+// stores them as one `meters` record per member, checked again before it is
+// drawn. Every row here carries its own message id unless a test says not.
+
+const { BURN_BUCKETS, MAX_SERIES, SERIES_CALLS, WORKING_EVERY_MS, WORKING_PER_POLL, contextCells, contextMeter, contextMeterSvg, metersFrom, sizeText, windowOf } = view;
+// What row() writes by default: the context is input, cache writes and cache
+// reads; the new tokens a burn bucket counts are input, cache writes and
+// output, not cache reads.
+const CONTEXT = 6 + 1000 + 150000;
+const FRESH = 6 + 1000 + 300;
+const zeros = () => Array.from({ length: 30 }, () => 0);
+const sum = list => list.reduce((s, n) => s + n, 0);
+
+test('the series sizes and caps: 30 one-minute buckets, the last 30 calls, 30,000,000 a value; a working member once a minute, 5 a poll', () => {
+  assert.equal(BURN_BUCKETS, 30);
+  assert.equal(SERIES_CALLS, 30);
+  assert.equal(MAX_SERIES, 30000000);
+  assert.equal(WORKING_EVERY_MS, 60000);
+  assert.equal(WORKING_PER_POLL, 5);
+});
+
+test('each call counts once, by message id, however many rows it has', () => {
+  const t = file(row({ ms: -3 * MIN, id: 'msg_one' }), row({ ms: -3 * MIN, id: 'msg_one' }), row({ ms: -3 * MIN, id: 'msg_one' }), row({ ms: -2 * MIN }));
+  const s = callSeries(t, MTIME, NOW);
+  assert.deepEqual(s.context, [CONTEXT, CONTEXT]);
+  assert.equal(sum(s.burn), 2 * FRESH);
+  // Rows of one call far apart in the file still count once.
+  const apart = file(row({ ms: -4 * MIN, id: 'msg_two' }), row({ ms: -3 * MIN }), row({ ms: -2 * MIN, id: 'msg_two' }));
+  assert.equal(callSeries(apart, MTIME, NOW).context.length, 2);
+});
+
+test('an id counts once its row counts: when the newest row of an id fails a check, an older row with that id counts', () => {
+  const t = file(row({ ms: -2 * MIN, id: 'msg_same' }), row({ ms: 1440 * MIN, id: 'msg_same' }));
+  const s = callSeries(t, MTIME, NOW);
+  assert.deepEqual(s.context, [CONTEXT]);
+  assert.equal(s.last.at, NOW - 2 * MIN);
+});
+
+test('a row without a well-formed message id is skipped: 1 to 100 characters from A-Z, a-z, 0-9, _ and -', () => {
+  for (const bad of [null, '', 'x'.repeat(101), 'a b', 'a/b', 'a\\b', 'a.b', 'a:b', 'é', 5, true, {}, []]) {
+    const s = callSeries(file(row({ ms: -5 * MIN }), row({ ms: -MIN, id: bad })), MTIME, NOW);
+    assert.deepEqual(s.context, [CONTEXT], JSON.stringify(bad));
+    assert.equal(s.last.at, NOW - 5 * MIN, JSON.stringify(bad));
+  }
+  assert.equal(callSeries(file(row({ id: 'A_-9'.repeat(25) })), MTIME, NOW)?.context.length, 1, '100 characters is the top');
+  assert.equal(callSeries(file(row({ id: null })), MTIME, NOW), undefined, 'no counted call, no series');
+});
+
+test('a line that does not parse is skipped and the parse goes on, a cut-off last line included', () => {
+  const whole = file(row({ ms: -2 * MIN }), 'not json', '{"type":"assistant",', row({ ms: -MIN }));
+  const cut = whole + row({ ms: 0 }).slice(0, 60);
+  assert.ok(cut.slice(cut.lastIndexOf('\n')).includes('"assistant"'), 'the cut-off line is one the parse tries');
+  const s = callSeries(cut, MTIME, NOW);
+  assert.equal(s.last.at, NOW - MIN);
+  assert.deepEqual(s.context, [CONTEXT, CONTEXT]);
+});
+
+test('the burn buckets: 30 one-minute buckets, oldest first, over the 30 minutes after now minus 30 min up to now', () => {
+  const t = file(
+    row({ ms: -30 * MIN }), // the span's open start: in no bucket
+    row({ ms: -30 * MIN + 1 }), // bucket 0
+    row({ ms: -29 * MIN }), // the end of minute 0: bucket 0
+    row({ ms: -29 * MIN + 1 }), // bucket 1
+    row({ ms: -1 }), // bucket 29
+    row({ ms: 0 }), // now: bucket 29
+    row({ ms: 1 }), // after now: in no bucket
+  );
+  const s = callSeries(t, MTIME, NOW);
+  const want = zeros();
+  want[0] = 2 * FRESH;
+  want[1] = FRESH;
+  want[29] = 2 * FRESH;
+  assert.deepEqual(s.burn, want);
+  // The call after now is still the last call and in the context series.
+  assert.equal(s.last.at, NOW + 1);
+  assert.equal(s.context.length, 7);
+});
+
+test('a bucket counts input, cache writes and output, and leaves cache reads out', () => {
+  const usage = { input_tokens: 10, cache_creation_input_tokens: 200, cache_read_input_tokens: 99999, output_tokens: 3000 };
+  const s = callSeries(file(row({ ms: -30000, usage })), MTIME, NOW);
+  assert.equal(s.burn[29], 3210);
+  assert.deepEqual(s.context, [10 + 200 + 99999]);
+});
+
+test('two maximal calls in one minute: the bucket is clamped to 30,000,000, and the record keeps', () => {
+  const max = {
+    input_tokens: 10000000,
+    cache_creation_input_tokens: 10000000,
+    cache_read_input_tokens: 10000000,
+    output_tokens: 10000000,
+    cache_creation: { ephemeral_5m_input_tokens: 0, ephemeral_1h_input_tokens: 10000000 },
+  };
+  const s = callSeries(file(row({ ms: -30000, usage: max }), row({ ms: -20000, usage: max })), MTIME, NOW);
+  assert.equal(s.burn[29], MAX_SERIES);
+  assert.deepEqual(s.context, [MAX_SERIES, MAX_SERIES]);
+  const record = { name: 'A', at: NOW, window: s.window, burn: s.burn, context: s.context };
+  assert.deepEqual(metersFrom([record]), [record]);
+});
+
+test('the context series is the last 30 counted calls, oldest first', () => {
+  const rows = Array.from({ length: 40 }, (_, i) => row({ ms: (i - 40) * MIN, usage: { cache_read_input_tokens: 1000 * i } }));
+  const s = callSeries(file(...rows), MTIME, NOW);
+  assert.deepEqual(s.context, Array.from({ length: 30 }, (_, k) => 6 + 1000 + 1000 * (k + 10)));
+  // A skipped row is not one of the 30.
+  const mixed = file(row({ ms: -3 * MIN }), row({ ms: -2 * MIN, extra: { isSidechain: true } }), row({ ms: -MIN, usage: { cache_read_input_tokens: 5 } }));
+  assert.deepEqual(callSeries(mixed, MTIME, NOW).context, [CONTEXT, 6 + 1000 + 5]);
+});
+
+test('the window comes from a fixed table by model family, matched from the start of a checked model id', () => {
+  for (const m of ['claude-opus-5-5', 'claude-sonnet-5-5', 'claude-fable-5-1', 'claude-opus-4-8', 'claude-opus-4-8-20260101', 'claude-opus-5']) {
+    assert.equal(windowOf(m), 1000000, m);
+  }
+  for (const m of ['claude-haiku-5-5', 'claude-haiku-4-5-20251001', `claude-haiku-${'a'.repeat(54)}`]) assert.equal(windowOf(m), 200000, m);
+  const none = [
+    'claude-opus-4-7',
+    'claude-sonnet-4-5',
+    'claude-haiku',
+    'gpt-5',
+    'claude-',
+    'claude-OPUS-5-5',
+    'claude-opus-5-5[1m]',
+    'claude-opus-5-5 ',
+    ' claude-opus-5-5',
+    'claude-opus-5-5\n',
+    `claude-haiku-${'a'.repeat(55)}`,
+    '<synthetic>',
+    'constructor',
+    '__proto__',
+    '',
+    5,
+    null,
+    undefined,
+    {},
+  ];
+  for (const m of none) assert.equal(windowOf(m), undefined, JSON.stringify(m));
+});
+
+test('the window is read from the newest counted call only, and the model text is kept nowhere', () => {
+  const w = t => callSeries(t, MTIME, NOW)?.window;
+  assert.equal(w(file(row({ model: 'claude-haiku-5-5' }))), 200000);
+  assert.equal(w(file(row({ ms: -2 * MIN, model: 'claude-opus-5-5' }), row({ ms: -MIN, model: 'claude-next-1' }))), undefined);
+  assert.equal(w(file(row({ ms: -2 * MIN, model: 'claude-next-1' }), row({ ms: -MIN, model: 'claude-opus-5-5' }))), 1000000);
+  // A newer row that is not counted does not give the model.
+  assert.equal(w(file(row({ ms: -2 * MIN, model: 'claude-haiku-5' }), row({ ms: -MIN, model: 'claude-opus-5-5', extra: { isSidechain: true } }))), 200000);
+  const s = callSeries(file(row({ model: 'claude-opus-5-5' })), MTIME, NOW);
+  assert.deepEqual(Object.keys(s).sort(), ['burn', 'context', 'last', 'window']);
+  assert.ok(!JSON.stringify(s).includes('claude'));
+  assert.ok(!JSON.stringify(s).includes('msg_'));
+  // With no window the field is absent.
+  assert.equal('window' in callSeries(file(row({ model: 'claude-next-1' })), MTIME, NOW), false);
+});
+
+test('five parses of a 4 MiB transcript finish within 1 s, with no early stop to help', () => {
+  // No row writes cache, so the parse never has the last cache-writing call
+  // and reads every line; every call is inside the 30 minutes.
+  const lines = [];
+  let size = 0;
+  for (;;) {
+    const line = row({ ms: -(lines.length % 1800) * 1000, write: 'none' });
+    if (size + line.length + 1 > MAX_TRANSCRIPT_BYTES) break;
+    lines.push(line);
+    size += line.length + 1;
+  }
+  const text = file(...lines);
+  assert.ok(text.length <= MAX_TRANSCRIPT_BYTES && text.length > MAX_TRANSCRIPT_BYTES - 1000, `${text.length} characters, all ASCII`);
+  const started = performance.now();
+  let s;
+  for (let i = 0; i < 5; i++) s = callSeries(text, MTIME, NOW);
+  const took = performance.now() - started;
+  assert.ok(took < 1000, `five parses took ${Math.round(took)} ms`);
+  assert.equal(s.context.length, 30);
+  assert.equal(s.last.windowMs, undefined);
+  // Every line was parsed: each call's new tokens, input and output with no
+  // cache write, are in a bucket.
+  assert.equal(sum(s.burn), lines.length * (6 + 300));
+});
+
+test('a modified time or clock that is not a finite number throws nothing', () => {
+  for (const m of [Number.NaN, Infinity]) assert.equal(callSeries(file(row()), m, NOW), undefined, String(m));
+  for (const now of [Number.NaN, Infinity, -Infinity]) {
+    const s = callSeries(file(row({ ms: -MIN })), MTIME, now);
+    assert.equal(s.last.at, NOW - MIN, String(now));
+    assert.equal(s.burn.length, 30);
+    assert.ok(s.burn.every(n => Number.isInteger(n) && n >= 0 && n <= MAX_SERIES));
+  }
+});
+
+// The stored meters.
+const meterOf = (over = {}) => ({ name: 'A', at: NOW, window: 1000000, burn: zeros(), context: [5000, 412000], ...over });
+
+test('stored meters are checked again: a record that fails any check goes, and none reaches a prototype', () => {
+  const good = meterOf();
+  assert.deepEqual(metersFrom([good]), [good]);
+  for (const stored of [undefined, null, 'x', 5, {}, { length: 1, 0: good }]) assert.deepEqual(metersFrom(stored), [], String(stored));
+  const thirty = v => Object.assign(zeros(), { 3: v });
+  const bad = [
+    { ...good, name: 5 },
+    { ...good, name: '' },
+    { ...good, name: 'x'.repeat(301) },
+    { ...good, at: Number.NaN },
+    { ...good, at: Infinity },
+    { ...good, at: '5' },
+    { ...good, at: undefined },
+    { ...good, window: 500000 },
+    { ...good, window: '1000000' },
+    { ...good, window: Number.NaN },
+    { ...good, window: null },
+    { ...good, burn: zeros().slice(1) },
+    { ...good, burn: [...zeros(), 0] },
+    { ...good, burn: {} },
+    { ...good, burn: null },
+    { ...good, burn: new Array(30) },
+    { ...good, context: Array.from({ length: 31 }, () => 1) },
+    { ...good, context: 'x' },
+    { ...good, context: [1, , 2] },
+  ];
+  for (const v of [-1, 1.5, MAX_SERIES + 1, Number.NaN, Infinity, '5', null, true]) {
+    bad.push({ ...good, burn: thirty(v) }, { ...good, context: [1, v] });
+  }
+  for (const b of bad) assert.deepEqual(metersFrom([b]), [], JSON.stringify(b, (k, v) => (typeof v === 'number' && !Number.isFinite(v) ? String(v) : v)));
+  // The optional fields may be absent; the tops are kept.
+  assert.deepEqual(metersFrom([{ name: 'A', at: NOW }]), [{ name: 'A', at: NOW }]);
+  const top = meterOf({ window: 200000, burn: Array.from({ length: 30 }, () => MAX_SERIES), context: Array.from({ length: 30 }, () => MAX_SERIES) });
+  assert.deepEqual(metersFrom([top]), [top]);
+  assert.deepEqual(metersFrom([meterOf({ context: [] })]), [meterOf({ context: [] })]);
+  // A repeated name keeps the first; at most 50 stay.
+  assert.deepEqual(metersFrom([good, meterOf({ at: 1 })]), [good]);
+  assert.equal(metersFrom(Array.from({ length: 60 }, (_, i) => meterOf({ name: `S${i}` }))).length, 50);
+});
+
+test('a stored meter is copied field by field into new values: other fields are dropped, and a later change to the stored value changes nothing', () => {
+  const stored = { ...meterOf(), path: 'C:\\cfg\\projects\\x.jsonl', model: 'claude-opus-5-5', __proto__: { polluted: true } };
+  const [m] = metersFrom([stored]);
+  assert.deepEqual(Object.keys(m).sort(), ['at', 'burn', 'context', 'name', 'window']);
+  assert.equal(m.polluted, undefined);
+  stored.burn[0] = 99;
+  stored.context.push(1);
+  assert.equal(m.burn[0], 0);
+  assert.deepEqual(m.context, [5000, 412000]);
+});
+
+test('a token size as the meter draws it: N.NM from 999,500 with a trailing .0 dropped, else as the cache line draws it', () => {
+  assert.equal(sizeText(412000), '412k');
+  assert.equal(sizeText(200000), '200k');
+  assert.equal(sizeText(999499), '999k');
+  assert.equal(sizeText(999500), '1M');
+  assert.equal(sizeText(1000000), '1M');
+  assert.equal(sizeText(1300000), '1.3M');
+  assert.equal(sizeText(30000000), '30M');
+  assert.equal(sizeText(5400), '5.4k');
+  for (const v of [Number.NaN, Infinity, -Infinity, -5]) assert.equal(sizeText(v), '0', String(v));
+});
+
+test('the context meter: tokens over the window, green under 70%, amber from 70%, red from 90%', () => {
+  const at = (tokens, window = 1000000) => contextMeter(meterOf({ window, context: [1, tokens] }));
+  assert.deepEqual(at(412000), { fraction: 0.412, tone: 'success', cls: 'done', text: '412k of 1M', alt: 'Context 412k of 1M' });
+  assert.equal(at(699999).tone, 'success');
+  assert.deepEqual([at(700000).tone, at(700000).cls], ['warning', 'warn']);
+  assert.equal(at(899999).tone, 'warning');
+  assert.deepEqual([at(900000).tone, at(900000).cls], ['error', 'hot']);
+  assert.deepEqual(at(1000000), { fraction: 1, tone: 'error', cls: 'hot', text: '1M of 1M', alt: 'Context 1M of 1M' });
+  assert.deepEqual(at(150000, 200000), { fraction: 0.75, tone: 'warning', cls: 'warn', text: '150k of 200k', alt: 'Context 150k of 200k' });
+  // The newest call's context: the series' last value.
+  assert.equal(contextMeter(meterOf({ context: [900000, 5000] })).text, '5.0k of 1M');
+});
+
+test('past the window the meter is a full red bar reading over (owner decision q6 B)', () => {
+  assert.deepEqual(contextMeter(meterOf({ context: [1300000] })), { fraction: 1, tone: 'error', cls: 'hot', text: '1.3M · over 1M', alt: 'Context 1.3M, over 1M' });
+  assert.deepEqual(contextMeter(meterOf({ window: 200000, context: [200001] })), { fraction: 1, tone: 'error', cls: 'hot', text: '200k · over 200k', alt: 'Context 200k, over 200k' });
+});
+
+test('no meter for an unknown model, a record with no context, or no record', () => {
+  const { window, ...noWindow } = meterOf();
+  assert.equal(contextMeter(noWindow), undefined);
+  assert.equal(contextMeter(meterOf({ context: [] })), undefined);
+  const { context, ...noContext } = meterOf();
+  assert.equal(contextMeter(noContext), undefined);
+  assert.equal(contextMeter(undefined), undefined);
+});
+
+test('the meter builders never throw: a value that is not a finite number gives no meter, and a negative one an empty bar', () => {
+  for (const v of [Number.NaN, Infinity, -Infinity]) {
+    assert.equal(contextMeter(meterOf({ context: [v] })), undefined, `tokens ${v}`);
+    assert.equal(contextMeter(meterOf({ window: v })), undefined, `window ${v}`);
+  }
+  for (const w of [0, -1]) assert.equal(contextMeter(meterOf({ window: w })), undefined, `window ${w}`);
+  assert.deepEqual(contextMeter(meterOf({ context: [-5] })), { fraction: 0, tone: 'success', cls: 'done', text: '0 of 1M', alt: 'Context 0 of 1M' });
+  for (const f of [Number.NaN, Infinity, -Infinity, -1, 0, 0.5, 1, 2]) {
+    const c = { fraction: f, tone: 'success', cls: 'done', text: 'x', alt: 'Context x' };
+    const cells = contextCells(c);
+    assert.equal([...cells].length, 16, String(f));
+    assert.match(cells, /^[█▏▎▍▌▋▊▉ ]{16}$/);
+    const svg = contextMeterSvg(c);
+    assertAllowlisted(svg.source);
+  }
+  assert.equal(contextCells({ fraction: 0.5, cls: 'done' }), `${'█'.repeat(8)}${' '.repeat(8)}`);
+  assert.equal(contextCells({ fraction: 2, cls: 'hot' }), '█'.repeat(16));
+});
+
+test('the context meter image: the cache bar\'s form, a rounded track and fill in the tone\'s class, no clipPath and no id, on the allowlist', () => {
+  for (const tokens of [412000, 750000, 950000, 1300000]) {
+    const c = contextMeter(meterOf({ context: [tokens] }));
+    const svg = contextMeterSvg(c);
+    assertAllowlisted(svg.source);
+    assert.equal(svg.kind, 'svg');
+    assert.equal(svg.alt, c.alt);
+    assert.ok(svg.height > 0);
+    assert.ok(!svg.source.includes('clip') && !svg.source.includes(' id='));
+    assert.ok(!withoutStyle(svg.source).includes('<text'), 'no text element');
+    const fills = [...withoutStyle(svg.source).matchAll(/class="([a-z]+)"/g)].map(m => m[1]);
+    assert.deepEqual([...new Set(fills)], ['track', c.cls]);
+    assert.ok(svg.source.length < 2048);
+  }
+  // Over the window: full.
+  const over = contextMeterSvg(contextMeter(meterOf({ context: [1300000] })));
+  assert.match(over.source, /<rect class="hot" x="0" y="\d+" width="100%"/);
+  // A class other than the three tones draws the track alone.
+  assert.ok(!withoutStyle(contextMeterSvg({ fraction: 1, cls: 'c0', alt: 'Context x' }).source).includes('c0'));
+});
+
+test('no title, path, model or id reaches the meter: its text and alt are fixed words and numbers', () => {
+  const c = contextMeter(meterOf({ name: MARKED, context: [412000] }));
+  for (const out of [c.text, c.alt, contextMeterSvg(c).source, contextMeterSvg(c).alt, contextCells(c)]) assertNoOutsideText(withoutStyle(out), 'the meter');
+  assert.match(c.alt, /^Context [0-9.]+[kM]? (?:of|, over) [0-9.]+[kM]$/);
+});
+
+// The poll's meters and its read budget, with a fake file system and clock.
+const WSID = i => `aaaaaaa${i.toString(16)}-0000-4000-8000-000000000000`;
+const wPath = i => `${PROJECTS}\\C--work\\${WSID(i)}.jsonl`;
+const wRow = (i, status = 'busy') => ({ name: `W${i}`, status, sessionId: WSID(i), cwd: 'C:\\work' });
+const range = n => Array.from({ length: n }, (_, i) => i);
+const touch = (files, list, mtimeMs) => {
+  for (const i of list) files[wPath(i)].mtimeMs = mtimeMs;
+};
+
+test('the poll stores one meter per member it has a call series for: read time, window, burn and context', async () => {
+  const { io } = fakeFs({ [pathOf(0)]: { text: file(row({ ms: -MIN })) } });
+  const out = await readCalls([agent('A', 0)], ['A'], CONFIG, new Map(), io);
+  const burn = zeros();
+  burn[28] = FRESH;
+  assert.deepEqual(out.meters, [{ name: 'A', at: NOW, window: 1000000, burn, context: [CONTEXT] }]);
+  assert.deepEqual(out.warmth, [{ name: 'A', kind: 'call', at: NOW - MIN, tokens: CONTEXT, windowMs: HOUR }]);
+  // The poll writes only records its own check keeps.
+  assert.deepEqual(metersFrom(out.meters), out.meters);
+});
+
+test('no meter for a member whose transcript is too large, shared, not found or has no counted call, nor while the clock answers no number', async () => {
+  const fs = fakeFs({ [pathOf(0)]: { text: '', size: MAX_TRANSCRIPT_BYTES + 1 }, [pathOf(1)]: { text: file(JSON.stringify({ type: 'user' })) } });
+  const out = await readCalls([agent('A', 0), agent('B', 1), agent('C', 2), agent('D', 0), agent('D', 1)], ['A', 'B', 'C', 'D'], CONFIG, new Map(), fs.io);
+  assert.deepEqual(out.meters, []);
+  assert.deepEqual(out.warmth.map(w => [w.name, w.kind]), [['A', 'too-large'], ['C', 'not-found'], ['D', 'shared']]);
+  const clock = { now: Number.NaN };
+  const nan = fakeFs({ [pathOf(0)]: { text: file(row({ ms: -MIN })) } }, { clock });
+  const memory = new Map();
+  const blind = await readCalls([agent('A', 0)], ['A'], CONFIG, memory, nan.io);
+  assert.deepEqual(blind.meters, []);
+  assert.equal(blind.warmth[0].kind, 'call', 'the warmth still reads');
+  // The next poll with a real clock reads it again for its series, unchanged as the file is.
+  clock.now = NOW;
+  const seen = await readCalls([agent('A', 0)], ['A'], CONFIG, memory, nan.io);
+  assert.equal(nan.reads.length, 2);
+  assert.equal(seen.meters.length, 1);
+});
+
+test('a clock that rejects throws nothing: the warmth reads, and there is no meter', async () => {
+  const { io } = fakeFs({ [pathOf(0)]: { text: file(row({ ms: -MIN })) } });
+  const out = await readCalls([agent('A', 0)], ['A'], CONFIG, new Map(), { ...io, now: async () => { throw new Error('C:\\Users\\x clock'); } });
+  assert.deepEqual(out.meters, []);
+  assert.equal(out.warmth[0].kind, 'call');
+});
+
+test('a working member is read at most once a minute, at most 5 a poll, those read longest ago first', async () => {
+  const clock = { now: NOW };
+  const files = Object.fromEntries(range(7).map(i => [wPath(i), { text: file(row({ ms: -MIN })) }]));
+  const fs = fakeFs(files, { clock });
+  const memory = new Map();
+  const rows = range(7).map(i => wRow(i));
+  const names = rows.map(r => r.name);
+  const poll = (list = rows) => readCalls(list, names, CONFIG, memory, fs.io);
+
+  // Never read: the first five in roster order; the other two go unread.
+  const first = await poll();
+  assert.deepEqual(fs.reads, range(5).map(wPath));
+  assert.deepEqual(first.warmth.map(w => w.kind), ['call', 'call', 'call', 'call', 'call', 'unread', 'unread']);
+  assert.equal(first.meters.length, 5);
+
+  // 10 s later, every file changed: only the two never read are due.
+  clock.now = NOW + 10000;
+  touch(files, range(7), MTIME + 1);
+  await poll();
+  assert.deepEqual(fs.reads.slice(5), [5, 6].map(wPath));
+
+  // 59.999 s after the first reads, with every file changed again: none due.
+  clock.now = NOW + WORKING_EVERY_MS - 1;
+  touch(files, range(7), MTIME + 2);
+  await poll();
+  assert.equal(fs.reads.length, 7);
+
+  // 80 s after the first reads all seven are due; the five read longest ago
+  // win, whatever the roster order, and are read in roster order.
+  clock.now = NOW + 80000;
+  await poll([...rows].reverse());
+  assert.deepEqual(fs.reads.slice(7), [4, 3, 2, 1, 0].map(wPath));
+});
+
+test('the budget counts only working reads: idle members whose file changed are all read, and an unchanged file is not read however due', async () => {
+  const clock = { now: NOW };
+  const files = Object.fromEntries(range(8).map(i => [wPath(i), { text: file(row({ ms: -MIN })) }]));
+  const fs = fakeFs(files, { clock });
+  const memory = new Map();
+  const rows = range(8).map(i => wRow(i, i < 5 ? 'busy' : 'idle'));
+  await readCalls(rows, rows.map(r => r.name), CONFIG, memory, fs.io);
+  assert.equal(fs.reads.length, 8);
+  clock.now = NOW + 10 * WORKING_EVERY_MS;
+  await readCalls(rows, rows.map(r => r.name), CONFIG, memory, fs.io);
+  assert.equal(fs.reads.length, 8, 'nothing changed, nothing read');
+});
+
+test('a read time ahead of the clock counts as due, so a clock that went back cannot hold a working member unread', async () => {
+  const clock = { now: NOW };
+  const files = { [wPath(0)]: { text: file(row({ ms: -MIN })) } };
+  const fs = fakeFs(files, { clock });
+  const memory = new Map();
+  await readCalls([wRow(0)], ['W0'], CONFIG, memory, fs.io);
+  clock.now = NOW - HOUR;
+  touch(files, [0], MTIME + 1);
+  await readCalls([wRow(0)], ['W0'], CONFIG, memory, fs.io);
+  assert.equal(fs.reads.length, 2);
+});
+
+test('a working member\'s meter keeps its read time between reads, so the drawing can shift its burn', async () => {
+  const clock = { now: NOW };
+  const files = { [wPath(0)]: { text: file(row({ ms: -MIN })) } };
+  const fs = fakeFs(files, { clock });
+  const memory = new Map();
+  await readCalls([wRow(0)], ['W0'], CONFIG, memory, fs.io);
+  clock.now = NOW + 30000;
+  touch(files, [0], MTIME + 1);
+  const out = await readCalls([wRow(0)], ['W0'], CONFIG, memory, fs.io);
+  assert.equal(fs.reads.length, 1);
+  assert.equal(out.meters[0].at, NOW);
+});
+
+// Text shaped like a path or a secret, in every string field of a row that
+// passes every check: the id and model are built to pass theirs.
+const LEAK = ['Users', 'users', 'sk-ant', 'SECRET', 'secret', 'tok_', 'claude', 'msg_', '.jsonl', 'C--work', 'projects', 'cfg'];
+const leakyRow = ms =>
+  JSON.stringify({
+    type: 'assistant',
+    timestamp: at(ms),
+    isSidechain: false,
+    uuid: 'C:\\Users\\someone\\.claude\\secret',
+    parentUuid: '/home/someone/.ssh/id_rsa',
+    sessionId: 'sk-ant-api03-SECRET',
+    cwd: 'C:\\Users\\someone\\work',
+    gitBranch: 'tok_abc',
+    version: 'C--Users-someone',
+    requestId: 'req_sk-ant-SECRET',
+    message: {
+      id: `C--Users-someone-sk-ant-api03-SECRET-tok_${ms < 0 ? 'a' : 'b'}${String(-ms)}`,
+      type: 'message',
+      role: 'assistant',
+      model: 'claude-opus-5-c--users-someone-sk-ant-secret',
+      stop_reason: 'C:\\Users\\someone\\secret.txt',
+      content: [{ type: 'text', text: 'sk-ant-api03-SECRET C:\\Users\\someone\\.claude\\projects\\x.jsonl' }],
+      usage: {
+        input_tokens: 6,
+        cache_creation_input_tokens: 1000,
+        cache_read_input_tokens: 150000,
+        output_tokens: 300,
+        service_tier: 'C:\\Users\\someone',
+        cache_creation: { ephemeral_5m_input_tokens: 0, ephemeral_1h_input_tokens: 1000 },
+      },
+    },
+  });
+
+test('no folder path, transcript text, model text or message id from a transcript reaches what the poll stores', async () => {
+  const t = file(leakyRow(-3 * MIN), leakyRow(-2 * MIN), leakyRow(-MIN));
+  const s = callSeries(t, MTIME, NOW);
+  assert.equal(s.context.length, 3, 'every row passes the checks');
+  assert.equal(s.window, 1000000, 'the model id passes its check');
+  const { io } = fakeFs({ [pathOf(0)]: { text: t } });
+  const out = await readCalls([agent('A', 0, 'busy')], ['A'], CONFIG, new Map(), io);
+  assert.equal(out.meters.length, 1);
+  const stored = JSON.stringify(out);
+  for (const piece of LEAK) assert.ok(!stored.includes(piece), `the stored records hold ${piece}`);
+  assert.deepEqual(Object.keys(out.meters[0]).sort(), ['at', 'burn', 'context', 'name', 'window']);
+});
+
+test('the state contract declares meters under the plugin\'s manifest name', () => {
+  const types = readFileSync(join(root, 'brigade/types/index.d.ts'), 'utf8');
+  const block = types.slice(types.indexOf('interface PluginState'));
+  assert.match(block, /\n\s+meters: Meter\[\]\n/);
+  assert.match(types, /export type Meter = \{ name: string; at: number; window\?: number; burn\?: number\[\]; context\?: number\[\] \}/);
+  const register = readFileSync(join(root, 'brigade/register.tsx'), 'utf8');
+  assert.match(register, /atom\(\{ plugin: 'grimoire', key: 'meters' \} as const, \[\]\)/);
 });
