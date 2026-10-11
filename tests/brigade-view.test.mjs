@@ -778,6 +778,20 @@ test('past 100% the projection says how early the limit runs out: reset time −
   assert.deepEqual(projection(fiveHour(64, 36 * MIN), PACED, NOW), { percent: 100 });
 });
 
+test('a limit already at or over 100% gets no early note and keeps its reset time (owner decision q1 A)', () => {
+  const rising = [sample(-20 * MIN, 90), sample(0, 100)];
+  assert.equal(projection(fiveHour(100, 60 * MIN), rising, NOW).earlyMs, undefined);
+  assert.equal(projection(sevenDay(100000, 3 * DAY), [], NOW).earlyMs, undefined);
+  // Just under 100% the note still says how early.
+  assert.ok(projection(sevenDay(99.9, 3 * DAY), [], NOW).earlyMs > 0);
+  const terminal = usageView({ limits: [fiveHour(100, 60 * MIN)], context: {} }, 'terminal', NOW, SVG_MAX, rising);
+  assert.deepEqual([terminal.rows[0].note, terminal.rows[0].noteTone], ['Resets in 1 hr 0 min', '']);
+  const image = usageView({ limits: [fiveHour(100, 60 * MIN)], context: {} }, 'desktop', NOW, SVG_MAX, rising);
+  assert.ok(image.source.includes('<text class="muted" x="100%" y="12" text-anchor="end">Resets in 1 hr 0 min · 100%</text>'), image.source);
+  assert.ok(!image.source.includes('runs out') && !image.alt.includes('runs out'));
+  assertAllowlisted(image.source);
+});
+
 test('a rough time reads minutes under an hour, hours under a day, then days, never 0', () => {
   const cases = [
     [1, '1 min'],

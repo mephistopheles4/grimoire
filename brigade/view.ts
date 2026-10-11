@@ -509,7 +509,8 @@ function recentPace(samples: readonly Sample[], now: number): number | undefined
 }
 
 /** A limit's projection: the percent it will be at reset at the current
- *  pace, and past 100% how many milliseconds before the reset it runs out. */
+ *  pace, and past 100% how many milliseconds before the reset it runs out,
+ *  unless it has run out already. */
 export type Projection = { percent: number; earlyMs?: number }
 
 /** The projection for one limit, or undefined: for a kind other than
@@ -531,7 +532,9 @@ export function projection(limit: UsageLimit, samples: readonly Sample[], now: n
   if (pace === undefined || !Number.isFinite(pace) || pace <= 0) return undefined
   const percent = limit.percent + pace * (reset - now)
   if (!Number.isFinite(percent)) return undefined
-  if (percent <= 100) return { percent }
+  // A limit already at or over 100% has run out: it gets no early note, so
+  // its row keeps the reset time, when it comes back (owner decision q1 A).
+  if (percent <= 100 || limit.percent >= 100) return { percent }
   const earlyMs = reset - (now + (100 - limit.percent) / pace)
   return Number.isFinite(earlyMs) ? { percent, earlyMs } : { percent }
 }
