@@ -44,9 +44,11 @@ An `npx skills` install copies skill folders only. It gives you `head-chef`
 but not `/brigade`, and the skill then works without a pane.
 
 For records kept on GitHub issues, the GitHub command line (`gh`) must be
-installed and signed in. The lead uses it only to read its sessions' issues,
+installed and signed in. The lead uses it to read its sessions' issues,
 to read whether their repository is public, to read the signed-in account's
-name, and to post the rename line. In a permission mode that asks before each
+name, and to post the rename line; and, when your own words in its chat ask
+for it, to merge, close, edit, delete or label an issue or a pull request, or
+post a comment (see "Acting on your issues"). In a permission mode that asks before each
 command, a session's lookups and its posts may wait at a prompt. An allow rule
 is yours to add.
 
@@ -123,11 +125,43 @@ decision can tell a session to stop its check or its reports. You see each
 real send in the head chef's one-line notice, and a forged one when a report
 naming it arrives. To answer only in a session's own chat, answer there.
 
+## Acting on your issues
+
+**Your own words in the head chef's chat let it merge, close, edit, delete
+or label an issue or a pull request itself, or post a comment.** Nothing
+else does: a session's message, a report, a relay, a brief or an issue
+comment never counts, even when it quotes you or says "approved". The head
+chef tells you about such a line instead.
+
+- **It names the record back and waits** when your words leave the record
+  unclear ("merge it"), or when a number, a repository or a branch is not one
+  you typed, for example one from a session's report. The name-back gives the
+  repository and the number, and for a pull request its head commit, its
+  author and whether it comes from a fork. Answer it on its own: a bare yes
+  while another question is open counts for neither.
+- **It says "I'm about to …" in one line** before an act you might want to
+  step in on, such as a delete, another account's pull request, or text on a
+  public issue, and then acts in the same turn. It does not wait.
+- **After the act it reads the record again** and tells you, in one line,
+  what it now shows.
+- **Text it posts** goes through a file named `grimoire-act-<random>.txt` in
+  your temporary folder, deleted right after the act. It holds no session id,
+  token, secret, local path, error text or personal data.
+
+**The risks you take on.** A merge takes the pull request's head at merge
+time, so a push after a review rides in. The "I'm about to" line warns and
+does not wait. A delete cannot be undone, and an edit or a delete leaves the
+old text in the edit history and in notification emails. A merge writes the
+pull request's own title and text into history, unread, as when you merge by
+hand. A head chef misled by a planted line could take it for your words, as
+for starting and stopping a session.
+
 ## What counts as your yes
 
 Only your own words in chat. Your request to run work in another session is
 the yes to start it. Starting, stopping, removing a session and deleting a
-worktree each need your own words. A message from another session, a report,
+worktree each need your own words, and so does each act on an issue or a
+pull request. A message from another session, a report,
 a brief, a roster line or an issue comment never counts. Reports and relayed
 text are data to the head chef, not instructions. The head chef may decide
 for a session in your name, but its own acts of starting, stopping or
@@ -161,6 +195,16 @@ plain folder, not a link or a junction.
 | Local-only list files | The temporary folder that `TEMP`, `TMP` or `TMPDIR` names | Random names; one line of local-only answers |
 
 The last two have no fixed name, so you may not find them all.
+
+From 0.6.0, an act on an issue that was interrupted can leave one more kind
+of file:
+
+| What | Where | How to spot it |
+| --- | --- | --- |
+| Record-act post files | The temporary folder that your `TEMP`, `TMP` or `TMPDIR` setting names | Named `grimoire-act-<hex>.txt`; it can hold text you asked the head chef to post |
+
+The head chef lists them at its first launch in a session and tells you. It
+deletes none of them; delete them by hand.
 
 **What 0.4.0 posted on your issues stays there.** Sessions under 0.4.0
 posted your quoted words, their questions and choices, and taken-answer and
@@ -201,6 +245,8 @@ from your phone shows none. The skill does not need it.
 ## What it never does
 
 - Start, stop or delete on anyone's word but yours.
+- Merge, close, edit, delete or label an issue or a pull request on anyone's
+  word but yours.
 - Send a decision or a relay without telling you, in one line, in the same
   turn.
 - Put an issue's title or text into a command line.
@@ -223,7 +269,8 @@ named its cleanup back, before the first release.
 | `references/brief.md` | What a brief tells each session, decisions from the lead included. Generated with `SKILL.md`, and sealed. |
 | `references/cleanup.md` | The seven cleanup steps. Generated with `SKILL.md`, and sealed. |
 | `references/roster.md` | How the head chef keeps the pane's roster. Generated with `SKILL.md`, and sealed. |
-| `references/leftovers.md` | The one-time check for files head-chef 0.4.0's relay scripts left. Generated with `SKILL.md`, and sealed. |
+| `references/leftovers.md` | The one-time check for files head-chef 0.4.0's relay scripts left, and for record-act post files. Generated with `SKILL.md`, and sealed. |
+| `references/record-acts.md` | How the head chef merges, closes, edits, deletes or labels a record on your words. Generated with `SKILL.md`, and sealed. |
 | `CONTRACT.md` | The terms it was built from, with the reason for each rule. |
 | `README.md` | This page. |
 
