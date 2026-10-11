@@ -871,7 +871,9 @@ export const register: Register = on => {
       const isFinished = look.group === 'finished'
       const warmLine = isFinished ? undefined : warmthLine(warm.get(c.title), running.get(c.title), c.status, now)
       const bar = isFinished ? undefined : cacheBar(warm.get(c.title), running.get(c.title), now)
-      const image = bar !== undefined && Svg !== undefined ? cacheBarSvg(bar) : undefined
+      // The terminal draws text bars, as the usage section does, even where
+      // its table holds an Svg.
+      const image = bar !== undefined && Svg !== undefined && e.surface !== 'terminal' ? cacheBarSvg(bar) : undefined
       const report = last(c.title)
       const needs = c.status === 'needs-you'
       const canOpen = appLink(c, found.get(c.title)) !== undefined

@@ -1592,7 +1592,7 @@ async function cached(on: On, $: any, roster: unknown, records: (now: number) =>
     if (key === 'live') return Object.entries(live).map(([name, v]) => ({ name, value: v }))
     return value
   })
-  now = (await $.clock.now()) + 10000
+  now = w.clock.now() + 10000
   await w.clock.advance(10000)
   await w.clock.settle()
   return w
@@ -1674,7 +1674,7 @@ for (const surface of SURFACES) {
     } else {
       expect(images.length).toBe(0)
       // 16 eighth-block cells in the tone's colour, between dim end marks.
-      const bars = all.filter(n => n.type === 'Text' && /^[█▏▎▍▌▋▊▉ ]{16}$/u.test(String(n.text)))
+      const bars = (await m.findAll({ type: 'Text', text: /^[█▏▎▍▌▋▊▉ ]{16}$/ })) as Drawn[]
       expect(bars.map(b => [b.text, b.props.color])).toEqual([
         [' '.repeat(16), 'error'],
         [`███▎${' '.repeat(12)}`, 'warning'],
