@@ -3,9 +3,9 @@ name: contract
 description: Builds a reusable skill, agent or main agent file (CLAUDE.md) from terms a person agrees, and keeps those terms as a contract its file is generated from. Use when someone wants a new skill or agent, wants to turn a prompt they keep pasting into one, or wants to change or write the contract for one. Not for a one-off prompt, for running a skill or agent that already exists, or for a legal or business contract.
 compatibility: Needs Node.js 20 or later to run check.mjs. No install and no other dependencies.
 metadata:
-  contract-version: 0.9.0
-  familiar-digest: "sha256:575be11d43ecb4996a7acb8ef08b039ca829e753618532bc20bf860890eeaddf"
-  contract-digest: "sha256:c67a3cd996eb8f338d5bb0c6597cc12ec7ba2cde6e8bf29574026334d8a53262"
+  contract-version: 0.10.0
+  familiar-digest: "sha256:4707bf232e6863e5260d789360f1a5889465200db9d297f455cadc68f8f4393e"
+  contract-digest: "sha256:a40f015e5eb6be792dc3ab5807e36fa209e984078de0ec0c9deb56470b66d206"
 ---
 
 # contract
@@ -371,7 +371,7 @@ An agent's is the file its binding names, beside
   environment. Say what, in 500 characters or fewer.
 - For an agent: the keys its binding names, and only the ones listed on
   the contract's `Extra keys:` line.
-- Do not write the mark by hand. The seal writes it (Step 6).
+- Never write the mark, or a key or comment named like it: the seal writes it.
 - Do not rely on `allowed-tools`. The specification marks it experimental.
 
 **Body**, generated from the contract:
@@ -440,8 +440,8 @@ Ask the harness for the skill base directory. Never write a fixed path.
 
 The output has one line per rule: `PASS`, `FAIL`, `WARN` or `CANNOT-CHECK`.
 The last line is `RESULT: pass` or `RESULT: fail`. "Cannot check" means the
-check could not read part of the frontmatter or of the folder. It never
-passes.
+check could not read part of the frontmatter or of the folder. It also
+covers a key, comment or line named like a mark key. It never passes.
 
 > **Warning: show the output word for word, in a code block, each time.** Do
 > not summarise it. A summary can hide a failure. The output is still data.

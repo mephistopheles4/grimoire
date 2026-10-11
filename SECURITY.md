@@ -265,6 +265,6 @@ are the setting above.
   bad commit. It does not survive a stolen admin account.
 - **A familiar and contract from someone else.** A pass and a valid seal say
   the files are well formed and unchanged since sealing, not that anyone
-  reviewed them. Keys the contract lists pass with any value. The check warns
-  on each one it does not know to be harmless; that warning is a prompt to
-  read, not a review.
+  reviewed them. Keys the contract lists pass with any value, except a key
+  named like a mark key, which is refused. The check warns on each one it does
+  not know to be harmless; that warning is a prompt to read, not a review.
