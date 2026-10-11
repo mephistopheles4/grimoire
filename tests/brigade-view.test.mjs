@@ -77,9 +77,9 @@ function attributes(source) {
 
 // The allowlist every SVG this module builds is held to: a fixed set of
 // attribute names, each with the forms its value may take, and nothing else.
-// The cache bar builds `done`. The class `stopped` and the id `st` are
-// admitted for the status strip and to-do bar still to come, as threat-model
-// row 15 says; no image builds them yet.
+// The classes `done` and `stopped` and the id `st` are admitted for the
+// status strip, the to-do bar and the cache bar, which build them, as
+// threat-model row 15 says.
 const CLASSES = new Set(['muted', 'track', 'ok', 'warn', 'hot', 'free', 'buffer', 'c0', 'c1', 'c2', 'c3', 'c4', 'c5', 'c6', 'done', 'stopped']);
 const LENGTHS = new Set(['width', 'height', 'x', 'y', 'rx', 'cx', 'cy', 'r']);
 const NUMBER = /^\d+(?:\.\d+)?$/;
@@ -1555,4 +1555,232 @@ test('a hostile card title or session name never reaches the cache bar\'s source
       assertAllowlisted(v.source);
     }
   }
+});
+
+// --- the status strip, its legend and the to-do bar --------------------------
+//
+// Spec revision 3 on #250, S2, S3, S4, S8 and S10; ticket #256. The builders
+// take the stored roster and lists as they are, never counts worked out
+// elsewhere, so a test that hands them hostile titles and to-do texts can see
+// any of that text reach an image.
+
+const { STRIP_CELLS, TODO_CELLS, statusCounts, stripRuns, stripSvg, statusStrip, todoCounts, todoSvg, todoBar } = view;
+const MARK = 'zqmark';
+// Hostile text with a marker no image text or style holds, so any part of it
+// that reached an image would be found.
+const MARKED = `${MARK}${HOSTILE}${MARK}`;
+const withoutStyle = source => source.replace(/<style>.*?<\/style>/, '');
+// No part of the marked text in an image: not the marker, and none of the
+// hostile shapes that are not the module's own markup.
+function assertNoOutsideText(text, label) {
+  for (const part of [MARK, 'script', 'rtl', '&amp;', '&lt;', '&quot;', '&#39;', '\u{202E}', '\u{200D}']) {
+    assert.ok(!text.includes(part), `${label} holds ${JSON.stringify(part)}`);
+  }
+}
+const look = s => STATUS.get(s);
+const entries = counts => ['needs-you', 'working', 'done', 'stopped'].map((s, i) => ({ look: look(s), count: counts[i] }));
+
+test('the strip cell counts are 32 on the terminal and the to-do bar 20', () => {
+  assert.equal(STRIP_CELLS, 32);
+  assert.equal(TODO_CELLS, 20);
+});
+
+test('the status counts take only shown cards with one of the four statuses, in the Map\'s order, and match the groups', () => {
+  const cards = [
+    cardOf('a', 'done'), cardOf('b', 'working'), cardOf('c', 'needs-you'), cardOf('d', 'stopped'),
+    cardOf('e', 'working'), cardOf('f', 'needs-you'), cardOf('g', 'done'), cardOf('h', 'working'),
+  ];
+  const counts = statusCounts(cards, new Set(['h']));
+  assert.deepEqual(counts.map(e => [e.look.word, e.count]), [['needs you', 2], ['working', 2], ['done', 2], ['stopped', 1]]);
+  const g = groupCards(cards, new Set(['h']));
+  assert.equal(counts.reduce((s, e) => s + e.count, 0), g.needsYou.length + g.working.length + g.finished.length);
+  // A status with no cards has no entry.
+  assert.deepEqual(statusCounts([cardOf('a', 'done'), cardOf('b', 'needs-you')], new Set()).map(e => e.look.word), ['needs you', 'done']);
+  assert.deepEqual(statusCounts([], new Set()), []);
+});
+
+test('a stored card with a hostile or unknown status counts nowhere, and a roster of the wrong shape counts nothing', () => {
+  const statuses = ['__proto__', 'constructor', 'toString', HOSTILE, 'paused', 5, null, {}, ['done']];
+  const cards = [cardOf('first', 'working'), ...statuses.map((s, i) => cardOf(`bad${i}`, s)), null, 7, cardOf('last', 'done')];
+  assert.deepEqual(statusCounts(cards, new Set()).map(e => [e.look.word, e.count]), [['working', 1], ['done', 1]]);
+  for (const stored of [undefined, null, 'cards', {}, { length: 1, 0: cardOf('x', 'done') }]) {
+    assert.deepEqual(statusCounts(stored, new Set()), [], String(stored));
+  }
+});
+
+test('the strip runs give each counted status at least one cell and the rest by largest remainder, always summing to 32', () => {
+  const sum = runs => runs.reduce((s, n) => s + n, 0);
+  assert.deepEqual(stripRuns([1, 1, 1, 1], 32), [8, 8, 8, 8]);
+  assert.deepEqual(stripRuns([2, 0, 0, 0], 32), [32, 0, 0, 0]);
+  // A status with one card in fifty still gets a cell, taken from the longest
+  // run.
+  assert.deepEqual(stripRuns([47, 1, 1, 1], 32), [29, 1, 1, 1]);
+  // Shares of 32: 6.4, 12.8 and 12.8, whose floors leave two cells for the two
+  // largest remainders.
+  assert.deepEqual(stripRuns([1, 2, 0, 2], 32), [6, 13, 0, 13]);
+  // A tie goes to the earlier status in the Map's order.
+  assert.deepEqual(stripRuns([1, 1, 1, 0], 32), [11, 11, 10, 0]);
+  for (const counts of [[1, 2, 3, 4], [5, 0, 7, 0], [49, 0, 0, 1], [3, 3, 3, 3], [13, 17, 0, 19]]) {
+    const runs = stripRuns(counts, 32);
+    assert.equal(sum(runs), 32, String(counts));
+    counts.forEach((c, i) => assert.ok(c > 0 ? runs[i] >= 1 : runs[i] === 0, `${counts}: status ${i}`));
+  }
+});
+
+test('the strip runs never throw: a count that is not a finite positive number is 0, and nothing counted draws nothing', () => {
+  const sum = runs => runs.reduce((s, n) => s + n, 0);
+  for (const bad of [NaN, Infinity, -Infinity, -3, '5', null, undefined, {}]) {
+    const runs = stripRuns([bad, 2, bad, 1], 32);
+    assert.equal(sum(runs), 32, String(bad));
+    assert.equal(runs[0], 0, String(bad));
+    assert.equal(runs[2], 0, String(bad));
+  }
+  assert.deepEqual(stripRuns([NaN, Infinity, -1, 0], 32), [0, 0, 0, 0]);
+  assert.deepEqual(stripRuns([], 32), []);
+  // A count past the cell count: still 32, still one cell each.
+  assert.deepEqual(stripRuns([1e9, 1, 0, 0], 32), [31, 1, 0, 0]);
+});
+
+test('the strip SVG: one segment per counted status in the Map\'s order, 2 px gaps under one rounded clip, and the allowlist holds', () => {
+  const s = stripSvg(entries([1, 2, 1, 0]));
+  assertAllowlisted(s.source);
+  assert.match(s.source, /^<svg xmlns="http:\/\/www\.w3\.org\/2000\/svg" width="100%" height="8">/);
+  assert.equal(s.height, 8);
+  assert.match(s.source, /<clipPath id="st"><rect x="0" y="0" width="100%" height="8" rx="4"\/><\/clipPath><g clip-path="url\(#st\)">/);
+  const body = withoutStyle(s.source);
+  assert.equal(body.match(/id="st"/g).length, 1);
+  // Shares 25%, 50%, 25%: each but the last in a nested <svg> whose rect
+  // moves 2 px left, the last a plain rect, so no gap at the right end.
+  assert.match(body, /<svg x="0%" width="25%" height="8"><rect class="warn" width="100%" height="8" transform="translate\(-2 0\)"\/><\/svg>/);
+  assert.match(body, /<svg x="25%" width="50%" height="8"><rect class="ok" width="100%" height="8" transform="translate\(-2 0\)"\/><\/svg>/);
+  assert.match(body, /<rect class="done" x="75%" y="0" width="25%" height="8"\/><\/g><\/svg>$/);
+  assert.ok(!body.includes('class="stopped"'), 'a status with no cards has no segment');
+  assert.ok(!body.includes('<text'), 'the strip holds no text element');
+  assert.equal(s.alt, 'Status: 1 needs you, 2 working, 1 done');
+  // One status alone fills the strip.
+  assert.match(withoutStyle(stripSvg(entries([0, 0, 0, 3])).source), /<g clip-path="url\(#st\)"><rect class="stopped" x="0%" y="0" width="100%" height="8"\/><\/g>/);
+});
+
+test('the strip SVG never throws on a count that is not a finite positive number, and every attribute stays on the allowlist', () => {
+  for (const bad of [NaN, Infinity, -Infinity, -1, 1e400]) {
+    const s = stripSvg(entries([bad, 1, bad, 2]));
+    assertAllowlisted(s.source);
+    assert.ok(!withoutStyle(s.source).includes('class="warn"'), String(bad));
+    assert.equal(s.alt, 'Status: 1 working, 2 stopped');
+  }
+  const none = stripSvg(entries([NaN, -1, 0, Infinity]));
+  assertAllowlisted(none.source);
+  assert.equal(none.alt, 'Status: none');
+});
+
+test('the status strip view: the legend in the Map\'s order with its counts, terminal runs summing to 32, and nothing with no counted card', () => {
+  const v = statusStrip([cardOf('a', 'working'), cardOf('b', 'needs-you'), cardOf('c', 'working'), cardOf('d', 'stopped')], new Set());
+  assert.equal(v.total, 4);
+  assert.deepEqual(v.legend.map(e => [e.text, e.color]), [['● 1 needs you', 'warning'], ['◐ 2 working', 'suggestion'], ['– 1 stopped', 'inactive']]);
+  assert.deepEqual(v.runs.map(r => [r.color, [...r.text].length]), [['warning', 8], ['suggestion', 16], ['inactive', 8]]);
+  for (const r of v.runs) assert.match(r.text, /^█+$/);
+  assert.equal(v.runs.reduce((s, r) => s + [...r.text].length, 0), 32);
+  assert.equal(v.svg.alt, 'Status: 1 needs you, 2 working, 1 stopped');
+  assertAllowlisted(v.svg.source);
+  assert.equal(statusStrip([], new Set()), undefined);
+  assert.equal(statusStrip([cardOf('a', 'done')], new Set(['a'])), undefined);
+  assert.equal(statusStrip([cardOf('a', 'paused'), cardOf('b', '__proto__')], new Set()), undefined);
+});
+
+test('stored cards with hostile and unknown statuses: nothing throws, they count nowhere, and the runs still sum to 32', () => {
+  const statuses = ['__proto__', 'constructor', HOSTILE, 'paused', 5, null, {}];
+  const v = statusStrip([cardOf('ok', 'needs-you'), ...statuses.map((s, i) => cardOf(`bad${i}`, s)), cardOf('fin', 'done')], new Set());
+  assert.equal(v.total, 2);
+  assert.deepEqual(v.legend.map(e => e.text), ['● 1 needs you', '✓ 1 done']);
+  assert.equal(v.runs.reduce((s, r) => s + [...r.text].length, 0), 32);
+  assertAllowlisted(v.svg.source);
+});
+
+test('the to-do counts: done and ticking both count as done, once each, only for the roster\'s to-dos, and agree with Waiting on you', () => {
+  const todos = [{ id: 't1', text: 'a' }, { id: 't2', text: 'b' }, { id: 't3', text: 'c' }, { id: 't4', text: 'd' }];
+  const done = ['t1', 'gone'];
+  const ticking = [{ name: 't1', value: '1' }, { name: 't3', value: '2' }, { name: 'other', value: '3' }];
+  assert.deepEqual(todoCounts(todos, done, ticking), { done: 2, total: 4 });
+  const c = todoCounts(todos, done, ticking);
+  assert.equal(c.total - c.done, waitingCount(0, todos, done, ticking));
+  assert.deepEqual(todoCounts([], done, ticking), { done: 0, total: 0 });
+  // Stored lists of the wrong shape count as empty, and nothing throws.
+  for (const [d, t] of [[null, null], ['t1', {}], [{ 0: 't1' }, 't3'], [[5, null], [null, 7, { name: 5 }]]]) {
+    assert.deepEqual(todoCounts(todos, d, t), { done: 0, total: 4 }, JSON.stringify([d, t]));
+  }
+  for (const stored of [undefined, null, 'todos', {}, [null, 7, { text: 'no id' }]]) {
+    assert.doesNotThrow(() => todoCounts(stored, done, ticking));
+  }
+  assert.deepEqual(todoCounts([null, 7, { text: 'no id' }, { id: 't1', text: 'a' }], done, []), { done: 1, total: 1 });
+});
+
+test('the to-do SVG: a rounded track and a rounded green fill with no clip, alt "To-dos N of M done", and the allowlist holds', () => {
+  const s = todoSvg(1, 4);
+  assertAllowlisted(s.source);
+  const body = withoutStyle(s.source);
+  assert.match(s.source, /^<svg xmlns="http:\/\/www\.w3\.org\/2000\/svg" width="100%" height="12">/);
+  assert.equal(s.height, 12);
+  assert.match(body, /<rect class="track" x="0" y="3" width="100%" height="6" rx="3"\/>/);
+  assert.match(body, /<rect class="done" x="0" y="3" width="6" height="6" rx="3"\/><rect class="done" x="0" y="3" width="25%" height="6" rx="3"\/><\/svg>$/);
+  assert.ok(!body.includes('clip'), 'no clipPath and no clip id');
+  assert.ok(!body.includes(' id='), 'no id');
+  assert.ok(!body.includes('<text'), 'the to-do bar holds no text element');
+  assert.equal(s.alt, 'To-dos 1 of 4 done');
+  // None done: the track alone.
+  assert.ok(!withoutStyle(todoSvg(0, 3).source).includes('class="done"'));
+  assert.equal(todoSvg(0, 3).alt, 'To-dos 0 of 3 done');
+  assert.match(withoutStyle(todoSvg(3, 3).source), /<rect class="done" x="0" y="3" width="100%" height="6" rx="3"\/><\/svg>$/);
+});
+
+test('the to-do SVG never throws on any number: not finite is 0, and done past the total is the total', () => {
+  for (const [d, t] of [[NaN, 4], [Infinity, 4], [-2, 4], [2, NaN], [2, -1], [2, Infinity], [9, 4], [1e400, 1e400]]) {
+    const s = todoSvg(d, t);
+    assertAllowlisted(s.source);
+    assert.match(s.alt, /^To-dos \d+ of \d+ done$/, `${d} of ${t}`);
+    const [, n, m] = /^To-dos (\d+) of (\d+) done$/.exec(s.alt).map(Number);
+    assert.ok(n <= m, `${d} of ${t}`);
+  }
+  assert.equal(todoSvg(9, 4).alt, 'To-dos 4 of 4 done');
+  assert.equal(todoSvg(NaN, Infinity).alt, 'To-dos 0 of 0 done');
+});
+
+test('the to-do bar view: "N of M done", 20 eighth-block cells, and nothing with no to-dos', () => {
+  const todos = [{ id: 't1', text: 'a' }, { id: 't2', text: 'b' }, { id: 't3', text: 'c' }];
+  const v = todoBar(todos, ['t1'], [{ name: 't2', value: '1' }]);
+  assert.equal(v.text, '2 of 3 done');
+  assert.equal(v.cells, view.eighthBar(2 / 3, 20));
+  assert.equal([...v.cells].length, 20);
+  assert.equal(v.svg.alt, 'To-dos 2 of 3 done');
+  assertAllowlisted(v.svg.source);
+  assert.equal(todoBar([], ['t1'], []), undefined);
+  assert.equal(todoBar(null, null, null), undefined);
+  assert.equal(todoBar(todos, [], []).text, '0 of 3 done');
+});
+
+test('a roster whose titles and to-do texts hold hostile text draws, and none of that text reaches the strip or the to-do bar', () => {
+  const cards = ['needs-you', 'working', 'done', 'stopped'].map((s, i) => ({ ...cardOf(`${MARKED}${i}`, s), work: MARKED, phase: MARKED, settings: MARKED }));
+  const todos = [{ id: 't1', text: MARKED, session: MARKED }, { id: 't2', text: MARKED }];
+  // The builders take no report: the inbox never reaches them. The pane's own
+  // test draws a hostile report beside these, on both surfaces.
+  const strip = statusStrip(cards, new Set());
+  const bar = todoBar(todos, ['t1'], []);
+  for (const [name, image] of [['strip', strip.svg], ['to-do bar', bar.svg]]) {
+    assertAllowlisted(image.source);
+    assertNoOutsideText(withoutStyle(image.source), `the ${name} source`);
+    assertNoOutsideText(image.alt, `the ${name} alt`);
+    assert.ok(!withoutStyle(image.source).includes('<text'), `the ${name} holds no text element`);
+  }
+  for (const r of strip.runs) assertNoOutsideText(r.text, 'a strip run');
+  for (const e of strip.legend) assertNoOutsideText(e.text, 'a legend entry');
+  assertNoOutsideText(bar.text, 'the to-do text');
+  assert.equal(strip.svg.alt, 'Status: 1 needs you, 1 working, 1 done, 1 stopped');
+  assert.equal(bar.svg.alt, 'To-dos 1 of 2 done');
+});
+
+test('the style block gives the strip\'s and to-do bar\'s classes done and stopped a fill, in light and dark', () => {
+  assert.match(view.STYLE, /\.done\{fill:#[0-9a-f]{6}\}/);
+  assert.match(view.STYLE, /\.stopped\{fill:#[0-9a-f]{6}\}/);
+  const dark = view.STYLE.slice(view.STYLE.indexOf('@media'));
+  assert.match(dark, /\.done\{fill:#[0-9a-f]{6}\}/);
+  assert.match(dark, /\.stopped\{fill:#[0-9a-f]{6}\}/);
 });

@@ -54,7 +54,9 @@ import {
   settleTicks,
   snapshotFrom,
   statusOf,
+  statusStrip,
   ticksFrom,
+  todoBar,
   toggleTick,
   usageView,
   waitingCount,
@@ -824,14 +826,18 @@ export const register: Register = on => {
   on('ui.render', { component: 'Pane', requestId: PANE }, async ($, e) => {
     const table = $.ui.resolve(e)
     const { Box, Text, Button } = table
-    // The terminal draws text bars whatever its table holds, and so does a
-    // surface with no Svg. The render only reads the stored reading: it
-    // fetches none.
+    // The render only reads the stored reading: it fetches none.
     const Svg = 'Svg' in table ? table.Svg : undefined
     // The clock moves the warmth line too: the roster timer's redraws every
     // 5 s move its countdown.
     const now = await $.clock.now()
-    const metered = usageView(await read($, usage), Svg === undefined ? 'terminal' : e.surface, now)
+    // Where images draw: any surface with an Svg but the terminal. The usage
+    // section reads this too, and falls back to text bars when its image is
+    // over the engine's cap; the strip and the to-do bar are a few rects each
+    // and need no fallback.
+    const surface = Svg === undefined ? 'terminal' : e.surface
+    const Image = surface === 'terminal' ? undefined : Svg
+    const metered = usageView(await read($, usage), surface, now)
     const paths = await read($, files)
     const error = await read($, rosterError)
     const pollError = await read($, liveError)
@@ -855,6 +861,17 @@ export const register: Register = on => {
     // A ticked to-do stays in the list, crossed out, until the sweep moves it.
     const open = todos.map((t, i) => ({ t, i })).filter(({ t }) => !ticked.has(t.id))
     const waiting = waitingCount(needsYou.length, todos, done, ticks)
+    // The Brigade heading's count, the status strip and the to-do bar: numbers
+    // only, from the statuses and the to-do, done and ticking lists.
+    const shown = needsYou.length + working.length + finished.length
+    const strip = statusStrip(cards, hidden)
+    const progress = todoBar(todos, done, ticks)
+    const headingNote =
+      shown > 0 || progress !== undefined
+        ? `${shown} ${shown === 1 ? 'session' : 'sessions'}`
+        : error === ''
+          ? 'No cards in the roster yet.'
+          : undefined
 
     // One card, in a rounded box: amber when it needs the owner, dim
     // otherwise. The status badge, glyph and word, the title and its live
@@ -872,9 +889,7 @@ export const register: Register = on => {
       const isFinished = look.group === 'finished'
       const warmLine = isFinished ? undefined : warmthLine(warm.get(c.title), running.get(c.title), c.status, now)
       const bar = isFinished ? undefined : cacheBar(warm.get(c.title), running.get(c.title), now)
-      // The terminal draws text bars, as the usage section does, even where
-      // its table holds an Svg.
-      const image = bar !== undefined && Svg !== undefined && e.surface !== 'terminal' ? cacheBarSvg(bar) : undefined
+      const image = bar !== undefined && Image !== undefined ? cacheBarSvg(bar) : undefined
       const report = last(c.title)
       const needs = c.status === 'needs-you'
       const canOpen = appLink(c, found.get(c.title)) !== undefined
@@ -903,8 +918,8 @@ export const register: Register = on => {
             </Box>
           </Box>
           <Box flexDirection="column" marginLeft={2} marginTop={1}>
-            {/* The cache block, then one row before the phase. On Svg
-                surfaces the image takes the room between the label and its
+            {/* The cache block, then one row before the phase. Where images
+                draw, the image takes the room between the label and its
                 text, which do not shrink, so on a narrow pane the bar shrinks
                 to its minimum, not the text; the image, placed in
                 percentages, spans a column Box that grows. The terminal's 16
@@ -916,9 +931,9 @@ export const register: Register = on => {
                     <Box flexShrink={0}>
                       <Text dimColor>◆ cache</Text>
                     </Box>
-                    {Svg !== undefined && image !== undefined ? (
+                    {Image !== undefined && image !== undefined ? (
                       <Box flexDirection="column" flexGrow={1} minWidth={8}>
-                        <Svg source={image.source} alt={image.alt} height={image.height} />
+                        <Image source={image.source} alt={image.alt} height={image.height} />
                       </Box>
                     ) : (
                       <Box flexShrink={0}>
@@ -1001,6 +1016,59 @@ export const register: Register = on => {
         )}
         {error !== '' && <Text color="error">{error}</Text>}
         {pollError !== '' && <Text color="error">{pollError}</Text>}
+        {/* The Brigade heading and its count, the status strip with its legend
+            line, and the to-do bar. Each bar spans the pane: on Desktop an
+            image in a column Box that grows, its text in a Box that does not
+            shrink; on the terminal, cells of text. */}
+        <Box flexDirection="column" marginTop={1}>
+          <Box flexDirection="row" columnGap={1}>
+            <Text bold>Brigade</Text>
+            {headingNote !== undefined && <Text dimColor>{headingNote}</Text>}
+          </Box>
+          {strip !== undefined && (
+            <Box flexDirection="column" marginTop={1}>
+              {Image !== undefined ? (
+                <Box flexDirection="column" flexGrow={1}>
+                  <Image source={strip.svg.source} alt={strip.svg.alt} height={strip.svg.height} />
+                </Box>
+              ) : (
+                <Text>
+                  {strip.runs.map(r => (
+                    <Text color={r.color}>{r.text}</Text>
+                  ))}
+                </Text>
+              )}
+              <Text wrap="wrap">
+                {strip.legend.map((l, i) => (
+                  <Text color={l.color}>{i > 0 ? `  ${l.text}` : l.text}</Text>
+                ))}
+              </Text>
+            </Box>
+          )}
+          {progress !== undefined && (
+            <Box flexDirection="row" columnGap={1} marginTop={1} alignItems="center">
+              <Box flexShrink={0}>
+                <Text>To-dos</Text>
+              </Box>
+              {Image !== undefined ? (
+                <Box flexDirection="column" flexGrow={1} minWidth={8}>
+                  <Image source={progress.svg.source} alt={progress.svg.alt} height={progress.svg.height} />
+                </Box>
+              ) : (
+                <Box flexShrink={0}>
+                  <Text>
+                    <Text dimColor>▕</Text>
+                    <Text color="success">{progress.cells}</Text>
+                    <Text dimColor>▏</Text>
+                  </Text>
+                </Box>
+              )}
+              <Box flexShrink={0}>
+                <Text dimColor>{progress.text}</Text>
+              </Box>
+            </Box>
+          )}
+        </Box>
         <Box flexDirection="column" marginTop={1} marginBottom={1}>
           <Box marginBottom={1}>
             <Text bold>
@@ -1088,9 +1156,6 @@ export const register: Register = on => {
             </Box>
             {isOpen(openState) && finished.map(card)}
           </Box>
-        )}
-        {needsYou.length + working.length + finished.length === 0 && error === '' && (
-          <Text dimColor>No cards in the roster yet.</Text>
         )}
         {inbox.length === 0 && <Text dimColor>No reports since the pane opened.</Text>}
         <Box flexDirection="column" marginTop={1}>
