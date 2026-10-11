@@ -38,6 +38,7 @@ import {
 } from './roster.ts'
 import type { HostOs, StatAnswer } from './roster.ts'
 import {
+  CACHE_CELLS,
   EMPTY_USAGE,
   MAX_TRANSCRIPT_BYTES,
   SVG_MAX,
@@ -67,6 +68,7 @@ import {
   readCalls,
   reportCount,
   settleTicks,
+  sizeText,
   snapshotFrom,
   sparkRuns,
   sparkSvg,
@@ -80,6 +82,7 @@ import {
   waitingCount,
   warmthFrom,
   warmthLine,
+  withoutSize,
 } from './view.ts'
 import type { Finder, ReadMemory, Spark } from './view.ts'
 
@@ -128,6 +131,10 @@ const doneOpen = atom({ plugin: 'grimoire', key: 'doneOpen' } as const, false)
 // Colours are the app's own theme keys, so the pane follows the person's
 // theme, light or dark, as the rest of Claude Code does. The status the head
 // chef wrote on a card, and the live state, take theirs from view.ts.
+
+// The cells of the cache block's label column, the width of "◆ context", so
+// the cache bar and the context meter start at the same place.
+const LABEL_CELLS = 9
 
 // A button's key: the verb, the card's place, and its title folded to letters
 // and digits, so a press finds the card it was drawn for or nothing.
@@ -989,6 +996,11 @@ export const register: Register = on => {
       const reason = shown === 'burn' && isReason(warm.get(c.title)) ? warmLine?.text : undefined
       const burn = shown === 'burn' && reason === undefined ? burnRate(meterOf.get(c.title), now) : undefined
       const trend = shown === 'trend' ? contextTrend(meterOf.get(c.title)) : undefined
+      // The cache block's value column: as wide as its longest text, so the
+      // cache bar and the context meter end at the same place.
+      const record = warm.get(c.title)
+      const sizeOnly = bar !== undefined && meter === undefined && record?.kind === 'call' ? sizeText(record.tokens) : undefined
+      const valueCells = Math.max(bar?.text.length ?? 0, meter?.text.length ?? 0, sizeOnly?.length ?? 0)
       const report = last(c.title)
       const needs = c.status === 'needs-you'
       const canOpen = appLink(c, found.get(c.title)) !== undefined
@@ -1013,22 +1025,32 @@ export const register: Register = on => {
               </Text>
             </Box>
             <Box flexShrink={0}>
-              <Text color={state.color}>{state.text}</Text>
+              {/* Idle on a working card is bold as well as amber: the flip
+                  from busy is the owner's cue (owner decision q1 A on #287). */}
+              {c.status === 'working' && state.text === 'idle' ? (
+                <Text bold color={state.color}>
+                  {state.text}
+                </Text>
+              ) : (
+                <Text color={state.color}>{state.text}</Text>
+              )}
             </Box>
           </Box>
-          <Box flexDirection="column" marginLeft={2} marginTop={1}>
+          <Box flexDirection="column" marginLeft={2} marginRight={2} marginTop={1}>
             {/* The tab row, under the header line: the chosen tab marked
-                `● ` and a full button, the others plain. Two branches, never
-                plain={false}: Desktop refuses it and skips the whole render. */}
+                `● ` and a primary button, the others buttons drawn dim, so
+                each shows its outline (#287). Two branches, never a prop
+                handed false: Desktop refuses plain={false} and skips the
+                whole render. */}
             {views.length >= 2 && (
               <Box flexDirection="row" columnGap={1} marginBottom={1}>
                 {views.map(v =>
                   v === shown ? (
-                    <Button key={`${keyFor('tab', i, c.title)}-${v}`} onPress={noop}>
+                    <Button key={`${keyFor('tab', i, c.title)}-${v}`} variant="primary" onPress={noop}>
                       {`● ${VIEW_LABELS.get(v) ?? ''}`}
                     </Button>
                   ) : (
-                    <Button key={`${keyFor('tab', i, c.title)}-${v}`} plain onPress={noop}>
+                    <Button key={`${keyFor('tab', i, c.title)}-${v}`} dimColor onPress={noop}>
                       {VIEW_LABELS.get(v) ?? ''}
                     </Button>
                   ),
@@ -1064,7 +1086,7 @@ export const register: Register = on => {
               <Box flexDirection="column" marginBottom={1}>
                 {bar !== undefined && (
                   <Box flexDirection="row" columnGap={1}>
-                    <Box flexShrink={0}>
+                    <Box flexShrink={0} width={LABEL_CELLS}>
                       <Text dimColor>◆ cache</Text>
                     </Box>
                     {Image !== undefined && image !== undefined ? (
@@ -1080,24 +1102,20 @@ export const register: Register = on => {
                         </Text>
                       </Box>
                     )}
-                    <Box flexShrink={0}>
+                    <Box flexShrink={0} width={valueCells} justifyContent="flex-end">
                       <Text color={bar.tone}>{bar.text}</Text>
                     </Box>
                   </Box>
                 )}
-                {bar?.detail !== undefined && (
-                  <Text dimColor wrap="truncate-end">
-                    {bar.detail}
-                  </Text>
-                )}
+
                 {bar === undefined && warmLine !== undefined && (
                   <Text dimColor wrap="truncate-end">
-                    {warmLine.text}
+                    {meter !== undefined ? withoutSize(warmLine.text) : warmLine.text}
                   </Text>
                 )}
                 {meter !== undefined && (
                   <Box flexDirection="row" columnGap={1}>
-                    <Box flexShrink={0}>
+                    <Box flexShrink={0} width={LABEL_CELLS}>
                       <Text dimColor>◆ context</Text>
                     </Box>
                     {Image !== undefined && meterImage !== undefined ? (
@@ -1113,8 +1131,27 @@ export const register: Register = on => {
                         </Text>
                       </Box>
                     )}
-                    <Box flexShrink={0}>
-                      <Text color={meter.tone}>{meter.text}</Text>
+                    <Box flexShrink={0} width={valueCells} justifyContent="flex-end">
+                      {meter.cls === 'done' ? <Text>{meter.text}</Text> : <Text color={meter.tone}>{meter.text}</Text>}
+                    </Box>
+                  </Box>
+                )}
+                {/* No known window, so no meter: the context row keeps its
+                    size, with the bar's room left empty (#287). */}
+                {bar !== undefined && meter === undefined && sizeOnly !== undefined && (
+                  <Box flexDirection="row" columnGap={1}>
+                    <Box flexShrink={0} width={LABEL_CELLS}>
+                      <Text dimColor>◆ context</Text>
+                    </Box>
+                    {Image !== undefined ? (
+                      <Box flexGrow={1} minWidth={8} />
+                    ) : (
+                      <Box flexShrink={0}>
+                        <Text>{' '.repeat(CACHE_CELLS + 2)}</Text>
+                      </Box>
+                    )}
+                    <Box flexShrink={0} width={valueCells} justifyContent="flex-end">
+                      <Text>{sizeOnly}</Text>
                     </Box>
                   </Box>
                 )}

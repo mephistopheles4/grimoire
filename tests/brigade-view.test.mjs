@@ -2129,12 +2129,12 @@ test('the cache bar per S6: working full and green, then a draining bar green ab
   // which has no window at all.
   assert.deepEqual(barOf(cacheBar(rec(10 * MIN, null), 'busy', NOW)), [1, 'success', 'done', 'warm (working)']);
   // A known window: left ÷ window, green over 15 min left.
-  assert.deepEqual(barOf(cacheBar(rec(10 * MIN), 'idle', NOW)), [50 / 60, 'success', 'done', 'cold in 50 min']);
+  assert.deepEqual(barOf(cacheBar(rec(10 * MIN), 'idle', NOW)), [50 / 60, 'success', 'done', 'idle 10 min · cold in 50 min']);
   // 15 min or less left: amber.
-  assert.deepEqual(barOf(cacheBar(rec(48 * MIN), 'idle', NOW)), [12 / 60, 'warning', 'warn', 'cold in 12 min']);
+  assert.deepEqual(barOf(cacheBar(rec(48 * MIN), 'idle', NOW)), [12 / 60, 'warning', 'warn', 'idle 48 min · cold in 12 min']);
   // None left: empty and red.
-  assert.deepEqual(barOf(cacheBar(rec(70 * MIN), 'idle', NOW)), [0, 'error', 'hot', 'cold']);
-  assert.deepEqual(barOf(cacheBar(rec(HOUR), undefined, NOW)), [0, 'error', 'hot', 'cold']);
+  assert.deepEqual(barOf(cacheBar(rec(70 * MIN), 'idle', NOW)), [0, 'error', 'hot', 'idle 1 hr 10 min · cold']);
+  assert.deepEqual(barOf(cacheBar(rec(HOUR), undefined, NOW)), [0, 'error', 'hot', 'idle 1 hr 0 min · cold']);
 });
 
 test('the cache bar keeps warmthLine\'s band edges: 15 min left is amber, 0 left is cold, and a 5-minute window is amber from the start', () => {
@@ -2143,11 +2143,11 @@ test('the cache bar keeps warmthLine\'s band edges: 15 min left is amber, 0 left
     // The bar and the line it replaces agree on the band.
     assert.equal(cacheBar(rec(idle), 'idle', NOW)?.tone, warmthLine(rec(idle), 'idle', 'working', NOW)?.tone);
   }
-  assert.equal(cacheBar(rec(45 * MIN), 'idle', NOW)?.text, 'cold in 15 min');
-  assert.equal(cacheBar(rec(HOUR - 1), 'idle', NOW)?.text, 'cold in 1 min');
-  assert.deepEqual(barOf(cacheBar(rec(MIN, 5 * MIN), 'idle', NOW)), [4 / 5, 'warning', 'warn', 'cold in 4 min']);
+  assert.equal(cacheBar(rec(45 * MIN), 'idle', NOW)?.text, 'idle 45 min · cold in 15 min');
+  assert.equal(cacheBar(rec(HOUR - 1), 'idle', NOW)?.text, 'idle 59 min · cold in 1 min');
+  assert.deepEqual(barOf(cacheBar(rec(MIN, 5 * MIN), 'idle', NOW)), [4 / 5, 'warning', 'warn', 'idle 1 min · cold in 4 min']);
   // Over an hour left reads in hours, as warmthLine does.
-  assert.equal(cacheBar(rec(0), 'idle', NOW)?.text, 'cold in 1 hr 0 min');
+  assert.equal(cacheBar(rec(0), 'idle', NOW)?.text, 'idle 0 min · cold in 1 hr 0 min');
 });
 
 test('no bar for an unknown window, a transcript too large or shared, working or not, an unread record not working, or no record', () => {
@@ -2162,18 +2162,20 @@ test('no bar for an unknown window, a transcript too large or shared, working or
   }
 });
 
-test('the dim detail line keeps what the short text drops: idle time and size, or the size alone while working, or nothing when the size is unknown', () => {
-  assert.equal(cacheBar(rec(10 * MIN), 'idle', NOW)?.detail, 'idle 10 min · 150k context');
-  assert.equal(cacheBar(rec(70 * MIN), 'idle', NOW)?.detail, 'idle 1 hr 10 min · 150k context');
-  assert.equal(cacheBar(rec(10 * MIN), 'busy', NOW)?.detail, '150k context');
-  assert.equal(cacheBar({ name: 'S', kind: 'unread' }, 'busy', NOW)?.detail, undefined);
+// Owner decision q2 on #287: the idle time moved into the short text and the
+// context size is the meter's, so the bar carries no dim line under it.
+test('the cache bar carries no detail line and no context size, idle, cold or working', () => {
+  for (const [r, state] of [[rec(10 * MIN), 'idle'], [rec(70 * MIN), 'idle'], [rec(10 * MIN), 'busy'], [{ name: 'S', kind: 'unread' }, 'busy']]) {
+    const b = cacheBar(r, state, NOW);
+    assert.equal('detail' in b, false);
+    assert.doesNotMatch(b.text, /context|150k/);
+  }
 });
 
 test('idle time is floored at 0, so a call time ahead of the clock gives a full bar, never past full', () => {
   for (const ahead of [MIN, HOUR, 1e12]) {
     const b = cacheBar(rec(-ahead), 'idle', NOW);
-    assert.deepEqual(barOf(b), [1, 'success', 'done', 'cold in 1 hr 0 min'], `ahead ${ahead}`);
-    assert.equal(b.detail, 'idle 0 min · 150k context');
+    assert.deepEqual(barOf(b), [1, 'success', 'done', 'idle 0 min · cold in 1 hr 0 min'], `ahead ${ahead}`);
   }
 });
 
@@ -2190,7 +2192,7 @@ test('a call time or clock that is NaN or infinite throws nothing and gives no b
       const b = cacheBar(w, state, now);
       if (b === undefined) continue;
       assert.ok(Number.isFinite(b.fraction) && b.fraction >= 0 && b.fraction <= 1, JSON.stringify([w, now, state]));
-      assert.doesNotMatch(`${b.text} ${b.detail ?? ''}`, /NaN|Infinity/);
+      assert.doesNotMatch(b.text, /NaN|Infinity/);
       assert.equal([...cacheCells(b)].length, CACHE_CELLS);
       assertAllowlisted(cacheBarSvg(b).source);
     }
@@ -2268,8 +2270,8 @@ test('the cache bar image takes its class from the three tones only: any other c
 });
 
 test('the cache bar alt is "Cache" and the bar\'s text, fixed words and numbers', () => {
-  assert.equal(cacheBarSvg(cacheBar(rec(48 * MIN), 'idle', NOW)).alt, 'Cache cold in 12 min');
-  assert.equal(cacheBarSvg(cacheBar(rec(70 * MIN), 'idle', NOW)).alt, 'Cache cold');
+  assert.equal(cacheBarSvg(cacheBar(rec(48 * MIN), 'idle', NOW)).alt, 'Cache idle 48 min · cold in 12 min');
+  assert.equal(cacheBarSvg(cacheBar(rec(70 * MIN), 'idle', NOW)).alt, 'Cache idle 1 hr 10 min · cold');
   assert.equal(cacheBarSvg(cacheBar(rec(MIN), 'busy', NOW)).alt, 'Cache warm (working)');
   // The image is drawn from the bar's numbers and class alone: text it is
   // handed never reaches its source, and reaches its alt cleaned to one line.
@@ -2284,7 +2286,7 @@ test('a hostile card title or session name never reaches the cache bar\'s source
     for (const idle of [10 * MIN, 48 * MIN, 70 * MIN]) {
       const b = cacheBar(rec(idle, HOUR, 150000, HOSTILE), state, NOW);
       const v = cacheBarSvg(b);
-      for (const out of [v.source, v.alt, b.text, b.detail ?? '']) {
+      for (const out of [v.source, v.alt, b.text]) {
         for (const piece of ['<b>', 'script', 'rtl', '&amp;', 'q"', LONE]) assert.ok(!out.includes(piece), `${piece} in ${out}`);
       }
       assertAllowlisted(v.source);
@@ -3360,4 +3362,13 @@ test('the state contract declares tabs under the plugin\'s manifest name', () =>
   assert.match(block, /\n\s+tabs: Pair\[\]\n/);
   const register = readFileSync(join(root, 'brigade/register.tsx'), 'utf8');
   assert.match(register, /atom\(\{ plugin: 'grimoire', key: 'tabs' \} as const, \[\]\)/);
+});
+
+// behaviour-lens F1 on #287: a card with a meter but no cache window keeps its
+// dim warmth line, without the size the meter already shows.
+test('withoutSize drops a trailing context size and keeps every other line', () => {
+  assert.equal(view.withoutSize('◆ cache window unknown · idle 10 min · 150k context'), '◆ cache window unknown · idle 10 min');
+  assert.equal(view.withoutSize('◆ cache warm (working) · 1.2M context'), '◆ cache warm (working)');
+  assert.equal(view.withoutSize('◆ cache unknown · transcript too large to read'), '◆ cache unknown · transcript too large to read');
+  assert.equal(view.withoutSize('◆ cache warm (working)'), '◆ cache warm (working)');
 });

@@ -1764,7 +1764,7 @@ const nodes = async (m: any): Promise<Drawn[]> => {
 const texts = (all: Drawn[], text: string) => all.filter(n => n.type === 'Text' && n.text === text)
 
 for (const surface of SURFACES) {
-  test(`${surface}: needs-you and working cards draw ◆ cache, a bar and its short text, the dim detail line, and the nudges unchanged`, async ($, on) => {
+  test(`${surface}: needs-you and working cards draw ◆ cache, a bar and its short text with the idle time, the size on a bare context row, and the nudges unchanged`, async ($, on) => {
     await cached(on, $, CACHED, RECORDS)
     const m = await mountOn($, surface)
     const all = await nodes(m)
@@ -1772,15 +1772,35 @@ for (const surface of SURFACES) {
     // Three bars: cold, amber and working. The card with no known window
     // keeps warmthLine's text, dim.
     expect(texts(all, '◆ cache').length).toBe(3)
-    for (const [short, tone] of [['cold', 'error'], ['cold in 12 min', 'warning'], ['warm (working)', 'success']] as const) {
+    // The idle time sits in the short text, where a working card reads "warm
+    // (working)", and the dim line under the bar is gone (owner decision q2
+    // on #287).
+    for (const [short, tone] of [['idle 1 hr 10 min · cold', 'error'], ['idle 48 min · cold in 12 min', 'warning'], ['warm (working)', 'success']] as const) {
       const found = texts(all, short)
       expect(found.length).toBe(1)
       expect(found[0]?.props.color).toBe(tone)
     }
-    for (const detail of ['idle 1 hr 10 min · 182k context', 'idle 48 min · 150k context', '150k context']) {
-      const found = texts(all, detail)
-      expect(found.length).toBe(1)
-      expect(found[0]?.props.dimColor).toBe(true)
+    for (const gone of ['idle 1 hr 10 min · 182k context', 'idle 48 min · 150k context', '150k context']) {
+      expect(texts(all, gone).length).toBe(0)
+    }
+    // These records give no model window, so no meter: each bar's card keeps
+    // a ◆ context row with the size alone, uncoloured (head chef's decision
+    // on #287).
+    expect(texts(all, '◆ context').length).toBe(3)
+    // The bare context row keeps the bar's room, so its size stays in the
+    // value column: a growing Box on desktop, 18 cells of space on the
+    // terminal.
+    const bare = all.filter(b => b.type === 'Box' && b.props.flexDirection === 'row' && spoken(b.children[0]) === '◆ context' && b.children.length === 3 && !b.children[1].children?.some((c: any) => c?.type === 'Svg') && !/[▕▏]/.test(spoken(b.children[1])))
+    expect(bare.length).toBeGreaterThan(0)
+    for (const row of bare) {
+      const room = row.children[1]
+      if (surface === 'desktop') expect([room.props.flexGrow, room.props.minWidth]).toEqual([1, 8])
+      else expect(spoken(room)).toBe(' '.repeat(18))
+    }
+    for (const [size, n] of [['182k', 1], ['150k', 2]] as const) {
+      const found = texts(all, size)
+      expect(found.length).toBe(n)
+      for (const f of found) expect(f.props.color).toBeUndefined()
     }
     const unknown = texts(all, '◆ cache window unknown · idle 10 min · 150k context')
     expect(unknown.length).toBe(1)
@@ -1798,12 +1818,13 @@ for (const surface of SURFACES) {
     const COLD_NUDGE = 'Replying re-reads about 182k tokens at full price. Consider a hand-off through the issue to a fresh session.'
     const AMBER_NUDGE = 'Reply within 12 min to keep the cache.'
     const cacheBlocks = blocks.filter(b => said(b.children[0]).startsWith('◆ cache'))
-    expect(cacheBlocks.map(b => b.children.slice(1).map(said)).sort()).toEqual(
+    // The terminal's bare row pads the bar's room with spaces; drop them.
+    expect(cacheBlocks.map(b => b.children.slice(1).map((c: any) => said(c).replace(/ {2,}/g, ''))).sort()).toEqual(
       [
         [],
-        ['150k context'],
-        ['idle 1 hr 10 min · 182k context', COLD_NUDGE],
-        ['idle 48 min · 150k context', AMBER_NUDGE],
+        ['◆ context150k'],
+        ['◆ context182k', COLD_NUDGE],
+        ['◆ context150k', AMBER_NUDGE],
       ].sort(),
     )
     const holders = all.filter(b => b.type === 'Box' && b.props.marginLeft === 2 && b.children.some((c: any) => c?.props?.marginBottom === 1))
@@ -1822,7 +1843,7 @@ for (const surface of SURFACES) {
     }
     const images = all.filter(n => n.type === 'Svg' && String(n.props.alt).startsWith('Cache'))
     if (surface === 'desktop') {
-      expect(images.map(n => n.props.alt).sort()).toEqual(['Cache cold', 'Cache cold in 12 min', 'Cache warm (working)'])
+      expect(images.map(n => n.props.alt).sort()).toEqual(['Cache idle 1 hr 10 min · cold', 'Cache idle 48 min · cold in 12 min', 'Cache warm (working)'])
       for (const image of images) {
         // Full width: no width prop, a fixed height, the markup in
         // percentages, no clip and no id.
@@ -1873,7 +1894,8 @@ for (const surface of SURFACES) {
     // Still three bars and one unknown line, all from the needs-you and
     // working cards; the 182k nudge only once, from need-cold.
     expect(texts(all, '◆ cache').length).toBe(3)
-    expect(text.split('◆').length - 1).toBe(4)
+    // Three bars, each with its bare ◆ context row, and one unknown line.
+    expect(text.split('◆').length - 1).toBe(7)
     expect(text.split('Replying re-reads').length - 1).toBe(1)
     expect(text.split('Reply within').length - 1).toBe(1)
     const from = text.indexOf('▾ DONE · STOPPED')
@@ -1903,6 +1925,24 @@ for (const surface of SURFACES) {
         for (const piece of ['script', '<b>', '&amp;amp;', 'plain', 'q"']) expect(out.includes(piece)).toBe(false)
       }
     }
+  })
+
+  test(`${surface}: "idle" on a working card is bold and amber; on a needs-you card amber alone, and "busy" unchanged (owner decision q1 A on #287)`, async ($, on) => {
+    await cached(on, $, CACHED, RECORDS)
+    const m = await mountOn($, surface)
+    const all = await nodes(m)
+    // work-unknown is a working card gone idle; need-cold and need-amber are
+    // idle needs-you cards; the finished group is closed.
+    const idle = texts(all, 'idle')
+    expect(idle.length).toBe(3)
+    for (const t of idle) expect(t.props.color).toBe('warning')
+    expect(idle.filter(t => t.props.bold === true).length).toBe(1)
+    const title = all.findIndex(n => n.type === 'Text' && n.text === 'work-unknown')
+    const bold = all.findIndex(n => n.type === 'Text' && n.text === 'idle' && n.props.bold === true)
+    expect(bold).toBeGreaterThan(title)
+    expect(all.findIndex((n, k) => k > title && n.type === 'Text' && n.text === 'idle')).toBe(bold)
+    const busy = texts(all, 'busy')
+    expect(busy.map(t => [t.props.color, t.props.bold])).toEqual([['success', undefined]])
   })
 }
 
@@ -2181,7 +2221,7 @@ for (const surface of SURFACES) {
     const m = await mountOn($, surface)
     const all = await nodes(m)
     expect(texts(all, '◆ cache').length).toBe(1)
-    expect(texts(all, 'cold in 59 min').length).toBe(1)
+    expect(texts(all, 'idle 1 min · cold in 59 min').length).toBe(1)
     expect(texts(all, '◆ transcript not found').length).toBe(0)
     expect(w.listings).toBe(1)
     expect(await m.find({ key: 'open-0-gamma' })).toBeDefined()
@@ -2328,8 +2368,12 @@ for (const surface of SURFACES) {
     const all = await nodes(m)
     const text = String(all[0]?.text ?? '')
     expect(text.includes('done-full')).toBe(true)
-    expect(texts(all, '◆ context').length).toBe(3)
-    for (const [short, tone] of [['412k of 1M', 'success'], ['1.3M · over 1M', 'error'], ['750k of 1M', 'warning']] as const) {
+    // Three meters, and work-unknown's bare row with its size alone (head
+    // chef's decision on #287).
+    expect(texts(all, '◆ context').length).toBe(4)
+    expect(texts(all, '150k').length).toBe(1)
+    // Under 70% the figure is neutral, with no colour (#287 item 4).
+    for (const [short, tone] of [['412k of 1M', undefined], ['1.3M · over 1M', 'error'], ['750k of 1M', 'warning']] as const) {
       const found = texts(all, short)
       expect(found.length).toBe(1)
       expect(found[0]?.props.color).toBe(tone)
@@ -2337,8 +2381,8 @@ for (const surface of SURFACES) {
     // The finished card and the unknown model draw no meter.
     expect(text.slice(text.indexOf('▾ DONE · STOPPED')).includes('◆')).toBe(false)
     expect(text.includes('950k')).toBe(false)
-    // The meter sits in the cache block, under the cache bar and its line.
-    const rows = meterRows(all)
+    // The meter sits in the cache block, under the cache bar.
+    const rows = meterRows(all).filter(r => !spoken(r).endsWith('150k'))
     expect(rows.length).toBe(3)
     for (const row of rows) {
       const [label, , short] = row.children as Drawn[]
@@ -2347,7 +2391,7 @@ for (const surface of SURFACES) {
     }
     const blocks = all.filter(b => b.type === 'Box' && b.props.flexDirection === 'column' && b.props.marginBottom === 1)
     const holding = blocks.filter(b => b.children.some((c: any) => c?.type === 'Box' && spoken(c.children?.[0]) === '◆ context'))
-    expect(holding.length).toBe(3)
+    expect(holding.length).toBe(4)
     for (const b of holding) {
       const at = b.children.findIndex((c: any) => c?.type === 'Box' && spoken(c.children?.[0]) === '◆ context')
       expect(at).toBeGreaterThan(0)
@@ -2404,8 +2448,9 @@ for (const surface of SURFACES) {
     expect(await m.drawn()).toBeDefined()
     const all = await nodes(m)
     // Only the hostile title's meter is well formed: 30M past a 1M window,
-    // a full bar, never past it.
-    expect(texts(all, '◆ context').length).toBe(1)
+    // a full bar, never past it. The three others keep a bare row with their
+    // size alone (#287).
+    expect(texts(all, '◆ context').length).toBe(4)
     expect(texts(all, '30M · over 1M').length).toBe(1)
     const images = all.filter(n => n.type === 'Svg' && String(n.props.alt).startsWith('Context'))
     expect(images.length).toBe(surface === 'desktop' ? 1 : 0)
@@ -2535,10 +2580,14 @@ for (const surface of SURFACES) {
     expect(await labelOf(m, 'tab-0-needtabs-cache')).toBe('● Cache · context')
     expect(await labelOf(m, 'tab-0-needtabs-burn')).toBe('Burn rate')
     expect(await labelOf(m, 'tab-0-needtabs-trend')).toBe('Context trend')
-    // The selected tab is a full button; the others are plain, and no button
-    // anywhere is handed plain={false}.
-    expect((await m.find({ key: 'tab-0-needtabs-cache' })).props.plain).toBeUndefined()
-    expect((await m.find({ key: 'tab-0-needtabs-burn' })).props.plain).toBe(true)
+    // The selected tab is a primary button; the others are buttons too, drawn
+    // dim, so each shows its outline and reads as pressable (#287 item 5,
+    // which replaced plain unselected tabs). No button anywhere is handed
+    // plain={false}.
+    const chosen = (await m.find({ key: 'tab-0-needtabs-cache' })).props
+    const other = (await m.find({ key: 'tab-0-needtabs-burn' })).props
+    expect([chosen.plain, chosen.variant, chosen.dimColor]).toEqual([undefined, 'primary', undefined])
+    expect([other.plain, other.variant, other.dimColor]).toEqual([undefined, undefined, true])
     expect(all.some(n => n.props?.plain === false || n.props?.dimColor === false)).toBe(false)
     // The default view is today's: the cache bar on the cards that have one,
     // work-none's included, and the context meter.
@@ -2555,6 +2604,66 @@ for (const surface of SURFACES) {
     expect(cache).toBeGreaterThan(tab)
     expect(all.findIndex((n, k) => k > tab && k < cache && n.type === 'Text' && n.text === 'work-one')).toBe(-1)
     expect(w.states.some(([k]) => k === 'tabs')).toBe(false)
+  })
+
+  test(`${surface}: the cache block's labels and values sit in fixed columns, the right inset matches the left, and context under 70% is neutral (#287)`, async ($, on) => {
+    await tabbed(on, $)
+    const m = await mountOn($, surface)
+    const all = await nodes(m)
+    // Item 2: the card's body is inset two cells on the right as on the left.
+    const holders = all.filter(b => b.type === 'Box' && b.props.marginLeft === 2)
+    expect(holders.length).toBeGreaterThan(0)
+    for (const h of holders) expect(h.props.marginRight).toBe(2)
+    // Item 3: each label sits in a Box of one fixed width, and each value in
+    // a Box of one width per card, its text at the right edge, so both bars
+    // start and end at the same place.
+    const said = (n: any): string => (typeof n === 'string' ? n : n?.text ?? (n?.children ?? []).map(said).join(''))
+    const around = (words: string[]) => all.filter(b => b.type === 'Box' && b.props.flexShrink === 0 && words.includes(said(b)))
+    const labels = around(['◆ cache', '◆ context'])
+    expect(labels.length).toBe(5)
+    expect(new Set(labels.map(b => b.props.width))).toEqual(new Set([9]))
+    const blocks = all.filter(b => b.type === 'Box' && b.props.flexDirection === 'column' && b.props.marginBottom === 1 && said(b.children[0]).startsWith('◆ cache'))
+    const paired = blocks.map(b => b.children.filter((c: any) => c?.type === 'Box' && c.props.flexDirection === 'row').map((r: any) => r.children.at(-1)))
+    expect(paired.filter(values => values.length === 2).length).toBeGreaterThan(0)
+    for (const values of paired) {
+      const widest = Math.max(...values.map((v: any) => said(v).length))
+      for (const v of values) {
+        expect(v.props.width).toBe(widest)
+        expect(v.props.justifyContent).toBe('flex-end')
+      }
+    }
+    // Item 4: the cache keeps its green; the context figure under 70% has no
+    // colour of its own.
+    expect(texts(all, 'warm (working)')[0]?.props.color).toBe('success')
+    for (const t of texts(all, '412k of 1M')) expect(t.props.color).toBeUndefined()
+  })
+
+  test(`${surface}: a card with a meter but no cache window keeps its dim line without the size (#287)`, async ($, on) => {
+    let now: number | undefined
+    const w = await grouped(on, $, { cards: [card('work-nowin', { status: 'working' })], todos: [] }, (key, value) => {
+      if (now === undefined) return value
+      if (key === 'meters') return [meterRec('work-nowin', now, 150000)]
+      if (key === 'warmth') return [warmCall('work-nowin', 10 * MINUTE, now, 150000, null)]
+      if (key === 'live') return [{ name: 'work-nowin', value: 'idle' }]
+      return value
+    })
+    now = w.clock.now() + 10000
+    await w.clock.advance(10000)
+    await w.clock.settle()
+    const m = await mountOn($, surface)
+    const all = await nodes(m)
+    expect(texts(all, '◆ cache window unknown · idle 10 min').length).toBe(1)
+    expect(texts(all, '150k of 1M').length).toBe(1)
+    expect(String(all[0]?.text ?? '').includes('150k context')).toBe(false)
+  })
+
+  test(`${surface}: a context text wider than the cache text sets the value column (#287)`, async ($, on) => {
+    await metered(on, $, { cards: [card('work-wide', { status: 'working' })], todos: [] }, now => [meterRec('work-wide', now, 1300000, 200000)], { 'work-wide': 'busy' })
+    const m = await mountOn($, surface)
+    const all = await nodes(m)
+    expect(texts(all, '1.3M · over 200k').length).toBe(1)
+    const values = all.filter(b => b.type === 'Box' && b.props.justifyContent === 'flex-end' && ['warm (working)', '1.3M · over 200k'].includes(spoken(b)))
+    expect(values.map(b => b.props.width)).toEqual([16, 16])
   })
 
   test(`${surface}: a tab press switches its card's view: burn rate, then the context trend, then back`, async ($, on) => {

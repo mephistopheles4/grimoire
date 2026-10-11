@@ -1232,6 +1232,9 @@ export function warmthLine(
   return large ? { tone: 'warning', text, nudge: `Reply within ${leftText} to keep the cache.` } : { tone: 'warning', text }
 }
 
+/** A warmth line with its trailing "· Nk context" dropped, for a card whose
+ *  context meter already shows the size (#287). Any other text is kept. */
+export const withoutSize = (text: string): string => text.replace(/ · [^·]* context$/, '')
 // --- The cache bar -----------------------------------------------------------
 //
 // A needs-you or working card draws its ◆ line as a bar that drains over the
@@ -1243,14 +1246,13 @@ export function warmthLine(
 export const CACHE_CELLS = 16
 
 /** A card's cache bar: how full it is, from 0 to 1, its theme colour key and
- *  SVG class, its short text, and the dim line under it, absent when the
- *  context size is unknown. */
+ *  SVG class, and its short text. The context size is the context meter's
+ *  to show, so the bar carries none (#287). */
 export type CacheBar = {
   fraction: number
   tone: 'success' | 'warning' | 'error'
   cls: 'done' | 'warn' | 'hot'
   text: string
-  detail?: string
 }
 
 // A fraction as a bar draws it: one that is not a finite number is 0, and any
@@ -1268,23 +1270,18 @@ const unit = (f: number) => (Number.isFinite(f) ? Math.min(1, Math.max(0, f)) : 
  *  an idle time that is not a finite number gives no bar. */
 export function cacheBar(w: Warmth | undefined, state: string | undefined, now: number): CacheBar | undefined {
   if (w === undefined || w.kind === 'too-large' || w.kind === 'shared' || w.kind === 'not-found') return undefined
-  const size = w.kind === 'call' ? `${tokens(w.tokens)} context` : undefined
-  if (isWorking(state)) {
-    const warm: CacheBar = { fraction: 1, tone: 'success', cls: 'done', text: 'warm (working)' }
-    if (size !== undefined) warm.detail = size
-    return warm
-  }
+  if (isWorking(state)) return { fraction: 1, tone: 'success', cls: 'done', text: 'warm (working)' }
   if (w.kind !== 'call' || w.windowMs === undefined) return undefined
   const idle = Math.max(0, now - w.at)
   if (!Number.isFinite(idle)) return undefined
   const left = w.windowMs - idle
-  const detail = `idle ${span(Math.floor(idle / MIN_MS))} · ${size}`
-  if (left <= 0) return { fraction: 0, tone: 'error', cls: 'hot', text: 'cold', detail }
-  const text = `cold in ${span(Math.ceil(left / MIN_MS))}`
+  // The idle time sits where "warm (working)" sits on a working card (owner
+  // decision q2 on #287).
+  const idleText = `idle ${span(Math.floor(idle / MIN_MS))}`
+  if (left <= 0) return { fraction: 0, tone: 'error', cls: 'hot', text: `${idleText} · cold` }
+  const text = `${idleText} · cold in ${span(Math.ceil(left / MIN_MS))}`
   const fraction = unit(left / w.windowMs)
-  return left > AMBER_MS
-    ? { fraction, tone: 'success', cls: 'done', text, detail }
-    : { fraction, tone: 'warning', cls: 'warn', text, detail }
+  return left > AMBER_MS ? { fraction, tone: 'success', cls: 'done', text } : { fraction, tone: 'warning', cls: 'warn', text }
 }
 
 /** The terminal's cache bar: 16 eighth-block cells, the end marks left to
