@@ -2647,6 +2647,29 @@ for (const surface of SURFACES) {
     ])
   })
 
+  test(`${surface}: a needs-you card's reply nudge shows under whichever tab is chosen (owner decision q1 B)`, async ($, on) => {
+    // 48 min idle in a 1 hr window: 12 min left, amber, with 150k context.
+    const roster = { cards: [card('need-nudge', { status: 'needs-you' })], todos: [] }
+    const meters = (now: number) => [{ name: 'need-nudge', at: now, window: 1000000, burn: burnOf(), context: [900000, 5000, 412000] }]
+    await tabbed(on, $, roster, meters, now => [warmCall('need-nudge', 48 * MINUTE, now)], { 'need-nudge': 'idle' })
+    const m = await mountOn($, surface)
+    const nudge = 'Reply within 12 min to keep the cache.'
+    for (const [view, shown] of [
+      ['cache', '◆ cache'],
+      ['burn', '12k/min · last 30 min'],
+      ['trend', '412k now · 1 compaction'],
+    ] as const) {
+      await m.press({ key: `tab-0-neednudge-${view}` })
+      const all = await nodes(m)
+      expect(texts(all, shown).length).toBe(1)
+      const found = texts(all, nudge)
+      expect(found.length).toBe(1)
+      expect(found[0]?.props.color).toBe('warning')
+      // Under the view, not above it.
+      expect(all.indexOf(found[0] as Drawn)).toBeGreaterThan(all.indexOf(texts(all, shown)[0] as Drawn))
+    }
+  })
+
   test(`${surface}: the choice is kept when the pane closes and opens again`, async ($, on) => {
     const w = await tabbed(on, $)
     const m = await mountOn($, surface)

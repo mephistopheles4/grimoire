@@ -968,7 +968,8 @@ export const register: Register = on => {
     // form, when the card's model has a known window; and the nudge, which
     // wraps. Burn rate: its sparkline and rate, or the cache line's reason
     // when the transcript is too large, shared or not found. Context trend:
-    // its sparkline and the context now. Then the phase, the work, the
+    // its sparkline and the context now. The nudge shows under whichever
+    // tab is chosen, so a sticky choice never hides it. Then the phase, the work, the
     // settings and the latest report, each on its own line and cut to the
     // pane's width, and the buttons on their own row. A done or stopped card
     // draws no tabs, ◆ line, bar, meter, sparkline or nudge: a finished
@@ -1035,8 +1036,9 @@ export const register: Register = on => {
               </Box>
             )}
             {/* The burn rate or the context trend, or the burn tab's reason
-                line, then one row before the phase. */}
-            {(reason !== undefined || burn !== undefined || trend !== undefined) && (
+                line, then the nudge, which shows under every tab (owner
+                decision q1 B on #272), then one row before the phase. */}
+            {shown !== undefined && shown !== 'cache' && (reason !== undefined || burn !== undefined || trend !== undefined || warmLine?.nudge !== undefined) && (
               <Box flexDirection="column" marginBottom={1}>
                 {reason !== undefined && (
                   <Text dimColor wrap="truncate-end">
@@ -1045,6 +1047,11 @@ export const register: Register = on => {
                 )}
                 {burn !== undefined && sparkRow(burn)}
                 {trend !== undefined && sparkRow(trend)}
+                {warmLine?.nudge !== undefined && (
+                  <Text color="warning" wrap="wrap">
+                    {warmLine.nudge}
+                  </Text>
+                )}
               </Box>
             )}
             {/* The cache block, then one row before the phase. Where images
