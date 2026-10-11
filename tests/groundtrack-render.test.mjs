@@ -535,6 +535,97 @@ test('the pre-fix pr-313 shape is refused at each return out of worldSpaceUvs, a
   for (const l of lines) assert.match(l, /graph "first-paint", run "[^"]+", move \d+: a return move carries a value out of worldSpaceUvs, whose success channel is void/);
 });
 
+/* -- list fields are arrays of strings --------------------------------------
+ *
+ * The reference calls each of these an array of strings, and the page, the
+ * findings and --text join, iterate or look up what they hold. A string
+ * `params` passed --check and then threw on the page; a numeric error list on
+ * a node that throws, and a renamed requirement that cannot be turned into
+ * text, threw inside --check itself. Each one is now a refusal that names the
+ * field, and never a stack trace. */
+
+const regexLiteral = s => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+/** A refusal line for this path and reason, and no stack trace anywhere. */
+function refusedAt(r, path, why) {
+  assert.equal(r.code, 1, `expected a refusal, got:\n${r.stdout}${r.stderr}`);
+  assert.match(r.stderr, new RegExp(`: ${regexLiteral(path)}: ${regexLiteral(why)}$`, 'm'));
+  assert.doesNotMatch(r.stderr, /TypeError|\n\s+at /, r.stderr);
+}
+const notArray = 'expected an array of strings';
+const notString = 'expected a string';
+/** Parsed rather than written as a literal, so `__proto__` is an own key. */
+const prototypeNamed = () => JSON.parse('{"constructor":"x","__proto__":"y"}');
+
+const listCases = [
+  ['a string params', p => { p.nodes.lookupName.params = 'id'; }, 'nodes.lookupName.params', notArray],
+  ['an object params', p => { p.nodes.lookupName.params = { a: 1 }; }, 'nodes.lookupName.params', notArray],
+  ['a null params', p => { p.nodes.lookupName.params = null; }, 'nodes.lookupName.params', notArray],
+  ['a params holding a number', p => { p.nodes.lookupName.params = ['id', 5]; }, 'nodes.lookupName.params[1]', notString],
+  ['a params holding an object keyed by prototype names', p => { p.nodes.lookupName.params = [prototypeNamed()]; }, 'nodes.lookupName.params[0]', notString],
+  ['a string enteredBy', p => { p.nodes.greet.enteredBy = 'a.test.ts'; }, 'nodes.greet.enteredBy', notArray],
+  ['an object enteredBy', p => { p.nodes.greet.enteredBy = { a: 1 }; }, 'nodes.greet.enteredBy', notArray],
+  ['an enteredBy holding a number', p => { p.nodes.greet.enteredBy = ['src/greet.test.ts', 5]; }, 'nodes.greet.enteredBy[1]', notString],
+  ['a numeric touches', p => { p.nodes.greet.touches = 5; }, 'nodes.greet.touches', notArray],
+  ['a string touches', p => { p.nodes.greet.touches = 'src/greet.ts'; }, 'nodes.greet.touches', notArray],
+  ['a string sheet.graphsNotDrawn', p => { p.sheet.graphsNotDrawn = 'the admin graph'; }, 'sheet.graphsNotDrawn', notArray],
+  ['a sheet.graphsNotDrawn holding a number', p => { p.sheet.graphsNotDrawn = [5]; }, 'sheet.graphsNotDrawn[0]', notString],
+  ['a channels.error entry that is not a string', p => { p.nodes.greet.channels.error.push(7); }, 'nodes.greet.channels.error[2]', notString],
+  ['a channels.requirements entry that is not a string', p => { p.nodes.greet.channels.requirements.push({ store: 'names' }); }, 'nodes.greet.channels.requirements[1]', notString],
+  // The two channels lists keep their own words for a list that is not one.
+  ['a string channels.requirements', p => { p.nodes.greet.channels.requirements = 'the name store'; }, 'nodes.greet.channels.requirements', 'expected an array of tokens'],
+  ['a string channels.error on a node that throws nothing', p => { p.nodes.greet.channels.error = 'SendFailed'; }, 'nodes.greet.channels.error', 'expected an array of failure tags'],
+  ['a string layer requirements', p => { p.layers.tests.nodes.lookupName.requirements = 'the name store → a fixed map'; }, 'layers.tests.nodes.lookupName.requirements', notArray],
+  // Read as a list later in the same check: the cross-check of a thrown fail.
+  ['a numeric channels.error on the node that throws', p => { p.nodes.lookupName.channels.error = 5; }, 'nodes.lookupName.channels.error', 'expected an array of failure tags'],
+  // Turned into text later in the same check: the layer budget. A plain {}
+  // converts without throwing and would prove nothing.
+  ['a layer requirement whose conversion to text throws', p => { p.layers.tests.nodes.lookupName.requirements = [{ toString: 0 }]; }, 'layers.tests.nodes.lookupName.requirements[0]', notString],
+  // The parent guards: each list rule reads its field only off an object.
+  ['a null sheet', p => { p.sheet = null; }, 'sheet', 'expected an object'],
+  ['a sheet that is a list', p => { p.sheet = ['one graph per entry point']; }, 'sheet', 'expected an object'],
+  ['a null layer override', p => { p.layers.tests.nodes.lookupName = null; }, 'layers.tests.nodes.lookupName', 'expected an object'],
+];
+
+for (const [what, mutate, path, why] of listCases) {
+  test(`refuses ${what}, by path and with no stack trace`, () => {
+    refusedAt(check(derive(mutate)), path, why);
+  });
+}
+
+test('a list with two bad entries gets one refusal per entry', () => {
+  const r = check(derive(p => { p.nodes.lookupName.params = [1, null]; }));
+  refusedAt(r, 'nodes.lookupName.params[0]', notString);
+  refusedAt(r, 'nodes.lookupName.params[1]', notString);
+  assert.match(r.stderr, /: 2 refusal\(s\)/);
+});
+
+test('a list-field refusal never prints the bad value', () => {
+  const marker = 'listed-5c2e81d0-never-printed';
+  const r = check(derive(p => { p.nodes.lookupName.params = [{ name: marker }]; }));
+  refusedAt(r, 'nodes.lookupName.params[0]', notString);
+  assert.ok(!r.stderr.includes(marker), r.stderr);
+  assert.ok(!r.stdout.includes(marker), r.stdout);
+});
+
+test('valid list fields still pass, empty ones included', () => {
+  // Each of these keys is required, so "none" is an empty list: params [] is
+  // a node that takes nothing.
+  const cases = [
+    p => { p.nodes.lookupName.params = []; },
+    p => { p.nodes.lookupName.params = ['id', 'locale = "en"', '...rest']; },
+    p => { p.nodes.greet.enteredBy = []; },
+    p => { p.nodes.greet.touches = []; },
+    p => { p.nodes.greet.touches = ['src/greet.ts', 'src/greet.css']; },
+    p => { p.sheet.graphsNotDrawn = ['the admin graph']; },
+    p => { p.nodes.greet.channels.requirements = []; },
+    p => { p.layers.tests.nodes.lookupName.requirements = ['the name store → a fixed map', 'a clock']; },
+  ];
+  cases.forEach((mutate, i) => {
+    const r = check(derive(mutate));
+    assert.equal(r.code, 0, `case ${i}:\n${r.stderr}`);
+  });
+});
+
 test('the old one-graph shape is refused, and the message names graphs', () => {
   // A file states one change, not one graph. Accepting both shapes would be
   // two ways to say one thing, so a stale file fails loudly rather than
@@ -1013,10 +1104,10 @@ test('a param holding a long run of = signs reads as the name before the first o
   assert.deepEqual(argLines(r.stdout), []);
 });
 
-test('a callee whose params are not a list of strings is skipped, under --check and --text', () => {
+test('a callee whose params are not a list of strings is refused before args are compared, under --check and --text', () => {
   // The call passes an arg no param names, so a compared callee would print
-  // a line. params has never been type-checked, so these are skipped rather
-  // than refused.
+  // a line. Until #247 these were skipped; now the shape pass refuses them,
+  // so the comparison never sees one.
   for (const params of [null, 'id', [1], ['id', 2], [null]]) {
     const file = derive(prog => {
       prog.nodes.lookupName.params = params;
@@ -1024,7 +1115,8 @@ test('a callee whose params are not a list of strings is skipped, under --check 
     });
     for (const flag of ['--check', '--text']) {
       const r = run(groundtrack, [file, flag]);
-      assert.equal(r.code, 0, `${JSON.stringify(params)} ${flag}:\n${r.stderr}`);
+      assert.equal(r.code, 1, `${JSON.stringify(params)} ${flag}:\n${r.stderr}`);
+      assert.match(r.stderr, /: nodes\.lookupName\.params(\[\d+\])?: expected (an array of strings|a string)$/m);
       assert.doesNotMatch(r.stderr, /TypeError|at Object|at file:|is not a function/);
       assert.deepEqual(argLines(r.stdout), [], `${JSON.stringify(params)} ${flag}`);
     }
@@ -1183,27 +1275,27 @@ test('pr-382 still validates, and its call sites are compared with their callees
 });
 
 test('comparing args with params costs their sum, not their product', () => {
-  // 20,000 call steps into a callee with 20,000 params, and as many into one
-  // whose params list ends with the number 0, which the check skips. Working
-  // a callee's names out again at every call costs 800,000,000 names; once
-  // per callee costs 40,000. The calls sit on a node no entry reaches, so
-  // the tree view does not draw them.
+  // 28,300 call steps into a callee with 28,300 params. Working a callee's
+  // names out again at every call costs about 800,000,000 names; once per
+  // callee costs 28,300. The calls sit on a node no entry reaches, so the
+  // tree view does not draw them.
   //
-  // Two cheaper mistakes pass this bound: forgetting a skipped callee's
-  // verdict (0.98 s here) and keeping names in a list rather than a Set
-  // (1.49 s; 18.5 s against 1.9 s on an 8 MB file built for it). Neither
-  // gap is wide enough for a wall-clock bound that a slow runner keeps.
-  const calls = 20000;
+  // Until #247 this was 20,000 calls into each of two callees, the second
+  // with a params list ending in the number 0, which the check skipped. The
+  // shape pass now refuses that callee, so one callee carries the same
+  // product instead.
+  //
+  // A cheaper mistake passes this bound: keeping names in a list rather than
+  // a Set (1.49 s on the two-callee file; 18.5 s against 1.9 s on an 8 MB
+  // file built for it). The gap is not wide enough for a wall-clock bound
+  // that a slow runner keeps.
+  const calls = 28300;
   const file = derive(prog => {
     delete prog.layers;
     const params = Array.from({ length: calls }, (_, i) => `p${i} = ${i}`);
     prog.nodes.wide = node('wide', { params, steps: [{ op: 'return', expr: 'null' }] });
-    prog.nodes.mixed = node('mixed', { params: [...params.slice(1), 0], steps: [{ op: 'return', expr: 'null' }] });
     const steps = [];
-    for (let i = 0; i < calls; i++) {
-      steps.push({ op: 'call', target: 'wide', args: { [`p${i}`]: 'x' } });
-      steps.push({ op: 'call', target: 'mixed', args: { [`p${i}`]: 'x' } });
-    }
+    for (let i = 0; i < calls; i++) steps.push({ op: 'call', target: 'wide', args: { [`p${i}`]: 'x' } });
     steps.push({ op: 'return', expr: 'null' });
     prog.nodes.far = node('far', { steps });
   });
@@ -1212,9 +1304,9 @@ test('comparing args with params costs their sum, not their product', () => {
   const took = performance.now() - started;
   assert.equal(r.code, 0, r.stderr);
   assert.deepEqual(argLines(r.stdout), []);
-  // On the threat model's machine this file checks in 0.52 s, and a renderer
-  // that works each callee out again at every call takes 71 s. The bound sits
-  // far from both, so a slow runner passes and the product fails.
+  // On the machine #247 was built on, this file checks in 0.14 s, and a
+  // renderer that works each callee out again at every call takes 74 s. The
+  // bound sits far from both, so a slow runner passes and the product fails.
   assert.ok(took < 15000, `--check took ${Math.round(took)} ms`);
 });
 
