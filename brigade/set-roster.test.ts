@@ -1333,8 +1333,8 @@ for (const surface of ['terminal', 'desktop'] as const) {
       // The terminal draws text rows: 20 eighth-block cells between dim marks.
       expect(images.length).toBe(0)
       // Three usage rows, Context and two rate limits, with two end marks
-      // each; the to-do bar above them (#256) draws the same marks and 20
-      // cells, here none of its one to-do done, so it comes first.
+      // each. The to-do bar, drawn above them (#256), adds two marks and a
+      // row of 20 cells; its one to-do is not done, so the row is blank.
       const marks = await mounted.findAll({ type: 'Text', text: /^[▕▏]$/ })
       expect(marks.length).toBe(8)
       for (const m of marks) expect(m.props.dimColor).toBe(true)
@@ -1731,17 +1731,22 @@ for (const surface of SURFACES) {
       }
     } else {
       expect(runsOf(nodes).reduce((s, r) => s + [...(r.text ?? '')].length, 0)).toBe(32)
-      for (const r of runsOf(nodes)) expect(r.text?.includes(mark)).toBe(false)
+      // The to-do bar's cells are blank eighth-block cells: none of its to-dos
+      // is done, and no text reaches them.
+      const cells = nodes.find(n => n.type === 'Text' && n.props.color === 'success' && [...(n.text ?? '')].length === 20)
+      expect(cells?.text).toBe(' '.repeat(20))
     }
   })
 
   test(`${surface}: stored cards with hostile and unknown statuses count nowhere, and the strip still draws 32 cells`, async ($, on) => {
     const bad = ['__proto__', 'constructor', 'paused', 5, null, { done: true }]
-    await grouped(on, $, ALL, (key, value) =>
+    const w = await grouped(on, $, ALL, (key, value) =>
       key === 'roster'
         ? { ...value, cards: [...(value?.cards ?? []), ...bad.map((status, i) => ({ ...card(`odd-${i}`), status }))] }
         : value,
     )
+    // The plant reached the stored roster: five good cards and six odd ones.
+    expect((w.roster.at(-1) as any).cards.length).toBe(11)
     const m = await mountOn($, surface)
     const nodes = await drawnOf(m)
     expect(nodes.some(n => n.type === 'Text' && n.text === '5 sessions')).toBe(true)

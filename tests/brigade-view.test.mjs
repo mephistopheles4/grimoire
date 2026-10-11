@@ -1422,8 +1422,8 @@ test('the strip runs give each counted status at least one cell and the rest by 
   const sum = runs => runs.reduce((s, n) => s + n, 0);
   assert.deepEqual(stripRuns([1, 1, 1, 1], 32), [8, 8, 8, 8]);
   assert.deepEqual(stripRuns([2, 0, 0, 0], 32), [32, 0, 0, 0]);
-  // A status with one card in fifty still gets a cell, taken from the largest
-  // run, so equal counts draw equal runs.
+  // A status with one card in fifty still gets a cell, taken from the longest
+  // run.
   assert.deepEqual(stripRuns([47, 1, 1, 1], 32), [29, 1, 1, 1]);
   // Shares of 32: 6.4, 12.8 and 12.8, whose floors leave two cells for the two
   // largest remainders.

@@ -829,7 +829,13 @@ export const register: Register = on => {
     // The clock moves the warmth line too: the roster timer's redraws every
     // 5 s move its countdown.
     const now = await $.clock.now()
-    const metered = usageView(await read($, usage), Svg === undefined ? 'terminal' : e.surface, now)
+    // Where images draw: any surface with an Svg but the terminal. The usage
+    // section reads this too, and falls back to text bars when its image is
+    // over the engine's cap; the strip and the to-do bar are a few rects each
+    // and need no fallback.
+    const surface = Svg === undefined ? 'terminal' : e.surface
+    const Image = surface === 'terminal' ? undefined : Svg
+    const metered = usageView(await read($, usage), surface, now)
     const paths = await read($, files)
     const error = await read($, rosterError)
     const pollError = await read($, liveError)
@@ -858,9 +864,6 @@ export const register: Register = on => {
     const shown = needsYou.length + working.length + finished.length
     const strip = statusStrip(cards, hidden)
     const progress = todoBar(todos, done, ticks)
-    // The strip and the bar draw as images where the usage section does: on
-    // any surface but the terminal that has an Svg.
-    const Image = Svg !== undefined && e.surface !== 'terminal' ? Svg : undefined
     const headingNote =
       shown > 0 || progress !== undefined
         ? `${shown} ${shown === 1 ? 'session' : 'sessions'}`

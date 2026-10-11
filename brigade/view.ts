@@ -559,11 +559,17 @@ export function groupCards<T>(cards: readonly T[], hidden: ReadonlySet<unknown>)
   const out: Groups<T> = { needsYou: [], working: [], finished: [] }
   if (!Array.isArray(cards)) return out
   cards.forEach((c, i) => {
-    if (!isRecord(c) || hidden.has(c.title)) return
-    const look = statusOf(c.status)
+    const look = shownLook(c, hidden)
     if (look !== undefined) out[look.group].push({ c, i })
   })
   return out
+}
+
+/** A stored card's look when the pane shows it: a record, not dismissed, with
+ *  one of the four statuses; else undefined. The groups, the heading and the
+ *  status strip all count cards by this one rule. */
+function shownLook(c: unknown, hidden: ReadonlySet<unknown>): StatusLook | undefined {
+  return isRecord(c) && !hidden.has(c.title) ? statusOf(c.status) : undefined
 }
 
 /** The stored open state of DONE · STOPPED, open only when exactly true. */
@@ -594,8 +600,14 @@ export function reportCount(titles: readonly string[], inbox: unknown): number {
 /** The count beside "Waiting on you": the cards that need the owner, plus the
  *  to-dos that are neither done nor ticking. */
 export function waitingCount(needsYou: number, todos: readonly { id: string }[], done: unknown, ticking: unknown): number {
-  const out = new Set([...idsFrom(done), ...ticksFrom(ticking).map(p => p.name)])
+  const out = doneOrTicking(done, ticking)
   return needsYou + todos.filter(t => !out.has(t.id)).length
+}
+
+/** The to-do ids that count as done: those in the done list or ticking. The
+ *  Waiting on you count and the to-do bar both read this one set. */
+function doneOrTicking(done: unknown, ticking: unknown): Set<string> {
+  return new Set([...idsFrom(done), ...ticksFrom(ticking).map(p => p.name)])
 }
 
 // --- The status strip and the to-do bar ---------------------------------------
@@ -623,14 +635,13 @@ export type StatusCount = { look: StatusLook; count: number }
 
 /** The shown cards' count per status, in the Map's order, with no entry for a
  *  status with no cards. Shown is as `groupCards` has it: a record, not
- *  dismissed, and one of the four statuses, so the strip, its legend, the
- *  heading and the groups count the same cards. */
+ *  dismissed, and one of the four statuses, by the rule groupCards uses, so
+ *  the strip, its legend, the heading and the groups count the same cards. */
 export function statusCounts(cards: unknown, hidden: ReadonlySet<unknown>): StatusCount[] {
   const counts = new Map<StatusLook, number>()
   if (Array.isArray(cards)) {
     for (const c of cards) {
-      if (!isRecord(c) || hidden.has(c.title)) continue
-      const look = statusOf(c.status)
+      const look = shownLook(c, hidden)
       if (look !== undefined) counts.set(look, (counts.get(look) ?? 0) + 1)
     }
   }
@@ -643,7 +654,7 @@ export function statusCounts(cards: unknown, hidden: ReadonlySet<unknown>): Stat
 /** The terminal strip's run lengths, one per count, in the same order. The
  *  cells go by largest remainder of each count's share, a tie to the earlier
  *  count; then each count above 0 that got no cell takes one from the
- *  longest run, so equal counts draw equal runs. A count that is not a
+ *  longest run, the earliest of equal ones. A count that is not a
  *  finite number above 0 is 0. The runs sum to exactly `cells` whenever a
  *  count is above 0; with none, or a cell count that is not a positive whole
  *  number, every run is 0 and there is nothing to draw. Never throws. */
@@ -738,7 +749,7 @@ export function statusStrip(cards: unknown, hidden: ReadonlySet<unknown>): Strip
  *  nowhere. */
 export function todoCounts(todos: unknown, done: unknown, ticking: unknown): { done: number; total: number } {
   const list = Array.isArray(todos) ? todos.filter((t): t is { id: string } => isRecord(t) && typeof t.id === 'string') : []
-  const out = new Set([...idsFrom(done), ...ticksFrom(ticking).map(p => p.name)])
+  const out = doneOrTicking(done, ticking)
   return { done: list.filter(t => out.has(t.id)).length, total: list.length }
 }
 
