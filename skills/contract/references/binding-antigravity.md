@@ -74,7 +74,11 @@ the hand-back.
 ## The mark (questions 5, 18)
 
 The seal writes the mark as three keys under `metadata:` in the
-frontmatter. Never write them by hand.
+frontmatter. Never write them by hand. Write no other key or comment in the
+frontmatter that names a mark key, such as `familiar_digest` or
+`# contract-version: 1.0.0`: the check refuses it as "cannot check", in any
+case and with any dash or underscore, because it would read as a seal.
+Words with spaces between them are prose and pass.
 
 ## Example (questions 4, 5)
 

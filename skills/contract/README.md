@@ -173,6 +173,36 @@ except the contract.
 familiar as prose, whatever its mark says. The check also says nothing about
 whether the familiar is any good.
 
+## Changes in 0.10.0
+
+**This version breaks files that passed before.** The check now refuses
+anything but the seal that looks like the mark. A file that holds one of
+these fails as "cannot check", and the seal refuses it and writes nothing:
+
+- **In any `.md` frontmatter,** a key or a comment that names a mark key,
+  other than the three keys the seal writes under `metadata:`. For example,
+  a top-level `familiar_digest:` or `FamiliarDigest:`, even when the
+  contract lists it, a `familiar-digest-old:` under `metadata:`, or a
+  comment such as `# contract-version: 1.0.0`.
+- **In a Codex `.toml` file,** a key or a comment that names a mark key with
+  `_`, another dash or nothing between its words. Only a hyphen was refused
+  before.
+- **In a `CLAUDE.md` body,** a line that opens with a mark key's name after
+  list, quote, heading, table or link markers, such as `- familiar-digest:`
+  or `| familiar-digest |`.
+
+The check reads a name in any case, with any dash or underscore between its
+words or none, and in full-width forms. Words with spaces between them, such
+as "the contract version", are prose and still pass. The reason names the
+line, never its text.
+
+**To fix one,** rename the key, or reword the comment or the line, then seal
+again.
+
+**To roll back,** revert the change and publish the next patch version. A
+tool that pins this check by its digest must pin it again after either
+change.
+
 ## Changes in 0.9.0
 
 **This version breaks files that passed before.** In an agent's `tools`
