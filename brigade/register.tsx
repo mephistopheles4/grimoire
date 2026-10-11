@@ -34,12 +34,12 @@ import {
   serialize,
   statRejection,
   toolSession,
-  transcriptFile,
   unixRealPath,
 } from './roster.ts'
 import type { HostOs, StatAnswer } from './roster.ts'
 import {
   EMPTY_USAGE,
+  MAX_TRANSCRIPT_BYTES,
   cacheBar,
   cacheBarSvg,
   cacheCells,
@@ -49,6 +49,7 @@ import {
   idsFrom,
   isOpen,
   liveState,
+  newFinder,
   readWarmth,
   reportCount,
   settleTicks,
@@ -63,7 +64,7 @@ import {
   warmthFrom,
   warmthLine,
 } from './view.ts'
-import type { ReadMemory } from './view.ts'
+import type { Finder, ReadMemory } from './view.ts'
 
 // The Brigade pane: one card per session a lead session started, each in a
 // rounded box with its work, phase, settings, live busy or idle state, cache
@@ -95,7 +96,6 @@ const rosterError = atom({ plugin: 'grimoire', key: 'rosterError' } as const, ''
 const live = atom({ plugin: 'grimoire', key: 'live' } as const, [])
 const liveError = atom({ plugin: 'grimoire', key: 'liveError' } as const, '')
 const links = atom({ plugin: 'grimoire', key: 'links' } as const, [])
-const looked = atom({ plugin: 'grimoire', key: 'looked' } as const, [])
 const reports = atom({ plugin: 'grimoire', key: 'reports' } as const, [])
 const dismissed = atom({ plugin: 'grimoire', key: 'dismissed' } as const, [])
 const doneTodos = atom({ plugin: 'grimoire', key: 'doneTodos' } as const, [])
@@ -219,6 +219,14 @@ async function sweepTodos($: EngineInterface, todoIds: string[] | undefined) {
 // What the warmth reads remember of each transcript, keyed by its path. A
 // reload starts it over, which costs one read per member.
 const memory: ReadMemory = new Map()
+// What the transcript finder remembers between polls: its last listing of
+// the projects folder, its searches and this poll's found transcripts. It
+// holds paths and listed names, so it stays here and never enters plugin
+// state. A reload starts it over, which costs one listing.
+const finder: Finder = newFinder()
+// By member name, the transcript path its Remote Control link was last read
+// from, so the link is read again when the found path changes.
+const linkFrom = new Map<string, string>()
 let polling = false
 
 async function pollAgents($: EngineInterface, open: () => boolean) {
@@ -246,34 +254,42 @@ async function pollAgents($: EngineInterface, open: () => boolean) {
       const cards = (await read($, roster)).cards
 
       // Each roster member's cache warmth, from its transcript's last model
-      // call. The rules for what is read, and when, are in view.ts.
+      // call, found by the transcript finder. The rules for what is found and
+      // read, and when, are in view.ts. The stat resolves, so the finder's
+      // place check gets a real path; an engine with no listing rejects here,
+      // quietly, as a rejected listing.
       const found = await readWarmth(rows.value, cards.map(c => c.title), config, memory, {
         live: open,
-        stat: path => $.fs.stat(path),
+        now: () => $.clock.now(),
+        stat: path => $.fs.stat(path, { resolve: true }),
+        list: async path => $.fs.list(path),
         read: async path => String(await $.fs.read(path)),
-      })
+      }, finder)
       if (found === undefined || !open()) return
       await update($, warmth, () => found)
 
       // A Remote Control session's claude.ai link sits in its transcript, in a
-      // row the engine writes. Read only a roster member's, by the id the engine
-      // listed, once per session, and keep the misses too. The read comes
-      // first and is kept only if the pane is still open, so a close during
-      // it records nothing and the next open tries again.
+      // row the engine writes. Read only a roster member's, through the
+      // finder's result for this poll, which passed the place check: again
+      // whenever the found path changes, the misses kept too, and nothing
+      // over the read cap. A link from a path the finder dropped, or from one
+      // it moved off, goes. A name the finder did not look for, one with no
+      // row or one two rows share, is left as it was. The read comes first
+      // and is kept only if the pane is still open, so a close during it
+      // records nothing and the next poll tries again.
       const members = new Set(cards.filter(c => c.desktopId === undefined && c.url === undefined).map(c => c.title))
-      const seen = new Set(await read($, looked))
-      for (const row of rows.value) {
-        if (!members.has(row.name) || seen.has(row.name)) continue
-        const file = transcriptFile(config, row)
-        if (file === undefined) continue
+      for (const [name, at] of finder.byName) {
+        if (!members.has(name) || linkFrom.get(name) === at?.path) continue
         if (!open()) return
-        // No transcript yet, or none for this kind of session: no link.
-        const url = await $.fs.read(file).then(t => remoteLink(String(t)), () => undefined)
+        // No transcript, one too large, or none for this kind of session: no link.
+        const url =
+          at === undefined || !(at.size <= MAX_TRANSCRIPT_BYTES)
+            ? undefined
+            : await $.fs.read(at.path).then(t => remoteLink(String(t)), () => undefined)
         if (!open()) return
-        await update($, looked, list => [...list, row.name].slice(-200))
-        if (url !== undefined && open()) {
-          await update($, links, list => [...list.filter(p => p.name !== row.name), { name: row.name, value: url }])
-        }
+        if (at === undefined) linkFrom.delete(name)
+        else linkFrom.set(name, at.path)
+        await update($, links, list => [...list.filter(p => p.name !== name), ...(url === undefined ? [] : [{ name, value: url }])])
       }
     } catch (err) {
       await update($, liveError, () => `claude agents: ${oneLine(String(err instanceof Error ? err.message : err), 200)}`)

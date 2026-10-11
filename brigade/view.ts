@@ -1,4 +1,4 @@
-import { oneLine, transcriptFile } from './roster.ts'
+import { SESSION_ID, foldsCase, oneLine, pathKey, projectFolder, sepOf } from './roster.ts'
 import type { AgentRow } from './roster.ts'
 import type { Pair, UsageCategory, UsageLimit, UsageSnapshot, Warmth } from './types'
 
@@ -12,6 +12,10 @@ import type { Pair, UsageCategory, UsageLimit, UsageSnapshot, Warmth } from './t
 //
 // The cache warmth: each card's ◆ line, read from the last real model call in
 // its session's transcript, and which transcripts the agents poll reads.
+//
+// The transcript finder: where a member's transcript is, from its working
+// directory or, after it moved into a worktree, from the worktree folders of
+// its launch folder, each checked to lie where its name says before a read.
 //
 // The usage section: this session's own rate limits and context fill, at the
 // bottom of the pane. On the terminal it is rows of text bars. Everywhere else
@@ -897,11 +901,12 @@ export function liveState(state: string | undefined): { text: string; color: str
   return { text: state, color: isWorking(state) ? 'success' : state === 'idle' || state === 'blocked' ? 'warning' : 'inactive' }
 }
 
-const KINDS_OF_WARMTH = new Set(['call', 'too-large', 'shared', 'unread'])
-const OTHER_KINDS = new Map<string, 'too-large' | 'shared' | 'unread'>([
+const KINDS_OF_WARMTH = new Set(['call', 'too-large', 'shared', 'unread', 'not-found'])
+const OTHER_KINDS = new Map<string, 'too-large' | 'shared' | 'unread' | 'not-found'>([
   ['too-large', 'too-large'],
   ['shared', 'shared'],
   ['unread', 'unread'],
+  ['not-found', 'not-found'],
 ])
 const WINDOWS = new Set([SHORT_MS, HOUR_MS])
 
@@ -939,7 +944,8 @@ const span = (mins: number) => (mins >= 60 ? `${Math.floor(mins / 60)} hr ${mins
 /** One card's ◆ line: its tone (`dim` or a theme colour), its text, and a
  *  nudge for a large card that waits on the owner, or undefined with no
  *  record. A transcript too large to read and a name two sessions share
- *  read unknown, whatever the live state. A working session is warm, with no
+ *  read unknown, and a transcript the finder found nowhere reads not found,
+ *  whatever the live state. A working session is warm, with no
  *  size when its transcript has not been read yet. Else
  *  the idle time sets the band: more than 15 min left green, 15 min or less
  *  amber, none left red; with no known window, no countdown. The nudge needs
@@ -954,6 +960,7 @@ export function warmthLine(
   if (w === undefined) return undefined
   if (w.kind === 'too-large') return { tone: 'dim', text: '◆ cache unknown · transcript too large to read' }
   if (w.kind === 'shared') return { tone: 'dim', text: '◆ cache unknown · two sessions share this name' }
+  if (w.kind === 'not-found') return { tone: 'dim', text: '◆ transcript not found' }
   if (w.kind === 'unread') return isWorking(state) ? { tone: 'dim', text: '◆ cache warm (working)' } : undefined
   const size = `${tokens(w.tokens)} context`
   if (isWorking(state)) return { tone: 'dim', text: `◆ cache warm (working) · ${size}` }
@@ -1005,11 +1012,11 @@ const unit = (f: number) => (Number.isFinite(f) ? Math.min(1, Math.max(0, f)) : 
  *  the time left over the window, green with more than 15 min left, amber at
  *  15 or less, and empty and red with none left, the same bands as
  *  `warmthLine`. A transcript too large to read, a name two sessions share,
- *  an unknown window and no record have none. Idle time is floored at 0, so
- *  a call time ahead of the clock gives a full bar; an idle time that is not
- *  a finite number gives no bar. */
+ *  a transcript not found, an unknown window and no record have none. Idle
+ *  time is floored at 0, so a call time ahead of the clock gives a full bar;
+ *  an idle time that is not a finite number gives no bar. */
 export function cacheBar(w: Warmth | undefined, state: string | undefined, now: number): CacheBar | undefined {
-  if (w === undefined || w.kind === 'too-large' || w.kind === 'shared') return undefined
+  if (w === undefined || w.kind === 'too-large' || w.kind === 'shared' || w.kind === 'not-found') return undefined
   const size = w.kind === 'call' ? `${tokens(w.tokens)} context` : undefined
   if (isWorking(state)) {
     const warm: CacheBar = { fraction: 1, tone: 'success', cls: 'done', text: 'warm (working)' }
@@ -1074,33 +1081,192 @@ export function cacheBarSvg(b: CacheBar): Extract<UsageView, { kind: 'svg' }> {
  *  its modified time at that read and the last call parsed from it. */
 export type ReadMemory = Map<string, { mtimeMs: number; call: LastCall | undefined }>
 
-/** The file system as the poll reaches it, and whether the pane is still
- *  open. `stat` and `read` may reject. */
-export type WarmthIo = {
+// --- The transcript finder ---------------------------------------------------
+//
+// A session that moved into a worktree after it started writes its transcript
+// under the worktree's projects folder, not its launch folder's, while
+// `claude agents` still names the launch folder. So the path from `cwd` is
+// tried first, then the worktree folders of the launch folder, found by
+// listing the projects folder at most once a minute. Every path either step
+// gives is taken only when a resolving `stat` finds a regular file, not
+// itself a link, whose real path is the expected file inside the real
+// projects folder: a link at the file or at any folder above it inside
+// `projects`, swapped in at any time, fails at the next read. Nothing found
+// is never an error: a rejection counts as no hit and its message is dropped.
+
+/** A listing of more entries than this is not looked at. */
+export const MAX_LISTING = 5000
+/** More candidate folders than this for one launch folder is not a brigade. */
+export const MAX_CANDIDATES = 20
+/** The projects folder is listed at most this often. */
+export const LIST_EVERY_MS = 60000
+// The longest folder name a candidate may have.
+const MAX_FOLDER = 255
+// What a worktree folder's projects name holds after its launch folder's:
+// `<launch>\.claude\worktrees\<name>` made into a name.
+const WORKTREES = '--claude-worktrees-'
+
+/** A resolving `stat`'s answer, as far as the finder reads it. */
+export type FoundStat = { kind: string; size: number; mtimeMs: number; isLink?: boolean; realPath?: string }
+
+/** The file system and clock as the finder reaches them, and whether the
+ *  pane is still open. `stat` resolves, so it gives a real path. `stat`,
+ *  `list` and `now` may reject, and an engine with no `list` has none. */
+export type FinderIo = {
   live: () => boolean
-  stat: (path: string) => Promise<{ kind: string; size: number; mtimeMs: number; isLink?: boolean }>
-  read: (path: string) => Promise<string>
+  now: () => Promise<number>
+  stat: (path: string) => Promise<FoundStat>
+  list?: (path: string) => Promise<unknown>
+}
+
+/** A transcript the finder placed: its path, and its size and modified time
+ *  from the `stat` that placed it. */
+export type Found = { path: string; size: number; mtimeMs: number }
+
+/** What the finder keeps between polls, in module memory and never in plugin
+ *  state, since it holds paths and listed names. */
+export type Finder = {
+  /** The real projects folder, asked once per poll; undefined when it does
+   *  not resolve to a folder, and then nothing is found that poll. */
+  real: string | undefined
+  /** When the projects folder was last listed, on the engine's clock. */
+  listedAt: number | undefined
+  /** That listing's folder names, or undefined when it was rejected, over
+   *  the cap or not a list. */
+  names: string[] | undefined
+  /** By session id, the worktree folder a search found, or undefined for a
+   *  miss: kept until the next listing, so at most a minute. */
+  remembered: Map<string, string | undefined>
+  /** This poll's result by member name, for the link reads: the transcript
+   *  found, or undefined when the finder found none. A name the finder did
+   *  not look for this poll is absent. */
+  byName: Map<string, Found | undefined>
+}
+
+/** A finder with nothing known yet. */
+export const newFinder = (): Finder => ({ real: undefined, listedAt: undefined, names: undefined, remembered: new Map(), byName: new Map() })
+
+/** Asks the real projects folder once for the poll, and keeps it in the
+ *  finder: the resolving `stat`'s real path, when it finds a folder. */
+export async function readProjects(config: string, io: FinderIo, finder: Finder): Promise<void> {
+  const s = await io.stat(`${config}${sepOf(config)}projects`).catch(() => undefined)
+  finder.real = isRecord(s) && s.kind === 'dir' && typeof s.realPath === 'string' && s.realPath !== '' ? s.realPath : undefined
+}
+
+// The place check: the file at <config>/projects/<folder>/<id>.jsonl, taken
+// only when a resolving `stat` finds a regular file that is not itself a
+// link, whose real path is the real projects folder, then the folder, then
+// the file, compared as the roster path rule compares. Never rejects.
+async function placed(config: string, folder: string, sessionId: string, io: FinderIo, real: string): Promise<Found | undefined> {
+  const sep = sepOf(config)
+  const path = `${config}${sep}projects${sep}${folder}${sep}${sessionId}.jsonl`
+  const s = await io.stat(path).catch(() => undefined)
+  if (!isRecord(s) || s.kind !== 'file' || s.isLink !== false || typeof s.realPath !== 'string') return undefined
+  const fold = foldsCase(config)
+  if (pathKey(s.realPath, fold) !== pathKey(`${real}/${folder}/${sessionId}.jsonl`, fold)) return undefined
+  return { path, size: s.size, mtimeMs: s.mtimeMs }
+}
+
+// The projects folder's listing, as the folder names a worktree folder could
+// have: folders that are not links, with a name of at most 255 characters
+// and no separator. A listing of more than 5,000 entries, one that is not a
+// list, or a rejected one is no names at all.
+async function listNames(config: string, io: FinderIo): Promise<string[] | undefined> {
+  let entries: unknown
+  try {
+    if (io.list === undefined) return undefined
+    entries = await io.list(`${config}${sepOf(config)}projects`)
+  } catch {
+    return undefined
+  }
+  if (!Array.isArray(entries) || entries.length > MAX_LISTING) return undefined
+  const names: string[] = []
+  for (const e of entries) {
+    if (!isRecord(e) || e.kind !== 'dir' || e.isLink !== false || typeof e.name !== 'string') continue
+    if (e.name === '' || e.name.length > MAX_FOLDER || /[\\/]/.test(e.name)) continue
+    names.push(e.name)
+  }
+  return names
+}
+
+/** A member's transcript, or undefined when none is found.
+ *
+ *  First the path from `cwd`. Else the worktree folders of the launch
+ *  folder: the projects folder is listed at most once a minute, the last
+ *  listing reused between, and a folder whose name starts with the launch
+ *  folder's name and `--claude-worktrees-` is a candidate. Exactly one
+ *  candidate holding the session's transcript is it; more than 20
+ *  candidates, two hits or none give none. That result, hit or miss, is
+ *  remembered by session id until the next listing, and a remembered hit
+ *  passes the place check again before each use. Every path passes the
+ *  place check. Call `readProjects` once per poll first. Never rejects. */
+export async function findTranscript(config: string, row: AgentRow, io: FinderIo, finder: Finder): Promise<Found | undefined> {
+  const { sessionId, cwd } = row
+  const real = finder.real
+  if (sessionId === undefined || cwd === undefined || !SESSION_ID.test(sessionId) || real === undefined) return undefined
+  const home = projectFolder(cwd)
+  if (home === '') return undefined
+  const first = await placed(config, home, sessionId, io, real)
+  if (first !== undefined || !io.live()) return first
+  try {
+    const now = await io.now()
+    if (!io.live()) return undefined
+    const last = finder.listedAt
+    if (last === undefined || !Number.isFinite(now) || now < last || now - last >= LIST_EVERY_MS) {
+      finder.listedAt = now
+      finder.remembered.clear()
+      finder.names = await listNames(config, io)
+      if (!io.live()) return undefined
+    }
+    if (finder.remembered.has(sessionId)) {
+      const folder = finder.remembered.get(sessionId)
+      return folder === undefined ? undefined : await placed(config, folder, sessionId, io, real)
+    }
+    const fold = foldsCase(config)
+    const prefix = pathKey(`${home}${WORKTREES}`, fold)
+    const candidates = (finder.names ?? []).filter(n => pathKey(n, fold).startsWith(prefix))
+    let hit: { folder: string; found: Found } | undefined
+    if (candidates.length <= MAX_CANDIDATES) {
+      let hits = 0
+      for (const folder of candidates) {
+        const found = await placed(config, folder, sessionId, io, real)
+        if (!io.live()) return undefined
+        if (found === undefined) continue
+        hits += 1
+        hit = { folder, found }
+      }
+      if (hits !== 1) hit = undefined
+    }
+    finder.remembered.set(sessionId, hit?.folder)
+    return hit?.found
+  } catch {
+    return undefined
+  }
 }
 
 /** The agents poll's warmth reads, and the records they give, or undefined
  *  when the pane closed on the way, so nothing is stored.
  *
- *  Only a roster member is read, by the transcript path its one row names. A
- *  name on two rows is shared: neither transcript is read. Each path must
- *  stat as a regular file, the file itself not a link. One over 4 MiB is not
- *  read and records "too large". A transcript is read only when its modified
- *  time differs from the one `memory` holds for its path, and never while
- *  its session is working (`busy`, `running` or `working`). `memory` gets an
- *  entry only after a read and a parse that succeeded, so a failed read is
- *  tried again at the next poll; the record is then the last good one. A
- *  working member with no known call records `unread`. Paths no member
- *  names leave it. */
+ *  Only a roster member is read, through the finder, which asks the real
+ *  projects folder once for the poll and keeps each member's result in
+ *  `finder.byName` for the link reads. A name on two rows is shared: neither
+ *  transcript is looked for. A member the finder finds nowhere records "not
+ *  found". The finder's place check stands in for the old file check, and
+ *  one over 4 MiB is not read and records "too large". A transcript is read
+ *  only when its modified time differs from the one `memory` holds for its
+ *  path, and never while its session is working (`busy`, `running` or
+ *  `working`). `memory` gets an entry only after a read and a parse that
+ *  succeeded, so a failed read is tried again at the next poll; the record
+ *  is then the last good one. A working member with no known call records
+ *  `unread`. Paths no member's transcript is found at leave `memory`, and
+ *  session ids no member has leave the finder's memory. */
 export async function readWarmth(
   rows: readonly AgentRow[],
   titles: readonly string[],
   config: string,
   memory: ReadMemory,
   io: WarmthIo,
+  finder: Finder = newFinder(),
 ): Promise<Warmth[] | undefined> {
   const members = new Set(titles)
   const byName = new Map<string, AgentRow[]>()
@@ -1109,27 +1275,41 @@ export async function readWarmth(
   }
   const out: Warmth[] = []
   const named = new Set<string>()
+  const ids = new Set<string>()
+  let asked = false
+  finder.byName.clear()
   for (const [name, list] of byName) {
     const row = list[0]
     if (list.length > 1 || row === undefined) {
       out.push({ name, kind: 'shared' })
       continue
     }
-    const path = transcriptFile(config, row)
-    if (path === undefined) continue
+    if (row.sessionId === undefined || row.cwd === undefined) continue
+    ids.add(row.sessionId)
+    if (!io.live()) return undefined
+    if (!asked) {
+      await readProjects(config, io, finder)
+      asked = true
+      if (!io.live()) return undefined
+    }
+    const found = await findTranscript(config, row, io, finder)
+    if (!io.live()) return undefined
+    finder.byName.set(name, found)
+    if (found === undefined) {
+      out.push({ name, kind: 'not-found' })
+      continue
+    }
+    const path = found.path
     named.add(path)
-    if (!io.live()) return undefined
-    const stat = await io.stat(path).catch(() => undefined)
-    if (!io.live()) return undefined
-    if (stat === undefined || stat.kind !== 'file' || stat.isLink === true || !Number.isFinite(stat.mtimeMs)) continue
-    if (!Number.isFinite(stat.size) || stat.size > MAX_TRANSCRIPT_BYTES) {
+    if (!Number.isFinite(found.mtimeMs)) continue
+    if (!Number.isFinite(found.size) || found.size > MAX_TRANSCRIPT_BYTES) {
       out.push({ name, kind: 'too-large' })
       continue
     }
-    if (!isWorking(row.status) && memory.get(path)?.mtimeMs !== stat.mtimeMs) {
+    if (!isWorking(row.status) && memory.get(path)?.mtimeMs !== found.mtimeMs) {
       const text = await io.read(path).catch(() => undefined)
       if (!io.live()) return undefined
-      if (text !== undefined) memory.set(path, { mtimeMs: stat.mtimeMs, call: lastCall(text, stat.mtimeMs) })
+      if (text !== undefined) memory.set(path, { mtimeMs: found.mtimeMs, call: lastCall(text, found.mtimeMs) })
     }
     const call = memory.get(path)?.call
     if (call !== undefined) out.push({ name, kind: 'call', ...call })
@@ -1139,5 +1319,10 @@ export async function readWarmth(
     else if (isWorking(row.status)) out.push({ name, kind: 'unread' })
   }
   for (const path of [...memory.keys()]) if (!named.has(path)) memory.delete(path)
+  for (const id of [...finder.remembered.keys()]) if (!ids.has(id)) finder.remembered.delete(id)
   return out
 }
+
+/** The file system as the poll reaches it, and whether the pane is still
+ *  open: the finder's, and the read. `read` may reject. */
+export type WarmthIo = FinderIo & { read: (path: string) => Promise<string> }

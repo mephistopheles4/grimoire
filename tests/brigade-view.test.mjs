@@ -988,23 +988,39 @@ test('the agents-row parser reads an interactive row\'s status and a background 
 
 // The read decision, with a fake file system.
 const CONFIG = 'C:\\cfg';
+const PROJECTS = `${CONFIG}\\projects`;
 const SID = ['11111111-2222-4333-8444-555555555555', '22222222-3333-4444-8555-666666666666', '33333333-4444-4555-8666-777777777777'];
 const agent = (name, i, status = 'idle') => ({ name, status, sessionId: SID[i], cwd: 'C:\\work' });
 const pathOf = i => `${CONFIG}\\projects\\C--work\\${SID[i]}.jsonl`;
 
-function fakeFs(files) {
+// The file system as the poll reaches it, answering a resolving `stat`: a
+// file's real path is its own path unless the file says otherwise, and the
+// projects folder resolves to itself unless `files` names it (null: missing).
+// `listing` is what `list` answers for the projects folder, and `clock.now`
+// the engine's clock.
+function fakeFs(files, { listing = [], clock = { now: NOW } } = {}) {
   const reads = [];
   const stats = [];
+  const lists = [];
   return {
     reads,
     stats,
+    lists,
     io: {
       live: () => true,
+      now: async () => clock.now,
       stat: async p => {
         stats.push(p);
+        if (p === PROJECTS && !(PROJECTS in files)) return { kind: 'dir', size: 0, mtimeMs: 0, isLink: false, realPath: PROJECTS };
         const f = files[p];
-        if (f === undefined) throw new Error('ENOENT');
-        return { kind: f.kind ?? 'file', size: f.size ?? f.text.length, mtimeMs: f.mtimeMs ?? MTIME, isLink: f.isLink ?? false };
+        if (f === undefined || f === null) throw new Error('ENOENT');
+        if (f.reject !== undefined) throw new Error(f.reject);
+        const real = 'realPath' in f ? (f.realPath === undefined ? {} : { realPath: f.realPath }) : { realPath: p };
+        return { kind: f.kind ?? 'file', size: f.size ?? f.text.length, mtimeMs: f.mtimeMs ?? MTIME, isLink: f.isLink ?? false, ...real };
+      },
+      list: async p => {
+        lists.push(p);
+        return typeof listing === 'function' ? listing() : listing;
       },
       read: async p => {
         reads.push(p);
@@ -1072,14 +1088,17 @@ test('a busy or running member is not read, and keeps its last record', async ()
 });
 
 test('a path that is not a regular file is not read', async () => {
+  // The expected value changed in #270 (spec revision 3 on #251, S3): a
+  // member whose transcript is not found now records "not-found", so its
+  // card says so, where it used to record nothing.
   for (const f of [{ kind: 'dir', text: '' }, { kind: 'other', text: '' }, { isLink: true, text: file(row()) }]) {
     const { io, reads } = fakeFs({ [pathOf(0)]: f });
-    assert.deepEqual(await readWarmth([agent('A', 0)], ['A'], CONFIG, new Map(), io), [], JSON.stringify(f));
+    assert.deepEqual(await readWarmth([agent('A', 0)], ['A'], CONFIG, new Map(), io), [{ name: 'A', kind: 'not-found' }], JSON.stringify(f));
     assert.equal(reads.length, 0);
   }
-  // A missing transcript: no read, no record.
+  // A missing transcript: no read, and the record says it was not found.
   const { io, reads } = fakeFs({});
-  assert.deepEqual(await readWarmth([agent('A', 0)], ['A'], CONFIG, new Map(), io), []);
+  assert.deepEqual(await readWarmth([agent('A', 0)], ['A'], CONFIG, new Map(), io), [{ name: 'A', kind: 'not-found' }]);
   assert.equal(reads.length, 0);
 });
 
@@ -1178,20 +1197,24 @@ test('a busy member whose transcript has not been read yet shows "warm (working)
   assert.deepEqual(warmthLine(out[0], 'running', 'needs-you', NOW), { tone: 'dim', text: '◆ cache warm (working)' });
   // Not working, it has no line: the next poll reads it.
   assert.equal(warmthLine(out[0], 'idle', 'needs-you', NOW), undefined);
-  // A missing or non-file transcript gives no record, busy or not.
+  // A missing or non-file transcript is not found, busy or not. The expected
+  // value changed in #270 (spec revision 3 on #251, S3): it was no record.
   for (const f of [undefined, { kind: 'dir', text: '' }]) {
     const fs = fakeFs(f === undefined ? {} : { [pathOf(0)]: f });
-    assert.deepEqual(await readWarmth([agent('A', 0, 'busy')], ['A'], CONFIG, new Map(), fs.io), []);
+    assert.deepEqual(await readWarmth([agent('A', 0, 'busy')], ['A'], CONFIG, new Map(), fs.io), [{ name: 'A', kind: 'not-found' }]);
   }
   // Once read, a busy member keeps its last size rather than this line.
   await readWarmth([agent('A', 0, 'idle')], ['A'], CONFIG, memory, io);
   assert.equal((await readWarmth([agent('A', 0, 'busy')], ['A'], CONFIG, memory, io))[0].kind, 'call');
   // A transcript read before its first model call: working, with no size,
   // and not read again while it works.
-  const empty = fakeFs({ [pathOf(1)]: { text: file(JSON.stringify({ type: 'user' })) } });
+  const emptyFiles = { [pathOf(1)]: { text: file(JSON.stringify({ type: 'user' })) } };
+  const empty = fakeFs(emptyFiles);
   const mem2 = new Map();
   assert.deepEqual(await readWarmth([agent('B', 1, 'idle')], ['B'], CONFIG, mem2, empty.io), []);
-  empty.io.stat = async () => ({ kind: 'file', size: 10, mtimeMs: MTIME + 1, isLink: false });
+  // The file changes. Changed in #270: this replaced `stat` with an answer
+  // that had no real path, which the finder's place check now refuses.
+  emptyFiles[pathOf(1)].mtimeMs = MTIME + 1;
   assert.deepEqual(await readWarmth([agent('B', 1, 'busy')], ['B'], CONFIG, mem2, empty.io), [{ name: 'B', kind: 'unread' }]);
   assert.equal(empty.reads.length, 1);
 });
@@ -1261,6 +1284,277 @@ test('the pane keeps its re-read memory in a Map of the view module\'s ReadMemor
   assert.match(register, /readWarmth\(rows\.value, cards\.map\(c => c\.title\), config, memory, \{/);
   const v = readFileSync(join(root, 'brigade/view.ts'), 'utf8');
   assert.match(v, /export type ReadMemory = Map<string, \{ mtimeMs: number; call: LastCall \| undefined \}>/);
+});
+
+// --- finding a member's transcript --------------------------------------------
+//
+// Spec revision 3 on #251, S3 and S14; ticket #270. The `list` fakes are built
+// from what the engine answered for each kind of entry (brigade/recorded-stats.ts,
+// written by scripts/record-brigade-stats.mjs), never from a guess. Folder and
+// project names are made up.
+
+const { LIST_EVERY_MS, MAX_CANDIDATES, MAX_LISTING, findTranscript, newFinder, readProjects } = view;
+const { RECORDED } = await import('../brigade/recorded-stats.ts');
+// A worktree folder of the launch folder C:\work, by its projects name.
+const WT = name => `C--work--claude-worktrees-${name}`;
+const wtPath = (name, i = 0) => `${PROJECTS}\\${WT(name)}\\${SID[i]}.jsonl`;
+// One listed entry, in the shape the engine listed that kind of entry.
+const entry = (name, shape = 'folder') => ({ name, ...RECORDED.list.entries[shape], size: 0, mtimeMs: MTIME });
+const transcript = () => ({ text: file(row({ ms: -MIN })) });
+// One poll's find for a member: the projects folder asked, then the finder.
+async function find(fs, cache, r = agent('A', 0)) {
+  await readProjects(CONFIG, fs.io, cache);
+  return findTranscript(CONFIG, r, fs.io, cache);
+}
+
+test('the list fakes carry exactly the fields the engine listed, and every link and junction lists as a link that is not a folder', () => {
+  assert.deepEqual(Object.keys(entry('x')).sort(), [...RECORDED.list.fields]);
+  for (const shape of ['junction', 'dir-symlink', 'file-symlink', 'broken-junction', 'broken-file-symlink']) {
+    assert.equal(RECORDED.list.entries[shape].isLink, true, shape);
+    assert.equal(RECORDED.list.entries[shape].kind, 'other', shape);
+  }
+  assert.deepEqual(RECORDED.list.entries.folder, { kind: 'dir', isLink: false });
+  assert.deepEqual(RECORDED.list.entries.file, { kind: 'file', isLink: false });
+  assert.deepEqual(RECORDED.list.entries['hard-link'], { kind: 'file', isLink: false });
+});
+
+test('a transcript at the path from cwd is found there, and nothing is listed', async () => {
+  const fs = fakeFs({ [pathOf(0)]: transcript() }, { listing: [entry(WT('a'))] });
+  const found = await find(fs, newFinder());
+  assert.deepEqual(found, { path: pathOf(0), size: transcript().text.length, mtimeMs: MTIME });
+  assert.deepEqual(fs.lists, []);
+});
+
+test('a transcript only under one worktree folder of its launch folder is found there, and other folders are never looked in', async () => {
+  const listing = [entry('C--work'), entry(WT('a')), entry('C--other--claude-worktrees-a'), entry(`${WT('b')}-file`, 'file')];
+  const fs = fakeFs({ [wtPath('a')]: transcript() }, { listing });
+  const found = await find(fs, newFinder());
+  assert.equal(found?.path, wtPath('a'));
+  assert.deepEqual(fs.lists, [PROJECTS]);
+  assert.deepEqual(fs.stats, [PROJECTS, pathOf(0), wtPath('a')]);
+});
+
+test('two hits give none: a session id is unique, so a second one was planted', async () => {
+  const fs = fakeFs({ [wtPath('a')]: transcript(), [wtPath('b')]: transcript() }, { listing: [entry(WT('a')), entry(WT('b'))] });
+  assert.equal(await find(fs, newFinder()), undefined);
+});
+
+test('more than 20 candidate folders give none, with no stat of any; 20 still find the one hit', async () => {
+  assert.equal(MAX_CANDIDATES, 20);
+  const names = n => Array.from({ length: n }, (_, i) => entry(WT(`w${i}`)));
+  const over = fakeFs({ [wtPath('w0')]: transcript() }, { listing: names(21) });
+  assert.equal(await find(over, newFinder()), undefined);
+  assert.deepEqual(over.stats, [PROJECTS, pathOf(0)]);
+  const at = fakeFs({ [wtPath('w0')]: transcript() }, { listing: names(20) });
+  assert.equal((await find(at, newFinder()))?.path, wtPath('w0'));
+});
+
+test('a listing over 5,000 entries is not looked at; one of 5,000 is', async () => {
+  assert.equal(MAX_LISTING, 5000);
+  const filler = n => Array.from({ length: n }, (_, i) => entry(`C--elsewhere-${i}`));
+  const over = fakeFs({ [wtPath('a')]: transcript() }, { listing: [entry(WT('a')), ...filler(5000)] });
+  assert.equal(await find(over, newFinder()), undefined);
+  assert.deepEqual(over.stats, [PROJECTS, pathOf(0)]);
+  const at = fakeFs({ [wtPath('a')]: transcript() }, { listing: [entry(WT('a')), ...filler(4999)] });
+  assert.equal((await find(at, newFinder()))?.path, wtPath('a'));
+});
+
+test('a link folder and a junction folder, as the engine lists them, are not candidates, even with a transcript behind them', async () => {
+  for (const shape of ['junction', 'dir-symlink', 'broken-junction', 'file-symlink']) {
+    const fs = fakeFs({ [wtPath('a')]: transcript() }, { listing: [entry(WT('a'), shape)] });
+    assert.equal(await find(fs, newFinder()), undefined, shape);
+    assert.ok(!fs.stats.includes(wtPath('a')), shape);
+  }
+});
+
+test('a folder name holding a separator, or over 255 characters, is not a candidate', async () => {
+  const pathFor = name => `${PROJECTS}\\${name}\\${SID[0]}.jsonl`;
+  // Each would pass the place check if it were looked in: its real path is
+  // the projects folder, its name and the transcript.
+  for (const name of [`${WT('a')}\\x`, `${WT('a')}/x`, WT('a'.repeat(255 - WT('').length + 1))]) {
+    const fs = fakeFs({ [pathFor(name)]: transcript() }, { listing: [entry(name)] });
+    assert.equal(await find(fs, newFinder()), undefined, name);
+    assert.ok(!fs.stats.includes(pathFor(name)), name);
+  }
+  const longest = WT('a'.repeat(255 - WT('').length));
+  assert.equal(longest.length, 255);
+  const fs = fakeFs({ [pathFor(longest)]: transcript() }, { listing: [entry(longest)] });
+  assert.equal((await find(fs, newFinder()))?.path, pathFor(longest));
+});
+
+test('the place check: a link file, a folder, or a real path that is absent or elsewhere is no transcript, at cwd and in a worktree', async () => {
+  const bad = [
+    { ...transcript(), isLink: true },
+    { ...transcript(), kind: 'dir' },
+    { ...transcript(), kind: 'other' },
+    { ...transcript(), realPath: undefined },
+    { ...transcript(), realPath: 'C:\\elsewhere\\t.jsonl' },
+    // Inside projects, but under the launch folder's own name: not where the
+    // worktree folder's name says.
+    { ...transcript(), realPath: pathOf(0) },
+    { ...transcript(), realPath: `${PROJECTS}\\${WT('a')}\\${SID[1]}.jsonl` },
+  ];
+  for (const f of bad) {
+    const fs = fakeFs({ [wtPath('a')]: f }, { listing: [entry(WT('a'))] });
+    assert.equal(await find(fs, newFinder()), undefined, JSON.stringify(f));
+  }
+  // A cwd path that fails the check goes on to the worktree folders.
+  for (const f of [{ ...transcript(), isLink: true }, { ...transcript(), realPath: wtPath('a') }]) {
+    const fs = fakeFs({ [pathOf(0)]: f, [wtPath('a')]: transcript() }, { listing: [entry(WT('a'))] });
+    assert.equal((await find(fs, newFinder()))?.path, wtPath('a'), JSON.stringify(f));
+  }
+});
+
+test('the place check compares as the roster path rule does: case folded on a Windows path, exact on a Linux one', async () => {
+  const upper = fakeFs({ [pathOf(0)]: { ...transcript(), realPath: pathOf(0).toUpperCase() } });
+  assert.equal((await find(upper, newFinder()))?.path, pathOf(0));
+  const LINUX = '/home/u/.claude';
+  const lp = `${LINUX}/projects/-work/${SID[0]}.jsonl`;
+  const linux = sensitive => {
+    const files = { [lp]: { ...transcript(), realPath: sensitive ? lp.replace('/home/u', '/home/U') : lp } };
+    const fs = fakeFs(files);
+    fs.io.stat = async p => (p === `${LINUX}/projects` ? { kind: 'dir', size: 0, mtimeMs: 0, isLink: false, realPath: p } : fakeFs(files).io.stat(p));
+    return fs;
+  };
+  const r = { name: 'A', status: 'idle', sessionId: SID[0], cwd: '/work' };
+  for (const [sensitive, expected] of [[false, lp], [true, undefined]]) {
+    const fs = linux(sensitive);
+    const cache = newFinder();
+    await readProjects(LINUX, fs.io, cache);
+    assert.equal((await findTranscript(LINUX, r, fs.io, cache))?.path, expected, String(sensitive));
+  }
+});
+
+test('with no real projects folder nothing is found and nothing is listed', async () => {
+  for (const projects of [null, { kind: 'file', text: '' }, { kind: 'dir', text: '', realPath: undefined }, { reject: `EACCES ${PROJECTS}` }]) {
+    const fs = fakeFs({ [PROJECTS]: projects, [pathOf(0)]: transcript(), [wtPath('a')]: transcript() }, { listing: [entry(WT('a'))] });
+    assert.equal(await find(fs, newFinder()), undefined, JSON.stringify(projects));
+    assert.deepEqual(fs.lists, []);
+  }
+});
+
+test('a rejected listing, stat or clock counts as no hit and throws nothing, and its message is kept nowhere', async () => {
+  const secret = `EACCES: ${PROJECTS}\\${WT('a')} token=abc123`;
+  const kept = cache => JSON.stringify({ ...cache, remembered: [...cache.remembered] });
+  const cases = [
+    fakeFs({ [wtPath('a')]: transcript() }, { listing: () => { throw new Error(secret); } }),
+    fakeFs({ [wtPath('a')]: { reject: secret } }, { listing: [entry(WT('a'))] }),
+    fakeFs({ [wtPath('a')]: transcript() }, { listing: [entry(WT('a'))] }),
+    fakeFs({ [wtPath('a')]: transcript() }, { listing: [entry(WT('a'))] }),
+  ];
+  cases[2].io.now = async () => { throw new Error(secret); };
+  // An engine with no listing behaves as a rejected one.
+  delete cases[3].io.list;
+  for (const fs of cases) {
+    const cache = newFinder();
+    assert.equal(await find(fs, cache), undefined);
+    assert.ok(!kept(cache).includes('abc123') && !kept(cache).includes('EACCES'));
+  }
+  // A listing that is not a list, or holds entries of the wrong shape, finds nothing.
+  for (const listing of [null, 'x', { length: 1, 0: entry(WT('a')) }, [null, 5, { name: 5, kind: 'dir', isLink: false }, { name: WT('a'), kind: 'dir' }]]) {
+    const fs = fakeFs({ [wtPath('a')]: transcript() }, { listing });
+    assert.equal(await find(fs, newFinder()), undefined, JSON.stringify(listing));
+  }
+});
+
+test('the listing runs at most once a minute, and a miss and a hit are each remembered until the next listing', async () => {
+  assert.equal(LIST_EVERY_MS, 60000);
+  const clock = { now: NOW };
+  const files = {};
+  let listing = [entry(WT('a'))];
+  const fs = fakeFs(files, { clock, listing: () => listing });
+  const cache = newFinder();
+  assert.equal(await find(fs, cache), undefined);
+  assert.equal(fs.lists.length, 1);
+  // Planted after the miss: the miss stands until the next listing, and the
+  // candidates are not looked in again.
+  files[wtPath('a')] = transcript();
+  clock.now = NOW + 59999;
+  const before = fs.stats.length;
+  assert.equal(await find(fs, cache), undefined);
+  assert.equal(fs.lists.length, 1);
+  assert.equal(fs.stats.length - before, 2, 'the projects folder and the cwd path only');
+  clock.now = NOW + 60000;
+  assert.equal((await find(fs, cache))?.path, wtPath('a'));
+  assert.equal(fs.lists.length, 2);
+  // The hit stands until the next listing, even with the folder gone from the
+  // listing, and it still passes the place check before each use.
+  listing = [];
+  clock.now = NOW + 90000;
+  assert.equal((await find(fs, cache))?.path, wtPath('a'));
+  assert.equal(fs.lists.length, 2);
+  assert.equal(fs.stats.at(-1), wtPath('a'));
+  clock.now = NOW + 120000;
+  assert.equal(await find(fs, cache), undefined);
+  assert.equal(fs.lists.length, 3);
+});
+
+test('a remembered hit that fails the place check is no transcript, though remembered', async () => {
+  const clock = { now: NOW };
+  const files = { [wtPath('a')]: transcript() };
+  const fs = fakeFs(files, { clock, listing: [entry(WT('a'))] });
+  const cache = newFinder();
+  assert.equal((await find(fs, cache))?.path, wtPath('a'));
+  for (const swapped of [{ ...transcript(), isLink: true }, { ...transcript(), realPath: 'C:\\elsewhere\\t.jsonl' }, { ...transcript(), realPath: undefined }]) {
+    files[wtPath('a')] = swapped;
+    clock.now += 1000;
+    assert.equal(await find(fs, cache), undefined, JSON.stringify(swapped));
+  }
+  assert.equal(fs.lists.length, 1);
+});
+
+test('a second hit planted after a remembered one drops it at the next listing', async () => {
+  const clock = { now: NOW };
+  const files = { [wtPath('a')]: transcript() };
+  const fs = fakeFs(files, { clock, listing: [entry(WT('a')), entry(WT('b'))] });
+  const cache = newFinder();
+  assert.equal((await find(fs, cache))?.path, wtPath('a'));
+  files[wtPath('b')] = transcript();
+  clock.now = NOW + 30000;
+  assert.equal((await find(fs, cache))?.path, wtPath('a'));
+  clock.now = NOW + 60000;
+  assert.equal(await find(fs, cache), undefined);
+});
+
+test('the warmth reads ask the projects folder once a poll, find a worktree member, and record not found for a member with no transcript', async () => {
+  const files = { [pathOf(0)]: transcript(), [wtPath('b', 1)]: { text: file(row({ ms: -2 * MIN })) } };
+  const fs = fakeFs(files, { listing: [entry(WT('b'))] });
+  const memory = new Map();
+  const cache = newFinder();
+  const rows = [agent('A', 0), agent('B', 1), agent('C', 2)];
+  const out = await readWarmth(rows, ['A', 'B', 'C'], CONFIG, memory, fs.io, cache);
+  assert.deepEqual(out.map(w => [w.name, w.kind, w.at]), [['A', 'call', NOW - MIN], ['B', 'call', NOW - 2 * MIN], ['C', 'not-found', undefined]]);
+  assert.equal(fs.stats.filter(p => p === PROJECTS).length, 1);
+  assert.equal(fs.lists.length, 1, 'one listing for both members that missed');
+  // The poll's found paths, by name, for the link reads; none for C.
+  assert.deepEqual([...cache.byName].map(([n, f]) => [n, f?.path]), [['A', pathOf(0)], ['B', wtPath('b', 1)], ['C', undefined]]);
+  // No record holds a path or a listed name.
+  assert.ok(!JSON.stringify(out).includes('cfg') && !JSON.stringify(out).includes('claude-worktrees'));
+  // A member that leaves the roster leaves the memory.
+  assert.deepEqual([...cache.remembered.keys()].sort(), [SID[1], SID[2]]);
+  await readWarmth([agent('A', 0)], ['A'], CONFIG, memory, fs.io, cache);
+  assert.deepEqual([...cache.remembered.keys()], []);
+  assert.deepEqual([...cache.byName.keys()], ['A']);
+});
+
+test('a name two rows share, or a row with no session id, is never looked for', async () => {
+  const fs = fakeFs({ [pathOf(0)]: transcript() }, { listing: [entry(WT('a'))] });
+  const cache = newFinder();
+  const bare = { name: 'B', status: 'idle', cwd: 'C:\\work' };
+  const out = await readWarmth([agent('A', 0), agent('A', 1), bare], ['A', 'B'], CONFIG, new Map(), fs.io, cache);
+  assert.deepEqual(out, [{ name: 'A', kind: 'shared' }]);
+  assert.deepEqual(fs.stats, []);
+  assert.deepEqual(fs.lists, []);
+  assert.equal(cache.byName.size, 0);
+});
+
+test('the not-found line: "◆ transcript not found", dim, whatever the live state, with no cache bar; the stored check keeps it', () => {
+  const missing = { name: 'S', kind: 'not-found' };
+  for (const state of ['idle', 'busy', 'working', undefined]) {
+    assert.deepEqual(warmthLine(missing, state, 'needs-you', NOW), { tone: 'dim', text: '◆ transcript not found' });
+    assert.equal(view.cacheBar(missing, state, NOW), undefined);
+  }
+  assert.deepEqual(warmthFrom([missing]), [missing]);
 });
 
 // --- severity groups and badges ---------------------------------------------
