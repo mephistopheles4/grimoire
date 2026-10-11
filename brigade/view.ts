@@ -18,8 +18,10 @@ import type { Pair, UsageCategory, UsageLimit, UsageSnapshot, Warmth } from './t
 // it is an SVG image, built here as a string. Every piece of text in that
 // string goes through `svgText`, and every attribute value is a number or
 // percentage this module worked out (`num`, `pct`), or a fixed name: a class
-// from `STYLE`, the one clip id, `end`, the one gap transform. The test's
-// attribute allowlist holds every image this module builds to those forms.
+// from `STYLE`, a clip id (`cb` for the usage image, `st` for the status
+// strip), `end`, the one gap transform. The test's attribute allowlist holds
+// every image this module builds to those forms: the usage image, the status
+// strip and the to-do bar.
 
 /** A snapshot before the first reading: what the pane holds until one comes. */
 export const EMPTY_USAGE: UsageSnapshot = { limits: [], context: {} }
@@ -270,9 +272,10 @@ export const STYLE = [
   '.muted{fill:#73726c}',
   '.track{fill:#e8e6dc}',
   '.ok{fill:#2c84db}.warn{fill:#c27c0e}.hot{fill:#c6413a}',
+  '.done{fill:#3f8f4f}.stopped{fill:#9c9a92}',
   '.free{fill:#e8e6dc}.buffer{fill:#d6d3c8}',
   '.c0{fill:#d97757}.c1{fill:#6a9bcc}.c2{fill:#788c5d}.c3{fill:#c46686}.c4{fill:#8b7fc7}.c5{fill:#c9a227}.c6{fill:#5fa8a0}',
-  '@media (prefers-color-scheme: dark){text{fill:#e8e6e1}.muted{fill:#9c9a92}.track,.free{fill:#3a3935}.buffer{fill:#4a4944}.ok{fill:#5aa2ef}.warn{fill:#e8a23a}.hot{fill:#ef6b62}}',
+  '@media (prefers-color-scheme: dark){text{fill:#e8e6e1}.muted{fill:#9c9a92}.track,.free{fill:#3a3935}.buffer{fill:#4a4944}.ok{fill:#5aa2ef}.warn{fill:#e8a23a}.hot{fill:#ef6b62}.done{fill:#62b56f}.stopped{fill:#6b6a64}}',
 ].join('')
 
 const XMLNS = 'http://www.w3.org/2000/svg'
@@ -556,11 +559,17 @@ export function groupCards<T>(cards: readonly T[], hidden: ReadonlySet<unknown>)
   const out: Groups<T> = { needsYou: [], working: [], finished: [] }
   if (!Array.isArray(cards)) return out
   cards.forEach((c, i) => {
-    if (!isRecord(c) || hidden.has(c.title)) return
-    const look = statusOf(c.status)
+    const look = shownLook(c, hidden)
     if (look !== undefined) out[look.group].push({ c, i })
   })
   return out
+}
+
+/** A stored card's look when the pane shows it: a record, not dismissed, with
+ *  one of the four statuses; else undefined. The groups, the heading and the
+ *  status strip all count cards by this one rule. */
+function shownLook(c: unknown, hidden: ReadonlySet<unknown>): StatusLook | undefined {
+  return isRecord(c) && !hidden.has(c.title) ? statusOf(c.status) : undefined
 }
 
 /** The stored open state of DONE · STOPPED, open only when exactly true. */
@@ -591,8 +600,186 @@ export function reportCount(titles: readonly string[], inbox: unknown): number {
 /** The count beside "Waiting on you": the cards that need the owner, plus the
  *  to-dos that are neither done nor ticking. */
 export function waitingCount(needsYou: number, todos: readonly { id: string }[], done: unknown, ticking: unknown): number {
-  const out = new Set([...idsFrom(done), ...ticksFrom(ticking).map(p => p.name)])
+  const out = doneOrTicking(done, ticking)
   return needsYou + todos.filter(t => !out.has(t.id)).length
+}
+
+/** The to-do ids that count as done: those in the done list or ticking. The
+ *  Waiting on you count and the to-do bar both read this one set. */
+function doneOrTicking(done: unknown, ticking: unknown): Set<string> {
+  return new Set([...idsFrom(done), ...ticksFrom(ticking).map(p => p.name)])
+}
+
+// --- The status strip and the to-do bar ---------------------------------------
+//
+// Under the Brigade heading: a strip with one segment per status, its legend,
+// and a bar of the to-dos done. Both are drawn from counts alone. Each builder
+// takes the stored roster and lists as they are, reads a card only through
+// the status Map and a to-do only by its id, and writes only numbers, fixed
+// words and fixed class names: no title, to-do text, report or usage text
+// reaches either image or its alt.
+
+/** The strip's cells on the terminal. */
+export const STRIP_CELLS = 32
+/** The to-do bar's cells on the terminal. */
+export const TODO_CELLS = 20
+
+const STRIP_HEIGHT = 8
+const TODO_HEIGHT = 12
+
+// A count as the drawing takes it: a finite number above 0, floored, else 0.
+const whole = (v: unknown): number => (typeof v === 'number' && Number.isFinite(v) && v > 0 ? Math.floor(v) : 0)
+
+/** One status's count among the shown cards. */
+export type StatusCount = { look: StatusLook; count: number }
+
+/** The shown cards' count per status, in the Map's order, with no entry for a
+ *  status with no cards. Shown is as `groupCards` has it: a record, not
+ *  dismissed, and one of the four statuses, by the rule groupCards uses, so
+ *  the strip, its legend, the heading and the groups count the same cards. */
+export function statusCounts(cards: unknown, hidden: ReadonlySet<unknown>): StatusCount[] {
+  const counts = new Map<StatusLook, number>()
+  if (Array.isArray(cards)) {
+    for (const c of cards) {
+      const look = shownLook(c, hidden)
+      if (look !== undefined) counts.set(look, (counts.get(look) ?? 0) + 1)
+    }
+  }
+  return [...STATUS.values()].flatMap(look => {
+    const count = counts.get(look) ?? 0
+    return count > 0 ? [{ look, count }] : []
+  })
+}
+
+/** The terminal strip's run lengths, one per count, in the same order. The
+ *  cells go by largest remainder of each count's share, a tie to the earlier
+ *  count; then each count above 0 that got no cell takes one from the
+ *  longest run, the earliest of equal ones. A count that is not a
+ *  finite number above 0 is 0. The runs sum to exactly `cells` whenever a
+ *  count is above 0; with none, or a cell count that is not a positive whole
+ *  number, every run is 0 and there is nothing to draw. Never throws. */
+export function stripRuns(counts: readonly unknown[], cells: number): number[] {
+  const c = counts.map(whole)
+  const total = c.reduce((s, n) => s + n, 0)
+  const n = Number.isInteger(cells) && cells > 0 ? cells : 0
+  if (total === 0 || n === 0) return c.map(() => 0)
+  const quota = c.map(v => (v / total) * n)
+  const runs = quota.map(Math.floor)
+  const remainder = quota.map((q, i) => q - (runs[i] ?? 0))
+  let left = n - runs.reduce((s, r) => s + r, 0)
+  const byRemainder = remainder.map((_, i) => i).sort((a, b) => (remainder[b] ?? 0) - (remainder[a] ?? 0) || a - b)
+  for (const i of byRemainder) {
+    if (left <= 0) break
+    runs[i] = (runs[i] ?? 0) + 1
+    left -= 1
+  }
+  c.forEach((v, i) => {
+    if (v === 0 || (runs[i] ?? 0) > 0) return
+    const longest = runs.reduce((best, r, j) => (r > (runs[best] ?? 0) ? j : best), 0)
+    // A run of one cell gives none away: with more counts than cells, the
+    // later ones draw nothing rather than break the sum.
+    if ((runs[longest] ?? 0) <= 1) return
+    runs[longest] = (runs[longest] ?? 0) - 1
+    runs[i] = 1
+  })
+  return runs
+}
+
+/** An SVG image of fixed words, numbers and class names, and its alt text. */
+export type BarImage = { source: string; alt: string; height: number }
+
+const svgOpen = (height: number) => `<svg xmlns="${XMLNS}" width="100%" height="${num(height)}"><style>${STYLE}</style>`
+
+/** The strip as an SVG: one segment per count above 0, in the order given,
+ *  each as wide as its share, under one rounded clip, id `st`. Each segment
+ *  but the last sits in a nested <svg> with its rect moved 2 px left, so a
+ *  2 px gap follows it at any width. A count that is not a finite number
+ *  above 0 draws nothing. The alt text is the legend's words and numbers. */
+export function stripSvg(entries: readonly StatusCount[]): BarImage {
+  const shown = entries.map(e => ({ look: e.look, count: whole(e.count) })).filter(e => e.count > 0)
+  const total = shown.reduce((s, e) => s + e.count, 0)
+  const h = num(STRIP_HEIGHT)
+  let x = 0
+  const segments = shown.map((e, i) => {
+    const w = (e.count / total) * 100
+    const at = x
+    x += w
+    return i < shown.length - 1
+      ? `<svg x="${pct(at)}" width="${pct(w)}" height="${h}"><rect class="${e.look.cls}" width="100%" height="${h}" transform="translate(-2 0)"/></svg>`
+      : `<rect class="${e.look.cls}" x="${pct(at)}" y="0" width="${pct(w)}" height="${h}"/>`
+  })
+  const source =
+    svgOpen(STRIP_HEIGHT) +
+    `<clipPath id="st"><rect x="0" y="0" width="100%" height="${h}" rx="${num(STRIP_HEIGHT / 2)}"/></clipPath>` +
+    `<g clip-path="url(#st)">${segments.join('')}</g></svg>`
+  const alt = shown.length === 0 ? 'none' : shown.map(e => `${e.count} ${e.look.word}`).join(', ')
+  return { source, alt: `Status: ${alt}`, height: STRIP_HEIGHT }
+}
+
+/** What the strip draws: the shown cards' total, the legend's entries, the
+ *  terminal's runs of `█` in each status's theme colour, summing to 32, and
+ *  the SVG. Undefined when no shown card has one of the four statuses. */
+export type StripView = {
+  total: number
+  legend: { text: string; color: string }[]
+  runs: { text: string; color: string }[]
+  svg: BarImage
+}
+
+export function statusStrip(cards: unknown, hidden: ReadonlySet<unknown>): StripView | undefined {
+  const counts = statusCounts(cards, hidden)
+  const total = counts.reduce((s, e) => s + e.count, 0)
+  if (total === 0) return undefined
+  const runs = stripRuns(
+    counts.map(e => e.count),
+    STRIP_CELLS,
+  )
+  return {
+    total,
+    legend: counts.map(e => ({ text: `${e.look.glyph} ${e.count} ${e.look.word}`, color: e.look.color })),
+    runs: counts.flatMap((e, i) => ((runs[i] ?? 0) > 0 ? [{ text: '█'.repeat(runs[i] ?? 0), color: e.look.color }] : [])),
+    svg: stripSvg(counts),
+  }
+}
+
+/** The roster's to-dos and how many of them are done: a to-do counts as done
+ *  when its id is in the done list or ticking, once whichever holds it, so
+ *  the bar agrees with the "Waiting on you" count. Lists of the wrong shape
+ *  count as empty, and a to-do that is not a record with a text id counts
+ *  nowhere. */
+export function todoCounts(todos: unknown, done: unknown, ticking: unknown): { done: number; total: number } {
+  const list = Array.isArray(todos) ? todos.filter((t): t is { id: string } => isRecord(t) && typeof t.id === 'string') : []
+  const out = doneOrTicking(done, ticking)
+  return { done: list.filter(t => out.has(t.id)).length, total: list.length }
+}
+
+/** The to-do bar as an SVG: a rounded track and a rounded green fill, class
+ *  `done`, with no clip and no id. A count that is not a finite number above
+ *  0 is 0, and done past the total is the total. The fill is never narrower
+ *  than 6 px, as the usage bars' is. The alt text is `To-dos N of M done`. */
+export function todoSvg(done: number, total: number): BarImage {
+  const m = whole(total)
+  const n = Math.min(whole(done), m)
+  const fraction = m > 0 ? n / m : 0
+  const rect = (cls: string, width: string) => `<rect class="${cls}" x="0" y="3" width="${width}" height="6" rx="3"/>`
+  const source =
+    svgOpen(TODO_HEIGHT) +
+    rect('track', '100%') +
+    (fraction > 0 ? rect('done', '6') + rect('done', pct(fraction * 100)) : '') +
+    '</svg>'
+  return { source, alt: `To-dos ${n} of ${m} done`, height: TODO_HEIGHT }
+}
+
+/** What the to-do bar draws: "N of M done", the terminal's 20 eighth-block
+ *  cells, and the SVG. Undefined when the roster has no to-dos. */
+export function todoBar(
+  todos: unknown,
+  done: unknown,
+  ticking: unknown,
+): { text: string; cells: string; svg: BarImage } | undefined {
+  const c = todoCounts(todos, done, ticking)
+  if (c.total === 0) return undefined
+  return { text: `${c.done} of ${c.total} done`, cells: eighthBar(c.done / c.total, TODO_CELLS), svg: todoSvg(c.done, c.total) }
 }
 
 // --- Cache warmth ----------------------------------------------------------

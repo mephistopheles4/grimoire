@@ -1311,7 +1311,11 @@ for (const surface of ['terminal', 'desktop'] as const) {
     // above then rejects, naming the refusal (a Button given plain={false}
     // was seen to fail both surfaces this way); drawn() reads the tree drawn.
     expect(await mounted.drawn()).toBeDefined()
-    const image = await mounted.find({ type: 'Svg' })
+    // The pane draws the status strip and the to-do bar as images too (#256),
+    // so the usage image is found by its alt, which starts "Usage:".
+    const images = await mounted.findAll({ type: 'Svg' })
+    const isUsage = (n: any) => n?.type === 'Svg' && String(n.props.alt).startsWith('Usage:')
+    const image = images.find(isUsage)
     if (surface === 'desktop') {
       // Full width: no width prop, a fixed height, the markup in percentages,
       // and a column Box that grows around it.
@@ -1320,20 +1324,22 @@ for (const surface of ['terminal', 'desktop'] as const) {
       expect(image.props.height).toBeGreaterThan(0)
       expect(image.props.source).toMatch(/^<svg xmlns="http:\/\/www\.w3\.org\/2000\/svg" width="100%" height="\d+">/)
       const boxes = await mounted.findAll({ type: 'Box' })
-      const around = boxes.filter((b: any) => b.children.some((c: any) => c?.type === 'Svg'))
+      const around = boxes.filter((b: any) => b.children.some(isUsage))
       expect(around.length).toBe(1)
       expect(around[0].props.flexGrow).toBe(1)
       expect(around[0].props.flexDirection).toBe('column')
       expect(around[0].props.alignItems).toBeUndefined()
     } else {
       // The terminal draws text rows: 20 eighth-block cells between dim marks.
-      expect(image).toBeUndefined()
-      // Three rows, Context and two rate limits, with two end marks each.
+      expect(images.length).toBe(0)
+      // Three usage rows, Context and two rate limits, with two end marks
+      // each. The to-do bar, drawn above them (#256), adds two marks and a
+      // row of 20 cells; its one to-do is not done, so the row is blank.
       const marks = await mounted.findAll({ type: 'Text', text: /^[▕▏]$/ })
-      expect(marks.length).toBe(6)
+      expect(marks.length).toBe(8)
       for (const m of marks) expect(m.props.dimColor).toBe(true)
       const bars = await mounted.findAll({ type: 'Text', text: /^[█▏▎▍▌▋▊▉ ]{20}$/ })
-      expect(bars.map((b: any) => b.text)).toEqual([`████▋${' '.repeat(15)}`, `████████████▊${' '.repeat(7)}`, `██▍${' '.repeat(17)}`])
+      expect(bars.map((b: any) => b.text)).toEqual([' '.repeat(20), `████▋${' '.repeat(15)}`, `████████████▊${' '.repeat(7)}`, `██▍${' '.repeat(17)}`])
     }
   })
 }
@@ -1555,5 +1561,221 @@ for (const surface of SURFACES) {
     expect(text.includes('odd-')).toBe(false)
     expect(text.includes('__proto__')).toBe(false)
     expect(text.includes('paused')).toBe(false)
+  })
+}
+// --- the Brigade heading, the status strip and the to-do bar --------------------
+//
+// Spec revision 3 on #250, S2, S3, S4 and S8; ticket #256. Each test runs on
+// both surfaces: Desktop draws the strip and the bar as images, the terminal
+// as cells of text.
+
+type Drawn = { type: string; props: Record<string, any>; text?: string; children: any[] }
+const drawnOf = async (m: any): Promise<Drawn[]> => {
+  await m.redraw(PANE_PROPS)
+  return (await m.findAll({})) as Drawn[]
+}
+const imagesOf = (nodes: Drawn[]) => nodes.filter(n => n.type === 'Svg')
+const imageBy = (nodes: Drawn[], alt: RegExp) => imagesOf(nodes).find(n => alt.test(String(n.props.alt)))
+// The Box that holds a node as a direct child.
+const boxAround = (nodes: Drawn[], child: (c: any) => boolean) => nodes.find(n => n.type === 'Box' && n.children.some(child))
+// The terminal strip: its runs, each a Text of `█` in a status's colour.
+const runsOf = (nodes: Drawn[]) => nodes.filter(n => n.type === 'Text' && typeof n.props.color === 'string' && /^█+$/.test(n.text ?? ''))
+const TODOS = [
+  { id: 't1', text: 'first' },
+  { id: 't2', text: 'second' },
+  { id: 't3', text: 'third' },
+]
+const LEGEND = '● 2 needs you  ◐ 1 working  ✓ 1 done  – 1 stopped'
+
+for (const surface of SURFACES) {
+  test(`${surface}: the Brigade heading counts the shown cards, then the strip, its legend and the to-do bar, above Waiting on you`, async ($, on) => {
+    await grouped(on, $, { ...ALL, todos: TODOS })
+    const m = await mountOn($, surface)
+    const nodes = await drawnOf(m)
+    const text = await textOf(m)
+    expect(nodes.some(n => n.type === 'Text' && n.text === 'Brigade' && n.props.bold === true)).toBe(true)
+    const count = nodes.find(n => n.type === 'Text' && n.text === '5 sessions')
+    expect(count?.props.dimColor).toBe(true)
+    // The legend: each status with its glyph, count and word, in its colour,
+    // in the Map's order.
+    const legend = nodes.find(n => n.type === 'Text' && n.text === LEGEND)
+    expect(legend).toBeDefined()
+    // The line's own Text holds the entries, each a Text in its colour.
+    const colours = nodes.filter(n => n.type === 'Text' && n.text !== LEGEND && /^ *[●◐✓–] \d+ /.test(n.text ?? '')).map(n => n.props.color)
+    expect(colours).toEqual(['warning', 'suggestion', 'success', 'inactive'])
+    expect(text.indexOf('Brigade')).toBeLessThan(text.indexOf('5 sessions'))
+    expect(text.indexOf('5 sessions')).toBeLessThan(text.indexOf(LEGEND))
+    expect(text.indexOf(LEGEND)).toBeLessThan(text.indexOf('To-dos'))
+    expect(text.indexOf('0 of 3 done')).toBeLessThan(text.indexOf('Waiting on you'))
+    expect(text.includes('Sessions')).toBe(false)
+    const done = nodes.find(n => n.type === 'Text' && n.text === '0 of 3 done')
+    expect(done?.props.dimColor).toBe(true)
+    // The text beside the bar sits in a Box that does not shrink.
+    // A Box's children are the raw tree: a Text holds its text in children.
+    expect(boxAround(nodes, c => c?.type === 'Text' && c.children?.[0] === '0 of 3 done')?.props.flexShrink).toBe(0)
+    if (surface === 'desktop') {
+      const strip = imageBy(nodes, /^Status:/)
+      const bar = imageBy(nodes, /^To-dos/)
+      expect(strip?.props.alt).toBe('Status: 2 needs you, 1 working, 1 done, 1 stopped')
+      expect(bar?.props.alt).toBe('To-dos 0 of 3 done')
+      for (const image of [strip, bar]) {
+        // Full width: no width prop, a fixed height, the markup in percentages,
+        // in a column Box that grows.
+        expect(image?.props.width).toBeUndefined()
+        expect(image?.props.height).toBeGreaterThan(0)
+        expect(image?.props.source).toMatch(/^<svg xmlns="http:\/\/www\.w3\.org\/2000\/svg" width="100%" height="\d+">/)
+        const around = boxAround(nodes, c => c?.type === 'Svg' && c.props?.alt === image?.props.alt)
+        expect(around?.props.flexGrow).toBe(1)
+        expect(around?.props.flexDirection).toBe('column')
+      }
+      // The bar's Box keeps a stub at the narrowest pane.
+      expect(boxAround(nodes, c => c?.type === 'Svg' && c.props?.alt === bar?.props.alt)?.props.minWidth).toBe(8)
+      expect(runsOf(nodes).length).toBe(0)
+    } else {
+      expect(imagesOf(nodes).length).toBe(0)
+      // 32 cells: two needs-you cards in five take 13, the rest 7, 6 and 6.
+      expect(runsOf(nodes).map(r => [r.props.color, [...(r.text ?? '')].length])).toEqual([
+        ['warning', 13],
+        ['suggestion', 7],
+        ['success', 6],
+        ['inactive', 6],
+      ])
+      const cells = nodes.find(n => n.type === 'Text' && n.props.color === 'success' && /^[█▏▎▍▌▋▊▉ ]{20}$/.test(n.text ?? ''))
+      expect(cells?.text).toBe(' '.repeat(20))
+    }
+  })
+
+  test(`${surface}: a ticked to-do counts as done in the bar at once, and Waiting on you agrees`, async ($, on) => {
+    const w = await grouped(on, $, { ...ALL, todos: TODOS })
+    const m = await mountOn($, surface)
+    expect((await textOf(m)).includes('Waiting on you 5')).toBe(true)
+    await m.press({ key: 'todo-0-t1' })
+    let nodes = await drawnOf(m)
+    expect(nodes.some(n => n.type === 'Text' && n.text === '1 of 3 done')).toBe(true)
+    expect((await textOf(m)).includes('Waiting on you 4')).toBe(true)
+    if (surface === 'desktop') expect(imageBy(nodes, /^To-dos/)?.props.alt).toBe('To-dos 1 of 3 done')
+    else expect(nodes.some(n => n.type === 'Text' && n.props.color === 'success' && n.text === `██████▋${' '.repeat(13)}`)).toBe(true)
+    // Past the grace period the sweep moves it to done: still one of three.
+    await w.clock.advance(35000)
+    await w.clock.settle()
+    nodes = await drawnOf(m)
+    expect(nodes.some(n => n.type === 'Text' && n.text === '1 of 3 done')).toBe(true)
+    expect((await textOf(m)).includes('Waiting on you 4')).toBe(true)
+  })
+
+  test(`${surface}: with no cards and no to-dos the heading says so, and there is no strip or bar`, async ($, on) => {
+    await grouped(on, $, { cards: [], todos: [] })
+    const m = await mountOn($, surface)
+    const nodes = await drawnOf(m)
+    expect(nodes.some(n => n.type === 'Text' && n.text === 'No cards in the roster yet.')).toBe(true)
+    expect(imagesOf(nodes).filter(n => !String(n.props.alt).startsWith('Usage:')).length).toBe(0)
+    expect(runsOf(nodes).length).toBe(0)
+    expect((await textOf(m)).includes('To-dos')).toBe(false)
+    expect((await textOf(m)).includes('sessions')).toBe(false)
+  })
+
+  test(`${surface}: cards that are stored but none shown read as no cards: all dismissed, or none with a known status`, async ($, on) => {
+    // Every card dismissed: one done card, pressed away.
+    await grouped(on, $, { cards: [card('only', { status: 'done' })], todos: [] })
+    const m = await mountOn($, surface)
+    await m.press({ key: 'fold' })
+    await m.press({ key: 'dismiss-0-only' })
+    const nodes = await drawnOf(m)
+    expect(nodes.some(n => n.type === 'Text' && n.text === 'No cards in the roster yet.')).toBe(true)
+    expect(nodes.some(n => n.type === 'Text' && /sessions?$/.test(n.text ?? ''))).toBe(false)
+    expect(imageBy(nodes, /^Status:/)).toBeUndefined()
+    expect(runsOf(nodes).length).toBe(0)
+  })
+
+  test(`${surface}: a roster whose only cards have unknown statuses reads as no cards`, async ($, on) => {
+    const w = await grouped(on, $, { cards: [card('one')], todos: [] }, (key, value) =>
+      key === 'roster' ? { ...value, cards: [{ ...card('odd'), status: 'paused' }, { ...card('proto'), status: '__proto__' }] } : value,
+    )
+    expect((w.roster.at(-1) as any).cards.length).toBe(2)
+    const nodes = await drawnOf(await mountOn($, surface))
+    expect(nodes.some(n => n.type === 'Text' && n.text === 'No cards in the roster yet.')).toBe(true)
+    expect(nodes.some(n => n.type === 'Text' && /sessions?$/.test(n.text ?? ''))).toBe(false)
+    expect(imageBy(nodes, /^Status:/)).toBeUndefined()
+    expect(runsOf(nodes).length).toBe(0)
+  })
+  test(`${surface}: to-dos with no cards draw the bar and "0 sessions", with no strip`, async ($, on) => {
+    await grouped(on, $, { cards: [], todos: TODOS })
+    const m = await mountOn($, surface)
+    const nodes = await drawnOf(m)
+    expect(nodes.some(n => n.type === 'Text' && n.text === '0 sessions')).toBe(true)
+    expect(nodes.some(n => n.type === 'Text' && n.text === '0 of 3 done')).toBe(true)
+    expect((await textOf(m)).includes('No cards in the roster yet.')).toBe(false)
+    expect(imageBy(nodes, /^Status:/)).toBeUndefined()
+    expect(runsOf(nodes).length).toBe(0)
+  })
+
+  test(`${surface}: a dismissed card leaves the heading, the strip and the legend`, async ($, on) => {
+    await grouped(on, $, ALL)
+    const m = await mountOn($, surface)
+    await m.press({ key: 'fold' })
+    await m.press({ key: 'dismiss-0-doneone' })
+    const nodes = await drawnOf(m)
+    expect(nodes.some(n => n.type === 'Text' && n.text === '4 sessions')).toBe(true)
+    expect(nodes.some(n => n.type === 'Text' && n.text === '● 2 needs you  ◐ 1 working  – 1 stopped')).toBe(true)
+    if (surface === 'desktop') expect(imageBy(nodes, /^Status:/)?.props.alt).toBe('Status: 2 needs you, 1 working, 1 stopped')
+    else expect(runsOf(nodes).reduce((s, r) => s + [...(r.text ?? '')].length, 0)).toBe(32)
+  })
+
+  test(`${surface}: titles, to-do texts and a report holding hostile text draw, and none of it reaches the strip or the to-do bar`, async ($, on) => {
+    const mark = 'zqmark'
+    // No double quote: a report's sender is read from the wrapper's quoted
+    // attribute, and this text must reach the pane as a card's sender.
+    const hostile = `${mark}<b>&'</svg><script>x</script>\u{202E}rtl${mark}`
+    const roster = {
+      cards: ['needs-you', 'working', 'done', 'stopped'].map((status, i) => card(`${hostile}${i}`, { status, work: hostile, phase: hostile, settings: hostile })),
+      todos: [{ id: 't1', text: hostile, session: `${hostile}0` }, { id: 't2', text: hostile }],
+    }
+    await grouped(on, $, roster)
+    await $.session.receive({ origin: { kind: 'peer' }, text: `<cross-session-message from="${hostile}2">\n${hostile}\n</cross-session-message>` })
+    const m = await mountOn($, surface)
+    await m.press({ key: 'fold' })
+    const nodes = await drawnOf(m)
+    // The roster loaded, and the report is in the pane: the toggle counts it.
+    expect(nodes.some(n => n.type === 'Text' && n.text === '4 sessions')).toBe(true)
+    expect((await textOf(m)).includes('· 1 report')).toBe(true)
+    expect(nodes.some(n => n.type === 'Text' && n.text === '● 1 needs you  ◐ 1 working  ✓ 1 done  – 1 stopped')).toBe(true)
+    expect(nodes.some(n => n.type === 'Text' && n.text === '0 of 2 done')).toBe(true)
+    if (surface === 'desktop') {
+      const strip = imageBy(nodes, /^Status:/)
+      const bar = imageBy(nodes, /^To-dos/)
+      expect(strip?.props.alt).toBe('Status: 1 needs you, 1 working, 1 done, 1 stopped')
+      expect(bar?.props.alt).toBe('To-dos 0 of 2 done')
+      for (const image of [strip, bar]) {
+        const body = String(image?.props.source).replace(/<style>.*?<\/style>/, '')
+        for (const part of [mark, 'script', 'rtl', '&amp;', '&lt;', '\u{202E}']) {
+          expect(body.includes(part)).toBe(false)
+          expect(String(image?.props.alt).includes(part)).toBe(false)
+        }
+        expect(body.includes('<text')).toBe(false)
+      }
+    } else {
+      expect(runsOf(nodes).reduce((s, r) => s + [...(r.text ?? '')].length, 0)).toBe(32)
+      // The to-do bar's cells are blank eighth-block cells: none of its to-dos
+      // is done, and no text reaches them.
+      const cells = nodes.find(n => n.type === 'Text' && n.props.color === 'success' && [...(n.text ?? '')].length === 20)
+      expect(cells?.text).toBe(' '.repeat(20))
+    }
+  })
+
+  test(`${surface}: stored cards with hostile and unknown statuses count nowhere, and the strip still draws 32 cells`, async ($, on) => {
+    const bad = ['__proto__', 'constructor', 'paused', 5, null, { done: true }]
+    const w = await grouped(on, $, ALL, (key, value) =>
+      key === 'roster'
+        ? { ...value, cards: [...(value?.cards ?? []), ...bad.map((status, i) => ({ ...card(`odd-${i}`), status }))] }
+        : value,
+    )
+    // The plant reached the stored roster: five good cards and six odd ones.
+    expect((w.roster.at(-1) as any).cards.length).toBe(11)
+    const m = await mountOn($, surface)
+    const nodes = await drawnOf(m)
+    expect(nodes.some(n => n.type === 'Text' && n.text === '5 sessions')).toBe(true)
+    expect(nodes.some(n => n.type === 'Text' && n.text === LEGEND)).toBe(true)
+    if (surface === 'desktop') expect(imageBy(nodes, /^Status:/)?.props.alt).toBe('Status: 2 needs you, 1 working, 1 done, 1 stopped')
+    else expect(runsOf(nodes).reduce((s, r) => s + [...(r.text ?? '')].length, 0)).toBe(32)
   })
 }
