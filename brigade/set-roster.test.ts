@@ -177,6 +177,8 @@ type World = ReturnType<typeof makeFs> & {
   releaseRun: () => void
   order: string[]
   usage: unknown
+  /** Another plugin that rewrites the pane's state as it is set, as row 15 names. */
+  plant?: (key: string, value: any) => any
 }
 
 // The engine beneath the plugin: the file system, the pane record, the
@@ -280,6 +282,7 @@ function world(on: On, setup: (w: World) => void = w => w.dirs(`${CONFIG}\\plugi
     return { value: { tool: `mcp__grimoire__${e.name}` } }
   })
   on('state.set', ($, e: any, next: any) => {
+    if (w.plant !== undefined) e = { ...e, value: w.plant(e.key, e.value) }
     if (e.key === 'roster') {
       w.roster.push(e.value)
       w.log.push(`roster ${JSON.stringify(e.value)}`)
@@ -1332,5 +1335,225 @@ for (const surface of ['terminal', 'desktop'] as const) {
       const bars = await mounted.findAll({ type: 'Text', text: /^[█▏▎▍▌▋▊▉ ]{20}$/ })
       expect(bars.map((b: any) => b.text)).toEqual([`████▋${' '.repeat(15)}`, `████████████▊${' '.repeat(7)}`, `██▍${' '.repeat(17)}`])
     }
+  })
+}
+
+// --- severity groups and the DONE · STOPPED fold --------------------------------
+//
+// Spec revision 3 on #250, S5 and S10; ticket #254. Each test runs on both
+// surfaces. A tree a surface refuses comes back from the mount, never in the
+// transcript, so every mount here is read for its drawn text as well.
+
+const SURFACES = ['terminal', 'desktop'] as const
+const D1 = 'local_11111111-1111-1111-1111-111111111111'
+const D2 = 'local_22222222-2222-2222-2222-222222222222'
+const D3 = 'local_33333333-3333-3333-3333-333333333333'
+// Every status, out of group order, so the groups have to sort them.
+const ALL = {
+  cards: [
+    card('done-one', { status: 'done' }),
+    card('work-one', { status: 'working' }),
+    card('need-one', { status: 'needs-you' }),
+    card('stop-one', { status: 'stopped' }),
+    card('need-two', { status: 'needs-you' }),
+  ],
+  todos: [],
+}
+// Three titles that fold to one slug, `ab`, one in NEEDS YOU and two in
+// DONE · STOPPED: a group-local index would give the first done or stopped card
+// index 0, which is the needs-you card's place in the roster.
+const SAME_SLUG = {
+  cards: [
+    card('A-b', { status: 'needs-you', desktopId: D1 }),
+    card('a b', { status: 'done', desktopId: D2 }),
+    card('AB!', { status: 'stopped', desktopId: D3 }),
+  ],
+  todos: [],
+}
+
+async function grouped(on: On, $: any, roster: unknown, plant?: (key: string, value: any) => any) {
+  const w = world(on, w => {
+    w.dirs(BRIGADE)
+    w.put(FILE, { type: 'file', data: { text: JSON.stringify(roster) } })
+  })
+  w.plant = plant
+  // A report from another session reaches the bottom of the chain here.
+  on('session.receive', (_: any, e: any) => e)
+  await start($)
+  await brigade($)
+  await w.clock.settle()
+  return w
+}
+// One mount per test: a second mount of the same pane is refused, so a test
+// redraws the one it holds after a press, and reads it again.
+const mountOn = ($: any, surface: string) =>
+  $.ui.mount({ plugin: 'grimoire', surface, component: 'Pane', requestId: 'brigade', props: PANE_PROPS })
+const textOf = async (m: any): Promise<string> => {
+  await m.redraw(PANE_PROPS)
+  return String((await m.findAll({}))[0]?.text ?? '')
+}
+// The drawn text from the first group heading on, past the Waiting on you
+// rows, which repeat each needs-you title.
+const groupsOf = async (m: any): Promise<string> => {
+  const text = await textOf(m)
+  return text.slice(Math.max(0, text.indexOf('NEEDS YOU')))
+}
+for (const surface of SURFACES) {
+  test(`${surface}: cards sit under NEEDS YOU, WORKING, then a closed DONE · STOPPED toggle, in roster order, with full badges`, async ($, on) => {
+    await grouped(on, $, ALL)
+    const m = await mountOn($, surface)
+    const text = await groupsOf(m)
+    // The tree was drawn, not refused: its headings are there, in order.
+    const at = (s: string) => text.indexOf(s)
+    expect(text.startsWith('NEEDS YOU')).toBe(true)
+    expect(at('NEEDS YOU')).toBeLessThan(at('need-one'))
+    expect(at('need-one')).toBeLessThan(at('need-two'))
+    expect(at('need-two')).toBeLessThan(at('WORKING'))
+    expect(at('WORKING')).toBeLessThan(at('work-one'))
+    expect(at('work-one')).toBeLessThan(at('▸ DONE · STOPPED  2'))
+    expect(text.includes('● needs you')).toBe(true)
+    expect(text.includes('◐ working')).toBe(true)
+    // Closed on open: the done and stopped cards are not drawn.
+    expect(text.includes('done-one')).toBe(false)
+    expect(text.includes('stop-one')).toBe(false)
+    expect((await textOf(m)).includes('Sessions')).toBe(false)
+    expect(await m.find({ key: 'fold' })).toBeDefined()
+    // Colour comes from the status Map: the badge and the heading both.
+    const drawn = (await m.findAll({})) as { type: string; props: Record<string, unknown>; text?: string }[]
+    const badge = drawn.find(n => n.type === 'Text' && n.text === '● needs you')
+    expect(badge?.props.color).toBe('warning')
+    const heading = drawn.find(n => n.type === 'Text' && n.props.bold === true && n.text === 'NEEDS YOU 2')
+    expect(heading?.props.color).toBe('warning')
+    expect(drawn.find(n => n.type === 'Text' && n.text === '◐ working')?.props.color).toBe('suggestion')
+  })
+
+  test(`${surface}: an empty group draws no heading`, async ($, on) => {
+    await grouped(on, $, { cards: [card('only', { status: 'done' })], todos: [] })
+    const m = await mountOn($, surface)
+    const text = await textOf(m)
+    expect(text.includes('▸ DONE · STOPPED  1')).toBe(true)
+    expect(text.includes('NEEDS YOU')).toBe(false)
+    expect(text.includes('WORKING')).toBe(false)
+    expect(text.includes('No cards in the roster yet.')).toBe(false)
+  })
+
+  test(`${surface}: a roster with no cards draws no group and says there are none`, async ($, on) => {
+    await grouped(on, $, { cards: [], todos: [] })
+    const text = await textOf(await mountOn($, surface))
+    expect(text.includes('No cards in the roster yet.')).toBe(true)
+    for (const name of ['NEEDS YOU', 'WORKING', 'DONE · STOPPED']) expect(text.includes(name)).toBe(false)
+  })
+
+  test(`${surface}: a fold press opens DONE · STOPPED, with full badges, and a second press closes it`, async ($, on) => {
+    await grouped(on, $, ALL)
+    const m = await mountOn($, surface)
+    await m.press({ key: 'fold' })
+    const opened = await groupsOf(m)
+    expect(opened.includes('▾ DONE · STOPPED  2')).toBe(true)
+    expect(opened.indexOf('▾ DONE · STOPPED')).toBeLessThan(opened.indexOf('done-one'))
+    expect(opened.indexOf('done-one')).toBeLessThan(opened.indexOf('stop-one'))
+    expect(opened.includes('✓ done')).toBe(true)
+    expect(opened.includes('– stopped')).toBe(true)
+    expect(opened.includes('○')).toBe(false)
+    await m.press({ key: 'fold' })
+    const closed = await groupsOf(m)
+    expect(closed.includes('▸ DONE · STOPPED  2')).toBe(true)
+    expect(closed.includes('done-one')).toBe(false)
+  })
+
+  test(`${surface}: DONE · STOPPED starts closed each time the pane opens`, async ($, on) => {
+    const w = await grouped(on, $, ALL)
+    const m = await mountOn($, surface)
+    await m.press({ key: 'fold' })
+    expect((await groupsOf(m)).includes('▾ DONE · STOPPED')).toBe(true)
+    // The pane goes from the engine's list; the next roster tick sees it and
+    // stops every read. Then the owner opens it again.
+    w.open = false
+    await w.clock.advance(5000)
+    await brigade($)
+    await w.clock.settle()
+    expect((await groupsOf(m)).includes('▸ DONE · STOPPED  2')).toBe(true)
+  })
+
+  test(`${surface}: a second /brigade while the pane is open closes DONE · STOPPED too`, async ($, on) => {
+    await grouped(on, $, ALL)
+    const m = await mountOn($, surface)
+    await m.press({ key: 'fold' })
+    expect((await groupsOf(m)).includes('▾ DONE · STOPPED')).toBe(true)
+    await brigade($)
+    expect((await groupsOf(m)).includes('▸ DONE · STOPPED  2')).toBe(true)
+  })
+
+  for (const planted of ['true', 1] as const) {
+    test(`${surface}: a stored open state of ${JSON.stringify(planted)} draws the group closed, and a press cannot open it`, async ($, on) => {
+      await grouped(on, $, ALL, (key, value) => (key === 'doneOpen' ? planted : value))
+      const m = await mountOn($, surface)
+      const text = await groupsOf(m)
+      expect(text.includes('▸ DONE · STOPPED  2')).toBe(true)
+      expect(text.includes('done-one')).toBe(false)
+      await m.press({ key: 'fold' })
+      expect((await groupsOf(m)).includes('done-one')).toBe(false)
+    })
+  }
+
+  test(`${surface}: the toggle counts the reports of its cards, and an open card's report line uses →`, async ($, on) => {
+    await grouped(on, $, ALL)
+    const send = (from: string, text: string) =>
+      $.session.receive({ origin: { kind: 'peer' }, text: `<cross-session-message from="${from}">\n${text}\n</cross-session-message>` })
+    await send('done-one', 'finished the slice')
+    await send('stop-one', 'stopped at a gate')
+    await send('done-one', 'one more thing')
+    await send('work-one', 'still going')
+    const m = await mountOn($, surface)
+    expect((await groupsOf(m)).includes('▸ DONE · STOPPED  2 · 3 reports')).toBe(true)
+    await m.press({ key: 'fold' })
+    const text = await groupsOf(m)
+    expect(text.includes('→ one more thing')).toBe(true)
+    expect(text.includes('→ still going')).toBe(true)
+    expect(text.includes('↳')).toBe(false)
+  })
+
+  test(`${surface}: titles that fold to one slug in different groups keep their roster index, so each press acts on its own card`, async ($, on) => {
+    const w = await grouped(on, $, SAME_SLUG)
+    const m = await mountOn($, surface)
+    await m.press({ key: 'fold' })
+    await m.redraw(PANE_PROPS)
+    expect(await m.find({ key: 'dismiss-1-ab' })).toBeDefined()
+    expect(await m.find({ key: 'dismiss-2-ab' })).toBeDefined()
+    // The group-local place of the first done or stopped card is 0: never a key.
+    expect(await m.find({ key: 'dismiss-0-ab' })).toBeUndefined()
+    // No working card: its group draws nothing, heading included.
+    expect((await groupsOf(m)).includes('WORKING')).toBe(false)
+    await m.press({ key: 'open-1-ab' })
+    await m.press({ key: 'open-0-ab' })
+    expect(w.mcpCalls.map(c => c.args.session_id)).toEqual([D2, D1])
+    await m.press({ key: 'dismiss-1-ab' })
+    const after = await groupsOf(m)
+    expect(after.includes('a b')).toBe(false)
+    expect(after.includes('A-b')).toBe(true)
+    expect(after.includes('AB!')).toBe(true)
+    await m.press({ key: 'dismiss-2-ab' })
+    const last = await groupsOf(m)
+    expect(last.includes('AB!')).toBe(false)
+    expect(last.includes('A-b')).toBe(true)
+  })
+
+  test(`${surface}: a stored card with a hostile or unknown status draws in no group, and the pane still draws`, async ($, on) => {
+    const bad = ['__proto__', 'constructor', 'paused', 5, null, { done: true }]
+    const w = await grouped(on, $, ALL, (key, value) =>
+      key === 'roster'
+        ? { ...value, cards: [...(value?.cards ?? []), ...bad.map((status, i) => ({ ...card(`odd-${i}`), status }))] }
+        : value,
+    )
+    // The plant reached the stored roster: five good cards and six odd ones.
+    expect((w.roster.at(-1) as any).cards.length).toBe(11)
+    const m = await mountOn($, surface)
+    await m.press({ key: 'fold' })
+    const text = await textOf(m)
+    expect(text.includes('NEEDS YOU')).toBe(true)
+    expect(text.includes('▾ DONE · STOPPED  2')).toBe(true)
+    expect(text.includes('odd-')).toBe(false)
+    expect(text.includes('__proto__')).toBe(false)
+    expect(text.includes('paused')).toBe(false)
   })
 }

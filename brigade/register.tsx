@@ -40,11 +40,17 @@ import {
 import type { HostOs, StatAnswer } from './roster.ts'
 import {
   EMPTY_USAGE,
+  foldLabel,
+  drawnTitle,
+  groupCards,
   idsFrom,
+  isOpen,
   liveState,
   readWarmth,
+  reportCount,
   settleTicks,
   snapshotFrom,
+  statusOf,
   ticksFrom,
   toggleTick,
   usageView,
@@ -91,18 +97,11 @@ const doneTodos = atom({ plugin: 'grimoire', key: 'doneTodos' } as const, [])
 const ticking = atom({ plugin: 'grimoire', key: 'ticking' } as const, [])
 const usage = atom({ plugin: 'grimoire', key: 'usage' } as const, EMPTY_USAGE)
 const warmth = atom({ plugin: 'grimoire', key: 'warmth' } as const, [])
+const doneOpen = atom({ plugin: 'grimoire', key: 'doneOpen' } as const, false)
 
 // Colours are the app's own theme keys, so the pane follows the person's
-// theme, light or dark, as the rest of Claude Code does. The live state's
-// colours are in view.ts.
-//
-// The status the head chef wrote on the card.
-const MARK = new Map<Card['status'], { mark: string; color: string }>([
-  ['needs-you', { mark: '●', color: 'warning' }],
-  ['working', { mark: '◐', color: 'suggestion' }],
-  ['done', { mark: '✓', color: 'success' }],
-  ['stopped', { mark: '○', color: 'inactive' }],
-])
+// theme, light or dark, as the rest of Claude Code does. The status the head
+// chef wrote on a card, and the live state, take theirs from view.ts.
 
 // A button's key: the verb, the card's place, and its title folded to letters
 // and digits, so a press finds the card it was drawn for or nothing.
@@ -324,7 +323,7 @@ async function measureUsage($: EngineInterface) {
 // The timers are taken before the first await, so two arms that overlap
 // cannot both pass the check. Each arm carries its generation, and a close
 // moves the generation on, so neither its first reads nor a tick already
-// queued run after the pane closed.
+// queued run after the pane closed. DONE · STOPPED starts closed at each arm.
 let generation = 0
 async function arm($: EngineInterface) {
   if (timers.length === 0) {
@@ -335,12 +334,14 @@ async function arm($: EngineInterface) {
       $.clock.every(AGENTS_MS, () => void (live() && pollAgents($, live))),
     ]
     await update($, armed, () => true)
+    await update($, doneOpen, () => false)
     if (live()) await readUsage($)
     if (live()) await loadRoster($)
     if (live()) await pollAgents($, live)
     return
   }
   await update($, armed, () => true)
+  await update($, doneOpen, () => false)
 }
 function disarm() {
   generation++
@@ -783,14 +784,21 @@ export const register: Register = on => {
 
   // Presses arrive here with a fresh `$`. Each finds its card or to-do again
   // in the current state by place and title, and does nothing if it moved.
+  // The DONE · STOPPED toggle's key, `fold`, holds no hyphen, since the key
+  // is split on one; a press flips the group, and a stored value other than
+  // exactly true counts as closed, so the press opens it.
   on('ui.press', { plugin: 'grimoire', requestId: PANE }, async ($, e, next) => {
-    const [verb, place, folded] = e.element.split('-')
+    if (e.element === 'fold') {
+      await update($, doneOpen, v => !isOpen(v))
+      return { element: e.element }
+    }
+    const [verb, place, slugged] = e.element.split('-')
     const i = Number(place)
     const current = await read($, roster)
 
     if (verb === 'todo' || verb === 'go') {
       const item = current.todos[i]
-      if (item === undefined || slug(item.id) !== folded) return { element: e.element }
+      if (item === undefined || slug(item.id) !== slugged) return { element: e.element }
       if (verb === 'todo') {
         // A tick, or a second press inside the grace period that undoes it.
         const now = await $.clock.now()
@@ -803,7 +811,7 @@ export const register: Register = on => {
     }
 
     const c = current.cards[i]
-    if (c === undefined || slug(c.title) !== folded) return { element: e.element }
+    if (c === undefined || slug(c.title) !== slugged) return { element: e.element }
     if (verb === 'open') await openInApp($, c)
     if (verb === 'dismiss') await update($, dismissed, list => [...list, c.title])
     return { element: e.element }
@@ -833,26 +841,31 @@ export const register: Register = on => {
     const ticked = new Set(done)
     const ticks = await read($, ticking)
     const crossed = new Set(ticksFrom(ticks).map(p => p.name))
-    const last = (title: string) => [...inbox].reverse().find(r => r.from === oneLine(title, 80))
+    const last = (title: string) => [...inbox].reverse().find(r => r.from === drawnTitle(title))
 
-    const shown = cards.map((c, i) => ({ c, i })).filter(({ c }) => !hidden.has(c.title))
-    const needsYou = shown.filter(({ c }) => c.status === 'needs-you')
+    // The cards in their groups, each with its place in the roster, which every
+    // button key keeps. A status outside the four words draws in no group.
+    const { needsYou, working, finished } = groupCards(cards, hidden)
+    // As stored: read through isOpen, which takes only exactly true as open.
+    const openState = await read($, doneOpen)
     // A ticked to-do stays in the list, crossed out, until the sweep moves it.
     const open = todos.map((t, i) => ({ t, i })).filter(({ t }) => !ticked.has(t.id))
     const waiting = waitingCount(needsYou.length, todos, done, ticks)
 
     // One card, in a rounded box: amber when it needs the owner, dim
-    // otherwise. The status mark, the title and its live state on one line,
-    // the title cut first so the state stays in view. Then the ◆ warmth line
+    // otherwise. The status badge, glyph and word, the title and its live
+    // state on one line, the title cut first so the state stays in view.
+    // Then the ◆ warmth line
     // and its nudge, which wraps, the phase, the work, the settings and the
     // latest report, each on its own line and cut to the pane's width, and
     // the buttons on their own row.
     const card = ({ c, i }: { c: Card; i: number }) => {
-      const mark = MARK.get(c.status) ?? { mark: '?', color: 'inactive' }
+      const look = statusOf(c.status)
+      if (look === undefined) return null
       const state = liveState(running.get(c.title))
       const warmLine = warmthLine(warm.get(c.title), running.get(c.title), c.status, now)
       const report = last(c.title)
-      const closed = c.status === 'done' || c.status === 'stopped'
+      const isFinished = look.group === 'finished'
       const needs = c.status === 'needs-you'
       const canOpen = appLink(c, found.get(c.title)) !== undefined
       return (
@@ -866,7 +879,9 @@ export const register: Register = on => {
         >
           <Box flexDirection="row" columnGap={1}>
             <Box flexShrink={0}>
-              <Text color={mark.color}>{mark.mark}</Text>
+              <Text color={look.color}>
+                {look.glyph} {look.word}
+              </Text>
             </Box>
             <Box flexGrow={1} flexShrink={1} minWidth={0}>
               <Text bold wrap="truncate-end">
@@ -897,24 +912,24 @@ export const register: Register = on => {
             </Text>
             {report !== undefined && (
               <Text dimColor wrap="truncate-end">
-                {report.at} ↳ {report.line}
+                {report.at} → {report.line}
               </Text>
             )}
-            {(canOpen || closed) && (
+            {(canOpen || isFinished) && (
               <Box flexDirection="row" columnGap={2} marginTop={1}>
                 {canOpen && (
                   <Button key={keyFor('open', i, c.title)} onPress={noop}>
                     Open in app
                   </Button>
                 )}
-                {closed && (
+                {isFinished && (
                   <Button key={keyFor('dismiss', i, c.title)} dimColor onPress={noop}>
                     Dismiss
                   </Button>
                 )}
               </Box>
             )}
-            {closed && <Text dimColor>Archive it in the sidebar when you are done with it.</Text>}
+            {isFinished && <Text dimColor>Archive it in the sidebar when you are done with it.</Text>}
           </Box>
         </Box>
       )
@@ -995,15 +1010,40 @@ export const register: Register = on => {
             {needsYou.length + open.length === 0 && <Text dimColor>Nothing waits on you.</Text>}
           </Box>
         </Box>
-        <Box flexDirection="column">
-          <Box marginBottom={1}>
-            <Text bold>
-              Sessions <Text dimColor>{shown.length}</Text>
-            </Text>
+        {/* The groups: a bold heading in the status colour with its count
+            dim beside it, one row under it, then its cards. An empty group
+            draws nothing. DONE · STOPPED is a toggle that starts closed. */}
+        {[
+          { name: 'NEEDS YOU', color: statusOf('needs-you')?.color, list: needsYou },
+          { name: 'WORKING', color: statusOf('working')?.color, list: working },
+        ].map(
+          g =>
+            g.list.length > 0 && (
+              <Box flexDirection="column" marginBottom={1}>
+                <Box marginBottom={1}>
+                  <Text bold color={g.color}>
+                    {g.name} <Text dimColor>{g.list.length}</Text>
+                  </Text>
+                </Box>
+                {g.list.map(card)}
+              </Box>
+            ),
+        )}
+        {finished.length > 0 && (
+          <Box flexDirection="column">
+            {/* `plain` only as plain: Desktop refuses plain={false} and skips
+                the whole render. */}
+            <Box marginTop={1} marginBottom={isOpen(openState) ? 1 : 2}>
+              <Button key="fold" plain onPress={noop}>
+                {foldLabel(openState, finished.length, reportCount(finished.map(({ c }) => c.title), inbox))}
+              </Button>
+            </Box>
+            {isOpen(openState) && finished.map(card)}
           </Box>
-          {shown.map(card)}
-          {shown.length === 0 && error === '' && <Text dimColor>No cards in the roster yet.</Text>}
-        </Box>
+        )}
+        {needsYou.length + working.length + finished.length === 0 && error === '' && (
+          <Text dimColor>No cards in the roster yet.</Text>
+        )}
         {inbox.length === 0 && <Text dimColor>No reports since the pane opened.</Text>}
         <Box flexDirection="column" marginTop={1}>
           <Text bold>Usage</Text>
