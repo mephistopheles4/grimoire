@@ -1052,7 +1052,8 @@ export const MAX_SERIES = 3 * MAX_COUNT
 const BURN_SPAN_MS = BURN_BUCKETS * MIN_MS
 
 /** What one read of a transcript gives: the last call as the cache bar reads
- *  it, the window its model family has (absent when the table gives none),
+ *  it, the context window its model family has, in tokens (absent when the
+ *  table gives none),
  *  the 30 burn buckets ending at the read time, oldest first, and the context
  *  size of each of the last 30 calls, oldest first. */
 export type CallSeries = { last: LastCall; window?: number; burn: number[]; context: number[] }
@@ -1083,8 +1084,8 @@ export function windowOf(model: unknown): number | undefined {
  *  A row counts only when it passes every check `callRow` makes, and only
  *  once per message id: an id counts when its newest passing row does, and
  *  later rows with it are skipped. The first counted row is the last call,
- *  and its model alone gives the window; the window of the cache is taken
- *  from the newest counted call that wrote cache, as before. A call goes in
+ *  and its model alone gives the context window; the cache's window, a span
+ *  of time, is taken from the newest counted call that wrote cache, as before. A call goes in
  *  a burn bucket only when its time is after `now` minus 30 minutes and no
  *  later than `now`: bucket i holds the calls in minute i of that span, and
  *  each is clamped to 30,000,000. The pass stops once it has the last call,
@@ -1234,7 +1235,7 @@ export function warmthLine(
 // worked out here from the warmth record's numbers alone: no title, to-do,
 // report or usage text reaches it, and its alt text is fixed words and numbers.
 
-/** The terminal cache bar's width in cells. */
+/** The terminal width in cells of the cache bar and the context meter. */
 export const CACHE_CELLS = 16
 
 /** A card's cache bar: how full it is, from 0 to 1, its theme colour key and
@@ -1290,12 +1291,12 @@ export function cacheCells(b: CacheBar): string {
   return b.cls === 'hot' && cells.trim() === '' ? `${EIGHTHS[0]}${' '.repeat(CACHE_CELLS - 1)}` : cells
 }
 
-// The three classes a cache bar's fill may take. Any other class it is handed
-// draws no fill. `done` is the shared green: a done session's colour and a
-// warm cache's.
+// The three classes the fill of the cache bar or the context meter may take.
+// Any other class it is handed draws no fill. `done` is the shared green: a
+// done session's colour, a warm cache's and a context meter's under 70%.
 const CACHE_CLASSES = new Set(['done', 'warn', 'hot'])
 // The image's height, the bar's top, and the bar's thickness, which is also
-// the stub's width.
+// the stub's width, for both bars.
 const CACHE_HEIGHT = 16
 const CACHE_Y = 5
 const CACHE_THICKNESS = 6
@@ -1318,7 +1319,8 @@ function thinBar(fraction: number, cls: string, alt: string): Extract<UsageView,
   const y = num(CACHE_Y)
   const h = num(CACHE_THICKNESS)
   const r = num(CACHE_THICKNESS / 2)
-  // The stub is drawn at 0 too, so a cold bar, empty, still reads red.
+  // The stub is drawn at 0 too, so an empty bar still shows its class's
+  // colour: a cold cache bar still reads red.
   const fill = CACHE_CLASSES.has(cls)
     ? `<rect class="${cls}" x="0" y="${y}" width="${h}" height="${h}" rx="${r}"/>` +
       (f > 0 ? `<rect class="${cls}" x="0" y="${y}" width="${pct(f * 100)}" height="${h}" rx="${r}"/>` : '')
@@ -1399,9 +1401,9 @@ export type ContextMeter = {
 }
 
 /** One card's context meter, or undefined for none: the newest call's
- *  context, the last value of the record's context series, over the window.
- *  Green under 70%, amber from 70%, red from 90%. Past the window it is a
- *  full red bar that reads `over` (owner decision q6 B). No record, no
+ *  context, the last value of the record's context series, over the context
+ *  window. Green under 70%, amber from 70%, red from 90%. Past the window it
+ *  is a full red bar that reads `over` (owner decision q6 B on #251). No record, no
  *  window, no context, or a value that is not a finite number, or a window
  *  that is not above 0, gives none; a negative context is an empty bar. */
 export function contextMeter(m: Meter | undefined): ContextMeter | undefined {
@@ -1646,7 +1648,7 @@ export async function readCalls(
   titles: readonly string[],
   config: string,
   memory: ReadMemory,
-  io: WarmthIo,
+  io: PollIo,
   finder: Finder = newFinder(),
 ): Promise<{ warmth: Warmth[]; meters: Meter[] } | undefined> {
   const members = new Set(titles)
@@ -1758,6 +1760,6 @@ export function linkStep(found: string | undefined, from: string | undefined, st
   return from !== undefined || stored ? 'drop' : 'skip'
 }
 
-/** The file system as the poll reaches it, and whether the pane is still
- *  open: the finder's, and the read. `read` may reject. */
-export type WarmthIo = FinderIo & { read: (path: string) => Promise<string> }
+/** The file system and clock as the poll's reads reach them, and whether the
+ *  pane is still open: the finder's, and the read. `read` may reject. */
+export type PollIo = FinderIo & { read: (path: string) => Promise<string> }

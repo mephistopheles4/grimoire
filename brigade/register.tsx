@@ -881,7 +881,7 @@ export const register: Register = on => {
     const running = lookup(await read($, live))
     const found = lookup(await read($, links))
     const warm = new Map(warmthFrom(await read($, warmth)).map(w => [w.name, w]))
-    const series = new Map(metersFrom(await read($, meters)).map(m => [m.name, m]))
+    const meterOf = new Map(metersFrom(await read($, meters)).map(m => [m.name, m]))
     const inbox = await read($, reports)
     const done = idsFrom(await read($, doneTodos))
     const ticked = new Set(done)
@@ -928,7 +928,7 @@ export const register: Register = on => {
       const warmLine = isFinished ? undefined : warmthLine(warm.get(c.title), running.get(c.title), c.status, now)
       const bar = isFinished ? undefined : cacheBar(warm.get(c.title), running.get(c.title), now)
       const image = bar !== undefined && Image !== undefined ? cacheBarSvg(bar) : undefined
-      const meter = isFinished ? undefined : contextMeter(series.get(c.title))
+      const meter = isFinished ? undefined : contextMeter(meterOf.get(c.title))
       const meterImage = meter !== undefined && Image !== undefined ? contextMeterSvg(meter) : undefined
       const report = last(c.title)
       const needs = c.status === 'needs-you'

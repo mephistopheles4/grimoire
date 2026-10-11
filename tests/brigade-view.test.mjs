@@ -3022,3 +3022,38 @@ test('the state contract declares meters under the plugin\'s manifest name', () 
   const register = readFileSync(join(root, 'brigade/register.tsx'), 'utf8');
   assert.match(register, /atom\(\{ plugin: 'grimoire', key: 'meters' \} as const, \[\]\)/);
 });
+// Three branches the integrity lens found no failing test for, at move 4.
+
+test('the parse does not stop at 30 calls while calls inside the 30 minutes remain: 40 cache-writing calls in 20 minutes all count', () => {
+  const rows = Array.from({ length: 40 }, (_, i) => row({ ms: -i * 30000 }));
+  const s = callSeries(file(...rows.reverse()), MTIME, NOW);
+  assert.equal(s.context.length, 30);
+  assert.equal(sum(s.burn), 40 * FRESH);
+});
+
+test('the parse does not stop before the newest cache-writing call: one 30 calls and 30 minutes back still gives the cache window', () => {
+  const rows = [row({ ms: -90 * MIN, write: '1h' }), ...Array.from({ length: 40 }, (_, i) => row({ ms: (i - 80) * MIN, write: 'none' }))];
+  const s = callSeries(file(...rows), MTIME, NOW);
+  assert.equal(s.last.at, NOW - 41 * MIN);
+  assert.equal(s.last.windowMs, HOUR);
+});
+
+test('a working member never read goes before every member that is due, however long ago they were read', async () => {
+  const clock = { now: NOW };
+  const files = Object.fromEntries(range(8).map(i => [wPath(i), { text: file(row({ ms: -MIN })) }]));
+  const fs = fakeFs(files, { clock });
+  const memory = new Map();
+  const seven = range(7).map(i => wRow(i));
+  const names = range(8).map(i => `W${i}`);
+  await readCalls(seven, names, CONFIG, memory, fs.io);
+  clock.now = NOW + 10000;
+  touch(files, range(7), MTIME + 1);
+  await readCalls(seven, names, CONFIG, memory, fs.io);
+  assert.equal(fs.reads.length, 7);
+  // All seven are due again, and an eighth member, never read, joins at the
+  // end of the roster: it is read, with the four read longest ago.
+  clock.now = NOW + 2 * WORKING_EVERY_MS;
+  touch(files, range(8), MTIME + 2);
+  await readCalls([...seven, wRow(7)], names, CONFIG, memory, fs.io);
+  assert.deepEqual(fs.reads.slice(7), [0, 1, 2, 3, 7].map(wPath));
+});
