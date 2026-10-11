@@ -131,10 +131,7 @@ command, and a dot segment can reach another endpoint (failure 3).
   trailing `/`, no empty segment, no segment of `.` or `..`, and no segment
   starting with `.`.
 - **A label:** letters, digits, spaces and `. _ - :`, not starting with `-`.
-- **The post file's path:** letters, digits, spaces and `. _ - / \ :`. On a
-  POSIX host it must also sit inside the folder `TMPDIR` names, so an unset
-  `TMPDIR` fails the set. Reason: the shared `/tmp` is not per-user (failure
-  16).
+- **The post file's path:** letters, digits, spaces and `. _ - / \ :`.
 
 A quote mark, straight or curly, or a backtick, fails every set. A failing
 value never goes into a command. A title that fails goes through the post
