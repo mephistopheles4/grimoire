@@ -17,6 +17,9 @@ import type { Meter, Pair, Sample, UsageCategory, UsageLimit, UsageSnapshot, War
 // beyond the last call, stored as each card's meters record, and the meter
 // drawn from it under the cache bar.
 //
+// Burn rate, the context trend and card tabs: two sparklines drawn from the
+// same record, each in a tab of its own, and which tab each card shows.
+//
 // The transcript finder: where a member's transcript is, from its working
 // directory or, after it moved into a worktree, from the worktree folders of
 // its launch folder, each checked to lie where its name says before a read.
@@ -29,7 +32,8 @@ import type { Meter, Pair, Sample, UsageCategory, UsageLimit, UsageSnapshot, War
 // from `STYLE`, a clip id (`cb` for the usage image, `st` for the status
 // strip), `end`, the one gap transform. The test's attribute allowlist holds
 // every image this module builds to those forms: the usage image, the status
-// strip, the to-do bar, the cache bar and the context meter.
+// strip, the to-do bar, the cache bar, the context meter and the two
+// sparklines.
 
 /** A snapshot before the first reading: what the pane holds until one comes. */
 export const EMPTY_USAGE: UsageSnapshot = { limits: [], context: {} }
@@ -1431,6 +1435,211 @@ export const contextCells = (c: Pick<ContextMeter, 'fraction'>): string => eight
  *  form, from the meter's fraction, class and alt text alone. */
 export function contextMeterSvg(c: Pick<ContextMeter, 'fraction' | 'cls' | 'alt'>): Extract<UsageView, { kind: 'svg' }> {
   return thinBar(c.fraction, c.cls, c.alt)
+}
+
+// --- Burn rate and the context trend ------------------------------------------
+//
+// Two sparklines from a card's stored meter. The burn rate: the new tokens of
+// each of the 30 minutes up to the read, shifted left by the whole minutes
+// since it at draw time, so an idle session's burn falls to 0 without another
+// read. The context trend: the context size of each of the last 30 calls, a
+// drop below half the call before marked as a compaction. Drawn from the
+// meter's numbers alone: no title, path, model or message id reaches either,
+// and the alt texts are fixed words and numbers.
+
+/** The columns of a sparkline: the burn's minutes, and the most calls the
+ *  context trend draws. */
+export const SPARK_COLUMNS = 30
+// The sparkline image's height, and the least height of a column: an empty
+// one draws the flat baseline, and one above 0 never draws as short.
+const SPARK_HEIGHT = 20
+const BASELINE = 1
+const LEAST = 2
+// The part of its slot a column fills, leaving a gap on its right.
+const COLUMN = 0.7
+// The eight column heights the terminal draws, one to eight eighths.
+const BLOCKS = ['▁', '▂', '▃', '▄', '▅', '▆', '▇', '█']
+
+// A series value as the views take it: a finite number from 0 to the stored
+// cap, else 0.
+const seriesValue = (v: unknown): number => (typeof v === 'number' && Number.isFinite(v) && v > 0 ? Math.min(MAX_SERIES, v) : 0)
+
+/** The burn buckets shifted left by the whole minutes from `at` to `now`,
+ *  clamped to 0 to 30, with zeros coming in on the right: always exactly 30
+ *  values. A time that is not a number shifts nothing, and an `at` ahead of
+ *  the clock shifts nothing; a list of another length is cut to its first 30
+ *  or padded with zeros. Never throws. */
+export function shiftBurn(burn: readonly number[], at: number, now: number): number[] {
+  const minutes = Math.floor((now - at) / MIN_MS)
+  const shift = Number.isNaN(minutes) ? 0 : Math.min(SPARK_COLUMNS, Math.max(0, minutes))
+  const list = Array.isArray(burn) ? burn : []
+  return Array.from({ length: SPARK_COLUMNS }, (_, i) => (i + shift < SPARK_COLUMNS ? seriesValue(list[i + shift]) : 0))
+}
+
+/** A sparkline: each column's height from 0 to 1, oldest first, whether each
+ *  is marked (a compaction), the text beside it and the image's alt text. */
+export type Spark = { columns: number[]; marks: boolean[]; text: string; alt: string }
+
+/** A card's burn rate at `now`, or undefined with no record or no burn
+ *  series: the 30 shifted buckets, each over the largest, and the sum over
+ *  30 as `N/min`, so the number falls with the sparkline. All zero draws a
+ *  flat baseline and reads `0/min`. */
+export function burnRate(m: Meter | undefined, now: number): Spark | undefined {
+  if (m === undefined || m.burn === undefined) return undefined
+  const shifted = shiftBurn(m.burn, m.at, now)
+  const top = Math.max(0, ...shifted)
+  const rate = tokens(shifted.reduce((s, v) => s + v, 0) / SPARK_COLUMNS)
+  return {
+    columns: shifted.map(v => (top > 0 ? v / top : 0)),
+    marks: shifted.map(() => false),
+    text: `${rate}/min · last 30 min`,
+    alt: `Burn rate ${rate} tokens per minute over the last 30 min`,
+  }
+}
+
+/** A card's context trend, or undefined with fewer than 2 calls: each call's
+ *  context over the window when the table gave one, else over the largest,
+ *  clamped to 0 to 1; a call under half the one before it marked and
+ *  counted as a compaction. */
+export function contextTrend(m: Meter | undefined): (Spark & { compactions: number }) | undefined {
+  if (m === undefined || !Array.isArray(m.context) || m.context.length < 2) return undefined
+  const values = m.context.slice(-SPARK_COLUMNS).map(seriesValue)
+  const scale = m.window !== undefined && Number.isFinite(m.window) && m.window > 0 ? m.window : Math.max(0, ...values)
+  const marks = values.map((v, i) => i > 0 && v < (values[i - 1] ?? 0) / 2)
+  const compactions = marks.filter(Boolean).length
+  const now = sizeText(values[values.length - 1] ?? 0)
+  const counted = `${compactions} ${compactions === 1 ? 'compaction' : 'compactions'}`
+  return {
+    columns: values.map(v => (scale > 0 ? unit(v / scale) : 0)),
+    marks,
+    compactions,
+    text: `${now} now · ${counted}`,
+    alt: `Context trend ${now} now, ${counted} in the last ${values.length} calls`,
+  }
+}
+
+// The columns and marks a sparkline builder draws: the newest 30, each column
+// clamped to 0 to 1, each mark exactly true or not, so a value of the wrong
+// shape draws as far as it checks and never throws.
+function sparkColumns(s: Partial<Pick<Spark, 'columns' | 'marks'>>): { column: number; mark: boolean }[] {
+  const columns = Array.isArray(s.columns) ? s.columns.slice(-SPARK_COLUMNS) : []
+  const marks = Array.isArray(s.marks) ? s.marks.slice(-columns.length) : []
+  return columns.map((c, i) => ({ column: unit(c), mark: marks[i] === true }))
+}
+
+/** The terminal's sparkline: 30 cells, right-aligned, so the newest column
+ *  sits at the right end; a column of 0 is a space and any other one of
+ *  `▁` to `█`, never a space. Runs of cells with their theme colour key:
+ *  `suggestion`, the blue of class `ok`, and `warning` for a marked one. */
+export function sparkRuns(s: Partial<Pick<Spark, 'columns' | 'marks'>>): { text: string; tone: 'suggestion' | 'warning' }[] {
+  const cells = sparkColumns(s)
+  const runs: { text: string; tone: 'suggestion' | 'warning' }[] = []
+  const add = (text: string, tone: 'suggestion' | 'warning') => {
+    const last = runs[runs.length - 1]
+    if (last !== undefined && last.tone === tone) last.text += text
+    else runs.push({ text, tone })
+  }
+  add(' '.repeat(SPARK_COLUMNS - cells.length), 'suggestion')
+  for (const { column, mark } of cells) {
+    const block = column > 0 ? (BLOCKS[Math.min(7, Math.max(0, Math.ceil(column * 8) - 1))] ?? '█') : ' '
+    add(block, mark ? 'warning' : 'suggestion')
+  }
+  return runs.filter(r => r.text !== '')
+}
+
+/** A sparkline as an image for the surfaces with Svg: one `rect` per column
+ *  in 30 slots, right-aligned, each bottom-aligned, `x` and `width` in
+ *  percentages from `pct`, `y` and `height` in pixels from `num`, class `ok`,
+ *  or `warn` for a marked column. A column of 0 draws the 1 px baseline, and
+ *  any other at least 2 px. No text, clip or id. */
+export function sparkSvg(s: Partial<Spark>): Extract<UsageView, { kind: 'svg' }> {
+  const cells = sparkColumns(s)
+  const slot = 100 / SPARK_COLUMNS
+  const from = SPARK_COLUMNS - cells.length
+  const rects = cells.map(({ column, mark }, i) => {
+    const h = column > 0 ? Math.max(LEAST, column * SPARK_HEIGHT) : BASELINE
+    return `<rect class="${mark ? 'warn' : 'ok'}" x="${pct((from + i) * slot)}" y="${num(SPARK_HEIGHT - h)}" width="${pct(slot * COLUMN)}" height="${num(h)}"/>`
+  })
+  const source = `<svg xmlns="${XMLNS}" width="100%" height="${num(SPARK_HEIGHT)}"><style>${STYLE}</style>${rects.join('')}</svg>`
+  return { kind: 'svg', source, alt: oneLine(typeof s.alt === 'string' ? s.alt : '', 120), height: SPARK_HEIGHT }
+}
+
+// --- Card tabs -----------------------------------------------------------------
+//
+// A needs-you or working card has up to three views, each a tab: the cache
+// bar and context meter, the burn rate, and the context trend. The tab row
+// shows only with two or more. The choice is kept per card for the session in
+// the `tabs` atom, card title to view word, and read only through the fixed
+// Map below: an unknown or unavailable word reads as the default. A view word
+// holds no hyphen, since a press key is split on one.
+
+/** The view words, in tab order, with their tab labels. */
+export const VIEWS: ReadonlyMap<string, string> = new Map([
+  ['cache', 'Cache · context'],
+  ['burn', 'Burn rate'],
+  ['trend', 'Context trend'],
+])
+
+/** A view word. */
+export type View = 'cache' | 'burn' | 'trend'
+const VIEW_WORDS: ReadonlyMap<unknown, View> = new Map<unknown, View>([
+  ['cache', 'cache'],
+  ['burn', 'burn'],
+  ['trend', 'trend'],
+])
+
+/** A view word read through the fixed set, or undefined for anything else. */
+export const viewOf = (word: unknown): View | undefined => VIEW_WORDS.get(word)
+
+// The warmth kinds whose reason line the burn rate tab shows in place of a
+// sparkline, as the cache line does.
+const REASONS = new Set(['too-large', 'shared', 'not-found'])
+
+/** A card's views, in tab order: the default always; the burn rate when its
+ *  meter has a burn series or its warmth is a reason line (too large, shared
+ *  or not found); the context trend with 2 or more calls. */
+export function cardViews(w: Warmth | undefined, m: Meter | undefined): View[] {
+  const views: View[] = ['cache']
+  if (m?.burn !== undefined || (w !== undefined && REASONS.has(w.kind))) views.push('burn')
+  if (contextTrend(m) !== undefined) views.push('trend')
+  return views
+}
+
+const MAX_TABS = 50
+
+/** The stored tab choices, checked again: pairs of a card title, text of 1
+ *  to 300 characters not seen before, and a view word from the fixed set.
+ *  Others go, and at most 50 stay, each copied into a new pair. */
+export function tabsFrom(stored: unknown): Pair[] {
+  const out: Pair[] = []
+  if (!Array.isArray(stored)) return out
+  const names = new Set<string>()
+  for (const p of stored) {
+    if (out.length >= MAX_TABS) break
+    if (!isRecord(p) || typeof p.name !== 'string' || p.name === '' || p.name.length > MAX_NAME || names.has(p.name)) continue
+    const view = viewOf(p.value)
+    if (view === undefined) continue
+    names.add(p.name)
+    out.push({ name: p.name, value: view })
+  }
+  return out
+}
+
+/** The view a card shows: its stored word when the card offers that view,
+ *  else the default. */
+export function chosenView(stored: unknown, title: string, views: readonly View[]): View {
+  const word = viewOf(tabsFrom(stored).find(p => p.name === title)?.value)
+  return word !== undefined && views.includes(word) ? word : 'cache'
+}
+
+/** The stored choices after a press: the card's last choice replaced by the
+ *  new one, at the end, and at most 50 kept, the newest. A word outside the
+ *  fixed set changes nothing. */
+export function chooseTab(stored: unknown, title: string, word: unknown): Pair[] {
+  const kept = tabsFrom(stored)
+  const view = viewOf(word)
+  if (view === undefined) return kept
+  return [...kept.filter(p => p.name !== title), { name: title, value: view }].slice(-MAX_TABS)
 }
 
 /** What the agents poll remembers of each transcript it read, keyed by path:

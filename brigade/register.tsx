@@ -41,13 +41,19 @@ import {
   EMPTY_USAGE,
   MAX_TRANSCRIPT_BYTES,
   SVG_MAX,
+  VIEWS,
   addSample,
+  burnRate,
   cacheBar,
   cacheBarSvg,
   cacheCells,
+  cardViews,
+  chooseTab,
+  chosenView,
   contextCells,
   contextMeter,
   contextMeterSvg,
+  contextTrend,
   foldLabel,
   drawnTitle,
   groupCards,
@@ -61,21 +67,25 @@ import {
   reportCount,
   settleTicks,
   snapshotFrom,
+  sparkRuns,
+  sparkSvg,
   statusOf,
   statusStrip,
   ticksFrom,
   todoBar,
   toggleTick,
   usageView,
+  viewOf,
   waitingCount,
   warmthFrom,
   warmthLine,
 } from './view.ts'
-import type { Finder, ReadMemory } from './view.ts'
+import type { Finder, ReadMemory, Spark } from './view.ts'
 
 // The Brigade pane: one card per session a lead session started, each in a
 // rounded box with its work, phase, settings, live busy or idle state, cache
-// warmth and latest report; the owner's to-dos in one box, each ticked with a press that
+// warmth, context meter, tabs for its burn rate and context trend, and latest
+// report; the owner's to-dos in one box, each ticked with a press that
 // a second press undoes; and at the bottom this session's own rate limits and
 // context. The pane reads the roster file while it is open. The head chef
 // fills it through the set_roster tool below, which writes the file for it
@@ -111,6 +121,7 @@ const usage = atom({ plugin: 'grimoire', key: 'usage' } as const, EMPTY_USAGE)
 const samples = atom({ plugin: 'grimoire', key: 'samples' } as const, [])
 const warmth = atom({ plugin: 'grimoire', key: 'warmth' } as const, [])
 const meters = atom({ plugin: 'grimoire', key: 'meters' } as const, [])
+const tabs = atom({ plugin: 'grimoire', key: 'tabs' } as const, [])
 const doneOpen = atom({ plugin: 'grimoire', key: 'doneOpen' } as const, false)
 
 // Colours are the app's own theme keys, so the pane follows the person's
@@ -832,7 +843,7 @@ export const register: Register = on => {
       await update($, doneOpen, v => !isOpen(v))
       return { element: e.element }
     }
-    const [verb, place, slugged] = e.element.split('-')
+    const [verb, place, slugged, word] = e.element.split('-')
     const i = Number(place)
     const current = await read($, roster)
 
@@ -854,6 +865,12 @@ export const register: Register = on => {
     if (c === undefined || slug(c.title) !== slugged) return { element: e.element }
     if (verb === 'open') await openInApp($, c)
     if (verb === 'dismiss') await update($, dismissed, list => [...list, c.title])
+    // A tab: the view word is read through the fixed set, never as a key,
+    // and the choice is kept under this card's own title.
+    if (verb === 'tab') {
+      const view = viewOf(word)
+      if (view !== undefined) await update($, tabs, list => chooseTab(list, c.title, view))
+    }
     return { element: e.element }
   })
 
@@ -882,6 +899,8 @@ export const register: Register = on => {
     const found = lookup(await read($, links))
     const warm = new Map(warmthFrom(await read($, warmth)).map(w => [w.name, w]))
     const meterOf = new Map(metersFrom(await read($, meters)).map(m => [m.name, m]))
+    // As stored: read through the fixed set of view words by chosenView.
+    const tabChoices = await read($, tabs)
     const inbox = await read($, reports)
     const done = idsFrom(await read($, doneTodos))
     const ticked = new Set(done)
@@ -909,27 +928,68 @@ export const register: Register = on => {
           ? 'No cards in the roster yet.'
           : undefined
 
+    // A sparkline row: on Desktop the image in a column Box that grows, on
+    // the terminal its cells between dim end marks, each run in its colour;
+    // then its text, which does not shrink.
+    const sparkRow = (s: Spark) => {
+      const image = Image !== undefined ? sparkSvg(s) : undefined
+      return (
+        <Box flexDirection="row" columnGap={1}>
+          {Image !== undefined && image !== undefined ? (
+            <Box flexDirection="column" flexGrow={1} minWidth={8}>
+              <Image source={image.source} alt={image.alt} height={image.height} />
+            </Box>
+          ) : (
+            <Box flexShrink={0}>
+              <Text>
+                <Text dimColor>▕</Text>
+                {sparkRuns(s).map(r => (
+                  <Text color={r.tone}>{r.text}</Text>
+                ))}
+                <Text dimColor>▏</Text>
+              </Text>
+            </Box>
+          )}
+          <Box flexShrink={0}>
+            <Text>{s.text}</Text>
+          </Box>
+        </Box>
+      )
+    }
+
     // One card, in a rounded box: amber when it needs the owner, dim
     // otherwise. The status badge, glyph and word, the title and its live
     // state on one line, the title cut first so the state stays in view.
-    // Then, on a needs-you or working card, the ◆ cache bar with its short
-    // text and the dim line under it, or the ◆ warmth line, dim, when there
-    // is no bar; the ◆ context meter, in the cache bar's form, when the
-    // card's model has a known window; and the nudge, which wraps. Then the
-    // phase, the work, the settings and the latest report, each on its own
-    // line and cut to the pane's width, and the buttons on their own row. A
-    // done or stopped card draws no ◆ line, bar, meter or nudge: a finished
+    // Then, on a needs-you or working card, its tab row when it has two or
+    // more views, and the chosen view. The default view: the ◆ cache bar
+    // with its short text and the dim line under it, or the ◆ warmth line,
+    // dim, when there is no bar; the ◆ context meter, in the cache bar's
+    // form, when the card's model has a known window; and the nudge, which
+    // wraps. Burn rate: its sparkline and rate, or the cache line's reason
+    // when the transcript is too large, shared or not found. Context trend:
+    // its sparkline and the context now. Then the phase, the work, the
+    // settings and the latest report, each on its own line and cut to the
+    // pane's width, and the buttons on their own row. A done or stopped card
+    // draws no tabs, ◆ line, bar, meter, sparkline or nudge: a finished
     // session's cache and context mean nothing.
     const card = ({ c, i }: { c: Card; i: number }) => {
       const look = statusOf(c.status)
       if (look === undefined) return null
       const state = liveState(running.get(c.title))
       const isFinished = look.group === 'finished'
+      const views = isFinished ? [] : cardViews(warm.get(c.title), meterOf.get(c.title))
+      const shown = isFinished ? undefined : chosenView(tabChoices, c.title, views)
       const warmLine = isFinished ? undefined : warmthLine(warm.get(c.title), running.get(c.title), c.status, now)
-      const bar = isFinished ? undefined : cacheBar(warm.get(c.title), running.get(c.title), now)
+      const bar = shown === 'cache' ? cacheBar(warm.get(c.title), running.get(c.title), now) : undefined
       const image = bar !== undefined && Image !== undefined ? cacheBarSvg(bar) : undefined
-      const meter = isFinished ? undefined : contextMeter(meterOf.get(c.title))
+      const meter = shown === 'cache' ? contextMeter(meterOf.get(c.title)) : undefined
       const meterImage = meter !== undefined && Image !== undefined ? contextMeterSvg(meter) : undefined
+      // The burn rate tab shows the cache line's reason in place of a
+      // sparkline when the transcript is too large, shared or not found.
+      const kind = warm.get(c.title)?.kind
+      const reason = shown === 'burn' && (kind === 'too-large' || kind === 'shared' || kind === 'not-found') ? warmLine?.text : undefined
+      const burn = shown === 'burn' && reason === undefined ? burnRate(meterOf.get(c.title), now) : undefined
+      const trend = shown === 'trend' ? contextTrend(meterOf.get(c.title)) : undefined
       const report = last(c.title)
       const needs = c.status === 'needs-you'
       const canOpen = appLink(c, found.get(c.title)) !== undefined
@@ -958,13 +1018,44 @@ export const register: Register = on => {
             </Box>
           </Box>
           <Box flexDirection="column" marginLeft={2} marginTop={1}>
+            {/* The tab row, under the header line: the chosen tab marked
+                `● ` and a full button, the others plain. Two branches, never
+                plain={false}: Desktop refuses it and skips the whole render. */}
+            {views.length >= 2 && (
+              <Box flexDirection="row" columnGap={1} marginBottom={1}>
+                {views.map(v =>
+                  v === shown ? (
+                    <Button key={`${keyFor('tab', i, c.title)}-${v}`} onPress={noop}>
+                      {`● ${VIEWS.get(v) ?? ''}`}
+                    </Button>
+                  ) : (
+                    <Button key={`${keyFor('tab', i, c.title)}-${v}`} plain onPress={noop}>
+                      {VIEWS.get(v) ?? ''}
+                    </Button>
+                  ),
+                )}
+              </Box>
+            )}
+            {/* The burn rate or the context trend, or the burn tab's reason
+                line, then one row before the phase. */}
+            {(reason !== undefined || burn !== undefined || trend !== undefined) && (
+              <Box flexDirection="column" marginBottom={1}>
+                {reason !== undefined && (
+                  <Text dimColor wrap="truncate-end">
+                    {reason}
+                  </Text>
+                )}
+                {burn !== undefined && sparkRow(burn)}
+                {trend !== undefined && sparkRow(trend)}
+              </Box>
+            )}
             {/* The cache block, then one row before the phase. Where images
                 draw, the image takes the room between the label and its
                 text, which do not shrink, so on a narrow pane the bar shrinks
                 to its minimum, not the text; the image, placed in
                 percentages, spans a column Box that grows. The terminal's 16
                 cells keep their width. */}
-            {(bar !== undefined || warmLine !== undefined || meter !== undefined) && (
+            {shown === 'cache' && (bar !== undefined || warmLine !== undefined || meter !== undefined) && (
               <Box flexDirection="column" marginBottom={1}>
                 {bar !== undefined && (
                   <Box flexDirection="row" columnGap={1}>

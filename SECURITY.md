@@ -37,7 +37,8 @@ it registers `/brigade` and does nothing else. While its pane is open it runs
 `claude agents --json`, reads the lead session's roster file from the plugin's
 data folder, and reads other sessions' transcripts to find a session's link
 and its model calls' usage, which gives each card its cache-warmth line and,
-since 0.55.0, its context meter; of the model id it keeps only the window
+since 0.55.0, its context meter, and since 0.56.0, its burn rate and context
+trend; of the model id it keeps only the window
 size a fixed table gives the model's family.
 To find a transcript that moved into a worktree folder, it lists the config
 folder's `projects` folder at most once a minute, and reads a transcript only

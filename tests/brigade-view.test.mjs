@@ -3057,3 +3057,301 @@ test('a working member never read goes before every member that is due, however 
   await readCalls([...seven, wRow(7)], names, CONFIG, memory, fs.io);
   assert.deepEqual(fs.reads.slice(7), [0, 1, 2, 3, 7].map(wPath));
 });
+
+// --- burn rate, the context trend and card tabs -------------------------------
+//
+// Spec revision 3 on #251, S7 and S11; ticket #272. The burn rate is drawn
+// from a meter's burn buckets, shifted by the whole minutes since its read;
+// the context trend from its context series. Both are numbers only: a
+// sparkline of `rect` elements in classes `ok` and `warn`, and fixed words.
+// A card's tabs are its views, the choice kept per card in the `tabs` atom
+// and read through a fixed set of view words.
+
+const { SPARK_COLUMNS, burnRate, cardViews, chooseTab, chosenView, contextTrend, shiftBurn, sparkRuns, sparkSvg, tabsFrom, viewOf, VIEWS } = view;
+const ramp = () => Array.from({ length: 30 }, (_, i) => i + 1);
+const spoken = runs => runs.map(r => r.text).join('');
+
+test('the burn shift: the buckets move left by the whole minutes since the read, zeros come in, always 30 columns', () => {
+  const b = ramp();
+  assert.equal(SPARK_COLUMNS, 30);
+  assert.deepEqual(shiftBurn(b, NOW, NOW), b);
+  assert.deepEqual(shiftBurn(b, NOW, NOW + 59999), b, 'under a minute: no shift');
+  assert.deepEqual(shiftBurn(b, NOW, NOW + 5 * MIN), [...b.slice(5), 0, 0, 0, 0, 0]);
+  assert.deepEqual(shiftBurn(b, NOW - 29 * MIN - 59000, NOW), [30, ...Array.from({ length: 29 }, () => 0)], '29 min 59 s: 29 minutes');
+  assert.deepEqual(shiftBurn(b, NOW - 30 * MIN, NOW), zeros(), '30 minutes: all zero');
+  // The input is never changed.
+  assert.deepEqual(b, ramp());
+});
+
+test('the shift is clamped to 0 to 30: an at far in the past, far in the future or just ahead gives 30 columns and no throw', () => {
+  const b = ramp();
+  for (const [label, at, now, want] of [
+    ['far in the past', -8.64e15, NOW, zeros()],
+    ['far in the future', 8.64e15, NOW, b],
+    ['just ahead', NOW + 1, NOW, b],
+    ['a minute ahead', NOW + MIN, NOW, b],
+    ['a clock far in the future', NOW, Number.MAX_VALUE, zeros()],
+    ['a clock that is not a number', NOW, Number.NaN, b],
+    ['a clock at Infinity', NOW, Infinity, zeros()],
+    ['a clock at -Infinity', NOW, -Infinity, b],
+    ['an at that is not a number', Number.NaN, NOW, b],
+  ]) {
+    const out = shiftBurn(b, at, now);
+    assert.equal(out.length, 30, label);
+    assert.deepEqual(out, want, label);
+  }
+  // A list of the wrong length still gives 30 columns: cut, or padded with zeros.
+  assert.deepEqual(shiftBurn(Array.from({ length: 40 }, () => 1), NOW, NOW), Array.from({ length: 30 }, () => 1));
+  assert.deepEqual(shiftBurn([5], NOW, NOW), [5, ...Array.from({ length: 29 }, () => 0)]);
+  assert.deepEqual(shiftBurn([], NOW, NOW), zeros());
+});
+
+test('burn rate: the sum of the shifted buckets over 30, as N/min, and each column its bucket over the largest', () => {
+  const burn = zeros();
+  burn[29] = 300000;
+  burn[28] = 60000;
+  const r = burnRate(meterOf({ burn }), NOW);
+  assert.equal(r.text, '12k/min · last 30 min');
+  assert.equal(r.alt, 'Burn rate 12k tokens per minute over the last 30 min');
+  assert.equal(r.columns.length, 30);
+  assert.equal(r.columns[29], 1);
+  assert.equal(r.columns[28], 0.2);
+  assert.equal(sum(r.columns), 1.2);
+  assert.deepEqual(r.marks, Array.from({ length: 30 }, () => false), 'burn marks nothing');
+  // Small rates read as the cache line reads tokens.
+  const small = zeros();
+  small[0] = 45000;
+  assert.equal(burnRate(meterOf({ burn: small }), NOW).text, '1.5k/min · last 30 min');
+  small[0] = 300;
+  assert.equal(burnRate(meterOf({ burn: small }), NOW).text, '10/min · last 30 min');
+});
+
+test('an idle record drawn 30 minutes later reads 0/min, a flat baseline, and the number falls with the sparkline', () => {
+  const burn = Array.from({ length: 30 }, () => 30000);
+  const m = meterOf({ burn, at: NOW });
+  assert.equal(burnRate(m, NOW).text, '30k/min · last 30 min');
+  assert.equal(burnRate(m, NOW + 15 * MIN).text, '15k/min · last 30 min');
+  const idle = burnRate(m, NOW + 30 * MIN);
+  assert.equal(idle.text, '0/min · last 30 min');
+  assert.equal(idle.alt, 'Burn rate 0 tokens per minute over the last 30 min');
+  assert.deepEqual(idle.columns, zeros());
+  assert.equal(spoken(sparkRuns(idle)), ' '.repeat(30));
+  // Long after, still 0.
+  assert.equal(burnRate(m, NOW + 1440 * MIN).text, '0/min · last 30 min');
+});
+
+test('no burn rate with no record or no burn series', () => {
+  assert.equal(burnRate(undefined, NOW), undefined);
+  const { burn, ...noBurn } = meterOf();
+  assert.equal(burnRate(noBurn, NOW), undefined);
+});
+
+test('the context trend: the last calls\' context scaled to the window, each drop below half the call before marked and counted', () => {
+  const t = contextTrend(meterOf({ window: 1000000, context: [200000, 500000, 120000, 400000, 199999, 412000] }));
+  assert.deepEqual(t.columns, [0.2, 0.5, 0.12, 0.4, 0.199999, 0.412]);
+  assert.deepEqual(t.marks, [false, false, true, false, true, false]);
+  assert.equal(t.compactions, 2);
+  assert.equal(t.text, '412k now · 2 compactions');
+  assert.equal(t.alt, 'Context trend 412k now, 2 compactions in the last 6 calls');
+  // Exactly half is no drop below half.
+  assert.deepEqual(contextTrend(meterOf({ context: [400000, 200000] })).marks, [false, false]);
+  const one = contextTrend(meterOf({ context: [900000, 5000, 412000] }));
+  assert.equal(one.text, '412k now · 1 compaction');
+  assert.equal(one.alt, 'Context trend 412k now, 1 compaction in the last 3 calls');
+  assert.equal(contextTrend(meterOf({ context: [5000, 412000] })).text, '412k now · 0 compactions');
+});
+
+test('the context trend scales to the largest value with no window, and clamps a value past the window to full', () => {
+  const { window, ...noWindow } = meterOf();
+  assert.deepEqual(contextTrend({ ...noWindow, context: [100000, 400000, 200000] }).columns, [0.25, 1, 0.5]);
+  assert.deepEqual(contextTrend({ ...noWindow, context: [0, 0] }).columns, [0, 0]);
+  const over = contextTrend(meterOf({ window: 200000, context: [100000, 1300000] }));
+  assert.deepEqual(over.columns, [0.5, 1]);
+  assert.equal(over.text, '1.3M now · 0 compactions');
+});
+
+test('with fewer than 2 calls there is no context trend, and so no tab for it', () => {
+  assert.equal(contextTrend(meterOf({ context: [412000] })), undefined);
+  assert.equal(contextTrend(meterOf({ context: [] })), undefined);
+  const { context, ...noContext } = meterOf();
+  assert.equal(contextTrend(noContext), undefined);
+  assert.equal(contextTrend(undefined), undefined);
+});
+
+test('the terminal sparkline: 30 cells from ▁ to █, a zero bucket a space, a nonzero one never a space; compactions in the warning colour', () => {
+  const columns = [0, 0.01, 0.125, 0.126, 0.5, 0.875, 0.9, 1, ...Array.from({ length: 22 }, () => 0)];
+  const runs = sparkRuns({ columns, marks: columns.map(() => false) });
+  assert.equal(spoken(runs), ` ▁▁▂▄▇██${' '.repeat(22)}`);
+  assert.deepEqual([...new Set(runs.map(r => r.tone))], ['suggestion']);
+  // A trend of fewer calls is padded on the left to 30 cells, so its newest
+  // call sits at the right end, as the burn's newest minute does.
+  const t = contextTrend(meterOf({ window: 1000000, context: [800000, 100000, 1000000] }));
+  const trend = sparkRuns(t);
+  assert.equal(spoken(trend), `${' '.repeat(27)}▇▁█`);
+  assert.deepEqual(trend.filter(r => r.tone === 'warning').map(r => r.text), ['▁']);
+  // Every cell is one of the eight blocks or a space, whatever the column.
+  for (const v of [Number.NaN, Infinity, -Infinity, -1, 2]) {
+    const out = spoken(sparkRuns({ columns: [v, 1], marks: [true, false] }));
+    assert.match(out, /^[ ▁▂▃▄▅▆▇█]{30}$/, String(v));
+  }
+});
+
+test('both sparkline images: 30 slots of rect only, classes ok and warn, numbers from num and pct, on the allowlist', () => {
+  const burn = zeros();
+  burn[29] = 300000;
+  burn[3] = 1;
+  const b = burnRate(meterOf({ burn }), NOW);
+  const t = contextTrend(meterOf({ context: [900000, 5000, 412000] }));
+  for (const [label, s, rects, classes] of [
+    ['burn', b, 30, ['ok']],
+    ['trend', t, 3, ['ok', 'warn']],
+  ]) {
+    const svg = sparkSvg(s);
+    assertAllowlisted(svg.source);
+    assert.equal(svg.kind, 'svg');
+    assert.equal(svg.alt, s.alt, label);
+    assert.ok(svg.height > 0);
+    const body = withoutStyle(svg.source);
+    assert.ok(!body.includes('<text') && !body.includes('<circle') && !body.includes('clip') && !body.includes(' id='), label);
+    assert.equal(body.match(/<rect /g)?.length, rects, label);
+    assert.deepEqual([...new Set([...body.matchAll(/class="([a-z]+)"/g)].map(m => m[1]))].sort(), classes, label);
+    assert.ok(svg.source.length < 8192, label);
+  }
+  // The compaction column, and only it, is warn.
+  assert.equal(withoutStyle(sparkSvg(t).source).match(/class="warn"/g)?.length, 1);
+  // The burn's tallest column fills the image; the newest call sits in the last slot.
+  assert.match(sparkSvg(b).source, new RegExp(`<rect class="ok" x="[0-9.]+%" y="0" width="[0-9.]+%" height="${sparkSvg(b).height}"/></svg>$`));
+  assert.match(sparkSvg(t).source, /<rect class="ok" x="96\.67%"/);
+});
+
+test('an all-zero burn draws a flat baseline: 30 rects of one height, the least', () => {
+  const svg = sparkSvg(burnRate(meterOf({ burn: zeros() }), NOW));
+  assertAllowlisted(svg.source);
+  const heights = [...svg.source.matchAll(/<rect [^>]*height="([0-9.]+)"/g)].map(m => Number(m[1]));
+  assert.equal(heights.length, 30);
+  assert.equal(new Set(heights).size, 1);
+  assert.ok(heights[0] > 0 && heights[0] < svg.height);
+});
+
+test('the sparkline builders never throw: NaN, Infinity, negatives, values past full and wrong shapes stay on the allowlist', () => {
+  for (const v of [Number.NaN, Infinity, -Infinity, -1, 0, 0.5, 1, 2, 1e308]) {
+    const svg = sparkSvg({ columns: [v, v, 1], marks: [true, false, 'x'], alt: 'Burn rate x' });
+    assertAllowlisted(svg.source);
+    assert.match(spoken(sparkRuns({ columns: [v], marks: [] })), /^[ ▁▂▃▄▅▆▇█]{30}$/);
+  }
+  // More than 30 columns: the newest 30.
+  const many = sparkSvg({ columns: Array.from({ length: 45 }, () => 1), marks: [], alt: 'x' });
+  assertAllowlisted(many.source);
+  assert.equal(withoutStyle(many.source).match(/<rect /g)?.length, 30);
+  for (const bad of [undefined, null, 5, 'x', {}]) {
+    assertAllowlisted(sparkSvg({ columns: bad, marks: bad, alt: 'x' }).source);
+    assert.equal(spoken(sparkRuns({ columns: bad, marks: bad })), ' '.repeat(30));
+  }
+  // The views clamp what they are handed, a value past the window or the
+  // stored cap included, to columns from 0 to 1.
+  for (const v of [Number.NaN, Infinity, -1, 1e12]) {
+    const b = burnRate(meterOf({ burn: Object.assign(zeros(), { 3: v, 4: 5 }) }), NOW);
+    for (const c of b.columns) assert.ok(c >= 0 && c <= 1, `burn ${v}`);
+    assert.match(b.text, /^[0-9.]+k?\/min · last 30 min$/, `burn ${v}`);
+    const t = contextTrend(meterOf({ context: [v, v, 412000] }));
+    for (const c of t.columns) assert.ok(c >= 0 && c <= 1, `trend ${v}`);
+    assert.match(t.text, /^[0-9.]+[kM]? now · \d+ compactions?$/, `trend ${v}`);
+  }
+});
+
+test('no title, path, model or id reaches either sparkline: its text, alt, cells and source are fixed words and numbers', () => {
+  const burn = zeros();
+  burn[29] = 300000;
+  const b = burnRate(meterOf({ name: MARKED, burn }), NOW);
+  const t = contextTrend(meterOf({ name: MARKED, context: [900000, 5000, 412000] }));
+  for (const s of [b, t]) {
+    for (const out of [s.text, s.alt, sparkSvg(s).source, sparkSvg(s).alt, spoken(sparkRuns(s))]) assertNoOutsideText(withoutStyle(out), 'a sparkline');
+  }
+  assert.match(b.alt, /^Burn rate [0-9.]+k? tokens per minute over the last 30 min$/);
+  assert.match(t.alt, /^Context trend [0-9.]+[kM]? now, \d+ compactions? in the last \d+ calls$/);
+});
+
+test('the view words are a fixed set: cache, burn and trend, with their tab labels', () => {
+  assert.deepEqual([...VIEWS.entries()], [
+    ['cache', 'Cache · context'],
+    ['burn', 'Burn rate'],
+    ['trend', 'Context trend'],
+  ]);
+  for (const w of ['cache', 'burn', 'trend']) assert.equal(viewOf(w), w);
+  for (const w of ['step', 'Cache', 'constructor', '__proto__', 'toString', '', 'cache ', 5, null, undefined, {}]) assert.equal(viewOf(w), undefined, String(w));
+  // No word holds a hyphen: a press key is split on one.
+  for (const w of VIEWS.keys()) assert.ok(!w.includes('-'));
+});
+
+test('a card\'s views: the default always; burn rate with a burn series or a reason line; the context trend with 2 or more calls', () => {
+  const burnOnly = meterOf({ context: [412000] });
+  assert.deepEqual(cardViews(undefined, undefined), ['cache']);
+  assert.deepEqual(cardViews({ name: 'A', kind: 'unread' }, undefined), ['cache'], 'working, not read yet: one view, no tabs');
+  assert.deepEqual(cardViews({ name: 'A', kind: 'call', at: NOW, tokens: 1 }, burnOnly), ['cache', 'burn']);
+  assert.deepEqual(cardViews(undefined, meterOf()), ['cache', 'burn', 'trend']);
+  const { burn, ...noBurn } = meterOf();
+  assert.deepEqual(cardViews(undefined, noBurn), ['cache', 'trend']);
+  for (const kind of ['too-large', 'shared', 'not-found']) assert.deepEqual(cardViews({ name: 'A', kind }, undefined), ['cache', 'burn'], kind);
+});
+
+test('the stored tabs are checked again: pairs of a title and a view word, a title once, at most 50, none reaching a prototype', () => {
+  const good = [{ name: 'A', value: 'burn' }, { name: 'B', value: 'trend' }];
+  assert.deepEqual(tabsFrom(good), good);
+  for (const stored of [undefined, null, 'x', 5, {}, { length: 1, 0: good[0] }]) assert.deepEqual(tabsFrom(stored), [], String(stored));
+  const bad = [
+    null,
+    5,
+    { name: 5, value: 'burn' },
+    { name: '', value: 'burn' },
+    { name: 'x'.repeat(301), value: 'burn' },
+    { name: 'C', value: 'step' },
+    { name: 'C', value: 'constructor' },
+    { name: 'C', value: 5 },
+    { name: 'C' },
+  ];
+  assert.deepEqual(tabsFrom([...bad, ...good, { name: 'A', value: 'trend' }]), good, 'a repeated title keeps the first');
+  const many = Array.from({ length: 60 }, (_, i) => ({ name: `T${i}`, value: 'burn' }));
+  assert.equal(tabsFrom(many).length, 50);
+  // Copied field by field: other fields are dropped.
+  assert.deepEqual(tabsFrom([{ name: 'A', value: 'burn', extra: 'C:\\x' }]), [{ name: 'A', value: 'burn' }]);
+  const proto = tabsFrom(JSON.parse('[{"name":"__proto__","value":"burn"},{"__proto__":{"name":"P","value":"burn"}}]'));
+  assert.deepEqual(proto, [{ name: '__proto__', value: 'burn' }]);
+  assert.equal({}.name, undefined);
+});
+
+test('the chosen view: the stored word when the card offers it, else the default', () => {
+  const views = ['cache', 'burn', 'trend'];
+  assert.equal(chosenView([], 'A', views), 'cache');
+  assert.equal(chosenView([{ name: 'A', value: 'burn' }], 'A', views), 'burn');
+  assert.equal(chosenView([{ name: 'A', value: 'trend' }], 'A', ['cache', 'burn']), 'cache', 'an unavailable view reads as the default');
+  assert.equal(chosenView([{ name: 'A', value: 'step' }], 'A', views), 'cache', 'an unknown view reads as the default');
+  assert.equal(chosenView([{ name: 'B', value: 'burn' }], 'A', views), 'cache', 'another card\'s choice');
+  assert.equal(chosenView('junk', 'A', views), 'cache');
+});
+
+test('a choice is kept per card: a new one replaces the card\'s last, other cards keep theirs, and at most 50 stay, the newest', () => {
+  let t = chooseTab([], 'A', 'burn');
+  t = chooseTab(t, 'B', 'trend');
+  t = chooseTab(t, 'A', 'cache');
+  assert.deepEqual(t, [{ name: 'B', value: 'trend' }, { name: 'A', value: 'cache' }]);
+  let many = [];
+  for (let i = 0; i < 60; i++) many = chooseTab(many, `T${i}`, 'burn');
+  assert.equal(many.length, 50);
+  assert.equal(many[49].name, 'T59');
+  assert.equal(chosenView(many, 'T59', ['cache', 'burn']), 'burn', 'the newest choice is kept');
+  // A rewritten value of the wrong shape starts over from what checks.
+  assert.deepEqual(chooseTab('junk', 'A', 'burn'), [{ name: 'A', value: 'burn' }]);
+  // A view word outside the set is never stored.
+  assert.deepEqual(chooseTab([{ name: 'B', value: 'trend' }], 'A', 'constructor'), [{ name: 'B', value: 'trend' }]);
+});
+
+test('the state contract declares tabs under the plugin\'s manifest name, and the pane keeps it across a reopen', () => {
+  const types = readFileSync(join(root, 'brigade/types/index.d.ts'), 'utf8');
+  const block = types.slice(types.indexOf('interface PluginState'));
+  assert.match(block, /\n\s+tabs: Pair\[\]\n/);
+  const register = readFileSync(join(root, 'brigade/register.tsx'), 'utf8');
+  assert.match(register, /atom\(\{ plugin: 'grimoire', key: 'tabs' \} as const, \[\]\)/);
+  // Not reset when the pane opens: no update of tabs in arm().
+  const arm = register.slice(register.indexOf('async function arm('), register.indexOf('function disarm('));
+  assert.ok(arm.length > 0 && !arm.includes('tabs'));
+});

@@ -103,6 +103,10 @@ declare module 'claude-code' {
       /** Each roster member's call series, from the same reads as its
        *  warmth. Checked again before it is drawn. */
       meters: Meter[]
+      /** Each card's chosen tab: its title and a view word, `cache`, `burn`
+       *  or `trend`, kept for the session and not reset when the pane opens.
+       *  Read only through the fixed set of view words. */
+      tabs: Pair[]
       /** Whether the DONE · STOPPED group is open: set false each time the
        *  pane opens, and flipped by a press. Read as open only when it is
        *  exactly true, since another plugin can rewrite it. */
