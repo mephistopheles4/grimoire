@@ -1,6 +1,6 @@
 import { SESSION_ID, foldsCase, oneLine, pathKey, projectFolder, sepOf } from './roster.ts'
 import type { AgentRow } from './roster.ts'
-import type { Meter, Pair, UsageCategory, UsageLimit, UsageSnapshot, Warmth } from './types'
+import type { Meter, Pair, Sample, UsageCategory, UsageLimit, UsageSnapshot, Warmth } from './types'
 
 // What the Brigade pane draws, worked out from plain values: the render hook
 // in register.tsx only turns these results into elements. Plain TypeScript
@@ -182,8 +182,12 @@ const TONE = new Map([
   ['hot', 'error'],
 ])
 
-/** One row of the terminal's text bars. `tone` is a theme colour key. */
-export type UsageRow = { name: string; bar: string; percent: string; note: string; tone: string }
+/** One row of the terminal's text bars. `tone` is a theme colour key, for
+ *  `bar`. `ahead` is drawn dim after it: the projection's ░ cells, then the
+ *  blanks; the two together are always 20 cells, and with no projection
+ *  `bar` is all 20 and `ahead` is empty. `noteTone` is a theme colour key for
+ *  the note, or empty for a dim note. */
+export type UsageRow = { name: string; bar: string; ahead: string; percent: string; note: string; tone: string; noteTone: string }
 
 /** What the usage section draws: nothing yet, text bars, or an SVG image.
  *  The image has a fixed height and no width: it is placed in percentages,
@@ -231,19 +235,21 @@ const drawnCategories = (s: UsageSnapshot) =>
  *  other surface gets the SVG, or the text bars when there is no rate limit
  *  and no breakdown to draw or the SVG would pass the engine's cap. max is
  *  that cap; the stored caps keep a real snapshot far below it, so a test
- *  passes a smaller one to reach the fallback. */
-export function usageView(stored: unknown, surface: string, now: number, max = SVG_MAX): UsageView {
+ *  passes a smaller one to reach the fallback. `samples` is the stored
+ *  sample buffer, checked again here, for the session limit's projection. */
+export function usageView(stored: unknown, surface: string, now: number, max = SVG_MAX, samples: unknown = []): UsageView {
   const s = storedSnapshot(stored)
   if (s.limits.length === 0 && drawnCategories(s).length === 0 && s.context.percent === undefined) return { kind: 'none' }
+  const kept = samplesFrom(samples)
   if (surface !== 'terminal') {
-    const svg = usageSvg(s, now)
+    const svg = usageSvg(s, now, kept)
     if (svg !== undefined && svg.source.length <= max) return svg
   }
-  const rows = textRows(s, now)
+  const rows = textRows(s, now, kept)
   return rows.length === 0 ? { kind: 'none' } : { kind: 'text', rows }
 }
 
-function textRows(s: UsageSnapshot, now: number): UsageRow[] {
+function textRows(s: UsageSnapshot, now: number, samples: readonly Sample[]): UsageRow[] {
   const rows: Omit<UsageRow, 'name'>[] = []
   const names: string[] = []
   const cells = (p: number) => eighthBar(p / 100, BAR_CELLS)
@@ -252,19 +258,23 @@ function textRows(s: UsageSnapshot, now: number): UsageRow[] {
     names.push('Context')
     rows.push({
       bar: cells(percent),
+      ahead: '',
       percent: percentText(percent),
       note: used !== undefined && window !== undefined ? `${tokens(used)} of ${tokens(window)}` : '',
       tone: TONE.get(level(percent)) ?? 'success',
+      noteTone: '',
     })
   }
   for (const limit of s.limits) {
     if (!Number.isFinite(limit.percent)) continue
     names.push(limitName(limit.kind))
+    const p = projection(limit, samples, now)
     rows.push({
-      bar: cells(limit.percent),
+      ...projectedCells(limit.percent, p),
       percent: percentText(limit.percent),
-      note: resetsIn(limit.resetsAt, now) ?? '',
+      note: p?.earlyMs !== undefined ? earlyText(p.earlyMs) : (resetsIn(limit.resetsAt, now) ?? ''),
       tone: TONE.get(level(limit.percent)) ?? 'success',
+      noteTone: p?.earlyMs !== undefined ? 'error' : '',
     })
   }
   const width = Math.max(0, ...names.map(n => [...n].length))
@@ -280,10 +290,12 @@ export const STYLE = [
   '.muted{fill:#73726c}',
   '.track{fill:#e8e6dc}',
   '.ok{fill:#2c84db}.warn{fill:#c27c0e}.hot{fill:#c6413a}',
+  // The usage projection: a faint form of ok's blue.
+  '.proj{fill:#a9cdf0}',
   '.done{fill:#3f8f4f}.stopped{fill:#9c9a92}',
   '.free{fill:#e8e6dc}.buffer{fill:#d6d3c8}',
   '.c0{fill:#d97757}.c1{fill:#6a9bcc}.c2{fill:#788c5d}.c3{fill:#c46686}.c4{fill:#8b7fc7}.c5{fill:#c9a227}.c6{fill:#5fa8a0}',
-  '@media (prefers-color-scheme: dark){text{fill:#e8e6e1}.muted{fill:#9c9a92}.track,.free{fill:#3a3935}.buffer{fill:#4a4944}.ok{fill:#5aa2ef}.warn{fill:#e8a23a}.hot{fill:#ef6b62}.done{fill:#62b56f}.stopped{fill:#6b6a64}}',
+  '@media (prefers-color-scheme: dark){text{fill:#e8e6e1}.muted{fill:#9c9a92}.track,.free{fill:#3a3935}.buffer{fill:#4a4944}.ok{fill:#5aa2ef}.proj{fill:#2f5f8f}.warn{fill:#e8a23a}.hot{fill:#ef6b62}.done{fill:#62b56f}.stopped{fill:#6b6a64}}',
 ].join('')
 
 const XMLNS = 'http://www.w3.org/2000/svg'
@@ -319,12 +331,16 @@ export function num(v: number, max = 100000): string {
 export const pct = (v: number): string => `${num(v, 100)}%`
 
 // A name on the left, a note on the right, and a thin rounded bar beneath,
-// placed in percentages so the row spans the image's width.
-function barRow(y: number, name: string, right: string, percent: number): string {
+// placed in percentages so the row spans the image's width. A projection is a
+// faint bar from 0 to the projected percent, capped at 100%, drawn under the
+// fill: the fill covers it up to the bar's end, so what shows is the part from
+// the bar's end to the projected percent. An early note is red, else muted.
+function barRow(y: number, name: string, right: string, percent: number, projected?: number, early = false): string {
   return (
     `<text x="0" y="${num(y + 12)}">${svgText(name, MAX_KIND)}</text>` +
-    `<text class="muted" x="100%" y="${num(y + 12)}" text-anchor="end">${svgText(right, 80)}</text>` +
+    `<text class="${early ? 'hot' : 'muted'}" x="100%" y="${num(y + 12)}" text-anchor="end">${svgText(right, 80)}</text>` +
     `<rect class="track" x="0" y="${num(y + 20)}" width="100%" height="6" rx="3"/>` +
+    (projected !== undefined ? `<rect class="proj" x="0" y="${num(y + 20)}" width="${pct(Math.min(100, projected))}" height="6" rx="3"/>` : '') +
     // A fill never narrower than 6 px: a pixel minimum cannot be written as
     // a percentage, so a fixed 6 px stub sits under the percentage fill, and
     // the two cover whichever is wider.
@@ -335,7 +351,7 @@ function barRow(y: number, name: string, right: string, percent: number): string
   )
 }
 
-function usageSvg(s: UsageSnapshot, now: number): Extract<UsageView, { kind: 'svg' }> | undefined {
+function usageSvg(s: UsageSnapshot, now: number, samples: readonly Sample[]): Extract<UsageView, { kind: 'svg' }> | undefined {
   const parts: string[] = []
   const alt: string[] = []
   let y = 0
@@ -343,9 +359,15 @@ function usageSvg(s: UsageSnapshot, now: number): Extract<UsageView, { kind: 'sv
   for (const limit of s.limits) {
     if (!Number.isFinite(limit.percent)) continue
     const name = limitName(limit.kind)
-    const when = resetsIn(limit.resetsAt, now)
-    parts.push(barRow(y, name, when === undefined ? percentText(limit.percent) : `${when} · ${percentText(limit.percent)}`, limit.percent))
-    alt.push(`${name} ${percentText(limit.percent)}`)
+    const p = projection(limit, samples, now)
+    const earlyNote = p?.earlyMs !== undefined ? earlyText(p.earlyMs) : undefined
+    const when = earlyNote ?? resetsIn(limit.resetsAt, now)
+    parts.push(barRow(y, name, when === undefined ? percentText(limit.percent) : `${when} · ${percentText(limit.percent)}`, limit.percent, p?.percent, earlyNote !== undefined))
+    alt.push(
+      `${name} ${percentText(limit.percent)}` +
+        (p === undefined ? '' : `, on pace for ${percentText(p.percent)} at reset`) +
+        (earlyNote === undefined ? '' : `, ${earlyNote}`),
+    )
     y += 38
   }
 
@@ -419,6 +441,141 @@ function usageSvg(s: UsageSnapshot, now: number): Extract<UsageView, { kind: 'sv
   const height = num(y)
   const source = `<svg xmlns="${XMLNS}" width="100%" height="${height}">` + `<style>${STYLE}</style>${parts.join('')}</svg>`
   return { kind: 'svg', source, alt: oneLine(`Usage: ${alt.join('; ')}`, 2000), height: Number(height) }
+}
+
+// --- Usage projection --------------------------------------------------------
+//
+// Where the session limit and the weekly limit will be at reset if the
+// current pace holds. Only `five_hour` and `seven_day` get one, each with a
+// reset time `isoTime` reads; a kind a gateway names gets none. The session
+// limit's pace is recent: the change across the samples the pane took of it
+// in the last 30 minutes. The weekly limit's is its average since the week
+// began, so it takes no samples. The samples are plugin state, which another
+// plugin can rewrite, so every read goes through `samplesFrom`.
+
+/** The least time between two samples of the session limit. */
+export const SAMPLE_MS = 30000
+/** The most samples kept: an hour at one every 30 s. */
+export const MAX_SAMPLES = 120
+const RECENT_MS = 30 * 60000
+const MIN_SPAN_MS = 5 * 60000
+const WEEK_MS = 7 * 24 * 3600000
+const MIN_WEEK_MS = 3600000
+
+/** The stored sample buffer, checked again: a list of at most 120 samples,
+ *  each `at` a finite number and `percent` from 0 to 100, times increasing.
+ *  A buffer that fails any check is treated as empty, whole: a buffer cut
+ *  down to its good samples could hold a pace nobody measured. Each field is
+ *  read once, and a read that throws counts as a failed check, so a value
+ *  that changes or throws as it is read cannot pass or break it. */
+export function samplesFrom(stored: unknown): Sample[] {
+  try {
+    if (!Array.isArray(stored)) return []
+    // The length is read once and the list walked by position up to it,
+    // never by its own walker, which could yield more than it reports.
+    const length = stored.length
+    if (typeof length !== 'number' || length > MAX_SAMPLES) return []
+    const out: Sample[] = []
+    for (let i = 0; i < length; i++) {
+      const s: unknown = stored[i]
+      if (!isRecord(s)) return []
+      const at = s.at
+      const percent = s.percent
+      if (typeof at !== 'number' || !Number.isFinite(at) || !inRange(percent, 100)) return []
+      const last = out[out.length - 1]
+      if (last !== undefined && at <= last.at) return []
+      out.push({ at, percent })
+    }
+    return out
+  } catch {
+    return []
+  }
+}
+
+/** The buffer after a usage reading: the session limit's percent at `now`
+ *  appended, at most one sample every 30 s and at most 120 kept. A percent
+ *  lower than the last sample's means the window reset, and a last sample
+ *  dated after `now` means the clock went back or the value was rewritten:
+ *  either way the buffer starts over at this sample. A reading with no
+ *  session limit, or one over 100%, which the check would refuse, adds
+ *  nothing. */
+export function addSample(stored: unknown, s: UsageSnapshot, now: number): Sample[] {
+  const kept = samplesFrom(stored)
+  const limit = s.limits.find(l => l.kind === 'five_hour')
+  if (limit === undefined || !inRange(limit.percent, 100) || !Number.isFinite(now)) return kept
+  const next = { at: now, percent: limit.percent }
+  const last = kept[kept.length - 1]
+  if (last === undefined || limit.percent < last.percent || now < last.at) return [next]
+  if (now - last.at < SAMPLE_MS) return kept
+  return [...kept, next].slice(-MAX_SAMPLES)
+}
+
+// Percent a millisecond, from the oldest sample in the last 30 minutes to the
+// newest, or undefined when they are under 5 minutes apart. A sample dated
+// after `now` is left out.
+function recentPace(samples: readonly Sample[], now: number): number | undefined {
+  const recent = samples.filter(x => x.at >= now - RECENT_MS && x.at <= now)
+  const first = recent[0]
+  const last = recent[recent.length - 1]
+  if (first === undefined || last === undefined || last.at - first.at < MIN_SPAN_MS) return undefined
+  return (last.percent - first.percent) / (last.at - first.at)
+}
+
+/** A limit's projection: the percent it will be at reset at the current
+ *  pace, and past 100% how many milliseconds before the reset it runs out. */
+export type Projection = { percent: number; earlyMs?: number }
+
+/** The projection for one limit, or undefined: for a kind other than
+ *  `five_hour` and `seven_day`, for a limit already run out, with no reset
+ *  time to read or none still ahead, with too little to measure a pace from
+ *  (under 5 minutes between
+ *  the session limit's samples, under an hour since the weekly limit's week
+ *  began), or when the pace is 0 or less. */
+export function projection(limit: UsageLimit, samples: readonly Sample[], now: number): Projection | undefined {
+  if (limit.kind !== 'five_hour' && limit.kind !== 'seven_day') return undefined
+  // A limit at or over 100%, as its row draws it rounded, has run out: no
+  // projection, so its row keeps the reset time, when it comes back (owner
+  // decision q1 A).
+  if (Math.round(limit.percent) >= 100) return undefined
+  const reset = limit.resetsAt === undefined ? undefined : isoTime(limit.resetsAt)
+  if (reset === undefined || !Number.isFinite(now) || !Number.isFinite(limit.percent) || reset <= now) return undefined
+  let pace: number | undefined
+  if (limit.kind === 'five_hour') {
+    pace = recentPace(samples, now)
+  } else {
+    const since = now - (reset - WEEK_MS)
+    pace = since >= MIN_WEEK_MS ? limit.percent / since : undefined
+  }
+  if (pace === undefined || !Number.isFinite(pace) || pace <= 0) return undefined
+  const percent = limit.percent + pace * (reset - now)
+  if (!Number.isFinite(percent)) return undefined
+  if (percent <= 100) return { percent }
+  const earlyMs = reset - (now + (100 - limit.percent) / pace)
+  return Number.isFinite(earlyMs) ? { percent, earlyMs } : { percent }
+}
+
+/** A span as the early note reads it: minutes under an hour, hours under a
+ *  day, then days, each rounded, and never under 1 minute. A span that is not
+ *  a finite number reads as 1 minute. */
+export function roughTime(ms: number): string {
+  const mins = Number.isFinite(ms) ? Math.max(1, Math.round(ms / 60000)) : 1
+  if (mins >= 1440) return `${Math.round(mins / 1440)} d`
+  if (mins >= 60) return `${Math.round(mins / 60)} hr`
+  return `${mins} min`
+}
+
+const earlyText = (ms: number) => `runs out about ${roughTime(ms)} early`
+
+// A limit's terminal cells: its bar, then with a projection the ░ cells from
+// the bar's end to the projected percent, capped at 20 cells, then blanks.
+function projectedCells(percent: number, p: Projection | undefined): { bar: string; ahead: string } {
+  const full = eighthBar(percent / 100, BAR_CELLS)
+  if (p === undefined) return { bar: full, ahead: '' }
+  const bar = full.trimEnd()
+  const used = [...bar].length
+  const to = Math.round((Math.min(100, Math.max(0, p.percent)) / 100) * BAR_CELLS)
+  const cells = Math.max(0, to - used)
+  return { bar, ahead: '░'.repeat(cells) + ' '.repeat(BAR_CELLS - used - cells) }
 }
 
 // --- Tick and undo ---------------------------------------------------------
