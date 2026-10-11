@@ -1,6 +1,7 @@
 #!/usr/bin/env node
-// Records what Claude Code's own `$.fs.stat` answers about real links, for the
-// Brigade mod's path rule and its tests.
+// Records what Claude Code's own `$.fs.stat` answers about real links, and how
+// `$.fs.list` lists them, for the Brigade mod's path rule, its transcript
+// finder and their tests.
 //
 //   node scripts/record-brigade-stats.mjs           compare with the recording
 //   node scripts/record-brigade-stats.mjs --write   write a new recording
@@ -110,15 +111,22 @@ try {
     return next(e)
   })
   on('command.run', { command: 'record-stats' }, async ($, e) => {
+    const [folder, ...paths] = String(e.args).split('|')
     const out = []
-    for (const path of String(e.args).split('|')) {
+    for (const path of paths) {
       try {
         out.push({ path, found: await $.fs.stat(path, { resolve: true }) })
       } catch (err) {
         out.push({ path, rejected: String(err && err.message) })
       }
     }
-    return { text: '<<<' + JSON.stringify(out) + '>>>' }
+    let listed
+    try {
+      listed = { entries: await $.fs.list(folder) }
+    } catch (err) {
+      listed = { rejected: String(err && err.message) }
+    }
+    return { text: '<<<' + JSON.stringify({ stats: out, listed }) + '>>>' }
   })
 }
 `,
@@ -128,14 +136,16 @@ try {
   const env = { ...process.env };
   delete env.NODE_OPTIONS;
   const version = execFileSync('claude', ['--version'], { encoding: 'utf8', env }).trim().split(/\s/)[0];
-  const raw = execFileSync('claude', ['-p', '--setting-sources', '', '--model', 'haiku', '--plugin-dir', probe, `/record-stats ${all.map(a => a.path).join('|')}`], {
+  // The first argument is the folder to list: the fixtures' own, so the
+  // listing holds every kind of entry the stats cover.
+  const raw = execFileSync('claude', ['-p', '--setting-sources', '', '--model', 'haiku', '--plugin-dir', probe, `/record-stats ${[fx, ...all.map(a => a.path)].join('|')}`], {
     encoding: 'utf8',
     env,
     timeout: 120000,
   });
   const m = /<<<(.*)>>>/s.exec(raw);
   if (m === null) throw new Error(`the probe answered no record:\n${raw}`);
-  const answers = JSON.parse(m[1]);
+  const { stats: answers, listed } = JSON.parse(m[1]);
 
   const stats = {};
   for (const f of made) {
@@ -153,12 +163,30 @@ try {
     if (a?.rejected === undefined) throw new Error(`${x.name}: stat answered, and nothing is there`);
     rejections[x.name] = a.rejected.split(x.path).join('<path>').replace(/^stat-recorder:/, '<plugin>:');
   }
-  const recording = { engine: version, platform: process.platform, stats, rejections };
+  // The listing of the fixtures' folder: each entry's kind and isLink by its
+  // name, and the fields every entry carried. Size and time vary by run, so
+  // only their presence is kept.
+  if (listed.entries === undefined) throw new Error(`the listing was rejected (${listed.rejected})`);
+  if (!Array.isArray(listed.entries)) throw new Error('the listing is not a list');
+  const fieldSets = new Set(listed.entries.map(e => Object.keys(e).sort().join(',')));
+  if (fieldSets.size !== 1) throw new Error(`the listing's entries carry different fields: ${[...fieldSets].join(' | ')}`);
+  const entries = {};
+  for (const e of [...listed.entries].sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0))) {
+    entries[e.name] = { kind: e.kind, isLink: e.isLink };
+  }
+  for (const f of made) {
+    if (entries[f.name] === undefined) throw new Error(`${f.name}: not in the listing`);
+  }
+  const list = { fields: [...fieldSets][0].split(','), entries };
+
+  const recording = { engine: version, platform: process.platform, stats, rejections, list };
   output = `// Written by scripts/record-brigade-stats.mjs: what Claude Code's own
 // \`$.fs.stat(path, { resolve: true })\` answered about each kind of real link,
 // built for real in a temporary folder. \`realPath\` says where the answer's
 // real path landed: the path itself, the link's target, or nowhere (absent).
 // A rejection is its message, with the path and the plugin's name taken out.
+// \`list\` is what \`$.fs.list\` answered for the folder holding them: the
+// fields each entry carried, and each entry's kind and isLink by its name.
 // Do not edit by hand; run the script with --write.
 
 export const RECORDED = ${JSON.stringify(recording, null, 2).replace(/"([A-Za-z]+)":/g, '$1:')} as const

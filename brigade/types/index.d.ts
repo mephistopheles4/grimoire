@@ -52,10 +52,11 @@ export type UsageSnapshot = {
  *  model call's time, its context tokens and its cache window (absent when no
  *  call that wrote cache says it); or unknown, because the transcript is too
  *  large to read or two sessions share the card's name; or not read yet,
- *  because the session has been working since the pane first saw it. */
+ *  because the session has been working since the pane first saw it; or not
+ *  found, because no transcript passed the finder's checks. No path is kept. */
 export type Warmth =
   | { name: string; kind: 'call'; at: number; tokens: number; windowMs?: number }
-  | { name: string; kind: 'too-large' | 'shared' | 'unread' }
+  | { name: string; kind: 'too-large' | 'shared' | 'unread' | 'not-found' }
 
 declare module 'claude-code' {
   interface PluginState {
@@ -70,8 +71,6 @@ declare module 'claude-code' {
       live: Pair[]
       liveError: string
       links: Pair[]
-      /** Session names whose transcript was read, found or not. */
-      looked: string[]
       reports: Report[]
       dismissed: string[]
       doneTodos: string[]
