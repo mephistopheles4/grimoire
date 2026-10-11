@@ -131,6 +131,8 @@ set. It points the session to where its brief lives, takes its milestone
 reports, relays between sessions, and cleans a session up when you say it is
 done. It takes the when and the why from your own process, and it never
 counts a message from another session as your yes to start, stop or delete.
+On your own words in its chat, it can also merge, close or reopen, edit,
+delete or label an issue or a pull request itself, or post a comment.
 The sessions it starts take any message from the lead as your decision, on
 any matter, and the lead tells you in one line of each one it sends. A
 session cannot tell a forged sender from the lead; read the skill's README
