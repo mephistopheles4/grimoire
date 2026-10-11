@@ -222,11 +222,16 @@ says what the reader sees there now.
 
 ### Lists of strings
 
-**Every list of names in the file is an array of strings.** On a node that
-covers `params`, `touches` and `enteredBy`, and `error` and `requirements` in
-`channels`. It also covers a layer's renamed `requirements` and
-`sheet.graphsNotDrawn`. The validator refuses a list that is not an array. It
-also refuses each entry that is not a string, by its index:
+**These fields are arrays of strings:**
+
+- a node's `params`, `touches` and `enteredBy`
+- `error` and `requirements` in a node's `channels`
+- a layer's renamed `requirements`
+- `sheet.graphsNotDrawn`
+
+Each one is required where its parent is. Write an empty array to say
+"none". The validator refuses a list that is not an array. It also refuses
+each entry that is not a string, by its index:
 
 ```text
 greet.flightpath.json: nodes.lookupName.params: expected an array of strings
@@ -234,17 +239,19 @@ greet.flightpath.json: nodes.lookupName.params[1]: expected a string
 ```
 
 The same two shapes hold for `nodes.<id>.enteredBy`, `nodes.<id>.touches`,
-`layers.<name>.nodes.<id>.requirements` and `sheet.graphsNotDrawn`. An entry
-in `nodes.<id>.channels.error` or `nodes.<id>.channels.requirements` that is
-not a string is refused the same way. Those two keep their own words for a
-list that is not an array: `expected an array of failure tags` and `expected
-an array of tokens`. A refusal names the path, and never the value.
+`layers.<name>.nodes.<id>.requirements` and `sheet.graphsNotDrawn`. The
+validator refuses each entry in `nodes.<id>.channels.error` or
+`nodes.<id>.channels.requirements` that is not a string. Those two lists keep
+their own words when they are not arrays. For `error` the words are `expected
+an array of failure tags`. For `requirements` they are `expected an array of
+tokens`. A refusal names the path, and never the value.
 
 **An entry can be any string, a prototype-member name such as `constructor`
-included.** Code that looks an entry up uses a Set, a Map or an object with no
-prototype. It never uses a plain object.
+included.** A tool that reads a flightpath file, the renderer included, looks
+an entry up in a Set, a Map or an object with no prototype. It never uses a
+plain object.
 
-**Write the paths in `touches`, `enteredBy` and `files` relative to the
+**Write the paths in `loc`, `touches`, `enteredBy` and `files` relative to the
 repository root.** The page prints them. An absolute path from a home folder
 puts the author's user name on the page.
 
@@ -333,9 +340,10 @@ callee's param names.** `--check` compares them with the callee's `params`. See
 [Findings](#findings). An effect has no callee, so `--check` does not compare
 its `args`.
 
-**An object `args` keeps its prototype.** The renderer does not rebuild it. So
-code that tests a param name against `args` uses an own-property test, such as
-`Object.hasOwn`. It never reads the property.
+**An object `args` keeps its prototype.** The renderer does not rebuild it. A
+tool that reads a flightpath file, the renderer included, tests a param name
+against `args` with an own-property test, such as `Object.hasOwn`. It never
+reads the property.
 
 `onError` is an array of `{ tag, goto, bind? }`. `goto` names a `label` on a
 step of the same node.
@@ -566,7 +574,8 @@ exits zero. Each one is a thing you may have meant.
   characters escaped. A name longer than 200 characters prints as its first
   200, its length and the start of its digest. A param matches by the name before its `=`. A callee
   with a `...` param takes every name. The check skips an `args` that is not
-  an object. It also skips a callee whose `params` are not all strings. Fix
+  an object. A callee whose `params` are not all strings never reaches this
+  check: the validator refuses it first. See [Lists of strings](#lists-of-strings). Fix
   the call site when a name is a typo or `params` no longer lists what the
   callee takes. Write one line that says why when the args are an options
   object's fields or a route word.

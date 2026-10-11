@@ -544,11 +544,11 @@ test('the pre-fix pr-313 shape is refused at each return out of worldSpaceUvs, a
  * text, threw inside --check itself. Each one is now a refusal that names the
  * field, and never a stack trace. */
 
-const escaped = s => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+const regexLiteral = s => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 /** A refusal line for this path and reason, and no stack trace anywhere. */
 function refusedAt(r, path, why) {
   assert.equal(r.code, 1, `expected a refusal, got:\n${r.stdout}${r.stderr}`);
-  assert.match(r.stderr, new RegExp(`: ${escaped(path)}: ${escaped(why)}$`, 'm'));
+  assert.match(r.stderr, new RegExp(`: ${regexLiteral(path)}: ${regexLiteral(why)}$`, 'm'));
   assert.doesNotMatch(r.stderr, /TypeError|\n\s+at /, r.stderr);
 }
 const notArray = 'expected an array of strings';
@@ -571,6 +571,9 @@ const listCases = [
   ['a sheet.graphsNotDrawn holding a number', p => { p.sheet.graphsNotDrawn = [5]; }, 'sheet.graphsNotDrawn[0]', notString],
   ['a channels.error entry that is not a string', p => { p.nodes.greet.channels.error.push(7); }, 'nodes.greet.channels.error[2]', notString],
   ['a channels.requirements entry that is not a string', p => { p.nodes.greet.channels.requirements.push({ store: 'names' }); }, 'nodes.greet.channels.requirements[1]', notString],
+  // The two channels lists keep their own words for a list that is not one.
+  ['a string channels.requirements', p => { p.nodes.greet.channels.requirements = 'the name store'; }, 'nodes.greet.channels.requirements', 'expected an array of tokens'],
+  ['a string channels.error on a node that throws nothing', p => { p.nodes.greet.channels.error = 'SendFailed'; }, 'nodes.greet.channels.error', 'expected an array of failure tags'],
   ['a string layer requirements', p => { p.layers.tests.nodes.lookupName.requirements = 'the name store → a fixed map'; }, 'layers.tests.nodes.lookupName.requirements', notArray],
   // Read as a list later in the same check: the cross-check of a thrown fail.
   ['a numeric channels.error on the node that throws', p => { p.nodes.lookupName.channels.error = 5; }, 'nodes.lookupName.channels.error', 'expected an array of failure tags'],
@@ -1272,17 +1275,21 @@ test('pr-382 still validates, and its call sites are compared with their callees
 });
 
 test('comparing args with params costs their sum, not their product', () => {
-  // 20,000 call steps into a callee with 20,000 params. Working a callee's
-  // names out again at every call costs 400,000,000 names; once per callee
-  // costs 20,000. The calls sit on a node no entry reaches, so the tree view
-  // does not draw them.
+  // 28,300 call steps into a callee with 28,300 params. Working a callee's
+  // names out again at every call costs about 800,000,000 names; once per
+  // callee costs 28,300. The calls sit on a node no entry reaches, so the
+  // tree view does not draw them.
+  //
+  // Until #247 this was 20,000 calls into each of two callees, the second
+  // with a params list ending in the number 0, which the check skipped. The
+  // shape pass now refuses that callee, so one callee carries the same
+  // product instead.
   //
   // A cheaper mistake passes this bound: keeping names in a list rather than
-  // a Set (1.49 s; 18.5 s against 1.9 s on an 8 MB file built for it). The
-  // gap is not wide enough for a wall-clock bound that a slow runner keeps.
-  // A callee whose params are not all strings was a second case here; the
-  // shape pass now refuses it, so no file reaches the comparison with one.
-  const calls = 20000;
+  // a Set (1.49 s on the two-callee file; 18.5 s against 1.9 s on an 8 MB
+  // file built for it). The gap is not wide enough for a wall-clock bound
+  // that a slow runner keeps.
+  const calls = 28300;
   const file = derive(prog => {
     delete prog.layers;
     const params = Array.from({ length: calls }, (_, i) => `p${i} = ${i}`);
@@ -1297,10 +1304,9 @@ test('comparing args with params costs their sum, not their product', () => {
   const took = performance.now() - started;
   assert.equal(r.code, 0, r.stderr);
   assert.deepEqual(argLines(r.stdout), []);
-  // On the threat model's machine the earlier two-callee file checked in
-  // 0.52 s, and a renderer that worked each callee out again at every call
-  // took 71 s; this one callee carries half of that product. The bound sits
-  // far from both, so a slow runner passes and the product fails.
+  // On the threat model's machine this file checks in 0.17 s, and a
+  // renderer that works each callee out again at every call takes 74 s. The
+  // bound sits far from both, so a slow runner passes and the product fails.
   assert.ok(took < 15000, `--check took ${Math.round(took)} ms`);
 });
 

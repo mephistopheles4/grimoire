@@ -152,14 +152,14 @@ function keys(r, where, obj, req, opt = []) {
  * character at a time and an object prints as `[object Object]` or throws.
  * One refusal per bad entry, by index, so a long list says where to look. A
  * refusal names the path and never the value: the value can be anything. */
-function entriesAreStrings(r, where, list) {
+function refuseNonStrings(r, where, list) {
   list.forEach((v, i) => {
     if (typeof v !== 'string') r.shape(`${where}[${i}]`, 'expected a string');
   });
 }
 function strings(r, where, v) {
   if (!Array.isArray(v)) return r.shape(where, 'expected an array of strings');
-  entriesAreStrings(r, where, v);
+  refuseNonStrings(r, where, v);
 }
 
 /* -- pass 1 and 2: shape and links ----------------------------------------- */
@@ -248,9 +248,9 @@ function shape(prog, r) {
       keys(r, `nodes.${id}.channels`, n.channels, ['success', 'error', 'requirements']);
       if (isObj(n.channels)) {
         if (n.channels.error !== undefined && !Array.isArray(n.channels.error)) r.shape(`nodes.${id}.channels.error`, 'expected an array of failure tags');
-        else if (n.channels.error !== undefined) entriesAreStrings(r, `nodes.${id}.channels.error`, n.channels.error);
+        else if (n.channels.error !== undefined) refuseNonStrings(r, `nodes.${id}.channels.error`, n.channels.error);
         if (n.channels.requirements !== undefined && !Array.isArray(n.channels.requirements)) r.shape(`nodes.${id}.channels.requirements`, 'expected an array of tokens');
-        else if (n.channels.requirements !== undefined) entriesAreStrings(r, `nodes.${id}.channels.requirements`, n.channels.requirements);
+        else if (n.channels.requirements !== undefined) refuseNonStrings(r, `nodes.${id}.channels.requirements`, n.channels.requirements);
         if (n.channels.success !== undefined && typeof n.channels.success !== 'string') r.shape(`nodes.${id}.channels.success`, 'expected a string');
       }
     }
@@ -916,11 +916,12 @@ export function findings(prog) {
    * param accepts every name.
    *
    * The shape pass refuses a `params` that is not an array of strings, and
-   * findings run only on a file with no refusal, so the type test below
-   * never fails here; it stays so the exported function holds without
-   * that guarantee. Each callee is worked out
-   * once and its verdict kept, the skip included, so many calls into one
-   * long list cost their sum and not their product. A Set (`nameSet`),
+   * findings run only on a file with no refusal. So the type test below
+   * never fails from the command line, and no test reaches it; it stays so
+   * the exported function holds without that guarantee, giving such a
+   * callee a null verdict that skips the comparison. Each callee is worked
+   * out once and its verdict kept, a null one included, so many calls into
+   * one long list cost their sum and not their product. A Set (`nameSet`),
    * because a name is a stranger's string and never an object key. Each
    * name is printed quoted, so a line break in one cannot split the line,
    * and with the characters JSON leaves raw escaped too (see `quoted`). */
