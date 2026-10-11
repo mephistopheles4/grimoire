@@ -3,6 +3,8 @@
 // built for real in a temporary folder. `realPath` says where the answer's
 // real path landed: the path itself, the link's target, or nowhere (absent).
 // A rejection is its message, with the path and the plugin's name taken out.
+// `list` is what `$.fs.list` answered for the folder holding them: the
+// fields each entry carried, and each entry's kind and isLink by its name.
 // Do not edit by hand; run the script with --write.
 
 export const RECORDED = {
@@ -54,5 +56,56 @@ export const RECORDED = {
     missing: "<plugin>: $.fs.stat(<path>) failed: ENOENT",
     "under-junction": "<plugin>: $.fs.stat(<path>) failed: ENOENT",
     "under-file": "<plugin>: $.fs.stat(<path>) failed: ENOENT"
+  },
+  list: {
+    fields: [
+      "isLink",
+      "kind",
+      "mtimeMs",
+      "name",
+      "size"
+    ],
+    entries: {
+      "broken-file-symlink": {
+        kind: "other",
+        isLink: true
+      },
+      "broken-junction": {
+        kind: "other",
+        isLink: true
+      },
+      "dir-symlink": {
+        kind: "other",
+        isLink: true
+      },
+      file: {
+        kind: "file",
+        isLink: false
+      },
+      "file-symlink": {
+        kind: "other",
+        isLink: true
+      },
+      folder: {
+        kind: "dir",
+        isLink: false
+      },
+      "hard-link": {
+        kind: "file",
+        isLink: false
+      },
+      junction: {
+        kind: "other",
+        isLink: true
+      },
+      "target-dir": {
+        kind: "dir",
+        isLink: false
+      },
+      "target-file.txt": {
+        kind: "file",
+        isLink: false
+      }
+    }
   }
 } as const
