@@ -7,7 +7,7 @@ import assert from 'node:assert/strict';
 import { readFileSync, unlinkSync, writeFileSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { join } from 'node:path';
-import { fresh, run, has, show, expect, once, CONTRACT, familiarText, defaultFm, skill, listing } from './contract-fixture.mjs';
+import { fresh, run, has, show, expect, once, warns, warningsFirst, CONTRACT, familiarText, defaultFm, skill, listing } from './contract-fixture.mjs';
 
 const CANARY = 'zq-canary-7e2';
 const NOT_WRITTEN = 'FAIL seal: refused; nothing written';
@@ -120,7 +120,7 @@ describe('the frontmatter of a CLAUDE.md', () => {
 
   test('any other key -> 0 with a warning naming the key and its line, never its value, once', () => {
     const r = run([main({ text: familiarText([`zq_other: ${CANARY}`], BODY) }).file]);
-    const want = 'WARN ignored-key: zq_other at line 2: Claude Code ignores it when the file loads as CLAUDE.md';
+    const want = 'WARN ignored-key: "zq_other" at line 2: Claude Code ignores it when the file loads as CLAUDE.md';
     exact(r, 0, 'PASS keys', want);
     once(r, want);
     assert.ok(!r.out.includes(CANARY) && !r.err.includes(CANARY), show(r));
@@ -136,8 +136,8 @@ describe('the frontmatter of a CLAUDE.md', () => {
     exact(
       r,
       0,
-      'WARN danger: allowed-tools at line 2 may let the agent use tools without asking',
-      'WARN ignored-key: allowed-tools at line 2: Claude Code ignores it when the file loads as CLAUDE.md',
+      'WARN danger: "allowed-tools" at line 2 may let the agent use tools without asking',
+      'WARN ignored-key: "allowed-tools" at line 2: Claude Code ignores it when the file loads as CLAUDE.md',
     );
   });
 
@@ -214,6 +214,12 @@ describe('an @ import in the body warns once per line, never with its path', () 
     const file = join(fresh(), 'x.md');
     writeFileSync(file, familiarText(defaultFm('x'), '@docs/a.md\n'));
     none(run([file]), 'import');
+  });
+  test('25 import lines -> 20 warnings and one count line, first', () => {
+    const r = run([main({ text: `${BODY}${'@a.md\n'.repeat(25)}` }).file]);
+    const lines = Array.from({ length: 20 }, (_, i) => want(i + 4));
+    assert.deepEqual(warns(r), [...lines, 'WARN import: 5 more not shown; each is a body line holding an @ import'], show(r));
+    warningsFirst(r);
   });
 });
 

@@ -10,7 +10,7 @@ import assert from 'node:assert/strict';
 import { readFileSync, writeFileSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { join } from 'node:path';
-import { fresh, run, has, show, expect, once, familiarText, defaultFm, skill } from './contract-fixture.mjs';
+import { fresh, run, has, show, expect, once, warns, warningsFirst, familiarText, defaultFm, skill } from './contract-fixture.mjs';
 
 const CANARY = 'zq-canary-3b9';
 const NOT_WRITTEN = 'FAIL seal: refused; nothing written';
@@ -22,7 +22,7 @@ const BLOCK = 'write tools as a flow list or on one line';
 const MISSING = 'WARN tools-missing: no tools listed, so the agent may get every tool';
 const EMPTY_LIST = 'WARN tools-missing: an empty tools list, so the agent gets no tools';
 const INDICATOR = 'a value starting with a flow, anchor, alias, tag, block or other indicator character';
-const grant = n => `WARN danger: tools item ${n} at line 4 grants every current and future tool of one server, write tools included`;
+const grant = n => `WARN danger: "tools" item ${n} at line 4 grants every current and future tool of one server, write tools included`;
 const item = (n, why) => `FAIL tools-item: item ${n} at line 4: ${why}`;
 
 /** Write x.md holding `tools: <value>` at line 4, and its contract. */
@@ -86,7 +86,7 @@ describe('an accepted wildcard passes, warns once per item, and seals', () => {
   test('a wildcard beside an unlisted tools key -> the keys failure, and no grant warning', () => {
     const r = run([agent('Read, mcp__srv__*', { contract: 'Version: 1.0.0\nTarget: claude\n\n# Contract\n' })]);
     exact(r, 1, 'FAIL keys: unknown key "tools" at line 4');
-    assert.ok(!has(r, 'WARN danger: tools'), show(r));
+    assert.ok(!has(r, 'WARN danger: "tools"'), show(r));
   });
 
   test('two wildcards -> two warnings, one per item', () => {
@@ -98,7 +98,7 @@ describe('an accepted wildcard passes, warns once per item, and seals', () => {
 
   test('one named MCP tool -> 0 and no grant warning', () => {
     const r = sealTwice(agent('[Read, mcp__srv__get_page]'));
-    assert.ok(!has(r, 'WARN danger: tools'), show(r));
+    assert.ok(!has(r, 'WARN danger: "tools"'), show(r));
     assert.ok(!has(r, 'FAIL'), show(r));
   });
 
@@ -295,5 +295,23 @@ describe('tools-missing: an agent .md with no tools warns, and still seals', () 
     const file = join(fresh(), 'CLAUDE.md');
     writeFileSync(file, '# Rules\n');
     assert.ok(!has(run([file]), 'WARN tools-missing'));
+  });
+});
+
+// ------------------------------------------------------------------ ranked and capped (#160 finding S3)
+
+describe('whole-server tools items are capped at 20, and never hide a DANGER-table key line', () => {
+  test('25 whole-server items and a listed initialPrompt -> 20 item lines, the initialPrompt line and one count line', () => {
+    const items = Array.from({ length: 25 }, (_, i) => `mcp__s${i + 1}__*`);
+    const contract = 'Version: 1.0.0\nTarget: claude\nExtra keys: tools, initialPrompt\n\n# Contract\n\nWhat this familiar is for.\n';
+    const file = agent(`[${items.join(', ')}]`, { contract, extra: ['initialPrompt: hi'] });
+    const r = run([file]);
+    const want = [
+      ...Array.from({ length: 20 }, (_, i) => grant(i + 1)),
+      'WARN danger: "initialPrompt" at line 5 sends a first message the person did not type',
+      'WARN danger: 5 more whole-server tools items not shown',
+    ];
+    assert.deepEqual(warns(r), want, show(r));
+    warningsFirst(r);
   });
 });

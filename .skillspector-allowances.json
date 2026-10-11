@@ -8,8 +8,8 @@
       "analyzers": [
         "static_patterns_tool_misuse"
       ],
-      "sha256": "76b415d78eb2b2aec77d9fb24fe8ead16664744fb768acf46abd4cf26799f29c",
-      "reason": "The contract skill's format check script. The destructive-command parser stops partway through a long expression and marks the file partial for that one check; every other check reads it in full. The entry also accepts a marker-pass give-up inside that one check, which the scanner reports under this code. Re-read on 2026-10-11 for contract 0.10.0 (issue 160): the new lines, a name fold, a line rule and their refusals for keys, comments and lines named like a mark key, were read by hand; they are string operations and single-code-point property tests, with no command, removal verb or disguised directive. Re-read on 2026-10-11 after the review round (issue 277): the changed lines are comments only, and hold none either."
+      "sha256": "f00625b32bd5f3bda89fba36a50f275b59100e9af0ca44853c508bef0dc43ad0",
+      "reason": "The contract skill's format check script. The destructive-command parser stops partway through a long expression and marks the file partial for that one check; every other check reads it in full. The entry also accepts a marker-pass give-up inside that one check, which the scanner reports under this code. Re-read on 2026-10-11 for contract 0.10.0 (issue 160): the new lines, a name fold, a line rule and their refusals for keys, comments and lines named like a mark key, were read by hand; they are string operations and single-code-point property tests, with no command, removal verb or disguised directive. Re-read on 2026-10-11 after the review round (issue 277): the changed lines are comments only, and hold none either. Re-read on 2026-10-11 for contract 0.11.0 (issue 160): the new lines, a warnings list with a rank, a cap and count lines, and a quoted, cut key echo, were read by hand; they hold no command, removal verb or disguised directive."
     },
     {
       "skill": "eagle-eye",

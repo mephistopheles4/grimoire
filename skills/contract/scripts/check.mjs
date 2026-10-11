@@ -16,7 +16,9 @@
 //
 // Exit 0 pass (warnings allowed), 1 fail or cannot check, 2 usage or refusal.
 // The exit code is the verdict. The skill also shows the person each WARN
-// line, but no line of text changes the verdict. The text is built so that
+// line, but no line of text changes the verdict. The WARN lines print first,
+// as one block, the sharpest first, with at most twenty a group and a count
+// line for the rest (see WARN_PER_RULE). The text is built so that
 // nothing a file says can speak through it: it never echoes a field value,
 // except a `name` that already matched the name pattern, and every character
 // it does echo from a file or a folder name is cleaned first.
@@ -103,6 +105,11 @@ const DESCRIPTION_MAX = 1024;
 const COMPATIBILITY_MAX = 500;
 const BODY_LINES_MAX = 500;
 const ECHO_MAX = 80;
+// A key name a WARN line echoes is cut shorter (see quoteKey). The warnings
+// print first, so a shorter cut leaves less room for words a stranger spells
+// into a key name. The longest DANGER key, experimental_compact_prompt_file,
+// has 32 characters, so no table key is ever cut.
+const KEY_ECHO_MAX = 40;
 
 const MARK_KEYS = ['contract-version', 'familiar-digest', 'contract-digest'];
 const KNOWN_KEYS = new Set(['name', 'description', 'compatibility', 'license', 'allowed-tools', 'metadata']);
@@ -141,8 +148,9 @@ const CONTENTS_WINDOW = 30;
 // DANGER, by file kind, then by key: a setting known to let the agent do more
 // without asking. A value in `safe` prints nothing; any other value, or any
 // value at all when `safe` is null, prints the row's line. The value is never
-// echoed, and the key and label come from this table. A Map, so a key such as
-// "constructor" is simply not in it.
+// echoed, and the key, quoted, and the label come from this table. A Map, so a
+// key such as "constructor" is simply not in it. These lines are never capped:
+// the table bounds them (see WARN_PER_RULE).
 //
 // Mirror of references/binding-*.md; change both.
 const warnRow = (safe, label) => ({ safe: safe === null ? null : new Set(safe), label });
@@ -185,10 +193,38 @@ const HARMLESS = new Map([
 // per line rather than one per key. A `tools` item in an agent .md written
 // mcp__<server>__* prints TOOLS_GRANT under rule `danger`, once per item. A
 // body line of a CLAUDE.md holding an @ import prints OUTSIDE_FILE under rule
-// `import`, once per line (see importRule).
+// `import`, once per line (see importRule). Each is capped at twenty lines
+// and a count line (see WARN_PER_RULE).
 //
 // Mirror of references/binding-claude.md; change both.
 const TOOLS_GRANT = 'grants every current and future tool of one server, write tools included';
+
+// How the warnings print (see Report.output). They print first, as one block,
+// so that however many a stranger's file raises, they cannot push the check's
+// own FAIL and CANNOT-CHECK reasons away from RESULT.
+//
+// Rank 1 holds the warnings that say the agent may do more than its file
+// shows; they print before every other warning.
+const WARN_RANK_1 = new Set(['danger', 'import', 'tools-missing']);
+// The most lines one group prints. A group is a rule, except inside `danger`,
+// where the `tools` item lines are their own group, DANGER_TOOLS, and the
+// DANGER-table key lines are DANGER_KEYS, never capped: the table bounds
+// them, at one line a key, four for a .md file and ten for a .toml. A cap per
+// group, not one in all, so one rule's flood cannot push another rule's line
+// away. Twenty, as CHARACTER_HITS_MAX, is enough to find and fix before the
+// next run. Measured on 2026-10-11, no rule prints more than one line for any
+// skill in this repository.
+const WARN_PER_RULE = 20;
+const DANGER_KEYS = 'danger-keys';
+const DANGER_TOOLS = 'danger-tools';
+const WARN_UNCAPPED = new Set([DANGER_KEYS]);
+// The words of a count line after "<n> more", by group, where the plain "not
+// shown" says too little: two of them point to where the rest is written.
+const WARN_MORE = new Map([
+  [DANGER_TOOLS, 'whole-server tools items not shown'],
+  ['unreviewed', 'not shown; every listed key is on the contract\'s "Extra keys:" line'],
+  ['import', 'not shown; each is a body line holding an @ import'],
+]);
 // The sandbox_mode values that print PASS sandbox-mode: its DANGER row's safe
 // set, so the two cannot drift apart.
 const SANDBOX_MODES = DANGER.get('.toml').get('sandbox_mode').safe;
@@ -408,19 +444,46 @@ function cleanUncut(text) {
   return out;
 }
 
+/**
+ * A key name as a WARN line echoes it: cleaned by clean's rule, cut at
+ * KEY_ECHO_MAX code points with "..." after a cut, and in double quotes. A
+ * key cannot hold a ".", so the "..." cannot be part of the key.
+ */
+function quoteKey(key) {
+  let out = '';
+  let n = 0;
+  for (const ch of String(key)) {
+    if (n >= KEY_ECHO_MAX) return `"${out}..."`;
+    out += mustClean(ch.codePointAt(0)) ? '?' : ch;
+    n += 1;
+  }
+  return `"${out}"`;
+}
+
+function line(status, rule, reason) {
+  return reason === undefined ? `${status} ${rule}` : `${status} ${rule}: ${reason}`;
+}
+
+/**
+ * The lines of one run. PASS, FAIL and CANNOT-CHECK lines are kept in the
+ * order the rules raise them. Warnings are kept apart, each with its rule and
+ * the group its cap counts, and print first, ranked and capped (see
+ * WARN_PER_RULE); main() builds the whole output once, by output().
+ */
 class Report {
   constructor() {
     this.lines = [];
+    this.warnings = [];
     this.failed = false;
   }
   add(status, rule, reason) {
-    this.lines.push(reason === undefined ? `${status} ${rule}` : `${status} ${rule}: ${reason}`);
+    this.lines.push(line(status, rule, reason));
   }
   pass(rule, reason) {
     this.add('PASS', rule, reason);
   }
-  warn(rule, reason) {
-    this.add('WARN', rule, reason);
+  warn(rule, reason, group = rule) {
+    this.warnings.push({ rule, reason, group });
   }
   fail(rule, reason) {
     this.failed = true;
@@ -429,6 +492,42 @@ class Report {
   cannot(rule, reason) {
     this.failed = true;
     this.add('CANNOT-CHECK', rule, reason);
+  }
+  /**
+   * Take a scratch report's warnings, each with its rule and group, and its
+   * FAIL and CANNOT-CHECK lines. A loop, not a spread: a flood can hold more
+   * warnings than a call takes arguments.
+   */
+  absorb(scratch) {
+    for (const w of scratch.warnings) this.warnings.push(w);
+    for (const l of scratch.lines) if (l.startsWith('FAIL ') || l.startsWith('CANNOT-CHECK ')) this.lines.push(l);
+    if (scratch.failed) this.failed = true;
+  }
+  /**
+   * The whole output: the warnings, rank 1 then rank 2, then every other
+   * line, then the result line. Within a rank, warning lines keep the order
+   * the rules raised them; each group prints at most WARN_PER_RULE, and each
+   * group that raised more adds one count line after its rank's lines, in the
+   * order the groups first raised a line. Every word of a count line comes
+   * from this file.
+   */
+  output(result) {
+    const out = [];
+    for (const rankOne of [true, false]) {
+      const raised = new Map();
+      for (const w of this.warnings) {
+        if (WARN_RANK_1.has(w.rule) !== rankOne) continue;
+        const g = raised.get(w.group) ?? { rule: w.rule, n: 0 };
+        g.n += 1;
+        raised.set(w.group, g);
+        if (g.n <= WARN_PER_RULE || WARN_UNCAPPED.has(w.group)) out.push(line('WARN', w.rule, w.reason));
+      }
+      for (const [group, g] of raised) {
+        if (g.n <= WARN_PER_RULE || WARN_UNCAPPED.has(group)) continue;
+        out.push(line('WARN', g.rule, `${g.n - WARN_PER_RULE} more ${WARN_MORE.get(group) ?? 'not shown'}`));
+      }
+    }
+    return [...out, ...this.lines, result];
   }
 }
 
@@ -2245,7 +2344,7 @@ function mainFieldRules(top, report) {
   for (const [key, entry] of top) {
     if (!MAIN_REFUSED_KEYS.has(key)) continue;
     refused += 1;
-    report.fail('keys', `"${key}" at line ${entry.line}: a main agent file must not hold it; with it, the file loads as a sub-agent from an agents folder`);
+    report.fail('keys', `"${clean(key)}" at line ${entry.line}: a main agent file must not hold it; with it, the file loads as a sub-agent from an agents folder`);
   }
   if (refused === 0) report.pass('keys');
   metadataRule(top, report);
@@ -2253,8 +2352,8 @@ function mainFieldRules(top, report) {
   for (const [key, entry] of top) {
     if (MAIN_REFUSED_KEYS.has(key) || key === 'metadata') continue;
     const row = danger.get(key);
-    if (row !== undefined && !dangerSafe(row, entry)) report.warn('danger', `${key} at line ${entry.line} ${row.label}`);
-    report.warn('ignored-key', `${clean(key)} at line ${entry.line}: Claude Code ignores it when the file loads as ${MAIN_NAME}`);
+    if (row !== undefined && !dangerSafe(row, entry)) report.warn('danger', `${quoteKey(key)} at line ${entry.line} ${row.label}`, DANGER_KEYS);
+    report.warn('ignored-key', `${quoteKey(key)} at line ${entry.line}: Claude Code ignores it when the file loads as ${MAIN_NAME}`);
   }
 }
 
@@ -2302,7 +2401,7 @@ function toolsRules(top, extras, report, claude) {
     }
     const r = toolsItemOk(item.text);
     if (!r.ok) report.fail('tools-item', `${where}: ${r.why}`);
-    else if (r.grant && extras.has('tools')) report.warn('danger', `tools ${where} ${TOOLS_GRANT}`);
+    else if (r.grant && extras.has('tools')) report.warn('danger', `"tools" ${where} ${TOOLS_GRANT}`, DANGER_TOOLS);
   });
 }
 
@@ -2358,7 +2457,8 @@ function dangerSafe(row, entry) {
  * rule: a known key or one the contract lists. A key that failed it has its
  * FAIL line already. A key with a DANGER row prints the row's line unless its
  * value is safe. Any other key outside the known keys and HARMLESS prints the
- * plainer `unreviewed` line, with the key cleaned. No value is ever echoed.
+ * plainer `unreviewed` line, with the key quoted (see quoteKey). No value is
+ * ever echoed.
  * Both are warnings: they never fail the check, and --seal still seals.
  */
 function warningRules(top, toml, known, extras, report) {
@@ -2369,9 +2469,9 @@ function warningRules(top, toml, known, extras, report) {
     if (!known.has(key) && !extras.has(key)) continue;
     const row = danger.get(key);
     if (row !== undefined) {
-      if (!dangerSafe(row, entry)) report.warn('danger', `${key} at line ${entry.line} ${row.label}`);
+      if (!dangerSafe(row, entry)) report.warn('danger', `${quoteKey(key)} at line ${entry.line} ${row.label}`, DANGER_KEYS);
     } else if (!known.has(key) && !harmless.has(key)) {
-      report.warn('unreviewed', `${clean(key)} at line ${entry.line} is a setting this check does not review`);
+      report.warn('unreviewed', `${quoteKey(key)} at line ${entry.line} is a setting this check does not review`);
     }
   }
 }
@@ -2758,7 +2858,7 @@ function runSeal(loc, report) {
   kindRule(facts, loc, conScratch);
   contractFrameRule(con, conLabel, conScratch);
   if (conScratch.failed) {
-    for (const l of conScratch.lines) if (l.startsWith('FAIL ') || l.startsWith('CANNOT-CHECK ')) report.lines.push(l);
+    report.absorb(conScratch);
     throw new Refusal('contract-rules', `${conLabel} fails its file rules`);
   }
 
@@ -2800,7 +2900,7 @@ function runSeal(loc, report) {
   invisibleRule(fam, famLabel, scratch);
   fieldRules(fm, loc, facts.extras, scratch, facts.targets);
   if (scratch.failed) {
-    for (const l of scratch.lines) if (!l.startsWith('PASS ')) report.lines.push(l);
+    report.absorb(scratch);
     throw new Refusal('field-rules', `${famLabel} fails the field rules`);
   }
 
@@ -2811,7 +2911,7 @@ function runSeal(loc, report) {
     const folderScratch = new Report();
     folder = folderRules(loc, folderScratch);
     if (folderScratch.failed) {
-      for (const l of folderScratch.lines) if (!l.startsWith('PASS ')) report.lines.push(l);
+      report.absorb(folderScratch);
       throw new Refusal('folder-rules', 'the folder fails its file rules');
     }
   }
@@ -2928,8 +3028,7 @@ function main(argv) {
       code = 1;
     }
   }
-  report.lines.push(`RESULT: ${code === 0 ? 'pass' : 'fail'}`);
-  process.stdout.write(`${report.lines.join('\n')}\n`);
+  process.stdout.write(`${report.output(`RESULT: ${code === 0 ? 'pass' : 'fail'}`).join('\n')}\n`);
   process.exitCode = code;
 }
 

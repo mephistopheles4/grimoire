@@ -181,6 +181,15 @@ applies the key rows to every `.md` file, a skill's `SKILL.md` and a
 them then. Show each warning the check prints after the seal, and again in
 the hand-back.
 
+The warnings print first, above every other line. The sharpest come first:
+`danger`, `import` and `tools-missing`, then the rest. Each kind prints at
+most 20 lines, then one count line, such as `WARN unreviewed: 279 more not
+shown`. The `tools` item lines are counted apart from the key rows, and a
+key row's line is never cut. A warning names a key in double quotes, cut at
+40 characters with `...`. A count line is a warning too. When the
+`unreviewed` count line appears, show the contract's whole `Extra keys:`
+line, with each key's recorded value, beside the warnings.
+
 ## The mark (questions 5, 18)
 
 The seal writes the mark as three keys under `metadata:` in the
