@@ -1348,8 +1348,9 @@ for (const surface of ['terminal', 'desktop'] as const) {
 //
 // Spec revision 3 on #251, S10; ticket #275. The reading's reset times are set
 // from the engine clock when the reading is asked for, so the projection
-// draws; the session limit's samples are planted as another plugin would
-// write them, since the kit's clock takes no readings 30 s apart here.
+// draws. The test kit's clock does not move 30 s between the pane's readings,
+// so the pane stores only one sample of its own; the session limit's samples
+// are planted as another plugin would write them.
 
 const MIN_MS = 60000
 const projectedReading = (now: number) => ({
@@ -1414,13 +1415,16 @@ for (const surface of ['terminal', 'desktop'] as const) {
   })
 }
 
-// Samples another plugin rewrote into shapes the buffer check refuses. One
-// mount per test, so each shape is its own test.
-const REFUSED_SAMPLES: [string, unknown][] = [
-  ['text', 'x'],
-  ['a time that is text', [{ at: 'now', percent: 64 }]],
-  ['a percent over 100', [{ at: 1, percent: 500 }]],
-  ['500 samples', Array.from({ length: 500 }, (_, i) => ({ at: i, percent: 1 }))],
+// Samples another plugin rewrote into shapes the buffer check refuses. Each
+// but the text is recent and rising, at least 5 minutes from oldest to newest,
+// so it would draw a session-limit projection if the check let it through.
+// One mount per test, so each shape is its own test.
+const REFUSED_SAMPLES: [string, (now: number) => unknown][] = [
+  ['text', () => 'x'],
+  ['a time that is a numeric string', now => [{ at: now - 20 * MIN_MS, percent: 44 }, { at: String(now), percent: 64 }]],
+  ['a percent over 100', now => [{ at: now - 20 * MIN_MS, percent: 44 }, { at: now, percent: 500 }]],
+  ['121 samples', now => Array.from({ length: 121 }, (_, i) => ({ at: now - 20 * MIN_MS + i * 10000, percent: 44 + i * 0.1 }))],
+  ['times going back', now => [{ at: now - 20 * MIN_MS, percent: 44 }, { at: now - 10 * MIN_MS, percent: 54 }, { at: now - 15 * MIN_MS, percent: 50 }, { at: now, percent: 64 }]],
 ]
 for (const surface of ['terminal', 'desktop'] as const) {
   for (const [name, planted] of REFUSED_SAMPLES) {
@@ -1429,7 +1433,7 @@ for (const surface of ['terminal', 'desktop'] as const) {
         w.put(FILE, { type: 'file', data: { text: JSON.stringify(EVERY_STATUS) } })
         w.surfaces = [surface]
         Object.defineProperty(w, 'usage', { get: () => projectedReading(w.clock.now()) })
-        w.plant = (key, value) => (key === 'samples' ? planted : value)
+        w.plant = (key, value) => (key === 'samples' ? planted(w.clock.now()) : value)
       })
       expect(await mounted.drawn()).toBeDefined()
       if (surface === 'desktop') {

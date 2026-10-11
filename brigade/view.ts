@@ -326,11 +326,11 @@ export const pct = (v: number): string => `${num(v, 100)}%`
 // placed in percentages so the row spans the image's width. A projection is a
 // faint bar from 0 to the projected percent, capped at 100%, drawn under the
 // fill: the fill covers it up to the bar's end, so what shows is the part from
-// the bar's end to the projected percent. A late note is red, else muted.
-function barRow(y: number, name: string, right: string, percent: number, projected?: number, late = false): string {
+// the bar's end to the projected percent. An early note is red, else muted.
+function barRow(y: number, name: string, right: string, percent: number, projected?: number, early = false): string {
   return (
     `<text x="0" y="${num(y + 12)}">${svgText(name, MAX_KIND)}</text>` +
-    `<text class="${late ? 'hot' : 'muted'}" x="100%" y="${num(y + 12)}" text-anchor="end">${svgText(right, 80)}</text>` +
+    `<text class="${early ? 'hot' : 'muted'}" x="100%" y="${num(y + 12)}" text-anchor="end">${svgText(right, 80)}</text>` +
     `<rect class="track" x="0" y="${num(y + 20)}" width="100%" height="6" rx="3"/>` +
     (projected !== undefined ? `<rect class="proj" x="0" y="${num(y + 20)}" width="${pct(Math.min(100, projected))}" height="6" rx="3"/>` : '') +
     // A fill never narrower than 6 px: a pixel minimum cannot be written as
@@ -352,13 +352,13 @@ function usageSvg(s: UsageSnapshot, now: number, samples: readonly Sample[]): Ex
     if (!Number.isFinite(limit.percent)) continue
     const name = limitName(limit.kind)
     const p = projection(limit, samples, now)
-    const late = p?.earlyMs !== undefined ? earlyText(p.earlyMs) : undefined
-    const when = late ?? resetsIn(limit.resetsAt, now)
-    parts.push(barRow(y, name, when === undefined ? percentText(limit.percent) : `${when} · ${percentText(limit.percent)}`, limit.percent, p?.percent, late !== undefined))
+    const earlyNote = p?.earlyMs !== undefined ? earlyText(p.earlyMs) : undefined
+    const when = earlyNote ?? resetsIn(limit.resetsAt, now)
+    parts.push(barRow(y, name, when === undefined ? percentText(limit.percent) : `${when} · ${percentText(limit.percent)}`, limit.percent, p?.percent, earlyNote !== undefined))
     alt.push(
       `${name} ${percentText(limit.percent)}` +
         (p === undefined ? '' : `, on pace for ${percentText(p.percent)} at reset`) +
-        (late === undefined ? '' : `, ${late}`),
+        (earlyNote === undefined ? '' : `, ${earlyNote}`),
     )
     y += 38
   }
@@ -457,17 +457,26 @@ const MIN_WEEK_MS = 3600000
 /** The stored sample buffer, checked again: a list of at most 120 samples,
  *  each `at` a finite number and `percent` from 0 to 100, times increasing.
  *  A buffer that fails any check is treated as empty, whole: a buffer cut
- *  down to its good samples could hold a pace nobody measured. */
+ *  down to its good samples could hold a pace nobody measured. Each field is
+ *  read once, and a read that throws counts as a failed check, so a value
+ *  that changes or throws as it is read cannot pass or break it. */
 export function samplesFrom(stored: unknown): Sample[] {
-  if (!Array.isArray(stored) || stored.length > MAX_SAMPLES) return []
-  const out: Sample[] = []
-  for (const s of stored) {
-    if (!isRecord(s) || typeof s.at !== 'number' || !Number.isFinite(s.at) || !inRange(s.percent, 100)) return []
-    const last = out[out.length - 1]
-    if (last !== undefined && s.at <= last.at) return []
-    out.push({ at: s.at, percent: s.percent })
+  try {
+    if (!Array.isArray(stored) || stored.length > MAX_SAMPLES) return []
+    const out: Sample[] = []
+    for (const s of stored) {
+      if (!isRecord(s)) return []
+      const at = s.at
+      const percent = s.percent
+      if (typeof at !== 'number' || !Number.isFinite(at) || !inRange(percent, 100)) return []
+      const last = out[out.length - 1]
+      if (last !== undefined && at <= last.at) return []
+      out.push({ at, percent })
+    }
+    return out
+  } catch {
+    return []
   }
-  return out
 }
 
 /** The buffer after a usage reading: the session limit's percent at `now`

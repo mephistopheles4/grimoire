@@ -697,6 +697,18 @@ test('samplesFrom treats a buffer that fails its checks as empty', () => {
   for (const stored of [undefined, null, 0, {}, []]) assert.deepEqual(samplesFrom(stored), []);
 });
 
+test('samplesFrom reads each field once: a field that throws counts as a failed check, and one that changes keeps its first value', () => {
+  const throwing = { at: NOW, get percent() { throw new Error('rewritten'); } };
+  assert.deepEqual(samplesFrom([sample(-MIN, 10), throwing]), []);
+  const list = new Proxy([sample(-MIN, 10)], { get: (t, k) => { if (k === 'length') throw new Error('rewritten'); return t[k]; } });
+  assert.deepEqual(samplesFrom(list), []);
+  // 50 on the first read, then 500 and then a throw: the check and the copy see the same 50.
+  let reads = 0;
+  const shifting = { at: NOW, get percent() { reads += 1; if (reads === 1) return 50; if (reads === 2) return 500; throw new Error('rewritten'); } };
+  assert.deepEqual(samplesFrom([shifting]), [{ at: NOW, percent: 50 }]);
+  assert.equal(reads, 1);
+});
+
 test('the session limit projects from its recent pace: the oldest sample in the last 30 minutes to the newest', () => {
   const limit = fiveHour(64, 30 * MIN);
   // 1% a minute for the 30 minutes left: 94% at reset.
