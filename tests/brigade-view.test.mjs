@@ -695,6 +695,21 @@ test('samplesFrom treats a buffer that fails its checks as empty', () => {
   };
   for (const [name, stored] of Object.entries(failing)) assert.deepEqual(samplesFrom(stored), [], name);
   for (const stored of [undefined, null, 0, {}, []]) assert.deepEqual(samplesFrom(stored), []);
+  // A collection that is not a list counts as empty, good samples or not.
+  assert.deepEqual(samplesFrom(new Set([sample(-20 * MIN, 44), sample(0, 64)])), []);
+  assert.deepEqual(samplesFrom(new Set(Array.from({ length: 121 }, (_, i) => sample(i * SAMPLE_MS, 1)))), []);
+});
+
+test('samplesFrom walks the list by position up to the length it checked, never by the list\'s own walker', () => {
+  // A list that reports one sample but walks 500: only the one it reports is read.
+  const long = [sample(0, 1)];
+  long[Symbol.iterator] = function* () { for (let i = 0; i < 500; i++) yield sample(i * SAMPLE_MS, 1); };
+  assert.deepEqual(samplesFrom(long), [sample(0, 1)]);
+  // A list that grows as it is read stops at the length it had.
+  const growing = [sample(0, 1)];
+  Object.defineProperty(growing, 0, { get() { growing.push(sample(growing.length * SAMPLE_MS, 1)); return sample(0, 1); } });
+  assert.equal(samplesFrom(growing).length, 1);
+  assert.ok(addSample(long, { limits: [fiveHour(2, 60 * MIN)], context: {} }, NOW + DAY).length <= 120);
 });
 
 test('samplesFrom reads each field once: a field that throws counts as a failed check, and one that changes keeps its first value', () => {
@@ -780,15 +795,21 @@ test('past 100% the projection says how early the limit runs out: reset time −
 
 test('a limit already at or over 100% gets no early note and keeps its reset time (owner decision q1 A)', () => {
   const rising = [sample(-20 * MIN, 90), sample(0, 100)];
-  assert.equal(projection(fiveHour(100, 60 * MIN), rising, NOW).earlyMs, undefined);
-  assert.equal(projection(sevenDay(100000, 3 * DAY), [], NOW).earlyMs, undefined);
-  // Just under 100% the note still says how early.
-  assert.ok(projection(sevenDay(99.9, 3 * DAY), [], NOW).earlyMs > 0);
+  // At or over 100%, as the row draws it rounded, the limit has run out: no
+  // projection at all, so no early note and no pace in the alt text.
+  assert.equal(projection(fiveHour(100, 60 * MIN), rising, NOW), undefined);
+  assert.equal(projection(sevenDay(100000, 3 * DAY), [], NOW), undefined);
+  assert.equal(projection(sevenDay(99.6, 3 * DAY), [], NOW), undefined, 'drawn as 100%');
+  // Below what the row draws as 100% the note still says how early.
+  assert.ok(projection(sevenDay(99.4, 3 * DAY), [], NOW).earlyMs > 0);
+  const drawn = usageView({ limits: [fiveHour(99.6, 60 * MIN)], context: {} }, 'terminal', NOW, SVG_MAX, rising);
+  assert.deepEqual([drawn.rows[0].percent, drawn.rows[0].note, drawn.rows[0].noteTone], ['100%', 'Resets in 1 hr 0 min', '']);
   const terminal = usageView({ limits: [fiveHour(100, 60 * MIN)], context: {} }, 'terminal', NOW, SVG_MAX, rising);
   assert.deepEqual([terminal.rows[0].note, terminal.rows[0].noteTone], ['Resets in 1 hr 0 min', '']);
   const image = usageView({ limits: [fiveHour(100, 60 * MIN)], context: {} }, 'desktop', NOW, SVG_MAX, rising);
   assert.ok(image.source.includes('<text class="muted" x="100%" y="12" text-anchor="end">Resets in 1 hr 0 min · 100%</text>'), image.source);
   assert.ok(!image.source.includes('runs out') && !image.alt.includes('runs out'));
+  assert.equal(image.alt, 'Usage: Current session 100%');
   assertAllowlisted(image.source);
 });
 
@@ -916,7 +937,6 @@ test('a rewritten samples value never throws or draws past full, and the usage i
   // The usage image's classes are today's, with proj the one new class.
   const before = new Set(['muted', 'track', 'ok', 'warn', 'hot', 'free', 'buffer', 'c0', 'c1', 'c2', 'c3', 'c4', 'c5', 'c6']);
   assert.deepEqual([...classes].filter(c => !before.has(c)), ['proj']);
-  assert.ok(CLASSES.has('proj'));
 });
 
 test('the style block gives proj its faint blue fill, in light and dark', () => {

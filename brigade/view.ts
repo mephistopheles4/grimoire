@@ -462,9 +462,14 @@ const MIN_WEEK_MS = 3600000
  *  that changes or throws as it is read cannot pass or break it. */
 export function samplesFrom(stored: unknown): Sample[] {
   try {
-    if (!Array.isArray(stored) || stored.length > MAX_SAMPLES) return []
+    if (!Array.isArray(stored)) return []
+    // The length is read once and the list walked by position up to it,
+    // never by its own walker, which could yield more than it reports.
+    const length = stored.length
+    if (typeof length !== 'number' || length > MAX_SAMPLES) return []
     const out: Sample[] = []
-    for (const s of stored) {
+    for (let i = 0; i < length; i++) {
+      const s: unknown = stored[i]
       if (!isRecord(s)) return []
       const at = s.at
       const percent = s.percent
@@ -509,17 +514,21 @@ function recentPace(samples: readonly Sample[], now: number): number | undefined
 }
 
 /** A limit's projection: the percent it will be at reset at the current
- *  pace, and past 100% how many milliseconds before the reset it runs out,
- *  unless it has run out already. */
+ *  pace, and past 100% how many milliseconds before the reset it runs out. */
 export type Projection = { percent: number; earlyMs?: number }
 
 /** The projection for one limit, or undefined: for a kind other than
- *  `five_hour` and `seven_day`, with no reset time to read or none still
- *  ahead, with too little to measure a pace from (under 5 minutes between
+ *  `five_hour` and `seven_day`, for a limit already run out, with no reset
+ *  time to read or none still ahead, with too little to measure a pace from
+ *  (under 5 minutes between
  *  the session limit's samples, under an hour since the weekly limit's week
  *  began), or when the pace is 0 or less. */
 export function projection(limit: UsageLimit, samples: readonly Sample[], now: number): Projection | undefined {
   if (limit.kind !== 'five_hour' && limit.kind !== 'seven_day') return undefined
+  // A limit at or over 100%, as its row draws it rounded, has run out: no
+  // projection, so its row keeps the reset time, when it comes back (owner
+  // decision q1 A).
+  if (Math.round(limit.percent) >= 100) return undefined
   const reset = limit.resetsAt === undefined ? undefined : isoTime(limit.resetsAt)
   if (reset === undefined || !Number.isFinite(now) || !Number.isFinite(limit.percent) || reset <= now) return undefined
   let pace: number | undefined
@@ -532,9 +541,7 @@ export function projection(limit: UsageLimit, samples: readonly Sample[], now: n
   if (pace === undefined || !Number.isFinite(pace) || pace <= 0) return undefined
   const percent = limit.percent + pace * (reset - now)
   if (!Number.isFinite(percent)) return undefined
-  // A limit already at or over 100% has run out: it gets no early note, so
-  // its row keeps the reset time, when it comes back (owner decision q1 A).
-  if (percent <= 100 || limit.percent >= 100) return { percent }
+  if (percent <= 100) return { percent }
   const earlyMs = reset - (now + (100 - limit.percent) / pace)
   return Number.isFinite(earlyMs) ? { percent, earlyMs } : { percent }
 }
