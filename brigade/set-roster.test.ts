@@ -1600,7 +1600,8 @@ for (const surface of SURFACES) {
     // in the Map's order.
     const legend = nodes.find(n => n.type === 'Text' && n.text === LEGEND)
     expect(legend).toBeDefined()
-    const colours = nodes.filter(n => n.type === 'Text' && /^ *[●◐✓–] \d+ /.test(n.text ?? '')).map(n => n.props.color)
+    // The line's own Text holds the entries, each a Text in its colour.
+    const colours = nodes.filter(n => n.type === 'Text' && n.text !== LEGEND && /^ *[●◐✓–] \d+ /.test(n.text ?? '')).map(n => n.props.color)
     expect(colours).toEqual(['warning', 'suggestion', 'success', 'inactive'])
     expect(text.indexOf('Brigade')).toBeLessThan(text.indexOf('5 sessions'))
     expect(text.indexOf('5 sessions')).toBeLessThan(text.indexOf(LEGEND))
@@ -1610,7 +1611,8 @@ for (const surface of SURFACES) {
     const done = nodes.find(n => n.type === 'Text' && n.text === '0 of 3 done')
     expect(done?.props.dimColor).toBe(true)
     // The text beside the bar sits in a Box that does not shrink.
-    expect(boxAround(nodes, c => c === done || (c?.type === 'Text' && c.text === '0 of 3 done'))?.props.flexShrink).toBe(0)
+    // A Box's children are the raw tree: a Text holds its text in children.
+    expect(boxAround(nodes, c => c?.type === 'Text' && c.children?.[0] === '0 of 3 done')?.props.flexShrink).toBe(0)
     if (surface === 'desktop') {
       const strip = imageBy(nodes, /^Status:/)
       const bar = imageBy(nodes, /^To-dos/)
@@ -1622,7 +1624,7 @@ for (const surface of SURFACES) {
         expect(image?.props.width).toBeUndefined()
         expect(image?.props.height).toBeGreaterThan(0)
         expect(image?.props.source).toMatch(/^<svg xmlns="http:\/\/www\.w3\.org\/2000\/svg" width="100%" height="\d+">/)
-        const around = boxAround(nodes, c => c === image || (c?.type === 'Svg' && c.props?.alt === image?.props.alt))
+        const around = boxAround(nodes, c => c?.type === 'Svg' && c.props?.alt === image?.props.alt)
         expect(around?.props.flexGrow).toBe(1)
         expect(around?.props.flexDirection).toBe('column')
       }

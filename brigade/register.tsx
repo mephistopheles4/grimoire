@@ -858,6 +858,9 @@ export const register: Register = on => {
     const shown = needsYou.length + working.length + finished.length
     const strip = statusStrip(cards, hidden)
     const progress = todoBar(todos, done, ticks)
+    // The strip and the bar draw as images where the usage section does: on
+    // any surface but the terminal that has an Svg.
+    const Image = Svg !== undefined && e.surface !== 'terminal' ? Svg : undefined
     const headingNote =
       shown > 0 || progress !== undefined
         ? `${shown} ${shown === 1 ? 'session' : 'sessions'}`
@@ -977,9 +980,9 @@ export const register: Register = on => {
           </Box>
           {strip !== undefined && (
             <Box flexDirection="column" marginTop={1}>
-              {Svg !== undefined ? (
+              {Image !== undefined ? (
                 <Box flexDirection="column" flexGrow={1}>
-                  <Svg source={strip.svg.source} alt={strip.svg.alt} height={strip.svg.height} />
+                  <Image source={strip.svg.source} alt={strip.svg.alt} height={strip.svg.height} />
                 </Box>
               ) : (
                 <Text>
@@ -1000,9 +1003,9 @@ export const register: Register = on => {
               <Box flexShrink={0}>
                 <Text>To-dos</Text>
               </Box>
-              {Svg !== undefined ? (
+              {Image !== undefined ? (
                 <Box flexDirection="column" flexGrow={1} minWidth={8}>
-                  <Svg source={progress.svg.source} alt={progress.svg.alt} height={progress.svg.height} />
+                  <Image source={progress.svg.source} alt={progress.svg.alt} height={progress.svg.height} />
                 </Box>
               ) : (
                 <Box flexShrink={0}>
