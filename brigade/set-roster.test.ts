@@ -2455,3 +2455,297 @@ test('no folder path, transcript text, model text or message id reaches any valu
   // the one path in its values; no piece of the member's transcript is.
   holdsNoPath(w, 'someone', 'sk-ant', 'SECRET', 'secret', 'tok_', 'id_rsa', 'opus-5-c', 'msg_')
 })
+
+// --- burn rate, the context trend and card tabs -------------------------------
+//
+// Spec revision 3 on #251, S7 and S11; ticket #272. The meters and warmth
+// records are planted as the agents poll stores them. Each test runs on both
+// surfaces.
+
+const TABBED = {
+  cards: [
+    card('need-tabs', { status: 'needs-you' }),
+    card('work-one', { status: 'working' }),
+    card('work-none', { status: 'working' }),
+    card('need-large', { status: 'needs-you' }),
+    card('done-full', { status: 'done' }),
+  ],
+  todos: [],
+}
+const TAB_LIVE: Record<string, string> = { 'need-tabs': 'idle', 'work-one': 'busy', 'work-none': 'busy', 'need-large': 'idle', 'done-full': 'idle' }
+// 360,000 new tokens in the last two minutes: 12k a minute over 30.
+const burnOf = () => Object.assign(thirty(), { 28: 60000, 29: 300000 })
+const TAB_METERS = (now: number) => [
+  { name: 'need-tabs', at: now, window: 1000000, burn: burnOf(), context: [900000, 5000, 412000] },
+  { name: 'work-one', at: now, window: 1000000, burn: burnOf(), context: [412000] },
+  { name: 'done-full', at: now, window: 1000000, burn: burnOf(), context: [900000, 5000, 412000] },
+]
+const TAB_WARMTH = (now: number) => [
+  warmCall('need-tabs', 10 * MINUTE, now),
+  warmCall('work-one', 10 * MINUTE, now),
+  { name: 'work-none', kind: 'unread' },
+  { name: 'need-large', kind: 'too-large' },
+  warmCall('done-full', 10 * MINUTE, now),
+]
+
+// Plants the live states, warmth records and meters once the clock is known,
+// then runs one more poll so they are stored. `tabsPlant` rewrites the tab
+// choices as they are set.
+async function tabbed(
+  on: On,
+  $: any,
+  roster: unknown = TABBED,
+  meters: (now: number) => unknown = TAB_METERS,
+  warmth: (now: number) => unknown = TAB_WARMTH,
+  live: Record<string, string> = TAB_LIVE,
+  tabsPlant?: (value: any) => any,
+) {
+  let now: number | undefined
+  const w = await grouped(on, $, roster, (key, value) => {
+    if (key === 'tabs' && tabsPlant !== undefined) return tabsPlant(value)
+    if (now === undefined) return value
+    if (key === 'meters') return meters(now)
+    if (key === 'warmth') return warmth(now)
+    if (key === 'live') return Object.entries(live).map(([name, v]) => ({ name, value: v }))
+    return value
+  })
+  now = w.clock.now() + 10000
+  await w.clock.advance(10000)
+  await w.clock.settle()
+  return w
+}
+const tabKeys = (i: number, slug: string, views: string[]) => views.map(v => `tab-${i}-${slug}-${v}`)
+const labelOf = async (m: any, key: string) => spoken(await m.find({ key }))
+
+for (const surface of SURFACES) {
+  test(`${surface}: tabs show only with two or more views, the default selected and marked ●, plain passed only as plain`, async ($, on) => {
+    const w = await tabbed(on, $)
+    const m = await mountOn($, surface)
+    expect(await m.drawn()).toBeDefined()
+    await m.press({ key: 'fold' })
+    const all = await nodes(m)
+    // need-tabs: three views; work-one: one call, so no trend; need-large:
+    // too large, so the burn tab for its reason line.
+    for (const key of [...tabKeys(0, 'needtabs', ['cache', 'burn', 'trend']), ...tabKeys(1, 'workone', ['cache', 'burn']), ...tabKeys(3, 'needlarge', ['cache', 'burn'])]) {
+      expect(await m.find({ key })).toBeDefined()
+    }
+    for (const key of ['tab-1-workone-trend', 'tab-3-needlarge-trend', ...tabKeys(2, 'worknone', ['cache', 'burn', 'trend']), ...tabKeys(4, 'donefull', ['cache', 'burn', 'trend'])]) {
+      expect(await m.find({ key })).toBeUndefined()
+    }
+    expect(await labelOf(m, 'tab-0-needtabs-cache')).toBe('● Cache · context')
+    expect(await labelOf(m, 'tab-0-needtabs-burn')).toBe('Burn rate')
+    expect(await labelOf(m, 'tab-0-needtabs-trend')).toBe('Context trend')
+    // The selected tab is a full button; the others are plain, and no button
+    // anywhere is handed plain={false}.
+    expect((await m.find({ key: 'tab-0-needtabs-cache' })).props.plain).toBeUndefined()
+    expect((await m.find({ key: 'tab-0-needtabs-burn' })).props.plain).toBe(true)
+    expect(all.some(n => n.props?.plain === false || n.props?.dimColor === false)).toBe(false)
+    // The default view is today's: the cache bar on the cards that have one,
+    // work-none's included, and the context meter.
+    expect(texts(all, '◆ cache').length).toBe(3)
+    expect(texts(all, '◆ context').length).toBe(2)
+    expect(texts(all, '12k/min · last 30 min').length).toBe(0)
+    // The tab row sits under the header line, inside the card, above the
+    // cache block: in drawing order, the title, the tabs, then ◆ cache.
+    const title = all.findIndex(n => n.type === 'Text' && n.text === 'need-tabs')
+    const tab = all.findIndex(n => n.type !== 'Box' && spoken(n) === '● Cache · context')
+    const cache = all.findIndex((n, k) => k > tab && n.type === 'Text' && n.text === '◆ cache')
+    expect(title).toBeGreaterThan(-1)
+    expect(tab).toBeGreaterThan(title)
+    expect(cache).toBeGreaterThan(tab)
+    expect(all.findIndex((n, k) => k > tab && k < cache && n.type === 'Text' && n.text === 'work-one')).toBe(-1)
+    expect(w.states.some(([k]) => k === 'tabs')).toBe(false)
+  })
+
+  test(`${surface}: a tab press switches its card's view: burn rate, then the context trend, then back`, async ($, on) => {
+    const w = await tabbed(on, $)
+    const m = await mountOn($, surface)
+    await m.press({ key: 'tab-0-needtabs-burn' })
+    let all = await nodes(m)
+    expect(await labelOf(m, 'tab-0-needtabs-burn')).toBe('● Burn rate')
+    expect(await labelOf(m, 'tab-0-needtabs-cache')).toBe('Cache · context')
+    expect(texts(all, '12k/min · last 30 min').length).toBe(1)
+    // Its cache bar and meter go; the other cards keep theirs.
+    expect(texts(all, '◆ cache').length).toBe(2)
+    expect(texts(all, '◆ context').length).toBe(1)
+    expect(JSON.parse(w.states.filter(([k]) => k === 'tabs').at(-1)?.[1] ?? '[]')).toEqual([{ name: 'need-tabs', value: 'burn' }])
+    const burnImage = all.find(n => n.type === 'Svg' && String(n.props.alt).startsWith('Burn rate'))
+    if (surface === 'desktop') {
+      expect(burnImage?.props.alt).toBe('Burn rate 12k tokens per minute over the last 30 min')
+      expect(String(burnImage?.props.source).match(/<rect /g)?.length).toBe(30)
+      expect(burnImage?.props.width).toBeUndefined()
+      const around = boxAround(all, (c: any) => c?.type === 'Svg' && String(c.props.alt).startsWith('Burn rate'))
+      expect([around?.props.flexDirection, around?.props.flexGrow, around?.props.minWidth]).toEqual(['column', 1, 8])
+    } else {
+      expect(burnImage).toBeUndefined()
+      // The sparkline's run, not the status strip's, which is all █.
+      const cells = all.filter(n => n.type === 'Text' && n.props.color === 'suggestion' && /^ +[▁▂▃▄▅▆▇█]+$/.test(n.text ?? ''))
+      expect(cells.map(n => n.text).join('')).toBe(`${' '.repeat(28)}▂█`)
+    }
+
+    await m.press({ key: 'tab-0-needtabs-trend' })
+    all = await nodes(m)
+    expect(await labelOf(m, 'tab-0-needtabs-trend')).toBe('● Context trend')
+    expect(texts(all, '412k now · 1 compaction').length).toBe(1)
+    expect(texts(all, '12k/min · last 30 min').length).toBe(0)
+    const trendImage = all.find(n => n.type === 'Svg' && String(n.props.alt).startsWith('Context trend'))
+    if (surface === 'desktop') {
+      expect(trendImage?.props.alt).toBe('Context trend 412k now, 1 compaction in the last 3 calls')
+      expect(String(trendImage?.props.source).match(/class="warn"/g)?.length).toBe(1)
+    } else {
+      expect(trendImage).toBeUndefined()
+      expect(all.some(n => n.type === 'Text' && n.props.color === 'warning' && n.text === '▁')).toBe(true)
+    }
+
+    await m.press({ key: 'tab-0-needtabs-cache' })
+    all = await nodes(m)
+    expect(texts(all, '◆ cache').length).toBe(3)
+    expect(texts(all, '412k now · 1 compaction').length).toBe(0)
+  })
+
+  test(`${surface}: the burn rate tab of a member too large to read shows the cache line's reason`, async ($, on) => {
+    await tabbed(on, $)
+    const m = await mountOn($, surface)
+    const before = await nodes(m)
+    const reason = '◆ cache unknown · transcript too large to read'
+    expect(texts(before, reason).length).toBe(1)
+    await m.press({ key: 'tab-3-needlarge-burn' })
+    const all = await nodes(m)
+    expect(await labelOf(m, 'tab-3-needlarge-burn')).toBe('● Burn rate')
+    const shown = texts(all, reason)
+    expect(shown.length).toBe(1)
+    expect(shown[0]?.props.dimColor).toBe(true)
+  })
+
+  test(`${surface}: two cards whose titles share a slug, in different groups: a tab press acts on its own card only`, async ($, on) => {
+    const roster = { cards: [card('A-b', { status: 'needs-you' }), card('a b', { status: 'working' })], todos: [] }
+    const meters = (now: number) => [
+      { name: 'A-b', at: now, window: 1000000, burn: burnOf(), context: [900000, 5000, 412000] },
+      { name: 'a b', at: now, window: 1000000, burn: Object.assign(thirty(), { 29: 30000 }), context: [100000, 200000] },
+    ]
+    const warmth = (now: number) => [warmCall('A-b', 10 * MINUTE, now), warmCall('a b', 10 * MINUTE, now)]
+    const w = await tabbed(on, $, roster, meters, warmth, { 'A-b': 'idle', 'a b': 'busy' })
+    const m = await mountOn($, surface)
+    await m.press({ key: 'tab-0-ab-burn' })
+    let all = await nodes(m)
+    expect(await labelOf(m, 'tab-0-ab-burn')).toBe('● Burn rate')
+    expect(await labelOf(m, 'tab-1-ab-cache')).toBe('● Cache · context')
+    expect(texts(all, '12k/min · last 30 min').length).toBe(1)
+    expect(texts(all, '1.0k/min · last 30 min').length).toBe(0)
+    await m.press({ key: 'tab-1-ab-trend' })
+    all = await nodes(m)
+    expect(await labelOf(m, 'tab-0-ab-burn')).toBe('● Burn rate')
+    expect(await labelOf(m, 'tab-1-ab-trend')).toBe('● Context trend')
+    expect(texts(all, '200k now · 0 compactions').length).toBe(1)
+    expect(texts(all, '12k/min · last 30 min').length).toBe(1)
+    // Each choice is kept under its own card's title. The engine presses only
+    // a drawn key, so a key whose place, slug or view word matches no card
+    // cannot be pressed here; the view module's tests hold the word check.
+    expect(JSON.parse(w.states.filter(([k]) => k === 'tabs').at(-1)?.[1] ?? '[]')).toEqual([
+      { name: 'A-b', value: 'burn' },
+      { name: 'a b', value: 'trend' },
+    ])
+  })
+
+  test(`${surface}: a needs-you card's reply nudge shows under whichever tab is chosen (owner decision q1 B)`, async ($, on) => {
+    // 48 min idle in a 1 hr window: 12 min left, amber, with 150k context.
+    const roster = { cards: [card('need-nudge', { status: 'needs-you' })], todos: [] }
+    const meters = (now: number) => [{ name: 'need-nudge', at: now, window: 1000000, burn: burnOf(), context: [900000, 5000, 412000] }]
+    await tabbed(on, $, roster, meters, now => [warmCall('need-nudge', 48 * MINUTE, now)], { 'need-nudge': 'idle' })
+    const m = await mountOn($, surface)
+    const nudge = 'Reply within 12 min to keep the cache.'
+    for (const [view, shown] of [
+      ['cache', '◆ cache'],
+      ['burn', '12k/min · last 30 min'],
+      ['trend', '412k now · 1 compaction'],
+    ] as const) {
+      await m.press({ key: `tab-0-neednudge-${view}` })
+      const all = await nodes(m)
+      expect(texts(all, shown).length).toBe(1)
+      const found = texts(all, nudge)
+      expect(found.length).toBe(1)
+      expect(found[0]?.props.color).toBe('warning')
+      // Under the view, not above it.
+      expect(all.indexOf(found[0] as Drawn)).toBeGreaterThan(all.indexOf(texts(all, shown)[0] as Drawn))
+    }
+  })
+
+  test(`${surface}: the choice is kept when the pane closes and opens again`, async ($, on) => {
+    const w = await tabbed(on, $)
+    const m = await mountOn($, surface)
+    await m.press({ key: 'tab-0-needtabs-trend' })
+    expect(await labelOf(m, 'tab-0-needtabs-trend')).toBe('● Context trend')
+    w.open = false
+    await w.clock.advance(5000)
+    await brigade($)
+    await w.clock.settle()
+    expect(await labelOf(m, 'tab-0-needtabs-trend')).toBe('● Context trend')
+    expect(texts(await nodes(m), '412k now · 1 compaction').length).toBe(1)
+  })
+
+  test(`${surface}: an idle record drawn 30 minutes after its read reads 0/min with a flat baseline`, async ($, on) => {
+    await tabbed(on, $, TABBED, now => TAB_METERS(now).map(r => ({ ...r, at: now - 30 * MINUTE })))
+    const m = await mountOn($, surface)
+    await m.press({ key: 'tab-0-needtabs-burn' })
+    const all = await nodes(m)
+    expect(texts(all, '0/min · last 30 min').length).toBe(1)
+    const image = all.find(n => n.type === 'Svg' && String(n.props.alt).startsWith('Burn rate'))
+    if (surface === 'desktop') {
+      expect(image?.props.alt).toBe('Burn rate 0 tokens per minute over the last 30 min')
+      expect(new Set([...String(image?.props.source).matchAll(/height="([0-9.]+)"\/>/g)].map(x => x[1])).size).toBe(1)
+    } else {
+      expect(image).toBeUndefined()
+    }
+  })
+
+  for (const [label, planted] of [
+    ['an unknown word', [{ name: 'need-tabs', value: 'constructor' }]],
+    ['a prototype key as the word', [{ name: 'need-tabs', value: '__proto__' }]],
+    ['a word where a list belongs', 'burn'],
+    ['a number', 5],
+    ['null', null],
+    ['pairs of the wrong shape', [{ name: 'need-tabs' }, 7, { value: 'burn' }]],
+  ] as const) {
+    test(`${surface}: a rewritten tabs value never throws and reads as the default: ${label}`, async ($, on) => {
+      const w = await tabbed(on, $, TABBED, TAB_METERS, TAB_WARMTH, TAB_LIVE, () => planted)
+      const m = await mountOn($, surface)
+      await m.press({ key: 'tab-0-needtabs-burn' })
+      expect(w.states.filter(([k]) => k === 'tabs').at(-1)?.[1]).toBe(JSON.stringify(planted))
+      expect(await m.drawn()).toBeDefined()
+      expect(await labelOf(m, 'tab-0-needtabs-cache')).toBe('● Cache · context')
+      expect(texts(await nodes(m), '12k/min · last 30 min').length).toBe(0)
+    })
+  }
+
+  test(`${surface}: a hostile title never reaches a sparkline, and its tab keys hold only its slug`, async ($, on) => {
+    const roster = { cards: [card(HOSTILE_TITLE, { status: 'needs-you' })], todos: [] }
+    const meters = (now: number) => [{ name: HOSTILE_TITLE, at: now, window: 1000000, burn: burnOf(), context: [900000, 5000, 412000] }]
+    await tabbed(on, $, roster, meters, now => [warmCall(HOSTILE_TITLE, 10 * MINUTE, now)], { [HOSTILE_TITLE]: 'idle' })
+    const m = await mountOn($, surface)
+    const slugged = 'abampqssvgscriptxscriptz'
+    expect(await m.find({ key: `tab-0-${slugged}-burn` })).toBeDefined()
+    const HOSTILE_PIECES = ['script', '<b>', '&amp;amp;', 'q"']
+    for (const [view, alt, text] of [
+      ['burn', 'Burn rate', '12k/min · last 30 min'],
+      ['trend', 'Context trend', '412k now · 1 compaction'],
+    ] as const) {
+      await m.press({ key: `tab-0-${slugged}-${view}` })
+      const all = await nodes(m)
+      // The view is drawn: its text, and its sparkline as an image on
+      // Desktop or as cells on the terminal. Then none of the title is in it.
+      const beside = texts(all, text)
+      expect(beside.length).toBe(1)
+      const drawn: string[] = [text]
+      if (surface === 'desktop') {
+        const image = all.find(n => n.type === 'Svg' && String(n.props.alt).startsWith(alt))
+        expect(image).toBeDefined()
+        drawn.push(String(image?.props.source), String(image?.props.alt))
+      } else {
+        const cells = all.filter(n => n.type === 'Text' && (n.props.color === 'suggestion' || n.props.color === 'warning') && /^[ ▁▂▃▄▅▆▇█]+$/.test(n.text ?? '') && / /.test(n.text ?? ''))
+        expect(cells.length).toBeGreaterThan(0)
+        drawn.push(...cells.map(n => String(n.text)))
+      }
+      for (const out of drawn) for (const piece of HOSTILE_PIECES) expect(out.includes(piece)).toBe(false)
+    }
+  })
+}
