@@ -1012,16 +1012,22 @@ export const register: Register = on => {
             metered.rows.map(r => (
               <Box flexDirection="row" columnGap={1}>
                 <Text>{r.name}</Text>
-                <Text color={r.tone}>{r.bar}</Text>
+                <Text>
+                  <Text dimColor>▕</Text>
+                  <Text color={r.tone}>{r.bar}</Text>
+                  <Text dimColor>▏</Text>
+                </Text>
                 <Text>{r.percent}</Text>
                 <Text dimColor wrap="truncate-end">
                   {r.note}
                 </Text>
               </Box>
             ))}
+          {/* The image is placed in percentages: with no width prop, inside a
+              column Box that grows, it spans the pane. */}
           {metered.kind === 'svg' && Svg !== undefined && (
-            <Box flexDirection="column" alignItems="center">
-              <Svg source={metered.source} alt={metered.alt} width={metered.width} height={metered.height} />
+            <Box flexDirection="column" flexGrow={1}>
+              <Svg source={metered.source} alt={metered.alt} height={metered.height} />
             </Box>
           )}
         </Box>

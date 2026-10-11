@@ -58,45 +58,62 @@ const snapshot = (over = {}) => ({
   ...over,
 });
 
-// Every attribute in the source, as [tag, name, value]. Outside text is
-// escaped, so a `<` in the source opens a real tag and a `"` ends a value.
-// A tag whose attributes are not all written name="value" matches no tag here,
-// so the openings are counted too, and a tag left unread fails the check.
+// Every attribute in the source, as [tag, name, value, tag index]. Outside
+// text is escaped, so a `<` in the source opens a real tag and a `"` ends a
+// value. A tag whose attributes are not all written name="value" matches no
+// tag here, so the openings are counted too, and a tag left unread fails the
+// check.
 function attributes(source) {
   const out = [];
   let tags = 0;
   for (const tag of source.matchAll(/<([a-zA-Z]+)((?:\s+[^\s=>/]+="[^"]*")*)\s*\/?>/g)) {
+    for (const a of tag[2].matchAll(/([^\s=]+)="([^"]*)"/g)) out.push([tag[1], a[1], a[2], tags]);
     tags += 1;
-    for (const a of tag[2].matchAll(/([^\s=]+)="([^"]*)"/g)) out.push([tag[1], a[1], a[2]]);
   }
   const openings = source.match(/<[a-zA-Z]+/g)?.length ?? 0;
   assert.equal(tags, openings, 'every tag the source opens is read for its attributes');
   return out;
 }
 
-const CLASSES = new Set(['muted', 'track', 'ok', 'warn', 'hot', 'free', 'buffer', 'c0', 'c1', 'c2', 'c3', 'c4', 'c5', 'c6']);
+// The allowlist every SVG this module builds is held to: a fixed set of
+// attribute names, each with the forms its value may take, and nothing else.
+const CLASSES = new Set(['muted', 'track', 'ok', 'warn', 'hot', 'free', 'buffer', 'c0', 'c1', 'c2', 'c3', 'c4', 'c5', 'c6', 'done', 'stopped']);
+const LENGTHS = new Set(['width', 'height', 'x', 'y', 'rx', 'cx', 'cy', 'r']);
 const NUMBER = /^\d+(?:\.\d+)?$/;
-const allowed = (name, value) => {
+const PERCENT = /^(\d+(?:\.\d+)?)%$/;
+const length = value => NUMBER.test(value) || (PERCENT.test(value) && Number(PERCENT.exec(value)[1]) <= 100);
+const allowed = (name, value, index) => {
+  if (LENGTHS.has(name)) return length(value);
   if (name === 'class') return CLASSES.has(value);
-  if (name === 'id') return value === 'cb';
-  if (name === 'clip-path') return value === 'url(#cb)';
+  if (name === 'id') return value === 'cb' || value === 'st';
+  if (name === 'clip-path') return value === 'url(#cb)' || value === 'url(#st)';
   if (name === 'text-anchor') return value === 'end';
-  if (name === 'xmlns') return value === 'http://www.w3.org/2000/svg';
-  if (name === 'viewBox') return /^0 0 \d+(?:\.\d+)? \d+(?:\.\d+)?$/.test(value);
-  return NUMBER.test(value);
+  if (name === 'transform') return value === 'translate(-2 0)';
+  // Only on the outermost <svg>, which is the source's first tag.
+  if (name === 'xmlns') return value === 'http://www.w3.org/2000/svg' && index === 0;
+  return false;
 };
 
 function assertAllowlisted(source) {
+  assert.match(source, /^<svg /, 'the source opens with the outermost <svg>');
   const attrs = attributes(source);
   assert.ok(attrs.length > 0, 'the source has attributes to check');
-  for (const [tag, name, value] of attrs) {
-    assert.ok(allowed(name, value), `<${tag} ${name}="${value}"> is not on the attribute allowlist`);
+  for (const [tag, name, value, index] of attrs) {
+    assert.ok(allowed(name, value, index), `<${tag} ${name}="${value}"> is not on the attribute allowlist`);
   }
-  // Every tag is one the module writes, and the image closes once.
+  // Every tag is one the module writes, every <svg> closes, and nothing
+  // follows the outermost one's close.
   for (const t of source.matchAll(/<\/?([a-zA-Z]+)/g)) {
     assert.ok(['svg', 'style', 'text', 'rect', 'clipPath', 'g', 'circle'].includes(t[1]), `unexpected tag <${t[1]}>`);
   }
-  assert.equal(source.match(/<\/svg>/g)?.length, 1);
+  assert.equal(source.match(/<\/svg>/g)?.length ?? 0, source.match(/<svg[\s>]/g)?.length ?? 0, 'as many </svg> as <svg openings');
+  assert.ok(source.endsWith('</svg>'), 'the source ends with </svg>');
+  // The outermost <svg> closes last: the depth reaches 0 only at the end.
+  let depth = 0;
+  for (const m of source.matchAll(/<svg[\s>]|<\/svg>/g)) {
+    assert.ok(depth > 0 || m.index === 0, 'nothing follows the outermost </svg>');
+    depth += m[0] === '</svg>' ? -1 : 1;
+  }
   assert.doesNotMatch(source, /NaN|Infinity/);
 }
 
@@ -105,6 +122,47 @@ const svgOf = (s, surface = 'desktop') => {
   assert.equal(v.kind, 'svg', `expected an SVG on ${surface}, got ${v.kind}`);
   return v;
 };
+
+// --- the allowlist itself --------------------------------------------------
+
+const OK_SVG = '<svg xmlns="http://www.w3.org/2000/svg" width="100%" height="8"><rect class="track" x="0" y="0" width="100%" height="8" rx="4"/></svg>';
+
+test('the allowlist admits the forms S10 lists', () => {
+  assertAllowlisted(OK_SVG);
+  assertAllowlisted(
+    '<svg xmlns="http://www.w3.org/2000/svg" width="100%" height="8">' +
+      '<clipPath id="st"><rect width="100%" height="8" rx="4"/></clipPath>' +
+      '<g clip-path="url(#st)"><svg x="12.5%" width="37.5%" height="8"><rect class="done" width="100%" height="8" transform="translate(-2 0)"/></svg></g>' +
+      '<text class="muted" x="100%" y="12" text-anchor="end">a</text><circle class="stopped" cx="4" cy="8" r="4"/></svg>',
+  );
+});
+
+test('the allowlist refuses every form S10 leaves out', () => {
+  const refused = {
+    'an unknown attribute name with a number value': '<svg xmlns="http://www.w3.org/2000/svg" width="100%" height="8" opacity="1"></svg>',
+    'a fill attribute': '<svg xmlns="http://www.w3.org/2000/svg" width="100%" height="8"><rect fill="red" width="1"/></svg>',
+    'an event handler': '<svg xmlns="http://www.w3.org/2000/svg" width="100%" height="8" onload="x"></svg>',
+    'a viewBox': '<svg xmlns="http://www.w3.org/2000/svg" width="100" height="8" viewBox="0 0 100 8"></svg>',
+    'xmlns on a nested svg': '<svg xmlns="http://www.w3.org/2000/svg" width="100%" height="8"><svg xmlns="http://www.w3.org/2000/svg" width="1"></svg></svg>',
+    'another namespace': '<svg xmlns="http://www.w3.org/1999/xhtml" width="100%" height="8"></svg>',
+    'a percentage over 100': '<svg xmlns="http://www.w3.org/2000/svg" width="101%" height="8"></svg>',
+    'a negative length': '<svg xmlns="http://www.w3.org/2000/svg" width="-1" height="8"></svg>',
+    'a length with a unit': '<svg xmlns="http://www.w3.org/2000/svg" width="10px" height="8"></svg>',
+    'an id outside the set': '<svg xmlns="http://www.w3.org/2000/svg" width="100%" height="8"><clipPath id="bar"><rect width="1"/></clipPath></svg>',
+    'a clip-path outside the set': '<svg xmlns="http://www.w3.org/2000/svg" width="100%" height="8"><g clip-path="url(#bar)"></g></svg>',
+    'a class outside the set': '<svg xmlns="http://www.w3.org/2000/svg" width="100%" height="8"><rect class="x" width="1"/></svg>',
+    'another transform': '<svg xmlns="http://www.w3.org/2000/svg" width="100%" height="8"><rect width="1" transform="scale(2)"/></svg>',
+    'another text-anchor': '<svg xmlns="http://www.w3.org/2000/svg" width="100%" height="8"><text x="0" text-anchor="middle">a</text></svg>',
+    'text after the close': `${OK_SVG}x`,
+    'a tag after the close': `${OK_SVG}<svg width="1"></svg>`,
+    'an <svg> left open': '<svg xmlns="http://www.w3.org/2000/svg" width="100%" height="8"><svg width="1"></svg>',
+    'a tag outside the set': '<svg xmlns="http://www.w3.org/2000/svg" width="100%" height="8"><image width="1"/></svg>',
+    'a tag whose attributes cannot be read': '<svg xmlns="http://www.w3.org/2000/svg" width="100%" height="8"><rect width=1/></svg>',
+  };
+  for (const [name, source] of Object.entries(refused)) {
+    assert.throws(() => assertAllowlisted(source), assert.AssertionError, name);
+  }
+});
 
 // --- the import seam -------------------------------------------------------
 
@@ -130,15 +188,25 @@ test('a non-terminal surface gets an SVG: a bar per rate limit, "Resets in ... �
     const bar = v.source.match(/<g clip-path="url\(#cb\)">(.*?)<\/g>/)[1];
     assert.equal(bar.match(/<rect /g).length, 4);
     assert.match(bar, /class="c0".*class="c1".*class="free".*class="buffer"/);
-    // The legend: dot, name and tokens per drawn row, in two columns.
+    // Each used segment sits in a nested <svg> placed in percentages, its
+    // rect moved 2 px left, so the nested <svg> cuts a gap that survives the
+    // stretch; free space and buffer are plain rects, with no gap.
+    assert.equal([...bar.matchAll(/<svg x="[\d.]+%" y="[\d.]+" width="[\d.]+%" height="8"><rect class="c\d" width="100%" height="8" transform="translate\(-2 0\)"\/><\/svg>/g)].length, 2);
+    assert.match(bar, /<rect class="free" x="[\d.]+%" y="[\d.]+" width="[\d.]+%" height="8"\/>/);
+    // The legend: dot, name and tokens per drawn row, in two columns, each a
+    // nested <svg> half the image wide.
     assert.equal(v.source.match(/<circle /g).length, 4);
     for (const name of ['System prompt', 'Messages', 'Free space', 'Autocompact buffer']) assert.ok(v.source.includes(`>${name}</text>`));
-    assert.deepEqual([...new Set([...v.source.matchAll(/<circle [^>]*cx="([^"]+)"/g)].map(m => m[1]))], ['4', '244'], 'two columns');
+    assert.deepEqual([...new Set([...v.source.matchAll(/<svg x="([^"]+)" y="[\d.]+" width="50%" height="18">/g)].map(m => m[1]))], ['0', '50%'], 'two columns');
     assert.ok(!v.source.includes('deferred'));
     assert.ok(!v.source.includes('Empty row'));
     assert.ok(v.source.includes('>3.1k</text>') && v.source.includes('>40k</text>'));
-    assert.equal(v.width, 480);
+    // Full width: placed in percentages, with no viewBox and no width to pass.
+    assert.match(v.source, /^<svg xmlns="http:\/\/www\.w3\.org\/2000\/svg" width="100%" height="\d+">/);
+    assert.ok(!v.source.includes('viewBox'));
+    assert.ok(!('width' in v), 'the view carries no width');
     assert.ok(Number.isFinite(v.height) && v.height > 0);
+    assert.ok(v.source.includes(`height="${v.height}"`));
     assertAllowlisted(v.source);
   }
 });
@@ -178,7 +246,10 @@ test('the terminal gets text rows, never SVG: a Context row, then a row per rate
   );
   // Names are padded to one width, so the bars line up.
   assert.equal(new Set(v.rows.map(r => r.name.length)).size, 1);
-  assert.equal(v.rows[0].bar, '█████░░░░░░░░░░░░░░░');
+  // 23% of 20 cells is 4.6 cells: four full and one at five eighths, then
+  // blanks to make 20. The dim end marks are the render's, not the bar's.
+  assert.equal(v.rows[0].bar, `████▋${' '.repeat(15)}`);
+  for (const r of v.rows) assert.equal([...r.bar].length, 20);
 });
 
 test('with no rate limits and no breakdown the view is "nothing yet" on every surface', () => {
@@ -230,8 +301,8 @@ test('"Resets in" reads a past time as 0 min, and a missing or invalid time as n
 
 test('outside text in the SVG is cleaned, stripped of XML-invalid code points, then escaped', () => {
   const s = snapshot({
-    limits: [{ kind: HOSTILE, percent: 50, resetsAt: at(5 * MIN) }],
-    categories: [{ name: HOSTILE, kind: 'used', tokens: 1000 }],
+    limits: [{ kind: HOSTILE, percent: 50, resetsAt: at(5 * MIN) }, { kind: HOSTILE, percent: 20, resetsAt: HOSTILE }],
+    categories: [{ name: HOSTILE, kind: 'used', tokens: 1000 }, { name: HOSTILE, kind: 'free', tokens: 500 }],
   });
   for (const surface of IMAGE_SURFACES) {
     const v = svgOf(s, surface);
@@ -279,6 +350,42 @@ test('a NaN or infinite number never reaches an attribute', () => {
   assert.equal(num(-5), '0');
   assert.equal(num(1e300), '100000');
   assert.equal(num(1 / 3), '0.33');
+});
+
+test('pct is num up to 100, then %', () => {
+  const { pct } = view;
+  assert.deepEqual([NaN, Infinity, -Infinity, -1, 0, 12.345, 100, 150, 1e300].map(pct), ['0%', '0%', '0%', '0%', '0%', '12.35%', '100%', '100%', '100%']);
+});
+
+test('the eighth-block bar: full cells, one partial cell, then blanks, always exactly its cell count', () => {
+  const { eighthBar } = view;
+  assert.equal(eighthBar(0, 20), ' '.repeat(20));
+  assert.equal(eighthBar(1, 20), '█'.repeat(20));
+  assert.equal(eighthBar(0.5, 16), `${'█'.repeat(8)}${' '.repeat(8)}`);
+  // Rounded to the nearest eighth of a cell: 1/160 of 20 cells is one eighth.
+  assert.equal(eighthBar(1 / 160, 20), `▏${' '.repeat(19)}`);
+  assert.equal(eighthBar(7 / 160, 20), `▉${' '.repeat(19)}`);
+  assert.equal(eighthBar(0.4 / 160, 20), ' '.repeat(20));
+  const partials = [...'▏▎▍▌▋▊▉'];
+  for (let k = 1; k <= 7; k++) assert.equal(eighthBar((8 + k) / 256, 32), `█${partials[k - 1]}${' '.repeat(30)}`);
+  // Clamped to between 0 and 1, a number that is not finite read as 0; it
+  // never throws and always returns its cell count, counted by code points.
+  for (const cells of [16, 20, 32]) {
+    for (const bad of [NaN, Infinity, -Infinity, -0.5, -1e300, 1.5, 1e300, Number.MIN_VALUE, 1 - Number.EPSILON]) {
+      const bar = eighthBar(bad, cells);
+      assert.equal([...bar].length, cells, `${bad} over ${cells}`);
+      assert.match(bar, /^█*[▏▎▍▌▋▊▉]? *$/u);
+    }
+    assert.equal(eighthBar(Infinity, cells), ' '.repeat(cells), 'Infinity is not a number to draw: empty');
+    assert.equal(eighthBar(1.5, cells), '█'.repeat(cells));
+    assert.equal(eighthBar(-0.5, cells), ' '.repeat(cells));
+  }
+});
+
+test('the terminal usage rows clamp too: a percent past 100 is a full bar, and every bar is 20 cells', () => {
+  const s = { limits: [{ kind: 'five_hour', percent: 100000 }, { kind: 'seven_day', percent: 0 }], context: { percent: 250, tokens: 1, window: 1 } };
+  const v = usageView(s, 'terminal', NOW);
+  assert.deepEqual(v.rows.map(r => r.bar), ['█'.repeat(20), '█'.repeat(20), ' '.repeat(20)]);
 });
 
 test('the legend holds at most 12 categories', () => {
