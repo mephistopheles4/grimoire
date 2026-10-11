@@ -813,6 +813,14 @@ describe('a .md frontmatter key or comment named like a mark key is cannot-check
     const echoes = [
       ['a duplicated top-level familiar_digest', ['familiar_digest: a', 'familiar_digest: b'], 'Extra keys: familiar_digest', 'familiar_digest'],
       ['a block value on familiar-digest-old under metadata', ['metadata:', '  familiar-digest-old: |', '    x'], '', 'familiar-digest-old'],
+      // One case per refusal that echoes the key, so the look-alike rule
+      // must run before each of them.
+      ['a top-level familiar_digest with no value', ['familiar_digest:'], 'Extra keys: familiar_digest', 'familiar_digest'],
+      ['a top-level familiar_digest with no space after its colon', ['familiar_digest:x'], 'Extra keys: familiar_digest', 'familiar_digest'],
+      ['a top-level familiar_digest with a block header the check does not read', ['familiar_digest: >9', '  x'], 'Extra keys: familiar_digest', 'familiar_digest'],
+      ['a duplicated familiar-digest-old under metadata', ['metadata:', '  familiar-digest-old: a', '  familiar-digest-old: b'], '', 'familiar-digest-old'],
+      ['a familiar-digest-old with no value under metadata', ['metadata:', '  familiar-digest-old:'], '', 'familiar-digest-old'],
+      ['a familiar-digest-old with no space after its colon under metadata', ['metadata:', '  familiar-digest-old:x'], '', 'familiar-digest-old'],
     ];
     for (const [label, extraFm, extra, key] of echoes) {
       const line = extraFm[0] === 'metadata:' ? 5 : 4;

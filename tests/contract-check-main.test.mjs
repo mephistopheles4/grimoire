@@ -495,6 +495,14 @@ describe('a CLAUDE.md line or key named like a mark key is cannot-check', () => 
     '1. familiar-digest: x',
     '**familiar-digest**: x',
     '<!-- familiar-digest: x -->',
+    // U+1680 is a Zs space that NFKC leaves as it is, unlike U+00A0.
+    '\u{1680}familiar-digest: x',
+    '- [X] familiar-digest: x',
+    '`familiar-digest"`: x',
+    "`familiar-digest'`: x",
+    '+ familiar-digest: x',
+    '# familiar-digest: x',
+    '1) familiar-digest: x',
   ];
   for (const line of lines) {
     const label = JSON.stringify(line);

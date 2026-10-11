@@ -565,9 +565,10 @@ function findRefused(file) {
 // ---------------------------------------------------------------- mark-key names
 //
 // A key, a comment or a line that names a mark key, anywhere but the real
-// mark, reads as a seal to a person or a model. Here it is called a decoy, and
-// the readers refuse it: in every .md frontmatter, in a .toml file, and in the
-// body of a CLAUDE.md. A value is text under the digest and is not read for
+// mark, reads as a seal to a person or a model, so the readers refuse it: in
+// every .md frontmatter, in a .toml file, and in the body of a CLAUDE.md. The
+// code added here calls it a look-alike; the older .toml reasons and the tests
+// call it a decoy. A value is text under the digest and is not read for
 // one, and neither is the body of a skill or an agent .md.
 //
 // A name is folded before it is compared, so a look-alike separator or letter
@@ -588,7 +589,10 @@ function findRefused(file) {
 //
 // String operations, and one property test per code point above ASCII, so the
 // cost is linear in the text's length: a comment or a body line can be as long
-// as the file.
+// as the file. NFKC can lengthen a text up to 18 times. Measured on
+// 2026-10-11: a frontmatter comment filling a 1 MiB file with U+FDFA, the code
+// point it lengthens most, checks in about 0.6 s; the same as a CLAUDE.md body
+// line, about 0.1 s.
 
 const SEPARATOR_RE = /^[\p{Pd}\p{Pc}]$/u;
 const SPACE_RE = /^\p{Zs}$/u;
@@ -1158,11 +1162,6 @@ const TOML_SEAL_RES = [
   /^# familiar-digest = "(sha256:[0-9a-f]{64})"$/,
   /^# contract-digest = "(sha256:[0-9a-f]{64})"$/,
 ];
-// A comment's text, or a key, that names a mark key is found by namesMarkKey:
-// looser than the block on purpose, in any case, with any dash or connector
-// between the words or none, any spacing around the "=" and any quoting, and
-// anywhere in the comment or the key.
-//
 // The leading run of bare-key characters on a key line. TOP_KEY_RE decides
 // afterwards whether the key is one this check reads.
 const TOML_BARE_KEY_RE = /^[A-Za-z0-9_-]+/;
@@ -1375,6 +1374,9 @@ function parseToml(fam, extras) {
     if (lead === line.length) continue;
     const body = line.slice(lead);
     if (body[0] === '#') {
+      // Looser than the seal block on purpose: any case, any dash or
+      // connector between the words or none, any spacing and any quoting,
+      // anywhere in the comment.
       if (namesMarkKey(body)) throw new CannotCheck(ln, TOML_REASON.decoy);
       continue;
     }

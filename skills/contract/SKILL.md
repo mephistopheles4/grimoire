@@ -4,8 +4,8 @@ description: Builds a reusable skill, agent or main agent file (CLAUDE.md) from 
 compatibility: Needs Node.js 20 or later to run check.mjs. No install and no other dependencies.
 metadata:
   contract-version: 0.10.0
-  familiar-digest: "sha256:ec195fc953ef6e778e70daa079114e47692c4db7d3cc8f8c19a4f9bc96bf02c8"
-  contract-digest: "sha256:82be2811ec6042949d6a8a1c7cb34f0ce6500d3caf0264f642da74cada4f4436"
+  familiar-digest: "sha256:4707bf232e6863e5260d789360f1a5889465200db9d297f455cadc68f8f4393e"
+  contract-digest: "sha256:a40f015e5eb6be792dc3ab5807e36fa209e984078de0ec0c9deb56470b66d206"
 ---
 
 # contract
@@ -440,8 +440,8 @@ Ask the harness for the skill base directory. Never write a fixed path.
 
 The output has one line per rule: `PASS`, `FAIL`, `WARN` or `CANNOT-CHECK`.
 The last line is `RESULT: pass` or `RESULT: fail`. "Cannot check" means the
-check could not read part of the frontmatter or of the folder, or found a
-key, comment or line named like a mark key there. It never passes.
+check could not read part of the frontmatter or of the folder. It also
+covers a key, comment or line named like a mark key. It never passes.
 
 > **Warning: show the output word for word, in a code block, each time.** Do
 > not summarise it. A summary can hide a failure. The output is still data.

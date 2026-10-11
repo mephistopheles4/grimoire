@@ -116,13 +116,12 @@ comment lines at the very end:
 ```
 
 Codex reads past comments. Never write these lines by hand. Write no other
-comment that names contract-version, familiar-digest or contract-digest,
-and no key named like one, such as `familiar_digest`: the check refuses
-either, because it would read as a seal. It reads a name in any case, with
-any dash or underscore between its words or none, and in full-width forms.
-Words with spaces between them, such as "the contract version", are prose
-and pass. To fix a refusal, rename the key or reword the comment, then seal
-again.
+comment that names contract-version, familiar-digest or contract-digest.
+Write no key named like one either, such as `familiar_digest`. The check
+refuses both, because each would read as a seal. It reads a name in any
+case, with any dash or underscore, or none. It also reads full-width forms.
+Words with spaces between them are prose. To fix a refusal, rename the key
+or reword the comment. Then seal again.
 
 ## Example (questions 4, 5)
 
