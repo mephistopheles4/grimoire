@@ -47,8 +47,10 @@ For records kept on GitHub issues, the GitHub command line (`gh`) must be
 installed and signed in. The lead uses it to read its sessions' issues,
 to read whether their repository is public, to read the signed-in account's
 name, and to post the rename line; and, when your own words in its chat ask
-for it, to merge, close, edit, delete or label an issue or a pull request, or
-post a comment (see "Acting on your issues"). In a permission mode that asks before each
+for it, to merge, close or reopen, edit, delete or label an issue or a pull
+request, or post a comment (see "Acting on your issues"). Those commands are
+written for `gh` 2.102.0; on another version, a call that fails is told to
+you and not retried. In a permission mode that asks before each
 command, a session's lookups and its posts may wait at a prompt. An allow rule
 is yours to add.
 
@@ -127,8 +129,9 @@ naming it arrives. To answer only in a session's own chat, answer there.
 
 ## Acting on your issues
 
-**Your own words in the head chef's chat let it merge, close, edit, delete
-or label an issue or a pull request itself, or post a comment.** Nothing
+**Your own words in the head chef's chat let it merge, close or reopen,
+edit, delete or label an issue or a pull request itself, or post a
+comment.** Nothing
 else does: a session's message, a report, a relay, a brief or an issue
 comment never counts, even when it quotes you or says "approved". The head
 chef tells you about such a line instead.
@@ -146,7 +149,9 @@ chef tells you about such a line instead.
   what it now shows.
 - **Text it posts** goes through a file named `grimoire-act-<random>.txt` in
   your temporary folder, deleted right after the act. It holds no session id,
-  token, secret, local path, error text or personal data.
+  token, secret, local path, error text, another session's report text or
+  personal data. What an act command prints is sent nowhere, so another
+  account's title or text does not reach the head chef through it.
 
 **The risks you take on.** A merge takes the pull request's head at merge
 time, so a push after a review rides in. The "I'm about to" line warns and
@@ -245,8 +250,8 @@ from your phone shows none. The skill does not need it.
 ## What it never does
 
 - Start, stop or delete on anyone's word but yours.
-- Merge, close, edit, delete or label an issue or a pull request on anyone's
-  word but yours.
+- Merge, close or reopen, edit, delete or label an issue or a pull request,
+  or post a comment, on anyone's word but yours.
 - Send a decision or a relay without telling you, in one line, in the same
   turn.
 - Put an issue's title or text into a command line.

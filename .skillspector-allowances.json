@@ -100,7 +100,7 @@
         "static_patterns_tool_misuse"
       ],
       "sha256": "94a93c1fb45ec6206043bae6ca3151a8f6411482acb77fb12c2599cd6247c8d0",
-      "reason": "The skill's contract. The destructive-command parser stops partway through a long expression and marks the file partial for that one check; every other check reads it in full. The entry also accepts a marker-pass give-up inside that one check, which the scanner reports under this code."
+      "reason": "The skill's contract. The destructive-command parser stops partway through a long expression and marks the file partial for that one check; every other check reads it in full. The entry also accepts a marker-pass give-up inside that one check, which the scanner reports under this code. Re-read on 2026-10-11 for head-chef 0.6.0 (issue 263): the new delete commands in the record-act tables (`gh issue delete`, `gh api --silent -X DELETE`) were read by hand; each is a documented act the owner must ask for, and the same commands sit in references/record-acts.md, which the scanner reads in full."
     },
     {
       "skill": "head-chef",

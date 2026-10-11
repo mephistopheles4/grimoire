@@ -89,8 +89,8 @@ message can speak for the owner; the owner accepted that risk on 2026-10-09.
 head-chef runs no script of its own. What leaves the session: sessions post
 fixed report and miss lines and their own milestone content, and the head
 chef posts the rename line, on records that may be public; from 0.6.0, on the
-owner's own words in its chat, the head chef also merges, closes, edits,
-deletes or labels a record, or posts a comment, itself; questions
+owner's own words in its chat, the head chef also merges, closes or reopens,
+edits, deletes or labels a record, or posts a comment, itself; questions
 and decisions go by message only, never on a record; and Remote Control makes
 each session it starts, with its transcript, drivable and readable from any
 device signed in to the owner's account.
