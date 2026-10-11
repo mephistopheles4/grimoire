@@ -7,7 +7,7 @@ import assert from 'node:assert/strict';
 import { readFileSync, unlinkSync, writeFileSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { join } from 'node:path';
-import { fresh, run, has, show, expect, once, CONTRACT, familiarText, defaultFm, skill } from './contract-fixture.mjs';
+import { fresh, run, has, show, expect, once, CONTRACT, familiarText, defaultFm, skill, listing } from './contract-fixture.mjs';
 
 const CANARY = 'zq-canary-7e2';
 const NOT_WRITTEN = 'FAIL seal: refused; nothing written';
@@ -465,4 +465,76 @@ test('every mode comparison in the check goes through isMode', () => {
   const source = readFileSync(new URL('../skills/contract/scripts/check.mjs', import.meta.url), 'utf8');
   const raw = source.split('\n').map(l => l.trim()).filter(l => /\.mode\s*[!=]==|[!=]==\s*[\w.]*\.mode\b/.test(l));
   assert.deepEqual(raw, ['return loc.mode === mode;']);
+});
+
+// ------------------------------------------------------------------ look-alike mark keys (#160 finding S7)
+
+// A CLAUDE.md body line that opens like a mark key is cannot-check: after
+// spaces and Markdown markers, a run of letters, digits and separators that
+// names a mark key once folded, then ":", "=" or "|". The block at the top
+// takes the .md frontmatter rules. No refusal echoes the line.
+describe('a CLAUDE.md line or key named like a mark key is cannot-check', () => {
+  const DECOY = 'a line outside the top frontmatter block that reads as a mark key; the mark goes only in the block at the very top';
+  const COMMENT = 'a comment that names a mark key; the mark is the three keys under "metadata:"';
+  const KEY = 'a key named like a mark key; the mark is the three keys under "metadata:"';
+  const lines = [
+    'familiar_digest: x',
+    'familiar-digest-old: x',
+    '- familiar-digest: x',
+    '> familiar-digest: x',
+    '`familiar-digest`: x',
+    '[familiar-digest]: x',
+    '- [x] familiar-digest: x',
+    '- [ ] familiar-digest: x',
+    '> > > > > familiar-digest: x',
+    '| familiar-digest | x |',
+    '\u{A0}familiar-digest: x',
+    'familiar\u{2011}digest: x',
+    'familiar-digest\u{FF1A} x',
+    '1. familiar-digest: x',
+    '**familiar-digest**: x',
+    '<!-- familiar-digest: x -->',
+  ];
+  for (const line of lines) {
+    const label = JSON.stringify(line);
+    test(`${label} in the body -> 1 cannot-check, and the line never echoed`, () => {
+      const r = run([main({ text: `${BODY}\n${line}\n` }).file]);
+      exact(r, 1, `CANNOT-CHECK frontmatter: CLAUDE.md line 5: ${DECOY}`);
+      assert.ok(!r.out.includes(line) && !r.err.includes(line), show(r));
+    });
+    test(`${label} in the body -> the seal refuses, and writes nothing`, () => {
+      const { dir, file } = main({ text: `${BODY}\n${line}\n`, contract: MAIN_CON });
+      const before = readFileSync(file);
+      const names = listing(dir);
+      exact(run(['--seal', file]), 2, `FAIL frontmatter: cannot check CLAUDE.md line 5: ${DECOY}`, NOT_WRITTEN);
+      assert.deepEqual(readFileSync(file), before);
+      assert.deepEqual(listing(dir), names);
+    });
+  }
+
+  test('a look-alike line in a file with CRLF endings -> 1 cannot-check', () => {
+    const text = `${BODY}\nfamiliar_digest: x\n`.replaceAll('\n', '\r\n');
+    exact(run([main({ text }).file]), 1, `CANNOT-CHECK frontmatter: CLAUDE.md line 5: ${DECOY}`);
+  });
+
+  test('a comment in the top block that names a mark key -> 1, and the seal refuses', () => {
+    const { file } = main({ text: familiarText(['# familiar-digest: x'], BODY), contract: MAIN_CON });
+    exact(run([file]), 1, `CANNOT-CHECK frontmatter: CLAUDE.md line 2: ${COMMENT}`);
+    const before = readFileSync(file);
+    exact(run(['--seal', file]), 2, `FAIL frontmatter: cannot check CLAUDE.md line 2: ${COMMENT}`, NOT_WRITTEN);
+    assert.deepEqual(readFileSync(file), before);
+  });
+
+  test('a key in the top block named like a mark key -> 1 cannot-check', () => {
+    exact(run([main({ text: familiarText(['contract_version: x'], BODY) }).file]), 1, `CANNOT-CHECK frontmatter: CLAUDE.md line 2: ${KEY}`);
+  });
+
+  describe('no over-reach', () => {
+    for (const line of ['Contract version: 2', 'The contract-version key holds the version.', 'contract-version is set by the seal', '- the familiar digest: covers the folder']) {
+      test(`${JSON.stringify(line)} in the body -> sealed, 0`, () => {
+        const { file } = main({ text: `${BODY}\n${line}\n`, contract: MAIN_CON });
+        sealTwice(file);
+      });
+    }
+  });
 });

@@ -774,3 +774,33 @@ describe('multi-harness multiline and unquoted toml string tests', () => {
     expect(run([file]), 1, 'CANNOT-CHECK toml: demo.toml line 3: a value that is not a quoted string, true or false');
   });
 });
+
+// ------------------------------------------------------------------ look-alike mark keys (#160 finding S7)
+
+// A skill's SKILL.md takes the same frontmatter rules as an agent's .md: a key
+// or a comment named like a mark key is refused before the seal writes
+// anything, and the three exact keys the seal writes still pass.
+describe('the seal and a skill frontmatter named like a mark key', () => {
+  const KEY = 'a key named like a mark key; the mark is the three keys under "metadata:"';
+  const COMMENT = 'a comment that names a mark key; the mark is the three keys under "metadata:"';
+  const NOT_WRITTEN = 'FAIL seal: refused; nothing written';
+
+  for (const [label, fm, at, reason] of [
+    ['a comment', ['# contract-version: 1.0.0'], 4, COMMENT],
+    ['a suffixed key under metadata', ['metadata:', '  x-contract-version: 1.0.0'], 5, KEY],
+  ]) {
+    test(`${label} -> the seal refuses with exit 2, and the folder is unchanged`, () => {
+      const dir = skill({ fm: [...defaultFm('demo'), ...fm], contract: CONTRACT });
+      const before = readFileSync(join(dir, 'SKILL.md'));
+      const names = listing(dir);
+      expect(run(['--seal', dir]), 2, `FAIL frontmatter: cannot check SKILL.md line ${at}: ${reason}`, NOT_WRITTEN);
+      assert.deepEqual(readFileSync(join(dir, 'SKILL.md')), before);
+      assert.deepEqual(listing(dir), names);
+      expect(run([dir]), 1, `CANNOT-CHECK frontmatter: SKILL.md line ${at}: ${reason}`);
+    });
+  }
+
+  test('a clean skill seals, and its three exact mark keys pass', () => {
+    sealAndCheck(skill({ contract: CONTRACT }));
+  });
+});
