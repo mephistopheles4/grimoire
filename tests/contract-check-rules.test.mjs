@@ -798,6 +798,17 @@ describe('a .md frontmatter key or comment named like a mark key is cannot-check
     });
   }
 
+  // The separators the spec's probe found NFKC or the category test catches,
+  // and the minus sign, which is in neither category.
+  const SEPARATORS = [0x2011, 0x2e17, 0x2e3a, 0x2e3b, 0x05be, 0x1806, 0x203f, 0x2040, 0xfe31, 0xfe32, 0xfe4d, 0xfe4f, 0xff3f, 0x2212];
+  for (const cp of SEPARATORS) {
+    const u = `U+${cp.toString(16).toUpperCase().padStart(4, '0')}`;
+    test(`a comment joined with ${u} -> 1 cannot-check`, () => {
+      const r = run([agent([`# contract${String.fromCodePoint(cp)}version: 1.0.0`], con('')).file]);
+      exact(r, 1, `CANNOT-CHECK frontmatter: x.md line 4: ${COMMENT}`);
+    });
+  }
+
   describe('no refusal echoes the key', () => {
     const echoes = [
       ['a duplicated top-level familiar_digest', ['familiar_digest: a', 'familiar_digest: b'], 'Extra keys: familiar_digest', 'familiar_digest'],

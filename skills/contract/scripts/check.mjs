@@ -21,6 +21,10 @@
 // except a `name` that already matched the name pattern, and every character
 // it does echo from a file or a folder name is cleaned first.
 //
+// The mark is the seal's alone. A key, a comment or a line that names a mark
+// key anywhere else is refused as "cannot check", whatever its separators or
+// case (see "mark-key names"), and the refusal names its line, never its text.
+//
 // A setting the check does not know to be harmless is flagged, not refused:
 // the person chose it, and the check says so. A few settings known to let the
 // agent do more without asking get a sharper danger warning (see DANGER).
@@ -37,7 +41,9 @@
 // line can be a megabyte long, and a pattern with no nested quantifier can
 // still take time that grows with the square of its length, as a heading
 // pattern does on a long run of spaces. The contents rule uses string
-// operations only.
+// operations only, and so do the fold and the line rule for names that look
+// like a mark key (see "mark-key names"): their one regex use is a Unicode
+// property test on a single code point.
 
 import {
   closeSync,
@@ -556,6 +562,131 @@ function findRefused(file) {
   return hits;
 }
 
+// ---------------------------------------------------------------- mark-key names
+//
+// A key, a comment or a line that names a mark key, anywhere but the real
+// mark, reads as a seal to a person or a model. Here it is called a decoy, and
+// the readers refuse it: in every .md frontmatter, in a .toml file, and in the
+// body of a CLAUDE.md. A value is text under the digest and is not read for
+// one, and neither is the body of a skill or an agent .md.
+//
+// A name is folded before it is compared, so a look-alike separator or letter
+// names a key as the plain one does:
+//
+//   1. NFKC, which maps full-width letters, colons and equals signs, and most
+//      dash and underscore look-alikes, to their plain forms;
+//   2. ASCII letters to lower case;
+//   3. every separator dropped: each character of Unicode category Pd (dash)
+//      or Pc (connector, which holds "_"), and U+2212, the minus sign, which
+//      is in neither.
+//
+// Spaces are kept, so prose such as "the contract version" names no key: a
+// look-alike made to fool a reader copies the real form, and the real form has
+// no space. Letters from another script that look Latin are not mapped, since
+// NFKC does not map them. A name matches when its fold holds a folded mark key
+// anywhere, so "familiar-digest-old" and "x-contract-version" match too.
+//
+// String operations, and one property test per code point above ASCII, so the
+// cost is linear in the text's length: a comment or a body line can be as long
+// as the file.
+
+const SEPARATOR_RE = /^[\p{Pd}\p{Pc}]$/u;
+const SPACE_RE = /^\p{Zs}$/u;
+const FOLDED_MARK_KEYS = MARK_KEYS.map(k => k.replaceAll('-', ''));
+// Why a look-alike is refused. Neither names the key, the comment or the line:
+// each came from the file.
+const MARK_LOOKALIKE = {
+  key: 'a key named like a mark key; the mark is the three keys under "metadata:"',
+  comment: 'a comment that names a mark key; the mark is the three keys under "metadata:"',
+};
+
+/** True for a dash, a connector or the minus sign (see "mark-key names"). */
+function isSeparator(cp) {
+  if (cp < 0x80) return cp === 0x2d || cp === 0x5f;
+  return cp === 0x2212 || SEPARATOR_RE.test(String.fromCodePoint(cp));
+}
+
+/** True for a tab or a space character of category Zs, the no-break space included. */
+function isLineSpace(cp) {
+  if (cp < 0x80) return cp === 0x20 || cp === 0x09;
+  return SPACE_RE.test(String.fromCodePoint(cp));
+}
+
+/** The fold of "mark-key names": NFKC, ASCII lower case, separators dropped. */
+function foldName(text) {
+  const s = String(text).normalize('NFKC');
+  const out = [];
+  for (let i = 0; i < s.length; ) {
+    const cp = s.codePointAt(i);
+    const n = cp > 0xffff ? 2 : 1;
+    if (cp >= 0x41 && cp <= 0x5a) out.push(String.fromCharCode(cp + 32));
+    else if (!isSeparator(cp)) out.push(s.slice(i, i + n));
+    i += n;
+  }
+  return out.join('');
+}
+
+/** True when a name, folded, holds a mark key. */
+function namesMarkKey(text) {
+  const folded = foldName(text);
+  return FOLDED_MARK_KEYS.some(k => folded.includes(k));
+}
+
+function skipLineSpaces(t, i) {
+  let j = i;
+  while (j < t.length && isLineSpace(t.codePointAt(j))) j += 1;
+  return j;
+}
+
+function isDigit(ch) {
+  return ch !== undefined && ch >= '0' && ch <= '9';
+}
+
+// Markdown markers a line may open with before a name: list and quote
+// markers, a heading's "#", a backtick, a table's "|" and a link's "[". A
+// task box and the comment opener are tried first, as wholes.
+const LINE_OPENERS = '-*+>#`|[';
+// What may close a name before its ":", "=" or "|".
+const LINE_CLOSERS = '`"\'*]';
+
+/**
+ * True when a line opens with a name that names a mark key and goes on like a
+ * key. On the line after NFKC: skip spaces; skip Markdown markers, with spaces
+ * between, however many (a task box [ ], [x] or [X], the opener <!--, digits
+ * then "." or ")", or one of LINE_OPENERS); take the run of ASCII letters,
+ * digits and separators that follows; the run must name a mark key; then skip
+ * closing characters and spaces, and the next character must be ":", "=" or
+ * "|". "Contract version: 2" is not one: the space ends the run at
+ * "Contract". One pass, string operations only.
+ */
+function startsLikeMarkKey(line) {
+  const t = line.normalize('NFKC');
+  let i = skipLineSpaces(t, 0);
+  for (;;) {
+    if (t.startsWith('<!--', i)) i += 4;
+    else if (t[i] === '[' && (t[i + 1] === ' ' || t[i + 1] === 'x' || t[i + 1] === 'X') && t[i + 2] === ']') i += 3;
+    else if (i < t.length && LINE_OPENERS.includes(t[i])) i += 1;
+    else if (isDigit(t[i])) {
+      let j = i;
+      while (isDigit(t[j])) j += 1;
+      if (t[j] !== '.' && t[j] !== ')') break;
+      i = j + 1;
+    } else break;
+    i = skipLineSpaces(t, i);
+  }
+  const start = i;
+  while (i < t.length) {
+    const cp = t.codePointAt(i);
+    const letterOrDigit = (cp >= 0x61 && cp <= 0x7a) || (cp >= 0x41 && cp <= 0x5a) || (cp >= 0x30 && cp <= 0x39);
+    if (!letterOrDigit && !isSeparator(cp)) break;
+    i += cp > 0xffff ? 2 : 1;
+  }
+  if (!namesMarkKey(t.slice(start, i))) return false;
+  while (i < t.length && LINE_CLOSERS.includes(t[i])) i += 1;
+  i = skipLineSpaces(t, i);
+  return t[i] === ':' || t[i] === '=' || t[i] === '|';
+}
+
 // ---------------------------------------------------------------- frontmatter
 
 function isBlank(line) {
@@ -885,6 +1016,8 @@ function readMetadata(lines, start, close, headerIdx) {
     const line = lines[j];
     const ln = j + 1;
     if (isBlank(line) || isComment(line)) {
+      // A blank line names no key, so only a comment can be refused here.
+      if (namesMarkKey(line)) throw new CannotCheck(ln, MARK_LOOKALIKE.comment);
       j += 1;
       continue;
     }
@@ -902,6 +1035,9 @@ function readMetadata(lines, start, close, headerIdx) {
     // Line number only. Text before a colon is whatever the file put there,
     // and a sentence with a colon in it is not a key.
     if (!META_KEY_RE.test(key)) throw new CannotCheck(ln, 'a metadata key outside the readable subset');
+    // Before any refusal that echoes the key. The three exact names are the
+    // real mark.
+    if (!MARK_KEYS.includes(key) && namesMarkKey(key)) throw new CannotCheck(ln, MARK_LOOKALIKE.key);
     if (entries.has(key)) throw new CannotCheck(ln, `duplicate metadata key "${clean(key)}"`);
     const rest = body.slice(colon + 1);
     if (isBlank(rest)) throw new CannotCheck(ln, `metadata key "${clean(key)}" has no value on its line (a nested map or an empty value)`);
@@ -934,6 +1070,8 @@ function parseFrontmatter(lines, close, extras, agentMd = false) {
     const line = lines[i];
     const ln = i + 1;
     if (isBlank(line) || isComment(line)) {
+      // A blank line names no key, so only a comment can be refused here.
+      if (namesMarkKey(line)) throw new CannotCheck(ln, MARK_LOOKALIKE.comment);
       i += 1;
       continue;
     }
@@ -947,6 +1085,10 @@ function parseFrontmatter(lines, close, extras, agentMd = false) {
     // Line number only, for the reason readMetadata gives. A key is echoed
     // once it has matched the key pattern, and not before.
     if (!TOP_KEY_RE.test(key)) throw new CannotCheck(ln, 'a key outside the readable subset');
+    // Before any refusal that echoes the key, and listed or not: no tool
+    // reads a key named like a mark key, so refusing one takes no setting
+    // away. The mark lives under `metadata:`, never at the top level.
+    if (namesMarkKey(key)) throw new CannotCheck(ln, MARK_LOOKALIKE.key);
     if (top.has(key)) throw new CannotCheck(ln, `duplicate key "${clean(key)}"`);
     const rest = line.slice(colon + 1);
     if (isBlank(rest) && agentMd && key === 'tools') {
@@ -1004,10 +1146,10 @@ function parseFrontmatter(lines, close, extras, agentMd = false) {
 // The seal is three comment lines at the very end of the file, which Codex
 // reads past. They are found by the same pass that knows whether a line is
 // inside a string: the same three lines inside a string are text, and stay in
-// the digest. Any other comment that names a mark key, in any case or form,
-// is refused, because it would read as a seal to a person or a model. So is a
-// key named like one, listed or not: no tool reads such a key, and it too
-// would read as a seal.
+// the digest. Any other comment that names a mark key, folded as "mark-key
+// names" folds it, is refused, because it would read as a seal to a person or
+// a model. So is a key named like one, listed or not: no tool reads such a
+// key, and it too would read as a seal.
 
 // The seal block, one fully anchored pattern per line, in MARK_KEYS order.
 // The version takes the characters sealableVersion() allows, and no quote.
@@ -1016,10 +1158,11 @@ const TOML_SEAL_RES = [
   /^# familiar-digest = "(sha256:[0-9a-f]{64})"$/,
   /^# contract-digest = "(sha256:[0-9a-f]{64})"$/,
 ];
-// A comment's text, or a key, that names a mark key. Looser than the block on
-// purpose: any case, any spacing, any separator and any quoting, and anywhere
-// in the key.
-const TOML_DECOY_RE = /contract-version|familiar-digest|contract-digest/i;
+// A comment's text, or a key, that names a mark key is found by namesMarkKey:
+// looser than the block on purpose, in any case, with any dash or connector
+// between the words or none, any spacing around the "=" and any quoting, and
+// anywhere in the comment or the key.
+//
 // The leading run of bare-key characters on a key line. TOP_KEY_RE decides
 // afterwards whether the key is one this check reads.
 const TOML_BARE_KEY_RE = /^[A-Za-z0-9_-]+/;
@@ -1232,7 +1375,7 @@ function parseToml(fam, extras) {
     if (lead === line.length) continue;
     const body = line.slice(lead);
     if (body[0] === '#') {
-      if (TOML_DECOY_RE.test(body)) throw new CannotCheck(ln, TOML_REASON.decoy);
+      if (namesMarkKey(body)) throw new CannotCheck(ln, TOML_REASON.decoy);
       continue;
     }
     if (body[0] === '[') throw new CannotCheck(ln, TOML_REASON.table);
@@ -1248,7 +1391,7 @@ function parseToml(fam, extras) {
     // Line number only, for the reason readMetadata gives.
     if (!TOP_KEY_RE.test(key)) throw new CannotCheck(ln, 'a key outside the readable subset');
     if (key === 'metadata') throw new CannotCheck(ln, TOML_REASON.metadata);
-    if (TOML_DECOY_RE.test(key)) throw new CannotCheck(ln, TOML_REASON.decoyKey);
+    if (namesMarkKey(key)) throw new CannotCheck(ln, TOML_REASON.decoyKey);
     if (top.has(key)) throw new CannotCheck(ln, `duplicate key "${clean(key)}"`);
     // Not trimmed at the end: after an opening """ or ''' the spaces are text,
     // and so is the line ending after them. Each branch of tomlValue allows
@@ -1278,24 +1421,11 @@ function parseToml(fam, extras) {
 // The block holds no `name`, `description` or `tools` (see MAIN_REFUSED_KEYS).
 // Any other key warns, since Claude Code ignores it there. A byte-order mark
 // is refused, because whether Claude Code strips the block after one is
-// untested. A mark-shaped line anywhere below the block is refused as a
-// decoy, as a .toml's is: it would read as a seal to a person or a model.
-
-/**
- * True when a body line reads as a mark key: optional spaces or tabs, a mark
- * key in any case, optional spaces or tabs, then ":" or "=". Prose that names
- * a key mid-line is not one. String operations only, so a long line costs one
- * pass.
- */
-function isDecoyMarkLine(line) {
-  const t = line.slice(leading(line).width);
-  const lower = t.slice(0, 16).toLowerCase();
-  const key = MARK_KEYS.find(k => lower.startsWith(k));
-  if (key === undefined) return false;
-  let i = key.length;
-  while (i < t.length && (t[i] === ' ' || t[i] === '\t')) i += 1;
-  return t[i] === ':' || t[i] === '=';
-}
+// untested. A line anywhere below the block that opens like a mark key is
+// refused as a decoy, as a .toml's is: it would read as a seal to a person or
+// a model. startsLikeMarkKey decides, after any Markdown markers, and with the
+// name folded (see "mark-key names"). Prose that names a key mid-line is not
+// one, and neither is a name with spaces in it.
 
 /** Parse a CLAUDE.md. Returns { top, seal, close }, with an empty `top` when there is no block. Throws CannotCheck. */
 function parseMain(fam, extras) {
@@ -1303,7 +1433,7 @@ function parseMain(fam, extras) {
   const close = findFrontmatter(fam.lines);
   const fm = close < 0 ? { top: new Map(), metadata: null } : parseFrontmatter(fam.lines, close, extras);
   for (let i = close + 1; i < fam.lines.length; i += 1) {
-    if (isDecoyMarkLine(fam.lines[i])) {
+    if (startsLikeMarkKey(fam.lines[i])) {
       throw new CannotCheck(i + 1, 'a line outside the top frontmatter block that reads as a mark key; the mark goes only in the block at the very top');
     }
   }

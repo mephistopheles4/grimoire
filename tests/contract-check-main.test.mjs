@@ -491,6 +491,7 @@ describe('a CLAUDE.md line or key named like a mark key is cannot-check', () => 
     '\u{A0}familiar-digest: x',
     'familiar\u{2011}digest: x',
     'familiar-digest\u{FF1A} x',
+    'familiar-digest \u{FF1D} x',
     '1. familiar-digest: x',
     '**familiar-digest**: x',
     '<!-- familiar-digest: x -->',
