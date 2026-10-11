@@ -37,9 +37,12 @@ it registers `/brigade` and does nothing else. While its pane is open it runs
 `claude agents --json`, reads the lead session's roster file from the plugin's
 data folder, and reads other sessions' transcripts to find a session's link
 and the last model call's usage, which gives each card its cache-warmth line.
+To find a transcript that moved into a worktree folder, it lists the config
+folder's `projects` folder at most once a minute, and reads a transcript only
+where a resolving `stat` places it inside that folder.
 For warmth, a transcript is read again only when it changes, never while its
 session is working, and never when it is over 4 MiB; for the link, it is read
-once. It also reads this session's own usage, its rate limits and context, when the
+again only when the transcript's found path changes. It also reads this session's own usage, its rate limits and context, when the
 pane opens and, while it stays open, each time the engine measures the
 session; it asks only for
 the local summary estimate of the context breakdown, which sends no request.
@@ -262,6 +265,6 @@ are the setting above.
   bad commit. It does not survive a stolen admin account.
 - **A familiar and contract from someone else.** A pass and a valid seal say
   the files are well formed and unchanged since sealing, not that anyone
-  reviewed them. Keys the contract lists pass with any value. The check warns
-  on each one it does not know to be harmless; that warning is a prompt to
-  read, not a review.
+  reviewed them. Keys the contract lists pass with any value, except a key
+  named like a mark key, which is refused. The check warns on each one it does
+  not know to be harmless; that warning is a prompt to read, not a review.

@@ -108,11 +108,13 @@ node scripts/record-brigade-stats.mjs
 The first runs `brigade/set-roster.test.ts` under the engine's own plugin test
 runner, which drives the tool the way the model calls it. That runner gives a
 plugin no file system, so the test answers every `stat`, read and write from a
-small file system in memory, and its answers about links come from
+small file system in memory, and its answers about links, and the way a
+folder listing shows each kind of entry, come from
 `brigade/recorded-stats.ts`. The second builds real junctions, symbolic links
 and hard links in a temporary folder, asks the installed Claude Code to `stat`
-each one through a throwaway probe plugin, and fails if the answers differ from
-that recording; `--write` records them anew. It loads none of your settings,
+each one and to list the folder that holds them, through a throwaway probe
+plugin, and fails if the answers differ from that recording; `--write` records
+them anew. It loads none of your settings,
 hooks or plugins into that session, and makes no model call while the probe
 loads. It runs on Windows only, where the recording was made: on macOS or Linux
 it says so and fails, since there is no recording there to compare with. It

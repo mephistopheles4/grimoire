@@ -199,9 +199,10 @@ export type Placed = { file: string; existing?: { size: number } } | { refused: 
 // own and must be there; the mod may create the rest.
 const FOLDERS = (plugin: string) => ['plugins', 'data', plugin, 'brigade']
 
-// A path as the real-path compare reads it: one separator, no trailing one,
-// and case folded where the file system ignores it.
-const norm = (path: string, fold: boolean) => {
+/** A path as the real-path compare reads it: one separator, no trailing one,
+ *  and case folded where the file system ignores it. The roster path rule and
+ *  the transcript finder's place check both compare by it. */
+export const pathKey = (path: string, fold: boolean): string => {
   const flat = path.replace(/[\\/]+/g, '/').replace(/(.)\/$/, '$1')
   return fold ? flat.toLowerCase() : flat
 }
@@ -240,7 +241,7 @@ export async function placeRoster(
   if (!('found' in top) || top.found.kind !== 'dir' || top.found.realPath === undefined) {
     return { refused: 'path: the config folder does not resolve to a folder' }
   }
-  const real = norm(top.found.realPath, fold)
+  const real = pathKey(top.found.realPath, fold)
   let at = config
   let expected = real
   for (const name of FOLDERS(plugin)) {
@@ -254,7 +255,7 @@ export async function placeRoster(
     if ('failed' in s) return { refused: `path: ${name} could not be read (${s.failed})` }
     if (s.found.isLink) return { refused: `link: ${name} is a link` }
     if (s.found.kind !== 'dir') return { refused: `path: ${name} is not a folder` }
-    if (s.found.realPath === undefined || norm(s.found.realPath, fold) !== expected) {
+    if (s.found.realPath === undefined || pathKey(s.found.realPath, fold) !== expected) {
       return { refused: `link: ${name} does not lead where its name says` }
     }
   }
@@ -264,7 +265,7 @@ export async function placeRoster(
   if ('failed' in s) return { refused: `path: the roster file could not be read (${s.failed})` }
   if (s.found.isLink) return { refused: 'link: the roster file is a link' }
   if (s.found.kind !== 'file') return { refused: 'path: the roster path is not a plain file' }
-  if (s.found.realPath === undefined || norm(s.found.realPath, fold) !== `${expected}/${fold ? `${sessionId}.json`.toLowerCase() : `${sessionId}.json`}`) {
+  if (s.found.realPath === undefined || pathKey(s.found.realPath, fold) !== `${expected}/${fold ? `${sessionId}.json`.toLowerCase() : `${sessionId}.json`}`) {
     return { refused: 'link: the roster file does not lead where its name says' }
   }
   return { file, existing: { size: s.found.size } }
@@ -312,7 +313,8 @@ export function configFromTranscript(transcript: string, sessionId: string): str
   return m !== null && m[2] === sessionId ? m[1] : undefined
 }
 
-const sepOf = (dir: string) => (dir.includes('\\') ? '\\' : '/')
+/** The separator a folder's own path uses: `\` if it holds one, else `/`. */
+export const sepOf = (dir: string): string => (dir.includes('\\') ? '\\' : '/')
 
 /** The roster file of one lead session in the plugin's data folder, named by
  *  its checked session id. */
@@ -350,14 +352,9 @@ export function parseAgents(stdout: string): Checked<AgentRow[]> {
   return { value: rows }
 }
 
-/** The transcript of a session the engine listed: its folder is the working
- *  directory with every separator, colon and dot made a dash, which leaves no
- *  separator in it, and its name is the checked session id. */
-export function transcriptFile(config: string, row: AgentRow): string | undefined {
-  if (row.sessionId === undefined || row.cwd === undefined || !SESSION_ID.test(row.sessionId)) return undefined
-  const sep = sepOf(config)
-  return `${config}${sep}projects${sep}${row.cwd.replace(/[:\\/.]/g, '-')}${sep}${row.sessionId}.jsonl`
-}
+/** The projects folder name of a working directory: every separator, colon
+ *  and dot made a dash, which leaves no separator in it. */
+export const projectFolder = (cwd: string): string => cwd.replace(/[:\\/.]/g, '-')
 
 // A Remote Control session's link, whole.
 const WEB_LINK = /^https:\/\/claude\.ai\/code\/session_[A-Za-z0-9]{1,80}$/

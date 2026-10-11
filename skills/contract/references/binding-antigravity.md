@@ -74,7 +74,10 @@ the hand-back.
 ## The mark (questions 5, 18)
 
 The seal writes the mark as three keys under `metadata:` in the
-frontmatter. Never write them by hand.
+frontmatter. Never write them by hand. Write no other key or comment that
+names a mark key, such as `familiar_digest`. The check refuses it as
+"cannot check", because it would read as a seal. It reads a name in any
+case, with any dash or underscore, or none. Words with spaces are prose.
 
 ## Example (questions 4, 5)
 

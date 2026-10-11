@@ -101,7 +101,7 @@ picks it up by situation, and nothing sends it off.
   below still apply to it.
 - **Text.** No byte-order mark: whether Claude Code strips the block after
   one is untested. No line below the block that reads as a mark key, such
-  as `contract-version:`.
+  as `contract-version:` or `- familiar_digest:` (see "The mark").
 - **Imports.** Claude Code's memory docs say an `@` import works anywhere in
   the file, mid-sentence and in list items included. Each import pulls in a
   file the seal does not cover, and the check warns once per line holding
@@ -186,6 +186,23 @@ the hand-back.
 The seal writes the mark as three keys under `metadata:` in the
 frontmatter. In a `CLAUDE.md` with no frontmatter, it adds a block at the
 very top that holds only the mark. Never write them by hand.
+
+Write nothing else that looks like the mark: it would read as a seal. The
+check refuses each of these as "cannot check", and names only the line:
+
+- **In the frontmatter,** a key or a comment that names a mark key. For
+  example, a top-level `familiar_digest` or `FamiliarDigest`, a
+  `familiar-digest-old` under `metadata:`, or `# contract-version: 1.0.0`.
+  The three keys the seal writes are the only exception.
+- **In a `CLAUDE.md` body,** a line that opens with a mark key's name, then
+  `:`, `=` or `|`. Any Markdown markers may come first: list, quote,
+  heading, table, link, numbered-item, task-box, comment or code markers.
+  For example, `- familiar-digest:`.
+
+The check reads a name in any case, with any dash or underscore, or none. It
+also reads full-width forms. Words with spaces between them, such as "the
+contract version", are prose. To fix a refusal, rename the key or reword the
+text. Then seal again.
 
 ## Example (questions 4, 5)
 

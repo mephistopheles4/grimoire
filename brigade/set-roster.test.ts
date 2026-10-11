@@ -38,16 +38,23 @@ const ELSEWHERE = 'C:\\elsewhere'
 
 type Node =
   | { type: 'dir' }
-  | { type: 'file'; data: { text: string } }
+  | { type: 'file'; data: { text: string; mtimeMs?: number } }
   | { type: 'link'; kind: 'junction' | 'dir-symlink' | 'file-symlink'; target: string }
 
-const key = (p: string) => p.replace(/\//g, '\\').replace(/\\+$/, '').toLowerCase()
+const spelled = (p: string) => p.replace(/\//g, '\\').replace(/\\+$/, '')
+const key = (p: string) => spelled(p).toLowerCase()
 const parts = (p: string) => p.replace(/\//g, '\\').split('\\').filter(Boolean)
 
 function makeFs() {
   const nodes = new Map<string, Node>()
+  // Each path as it was first spelled, for a listing's names: the keys are
+  // folded, as Windows folds a path.
+  const spellings = new Map<string, string>()
   const log: string[] = []
-  const put = (p: string, n: Node) => nodes.set(key(p), n)
+  const put = (p: string, n: Node) => {
+    if (!spellings.has(key(p))) spellings.set(key(p), spelled(p))
+    nodes.set(key(p), n)
+  }
   const dirs = (p: string) => {
     const ps = parts(p)
     for (let i = 1; i <= ps.length; i++) {
@@ -81,6 +88,7 @@ function makeFs() {
     return { real, node }
   }
   const sizeOf = (n: Node) => (n.type === 'file' ? new TextEncoder().encode(n.data.text).length : 0)
+  const mtimeOf = (n: Node) => (n.type === 'file' ? n.data.mtimeMs ?? 0 : 0)
   // What the engine answers, built from the recording.
   const stat = (p: string) => {
     const own = walk(p, false)
@@ -91,13 +99,28 @@ function makeFs() {
       return {
         kind: shape.kind,
         size: to === undefined ? 0 : sizeOf(to.node),
-        mtimeMs: 0,
+        mtimeMs: to === undefined ? 0 : mtimeOf(to.node),
         isLink: shape.isLink,
         ...(shape.realPath === 'target' && to !== undefined ? { realPath: to.real } : {}),
       }
     }
     const shape = RECORDED.stats[own.node.type === 'dir' ? 'folder' : 'file']
-    return { kind: shape.kind, size: sizeOf(own.node), mtimeMs: 0, isLink: shape.isLink, realPath: own.real }
+    return { kind: shape.kind, size: sizeOf(own.node), mtimeMs: mtimeOf(own.node), isLink: shape.isLink, realPath: own.real }
+  }
+  // A folder's listing as the engine answers it: each entry by the name it
+  // was spelled with, its kind and isLink as recorded for that kind of entry.
+  const list = (p: string) => {
+    const at = walk(p, true)
+    if (at === undefined || at.node.type !== 'dir') return undefined
+    const parent = key(at.real)
+    const out: { name: string; kind: string; isLink: boolean; size: number; mtimeMs: number }[] = []
+    for (const [k, n] of nodes) {
+      const i = k.lastIndexOf('\\')
+      if (i < 0 || k.slice(0, i) !== parent) continue
+      const shape = RECORDED.list.entries[n.type === 'dir' ? 'folder' : n.type === 'file' ? 'file' : n.kind]
+      out.push({ name: (spellings.get(k) ?? k).slice(i + 1), kind: shape.kind, isLink: shape.isLink, size: sizeOf(n), mtimeMs: mtimeOf(n) })
+    }
+    return out
   }
   // A write as the engine's: folders made as needed, and a link at the end
   // followed, a broken one creating its target.
@@ -120,7 +143,7 @@ function makeFs() {
     const n = walk(p, true)?.node
     return n?.type === 'file' ? n.data.text : undefined
   }
-  return { nodes, log, put, dirs, walk, stat, write, text }
+  return { nodes, log, put, dirs, walk, stat, list, write, text }
 }
 
 const ENOENT = RECORDED.rejections.missing.replace(/^.*\) /, '')
@@ -179,6 +202,11 @@ type World = ReturnType<typeof makeFs> & {
   usage: unknown
   /** Another plugin that rewrites the pane's state as it is set, as row 15 names. */
   plant?: (key: string, value: any) => any
+  /** Every value the pane set, by key, as JSON. */
+  states: [string, string][]
+  /** How many times the pane listed a folder, and a message to refuse it with. */
+  listings: number
+  listDeny: string
 }
 
 // The engine beneath the plugin: the file system, the pane record, the
@@ -221,6 +249,9 @@ function world(on: On, setup: (w: World) => void = w => w.dirs(`${CONFIG}\\plugi
     releaseRun: () => {},
     order: [] as string[],
     usage: undefined as unknown,
+    states: [] as [string, string][],
+    listings: 0,
+    listDeny: '',
   })
   w.dirs(CONFIG)
   setup(w)
@@ -253,6 +284,13 @@ function world(on: On, setup: (w: World) => void = w => w.dirs(`${CONFIG}\\plugi
     const t = w.text(e.path)
     return t === undefined ? { deny: ENOENT } : { value: t }
   })
+  on('fs.list', ($, e: any) => {
+    w.listings++
+    w.log.push(`list ${e.path}`)
+    if (w.listDeny !== '') return { deny: w.listDeny }
+    const l = w.list(e.path)
+    return l === undefined ? { deny: ENOENT } : { value: l }
+  })
   on('fs.exists', ($, e: any) => {
     w.existsCalls.push(e.path)
     return { deny: 'the mod must not ask exists' }
@@ -283,6 +321,7 @@ function world(on: On, setup: (w: World) => void = w => w.dirs(`${CONFIG}\\plugi
   })
   on('state.set', ($, e: any, next: any) => {
     if (w.plant !== undefined) e = { ...e, value: w.plant(e.key, e.value) }
+    w.states.push([String(e.key), JSON.stringify(e.value) ?? ''])
     if (e.key === 'roster') {
       w.roster.push(e.value)
       w.log.push(`roster ${JSON.stringify(e.value)}`)
@@ -2083,3 +2122,147 @@ for (const surface of SURFACES) {
     else expect(runsOf(nodes).reduce((s, r) => s + [...(r.text ?? '')].length, 0)).toBe(32)
   })
 }
+
+// --- finding a member's transcript ------------------------------------------------
+//
+// Spec revision 3 on #251, S3 and S16 criteria 1 and 2; ticket #270. A session
+// that moved into a worktree after it started writes its transcript under the
+// worktree's projects folder, while `claude agents` still names its launch
+// folder. The folder names are made up, as the config folder is. Each listing
+// the pane asks is answered from the file system in memory, in the shape the
+// engine listed each kind of entry (recorded-stats.ts).
+
+const MID = '55555555-6666-4777-8888-999999999999'
+const LAUNCH = `${CONFIG}\\projects\\C--work`
+const WORKTREE = `${CONFIG}\\projects\\C--work--claude-worktrees-build-9`
+const SECOND = `${CONFIG}\\projects\\C--work--claude-worktrees-build-8`
+const callAt = (at: number) =>
+  JSON.stringify({
+    type: 'assistant',
+    timestamp: new Date(at).toISOString(),
+    isSidechain: false,
+    message: {
+      model: 'claude-opus-5-5',
+      usage: { input_tokens: 6, cache_creation_input_tokens: 1000, cache_read_input_tokens: 150000, output_tokens: 300, cache_creation: { ephemeral_5m_input_tokens: 0, ephemeral_1h_input_tokens: 1000 } },
+    },
+  })
+const bridge = (id: string) => JSON.stringify({ type: 'system', subtype: 'bridge_status', url: `https://claude.ai/code/session_${id}` })
+// A transcript in a folder under projects, written now, with a Remote Control
+// link and a model call a minute ago.
+const plantIn = (w: World, folder: string, link: string) => {
+  w.dirs(folder)
+  w.put(`${folder}\\${MID}.jsonl`, { type: 'file', data: { text: `${bridge(link)}\n${callAt(w.clock.now() - MINUTE)}\n`, mtimeMs: w.clock.now() } })
+}
+// The pane with one needs-you card, `gamma`, whose session `claude agents`
+// lists in the launch folder, and a poll after `setup` plants its files.
+async function moved(on: On, $: any, setup: (w: World) => void) {
+  const w = await grouped(on, $, { cards: [card('gamma', { status: 'needs-you' })], todos: [] })
+  w.agents = JSON.stringify([{ name: 'gamma', status: 'idle', sessionId: MID, cwd: 'C:\\work' }])
+  w.dirs(LAUNCH)
+  setup(w)
+  await w.clock.advance(10000)
+  await w.clock.settle()
+  return w
+}
+// No found path, listed name or listing message in any value the pane set.
+const holdsNoPath = (w: World, ...more: string[]) => {
+  for (const [k, v] of w.states) {
+    for (const piece of ['claude-worktrees', `${MID}.jsonl`, ...more]) expect(`${k} ${v}`.includes(piece)).toBe(false)
+  }
+}
+
+for (const surface of SURFACES) {
+  test(`${surface}: a member whose transcript sits only under a worktree folder of its launch folder gets its cache line and its Remote Control link`, async ($, on) => {
+    const w = await moved(on, $, w => plantIn(w, WORKTREE, 'WT1'))
+    const m = await mountOn($, surface)
+    const all = await nodes(m)
+    expect(texts(all, '◆ cache').length).toBe(1)
+    expect(texts(all, 'cold in 59 min').length).toBe(1)
+    expect(texts(all, '◆ transcript not found').length).toBe(0)
+    expect(w.listings).toBe(1)
+    expect(await m.find({ key: 'open-0-gamma' })).toBeDefined()
+    await m.press({ key: 'open-0-gamma' })
+    expect(explorer(w)).toEqual([['explorer.exe', 'claude://claude.ai/code/session_WT1']])
+    holdsNoPath(w)
+  })
+
+  test(`${surface}: a needs-you or working card whose transcript is found nowhere says so, dim, and a finished card says nothing`, async ($, on) => {
+    const SIDS = ['66666666-7777-4888-8999-aaaaaaaaaaaa', '77777777-8888-4999-8aaa-bbbbbbbbbbbb', '88888888-9999-4aaa-8bbb-cccccccccccc']
+    const w = await grouped(on, $, { cards: [card('need-x', { status: 'needs-you' }), card('work-x'), card('done-x', { status: 'done' })], todos: [] })
+    w.agents = JSON.stringify(['need-x', 'work-x', 'done-x'].map((name, i) => ({ name, status: i === 1 ? 'busy' : 'idle', sessionId: SIDS[i], cwd: 'C:\\work' })))
+    w.dirs(LAUNCH)
+    await w.clock.advance(10000)
+    await w.clock.settle()
+    const m = await mountOn($, surface)
+    await m.press({ key: 'fold' })
+    const all = await nodes(m)
+    const text = String(all[0]?.text ?? '')
+    expect(text.includes('done-x')).toBe(true)
+    const lines = texts(all, '◆ transcript not found')
+    expect(lines.length).toBe(2)
+    for (const l of lines) expect(l.props.dimColor).toBe(true)
+    expect(text.slice(text.indexOf('▾ DONE · STOPPED')).includes('◆')).toBe(false)
+    expect(texts(all, '◆ cache').length).toBe(0)
+  })
+}
+
+test('a rejected listing counts as no hit: the card says not found, and its message is shown and kept nowhere', async ($, on) => {
+  const w = await moved(on, $, w => {
+    plantIn(w, WORKTREE, 'WT1')
+    w.listDeny = `EACCES: ${WORKTREE} token=abc123`
+  })
+  expect(w.listings).toBe(1)
+  const m = await mountOn($, 'desktop')
+  const all = await nodes(m)
+  expect(texts(all, '◆ transcript not found').length).toBe(1)
+  const text = await textOf(m)
+  for (const piece of ['abc123', 'EACCES', 'claude-worktrees']) expect(text.includes(piece)).toBe(false)
+  expect(w.states.filter(([k]) => k === 'liveError').every(([, v]) => v === '""')).toBe(true)
+  holdsNoPath(w, 'abc123', 'EACCES')
+})
+
+test('the projects folder is listed at most once a minute, and a second hit planted later drops the found transcript and its link at the next listing', async ($, on) => {
+  const w = await moved(on, $, w => plantIn(w, WORKTREE, 'WT1'))
+  const m = await mountOn($, 'desktop')
+  expect(w.listings).toBe(1)
+  expect(await m.find({ key: 'open-0-gamma' })).toBeDefined()
+  plantIn(w, SECOND, 'WT2')
+  // Five more polls inside the minute: no listing, and the found one stands.
+  await w.clock.advance(50000)
+  await w.clock.settle()
+  expect(w.listings).toBe(1)
+  expect(texts(await nodes(m), '◆ cache').length).toBe(1)
+  // A minute after the first listing: listed again, two hits, none found.
+  await w.clock.advance(10000)
+  await w.clock.settle()
+  expect(w.listings).toBe(2)
+  const all = await nodes(m)
+  expect(texts(all, '◆ transcript not found').length).toBe(1)
+  expect(await m.find({ key: 'open-0-gamma' })).toBeUndefined()
+  holdsNoPath(w)
+})
+
+test('the Remote Control link is read again when the found path changes, and goes when the path is dropped', async ($, on) => {
+  const w = await moved(on, $, w => plantIn(w, WORKTREE, 'WT1'))
+  const m = await mountOn($, 'desktop')
+  await m.press({ key: 'open-0-gamma' })
+  // The transcript now sits at the path from cwd: found there, and its link read.
+  plantIn(w, LAUNCH, 'HOME1')
+  await w.clock.advance(10000)
+  await w.clock.settle()
+  await m.redraw(PANE_PROPS)
+  await m.press({ key: 'open-0-gamma' })
+  // Both gone: nothing found, and no link left to open.
+  w.nodes.delete(key(`${LAUNCH}\\${MID}.jsonl`))
+  w.nodes.delete(key(`${WORKTREE}\\${MID}.jsonl`))
+  await w.clock.advance(10000)
+  await w.clock.settle()
+  const all = await nodes(m)
+  expect(texts(all, '◆ transcript not found').length).toBe(1)
+  expect(await m.find({ key: 'open-0-gamma' })).toBeUndefined()
+  expect(explorer(w)).toEqual([
+    ['explorer.exe', 'claude://claude.ai/code/session_WT1'],
+    ['explorer.exe', 'claude://claude.ai/code/session_HOME1'],
+  ])
+  holdsNoPath(w)
+})

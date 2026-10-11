@@ -697,3 +697,58 @@ describe('v8 the .toml reader fails closed, and the contract names its target', 
     });
   });
 });
+
+// ------------------------------------------------------------------ look-alike mark keys (#160 finding S7)
+
+// The .toml reader's comment and key rules fold a name before they test it
+// (NFKC, ASCII lower case, every dash and connector dropped), so "_" and a
+// Unicode dash or connector name a mark key as a hyphen does. The reasons stay
+// as they were.
+describe('a .toml key or comment named like a mark key, with any separator, is cannot-check', () => {
+  const HEX = 'ab'.repeat(32);
+  const CODEX = ['name = "cx"', 'description = "A test Codex agent."', 'developer_instructions = """', 'You review code.', '"""'];
+  const con = extra => `Version: 1.0.0\nTarget: codex\n${extra}\n\n# Contract\n\nWhat this familiar is for.\n`;
+  const DECOY = 'a comment that names a seal key but is not part of the seal block (three exact lines at the end of the file)';
+  const DECOY_KEY = 'a key named like a seal key; the seal is three comment lines at the end of the file';
+  const NOT_WRITTEN = 'FAIL seal: refused; nothing written';
+
+  function codex(lines, contract) {
+    const dir = fresh();
+    const file = join(dir, 'cx.toml');
+    writeFileSync(file, `${lines.join('\n')}\n`);
+    writeFileSync(join(dir, 'cx.contract.md'), contract);
+    return { dir, file };
+  }
+
+  /** The exit code, and each line printed exactly as given. */
+  function exact(r, code, ...lines) {
+    expect(r, code);
+    for (const l of lines) assert.ok(r.lines.includes(l), `missing the line "${l}"\n${show(r)}`);
+  }
+
+  // [label, lines, Extra keys line, line refused, reason]
+  const cases = [
+    ['a key with "_", listed', [...CODEX, 'familiar_digest = "x"'], 'Extra keys: familiar_digest', 6, DECOY_KEY],
+    ['a comment with "_"', [CODEX[0], `# familiar_digest = "sha256:${HEX}"`, ...CODEX.slice(1)], '', 2, DECOY],
+    ['a comment joined with U+FE4D', [CODEX[0], `# familiar\u{FE4D}digest = "sha256:${HEX}"`, ...CODEX.slice(1)], '', 2, DECOY],
+  ];
+  for (const [label, lines, extra, line, reason] of cases) {
+    test(`${label} -> 1 cannot-check`, () => {
+      exact(run([codex(lines, con(extra)).file]), 1, `CANNOT-CHECK toml: cx.toml line ${line}: ${reason}`);
+    });
+    test(`${label} -> the seal refuses, and writes nothing`, () => {
+      const { dir, file } = codex(lines, con(extra));
+      const before = readFileSync(file);
+      const names = listing(dir);
+      exact(run(['--seal', file]), 2, `FAIL toml: cannot check cx.toml line ${line}: ${reason}`, NOT_WRITTEN);
+      assert.deepEqual(readFileSync(file), before);
+      assert.deepEqual(listing(dir), names);
+    });
+  }
+
+  test('a prose comment with spaces, "# the contract version", seals and passes', () => {
+    const { file } = codex([CODEX[0], '# the contract version is set by the seal', ...CODEX.slice(1)], con(''));
+    expect(run(['--seal', file]), 0, 'PASS seal: wrote ');
+    exact(run([file]), 0, 'PASS toml', 'PASS familiar-digest', 'PASS contract-digest', 'PASS contract-version');
+  });
+});
