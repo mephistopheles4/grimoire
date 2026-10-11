@@ -1787,6 +1787,16 @@ for (const surface of SURFACES) {
     // a ◆ context row with the size alone, uncoloured (head chef's decision
     // on #287).
     expect(texts(all, '◆ context').length).toBe(3)
+    // The bare context row keeps the bar's room, so its size stays in the
+    // value column: a growing Box on desktop, 18 cells of space on the
+    // terminal.
+    const bare = all.filter(b => b.type === 'Box' && b.props.flexDirection === 'row' && spoken(b.children[0]) === '◆ context' && b.children.length === 3 && !b.children[1].children?.some((c: any) => c?.type === 'Svg') && !/[▕▏]/.test(spoken(b.children[1])))
+    expect(bare.length).toBeGreaterThan(0)
+    for (const row of bare) {
+      const room = row.children[1]
+      if (surface === 'desktop') expect([room.props.flexGrow, room.props.minWidth]).toEqual([1, 8])
+      else expect(spoken(room)).toBe(' '.repeat(18))
+    }
     for (const [size, n] of [['182k', 1], ['150k', 2]] as const) {
       const found = texts(all, size)
       expect(found.length).toBe(n)
@@ -2211,7 +2221,7 @@ for (const surface of SURFACES) {
     const m = await mountOn($, surface)
     const all = await nodes(m)
     expect(texts(all, '◆ cache').length).toBe(1)
-    expect(all.filter(n => n.type === 'Text' && /^idle \d+ min · cold in 59 min$/.test(n.text ?? '')).length).toBe(1)
+    expect(texts(all, 'idle 1 min · cold in 59 min').length).toBe(1)
     expect(texts(all, '◆ transcript not found').length).toBe(0)
     expect(w.listings).toBe(1)
     expect(await m.find({ key: 'open-0-gamma' })).toBeDefined()
@@ -2626,6 +2636,15 @@ for (const surface of SURFACES) {
     // colour of its own.
     expect(texts(all, 'warm (working)')[0]?.props.color).toBe('success')
     for (const t of texts(all, '412k of 1M')) expect(t.props.color).toBeUndefined()
+  })
+
+  test(`${surface}: a context text wider than the cache text sets the value column (#287)`, async ($, on) => {
+    await metered(on, $, { cards: [card('work-wide', { status: 'working' })], todos: [] }, now => [meterRec('work-wide', now, 1300000, 200000)], { 'work-wide': 'busy' })
+    const m = await mountOn($, surface)
+    const all = await nodes(m)
+    expect(texts(all, '1.3M · over 200k').length).toBe(1)
+    const values = all.filter(b => b.type === 'Box' && b.props.justifyContent === 'flex-end' && ['warm (working)', '1.3M · over 200k'].includes(spoken(b)))
+    expect(values.map(b => b.props.width)).toEqual([16, 16])
   })
 
   test(`${surface}: a tab press switches its card's view: burn rate, then the context trend, then back`, async ($, on) => {
