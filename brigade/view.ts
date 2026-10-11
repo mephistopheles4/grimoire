@@ -1,6 +1,6 @@
 import { SESSION_ID, foldsCase, oneLine, pathKey, projectFolder, sepOf } from './roster.ts'
 import type { AgentRow } from './roster.ts'
-import type { Pair, Sample, UsageCategory, UsageLimit, UsageSnapshot, Warmth } from './types'
+import type { Meter, Pair, Sample, UsageCategory, UsageLimit, UsageSnapshot, Warmth } from './types'
 
 // What the Brigade pane draws, worked out from plain values: the render hook
 // in register.tsx only turns these results into elements. Plain TypeScript
@@ -12,6 +12,10 @@ import type { Pair, Sample, UsageCategory, UsageLimit, UsageSnapshot, Warmth } f
 //
 // The cache warmth: each card's ◆ line, read from the last real model call in
 // its session's transcript, and which transcripts the agents poll reads.
+//
+// The call series and the context meter: what one read of a transcript gives
+// beyond the last call, stored as each card's meters record, and the meter
+// drawn from it under the cache bar.
 //
 // The transcript finder: where a member's transcript is, from its working
 // directory or, after it moved into a worktree, from the worktree folders of
@@ -25,7 +29,7 @@ import type { Pair, Sample, UsageCategory, UsageLimit, UsageSnapshot, Warmth } f
 // from `STYLE`, a clip id (`cb` for the usage image, `st` for the status
 // strip), `end`, the one gap transform. The test's attribute allowlist holds
 // every image this module builds to those forms: the usage image, the status
-// strip and the to-do bar.
+// strip, the to-do bar, the cache bar and the context meter.
 
 /** A snapshot before the first reading: what the pane holds until one comes. */
 export const EMPTY_USAGE: UsageSnapshot = { limits: [], context: {} }
@@ -979,12 +983,20 @@ const UTC = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,9})?Z$/
 const count = (v: unknown): number | undefined =>
   v === undefined ? 0 : typeof v === 'number' && Number.isInteger(v) && v >= 0 && v <= MAX_COUNT ? v : undefined
 
-// One transcript line as a model call, or undefined when it is not a real one
-// or fails a check: a `<synthetic>` row, an API error, a sidechain, an offset
-// or unreadable time, a time past `latest`, a count out of range, or no
-// context at all. Claude Code writes an assistant-shaped row with zero usage
-// when a turn ends on an error, and taking it would show a cold session warm.
-function callRow(line: string, latest: number): LastCall | undefined {
+// A call's message id as Claude Code writes it: every real call row carries
+// one, and a call's rows all carry the same.
+const MESSAGE_ID = /^[A-Za-z0-9_-]{1,100}$/
+
+// One transcript line as a model call, with its message id, its new tokens
+// (input, cache writes and output, not cache reads) and its model as the row
+// gives it, read only to look up the window. Undefined when it is not a real
+// one or fails a check: a `<synthetic>` row, an API error, a sidechain, no
+// well-formed message id, an offset or unreadable time, a time past
+// `latest`, a count out of range, or no context at all. Claude Code writes an
+// assistant-shaped row with zero usage when a turn ends on an error, and
+// taking it would show a cold session warm.
+type CallRow = LastCall & { id: string; fresh: number; model: unknown }
+function callRow(line: string, latest: number): CallRow | undefined {
   let r: unknown
   try {
     r = JSON.parse(line)
@@ -995,6 +1007,7 @@ function callRow(line: string, latest: number): LastCall | undefined {
   if (r.isApiErrorMessage === true || r.isSidechain === true) return undefined
   const m = r.message
   if (!isRecord(m) || !isRecord(m.usage) || m.model === '<synthetic>') return undefined
+  if (typeof m.id !== 'string' || !MESSAGE_ID.test(m.id)) return undefined
   if (!UTC.test(r.timestamp)) return undefined
   const at = isoTime(r.timestamp)
   if (at === undefined || at > latest) return undefined
@@ -1002,7 +1015,8 @@ function callRow(line: string, latest: number): LastCall | undefined {
   const input = count(u.input_tokens)
   const made = count(u.cache_creation_input_tokens)
   const cached = count(u.cache_read_input_tokens)
-  if (input === undefined || made === undefined || cached === undefined) return undefined
+  const output = count(u.output_tokens)
+  if (input === undefined || made === undefined || cached === undefined || output === undefined) return undefined
   let short: number | undefined = 0
   let long: number | undefined = 0
   if (u.cache_creation !== undefined) {
@@ -1013,36 +1027,112 @@ function callRow(line: string, latest: number): LastCall | undefined {
   }
   const tokens = input + made + cached
   if (tokens === 0) return undefined
-  const call: LastCall = { at, tokens }
+  const call: CallRow = { at, tokens, id: m.id, fresh: input + made + output, model: m.model }
   if (long > 0) call.windowMs = HOUR_MS
   else if (short > 0) call.windowMs = SHORT_MS
   return call
 }
 
-/** The last real model call in a transcript's text, or undefined. Scans from
- *  the end for the first row that passes every check, then on back, in the
- *  same scan, for the last row that wrote cache, whose window it takes: a
- *  call that only read the cache does not say its window. With no such row
- *  the window is unknown. `mtimeMs` is the file's modified time, used only to
+// --- The call series ---------------------------------------------------------
+//
+// A read gives more than the last call: the window the session's model family
+// has, from a fixed table, and two series, the new tokens of each of the last
+// 30 minutes and the context size of each of the last 30 calls. Claude Code
+// writes one row per content block, each with the call's whole usage, so a
+// call counts once by its message id. All of it is numbers: no model text or
+// message id leaves the parse.
+
+/** The burn buckets: one a minute, for the last 30 minutes. */
+export const BURN_BUCKETS = 30
+/** The most calls the context series keeps. */
+export const SERIES_CALLS = 30
+/** The most a burn bucket or a context value holds: three counts at their
+ *  top, so one call never passes it, and a bucket is clamped to it. */
+export const MAX_SERIES = 3 * MAX_COUNT
+const BURN_SPAN_MS = BURN_BUCKETS * MIN_MS
+
+/** What one read of a transcript gives: the last call as the cache bar reads
+ *  it, the context window its model family has, in tokens (absent when the
+ *  table gives none),
+ *  the 30 burn buckets ending at the read time, oldest first, and the context
+ *  size of each of the last 30 calls, oldest first. */
+export type CallSeries = { last: LastCall; window?: number; burn: number[]; context: number[] }
+
+// The model id a window is looked up for, and the table, matched from the
+// start in order. A fixed list, never a lookup keyed by the file's text.
+const MODEL_ID = /^claude-[a-z0-9-]{1,60}$/
+const WINDOW_TABLE: readonly (readonly [string, number])[] = [
+  ['claude-opus-5', 1000000],
+  ['claude-sonnet-5', 1000000],
+  ['claude-fable-5', 1000000],
+  ['claude-opus-4-8', 1000000],
+  ['claude-haiku-', 200000],
+]
+
+/** A model's context window from the fixed table, or undefined: a model id
+ *  that is not `claude-` and 1 to 60 of a-z, 0-9 and `-`, or one no row of the
+ *  table starts it, has none. */
+export function windowOf(model: unknown): number | undefined {
+  if (typeof model !== 'string' || !MODEL_ID.test(model)) return undefined
+  return WINDOW_TABLE.find(([family]) => model.startsWith(family))?.[1]
+}
+
+/** A transcript's call series, or undefined when it has no counted call.
+ *
+ *  One pass over the lines from the end. A line that does not parse is
+ *  skipped and the pass goes on, so a half-written last line costs nothing.
+ *  A row counts only when it passes every check `callRow` makes, and only
+ *  once per message id: an id counts when its newest passing row does, and
+ *  later rows with it are skipped. The first counted row is the last call,
+ *  and its model alone gives the context window; the cache's window, a span
+ *  of time, is taken from the newest counted call that wrote cache, as before. A call goes in
+ *  a burn bucket only when its time is after `now` minus 30 minutes and no
+ *  later than `now`: bucket i holds the calls in minute i of that span, and
+ *  each is clamped to 30,000,000. The pass stops once it has the last call,
+ *  the last cache-writing call and 30 counted calls, and has passed 30
+ *  minutes before `now`. `mtimeMs` is the file's modified time, used only to
  *  refuse a row that claims a time more than 2 minutes after it, never as
- *  the call's time. */
-export function lastCall(text: string, mtimeMs: number): LastCall | undefined {
+ *  the call's time. Never throws. */
+export function callSeries(text: string, mtimeMs: number, now: number): CallSeries | undefined {
   if (!Number.isFinite(mtimeMs)) return undefined
   const latest = mtimeMs + SLACK_MS
+  const start = now - BURN_SPAN_MS
   const lines = text.split('\n')
-  let found: LastCall | undefined
+  const seen = new Set<string>()
+  const burn: number[] = Array.from({ length: BURN_BUCKETS }, () => 0)
+  // Newest first, turned at the end.
+  const context: number[] = []
+  let last: LastCall | undefined
+  let window: number | undefined
+  let cacheKnown = false
+  let passed = false
   for (let i = lines.length - 1; i >= 0; i--) {
     const line = lines[i] ?? ''
     if (!line.includes('"assistant"')) continue
     const call = callRow(line, latest)
-    if (call === undefined) continue
-    found ??= { at: call.at, tokens: call.tokens }
-    if (call.windowMs !== undefined) {
-      found.windowMs = call.windowMs
-      break
+    if (call === undefined || seen.has(call.id)) continue
+    seen.add(call.id)
+    if (last === undefined) {
+      last = { at: call.at, tokens: call.tokens }
+      window = windowOf(call.model)
     }
+    if (!cacheKnown && call.windowMs !== undefined) {
+      last.windowMs = call.windowMs
+      cacheKnown = true
+    }
+    if (context.length < SERIES_CALLS) context.push(call.tokens)
+    if (call.at > start && call.at <= now) {
+      const b = Math.min(BURN_BUCKETS - 1, Math.max(0, Math.ceil((call.at - start) / MIN_MS) - 1))
+      burn[b] = Math.min(MAX_SERIES, (burn[b] ?? 0) + call.fresh)
+    } else if (call.at <= start) {
+      passed = true
+    }
+    if (cacheKnown && passed && context.length >= SERIES_CALLS) break
   }
-  return found
+  if (last === undefined) return undefined
+  const out: CallSeries = { last, burn, context: context.reverse() }
+  if (window !== undefined) out.window = window
+  return out
 }
 
 /** A live state that means the session is working: its cache is warm. */
@@ -1145,7 +1235,7 @@ export function warmthLine(
 // worked out here from the warmth record's numbers alone: no title, to-do,
 // report or usage text reaches it, and its alt text is fixed words and numbers.
 
-/** The terminal cache bar's width in cells. */
+/** The terminal width in cells of the cache bar and the context meter. */
 export const CACHE_CELLS = 16
 
 /** A card's cache bar: how full it is, from 0 to 1, its theme colour key and
@@ -1201,12 +1291,12 @@ export function cacheCells(b: CacheBar): string {
   return b.cls === 'hot' && cells.trim() === '' ? `${EIGHTHS[0]}${' '.repeat(CACHE_CELLS - 1)}` : cells
 }
 
-// The three classes a cache bar's fill may take. Any other class it is handed
-// draws no fill. `done` is the shared green: a done session's colour and a
-// warm cache's.
+// The three classes the fill of the cache bar or the context meter may take.
+// Any other class it is handed draws no fill. `done` is the shared green: a
+// done session's colour, a warm cache's and a context meter's under 70%.
 const CACHE_CLASSES = new Set(['done', 'warn', 'hot'])
 // The image's height, the bar's top, and the bar's thickness, which is also
-// the stub's width.
+// the stub's width, for both bars.
 const CACHE_HEIGHT = 16
 const CACHE_Y = 5
 const CACHE_THICKNESS = 6
@@ -1219,24 +1309,134 @@ const CACHE_THICKNESS = 6
  *  one pane share none. The fraction is clamped here too. The alt text is
  *  "Cache" and the bar's text, cleaned to one line. */
 export function cacheBarSvg(b: CacheBar): Extract<UsageView, { kind: 'svg' }> {
-  const f = unit(b.fraction)
+  return thinBar(b.fraction, b.cls, `Cache ${b.text}`)
+}
+
+// The thin bar the cache bar and the context meter share, from a fraction, a
+// class and an alt text alone.
+function thinBar(fraction: number, cls: string, alt: string): Extract<UsageView, { kind: 'svg' }> {
+  const f = unit(fraction)
   const y = num(CACHE_Y)
   const h = num(CACHE_THICKNESS)
   const r = num(CACHE_THICKNESS / 2)
-  // The stub is drawn at 0 too, so a cold bar, empty, still reads red.
-  const fill = CACHE_CLASSES.has(b.cls)
-    ? `<rect class="${b.cls}" x="0" y="${y}" width="${h}" height="${h}" rx="${r}"/>` +
-      (f > 0 ? `<rect class="${b.cls}" x="0" y="${y}" width="${pct(f * 100)}" height="${h}" rx="${r}"/>` : '')
+  // The stub is drawn at 0 too, so an empty bar still shows its class's
+  // colour: a cold cache bar still reads red.
+  const fill = CACHE_CLASSES.has(cls)
+    ? `<rect class="${cls}" x="0" y="${y}" width="${h}" height="${h}" rx="${r}"/>` +
+      (f > 0 ? `<rect class="${cls}" x="0" y="${y}" width="${pct(f * 100)}" height="${h}" rx="${r}"/>` : '')
     : ''
   const source =
     `<svg xmlns="${XMLNS}" width="100%" height="${num(CACHE_HEIGHT)}"><style>${STYLE}</style>` +
     `<rect class="track" x="0" y="${y}" width="100%" height="${h}" rx="${r}"/>${fill}</svg>`
-  return { kind: 'svg', source, alt: oneLine(`Cache ${b.text}`, 80), height: CACHE_HEIGHT }
+  return { kind: 'svg', source, alt: oneLine(alt, 80), height: CACHE_HEIGHT }
+}
+
+// --- The context meter -------------------------------------------------------
+//
+// Under the cache bar, how full the session's context is: the newest call's
+// context over its model family's window, from the stored `meters` record.
+// Drawn from that record's numbers alone, as the cache bar is: no title, path,
+// model or message id reaches it, and its alt text is fixed words and numbers.
+
+const MAX_METERS = 50
+const WINDOW_SIZES = new Set([200000, 1000000])
+
+// A stored series checked again: a list of whole numbers from 0 to
+// 30,000,000, exactly 30 of them or at most 30, copied into a new list. A
+// gap in the list, or any other shape, fails it.
+function seriesFrom(v: unknown, exact: boolean): number[] | undefined {
+  if (!Array.isArray(v) || (exact ? v.length !== BURN_BUCKETS : v.length > SERIES_CALLS)) return undefined
+  const out: number[] = []
+  for (let i = 0; i < v.length; i++) {
+    const n: unknown = v[i]
+    if (typeof n !== 'number' || !Number.isInteger(n) || n < 0 || n > MAX_SERIES) return undefined
+    out.push(n)
+  }
+  return out
+}
+
+/** The stored meters, checked again before they are drawn: plugin state is
+ *  the engine's, and another plugin may rewrite it. A record goes unless its
+ *  name is text of 1 to 300 characters not seen before, `at` a finite
+ *  number, `window` absent or exactly 200,000 or 1,000,000, `burn` absent or
+ *  exactly 30 whole numbers from 0 to 30,000,000, and `context` absent or at
+ *  most 30 such numbers. At most 50 stay, each copied field by field into a
+ *  new record, so no other field and no shared list comes with it. */
+export function metersFrom(stored: unknown): Meter[] {
+  const out: Meter[] = []
+  if (!Array.isArray(stored)) return out
+  const names = new Set<string>()
+  for (const r of stored) {
+    if (out.length >= MAX_METERS) break
+    if (!isRecord(r) || typeof r.name !== 'string' || r.name === '' || r.name.length > MAX_NAME || names.has(r.name)) continue
+    if (typeof r.at !== 'number' || !Number.isFinite(r.at)) continue
+    if (r.window !== undefined && (typeof r.window !== 'number' || !WINDOW_SIZES.has(r.window))) continue
+    const burn = r.burn === undefined ? undefined : seriesFrom(r.burn, true)
+    const context = r.context === undefined ? undefined : seriesFrom(r.context, false)
+    if ((r.burn !== undefined && burn === undefined) || (r.context !== undefined && context === undefined)) continue
+    const m: Meter = { name: r.name, at: r.at }
+    if (r.window !== undefined) m.window = r.window
+    if (burn !== undefined) m.burn = burn
+    if (context !== undefined) m.context = context
+    out.push(m)
+    names.add(r.name)
+  }
+  return out
+}
+
+/** A token count as the context meter draws it: "N.NM" from 999,500, a
+ *  trailing ".0" dropped, else as `tokens` draws it. */
+export function sizeText(n: number): string {
+  return Number.isFinite(n) && n >= 999500 ? `${(n / 1000000).toFixed(1).replace(/\.0$/, '')}M` : tokens(n)
+}
+
+/** A card's context meter: how full it is, from 0 to 1, its theme colour key
+ *  and SVG class, the text beside it and the image's alt text. */
+export type ContextMeter = {
+  fraction: number
+  tone: 'success' | 'warning' | 'error'
+  cls: 'done' | 'warn' | 'hot'
+  text: string
+  alt: string
+}
+
+/** One card's context meter, or undefined for none: the newest call's
+ *  context, the last value of the record's context series, over the context
+ *  window. Green under 70%, amber from 70%, red from 90%. Past the window it
+ *  is a full red bar that reads `over` (owner decision q6 B on #251). No record, no
+ *  window, no context, or a value that is not a finite number, or a window
+ *  that is not above 0, gives none; a negative context is an empty bar. */
+export function contextMeter(m: Meter | undefined): ContextMeter | undefined {
+  if (m === undefined || m.window === undefined || m.context === undefined) return undefined
+  const used = m.context[m.context.length - 1]
+  const window = m.window
+  if (used === undefined || !Number.isFinite(used) || !Number.isFinite(window) || window <= 0) return undefined
+  const size = sizeText(window)
+  if (used > window) {
+    return { fraction: 1, tone: 'error', cls: 'hot', text: `${sizeText(used)} · over ${size}`, alt: `Context ${sizeText(used)}, over ${size}` }
+  }
+  const fraction = unit(used / window)
+  const text = `${sizeText(used)} of ${size}`
+  const alt = `Context ${text}`
+  if (fraction >= 0.9) return { fraction, tone: 'error', cls: 'hot', text, alt }
+  if (fraction >= 0.7) return { fraction, tone: 'warning', cls: 'warn', text, alt }
+  return { fraction, tone: 'success', cls: 'done', text, alt }
+}
+
+/** The terminal's context meter: 16 eighth-block cells, the end marks left
+ *  to the caller, as the cache bar's. */
+export const contextCells = (c: Pick<ContextMeter, 'fraction'>): string => eighthBar(unit(c.fraction), CACHE_CELLS)
+
+/** The context meter as an image for the surfaces with Svg: the cache bar's
+ *  form, from the meter's fraction, class and alt text alone. */
+export function contextMeterSvg(c: Pick<ContextMeter, 'fraction' | 'cls' | 'alt'>): Extract<UsageView, { kind: 'svg' }> {
+  return thinBar(c.fraction, c.cls, c.alt)
 }
 
 /** What the agents poll remembers of each transcript it read, keyed by path:
- *  its modified time at that read and the last call parsed from it. */
-export type ReadMemory = Map<string, { mtimeMs: number; call: LastCall | undefined }>
+ *  its modified time at that read, the engine's clock at that read, and the
+ *  call series parsed from it. */
+export type ReadMemory = Map<string, { mtimeMs: number; readAt: number; series: CallSeries | undefined }>
 
 // --- The transcript finder ---------------------------------------------------
 //
@@ -1408,8 +1608,22 @@ export async function findTranscript(config: string, row: AgentRow, io: FinderIo
   }
 }
 
-/** The agents poll's warmth reads, and the records they give, or undefined
- *  when the pane closed on the way, so nothing is stored.
+/** A working member's transcript is read at most this often. */
+export const WORKING_EVERY_MS = 60000
+/** At most this many working members' transcripts are read in one poll. */
+export const WORKING_PER_POLL = 5
+
+// A working member's read is due unless its last read is less than a minute
+// before `now`. A read time that is not a number, or one ahead of the clock,
+// is due, so a clock that went back cannot hold a member unread.
+const readDue = (readAt: number | undefined, now: number) =>
+  readAt === undefined || !Number.isFinite(readAt) || !(now >= readAt && now - readAt < WORKING_EVERY_MS)
+// For the order of working reads: never read, or read at no known time, first.
+const readOrder = (readAt: number | undefined) => (readAt !== undefined && Number.isFinite(readAt) ? readAt : -Infinity)
+
+/** The agents poll's transcript reads, and the records they give: the
+ *  warmth records and the meters. Undefined when the pane closed on the way,
+ *  so nothing is stored.
  *
  *  Only a roster member is read, through the finder, which asks the real
  *  projects folder once for the poll and keeps each member's result in
@@ -1418,26 +1632,34 @@ export async function findTranscript(config: string, row: AgentRow, io: FinderIo
  *  found". Each found transcript has passed the finder's place check, and
  *  one over 4 MiB is not read and records "too large". A transcript is read
  *  only when its modified time differs from the one `memory` holds for its
- *  path, and never while its session is working (`busy`, `running` or
- *  `working`). `memory` gets an entry only after a read and a parse that
- *  succeeded, so a failed read is tried again at the next poll; the record
- *  is then the last good one. A working member with no known call records
- *  `unread`. Paths no member's transcript is found at leave `memory`, and
+ *  path, or its last read had no clock to go by. An idle member is read then,
+ *  every poll. A working member (`busy`, `running` or `working`) is read at
+ *  most once a minute, and at most 5 working members a poll, those read
+ *  longest ago first, never-read ones before all, then in roster order; with
+ *  no clock this poll, none is. The clock is asked once a poll, and a read's
+ *  series is cut at it. `memory` gets an entry only after a read that
+ *  succeeded, so a failed read is tried again; the record is then the last
+ *  good one. A working member with no known call records `unread`. A member
+ *  with a call series gets a meter: the time of the read that gave it, and
+ *  its numbers. Paths no member's transcript is found at leave `memory`, and
  *  session ids no member has leave the finder's memory. */
-export async function readWarmth(
+export async function readCalls(
   rows: readonly AgentRow[],
   titles: readonly string[],
   config: string,
   memory: ReadMemory,
-  io: WarmthIo,
+  io: PollIo,
   finder: Finder = newFinder(),
-): Promise<Warmth[] | undefined> {
+): Promise<{ warmth: Warmth[]; meters: Meter[] } | undefined> {
   const members = new Set(titles)
   const byName = new Map<string, AgentRow[]>()
   for (const r of rows) {
     if (members.has(r.name)) byName.set(r.name, [...(byName.get(r.name) ?? []), r])
   }
-  const out: Warmth[] = []
+  // Each member's place in the output, in roster order: a record already
+  // known, or a transcript to read from.
+  type Slot = { warmth: Warmth } | { name: string; working: boolean; path: string; mtimeMs: number }
+  const slots: Slot[] = []
   const named = new Set<string>()
   const ids = new Set<string>()
   let asked = false
@@ -1445,7 +1667,7 @@ export async function readWarmth(
   for (const [name, list] of byName) {
     const row = list[0]
     if (list.length > 1 || row === undefined) {
-      out.push({ name, kind: 'shared' })
+      slots.push({ warmth: { name, kind: 'shared' } })
       continue
     }
     if (row.sessionId === undefined || row.cwd === undefined) continue
@@ -1460,31 +1682,71 @@ export async function readWarmth(
     if (!io.live()) return undefined
     finder.byName.set(name, found)
     if (found === undefined) {
-      out.push({ name, kind: 'not-found' })
+      slots.push({ warmth: { name, kind: 'not-found' } })
       continue
     }
-    const path = found.path
-    named.add(path)
+    named.add(found.path)
     if (!Number.isFinite(found.mtimeMs)) continue
     if (!Number.isFinite(found.size) || found.size > MAX_TRANSCRIPT_BYTES) {
-      out.push({ name, kind: 'too-large' })
+      slots.push({ warmth: { name, kind: 'too-large' } })
       continue
     }
-    if (!isWorking(row.status) && memory.get(path)?.mtimeMs !== found.mtimeMs) {
-      const text = await io.read(path).catch(() => undefined)
-      if (!io.live()) return undefined
-      if (text !== undefined) memory.set(path, { mtimeMs: found.mtimeMs, call: lastCall(text, found.mtimeMs) })
+    slots.push({ name, working: isWorking(row.status), path: found.path, mtimeMs: found.mtimeMs })
+  }
+
+  // Which transcripts to read: every changed one of an idle member, and of
+  // the changed ones of working members that are due, the 5 read longest
+  // ago. A clock that rejects or is not a number reads no working member.
+  let now = Number.NaN
+  try {
+    now = await io.now()
+  } catch {
+    // No clock this poll: idle members are still read, and none gets a meter.
+  }
+  if (!io.live()) return undefined
+  const files = slots.flatMap(s => ('warmth' in s ? [] : [s]))
+  const changed = files.filter(f => {
+    const had = memory.get(f.path)
+    return had === undefined || had.mtimeMs !== f.mtimeMs || !Number.isFinite(had.readAt)
+  })
+  const working = Number.isFinite(now)
+    ? changed
+        .filter(f => f.working && readDue(memory.get(f.path)?.readAt, now))
+        .sort((a, b) => readOrder(memory.get(a.path)?.readAt) - readOrder(memory.get(b.path)?.readAt))
+        .slice(0, WORKING_PER_POLL)
+    : []
+  const chosen = new Set([...changed.filter(f => !f.working), ...working])
+  for (const f of files) {
+    if (!chosen.has(f)) continue
+    const text = await io.read(f.path).catch(() => undefined)
+    if (!io.live()) return undefined
+    if (text !== undefined) memory.set(f.path, { mtimeMs: f.mtimeMs, readAt: now, series: callSeries(text, f.mtimeMs, now) })
+  }
+
+  const warmth: Warmth[] = []
+  const meters: Meter[] = []
+  for (const s of slots) {
+    if ('warmth' in s) {
+      warmth.push(s.warmth)
+      continue
     }
-    const call = memory.get(path)?.call
-    if (call !== undefined) out.push({ name, kind: 'call', ...call })
-    // Working with no known call: never read, or read before its first model
-    // call. No read runs while it works, so its card says it is working, with
-    // no size.
-    else if (isWorking(row.status)) out.push({ name, kind: 'unread' })
+    const had = memory.get(s.path)
+    const series = had?.series
+    if (series !== undefined) {
+      warmth.push({ name: s.name, kind: 'call', ...series.last })
+      if (had !== undefined && Number.isFinite(had.readAt)) {
+        const meter: Meter = { name: s.name, at: had.readAt, burn: series.burn, context: series.context }
+        if (series.window !== undefined) meter.window = series.window
+        meters.push(meter)
+      }
+    }
+    // Working with no known call: not read yet, or read before its first
+    // model call. Its card says it is working, with no size.
+    else if (s.working) warmth.push({ name: s.name, kind: 'unread' })
   }
   for (const path of [...memory.keys()]) if (!named.has(path)) memory.delete(path)
   for (const id of [...finder.remembered.keys()]) if (!ids.has(id)) finder.remembered.delete(id)
-  return out
+  return { warmth, meters }
 }
 
 /** What the link read does for a member the finder looked for this poll,
@@ -1498,6 +1760,6 @@ export function linkStep(found: string | undefined, from: string | undefined, st
   return from !== undefined || stored ? 'drop' : 'skip'
 }
 
-/** The file system as the poll reaches it, and whether the pane is still
- *  open: the finder's, and the read. `read` may reject. */
-export type WarmthIo = FinderIo & { read: (path: string) => Promise<string> }
+/** The file system and clock as the poll's reads reach them, and whether the
+ *  pane is still open: the finder's, and the read. `read` may reject. */
+export type PollIo = FinderIo & { read: (path: string) => Promise<string> }

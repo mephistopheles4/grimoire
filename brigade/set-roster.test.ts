@@ -2136,12 +2136,16 @@ const MID = '55555555-6666-4777-8888-999999999999'
 const LAUNCH = `${CONFIG}\\projects\\C--work`
 const WORKTREE = `${CONFIG}\\projects\\C--work--claude-worktrees-build-9`
 const SECOND = `${CONFIG}\\projects\\C--work--claude-worktrees-build-8`
+// Each call row carries its own message id, as Claude Code writes them; since
+// #271 a row without one is not counted.
+let calls = 0
 const callAt = (at: number) =>
   JSON.stringify({
     type: 'assistant',
     timestamp: new Date(at).toISOString(),
     isSidechain: false,
     message: {
+      id: `msg_${(calls += 1)}`,
       model: 'claude-opus-5-5',
       usage: { input_tokens: 6, cache_creation_input_tokens: 1000, cache_read_input_tokens: 150000, output_tokens: 300, cache_creation: { ephemeral_5m_input_tokens: 0, ephemeral_1h_input_tokens: 1000 } },
     },
@@ -2265,4 +2269,189 @@ test('the Remote Control link is read again when the found path changes, and goe
     ['explorer.exe', 'claude://claude.ai/code/session_HOME1'],
   ])
   holdsNoPath(w)
+})
+// --- the context meter -----------------------------------------------------------
+//
+// Spec revision 3 on #251, S5 and S6; ticket #271. The meters are planted as
+// the agents poll stores them, beside the warmth records, as the cache bar's
+// tests plant theirs. Each test runs on both surfaces.
+
+const METERED = {
+  cards: [
+    card('need-low', { status: 'needs-you' }),
+    card('need-over', { status: 'needs-you' }),
+    card('work-amber', { status: 'working' }),
+    card('work-unknown', { status: 'working' }),
+    card('done-full', { status: 'done' }),
+  ],
+  todos: [],
+}
+const METER_LIVE: Record<string, string> = { 'need-low': 'idle', 'need-over': 'idle', 'work-amber': 'busy', 'work-unknown': 'busy', 'done-full': 'idle' }
+const thirty = () => Array.from({ length: 30 }, () => 0)
+const meterRec = (name: string, at: number, tokens: number, window: number | null = 1000000) =>
+  window === null ? { name, at, burn: thirty(), context: [5000, tokens] } : { name, at, window, burn: thirty(), context: [5000, tokens] }
+const METERS = (now: number) => [
+  meterRec('need-low', now, 412000),
+  meterRec('need-over', now, 1300000),
+  meterRec('work-amber', now, 750000),
+  meterRec('work-unknown', now, 750000, null),
+  meterRec('done-full', now, 950000),
+]
+
+// Plants the live states, warmth records and meters once the clock is known,
+// then runs one more poll so they are stored.
+async function metered(on: On, $: any, roster: { cards: { title: string }[] }, meters: (now: number) => unknown, live: Record<string, string> = METER_LIVE, rosterPlant?: (value: any) => any) {
+  let now: number | undefined
+  const w = await grouped(on, $, roster, (key, value) => {
+    if (key === 'roster' && rosterPlant !== undefined) return rosterPlant(value)
+    if (now === undefined) return value
+    if (key === 'meters') return meters(now)
+    if (key === 'warmth') return Object.keys(live).map(name => warmCall(name, 10 * MINUTE, now as number))
+    if (key === 'live') return Object.entries(live).map(([name, v]) => ({ name, value: v }))
+    return value
+  })
+  now = w.clock.now() + 10000
+  await w.clock.advance(10000)
+  await w.clock.settle()
+  return w
+}
+const spoken = (n: any): string => (typeof n === 'string' ? n : n?.text ?? (n?.children ?? []).map(spoken).join(''))
+// The meter rows: a row Box whose first child holds the `◆ context` label.
+const meterRows = (all: Drawn[]) => all.filter(b => b.type === 'Box' && b.props.flexDirection === 'row' && spoken(b.children[0]) === '◆ context')
+
+for (const surface of SURFACES) {
+  test(`${surface}: needs-you and working cards draw ◆ context, a bar and its text in the meter's tone, red and full past the window; none for an unknown model or a finished card`, async ($, on) => {
+    await metered(on, $, METERED, METERS)
+    const m = await mountOn($, surface)
+    expect(await m.drawn()).toBeDefined()
+    await m.press({ key: 'fold' })
+    const all = await nodes(m)
+    const text = String(all[0]?.text ?? '')
+    expect(text.includes('done-full')).toBe(true)
+    expect(texts(all, '◆ context').length).toBe(3)
+    for (const [short, tone] of [['412k of 1M', 'success'], ['1.3M · over 1M', 'error'], ['750k of 1M', 'warning']] as const) {
+      const found = texts(all, short)
+      expect(found.length).toBe(1)
+      expect(found[0]?.props.color).toBe(tone)
+    }
+    // The finished card and the unknown model draw no meter.
+    expect(text.slice(text.indexOf('▾ DONE · STOPPED')).includes('◆')).toBe(false)
+    expect(text.includes('950k')).toBe(false)
+    // The meter sits in the cache block, under the cache bar and its line.
+    const rows = meterRows(all)
+    expect(rows.length).toBe(3)
+    for (const row of rows) {
+      const [label, , short] = row.children as Drawn[]
+      expect(label?.props.flexShrink).toBe(0)
+      expect(short?.props.flexShrink).toBe(0)
+    }
+    const blocks = all.filter(b => b.type === 'Box' && b.props.flexDirection === 'column' && b.props.marginBottom === 1)
+    const holding = blocks.filter(b => b.children.some((c: any) => c?.type === 'Box' && spoken(c.children?.[0]) === '◆ context'))
+    expect(holding.length).toBe(3)
+    for (const b of holding) {
+      const at = b.children.findIndex((c: any) => c?.type === 'Box' && spoken(c.children?.[0]) === '◆ context')
+      expect(at).toBeGreaterThan(0)
+      expect(spoken(b.children[0]).startsWith('◆ cache')).toBe(true)
+    }
+    const images = all.filter(n => n.type === 'Svg' && String(n.props.alt).startsWith('Context'))
+    if (surface === 'desktop') {
+      expect(images.map(n => n.props.alt).sort()).toEqual(['Context 1.3M, over 1M', 'Context 412k of 1M', 'Context 750k of 1M'])
+      for (const image of images) {
+        expect(image.props.width).toBeUndefined()
+        expect(image.props.height).toBeGreaterThan(0)
+        expect(image.props.source).toMatch(/^<svg xmlns="http:\/\/www\.w3\.org\/2000\/svg" width="100%" height="\d+">/)
+        expect(image.props.source.includes('clip')).toBe(false)
+        expect(image.props.source.includes(' id=')).toBe(false)
+      }
+      const over = images.find(n => n.props.alt === 'Context 1.3M, over 1M')
+      expect(String(over?.props.source)).toMatch(/<rect class="hot" x="0" y="\d+" width="100%"/)
+      const around = all.filter(b => b.type === 'Box' && b.children.some((c: any) => c?.type === 'Svg' && String(c.props.alt).startsWith('Context')))
+      expect(around.length).toBe(3)
+      for (const b of around) {
+        expect(b.props.flexDirection).toBe('column')
+        expect(b.props.flexGrow).toBe(1)
+        expect(b.props.minWidth).toBe(8)
+      }
+    } else {
+      expect(images.length).toBe(0)
+      // 16 eighth-block cells between dim end marks.
+      expect(rows.map(r => spoken(r.children[1]))).toEqual([
+        `▕██████▋${' '.repeat(9)}▏`,
+        `▕${'█'.repeat(16)}▏`,
+        `▕${'█'.repeat(12)}${' '.repeat(4)}▏`,
+      ])
+    }
+  })
+
+  test(`${surface}: a rewritten meters value never throws or draws past full, and a hostile title never reaches a meter`, async ($, on) => {
+    await metered(
+      on,
+      $,
+      { cards: [card('need-low', { status: 'needs-you' }), card('need-over', { status: 'needs-you' }), card('work-amber', { status: 'working' })], todos: [] },
+      now => [
+        meterRec('need-low', now, 1e12),
+        { ...meterRec('need-over', now, 1), context: Array.from({ length: 31 }, () => 1) },
+        { ...meterRec('work-amber', now, 1), at: 'soon' },
+        5,
+        null,
+        { name: '__proto__', at: now, window: 1000000, context: [1] },
+        meterRec(HOSTILE_TITLE, now, 30000000),
+      ],
+      { 'need-low': 'idle', 'need-over': 'idle', 'work-amber': 'busy', [HOSTILE_TITLE]: 'idle' },
+      value => ({ ...value, cards: [...(value?.cards ?? []), card(HOSTILE_TITLE, { status: 'needs-you' })] }),
+    )
+    const m = await mountOn($, surface)
+    expect(await m.drawn()).toBeDefined()
+    const all = await nodes(m)
+    // Only the hostile title's meter is well formed: 30M past a 1M window,
+    // a full bar, never past it.
+    expect(texts(all, '◆ context').length).toBe(1)
+    expect(texts(all, '30M · over 1M').length).toBe(1)
+    const images = all.filter(n => n.type === 'Svg' && String(n.props.alt).startsWith('Context'))
+    expect(images.length).toBe(surface === 'desktop' ? 1 : 0)
+    for (const image of images) {
+      expect(String(image.props.source)).toMatch(/width="100%" height="6" rx="3"\/><\/svg>$/)
+      for (const out of [String(image.props.source), String(image.props.alt)]) {
+        for (const piece of ['script', '<b>', '&amp;amp;', 'q"']) expect(out.includes(piece)).toBe(false)
+      }
+    }
+  })
+}
+
+// A transcript whose rows pass every check while their id, model and every
+// other string field hold text shaped like a path or a secret.
+const leaky = (at: number, n: number) =>
+  JSON.stringify({
+    type: 'assistant',
+    timestamp: new Date(at).toISOString(),
+    isSidechain: false,
+    uuid: 'D:\\vault\\someone\\.claude\\secret',
+    parentUuid: '/srv/someone/.ssh/id_rsa',
+    sessionId: 'sk-ant-api03-SECRET',
+    cwd: 'D:\\vault\\someone\\work',
+    gitBranch: 'tok_abc',
+    requestId: 'req_sk-ant-SECRET',
+    message: {
+      id: `C--Users-someone-sk-ant-api03-SECRET-tok_${n}`,
+      role: 'assistant',
+      model: 'claude-opus-5-c--users-someone-sk-ant-secret',
+      stop_reason: 'D:\\vault\\someone\\secret.txt',
+      content: [{ type: 'text', text: 'sk-ant-api03-SECRET D:\\vault\\someone\\.claude\\projects\\x.jsonl' }],
+      usage: { input_tokens: 6, cache_creation_input_tokens: 1000, cache_read_input_tokens: 150000, output_tokens: 300, service_tier: 'id_rsa', cache_creation: { ephemeral_5m_input_tokens: 0, ephemeral_1h_input_tokens: 1000 } },
+    },
+  })
+
+test('no folder path, transcript text, model text or message id reaches any value the pane sets, and the meter still draws', async ($, on) => {
+  const w = await moved(on, $, w => {
+    const now = w.clock.now()
+    w.put(`${LAUNCH}\\${MID}.jsonl`, { type: 'file', data: { text: `${leaky(now - 3 * MINUTE, 1)}\n${leaky(now - 2 * MINUTE, 2)}\n${leaky(now - MINUTE, 3)}\n`, mtimeMs: now } })
+  })
+  const m = await mountOn($, 'desktop')
+  const all = await nodes(m)
+  expect(texts(all, '151k of 1M').length).toBe(1)
+  expect(all.some(n => n.type === 'Svg' && n.props.alt === 'Context 151k of 1M')).toBe(true)
+  expect(w.states.some(([k]) => k === 'meters')).toBe(true)
+  // The lead's own transcript path, which the pane keeps from its start, is
+  // the one path in its values; no piece of the member's transcript is.
+  holdsNoPath(w, 'someone', 'sk-ant', 'SECRET', 'secret', 'tok_', 'id_rsa', 'opus-5-c', 'msg_')
 })

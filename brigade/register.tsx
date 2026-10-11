@@ -45,6 +45,9 @@ import {
   cacheBar,
   cacheBarSvg,
   cacheCells,
+  contextCells,
+  contextMeter,
+  contextMeterSvg,
   foldLabel,
   drawnTitle,
   groupCards,
@@ -52,8 +55,9 @@ import {
   isOpen,
   linkStep,
   liveState,
+  metersFrom,
   newFinder,
-  readWarmth,
+  readCalls,
   reportCount,
   settleTicks,
   snapshotFrom,
@@ -106,6 +110,7 @@ const ticking = atom({ plugin: 'grimoire', key: 'ticking' } as const, [])
 const usage = atom({ plugin: 'grimoire', key: 'usage' } as const, EMPTY_USAGE)
 const samples = atom({ plugin: 'grimoire', key: 'samples' } as const, [])
 const warmth = atom({ plugin: 'grimoire', key: 'warmth' } as const, [])
+const meters = atom({ plugin: 'grimoire', key: 'meters' } as const, [])
 const doneOpen = atom({ plugin: 'grimoire', key: 'doneOpen' } as const, false)
 
 // Colours are the app's own theme keys, so the pane follows the person's
@@ -258,11 +263,12 @@ async function pollAgents($: EngineInterface, open: () => boolean) {
       const cards = (await read($, roster)).cards
 
       // Each roster member's cache warmth, from its transcript's last model
-      // call, found by the transcript finder. The rules for what is found and
+      // call, and its meters, from the call series the same read gives,
+      // found by the transcript finder. The rules for what is found and
       // read, and when, are in view.ts. The stat resolves, so the finder's
       // place check gets a real path; an engine with no listing rejects here,
       // quietly, as a rejected listing.
-      const found = await readWarmth(rows.value, cards.map(c => c.title), config, memory, {
+      const found = await readCalls(rows.value, cards.map(c => c.title), config, memory, {
         live: open,
         now: () => $.clock.now(),
         stat: path => $.fs.stat(path, { resolve: true }),
@@ -270,7 +276,8 @@ async function pollAgents($: EngineInterface, open: () => boolean) {
         read: async path => String(await $.fs.read(path)),
       }, finder)
       if (found === undefined || !open()) return
-      await update($, warmth, () => found)
+      await update($, warmth, () => found.warmth)
+      await update($, meters, () => found.meters)
 
       // A Remote Control session's claude.ai link sits in its transcript, in a
       // row the engine writes. Read only a roster member's, through the
@@ -874,6 +881,7 @@ export const register: Register = on => {
     const running = lookup(await read($, live))
     const found = lookup(await read($, links))
     const warm = new Map(warmthFrom(await read($, warmth)).map(w => [w.name, w]))
+    const meterOf = new Map(metersFrom(await read($, meters)).map(m => [m.name, m]))
     const inbox = await read($, reports)
     const done = idsFrom(await read($, doneTodos))
     const ticked = new Set(done)
@@ -906,10 +914,12 @@ export const register: Register = on => {
     // state on one line, the title cut first so the state stays in view.
     // Then, on a needs-you or working card, the ◆ cache bar with its short
     // text and the dim line under it, or the ◆ warmth line, dim, when there
-    // is no bar; and the nudge, which wraps. Then the phase, the work, the
-    // settings and the latest report, each on its own line and cut to the
-    // pane's width, and the buttons on their own row. A done or stopped card
-    // draws no ◆ line, bar or nudge: a finished session's cache means nothing.
+    // is no bar; the ◆ context meter, in the cache bar's form, when the
+    // card's model has a known window; and the nudge, which wraps. Then the
+    // phase, the work, the settings and the latest report, each on its own
+    // line and cut to the pane's width, and the buttons on their own row. A
+    // done or stopped card draws no ◆ line, bar, meter or nudge: a finished
+    // session's cache and context mean nothing.
     const card = ({ c, i }: { c: Card; i: number }) => {
       const look = statusOf(c.status)
       if (look === undefined) return null
@@ -918,6 +928,8 @@ export const register: Register = on => {
       const warmLine = isFinished ? undefined : warmthLine(warm.get(c.title), running.get(c.title), c.status, now)
       const bar = isFinished ? undefined : cacheBar(warm.get(c.title), running.get(c.title), now)
       const image = bar !== undefined && Image !== undefined ? cacheBarSvg(bar) : undefined
+      const meter = isFinished ? undefined : contextMeter(meterOf.get(c.title))
+      const meterImage = meter !== undefined && Image !== undefined ? contextMeterSvg(meter) : undefined
       const report = last(c.title)
       const needs = c.status === 'needs-you'
       const canOpen = appLink(c, found.get(c.title)) !== undefined
@@ -952,7 +964,7 @@ export const register: Register = on => {
                 to its minimum, not the text; the image, placed in
                 percentages, spans a column Box that grows. The terminal's 16
                 cells keep their width. */}
-            {(bar !== undefined || warmLine !== undefined) && (
+            {(bar !== undefined || warmLine !== undefined || meter !== undefined) && (
               <Box flexDirection="column" marginBottom={1}>
                 {bar !== undefined && (
                   <Box flexDirection="row" columnGap={1}>
@@ -986,6 +998,29 @@ export const register: Register = on => {
                   <Text dimColor wrap="truncate-end">
                     {warmLine.text}
                   </Text>
+                )}
+                {meter !== undefined && (
+                  <Box flexDirection="row" columnGap={1}>
+                    <Box flexShrink={0}>
+                      <Text dimColor>◆ context</Text>
+                    </Box>
+                    {Image !== undefined && meterImage !== undefined ? (
+                      <Box flexDirection="column" flexGrow={1} minWidth={8}>
+                        <Image source={meterImage.source} alt={meterImage.alt} height={meterImage.height} />
+                      </Box>
+                    ) : (
+                      <Box flexShrink={0}>
+                        <Text>
+                          <Text dimColor>▕</Text>
+                          <Text color={meter.tone}>{contextCells(meter)}</Text>
+                          <Text dimColor>▏</Text>
+                        </Text>
+                      </Box>
+                    )}
+                    <Box flexShrink={0}>
+                      <Text color={meter.tone}>{meter.text}</Text>
+                    </Box>
+                  </Box>
                 )}
                 {warmLine?.nudge !== undefined && (
                   <Text color="warning" wrap="wrap">
