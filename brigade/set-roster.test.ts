@@ -1290,13 +1290,23 @@ const READING = {
   },
 }
 
+// A roster holding every status, so a surface that refused any card's tree
+// would fail the mount.
+const EVERY_STATUS = {
+  cards: [card('alpha', { status: 'needs-you' }), card('beta'), card('gamma', { status: 'done' }), card('delta', { status: 'stopped' })],
+  todos: [{ id: 't1', text: 'look', session: 'alpha' }],
+}
+
 for (const surface of ['terminal', 'desktop'] as const) {
   test(`the pane mounts on ${surface} with a usage reading, and the surface refuses no part of the tree`, async ($, on) => {
     await pane(on, $, surface, w => {
+      w.put(FILE, { type: 'file', data: { text: JSON.stringify(EVERY_STATUS) } })
       w.usage = READING
       w.surfaces = [surface]
     })
-    // drawn() rejects with the refusal when the surface could not draw the tree.
+    // A tree the surface refuses skips the plugin's render, and the mount
+    // above then rejects, naming the refusal (a Button given plain={false}
+    // was seen to fail both surfaces this way); drawn() reads the tree drawn.
     expect(await mounted.drawn()).toBeDefined()
     const image = await mounted.find({ type: 'Svg' })
     if (surface === 'desktop') {
@@ -1315,6 +1325,7 @@ for (const surface of ['terminal', 'desktop'] as const) {
     } else {
       // The terminal draws text rows: 20 eighth-block cells between dim marks.
       expect(image).toBeUndefined()
+      // Three rows, Context and two rate limits, with two end marks each.
       const marks = await mounted.findAll({ type: 'Text', text: /^[▕▏]$/ })
       expect(marks.length).toBe(6)
       for (const m of marks) expect(m.props.dimColor).toBe(true)

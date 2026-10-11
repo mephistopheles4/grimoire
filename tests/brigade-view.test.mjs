@@ -77,6 +77,9 @@ function attributes(source) {
 
 // The allowlist every SVG this module builds is held to: a fixed set of
 // attribute names, each with the forms its value may take, and nothing else.
+// The classes `done` and `stopped` and the id `st` are admitted for the
+// status strip, to-do bar and cache bar still to come, as threat-model row 15
+// says; no image builds them yet.
 const CLASSES = new Set(['muted', 'track', 'ok', 'warn', 'hot', 'free', 'buffer', 'c0', 'c1', 'c2', 'c3', 'c4', 'c5', 'c6', 'done', 'stopped']);
 const LENGTHS = new Set(['width', 'height', 'x', 'y', 'rx', 'cx', 'cy', 'r']);
 const NUMBER = /^\d+(?:\.\d+)?$/;
@@ -96,6 +99,14 @@ const allowed = (name, value, index) => {
 
 function assertAllowlisted(source) {
   assert.match(source, /^<svg /, 'the source opens with the outermost <svg>');
+  // Every < opens a tag or a closing tag: no comment, CDATA section,
+  // declaration or processing instruction, none of which the checks below read.
+  assert.doesNotMatch(source, /<[^a-zA-Z/]|<\/[^a-zA-Z]/, 'every < opens a tag');
+  // At most one style block, holding exactly the module's own style text.
+  const styles = [...source.matchAll(/<style>(.*?)<\/style>/g)];
+  assert.equal(styles.length, source.match(/<style/g)?.length ?? 0, 'every style block is read');
+  assert.ok(styles.length <= 1, 'at most one style block');
+  for (const s of styles) assert.equal(s[1], view.STYLE, "the style block is the module's own");
   const attrs = attributes(source);
   assert.ok(attrs.length > 0, 'the source has attributes to check');
   for (const [tag, name, value, index] of attrs) {
@@ -127,8 +138,9 @@ const svgOf = (s, surface = 'desktop') => {
 
 const OK_SVG = '<svg xmlns="http://www.w3.org/2000/svg" width="100%" height="8"><rect class="track" x="0" y="0" width="100%" height="8" rx="4"/></svg>';
 
-test('the allowlist admits the forms S10 lists', () => {
+test('the attribute allowlist admits each form it lists', () => {
   assertAllowlisted(OK_SVG);
+  assertAllowlisted(`<svg xmlns="http://www.w3.org/2000/svg" width="100%" height="8"><style>${view.STYLE}</style></svg>`);
   assertAllowlisted(
     '<svg xmlns="http://www.w3.org/2000/svg" width="100%" height="8">' +
       '<clipPath id="st"><rect width="100%" height="8" rx="4"/></clipPath>' +
@@ -137,7 +149,7 @@ test('the allowlist admits the forms S10 lists', () => {
   );
 });
 
-test('the allowlist refuses every form S10 leaves out', () => {
+test('the attribute allowlist refuses each form it leaves out', () => {
   const refused = {
     'an unknown attribute name with a number value': '<svg xmlns="http://www.w3.org/2000/svg" width="100%" height="8" opacity="1"></svg>',
     'a fill attribute': '<svg xmlns="http://www.w3.org/2000/svg" width="100%" height="8"><rect fill="red" width="1"/></svg>',
@@ -158,6 +170,12 @@ test('the allowlist refuses every form S10 leaves out', () => {
     'an <svg> left open': '<svg xmlns="http://www.w3.org/2000/svg" width="100%" height="8"><svg width="1"></svg>',
     'a tag outside the set': '<svg xmlns="http://www.w3.org/2000/svg" width="100%" height="8"><image width="1"/></svg>',
     'a tag whose attributes cannot be read': '<svg xmlns="http://www.w3.org/2000/svg" width="100%" height="8"><rect width=1/></svg>',
+    'a comment': '<svg xmlns="http://www.w3.org/2000/svg" width="100%" height="8"><!-- x --></svg>',
+    'a CDATA section': '<svg xmlns="http://www.w3.org/2000/svg" width="100%" height="8"><text x="0"><![CDATA[x]]></text></svg>',
+    'a declaration': '<svg xmlns="http://www.w3.org/2000/svg" width="100%" height="8"><!ENTITY x "y"></svg>',
+    'a processing instruction': '<svg xmlns="http://www.w3.org/2000/svg" width="100%" height="8"><?x y?></svg>',
+    'a style block with other text': '<svg xmlns="http://www.w3.org/2000/svg" width="100%" height="8"><style>@import url(x);</style></svg>',
+    'two style blocks': `<svg xmlns="http://www.w3.org/2000/svg" width="100%" height="8"><style>${view.STYLE}</style><style>${view.STYLE}</style></svg>`,
   };
   for (const [name, source] of Object.entries(refused)) {
     assert.throws(() => assertAllowlisted(source), assert.AssertionError, name);
@@ -181,8 +199,17 @@ test('a non-terminal surface gets an SVG: a bar per rate limit, "Resets in ... �
     assert.ok(v.source.includes('>Weekly limit</text>'));
     assert.ok(v.source.includes('>Resets in 2 hr 5 min · 64%</text>'));
     assert.ok(v.source.includes('>Resets in 3 d 4 hr · 13%</text>'));
-    // One track and one fill per rate-limit bar, then the context track.
-    assert.equal(v.source.match(/<rect class="track"/g).length, 3);
+    // One track per rate-limit bar, then the context track, each full width.
+    assert.equal(v.source.match(/<rect class="track" x="0" y="[\d.]+" width="100%"/g).length, 3);
+    // A fill in percentages over a fixed 6 px stub, so a small one stays seen.
+    assert.match(v.source, /<rect class="ok" x="0" y="20" width="6" height="6" rx="3"\/><rect class="ok" x="0" y="20" width="64%" height="6" rx="3"\/>/);
+    assert.match(v.source, /<rect class="ok" x="0" y="58" width="6" height="6" rx="3"\/><rect class="ok" x="0" y="58" width="12.5%" height="6" rx="3"\/>/);
+    // Right-aligned text sits at 100% of the image or of its legend column;
+    // left-aligned text at 0, or a fixed step past a legend dot.
+    const anchored = [...v.source.matchAll(/<text [^>]*text-anchor="end"[^>]*>/g)].map(m => m[0]);
+    assert.equal(anchored.length, 7);
+    for (const t of anchored) assert.match(t, / x="100%" /);
+    for (const t of v.source.matchAll(/<text (?:class="muted" )?x="([^"]+)"/g)) assert.ok(['0', '100%', '14', '24'].includes(t[1]), `text at ${t[1]}`);
     // The context bar: four segments (deferred and empty rows left out),
     // clipped to the rounded track.
     const bar = v.source.match(/<g clip-path="url\(#cb\)">(.*?)<\/g>/)[1];

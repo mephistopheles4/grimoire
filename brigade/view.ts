@@ -192,7 +192,8 @@ const EIGHTHS = ['▏', '▎', '▍', '▌', '▋', '▊', '▉']
  *  nearest eighth of a cell, then blanks. The fraction is clamped to between
  *  0 and 1, and one that is not a finite number is 0. It never throws and
  *  always returns exactly `cells` characters, the end marks left to the
- *  caller. */
+ *  caller; a cell count that is not a positive whole number gives an empty
+ *  string. */
 export function eighthBar(fraction: number, cells: number): string {
   const n = Number.isInteger(cells) && cells > 0 ? cells : 0
   const f = Number.isFinite(fraction) ? Math.min(1, Math.max(0, fraction)) : 0
@@ -262,8 +263,9 @@ function textRows(s: UsageSnapshot, now: number): UsageRow[] {
 
 // The image cannot read the app's theme, so it carries a palette of its own
 // that only approximates the app's, with a dark-mode rule. The class names
-// here are the only ones the SVG uses.
-const STYLE = [
+// here are the only ones the SVG uses. Exported so the allowlist test can
+// hold every image's style block to exactly this text.
+export const STYLE = [
   "text{font-family:system-ui,-apple-system,'Segoe UI',sans-serif;font-size:12px;fill:#3d3d3a}",
   '.muted{fill:#73726c}',
   '.track{fill:#e8e6dc}',
@@ -312,7 +314,13 @@ function barRow(y: number, name: string, right: string, percent: number): string
     `<text x="0" y="${num(y + 12)}">${svgText(name, MAX_KIND)}</text>` +
     `<text class="muted" x="100%" y="${num(y + 12)}" text-anchor="end">${svgText(right, 80)}</text>` +
     `<rect class="track" x="0" y="${num(y + 20)}" width="100%" height="6" rx="3"/>` +
-    (percent > 0 ? `<rect class="${level(percent)}" x="0" y="${num(y + 20)}" width="${pct(percent)}" height="6" rx="3"/>` : '')
+    // A fill never narrower than 6 px: a pixel minimum cannot be written as
+    // a percentage, so a fixed 6 px stub sits under the percentage fill, and
+    // the two cover whichever is wider.
+    (percent > 0
+      ? `<rect class="${level(percent)}" x="0" y="${num(y + 20)}" width="6" height="6" rx="3"/>` +
+        `<rect class="${level(percent)}" x="0" y="${num(y + 20)}" width="${pct(percent)}" height="6" rx="3"/>`
+      : '')
   )
 }
 
@@ -359,7 +367,9 @@ function usageSvg(s: UsageSnapshot, now: number): Extract<UsageView, { kind: 'sv
       // A gap between used segments, as the app's segmented bar has. A gap
       // in pixels cannot be written in percentages, so the segment sits in a
       // nested <svg> and its rect moves 2 px left: the nested <svg> cuts off
-      // what spills, leaving 2 px clear at its right edge at any width.
+      // what spills, leaving 2 px clear at its right edge at any width. `w`
+      // is the segment's percentage of the bar; at 1% or less the 2 px gap
+      // would eat most of it on a narrow pane, so it gets none.
       if (c.kind === 'used' && w > 1) {
         segments.push(
           `<svg x="${pct(x)}" y="${num(y + 20)}" width="${pct(w)}" height="8"><rect class="${cls(c)}" width="100%" height="8" transform="translate(-2 0)"/></svg>`,
