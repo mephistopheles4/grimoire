@@ -92,6 +92,16 @@ export function warningsFirst(r) {
   assert.ok(!body[body.length - 1].startsWith('WARN '), `the line above RESULT is a WARN line\n${show(r)}`);
 }
 
+// The lines of a warning flood: an unreviewed key at a line, the unreviewed
+// count line, and the initialPrompt danger line at a line.
+export const unreviewedLine = (key, n) => `WARN unreviewed: "${key}" at line ${n} is a setting this check does not review`;
+export const UNREVIEWED_MORE = n => `WARN unreviewed: ${n} more not shown; every listed key is on the contract's "Extra keys:" line`;
+export const PROMPT_DANGER = n => `WARN danger: "initialPrompt" at line ${n} sends a first message the person did not type`;
+
+// The 300 keys of the flood in #160's finding S3: initialPrompt is the 290th,
+// so with `tools` at line 4 it sits at line 294.
+export const FLOOD_KEYS = [...Array.from({ length: 289 }, (_, i) => `k${i + 1}`), 'initialPrompt', ...Array.from({ length: 10 }, (_, i) => `k${i + 290}`)];
+
 // The danger warning for sandbox_mode at a line.
 export const SANDBOX_DANGER = n => `WARN danger: "sandbox_mode" at line ${n} may let the agent act outside a sandbox`;
 

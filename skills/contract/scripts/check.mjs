@@ -316,7 +316,7 @@ const RESERVED_NAMES = new Set([
 // not the content, so one stray byte cannot turn a text file into one the
 // text rules skip.
 const BINARY_RE = /\.(woff2|png|jpg|gif|webp)$/i;
-// The seal's own temporary file, named as runSeal names it.
+// The seal's own temporary file, named as sealSteps names it.
 const SEAL_TEMP_RE = /^\.SKILL\.md\.[0-9]+\.[0-9a-f]{12}\.tmp$/;
 const PLAIN_BAD_START = '{}[]&*!|>%@`#,\'"';
 
@@ -460,7 +460,7 @@ function quoteKey(key) {
   return `"${out}"`;
 }
 
-function line(status, rule, reason) {
+function reportLine(status, rule, reason) {
   return reason === undefined ? `${status} ${rule}` : `${status} ${rule}: ${reason}`;
 }
 
@@ -477,7 +477,7 @@ class Report {
     this.failed = false;
   }
   add(status, rule, reason) {
-    this.lines.push(line(status, rule, reason));
+    this.lines.push(reportLine(status, rule, reason));
   }
   pass(rule, reason) {
     this.add('PASS', rule, reason);
@@ -520,11 +520,11 @@ class Report {
         const g = raised.get(w.group) ?? { rule: w.rule, n: 0 };
         g.n += 1;
         raised.set(w.group, g);
-        if (g.n <= WARN_PER_RULE || WARN_UNCAPPED.has(w.group)) out.push(line('WARN', w.rule, w.reason));
+        if (g.n <= WARN_PER_RULE || WARN_UNCAPPED.has(w.group)) out.push(reportLine('WARN', w.rule, w.reason));
       }
       for (const [group, g] of raised) {
         if (g.n <= WARN_PER_RULE || WARN_UNCAPPED.has(group)) continue;
-        out.push(line('WARN', g.rule, `${g.n - WARN_PER_RULE} more ${WARN_MORE.get(group) ?? 'not shown'}`));
+        out.push(reportLine('WARN', g.rule, `${g.n - WARN_PER_RULE} more ${WARN_MORE.get(group) ?? 'not shown'}`));
       }
     }
     return [...out, ...this.lines, result];
@@ -2821,13 +2821,29 @@ function writeTomlMark(raw, seal, values) {
 }
 
 /**
- * Write the mark, or throw Refusal with nothing written.
+ * Write the mark, or throw Refusal with nothing written. On a refusal, every
+ * scratch report that ran moves into the report, passed or failed, so a
+ * refused seal prints the warnings it found, as any run does. A seal that
+ * writes keeps none of them: the check that follows raises them again.
+ */
+function runSeal(loc, report) {
+  const scratches = [];
+  try {
+    sealSteps(loc, report, scratches);
+  } catch (err) {
+    if (err instanceof Refusal) for (const s of scratches) report.absorb(s);
+    throw err;
+  }
+}
+
+/**
+ * The seal's steps. Each scratch report goes into scratches as it is made.
  *
  * Every refusal comes before the write. A seal over a file that fails, or
  * over a contract that fails, would mark something the check then rejects, and
  * a mark on a failing file is a mark somebody might trust.
  */
-function runSeal(loc, report) {
+function sealSteps(loc, report, scratches) {
   const famLabel = clean(loc.familiarName);
   const conLabel = clean(loc.contractName);
   if (loc.problems.length > 0) throw new Refusal(loc.problems[0].rule, loc.problems[0].reason);
@@ -2853,12 +2869,12 @@ function runSeal(loc, report) {
   // warns beside an agent, so it seals.
   const facts = contractFacts(con.lines);
   const conScratch = new Report();
+  scratches.push(conScratch);
   invisibleRule(con, conLabel, conScratch);
   targetRule(facts, loc, conScratch);
   kindRule(facts, loc, conScratch);
   contractFrameRule(con, conLabel, conScratch);
   if (conScratch.failed) {
-    report.absorb(conScratch);
     throw new Refusal('contract-rules', `${conLabel} fails its file rules`);
   }
 
@@ -2897,10 +2913,10 @@ function runSeal(loc, report) {
   if (fm === null) throw new Refusal('frontmatter', 'no frontmatter');
 
   const scratch = new Report();
+  scratches.push(scratch);
   invisibleRule(fam, famLabel, scratch);
   fieldRules(fm, loc, facts.extras, scratch, facts.targets);
   if (scratch.failed) {
-    report.absorb(scratch);
     throw new Refusal('field-rules', `${famLabel} fails the field rules`);
   }
 
@@ -2909,9 +2925,9 @@ function runSeal(loc, report) {
   let folder = null;
   if (isMode(loc, 'skill')) {
     const folderScratch = new Report();
+    scratches.push(folderScratch);
     folder = folderRules(loc, folderScratch);
     if (folderScratch.failed) {
-      report.absorb(folderScratch);
       throw new Refusal('folder-rules', 'the folder fails its file rules');
     }
   }

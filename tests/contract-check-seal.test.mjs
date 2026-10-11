@@ -8,7 +8,7 @@ import { existsSync, mkdirSync, readFileSync, unlinkSync, writeFileSync } from '
 import { createHash } from 'node:crypto';
 import { join, sep } from 'node:path';
 import { root } from './helpers.mjs';
-import { fresh, run, has, show, expect, warns, warningsFirst, CONTRACT, BROKEN, familiarText, defaultFm, skill, sealAndCheck, editFile, digestOf, tryMkdir, trySymlink, listing } from './contract-fixture.mjs';
+import { fresh, run, has, show, expect, warns, warningsFirst, unreviewedLine, UNREVIEWED_MORE, PROMPT_DANGER, FLOOD_KEYS, put, CONTRACT, BROKEN, familiarText, defaultFm, skill, sealAndCheck, editFile, digestOf, tryMkdir, trySymlink, listing } from './contract-fixture.mjs';
 
 // ------------------------------------------------------------------ S10
 
@@ -812,9 +812,9 @@ describe('the seal and a skill frontmatter named like a mark key', () => {
 // block prints first, ahead of the FAIL lines and RESULT.
 describe('a refused seal prints its warnings first, ranked and capped', () => {
   const NOT_WRITTEN = 'FAIL seal: refused; nothing written';
-  const unreviewed = (key, n) => `WARN unreviewed: "${key}" at line ${n} is a setting this check does not review`;
-  const MORE = n => `WARN unreviewed: ${n} more not shown; every listed key is on the contract's "Extra keys:" line`;
-  const PROMPT = n => `WARN danger: "initialPrompt" at line ${n} sends a first message the person did not type`;
+  const unreviewed = unreviewedLine;
+  const MORE = UNREVIEWED_MORE;
+  const PROMPT = PROMPT_DANGER;
 
   /** An agent x.md named other, which fails the name rule, with each key in turn from line 5, every one listed. */
   function misnamed(keys) {
@@ -826,7 +826,7 @@ describe('a refused seal prints its warnings first, ranked and capped', () => {
   }
 
   test('the 300-key flood with a failing field rule under --seal -> 2, the same warning block as the check, before the first FAIL line', () => {
-    const keys = [...Array.from({ length: 289 }, (_, i) => `k${i + 1}`), 'initialPrompt', ...Array.from({ length: 10 }, (_, i) => `k${i + 290}`)];
+    const keys = FLOOD_KEYS;
     const file = misnamed(keys);
     const before = readFileSync(file);
     const want = [PROMPT(294), ...keys.slice(0, 20).map((k, i) => unreviewed(k, i + 5)), MORE(279)];
@@ -852,6 +852,21 @@ describe('a refused seal prints its warnings first, ranked and capped', () => {
     expect(r, 2, 'FAIL kind: ', 'FAIL contract-rules: ', NOT_WRITTEN);
     assert.equal(r.lines[0], 'WARN target: the contract names no target', show(r));
     warningsFirst(r);
+  });
+
+  test('a skill folder that fails its rules under --seal -> 2, the danger line from the frontmatter first, then the contents line from the folder', () => {
+    const dir = skill({ fm: [...defaultFm('demo'), 'allowed-tools: Read'], contract: CONTRACT });
+    put(dir, 'references/long.md', 'line\n'.repeat(101));
+    put(dir, '.SKILL.md.123.0123456789ab.tmp', 'x');
+    const before = readFileSync(join(dir, 'SKILL.md'));
+    const r = run(['--seal', dir]);
+    expect(r, 2, 'FAIL folder: ', 'FAIL folder-rules: ', NOT_WRITTEN);
+    const lines = warns(r);
+    assert.equal(lines.length, 2, show(r));
+    assert.equal(r.lines[0], 'WARN danger: "allowed-tools" at line 4 may let the agent use tools without asking', show(r));
+    assert.ok(lines[1].startsWith('WARN contents: "references/long.md" has 101 lines'), show(r));
+    warningsFirst(r);
+    assert.deepEqual(readFileSync(join(dir, 'SKILL.md')), before);
   });
 
   test('a passing seal and its check print the warnings first', () => {

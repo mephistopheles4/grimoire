@@ -6,7 +6,7 @@ import { before, describe, test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { fresh, run, has, show, expect, once, warns, warningsFirst, SANDBOX_DANGER, CONTRACT, BROKEN, familiarText, defaultFm, skill, sealAndCheck, editFile, put, tryPut, listing } from './contract-fixture.mjs';
+import { fresh, run, has, show, expect, once, warns, warningsFirst, unreviewedLine, UNREVIEWED_MORE, PROMPT_DANGER, FLOOD_KEYS, SANDBOX_DANGER, CONTRACT, BROKEN, familiarText, defaultFm, skill, sealAndCheck, editFile, put, tryPut, listing } from './contract-fixture.mjs';
 
 // ------------------------------------------------------------------ v10 the character rule
 
@@ -660,9 +660,9 @@ describe('warnings on settings the check does not know to be harmless', () => {
 // bounds. Every echoed key is quoted and cut at 40 characters.
 describe('warnings print first, ranked, and capped at 20 a group', () => {
   const mdCon = extra => `Version: 1.0.0\nTarget: claude\n${extra}\n\n# Contract\n\nWhat this familiar is for.\n`;
-  const unreviewed = (key, n) => `WARN unreviewed: "${key}" at line ${n} is a setting this check does not review`;
-  const MORE = n => `WARN unreviewed: ${n} more not shown; every listed key is on the contract's "Extra keys:" line`;
-  const PROMPT = n => `WARN danger: "initialPrompt" at line ${n} sends a first message the person did not type`;
+  const unreviewed = unreviewedLine;
+  const MORE = UNREVIEWED_MORE;
+  const PROMPT = PROMPT_DANGER;
   const MISSING = 'WARN tools-missing: no tools listed, so the agent may get every tool';
   const ks = (from, count) => Array.from({ length: count }, (_, i) => `k${from + i}`);
 
@@ -677,7 +677,7 @@ describe('warnings print first, ranked, and capped at 20 a group', () => {
   }
 
   test('300 listed keys, initialPrompt at line 294 -> the danger line, 20 unreviewed lines and one count line, first', () => {
-    const keys = [...ks(1, 289), 'initialPrompt', ...ks(290, 10)];
+    const keys = FLOOD_KEYS;
     const file = flood(keys);
     const want = [PROMPT(294), ...keys.slice(0, 20).map((k, i) => unreviewed(k, i + 5)), MORE(279)];
     // Unsealed, the check fails on the missing mark; sealed, it passes.
@@ -728,6 +728,17 @@ describe('warnings print first, ranked, and capped at 20 a group', () => {
     const key = `zq_${'a'.repeat(37)}`;
     const r = run([flood([key])]);
     assert.deepEqual(warns(r), [unreviewed(key, 5)], show(r));
+  });
+
+  test('two rank-2 groups that overflow -> both count lines, in the order their groups first raised a line', () => {
+    // The contents rule runs before the key rules, so its group is raised first.
+    const dir = skill({ fm: [...defaultFm('demo'), ...ks(1, 21).map(k => `${k}: v`)], contract: `Version: 1.0.0\nExtra keys: ${ks(1, 21).join(', ')}\n\n# Contract\n` });
+    for (let i = 1; i <= 21; i += 1) put(dir, `references/r${String(i).padStart(2, '0')}.md`, 'line\n'.repeat(101));
+    const lines = warns(run([dir]));
+    assert.equal(lines.length, 42, lines.join('\n'));
+    assert.ok(lines.slice(0, 20).every(l => l.startsWith('WARN contents: "references/r')), lines.join('\n'));
+    assert.deepEqual(lines.slice(20, 40), ks(1, 20).map((k, i) => unreviewed(k, i + 4)), lines.join('\n'));
+    assert.deepEqual(lines.slice(40), ['WARN contents: 1 more not shown', MORE(1)], lines.join('\n'));
   });
 });
 

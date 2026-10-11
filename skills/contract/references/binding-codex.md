@@ -106,11 +106,12 @@ again in the hand-back.
 
 The warnings print first, above every other line, with the danger
 warnings before the rest. A danger line for a key in this table is never
-cut. Each other kind prints at most 20 lines, then one count line, such as
-`WARN unreviewed: 279 more not shown`. A warning names a key in double
-quotes, cut at 40 characters with `...`. A count line is a warning too.
-When the `unreviewed` count line appears, show the contract's whole `Extra
-keys:` line, with each key's recorded value, beside the warnings.
+cut. Each other rule prints at most 20 lines, then one count line, such as
+`WARN unreviewed: 5 more not shown; every listed key is on the contract's
+"Extra keys:" line`. A warning names a key in double quotes, cut at 40
+characters with `...`. A count line is a warning too. When that one
+appears, show the contract's first `Extra keys:` line, the one the check
+reads, with each key's recorded value, beside the warnings.
 
 ## The mark (questions 5, 18)
 

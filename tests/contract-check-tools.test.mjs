@@ -10,7 +10,7 @@ import assert from 'node:assert/strict';
 import { readFileSync, writeFileSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { join } from 'node:path';
-import { fresh, run, has, show, expect, once, warns, warningsFirst, familiarText, defaultFm, skill } from './contract-fixture.mjs';
+import { fresh, run, has, show, expect, once, warns, warningsFirst, unreviewedLine, UNREVIEWED_MORE, familiarText, defaultFm, skill } from './contract-fixture.mjs';
 
 const CANARY = 'zq-canary-3b9';
 const NOT_WRITTEN = 'FAIL seal: refused; nothing written';
@@ -313,5 +313,19 @@ describe('whole-server tools items are capped at 20, and never hide a DANGER-tab
     ];
     assert.deepEqual(warns(r), want, show(r));
     warningsFirst(r);
+  });
+
+  test('25 whole-server items and 25 unreviewed keys -> each count line follows the lines of its own rank', () => {
+    const items = Array.from({ length: 25 }, (_, i) => `mcp__s${i + 1}__*`);
+    const keys = Array.from({ length: 25 }, (_, i) => `k${i + 1}`);
+    const contract = `Version: 1.0.0\nTarget: claude\nExtra keys: tools, ${keys.join(', ')}\n\n# Contract\n`;
+    const r = run([agent(`[${items.join(', ')}]`, { contract, extra: keys.map(k => `${k}: v`) })]);
+    const want = [
+      ...Array.from({ length: 20 }, (_, i) => grant(i + 1)),
+      'WARN danger: 5 more whole-server tools items not shown',
+      ...keys.slice(0, 20).map((k, i) => unreviewedLine(k, i + 5)),
+      UNREVIEWED_MORE(5),
+    ];
+    assert.deepEqual(warns(r), want, show(r));
   });
 });

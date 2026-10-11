@@ -47,10 +47,11 @@ It warns on every listed setting it does not know to be harmless, with a
 sharper danger warning for a few, such as settings that let the agent act
 without asking, reach the live web, or read instructions from outside the
 file. A warning is a prompt to read, not a review. The warnings print first,
-the danger warnings before the rest, at most 20 of a kind and then a count of
-the rest; the danger warnings for the settings themselves are never cut. The
-list of tools an agent is given is warned on only when it is missing or
-empty, or when it grants a whole connected server; read it. Read a shared skill, agent or `CLAUDE.md`
+the danger, import and missing-tools warnings before the rest, at most 20 of a
+rule and then a count of the rest. A danger warning for a setting in the
+check's danger table is never cut. The list of tools an agent is given is
+warned on only when it is missing or empty, or when it grants a whole
+connected server; read it. Read a shared skill, agent or `CLAUDE.md`
 and its contract before you use it, as you would any code from someone else.
 
 Ask for it by name. The installer route keeps the plain name; the plugin route
@@ -185,9 +186,11 @@ that passed still passes, and one that failed still fails.
   about the check's own verdict.
 - **The sharpest come first:** `danger`, `import` and `tools-missing`, then
   the rest, each in the order the check found them.
-- **Each kind prints at most 20 lines,** then one count line, such as
-  `WARN unreviewed: 279 more not shown`. The `unreviewed` count line says
-  the rest are on the contract's `Extra keys:` line. A danger line for a
+- **Each rule prints at most 20 lines,** then one count line after the
+  lines of its rank, such as `WARN import: 5 more not shown; each is a body
+  line holding an @ import`. The `unreviewed` count line says the rest are
+  on the contract's `Extra keys:` line, and the `tools` items of `danger`
+  are counted apart. A danger line for a
   setting the check names, such as `initialPrompt`, is never cut, however
   many other warnings there are.
 - **A warning names a key in double quotes,** cut at 40 characters with

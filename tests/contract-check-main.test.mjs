@@ -221,6 +221,11 @@ describe('an @ import in the body warns once per line, never with its path', () 
     assert.deepEqual(warns(r), [...lines, 'WARN import: 5 more not shown; each is a body line holding an @ import'], show(r));
     warningsFirst(r);
   });
+  test('an import line beside an ignored key -> the import line first, though the key was raised first', () => {
+    const r = run([main({ text: familiarText(['zq_other: x'], `${BODY}@a.md\n`) }).file]);
+    const ignored = 'WARN ignored-key: "zq_other" at line 2: Claude Code ignores it when the file loads as CLAUDE.md';
+    assert.deepEqual(warns(r), [want(7), ignored], show(r));
+  });
 });
 
 // ------------------------------------------------------------------ the contract

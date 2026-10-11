@@ -69,8 +69,8 @@ form that holds a `*` or starts with `mcp` fails, and an agent with no
 `tools` or an empty list warns `tools-missing` that it may get every tool.
 What Antigravity does with an `mcp__` item or an empty list is untested. When the person picks a value
 that list flags, tell them then. Show each warning the check prints after the seal, and again in
-the hand-back. The warnings print first, ranked, capped and quoted as the Claude Code binding says;
-show a count line too, and with the `unreviewed` one, the whole `Extra keys:` line and its values.
+the hand-back. The warnings print first, ranked, capped and quoted, as the Claude Code binding says.
+Show each count line too; with the `unreviewed` one, show the first `Extra keys:` line and its values.
 
 ## The mark (questions 5, 18)
 
