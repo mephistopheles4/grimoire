@@ -466,6 +466,79 @@ export async function settleTicks(
   return due
 }
 
+// --- Severity groups --------------------------------------------------------
+//
+// The cards sit in three groups by the status the head chef wrote: NEEDS YOU,
+// WORKING, and DONE · STOPPED, which a press folds open and shut. The stored
+// roster is drawn as stored, and another plugin can rewrite it, so a status is
+// read only through the fixed Map below: one outside the four words, or one
+// that names a prototype key, has no look and counts nowhere. No key, class or
+// text is ever built from the status text.
+
+/** How a status draws: its glyph, word, theme colour key, SVG class and
+ *  group. Colour is never the only signal: the glyph and word go with it. */
+export type StatusLook = {
+  glyph: string
+  word: string
+  color: string
+  cls: string
+  group: 'needsYou' | 'working' | 'closed'
+}
+
+/** The four statuses, in the strip's order. */
+export const STATUS: ReadonlyMap<string, StatusLook> = new Map([
+  ['needs-you', { glyph: '●', word: 'needs you', color: 'warning', cls: 'warn', group: 'needsYou' }],
+  ['working', { glyph: '◐', word: 'working', color: 'suggestion', cls: 'ok', group: 'working' }],
+  ['done', { glyph: '✓', word: 'done', color: 'success', cls: 'done', group: 'closed' }],
+  ['stopped', { glyph: '–', word: 'stopped', color: 'inactive', cls: 'stopped', group: 'closed' }],
+] as const)
+
+/** A stored status's look, or undefined for anything but the four words. */
+export const statusOf = (status: unknown): StatusLook | undefined =>
+  typeof status === 'string' ? STATUS.get(status) : undefined
+
+/** A card and its place in the roster. Every button a card draws keys on that
+ *  place, never its place inside a group: the press handler finds a card by
+ *  roster place and title slug, and the slug folds many titles to one. */
+export type Placed<T> = { c: T; i: number }
+export type Groups<T> = { needsYou: Placed<T>[]; working: Placed<T>[]; closed: Placed<T>[] }
+
+/** The stored cards in their groups, each in roster order. A card whose title
+ *  is in `hidden`, the dismissed ones, is in none, and so is a card that is
+ *  not a record or has no look; cards that are not a list give three empty
+ *  groups. */
+export function groupCards<T>(cards: readonly T[], hidden: ReadonlySet<unknown>): Groups<T> {
+  const out: Groups<T> = { needsYou: [], working: [], closed: [] }
+  if (!Array.isArray(cards)) return out
+  cards.forEach((c, i) => {
+    if (!isRecord(c) || hidden.has(c.title)) return
+    const look = statusOf(c.status)
+    if (look !== undefined) out[look.group].push({ c, i })
+  })
+  return out
+}
+
+/** The stored open state of DONE · STOPPED, open only when exactly true. */
+export const isOpen = (v: unknown): boolean => v === true
+
+/** The DONE · STOPPED toggle's label: ▸ closed or ▾ open, its card count, and
+ *  the count of its cards' reports when there are any, so a report behind
+ *  the fold stays in view. */
+export function foldLabel(open: unknown, cards: number, reports: number): string {
+  const count = reports > 0 ? ` · ${reports} ${reports === 1 ? 'report' : 'reports'}` : ''
+  return `${isOpen(open) ? '▾' : '▸'} DONE · STOPPED  ${cards}${count}`
+}
+
+/** The reports since the pane opened whose sender is one of `titles`, matched
+ *  by the title as drawn, cleaned and cut to 80, as a card's report line is.
+ *  Every report counts, not one per card. An inbox entry of the wrong shape
+ *  counts nothing, and no shape throws. */
+export function reportCount(titles: readonly string[], inbox: unknown): number {
+  if (!Array.isArray(inbox)) return 0
+  const drawn = new Set(titles.map(t => oneLine(t, 80)))
+  return inbox.filter(r => isRecord(r) && typeof r.from === 'string' && drawn.has(r.from)).length
+}
+
 /** The count beside "Waiting on you": the cards that need the owner, plus the
  *  to-dos that are neither done nor ticking. */
 export function waitingCount(needsYou: number, todos: readonly { id: string }[], done: unknown, ticking: unknown): number {

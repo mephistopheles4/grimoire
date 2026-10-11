@@ -84,6 +84,10 @@ declare module 'claude-code' {
       /** Each roster member's cache warmth, from the agents poll while the
        *  pane is open. Checked again before it is drawn. */
       warmth: Warmth[]
+      /** Whether the DONE · STOPPED group is open: set false each time the
+       *  pane opens, and flipped by a press. Read as open only when it is
+       *  exactly true, since another plugin can rewrite it. */
+      doneOpen: boolean
     }
   }
 }

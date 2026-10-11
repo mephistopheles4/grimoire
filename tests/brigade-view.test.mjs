@@ -1128,3 +1128,106 @@ test('the pane keeps its re-read memory in a Map of the view module\'s ReadMemor
   const v = readFileSync(join(root, 'brigade/view.ts'), 'utf8');
   assert.match(v, /export type ReadMemory = Map<string, \{ mtimeMs: number; call: LastCall \| undefined \}>/);
 });
+
+// --- severity groups and badges ---------------------------------------------
+//
+// Spec revision 3 on #250, S3 and S5; ticket #254. Every status is drawn from
+// one fixed Map, and the stored roster is drawn as stored, so a status outside
+// the four words, or one that names a prototype key, counts nowhere.
+
+const { STATUS, statusOf, groupCards, isOpen, foldLabel, reportCount } = view;
+const cardOf = (title, status) => ({ title, work: 'w', phase: 'p', settings: 's', status });
+const placed = list => list.map(({ c, i }) => [i, c.title]);
+
+test('the status Map gives each of the four statuses its glyph, word, theme key and class, in strip order', () => {
+  assert.ok(STATUS instanceof Map, 'a Map, so no status text reaches a prototype');
+  assert.deepEqual([...STATUS.keys()], ['needs-you', 'working', 'done', 'stopped']);
+  const look = s => { const v = STATUS.get(s); return [v.glyph, v.word, v.color, v.cls]; };
+  assert.deepEqual(look('needs-you'), ['●', 'needs you', 'warning', 'warn']);
+  assert.deepEqual(look('working'), ['◐', 'working', 'suggestion', 'ok']);
+  assert.deepEqual(look('done'), ['✓', 'done', 'success', 'done']);
+  // Stopped changes from ○ to –.
+  assert.deepEqual(look('stopped'), ['–', 'stopped', 'inactive', 'stopped']);
+});
+
+test('a status outside the four words, a prototype key or a value that is not text has no look', () => {
+  for (const s of ['__proto__', 'constructor', 'toString', 'hasOwnProperty', HOSTILE, 'Done', ' done', '', 5, null, undefined, {}, ['done']]) {
+    assert.equal(statusOf(s), undefined, String(s));
+  }
+  assert.equal(statusOf('done'), STATUS.get('done'));
+});
+
+test('cards sit under needs you, then working, then done and stopped together, each in roster order, with their roster index', () => {
+  const cards = [
+    cardOf('a', 'done'), cardOf('b', 'working'), cardOf('c', 'needs-you'), cardOf('d', 'stopped'),
+    cardOf('e', 'working'), cardOf('f', 'needs-you'), cardOf('g', 'done'),
+  ];
+  const g = groupCards(cards, new Set());
+  assert.deepEqual(placed(g.needsYou), [[2, 'c'], [5, 'f']]);
+  assert.deepEqual(placed(g.working), [[1, 'b'], [4, 'e']]);
+  assert.deepEqual(placed(g.closed), [[0, 'a'], [3, 'd'], [6, 'g']]);
+});
+
+test('a dismissed card is in no group, and an empty group is empty', () => {
+  const g = groupCards([cardOf('a', 'done'), cardOf('b', 'working')], new Set(['a']));
+  assert.deepEqual(placed(g.needsYou), []);
+  assert.deepEqual(placed(g.working), [[1, 'b']]);
+  assert.deepEqual(placed(g.closed), []);
+});
+
+test('a stored card with a hostile or unknown status draws in no group, the rest keep their roster index, and nothing throws', () => {
+  const statuses = ['__proto__', 'constructor', 'toString', HOSTILE, 'paused', 5, null, {}, ['done']];
+  const cards = [cardOf('first', 'working'), ...statuses.map((s, i) => cardOf(`bad${i}`, s)), cardOf('last', 'done')];
+  const g = groupCards(cards, new Set());
+  assert.deepEqual(placed(g.working), [[0, 'first']]);
+  assert.deepEqual(placed(g.closed), [[cards.length - 1, 'last']]);
+  assert.deepEqual(placed(g.needsYou), []);
+  // A card that is not a record, and a roster whose cards are not a list.
+  assert.deepEqual(placed(groupCards([null, 7, 'done', cardOf('x', 'done')], new Set()).closed), [[3, 'x']]);
+  for (const stored of [undefined, null, 'cards', {}, { length: 1, 0: cardOf('x', 'done') }]) {
+    const empty = groupCards(stored, new Set());
+    assert.deepEqual([empty.needsYou, empty.working, empty.closed], [[], [], []], String(stored));
+  }
+});
+
+test('the done and stopped group reads open only when its stored value is exactly true', () => {
+  assert.equal(isOpen(true), true);
+  for (const v of [false, 'true', 1, {}, [], null, undefined]) assert.equal(isOpen(v), false, String(v));
+});
+
+test('the toggle reads ▸ closed and ▾ open, with its card count, and adds the report count only when there are reports', () => {
+  assert.equal(foldLabel(false, 2, 0), '▸ DONE · STOPPED  2');
+  assert.equal(foldLabel(true, 2, 0), '▾ DONE · STOPPED  2');
+  assert.equal(foldLabel(false, 2, 1), '▸ DONE · STOPPED  2 · 1 report');
+  assert.equal(foldLabel(false, 3, 2), '▸ DONE · STOPPED  3 · 2 reports');
+  // A stored open value that is not exactly true draws closed.
+  assert.equal(foldLabel('true', 1, 0), '▸ DONE · STOPPED  1');
+});
+
+test('the report count is the inbox entries whose sender matches a done or stopped card, as the card\'s report line matches', () => {
+  const inbox = [
+    { from: 'alpha', line: 'one', at: '10:00' },
+    { from: 'beta', line: 'x', at: '10:01' },
+    { from: 'alpha', line: 'two', at: '10:02' },
+    { from: 'gamma', line: 'y', at: '10:03' },
+  ];
+  // Every report from a card counts, not one per card.
+  assert.equal(reportCount(['alpha'], inbox), 2);
+  assert.equal(reportCount(['alpha', 'gamma'], inbox), 3);
+  assert.equal(reportCount([], inbox), 0);
+  // Matched by the title as drawn: cleaned and cut to 80, as the sender is.
+  const long = `${'t'.repeat(90)}\u{202E}`;
+  assert.equal(reportCount([long], [{ from: 't'.repeat(79) + '…', line: 'l', at: '' }]), 1);
+  // An inbox of the wrong shape counts nothing, and never throws.
+  for (const stored of [undefined, null, 'alpha', {}, [null, 5, 'alpha', { from: 5 }, { line: 'x' }]]) {
+    assert.equal(reportCount(['alpha'], stored), 0, String(stored));
+  }
+});
+
+test('the state contract declares doneOpen as a boolean, and the pane keeps it in an atom that starts false', () => {
+  const types = readFileSync(join(root, 'brigade/types/index.d.ts'), 'utf8');
+  const block = types.slice(types.indexOf('interface PluginState'));
+  assert.match(block, /\n\s+doneOpen: boolean\n/);
+  const register = readFileSync(join(root, 'brigade/register.tsx'), 'utf8');
+  assert.match(register, /atom\(\{ plugin: 'grimoire', key: 'doneOpen' \} as const, false\)/);
+});
