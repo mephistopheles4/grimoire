@@ -147,6 +147,21 @@ function keys(r, where, obj, req, opt = []) {
   for (const k of Object.keys(obj)) if (!named.has(k)) r.shape(where, `unknown key "${k}"`);
 }
 
+/* A list the reference calls an array of strings. The page, the findings and
+ * --text join, iterate or look these up, so a string there is read one
+ * character at a time and an object prints as `[object Object]` or throws.
+ * One refusal per bad entry, by index, so a long list says where to look. A
+ * refusal names the path and never the value: the value can be anything. */
+function entriesAreStrings(r, where, list) {
+  list.forEach((v, i) => {
+    if (typeof v !== 'string') r.shape(`${where}[${i}]`, 'expected a string');
+  });
+}
+function strings(r, where, v) {
+  if (!Array.isArray(v)) return r.shape(where, 'expected an array of strings');
+  entriesAreStrings(r, where, v);
+}
+
 /* -- pass 1 and 2: shape and links ----------------------------------------- */
 
 function shape(prog, r) {
@@ -198,7 +213,10 @@ function shape(prog, r) {
    * about those three. An empty graphsNotDrawn is not the same mistake: it
    * says the run found no other graph worth a draw, which is an ordinary thing
    * for a small change to say. */
-  if (prog.sheet !== undefined) keys(r, 'sheet', prog.sheet, ['scopeRule', 'graphsNotDrawn']);
+  if (prog.sheet !== undefined) {
+    keys(r, 'sheet', prog.sheet, ['scopeRule', 'graphsNotDrawn']);
+    if (isObj(prog.sheet) && prog.sheet.graphsNotDrawn !== undefined) strings(r, 'sheet.graphsNotDrawn', prog.sheet.graphsNotDrawn);
+  }
 
   if (prog.layers !== undefined) {
     if (!isObj(prog.layers)) r.shape('layers', 'expected an object');
@@ -212,7 +230,9 @@ function shape(prog, r) {
           for (const [nid, ov] of Object.entries(layer.nodes)) {
             if (!isNode(prog, nid)) r.shape(`layers.${ln}.nodes.${nid}`, 'is not a node');
             keys(r, `layers.${ln}.nodes.${nid}`, ov, ['requirements']);
-            if (isObj(ov) && Array.isArray(ov.requirements) && !ov.requirements.length)
+            if (!isObj(ov) || ov.requirements === undefined) continue;
+            strings(r, `layers.${ln}.nodes.${nid}.requirements`, ov.requirements);
+            if (Array.isArray(ov.requirements) && !ov.requirements.length)
               r.shape(`layers.${ln}.nodes.${nid}.requirements`, 'state the renamed tokens, or leave the node out of this layer');
           }
       }
@@ -223,11 +243,14 @@ function shape(prog, r) {
     keys(r, `nodes.${id}`, n, NODE);
     if (!isObj(n)) continue;
     if (typeof n.role === 'string' && !n.role.trim()) r.shape(`nodes.${id}.role`, 'is blank — role is an open word, and the page prints it');
+    for (const k of ['params', 'enteredBy', 'touches']) if (n[k] !== undefined) strings(r, `nodes.${id}.${k}`, n[k]);
     if (n.channels !== undefined) {
       keys(r, `nodes.${id}.channels`, n.channels, ['success', 'error', 'requirements']);
       if (isObj(n.channels)) {
         if (n.channels.error !== undefined && !Array.isArray(n.channels.error)) r.shape(`nodes.${id}.channels.error`, 'expected an array of failure tags');
+        else if (n.channels.error !== undefined) entriesAreStrings(r, `nodes.${id}.channels.error`, n.channels.error);
         if (n.channels.requirements !== undefined && !Array.isArray(n.channels.requirements)) r.shape(`nodes.${id}.channels.requirements`, 'expected an array of tokens');
+        else if (n.channels.requirements !== undefined) entriesAreStrings(r, `nodes.${id}.channels.requirements`, n.channels.requirements);
         if (n.channels.success !== undefined && typeof n.channels.success !== 'string') r.shape(`nodes.${id}.channels.success`, 'expected a string');
       }
     }
@@ -248,9 +271,13 @@ function shape(prog, r) {
       if (s.op === 'call' && !isNode(prog, s.target)) r.shape(w, `target "${s.target}" is not a node`);
       if (s.op === 'throw' && !CAUSE.includes(s.cause)) r.shape(w, `cause "${s.cause}" is not one of ${CAUSE.join(', ')}`);
       /* A fail is part of the node's contract, so its error list names it. A
-       * die is a defect, so the list never does. */
-      if (s.op === 'throw' && CAUSE.includes(s.cause) && isObj(n.channels)) {
-        const listed = (n.channels.error || []).includes(s.tag);
+       * die is a defect, so the list never does. An error list that is not a
+       * list is already refused above, and reading it as one here would throw
+       * before that refusal prints; nor is it read as empty, which would add a
+       * second refusal blaming the tag. */
+      const errorList = isObj(n.channels) && n.channels.error;
+      if (s.op === 'throw' && CAUSE.includes(s.cause) && isObj(n.channels) && (errorList === undefined || Array.isArray(errorList))) {
+        const listed = (errorList || []).includes(s.tag);
         if (s.cause === 'fail' && !listed) r.shape(w, `throws "${s.tag}" as a fail, and ${id}'s error list does not name it`);
         if (s.cause === 'die' && listed) r.shape(w, `throws "${s.tag}" as a die, and ${id}'s error list names it — a die is never in the list`);
       }
@@ -337,8 +364,11 @@ function shape(prog, r) {
 
   /* Counted here, before anything below this pass calls `cutEdges`: a file
    * that would cost too much for it to scan is refused before the scan,
-   * not after it has already run long. */
-  const work = Groundtrack.cutEdgesWork(prog);
+   * not after it has already run long. Only once every refusal above is
+   * clear: the count turns each renamed requirement into text, and an entry
+   * already refused as not a string can throw doing that, before its
+   * refusal prints. */
+  const work = r.list.length ? 0 : Groundtrack.cutEdgesWork(prog);
   if (work > MAX_CUTEDGES_WORK) {
     r.shape('layers', `this file's layers would cost ${count(work)} units of work to find the calls they cut, more than the ${count(MAX_CUTEDGES_WORK)} groundtrack allows. A layer costs its renamed tokens times the sum of the argument characters and the call steps in the file. Rename fewer tokens. Or rename them in fewer layers. Or shorten the call arguments.`);
   }
@@ -885,8 +915,10 @@ export function findings(prog) {
    * param names. A param's name is what precedes its first `=`, and a rest
    * param accepts every name.
    *
-   * `params` has never been type-checked, so a callee whose params are not
-   * all strings is skipped rather than refused. Each callee is worked out
+   * The shape pass refuses a `params` that is not an array of strings, and
+   * findings run only on a file with no refusal, so the type test below
+   * never fails here; it stays so the exported function holds without
+   * that guarantee. Each callee is worked out
    * once and its verdict kept, the skip included, so many calls into one
    * long list cost their sum and not their product. A Set (`nameSet`),
    * because a name is a stranger's string and never an object key. Each

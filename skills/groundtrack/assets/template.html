@@ -1307,6 +1307,22 @@ function start() {
     return '<div class="etag">' + eTag(TAG_KINDS, tag) + ' <span class="efate">' + fate + '</span></div>';
   }
 
+  /* params and enteredBy as escaped text, whatever the embedded file holds.
+     --check refuses either one unless it is an array of strings, so on a page
+     the renderer wrote this only ever joins strings. A page whose file was
+     edited afterwards may hold anything, and one bad field must not take the
+     panel down: null reads as no list, any other non-list as a list of that
+     one value, and an entry that cannot become text as a fixed placeholder.
+     Only element content, never an attribute. An empty list draws `none`. */
+  function listText(v, none) {
+    const list = v === undefined || v === null ? [] : Array.isArray(v) ? v : [v];
+    if (!list.length) return '<span class="none">' + none + '</span>';
+    return list.map(e => {
+      if (typeof e === 'string') return esc(e);
+      try { return esc(String(e)); } catch { return '(unreadable)'; }
+    }).join(', ');
+  }
+
   function drawContract() {
     const n = PROG.nodes[S.open];
     const ch = n.channels || {};
@@ -1320,11 +1336,11 @@ function start() {
     const cxText = String(cx.value) + (parts.length ? ' <span class="dim">— 1 + ' + parts.join(' + ') + '</span>' : ' <span class="dim">— one path through</span>');
     return (
       line('role', esc(n.role), HELP.role) +
-      line('takes', (n.params || []).length ? esc((n.params || []).join(', ')) : '<span class="none">nothing</span>') +
+      line('takes', listText(n.params, 'nothing')) +
       line('success', esc(ch.success || '—'), HELP.success) +
       line('error', (ch.error || []).length ? (ch.error || []).map(eContract.bind(null, n)).join('') : '<span class="none">never</span>', HELP.error) +
       line('requirements', rOf(S.open).length ? esc(rOf(S.open).join(', ')) : '<span class="none">nothing</span>', HELP.requirements) +
-      line('entered by', (n.enteredBy || []).length ? esc((n.enteredBy || []).join(', ')) : '<span class="none">no spec calls this node</span>',
+      line('entered by', listText(n.enteredBy, 'no spec calls this node'),
         'The test files whose specs call this node directly. A node covered through its caller lists none.') +
       line('paths', cxText, HELP.paths)
     );
