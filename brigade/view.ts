@@ -1569,12 +1569,12 @@ export function sparkSvg(s: Partial<Spark>): Extract<UsageView, { kind: 'svg' }>
 // A needs-you or working card has up to three views, each a tab: the cache
 // bar and context meter, the burn rate, and the context trend. The tab row
 // shows only with two or more. The choice is kept per card for the session in
-// the `tabs` atom, card title to view word, and read only through the fixed
-// Map below: an unknown or unavailable word reads as the default. A view word
-// holds no hyphen, since a press key is split on one.
+// the `tabs` atom, card title to view word, and read only through
+// `VIEW_WORDS` below: an unknown or unavailable word reads as the default. A
+// view word holds no hyphen, since a press key is split on one.
 
-/** The view words, in tab order, with their tab labels. */
-export const VIEWS: ReadonlyMap<string, string> = new Map([
+/** The tab labels, in tab order, keyed by view word. */
+export const VIEW_LABELS: ReadonlyMap<string, string> = new Map([
   ['cache', 'Cache · context'],
   ['burn', 'Burn rate'],
   ['trend', 'Context trend'],
@@ -1582,6 +1582,7 @@ export const VIEWS: ReadonlyMap<string, string> = new Map([
 
 /** A view word. */
 export type View = 'cache' | 'burn' | 'trend'
+// The fixed set every stored or pressed view word is read through.
 const VIEW_WORDS: ReadonlyMap<unknown, View> = new Map<unknown, View>([
   ['cache', 'cache'],
   ['burn', 'burn'],
@@ -1591,16 +1592,19 @@ const VIEW_WORDS: ReadonlyMap<unknown, View> = new Map<unknown, View>([
 /** A view word read through the fixed set, or undefined for anything else. */
 export const viewOf = (word: unknown): View | undefined => VIEW_WORDS.get(word)
 
-// The warmth kinds whose reason line the burn rate tab shows in place of a
-// sparkline, as the cache line does.
 const REASONS = new Set(['too-large', 'shared', 'not-found'])
 
+/** Whether a warmth record is one whose reason line the burn rate tab shows
+ *  in place of a sparkline, as the cache line does: a transcript too large
+ *  to read, a name two sessions share, or a transcript not found. */
+export const isReason = (w: Warmth | undefined): boolean => w !== undefined && REASONS.has(w.kind)
+
 /** A card's views, in tab order: the default always; the burn rate when its
- *  meter has a burn series or its warmth is a reason line (too large, shared
- *  or not found); the context trend with 2 or more calls. */
+ *  meter has a burn series or its warmth is a reason line; the context trend
+ *  with 2 or more calls. */
 export function cardViews(w: Warmth | undefined, m: Meter | undefined): View[] {
   const views: View[] = ['cache']
-  if (m?.burn !== undefined || (w !== undefined && REASONS.has(w.kind))) views.push('burn')
+  if (m?.burn !== undefined || isReason(w)) views.push('burn')
   if (contextTrend(m) !== undefined) views.push('trend')
   return views
 }

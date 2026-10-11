@@ -2701,14 +2701,28 @@ for (const surface of SURFACES) {
     const m = await mountOn($, surface)
     const slugged = 'abampqssvgscriptxscriptz'
     expect(await m.find({ key: `tab-0-${slugged}-burn` })).toBeDefined()
-    for (const view of ['burn', 'trend']) {
+    const HOSTILE_PIECES = ['script', '<b>', '&amp;amp;', 'q"']
+    for (const [view, alt, text] of [
+      ['burn', 'Burn rate', '12k/min · last 30 min'],
+      ['trend', 'Context trend', '412k now · 1 compaction'],
+    ] as const) {
       await m.press({ key: `tab-0-${slugged}-${view}` })
       const all = await nodes(m)
-      for (const image of all.filter(n => n.type === 'Svg')) {
-        for (const out of [String(image.props.source), String(image.props.alt)]) {
-          for (const piece of ['script', '<b>', '&amp;amp;', 'q"']) expect(out.includes(piece)).toBe(false)
-        }
+      // The view is drawn: its text, and its sparkline as an image on
+      // Desktop or as cells on the terminal. Then none of the title is in it.
+      const beside = texts(all, text)
+      expect(beside.length).toBe(1)
+      const drawn: string[] = [text]
+      if (surface === 'desktop') {
+        const image = all.find(n => n.type === 'Svg' && String(n.props.alt).startsWith(alt))
+        expect(image).toBeDefined()
+        drawn.push(String(image?.props.source), String(image?.props.alt))
+      } else {
+        const cells = all.filter(n => n.type === 'Text' && (n.props.color === 'suggestion' || n.props.color === 'warning') && /^[ ▁▂▃▄▅▆▇█]+$/.test(n.text ?? '') && / /.test(n.text ?? ''))
+        expect(cells.length).toBeGreaterThan(0)
+        drawn.push(...cells.map(n => String(n.text)))
       }
+      for (const out of drawn) for (const piece of HOSTILE_PIECES) expect(out.includes(piece)).toBe(false)
     }
   })
 }

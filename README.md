@@ -146,9 +146,10 @@ cache bar, a context meter shows how full the session's context is: amber from
 70%, red from 90%. Tabs on the card switch to two more views. Burn rate is a
 sparkline of the new tokens the session spent in each of the last 30 minutes,
 with its rate per minute. Context trend is a sparkline of its last 30 calls'
-context; it marks each drop below half, a compaction, and counts them. A card
-shows tabs only when it has more than one view, and keeps your choice while
-the lead session lasts. At its bottom
+context; it marks each call under half the one before it, a compaction, and
+counts them. A card shows tabs only when it has more than one view, and keeps
+your choice while the lead session lasts. The reply reminder sits on the
+default tab, so a card left on another tab does not show it. At its bottom
 it shows the lead session's own rate limits and context. A faint extension on
 the session and weekly limit bars shows where each will be at its reset if the
 current pace holds, and a red note says how early a limit runs out when that

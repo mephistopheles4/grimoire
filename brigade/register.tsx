@@ -41,7 +41,7 @@ import {
   EMPTY_USAGE,
   MAX_TRANSCRIPT_BYTES,
   SVG_MAX,
-  VIEWS,
+  VIEW_LABELS,
   addSample,
   burnRate,
   cacheBar,
@@ -59,6 +59,7 @@ import {
   groupCards,
   idsFrom,
   isOpen,
+  isReason,
   linkStep,
   liveState,
   metersFrom,
@@ -984,10 +985,7 @@ export const register: Register = on => {
       const image = bar !== undefined && Image !== undefined ? cacheBarSvg(bar) : undefined
       const meter = shown === 'cache' ? contextMeter(meterOf.get(c.title)) : undefined
       const meterImage = meter !== undefined && Image !== undefined ? contextMeterSvg(meter) : undefined
-      // The burn rate tab shows the cache line's reason in place of a
-      // sparkline when the transcript is too large, shared or not found.
-      const kind = warm.get(c.title)?.kind
-      const reason = shown === 'burn' && (kind === 'too-large' || kind === 'shared' || kind === 'not-found') ? warmLine?.text : undefined
+      const reason = shown === 'burn' && isReason(warm.get(c.title)) ? warmLine?.text : undefined
       const burn = shown === 'burn' && reason === undefined ? burnRate(meterOf.get(c.title), now) : undefined
       const trend = shown === 'trend' ? contextTrend(meterOf.get(c.title)) : undefined
       const report = last(c.title)
@@ -1026,11 +1024,11 @@ export const register: Register = on => {
                 {views.map(v =>
                   v === shown ? (
                     <Button key={`${keyFor('tab', i, c.title)}-${v}`} onPress={noop}>
-                      {`● ${VIEWS.get(v) ?? ''}`}
+                      {`● ${VIEW_LABELS.get(v) ?? ''}`}
                     </Button>
                   ) : (
                     <Button key={`${keyFor('tab', i, c.title)}-${v}`} plain onPress={noop}>
-                      {VIEWS.get(v) ?? ''}
+                      {VIEW_LABELS.get(v) ?? ''}
                     </Button>
                   ),
                 )}

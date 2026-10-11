@@ -3067,7 +3067,7 @@ test('a working member never read goes before every member that is due, however 
 // A card's tabs are its views, the choice kept per card in the `tabs` atom
 // and read through a fixed set of view words.
 
-const { SPARK_COLUMNS, burnRate, cardViews, chooseTab, chosenView, contextTrend, shiftBurn, sparkRuns, sparkSvg, tabsFrom, viewOf, VIEWS } = view;
+const { SPARK_COLUMNS, burnRate, cardViews, chooseTab, chosenView, contextTrend, isReason, shiftBurn, sparkRuns, sparkSvg, tabsFrom, viewOf, VIEW_LABELS } = view;
 const ramp = () => Array.from({ length: 30 }, (_, i) => i + 1);
 const spoken = runs => runs.map(r => r.text).join('');
 
@@ -3272,7 +3272,7 @@ test('no title, path, model or id reaches either sparkline: its text, alt, cells
 });
 
 test('the view words are a fixed set: cache, burn and trend, with their tab labels', () => {
-  assert.deepEqual([...VIEWS.entries()], [
+  assert.deepEqual([...VIEW_LABELS.entries()], [
     ['cache', 'Cache · context'],
     ['burn', 'Burn rate'],
     ['trend', 'Context trend'],
@@ -3280,7 +3280,7 @@ test('the view words are a fixed set: cache, burn and trend, with their tab labe
   for (const w of ['cache', 'burn', 'trend']) assert.equal(viewOf(w), w);
   for (const w of ['step', 'Cache', 'constructor', '__proto__', 'toString', '', 'cache ', 5, null, undefined, {}]) assert.equal(viewOf(w), undefined, String(w));
   // No word holds a hyphen: a press key is split on one.
-  for (const w of VIEWS.keys()) assert.ok(!w.includes('-'));
+  for (const w of VIEW_LABELS.keys()) assert.ok(!w.includes('-'));
 });
 
 test('a card\'s views: the default always; burn rate with a burn series or a reason line; the context trend with 2 or more calls', () => {
@@ -3291,7 +3291,14 @@ test('a card\'s views: the default always; burn rate with a burn series or a rea
   assert.deepEqual(cardViews(undefined, meterOf()), ['cache', 'burn', 'trend']);
   const { burn, ...noBurn } = meterOf();
   assert.deepEqual(cardViews(undefined, noBurn), ['cache', 'trend']);
-  for (const kind of ['too-large', 'shared', 'not-found']) assert.deepEqual(cardViews({ name: 'A', kind }, undefined), ['cache', 'burn'], kind);
+  for (const kind of ['too-large', 'shared', 'not-found']) {
+    assert.deepEqual(cardViews({ name: 'A', kind }, undefined), ['cache', 'burn'], kind);
+    assert.equal(isReason({ name: 'A', kind }), true, kind);
+  }
+  // The one check the pane also reads to draw the reason line in the tab.
+  for (const w of [undefined, { name: 'A', kind: 'unread' }, { name: 'A', kind: 'call', at: NOW, tokens: 1 }, { name: 'A', kind: 'constructor' }]) {
+    assert.equal(isReason(w), false, JSON.stringify(w));
+  }
 });
 
 test('the stored tabs are checked again: pairs of a title and a view word, a title once, at most 50, none reaching a prototype', () => {
@@ -3345,13 +3352,12 @@ test('a choice is kept per card: a new one replaces the card\'s last, other card
   assert.deepEqual(chooseTab([{ name: 'B', value: 'trend' }], 'A', 'constructor'), [{ name: 'B', value: 'trend' }]);
 });
 
-test('the state contract declares tabs under the plugin\'s manifest name, and the pane keeps it across a reopen', () => {
+// That the choice survives a reopen is held by the engine-run test "the
+// choice is kept when the pane closes and opens again".
+test('the state contract declares tabs under the plugin\'s manifest name', () => {
   const types = readFileSync(join(root, 'brigade/types/index.d.ts'), 'utf8');
   const block = types.slice(types.indexOf('interface PluginState'));
   assert.match(block, /\n\s+tabs: Pair\[\]\n/);
   const register = readFileSync(join(root, 'brigade/register.tsx'), 'utf8');
   assert.match(register, /atom\(\{ plugin: 'grimoire', key: 'tabs' \} as const, \[\]\)/);
-  // Not reset when the pane opens: no update of tabs in arm().
-  const arm = register.slice(register.indexOf('async function arm('), register.indexOf('function disarm('));
-  assert.ok(arm.length > 0 && !arm.includes('tabs'));
 });
