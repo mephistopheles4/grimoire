@@ -150,7 +150,7 @@ chef tells you about such a line instead.
 - **Text it posts** goes through a file named `grimoire-act-<random>.txt` in
   your temporary folder, deleted right after the act. It holds no session id,
   Desktop id, token, secret, local path, error text, another session's report
-  text or personal data. What an act command prints is sent nowhere, so another
+  text, a note's text or personal data. What an act command prints is sent nowhere, so another
   account's title or text does not reach the head chef through it.
 
 **The risks you take on.** A merge takes the pull request's head at merge
@@ -236,7 +236,11 @@ from any text. It refuses, and tells you why, on any of these:
 Then it names the session and the absolute path back to you, and waits.
 After your yes it checks again, and removes the session, the worktree and the
 branch with no flag that forces or discards. Archiving the sidebar entry is
-yours: no tool can.
+yours, unless you ask the head chef to: it then archives only after cleanup
+succeeded, names the session back, and refuses a session that has side
+sessions of its own. When a chip ends a turn, Desktop quotes the start of its
+last message into the head chef's chat, so what you say in the chip's window
+can reach the head chef. A background session sends no such note.
 
 ## The pane
 

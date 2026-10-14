@@ -163,8 +163,8 @@ the text (failure 16).
 ## What text may go on a record (questions 3, 16, 18)
 
 **Text you post or write into a record holds no session id, Desktop id,
-token, secret, local path, error text, another session's report text, or
-personal data:**
+token, secret, local path, error text, another session's report text or a
+note's text, or personal data:**
 an email address, a phone number, or a person's contact details. A login the
 act needs is fine. When the owner's words hold one, ask the owner to
 rephrase. Reason: records can be public, and the edit history keeps old
