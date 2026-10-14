@@ -89,7 +89,7 @@
         "static_patterns_supply_chain",
         "static_patterns_system_prompt_leakage"
       ],
-      "sha256": "cf27a0cb7f5e804f33275719f15a490508e0332c0dca37a2e0470fca6b48e5fb",
+      "sha256": "6464afa68b229913d0367e3e9b95ee783557bba3cee31578798b69464f6bbb36",
       "reason": "The skill's contract. The marker pass reads a removal verb followed by a quote as the start of a \"remove the marker\" directive and cannot settle it; here that is the git command names in code spans, such as `worktree remove`, and prose on deleting a session that needs the owner's words. Measured on 2026-10-09: with those verbs disguised in a scratch copy, the give-up goes away; each matching line was read by hand and none is a disguised directive. Re-read on 2026-10-11 for head-chef 0.6.0 (issue 263): the new lines on record acts, such as a delete named in quotes, were read by hand, and none is a disguised directive. The plain scan still reads the whole file under every listed check. Re-read on 2026-10-11 for head-chef 0.7.0 (issue 267): the new lines on which tool reaches a chip, and on keeping a Desktop id off records, were read by hand; they hold no removal verb and no disguised directive. Re-read on 2026-10-14 for head-chef 0.8.0 (issue 293): the new lines on the stop and archive tools, on notes, and on the chip start, were read by hand; they hold no removal verb followed by a quote and no disguised directive. Re-read on 2026-10-14 after a measurement (flag 51, issue 293): the new lines, a launch-line warning that an approval card is coming and the wording that a raise above the lead waits for it, were read by hand; they hold no removal verb followed by a quote and no disguised directive."
     },
     {
@@ -99,7 +99,7 @@
       "analyzers": [
         "static_patterns_tool_misuse"
       ],
-      "sha256": "cf27a0cb7f5e804f33275719f15a490508e0332c0dca37a2e0470fca6b48e5fb",
+      "sha256": "6464afa68b229913d0367e3e9b95ee783557bba3cee31578798b69464f6bbb36",
       "reason": "The skill's contract. The destructive-command parser stops partway through a long expression and marks the file partial for that one check; every other check reads it in full. The entry also accepts a marker-pass give-up inside that one check, which the scanner reports under this code. Re-read on 2026-10-11 for head-chef 0.6.0 (issue 263): the new delete commands in the record-act tables (`gh issue delete`, `gh api --silent -X DELETE`) were read by hand; each is a documented act the owner must ask for, and the same commands sit in references/record-acts.md, which the scanner reads in full. Re-read on 2026-10-11 for head-chef 0.7.0 (issue 267): the new lines on which tool reaches a chip, and on keeping a Desktop id off records, were read by hand; they hold no removal verb and no disguised directive. Re-read on 2026-10-14 for head-chef 0.8.0 (issue 293): the new lines on the stop and archive tools, on notes, and on the chip start, were read by hand; they hold no removal verb followed by a quote and no disguised directive. Re-read on 2026-10-14 after a measurement (flag 51, issue 293): the new lines, a launch-line warning that an approval card is coming and the wording that a raise above the lead waits for it, were read by hand; they hold no removal verb followed by a quote and no disguised directive."
     },
     {
@@ -121,7 +121,7 @@
         "static_patterns_system_prompt_leakage",
         "static_patterns_tool_misuse"
       ],
-      "sha256": "0f9df1b9ec1c351c3f0c00d7aa0526f9549cc24b580939304bc21170814cd2fe",
+      "sha256": "7988381bbeba1f635538fdb6cb63a221c5e36d146735f8550770440319b5a168",
       "reason": "The skill's instructions. The marker pass reads a removal verb followed by a quote as the start of a \"remove the marker\" directive and cannot settle it; here that is the git command names in code spans, such as `worktree remove`. Measured on 2026-10-09: with those verbs disguised in a scratch copy, the give-up goes away; each matching line was read by hand and none is a disguised directive. Re-read on 2026-10-11 for head-chef 0.6.0 (issue 263): the new lines on record acts, such as a delete named in quotes, were read by hand, and none is a disguised directive. The plain scan still reads the whole file under every listed check. Re-read on 2026-10-11 for head-chef 0.7.0 (issue 267): the new lines on which tool reaches a chip, and on keeping a Desktop id off records, were read by hand; they hold no removal verb and no disguised directive. Re-read on 2026-10-14 for head-chef 0.8.0 (issue 293): the new lines on the stop and archive tools, on notes, and on the chip start, were read by hand; they hold no removal verb followed by a quote and no disguised directive. Re-read on 2026-10-14 after a measurement (flag 51, issue 293): the new lines, a launch-line warning that an approval card is coming and the wording that a raise above the lead waits for it, were read by hand; they hold no removal verb followed by a quote and no disguised directive."
     }
   ],
