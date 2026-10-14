@@ -89,7 +89,7 @@
         "static_patterns_supply_chain",
         "static_patterns_system_prompt_leakage"
       ],
-      "sha256": "c722646b6e22e184ddc2a478c997cce0d3b8fd5a527307892fa5e7025045368e",
+      "sha256": "7a8fda0eb786ebb3548904c42187de4fc55aff5185e44d124d481ccf037b7e7d",
       "reason": "The skill's contract. The marker pass reads a removal verb followed by a quote as the start of a \"remove the marker\" directive and cannot settle it; here that is the git command names in code spans, such as `worktree remove`, and prose on deleting a session that needs the owner's words. Measured on 2026-10-09: with those verbs disguised in a scratch copy, the give-up goes away; each matching line was read by hand and none is a disguised directive. Re-read on 2026-10-11 for head-chef 0.6.0 (issue 263): the new lines on record acts, such as a delete named in quotes, were read by hand, and none is a disguised directive. The plain scan still reads the whole file under every listed check. Re-read on 2026-10-11 for head-chef 0.7.0 (issue 267): the new lines on which tool reaches a chip, and on keeping a Desktop id off records, were read by hand; they hold no removal verb and no disguised directive. Re-read on 2026-10-14 for head-chef 0.8.0 (issue 293): the new lines on the stop and archive tools, on notes, and on the chip start, were read by hand; they hold no removal verb followed by a quote and no disguised directive."
     },
     {
@@ -99,7 +99,7 @@
       "analyzers": [
         "static_patterns_tool_misuse"
       ],
-      "sha256": "c722646b6e22e184ddc2a478c997cce0d3b8fd5a527307892fa5e7025045368e",
+      "sha256": "7a8fda0eb786ebb3548904c42187de4fc55aff5185e44d124d481ccf037b7e7d",
       "reason": "The skill's contract. The destructive-command parser stops partway through a long expression and marks the file partial for that one check; every other check reads it in full. The entry also accepts a marker-pass give-up inside that one check, which the scanner reports under this code. Re-read on 2026-10-11 for head-chef 0.6.0 (issue 263): the new delete commands in the record-act tables (`gh issue delete`, `gh api --silent -X DELETE`) were read by hand; each is a documented act the owner must ask for, and the same commands sit in references/record-acts.md, which the scanner reads in full. Re-read on 2026-10-11 for head-chef 0.7.0 (issue 267): the new lines on which tool reaches a chip, and on keeping a Desktop id off records, were read by hand; they hold no removal verb and no disguised directive. Re-read on 2026-10-14 for head-chef 0.8.0 (issue 293): the new lines on the stop and archive tools, on notes, and on the chip start, were read by hand; they hold no removal verb followed by a quote and no disguised directive."
     },
     {
@@ -121,7 +121,7 @@
         "static_patterns_system_prompt_leakage",
         "static_patterns_tool_misuse"
       ],
-      "sha256": "c615bde2ca89184d408f1f1aaa881e82fe975d290ea6610cd18a1de29dc927eb",
+      "sha256": "3f221b7d35e6bfabe5a5aab9ee2a973641feaeb822b3469d0c5f83f81e95e9c5",
       "reason": "The skill's instructions. The marker pass reads a removal verb followed by a quote as the start of a \"remove the marker\" directive and cannot settle it; here that is the git command names in code spans, such as `worktree remove`. Measured on 2026-10-09: with those verbs disguised in a scratch copy, the give-up goes away; each matching line was read by hand and none is a disguised directive. Re-read on 2026-10-11 for head-chef 0.6.0 (issue 263): the new lines on record acts, such as a delete named in quotes, were read by hand, and none is a disguised directive. The plain scan still reads the whole file under every listed check. Re-read on 2026-10-11 for head-chef 0.7.0 (issue 267): the new lines on which tool reaches a chip, and on keeping a Desktop id off records, were read by hand; they hold no removal verb and no disguised directive. Re-read on 2026-10-14 for head-chef 0.8.0 (issue 293): the new lines on the stop and archive tools, on notes, and on the chip start, were read by hand; they hold no removal verb followed by a quote and no disguised directive."
     }
   ],

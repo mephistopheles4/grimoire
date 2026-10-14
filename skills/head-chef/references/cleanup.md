@@ -121,6 +121,9 @@ is inside another when it is equal to it, or starts with it and then a `/`.
    of these hold, after steps 1 to 6 succeeded:
    the owner's own words in this chat ask to archive that session;
    `git worktree list --porcelain` no longer shows its worktree;
+   the `sessionId` that step 1 acted on is the session id you kept for the
+   chip whose Desktop id is the target (otherwise do not archive, and tell
+   the owner);
    `list_sessions` with `linked` shows no session whose `startedBy` is that
    session's Desktop id (when one does, do not archive: name those sessions
    to the owner, who cleans them up or archives them by hand); and
