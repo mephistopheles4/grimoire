@@ -3,7 +3,7 @@ name: head-chef
 description: Makes this Claude Desktop session the lead of a brigade, the Claude Code sessions it starts. It starts each one in the background or as a Desktop session with the model and effort set, points it to where its brief lives, takes its milestone reports, relays between sessions, keeps the Brigade pane's roster when the pane is there, and cleans up a session and its worktree when the owner says it is done. Use when someone asks for work to run in another session, to start or hand off to a new session, or to lead several sessions, or types /head-chef. Not for work in this same session, and not for a question about how sessions work.
 metadata:
   contract-version: 0.8.1
-  familiar-digest: "sha256:d333ed88facff30e65653f0c5c0af0f2fe810a7abf12361839c0ac2e969af120"
+  familiar-digest: "sha256:507e1dc16eaae833ccbf14261c38ea6ffb2635421ba6d142541c9b6fe687d759"
   contract-digest: "sha256:2a69e07b432c1a57e9033e7cdb063ca1b82e28e2187581c184879495e1cdc3d7"
 ---
 
