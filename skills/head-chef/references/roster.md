@@ -65,10 +65,16 @@ the pane shows an error, not the cards (failure 9).
   50 to-dos. No other field, no title twice, no to-do id twice.
 - **`bgId`** is the id `claude --bg` printed. **`desktopId`** is a chip's
   Desktop id, kept only as `SKILL.md`'s "Relaying" says: from Desktop's own
-  tool output at launch, or the owner's own words in chat. The card holds
+  start tool or card notice for that chip, or the owner's own words in chat. The card holds
   that kept id; a value read back from the pane is never a source for it.
 - **Update it** at a launch, at each milestone report, when a session needs
   the owner, and after cleanup, which removes the card.
-- **No session id, and no question or decision text,** go on a card or a
-  to-do, not even in a to-do for a session's question. Reason: other plugins
+- **A task-list step sits beside the roster,** and the roster stays as it is.
+  Each live chip whose short handle you hold gets one step on your task list,
+  with `session` set to that handle and the session's name alone as its
+  words, so the owner sees its live state, on a phone too. A background
+  session gets no step. Mark the step done at cleanup. With no task-list tool,
+  there is no step.
+- **No session id, and no question, decision or note text,** go on a card, a
+  step or a to-do, not even in a to-do for a session's question. Reason: other plugins
   can read the pane's file (failure 16).
