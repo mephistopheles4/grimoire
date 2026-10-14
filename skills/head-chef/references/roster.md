@@ -72,7 +72,8 @@ the pane shows an error, not the cards (failure 9).
 - **A task-list step sits beside the roster,** and the roster stays as it is.
   Each live chip whose short handle you hold gets one step on your task list,
   with `session` set to that handle and the session's name alone as its
-  words, so the owner sees its live state, on a phone too. A background
+  words, so the owner sees its live state beside the roster in Claude
+  Desktop. A phone shows the chip as its own session instead. A background
   session gets no step. Mark the step done at cleanup. With no task-list tool,
   there is no step.
 - **No session id, and no question, decision or note text,** go on a card, a

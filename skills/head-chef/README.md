@@ -243,7 +243,8 @@ last message into the head chef's chat, so what you say in the chip's window
 can reach the head chef. The quote stays in the head chef's transcript, which is
 not encrypted at rest unless your disk is, so a chip should not print a secret in
 its last message. A background session sends no such note. Each chip also gets
-a task-list step named by its session name, which shows on your phone too.
+a task-list step named by its session name, which shows its live state beside
+the roster in Claude Desktop. A phone shows the chip as its own session instead.
 
 ## The pane
 
