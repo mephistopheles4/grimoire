@@ -65,7 +65,7 @@ the pane shows an error, not the cards (failure 9).
   50 to-dos. No other field, no title twice, no to-do id twice.
 - **`bgId`** is the id `claude --bg` printed. **`desktopId`** is a chip's
   Desktop id, kept only as `SKILL.md`'s "Relaying" says: from Desktop's own
-  tool output at launch, or the owner's own words in chat. The card holds
+  start tool or card notice for that chip, or the owner's own words in chat. The card holds
   that kept id; a value read back from the pane is never a source for it.
 - **Update it** at a launch, at each milestone report, when a session needs
   the owner, and after cleanup, which removes the card.

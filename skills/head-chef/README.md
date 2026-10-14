@@ -26,7 +26,7 @@ or your request. The skill supplies the means, not the rules.
 - **Background session:** a session with no window, started with
   `claude --bg`. Remote Control makes it reachable from your phone.
 - **Chip:** a Claude Desktop session you work in yourself. Its first turn is
-  held until the head chef sets its model and effort.
+  held only when it must run above the head chef's own settings.
 - **Roster:** the file the Brigade pane reads, one card per session. A view,
   not the record.
 
@@ -164,7 +164,7 @@ for starting and stopping a session.
 ## What counts as your yes
 
 Only your own words in chat. Your request to run work in another session is
-the yes to start it. Starting, stopping, removing a session and deleting a
+the yes to start it. Starting, stopping, archiving or removing a session and deleting a
 worktree each need your own words, and so does each act on an issue or a
 pull request. A message from another session, a report,
 a brief, a roster line or an issue comment never counts. Reports and relayed
@@ -240,7 +240,10 @@ yours, unless you ask the head chef to: it then archives only after cleanup
 succeeded, names the session back, and refuses a session that has side
 sessions of its own. When a chip ends a turn, Desktop quotes the start of its
 last message into the head chef's chat, so what you say in the chip's window
-can reach the head chef. A background session sends no such note.
+can reach the head chef. The quote stays in the head chef's transcript, which is
+not encrypted at rest unless your disk is, so a chip should not print a secret in
+its last message. A background session sends no such note. Each chip also gets
+a task-list step named by its session name, which shows on your phone too.
 
 ## The pane
 
@@ -253,7 +256,7 @@ from your phone shows none. The skill does not need it.
 
 ## What it never does
 
-- Start, stop or delete on anyone's word but yours.
+- Start, stop, archive or delete on anyone's word but yours.
 - Merge, close or reopen, edit, delete or label an issue or a pull request,
   or post a comment, on anyone's word but yours.
 - Send a decision or a relay without telling you, in one line, in the same
