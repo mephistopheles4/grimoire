@@ -2,7 +2,7 @@
 
 This file maps a contract's plain words to a Claude Code file: an agent
 file, or the main agent file, `CLAUDE.md`. Read it when `tools` says the
-agent is built for Claude Code. Everything the file needs is in the
+agent or CLAUDE.md is built for Claude Code. Everything the file needs is in the
 contract, the template, the skill's steps, or here. A fact missing from all
 of them is a gap: stop and ask.
 
@@ -86,7 +86,7 @@ situation, and nothing sends it off.
 - The file cannot limit the session's tools. They come from the person's
   settings and connected servers.
 - The person's other `CLAUDE.md` files and rules load beside it.
-- A file brought into the folder it lives in, to amend, loads as
+- A `CLAUDE.md` copied into a project folder, to amend it, loads as
   instructions as soon as the session reads another file there, as any
   `CLAUDE.md` in a subfolder does.
 

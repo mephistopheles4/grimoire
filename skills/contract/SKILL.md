@@ -4,7 +4,7 @@ description: Builds a reusable skill, agent or main agent file (CLAUDE.md) from 
 compatibility: Needs Node.js 20 or later to run check.mjs. No install and no other dependencies.
 metadata:
   contract-version: 0.11.0
-  familiar-digest: "sha256:ef562d25a2d3713c88a79403b99755f8b1c1e00c2807dff24037018e7358f29a"
+  familiar-digest: "sha256:ba86ba35f06b7c6b5956aca3e7b00ac9573ec5bc6a34952efc6ba6072b7ddd7f"
   contract-digest: "sha256:9945dac0e7f7b0905dd05956197df630278a839024dcf8ac3f3977ba2aca41d8"
 ---
 

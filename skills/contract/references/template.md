@@ -61,7 +61,9 @@ loads either as an agent.
 
 **The title block.** The contract opens `# Contract: <name>`, then
 `Version: X.Y.Z` starting at 0.1.0, then `Kind: skill`, `Kind: agent` or
-`Kind: CLAUDE.md`, then the level.
+`Kind: CLAUDE.md`, then `Level: Quick`, `Level: Standard` or
+`Level: Thorough`. Every contract has all eight part headings, named as in
+this template. A part the level does not ask stays empty.
 
 **Marks.** Each answer carries one mark and at most a one-line why:
 
@@ -72,12 +74,12 @@ loads either as an agent.
 No date goes on a mark. The date, the source and who relayed it go in the
 change-log row that made the answer.
 
-**Freedom.** Each clause in the built file is open, guided or fixed. Unmarked
-means open: the agent works it out from context, and the file writes
-nothing. Write only the other two. *Guided* is a default the agent may adapt,
-with when. *Fixed* is for a stop, a safety rule or your own decision, with
-its reason here. These match Anthropic's high, medium and low freedom. You
-may change any clause's level.
+**Freedom.** Each clause in the built file is open, guided or fixed. A
+clause with no freedom written is open: the agent works it out from context,
+and the file writes nothing. Write only guided and fixed. *Guided* is a
+default the agent may adapt, with when. *Fixed* is for a stop, a safety rule
+or your own decision, with its reason here. Anthropic's Skills docs call
+these high, medium and low freedom. You may change any clause's freedom.
 
 **Gated by.** A clause that a check, a hook or a tool list blocks says so on
 its row: `Gated by: <the gate>`. A gate nobody has seen fail reads
@@ -90,7 +92,8 @@ as the tool that reads it.
 stay in the file. A part is fenced where it writes text into the body, so
 `purpose`, `why` and `open` get none. This is a default. An amendment
 regenerates exactly the fenced parts it touches and keeps the rest word for
-word.
+word. An agent file or a `CLAUDE.md` has no fences: an amendment there
+regenerates the sections its touched parts write.
 
 **The change log.** A table, one row per change:
 
@@ -177,8 +180,8 @@ folder; no network". The binding maps these words to the tool it is built
 for; a limit a tool's file cannot hold is not gated, and the hand-back says
 so. Also here:
 
-- the tool it is built for, in plain words: "Built for Codex". An agent needs
-  one; a skill does not;
+- the tool it is built for, in plain words: "Built for Codex". An agent
+  and a CLAUDE.md need one ("Built for Claude Code"); a skill does not;
 - every action beyond reading and writing its own notes (sending data,
   spending money, changing files elsewhere), each with what it tells you
   first and what counts as your yes. "Nothing" is a good answer;
@@ -236,15 +239,17 @@ One table in `rules`, rule and failure together:
 |---|---|---|---|
 
 *Status* is *potential* or *observed*, with where it was seen. A failure with
-no rule yet is a watched row. A potential failure may earn a rule at any
-level, marked so. Last two columns are written only where they apply.
+no rule yet is a row with an empty Rule cell, and its status is potential. A
+potential failure may earn a rule at any level, marked so. The last column
+is written only where it applies.
 
-How hard to look for failures follows the level: the obvious ones at Quick
-(when you choose to fill `rules`), the likely ones at Standard, the
-systematic ones at Thorough: nitpicking, sounding tough and helping nobody,
-being trusted too much, following instructions found inside a file, arguing
-in prose when it should show you, overloading you with questions. Crying wolf,
-firing until you dismiss it, is an observed row when it happens.
+How hard to look for failures follows the level. At Quick, when you choose to
+fill `rules`, look for the obvious ones. At Standard, look for the likely
+ones. At Thorough, look for them systematically. Examples are nitpicking,
+sounding tough and helping nobody, being trusted too much, following
+instructions found inside a file, arguing in prose when it should show you,
+and overloading you with questions. Crying wolf, firing until you dismiss
+it, is an observed row when it happens.
 
 A rule with a reason you cannot give is clutter. A rule keeps a rationale
 clause in the built file only where the agent needs it for a case the rule
@@ -254,9 +259,9 @@ talk itself past it, such as "unless it seems unnecessary".
 
 ## The eval offer
 
-After the build, offer to write a few cases with graders in
-`claude plugin eval` format, testing the built skill's or agent's behaviour
-only. Offer nothing for a tool the runner cannot load. You run them or not; a
+After the first build, offer to write one case per row of the table below,
+with graders in `claude plugin eval` format, testing the built skill's or
+agent's behaviour only. Say the rough cost of a run before you ask. Offer nothing for a tool the runner cannot load. You run them or not; a
 no is not logged against you. This table maps parts to case types:
 
 | Part | Case type |
@@ -266,7 +271,7 @@ no is not logged against you. This table maps parts to case types:
 | `tools` | Does nothing beyond the listed actions |
 | `rules` | Each observed failure stays gone |
 
-Add a case only for a failure seen in use, and review the suite's size at
-each amendment. The skill may run cases it wrote only after your yes in chat
+After that first set, add a case only for a failure seen in use, and review
+the suite's size at each amendment. The skill may run cases it wrote only after your yes in chat
 each time, with `--max-cost-usd` and `--no-publish`. One yes never covers the
 next run.

@@ -74,22 +74,26 @@ runs in the session's sandbox, whatever that is. Say so in the hand-back.
 
 ## Settings that let it act without asking
 
-`sandbox_mode`, `default_permissions`, `approval_policy`,
-`approvals_reviewer` and `web_search` change what the agent may do without
-the person's approval, as do `model_instructions_file`,
-`experimental_instructions_file`, `experimental_compact_prompt_file`
-(each loads instructions from a file the contract does not cover),
-`model_catalog_json` and `openai_base_url` (it sends the agent's work to a
-server the file names). Say so when the person picks one. Record the exact
-value of each one under `tools`, marked **Decided**.
+These settings let an agent act without the person's approval: say so when
+the person picks one. Record the exact value of each under `tools`, marked
+**Decided**.
+
+- `sandbox_mode`, `default_permissions`, `approval_policy`,
+  `approvals_reviewer` and `web_search` change what the agent may do.
+- `model_instructions_file`, `experimental_instructions_file` and
+  `experimental_compact_prompt_file` each load instructions from a file the
+  contract does not cover.
+- `model_catalog_json` loads a file the contract does not cover.
+- `openai_base_url` sends the agent's work to a server the file names.
 
 ## Validate
 
 After building, run `claude plugin validate --strict` on the folder that
 holds the built file, when the command is available. The validator is Claude
-Code's and does not read Codex's TOML, so its verdict on this file is
-partial: say so. Show any errors as printed, and fix what is the skill's own.
-When the command is not available, say the file was not validated.
+Code's and does not read Codex's TOML, so it says nothing about this file:
+say so. Show any errors as printed, and fix what is the skill's own. Do not
+call the build done on a failure. When the command is not available, say the
+file was not validated.
 
 ## Example
 
