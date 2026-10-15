@@ -386,8 +386,9 @@ Measured on 2.1.296:
   unknown field fails only under `--strict`: without the flag it is a warning
   and the run exits `0`.
 - **It does not catch** an unknown key in a `SKILL.md`'s frontmatter, or a
-  skill folder with no `SKILL.md` at all. `skills/` is a weak check. A missing
-  `SKILL.md` is `scripts/check.mjs`'s to catch, and it does.
+  skill folder with no `SKILL.md` at all. `skills/` is a weak check. Both are
+  `scripts/check.mjs`'s to catch, and it does: it refuses a missing
+  `SKILL.md`, and a frontmatter key outside its allow-list.
 - **It does not check a skill's name or description** against Anthropic's
   skill rules: it passes a name holding "claude" and a description holding an
   XML tag. It does reject a reserved **plugin** name.

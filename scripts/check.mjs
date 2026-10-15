@@ -10,6 +10,8 @@
 //    a defect.
 //    2b. For every rule, not only 2: every file git tracks is one the walk
 //    read, so no rule here skips a file that ships.
+//    2c. A skill's frontmatter holds only the allow-listed keys, and no file
+//    under skills/ holds a hidden control or line-separator character.
 // 3. The single-pass tag strip does not come back, and no code fence in any
 //    markdown file declares no language.
 // 4. Every plugin in the marketplace manifest exists on disk with a manifest.
@@ -277,6 +279,92 @@ if (!isWorkTreeTop()) {
 for (const skill of files.filter(f => f.endsWith('SKILL.md'))) {
   if (!/^---\r?\n[\s\S]*?^name:/m.test(readFileSync(skill, 'utf8'))) {
     fail(`${rel(skill)} has no frontmatter name — the invocation name would follow the directory`);
+  }
+}
+
+// 2c. A skill's frontmatter holds only the keys below, and no file a skill
+// ships holds a hidden character.
+//
+// Claude Code acts on some frontmatter keys: a `hooks` key registers hooks
+// when the skill is invoked. `claude plugin validate --strict` checks that a
+// frontmatter parses and reads no key's name, so a key like that could merge
+// on review alone. This list is the keys the skills here use, decided at
+// triage of issue 305. A key added here is a security change: say in the pull
+// request what Claude Code does with it.
+const SKILL_KEYS = new Set(['name', 'description', 'compatibility', 'license', 'allowed-tools', 'metadata']);
+//
+// The frontmatter is read by hand, as the baseline reader in rule 7 is: a key
+// at the left margin, bare or quoted, then a colon. Indented lines, list items
+// at the margin, blank lines and comments are values or nothing, and only key
+// names are read. Any other line at the margin sets keys this reader cannot
+// name — a flow map, a `?` key, a `<<` merge, a tab-indented line — so it is
+// refused rather than skipped. A lone CR breaks a YAML line as a line feed
+// does, so each line is split on it too. Every SKILL.md under skills/ is read,
+// in any case, not only skills/<name>/SKILL.md: an install that folds case
+// loads skill.md, and a nested one costs nothing to hold to the same list.
+//
+// The characters: every C0 control but tab, line feed and carriage return; a
+// CR not followed by a line feed; DEL; every C1 control; the two Unicode line
+// separators; and the noncharacters U+FFFE and U+FFFF. Each can make the diff
+// a reviewer reads differ from the text the model reads. A file is text unless
+// its suffix is on the binary list below, so a new kind of file is read rather
+// than skipped; a new binary kind fails here until it is added to the list.
+const BINARY = /\.(woff2?|ttf|otf|png|jpe?g|gif|webp|ico)$/i;
+const HIDDEN = /[\x00-\x08\x0B-\x1F\x7F-\x9F\u{2028}\u{2029}\u{FFFE}\u{FFFF}]/gu;
+const FRONTMATTER_KEY = /^(?:"([^"\\]*)"|'([^']*)'|([A-Za-z0-9_][^:#]*?))[ \t]*:(?:[ \t]|$)/;
+const FENCE_LINE = /^---[ \t]*$/;
+const codePoint = c => `U+${c.codePointAt(0).toString(16).toUpperCase().padStart(4, '0')}`;
+
+for (const f of files.filter(f => relRaw(f).startsWith('skills/') && !BINARY.test(f))) {
+  const text = readFileSync(f, 'utf8');
+  // Each character once a file, at its first line, with a count: one fix
+  // clears every copy, and a file full of them should not bury the rest.
+  const found = new Map();
+  text.split('\n').forEach((raw, i) => {
+    // The CR of a CRLF ending is not a lone one; any other CR is.
+    const line = raw.endsWith('\r') ? raw.slice(0, -1) : raw;
+    for (const [c] of line.matchAll(HIDDEN)) {
+      const seen = found.get(c);
+      if (seen) seen.count++;
+      else found.set(c, { line: i + 1, count: 1 });
+    }
+  });
+  for (const [c, { line, count }] of found) {
+    const what = c === '\r' ? `a lone CR (${codePoint(c)})` : codePoint(c);
+    const times = count > 1 ? `, ${count} times in the file` : '';
+    fail(`${rel(f)}:${line} holds ${what}${times} — a hidden character can make the reviewed diff differ from what the model reads. Remove it.`);
+  }
+}
+
+for (const f of files.filter(f => relRaw(f).startsWith('skills/') && basename(f).toLowerCase() === 'skill.md')) {
+  const lines = readFileSync(f, 'utf8')
+    .replace(/^\u{FEFF}/u, '')
+    .split('\n')
+    .map(l => (l.endsWith('\r') ? l.slice(0, -1) : l));
+  if (!FENCE_LINE.test(lines[0])) {
+    fail(`${rel(f)} does not open with a --- line, so it has no frontmatter for Claude Code to read`);
+    continue;
+  }
+  const close = lines.findIndex((l, i) => i > 0 && FENCE_LINE.test(l));
+  if (close === -1) {
+    fail(`${rel(f)} has no closing --- line, so the check cannot tell its frontmatter from its body`);
+    continue;
+  }
+  for (let i = 1; i < close; i++) {
+    for (const seg of lines[i].split('\r')) {
+      if (!seg.trim() || seg.startsWith('#') || seg.startsWith(' ') || seg === '-' || seg.startsWith('- ')) continue;
+      const m = FRONTMATTER_KEY.exec(seg);
+      if (!m) {
+        fail(`${rel(f)}:${i + 1} holds a frontmatter line the check cannot read as one key: ${shown(excerpt(seg))}`);
+        continue;
+      }
+      const key = m[1] ?? m[2] ?? m[3];
+      if (!SKILL_KEYS.has(key)) {
+        fail(
+          `${rel(f)}:${i + 1} has the frontmatter key "${shown(key)}", which is not one of ${[...SKILL_KEYS].join(', ')}. Claude Code acts on some keys, such as hooks; add one to SKILL_KEYS in scripts/check.mjs only with a reason.`,
+        );
+      }
+    }
   }
 }
 

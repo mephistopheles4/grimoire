@@ -135,7 +135,13 @@ The realistic risks:
   This is the main risk here.
 - **A skill is an instruction file an agent obeys.** Whoever can change a
   `SKILL.md` can change what an agent does on a reader's machine. Branch
-  protection guards this.
+  protection guards this. `scripts/check.mjs` also refuses a `SKILL.md`
+  frontmatter key outside `name`, `description`, `compatibility`, `license`,
+  `allowed-tools` and `metadata`, so a `hooks` key cannot merge unseen, and
+  any file under `skills/` that holds a control character other than tab,
+  line feed and carriage return, a lone carriage return, DEL, U+2028, U+2029,
+  U+FFFE or U+FFFF, which could make the reviewed diff differ from what the
+  model reads.
 - **The mod is code that runs in every session.** Whoever can change
   `brigade/` or `hooks/` changes what runs in every session of every
   installer. Branch protection and `scripts/check.mjs`, which holds the mod to

@@ -12,7 +12,9 @@ node scripts/check.mjs
 
 That is the contract, and it is still one command. It validates every
 artifact in the tree with the renderer its registry row names, checks that no
-file a skill or the mod ships has grown a fixed path back, fails on a code fence that declares no
+file a skill or the mod ships has grown a fixed path back, fails on a skill
+frontmatter key outside its allow-list and on a hidden character in a skill
+file, fails on a code fence that declares no
 language, fails on a dependency, fails when the two SkillSpector baselines
 disagree, and runs the test suite in `tests/`. CI
 runs it as a required check called `check`. `main` takes no direct pushes.
@@ -55,7 +57,7 @@ not take, and `SECURITY.md` explains why that matters more than it looks.
 run only the suite while you work on it:
 
 ```bash
-node --test tests/audit.test.mjs tests/brigade-roster-rules.test.mjs tests/brigade-view.test.mjs tests/build-pages.test.mjs tests/case.test.mjs tests/check-allowances.test.mjs tests/check-baseline-rules.test.mjs tests/check-baselines.test.mjs tests/check-format.test.mjs tests/check-home-paths.test.mjs tests/check-home-shapes.test.mjs tests/check-manifests.test.mjs tests/check-mod.test.mjs tests/check-paths.test.mjs tests/check-test-step.test.mjs tests/check-tracked.test.mjs tests/check-tree.test.mjs tests/check-version.test.mjs tests/eagle-eye-sheets.test.mjs tests/esc.test.mjs tests/groundtrack-fold.test.mjs tests/groundtrack-render.test.mjs tests/groundtrack-sheets.test.mjs tests/practice.test.mjs tests/registry.test.mjs tests/render.test.mjs tests/skillspector-gate.test.mjs tests/skillspector-strip-suppressed.test.mjs
+node --test tests/audit.test.mjs tests/brigade-roster-rules.test.mjs tests/brigade-view.test.mjs tests/build-pages.test.mjs tests/case.test.mjs tests/check-allowances.test.mjs tests/check-baseline-rules.test.mjs tests/check-baselines.test.mjs tests/check-format.test.mjs tests/check-home-paths.test.mjs tests/check-home-shapes.test.mjs tests/check-manifests.test.mjs tests/check-mod.test.mjs tests/check-paths.test.mjs tests/check-skill-files.test.mjs tests/check-test-step.test.mjs tests/check-tracked.test.mjs tests/check-tree.test.mjs tests/check-version.test.mjs tests/eagle-eye-sheets.test.mjs tests/esc.test.mjs tests/groundtrack-fold.test.mjs tests/groundtrack-render.test.mjs tests/groundtrack-sheets.test.mjs tests/practice.test.mjs tests/registry.test.mjs tests/render.test.mjs tests/skillspector-gate.test.mjs tests/skillspector-strip-suppressed.test.mjs
 ```
 
 **The suite never reaches the network.** eagle-eye's edge audit is the one
@@ -194,6 +196,22 @@ the ignore line, or untrack the file.
 
 **Keep the frontmatter `name`.** Claude Code takes the skill's invocation name
 from it, so the name survives whatever the install directory is called.
+
+**Use only the allow-listed frontmatter keys.** A `SKILL.md` may hold `name`,
+`description`, `compatibility`, `license`, `allowed-tools` and `metadata` at
+the top of its frontmatter, and `scripts/check.mjs` fails on any other key,
+naming the file and the key. Claude Code acts on some keys: a `hooks` key
+registers hooks when the skill is invoked. The list is `SKILL_KEYS` in
+`scripts/check.mjs`; a pull request that adds a key says what Claude Code does
+with it. The check reads key names only, never their values.
+
+**No hidden characters in a skill file.** The check fails on any file under
+`skills/` that holds a control character other than tab, line feed and
+carriage return, a carriage return not followed by a line feed, DEL, U+2028,
+U+2029, U+FFFE or U+FFFF, and names the file, the line and the code point.
+Each can make the diff you review differ from the text the model reads. Every
+file is read as text unless its suffix is on the check's binary list, so a new
+kind of binary file fails until the list names it.
 
 **Write to the skill's own rules.** eagle-eye's prose follows ASD-STE100 tested
 against ISO 24495-1: active voice, present tense, one instruction per sentence,
