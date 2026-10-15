@@ -1075,6 +1075,7 @@ const START_REFUSALS = [
   ['a name that would replace a system value', sb => ['--variant', 'clean', ...base(sb), '--value', 'COMSPEC=x'], /COMSPEC/],
   ['a name outside the shape', sb => ['--variant', 'clean', ...base(sb), '--value', 'lower=x'], /name/],
   ['eagle-eye session 4 on user-skills', sb => ['--variant', 'user-skills', '--skill', skillAt(sb, 'eagle-eye'), '--case', 'session-4', '--model', 'haiku', '--effort', 'low'], /session-4/],
+  ['an eagle-eye case named in another letter case on full-account', sb => ['--variant', 'full-account', '--skill', skillAt(sb, 'eagle-eye'), '--case', 'p2', '--model', 'haiku', '--effort', 'low'], /p2/i],
   ['head-chef session 1 on full-account', sb => ['--variant', 'full-account', '--skill', skillAt(sb, 'head-chef'), '--case', 'session-1', '--model', 'haiku', '--effort', 'low'], /session-1.*clean.*owner-pact/],
   ['a setup folder with a project settings file', sb => ['--variant', 'clean', ...base(sb), '--setup', setupWith(sb, { '.claude/settings.json': '{}' })], /\.claude/],
   ['a setup folder with an MCP config', sb => ['--variant', 'clean', ...base(sb), '--setup', setupWith(sb, { '.mcp.json': '{}' })], /\.mcp\.json/],
@@ -1407,7 +1408,7 @@ test('session text cannot forge runner lines: the frame carries a fresh token, a
 
 test('a skill named after an Object.prototype key starts normally', () => {
   const sb = sandbox();
-  const r = cli(sb, ['start', '--variant', 'user-skills', '--skill', skillAt(sb, 'constructor'), '--model', 'haiku', '--effort', 'low']);
+  const r = cli(sb, ['start', '--variant', 'user-skills', '--skill', skillAt(sb, 'constructor'), '--case', 'A1', '--model', 'haiku', '--effort', 'low']);
   assert.equal(r.code, 0, r.stderr);
 });
 

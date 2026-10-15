@@ -245,11 +245,13 @@ Why a skill may name the tools it targets:
 **A skill with a `CONTRACT.md` beside its `SKILL.md` is generated from it.**
 Today that is `skills/contract/`, `skills/eagle-eye/` and `skills/head-chef/`. Do not edit such a
 `SKILL.md` by hand. Change the contract and raise its `Version:` line,
-generate the `SKILL.md` again, then validate the repository:
+generate the `SKILL.md` again, then validate the skills folder:
 
 ```bash
-claude plugin validate --strict .
+claude plugin validate --strict skills
 ```
+
+That checks that each frontmatter parses, and nothing about a key's meaning.
 
 Nothing seals a generated `SKILL.md` and nothing checks it against its
 contract, so a reviewer reads every changed file in full, and reviews the

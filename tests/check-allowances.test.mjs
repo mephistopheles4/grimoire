@@ -213,8 +213,7 @@ test('a CRLF checkout hashes the same as an LF one', () => {
 });
 
 test('a lone CR hashes the same as an LF too, and nothing else is folded', () => {
-  // Through the module, because the format check refuses a lone CR in a
-  // skill, so no tree can carry one to the check.
+  // Through the module, so the case needs no tree to carry the lone CR.
   const lf = contentHash(Buffer.from('one\ntwo\n'));
   assert.equal(contentHash(Buffer.from('one\rtwo\r')), lf);
   assert.equal(contentHash(Buffer.from('one\r\ntwo\r\n')), lf);

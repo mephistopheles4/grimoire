@@ -111,10 +111,15 @@ optional edge audit sends to a provider: see
 No script in the tree rewrites a file a person hands it. The contract skill
 validates what it builds with `claude plugin validate --strict`, the standard
 tool, run on the folder that holds the built skill or agent. That command is
-Claude Code's, not this repository's, and its pass says a file is well formed,
-not that anyone reviewed it. When the command is not available, the skill says
-the file was not validated. Nothing seals a generated file: git history shows a
-hand edit, and a reviewer reads every changed file in full.
+Claude Code's, not this repository's. Its pass says the frontmatter parses and a
+manifest matches the schema; it reads no key's meaning, and it may read no agent,
+CLAUDE.md or Codex file at all. It says nothing about who reviewed anything. When the command is not available, the skill says
+the file was not validated. The skill shows the validator's output as printed,
+which may repeat file paths and text from the file. Nothing seals a generated
+file: git history shows a hand edit, and a reviewer reads every changed file in
+full. Nothing warns any more on a setting that lets an agent act without the
+person's approval, or sends the agent's work to a server the file names; the
+person reads those keys.
 
 The attacks worth planning for, scenario by scenario, with what stops each
 one and what still gets through: [docs/security/threat-model.md](docs/security/threat-model.md).
@@ -244,5 +249,7 @@ are the setting above.
 - **A malicious maintainer account.** Branch protection raises the cost of a
   bad commit. It does not survive a stolen admin account.
 - **A skill, an agent and a contract from someone else.** A pass of
-  `claude plugin validate --strict` says the files are well formed, not that
-  anyone reviewed them. Read the files first.
+  `claude plugin validate --strict` says a frontmatter parses, not that anyone
+  reviewed the file. Read the files first. The eagle-eye, head-chef and contract
+  skills still carry seal marks from the old check; they are inert and prove
+  nothing, and go when each skill is next generated.

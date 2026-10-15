@@ -64,8 +64,8 @@ export function tree() {
   // The SkillSpector allowance, whose entries name files under skills/ and
   // pin their content, so the copy above keeps every hash true.
   cpSync(join(root, allowancesName), join(dir, allowancesName));
-  // eagle-eye is sealed, so any edit to it breaks its mark. A test that edits
-  // a skill and expects a pass edits this unsealed fixture instead. It carries a
+  // A test that edits a skill and expects a pass edits this fixture, so it
+  // never touches a skill that ships. It carries a
   // copy of eagle-eye's baseline, so the two-baseline agreement rules see it too.
   const fixture = fixtureSkill(dir, 'unsealed-fixture');
   cpSync(join(root, 'skills', 'eagle-eye', baselineName), join(fixture, baselineName));
