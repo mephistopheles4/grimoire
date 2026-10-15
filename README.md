@@ -106,14 +106,14 @@ one you want.
 
 Reach for it when you want a skill, an agent or a CLAUDE.md of your own and
 have never written one. contract interviews you through a template, one group
-of questions at a time, and writes your answers down as a contract. It calls what
-you build a **familiar**: a skill, an agent or a main agent file (a
-CLAUDE.md) that does one job for you.
+of questions at a time, and writes your answers down as a contract. What you
+build is a skill, an agent or a main agent file (a CLAUDE.md) that does one job
+for you.
 
-It then generates the familiar's file from the contract and checks its format.
-A mark in the file makes the check fail when anyone edits the file by hand. When a
-familiar goes wrong, you amend the contract and generate the file again. It
-never installs what it builds. Not for a one-off prompt.
+It then generates the file from the contract and validates it with
+`claude plugin validate --strict`. When a skill or agent goes wrong, you amend
+the contract and generate the file again. It never installs what it builds. Not
+for a one-off prompt.
 
 The questions, the levels and the marks:
 [`skills/contract/references/template.md`](skills/contract/references/template.md).

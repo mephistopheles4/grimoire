@@ -158,7 +158,7 @@ and carries a reason. The rules that hold it:
 
 The allowance lives at the repository root, not in each skill. The gate reads
 it, not SkillSpector, so a copy inside an installed skill would do nothing for
-someone scanning it, and an entry change would reseal the skill. The cost is
+someone scanning it, and an entry change would touch the skill. The cost is
 that a reader who scans an installed skill with 2.11.2 sees the partial reads
 with no shipped explanation. This page is that explanation.
 
@@ -185,8 +185,8 @@ first reason above: a skill directory is what installs.
 
 ### Partial reads
 
-Under 2.11.2 the scanner reads some files in `contract`, `eagle-eye`,
-`groundtrack` and `head-chef` only in part, and the gate accepts each one by
+Under 2.11.2 the scanner reads some files in `eagle-eye`, `groundtrack` and
+`head-chef` only in part, and the gate accepts each one by
 name. In plain words, the two reasons are:
 
 - **The command parser gave up** (`static_parse_limit`). A long expression ran
@@ -218,23 +218,19 @@ Each suppression is keyed by **rule**, with a written reason.
 | `PE3` | Credential Access | The string `.env` in the edge audit's setup message, which tells a user a project `.env` is **not** read. |
 | `E1` | External Transmission | **Accepted, not a false positive.** The edge audit posts a box's text to the provider after a yes. See [the edge audit](edge-audit.md). |
 | `P2` | Hidden Instructions | A layout comment in `groundtrack`'s template. The rule matches *get* inside *together*. |
-| `OH3` | Unbounded Output | A code comment in `contract`'s format check that explains the cap on how many lines of refusals it prints, which exists so a hostile file cannot flood the output. **On `contract` it is off for the whole skill.** The owner accepted that breadth on 2026-09-30, as for `EA2`. |
 | `LP3` | MCP Least Privilege | **Accepted.** Neither skill declares a permission list, because that is one host's format and the skills run in agents that read none. On `groundtrack` it fires only when every file is marked executable, as on a Windows drive seen through WSL. |
 
 **Open: narrower suppression for one skill.** An entry keyed by rule cannot be
 narrowed to one file today. `node scripts/check.mjs` holds each skill's entry to
-the root's words and scope, so the `contract` skill's `EA2` and `OH3` entries
-cover its whole directory, not only the texts they are about. A new `EA2` or
-`OH3` finding anywhere in that skill would be suppressed and would not fail the
-build. The same holds for `head-chef`'s `AS3` entry, added in #206: a later
+the root's words and scope, so the `contract` skill's `EA2` entry covers its
+whole directory, not only the texts it is about. A new `EA2` finding anywhere in
+that skill would be suppressed and would not fail the build. The same holds for `head-chef`'s `AS3` entry, added in #206: a later
 `head-chef` text that lists or reads other skills would pass the scan, and only
 review of the prose would catch it. Narrowing it needs a change to that rule, with its own review. Until then
 the breadth is written in the skill's baseline header.
 
-**A shared reason is sealed.** The `contract` skill's seal covers every file in
-its folder, its baseline included. A change to a reason the root shares with
-that baseline forces the same change there, and a new seal of
-`skills/contract`.
+**A shared reason is held to one wording.** A change to a reason the root shares
+with a skill's baseline forces the same change there.
 
 **Why by rule and not by fingerprint.** A fingerprint is tied to the exact text
 and expires whenever the text or the scanner version changes. On prose that is

@@ -22,8 +22,8 @@
 // manual procedure, not a runner variant.
 //
 // --case names the case being run. Two kinds of case run only on clean and
-// owner-pact, and start refuses them elsewhere: contract's B3 and B25b, and
-// eagle-eye's session 4, named session-4 or by one of its cases P1 to P4.
+// owner-pact, and start refuses them elsewhere: eagle-eye's session 4, named
+// session-4 or by one of its cases P1 to P4, and head-chef's session 1.
 //
 // --value NAME=literal sets a test value in the session's environment, such as
 // a fake key. It is always a literal written in the case, never the runner's
@@ -523,7 +523,7 @@ const startupName = name => STARTUP_NAMES.has(name) || STARTUP_PREFIXES.some(p =
 // that loads user settings, the owner's own allow rules merge into it, and a
 // settings key could replace the fake one. Keyed by the skill under test's
 // name, as its SKILL.md gives it. Case names compare without regard to case.
-const RUNNER_ONLY_CASES = { contract: ['B3', 'B25b'], 'eagle-eye': ['session-4', 'P1', 'P2', 'P3', 'P4'], 'head-chef': ['session-1'] };
+const RUNNER_ONLY_CASES = { 'eagle-eye': ['session-4', 'P1', 'P2', 'P3', 'P4'], 'head-chef': ['session-1'] };
 const RUNNER_ONLY_VARIANTS = ['clean', 'owner-pact'];
 
 // A value quoted in a reason: escaped onto one line, and cut from the front

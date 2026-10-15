@@ -2,16 +2,6 @@
   "version": 1,
   "exceptions": [
     {
-      "skill": "contract",
-      "path": "scripts/check.mjs",
-      "reason_code": "static_parse_limit",
-      "analyzers": [
-        "static_patterns_tool_misuse"
-      ],
-      "sha256": "57bcf5b1a1da01c971a6317d7d79b7828007ba9e36e67ffa0fa1d389881f7f82",
-      "reason": "The contract skill's format check script. The destructive-command parser stops partway through a long expression and marks the file partial for that one check; every other check reads it in full. The entry also accepts a marker-pass give-up inside that one check, which the scanner reports under this code. Re-read on 2026-10-11 for contract 0.10.0 (issue 160): the new lines, a name fold, a line rule and their refusals for keys, comments and lines named like a mark key, were read by hand; they are string operations and single-code-point property tests, with no command, removal verb or disguised directive. Re-read on 2026-10-11 after the review round (issue 277): the changed lines are comments only, and hold none either. Re-read on 2026-10-11 for contract 0.11.0 (issue 160): the new lines, a warnings list with a rank, a cap and count lines, and a quoted, cut key echo, were read by hand; they hold no command, removal verb or disguised directive. Re-read on 2026-10-11 after the review round (issue 278): the seal's steps moved into sealSteps behind a refusal handler and a helper was renamed; the changed lines hold none either."
-    },
-    {
       "skill": "eagle-eye",
       "path": "audit.mjs",
       "reason_code": "static_parse_limit",

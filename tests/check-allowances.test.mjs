@@ -118,7 +118,8 @@ test('a count that is not a positive whole number fails', () => {
 test('a skill with no SKILL.md fails', () => {
   const dir = tree();
   edit(dir, a => {
-    a.exceptions[0].skill = 'no-such-skill';
+    // exceptions[0] is a file references point at, so it would fail twice.
+    a.exceptions[1].skill = 'no-such-skill';
   });
   assertFails(dir, /skills\/no-such-skill\/ has no SKILL\.md/);
 });
@@ -126,7 +127,7 @@ test('a skill with no SKILL.md fails', () => {
 test('a path, from or target that does not exist fails', () => {
   const dir = tree();
   edit(dir, a => {
-    a.exceptions[0].path = 'no-such-file.mjs';
+    a.exceptions[1].path = 'no-such-file.mjs';
   });
   assertFails(dir, /no-such-file\.mjs does not exist/);
   const dir2 = tree();
