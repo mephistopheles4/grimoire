@@ -242,7 +242,7 @@ narrower one:
 Why a skill may name the tools it targets:
 [`docs/adr/0005-skills-name-their-targets.md`](docs/adr/0005-skills-name-their-targets.md).
 
-**A skill with a `CONTRACT.md` beside its `SKILL.md` is generated from it.**
+**A skill with a `CONTRACT.md`, beside its `SKILL.md` or in its `references/`, is generated from it.**
 Today that is `skills/contract/`, `skills/eagle-eye/` and `skills/head-chef/`. Do not edit such a
 `SKILL.md` by hand. Change the contract and raise its `Version:` line,
 generate the `SKILL.md` again, then validate the skills folder:

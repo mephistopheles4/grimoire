@@ -105,8 +105,8 @@ one you want.
 **Agree the terms first. The prompt is build output.**
 
 Reach for it when you want a skill, an agent or a CLAUDE.md of your own and
-have never written one. contract interviews you through a template, one group
-of questions at a time, and writes your answers down as a contract. What you
+have never written one. contract interviews you through a template, one question
+at a time, and writes your answers down as a contract. What you
 build is a skill, an agent or a main agent file (a CLAUDE.md) that does one job
 for you.
 
@@ -118,7 +118,7 @@ for a one-off prompt.
 The questions, the levels and the marks:
 [`skills/contract/references/template.md`](skills/contract/references/template.md).
 The skill's own contract, which its `SKILL.md` is generated from:
-[`skills/contract/CONTRACT.md`](skills/contract/CONTRACT.md).
+[`skills/contract/references/CONTRACT.md`](skills/contract/references/CONTRACT.md).
 
 ## <img src="docs/brand/head-chef/head-chef-mark-solid.svg" width="32" align="absmiddle" alt=""> [head-chef](skills/head-chef)
 
