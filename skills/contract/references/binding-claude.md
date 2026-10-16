@@ -123,10 +123,13 @@ person's approval: say so when the person picks one. Record each value under
 
 ## Validate
 
-After building, run `claude plugin validate --strict` on the folder that
-holds the built file, when the command is available. Show the errors as
-printed, fix what is the skill's own, and do not call the build done on a
-failure. When the command is not available, say the file was not validated.
+After building an agent, run `claude plugin validate --strict` on the folder
+that holds the agent's file, when the command is available. A clean pass
+names no file: unless the output names the built file, say it passed and
+named no file. Show the errors as printed, fix what is the skill's own, and
+do not call the build done on a failure. When the command is not available,
+say the file was not validated. The validator does not read a CLAUDE.md, so
+a CLAUDE.md is not validated: say so.
 
 ## Example
 

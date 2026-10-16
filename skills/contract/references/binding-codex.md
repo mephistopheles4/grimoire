@@ -88,12 +88,9 @@ the person picks one. Record the exact value of each under `tools`, marked
 
 ## Validate
 
-After building, run `claude plugin validate --strict` on the folder that
-holds the built file, when the command is available. The validator is Claude
-Code's and does not read Codex's TOML, so it says nothing about this file:
-say so. Show any errors as printed, and fix what is the skill's own. Do not
-call the build done on a failure. When the command is not available, say the
-file was not validated.
+`claude plugin validate --strict` is Claude Code's validator, and it does not
+read Codex's TOML. Do not run it on a Codex agent. Say plainly that the file
+was not validated.
 
 ## Example
 

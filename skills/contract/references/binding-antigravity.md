@@ -60,11 +60,12 @@ their approval, say so, and record it under `tools`, marked **Decided**.
 ## Validate
 
 After building, run `claude plugin validate --strict` on the folder that
-holds the built file, when the command is available. Show the errors as
-printed, fix what is the skill's own, and do not call the build done on a
-failure. The validator is Claude Code's, so its verdict on an Antigravity
-file is partial: say so. When the command is not available, say the file was
-not validated.
+holds the agent's file, when the command is available. A clean pass names no
+file: unless the output names the built file, say it passed and named no
+file. Show the errors as printed, fix what is the skill's own, and do not
+call the build done on a failure. The validator is Claude Code's, so its
+verdict on an Antigravity file is partial: say so. When the command is not
+available, say the file was not validated.
 
 ## Example
 

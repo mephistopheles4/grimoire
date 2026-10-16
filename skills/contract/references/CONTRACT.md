@@ -121,8 +121,12 @@ not show this skill finds them in a contract it helped write.
   installs), and what happens when it does not. It records a hook as the
   person's to install, and writes none.
 - *Proposed.* It writes the contract and its change log, generates the built
-  file, and runs `claude plugin validate --strict` on the folder that holds
-  it, when the command is available.
+  file, and runs `claude plugin validate --strict` when the command is
+  available: on the `skills/` folder that holds a skill's folder, or on the
+  folder that holds an agent's file. A clean pass names no file, so unless
+  the output names the built file, it says the pass named no file. It says a
+  CLAUDE.md or a Codex agent was not validated, since the validator does not
+  read either.
 - *Proposed.* It tells the person, when they pick a skill's name, that a name
   holding "anthropic" or "claude" breaks Anthropic's Skills docs. If they
   keep it, it records the name **Decided** with that noted.
@@ -217,7 +221,7 @@ decide not to, from these parts alone.
 |---|---|
 | Read | To read the template, an existing contract, or an existing skill, agent or CLAUDE.md |
 | Write, Edit | To write the contract, its change log and the built file, where the person's skills and agents already live |
-| One shell command, `claude plugin validate --strict '<folder>'` | To validate the built file. A deterministic check must be code, not a model's opinion. It refuses a path that holds a single quote |
+| One shell command, `claude plugin validate --strict '<path>'` | To validate the built file. A deterministic check must be code, not a model's opinion. It refuses a path that holds a single quote |
 | `claude plugin eval`, with `--max-cost-usd` and `--no-publish` | To run eval cases it wrote, only after the person's yes in chat each time. One yes never covers the next run |
 | `references/binding-claude.md`, `binding-antigravity.md`, `binding-codex.md` | To map an agent's plain capabilities to the tool it is built for. One file per tool, each with the tool version it was last checked against. The split is **Decided**; the files' text is *Proposed* |
 

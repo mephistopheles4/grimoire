@@ -40,8 +40,12 @@ when the person wants any change to it.
    reference file is added, removed or renamed.
 7. **Show the change list, and wait for the person's go.**
 8. **Validate,** as the binding says: run `claude plugin validate --strict`
-   on the folder that holds the built file, when the command is available.
-   When it is not, say the file was not validated.
+   when the command is available. For a skill, the path is the `skills/`
+   folder that holds the skill's folder. For an agent, it is the folder that
+   holds the agent's file. A clean pass names no file: unless the output
+   names the built file, say it passed and named no file. When the command
+   is not available, or the file is a CLAUDE.md or a Codex agent, which it
+   does not read, say the file was not validated.
 
 ## Converting an older contract
 

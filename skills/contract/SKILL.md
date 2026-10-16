@@ -231,14 +231,18 @@ reference files, leave the section out.
 
 ## Validate
 
-After building, run this on the folder that holds the built file, with the
-path in single quotes:
+After building, run this, with the path in single quotes. For a skill, the
+path is the `skills/` folder that holds the skill's folder. For an agent, it
+is the folder that holds the agent's file. The validator does not read a
+CLAUDE.md or a Codex agent: say that one was not validated.
 
 ```text
-claude plugin validate --strict '<folder>'
+claude plugin validate --strict '<path>'
 ```
 
-Refuse a path that holds a single quote.
+Refuse a path that holds a single quote. The validator names only the files
+it finds a problem in, so a clean pass names no file. Unless the output names
+the built file, say it passed and named no file.
 
 When it fails, show the errors as printed. Fix what is your own. Do not call
 the build done. Never change a **Decided** answer to make it pass: say
