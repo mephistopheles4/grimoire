@@ -36,6 +36,9 @@ in one plain sentence:
   `---` lines.
 - **Binding:** a reference file that maps the contract's plain words for one
   tool to that tool's names and keys.
+- **Install:** writing the built file into a folder the person's tool loads
+  at the start of a session. The first write there is the install, so ask
+  before it.
 - **Step in, stay out:** whether a skill takes a request, or leaves it alone.
 - **Self-check:** a test you run on your own drafts, such as the template's
   *Test:* lines.
@@ -148,7 +151,8 @@ Neither opens with frontmatter.
 Hand back these parts, in this order:
 
 1. **The contract** and its change log, each answer with its mark.
-2. **The built file,** with the words **"not installed"**.
+2. **The built file,** with the words **"not installed"**, or "installed"
+   when the person said yes to writing it where their tool loads it.
 3. **The validator's output** as printed, or the words "not validated" when
    the command is not available.
 4. **The unsettled list,** last: each answer still *Proposed*, each open

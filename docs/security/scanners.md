@@ -217,20 +217,28 @@ Each suppression is keyed by **rule**, with a written reason.
 | `RP1` | Unpinned MCP server | The `README.md` install command. `skills` is the Vercel Labs installer, not an MCP server. |
 | `PE3` | Credential Access | The string `.env` in the edge audit's setup message, which tells a user a project `.env` is **not** read. |
 | `E1` | External Transmission | **Accepted, not a false positive.** The edge audit posts a box's text to the provider after a yes. See [the edge audit](edge-audit.md). |
-| `P2` | Hidden Instructions | A layout comment in `groundtrack`'s template. The rule matches *get* inside *together*. And `contract`'s part fences: a begin and an end comment line around each generated part of its `SKILL.md`, naming the part. **On `contract` it is off for the whole skill**, so a comment hiding an instruction there would pass the scan; added on 2026-10-15. |
-| `MP1` | Persistent Context Injection | A row of `contract`'s change log that records why the skill was rebuilt: every earlier review finding had become *a permanent rule*. **On `contract` it is off for the whole skill**, added on 2026-10-15. |
+| `P2` | Hidden Instructions | A layout comment in `groundtrack`'s template. The rule matches *get* inside *together*. And `contract`'s part fences: a begin and an end comment line around each generated part of its `SKILL.md`, naming the part. **On `contract` it is off for the whole skill**, so an instruction hidden there in a comment, invisible characters or a data link would pass the scan; added on 2026-10-15. |
+| `MP1` | Persistent Context Injection | A row of `contract`'s change log that records why the skill was rebuilt: every earlier review finding had become *a permanent rule*. Its entry names that one file, so it still fires anywhere else; added on 2026-10-15. |
 | `LP3` | MCP Least Privilege | **Accepted.** Neither skill declares a permission list, because that is one host's format and the skills run in agents that read none. On `groundtrack` it fires only when every file is marked executable, as on a Windows drive seen through WSL. |
 
-**Open: narrower suppression for one skill.** An entry keyed by rule cannot be
-narrowed to one file today. `node scripts/check.mjs` holds each skill's entry to
+**Open: narrower suppression for one skill.** An entry for a rule another skill
+shares cannot be narrowed to one file today. `node scripts/check.mjs` holds each skill's entry to
 the root's words and scope, so the `contract` skill's `EA2` entry covers its
 whole directory, not only the texts it is about. A new `EA2` finding anywhere in
 that skill would be suppressed and would not fail the build. The same holds for `head-chef`'s `AS3` entry, added in #206: a later
 `head-chef` text that lists or reads other skills would pass the scan, and only
-review of the prose would catch it. And for `contract`'s `P2`, `RA2` and `MP1`
-entries, added on 2026-10-15: a comment hiding an instruction anywhere in that
-skill would pass the scan, and only review of the prose would catch it. Narrowing it needs a change to that rule, with its own review. Until then
-the breadth is written in the skill's baseline header.
+review of the prose would catch it. And for `contract`'s `P2` and `RA2`
+entries, added on 2026-10-15. With `P2` off, an instruction hidden anywhere in
+that skill would pass the scan: in a comment or a link-reference comment, in
+invisible characters (zero-width, direction-changing or Unicode tag
+characters), or in a base64 data link. With `RA2` off, so would an instruction
+to persist on the person's machine: a scheduled job, a startup or profile file,
+a background process or a hidden folder. The skill's template would copy any of
+them into every file it builds, and only review of the prose would catch it.
+`MP1` is not shared, so its entry names the one file it fires on,
+`contract.changelog.md`, and it still fires anywhere else. Narrowing a shared
+rule needs a change to that check, with its own review. Until then the breadth
+is written in the skill's baseline header.
 
 **A shared reason is held to one wording.** A change to a reason the root shares
 with a skill's baseline forces the same change there.

@@ -202,7 +202,8 @@ draft *Proposed*.
 **What it hands back** (*Proposed*), in this order:
 
 1. **The contract** and its change log, each answer with its mark.
-2. **The built file**, with the words **"not installed"**.
+2. **The built file**, with the words **"not installed"**, or "installed"
+   when the person said yes to writing it where their tool loads it.
 3. **The validator's output** as printed, or the words "not validated" when
    the command is not available.
 4. **The unsettled list**, last: each answer still *Proposed*, each open
@@ -336,6 +337,7 @@ change-log row.
 | Freedom | Open, guided or fixed, on each clause of the built file | Anthropic's high, medium and low freedom |
 | Frontmatter | The block of settings at the top of a file, between two `---` lines | |
 | Binding | A reference file that maps the contract's plain words for one tool to that tool's names and keys | |
+| Install | Writing the built file into a folder the person's tool loads at the start of a session. The first write there is the install | |
 | Step in, stay out | Whether a skill takes a request, or leaves it alone | |
 | Self-check | A test the skill runs on its own drafts, such as the template's *Test:* lines | |
 

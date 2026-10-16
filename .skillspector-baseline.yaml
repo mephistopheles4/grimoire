@@ -61,4 +61,5 @@ rules:
   - rule_id: "P2"
     reason: "False positive, two kinds. The rule reads get inside any HTML comment with no word boundary, so the word together in a page-template comment about two buttons wrapping as one group matches it; those comments are notes on layout for a maintainer, and no agent reads the rendered page as instructions. And the contract skill's part fences: one begin and one end comment line around each generated part of a SKILL.md, naming the part so an amendment can regenerate it alone. The fence holds a part's name and nothing else, and the text between two fences is the skill's ordinary, visible instructions."
   - rule_id: "MP1"
+    file: "*contract.changelog.md"
     reason: "False positive. The words a permanent rule in the contract skill's change log, in the row that records why the skill was rebuilt: every earlier review finding had become a permanent rule, and nothing let one be dropped. It describes the skill's past for a person reading its history, and the skill tells an agent to read the change log only when someone asks what changed."
