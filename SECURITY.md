@@ -209,8 +209,12 @@ the test override: [`docs/security/edge-audit.md`](docs/security/edge-audit.md).
   such a file passes too, when its count matches. See
   [Partial reads](docs/security/scanners.md#partial-reads). Every suppression
   carries a written reason. A suppression is keyed by rule, so it holds for a
-  whole skill: P2, RA2 and MP1 are off for all of the contract skill, and an
-  instruction hidden in a comment there would pass the scan.
+  whole skill: P2 and RA2 are off for all of the contract skill, and MP1 for
+  its change log only. So an instruction hidden there in a comment, a
+  link-reference comment or a base64 data link, or an instruction to persist
+  on the machine (a scheduled job, a startup or profile file, a background
+  process or a hidden folder), would pass the scan. Rule 2c refuses invisible
+  characters.
 - **zizmor** audits the workflows and fails on any finding. There is no
   baseline, because there is nothing to suppress.
 - **Every action is pinned to a commit SHA**, and zizmor checks each SHA
