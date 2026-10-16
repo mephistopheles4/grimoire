@@ -16,6 +16,9 @@ import { tree, assertPasses, assertFails } from './check-fixture.mjs';
 const CR = String.fromCharCode(13);
 const LS = String.fromCodePoint(0x2028);
 
+// Text matched as itself inside a RegExp: every metacharacter escaped.
+const literal = text => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
 // A skill written into the copy at run time, with the SKILL.md text given
 // whole, frontmatter included.
 function skill(dir, name, text) {
@@ -44,7 +47,7 @@ test('a lowercase skill.md and a nested SKILL.md are held to the same list', () 
     const file = join(dir, 'skills', ...at);
     mkdirSync(join(file, '..'), { recursive: true });
     writeFileSync(file, front(...named(at[0]), 'hooks: {}'));
-    assertFails(dir, new RegExp(`skills/${at.join('/').replace(/\./g, '\\.')}:4 has the frontmatter key "hooks"`));
+    assertFails(dir, new RegExp(`skills/${literal(at.join('/'))}:4 has the frontmatter key "hooks"`));
   }
 });
 
@@ -223,7 +226,7 @@ test('a hidden character fails in every text kind a skill ships', () => {
     const dir = tree();
     const at = skill(dir, 'kinds', front(...named('kinds')));
     writeFileSync(join(at, name), `one${LS}two\n`);
-    assertFails(dir, new RegExp(`skills/kinds/${name.replace('.', '\\.')}:1 holds U\\+2028`));
+    assertFails(dir, new RegExp(`skills/kinds/${literal(name)}:1 holds U\\+2028`));
   }
 });
 
