@@ -140,8 +140,10 @@ The realistic risks:
   `allowed-tools` and `metadata`, so a `hooks` key cannot merge unseen, and
   any file under `skills/` that holds a control character other than tab,
   line feed and carriage return, a lone carriage return, DEL, U+2028, U+2029,
-  U+FFFE or U+FFFF, which could make the reviewed diff differ from what the
-  model reads.
+  U+FFFE, U+FFFF, a default ignorable code point (tag characters, zero-width
+  characters, the soft hyphen, variation selectors) or a bidi control, which
+  could make the reviewed diff differ from what the model reads. A BOM is
+  allowed as a file's first character only.
 - **The mod is code that runs in every session.** Whoever can change
   `brigade/` or `hooks/` changes what runs in every session of every
   installer. Branch protection and `scripts/check.mjs`, which holds the mod to

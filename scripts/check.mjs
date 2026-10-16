@@ -309,14 +309,18 @@ const SKILL_KEYS = new Set(['name', 'description', 'compatibility', 'license', '
 //
 // The characters: every C0 control but tab, line feed and carriage return; a
 // CR not followed by a line feed; DEL; every C1 control; the two Unicode line
-// separators; and the noncharacters U+FFFE and U+FFFF. Each can make the diff
-// a reviewer reads differ from the text the model reads. Every file is text
+// separators; the noncharacters U+FFFE and U+FFFF; and every default
+// ignorable code point and bidi control, which take in the tag characters a
+// model reads as letters, the zero-width characters, the soft hyphen, the
+// variation selectors and the marks that reorder text. A BOM is exempt only
+// as a file's first character. Each can make the diff a reviewer reads differ
+// from the text the model reads. Every file is text
 // but a binary kind listed below, and a file of that kind must open with its
 // format's signature, so a text file renamed .woff2 is read as text. A new
 // binary kind fails here until it is listed with its signature.
 const BINARY = new Map([['.woff2', Buffer.from('wOF2')]]);
 const binaryKind = f => BINARY.get(posix.extname(f.toLowerCase()));
-const HIDDEN = /[\x00-\x08\x0B-\x1F\x7F-\x9F\u{2028}\u{2029}\u{FFFE}\u{FFFF}]/gu;
+const HIDDEN = /[\x00-\x08\x0B-\x1F\x7F-\x9F\u{2028}\u{2029}\u{FFFE}\u{FFFF}\p{Default_Ignorable_Code_Point}\p{Bidi_Control}]/gu;
 const FRONTMATTER_KEY = /^(?:"([^"\\]*)"|'([^']*)'|([A-Za-z0-9_][^:#]*?))[ \t]*:(?:[ \t]|$)/;
 const codePoint = c => `U+${c.codePointAt(0).toString(16).toUpperCase().padStart(4, '0')}`;
 // A string from a file, for a failure line: masked before it is cut, as rule
@@ -327,7 +331,7 @@ for (const f of files.filter(f => relRaw(f).startsWith('skills/'))) {
   const bytes = readFileSync(f);
   const signature = binaryKind(relRaw(f));
   if (signature && bytes.subarray(0, signature.length).equals(signature)) continue;
-  const text = bytes.toString('utf8');
+  const text = bytes.toString('utf8').replace(/^\u{FEFF}/u, '');
   // Each character once a file, at its first line, with a count: one fix
   // clears every copy, and a file full of them should not bury the rest.
   const found = new Map();

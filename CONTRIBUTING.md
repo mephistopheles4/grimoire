@@ -211,7 +211,10 @@ frontmatter's keys at the left margin, and fence it with lines of exactly
 **No hidden characters in a skill file.** The check fails on any file under
 `skills/` that holds a control character other than tab, line feed and
 carriage return, a carriage return not followed by a line feed, DEL, U+2028,
-U+2029, U+FFFE or U+FFFF, and names the file, the line and the code point.
+U+2029, U+FFFE, U+FFFF, a default ignorable code point (tag characters,
+zero-width characters, the soft hyphen, variation selectors) or a bidi
+control, and names the file, the line and the code point. A BOM is allowed as
+a file's first character only.
 Each can make the diff you review differ from the text the model reads. Every
 file is read as text unless the check's binary list names its suffix and the
 file opens with that format's signature, so a new kind of binary file fails

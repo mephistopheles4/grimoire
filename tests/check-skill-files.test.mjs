@@ -191,6 +191,26 @@ test('each refused character kind fails', () => {
   }
 });
 
+test('each invisible or direction-changing character fails', () => {
+  // Tag characters a model reads as letters, zero-width characters, the soft
+  // hyphen, a variation selector, bidi controls, and a BOM anywhere but the
+  // very start of a file.
+  for (const cp of [0xe0041, 0xe007f, 0x200b, 0x200d, 0x00ad, 0xfe0f, 0x202e, 0x2066, 0x061c, 0x200e, 0xfeff]) {
+    const dir = tree();
+    const at = skill(dir, 'invisible', front(...named('invisible')));
+    writeFileSync(join(at, 'notes.md'), `before ${String.fromCodePoint(cp)} after\n`);
+    const hex = cp.toString(16).toUpperCase().padStart(4, '0');
+    assertFails(dir, new RegExp(`skills/invisible/notes\\.md:1 holds U\\+${hex}\\b`));
+  }
+});
+
+test('a BOM at the very start of a file passes', () => {
+  const dir = tree();
+  const at = skill(dir, 'bom', front(...named('bom')));
+  writeFileSync(join(at, 'notes.md'), `${String.fromCodePoint(0xfeff)}a note\n`);
+  assertPasses(dir);
+});
+
 test('a lone CR as the last character of a file fails', () => {
   const dir = tree();
   const at = skill(dir, 'eof', front(...named('eof')));
