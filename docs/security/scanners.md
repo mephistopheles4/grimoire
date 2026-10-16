@@ -158,7 +158,7 @@ and carries a reason. The rules that hold it:
 
 The allowance lives at the repository root, not in each skill. The gate reads
 it, not SkillSpector, so a copy inside an installed skill would do nothing for
-someone scanning it, and an entry change would reseal the skill. The cost is
+someone scanning it, and an entry change would touch the skill. The cost is
 that a reader who scans an installed skill with 2.11.2 sees the partial reads
 with no shipped explanation. This page is that explanation.
 
@@ -185,8 +185,8 @@ first reason above: a skill directory is what installs.
 
 ### Partial reads
 
-Under 2.11.2 the scanner reads some files in `contract`, `eagle-eye`,
-`groundtrack` and `head-chef` only in part, and the gate accepts each one by
+Under 2.11.2 the scanner reads some files in `eagle-eye`, `groundtrack` and
+`head-chef` only in part, and the gate accepts each one by
 name. In plain words, the two reasons are:
 
 - **The command parser gave up** (`static_parse_limit`). A long expression ran
@@ -213,28 +213,35 @@ Each suppression is keyed by **rule**, with a written reason.
 | `EA2` | Autonomous Decision Making | Texts that describe what an agent may do on its own and give no such instruction: the `why` text on an edge in `eagle-eye`'s example box file, which the renderer prints for a reader; in `contract`, the labels, headings and comments in the format check, the bindings and the README that name the settings the check warns on because they let an agent act without asking; the step that lists unconfirmed drafts as *Proposed* without asking about each one; and `eagle-eye`'s rule that when the person asks for the box by name, it builds the box without asking again, because the request is the go-ahead. **On `contract` it is off for the whole skill**, `SKILL.md` and the template that seeds every file it generates included. The owner accepted that breadth on 2026-09-27; see below the table. |
 | `EA3` | Scope Creep | The warranty disclaimer of the SIL Open Font Licence, shipped beside `groundtrack`'s fonts. A legal text we must carry verbatim. |
 | `MP3` | Memory Manipulation | A template comment describing how **Reset** discards a reader's overrides and **Undo** offers them back. |
-| `RA2` | Session Persistence | The `CONTRIBUTING.md` rule forbidding a fixed path inside a skill, and the test proving it fires. |
+| `RA2` | Session Persistence | The `CONTRIBUTING.md` rule forbidding a fixed path inside a skill, and the test proving it fires. **Accepted, not a false positive:** `eagle-eye`'s usage log, after a yes in chat, and `contract`'s bindings naming the folders where a person's agents live, where a built agent loads in later sessions; the skill asks before any write that would install. **On `contract` it is off for the whole skill**, added on 2026-10-15. |
 | `RP1` | Unpinned MCP server | The `README.md` install command. `skills` is the Vercel Labs installer, not an MCP server. |
 | `PE3` | Credential Access | The string `.env` in the edge audit's setup message, which tells a user a project `.env` is **not** read. |
 | `E1` | External Transmission | **Accepted, not a false positive.** The edge audit posts a box's text to the provider after a yes. See [the edge audit](edge-audit.md). |
-| `P2` | Hidden Instructions | A layout comment in `groundtrack`'s template. The rule matches *get* inside *together*. |
-| `OH3` | Unbounded Output | A code comment in `contract`'s format check that explains the cap on how many lines of refusals it prints, which exists so a hostile file cannot flood the output. **On `contract` it is off for the whole skill.** The owner accepted that breadth on 2026-09-30, as for `EA2`. |
+| `P2` | Hidden Instructions | A layout comment in `groundtrack`'s template. The rule matches *get* inside *together*. And `contract`'s part fences: a begin and an end comment line around each generated part of its `SKILL.md`, naming the part. **On `contract` it is off for the whole skill**, so an instruction hidden there in a comment, invisible characters or a data link would pass the scan; added on 2026-10-15. |
+| `MP1` | Persistent Context Injection | A row of `contract`'s change log that records why the skill was rebuilt: every earlier review finding had become *a permanent rule*. Its entry names that one file, so it still fires anywhere else; added on 2026-10-15. |
 | `LP3` | MCP Least Privilege | **Accepted.** Neither skill declares a permission list, because that is one host's format and the skills run in agents that read none. On `groundtrack` it fires only when every file is marked executable, as on a Windows drive seen through WSL. |
 
-**Open: narrower suppression for one skill.** An entry keyed by rule cannot be
-narrowed to one file today. `node scripts/check.mjs` holds each skill's entry to
-the root's words and scope, so the `contract` skill's `EA2` and `OH3` entries
-cover its whole directory, not only the texts they are about. A new `EA2` or
-`OH3` finding anywhere in that skill would be suppressed and would not fail the
-build. The same holds for `head-chef`'s `AS3` entry, added in #206: a later
+**Open: narrower suppression for one skill.** An entry for a rule another skill
+shares cannot be narrowed to one file today. `node scripts/check.mjs` holds each skill's entry to
+the root's words and scope, so the `contract` skill's `EA2` entry covers its
+whole directory, not only the texts it is about. A new `EA2` finding anywhere in
+that skill would be suppressed and would not fail the build. The same holds for `head-chef`'s `AS3` entry, added in #206: a later
 `head-chef` text that lists or reads other skills would pass the scan, and only
-review of the prose would catch it. Narrowing it needs a change to that rule, with its own review. Until then
-the breadth is written in the skill's baseline header.
+review of the prose would catch it. And for `contract`'s `P2` and `RA2`
+entries, added on 2026-10-15. With `P2` off, an instruction hidden anywhere in
+that skill would pass the scan: in a comment or a link-reference comment, in
+invisible characters (zero-width, direction-changing or Unicode tag
+characters), or in a base64 data link. With `RA2` off, so would an instruction
+to persist on the person's machine: a scheduled job, a startup or profile file,
+a background process or a hidden folder. The skill's template would copy any of
+them into every file it builds, and only review of the prose would catch it.
+`MP1` is not shared, so its entry names the one file it fires on,
+`contract.changelog.md`, and it still fires anywhere else. Narrowing a shared
+rule needs a change to that check, with its own review. Until then the breadth
+is written in the skill's baseline header.
 
-**A shared reason is sealed.** The `contract` skill's seal covers every file in
-its folder, its baseline included. A change to a reason the root shares with
-that baseline forces the same change there, and a new seal of
-`skills/contract`.
+**A shared reason is held to one wording.** A change to a reason the root shares
+with a skill's baseline forces the same change there.
 
 **Why by rule and not by fingerprint.** A fingerprint is tied to the exact text
 and expires whenever the text or the scanner version changes. On prose that is
@@ -387,8 +394,9 @@ Measured on 2.1.296:
   unknown field fails only under `--strict`: without the flag it is a warning
   and the run exits `0`.
 - **It does not catch** an unknown key in a `SKILL.md`'s frontmatter, or a
-  skill folder with no `SKILL.md` at all. `skills/` is a weak check. A missing
-  `SKILL.md` is `scripts/check.mjs`'s to catch, and it does.
+  skill folder with no `SKILL.md` at all. `skills/` is a weak check. Both are
+  `scripts/check.mjs`'s to catch, and it does: it refuses a missing
+  `SKILL.md`, and a frontmatter key outside its allow-list.
 - **It does not check a skill's name or description** against Anthropic's
   skill rules: it passes a name holding "claude" and a description holding an
   XML tag. It does reject a reserved **plugin** name.

@@ -118,7 +118,8 @@ test('a count that is not a positive whole number fails', () => {
 test('a skill with no SKILL.md fails', () => {
   const dir = tree();
   edit(dir, a => {
-    a.exceptions[0].skill = 'no-such-skill';
+    // exceptions[0] is a file references point at, so it would fail twice.
+    a.exceptions[1].skill = 'no-such-skill';
   });
   assertFails(dir, /skills\/no-such-skill\/ has no SKILL\.md/);
 });
@@ -126,7 +127,7 @@ test('a skill with no SKILL.md fails', () => {
 test('a path, from or target that does not exist fails', () => {
   const dir = tree();
   edit(dir, a => {
-    a.exceptions[0].path = 'no-such-file.mjs';
+    a.exceptions[1].path = 'no-such-file.mjs';
   });
   assertFails(dir, /no-such-file\.mjs does not exist/);
   const dir2 = tree();
@@ -212,8 +213,7 @@ test('a CRLF checkout hashes the same as an LF one', () => {
 });
 
 test('a lone CR hashes the same as an LF too, and nothing else is folded', () => {
-  // Through the module, because the format check refuses a lone CR in a
-  // skill, so no tree can carry one to the check.
+  // Through the module, so the case needs no tree to carry the lone CR.
   const lf = contentHash(Buffer.from('one\ntwo\n'));
   assert.equal(contentHash(Buffer.from('one\rtwo\r')), lf);
   assert.equal(contentHash(Buffer.from('one\r\ntwo\r\n')), lf);

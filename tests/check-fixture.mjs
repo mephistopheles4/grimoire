@@ -64,8 +64,8 @@ export function tree() {
   // The SkillSpector allowance, whose entries name files under skills/ and
   // pin their content, so the copy above keeps every hash true.
   cpSync(join(root, allowancesName), join(dir, allowancesName));
-  // eagle-eye is sealed, so any edit to it breaks its mark. A test that edits
-  // a skill and expects a pass edits this unsealed fixture instead. It carries a
+  // A test that edits a skill and expects a pass edits this fixture, so it
+  // never touches a skill that ships. It carries a
   // copy of eagle-eye's baseline, so the two-baseline agreement rules see it too.
   const fixture = fixtureSkill(dir, 'unsealed-fixture');
   cpSync(join(root, 'skills', 'eagle-eye', baselineName), join(fixture, baselineName));
@@ -124,37 +124,15 @@ export function assertFails(dir, pattern) {
   return r;
 }
 
-// ---- the format check over every skill ----
-// check.mjs runs skills/contract/scripts/check.mjs on every skills/*/ folder.
-// The fixture skills the format-check tests use (check-format.test.mjs) are
-// written into the copy at run time and never committed: a SKILL.md anywhere
-// in the tree is a skill to the check, and a broken one would fail it. Each is
-// sealed by the copy's own format check, for the reason every test of
-// scripts/check.mjs runs the copy's own check.mjs.
+// The fixture skill the tests edit is written into the copy at run time and
+// never committed: a SKILL.md anywhere in the tree is a skill to the check, and
+// a broken one would fail it.
 
-export const formatCheckIn = dir => join(dir, 'skills', 'contract', 'scripts', 'check.mjs');
-
-export function fixtureSkill(dir, name, { contract, body = '# Fixture\n\nBody text.\n' } = {}) {
+export function fixtureSkill(dir, name, { body = '# Fixture\n\nBody text.\n' } = {}) {
   const skill = join(dir, 'skills', name);
   mkdirSync(skill);
   writeFileSync(join(skill, 'SKILL.md'), `---\nname: ${name}\ndescription: A fixture skill that exists only inside this test.\n---\n\n${body}`);
-  if (contract !== undefined) {
-    writeFileSync(join(skill, 'CONTRACT.md'), contract);
-    const r = run(formatCheckIn(dir), ['--seal', skill], { cwd: dir });
-    assert.equal(r.code, 0, `the fixture did not seal:\n${r.stdout}${r.stderr}`);
-  }
   return skill;
-}
-
-export const fixtureContract = 'Version: 1.0.0\n\n# Contract\n\nWhat this fixture is for.\n';
-
-// The control half of each format-check test is asserted on what the check
-// says about the fixture, not on a pass of the whole tree, so it holds
-// whatever else the tree carries.
-export function assertFixtureClean(dir, name) {
-  const r = run(checkIn(dir), [], { cwd: dir });
-  assert.doesNotMatch(r.stderr, new RegExp(`skills/${name}/`), `the fixture failed before anything was broken:\n${r.stderr}`);
-  assert.match(r.stdout, new RegExp(`^ok {4}skills/${name}/ \\(format\\)$`, 'm'));
 }
 
 // The version-bump rule needs a merge base, so the tests in

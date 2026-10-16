@@ -1,580 +1,277 @@
 # The contract template
 
-*A familiar is a skill, an agent or a main agent file that you build to do
-one job for you. The contract is the terms you agree with it. Answer the
-questions below before anything is built. A small familiar takes about ten
-minutes. A serious one takes about an hour. The answers are the contract.
-The familiar's file is generated from the contract.*
+*A skill, an agent or a CLAUDE.md is built to do one job for you. The
+contract is the terms you agree with it: eight parts, filled one question at
+a time. The built file is generated from the contract. A small one takes ten
+minutes. A serious one takes an hour.*
 
 ## Contents
 
-- Before you start: two choices
+- Two choices before you start
 - How the contract is kept
-- Before question 1: show me good
-- The Quick questions (1–7)
-  - 1. What is it for?
-  - 2. What does it notice that nothing else does?
-  - 3. Who does what?
-  - 4. What does it hand back?
-  - 5. What tools does it need?
-  - 6. Does it do anything beyond reading, and writing its own notes?
-  - 7. What changed, and why?
-- The Standard questions (8–15)
-  - 8. How alike should its answers be?
-  - 9. A real example of it at its best
-  - 10. What does it need to start?
-  - 11. Where does a person decide?
-  - 12. Prove it works: a practice test
-  - 13. When would you retire it?
-  - 14. How hard should it think?
-  - 15. How does it write?
-- The Thorough questions (16–20)
-  - 16. How does it go wrong?
-  - 17. Good versus so-so
-  - 18. Every rule has a reason
-  - 19. Open questions
-  - 20. Where do the ideas come from?
+- The eight parts
+- Agreeing what good looks like
+- Rules, and what they guard against
+- The eval offer
 
-## Before you start: two choices
+## Two choices before you start
 
 **What are you making?**
 
-- A **skill** is a set of instructions that the agent picks up by itself when
-  a situation matches. It lives in a file named `SKILL.md`, in a folder of the
-  same name as the skill. `SKILL.md` is an open format that many agents read.
-  See the Agent Skills specification: https://agentskills.io/specification.
-- An **agent** is a familiar that the main agent sends off to do one job
-  alone and report back. It lives in one file, in the format your tool uses
-  for agents.
-- A **main agent file** holds the instructions that govern the main
-  session. Claude Code reads it as `CLAUDE.md`, from the project folder or
-  from your own Claude Code settings folder. Nothing picks it up by
-  situation, and nothing sends it off: it loads at the start of every
-  session in its scope. Only Claude Code has one here.
+- A **skill** is a set of instructions the agent picks up by itself when a
+  situation matches. It is a folder named for the skill, holding `SKILL.md`,
+  an open format many agents read: https://agentskills.io/specification.
+- An **agent** is one file, in the format your tool uses, that the main
+  agent sends off to do one job alone and report back.
+- A **CLAUDE.md** holds the instructions that govern the main session. Claude
+  Code loads it at the start of every session in its scope. Only Claude Code
+  has one here.
 
-Some questions ask different things for each type. They say so. Questions 1,
-3, 4, 5, 6 and 12 say what changes for a main agent file; every other
-question keeps its meaning.
+**How thorough do you want to be?** The level only sets which parts are
+asked. You may change it at any time, by answering more or fewer questions.
+The change is a row in the change log, and nothing more.
 
-**How thorough do you want to be?** Pick one level before you start.
+| Level | Parts filled | Good for |
+|---|---|---|
+| **Quick** | `purpose`, `why`, `good`, `roles`, `tools` | A small skill or agent that only you use |
+| **Standard** | adds `rules` and `writing` | One you rely on, or share |
+| **Thorough** | adds `open`, and the systematic look for failures in `rules` | One others depend on, or one that can do damage |
 
-| | **Quick** | **Standard** | **Thorough** |
-|---|---|---|---|
-| Good for | A small familiar that only you use | A familiar you rely on, or share | A familiar others depend on, or one that can do damage |
-| Questions | 1–7 | 1–15 | all 20 |
-
-You can change level **only at a checkpoint**. A checkpoint comes after each
-group of questions: after 7, after 15 and after 20. Stop there, look at what
-you have, and decide. Write down why you changed level. Do not drop a level
-in the middle of a question because it got hard. A hard question is usually
-the one that matters.
-
-**One lesson from earlier contracts.** Extra questions often feel necessary
-the first time, and then stay empty. If a question keeps getting "does not
-apply", your level is too high.
+An empty part that keeps getting "does not apply" means the level is too
+high.
 
 ## How the contract is kept
 
-**The contract is the source. The file is build output.** The familiar's file
-is generated from the contract. Nobody edits the file by hand. To change what
-the familiar does, amend the contract, then generate the file again.
+**The contract is the source; the built file is output.** Nobody edits the
+built file by hand. To change what the skill or agent does, amend the
+contract, then regenerate the file. The contract holds current terms only.
+History goes to the change log beside it.
 
-**Where each file lives.**
+**Where each file lives.** Write where your skills and agents already live.
+Ask only before a write that would install.
 
-| Type | The familiar | Its contract | Its practice test |
+| Type | Built file | Contract | Change log |
 |---|---|---|---|
-| Skill | `<name>/SKILL.md` | `<name>/CONTRACT.md` | `<name>.practice-test.md`, beside the folder |
-| Agent | `<name>.md`, or `<name>.toml` for Codex | `<name>.contract.md`, in the same folder | `<name>.practice-test.md`, in the same folder |
-| Main agent file | `CLAUDE.md` | `CLAUDE.contract.md`, in the same folder | `<name>.practice-test.md`, in the same folder |
+| Skill | `<name>/SKILL.md` | `<name>/references/CONTRACT.md` | `<name>/references/contract.changelog.md` |
+| Agent | `<name>.md`, or `<name>.toml` for Codex | `<name>.contract.md`, beside it | `<name>.changelog.md`, beside it |
+| CLAUDE.md | `CLAUDE.md` | `CLAUDE.contract.md`, beside it | `CLAUDE.changelog.md`, beside it |
 
-Copy the contract with the familiar. They travel together. The practice test
-stays behind: it holds the expected answers, so it never goes inside a
-skill's folder, where it would install with the familiar. The contract's
-question 12 points to it. An existing file of that name is overwritten only
-after you say yes. The mark does not cover the practice-test file.
+The contract and the change log never open with frontmatter, so no tool
+loads either as an agent.
 
-**The version line.** The line after the contract's title reads
-`Version: X.Y.Z`, starting at 0.1.0. Each amendment raises the version and
-adds a row to the change log (question 7).
+**The title block.** The contract opens `# Contract: <name>`, then
+`Version: X.Y.Z` starting at 0.1.0, then `Kind: skill`, `Kind: agent` or
+`Kind: CLAUDE.md`, then `Level: Quick`, `Level: Standard` or
+`Level: Thorough`. Every contract has all eight part headings, named as in
+this template. A part the level does not ask stays empty.
 
-**The kind line.** Beside it, a line names what you are making:
-`Kind: skill`, `Kind: agent` or `Kind: main agent file`, exactly one of
-these, once. The check fails a line that does not match the file. A main
-agent file's contract must have it; for a skill or an agent it is optional,
-so an older contract without it still passes.
+**Marks.** Each answer carries one mark and at most a one-line why:
 
-**The mark.** When the file is generated, a check writes three lines into the
-file: the contract's version, a digest of the file, and a digest of the
-contract. In a `.md` file they are keys under `metadata:` in the frontmatter;
-in a Codex `.toml` file they are comment lines at the end. A digest is a short
-fingerprint of a file's exact text. The check fails when either file changes after the mark
-was written. The mark proves one thing only: the two files have not changed
-since the last mark. It does not prove who wrote them. Review the familiar's
-text whatever its mark says.
-
-**Section headings.** Each `##` heading in the familiar's file cites the
-contract questions that its section comes from. For example:
-`## When to stop and ask (questions 3, 10)`. An amendment then changes
-exactly the sections whose heading cites a question the amendment touched.
-Every other section keeps its exact text.
-
-**Extra frontmatter keys.** The check accepts only the keys it knows: in a
-`.md` file, the keys in the Agent Skills specification; in a `.toml` file, the
-keys the Codex binding names. An agent file often needs keys that its tool
-reads. List each such key in the contract, on one line that starts with the
-words `Extra keys` and a colon, with the key names after it, separated by
-commas.
-
-**The tool it is built for.** An agent's contract names one tool, on a line
-that holds only the word Target, a colon and the tool: claude, antigravity
-or codex. Put its answer mark, such as **Decided** with the date, on the
-next line, never on that line. The check fails when the file's ending does
-not fit that tool: a Codex agent is a `.toml` file, and the other two are
-`.md` files. It does not check that the tool names or keys inside belong to
-that tool. A skill's contract has no such line. A main agent file's contract
-names claude. If the line is missing, the agent asks you at question 5.
-
-**Warnings.** The check does not refuse a setting's value because of what it
-lets the agent do. It warns on each listed setting it does not know to be
-harmless, with a sharper danger warning for a few, and still passes. The
-agent shows you each one before you install anything.
-
-**How answers are marked.** Every answer carries one of three marks:
-
-- *Proposed*: the agent drafted it, and you have not confirmed it yet.
+- *Proposed*: drafted, not yet confirmed.
 - **Confirmed**: you accepted a draft without a change.
-- **Decided**, with a date: your own words, or a draft you rewrote.
+- **Decided**: your own words, or a draft you rewrote.
 
-Question 2 can only be **Decided**. Question 13 counts the Confirmed answers.
+No date goes on a mark. The date, the source and who relayed it go in the
+change-log row that made the answer.
 
-**How each clause is held.** Each clause in question 3's four lists, each
-action in question 6 and each rule in question 18 says what holds it:
+**Freedom.** Each clause in the built file is open, guided or fixed. A
+clause with no freedom written is open: the agent works it out from context,
+and the file writes nothing. Write only guided and fixed. *Guided* is a
+default the agent may adapt, with when. *Fixed* is for a stop, a safety rule
+or your own decision, with its reason here. Anthropic's Skills docs call
+these high, medium and low freedom. You may change any clause's freedom.
 
-- `Held by: Enforced — <mechanism>`. A mechanism fails when the clause breaks.
-  Three kinds count: a check that fails (a test, a format check, a build
-  gate), a hook in your tool, or a tool list that your tool applies. Name the
-  tool that applies a tool list. A tool list is only as strong as the tool
-  that reads it.
-- `Held by: Promised`. Only the familiar's instructions hold it.
-- `Held by: Promised (Enforced once <mechanism> is confirmed)`. Someone named
-  a mechanism, and nobody has seen it fail yet.
+**Gated by.** A clause that a check, a hook or a tool list blocks says so on
+its row: `Gated by: <the gate>`. A gate nobody has seen fail reads
+`Gated by: <the gate> (unconfirmed)`. A gate with no rule to serve should not
+exist. Name the tool that applies a tool list: a tool list is only as strong
+as the tool that reads it.
 
-A clause is Enforced only when a person confirmed the mechanism. Write who
-confirmed it.
+**Fences.** The built `SKILL.md` wraps each generated part in
+`<!-- contract:begin NAME -->` and `<!-- contract:end NAME -->` lines, which
+stay in the file. A part is fenced where it writes text into the body, so
+`purpose`, `why` and `open` get none. This is a default. An amendment
+regenerates exactly the fenced parts it touches and keeps the rest word for
+word. An agent file or a `CLAUDE.md` has no fences: an amendment there
+regenerates the sections its touched parts write.
 
----
+**The change log.** A table, one row per change:
 
-## Before question 1: show me good
+| Version | Date | Change | Why, and where it came from | Parts touched | Field signal |
+|---|---|---|---|---|---|
 
-This step comes at every level, Quick included. It comes after you choose
-the type, the level and the name, and before question 1. People often do not
-know what good looks like until they see it.
+*Parts touched* names parts, such as `rules, writing`. *Field signal* answers
+one question: could you explain the old clauses from the contract alone? Write
+yes, partly or no. A change of level goes here too, with its reason.
 
-**Find the target:** the output you want the familiar to produce.
+## The eight parts
 
-- **You have a real example of that output.** It becomes the target, marked
-  **Decided**.
-- **You have none.** The agent drafts two or three samples of the output.
-  They differ on purpose, one named axis each: for example, short and
-  direct, warm and detailed, or formal. You pick one, mix them, or reject
-  all, and you say why.
+### `purpose`
 
-You judge. The agent only offers. The samples are text in the conversation
-and in the contract. They never run, install or send anything.
+Its **name** first: 1–64 characters, `a`–`z`, `0`–`9` and `-`, not starting
+or ending with `-`, with no `--`. For a skill it is the folder name; for an
+agent, the file name without its ending. Anthropic reserves "anthropic" and
+"claude" in a skill's name. You are told before anything is written, and may
+keep it, marked **Decided**.
 
-**Record it in the contract:** each sample, marked "drafted, not real"; the
-winner, as the target; and each loser, with your reason. The reasons feed
-later questions. The target shapes question 4. The winner fills question
-17's "good" column, and the losers fill its "so-so" column. A loser's reason
-often becomes a rule in question 18. The practice test's expected answers
-follow the target.
+Then one sentence: what it does, and for whom. Then **when it steps in**,
+and **when it stays out**, with the nearest situation where it would be wrong.
+The built file carries these only in its description. A CLAUDE.md has no name
+of its own and loads in every session, so its "stays out" names the work it
+must not shape.
 
-**When no sample is right,** the agent drafts again, and changes the axis you
-named. The interview may continue, but nothing is built until a target
-exists.
+*Test:* a near-miss is named.
 
-*Not the same as question 9.* Question 9 asks for a real example of the
-familiar at its best, which exists only after use. The target is what to aim
-at. Question 9 is the evidence.
+### `why`
 
----
+What it notices or does that nothing else does, **in your own words**. Always
+**Decided**. The skill never drafts it, not even as *Proposed*.
 
-## The Quick questions (1–7)
+*Test:* name one thing. If you cannot, stop: you are about to build
+something nobody would miss.
 
-### 1. What is it for?
+### `good`
 
-First, **its name**. You give it with the type and the level, before the
-target. The name is 1–64 characters, only `a`–`z`, `0`–`9` and
-`-`. It does not start or end with `-`, and it holds no `--`. For a skill,
-the name is also the folder name. For an agent, it is the file name without
-its ending.
+What good output looks like: your real example, or the winner of two or three
+drafts that differ on purpose. Record it, and what separates good from
+so-so in a line or two. See "Agreeing what good looks like".
 
-Anthropic's Skills docs reserve two words: a skill's name may not hold
-"anthropic" or "claude". If you pick a name that holds either, you are told
-here, before anything is written. You may keep it. It is then recorded
-**Decided**, with that noted. The open Agent Skills specification has no such
-rule.
+### `roles`
 
-Then one sentence: what it does, and for whom. Then two more lines: **when it
-steps in**, and **when it stays out**. Name the nearest situation where it
-would be wrong to use it.
+Who does what, in four lists: what the skill or agent is responsible for;
+what automatic checks already enforce (it may point things out, never has the
+final say); the decisions that stay yours; and the moments it **stops and
+asks**, each written "when X happens". If it records what it did, give a
+stop its own value, such as "stopped and waiting".
 
-*Main agent file:* it has no name of its own: the file is always
-`CLAUDE.md`. Give the contract a name for your records. The sentence states
-the purpose of the whole session's conduct, not one job. It loads in every
-session in its scope, so "when it stays out" names the work it must not
-shape.
+Also: what makes it step in, and where that trigger lives (the description,
+an instruction, or a hook you install), and what happens when it does not.
+Each clause carries its freedom, and `Gated by:` where one applies.
 
-*Why it matters:* the agent decides when to use a skill from a short
-description. These three lines become that description.
+**When it is unsure.** Pick one and say why. Start from the last.
 
-*At Quick level:* you write no practice test, so keep one promise instead. If
-it ever speaks up in the stay-out situation you named, fix it or delete it. A
-familiar that speaks up at the wrong time teaches you to ignore it.
+| Choice | What happens |
+|---|---|
+| Asks you at once | It stops and waits |
+| Pauses at set points | It works to a named stage, then waits |
+| Leaves questions in the result | It continues and lists what it could not settle |
+| Decides, and shows you | It makes the call, marks it, and you can change it |
 
-### 2. What does it notice that nothing else does?
+A question helps only when it can tell it does not know, you can answer, and
+a wrong guess costs more than the interruption.
 
-*Agent:* the problems it catches that no other agent or automatic check
-catches. *Skill:* what it brings to the surface that your other skills do
-not.
+### `tools`
 
-*The test:* name at least one thing. If you cannot, stop here. You are about
-to build something that nobody would miss.
-
-### 3. Who does what?
-
-Split the work four ways:
-
-- **The familiar:** what it is responsible for.
-- **Automatic checks:** what tests, format checks and other tools already
-  enforce. The familiar can point things out. It never has the final say.
-- **You:** the decisions that stay yours: go ahead, fix it, or drop it. You
-  also keep three abilities that the familiar must never take away: to check
-  the work yourself, to explain why it is right, and to know when to stop.
-- **Stop and ask:** the moments when the familiar tells you and waits. Write
-  each one as "when X happens", not as a hope. If the familiar records what
-  it did, give a stop its own record value, such as "stopped and waiting", or
-  "proposed, not built" for a stop that proposes without producing.
-
-Mark each item Enforced or Promised (see "How each clause is held").
-
-*Main agent file:* the familiar is the main session itself, and you are the
-person it works with. Name here each sub-agent it may send work to. If one
-of them, or any server the session uses, holds or reaches data, name the
-kinds of data and the kinds of place only. Never name an account, an
-address or a real record: a contract is often committed.
-
-**What makes it fire.** Say what makes the familiar step in, and where that
-trigger lives: the description, an instruction line, or a hook that you
-install. Then say what happens when it does not fire. A hook is yours to
-install; the contract only records it.
-
-*The test:* every item sits in exactly one place. An item in two places is an
-item that nobody owns.
-
-#### When it is unsure
-
-Every familiar meets moments that it cannot settle alone. Pick how it handles
-them:
-
-| Choice | What happens | Good when |
-|---|---|---|
-| **Asks you at once** | It stops and waits for your answer. | A few big questions, and you are there to answer. |
-| **Pauses at set points** | It works to a named stage, then waits for you to check. | One big piece of work with natural stages. |
-| **Leaves questions in the result** | It continues and lists what it could not settle. | Many small items. A stop for each one would tire you. |
-| **Decides, and shows you** | It makes the call, marks it clearly, and you can change it. | Choices you review anyway, where a wrong guess costs little. |
-
-Write your choice and one line on why. **Start from "Decides, and shows
-you".** Move away from it only for a reason. Each interruption spends the
-attention that the familiar exists to protect. A familiar that interrupts too
-often trains you to stop listening.
-
-**A question helps only when three things are true.** The familiar can tell
-that it does not know. You can answer. A wrong guess costs more than the
-interruption. If one of these is false, let it decide and show you.
-
-### 4. What does it hand back?
-
-*Agent:* its findings, word for word and signed, each marked with how serious
-it is. It never merges two findings into one. *Skill:* the shape of what it
-produces, how it shows its confidence, and where the result lives: removed
-after the session, or kept. *Main agent file:* the answers and work it hands
-to you in the session, not a report to a parent agent.
-
-If it records an outcome each time, list the values. Include one for a stop
-that proposes without producing, "proposed, not built", and one for a stop
-that waits for you, "stopped and waiting".
-
-*The test:* a person who did not watch the work can act on it.
-
-### 5. What tools does it need?
-
-The shortest list that does the job. *Agent:* say what it may do in plain
-words, never in one tool's names. Pick from these capabilities, each with a
-reason:
+The shortest list that does the job, each with a reason. For an agent, say
+what it may do in plain words, not one tool's names:
 
 | Capability | In plain words |
 |---|---|
-| Read files | It reads and searches files in the project folder |
-| Create files | It writes new files in the project folder |
-| Change files | It edits existing files in the project folder |
-| Run commands | It runs shell commands |
-| Fetch web pages | It reads a page at an address |
-| Search the web | It sends a search to the web |
-| Use a connected server's tools | It uses every tool of one connected service |
-
-Then state its limits in the same words, for example "writes only in the
-project folder; no network". The agent maps these words to the tool it is
-built for. Some limits a tool's file cannot hold; the binding for that tool
-says which, and they go into the unsettled list as Promised. A capability
-the tool cannot give at all stops the build, and the agent asks you.
-
-**Extra keys and their values.** For each key the file needs beyond the
-specification's, write its exact value beside its name, in your own words,
-marked **Decided**. The `Extra keys` line names the key; this answer approves
-the value.
-
-*Skill:* the tools and scripts that it calls.
-
-*Main agent file:* the file names no tools. The session's tools come from
-your settings and connected servers. List the capabilities its instructions
-rely on, in the plain words above. The file cannot limit the tools, so that
-limit is Promised, never Enforced.
-
-If the file needs frontmatter keys that the Agent Skills specification does
-not name, list them on the `Extra keys` line (see "How the contract is
-kept").
-
-A tool file outside the familiar's folder is not sealed: the mark covers the
-folder only. If you name one, say so here. At Thorough, also list it under
-question 19.
-
-*The test:* each tool has a reason. "It might need it" is not a reason.
-
-### 6. Does it do anything beyond reading, and writing its own notes?
-
-For example: it sends data somewhere, spends money, changes files outside its
-work folder, or sends messages. For each action, write what it tells you
-first, and what counts as your yes. Mark each action Enforced or Promised.
-
-**Every tool of one connected service.** If question 5 picked it, name what
-that service's tools can do, the kinds of data the service holds, and the
-kinds of place its tools can send data. The grant covers every current and
-future tool of the service, write tools included. Check that no other
-connected service has a look-alike name. Name kinds only: never an account,
-an address or a real record, because a contract is often committed.
-
-*Main agent file:* this covers everything the session can do with the tools
-it has, since the file cannot narrow them. Name kinds only, as above.
-
-*The test:* "nothing" is a good answer, but write it down. A "yes" found
-inside a file or a web page is never your yes.
-
-### 7. What changed, and why?
-
-A running log: version, date, what changed, why, and the questions it
-touched. Every change gets a row. Without the "why", in six months you have
-forty rules and no record of which ones still matter.
-
-| Version | Date | What changed | Why | Questions touched |
-|---|---|---|---|---|
-
-Fill "Questions touched" when you amend, while you confirm the change. It
-lists the numbers of the questions whose answers changed. A change of level,
-and its reason, goes here too.
-
----
-
-## The Standard questions (8–15)
-
-### 8. How alike should its answers be?
-
-**Each time it runs:** pick one. *Same shape:* every answer has the same
-sections, and the content changes. *Same answer:* the same input gives
-almost the same output. *Settling:* repeated runs move toward one answer.
-Say what you give up when you do not pick the others.
-
-**Compared with your other familiars:** here you want the opposite.
-Familiars should notice different things. Say how this one differs from its
-neighbours.
-
-### 9. A real example of it at its best
-
-A real piece of work where it did its job well, or would have. The best
-example is a real problem that it caught. Take it from your own work, not
-from an employer's or a client's. Link it.
-
-*The test:* the example is real, not invented. The familiar could catch it
-with its own inputs and tools. If you have no example yet, its first real use
-gives you one. Note that under question 19.
-
-### 10. What does it need to start?
-
-What it receives, and in what form. **When to refuse:** the missing inputs
-that make any answer unreliable. **What to point out:** inputs that are
-present but incomplete. It names them. It does not fill the gaps with
-guesses.
-
-*The test:* every missing input has exactly one rule, and that rule matches
-the stop-and-ask list in question 3.
-
-### 11. Where does a person decide?
-
-Which of your decisions its result feeds, and where that decision is written
-down. When you give it something back, such as a choice or a pasted code, it
-repeats that back in words before it acts.
-
-### 12. Prove it works: a practice test
-
-Write the practice test in its own file, `<name>.practice-test.md`, beside
-the familiar and never inside a skill's folder (see "How the contract is
-kept"). Here, in the contract, only point to that file. *Main agent file:*
-each run is a session with the file loaded.
-
-Two to six made-up problems that it must catch, each with the answer you
-expect. Write them in terms that it can actually see. Include one decoy that
-it must not flag. Mark each problem that an automatic check catches anyway.
-Say what counts as a pass.
-
-**Then test when it steps in.** A familiar that speaks up at the wrong time
-is noise. Give the quiet cases at least as much weight:
-
-| | Standard | Thorough |
-|---|---|---|
-| Situations where it must step in | 2 | 3 |
-| Situations where it must stay quiet, including the stay-out case from question 1 | 2 | 3 or more |
-| Times you run the whole test, scored | 2 | 3 |
-| Runs without the familiar, not scored (the comparison run) | 0 | 1 |
-
-One run can be luck. That is why the test runs more than once.
-
-**The comparison run (Thorough).** Run the step-in cases once more with the
-familiar not loaded. Use the same set-up as the scored runs, never a looser
-one. Do not score it by "any false alarm fails". If it catches every made-up
-problem the familiar catches, log a flag against question 2 in the flag log,
-and show it to the person. They decide what the flag means: the familiar may
-add nothing that the agent does not do alone.
-
-**Record each run's model.** Write the model that each run used beside its
-result. When question 14 names more than one model, run each named model at
-least once. The scored runs are then the level's count or the number of named
-models, whichever is larger. When question 14 names none, record the model
-that each run used, with nothing to match.
-
-**Test the Promised stops.** Every stop in question 3 marked Promised gets at
-least one practice case. Only the instructions hold a Promised stop, so only
-a run shows whether it holds.
-
-*The test:* write the expected answers before you run it. **Any false alarm
-fails a scored run.** A false alarm is a flag on the decoy, or a word where
-it had to stay quiet. A check that never failed was never tested.
-
-#### Try it before you review it twice
-
-A review of a contract finds problems in the contract: rules that disagree,
-and questions left open. A try of the familiar finds a different kind of
-problem. It breaks, it works only on one computer, or its instructions make
-the builder guess. A review cannot find those, because nothing runs.
-
-So at Standard and Thorough, after the contract has had one review:
-
-1. **Build a rough, throwaway version** from the contract. Keep it out of the
-   folders your agent loads from, so that it cannot step in for real.
-2. **Run two cases from your practice test.** Run one where it must step in,
-   and one where it must stay quiet. Write down what you expect before you
-   run them.
-3. **List every place where the builder had to guess** what the contract
-   meant. Each guess is a gap in the contract.
-
-A person other than the builder runs the cases: a different person, agent or
-session. Then decide: fix the contract, continue, or stop. **If a review went
-round twice without a clean result, try it before a third round.**
-
-*Why:* the first contract built this way had several reviews. They found
-many problems in the text, and none in how the familiar behaved. One
-throwaway try found a real bug. It also found about 25 places where the
-builder had to guess.
-
-### 13. When would you retire it?
-
-The evidence that gets it cut, or merged into a neighbour. Say how you find
-out: what you run, how many times, and what result means "cut".
-
-**Always include one condition: it cries wolf.** If you dismissed most of its
-recent findings, retire it or tune it again. A familiar that people learned
-to ignore is worse than none. It looks like a safeguard and protects nothing.
-
-*The test:* you can see it happen. "People stop liking it" is not visible.
-"Another familiar catches the same three problems twice in a row" is visible.
-So is "you dismissed seven of its last ten findings".
-
-**Say how its record is reviewed.** Four parts: what the familiar records,
-what a review of that record reads, at what threshold the review runs, and
-who proposes a change. The familiar changes nothing by itself. Each proposal
-becomes a row in the change log (question 7).
-
-### 14. How hard should it think?
-
-*Agent:* which model it runs on, how much effort it spends, and when a second
-opinion from a different model is worth it. That call stays yours. *Skill:*
-it usually runs on the model you already use. Name any other model that it
-calls, and say whether that model only advises. It never gets the final say.
-
-### 15. How does it write?
-
-The writing rules it follows, the plain names it uses in place of internal
-codes, and the formats it keeps: tables or prose, code or diagrams.
-
----
-
-## The Thorough questions (16–20)
-
-### 16. How does it go wrong?
-
-Not the problems it catches, but the ways the familiar itself fails. For
-example: it nitpicks. It sounds tough and helps nobody. People trust it too
-much. It follows instructions that it found inside a file. It argues in prose
-when it should show you.
-
-| # | How it goes wrong | What it looks like | How serious |
-|---|---|---|---|
-
-### 17. Good versus so-so
-
-For each part of what it hands back: what a so-so version looks like, what a
-good one looks like, and which rule protects the difference.
-
-| Part | So-so | Good | What protects it |
-|---|---|---|---|
-
-*The test:* one row for each part named in question 4. Write "untested"
-rather than skip a row.
-
-### 18. Every rule has a reason
-
-| Rule in the instructions | The reason: a failure from question 16, or a format it must keep | Held by |
+| Read files | Reads and searches files in the project folder |
+| Create files | Writes new files in the project folder |
+| Change files | Edits existing files in the project folder |
+| Run commands | Runs shell commands |
+| Fetch web pages | Reads a page at an address |
+| Search the web | Sends a search to the web |
+| Use a connected server's tools | Uses every tool of one connected service |
+
+Then its limits in the same words, such as "writes only in the project
+folder; no network". The binding maps these words to the tool it is built
+for; a limit a tool's file cannot hold is not gated, and the hand-back says
+so. Also here:
+
+- the tool it is built for, in plain words: "Built for Codex". An agent
+  and a CLAUDE.md need one ("Built for Claude Code"); a skill does not;
+- every action beyond reading and writing its own notes (sending data,
+  spending money, changing files elsewhere), each with what it tells you
+  first and what counts as your yes. "Nothing" is a good answer;
+- for every tool of one connected service: what its tools can do, the kinds
+  of data it holds and the kinds of place it can send data. Kinds only,
+  never an account, an address or a real record: a contract is often
+  committed;
+- a record of what it did, only if you ask for one: where it is kept and what
+  it holds. Nothing records anything by default;
+- each setting that lets it act without your approval, with its value, marked
+  **Decided**.
+
+For a CLAUDE.md, name the capabilities its instructions rely on. The file
+cannot limit the session's tools.
+
+### `rules`
+
+One table. See "Rules, and what they guard against". Standard and above.
+
+### `writing`
+
+The terms it uses, and how it writes. A term list: each word, its plain
+meaning, and the standard it comes from if any. Writing rules, and formats
+(tables or prose, code or diagrams). With none, the built file writes
+plainly and names no standard. The built file uses a word from this
+template's vocabulary only when your terms list holds it. Standard and above.
+
+### `open`
+
+What is still open, and when you would retire it. Thorough.
+
+| Question | Why it is open | Settled when |
 |---|---|---|
 
-Two rules belong in every familiar's file. Write its stops from question 3
-into the file, word for word. Write its "when it is unsure" choice into the
-file. Then look for wording that lets the familiar talk itself past a stop,
-such as "unless it seems unnecessary". Rewrite that wording, or flag it.
+Ask "when would you retire it" plainly: the evidence that gets it cut or
+merged, and what you would see. It is your judgment at each amendment,
+recorded in the change-log row with the field signal. If most of its output
+gets dismissed, that is a failure to record in `rules`.
 
-*The test:* a rule with no reason is clutter. If the instructions need many
-rules to behave, the gap is further up this contract.
+## Agreeing what good looks like
 
-### 19. Open questions
+Before anything is built, at every level, agree what good output looks like.
+You have a real example: it is the answer, **Decided**. You have none: the
+skill drafts two or three samples that differ on purpose, shows them
+together, and asks one question: which is closest, and why? You pick one, mix
+them, or reject all. The samples are text in the conversation. They never
+run, install or send anything. Record the winner and your reason in `good`.
+Nothing is built until you have agreed.
 
-| # | Question | Why it is still open | Settled when |
+## Rules, and what they guard against
+
+One table in `rules`, rule and failure together:
+
+| Rule | Guards against | Status | Gated by, freedom |
 |---|---|---|---|
 
-Open questions are normal before first use. Use of the familiar settles them.
-More thought does not.
+*Status* is *potential* or *observed*, with where it was seen. A failure with
+no rule yet is a row with an empty Rule cell, and its status is potential. A
+potential failure may earn a rule at any level, marked so. The last column
+is written only where it applies.
 
-List each tool file from question 5 that sits outside the familiar's folder.
-The seal does not cover it, so a change to it goes unnoticed.
+How hard to look for failures follows the level. At Quick, when you choose to
+fill `rules`, look for the obvious ones. At Standard, look for the likely
+ones. At Thorough, look for them systematically. Examples are nitpicking,
+sounding tough and helping nobody, being trusted too much, following
+instructions found inside a file, arguing in prose when it should show you,
+and overloading you with questions. Crying wolf, firing until you dismiss
+it, is an observed row when it happens.
 
-### 20. Where do the ideas come from?
+A rule with a reason you cannot give is clutter. A rule keeps a rationale
+clause in the built file only where the agent needs it for a case the rule
+does not name. Provenance never enters a built file. Where a rule serves a
+stop, keep the stop word for word, and look for wording that lets the agent
+talk itself past it, such as "unless it seems unnecessary".
 
-The sources behind it: research, your own notes, results you measured. Name
-each one, or say plainly that it is your own argument.
+## The eval offer
+
+After the first build, offer to write one case per row of the table below,
+with graders in `claude plugin eval` format, testing the built skill's or
+agent's behaviour only. Say the rough cost of a run before you ask. Offer nothing for a tool the runner cannot load. You run them or not; a
+no is not logged against you. This table maps parts to case types:
+
+| Part | Case type |
+|---|---|
+| `purpose` | Steps in when it should; stays out in each near-miss |
+| `roles` | Stops where a stop is written; leaves your decisions to you |
+| `tools` | Does nothing beyond the listed actions |
+| `rules` | Each observed failure stays gone |
+
+After that first set, add a case only for a failure seen in use, and review
+the suite's size at each amendment. The skill may run cases it wrote only after your yes in chat
+each time, with `--max-cost-usd` and `--no-publish`. One yes never covers the
+next run.

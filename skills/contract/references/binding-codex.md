@@ -1,73 +1,68 @@
 # Binding: Codex
 
 This file maps a contract's plain words to a Codex agent file. Read it when
-the contract names codex as the tool the agent is built for. Everything the
-file needs is in the contract, the template, the skill's steps, or here. A
-fact missing from all of them is a gap: stop and ask.
+`tools` says the agent is built for Codex. Everything the file needs is in
+the contract, the template, the skill's steps, or here. A fact missing from
+all of them is a gap: stop and ask.
 
 ## Contents
 
-- Last checked (questions 4, 5)
-- The file (questions 4, 5)
-- Capabilities (questions 5, 6)
-- Keys that let it do more without asking (questions 5, 18)
-- Settings the check warns on (questions 5, 18)
-- The mark (questions 5, 18)
-- Example (questions 4, 5)
+- Last checked
+- Where files go
+- The file
+- Capabilities
+- Settings that let it act without asking
+- Validate
+- Example
 
-## Last checked (questions 4, 5)
+## Last checked
 
 Codex 0.159.0, on 2026-09-29. Codex changes often. Name this version in the
-unsettled list, and say that a newer Codex may read the file differently.
+hand-back, and say that a newer Codex may read the file differently.
 
-## The file (questions 4, 5)
+## Where files go
 
-| Part | Where |
-|---|---|
-| The familiar | `familiars/<name>.toml` |
-| Its contract | `familiars/<name>.contract.md` |
-| Where Codex loads it | `.codex/agents/` in a project, or `~/.codex/agents/` for the person |
+Write where the person's agents already live: `.codex/agents/` in a
+project, or `~/.codex/agents/` for the person. Ask only before a write that
+would install. The contract and the change log go beside the file, as the
+template says.
 
-The file is TOML: lines of `key = value`. The check reads one small part of
-TOML, and calls everything else "cannot check".
+## The file
+
+The file is TOML: lines of `key = value`, named `<name>.toml`.
 
 - **Keys:** `name`, `description` and `developer_instructions` are required.
   `developer_instructions` holds the agent's instructions, the body a `.md`
-  agent would have. `sandbox_mode` is known. Any other key needs the
-  contract's `Extra keys` line.
+  agent would have. `sandbox_mode` is known. Any other key: ask what it does
+  and record it **Decided** with its value.
 - **Lines:** top-level `key = value` lines, blank lines and whole-line `#`
-  comments only. No table header, such as `[metadata]` or `[mcp_servers]`,
-  and no dotted or quoted key. Codex drops an agent file with a `[metadata]`
-  table, or a `metadata` key, and the check reads no table. No key may
-  contain contract-version, familiar-digest or contract-digest, in any case.
-- **Values:** write strings. No number, date, array or inline table, no empty
-  value, and nothing after a value, not even a comment. Each key once.
+  comments only. Codex drops an agent file with a `[metadata]` table, or a
+  `metadata` key, so write no table header and no dotted or quoted key.
+- **Values:** write strings. Each key once, nothing after a value, not even
+  a comment.
 - **Strings:** a basic string, `"…"` or `"""…"""`, takes only the escapes
-  `\"` and `\\`. A literal string, `'…'` or `'''…'''`, takes none, and never
-  two single quotes in a row. A one-line string closes on its own line.
-  Close a `"""` string with exactly three quotes. Write
-  `developer_instructions` as a `"""` string.
+  `\"` and `\\`. A literal string, `'…'` or `'''…'''`, takes none. Write
+  `developer_instructions` as a `"""` string, closed with exactly three
+  quotes.
 - **Text:** LF or CRLF line endings, no byte-order mark, and no control or
   invisible character but tab.
 
-## Capabilities (questions 5, 6)
+## Capabilities
 
 | Capability | In the file | Source |
 |---|---|---|
 | Read files, and nothing that writes | `sandbox_mode = "read-only"`, when the person names this sandbox | Loaded in Codex 0.159.0, 2026-09-29; effect not tested |
 | Create files or change files | `sandbox_mode = "workspace-write"`, when the person names this sandbox | Docs, read 2026-09-30: Codex's page on agent configuration |
 | Run commands | No key. Commands run inside the session's sandbox, or the one `sandbox_mode` names | Docs, read 2026-09-30, same page |
-| Search the web | `web_search = "live"`, when the person names it. The check warns on it | Docs, read 2026-09-30: learn.chatgpt.com/docs/config-file/config-reference |
-| Fetch web pages | Nothing this file can hold within the check. Stop and ask | Network access for a sandbox is a table, which the check does not read |
+| Search the web | `web_search = "live"`, when the person names it | Docs, read 2026-09-30: learn.chatgpt.com/docs/config-file/config-reference |
+| Fetch web pages | Nothing this file can hold. Stop and ask | Network access for a sandbox is a table, which the file may not carry |
 
 **Ask about the sandbox.** Ask the person whether the agent gets its own
 sandbox: read-only, workspace-write, or none, which leaves it to the
 session. Write `sandbox_mode` only when they name one. Without it, the agent
-runs in the session's sandbox, whatever that is. Say so in the unsettled
-list.
+runs in the session's sandbox, whatever that is. Say so in the hand-back.
 
-**Limits this file cannot hold.** Say each in the unsettled list, as
-Promised:
+**Limits this file cannot hold.** Say each in the hand-back, as not gated:
 
 - The session's own choices, such as a change of permissions during the
   session, override the file's `sandbox_mode` (docs, read 2026-09-30).
@@ -77,65 +72,29 @@ Promised:
 - "Runs no commands": a read-only sandbox still lets it run commands that
   change nothing. This is a reading of the docs, not tested.
 
-## Keys that let it do more without asking (questions 5, 18)
+## Settings that let it act without asking
 
-`sandbox_mode`, `default_permissions`, `approval_policy`,
-`approvals_reviewer` and `web_search`. Record the exact value of each one the
-contract names, under question 5, marked **Decided**. Any other key the
-person wants: ask what it does, then record it the same way.
+These settings let an agent act without the person's approval: say so when
+the person picks one. Record the exact value of each under `tools`, marked
+**Decided**.
 
-## Settings the check warns on (questions 5, 18)
+- `sandbox_mode`, `default_permissions`, `approval_policy`,
+  `approvals_reviewer` and `web_search` change what the agent may do.
+- `model_instructions_file`, `experimental_instructions_file` and
+  `experimental_compact_prompt_file` each load instructions from a file the
+  contract does not cover.
+- `model_catalog_json` loads a file the contract does not cover.
+- `openai_base_url` sends the agent's work to a server the file names.
 
-The check never refuses a value here. It prints a danger warning for:
+## Validate
 
-| Key | Unless its value is |
-|---|---|
-| `sandbox_mode` | `read-only` or `workspace-write` |
-| `default_permissions` | `:read-only` or `:workspace` |
-| `approval_policy` | `on-request` |
-| `approvals_reviewer` | `user` |
-| `web_search` | `disabled` or `cached` |
-| `model_instructions_file`, `experimental_instructions_file`, `experimental_compact_prompt_file` | always: each loads instructions from a file the seal does not cover |
-| `model_catalog_json` | always: it loads a file the seal does not cover |
-| `openai_base_url` | always: it sends the agent's work to a server the file names |
+`claude plugin validate --strict` is Claude Code's validator, and it does not
+read Codex's TOML. Do not run it on a Codex agent. Say plainly that the file
+was not validated.
 
-It prints a plainer warning for any other listed key except `model` and
-`model_reasoning_effort`. When the person picks a value this table flags,
-tell them then. Show each warning the check prints after the seal, and
-again in the hand-back.
+## Example
 
-The warnings print first, above every other line, with the danger
-warnings before the rest. A danger line for a key in this table is never
-cut. Each other rule prints at most 20 lines, then one count line, such as
-`WARN unreviewed: 5 more not shown; every listed key is on the contract's
-"Extra keys:" line`. A warning names a key in double quotes, cut at 40
-characters with `...`. A count line is a warning too. When that one
-appears, show the contract's first `Extra keys:` line, the one the check
-reads, with each key's recorded value, beside the warnings.
-
-## The mark (questions 5, 18)
-
-A Codex agent file has no frontmatter, so the seal writes the mark as three
-comment lines at the very end:
-
-```toml
-# contract-version = "X.Y.Z"
-# familiar-digest = "sha256:<64 hex characters>"
-# contract-digest = "sha256:<64 hex characters>"
-```
-
-Codex reads past comments. Never write these lines by hand. Write no other
-comment that names contract-version, familiar-digest or contract-digest.
-Write no key named like one either, such as `familiar_digest`. The check
-refuses both, because each would read as a seal. It reads a name in any
-case, with any dash or underscore, or none. It also reads full-width forms.
-Words with spaces between them are prose. To fix a refusal, rename the key
-or reword the comment. Then seal again.
-
-## Example (questions 4, 5)
-
-A reviewer that only reads, with the sandbox the person named, before the
-seal:
+A reviewer that only reads, with the sandbox the person named:
 
 ```toml
 name = "commit-reviewer"

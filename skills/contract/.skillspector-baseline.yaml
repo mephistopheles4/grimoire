@@ -1,38 +1,46 @@
 # SkillSpector baseline for this skill.
 #
 # You are reading this because you scanned this directory before installing
-# what is in it, which is the right thing to do with a skill. Two of
-# SkillSpector's rules fire on the files here, and this file says why, so you
-# can disagree with a reason rather than with silence.
+# what is in it, which is the right thing to do with a skill. Four of
+# SkillSpector's rules fire on the files here, and this file says why for each,
+# so you can disagree with a reason rather than with silence.
 #
-# The first rule is EA2, Autonomous Decision Making. It fires on text that names
-# what an agent may do without asking, in order to warn about it: the check's
-# danger labels and comments in scripts/check.mjs, the bindings' headings and
-# warning tables in references/, and a README line. It also fires on the step
-# in SKILL.md and CONTRACT.md that lists unconfirmed drafts as Proposed
-# without asking about each one; that keeps them unconfirmed until the person
-# agrees. None of it tells an agent to act without the person, so none of it
-# was reworded or moved to quiet the rule.
+# EA2, Autonomous Decision Making, fires on text that names what an agent may
+# do without asking, in order to warn about it: the bindings' headings in
+# references/, and a README line. None of it tells an agent to act without the
+# person.
 #
-# Read this before you install. The entry is keyed by rule identifier, so EA2
-# is off for this whole skill, not only for the texts above. That includes
-# SKILL.md, the text an agent obeys, and references/template.md, which seeds
-# every file this skill generates. A new EA2 finding anywhere in this
-# directory would be suppressed too, and would not fail a scan. The owner
-# accepted that breadth on 2026-09-27, because an entry keyed by rule cannot be
+# P2, Hidden Instructions, fires on the begin and end comment lines that fence
+# each generated part of SKILL.md. A fence names its part and nothing else; the
+# text between two fences is the skill's ordinary, visible instructions.
+#
+# RA2, Session Persistence, fires on a binding naming the folder where a
+# person's agents already live. That one is accepted, not a false positive: a
+# built agent written there loads in later sessions. The skill asks before any
+# write that would install.
+#
+# MP1, Persistent Context Injection, fires on a row of the change log that
+# records why the skill was rebuilt. It is history for a person to read. Its
+# entry names that one file, so MP1 still fires anywhere else in this skill.
+#
+# Read this before you install. The EA2, P2 and RA2 entries are keyed by rule
+# identifier alone, so each of those rules is off for this whole skill, not
+# only for the texts above. That includes SKILL.md, the text an agent obeys,
+# and references/template.md, which seeds every file this skill generates. A
+# new finding of any of the three anywhere in this directory would be
+# suppressed too, and would not fail a scan. For P2 that means an instruction
+# hidden in a comment or a link-reference comment, in invisible characters
+# (zero-width, direction-changing or Unicode tag characters), or in a base64
+# data link. For RA2 it means an instruction to persist on your machine: a
+# scheduled job, a startup or profile file, a background process or a hidden
+# folder. The template would copy any of them into every file this skill
+# builds. Read this folder's files yourself, the comments included. The owner
+# accepted the EA2 breadth on 2026-09-27, and the P2, RA2 and MP1 entries on
+# 2026-10-15, because an entry for a rule another skill shares cannot be
 # narrowed to one file today: the check in the repository this skill comes
 # from holds each skill's entry to the same words and the same scope as the
-# entry at the repository root. Narrower suppression for one skill is an open
-# follow-up. It needs a change to that check, with its own review.
-#
-# The second rule is OH3, Unbounded Output. It fires on a code comment in
-# scripts/check.mjs that explains the cap on how many lines of refusals the
-# check prints, which exists so a hostile file cannot flood the output. The
-# comment describes the limit, not unbounded output, so it was not reworded
-# to quiet the rule. This entry is keyed by rule identifier too, so OH3 is off
-# for this whole skill, not only for that comment, and a new OH3 finding
-# anywhere in this directory would be suppressed as well. The owner accepted
-# that breadth on 2026-09-30, for the same reason as EA2's.
+# entry at the repository root. Narrower suppression for a shared rule is an
+# open follow-up. It needs a change to that check, with its own review.
 #
 # The scanner reports the score unchanged and applies none of this unless you
 # ask. Apply it with --use-shipped-baseline, and read what it covered with
@@ -40,10 +48,9 @@
 #
 # Nothing here was reworded to satisfy a pattern matcher.
 #
-# This file sits inside the skill's sealed folder, so the seal covers it. The
-# repository root carries the same entries, and the repository's check refuses
-# a change that makes the two disagree. So a change to the shared reason at the
-# root forces the same change here, and a new seal of this folder.
+# The repository root carries the same entries, and the repository's check
+# refuses a change that makes the two disagree. So a change to the shared reason
+# at the root forces the same change here.
 
 version: 2
 fingerprints: []
@@ -51,5 +58,10 @@ fingerprints: []
 rules:
   - rule_id: "EA2"
     reason: "False positive. Texts that describe what an agent may do on its own and give no such instruction: the why text on an edge in an example box file, which a renderer prints for a reader; the labels, headings and comments in a format check, its bindings and its README that name the settings the check warns on because they let an agent act without asking; a step that lists unconfirmed drafts as Proposed without asking about each one, which keeps them unconfirmed until the person agrees; and eagle-eye's rule that when the person asks for the box by name, it builds the box without asking again, because the request is the go-ahead. None tells an agent to act without the person's say-so."
-  - rule_id: "OH3"
-    reason: "False positive. A code comment in a format check that explains the cap on how many lines of refusals it prints, which exists so a hostile file cannot flood the output. The comment describes the limit, not unbounded output."
+  - rule_id: "P2"
+    reason: "False positive, two kinds. The rule reads get inside any HTML comment with no word boundary, so the word together in a page-template comment about two buttons wrapping as one group matches it; those comments are notes on layout for a maintainer, and no agent reads the rendered page as instructions. And the contract skill's part fences: one begin and one end comment line around each generated part of a SKILL.md, naming the part so an amendment can regenerate it alone. The fence holds a part's name and nothing else, and the text between two fences is the skill's ordinary, visible instructions."
+  - rule_id: "RA2"
+    reason: "Three findings, one rule. False positive: the CONTRIBUTING.md rule forbidding a fixed path inside a skill, and the test proving that rule fires; a guard and its test, both reported as the risk they exist to prevent. Not a false positive, and accepted: eagle-eye's usage log keeps a start and an end line per box in a file in the person's home folder, across sessions, and only after the person says yes in chat. A no is stored as one declined marker. The skill never writes inside its own folder. Also accepted: the contract skill's bindings name the folders where a person's agents already live, such as .codex/agents/, so a built agent written there loads in later sessions. The skill asks the person before any write that would install, and writes no agent without the person's go."
+  - rule_id: "MP1"
+    file: "*contract.changelog.md"
+    reason: "False positive. The words a permanent rule in the contract skill's change log, in the row that records why the skill was rebuilt: every earlier review finding had become a permanent rule, and nothing let one be dropped. It describes the skill's past for a person reading its history, and the skill tells an agent to read the change log only when someone asks what changed."

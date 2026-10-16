@@ -225,16 +225,16 @@ test('a script rule and a git rule are written for both shell tools, with the sk
   const sb = sandbox();
   mkdirSync(join(sb.skill, 'scripts'));
   writeFileSync(join(sb.skill, 'scripts', 'check.mjs'), 'process.exit(0)');
-  const id = start(sb, ['--rule', 'node <skill>/scripts/check.mjs *', '--rule', 'node <skill>/scripts/check.mjs --seal', '--rule', 'git status *', '--rule', 'git show']);
+  const id = start(sb, ['--rule', 'node <skill>/scripts/check.mjs *', '--rule', 'node <skill>/scripts/check.mjs --strict', '--rule', 'git status *', '--rule', 'git show']);
   assert.equal(cli(sb, ['send', id], 'one').code, 0);
   const copy = fwd(join(workDir(sb, id), '.claude', 'skills', 'probe-skill'));
   const { allow } = settingsOf(sb, id).permissions;
   for (const tool of ['Bash', 'PowerShell']) {
-    for (const r of [`node ${copy}/scripts/check.mjs *`, `node ${copy}/scripts/check.mjs --seal`, 'git status *', 'git show']) {
+    for (const r of [`node ${copy}/scripts/check.mjs *`, `node ${copy}/scripts/check.mjs --strict`, 'git status *', 'git show']) {
       assert.ok(allow.includes(`${tool}(${r})`), `no ${tool}(${r}) in:\n${allow.join('\n')}`);
     }
   }
-  assert.match(cli(sb, ['report', id]).stdout, /^tool rules: node <skill>\/scripts\/check\.mjs \*; node <skill>\/scripts\/check\.mjs --seal; git status \*; git show$/m);
+  assert.match(cli(sb, ['report', id]).stdout, /^tool rules: node <skill>\/scripts\/check\.mjs \*; node <skill>\/scripts\/check\.mjs --strict; git status \*; git show$/m);
 });
 
 // The allow rules each send's settings file held, as the fake received them.
@@ -251,7 +251,7 @@ for (const variant of VARIANTS) {
     const sb = sandbox();
     mkdirSync(join(sb.skill, 'scripts'));
     writeFileSync(join(sb.skill, 'scripts', 'check.mjs'), 'process.exit(0)');
-    const id = start(sb, ['--variant', variant, '--rule', 'node <skill>/scripts/check.mjs *', '--rule', 'node <skill>/scripts/check.mjs --seal *']);
+    const id = start(sb, ['--variant', variant, '--rule', 'node <skill>/scripts/check.mjs *', '--rule', 'node <skill>/scripts/check.mjs --strict *']);
     assert.equal(cli(sb, ['send', id], 'one').code, 0);
     assert.equal(cli(sb, ['send', id], 'two').code, 0);
     const base = join(workDir(sb, id), '.claude', 'skills', 'probe-skill');
@@ -265,7 +265,7 @@ for (const variant of VARIANTS) {
     const sends = allowsPerSend(sb);
     assert.equal(sends.length, 2);
     for (const allow of sends) {
-      const want = ['*', '--seal *'].flatMap(tail => [
+      const want = ['*', '--strict *'].flatMap(tail => [
         ...[forward, ...quoted].map(p => `Bash(node ${p} ${tail})`),
         ...[...paths, ...quoted].map(p => `PowerShell(node ${p} ${tail})`),
       ]);
@@ -399,7 +399,7 @@ const RULE_REFUSALS = [
   ['a path with ..', 'node <skill>/../probe-skill/scripts/check.mjs'],
   ['a path with a glob character', 'node <skill>/scripts/*.mjs'],
   ['a path that is not an existing file', 'node <skill>/scripts/missing.mjs'],
-  ['a wildcard that is not last', 'node <skill>/scripts/check.mjs * --seal'],
+  ['a wildcard that is not last', 'node <skill>/scripts/check.mjs * --strict'],
   ['a rule starting with -', '-e <skill>/scripts/check.mjs'],
   ['a shell operator in a fixed word', 'node <skill>/scripts/check.mjs ;rm'],
   ['two spaces between words', 'node  <skill>/scripts/check.mjs'],
@@ -1074,9 +1074,8 @@ const START_REFUSALS = [
   ['a GIT_ name', sb => ['--variant', 'clean', ...base(sb), '--value', 'GIT_DIR=x'], /GIT_DIR/],
   ['a name that would replace a system value', sb => ['--variant', 'clean', ...base(sb), '--value', 'COMSPEC=x'], /COMSPEC/],
   ['a name outside the shape', sb => ['--variant', 'clean', ...base(sb), '--value', 'lower=x'], /name/],
-  ['B3 on user-skills', sb => ['--variant', 'user-skills', '--skill', skillAt(sb, 'contract'), '--case', 'B3', '--model', 'haiku', '--effort', 'low'], /B3.*clean.*owner-pact/],
-  ['B25b on full-account', sb => ['--variant', 'full-account', '--skill', skillAt(sb, 'contract'), '--case', 'b25b', '--model', 'haiku', '--effort', 'low'], /B25b/i],
   ['eagle-eye session 4 on user-skills', sb => ['--variant', 'user-skills', '--skill', skillAt(sb, 'eagle-eye'), '--case', 'session-4', '--model', 'haiku', '--effort', 'low'], /session-4/],
+  ['an eagle-eye case named in another letter case on full-account', sb => ['--variant', 'full-account', '--skill', skillAt(sb, 'eagle-eye'), '--case', 'p2', '--model', 'haiku', '--effort', 'low'], /p2/i],
   ['head-chef session 1 on full-account', sb => ['--variant', 'full-account', '--skill', skillAt(sb, 'head-chef'), '--case', 'session-1', '--model', 'haiku', '--effort', 'low'], /session-1.*clean.*owner-pact/],
   ['a setup folder with a project settings file', sb => ['--variant', 'clean', ...base(sb), '--setup', setupWith(sb, { '.claude/settings.json': '{}' })], /\.claude/],
   ['a setup folder with an MCP config', sb => ['--variant', 'clean', ...base(sb), '--setup', setupWith(sb, { '.mcp.json': '{}' })], /\.mcp\.json/],
@@ -1093,9 +1092,9 @@ for (const [what, args, pattern] of START_REFUSALS) {
 
 test('a case that plants an instruction is accepted on clean and owner-pact', () => {
   const sb = sandbox();
-  const contract = skillAt(sb, 'contract');
+  const eagleEye = skillAt(sb, 'eagle-eye');
   for (const variant of ['clean', 'owner-pact']) {
-    const r = cli(sb, ['start', '--variant', variant, '--skill', contract, '--case', 'B3', '--model', 'haiku', '--effort', 'low']);
+    const r = cli(sb, ['start', '--variant', variant, '--skill', eagleEye, '--case', 'session-4', '--model', 'haiku', '--effort', 'low']);
     assert.equal(r.code, 0, r.stderr);
   }
 });
@@ -1230,7 +1229,7 @@ test('the report keeps every turn\'s start-up lists, flags a change from turn on
 test('the report lists the work folder\'s files without the copied skills, and the temp folder on its own', () => {
   const sb = sandbox();
   plan(sb, [{
-    write: { 'familiars/out.md': 'made', '.claude/skills/probe-skill/added.md': 'new' },
+    write: { 'notes/out.md': 'made', '.claude/skills/probe-skill/added.md': 'new' },
     writeTemp: { 'box.json': '{}' },
   }]);
   const setup = setupWith(sb, { 'case/input.txt': 'given' });
@@ -1240,7 +1239,7 @@ test('the report lists the work folder\'s files without the copied skills, and t
   const [, disk] = out.split(/^work folder files/m);
   const [files, temp] = disk.split(/^temp folder files/m);
   assert.match(files, /^ {2}case\/input\.txt$/m);
-  assert.match(files, /^ {2}familiars\/out\.md$/m);
+  assert.match(files, /^ {2}notes\/out\.md$/m);
   // A file the session added to a copied skill shows; the copy itself does not.
   assert.match(files, /^ {2}\.claude\/skills\/probe-skill\/added\.md$/m);
   assert.doesNotMatch(files, /SKILL\.md/);
@@ -1409,7 +1408,7 @@ test('session text cannot forge runner lines: the frame carries a fresh token, a
 
 test('a skill named after an Object.prototype key starts normally', () => {
   const sb = sandbox();
-  const r = cli(sb, ['start', '--variant', 'user-skills', '--skill', skillAt(sb, 'constructor'), '--case', 'B3', '--model', 'haiku', '--effort', 'low']);
+  const r = cli(sb, ['start', '--variant', 'user-skills', '--skill', skillAt(sb, 'constructor'), '--case', 'A1', '--model', 'haiku', '--effort', 'low']);
   assert.equal(r.code, 0, r.stderr);
 });
 
