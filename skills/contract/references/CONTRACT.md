@@ -204,7 +204,7 @@ draft *Proposed*.
 2. **The built file**, with the words **"not installed"**, or "installed"
    when the person said yes to writing it where their tool loads it.
 3. **The validator's output** as printed, or the words "not validated" when
-   the command is not available.
+   the command is not available, or the file is a CLAUDE.md or a Codex agent.
 4. **The unsettled list**, last: each answer still *Proposed*, each open
    question, and where to install the built file. For an agent or a
    CLAUDE.md, the version its binding was last checked against, and each

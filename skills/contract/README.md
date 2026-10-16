@@ -79,10 +79,11 @@ When it goes wrong, ask for a change. The skill uses **amend mode**:
 
 1. It finds the clause that should have held, and proposes a change to it.
 2. It records the change in the change log, with its reason.
-3. It regenerates only the parts of the file the change touches. Each
-   generated part sits between two comment lines that name it, so every
-   other line stays word for word.
-4. It shows the change list, and waits for your go.
+3. It shows the change list, and waits for your go.
+4. It regenerates only the parts of the file the change touches. In a
+   `SKILL.md`, each generated part sits between two comment lines that name
+   it. An agent file or a CLAUDE.md has none, so only the sections the
+   change touches are regenerated. Every other line stays word for word.
 
 A small change then gives a small diff, and a reviewer can read it.
 

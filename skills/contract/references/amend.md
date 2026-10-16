@@ -30,7 +30,9 @@ when the person wants any change to it.
    came from, parts touched, field signal. Put each keep, drop or observed
    outcome from step 4 in the change column. A rule the person acted on is a
    change-log row. A rule they dismissed needs no record.
-6. **Regenerate only the parts the change touches.** In a `SKILL.md`, these
+6. **Show the change list, and wait for the person's go.** Regenerate
+   nothing before it.
+7. **Regenerate only the parts the change touches.** In a `SKILL.md`, these
    are the fenced parts, between their `<!-- contract:begin NAME -->` and
    `<!-- contract:end NAME -->` lines. Keep every other line word for word.
    An agent file or a `CLAUDE.md` has no fences: regenerate the sections the
@@ -38,7 +40,6 @@ when the person wants any change to it.
    nothing into the body (`purpose`, `why`, `open`) changes the description,
    or nothing; say which. Regenerate the Additional resources index when a
    reference file is added, removed or renamed.
-7. **Show the change list, and wait for the person's go.**
 8. **Validate,** as the binding says: run `claude plugin validate --strict`
    when the command is available. For a skill, the path is the `skills/`
    folder that holds the skill's folder. For an agent, it is the folder that
