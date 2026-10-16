@@ -206,7 +206,9 @@ the test override: [`docs/security/edge-audit.md`](docs/security/edge-audit.md).
   any edit to it shows in review. A finding that only reports a reference to
   such a file passes too, when its count matches. See
   [Partial reads](docs/security/scanners.md#partial-reads). Every suppression
-  carries a written reason.
+  carries a written reason. A suppression is keyed by rule, so it holds for a
+  whole skill: P2, RA2 and MP1 are off for all of the contract skill, and an
+  instruction hidden in a comment there would pass the scan.
 - **zizmor** audits the workflows and fails on any finding. There is no
   baseline, because there is nothing to suppress.
 - **Every action is pinned to a commit SHA**, and zizmor checks each SHA
@@ -256,6 +258,8 @@ are the setting above.
   bad commit. It does not survive a stolen admin account.
 - **A skill, an agent and a contract from someone else.** A pass of
   `claude plugin validate --strict` says a frontmatter parses, not that anyone
-  reviewed the file. Read the files first. The eagle-eye, head-chef and contract
-  skills still carry seal marks from the old check; they are inert and prove
-  nothing, and go when each skill is next generated.
+  reviewed the file. Read the files first. The eagle-eye and head-chef skills
+  still carry seal marks from the old check, the `familiar-digest` and
+  `contract-digest` lines in their `SKILL.md` metadata; they are inert and prove
+  nothing, and go when each skill is next amended. The contract skill carries
+  none.
