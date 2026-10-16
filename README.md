@@ -94,7 +94,7 @@ skills folder, the plugin install, and a copy made by `skills`.
 Every route gives you all four skill directories, each with its `SKILL.md`
 and the scripts that go with it. Only the plugin route also gives you the
 Brigade pane. Each skill carries a README of its own, which is where it is
-documented; contract and head-chef also carry the `CONTRACT.md` their
+documented; contract, eagle-eye and head-chef also carry the `CONTRACT.md` their
 `SKILL.md` is generated from. What follows is only enough to tell you which
 one you want.
 

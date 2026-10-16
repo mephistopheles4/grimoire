@@ -107,9 +107,9 @@ A small change then gives a small diff, and a reviewer can read it.
 ## Changes in 0.12.0
 
 **The skill is rebuilt to the shape it teaches.** It asks one question at a
-time, and its contract has eight parts in place of 20 questions. The format
-check and its marks are gone: the skill runs `claude plugin validate --strict`
-instead. Its own contract moves to `references/CONTRACT.md`, and its history
+time, and its contract has eight parts in place of 20 questions. The old
+check, and the keys it wrote into each built file, are gone: the skill runs
+`claude plugin validate --strict` instead. Its own contract moves to `references/CONTRACT.md`, and its history
 to `references/contract.changelog.md`, where every earlier version's changes
 are kept.
 
