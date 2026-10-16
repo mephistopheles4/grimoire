@@ -296,33 +296,46 @@ const SKILL_KEYS = new Set(['name', 'description', 'compatibility', 'license', '
 // The frontmatter is read by hand, as the baseline reader in rule 7 is: a key
 // at the left margin, bare or quoted, then a colon. Indented lines, list items
 // at the margin, blank lines and comments are values or nothing, and only key
-// names are read. Any other line at the margin sets keys this reader cannot
-// name — a flow map, a `?` key, a `<<` merge, a tab-indented line — so it is
-// refused rather than skipped. A lone CR breaks a YAML line as a line feed
-// does, so each line is split on it too. Every SKILL.md under skills/ is read,
-// in any case, not only skills/<name>/SKILL.md: an install that folds case
-// loads skill.md, and a nested one costs nothing to hold to the same list.
+// names are read. An indented line before the first key at the margin is
+// refused: YAML takes a mapping indented as a whole as the top level, so its
+// keys are top-level keys this reader would skip as values. Any other line at
+// the margin sets keys this reader cannot name — a flow map, a `?` key, a `<<`
+// merge, a tab-indented line — so it is refused rather than skipped. A lone CR
+// breaks a YAML line as a line feed does, so each line is split on it too.
+// Both fences are exactly `---`; a fence with anything after it is refused, as
+// a loader might not close there. Every SKILL.md under skills/ is read, in any
+// case, not only skills/<name>/SKILL.md: an install that folds case loads
+// skill.md, and a nested one costs nothing to hold to the same list.
 //
 // The characters: every C0 control but tab, line feed and carriage return; a
 // CR not followed by a line feed; DEL; every C1 control; the two Unicode line
 // separators; and the noncharacters U+FFFE and U+FFFF. Each can make the diff
-// a reviewer reads differ from the text the model reads. A file is text unless
-// its suffix is on the binary list below, so a new kind of file is read rather
-// than skipped; a new binary kind fails here until it is added to the list.
-const BINARY = /\.(woff2?|ttf|otf|png|jpe?g|gif|webp|ico)$/i;
+// a reviewer reads differ from the text the model reads. Every file is text
+// but a binary kind listed below, and a file of that kind must open with its
+// format's signature, so a text file renamed .woff2 is read as text. A new
+// binary kind fails here until it is listed with its signature.
+const BINARY = new Map([['.woff2', Buffer.from('wOF2')]]);
+const binaryKind = f => BINARY.get(posix.extname(f.toLowerCase()));
 const HIDDEN = /[\x00-\x08\x0B-\x1F\x7F-\x9F\u{2028}\u{2029}\u{FFFE}\u{FFFF}]/gu;
 const FRONTMATTER_KEY = /^(?:"([^"\\]*)"|'([^']*)'|([A-Za-z0-9_][^:#]*?))[ \t]*:(?:[ \t]|$)/;
-const FENCE_LINE = /^---[ \t]*$/;
 const codePoint = c => `U+${c.codePointAt(0).toString(16).toUpperCase().padStart(4, '0')}`;
+// A string from a file, for a failure line: masked before it is cut, as rule
+// 2 does, so a cut cannot drop the home path that tells the masker the name.
+const quoted = s => printable(excerpt(masked(s)));
 
-for (const f of files.filter(f => relRaw(f).startsWith('skills/') && !BINARY.test(f))) {
-  const text = readFileSync(f, 'utf8');
+for (const f of files.filter(f => relRaw(f).startsWith('skills/'))) {
+  const bytes = readFileSync(f);
+  const signature = binaryKind(relRaw(f));
+  if (signature && bytes.subarray(0, signature.length).equals(signature)) continue;
+  const text = bytes.toString('utf8');
   // Each character once a file, at its first line, with a count: one fix
   // clears every copy, and a file full of them should not bury the rest.
   const found = new Map();
-  text.split('\n').forEach((raw, i) => {
-    // The CR of a CRLF ending is not a lone one; any other CR is.
-    const line = raw.endsWith('\r') ? raw.slice(0, -1) : raw;
+  const split = text.split('\n');
+  split.forEach((raw, i) => {
+    // The CR of a CRLF ending is not a lone one; any other CR is, the last
+    // one in a file with no line feed after it included.
+    const line = i < split.length - 1 && raw.endsWith('\r') ? raw.slice(0, -1) : raw;
     for (const [c] of line.matchAll(HIDDEN)) {
       const seen = found.get(c);
       if (seen) seen.count++;
@@ -341,27 +354,35 @@ for (const f of files.filter(f => relRaw(f).startsWith('skills/') && basename(f)
     .replace(/^\u{FEFF}/u, '')
     .split('\n')
     .map(l => (l.endsWith('\r') ? l.slice(0, -1) : l));
-  if (!FENCE_LINE.test(lines[0])) {
-    fail(`${rel(f)} does not open with a --- line, so it has no frontmatter for Claude Code to read`);
+  if (lines[0] !== '---') {
+    fail(`${rel(f)} does not open with a line of exactly ---, so the check cannot find its frontmatter`);
     continue;
   }
-  const close = lines.findIndex((l, i) => i > 0 && FENCE_LINE.test(l));
+  const close = lines.findIndex((l, i) => i > 0 && l === '---');
   if (close === -1) {
-    fail(`${rel(f)} has no closing --- line, so the check cannot tell its frontmatter from its body`);
+    fail(`${rel(f)} has no closing line of exactly ---, so the check cannot tell its frontmatter from its body`);
     continue;
   }
+  let sawKey = false;
   for (let i = 1; i < close; i++) {
     for (const seg of lines[i].split('\r')) {
-      if (!seg.trim() || seg.startsWith('#') || seg.startsWith(' ') || seg === '-' || seg.startsWith('- ')) continue;
-      const m = FRONTMATTER_KEY.exec(seg);
-      if (!m) {
-        fail(`${rel(f)}:${i + 1} holds a frontmatter line the check cannot read as one key: ${shown(excerpt(seg))}`);
+      if (!seg.trim() || seg.trimStart().startsWith('#')) continue;
+      if (seg.startsWith(' ')) {
+        if (sawKey) continue;
+        fail(`${rel(f)}:${i + 1} is indented before any key at the margin, so YAML may read it as a top-level key: ${quoted(seg)}`);
         continue;
       }
+      if (seg === '-' || seg.startsWith('- ')) continue;
+      const m = FRONTMATTER_KEY.exec(seg);
+      if (!m) {
+        fail(`${rel(f)}:${i + 1} holds a frontmatter line the check cannot read as one key: ${quoted(seg)}`);
+        continue;
+      }
+      sawKey = true;
       const key = m[1] ?? m[2] ?? m[3];
       if (!SKILL_KEYS.has(key)) {
         fail(
-          `${rel(f)}:${i + 1} has the frontmatter key "${shown(key)}", which is not one of ${[...SKILL_KEYS].join(', ')}. Claude Code acts on some keys, such as hooks; add one to SKILL_KEYS in scripts/check.mjs only with a reason.`,
+          `${rel(f)}:${i + 1} has the frontmatter key "${quoted(key)}", which is not one of ${[...SKILL_KEYS].join(', ')}. Claude Code acts on some keys, such as hooks; add one to SKILL_KEYS in scripts/check.mjs only with a reason.`,
         );
       }
     }

@@ -203,15 +203,19 @@ the top of its frontmatter, and `scripts/check.mjs` fails on any other key,
 naming the file and the key. Claude Code acts on some keys: a `hooks` key
 registers hooks when the skill is invoked. The list is `SKILL_KEYS` in
 `scripts/check.mjs`; a pull request that adds a key says what Claude Code does
-with it. The check reads key names only, never their values.
+with it. The check judges key names only, never their values, though a line
+it cannot read as one key is quoted, masked and cut, in its failure. Write the
+frontmatter's keys at the left margin, and fence it with lines of exactly
+`---`: an indented first key and a fence with anything after it both fail.
 
 **No hidden characters in a skill file.** The check fails on any file under
 `skills/` that holds a control character other than tab, line feed and
 carriage return, a carriage return not followed by a line feed, DEL, U+2028,
 U+2029, U+FFFE or U+FFFF, and names the file, the line and the code point.
 Each can make the diff you review differ from the text the model reads. Every
-file is read as text unless its suffix is on the check's binary list, so a new
-kind of binary file fails until the list names it.
+file is read as text unless the check's binary list names its suffix and the
+file opens with that format's signature, so a new kind of binary file fails
+until the list names it, and a text file renamed `.woff2` is still read.
 
 **Write to the skill's own rules.** eagle-eye's prose follows ASD-STE100 tested
 against ISO 24495-1: active voice, present tense, one instruction per sentence,

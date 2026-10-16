@@ -31,7 +31,71 @@ const named = name => [`name: ${name}`, 'description: A fixture skill that exist
 test('a SKILL.md with a hooks key fails, naming the file and the key', () => {
   const dir = tree();
   skill(dir, 'hooked', front(...named('hooked'), 'hooks:', '  PreToolUse: []'));
-  assertFails(dir, /skills\/hooked\/SKILL\.md:4 has the frontmatter key "hooks"/);
+  // The whole list, so a key added to it is a change a test sees.
+  assertFails(
+    dir,
+    /skills\/hooked\/SKILL\.md:4 has the frontmatter key "hooks", which is not one of name, description, compatibility, license, allowed-tools, metadata\./,
+  );
+});
+
+test('a lowercase skill.md and a nested SKILL.md are held to the same list', () => {
+  for (const at of [['lower', 'skill.md'], ['nested', 'more', 'inner', 'SKILL.md']]) {
+    const dir = tree();
+    const file = join(dir, 'skills', ...at);
+    mkdirSync(join(file, '..'), { recursive: true });
+    writeFileSync(file, front(...named(at[0]), 'hooks: {}'));
+    assertFails(dir, new RegExp(`skills/${at.join('/').replace(/\./g, '\\.')}:4 has the frontmatter key "hooks"`));
+  }
+});
+
+test('a frontmatter indented as a whole fails, though YAML reads it as top-level keys', () => {
+  // The name rule passes this file on the body's margin name: line, so only
+  // this rule stands between an indented hooks key and the merge.
+  const dir = tree();
+  skill(
+    dir,
+    'indented',
+    `---\n  name: indented\n  description: A fixture.\n  hooks: {}\n---\n\n\`\`\`yaml\nname: example\n\`\`\`\n`,
+  );
+  assertFails(dir, /skills\/indented\/SKILL\.md:2 is indented before any key at the margin/);
+});
+
+test('an indented comment does not open the way for indented keys', () => {
+  const dir = tree();
+  skill(dir, 'commented', `---\n  # a comment\n  hooks: {}\n${named('commented').join('\n')}\n---\n\nBody.\n`);
+  assertFails(dir, /skills\/commented\/SKILL\.md:3 is indented before any key at the margin/);
+});
+
+test('a fence line with anything after it does not close the frontmatter', () => {
+  for (const near of ['--- x', '--- ', '----']) {
+    const dir = tree();
+    skill(dir, 'near', front(...named('near'), near, 'hooks: {}'));
+    const r = assertFails(dir, /skills\/near\/SKILL\.md:4 holds a frontmatter line the check cannot read as one key/);
+    assert.match(r.stderr, /skills\/near\/SKILL\.md:5 has the frontmatter key "hooks"/);
+  }
+});
+
+test('a SKILL.md that does not open with --- on its first line fails', () => {
+  const dir = tree();
+  skill(dir, 'late', `\n${front(...named('late'), 'hooks: {}')}`);
+  assertFails(dir, /skills\/late\/SKILL\.md does not open with a line of exactly ---/);
+});
+
+test('a line the check cannot read is masked before it is cut', () => {
+  // The account name comes early and the home path that names it late, past
+  // the cut. Cut first, the masker never sees the path and prints the name.
+  const dir = tree();
+  const line = `{note: "zqxaccount ${'a'.repeat(130)} /home/zqxaccount/x"}`;
+  skill(dir, 'masked', front(...named('masked'), line));
+  const r = assertFails(dir, /skills\/masked\/SKILL\.md:4 holds a frontmatter line the check cannot read/);
+  assert.equal(r.stderr.includes('zqxaccount'), false, r.stderr);
+});
+
+test('a long quoted key is cut in the failure line', () => {
+  const dir = tree();
+  skill(dir, 'longkey', front(...named('longkey'), `"${'k'.repeat(300)}": 1`));
+  const r = assertFails(dir, /skills\/longkey\/SKILL\.md:4 has the frontmatter key "k+\.\.\."/);
+  assert.equal(r.stderr.includes('k'.repeat(121)), false);
 });
 
 test('a SKILL.md with only allow-listed keys passes', () => {
@@ -98,7 +162,7 @@ test('a hooks line in the body, after the frontmatter, passes', () => {
 test('a SKILL.md whose frontmatter never closes fails', () => {
   const dir = tree();
   skill(dir, 'open', `---\n${named('open').join('\n')}\nhooks: {}\n\n# Fixture\n`);
-  assertFails(dir, /skills\/open\/SKILL\.md has no closing --- line/);
+  assertFails(dir, /skills\/open\/SKILL\.md has no closing line of exactly ---/);
 });
 
 test('a file under skills/ with a lone CR fails, naming the file and the line', () => {
@@ -117,13 +181,37 @@ test('a file under skills/ with a line separator fails', () => {
 });
 
 test('each refused character kind fails', () => {
-  for (const cp of [0x00, 0x1b, 0x7f, 0x85, 0x9f, 0x2029, 0xfffe, 0xffff]) {
+  // Both ends of every range, and a point inside each.
+  for (const cp of [0x00, 0x01, 0x08, 0x0b, 0x0c, 0x0e, 0x1b, 0x1f, 0x7f, 0x80, 0x84, 0x85, 0x9f, 0x2028, 0x2029, 0xfffe, 0xffff]) {
     const dir = tree();
     const at = skill(dir, 'kinds', front(...named('kinds')));
     writeFileSync(join(at, 'notes.txt'), `before ${String.fromCodePoint(cp)} after\n`);
     const hex = cp.toString(16).toUpperCase().padStart(4, '0');
     assertFails(dir, new RegExp(`skills/kinds/notes\\.txt:1 holds U\\+${hex}`));
   }
+});
+
+test('a lone CR as the last character of a file fails', () => {
+  const dir = tree();
+  const at = skill(dir, 'eof', front(...named('eof')));
+  writeFileSync(join(at, 'notes.md'), `one\ntwo${CR}`);
+  assertFails(dir, /skills\/eof\/notes\.md:2 holds a lone CR \(U\+000D\)/);
+});
+
+test('a hidden character fails in every text kind a skill ships', () => {
+  for (const name of ['data.json', 'run.mjs', 'page.html', 'shape.svg', 'style.css', 'list.yaml']) {
+    const dir = tree();
+    const at = skill(dir, 'kinds', front(...named('kinds')));
+    writeFileSync(join(at, name), `one${LS}two\n`);
+    assertFails(dir, new RegExp(`skills/kinds/${name.replace('.', '\\.')}:1 holds U\\+2028`));
+  }
+});
+
+test('a text file named as a font is read as text', () => {
+  const dir = tree();
+  const at = skill(dir, 'font', front(...named('font')));
+  writeFileSync(join(at, 'notes.woff2'), `not a font${LS}\n`);
+  assertFails(dir, /skills\/font\/notes\.woff2:1 holds U\+2028/);
 });
 
 test('a character is named once a file, with the count, not once a line', () => {
