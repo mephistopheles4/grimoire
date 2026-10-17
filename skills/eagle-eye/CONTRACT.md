@@ -1,6 +1,6 @@
 # Contract: eagle-eye
 
-Version: 0.2.2
+Version: 0.2.3
 
 - **Type:** skill
 - **Level:** Thorough
@@ -107,6 +107,7 @@ Extra keys: none.
 | 0.2.0 | 2026-10-04 | The yes to the usage log is stored at once as a consent marker, and the later of two markers holds. A built box writes a start line and an end line with one key. An open box is asked about at the next use; on a no it gets an "unanswered" end line, and a fourth signal counts those. The default log moves to `.grimoire/eagle-eye/log.jsonl`, and the earlier default is ignored. Practice cases P5 to P9 are added and not run, and P4's expected answer says "a usage log" instead of "one line per use". | Issue 188: parallel sessions each asked the log question, because a yes was stored only with the first use line at a debrief, and a dropped box wrote nothing. The owner chose the set in an eagle-eye box on 2026-10-04. | 3, 6, 12, 13 |
 | 0.2.1 | 2026-10-06 | No clause changed. A Contents list is added at the top of the four long reference files (audit, box-file, usage-record, writing-edges), one bullet per heading in file order. No other line changed, no heading renamed. | Issue 194, from 176: the check warns on a reference file over 100 lines with no contents list in its first 30. | none |
 | 0.2.2 | 2026-10-06 | No clause changed beyond question 5's tools line, which now names Node.js 20 or later. `SKILL.md` gains one `compatibility` frontmatter line; its body does not change. **Decided** 2026-10-06 | Issue 181, from 176: a person installing the skill can see the runtime it needs before a script fails. The floor was confirmed by running every script entry point under Node 20.0.0 and scanning for newer APIs. The owner approved the row and version step. | 5 |
+| 0.2.3 | 2026-10-16 | No clause changed. Step 7 of `SKILL.md` said to run the renderer "from the skill base directory", which a reader can take as "change into it". It now says to run the renderer by its path in the skill base directory, as the step's code block shows. No other line of the body changes. | Issue 173, from 171's live runs: a session read "from" as `cd <base>` and ran a bare `render.mjs`, which the practice runner denies. **Decided** 2026-10-16 (the owner's go, relayed by the head chef) | 3 |
 
 ---
 
