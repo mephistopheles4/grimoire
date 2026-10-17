@@ -188,6 +188,26 @@ test('a file or message made only of wildcard characters fails, because it narro
   }
 });
 
+test('two rule ids that differ only in case fail, because the scanner ignores case', () => {
+  // The scanner lower-cases both sides before it matches. A narrowed "AR2" and
+  // an un-narrowed "ar2" are one rule to it, and the wide entry would win.
+  const dir = tree();
+  writeFileSync(
+    rootBaselineIn(dir),
+    baselineBody([
+      { id: 'AR2', reason: 'One argument.' },
+      { id: 'ar2', reason: 'A second argument.' },
+    ]),
+  );
+  assertFails(dir, /ar2 and AR2 are one rule/);
+  // The mirror lookup folds case too: a skill's lower-case twin of AR2 is held
+  // to the root's AR2 reason and scope, not skipped as an unknown rule.
+  const other = tree();
+  const skill = readFileSync(skillBaselineIn(other), 'utf8');
+  writeFileSync(skillBaselineIn(other), skill.replace('  - rule_id: "AR2"\n', '  - rule_id: "ar2"\n    file: "*SKILL.md"\n'));
+  assertFails(other, /ar2 is narrowed to \*SKILL\.md here and to every file/);
+});
+
 test('a quoted version is read, because the entries accept quoting too', () => {
   const dir = tree();
   const text = readFileSync(rootBaselineIn(dir), 'utf8');

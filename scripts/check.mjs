@@ -969,11 +969,19 @@ function readBaseline(path) {
   }
   if (!rules.length) problems.push(`${rel(path)}: no rules — a baseline that suppresses nothing should be deleted`);
 
-  const seen = new Set();
+  // Rule ids are compared without regard to case: the scanner lower-cases both
+  // sides before it matches, so "AR2" and "ar2" are one rule to it.
+  const seen = new Map();
   for (const r of rules) {
     if (!r.rule_id) problems.push(`${r.at}: a rule entry with no rule_id`);
-    else if (seen.has(r.rule_id)) problems.push(`${r.at}: ${r.rule_id} appears twice`);
-    else seen.add(r.rule_id);
+    else if (seen.has(r.rule_id.toLowerCase())) {
+      const first = seen.get(r.rule_id.toLowerCase());
+      problems.push(
+        first === r.rule_id
+          ? `${r.at}: ${r.rule_id} appears twice`
+          : `${r.at}: ${r.rule_id} and ${first} are one rule, because the scanner ignores letter case`,
+      );
+    } else seen.set(r.rule_id.toLowerCase(), r.rule_id);
     // The scanner requires a reason too. This says so here, where the author
     // is, rather than on a runner an hour later.
     if (!r.reason) problems.push(`${r.at}: ${r.rule_id ?? 'a rule'} has no reason — a suppression nobody can audit`);
@@ -987,7 +995,7 @@ let rootRules = null;
 try {
   const parsed = readBaseline(rootBaseline);
   for (const p of parsed.problems) fail(p);
-  rootRules = new Map(parsed.rules.filter(r => r.rule_id).map(r => [r.rule_id, r]));
+  rootRules = new Map(parsed.rules.filter(r => r.rule_id).map(r => [r.rule_id.toLowerCase(), r]));
 } catch (e) {
   if (e.code !== 'ENOENT') throw e;
   fail(
@@ -1006,7 +1014,7 @@ for (const path of skillBaselines) {
   if (!rootRules) continue;
   for (const r of parsed.rules) {
     if (!r.rule_id) continue;
-    const mirror = rootRules.get(r.rule_id);
+    const mirror = rootRules.get(r.rule_id.toLowerCase());
     if (!mirror) {
       fail(`${r.at}: ${r.rule_id} is suppressed here and not at the repository root — the two baselines disagree`);
       continue;

@@ -347,6 +347,22 @@ export function unexplainedRehashes(before, after) {
       );
     }
   }
+  // A moved or renamed file is a new key: the entry reads as removed plus
+  // added, and the loop above never sees a hash move. An added entry that
+  // carries the reason of a removed entry of the same skill, on a different
+  // hash, is the same paste one key over.
+  const nowKeys = new Set(after.exceptions.map(exceptionKey));
+  const gone = before.exceptions.filter(o => !nowKeys.has(exceptionKey(o)));
+  for (const e of after.exceptions) {
+    if (was.has(exceptionKey(e))) continue;
+    const twin = gone.find(o => o.skill === e.skill && o.reason === e.reason && o.sha256 !== e.sha256);
+    if (twin) {
+      problems.push(
+        `${ALLOWANCES}: exception ${e.skill}/${e.path} (${e.reason_code}) is new and carries the reason of a removed entry of that skill, on a different hash. ` +
+          'Review the diff of that file by hand, then write a new sentence in the reason, in the form "Re-read on <date>: <what you found>."',
+      );
+    }
+  }
   return problems;
 }
 

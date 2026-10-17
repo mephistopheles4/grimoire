@@ -154,7 +154,9 @@ and carries a reason. The rules that hold it:
   differs from `main` and its `reason` gains no new "Re-read on <date>: ..."
   sentence. A change in spacing or in other words does not count. The sentence
   says what the review found, so each re-hash leaves a record of someone
-  looking.
+  looking. A renamed file does not escape this: a new entry that carries the
+  reason of a removed entry of the same skill, on a different hash, fails the
+  same way.
 - **A `static_parse_limit` entry also hides a marker-pass give-up inside
   `static_patterns_tool_misuse`.** When both passes give up inside that one
   check, the scanner reports only the parse code. The other twelve checks
@@ -254,7 +256,8 @@ it.** `node scripts/check.mjs` reads each baseline with a small hand-written
 reader, so it refuses the spellings the two would read differently: an entry
 value that is not double-quoted (a bare value ends at a ` #` comment in YAML,
 and a bare `~` or `null` reads as no value), a `rule_id` holding `*`, `?` or `[`
-(the scanner reads it as a pattern), and a `file` or `message` made only of
+(the scanner reads it as a pattern), two rule ids that differ only in letter case
+(the scanner ignores case, so they are one rule), and a `file` or `message` made only of
 wildcard characters (it reads as narrowing and narrows nothing). The scanner
 also tests a `message` glob against the rule's own fixed name, such as
 `Skill Enumeration`, and ignores letter case. A glob that matches that name

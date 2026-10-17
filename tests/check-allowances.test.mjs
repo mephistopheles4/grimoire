@@ -230,6 +230,29 @@ test('a re-hash whose reason only changed in form or has no dated sentence fails
   }
 });
 
+test('an accepted file renamed and edited, its entry re-keyed with the old reason, fails', () => {
+  // A new path makes a new key, so the entry reads as removed plus added and
+  // the re-hash rule never sees it. The old reason on a new hash is the same
+  // paste, one key over.
+  const dir = tree();
+  const git = repo(dir);
+  const entry = readAllowance(dir).exceptions.find(e => e.skill === 'groundtrack' && e.path === 'scripts/groundtrack.js');
+  assert.ok(entry, 'the shipped allowance has no entry for groundtrack/scripts/groundtrack.js');
+  const from = join(dir, 'skills', 'groundtrack', 'scripts', 'groundtrack.js');
+  const to = join(dir, 'skills', 'groundtrack', 'scripts', 'groundtrack-moved.js');
+  writeFileSync(to, `${readFileSync(from, 'utf8')}\n// one more line\n`);
+  rmSync(from);
+  edit(dir, a => {
+    const e = a.exceptions.find(x => x.skill === entry.skill && x.path === entry.path);
+    e.path = 'scripts/groundtrack-moved.js';
+    e.sha256 = contentHash(readFileSync(to));
+    a.exceptions.sort((x, y) => (`${x.skill}/${x.path}` < `${y.skill}/${y.path}` ? -1 : 1));
+  });
+  git('add', '-A');
+  git('commit', '-qm', 'rename the accepted file');
+  assertFails(dir, /exception groundtrack\/scripts\/groundtrack-moved\.js \(static_parse_limit\) is new and carries the reason of a removed entry/);
+});
+
 test('a re-hash with a new reason passes, and is still listed for the reviewer', () => {
   const { dir, entry } = rehashAgainstBase('Re-read on 2026-10-17: the added line is a comment.');
   const r = assertPasses(dir);
