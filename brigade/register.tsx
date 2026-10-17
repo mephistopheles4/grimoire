@@ -62,7 +62,9 @@ import {
   liveState,
   metersFrom,
   newFinder,
+  newSummaryMemory,
   readCalls,
+  refusalLines,
   reportCount,
   settleTicks,
   sizeText,
@@ -81,7 +83,7 @@ import {
   warmthLine,
   withoutSize,
 } from './view.ts'
-import type { Finder, ReadMemory, Spark } from './view.ts'
+import type { Finder, ReadMemory, Spark, SummaryMemory } from './view.ts'
 import { registerWriter, writerEpoch, writerSession } from './writer.ts'
 
 // The Brigade pane: one card per session a lead session started, each in a
@@ -127,6 +129,7 @@ const usage = atom({ plugin: 'grimoire', key: 'usage' } as const, EMPTY_USAGE)
 const samples = atom({ plugin: 'grimoire', key: 'samples' } as const, [])
 const warmth = atom({ plugin: 'grimoire', key: 'warmth' } as const, [])
 const meters = atom({ plugin: 'grimoire', key: 'meters' } as const, [])
+const refusals = atom({ plugin: 'grimoire', key: 'refusals' } as const, [])
 const tabs = atom({ plugin: 'grimoire', key: 'tabs' } as const, [])
 const doneOpen = atom({ plugin: 'grimoire', key: 'doneOpen' } as const, false)
 
@@ -250,6 +253,10 @@ const memory: ReadMemory = new Map()
 // holds paths and listed names, so it stays here and never enters plugin
 // state. A reload starts it over, which costs one listing.
 const finder: Finder = newFinder()
+// What the summary reads keep between polls, by session id: each member's
+// last summary that passed its checks, and the file that last failed one. A
+// reload starts it over, which costs a refused file one more poll.
+const summaries: SummaryMemory = newSummaryMemory()
 // By member name, the transcript path its Remote Control link was last read
 // from, so the link is read again when the found path changes.
 const linkFrom = new Map<string, string>()
@@ -279,22 +286,24 @@ async function pollAgents($: EngineInterface, open: () => boolean) {
       const config = at.config
       const cards = (await read($, roster)).cards
 
-      // Each roster member's cache warmth, from its transcript's last model
-      // call, and its meters, from the call series the same read gives,
-      // found by the transcript finder. The rules for what is found and
-      // read, and when, are in view.ts. The stat resolves, so the finder's
-      // place check gets a real path; an engine with no listing rejects here,
-      // quietly, as a rejected listing.
+      // Each roster member's cache warmth and meters: from its summary file
+      // in this plugin's data folder when one passes its checks, else from
+      // its transcript's call series, found by the transcript finder. The
+      // rules for what is found and read, and when, are in view.ts. The stat
+      // resolves, so the finder's place check and the summary's path rule
+      // get a real path; an engine with no listing rejects here, quietly, as
+      // a rejected listing.
       const found = await readCalls(rows.value, cards.map(c => c.title), config, memory, {
         live: open,
         now: () => $.clock.now(),
         stat: path => $.fs.stat(path, { resolve: true }),
         list: async path => $.fs.list(path),
         read: async path => String(await $.fs.read(path)),
-      }, finder)
+      }, finder, { plugin: at.plugin, held: summaries })
       if (found === undefined || !open()) return
       await update($, warmth, () => found.warmth)
       await update($, meters, () => found.meters)
+      await update($, refusals, () => found.refusals)
 
       // A Remote Control session's claude.ai link sits in its transcript, in a
       // row the engine writes. Read only a roster member's, through the
@@ -915,6 +924,8 @@ export const register: Register = on => {
     const found = lookup(await read($, links))
     const warm = new Map(warmthFrom(await read($, warmth)).map(w => [w.name, w]))
     const meterOf = new Map(metersFrom(await read($, meters)).map(m => [m.name, m]))
+    // Read once, only through the two kind words, by card title.
+    const refused = refusalLines(await read($, refusals))
     // As stored: read through the fixed set of view words by chosenView.
     const tabChoices = await read($, tabs)
     const inbox = await read($, reports)
@@ -1004,6 +1015,7 @@ export const register: Register = on => {
       const reason = shown === 'burn' && isReason(warm.get(c.title)) ? warmLine?.text : undefined
       const burn = shown === 'burn' && reason === undefined ? burnRate(meterOf.get(c.title), now) : undefined
       const trend = shown === 'trend' ? contextTrend(meterOf.get(c.title)) : undefined
+      const refusal = isFinished ? undefined : refused.get(c.title)
       // The cache block's value column: as wide as its longest text, so the
       // cache bar and the context meter end at the same place. Each value
       // starts at the column's left edge, one gap after its bar, as each bar
@@ -1176,6 +1188,15 @@ export const register: Register = on => {
                     {warmLine.nudge}
                   </Text>
                 )}
+              </Box>
+            )}
+            {/* The member's summary file refused, under every tab: the card
+                above comes from its transcript. */}
+            {refusal !== undefined && (
+              <Box marginBottom={1}>
+                <Text dimColor wrap="truncate-end">
+                  {refusal}
+                </Text>
               </Box>
             )}
             <Text wrap="truncate-end">{oneLine(c.phase, 160)}</Text>
