@@ -17,7 +17,8 @@
 // page prints.
 
 import { readFileSync, writeFileSync, statSync } from 'node:fs';
-import { dirname, resolve } from 'node:path';
+import { dirname, isAbsolute, resolve, sep } from 'node:path';
+import { homedir } from 'node:os';
 import { fileURLToPath } from 'node:url';
 import { createRequire } from 'node:module';
 import { createHash } from 'node:crypto';
@@ -919,6 +920,16 @@ const clip = (s, n) => {
   return `${kept}… (${count(s.length)} characters)`;
 };
 
+/* The file a `cannot read` line names: as it was given, with a home folder
+ * shortened to `~`, so the user name in it stays off the line (#330). The
+ * error's own message is never printed, because it carries the resolved path. */
+const named = file => {
+  if (!isAbsolute(file)) return file;
+  const home = homedir();
+  const fold = process.platform === 'win32' ? t => t.toLowerCase() : t => t;
+  return home && fold(file).startsWith(fold(home + sep)) ? `~${file.slice(home.length)}` : file;
+};
+
 /** A line to standard error: refusals, the `ok:` line, `cannot read`. */
 const say = line => console.error(printable(line));
 /** A line to standard output: findings and the `--text` graph list. */
@@ -1384,8 +1395,8 @@ function main(argv) {
      * that is not JSON is named with where it broke and none of its text. */
     if (e instanceof SyntaxError) {
       const at = /\(line (\d+) column (\d+)\)/.exec(e.message);
-      say(`cannot read ${file}: not valid JSON${at ? `, at line ${at[1]} column ${at[2]}` : ''}`);
-    } else say(`cannot read ${file}: ${e.message}`);
+      say(`cannot read ${named(file)}: not valid JSON${at ? `, at line ${at[1]} column ${at[2]}` : ''}`);
+    } else say(`cannot read ${named(file)}: ${e.code || e.name}`);
     return 2;
   }
 

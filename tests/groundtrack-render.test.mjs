@@ -15,7 +15,7 @@
 
 import { test, after } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtempSync, rmSync, writeFileSync, readFileSync, existsSync, readdirSync, linkSync, symlinkSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, rmSync, writeFileSync, readFileSync, existsSync, readdirSync, linkSync, symlinkSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createHash } from 'node:crypto';
@@ -2536,6 +2536,30 @@ test('a file that is not JSON is refused before anything else', () => {
   const r = run(groundtrack, [p, '--check']);
   assert.equal(r.code, 2);
   assert.match(r.stderr, /cannot read /);
+});
+
+// A file that cannot be opened is named as it was given, never by the path
+// it resolved to, so a home folder and its user name stay off the line (#330).
+const fakeHome = () => {
+  const home = join(work, `home-${Math.random().toString(36).slice(2)}`);
+  mkdirSync(home);
+  return { home, env: { HOME: home, USERPROFILE: home } };
+};
+
+test('a missing file given by a relative path is named by that path and no home folder', () => {
+  const { home, env } = fakeHome();
+  const r = run(groundtrack, ['nope.flightpath.json', '--check'], { cwd: home, env });
+  assert.equal(r.code, 2);
+  assert.match(r.stderr, /^cannot read nope\.flightpath\.json: ENOENT$/m);
+  assert.ok(!r.stderr.includes(home), r.stderr);
+});
+
+test('a missing file given by an absolute path under the home folder is named from ~', () => {
+  const { home, env } = fakeHome();
+  const r = run(groundtrack, [join(home, 'nope.flightpath.json'), '--check'], { env });
+  assert.equal(r.code, 2);
+  assert.match(r.stderr, /^cannot read ~[\\/]nope\.flightpath\.json: ENOENT$/m);
+  assert.ok(!r.stderr.includes(home), r.stderr);
 });
 
 /* -- run through a linked skill directory ---------------------------------- */
