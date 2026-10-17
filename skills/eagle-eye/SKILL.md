@@ -3,7 +3,7 @@ name: eagle-eye
 description: Steps in when a discussion holds three or more open decisions and at least two of them are coupled, so that one choice changes what is possible in another, or when someone asks for it by name (/eagle-eye, an eagle-eye view, or a morphological box). Stays out when the person insists on the quick route, and for two independent choices.
 compatibility: Needs Node.js 20 or later to run render.mjs and audit.mjs. No install and no other dependencies.
 metadata:
-  contract-version: 0.2.2
+  contract-version: 0.2.3
   familiar-digest: "sha256:ff4a86956b03cd9152665d034f94f96c7fb049108a4211cbcc62d487151d8682"
   contract-digest: "sha256:5cbb215488a2521f28a59d4ad68d1fde68267e4aa75e2d8d26efb12f0795046e"
 ---
@@ -205,7 +205,7 @@ the decision. Ask about open boxes (Usage record) before the leaning.
    the temporary path your tool reports, or the system temporary directory.
    See [Where a box lives](#where-a-box-lives-questions-3-4-11).
 
-   Run the renderer from the skill base directory. Do not write a fixed path.
+   Run the renderer by its path in the skill base directory. Do not write a fixed path.
 
    ```bash
    node <skill base directory>/render.mjs <scratch>/<topic>.box.json
