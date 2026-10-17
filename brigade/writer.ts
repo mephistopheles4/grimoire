@@ -1,6 +1,8 @@
+import { atom, read } from 'claude-code'
 import type { EngineInterface, On } from 'claude-code'
 
-import { oneLine, placeSummary } from './roster.ts'
+import { dataPlace, oneLine, placeSummary, statRejection } from './roster.ts'
+import type { StatAnswer } from './roster.ts'
 import {
   MAX_SUMMARY_BYTES,
   askWrite,
@@ -13,7 +15,6 @@ import {
   summaryFrom,
   writeDone,
 } from './view.ts'
-import { statOf, where } from './where.ts'
 
 // The usage summary writer. Every session with the plugin keeps its own usage
 // numbers as it works and writes them, numbers only, to its own summary file,
@@ -33,6 +34,10 @@ import { statOf, where } from './where.ts'
 // ever enters it. The first refusal of the summary path, before or after a
 // write, stops it for the rest of the module's life, with one toast.
 
+
+// The engine's record of this session's start, which register.tsx's
+// `classic.SessionStart` hook keeps under the same key.
+const started = atom({ plugin: 'grimoire', key: 'start' } as const, { sessionId: '', transcript: '' })
 
 let memory = newUsageMemory()
 let flight = newFlight()
@@ -59,6 +64,28 @@ function readEpoch($: EngineInterface) {
 }
 const now = (): number => Math.round(epoch === undefined ? Date.now() : epoch.engine + (performance.now() - epoch.perf))
 
+
+// The engine follows `$` only into functions declared in the file that holds
+// the hook, so these two are written here rather than imported.
+
+// The config folder, the plugin's data id and this session's id, read at
+// each write, so after a clear the file follows the new id; by the rule the
+// roster uses (`dataPlace`). Undefined when no config folder can be named.
+async function locate($: EngineInterface): Promise<{ config: string; plugin: string; id: string } | undefined> {
+  const id = await $.session.id()
+  const { config, plugin } = dataPlace($.plugin.root, $.plugin.name, await read($, started), id)
+  return config === undefined ? undefined : { config, plugin, id }
+}
+
+// One resolving `stat` for the path rule, a rejection sorted into missing or
+// failed by its message.
+function statOf($: EngineInterface): (path: string) => Promise<StatAnswer> {
+  return path =>
+    $.fs.stat(path, { resolve: true }).then(
+      found => ({ found }),
+      err => statRejection(String(err instanceof Error ? err.message : err)),
+    )
+}
 
 // The first refusal stops every later write, and says so once.
 function refuse($: EngineInterface, rule: string) {
@@ -91,11 +118,9 @@ async function run($: EngineInterface) {
 // file, take the newest numbers, write, and run the path rule again after.
 async function writeOnce($: EngineInterface) {
   if (stopped) return
-  // The session id is read at each write, so after a clear the file follows
-  // the new id. No config folder named: nothing is written, and nothing was
-  // refused.
-  const at = await where($)
-  if ('error' in at) return
+  // No config folder named: nothing is written, and nothing was refused.
+  const at = await locate($)
+  if (at === undefined) return
   const placed = await placeSummary(at.config, at.plugin, at.id, statOf($))
   if ('refused' in placed) return refuse($, `the summary path failed its check (${placed.refused})`)
   if (placed.existing !== undefined) {
@@ -116,14 +141,13 @@ async function writeOnce($: EngineInterface) {
   if (why !== undefined) refuse($, `the summary path failed its check after the write (${why})`)
 }
 
-/** For register.tsx's `session.start` hook, which a module load raises: reads
- *  the engine clock's epoch once, without waiting for it. Never throws. */
-export function writerStart($: EngineInterface) {
-  try {
-    readEpoch($)
-  } catch {
-    // The machine's clock stands in.
-  }
+/** For register.tsx's `session.start` hook, which a module load raises: the
+ *  engine clock's time and `performance.now()` when it was asked, so the
+ *  epoch is known before the first step. Only numbers cross: the engine
+ *  follows `$` into no function of another file. The first epoch wins. */
+export function writerEpoch(engine: number, perf: number) {
+  epochAsked = true
+  if (epoch === undefined && Number.isFinite(engine) && Number.isFinite(perf)) epoch = { engine, perf }
 }
 
 /** For register.tsx's `classic.SessionStart` hook: a clear or a resume names
@@ -137,7 +161,7 @@ export function writerSession(sessionId: unknown) {
 
 /** Registers the writer's two hooks. The engine takes one hook per event from
  *  a module, so the session start's work is register.tsx's to call:
- *  `writerStart` and `writerSession`. */
+ *  `writerEpoch` and `writerSession`. */
 export function registerWriter(on: On) {
   // The step is passed on first. Everything after it sits in one catch, and
   // the registration's own catch passes the step through unchanged.

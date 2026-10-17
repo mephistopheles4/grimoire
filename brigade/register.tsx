@@ -15,6 +15,8 @@ import {
   XDG_OPEN,
   appLink,
   checkRoster,
+  dataFolder,
+  dataPlace,
   listsOpenTool,
   lookup,
   oneLine,
@@ -24,12 +26,14 @@ import {
   readOpenAnswer,
   remoteLink,
   report,
+  rosterFile,
   rulesAllowTool,
   serialize,
+  statRejection,
   toolSession,
   unixRealPath,
 } from './roster.ts'
-import type { HostOs } from './roster.ts'
+import type { HostOs, StatAnswer } from './roster.ts'
 import {
   CACHE_CELLS,
   EMPTY_USAGE,
@@ -78,8 +82,7 @@ import {
   withoutSize,
 } from './view.ts'
 import type { Finder, ReadMemory, Spark } from './view.ts'
-import { statOf, where } from './where.ts'
-import { registerWriter, writerSession, writerStart } from './writer.ts'
+import { registerWriter, writerEpoch, writerSession } from './writer.ts'
 
 // The Brigade pane: one card per session a lead session started, each in a
 // rounded box with its work, phase, settings, live busy or idle state, cache
@@ -107,7 +110,7 @@ const TOOL = 'set_roster'
 
 // The values are the plugin's, so they sit under its manifest name.
 const armed = atom({ plugin: 'grimoire', key: 'armed' } as const, false)
-// The engine's record of this session's start; where.ts reads the same key.
+// The engine's record of this session's start; writer.ts reads the same key.
 const started = atom({ plugin: 'grimoire', key: 'start' } as const, { sessionId: '', transcript: '' })
 const files = atom({ plugin: 'grimoire', key: 'files' } as const, { current: '', previous: '' })
 const roster = atom({ plugin: 'grimoire', key: 'roster' } as const, { cards: [], todos: [] })
@@ -155,6 +158,35 @@ const CHECK_CELLS = 5
 // drops the old timers with it.
 let timers: Timer[] = []
 
+// Where this lead session's roster file is, or why it cannot be named. The
+// roster lives in the plugin's data folder, built by the plugin-manifest
+// reference's rule from the config folder alone: <config>/plugins/data/<id>.
+// `CLAUDE_PLUGIN_DATA` is never read: a mod's environment usually lacks it,
+// and another plugin can set it. The config folder comes from where the plugin
+// was installed, else from the transcript path the engine reported at this
+// session's start (`dataPlace`, which the usage summary writer shares); with
+// neither, nothing is read or written. The config folder also locates other
+// sessions' transcripts.
+type Where = { file: string; config: string; plugin: string; id: string }
+async function where($: EngineInterface): Promise<Where | { error: string }> {
+  const id = await $.session.id()
+  if (!SESSION_ID.test(id)) return { error: 'the session id is not the engine\'s shape, so no roster file is named. Nothing was read.' }
+  const { config, plugin } = dataPlace($.plugin.root, $.plugin.name, await read($, started), id)
+  if (config === undefined) {
+    return {
+      error: `Cannot find the Claude config folder from where the plugin was loaded (${oneLine($.plugin.root, 200)}). The roster would be <Claude config folder>/plugins/data/${plugin}/brigade/${id}.json. Nothing was read.`,
+    }
+  }
+  return { file: rosterFile(dataFolder(config, plugin), id), config, plugin, id }
+}
+
+// One `stat` for the path rule in roster.ts: resolving, and a rejection
+// sorted into missing or failed by its message.
+const statOf = ($: EngineInterface) => (path: string): Promise<StatAnswer> =>
+  $.fs.stat(path, { resolve: true }).then(
+    found => ({ found }),
+    err => statRejection(String(err instanceof Error ? err.message : err)),
+  )
 // Resolves the to-do ids of the roster it loaded, or undefined when it loaded
 // none: no file named, no file, or a file that failed its check. The file is
 // read only where the path rule allows it, so the pane follows no link either.
@@ -696,7 +728,10 @@ export const register: Register = on => {
   registerWriter(on)
 
   on('session.start', async ($, e, next) => {
-    writerStart($)
+    // The usage summary writer's clock: the engine's epoch, read once here
+    // and never awaited.
+    const perf = performance.now()
+    $.clock.now().then(t => writerEpoch(t, perf), () => undefined)
     await $.command.register({
       name: 'brigade',
       description: 'Show the Brigade pane: the sessions this lead session started',

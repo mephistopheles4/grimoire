@@ -482,10 +482,10 @@ test('the matcher for the costly breakdown catches every string form', () => {
   for (const sample of [`'summary'`, 'a full path', `'fully'`]) assert.doesNotMatch(sample, FULL, sample);
 });
 
-// The usage summary writer lives in writer.ts, where.ts and view.ts (#311):
+// The usage summary writer lives in writer.ts and view.ts (#311):
 // every module the hooks file loads is held to the guard.
 test('the mod\'s modules never ask for the costly breakdown', () => {
-  for (const file of ['brigade/view.ts', 'brigade/register.tsx', 'brigade/writer.ts', 'brigade/where.ts', 'brigade/roster.ts']) {
+  for (const file of ['brigade/view.ts', 'brigade/register.tsx', 'brigade/writer.ts', 'brigade/roster.ts']) {
     const text = readFileSync(join(root, file), 'utf8');
     assert.doesNotMatch(text, FULL, `${file} names the costly breakdown`);
   }
@@ -496,7 +496,7 @@ test('the mod\'s modules never ask for the costly breakdown', () => {
 });
 
 test('the writer makes no session usage call at all, so no cost or rate limit enters it', () => {
-  for (const file of ['brigade/writer.ts', 'brigade/where.ts']) {
+  for (const file of ['brigade/writer.ts']) {
     // Code only: a comment may say what the writer never does.
     const code = readFileSync(join(root, file), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '');
     assert.doesNotMatch(code, /session\s*\.\s*usage|breakdown|\.cost\b|rateLimits/, file);

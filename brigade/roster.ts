@@ -333,6 +333,16 @@ export function dataFolder(config: string, id: string): string {
   return `${config}${sep}plugins${sep}data${sep}${id}`
 }
 
+/** The config folder and the plugin's data id for this session, by one rule
+ *  the roster and the usage summary writer share: the config folder from
+ *  where the plugin was installed, else from the transcript path the engine
+ *  reported at this session's start, when that record is this session's;
+ *  `config` is undefined with neither. */
+export function dataPlace(root: string, name: string, start: { sessionId: string; transcript: string }, sessionId: string): { config: string | undefined; plugin: string } {
+  const config = configFromRoot(root) ?? (start.sessionId === sessionId ? configFromTranscript(start.transcript, sessionId) : undefined)
+  return { config, plugin: dataId(name, marketplaceFromRoot(root)) }
+}
+
 /** The config folder above the engine's transcript path for this session:
  *  <config>/projects/<folder>/<session id>.jsonl, or undefined. */
 export function configFromTranscript(transcript: string, sessionId: string): string | undefined {

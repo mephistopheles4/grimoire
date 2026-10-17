@@ -529,3 +529,12 @@ test('the roster path is unchanged by the generalized rule: it never walks into 
   assert.deepEqual(await placeRoster(C, ID, SID, statFrom(t, log)), { file: `${C}\\plugins\\data\\${ID}\\brigade\\${SID}.json` });
   assert.ok(!log.some(p => p.includes('usage')));
 });
+
+test('dataPlace: the config folder from the install path, else from this session\'s own start record', () => {
+  const { dataPlace } = roster;
+  const start = { sessionId: SID, transcript: `C:\\cfg\\.claude\\projects\\C--work\\${SID}.jsonl` };
+  assert.deepEqual(dataPlace('C:\\cfg\\.claude\\plugins\\cache\\market\\grimoire\\0.60.0', 'grimoire', start, SID), { config: 'C:\\cfg\\.claude', plugin: 'grimoire-market' });
+  assert.deepEqual(dataPlace('C:\\work\\grimoire', 'grimoire', start, SID), { config: 'C:\\cfg\\.claude', plugin: 'grimoire-inline' });
+  // A start record of another session names nothing.
+  assert.deepEqual(dataPlace('C:\\work\\grimoire', 'grimoire', { ...start, sessionId: '99999999-8888-7777-6666-555555555555' }, SID), { config: undefined, plugin: 'grimoire-inline' });
+});
