@@ -870,10 +870,34 @@ const UNSAFE = /[\p{Cc}\p{Default_Ignorable_Code_Point}\u{2028}\u{2029}]/gu;
 const PRINTED = 200;
 /* Each UTF-16 unit as its own `\uXXXX`, so a character above U+FFFF prints
  * as its surrogate pair: still a well-formed JSON escape. */
+const escaped = s => s.replace(UNSAFE, c => [...Array(c.length).keys()].map(i => `\\u${c.charCodeAt(i).toString(16).padStart(4, '0')}`).join(''));
 const quoted = s => {
-  const token = JSON.stringify(s.slice(0, PRINTED)).replace(UNSAFE, c => [...Array(c.length).keys()].map(i => `\\u${c.charCodeAt(i).toString(16).padStart(4, '0')}`).join(''));
+  const token = escaped(JSON.stringify(s.slice(0, PRINTED)));
   return s.length > PRINTED ? `${token} (the first ${PRINTED} of ${count(s.length)} characters, sha256 ${digest(s).slice(0, 16)})` : token;
 };
+
+/* One line the command prints from the file, as one line (#252). A name the
+ * author chose reaches refusals, findings, the `ok:` line and the tree, and a
+ * line break or a control character in it split the line or reached the
+ * terminal raw. So every such line shows each character `UNSAFE` names as its
+ * escape. Not through JSON.stringify: that would double every backslash in a
+ * Windows file label and change every line printed today.
+ *
+ * Cut before it is escaped, for the reason `PRINTED` gives, and never through
+ * a surrogate pair, which would print half a character. 2,000 is above every
+ * line of fixed text here; a line that lists ids or names can pass it. This
+ * bounds what is printed; it refuses nothing. */
+const LINE = 2000;
+const printable = line => {
+  if (line.length <= LINE) return escaped(line);
+  let kept = line.slice(0, LINE);
+  const last = kept.charCodeAt(kept.length - 1);
+  if (last >= 0xd800 && last <= 0xdbff) kept = kept.slice(0, -1);
+  return `${escaped(kept)} (the first ${count(kept.length)} of ${count(line.length)} characters, sha256 ${digest(line).slice(0, 16)})`;
+};
+/** A line to stderr and a line to stdout, each through `printable`. */
+const say = line => console.error(printable(line));
+const tell = line => console.log(printable(line));
 
 /* A Set of a stranger's names whose cost stays linear. V8 hashes a string
  * longer than 16,383 characters by its length alone, so a Set of many long
@@ -1149,7 +1173,9 @@ export function text(prog, graphIndex, runIndex) {
     L.push('other runs in this file:');
     for (const p of others) L.push(`  "${p.name}" — ${p.blurb}`);
   }
-  return L.join('\n');
+  /* Each of the tree's own lines through `printable`, so a line break inside
+   * a name or a blurb shows as an escape and the tree keeps its shape. */
+  return L.map(printable).join('\n');
 }
 
 /* -- the page -------------------------------------------------------------- */
@@ -1282,6 +1308,7 @@ function main(argv) {
   const positional = args.filter((a, i) => !a.startsWith('--') && !VALUED.includes(args[i - 1]));
   if (positional.length !== 1) return usage();
   const file = positional[0];
+  reading = file;
 
   const outPath = has('--out') ? valueOf('--out') : undefined;
   const wantText = has('--text');
@@ -1293,14 +1320,19 @@ function main(argv) {
     /* Hardened before anything asks the file a question: JSON.parse hands\n     * back plain objects, so an unhardened node map answers constructor with\n     * a function and the not-a-node guard stops firing. */
     prog = Groundtrack.hardenKeys(JSON.parse(readFileSync(file, 'utf8')));
   } catch (e) {
-    console.error(`cannot read ${file}: ${e.message}`);
+    /* The parser's own message can quote the start of the file, so a file
+     * that is not JSON is named with where it broke and none of its text. */
+    if (e instanceof SyntaxError) {
+      const at = /\(line (\d+) column (\d+)\)/.exec(e.message);
+      say(`cannot read ${file}: not valid JSON${at ? `, at line ${at[1]} column ${at[2]}` : ''}`);
+    } else say(`cannot read ${file}: ${e.message}`);
     return 2;
   }
 
   const errs = check(prog, file);
   if (errs.length) {
-    for (const e of errs) console.error(e);
-    console.error(`${file}: ${errs.length} refusal(s)`);
+    for (const e of errs) say(e);
+    say(`${file}: ${errs.length} refusal(s)`);
     return 1;
   }
 
@@ -1325,15 +1357,15 @@ function main(argv) {
   if (graphArg !== undefined) {
     graphIndex = prog.graphs.findIndex(g => g.id === graphArg);
     if (graphIndex < 0) {
-      console.error(`${file}: no graph called "${graphArg}". This file has: ${prog.graphs.map(g => `"${g.id}"`).join(', ')}`);
+      say(`${file}: no graph called "${graphArg}". This file has: ${prog.graphs.map(g => `"${g.id}"`).join(', ')}`);
       return 1;
     }
   }
 
   if (has('--check')) {
-    for (const n of notes) console.log(n);
+    for (const n of notes) tell(n);
     const runs = prog.graphs.reduce((s, g) => s + g.presets.length, 0);
-    console.error(
+    say(
       `ok: ${prog.title} — ${Object.keys(prog.nodes).length} node(s), ${prog.graphs.length} graph(s), ${runs} run(s), ${notes.length} finding(s)`,
     );
     return 0;
@@ -1345,8 +1377,8 @@ function main(argv) {
      * the command says what there is and stops rather than picking. The same
      * rule the skill already states for choosing a graph to draw. */
     if (prog.graphs.length > 1 && graphArg === undefined) {
-      for (const g of prog.graphs) console.log(`${g.id}  ${g.title}`);
-      console.error(`${file}: this file states ${prog.graphs.length} graphs. Name one with --graph <id>; the ids are listed above.`);
+      for (const g of prog.graphs) tell(`${g.id}  ${g.title}`);
+      say(`${file}: this file states ${prog.graphs.length} graphs. Name one with --graph <id>; the ids are listed above.`);
       return 1;
     }
     const graph = prog.graphs[graphIndex];
@@ -1355,7 +1387,7 @@ function main(argv) {
       index = graph.presets.findIndex(p => p.name === runArg);
       if (index < 0 && /^\d+$/.test(runArg)) index = Number(runArg);
       if (index < 0 || !graph.presets[index]) {
-        console.error(
+        say(
           `${file}: no run called "${runArg}" in graph "${graph.id}". That graph has: ${graph.presets.map(p => `"${p.name}"`).join(', ')}`,
         );
         return 1;
@@ -1401,7 +1433,7 @@ function main(argv) {
 
   writeFileSync(target, page(prog));
   console.error(`wrote ${target}`);
-  for (const n of notes) console.log(n);
+  for (const n of notes) tell(n);
   return 0;
 }
 
@@ -1410,5 +1442,16 @@ function main(argv) {
 // symlinked skill directory the two never matched, so every command exited 0
 // having done nothing. A check that says nothing reads as a file with no
 // refusals. Run unconditionally, so no path can reach the silent case.
-process.exitCode = main(process.argv);
+//
+// The last guard. A crash the rules above do not foresee, such as nesting deep
+// enough to overflow a JSON conversion, prints one line naming the file and
+// the kind of error, never a stack trace, which would carry the install path.
+// Not a size limit: it refuses nothing a rule above would accept.
+let reading = 'groundtrack';
+try {
+  process.exitCode = main(process.argv);
+} catch (e) {
+  say(`${reading}: the renderer stopped on this file (${(e && e.code) || (e instanceof Error ? e.name : 'an error')})`);
+  process.exitCode = 2;
+}
 

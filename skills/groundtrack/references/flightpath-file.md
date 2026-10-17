@@ -545,6 +545,29 @@ path, and never the value.
 **An op or a move kind is one of the names in the tables.** A built-in name
 such as `constructor` is not one of them, and is refused the same way.
 
+**Every line the renderer prints from the file is one line.** This holds for
+refusals, findings, the `ok:` line and the `--text` tree. A name can hold a
+line break or another hidden character. The renderer prints each such
+character as an escape of six characters, such as `\u000a` for a line break.
+So a name cannot split a line, and cannot fake a refusal.
+
+**A printed line stops at 2,000 characters.** A longer line prints its first
+2,000 characters, then its full length and the start of its digest:
+
+```text
+greet.flightpath.json: nodes.aaaa… (the first 2,000 of 50,140 characters, sha256 <first 16 hex digits>)
+```
+
+The renderer cuts the line before it escapes it. This bounds what it prints
+and refuses nothing.
+
+**A file that is not JSON is named without its text.** The refusal says
+`not valid JSON` and gives the line and column where they are known.
+
+**A fault the rules do not foresee prints one line.** The line names the
+file and the kind of error, and the renderer exits 2. It prints no stack
+trace.
+
 ## layers
 
 A layer redraws the graph for one context. Author-keyed; any name.

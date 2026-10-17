@@ -740,6 +740,110 @@ test('an op or a move kind named like a built-in object member is refused as unk
   }
 });
 
+/* -- one line per report line (#252) -------------------------------------------
+ *
+ * A refusal prints the names the author chose: node ids, layer names, run
+ * names. A line break in one split the refusal, so the output could show a
+ * refusal the validator never made. Every line printed from the file now
+ * shows each control and invisible character as an escape. */
+
+/** Every refusal on its own line, each starting with the file label. */
+function oneLineEach(r, file) {
+  assert.equal(r.code, 1, r.stderr);
+  const lines = r.stderr.replace(/\r?\n$/, '').split(/\r?\n/);
+  const count = Number(/: (\d+) refusal\(s\)$/.exec(lines[lines.length - 1])?.[1]);
+  assert.ok(count > 0, r.stderr);
+  assert.equal(lines.length, count + 1, r.stderr);
+  for (const line of lines) assert.ok(line.startsWith(`${file}: `), `a line not starting with the file label:\n${line}`);
+  assert.doesNotMatch(r.stderr, /[\u{0}-\u{8}\u{b}-\u{1f}\u{7f}\u{2028}\u{2029}]/u, 'a control character reached the output');
+}
+
+test('a layer name holding a line break prints one refusal per line', () => {
+  const file = derive(p => {
+    const layer = p.layers.tests;
+    delete p.layers.tests;
+    p.layers['tests\nfake.flightpath.json: nodes.greet: forged'] = layer;
+    layer.nodes.lookupName.requirements = [5];
+  });
+  const r = check(file);
+  oneLineEach(r, file);
+  assert.match(r.stderr, /layers\.tests\\u000afake\.flightpath\.json: nodes\.greet: forged\.nodes\.lookupName\.requirements\[0\]: expected a string/);
+});
+
+test('a node id holding a control character prints one refusal per line', () => {
+  const file = derive(p => { p.nodes['bad\u{1b}[2Kid\u{7}'] = structuredClone(p.nodes.lookupName); });
+  const r = check(file);
+  oneLineEach(r, file);
+  assert.match(r.stderr, /nodes\.bad\\u001b\[2Kid\\u0007: a node id must be plain/);
+});
+
+test('a run name holding a line break prints one walk refusal per line', () => {
+  const file = derive(p => {
+    runs(p)[0].name = 'a known user\nfake.flightpath.json: graphs[0]: forged';
+    runs(p)[0].trace.steps[0].at = 99;
+  });
+  oneLineEach(check(file), file);
+});
+
+test('a title and a tag holding a line break print the ok line, a finding and the tree one line each', () => {
+  const file = derive(p => {
+    p.title = 'greet a user\nok: forged — 9 node(s)';
+    p.nodes.greet.channels.error.push('Ghost\nforged finding');
+  });
+  const r = check(file);
+  assert.equal(r.code, 0, r.stderr);
+  assert.match(r.stderr, /^ok: greet a user\\u000aok: forged — 9 node\(s\) — \d+ node\(s\)/m);
+  assert.equal(r.stderr.trim().split(/\r?\n/).length, 1, r.stderr);
+  assert.match(r.stdout, /^greet declares error tag "Ghost\\u000aforged finding", and nothing beneath it produces that tag$/m);
+  assert.doesNotMatch(r.stdout, /^forged finding/m);
+  const tree = run(groundtrack, [file, '--text']);
+  assert.equal(tree.code, 0, tree.stderr);
+  assert.match(tree.stdout, /^greet a user\\u000aok: forged — 9 node\(s\)$/m);
+  assert.doesNotMatch(tree.stdout, /^ok: forged/m);
+});
+
+test('a line past 2,000 characters is cut, with its length and digest, before it is escaped', () => {
+  const id = '\u{7f}'.repeat(50000);
+  const file = derive(p => { p.nodes[id] = structuredClone(p.nodes.lookupName); });
+  const r = check(file);
+  oneLineEach(r, file);
+  const line = r.stderr.split(/\r?\n/)[0];
+  const full = `${file}: nodes.${id}: a node id must be plain letters, digits and hyphens — it reaches the page as an attribute`;
+  const digest = createHash('sha256').update(full, 'utf16le').digest('hex').slice(0, 16);
+  assert.ok(line.endsWith(` (the first 2,000 of ${full.length.toLocaleString('en-US')} characters, sha256 ${digest})`), line.slice(-120));
+  assert.ok(line.length < 2000 * 6 + 120, `a cut line of ${line.length} characters`);
+
+  // An astral character across the cut prints whole or not at all.
+  const lead = `${file}: nodes.`.length;
+  const astral = derive(p => { p.nodes[`${'a'.repeat(1999 - lead)}\u{1f600}!`] = structuredClone(p.nodes.lookupName); });
+  const a = check(astral);
+  oneLineEach(a, astral);
+  // A lone surrogate is written out as U+FFFD, so that is what would show.
+  assert.ok(!a.stderr.includes('\u{fffd}'), 'half a character reached the output');
+  assert.match(a.stderr.split(/\r?\n/)[0], / \(the first 1,999 of [\d,]+ characters, sha256 [0-9a-f]{16}\)$/);
+});
+
+test('a file that is not JSON is reported without its text', () => {
+  // The parser's own message quotes the start of the file.
+  for (const body of ['planted-4f1d0c/a.js\n', '{"loc": "planted-4f1d0c/a.js" oops }\n']) {
+    const file = join(work, `not-json-${n++}.flightpath.json`);
+    writeFileSync(file, body);
+    const r = check(file);
+    assert.equal(r.code, 2, r.stderr);
+    assert.match(r.stderr, /^cannot read .+: not valid JSON/m);
+    assert.ok(!r.stderr.includes('planted'), r.stderr);
+  }
+});
+
+test('a crash left in the renderer prints one line naming the file, and exits 2', () => {
+  // Nesting this deep overflows the stack in a JSON conversion of the args.
+  const file = derive(p => { p.nodes.greet.steps[1].args = '@@DEEP@@'; });
+  writeFileSync(file, readFileSync(file, 'utf8').replace('"@@DEEP@@"', () => '['.repeat(200000) + ']'.repeat(200000)));
+  const r = check(file);
+  assert.equal(r.code, 2, r.stderr.slice(0, 400));
+  assert.equal(r.stderr.trim(), `${file}: the renderer stopped on this file (RangeError)`);
+});
+
 test('the old one-graph shape is refused, and the message names graphs', () => {
   // A file states one change, not one graph. Accepting both shapes would be
   // two ways to say one thing, so a stale file fails loudly rather than
