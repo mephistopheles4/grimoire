@@ -105,6 +105,28 @@ test('a disagreeing glob is printed masked, because the CI log is public', () =>
   assert.doesNotMatch(r.stdout + r.stderr, /someone/);
 });
 
+test('a disagreeing glob on the skill side is printed masked too', () => {
+  // The same two lines print the skill's glob as well, so the mask is held on
+  // that side by its own case.
+  const dir = tree();
+  const skill = readFileSync(skillBaselineIn(dir), 'utf8');
+  writeFileSync(skillBaselineIn(dir), skill.replace('  - rule_id: "AR2"\n', '  - rule_id: "AR2"\n    file: "/Users/someone/*"\n    message: "*C:/Users/someone/box*"\n'));
+  const r = assertFails(dir, /matched to \*C:\/Users\/<name>\/box\* here and to every message in/);
+  assert.match(r.stderr, /narrowed to \/Users\/<name>\/\* here and to every file in/);
+  assert.doesNotMatch(r.stdout + r.stderr, /someone/);
+});
+
+test('two different messages for one rule fail, not only a message on one side', () => {
+  // Both sides narrowed is not agreement unless they narrow the same way: a
+  // root that matches more than the skill would suppress more than it says.
+  const dir = tree();
+  for (const [p, glob] of [[rootBaselineIn(dir), '*preview pane*'], [skillBaselineIn(dir), '*preview*'], [fixtureBaselineIn(dir), '*preview pane*']]) {
+    const text = readFileSync(p, 'utf8');
+    writeFileSync(p, text.replace('  - rule_id: "AR2"\n', `  - rule_id: "AR2"\n    message: "${glob}"\n`));
+  }
+  assertFails(dir, /matched to \*preview\* here and to \*preview pane\* in/);
+});
+
 test('a quoted version is read, because the entries accept quoting too', () => {
   const dir = tree();
   const text = readFileSync(rootBaselineIn(dir), 'utf8');
