@@ -11,6 +11,10 @@ artifact — and the two scripts that draw each skill README's sheets, with the 
 share in `scripts/lib/drafting.mjs`. `skills/groundtrack/scripts/` holds that skill's renderer and the one
 module it inlines into the page. The path always says which is which.
 
+## Threat model
+
+This repository's threat model is [`docs/security/threat-model.md`](docs/security/threat-model.md), which `SECURITY.md` also links. Hand it to any security review. A change to its scope, its accepted risks or this line is the owner's decision.
+
 ## Agent skills
 
 ### Issue tracker
