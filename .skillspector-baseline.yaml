@@ -10,8 +10,9 @@
 # why, so a stranger reading it can disagree with a named reason rather than
 # with silence.
 #
-# Every entry is keyed by rule identifier and nothing else. Two consequences,
-# both deliberate:
+# Every entry is keyed by rule identifier; MP1 and TR2 are also narrowed, by a
+# file glob and, for TR2, by the exact clause it is about. For the rest, two
+# consequences, both deliberate:
 #
 #   - It survives a rewording. The prose under these findings is edited
 #     constantly, and the counts drift with it. The rule identifiers do not.
