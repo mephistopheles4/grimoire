@@ -65,12 +65,11 @@ export type Warmth =
   | { name: string; kind: 'too-large' | 'shared' | 'unread' | 'not-found' }
 
 /** One card's call series, from its session's summary file or its
- *  transcript: the time of the read that gave it (for a summary file, the
- *  time the file's buckets end), the context window of its model's family, in tokens,
- *  from a fixed table (absent when the table has none), the new tokens of
- *  each of the 30
- *  minutes up to that read, oldest first, and the context size of each of
- *  the last 30 calls, oldest first. Numbers only: no path, model or message
+ *  transcript: the time its burn buckets end, the end of the clock minute
+ *  of the read or the write that gave it; the context window of its model's
+ *  family, in tokens, from a fixed table (absent when the table has none);
+ *  the new tokens of each of the 30 clock minutes up to that time, oldest
+ *  first; and the context size of each of the last 30 calls, oldest first. Numbers only: no path, model or message
  *  id is kept. */
 export type Meter = { name: string; at: number; window?: number; burn?: number[]; context?: number[] }
 

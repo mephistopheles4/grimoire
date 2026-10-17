@@ -1086,6 +1086,10 @@ export function windowOf(model: unknown): number | undefined {
   return WINDOW_TABLE.find(([family]) => model.startsWith(family))?.[1]
 }
 
+/** The end of the clock minute a time falls in, where a call series' burn
+ *  buckets end: a time on a whole minute is its own end. */
+export const burnEnd = (now: number): number => Math.ceil(now / MIN_MS) * MIN_MS
+
 /** A transcript's call series, or undefined when it has no counted call.
  *
  *  One pass over the lines from the end. A line that does not parse is
@@ -1094,9 +1098,11 @@ export function windowOf(model: unknown): number | undefined {
  *  once per message id: an id counts when its newest passing row does, and
  *  later rows with it are skipped. The first counted row is the last call,
  *  and its model alone gives the context window; the cache's window, a span
- *  of time, is taken from the newest counted call that wrote cache, as before. A call goes in
- *  a burn bucket only when its time is after `now` minus 30 minutes and no
- *  later than `now`: bucket i holds the calls in minute i of that span, and
+ *  of time, is taken from the newest counted call that wrote cache, as before. The burn
+ *  buckets span the 30 clock minutes ending where `now`'s minute ends
+ *  (`burnEnd`), as the summary writer keys them. A call goes in a bucket
+ *  only when its time is after the span's start and no later than `now`:
+ *  bucket i holds the calls in minute i of that span, and
  *  each is clamped to 30,000,000. The pass stops once it has the last call,
  *  the last cache-writing call and 30 counted calls, and has passed 30
  *  minutes before `now`. `mtimeMs` is the file's modified time, used only to
@@ -1105,7 +1111,9 @@ export function windowOf(model: unknown): number | undefined {
 export function callSeries(text: string, mtimeMs: number, now: number): CallSeries | undefined {
   if (!Number.isFinite(mtimeMs)) return undefined
   const latest = mtimeMs + SLACK_MS
-  const start = now - BURN_SPAN_MS
+  // The buckets end on the clock minute `now` falls in, as the summary
+  // writer's do, so both sources draw the same burn (#312).
+  const start = burnEnd(now) - BURN_SPAN_MS
   const lines = text.split('\n')
   const seen = new Set<string>()
   const burn: number[] = Array.from({ length: BURN_BUCKETS }, () => 0)
@@ -1976,6 +1984,10 @@ async function checkedSummary(file: string, size: number, mtimeMs: number | unde
   const s = checked.value
   if (typeof mtimeMs !== 'number' || !Number.isFinite(mtimeMs) || s.lastAt > mtimeMs + SLACK_MS) return 'after its file'
   if (s.lastAt > now + SLACK_MS) return 'ahead of the clock'
+  // The meter time is the end of the minute the write fell in, so at most a
+  // minute past the write: one further ahead would keep its burn from ever
+  // draining.
+  if (s.at > mtimeMs + SLACK_MS || s.at > now + SLACK_MS) return 'meter time ahead'
   return s
 }
 
@@ -2014,8 +2026,8 @@ function summaryRecords(name: string, s: Summary): { warmth: Warmth; meter?: Met
  *  series is cut at it. `memory` gets an entry only after a read that
  *  succeeded, so a failed read is tried again; the record is then the last
  *  good one. A working member with no known call records `unread`. A member
- *  with a call series gets a meter: the time of the read that gave it, and
- *  its numbers. Paths no member's transcript is found at leave `memory`, and
+ *  with a call series gets a meter: the end of the clock minute of the read
+ *  that gave it, where its burn buckets end, and its numbers. Paths no member's transcript is found at leave `memory`, and
  *  session ids no member has leave the finder's memory. */
 export async function readCalls(
   rows: readonly AgentRow[],
@@ -2061,18 +2073,23 @@ export async function readCalls(
       slots.push({ warmth: { name, kind: 'shared' } })
       continue
     }
-    if (row.sessionId === undefined || row.cwd === undefined) continue
+    if (row.sessionId === undefined) continue
     ids.add(row.sessionId)
     if (!io.live()) return undefined
-    if (!asked) {
-      await readProjects(config, io, finder)
-      asked = true
+    // The transcript is looked for only from a working folder; the summary
+    // file by the session id alone.
+    let found: Found | undefined
+    if (row.cwd !== undefined) {
+      if (!asked) {
+        await readProjects(config, io, finder)
+        asked = true
+        if (!io.live()) return undefined
+      }
+      found = await findTranscript(config, row, io, finder)
       if (!io.live()) return undefined
+      finder.byName.set(name, found)
+      if (found !== undefined) named.add(found.path)
     }
-    const found = await findTranscript(config, row, io, finder)
-    if (!io.live()) return undefined
-    finder.byName.set(name, found)
-    if (found !== undefined) named.add(found.path)
     // A passing summary file feeds the card at any transcript size; the
     // transcript stays found for the link read.
     if (summaries !== undefined && SESSION_ID.test(row.sessionId)) {
@@ -2084,6 +2101,7 @@ export async function readCalls(
         continue
       }
     }
+    if (row.cwd === undefined) continue
     if (found === undefined) {
       slots.push({ warmth: { name, kind: 'not-found' } })
       continue
@@ -2133,7 +2151,7 @@ export async function readCalls(
     if (series !== undefined) {
       warmth.push({ name: s.name, kind: 'call', ...series.last })
       if (had !== undefined && Number.isFinite(had.readAt)) {
-        const meter: Meter = { name: s.name, at: had.readAt, burn: series.burn, context: series.context }
+        const meter: Meter = { name: s.name, at: burnEnd(had.readAt), burn: series.burn, context: series.context }
         if (series.window !== undefined) meter.window = series.window
         meters.push(meter)
       }

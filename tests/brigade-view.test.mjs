@@ -1496,7 +1496,7 @@ test('a transcript over 4 MiB is not read: a passing summary file feeds the card
   const out = await readCalls(rows, ['A', 'B', 'C'], CONFIG, new Map(), io, view.newFinder(), { plugin: 'grimoire-inline', held: view.newSummaryMemory() });
   assert.deepEqual(out.warmth.map(w => [w.name, w.kind]), [['A', 'too-large'], ['B', 'call'], ['C', 'call']]);
   assert.equal(out.warmth[2].tokens, 5000, 'C is drawn from its summary file');
-  assert.deepEqual(reads.filter(p => p.endsWith('.jsonl')), [pathOf(1)], 'no transcript over 4 MiB is read');
+  assert.deepEqual(reads, [`${usage}\\${SID[2]}.json`, pathOf(1)], 'no transcript over 4 MiB is read');
 });
 
 test('a name on two rows is reported as shared, and neither transcript is read', async () => {
@@ -3781,18 +3781,23 @@ function summaryPoll(files, { clock } = {}) {
 }
 
 // What a card would draw from one poll's records: the ◆ line and its nudge,
-// the cache bar's text, the context meter's text and the two sparklines' text.
+// the cache bar's text, the context meter's text, and the two sparklines'
+// text and terminal cells.
 const cardText = (out, { name = 'A', state = 'idle', status = 'needs-you', now = NOW } = {}) => {
   const w = warmthFrom(out.warmth).find(x => x.name === name);
   const m = metersFrom(out.meters).find(x => x.name === name);
   const line = warmthLine(w, state, status, now);
+  const burn = burnRate(m, now);
+  const trend = contextTrend(m);
   return {
     line: line?.text,
     nudge: line?.nudge,
     bar: cacheBar(w, state, now)?.text,
     meter: contextMeter(m)?.text,
-    burn: burnRate(m, now)?.text,
-    trend: contextTrend(m)?.text,
+    burn: burn?.text,
+    burnCells: burn === undefined ? undefined : spoken(sparkRuns(burn)),
+    trend: trend?.text,
+    trendCells: trend === undefined ? undefined : spoken(sparkRuns(trend)),
   };
 };
 const FILE_LINE = '◆ cache warm · idle 0 min · cold in 1 hr 0 min · 151k context';
@@ -3844,11 +3849,32 @@ test('a summary path refused after a good file drops the held record', async () 
   const out = await poll();
   assert.equal(cardText(out).line, TOO_LARGE);
   assert.deepEqual(out.refusals, [{ name: 'A', value: 'path' }]);
+  // Nothing held after the refusal: a bad file next shows no old record
+  // (integrity-lens F2 at Test).
+  files[summaryAt(0)] = { text: '{}', mtimeMs: MTIME + 1 };
+  assert.equal(cardText(await poll()).line, TOO_LARGE);
+});
+
+test('a summary file that goes missing after a good one drops the held record', async () => {
+  // integrity-lens F4 at Test.
+  const files = { [pathOf(0)]: transcriptOf(6 * MIB), [summaryAt(0)]: { text: summaryText() } };
+  const { poll } = summaryPoll(files);
+  assert.equal(cardText(await poll()).line, FILE_LINE);
+  delete files[summaryAt(0)];
+  assert.equal(cardText(await poll()).line, TOO_LARGE);
+  files[summaryAt(0)] = { text: '{}', mtimeMs: MTIME + 1 };
+  assert.equal(cardText(await poll()).line, TOO_LARGE, 'a bad file after the gap shows no old record');
 });
 
 test('a summary file with no transcript found feeds the card; with neither, the card says not found', async () => {
   const fileOnly = summaryPoll({ [summaryAt(0)]: { text: summaryText() } });
   assert.equal(cardText(await fileOnly.poll()).line, FILE_LINE);
+  // A row with no working folder is found by its session id alone
+  // (behaviour-lens F3 at Test); with no file it records nothing, as before.
+  const noCwd = summaryPoll({ [summaryAt(0)]: { text: summaryText() } });
+  assert.equal(cardText(await noCwd.poll([{ name: 'A', status: 'idle', sessionId: SID[0] }])).line, FILE_LINE);
+  const neitherNoCwd = await summaryPoll({}).poll([{ name: 'A', status: 'idle', sessionId: SID[0] }]);
+  assert.deepEqual(neitherNoCwd.warmth, []);
   const neither = summaryPoll({});
   const out = await neither.poll();
   assert.deepEqual(out.warmth, [{ name: 'A', kind: 'not-found' }]);
@@ -3873,6 +3899,10 @@ test('an unknown format version after a good file drops the held record', async 
   const { poll } = summaryPoll(files);
   assert.equal(cardText(await poll()).line, FILE_LINE);
   files[summaryAt(0)] = { text: summaryText({ version: 2 }), mtimeMs: MTIME + 1 };
+  assert.equal(cardText(await poll()).line, TOO_LARGE);
+  // Nothing held after it: a bad file next shows no old record (integrity-lens
+  // F3 at Test).
+  files[summaryAt(0)] = { text: '{}', mtimeMs: MTIME + 2 };
   assert.equal(cardText(await poll()).line, TOO_LARGE);
 });
 
@@ -3905,6 +3935,10 @@ test('a summary that fails a check, with no record held, gives the transcript-fe
     ['a fractional time', summaryText({ at: NOW + 0.5 })],
     ['a cache flag of 2', summaryText({ cache: 2 })],
     ['not JSON', '{"version":1,'],
+    // behaviour-lens F2 at Test: a meter time far ahead would keep its burn
+    // from ever draining.
+    ['a meter time more than 2 minutes past its file', summaryText({ at: NOW + 3 * MIN })],
+    ['a meter time a year ahead', summaryText({ at: NOW + 365 * 24 * HOUR })],
   ];
   for (const [why, text] of bad) {
     const { poll } = summaryPoll({ [pathOf(0)]: transcriptOf(MIB), [summaryAt(0)]: { text } });
@@ -3942,10 +3976,16 @@ test('a truncated file after a good one keeps the last good strings, and is read
   const out = await poll();
   assert.deepEqual(cardText(out), good);
   assert.deepEqual(out.refusals, []);
-  files[summaryAt(0)] = { text: summaryText({ lastAt: NOW - 500, lastTokens: 200000, context: [151006, 200000] }), mtimeMs: MTIME + 2 };
+  // A second, different half-written file: the record still stays
+  // (integrity-lens F5 at Test).
+  files[summaryAt(0)] = { text: summaryText().slice(0, 50), mtimeMs: MTIME + 2 };
+  const again = await poll();
+  assert.deepEqual(cardText(again), good);
+  assert.deepEqual(again.refusals, []);
+  files[summaryAt(0)] = { text: summaryText({ lastAt: NOW - 500, lastTokens: 200000, context: [151006, 200000] }), mtimeMs: MTIME + 3 };
   const next = await poll();
   assert.equal(cardText(next).line, '◆ cache warm · idle 0 min · cold in 1 hr 0 min · 200k context', 'read again, and the new file wins');
-  assert.equal(fs.reads.filter(p => p === summaryAt(0)).length, 3);
+  assert.equal(fs.reads.filter(p => p === summaryAt(0)).length, 4);
 });
 
 test('a truncated file with no record held gives the transcript-fed card', async () => {
@@ -3982,7 +4022,8 @@ test('the same bad file on two polls draws "not a summary file", and the card co
 });
 
 test('a file whose last call is more than 2 minutes past its modified time is refused', async () => {
-  const files = { [pathOf(0)]: transcriptOf(MIB), [summaryAt(0)]: { text: summaryText(), mtimeMs: NOW - 1000 - 2 * MIN - 1 } };
+  // The meter time sits on the last call, so only the last call's rule is tested.
+  const files = { [pathOf(0)]: transcriptOf(MIB), [summaryAt(0)]: { text: summaryText({ at: NOW - 1000 }), mtimeMs: NOW - 1000 - 2 * MIN - 1 } };
   const { poll } = summaryPoll(files);
   assert.equal(cardText(await poll()).line, OLD_LINE);
   files[summaryAt(0)].mtimeMs = NOW - 1000 - 2 * MIN;
@@ -3997,9 +4038,14 @@ test('a last-call time 3 minutes ahead of the pane\'s clock is refused, and the 
   files[summaryAt(0)] = { text: summaryText({ at: ahead + MIN, lastAt: ahead }), mtimeMs: ahead };
   const out = await poll();
   assert.deepEqual(cardText(out), good);
+  assert.equal(warmthFrom(out.warmth)[0].at, NOW - 1000, 'the good record, not the forged one (integrity-lens F1 at Test)');
   assert.deepEqual(out.refusals, []);
+  // A meter time 3 minutes ahead of the clock, in a file whose modified time
+  // and last call are ahead with it, is refused the same way.
+  files[summaryAt(0)] = { text: summaryText({ at: ahead + MIN, lastAt: NOW }), mtimeMs: ahead + 1 };
+  assert.equal(metersFrom((await poll()).meters)[0].at, NOW, 'the good meter stays');
   // 2 minutes ahead passes.
-  const fresh = summaryPoll({ [summaryAt(0)]: { text: summaryText({ at: NOW + 3 * MIN, lastAt: NOW + 2 * MIN }), mtimeMs: NOW + 2 * MIN } });
+  const fresh = summaryPoll({ [summaryAt(0)]: { text: summaryText({ at: NOW + 2 * MIN, lastAt: NOW + 2 * MIN }), mtimeMs: NOW + 2 * MIN } });
   assert.equal(warmthFrom((await fresh.poll()).warmth)[0].at, NOW + 2 * MIN);
 });
 
@@ -4112,16 +4158,22 @@ test('for one call series with 1-hour cache writes, the transcript-fed card and 
     if (c !== undefined) mem = recordCall(mem, c, NOW + ms);
   }
   assert.equal(mem.calls, counted.length);
-  const transcript = { text: file(...rows) };
-  const byTranscript = await summaryPoll({ [pathOf(0)]: transcript }).poll();
-  const byFile = summaryPoll({ [pathOf(0)]: transcript, [summaryAt(0)]: { text: serializeSummary(summaryFrom(mem, NOW)).value } });
-  const fed = await byFile.poll();
-  assert.ok(!byFile.fs.reads.includes(pathOf(0)), 'the file fed it');
-  for (const now of [NOW, NOW + 10 * MIN, NOW + 50 * MIN, NOW + 2 * HOUR]) {
-    for (const state of ['idle', 'busy']) {
-      const want = cardText(byTranscript, { now, state });
-      assert.ok(want.line !== undefined && want.meter !== undefined && want.burn !== undefined && want.trend !== undefined);
-      assert.deepEqual(cardText(fed, { now, state }), want, `${now - NOW} ms, ${state}`);
+  // Written and read on a whole minute, and 30 s past one (behaviour-lens F1
+  // at Test: the burn must line up off the minute too).
+  for (const late of [0, 30000]) {
+    const at = NOW + late;
+    const transcript = { text: file(...rows), mtimeMs: at };
+    const clock = { now: at };
+    const byTranscript = await summaryPoll({ [pathOf(0)]: transcript }, { clock }).poll();
+    const byFile = summaryPoll({ [pathOf(0)]: transcript, [summaryAt(0)]: { text: serializeSummary(summaryFrom(mem, at)).value, mtimeMs: at } }, { clock });
+    const fed = await byFile.poll();
+    assert.ok(!byFile.fs.reads.includes(pathOf(0)), 'the file fed it');
+    for (const now of [at, at + 10 * MIN, at + 29 * MIN, at + 29.5 * MIN, at + 30 * MIN, at + 50 * MIN, at + 2 * HOUR]) {
+      for (const state of ['idle', 'busy']) {
+        const want = cardText(byTranscript, { now, state });
+        assert.ok(want.line !== undefined && want.meter !== undefined && want.burn !== undefined && want.trend !== undefined);
+        assert.deepEqual(cardText(fed, { now, state }), want, `${late} ms late, ${now - at} ms on, ${state}`);
+      }
     }
   }
 });
@@ -4142,7 +4194,7 @@ test('the refusal line is read back only through its two kind words', () => {
 test('stored refusals are checked again: wrong shapes go, a repeated name keeps the first, and at most 50 stay', () => {
   const many = Array.from({ length: 60 }, (_, i) => ({ name: `N${i}`, value: 'path' }));
   assert.equal(refusalsFrom(many).length, 50);
-  const mixed = [{ name: 'A', value: 'file' }, { name: 'A', value: 'path' }, { name: 'B', value: 'x' }, { name: '', value: 'path' }, { name: 'C', value: 'path', extra: 'C:\\Users' }, null, 'x'];
+  const mixed = [{ name: 'A', value: 'file' }, { name: 'A', value: 'path' }, { name: 'B', value: 'x' }, { name: '', value: 'path' }, { name: 'C', value: 'path', extra: 'C:\\Users' }, { name: 'x'.repeat(301), value: 'path' }, null, 'x'];
   assert.deepEqual(refusalsFrom(mixed), [{ name: 'A', value: 'file' }, { name: 'C', value: 'path' }]);
   assert.deepEqual(refusalsFrom('nope'), []);
 });
@@ -4163,11 +4215,18 @@ test('the state contract declares the refusal lines under the plugin\'s manifest
   assert.match(block, /\n\s+refusals: Pair\[\]\n/);
   const register = readFileSync(join(root, 'brigade/register.tsx'), 'utf8');
   assert.match(register, /atom\(\{ plugin: 'grimoire', key: 'refusals' \} as const, \[\]\)/);
-  assert.match(register, /refusalLine\(refused, c\.title\)/, 'the card reads the line through refusalLine');
+  // The poll stores the pairs, the render reads them back, and an unfinished
+  // card draws the line (integrity-lens F6 at Test: the wiring, pinned by its
+  // text, since no test here runs the engine).
+  assert.match(register, /\n\s+await update\(\$, refusals, \(\) => found\.refusals\)\n/);
+  assert.match(register, /\n\s+const refused = await read\(\$, refusals\)\n/);
+  assert.match(register, /\n\s+const refusal = isFinished \? undefined : refusalLine\(refused, c\.title\)\n/);
+  assert.match(register, /\{refusal !== undefined && \(\n\s+<Box marginBottom=\{1\}>\n\s+<Text dimColor wrap="truncate-end">\n\s+\{refusal\}\n/);
 });
 
 test('the pane hands the poll its summary reads, with the plugin data id from where the roster is', () => {
   const register = readFileSync(join(root, 'brigade/register.tsx'), 'utf8');
   assert.match(register, /\}, finder, \{ plugin: at\.plugin, held: summaries \}\)/);
-  assert.match(register, /const summaries: SummaryMemory = newSummaryMemory\(\)/);
+  // At module scope, so the held records last from poll to poll.
+  assert.match(register, /^const summaries: SummaryMemory = newSummaryMemory\(\)$/m);
 });
