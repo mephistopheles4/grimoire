@@ -1,11 +1,11 @@
 # SkillSpector baseline for this skill.
 #
 # You are reading this because you scanned this directory before installing
-# what is in it, which is the right thing to do with a skill. Nine of
+# what is in it, which is the right thing to do with a skill. Eight of
 # SkillSpector's rules have fired on the files here, and this file says why for
 # each one, so you can disagree with a reason rather than with silence.
 #
-# Six are wrong. Three are not, and are accepted on purpose. This skill ships an
+# Five are wrong. Three are not, and are accepted on purpose. This skill ships an
 # optional edge audit that sends a box's text to a model provider, but only
 # when you run it with a key and say yes. E1 names that transmission, and LP3
 # names that the skill declares no permission list. It also keeps a usage log,
@@ -13,7 +13,7 @@
 # folder, across sessions, but only after you say yes. RA2 names that persistence. Read those three reasons
 # before you install.
 #
-# Which of the nine fire on any given scan depends on the prose, and the prose
+# Which of the eight fire on any given scan depends on the prose, and the prose
 # is edited constantly. An entry matching nothing today is an argument that was
 # made once and kept.
 #
@@ -29,8 +29,8 @@
 #
 # Nothing here was reworded to satisfy a pattern matcher.
 #
-# The repository this skill comes from carries the same file at its root,
-# covering three more rules that fire outside this directory. Its check refuses
+# The repository this skill comes from carries the same entries at its root,
+# with more for rules that fire outside this directory. Its check refuses
 # a change that makes the two disagree.
 
 version: 2
@@ -39,8 +39,6 @@ fingerprints: []
 rules:
   - rule_id: "AR2"
     reason: "False positive. SKILL.md tells the agent that a preview pane may render the page without script, so do not judge it from one. That adds a caveat; it does not suppress one."
-  - rule_id: "AS3"
-    reason: "False positive. A README line naming the one skill this repository ships, the decision records quoting that line, and a skill's contract naming the SKILL.md it was drafted from. Naming your own product or its own source file is not enumerating somebody else's."
   - rule_id: "EA2"
     reason: "False positive. Texts that describe what an agent may do on its own and give no such instruction: the why text on an edge in an example box file, which a renderer prints for a reader; the labels, headings and comments in a format check, its bindings and its README that name the settings the check warns on because they let an agent act without asking; a step that lists unconfirmed drafts as Proposed without asking about each one, which keeps them unconfirmed until the person agrees; and eagle-eye's rule that when the person asks for the box by name, it builds the box without asking again, because the request is the go-ahead. None tells an agent to act without the person's say-so."
   - rule_id: "EA3"

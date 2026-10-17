@@ -864,15 +864,15 @@ for (const e of existsSync(join(root, 'hooks')) ? readdirSync(join(root, 'hooks'
 //
 // The reader below is written by hand and reads exactly the shape these two
 // files are allowed to have: three top-level keys, and a list of entries with
-// a rule identifier, an optional file glob and a one-line reason. It is not a
-// YAML parser and does not try to be. Adding one would be the dependency this
-// repository does not take, so the shape is kept trivial instead, and anything
-// outside it is named and refused rather than guessed at. A baseline this
-// reader cannot understand is a baseline whose entries nobody here has
-// checked.
+// a rule identifier, an optional file glob, an optional message glob and a
+// one-line reason. It is not a YAML parser and does not try to be. Adding one
+// would be the dependency this repository does not take, so the shape is kept
+// trivial instead, and anything outside it is named and refused rather than
+// guessed at. A baseline this reader cannot understand is a baseline whose
+// entries nobody here has checked.
 const BASELINE = '.skillspector-baseline.yaml';
 const BASELINE_KEYS = new Set(['version', 'fingerprints', 'rules']);
-const ENTRY_KEYS = new Set(['rule_id', 'file', 'reason']);
+const ENTRY_KEYS = new Set(['rule_id', 'file', 'message', 'reason']);
 // A scalar is bare or double-quoted, and a double-quoted one holds no quote
 // and no escape of its own. Single quotes and block scalars are valid YAML and
 // are not in this shape: an apostrophe inside a single-quoted string has to be
@@ -905,40 +905,40 @@ function readBaseline(path) {
         inRules = false;
         entry = null;
         const m = /^([a-z_]+):\s*(.*)$/.exec(text);
-        if (!m) return problems.push(`${at}: not a "key: value" line — ${text}`);
+        if (!m) return problems.push(`${at}: not a "key: value" line — ${shown(text)}`);
         const [, key, value] = m;
         if (!BASELINE_KEYS.has(key)) return problems.push(`${at}: unknown key "${key}"`);
         if (key === 'rules') {
-          if (value) return problems.push(`${at}: "rules" must open a block, not hold ${value}`);
+          if (value) return problems.push(`${at}: "rules" must open a block, not hold ${shown(value)}`);
           inRules = true;
           return;
         }
         // Recorded either way, so the rules below report what the line said
         // rather than calling a key that is plainly there absent.
         const read = scalar(value);
-        if (read === null) return problems.push(`${at}: "${key}" is not a bare or plainly quoted value — ${value}`);
+        if (read === null) return problems.push(`${at}: "${key}" is not a bare or plainly quoted value — ${shown(value)}`);
         top[key] = read || 'empty';
         if (/^\[.+\]$/.test(read)) problems.push(`${at}: "${key}" holds an inline list — write one entry per line`);
         return;
       }
 
-      if (!inRules) return problems.push(`${at}: indented line outside the rules block — ${text}`);
+      if (!inRules) return problems.push(`${at}: indented line outside the rules block — ${shown(text)}`);
 
       if (indent === 2 && text.startsWith('- ')) {
         entry = { at };
         rules.push(entry);
       } else if (indent !== 4 || !entry) {
-        return problems.push(`${at}: not a rule entry or one of its fields — ${text}`);
+        return problems.push(`${at}: not a rule entry or one of its fields — ${shown(text)}`);
       }
 
       const field = text.startsWith('- ') ? text.slice(2) : text;
       const m = /^([a-z_]+):\s*(.+)$/.exec(field);
-      if (!m) return problems.push(`${at}: not a "key: value" field — ${field}`);
+      if (!m) return problems.push(`${at}: not a "key: value" field — ${shown(field)}`);
       const [, key, value] = m;
       if (!ENTRY_KEYS.has(key)) return problems.push(`${at}: unknown field "${key}" in a rule entry`);
       if (key in entry) return problems.push(`${at}: "${key}" set twice in one rule entry`);
       const read = scalar(value);
-      if (read === null) return problems.push(`${at}: "${key}" is not a bare or plainly quoted value — ${value}`);
+      if (read === null) return problems.push(`${at}: "${key}" is not a bare or plainly quoted value — ${shown(value)}`);
       entry[key] = read;
     });
 
@@ -1007,7 +1007,16 @@ for (const path of skillBaselines) {
     // one place, and called that agreement.
     if ((mirror.file ?? null) !== (r.file ?? null)) {
       fail(
-        `${r.at}: ${r.rule_id} is narrowed to ${r.file ?? 'every file'} here and to ${mirror.file ?? 'every file'} in ${rel(rootBaseline)} — one rule, one scope`,
+        `${r.at}: ${r.rule_id} is narrowed to ${r.file === undefined ? 'every file' : shown(r.file)} here and to ${mirror.file === undefined ? 'every file' : shown(mirror.file)} in ${rel(rootBaseline)} — one rule, one scope`,
+      );
+    }
+    // A message glob narrows the same way: the scanner suppresses a finding
+    // only when its message, its finding text or its matched text matches.
+    // Both lines print each glob through shown(): the root file sits outside
+    // skills/, so the home-path rule never reads it, and the CI log is public.
+    if ((mirror.message ?? null) !== (r.message ?? null)) {
+      fail(
+        `${r.at}: ${r.rule_id} is matched to ${r.message === undefined ? 'every message' : shown(r.message)} here and to ${mirror.message === undefined ? 'every message' : shown(mirror.message)} in ${rel(rootBaseline)} — one rule, one scope`,
       );
     }
   }

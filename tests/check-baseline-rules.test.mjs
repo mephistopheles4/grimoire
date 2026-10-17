@@ -3,6 +3,7 @@
 // check-fixture.mjs.
 
 import { test } from 'node:test';
+import assert from 'node:assert/strict';
 import { readFileSync, writeFileSync, appendFileSync } from 'node:fs';
 import { tree, rootBaselineIn, skillBaselineIn, fixtureBaselineIn, assertPasses, assertFails, baselineBody } from './check-fixture.mjs';
 
@@ -31,9 +32,9 @@ test('an unknown field inside a rule entry is named', () => {
   const dir = tree();
   writeFileSync(
     rootBaselineIn(dir),
-    'version: 2\nfingerprints: []\n\nrules:\n  - rule_id: "AR2"\n    message: "*preview*"\n    reason: "x"\n',
+    'version: 2\nfingerprints: []\n\nrules:\n  - rule_id: "AR2"\n    severity: "LOW"\n    reason: "x"\n',
   );
-  assertFails(dir, /unknown field "message"/);
+  assertFails(dir, /unknown field "severity"/);
 });
 
 test('a nested value the reader cannot follow fails rather than being skipped', () => {
@@ -71,6 +72,70 @@ test('a rule narrowed to the same file in both baselines passes', () => {
     writeFileSync(p, text.replace('  - rule_id: "AR2"\n', '  - rule_id: "AR2"\n    file: "*SKILL.md"\n'));
   }
   assertPasses(dir);
+});
+
+test('a rule narrowed to a message in one baseline and not the other fails', () => {
+  // A message glob narrows a suppression the way a file glob does: the
+  // scanner suppresses a finding only when its message, finding or matched
+  // text matches. So the same rule with different message globs is not
+  // agreement either.
+  const dir = tree();
+  const skill = readFileSync(skillBaselineIn(dir), 'utf8');
+  writeFileSync(skillBaselineIn(dir), skill.replace('  - rule_id: "AR2"\n', '  - rule_id: "AR2"\n    message: "*preview pane*"\n'));
+  assertFails(dir, /matched to \*preview pane\* here and to every message/);
+});
+
+test('a rule narrowed to the same message in both baselines passes', () => {
+  const dir = tree();
+  for (const p of [rootBaselineIn(dir), skillBaselineIn(dir), fixtureBaselineIn(dir)]) {
+    const text = readFileSync(p, 'utf8');
+    writeFileSync(p, text.replace('  - rule_id: "AR2"\n', '  - rule_id: "AR2"\n    file: "*SKILL.md"\n    message: "*preview pane*"\n'));
+  }
+  assertPasses(dir);
+});
+
+test('a disagreeing glob is printed masked, because the CI log is public', () => {
+  // The root baseline sits outside skills/, so the home-path rule never reads
+  // it. A message glob is the field most likely to hold pasted matched text.
+  const dir = tree();
+  const root = readFileSync(rootBaselineIn(dir), 'utf8');
+  writeFileSync(rootBaselineIn(dir), root.replace('  - rule_id: "AR2"\n', '  - rule_id: "AR2"\n    file: "/Users/someone/*"\n    message: "*C:/Users/someone/box*"\n'));
+  const r = assertFails(dir, /matched to every message here and to \*C:\/Users\/<name>\/box\* in/);
+  assert.match(r.stderr, /narrowed to every file here and to \/Users\/<name>\/\* in/);
+  assert.doesNotMatch(r.stdout + r.stderr, /someone/);
+});
+
+test('a disagreeing glob on the skill side is printed masked too', () => {
+  // The same two lines print the skill's glob as well, so the mask is held on
+  // that side by its own case.
+  const dir = tree();
+  const skill = readFileSync(skillBaselineIn(dir), 'utf8');
+  writeFileSync(skillBaselineIn(dir), skill.replace('  - rule_id: "AR2"\n', '  - rule_id: "AR2"\n    file: "/Users/someone/*"\n    message: "*C:/Users/someone/box*"\n'));
+  const r = assertFails(dir, /matched to \*C:\/Users\/<name>\/box\* here and to every message in/);
+  assert.match(r.stderr, /narrowed to \/Users\/<name>\/\* here and to every file in/);
+  assert.doesNotMatch(r.stdout + r.stderr, /someone/);
+});
+
+test('a value the reader refuses is printed masked too', () => {
+  // A Windows path in double quotes holds backslashes, which this reader
+  // refuses. The refusal names the value, and the root file is read by no
+  // home-path rule, so the mask has to be on this line.
+  const dir = tree();
+  const root = readFileSync(rootBaselineIn(dir), 'utf8');
+  writeFileSync(rootBaselineIn(dir), root.replace('  - rule_id: "AR2"\n', '  - rule_id: "AR2"\n    message: "*C:\\Users\\someone\\box*"\n'));
+  const r = assertFails(dir, /"message" is not a bare or plainly quoted value/);
+  assert.doesNotMatch(r.stdout + r.stderr, /someone/);
+});
+
+test('two different messages for one rule fail, not only a message on one side', () => {
+  // Both sides narrowed is not agreement unless they narrow the same way: a
+  // root that matches more than the skill would suppress more than it says.
+  const dir = tree();
+  for (const [p, glob] of [[rootBaselineIn(dir), '*preview pane*'], [skillBaselineIn(dir), '*preview*'], [fixtureBaselineIn(dir), '*preview pane*']]) {
+    const text = readFileSync(p, 'utf8');
+    writeFileSync(p, text.replace('  - rule_id: "AR2"\n', `  - rule_id: "AR2"\n    message: "${glob}"\n`));
+  }
+  assertFails(dir, /matched to \*preview\* here and to \*preview pane\* in/);
 });
 
 test('a quoted version is read, because the entries accept quoting too', () => {
