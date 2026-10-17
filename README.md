@@ -94,7 +94,7 @@ skills folder, the plugin install, and a copy made by `skills`.
 Every route gives you all four skill directories, each with its `SKILL.md`
 and the scripts that go with it. Only the plugin route also gives you the
 Brigade pane. Each skill carries a README of its own, which is where it is
-documented; contract and head-chef also carry the `CONTRACT.md` their
+documented; contract, eagle-eye and head-chef also carry the `CONTRACT.md` their
 `SKILL.md` is generated from. What follows is only enough to tell you which
 one you want.
 
@@ -105,20 +105,20 @@ one you want.
 **Agree the terms first. The prompt is build output.**
 
 Reach for it when you want a skill, an agent or a CLAUDE.md of your own and
-have never written one. contract interviews you through a template, one group
-of questions at a time, and writes your answers down as a contract. It calls what
-you build a **familiar**: a skill, an agent or a main agent file (a
-CLAUDE.md) that does one job for you.
+have never written one. contract interviews you through a template, one question
+at a time, and writes your answers down as a contract. What you
+build is a skill, an agent or a main agent file (a CLAUDE.md) that does one job
+for you.
 
-It then generates the familiar's file from the contract and checks its format.
-A mark in the file makes the check fail when anyone edits the file by hand. When a
-familiar goes wrong, you amend the contract and generate the file again. It
-never installs what it builds. Not for a one-off prompt.
+It then generates the file from the contract and validates it with
+`claude plugin validate --strict`. When a skill or agent goes wrong, you amend
+the contract and generate the file again. It never installs what it builds. Not
+for a one-off prompt.
 
 The questions, the levels and the marks:
 [`skills/contract/references/template.md`](skills/contract/references/template.md).
 The skill's own contract, which its `SKILL.md` is generated from:
-[`skills/contract/CONTRACT.md`](skills/contract/CONTRACT.md).
+[`skills/contract/references/CONTRACT.md`](skills/contract/references/CONTRACT.md).
 
 ## <img src="docs/brand/head-chef/head-chef-mark-solid.svg" width="32" align="absmiddle" alt=""> [head-chef](skills/head-chef)
 

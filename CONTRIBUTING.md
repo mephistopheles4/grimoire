@@ -12,10 +12,11 @@ node scripts/check.mjs
 
 That is the contract, and it is still one command. It validates every
 artifact in the tree with the renderer its registry row names, checks that no
-file a skill or the mod ships has grown a fixed path back, fails on a code fence that declares no
+file a skill or the mod ships has grown a fixed path back, fails on a skill
+frontmatter key outside its allow-list and on a hidden character in a skill
+file, fails on a code fence that declares no
 language, fails on a dependency, fails when the two SkillSpector baselines
-disagree, runs every skill through the format check in
-`skills/contract/scripts/check.mjs`, and runs the test suite in `tests/`. CI
+disagree, and runs the test suite in `tests/`. CI
 runs it as a required check called `check`. `main` takes no direct pushes.
 
 Three more workflows check things the command above does not. One runs SkillSpector
@@ -56,7 +57,7 @@ not take, and `SECURITY.md` explains why that matters more than it looks.
 run only the suite while you work on it:
 
 ```bash
-node --test tests/audit.test.mjs tests/brigade-roster-rules.test.mjs tests/brigade-view.test.mjs tests/build-pages.test.mjs tests/case.test.mjs tests/check-allowances.test.mjs tests/check-baseline-rules.test.mjs tests/check-baselines.test.mjs tests/check-format.test.mjs tests/check-home-paths.test.mjs tests/check-home-shapes.test.mjs tests/check-manifests.test.mjs tests/check-mod.test.mjs tests/check-paths.test.mjs tests/check-test-step.test.mjs tests/check-tracked.test.mjs tests/check-tree.test.mjs tests/check-version.test.mjs tests/contract-check-binding.test.mjs tests/contract-check-docs.test.mjs tests/contract-check-folder.test.mjs tests/contract-check-main.test.mjs tests/contract-check-rules.test.mjs tests/contract-check-seal.test.mjs tests/contract-check-toml.test.mjs tests/contract-check-tools.test.mjs tests/eagle-eye-sheets.test.mjs tests/esc.test.mjs tests/groundtrack-fold.test.mjs tests/groundtrack-render.test.mjs tests/groundtrack-sheets.test.mjs tests/practice.test.mjs tests/registry.test.mjs tests/render.test.mjs tests/skillspector-gate.test.mjs tests/skillspector-strip-suppressed.test.mjs
+node --test tests/audit.test.mjs tests/brigade-roster-rules.test.mjs tests/brigade-view.test.mjs tests/build-pages.test.mjs tests/case.test.mjs tests/check-allowances.test.mjs tests/check-baseline-rules.test.mjs tests/check-baselines.test.mjs tests/check-format.test.mjs tests/check-home-paths.test.mjs tests/check-home-shapes.test.mjs tests/check-manifests.test.mjs tests/check-mod.test.mjs tests/check-paths.test.mjs tests/check-skill-files.test.mjs tests/check-test-step.test.mjs tests/check-tracked.test.mjs tests/check-tree.test.mjs tests/check-version.test.mjs tests/eagle-eye-sheets.test.mjs tests/esc.test.mjs tests/groundtrack-fold.test.mjs tests/groundtrack-render.test.mjs tests/groundtrack-sheets.test.mjs tests/practice.test.mjs tests/registry.test.mjs tests/render.test.mjs tests/skillspector-gate.test.mjs tests/skillspector-strip-suppressed.test.mjs
 ```
 
 **The suite never reaches the network.** eagle-eye's edge audit is the one
@@ -196,6 +197,29 @@ the ignore line, or untrack the file.
 **Keep the frontmatter `name`.** Claude Code takes the skill's invocation name
 from it, so the name survives whatever the install directory is called.
 
+**Use only the allow-listed frontmatter keys.** A `SKILL.md` may hold `name`,
+`description`, `compatibility`, `license`, `allowed-tools` and `metadata` at
+the top of its frontmatter, and `scripts/check.mjs` fails on any other key,
+naming the file and the key. Claude Code acts on some keys: a `hooks` key
+registers hooks when the skill is invoked. The list is `SKILL_KEYS` in
+`scripts/check.mjs`; a pull request that adds a key says what Claude Code does
+with it. The check judges key names only, never their values, though a line
+it cannot read as one key is quoted, masked and cut, in its failure. Write the
+frontmatter's keys at the left margin, and fence it with lines of exactly
+`---`: an indented first key and a fence with anything after it both fail.
+
+**No hidden characters in a skill file.** The check fails on any file under
+`skills/` that holds a control character other than tab, line feed and
+carriage return, a carriage return not followed by a line feed, DEL, U+2028,
+U+2029, U+FFFE, U+FFFF, a default ignorable code point (tag characters,
+zero-width characters, the soft hyphen, variation selectors) or a bidi
+control, and names the file, the line and the code point. A BOM is allowed as
+a file's first character only.
+Each can make the diff you review differ from the text the model reads. Every
+file is read as text unless the check's binary list names its suffix and the
+file opens with that format's signature, so a new kind of binary file fails
+until the list names it, and a text file renamed `.woff2` is still read.
+
 **Write to the skill's own rules.** eagle-eye's prose follows ASD-STE100 tested
 against ISO 24495-1: active voice, present tense, one instruction per sentence,
 twenty words or fewer, no idiom. See
@@ -243,25 +267,20 @@ narrower one:
 Why a skill may name the tools it targets:
 [`docs/adr/0005-skills-name-their-targets.md`](docs/adr/0005-skills-name-their-targets.md).
 
-**A skill with a `CONTRACT.md` beside its `SKILL.md` is generated from it.**
+**A skill with a `CONTRACT.md`, beside its `SKILL.md` or in its `references/`, is generated from it.**
 Today that is `skills/contract/`, `skills/eagle-eye/` and `skills/head-chef/`. Do not edit such a
 `SKILL.md` by hand. Change the contract and raise its `Version:` line,
-generate the `SKILL.md` again, then seal it:
+generate the `SKILL.md` again, then validate the skills folder:
 
 ```bash
-node skills/contract/scripts/check.mjs --seal skills/<name>
+claude plugin validate --strict skills
 ```
 
-The seal writes a mark into the frontmatter: the contract's version, a digest
-of the skill's folder and a digest of the contract. The folder's digest covers
-every file in `skills/<name>/` except `CONTRACT.md`: for `contract`, the check
-script and the template; for `eagle-eye`, the renderer, the audit and the
-reference files; for `head-chef`, its README, its reference files and its SkillSpector baseline. So a change to any of them needs a new seal, and a stray
-file such as `.DS_Store` breaks it. `node scripts/check.mjs` fails when a
-covered file changed after the seal. The seal proves only that those files
-are unchanged since they were sealed. It proves nothing about who sealed them,
-because anyone can run the command. So a reviewer reads every changed file in
-full, and reviews the `SKILL.md` as shipped prose, whatever its seal says.
+That checks that each frontmatter parses, and nothing about a key's meaning.
+
+Nothing seals a generated `SKILL.md` and nothing checks it against its
+contract, so a reviewer reads every changed file in full, and reviews the
+`SKILL.md` as shipped prose.
 
 **The mod is held to the same rules.** The plugin can also ship a Claude Code
 mod: a hooks module the engine runs in every session the plugin is installed

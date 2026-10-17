@@ -112,5 +112,24 @@ is inside another when it is equal to it, or starts with it and then a `/`.
    - If the branch is still there: `git -c core.fsmonitor=false -C '<lead
      folder>' branch -d '<branch>'`.
    - When a command refuses, stop, show what it said, and do nothing more.
-7. **Remind the owner to archive the sidebar entry.** No tool can. Then
-   remove the card from the roster.
+7. **Mark the session's task-list step done, and remove its card from the
+   roster.** Then remind the owner to archive the sidebar entry, unless they
+   ask you to archive it. An ask to archive a live session counts as the
+   owner's "done": run steps 1 to 6 first. Desktop's archive tool is not a
+   cleanup step: it removes the worktree with none of the checks above, and
+   also archives the session's finished side sessions. Call it only when all
+   of these hold, after steps 1 to 6 succeeded:
+   the owner's own words in this chat ask to archive that session;
+   `git worktree list --porcelain` no longer shows its worktree;
+   the `sessionId` that step 1 acted on is the session id you kept for the
+   chip whose Desktop id is the target (otherwise do not archive, and tell
+   the owner);
+   `list_sessions` with `linked` shows no session whose `startedBy` is that
+   session's Desktop id (when one does, do not archive: name those sessions
+   to the owner, who cleans them up or archives them by hand); and
+   `get_session` on the kept Desktop id shows the session's title (launch step 5).
+   Then name back the session, its title and where the Desktop id came from,
+   and wait for the owner's yes. Pass the reason `Archived on the owner's
+   words after cleanup`. Tell the owner when the result reports a worktree
+   removed or kept. When the archive call fails or reports anything else,
+   stop, tell the owner what it said, and do nothing more.

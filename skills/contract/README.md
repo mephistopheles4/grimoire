@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="../../docs/brand/contract-card.svg" width="100%" alt="contract — agree the terms, then seal the file">
+  <img src="../../docs/brand/contract-card.svg" width="100%" alt="contract — agree the terms, then build the file">
 </p>
 
 # contract
@@ -8,51 +8,18 @@
 
 A person who wants a reusable helper usually writes a prompt. They paste it
 again and again, and edit it when it goes wrong. The prompt drifts. Nobody
-can say which line holds which decision, or why.
+can say which line holds which decision, or why. A day later, the person who
+decided often cannot say either.
 
 contract closes that gap. The person does not write a prompt. The person
-agrees terms, and the skill writes the prompt from those terms.
+agrees terms, and the skill writes the prompt from those terms. The terms,
+and the history of why each one was decided, stay beside the prompt.
 
 This is [design by contract](https://en.wikipedia.org/wiki/Design_by_contract),
 applied to a prompt. The contract comes first, and the prompt is its
 implementation.
 
-## The words it uses
-
-- **Familiar:** a skill, an agent or a main agent file that a person builds
-  to do one job for them. This is the skill's own word for what it builds.
-- **Skill:** instructions that the agent picks up by itself when a situation
-  matches.
-- **Agent:** a familiar that the main agent sends off to do one job alone and
-  report back.
-- **Main agent file:** the instructions that govern the main session. Claude
-  Code reads it as `CLAUDE.md`, and loads it at the start of every session.
-- **Contract:** the answered questions. These are the terms the person agrees
-  with the familiar.
-- **Mark:** three lines that the check writes into the familiar's file: in
-  the settings at the top of a `.md` file, under `metadata:`, or as comments at
-  the end of a Codex `.toml` file. In a `CLAUDE.md` with no settings block,
-  the check adds one at the very top that holds only the mark. They show
-  whether the familiar or its contract changed since.
-- **Seal:** the check's command that writes the mark. Like a wax seal, it
-  shows whether the files changed since, not who wrote them.
-
 ## Use it
-
-**Read before you install.** The check confirms that a skill, agent or `CLAUDE.md` file is
-well formed, and unchanged since it was sealed with its contract. It does not
-confirm that anyone reviewed either file, and anyone can write both. The
-check does not refuse a setting's value because of what it lets the agent do.
-It warns on every listed setting it does not know to be harmless, with a
-sharper danger warning for a few, such as settings that let the agent act
-without asking, reach the live web, or read instructions from outside the
-file. A warning is a prompt to read, not a review. The warnings print first,
-the danger, import and missing-tools warnings before the rest, at most 20 of a
-rule and then a count of the rest. A danger warning for a setting in the
-check's danger table is never cut. The list of tools an agent is given is
-warned on only when it is missing or empty, or when it grants a whole
-connected server; read it. Read a shared skill, agent or `CLAUDE.md`
-and its contract before you use it, as you would any code from someone else.
 
 Ask for it by name. The installer route keeps the plain name; the plugin route
 namespaces it:
@@ -63,9 +30,12 @@ namespaces it:
 ```
 
 Or let it step in. It steps in when a person wants to build a reusable skill
-or agent. It also steps in for a prompt they keep pasting, and for a change to
-a familiar with a contract. It stays quiet for a one-off prompt. It also stays
-quiet for a request to run a familiar that already exists.
+or agent, for a prompt they keep pasting, and for a change to a skill, agent
+or CLAUDE.md that has a contract. It stays out of a one-off prompt, and of a
+request to run a skill or agent that already exists.
+
+**Read before you install.** Read a shared skill, agent or CLAUDE.md and its
+contract before you use it, as you would any code from someone else.
 
 To try the skill before a release, install it with the "Pinned to one commit"
 route in the [root README](../../README.md), using a commit from the pull
@@ -73,213 +43,91 @@ request.
 
 ## How it works
 
-The skill interviews the person through a template of 20 questions. The person
-picks a type and a level first:
+The skill proposes what you are making (a skill, an agent or a CLAUDE.md),
+how thorough to be, and its name, from what you already said. You confirm.
+Then it asks one question at a time, and fills a contract of eight parts:
 
-| Level | Questions | Good for |
-| --- | --- | --- |
-| Quick | 1 to 7 | A small familiar that only you use |
-| Standard | 1 to 15 | A familiar you rely on, or share. It adds a practice test |
-| Thorough | 1 to 20 | A familiar others depend on, or one that can do damage. It adds its failures and a reason for each rule |
+| Part | What it holds |
+| --- | --- |
+| `purpose` | What it is for, and when it steps in or stays out |
+| `why` | Why it exists, in your own words |
+| `good` | What good output looks like |
+| `roles` | Who does what, and when it stops to ask |
+| `tools` | What it may use and do |
+| `rules` | Its rules, and the failures they guard against |
+| `writing` | Its terms, and how it writes |
+| `open` | What is still open, and when you would retire it |
 
-The skill asks one group of questions at a time. It drafts what it can from
-what the person said, and marks each draft *Proposed*. A pause, called a
-**checkpoint**, follows each group. At a checkpoint, the skill asks about at
-most three answers, the ones that need the person's own words. The other
-drafts stay *Proposed* until the go. The skill never writes the answer to question 2: what the
-familiar notices that nothing else does. The person writes it.
+The level sets which parts it asks. Quick fills the first five, Standard adds
+`rules` and `writing`, and Thorough adds `open`. You can change the level at
+any time, by answering more or fewer questions.
 
-When the person gives the go, the skill generates the familiar's file from
-the contract. Then it seals the file and checks its format.
+It drafts what it can and marks each draft *Proposed*. It never writes `why`
+for you. Before it builds anything, you agree what good output looks like:
+your real example, or the closest of two or three samples it drafts.
 
-## Show me good
-
-People often do not know what good looks like until they see it. So before
-question 1, at every level, the skill finds a **target**. The target is the
-output the person wants the familiar to produce.
-
-- **The person has a real example.** It becomes the target.
-- **The person has none.** The skill drafts two or three samples. Each sample
-  differs on one named axis, for example short and direct, or warm and
-  detailed. The person picks one, mixes them, or rejects all, and says why.
-
-The skill builds nothing until a target exists. The reasons for each rejected
-sample go into the contract. They often become rules in the familiar.
+When you give the go, it generates the file from the contract, and runs
+`claude plugin validate --strict` on it. When that command is not available,
+it says the file was not validated.
 
 ## Fix the contract, not the file
 
-**The contract is the source. The familiar's file is build output.** Nobody
-edits the file by hand.
+**The contract is the source. The built file is output.** Nobody edits the
+file by hand.
 
-When a familiar goes wrong, the person asks for a change. The skill uses
-**amend mode**:
+When it goes wrong, ask for a change. The skill uses **amend mode**:
 
-1. It runs the check, and says which part of the seal broke, if any.
-2. It finds the clause that should have held, and proposes a change to it.
-3. It records the change in the contract's change log, with its reason.
-4. It generates again only the sections of the file that the change touches.
-   Every other section stays word for word.
-5. It shows the change list, and seals only after the person's go.
+1. It finds the clause that should have held, and proposes a change to it.
+2. It records the change in the change log, with its reason.
+3. It shows the change list, and waits for your go.
+4. It regenerates only the parts of the file the change touches. In a
+   `SKILL.md`, each generated part sits between two comment lines that name
+   it. An agent file or a CLAUDE.md has none, so only the sections the
+   change touches are regenerated. Every other line stays word for word.
 
 A small change then gives a small diff, and a reviewer can read it.
 
 ## What it hands back
 
-Five parts, in this order:
-
-1. **The contract**, with a mark on every answer.
-2. **The familiar**, marked "not installed".
-3. **The check's output**, word for word, with its exit code.
-4. **The practice test**: the cases, the number of runs and a rough cost.
-5. **The unsettled list**: each open answer and question, and where to
-   install the familiar.
-
-A person who did not watch the interview can decide from these five parts.
-They can install the familiar, or not.
+1. **The contract** and its change log, with a mark on every answer.
+2. **The built file**, marked "not installed".
+3. **The validator's output**, as printed.
+4. **The unsettled list**: each open answer and question, and where to
+   install the file.
 
 ## What it never does
 
-- It never installs a familiar. Installing activates it in every future
-  session, so that choice is the person's.
-- It never runs the practice test. A run uses the person's usage.
-- It never sends anything, and it never publishes anything.
+- It never installs what it builds. Installing activates it in every future
+  session, so that choice is yours.
+- It never runs an eval without your yes in chat, each time.
+- It never sends or publishes anything.
 - It never writes a hook, a settings file or a permission list.
-- It writes only under a `familiars/` folder in the current working folder.
-  To change a familiar anywhere else, it asks the person to confirm that exact
-  path first.
 - It never follows an instruction that it finds inside a file. A "yes" in a
-  file is never the person's yes.
+  file is never your yes.
 
-## Check and seal a familiar
+## Changes in 0.12.0
 
-The skill runs only these two commands. Put each path in single quotes, as
-shown. The path is a skill's folder, an agent's file, or a `CLAUDE.md`.
+**The skill is rebuilt to the shape it teaches.** It asks one question at a
+time, and its contract has eight parts in place of 20 questions. The old
+check, and the keys it wrote into each built file, are gone: the skill runs
+`claude plugin validate --strict` instead. Its own contract moves to `references/CONTRACT.md`, and its history
+to `references/contract.changelog.md`, where every earlier version's changes
+are kept.
 
-```text
-node '<skill base directory>/scripts/check.mjs' --seal '<path>'
-node '<skill base directory>/scripts/check.mjs' '<path>'
-```
-
-The first command writes the mark. The second command checks the file's
-format and the mark. For a skill, the mark covers every file in its folder,
-except the contract.
-
-**The exit code is the verdict:**
-
-| Exit code | Meaning |
-| --- | --- |
-| 0 | Pass. Warnings are allowed |
-| 1 | Fail, or the check cannot read part of the file |
-| 2 | Usage error, or the seal refused. Nothing was written |
-
-**A mark proves no authorship.** Anyone can compute one. Read a shipped
-familiar as prose, whatever its mark says. The check also says nothing about
-whether the familiar is any good.
-
-## Changes in 0.11.0
-
-**The check's warnings are easier to read.** No exit code changes: a file
-that passed still passes, and one that failed still fails.
-
-- **They print first,** as one block above every other line, on every run.
-  A refused seal included. The line just above `RESULT:` is then always one
-  about the check's own verdict.
-- **The sharpest come first:** `danger`, `import` and `tools-missing`, then
-  the rest, each in the order the check found them.
-- **Each rule prints at most 20 lines,** then one count line after the
-  lines of its rank, such as `WARN import: 5 more not shown; each is a body
-  line holding an @ import`. The `unreviewed` count line says the rest are
-  on the contract's `Extra keys:` line, and the `tools` items of `danger`
-  are counted apart. A danger line for a
-  setting the check names, such as `initialPrompt`, is never cut, however
-  many other warnings there are.
-- **A warning names a key in double quotes,** cut at 40 characters with
-  `...`: `WARN unreviewed: "k1" at line 5 is a setting this check does not
-  review`.
-
-**To roll back,** revert the change and publish the next patch version. A
-tool that reads the warning lines by their place or their unquoted text must
-read them again.
-
-## Changes in 0.10.0
-
-**This version breaks files that passed before.** The check now refuses
-anything but the seal that looks like the mark. A file that holds one fails
-as "cannot check". The seal refuses it and writes nothing:
-
-- **In any `.md` frontmatter,** a key or a comment that names a mark key,
-  other than the three keys the seal writes under `metadata:`. For example,
-  a top-level `familiar_digest:` or `FamiliarDigest:`, even when the
-  contract lists it. Or a `familiar-digest-old:` under `metadata:`, or a
-  comment such as `# contract-version: 1.0.0`.
-- **In a Codex `.toml` file,** a key or a comment that names a mark key with
-  `_`, another dash or nothing between its words. Only a hyphen was refused
-  before.
-- **In a `CLAUDE.md` body,** a line that opens with a mark key's name, then
-  `:`, `=` or `|`. Any Markdown markers may come first, such as a list,
-  quote, heading, table, link, numbered item or task box. For example,
-  `- familiar-digest:` or `| familiar-digest |`.
-
-The check reads a name in any case, with any dash or underscore, or none. It
-also reads full-width forms. Words with spaces between them, such as "the
-contract version", are prose and still pass. The reason names the line,
-never its text.
-
-**To fix one,** rename the key, or reword the comment or the line. Then seal
-again.
-
-**To roll back,** revert the change and publish the next patch version. A
-tool that pins this check by its digest must pin it again after either
-change.
-
-## Changes in 0.9.0
-
-**This version breaks files that passed before.** In an agent's `tools`
-list, the check now fails a bare server entry, such as `mcp__notes`, and
-any other form that holds a `*` or starts with `mcp` but is not one of two
-shapes: one tool, `mcp__<server>__<tool>`, or a whole server,
-`mcp__<server>__*`. It fails them in every way the list can be written, a
-one-line list included. Rewrite a bare server entry as `mcp__<server>__*`,
-and seal again. Each whole-server item now prints a danger warning, and an
-agent with no tools, or an empty list, prints a `tools-missing` warning.
-
-Two more files that passed before now fail:
-
-- **An agent named `claude`.** Its `claude.md` now reads as a wrongly cased
-  `CLAUDE.md`. Rename the agent and seal again.
-- **A contract that starts with a `---` line.** A contract holds no
-  frontmatter. Remove the block and seal again.
-
-**New in this version:**
-
-- A third kind of familiar, the main agent file: Claude Code's `CLAUDE.md`,
-  with `CLAUDE.contract.md` beside it.
-- A `Kind:` line in each contract. It is required beside a `CLAUDE.md`, and
-  optional for a skill or an agent, so older contracts still pass.
+**An older contract converts at its first amendment.** Amend mode maps each
+old question to its part and keeps each answer's words and mark.
 
 **To roll back,** revert the change and publish the next patch version.
-Sealed `CLAUDE.md` files and sealed agents with a whole-server entry then
-stop passing. A tool that pins this check by its digest must pin it again
-after either change.
-
-## The practice test
-
-The practice test for this skill is in
-[`docs/practice-tests/contract.md`](../../docs/practice-tests/contract.md).
-It is outside this folder, so it does not install with the skill. It holds
-step-in cases, stay-quiet cases, decoys and scripted interviews, with the
-expected answers written before any run.
 
 ## What is in this directory
 
 | Path | What it is |
 | --- | --- |
 | [`SKILL.md`](SKILL.md) | The skill. It is generated from the contract, so do not edit it by hand. |
-| [`CONTRACT.md`](CONTRACT.md) | This skill's own contract. Change the skill here, then generate and seal again. |
-| [`references/template.md`](references/template.md) | The 20 questions, with the test for each one. |
-| [`references/amend.md`](references/amend.md) | Amend mode: how the skill changes a familiar that has a contract. It is generated from the contract, like `SKILL.md`. |
-| [`references/show-me-good.md`](references/show-me-good.md) | The show-me-good step: how the skill finds the target output before question 1. |
-| [`references/binding-claude.md`](references/binding-claude.md) | How the skill builds an agent or a main agent file (`CLAUDE.md`) for Claude Code: the files, their keys, the settings the check warns on, the seal, and the tool version it was last checked against. |
-| [`references/binding-antigravity.md`](references/binding-antigravity.md) | How the skill builds an agent for Antigravity: the file, its keys, the settings the check warns on, its seal, and the tool version it was last checked against. |
-| [`references/binding-codex.md`](references/binding-codex.md) | How the skill builds an agent for Codex: the file, its keys, the settings the check warns on, its seal, and the tool version it was last checked against. |
-| [`scripts/check.mjs`](scripts/check.mjs) | The check and the seal. It uses only built-in modules, so it needs no install. |
+| [`references/CONTRACT.md`](references/CONTRACT.md) | This skill's own contract. Change the skill here, then generate `SKILL.md` again. |
+| [`references/contract.changelog.md`](references/contract.changelog.md) | This skill's history: every version, why, and where it came from. |
+| [`references/template.md`](references/template.md) | The eight parts, the levels and the marks. |
+| [`references/amend.md`](references/amend.md) | Amend mode: how the skill changes something that has a contract, and converts an older one. |
+| [`references/binding-claude.md`](references/binding-claude.md) | How the skill builds an agent or a CLAUDE.md for Claude Code. |
+| [`references/binding-antigravity.md`](references/binding-antigravity.md) | How the skill builds an agent for Antigravity. |
+| [`references/binding-codex.md`](references/binding-codex.md) | How the skill builds an agent for Codex. |

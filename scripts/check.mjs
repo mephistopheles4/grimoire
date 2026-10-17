@@ -10,10 +10,11 @@
 //    a defect.
 //    2b. For every rule, not only 2: every file git tracks is one the walk
 //    read, so no rule here skips a file that ships.
+//    2c. A skill's frontmatter holds only the allow-listed keys, and no file
+//    under skills/ holds a hidden control or line-separator character.
 // 3. The single-pass tag strip does not come back, and no code fence in any
 //    markdown file declares no language.
-// 4. Every plugin in the marketplace manifest exists on disk with a manifest,
-//    and every skill passes the format check the contract skill ships.
+// 4. Every plugin in the marketplace manifest exists on disk with a manifest.
 // 5. A change to a skill or the mod carries a version bump.
 // 6. Nothing in the tree takes a dependency: no manifest, no lockfile, and no
 //    import of a bare specifier. The mod's module may import the engine's own
@@ -29,7 +30,7 @@
 
 import { appendFileSync, existsSync, lstatSync, readdirSync, readFileSync, realpathSync, statSync } from 'node:fs';
 import { basename, join, posix, relative, resolve, sep } from 'node:path';
-import { execFileSync, spawnSync } from 'node:child_process';
+import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { walk } from './lib/tree.mjs';
 import { ARTIFACTS, rowFor } from './lib/registry.mjs';
@@ -281,6 +282,117 @@ for (const skill of files.filter(f => f.endsWith('SKILL.md'))) {
   }
 }
 
+// 2c. A skill's frontmatter holds only the keys below, and no file a skill
+// ships holds a hidden character.
+//
+// Claude Code acts on some frontmatter keys: a `hooks` key registers hooks
+// when the skill is invoked. `claude plugin validate --strict` checks that a
+// frontmatter parses and reads no key's name, so a key like that could merge
+// on review alone. This list is the keys the skills here use, decided at
+// triage of issue 305. A key added here is a security change: say in the pull
+// request what Claude Code does with it.
+const SKILL_KEYS = new Set(['name', 'description', 'compatibility', 'license', 'allowed-tools', 'metadata']);
+//
+// The frontmatter is read by hand, as the baseline reader in rule 7 is: a key
+// at the left margin, bare or quoted, then a colon. Indented lines, list items
+// at the margin, blank lines and comments are values or nothing, and only key
+// names are read. An indented line before the first key at the margin is
+// refused: YAML takes a mapping indented as a whole as the top level, so its
+// keys are top-level keys this reader would skip as values. Any other line at
+// the margin sets keys this reader cannot name — a flow map, a `?` key, a `<<`
+// merge, a tab-indented line — so it is refused rather than skipped. A lone CR
+// breaks a YAML line as a line feed does, so each line is split on it too.
+// Both fences are exactly `---`; a fence with anything after it is refused, as
+// a loader might not close there. Every SKILL.md under skills/ is read, in any
+// case, not only skills/<name>/SKILL.md: an install that folds case loads
+// skill.md, and a nested one costs nothing to hold to the same list.
+//
+// The characters: every C0 control but tab, line feed and carriage return; a
+// CR not followed by a line feed; DEL; every C1 control; the two Unicode line
+// separators; the noncharacters U+FFFE and U+FFFF; and every default
+// ignorable code point and bidi control, which take in the tag characters a
+// model reads as letters, the zero-width characters, the soft hyphen, the
+// variation selectors and the marks that reorder text. A BOM is exempt only
+// as a file's first character. Each can make the diff a reviewer reads differ
+// from the text the model reads. Every file is text
+// but a binary kind listed below, and a file of that kind must open with its
+// format's signature, so a text file renamed .woff2 is read as text. A new
+// binary kind fails here until it is listed with its signature.
+const BINARY = new Map([['.woff2', Buffer.from('wOF2')]]);
+const binaryKind = f => BINARY.get(posix.extname(f.toLowerCase()));
+const HIDDEN = /[\x00-\x08\x0B-\x1F\x7F-\x9F\u{2028}\u{2029}\u{FFFE}\u{FFFF}\p{Default_Ignorable_Code_Point}\p{Bidi_Control}]/gu;
+const FRONTMATTER_KEY = /^(?:"([^"\\]*)"|'([^']*)'|([A-Za-z0-9_][^:#]*?))[ \t]*:(?:[ \t]|$)/;
+const codePoint = c => `U+${c.codePointAt(0).toString(16).toUpperCase().padStart(4, '0')}`;
+// A string from a file, for a failure line: masked before it is cut, as rule
+// 2 does, so a cut cannot drop the home path that tells the masker the name.
+const quoted = s => printable(excerpt(masked(s)));
+
+for (const f of files.filter(f => relRaw(f).startsWith('skills/'))) {
+  const bytes = readFileSync(f);
+  const signature = binaryKind(relRaw(f));
+  if (signature && bytes.subarray(0, signature.length).equals(signature)) continue;
+  const text = bytes.toString('utf8').replace(/^\u{FEFF}/u, '');
+  // Each character once a file, at its first line, with a count: one fix
+  // clears every copy, and a file full of them should not bury the rest.
+  const found = new Map();
+  const split = text.split('\n');
+  split.forEach((raw, i) => {
+    // The CR of a CRLF ending is not a lone one; any other CR is, the last
+    // one in a file with no line feed after it included.
+    const line = i < split.length - 1 && raw.endsWith('\r') ? raw.slice(0, -1) : raw;
+    for (const [c] of line.matchAll(HIDDEN)) {
+      const seen = found.get(c);
+      if (seen) seen.count++;
+      else found.set(c, { line: i + 1, count: 1 });
+    }
+  });
+  for (const [c, { line, count }] of found) {
+    const what = c === '\r' ? `a lone CR (${codePoint(c)})` : codePoint(c);
+    const times = count > 1 ? `, ${count} times in the file` : '';
+    fail(`${rel(f)}:${line} holds ${what}${times} — a hidden character can make the reviewed diff differ from what the model reads. Remove it.`);
+  }
+}
+
+for (const f of files.filter(f => relRaw(f).startsWith('skills/') && basename(f).toLowerCase() === 'skill.md')) {
+  const lines = readFileSync(f, 'utf8')
+    .replace(/^\u{FEFF}/u, '')
+    .split('\n')
+    .map(l => (l.endsWith('\r') ? l.slice(0, -1) : l));
+  if (lines[0] !== '---') {
+    fail(`${rel(f)} does not open with a line of exactly ---, so the check cannot find its frontmatter`);
+    continue;
+  }
+  const close = lines.findIndex((l, i) => i > 0 && l === '---');
+  if (close === -1) {
+    fail(`${rel(f)} has no closing line of exactly ---, so the check cannot tell its frontmatter from its body`);
+    continue;
+  }
+  let sawKey = false;
+  for (let i = 1; i < close; i++) {
+    for (const seg of lines[i].split('\r')) {
+      if (!seg.trim() || seg.trimStart().startsWith('#')) continue;
+      if (seg.startsWith(' ')) {
+        if (sawKey) continue;
+        fail(`${rel(f)}:${i + 1} is indented before any key at the margin, so YAML may read it as a top-level key: ${quoted(seg)}`);
+        continue;
+      }
+      if (seg === '-' || seg.startsWith('- ')) continue;
+      const m = FRONTMATTER_KEY.exec(seg);
+      if (!m) {
+        fail(`${rel(f)}:${i + 1} holds a frontmatter line the check cannot read as one key: ${quoted(seg)}`);
+        continue;
+      }
+      sawKey = true;
+      const key = m[1] ?? m[2] ?? m[3];
+      if (!SKILL_KEYS.has(key)) {
+        fail(
+          `${rel(f)}:${i + 1} has the frontmatter key "${quoted(key)}", which is not one of ${[...SKILL_KEYS].join(', ')}. Claude Code acts on some keys, such as hooks; add one to SKILL_KEYS in scripts/check.mjs only with a reason.`,
+        );
+      }
+    }
+  }
+}
+
 // 3. The single-pass tag strip does not come back.
 // CodeQL raised js/incomplete-multi-character-sanitization on this exact form,
 // in two files, on the first scan. The output is not an HTML sink and the
@@ -375,53 +487,6 @@ for (const e of readdirSync(join(root, 'skills'), { withFileTypes: true })) {
   } catch {
     fail(
       `skills/${e.name}/ has no SKILL.md — the default scan reads one level, so a category folder needs a "skills" array in plugin.json`,
-    );
-  }
-}
-
-// 4b. Every skill passes the format check.
-//
-// A skill's frontmatter is read by the runtime before a word of its prose: the
-// name it is invoked by, the description that decides when it loads, and any
-// key that changes what the agent may do without asking. The frontmatter-name
-// rule above reads one key. This runs the check the contract skill ships over
-// every skill directory, so an unknown key, a field over its limit, or a
-// sealed SKILL.md whose CONTRACT.md has drifted or gone goes red here, and
-// not on an installer's machine.
-//
-// It is the same script, called the same way, that a person runs on a skill
-// they are building. A second reader of the same format here would be a
-// second place for the rules to drift. Its exit code is the verdict: 0 passes,
-// warnings included, and anything else fails and names the skill. A warning,
-// such as a body longer than the advised 500 lines, is printed as a note.
-//
-// The script is looked up in the tree being checked, and its absence fails. A
-// gate that silently does nothing reads as a gate that passed.
-const formatCheck = join(root, 'skills', 'contract', 'scripts', 'check.mjs');
-let formatCheckThere = false;
-try {
-  formatCheckThere = statSync(formatCheck).isFile();
-} catch (err) {
-  if (err.code !== 'ENOENT') throw err;
-}
-if (!formatCheckThere) {
-  fail(
-    `skills/contract/scripts/check.mjs is missing, so no skill's frontmatter, mark or contract was checked — restore the contract skill's format check`,
-  );
-} else {
-  for (const e of readdirSync(join(root, 'skills'), { withFileTypes: true })) {
-    if (!e.isDirectory()) continue;
-    const r = spawnSync(process.execPath, [formatCheck, join(root, 'skills', e.name)], { cwd: root, encoding: 'utf8' });
-    const lines = (r.stdout || '').split('\n').filter(l => l !== '');
-    if (r.status === 0) {
-      console.log(`ok    skills/${e.name}/ (format)`);
-      for (const w of lines.filter(l => l.startsWith('WARN '))) console.log(`note: skills/${e.name}/ ${w}`);
-      continue;
-    }
-    const why = lines.filter(l => !l.startsWith('PASS ') && !l.startsWith('RESULT:'));
-    const exit = r.error ? r.error.code : r.status ?? r.signal;
-    fail(
-      `skills/${e.name}/ fails the format check (skills/contract/scripts/check.mjs, exit ${exit}):\n${why.map(l => `      ${l}`).join('\n')}`,
     );
   }
 }

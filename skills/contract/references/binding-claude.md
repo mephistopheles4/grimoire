@@ -1,127 +1,96 @@
 # Binding: Claude Code
 
 This file maps a contract's plain words to a Claude Code file: an agent
-file, or the main agent file, `CLAUDE.md`. Read it when the contract names
-claude as the tool the familiar is built for. Everything the file needs is
-in the contract, the template, the skill's steps, or here. A fact missing
-from all of them is a gap: stop and ask.
+file, or the main agent file, `CLAUDE.md`. Read it when `tools` says the
+agent or CLAUDE.md is built for Claude Code. Everything the file needs is in the
+contract, the template, the skill's steps, or here. A fact missing from all
+of them is a gap: stop and ask.
 
 ## Contents
 
-- Last checked (questions 4, 5)
-- The file (questions 4, 5)
-- The main agent file (questions 4, 5)
-- Capabilities (questions 5, 6)
-- Keys that let it do more without asking (questions 5, 18)
-- Settings the check warns on (questions 5, 18)
-- The mark (questions 5, 18)
-- Example (questions 4, 5)
+- Last checked
+- Where files go
+- The file
+- The main agent file
+- Capabilities
+- Settings that let it act without asking
+- Validate
+- Example
 
-## Last checked (questions 4, 5)
+## Last checked
 
 Claude Code 2.1.296, on the command line, headless, on Linux, on
-2026-10-10. Name this version in the unsettled list, and say that a newer
-Claude Code may load the file differently. Five load tests ran:
+2026-10-10. Name this version in the hand-back, and say that a newer Claude
+Code may load the file differently. Load tests that ran:
 
-1. A sealed agent with `tools: [Read, ToolSearch, mcp__<server>__*]` loaded
-   from a project's `.claude/agents/`, was listed, and called one of that
-   server's tools after loading it with `ToolSearch`. Its tool listing and a
-   tool search showed no other server's tools.
+1. An agent with `tools: [Read, ToolSearch, mcp__<server>__*]` loaded from a
+   project's `.claude/agents/`, was listed, and called one of that server's
+   tools after loading it with `ToolSearch`. A tool search showed no other
+   server's tools.
 2. A contract beside an agent in `.claude/agents/` was not listed as an
    agent.
-3. In a sealed project `CLAUDE.md`, the body reached the model and the mark
-   did not. A canary line in `CLAUDE.contract.md` beside it did not reach
-   the model. The same held with CRLF line endings.
-4. A sealed `CLAUDE.md` in the person's own settings folder gave the same
-   result as test 3.
+3. In a project `CLAUDE.md`, a frontmatter block at the very top did not
+   reach the model; the body did. A line in `CLAUDE.contract.md` beside it
+   did not reach the model. The same held with CRLF line endings.
+4. A `CLAUDE.md` in the person's own settings folder gave the same result as
+   test 3.
 5. An agent with `tools: []` had no tools.
 
-## The file (questions 4, 5)
+## Where files go
 
-| Part | Where |
-|---|---|
-| The familiar | `familiars/<name>.md` |
-| Its contract | `familiars/<name>.contract.md` |
-| Where Claude Code loads it | `.claude/agents/` in a project, or the `agents` folder in the person's own Claude Code settings folder |
+Write where the person's skills and agents already live: `.claude/agents/`
+in a project, or the `agents` folder in the person's own Claude Code
+settings folder; a `CLAUDE.md` in the project folder or in the settings
+folder. Ask only before a write that would install. The contract and the
+change log go beside the file, as the template says. They have no
+frontmatter, so Claude Code does not load them as agents.
 
-A contract may sit beside its agent in `.claude/agents/`: it has no
-frontmatter, so Claude Code does not load it as an agent. The check fails a
-contract whose first line is `---`, which could carry a `name`. It flags
-such a file only when it runs: a contract with frontmatter in an agents
-folder loads as a second agent whether or not it was checked, so check a
-shared contract before you put it there.
+## The file
 
 The file is YAML frontmatter, between two `---` lines, then the body: the
-agent's instructions. The frontmatter follows the rules in the skill's
-Step 5. The seal writes the mark under `metadata:`.
+agent's instructions.
 
 - **Keys it writes:** `name`, `description`, `tools`, and `model` or
-  `effort` when the person names one. Any other key: ask what it does,
-  record it **Decided** with its value, list it on `Extra keys`, and carry
-  on.
-- **Always write `tools:`** in flow form, such as `tools: [Read, Glob, Grep]`,
-  and list `tools` on `Extra keys`. With no `tools:` key, the agent gets
-  every tool the session has, and the check warns `tools-missing`: "no tools
-  listed, so the agent may get every tool". With `tools: []`, it gets none,
-  and the check warns `tools-missing`: "an empty tools list, so the agent
-  gets no tools".
+  `effort` when the person names one. Any other key: ask what it does and
+  record it **Decided** with its value.
+- **Always write `tools:`** in flow form, such as `tools: [Read, Glob, Grep]`.
+  With no `tools:` key, the agent gets every tool the session has. With
+  `tools: []`, it gets none.
 - **A whole connected server** is written `mcp__<server>__*`, and only so.
-  The check fails a bare `*`, `mcp__*`, a partial such as `mcp__<server>__get_*`,
-  and a bare `mcp__<server>`, which Claude Code also reads as the whole
-  server: write `mcp__<server>__*` instead. One named tool of a server is
-  `mcp__<server>__<tool>`.
+  One named tool of a server is `mcp__<server>__<tool>`.
 - **When a server's tools are deferred,** list `ToolSearch` beside the
   server, as in `tools: [Read, ToolSearch, mcp__<server>__*]`. Without it,
   the agent cannot load the deferred tools.
 - **Names are lower case.** An agent named `explore` loads beside Claude
   Code's built-in `Explore`, not over it.
 
-## The main agent file (questions 4, 5)
+## The main agent file
 
-The main agent file holds the instructions that govern the main session.
-Claude Code loads it at the start of every session in its scope. Nothing
-picks it up by situation, and nothing sends it off.
+`CLAUDE.md` holds the instructions that govern the main session. Claude Code
+loads it at the start of every session in its scope. Nothing picks it up by
+situation, and nothing sends it off.
 
-| Part | Where |
-|---|---|
-| The familiar | `familiars/CLAUDE.md` |
-| Its contract | `familiars/CLAUDE.contract.md` |
-| Where Claude Code loads it | the project folder, or the person's own Claude Code settings folder |
-
-- **Frontmatter.** The file may start with a frontmatter block, at the very
-  top. Before the seal it holds nothing this binding asks for: write none.
-  The seal writes it, holding only `metadata:` with the three mark keys.
-  Claude Code strips a frontmatter block at the very top of `CLAUDE.md`
-  before the model sees it. This is observed in load tests 3 and 4, not
-  documented: the docs describe the stripping only for `.claude/rules/`.
-- **Keys.** `name`, `description` and `tools` fail. Claude Code finds a
-  sub-agent by its `name`, not its file name, so with them a `CLAUDE.md`
-  copied into an agents folder loads as a sub-agent. Any other key warns:
-  Claude Code ignores it when the file loads as `CLAUDE.md`. The danger rows
-  below still apply to it.
+- **Frontmatter.** Write none. Claude Code strips a block at the very top
+  before the model sees it (observed in load tests 3 and 4, not documented:
+  the docs describe the stripping only for `.claude/rules/`).
+- **Keys.** `name`, `description` and `tools` make a `CLAUDE.md` copied into
+  an agents folder load as a sub-agent. Never write them. Claude Code ignores
+  any other key there.
 - **Text.** No byte-order mark: whether Claude Code strips the block after
-  one is untested. No line below the block that reads as a mark key, such
-  as `contract-version:` or `- familiar_digest:` (see "The mark").
-- **Imports.** Claude Code's memory docs say an `@` import works anywhere in
-  the file, mid-sentence and in list items included. Each import pulls in a
-  file the seal does not cover, and the check warns once per line holding
-  one.
-- **The contract** names claude on its `Target:` line and says
-  `Kind: main agent file`. The check fails it otherwise.
+  one is untested.
+- **Imports.** An `@` import works anywhere in the file, and pulls in a file
+  the contract does not cover. Name each one in the hand-back.
 
-**Limits this file cannot hold.** Say each in the unsettled list, as
-Promised:
+**Limits this file cannot hold.** Say each in the hand-back, as not gated:
 
 - The file cannot limit the session's tools. They come from the person's
   settings and connected servers.
 - The person's other `CLAUDE.md` files and rules load beside it.
-- An `@` import pulls in a file the seal does not cover.
-- Kept in `familiars/`, the file loads as instructions as soon as the session
-  reads another file in that folder, as any `CLAUDE.md` in a subfolder does.
-  A file brought there to amend reaches the session as instructions, the
-  same as any tampered `CLAUDE.md`.
+- A `CLAUDE.md` copied into a project folder, to amend it, loads as
+  instructions as soon as the session reads another file there, as any
+  `CLAUDE.md` in a subfolder does.
 
-## Capabilities (questions 5, 6)
+## Capabilities
 
 | Capability | In the file | Source |
 |---|---|---|
@@ -133,91 +102,38 @@ Promised:
 | Search the web | `WebSearch` | Docs, read 2026-09-30 |
 | Use a connected server's tools | `mcp__<server>__*` | Load test, 2026-10-10 |
 
-The main agent file names none of these: the session's tools come from the
-person's settings and connected servers. Its question 5 lists the
-capabilities the instructions rely on.
+The main agent file names none of these.
 
-**Limits this file cannot hold.** Say each in the unsettled list, as
-Promised:
+**Limits this file cannot hold.** Say each in the hand-back, as not gated:
 
 - A `tools` list cannot limit where the agent writes.
-- Granting `Bash` or `PowerShell` also makes "no network" Promised.
+- Granting `Bash` or `PowerShell` also makes "no network" a plain request.
 - With `mcp__<server>__*`, the list cannot limit which of the server's tools
   the agent uses. The grant covers every current and future tool of that
-  server, write tools included.
-- The grant covers whichever configured server's name maps to that prefix
-  once Claude Code replaces the characters it does not allow, a project's
-  own server or a plugin's included. Question 6 asks the person to check
-  for look-alike server names.
+  server, write tools included, under whichever configured server's name
+  maps to that prefix. Ask the person to check for look-alike names.
 
-## Keys that let it do more without asking (questions 5, 18)
+## Settings that let it act without asking
 
-`permissionMode` may set when the agent asks before it acts. Record its
-value under question 5, marked **Decided**, whatever it is. The person's
-session mode can override it; say so in the unsettled list.
+`permissionMode`, `allowed-tools`, `omitClaudeMd`, `initialPrompt` and a
+`tools` item written `mcp__<server>__*` let an agent act without the
+person's approval: say so when the person picks one. Record each value under
+`tools`, marked **Decided**. The person's session mode can override
+`permissionMode`; say so in the hand-back.
 
-## Settings the check warns on (questions 5, 18)
+## Validate
 
-The check never refuses a value here. It prints a warning for each row,
-under rule `danger`, except the `@` import row, which prints under rule
-`import`:
+After building an agent, run `claude plugin validate --strict` on the folder
+that holds the agent's file, when the command is available. A clean pass
+names no file: unless the output names the built file, say it passed and
+named no file. Show the errors as printed, fix what is the skill's own, and
+do not call the build done on a failure. When the command is not available,
+say the file was not validated. The validator does not read a CLAUDE.md, so
+a CLAUDE.md is not validated: say so.
 
-| Key | Unless its value is |
-|---|---|
-| `permissionMode` | `default`, `plan`, `manual` or `dontAsk`; in a list, every item one of these; an empty list. Any other value may let the agent act without asking |
-| `allowed-tools` | always, an empty list included: it may let the agent use tools without asking |
-| `omitClaudeMd` | always, an empty list included: it starts the agent without the person's CLAUDE.md files |
-| `initialPrompt` | always, an empty list included: it sends a first message the person did not type |
-| a `tools` item written `mcp__<server>__*` | always, once per item: it grants every current and future tool of one server, write tools included |
-| an `@` import line in a `CLAUDE.md` body | always, once per line: it loads instructions from a file the seal does not cover |
+## Example
 
-It prints a plainer warning for any other listed key except `tools`,
-`model` and `effort`. In a `CLAUDE.md`, `name`, `description` and `tools`
-fail, and every other key but `metadata` warns under rule `ignored-key`,
-since Claude Code ignores it there. It also warns `tools-missing` on an
-agent with no `tools`, or an empty list, as "The file" says. The check
-applies the key rows to every `.md` file, a skill's `SKILL.md` and a
-`CLAUDE.md` included. When the person picks a value this table flags, tell
-them then. Show each warning the check prints after the seal, and again in
-the hand-back.
-
-The warnings print first, above every other line. The sharpest come first:
-`danger`, `import` and `tools-missing`, then the rest. Each rule prints at
-most 20 lines, then one count line after its rank, such as `WARN import: 5
-more not shown; each is a body line holding an @ import`. The `tools` item
-lines are counted apart from the key rows, and a key row's line is never
-cut. A warning names a key in double quotes, cut at 40 characters with
-`...`. A count line is a warning too. When the `unreviewed` count line
-appears, show the contract's first `Extra keys:` line, the one the check
-reads, with each key's recorded value, beside the warnings.
-
-## The mark (questions 5, 18)
-
-The seal writes the mark as three keys under `metadata:` in the
-frontmatter. In a `CLAUDE.md` with no frontmatter, it adds a block at the
-very top that holds only the mark. Never write them by hand.
-
-Write nothing else that looks like the mark: it would read as a seal. The
-check refuses each of these as "cannot check", and names only the line:
-
-- **In the frontmatter,** a key or a comment that names a mark key. For
-  example, a top-level `familiar_digest` or `FamiliarDigest`, a
-  `familiar-digest-old` under `metadata:`, or `# contract-version: 1.0.0`.
-  The three keys the seal writes are the only exception.
-- **In a `CLAUDE.md` body,** a line that opens with a mark key's name, then
-  `:`, `=` or `|`. Any Markdown markers may come first: list, quote,
-  heading, table, link, numbered-item, task-box, comment or code markers.
-  For example, `- familiar-digest:`.
-
-The check reads a name in any case, with any dash or underscore, or none. It
-also reads full-width forms. Words with spaces between them, such as "the
-contract version", are prose. To fix a refusal, rename the key or reword the
-text. Then seal again.
-
-## Example (questions 4, 5)
-
-A reviewer that only reads, before the seal. Its contract lists `tools` on
-its `Extra keys` line:
+A reviewer that only reads:
 
 ```markdown
 ---
@@ -233,16 +149,9 @@ the rule and the message. Change no file. When a rule is unclear, list it as
 unsettled.
 ```
 
-A short main agent file, after the seal, as the check writes it. Its
-contract says `Kind: main agent file` and `Target: claude`:
+A short `CLAUDE.md`:
 
 ```markdown
----
-metadata:
-  contract-version: 0.1.0
-  familiar-digest: "sha256:a47c32190c5d1a221385e02e0198078d19c8254cce2e7a0560eb813f64aaa6f4"
-  contract-digest: "sha256:b86e22c7a9225299543b19555e6b272fd1fb4776e91ec077c0d95de9ab5b4018"
----
 # Project rules
 
 Run the tests before every commit. Ask before you push.

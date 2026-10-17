@@ -108,37 +108,18 @@ One script can send data, and only when somebody runs it. eagle-eye's
 optional edge audit sends to a provider: see
 [What the edge audit sends](#what-the-edge-audit-sends).
 
-One script rewrites a file a person hands it, and only when asked:
-`skills/contract/scripts/check.mjs`. Under `--seal` it rewrites the mark lines
-of the one file it is given, and nothing else, then prints the real path it
-wrote. If a `.toml` file's last line has no line ending, it adds one before
-the mark. It writes the new text to a temporary file beside the old one, then
-renames it over the old one. It sends nothing. A valid seal proves the
-familiar and its contract are unchanged since they were sealed. For a skill,
-the familiar is every file in its folder except `CONTRACT.md`. It does not
-prove who sealed them.
-
-The check refuses, as "cannot check", any text file it reads that holds a line
-or paragraph separator (U+2028, U+2029), a C1 control character (U+0080 to
-U+009F, NEL among them), a C0 control character other than tab, DEL, U+FFFE,
-U+FFFF, or a carriage return with no line feed after it. That covers the
-familiar, its contract, and every other text file in a skill's folder. Tab
-and CRLF line endings are allowed.
-
-A Codex agent file (`.toml`) is read through a narrow subset of TOML. The
-check reads top-level `key = value` lines, whole-line comments, and strings
-that take no escape but `\"` and `\\`. It reads an unquoted `true` or `false`
-only for a key the contract lists. Anything else, a table included, is
-"cannot check", which fails. Its mark is three comment lines at the very end
-of the file, because Codex will not load an agent file with a `[metadata]`
-table. A key named like a mark key is "cannot check" too, listed or not.
-
-In a `.toml` file, a `SKILL.md` or an agent's `.md` file, a key the check does
-not know passes only when the contract's `Extra keys:` line lists it, and then
-with any value. The check refuses no value for what it lets the agent do. It
-prints a warning for every listed setting it does not know to be harmless,
-and a sharper danger warning for a few settings on a fixed list, such as
-`sandbox_mode` and `permissionMode`. A warning does not fail the check.
+No script in the tree rewrites a file a person hands it. The contract skill
+validates what it builds with `claude plugin validate --strict`, the standard
+tool, run on the folder that holds the built skill or agent. That command is
+Claude Code's, not this repository's. Its pass says the frontmatter parses and a
+manifest matches the schema; it reads no key's meaning, and it may read no agent,
+CLAUDE.md or Codex file at all. It says nothing about who reviewed anything. When the command is not available, the skill says
+the file was not validated. The skill shows the validator's output as printed,
+which may repeat file paths and text from the file. Nothing seals a generated
+file: git history shows a hand edit, and a reviewer reads every changed file in
+full. Nothing warns any more on a setting that lets an agent act without the
+person's approval, or sends the agent's work to a server the file names; the
+person reads those keys.
 
 The attacks worth planning for, scenario by scenario, with what stops each
 one and what still gets through: [docs/security/threat-model.md](docs/security/threat-model.md).
@@ -154,7 +135,15 @@ The realistic risks:
   This is the main risk here.
 - **A skill is an instruction file an agent obeys.** Whoever can change a
   `SKILL.md` can change what an agent does on a reader's machine. Branch
-  protection guards this.
+  protection guards this. `scripts/check.mjs` also refuses a `SKILL.md`
+  frontmatter key outside `name`, `description`, `compatibility`, `license`,
+  `allowed-tools` and `metadata`, so a `hooks` key cannot merge unseen, and
+  any file under `skills/` that holds a control character other than tab,
+  line feed and carriage return, a lone carriage return, DEL, U+2028, U+2029,
+  U+FFFE, U+FFFF, a default ignorable code point (tag characters, zero-width
+  characters, the soft hyphen, variation selectors) or a bidi control, which
+  could make the reviewed diff differ from what the model reads. A BOM is
+  allowed as a file's first character only.
 - **The mod is code that runs in every session.** Whoever can change
   `brigade/` or `hooks/` changes what runs in every session of every
   installer. Branch protection and `scripts/check.mjs`, which holds the mod to
@@ -219,7 +208,13 @@ the test override: [`docs/security/edge-audit.md`](docs/security/edge-audit.md).
   any edit to it shows in review. A finding that only reports a reference to
   such a file passes too, when its count matches. See
   [Partial reads](docs/security/scanners.md#partial-reads). Every suppression
-  carries a written reason.
+  carries a written reason. A suppression is keyed by rule, so it holds for a
+  whole skill: P2 and RA2 are off for all of the contract skill, and MP1 for
+  its change log only. So an instruction hidden there in a comment, a
+  link-reference comment or a base64 data link, or an instruction to persist
+  on the machine (a scheduled job, a startup or profile file, a background
+  process or a hidden folder), would pass the scan. Rule 2c refuses invisible
+  characters.
 - **zizmor** audits the workflows and fails on any finding. There is no
   baseline, because there is nothing to suppress.
 - **Every action is pinned to a commit SHA**, and zizmor checks each SHA
@@ -267,8 +262,10 @@ are the setting above.
   text is under the provider's policy.
 - **A malicious maintainer account.** Branch protection raises the cost of a
   bad commit. It does not survive a stolen admin account.
-- **A familiar and contract from someone else.** A pass and a valid seal say
-  the files are well formed and unchanged since sealing, not that anyone
-  reviewed them. Keys the contract lists pass with any value, except a key
-  named like a mark key, which is refused. The check warns on each one it does
-  not know to be harmless; that warning is a prompt to read, not a review.
+- **A skill, an agent and a contract from someone else.** A pass of
+  `claude plugin validate --strict` says a frontmatter parses, not that anyone
+  reviewed the file. Read the files first. The eagle-eye and head-chef skills
+  still carry seal marks from the old check, the `familiar-digest` and
+  `contract-digest` lines in their `SKILL.md` metadata; they are inert and prove
+  nothing, and go when each skill is next amended. The contract skill carries
+  none.

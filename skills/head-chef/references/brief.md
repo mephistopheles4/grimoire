@@ -15,7 +15,9 @@ from the lead (failures 1, 5, 13).
 
 - **Where its record lives.**
 - **The lead's name, and never its session id.** The session id is in the
-  start prompt, or the wait line, only. Leave it out of the brief, even a
+  start prompt, or the wait line, only. Use it only to find the lead in the
+  listing and to check a sender; never send to it. Send to the lead's name. Reason: a send to
+  the session id fails, and only the name reaches the lead. Leave it out of the brief, even a
   brief sent as a message. Reason: a brief can sit on a public record
   (failure 16).
 - **Report to the head chef by name, only at milestones, named one by one.**

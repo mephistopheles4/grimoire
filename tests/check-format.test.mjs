@@ -1,65 +1,11 @@
-// Tests of scripts/check.mjs: the format check over every skill, and
-// dependencies. The fixture they share, and why every case copies the tree,
+// Tests of scripts/check.mjs: dependencies. The fixture they share, and why every case copies the tree,
 // is in check-fixture.mjs.
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { rmSync, readFileSync, writeFileSync, appendFileSync } from 'node:fs';
+import { readFileSync, writeFileSync, appendFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { check, run } from './helpers.mjs';
-import { n, tree, checkIn, fixtureMd, manifest, assertPasses, assertFails, formatCheckIn, fixtureSkill, fixtureContract, assertFixtureClean, modFile, importLine } from './check-fixture.mjs';
-
-test('a sealed skill whose CONTRACT.md drifted fails, naming the skill', () => {
-  // The mark says the SKILL.md and its contract are unchanged since the
-  // seal. A clause added to the contract afterwards is a contract the
-  // SKILL.md was never regenerated from.
-  const dir = tree();
-  const skill = fixtureSkill(dir, 'sealed-fixture', { contract: fixtureContract });
-  assertFixtureClean(dir, 'sealed-fixture');
-  appendFileSync(join(skill, 'CONTRACT.md'), '\nA clause added after the seal.\n');
-  const r = assertFails(dir, /skills\/sealed-fixture\/ fails the format check/);
-  assert.match(r.stderr, /FAIL contract-digest: line \d+: the seal is broken/);
-});
-
-test('a sealed SKILL.md whose CONTRACT.md is gone fails, naming the skill', () => {
-  const dir = tree();
-  const skill = fixtureSkill(dir, 'sealed-fixture', { contract: fixtureContract });
-  assertFixtureClean(dir, 'sealed-fixture');
-  rmSync(join(skill, 'CONTRACT.md'));
-  const r = assertFails(dir, /skills\/sealed-fixture\/ fails the format check/);
-  assert.match(r.stderr, /marked, but its contract is missing/);
-});
-
-test('a frontmatter key the format check does not know fails an unmarked skill too', () => {
-  // A key that widens what the agent may do, added to a skill built from no
-  // contract. Nothing lists it, so it is a change nobody reviewed.
-  // The unsealed fixture is that skill: eagle-eye is sealed, and an edit to it
-  // would also break its mark.
-  const dir = tree();
-  const p = fixtureMd(dir);
-  const text = readFileSync(p, 'utf8');
-  const nameLine = /^name: unsealed-fixture(\r?\n)/m;
-  assert.match(text, nameLine, 'the fixture edit found no name line');
-  writeFileSync(p, text.replace(nameLine, 'name: unsealed-fixture$1permissionMode: acceptEdits$1'));
-  const r = assertFails(dir, /skills\/unsealed-fixture\/ fails the format check/);
-  assert.match(r.stderr, /unknown key "permissionMode"/);
-  assert.doesNotMatch(r.stderr, /familiar-digest/, 'an unmarked skill has no seal to break');
-});
-
-test('a format-check warning passes, and is printed as a note', () => {
-  const dir = tree();
-  const body = `${Array.from({ length: 600 }, (_, i) => `line ${i + 1}`).join('\n')}\n`;
-  fixtureSkill(dir, 'long-fixture', { body });
-  assertFixtureClean(dir, 'long-fixture');
-  const r = run(checkIn(dir), [], { cwd: dir });
-  assert.match(r.stdout, /^note: skills\/long-fixture\/ WARN body-length: /m);
-});
-
-test('a missing format check fails rather than skipping every skill', () => {
-  const dir = tree();
-  rmSync(formatCheckIn(dir));
-  assertFails(dir, /skills\/contract\/scripts\/check\.mjs is missing, so no skill's frontmatter, mark or contract was checked/);
-});
+import { tree, assertPasses, assertFails, modFile, importLine } from './check-fixture.mjs';
 
 test('the single-pass tag strip cannot come back', () => {
   // CodeQL raised this shape twice on the first scan. The guard holds the

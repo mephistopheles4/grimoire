@@ -3,11 +3,8 @@
 // check-fixture.mjs.
 
 import { test } from 'node:test';
-import assert from 'node:assert/strict';
 import { readFileSync, writeFileSync, appendFileSync } from 'node:fs';
-import { join } from 'node:path';
-import { run } from './helpers.mjs';
-import { tree, rootBaselineIn, skillBaselineIn, fixtureBaselineIn, assertPasses, assertFails, formatCheckIn, baselineBody } from './check-fixture.mjs';
+import { tree, rootBaselineIn, skillBaselineIn, fixtureBaselineIn, assertPasses, assertFails, baselineBody } from './check-fixture.mjs';
 
 test('the same rule twice in one baseline fails', () => {
   const dir = tree();
@@ -67,15 +64,12 @@ test('a rule narrowed to a file in one baseline and not the other fails', () => 
 
 test('a rule narrowed to the same file in both baselines passes', () => {
   // Every skill baseline that suppresses AR2 is compared with the root, so
-  // each one is narrowed the same way. eagle-eye's baseline sits inside its
-  // sealed folder, so the copy's own format check seals it again after the edit.
+  // each one is narrowed the same way.
   const dir = tree();
   for (const p of [rootBaselineIn(dir), skillBaselineIn(dir), fixtureBaselineIn(dir)]) {
     const text = readFileSync(p, 'utf8');
     writeFileSync(p, text.replace('  - rule_id: "AR2"\n', '  - rule_id: "AR2"\n    file: "*SKILL.md"\n'));
   }
-  const reseal = run(formatCheckIn(dir), ['--seal', join(dir, 'skills', 'eagle-eye')], { cwd: dir });
-  assert.equal(reseal.code, 0, `eagle-eye did not seal again:\n${reseal.stdout}${reseal.stderr}`);
   assertPasses(dir);
 });
 
