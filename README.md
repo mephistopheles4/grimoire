@@ -156,10 +156,16 @@ current pace holds, and a red note says how early a limit runs out when that
 pace would pass 100%. It needs the plugin install above. The skill works
 without it.
 
+What it does, what counts as your yes, and how cleanup refuses:
+[`skills/head-chef/README.md`](skills/head-chef). The skill's contract, which
+its `SKILL.md` is generated from:
+[`skills/head-chef/CONTRACT.md`](skills/head-chef/CONTRACT.md).
+
 Since 0.60.0 every session with the plugin writes its own usage numbers to a
-small summary file, so the pane can draw a member whose transcript is too large
-to read; [`SECURITY.md`](SECURITY.md) says what the file holds and who can read
-it. **Known limit:** a card the pane draws from that file (from issue #312)
+small summary file. The pane does not read it yet: from issue #312 it draws a
+member whose transcript is too large to read from that file.
+[`SECURITY.md`](SECURITY.md) says what the file holds and who can read it.
+**Known limit:** a card the pane draws from that file (from issue #312)
 counts its cache down from 1 hour after the last call, because the engine's
 per-call usage does not say whether a call cached for 5 minutes or for 1 hour.
 A session whose main conversation is not on the 1-hour cache can then show
@@ -171,11 +177,6 @@ an API key, or on Bedrock, Vertex or Foundry, without the 1-hour opt-in; a
 session through the Claude apps gateway, or a gateway that drops the 1-hour
 header; and a session where a setting or environment variable chooses 5
 minutes.
-
-What it does, what counts as your yes, and how cleanup refuses:
-[`skills/head-chef/README.md`](skills/head-chef). The skill's contract, which
-its `SKILL.md` is generated from:
-[`skills/head-chef/CONTRACT.md`](skills/head-chef/CONTRACT.md).
 
 ## <img src="docs/brand/eagle-eye/eagle-eye-mark-solid.svg" width="32" align="absmiddle" alt=""> [eagle-eye](skills/eagle-eye)
 

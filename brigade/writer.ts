@@ -35,7 +35,6 @@ import {
 // write, stops it until the module reloads, with one toast; a clear does not
 // restart it.
 
-
 // The engine's record of this session's start, which register.tsx's
 // `classic.SessionStart` hook keeps under the same key.
 const started = atom({ plugin: 'grimoire', key: 'start' } as const, { sessionId: '', transcript: '' })
@@ -64,7 +63,6 @@ function readEpoch($: EngineInterface) {
   )
 }
 const now = (): number => Math.round(epoch === undefined ? Date.now() : epoch.engine + (performance.now() - epoch.perf))
-
 
 // The engine follows `$` only into functions declared in the file that holds
 // the hook, so these two are written here rather than imported.

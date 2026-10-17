@@ -90,18 +90,21 @@ A per-call hook (`turn.step`) and a turn-end hook (`turn.complete`) keep the
 session's own numbers in memory and write them, numbers only, to
 `brigade/usage/<session id>.json` in the plugin's data folder: at most once
 every 15 seconds while a turn runs, and at each turn end. The file holds one
-exact list of keys: a format version, the time of the last call and its
-context size, the context size of the last 30 calls, the new tokens of each of
+exact list of keys: a format version, the time the numbers were taken (to
+the end of that minute), the time of the last call and its context size, the context size of the last 30 calls, the new tokens of each of
 the last 30 minutes, the model family's window size from the fixed table, and
 whether any call wrote or read cache. Never a model id, message id, text,
 path, cost, rate limit or cache window; the writer makes no session usage call
 at all. The write goes only where the roster's link-refusing path rule allows,
 in a folder apart from the rosters, and overwrites only a file that is itself a
 summary file, so a planted hard link to another file is refused. The path rule
-runs again after the write. On any refusal the writer stops for the rest of
-the session, with one toast. It asks no permission:
+runs again after the write. On any refusal the writer stops until the plugin
+reloads, a clear included, with one toast naming the kind of refusal in fixed
+words. It asks no permission. What follows from it:
 - **What the file reveals:** when each session last worked, its context size
-  and its minute-by-minute burn, for every session the plugin ran in. Any
+  and its minute-by-minute burn, for every session the plugin ran in. The
+  files are named by session id, so the folder is a lasting list of every
+  session the plugin ran in, and the window size shows each one's model class. Any
   process running as the owner, other plugins, and anything that backs up or
   syncs the config folder can read it. It is not encrypted, like the
   transcripts beside it.
@@ -110,7 +113,11 @@ the session, with one toast. It asks no permission:
   plugin is the only way to stop it.
 - **What accumulates:** the mod never removes a summary file. There is one per
   session id, a clear or a resume starts a new one, and a file may outlast its
-  transcript. The owner can delete the `brigade/usage/` folder by hand.
+  transcript: Claude Code's own cleanup of old transcripts does not reach
+  these files, and an uninstall that leaves the plugin's data folder leaves
+  them too. The owner can delete the `brigade/usage/` folder by hand. A revert
+  to an older version leaves sessions already running writing until they are
+  restarted; delete the folder after that.
 - **The race:** the check-and-write race the roster has now recurs in every
   session, with no hijacked lead needed, and a hard link between two
   summary-shaped files is not caught, as for rosters.
@@ -119,8 +126,9 @@ the session, with one toast. It asks no permission:
   A forged file from another process running as the owner can then show any
   warmth, on members whose transcript is over 4 MiB too; row 15 names this gap,
   which the owner accepted. A step the transcript would not count restarts the
-  hour, and a stopped writer leaves a card reading colder, never warmer, once
-  the member is idle.
+  hour, and a stopped writer leaves a card reading colder once the member is
+  idle, with its meter and burn frozen, and it can draw a hand-off nudge on a
+  warm cache. The 1-hour window's known limit, in the README, still applies.
 
 Review any change under
 `brigade/` or `hooks/` as a change to code that runs on every installer's

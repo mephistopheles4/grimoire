@@ -33,9 +33,9 @@ session has to write them down.
 - The writer makes no session usage call, so no cost, rate limit or context
   breakdown enters it. It keeps numbers only, from one exact list of keys.
 - No step waits for the writer. The step is passed on first, the writer
-  awaits no engine call on the step's path, and its own time on a step was
-  measured against the owner's ceiling of 2 ms at the 95th percentile
-  (issue #311).
+  awaits no engine call on the step's path, and its own time on a step stays
+  within the owner's approved ceiling of 2 ms at the 95th percentile
+  (measured at 0.17 ms on issue #311).
 - The summary file is written only where the roster's link-refusing path
   rule allows, and an existing file is overwritten only when it is itself a
   summary file.
@@ -54,7 +54,7 @@ id, and a clear or a resume starts a new one. The owner can delete the
 **A future change that adds work at session start needs the same review.**
 Idle by default was the line a reviewer could hold the mod to. That line is
 now "the pane's reads wait for `/brigade`; the writer's per-step work stays
-within its measured ceiling".
+within the approved ceiling of 2 ms at the 95th percentile".
 
 ## Considered Options
 
