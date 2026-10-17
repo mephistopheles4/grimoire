@@ -131,6 +131,16 @@ words. It asks no permission. What follows from it:
   hour, and a stopped writer leaves a card reading colder once the member is
   idle, with its meter and burn frozen, and it can draw a hand-off nudge on a
   warm cache. The 1-hour window's known limit, in the README, still applies.
+  Four more gaps, each named in row 15:
+  - other plugins can read and rewrite the pane's list of refused summary
+    files, and so plant or hide a refusal line;
+  - the summary read follows a link swapped in after the path check, as the
+    transcript read does, and keeps only checked numbers;
+  - a session named like a card feeds that card from its own summary file,
+    a session with no working folder included;
+  - a writer whose files keep failing a check with fresh times freezes its
+    card on the last good record with no line to say so, which the owner
+    accepted.
 
 Review any change under
 `brigade/` or `hooks/` as a change to code that runs on every installer's
