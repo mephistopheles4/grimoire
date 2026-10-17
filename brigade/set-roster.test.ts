@@ -527,15 +527,30 @@ test('__proto__ at the top level and nested never reaches a prototype or the fil
   const w = world(on)
   await start($)
   await brigade($)
-  const top = await call($, JSON.parse('{"cards":[],"todos":[],"__proto__":{"polluted":1}}'))
-  const nested = await call($, JSON.parse('{"cards":[{"title":"a","status":"working","__proto__":{"polluted":1}}],"todos":[]}'))
-  // Measured on 2.1.292: the engine drops a __proto__ key, at the top level and
-  // nested, before the call reaches the mod, so both calls write what is left.
-  // Where one does reach it, the shared check refuses it, which
-  // tests/brigade-roster-rules.test.mjs holds on the raw text.
-  expect(top).toEqual({ ok: true, text: 'Roster kept: 0 card(s), 0 to-do(s).' })
-  expect(nested).toEqual({ ok: true, text: 'Roster kept: 1 card(s), 0 to-do(s).' })
-  expect(JSON.parse(w.text(FILE) ?? 'null')).toEqual({ cards: [{ title: 'a', work: '', phase: '', settings: '', status: 'working' }], todos: [] })
+  // Measured: on 2.1.292 the engine drops a __proto__ key, at the top level and
+  // nested, before the call reaches the mod, so the call writes what is left.
+  // On 2.1.302 the key reaches the mod, and the shared check refuses it by name
+  // (tests/brigade-roster-rules.test.mjs holds that on the raw text). Either
+  // way the key must never reach the file or a prototype, so each call is
+  // judged on that and not on which of the two the engine does.
+  const attempt = async (input: string, kept: string, file: unknown) => {
+    const before = w.text(FILE)
+    const r = await call($, JSON.parse(input))
+    const after = w.text(FILE)
+    if (r.ok) {
+      expect(r.text).toBe(kept)
+      expect(JSON.parse(after ?? 'null')).toEqual(file)
+    } else {
+      expect(r.text).toMatch(/has a field the roster does not use: __proto__\. The roster file is unchanged\.$/)
+      expect(after).toBe(before)
+    }
+    // Neither the text of the file nor the objects it parses to carry the key.
+    expect(after ?? '').not.toContain('__proto__')
+    expect(after ?? '').not.toContain('polluted')
+    return r
+  }
+  await attempt('{"cards":[],"todos":[],"__proto__":{"polluted":1}}', 'Roster kept: 0 card(s), 0 to-do(s).', { cards: [], todos: [] })
+  await attempt('{"cards":[{"title":"a","status":"working","__proto__":{"polluted":1}}],"todos":[]}', 'Roster kept: 1 card(s), 0 to-do(s).', { cards: [{ title: 'a', work: '', phase: '', settings: '', status: 'working' }], todos: [] })
   expect(({} as Record<string, unknown>).polluted).toBeUndefined()
 })
 
