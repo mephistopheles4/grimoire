@@ -92,7 +92,8 @@ session's own numbers in memory and write them, numbers only, to
 every 15 seconds while a turn runs, and at each turn end. The file holds one
 exact list of keys: a format version, the time the numbers were taken (to
 the end of that minute), the time of the last call and its context size, the context size of the last 30 calls, the new tokens of each of
-the last 30 minutes, the model family's window size from the fixed table, and
+the last 30 minutes, the model family's window size from the fixed table (the
+one key a file may leave out, when the table has no row for the model), and
 whether any call wrote or read cache. Never a model id, message id, text,
 path, cost, rate limit or cache window; the writer makes no session usage call
 at all. The write goes only where the roster's link-refusing path rule allows,

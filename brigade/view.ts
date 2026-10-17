@@ -2072,18 +2072,22 @@ export const SUMMARY_VERSION = 1
  *  meter record the pane stores for a card (its time, its window, its 30 burn
  *  buckets lined up to that time, oldest first, and up to 30 context sizes,
  *  oldest first); the last call's time and context tokens; and whether any
- *  counted call since the module loaded wrote or read cache, 1 or 0. A window
- *  of 0 means the fixed table has none for the model: it is the pane meter's
- *  absent `window`, so the reader maps 0 to no window before `metersFrom`,
- *  which drops any other value. `at` is the end of the minute the write
- *  fell in, up to 60 s after it. */
+ *  counted call since the module loaded wrote or read cache, 1 or 0. `window`
+ *  is the one optional key: it is left out when the fixed table has no row
+ *  for the model, as the pane's own meter record leaves it out (q4 B on #311),
+ *  so the reader passes the file's meter to `metersFrom` as it is. Every other
+ *  key is always there. `at` is the end of the minute the write fell in, up
+ *  to 60 s after it. */
 export const SUMMARY_KEYS = ['version', 'at', 'window', 'burn', 'context', 'lastAt', 'lastTokens', 'cache'] as const
+
+// The one key a summary may leave out.
+const OPTIONAL_KEYS: ReadonlySet<string> = new Set(['window'])
 
 /** One summary file, as the writer builds it and the pane reads it. */
 export type Summary = {
   version: number
   at: number
-  window: number
+  window?: number
   burn: number[]
   context: number[]
   lastAt: number
@@ -2104,7 +2108,7 @@ export function summaryFrom(mem: UsageMemory, now: number): Summary | undefined 
   const values: Summary = {
     version: SUMMARY_VERSION,
     at: end * MIN_MS,
-    window: mem.window ?? 0,
+    window: mem.window,
     burn,
     context: [...mem.context],
     lastAt: mem.last.at,
@@ -2112,7 +2116,7 @@ export function summaryFrom(mem: UsageMemory, now: number): Summary | undefined 
     cache: mem.cache ? 1 : 0,
   }
   const out = {} as Record<string, unknown>
-  for (const k of SUMMARY_KEYS) out[k] = values[k]
+  for (const k of SUMMARY_KEYS) if (values[k] !== undefined) out[k] = values[k]
   return out as Summary
 }
 
@@ -2129,16 +2133,14 @@ export const UNKNOWN_SUMMARY_VERSION = 'the summary file has a format version th
 
 // The latest time a file may hold, Date's own limit, in whole milliseconds.
 const MAX_TIME = 8.64e15
-// The window sizes the meter takes, and 0 for none.
-const SUMMARY_WINDOWS = new Set([0, ...WINDOW_SIZES])
 const wholeIn = (v: unknown, min: number, max: number): v is number =>
   typeof v === 'number' && Number.isInteger(v) && v >= min && v <= max
 
 /** A summary file's text, checked strictly: JSON, an object whose own keys
- *  are exactly `SUMMARY_KEYS`, the version `SUMMARY_VERSION` (any other
+ *  are exactly `SUMMARY_KEYS`, with `window` the one that may be absent, the version `SUMMARY_VERSION` (any other
  *  version refuses with `UNKNOWN_SUMMARY_VERSION`), times in whole
  *  milliseconds from 0 to Date's limit with the last call no later than the
- *  record, the window 0, 200,000 or 1,000,000, exactly 30 burn buckets and 1
+ *  record, the window, when there, 200,000 or 1,000,000, exactly 30 burn buckets and 1
  *  to 30 context sizes, each a whole number from 0 to 30,000,000, the last
  *  call's tokens from 1 to 30,000,000, and the cache flag 0 or 1. The series
  *  are held by the meter's own check, `seriesFrom`. The refusal names the
@@ -2155,14 +2157,16 @@ export function checkSummary(raw: string): { value: Summary } | { error: string 
   if (!isRecord(parsed)) return { error: 'the summary file is not an object' }
   if (Object.hasOwn(parsed, 'version') && parsed.version !== SUMMARY_VERSION) return { error: UNKNOWN_SUMMARY_VERSION }
   const keys = Object.keys(parsed)
-  if (keys.length !== SUMMARY_KEYS.length || !SUMMARY_KEYS.every(k => Object.hasOwn(parsed, k))) {
+  const known: readonly string[] = SUMMARY_KEYS
+  if (!keys.every(k => known.includes(k)) || !SUMMARY_KEYS.every(k => OPTIONAL_KEYS.has(k) || Object.hasOwn(parsed, k))) {
     return { error: 'the summary file does not hold exactly the summary keys' }
   }
   const p = parsed
   if (!wholeIn(p.at, 0, MAX_TIME) || !wholeIn(p.lastAt, 0, MAX_TIME) || p.lastAt > p.at) {
     return { error: 'a summary time is out of range' }
   }
-  if (typeof p.window !== 'number' || !SUMMARY_WINDOWS.has(p.window)) return { error: 'the summary window is neither 0 nor one the table gives' }
+  const hasWindow = Object.hasOwn(p, 'window')
+  if (hasWindow && (typeof p.window !== 'number' || !WINDOW_SIZES.has(p.window))) return { error: 'the summary window is not one the table gives' }
   const burn = seriesFrom(p.burn, true)
   const context = seriesFrom(p.context, false)
   if (burn === undefined || context === undefined || context.length === 0) {
@@ -2174,7 +2178,7 @@ export function checkSummary(raw: string): { value: Summary } | { error: string 
     value: {
       version: SUMMARY_VERSION,
       at: p.at,
-      window: p.window,
+      ...(hasWindow ? { window: p.window as number } : {}),
       burn,
       context,
       lastAt: p.lastAt,

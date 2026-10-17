@@ -3511,11 +3511,19 @@ test('the context series keeps the last 30 calls, oldest first', () => {
   assert.equal(s.lastTokens, 35);
 });
 
-test('the window is the last counted call\'s, 0 when the table has none', () => {
+// q4 B on #311 (the owner): with no row in the table, the window key is left
+// out, as the pane's own meter record leaves it out.
+test('the window is the last counted call\'s, and the key is left out when the table has none', () => {
   let mem = recordCall(newUsageMemory(), { tokens: 5, fresh: 5, cache: false, window: 1000000 }, NOW - 2000);
   assert.equal(summaryFrom(mem, NOW).window, 1000000);
   mem = recordCall(mem, { tokens: 5, fresh: 5, cache: false, window: undefined }, NOW - 1000);
-  assert.equal(summaryFrom(mem, NOW).window, 0);
+  const s = summaryFrom(mem, NOW);
+  assert.equal('window' in s, false);
+  assert.deepEqual(Object.keys(s), ['version', 'at', 'burn', 'context', 'lastAt', 'lastTokens', 'cache']);
+  // The file without the key passes the strict check, and keeps it out.
+  const back = checkSummary(serializeSummary(s).value);
+  assert.ok('value' in back);
+  assert.equal('window' in back.value, false);
 });
 
 test('the cache flag is 1 once any counted call since load wrote or read cache, else 0', () => {
@@ -3584,6 +3592,7 @@ test('the strict check refuses the wrong shape, a missing or unknown key, and an
     [`{"__proto__":{"x":1},${JSON.stringify(s).slice(1)}`, 'a __proto__ key'],
     [JSON.stringify({ ...s, version: 2 }), 'a newer version'],
     [JSON.stringify({ ...s, version: '1' }), 'a version as text'],
+    [JSON.stringify(Object.fromEntries(Object.entries(s).filter(([k]) => k !== 'lastAt'))), 'a required key missing beside an absent window'],
   ]) {
     assert.ok('error' in checkSummary(raw), why);
   }
@@ -3599,7 +3608,7 @@ test('the strict check refuses every value out of its range', () => {
   const bad = [
     { at: -1 }, { at: 1.5 }, { at: 8640000000000001 }, { at: '1' },
     { lastAt: -1 }, { lastAt: s.at + 1 }, { lastAt: null },
-    { window: 128000 }, { window: -1 }, { window: '200000' },
+    { window: 128000 }, { window: -1 }, { window: 0 }, { window: -200000 }, { window: null }, { window: '200000' },
     { burn: Array(29).fill(0) }, { burn: Array(31).fill(0) }, { burn: [...Array(29).fill(0), 30000001] }, { burn: [...Array(29).fill(0), -1] }, { burn: [...Array(29).fill(0), 0.5] }, { burn: 'x' },
     { context: [] }, { context: Array(31).fill(1) }, { context: [30000001] }, { context: [1.5] }, { context: {} },
     { lastTokens: 0 }, { lastTokens: 30000001 }, { lastTokens: 2.5 },
@@ -3703,8 +3712,8 @@ test('a hostile step whose model and extra usage fields hold path- and secret-sh
   const text = serializeSummary(summaryFrom(recordCall(newUsageMemory(), c, NOW - 1000), NOW)).value;
   assert.doesNotMatch(text, /victim|SECRET|sk-ant|ghp_|passwd|ssh|Users|settings|claude-|[\\/]/);
   assert.match(text, /^[{}[\]"a-zA-Z0-9:,]+$/, 'numbers, the listed keys and JSON punctuation only');
-  assert.deepEqual(Object.keys(JSON.parse(text)), [...view.SUMMARY_KEYS]);
-  assert.equal(JSON.parse(text).window, 0, 'a model id off the table gives no window');
+  assert.deepEqual(Object.keys(JSON.parse(text)), view.SUMMARY_KEYS.filter(k => k !== 'window'));
+  assert.equal('window' in JSON.parse(text), false, 'a model id off the table gives no window key');
 });
 
 test('a step whose fields throw when read records nothing, and stepCall does not throw', () => {
