@@ -210,7 +210,10 @@ nothing here drifts from them.
 
 ### The baseline
 
-Each suppression is keyed by **rule**, with a written reason.
+Each suppression is keyed by **rule**, with a written reason. In
+`eagle-eye`, `groundtrack` and `head-chef` the skill's own entry is also
+narrowed to the **file** it fires on, for a scan of the skill's own folder; the
+root's entries stay rule-wide, for a scan of the whole repository.
 [`.skillspector-baseline.yaml`](../../.skillspector-baseline.yaml) holds them:
 
 | Rule | Name | Why it is suppressed |
@@ -227,29 +230,60 @@ Each suppression is keyed by **rule**, with a written reason.
 | `P2` | Hidden Instructions | A layout comment in `groundtrack`'s template. The rule matches *get* inside *together*. And `contract`'s part fences: a begin and an end comment line around each generated part of its `SKILL.md`, naming the part. **On `contract` it is off for the whole skill**, so an instruction hidden there in a comment, invisible characters or a data link would pass the scan; added on 2026-10-15. |
 | `MP1` | Persistent Context Injection | A row of `contract`'s change log that records why the skill was rebuilt: every earlier review finding had become *a permanent rule*. Its entry names that one file, so it still fires anywhere else; added on 2026-10-15. |
 | `TR2` | Shadow Command Trigger | `head-chef`'s description, where *run* and *start* are verbs about sessions and the one slash command is the skill's own, `/head-chef`. The rule reads a common command word beside a slash command as a skill taking over that command. The rule reads only a skill's frontmatter, so a file glob alone would narrow nothing. The entry also carries a `message` value with no wildcard: the clause exactly as the scanner quotes it, which for a long sentence is a window of up to 120 characters either side of the slash command. TR2 still fires on any other clause, in any skill, and on this one once any word inside that window changes, an addition included. Words outside the window are not read by TR2 at all, and the match ignores case. Added on 2026-10-17. |
-| `LP3` | MCP Least Privilege | **Accepted.** Neither skill declares a permission list, because that is one host's format and the skills run in agents that read none. On `groundtrack` it fires only when every file is marked executable, as on a Windows drive seen through WSL. |
+| `LP3` | MCP Least Privilege | **Accepted.** Neither skill declares a permission list, because that is one host's format and the skills run in agents that read none. On `groundtrack` it fires only when every file is marked executable, as on a Windows drive seen through WSL; its entry names `SKILL.md`, where the rule lands in `eagle-eye`, and that was not measured on such a mount. |
 
-**Open: narrower suppression for one skill.** An entry for a rule another skill
-shares cannot be narrowed to one file today. `node scripts/check.mjs` holds each skill's entry to
-the root's words and scope, so the `contract` skill's `EA2` entry covers its
-whole directory, not only the texts it is about. A new `EA2` finding anywhere in
-that skill would be suppressed and would not fail the build. The same held for
-`head-chef`'s `AS3` entry, added in #206, until it was dropped on 2026-10-17. And for `contract`'s `P2` and `RA2`
-entries, added on 2026-10-15. With `P2` off, an instruction hidden anywhere in
-that skill would pass the scan: in a comment or a link-reference comment, in
-invisible characters (zero-width, direction-changing or Unicode tag
-characters), or in a base64 data link. With `RA2` off, so would an instruction
-to persist on the person's machine: a scheduled job, a startup or profile file,
-a background process or a hidden folder. The skill's template would copy any of
-them into every file it builds, and only review of the prose would catch it.
-`MP1` is not shared, so its entry names the one file it fires on,
-`contract.changelog.md`, and it still fires anywhere else. `TR2` is not shared
-either. It reads only a skill's frontmatter, so a file glob would narrow
-nothing, and its entry also carries a `message` with no wildcard: the one
-clause of `head-chef`'s description it is about, exactly as the scanner quotes
-it, case aside. Narrowing a shared
-rule needs a change to that check, with its own review. Until then the breadth
-is written in the skill's baseline header.
+**Narrower suppression for one skill.** A skill's entry may be narrower than the
+root's, for a scan of that skill's folder, and never broader. `eagle-eye`,
+`groundtrack` and `head-chef` do it: each entry names the one file its rule
+fired on, as an exact path with no wildcard, measured with SkillSpector v2.13.0
+on 2026-10-17. The scanner matches the path ignoring letter case, so a finding
+of the same rule in any other file is reported and fails the build. An entry
+that names a file and no message covers every finding of its rule anywhere in
+that file. `eagle-eye`'s `AR2` and `PE3` also carry an exact `message`, the
+measured finding text, so a new anti-refusal line in `SKILL.md` or a new
+credential mention in `audit.mjs` is reported too. The rule for what a skill
+entry may add is in `scripts/check.mjs`, rule 7: where the root names no `file`
+or `message`, the skill may name an exact one; where the root names one, the
+skill names the same.
+
+The root's entries stay rule-wide, for a scan of the whole repository, which is
+what the plugin route installs. There, `E1` and `PE3` still hide a send or a
+credential read in any file, the mod's included. The scan does not hold which
+providers receive a box's text and the key: a test in `tests/audit.test.mjs`
+holds the hosts named in `audit.mjs`'s source to two, and review holds the
+rest.
+
+The `contract` skill is not narrowed. Its `EA2` entry covers its whole
+directory, not only the texts it is about. A new `EA2` finding anywhere in
+that skill would be suppressed and would not fail the build. The same holds for
+its `P2` and `RA2` entries, added on 2026-10-15. With `P2` off, an instruction
+hidden anywhere in that skill would pass the scan: in a comment or a
+link-reference comment, in invisible characters (zero-width, direction-changing
+or Unicode tag characters), or in a base64 data link. With `RA2` off, so would
+an instruction to persist on the person's machine: a scheduled job, a startup
+or profile file, a background process or a hidden folder. The skill's template
+would copy any of them into every file it builds, and only review of the prose
+would catch it. The same held for `head-chef`'s `AS3` entry, added in #206,
+until it was dropped on 2026-10-17. `MP1` is not shared, so its entry names the
+one file it fires on, `contract.changelog.md`, and it still fires anywhere
+else. `TR2` is not shared either. It reads only a skill's frontmatter, so a file
+glob would narrow nothing, and its entry also carries a `message` with no
+wildcard: the one clause of `head-chef`'s description it is about, exactly as
+the scanner quotes it, case aside. The breadth is written in the skill's
+baseline header.
+
+**The scanner has to honour `file`, and CI proves it.** A scanner that ignored
+`file` would apply every entry to the whole folder again while the gate stayed
+green. On every run the `scan` job copies `eagle-eye` with its edge audit
+copied to `lib/audit.mjs`, scans the copy with `--use-shipped-baseline`, and
+`scripts/skillspector-probe.mjs` requires the copy's `E1` to be reported and
+the original's to stay suppressed. A scanner pin bump that stops honouring
+`file` goes red there. It proves the installer's route, `--use-shipped-baseline`;
+the gate loads the same file with `--baseline`.
+
+**Two paths under `skills/` never differ only in case.** The scanner lower-cases
+both sides when it matches a `file`, so a new file spelled in another case would
+keep the old suppression. `node scripts/check.mjs` fails on any such pair.
 
 **The check reads an entry the way the scanner's YAML loader does, or refuses
 it.** `node scripts/check.mjs` reads each baseline with a small hand-written
@@ -270,7 +304,7 @@ with a skill's baseline forces the same change there.
 **Why by rule and not by fingerprint.** A fingerprint is tied to the exact text
 and expires whenever the text or the scanner version changes. On prose that is
 rewritten constantly, it would expire without telling anyone. A rule key
-survives a rewording, but it also suppresses that rule everywhere. The written
+survives a rewording, but at the root it also suppresses that rule everywhere. The written
 reasons are the price of that breadth.
 
 **Nothing was reworded to satisfy a pattern matcher.** Two findings sit on a
@@ -288,7 +322,7 @@ and
 [`skills/contract/.skillspector-baseline.yaml`](../../skills/contract/.skillspector-baseline.yaml)
 repeat the rules that fire inside each skill. The root file is for a reader
 scanning the whole repository. `node scripts/check.mjs` fails when a skill's
-entry differs from the root's in rule, words or scope. A skill missing its
+entry gives a different reason from the root's, or is broader than it in scope. A skill missing its
 baseline file goes red in the workflow.
 
 **Scanning it yourself.** With no flags, the scanner reports the raw score and

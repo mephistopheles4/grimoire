@@ -24,20 +24,34 @@
 # ask. Apply it with --use-shipped-baseline, and read what it covered with
 # --show-suppressed.
 #
-# Each entry is keyed by rule identifier rather than by a fingerprint of the
-# text it matched, so it survives an edit to the prose. An entry that names no
-# file suppresses its rule across this directory. Nothing here was reworded to
-# satisfy a pattern matcher.
+# Each entry names the one file its rule fired on when the entries were
+# measured, with SkillSpector v2.13.0 on 2026-10-17. The path is exact, and the
+# scanner matches it ignoring letter case. A finding of the same rule in any
+# other file is reported, and it fails this repository's build. That holds for a
+# scan of this skill's own folder. A scanner that ignores `file` applies each
+# entry to the whole folder, as before.
 #
-# The repository this skill comes from carries the same entries, in the same
-# words, in the file at its root. Its check refuses a change that makes the
-# two disagree.
+# An entry that names a file and no message covers every finding of its rule
+# anywhere in that file, not only the line it was measured on: README.md for
+# RP1. The TR2 entry keeps the star and the exact clause the root's entry has,
+# and reads only a skill's frontmatter. A new instruction of the RP1 kind in
+# README.md passes the scan, and review is what holds it.
+#
+# Each entry is keyed by rule identifier rather than by a fingerprint of the
+# text it matched, so it survives an edit to the prose. Nothing here was
+# reworded to satisfy a pattern matcher.
+#
+# The repository this skill comes from carries the same rules, in the same
+# words, narrower here, in the file at its root. That file is rule-wide, for a
+# scan of the whole repository. Its check lets a skill's entry be narrower than
+# the root's, never broader.
 
 version: 2
 fingerprints: []
 
 rules:
   - rule_id: "RP1"
+    file: "README.md"
     reason: "False positive. The README install command and quotations of it. skills is the Vercel Labs installer run through npx, not an MCP server, so there is no server version to pin."
   - rule_id: "TR2"
     file: "*SKILL.md"

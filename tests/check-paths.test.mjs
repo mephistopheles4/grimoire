@@ -4,7 +4,7 @@
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync, writeFileSync, mkdirSync, appendFileSync } from 'node:fs';
+import { readFileSync, writeFileSync, mkdirSync, appendFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { tree, skillMd, fixtureMd, assertPasses, assertFails, modFile, importLine } from './check-fixture.mjs';
 
@@ -108,4 +108,23 @@ test('a skill directory with no SKILL.md fails', () => {
   mkdirSync(join(dir, 'skills', 'newcomer'));
   writeFileSync(join(dir, 'skills', 'newcomer', 'README.md'), 'nothing here yet\n');
   assertFails(dir, /skills\/newcomer\/ has no SKILL\.md/);
+});
+
+// C10. Two paths under skills/ equal once case-folded. The scanner folds case
+// when it matches a baseline's file, so a twin of a named file would keep the
+// old suppression, and a checkout that folds case lets one overwrite the other.
+// Where case folds the twin cannot be written, so the comparison is asserted in
+// tests/case.test.mjs instead and this test says so.
+test('two tracked paths under skills/ that differ only in case fail', t => {
+  const dir = tree();
+  assertPasses(dir);
+  const skill = join(dir, 'skills', 'eagle-eye');
+  writeFileSync(join(skill, 'Audit.MJS'), '// a twin\n');
+  if (!readdirSync(skill).includes('Audit.MJS') || !readdirSync(skill).includes('audit.mjs')) {
+    t.diagnostic('case folds: asserted caseTwinPaths only');
+    return;
+  }
+  t.diagnostic('case-sensitive: ran the check');
+  const r = assertFails(dir, /skills\/eagle-eye\/(?:Audit\.MJS|audit\.mjs) and skills\/eagle-eye\/(?:Audit\.MJS|audit\.mjs) differ only in case/);
+  assert.doesNotMatch(r.stdout, /someone/);
 });

@@ -310,6 +310,35 @@ jobs:
       - name: Gate on unsuppressed findings
         run: node scripts/skillspector-gate.mjs "${RUNNER_TEMP}/skillspector-report.json" --label "skills/${SKILL}" --allowances .skillspector-allowances.json
 
+      # The narrowing is only worth what the scanner does with it. The shipped
+      # baselines name the file each entry covers, and a scanner that ignored
+      # `file` would apply every entry to the whole folder again while the gate
+      # stayed green. So this scans a copy of eagle-eye with its edge audit
+      # copied to lib/audit.mjs, the way an installer would, with
+      # --use-shipped-baseline: the original's E1 finding must stay suppressed
+      # and the copy's must be reported. A pin bump that stops honouring `file`
+      # goes red here. One skill is enough to show it.
+      #
+      # The copy keeps the folder name `eagle-eye`: under another name the scanner
+      # raises an AS3 finding on CONTRACT.md. It sits under the runner's temp
+      # folder with its report, outside the checkout, and nothing uploads it. The
+      # copy is read in part, as audit.mjs is, so this does not judge the scan
+      # complete and does not run the gate on it. It proves the installer's route;
+      # the gate above loads the same file with --baseline.
+      - name: Prove the scanner honours the baseline's file
+        if: matrix.skill == 'eagle-eye'
+        run: |
+          mkdir -p "${RUNNER_TEMP}/probe"
+          cp -r skills/eagle-eye "${RUNNER_TEMP}/probe/eagle-eye"
+          cp "${RUNNER_TEMP}/probe/eagle-eye/audit.mjs" "${RUNNER_TEMP}/probe/eagle-eye/lib/audit.mjs"
+          status=0
+          (cd "${RUNNER_TEMP}/probe" && skillspector scan eagle-eye --no-llm --use-shipped-baseline --format json --output "${RUNNER_TEMP}/skillspector-probe.json") || status=$?
+          if [ "$status" -gt 1 ]; then
+            echo "skillspector exited ${status} — the probe scan errored"
+            exit 1
+          fi
+          node scripts/skillspector-probe.mjs "${RUNNER_TEMP}/skillspector-probe.json"
+
   # One name for the whole scan. The per-skill jobs are named after skills, so
   # the set of names changes whenever a skill is added, and a required status
   # check needs a name that does not. This job is that name — `scan`, which the

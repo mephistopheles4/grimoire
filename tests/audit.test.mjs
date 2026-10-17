@@ -739,3 +739,17 @@ test('under skills/, only the audit script names a provider', () => {
   walk(join(root, 'skills'));
   assert.deepEqual(hits, [audit]);
 });
+
+// C11. Where the edge audit can send. The SkillSpector baseline covers every
+// E1 finding in audit.mjs, so the scan does not hold which providers receive
+// a box's text and the key. This does: every http(s) URL literal in the file
+// names one of two hosts. A host assembled at run time from parts would pass;
+// review holds that. The loopback-only endpoint override has its own tests.
+const hostsIn = text => [...new Set([...text.matchAll(/https?:\/\/([^\s/'"`\)\]}>,;?#:]+)/gi)].map(m => m[1].toLowerCase()))].sort();
+
+test('the edge audit names exactly two provider hosts in its source', () => {
+  const text = readFileSync(audit, 'utf8');
+  assert.deepEqual(hostsIn(text), ['api.typesafe.ai', 'openrouter.ai']);
+  // The red case: a third URL in the text is seen.
+  assert.deepEqual(hostsIn(`${text}\nconst x = "https://example.invalid/v1";\n`), ['api.typesafe.ai', 'example.invalid', 'openrouter.ai']);
+});

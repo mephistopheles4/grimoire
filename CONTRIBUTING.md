@@ -15,8 +15,8 @@ artifact in the tree with the renderer its registry row names, checks that no
 file a skill or the mod ships has grown a fixed path back, fails on a skill
 frontmatter key outside its allow-list and on a hidden character in a skill
 file, fails on a code fence that declares no
-language, fails on a dependency, fails when the two SkillSpector baselines
-disagree, and runs the test suite in `tests/`. CI
+language, fails on a dependency, fails when a skill's SkillSpector baseline entry
+is broader than the root's, and runs the test suite in `tests/`. CI
 runs it as a required check called `check`. `main` takes no direct pushes.
 
 Three more workflows check things the command above does not. One runs SkillSpector
