@@ -929,7 +929,9 @@ const named = file => {
   const home = homedir();
   /* Windows takes either slash and any case, so a forward-slash home path is home too. */
   const fold = process.platform === 'win32' ? t => t.toLowerCase().replaceAll('/', '\\') : t => t;
-  return home && fold(file).startsWith(fold(home + sep)) ? `~${file.slice(home.length)}` : file;
+  if (!home) return file;
+  if (fold(file) === fold(home)) return '~';
+  return fold(file).startsWith(fold(home + sep)) ? `~${file.slice(home.length)}` : file;
 };
 
 /** A line to standard error: refusals, the `ok:` line, `cannot read`. */

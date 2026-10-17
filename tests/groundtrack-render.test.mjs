@@ -870,8 +870,9 @@ test('a crash left in the renderer prints one line naming the file, and exits 2'
   assert.equal(r.code, 2, r.stderr.slice(0, 400));
   assert.equal(r.stderr.trim(), `${file}: the renderer stopped on this file (RangeError)`);
   // A page that cannot be written names the page, not a good input file.
+  // A fake home, so the temp folder is never under it whatever the machine.
   const target = join(work, 'no-such-folder', 'page.html');
-  const w = run(groundtrack, [derive(() => {}), '--out', target]);
+  const w = run(groundtrack, [derive(() => {}), '--out', target], { env: fakeHome().env });
   assert.equal(w.code, 2, w.stderr);
   assert.equal(w.stderr.trim(), `cannot write ${target}: ENOENT`);
 });
@@ -2589,6 +2590,8 @@ test('a page is named as given, from ~ under the home folder, whether it was wri
     [join(home, 'page.html'), /^wrote ~[\\/]page\.html$/m],
     [join(home, 'gone', 'page.html'), /^cannot write ~[\\/]gone[\\/]page\.html: ENOENT$/m],
     ['page.html', /^wrote page\.html$/m],
+    [join('gone', 'page.html'), /^cannot write gone[\\/]page\.html: ENOENT$/m],
+    [home, /^cannot write ~: EISDIR$/m],
   ];
   if (process.platform === 'win32') outs.push([`${home.replaceAll('\\', '/')}/slash.html`, /^wrote ~[\\/]slash\.html$/m]);
   for (const [out, line] of outs) {
