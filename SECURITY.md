@@ -98,7 +98,8 @@ whether any call wrote or read cache. Never a model id, message id, text,
 path, cost, rate limit or cache window; the writer makes no session usage call
 at all. The write goes only where the roster's link-refusing path rule allows,
 in a folder apart from the rosters, and overwrites only a file that is itself a
-summary file, so a planted hard link to another file is refused. The path rule
+summary file, so a planted hard link to any file that is not a summary file is
+refused; one to another summary file is not (below). The path rule
 runs again after the write. On any refusal the writer stops until the plugin
 reloads, a clear included, with one toast naming the kind of refusal in fixed
 words. It asks no permission. What follows from it:

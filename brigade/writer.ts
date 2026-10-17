@@ -126,9 +126,13 @@ async function run($: EngineInterface) {
 // file, take the newest numbers, write, and run the path rule again after.
 async function writeOnce($: EngineInterface) {
   if (stopped) return
+  // The session the memory belongs to when the write starts. A clear while
+  // the write waits on its checks moves it, and the write is skipped, so one
+  // session's numbers never land in another's file; the next one due writes.
+  const owner = sessionOf
   // No config folder named: nothing is written, and nothing was refused.
   const at = await locate($)
-  if (at === undefined) return
+  if (at === undefined || (owner !== undefined && at.id !== owner)) return
   const placed = await placeSummary(at.config, at.plugin, at.id, statOf($))
   if ('refused' in placed) return refuse($, 'path')
   if (placed.existing !== undefined) {
@@ -136,7 +140,7 @@ async function writeOnce($: EngineInterface) {
     if (!isSummaryFile(placed.existing.size, text)) return refuse($, 'file')
   }
   const summary = summaryFrom(memory, now())
-  if (summary === undefined || stopped) return
+  if (summary === undefined || stopped || sessionOf !== owner) return
   const text = serializeSummary(summary)
   if ('error' in text) return
   await $.fs.write(placed.file, text.value)

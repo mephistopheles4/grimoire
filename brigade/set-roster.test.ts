@@ -213,6 +213,9 @@ type World = ReturnType<typeof makeFs> & {
   usageCalls: number
   /** A message the bottom of `turn.step` fails with after its first chunk, or ''. */
   stepFail: string
+  /** While true, every `stat` waits for `releaseStat`, which lets them all go. */
+  holdStat: boolean
+  releaseStat: () => void
 }
 
 // The engine beneath the plugin: the file system, the pane record, the
@@ -261,11 +264,14 @@ function world(on: On, setup: (w: World) => void = w => w.dirs(`${CONFIG}\\plugi
     stepUsage: null as unknown,
     usageCalls: 0,
     stepFail: '',
+    holdStat: false,
+    releaseStat: () => {},
   })
   w.dirs(CONFIG)
   setup(w)
   w.clock = mock.clock(on)
-  on('fs.stat', ($, e: any) => {
+  on('fs.stat', async ($, e: any) => {
+    if (w.holdStat) await new Promise<void>(res => { const before = w.releaseStat; w.releaseStat = () => { before(); res() } })
     // The host probes are answered from `w.probes`, with the real path exactly
     // as written, before the Windows-shaped file system. On Windows the engine
     // hands the hook an absolute Unix path resolved under the current drive's
@@ -3204,4 +3210,32 @@ test('a step that fails below the writer still fails, and nothing is recorded or
   await w.clock.settle()
   expect(w.text(USAGE)).toBeUndefined()
   expect(writerToasts(w)).toEqual([])
+})
+
+// CodeRabbit on #317: a write takes the session id, then awaits its checks
+// before it takes the numbers. A clear in that gap must not put the new
+// session's numbers in the old session's file.
+test('a clear while a write waits on its checks skips that write; the new session\'s numbers go to its own file', async ($, on) => {
+  const w = world(on)
+  await begin($, w)
+  w.dirs(BRIGADE)
+  w.holdStat = true
+  w.stepUsage = STEP_USAGE
+  // The first counted step starts a write, which names this session's file
+  // and then waits on its first stat.
+  await raiseStep($)
+  await w.clock.settle()
+  const NEW = '99999999-8888-7777-6666-555555555555'
+  w.sid = NEW
+  await $.classic.SessionStart({ source: 'clear', session_id: NEW, transcript_path: `${CONFIG}\\projects\\C--work\\${NEW}.jsonl` })
+  w.stepUsage = { ...STEP_USAGE, input_tokens: 2 }
+  await raiseStep($)
+  w.holdStat = false
+  w.releaseStat()
+  await w.clock.settle()
+  expect(w.text(USAGE)).toBeUndefined()
+  await turnEnd($)
+  await w.clock.settle()
+  expect(JSON.parse(w.text(`${USAGE_DIR}\\${NEW}.json`) ?? '{}').context).toEqual([151002])
+  expect(w.text(USAGE)).toBeUndefined()
 })
