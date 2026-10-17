@@ -123,7 +123,7 @@ test('a value the reader refuses is printed masked too', () => {
   const dir = tree();
   const root = readFileSync(rootBaselineIn(dir), 'utf8');
   writeFileSync(rootBaselineIn(dir), root.replace('  - rule_id: "AR2"\n', '  - rule_id: "AR2"\n    message: "*C:\\Users\\someone\\box*"\n'));
-  const r = assertFails(dir, /"message" is not a bare or plainly quoted value/);
+  const r = assertFails(dir, /"message" is not a plainly double-quoted value/);
   assert.doesNotMatch(r.stdout + r.stderr, /someone/);
 });
 
@@ -136,6 +136,76 @@ test('two different messages for one rule fail, not only a message on one side',
     writeFileSync(p, text.replace('  - rule_id: "AR2"\n', `  - rule_id: "AR2"\n    message: "${glob}"\n`));
   }
   assertFails(dir, /matched to \*preview\* here and to \*preview pane\* in/);
+});
+
+// The reader and SkillSpector's YAML loader must agree on what an entry says.
+// Each case below is a spelling they read differently, so two files could agree
+// in the check while the scanner applied a broader suppression than either
+// appears to say.
+function rootWith(dir, fields) {
+  writeFileSync(rootBaselineIn(dir), `version: 2\nfingerprints: []\n\nrules:\n  - rule_id: "AR2"\n${fields}    reason: "x"\n`);
+}
+
+test('a bare entry value with a trailing comment fails, because YAML ends the value at the comment', () => {
+  const dir = tree();
+  rootWith(dir, '    message: preview pane # a note\n');
+  assertFails(dir, /"message" must be double-quoted/);
+});
+
+test('a bare rule_id or reason fails too', () => {
+  const dir = tree();
+  writeFileSync(rootBaselineIn(dir), 'version: 2\nfingerprints: []\n\nrules:\n  - rule_id: AR2\n    reason: "x"\n');
+  assertFails(dir, /"rule_id" must be double-quoted/);
+  writeFileSync(rootBaselineIn(dir), 'version: 2\nfingerprints: []\n\nrules:\n  - rule_id: "AR2"\n    reason: x\n');
+  assertFails(dir, /"reason" must be double-quoted/);
+});
+
+test('a file or message written as a YAML null fails, because the scanner reads it as no narrowing', () => {
+  for (const nul of ['~', 'null']) {
+    for (const key of ['file', 'message']) {
+      const dir = tree();
+      rootWith(dir, `    ${key}: ${nul}\n`);
+      assertFails(dir, new RegExp(`"${key}" must be double-quoted`));
+    }
+  }
+});
+
+test('a rule_id with a wildcard fails, because the scanner reads it as a pattern', () => {
+  for (const id of ['A*', 'AR?', 'A[RS]2', '*']) {
+    const dir = tree();
+    writeFileSync(rootBaselineIn(dir), `version: 2\nfingerprints: []\n\nrules:\n  - rule_id: "${id}"\n    reason: "x"\n`);
+    assertFails(dir, /"rule_id" holds a wildcard/);
+  }
+});
+
+test('a file or message made only of wildcard characters fails, because it narrows nothing', () => {
+  for (const key of ['file', 'message']) {
+    for (const glob of ['*', '**', '?*', '[*]']) {
+      const dir = tree();
+      rootWith(dir, `    ${key}: "${glob}"\n`);
+      assertFails(dir, new RegExp(`"${key}" is empty or made only of wildcard characters`));
+    }
+  }
+});
+
+test('two rule ids that differ only in case fail, because the scanner ignores case', () => {
+  // The scanner lower-cases both sides before it matches. A narrowed "AR2" and
+  // an un-narrowed "ar2" are one rule to it, and the wide entry would win.
+  const dir = tree();
+  writeFileSync(
+    rootBaselineIn(dir),
+    baselineBody([
+      { id: 'AR2', reason: 'One argument.' },
+      { id: 'ar2', reason: 'A second argument.' },
+    ]),
+  );
+  assertFails(dir, /ar2 and AR2 are one rule/);
+  // The mirror lookup folds case too: a skill's lower-case twin of AR2 is held
+  // to the root's AR2 reason and scope, not skipped as an unknown rule.
+  const other = tree();
+  const skill = readFileSync(skillBaselineIn(other), 'utf8');
+  writeFileSync(skillBaselineIn(other), skill.replace('  - rule_id: "AR2"\n', '  - rule_id: "ar2"\n    file: "*SKILL.md"\n'));
+  assertFails(other, /ar2 is narrowed to \*SKILL\.md here and to every file/);
 });
 
 test('a quoted version is read, because the entries accept quoting too', () => {

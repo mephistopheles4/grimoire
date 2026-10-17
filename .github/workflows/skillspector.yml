@@ -231,7 +231,11 @@ jobs:
       # run of this workflow was green.
       #
       # So the upload carries what the gate would go red on, and nothing else.
-      # The reasons for the rest are in the baselines and in `--show-suppressed`,
+      # That includes the rule list: SkillSpector fills each rule's descriptors
+      # with the message of the first finding under it, suppressed or not, so a
+      # rule with no result left has its descriptor text set to its id, and so
+      # does a descriptor of a kept rule that quotes a dropped result. The
+      # reasons for the rest are in the baselines and in `--show-suppressed`,
       # which is where a reader can disagree with them.
       #
       # --prefix puts the skill's directory back on every path. The scanner

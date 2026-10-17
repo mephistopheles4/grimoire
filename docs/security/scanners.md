@@ -150,6 +150,13 @@ and carries a reason. The rules that hold it:
 - **Every entry added, removed or re-hashed is named.** `node scripts/check.mjs`
   lists each one against `main`, in its log and, in CI, on the run's summary
   page and as a warning on the pull request, so a re-hash is hard to miss.
+- **A re-hash needs a new dated reason.** The check fails when an entry's hash
+  differs from `main` and its `reason` gains no new "Re-read on <date>: ..."
+  sentence. A change in spacing or in other words does not count. The sentence
+  says what the review found, so each re-hash leaves a record of someone
+  looking. A renamed file does not escape this: a new entry that carries the
+  reason of a removed entry of the same skill, on a different hash, fails the
+  same way.
 - **A `static_parse_limit` entry also hides a marker-pass give-up inside
   `static_patterns_tool_misuse`.** When both passes give up inside that one
   check, the scanner reports only the parse code. The other twelve checks
@@ -209,7 +216,7 @@ Each suppression is keyed by **rule**, with a written reason.
 | Rule | Name | Why it is suppressed |
 | --- | --- | --- |
 | `AR2` | Anti-Refusal Statement | `SKILL.md` warns that a preview pane may render the page without script, so do not judge it from one. It adds a caveat; it does not remove one. |
-| `AS3` | Skill Enumeration | A `README.md` line naming this repository's own skills, the decision records quoting it, and `head-chef`'s contract naming its own `SKILL.md`. **Root only since 2026-10-17.** From 2.12.0 it no longer fires when a skill is scanned on its own, so `eagle-eye` and `head-chef` dropped their entries; it still fires in a scan of the whole repository, on those two skills' contracts among other files. |
+| `AS3` | Skill Enumeration | A `README.md` line naming this repository's own skills, the decision records quoting it, and `head-chef`'s contract naming its own `SKILL.md`. **Root only since 2026-10-17.** From 2.12.0 it no longer fires when a skill is scanned on its own, so `eagle-eye` and `head-chef` dropped their entries; it still fires in a scan of the whole repository, on those two skills' contracts among other files. **Narrowed to path mentions** with `message: "skills/*/SKILL.md"`: every hit in a whole-repository scan is the text of a skill's own file path, which is the finding text the scanner matches. A line that tells an agent to enumerate or read other installed skills, without naming such a path, is no longer suppressed. A line that does name one still is. |
 | `EA2` | Autonomous Decision Making | Texts that describe what an agent may do on its own and give no such instruction: the `why` text on an edge in `eagle-eye`'s example box file, which the renderer prints for a reader; in `contract`, the labels, headings and comments in the format check, the bindings and the README that name the settings the check warns on because they let an agent act without asking; the step that lists unconfirmed drafts as *Proposed* without asking about each one; and `eagle-eye`'s rule that when the person asks for the box by name, it builds the box without asking again, because the request is the go-ahead. **On `contract` it is off for the whole skill**, `SKILL.md` and the template that seeds every file it generates included. The owner accepted that breadth on 2026-09-27; see below the table. |
 | `EA3` | Scope Creep | The warranty disclaimer of the SIL Open Font Licence, shipped beside `groundtrack`'s fonts. A legal text we must carry verbatim. |
 | `MP3` | Memory Manipulation | A template comment describing how **Reset** discards a reader's overrides and **Undo** offers them back. |
@@ -243,6 +250,19 @@ clause of `head-chef`'s description it is about, exactly as the scanner quotes
 it, case aside. Narrowing a shared
 rule needs a change to that check, with its own review. Until then the breadth
 is written in the skill's baseline header.
+
+**The check reads an entry the way the scanner's YAML loader does, or refuses
+it.** `node scripts/check.mjs` reads each baseline with a small hand-written
+reader, so it refuses the spellings the two would read differently: an entry
+value that is not double-quoted (a bare value ends at a ` #` comment in YAML,
+and a bare `~` or `null` reads as no value), a `rule_id` holding `*`, `?` or `[`
+(the scanner reads it as a pattern), two rule ids that differ only in letter case
+(the scanner ignores case, so they are one rule), and a `file` or `message` made only of
+wildcard characters (it reads as narrowing and narrows nothing). The scanner
+also tests a `message` glob against the rule's own fixed name, such as
+`Skill Enumeration`, and ignores letter case. A glob that matches that name
+suppresses every finding of the rule, and the check does not catch it, so a
+reviewer reads each `message` glob against the rule's name.
 
 **A shared reason is held to one wording.** A change to a reason the root shares
 with a skill's baseline forces the same change there.
@@ -286,8 +306,14 @@ So [`scripts/skillspector-strip-suppressed.mjs`](../../scripts/skillspector-stri
 drops suppressed results before upload, tested by
 [`tests/skillspector-strip-suppressed.test.mjs`](../../tests/skillspector-strip-suppressed.test.mjs).
 
-- It removes results and nothing else, because the kept results point at the
-  rule and artifact arrays by index.
+- It removes results and renumbers nothing, because the kept results point at
+  the rule and artifact arrays by index. A rule with no result left stays in its
+  place, with its descriptor text set to its id, because the scanner can fill a
+  descriptor with the message of the first finding under the rule, suppressed or
+  not. A rule that keeps a result gets the same for a descriptor that quotes a
+  dropped result's message. Measured on v2.13.0 (2026-10-17): a static rule's
+  descriptor is the rule's fixed name, which quotes no finding, and a rule whose
+  message is the matched clause, such as `TR2`, quotes the first finding's clause.
 - It never drops a result it cannot read. That result is kept and printed.
 - A report it cannot parse fails the step.
 - It uploads even when nothing is left, because an empty upload is what marks

@@ -22,13 +22,17 @@
 // baseline, and in `--show-suppressed` for anyone scanning this tree
 // themselves. What belongs in the tab is what the gate goes red on.
 //
-// **It drops results and touches nothing else** — not `tool.driver.rules`, not
+// **It drops results and renumbers nothing** — not `tool.driver.rules`, not
 // `artifacts`, not the order of what stays. Both of those arrays are referenced
 // by index from the results that remain, so a tidy-up renumbering them would
-// point a kept finding at the wrong rule. A rule descriptor left with no
-// finding under it costs a reader nothing.
+// point a kept finding at the wrong rule. A rule left with no result keeps its
+// place, but its descriptors are rewritten: SkillSpector fills them with the
+// message of the first finding under the rule, suppressed or not, so a rule
+// whose findings all went would still quote one. Each such descriptor's text
+// becomes the rule id. A rule that keeps a result gets the same for a
+// descriptor whose text is a dropped result's message and no kept one's.
 //
-// **Except the paths, when asked, and only the paths.** The workflow scans each
+// **The paths change too, when asked, and no other field does.** The workflow scans each
 // skill on its own, and the scanner writes every path relative to the directory
 // it was pointed at, with no flag to change that: a finding in
 // skills/eagle-eye/SKILL.md arrives as `SKILL.md`. GitHub resolves a relative
@@ -169,8 +173,14 @@ if (!Array.isArray(report.runs)) die('has no "runs" array — an absent list is 
 const removed = new Map();
 let kept = 0;
 let unreadable = 0;
+// The message text of every result dropped, per run. A rule's descriptor holds
+// the message of the first finding under it, so this is the text to look for in
+// the descriptor of a rule that keeps some other result.
+const goneTexts = [];
 
 report.runs.forEach((run, i) => {
+  const gone = new Set();
+  goneTexts.push(gone);
   if (run === null || typeof run !== 'object' || Array.isArray(run)) die(`runs[${i}] is not an object`);
   if (!Array.isArray(run.results)) {
     die(`runs[${i}] has no "results" array — an absent list is not an empty one`);
@@ -199,6 +209,7 @@ report.runs.forEach((run, i) => {
     if (!suppressions.length) return keep();
     const id = typeof r.ruleId === 'string' && r.ruleId ? r.ruleId : 'unidentified';
     removed.set(id, (removed.get(id) ?? 0) + 1);
+    if (typeof r.message?.text === 'string') gone.add(r.message.text);
     return false;
   });
 });
@@ -239,10 +250,62 @@ if (allowances) {
       const pair = `${ae1[i].from} -> ${ae1[i].target}`;
       droppedPairs.set(pair, (droppedPairs.get(pair) ?? 0) + 1);
     }
+    for (const r of drop) if (typeof r.message?.text === 'string') goneTexts[report.runs.indexOf(run)].add(r.message.text);
     run.results = run.results.filter(r => !drop.has(r));
     kept -= drop.size;
   });
 }
+
+const DESCRIPTORS = ['shortDescription', 'fullDescription', 'help'];
+
+// Every rule's descriptors, after both filters, so the results that stay are the
+// ones judged. SkillSpector can fill a rule's descriptors with the message of the
+// first finding under it, suppressed or not. Measured on v2.13.0, a static rule's
+// descriptor is the rule's fixed name, which is no finding text, and a rule whose
+// message is the matched clause, such as TR2, quotes that clause. So:
+//   - A rule with no result left: each descriptor text becomes the rule id.
+//   - A rule that keeps a result is left as it was, except for a descriptor
+//     whose text is the message of a result dropped from this run and of no
+//     result kept; that text becomes the rule id.
+// The rule stays in its place either way, so no index moves.
+let idOnly = 0;
+let scrubbed = 0;
+report.runs.forEach((run, runIndex) => {
+  const rules = run.tool?.driver?.rules;
+  if (!Array.isArray(rules)) return;
+  const usedIds = new Set();
+  const usedIndexes = new Set();
+  const keptTexts = new Set();
+  for (const r of run.results) {
+    if (r === null || typeof r !== 'object' || Array.isArray(r)) continue;
+    if (typeof r.ruleId === 'string') usedIds.add(r.ruleId);
+    if (Number.isInteger(r.ruleIndex)) usedIndexes.add(r.ruleIndex);
+    if (Number.isInteger(r.rule?.index)) usedIndexes.add(r.rule.index);
+    if (typeof r.rule?.id === 'string') usedIds.add(r.rule.id);
+    if (typeof r.message?.text === 'string') keptTexts.add(r.message.text);
+  }
+  rules.forEach((rule, i) => {
+    if (rule === null || typeof rule !== 'object' || Array.isArray(rule)) return;
+    const used = usedIndexes.has(i) || (typeof rule.id === 'string' && usedIds.has(rule.id));
+    const name = typeof rule.id === 'string' ? rule.id : `rule ${i}`;
+    let changed = false;
+    for (const key of DESCRIPTORS) {
+      const d = rule[key];
+      if (d === null || typeof d !== 'object' || Array.isArray(d)) continue;
+      for (const field of ['text', 'markdown']) {
+        const v = d[field];
+        if (typeof v !== 'string' || v === name) continue;
+        if (used && !(goneTexts[runIndex].has(v) && !keptTexts.has(v))) continue;
+        d[field] = name;
+        changed = true;
+      }
+    }
+    if (changed) {
+      if (used) scrubbed += 1;
+      else idOnly += 1;
+    }
+  });
+});
 
 // The paths, when asked. After the filter, so a dropped result is not counted.
 let prefixed = 0;
@@ -294,6 +357,8 @@ if (allowances) {
   console.log(`ok: stripped ${n} AE1 result(s) the allowance accepts, in ${droppedPairs.size} pair(s)`);
   for (const [pair, count] of [...droppedPairs].sort(([a], [b]) => (a < b ? -1 : 1))) console.log(`      ${pair} ×${count}`);
 }
+if (idOnly) console.log(`ok: set the descriptors of ${idOnly} rule(s) with no result left to the rule id`);
+if (scrubbed) console.log(`ok: set a dropped result's message in the descriptors of ${scrubbed} rule(s) that keep a result to the rule id`);
 if (prefix !== null) {
   console.log(`ok: put ${prefix} in front of ${prefixed} relative path(s)`);
   if (absolute) console.log(`note: left ${absolute} absolute URI(s) as they were`);

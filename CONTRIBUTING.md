@@ -23,7 +23,7 @@ Three more workflows check things the command above does not. One runs SkillSpec
 over the skill prose and fails on any finding the baselines do not cover, and on
 any file it reads only in part unless `.skillspector-allowances.json` accepts that
 partial read by name, or a finding that reports a reference to an accepted file. The command above holds each accepted file to its content
-hash, so an edit to one fails until its entry is updated in the same pull request. One
+hash, so an edit to one fails until its entry is updated in the same pull request, with a new dated "Re-read on" sentence in its reason. One
 runs zizmor over `.github/workflows/` and fails on any finding at all —
 there is no baseline for it, because there is nothing to suppress. The third runs
 `claude plugin validate --strict` on the two manifests and `skills/`, at a pinned

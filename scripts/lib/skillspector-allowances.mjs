@@ -322,6 +322,50 @@ export function checkAgainstTree(allowances, { isSkill, readFile }) {
   return problems;
 }
 
+// The entries whose hash moved against the base while their reason gained no
+// new dated sentence. A re-hash says someone read the changed file, and the
+// reason is where that reading is written down, as a "Re-read on <date>: ..."
+// sentence. A re-hash with the old reason, or one changed only in spacing or in
+// words with no such sentence, is a hash pasted over a pin, so it fails.
+// `before` may be null when the base has no file or cannot be read; then
+// nothing is compared.
+const RE_READ = /Re-read on \d{4}-\d{2}-\d{2}[^.]*\./g;
+export function unexplainedRehashes(before, after) {
+  if (!before) return [];
+  const was = new Map(before.exceptions.map(e => [exceptionKey(e), e]));
+  const problems = [];
+  for (const e of after.exceptions) {
+    const old = was.get(exceptionKey(e));
+    if (!old || old.sha256 === e.sha256) continue;
+    const squash = s => s.replace(/\s+/g, ' ').trim();
+    const sentences = s => (squash(s).match(RE_READ) ?? []);
+    const known = new Set(sentences(old.reason));
+    if (!sentences(e.reason).some(s => !known.has(s))) {
+      problems.push(
+        `${ALLOWANCES}: exception ${e.skill}/${e.path} (${e.reason_code}) was re-hashed and its reason does not say it was re-read. ` +
+          'Review the diff of that file by hand, then add a new sentence to the reason, in the form "Re-read on <date>: <what you found>."',
+      );
+    }
+  }
+  // A moved or renamed file is a new key: the entry reads as removed plus
+  // added, and the loop above never sees a hash move. An added entry that
+  // carries the reason of a removed entry of the same skill, on a different
+  // hash, is the same paste one key over.
+  const nowKeys = new Set(after.exceptions.map(exceptionKey));
+  const gone = before.exceptions.filter(o => !nowKeys.has(exceptionKey(o)));
+  for (const e of after.exceptions) {
+    if (was.has(exceptionKey(e))) continue;
+    const twin = gone.find(o => o.skill === e.skill && o.reason === e.reason && o.sha256 !== e.sha256);
+    if (twin) {
+      problems.push(
+        `${ALLOWANCES}: exception ${e.skill}/${e.path} (${e.reason_code}) is new and carries the reason of a removed entry of that skill, on a different hash. ` +
+          'Review the diff of that file by hand, then write a new sentence in the reason, in the form "Re-read on <date>: <what you found>."',
+      );
+    }
+  }
+  return problems;
+}
+
 // What changed against the base: entries added, removed, re-hashed or with
 // changed checks, and references added, removed or recounted. A re-hash and a
 // change of checks on one entry are two lines, so neither hides the other.

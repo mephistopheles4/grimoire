@@ -34,7 +34,7 @@ import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { walk } from './lib/tree.mjs';
 import { ARTIFACTS, rowFor } from './lib/registry.mjs';
-import { ALLOWANCES, checkAgainstTree, diffAllowances, parseAllowances, readAllowances } from './lib/skillspector-allowances.mjs';
+import { ALLOWANCES, checkAgainstTree, diffAllowances, parseAllowances, readAllowances, unexplainedRehashes } from './lib/skillspector-allowances.mjs';
 import { caseTwin } from './lib/case.mjs';
 import { masked, printable, shown } from './lib/printable.mjs';
 
@@ -865,7 +865,7 @@ for (const e of existsSync(join(root, 'hooks')) ? readdirSync(join(root, 'hooks'
 // The reader below is written by hand and reads exactly the shape these two
 // files are allowed to have: three top-level keys, and a list of entries with
 // a rule identifier, an optional file glob, an optional message glob and a
-// one-line reason. It is not a YAML parser and does not try to be. Adding one
+// one-line reason, each value double-quoted. It is not a YAML parser and does not try to be. Adding one
 // would be the dependency this repository does not take, so the shape is kept
 // trivial instead, and anything outside it is named and refused rather than
 // guessed at. A baseline this reader cannot understand is a baseline whose
@@ -937,8 +937,21 @@ function readBaseline(path) {
       const [, key, value] = m;
       if (!ENTRY_KEYS.has(key)) return problems.push(`${at}: unknown field "${key}" in a rule entry`);
       if (key in entry) return problems.push(`${at}: "${key}" set twice in one rule entry`);
+      // An entry value is double-quoted, never bare. YAML ends a bare value at
+      // a " #" comment and reads a bare ~ or null as no value at all, where
+      // this reader would keep the whole line as text. Two files could then
+      // agree here while the scanner applied a broader suppression than either
+      // says. The top-level keys keep their bare form: `version: 2`.
+      if (!value.startsWith('"')) return problems.push(`${at}: "${key}" must be double-quoted — ${shown(value)}`);
       const read = scalar(value);
-      if (read === null) return problems.push(`${at}: "${key}" is not a bare or plainly quoted value — ${shown(value)}`);
+      if (read === null) return problems.push(`${at}: "${key}" is not a plainly double-quoted value (no inner quote or escape) — ${shown(value)}`);
+      // The scanner reads a rule_id as an fnmatch pattern, so a wildcard in one
+      // suppresses a family of rules. A file or message of nothing but wildcard
+      // characters reads as narrowing and narrows nothing.
+      if (key === 'rule_id' && /[*?[]/.test(read)) return problems.push(`${at}: "rule_id" holds a wildcard — ${shown(value)}; name one rule`);
+      if ((key === 'file' || key === 'message') && /^[*?[\]]*$/.test(read)) {
+        return problems.push(`${at}: "${key}" is empty or made only of wildcard characters —${shown(value)}; it narrows nothing, so leave it out`);
+      }
       entry[key] = read;
     });
 
@@ -956,11 +969,19 @@ function readBaseline(path) {
   }
   if (!rules.length) problems.push(`${rel(path)}: no rules — a baseline that suppresses nothing should be deleted`);
 
-  const seen = new Set();
+  // Rule ids are compared without regard to case: the scanner lower-cases both
+  // sides before it matches, so "AR2" and "ar2" are one rule to it.
+  const seen = new Map();
   for (const r of rules) {
     if (!r.rule_id) problems.push(`${r.at}: a rule entry with no rule_id`);
-    else if (seen.has(r.rule_id)) problems.push(`${r.at}: ${r.rule_id} appears twice`);
-    else seen.add(r.rule_id);
+    else if (seen.has(r.rule_id.toLowerCase())) {
+      const first = seen.get(r.rule_id.toLowerCase());
+      problems.push(
+        first === r.rule_id
+          ? `${r.at}: ${r.rule_id} appears twice`
+          : `${r.at}: ${r.rule_id} and ${first} are one rule, because the scanner ignores letter case`,
+      );
+    } else seen.set(r.rule_id.toLowerCase(), r.rule_id);
     // The scanner requires a reason too. This says so here, where the author
     // is, rather than on a runner an hour later.
     if (!r.reason) problems.push(`${r.at}: ${r.rule_id ?? 'a rule'} has no reason — a suppression nobody can audit`);
@@ -974,7 +995,7 @@ let rootRules = null;
 try {
   const parsed = readBaseline(rootBaseline);
   for (const p of parsed.problems) fail(p);
-  rootRules = new Map(parsed.rules.filter(r => r.rule_id).map(r => [r.rule_id, r]));
+  rootRules = new Map(parsed.rules.filter(r => r.rule_id).map(r => [r.rule_id.toLowerCase(), r]));
 } catch (e) {
   if (e.code !== 'ENOENT') throw e;
   fail(
@@ -993,7 +1014,7 @@ for (const path of skillBaselines) {
   if (!rootRules) continue;
   for (const r of parsed.rules) {
     if (!r.rule_id) continue;
-    const mirror = rootRules.get(r.rule_id);
+    const mirror = rootRules.get(r.rule_id.toLowerCase());
     if (!mirror) {
       fail(`${r.at}: ${r.rule_id} is suppressed here and not at the repository root — the two baselines disagree`);
       continue;
@@ -1065,12 +1086,13 @@ for (const path of skillBaselines) {
       if (before !== null && !parsedBefore) {
         console.log(`note: ${ALLOWANCES} on ${baseRef} cannot be read — every entry here is listed as added`);
       }
+      for (const p of unexplainedRehashes(parsedBefore, read.value)) fail(p);
       const changes = diffAllowances(parsedBefore, read.value);
       if (changes.length) {
         console.log(`note: ${ALLOWANCES} changed against ${baseRef}; review each by hand:`);
         for (const c of changes) console.log(`note:   ${c}`);
-        // In CI, also where a reviewer already looks. A re-hash passes this
-        // check by design, so a line in a green job's log is a line nobody
+        // In CI, also where a reviewer already looks. A re-hash with a new
+        // dated reason passes this check by design, so a line in a green job's log is a line nobody
         // reads: each change is a warning on the pull request too, and a list
         // on the run's summary page. Names only, never a hash.
         if (process.env.GITHUB_ACTIONS === 'true') {
