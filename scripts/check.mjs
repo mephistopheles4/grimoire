@@ -865,7 +865,7 @@ for (const e of existsSync(join(root, 'hooks')) ? readdirSync(join(root, 'hooks'
 // The reader below is written by hand and reads exactly the shape these two
 // files are allowed to have: three top-level keys, and a list of entries with
 // a rule identifier, an optional file glob, an optional message glob and a
-// one-line reason. It is not a YAML parser and does not try to be. Adding one
+// one-line reason, each value double-quoted. It is not a YAML parser and does not try to be. Adding one
 // would be the dependency this repository does not take, so the shape is kept
 // trivial instead, and anything outside it is named and refused rather than
 // guessed at. A baseline this reader cannot understand is a baseline whose
@@ -937,8 +937,21 @@ function readBaseline(path) {
       const [, key, value] = m;
       if (!ENTRY_KEYS.has(key)) return problems.push(`${at}: unknown field "${key}" in a rule entry`);
       if (key in entry) return problems.push(`${at}: "${key}" set twice in one rule entry`);
+      // An entry value is double-quoted, never bare. YAML ends a bare value at
+      // a " #" comment and reads a bare ~ or null as no value at all, where
+      // this reader would keep the whole line as text. Two files could then
+      // agree here while the scanner applied a broader suppression than either
+      // says. The top-level keys keep their bare form: `version: 2`.
+      if (!value.startsWith('"')) return problems.push(`${at}: "${key}" must be double-quoted — ${shown(value)}`);
       const read = scalar(value);
       if (read === null) return problems.push(`${at}: "${key}" is not a bare or plainly quoted value — ${shown(value)}`);
+      // The scanner reads a rule_id as an fnmatch pattern, so a wildcard in one
+      // suppresses a family of rules. A file or message of nothing but wildcard
+      // characters reads as narrowing and narrows nothing.
+      if (key === 'rule_id' && /[*?[]/.test(read)) return problems.push(`${at}: "rule_id" holds a wildcard — ${shown(value)}; name one rule`);
+      if ((key === 'file' || key === 'message') && /^[*?[\]]*$/.test(read)) {
+        return problems.push(`${at}: "${key}" is made only of wildcard characters — ${shown(value)}; it narrows nothing, so leave it out`);
+      }
       entry[key] = read;
     });
 

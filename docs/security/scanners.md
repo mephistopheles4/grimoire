@@ -248,6 +248,14 @@ it, case aside. Narrowing a shared
 rule needs a change to that check, with its own review. Until then the breadth
 is written in the skill's baseline header.
 
+**The check reads an entry the way the scanner's YAML loader does, or refuses
+it.** `node scripts/check.mjs` reads each baseline with a small hand-written
+reader, so it refuses the spellings the two would read differently: an entry
+value that is not double-quoted (a bare value ends at a ` #` comment in YAML,
+and a bare `~` or `null` reads as no value), a `rule_id` holding `*`, `?` or `[`
+(the scanner reads it as a pattern), and a `file` or `message` made only of
+wildcard characters (it reads as narrowing and narrows nothing).
+
 **A shared reason is held to one wording.** A change to a reason the root shares
 with a skill's baseline forces the same change there.
 
