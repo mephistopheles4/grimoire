@@ -58,9 +58,9 @@ code does. [SkillSpector](https://github.com/NVIDIA/SkillSpector) reads it, and
 [`.github/workflows/skillspector.yml`](../../.github/workflows/skillspector.yml)
 runs it on every pull request and every push to `main`.
 
-**The pin.** Commit `69dcdfb74487d361ba4c811d088cfdea2ff3a9dc`, which is the
-`v2.11.2` tag in the `NVIDIA` repository: a final release, not a pre-release,
-with no published advisory on 2026-10-09, the day it was pinned. The owner is
+**The pin.** Commit `091a509b3d6ba8ff5be528966e1f43c2e68cf214`, which is the
+`v2.13.0` tag in the `NVIDIA` repository: a final release, not a pre-release,
+with no published advisory on 2026-10-17, the day it was pinned. The owner is
 part of the pin, because a fork exists elsewhere. **Dependabot does not watch
 this pin**: it reads `uses:` lines, and the scanner is installed from a `run:`
 line. A bump is a reviewed pull request.
@@ -159,7 +159,7 @@ and carries a reason. The rules that hold it:
 The allowance lives at the repository root, not in each skill. The gate reads
 it, not SkillSpector, so a copy inside an installed skill would do nothing for
 someone scanning it, and an entry change would touch the skill. The cost is
-that a reader who scans an installed skill with 2.11.2 sees the partial reads
+that a reader who scans an installed skill with 2.13.0 sees the partial reads
 with no shipped explanation. This page is that explanation.
 
 
@@ -185,7 +185,7 @@ first reason above: a skill directory is what installs.
 
 ### Partial reads
 
-Under 2.11.2 the scanner reads some files in `eagle-eye`, `groundtrack` and
+Under 2.13.0 the scanner reads some files in `eagle-eye`, `groundtrack` and
 `head-chef` only in part, and the gate accepts each one by
 name. In plain words, the two reasons are:
 
@@ -209,7 +209,7 @@ Each suppression is keyed by **rule**, with a written reason.
 | Rule | Name | Why it is suppressed |
 | --- | --- | --- |
 | `AR2` | Anti-Refusal Statement | `SKILL.md` warns that a preview pane may render the page without script, so do not judge it from one. It adds a caveat; it does not remove one. |
-| `AS3` | Skill Enumeration | A `README.md` line naming this repository's own skills, the decision records quoting it, and `head-chef`'s contract naming its own `SKILL.md`. **On `head-chef` it is off for the whole skill**, added in #206; see below the table. |
+| `AS3` | Skill Enumeration | A `README.md` line naming this repository's own skills, the decision records quoting it, and `head-chef`'s contract naming its own `SKILL.md`. **Root only since 2026-10-17.** From 2.12.0 it no longer fires when a skill is scanned on its own, so `eagle-eye` and `head-chef` dropped their entries; it still fires in a scan of the whole repository, on those two skills' contracts among other files. |
 | `EA2` | Autonomous Decision Making | Texts that describe what an agent may do on its own and give no such instruction: the `why` text on an edge in `eagle-eye`'s example box file, which the renderer prints for a reader; in `contract`, the labels, headings and comments in the format check, the bindings and the README that name the settings the check warns on because they let an agent act without asking; the step that lists unconfirmed drafts as *Proposed* without asking about each one; and `eagle-eye`'s rule that when the person asks for the box by name, it builds the box without asking again, because the request is the go-ahead. **On `contract` it is off for the whole skill**, `SKILL.md` and the template that seeds every file it generates included. The owner accepted that breadth on 2026-09-27; see below the table. |
 | `EA3` | Scope Creep | The warranty disclaimer of the SIL Open Font Licence, shipped beside `groundtrack`'s fonts. A legal text we must carry verbatim. |
 | `MP3` | Memory Manipulation | A template comment describing how **Reset** discards a reader's overrides and **Undo** offers them back. |
@@ -219,15 +219,15 @@ Each suppression is keyed by **rule**, with a written reason.
 | `E1` | External Transmission | **Accepted, not a false positive.** The edge audit posts a box's text to the provider after a yes. See [the edge audit](edge-audit.md). |
 | `P2` | Hidden Instructions | A layout comment in `groundtrack`'s template. The rule matches *get* inside *together*. And `contract`'s part fences: a begin and an end comment line around each generated part of its `SKILL.md`, naming the part. **On `contract` it is off for the whole skill**, so an instruction hidden there in a comment, invisible characters or a data link would pass the scan; added on 2026-10-15. |
 | `MP1` | Persistent Context Injection | A row of `contract`'s change log that records why the skill was rebuilt: every earlier review finding had become *a permanent rule*. Its entry names that one file, so it still fires anywhere else; added on 2026-10-15. |
+| `TR2` | Shadow Command Trigger | `head-chef`'s description, where *run* and *start* are verbs about sessions and the one slash command is the skill's own, `/head-chef`. The rule reads a common command word beside a slash command as a skill taking over that command. The rule reads only a skill's frontmatter, so a file glob alone would narrow nothing. The entry also carries a `message` value with no wildcard: the clause exactly as the scanner quotes it, which for a long sentence is a window of up to 120 characters either side of the slash command. TR2 still fires on any other clause, in any skill, and on this one once any word inside that window changes, an addition included. Words outside the window are not read by TR2 at all, and the match ignores case. Added on 2026-10-17. |
 | `LP3` | MCP Least Privilege | **Accepted.** Neither skill declares a permission list, because that is one host's format and the skills run in agents that read none. On `groundtrack` it fires only when every file is marked executable, as on a Windows drive seen through WSL. |
 
 **Open: narrower suppression for one skill.** An entry for a rule another skill
 shares cannot be narrowed to one file today. `node scripts/check.mjs` holds each skill's entry to
 the root's words and scope, so the `contract` skill's `EA2` entry covers its
 whole directory, not only the texts it is about. A new `EA2` finding anywhere in
-that skill would be suppressed and would not fail the build. The same holds for `head-chef`'s `AS3` entry, added in #206: a later
-`head-chef` text that lists or reads other skills would pass the scan, and only
-review of the prose would catch it. And for `contract`'s `P2` and `RA2`
+that skill would be suppressed and would not fail the build. The same held for
+`head-chef`'s `AS3` entry, added in #206, until it was dropped on 2026-10-17. And for `contract`'s `P2` and `RA2`
 entries, added on 2026-10-15. With `P2` off, an instruction hidden anywhere in
 that skill would pass the scan: in a comment or a link-reference comment, in
 invisible characters (zero-width, direction-changing or Unicode tag
@@ -236,7 +236,11 @@ to persist on the person's machine: a scheduled job, a startup or profile file,
 a background process or a hidden folder. The skill's template would copy any of
 them into every file it builds, and only review of the prose would catch it.
 `MP1` is not shared, so its entry names the one file it fires on,
-`contract.changelog.md`, and it still fires anywhere else. Narrowing a shared
+`contract.changelog.md`, and it still fires anywhere else. `TR2` is not shared
+either. It reads only a skill's frontmatter, so a file glob would narrow
+nothing, and its entry also carries a `message` with no wildcard: the one
+clause of `head-chef`'s description it is about, exactly as the scanner quotes
+it, case aside. Narrowing a shared
 rule needs a change to that check, with its own review. Until then the breadth
 is written in the skill's baseline header.
 

@@ -146,11 +146,11 @@ jobs:
       # contributor's machine, which is the point: the check script runs on
       # Node with nothing installed, and this is a Python tool.
       #
-      # SkillSpector v2.11.2. A fork of this scanner exists under a different
+      # SkillSpector v2.13.0. A fork of this scanner exists under a different
       # owner, so the owner is part of the pin, not decoration.
       - name: Install SkillSpector
         run: |
-          pipx install "git+https://github.com/NVIDIA/SkillSpector.git@69dcdfb74487d361ba4c811d088cfdea2ff3a9dc" # v2.11.2
+          pipx install "git+https://github.com/NVIDIA/SkillSpector.git@091a509b3d6ba8ff5be528966e1f43c2e68cf214" # v2.13.0
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
 
       # Verified, not assumed. An install that put no entry point on the PATH

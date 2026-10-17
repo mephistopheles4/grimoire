@@ -11,18 +11,23 @@
 # you. It is a quotation of the install command, not a server, and the skill
 # itself runs nothing through npx.
 #
-# The second is on `CONTRACT.md`, whose checkpoint log names the skill's own
-# `SKILL.md`, the file the contract generates. The rule reads any path to a
-# `SKILL.md` as one skill reading another's. The skill reads no other skill.
+# The second is on the description in `SKILL.md`. The rule reads a clause that
+# holds a common command word, such as run, beside a slash command as a skill
+# taking over that command. Here run and start are verbs about sessions, and
+# the slash command is the skill's own, /head-chef. Its entry matches that one
+# clause exactly as the scanner quotes it, with no wildcard and ignoring case.
+# The scanner quotes up to 120 characters either side of the slash command, so
+# the rule still fires on any other clause, and on this one once any word
+# inside that window changes. Words outside the window it does not read.
 #
 # The scanner reports the score unchanged and applies none of this unless you
 # ask. Apply it with --use-shipped-baseline, and read what it covered with
 # --show-suppressed.
 #
 # Each entry is keyed by rule identifier rather than by a fingerprint of the
-# text it matched, so it survives an edit to the prose, and it suppresses the
-# rule across this directory. Nothing here was reworded to satisfy a pattern
-# matcher.
+# text it matched, so it survives an edit to the prose. An entry that names no
+# file suppresses its rule across this directory. Nothing here was reworded to
+# satisfy a pattern matcher.
 #
 # The repository this skill comes from carries the same entries, in the same
 # words, in the file at its root. Its check refuses a change that makes the
@@ -32,7 +37,9 @@ version: 2
 fingerprints: []
 
 rules:
-  - rule_id: "AS3"
-    reason: "False positive. A README line naming the one skill this repository ships, the decision records quoting that line, and a skill's contract naming the SKILL.md it was drafted from. Naming your own product or its own source file is not enumerating somebody else's."
   - rule_id: "RP1"
     reason: "False positive. The README install command and quotations of it. skills is the Vercel Labs installer run through npx, not an MCP server, so there is no server version to pin."
+  - rule_id: "TR2"
+    file: "*SKILL.md"
+    message: "e asks for work to run in another session, to start or hand off to a new session, or to lead several sessions, or types /head-chef"
+    reason: "False positive. The rule reads a skill description as taking over a built-in command when one clause holds a common command word and a slash command. The head-chef skill is for someone who asks for work to run in another session, or to start one, or who types /head-chef: run and start are verbs about sessions there, and the only slash command is the skill's own name. The skill takes over no built-in command."
