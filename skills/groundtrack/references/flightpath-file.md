@@ -244,7 +244,7 @@ validator refuses each entry in `nodes.<id>.channels.error` or
 `nodes.<id>.channels.requirements` that is not a string. Those two lists keep
 their own words when they are not arrays. For `error` the words are `expected
 an array of failure tags`. For `requirements` they are `expected an array of
-tokens`. A refusal names the path, and never the value. See
+tokens`. These refusals name the path, and never the value. See
 [What a refusal says](#what-a-refusal-says) for a field of the wrong type.
 
 **An entry can be any string, a prototype-member name such as `constructor`
@@ -267,9 +267,10 @@ path. The page still renders. These forms count as absolute:
 - `~` and a user name, such as `~ada/…`.
 
 `~/…`, a web URL and a relative path are not reported. The check reads only
-these four fields. It does not read an editor's own URL scheme, a `..` path,
-or a path in any other field, such as a blurb, an aside or a captured value.
-Remove a home path there yourself before you share the page.
+these four fields. It does not report an editor's own URL scheme or a `..`
+path. It does not read a path in any other field, such as a blurb, an aside
+or a captured value. Remove a home path there yourself before you share the
+page.
 
 ### role
 
@@ -548,8 +549,8 @@ greet.flightpath.json: title: expected a string
 greet.flightpath.json: files[0].adds: expected a number
 ```
 
-The fields held to numbers are a file's `adds` and `dels`, a move's `at`,
-`next` and `attempt`, and a tour stop's `move`. `args`, `bind`, `env`, a run's
+These fields hold numbers: a file's `adds` and `dels`, a move's `at`, `next`
+and `attempt`, and a tour stop's `move`. `args`, `bind`, `env`, a run's
 `input`, and a move's `value` and `result` hold any value. A step in `steps`
 is an object, and a `null` step is refused as `expected an object`.
 
@@ -623,8 +624,8 @@ exits zero. Each one is a thing you may have meant.
 - **An `error` list declaring a tag nothing beneath it can produce.** A node
   produces a tag three ways: it throws it, a step of it declares a handler for
   it, or one of its effects threw it in a trace this file carries.
-- **A file in the change that no node accounts for**, by name, or by its
-  `files` entry when the path is absolute. It reads every
+- **A file in the change that no node accounts for**, by name. An absolute
+  path is named by its `files` entry. It reads every
   node of the change, so a file one graph covers is not reported because
   another graph does not.
 - **A node no graph's entry reaches**, so no sheet draws it. Legal: a node you
