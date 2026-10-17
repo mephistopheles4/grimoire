@@ -309,17 +309,23 @@ async function pollAgents($: EngineInterface, open: () => boolean) {
       // row the engine writes. Read only a roster member's, through the
       // finder's result for this poll, which passed the place check: again
       // whenever the found path changes, the misses kept too, and nothing
-      // over the read cap. A link from a path the finder dropped, or from one
-      // it moved off, goes, and so does a stored link when nothing is found,
-      // even after a reload has emptied `linkFrom`. A name the finder did not
-      // look for, one with no row or one two rows share, is left as it was.
-      // The read comes first and is kept only if the pane is still open, so a
+      // over the read cap: a transcript past 4 MiB keeps the link read while
+      // it was smaller, a reload and a moved path included (#308). A link
+      // from a path the finder dropped, or from one it moved off at 4 MiB or
+      // less, goes, and so does a stored link when nothing is found, even
+      // after a reload has emptied `linkFrom`. A name the finder did not look
+      // for, one with no row or one two rows share, is left as it was. The
+      // read comes first and is kept only if the pane is still open, so a
       // close during it records nothing and the next poll tries again.
       const members = new Set(cards.filter(c => c.desktopId === undefined && c.url === undefined).map(c => c.title))
       const stored = new Set((await read($, links)).map(p => p.name))
       for (const [name, at] of finder.byName) {
-        const step = linkStep(at?.path, linkFrom.get(name), stored.has(name))
+        const step = linkStep(at?.path, linkFrom.get(name), stored.has(name), at?.size)
         if (!members.has(name) || step === 'skip') continue
+        if (step === 'keep' && at !== undefined) {
+          linkFrom.set(name, at.path)
+          continue
+        }
         if (!open()) return
         // No transcript, one too large, or none for this kind of session: no link.
         const url =

@@ -2368,6 +2368,27 @@ test('the Remote Control link is read again when the found path changes, and goe
   ])
   holdsNoPath(w)
 })
+
+test('a link read at 4 MiB or less is kept when the member is found at a new path past 4 MiB (#308)', async ($, on) => {
+  const w = await moved(on, $, w => plantIn(w, LAUNCH, 'HOME1'))
+  const m = await mountOn($, 'desktop')
+  await m.press({ key: 'open-0-gamma' })
+  // The member moves into a worktree, where its transcript is past 4 MiB:
+  // the engine would refuse the read, and the link it had stays.
+  w.nodes.delete(key(`${LAUNCH}\\${MID}.jsonl`))
+  w.dirs(WORKTREE)
+  const pad = ' '.repeat(4 * 1024 * 1024)
+  w.put(`${WORKTREE}\\${MID}.jsonl`, { type: 'file', data: { text: `${bridge('WT1')}\n${pad}\n${callAt(w.clock.now() - MINUTE)}\n`, mtimeMs: w.clock.now() } })
+  await w.clock.advance(60000)
+  await w.clock.settle()
+  await m.redraw(PANE_PROPS)
+  await m.press({ key: 'open-0-gamma' })
+  expect(explorer(w)).toEqual([
+    ['explorer.exe', 'claude://claude.ai/code/session_HOME1'],
+    ['explorer.exe', 'claude://claude.ai/code/session_HOME1'],
+  ])
+  holdsNoPath(w)
+})
 // --- the context meter -----------------------------------------------------------
 //
 // Spec revision 3 on #251, S5 and S6; ticket #271. The meters are planted as

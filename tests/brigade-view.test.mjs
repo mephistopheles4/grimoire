@@ -2007,6 +2007,27 @@ test('the link read: a new found path is read, the same one skipped, and with no
   // After a reload: no remembered path, a stored link, and nothing found.
   assert.equal(linkStep(undefined, undefined, true), 'drop');
   assert.equal(linkStep(undefined, undefined, false), 'skip');
+  // At or under 4 MiB a new path is read, as before.
+  assert.equal(linkStep('p', undefined, true, MAX_TRANSCRIPT_BYTES), 'read');
+});
+
+test('the link read past 4 MiB keeps the stored link: no read, no drop, a reload and a moved path included (#308)', () => {
+  // q3 A and q4 A on #308: a session's Remote Control link does not change,
+  // so the link read while the transcript was small stays once it is not.
+  const { linkStep } = view;
+  const big = MAX_TRANSCRIPT_BYTES + 1;
+  assert.equal(linkStep('p', undefined, true, big), 'keep', 'after a reload: kept, though no path is remembered');
+  assert.equal(linkStep('p', 'q', true, big), 'keep', 'a moved path past 4 MiB: kept');
+  assert.equal(linkStep('p', undefined, false, big), 'keep', 'nothing stored: nothing to keep, and no read');
+  assert.equal(linkStep('p', 'p', true, big), 'skip', 'the same path: skipped, as before');
+  assert.equal(linkStep('p', undefined, true, Number.NaN), 'keep', 'a size that is not a number is never read');
+  assert.equal(linkStep(undefined, 'p', true, big), 'drop', 'nothing found: dropped, as before');
+});
+
+test('the pane keeps a stored link on a keep step: it remembers the path and changes no link', () => {
+  const register = readFileSync(join(root, 'brigade/register.tsx'), 'utf8');
+  assert.match(register, /const step = linkStep\(at\?\.path, linkFrom\.get\(name\), stored\.has\(name\), at\?\.size\)\n/);
+  assert.match(register, /\n\s+if \(step === 'keep' && at !== undefined\) \{\n\s+linkFrom\.set\(name, at\.path\)\n\s+continue\n\s+\}\n/);
 });
 
 test('the not-found line: "◆ transcript not found", dim, whatever the live state, with no cache bar; the stored check keeps it', () => {
