@@ -15,9 +15,9 @@
 
 import { test, after } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtempSync, rmSync, writeFileSync, readFileSync, existsSync, readdirSync, linkSync, symlinkSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, rmSync, writeFileSync, readFileSync, existsSync, readdirSync, linkSync, symlinkSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { join, sep } from 'node:path';
 import { createHash } from 'node:crypto';
 import { root, groundtrack, examples, exampleFlightpath, layeredFlightpath, run, errorPastTwoSites } from './helpers.mjs';
 
@@ -870,8 +870,9 @@ test('a crash left in the renderer prints one line naming the file, and exits 2'
   assert.equal(r.code, 2, r.stderr.slice(0, 400));
   assert.equal(r.stderr.trim(), `${file}: the renderer stopped on this file (RangeError)`);
   // A page that cannot be written names the page, not a good input file.
+  // A fake home, so the temp folder is never under it whatever the machine.
   const target = join(work, 'no-such-folder', 'page.html');
-  const w = run(groundtrack, [derive(() => {}), '--out', target]);
+  const w = run(groundtrack, [derive(() => {}), '--out', target], { env: fakeHome().env });
   assert.equal(w.code, 2, w.stderr);
   assert.equal(w.stderr.trim(), `cannot write ${target}: ENOENT`);
 });
@@ -2536,6 +2537,75 @@ test('a file that is not JSON is refused before anything else', () => {
   const r = run(groundtrack, [p, '--check']);
   assert.equal(r.code, 2);
   assert.match(r.stderr, /cannot read /);
+});
+
+// A file that cannot be opened is named as it was given, never by the path
+// it resolved to, so a home folder and its user name stay off the line (#330).
+const fakeHome = () => {
+  const home = join(work, `home-${Math.random().toString(36).slice(2)}`);
+  mkdirSync(home);
+  return { home, env: { HOME: home, USERPROFILE: home } };
+};
+
+test('a missing file given by a relative path is named by that path and no home folder', () => {
+  const { home, env } = fakeHome();
+  const r = run(groundtrack, ['nope.flightpath.json', '--check'], { cwd: home, env });
+  assert.equal(r.code, 2);
+  assert.match(r.stderr, /^cannot read nope\.flightpath\.json: ENOENT$/m);
+  assert.ok(!r.stderr.includes(home), r.stderr);
+});
+
+test('a missing file given by an absolute path under the home folder is named from ~', () => {
+  const { home, env } = fakeHome();
+  const r = run(groundtrack, [join(home, 'nope.flightpath.json'), '--check'], { env });
+  assert.equal(r.code, 2);
+  assert.match(r.stderr, /^cannot read ~[\\/]nope\.flightpath\.json: ENOENT$/m);
+  assert.ok(!r.stderr.includes(home), r.stderr);
+
+  // Windows reads a path in any case and with either slash, so each is home.
+  if (process.platform === 'win32') {
+    for (const given of [join(home.toUpperCase(), 'nope.json'), `${home.replaceAll('\\', '/')}/nope.json`]) {
+      const w = run(groundtrack, [given, '--check'], { env });
+      assert.match(w.stderr, /^cannot read ~[\\/]nope\.json: ENOENT$/m, given);
+    }
+  }
+
+  // A sibling that only starts with home's name, and a path outside home, print as given.
+  for (const given of [`${home}x${sep}nope.json`, join(work, 'nope.json')]) {
+    const o = run(groundtrack, [given, '--check'], { env });
+    assert.equal(o.stderr.trim(), `cannot read ${given}: ENOENT`);
+  }
+
+  // The not-JSON line names its file the same way.
+  writeFileSync(join(home, 'broken.json'), '{ not json');
+  const j = run(groundtrack, [join(home, 'broken.json'), '--check'], { env });
+  assert.match(j.stderr, /^cannot read ~[\\/]broken\.json: not valid JSON/m);
+});
+
+test('a page is named as given, from ~ under the home folder, whether it was written or not', () => {
+  const { home, env } = fakeHome();
+  const prog = join(home, 'p.flightpath.json');
+  writeFileSync(prog, readFileSync(exampleFlightpath, 'utf8'));
+  const outs = [
+    [join(home, 'page.html'), /^wrote ~[\\/]page\.html$/m],
+    [join(home, 'gone', 'page.html'), /^cannot write ~[\\/]gone[\\/]page\.html: ENOENT$/m],
+    ['page.html', /^wrote page\.html$/m],
+    [join('gone', 'page.html'), /^cannot write gone[\\/]page\.html: ENOENT$/m],
+    [home, /^cannot write ~: EISDIR$/m],
+  ];
+  if (process.platform === 'win32') outs.push([`${home.replaceAll('\\', '/')}/slash.html`, /^wrote ~[\\/]slash\.html$/m]);
+  for (const [out, line] of outs) {
+    const r = run(groundtrack, [prog, '--out', out], { cwd: home, env });
+    assert.match(r.stderr, line, out);
+    assert.ok(!r.stderr.includes(home), r.stderr);
+  }
+});
+
+test('a file that cannot be opened is named through the escape', () => {
+  const r = run(groundtrack, ['a\u{1b}[31mb.json', '--check'], { cwd: work });
+  assert.equal(r.code, 2);
+  assert.ok(!r.stderr.includes('\u{1b}'), r.stderr);
+  assert.match(r.stderr, /^cannot read a\\u001b\[31mb\.json: ENOENT$/m);
 });
 
 /* -- run through a linked skill directory ---------------------------------- */
