@@ -33,7 +33,9 @@ request.
 **The Brigade mod is code Claude Code runs in every session that has the
 plugin.** It is a hooks module, `brigade/register.tsx`, named by
 `hooks/hooks.json`, and it runs with the session's own rights. At session start
-it registers `/brigade` and does nothing else. While its pane is open it runs
+it registers `/brigade` and the two hooks of its usage summary writer, below,
+and since 0.60.0 it is no longer idle by default
+([ADR 0008](docs/adr/0008-brigade-is-no-longer-idle-by-default.md)). While its pane is open it runs
 `claude agents --json`, reads the lead session's roster file from the plugin's
 data folder, and reads other sessions' transcripts to find a session's link
 and its model calls' usage, which gives each card its cache-warmth line and,
@@ -54,7 +56,7 @@ On an Open in app press it reads three environment variables, `OS`,
 `SystemRoot` and `windir`, only to tell whether each is set or `OS` is
 `Windows_NT`; it never stores, shows or sends them.
 It makes no network request of its own; its one tool call, below, goes to
-whatever connected server answers to the name `ccd_window`. It writes one file, the lead session's roster,
+whatever connected server answers to the name `ccd_window`. Besides each session's own usage summary, below, it writes one file, the lead session's roster,
 through a tool the model calls, `set_roster`, which skips Claude Code's
 permission prompt. So that write has no human and no classifier review; every
 call is still recorded in the transcript as the tool's result. The tool exists
@@ -80,7 +82,47 @@ on Windows, as before, `/usr/bin/open` on macOS and `/usr/bin/xdg-open` on
 Linux, the last two by absolute path. The absolute path pins only the opener:
 on Linux it then starts its desktop helper, or a fallback browser, by name on
 the inherited PATH. On a host it cannot identify it runs nothing.
-Everything it reads is checked and drawn as text, in the usage image too. Review any change under
+Everything it reads is checked and drawn as text, in the usage image too.
+
+**Since 0.60.0 every session that has the plugin writes its own usage
+summary file**, whether or not it is in a brigade, from its first model call.
+A per-call hook (`turn.step`) and a turn-end hook (`turn.complete`) keep the
+session's own numbers in memory and write them, numbers only, to
+`brigade/usage/<session id>.json` in the plugin's data folder: at most once
+every 15 seconds while a turn runs, and at each turn end. The file holds one
+exact list of keys: a format version, the time of the last call and its
+context size, the context size of the last 30 calls, the new tokens of each of
+the last 30 minutes, the model family's window size from the fixed table, and
+whether any call wrote or read cache. Never a model id, message id, text,
+path, cost, rate limit or cache window; the writer makes no session usage call
+at all. The write goes only where the roster's link-refusing path rule allows,
+in a folder apart from the rosters, and overwrites only a file that is itself a
+summary file, so a planted hard link to another file is refused. The path rule
+runs again after the write. On any refusal the writer stops for the rest of
+the session, with one toast. It asks no permission:
+- **What the file reveals:** when each session last worked, its context size
+  and its minute-by-minute burn, for every session the plugin ran in. Any
+  process running as the owner, other plugins, and anything that backs up or
+  syncs the config folder can read it. It is not encrypted, like the
+  transcripts beside it.
+- **What does not reach the write:** no permission rule, mode, owner hook or
+  classifier sees it, and it leaves no record in the transcript. Disabling the
+  plugin is the only way to stop it.
+- **What accumulates:** the mod never removes a summary file. There is one per
+  session id, a clear or a resume starts a new one, and a file may outlast its
+  transcript. The owner can delete the `brigade/usage/` folder by hand.
+- **The race:** the check-and-write race the roster has now recurs in every
+  session, with no hijacked lead needed, and a hard link between two
+  summary-shaped files is not caught, as for rosters.
+- **Once the pane reads the files** (issue #312), a summary file that passes
+  its checks outranks the transcript at every size, with no check against it.
+  A forged file from another process running as the owner can then show any
+  warmth, on members whose transcript is over 4 MiB too; row 15 names this gap,
+  which the owner accepted. A step the transcript would not count restarts the
+  hour, and a stopped writer leaves a card reading colder, never warmer, once
+  the member is idle.
+
+Review any change under
 `brigade/` or `hooks/` as a change to code that runs on every installer's
 machine: [row 15 of the threat model](docs/security/threat-model.md#the-matrix)
 has the guards and the gaps.
