@@ -56,9 +56,12 @@ const probe = join(scratch, 'probe');
 
 // Each fixture: its name, how it is made, and where a resolving stat should
 // land if it lands anywhere (its own path, or the link's target).
+// BRIGADE_STATS_BREAK_FIXTURE names one fixture to fail on purpose, so the
+// tests can check that a failed run still removes its scratch folder.
 const made = [];
 function fixture(name, lands, make) {
   try {
+    if (process.env.BRIGADE_STATS_BREAK_FIXTURE === name) throw new Error('broken on purpose by BRIGADE_STATS_BREAK_FIXTURE');
     make(join(fx, name));
     made.push({ name, lands });
   } catch (err) {
@@ -69,7 +72,7 @@ function fixture(name, lands, make) {
 }
 
 let output;
-try {
+record: try {
   mkdirSync(join(fx, 'target-dir'), { recursive: true });
   writeFileSync(join(fx, 'target-file.txt'), 'hello');
 
@@ -89,7 +92,9 @@ try {
     rmSync(join(fx, 'gone-file.txt'));
   });
   fixture('hard-link', 'self', p => linkSync(join(fx, 'target-file.txt'), p));
-  if (process.exitCode) process.exit();
+  // Leave by the finally, which removes the scratch folder: process.exit()
+  // here would skip it and leave the fixtures on disk (issue 282).
+  if (process.exitCode) break record;
 
   // Paths that are not there, three ways: plainly, under a junction, and
   // under a file.
@@ -194,6 +199,7 @@ export const RECORDED = ${JSON.stringify(recording, null, 2).replace(/"([A-Za-z]
 } finally {
   rmSync(scratch, { recursive: true, force: true });
 }
+if (process.exitCode) process.exit();
 
 if (write) {
   writeFileSync(OUT, output);
