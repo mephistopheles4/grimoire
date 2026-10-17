@@ -162,11 +162,11 @@ its `SKILL.md` is generated from:
 [`skills/head-chef/CONTRACT.md`](skills/head-chef/CONTRACT.md).
 
 Since 0.60.0 every session with the plugin writes its own usage numbers to a
-small summary file. The pane does not read it yet: from issue #312 it draws a
-member whose transcript is too large to read from that file.
+small summary file. Since 0.61.0 the pane draws a member's card from that file
+whenever it passes its checks, so a member whose transcript is too large to
+read keeps its cache line, context meter and tabs.
 [`SECURITY.md`](SECURITY.md) says what the file holds and who can read it.
-**Known limit:** a card the pane draws from that file (from issue #312)
-counts its cache down from 1 hour after the last call, because the engine's
+**Known limit:** a card the pane draws from that file counts its cache down from 1 hour after the last call, because the engine's
 per-call usage does not say whether a call cached for 5 minutes or for 1 hour.
 A session whose main conversation is not on the 1-hour cache can then show
 warm for up to 55 minutes after its cache went cold, and its "reply within N

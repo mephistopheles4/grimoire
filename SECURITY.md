@@ -123,9 +123,9 @@ words. It asks no permission. What follows from it:
 - **The race:** the check-and-write race the roster has now recurs in every
   session, with no hijacked lead needed, and a hard link between two
   summary-shaped files is not caught, as for rosters.
-- **Once the pane reads the files** (issue #312), a summary file that passes
-  its checks outranks the transcript at every size, with no check against it.
-  A forged file from another process running as the owner can then show any
+- **Since 0.61.0 the lead's pane reads the files** (issue #312): a summary
+  file that passes its checks outranks the transcript at every size, with no
+  check against it. A forged file from another process running as the owner can show any
   warmth, on members whose transcript is over 4 MiB too; row 15 names this gap,
   which the owner accepted. A step the transcript would not count restarts the
   hour, and a stopped writer leaves a card reading colder once the member is

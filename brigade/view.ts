@@ -1,5 +1,5 @@
-import { SESSION_ID, foldsCase, oneLine, pathKey, projectFolder, sepOf } from './roster.ts'
-import type { AgentRow } from './roster.ts'
+import { SESSION_ID, foldsCase, oneLine, pathKey, placeSummary, projectFolder, sepOf, statRejection } from './roster.ts'
+import type { AgentRow, StatAnswer } from './roster.ts'
 import type { Meter, Pair, Sample, UsageCategory, UsageLimit, UsageSnapshot, Warmth } from './types'
 
 // What the Brigade pane draws, worked out from plain values: the render hook
@@ -11,7 +11,8 @@ import type { Meter, Pair, Sample, UsageCategory, UsageLimit, UsageSnapshot, War
 // to-do to done.
 //
 // The cache warmth: each card's ◆ line, read from the last real model call in
-// its session's transcript, and which transcripts the agents poll reads.
+// its session's summary file or transcript, and which of them the agents poll
+// reads.
 //
 // The call series and the context meter: what one read of a transcript gives
 // beyond the last call, stored as each card's meters record, and the meter
@@ -1834,14 +1835,174 @@ const readDue = (readAt: number | undefined, now: number) =>
 // For the order of working reads: never read, or read at no known time, first.
 const readOrder = (readAt: number | undefined) => (readAt !== undefined && Number.isFinite(readAt) ? readAt : -Infinity)
 
-/** The agents poll's transcript reads, and the records they give: the
- *  warmth records and the meters. Undefined when the pane closed on the way,
- *  so nothing is stored.
+// --- The summary reader ------------------------------------------------------
+//
+// A member's summary file, which its own session writes (see "The usage
+// summary writer" below), feeds its card whenever one passes its checks, at
+// every transcript size, and is never compared with the transcript (spec
+// revision 5 on #304, S4 "The reader"). The file is found by the agents row's
+// session id in the lead's own plugin data folder, under the roster's path
+// rule, read every poll, and checked from its stat size before any read.
+
+/** A file-fed card's cache window: a fixed hour, since a step's usage does
+ *  not say whether a call cached for 5 minutes or an hour. */
+export const HOUR_SUMMARY_MS = HOUR_MS
+
+/** What the summary reads remember of each member, by the agents row's
+ *  session id, in module memory only: the last summary that passed its
+ *  checks, and the modified time of the file that last failed one. */
+export type SummaryMemory = Map<string, { good?: Summary; failedAt?: number }>
+
+/** Nothing remembered yet. */
+export const newSummaryMemory = (): SummaryMemory => new Map()
+
+/** The summary reads a poll makes: the lead's own plugin data id, the folder
+ *  the files are found in, and what the reads remember between polls. */
+export type SummaryReads = { plugin: string; held: SummaryMemory }
+
+// The two kinds of refusal a card can draw, and their lines. A stored word
+// outside these draws nothing.
+const REFUSAL_LINES: ReadonlyMap<unknown, string> = new Map<unknown, string>([
+  ['path', '◆ summary path refused'],
+  ['file', '◆ not a summary file'],
+])
+const MAX_REFUSALS = 50
+
+/** The stored refusal pairs, checked again: plugin state is the engine's, and
+ *  another plugin may rewrite it. A pair goes unless its name is text of 1 to
+ *  300 characters not seen before and its value one of the two kind words;
+ *  at most 50 stay, each copied into a new pair. */
+export function refusalsFrom(stored: unknown): Pair[] {
+  const out: Pair[] = []
+  if (!Array.isArray(stored)) return out
+  const names = new Set<string>()
+  for (const p of stored) {
+    if (out.length >= MAX_REFUSALS) break
+    if (!isRecord(p) || typeof p.name !== 'string' || p.name === '' || p.name.length > MAX_NAME || names.has(p.name)) continue
+    if (typeof p.value !== 'string' || !REFUSAL_LINES.has(p.value)) continue
+    out.push({ name: p.name, value: p.value })
+    names.add(p.name)
+  }
+  return out
+}
+
+/** A card's dim refusal line, read only through the two kind words, or
+ *  undefined: "summary path refused" or "not a summary file". */
+export function refusalLine(stored: unknown, title: string): string | undefined {
+  return REFUSAL_LINES.get(refusalsFrom(stored).find(p => p.name === title)?.value)
+}
+
+// What one member's summary read decided: a summary to draw from; none, so
+// the card comes from the transcript; or a refusal line, and the card from
+// the transcript.
+type SummarySource = { summary: Summary } | { none: true } | { refused: 'path' | 'file' }
+
+// The path rule's `stat`, from the poll's: a rejection sorted into missing or
+// failed by its message, a link anything but an answer of exactly false, and
+// the file's modified time kept for `placedAt`, from the same `stat` that
+// placed it.
+function ruleStat(io: FinderIo, seen: Map<string, number>): (path: string) => Promise<StatAnswer> {
+  return path =>
+    io.stat(path).then(
+      s => {
+        if (!isRecord(s)) return { failed: 'not a stat' }
+        seen.set(path, s.mtimeMs)
+        const kind = s.kind === 'file' || s.kind === 'dir' ? s.kind : 'other'
+        const found = { kind, size: s.size, isLink: s.isLink !== false } as const
+        return { found: typeof s.realPath === 'string' ? { ...found, realPath: s.realPath } : found }
+      },
+      err => statRejection(String(err instanceof Error ? err.message : err)),
+    )
+}
+
+/** One member's summary file, by the rule for each kind of failure (spec S4):
+ *  - the path rule refuses: the "path" refusal, nothing held;
+ *  - no file there: none, nothing held;
+ *  - a format version this plugin does not know: none, nothing held;
+ *  - a passing file: drawn from, and held;
+ *  - any other failure (the stat size or the text over the cap, a read that
+ *    rejects, the strict check, a last call more than 2 minutes after the
+ *    file's modified time or ahead of `now`): the held summary, or none with
+ *    nothing held; the same file, by its modified time, failing two polls
+ *    running gives the "file" refusal, with nothing held after.
+ *  With no clock (`now` not a number) the file is not read: the held summary,
+ *  or none, and no failure is counted. Never rejects. */
+async function readSummary(config: string, sessionId: string, io: PollIo, now: number, reads: SummaryReads): Promise<SummarySource> {
+  const { held } = reads
+  const seen = new Map<string, number>()
+  const placed = await placeSummary(config, reads.plugin, sessionId, ruleStat(io, seen)).catch(() => ({ refused: '' }))
+  if ('refused' in placed) {
+    held.delete(sessionId)
+    return { refused: 'path' }
+  }
+  const existing = placed.existing
+  if (existing === undefined) {
+    held.delete(sessionId)
+    return { none: true }
+  }
+  const had = held.get(sessionId)
+  const keep = (): SummarySource => (had?.good === undefined ? { none: true } : { summary: had.good })
+  if (!Number.isFinite(now)) return keep()
+  const mtimeMs = seen.get(placed.file)
+  const checked = await checkedSummary(placed.file, existing.size, mtimeMs, now, io)
+  if (checked === UNKNOWN_SUMMARY_VERSION) {
+    held.delete(sessionId)
+    return { none: true }
+  }
+  if (typeof checked !== 'string') {
+    held.set(sessionId, { good: checked })
+    return { summary: checked }
+  }
+  // A failure. The same file failing again, by its modified time, is not a
+  // summary file; a time that is not a number is never the same.
+  if (had?.failedAt !== undefined && had.failedAt === mtimeMs) {
+    held.set(sessionId, { failedAt: mtimeMs })
+    return { refused: 'file' }
+  }
+  held.set(sessionId, { ...(had?.good === undefined ? {} : { good: had.good }), ...(typeof mtimeMs === 'number' && Number.isFinite(mtimeMs) ? { failedAt: mtimeMs } : {}) })
+  return keep()
+}
+
+// The summary at `file`, or why not, in fixed words: the stat size against
+// the cap before any read, the text's own size after it, the strict check,
+// then the last call against the file's modified time and the pane's clock.
+async function checkedSummary(file: string, size: number, mtimeMs: number | undefined, now: number, io: PollIo): Promise<Summary | string> {
+  if (!(size <= MAX_SUMMARY_BYTES)) return 'over the cap'
+  const text = await io.read(file).then(String, () => undefined)
+  if (text === undefined) return 'not read'
+  if (new TextEncoder().encode(text).length > MAX_SUMMARY_BYTES) return 'over the cap'
+  const checked = checkSummary(text)
+  if ('error' in checked) return checked.error
+  const s = checked.value
+  if (typeof mtimeMs !== 'number' || !Number.isFinite(mtimeMs) || s.lastAt > mtimeMs + SLACK_MS) return 'after its file'
+  if (s.lastAt > now + SLACK_MS) return 'ahead of the clock'
+  return s
+}
+
+// A summary as the card's two records: the warmth record, its window the
+// fixed hour when a call wrote or read cache and unknown otherwise, and the
+// meter record, through the meter check, its window left out when the file
+// has none.
+function summaryRecords(name: string, s: Summary): { warmth: Warmth; meter?: Meter } {
+  const warmth: Warmth = { name, kind: 'call', at: s.lastAt, tokens: s.lastTokens }
+  if (s.cache === 1) warmth.windowMs = HOUR_SUMMARY_MS
+  const meter = metersFrom([{ name, at: s.at, window: s.window, burn: s.burn, context: s.context }])[0]
+  return meter === undefined ? { warmth } : { warmth, meter }
+}
+
+/** The agents poll's summary and transcript reads, and the records they
+ *  give: the warmth records, the meters and the summary refusal pairs.
+ *  Undefined when the pane closed on the way, so nothing is stored.
  *
  *  Only a roster member is read, through the finder, which asks the real
  *  projects folder once for the poll and keeps each member's result in
  *  `finder.byName` for the link reads. A name on two rows is shared: neither
- *  transcript is looked for. A member the finder finds nowhere records "not
+ *  its summary file nor its transcript is looked for. With `summaries`, each
+ *  other member's summary file is read by `readSummary`'s rules: one that
+ *  passes gives its card's records at any transcript size, with no
+ *  transcript read for them, and a refusal adds a pair, the member's name
+ *  and `path` or `file`. A member with no summary to draw from is read from
+ *  its transcript, as follows. A member the finder finds nowhere records "not
  *  found". Each found transcript has passed the finder's place check, and
  *  one over 4 MiB is not read and records "too large". A transcript is read
  *  only when its modified time differs from the one `memory` holds for its
@@ -1863,19 +2024,36 @@ export async function readCalls(
   memory: ReadMemory,
   io: PollIo,
   finder: Finder = newFinder(),
-): Promise<{ warmth: Warmth[]; meters: Meter[] } | undefined> {
+  summaries?: SummaryReads,
+): Promise<{ warmth: Warmth[]; meters: Meter[]; refusals: Pair[] } | undefined> {
   const members = new Set(titles)
   const byName = new Map<string, AgentRow[]>()
   for (const r of rows) {
     if (members.has(r.name)) byName.set(r.name, [...(byName.get(r.name) ?? []), r])
   }
   // Each member's place in the output, in roster order: a record already
-  // known, or a transcript to read from.
-  type Slot = { warmth: Warmth } | { name: string; working: boolean; path: string; mtimeMs: number }
+  // known, with a meter when a summary file gave it, or a transcript to read
+  // from.
+  type Slot = { warmth: Warmth; meter?: Meter } | { name: string; working: boolean; path: string; mtimeMs: number }
   const slots: Slot[] = []
+  const refusals: Pair[] = []
   const named = new Set<string>()
   const ids = new Set<string>()
   let asked = false
+  // The clock, asked once a poll, before the summary reads need it.
+  let now = Number.NaN
+  let clocked = false
+  const clock = async () => {
+    if (clocked) return now
+    clocked = true
+    try {
+      now = await io.now()
+    } catch {
+      // No clock this poll: idle members are still read, none gets a meter,
+      // and no new summary record is taken.
+    }
+    return now
+  }
   finder.byName.clear()
   for (const [name, list] of byName) {
     const row = list[0]
@@ -1894,11 +2072,22 @@ export async function readCalls(
     const found = await findTranscript(config, row, io, finder)
     if (!io.live()) return undefined
     finder.byName.set(name, found)
+    if (found !== undefined) named.add(found.path)
+    // A passing summary file feeds the card at any transcript size; the
+    // transcript stays found for the link read.
+    if (summaries !== undefined && SESSION_ID.test(row.sessionId)) {
+      const source = await readSummary(config, row.sessionId, io, await clock(), summaries)
+      if (!io.live()) return undefined
+      if ('refused' in source) refusals.push({ name, value: source.refused })
+      if ('summary' in source) {
+        slots.push(summaryRecords(name, source.summary))
+        continue
+      }
+    }
     if (found === undefined) {
       slots.push({ warmth: { name, kind: 'not-found' } })
       continue
     }
-    named.add(found.path)
     if (!Number.isFinite(found.mtimeMs)) continue
     if (!Number.isFinite(found.size) || found.size > MAX_TRANSCRIPT_BYTES) {
       slots.push({ warmth: { name, kind: 'too-large' } })
@@ -1910,12 +2099,7 @@ export async function readCalls(
   // Which transcripts to read: every changed one of an idle member, and of
   // the changed ones of working members that are due, the 5 read longest
   // ago. A clock that rejects or is not a number reads no working member.
-  let now = Number.NaN
-  try {
-    now = await io.now()
-  } catch {
-    // No clock this poll: idle members are still read, and none gets a meter.
-  }
+  await clock()
   if (!io.live()) return undefined
   const files = slots.flatMap(s => ('warmth' in s ? [] : [s]))
   const changed = files.filter(f => {
@@ -1941,6 +2125,7 @@ export async function readCalls(
   for (const s of slots) {
     if ('warmth' in s) {
       warmth.push(s.warmth)
+      if (s.meter !== undefined) meters.push(s.meter)
       continue
     }
     const had = memory.get(s.path)
@@ -1959,7 +2144,8 @@ export async function readCalls(
   }
   for (const path of [...memory.keys()]) if (!named.has(path)) memory.delete(path)
   for (const id of [...finder.remembered.keys()]) if (!ids.has(id)) finder.remembered.delete(id)
-  return { warmth, meters }
+  if (summaries !== undefined) for (const id of [...summaries.held.keys()]) if (!ids.has(id)) summaries.held.delete(id)
+  return { warmth, meters, refusals }
 }
 
 /** What the link read does for a member the finder looked for this poll,
@@ -1981,7 +2167,7 @@ export type PollIo = FinderIo & { read: (path: string) => Promise<string> }
 //
 // Every session keeps its own usage numbers from its `turn.step` hook and
 // writes them, numbers only, to a summary file of its own, which the lead's
-// pane can read when the session's transcript is too large to. These are the
+// pane draws its card from (see "The summary reader" above). These are the
 // writer's decisions; brigade/writer.ts only feeds them, stats and writes.
 // A step is counted exactly as `callSeries` counts a transcript row, so the
 // numbers mean the same from either source.
