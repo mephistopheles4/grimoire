@@ -359,11 +359,13 @@ if (failures.length) {
         'route: one for AE1 would silence it for every file in the skill, accepted or not.\n\n'
       : '') +
     'A finding is either real or a false positive worth writing down. If it is a false\n' +
-    "positive, add a rule-keyed entry with a reason a stranger can read to the skill's\n" +
-    'own .skillspector-baseline.yaml — create it if the skill has none — and the same\n' +
-    'entry, in the same words, to .skillspector-baseline.yaml at the repository root.\n' +
-    'scripts/check.mjs holds the two together. Do not reword the prose, the comment or\n' +
-    'the test the finding landed on to satisfy a pattern matcher.';
+    "positive, add an entry with a reason a stranger can read to the skill's own\n" +
+    '.skillspector-baseline.yaml — create it if the skill has none — and the same rule,\n' +
+    'with the same reason, to .skillspector-baseline.yaml at the repository root. The\n' +
+    "skill's entry may name the one file the rule fired on, and is never broader than the\n" +
+    "root's; a rule the skill repeats names a file on every copy. scripts/check.mjs holds\n" +
+    'the two together. Do not reword the prose, the comment or the test the finding\n' +
+    'landed on to satisfy a pattern matcher.';
   console.error(`\n${advice}`);
 
   summary.push(`### ${cell(name)}: red`, '');

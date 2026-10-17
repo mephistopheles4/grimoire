@@ -27,33 +27,39 @@
 # ask. Apply it with --use-shipped-baseline, and read what it covered with
 # --show-suppressed.
 #
-# The entry is keyed by rule identifier rather than by a fingerprint of the text
-# it matched. A fingerprint expires the next time the prose is edited, and this
-# prose is edited constantly; a rule key survives that, and it also suppresses
-# the rule across the whole directory. The reason below is what that breadth is
-# paid for with.
+# Each entry names the one file its rule fired on when the entries were
+# measured, with SkillSpector v2.13.0 on 2026-10-17. The path is exact, and the
+# scanner matches it ignoring letter case. A finding of the same rule in any
+# other file is reported, and it fails this repository's build. That holds for a
+# scan of this skill's own folder. A scanner that ignores `file` applies each
+# entry to the whole folder.
 #
-# It is keyed by rule identifier and nothing else for a second reason here,
-# found by trying the alternative. Narrowing the entry to the licence file left
-# the rule live on this file — because the reason below quotes the phrase the
-# rule matches, which is how a reader can tell what was reasoned away. A
-# suppression that cannot say what it suppresses is worth less than the breadth
-# it saves.
+# An entry that names a file and no message covers every finding of its rule
+# anywhere in that file, not only the line it was measured on: assets/OFL.txt
+# for EA3, assets/template.html for P2 and SKILL.md for LP3. A new instruction of
+# one of those kinds in a named file passes the scan, and review is what holds
+# it. The LP3 entry names SKILL.md because that is where the rule lands in a
+# skill that trips it. That was not measured on a mount that marks every file
+# executable, so a report on another file there reaches you as new.
 #
 # Nothing here was reworded to satisfy a pattern matcher, and the licence text
 # could not be even if somebody wanted to.
 #
-# The repository this skill comes from carries the same file at its root,
-# covering the rules that fire outside this directory. Its check refuses a
-# change that makes the two disagree.
+# The repository this skill comes from carries the same rules at its root,
+# rule-wide, for a scan of the whole repository, covering the rules that fire
+# outside this directory. Its check lets a skill's entry be narrower than the
+# root's, never broader.
 
 version: 2
 fingerprints: []
 
 rules:
   - rule_id: "LP3"
+    file: "SKILL.md"
     reason: "Accepted. The skill declares no permission list, because a permission list is one host's format and the skill's text runs in agents that read none. SECURITY.md in the repository says which script reaches the network, when it runs, and what it sends."
   - rule_id: "EA3"
+    file: "assets/OFL.txt"
     reason: "False positive. The phrase NOT LIMITED TO, in the warranty disclaimer of the SIL Open Font Licence that ships beside the vendored font faces. It is a legal text the licence requires us to carry verbatim, not an instruction an agent obeys, and its wording is not ours to change."
   - rule_id: "P2"
+    file: "assets/template.html"
     reason: "False positive, two kinds. The rule reads get inside any HTML comment with no word boundary, so the word together in a page-template comment about two buttons wrapping as one group matches it; those comments are notes on layout for a maintainer, and no agent reads the rendered page as instructions. And the contract skill's part fences: one begin and one end comment line around each generated part of a SKILL.md, naming the part so an amendment can regenerate it alone. The fence holds a part's name and nothing else, and the text between two fences is the skill's ordinary, visible instructions."

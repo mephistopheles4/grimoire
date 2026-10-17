@@ -42,3 +42,14 @@ test('masked replaces the whole account segment and every copy of it', () => {
   assert.equal(masked('/home/someone/x and /Users/someone'), '/home/<name>/x and /Users/<name>');
   assert.equal(masked('no home here'), 'no home here');
 });
+
+test('two paths equal once case-folded are a pair, whichever way they fold', async () => {
+  const { caseTwinPaths } = await import('../scripts/lib/case.mjs');
+  assert.deepEqual(caseTwinPaths(['skills/a/Audit.mjs', 'skills/a/audit.mjs', 'skills/a/other.mjs']), [['skills/a/Audit.mjs', 'skills/a/audit.mjs']]);
+  assert.deepEqual(caseTwinPaths(['skills/\u{17F}/x', 'skills/S/x']), [['skills/\u{17F}/x', 'skills/S/x']]);
+  assert.deepEqual(caseTwinPaths(['skills/a', 'skills/a', 'skills/b']), []);
+  // The Kelvin sign lower-cases to k and upper-cases to itself, so only the
+  // lower-case fold pairs it with SKILL.md, and the scanner lower-cases.
+  const kelvin = `skills/a/S${String.fromCodePoint(0x212a)}ILL.md`;
+  assert.deepEqual(caseTwinPaths(['skills/a/SKILL.md', kelvin]), [['skills/a/SKILL.md', kelvin]]);
+});

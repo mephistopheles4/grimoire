@@ -33,8 +33,9 @@
 # `--use-shipped-baseline`. Read it with `--show-suppressed`.
 #
 # Each skill directory repeats the rules that fire inside it, because a
-# baseline is only found at the top of the directory actually scanned. `node scripts/check.mjs` fails if a repeated entry disagrees with
-# this one.
+# baseline is only found at the top of the directory actually scanned. `node scripts/check.mjs` fails if a repeated entry gives a different reason from this one, or is broader than it. eagle-eye, groundtrack and head-chef name the file each of their
+# entries covers, for a scan of the skill's own folder; this file stays rule-wide,
+# for a scan of the whole repository.
 
 version: 2
 fingerprints: []

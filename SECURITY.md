@@ -270,13 +270,18 @@ the test override: [`docs/security/edge-audit.md`](docs/security/edge-audit.md).
   any edit to it shows in review. A finding that only reports a reference to
   such a file passes too, when its count matches. See
   [Partial reads](docs/security/scanners.md#partial-reads). Every suppression
-  carries a written reason. A suppression is keyed by rule, so it holds for a
-  whole skill: P2 and RA2 are off for all of the contract skill, and MP1 for
-  its change log only. So an instruction hidden there in a comment, a
+  carries a written reason. In eagle-eye, groundtrack and head-chef each
+  entry is narrowed to the file it fires on (head-chef's TR2 keeps the root's
+  star), for a scan of the skill's own folder. The root file stays rule-wide, for a scan of the whole repository:
+  there E1 and PE3 still hide a send or a credential read in any file, the
+  mod's included. The contract skill keeps P2 and RA2 off for all of the
+  skill, and MP1 for its change log only. So an instruction hidden there in a comment, a
   link-reference comment or a base64 data link, or an instruction to persist
   on the machine (a scheduled job, a startup or profile file, a background
   process or a hidden folder), would pass the scan. Rule 2c refuses invisible
-  characters.
+  characters. The scan does not hold which providers receive the box text and
+  the key from the edge audit; review does, and a test holds the hosts written
+  as URLs in its source to two, all https.
 - **zizmor** audits the workflows and fails on any finding. There is no
   baseline, because there is nothing to suppress.
 - **Every action is pinned to a commit SHA**, and zizmor checks each SHA

@@ -36,11 +36,10 @@
 # folder. The template would copy any of them into every file this skill
 # builds. Read this folder's files yourself, the comments included. The owner
 # accepted the EA2 breadth on 2026-09-27, and the P2, RA2 and MP1 entries on
-# 2026-10-15, because an entry for a rule another skill shares cannot be
-# narrowed to one file today: the check in the repository this skill comes
-# from holds each skill's entry to the same words and the same scope as the
-# entry at the repository root. Narrower suppression for a shared rule is an
-# open follow-up. It needs a change to that check, with its own review.
+# 2026-10-15. The check in the repository this skill comes from now lets a
+# skill's entry be narrower than the entry at the repository root, never
+# broader. These entries stay whole-skill by the owner's choice, and this
+# file still names no file for them.
 #
 # The scanner reports the score unchanged and applies none of this unless you
 # ask. Apply it with --use-shipped-baseline, and read what it covered with
@@ -49,8 +48,9 @@
 # Nothing here was reworded to satisfy a pattern matcher.
 #
 # The repository root carries the same entries, and the repository's check
-# refuses a change that makes the two disagree. So a change to the shared reason
-# at the root forces the same change here.
+# refuses a skill entry that gives a different reason or is broader than the
+# root's. So a change to the shared reason at the root forces the same change
+# here.
 
 version: 2
 fingerprints: []

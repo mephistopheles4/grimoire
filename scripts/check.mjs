@@ -22,7 +22,9 @@
 //    6b. Every pointer the engine follows to the mod's code, and every
 //    relative import in it, lands inside the mod's folders.
 // 7. The SkillSpector baselines agree, so a rule reasoned away at the
-//    repository root is reasoned away the same way inside a skill.
+//    repository root is reasoned away the same way inside a skill: the same
+//    reason, and a skill entry no broader than the root's.
+//    7a. No two paths under skills/ differ only in case.
 //    7b. The SkillSpector allowance is well formed, names files that exist,
 //    and pins each one by its current content.
 // 8. The test suite passes. `node --test` ships with Node, so the tests cost no
@@ -35,7 +37,7 @@ import { fileURLToPath } from 'node:url';
 import { walk } from './lib/tree.mjs';
 import { ARTIFACTS, rowFor } from './lib/registry.mjs';
 import { ALLOWANCES, checkAgainstTree, diffAllowances, parseAllowances, readAllowances, unexplainedRehashes } from './lib/skillspector-allowances.mjs';
-import { caseTwin } from './lib/case.mjs';
+import { caseTwin, caseTwinPaths } from './lib/case.mjs';
 import { masked, printable, shown } from './lib/printable.mjs';
 
 const root = join(fileURLToPath(import.meta.url), '..', '..');
@@ -838,7 +840,7 @@ for (const e of existsSync(join(root, 'hooks')) ? readdirSync(join(root, 'hooks'
   if (caseTwin(e, 'hooks.json')) fail(`hooks/${shown(e)} is hooks/hooks.json in another case — an install that folds case loads it, and the check reads only hooks/hooks.json. Rename it.`);
 }
 
-// 7. The SkillSpector baselines agree.
+// 7. The SkillSpector baselines agree: a skill's entry gives the root's reason and is never broader.
 //
 // SkillSpector scans the prose this repository ships, and the workflow at
 // .github/workflows/skillspector.yml fails on any finding a baseline does not
@@ -850,10 +852,17 @@ for (const e of existsSync(join(root, 'hooks')) ? readdirSync(join(root, 'hooks'
 // root file is for a reader who scans the whole repository, which is what the
 // plugin route installs.
 //
-// Copies drift. The root file covers seven rules, a skill file the ones that
+// Copies drift. The root file covers thirteen rules, a skill file the ones that
 // fire inside it, and this rule holds the overlap to the same words. A rule
 // quietly reasoned away in one file and not another is a suppression nobody
 // has read.
+//
+// A skill's entry may be narrower than the root's, never broader. The root file
+// is for a scan of the whole repository and keeps its entries rule-wide; a
+// skill's file is for a scan of the skill's own folder, where a path is exact,
+// so it may name the one file its rule fires on. Narrowing is allowed only as
+// an exact path or an exact text, because this reader has no glob algebra and a
+// wildcard would make "narrower" a claim nobody here could check.
 //
 // Every baseline under skills/ is read, not a named pair. What this does not
 // hold is that each skill has one: it fails when skills/ carries no baseline
@@ -885,7 +894,7 @@ function scalar(v) {
   return m && !m[1].includes('\\') ? m[1] : null;
 }
 
-function readBaseline(path) {
+function readBaseline(path, { skill = false } = {}) {
   const problems = [];
   const top = {};
   const rules = [];
@@ -974,14 +983,28 @@ function readBaseline(path) {
   const seen = new Map();
   for (const r of rules) {
     if (!r.rule_id) problems.push(`${r.at}: a rule entry with no rule_id`);
-    else if (seen.has(r.rule_id.toLowerCase())) {
-      const first = seen.get(r.rule_id.toLowerCase());
-      problems.push(
-        first === r.rule_id
-          ? `${r.at}: ${r.rule_id} appears twice`
-          : `${r.at}: ${r.rule_id} and ${first} are one rule, because the scanner ignores letter case`,
-      );
-    } else seen.set(r.rule_id.toLowerCase(), r.rule_id);
+    else {
+      const key = r.rule_id.toLowerCase();
+      const earlier = seen.get(key) ?? [];
+      if (!skill && earlier.length) {
+        problems.push(
+          earlier[0].rule_id === r.rule_id
+            ? `${r.at}: ${r.rule_id} appears twice`
+            : `${r.at}: ${r.rule_id} and ${earlier[0].rule_id} are one rule, because the scanner ignores letter case`,
+        );
+      } else if (skill && earlier.length) {
+        // A skill baseline may name a rule once per file it fires in. A copy
+        // with no file would cover the rest of the folder and make the others
+        // pointless; two copies on one file are one entry written twice, and
+        // the scanner lower-cases the path before it compares.
+        if (r.file === undefined || earlier.some(e => e.file === undefined)) {
+          problems.push(`${r.at}: ${r.rule_id} appears twice and a copy names no file — a repeated rule names a file on every copy`);
+        } else if (earlier.some(e => e.file.toLowerCase() === r.file.toLowerCase())) {
+          problems.push(`${r.at}: ${r.rule_id} appears twice for ${shown(r.file)} — one entry per file`);
+        }
+      }
+      seen.set(key, [...earlier, r]);
+    }
     // The scanner requires a reason too. This says so here, where the author
     // is, rather than on a runner an hour later.
     if (!r.reason) problems.push(`${r.at}: ${r.rule_id ?? 'a rule'} has no reason — a suppression nobody can audit`);
@@ -1009,7 +1032,7 @@ if (!skillBaselines.length) {
   );
 }
 for (const path of skillBaselines) {
-  const parsed = readBaseline(path);
+  const parsed = readBaseline(path, { skill: true });
   for (const p of parsed.problems) fail(p);
   if (!rootRules) continue;
   for (const r of parsed.rules) {
@@ -1022,25 +1045,41 @@ for (const path of skillBaselines) {
     if (mirror.reason !== r.reason) {
       fail(`${r.at}: ${r.rule_id} gives a different reason here than ${rel(rootBaseline)} does — say it once, the same way`);
     }
-    // The file glob narrows a suppression, so two baselines that agree on the
-    // rule and disagree on the glob do not agree. Comparing the reason alone
-    // let one file suppress AR2 everywhere while the other suppressed it in
-    // one place, and called that agreement.
-    if ((mirror.file ?? null) !== (r.file ?? null)) {
-      fail(
-        `${r.at}: ${r.rule_id} is narrowed to ${r.file === undefined ? 'every file' : shown(r.file)} here and to ${mirror.file === undefined ? 'every file' : shown(mirror.file)} in ${rel(rootBaseline)} — one rule, one scope`,
-      );
-    }
-    // A message glob narrows the same way: the scanner suppresses a finding
-    // only when its message, its finding text or its matched text matches.
+    // A skill's entry is held to the root's one field at a time. Where the root
+    // names no file, the skill may name one exact path; where it names one, the
+    // skill names the same. Comparing the reason alone let one file suppress AR2
+    // everywhere while the other suppressed it in one place, and called that
+    // agreement.
+    const wild = v => /[*?[]/.test(v);
+    const neverBroader = "a skill entry may be narrower than the root's, never broader";
+    const scope = (field, word, exact, none) => {
+      const here = r[field];
+      const there = mirror[field];
+      const say = v => (v === undefined ? none : shown(v));
+      const line = clause => fail(`${r.at}: ${r.rule_id} is ${word} ${say(here)} here and to ${say(there)} in ${rel(rootBaseline)} — ${clause}`);
+      if (there !== undefined) {
+        if (here !== there) line(neverBroader);
+      } else if (here !== undefined && wild(here)) {
+        line(`a narrowing of a rule-wide entry names ${exact}`);
+      }
+    };
     // Both lines print each glob through shown(): the root file sits outside
     // skills/, so the home-path rule never reads it, and the CI log is public.
-    if ((mirror.message ?? null) !== (r.message ?? null)) {
-      fail(
-        `${r.at}: ${r.rule_id} is matched to ${r.message === undefined ? 'every message' : shown(r.message)} here and to ${mirror.message === undefined ? 'every message' : shown(mirror.message)} in ${rel(rootBaseline)} — one rule, one scope`,
-      );
-    }
+    scope('file', 'narrowed to', 'one exact path', 'every file');
+    // A message narrows the same way: the scanner suppresses a finding only
+    // when its message, its finding text or its matched text matches.
+    scope('message', 'matched to', 'one exact text', 'every message');
   }
+}
+
+// 7a. No two paths under skills/ are equal once case-folded. A baseline entry
+// names its file, the scanner lower-cases both sides when it matches, and so a
+// new file whose path differs from a named one only in case would keep the old
+// suppression. On a file system that folds case, one of the pair could also
+// overwrite the other at checkout. The walked tree is the tracked tree on a
+// runner, which is where this matters.
+for (const [a, b] of caseTwinPaths(files.map(relRaw).filter(p => p.startsWith('skills/')))) {
+  fail(`${shown(a)} and ${shown(b)} differ only in case — the scanner matches a baseline's file without regard to case, and a checkout that folds case keeps one of them. Rename one.`);
 }
 
 // 7b. The SkillSpector allowance.

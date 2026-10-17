@@ -21,35 +21,66 @@
 # ask. Apply it with --use-shipped-baseline, and read what it covered with
 # --show-suppressed.
 #
-# Every entry is keyed by rule identifier rather than by a fingerprint of the
-# text it matched. A fingerprint expires the next time the prose is edited, and
-# this prose is edited constantly; a rule key survives that, and it also
-# suppresses the rule across the whole directory. The reasons below are what
-# that breadth is paid for with.
+# Each entry names the one file its rule fired on when the entries were
+# measured, with SkillSpector v2.13.0 on 2026-10-17. The path is exact, and the
+# scanner matches it ignoring letter case. A finding of the same rule in any
+# other file is reported, and it fails this repository's build. That holds for a
+# scan of this skill's own folder. A scanner that ignores `file` applies each
+# entry to the whole folder.
+#
+# An entry that names a file and no message covers every finding of its rule
+# anywhere in that file, not only the line it was measured on: SKILL.md for EA2,
+# LP3 and RA2, CONTRACT.md for EA2, audit.mjs for E1, assets/OFL.txt for EA3 and
+# lib/template.html for MP3. AR2 in SKILL.md and PE3 in audit.mjs are pinned to
+# the exact words the scanner matched, so a finding of either rule that matches
+# other words in those files is reported. A new line that uses the same words,
+# or a new instruction of one of the other kinds in a named file, passes the
+# scan, and review is what holds it.
+#
+# Today the RA2 entry's only hit is a line of the tour section in SKILL.md. The
+# usage log's own lines in SKILL.md are covered by the same entry, under the
+# shared reason that describes the log. A hit in reference/usage-record.md, or in
+# the copy of the consent step in CONTRACT.md, would be reported. The E1 entry
+# covers every E1 finding in audit.mjs, and the PE3 entry only findings that
+# match the .env words there. Which providers receive the box text and the key is held by review and
+# by SECURITY.md's account of the edge audit, not by the scan.
 #
 # Nothing here was reworded to satisfy a pattern matcher.
 #
-# The repository this skill comes from carries the same entries at its root,
-# with more for rules that fire outside this directory. Its check refuses
-# a change that makes the two disagree.
+# The repository this skill comes from carries the same rules at its root,
+# rule-wide, for a scan of the whole repository. Its check lets a skill's entry
+# be narrower than the root's, never broader.
 
 version: 2
 fingerprints: []
 
 rules:
   - rule_id: "AR2"
+    file: "SKILL.md"
+    message: "do not judge"
     reason: "False positive. SKILL.md tells the agent that a preview pane may render the page without script, so do not judge it from one. That adds a caveat; it does not suppress one."
   - rule_id: "EA2"
+    file: "SKILL.md"
+    reason: "False positive. Texts that describe what an agent may do on its own and give no such instruction: the why text on an edge in an example box file, which a renderer prints for a reader; the labels, headings and comments in a format check, its bindings and its README that name the settings the check warns on because they let an agent act without asking; a step that lists unconfirmed drafts as Proposed without asking about each one, which keeps them unconfirmed until the person agrees; and eagle-eye's rule that when the person asks for the box by name, it builds the box without asking again, because the request is the go-ahead. None tells an agent to act without the person's say-so."
+  - rule_id: "EA2"
+    file: "CONTRACT.md"
     reason: "False positive. Texts that describe what an agent may do on its own and give no such instruction: the why text on an edge in an example box file, which a renderer prints for a reader; the labels, headings and comments in a format check, its bindings and its README that name the settings the check warns on because they let an agent act without asking; a step that lists unconfirmed drafts as Proposed without asking about each one, which keeps them unconfirmed until the person agrees; and eagle-eye's rule that when the person asks for the box by name, it builds the box without asking again, because the request is the go-ahead. None tells an agent to act without the person's say-so."
   - rule_id: "EA3"
+    file: "assets/OFL.txt"
     reason: "False positive. The phrase NOT LIMITED TO, in the warranty disclaimer of the SIL Open Font Licence that ships beside the vendored font faces. It is a legal text the licence requires us to carry verbatim, not an instruction an agent obeys, and its wording is not ours to change."
   - rule_id: "LP3"
+    file: "SKILL.md"
     reason: "Accepted. The skill declares no permission list, because a permission list is one host's format and the skill's text runs in agents that read none. SECURITY.md in the repository says which script reaches the network, when it runs, and what it sends."
   - rule_id: "MP3"
+    file: "lib/template.html"
     reason: "False positive. A comment in eagle-eye's page template describing how Reset discards the reader's overrides and Undo offers them back. It documents a button, not an agent's memory."
   - rule_id: "RA2"
+    file: "SKILL.md"
     reason: "Three findings, one rule. False positive: the CONTRIBUTING.md rule forbidding a fixed path inside a skill, and the test proving that rule fires; a guard and its test, both reported as the risk they exist to prevent. Not a false positive, and accepted: eagle-eye's usage log keeps a start and an end line per box in a file in the person's home folder, across sessions, and only after the person says yes in chat. A no is stored as one declined marker. The skill never writes inside its own folder. Also accepted: the contract skill's bindings name the folders where a person's agents already live, such as .codex/agents/, so a built agent written there loads in later sessions. The skill asks the person before any write that would install, and writes no agent without the person's go."
   - rule_id: "PE3"
+    file: "audit.mjs"
+    message: ".env "
     reason: "False positive. The string .env in eagle-eye's edge audit setup message and its test, which tell a user that a project .env file is not read, since the audit reads its key from the environment only. Neither opens a credential file."
   - rule_id: "E1"
+    file: "audit.mjs"
     reason: "Not a false positive, and accepted. The edge audit posts a box's text to the model provider's endpoint by design, and only when a user runs it with a key after saying yes. SECURITY.md, What the edge audit sends, states what leaves the machine and when."

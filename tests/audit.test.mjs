@@ -739,3 +739,24 @@ test('under skills/, only the audit script names a provider', () => {
   walk(join(root, 'skills'));
   assert.deepEqual(hits, [audit]);
 });
+
+// C11. Where the edge audit can send. The SkillSpector baseline covers every
+// E1 finding in audit.mjs, so the scan does not hold which providers receive
+// a box's text and the key. This does: every http(s) URL literal in the file
+// names one of two hosts. A host assembled at run time from parts would pass;
+// review holds that. The loopback-only endpoint override has its own tests.
+// Every scheme counts, whatever follows it: slashes, backslashes, or nothing.
+const urlsIn = text => [...text.matchAll(/(https?):[\\/]*([^\s\\/'"`)\]}>,;?#:]+)/gi)].map(m => ({ scheme: m[1].toLowerCase(), host: m[2].toLowerCase() }));
+const hostsIn = text => [...new Set(urlsIn(text).map(u => u.host))].sort();
+
+test('the edge audit names exactly two provider hosts in its source, over https', () => {
+  const text = readFileSync(audit, 'utf8');
+  assert.deepEqual(hostsIn(text), ['api.typesafe.ai', 'openrouter.ai']);
+  // Plain http would send the key and the box text unencrypted.
+  assert.deepEqual([...new Set(urlsIn(text).map(u => u.scheme))], ['https']);
+  // The red cases: a third URL, one written with backslashes, and a plain
+  // http one are each seen.
+  assert.deepEqual(hostsIn(`${text}\nconst x = "https://example.invalid/v1";\n`), ['api.typesafe.ai', 'example.invalid', 'openrouter.ai']);
+  assert.deepEqual(hostsIn(`${text}\nconst x = "https:\\\\example.invalid";\n`), ['api.typesafe.ai', 'example.invalid', 'openrouter.ai']);
+  assert.ok(urlsIn(`${text}\nconst x = "http://api.typesafe.ai/";\n`).some(u => u.scheme === 'http'));
+});
