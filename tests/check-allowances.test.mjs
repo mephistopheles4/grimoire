@@ -248,11 +248,11 @@ test('every entry added, removed, re-hashed or re-checked against the base is li
     // so neither line can hide the other. Added: a new one.
     a.exceptions = a.exceptions.slice(1);
     a.exceptions[0] = { ...second, sha256: 'b'.repeat(64), analyzers: [...second.analyzers, 'static_patterns_ssrf'].sort() };
-    a.exceptions.push({ ...second, path: 'SKILL.md', skill: 'groundtrack', reason: 'A neutral reason for the test.' });
+    a.exceptions.push({ ...second, path: 'README.md', skill: 'groundtrack', reason: 'A neutral reason for the test.' });
     // Recounted: the first reference. Removed: the second. Added: a new one.
     a.references[0].count += 1;
     a.references.splice(1, 1);
-    a.references.push({ skill: 'groundtrack', from: 'SKILL.md', target: 'SKILL.md', count: 1 });
+    a.references.push({ skill: 'groundtrack', from: 'SKILL.md', target: 'README.md', count: 1 });
   });
   git('commit', '-aqm', 'change the allowance');
   // As in CI: the notice is also a warning on the pull request and a list on
@@ -266,9 +266,9 @@ test('every entry added, removed, re-hashed or re-checked against the base is li
     `removed exception ${first.skill}/${first.path} (${first.reason_code})`,
     `re-hashed exception ${second.skill}/${second.path} (${second.reason_code})`,
     `changed the checks on exception ${second.skill}/${second.path} (${second.reason_code})`,
-    'added exception groundtrack/SKILL.md (static_parse_limit)',
+    'added exception groundtrack/README.md (static_parse_limit)',
     `removed reference ${droppedRef.skill}: ${droppedRef.from} -> ${droppedRef.target}`,
-    'added reference groundtrack: SKILL.md -> SKILL.md (1)',
+    'added reference groundtrack: SKILL.md -> README.md (1)',
   ];
   const page = readFileSync(summary, 'utf8');
   for (const line of expected) {

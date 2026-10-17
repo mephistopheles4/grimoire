@@ -58,9 +58,9 @@ code does. [SkillSpector](https://github.com/NVIDIA/SkillSpector) reads it, and
 [`.github/workflows/skillspector.yml`](../../.github/workflows/skillspector.yml)
 runs it on every pull request and every push to `main`.
 
-**The pin.** Commit `69dcdfb74487d361ba4c811d088cfdea2ff3a9dc`, which is the
-`v2.11.2` tag in the `NVIDIA` repository: a final release, not a pre-release,
-with no published advisory on 2026-10-09, the day it was pinned. The owner is
+**The pin.** Commit `091a509b3d6ba8ff5be528966e1f43c2e68cf214`, which is the
+`v2.13.0` tag in the `NVIDIA` repository: a final release, not a pre-release,
+with no published advisory on 2026-10-17, the day it was pinned. The owner is
 part of the pin, because a fork exists elsewhere. **Dependabot does not watch
 this pin**: it reads `uses:` lines, and the scanner is installed from a `run:`
 line. A bump is a reviewed pull request.
@@ -159,7 +159,7 @@ and carries a reason. The rules that hold it:
 The allowance lives at the repository root, not in each skill. The gate reads
 it, not SkillSpector, so a copy inside an installed skill would do nothing for
 someone scanning it, and an entry change would touch the skill. The cost is
-that a reader who scans an installed skill with 2.11.2 sees the partial reads
+that a reader who scans an installed skill with 2.13.0 sees the partial reads
 with no shipped explanation. This page is that explanation.
 
 
@@ -185,7 +185,7 @@ first reason above: a skill directory is what installs.
 
 ### Partial reads
 
-Under 2.11.2 the scanner reads some files in `eagle-eye`, `groundtrack` and
+Under 2.13.0 the scanner reads some files in `eagle-eye`, `groundtrack` and
 `head-chef` only in part, and the gate accepts each one by
 name. In plain words, the two reasons are:
 

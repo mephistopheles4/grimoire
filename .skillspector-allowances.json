@@ -13,6 +13,16 @@
     },
     {
       "skill": "eagle-eye",
+      "path": "lib/eagle-eye.js",
+      "reason_code": "static_parse_limit",
+      "analyzers": [
+        "static_patterns_tool_misuse"
+      ],
+      "sha256": "566dd57208efdde01c5665dbf11f0a904142825ecdb578d8567ee4e54812dc2d",
+      "reason": "The analysis module the renderer inlines into the page. Since SkillSpector 2.12.0 the destructive-command parser, which looks for rm, del and erase, reads the backticks of a JavaScript template literal as shell, meets one nested inside another's ${} at line 78, and stops; every other check reads the file in full. Read by hand on 2026-10-17 for 2.13.0 (issue 240): the file holds no rm, del or erase in any spelling, no printf builder, and nothing that runs a command, touches a file or reaches the network; it turns a box into findings and HTML strings."
+    },
+    {
+      "skill": "eagle-eye",
       "path": "lib/template.html",
       "reason_code": "static_parse_limit",
       "analyzers": [
@@ -20,16 +30,6 @@
       ],
       "sha256": "9a7450dbd6987c239c57c8841c79e515e5ee6ba92934dbdbb46f66f36e07a444",
       "reason": "The page template the renderer fills in. The destructive-command parser stops partway through a long expression and marks the file partial for that one check; every other check reads it in full. The entry also accepts a marker-pass give-up inside that one check, which the scanner reports under this code."
-    },
-    {
-      "skill": "eagle-eye",
-      "path": "reference/usage-record.md",
-      "reason_code": "static_parse_limit",
-      "analyzers": [
-        "static_patterns_tool_misuse"
-      ],
-      "sha256": "5b8b42ae5f3f5dab45c2b766fa530a1b67b90f9c95e646e65224bd458e45d6c3",
-      "reason": "Reference prose on the usage record. The destructive-command parser stops partway through a long expression and marks the file partial for that one check; every other check reads it in full. The entry also accepts a marker-pass give-up inside that one check, which the scanner reports under this code."
     },
     {
       "skill": "eagle-eye",
@@ -62,6 +62,16 @@
       "reason": "The flightpath renderer and validator. The destructive-command parser stops partway through a long expression and marks the file partial for that one check; every other check reads it in full. The entry also accepts a marker-pass give-up inside that one check, which the scanner reports under this code."
     },
     {
+      "skill": "groundtrack",
+      "path": "SKILL.md",
+      "reason_code": "static_parse_limit",
+      "analyzers": [
+        "static_patterns_tool_misuse"
+      ],
+      "sha256": "afb815aa018723c4713e108e1fcc3c19469a4aa959e83bd442578bd61593fc47",
+      "reason": "The skill's instructions. Since SkillSpector 2.12.0 the destructive-command parser, which looks for rm, del and erase, projects the code spans away and then takes the double quote around the run name in the flag table's `--text` row, at line 159, as a shell string that never closes; past its span it stops. Every other check reads the file in full. Read by hand on 2026-10-17 for 2.13.0 (issue 240): the file holds no rm, del or erase in any spelling, and the only commands it gives are three lines that run the skill's own scripts/render.mjs with node."
+    },
+    {
       "skill": "head-chef",
       "path": "CONTRACT.md",
       "reason_code": "obfuscated_instruction_text",
@@ -77,20 +87,11 @@
         "static_patterns_rogue_agent",
         "static_patterns_ssrf",
         "static_patterns_supply_chain",
-        "static_patterns_system_prompt_leakage"
-      ],
-      "sha256": "2a69e07b432c1a57e9033e7cdb063ca1b82e28e2187581c184879495e1cdc3d7",
-      "reason": "The skill's contract. The marker pass reads a removal verb followed by a quote as the start of a \"remove the marker\" directive and cannot settle it; here that is the git command names in code spans, such as `worktree remove`, and prose on deleting a session that needs the owner's words. Measured on 2026-10-09: with those verbs disguised in a scratch copy, the give-up goes away; each matching line was read by hand and none is a disguised directive. Re-read on 2026-10-11 for head-chef 0.6.0 (issue 263): the new lines on record acts, such as a delete named in quotes, were read by hand, and none is a disguised directive. The plain scan still reads the whole file under every listed check. Re-read on 2026-10-11 for head-chef 0.7.0 (issue 267): the new lines on which tool reaches a chip, and on keeping a Desktop id off records, were read by hand; they hold no removal verb and no disguised directive. Re-read on 2026-10-14 for head-chef 0.8.0 (issue 293): the new lines on the stop and archive tools, on notes, and on the chip start, were read by hand; they hold no removal verb followed by a quote and no disguised directive. Re-read on 2026-10-14 after a measurement (flag 51, issue 293): the new lines, a launch-line warning that an approval card is coming and the wording that a raise above the lead waits for it, were read by hand; they hold no removal verb followed by a quote and no disguised directive. Re-read on 2026-10-14 for 0.8.1 (issue 298): the new lines, a fixed sentence that the session id is only for finding the lead and checking a sender, the words \"by name\" in the held-turn ping, and the task-list step's reason without the phone, were read by hand; they hold no removal verb followed by a quote and no disguised directive."
-    },
-    {
-      "skill": "head-chef",
-      "path": "CONTRACT.md",
-      "reason_code": "static_parse_limit",
-      "analyzers": [
+        "static_patterns_system_prompt_leakage",
         "static_patterns_tool_misuse"
       ],
       "sha256": "2a69e07b432c1a57e9033e7cdb063ca1b82e28e2187581c184879495e1cdc3d7",
-      "reason": "The skill's contract. The destructive-command parser stops partway through a long expression and marks the file partial for that one check; every other check reads it in full. The entry also accepts a marker-pass give-up inside that one check, which the scanner reports under this code. Re-read on 2026-10-11 for head-chef 0.6.0 (issue 263): the new delete commands in the record-act tables (`gh issue delete`, `gh api --silent -X DELETE`) were read by hand; each is a documented act the owner must ask for, and the same commands sit in references/record-acts.md, which the scanner reads in full. Re-read on 2026-10-11 for head-chef 0.7.0 (issue 267): the new lines on which tool reaches a chip, and on keeping a Desktop id off records, were read by hand; they hold no removal verb and no disguised directive. Re-read on 2026-10-14 for head-chef 0.8.0 (issue 293): the new lines on the stop and archive tools, on notes, and on the chip start, were read by hand; they hold no removal verb followed by a quote and no disguised directive. Re-read on 2026-10-14 after a measurement (flag 51, issue 293): the new lines, a launch-line warning that an approval card is coming and the wording that a raise above the lead waits for it, were read by hand; they hold no removal verb followed by a quote and no disguised directive. Re-read on 2026-10-14 for 0.8.1 (issue 298): the new lines, a fixed sentence that the session id is only for finding the lead and checking a sender, the words \"by name\" in the held-turn ping, and the task-list step's reason without the phone, were read by hand; they hold no removal verb followed by a quote and no disguised directive."
+      "reason": "The skill's contract. The marker pass reads a removal verb followed by a quote as the start of a \"remove the marker\" directive and cannot settle it; here that is the git command names in code spans, such as `worktree remove`, and prose on deleting a session that needs the owner's words. Measured on 2026-10-09: with those verbs disguised in a scratch copy, the give-up goes away; each matching line was read by hand and none is a disguised directive. Re-read on 2026-10-11 for head-chef 0.6.0 (issue 263): the new lines on record acts, such as a delete named in quotes, were read by hand, and none is a disguised directive. The plain scan still reads the whole file under every listed check. Re-read on 2026-10-11 for head-chef 0.7.0 (issue 267): the new lines on which tool reaches a chip, and on keeping a Desktop id off records, were read by hand; they hold no removal verb and no disguised directive. Re-read on 2026-10-14 for head-chef 0.8.0 (issue 293): the new lines on the stop and archive tools, on notes, and on the chip start, were read by hand; they hold no removal verb followed by a quote and no disguised directive. Re-read on 2026-10-14 after a measurement (flag 51, issue 293): the new lines, a launch-line warning that an approval card is coming and the wording that a raise above the lead waits for it, were read by hand; they hold no removal verb followed by a quote and no disguised directive. Re-read on 2026-10-14 for 0.8.1 (issue 298): the new lines, a fixed sentence that the session id is only for finding the lead and checking a sender, the words \"by name\" in the held-turn ping, and the task-list step's reason without the phone, were read by hand; they hold no removal verb followed by a quote and no disguised directive. Reshaped on 2026-10-17 for SkillSpector 2.13.0 (issue 240): since 2.12.0 the destructive-command parser no longer gives up on this file, and the marker pass's give-up inside `static_patterns_tool_misuse` is reported under this code, so this one entry now covers that check too and replaces the parse-limit entry. Carried over from that entry: re-read on 2026-10-11 for head-chef 0.6.0 (issue 263), the delete commands in the record-act tables (`gh issue delete`, `gh api --silent -X DELETE`) were read by hand; each is a documented act the owner must ask for, and the same commands sit in references/record-acts.md, which the scanner reads in full."
     },
     {
       "skill": "head-chef",
@@ -127,12 +128,6 @@
       "from": "SKILL.md",
       "target": "audit.mjs",
       "count": 2
-    },
-    {
-      "skill": "eagle-eye",
-      "from": "SKILL.md",
-      "target": "reference/usage-record.md",
-      "count": 1
     },
     {
       "skill": "head-chef",
