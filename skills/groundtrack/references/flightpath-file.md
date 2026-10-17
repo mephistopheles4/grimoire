@@ -244,7 +244,8 @@ validator refuses each entry in `nodes.<id>.channels.error` or
 `nodes.<id>.channels.requirements` that is not a string. Those two lists keep
 their own words when they are not arrays. For `error` the words are `expected
 an array of failure tags`. For `requirements` they are `expected an array of
-tokens`. A refusal names the path, and never the value.
+tokens`. A refusal names the path, and never the value. See
+[What a refusal says](#what-a-refusal-says) for a field of the wrong type.
 
 **An entry can be any string, a prototype-member name such as `constructor`
 included.** A tool that reads a flightpath file, the renderer included, looks
@@ -521,6 +522,28 @@ greet.flightpath.json: graphs[1].presets[0].trace.steps[4]: graph "panel-apply",
 **A fault in the file's shape prints the path alone.** The validator refuses it
 before it reads any trace, so there is no run and no move to name. A refusal
 never names one that does not exist.
+
+**A field of the wrong type is refused first, and alone.** Each field the
+tables above give as a string or a number holds that type. The validator
+checks every one of them before any other rule. A field of another type gets
+one of two refusals:
+
+```text
+greet.flightpath.json: title: expected a string
+greet.flightpath.json: files[0].adds: expected a number
+```
+
+The fields held to numbers are a file's `adds` and `dels`, a move's `at`,
+`next` and `attempt`, and a tour stop's `move`. `args`, `bind`, `env`, a run's
+`input`, and a move's `value` and `result` hold any value. A step in `steps`
+is an object, and a `null` step is refused as `expected an object`.
+
+When any field has the wrong type, the validator stops there. Fix those
+refusals, and run `--check` again for the rest. A type refusal names the
+path, and never the value.
+
+**An op or a move kind is one of the names in the tables.** A built-in name
+such as `constructor` is not one of them, and is refused the same way.
 
 ## layers
 

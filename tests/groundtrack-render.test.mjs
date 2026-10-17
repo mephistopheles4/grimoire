@@ -626,6 +626,120 @@ test('valid list fields still pass, empty ones included', () => {
   });
 });
 
+/* -- a field of the wrong type (#248) -----------------------------------------
+ *
+ * Every field the reference types as a string or a number, holding an object
+ * whose conversion to text throws. Checked for presence only, each one passed
+ * the shape pass and then crashed --check, --out or the page, or printed
+ * `[object Object]`. A type pass now refuses each by its path, before any
+ * other rule reads the value as text. */
+
+const throwsAsText = () => ({ toString: 0 });
+const notNumber = 'expected a number';
+/** The shipped example's tour, which `base` drops: the tour fields need one. */
+const withShippedTour = p => { p.tour = JSON.parse(readFileSync(exampleFlightpath, 'utf8')).tour; };
+const known = 'graphs[0].presets[0].trace.steps';
+const failed = 'graphs[0].presets[1].trace.steps';
+const posted = 'graphs[0].presets[2].trace.steps';
+
+const typeCases = [
+  ['id', p => { p.id = throwsAsText(); }, notString],
+  ['title', p => { p.title = throwsAsText(); }, notString],
+  ['blurb', p => { p.blurb = throwsAsText(); }, notString],
+  ['sheet.scopeRule', p => { p.sheet.scopeRule = throwsAsText(); }, notString],
+  ['graphs[0].id', p => { only(p).id = throwsAsText(); }, notString],
+  ['graphs[0].title', p => { only(p).title = throwsAsText(); }, notString],
+  ['graphs[0].blurb', p => { only(p).blurb = throwsAsText(); }, notString],
+  ['graphs[0].entry', p => { only(p).entry = throwsAsText(); }, notString],
+  ['layers.tests.entry', p => { p.layers.tests.entry = throwsAsText(); }, notString],
+  ['graphs[0].presets[0].name', p => { runs(p)[0].name = throwsAsText(); }, notString],
+  ['graphs[0].presets[0].blurb', p => { runs(p)[0].blurb = throwsAsText(); }, notString],
+  ['graphs[0].presets[0].trace.provenance', p => { runs(p)[0].trace.provenance = throwsAsText(); }, notString],
+  ['nodes.greet.name', p => { p.nodes.greet.name = throwsAsText(); }, notString],
+  ['nodes.greet.role', p => { p.nodes.greet.role = throwsAsText(); }, notString],
+  ['nodes.greet.loc', p => { p.nodes.greet.loc = throwsAsText(); }, notString],
+  // The labels are read before any step is checked, so a null step reached them first.
+  ['nodes.greet.steps[8]', p => { p.nodes.greet.steps.push(null); }, 'expected an object'],
+  ['nodes.greet.steps[0].op', p => { p.nodes.greet.steps[0].op = throwsAsText(); }, notString],
+  ['nodes.greet.steps[0].comment', p => { p.nodes.greet.steps[0].comment = throwsAsText(); }, notString],
+  ['nodes.greet.steps[1].target', p => { p.nodes.greet.steps[1].target = throwsAsText(); }, notString],
+  ['nodes.greet.steps[1].aside', p => { p.nodes.greet.steps[1].aside = throwsAsText(); }, notString],
+  ['nodes.greet.steps[1].onError[0].tag', p => { p.nodes.greet.steps[1].onError[0].tag = throwsAsText(); }, notString],
+  ['nodes.greet.steps[1].onError[0].goto', p => { p.nodes.greet.steps[1].onError[0].goto = throwsAsText(); }, notString],
+  ['nodes.greet.steps[2].cond', p => { p.nodes.greet.steps[2].cond = throwsAsText(); }, notString],
+  ['nodes.greet.steps[2].then', p => { p.nodes.greet.steps[2].then = throwsAsText(); }, notString],
+  ['nodes.greet.steps[2].else', p => { p.nodes.greet.steps[2].else = throwsAsText(); }, notString],
+  ['nodes.greet.steps[3].label', p => { p.nodes.greet.steps[3].label = throwsAsText(); }, notString],
+  ['nodes.greet.steps[3].name', p => { p.nodes.greet.steps[3].name = throwsAsText(); }, notString],
+  ['nodes.greet.steps[3].expr', p => { p.nodes.greet.steps[3].expr = throwsAsText(); }, notString],
+  ['nodes.greet.steps[4].to', p => { p.nodes.greet.steps[4].to = throwsAsText(); }, notString],
+  ['nodes.greet.steps[6].kind', p => { p.nodes.greet.steps[6].kind = throwsAsText(); }, notString],
+  ['nodes.greet.steps[6].desc', p => { p.nodes.greet.steps[6].desc = throwsAsText(); }, notString],
+  ['nodes.greet.steps[7].expr', p => { p.nodes.greet.steps[7].expr = throwsAsText(); }, notString],
+  ['nodes.lookupName.steps[3].tag', p => { p.nodes.lookupName.steps[3].tag = throwsAsText(); }, notString],
+  ['nodes.lookupName.steps[3].message', p => { p.nodes.lookupName.steps[3].message = throwsAsText(); }, notString],
+  ['nodes.lookupName.steps[3].cause', p => { p.nodes.lookupName.steps[3].cause = throwsAsText(); }, notString],
+  [`${known}[0].k`, p => { runs(p)[0].trace.steps[0].k = throwsAsText(); }, notString],
+  [`${known}[0].at`, p => { runs(p)[0].trace.steps[0].at = throwsAsText(); }, notNumber],
+  [`${known}[0].next`, p => { runs(p)[0].trace.steps[0].next = throwsAsText(); }, notNumber],
+  [`${known}[1].to`, p => { runs(p)[0].trace.steps[1].to = throwsAsText(); }, notString],
+  [`${known}[2].kind`, p => { runs(p)[0].trace.steps[2].kind = throwsAsText(); }, notString],
+  [`${known}[2].desc`, p => { runs(p)[0].trace.steps[2].desc = throwsAsText(); }, notString],
+  [`${failed}[4].tag`, p => { runs(p)[1].trace.steps[4].tag = throwsAsText(); }, notString],
+  [`${failed}[4].message`, p => { runs(p)[1].trace.steps[4].message = throwsAsText(); }, notString],
+  [`${failed}[4].cause`, p => { runs(p)[1].trace.steps[4].cause = throwsAsText(); }, notString],
+  [`${failed}[6].goto`, p => { runs(p)[1].trace.steps[6].goto = throwsAsText(); }, notString],
+  [`${posted}[8].attempt`, p => { runs(p)[2].trace.steps[8].attempt = throwsAsText(); }, notNumber],
+  [`${posted}[8].raised.tag`, p => { runs(p)[2].trace.steps[8].raised.tag = throwsAsText(); }, notString],
+  [`${posted}[8].raised.message`, p => { runs(p)[2].trace.steps[8].raised.message = throwsAsText(); }, notString],
+  [`${posted}[8].raised.cause`, p => { runs(p)[2].trace.steps[8].raised.cause = throwsAsText(); }, notString],
+  [`${posted}[9].tag`, p => { runs(p)[2].trace.steps[9].tag = throwsAsText(); }, notString],
+  ['files[0].path', p => { p.files[0].path = throwsAsText(); }, notString],
+  ['files[0].change', p => { p.files[0].change = throwsAsText(); }, notString],
+  ['files[0].why', p => { p.files[0].why = throwsAsText(); }, notString],
+  ['files[0].adds', p => { p.files[0].adds = throwsAsText(); }, notNumber],
+  ['files[0].dels', p => { p.files[0].dels = throwsAsText(); }, notNumber],
+  ...['region', 'run', 'now'].map(k => [`tour[0].${k}`, p => { withShippedTour(p); p.tour[0][k] = throwsAsText(); }, notString]),
+  ...['graph', 'tab', 'view', 'layer'].map(k => [`tour[0].${k}`, p => { withShippedTour(p); p.tour[0][k] = throwsAsText(); }, notString]),
+  ['tour[0].move', p => { withShippedTour(p); p.tour[0].move = throwsAsText(); }, notNumber],
+];
+
+test('a field of the wrong type is refused by path, with no stack trace, under --check and --out', () => {
+  for (const [path, mutate, why] of typeCases) {
+    const file = derive(mutate);
+    refusedAt(check(file), path, why);
+    const out = run(groundtrack, [file, '--out', join(work, 'typed.html')]);
+    refusedAt(out, path, why);
+  }
+});
+
+test('a plain object in a text field is refused, and never prints as [object Object]', () => {
+  const cases = [
+    ['title', p => { p.title = {}; }],
+    ['blurb', p => { p.blurb = {}; }],
+    ['graphs[0].blurb', p => { only(p).blurb = {}; }],
+    ['sheet.scopeRule', p => { p.sheet.scopeRule = {}; }],
+  ];
+  for (const [path, mutate] of cases) {
+    const r = check(derive(mutate));
+    refusedAt(r, path, notString);
+    assert.ok(!`${r.stdout}${r.stderr}`.includes('[object Object]'), `${path}:\n${r.stderr}`);
+  }
+});
+
+test('an op or a move kind named like a built-in object member is refused as unknown', () => {
+  for (const name of ['constructor', 'toString', '__proto__']) {
+    const op = check(derive(p => { p.nodes.greet.steps[0].op = name; }));
+    assert.equal(op.code, 1, op.stderr);
+    assert.match(op.stderr, new RegExp(`: nodes\\.greet\\.steps\\[0\\]: op "${name}" is not one of `));
+    assert.doesNotMatch(op.stderr, /TypeError|\n\s+at /, op.stderr);
+    const k = check(derive(p => { runs(p)[0].trace.steps[0].k = name; }));
+    assert.equal(k.code, 1, k.stderr);
+    assert.match(k.stderr, new RegExp(`: ${regexLiteral(known)}\\[0\\]: k "${name}" is not a move kind`));
+    assert.doesNotMatch(k.stderr, /TypeError|\n\s+at /, k.stderr);
+  }
+});
+
 test('the old one-graph shape is refused, and the message names graphs', () => {
   // A file states one change, not one graph. Accepting both shapes would be
   // two ways to say one thing, so a stale file fails loudly rather than
@@ -2362,11 +2476,16 @@ test('a tour stop moves only to a move its run has, counted the way the page cou
   const shorter = check(withTour(stop({ run: 'the post fails', move: 11 })));
   assert.equal(shorter.code, 1);
   assert.match(shorter.stderr, /whose last move is 10/);
-  for (const move of [-1, 2.5, '5']) {
+  for (const move of [-1, 2.5]) {
     const r = check(withTour(stop({ move })));
     assert.equal(r.code, 1, `move ${JSON.stringify(move)}`);
     assert.match(r.stderr, /tour\[0\]\.move: expected a whole number from 0/);
   }
+  // A move that is not a number at all is the type pass's (#248), and its
+  // refusal never prints the value.
+  const text = check(withTour(stop({ move: '5' })));
+  assert.equal(text.code, 1);
+  assert.match(text.stderr, /tour\[0\]\.move: expected a number$/m);
 });
 
 test('a tour stop may open a tab, a view and a layer the page has, and no other', () => {

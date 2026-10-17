@@ -162,6 +162,69 @@ function strings(r, where, v) {
   refuseNonStrings(r, where, v);
 }
 
+/* -- pass 0: types ------------------------------------------------------------
+ *
+ * Every field the reference types as a string or a number, held to that type
+ * before any other rule reads it. The later passes turn these values into
+ * text, look them up and print them, so a value of the wrong type crashed
+ * --check with a stack trace, or printed `[object Object]`, or passed and
+ * broke the page (#248). A refusal names the path and never the value, for
+ * the reason `refuseNonStrings` gives.
+ *
+ * It reads a list only when it is one and an object only when it is one, so
+ * a structure of the wrong shape is skipped here and refused by the shape
+ * pass. A step's and a move's fields are checked as one set whatever the op
+ * or kind, so nothing here looks a name up in the step or move table. */
+
+const STEP_TEXT = ['op', 'label', 'aside', 'comment', 'name', 'expr', 'cond', 'then', 'else', 'to', 'target', 'kind', 'desc', 'tag', 'message', 'cause'];
+const MOVE_TEXT = ['k', 'to', 'goto', 'tag', 'message', 'cause', 'kind', 'desc'];
+const MOVE_NUMBERS = ['at', 'next', 'attempt'];
+
+function types(prog, r) {
+  const held = (obj, where, text, numbers = []) => {
+    if (!isObj(obj)) return;
+    const at = k => (where ? `${where}.${k}` : k);
+    for (const k of text) if (obj[k] !== undefined && typeof obj[k] !== 'string') r.shape(at(k), 'expected a string');
+    for (const k of numbers) if (obj[k] !== undefined && typeof obj[k] !== 'number') r.shape(at(k), 'expected a number');
+  };
+  const each = (list, f) => {
+    if (Array.isArray(list)) list.forEach(f);
+  };
+
+  held(prog, '', ['id', 'title', 'blurb']);
+  held(prog.sheet, 'sheet', ['scopeRule']);
+  each(prog.files, (f, i) => held(f, `files[${i}]`, ['path', 'change', 'why'], ['adds', 'dels']));
+  if (isObj(prog.layers)) for (const [ln, layer] of Object.entries(prog.layers)) held(layer, `layers.${ln}`, ['entry']);
+  if (isObj(prog.nodes))
+    for (const [id, n] of Object.entries(prog.nodes)) {
+      held(n, `nodes.${id}`, ['name', 'role', 'loc']);
+      if (!isObj(n)) continue;
+      each(n.steps, (s, i) => {
+        /* The shape pass reads every step's label before it checks any
+         * step, and a null one has no label to read. */
+        if (s === null) r.shape(`nodes.${id}.steps[${i}]`, 'expected an object');
+        held(s, `nodes.${id}.steps[${i}]`, STEP_TEXT);
+        if (isObj(s)) each(s.onError, (h, j) => held(h, `nodes.${id}.steps[${i}].onError[${j}]`, ['tag', 'goto']));
+      });
+    }
+  each(prog.graphs, (g, gi) => {
+    held(g, `graphs[${gi}]`, ['id', 'title', 'blurb', 'entry']);
+    if (!isObj(g)) return;
+    each(g.presets, (p, pi) => {
+      const w = `graphs[${gi}].presets[${pi}]`;
+      held(p, w, ['name', 'blurb']);
+      if (!isObj(p)) return;
+      held(p.trace, `${w}.trace`, ['provenance']);
+      if (!isObj(p.trace)) return;
+      each(p.trace.steps, (m, j) => {
+        held(m, `${w}.trace.steps[${j}]`, MOVE_TEXT, MOVE_NUMBERS);
+        if (isObj(m)) held(m.raised, `${w}.trace.steps[${j}].raised`, ['tag', 'message', 'cause']);
+      });
+    });
+  });
+  each(prog.tour, (s, i) => held(s, `tour[${i}]`, ['region', 'run', 'now', 'graph', 'tab', 'view', 'layer'], ['move']));
+}
+
 /* -- pass 1 and 2: shape and links ----------------------------------------- */
 
 function shape(prog, r) {
@@ -182,6 +245,9 @@ function shape(prog, r) {
       'this is the old one-graph shape. A file now states one change and lists its graphs: move "entry" and "presets" into an entry of a "graphs" array, giving that graph its own id, title and blurb. The change facts — id, title, blurb, env, files, layers, sheet — and the one node map stay at the top level.',
     );
   }
+  /* Types first, and alone: every rule below reads these values as text. */
+  types(prog, r);
+  if (r.list.length) return;
   keys(r, 'file', prog, CORE, OPTIONAL);
   /* Said out loud rather than returned from in silence. A `nodes` that is a
    * list or a null used to end this pass with no refusal about it, so the file
@@ -262,7 +328,9 @@ function shape(prog, r) {
     const L = Groundtrack.labelsOf(n);
     n.steps.forEach((s, i) => {
       const w = `nodes.${id}.steps[${i}]`;
-      if (!isObj(s) || !STEP[s.op]) return r.shape(w, `op "${s && s.op}" is not one of ${Object.keys(STEP).join(', ')}`);
+      /* An own-property test: `constructor` is not an op, though the table
+       * would answer it with Object's own. */
+      if (!isObj(s) || !Object.hasOwn(STEP, s.op)) return r.shape(w, `op "${s && s.op}" is not one of ${Object.keys(STEP).join(', ')}`);
       const { req, opt } = STEP[s.op];
       keys(r, `${w} (${s.op})`, s, ['op', ...req], ['label', 'aside', ...opt]);
       for (const k of ['then', 'else', 'to']) {
@@ -356,7 +424,7 @@ function shape(prog, r) {
       if (!p.trace.steps.length) r.shape(`graphs[${gi}].presets[${i}].trace.steps`, 'a trace with no moves shows nothing');
       p.trace.steps.forEach((m, j) => {
         const w = `graphs[${gi}].presets[${i}].trace.steps[${j}]`;
-        if (!isObj(m) || !MOVE[m.k]) return r.shape(w, `k "${m && m.k}" is not a move kind`);
+        if (!isObj(m) || !Object.hasOwn(MOVE, m.k)) return r.shape(w, `k "${m && m.k}" is not a move kind`);
         keys(r, `${w} (${m.k})`, m, ['k', ...MOVE[m.k].req], MOVE[m.k].opt);
       });
     });
