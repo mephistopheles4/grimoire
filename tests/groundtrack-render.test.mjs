@@ -2581,6 +2581,23 @@ test('a missing file given by an absolute path under the home folder is named fr
   assert.match(j.stderr, /^cannot read ~[\\/]broken\.json: not valid JSON/m);
 });
 
+test('a page is named as given, from ~ under the home folder, whether it was written or not', () => {
+  const { home, env } = fakeHome();
+  const prog = join(home, 'p.flightpath.json');
+  writeFileSync(prog, readFileSync(exampleFlightpath, 'utf8'));
+  const outs = [
+    [join(home, 'page.html'), /^wrote ~[\\/]page\.html$/m],
+    [join(home, 'gone', 'page.html'), /^cannot write ~[\\/]gone[\\/]page\.html: ENOENT$/m],
+    ['page.html', /^wrote page\.html$/m],
+  ];
+  if (process.platform === 'win32') outs.push([`${home.replaceAll('\\', '/')}/slash.html`, /^wrote ~[\\/]slash\.html$/m]);
+  for (const [out, line] of outs) {
+    const r = run(groundtrack, [prog, '--out', out], { cwd: home, env });
+    assert.match(r.stderr, line, out);
+    assert.ok(!r.stderr.includes(home), r.stderr);
+  }
+});
+
 test('a file that cannot be opened is named through the escape', () => {
   const r = run(groundtrack, ['a\u{1b}[31mb.json', '--check'], { cwd: work });
   assert.equal(r.code, 2);

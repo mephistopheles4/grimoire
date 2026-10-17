@@ -920,9 +920,10 @@ const clip = (s, n) => {
   return `${kept}… (${count(s.length)} characters)`;
 };
 
-/* The file a `cannot read` line names: as it was given, with a home folder
- * shortened to `~`, so the user name in it stays off the line (#330). The
- * error's own message is never printed, because it carries the resolved path. */
+/* The file a `cannot read`, `cannot write` or `wrote` line names: as it was
+ * given, with a home folder shortened to `~`, so the user name in it stays
+ * off the line (#330). The error's own message is never printed, because it
+ * carries the resolved path. */
 const named = file => {
   if (!isAbsolute(file)) return file;
   const home = homedir();
@@ -1497,7 +1498,7 @@ function main(argv) {
   /* A page that cannot be written names the page, which is the path the
    * person chose, and not the input file, which is fine. */
   const cannotWrite = e => {
-    say(`cannot write ${target}: ${e.code || e.name}`);
+    say(`cannot write ${named(outPath)}: ${e.code || e.name}`);
     return 2;
   };
   try {
@@ -1515,7 +1516,7 @@ function main(argv) {
   } catch (e) {
     return cannotWrite(e);
   }
-  say(`wrote ${target}`);
+  say(`wrote ${named(outPath)}`);
   for (const n of notes) tell(n);
   return 0;
 }
