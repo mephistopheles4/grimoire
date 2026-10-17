@@ -232,8 +232,10 @@ test('a quoted version is read, because the entries accept quoting too', () => {
 function entriesOf(path) {
   const out = [];
   for (const line of readFileSync(path, 'utf8').split('\n')) {
-    const m = /^(?:  - | {4})([a-z_]+): "([^"]*)"\s*$/.exec(line.replace(/\r$/, ''));
-    if (!m) continue;
+    const text = line.replace(/\r$/, '');
+    if (!text.trim() || text.trimStart().startsWith('#') || /^[a-z_]+:/.test(text)) continue;
+    const m = /^(?:  - | {4})([a-z_]+):\s*"([^"]*)"\s*$/.exec(text);
+    if (!m) throw new Error(`entriesOf cannot read: ${text}`);
     if (line.startsWith('  - ')) out.push({});
     if (out.length) out[out.length - 1][m[1]] = m[2];
   }
@@ -279,6 +281,16 @@ test('each skill ships exactly its narrowed entries, none with a wildcard except
   }
 });
 
+// The root's own narrowed entries, pinned too: a skill entry may be narrower
+// than the root's, so dropping a root file or message would otherwise pass.
+test('the root baseline keeps its three narrowed entries', () => {
+  const got = entriesOf(join(root, '.skillspector-baseline.yaml')).filter(e => e.file !== undefined || e.message !== undefined);
+  assert.deepEqual(
+    got.map(e => [e.rule_id, e.file, e.message].filter(v => v !== undefined)),
+    [['AS3', 'skills/*/SKILL.md'], ['MP1', '*contract.changelog.md'], ['TR2', '*SKILL.md', TR2_MESSAGE]],
+  );
+});
+
 // C5. A skill entry that is broader than, or different from, the root's.
 test('a skill entry broader than or different from the root entry fails', () => {
   const rows = [
@@ -290,7 +302,7 @@ test('a skill entry broader than or different from the root entry fails', () => 
       for (const p of skillSides(d)) edit(p, '    file: "SKILL.md"\n    message: "do not judge"\n', '    message: "do not judge"\n');
     }, /narrowed to every file here and to SKILL\.md in/, /never broader/],
     // the root names none, the skill names a wildcard
-    ...['*SKILL.md', 'SKILL.m?', 'SKILL.m[d]'].map(g => [`a wildcard file ${g} on a rule-wide root entry`, d => edit(skillBaselineIn(d), 'file: "SKILL.md"\n    message: "do not judge"', `file: "${g}"\n    message: "do not judge"`), new RegExp(`narrowed to ${g.replace(/[*?[\]]/g, '\\$&')} here and to every file in`), /names one exact path/]),
+    ...['*SKILL.md', 'SKILL.m?', 'SKILL.m[d]'].map(g => [`a wildcard file ${g} on a rule-wide root entry`, d => edit(skillBaselineIn(d), 'file: "SKILL.md"\n    message: "do not judge"', `file: "${g}"\n    message: "do not judge"`), new RegExp(`narrowed to ${g.replace(/[\\*?[\]]/g, '\\$&')} here and to every file in`), /names one exact path/]),
   ];
   for (const [name, mutate, head, tail] of rows) {
     const dir = tree();
@@ -306,6 +318,7 @@ test('a skill baseline repeats a rule only when every copy names a different fil
   const rows = [
     ['a distinct file on every copy passes', p => edit(p, ea2, '  - rule_id: "EA2"\n    file: "README.md"\n'), null],
     ['a copy with no file fails', p => edit(p, ea2, '  - rule_id: "EA2"\n'), /EA2 appears twice and a copy names no file/],
+    ['an earlier copy with no file fails', p => edit(p, '  - rule_id: "EA2"\n    file: "SKILL.md"\n', '  - rule_id: "EA2"\n'), /EA2 appears twice and a copy names no file/],
     ['equal files fail', p => edit(p, ea2, '  - rule_id: "EA2"\n    file: "SKILL.md"\n'), /EA2 appears twice for SKILL\.md/],
     ['files equal once case-folded fail', p => edit(p, ea2, '  - rule_id: "EA2"\n    file: "skill.MD"\n'), /EA2 appears twice for skill\.MD/],
   ];

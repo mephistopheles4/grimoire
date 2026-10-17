@@ -26,22 +26,23 @@
 # scanner matches it ignoring letter case. A finding of the same rule in any
 # other file is reported, and it fails this repository's build. That holds for a
 # scan of this skill's own folder. A scanner that ignores `file` applies each
-# entry to the whole folder, as before.
+# entry to the whole folder.
 #
 # An entry that names a file and no message covers every finding of its rule
 # anywhere in that file, not only the line it was measured on: SKILL.md for EA2,
 # LP3 and RA2, CONTRACT.md for EA2, audit.mjs for E1, assets/OFL.txt for EA3 and
 # lib/template.html for MP3. AR2 in SKILL.md and PE3 in audit.mjs are pinned to
-# their exact words, so another finding of either rule in those files is
-# reported. A new instruction of one of the other kinds in a named file passes
-# the scan, and review is what holds it.
+# the exact words the scanner matched, so a finding of either rule that matches
+# other words in those files is reported. A new line that uses the same words,
+# or a new instruction of one of the other kinds in a named file, passes the
+# scan, and review is what holds it.
 #
 # Today the RA2 entry's only hit is a line of the tour section in SKILL.md. The
 # usage log's own lines in SKILL.md are covered by the same entry, under the
 # shared reason that describes the log. A hit in reference/usage-record.md, or in
 # the copy of the consent step in CONTRACT.md, would be reported. The E1 entry
-# covers every E1 finding in audit.mjs, and the PE3 entry only the .env sentence
-# there. Which providers receive the box text and the key is held by review and
+# covers every E1 finding in audit.mjs, and the PE3 entry only findings that
+# match the .env words there. Which providers receive the box text and the key is held by review and
 # by SECURITY.md's account of the edge audit, not by the scan.
 #
 # Nothing here was reworded to satisfy a pattern matcher.

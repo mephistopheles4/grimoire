@@ -22,7 +22,9 @@
 //    6b. Every pointer the engine follows to the mod's code, and every
 //    relative import in it, lands inside the mod's folders.
 // 7. The SkillSpector baselines agree, so a rule reasoned away at the
-//    repository root is reasoned away the same way inside a skill.
+//    repository root is reasoned away the same way inside a skill: the same
+//    reason, and a skill entry no broader than the root's.
+//    7a. No two paths under skills/ differ only in case.
 //    7b. The SkillSpector allowance is well formed, names files that exist,
 //    and pins each one by its current content.
 // 8. The test suite passes. `node --test` ships with Node, so the tests cost no
@@ -838,7 +840,7 @@ for (const e of existsSync(join(root, 'hooks')) ? readdirSync(join(root, 'hooks'
   if (caseTwin(e, 'hooks.json')) fail(`hooks/${shown(e)} is hooks/hooks.json in another case — an install that folds case loads it, and the check reads only hooks/hooks.json. Rename it.`);
 }
 
-// 7. The SkillSpector baselines agree.
+// 7. The SkillSpector baselines agree: a skill's entry gives the root's reason and is never broader.
 //
 // SkillSpector scans the prose this repository ships, and the workflow at
 // .github/workflows/skillspector.yml fails on any finding a baseline does not
@@ -1049,14 +1051,14 @@ for (const path of skillBaselines) {
     // everywhere while the other suppressed it in one place, and called that
     // agreement.
     const wild = v => /[*?[]/.test(v);
-    const never = "a skill entry may be narrower than the root's, never broader";
+    const neverBroader = "a skill entry may be narrower than the root's, never broader";
     const scope = (field, word, exact, none) => {
       const here = r[field];
       const there = mirror[field];
       const say = v => (v === undefined ? none : shown(v));
       const line = clause => fail(`${r.at}: ${r.rule_id} is ${word} ${say(here)} here and to ${say(there)} in ${rel(rootBaseline)} — ${clause}`);
       if (there !== undefined) {
-        if (here !== there) line(never);
+        if (here !== there) line(neverBroader);
       } else if (here !== undefined && wild(here)) {
         line(`a narrowing of a rule-wide entry names ${exact}`);
       }

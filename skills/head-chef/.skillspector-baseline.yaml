@@ -24,12 +24,12 @@
 # ask. Apply it with --use-shipped-baseline, and read what it covered with
 # --show-suppressed.
 #
-# Each entry names the one file its rule fired on when the entries were
+# Each entry except TR2 names the one file its rule fired on when the entries were
 # measured, with SkillSpector v2.13.0 on 2026-10-17. The path is exact, and the
 # scanner matches it ignoring letter case. A finding of the same rule in any
 # other file is reported, and it fails this repository's build. That holds for a
 # scan of this skill's own folder. A scanner that ignores `file` applies each
-# entry to the whole folder, as before.
+# entry to the whole folder.
 #
 # An entry that names a file and no message covers every finding of its rule
 # anywhere in that file, not only the line it was measured on: README.md for
@@ -42,9 +42,9 @@
 # reworded to satisfy a pattern matcher.
 #
 # The repository this skill comes from carries the same rules, in the same
-# words, narrower here, in the file at its root. That file is rule-wide, for a
-# scan of the whole repository. Its check lets a skill's entry be narrower than
-# the root's, never broader.
+# words, in the file at its root. That file is rule-wide, for a scan of the
+# whole repository, and the entries here are narrower. Its check lets a skill's
+# entry be narrower than the root's, never broader.
 
 version: 2
 fingerprints: []

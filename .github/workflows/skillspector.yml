@@ -313,9 +313,9 @@ jobs:
       # The narrowing is only worth what the scanner does with it. The shipped
       # baselines name the file each entry covers, and a scanner that ignored
       # `file` would apply every entry to the whole folder again while the gate
-      # stayed green. So this scans a copy of eagle-eye with its edge audit
-      # copied to lib/audit.mjs, the way an installer would, with
-      # --use-shipped-baseline: the original's E1 finding must stay suppressed
+      # stayed green. So this scans a copy of eagle-eye, with its edge audit also
+      # copied to lib/audit.mjs, using --use-shipped-baseline as an installer
+      # would: the original's E1 finding must stay suppressed
       # and the copy's must be reported. A pin bump that stops honouring `file`
       # goes red here. One skill is enough to show it.
       #

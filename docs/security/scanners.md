@@ -234,14 +234,18 @@ root's entries stay rule-wide, for a scan of the whole repository.
 
 **Narrower suppression for one skill.** A skill's entry may be narrower than the
 root's, for a scan of that skill's folder, and never broader. `eagle-eye`,
-`groundtrack` and `head-chef` do it: each entry names the one file its rule
-fired on, as an exact path with no wildcard, measured with SkillSpector v2.13.0
-on 2026-10-17. The scanner matches the path ignoring letter case, so a finding
-of the same rule in any other file is reported and fails the build. An entry
+`groundtrack` and `head-chef` do it: each entry, except `head-chef`'s `TR2`,
+names the one file its rule fired on, as an exact path with no wildcard,
+measured with SkillSpector v2.13.0 on 2026-10-17. `TR2` keeps the root's
+`*SKILL.md` and exact clause. The scanner matches the path ignoring letter case, so a finding
+of the same rule in any other file is reported and fails the build. The
+entries assume v2.13.0's matcher: a scanner that matches `file` against another
+path form suppresses nothing, and reports the accepted findings too. An entry
 that names a file and no message covers every finding of its rule anywhere in
 that file. `eagle-eye`'s `AR2` and `PE3` also carry an exact `message`, the
-measured finding text, so a new anti-refusal line in `SKILL.md` or a new
-credential mention in `audit.mjs` is reported too. The rule for what a skill
+words the scanner matched, so a finding of either rule that matches other words
+in those files is reported too. A new line that uses the same words passes the
+scan, and review holds it. The rule for what a skill
 entry may add is in `scripts/check.mjs`, rule 7: where the root names no `file`
 or `message`, the skill may name an exact one; where the root names one, the
 skill names the same.
@@ -250,11 +254,11 @@ The root's entries stay rule-wide, for a scan of the whole repository, which is
 what the plugin route installs. There, `E1` and `PE3` still hide a send or a
 credential read in any file, the mod's included. The scan does not hold which
 providers receive a box's text and the key: a test in `tests/audit.test.mjs`
-holds the hosts named in `audit.mjs`'s source to two, and review holds the
-rest.
+holds the hosts written as URLs in `audit.mjs`'s source to two, all `https`,
+and review holds the rest.
 
-The `contract` skill is not narrowed. Its `EA2` entry covers its whole
-directory, not only the texts it is about. A new `EA2` finding anywhere in
+The `contract` skill keeps its `EA2`, `P2` and `RA2` entries whole-skill. Its
+`EA2` entry covers its whole directory, not only the texts it is about. A new `EA2` finding anywhere in
 that skill would be suppressed and would not fail the build. The same holds for
 its `P2` and `RA2` entries, added on 2026-10-15. With `P2` off, an instruction
 hidden anywhere in that skill would pass the scan: in a comment or a
@@ -264,9 +268,8 @@ an instruction to persist on the person's machine: a scheduled job, a startup
 or profile file, a background process or a hidden folder. The skill's template
 would copy any of them into every file it builds, and only review of the prose
 would catch it. The same held for `head-chef`'s `AS3` entry, added in #206,
-until it was dropped on 2026-10-17. `MP1` is not shared, so its entry names the
-one file it fires on, `contract.changelog.md`, and it still fires anywhere
-else. `TR2` is not shared either. It reads only a skill's frontmatter, so a file
+until it was dropped on 2026-10-17. Its `MP1` entry names the one file it fires
+on, `contract.changelog.md`, and it still fires anywhere else. `TR2` is not shared either. It reads only a skill's frontmatter, so a file
 glob would narrow nothing, and its entry also carries a `message` with no
 wildcard: the one clause of `head-chef`'s description it is about, exactly as
 the scanner quotes it, case aside. The breadth is written in the skill's
@@ -317,7 +320,8 @@ entry with a written reason. The gate prints the tally by rule on every run.
 **There is one baseline file per scanned directory.** The scanner only finds a
 baseline at the top of the directory it scans. So
 [`skills/eagle-eye/.skillspector-baseline.yaml`](../../skills/eagle-eye/.skillspector-baseline.yaml),
-[`skills/groundtrack/.skillspector-baseline.yaml`](../../skills/groundtrack/.skillspector-baseline.yaml)
+[`skills/groundtrack/.skillspector-baseline.yaml`](../../skills/groundtrack/.skillspector-baseline.yaml),
+[`skills/head-chef/.skillspector-baseline.yaml`](../../skills/head-chef/.skillspector-baseline.yaml)
 and
 [`skills/contract/.skillspector-baseline.yaml`](../../skills/contract/.skillspector-baseline.yaml)
 repeat the rules that fire inside each skill. The root file is for a reader

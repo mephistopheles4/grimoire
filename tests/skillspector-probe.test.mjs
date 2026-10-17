@@ -51,6 +51,24 @@ test('the rule is read case-folded from rule_id too, and the other rules are ign
   assert.equal(r.code, 0, r.stdout + r.stderr);
 });
 
+test('E1 reported on another file, not on the copy, fails', () => {
+  const r = run(report({ issues: [finding('E1', 'x.mjs')], suppressed: [finding('E1', 'audit.mjs')] }));
+  assert.equal(r.code, 1);
+  assert.match(r.stderr, /E1 on lib\/audit\.mjs was not reported/);
+});
+
+test('E1 suppressed only on the copy, not on the original, fails', () => {
+  const r = run(report({ issues: [finding('E1', 'lib/audit.mjs')], suppressed: [finding('E1', 'lib/audit.mjs')] }));
+  assert.equal(r.code, 1);
+  assert.match(r.stderr, /E1 on audit\.mjs was not suppressed/);
+});
+
+test('another rule suppressed on the original does not stand in for its E1', () => {
+  const r = run(report({ issues: [finding('E1', 'lib/audit.mjs')], suppressed: [finding('PE3', 'audit.mjs')] }));
+  assert.equal(r.code, 1);
+  assert.match(r.stderr, /E1 on audit\.mjs was not suppressed/);
+});
+
 test('a report it cannot parse fails and names no path', () => {
   for (const body of ['not json', '[]', '{"issues": 3}', '{"issues": [], "suppressed": "x"}']) {
     const p = report(body);

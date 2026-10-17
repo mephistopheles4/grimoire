@@ -32,7 +32,7 @@
 # scanner matches it ignoring letter case. A finding of the same rule in any
 # other file is reported, and it fails this repository's build. That holds for a
 # scan of this skill's own folder. A scanner that ignores `file` applies each
-# entry to the whole folder, as before.
+# entry to the whole folder.
 #
 # An entry that names a file and no message covers every finding of its rule
 # anywhere in that file, not only the line it was measured on: assets/OFL.txt

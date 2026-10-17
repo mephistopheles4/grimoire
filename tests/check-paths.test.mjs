@@ -115,16 +115,19 @@ test('a skill directory with no SKILL.md fails', () => {
 // old suppression, and a checkout that folds case lets one overwrite the other.
 // Where case folds the twin cannot be written, so the comparison is asserted in
 // tests/case.test.mjs instead and this test says so.
-test('two tracked paths under skills/ that differ only in case fail', t => {
+test('two tracked paths under skills/ that differ only in case fail, masked', t => {
   const dir = tree();
   assertPasses(dir);
-  const skill = join(dir, 'skills', 'eagle-eye');
-  writeFileSync(join(skill, 'Audit.MJS'), '// a twin\n');
-  if (!readdirSync(skill).includes('Audit.MJS') || !readdirSync(skill).includes('audit.mjs')) {
+  // A home folder in the twins' path shows whether the failure line masks it.
+  const home = join(dir, 'skills', 'eagle-eye', 'Users', 'someone');
+  mkdirSync(home, { recursive: true });
+  writeFileSync(join(home, 'A.txt'), 'a twin\n');
+  writeFileSync(join(home, 'a.txt'), 'another twin\n');
+  if (readdirSync(home).length < 2) {
     t.diagnostic('case folds: asserted caseTwinPaths only');
     return;
   }
   t.diagnostic('case-sensitive: ran the check');
-  const r = assertFails(dir, /skills\/eagle-eye\/(?:Audit\.MJS|audit\.mjs) and skills\/eagle-eye\/(?:Audit\.MJS|audit\.mjs) differ only in case/);
-  assert.doesNotMatch(r.stdout, /someone/);
+  const r = assertFails(dir, /skills\/eagle-eye\/Users\/<name>\/(?:A|a)\.txt and skills\/eagle-eye\/Users\/<name>\/(?:A|a)\.txt differ only in case/);
+  assert.doesNotMatch(r.stdout + r.stderr, /someone/);
 });

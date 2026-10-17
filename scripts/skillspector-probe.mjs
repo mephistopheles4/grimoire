@@ -10,7 +10,7 @@
 // finding and reports the copy's. A scanner that ignores `file` suppresses
 // both, and this exits 1: a pin bump cannot quietly turn the narrowing off.
 //
-// It reads `issues` and `suppressed` by rule `id` and `location.file`, and
+// It reads `issues` and `suppressed` by rule `id` (or `rule_id`), case-folded, and `location.file`, and
 // judges nothing else. It does not say the copy is complete: the copy is read in
 // part, as audit.mjs is. The step that runs it proves the installer's route
 // (--use-shipped-baseline); the gate loads the same file by --baseline.
