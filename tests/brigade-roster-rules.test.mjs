@@ -436,3 +436,96 @@ test('an answer whose field throws when read is not an answer, and the reader do
   const block = { get type() { throw new Error('planted'); } };
   assert.deepEqual(readOpenAnswer({ content: [block], isError: false }), { opened: false });
 });
+// --- the summary path (#311) ----------------------------------------------------
+//
+// Spec revision 5 on #304, S4: the roster's path rule, generalized to take the
+// file's place. A session's usage summary lives at
+// <data>/brigade/usage/<session id>.json, a folder apart from the rosters, so
+// a session that is both a lead and a member never writes one over the other.
+
+const { placeSummary, summaryFile, rosterFile } = roster;
+
+for (const [os, s] of Object.entries(shapes)) {
+  const ID = 'grimoire-inline';
+  const at = (...p) => s.join(s.config, ...p);
+  const PLUGINS = at('plugins');
+  const DATA = at('plugins', 'data');
+  const IDDIR = at('plugins', 'data', ID);
+  const BRIGADE = at('plugins', 'data', ID, 'brigade');
+  const USAGE = at('plugins', 'data', ID, 'brigade', 'usage');
+  const FILE = s.join(USAGE, `${SID}.json`);
+  const all = (over = {}) => ({
+    [s.config]: dir(s.config),
+    [PLUGINS]: dir(PLUGINS),
+    [DATA]: dir(DATA),
+    [IDDIR]: dir(IDDIR),
+    [BRIGADE]: dir(BRIGADE),
+    [USAGE]: dir(USAGE),
+    ...over,
+  });
+  const place = (table, sid = SID, id = ID) => placeSummary(s.config, id, sid, statFrom(table));
+
+  test(`${os}: the summary file sits in the usage folder, apart from the roster of the same session`, async () => {
+    assert.deepEqual(await place(all()), { file: FILE });
+    assert.notEqual(FILE, s.join(BRIGADE, `${SID}.json`));
+    assert.equal(summaryFile(at('plugins', 'data', ID), SID), FILE);
+    assert.notEqual(summaryFile(at('plugins', 'data', ID), SID), rosterFile(at('plugins', 'data', ID), SID));
+    assert.deepEqual(await place(all({ [FILE]: file(FILE, 300) })), { file: FILE, existing: { size: 300 } });
+  });
+
+  test(`${os}: a missing folder below plugins ends the summary walk, the usage folder included`, async () => {
+    for (const gone of [DATA, IDDIR, BRIGADE, USAGE]) {
+      const t = all();
+      for (const k of Object.keys(t)) if (k.startsWith(gone)) delete t[k];
+      const log = [];
+      assert.deepEqual(await placeSummary(s.config, ID, SID, statFrom(t, log)), { file: FILE }, gone);
+      assert.equal(log.at(-1), gone, 'nothing is asked below a missing folder');
+    }
+  });
+
+  test(`${os}: a recorded junction or link at usage, or at any folder above it, is refused`, async () => {
+    const shapesOf = os === 'windows' ? ['junction', 'broken-junction', 'dir-symlink'] : ['dir-symlink'];
+    for (const [name, path] of [['plugins', PLUGINS], ['data', DATA], [ID, IDDIR], ['brigade', BRIGADE], ['usage', USAGE]]) {
+      for (const shape of shapesOf) {
+        assert.deepEqual(await place(all({ [path]: recorded(shape, s.join(s.other, name)) })), { refused: `link: ${name} is a link` }, `${shape} at ${name}`);
+      }
+    }
+    // A usage folder that leads elsewhere with no link flag: the real-path compare.
+    assert.deepEqual(await place(all({ [USAGE]: dir(s.join(s.other, 'usage')) })), { refused: 'link: usage does not lead where its name says' });
+    assert.deepEqual(await place(all({ [USAGE]: file(USAGE) })), { refused: 'path: usage is not a folder' });
+  });
+
+  test(`${os}: the summary file refused as a link, as a non-file, or landing elsewhere`, async () => {
+    const shapesOf = os === 'windows' ? ['file-symlink', 'broken-file-symlink', 'junction'] : ['file-symlink', 'broken-file-symlink'];
+    for (const shape of shapesOf) {
+      assert.deepEqual(await place(all({ [FILE]: recorded(shape, s.join(s.other, 'x.json')) })), { refused: 'link: the summary file is a link' }, shape);
+    }
+    assert.deepEqual(await place(all({ [FILE]: dir(FILE) })), { refused: 'path: the summary path is not a plain file' });
+    assert.deepEqual(await place(all({ [FILE]: file(s.join(s.other, 'x.json')) })), { refused: 'link: the summary file does not lead where its name says' });
+    assert.match((await place(all({ [FILE]: { failed: 'EPERM' } }))).refused, /^path: the summary file could not be read/);
+  });
+
+  test(`${os}: the summary path keeps the session-id and data-id shape checks, before any stat`, async () => {
+    for (const [sid, id] of [['not-an-id', ID], [`${SID}/../x`, ID], [`..\\${SID}`, ID], [SID, '../x'], [SID, 'a b']]) {
+      const log = [];
+      const r = await placeSummary(s.config, id, sid, statFrom(all(), log));
+      assert.match(r.refused, /^path: /);
+      assert.deepEqual(log, []);
+    }
+  });
+}
+
+test('the roster path is unchanged by the generalized rule: it never walks into usage', async () => {
+  const C = 'C:\\cfg\\.claude';
+  const ID = 'grimoire-inline';
+  const log = [];
+  const t = {
+    [C]: dir(C),
+    [`${C}\\plugins`]: dir(`${C}\\plugins`),
+    [`${C}\\plugins\\data`]: dir(`${C}\\plugins\\data`),
+    [`${C}\\plugins\\data\\${ID}`]: dir(`${C}\\plugins\\data\\${ID}`),
+    [`${C}\\plugins\\data\\${ID}\\brigade`]: dir(`${C}\\plugins\\data\\${ID}\\brigade`),
+  };
+  assert.deepEqual(await placeRoster(C, ID, SID, statFrom(t, log)), { file: `${C}\\plugins\\data\\${ID}\\brigade\\${SID}.json` });
+  assert.ok(!log.some(p => p.includes('usage')));
+});

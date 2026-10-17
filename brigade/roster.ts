@@ -195,9 +195,13 @@ export function statRejection(message: string): StatAnswer {
  *  must still find to be a roster before it overwrites it. */
 export type Placed = { file: string; existing?: { size: number } } | { refused: string }
 
-// The folders below the config folder, in order. `plugins` is the engine's
-// own and must be there; the mod may create the rest.
-const FOLDERS = (plugin: string) => ['plugins', 'data', plugin, 'brigade']
+// The folders below the config folder, in order, for each kind of file the
+// mod writes: the lead's roster, and each session's usage summary in a folder
+// apart from the rosters. `plugins` is the engine's own and must be there;
+// the mod may create the rest.
+type Place = 'roster' | 'summary'
+const FOLDERS = (plugin: string, place: Place) =>
+  place === 'roster' ? ['plugins', 'data', plugin, 'brigade'] : ['plugins', 'data', plugin, 'brigade', 'usage']
 
 /** A path as the real-path compare reads it: one separator, no trailing one,
  *  and case folded where the file system ignores it. The roster path rule and
@@ -227,11 +231,34 @@ export function foldsCase(path: string): boolean {
  *  `isLink`; and a file that is a link, is not a plain file, or lands
  *  anywhere but in the checked folder. A missing folder below `plugins` ends
  *  the walk: the write creates it and everything below it. */
-export async function placeRoster(
+export function placeRoster(
   config: string,
   plugin: string,
   sessionId: string,
   stat: (path: string) => Promise<StatAnswer>,
+): Promise<Placed> {
+  return placeFile(config, plugin, sessionId, stat, 'roster')
+}
+
+/** Decides whether this session's usage summary file under the config
+ *  folder may be read or written: `placeRoster`'s rule, word for word, with
+ *  the walk going one folder further, into `usage`, so a summary never lands
+ *  where a roster does. */
+export function placeSummary(
+  config: string,
+  plugin: string,
+  sessionId: string,
+  stat: (path: string) => Promise<StatAnswer>,
+): Promise<Placed> {
+  return placeFile(config, plugin, sessionId, stat, 'summary')
+}
+
+async function placeFile(
+  config: string,
+  plugin: string,
+  sessionId: string,
+  stat: (path: string) => Promise<StatAnswer>,
+  place: Place,
 ): Promise<Placed> {
   if (!SESSION_ID.test(sessionId)) return { refused: 'path: the session id is not the engine\'s shape' }
   if (!/^[A-Za-z0-9_-]{1,200}$/.test(plugin)) return { refused: 'path: the plugin\'s data id is not of its shape' }
@@ -244,13 +271,14 @@ export async function placeRoster(
   const real = pathKey(top.found.realPath, fold)
   let at = config
   let expected = real
-  for (const name of FOLDERS(plugin)) {
+  const folders = FOLDERS(plugin, place)
+  for (const name of folders) {
     at = `${at}${sep}${name}`
     expected = `${expected}/${fold ? name.toLowerCase() : name}`
     const s = await stat(at)
     if ('missing' in s) {
       if (name === 'plugins') return { refused: 'path: the config folder has no plugins folder' }
-      return { file: `${config}${sep}${FOLDERS(plugin).join(sep)}${sep}${sessionId}.json` }
+      return { file: `${config}${sep}${folders.join(sep)}${sep}${sessionId}.json` }
     }
     if ('failed' in s) return { refused: `path: ${name} could not be read (${s.failed})` }
     if (s.found.isLink) return { refused: `link: ${name} is a link` }
@@ -262,11 +290,11 @@ export async function placeRoster(
   const file = `${at}${sep}${sessionId}.json`
   const s = await stat(file)
   if ('missing' in s) return { file }
-  if ('failed' in s) return { refused: `path: the roster file could not be read (${s.failed})` }
-  if (s.found.isLink) return { refused: 'link: the roster file is a link' }
-  if (s.found.kind !== 'file') return { refused: 'path: the roster path is not a plain file' }
+  if ('failed' in s) return { refused: `path: the ${place} file could not be read (${s.failed})` }
+  if (s.found.isLink) return { refused: `link: the ${place} file is a link` }
+  if (s.found.kind !== 'file') return { refused: `path: the ${place} path is not a plain file` }
   if (s.found.realPath === undefined || pathKey(s.found.realPath, fold) !== `${expected}/${fold ? `${sessionId}.json`.toLowerCase() : `${sessionId}.json`}`) {
-    return { refused: 'link: the roster file does not lead where its name says' }
+    return { refused: `link: the ${place} file does not lead where its name says` }
   }
   return { file, existing: { size: s.found.size } }
 }
@@ -321,6 +349,13 @@ export const sepOf = (dir: string): string => (dir.includes('\\') ? '\\' : '/')
 export function rosterFile(data: string, sessionId: string): string {
   const sep = sepOf(data)
   return `${data}${sep}brigade${sep}${sessionId}.json`
+}
+
+/** The usage summary file of one session in the plugin's data folder, named
+ *  by its checked session id, in the `usage` folder apart from the rosters. */
+export function summaryFile(data: string, sessionId: string): string {
+  const sep = sepOf(data)
+  return `${data}${sep}brigade${sep}usage${sep}${sessionId}.json`
 }
 
 /** A row of `claude agents --json`, as far as the pane uses it. `status` is

@@ -482,8 +482,10 @@ test('the matcher for the costly breakdown catches every string form', () => {
   for (const sample of [`'summary'`, 'a full path', `'fully'`]) assert.doesNotMatch(sample, FULL, sample);
 });
 
-test('the view and register modules never ask for the costly breakdown', () => {
-  for (const file of ['brigade/view.ts', 'brigade/register.tsx']) {
+// The usage summary writer lives in writer.ts, where.ts and view.ts (#311):
+// every module the hooks file loads is held to the guard.
+test('the mod\'s modules never ask for the costly breakdown', () => {
+  for (const file of ['brigade/view.ts', 'brigade/register.tsx', 'brigade/writer.ts', 'brigade/where.ts', 'brigade/roster.ts']) {
     const text = readFileSync(join(root, file), 'utf8');
     assert.doesNotMatch(text, FULL, `${file} names the costly breakdown`);
   }
@@ -491,6 +493,14 @@ test('the view and register modules never ask for the costly breakdown', () => {
   const register = readFileSync(join(root, 'brigade/register.tsx'), 'utf8');
   const asks = [...register.matchAll(/breakdown:\s*([^\s,}]+)/g)].map(m => m[1]);
   assert.deepEqual(asks, [`'summary'`]);
+});
+
+test('the writer makes no session usage call at all, so no cost or rate limit enters it', () => {
+  for (const file of ['brigade/writer.ts', 'brigade/where.ts']) {
+    // Code only: a comment may say what the writer never does.
+    const code = readFileSync(join(root, file), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '');
+    assert.doesNotMatch(code, /session\s*\.\s*usage|breakdown|\.cost\b|rateLimits/, file);
+  }
 });
 
 test('the stored snapshot holds only the fields the view draws', () => {
@@ -3371,4 +3381,316 @@ test('withoutSize drops a trailing context size and keeps every other line', () 
   assert.equal(view.withoutSize('◆ cache warm (working) · 1.2M context'), '◆ cache warm (working)');
   assert.equal(view.withoutSize('◆ cache unknown · transcript too large to read'), '◆ cache unknown · transcript too large to read');
   assert.equal(view.withoutSize('◆ cache warm (working)'), '◆ cache warm (working)');
+});
+
+// --- the usage summary writer (#311) ------------------------------------------
+//
+// Spec revision 5 on #304, S4 "The writer" and "The summary file". Every
+// session keeps its own usage numbers from its `turn.step` hook and writes
+// them, numbers only, to its own summary file. The writer's decisions are
+// these pure functions; brigade/writer.ts only feeds them, stats and writes.
+
+const { stepCall } = view;
+
+// A step's resolved usage as the engine hands it: the four counts and the
+// model that answered.
+const stepUsage = (over = {}) => ({
+  input_tokens: 6,
+  cache_creation_input_tokens: 1000,
+  cache_read_input_tokens: 150000,
+  output_tokens: 300,
+  model: 'claude-opus-5-5',
+  ...over,
+});
+
+test('a main-loop step with usage counts: its context, its new tokens, its cache and its window', () => {
+  assert.deepEqual(stepCall({}, { stopReason: 'tool_use', usage: stepUsage() }), { tokens: 151006, fresh: 1306, cache: true, window: 1000000 });
+  // No cache written or read: the flag is off. A Haiku model has the 200k window.
+  assert.deepEqual(stepCall({}, { stopReason: 'end_turn', usage: stepUsage({ cache_creation_input_tokens: 0, cache_read_input_tokens: 0, model: 'claude-haiku-4-5' }) }), { tokens: 6, fresh: 306, cache: false, window: 200000 });
+  // A model the fixed table has no row for: no window.
+  assert.deepEqual(stepCall({}, { stopReason: 'end_turn', usage: stepUsage({ model: 'claude-sonnet-4-6' }) }), { tokens: 151006, fresh: 1306, cache: true, window: undefined });
+});
+
+test('a step outside the main loop, with no usage, or with no context records nothing', () => {
+  assert.equal(stepCall({ agentId: 'a1' }, { stopReason: 'end_turn', usage: stepUsage() }), undefined, 'a subagent or teammate step');
+  assert.equal(stepCall({}, { stopReason: null, usage: null }), undefined, 'no response arrived');
+  assert.equal(stepCall({}, { stopReason: 'end_turn' }), undefined, 'usage missing altogether');
+  assert.equal(stepCall({}, { stopReason: 'end_turn', usage: stepUsage({ input_tokens: 0, cache_creation_input_tokens: 0, cache_read_input_tokens: 0 }) }), undefined, 'zero context');
+});
+
+test('a count that is not a whole number from 0 to 10,000,000 spoils the step, as it spoils a transcript row', () => {
+  for (const bad of [-1, 1.5, 10000001, Number.NaN, Infinity, '6', null, true, {}]) {
+    for (const k of ['input_tokens', 'cache_creation_input_tokens', 'cache_read_input_tokens', 'output_tokens']) {
+      assert.equal(stepCall({}, { stopReason: 'end_turn', usage: stepUsage({ [k]: bad }) }), undefined, `${k} = ${String(bad)}`);
+    }
+  }
+  // The top value counts; an absent count reads as 0, as in the transcript.
+  assert.equal(stepCall({}, { stopReason: 'end_turn', usage: stepUsage({ input_tokens: 10000000 }) })?.tokens, 10151000);
+  const { output_tokens, ...noOutput } = stepUsage();
+  assert.equal(stepCall({}, { stopReason: 'end_turn', usage: noOutput })?.fresh, 1006);
+});
+
+// Probe part 2 on #311: compaction, session titles, /recap and side questions
+// raise no step, and every step outside the main loop carries `agentId`. A
+// main-loop step whose stop reason is `compaction` is a real request on the
+// main conversation; the transcript keeps its row with a message id and
+// usage and counts it, so the writer counts it too.
+test('the stop reason never excludes a main-loop step, compaction included', () => {
+  for (const stopReason of ['end_turn', 'max_tokens', 'stop_sequence', 'tool_use', 'pause_turn', 'compaction', 'refusal', 'model_context_window_exceeded']) {
+    assert.equal(stepCall({}, { stopReason, usage: stepUsage() })?.tokens, 151006, stopReason);
+  }
+});
+
+const { newUsageMemory, recordCall, summaryFrom } = view;
+
+// The same calls, as transcript rows and as steps: each [ms from NOW, usage].
+const sameCalls = calls => {
+  const text = file(...calls.map(([ms, u]) => row({ ms, usage: u, write: '1h' })));
+  let mem = newUsageMemory();
+  for (const [ms, u] of calls) {
+    const c = stepCall({}, { stopReason: 'end_turn', usage: { ...stepUsage(), ...u } });
+    assert.ok(c, `the step at ${ms} counts`);
+    mem = recordCall(mem, c, NOW + ms);
+  }
+  return { text, mem };
+};
+
+test('the summary holds the numbers the transcript reading gives for the same calls', () => {
+  const calls = [
+    // Older than the 30 minutes: in the context series, not in the burn.
+    [-45 * MIN, {}],
+    [-31 * MIN, { input_tokens: 7 }],
+    // On a minute's edge, and inside one minute twice.
+    [-30 * MIN, { input_tokens: 9 }],
+    [-12 * MIN, { output_tokens: 1 }],
+    [-12 * MIN + 1, { output_tokens: 2 }],
+    [-11 * MIN - 1, { output_tokens: 3 }],
+    [-MIN, { cache_read_input_tokens: 0 }],
+    [-1, { input_tokens: 40 }],
+  ];
+  const { text, mem } = sameCalls(calls);
+  const series = callSeries(text, MTIME, NOW);
+  // Written at the read time, and 25 s before it: the burn lines up to the
+  // next whole minute, NOW, either way.
+  for (const writtenAt of [NOW, NOW - 25000]) {
+    const s = summaryFrom(mem, writtenAt);
+    assert.equal(s.at, NOW);
+    assert.deepEqual(s.burn, series.burn);
+    assert.deepEqual(s.context, series.context);
+    assert.equal(s.lastAt, series.last.at);
+    assert.equal(s.lastTokens, series.last.tokens);
+    assert.equal(s.window, series.window);
+  }
+  // The literal numbers, from the fixture's counts: a minute's bucket ends on
+  // its edge, so the call at -1 min is in bucket 28 (6 + 1000 + 300) and the
+  // one at -1 ms alone in bucket 29 (40 + 1000 + 300).
+  assert.equal(summaryFrom(mem, NOW).burn[28], 1306);
+  assert.equal(summaryFrom(mem, NOW).burn[29], 1340);
+  assert.equal(summaryFrom(mem, NOW).lastTokens, 151040);
+});
+
+test('a burn bucket is clamped to 30,000,000, as the transcript reading clamps it', () => {
+  const big = { input_tokens: 10000000, cache_creation_input_tokens: 10000000, output_tokens: 10000000 };
+  const { text, mem } = sameCalls([[-2 * MIN + 10, big], [-2 * MIN + 20, big]]);
+  assert.equal(summaryFrom(mem, NOW).burn[28], 30000000);
+  assert.deepEqual(summaryFrom(mem, NOW).burn, callSeries(text, MTIME, NOW).burn);
+});
+
+test('the context series keeps the last 30 calls, oldest first', () => {
+  let mem = newUsageMemory();
+  for (let i = 1; i <= 35; i++) mem = recordCall(mem, { tokens: i, fresh: 1, cache: false, window: 200000 }, NOW - (36 - i) * 1000);
+  const s = summaryFrom(mem, NOW);
+  assert.deepEqual(s.context, Array.from({ length: 30 }, (_, i) => i + 6));
+  assert.equal(s.lastTokens, 35);
+});
+
+test('the window is the last counted call\'s, 0 when the table has none', () => {
+  let mem = recordCall(newUsageMemory(), { tokens: 5, fresh: 5, cache: false, window: 1000000 }, NOW - 2000);
+  assert.equal(summaryFrom(mem, NOW).window, 1000000);
+  mem = recordCall(mem, { tokens: 5, fresh: 5, cache: false, window: undefined }, NOW - 1000);
+  assert.equal(summaryFrom(mem, NOW).window, 0);
+});
+
+test('the cache flag is 1 once any counted call since load wrote or read cache, else 0', () => {
+  const plain = { tokens: 5, fresh: 5, cache: false, window: 200000 };
+  let mem = recordCall(newUsageMemory(), plain, NOW - 3000);
+  assert.equal(summaryFrom(mem, NOW).cache, 0);
+  mem = recordCall(mem, { ...plain, cache: true }, NOW - 2000);
+  mem = recordCall(mem, plain, NOW - 1000);
+  assert.equal(summaryFrom(mem, NOW).cache, 1);
+});
+
+test('with no counted call since load there is no summary, so a turn end writes nothing', () => {
+  assert.equal(summaryFrom(newUsageMemory(), NOW), undefined);
+});
+
+test('a summary holds exactly the listed keys, in their order, with whole-millisecond times', () => {
+  const s = summaryFrom(recordCall(newUsageMemory(), { tokens: 5, fresh: 5, cache: true, window: 200000 }, NOW - 1000.4), NOW - 0.6);
+  assert.deepEqual(Object.keys(s), ['version', 'at', 'window', 'burn', 'context', 'lastAt', 'lastTokens', 'cache']);
+  assert.deepEqual(Object.keys(s), [...view.SUMMARY_KEYS]);
+  assert.equal(s.version, 1);
+  assert.equal(s.lastAt, NOW - 1000);
+  assert.equal(s.at, NOW);
+});
+
+const { MAX_SUMMARY_BYTES, checkSummary, serializeSummary, isSummaryFile } = view;
+
+const goodSummary = () => summaryFrom(recordCall(newUsageMemory(), { tokens: 151006, fresh: 1306, cache: true, window: 1000000 }, NOW - 1000), NOW);
+// Every field at its top value: the file the cap is measured against.
+const worstSummary = () => ({
+  version: 1,
+  at: 8640000000000000,
+  window: 1000000,
+  burn: Array(30).fill(30000000),
+  context: Array(30).fill(30000000),
+  lastAt: 8640000000000000,
+  lastTokens: 30000000,
+  cache: 1,
+});
+
+test('the cap holds the worst-case file, measured at 671 bytes, with its headroom', () => {
+  assert.equal(Buffer.byteLength(JSON.stringify(worstSummary())), 671);
+  assert.equal(MAX_SUMMARY_BYTES, 1024);
+  assert.deepEqual(serializeSummary(worstSummary()), { value: JSON.stringify(worstSummary()) });
+});
+
+test('a summary the writer builds passes the strict check, and serializes to the text it checks', () => {
+  const s = goodSummary();
+  const text = serializeSummary(s);
+  assert.deepEqual(text, { value: JSON.stringify(s) });
+  assert.deepEqual(checkSummary(text.value), { value: s });
+  assert.deepEqual(checkSummary(JSON.stringify(worstSummary())), { value: worstSummary() });
+});
+
+test('the strict check refuses the wrong shape, a missing or unknown key, and an unknown version', () => {
+  const s = goodSummary();
+  const { cache, ...missing } = s;
+  for (const [raw, why] of [
+    ['', 'not JSON'],
+    ['{"version":1', 'not JSON'],
+    ['[]', 'a list'],
+    ['null', 'null'],
+    ['{}', 'an empty object'],
+    [JSON.stringify({ cards: [], todos: [] }), 'a roster'],
+    [JSON.stringify(missing), 'a key missing'],
+    [JSON.stringify({ ...s, model: 'claude-opus-5-5' }), 'an unknown key'],
+    [JSON.stringify(s).replace('{', '{"__proto__":{"x":1},'), 'a __proto__ key'],
+    [JSON.stringify({ ...s, version: 2 }), 'a newer version'],
+    [JSON.stringify({ ...s, version: '1' }), 'a version as text'],
+  ]) {
+    assert.ok('error' in checkSummary(raw), why);
+  }
+  assert.equal({}.x, undefined);
+  // An unknown version is its own refusal, so the pane can tell a newer
+  // plugin's file from a broken one.
+  assert.deepEqual(checkSummary(JSON.stringify({ ...s, version: 2 })), { error: view.UNKNOWN_SUMMARY_VERSION });
+  assert.notDeepEqual(checkSummary('{}'), { error: view.UNKNOWN_SUMMARY_VERSION });
+});
+
+test('the strict check refuses every value out of its range', () => {
+  const s = goodSummary();
+  const bad = [
+    { at: -1 }, { at: 1.5 }, { at: 8640000000000001 }, { at: '1' },
+    { lastAt: -1 }, { lastAt: s.at + 1 }, { lastAt: null },
+    { window: 128000 }, { window: -1 }, { window: '200000' },
+    { burn: Array(29).fill(0) }, { burn: Array(31).fill(0) }, { burn: [...Array(29).fill(0), 30000001] }, { burn: [...Array(29).fill(0), -1] }, { burn: [...Array(29).fill(0), 0.5] }, { burn: 'x' },
+    { context: [] }, { context: Array(31).fill(1) }, { context: [30000001] }, { context: [1.5] }, { context: {} },
+    { lastTokens: 0 }, { lastTokens: 30000001 }, { lastTokens: 2.5 },
+    { cache: 2 }, { cache: true }, { cache: -1 },
+  ];
+  for (const over of bad) assert.ok('error' in checkSummary(JSON.stringify({ ...s, ...over })), JSON.stringify(over));
+});
+
+test('a refusal never echoes the file\'s text', () => {
+  const s = goodSummary();
+  for (const raw of [
+    JSON.stringify({ ...s, 'C:\\Users\\x\\secret_token=abc': 1 }),
+    JSON.stringify({ ...s, window: 'sk-ant-secret' }),
+    'sk-ant-secret not json',
+  ]) {
+    const r = checkSummary(raw);
+    assert.ok('error' in r);
+    assert.doesNotMatch(r.error, /secret|Users|sk-ant/);
+  }
+});
+
+test('serialization refuses a summary over the cap, or one the strict check refuses', () => {
+  assert.ok('error' in serializeSummary({ ...worstSummary(), lastTokens: 0 }));
+  assert.ok('error' in serializeSummary({ ...goodSummary(), extra: 'x'.repeat(2000) }));
+});
+
+test('the existing-file check: only a summary file within the cap is overwritten', () => {
+  const good = JSON.stringify(goodSummary());
+  assert.equal(isSummaryFile(Buffer.byteLength(good), good), true, 'a valid summary is overwritten');
+  assert.equal(isSummaryFile(2, '{}'), false, 'an empty object');
+  const rosterText = JSON.stringify({ cards: [], todos: [] });
+  assert.equal(isSummaryFile(rosterText.length, rosterText), false, 'a roster');
+  assert.equal(isSummaryFile(14, '{"theme":"x"}'), false, 'other JSON');
+  assert.equal(isSummaryFile(0, ''), false, 'an empty file');
+  assert.equal(isSummaryFile(1025, good), false, 'a stat size over the cap');
+  assert.equal(isSummaryFile(1024, `${good}${' '.repeat(1100)}`), false, 'text over the cap');
+  assert.equal(isSummaryFile(Buffer.byteLength(good), undefined), false, 'no text read');
+});
+
+const { newFlight, askWrite, writeDone } = view;
+
+test('a step asks for a write at most once every 15 seconds; a turn end always asks', () => {
+  let r = askWrite(newFlight(), NOW, false);
+  assert.equal(r.start, true, 'the first counted step starts a write');
+  r = writeDone(r.flight, NOW + 50);
+  assert.equal(r.start, false, 'nothing was waiting');
+  assert.equal(askWrite(r.flight, NOW + 14999, false).start, false, 'under 15 s since the last write started');
+  assert.equal(askWrite(r.flight, NOW + 15000, false).start, true, '15 s on');
+  assert.equal(askWrite(r.flight, NOW + 1, true).start, true, 'a turn end does not wait for the throttle');
+});
+
+test('one write in flight: a step that finds one skips, a turn end waits for it', () => {
+  const started = askWrite(newFlight(), NOW, false).flight;
+  const tick = askWrite(started, NOW + 20000, false);
+  assert.equal(tick.start, false);
+  assert.equal(writeDone(tick.flight, NOW + 20001).start, false, 'a skipped step leaves nothing waiting');
+  const end = askWrite(started, NOW + 100, true);
+  assert.equal(end.start, false, 'the turn end does not start a second write beside the first');
+  const after = writeDone(end.flight, NOW + 200);
+  assert.equal(after.start, true, 'it starts once the first ends');
+  assert.equal(writeDone(after.flight, NOW + 300).start, false);
+});
+
+test('two overlapping requests leave the newer numbers', () => {
+  // Each write takes its numbers when it starts, as the writer does.
+  const plain = { tokens: 100, fresh: 1, cache: false, window: 200000 };
+  let mem = recordCall(newUsageMemory(), plain, NOW - 5000);
+  const written = [];
+  let r = askWrite(newFlight(), NOW, false);
+  if (r.start) written.push(summaryFrom(mem, NOW));
+  mem = recordCall(mem, { ...plain, tokens: 200 }, NOW + 100);
+  r = askWrite(r.flight, NOW + 200, true);
+  if (r.start) written.push(summaryFrom(mem, NOW + 200));
+  r = writeDone(r.flight, NOW + 300);
+  if (r.start) written.push(summaryFrom(mem, NOW + 300));
+  assert.deepEqual(written.map(s => s.lastTokens), [100, 200]);
+});
+
+test('a clock that went back does not hold the writes off', () => {
+  const r = askWrite(newFlight(), NOW, false);
+  const done = writeDone(r.flight, NOW + 10).flight;
+  assert.equal(askWrite(done, NOW - 3600000, false).start, true);
+});
+
+test('a hostile step whose model and extra usage fields hold path- and secret-shaped text writes none of it, and exactly the listed keys', () => {
+  const hostile = {
+    ...stepUsage(),
+    model: 'C:\\Users\\victim\\.claude\\settings.json ANTHROPIC_API_KEY=sk-ant-api03-SECRET',
+    server_tool_use: { web_search_requests: '../../etc/passwd' },
+    service_tier: 'ghp_SECRETSECRETSECRET',
+    cache_creation: { ephemeral_1h_input_tokens: '/home/victim/.ssh/id_rsa' },
+    __proto__: { polluted: 'sk-ant-SECRET' },
+  };
+  const c = stepCall({ agentId: undefined, model: 'C:\\Users\\victim' }, { stopReason: 'end_turn', usage: hostile, answer: 'sk-ant-SECRET', toolUses: [{ name: 'Read', input: { file_path: 'C:\\Users\\victim' } }] });
+  assert.ok(c, 'the step still counts by its numbers');
+  const text = serializeSummary(summaryFrom(recordCall(newUsageMemory(), c, NOW - 1000), NOW)).value;
+  assert.doesNotMatch(text, /victim|SECRET|sk-ant|ghp_|passwd|ssh|Users|settings|claude-|[\\/]/);
+  assert.match(text, /^[{}[\]"a-zA-Z0-9:,]+$/, 'numbers, the listed keys and JSON punctuation only');
+  assert.deepEqual(Object.keys(JSON.parse(text)), [...view.SUMMARY_KEYS]);
+  assert.equal(JSON.parse(text).window, 0, 'a model id off the table gives no window');
 });
