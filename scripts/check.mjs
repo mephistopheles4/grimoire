@@ -1007,14 +1007,16 @@ for (const path of skillBaselines) {
     // one place, and called that agreement.
     if ((mirror.file ?? null) !== (r.file ?? null)) {
       fail(
-        `${r.at}: ${r.rule_id} is narrowed to ${r.file ?? 'every file'} here and to ${mirror.file ?? 'every file'} in ${rel(rootBaseline)} — one rule, one scope`,
+        `${r.at}: ${r.rule_id} is narrowed to ${r.file === undefined ? 'every file' : shown(r.file)} here and to ${mirror.file === undefined ? 'every file' : shown(mirror.file)} in ${rel(rootBaseline)} — one rule, one scope`,
       );
     }
     // A message glob narrows the same way: the scanner suppresses a finding
     // only when its message, its finding text or its matched text matches.
+    // Both lines print each glob through shown(): the root file sits outside
+    // skills/, so the home-path rule never reads it, and the CI log is public.
     if ((mirror.message ?? null) !== (r.message ?? null)) {
       fail(
-        `${r.at}: ${r.rule_id} is matched to ${r.message ?? 'every message'} here and to ${mirror.message ?? 'every message'} in ${rel(rootBaseline)} — one rule, one scope`,
+        `${r.at}: ${r.rule_id} is matched to ${r.message === undefined ? 'every message' : shown(r.message)} here and to ${mirror.message === undefined ? 'every message' : shown(mirror.message)} in ${rel(rootBaseline)} — one rule, one scope`,
       );
     }
   }

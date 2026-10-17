@@ -3,6 +3,7 @@
 // check-fixture.mjs.
 
 import { test } from 'node:test';
+import assert from 'node:assert/strict';
 import { readFileSync, writeFileSync, appendFileSync } from 'node:fs';
 import { tree, rootBaselineIn, skillBaselineIn, fixtureBaselineIn, assertPasses, assertFails, baselineBody } from './check-fixture.mjs';
 
@@ -91,6 +92,17 @@ test('a rule narrowed to the same message in both baselines passes', () => {
     writeFileSync(p, text.replace('  - rule_id: "AR2"\n', '  - rule_id: "AR2"\n    file: "*SKILL.md"\n    message: "*preview pane*"\n'));
   }
   assertPasses(dir);
+});
+
+test('a disagreeing glob is printed masked, because the CI log is public', () => {
+  // The root baseline sits outside skills/, so the home-path rule never reads
+  // it. A message glob is the field most likely to hold pasted matched text.
+  const dir = tree();
+  const root = readFileSync(rootBaselineIn(dir), 'utf8');
+  writeFileSync(rootBaselineIn(dir), root.replace('  - rule_id: "AR2"\n', '  - rule_id: "AR2"\n    file: "/Users/someone/*"\n    message: "*C:/Users/someone/box*"\n'));
+  const r = assertFails(dir, /matched to every message here and to \*C:\/Users\/<name>\/box\* in/);
+  assert.match(r.stderr, /narrowed to every file here and to \/Users\/<name>\/\* in/);
+  assert.doesNotMatch(r.stdout + r.stderr, /someone/);
 });
 
 test('a quoted version is read, because the entries accept quoting too', () => {
