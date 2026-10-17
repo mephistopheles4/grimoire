@@ -255,7 +255,11 @@ reader, so it refuses the spellings the two would read differently: an entry
 value that is not double-quoted (a bare value ends at a ` #` comment in YAML,
 and a bare `~` or `null` reads as no value), a `rule_id` holding `*`, `?` or `[`
 (the scanner reads it as a pattern), and a `file` or `message` made only of
-wildcard characters (it reads as narrowing and narrows nothing).
+wildcard characters (it reads as narrowing and narrows nothing). The scanner
+also tests a `message` glob against the rule's own fixed name, such as
+`Skill Enumeration`, and ignores letter case. A glob that matches that name
+suppresses every finding of the rule, and the check does not catch it, so a
+reviewer reads each `message` glob against the rule's name.
 
 **A shared reason is held to one wording.** A change to a reason the root shares
 with a skill's baseline forces the same change there.
