@@ -168,6 +168,14 @@ read keeps its cache line, context meter and tabs. A card that reads "summary
 path refused" or "not a summary file" is drawn from its transcript instead:
 the member's file failed the path check, or the same file failed its checks
 two polls running. SECURITY.md says where the files are.
+Since 0.62.0 a member keeps the Remote Control link the pane read while its
+transcript was 4 MiB or less, once the transcript grows past that and after a
+plugin reload. **Known limits:** a member first seen with a transcript already
+over 4 MiB, or one that turned Remote Control on after it passed 4 MiB, shows
+no link; and after a reload, a card whose name moved to another large session
+can show the old session's link. If you notice a missing link, a read of just
+the start of a large transcript, through a process, is the next step (issue
+#308).
 [`SECURITY.md`](SECURITY.md) says what the file holds and who can read it.
 **Known limit:** a card the pane draws from that file counts its cache down from 1 hour after the last call, because the engine's
 per-call usage does not say whether a call cached for 5 minutes or for 1 hour.

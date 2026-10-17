@@ -2007,6 +2007,37 @@ test('the link read: a new found path is read, the same one skipped, and with no
   // After a reload: no remembered path, a stored link, and nothing found.
   assert.equal(linkStep(undefined, undefined, true), 'drop');
   assert.equal(linkStep(undefined, undefined, false), 'skip');
+  // At or under 4 MiB a new path is read, as before.
+  assert.equal(linkStep('p', undefined, true, MAX_TRANSCRIPT_BYTES), 'read');
+});
+
+test('the link read past 4 MiB keeps the stored link: no read, no drop, a reload and a moved path included (#308)', () => {
+  // q3 A and q4 A on #308: a session's Remote Control link does not change,
+  // so the link read while the transcript was small stays once it is not.
+  const { linkStep } = view;
+  const big = MAX_TRANSCRIPT_BYTES + 1;
+  const home = `${CONFIG}\\projects\\C--work\\${SID[0]}.jsonl`;
+  const moved = `${CONFIG}\\projects\\C--work--claude-worktrees-a\\${SID[0]}.jsonl`;
+  const other = `${CONFIG}\\projects\\C--work\\${SID[1]}.jsonl`;
+  assert.equal(linkStep(home, undefined, true, big), 'keep', 'after a reload: kept, though no path is remembered');
+  assert.equal(linkStep(moved, home, true, big), 'keep', 'the same session at a moved path past 4 MiB: kept');
+  assert.equal(linkStep(home, undefined, false, big), 'keep', 'nothing stored: nothing to keep, and no read');
+  assert.equal(linkStep(home, home, true, big), 'skip', 'the same path: skipped, as before');
+  assert.equal(linkStep(home, undefined, true, Number.NaN), 'keep', 'a size that is not a number is never read');
+  assert.equal(linkStep(undefined, home, true, big), 'drop', 'nothing found: dropped, as before');
+  // A card name that moved to another session, known by its remembered path,
+  // keeps no link of the old one: the step reads, the engine refuses the read
+  // past 4 MiB, and the link goes. Only a reload, which forgets the path, may
+  // keep one (q4 A on #308).
+  assert.equal(linkStep(other, home, true, big), 'read', 'another session past 4 MiB: not kept');
+  assert.equal(linkStep(other.toUpperCase(), home, true, big), 'read', 'compared by file name, case folded on Windows');
+  assert.equal(linkStep(moved.toUpperCase(), home, true, big), 'keep');
+});
+
+test('the pane keeps a stored link on a keep step: it remembers the path and changes no link', () => {
+  const register = readFileSync(join(root, 'brigade/register.tsx'), 'utf8');
+  assert.match(register, /const step = linkStep\(at\?\.path, linkFrom\.get\(name\), stored\.has\(name\), at\?\.size\)\n/);
+  assert.match(register, /\n\s+if \(step === 'keep' && at !== undefined\) \{\n\s+linkFrom\.set\(name, at\.path\)\n\s+continue\n\s+\}\n/);
 });
 
 test('the not-found line: "◆ transcript not found", dim, whatever the live state, with no cache bar; the stored check keeps it', () => {
