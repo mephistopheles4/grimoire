@@ -20,6 +20,10 @@ import type { Meter, Pair, Sample, UsageCategory, UsageLimit, UsageSnapshot, War
 // Burn rate, the context trend and card tabs: two sparklines drawn from the
 // same record, each in a tab of its own, and which tab each card shows.
 //
+// The usage summary writer: which steps count, the numbers kept in module
+// memory, the summary file's shape and strict check, its byte cap, and the
+// throttle and single-flight decision; brigade/writer.ts feeds them.
+//
 // The transcript finder: where a member's transcript is, from its working
 // directory or, after it moved into a worktree, from the worktree folders of
 // its launch folder, each checked to lie where its name says before a read.
@@ -1972,3 +1976,266 @@ export function linkStep(found: string | undefined, from: string | undefined, st
 /** The file system and clock as the poll's reads reach them, and whether the
  *  pane is still open: the finder's, and the read. `read` may reject. */
 export type PollIo = FinderIo & { read: (path: string) => Promise<string> }
+
+// --- The usage summary writer -------------------------------------------------
+//
+// Every session keeps its own usage numbers from its `turn.step` hook and
+// writes them, numbers only, to a summary file of its own, which the lead's
+// pane can read when the session's transcript is too large to. These are the
+// writer's decisions; brigade/writer.ts only feeds them, stats and writes.
+// A step is counted exactly as `callSeries` counts a transcript row, so the
+// numbers mean the same from either source.
+
+/** One counted step: its context tokens (input, cache writes and cache
+ *  reads), its new tokens (input, cache writes and output), whether it wrote
+ *  or read cache, and its model's window from the fixed table (undefined when
+ *  the table has none). Numbers only: the model id goes no further. */
+export type StepCall = { tokens: number; fresh: number; cache: boolean; window: number | undefined }
+
+/** The step as the writer counts it, or undefined when it records nothing.
+ *  `input` is the step's input, `result` the step's result. A step outside
+ *  the main loop (any `agentId`) records nothing, nor does one whose usage is
+ *  null or not an object, one with a count that is not a whole number from 0
+ *  to 10,000,000 (absent reads as 0, as in a transcript row), or one with no
+ *  context at all. The stop reason never excludes a step. Never throws. */
+export function stepCall(input: { agentId?: unknown }, result: { usage?: unknown }): StepCall | undefined {
+  try {
+    return countStep(input, result)
+  } catch {
+    // A field that throws when read is not a step to count.
+    return undefined
+  }
+}
+
+function countStep(input: { agentId?: unknown }, result: { usage?: unknown }): StepCall | undefined {
+  if (!isRecord(input) || input.agentId !== undefined || !isRecord(result)) return undefined
+  const u = result.usage
+  if (!isRecord(u)) return undefined
+  const input_ = count(u.input_tokens)
+  const made = count(u.cache_creation_input_tokens)
+  const cached = count(u.cache_read_input_tokens)
+  const output = count(u.output_tokens)
+  if (input_ === undefined || made === undefined || cached === undefined || output === undefined) return undefined
+  const tokens = input_ + made + cached
+  if (tokens === 0) return undefined
+  return { tokens, fresh: input_ + made + output, cache: made > 0 || cached > 0, window: windowOf(u.model) }
+}
+
+/** What the writer remembers of the calls it counted since the module
+ *  loaded, in module memory only: how many, the last one's time and context,
+ *  its window, the last 30 contexts (oldest first), the new tokens of each
+ *  minute it saw in the last 30 (keyed as `callSeries` buckets them, by the
+ *  minute a call's time ends), and whether any call wrote or read cache. */
+export type UsageMemory = {
+  calls: number
+  last: { at: number; tokens: number } | undefined
+  window: number | undefined
+  context: number[]
+  burn: { minute: number; sum: number }[]
+  cache: boolean
+}
+
+/** Memory with no call counted: what a module load starts from. */
+export const newUsageMemory = (): UsageMemory => ({ calls: 0, last: undefined, window: undefined, context: [], burn: [], cache: false })
+
+// The minute a time falls in, as `callSeries` buckets it: minute m holds the
+// times after (m - 1) minutes and up to m minutes.
+const minuteOf = (at: number) => Math.ceil(at / MIN_MS)
+
+/** The memory with one more counted call, stamped `at` by the module's clock,
+ *  in whole milliseconds. Only the call's own minute and the 29 before it
+ *  stay, and a minute's sum is clamped to 30,000,000. A new object: the
+ *  memory passed in is not changed. */
+export function recordCall(mem: UsageMemory, call: StepCall, at: number): UsageMemory {
+  const stamp = Math.round(at)
+  const minute = minuteOf(stamp)
+  const burn = mem.burn.filter(b => b.minute > minute - BURN_BUCKETS && b.minute !== minute)
+  const sum = (mem.burn.find(b => b.minute === minute)?.sum ?? 0) + call.fresh
+  burn.push({ minute, sum: Math.min(MAX_SERIES, sum) })
+  return {
+    calls: mem.calls + 1,
+    last: { at: stamp, tokens: call.tokens },
+    window: call.window,
+    context: [...mem.context, call.tokens].slice(-SERIES_CALLS),
+    burn,
+    cache: mem.cache || call.cache,
+  }
+}
+
+/** The summary file's format version: the one the pane knows. Any change to
+ *  `SUMMARY_KEYS`, to a range `checkSummary` holds or to the window set
+ *  raises it, so an older pane reads a newer file as an unknown version and
+ *  falls back cleanly, rather than as a broken file. */
+export const SUMMARY_VERSION = 1
+
+/** The summary file's keys, the one exact list: the format version; the
+ *  meter record the pane stores for a card (its time, its window, its 30 burn
+ *  buckets lined up to that time, oldest first, and up to 30 context sizes,
+ *  oldest first); the last call's time and context tokens; and whether any
+ *  counted call since the module loaded wrote or read cache, 1 or 0. `window`
+ *  is the one optional key: it is left out when the fixed table has no row
+ *  for the model, as the pane's own meter record leaves it out (q4 B on #311),
+ *  so the reader passes the file's meter to `metersFrom` as it is. Every other
+ *  key is always there. `at` is the end of the minute the write fell in, up
+ *  to 60 s after it. */
+export const SUMMARY_KEYS = ['version', 'at', 'window', 'burn', 'context', 'lastAt', 'lastTokens', 'cache'] as const
+
+// The one key a summary may leave out.
+const OPTIONAL_KEYS: ReadonlySet<string> = new Set(['window'])
+
+/** One summary file, as the writer builds it and the pane reads it. */
+export type Summary = {
+  version: number
+  at: number
+  window?: number
+  burn: number[]
+  context: number[]
+  lastAt: number
+  lastTokens: number
+  cache: number
+}
+
+/** The summary of the memory at `now`, by the module's clock, or undefined
+ *  when no call was counted since the module loaded: a turn end with none
+ *  writes nothing. Its time is the end of the minute `now` falls in, so its
+ *  30 burn buckets line up exactly with the minutes the memory keyed: bucket
+ *  29 is that minute, bucket 0 the one 29 minutes before it. Built key by
+ *  key from `SUMMARY_KEYS`, numbers only. */
+export function summaryFrom(mem: UsageMemory, now: number): Summary | undefined {
+  if (mem.calls === 0 || mem.last === undefined) return undefined
+  const end = minuteOf(Math.round(now))
+  const burn = Array.from({ length: BURN_BUCKETS }, (_, i) => mem.burn.find(b => b.minute === end - (BURN_BUCKETS - 1) + i)?.sum ?? 0)
+  const values: Summary = {
+    version: SUMMARY_VERSION,
+    at: end * MIN_MS,
+    window: mem.window,
+    burn,
+    context: [...mem.context],
+    lastAt: mem.last.at,
+    lastTokens: mem.last.tokens,
+    cache: mem.cache ? 1 : 0,
+  }
+  const out = {} as Record<string, unknown>
+  for (const k of SUMMARY_KEYS) if (values[k] !== undefined) out[k] = values[k]
+  return out as Summary
+}
+
+/** The cap on a summary file, in bytes: the writer saves no larger file and
+ *  overwrites none, and the pane reads none. The worst case, every field at
+ *  its top value (times at 8,640,000,000,000,000 ms, 60 values of
+ *  30,000,000), measures 671 bytes; the cap leaves 353 bytes of headroom
+ *  over it, about half again (ADR 0004). */
+export const MAX_SUMMARY_BYTES = 1024
+
+/** The refusal of a file whose format version is not `SUMMARY_VERSION`: a
+ *  newer plugin's file, which the pane treats as no file. */
+export const UNKNOWN_SUMMARY_VERSION = 'the summary file has a format version this plugin does not know'
+
+// The latest time a file may hold, Date's own limit, in whole milliseconds.
+const MAX_TIME = 8.64e15
+const wholeIn = (v: unknown, min: number, max: number): v is number =>
+  typeof v === 'number' && Number.isInteger(v) && v >= min && v <= max
+
+/** A summary file's text, checked strictly: JSON, an object whose own keys
+ *  are exactly `SUMMARY_KEYS`, with `window` the one that may be absent, the version `SUMMARY_VERSION` (any other
+ *  version refuses with `UNKNOWN_SUMMARY_VERSION`), times in whole
+ *  milliseconds from 0 to Date's limit with the last call no later than the
+ *  record, the window, when there, 200,000 or 1,000,000, exactly 30 burn buckets and 1
+ *  to 30 context sizes, each a whole number from 0 to 30,000,000, the last
+ *  call's tokens from 1 to 30,000,000, and the cache flag 0 or 1. The series
+ *  are held by the meter's own check, `seriesFrom`. The refusal names the
+ *  rule in fixed words and never echoes the file's text. It reads the text
+ *  alone, so it cannot hold the last call against the file's modified time or
+ *  the pane's clock; the reader does (spec S4 on #304). Never throws. */
+export function checkSummary(raw: string): { value: Summary } | { error: string } {
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(raw)
+  } catch {
+    return { error: 'the summary file is not JSON' }
+  }
+  if (!isRecord(parsed)) return { error: 'the summary file is not an object' }
+  if (Object.hasOwn(parsed, 'version') && parsed.version !== SUMMARY_VERSION) return { error: UNKNOWN_SUMMARY_VERSION }
+  const keys = Object.keys(parsed)
+  const known: readonly string[] = SUMMARY_KEYS
+  if (!keys.every(k => known.includes(k)) || !SUMMARY_KEYS.every(k => OPTIONAL_KEYS.has(k) || Object.hasOwn(parsed, k))) {
+    return { error: 'the summary file does not hold exactly the summary keys' }
+  }
+  const p = parsed
+  if (!wholeIn(p.at, 0, MAX_TIME) || !wholeIn(p.lastAt, 0, MAX_TIME) || p.lastAt > p.at) {
+    return { error: 'a summary time is out of range' }
+  }
+  const hasWindow = Object.hasOwn(p, 'window')
+  if (hasWindow && (typeof p.window !== 'number' || !WINDOW_SIZES.has(p.window))) return { error: 'the summary window is not one the table gives' }
+  const burn = seriesFrom(p.burn, true)
+  const context = seriesFrom(p.context, false)
+  if (burn === undefined || context === undefined || context.length === 0) {
+    return { error: 'a summary series is out of range' }
+  }
+  if (!wholeIn(p.lastTokens, 1, MAX_SERIES)) return { error: 'the summary\'s last call is out of range' }
+  if (p.cache !== 0 && p.cache !== 1) return { error: 'the summary\'s cache flag is not 0 or 1' }
+  return {
+    value: {
+      version: SUMMARY_VERSION,
+      at: p.at,
+      ...(hasWindow ? { window: p.window as number } : {}),
+      burn,
+      context,
+      lastAt: p.lastAt,
+      lastTokens: p.lastTokens,
+      cache: p.cache,
+    },
+  }
+}
+
+/** A summary as the text the writer saves: refused unless that exact text
+ *  passes `checkSummary` and fits the cap in UTF-8 bytes, so what is
+ *  measured and checked is what is written. */
+export function serializeSummary(s: Summary): { value: string } | { error: string } {
+  const text = JSON.stringify(s)
+  const bytes = new TextEncoder().encode(text).length
+  if (bytes > MAX_SUMMARY_BYTES) return { error: `the summary is ${bytes} bytes, over the cap of ${MAX_SUMMARY_BYTES}` }
+  const checked = checkSummary(text)
+  return 'error' in checked ? checked : { value: text }
+}
+
+/** Whether a file already at the summary place may be overwritten: only when
+ *  its stat size and its text are both within the cap and the text passes
+ *  `checkSummary`. An empty object, a roster or any other JSON is refused,
+ *  which stops a planted hard link to another file. `text` is undefined when
+ *  the writer read nothing, as for a stat size over the cap. */
+export function isSummaryFile(size: number, text: string | undefined): boolean {
+  if (!(size <= MAX_SUMMARY_BYTES) || text === undefined) return false
+  if (new TextEncoder().encode(text).length > MAX_SUMMARY_BYTES) return false
+  return 'value' in checkSummary(text)
+}
+
+/** The throttle: while a turn runs, a write starts at most this often. */
+export const WRITE_EVERY_MS = 15000
+
+/** The writer's writes, as far as the throttle and single-flight decision
+ *  reads them: one in flight, a turn-end write waiting behind it, and when
+ *  the last write started, by the module's clock. */
+export type Flight = { inFlight: boolean; queued: boolean; lastStart: number }
+
+/** No write yet. */
+export const newFlight = (): Flight => ({ inFlight: false, queued: false, lastStart: Number.NEGATIVE_INFINITY })
+
+/** A request for a write at `now`: from a counted step (`turnEnd` false) or
+ *  from a turn end. With a write in flight, a step's request is dropped and
+ *  a turn end's waits for it. With none, a turn end starts one, and a step
+ *  starts one when 15 s have passed since the last started, or the clock went
+ *  back past it. `start` says whether to start a write now; the write takes
+ *  its numbers when it starts, so a waiting turn end writes the newest. */
+export function askWrite(f: Flight, now: number, turnEnd: boolean): { flight: Flight; start: boolean } {
+  if (f.inFlight) return { flight: turnEnd ? { ...f, queued: true } : f, start: false }
+  const due = turnEnd || now - f.lastStart >= WRITE_EVERY_MS || now < f.lastStart
+  return due ? { flight: { inFlight: true, queued: false, lastStart: now }, start: true } : { flight: f, start: false }
+}
+
+/** The write in flight ended at `now`, however it ended: a turn end waiting
+ *  behind it starts now. */
+export function writeDone(f: Flight, now: number): { flight: Flight; start: boolean } {
+  if (f.queued) return { flight: { inFlight: true, queued: false, lastStart: now }, start: true }
+  return { flight: { ...f, inFlight: false }, start: false }
+}

@@ -15,13 +15,10 @@ import {
   XDG_OPEN,
   appLink,
   checkRoster,
-  configFromRoot,
-  configFromTranscript,
   dataFolder,
-  dataId,
+  dataPlace,
   listsOpenTool,
   lookup,
-  marketplaceFromRoot,
   oneLine,
   openerArgv,
   parseAgents,
@@ -85,6 +82,7 @@ import {
   withoutSize,
 } from './view.ts'
 import type { Finder, ReadMemory, Spark } from './view.ts'
+import { registerWriter, writerEpoch, writerSession } from './writer.ts'
 
 // The Brigade pane: one card per session a lead session started, each in a
 // rounded box with its work, phase, settings, live busy or idle state, cache
@@ -97,10 +95,13 @@ import type { Finder, ReadMemory, Spark } from './view.ts'
 // section is worked out in view.ts, as plain values; this file reads and
 // stores the reading and turns the view's result into elements.
 //
-// Idle by default. At session start it registers /brigade and nothing else: no
-// timer, no process, no file read, no tool and no pane. The pane opens only on
-// /brigade, and closing it stops every timer. A message from another session
-// never opens it.
+// The pane waits for /brigade. At session start it registers /brigade and the
+// usage summary writer (writer.ts), reads the engine clock and the session id
+// once for the writer, and nothing else: no timer, no process, no
+// file read, no tool and no pane. The writer's hooks record each step and
+// write this session's own summary file; ADR 0008 records why the mod is no
+// longer idle by default. The pane opens only on /brigade, and closing it
+// stops every timer. A message from another session never opens it.
 
 const PANE = 'brigade'
 const TITLE = 'Brigade'
@@ -110,6 +111,7 @@ const TOOL = 'set_roster'
 
 // The values are the plugin's, so they sit under its manifest name.
 const armed = atom({ plugin: 'grimoire', key: 'armed' } as const, false)
+// The engine's record of this session's start; writer.ts reads the same key.
 const started = atom({ plugin: 'grimoire', key: 'start' } as const, { sessionId: '', transcript: '' })
 const files = atom({ plugin: 'grimoire', key: 'files' } as const, { current: '', previous: '' })
 const roster = atom({ plugin: 'grimoire', key: 'roster' } as const, { cards: [], todos: [] })
@@ -163,17 +165,14 @@ let timers: Timer[] = []
 // `CLAUDE_PLUGIN_DATA` is never read: a mod's environment usually lacks it,
 // and another plugin can set it. The config folder comes from where the plugin
 // was installed, else from the transcript path the engine reported at this
-// session's start; with neither, nothing is read or written. The config folder
-// also locates other sessions' transcripts.
+// session's start (`dataPlace`, which the usage summary writer shares); with
+// neither, nothing is read or written. The config folder also locates other
+// sessions' transcripts.
 type Where = { file: string; config: string; plugin: string; id: string }
 async function where($: EngineInterface): Promise<Where | { error: string }> {
   const id = await $.session.id()
   if (!SESSION_ID.test(id)) return { error: 'the session id is not the engine\'s shape, so no roster file is named. Nothing was read.' }
-  const start = await read($, started)
-  const config =
-    configFromRoot($.plugin.root) ??
-    (start.sessionId === id ? configFromTranscript(start.transcript, id) : undefined)
-  const plugin = dataId($.plugin.name, marketplaceFromRoot($.plugin.root))
+  const { config, plugin } = dataPlace($.plugin.root, $.plugin.name, await read($, started), id)
   if (config === undefined) {
     return {
       error: `Cannot find the Claude config folder from where the plugin was loaded (${oneLine($.plugin.root, 200)}). The roster would be <Claude config folder>/plugins/data/${plugin}/brigade/${id}.json. Nothing was read.`,
@@ -189,7 +188,6 @@ const statOf = ($: EngineInterface) => (path: string): Promise<StatAnswer> =>
     found => ({ found }),
     err => statRejection(String(err instanceof Error ? err.message : err)),
   )
-
 // Resolves the to-do ids of the roster it loaded, or undefined when it loaded
 // none: no file named, no file, or a file that failed its check. The file is
 // read only where the path rule allows it, so the pane follows no link either.
@@ -727,7 +725,16 @@ async function setRoster($: EngineInterface, e: Record<string, unknown>, signal:
 }
 
 export const register: Register = on => {
+  // Every session's own usage summary, written from its steps and turn ends.
+  registerWriter(on)
+
   on('session.start', async ($, e, next) => {
+    // The usage summary writer's clock and session: the engine's epoch and
+    // this session's id, read once here and never awaited. Only numbers and
+    // text cross into writer.ts.
+    const perf = performance.now()
+    $.clock.now().then(t => writerEpoch(t, perf), () => undefined)
+    $.session.id().then(id => writerSession(id), () => undefined)
     await $.command.register({
       name: 'brigade',
       description: 'Show the Brigade pane: the sessions this lead session started',
@@ -748,6 +755,7 @@ export const register: Register = on => {
   // and session.start does not, so the tool is offered again here while the
   // pane is open; registering a name again replaces it.
   on('classic.SessionStart', async ($, e, next) => {
+    writerSession(e.session_id)
     if (SESSION_ID.test(e.session_id) && typeof e.transcript_path === 'string') {
       await update($, started, () => ({ sessionId: e.session_id, transcript: e.transcript_path }))
     }
@@ -817,8 +825,8 @@ export const register: Register = on => {
     return next(e)
   })
 
-  // The engine measured the session and a figure moved. Idle by default: this
-  // does nothing unless this module armed the pane, which it reads from its
+  // The engine measured the session and a figure moved. This does nothing
+  // unless this module armed the pane, which it reads from its
   // own timers rather than from plugin state another plugin could set. It
   // passes the event on, unchanged, on every path, and does not wait for the
   // read: a reading that hung would otherwise hold up every hook after it.

@@ -161,6 +161,23 @@ What it does, what counts as your yes, and how cleanup refuses:
 its `SKILL.md` is generated from:
 [`skills/head-chef/CONTRACT.md`](skills/head-chef/CONTRACT.md).
 
+Since 0.60.0 every session with the plugin writes its own usage numbers to a
+small summary file. The pane does not read it yet: from issue #312 it draws a
+member whose transcript is too large to read from that file.
+[`SECURITY.md`](SECURITY.md) says what the file holds and who can read it.
+**Known limit:** a card the pane draws from that file (from issue #312)
+counts its cache down from 1 hour after the last call, because the engine's
+per-call usage does not say whether a call cached for 5 minutes or for 1 hour.
+A session whose main conversation is not on the 1-hour cache can then show
+warm for up to 55 minutes after its cache went cold, and its "reply within N
+min" reminder comes up to 55 minutes late. This holds at every transcript
+size, including members whose transcript the pane could read and whose window
+it showed correctly before. Examples: a session in usage overage; a session on
+an API key, or on Bedrock, Vertex or Foundry, without the 1-hour opt-in; a
+session through the Claude apps gateway, or a gateway that drops the 1-hour
+header; and a session where a setting or environment variable chooses 5
+minutes.
+
 ## <img src="docs/brand/eagle-eye/eagle-eye-mark-solid.svg" width="32" align="absmiddle" alt=""> [eagle-eye](skills/eagle-eye)
 
 **A decision is made once it has been seen against the whole system.**

@@ -207,6 +207,15 @@ type World = ReturnType<typeof makeFs> & {
   /** How many times the pane listed a folder, and a message to refuse it with. */
   listings: number
   listDeny: string
+  /** The usage the bottom of `turn.step` answers with, and how many session
+   *  usage calls the plugins made. */
+  stepUsage: unknown
+  usageCalls: number
+  /** A message the bottom of `turn.step` fails with after its first chunk, or ''. */
+  stepFail: string
+  /** While true, every `stat` waits for `releaseStat`, which lets them all go. */
+  holdStat: boolean
+  releaseStat: () => void
 }
 
 // The engine beneath the plugin: the file system, the pane record, the
@@ -252,11 +261,17 @@ function world(on: On, setup: (w: World) => void = w => w.dirs(`${CONFIG}\\plugi
     states: [] as [string, string][],
     listings: 0,
     listDeny: '',
+    stepUsage: null as unknown,
+    usageCalls: 0,
+    stepFail: '',
+    holdStat: false,
+    releaseStat: () => {},
   })
   w.dirs(CONFIG)
   setup(w)
   w.clock = mock.clock(on)
-  on('fs.stat', ($, e: any) => {
+  on('fs.stat', async ($, e: any) => {
+    if (w.holdStat) await new Promise<void>(res => { const before = w.releaseStat; w.releaseStat = () => { before(); res() } })
     // The host probes are answered from `w.probes`, with the real path exactly
     // as written, before the Windows-shaped file system. On Windows the engine
     // hands the hook an absolute Unix path resolved under the current drive's
@@ -340,7 +355,20 @@ function world(on: On, setup: (w: World) => void = w => w.dirs(`${CONFIG}\\plugi
   // Where the session is drawn: the Desktop app, unless a test says otherwise.
   on('session.surfaces', () => ({ value: w.surfaces }))
   // This session's usage reading, when a test gives one; else the kit's own.
-  on('session.usage', ($, e: any, next: any) => (w.usage === undefined ? next(e) : { value: w.usage }))
+  on('session.usage', ($, e: any, next: any) => {
+    w.usageCalls++
+    return w.usage === undefined ? next(e) : { value: w.usage }
+  })
+  // The model's side of a step and a turn end: one text block, then a stop
+  // carrying `w.stepUsage`, as the engine streams it.
+  on('turn.step', async function* (_$: any, e: any) {
+    const usage = w.stepUsage as any
+    yield { kind: 'text', index: 0, text: 'hi' }
+    if (w.stepFail !== '') throw new Error(w.stepFail)
+    yield { kind: 'stop', stopReason: 'end_turn', usage }
+    return { turnId: e.turnId, index: e.index, answer: 'hi', toolUses: [], stopReason: 'end_turn', usage }
+  })
+  on('turn.complete', async (_$: any, e: any) => ({ text: e.answer, usage: undefined }))
   on('tool.list', () => {
     w.lists++
     if (w.stall === 'tool list') return new Promise<never>(() => {})
@@ -2893,3 +2921,321 @@ for (const surface of SURFACES) {
     }
   })
 }
+// --- the usage summary writer (#311) -----------------------------------------
+//
+// Spec revision 5 on #304, S4 "The writer": every session with the plugin
+// keeps its own usage numbers from its `turn.step` hook and writes them,
+// numbers only, to brigade/usage/<session id>.json in the plugin's data
+// folder, at most every 15 s and at every turn end. No pane, no /brigade and
+// no tool is needed. The decisions are view.ts's, under its own tests; these
+// drive the hook the way the engine does.
+
+const USAGE_DIR = `${BRIGADE}\\usage`
+const USAGE = `${USAGE_DIR}\\${SID}.json`
+const SUMMARY_KEYS = ['version', 'at', 'window', 'burn', 'context', 'lastAt', 'lastTokens', 'cache']
+const STEP_USAGE = { input_tokens: 6, cache_creation_input_tokens: 1000, cache_read_input_tokens: 150000, output_tokens: 300, model: 'claude-opus-5-5' }
+
+let stepIndex = 0
+// One step through the plugins: every chunk they pass on, and the result.
+async function raiseStep($: any, over: Record<string, unknown> = {}) {
+  const s = $.turn.step({ turnId: 'turn-1', index: stepIndex++, model: 'claude-opus-5-5', messageCount: 1, ...over })
+  const chunks: unknown[] = []
+  let x = await s.next()
+  while (!x.done) {
+    chunks.push(x.value)
+    x = await s.next()
+  }
+  return { chunks, result: x.value }
+}
+const turnEnd = ($: any, over: Record<string, unknown> = {}) =>
+  $.turn.complete({ answer: 'done', durationMs: 5, isAborted: false, turnId: 'turn-1', reason: 'answer', ...over })
+// A session start: the transcript path that names the config folder, and
+// the module's start, which reads the engine clock's epoch once.
+async function begin($: any, w: World) {
+  await start($)
+  await $.session.start({ cwd: 'C:\\work' })
+  await w.clock.settle()
+}
+const usageWrites = (w: World) => w.log.filter(l => l.toLowerCase().startsWith(`write ${USAGE_DIR.toLowerCase()}`))
+const writerToasts = (w: World) => w.toasts.filter(t => t.includes('usage summary'))
+
+test('every session writes its usage summary at the turn end, numbers only, with no pane and no session usage call', async ($, on) => {
+  const w = world(on)
+  await begin($, w)
+  w.stepUsage = STEP_USAGE
+  await raiseStep($)
+  await turnEnd($)
+  await w.clock.settle()
+  const text = w.text(USAGE)
+  expect(text).toBeDefined()
+  const s = JSON.parse(text ?? '{}')
+  expect(Object.keys(s)).toEqual(SUMMARY_KEYS)
+  expect(s.lastTokens).toBe(151006)
+  expect(s.context).toEqual([151006])
+  expect(s.window).toBe(1000000)
+  expect(s.cache).toBe(1)
+  // Stamped by the module's clock, set to the engine's epoch: within a
+  // second of the mocked engine time, never the machine's own date.
+  expect(Math.abs(s.lastAt - w.clock.now())).toBeLessThan(1000)
+  expect(text).not.toContain('claude-opus')
+  expect(w.open).toBe(false)
+  expect(w.registered).toEqual([])
+  expect(w.usageCalls).toBe(0)
+  expect(writerToasts(w)).toEqual([])
+})
+
+test('a step with wrong usage values is passed on unchanged, and a turn end with no counted call writes nothing', async ($, on) => {
+  const w = world(on)
+  await begin($, w)
+  const bad = { ...STEP_USAGE, input_tokens: -5, output_tokens: 1.5 }
+  // A copy taken before the step: a writer that changed the usage in place
+  // would change `bad` too.
+  const before = { ...bad }
+  w.stepUsage = bad
+  const { chunks, result } = await raiseStep($)
+  expect(chunks).toEqual([{ kind: 'text', index: 0, text: 'hi' }, { kind: 'stop', stopReason: 'end_turn', usage: before }])
+  expect(result).toEqual({ turnId: 'turn-1', index: stepIndex - 1, answer: 'hi', toolUses: [], stopReason: 'end_turn', usage: before })
+  w.stepUsage = null
+  expect((await raiseStep($)).result.usage).toBe(null)
+  await turnEnd($)
+  await w.clock.settle()
+  expect(w.text(USAGE)).toBeUndefined()
+  expect(usageWrites(w)).toEqual([])
+})
+
+test('a subagent\'s steps and turn end write nothing', async ($, on) => {
+  const w = world(on)
+  await begin($, w)
+  w.stepUsage = STEP_USAGE
+  await raiseStep($, { agentId: 'agent-1' })
+  await turnEnd($, { agentId: 'agent-1' })
+  await w.clock.settle()
+  expect(w.text(USAGE)).toBeUndefined()
+  // A main-loop step writes at once; a second inside 15 s is held by the
+  // throttle. A subagent's turn end then must not write it.
+  await raiseStep($)
+  await w.clock.settle()
+  w.stepUsage = { ...STEP_USAGE, input_tokens: 94 }
+  await raiseStep($)
+  await raiseStep($, { agentId: 'agent-1' })
+  await turnEnd($, { agentId: 'agent-1' })
+  await w.clock.settle()
+  expect(JSON.parse(w.text(USAGE) ?? '{}').context).toEqual([151006])
+  // The main loop's own turn end does.
+  await turnEnd($)
+  await w.clock.settle()
+  expect(JSON.parse(w.text(USAGE) ?? '{}').context).toEqual([151006, 151094])
+})
+
+test('the step waits on no engine call: with the clock, the session id and the file system never answering, every step still returns', async ($, on) => {
+  const never = () => new Promise<never>(() => {})
+  on('clock.now', never)
+  on('session.id', never)
+  on('fs.stat', never)
+  on('fs.read', never)
+  on('fs.write', never)
+  on('state.get', never)
+  const usage = STEP_USAGE
+  on('turn.step', async function* (_$: any, e: any) {
+    yield { kind: 'stop', stopReason: 'end_turn', usage }
+    return { turnId: e.turnId, index: e.index, answer: '', toolUses: [], stopReason: 'end_turn', usage }
+  })
+  on('turn.complete', async (_$: any, e: any) => ({ text: e.answer, usage: undefined }))
+  for (let i = 0; i < 40; i++) expect((await raiseStep($)).result.usage).toEqual(usage)
+  expect((await turnEnd($)).text).toBe('done')
+})
+
+test('a file other than a summary at the summary path stops every later write, with exactly one toast', async ($, on) => {
+  const w = world(on)
+  await begin($, w)
+  w.dirs(USAGE_DIR)
+  const planted = JSON.stringify({ cards: [], todos: [] })
+  w.put(USAGE, { type: 'file', data: { text: planted } })
+  w.stepUsage = STEP_USAGE
+  for (let round = 0; round < 3; round++) {
+    await raiseStep($)
+    await turnEnd($)
+    await w.clock.settle()
+  }
+  expect(w.text(USAGE)).toBe(planted)
+  expect(usageWrites(w)).toEqual([])
+  expect(writerToasts(w).length).toBe(1)
+  expect(writerToasts(w)[0]).not.toContain('cards')
+})
+
+test('a junction at the usage folder is refused, stopping the writer with one toast', async ($, on) => {
+  const w = world(on)
+  await begin($, w)
+  w.dirs(BRIGADE)
+  w.dirs(ELSEWHERE)
+  w.put(USAGE_DIR, { type: 'link', kind: 'junction', target: ELSEWHERE })
+  w.stepUsage = STEP_USAGE
+  for (let round = 0; round < 2; round++) {
+    await raiseStep($)
+    await turnEnd($)
+    await w.clock.settle()
+  }
+  expect(w.text(`${ELSEWHERE}\\${SID}.json`)).toBeUndefined()
+  expect(usageWrites(w)).toEqual([])
+  expect(writerToasts(w).length).toBe(1)
+  expect(writerToasts(w)[0]).toContain('the summary path failed its check')
+  expect(writerToasts(w)[0]).not.toContain('is a link')
+  expect(writerToasts(w)[0]).not.toContain(CONFIG)
+})
+
+test('a summary file already there is overwritten with the newer numbers', async ($, on) => {
+  const w = world(on)
+  await begin($, w)
+  w.stepUsage = STEP_USAGE
+  await raiseStep($)
+  await turnEnd($)
+  await w.clock.settle()
+  w.stepUsage = { ...STEP_USAGE, input_tokens: 94 }
+  await raiseStep($)
+  await turnEnd($)
+  await w.clock.settle()
+  const s = JSON.parse(w.text(USAGE) ?? '{}')
+  expect(s.context).toEqual([151006, 151094])
+  expect(writerToasts(w)).toEqual([])
+})
+
+test('after a clear the series starts over under the new session id, and the old file is left behind', async ($, on) => {
+  const w = world(on)
+  await begin($, w)
+  w.stepUsage = STEP_USAGE
+  await raiseStep($)
+  await turnEnd($)
+  await w.clock.settle()
+  const NEW = '99999999-8888-7777-6666-555555555555'
+  w.sid = NEW
+  await $.classic.SessionStart({ source: 'clear', session_id: NEW, transcript_path: `${CONFIG}\\projects\\C--work\\${NEW}.jsonl` })
+  w.stepUsage = { ...STEP_USAGE, input_tokens: 2 }
+  await raiseStep($)
+  await turnEnd($)
+  await w.clock.settle()
+  expect(JSON.parse(w.text(USAGE) ?? '{}').context).toEqual([151006])
+  expect(JSON.parse(w.text(`${USAGE_DIR}\\${NEW}.json`) ?? '{}').context).toEqual([151002])
+})
+
+test('an aborted turn\'s end writes the newest numbers too', async ($, on) => {
+  const w = world(on)
+  await begin($, w)
+  w.stepUsage = STEP_USAGE
+  // The first counted step writes at once; the second, inside 15 s, waits.
+  await raiseStep($)
+  await w.clock.settle()
+  w.stepUsage = { ...STEP_USAGE, input_tokens: 94 }
+  await raiseStep($)
+  await w.clock.settle()
+  expect(JSON.parse(w.text(USAGE) ?? '{}').context).toEqual([151006])
+  await turnEnd($, { isAborted: true, reason: 'aborted' })
+  await w.clock.settle()
+  expect(JSON.parse(w.text(USAGE) ?? '{}').context).toEqual([151006, 151094])
+})
+
+test('a link swapped in during the write is caught by the check after it: one toast, and no later write', async ($, on) => {
+  const w = world(on)
+  await begin($, w)
+  w.dirs(BRIGADE)
+  w.dirs(ELSEWHERE)
+  w.holdWrite = true
+  w.stepUsage = STEP_USAGE
+  await raiseStep($)
+  await w.clock.settle()
+  // The write is held; a junction now takes the usage folder's place.
+  w.put(USAGE_DIR, { type: 'link', kind: 'junction', target: ELSEWHERE })
+  w.holdWrite = false
+  w.release()
+  await w.clock.settle()
+  // The race itself is the accepted gap: the held write went through the link.
+  expect(w.text(`${ELSEWHERE}\\${SID}.json`)).toBeDefined()
+  expect(writerToasts(w).length).toBe(1)
+  expect(writerToasts(w)[0]).toContain('after the write')
+  const writes = w.log.filter(l => l.startsWith('write ')).length
+  for (let round = 0; round < 2; round++) {
+    await raiseStep($)
+    await turnEnd($)
+    await w.clock.settle()
+  }
+  expect(w.log.filter(l => l.startsWith('write ')).length).toBe(writes)
+  expect(writerToasts(w).length).toBe(1)
+})
+
+test('after a module reload, a clear still starts the series over: the module load names the session id', async ($, on) => {
+  const w = world(on)
+  // A reload: the module starts with no record of this session's start, and
+  // its own load names the id.
+  await $.session.start({ cwd: 'C:\\work' })
+  await w.clock.settle()
+  w.stepUsage = STEP_USAGE
+  await raiseStep($)
+  await w.clock.settle()
+  const NEW = '99999999-8888-7777-6666-555555555555'
+  const NEW_FILE = `${USAGE_DIR}\\${NEW}.json`
+  w.sid = NEW
+  await $.classic.SessionStart({ source: 'clear', session_id: NEW, transcript_path: `${CONFIG}\\projects\\C--work\\${NEW}.jsonl` })
+  // The first turn after the clear is cut short before any reply: it counts
+  // nothing, so nothing from before the clear may be written under the new id.
+  w.stepUsage = null
+  await raiseStep($)
+  await turnEnd($, { isAborted: true, reason: 'aborted' })
+  await w.clock.settle()
+  expect(w.text(NEW_FILE)).toBeUndefined()
+  w.stepUsage = { ...STEP_USAGE, input_tokens: 2 }
+  await raiseStep($)
+  await turnEnd($)
+  await w.clock.settle()
+  expect(JSON.parse(w.text(NEW_FILE) ?? '{}').context).toEqual([151002])
+})
+
+// C8, as far as the runner can show it: a step whose model side fails below
+// the writer still fails, and the writer records and writes nothing for it.
+// The runner answers a hook below that throws as absent ("no implementation"),
+// with the writer's registration catch or without it, so no test here can
+// tell the catch apart; nor has the try around the hook's own work a seam that
+// throws today (stepCall and the decisions catch their own errors, and the
+// write is not awaited). Both are held by reading.
+test('a step that fails below the writer still fails, and nothing is recorded or written for it', async ($, on) => {
+  const w = world(on)
+  await begin($, w)
+  w.stepFail = 'model failed below'
+  let caught = ''
+  try {
+    await raiseStep($)
+  } catch (err) {
+    caught = String(err instanceof Error ? err.message : err)
+  }
+  expect(caught).not.toBe('')
+  await turnEnd($)
+  await w.clock.settle()
+  expect(w.text(USAGE)).toBeUndefined()
+  expect(writerToasts(w)).toEqual([])
+})
+
+// CodeRabbit on #317: a write takes the session id, then awaits its checks
+// before it takes the numbers. A clear in that gap must not put the new
+// session's numbers in the old session's file.
+test('a clear while a write waits on its checks skips that write; the new session\'s numbers go to its own file', async ($, on) => {
+  const w = world(on)
+  await begin($, w)
+  w.dirs(BRIGADE)
+  w.holdStat = true
+  w.stepUsage = STEP_USAGE
+  // The first counted step starts a write, which names this session's file
+  // and then waits on its first stat.
+  await raiseStep($)
+  await w.clock.settle()
+  const NEW = '99999999-8888-7777-6666-555555555555'
+  w.sid = NEW
+  await $.classic.SessionStart({ source: 'clear', session_id: NEW, transcript_path: `${CONFIG}\\projects\\C--work\\${NEW}.jsonl` })
+  w.stepUsage = { ...STEP_USAGE, input_tokens: 2 }
+  await raiseStep($)
+  w.holdStat = false
+  w.releaseStat()
+  await w.clock.settle()
+  expect(w.text(USAGE)).toBeUndefined()
+  await turnEnd($)
+  await w.clock.settle()
+  expect(JSON.parse(w.text(`${USAGE_DIR}\\${NEW}.json`) ?? '{}').context).toEqual([151002])
+  expect(w.text(USAGE)).toBeUndefined()
+})
