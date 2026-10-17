@@ -322,21 +322,28 @@ export function checkAgainstTree(allowances, { isSkill, readFile }) {
   return problems;
 }
 
-// The entries whose hash moved against the base while their reason did not.
-// A re-hash says someone read the changed file, and the reason is where that
-// reading is written down, as a dated "Re-read on ..." sentence. A re-hash with
-// the old reason is a hash pasted over a pin, so it fails. `before` may be null
-// when the base has no file or cannot be read; then nothing is compared.
+// The entries whose hash moved against the base while their reason gained no
+// new dated sentence. A re-hash says someone read the changed file, and the
+// reason is where that reading is written down, as a "Re-read on <date>: ..."
+// sentence. A re-hash with the old reason, or one changed only in spacing or in
+// words with no such sentence, is a hash pasted over a pin, so it fails.
+// `before` may be null when the base has no file or cannot be read; then
+// nothing is compared.
+const RE_READ = /Re-read on \d{4}-\d{2}-\d{2}[^.]*\./g;
 export function unexplainedRehashes(before, after) {
   if (!before) return [];
   const was = new Map(before.exceptions.map(e => [exceptionKey(e), e]));
   const problems = [];
   for (const e of after.exceptions) {
     const old = was.get(exceptionKey(e));
-    if (old && old.sha256 !== e.sha256 && old.reason === e.reason) {
+    if (!old || old.sha256 === e.sha256) continue;
+    const squash = s => s.replace(/\s+/g, ' ').trim();
+    const sentences = s => (squash(s).match(RE_READ) ?? []);
+    const known = new Set(sentences(old.reason));
+    if (!sentences(e.reason).some(s => !known.has(s))) {
       problems.push(
-        `${ALLOWANCES}: exception ${e.skill}/${e.path} (${e.reason_code}) was re-hashed and its reason was not changed. ` +
-          'Review the diff of that file by hand, then change the reason to say so, in a "Re-read on <date>" sentence.',
+        `${ALLOWANCES}: exception ${e.skill}/${e.path} (${e.reason_code}) was re-hashed and its reason does not say it was re-read. ` +
+          'Review the diff of that file by hand, then add a new sentence to the reason, in the form "Re-read on <date>: <what you found>."',
       );
     }
   }

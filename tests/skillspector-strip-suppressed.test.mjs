@@ -55,7 +55,8 @@ const result = (ruleId, suppressed) => ({
 });
 
 // A report with the two arrays the results point into by index. Nothing below
-// reindexes them, and one test holds them byte for byte.
+// reindexes them. These fixture rules carry no descriptor, so one test holds
+// them byte for byte; the descriptor tests give a rule its own.
 // No `$schema` key, deliberately. The strip never reads one, and a fixture is
 // still a file in a tree this repository scans — an invented URL would be the
 // only novel token in it.
@@ -124,7 +125,7 @@ test('an empty suppressions array is not a suppression', () => {
   assert.equal(r.report.runs[0].results.length, 1);
 });
 
-test('the rules and artifacts arrays come through untouched', () => {
+test('the rules and artifacts arrays keep their order and length, with no descriptors to rewrite', () => {
   // The results that stay point into both by index. A tidy-up that dropped the
   // descriptors with no findings left under them would renumber the rest and
   // point a kept finding at the wrong rule.
@@ -156,7 +157,7 @@ test('a rule left with no result loses the text it quotes, and a rule with a kep
   assert.equal(rules[0].help.markdown, 'AR2');
   assert.equal(rules[1].shortDescription.text, 'RP1');
   assert.deepEqual(rules[2], kept);
-  assert.match(r.stdout, /blanked the descriptors of 2 rule\(s\) with no result left/);
+  assert.match(r.stdout, /set the descriptors of 2 rule\(s\) with no result left to the rule id/);
 });
 
 test('a rule is judged by the results that stay, whichever way they point at it', () => {
@@ -200,7 +201,7 @@ test('a rule that keeps a result loses a descriptor that quotes a dropped result
   assert.equal(rule.shortDescription.text, 'TR2');
   assert.equal(rule.fullDescription.markdown, 'TR2');
   assert.equal(rule.fullDescription.text, 'a rule name');
-  assert.match(r.stdout, /replaced a dropped result's message in the descriptors of 1 rule\(s\) that keep a result/);
+  assert.match(r.stdout, /set a dropped result's message in the descriptors of 1 rule\(s\) that keep a result to the rule id/);
   assert.equal(r.report.runs[0].results.length, 1);
 });
 

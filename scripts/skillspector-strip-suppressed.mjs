@@ -29,9 +29,10 @@
 // place, but its descriptors are rewritten: SkillSpector fills them with the
 // message of the first finding under the rule, suppressed or not, so a rule
 // whose findings all went would still quote one. Each such descriptor's text
-// becomes the rule id.
+// becomes the rule id. A rule that keeps a result gets the same for a
+// descriptor whose text is a dropped result's message and no kept one's.
 //
-// **Except the paths, when asked, and only the paths.** The workflow scans each
+// **The paths change too, when asked, and no other field does.** The workflow scans each
 // skill on its own, and the scanner writes every path relative to the directory
 // it was pointed at, with no flag to change that: a finding in
 // skills/eagle-eye/SKILL.md arrives as `SKILL.md`. GitHub resolves a relative
@@ -255,18 +256,19 @@ if (allowances) {
   });
 }
 
-// The rules left with no result. After both filters, so the results that stay
-// are the ones judged. SkillSpector fills a rule's descriptors with the message
-// of the first finding under it, suppressed or not, so a rule whose findings all
-// went would still quote one. The descriptor text becomes the rule id; the rule
-// stays in its place, so no index moves.
 const DESCRIPTORS = ['shortDescription', 'fullDescription', 'help'];
-//
-// A rule that keeps a result is left as it was, except for a descriptor whose
-// text is the message of a result dropped from this run and of no result kept:
-// the scanner took it from the first finding under the rule, which may be the
-// suppressed one.
-let blanked = 0;
+
+// Every rule's descriptors, after both filters, so the results that stay are the
+// ones judged. SkillSpector can fill a rule's descriptors with the message of the
+// first finding under it, suppressed or not. Measured on v2.13.0, a static rule's
+// descriptor is the rule's fixed name, which is no finding text, and a rule whose
+// message is the matched clause, such as TR2, quotes that clause. So:
+//   - A rule with no result left: each descriptor text becomes the rule id.
+//   - A rule that keeps a result is left as it was, except for a descriptor
+//     whose text is the message of a result dropped from this run and of no
+//     result kept; that text becomes the rule id.
+// The rule stays in its place either way, so no index moves.
+let idOnly = 0;
 let scrubbed = 0;
 report.runs.forEach((run, runIndex) => {
   const rules = run.tool?.driver?.rules;
@@ -300,7 +302,7 @@ report.runs.forEach((run, runIndex) => {
     }
     if (changed) {
       if (used) scrubbed += 1;
-      else blanked += 1;
+      else idOnly += 1;
     }
   });
 });
@@ -355,8 +357,8 @@ if (allowances) {
   console.log(`ok: stripped ${n} AE1 result(s) the allowance accepts, in ${droppedPairs.size} pair(s)`);
   for (const [pair, count] of [...droppedPairs].sort(([a], [b]) => (a < b ? -1 : 1))) console.log(`      ${pair} ×${count}`);
 }
-if (blanked) console.log(`ok: blanked the descriptors of ${blanked} rule(s) with no result left`);
-if (scrubbed) console.log(`ok: replaced a dropped result's message in the descriptors of ${scrubbed} rule(s) that keep a result`);
+if (idOnly) console.log(`ok: set the descriptors of ${idOnly} rule(s) with no result left to the rule id`);
+if (scrubbed) console.log(`ok: set a dropped result's message in the descriptors of ${scrubbed} rule(s) that keep a result to the rule id`);
 if (prefix !== null) {
   console.log(`ok: put ${prefix} in front of ${prefixed} relative path(s)`);
   if (absolute) console.log(`note: left ${absolute} absolute URI(s) as they were`);

@@ -215,9 +215,19 @@ function rehashAgainstBase(reason) {
 
 test('a re-hash with the reason unchanged fails, and says what to write', () => {
   const { dir } = rehashAgainstBase();
-  const r = assertFails(dir, /exception groundtrack\/scripts\/render\.mjs \(static_parse_limit\) was re-hashed and its reason was not changed/);
+  const r = assertFails(dir, /exception groundtrack\/scripts\/render\.mjs \(static_parse_limit\) was re-hashed and its reason does not say it was re-read/);
   assert.match(r.stderr, /Re-read on <date>/);
   assert.doesNotMatch(`${r.stdout}${r.stderr}`, /[0-9a-f]{64}/);
+});
+
+test('a re-hash whose reason only changed in form or has no dated sentence fails', () => {
+  // A trailing space, a doubled space and a rewording with no date are each a
+  // "new reason" that records nobody looking.
+  const original = readAllowance(tree()).exceptions.find(e => e.skill === 'groundtrack' && e.path === 'scripts/render.mjs').reason;
+  for (const reason of [`${original} `, original.replace(' ', '  '), 'Looked fine.']) {
+    const { dir } = rehashAgainstBase(reason);
+    assertFails(dir, /was re-hashed and its reason does not say it was re-read/);
+  }
 });
 
 test('a re-hash with a new reason passes, and is still listed for the reviewer', () => {

@@ -150,10 +150,11 @@ and carries a reason. The rules that hold it:
 - **Every entry added, removed or re-hashed is named.** `node scripts/check.mjs`
   lists each one against `main`, in its log and, in CI, on the run's summary
   page and as a warning on the pull request, so a re-hash is hard to miss.
-- **A re-hash needs a new reason.** The check fails when an entry's hash differs
-  from `main` and its `reason` does not. The new reason is a dated "Re-read on
-  <date>" sentence that says what the review found, so each re-hash leaves a
-  record of someone looking.
+- **A re-hash needs a new dated reason.** The check fails when an entry's hash
+  differs from `main` and its `reason` gains no new "Re-read on <date>: ..."
+  sentence. A change in spacing or in other words does not count. The sentence
+  says what the review found, so each re-hash leaves a record of someone
+  looking.
 - **A `static_parse_limit` entry also hides a marker-pass give-up inside
   `static_patterns_tool_misuse`.** When both passes give up inside that one
   check, the scanner reports only the parse code. The other twelve checks
@@ -300,10 +301,12 @@ drops suppressed results before upload, tested by
 
 - It removes results and renumbers nothing, because the kept results point at
   the rule and artifact arrays by index. A rule with no result left stays in its
-  place, with its descriptor text set to its id: the scanner fills a descriptor
-  with the message of the first finding under the rule, suppressed or not. A rule
-  that keeps a result gets the same for a descriptor that quotes a dropped
-  result's message.
+  place, with its descriptor text set to its id, because the scanner can fill a
+  descriptor with the message of the first finding under the rule, suppressed or
+  not. A rule that keeps a result gets the same for a descriptor that quotes a
+  dropped result's message. Measured on v2.13.0 (2026-10-17): a static rule's
+  descriptor is the rule's fixed name, which quotes no finding, and a rule whose
+  message is the matched clause, such as `TR2`, quotes the first finding's clause.
 - It never drops a result it cannot read. That result is kept and printed.
 - A report it cannot parse fails the step.
 - It uploads even when nothing is left, because an empty upload is what marks

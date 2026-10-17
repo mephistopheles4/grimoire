@@ -944,13 +944,13 @@ function readBaseline(path) {
       // says. The top-level keys keep their bare form: `version: 2`.
       if (!value.startsWith('"')) return problems.push(`${at}: "${key}" must be double-quoted — ${shown(value)}`);
       const read = scalar(value);
-      if (read === null) return problems.push(`${at}: "${key}" is not a bare or plainly quoted value — ${shown(value)}`);
+      if (read === null) return problems.push(`${at}: "${key}" is not a plainly double-quoted value (no inner quote or escape) — ${shown(value)}`);
       // The scanner reads a rule_id as an fnmatch pattern, so a wildcard in one
       // suppresses a family of rules. A file or message of nothing but wildcard
       // characters reads as narrowing and narrows nothing.
       if (key === 'rule_id' && /[*?[]/.test(read)) return problems.push(`${at}: "rule_id" holds a wildcard — ${shown(value)}; name one rule`);
       if ((key === 'file' || key === 'message') && /^[*?[\]]*$/.test(read)) {
-        return problems.push(`${at}: "${key}" is made only of wildcard characters — ${shown(value)}; it narrows nothing, so leave it out`);
+        return problems.push(`${at}: "${key}" is empty or made only of wildcard characters —${shown(value)}; it narrows nothing, so leave it out`);
       }
       entry[key] = read;
     });
@@ -1083,8 +1083,8 @@ for (const path of skillBaselines) {
       if (changes.length) {
         console.log(`note: ${ALLOWANCES} changed against ${baseRef}; review each by hand:`);
         for (const c of changes) console.log(`note:   ${c}`);
-        // In CI, also where a reviewer already looks. A re-hash passes this
-        // check by design, so a line in a green job's log is a line nobody
+        // In CI, also where a reviewer already looks. A re-hash with a new
+        // dated reason passes this check by design, so a line in a green job's log is a line nobody
         // reads: each change is a warning on the pull request too, and a list
         // on the run's summary page. Names only, never a hash.
         if (process.env.GITHUB_ACTIONS === 'true') {

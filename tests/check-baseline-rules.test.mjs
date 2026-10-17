@@ -123,7 +123,7 @@ test('a value the reader refuses is printed masked too', () => {
   const dir = tree();
   const root = readFileSync(rootBaselineIn(dir), 'utf8');
   writeFileSync(rootBaselineIn(dir), root.replace('  - rule_id: "AR2"\n', '  - rule_id: "AR2"\n    message: "*C:\\Users\\someone\\box*"\n'));
-  const r = assertFails(dir, /"message" is not a bare or plainly quoted value/);
+  const r = assertFails(dir, /"message" is not a plainly double-quoted value/);
   assert.doesNotMatch(r.stdout + r.stderr, /someone/);
 });
 
@@ -183,7 +183,7 @@ test('a file or message made only of wildcard characters fails, because it narro
     for (const glob of ['*', '**', '?*', '[*]']) {
       const dir = tree();
       rootWith(dir, `    ${key}: "${glob}"\n`);
-      assertFails(dir, new RegExp(`"${key}" is made only of wildcard characters`));
+      assertFails(dir, new RegExp(`"${key}" is empty or made only of wildcard characters`));
     }
   }
 });
