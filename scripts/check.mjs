@@ -905,40 +905,40 @@ function readBaseline(path) {
         inRules = false;
         entry = null;
         const m = /^([a-z_]+):\s*(.*)$/.exec(text);
-        if (!m) return problems.push(`${at}: not a "key: value" line — ${text}`);
+        if (!m) return problems.push(`${at}: not a "key: value" line — ${shown(text)}`);
         const [, key, value] = m;
         if (!BASELINE_KEYS.has(key)) return problems.push(`${at}: unknown key "${key}"`);
         if (key === 'rules') {
-          if (value) return problems.push(`${at}: "rules" must open a block, not hold ${value}`);
+          if (value) return problems.push(`${at}: "rules" must open a block, not hold ${shown(value)}`);
           inRules = true;
           return;
         }
         // Recorded either way, so the rules below report what the line said
         // rather than calling a key that is plainly there absent.
         const read = scalar(value);
-        if (read === null) return problems.push(`${at}: "${key}" is not a bare or plainly quoted value — ${value}`);
+        if (read === null) return problems.push(`${at}: "${key}" is not a bare or plainly quoted value — ${shown(value)}`);
         top[key] = read || 'empty';
         if (/^\[.+\]$/.test(read)) problems.push(`${at}: "${key}" holds an inline list — write one entry per line`);
         return;
       }
 
-      if (!inRules) return problems.push(`${at}: indented line outside the rules block — ${text}`);
+      if (!inRules) return problems.push(`${at}: indented line outside the rules block — ${shown(text)}`);
 
       if (indent === 2 && text.startsWith('- ')) {
         entry = { at };
         rules.push(entry);
       } else if (indent !== 4 || !entry) {
-        return problems.push(`${at}: not a rule entry or one of its fields — ${text}`);
+        return problems.push(`${at}: not a rule entry or one of its fields — ${shown(text)}`);
       }
 
       const field = text.startsWith('- ') ? text.slice(2) : text;
       const m = /^([a-z_]+):\s*(.+)$/.exec(field);
-      if (!m) return problems.push(`${at}: not a "key: value" field — ${field}`);
+      if (!m) return problems.push(`${at}: not a "key: value" field — ${shown(field)}`);
       const [, key, value] = m;
       if (!ENTRY_KEYS.has(key)) return problems.push(`${at}: unknown field "${key}" in a rule entry`);
       if (key in entry) return problems.push(`${at}: "${key}" set twice in one rule entry`);
       const read = scalar(value);
-      if (read === null) return problems.push(`${at}: "${key}" is not a bare or plainly quoted value — ${value}`);
+      if (read === null) return problems.push(`${at}: "${key}" is not a bare or plainly quoted value — ${shown(value)}`);
       entry[key] = read;
     });
 

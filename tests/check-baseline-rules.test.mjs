@@ -116,6 +116,17 @@ test('a disagreeing glob on the skill side is printed masked too', () => {
   assert.doesNotMatch(r.stdout + r.stderr, /someone/);
 });
 
+test('a value the reader refuses is printed masked too', () => {
+  // A Windows path in double quotes holds backslashes, which this reader
+  // refuses. The refusal names the value, and the root file is read by no
+  // home-path rule, so the mask has to be on this line.
+  const dir = tree();
+  const root = readFileSync(rootBaselineIn(dir), 'utf8');
+  writeFileSync(rootBaselineIn(dir), root.replace('  - rule_id: "AR2"\n', '  - rule_id: "AR2"\n    message: "*C:\\Users\\someone\\box*"\n'));
+  const r = assertFails(dir, /"message" is not a bare or plainly quoted value/);
+  assert.doesNotMatch(r.stdout + r.stderr, /someone/);
+});
+
 test('two different messages for one rule fail, not only a message on one side', () => {
   // Both sides narrowed is not agreement unless they narrow the same way: a
   // root that matches more than the skill would suppress more than it says.

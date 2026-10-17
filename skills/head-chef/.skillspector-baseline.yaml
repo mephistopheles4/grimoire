@@ -15,8 +15,10 @@
 # holds a common command word, such as run, beside a slash command as a skill
 # taking over that command. Here run and start are verbs about sessions, and
 # the slash command is the skill's own, /head-chef. Its entry matches that one
-# clause exactly as the scanner quotes it, with no wildcard, so the rule still
-# fires on any other clause, and on this one once any word in it changes.
+# clause exactly as the scanner quotes it, with no wildcard and ignoring case.
+# The scanner quotes up to 120 characters either side of the slash command, so
+# the rule still fires on any other clause, and on this one once any word
+# inside that window changes. Words outside the window it does not read.
 #
 # The scanner reports the score unchanged and applies none of this unless you
 # ask. Apply it with --use-shipped-baseline, and read what it covered with
