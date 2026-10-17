@@ -143,16 +143,19 @@ test('a rule left with no result loses the text it quotes, and a rule with a kep
   before.runs[0].tool.driver.rules = [
     { id: 'AR2', shortDescription: { text: marker }, fullDescription: { text: marker }, help: { text: marker, markdown: marker } },
     { id: 'RP1', shortDescription: { text: marker } },
-    { id: 'ZZ9', shortDescription: { text: 'kept text' } },
+    { id: 'ZZ9', shortDescription: { text: 'kept text' }, fullDescription: { text: 'kept full', markdown: 'kept md' }, help: { text: 'kept help', markdown: 'kept help md' } },
   ];
+  const kept = JSON.parse(JSON.stringify(before.runs[0].tool.driver.rules[2]));
   const r = assertStrips(sarif(before));
   const rules = r.report.runs[0].tool.driver.rules;
   assert.doesNotMatch(JSON.stringify(rules), new RegExp(marker));
   assert.deepEqual(rules.map(x => x.id), ['AR2', 'RP1', 'ZZ9']);
   assert.equal(rules[0].shortDescription.text, 'AR2');
   assert.equal(rules[0].fullDescription.text, 'AR2');
+  assert.equal(rules[0].help.text, 'AR2');
+  assert.equal(rules[0].help.markdown, 'AR2');
   assert.equal(rules[1].shortDescription.text, 'RP1');
-  assert.equal(rules[2].shortDescription.text, 'kept text');
+  assert.deepEqual(rules[2], kept);
   assert.match(r.stdout, /blanked the descriptors of 2 rule\(s\) with no result left/);
 });
 
@@ -161,14 +164,44 @@ test('a rule is judged by the results that stay, whichever way they point at it'
   const one = result('AR2', false);
   delete one.ruleId;
   one.ruleIndex = 0;
-  const before = report(one);
+  // The other reference form: a nested rule object, by index and by id.
+  const nestedIndex = result('RP1', false);
+  delete nestedIndex.ruleId;
+  nestedIndex.rule = { index: 1 };
+  const nestedId = result('ZZ9', false);
+  delete nestedId.ruleId;
+  nestedId.rule = { id: 'ZZ9' };
+  const before = report(one, nestedIndex, nestedId);
   before.runs[0].tool.driver.rules = [
     { id: 'AR2', shortDescription: { text: 'kept text' } },
-    { id: 'RP1', shortDescription: { text: 'gone text' } },
+    { id: 'RP1', shortDescription: { text: 'kept via nested index' } },
+    { id: 'ZZ9', shortDescription: { text: 'kept via nested id' } },
+    { id: 'MP3', shortDescription: { text: 'gone text' } },
   ];
   const rules = assertStrips(sarif(before)).report.runs[0].tool.driver.rules;
   assert.equal(rules[0].shortDescription.text, 'kept text');
-  assert.equal(rules[1].shortDescription.text, 'RP1');
+  assert.equal(rules[1].shortDescription.text, 'kept via nested index');
+  assert.equal(rules[2].shortDescription.text, 'kept via nested id');
+  assert.equal(rules[3].shortDescription.text, 'MP3');
+});
+
+test('a rule that keeps a result loses a descriptor that quotes a dropped result, and keeps the rest', () => {
+  // The scanner takes a rule's descriptor from the first finding under it,
+  // which may be the suppressed one while a later finding is not.
+  const dropped = { ...result('TR2', true), message: { text: 'MARKER-first-finding-was-baselined' } };
+  const stays = { ...result('TR2', false), message: { text: 'a different, unsuppressed message' } };
+  const before = report(dropped, stays);
+  before.runs[0].tool.driver.rules = [
+    { id: 'TR2', shortDescription: { text: 'MARKER-first-finding-was-baselined' }, fullDescription: { text: 'a rule name', markdown: 'MARKER-first-finding-was-baselined' } },
+  ];
+  const r = assertStrips(sarif(before));
+  const rule = r.report.runs[0].tool.driver.rules[0];
+  assert.doesNotMatch(JSON.stringify(r.report), /MARKER-first-finding/);
+  assert.equal(rule.shortDescription.text, 'TR2');
+  assert.equal(rule.fullDescription.markdown, 'TR2');
+  assert.equal(rule.fullDescription.text, 'a rule name');
+  assert.match(r.stdout, /replaced a dropped result's message in the descriptors of 1 rule\(s\) that keep a result/);
+  assert.equal(r.report.runs[0].results.length, 1);
 });
 
 test('the kept results keep their order', () => {
@@ -401,8 +434,13 @@ function stripAllowed(r, a = allowance(), label = 'skills/demo') {
 const ruleIds = r => r.report.runs[0].results.map(x => x.ruleId);
 
 test('the AE1 results the allowance accepts are dropped, and everything else is kept', () => {
-  const r = stripAllowed(acceptedSarif());
+  // The AE1 rule keeps no result once the allowance has dropped them all, so
+  // its descriptor must not quote one: the rewrite runs after that filter.
+  const s = acceptedSarif();
+  s.runs[0].tool.driver.rules.push({ id: 'AE1', shortDescription: { text: 'MARKER-quoted-from-an-accepted-finding' } });
+  const r = stripAllowed(s);
   assert.deepEqual(ruleIds(r), ['ZZ9']);
+  assert.equal(r.report.runs[0].tool.driver.rules[3].shortDescription.text, 'AE1');
   assert.match(r.stdout, /stripped 2 AE1 result\(s\) the allowance accepts, in 1 pair\(s\)/);
   assert.match(r.stdout, /SKILL\.md -> lib\/long\.mjs ×2/);
 });

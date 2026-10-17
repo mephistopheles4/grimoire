@@ -301,7 +301,9 @@ drops suppressed results before upload, tested by
 - It removes results and renumbers nothing, because the kept results point at
   the rule and artifact arrays by index. A rule with no result left stays in its
   place, with its descriptor text set to its id: the scanner fills a descriptor
-  with the message of the first finding under the rule, suppressed or not.
+  with the message of the first finding under the rule, suppressed or not. A rule
+  that keeps a result gets the same for a descriptor that quotes a dropped
+  result's message.
 - It never drops a result it cannot read. That result is kept and printed.
 - A report it cannot parse fails the step.
 - It uploads even when nothing is left, because an empty upload is what marks

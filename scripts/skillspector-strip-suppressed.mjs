@@ -172,8 +172,14 @@ if (!Array.isArray(report.runs)) die('has no "runs" array — an absent list is 
 const removed = new Map();
 let kept = 0;
 let unreadable = 0;
+// The message text of every result dropped, per run. A rule's descriptor holds
+// the message of the first finding under it, so this is the text to look for in
+// the descriptor of a rule that keeps some other result.
+const goneTexts = [];
 
 report.runs.forEach((run, i) => {
+  const gone = new Set();
+  goneTexts.push(gone);
   if (run === null || typeof run !== 'object' || Array.isArray(run)) die(`runs[${i}] is not an object`);
   if (!Array.isArray(run.results)) {
     die(`runs[${i}] has no "results" array — an absent list is not an empty one`);
@@ -202,6 +208,7 @@ report.runs.forEach((run, i) => {
     if (!suppressions.length) return keep();
     const id = typeof r.ruleId === 'string' && r.ruleId ? r.ruleId : 'unidentified';
     removed.set(id, (removed.get(id) ?? 0) + 1);
+    if (typeof r.message?.text === 'string') gone.add(r.message.text);
     return false;
   });
 });
@@ -242,6 +249,7 @@ if (allowances) {
       const pair = `${ae1[i].from} -> ${ae1[i].target}`;
       droppedPairs.set(pair, (droppedPairs.get(pair) ?? 0) + 1);
     }
+    for (const r of drop) if (typeof r.message?.text === 'string') goneTexts[report.runs.indexOf(run)].add(r.message.text);
     run.results = run.results.filter(r => !drop.has(r));
     kept -= drop.size;
   });
@@ -253,35 +261,47 @@ if (allowances) {
 // went would still quote one. The descriptor text becomes the rule id; the rule
 // stays in its place, so no index moves.
 const DESCRIPTORS = ['shortDescription', 'fullDescription', 'help'];
+//
+// A rule that keeps a result is left as it was, except for a descriptor whose
+// text is the message of a result dropped from this run and of no result kept:
+// the scanner took it from the first finding under the rule, which may be the
+// suppressed one.
 let blanked = 0;
-report.runs.forEach(run => {
+let scrubbed = 0;
+report.runs.forEach((run, runIndex) => {
   const rules = run.tool?.driver?.rules;
   if (!Array.isArray(rules)) return;
   const usedIds = new Set();
   const usedIndexes = new Set();
+  const keptTexts = new Set();
   for (const r of run.results) {
     if (r === null || typeof r !== 'object' || Array.isArray(r)) continue;
     if (typeof r.ruleId === 'string') usedIds.add(r.ruleId);
     if (Number.isInteger(r.ruleIndex)) usedIndexes.add(r.ruleIndex);
     if (Number.isInteger(r.rule?.index)) usedIndexes.add(r.rule.index);
     if (typeof r.rule?.id === 'string') usedIds.add(r.rule.id);
+    if (typeof r.message?.text === 'string') keptTexts.add(r.message.text);
   }
   rules.forEach((rule, i) => {
     if (rule === null || typeof rule !== 'object' || Array.isArray(rule)) return;
-    if (usedIndexes.has(i) || (typeof rule.id === 'string' && usedIds.has(rule.id))) return;
+    const used = usedIndexes.has(i) || (typeof rule.id === 'string' && usedIds.has(rule.id));
     const name = typeof rule.id === 'string' ? rule.id : `rule ${i}`;
     let changed = false;
     for (const key of DESCRIPTORS) {
       const d = rule[key];
       if (d === null || typeof d !== 'object' || Array.isArray(d)) continue;
       for (const field of ['text', 'markdown']) {
-        if (typeof d[field] === 'string' && d[field] !== name) {
-          d[field] = name;
-          changed = true;
-        }
+        const v = d[field];
+        if (typeof v !== 'string' || v === name) continue;
+        if (used && !(goneTexts[runIndex].has(v) && !keptTexts.has(v))) continue;
+        d[field] = name;
+        changed = true;
       }
     }
-    if (changed) blanked += 1;
+    if (changed) {
+      if (used) scrubbed += 1;
+      else blanked += 1;
+    }
   });
 });
 
@@ -336,6 +356,7 @@ if (allowances) {
   for (const [pair, count] of [...droppedPairs].sort(([a], [b]) => (a < b ? -1 : 1))) console.log(`      ${pair} ×${count}`);
 }
 if (blanked) console.log(`ok: blanked the descriptors of ${blanked} rule(s) with no result left`);
+if (scrubbed) console.log(`ok: replaced a dropped result's message in the descriptors of ${scrubbed} rule(s) that keep a result`);
 if (prefix !== null) {
   console.log(`ok: put ${prefix} in front of ${prefixed} relative path(s)`);
   if (absolute) console.log(`note: left ${absolute} absolute URI(s) as they were`);
