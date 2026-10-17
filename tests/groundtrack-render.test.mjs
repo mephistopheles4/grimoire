@@ -638,6 +638,8 @@ const throwsAsText = () => ({ toString: 0 });
 const notNumber = 'expected a number';
 /** The shipped example's tour, which `base` drops: the tour fields need one. */
 const withShippedTour = p => { p.tour = JSON.parse(readFileSync(exampleFlightpath, 'utf8')).tour; };
+/* The shipped example's three runs, in order: "a known user", "no such
+ * user" and "the post fails". */
 const known = 'graphs[0].presets[0].trace.steps';
 const failed = 'graphs[0].presets[1].trace.steps';
 const posted = 'graphs[0].presets[2].trace.steps';
@@ -679,6 +681,8 @@ const typeCases = [
   ['nodes.lookupName.steps[3].tag', p => { p.nodes.lookupName.steps[3].tag = throwsAsText(); }, notString],
   ['nodes.lookupName.steps[3].message', p => { p.nodes.lookupName.steps[3].message = throwsAsText(); }, notString],
   ['nodes.lookupName.steps[3].cause', p => { p.nodes.lookupName.steps[3].cause = throwsAsText(); }, notString],
+  // A trace that is not an object reached the walk, which read its steps.
+  ['graphs[0].presets[0].trace', p => { runs(p)[0].trace = 'authored'; }, 'expected an object'],
   [`${known}[0].k`, p => { runs(p)[0].trace.steps[0].k = throwsAsText(); }, notString],
   [`${known}[0].at`, p => { runs(p)[0].trace.steps[0].at = throwsAsText(); }, notNumber],
   [`${known}[0].next`, p => { runs(p)[0].trace.steps[0].next = throwsAsText(); }, notNumber],
@@ -800,6 +804,27 @@ test('a title and a tag holding a line break print the ok line, a finding and th
   assert.equal(tree.code, 0, tree.stderr);
   assert.match(tree.stdout, /^greet a user\\u000aok: forged — 9 node\(s\)$/m);
   assert.doesNotMatch(tree.stdout, /^ok: forged/m);
+
+  // A long name is shortened where it enters a line, so the line's own end
+  // still prints: the real counts, the real reason, the rest of the row.
+  const long = 'x'.repeat(3000);
+  const titled = check(derive(p => { p.title = long; }));
+  assert.match(titled.stderr, /^ok: x{200}… \(3,000 characters\) — 2 node\(s\), 1 graph\(s\), 3 run\(s\), 0 finding\(s\)$/m);
+  const walked = check(derive(p => { runs(p)[0].name = long; runs(p)[0].trace.steps[0].at = 99; }));
+  assert.match(walked.stderr, /run "x{200}… \(3,000 characters\)", move 0: comment at 99 is not a step of greet$/m);
+  const named = run(groundtrack, [derive(p => { p.nodes.lookupName.name = long; }), '--text']);
+  assert.match(named.stdout, /-> x{1000}… \(3,000 characters\) {2}\[io\] {2}\S/);
+
+  // The file's own name reaches the fixed lines too, where a file system
+  // lets a name hold a line break.
+  const odd = join(work, 'odd\nforged.flightpath.json');
+  let made = true;
+  try { writeFileSync(odd, readFileSync(derive(() => {}), 'utf8')); } catch { made = false; }
+  if (made && existsSync(odd)) {
+    const g = run(groundtrack, [odd, '--check', '--graph', 'greet']);
+    assert.equal(g.stderr.trim().split(/\r?\n/).length, 1, g.stderr);
+    assert.match(g.stderr, /odd\\u000aforged\.flightpath\.json: --graph names/);
+  }
 });
 
 test('a line past 2,000 characters is cut, with its length and digest, before it is escaped', () => {
@@ -812,6 +837,8 @@ test('a line past 2,000 characters is cut, with its length and digest, before it
   const digest = createHash('sha256').update(full, 'utf16le').digest('hex').slice(0, 16);
   assert.ok(line.endsWith(` (the first 2,000 of ${full.length.toLocaleString('en-US')} characters, sha256 ${digest})`), line.slice(-120));
   assert.ok(line.length < 2000 * 6 + 120, `a cut line of ${line.length} characters`);
+  // Cut first: every DEL the first 2,000 characters hold prints, escaped.
+  assert.equal(line.split('\\u007f').length - 1, 2000 - `${file}: nodes.`.length);
 
   // An astral character across the cut prints whole or not at all.
   const lead = `${file}: nodes.`.length;
@@ -842,6 +869,11 @@ test('a crash left in the renderer prints one line naming the file, and exits 2'
   const r = check(file);
   assert.equal(r.code, 2, r.stderr.slice(0, 400));
   assert.equal(r.stderr.trim(), `${file}: the renderer stopped on this file (RangeError)`);
+  // A page that cannot be written names the page, not a good input file.
+  const target = join(work, 'no-such-folder', 'page.html');
+  const w = run(groundtrack, [derive(() => {}), '--out', target]);
+  assert.equal(w.code, 2, w.stderr);
+  assert.equal(w.stderr.trim(), `cannot write ${target}: ENOENT`);
 });
 
 /* -- an absolute path (#249) ---------------------------------------------------
@@ -857,8 +889,8 @@ const flagged = 'is an absolute path, and the page prints it: write it relative 
 test('an absolute path is a finding that names the field, never the path, and the page still renders', () => {
   const file = derive(p => {
     p.nodes.greet.loc = `C:\\Users\\${planted}\\repo\\src\\greet.ts:1`;
-    p.nodes.greet.touches = [`/home/${planted}/repo/src/greet.ts`];
-    p.nodes.lookupName.enteredBy = [`file:///C:/Users/${planted}/repo/name-store.test.ts`];
+    p.nodes.greet.touches = [`/home/${planted}/repo/src/greet.ts`, `\\\\server\\${planted}\\repo\\src\\greet.css`];
+    p.nodes.lookupName.enteredBy = [`file:///C:/Users/${planted}/repo/name-store.test.ts`, ` C:\\Users\\${planted}\\a.test.ts`];
     p.files[1].path = `~${planted}/repo/src/name-store.ts`;
     // Not flagged: a web URL, a path from one's own home, a relative path.
     p.nodes.lookupName.loc = 'https://example.com/name-store';
@@ -866,10 +898,12 @@ test('an absolute path is a finding that names the field, never the path, and th
   });
   const r = check(file);
   assert.equal(r.code, 0, r.stderr);
-  for (const path of ['nodes.greet.loc', 'nodes.greet.touches[0]', 'nodes.lookupName.enteredBy[0]', 'files[1].path']) {
+  // A UNC path, and a path behind a leading space, count too.
+  const fields = ['nodes.greet.loc', 'nodes.greet.touches[0]', 'nodes.greet.touches[1]', 'nodes.lookupName.enteredBy[0]', 'nodes.lookupName.enteredBy[1]', 'files[1].path'];
+  for (const path of fields) {
     assert.match(r.stdout, new RegExp(`^${regexLiteral(path)} ${flagged}$`, 'm'), r.stdout);
   }
-  assert.equal(r.stdout.split(flagged).length - 1, 4, r.stdout);
+  assert.equal(r.stdout.split(flagged).length - 1, fields.length, r.stdout);
   const out = run(groundtrack, [file, '--out', join(work, 'absolute.html')]);
   assert.equal(out.code, 0, out.stderr);
   for (const s of [r.stdout, r.stderr, out.stdout, out.stderr]) assert.ok(!s.includes(planted), s);

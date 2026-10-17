@@ -174,7 +174,12 @@ function strings(r, where, v) {
  * It reads a list only when it is one and an object only when it is one, so
  * a structure of the wrong shape is skipped here and refused by the shape
  * pass. A step's and a move's fields are checked as one set whatever the op
- * or kind, so nothing here looks a name up in the step or move table. */
+ * or kind, so nothing here looks a name up in the step or move table.
+ *
+ * The three lists below copy the field names in `STEP` and `MOVE`. A field
+ * added to either table goes in one of them, or is left out on purpose as
+ * a value of any type, as `args`, `bind`, `onError`, `value`, `result` and
+ * `raised` are. A field in neither skips the type pass without a sound. */
 
 const STEP_TEXT = ['op', 'label', 'aside', 'comment', 'name', 'expr', 'cond', 'then', 'else', 'to', 'target', 'kind', 'desc', 'tag', 'message', 'cause'];
 const MOVE_TEXT = ['k', 'to', 'goto', 'tag', 'message', 'cause', 'kind', 'desc'];
@@ -416,6 +421,8 @@ function shape(prog, r) {
     });
     g.presets.forEach((p, i) => {
       keys(r, `graphs[${gi}].presets[${i}]`, p, PRESET);
+      /* Present and not an object: the walk would read its steps. */
+      if (isObj(p) && p.trace !== undefined && !isObj(p.trace)) return r.shape(`graphs[${gi}].presets[${i}].trace`, 'expected an object');
       if (!isObj(p) || !isObj(p.trace)) return;
       keys(r, `graphs[${gi}].presets[${i}].trace`, p.trace, ['provenance', 'steps']);
       if (!['authored', 'captured'].includes(p.trace.provenance))
@@ -533,7 +540,7 @@ function path(prog, gi, pi, r) {
    * tape has run out index no move, so they point at the walk itself rather
    * than at a step that is not there. */
   const base = `graphs[${gi}].presets[${pi}]`;
-  const where = `graph "${graph.id}", run "${runName}"`;
+  const where = `graph "${graph.id}", run "${clip(runName, PRINTED)}"`;
   const pathAt = i => (i >= walk.steps.length ? `${base}.trace` : `${base}.trace.steps[${i}]`);
   const wordsAt = i => (i >= walk.steps.length ? `${where}, at the end of the trace` : `${where}, move ${i}`);
   const bad = (i, m) => r.walk(pathAt(i), wordsAt(i), m);
@@ -870,7 +877,10 @@ const UNSAFE = /[\p{Cc}\p{Default_Ignorable_Code_Point}\u{2028}\u{2029}]/gu;
 const PRINTED = 200;
 /* Each UTF-16 unit as its own `\uXXXX`, so a character above U+FFFF prints
  * as its surrogate pair: still a well-formed JSON escape. */
-const escaped = s => s.replace(UNSAFE, c => [...Array(c.length).keys()].map(i => `\\u${c.charCodeAt(i).toString(16).padStart(4, '0')}`).join(''));
+/* Written out unit by unit, with no array per character: a line of 2,000
+ * escapable characters, printed 10,000 times, spent most of its time there. */
+const unit = u => `\\u${u.toString(16).padStart(4, '0')}`;
+const escaped = s => s.replace(UNSAFE, c => (c.length === 1 ? unit(c.charCodeAt(0)) : unit(c.charCodeAt(0)) + unit(c.charCodeAt(1))));
 const quoted = s => {
   const token = escaped(JSON.stringify(s.slice(0, PRINTED)));
   return s.length > PRINTED ? `${token} (the first ${PRINTED} of ${count(s.length)} characters, sha256 ${digest(s).slice(0, 16)})` : token;
@@ -895,8 +905,23 @@ const printable = line => {
   if (last >= 0xd800 && last <= 0xdbff) kept = kept.slice(0, -1);
   return `${escaped(kept)} (the first ${count(kept.length)} of ${count(line.length)} characters, sha256 ${digest(line).slice(0, 16)})`;
 };
-/** A line to stderr and a line to stdout, each through `printable`. */
+/* A stranger's string where it enters a line, shortened to `n` units with
+ * its full length said, and never through a surrogate pair. `printable`
+ * bounds a whole line, so a long name pushed the line's own end past the
+ * cut: the real counts after a title, the real reason after a run name.
+ * And a name drawn on every row of a large tree made each row as long as
+ * the name, which ran the reading out of memory. */
+const clip = (s, n) => {
+  if (typeof s !== 'string' || s.length <= n) return s;
+  let kept = s.slice(0, n);
+  const last = kept.charCodeAt(kept.length - 1);
+  if (last >= 0xd800 && last <= 0xdbff) kept = kept.slice(0, -1);
+  return `${kept}… (${count(s.length)} characters)`;
+};
+
+/** A line to standard error: refusals, the `ok:` line, `cannot read`. */
 const say = line => console.error(printable(line));
+/** A line to standard output: findings and the `--text` graph list. */
 const tell = line => console.log(printable(line));
 
 /* A Set of a stranger's names whose cost stays linear. V8 hashes a string
@@ -916,10 +941,11 @@ const nameSet = () => {
 
 /* Absolute, for the paths the page prints: a drive letter's root, a leading
  * slash or backslash (POSIX, UNC, Git Bash and WSL forms), a `file:` URL, or
- * another user's home as `~name`. A path from one's own home, `~/`, names no
- * one. A web URL and a relative path are not flagged. */
+ * a home named by its user, as `~name`. `~/` names no one. A web URL and a
+ * relative path are not flagged. Read past leading white space, which the
+ * page still prints. */
 const ABSOLUTE = /^(?:[A-Za-z]:[\\/]|[\\/]|file:|~[^\\/])/i;
-const absolute = p => typeof p === 'string' && ABSOLUTE.test(p);
+const absolute = p => typeof p === 'string' && ABSOLUTE.test(p.trimStart());
 
 /* -- findings -------------------------------------------------------------
  *
@@ -933,29 +959,29 @@ const absolute = p => typeof p === 'string' && ABSOLUTE.test(p);
 export function findings(prog) {
   const out = [];
 
-  /* One file edited by several nodes. Legal, and worth seeing: it is the shape
-   * a change takes when one file carries two concerns. */
   /* A path the page prints that is absolute (#249). A path from a home
    * folder carries the author's user name onto a page they may share, so
    * the finding names the field and never the path, which would put the
    * name in a terminal or a CI log too. A finding, not a refusal: the file
    * may be one the author keeps to themselves. */
-  const at = (path, p) => {
+  const flagAbsolute = (path, p) => {
     if (absolute(p)) out.push(`${path} is an absolute path, and the page prints it: write it relative to the repository root`);
   };
-  (prog.files || []).forEach((f, i) => at(`files[${i}].path`, f.path));
+  (prog.files || []).forEach((f, i) => flagAbsolute(`files[${i}].path`, f.path));
   for (const [id, n] of Object.entries(prog.nodes)) {
-    if (typeof n.loc === 'string') at(`nodes.${id}.loc`, n.loc);
-    (n.touches || []).forEach((p, i) => at(`nodes.${id}.touches[${i}]`, p));
-    (n.enteredBy || []).forEach((p, i) => at(`nodes.${id}.enteredBy[${i}]`, p));
+    if (typeof n.loc === 'string') flagAbsolute(`nodes.${id}.loc`, n.loc);
+    (n.touches || []).forEach((p, i) => flagAbsolute(`nodes.${id}.touches[${i}]`, p));
+    (n.enteredBy || []).forEach((p, i) => flagAbsolute(`nodes.${id}.enteredBy[${i}]`, p));
   }
 
+  /* One file edited by several nodes. Legal, and worth seeing: it is the shape
+   * a change takes when one file carries two concerns. */
   /* Keyed by a changed file's path, which nothing validates. An absolute
    * path is named by the first field that holds it, for the reason above. */
   const editors = Groundtrack.bare();
   for (const [id, n] of Object.entries(prog.nodes)) {
     (n.touches || []).forEach((p, i) => {
-      if (!editors[p]) editors[p] = { first: `nodes.${id}.touches[${i}]`, ids: [] };
+      if (!Object.hasOwn(editors, p)) editors[p] = { first: `nodes.${id}.touches[${i}]`, ids: [] };
       editors[p].ids.push(id);
     });
   }
@@ -1103,6 +1129,10 @@ export function text(prog, graphIndex, runIndex) {
   const run = view.presets[i];
   const rows = Groundtrack.treeRows(view, run.trace);
   const L = [];
+  /* Each stranger's string shortened where it enters a line (see `clip`).
+   * To half a line, so a row's own words after a name still print. The
+   * shipped files' longest such string, a run's blurb, is 550. */
+  const c = s => clip(s, LINE / 2);
 
   /* Read across the whole file, because the sentence says "in this file". A
    * change whose first graph was written by hand and whose second was captured
@@ -1116,8 +1146,8 @@ export function text(prog, graphIndex, runIndex) {
         : 'The traces in this file are mixed: some were captured from a real run, some were written by hand.',
   );
   L.push('');
-  L.push(`${prog.title}`);
-  L.push(`run "${run.name}" — ${run.blurb}`);
+  L.push(`${c(prog.title)}`);
+  L.push(`run "${c(run.name)}" — ${c(run.blurb)}`);
   L.push('');
 
   /* One node can hold many rows — a node called from more than one place is
@@ -1129,7 +1159,7 @@ export function text(prog, graphIndex, runIndex) {
   for (const [ln, layer] of Object.entries(prog.layers || {})) {
     for (const [nid, ov] of Object.entries((layer && layer.nodes) || {})) {
       if (ov && ov.requirements && ov.requirements.length) {
-        (layerLines[nid] = layerLines[nid] || []).push(`requirements under ${ln}: ${ov.requirements.join(', ')}`);
+        (layerLines[nid] = layerLines[nid] || []).push(`requirements under ${c(ln)}: ${c(ov.requirements.join(', '))}`);
       }
     }
   }
@@ -1138,23 +1168,23 @@ export function text(prog, graphIndex, runIndex) {
   for (const row of rows) {
     const pad = '  '.repeat(row.depth);
     const arrow = row.depth ? '-> ' : '';
-    L.push(`${pad}${arrow}${row.name}  [${row.role}]  ${row.state}${row.repeat ? '  (seen above — stopped)' : ''}`);
+    L.push(`${pad}${arrow}${c(row.name)}  [${c(row.role)}]  ${c(row.state)}${row.repeat ? '  (seen above — stopped)' : ''}`);
     /* Where this call site stood on the error, in the rail's words: the tag
      * beside the throw, and nothing beside the rest. Only an
      * error still live at the end of the trace shows here, because that is
      * where the text reads the trace. */
     if (row.errorPath) {
-      const how = row.errorPath.how.map(h => (Groundtrack.ERROR_POSITION[h] === 'thrown' ? `${h} ${row.errorPath.tag}` : h));
+      const how = row.errorPath.how.map(h => (Groundtrack.ERROR_POSITION[h] === 'thrown' ? `${h} ${c(row.errorPath.tag)}` : h));
       L.push(`${pad}   error path: ${how.join(', ')}`);
     }
     /* The tag, then the kind the file gives it. A tag the file gives no kind
      * for prints bare, and one given two prints both. */
     const E = row.error.length ? row.error.map(t => [t, ...(row.kinds[t] || [])].join(' ')).join(' · ') : 'never';
     const R = row.requirements.length ? row.requirements.join(', ') : 'none';
-    L.push(`${pad}   success ${row.success || '—'}   error ${E}   requirements ${R}`);
+    L.push(`${pad}   success ${c(row.success) || '—'}   error ${c(E)}   requirements ${c(R)}`);
     if (row.site && (row.site.label || row.site.aside)) {
-      if (row.site.label) L.push(`${pad}   at "${row.site.label}"`);
-      if (row.site.aside) L.push(`${pad}   ${row.site.aside}`);
+      if (row.site.label) L.push(`${pad}   at "${c(row.site.label)}"`);
+      if (row.site.aside) L.push(`${pad}   ${c(row.site.aside)}`);
     }
     /* Printed once per node, at the first row that draws it, never once per
      * row: a layer's requirements are a fact about the node, unchanged by
@@ -1167,7 +1197,7 @@ export function text(prog, graphIndex, runIndex) {
       for (const line of layerLines[row.id] || []) L.push(`${pad}   ${line}`);
       layerPrinted.add(row.id);
     }
-    for (const fx of row.effects) L.push(`${pad}   · ${fx.kind}  ${fx.desc} — ${fx.mark}`);
+    for (const fx of row.effects) L.push(`${pad}   · ${c(fx.kind)}  ${c(fx.desc)} — ${c(fx.mark)}`);
   }
 
   /* The tour is the file's, not the run's, so it prints whichever run was
@@ -1183,14 +1213,14 @@ export function text(prog, graphIndex, runIndex) {
       const graph = prog.graphs[t.graphIndex];
       const where = [
         t.region.label,
-        ...(prog.graphs.length > 1 ? [`graph "${graph.id}"`] : []),
-        `run "${graph.presets[t.runIndex].name}"`,
+        ...(prog.graphs.length > 1 ? [`graph "${c(graph.id)}"`] : []),
+        `run "${c(graph.presets[t.runIndex].name)}"`,
         `move ${t.move}`,
-        ...(t.tab ? [`tab ${t.tab}`] : []),
-        ...(t.view ? [`view ${t.view}`] : []),
-        ...(t.layer ? [`layer ${t.layer}`] : []),
+        ...(t.tab ? [`tab ${c(t.tab)}`] : []),
+        ...(t.view ? [`view ${c(t.view)}`] : []),
+        ...(t.layer ? [`layer ${c(t.layer)}`] : []),
       ];
-      L.push(`  ${n + 1}. ${where.join(' · ')} — ${t.now}`);
+      L.push(`  ${n + 1}. ${where.join(' · ')} — ${c(t.now)}`);
       L.push(`     what it is: ${t.region.what}`);
     });
   }
@@ -1199,7 +1229,7 @@ export function text(prog, graphIndex, runIndex) {
   if (others.length) {
     L.push('');
     L.push('other runs in this file:');
-    for (const p of others) L.push(`  "${p.name}" — ${p.blurb}`);
+    for (const p of others) L.push(`  "${c(p.name)}" — ${c(p.blurb)}`);
   }
   /* Each of the tree's own lines through `printable`, so a line break inside
    * a name or a blurb shows as an escape and the tree keeps its shape. */
@@ -1336,6 +1366,8 @@ function main(argv) {
   const positional = args.filter((a, i) => !a.startsWith('--') && !VALUED.includes(args[i - 1]));
   if (positional.length !== 1) return usage();
   const file = positional[0];
+  /* The file the last guard names, at the end of this module, if a crash
+   * escapes everything below. */
   reading = file;
 
   const outPath = has('--out') ? valueOf('--out') : undefined;
@@ -1374,7 +1406,7 @@ function main(argv) {
    * question the reader asked with one they did not, at exit 0 and in
    * silence, which is the failure this validator exists to refuse. */
   if (graphArg !== undefined && !wantText) {
-    console.error(
+    say(
       `${file}: --graph names the one graph a reading is of, and only --text is one. --check validates every graph, and the page carries every graph and offers a sheet picker over them — it does not open on a named sheet. Drop --graph, or add --text.`,
     );
     return 2;
@@ -1394,7 +1426,7 @@ function main(argv) {
     for (const n of notes) tell(n);
     const runs = prog.graphs.reduce((s, g) => s + g.presets.length, 0);
     say(
-      `ok: ${prog.title} — ${Object.keys(prog.nodes).length} node(s), ${prog.graphs.length} graph(s), ${runs} run(s), ${notes.length} finding(s)`,
+      `ok: ${clip(prog.title, PRINTED)} — ${Object.keys(prog.nodes).length} node(s), ${prog.graphs.length} graph(s), ${runs} run(s), ${notes.length} finding(s)`,
     );
     return 0;
   }
@@ -1429,7 +1461,7 @@ function main(argv) {
    * a working tree does not collect untracked pages. The renderer therefore
    * requires an output path rather than choosing one. */
   if (!outPath) {
-    console.error(
+    say(
       `${file}: name the page to write with --out. This renderer writes no page beside its input, because a page dropped next to the file it was made from is an artifact nobody asked for and nothing cleans up.`,
     );
     console.error(USAGE);
@@ -1441,7 +1473,7 @@ function main(argv) {
   const source = resolve(file);
   const target = resolve(outPath);
   const refuseSelf = () => {
-    console.error(`${file}: --out names the file being rendered. Write the page somewhere else; this would replace the program with its own drawing.`);
+    say(`${file}: --out names the file being rendered. Write the page somewhere else; this would replace the program with its own drawing.`);
     return 2;
   };
   if (source === target) return refuseSelf();
@@ -1450,17 +1482,28 @@ function main(argv) {
    * as well. Only when both sides report a real device and inode: some
    * filesystems report zero for both, and two different files would then look
    * like one. */
+  /* A page that cannot be written names the page, which is the path the
+   * person chose, and not the input file, which is fine. */
+  const cannotWrite = e => {
+    say(`cannot write ${target}: ${e.code || e.name}`);
+    return 2;
+  };
   try {
     const a = statSync(source);
     const b = statSync(target);
     if (a.dev && a.ino && a.dev === b.dev && a.ino === b.ino) return refuseSelf();
   } catch (e) {
     /* No such target yet is the ordinary case and means nothing to compare. */
-    if (e.code !== 'ENOENT') throw e;
+    if (e.code !== 'ENOENT') return cannotWrite(e);
   }
 
-  writeFileSync(target, page(prog));
-  console.error(`wrote ${target}`);
+  const html = page(prog);
+  try {
+    writeFileSync(target, html);
+  } catch (e) {
+    return cannotWrite(e);
+  }
+  say(`wrote ${target}`);
   for (const n of notes) tell(n);
   return 0;
 }
