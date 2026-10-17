@@ -20,7 +20,8 @@
 # holds a common command word, such as run, beside a slash command as a skill
 # taking over that command. Here run and start are verbs about sessions, and
 # the slash command is the skill's own, /head-chef. Its entry names
-# `SKILL.md`, so the rule still fires on any other file here.
+# `SKILL.md`, but the rule reads nothing else, so it is off for the whole
+# description: read a changed description against it yourself.
 #
 # The scanner reports the score unchanged and applies none of this unless you
 # ask. Apply it with --use-shipped-baseline, and read what it covered with
