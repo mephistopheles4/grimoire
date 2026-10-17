@@ -150,6 +150,10 @@ and carries a reason. The rules that hold it:
 - **Every entry added, removed or re-hashed is named.** `node scripts/check.mjs`
   lists each one against `main`, in its log and, in CI, on the run's summary
   page and as a warning on the pull request, so a re-hash is hard to miss.
+- **A re-hash needs a new reason.** The check fails when an entry's hash differs
+  from `main` and its `reason` does not. The new reason is a dated "Re-read on
+  <date>" sentence that says what the review found, so each re-hash leaves a
+  record of someone looking.
 - **A `static_parse_limit` entry also hides a marker-pass give-up inside
   `static_patterns_tool_misuse`.** When both passes give up inside that one
   check, the scanner reports only the parse code. The other twelve checks

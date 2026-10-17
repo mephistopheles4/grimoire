@@ -193,6 +193,39 @@ test('an allowed file edited without its sha256 updated fails, and says what to 
   assert.doesNotMatch(`${r.stdout}${r.stderr}`, /[0-9a-f]{64}/);
 });
 
+// An accepted file edited, and its entry re-hashed to match, against a base
+// that holds the old entry. The reason changes only when `reason` is given.
+function rehashAgainstBase(reason) {
+  const dir = tree();
+  const git = repo(dir);
+  const entry = readAllowance(dir).exceptions.find(e => e.skill === 'groundtrack' && e.path === 'scripts/render.mjs');
+  const file = join(dir, 'skills', 'groundtrack', 'scripts', 'render.mjs');
+  appendFileSync(file, '\n// one more line\n');
+  edit(dir, a => {
+    const e = a.exceptions.find(x => x.skill === entry.skill && x.path === entry.path);
+    e.sha256 = contentHash(readFileSync(file));
+    if (reason) e.reason = reason;
+  });
+  // A skill file changed, so the version gate wants the version to move too.
+  const manifest = join(dir, '.claude-plugin', 'plugin.json');
+  writeFileSync(manifest, readFileSync(manifest, 'utf8').replace(/("version": ")(\d+)\.(\d+)\.(\d+)/, (_, p, a, b, c) => `${p}${a}.${b}.${Number(c) + 1}`));
+  git('commit', '-aqm', 'edit the accepted file');
+  return { dir, entry };
+}
+
+test('a re-hash with the reason unchanged fails, and says what to write', () => {
+  const { dir } = rehashAgainstBase();
+  const r = assertFails(dir, /exception groundtrack\/scripts\/render\.mjs \(static_parse_limit\) was re-hashed and its reason was not changed/);
+  assert.match(r.stderr, /Re-read on <date>/);
+  assert.doesNotMatch(`${r.stdout}${r.stderr}`, /[0-9a-f]{64}/);
+});
+
+test('a re-hash with a new reason passes, and is still listed for the reviewer', () => {
+  const { dir, entry } = rehashAgainstBase('Re-read on 2026-10-17: the added line is a comment.');
+  const r = assertPasses(dir);
+  assert.ok(r.stdout.includes(`re-hashed exception groundtrack/${entry.path} (static_parse_limit)`), r.stdout);
+});
+
 test('a marker-pass entry names its own pass and what to look for', () => {
   const dir = tree();
   const entry = readAllowance(dir).exceptions.find(e => e.reason_code === 'obfuscated_instruction_text');
@@ -249,7 +282,8 @@ test('every entry added, removed, re-hashed or re-checked against the base is li
     // on the second entry's own path and code, so a notice that keyed entries
     // without their skill would read it as the second one and never list it.
     a.exceptions = a.exceptions.slice(1);
-    a.exceptions[0] = { ...second, sha256: 'b'.repeat(64), analyzers: [...second.analyzers, 'static_patterns_ssrf'].sort() };
+    // The reason changes with the hash, as the check now requires.
+    a.exceptions[0] = { ...second, sha256: 'b'.repeat(64), reason: 'Re-read on 2026-10-17: a neutral reason for the test.', analyzers: [...second.analyzers, 'static_patterns_ssrf'].sort() };
     a.exceptions.push({ ...second, skill: 'groundtrack', reason: 'A neutral reason for the test.' });
     // Recounted: the first reference. Removed: the second. Added: a new one.
     a.references[0].count += 1;

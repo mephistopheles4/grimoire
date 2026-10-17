@@ -322,6 +322,27 @@ export function checkAgainstTree(allowances, { isSkill, readFile }) {
   return problems;
 }
 
+// The entries whose hash moved against the base while their reason did not.
+// A re-hash says someone read the changed file, and the reason is where that
+// reading is written down, as a dated "Re-read on ..." sentence. A re-hash with
+// the old reason is a hash pasted over a pin, so it fails. `before` may be null
+// when the base has no file or cannot be read; then nothing is compared.
+export function unexplainedRehashes(before, after) {
+  if (!before) return [];
+  const was = new Map(before.exceptions.map(e => [exceptionKey(e), e]));
+  const problems = [];
+  for (const e of after.exceptions) {
+    const old = was.get(exceptionKey(e));
+    if (old && old.sha256 !== e.sha256 && old.reason === e.reason) {
+      problems.push(
+        `${ALLOWANCES}: exception ${e.skill}/${e.path} (${e.reason_code}) was re-hashed and its reason was not changed. ` +
+          'Review the diff of that file by hand, then change the reason to say so, in a "Re-read on <date>" sentence.',
+      );
+    }
+  }
+  return problems;
+}
+
 // What changed against the base: entries added, removed, re-hashed or with
 // changed checks, and references added, removed or recounted. A re-hash and a
 // change of checks on one entry are two lines, so neither hides the other.

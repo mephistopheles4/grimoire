@@ -34,7 +34,7 @@ import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { walk } from './lib/tree.mjs';
 import { ARTIFACTS, rowFor } from './lib/registry.mjs';
-import { ALLOWANCES, checkAgainstTree, diffAllowances, parseAllowances, readAllowances } from './lib/skillspector-allowances.mjs';
+import { ALLOWANCES, checkAgainstTree, diffAllowances, parseAllowances, readAllowances, unexplainedRehashes } from './lib/skillspector-allowances.mjs';
 import { caseTwin } from './lib/case.mjs';
 import { masked, printable, shown } from './lib/printable.mjs';
 
@@ -1065,6 +1065,7 @@ for (const path of skillBaselines) {
       if (before !== null && !parsedBefore) {
         console.log(`note: ${ALLOWANCES} on ${baseRef} cannot be read — every entry here is listed as added`);
       }
+      for (const p of unexplainedRehashes(parsedBefore, read.value)) fail(p);
       const changes = diffAllowances(parsedBefore, read.value);
       if (changes.length) {
         console.log(`note: ${ALLOWANCES} changed against ${baseRef}; review each by hand:`);
