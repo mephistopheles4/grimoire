@@ -533,13 +533,13 @@ test('__proto__ at the top level and nested never reaches a prototype or the fil
   // (tests/brigade-roster-rules.test.mjs holds that on the raw text). Either
   // way the key must never reach the file or a prototype, so each call is
   // judged on that and not on which of the two the engine does.
-  const attempt = async (input: string, kept: string) => {
+  const attempt = async (input: string, kept: string, file: unknown) => {
     const before = w.text(FILE)
     const r = await call($, JSON.parse(input))
     const after = w.text(FILE)
     if (r.ok) {
       expect(r.text).toBe(kept)
-      expect(JSON.parse(after ?? 'null')).not.toHaveProperty('polluted')
+      expect(JSON.parse(after ?? 'null')).toEqual(file)
     } else {
       expect(r.text).toMatch(/has a field the roster does not use: __proto__\. The roster file is unchanged\.$/)
       expect(after).toBe(before)
@@ -549,8 +549,8 @@ test('__proto__ at the top level and nested never reaches a prototype or the fil
     expect(after ?? '').not.toContain('polluted')
     return r
   }
-  await attempt('{"cards":[],"todos":[],"__proto__":{"polluted":1}}', 'Roster kept: 0 card(s), 0 to-do(s).')
-  await attempt('{"cards":[{"title":"a","status":"working","__proto__":{"polluted":1}}],"todos":[]}', 'Roster kept: 1 card(s), 0 to-do(s).')
+  await attempt('{"cards":[],"todos":[],"__proto__":{"polluted":1}}', 'Roster kept: 0 card(s), 0 to-do(s).', { cards: [], todos: [] })
+  await attempt('{"cards":[{"title":"a","status":"working","__proto__":{"polluted":1}}],"todos":[]}', 'Roster kept: 1 card(s), 0 to-do(s).', { cards: [{ title: 'a', work: '', phase: '', settings: '', status: 'working' }], todos: [] })
   expect(({} as Record<string, unknown>).polluted).toBeUndefined()
 })
 
