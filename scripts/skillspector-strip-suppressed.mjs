@@ -22,11 +22,14 @@
 // baseline, and in `--show-suppressed` for anyone scanning this tree
 // themselves. What belongs in the tab is what the gate goes red on.
 //
-// **It drops results and touches nothing else** — not `tool.driver.rules`, not
+// **It drops results and renumbers nothing** — not `tool.driver.rules`, not
 // `artifacts`, not the order of what stays. Both of those arrays are referenced
 // by index from the results that remain, so a tidy-up renumbering them would
-// point a kept finding at the wrong rule. A rule descriptor left with no
-// finding under it costs a reader nothing.
+// point a kept finding at the wrong rule. A rule left with no result keeps its
+// place, but its descriptors are rewritten: SkillSpector fills them with the
+// message of the first finding under the rule, suppressed or not, so a rule
+// whose findings all went would still quote one. Each such descriptor's text
+// becomes the rule id.
 //
 // **Except the paths, when asked, and only the paths.** The workflow scans each
 // skill on its own, and the scanner writes every path relative to the directory
@@ -244,6 +247,44 @@ if (allowances) {
   });
 }
 
+// The rules left with no result. After both filters, so the results that stay
+// are the ones judged. SkillSpector fills a rule's descriptors with the message
+// of the first finding under it, suppressed or not, so a rule whose findings all
+// went would still quote one. The descriptor text becomes the rule id; the rule
+// stays in its place, so no index moves.
+const DESCRIPTORS = ['shortDescription', 'fullDescription', 'help'];
+let blanked = 0;
+report.runs.forEach(run => {
+  const rules = run.tool?.driver?.rules;
+  if (!Array.isArray(rules)) return;
+  const usedIds = new Set();
+  const usedIndexes = new Set();
+  for (const r of run.results) {
+    if (r === null || typeof r !== 'object' || Array.isArray(r)) continue;
+    if (typeof r.ruleId === 'string') usedIds.add(r.ruleId);
+    if (Number.isInteger(r.ruleIndex)) usedIndexes.add(r.ruleIndex);
+    if (Number.isInteger(r.rule?.index)) usedIndexes.add(r.rule.index);
+    if (typeof r.rule?.id === 'string') usedIds.add(r.rule.id);
+  }
+  rules.forEach((rule, i) => {
+    if (rule === null || typeof rule !== 'object' || Array.isArray(rule)) return;
+    if (usedIndexes.has(i) || (typeof rule.id === 'string' && usedIds.has(rule.id))) return;
+    const name = typeof rule.id === 'string' ? rule.id : `rule ${i}`;
+    let changed = false;
+    for (const key of DESCRIPTORS) {
+      const d = rule[key];
+      if (d === null || typeof d !== 'object' || Array.isArray(d)) continue;
+      for (const field of ['text', 'markdown']) {
+        if (typeof d[field] === 'string' && d[field] !== name) {
+          d[field] = name;
+          changed = true;
+        }
+      }
+    }
+    if (changed) blanked += 1;
+  });
+});
+
 // The paths, when asked. After the filter, so a dropped result is not counted.
 let prefixed = 0;
 let absolute = 0;
@@ -294,6 +335,7 @@ if (allowances) {
   console.log(`ok: stripped ${n} AE1 result(s) the allowance accepts, in ${droppedPairs.size} pair(s)`);
   for (const [pair, count] of [...droppedPairs].sort(([a], [b]) => (a < b ? -1 : 1))) console.log(`      ${pair} ×${count}`);
 }
+if (blanked) console.log(`ok: blanked the descriptors of ${blanked} rule(s) with no result left`);
 if (prefix !== null) {
   console.log(`ok: put ${prefix} in front of ${prefixed} relative path(s)`);
   if (absolute) console.log(`note: left ${absolute} absolute URI(s) as they were`);

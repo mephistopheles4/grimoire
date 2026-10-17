@@ -286,8 +286,10 @@ So [`scripts/skillspector-strip-suppressed.mjs`](../../scripts/skillspector-stri
 drops suppressed results before upload, tested by
 [`tests/skillspector-strip-suppressed.test.mjs`](../../tests/skillspector-strip-suppressed.test.mjs).
 
-- It removes results and nothing else, because the kept results point at the
-  rule and artifact arrays by index.
+- It removes results and renumbers nothing, because the kept results point at
+  the rule and artifact arrays by index. A rule with no result left stays in its
+  place, with its descriptor text set to its id: the scanner fills a descriptor
+  with the message of the first finding under the rule, suppressed or not.
 - It never drops a result it cannot read. That result is kept and printed.
 - A report it cannot parse fails the step.
 - It uploads even when nothing is left, because an empty upload is what marks

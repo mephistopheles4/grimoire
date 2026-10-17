@@ -134,6 +134,43 @@ test('the rules and artifacts arrays come through untouched', () => {
   assert.deepEqual(r.report.runs[0].artifacts, before.runs[0].artifacts);
 });
 
+test('a rule left with no result loses the text it quotes, and a rule with a kept result keeps it', () => {
+  // SkillSpector fills a rule's descriptors with the message of the first
+  // finding under it, suppressed or not. The marker stands for such a message.
+  // The ids stay and nothing is renumbered, so the kept results' indexes hold.
+  const marker = 'MARKER-quoted-from-a-baselined-finding';
+  const before = report(result('AR2', true), result('ZZ9', false));
+  before.runs[0].tool.driver.rules = [
+    { id: 'AR2', shortDescription: { text: marker }, fullDescription: { text: marker }, help: { text: marker, markdown: marker } },
+    { id: 'RP1', shortDescription: { text: marker } },
+    { id: 'ZZ9', shortDescription: { text: 'kept text' } },
+  ];
+  const r = assertStrips(sarif(before));
+  const rules = r.report.runs[0].tool.driver.rules;
+  assert.doesNotMatch(JSON.stringify(rules), new RegExp(marker));
+  assert.deepEqual(rules.map(x => x.id), ['AR2', 'RP1', 'ZZ9']);
+  assert.equal(rules[0].shortDescription.text, 'AR2');
+  assert.equal(rules[0].fullDescription.text, 'AR2');
+  assert.equal(rules[1].shortDescription.text, 'RP1');
+  assert.equal(rules[2].shortDescription.text, 'kept text');
+  assert.match(r.stdout, /blanked the descriptors of 2 rule\(s\) with no result left/);
+});
+
+test('a rule is judged by the results that stay, whichever way they point at it', () => {
+  // A result may name its rule by id or by index into the rules array.
+  const one = result('AR2', false);
+  delete one.ruleId;
+  one.ruleIndex = 0;
+  const before = report(one);
+  before.runs[0].tool.driver.rules = [
+    { id: 'AR2', shortDescription: { text: 'kept text' } },
+    { id: 'RP1', shortDescription: { text: 'gone text' } },
+  ];
+  const rules = assertStrips(sarif(before)).report.runs[0].tool.driver.rules;
+  assert.equal(rules[0].shortDescription.text, 'kept text');
+  assert.equal(rules[1].shortDescription.text, 'RP1');
+});
+
 test('the kept results keep their order', () => {
   const r = assertStrips(
     sarif(report(result('ZZ9', false), result('AR2', true), result('RP1', false), result('MP3', true))),
