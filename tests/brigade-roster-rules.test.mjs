@@ -443,7 +443,7 @@ test('an answer whose field throws when read is not an answer, and the reader do
 // <data>/brigade/usage/<session id>.json, a folder apart from the rosters, so
 // a session that is both a lead and a member never writes one over the other.
 
-const { placeSummary, summaryFile, rosterFile } = roster;
+const { placeSummary, rosterFile } = roster;
 
 for (const [os, s] of Object.entries(shapes)) {
   const ID = 'grimoire-inline';
@@ -468,8 +468,7 @@ for (const [os, s] of Object.entries(shapes)) {
   test(`${os}: the summary file sits in the usage folder, apart from the roster of the same session`, async () => {
     assert.deepEqual(await place(all()), { file: FILE });
     assert.notEqual(FILE, s.join(BRIGADE, `${SID}.json`));
-    assert.equal(summaryFile(at('plugins', 'data', ID), SID), FILE);
-    assert.notEqual(summaryFile(at('plugins', 'data', ID), SID), rosterFile(at('plugins', 'data', ID), SID));
+    assert.notEqual(FILE, rosterFile(at('plugins', 'data', ID), SID));
     assert.deepEqual(await place(all({ [FILE]: file(FILE, 300) })), { file: FILE, existing: { size: 300 } });
   });
 
@@ -534,6 +533,10 @@ test('dataPlace: the config folder from the install path, else from this session
   const { dataPlace } = roster;
   const start = { sessionId: SID, transcript: `C:\\cfg\\.claude\\projects\\C--work\\${SID}.jsonl` };
   assert.deepEqual(dataPlace('C:\\cfg\\.claude\\plugins\\cache\\market\\grimoire\\0.60.0', 'grimoire', start, SID), { config: 'C:\\cfg\\.claude', plugin: 'grimoire-market' });
+  // The install path comes first: a start record under another config folder does not move it.
+  const elsewhere = { sessionId: SID, transcript: `D:\\other\\.claude\\projects\\C--work\\${SID}.jsonl` };
+  assert.deepEqual(dataPlace('C:\\cfg\\.claude\\plugins\\cache\\market\\grimoire\\0.60.0', 'grimoire', elsewhere, SID), { config: 'C:\\cfg\\.claude', plugin: 'grimoire-market' });
+  assert.deepEqual(dataPlace('C:\\work\\grimoire', 'grimoire', elsewhere, SID), { config: 'D:\\other\\.claude', plugin: 'grimoire-inline' });
   assert.deepEqual(dataPlace('C:\\work\\grimoire', 'grimoire', start, SID), { config: 'C:\\cfg\\.claude', plugin: 'grimoire-inline' });
   // A start record of another session names nothing.
   assert.deepEqual(dataPlace('C:\\work\\grimoire', 'grimoire', { ...start, sessionId: '99999999-8888-7777-6666-555555555555' }, SID), { config: undefined, plugin: 'grimoire-inline' });

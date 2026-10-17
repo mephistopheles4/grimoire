@@ -3407,6 +3407,9 @@ test('a main-loop step with usage counts: its context, its new tokens, its cache
   assert.deepEqual(stepCall({}, { stopReason: 'tool_use', usage: stepUsage() }), { tokens: 151006, fresh: 1306, cache: true, window: 1000000 });
   // No cache written or read: the flag is off. A Haiku model has the 200k window.
   assert.deepEqual(stepCall({}, { stopReason: 'end_turn', usage: stepUsage({ cache_creation_input_tokens: 0, cache_read_input_tokens: 0, model: 'claude-haiku-4-5' }) }), { tokens: 6, fresh: 306, cache: false, window: 200000 });
+  // Cache read alone, or cache written alone, sets the flag.
+  assert.equal(stepCall({}, { stopReason: 'end_turn', usage: stepUsage({ cache_creation_input_tokens: 0 }) })?.cache, true);
+  assert.equal(stepCall({}, { stopReason: 'end_turn', usage: stepUsage({ cache_read_input_tokens: 0 }) })?.cache, true);
   // A model the fixed table has no row for: no window.
   assert.deepEqual(stepCall({}, { stopReason: 'end_turn', usage: stepUsage({ model: 'claude-sonnet-4-6' }) }), { tokens: 151006, fresh: 1306, cache: true, window: undefined });
 });
@@ -3472,6 +3475,10 @@ test('the summary holds the numbers the transcript reading gives for the same ca
   const series = callSeries(text, MTIME, NOW);
   // Written at the read time, and 25 s before it: the burn lines up to the
   // next whole minute, NOW, either way.
+  // The memory keeps only the newest call's minute and the 29 before it.
+  const newest = Math.ceil((NOW - 1) / MIN);
+  assert.ok(mem.burn.length <= 30);
+  assert.ok(mem.burn.every(b => b.minute > newest - 30), 'no minute 30 or more before the newest call stays');
   for (const writtenAt of [NOW, NOW - 25000]) {
     const s = summaryFrom(mem, writtenAt);
     assert.equal(s.at, NOW);
@@ -3614,7 +3621,10 @@ test('a refusal never echoes the file\'s text', () => {
   }
 });
 
-test('serialization refuses a summary over the cap, or one the strict check refuses', () => {
+// Any text that passes the strict check is at most 671 bytes, so the byte
+// check is defence in depth that no input can reach today; both cases here
+// are refused by the strict check.
+test('serialization refuses a summary the strict check refuses, an oversized one included', () => {
   assert.ok('error' in serializeSummary({ ...worstSummary(), lastTokens: 0 }));
   assert.ok('error' in serializeSummary({ ...goodSummary(), extra: 'x'.repeat(2000) }));
 });
@@ -3627,6 +3637,8 @@ test('the existing-file check: only a summary file within the cap is overwritten
   assert.equal(isSummaryFile(rosterText.length, rosterText), false, 'a roster');
   assert.equal(isSummaryFile(14, '{"theme":"x"}'), false, 'other JSON');
   assert.equal(isSummaryFile(0, ''), false, 'an empty file');
+  const padded = good + ' '.repeat(1024 - Buffer.byteLength(good));
+  assert.equal(isSummaryFile(1024, padded), true, 'exactly at the cap');
   assert.equal(isSummaryFile(1025, good), false, 'a stat size over the cap');
   assert.equal(isSummaryFile(1024, `${good}${' '.repeat(1100)}`), false, 'text over the cap');
   assert.equal(isSummaryFile(Buffer.byteLength(good), undefined), false, 'no text read');

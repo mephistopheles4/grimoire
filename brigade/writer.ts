@@ -1,7 +1,7 @@
 import { atom, read } from 'claude-code'
 import type { EngineInterface, On } from 'claude-code'
 
-import { dataPlace, oneLine, placeSummary, statRejection } from './roster.ts'
+import { dataPlace, placeSummary, statRejection } from './roster.ts'
 import type { StatAnswer } from './roster.ts'
 import {
   MAX_SUMMARY_BYTES,
@@ -32,7 +32,8 @@ import {
 //
 // It makes no session usage call, so no cost, rate limit or context breakdown
 // ever enters it. The first refusal of the summary path, before or after a
-// write, stops it for the rest of the module's life, with one toast.
+// write, stops it until the module reloads, with one toast; a clear does not
+// restart it.
 
 
 // The engine's record of this session's start, which register.tsx's
@@ -87,11 +88,20 @@ function statOf($: EngineInterface): (path: string) => Promise<StatAnswer> {
     )
 }
 
-// The first refusal stops every later write, and says so once.
-function refuse($: EngineInterface, rule: string) {
+// The kinds of refusal, in fixed words: the toast names the kind and never
+// the engine's message or the file's text, either of which can hold a path.
+const REFUSED = {
+  path: 'the summary path failed its check',
+  file: 'the summary path holds a file that is not a summary file, so it is not overwritten',
+  after: 'the summary path failed its check after the write',
+} as const
+
+// The first refusal stops every later write until the module reloads, and
+// says so once. A clear does not restart it.
+function refuse($: EngineInterface, kind: keyof typeof REFUSED) {
   if (stopped) return
   stopped = true
-  $.ui.toast(`Brigade: the usage summary was not written, and will not be for the rest of this session: ${oneLine(rule, 200)}.`, { timeoutMs: 15000 })
+  $.ui.toast(`Brigade: the usage summary was not written, and will not be until the plugin reloads (a clear does not restart it): ${REFUSED[kind]}.`, { timeoutMs: 15000 })
 }
 
 // A write is asked for; one starts when the throttle and the single flight
@@ -122,12 +132,10 @@ async function writeOnce($: EngineInterface) {
   const at = await locate($)
   if (at === undefined) return
   const placed = await placeSummary(at.config, at.plugin, at.id, statOf($))
-  if ('refused' in placed) return refuse($, `the summary path failed its check (${placed.refused})`)
+  if ('refused' in placed) return refuse($, 'path')
   if (placed.existing !== undefined) {
     const text = placed.existing.size <= MAX_SUMMARY_BYTES ? String(await $.fs.read(placed.file)) : undefined
-    if (!isSummaryFile(placed.existing.size, text)) {
-      return refuse($, 'the summary path holds a file that is not a summary file, so it is not overwritten')
-    }
+    if (!isSummaryFile(placed.existing.size, text)) return refuse($, 'file')
   }
   const summary = summaryFrom(memory, now())
   if (summary === undefined || stopped) return
@@ -138,7 +146,7 @@ async function writeOnce($: EngineInterface) {
   // the fact. A hard link is not.
   const after = await placeSummary(at.config, at.plugin, at.id, statOf($)).catch(() => ({ refused: 'the check could not run' }))
   const why = 'refused' in after ? after.refused : after.existing === undefined ? 'the file is not there' : undefined
-  if (why !== undefined) refuse($, `the summary path failed its check after the write (${why})`)
+  if (why !== undefined) refuse($, 'after')
 }
 
 /** For register.tsx's `session.start` hook, which a module load raises: the
@@ -150,9 +158,10 @@ export function writerEpoch(engine: number, perf: number) {
   if (epoch === undefined && Number.isFinite(engine) && Number.isFinite(perf)) epoch = { engine, perf }
 }
 
-/** For register.tsx's `classic.SessionStart` hook: a clear or a resume names
- *  a new session id, and the series starts over under it, the old file left
- *  behind. Never throws. */
+/** For register.tsx's `session.start` and `classic.SessionStart` hooks: the
+ *  session id the memory belongs to. A module load names it first, so a clear
+ *  or a resume after a reload is seen as one; a new id starts the series over,
+ *  the old file left behind. Never throws. */
 export function writerSession(sessionId: unknown) {
   if (typeof sessionId !== 'string') return
   if (sessionOf !== undefined && sessionOf !== sessionId) memory = newUsageMemory()

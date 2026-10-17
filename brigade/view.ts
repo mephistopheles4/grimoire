@@ -2043,8 +2043,8 @@ export const newUsageMemory = (): UsageMemory => ({ calls: 0, last: undefined, w
 const minuteOf = (at: number) => Math.ceil(at / MIN_MS)
 
 /** The memory with one more counted call, stamped `at` by the module's clock,
- *  in whole milliseconds. Minutes more than 30 before the call's own fall
- *  away, and a minute's sum is clamped to 30,000,000. A new object: the
+ *  in whole milliseconds. Only the call's own minute and the 29 before it
+ *  stay, and a minute's sum is clamped to 30,000,000. A new object: the
  *  memory passed in is not changed. */
 export function recordCall(mem: UsageMemory, call: StepCall, at: number): UsageMemory {
   const stamp = Math.round(at)
@@ -2062,7 +2062,10 @@ export function recordCall(mem: UsageMemory, call: StepCall, at: number): UsageM
   }
 }
 
-/** The summary file's format version: the one the pane knows. */
+/** The summary file's format version: the one the pane knows. Any change to
+ *  `SUMMARY_KEYS`, to a range `checkSummary` holds or to the window set
+ *  raises it, so an older pane reads a newer file as an unknown version and
+ *  falls back cleanly, rather than as a broken file. */
 export const SUMMARY_VERSION = 1
 
 /** The summary file's keys, the one exact list: the format version; the
@@ -2070,7 +2073,10 @@ export const SUMMARY_VERSION = 1
  *  buckets lined up to that time, oldest first, and up to 30 context sizes,
  *  oldest first); the last call's time and context tokens; and whether any
  *  counted call since the module loaded wrote or read cache, 1 or 0. A window
- *  of 0 means the fixed table has none for the model. */
+ *  of 0 means the fixed table has none for the model: it is the pane meter's
+ *  absent `window`, so the reader maps 0 to no window before `metersFrom`,
+ *  which drops any other value. `at` is the end of the minute the write
+ *  fell in, up to 60 s after it. */
 export const SUMMARY_KEYS = ['version', 'at', 'window', 'burn', 'context', 'lastAt', 'lastTokens', 'cache'] as const
 
 /** One summary file, as the writer builds it and the pane reads it. */
@@ -2123,11 +2129,10 @@ export const UNKNOWN_SUMMARY_VERSION = 'the summary file has a format version th
 
 // The latest time a file may hold, Date's own limit, in whole milliseconds.
 const MAX_TIME = 8.64e15
-const SUMMARY_WINDOWS = new Set([0, 200000, 1000000])
+// The window sizes the meter takes, and 0 for none.
+const SUMMARY_WINDOWS = new Set([0, ...WINDOW_SIZES])
 const wholeIn = (v: unknown, min: number, max: number): v is number =>
   typeof v === 'number' && Number.isInteger(v) && v >= min && v <= max
-const seriesIn = (v: unknown, min: number, max: number): v is number[] =>
-  Array.isArray(v) && v.length >= min && v.length <= max && v.every(n => wholeIn(n, 0, MAX_SERIES))
 
 /** A summary file's text, checked strictly: JSON, an object whose own keys
  *  are exactly `SUMMARY_KEYS`, the version `SUMMARY_VERSION` (any other
@@ -2135,9 +2140,11 @@ const seriesIn = (v: unknown, min: number, max: number): v is number[] =>
  *  milliseconds from 0 to Date's limit with the last call no later than the
  *  record, the window 0, 200,000 or 1,000,000, exactly 30 burn buckets and 1
  *  to 30 context sizes, each a whole number from 0 to 30,000,000, the last
- *  call's tokens from 1 to 30,000,000, and the cache flag 0 or 1. The refusal
- *  names the rule in fixed words and never echoes the file's text. Never
- *  throws. */
+ *  call's tokens from 1 to 30,000,000, and the cache flag 0 or 1. The series
+ *  are held by the meter's own check, `seriesFrom`. The refusal names the
+ *  rule in fixed words and never echoes the file's text. It reads the text
+ *  alone, so it cannot hold the last call against the file's modified time or
+ *  the pane's clock; the reader does (spec S4 on #304). Never throws. */
 export function checkSummary(raw: string): { value: Summary } | { error: string } {
   let parsed: unknown
   try {
@@ -2155,8 +2162,10 @@ export function checkSummary(raw: string): { value: Summary } | { error: string 
   if (!wholeIn(p.at, 0, MAX_TIME) || !wholeIn(p.lastAt, 0, MAX_TIME) || p.lastAt > p.at) {
     return { error: 'a summary time is out of range' }
   }
-  if (typeof p.window !== 'number' || !SUMMARY_WINDOWS.has(p.window)) return { error: 'the summary window is not one the table gives' }
-  if (!seriesIn(p.burn, BURN_BUCKETS, BURN_BUCKETS) || !seriesIn(p.context, 1, SERIES_CALLS)) {
+  if (typeof p.window !== 'number' || !SUMMARY_WINDOWS.has(p.window)) return { error: 'the summary window is neither 0 nor one the table gives' }
+  const burn = seriesFrom(p.burn, true)
+  const context = seriesFrom(p.context, false)
+  if (burn === undefined || context === undefined || context.length === 0) {
     return { error: 'a summary series is out of range' }
   }
   if (!wholeIn(p.lastTokens, 1, MAX_SERIES)) return { error: 'the summary\'s last call is out of range' }
@@ -2166,8 +2175,8 @@ export function checkSummary(raw: string): { value: Summary } | { error: string 
       version: SUMMARY_VERSION,
       at: p.at,
       window: p.window,
-      burn: [...p.burn],
-      context: [...p.context],
+      burn,
+      context,
       lastAt: p.lastAt,
       lastTokens: p.lastTokens,
       cache: p.cache,

@@ -96,7 +96,8 @@ import { registerWriter, writerEpoch, writerSession } from './writer.ts'
 // stores the reading and turns the view's result into elements.
 //
 // The pane waits for /brigade. At session start it registers /brigade and the
-// usage summary writer (writer.ts), and nothing else: no timer, no process, no
+// usage summary writer (writer.ts), reads the engine clock and the session id
+// once for the writer, and nothing else: no timer, no process, no
 // file read, no tool and no pane. The writer's hooks record each step and
 // write this session's own summary file; ADR 0008 records why the mod is no
 // longer idle by default. The pane opens only on /brigade, and closing it
@@ -728,10 +729,12 @@ export const register: Register = on => {
   registerWriter(on)
 
   on('session.start', async ($, e, next) => {
-    // The usage summary writer's clock: the engine's epoch, read once here
-    // and never awaited.
+    // The usage summary writer's clock and session: the engine's epoch and
+    // this session's id, read once here and never awaited. Only numbers and
+    // text cross into writer.ts.
     const perf = performance.now()
     $.clock.now().then(t => writerEpoch(t, perf), () => undefined)
+    $.session.id().then(id => writerSession(id), () => undefined)
     await $.command.register({
       name: 'brigade',
       description: 'Show the Brigade pane: the sessions this lead session started',

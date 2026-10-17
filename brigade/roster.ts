@@ -191,8 +191,9 @@ export function statRejection(message: string): StatAnswer {
   return /(?:^|[\s:])ENOENT$/.test(message.trim()) ? { missing: true } : { failed: oneLine(message, 200) }
 }
 
-/** Where the roster may go: `existing` is the file there now, which a writer
- *  must still find to be a roster before it overwrites it. */
+/** Where the file may go: `existing` is the file there now, which a writer
+ *  must still find to be its own kind, a roster or a summary, before it
+ *  overwrites it. */
 export type Placed = { file: string; existing?: { size: number } } | { refused: string }
 
 // The folders below the config folder, in order, for each kind of file the
@@ -359,13 +360,6 @@ export const sepOf = (dir: string): string => (dir.includes('\\') ? '\\' : '/')
 export function rosterFile(data: string, sessionId: string): string {
   const sep = sepOf(data)
   return `${data}${sep}brigade${sep}${sessionId}.json`
-}
-
-/** The usage summary file of one session in the plugin's data folder, named
- *  by its checked session id, in the `usage` folder apart from the rosters. */
-export function summaryFile(data: string, sessionId: string): string {
-  const sep = sepOf(data)
-  return `${data}${sep}brigade${sep}usage${sep}${sessionId}.json`
 }
 
 /** A row of `claude agents --json`, as far as the pane uses it. `status` is
