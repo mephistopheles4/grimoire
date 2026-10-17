@@ -29,6 +29,11 @@ Refusals go to standard error and the exit code is 1. Findings go to standard
 output and the exit code stays 0. A refusal names the file and a reason,
 always. When the fault is in a trace it names the run and the move as well.
 
+Exit code 2 means the renderer could not finish, and it prints one line. The
+file is not JSON, the page cannot be written, or the renderer stopped.
+Read that line, and fix what it names. See
+[What a refusal says](flightpath-file.md#what-a-refusal-says).
+
 **The loop ends on a clean checker, and a clean checker still prints findings.**
 The loop never fixes them, because a finding never refuses. Read every finding
 when the loop ends, and answer each one before you call the file done.

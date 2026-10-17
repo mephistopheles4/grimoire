@@ -162,6 +162,74 @@ function strings(r, where, v) {
   refuseNonStrings(r, where, v);
 }
 
+/* -- pass 0: types ------------------------------------------------------------
+ *
+ * Every field the reference types as a string or a number, held to that type
+ * before any other rule reads it. The later passes turn these values into
+ * text, look them up and print them, so a value of the wrong type crashed
+ * --check with a stack trace, or printed `[object Object]`, or passed and
+ * broke the page (#248). A refusal names the path and never the value, for
+ * the reason `refuseNonStrings` gives.
+ *
+ * It reads a list only when it is one and an object only when it is one, so
+ * a structure of the wrong shape is skipped here and refused by the shape
+ * pass. A step's and a move's fields are checked as one set whatever the op
+ * or kind, so nothing here looks a name up in the step or move table.
+ *
+ * The three lists below copy the field names in `STEP` and `MOVE`. A field
+ * added to either table goes in one of them, or is left out on purpose as
+ * a value of any type, as `args`, `bind`, `onError`, `value`, `result` and
+ * `raised` are. A field in neither skips the type pass without a sound. */
+
+const STEP_TEXT = ['op', 'label', 'aside', 'comment', 'name', 'expr', 'cond', 'then', 'else', 'to', 'target', 'kind', 'desc', 'tag', 'message', 'cause'];
+const MOVE_TEXT = ['k', 'to', 'goto', 'tag', 'message', 'cause', 'kind', 'desc'];
+const MOVE_NUMBERS = ['at', 'next', 'attempt'];
+
+function types(prog, r) {
+  const held = (obj, where, text, numbers = []) => {
+    if (!isObj(obj)) return;
+    const at = k => (where ? `${where}.${k}` : k);
+    for (const k of text) if (obj[k] !== undefined && typeof obj[k] !== 'string') r.shape(at(k), 'expected a string');
+    for (const k of numbers) if (obj[k] !== undefined && typeof obj[k] !== 'number') r.shape(at(k), 'expected a number');
+  };
+  const each = (list, f) => {
+    if (Array.isArray(list)) list.forEach(f);
+  };
+
+  held(prog, '', ['id', 'title', 'blurb']);
+  held(prog.sheet, 'sheet', ['scopeRule']);
+  each(prog.files, (f, i) => held(f, `files[${i}]`, ['path', 'change', 'why'], ['adds', 'dels']));
+  if (isObj(prog.layers)) for (const [ln, layer] of Object.entries(prog.layers)) held(layer, `layers.${ln}`, ['entry']);
+  if (isObj(prog.nodes))
+    for (const [id, n] of Object.entries(prog.nodes)) {
+      held(n, `nodes.${id}`, ['name', 'role', 'loc']);
+      if (!isObj(n)) continue;
+      each(n.steps, (s, i) => {
+        /* The shape pass reads every step's label before it checks any
+         * step, and a null one has no label to read. */
+        if (s === null) r.shape(`nodes.${id}.steps[${i}]`, 'expected an object');
+        held(s, `nodes.${id}.steps[${i}]`, STEP_TEXT);
+        if (isObj(s)) each(s.onError, (h, j) => held(h, `nodes.${id}.steps[${i}].onError[${j}]`, ['tag', 'goto']));
+      });
+    }
+  each(prog.graphs, (g, gi) => {
+    held(g, `graphs[${gi}]`, ['id', 'title', 'blurb', 'entry']);
+    if (!isObj(g)) return;
+    each(g.presets, (p, pi) => {
+      const w = `graphs[${gi}].presets[${pi}]`;
+      held(p, w, ['name', 'blurb']);
+      if (!isObj(p)) return;
+      held(p.trace, `${w}.trace`, ['provenance']);
+      if (!isObj(p.trace)) return;
+      each(p.trace.steps, (m, j) => {
+        held(m, `${w}.trace.steps[${j}]`, MOVE_TEXT, MOVE_NUMBERS);
+        if (isObj(m)) held(m.raised, `${w}.trace.steps[${j}].raised`, ['tag', 'message', 'cause']);
+      });
+    });
+  });
+  each(prog.tour, (s, i) => held(s, `tour[${i}]`, ['region', 'run', 'now', 'graph', 'tab', 'view', 'layer'], ['move']));
+}
+
 /* -- pass 1 and 2: shape and links ----------------------------------------- */
 
 function shape(prog, r) {
@@ -182,6 +250,9 @@ function shape(prog, r) {
       'this is the old one-graph shape. A file now states one change and lists its graphs: move "entry" and "presets" into an entry of a "graphs" array, giving that graph its own id, title and blurb. The change facts — id, title, blurb, env, files, layers, sheet — and the one node map stay at the top level.',
     );
   }
+  /* Types first, and alone: every rule below reads these values as text. */
+  types(prog, r);
+  if (r.list.length) return;
   keys(r, 'file', prog, CORE, OPTIONAL);
   /* Said out loud rather than returned from in silence. A `nodes` that is a
    * list or a null used to end this pass with no refusal about it, so the file
@@ -262,7 +333,9 @@ function shape(prog, r) {
     const L = Groundtrack.labelsOf(n);
     n.steps.forEach((s, i) => {
       const w = `nodes.${id}.steps[${i}]`;
-      if (!isObj(s) || !STEP[s.op]) return r.shape(w, `op "${s && s.op}" is not one of ${Object.keys(STEP).join(', ')}`);
+      /* An own-property test: `constructor` is not an op, though the table
+       * would answer it with Object's own. */
+      if (!isObj(s) || !Object.hasOwn(STEP, s.op)) return r.shape(w, `op "${s && s.op}" is not one of ${Object.keys(STEP).join(', ')}`);
       const { req, opt } = STEP[s.op];
       keys(r, `${w} (${s.op})`, s, ['op', ...req], ['label', 'aside', ...opt]);
       for (const k of ['then', 'else', 'to']) {
@@ -348,6 +421,8 @@ function shape(prog, r) {
     });
     g.presets.forEach((p, i) => {
       keys(r, `graphs[${gi}].presets[${i}]`, p, PRESET);
+      /* Present and not an object: the walk would read its steps. */
+      if (isObj(p) && p.trace !== undefined && !isObj(p.trace)) return r.shape(`graphs[${gi}].presets[${i}].trace`, 'expected an object');
       if (!isObj(p) || !isObj(p.trace)) return;
       keys(r, `graphs[${gi}].presets[${i}].trace`, p.trace, ['provenance', 'steps']);
       if (!['authored', 'captured'].includes(p.trace.provenance))
@@ -356,7 +431,7 @@ function shape(prog, r) {
       if (!p.trace.steps.length) r.shape(`graphs[${gi}].presets[${i}].trace.steps`, 'a trace with no moves shows nothing');
       p.trace.steps.forEach((m, j) => {
         const w = `graphs[${gi}].presets[${i}].trace.steps[${j}]`;
-        if (!isObj(m) || !MOVE[m.k]) return r.shape(w, `k "${m && m.k}" is not a move kind`);
+        if (!isObj(m) || !Object.hasOwn(MOVE, m.k)) return r.shape(w, `k "${m && m.k}" is not a move kind`);
         keys(r, `${w} (${m.k})`, m, ['k', ...MOVE[m.k].req], MOVE[m.k].opt);
       });
     });
@@ -465,7 +540,7 @@ function path(prog, gi, pi, r) {
    * tape has run out index no move, so they point at the walk itself rather
    * than at a step that is not there. */
   const base = `graphs[${gi}].presets[${pi}]`;
-  const where = `graph "${graph.id}", run "${runName}"`;
+  const where = `graph "${graph.id}", run "${clip(runName, PRINTED)}"`;
   const pathAt = i => (i >= walk.steps.length ? `${base}.trace` : `${base}.trace.steps[${i}]`);
   const wordsAt = i => (i >= walk.steps.length ? `${where}, at the end of the trace` : `${where}, move ${i}`);
   const bad = (i, m) => r.walk(pathAt(i), wordsAt(i), m);
@@ -802,10 +877,52 @@ const UNSAFE = /[\p{Cc}\p{Default_Ignorable_Code_Point}\u{2028}\u{2029}]/gu;
 const PRINTED = 200;
 /* Each UTF-16 unit as its own `\uXXXX`, so a character above U+FFFF prints
  * as its surrogate pair: still a well-formed JSON escape. */
+/* Written out unit by unit, with no array per character: a line of 2,000
+ * escapable characters, printed 10,000 times, spent most of its time there. */
+const unit = u => `\\u${u.toString(16).padStart(4, '0')}`;
+const escaped = s => s.replace(UNSAFE, c => (c.length === 1 ? unit(c.charCodeAt(0)) : unit(c.charCodeAt(0)) + unit(c.charCodeAt(1))));
 const quoted = s => {
-  const token = JSON.stringify(s.slice(0, PRINTED)).replace(UNSAFE, c => [...Array(c.length).keys()].map(i => `\\u${c.charCodeAt(i).toString(16).padStart(4, '0')}`).join(''));
+  const token = escaped(JSON.stringify(s.slice(0, PRINTED)));
   return s.length > PRINTED ? `${token} (the first ${PRINTED} of ${count(s.length)} characters, sha256 ${digest(s).slice(0, 16)})` : token;
 };
+
+/* One line the command prints from the file, as one line (#252). A name the
+ * author chose reaches refusals, findings, the `ok:` line and the tree, and a
+ * line break or a control character in it split the line or reached the
+ * terminal raw. So every such line shows each character `UNSAFE` names as its
+ * escape. Not through JSON.stringify: that would double every backslash in a
+ * Windows file label and change every line printed today.
+ *
+ * Cut before it is escaped, for the reason `PRINTED` gives, and never through
+ * a surrogate pair, which would print half a character. 2,000 is above every
+ * line of fixed text here; a line that lists ids or names can pass it. This
+ * bounds what is printed; it refuses nothing. */
+const LINE = 2000;
+const printable = line => {
+  if (line.length <= LINE) return escaped(line);
+  let kept = line.slice(0, LINE);
+  const last = kept.charCodeAt(kept.length - 1);
+  if (last >= 0xd800 && last <= 0xdbff) kept = kept.slice(0, -1);
+  return `${escaped(kept)} (the first ${count(kept.length)} of ${count(line.length)} characters, sha256 ${digest(line).slice(0, 16)})`;
+};
+/* A stranger's string where it enters a line, shortened to `n` units with
+ * its full length said, and never through a surrogate pair. `printable`
+ * bounds a whole line, so a long name pushed the line's own end past the
+ * cut: the real counts after a title, the real reason after a run name.
+ * And a name drawn on every row of a large tree made each row as long as
+ * the name, which ran the reading out of memory. */
+const clip = (s, n) => {
+  if (typeof s !== 'string' || s.length <= n) return s;
+  let kept = s.slice(0, n);
+  const last = kept.charCodeAt(kept.length - 1);
+  if (last >= 0xd800 && last <= 0xdbff) kept = kept.slice(0, -1);
+  return `${kept}… (${count(s.length)} characters)`;
+};
+
+/** A line to standard error: refusals, the `ok:` line, `cannot read`. */
+const say = line => console.error(printable(line));
+/** A line to standard output: findings and the `--text` graph list. */
+const tell = line => console.log(printable(line));
 
 /* A Set of a stranger's names whose cost stays linear. V8 hashes a string
  * longer than 16,383 characters by its length alone, so a Set of many long
@@ -822,6 +939,14 @@ const nameSet = () => {
   };
 };
 
+/* Absolute, for the paths the page prints: a drive letter's root, a leading
+ * slash or backslash (POSIX, UNC, Git Bash and WSL forms), a `file:` URL, or
+ * a home named by its user, as `~name`. `~/` names no one. A web URL and a
+ * relative path are not flagged. Read past leading white space, which the
+ * page still prints. */
+const ABSOLUTE = /^(?:[A-Za-z]:[\\/]|[\\/]|file:|~[^\\/])/i;
+const absolute = p => typeof p === 'string' && ABSOLUTE.test(p.trimStart());
+
 /* -- findings -------------------------------------------------------------
  *
  * A finding is not a refusal. Each one is computed from the file alone with no
@@ -834,15 +959,34 @@ const nameSet = () => {
 export function findings(prog) {
   const out = [];
 
+  /* A path the page prints that is absolute (#249). A path from a home
+   * folder carries the author's user name onto a page they may share, so
+   * the finding names the field and never the path, which would put the
+   * name in a terminal or a CI log too. A finding, not a refusal: the file
+   * may be one the author keeps to themselves. */
+  const flagAbsolute = (path, p) => {
+    if (absolute(p)) out.push(`${path} is an absolute path, and the page prints it: write it relative to the repository root`);
+  };
+  (prog.files || []).forEach((f, i) => flagAbsolute(`files[${i}].path`, f.path));
+  for (const [id, n] of Object.entries(prog.nodes)) {
+    if (typeof n.loc === 'string') flagAbsolute(`nodes.${id}.loc`, n.loc);
+    (n.touches || []).forEach((p, i) => flagAbsolute(`nodes.${id}.touches[${i}]`, p));
+    (n.enteredBy || []).forEach((p, i) => flagAbsolute(`nodes.${id}.enteredBy[${i}]`, p));
+  }
+
   /* One file edited by several nodes. Legal, and worth seeing: it is the shape
    * a change takes when one file carries two concerns. */
-  /* Keyed by a changed file's path, which nothing validates. */
+  /* Keyed by a changed file's path, which nothing validates. An absolute
+   * path is named by the first field that holds it, for the reason above. */
   const editors = Groundtrack.bare();
   for (const [id, n] of Object.entries(prog.nodes)) {
-    for (const p of n.touches || []) (editors[p] = editors[p] || []).push(id);
+    (n.touches || []).forEach((p, i) => {
+      if (!Object.hasOwn(editors, p)) editors[p] = { first: `nodes.${id}.touches[${i}]`, ids: [] };
+      editors[p].ids.push(id);
+    });
   }
-  for (const [p, ids] of Object.entries(editors)) {
-    if (ids.length > 1) out.push(`several nodes edit ${p}: ${ids.join(', ')}`);
+  for (const [p, { first, ids }] of Object.entries(editors)) {
+    if (ids.length > 1) out.push(`several nodes edit ${absolute(p) ? first : p}: ${ids.join(', ')}`);
   }
 
   /* A node no graph's entry reaches. It is drawn by no sheet, so it is worth
@@ -960,7 +1104,9 @@ export function findings(prog) {
   /* Files in the change that no node accounts for, by name. A
    * documentation-only or config-only part of a change is not silently
    * dropped. */
-  for (const p of Groundtrack.unaccountedFiles(prog)) out.push(`no node accounts for ${p}`);
+  const fileAt = new Map();
+  (prog.files || []).forEach((f, i) => fileAt.has(f.path) || fileAt.set(f.path, `files[${i}].path`));
+  for (const p of Groundtrack.unaccountedFiles(prog)) out.push(`no node accounts for ${absolute(p) ? fileAt.get(p) : p}`);
 
   /* A cut edge is derived, never declared. */
   for (const c of Groundtrack.cutEdges(prog)) {
@@ -983,6 +1129,10 @@ export function text(prog, graphIndex, runIndex) {
   const run = view.presets[i];
   const rows = Groundtrack.treeRows(view, run.trace);
   const L = [];
+  /* Each stranger's string shortened where it enters a line (see `clip`).
+   * To half a line, so a row's own words after a name still print. The
+   * shipped files' longest such string, a run's blurb, is 550. */
+  const c = s => clip(s, LINE / 2);
 
   /* Read across the whole file, because the sentence says "in this file". A
    * change whose first graph was written by hand and whose second was captured
@@ -996,8 +1146,8 @@ export function text(prog, graphIndex, runIndex) {
         : 'The traces in this file are mixed: some were captured from a real run, some were written by hand.',
   );
   L.push('');
-  L.push(`${prog.title}`);
-  L.push(`run "${run.name}" — ${run.blurb}`);
+  L.push(`${c(prog.title)}`);
+  L.push(`run "${c(run.name)}" — ${c(run.blurb)}`);
   L.push('');
 
   /* One node can hold many rows — a node called from more than one place is
@@ -1009,7 +1159,7 @@ export function text(prog, graphIndex, runIndex) {
   for (const [ln, layer] of Object.entries(prog.layers || {})) {
     for (const [nid, ov] of Object.entries((layer && layer.nodes) || {})) {
       if (ov && ov.requirements && ov.requirements.length) {
-        (layerLines[nid] = layerLines[nid] || []).push(`requirements under ${ln}: ${ov.requirements.join(', ')}`);
+        (layerLines[nid] = layerLines[nid] || []).push(`requirements under ${c(ln)}: ${c(ov.requirements.join(', '))}`);
       }
     }
   }
@@ -1018,23 +1168,23 @@ export function text(prog, graphIndex, runIndex) {
   for (const row of rows) {
     const pad = '  '.repeat(row.depth);
     const arrow = row.depth ? '-> ' : '';
-    L.push(`${pad}${arrow}${row.name}  [${row.role}]  ${row.state}${row.repeat ? '  (seen above — stopped)' : ''}`);
+    L.push(`${pad}${arrow}${c(row.name)}  [${c(row.role)}]  ${c(row.state)}${row.repeat ? '  (seen above — stopped)' : ''}`);
     /* Where this call site stood on the error, in the rail's words: the tag
      * beside the throw, and nothing beside the rest. Only an
      * error still live at the end of the trace shows here, because that is
      * where the text reads the trace. */
     if (row.errorPath) {
-      const how = row.errorPath.how.map(h => (Groundtrack.ERROR_POSITION[h] === 'thrown' ? `${h} ${row.errorPath.tag}` : h));
+      const how = row.errorPath.how.map(h => (Groundtrack.ERROR_POSITION[h] === 'thrown' ? `${h} ${c(row.errorPath.tag)}` : h));
       L.push(`${pad}   error path: ${how.join(', ')}`);
     }
     /* The tag, then the kind the file gives it. A tag the file gives no kind
      * for prints bare, and one given two prints both. */
     const E = row.error.length ? row.error.map(t => [t, ...(row.kinds[t] || [])].join(' ')).join(' · ') : 'never';
     const R = row.requirements.length ? row.requirements.join(', ') : 'none';
-    L.push(`${pad}   success ${row.success || '—'}   error ${E}   requirements ${R}`);
+    L.push(`${pad}   success ${c(row.success) || '—'}   error ${c(E)}   requirements ${c(R)}`);
     if (row.site && (row.site.label || row.site.aside)) {
-      if (row.site.label) L.push(`${pad}   at "${row.site.label}"`);
-      if (row.site.aside) L.push(`${pad}   ${row.site.aside}`);
+      if (row.site.label) L.push(`${pad}   at "${c(row.site.label)}"`);
+      if (row.site.aside) L.push(`${pad}   ${c(row.site.aside)}`);
     }
     /* Printed once per node, at the first row that draws it, never once per
      * row: a layer's requirements are a fact about the node, unchanged by
@@ -1047,7 +1197,7 @@ export function text(prog, graphIndex, runIndex) {
       for (const line of layerLines[row.id] || []) L.push(`${pad}   ${line}`);
       layerPrinted.add(row.id);
     }
-    for (const fx of row.effects) L.push(`${pad}   · ${fx.kind}  ${fx.desc} — ${fx.mark}`);
+    for (const fx of row.effects) L.push(`${pad}   · ${c(fx.kind)}  ${c(fx.desc)} — ${c(fx.mark)}`);
   }
 
   /* The tour is the file's, not the run's, so it prints whichever run was
@@ -1063,14 +1213,14 @@ export function text(prog, graphIndex, runIndex) {
       const graph = prog.graphs[t.graphIndex];
       const where = [
         t.region.label,
-        ...(prog.graphs.length > 1 ? [`graph "${graph.id}"`] : []),
-        `run "${graph.presets[t.runIndex].name}"`,
+        ...(prog.graphs.length > 1 ? [`graph "${c(graph.id)}"`] : []),
+        `run "${c(graph.presets[t.runIndex].name)}"`,
         `move ${t.move}`,
-        ...(t.tab ? [`tab ${t.tab}`] : []),
-        ...(t.view ? [`view ${t.view}`] : []),
-        ...(t.layer ? [`layer ${t.layer}`] : []),
+        ...(t.tab ? [`tab ${c(t.tab)}`] : []),
+        ...(t.view ? [`view ${c(t.view)}`] : []),
+        ...(t.layer ? [`layer ${c(t.layer)}`] : []),
       ];
-      L.push(`  ${n + 1}. ${where.join(' · ')} — ${t.now}`);
+      L.push(`  ${n + 1}. ${where.join(' · ')} — ${c(t.now)}`);
       L.push(`     what it is: ${t.region.what}`);
     });
   }
@@ -1079,9 +1229,11 @@ export function text(prog, graphIndex, runIndex) {
   if (others.length) {
     L.push('');
     L.push('other runs in this file:');
-    for (const p of others) L.push(`  "${p.name}" — ${p.blurb}`);
+    for (const p of others) L.push(`  "${c(p.name)}" — ${c(p.blurb)}`);
   }
-  return L.join('\n');
+  /* Each of the tree's own lines through `printable`, so a line break inside
+   * a name or a blurb shows as an escape and the tree keeps its shape. */
+  return L.map(printable).join('\n');
 }
 
 /* -- the page -------------------------------------------------------------- */
@@ -1214,6 +1366,9 @@ function main(argv) {
   const positional = args.filter((a, i) => !a.startsWith('--') && !VALUED.includes(args[i - 1]));
   if (positional.length !== 1) return usage();
   const file = positional[0];
+  /* The file the last guard names, at the end of this module, if a crash
+   * escapes everything below. */
+  reading = file;
 
   const outPath = has('--out') ? valueOf('--out') : undefined;
   const wantText = has('--text');
@@ -1225,14 +1380,19 @@ function main(argv) {
     /* Hardened before anything asks the file a question: JSON.parse hands\n     * back plain objects, so an unhardened node map answers constructor with\n     * a function and the not-a-node guard stops firing. */
     prog = Groundtrack.hardenKeys(JSON.parse(readFileSync(file, 'utf8')));
   } catch (e) {
-    console.error(`cannot read ${file}: ${e.message}`);
+    /* The parser's own message can quote the start of the file, so a file
+     * that is not JSON is named with where it broke and none of its text. */
+    if (e instanceof SyntaxError) {
+      const at = /\(line (\d+) column (\d+)\)/.exec(e.message);
+      say(`cannot read ${file}: not valid JSON${at ? `, at line ${at[1]} column ${at[2]}` : ''}`);
+    } else say(`cannot read ${file}: ${e.message}`);
     return 2;
   }
 
   const errs = check(prog, file);
   if (errs.length) {
-    for (const e of errs) console.error(e);
-    console.error(`${file}: ${errs.length} refusal(s)`);
+    for (const e of errs) say(e);
+    say(`${file}: ${errs.length} refusal(s)`);
     return 1;
   }
 
@@ -1246,7 +1406,7 @@ function main(argv) {
    * question the reader asked with one they did not, at exit 0 and in
    * silence, which is the failure this validator exists to refuse. */
   if (graphArg !== undefined && !wantText) {
-    console.error(
+    say(
       `${file}: --graph names the one graph a reading is of, and only --text is one. --check validates every graph, and the page carries every graph and offers a sheet picker over them — it does not open on a named sheet. Drop --graph, or add --text.`,
     );
     return 2;
@@ -1257,16 +1417,16 @@ function main(argv) {
   if (graphArg !== undefined) {
     graphIndex = prog.graphs.findIndex(g => g.id === graphArg);
     if (graphIndex < 0) {
-      console.error(`${file}: no graph called "${graphArg}". This file has: ${prog.graphs.map(g => `"${g.id}"`).join(', ')}`);
+      say(`${file}: no graph called "${graphArg}". This file has: ${prog.graphs.map(g => `"${g.id}"`).join(', ')}`);
       return 1;
     }
   }
 
   if (has('--check')) {
-    for (const n of notes) console.log(n);
+    for (const n of notes) tell(n);
     const runs = prog.graphs.reduce((s, g) => s + g.presets.length, 0);
-    console.error(
-      `ok: ${prog.title} — ${Object.keys(prog.nodes).length} node(s), ${prog.graphs.length} graph(s), ${runs} run(s), ${notes.length} finding(s)`,
+    say(
+      `ok: ${clip(prog.title, PRINTED)} — ${Object.keys(prog.nodes).length} node(s), ${prog.graphs.length} graph(s), ${runs} run(s), ${notes.length} finding(s)`,
     );
     return 0;
   }
@@ -1277,8 +1437,8 @@ function main(argv) {
      * the command says what there is and stops rather than picking. The same
      * rule the skill already states for choosing a graph to draw. */
     if (prog.graphs.length > 1 && graphArg === undefined) {
-      for (const g of prog.graphs) console.log(`${g.id}  ${g.title}`);
-      console.error(`${file}: this file states ${prog.graphs.length} graphs. Name one with --graph <id>; the ids are listed above.`);
+      for (const g of prog.graphs) tell(`${g.id}  ${g.title}`);
+      say(`${file}: this file states ${prog.graphs.length} graphs. Name one with --graph <id>; the ids are listed above.`);
       return 1;
     }
     const graph = prog.graphs[graphIndex];
@@ -1287,7 +1447,7 @@ function main(argv) {
       index = graph.presets.findIndex(p => p.name === runArg);
       if (index < 0 && /^\d+$/.test(runArg)) index = Number(runArg);
       if (index < 0 || !graph.presets[index]) {
-        console.error(
+        say(
           `${file}: no run called "${runArg}" in graph "${graph.id}". That graph has: ${graph.presets.map(p => `"${p.name}"`).join(', ')}`,
         );
         return 1;
@@ -1301,7 +1461,7 @@ function main(argv) {
    * a working tree does not collect untracked pages. The renderer therefore
    * requires an output path rather than choosing one. */
   if (!outPath) {
-    console.error(
+    say(
       `${file}: name the page to write with --out. This renderer writes no page beside its input, because a page dropped next to the file it was made from is an artifact nobody asked for and nothing cleans up.`,
     );
     console.error(USAGE);
@@ -1313,7 +1473,7 @@ function main(argv) {
   const source = resolve(file);
   const target = resolve(outPath);
   const refuseSelf = () => {
-    console.error(`${file}: --out names the file being rendered. Write the page somewhere else; this would replace the program with its own drawing.`);
+    say(`${file}: --out names the file being rendered. Write the page somewhere else; this would replace the program with its own drawing.`);
     return 2;
   };
   if (source === target) return refuseSelf();
@@ -1322,18 +1482,29 @@ function main(argv) {
    * as well. Only when both sides report a real device and inode: some
    * filesystems report zero for both, and two different files would then look
    * like one. */
+  /* A page that cannot be written names the page, which is the path the
+   * person chose, and not the input file, which is fine. */
+  const cannotWrite = e => {
+    say(`cannot write ${target}: ${e.code || e.name}`);
+    return 2;
+  };
   try {
     const a = statSync(source);
     const b = statSync(target);
     if (a.dev && a.ino && a.dev === b.dev && a.ino === b.ino) return refuseSelf();
   } catch (e) {
     /* No such target yet is the ordinary case and means nothing to compare. */
-    if (e.code !== 'ENOENT') throw e;
+    if (e.code !== 'ENOENT') return cannotWrite(e);
   }
 
-  writeFileSync(target, page(prog));
-  console.error(`wrote ${target}`);
-  for (const n of notes) console.log(n);
+  const html = page(prog);
+  try {
+    writeFileSync(target, html);
+  } catch (e) {
+    return cannotWrite(e);
+  }
+  say(`wrote ${target}`);
+  for (const n of notes) tell(n);
   return 0;
 }
 
@@ -1342,5 +1513,16 @@ function main(argv) {
 // symlinked skill directory the two never matched, so every command exited 0
 // having done nothing. A check that says nothing reads as a file with no
 // refusals. Run unconditionally, so no path can reach the silent case.
-process.exitCode = main(process.argv);
+//
+// The last guard. A crash the rules above do not foresee, such as nesting deep
+// enough to overflow a JSON conversion, prints one line naming the file and
+// the kind of error, never a stack trace, which would carry the install path.
+// Not a size limit: it refuses nothing a rule above would accept.
+let reading = 'groundtrack';
+try {
+  process.exitCode = main(process.argv);
+} catch (e) {
+  say(`${reading}: the renderer stopped on this file (${(e && e.code) || (e instanceof Error ? e.name : 'an error')})`);
+  process.exitCode = 2;
+}
 

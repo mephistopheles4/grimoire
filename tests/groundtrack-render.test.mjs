@@ -626,6 +626,302 @@ test('valid list fields still pass, empty ones included', () => {
   });
 });
 
+/* -- a field of the wrong type (#248) -----------------------------------------
+ *
+ * Every field the reference types as a string or a number, holding an object
+ * whose conversion to text throws. Checked for presence only, each one passed
+ * the shape pass and then crashed --check, --out or the page, or printed
+ * `[object Object]`. A type pass now refuses each by its path, before any
+ * other rule reads the value as text. */
+
+const throwsAsText = () => ({ toString: 0 });
+const notNumber = 'expected a number';
+/** The shipped example's tour, which `base` drops: the tour fields need one. */
+const withShippedTour = p => { p.tour = JSON.parse(readFileSync(exampleFlightpath, 'utf8')).tour; };
+/* The shipped example's three runs, in order: "a known user", "no such
+ * user" and "the post fails". */
+const known = 'graphs[0].presets[0].trace.steps';
+const failed = 'graphs[0].presets[1].trace.steps';
+const posted = 'graphs[0].presets[2].trace.steps';
+
+const typeCases = [
+  ['id', p => { p.id = throwsAsText(); }, notString],
+  ['title', p => { p.title = throwsAsText(); }, notString],
+  ['blurb', p => { p.blurb = throwsAsText(); }, notString],
+  ['sheet.scopeRule', p => { p.sheet.scopeRule = throwsAsText(); }, notString],
+  ['graphs[0].id', p => { only(p).id = throwsAsText(); }, notString],
+  ['graphs[0].title', p => { only(p).title = throwsAsText(); }, notString],
+  ['graphs[0].blurb', p => { only(p).blurb = throwsAsText(); }, notString],
+  ['graphs[0].entry', p => { only(p).entry = throwsAsText(); }, notString],
+  ['layers.tests.entry', p => { p.layers.tests.entry = throwsAsText(); }, notString],
+  ['graphs[0].presets[0].name', p => { runs(p)[0].name = throwsAsText(); }, notString],
+  ['graphs[0].presets[0].blurb', p => { runs(p)[0].blurb = throwsAsText(); }, notString],
+  ['graphs[0].presets[0].trace.provenance', p => { runs(p)[0].trace.provenance = throwsAsText(); }, notString],
+  ['nodes.greet.name', p => { p.nodes.greet.name = throwsAsText(); }, notString],
+  ['nodes.greet.role', p => { p.nodes.greet.role = throwsAsText(); }, notString],
+  ['nodes.greet.loc', p => { p.nodes.greet.loc = throwsAsText(); }, notString],
+  // The labels are read before any step is checked, so a null step reached them first.
+  ['nodes.greet.steps[8]', p => { p.nodes.greet.steps.push(null); }, 'expected an object'],
+  ['nodes.greet.steps[0].op', p => { p.nodes.greet.steps[0].op = throwsAsText(); }, notString],
+  ['nodes.greet.steps[0].comment', p => { p.nodes.greet.steps[0].comment = throwsAsText(); }, notString],
+  ['nodes.greet.steps[1].target', p => { p.nodes.greet.steps[1].target = throwsAsText(); }, notString],
+  ['nodes.greet.steps[1].aside', p => { p.nodes.greet.steps[1].aside = throwsAsText(); }, notString],
+  ['nodes.greet.steps[1].onError[0].tag', p => { p.nodes.greet.steps[1].onError[0].tag = throwsAsText(); }, notString],
+  ['nodes.greet.steps[1].onError[0].goto', p => { p.nodes.greet.steps[1].onError[0].goto = throwsAsText(); }, notString],
+  ['nodes.greet.steps[2].cond', p => { p.nodes.greet.steps[2].cond = throwsAsText(); }, notString],
+  ['nodes.greet.steps[2].then', p => { p.nodes.greet.steps[2].then = throwsAsText(); }, notString],
+  ['nodes.greet.steps[2].else', p => { p.nodes.greet.steps[2].else = throwsAsText(); }, notString],
+  ['nodes.greet.steps[3].label', p => { p.nodes.greet.steps[3].label = throwsAsText(); }, notString],
+  ['nodes.greet.steps[3].name', p => { p.nodes.greet.steps[3].name = throwsAsText(); }, notString],
+  ['nodes.greet.steps[3].expr', p => { p.nodes.greet.steps[3].expr = throwsAsText(); }, notString],
+  ['nodes.greet.steps[4].to', p => { p.nodes.greet.steps[4].to = throwsAsText(); }, notString],
+  ['nodes.greet.steps[6].kind', p => { p.nodes.greet.steps[6].kind = throwsAsText(); }, notString],
+  ['nodes.greet.steps[6].desc', p => { p.nodes.greet.steps[6].desc = throwsAsText(); }, notString],
+  ['nodes.greet.steps[7].expr', p => { p.nodes.greet.steps[7].expr = throwsAsText(); }, notString],
+  ['nodes.lookupName.steps[3].tag', p => { p.nodes.lookupName.steps[3].tag = throwsAsText(); }, notString],
+  ['nodes.lookupName.steps[3].message', p => { p.nodes.lookupName.steps[3].message = throwsAsText(); }, notString],
+  ['nodes.lookupName.steps[3].cause', p => { p.nodes.lookupName.steps[3].cause = throwsAsText(); }, notString],
+  // A trace that is not an object reached the walk, which read its steps.
+  ['graphs[0].presets[0].trace', p => { runs(p)[0].trace = 'authored'; }, 'expected an object'],
+  [`${known}[0].k`, p => { runs(p)[0].trace.steps[0].k = throwsAsText(); }, notString],
+  [`${known}[0].at`, p => { runs(p)[0].trace.steps[0].at = throwsAsText(); }, notNumber],
+  [`${known}[0].next`, p => { runs(p)[0].trace.steps[0].next = throwsAsText(); }, notNumber],
+  [`${known}[1].to`, p => { runs(p)[0].trace.steps[1].to = throwsAsText(); }, notString],
+  [`${known}[2].kind`, p => { runs(p)[0].trace.steps[2].kind = throwsAsText(); }, notString],
+  [`${known}[2].desc`, p => { runs(p)[0].trace.steps[2].desc = throwsAsText(); }, notString],
+  [`${failed}[4].tag`, p => { runs(p)[1].trace.steps[4].tag = throwsAsText(); }, notString],
+  [`${failed}[4].message`, p => { runs(p)[1].trace.steps[4].message = throwsAsText(); }, notString],
+  [`${failed}[4].cause`, p => { runs(p)[1].trace.steps[4].cause = throwsAsText(); }, notString],
+  [`${failed}[6].goto`, p => { runs(p)[1].trace.steps[6].goto = throwsAsText(); }, notString],
+  [`${posted}[8].attempt`, p => { runs(p)[2].trace.steps[8].attempt = throwsAsText(); }, notNumber],
+  [`${posted}[8].raised.tag`, p => { runs(p)[2].trace.steps[8].raised.tag = throwsAsText(); }, notString],
+  [`${posted}[8].raised.message`, p => { runs(p)[2].trace.steps[8].raised.message = throwsAsText(); }, notString],
+  [`${posted}[8].raised.cause`, p => { runs(p)[2].trace.steps[8].raised.cause = throwsAsText(); }, notString],
+  [`${posted}[9].tag`, p => { runs(p)[2].trace.steps[9].tag = throwsAsText(); }, notString],
+  ['files[0].path', p => { p.files[0].path = throwsAsText(); }, notString],
+  ['files[0].change', p => { p.files[0].change = throwsAsText(); }, notString],
+  ['files[0].why', p => { p.files[0].why = throwsAsText(); }, notString],
+  ['files[0].adds', p => { p.files[0].adds = throwsAsText(); }, notNumber],
+  ['files[0].dels', p => { p.files[0].dels = throwsAsText(); }, notNumber],
+  ...['region', 'run', 'now'].map(k => [`tour[0].${k}`, p => { withShippedTour(p); p.tour[0][k] = throwsAsText(); }, notString]),
+  ...['graph', 'tab', 'view', 'layer'].map(k => [`tour[0].${k}`, p => { withShippedTour(p); p.tour[0][k] = throwsAsText(); }, notString]),
+  ['tour[0].move', p => { withShippedTour(p); p.tour[0].move = throwsAsText(); }, notNumber],
+];
+
+test('a field of the wrong type is refused by path, with no stack trace, under --check and --out', () => {
+  for (const [path, mutate, why] of typeCases) {
+    const file = derive(mutate);
+    refusedAt(check(file), path, why);
+    const out = run(groundtrack, [file, '--out', join(work, 'typed.html')]);
+    refusedAt(out, path, why);
+  }
+});
+
+test('a plain object in a text field is refused, and never prints as [object Object]', () => {
+  const cases = [
+    ['title', p => { p.title = {}; }],
+    ['blurb', p => { p.blurb = {}; }],
+    ['graphs[0].blurb', p => { only(p).blurb = {}; }],
+    ['sheet.scopeRule', p => { p.sheet.scopeRule = {}; }],
+  ];
+  for (const [path, mutate] of cases) {
+    const r = check(derive(mutate));
+    refusedAt(r, path, notString);
+    assert.ok(!`${r.stdout}${r.stderr}`.includes('[object Object]'), `${path}:\n${r.stderr}`);
+  }
+});
+
+test('an op or a move kind named like a built-in object member is refused as unknown', () => {
+  for (const name of ['constructor', 'toString', '__proto__']) {
+    const op = check(derive(p => { p.nodes.greet.steps[0].op = name; }));
+    assert.equal(op.code, 1, op.stderr);
+    assert.match(op.stderr, new RegExp(`: nodes\\.greet\\.steps\\[0\\]: op "${name}" is not one of `));
+    assert.doesNotMatch(op.stderr, /TypeError|\n\s+at /, op.stderr);
+    const k = check(derive(p => { runs(p)[0].trace.steps[0].k = name; }));
+    assert.equal(k.code, 1, k.stderr);
+    assert.match(k.stderr, new RegExp(`: ${regexLiteral(known)}\\[0\\]: k "${name}" is not a move kind`));
+    assert.doesNotMatch(k.stderr, /TypeError|\n\s+at /, k.stderr);
+  }
+});
+
+/* -- one line per report line (#252) -------------------------------------------
+ *
+ * A refusal prints the names the author chose: node ids, layer names, run
+ * names. A line break in one split the refusal, so the output could show a
+ * refusal the validator never made. Every line printed from the file now
+ * shows each control and invisible character as an escape. */
+
+/** Every refusal on its own line, each starting with the file label. */
+function oneLineEach(r, file) {
+  assert.equal(r.code, 1, r.stderr);
+  const lines = r.stderr.replace(/\r?\n$/, '').split(/\r?\n/);
+  const count = Number(/: (\d+) refusal\(s\)$/.exec(lines[lines.length - 1])?.[1]);
+  assert.ok(count > 0, r.stderr);
+  assert.equal(lines.length, count + 1, r.stderr);
+  for (const line of lines) assert.ok(line.startsWith(`${file}: `), `a line not starting with the file label:\n${line}`);
+  assert.doesNotMatch(r.stderr, /[\u{0}-\u{8}\u{b}-\u{1f}\u{7f}\u{2028}\u{2029}]/u, 'a control character reached the output');
+}
+
+test('a layer name holding a line break prints one refusal per line', () => {
+  const file = derive(p => {
+    const layer = p.layers.tests;
+    delete p.layers.tests;
+    p.layers['tests\nfake.flightpath.json: nodes.greet: forged'] = layer;
+    layer.nodes.lookupName.requirements = [5];
+  });
+  const r = check(file);
+  oneLineEach(r, file);
+  assert.match(r.stderr, /layers\.tests\\u000afake\.flightpath\.json: nodes\.greet: forged\.nodes\.lookupName\.requirements\[0\]: expected a string/);
+});
+
+test('a node id holding a control character prints one refusal per line', () => {
+  const file = derive(p => { p.nodes['bad\u{1b}[2Kid\u{7}'] = structuredClone(p.nodes.lookupName); });
+  const r = check(file);
+  oneLineEach(r, file);
+  assert.match(r.stderr, /nodes\.bad\\u001b\[2Kid\\u0007: a node id must be plain/);
+});
+
+test('a run name holding a line break prints one walk refusal per line', () => {
+  const file = derive(p => {
+    runs(p)[0].name = 'a known user\nfake.flightpath.json: graphs[0]: forged';
+    runs(p)[0].trace.steps[0].at = 99;
+  });
+  oneLineEach(check(file), file);
+});
+
+test('a title and a tag holding a line break print the ok line, a finding and the tree one line each', () => {
+  const file = derive(p => {
+    p.title = 'greet a user\nok: forged — 9 node(s)';
+    p.nodes.greet.channels.error.push('Ghost\nforged finding');
+  });
+  const r = check(file);
+  assert.equal(r.code, 0, r.stderr);
+  assert.match(r.stderr, /^ok: greet a user\\u000aok: forged — 9 node\(s\) — \d+ node\(s\)/m);
+  assert.equal(r.stderr.trim().split(/\r?\n/).length, 1, r.stderr);
+  assert.match(r.stdout, /^greet declares error tag "Ghost\\u000aforged finding", and nothing beneath it produces that tag$/m);
+  assert.doesNotMatch(r.stdout, /^forged finding/m);
+  const tree = run(groundtrack, [file, '--text']);
+  assert.equal(tree.code, 0, tree.stderr);
+  assert.match(tree.stdout, /^greet a user\\u000aok: forged — 9 node\(s\)$/m);
+  assert.doesNotMatch(tree.stdout, /^ok: forged/m);
+
+  // A long name is shortened where it enters a line, so the line's own end
+  // still prints: the real counts, the real reason, the rest of the row.
+  const long = 'x'.repeat(3000);
+  const titled = check(derive(p => { p.title = long; }));
+  assert.match(titled.stderr, /^ok: x{200}… \(3,000 characters\) — 2 node\(s\), 1 graph\(s\), 3 run\(s\), 0 finding\(s\)$/m);
+  const walked = check(derive(p => { runs(p)[0].name = long; runs(p)[0].trace.steps[0].at = 99; }));
+  assert.match(walked.stderr, /run "x{200}… \(3,000 characters\)", move 0: comment at 99 is not a step of greet$/m);
+  const named = run(groundtrack, [derive(p => { p.nodes.lookupName.name = long; }), '--text']);
+  assert.match(named.stdout, /-> x{1000}… \(3,000 characters\) {2}\[io\] {2}\S/);
+
+  // The file's own name reaches the fixed lines too, where a file system
+  // lets a name hold a line break.
+  const odd = join(work, 'odd\nforged.flightpath.json');
+  let made = true;
+  try { writeFileSync(odd, readFileSync(derive(() => {}), 'utf8')); } catch { made = false; }
+  if (made && existsSync(odd)) {
+    const g = run(groundtrack, [odd, '--check', '--graph', 'greet']);
+    assert.equal(g.stderr.trim().split(/\r?\n/).length, 1, g.stderr);
+    assert.match(g.stderr, /odd\\u000aforged\.flightpath\.json: --graph names/);
+  }
+});
+
+test('a line past 2,000 characters is cut, with its length and digest, before it is escaped', () => {
+  const id = '\u{7f}'.repeat(50000);
+  const file = derive(p => { p.nodes[id] = structuredClone(p.nodes.lookupName); });
+  const r = check(file);
+  oneLineEach(r, file);
+  const line = r.stderr.split(/\r?\n/)[0];
+  const full = `${file}: nodes.${id}: a node id must be plain letters, digits and hyphens — it reaches the page as an attribute`;
+  const digest = createHash('sha256').update(full, 'utf16le').digest('hex').slice(0, 16);
+  assert.ok(line.endsWith(` (the first 2,000 of ${full.length.toLocaleString('en-US')} characters, sha256 ${digest})`), line.slice(-120));
+  assert.ok(line.length < 2000 * 6 + 120, `a cut line of ${line.length} characters`);
+  // Cut first: every DEL the first 2,000 characters hold prints, escaped.
+  assert.equal(line.split('\\u007f').length - 1, 2000 - `${file}: nodes.`.length);
+
+  // An astral character across the cut prints whole or not at all.
+  const lead = `${file}: nodes.`.length;
+  const astral = derive(p => { p.nodes[`${'a'.repeat(1999 - lead)}\u{1f600}!`] = structuredClone(p.nodes.lookupName); });
+  const a = check(astral);
+  oneLineEach(a, astral);
+  // A lone surrogate is written out as U+FFFD, so that is what would show.
+  assert.ok(!a.stderr.includes('\u{fffd}'), 'half a character reached the output');
+  assert.match(a.stderr.split(/\r?\n/)[0], / \(the first 1,999 of [\d,]+ characters, sha256 [0-9a-f]{16}\)$/);
+});
+
+test('a file that is not JSON is reported without its text', () => {
+  // The parser's own message quotes the start of the file.
+  for (const body of ['planted-4f1d0c/a.js\n', '{"loc": "planted-4f1d0c/a.js" oops }\n']) {
+    const file = join(work, `not-json-${n++}.flightpath.json`);
+    writeFileSync(file, body);
+    const r = check(file);
+    assert.equal(r.code, 2, r.stderr);
+    assert.match(r.stderr, /^cannot read .+: not valid JSON/m);
+    assert.ok(!r.stderr.includes('planted'), r.stderr);
+  }
+});
+
+test('a crash left in the renderer prints one line naming the file, and exits 2', () => {
+  // Nesting this deep overflows the stack in a JSON conversion of the args.
+  const file = derive(p => { p.nodes.greet.steps[1].args = '@@DEEP@@'; });
+  writeFileSync(file, readFileSync(file, 'utf8').replace('"@@DEEP@@"', () => '['.repeat(200000) + ']'.repeat(200000)));
+  const r = check(file);
+  assert.equal(r.code, 2, r.stderr.slice(0, 400));
+  assert.equal(r.stderr.trim(), `${file}: the renderer stopped on this file (RangeError)`);
+  // A page that cannot be written names the page, not a good input file.
+  const target = join(work, 'no-such-folder', 'page.html');
+  const w = run(groundtrack, [derive(() => {}), '--out', target]);
+  assert.equal(w.code, 2, w.stderr);
+  assert.equal(w.stderr.trim(), `cannot write ${target}: ENOENT`);
+});
+
+/* -- an absolute path (#249) ---------------------------------------------------
+ *
+ * The page prints `loc`, `touches`, `enteredBy` and a file's `path`, and a
+ * path from a home folder carries the author's user name onto a page they
+ * may share. A finding warns, names the field path and never the path, and
+ * the page still renders. The planted name occurs in no runner's own path. */
+
+const planted = 'zq-planted-7e2';
+const flagged = 'is an absolute path, and the page prints it: write it relative to the repository root';
+
+test('an absolute path is a finding that names the field, never the path, and the page still renders', () => {
+  const file = derive(p => {
+    p.nodes.greet.loc = `C:\\Users\\${planted}\\repo\\src\\greet.ts:1`;
+    p.nodes.greet.touches = [`/home/${planted}/repo/src/greet.ts`, `\\\\server\\${planted}\\repo\\src\\greet.css`];
+    p.nodes.lookupName.enteredBy = [`file:///C:/Users/${planted}/repo/name-store.test.ts`, ` C:\\Users\\${planted}\\a.test.ts`];
+    p.files[1].path = `~${planted}/repo/src/name-store.ts`;
+    // Not flagged: a web URL, a path from one's own home, a relative path.
+    p.nodes.lookupName.loc = 'https://example.com/name-store';
+    p.nodes.greet.enteredBy = ['~/notes/greet.test.ts', 'src/greet.test.ts'];
+  });
+  const r = check(file);
+  assert.equal(r.code, 0, r.stderr);
+  // A UNC path, and a path behind a leading space, count too.
+  const fields = ['nodes.greet.loc', 'nodes.greet.touches[0]', 'nodes.greet.touches[1]', 'nodes.lookupName.enteredBy[0]', 'nodes.lookupName.enteredBy[1]', 'files[1].path'];
+  for (const path of fields) {
+    assert.match(r.stdout, new RegExp(`^${regexLiteral(path)} ${flagged}$`, 'm'), r.stdout);
+  }
+  assert.equal(r.stdout.split(flagged).length - 1, fields.length, r.stdout);
+  const out = run(groundtrack, [file, '--out', join(work, 'absolute.html')]);
+  assert.equal(out.code, 0, out.stderr);
+  for (const s of [r.stdout, r.stderr, out.stdout, out.stderr]) assert.ok(!s.includes(planted), s);
+  assert.ok(readFileSync(join(work, 'absolute.html'), 'utf8').includes(planted), 'the page still carries the path');
+});
+
+test('the findings that print a changed file name its field instead when the path is absolute', () => {
+  const r = check(derive(p => {
+    p.nodes.greet.touches = [`/home/${planted}/a.ts`];
+    p.nodes.lookupName.touches = [`/home/${planted}/a.ts`];
+    p.files[1].path = `D:/${planted}/b.ts`;
+  }));
+  assert.equal(r.code, 0, r.stderr);
+  assert.match(r.stdout, /^several nodes edit nodes\.greet\.touches\[0\]: greet, lookupName$/m);
+  assert.match(r.stdout, /^no node accounts for files\[1\]\.path$/m);
+  assert.ok(!r.stdout.includes(planted), r.stdout);
+});
+
 test('the old one-graph shape is refused, and the message names graphs', () => {
   // A file states one change, not one graph. Accepting both shapes would be
   // two ways to say one thing, so a stale file fails loudly rather than
@@ -2362,11 +2658,16 @@ test('a tour stop moves only to a move its run has, counted the way the page cou
   const shorter = check(withTour(stop({ run: 'the post fails', move: 11 })));
   assert.equal(shorter.code, 1);
   assert.match(shorter.stderr, /whose last move is 10/);
-  for (const move of [-1, 2.5, '5']) {
+  for (const move of [-1, 2.5]) {
     const r = check(withTour(stop({ move })));
     assert.equal(r.code, 1, `move ${JSON.stringify(move)}`);
     assert.match(r.stderr, /tour\[0\]\.move: expected a whole number from 0/);
   }
+  // A move that is not a number at all is the type pass's (#248), and its
+  // refusal never prints the value.
+  const text = check(withTour(stop({ move: '5' })));
+  assert.equal(text.code, 1);
+  assert.match(text.stderr, /tour\[0\]\.move: expected a number$/m);
 });
 
 test('a tour stop may open a tab, a view and a layer the page has, and no other', () => {

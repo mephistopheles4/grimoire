@@ -108,7 +108,9 @@ logs it. The debugging session drops where the data was worth having. The
    program never throws. A call can pass an arg its callee's `params` do not
    name. Fix the call site when the name is a typo or `params` no longer lists
    what the callee takes. Write the line when the args are an options object's
-   fields or a route word.
+   fields or a route word. Fix an absolute path. It can put the author's user
+   name on a page that someone shares. Keep it only for a page that stays on
+   the author's machine.
 
    Both answers are legitimate. Never skip this step. **Give the reader the
    findings you kept**, each with the line you wrote for it. A reader who never
@@ -154,7 +156,7 @@ for it. Never write a fixed path.
 
 | Flag | What it does |
 | --- | --- |
-| `--check` | Validates. Refusals on standard error, exit 1. Findings on standard output, exit 0. |
+| `--check` | Validates. Refusals on standard error, exit 1. Findings on standard output, exit 0. One line and exit 2 when the renderer cannot finish. |
 | `--out <page>` | Writes one self-contained HTML file. |
 | `--text ["<run>"]` | Prints the tree to standard output, for one run. |
 | `--graph <id>` | Which graph `--text` reads. Refused with `--check` and `--out`, which both read every graph — the check validates them all, and the page carries them all and picks between them. |

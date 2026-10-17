@@ -244,7 +244,8 @@ validator refuses each entry in `nodes.<id>.channels.error` or
 `nodes.<id>.channels.requirements` that is not a string. Those two lists keep
 their own words when they are not arrays. For `error` the words are `expected
 an array of failure tags`. For `requirements` they are `expected an array of
-tokens`. A refusal names the path, and never the value.
+tokens`. These refusals name the path, and never the value. See
+[What a refusal says](#what-a-refusal-says) for a field of the wrong type.
 
 **An entry can be any string, a prototype-member name such as `constructor`
 included.** A tool that reads a flightpath file, the renderer included, looks
@@ -254,6 +255,23 @@ plain object.
 **Write the paths in `loc`, `touches`, `enteredBy` and `files` relative to the
 repository root.** The page prints them. An absolute path from a home folder
 puts the author's user name on the page.
+
+`--check` reports an absolute path in these four fields as a finding. The
+finding names the field, such as `nodes.greet.touches[0]`, and never the
+path. The page still renders. These forms count as absolute:
+
+- a drive letter and its root, such as `C:\` or `C:/`;
+- a leading slash or backslash, which covers `/home/…`, `\\server\…` and
+  `/c/…`;
+- a `file:` URL;
+- `~` and a user name, such as `~<user>/…`.
+
+The check reads past white space at the start of a path. It does not report
+`~/…`, a web URL or a relative path. It reads only these four fields. It does
+not report an editor's own URL scheme or a `..` path. It does not report a
+drive letter with no slash after it. It does not read a path in any other field, such as a
+blurb, an aside or a captured value. Remove a home path there yourself before
+you share the page.
 
 ### role
 
@@ -522,6 +540,76 @@ greet.flightpath.json: graphs[1].presets[0].trace.steps[4]: graph "panel-apply",
 before it reads any trace, so there is no run and no move to name. A refusal
 never names one that does not exist.
 
+**The validator checks each field's type first, and alone.** Each field in
+this document holds a string, except these:
+
+- a file's `adds` and `dels`, a move's `at`, `next` and `attempt`, and a
+  tour stop's `move` hold numbers;
+- `args`, `bind`, `env`, a run's `input`, and a move's `value` and `result`
+  hold any value;
+- the lists, the objects and each step in `steps` hold what their sections
+  say.
+
+The validator checks every one of these before any other rule. It refuses a
+field of another type with one of these refusals:
+
+```text
+greet.flightpath.json: title: expected a string
+greet.flightpath.json: files[0].adds: expected a number
+greet.flightpath.json: nodes.greet.steps[8]: expected an object
+```
+
+When any field has the wrong type, the validator stops there. Fix those
+refusals. Then run `--check` again for the rest. A type refusal names the
+path, and never the value.
+
+**An op or a move kind is one of the names in the tables.** A built-in name
+such as `constructor` is not one of them. The validator refuses it the same
+way.
+
+**Every line the renderer prints from the file is one line.** This holds for
+refusals, findings, the `ok:` line and the `--text` tree. A name can hold a
+line break or another hidden character. The renderer prints each such
+character as one or two escapes such as `\u000a`, the escape for a line
+break. So a name cannot split a line, and cannot fake a refusal.
+
+**A printed line stops at 2,000 characters.** A longer line prints its first
+2,000 characters, then its full length and the start of its digest:
+
+```text
+greet.flightpath.json: nodes.aaaa… (the first 2,000 of 50,140 characters, sha256 <first 16 hex digits>)
+```
+
+The renderer cuts the line before it escapes it, so the 2,000 counts the
+file's text. With its escapes, a cut line can print about six times as many
+characters. The count can be 1,999, so the cut never splits a character.
+This bounds what the renderer prints and refuses nothing.
+
+**A long name stops where it enters a line, so the line's own end prints.**
+The title in the `ok:` line and a run's name in a refusal stop at 200
+characters. A name or text in the `--text` tree stops at 1,000. Each one
+prints its first characters and then its full length:
+
+```text
+ok: Greet a us… (3,000 characters) — 2 node(s), 1 graph(s), 3 run(s), 0 finding(s)
+```
+
+**Three lines exit 2, and none of them is a refusal.** Each names a file and
+none of its text:
+
+```text
+cannot read greet.flightpath.json: not valid JSON, at line 4 column 17
+cannot write <page>.html: ENOENT
+greet.flightpath.json: the renderer stopped on this file (RangeError)
+```
+
+- `cannot read` means the file is not JSON. The parser gives the line and
+  column when it knows them.
+- `cannot write` names the page from `--out`, and the reason the system gave.
+  The input file is fine.
+- `the renderer stopped` means a fault no rule foresees. The known cause is
+  very deep nesting in a value of any type, such as `args`. Flatten it.
+
 ## layers
 
 A layer redraws the graph for one context. Author-keyed; any name.
@@ -553,14 +641,19 @@ A layer redraws the graph for one context. Author-keyed; any name.
 A finding is not a refusal. `--check` prints these on standard output and still
 exits zero. Each one is a thing you may have meant.
 
+- **An absolute path in `loc`, `touches`, `enteredBy` or `files`.** The
+  finding names the field and never the path. See
+  [Lists of strings](#lists-of-strings) for the forms it reports.
 - **Several nodes edit one file.** Legal, and worth seeing: it is the shape a
-  change takes when one file carries two concerns.
+  change takes when one file carries two concerns. The finding names an
+  absolute path by the first `touches` entry that holds it.
 - **An `error` list declaring a tag nothing beneath it can produce.** A node
   produces a tag three ways: it throws it, a step of it declares a handler for
   it, or one of its effects threw it in a trace this file carries.
 - **A file in the change that no node accounts for**, by name. It reads every
   node of the change, so a file one graph covers is not reported because
-  another graph does not.
+  another graph does not. The finding names an absolute path by its `files`
+  entry.
 - **A node no graph's entry reaches**, so no sheet draws it. Legal: a node you
   have written and not yet connected is a work in progress.
 - **A call edge a layer cuts.**
