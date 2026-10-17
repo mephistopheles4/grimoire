@@ -58,8 +58,8 @@
       "analyzers": [
         "static_patterns_tool_misuse"
       ],
-      "sha256": "309dc80c045f3bb33f90abc884e441d9ff4e44679d75162e47e56c60ced85ee1",
-      "reason": "The flightpath renderer and validator. The destructive-command parser stops partway through a long expression and marks the file partial for that one check; every other check reads it in full. The entry also accepts a marker-pass give-up inside that one check, which the scanner reports under this code."
+      "sha256": "fe57e9c81973b57bd893effcb48716eab217a24fea2f2d059a778eff6a4d477a",
+      "reason": "The flightpath renderer and validator. The destructive-command parser stops partway through a long expression and marks the file partial for that one check; every other check reads it in full. The entry also accepts a marker-pass give-up inside that one check, which the scanner reports under this code. Read by hand on 2026-10-17 for issues 248, 249 and 252: the change adds no rm, del or erase in any spelling."
     },
     {
       "skill": "groundtrack",

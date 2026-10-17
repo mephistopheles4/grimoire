@@ -914,6 +914,13 @@ const nameSet = () => {
   };
 };
 
+/* Absolute, for the paths the page prints: a drive letter's root, a leading
+ * slash or backslash (POSIX, UNC, Git Bash and WSL forms), a `file:` URL, or
+ * another user's home as `~name`. A path from one's own home, `~/`, names no
+ * one. A web URL and a relative path are not flagged. */
+const ABSOLUTE = /^(?:[A-Za-z]:[\\/]|[\\/]|file:|~[^\\/])/i;
+const absolute = p => typeof p === 'string' && ABSOLUTE.test(p);
+
 /* -- findings -------------------------------------------------------------
  *
  * A finding is not a refusal. Each one is computed from the file alone with no
@@ -928,13 +935,32 @@ export function findings(prog) {
 
   /* One file edited by several nodes. Legal, and worth seeing: it is the shape
    * a change takes when one file carries two concerns. */
-  /* Keyed by a changed file's path, which nothing validates. */
+  /* A path the page prints that is absolute (#249). A path from a home
+   * folder carries the author's user name onto a page they may share, so
+   * the finding names the field and never the path, which would put the
+   * name in a terminal or a CI log too. A finding, not a refusal: the file
+   * may be one the author keeps to themselves. */
+  const at = (path, p) => {
+    if (absolute(p)) out.push(`${path} is an absolute path, and the page prints it: write it relative to the repository root`);
+  };
+  (prog.files || []).forEach((f, i) => at(`files[${i}].path`, f.path));
+  for (const [id, n] of Object.entries(prog.nodes)) {
+    if (typeof n.loc === 'string') at(`nodes.${id}.loc`, n.loc);
+    (n.touches || []).forEach((p, i) => at(`nodes.${id}.touches[${i}]`, p));
+    (n.enteredBy || []).forEach((p, i) => at(`nodes.${id}.enteredBy[${i}]`, p));
+  }
+
+  /* Keyed by a changed file's path, which nothing validates. An absolute
+   * path is named by the first field that holds it, for the reason above. */
   const editors = Groundtrack.bare();
   for (const [id, n] of Object.entries(prog.nodes)) {
-    for (const p of n.touches || []) (editors[p] = editors[p] || []).push(id);
+    (n.touches || []).forEach((p, i) => {
+      if (!editors[p]) editors[p] = { first: `nodes.${id}.touches[${i}]`, ids: [] };
+      editors[p].ids.push(id);
+    });
   }
-  for (const [p, ids] of Object.entries(editors)) {
-    if (ids.length > 1) out.push(`several nodes edit ${p}: ${ids.join(', ')}`);
+  for (const [p, { first, ids }] of Object.entries(editors)) {
+    if (ids.length > 1) out.push(`several nodes edit ${absolute(p) ? first : p}: ${ids.join(', ')}`);
   }
 
   /* A node no graph's entry reaches. It is drawn by no sheet, so it is worth
@@ -1052,7 +1078,9 @@ export function findings(prog) {
   /* Files in the change that no node accounts for, by name. A
    * documentation-only or config-only part of a change is not silently
    * dropped. */
-  for (const p of Groundtrack.unaccountedFiles(prog)) out.push(`no node accounts for ${p}`);
+  const fileAt = new Map();
+  (prog.files || []).forEach((f, i) => fileAt.has(f.path) || fileAt.set(f.path, `files[${i}].path`));
+  for (const p of Groundtrack.unaccountedFiles(prog)) out.push(`no node accounts for ${absolute(p) ? fileAt.get(p) : p}`);
 
   /* A cut edge is derived, never declared. */
   for (const c of Groundtrack.cutEdges(prog)) {

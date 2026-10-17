@@ -256,6 +256,21 @@ plain object.
 repository root.** The page prints them. An absolute path from a home folder
 puts the author's user name on the page.
 
+`--check` reports an absolute path in these four fields as a finding. The
+finding names the field, such as `nodes.greet.touches[0]`, and never the
+path. The page still renders. These forms count as absolute:
+
+- a drive letter and its root, such as `C:\` or `C:/`;
+- a leading slash or backslash, which covers `/home/…`, `\\server\…` and
+  `/c/…`;
+- a `file:` URL;
+- `~` and a user name, such as `~ada/…`.
+
+`~/…`, a web URL and a relative path are not reported. The check reads only
+these four fields. It does not read an editor's own URL scheme, a `..` path,
+or a path in any other field, such as a blurb, an aside or a captured value.
+Remove a home path there yourself before you share the page.
+
 ### role
 
 Any word. The page prints it and nothing branches on it except the
@@ -599,12 +614,17 @@ A layer redraws the graph for one context. Author-keyed; any name.
 A finding is not a refusal. `--check` prints these on standard output and still
 exits zero. Each one is a thing you may have meant.
 
+- **An absolute path in `loc`, `touches`, `enteredBy` or `files`.** The
+  finding names the field and never the path. See
+  [Lists of strings](#lists-of-strings) for the forms it reports.
 - **Several nodes edit one file.** Legal, and worth seeing: it is the shape a
-  change takes when one file carries two concerns.
+  change takes when one file carries two concerns. An absolute path is named
+  by the first `touches` entry that holds it.
 - **An `error` list declaring a tag nothing beneath it can produce.** A node
   produces a tag three ways: it throws it, a step of it declares a handler for
   it, or one of its effects threw it in a trace this file carries.
-- **A file in the change that no node accounts for**, by name. It reads every
+- **A file in the change that no node accounts for**, by name, or by its
+  `files` entry when the path is absolute. It reads every
   node of the change, so a file one graph covers is not reported because
   another graph does not.
 - **A node no graph's entry reaches**, so no sheet draws it. Legal: a node you

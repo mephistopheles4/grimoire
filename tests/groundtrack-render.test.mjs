@@ -844,6 +844,50 @@ test('a crash left in the renderer prints one line naming the file, and exits 2'
   assert.equal(r.stderr.trim(), `${file}: the renderer stopped on this file (RangeError)`);
 });
 
+/* -- an absolute path (#249) ---------------------------------------------------
+ *
+ * The page prints `loc`, `touches`, `enteredBy` and a file's `path`, and a
+ * path from a home folder carries the author's user name onto a page they
+ * may share. A finding warns, names the field path and never the path, and
+ * the page still renders. The planted name occurs in no runner's own path. */
+
+const planted = 'zq-planted-7e2';
+const flagged = 'is an absolute path, and the page prints it: write it relative to the repository root';
+
+test('an absolute path is a finding that names the field, never the path, and the page still renders', () => {
+  const file = derive(p => {
+    p.nodes.greet.loc = `C:\\Users\\${planted}\\repo\\src\\greet.ts:1`;
+    p.nodes.greet.touches = [`/home/${planted}/repo/src/greet.ts`];
+    p.nodes.lookupName.enteredBy = [`file:///C:/Users/${planted}/repo/name-store.test.ts`];
+    p.files[1].path = `~${planted}/repo/src/name-store.ts`;
+    // Not flagged: a web URL, a path from one's own home, a relative path.
+    p.nodes.lookupName.loc = 'https://example.com/name-store';
+    p.nodes.greet.enteredBy = ['~/notes/greet.test.ts', 'src/greet.test.ts'];
+  });
+  const r = check(file);
+  assert.equal(r.code, 0, r.stderr);
+  for (const path of ['nodes.greet.loc', 'nodes.greet.touches[0]', 'nodes.lookupName.enteredBy[0]', 'files[1].path']) {
+    assert.match(r.stdout, new RegExp(`^${regexLiteral(path)} ${flagged}$`, 'm'), r.stdout);
+  }
+  assert.equal(r.stdout.split(flagged).length - 1, 4, r.stdout);
+  const out = run(groundtrack, [file, '--out', join(work, 'absolute.html')]);
+  assert.equal(out.code, 0, out.stderr);
+  for (const s of [r.stdout, r.stderr, out.stdout, out.stderr]) assert.ok(!s.includes(planted), s);
+  assert.ok(readFileSync(join(work, 'absolute.html'), 'utf8').includes(planted), 'the page still carries the path');
+});
+
+test('the findings that print a changed file name its field instead when the path is absolute', () => {
+  const r = check(derive(p => {
+    p.nodes.greet.touches = [`/home/${planted}/a.ts`];
+    p.nodes.lookupName.touches = [`/home/${planted}/a.ts`];
+    p.files[1].path = `D:/${planted}/b.ts`;
+  }));
+  assert.equal(r.code, 0, r.stderr);
+  assert.match(r.stdout, /^several nodes edit nodes\.greet\.touches\[0\]: greet, lookupName$/m);
+  assert.match(r.stdout, /^no node accounts for files\[1\]\.path$/m);
+  assert.ok(!r.stdout.includes(planted), r.stdout);
+});
+
 test('the old one-graph shape is refused, and the message names graphs', () => {
   // A file states one change, not one graph. Accepting both shapes would be
   // two ways to say one thing, so a stale file fails loudly rather than
