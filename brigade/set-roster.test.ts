@@ -296,6 +296,7 @@ function world(on: On, setup: (w: World) => void = w => w.dirs(`${CONFIG}\\plugi
     return { value: undefined }
   })
   on('fs.read', ($, e: any) => {
+    w.log.push(`read ${e.path}`)
     const t = w.text(e.path)
     return t === undefined ? { deny: ENOENT } : { value: t }
   })
@@ -2366,6 +2367,30 @@ test('the Remote Control link is read again when the found path changes, and goe
     ['explorer.exe', 'claude://claude.ai/code/session_WT1'],
     ['explorer.exe', 'claude://claude.ai/code/session_HOME1'],
   ])
+  holdsNoPath(w)
+})
+
+test('a link read at 4 MiB or less is kept when the member is found at a new path past 4 MiB (#308)', async ($, on) => {
+  const w = await moved(on, $, w => plantIn(w, LAUNCH, 'HOME1'))
+  const m = await mountOn($, 'desktop')
+  await m.press({ key: 'open-0-gamma' })
+  // The member moves into a worktree, where its transcript is past 4 MiB:
+  // the engine would refuse the read, and the link it had stays.
+  w.nodes.delete(key(`${LAUNCH}\\${MID}.jsonl`))
+  w.dirs(WORKTREE)
+  const pad = ' '.repeat(4 * 1024 * 1024)
+  w.put(`${WORKTREE}\\${MID}.jsonl`, { type: 'file', data: { text: `${bridge('WT1')}\n${pad}\n${callAt(w.clock.now() - MINUTE)}\n`, mtimeMs: w.clock.now() } })
+  await w.clock.advance(60000)
+  await w.clock.settle()
+  await m.redraw(PANE_PROPS)
+  await m.press({ key: 'open-0-gamma' })
+  expect(explorer(w)).toEqual([
+    ['explorer.exe', 'claude://claude.ai/code/session_HOME1'],
+    ['explorer.exe', 'claude://claude.ai/code/session_HOME1'],
+  ])
+  // The engine would refuse it, so the pane never asks: no read of the
+  // transcript past 4 MiB, for the link or for the card.
+  expect(w.log.filter(l => l.toLowerCase() === `read ${WORKTREE}\\${MID}.jsonl`.toLowerCase())).toEqual([])
   holdsNoPath(w)
 })
 // --- the context meter -----------------------------------------------------------
