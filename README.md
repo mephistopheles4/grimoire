@@ -174,7 +174,8 @@ plugin reload. **Known limits:** a member first seen with a transcript already
 over 4 MiB, or one that turned Remote Control on after it passed 4 MiB, shows
 no link; and after a reload, a card whose name moved to another large session
 can show the old session's link. If you notice a missing link, a read of just
-the start of a large transcript is the next step (issue #308).
+the start of a large transcript, through a process, is the next step (issue
+#308).
 [`SECURITY.md`](SECURITY.md) says what the file holds and who can read it.
 **Known limit:** a card the pane draws from that file counts its cache down from 1 hour after the last call, because the engine's
 per-call usage does not say whether a call cached for 5 minutes or for 1 hour.

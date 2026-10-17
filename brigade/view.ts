@@ -2188,14 +2188,25 @@ export async function readCalls(
  *  from whose transcript's `size` is over 4 MiB, or not a number, is
  *  `keep`: the engine would refuse the read, and a session's Remote Control
  *  link does not change, so the stored link stays as it is, after a reload
- *  and on a moved path too (q3 A and q4 A on #308). With no `size`, as
- *  before. */
+ *  and on a moved path of the same session too (q3 A and q4 A on #308). A
+ *  remembered path of another session, by its file name, is `read`
+ *  instead: the engine refuses the read, and the old session's link goes.
+ *  With no `size`, as before. */
 export function linkStep(found: string | undefined, from: string | undefined, stored: boolean, size?: number): 'read' | 'drop' | 'skip' | 'keep' {
   if (found !== undefined) {
     if (found === from) return 'skip'
-    return size !== undefined && !(size <= MAX_TRANSCRIPT_BYTES) ? 'keep' : 'read'
+    const large = size !== undefined && !(size <= MAX_TRANSCRIPT_BYTES)
+    return large && (from === undefined || sameFile(found, from)) ? 'keep' : 'read'
   }
   return from !== undefined || stored ? 'drop' : 'skip'
+}
+
+// Whether two transcript paths end in the same file name, the session id,
+// compared as the path rule compares.
+const sameFile = (a: string, b: string): boolean => {
+  const name = (p: string) => p.split(/[\\/]/).pop() ?? ''
+  const fold = foldsCase(a)
+  return pathKey(name(a), fold) === pathKey(name(b), fold)
 }
 
 /** The file system and clock as the poll's reads reach them, and whether the

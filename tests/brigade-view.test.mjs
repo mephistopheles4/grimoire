@@ -2016,12 +2016,22 @@ test('the link read past 4 MiB keeps the stored link: no read, no drop, a reload
   // so the link read while the transcript was small stays once it is not.
   const { linkStep } = view;
   const big = MAX_TRANSCRIPT_BYTES + 1;
-  assert.equal(linkStep('p', undefined, true, big), 'keep', 'after a reload: kept, though no path is remembered');
-  assert.equal(linkStep('p', 'q', true, big), 'keep', 'a moved path past 4 MiB: kept');
-  assert.equal(linkStep('p', undefined, false, big), 'keep', 'nothing stored: nothing to keep, and no read');
-  assert.equal(linkStep('p', 'p', true, big), 'skip', 'the same path: skipped, as before');
-  assert.equal(linkStep('p', undefined, true, Number.NaN), 'keep', 'a size that is not a number is never read');
-  assert.equal(linkStep(undefined, 'p', true, big), 'drop', 'nothing found: dropped, as before');
+  const home = `${CONFIG}\\projects\\C--work\\${SID[0]}.jsonl`;
+  const moved = `${CONFIG}\\projects\\C--work--claude-worktrees-a\\${SID[0]}.jsonl`;
+  const other = `${CONFIG}\\projects\\C--work\\${SID[1]}.jsonl`;
+  assert.equal(linkStep(home, undefined, true, big), 'keep', 'after a reload: kept, though no path is remembered');
+  assert.equal(linkStep(moved, home, true, big), 'keep', 'the same session at a moved path past 4 MiB: kept');
+  assert.equal(linkStep(home, undefined, false, big), 'keep', 'nothing stored: nothing to keep, and no read');
+  assert.equal(linkStep(home, home, true, big), 'skip', 'the same path: skipped, as before');
+  assert.equal(linkStep(home, undefined, true, Number.NaN), 'keep', 'a size that is not a number is never read');
+  assert.equal(linkStep(undefined, home, true, big), 'drop', 'nothing found: dropped, as before');
+  // A card name that moved to another session, known by its remembered path,
+  // keeps no link of the old one: the step reads, the engine refuses the read
+  // past 4 MiB, and the link goes. Only a reload, which forgets the path, may
+  // keep one (q4 A on #308).
+  assert.equal(linkStep(other, home, true, big), 'read', 'another session past 4 MiB: not kept');
+  assert.equal(linkStep(other.toUpperCase(), home, true, big), 'read', 'compared by file name, case folded on Windows');
+  assert.equal(linkStep(moved.toUpperCase(), home, true, big), 'keep');
 });
 
 test('the pane keeps a stored link on a keep step: it remembers the path and changes no link', () => {

@@ -296,6 +296,7 @@ function world(on: On, setup: (w: World) => void = w => w.dirs(`${CONFIG}\\plugi
     return { value: undefined }
   })
   on('fs.read', ($, e: any) => {
+    w.log.push(`read ${e.path}`)
     const t = w.text(e.path)
     return t === undefined ? { deny: ENOENT } : { value: t }
   })
@@ -2387,6 +2388,9 @@ test('a link read at 4 MiB or less is kept when the member is found at a new pat
     ['explorer.exe', 'claude://claude.ai/code/session_HOME1'],
     ['explorer.exe', 'claude://claude.ai/code/session_HOME1'],
   ])
+  // The engine would refuse it, so the pane never asks: no read of the
+  // transcript past 4 MiB, for the link or for the card.
+  expect(w.log.filter(l => l.toLowerCase() === `read ${WORKTREE}\\${MID}.jsonl`.toLowerCase())).toEqual([])
   holdsNoPath(w)
 })
 // --- the context meter -----------------------------------------------------------
