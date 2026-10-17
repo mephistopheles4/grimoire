@@ -926,7 +926,8 @@ const clip = (s, n) => {
 const named = file => {
   if (!isAbsolute(file)) return file;
   const home = homedir();
-  const fold = process.platform === 'win32' ? t => t.toLowerCase() : t => t;
+  /* Windows takes either slash and any case, so a forward-slash home path is home too. */
+  const fold = process.platform === 'win32' ? t => t.toLowerCase().replaceAll('/', '\\') : t => t;
   return home && fold(file).startsWith(fold(home + sep)) ? `~${file.slice(home.length)}` : file;
 };
 

@@ -17,7 +17,7 @@ import { test, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdtempSync, mkdirSync, rmSync, writeFileSync, readFileSync, existsSync, readdirSync, linkSync, symlinkSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { join, sep } from 'node:path';
 import { createHash } from 'node:crypto';
 import { root, groundtrack, examples, exampleFlightpath, layeredFlightpath, run, errorPastTwoSites } from './helpers.mjs';
 
@@ -2560,6 +2560,32 @@ test('a missing file given by an absolute path under the home folder is named fr
   assert.equal(r.code, 2);
   assert.match(r.stderr, /^cannot read ~[\\/]nope\.flightpath\.json: ENOENT$/m);
   assert.ok(!r.stderr.includes(home), r.stderr);
+
+  // Windows reads a path in any case and with either slash, so each is home.
+  if (process.platform === 'win32') {
+    for (const given of [join(home.toUpperCase(), 'nope.json'), `${home.replaceAll('\\', '/')}/nope.json`]) {
+      const w = run(groundtrack, [given, '--check'], { env });
+      assert.match(w.stderr, /^cannot read ~[\\/]nope\.json: ENOENT$/m, given);
+    }
+  }
+
+  // A sibling that only starts with home's name, and a path outside home, print as given.
+  for (const given of [`${home}x${sep}nope.json`, join(work, 'nope.json')]) {
+    const o = run(groundtrack, [given, '--check'], { env });
+    assert.equal(o.stderr.trim(), `cannot read ${given}: ENOENT`);
+  }
+
+  // The not-JSON line names its file the same way.
+  writeFileSync(join(home, 'broken.json'), '{ not json');
+  const j = run(groundtrack, [join(home, 'broken.json'), '--check'], { env });
+  assert.match(j.stderr, /^cannot read ~[\\/]broken\.json: not valid JSON/m);
+});
+
+test('a file that cannot be opened is named through the escape', () => {
+  const r = run(groundtrack, ['a\u{1b}[31mb.json', '--check'], { cwd: work });
+  assert.equal(r.code, 2);
+  assert.ok(!r.stderr.includes('\u{1b}'), r.stderr);
+  assert.match(r.stderr, /^cannot read a\\u001b\[31mb\.json: ENOENT$/m);
 });
 
 /* -- run through a linked skill directory ---------------------------------- */
