@@ -1,10 +1,9 @@
 # SkillSpector baseline for this skill.
 #
 # You are reading this because you scanned this directory before installing
-# what is in it, which is the right thing to do with a skill. Three of
-# SkillSpector's rules have fired on the files here, each under some release.
-# All three are wrong, and this file says why, so you can disagree with a
-# reason rather than with silence.
+# what is in it, which is the right thing to do with a skill. Two of
+# SkillSpector's rules fire on the files here. Both are wrong, and this file
+# says why, so you can disagree with a reason rather than with silence.
 #
 # The first finding is on `README.md`, where a sentence names the `npx skills`
 # installer to say what that route installs and what it does not. The rule
@@ -12,11 +11,7 @@
 # you. It is a quotation of the install command, not a server, and the skill
 # itself runs nothing through npx.
 #
-# The second is on `CONTRACT.md`, whose checkpoint log names the skill's own
-# `SKILL.md`, the file the contract generates. The rule reads any path to a
-# `SKILL.md` as one skill reading another's. The skill reads no other skill.
-#
-# The third is on the description in `SKILL.md`. The rule reads a clause that
+# The second is on the description in `SKILL.md`. The rule reads a clause that
 # holds a common command word, such as run, beside a slash command as a skill
 # taking over that command. Here run and start are verbs about sessions, and
 # the slash command is the skill's own, /head-chef. Its entry matches that one
@@ -40,8 +35,6 @@ version: 2
 fingerprints: []
 
 rules:
-  - rule_id: "AS3"
-    reason: "False positive. A README line naming the one skill this repository ships, the decision records quoting that line, and a skill's contract naming the SKILL.md it was drafted from. Naming your own product or its own source file is not enumerating somebody else's."
   - rule_id: "RP1"
     reason: "False positive. The README install command and quotations of it. skills is the Vercel Labs installer run through npx, not an MCP server, so there is no server version to pin."
   - rule_id: "TR2"

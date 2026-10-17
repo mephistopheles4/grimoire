@@ -209,7 +209,7 @@ Each suppression is keyed by **rule**, with a written reason.
 | Rule | Name | Why it is suppressed |
 | --- | --- | --- |
 | `AR2` | Anti-Refusal Statement | `SKILL.md` warns that a preview pane may render the page without script, so do not judge it from one. It adds a caveat; it does not remove one. |
-| `AS3` | Skill Enumeration | A `README.md` line naming this repository's own skills, the decision records quoting it, and `head-chef`'s contract naming its own `SKILL.md`. **On `head-chef` it is off for the whole skill**, added in #206; see below the table. |
+| `AS3` | Skill Enumeration | A `README.md` line naming this repository's own skills, the decision records quoting it, and `head-chef`'s contract naming its own `SKILL.md`. **Root only since 2026-10-17.** From 2.12.0 it no longer fires when a skill is scanned on its own, so `eagle-eye` and `head-chef` dropped their entries; it still fires in a scan of the whole repository, on those two skills' contracts among other files. |
 | `EA2` | Autonomous Decision Making | Texts that describe what an agent may do on its own and give no such instruction: the `why` text on an edge in `eagle-eye`'s example box file, which the renderer prints for a reader; in `contract`, the labels, headings and comments in the format check, the bindings and the README that name the settings the check warns on because they let an agent act without asking; the step that lists unconfirmed drafts as *Proposed* without asking about each one; and `eagle-eye`'s rule that when the person asks for the box by name, it builds the box without asking again, because the request is the go-ahead. **On `contract` it is off for the whole skill**, `SKILL.md` and the template that seeds every file it generates included. The owner accepted that breadth on 2026-09-27; see below the table. |
 | `EA3` | Scope Creep | The warranty disclaimer of the SIL Open Font Licence, shipped beside `groundtrack`'s fonts. A legal text we must carry verbatim. |
 | `MP3` | Memory Manipulation | A template comment describing how **Reset** discards a reader's overrides and **Undo** offers them back. |
@@ -226,9 +226,8 @@ Each suppression is keyed by **rule**, with a written reason.
 shares cannot be narrowed to one file today. `node scripts/check.mjs` holds each skill's entry to
 the root's words and scope, so the `contract` skill's `EA2` entry covers its
 whole directory, not only the texts it is about. A new `EA2` finding anywhere in
-that skill would be suppressed and would not fail the build. The same holds for `head-chef`'s `AS3` entry, added in #206: a later
-`head-chef` text that lists or reads other skills would pass the scan, and only
-review of the prose would catch it. And for `contract`'s `P2` and `RA2`
+that skill would be suppressed and would not fail the build. The same held for
+`head-chef`'s `AS3` entry, added in #206, until it was dropped on 2026-10-17. And for `contract`'s `P2` and `RA2`
 entries, added on 2026-10-15. With `P2` off, an instruction hidden anywhere in
 that skill would pass the scan: in a comment or a link-reference comment, in
 invisible characters (zero-width, direction-changing or Unicode tag
