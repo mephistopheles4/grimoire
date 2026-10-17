@@ -864,15 +864,15 @@ for (const e of existsSync(join(root, 'hooks')) ? readdirSync(join(root, 'hooks'
 //
 // The reader below is written by hand and reads exactly the shape these two
 // files are allowed to have: three top-level keys, and a list of entries with
-// a rule identifier, an optional file glob and a one-line reason. It is not a
-// YAML parser and does not try to be. Adding one would be the dependency this
-// repository does not take, so the shape is kept trivial instead, and anything
-// outside it is named and refused rather than guessed at. A baseline this
-// reader cannot understand is a baseline whose entries nobody here has
-// checked.
+// a rule identifier, an optional file glob, an optional message glob and a
+// one-line reason. It is not a YAML parser and does not try to be. Adding one
+// would be the dependency this repository does not take, so the shape is kept
+// trivial instead, and anything outside it is named and refused rather than
+// guessed at. A baseline this reader cannot understand is a baseline whose
+// entries nobody here has checked.
 const BASELINE = '.skillspector-baseline.yaml';
 const BASELINE_KEYS = new Set(['version', 'fingerprints', 'rules']);
-const ENTRY_KEYS = new Set(['rule_id', 'file', 'reason']);
+const ENTRY_KEYS = new Set(['rule_id', 'file', 'message', 'reason']);
 // A scalar is bare or double-quoted, and a double-quoted one holds no quote
 // and no escape of its own. Single quotes and block scalars are valid YAML and
 // are not in this shape: an apostrophe inside a single-quoted string has to be
@@ -1008,6 +1008,13 @@ for (const path of skillBaselines) {
     if ((mirror.file ?? null) !== (r.file ?? null)) {
       fail(
         `${r.at}: ${r.rule_id} is narrowed to ${r.file ?? 'every file'} here and to ${mirror.file ?? 'every file'} in ${rel(rootBaseline)} — one rule, one scope`,
+      );
+    }
+    // A message glob narrows the same way: the scanner suppresses a finding
+    // only when its message, its finding text or its matched text matches.
+    if ((mirror.message ?? null) !== (r.message ?? null)) {
+      fail(
+        `${r.at}: ${r.rule_id} is matched to ${r.message ?? 'every message'} here and to ${mirror.message ?? 'every message'} in ${rel(rootBaseline)} — one rule, one scope`,
       );
     }
   }

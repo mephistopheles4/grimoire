@@ -19,7 +19,7 @@
         "static_patterns_tool_misuse"
       ],
       "sha256": "566dd57208efdde01c5665dbf11f0a904142825ecdb578d8567ee4e54812dc2d",
-      "reason": "The analysis module the renderer inlines into the page. Since SkillSpector 2.12.0 the destructive-command parser, which looks for rm, del and erase, reads the backticks of a JavaScript template literal as shell, meets one nested inside another's ${} at line 78, and stops; every other check reads the file in full. Like every entry of this code, it would also accept a marker-pass give-up inside that one check, which the scanner reports under this code. Read by hand on 2026-10-17 for 2.13.0 (issue 240): the file holds no rm, del or erase in any spelling, no printf builder, and nothing that runs a command, touches a file or reaches the network; it turns a box into findings and HTML strings."
+      "reason": "The analysis module the renderer inlines into the page. Since SkillSpector 2.12.0 the destructive-command parser, which looks for rm, del and erase, reads the backticks of a JavaScript template literal as shell, meets one nested inside another's ${} at line 78, and stops; the file holds more past that point, line 153 among them. Every other check reads the file in full. Like every entry of this code, it would also accept a marker-pass give-up inside that one check, which the scanner reports under this code. Read by hand on 2026-10-17 for 2.13.0 (issue 240): the file holds no rm, del or erase in any spelling, no printf builder, and nothing that runs a command, touches a file or reaches the network; it turns a box into findings and HTML strings."
     },
     {
       "skill": "eagle-eye",

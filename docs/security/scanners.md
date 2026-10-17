@@ -219,7 +219,7 @@ Each suppression is keyed by **rule**, with a written reason.
 | `E1` | External Transmission | **Accepted, not a false positive.** The edge audit posts a box's text to the provider after a yes. See [the edge audit](edge-audit.md). |
 | `P2` | Hidden Instructions | A layout comment in `groundtrack`'s template. The rule matches *get* inside *together*. And `contract`'s part fences: a begin and an end comment line around each generated part of its `SKILL.md`, naming the part. **On `contract` it is off for the whole skill**, so an instruction hidden there in a comment, invisible characters or a data link would pass the scan; added on 2026-10-15. |
 | `MP1` | Persistent Context Injection | A row of `contract`'s change log that records why the skill was rebuilt: every earlier review finding had become *a permanent rule*. Its entry names that one file, so it still fires anywhere else; added on 2026-10-15. |
-| `TR2` | Shadow Command Trigger | `head-chef`'s description, where *run* and *start* are verbs about sessions and the one slash command is the skill's own, `/head-chef`. The rule reads a common command word beside a slash command as a skill taking over that command. Its entry names `SKILL.md`, which narrows nothing: the rule reads only a skill's frontmatter, so **TR2 is off for `head-chef`'s whole description**, and a change to it needs a hand check against the rule. At the root the same pattern matches every skill's `SKILL.md`. Added on 2026-10-17. |
+| `TR2` | Shadow Command Trigger | `head-chef`'s description, where *run* and *start* are verbs about sessions and the one slash command is the skill's own, `/head-chef`. The rule reads a common command word beside a slash command as a skill taking over that command. The rule reads only a skill's frontmatter, so a file glob alone would narrow nothing. The entry also carries a `message` glob that matches that one clause word for word, so TR2 still fires on any other clause, in any skill, and on this one once its words change. Added on 2026-10-17. |
 | `LP3` | MCP Least Privilege | **Accepted.** Neither skill declares a permission list, because that is one host's format and the skills run in agents that read none. On `groundtrack` it fires only when every file is marked executable, as on a Windows drive seen through WSL. |
 
 **Open: narrower suppression for one skill.** An entry for a rule another skill
@@ -228,10 +228,7 @@ the root's words and scope, so the `contract` skill's `EA2` entry covers its
 whole directory, not only the texts it is about. A new `EA2` finding anywhere in
 that skill would be suppressed and would not fail the build. The same holds for `head-chef`'s `AS3` entry, added in #206: a later
 `head-chef` text that lists or reads other skills would pass the scan, and only
-review of the prose would catch it. The same holds for `head-chef`'s `TR2`
-entry, added on 2026-10-17: it names `SKILL.md`, but the rule reads nothing
-else, so a later description that does take over a built-in command would pass
-the scan too. And for `contract`'s `P2` and `RA2`
+review of the prose would catch it. And for `contract`'s `P2` and `RA2`
 entries, added on 2026-10-15. With `P2` off, an instruction hidden anywhere in
 that skill would pass the scan: in a comment or a link-reference comment, in
 invisible characters (zero-width, direction-changing or Unicode tag
@@ -240,7 +237,10 @@ to persist on the person's machine: a scheduled job, a startup or profile file,
 a background process or a hidden folder. The skill's template would copy any of
 them into every file it builds, and only review of the prose would catch it.
 `MP1` is not shared, so its entry names the one file it fires on,
-`contract.changelog.md`, and it still fires anywhere else. Narrowing a shared
+`contract.changelog.md`, and it still fires anywhere else. `TR2` is not shared
+either. It reads only a skill's frontmatter, so a file glob would narrow
+nothing, and its entry also carries a `message` glob: the one clause of
+`head-chef`'s description it is about, word for word. Narrowing a shared
 rule needs a change to that check, with its own review. Until then the breadth
 is written in the skill's baseline header.
 
