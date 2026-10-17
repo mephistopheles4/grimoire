@@ -3574,7 +3574,7 @@ test('the strict check refuses the wrong shape, a missing or unknown key, and an
     [JSON.stringify({ cards: [], todos: [] }), 'a roster'],
     [JSON.stringify(missing), 'a key missing'],
     [JSON.stringify({ ...s, model: 'claude-opus-5-5' }), 'an unknown key'],
-    [JSON.stringify(s).replace('{', '{"__proto__":{"x":1},'), 'a __proto__ key'],
+    [`{"__proto__":{"x":1},${JSON.stringify(s).slice(1)}`, 'a __proto__ key'],
     [JSON.stringify({ ...s, version: 2 }), 'a newer version'],
     [JSON.stringify({ ...s, version: '1' }), 'a version as text'],
   ]) {
