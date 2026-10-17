@@ -3694,3 +3694,10 @@ test('a hostile step whose model and extra usage fields hold path- and secret-sh
   assert.deepEqual(Object.keys(JSON.parse(text)), [...view.SUMMARY_KEYS]);
   assert.equal(JSON.parse(text).window, 0, 'a model id off the table gives no window');
 });
+
+test('a step whose fields throw when read records nothing, and stepCall does not throw', () => {
+  const throwing = { get input_tokens() { throw new Error('boom'); }, output_tokens: 1, cache_read_input_tokens: 1, cache_creation_input_tokens: 1 };
+  assert.equal(stepCall({}, { stopReason: 'end_turn', usage: throwing }), undefined);
+  assert.equal(stepCall({ get agentId() { throw new Error('boom'); } }, { usage: stepUsage() }), undefined);
+  assert.equal(stepCall({}, { get usage() { throw new Error('boom'); } }), undefined);
+});

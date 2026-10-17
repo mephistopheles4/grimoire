@@ -1999,6 +1999,15 @@ export type StepCall = { tokens: number; fresh: number; cache: boolean; window: 
  *  to 10,000,000 (absent reads as 0, as in a transcript row), or one with no
  *  context at all. The stop reason never excludes a step. Never throws. */
 export function stepCall(input: { agentId?: unknown }, result: { usage?: unknown }): StepCall | undefined {
+  try {
+    return countStep(input, result)
+  } catch {
+    // A field that throws when read is not a step to count.
+    return undefined
+  }
+}
+
+function countStep(input: { agentId?: unknown }, result: { usage?: unknown }): StepCall | undefined {
   if (!isRecord(input) || input.agentId !== undefined || !isRecord(result)) return undefined
   const u = result.usage
   if (!isRecord(u)) return undefined
