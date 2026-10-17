@@ -64,7 +64,7 @@ import {
   newFinder,
   newSummaryMemory,
   readCalls,
-  refusalLine,
+  refusalLines,
   reportCount,
   settleTicks,
   sizeText,
@@ -924,8 +924,8 @@ export const register: Register = on => {
     const found = lookup(await read($, links))
     const warm = new Map(warmthFrom(await read($, warmth)).map(w => [w.name, w]))
     const meterOf = new Map(metersFrom(await read($, meters)).map(m => [m.name, m]))
-    // As stored: read only through the two kind words by refusalLine.
-    const refused = await read($, refusals)
+    // Read once, only through the two kind words, by card title.
+    const refused = refusalLines(await read($, refusals))
     // As stored: read through the fixed set of view words by chosenView.
     const tabChoices = await read($, tabs)
     const inbox = await read($, reports)
@@ -1015,7 +1015,7 @@ export const register: Register = on => {
       const reason = shown === 'burn' && isReason(warm.get(c.title)) ? warmLine?.text : undefined
       const burn = shown === 'burn' && reason === undefined ? burnRate(meterOf.get(c.title), now) : undefined
       const trend = shown === 'trend' ? contextTrend(meterOf.get(c.title)) : undefined
-      const refusal = isFinished ? undefined : refusalLine(refused, c.title)
+      const refusal = isFinished ? undefined : refused.get(c.title)
       // The cache block's value column: as wide as its longest text, so the
       // cache bar and the context meter end at the same place. Each value
       // starts at the column's left edge, one gap after its bar, as each bar

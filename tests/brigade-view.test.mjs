@@ -3742,7 +3742,7 @@ test('a step whose fields throw when read records nothing, and stepCall does not
 // argument; these tests drive them through `readCalls` and check what the pane
 // would draw, as strings, and what it reads.
 
-const { HOUR_SUMMARY_MS, newSummaryMemory, refusalLine, refusalsFrom } = view;
+const { HOUR_SUMMARY_MS, newSummaryMemory, refusalLines, refusalsFrom } = view;
 const PLUGIN = 'grimoire-inline';
 const USAGE_DIRS = ['plugins', 'data', PLUGIN, 'brigade', 'usage'];
 const USAGE = [CONFIG, ...USAGE_DIRS].join('\\');
@@ -3849,14 +3849,13 @@ test('a summary path refused after a good file drops the held record', async () 
   const out = await poll();
   assert.equal(cardText(out).line, TOO_LARGE);
   assert.deepEqual(out.refusals, [{ name: 'A', value: 'path' }]);
-  // Nothing held after the refusal: a bad file next shows no old record
-  // (integrity-lens F2 at Test).
+  // Nothing held after the refusal: a bad file next shows no old record.
   files[summaryAt(0)] = { text: '{}', mtimeMs: MTIME + 1 };
   assert.equal(cardText(await poll()).line, TOO_LARGE);
 });
 
 test('a summary file that goes missing after a good one drops the held record', async () => {
-  // integrity-lens F4 at Test.
+  // A file that goes away is no file: nothing stays held.
   const files = { [pathOf(0)]: transcriptOf(6 * MIB), [summaryAt(0)]: { text: summaryText() } };
   const { poll } = summaryPoll(files);
   assert.equal(cardText(await poll()).line, FILE_LINE);
@@ -3869,8 +3868,8 @@ test('a summary file that goes missing after a good one drops the held record', 
 test('a summary file with no transcript found feeds the card; with neither, the card says not found', async () => {
   const fileOnly = summaryPoll({ [summaryAt(0)]: { text: summaryText() } });
   assert.equal(cardText(await fileOnly.poll()).line, FILE_LINE);
-  // A row with no working folder is found by its session id alone
-  // (behaviour-lens F3 at Test); with no file it records nothing, as before.
+  // A row with no working folder is found by its session id alone; with no
+  // file it records nothing, as before.
   const noCwd = summaryPoll({ [summaryAt(0)]: { text: summaryText() } });
   assert.equal(cardText(await noCwd.poll([{ name: 'A', status: 'idle', sessionId: SID[0] }])).line, FILE_LINE);
   const neitherNoCwd = await summaryPoll({}).poll([{ name: 'A', status: 'idle', sessionId: SID[0] }]);
@@ -3900,8 +3899,7 @@ test('an unknown format version after a good file drops the held record', async 
   assert.equal(cardText(await poll()).line, FILE_LINE);
   files[summaryAt(0)] = { text: summaryText({ version: 2 }), mtimeMs: MTIME + 1 };
   assert.equal(cardText(await poll()).line, TOO_LARGE);
-  // Nothing held after it: a bad file next shows no old record (integrity-lens
-  // F3 at Test).
+  // Nothing held after it: a bad file next shows no old record.
   files[summaryAt(0)] = { text: '{}', mtimeMs: MTIME + 2 };
   assert.equal(cardText(await poll()).line, TOO_LARGE);
 });
@@ -3935,7 +3933,7 @@ test('a summary that fails a check, with no record held, gives the transcript-fe
     ['a fractional time', summaryText({ at: NOW + 0.5 })],
     ['a cache flag of 2', summaryText({ cache: 2 })],
     ['not JSON', '{"version":1,'],
-    // behaviour-lens F2 at Test: a meter time far ahead would keep its burn
+    // A meter time far ahead would keep its burn
     // from ever draining.
     ['a meter time more than 2 minutes past its file', summaryText({ at: NOW + 3 * MIN })],
     ['a meter time a year ahead', summaryText({ at: NOW + 365 * 24 * HOUR })],
@@ -3976,8 +3974,7 @@ test('a truncated file after a good one keeps the last good strings, and is read
   const out = await poll();
   assert.deepEqual(cardText(out), good);
   assert.deepEqual(out.refusals, []);
-  // A second, different half-written file: the record still stays
-  // (integrity-lens F5 at Test).
+  // A second, different half-written file: the record still stays.
   files[summaryAt(0)] = { text: summaryText().slice(0, 50), mtimeMs: MTIME + 2 };
   const again = await poll();
   assert.deepEqual(cardText(again), good);
@@ -4038,7 +4035,7 @@ test('a last-call time 3 minutes ahead of the pane\'s clock is refused, and the 
   files[summaryAt(0)] = { text: summaryText({ at: ahead + MIN, lastAt: ahead }), mtimeMs: ahead };
   const out = await poll();
   assert.deepEqual(cardText(out), good);
-  assert.equal(warmthFrom(out.warmth)[0].at, NOW - 1000, 'the good record, not the forged one (integrity-lens F1 at Test)');
+  assert.equal(warmthFrom(out.warmth)[0].at, NOW - 1000, 'the good record, not the forged one');
   assert.deepEqual(out.refusals, []);
   // A meter time 3 minutes ahead of the clock, in a file whose modified time
   // and last call are ahead with it, is refused the same way.
@@ -4158,8 +4155,8 @@ test('for one call series with 1-hour cache writes, the transcript-fed card and 
     if (c !== undefined) mem = recordCall(mem, c, NOW + ms);
   }
   assert.equal(mem.calls, counted.length);
-  // Written and read on a whole minute, and 30 s past one (behaviour-lens F1
-  // at Test: the burn must line up off the minute too).
+  // Written and read on a whole minute, and 30 s past one, since a pane
+  // seldom polls on the minute and the burn must line up either way.
   for (const late of [0, 30000]) {
     const at = NOW + late;
     const transcript = { text: file(...rows), mtimeMs: at };
@@ -4180,23 +4177,31 @@ test('for one call series with 1-hour cache writes, the transcript-fed card and 
 
 // --- the refusal line
 
-test('the refusal line is read back only through its two kind words', () => {
-  assert.equal(refusalLine([{ name: 'A', value: 'path' }], 'A'), '◆ summary path refused');
-  assert.equal(refusalLine([{ name: 'A', value: 'file' }], 'A'), '◆ not a summary file');
-  assert.equal(refusalLine([{ name: 'A', value: 'path' }], 'B'), undefined);
+test('the refusal lines are read back only through their two kind words, by card title, in a Map', () => {
+  const lines = refusalLines([{ name: 'A', value: 'path' }, { name: 'B', value: 'file' }]);
+  assert.ok(lines instanceof Map, 'a Map, so no title reaches a prototype');
+  assert.equal(lines.get('A'), 'summary path refused');
+  assert.equal(lines.get('B'), 'not a summary file');
+  assert.equal(lines.get('C'), undefined);
   for (const value of ['constructor', '__proto__', 'toString', 'Path', 'C:\\Users\\x', '', 'path ']) {
-    assert.equal(refusalLine([{ name: 'A', value }], 'A'), undefined, value);
+    assert.equal(refusalLines([{ name: 'A', value }]).get('A'), undefined, value);
   }
-  assert.equal(refusalLine('nope', 'A'), undefined);
-  assert.equal(refusalLine([{ name: 'constructor', value: 'path' }], 'toString'), undefined);
+  assert.equal(refusalLines('nope').size, 0);
+  assert.equal(refusalLines([{ name: 'constructor', value: 'path' }]).get('toString'), undefined);
 });
 
-test('stored refusals are checked again: wrong shapes go, a repeated name keeps the first, and at most 50 stay', () => {
+test('stored refusals are checked again: wrong shapes go, a repeated name keeps the first, at most 50 stay, and at most 200 are looked at', () => {
   const many = Array.from({ length: 60 }, (_, i) => ({ name: `N${i}`, value: 'path' }));
   assert.equal(refusalsFrom(many).length, 50);
   const mixed = [{ name: 'A', value: 'file' }, { name: 'A', value: 'path' }, { name: 'B', value: 'x' }, { name: '', value: 'path' }, { name: 'C', value: 'path', extra: 'C:\\Users' }, { name: 'x'.repeat(301), value: 'path' }, null, 'x'];
   assert.deepEqual(refusalsFrom(mixed), [{ name: 'A', value: 'file' }, { name: 'C', value: 'path' }]);
   assert.deepEqual(refusalsFrom('nope'), []);
+  // Another plugin can rewrite the list: entries that fail the check still
+  // count against the walk, so a huge list costs a bounded look.
+  const junk = Array.from({ length: 100000 }, () => ({ name: 'J', value: 'x' }));
+  assert.deepEqual(refusalsFrom([...junk, { name: 'A', value: 'path' }]), []);
+  assert.deepEqual(refusalsFrom([...junk.slice(0, 199), { name: 'A', value: 'path' }]), [{ name: 'A', value: 'path' }]);
+  assert.deepEqual(refusalsFrom([...junk.slice(0, 200), { name: 'A', value: 'path' }]), []);
 });
 
 test('no path-shaped text from the summary place reaches what a file-fed or refused poll stores', async () => {
@@ -4215,12 +4220,12 @@ test('the state contract declares the refusal lines under the plugin\'s manifest
   assert.match(block, /\n\s+refusals: Pair\[\]\n/);
   const register = readFileSync(join(root, 'brigade/register.tsx'), 'utf8');
   assert.match(register, /atom\(\{ plugin: 'grimoire', key: 'refusals' \} as const, \[\]\)/);
-  // The poll stores the pairs, the render reads them back, and an unfinished
-  // card draws the line (integrity-lens F6 at Test: the wiring, pinned by its
-  // text, since no test here runs the engine).
+  // The poll stores the pairs, the render reads them back once, and an
+  // unfinished card draws the line: the wiring, pinned by its text, since no
+  // test here runs the engine.
   assert.match(register, /\n\s+await update\(\$, refusals, \(\) => found\.refusals\)\n/);
-  assert.match(register, /\n\s+const refused = await read\(\$, refusals\)\n/);
-  assert.match(register, /\n\s+const refusal = isFinished \? undefined : refusalLine\(refused, c\.title\)\n/);
+  assert.match(register, /\n\s+const refused = refusalLines\(await read\(\$, refusals\)\)\n/);
+  assert.match(register, /\n\s+const refusal = isFinished \? undefined : refused\.get\(c\.title\)\n/);
   assert.match(register, /\{refusal !== undefined && \(\n\s+<Box marginBottom=\{1\}>\n\s+<Text dimColor wrap="truncate-end">\n\s+\{refusal\}\n/);
 });
 

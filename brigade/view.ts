@@ -1864,27 +1864,32 @@ export type SummaryMemory = Map<string, { good?: Summary; failedAt?: number }>
 /** Nothing remembered yet. */
 export const newSummaryMemory = (): SummaryMemory => new Map()
 
-/** The summary reads a poll makes: the lead's own plugin data id, the folder
- *  the files are found in, and what the reads remember between polls. */
+/** The summary reads a poll makes: the lead's own plugin data id, which names
+ *  the folder the files are found in, and what the reads remember between
+ *  polls. */
 export type SummaryReads = { plugin: string; held: SummaryMemory }
 
 // The two kinds of refusal a card can draw, and their lines. A stored word
-// outside these draws nothing.
+// outside these draws nothing. No ◆: the ◆ line is the cache warmth's.
 const REFUSAL_LINES: ReadonlyMap<unknown, string> = new Map<unknown, string>([
-  ['path', '◆ summary path refused'],
-  ['file', '◆ not a summary file'],
+  ['path', 'summary path refused'],
+  ['file', 'not a summary file'],
 ])
 const MAX_REFUSALS = 50
+// At most this many stored entries are looked at, kept or not, so a list
+// another plugin rewrote costs a bounded walk.
+const MAX_REFUSALS_LOOKED = 200
 
 /** The stored refusal pairs, checked again: plugin state is the engine's, and
  *  another plugin may rewrite it. A pair goes unless its name is text of 1 to
  *  300 characters not seen before and its value one of the two kind words;
- *  at most 50 stay, each copied into a new pair. */
+ *  at most 50 stay, each copied into a new pair, and at most the first 200
+ *  entries are looked at. */
 export function refusalsFrom(stored: unknown): Pair[] {
   const out: Pair[] = []
   if (!Array.isArray(stored)) return out
   const names = new Set<string>()
-  for (const p of stored) {
+  for (const p of stored.slice(0, MAX_REFUSALS_LOOKED)) {
     if (out.length >= MAX_REFUSALS) break
     if (!isRecord(p) || typeof p.name !== 'string' || p.name === '' || p.name.length > MAX_NAME || names.has(p.name)) continue
     if (typeof p.value !== 'string' || !REFUSAL_LINES.has(p.value)) continue
@@ -1894,10 +1899,16 @@ export function refusalsFrom(stored: unknown): Pair[] {
   return out
 }
 
-/** A card's dim refusal line, read only through the two kind words, or
- *  undefined: "summary path refused" or "not a summary file". */
-export function refusalLine(stored: unknown, title: string): string | undefined {
-  return REFUSAL_LINES.get(refusalsFrom(stored).find(p => p.name === title)?.value)
+/** The cards' dim refusal lines, by card title, read once per render and only
+ *  through the two kind words: "summary path refused" or "not a summary
+ *  file". */
+export function refusalLines(stored: unknown): Map<string, string> {
+  const out = new Map<string, string>()
+  for (const p of refusalsFrom(stored)) {
+    const line = REFUSAL_LINES.get(p.value)
+    if (line !== undefined) out.set(p.name, line)
+  }
+  return out
 }
 
 // What one member's summary read decided: a summary to draw from; none, so
@@ -1907,8 +1918,8 @@ type SummarySource = { summary: Summary } | { none: true } | { refused: 'path' |
 
 // The path rule's `stat`, from the poll's: a rejection sorted into missing or
 // failed by its message, a link anything but an answer of exactly false, and
-// the file's modified time kept for `placedAt`, from the same `stat` that
-// placed it.
+// the file's modified time kept in `seen`, for `readSummary`, from the same
+// `stat` that placed it.
 function ruleStat(io: FinderIo, seen: Map<string, number>): (path: string) => Promise<StatAnswer> {
   return path =>
     io.stat(path).then(
@@ -1929,8 +1940,9 @@ function ruleStat(io: FinderIo, seen: Map<string, number>): (path: string) => Pr
  *  - a format version this plugin does not know: none, nothing held;
  *  - a passing file: drawn from, and held;
  *  - any other failure (the stat size or the text over the cap, a read that
- *    rejects, the strict check, a last call more than 2 minutes after the
- *    file's modified time or ahead of `now`): the held summary, or none with
+ *    rejects, the strict check, a last call or a meter time more than
+ *    2 minutes after the file's modified time or ahead of `now`): the held
+ *    summary, or none with
  *    nothing held; the same file, by its modified time, failing two polls
  *    running gives the "file" refusal, with nothing held after.
  *  With no clock (`now` not a number) the file is not read: the held summary,
@@ -1973,7 +1985,8 @@ async function readSummary(config: string, sessionId: string, io: PollIo, now: n
 
 // The summary at `file`, or why not, in fixed words: the stat size against
 // the cap before any read, the text's own size after it, the strict check,
-// then the last call against the file's modified time and the pane's clock.
+// then the last call and the meter time against the file's modified time and
+// the pane's clock.
 async function checkedSummary(file: string, size: number, mtimeMs: number | undefined, now: number, io: PollIo): Promise<Summary | string> {
   if (!(size <= MAX_SUMMARY_BYTES)) return 'over the cap'
   const text = await io.read(file).then(String, () => undefined)
