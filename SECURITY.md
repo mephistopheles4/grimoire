@@ -123,14 +123,24 @@ words. It asks no permission. What follows from it:
 - **The race:** the check-and-write race the roster has now recurs in every
   session, with no hijacked lead needed, and a hard link between two
   summary-shaped files is not caught, as for rosters.
-- **Once the pane reads the files** (issue #312), a summary file that passes
-  its checks outranks the transcript at every size, with no check against it.
-  A forged file from another process running as the owner can then show any
+- **Since 0.61.0 the lead's pane reads the files** (issue #312): a summary
+  file that passes its checks outranks the transcript at every size, with no
+  check against it. A forged file from another process running as the owner can show any
   warmth, on members whose transcript is over 4 MiB too; row 15 names this gap,
   which the owner accepted. A step the transcript would not count restarts the
   hour, and a stopped writer leaves a card reading colder once the member is
   idle, with its meter and burn frozen, and it can draw a hand-off nudge on a
   warm cache. The 1-hour window's known limit, in the README, still applies.
+  Four more gaps, each named in row 15:
+  - other plugins can read and rewrite the pane's list of refused summary
+    files, and so plant or hide a refusal line;
+  - the summary read follows a link swapped in after the path check, as the
+    transcript read does, and keeps only checked numbers;
+  - a session named like a card feeds that card from its own summary file,
+    a session with no working folder included;
+  - a writer whose files keep failing a check with fresh times freezes its
+    card on the last good record with no line to say so, which the owner
+    accepted.
 
 Review any change under
 `brigade/` or `hooks/` as a change to code that runs on every installer's

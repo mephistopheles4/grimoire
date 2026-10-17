@@ -1481,12 +1481,22 @@ test('a path that is not a regular file is not read', async () => {
   assert.equal(reads.length, 0);
 });
 
-test('a transcript over 4 MiB is not read and records "too large"', async () => {
+test('a transcript over 4 MiB is not read: a passing summary file feeds the card, else it records "too large"', async () => {
+  // Changed in #312 (spec revision 5 on #304, S4 "The reader"): a member whose
+  // summary file passes its checks is drawn from it at any size, so only a
+  // member with no such file still records "too large". The summary reads are
+  // the poll's last argument; this test hands them for both cases.
   assert.equal(MAX_TRANSCRIPT_BYTES, 4 * 1024 * 1024);
-  const { io, reads } = fakeFs({ [pathOf(0)]: { text: '', size: MAX_TRANSCRIPT_BYTES + 1 }, [pathOf(1)]: { text: file(row()), size: MAX_TRANSCRIPT_BYTES } });
-  const out = await readWarmth([agent('A', 0), agent('B', 1)], ['A', 'B'], CONFIG, new Map(), io);
-  assert.deepEqual(out.map(w => [w.name, w.kind]), [['A', 'too-large'], ['B', 'call']]);
-  assert.deepEqual(reads, [pathOf(1)]);
+  const usage = `${CONFIG}\\plugins\\data\\grimoire-inline\\brigade\\usage`;
+  const dirs = Object.fromEntries([CONFIG, `${CONFIG}\\plugins`, `${CONFIG}\\plugins\\data`, `${CONFIG}\\plugins\\data\\grimoire-inline`, `${CONFIG}\\plugins\\data\\grimoire-inline\\brigade`, usage].map(p => [p, { kind: 'dir', text: '' }]));
+  const summary = JSON.stringify(view.summaryFrom(view.recordCall(view.newUsageMemory(), { tokens: 5000, fresh: 5000, cache: true, window: 200000 }, NOW - 1000), NOW));
+  const files = { ...dirs, [pathOf(0)]: { text: '', size: MAX_TRANSCRIPT_BYTES + 1 }, [pathOf(1)]: { text: file(row()), size: MAX_TRANSCRIPT_BYTES }, [pathOf(2)]: { text: '', size: MAX_TRANSCRIPT_BYTES + 1 }, [`${usage}\\${SID[2]}.json`]: { text: summary } };
+  const { io, reads } = fakeFs(files);
+  const rows = [agent('A', 0), agent('B', 1), agent('C', 2)];
+  const out = await readCalls(rows, ['A', 'B', 'C'], CONFIG, new Map(), io, view.newFinder(), { plugin: 'grimoire-inline', held: view.newSummaryMemory() });
+  assert.deepEqual(out.warmth.map(w => [w.name, w.kind]), [['A', 'too-large'], ['B', 'call'], ['C', 'call']]);
+  assert.equal(out.warmth[2].tokens, 5000, 'C is drawn from its summary file');
+  assert.deepEqual(reads, [`${usage}\\${SID[2]}.json`, pathOf(1)], 'no transcript over 4 MiB is read');
 });
 
 test('a name on two rows is reported as shared, and neither transcript is read', async () => {
@@ -3721,4 +3731,507 @@ test('a step whose fields throw when read records nothing, and stepCall does not
   assert.equal(stepCall({}, { stopReason: 'end_turn', usage: throwing }), undefined);
   assert.equal(stepCall({ get agentId() { throw new Error('boom'); } }, { usage: stepUsage() }), undefined);
   assert.equal(stepCall({}, { get usage() { throw new Error('boom'); } }), undefined);
+});
+
+// --- the summary reader (#312) ------------------------------------------------
+//
+// Spec revision 5 on #304, S4 "The reader", with the amendment from q4 on
+// #311 (the optional window). The lead's pane draws a member's card from its
+// summary file whenever one passes its checks, at every transcript size, and
+// from the transcript otherwise. The poll takes the summary reads as its last
+// argument; these tests drive them through `readCalls` and check what the pane
+// would draw, as strings, and what it reads.
+
+const { HOUR_SUMMARY_MS, newSummaryMemory, refusalLines, refusalsFrom } = view;
+const PLUGIN = 'grimoire-inline';
+const USAGE_DIRS = ['plugins', 'data', PLUGIN, 'brigade', 'usage'];
+const USAGE = [CONFIG, ...USAGE_DIRS].join('\\');
+const summaryAt = i => `${USAGE}\\${SID[i]}.json`;
+const MIB = 1024 * 1024;
+// Every folder from the config folder down to `usage`, each resolving to itself.
+const usageDirs = () =>
+  Object.fromEntries([CONFIG, ...USAGE_DIRS.map((_, n) => [CONFIG, ...USAGE_DIRS.slice(0, n + 1)].join('\\'))].map(p => [p, { kind: 'dir', text: '' }]));
+// A summary file's text: the writer's own for one call at NOW - 1000 ms, with
+// fields changed by `over` (undefined drops a key).
+const summaryText = (over = {}) => {
+  const s = { ...goodSummary(), ...over };
+  for (const k of Object.keys(s)) if (s[k] === undefined) delete s[k];
+  return JSON.stringify(s);
+};
+// A transcript whose last call was 20 minutes ago, unlike the summary's, so
+// the strings say which source fed the card.
+const OLD_MS = -20 * MIN;
+const transcriptOf = (size, extra = '') => ({ text: file(row({ ms: OLD_MS })) + extra, size });
+
+// One poll with the summary reads, against a fake file system holding the
+// usage folders and `files`, which it adds them to, so a test that changes
+// `files` between polls changes what the next poll finds. The memories
+// persist across `poll` calls.
+function summaryPoll(files, { clock } = {}) {
+  for (const [p, f] of Object.entries(usageDirs())) if (!(p in files)) files[p] = f;
+  const fs = fakeFs(files, clock === undefined ? {} : { clock });
+  const memory = new Map();
+  const reads = { plugin: PLUGIN, held: newSummaryMemory() };
+  const finder = newFinder();
+  return {
+    fs,
+    finder,
+    poll: (rows = [agent('A', 0)], names = ['A']) => readCalls(rows, names, CONFIG, memory, fs.io, finder, reads),
+  };
+}
+
+// What a card would draw from one poll's records: the ◆ line and its nudge,
+// the cache bar's text, the context meter's text, and the two sparklines'
+// text and terminal cells.
+const cardText = (out, { name = 'A', state = 'idle', status = 'needs-you', now = NOW } = {}) => {
+  const w = warmthFrom(out.warmth).find(x => x.name === name);
+  const m = metersFrom(out.meters).find(x => x.name === name);
+  const line = warmthLine(w, state, status, now);
+  const burn = burnRate(m, now);
+  const trend = contextTrend(m);
+  return {
+    line: line?.text,
+    nudge: line?.nudge,
+    bar: cacheBar(w, state, now)?.text,
+    meter: contextMeter(m)?.text,
+    burn: burn?.text,
+    burnCells: burn === undefined ? undefined : spoken(sparkRuns(burn)),
+    trend: trend?.text,
+    trendCells: trend === undefined ? undefined : spoken(sparkRuns(trend)),
+  };
+};
+const FILE_LINE = '◆ cache warm · idle 0 min · cold in 1 hr 0 min · 151k context';
+const OLD_LINE = '◆ cache warm · idle 20 min · cold in 40 min · 151k context';
+const TOO_LARGE = '◆ cache unknown · transcript too large to read';
+
+test('a passing summary file feeds the card at 1 MiB and at 6 MiB, and no transcript is read for its numbers', async () => {
+  for (const size of [MIB, 6 * MIB]) {
+    const { fs, poll } = summaryPoll({ [pathOf(0)]: transcriptOf(size), [summaryAt(0)]: { text: summaryText() } });
+    const out = await poll();
+    assert.deepEqual(out.warmth, [{ name: 'A', kind: 'call', at: NOW - 1000, tokens: 151006, windowMs: HOUR }], `${size}`);
+    assert.deepEqual(out.meters, [{ name: 'A', at: NOW, window: 1000000, burn: goodSummary().burn, context: [151006] }]);
+    assert.deepEqual(out.refusals, []);
+    assert.equal(cardText(out).line, FILE_LINE);
+    assert.deepEqual(fs.reads, [summaryAt(0)], 'only the summary file is read');
+  }
+});
+
+test('with no summary file the card comes from the transcript: fed at 1 MiB, too large at 6 MiB', async () => {
+  const small = summaryPoll({ [pathOf(0)]: transcriptOf(MIB) });
+  assert.equal(cardText(await small.poll()).line, OLD_LINE);
+  assert.deepEqual(small.fs.reads, [pathOf(0)]);
+  const large = summaryPoll({ [pathOf(0)]: transcriptOf(6 * MIB) });
+  const out = await large.poll();
+  assert.equal(cardText(out).line, TOO_LARGE);
+  assert.deepEqual(out.refusals, []);
+  assert.deepEqual(large.fs.reads, []);
+});
+
+test('a summary path refused draws the refusal line, and the card comes from the transcript', async () => {
+  for (const bad of [
+    { [USAGE]: { kind: 'dir', text: '', isLink: true } },
+    { [summaryAt(0)]: { text: summaryText(), isLink: true } },
+    { [summaryAt(0)]: { text: summaryText(), realPath: 'D:\\elsewhere\\x.json' } },
+  ]) {
+    const { fs, poll } = summaryPoll({ [pathOf(0)]: transcriptOf(MIB), ...bad });
+    const out = await poll();
+    assert.deepEqual(out.refusals, [{ name: 'A', value: 'path' }], JSON.stringify(bad));
+    assert.equal(cardText(out).line, OLD_LINE);
+    assert.ok(!fs.reads.includes(summaryAt(0)), 'a refused file is not read');
+  }
+});
+
+test('a summary path refused after a good file drops the held record', async () => {
+  const files = { [pathOf(0)]: transcriptOf(6 * MIB), [summaryAt(0)]: { text: summaryText() } };
+  const { poll } = summaryPoll(files);
+  assert.equal(cardText(await poll()).line, FILE_LINE);
+  files[summaryAt(0)].isLink = true;
+  const out = await poll();
+  assert.equal(cardText(out).line, TOO_LARGE);
+  assert.deepEqual(out.refusals, [{ name: 'A', value: 'path' }]);
+  // Nothing held after the refusal: a bad file next shows no old record.
+  files[summaryAt(0)] = { text: '{}', mtimeMs: MTIME + 1 };
+  assert.equal(cardText(await poll()).line, TOO_LARGE);
+});
+
+test('a summary file that goes missing after a good one drops the held record', async () => {
+  // A file that goes away is no file: nothing stays held.
+  const files = { [pathOf(0)]: transcriptOf(6 * MIB), [summaryAt(0)]: { text: summaryText() } };
+  const { poll } = summaryPoll(files);
+  assert.equal(cardText(await poll()).line, FILE_LINE);
+  delete files[summaryAt(0)];
+  assert.equal(cardText(await poll()).line, TOO_LARGE);
+  files[summaryAt(0)] = { text: '{}', mtimeMs: MTIME + 1 };
+  assert.equal(cardText(await poll()).line, TOO_LARGE, 'a bad file after the gap shows no old record');
+});
+
+test('a summary file with no transcript found feeds the card; with neither, the card says not found', async () => {
+  const fileOnly = summaryPoll({ [summaryAt(0)]: { text: summaryText() } });
+  assert.equal(cardText(await fileOnly.poll()).line, FILE_LINE);
+  // A row with no working folder is found by its session id alone; with no
+  // file it records nothing, as before.
+  const noCwd = summaryPoll({ [summaryAt(0)]: { text: summaryText() } });
+  assert.equal(cardText(await noCwd.poll([{ name: 'A', status: 'idle', sessionId: SID[0] }])).line, FILE_LINE);
+  const neitherNoCwd = await summaryPoll({}).poll([{ name: 'A', status: 'idle', sessionId: SID[0] }]);
+  assert.deepEqual(neitherNoCwd.warmth, []);
+  const neither = summaryPoll({});
+  const out = await neither.poll();
+  assert.deepEqual(out.warmth, [{ name: 'A', kind: 'not-found' }]);
+  assert.deepEqual(out.refusals, []);
+});
+
+test('an unknown format version counts as no file: transcript-fed at 1 MiB, too large at 6 MiB, with no refusal line', async () => {
+  const small = summaryPoll({ [pathOf(0)]: transcriptOf(MIB), [summaryAt(0)]: { text: summaryText({ version: 2 }) } });
+  let out = await small.poll();
+  assert.equal(cardText(out).line, OLD_LINE);
+  assert.deepEqual(out.refusals, []);
+  out = await small.poll();
+  assert.deepEqual(out.refusals, [], 'not a strike on the second poll either');
+  const large = summaryPoll({ [pathOf(0)]: transcriptOf(6 * MIB), [summaryAt(0)]: { text: summaryText({ version: 2 }) } });
+  out = await large.poll();
+  assert.equal(cardText(out).line, TOO_LARGE);
+  assert.deepEqual(out.refusals, []);
+});
+
+test('an unknown format version after a good file drops the held record', async () => {
+  const files = { [pathOf(0)]: transcriptOf(6 * MIB), [summaryAt(0)]: { text: summaryText() } };
+  const { poll } = summaryPoll(files);
+  assert.equal(cardText(await poll()).line, FILE_LINE);
+  files[summaryAt(0)] = { text: summaryText({ version: 2 }), mtimeMs: MTIME + 1 };
+  assert.equal(cardText(await poll()).line, TOO_LARGE);
+  // Nothing held after it: a bad file next shows no old record.
+  files[summaryAt(0)] = { text: '{}', mtimeMs: MTIME + 2 };
+  assert.equal(cardText(await poll()).line, TOO_LARGE);
+});
+
+test('a member whose file stops moving: warm (working) while it works, then colder with a frozen meter once idle', async () => {
+  const { poll } = summaryPoll({ [pathOf(0)]: transcriptOf(6 * MIB), [summaryAt(0)]: { text: summaryText() } });
+  const out = await poll();
+  assert.equal(cardText(out, { state: 'busy', now: NOW + 3 * HOUR }).line, '◆ cache warm (working) · 151k context');
+  assert.equal(cardText(out, { state: 'busy', now: NOW + 3 * HOUR }).bar, 'warm (working)');
+  // The file does not move: the next poll gives the same records, and an idle
+  // card reads colder as the clock goes on.
+  const later = await poll();
+  assert.deepEqual(later, out);
+  const idle = cardText(later, { now: NOW + 70 * MIN });
+  assert.equal(idle.line, '◆ cache cold · idle 1 hr 10 min · 151k context');
+  assert.equal(idle.bar, 'cold');
+  assert.equal(idle.meter, cardText(out).meter, 'the meter is frozen at its last value');
+  assert.equal(idle.burn, '0/min · last 30 min', 'the burn ages out with the clock');
+});
+
+// --- the summary file's checks, through the poll
+
+test('a summary that fails a check, with no record held, gives the transcript-fed card and no refusal line', async () => {
+  const bad = [
+    ['an extra key', summaryText({ extra: 1 })],
+    ['a missing key', summaryText({ cache: undefined })],
+    ['a window off the table', summaryText({ window: 500000 })],
+    ['a window of 0', summaryText({ window: 0 })],
+    ['a last call after the record', summaryText({ lastAt: NOW + 1 })],
+    ['a negative time', summaryText({ lastAt: -1 })],
+    ['a fractional time', summaryText({ at: NOW + 0.5 })],
+    ['a cache flag of 2', summaryText({ cache: 2 })],
+    ['not JSON', '{"version":1,'],
+    // A meter time far ahead would keep its burn
+    // from ever draining.
+    ['a meter time more than 2 minutes past its file', summaryText({ at: NOW + 3 * MIN })],
+    ['a meter time a year ahead', summaryText({ at: NOW + 365 * 24 * HOUR })],
+  ];
+  for (const [why, text] of bad) {
+    const { poll } = summaryPoll({ [pathOf(0)]: transcriptOf(MIB), [summaryAt(0)]: { text } });
+    const out = await poll();
+    assert.equal(cardText(out).line, OLD_LINE, why);
+    assert.deepEqual(out.refusals, [], why);
+  }
+});
+
+test('a summary with no window key passes, and its meter has no window', async () => {
+  const { poll } = summaryPoll({ [summaryAt(0)]: { text: summaryText({ window: undefined }) } });
+  const out = await poll();
+  assert.equal(cardText(out).line, FILE_LINE);
+  assert.deepEqual(Object.keys(out.meters[0]).sort(), ['at', 'burn', 'context', 'name']);
+});
+
+test('the summary cap is checked from the stat, with no read recorded', async () => {
+  const { fs, poll } = summaryPoll({ [pathOf(0)]: transcriptOf(MIB), [summaryAt(0)]: { text: summaryText(), size: MAX_SUMMARY_BYTES + 1 } });
+  assert.equal(cardText(await poll()).line, OLD_LINE);
+  assert.ok(!fs.reads.includes(summaryAt(0)));
+  const at = summaryPoll({ [summaryAt(0)]: { text: summaryText(), size: MAX_SUMMARY_BYTES } });
+  assert.equal(cardText(await at.poll()).line, FILE_LINE, 'exactly at the cap is read');
+});
+
+test('text over the cap after the read fails the file though the stat said less', async () => {
+  const { poll } = summaryPoll({ [pathOf(0)]: transcriptOf(MIB), [summaryAt(0)]: { text: summaryText() + ' '.repeat(MAX_SUMMARY_BYTES), size: 10 } });
+  assert.equal(cardText(await poll()).line, OLD_LINE);
+});
+
+test('a truncated file after a good one keeps the last good strings, and is read again next poll', async () => {
+  const files = { [pathOf(0)]: transcriptOf(6 * MIB), [summaryAt(0)]: { text: summaryText() } };
+  const { fs, poll } = summaryPoll(files);
+  const good = cardText(await poll());
+  files[summaryAt(0)] = { text: summaryText().slice(0, 40), mtimeMs: MTIME + 1 };
+  const out = await poll();
+  assert.deepEqual(cardText(out), good);
+  assert.deepEqual(out.refusals, []);
+  // A second, different half-written file: the record still stays.
+  files[summaryAt(0)] = { text: summaryText().slice(0, 50), mtimeMs: MTIME + 2 };
+  const again = await poll();
+  assert.deepEqual(cardText(again), good);
+  assert.deepEqual(again.refusals, []);
+  files[summaryAt(0)] = { text: summaryText({ lastAt: NOW - 500, lastTokens: 200000, context: [151006, 200000] }), mtimeMs: MTIME + 3 };
+  const next = await poll();
+  assert.equal(cardText(next).line, '◆ cache warm · idle 0 min · cold in 1 hr 0 min · 200k context', 'read again, and the new file wins');
+  assert.equal(fs.reads.filter(p => p === summaryAt(0)).length, 4);
+});
+
+test('a truncated file with no record held gives the transcript-fed card', async () => {
+  const { poll } = summaryPoll({ [pathOf(0)]: transcriptOf(MIB), [summaryAt(0)]: { text: summaryText().slice(0, 40) } });
+  assert.equal(cardText(await poll()).line, OLD_LINE);
+});
+
+test('a summary read that rejects counts as a failed check', async () => {
+  const files = { [pathOf(0)]: transcriptOf(MIB), [summaryAt(0)]: { text: summaryText() } };
+  const { poll } = summaryPoll(files);
+  assert.equal(cardText(await poll()).line, FILE_LINE);
+  files[summaryAt(0)] = { text: '', fail: true, mtimeMs: MTIME + 1 };
+  assert.equal(cardText(await poll()).line, FILE_LINE, 'the last good record stays');
+});
+
+test('the same bad file on two polls draws "not a summary file", and the card comes from the transcript', async () => {
+  const files = { [pathOf(0)]: transcriptOf(MIB), [summaryAt(0)]: { text: summaryText() } };
+  const { poll } = summaryPoll(files);
+  assert.equal(cardText(await poll()).line, FILE_LINE);
+  files[summaryAt(0)] = { text: '{}', mtimeMs: MTIME + 1 };
+  let out = await poll();
+  assert.equal(cardText(out).line, FILE_LINE, 'the first failure keeps the record');
+  assert.deepEqual(out.refusals, []);
+  out = await poll();
+  assert.deepEqual(out.refusals, [{ name: 'A', value: 'file' }]);
+  assert.equal(cardText(out).line, OLD_LINE);
+  out = await poll();
+  assert.deepEqual(out.refusals, [{ name: 'A', value: 'file' }], 'and stays while the file does');
+  // A changed file is read again: a bad one is a first failure again.
+  files[summaryAt(0)] = { text: '{}', mtimeMs: MTIME + 2 };
+  out = await poll();
+  assert.deepEqual(out.refusals, []);
+  assert.equal(cardText(out).line, OLD_LINE, 'no record held any more');
+});
+
+test('a file whose last call is more than 2 minutes past its modified time is refused', async () => {
+  // The meter time sits on the last call, so only the last call's rule is tested.
+  const files = { [pathOf(0)]: transcriptOf(MIB), [summaryAt(0)]: { text: summaryText({ at: NOW - 1000 }), mtimeMs: NOW - 1000 - 2 * MIN - 1 } };
+  const { poll } = summaryPoll(files);
+  assert.equal(cardText(await poll()).line, OLD_LINE);
+  files[summaryAt(0)].mtimeMs = NOW - 1000 - 2 * MIN;
+  assert.equal(cardText(await poll()).line, FILE_LINE, 'exactly 2 minutes passes');
+});
+
+test('a last-call time 3 minutes ahead of the pane\'s clock is refused, and the last good record stays shown', async () => {
+  const files = { [pathOf(0)]: transcriptOf(6 * MIB), [summaryAt(0)]: { text: summaryText() } };
+  const { poll } = summaryPoll(files);
+  const good = cardText(await poll());
+  const ahead = NOW + 3 * MIN;
+  files[summaryAt(0)] = { text: summaryText({ at: ahead + MIN, lastAt: ahead }), mtimeMs: ahead };
+  const out = await poll();
+  assert.deepEqual(cardText(out), good);
+  assert.equal(warmthFrom(out.warmth)[0].at, NOW - 1000, 'the good record, not the forged one');
+  assert.deepEqual(out.refusals, []);
+  // A meter time 3 minutes ahead of the clock, in a file whose modified time
+  // and last call are ahead with it, is refused the same way.
+  files[summaryAt(0)] = { text: summaryText({ at: ahead + MIN, lastAt: NOW }), mtimeMs: ahead + 1 };
+  assert.equal(metersFrom((await poll()).meters)[0].at, NOW, 'the good meter stays');
+  // 2 minutes ahead passes.
+  const fresh = summaryPoll({ [summaryAt(0)]: { text: summaryText({ at: NOW + 2 * MIN, lastAt: NOW + 2 * MIN }), mtimeMs: NOW + 2 * MIN } });
+  assert.equal(warmthFrom((await fresh.poll()).warmth)[0].at, NOW + 2 * MIN);
+});
+
+test('with no clock a poll takes no new summary record, keeps the held one, and counts no strike', async () => {
+  const clock = { now: NOW };
+  const files = { [pathOf(0)]: transcriptOf(6 * MIB), [summaryAt(0)]: { text: summaryText() } };
+  const { poll } = summaryPoll(files, { clock });
+  const good = cardText(await poll());
+  clock.now = Number.NaN;
+  files[summaryAt(0)] = { text: '{}', mtimeMs: MTIME + 1 };
+  assert.deepEqual(cardText(await poll()), good);
+  assert.deepEqual((await poll()).refusals, [], 'no strike without a clock');
+  clock.now = NOW;
+  assert.deepEqual((await poll()).refusals, [], 'the first failure with a clock is not a strike');
+  const blind = summaryPoll({ [pathOf(0)]: transcriptOf(6 * MIB), [summaryAt(0)]: { text: summaryText() } }, { clock: { now: Number.NaN } });
+  assert.equal(cardText(await blind.poll()).line, TOO_LARGE, 'nothing held: a new file waits for a clock');
+});
+
+test('the held record is dropped when a poll does not name the member', async () => {
+  const files = { [pathOf(0)]: transcriptOf(MIB), [summaryAt(0)]: { text: summaryText() } };
+  const { poll } = summaryPoll(files);
+  await poll();
+  await poll([], []);
+  files[summaryAt(0)] = { text: '{}', mtimeMs: MTIME + 1 };
+  assert.equal(cardText(await poll()).line, OLD_LINE, 'no record held after the gap');
+});
+
+test('a shared name looks for no summary file either', async () => {
+  const { fs, poll } = summaryPoll({ [summaryAt(0)]: { text: summaryText() }, [summaryAt(1)]: { text: summaryText() } });
+  const out = await poll([agent('A', 0), agent('A', 1)], ['A']);
+  assert.deepEqual(out.warmth, [{ name: 'A', kind: 'shared' }]);
+  assert.equal(fs.reads.length + fs.stats.length, 0);
+});
+
+test('a working member with a passing file leaves the working-read budget to the others', async () => {
+  const names = Array.from({ length: 6 }, (_, i) => `W${i}`);
+  const ids = [...SID, '44444444-5555-4666-8777-888888888888', '55555555-6666-4777-8888-999999999999', '66666666-7777-4888-8999-aaaaaaaaaaaa'];
+  const rows = names.map((n, i) => ({ name: n, status: 'busy', sessionId: ids[i], cwd: 'C:\\work' }));
+  const tp = i => `${CONFIG}\\projects\\C--work\\${ids[i]}.jsonl`;
+  const files = Object.fromEntries(rows.map((_, i) => [tp(i), transcriptOf(MIB)]));
+  files[`${USAGE}\\${ids[0]}.json`] = { text: summaryText() };
+  const { fs, poll } = summaryPoll(files);
+  await poll(rows, names);
+  assert.deepEqual(fs.reads.filter(p => p.endsWith('.jsonl')).sort(), [1, 2, 3, 4, 5].map(tp).sort(), 'five working reads, none of them the file-fed member');
+});
+
+// --- the window, the nudge and the link on a file-fed card
+
+test('a file-fed card counts down from 1 hour, and the nudge fires on it', async () => {
+  assert.equal(HOUR_SUMMARY_MS, HOUR);
+  const { poll } = summaryPoll({ [pathOf(0)]: transcriptOf(6 * MIB), [summaryAt(0)]: { text: summaryText() } });
+  const out = await poll();
+  const t = cardText(out, { now: NOW - 1000 + 50 * MIN });
+  assert.equal(t.line, '◆ cache warm · idle 50 min · cold in 10 min · 151k context');
+  assert.equal(t.bar, 'cold in 10 min');
+  assert.equal(t.nudge, 'Reply within 10 min to keep the cache.');
+  assert.match(cardText(out, { now: NOW + 2 * HOUR }).nudge, /^Replying re-reads about 151k tokens/);
+});
+
+test('a file whose cache flag is 0 draws "cache window unknown", with no countdown and no nudge', async () => {
+  const { poll } = summaryPoll({ [summaryAt(0)]: { text: summaryText({ cache: 0 }) } });
+  const t = cardText(await poll(), { now: NOW + 10 * MIN });
+  assert.equal(t.line, '◆ cache window unknown · idle 10 min · 151k context');
+  assert.equal(t.bar, undefined);
+  assert.equal(t.nudge, undefined);
+});
+
+test('a transcript-fed card still draws "cache window unknown" when no call says its window', async () => {
+  const { poll } = summaryPoll({ [pathOf(0)]: { text: file(row({ ms: -MIN, write: 'none' })) } });
+  assert.equal(cardText(await poll()).line, '◆ cache window unknown · idle 1 min · 150k context');
+});
+
+test('a file-fed card at 1 MiB keeps its transcript for the Remote Control link read', async () => {
+  const link = JSON.stringify({ type: 'system', subtype: 'bridge_status', url: 'https://claude.ai/code/session_ABC123' });
+  const transcript = transcriptOf(MIB, `${link}\n`);
+  const { finder, poll } = summaryPoll({ [pathOf(0)]: transcript, [summaryAt(0)]: { text: summaryText() } });
+  const out = await poll();
+  assert.equal(cardText(out).line, FILE_LINE);
+  const found = finder.byName.get('A');
+  assert.equal(found?.path, pathOf(0));
+  assert.equal(found.size, MIB);
+  assert.equal(view.linkStep(found.path, undefined, false), 'read');
+  assert.equal(roster.remoteLink(transcript.text), 'https://claude.ai/code/session_ABC123');
+});
+
+// --- one card, from either source
+
+test('for one call series with 1-hour cache writes, the transcript-fed card and the file-fed card draw the same strings', async () => {
+  // As transcript rows and as the steps the engine raises for them: an API
+  // error, a <synthetic> row and a sidechain row are in the transcript, and
+  // count from neither source.
+  const counted = [[-40 * MIN, {}], [-25 * MIN, { input_tokens: 9 }], [-12 * MIN, { output_tokens: 5 }], [-3 * MIN, { cache_read_input_tokens: 160000 }], [-MIN, { input_tokens: 40 }]];
+  const rows = [
+    ...counted.slice(0, 3).map(([ms, u]) => row({ ms, usage: u })),
+    row({ ms: -5 * MIN, extra: { isApiErrorMessage: true } }),
+    row({ ms: -4 * MIN, model: '<synthetic>' }),
+    row({ ms: -3 * MIN - 1, extra: { isSidechain: true } }),
+    ...counted.slice(3).map(([ms, u]) => row({ ms, usage: u })),
+  ];
+  const steps = [
+    ...counted.slice(0, 3).map(([ms, u]) => [ms, {}, { usage: { ...stepUsage(), ...u } }]),
+    [-5 * MIN, {}, { usage: null }],
+    [-4 * MIN, {}, { usage: null }],
+    [-3 * MIN - 1, { agentId: 'sub' }, { usage: stepUsage() }],
+    ...counted.slice(3).map(([ms, u]) => [ms, {}, { usage: { ...stepUsage(), ...u } }]),
+  ];
+  let mem = newUsageMemory();
+  for (const [ms, input, result] of steps) {
+    const c = stepCall(input, result);
+    if (c !== undefined) mem = recordCall(mem, c, NOW + ms);
+  }
+  assert.equal(mem.calls, counted.length);
+  // Written and read on a whole minute, and 30 s past one, since a pane
+  // seldom polls on the minute and the burn must line up either way.
+  for (const late of [0, 30000]) {
+    const at = NOW + late;
+    const transcript = { text: file(...rows), mtimeMs: at };
+    const clock = { now: at };
+    const byTranscript = await summaryPoll({ [pathOf(0)]: transcript }, { clock }).poll();
+    const byFile = summaryPoll({ [pathOf(0)]: transcript, [summaryAt(0)]: { text: serializeSummary(summaryFrom(mem, at)).value, mtimeMs: at } }, { clock });
+    const fed = await byFile.poll();
+    assert.ok(!byFile.fs.reads.includes(pathOf(0)), 'the file fed it');
+    for (const now of [at, at + 10 * MIN, at + 29 * MIN, at + 29.5 * MIN, at + 30 * MIN, at + 50 * MIN, at + 2 * HOUR]) {
+      for (const state of ['idle', 'busy']) {
+        const want = cardText(byTranscript, { now, state });
+        assert.ok(want.line !== undefined && want.meter !== undefined && want.burn !== undefined && want.trend !== undefined);
+        assert.deepEqual(cardText(fed, { now, state }), want, `${late} ms late, ${now - at} ms on, ${state}`);
+      }
+    }
+  }
+});
+
+// --- the refusal line
+
+test('the refusal lines are read back only through their two kind words, by card title, in a Map', () => {
+  const lines = refusalLines([{ name: 'A', value: 'path' }, { name: 'B', value: 'file' }]);
+  assert.ok(lines instanceof Map, 'a Map, so no title reaches a prototype');
+  assert.equal(lines.get('A'), 'summary path refused');
+  assert.equal(lines.get('B'), 'not a summary file');
+  assert.equal(lines.get('C'), undefined);
+  for (const value of ['constructor', '__proto__', 'toString', 'Path', 'C:\\Users\\x', '', 'path ']) {
+    assert.equal(refusalLines([{ name: 'A', value }]).get('A'), undefined, value);
+  }
+  assert.equal(refusalLines('nope').size, 0);
+  assert.equal(refusalLines([{ name: 'constructor', value: 'path' }]).get('toString'), undefined);
+});
+
+test('stored refusals are checked again: wrong shapes go, a repeated name keeps the first, at most 50 stay, and at most 200 are looked at', () => {
+  const many = Array.from({ length: 60 }, (_, i) => ({ name: `N${i}`, value: 'path' }));
+  assert.equal(refusalsFrom(many).length, 50);
+  const mixed = [{ name: 'A', value: 'file' }, { name: 'A', value: 'path' }, { name: 'B', value: 'x' }, { name: '', value: 'path' }, { name: 'C', value: 'path', extra: 'C:\\Users' }, { name: 'x'.repeat(301), value: 'path' }, null, 'x'];
+  assert.deepEqual(refusalsFrom(mixed), [{ name: 'A', value: 'file' }, { name: 'C', value: 'path' }]);
+  assert.deepEqual(refusalsFrom('nope'), []);
+  // Another plugin can rewrite the list: entries that fail the check still
+  // count against the walk, so a huge list costs a bounded look.
+  const junk = Array.from({ length: 100000 }, () => ({ name: 'J', value: 'x' }));
+  assert.deepEqual(refusalsFrom([...junk, { name: 'A', value: 'path' }]), []);
+  assert.deepEqual(refusalsFrom([...junk.slice(0, 199), { name: 'A', value: 'path' }]), [{ name: 'A', value: 'path' }]);
+  assert.deepEqual(refusalsFrom([...junk.slice(0, 200), { name: 'A', value: 'path' }]), []);
+});
+
+test('no path-shaped text from the summary place reaches what a file-fed or refused poll stores', async () => {
+  const fed = await summaryPoll({ [pathOf(0)]: transcriptOf(MIB), [summaryAt(0)]: { text: summaryText() } }).poll();
+  const refused = await summaryPoll({ [pathOf(0)]: transcriptOf(MIB), [summaryAt(0)]: { reject: 'EPERM C:\\Users\\someone\\secret sk-ant-SECRET' } }).poll();
+  assert.deepEqual(refused.refusals, [{ name: 'A', value: 'path' }]);
+  for (const out of [fed, refused]) {
+    const stored = JSON.stringify(out);
+    for (const piece of [...LEAK, 'usage', 'grimoire', 'EPERM', '\\', '.json']) assert.ok(!stored.includes(piece), `the stored records hold ${piece}`);
+  }
+});
+
+test('the state contract declares the refusal lines under the plugin\'s manifest name', () => {
+  const types = readFileSync(join(root, 'brigade/types/index.d.ts'), 'utf8');
+  const block = types.slice(types.indexOf('interface PluginState'));
+  assert.match(block, /\n\s+refusals: Pair\[\]\n/);
+  const register = readFileSync(join(root, 'brigade/register.tsx'), 'utf8');
+  assert.match(register, /atom\(\{ plugin: 'grimoire', key: 'refusals' \} as const, \[\]\)/);
+  // The poll stores the pairs, the render reads them back once, and an
+  // unfinished card draws the line: the wiring, pinned by its text, since no
+  // test here runs the engine.
+  assert.match(register, /\n\s+await update\(\$, refusals, \(\) => found\.refusals\)\n/);
+  assert.match(register, /\n\s+const refused = refusalLines\(await read\(\$, refusals\)\)\n/);
+  assert.match(register, /\n\s+const refusal = isFinished \? undefined : refused\.get\(c\.title\)\n/);
+  assert.match(register, /\{refusal !== undefined && \(\n\s+<Box marginBottom=\{1\}>\n\s+<Text dimColor wrap="truncate-end">\n\s+\{refusal\}\n/);
+});
+
+test('the pane hands the poll its summary reads, with the plugin data id from where the roster is', () => {
+  const register = readFileSync(join(root, 'brigade/register.tsx'), 'utf8');
+  assert.match(register, /\}, finder, \{ plugin: at\.plugin, held: summaries \}\)/);
+  // At module scope, so the held records last from poll to poll.
+  assert.match(register, /^const summaries: SummaryMemory = newSummaryMemory\(\)$/m);
 });

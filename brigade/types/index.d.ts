@@ -52,9 +52,11 @@ export type UsageSnapshot = {
  *  was taken, in epoch ms, and the percent used. */
 export type Sample = { at: number; percent: number }
 
-/** One card's cache warmth, from its session's transcript: the last real
- *  model call's time, its context tokens and its cache window (absent when no
- *  call that wrote cache says it); or unknown, because the transcript is too
+/** One card's cache warmth, from its session's summary file or its
+ *  transcript: the last real model call's time, its context tokens and its
+ *  cache window (from a transcript, absent when no call that wrote cache says
+ *  it; from a summary file, a fixed hour, absent when no call wrote or read
+ *  cache); or unknown, because the transcript is too
  *  large to read or two sessions share the card's name; or not read yet,
  *  because the session has been working since the pane first saw it; or not
  *  found, because no transcript passed the finder's checks. No path is kept. */
@@ -62,12 +64,12 @@ export type Warmth =
   | { name: string; kind: 'call'; at: number; tokens: number; windowMs?: number }
   | { name: string; kind: 'too-large' | 'shared' | 'unread' | 'not-found' }
 
-/** One card's call series, from its session's transcript: the time of the
- *  read that gave it, the context window of its model's family, in tokens,
- *  from a fixed table (absent when the table has none), the new tokens of
- *  each of the 30
- *  minutes up to that read, oldest first, and the context size of each of
- *  the last 30 calls, oldest first. Numbers only: no path, model or message
+/** One card's call series, from its session's summary file or its
+ *  transcript: the time its burn buckets end, the end of the clock minute
+ *  of the read or the write that gave it; the context window of its model's
+ *  family, in tokens, from a fixed table (absent when the table has none);
+ *  the new tokens of each of the 30 clock minutes up to that time, oldest
+ *  first; and the context size of each of the last 30 calls, oldest first. Numbers only: no path, model or message
  *  id is kept. */
 export type Meter = { name: string; at: number; window?: number; burn?: number[]; context?: number[] }
 
@@ -103,6 +105,11 @@ declare module 'claude-code' {
       /** Each roster member's call series, from the same reads as its
        *  warmth. Checked again before it is drawn. */
       meters: Meter[]
+      /** Each roster member whose summary file the agents poll refused: its
+       *  name and a kind word, `path` (the path rule refused it) or `file`
+       *  (the same file failed its checks two polls running). Read only
+       *  through those two words. */
+      refusals: Pair[]
       /** Each card's chosen tab: its title and a view word, `cache`, `burn`
        *  or `trend`, kept for the session and not reset when the pane opens.
        *  Read only through the fixed set of view words. */
