@@ -146,3 +146,15 @@ test('a package manifest or lockfile in another case fails, as the exact name do
   const r = assertFails(dir, /Package\.json: a dependency manifest or lockfile/);
   assert.match(r.stderr, /Bun\.lock: a dependency manifest or lockfile/);
 });
+test('a marketplace entry whose name or source holds a home path fails with the account name masked', () => {
+  // The CI log is public and outlives a rewritten commit, so rule 4 prints
+  // the entry's name and source through the masking helper, as 6c does.
+  const dir = tree();
+  const p = join(dir, '.claude-plugin', 'marketplace.json');
+  const m = readJson(p);
+  m.plugins.push({ name: 'other', source: '/home/zq-acct/plugin' }, { name: '/home/zq-acct/n', source: './' });
+  writeJson(p, m);
+  const r = assertFails(dir, /marketplace\.json "other": source is "\/home\/<name>\/plugin"/);
+  assert.match(r.stderr, /marketplace\.json calls the plugin "\/home\/<name>\/n"/);
+  assert.doesNotMatch(r.stderr, /zq-acct/);
+});

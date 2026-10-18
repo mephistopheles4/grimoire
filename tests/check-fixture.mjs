@@ -2,7 +2,10 @@
 // testing. A gate that silently does nothing reads as a gate that passed.
 //
 // Each test copies the parts of the tree the check reads into a temporary
-// directory, breaks exactly one thing, and asserts the check says so. The copy
+// directory, breaks exactly one thing, and asserts the check says so. Or it
+// breaks one kind of thing many ways, every place of one list or every key
+// off one allow-list, and asserts the check names each one: a single break
+// taken off the rule still drops its own line from the output. The copy
 // is not decoration: check.mjs finds the repository root from its own file
 // location, so it cannot be pointed at a fixture any other way. That is also
 // why every mutation test runs the copy's own scripts/check.mjs — running this

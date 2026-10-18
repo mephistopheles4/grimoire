@@ -469,18 +469,18 @@ const plugin = JSON.parse(readFileSync(pluginManifestPath, 'utf8'));
 
 for (const p of mkt.plugins) {
   if (p.source !== './') {
-    fail(`marketplace.json "${p.name}": source is "${p.source}"; this repo is one plugin, so it must be "./"`);
+    fail(`marketplace.json "${shown(String(p.name))}": source is "${shown(String(p.source))}"; this repo is one plugin, so it must be "./"`);
     continue;
   }
   if (p.name !== plugin.name) {
-    fail(`marketplace.json calls the plugin "${p.name}", plugin.json calls it "${plugin.name}"`);
+    fail(`marketplace.json calls the plugin "${shown(String(p.name))}", plugin.json calls it "${shown(String(plugin.name))}"`);
   }
   if (p.version !== undefined) {
-    fail(`marketplace.json "${p.name}": drop "version" — plugin.json is where it lives, and two copies drift`);
+    fail(`marketplace.json "${shown(String(p.name))}": drop "version" — plugin.json is where it lives, and two copies drift`);
   }
 }
 if (mkt.name === plugin.name) {
-  fail(`the marketplace and the plugin are both named "${mkt.name}" — give the shelf and the book different names`);
+  fail(`the marketplace and the plugin are both named "${shown(String(mkt.name))}" — give the shelf and the book different names`);
 }
 
 // Every skill directory holds a SKILL.md. The default scan reads skills/<name>/,
@@ -869,8 +869,15 @@ for (const e of readdirSync(join(root, '.claude-plugin'))) {
 // file does, whatever the engine does with it today, so a key the engine adds
 // later fails until someone reads what it does.
 //
-// The places are the plugin manifest reference's "Standard layout", beyond
-// skills/ and hooks/hooks.json, which the rules above read. The root is read
+// Two gaps are accepted in threat-model row 13: a duplicate key is read as
+// JSON.parse reads it, the last one kept, and a root name is compared across
+// case only, not across the other ways a file system can equate two names.
+//
+// The places are the plugin manifest reference's "Standard layout" as fetched
+// on 2026-10-18, beyond skills/ and hooks/hooks.json, which the rules above
+// read. Unlike the keys, the places are a list of what is refused, so a
+// default place the engine adds later passes until it is named here: read the
+// reference again when the engine adds one. The root is read
 // from the disk, not the walk, as the case rule above reads it: a local
 // .mcp.json that git does not track fails too, because the engine loads one
 // when it loads this folder as a plugin directory, as `claude --plugin-dir .`
