@@ -1,7 +1,7 @@
 import type { Card, Pair, PrState, Roster, Status, Todo } from './types'
 
 // What the Brigade pane reads from outside itself, checked before it is drawn
-// or used: the roster, the rows `claude agents --json` prints, the transcript
+// or used: the roster, the engine's session files, the transcript
 // paths the engine reports and the reports other sessions send. Every one is
 // text another process wrote, so each is held to a shape, cut to a length and
 // shown as text only. Nothing here runs, and nothing here builds a command or
@@ -498,59 +498,32 @@ export function rosterFile(data: string, sessionId: string): string {
   return `${data}${sep}brigade${sep}${sessionId}.json`
 }
 
-/** A row of `claude agents --json`, as far as the pane uses it. `status` is
- *  the live state: an interactive row's `status`, else a background row's
- *  `state`. */
+/** A running session, as far as the pane uses it: its name, its live state
+ *  (`busy`, `idle`; a background session's `state` when it has no
+ *  `status`), its session id and its folder. */
 export type AgentRow = { name: string; status: string; sessionId?: string; cwd?: string }
 
-/** The rows `claude agents --json` printed, each field checked; a row with
- *  no name is dropped, and a session id that is not the engine's shape too.
- *  An interactive row says its live state in `status` (`busy`, `idle`), a
- *  background row in `state` (`blocked`, for one). */
-export function parseAgents(stdout: string): Checked<AgentRow[]> {
-  let parsed: unknown
-  try {
-    parsed = JSON.parse(stdout)
-  } catch {
-    return { error: 'claude agents printed no JSON' }
-  }
-  if (!Array.isArray(parsed)) return { error: 'claude agents printed no list' }
-  const rows: AgentRow[] = []
-  for (const r of parsed.slice(0, 500)) {
-    const row = agentRow(r)
-    if (row !== undefined) rows.push(row)
-  }
-  return { value: rows }
-}
-
-// One row's checked fields, from a `claude agents` row or a session file: the
-// name, the live state, the session id and the folder, and nothing else.
-function agentRow(r: unknown): AgentRow | undefined {
-  if (!isRecord(r) || typeof r.name !== 'string' || r.name === '' || r.name.length > MAX_TEXT) return undefined
-  const state = typeof r.status === 'string' ? r.status : typeof r.state === 'string' ? r.state : undefined
-  const row: AgentRow = { name: r.name, status: state === undefined ? '?' : oneLine(state, 20) }
-  if (typeof r.sessionId === 'string' && SESSION_ID.test(r.sessionId)) row.sessionId = r.sessionId
-  if (typeof r.cwd === 'string' && r.cwd.length <= 1000) row.cwd = r.cwd
-  return row
-}
-
 /** One of the engine's session files, `<config>/sessions/<pid>.json`, as a
- *  row of the same shape `claude agents --json` gives, which prints the same
- *  fields: only the name, the status (`?` while a new session has none yet),
- *  the session id and the folder are taken, by the rules a `claude agents`
- *  row is checked by. Every other field the engine writes there (its
- *  messaging socket, bridge and Desktop ids, process start, former names) is
- *  never taken. A file that is not one JSON object, or has no name or no
- *  session id of the engine's shape, gives none. */
+ *  row: only the name, the status (`?` while a new session has none yet),
+ *  the session id and the folder are taken. Every other field the engine
+ *  writes there (its messaging socket, bridge and Desktop ids, process start,
+ *  former names) is never taken. A file that is not one JSON object, or has no
+ *  name of at most 300 characters or no session id of the engine's shape,
+ *  gives none; the status is cut to one line of 20 characters, and a folder
+ *  over 1,000 characters is dropped. */
 export function sessionRow(text: string): AgentRow | undefined {
-  let parsed: unknown
+  let r: unknown
   try {
-    parsed = JSON.parse(text)
+    r = JSON.parse(text)
   } catch {
     return undefined
   }
-  const row = agentRow(parsed)
-  return row?.sessionId === undefined ? undefined : row
+  if (!isRecord(r) || typeof r.name !== 'string' || r.name === '' || r.name.length > MAX_TEXT) return undefined
+  if (typeof r.sessionId !== 'string' || !SESSION_ID.test(r.sessionId)) return undefined
+  const state = typeof r.status === 'string' ? r.status : typeof r.state === 'string' ? r.state : undefined
+  const row: AgentRow = { name: r.name, status: state === undefined ? '?' : oneLine(state, 20), sessionId: r.sessionId }
+  if (typeof r.cwd === 'string' && r.cwd.length <= 1000) row.cwd = r.cwd
+  return row
 }
 
 /** The projects folder name of a working directory: every separator, colon

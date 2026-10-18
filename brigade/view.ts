@@ -1845,8 +1845,8 @@ export type ReadMemory = Map<string, { mtimeMs: number; readAt: number; series: 
 // --- The transcript finder ---------------------------------------------------
 //
 // A session that moved into a worktree after it started writes its transcript
-// under the worktree's projects folder, not its launch folder's, while
-// `claude agents` still names the launch folder. So the path from `cwd` is
+// under the worktree's projects folder, not its launch folder's, while its
+// row may still name the launch folder. So the path from `cwd` is
 // tried first, then the worktree folders of the launch folder, found by
 // listing the projects folder at most once a minute. Every path either step
 // gives is taken only when a resolving `stat` finds a regular file, not
@@ -2400,19 +2400,21 @@ export type PollIo = FinderIo & { read: (path: string) => Promise<string> }
 // The engine keeps one small file for each running session,
 // <config>/sessions/<pid>.json, holding the fields `claude agents --json`
 // prints; that command also reaches every live session, which makes each of
-// them do work at once (#347). So the live state is read from the files, which costs
-// no process; `claude agents` runs only as the slow check that drops a file
-// left behind (register.tsx). Only a `<digits>.json` the listing names as a
+// them do work at once (#347). So the live state is read from the files
+// alone, which costs no process, and the pane never runs it. Only a `<digits>.json` the listing names as a
 // plain file is opened, so the `.key` file beside each is never read. Each
 // file passes the finder's place check first: a regular file, not itself a
 // link, whose real path is the expected file in the real sessions folder,
 // and at most 8 KiB (they are under 1 KiB).
 
+/** The one line the pane draws when a session file fails its check or the
+ *  sessions folder cannot be read. Fixed words: never a path or a reason. */
+export const SESSIONS_UNREAD = 'Cannot read the session files.'
 /** A session file larger than this is not read. */
 export const MAX_SESSION_FILE_BYTES = 8192
 // The engine names each session's file by its process id.
 const SESSION_FILE = /^\d{1,10}\.json$/
-// More session files than this is not a brigade; `claude agents` reads 500 rows.
+// More session files than this is not a brigade.
 const MAX_SESSION_FILES = 500
 
 /** What one read of the session files found: the rows, and whether every
@@ -2462,26 +2464,6 @@ export async function readSessions(config: string, io: PollIo): Promise<Sessions
     }
   }
   return { rows, complete }
-}
-
-/** The session ids a read of the files holds that a `claude agents` run made
- *  at the same time did not list: files left behind, dropped until the next
- *  run. A run with no read beside it marks none. */
-export function staleIds(read: SessionsRead | undefined, agents: readonly AgentRow[]): Set<string> {
-  const listed = new Set(agents.map(r => r.sessionId))
-  return new Set((read?.rows ?? []).flatMap(r => (r.sessionId !== undefined && !listed.has(r.sessionId) ? [r.sessionId] : [])))
-}
-
-/** The live rows: the files' rows less the stale ids. The last `claude
- *  agents` rows fill in a session the files lack only when the files could
- *  not all be read, and stand alone when none could be; a stale id is never
- *  filled in. */
-export function mergeLive(read: SessionsRead | undefined, agents: readonly AgentRow[] | undefined, stale: ReadonlySet<string>): AgentRow[] {
-  if (read === undefined) return [...(agents ?? [])]
-  const rows = read.rows.filter(r => r.sessionId === undefined || !stale.has(r.sessionId))
-  if (read.complete || agents === undefined) return rows
-  const have = new Set(read.rows.map(r => r.sessionId))
-  return [...rows, ...agents.filter(r => r.sessionId === undefined || (!have.has(r.sessionId) && !stale.has(r.sessionId)))]
 }
 
 // --- The usage summary writer -------------------------------------------------

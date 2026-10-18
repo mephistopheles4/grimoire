@@ -191,7 +191,6 @@ type World = ReturnType<typeof makeFs> & {
   mcp: (args: Record<string, unknown>) => unknown
   mcpCalls: { server: string; tool: string; args: Record<string, unknown> }[]
   procs: string[][]
-  agents: string
   env: Record<string, string>
   failEnv: boolean
   probes: Record<string, Probe>
@@ -265,7 +264,6 @@ function world(on: On, setup: (w: World) => void = w => w.dirs(`${CONFIG}\\plugi
     mcp: (() => ({ value: { content: [{ type: 'text', text: 'Opened session in a split pane (pane 1) beside this one.' }], isError: false } })) as World['mcp'],
     mcpCalls: [] as World['mcpCalls'],
     procs: [] as string[][],
-    agents: '[]',
     env: { ...WINDOWS } as Record<string, string>,
     failEnv: false,
     probes: {} as Record<string, Probe>,
@@ -295,6 +293,8 @@ function world(on: On, setup: (w: World) => void = w => w.dirs(`${CONFIG}\\plugi
     holdGh: false,
     releaseGh: () => {},
   })
+  // The engine keeps a sessions folder; a test plants the files in it.
+  w.dirs(`${CONFIG}\\sessions`)
   w.dirs(CONFIG)
   setup(w)
   w.clock = mock.clock(on)
@@ -413,9 +413,7 @@ function world(on: On, setup: (w: World) => void = w => w.dirs(`${CONFIG}\\plugi
     w.mcpCalls.push({ server: e.server, tool: e.tool, args: e.args })
     return w.mcp(e.args) as any
   })
-  // The pane's own poll runs `claude agents --json` on its timer; it lists
-  // `w.agents`, no session by default. Every process, an opener among them,
-  // is recorded, with what it was started with. An opener can be made to fail
+  // Every process, an opener among them, is recorded, with what it was started with. An opener can be made to fail
   // to start, or to run until released.
   on('process.run', async ($, e: any) => {
     w.procs.push([...e.argv])
@@ -433,8 +431,7 @@ function world(on: On, setup: (w: World) => void = w => w.dirs(`${CONFIG}\\plugi
       // One release lets every held opener go.
       if (w.holdRun) await new Promise<void>(res => { const before = w.releaseRun; w.releaseRun = () => { before(); res() } })
     }
-    const stdout = e.argv[0] === 'claude' ? w.agents : ''
-    return { value: { exitCode: e.argv[0] === 'explorer.exe' ? 1 : 0, stdout, stderr: '', isStdoutTruncated: false, isStderrTruncated: false } }
+    return { value: { exitCode: e.argv[0] === 'explorer.exe' ? 1 : 0, stdout: '', stderr: '', isStdoutTruncated: false, isStderrTruncated: false } }
   })
   return w
 }
@@ -449,12 +446,10 @@ const call = async ($: any, input: Record<string, unknown>): Promise<{ ok: boole
 }
 
 // The live sessions, as the engine keeps them: one file each in the config
-// folder's sessions folder, which the pane reads every poll, and the same rows
-// in `claude agents --json`, which it runs only now and then (#347). Each file
+// folder's sessions folder, which the pane reads every poll (#347). Each file
 // also holds the kinds of field the pane never reads; earlier files go.
 const SESSIONS = `${CONFIG}\\sessions`
 const liveRows = (w: World, rows: { name: string; status: string; sessionId: string; cwd?: string }[]) => {
-  w.agents = JSON.stringify(rows)
   w.dirs(SESSIONS)
   for (const e of w.list(SESSIONS) ?? []) w.drop(`${SESSIONS}\\${e.name}`)
   rows.forEach((r, i) => {
@@ -1200,8 +1195,8 @@ test('on macOS, a press on a background card with a Remote Control link runs /us
   macos(w)
   await press($, 'open-2-gamma')
   expect(openers(w)).toEqual([['/usr/bin/open', BG_LINK]])
-  // Nothing else: every process but the pane's own claude agents poll.
-  expect(w.procs.filter(p => p[0] !== 'claude')).toEqual([['/usr/bin/open', BG_LINK]])
+  // Nothing else: the pane runs no other process.
+  expect(w.procs).toEqual([['/usr/bin/open', BG_LINK]])
   expect(w.probed).toEqual([MAC_PROBE])
   expect(w.toasts.at(-1)).toBe('Opening gamma in the app (0)')
 })
@@ -3700,17 +3695,16 @@ for (const surface of SURFACES) {
 
   test(`${surface}: the roster's errors stay on top of the Pull requests view`, async ($, on) => {
     const bad = await grouped(on, $, { cards: [card('bad', { status: 'paused' })], todos: [] })
-    bad.agents = 'not json'
-    // `claude agents` runs again 5 minutes after the open.
-    await bad.clock.advance(300000)
+    bad.put(`${SESSIONS}\\100.json`, { type: 'file', data: { text: 'not json' } })
+    await bad.clock.advance(10000)
     const n = await mountOn($, surface)
     await n.press({ key: 'view-prs' })
     const text = await textOf(n)
     expect(text.includes('Roster not shown')).toBe(true)
-    // The poll's error too, and both above the groups.
-    expect(text.includes('claude agents:')).toBe(true)
+    // The poll's line too, and both above the groups.
+    expect(text.includes('Cannot read the session files.')).toBe(true)
     expect(text.indexOf('Roster not shown')).toBeLessThan(text.indexOf('▾ Open'))
-    expect(text.indexOf('claude agents:')).toBeLessThan(text.indexOf('▾ Open'))
+    expect(text.indexOf('Cannot read the session files.')).toBeLessThan(text.indexOf('▾ Open'))
     expect(bad.errors.at(-1)).toContain('Roster not shown')
   })
 
@@ -4080,63 +4074,72 @@ test('the editor and mobile show Open, Dismiss and the full settings without a p
   }
 })
 
-// --- the live poll's sources (#347) -------------------------------------------
+// --- the live poll's source (#347) --------------------------------------------
 //
-// The live state comes from the engine's session files on every 10 s poll;
-// `claude agents --json`, which makes every running session do work at once,
-// runs only while the pane is the shown tab: when it becomes shown, an open
-// included, from Refresh, and every 5 minutes.
+// The live state comes from the engine's session files on every 10 s poll.
+// The pane runs no `claude agents --json`, which makes every running session
+// do work at once. A file that fails its check, or a sessions folder that
+// cannot be read, draws one fixed line and no row from that file.
 
 const S1 = 'aaaaaaaa-1111-4222-8333-444444444444'
 const S2 = 'bbbbbbbb-1111-4222-8333-444444444444'
-const agentsRuns = (w: World) => w.procs.filter(p => p[0] === 'claude').length
+const claudeRuns = (w: World) => w.procs.filter(p => p[0] === 'claude').length
 const lastLive = (w: World) => JSON.parse(w.states.filter(([k]) => k === 'live').at(-1)?.[1] ?? '[]')
+const lastLiveError = (w: World) => JSON.parse(w.states.filter(([k]) => k === 'liveError').at(-1)?.[1] ?? '""')
+const UNREAD = 'Cannot read the session files.'
 
-test('the live state follows the session files at every poll, and claude agents runs at the open and then only every 5 minutes', async ($, on) => {
+test('the live state follows the session files at every poll, and the pane never runs claude agents, shown or not', async ($, on) => {
   const w = await pane(on, $, 'desktop', w => liveRows(w, [{ name: 'alpha', status: 'busy', sessionId: S1, cwd: 'C:\\work' }]))
-  expect(agentsRuns(w)).toBe(1)
   expect(lastLive(w)).toEqual([{ name: 'alpha', value: 'busy' }])
   liveRows(w, [{ name: 'alpha', status: 'idle', sessionId: S1, cwd: 'C:\\work' }])
-  w.agents = '[]'
   await w.clock.advance(10000)
   await w.clock.settle()
   expect(lastLive(w)).toEqual([{ name: 'alpha', value: 'idle' }])
-  await w.clock.advance(280000)
+  w.shown = false
+  await w.clock.advance(300000)
+  w.shown = true
+  await w.clock.advance(300000)
   await w.clock.settle()
-  expect(agentsRuns(w)).toBe(1)
+  expect(claudeRuns(w)).toBe(0)
+  expect(lastLiveError(w)).toBe('')
+  // A session that ended took its file with it.
+  liveRows(w, [])
   await w.clock.advance(10000)
   await w.clock.settle()
-  expect(agentsRuns(w)).toBe(2)
-  // That run did not list alpha's file: a file left behind, so alpha goes.
   expect(lastLive(w)).toEqual([])
 })
 
-test('while the pane is not the shown tab claude agents never runs; shown again, it runs once at the next poll', async ($, on) => {
-  const w = await pane(on, $, 'desktop', w => liveRows(w, [{ name: 'alpha', status: 'busy', sessionId: S1, cwd: 'C:\\work' }]))
-  w.shown = false
-  await w.clock.advance(600000)
-  await w.clock.settle()
-  expect(agentsRuns(w)).toBe(1)
-  w.shown = true
+test('a session file that fails its check draws the one fixed line and no row from it; the good file still draws, and a fixed file clears the line', async ($, on) => {
+  const w = await pane(on, $, 'desktop', w =>
+    liveRows(w, [
+      { name: 'alpha', status: 'busy', sessionId: S1, cwd: 'C:\\work' },
+      { name: 'beta', status: 'idle', sessionId: S2, cwd: 'C:\\work' },
+    ]),
+  )
+  w.put(`${SESSIONS}\\101.json`, { type: 'file', data: { text: '{"name":"beta","status":' } })
   await w.clock.advance(10000)
   await w.clock.settle()
-  expect(agentsRuns(w)).toBe(2)
+  expect(lastLive(w)).toEqual([{ name: 'alpha', value: 'busy' }])
+  expect(lastLiveError(w)).toBe(UNREAD)
+  const text = await textOf(mounted)
+  expect(text.includes(UNREAD)).toBe(true)
+  w.put(`${SESSIONS}\\101.json`, { type: 'file', data: { text: JSON.stringify({ name: 'beta', status: 'idle', sessionId: S2 }) } })
   await w.clock.advance(10000)
   await w.clock.settle()
-  expect(agentsRuns(w)).toBe(2)
+  expect(lastLiveError(w)).toBe('')
+  expect(lastLive(w)).toEqual([{ name: 'alpha', value: 'busy' }, { name: 'beta', value: 'idle' }])
 })
 
-test('Refresh runs claude agents at once, and a session file whose id that run did not list is not shown', async ($, on) => {
+test('a sessions folder that cannot be read draws the fixed line and no rows', async ($, on) => {
   const w = await pane(on, $, 'desktop', w => liveRows(w, [{ name: 'alpha', status: 'busy', sessionId: S1, cwd: 'C:\\work' }]))
-  liveRows(w, [
-    { name: 'alpha', status: 'busy', sessionId: S1, cwd: 'C:\\work' },
-    { name: 'beta', status: 'idle', sessionId: S2, cwd: 'C:\\work' },
-  ])
-  w.agents = JSON.stringify([{ name: 'alpha', status: 'busy', sessionId: S1, cwd: 'C:\\work' }])
-  await press($, 'refresh')
+  w.drop(`${SESSIONS}\\100.json`)
+  w.drop(`${SESSIONS}\\100.0123abcd.key`)
+  w.drop(SESSIONS)
+  await w.clock.advance(10000)
   await w.clock.settle()
-  expect(agentsRuns(w)).toBe(2)
-  expect(lastLive(w)).toEqual([{ name: 'alpha', value: 'busy' }])
+  expect(lastLive(w)).toEqual([])
+  expect(lastLiveError(w)).toBe(UNREAD)
+  expect(claudeRuns(w)).toBe(0)
 })
 
 test('the pane keeps nothing from a session file but the name and status: no socket, bridge id or folder in any value it set', async ($, on) => {
@@ -4147,15 +4150,6 @@ test('the pane keeps nothing from a session file but the name and status: no soc
   // The file was read, and the key file beside it never was.
   expect(w.log.some(l => l.startsWith('read ') && l.endsWith('\\100.json'))).toBe(true)
   expect(w.log.some(l => l.startsWith('read ') && l.endsWith('.key'))).toBe(false)
-})
-
-test('a Refresh pressed while the pane is not the shown tab runs no claude agents and polls once, not over and over', async ($, on) => {
-  const w = await pane(on, $, 'desktop', w => liveRows(w, [{ name: 'alpha', status: 'busy', sessionId: S1, cwd: 'C:/work' }]))
-  w.shown = false
-  const polls = () => w.log.filter(l => l === `stat ${SESSIONS}`).length
-  const before = polls()
-  await press($, 'refresh')
-  await w.clock.settle()
-  expect(agentsRuns(w)).toBe(1)
-  expect(polls() - before).toBe(1)
+  // No Refresh button: there is nothing for it to run.
+  expect(await mounted.find({ key: 'refresh' })).toBeUndefined()
 })

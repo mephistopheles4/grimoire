@@ -24,7 +24,6 @@ import {
   lookup,
   oneLine,
   openerArgv,
-  parseAgents,
   parsePrList,
   placeRoster,
   readOpenAnswer,
@@ -38,7 +37,7 @@ import {
   toolSession,
   unixRealPath,
 } from './roster.ts'
-import type { AgentRow, GhPr, HostOs, StatAnswer } from './roster.ts'
+import type { GhPr, HostOs, StatAnswer } from './roster.ts'
 import {
   CACHE_CELLS,
   EMPTY_USAGE,
@@ -47,6 +46,7 @@ import {
   GROUP_NAMES,
   MAX_PICKED,
   MAX_TRANSCRIPT_BYTES,
+  SESSIONS_UNREAD,
   SVG_MAX,
   VIEW_LABELS,
   ageText,
@@ -71,7 +71,6 @@ import {
   isReason,
   linkStep,
   liveState,
-  mergeLive,
   metersFrom,
   newFinder,
   newSummaryMemory,
@@ -91,7 +90,6 @@ import {
   snapshotFrom,
   sparkRuns,
   sparkSvg,
-  staleIds,
   statusOf,
   statusStrip,
   ticksFrom,
@@ -133,11 +131,8 @@ import { registerWriter, writerEpoch, writerSession } from './writer.ts'
 const PANE = 'brigade'
 const TITLE = 'Brigade'
 const ROSTER_MS = 5000
-// The live poll reads the engine's session files this often; `claude agents
-// --json` runs at most this seldom on its own, and only while the pane is
-// the shown tab (#347).
+// The live poll reads the engine's session files this often (#347).
 const AGENTS_MS = 10000
-const FALLBACK_MS = 300000
 const GH_MS = 60000
 const TOOL = 'set_roster'
 
@@ -318,29 +313,12 @@ const summaries: SummaryMemory = newSummaryMemory()
 const linkFrom = new Map<string, string>()
 let polling = false
 
-// The `claude agents --json` check, kept in the module: its last rows (which
-// carry each session's folder, so they never enter plugin state), the
-// session ids of the files it did not list, when it last started on the
-// engine clock, whether the pane was the shown tab at the last poll, and
-// whether Refresh asked for a run. Closing the pane forgets the shown tab, so
-// the next open runs the check.
-let fallback: AgentRow[] | undefined
-let stale: ReadonlySet<string> = new Set()
-let agentsAt: number | undefined
-let wasShown = false
-let refreshWanted = false
-
 async function pollAgents($: EngineInterface, open: () => boolean) {
-  // One poll at a time: `claude agents` may take up to 15 s and the
-  // transcript reads add to that, so a tick that finds the last poll still
-  // running does nothing; a Refresh pressed meanwhile runs when it ends.
+  // One poll at a time: the transcript reads can take a while, so a tick
+  // that finds the last poll still running does nothing.
   if (polling) return
   polling = true
   try {
-    // A Refresh is taken once, by this poll; a press while it runs asks
-    // again. A Refresh while the pane is not the shown tab is dropped.
-    const asked = refreshWanted
-    refreshWanted = false
     // With no roster file to read there is no brigade to show, so no process
     // runs either; the pane already shows why.
     const at = await where($)
@@ -355,40 +333,15 @@ async function pollAgents($: EngineInterface, open: () => boolean) {
       list: async (path: string) => $.fs.list(path),
       read: async (path: string) => String(await $.fs.read(path)),
     }
-    // The live state, from the engine's session files every poll.
+    // The live state, from the engine's session files every poll. The pane
+    // runs no `claude agents --json`, which makes every running session do
+    // work at once (#347). A file that fails its check draws no row, and it,
+    // or a folder that cannot be read, draws the one fixed line.
     const files = await readSessions(at.config, io)
     if (!open()) return
-    // `claude agents` makes every running session do work at once (#347), so
-    // it runs only while the pane is the shown tab: when it becomes shown
-    // (an open included), when Refresh asks, and every 5 minutes. Each run
-    // marks the files it does not list, which a session that ended left.
-    const shown = await $.ui.panes().then(
-      panes => panes.some(p => p.id === PANE && p.isShown === true),
-      () => false,
-    )
-    const now = await $.clock.now().then(n => n, () => Number.NaN)
-    if (!open()) return
-    const late = agentsAt === undefined || (Number.isFinite(now) && (now < agentsAt || now - agentsAt >= FALLBACK_MS))
-    const due = shown && (asked || !wasShown || late)
-    wasShown = shown
-    if (due) {
-      agentsAt = Number.isFinite(now) ? now : Number.NEGATIVE_INFINITY
-      try {
-        const { exitCode, stdout, stderr } = await $.process.run(['claude', 'agents', '--json'], { timeoutMs: 15000 })
-        if (!open()) return
-        if (exitCode !== 0) throw new Error(oneLine(stderr, 200) || `exit ${exitCode}`)
-        const rows = parseAgents(stdout)
-        if ('error' in rows) throw new Error(rows.error)
-        fallback = rows.value
-        stale = staleIds(files, rows.value)
-        await update($, liveError, () => '')
-      } catch (err) {
-        await update($, liveError, () => `claude agents: ${oneLine(String(err instanceof Error ? err.message : err), 200)}`)
-      }
-      if (!open()) return
-    }
-    const rows = mergeLive(files, fallback, stale)
+    const rows = files?.rows ?? []
     await update($, live, () => rows.map(r => ({ name: r.name, value: r.status })))
+    await update($, liveError, () => (files?.complete === true ? '' : SESSIONS_UNREAD))
     try {
       // Transcripts are found under the config folder.
       const config = at.config
@@ -442,15 +395,6 @@ async function pollAgents($: EngineInterface, open: () => boolean) {
   } finally {
     polling = false
   }
-  if (refreshWanted && open()) await pollAgents($, open)
-}
-
-// Refresh: the check runs at once, or as soon as a poll in progress ends.
-function refreshNow($: EngineInterface) {
-  if (timers.length === 0) return
-  const mine = generation
-  refreshWanted = true
-  void pollAgents($, () => generation === mine)
 }
 
 // --- the PR details --------------------------------------------------------
@@ -630,8 +574,6 @@ function disarm() {
   generation++
   for (const t of timers) t.cancel()
   timers = []
-  wasShown = false
-  refreshWanted = false
 }
 
 // The roster timer's tick. The engine drops a pane whose drawing threw
@@ -1114,10 +1056,6 @@ export const register: Register = on => {
           return current.includes(group) ? current.filter(g => g !== group) : [...current, group]
         })
       }
-      return { element: e.element }
-    }
-    if (e.element === 'refresh') {
-      refreshNow($)
       return { element: e.element }
     }
     if (e.element === 'barclear') {
@@ -1748,13 +1686,6 @@ export const register: Register = on => {
               {view === 'prs' ? `${prCount} ${prCount === 1 ? 'pull request' : 'pull requests'}` : (sessionsCount ?? '')}
             </Text>
           </Box>
-          {tip(
-            'refresh',
-            <Button key="refresh" dimColor onPress={noop}>
-              {pointer ? '↻' : 'Refresh'}
-            </Button>,
-            'Refresh: ask claude agents now',
-          )}
           {switchButton('sessions', '◫', 'Sessions', 'Sessions')}
           {switchButton('prs', '⎇', 'Pull requests', `Pull requests ${prCount}`)}
         </Box>

@@ -1136,7 +1136,7 @@ test('the state contract declares ticking under the plugin\'s manifest name', ()
 // --- cache warmth ------------------------------------------------------------
 
 const { MAX_TRANSCRIPT_BYTES, NUDGE_TOKENS, callSeries, liveState, readCalls, warmthFrom, warmthLine } = view;
-const { parseAgents } = roster;
+const { sessionRow } = roster;
 const HOUR = 60 * MIN;
 
 // The last call as the cache bar reads it. Since #271 (spec revision 3 on
@@ -1347,18 +1347,20 @@ test('live states: busy and running are success, idle and blocked warning, other
   assert.deepEqual(liveState(undefined), { text: 'not running', color: 'inactive' });
 });
 
-test('the agents-row parser reads an interactive row\'s status and a background row\'s state', () => {
+test('a session file row reads an interactive session\'s status and a background session\'s state', () => {
   const sid = '11111111-2222-4333-8444-555555555555';
-  const rows = parseAgents(JSON.stringify([
-    { name: 'Interactive', status: 'busy', sessionId: sid, cwd: 'C:\\w' },
-    { name: 'Background', state: 'blocked', sessionId: sid, cwd: 'C:\\w' },
-    { name: 'Both', status: 'idle', state: 'blocked' },
-    { name: 'Neither' },
-    { name: 'Hostile', state: '\u{202E}x\ny'.repeat(10) },
-  ]));
-  assert.ok('value' in rows);
-  assert.deepEqual(rows.value.map(r => r.status), ['busy', 'blocked', 'idle', '?', rows.value[4].status]);
-  assert.ok(rows.value[4].status.length <= 20 && !/[\n\u{202E}]/u.test(rows.value[4].status));
+  const row = r => sessionRow(JSON.stringify({ sessionId: sid, ...r }));
+  const rows = [
+    row({ name: 'Interactive', status: 'busy' }),
+    row({ name: 'Background', state: 'blocked' }),
+    row({ name: 'Both', status: 'idle', state: 'blocked' }),
+    row({ name: 'Neither' }),
+    row({ name: 'Hostile', state: '\u{202E}x\ny'.repeat(10) }),
+  ];
+  assert.deepEqual(rows.map(r => r.status), ['busy', 'blocked', 'idle', '?', rows[4].status]);
+  assert.ok(rows[4].status.length <= 20 && !/[\n\u{202E}]/u.test(rows[4].status));
+  assert.equal(sessionRow(JSON.stringify({ name: 'No id', status: 'idle' })), undefined);
+  assert.equal(sessionRow(JSON.stringify([{ name: 'A list', sessionId: sid }])), undefined);
 });
 
 // The read decision, with a fake file system.
@@ -4461,7 +4463,7 @@ test('no colour in the register or view modules is a hex or a colour name outsid
 // too. Every other field the engine writes there is left unread: the fake
 // file holds the kinds of field it has, made up.
 
-const { MAX_SESSION_FILE_BYTES, mergeLive, readSessions, staleIds } = view;
+const { MAX_SESSION_FILE_BYTES, SESSIONS_UNREAD, readSessions } = view;
 const SESSIONS = `${CONFIG}\\sessions`;
 const sessionText = (name, i, status = 'idle', extra = {}) =>
   JSON.stringify({
@@ -4542,16 +4544,6 @@ test('no sessions folder, one that is a link, or a listing that fails or is not 
   assert.equal(await readSessions(CONFIG, odd.io), undefined);
 });
 
-test('the live rows: the files win, a session the last claude agents run did not list is dropped, and its rows fill in only when the files could not all be read', () => {
-  const A = agent('A', 0, 'busy');
-  const B = agent('B', 1);
-  const C = agent('C', 2);
-  const fallback = [agent('A', 0, 'idle'), C];
-  assert.deepEqual(mergeLive({ complete: true, rows: [A, B] }, fallback, new Set([SID[1]])), [A]);
-  assert.deepEqual(mergeLive({ complete: false, rows: [A] }, fallback, new Set()), [A, C]);
-  assert.deepEqual(mergeLive({ complete: false, rows: [A] }, fallback, new Set([SID[2]])), [A], 'a stale id is not filled in either');
-  assert.deepEqual(mergeLive(undefined, fallback, new Set()), fallback);
-  assert.deepEqual(mergeLive(undefined, undefined, new Set()), []);
-  assert.deepEqual(staleIds({ complete: true, rows: [A, B] }, [A, C]), new Set([SID[1]]));
-  assert.deepEqual(staleIds(undefined, [A]), new Set());
+test('the fixed line names no path and no reason', () => {
+  assert.equal(SESSIONS_UNREAD, 'Cannot read the session files.');
 });
