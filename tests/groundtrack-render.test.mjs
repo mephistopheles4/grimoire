@@ -19,7 +19,8 @@ import { mkdtempSync, mkdirSync, rmSync, writeFileSync, readFileSync, existsSync
 import { tmpdir } from 'node:os';
 import { join, sep } from 'node:path';
 import { createHash } from 'node:crypto';
-import { root, groundtrack, examples, exampleFlightpath, layeredFlightpath, run, errorPastTwoSites } from './helpers.mjs';
+import vm from 'node:vm';
+import { root, groundtrack, examples, exampleFlightpath, layeredFlightpath, run, errorPastTwoSites, scriptBlocks } from './helpers.mjs';
 
 const work = mkdtempSync(join(tmpdir(), 'grimoire-groundtrack-'));
 after(() => rmSync(work, { recursive: true, force: true }));
@@ -2386,16 +2387,16 @@ test('author text reaches the page as text, in every field the page shows', () =
   assert.equal(r.code, 0, r.stderr);
   const html = pageOf(file);
 
-  // The script block cannot be closed from inside the embedded file. Only the
-  // closing sequence matters: a bare "<script" inside a script block is text,
-  // and the escape leaves it alone on purpose.
+  // The script block cannot be closed from inside the embedded file. The
+  // escape writes every "<" in the file as its JSON escape, so neither a
+  // closing tag nor a comment opener reaches the block as markup.
   //
   // Three closers, not two. The third is the scheme script in <head>, which
   // reads prefers-color-scheme before first paint and carries no author text
   // at all. Raise this number only for another block the page ships itself;
   // a closer that arrives from the flightpath file is the bug this counts.
   assert.equal((html.match(/<\/script>/g) || []).length, 3, 'the page has exactly the three closers it ships');
-  assert.match(html, /<\\\/script>/, 'the payload carries the closing tag escaped');
+  assert.ok(html.includes('\\u003c/script>'), 'the payload carries the closing tag escaped');
 
   // Every poisoned string reaches the markup escaped, and the raw tag appears
   // nowhere outside the JSON payload the page parses as data.
@@ -2403,6 +2404,24 @@ test('author text reaches the page as text, in every field the page shows', () =
   const payloadEnd = html.indexOf('\n', payloadStart);
   const markup = html.slice(0, payloadStart) + html.slice(payloadEnd);
   assert.doesNotMatch(markup, /<img src=x onerror/);
+});
+
+test('a file whose text opens an HTML comment leaves the player block parseable', () => {
+  // Escaping only the closing-tag sequence is not enough. A comment opener has
+  // no slash: "<!--" puts the tokenizer in its escaped state, a "<script" after
+  // it moves it to double-escaped, and there the page's own "</script>" ends
+  // nothing.
+  // The player block then runs on to the end of the page and stops parsing.
+  const text = 'a reason holding <!--<script> as plain text';
+  const file = derive(prog => { prog.nodes.greet.steps[1].aside = text; });
+  const blocks = scriptBlocks(pageOf(file));
+  assert.equal(blocks.length, scriptBlocks(pageOf(exampleFlightpath)).length, 'the page keeps every script block it ships');
+
+  const player = blocks.find(s => s.includes('const PROG ='));
+  assert.ok(player, 'the player block is there');
+  assert.doesNotThrow(() => new vm.Script(player), 'the player block parses as script');
+  const json = /const PROG = Groundtrack\.hardenKeys\((.*)\);\n/.exec(player)[1];
+  assert.equal(JSON.parse(json).nodes.greet.steps[1].aside, text, 'the text reaches the page as itself');
 });
 
 test('the files tab names its groups and says what its marks mean', () => {

@@ -408,3 +408,47 @@ function childEnv(extra) {
   delete env.NODE_TEST_CONTEXT;
   return env;
 }
+
+/**
+ * The text of each script element in a page, cut where a browser cuts it.
+ *
+ * A regex for "</script>" is not enough. The HTML tokenizer enters an escaped
+ * state at "<!--" inside a script, and a "<script" seen there moves it to a
+ * double-escaped state where the next "</script>" does not end the element.
+ * So a comment opener in inlined text can swallow the page's own closing tag.
+ * This follows the script data states of the HTML standard (13.2.5.4 onward):
+ * data, escaped and double-escaped. It reads script elements only.
+ */
+export function scriptBlocks(html) {
+  const tag = (at, close) => {
+    const m = /^script[\t\n\f\r />]/i.exec(html.slice(at + (close ? 2 : 1), at + (close ? 2 : 1) + 7));
+    return m !== null && html[at] === '<' && (!close || html[at + 1] === '/');
+  };
+  const blocks = [];
+  const open = /<script\b[^>]*>/gi;
+  let m;
+  while ((m = open.exec(html))) {
+    const start = m.index + m[0].length;
+    let state = 'data';
+    let i = start;
+    let end = -1;
+    while (i < html.length) {
+      if (state === 'data') {
+        if (tag(i, true)) { end = i; break; }
+        if (html.startsWith('<!--', i)) { state = 'escaped'; i += 2; continue; }
+      } else if (html.startsWith('-->', i)) {
+        state = 'data'; i += 3; continue;
+      } else if (state === 'escaped') {
+        if (tag(i, true)) { end = i; break; }
+        if (tag(i, false)) { state = 'double'; i += 7; continue; }
+      } else if (tag(i, true)) {
+        state = 'escaped'; i += 8; continue;
+      }
+      i++;
+    }
+    if (end < 0) { blocks.push(html.slice(start)); break; }
+    blocks.push(html.slice(start, end));
+    open.lastIndex = end;
+  }
+  return blocks;
+}

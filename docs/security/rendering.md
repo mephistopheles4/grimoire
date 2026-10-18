@@ -9,8 +9,10 @@ summary.
 
 Both skills pair two guards.
 
-- **Before the file's JSON goes into a `<script>` block, the renderer escapes
-  `</`.** A string that contains `</script>` cannot close the block. See
+- **Before the file's JSON goes into a `<script>` block, the renderer writes
+  every `<` as `\u003c`.** A string that contains `</script>` cannot close
+  the block, and one that contains `<!--` cannot open a comment that keeps the
+  page's own `</script>` from closing it. See
   `skills/eagle-eye/render.mjs` and `skills/groundtrack/scripts/render.mjs`.
 - **Before author text reaches `innerHTML`, the page escapes `&` and `<`, and
   not the double quote.** The function is `esc` in
@@ -78,7 +80,9 @@ just read that ids were validated. That is why it is a rule and not only a fix.
   through. Widening or narrowing the escape is then a visible test change.
 - **The script block.** [`tests/render.test.mjs`](../../tests/render.test.mjs)
   renders a `why` carrying `</script><script>…</script>` and checks it closes
-  no block.
+  no block. Both test files also render text holding `<!--<script>`, cut the
+  page's script blocks the way the HTML tokenizer does, and check the data
+  block still parses and gives the text back.
   [`tests/groundtrack-render.test.mjs`](../../tests/groundtrack-render.test.mjs)
   puts `<`, `&`, a double quote and a closing script tag into **every**
   author-written field the page shows. A field left out of that fixture is a
