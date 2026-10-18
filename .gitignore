@@ -8,3 +8,8 @@ site/
 *.local.*
 .DS_Store
 Thumbs.db
+# Interview drafts are scratch files holding a person's answers. The one
+# tracked on purpose is the contract skill's measurement draft, which its
+# limits were set against (spec v4.2 on #313).
+*.interview.json
+!docs/limits/contract-skill.interview.json

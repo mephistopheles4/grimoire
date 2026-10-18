@@ -1,0 +1,48 @@
+{
+  "format": 1,
+  "parts": ["purpose", "why", "good", "roles", "tools", "rules", "writing", "open"],
+  "levels": {
+    "Quick": ["purpose", "why", "good", "roles", "tools"],
+    "Standard": ["purpose", "why", "good", "roles", "tools", "rules", "writing"],
+    "Thorough": ["purpose", "why", "good", "roles", "tools", "rules", "writing", "open"]
+  },
+  "choices": {
+    "choice": ["asks-at-once", "pauses-at-set-points", "leaves-questions", "decides-and-shows"],
+    "status": ["potential", "observed"]
+  },
+  "words": {
+    "asks-at-once": "asks you at once",
+    "pauses-at-set-points": "pauses at set points",
+    "leaves-questions": "leaves questions in the result",
+    "decides-and-shows": "decides, and shows you"
+  },
+  "kinds": [
+    { "id": "name", "kind": "job title", "part": "purpose", "fields": [{ "name": "name" }], "exports": "the name", "stakes": "low", "hiring": "The job is called ___", "plain": "Name: ___" },
+    { "id": "job", "kind": "the job", "part": "purpose", "fields": [{ "name": "does" }, { "name": "for" }], "exports": "the one sentence: what it does, and for whom", "stakes": "low", "hiring": "In one sentence, the job is ___, for ___", "plain": "It does ___, for ___" },
+    { "id": "steps-in", "kind": "call on it when", "part": "purpose", "fields": [{ "name": "when" }], "exports": "when it steps in", "stakes": "low", "hiring": "Call on it when ___", "plain": "It steps in when ___" },
+    { "id": "stays-out", "kind": "not its job", "part": "purpose", "fields": [{ "name": "what" }], "exports": "when it stays out", "stakes": "low", "hiring": "It is not its job to handle ___", "plain": "It stays out of ___" },
+    { "id": "near-miss", "kind": "easy to confuse with", "part": "purpose", "fields": [{ "name": "situation" }], "exports": "the nearest situation where it would be wrong", "stakes": "low", "hiring": "The request most easily mistaken for its job is ___", "plain": "The nearest wrong situation is ___" },
+    { "id": "why", "kind": "in your words", "part": "why", "fields": [{ "name": "text" }], "exports": "why", "stakes": "none", "hiring": "We are hiring because ___", "plain": "Why: ___" },
+    { "id": "example", "kind": "a sample of great work", "part": "good", "fields": [{ "name": "text" }], "exports": "the real example, or the winning draft", "stakes": "low", "hiring": "Great work looks like this: ___", "plain": "The example: ___" },
+    { "id": "bar", "kind": "the bar", "part": "good", "fields": [{ "name": "good" }, { "name": "so-so" }], "exports": "what separates good from so-so, in a line or two", "stakes": "low", "hiring": "Great is ___; so-so is ___", "plain": "Good is ___; so-so is ___" },
+    { "id": "duty", "kind": "a duty", "part": "roles", "fields": [{ "name": "text" }], "exports": "what it is responsible for", "stakes": "low", "hiring": "It ___", "plain": "It ___" },
+    { "id": "checked", "kind": "already checked", "part": "roles", "fields": [{ "name": "what" }, { "name": "by" }], "exports": "what automatic checks already enforce", "stakes": "low", "hiring": "Already checked: ___, by ___", "plain": "Already checked: ___, by ___" },
+    { "id": "sign-off", "kind": "your sign-off", "part": "roles", "fields": [{ "name": "decision" }], "exports": "the decisions that stay yours", "stakes": "high", "hiring": "Only you decide: ___", "plain": "The person decides: ___" },
+    { "id": "stop", "kind": "a stop", "part": "roles", "fields": [{ "name": "when" }, { "name": "then", "optional": true }], "exports": "the moments it stops and asks, \"when X happens\"", "stakes": "high", "hiring": "When ___, it stops and asks you, and ___", "plain": "When ___, it stops and asks, and ___" },
+    { "id": "trigger", "kind": "where its trigger lives", "part": "roles", "fields": [{ "name": "by" }, { "name": "kept-in" }, { "name": "when-it-fails" }], "exports": "what makes it step in, where that trigger lives, and what happens when it does not", "stakes": "high", "hiring": "It is called in by ___, kept in ___; when that fails, ___", "plain": "Its trigger is ___, in ___; when it fails, ___" },
+    { "id": "unsure", "kind": "when unsure", "part": "roles", "fields": [{ "name": "choice", "type": "choice" }, { "name": "why" }], "exports": "when it is unsure: one of the four choices, and why", "stakes": "high", "hiring": "When it is unsure, it ___, because ___", "plain": "When unsure, it ___, because ___" },
+    { "id": "key", "kind": "a key", "part": "tools", "fields": [{ "name": "capability" }, { "name": "reason" }, { "name": "detail", "optional": true }], "exports": "a capability, with its reason", "stakes": "high", "hiring": "Its badge lets it ___, so that ___ (___)", "plain": "It may ___, so that ___ (___)", "hint": "Name the access; never paste a real key" },
+    { "id": "limit", "kind": "a limit", "part": "tools", "fields": [{ "name": "text" }], "exports": "its limits", "stakes": "high", "hiring": "Limit: ___", "plain": "Limit: ___" },
+    { "id": "runtime", "kind": "what it needs to run", "part": "tools", "fields": [{ "name": "needs" }], "exports": "what it needs installed to run, which a skill's frontmatter compatibility line states", "stakes": "low", "hiring": "To work, it needs ___", "plain": "Needs: ___" },
+    { "id": "built-for", "kind": "the tool it is built for", "part": "tools", "fields": [{ "name": "tool" }], "exports": "the tool it is built for, \"Built for ___\"", "stakes": "high", "hiring": "It works in ___", "plain": "Built for ___", "types": ["agent", "CLAUDE.md"] },
+    { "id": "service", "kind": "a connected service", "part": "tools", "fields": [{ "name": "service" }, { "name": "can" }, { "name": "holds" }, { "name": "sends-to" }], "exports": "a connected service: what its tools can do, the kinds of data it holds, the kinds of place it can send data", "stakes": "high", "hiring": "Through ___ it can ___, holding ___ and sending to ___", "plain": "___: can ___, holds ___, sends to ___" },
+    { "id": "action", "kind": "an action with consequences", "part": "tools", "fields": [{ "name": "act" }, { "name": "tells-first" }, { "name": "yes" }], "exports": "an action beyond reading and writing its own notes, what it tells you first, what counts as your yes", "stakes": "high", "hiring": "Before it ___, it tells you ___ and waits for ___", "plain": "To ___, it first says ___; your yes is ___" },
+    { "id": "record", "kind": "a record it keeps", "part": "tools", "fields": [{ "name": "what" }, { "name": "where" }], "exports": "a record of what it did: where it is kept and what it holds", "stakes": "high", "hiring": "It keeps a record of ___, in ___", "plain": "Record: ___, in ___" },
+    { "id": "binding-key", "kind": "a binding key", "part": "tools", "fields": [{ "name": "setting" }, { "name": "value" }], "exports": "each setting that lets it act without your approval, with its value; each extra key the binding names", "stakes": "high", "hiring": "Its setting ___ is ___", "plain": "Setting ___: ___", "types": ["agent", "CLAUDE.md"] },
+    { "id": "rule", "kind": "a house rule", "part": "rules", "fields": [{ "name": "rule", "optional": true }, { "name": "guards" }, { "name": "status", "type": "choice" }, { "name": "seen", "optional": true }], "exports": "a row of the rules table: rule, guards against, status", "stakes": "low", "hiring": "Rule: ___, because otherwise ___", "plain": "Rule: ___; guards against ___" },
+    { "id": "term", "kind": "a word in the glossary", "part": "writing", "fields": [{ "name": "word" }, { "name": "meaning" }, { "name": "standard", "optional": true }], "exports": "the term list: word, plain meaning, standard", "stakes": "low", "hiring": "___ means ___", "plain": "___: ___" },
+    { "id": "style", "kind": "house style", "part": "writing", "fields": [{ "name": "text" }], "exports": "writing rules and formats", "stakes": "low", "hiring": "It writes ___", "plain": "Writes: ___" },
+    { "id": "probation", "kind": "a probation check", "part": "open", "fields": [{ "name": "question" }, { "name": "why-open" }, { "name": "settled-when" }], "exports": "a row of the open table", "stakes": "low", "hiring": "We still need to learn ___, because ___, and will know when ___", "plain": "Open: ___; because ___; settled when ___" },
+    { "id": "retire", "kind": "when to let it go", "part": "open", "fields": [{ "name": "text" }], "exports": "when you would retire it", "stakes": "low", "hiring": "You would let it go when ___", "plain": "Retired when ___" }
+  ]
+}
