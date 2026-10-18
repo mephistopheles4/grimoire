@@ -145,8 +145,8 @@ imports node built-in modules and nothing else. A patch that adds a package
 needs to argue for itself in the pull request body before anybody reads the
 diff. See [`SECURITY.md`](SECURITY.md) for why this matters more than it looks.
 
-`node scripts/check.mjs` enforces this. It fails on a `package.json`, a
-lockfile, and any code file importing a bare specifier — an import path that
+`node scripts/check.mjs` enforces this. It fails on a `package.json` and a
+lockfile, in any case, and on any code file importing a bare specifier — an import path that
 is not relative, not absolute, and not a `node:` builtin. A path starting with
 `//` names a host, so it counts as a package, not as absolute. Code means every
 suffix Node or the Claude Code engine loads: `.ts`, `.tsx`, `.jsx`, `.js`,
@@ -294,8 +294,9 @@ holds both folders to the fixed-path rule and the version bump, as it holds
 hooks file names, every quoted `./` or `../` path in the mod's code, with either slash, and
 the manifest's `hooks` and `types` paths must land in `brigade/` or `hooks/`;
 an import line the check reads may not hold an absolute path; no shipped root
-folder (`skills/`, `.claude-plugin/`, `brigade/`, `hooks/`) nor
-`hooks/hooks.json` may be spelled in another case; and a hooks file may
+folder (`skills/`, `.claude-plugin/`, `brigade/`, `hooks/`), nor
+`hooks/hooks.json`, nor either manifest in `.claude-plugin/`, may be spelled in
+another case; and a hooks file may
 hold nothing but `modules`, because a settings hook there would run a command
 no rule reads. A mod kept in any other folder is outside those rules until
 `MOD_DIRS` in `scripts/check.mjs` names it. The engine writes its own type declarations into
@@ -310,9 +311,13 @@ command or change what installs. The check fails on a root entry named like one
 of those places, in any case, and on a key in `plugin.json` or
 `marketplace.json` outside a short allow-list of metadata and the two pointers
 it reads. It reads the root from the disk, so an untracked `.mcp.json` fails
-too: the engine loads it from a checkout loaded in place. To use a place or a
-key, take it off its list in rule 6c of `scripts/check.mjs` and add a rule that
-reads what it loads, as the mod's folders and the `hooks` key are read.
+too: the engine loads one when it loads this folder as a plugin directory, as
+`claude --plugin-dir .` does. It reads names only and never opens the file.
+The lists are in rule 6c of `scripts/check.mjs`. To use a place, take it off
+`LOAD_ROOTS` and hold it to the rules the mod's folders are held to. To use a
+key, add it to its allow-list with a reason; a key that loads or runs
+something also needs a rule that reads where it points, as the `hooks` key is
+read.
 
 **Changing the export format touches three places.** The page writes it,
 `SKILL.md` specifies it, and the agent reads it back. All three in one commit,
@@ -339,8 +344,9 @@ or none.
 4. Run `node scripts/check.mjs`.
 
 There is no per-skill manifest. The repository is one plugin and every skill
-lives under it. A skill nested deeper than `skills/<name>/` needs an explicit
-`skills` array in `plugin.json`; the check says so if you try.
+lives under it. Each skill sits at `skills/<name>/`: the engine scans one level
+deep, and the `skills` key in `plugin.json` that would reach a deeper folder is
+refused by rule 6c. The check says so if you try.
 
 Open an issue first if the skill is large. It is easier to agree on scope before
 you write ten pages than after.

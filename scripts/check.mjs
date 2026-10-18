@@ -484,15 +484,16 @@ if (mkt.name === plugin.name) {
 }
 
 // Every skill directory holds a SKILL.md. The default scan reads skills/<name>/,
-// one level deep. A nested layout (skills/<category>/<name>/) needs an explicit
-// "skills" array in plugin.json, which this repo does not have and does not need.
+// one level deep. A nested layout (skills/<category>/<name>/) would need a
+// "skills" key in plugin.json, which rule 6c refuses until a rule reads where
+// it points, so each skill sits at skills/<name>/.
 for (const e of readdirSync(join(root, 'skills'), { withFileTypes: true })) {
   if (!e.isDirectory()) continue;
   try {
     statSync(join(root, 'skills', e.name, 'SKILL.md'));
   } catch {
     fail(
-      `skills/${e.name}/ has no SKILL.md — the default scan reads one level, so a category folder needs a "skills" array in plugin.json`,
+      `skills/${e.name}/ has no SKILL.md — the default scan reads one level, so put each skill at skills/<name>/SKILL.md. A "skills" key in plugin.json that lists deeper folders is refused by rule 6c.`,
     );
   }
 }
@@ -641,7 +642,10 @@ const MANIFESTS = new Set([
   'bun.lock',
   'bun.lockb',
 ]);
-for (const f of files.filter(f => MANIFESTS.has(basename(f)))) {
+// In any case, too: the engine installs packages when the plugin root holds a
+// manifest and a lockfile, and an install that folds case finds Package.json.
+const isManifest = name => MANIFESTS.has(name) || [...MANIFESTS].some(m => caseTwin(name, m));
+for (const f of files.filter(f => isManifest(basename(f)))) {
   fail(
     `${rel(f)}: a dependency manifest or lockfile — delete it. This repository takes no dependency and has no install step, which is what lets the tests run on \`node --test\` and the skill run from a checkout. See CONTRIBUTING.md, "Do not add a dependency", and SECURITY.md for why it matters more than it looks.`,
   );
@@ -843,6 +847,14 @@ for (const e of readdirSync(root, { withFileTypes: true })) {
 for (const e of existsSync(join(root, 'hooks')) ? readdirSync(join(root, 'hooks')) : []) {
   if (caseTwin(e, 'hooks.json')) fail(`hooks/${shown(e)} is hooks/hooks.json in another case — an install that folds case loads it, and the check reads only hooks/hooks.json. Rename it.`);
 }
+// The same for the two manifests: every rule reads them by their exact names,
+// and a checkout that folds case keeps one of two twins, which may be the one
+// no rule read.
+for (const e of readdirSync(join(root, '.claude-plugin'))) {
+  for (const m of ['plugin.json', 'marketplace.json']) {
+    if (caseTwin(e, m)) fail(`.claude-plugin/${shown(e)} is .claude-plugin/${m} in another case — a checkout that folds case keeps one of the two, and the check reads only .claude-plugin/${m}. Remove it.`);
+  }
+}
 
 // 6c. Nothing else the engine loads.
 //
@@ -860,26 +872,31 @@ for (const e of existsSync(join(root, 'hooks')) ? readdirSync(join(root, 'hooks'
 // The places are the plugin manifest reference's "Standard layout", beyond
 // skills/ and hooks/hooks.json, which the rules above read. The root is read
 // from the disk, not the walk, as the case rule above reads it: a local
-// .mcp.json that git does not track fails too, because the engine loads it
-// from a checkout loaded in place.
+// .mcp.json that git does not track fails too, because the engine loads one
+// when it loads this folder as a plugin directory, as `claude --plugin-dir .`
+// does. It reads names only and never opens the file.
 //
-// The lists read names, never values. To use a place or a key, take it off
-// its list here and hold what it loads to the rules: add the place to
-// isShipped and rule 5's pathspec as MOD_DIRS is, and give the key a rule that
-// reads where it points, as 6b reads "hooks".
+// The lists read names, never values. LOAD_ROOTS lists what is refused, and
+// the three key sets list what is allowed. To use a place, take it off
+// LOAD_ROOTS and hold what it loads to the rules: add it to isShipped and rule
+// 5's pathspec, as MOD_DIRS is. To use a key, add it to its set with a reason:
+// a key that loads or runs nothing needs only the reason, and a key that does
+// needs a rule that reads where it points, as 6b reads "hooks".
 const LOAD_ROOTS = ['commands', 'agents', 'output-styles', 'workflows', 'themes', 'monitors', 'bin', '.mcp.json', '.lsp.json', 'settings.json', 'SKILL.md'];
 const PLUGIN_KEYS = new Set(['$schema', 'name', 'version', 'description', 'author', 'homepage', 'repository', 'license', 'keywords', 'types', 'hooks']);
 const MARKET_KEYS = new Set(['$schema', 'name', 'owner', 'description', 'plugins']);
 // version stays on the entry's list so rule 4's message to drop it still fires.
 const MARKET_ENTRY_KEYS = new Set(['name', 'source', 'description', 'category', 'keywords', 'version']);
-const UNREAD = 'the engine loads components, runs commands or changes what installs from keys like it, and no rule here reads where they point. Remove it, or take it off the list in rule 6c of scripts/check.mjs with a rule that reads it.';
-const keyFail = (where, key, set) => fail(`${where} holds "${shown(key)}", which is not one of ${[...set].join(', ')} — ${UNREAD}`);
+const UNREAD = 'the engine loads components, runs commands or changes what installs from keys like it, and no rule here reads where they point. Remove it, or add it to that list in rule 6c of scripts/check.mjs with a reason, and with a rule that reads where it points if it loads or runs anything.';
+// The file, the entry and the key are masked as one string, so an account
+// name found in one is masked wherever it repeats on the line.
+const keyFail = (where, key, set) => fail(`${shown(`${where} holds "${key}"`)}, which is not one of ${[...set].join(', ')} — ${UNREAD}`);
 for (const key of Object.keys(plugin)) if (!PLUGIN_KEYS.has(key)) keyFail('.claude-plugin/plugin.json', key, PLUGIN_KEYS);
 for (const key of Object.keys(mkt)) if (!MARKET_KEYS.has(key)) keyFail('.claude-plugin/marketplace.json', key, MARKET_KEYS);
-for (const p of mkt.plugins) for (const key of Object.keys(p)) if (!MARKET_ENTRY_KEYS.has(key)) keyFail(`.claude-plugin/marketplace.json "${shown(String(p.name))}"`, key, MARKET_ENTRY_KEYS);
+for (const p of mkt.plugins) for (const key of Object.keys(p)) if (!MARKET_ENTRY_KEYS.has(key)) keyFail(`.claude-plugin/marketplace.json "${String(p.name)}"`, key, MARKET_ENTRY_KEYS);
 for (const e of readdirSync(root, { withFileTypes: true })) {
   const hit = LOAD_ROOTS.find(d => e.name === d || caseTwin(e.name, d));
-  if (hit) fail(`${shown(e.name)}${e.isDirectory() ? '/' : ''} at the root is a place the engine loads (${hit}) — it would load what no rule here reads. Remove it, or take it off LOAD_ROOTS in rule 6c of scripts/check.mjs and hold it to the rules the mod's folders are held to.`);
+  if (hit) fail(`${shown(e.name)}${e.isDirectory() ? '/' : ''} at the root is a place the engine loads (${hit}) — it would load what no rule here reads. Remove it, or take it off LOAD_ROOTS in rule 6c of scripts/check.mjs and hold it to the rules the mod's folders are held to (isShipped and rule 5).`);
 }
 
 // 7. The SkillSpector baselines agree: a skill's entry gives the root's reason and is never broader.

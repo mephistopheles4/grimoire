@@ -40,6 +40,8 @@ test('each default place the engine loads at the root fails, and the failure nam
     const shown = file.includes('/') ? `${place}/` : place;
     assert.match(r.stderr, new RegExp(`- ${esc(shown)} at the root is a place the engine loads \\(${esc(place)}\\)`), place);
   }
+  // The way on, for a place: LOAD_ROOTS refuses, so the place comes off it.
+  assert.match(r.stderr, /Remove it, or take it off LOAD_ROOTS in rule 6c of scripts\/check\.mjs/);
 });
 
 test('a default place spelled in another case fails, because an install that folds case loads it', () => {
@@ -59,6 +61,10 @@ test('a root entry whose name only starts or ends like a default place passes', 
   modFile(dir, 'command.md', 'x\n');
   modFile(dir, 'AGENTS.md', 'x\n');
   modFile(dir, 'my-settings.json', '{}\n');
+  // $schema is on both allow-lists, and the real manifests carry neither.
+  writeJson(manifest(dir), { $schema: 'https://example.com/plugin.json', ...readJson(manifest(dir)) });
+  const mp = join(dir, '.claude-plugin', 'marketplace.json');
+  writeJson(mp, { $schema: 'https://example.com/marketplace.json', ...readJson(mp) });
   assertPasses(dir);
 });
 
@@ -74,12 +80,16 @@ const PLUGIN_OFF_LIST = [
 test('every plugin.json key outside the allow-list fails, and the failure names it', () => {
   const dir = tree();
   const m = readJson(manifest(dir));
-  for (const key of PLUGIN_OFF_LIST) Object.defineProperty(m, key, { value: key === 'skills' ? ['./'] : {}, enumerable: true });
+  // A path list, a boolean, a string and objects: the refusal reads the key, whatever its value.
+  const value = { skills: ['./'], defaultEnabled: false, displayName: 'x', icon: './x.png' };
+  for (const key of PLUGIN_OFF_LIST) Object.defineProperty(m, key, { value: Object.hasOwn(value, key) ? value[key] : {}, enumerable: true });
   writeJson(manifest(dir), m);
   const r = assertFails(dir, /plugin\.json holds "/);
   for (const key of PLUGIN_OFF_LIST) {
     assert.match(r.stderr, new RegExp(`\\.claude-plugin/plugin\\.json holds "${esc(key)}", which is not one of`), key);
   }
+  // The way on, for a key: the sets allow, so the key goes onto one.
+  assert.match(r.stderr, /Remove it, or add it to that list in rule 6c of scripts\/check\.mjs with a reason/);
 });
 
 // An entry accepts every plugin.json key and its own: components it appends,
@@ -106,4 +116,33 @@ test('every marketplace key outside its allow-list fails, at the top level and i
   for (const key of MARKET_OFF_LIST) {
     assert.match(r.stderr, new RegExp(`\\.claude-plugin/marketplace\\.json holds "${esc(key)}", which is not one of`), key);
   }
+});
+
+test('a skill folder deeper than skills/<name>/ is sent to skills/<name>/SKILL.md, not to a refused skills key', () => {
+  // Rule 4 used to say a category folder needs a "skills" array in
+  // plugin.json, which rule 6c now refuses: following one failure into another.
+  const dir = tree();
+  modFile(dir, 'skills/category/inner/SKILL.md', 'x\n');
+  const r = assertFails(dir, /skills\/category\/ has no SKILL\.md — the default scan reads one level, so put each skill at skills\/<name>\/SKILL\.md/);
+  assert.doesNotMatch(r.stderr, /needs a "skills" array/);
+});
+test('a manifest spelled in another case beside the real one fails, because a checkout that folds case keeps only one of them', () => {
+  // The check reads plugin.json and marketplace.json by their exact names. A
+  // twin beside each can be the file a folding checkout keeps, read by no
+  // rule. The long s upper-cases to S, so each twin can sit beside its manifest\n  // here; a plain upper-case twin would overwrite it on a disk that folds case.
+  const dir = tree();
+  modFile(dir, '.claude-plugin/plugin.j\u{17F}on', '{}\n');
+  modFile(dir, '.claude-plugin/marketplace.j\u{17F}on', '{}\n');
+  const r = assertFails(dir, /\.claude-plugin\/plugin\.j\u{17F}on is \.claude-plugin\/plugin\.json in another case/u);
+  assert.match(r.stderr, /\.claude-plugin\/marketplace\.j\u{17F}on is \.claude-plugin\/marketplace\.json in another case/u);
+});
+
+test('a package manifest or lockfile in another case fails, as the exact name does', () => {
+  // The engine installs packages when the plugin root holds a package manifest
+  // and a lockfile, and an install that folds case finds Package.json.
+  const dir = tree();
+  modFile(dir, 'Package.json', '{}\n');
+  modFile(dir, 'Bun.lock', '\n');
+  const r = assertFails(dir, /Package\.json: a dependency manifest or lockfile/);
+  assert.match(r.stderr, /Bun\.lock: a dependency manifest or lockfile/);
 });

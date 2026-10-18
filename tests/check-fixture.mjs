@@ -92,7 +92,8 @@ export const manifest = dir => join(dir, '.claude-plugin', 'plugin.json');
 
 export const setVersion = (dir, v) => writeJson(manifest(dir), { ...readJson(manifest(dir)), version: v });
 
-// A file of the mod, written into the copy at run time. The tests of the rules
+// A file of the mod, or any other file a test puts in the copy, written at run
+// time. The tests of the rules
 // that cover the mod write the files they break here, the way the
 // format-check tests write their fixture skills, so a test holds whatever the
 // committed mod looks like. `rel` is a forward-slash
