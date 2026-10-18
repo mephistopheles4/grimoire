@@ -291,13 +291,16 @@ input[type=checkbox] { accent-color: var(--av-ink); margin: 0 var(--av-s1) 0 0; 
 .nd-count { font-size: var(--av-t-micro); font-weight: 600; margin-left: var(--av-s1); }
 
 /* A node is a part on the drawing. Its states are line weights: the open one
-   carries an outline set off the box, one on the stack a hairline outside it,
-   one the run has never called a hairline box in construction ink. */
+   carries an outline set off the box, one on the stack a hairline outside it
+   in the state rule, the stroke the tree uses and the one that holds 3:1 on
+   paper. A box says only that it has an open frame; which frame is running
+   is the chip's to say. One the run has never called is a hairline box in
+   construction ink. */
 .nd { position: absolute; width: 356px; background: var(--av-paper); border: var(--av-rule-bold) solid var(--av-ink);
   padding: var(--av-s2); cursor: pointer; overflow: hidden; transition: border-color 150ms; }
 .nd--cold { border-width: var(--av-rule-hair); border-color: var(--av-ink-30); color: var(--av-ink-70); }
 .nd--sel { outline: var(--av-rule-thin) solid var(--av-ink); outline-offset: 7px; }
-.nd--active { outline: var(--av-rule-hair) solid var(--av-ink-30); outline-offset: 4px; }
+.nd--active { outline: var(--av-rule-hair) solid var(--av-state-rule); outline-offset: 4px; }
 .nd--error { border-color: var(--av-path); }
 .nd-top { display: flex; align-items: center; gap: var(--av-s1); margin-bottom: 2px; }
 .nd-name { font-weight: 600; font-size: var(--av-t-body); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
