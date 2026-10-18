@@ -2052,7 +2052,7 @@ test('the tree separates the running frame from the frames waiting under it', ()
 
 test('the drawing outlines a box on the stack with the state rule, which holds 3:1 in every theme', () => {
   const html = pageOf(exampleFlightpath);
-  assert.match(html, /\.nd--active\b[^{]*\{[^}]*outline:[^;}]*var\(--av-state-rule\)/, 'the on-stack outline asks for the state rule');
+  assert.match(html, /\.nd--active\b[^{]*\{[^}]*outline:\s*var\(--av-rule-hair\)\s+solid\s+var\(--av-state-rule\)\s*;\s*outline-offset:\s*4px/, 'the on-stack outline is a hairline in the state rule, set 4px off the box');
   assert.doesNotMatch(html, /\.nd--active\b[^{]*\{[^}]*--av-ink-30/, 'and no longer for ink 30');
   // The ratio, from the page's own tokens: ink at the state-rule alpha laid
   // over the theme's paper. Dark has one palette for both themes.
