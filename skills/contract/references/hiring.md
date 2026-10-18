@@ -197,7 +197,9 @@ in their own words makes that clause **Decided**.
 Ask the person to press Forget on the page first, on every path. Wait for
 their word that the page shows "Forgotten". When they decline, say that the
 answers stay in the browser. While the draft is kept, rendering the page
-again and pressing Forget clears them. Once the draft is gone, clearing the
+again and pressing Forget clears them. Forget clears this draft's name and
+type only. When the page said earlier answers were left alone, render that
+earlier draft too, and press Forget there. Once the draft is gone, clearing the
 browser's stored data for pages opened from disk is the one way left.
 
 Then say "I will delete the page and the answers file". The person's yes in

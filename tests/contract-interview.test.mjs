@@ -203,6 +203,14 @@ test('redraft: a reworded option drops its saved pick and names it, adopts the u
   full.setItem = () => { throw new Error('quota'); };
   Interview.redraft(full, redrafted(), kinds, newHashes, { shared: false });
   assert.ok(full.map.has(keyOf(base(), hashes.draft)), 'the old entry stays when the new one was not saved');
+  // Carried answers that fail the new draft's block check (a chip reworded)
+  // leave the old entry, and the note says Forget here does not clear it.
+  const chipped = memoryStore();
+  Interview.save(chipped, base(), kinds, hashes, { answers: new Map([['near-miss', { option: 'near-miss-a', chip: base().questions.find(q => q.clause === 'near-miss').chips[0] }]]), edits: [] });
+  const r2 = Interview.redraft(chipped, redrafted(d => (d.questions.find(q => q.clause === 'near-miss').chips = ['a new chip'])), kinds, newHashes, { shared: false });
+  assert.deepEqual(r2.adopted, []);
+  assert.ok(chipped.map.has(keyOf(base(), hashes.draft)));
+  assert.match(r2.note, /Forget here does not clear them/);
 });
 
 test('redraft: a draft that changes its name adopts from the old name\'s key, and no key under the old name remains', () => {

@@ -122,8 +122,8 @@
       "analyzers": [
         "static_patterns_tool_misuse"
       ],
-      "sha256": "89bdde2dea252a1466a1744cc4506815e786b4d49d1a502799f52a639694561b",
-      "reason": "The hiring page's module, which the interview script requires and the page will inline. The destructive-command parser stops partway through a long expression and marks the file partial for that one check; every other check reads it in full. Like every entry of this code, it would also accept a marker-pass give-up inside that one check, which the scanner reports under this code. Read by hand on 2026-10-18 for the hiring interview's engine (issue 343): the file holds no rm, del or erase command in any spelling, and nothing that runs a command, touches a file or reaches the network; it checks drafts and blocks, works out marks, and reads and writes a store it is handed."
+      "sha256": "e5354f15e8723f0f4178e474c4716211d2be69d1e51ba65db7669d1821707296",
+      "reason": "The hiring page's module, which the interview script requires and the page will inline. The destructive-command parser stops partway through a long expression and marks the file partial for that one check; every other check reads it in full. Like every entry of this code, it would also accept a marker-pass give-up inside that one check, which the scanner reports under this code. Read by hand on 2026-10-18 for the hiring interview's engine (issue 343): the file holds no rm, del or erase command in any spelling, and nothing that runs a command, touches a file or reaches the network; it checks drafts and blocks, works out marks, and reads and writes a store it is handed. Re-read on 2026-10-18 after the review fixes on issue 343: the changes mask and quote printed text, follow the read-back in the block check, mark restored edits and keep the old stored entry until the new one is saved; they add no delete command, run no program, touch no file and reach no network."
     },
     {
       "skill": "contract",
@@ -132,8 +132,8 @@
       "analyzers": [
         "static_patterns_tool_misuse"
       ],
-      "sha256": "1bf6888b4b4340208a50aaad26678670b57464a60d2c2889965868e7cc91ba1f",
-      "reason": "The contract skill's interview script. The destructive-command parser stops partway through a long expression and marks the file partial for that one check; every other check reads it in full. Like every entry of this code, it would also accept a marker-pass give-up inside that one check, which the scanner reports under this code. Read by hand on 2026-10-18 for the hiring interview's engine (issue 343): the file holds no rm, del or erase command in any spelling, runs no other program and reaches no network. Its one delete is --clean, which unlinks the page and the answers file, and with --draft the draft, by their fixed names, only inside a folder named contract-interview- and 16 hex digits."
+      "sha256": "e11bc3ee0fe5761ff7ec5b2a205b4ce95a9106354900b2e474dd3fbb70603a48",
+      "reason": "The contract skill's interview script. The destructive-command parser stops partway through a long expression and marks the file partial for that one check; every other check reads it in full. Like every entry of this code, it would also accept a marker-pass give-up inside that one check, which the scanner reports under this code. Read by hand on 2026-10-18 for the hiring interview's engine (issue 343): the file holds no rm, del or erase command in any spelling, runs no other program and reaches no network. Its one delete is --clean, which unlinks the page and the answers file, and with --draft the draft, by their fixed names, only inside a folder named contract-interview- and 16 hex digits. Re-read on 2026-10-18 after the review fixes on issue 343: the ok lines print the hash first and the title masked, cut and quoted, and the home fold keeps lengths; no delete command, program run or network call was added, and --clean is unchanged."
     }
   ],
   "references": [

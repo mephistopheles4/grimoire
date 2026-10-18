@@ -968,7 +968,7 @@ const Interview = (() => {
     }
     /* Kept only if the carried answers pass the new draft's block check. */
     const block = blockOf(draft, kinds, hashes, state);
-    if (checkBlock(block, draft, kinds, hashes).refusals.length) return { adopted: [], dropped: [...adopted, ...dropped], note: '' };
+    if (checkBlock(block, draft, kinds, hashes).refusals.length) return { adopted: [], dropped: [...adopted, ...dropped], note: 'Earlier answers no longer fit this draft and were left alone. Forget here does not clear them: to clear them, render the earlier draft and press Forget there.' };
     /* The old entry goes only once the new one is saved; a failed save
      * leaves it, so a later redraft can carry the answers over again. */
     if (save(store, draft, kinds, hashes, state)) safely(() => store.removeItem(oldKey));
