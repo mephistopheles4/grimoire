@@ -118,7 +118,9 @@ node scripts/render.mjs '<folder>/draft.interview.json' --check
 ```
 
 It prints each refusal with the field it names. Fix the draft and check
-again. It also warns on a home-folder path, a key-shaped value, an email
+again. A pass prints `ok:`, then `sha256` and the draft's hash, then its
+title as a quoted literal. Take the hash for a redraft's `previous` from
+there, never from the title. It also warns on a home-folder path, a key-shaped value, an email
 address and a name outside the format rule. A warning refuses nothing. Ask
 the person about each one.
 

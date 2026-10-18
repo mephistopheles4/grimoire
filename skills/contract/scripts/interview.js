@@ -38,9 +38,10 @@ const Interview = (() => {
   const LIMITS = Object.freeze({ bytes: 387512, clausesPerPart: 152, fieldChars: 6844 });
   const count = n => n.toLocaleString('en-US');
 
-  /* A key as it may appear in a refusal's path: a plain word prints, anything
-   * else is named without its text, since a key is the file's text too. */
-  const keyWord = k => (/^[A-Za-z0-9_-]{1,64}$/.test(k) ? k : '(a key not printed)');
+  /* A key as it may appear in a refusal's path: a plain word prints, masked
+   * if it is shaped like a key, and anything else is named without its text,
+   * since a key is the file's text too. */
+  const keyWord = k => (/^[A-Za-z0-9_-]{1,64}$/.test(k) ? mask(k) : '(a key not printed)');
 
   /** The kinds table as Maps, so no lookup by file text reaches a prototype. */
   function kindsIndex(kinds) {
@@ -74,6 +75,10 @@ const Interview = (() => {
   const LEVELS = ['Quick', 'Standard', 'Thorough'];
   const FREEDOMS = ['open', 'guided', 'fixed'];
   const PROPOSED = 'Proposed';
+  /* A kind the draft's type cannot hold. The reason names the kind's types,
+   * never the draft's, which is the file's text; a type outside the three is
+   * refused once, at `type`, and gates no kind. */
+  const TYPE_FAULT = kind => `this draft's type cannot hold this kind; it is for ${kind.types.join(' and ')}`;
 
   /* Why a name is refused: only what breaks the storage key or a command
    * (q22 on #313). Anything else outside the name format is a warning. */
@@ -116,20 +121,33 @@ const Interview = (() => {
   /* Home folders, as the script hands them over: its own account's home, and
    * the folder that holds it followed by a separator, so another account's
    * home on the same layout is found too. The page knows no home folder and
-   * passes none. On Windows the comparison folds case and both slashes. */
+   * passes none. On Windows the comparison folds case and both slashes, one
+   * code point at a time and only where folding keeps the length, so an index
+   * in the folded text is the same index in the original. A span runs from
+   * the root to the first white space after it, so a root holding a space is
+   * masked whole; overlapping spans are merged. */
+  const foldOne = c => { const l = c.toLowerCase(); return l.length === c.length ? l : c; };
+  const folded = s => [...s].map(foldOne).join('').replaceAll('/', '\\');
   const homeFinder = (homes, fold) => {
-    const norm = fold ? s => s.toLowerCase().replaceAll('/', '\\') : s => s;
+    const norm = fold ? folded : s => s;
     const roots = (homes || []).filter(Boolean).map(norm);
     return s => {
       if (!roots.length) return [];
       const text = norm(s);
       const found = [];
       for (const r of roots) for (let i = text.indexOf(r); i >= 0; i = text.indexOf(r, i + 1)) {
-        let end = i;
+        let end = i + r.length;
         while (end < text.length && !/\s/u.test(text[end])) end++;
         found.push([i, end]);
       }
-      return found;
+      found.sort((a, b) => a[0] - b[0]);
+      const merged = [];
+      for (const [a, b] of found) {
+        const last = merged[merged.length - 1];
+        if (last && a <= last[1]) last[1] = Math.max(last[1], b);
+        else merged.push([a, b]);
+      }
+      return merged;
     };
   };
 
@@ -280,7 +298,7 @@ const Interview = (() => {
           const kind = K.byId.get(c.kind);
           if (!kind) return refuse(`${path}.kind`, 'no kind of that name in kinds.json');
           if (kind.part !== part) refuse(`${path}.kind`, `the part ${part} cannot hold this kind; it belongs in ${kind.part}`);
-          if (kind.types && !kind.types.includes(draft.type)) refuse(`${path}.kind`, `a ${draft.type} draft cannot hold this kind; it is for ${kind.types.join(' and ')}`);
+          if (kind.types && TYPES.includes(draft.type) && !kind.types.includes(draft.type)) refuse(`${path}.kind`, TYPE_FAULT(kind));
           if (c.kind === 'name' && draft.type === 'CLAUDE.md') refuse(`${path}.kind`, 'a CLAUDE.md has no name of its own; the draft\'s name is its folder\'s');
           const hasFields = Object.hasOwn(c, 'fields');
           const isNone = Object.hasOwn(c, 'none');
@@ -506,7 +524,7 @@ const Interview = (() => {
         const kind = K.byId.get(kindId);
         if (!kind) { refuse(`${path}.kind`, 'no kind of that name in kinds.json'); return null; }
         if (kind.part !== part) { refuse(`${path}.kind`, `the part ${part} cannot hold this kind; it belongs in ${kind.part}`); return null; }
-        if (kind.types && !kind.types.includes(draft.type)) { refuse(`${path}.kind`, `a ${draft.type} draft cannot hold this kind; it is for ${kind.types.join(' and ')}`); return null; }
+        if (kind.types && !kind.types.includes(draft.type)) { refuse(`${path}.kind`, TYPE_FAULT(kind)); return null; }
         return kind;
       };
       const target = (path, e) => {
@@ -569,6 +587,10 @@ const Interview = (() => {
   const WHOLE = 2000;
   const CUT = 200;
   const cut = s => (s.length > CUT ? `${s.slice(0, CUT)}… (${count(s.length)} characters)` : s);
+  /** A short string from a file as a line may print it: masked, then cut at
+   *  200, then quoted. Masking comes first, so a shape cut in two still
+   *  masks. */
+  const quoted = (s, homes, fold) => JSON.stringify(cut(mask(s, homes, fold)));
 
   function readBack(block, draft, kinds, opts = {}) {
     const K = kindsIndex(kinds);
@@ -597,6 +619,8 @@ const Interview = (() => {
     const fieldLines = (at, fields, name) => {
       for (const [k, v] of Object.entries(fields)) whole(`${at} ${k}`, literal(v, name(k), at));
     };
+    /* The title prints on the ok line; it is warned on here, as in the check. */
+    for (const shape of shapesIn(draft.title, opts.homes, opts.fold)) warnings.push(['title', `holds ${shape}; ask whether it belongs in the contract`]);
 
     block.answers.forEach((a, i) => {
       const e = ix.clauses.get(a.id);
@@ -909,6 +933,6 @@ const Interview = (() => {
     return n;
   }
 
-  return { LIMITS, save, restore, redraft, forget, readBack, exportContract, checkDraft, shapesIn, mask, KEY_SHAPES, blockOf, blockText, checkBlock, tally };
+  return { LIMITS, save, restore, redraft, forget, readBack, exportContract, checkDraft, shapesIn, mask, quoted, folded, KEY_SHAPES, blockOf, blockText, checkBlock, tally };
 })();
 if (typeof module !== 'undefined') module.exports = Interview;

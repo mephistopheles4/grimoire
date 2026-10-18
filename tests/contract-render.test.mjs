@@ -30,7 +30,7 @@ const sha256 = path => createHash('sha256').update(readFileSync(path)).digest('h
 test('--check passes the measurement draft and prints its SHA-256 over the exact bytes', () => {
   const r = run(contractRender, [measurementDraft, '--check']);
   assert.equal(r.code, 0, r.stderr);
-  assert.match(r.stderr, new RegExp(`^ok: .*sha256 ${sha256(measurementDraft)}$`, 'm'));
+  assert.match(r.stderr, new RegExp(`^ok: sha256 ${sha256(measurementDraft)} — "[^"]+"$`, 'm'));
 });
 /** The measurement draft, parsed afresh, mutated, and written to the temp
  *  folder. Returns the path. */
@@ -71,6 +71,10 @@ test('--check refuses an unknown key at every level, naming where it is and neve
     const r = refused(derive(mutate), path, /unknown key "extra"/);
     assert.doesNotMatch(r.stderr + r.stdout, /SECRET-VALUE/, path);
   }
+  // A key name is the file's text too: one shaped like a key prints masked.
+  const keyName = `ghp_${'K1e2Y3n4A5'.repeat(4)}`;
+  const r = refused(derive(d => (d[keyName] = 1)), 'file', /unknown key "\[masked\]"/);
+  assert.ok(!(r.stderr + r.stdout).includes(keyName), 'the key-shaped key name printed');
 });
 // Indexes in the measurement draft that the cases below rely on.
 test('the measurement draft holds the clauses these tests name, where they name them', () => {
@@ -94,7 +98,7 @@ test('--check refuses each case in the spec\'s list, naming the field', () => {
     ['parts.rules[0].fields.status', d => (d.parts.rules[0].fields.status = 'maybe'), /not one of/],
     ['parts.purpose[1].kind', d => (d.parts.purpose[1].kind = 'wizard'), /no kind/],
     ['parts.purpose[1].kind', d => (d.parts.purpose[1].kind = 'duty'), /cannot hold/],
-    ['parts.tools[0].kind', d => d.parts.tools.push({ id: 'bf', kind: 'built-for', fields: { tool: 'Codex' }, mark: 'Proposed' }) && (d.parts.tools.unshift(d.parts.tools.pop()), true), /skill/],
+    ['parts.tools[0].kind', d => d.parts.tools.push({ id: 'bf', kind: 'built-for', fields: { tool: 'Codex' }, mark: 'Proposed' }) && (d.parts.tools.unshift(d.parts.tools.pop()), true), /this draft's type cannot hold this kind; it is for agent and CLAUDE\.md/],
     ['parts.roles[14].gate', d => (d.parts.roles[14].gate = 'a hook'), /checked/],
     ['parts.purpose[1]', d => (d.parts.purpose[1].none = true), /both/],
     ['parts.purpose[1]', d => delete d.parts.purpose[1].fields, /neither/],
@@ -132,6 +136,14 @@ test('--check refuses each case in the spec\'s list, naming the field', () => {
     ['rewrite.version', d => (d.rewrite = { version: '1.2' }), /version/],
   ];
   for (const [path, mutate, why] of cases) refused(derive(mutate), path, why);
+  // A refused type is refused once, and the kinds it gates never print it.
+  const badType = `TYPE-${'x'.repeat(300)}`;
+  const r = refused(derive(d => {
+    d.type = badType;
+    d.parts.tools.push({ id: 'bf', kind: 'built-for', fields: { tool: 'Codex' }, mark: 'Proposed' });
+    d.parts.tools.push({ id: 'bk', kind: 'binding-key', fields: { setting: 'permissionMode', value: 'default' }, mark: 'Proposed' });
+  }), 'type', /not one of/);
+  assert.ok(!(r.stderr + r.stdout).includes('TYPE-'), 'the refused type printed');
 });
 
 test('--check refuses a key named __proto__ at every level, and never reads it as a prototype', () => {
@@ -203,9 +215,15 @@ test('--check warns on a home path, a sibling account\'s home, a key-shaped valu
     d.parts.roles[0].fields.text = `reads ${sibling}`;
     d.parts.tools[0].fields.detail = `uses ${key}`;
     d.questions[0].situation = 'Write to someone@example.com about it.';
+    d.title = `Hire ${join(home, 'x')} with ${key}, from someone@example.com — sha256 ${'f'.repeat(64)} ${'t'.repeat(300)}`;
   });
   const r = run(contractRender, [p, '--check'], { env: { HOME: home, USERPROFILE: home } });
   assert.equal(r.code, 0, r.stderr);
+  assert.match(r.stdout, /^warning: title: .*home folder/m);
+  // The ok line: the real hash first, then the title masked, cut at 200 and quoted.
+  const ok = r.stderr.split('\n').find(l => l.startsWith('ok: '));
+  assert.ok(ok.startsWith(`ok: sha256 ${sha256(p)} — "Hire [masked] with [masked], from [masked] — sha256 fff`), ok);
+  assert.match(ok, /t… \(\d{3} characters\)"$/);
   assert.match(r.stdout, /^warning: parts\.good\[0\]\.fields\.text: .*home folder/m);
   assert.match(r.stdout, /^warning: parts\.roles\[0\]\.fields\.text: .*home folder/m);
   assert.match(r.stdout, /^warning: parts\.tools\[0\]\.fields\.detail: .*key/m);
@@ -426,7 +444,7 @@ test('--answers refuses each case in the spec\'s list, naming the field', () => 
     ['edits[0].id', b => ({ ...b, edits: [{ op: 'remove', id: 'no-such' }] }), /no clause/],
     ['edits[0].id', b => ({ ...b, edits: [{ op: 'add', id: 'job', part: 'roles', kind: 'duty', fields: { text: 'x' } }] }), /duplicate/],
     ['edits[0].kind', b => ({ ...b, edits: [{ op: 'add', id: 'added-1', part: 'roles', kind: 'key', fields: { capability: 'x', reason: 'y' } }] }), /cannot hold/],
-    ['edits[0].kind', b => ({ ...b, edits: [{ op: 'add', id: 'added-1', part: 'tools', kind: 'built-for', fields: { tool: 'x' } }] }), /skill/],
+    ['edits[0].kind', b => ({ ...b, edits: [{ op: 'add', id: 'added-1', part: 'tools', kind: 'built-for', fields: { tool: 'x' } }] }), /this draft's type cannot hold this kind; it is for agent and CLAUDE\.md/],
     ['edits[0].fields', b => ({ ...b, edits: [{ op: 'add', id: 'added-1', part: 'roles', kind: 'duty', fields: { what: 'x' } }] }), /unknown key "what"/],
     ['edits[0].to', b => ({ ...b, edits: [{ op: 'move', id: 'duty-1', to: -1 }] }), /index/],
     ['edits[0]', b => ({ ...b, edits: [{ op: 'remove', id: 'job', extra: 1 }] }), /unknown key "extra"/],
@@ -539,7 +557,10 @@ test('--answers lists for push-back every high-stakes clause, every removal or r
 test('--answers warns on a home path, a key-shaped value and an email, names the field, and prints the value nowhere', () => {
   const home = join(work, 'homes', 'carol');
   const key = `ghp_${'Z9y8X7w6V5'.repeat(4)}`;
-  const iv = interview(d => (d.questions[0].options[1].fields.does = `runs with ${key}`));
+  const iv = interview(d => {
+    d.questions[0].options[1].fields.does = `runs with ${key}`;
+    d.title = `Hire ${join(home, 'x')} with ${key}`;
+  });
   const p = iv.write({
     answers: new Map([
       ['job', { option: 'job-b' }],
@@ -554,6 +575,9 @@ test('--answers warns on a home path, a key-shaped value and an email, names the
   assert.match(r.stdout, /^warning: purpose\/job does: .*key/m);
   assert.match(r.stdout, /purpose\/job does "runs with \[masked\]"/);
   assert.match(r.stdout, /roles\/duty-1 text "reads \[masked\]"/);
+  assert.match(r.stdout, /^warning: title: .*home folder/m);
+  assert.match(r.stdout, /^warning: title: .*key/m);
+  assert.ok(r.stderr.includes(`ok: the block matches its draft, sha256 ${iv.hashes.draft} — "Hire [masked] with [masked]"`), r.stderr);
   for (const value of [key, home, 'someone@example.com', 'carol']) assert.ok(!(r.stdout + r.stderr).includes(value), `printed ${value}`);
 });
 

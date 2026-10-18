@@ -82,7 +82,8 @@ const pathFault = p => (QUOTES.test(p) ? 'a quote mark' : /\p{Cc}/u.test(p) ? 'a
 const named = file => {
   const home = homedir();
   if (!home || !isAbsolute(file)) return file;
-  const fold = process.platform === 'win32' ? s => s.toLowerCase().replaceAll('/', '\\') : s => s;
+  // A fold that keeps the length, so the slice below cuts where it matched.
+  const fold = process.platform === 'win32' ? Interview.folded : s => s;
   if (fold(file) === fold(home)) return '~';
   return fold(file).startsWith(fold(home + sep)) ? `~${file.slice(home.length)}` : file;
 };
@@ -243,7 +244,8 @@ function answers(draftFile, blockFile, shared) {
   tell('Push back on:');
   for (const line of pushback.length ? pushback : ['  none']) tell(line);
   for (const [name, why] of warnings) tell(`warning: ${name}: ${why}`);
-  say(`ok: the block matches its draft, ${d.value.title}`);
+  const h = homes();
+  say(`ok: the block matches its draft, sha256 ${sha256(d.bytes)} — ${Interview.quoted(d.value.title, h.homes, h.fold)}`);
   return 0;
 }
 
@@ -285,7 +287,10 @@ function main(argv) {
       return 1;
     }
     for (const [path, why] of warnings) tell(`warning: ${path}: ${why}`);
-    say(`ok: ${draft.title} — sha256 ${sha256(read.bytes)}`);
+    // The hash comes first: Claude reads it from here, and the title is the
+    // file's text, printed as a quoted, cut and masked literal.
+    const h = homes();
+    say(`ok: sha256 ${sha256(read.bytes)} — ${Interview.quoted(draft.title, h.homes, h.fold)}`);
     return 0;
   }
   if (args[1] === '--answers' && values.length === 2 && args[2] === values[1] && args.length - 3 === flags.length - 1 && only('--answers', '--shared')) {
