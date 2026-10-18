@@ -143,7 +143,9 @@ function makeFs() {
     const n = walk(p, true)?.node
     return n?.type === 'file' ? n.data.text : undefined
   }
-  return { nodes, log, put, dirs, walk, stat, list, write, text }
+  // A file removed, as a session that ended removes its own.
+  const drop = (p: string) => nodes.delete(key(p))
+  return { nodes, log, put, dirs, walk, stat, list, write, text, drop }
 }
 
 const ENOENT = RECORDED.rejections.missing.replace(/^.*\) /, '')
@@ -204,8 +206,11 @@ type World = ReturnType<typeof makeFs> & {
   plant?: (key: string, value: any) => any
   /** Every value the pane set, by key, as JSON. */
   states: [string, string][]
-  /** How many times the pane listed a folder, and a message to refuse it with. */
+  /** How many times the pane listed a folder other than the sessions folder,
+   *  and a message to refuse those listings with. */
   listings: number
+  /** Whether the pane is the shown tab, as `$.ui.panes()` says. */
+  shown: boolean
   listDeny: string
   /** The usage the bottom of `turn.step` answers with, and how many session
    *  usage calls the plugins made. */
@@ -273,6 +278,7 @@ function world(on: On, setup: (w: World) => void = w => w.dirs(`${CONFIG}\\plugi
     usage: undefined as unknown,
     states: [] as [string, string][],
     listings: 0,
+    shown: true,
     listDeny: '',
     stepUsage: null as unknown,
     usageCalls: 0,
@@ -323,9 +329,10 @@ function world(on: On, setup: (w: World) => void = w => w.dirs(`${CONFIG}\\plugi
     return t === undefined ? { deny: ENOENT } : { value: t }
   })
   on('fs.list', ($, e: any) => {
-    w.listings++
+    const sessions = String(e.path).endsWith('\\sessions')
+    if (!sessions) w.listings++
     w.log.push(`list ${e.path}`)
-    if (w.listDeny !== '') return { deny: w.listDeny }
+    if (w.listDeny !== '' && !sessions) return { deny: w.listDeny }
     const l = w.list(e.path)
     return l === undefined ? { deny: ENOENT } : { value: l }
   })
@@ -338,7 +345,7 @@ function world(on: On, setup: (w: World) => void = w => w.dirs(`${CONFIG}\\plugi
     return { value: { isPlaced: true } }
   })
   on('ui.panes', () => ({
-    value: w.open ? [{ id: 'brigade', title: 'Brigade', isShown: true, isFocused: false, isPlaced: true }] : [],
+    value: w.open ? [{ id: 'brigade', title: 'Brigade', isShown: w.shown, isFocused: false, isPlaced: true }] : [],
   }))
   on('ui.toast', ($, e: any) => {
     w.toasts.push(String(e.text))
@@ -439,6 +446,22 @@ const call = async ($: any, input: Record<string, unknown>): Promise<{ ok: boole
   if (typeof r.deny === 'string') return { ok: false, text: r.deny }
   if (r.isError) return { ok: false, text: String(r.text ?? r.result) }
   return { ok: true, text: String(r.text ?? r.result) }
+}
+
+// The live sessions, as the engine keeps them: one file each in the config
+// folder's sessions folder, which the pane reads every poll, and the same rows
+// in `claude agents --json`, which it runs only now and then (#347). Each file
+// also holds the kinds of field the pane never reads; earlier files go.
+const SESSIONS = `${CONFIG}\\sessions`
+const liveRows = (w: World, rows: { name: string; status: string; sessionId: string; cwd?: string }[]) => {
+  w.agents = JSON.stringify(rows)
+  w.dirs(SESSIONS)
+  for (const e of w.list(SESSIONS) ?? []) w.drop(`${SESSIONS}\\${e.name}`)
+  rows.forEach((r, i) => {
+    const text = JSON.stringify({ pid: 100 + i, kind: 'interactive', messagingSocketPath: '\\\\.\\pipe\\cc-msg-x', bridgeSessionId: 'session_X', ...r })
+    w.put(`${SESSIONS}\\${100 + i}.json`, { type: 'file', data: { text } })
+    w.put(`${SESSIONS}\\${100 + i}.0123abcd.key`, { type: 'file', data: { text: 'KEY' } })
+  })
 }
 
 const card = (title: string, over: Record<string, unknown> = {}) => ({ title, work: 'w', phase: 'p', settings: 's', status: 'working', ...over })
@@ -1079,7 +1102,7 @@ test('a card with only a url, or only a background id, makes no tool list and no
   // the pane's poll finds it, so its button is drawn too.
   const BG = '99999999-8888-7777-6666-555555555555'
   const w = await pane(on, $)
-  w.agents = JSON.stringify([{ name: 'gamma', status: 'idle', sessionId: BG, cwd: 'C:\\work' }])
+  liveRows(w, [{ name: 'gamma', status: 'idle', sessionId: BG, cwd: 'C:\\work' }])
   w.put(`${CONFIG}\\projects\\C--work\\${BG}.jsonl`, {
     type: 'file',
     data: { text: JSON.stringify({ type: 'system', subtype: 'bridge_status', url: 'https://claude.ai/code/session_BG1' }) },
@@ -1153,7 +1176,7 @@ const openers = (w: World) => w.procs.filter(p => OPENERS.includes(p[0]))
 // finds in its transcript, as a head chef's `claude --bg` session has.
 async function background(on: On, $: any) {
   const w = await pane(on, $)
-  w.agents = JSON.stringify([{ name: 'gamma', status: 'idle', sessionId: BG_ID, cwd: 'C:\\work' }])
+  liveRows(w, [{ name: 'gamma', status: 'idle', sessionId: BG_ID, cwd: 'C:\\work' }])
   w.put(`${CONFIG}\\projects\\C--work\\${BG_ID}.jsonl`, {
     type: 'file',
     data: { text: JSON.stringify({ type: 'system', subtype: 'bridge_status', url: 'https://claude.ai/code/session_BG1' }) },
@@ -2337,7 +2360,7 @@ const plantIn = (w: World, folder: string, link: string) => {
 // lists in the launch folder, and a poll after `setup` plants its files.
 async function moved(on: On, $: any, setup: (w: World) => void) {
   const w = await grouped(on, $, { cards: [card('gamma', { status: 'needs-you' })], todos: [] })
-  w.agents = JSON.stringify([{ name: 'gamma', status: 'idle', sessionId: MID, cwd: 'C:\\work' }])
+  liveRows(w, [{ name: 'gamma', status: 'idle', sessionId: MID, cwd: 'C:\\work' }])
   w.dirs(LAUNCH)
   setup(w)
   await w.clock.advance(10000)
@@ -2369,7 +2392,7 @@ for (const surface of SURFACES) {
   test(`${surface}: a needs-you or working card whose transcript is found nowhere says so, dim, and a finished card says nothing`, async ($, on) => {
     const SIDS = ['66666666-7777-4888-8999-aaaaaaaaaaaa', '77777777-8888-4999-8aaa-bbbbbbbbbbbb', '88888888-9999-4aaa-8bbb-cccccccccccc']
     const w = await grouped(on, $, { cards: [card('need-x', { status: 'needs-you' }), card('work-x'), card('done-x', { status: 'done' })], todos: [] })
-    w.agents = JSON.stringify(['need-x', 'work-x', 'done-x'].map((name, i) => ({ name, status: i === 1 ? 'busy' : 'idle', sessionId: SIDS[i], cwd: 'C:\\work' })))
+    liveRows(w, ['need-x', 'work-x', 'done-x'].map((name, i) => ({ name, status: i === 1 ? 'busy' : 'idle', sessionId: SIDS[i], cwd: 'C:\\work' })))
     w.dirs(LAUNCH)
     await w.clock.advance(10000)
     await w.clock.settle()
@@ -3678,7 +3701,8 @@ for (const surface of SURFACES) {
   test(`${surface}: the roster's errors stay on top of the Pull requests view`, async ($, on) => {
     const bad = await grouped(on, $, { cards: [card('bad', { status: 'paused' })], todos: [] })
     bad.agents = 'not json'
-    await bad.clock.advance(10000)
+    // `claude agents` runs again 5 minutes after the open.
+    await bad.clock.advance(300000)
     const n = await mountOn($, surface)
     await n.press({ key: 'view-prs' })
     const text = await textOf(n)
@@ -4054,4 +4078,73 @@ test('the editor and mobile show Open, Dismiss and the full settings without a p
     expect(all.filter(n => n.type === 'Svg' && n.props.alt === '#341, open').length).toBe(1)
     expect(all.filter(n => n.type === 'Box' && n.props.borderColor === '#1a1a19').length).toBe(0)
   }
+})
+
+// --- the live poll's sources (#347) -------------------------------------------
+//
+// The live state comes from the engine's session files on every 10 s poll;
+// `claude agents --json`, which makes every running session do work at once,
+// runs only while the pane is the shown tab: when it becomes shown, an open
+// included, from Refresh, and every 5 minutes.
+
+const S1 = 'aaaaaaaa-1111-4222-8333-444444444444'
+const S2 = 'bbbbbbbb-1111-4222-8333-444444444444'
+const agentsRuns = (w: World) => w.procs.filter(p => p[0] === 'claude').length
+const lastLive = (w: World) => JSON.parse(w.states.filter(([k]) => k === 'live').at(-1)?.[1] ?? '[]')
+
+test('the live state follows the session files at every poll, and claude agents runs at the open and then only every 5 minutes', async ($, on) => {
+  const w = await pane(on, $, 'desktop', w => liveRows(w, [{ name: 'alpha', status: 'busy', sessionId: S1, cwd: 'C:\\work' }]))
+  expect(agentsRuns(w)).toBe(1)
+  expect(lastLive(w)).toEqual([{ name: 'alpha', value: 'busy' }])
+  liveRows(w, [{ name: 'alpha', status: 'idle', sessionId: S1, cwd: 'C:\\work' }])
+  w.agents = '[]'
+  await w.clock.advance(10000)
+  await w.clock.settle()
+  expect(lastLive(w)).toEqual([{ name: 'alpha', value: 'idle' }])
+  await w.clock.advance(280000)
+  await w.clock.settle()
+  expect(agentsRuns(w)).toBe(1)
+  await w.clock.advance(10000)
+  await w.clock.settle()
+  expect(agentsRuns(w)).toBe(2)
+  // That run did not list alpha's file: a file left behind, so alpha goes.
+  expect(lastLive(w)).toEqual([])
+})
+
+test('while the pane is not the shown tab claude agents never runs; shown again, it runs once at the next poll', async ($, on) => {
+  const w = await pane(on, $, 'desktop', w => liveRows(w, [{ name: 'alpha', status: 'busy', sessionId: S1, cwd: 'C:\\work' }]))
+  w.shown = false
+  await w.clock.advance(600000)
+  await w.clock.settle()
+  expect(agentsRuns(w)).toBe(1)
+  w.shown = true
+  await w.clock.advance(10000)
+  await w.clock.settle()
+  expect(agentsRuns(w)).toBe(2)
+  await w.clock.advance(10000)
+  await w.clock.settle()
+  expect(agentsRuns(w)).toBe(2)
+})
+
+test('Refresh runs claude agents at once, and a session file whose id that run did not list is not shown', async ($, on) => {
+  const w = await pane(on, $, 'desktop', w => liveRows(w, [{ name: 'alpha', status: 'busy', sessionId: S1, cwd: 'C:\\work' }]))
+  liveRows(w, [
+    { name: 'alpha', status: 'busy', sessionId: S1, cwd: 'C:\\work' },
+    { name: 'beta', status: 'idle', sessionId: S2, cwd: 'C:\\work' },
+  ])
+  w.agents = JSON.stringify([{ name: 'alpha', status: 'busy', sessionId: S1, cwd: 'C:\\work' }])
+  await press($, 'refresh')
+  await w.clock.settle()
+  expect(agentsRuns(w)).toBe(2)
+  expect(lastLive(w)).toEqual([{ name: 'alpha', value: 'busy' }])
+})
+
+test('the pane keeps nothing from a session file but the name and status: no socket, bridge id or folder in any value it set', async ($, on) => {
+  const w = await pane(on, $, 'desktop', w => liveRows(w, [{ name: 'alpha', status: 'busy', sessionId: S1, cwd: 'C:\\work' }]))
+  await w.clock.advance(10000)
+  await w.clock.settle()
+  for (const [k, v] of w.states) for (const piece of ['cc-msg', 'session_X', 'C:\\\\work', '.key']) expect(`${k} ${v}`.includes(piece)).toBe(false)
+  // The file was read, and the key file beside it never was.
+  expect(w.log.some(l => l.startsWith('read ') && l.endsWith('\\100.json'))).toBe(true)
+  expect(w.log.some(l => l.startsWith('read ') && l.endsWith('.key'))).toBe(false)
 })

@@ -38,7 +38,7 @@ import {
   toolSession,
   unixRealPath,
 } from './roster.ts'
-import type { GhPr, HostOs, StatAnswer } from './roster.ts'
+import type { AgentRow, GhPr, HostOs, StatAnswer } from './roster.ts'
 import {
   CACHE_CELLS,
   EMPTY_USAGE,
@@ -71,6 +71,7 @@ import {
   isReason,
   linkStep,
   liveState,
+  mergeLive,
   metersFrom,
   newFinder,
   newSummaryMemory,
@@ -81,6 +82,7 @@ import {
   prNumber,
   prRows,
   readCalls,
+  readSessions,
   refusalLines,
   reportCount,
   reportNote,
@@ -89,6 +91,7 @@ import {
   snapshotFrom,
   sparkRuns,
   sparkSvg,
+  staleIds,
   statusOf,
   statusStrip,
   ticksFrom,
@@ -130,7 +133,11 @@ import { registerWriter, writerEpoch, writerSession } from './writer.ts'
 const PANE = 'brigade'
 const TITLE = 'Brigade'
 const ROSTER_MS = 5000
+// The live poll reads the engine's session files this often; `claude agents
+// --json` runs at most this seldom on its own, and only while the pane is
+// the shown tab (#347).
 const AGENTS_MS = 10000
+const FALLBACK_MS = 300000
 const GH_MS = 60000
 const TOOL = 'set_roster'
 
@@ -311,10 +318,22 @@ const summaries: SummaryMemory = newSummaryMemory()
 const linkFrom = new Map<string, string>()
 let polling = false
 
+// The `claude agents --json` check, in module memory: its last rows (which
+// carry each session's folder, so they never enter plugin state), the
+// session ids of the files it did not list, when it last started on the
+// engine clock, whether the pane was the shown tab at the last poll, and
+// whether Refresh asked for a run. Closing the pane forgets the shown tab, so
+// the next open runs the check.
+let fallback: AgentRow[] | undefined
+let stale: ReadonlySet<string> = new Set()
+let agentsAt: number | undefined
+let wasShown = false
+let refreshWanted = false
+
 async function pollAgents($: EngineInterface, open: () => boolean) {
   // One poll at a time: `claude agents` may take up to 15 s and the
   // transcript reads add to that, so a tick that finds the last poll still
-  // running does nothing.
+  // running does nothing; a Refresh pressed meanwhile runs when it ends.
   if (polling) return
   polling = true
   try {
@@ -322,15 +341,52 @@ async function pollAgents($: EngineInterface, open: () => boolean) {
     // runs either; the pane already shows why.
     const at = await where($)
     if ('error' in at) return
-    try {
-      const { exitCode, stdout, stderr } = await $.process.run(['claude', 'agents', '--json'], { timeoutMs: 15000 })
+    // The stat resolves, so the place checks and the summary's path rule get
+    // a real path; an engine with no listing rejects here, quietly, as a
+    // rejected listing.
+    const io = {
+      live: open,
+      now: () => $.clock.now(),
+      stat: (path: string) => $.fs.stat(path, { resolve: true }),
+      list: async (path: string) => $.fs.list(path),
+      read: async (path: string) => String(await $.fs.read(path)),
+    }
+    // The live state, from the engine's session files every poll.
+    const files = await readSessions(at.config, io)
+    if (!open()) return
+    // `claude agents` makes every running session do work at once (#347), so
+    // it runs only while the pane is the shown tab: when it becomes shown
+    // (an open included), when Refresh asks, and every 5 minutes. Each run
+    // marks the files it does not list, which a session that ended left.
+    const shown = await $.ui.panes().then(
+      panes => panes.some(p => p.id === PANE && p.isShown === true),
+      () => false,
+    )
+    const now = await $.clock.now().then(n => n, () => Number.NaN)
+    if (!open()) return
+    const late = agentsAt === undefined || (Number.isFinite(now) && (now < agentsAt || now - agentsAt >= FALLBACK_MS))
+    const due = shown && (refreshWanted || !wasShown || late)
+    wasShown = shown
+    if (due) {
+      refreshWanted = false
+      agentsAt = Number.isFinite(now) ? now : Number.NEGATIVE_INFINITY
+      try {
+        const { exitCode, stdout, stderr } = await $.process.run(['claude', 'agents', '--json'], { timeoutMs: 15000 })
+        if (!open()) return
+        if (exitCode !== 0) throw new Error(oneLine(stderr, 200) || `exit ${exitCode}`)
+        const rows = parseAgents(stdout)
+        if ('error' in rows) throw new Error(rows.error)
+        fallback = rows.value
+        stale = staleIds(files, rows.value)
+        await update($, liveError, () => '')
+      } catch (err) {
+        await update($, liveError, () => `claude agents: ${oneLine(String(err instanceof Error ? err.message : err), 200)}`)
+      }
       if (!open()) return
-      if (exitCode !== 0) throw new Error(oneLine(stderr, 200) || `exit ${exitCode}`)
-      const rows = parseAgents(stdout)
-      if ('error' in rows) throw new Error(rows.error)
-      await update($, live, () => rows.value.map(r => ({ name: r.name, value: r.status })))
-      await update($, liveError, () => '')
-
+    }
+    const rows = mergeLive(files, fallback, stale)
+    await update($, live, () => rows.map(r => ({ name: r.name, value: r.status })))
+    try {
       // Transcripts are found under the config folder.
       const config = at.config
       const cards = (await read($, roster)).cards
@@ -338,17 +394,8 @@ async function pollAgents($: EngineInterface, open: () => boolean) {
       // Each roster member's cache warmth and meters: from its summary file
       // in this plugin's data folder when one passes its checks, else from
       // its transcript's call series, found by the transcript finder. The
-      // rules for what is found and read, and when, are in view.ts. The stat
-      // resolves, so the finder's place check and the summary's path rule
-      // get a real path; an engine with no listing rejects here, quietly, as
-      // a rejected listing.
-      const found = await readCalls(rows.value, cards.map(c => c.title), config, memory, {
-        live: open,
-        now: () => $.clock.now(),
-        stat: path => $.fs.stat(path, { resolve: true }),
-        list: async path => $.fs.list(path),
-        read: async path => String(await $.fs.read(path)),
-      }, finder, { plugin: at.plugin, held: summaries })
+      // rules for what is found and read, and when, are in view.ts.
+      const found = await readCalls(rows, cards.map(c => c.title), config, memory, io, finder, { plugin: at.plugin, held: summaries })
       if (found === undefined || !open()) return
       await update($, warmth, () => found.warmth)
       await update($, meters, () => found.meters)
@@ -386,12 +433,21 @@ async function pollAgents($: EngineInterface, open: () => boolean) {
         else linkFrom.set(name, at.path)
         await update($, links, list => [...list.filter(p => p.name !== name), ...(url === undefined ? [] : [{ name, value: url }])])
       }
-    } catch (err) {
-      await update($, liveError, () => `claude agents: ${oneLine(String(err instanceof Error ? err.message : err), 200)}`)
+    } catch {
+      // The reads are tried again at the next poll.
     }
   } finally {
     polling = false
   }
+  if (refreshWanted && open()) await pollAgents($, open)
+}
+
+// Refresh: the check runs at once, or as soon as a poll in progress ends.
+function refreshNow($: EngineInterface) {
+  if (timers.length === 0) return
+  const mine = generation
+  refreshWanted = true
+  void pollAgents($, () => generation === mine)
 }
 
 // --- the PR details --------------------------------------------------------
@@ -571,6 +627,8 @@ function disarm() {
   generation++
   for (const t of timers) t.cancel()
   timers = []
+  wasShown = false
+  refreshWanted = false
 }
 
 // The roster timer's tick. The engine drops a pane whose drawing threw
@@ -1053,6 +1111,10 @@ export const register: Register = on => {
           return current.includes(group) ? current.filter(g => g !== group) : [...current, group]
         })
       }
+      return { element: e.element }
+    }
+    if (e.element === 'refresh') {
+      refreshNow($)
       return { element: e.element }
     }
     if (e.element === 'barclear') {
@@ -1683,6 +1745,13 @@ export const register: Register = on => {
               {view === 'prs' ? `${prCount} ${prCount === 1 ? 'pull request' : 'pull requests'}` : (sessionsCount ?? '')}
             </Text>
           </Box>
+          {tip(
+            'refresh',
+            <Button key="refresh" dimColor onPress={noop}>
+              {pointer ? '↻' : 'Refresh'}
+            </Button>,
+            'Refresh: ask claude agents now',
+          )}
           {switchButton('sessions', '◫', 'Sessions', 'Sessions')}
           {switchButton('prs', '⎇', 'Pull requests', `Pull requests ${prCount}`)}
         </Box>

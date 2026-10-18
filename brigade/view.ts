@@ -1,4 +1,4 @@
-import { AHEAD_MS, PR_NUMBER, PR_STATES, SESSION_ID, foldsCase, oneLine, pathKey, placeSummary, projectFolder, sepOf, statRejection } from './roster.ts'
+import { AHEAD_MS, PR_NUMBER, PR_STATES, SESSION_ID, foldsCase, oneLine, pathKey, placeSummary, projectFolder, sepOf, sessionRow, statRejection } from './roster.ts'
 import type { AgentRow, GhPr, StatAnswer } from './roster.ts'
 import type { Meter, Pair, Sample, UsageCategory, UsageLimit, UsageSnapshot, Warmth } from './types'
 
@@ -2394,6 +2394,95 @@ const sameFile = (a: string, b: string): boolean => {
 /** The file system and clock as the poll's reads reach them, and whether the
  *  pane is still open: the finder's, and the read. `read` may reject. */
 export type PollIo = FinderIo & { read: (path: string) => Promise<string> }
+
+// --- The engine's session files -------------------------------------------------
+//
+// The engine keeps one small file for each running session,
+// <config>/sessions/<pid>.json, and `claude agents --json` reads the same
+// files before it reaches every live session, which makes each of them do
+// work at once (#347). So the live state is read from the files, which costs
+// no process; `claude agents` runs only as the slow check that drops a file
+// left behind (register.tsx). Only a `<digits>.json` the listing names as a
+// plain file is opened, so the `.key` file beside each is never read. Each
+// file passes the finder's place check first: a regular file, not itself a
+// link, whose real path is the expected file in the real sessions folder,
+// and at most 8 KiB (they are under 1 KiB).
+
+/** A session file larger than this is not read. */
+export const MAX_SESSION_FILE_BYTES = 8192
+// The engine names each session's file by its process id.
+const SESSION_FILE = /^\d{1,10}\.json$/
+// More session files than this is not a brigade; `claude agents` reads 500 rows.
+const MAX_SESSION_FILES = 500
+
+/** What one read of the session files found: the rows, and whether every
+ *  file the listing named was read and passed its checks. */
+export type SessionsRead = { rows: AgentRow[]; complete: boolean }
+
+/** Reads the engine's session files as rows, or undefined when the sessions
+ *  folder is missing, is a link, or cannot be listed as a list. A file that
+ *  fails a check or a read is skipped, and the read is then not complete.
+ *  Never rejects. */
+export async function readSessions(config: string, io: PollIo): Promise<SessionsRead | undefined> {
+  const sep = sepOf(config)
+  const dir = `${config}${sep}sessions`
+  const d = await io.stat(dir).catch(() => undefined)
+  if (!isRecord(d) || d.kind !== 'dir' || d.isLink !== false || typeof d.realPath !== 'string' || d.realPath === '') return undefined
+  const real = d.realPath
+  let entries: unknown
+  try {
+    if (io.list === undefined) return undefined
+    entries = await io.list(dir)
+  } catch {
+    return undefined
+  }
+  if (!Array.isArray(entries) || entries.length > MAX_LISTING) return undefined
+  const fold = foldsCase(config)
+  const rows: AgentRow[] = []
+  let complete = true
+  let taken = 0
+  for (const e of entries) {
+    if (!isRecord(e) || typeof e.name !== 'string' || !SESSION_FILE.test(e.name)) continue
+    if (e.kind !== 'file' || e.isLink !== false || taken >= MAX_SESSION_FILES) {
+      complete = false
+      continue
+    }
+    taken += 1
+    const path = `${dir}${sep}${e.name}`
+    try {
+      const s = await io.stat(path)
+      if (!isRecord(s) || s.kind !== 'file' || s.isLink !== false || typeof s.realPath !== 'string') throw new Error('place')
+      if (pathKey(s.realPath, fold) !== pathKey(`${real}/${e.name}`, fold)) throw new Error('place')
+      if (!(s.size <= MAX_SESSION_FILE_BYTES)) throw new Error('size')
+      const row = sessionRow(String(await io.read(path)))
+      if (row === undefined) throw new Error('shape')
+      rows.push(row)
+    } catch {
+      complete = false
+    }
+  }
+  return { rows, complete }
+}
+
+/** The session ids a read of the files holds that a `claude agents` run made
+ *  at the same time did not list: files left behind, dropped until the next
+ *  run. A run with no read beside it marks none. */
+export function staleIds(read: SessionsRead | undefined, agents: readonly AgentRow[]): Set<string> {
+  const listed = new Set(agents.map(r => r.sessionId))
+  return new Set((read?.rows ?? []).flatMap(r => (r.sessionId !== undefined && !listed.has(r.sessionId) ? [r.sessionId] : [])))
+}
+
+/** The live rows: the files' rows less the stale ids. The last `claude
+ *  agents` rows fill in a session the files lack only when the files could
+ *  not all be read, and stand alone when none could be; a stale id is never
+ *  filled in. */
+export function mergeLive(read: SessionsRead | undefined, agents: readonly AgentRow[] | undefined, stale: ReadonlySet<string>): AgentRow[] {
+  if (read === undefined) return [...(agents ?? [])]
+  const rows = read.rows.filter(r => r.sessionId === undefined || !stale.has(r.sessionId))
+  if (read.complete || agents === undefined) return rows
+  const have = new Set(read.rows.map(r => r.sessionId))
+  return [...rows, ...agents.filter(r => r.sessionId === undefined || (!have.has(r.sessionId) && !stale.has(r.sessionId)))]
+}
 
 // --- The usage summary writer -------------------------------------------------
 //

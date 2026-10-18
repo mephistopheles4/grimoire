@@ -517,14 +517,40 @@ export function parseAgents(stdout: string): Checked<AgentRow[]> {
   if (!Array.isArray(parsed)) return { error: 'claude agents printed no list' }
   const rows: AgentRow[] = []
   for (const r of parsed.slice(0, 500)) {
-    if (!isRecord(r) || typeof r.name !== 'string' || r.name === '' || r.name.length > MAX_TEXT) continue
-    const state = typeof r.status === 'string' ? r.status : typeof r.state === 'string' ? r.state : undefined
-    const row: AgentRow = { name: r.name, status: state === undefined ? '?' : oneLine(state, 20) }
-    if (typeof r.sessionId === 'string' && SESSION_ID.test(r.sessionId)) row.sessionId = r.sessionId
-    if (typeof r.cwd === 'string' && r.cwd.length <= 1000) row.cwd = r.cwd
-    rows.push(row)
+    const row = agentRow(r)
+    if (row !== undefined) rows.push(row)
   }
   return { value: rows }
+}
+
+// One row's checked fields, from a `claude agents` row or a session file: the
+// name, the live state, the session id and the folder, and nothing else.
+function agentRow(r: unknown): AgentRow | undefined {
+  if (!isRecord(r) || typeof r.name !== 'string' || r.name === '' || r.name.length > MAX_TEXT) return undefined
+  const state = typeof r.status === 'string' ? r.status : typeof r.state === 'string' ? r.state : undefined
+  const row: AgentRow = { name: r.name, status: state === undefined ? '?' : oneLine(state, 20) }
+  if (typeof r.sessionId === 'string' && SESSION_ID.test(r.sessionId)) row.sessionId = r.sessionId
+  if (typeof r.cwd === 'string' && r.cwd.length <= 1000) row.cwd = r.cwd
+  return row
+}
+
+/** One of the engine's session files, `<config>/sessions/<pid>.json`, as a
+ *  row of the same shape `claude agents --json` gives, which reads the same
+ *  files: only the name, the status (`?` while a new session has none yet),
+ *  the session id and the folder are taken, by the rules a `claude agents`
+ *  row is checked by. Every other field the engine writes there (its
+ *  messaging socket, bridge and Desktop ids, process start, former names) is
+ *  never taken. A file that is not one JSON object, or has no name or no
+ *  session id of the engine's shape, gives none. */
+export function sessionRow(text: string): AgentRow | undefined {
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(text)
+  } catch {
+    return undefined
+  }
+  const row = agentRow(parsed)
+  return row?.sessionId === undefined ? undefined : row
 }
 
 /** The projects folder name of a working directory: every separator, colon

@@ -4453,3 +4453,105 @@ test('no colour in the register or view modules is a hex or a colour name outsid
     assert.ok(themeKeys.has(m[1]) || m[1] === 'dim', `${m[0]} is not a theme key`);
   }
 });
+
+// --- the engine's session files (#347) ---------------------------------------
+//
+// The live state comes from the files the engine keeps for each running
+// session, <config>/sessions/<pid>.json, which `claude agents --json` reads
+// too. Every other field the engine writes there is left unread: the fake
+// file holds the kinds of field it has, made up.
+
+const { MAX_SESSION_FILE_BYTES, mergeLive, readSessions, staleIds } = view;
+const SESSIONS = `${CONFIG}\\sessions`;
+const sessionText = (name, i, status = 'idle', extra = {}) =>
+  JSON.stringify({
+    pid: 4242,
+    sessionId: SID[i],
+    cwd: 'C:\\work',
+    kind: 'interactive',
+    entrypoint: 'claude-desktop',
+    name,
+    status,
+    statusUpdatedAt: NOW,
+    messagingSocketPath: '\\\\.\\pipe\\LOCAL\\cc-msg-secret',
+    bridgeSessionId: 'session_SECRET',
+    hostSessionId: 'local_secret',
+    procStart: '1',
+    formerNames: [{ name: 'old' }],
+    ...extra,
+  });
+const sessionsFs = (files, names = Object.keys(files).map(p => p.slice(SESSIONS.length + 1))) =>
+  fakeFs({ [SESSIONS]: { kind: 'dir', size: 0, text: '' }, ...files }, { listing: names.map(n => entry(n, 'file')) });
+
+test('the session files give each session its name, id, status and folder, and no other field the engine wrote', async () => {
+  const fs = sessionsFs({ [`${SESSIONS}\\101.json`]: { text: sessionText('A', 0, 'busy') }, [`${SESSIONS}\\102.json`]: { text: sessionText('B', 1) } });
+  const got = await readSessions(CONFIG, fs.io);
+  assert.deepEqual(got, { complete: true, rows: [agent('A', 0, 'busy'), agent('B', 1)] });
+  assert.deepEqual(fs.lists, [SESSIONS]);
+  assert.doesNotMatch(JSON.stringify(got), /secret|SECRET|pipe|4242|claude-desktop|old/);
+});
+
+test('only a <digits>.json listed as a plain file is opened: never a .key file, a link, a folder or another name', async () => {
+  const keep = `${SESSIONS}\\101.json`;
+  const listing = [
+    entry('101.json', 'file'),
+    entry('101.0123abcd.key', 'file'),
+    entry('102.json', 'file-symlink'),
+    entry('103.json', 'folder'),
+    entry('x104.json', 'file'),
+    entry('105.json.bak', 'file'),
+  ];
+  const fs = fakeFs({ [SESSIONS]: { kind: 'dir', size: 0, text: '' }, [keep]: { text: sessionText('A', 0) } }, { listing });
+  const got = await readSessions(CONFIG, fs.io);
+  assert.deepEqual(got.rows, [agent('A', 0)]);
+  assert.deepEqual(fs.reads, [keep]);
+  assert.deepEqual(fs.stats, [SESSIONS, keep]);
+});
+
+test('a file over 8 KiB, one whose real path is elsewhere, one that is not JSON or has no name or a bad id is skipped, and the read says it is incomplete', async () => {
+  assert.equal(MAX_SESSION_FILE_BYTES, 8192);
+  const p = n => `${SESSIONS}\\${n}.json`;
+  const ok = { [p(1)]: { text: sessionText('A', 0) } };
+  for (const [why, bad] of [
+    ['over 8 KiB', { text: sessionText('B', 1), size: 8193 }],
+    ['real path elsewhere', { text: sessionText('B', 1), realPath: 'C:\\elsewhere\\2.json' }],
+    ['not JSON', { text: '{"name":' }],
+    ['no name', { text: sessionText('', 1) }],
+    ['a bad id', { text: sessionText('B', 1, 'idle', { sessionId: '../x' }) }],
+    ['a read that fails', { text: sessionText('B', 1), fail: true }],
+  ]) {
+    const fs = sessionsFs({ ...ok, [p(2)]: bad });
+    assert.deepEqual(await readSessions(CONFIG, fs.io), { complete: false, rows: [agent('A', 0)] }, why);
+  }
+  const big = sessionsFs({ ...ok, [p(2)]: { text: sessionText('B', 1), size: 8192 } });
+  assert.equal((await readSessions(CONFIG, big.io)).complete, true, 'exactly 8 KiB is read');
+  const fresh = sessionsFs({ [p(1)]: { text: sessionText('A', 0, 'idle', { status: undefined }) } });
+  assert.deepEqual((await readSessions(CONFIG, fresh.io)).rows, [agent('A', 0, '?')], 'a new session with no status yet reads as unknown');
+});
+
+test('no sessions folder, one that is a link, or a listing that fails or is not a list reads nothing at all', async () => {
+  assert.equal(await readSessions(CONFIG, fakeFs({}).io), undefined);
+  assert.equal(await readSessions(CONFIG, fakeFs({ [SESSIONS]: { kind: 'dir', size: 0, text: '', isLink: true, realPath: 'C:\\elsewhere' } }).io), undefined);
+  const rejecting = sessionsFs({});
+  rejecting.io.list = async () => {
+    throw new Error('EACCES');
+  };
+  assert.equal(await readSessions(CONFIG, rejecting.io), undefined);
+  const odd = sessionsFs({});
+  odd.io.list = async () => ({ name: '1.json' });
+  assert.equal(await readSessions(CONFIG, odd.io), undefined);
+});
+
+test('the live rows: the files win, a session the last claude agents run did not list is dropped, and its rows fill in only when the files could not all be read', () => {
+  const A = agent('A', 0, 'busy');
+  const B = agent('B', 1);
+  const C = agent('C', 2);
+  const fallback = [agent('A', 0, 'idle'), C];
+  assert.deepEqual(mergeLive({ complete: true, rows: [A, B] }, fallback, new Set([SID[1]])), [A]);
+  assert.deepEqual(mergeLive({ complete: false, rows: [A] }, fallback, new Set()), [A, C]);
+  assert.deepEqual(mergeLive({ complete: false, rows: [A] }, fallback, new Set([SID[2]])), [A], 'a stale id is not filled in either');
+  assert.deepEqual(mergeLive(undefined, fallback, new Set()), fallback);
+  assert.deepEqual(mergeLive(undefined, undefined, new Set()), []);
+  assert.deepEqual(staleIds({ complete: true, rows: [A, B] }, [A, C]), new Set([SID[1]]));
+  assert.deepEqual(staleIds(undefined, [A]), new Set());
+});
