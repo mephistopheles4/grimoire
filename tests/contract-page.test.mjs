@@ -520,3 +520,16 @@ test('a page whose store holds a moved and a removed entry loads, and names both
   assert.match(text, /Moved [^.]*\(duty-read\)/);
   assert.match(text, /Removed [^.]*\(stays-out-one-pr\)/);
 });
+
+test('the notices are open at load, on a page from disk and on the published example, and the info button toggles them', () => {
+  for (const [flags, says] of [[[], /Your answers are kept in this browser until you press Reset/], [['--site'], /This example keeps nothing\./]]) {
+    const page = loadPage({ flags });
+    assert.match(page.text(), says, `the notice at load (${flags.join(' ') || 'no flag'})`);
+    assert.equal(page.key('info').getAttribute('aria-expanded'), 'true');
+    page.click(page.key('info'));
+    assert.doesNotMatch(page.text(), says, 'the info button closes the notices');
+    assert.equal(page.key('info').getAttribute('aria-expanded'), 'false');
+    page.click(page.key('info'));
+    assert.match(page.text(), says, 'and opens them again');
+  }
+});

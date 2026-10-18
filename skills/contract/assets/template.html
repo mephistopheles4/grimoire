@@ -281,7 +281,7 @@ const S = {
   rekinding: null,
   adding: null,
   signing: false,
-  info: false,    // the notices, open in the top bar
+  info: true,     // the notices, open in the top bar at every load until the person closes them
   all: false,     // show everything at once, not one paragraph at a time
   step: null,     // how many paragraphs of the letter are shown; null until the first draw
   revealFresh: null, // the paragraph just shown, faded in once
@@ -601,7 +601,8 @@ function topBar() {
 }
 
 /* The notices: where the answers are kept, and what leaves the machine.
- * They open in the top bar from its info button. */
+ * They are open in the top bar at every load, and the info button closes
+ * and opens them. */
 function infoButton() {
   return named(h('button', { class: 'scheme info', type: 'button', key: 'info', aria: { expanded: Boolean(S.info), controls: 'notices' },
     on: { click: () => act(() => { S.info = !S.info; }) } }, glyph('info')), 'Where your answers are kept');
