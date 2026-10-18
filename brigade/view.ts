@@ -1,5 +1,5 @@
-import { AHEAD_MS, PR_NUMBER, PR_STATES, SESSION_ID, foldsCase, oneLine, pathKey, placeSummary, projectFolder, sepOf, statRejection } from './roster.ts'
-import type { AgentRow, GhPr, StatAnswer } from './roster.ts'
+import { AHEAD_MS, PR_NUMBER, PR_STATES, SESSION_ID, foldsCase, oneLine, pathKey, placeSummary, projectFolder, sepOf, sessionRow, statRejection } from './roster.ts'
+import type { SessionRow, GhPr, StatAnswer } from './roster.ts'
 import type { Meter, Pair, Sample, UsageCategory, UsageLimit, UsageSnapshot, Warmth } from './types'
 
 // What the Brigade pane draws, worked out from plain values: the render hook
@@ -11,7 +11,7 @@ import type { Meter, Pair, Sample, UsageCategory, UsageLimit, UsageSnapshot, War
 // to-do to done.
 //
 // The cache warmth: each card's ◆ line, read from the last real model call in
-// its session's summary file or transcript, and which of them the agents poll
+// its session's summary file or transcript, and which of them the live poll
 // reads.
 //
 // The call series and the context meter: what one read of a transcript gives
@@ -1837,7 +1837,7 @@ export function chooseTab(stored: unknown, title: string, word: unknown): Pair[]
   return [...kept.filter(p => p.name !== title), { name: title, value: view }].slice(-MAX_TABS)
 }
 
-/** What the agents poll remembers of each transcript it read, keyed by path:
+/** What the live poll remembers of each transcript it read, keyed by path:
  *  its modified time at that read, the engine's clock at that read, and the
  *  call series parsed from it. */
 export type ReadMemory = Map<string, { mtimeMs: number; readAt: number; series: CallSeries | undefined }>
@@ -1845,8 +1845,8 @@ export type ReadMemory = Map<string, { mtimeMs: number; readAt: number; series: 
 // --- The transcript finder ---------------------------------------------------
 //
 // A session that moved into a worktree after it started writes its transcript
-// under the worktree's projects folder, not its launch folder's, while
-// `claude agents` still names the launch folder. So the path from `cwd` is
+// under the worktree's projects folder, not its launch folder's, while its
+// row may still name the launch folder. So the path from `cwd` is
 // tried first, then the worktree folders of the launch folder, found by
 // listing the projects folder at most once a minute. Every path either step
 // gives is taken only when a resolving `stat` finds a regular file, not
@@ -1966,7 +1966,7 @@ async function listNames(config: string, io: FinderIo): Promise<string[] | undef
  *  remembered by session id until the next listing, and a remembered hit
  *  passes the place check again before each use. Every path passes the
  *  place check. Call `readProjects` once per poll first. Never rejects. */
-export async function findTranscript(config: string, row: AgentRow, io: FinderIo, finder: Finder): Promise<Found | undefined> {
+export async function findTranscript(config: string, row: SessionRow, io: FinderIo, finder: Finder): Promise<Found | undefined> {
   const { sessionId, cwd } = row
   const real = finder.real
   if (sessionId === undefined || cwd === undefined || !SESSION_ID.test(sessionId) || real === undefined) return undefined
@@ -2030,7 +2030,7 @@ const readOrder = (readAt: number | undefined) => (readAt !== undefined && Numbe
 // A member's summary file, which its own session writes (see "The usage
 // summary writer" below), feeds its card whenever one passes its checks, at
 // every transcript size, and is never compared with the transcript (spec
-// revision 5 on #304, S4 "The reader"). The file is found by the agents row's
+// revision 5 on #304, S4 "The reader"). The file is found by the session row's
 // session id in the lead's own plugin data folder, under the roster's path
 // rule, read every poll, and checked from its stat size before any read.
 
@@ -2038,7 +2038,7 @@ const readOrder = (readAt: number | undefined) => (readAt !== undefined && Numbe
  *  not say whether a call cached for 5 minutes or an hour. */
 export const HOUR_SUMMARY_MS = HOUR_MS
 
-/** What the summary reads remember of each member, by the agents row's
+/** What the summary reads remember of each member, by the session row's
  *  session id, in module memory only: the last summary that passed its
  *  checks, and the modified time of the file that last failed one. */
 export type SummaryMemory = Map<string, { good?: Summary; failedAt?: number }>
@@ -2197,7 +2197,7 @@ function summaryRecords(name: string, s: Summary): { warmth: Warmth; meter?: Met
   return meter === undefined ? { warmth } : { warmth, meter }
 }
 
-/** The agents poll's summary and transcript reads, and the records they
+/** The live poll's summary and transcript reads, and the records they
  *  give: the warmth records, the meters and the summary refusal pairs.
  *  Undefined when the pane closed on the way, so nothing is stored.
  *
@@ -2225,7 +2225,7 @@ function summaryRecords(name: string, s: Summary): { warmth: Warmth; meter?: Met
  *  that gave it, where its burn buckets end, and its numbers. Paths no member's transcript is found at leave `memory`, and
  *  session ids no member has leave the finder's memory. */
 export async function readCalls(
-  rows: readonly AgentRow[],
+  rows: readonly SessionRow[],
   titles: readonly string[],
   config: string,
   memory: ReadMemory,
@@ -2234,7 +2234,7 @@ export async function readCalls(
   summaries?: SummaryReads,
 ): Promise<{ warmth: Warmth[]; meters: Meter[]; refusals: Pair[] } | undefined> {
   const members = new Set(titles)
-  const byName = new Map<string, AgentRow[]>()
+  const byName = new Map<string, SessionRow[]>()
   for (const r of rows) {
     if (members.has(r.name)) byName.set(r.name, [...(byName.get(r.name) ?? []), r])
   }
@@ -2394,6 +2394,94 @@ const sameFile = (a: string, b: string): boolean => {
 /** The file system and clock as the poll's reads reach them, and whether the
  *  pane is still open: the finder's, and the read. `read` may reject. */
 export type PollIo = FinderIo & { read: (path: string) => Promise<string> }
+
+// --- The engine's session files -------------------------------------------------
+//
+// The engine keeps one small file for each running session,
+// <config>/sessions/<pid>.json, holding the fields `claude agents --json`
+// prints; that command also reaches every live session, which makes each of
+// them do work at once (#347). So the live state is read from the files
+// alone, which costs no process, and the pane never runs it. Only a `<digits>.json` the listing names as a
+// plain file is opened, so the `.key` file beside each is never opened by
+// name. Each file passes the same place check as the finder's (`placed`),
+// repeated here for the sessions folder, so a change to one needs the other:
+// a regular file, not itself a link, whose real path is the expected file in
+// the real sessions folder, and at most 8 KiB at its stat and once read (they
+// are under 1 KiB). A hard link is not caught, as in the finder; nothing from
+// a file that is not a session row is kept.
+
+/** The one line the pane draws when a session file fails its check or the
+ *  sessions folder cannot be read. Fixed words: never a path or a reason. */
+export const SESSIONS_UNREAD = 'Cannot read the session files.'
+/** A session file larger than this is not read. */
+export const MAX_SESSION_FILE_BYTES = 8192
+// The engine names each session's file by its process id.
+const SESSION_FILE = /^\d{1,10}\.json$/
+// More session files than this is not a brigade.
+const MAX_SESSION_FILES = 500
+
+/** What one read of the session files found: the rows, and whether every
+ *  file the listing named was read and passed its checks. */
+export type SessionsRead = { rows: SessionRow[]; complete: boolean }
+
+// A rejection that says the file is not there: a session that ended after
+// the listing took its file with it.
+const gone = (err: unknown): boolean => /\bENOENT\b/.test(String(err instanceof Error ? err.message : err))
+
+/** Reads the engine's session files as rows, or undefined when the sessions
+ *  folder is missing, is not a folder, is a link, has no real path or one
+ *  other than the real config folder's `sessions`, or cannot be listed as a
+ *  list of at most `MAX_LISTING` entries. A file that fails a check or a
+ *  read is skipped, and the read is then not complete; a file gone since the
+ *  listing is skipped too, and the read stays complete. Never rejects. */
+export async function readSessions(config: string, io: PollIo): Promise<SessionsRead | undefined> {
+  const sep = sepOf(config)
+  const dir = `${config}${sep}sessions`
+  const fold = foldsCase(config)
+  const d = await io.stat(dir).catch(() => undefined)
+  if (!isRecord(d) || d.kind !== 'dir' || d.isLink !== false || typeof d.realPath !== 'string' || d.realPath === '') return undefined
+  // The folder's real path is the real config folder's `sessions`, as the
+  // roster path rule compares, so a link the stat does not report is caught.
+  const c = await io.stat(config).catch(() => undefined)
+  if (!isRecord(c) || typeof c.realPath !== 'string' || c.realPath === '') return undefined
+  if (pathKey(d.realPath, fold) !== pathKey(`${c.realPath}/sessions`, fold)) return undefined
+  const real = d.realPath
+  let entries: unknown
+  try {
+    if (io.list === undefined) return undefined
+    entries = await io.list(dir)
+  } catch {
+    return undefined
+  }
+  if (!Array.isArray(entries) || entries.length > MAX_LISTING) return undefined
+  const rows: SessionRow[] = []
+  let complete = true
+  let taken = 0
+  for (const e of entries) {
+    if (!isRecord(e) || typeof e.name !== 'string' || !SESSION_FILE.test(e.name)) continue
+    if (e.kind !== 'file' || e.isLink !== false || taken >= MAX_SESSION_FILES) {
+      complete = false
+      continue
+    }
+    taken += 1
+    const path = `${dir}${sep}${e.name}`
+    try {
+      const s = await io.stat(path)
+      if (!isRecord(s) || s.kind !== 'file' || s.isLink !== false || typeof s.realPath !== 'string') throw new Error('place')
+      if (pathKey(s.realPath, fold) !== pathKey(`${real}/${e.name}`, fold)) throw new Error('place')
+      if (!(s.size <= MAX_SESSION_FILE_BYTES)) throw new Error('size')
+      const text = String(await io.read(path))
+      // The cap again on what was read: a file swapped after the stat.
+      if (new TextEncoder().encode(text).length > MAX_SESSION_FILE_BYTES) throw new Error('size')
+      const row = sessionRow(text)
+      if (row === undefined) throw new Error('shape')
+      rows.push(row)
+    } catch (err) {
+      if (!gone(err)) complete = false
+    }
+  }
+  return { rows, complete }
+}
 
 // --- The usage summary writer -------------------------------------------------
 //
