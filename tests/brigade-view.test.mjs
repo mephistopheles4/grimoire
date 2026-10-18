@@ -3,10 +3,10 @@
 // SVG source, its alt text and the terminal's text rows as strings. They do
 // not check element trees or paint.
 //
-// The module is TypeScript. Node imports it as it is from 22.18 on, where
-// type stripping is on by default (23.6 on the 23 line). On an older Node the
-// import fails with an error about the file's extension, so the version is
-// checked first and named.
+// The module is TypeScript. Node 24, the repository's floor, imports it as it
+// is, with type stripping on by default. On an older Node the import can fail
+// with an error about the file's extension, so the version is checked first
+// and named.
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -14,10 +14,9 @@ import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-const MINIMUM = '22.18';
-const [major, minor] = process.versions.node.split('.').map(Number);
-const strips = major > 23 || (major === 23 && minor >= 6) || (major === 22 && minor >= 18);
-if (!strips) {
+const MINIMUM = '24';
+const [major] = process.versions.node.split('.').map(Number);
+if (major < 24) {
   throw new Error(
     `tests/brigade-view.test.mjs needs Node ${MINIMUM} or later, which imports TypeScript as it is; this is Node ${process.versions.node}. See CONTRIBUTING.md.`,
   );
