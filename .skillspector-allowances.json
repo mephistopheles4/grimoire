@@ -38,7 +38,7 @@
       "analyzers": [
         "static_patterns_tool_misuse"
       ],
-      "sha256": "e881e89a02c6359faecadd641fa2dd996849b66320aa9f4a2fa6a1ae228a0ed2",
+      "sha256": "5248c661bbfb59eb3f4a6001c818c12a91b2570d3689f4c9c3e72caa60d799e8",
       "reason": "The box renderer. The destructive-command parser stops partway through a long expression and marks the file partial for that one check; every other check reads it in full. The entry also accepts a marker-pass give-up inside that one check, which the scanner reports under this code. Re-read on 2026-10-18 for 0.64.1: the new lines, an escape of every < in the inlined JSON and its comment, were read by hand; they hold no rm, del or erase in any spelling."
     },
     {
@@ -58,7 +58,7 @@
       "analyzers": [
         "static_patterns_tool_misuse"
       ],
-      "sha256": "0e50d7ce33bb406d017763cb4875ad2aa9bdbe3c72676186edc379bd9bb938f0",
+      "sha256": "a20940b8824d407116c78e7e6ff757cc699b0593779ad01cb153cce8032b7691",
       "reason": "The flightpath renderer and validator. The destructive-command parser stops partway through a long expression and marks the file partial for that one check; every other check reads it in full. The entry also accepts a marker-pass give-up inside that one check, which the scanner reports under this code. Read by hand on 2026-10-17 for issues 248, 249, 252 and 330: the change adds no rm, del or erase in any spelling. Re-read on 2026-10-18 for 0.64.1: the new lines, an escape of every < in the inlined JSON and its comment, were read by hand; they hold no rm, del or erase in any spelling."
     },
     {

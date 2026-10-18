@@ -256,8 +256,9 @@ const faces = FACES.map(([weight, file, range]) =>
 
 // JSON inside <script>: write every "<" as its JSON escape, so no box text can
 // close the block or open a comment in it. "</script>" would end the block, and
-// "<!--" followed by "<script" puts the tokenizer where the template's own
-// "</script>" ends nothing. JSON.parse and a script read the escape back as "<".
+// a comment opener followed by "<script" puts the tokenizer where the
+// template's own "</script>" ends nothing. JSON.parse and a script read the
+// escape back as "<".
 const data = JSON.stringify(box).replace(/</g, '\\u003c');
 // Function replacements, and this is load-bearing rather than style. A *string*
 // replacement is interpreted: `$&`, `` $` `` and `$'` stand for the match and
