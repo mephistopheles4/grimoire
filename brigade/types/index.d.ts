@@ -14,7 +14,17 @@ export type Card = {
   bgId?: string
   /** The session's https link on claude.ai, when the head chef knows it. */
   url?: string
+  /** The session's PR number as text, 1 to 7 digits. */
+  pr?: string
+  /** The head chef's last-known state of that PR, used when `gh` has no answer. */
+  prState?: PrState
+  /** When the card entered its current status and phase, in milliseconds on
+   *  the engine clock. The tool stamps it; the file may hold it. */
+  since?: number
 }
+
+/** A PR's state, as the card keeps it and as `gh`'s answer is read. */
+export type PrState = 'open' | 'merged' | 'closed'
 
 /** Something waiting on the owner that no card already shows. */
 export type Todo = { id: string; text: string; session?: string }
@@ -114,10 +124,16 @@ declare module 'claude-code' {
        *  or `trend`, kept for the session and not reset when the pane opens.
        *  Read only through the fixed set of view words. */
       tabs: Pair[]
-      /** Whether the DONE · STOPPED group is open: set false each time the
-       *  pane opens, and flipped by a press. Read as open only when it is
-       *  exactly true, since another plugin can rewrite it. */
-      doneOpen: boolean
+      /** The chosen view, `sessions` or `prs`: set to `sessions` each time
+       *  /brigade opens the pane. Read only through the fixed set. */
+      view: string
+      /** The selected cards' titles, at most 50. Cleared when /brigade opens
+       *  the pane. Checked again before use. */
+      picked: string[]
+      /** The folded groups, from the fixed set of six group keys: set to
+       *  the finished group each time the pane opens, and flipped by a press.
+       *  Checked again before use. */
+      folded: string[]
     }
   }
 }

@@ -216,6 +216,19 @@ type World = ReturnType<typeof makeFs> & {
   /** While true, every `stat` waits for `releaseStat`, which lets them all go. */
   holdStat: boolean
   releaseStat: () => void
+  /** What the fake `gh` answers: its output, exit code, error text, whether
+   *  the engine cut the output short, and a message to fail to start with. */
+  ghOut: string
+  ghExit: number
+  ghErr: string
+  ghCut: boolean
+  ghDeny: string
+  /** Every `gh` start, its argv, and what it was started with. */
+  ghCalls: string[][]
+  ghInits: unknown[]
+  /** While true, a `gh` run waits for `releaseGh`. */
+  holdGh: boolean
+  releaseGh: () => void
 }
 
 // The engine beneath the plugin: the file system, the pane record, the
@@ -266,6 +279,15 @@ function world(on: On, setup: (w: World) => void = w => w.dirs(`${CONFIG}\\plugi
     stepFail: '',
     holdStat: false,
     releaseStat: () => {},
+    ghOut: '[]',
+    ghExit: 0,
+    ghErr: '',
+    ghCut: false,
+    ghDeny: '',
+    ghCalls: [] as string[][],
+    ghInits: [] as unknown[],
+    holdGh: false,
+    releaseGh: () => {},
   })
   w.dirs(CONFIG)
   setup(w)
@@ -391,6 +413,13 @@ function world(on: On, setup: (w: World) => void = w => w.dirs(`${CONFIG}\\plugi
   on('process.run', async ($, e: any) => {
     w.procs.push([...e.argv])
     w.inits.push(e.init)
+    if (e.argv[0] === 'gh') {
+      w.ghCalls.push([...e.argv])
+      w.ghInits.push(e.init)
+      if (w.holdGh) await new Promise<void>(res => { const before = w.releaseGh; w.releaseGh = () => { before(); res() } })
+      if (w.ghDeny !== '') return { deny: w.ghDeny }
+      return { value: { exitCode: w.ghExit, stdout: w.ghOut, stderr: w.ghErr, isStdoutTruncated: w.ghCut, isStderrTruncated: false } }
+    }
     if (OPENERS.includes(e.argv[0])) {
       w.order.push(`run ${e.argv[0]}`)
       if (w.failRun) return { deny: 'spawn failed: SECRET_TOKEN=abc123' }
@@ -413,6 +442,9 @@ const call = async ($: any, input: Record<string, unknown>): Promise<{ ok: boole
 }
 
 const card = (title: string, over: Record<string, unknown> = {}) => ({ title, work: 'w', phase: 'p', settings: 's', status: 'working', ...over })
+// What the file holds after a call: every card stamped with the clock's answer
+// at the call (0 on a clock that has not moved).
+const stamped = (r: { cards: any[]; todos: unknown[] }, since = 0) => ({ ...r, cards: r.cards.map(c => ({ ...c, since })) })
 const GOOD = { cards: [card('alpha'), card('beta', { status: 'needs-you' })], todos: [{ id: 't1', text: 'look' }] }
 
 // --- writes -------------------------------------------------------------------
@@ -424,7 +456,7 @@ test('a good roster is written whole to the session-id file, and the result name
   const r = await call($, GOOD)
   expect(r.ok).toBe(true)
   expect(r.text).toContain('2 card(s), 1 to-do(s)')
-  expect(JSON.parse(w.text(FILE) ?? 'null')).toEqual(GOOD)
+  expect(JSON.parse(w.text(FILE) ?? 'null')).toEqual(stamped(GOOD))
   expect(w.existsCalls).toEqual([])
 })
 
@@ -456,7 +488,7 @@ test('two calls made at once both complete, one after the other, and the file ho
   // call's checks wait for it.
   expect(after.slice(0, firstWrite).filter(l => l === `stat ${CONFIG}`).length).toBe(1)
   expect(after.filter(l => l.startsWith('write ')).length).toBe(2)
-  expect([GOOD, second]).toContainEqual(JSON.parse(w.text(FILE) ?? 'null'))
+  expect([stamped(GOOD), stamped(second)]).toContainEqual(JSON.parse(w.text(FILE) ?? 'null'))
 })
 
 // --- the pane's lifecycle -----------------------------------------------------
@@ -470,12 +502,12 @@ test('no tool before /brigade, and the tool after it; the reply names the tool a
   // The expected value changed in #213 (spec v3 decision 3 on #212): the
   // reply used to carry "Roster file: <path>". No skill reads that line from
   // head-chef 0.2.0 on, Desktop rendered its path without the backslash
-  // before .claude, and the pane's own top line shows the path to the owner.
+  // before .claude. (The pane's top line showed the path until #339.)
   expect(reply.text).toBe('Brigade pane opened. `set_roster` is ready: call it with the full roster.')
   expect(reply.text).not.toContain('Roster file:')
   expect(reply.text).not.toContain(SID)
-  // The path left the reply because the pane names it to the owner: the
-  // pane's top line draws the file it was given.
+  // The pane keeps the file it was given in its `files` state; since #339 it
+  // draws no path.
   await w.clock.settle()
   expect(w.files.at(-1)).toBe(FILE)
 })
@@ -745,7 +777,7 @@ test('an existing roster is overwritten', async ($, on) => {
   await start($)
   await brigade($)
   expect((await call($, GOOD)).ok).toBe(true)
-  expect(JSON.parse(w.text(FILE) ?? 'null')).toEqual(GOOD)
+  expect(JSON.parse(w.text(FILE) ?? 'null')).toEqual(stamped(GOOD))
 })
 
 // The write lands, then the file or a folder above it is swapped for a link
@@ -816,7 +848,7 @@ test('with data absent the first write creates the missing folders and brigade',
   await start($)
   await brigade($)
   expect((await call($, GOOD)).ok).toBe(true)
-  expect(JSON.parse(w.text(FILE) ?? 'null')).toEqual(GOOD)
+  expect(JSON.parse(w.text(FILE) ?? 'null')).toEqual(stamped(GOOD))
 })
 
 test('with the data id absent the first write creates it and brigade', async ($, on) => {
@@ -1586,111 +1618,125 @@ const textOf = async (m: any): Promise<string> => {
   await m.redraw(PANE_PROPS)
   return String((await m.findAll({}))[0]?.text ?? '')
 }
-// The drawn text from the first group heading on, past the Waiting on you
-// rows, which repeat each needs-you title.
+// The drawn text from the first section bar on.
 const groupsOf = async (m: any): Promise<string> => {
   const text = await textOf(m)
-  return text.slice(Math.max(0, text.indexOf('NEEDS YOU')))
+  return text.slice(Math.max(0, text.search(/[▾▸] Waiting on you/)))
 }
 for (const surface of SURFACES) {
-  test(`${surface}: cards sit under NEEDS YOU, WORKING, then a closed DONE · STOPPED toggle, in roster order, with full badges`, async ($, on) => {
+  test(`${surface}: cards sit under Waiting on you, Working, then a folded Done · stopped bar, in roster order`, async ($, on) => {
     await grouped(on, $, ALL)
     const m = await mountOn($, surface)
     const text = await groupsOf(m)
-    // The tree was drawn, not refused: its headings are there, in order.
+    // The tree was drawn, not refused: its section bars are there, in order.
     const at = (s: string) => text.indexOf(s)
-    expect(text.startsWith('NEEDS YOU')).toBe(true)
-    expect(at('NEEDS YOU')).toBeLessThan(at('need-one'))
+    expect(text.startsWith('▾ Waiting on you 2')).toBe(true)
+    expect(at('▾ Waiting on you 2')).toBeLessThan(at('need-one'))
     expect(at('need-one')).toBeLessThan(at('need-two'))
-    expect(at('need-two')).toBeLessThan(at('WORKING'))
-    expect(at('WORKING')).toBeLessThan(at('work-one'))
-    expect(at('work-one')).toBeLessThan(at('▸ DONE · STOPPED  2'))
-    expect(text.includes('● needs you')).toBe(true)
-    expect(text.includes('◐ working')).toBe(true)
+    expect(at('need-two')).toBeLessThan(at('▾ Working 1'))
+    expect(at('▾ Working 1')).toBeLessThan(at('work-one'))
+    expect(at('work-one')).toBeLessThan(at('▸ Done · stopped 2'))
     // Closed on open: the done and stopped cards are not drawn.
     expect(text.includes('done-one')).toBe(false)
     expect(text.includes('stop-one')).toBe(false)
-    expect((await textOf(m)).includes('Sessions')).toBe(false)
-    expect(await m.find({ key: 'fold' })).toBeDefined()
-    // Colour comes from the status Map: the badge and the heading both.
+    // No Brigade heading, and no roster path.
+    expect((await textOf(m)).includes('Brigade')).toBe(false)
+    expect((await textOf(m)).includes('plugins')).toBe(false)
+    expect(await m.find({ key: 'grp-finished' })).toBeDefined()
+    // Colour comes from the status Map: the dot is the status glyph in its key.
     const drawn = (await m.findAll({})) as { type: string; props: Record<string, unknown>; text?: string }[]
-    const badge = drawn.find(n => n.type === 'Text' && n.text === '● needs you')
-    expect(badge?.props.color).toBe('warning')
-    const heading = drawn.find(n => n.type === 'Text' && n.props.bold === true && n.text === 'NEEDS YOU 2')
-    expect(heading?.props.color).toBe('warning')
-    expect(drawn.find(n => n.type === 'Text' && n.text === '◐ working')?.props.color).toBe('suggestion')
+    expect(drawn.filter(n => n.type === 'Text' && n.text === '●' && n.props.color === 'warning').length).toBe(2)
+    expect(drawn.find(n => n.type === 'Text' && n.text === '◐')?.props.color).toBe('suggestion')
   })
 
-  test(`${surface}: an empty group draws no heading`, async ($, on) => {
+  test(`${surface}: an empty group shows its quiet hint`, async ($, on) => {
     await grouped(on, $, { cards: [card('only', { status: 'done' })], todos: [] })
     const m = await mountOn($, surface)
     const text = await textOf(m)
-    expect(text.includes('▸ DONE · STOPPED  1')).toBe(true)
-    expect(text.includes('NEEDS YOU')).toBe(false)
-    expect(text.includes('WORKING')).toBe(false)
+    expect(text.includes('▸ Done · stopped 1')).toBe(true)
+    expect(text.includes('Decisions, reviews, and permission requests.')).toBe(true)
+    expect(text.includes('No session is working.')).toBe(true)
     expect(text.includes('No cards in the roster yet.')).toBe(false)
+    // A folded group shows no hint: its cards stay out of sight.
+    expect(text.includes('Sessions the owner closed.')).toBe(false)
   })
 
-  test(`${surface}: a roster with no cards draws no group and says there are none`, async ($, on) => {
+  test(`${surface}: a roster with no cards says there are none, and each group shows its hint`, async ($, on) => {
     await grouped(on, $, { cards: [], todos: [] })
     const text = await textOf(await mountOn($, surface))
     expect(text.includes('No cards in the roster yet.')).toBe(true)
-    for (const name of ['NEEDS YOU', 'WORKING', 'DONE · STOPPED']) expect(text.includes(name)).toBe(false)
+    for (const hint of ['Decisions, reviews, and permission requests.', 'No session is working.']) expect(text.includes(hint)).toBe(true)
   })
 
-  test(`${surface}: a fold press opens DONE · STOPPED, with full badges, and a second press closes it`, async ($, on) => {
+  test(`${surface}: a press on the Done · stopped bar opens it, and a second press folds it`, async ($, on) => {
     await grouped(on, $, ALL)
     const m = await mountOn($, surface)
-    await m.press({ key: 'fold' })
+    await m.press({ key: 'grp-finished' })
     const opened = await groupsOf(m)
-    expect(opened.includes('▾ DONE · STOPPED  2')).toBe(true)
-    expect(opened.indexOf('▾ DONE · STOPPED')).toBeLessThan(opened.indexOf('done-one'))
+    expect(opened.includes('▾ Done · stopped 2')).toBe(true)
+    expect(opened.indexOf('▾ Done · stopped')).toBeLessThan(opened.indexOf('done-one'))
     expect(opened.indexOf('done-one')).toBeLessThan(opened.indexOf('stop-one'))
-    expect(opened.includes('✓ done')).toBe(true)
-    expect(opened.includes('– stopped')).toBe(true)
+    expect(opened.includes('✓')).toBe(true)
+    expect(opened.includes('–')).toBe(true)
     expect(opened.includes('○')).toBe(false)
-    await m.press({ key: 'fold' })
+    await m.press({ key: 'grp-finished' })
     const closed = await groupsOf(m)
-    expect(closed.includes('▸ DONE · STOPPED  2')).toBe(true)
+    expect(closed.includes('▸ Done · stopped 2')).toBe(true)
     expect(closed.includes('done-one')).toBe(false)
   })
 
-  test(`${surface}: DONE · STOPPED starts closed each time the pane opens`, async ($, on) => {
+  test(`${surface}: any group folds on a press of its bar, and the others stay`, async ($, on) => {
+    await grouped(on, $, ALL)
+    const m = await mountOn($, surface)
+    await m.press({ key: 'grp-working' })
+    const text = await groupsOf(m)
+    expect(text.includes('▸ Working 1')).toBe(true)
+    expect(text.includes('work-one')).toBe(false)
+    expect(text.includes('need-one')).toBe(true)
+    await m.press({ key: 'grp-waiting' })
+    const both = await groupsOf(m)
+    expect(both.includes('▸ Waiting on you 2')).toBe(true)
+    expect(both.includes('need-one')).toBe(false)
+  })
+
+  test(`${surface}: Done · stopped starts folded each time the pane opens`, async ($, on) => {
     const w = await grouped(on, $, ALL)
     const m = await mountOn($, surface)
-    await m.press({ key: 'fold' })
-    expect((await groupsOf(m)).includes('▾ DONE · STOPPED')).toBe(true)
+    await m.press({ key: 'grp-finished' })
+    await m.press({ key: 'grp-working' })
+    expect((await groupsOf(m)).includes('▾ Done · stopped')).toBe(true)
     // The pane goes from the engine's list; the next roster tick sees it and
     // stops every read. Then the owner opens it again.
     w.open = false
     await w.clock.advance(5000)
     await brigade($)
     await w.clock.settle()
-    expect((await groupsOf(m)).includes('▸ DONE · STOPPED  2')).toBe(true)
+    const text = await groupsOf(m)
+    expect(text.includes('▸ Done · stopped 2')).toBe(true)
+    expect(text.includes('▾ Working 1')).toBe(true)
   })
 
-  test(`${surface}: a second /brigade while the pane is open closes DONE · STOPPED too`, async ($, on) => {
+  test(`${surface}: a second /brigade while the pane is open folds Done · stopped too`, async ($, on) => {
     await grouped(on, $, ALL)
     const m = await mountOn($, surface)
-    await m.press({ key: 'fold' })
-    expect((await groupsOf(m)).includes('▾ DONE · STOPPED')).toBe(true)
+    await m.press({ key: 'grp-finished' })
+    expect((await groupsOf(m)).includes('▾ Done · stopped')).toBe(true)
     await brigade($)
-    expect((await groupsOf(m)).includes('▸ DONE · STOPPED  2')).toBe(true)
+    expect((await groupsOf(m)).includes('▸ Done · stopped 2')).toBe(true)
   })
 
-  for (const planted of ['true', 1] as const) {
-    test(`${surface}: a stored open state of ${JSON.stringify(planted)} draws the group closed, and a press cannot open it`, async ($, on) => {
-      await grouped(on, $, ALL, (key, value) => (key === 'doneOpen' ? planted : value))
+  for (const planted of [['__proto__', 'constructor', 'toString'], 'finished', 5, [5, null, {}, 'Finished']] as const) {
+    test(`${surface}: a stored folds value of ${JSON.stringify(planted)} folds nothing, and the pane still draws`, async ($, on) => {
+      await grouped(on, $, ALL, (key, value) => (key === 'folded' ? planted : value))
       const m = await mountOn($, surface)
       const text = await groupsOf(m)
-      expect(text.includes('▸ DONE · STOPPED  2')).toBe(true)
-      expect(text.includes('done-one')).toBe(false)
-      await m.press({ key: 'fold' })
-      expect((await groupsOf(m)).includes('done-one')).toBe(false)
+      expect(text.includes('▾ Done · stopped 2')).toBe(true)
+      expect(text.includes('done-one')).toBe(true)
+      expect(text.includes('need-one')).toBe(true)
     })
   }
 
-  test(`${surface}: the toggle counts the reports of its cards, and an open card's report line uses →`, async ($, on) => {
+  test(`${surface}: the Done · stopped bar counts the reports of its cards, and an open card's report line uses →`, async ($, on) => {
     await grouped(on, $, ALL)
     const send = (from: string, text: string) =>
       $.session.receive({ origin: { kind: 'peer' }, text: `<cross-session-message from="${from}">\n${text}\n</cross-session-message>` })
@@ -1699,8 +1745,8 @@ for (const surface of SURFACES) {
     await send('done-one', 'one more thing')
     await send('work-one', 'still going')
     const m = await mountOn($, surface)
-    expect((await groupsOf(m)).includes('▸ DONE · STOPPED  2 · 3 reports')).toBe(true)
-    await m.press({ key: 'fold' })
+    expect((await groupsOf(m)).includes('▸ Done · stopped 2 · 3 reports')).toBe(true)
+    await m.press({ key: 'grp-finished' })
     const text = await groupsOf(m)
     expect(text.includes('→ one more thing')).toBe(true)
     expect(text.includes('→ still going')).toBe(true)
@@ -1710,14 +1756,16 @@ for (const surface of SURFACES) {
   test(`${surface}: titles that fold to one slug in different groups keep their roster index, so each press acts on its own card`, async ($, on) => {
     const w = await grouped(on, $, SAME_SLUG)
     const m = await mountOn($, surface)
-    await m.press({ key: 'fold' })
+    await m.press({ key: 'grp-finished' })
     await m.redraw(PANE_PROPS)
     expect(await m.find({ key: 'dismiss-1-ab' })).toBeDefined()
     expect(await m.find({ key: 'dismiss-2-ab' })).toBeDefined()
     // The group-local place of the first done or stopped card is 0: never a key.
     expect(await m.find({ key: 'dismiss-0-ab' })).toBeUndefined()
-    // No working card: its group draws nothing, heading included.
-    expect((await groupsOf(m)).includes('WORKING')).toBe(false)
+    // The card that waits on the owner has Open but no Dismiss.
+    expect(await m.find({ key: 'open-0-ab' })).toBeDefined()
+    // No working card: the Working bar shows its hint.
+    expect((await groupsOf(m)).includes('No session is working.')).toBe(true)
     await m.press({ key: 'open-1-ab' })
     await m.press({ key: 'open-0-ab' })
     expect(w.mcpCalls.map(c => c.args.session_id)).toEqual([D2, D1])
@@ -1742,10 +1790,10 @@ for (const surface of SURFACES) {
     // The plant reached the stored roster: five good cards and six odd ones.
     expect((w.roster.at(-1) as any).cards.length).toBe(11)
     const m = await mountOn($, surface)
-    await m.press({ key: 'fold' })
+    await m.press({ key: 'grp-finished' })
     const text = await textOf(m)
-    expect(text.includes('NEEDS YOU')).toBe(true)
-    expect(text.includes('▾ DONE · STOPPED  2')).toBe(true)
+    expect(text.includes('▾ Waiting on you 2')).toBe(true)
+    expect(text.includes('▾ Done · stopped 2')).toBe(true)
     expect(text.includes('odd-')).toBe(false)
     expect(text.includes('__proto__')).toBe(false)
     expect(text.includes('paused')).toBe(false)
@@ -1886,12 +1934,9 @@ for (const surface of SURFACES) {
         ['◆ context150k', AMBER_NUDGE],
       ].sort(),
     )
-    const holders = all.filter(b => b.type === 'Box' && b.props.marginLeft === 2 && b.children.some((c: any) => c?.props?.marginBottom === 1))
-    expect(holders.length).toBe(4)
-    for (const h of holders) {
-      const at = h.children.findIndex((c: any) => c?.props?.marginBottom === 1)
-      expect(said(h.children[at + 1])).toBe('p')
-    }    // The old one-line ◆ text is gone where a bar draws.
+    // The cache block sits under the card's row, which holds the phase.
+    expect(texts(all, 'p').length).toBeGreaterThan(0)
+    // The old one-line ◆ text is gone where a bar draws.
     expect(text.includes('◆ cache cold ·')).toBe(false)
     expect(text.includes('◆ cache warm ·')).toBe(false)
     // The nudges are warmthLine's, unchanged.
@@ -1944,7 +1989,7 @@ for (const surface of SURFACES) {
   test(`${surface}: done and stopped cards draw no ◆ line, bar or nudge`, async ($, on) => {
     await cached(on, $, CACHED, RECORDS)
     const m = await mountOn($, surface)
-    await m.press({ key: 'fold' })
+    await m.press({ key: 'grp-finished' })
     const all = await nodes(m)
     const text = String(all[0]?.text ?? '')
     // The group is open: its cards are drawn.
@@ -1957,7 +2002,7 @@ for (const surface of SURFACES) {
     expect(text.split('◆').length - 1).toBe(7)
     expect(text.split('Replying re-reads').length - 1).toBe(1)
     expect(text.split('Reply within').length - 1).toBe(1)
-    const from = text.indexOf('▾ DONE · STOPPED')
+    const from = text.indexOf('▾ Done · stopped')
     expect(from).toBeGreaterThan(-1)
     const finished = text.slice(from)
     expect(finished.includes('◆')).toBe(false)
@@ -2035,9 +2080,10 @@ for (const surface of SURFACES) {
     const m = await mountOn($, surface)
     const nodes = await drawnOf(m)
     const text = await textOf(m)
-    expect(nodes.some(n => n.type === 'Text' && n.text === 'Brigade' && n.props.bold === true)).toBe(true)
+    // No Brigade heading: the pane's own title names it. The count is the top row's.
+    expect(text.includes('Brigade')).toBe(false)
     const count = nodes.find(n => n.type === 'Text' && n.text === '5 sessions')
-    expect(count?.props.dimColor).toBe(true)
+    expect(count?.props.weight).toBe('medium')
     // The legend: each status with its glyph, count and word, in its colour,
     // in the Map's order.
     const legend = nodes.find(n => n.type === 'Text' && n.text === LEGEND)
@@ -2045,11 +2091,9 @@ for (const surface of SURFACES) {
     // The line's own Text holds the entries, each a Text in its colour.
     const colours = nodes.filter(n => n.type === 'Text' && n.text !== LEGEND && /^ *[●◐✓–] \d+ /.test(n.text ?? '')).map(n => n.props.color)
     expect(colours).toEqual(['warning', 'suggestion', 'success', 'inactive'])
-    expect(text.indexOf('Brigade')).toBeLessThan(text.indexOf('5 sessions'))
     expect(text.indexOf('5 sessions')).toBeLessThan(text.indexOf(LEGEND))
     expect(text.indexOf(LEGEND)).toBeLessThan(text.indexOf('To-dos'))
     expect(text.indexOf('0 of 3 done')).toBeLessThan(text.indexOf('Waiting on you'))
-    expect(text.includes('Sessions')).toBe(false)
     const done = nodes.find(n => n.type === 'Text' && n.text === '0 of 3 done')
     expect(done?.props.dimColor).toBe(true)
     // The text beside the bar sits in a Box that does not shrink.
@@ -2120,7 +2164,7 @@ for (const surface of SURFACES) {
     // Every card dismissed: one done card, pressed away.
     await grouped(on, $, { cards: [card('only', { status: 'done' })], todos: [] })
     const m = await mountOn($, surface)
-    await m.press({ key: 'fold' })
+    await m.press({ key: 'grp-finished' })
     await m.press({ key: 'dismiss-0-only' })
     const nodes = await drawnOf(m)
     expect(nodes.some(n => n.type === 'Text' && n.text === 'No cards in the roster yet.')).toBe(true)
@@ -2154,7 +2198,7 @@ for (const surface of SURFACES) {
   test(`${surface}: a dismissed card leaves the heading, the strip and the legend`, async ($, on) => {
     await grouped(on, $, ALL)
     const m = await mountOn($, surface)
-    await m.press({ key: 'fold' })
+    await m.press({ key: 'grp-finished' })
     await m.press({ key: 'dismiss-0-doneone' })
     const nodes = await drawnOf(m)
     expect(nodes.some(n => n.type === 'Text' && n.text === '4 sessions')).toBe(true)
@@ -2175,7 +2219,7 @@ for (const surface of SURFACES) {
     await grouped(on, $, roster)
     await $.session.receive({ origin: { kind: 'peer' }, text: `<cross-session-message from="${hostile}2">\n${hostile}\n</cross-session-message>` })
     const m = await mountOn($, surface)
-    await m.press({ key: 'fold' })
+    await m.press({ key: 'grp-finished' })
     const nodes = await drawnOf(m)
     // The roster loaded, and the report is in the pane: the toggle counts it.
     expect(nodes.some(n => n.type === 'Text' && n.text === '4 sessions')).toBe(true)
@@ -2297,14 +2341,14 @@ for (const surface of SURFACES) {
     await w.clock.advance(10000)
     await w.clock.settle()
     const m = await mountOn($, surface)
-    await m.press({ key: 'fold' })
+    await m.press({ key: 'grp-finished' })
     const all = await nodes(m)
     const text = String(all[0]?.text ?? '')
     expect(text.includes('done-x')).toBe(true)
     const lines = texts(all, '◆ transcript not found')
     expect(lines.length).toBe(2)
     for (const l of lines) expect(l.props.dimColor).toBe(true)
-    expect(text.slice(text.indexOf('▾ DONE · STOPPED')).includes('◆')).toBe(false)
+    expect(text.slice(text.indexOf('▾ Done · stopped')).includes('◆')).toBe(false)
     expect(texts(all, '◆ cache').length).toBe(0)
   })
 }
@@ -2447,7 +2491,7 @@ for (const surface of SURFACES) {
     await metered(on, $, METERED, METERS)
     const m = await mountOn($, surface)
     expect(await m.drawn()).toBeDefined()
-    await m.press({ key: 'fold' })
+    await m.press({ key: 'grp-finished' })
     const all = await nodes(m)
     const text = String(all[0]?.text ?? '')
     expect(text.includes('done-full')).toBe(true)
@@ -2462,7 +2506,7 @@ for (const surface of SURFACES) {
       expect(found[0]?.props.color).toBe(tone)
     }
     // The finished card and the unknown model draw no meter.
-    expect(text.slice(text.indexOf('▾ DONE · STOPPED')).includes('◆')).toBe(false)
+    expect(text.slice(text.indexOf('▾ Done · stopped')).includes('◆')).toBe(false)
     expect(text.includes('950k')).toBe(false)
     // The meter sits in the cache block, under the cache bar.
     const rows = meterRows(all).filter(r => !spoken(r).endsWith('150k'))
@@ -2643,14 +2687,23 @@ async function tabbed(
   return w
 }
 const tabKeys = (i: number, slug: string, views: string[]) => views.map(v => `tab-${i}-${slug}-${v}`)
-const labelOf = async (m: any, key: string) => spoken(await m.find({ key }))
+// A view button as drawn: its words in the terminal, its icon on Desktop,
+// where the chosen one is the primary button, marked here with a trailing ●.
+const ICONS: Record<string, string> = { cache: '◆', burn: '↯', trend: '∿' }
+const WORDS: Record<string, string> = { cache: 'Cache · context', burn: 'Burn rate', trend: 'Context trend' }
+const chosenLabel = (surface: string, view: string) => (surface === 'desktop' ? `${ICONS[view]} ●` : `● ${WORDS[view]}`)
+const otherLabel = (surface: string, view: string) => (surface === 'desktop' ? ICONS[view] : WORDS[view])
+const labelOf = async (m: any, key: string) => {
+  const b = await m.find({ key })
+  return b.props.variant === 'primary' && spoken(b) === ICONS[key.split('-').at(-1) ?? ''] ? `${spoken(b)} ●` : spoken(b)
+}
 
 for (const surface of SURFACES) {
   test(`${surface}: tabs show only with two or more views, the default selected and marked ●, plain passed only as plain`, async ($, on) => {
     const w = await tabbed(on, $)
     const m = await mountOn($, surface)
     expect(await m.drawn()).toBeDefined()
-    await m.press({ key: 'fold' })
+    await m.press({ key: 'grp-finished' })
     const all = await nodes(m)
     // need-tabs: three views; work-one: one call, so no trend; need-large:
     // too large, so the burn tab for its reason line.
@@ -2660,9 +2713,9 @@ for (const surface of SURFACES) {
     for (const key of ['tab-1-workone-trend', 'tab-3-needlarge-trend', ...tabKeys(2, 'worknone', ['cache', 'burn', 'trend']), ...tabKeys(4, 'donefull', ['cache', 'burn', 'trend'])]) {
       expect(await m.find({ key })).toBeUndefined()
     }
-    expect(await labelOf(m, 'tab-0-needtabs-cache')).toBe('● Cache · context')
-    expect(await labelOf(m, 'tab-0-needtabs-burn')).toBe('Burn rate')
-    expect(await labelOf(m, 'tab-0-needtabs-trend')).toBe('Context trend')
+    expect(await labelOf(m, 'tab-0-needtabs-cache')).toBe(chosenLabel(surface, 'cache'))
+    expect(await labelOf(m, 'tab-0-needtabs-burn')).toBe(otherLabel(surface, 'burn'))
+    expect(await labelOf(m, 'tab-0-needtabs-trend')).toBe(otherLabel(surface, 'trend'))
     // The selected tab is a primary button; the others are buttons too, drawn
     // dim, so each shows its outline and reads as pressable (#287 item 5,
     // which replaced plain unselected tabs). No button anywhere is handed
@@ -2680,7 +2733,7 @@ for (const surface of SURFACES) {
     // The tab row sits under the header line, inside the card, above the
     // cache block: in drawing order, the title, the tabs, then ◆ cache.
     const title = all.findIndex(n => n.type === 'Text' && n.text === 'need-tabs')
-    const tab = all.findIndex(n => n.type !== 'Box' && spoken(n) === '● Cache · context')
+    const tab = all.findIndex(n => n.type !== 'Box' && spoken(n) === (surface === 'desktop' ? '◆' : '● Cache · context'))
     const cache = all.findIndex((n, k) => k > tab && n.type === 'Text' && n.text === '◆ cache')
     expect(title).toBeGreaterThan(-1)
     expect(tab).toBeGreaterThan(title)
@@ -2693,10 +2746,6 @@ for (const surface of SURFACES) {
     await tabbed(on, $)
     const m = await mountOn($, surface)
     const all = await nodes(m)
-    // Item 2: the card's body is inset two cells on the right as on the left.
-    const holders = all.filter(b => b.type === 'Box' && b.props.marginLeft === 2)
-    expect(holders.length).toBeGreaterThan(0)
-    for (const h of holders) expect(h.props.marginRight).toBe(2)
     // Item 3: each label sits in a Box of one fixed width, and each value
     // starts at the left of its Box, one gap after its bar, as each bar sits
     // one gap after its label. On the terminal each value Box has one width
@@ -2759,8 +2808,8 @@ for (const surface of SURFACES) {
     const m = await mountOn($, surface)
     await m.press({ key: 'tab-0-needtabs-burn' })
     let all = await nodes(m)
-    expect(await labelOf(m, 'tab-0-needtabs-burn')).toBe('● Burn rate')
-    expect(await labelOf(m, 'tab-0-needtabs-cache')).toBe('Cache · context')
+    expect(await labelOf(m, 'tab-0-needtabs-burn')).toBe(chosenLabel(surface, 'burn'))
+    expect(await labelOf(m, 'tab-0-needtabs-cache')).toBe(otherLabel(surface, 'cache'))
     expect(texts(all, '12k/min · last 30 min').length).toBe(1)
     // Its cache bar and meter go; the other cards keep theirs.
     expect(texts(all, '◆ cache').length).toBe(2)
@@ -2782,7 +2831,7 @@ for (const surface of SURFACES) {
 
     await m.press({ key: 'tab-0-needtabs-trend' })
     all = await nodes(m)
-    expect(await labelOf(m, 'tab-0-needtabs-trend')).toBe('● Context trend')
+    expect(await labelOf(m, 'tab-0-needtabs-trend')).toBe(chosenLabel(surface, 'trend'))
     expect(texts(all, '412k now · 1 compaction').length).toBe(1)
     expect(texts(all, '12k/min · last 30 min').length).toBe(0)
     const trendImage = all.find(n => n.type === 'Svg' && String(n.props.alt).startsWith('Context trend'))
@@ -2808,7 +2857,7 @@ for (const surface of SURFACES) {
     expect(texts(before, reason).length).toBe(1)
     await m.press({ key: 'tab-3-needlarge-burn' })
     const all = await nodes(m)
-    expect(await labelOf(m, 'tab-3-needlarge-burn')).toBe('● Burn rate')
+    expect(await labelOf(m, 'tab-3-needlarge-burn')).toBe(chosenLabel(surface, 'burn'))
     const shown = texts(all, reason)
     expect(shown.length).toBe(1)
     expect(shown[0]?.props.dimColor).toBe(true)
@@ -2825,14 +2874,14 @@ for (const surface of SURFACES) {
     const m = await mountOn($, surface)
     await m.press({ key: 'tab-0-ab-burn' })
     let all = await nodes(m)
-    expect(await labelOf(m, 'tab-0-ab-burn')).toBe('● Burn rate')
-    expect(await labelOf(m, 'tab-1-ab-cache')).toBe('● Cache · context')
+    expect(await labelOf(m, 'tab-0-ab-burn')).toBe(chosenLabel(surface, 'burn'))
+    expect(await labelOf(m, 'tab-1-ab-cache')).toBe(chosenLabel(surface, 'cache'))
     expect(texts(all, '12k/min · last 30 min').length).toBe(1)
     expect(texts(all, '1.0k/min · last 30 min').length).toBe(0)
     await m.press({ key: 'tab-1-ab-trend' })
     all = await nodes(m)
-    expect(await labelOf(m, 'tab-0-ab-burn')).toBe('● Burn rate')
-    expect(await labelOf(m, 'tab-1-ab-trend')).toBe('● Context trend')
+    expect(await labelOf(m, 'tab-0-ab-burn')).toBe(chosenLabel(surface, 'burn'))
+    expect(await labelOf(m, 'tab-1-ab-trend')).toBe(chosenLabel(surface, 'trend'))
     expect(texts(all, '200k now · 0 compactions').length).toBe(1)
     expect(texts(all, '12k/min · last 30 min').length).toBe(1)
     // Each choice is kept under its own card's title. The engine presses only
@@ -2871,12 +2920,12 @@ for (const surface of SURFACES) {
     const w = await tabbed(on, $)
     const m = await mountOn($, surface)
     await m.press({ key: 'tab-0-needtabs-trend' })
-    expect(await labelOf(m, 'tab-0-needtabs-trend')).toBe('● Context trend')
+    expect(await labelOf(m, 'tab-0-needtabs-trend')).toBe(chosenLabel(surface, 'trend'))
     w.open = false
     await w.clock.advance(5000)
     await brigade($)
     await w.clock.settle()
-    expect(await labelOf(m, 'tab-0-needtabs-trend')).toBe('● Context trend')
+    expect(await labelOf(m, 'tab-0-needtabs-trend')).toBe(chosenLabel(surface, 'trend'))
     expect(texts(await nodes(m), '412k now · 1 compaction').length).toBe(1)
   })
 
@@ -2909,7 +2958,7 @@ for (const surface of SURFACES) {
       await m.press({ key: 'tab-0-needtabs-burn' })
       expect(w.states.filter(([k]) => k === 'tabs').at(-1)?.[1]).toBe(JSON.stringify(planted))
       expect(await m.drawn()).toBeDefined()
-      expect(await labelOf(m, 'tab-0-needtabs-cache')).toBe('● Cache · context')
+      expect(await labelOf(m, 'tab-0-needtabs-cache')).toBe(chosenLabel(surface, 'cache'))
       expect(texts(await nodes(m), '12k/min · last 30 min').length).toBe(0)
     })
   }
@@ -3264,3 +3313,456 @@ test('a clear while a write waits on its checks skips that write; the new sessio
   expect(JSON.parse(w.text(`${USAGE_DIR}\\${NEW}.json`) ?? '{}').context).toEqual([151002])
   expect(w.text(USAGE)).toBeUndefined()
 })
+
+// --- issue 339: the redesigned pane ---------------------------------------------
+//
+// Spec revision 3 on #339. The card's PR fields and its age, the `gh` call,
+// the switch between Sessions and Pull requests, the folds, the selection bar
+// and the look on each surface. The `gh` call is answered by the fake in
+// `world`, so no test reaches the network.
+
+const GH_ARGV = ['gh', 'pr', 'list', '--state', 'all', '--limit', '100', '--json', 'number,title,state,additions,deletions,updatedAt,url,isCrossRepository']
+const ghPr = (n: number, over: Record<string, unknown> = {}) => ({
+  number: n,
+  title: `Title ${n}`,
+  state: 'OPEN',
+  additions: 12,
+  deletions: 3,
+  updatedAt: '1970-01-01T00:00:00Z',
+  url: `https://github.com/o/r/pull/${n}`,
+  isCrossRepository: false,
+  ...over,
+})
+const PRS = {
+  cards: [
+    card('alpha', { status: 'working', pr: '341', prState: 'open' }),
+    card('beta', { status: 'done', pr: '342', prState: 'merged' }),
+    card('gamma', { status: 'needs-you' }),
+  ],
+  todos: [],
+}
+const asked = (w: World) => w.ghCalls.length
+
+test('set_roster takes pr and prState and writes them with the card and its age', async ($, on) => {
+  const w = world(on)
+  await start($)
+  await brigade($)
+  const r = await call($, { cards: [card('a', { pr: '341', prState: 'merged' })], todos: [] })
+  expect(r.ok).toBe(true)
+  expect(JSON.parse(w.text(FILE) ?? 'null').cards[0]).toEqual({ ...card('a', { pr: '341', prState: 'merged' }), since: 0 })
+})
+
+for (const [label, over, field] of [
+  ['a non-digit pr', { pr: 'abc' }, 'pr'],
+  ['an 8-digit pr', { pr: '12345678' }, 'pr'],
+  ['a pr that is a number', { pr: 341 }, 'pr'],
+  ['an unknown prState', { prState: 'draft' }, 'prState'],
+  ['a prototype key as prState', { prState: 'constructor' }, 'prState'],
+  ['a since the model sent', { since: 5 }, 'since'],
+] as const) {
+  test(`set_roster refuses ${label}, names the field, and leaves the file`, async ($, on) => {
+    const w = world(on, w => {
+      w.dirs(BRIGADE)
+      w.put(FILE, { type: 'file', data: { text: '{"cards":[],"todos":[]}' } })
+    })
+    await start($)
+    await brigade($)
+    const r = await call($, { cards: [card('a', over)], todos: [] })
+    expect(r.ok).toBe(false)
+    expect(r.text).toContain(`card 1 ${field} `)
+    expect(w.text(FILE)).toBe('{"cards":[],"todos":[]}')
+  })
+}
+
+test('the pane reads a roster file holding pr, prState and since', async ($, on) => {
+  const w = await grouped(on, $, { cards: [card('a', { pr: '341', prState: 'open', since: 5 })], todos: [] })
+  expect(w.errors.at(-1)).toBe('')
+})
+
+test('the pane refuses a roster file whose since is 2^53', async ($, on) => {
+  const w = await grouped(on, $, { cards: [card('a', { since: 2 ** 53 })], todos: [] })
+  expect(w.errors.at(-1)).toMatch(/^Roster not shown: card 1 since is not a whole number/)
+})
+
+test('a call keeps a card\'s age while its status and phase stand, and stamps the clock when they change or the card is new', async ($, on) => {
+  const w = world(on)
+  await start($)
+  await brigade($)
+  await call($, { cards: [card('a', { phase: 'p1' }), card('b')], todos: [] })
+  await w.clock.advance(120000)
+  await call($, { cards: [card('a', { phase: 'p1' }), card('b', { phase: 'new' }), card('c')], todos: [] })
+  const now = w.clock.now()
+  expect(JSON.parse(w.text(FILE) ?? 'null').cards.map((c: any) => c.since)).toEqual([0, now, now])
+})
+
+test('two calls in one turn stamp in order, the second from the file the first wrote', async ($, on) => {
+  const w = world(on)
+  await start($)
+  await brigade($)
+  await call($, { cards: [card('a')], todos: [] })
+  await w.clock.advance(60000)
+  const now = w.clock.now()
+  const [x, y] = await Promise.all([call($, { cards: [card('a')], todos: [] }), call($, { cards: [card('a', { status: 'done' })], todos: [] })])
+  expect([x.ok, y.ok]).toEqual([true, true])
+  const written = w.log.filter(l => l.startsWith('write ')).slice(-2).map(l => JSON.parse(l.slice(l.indexOf('{'))))
+  expect(written.map(r => r.cards[0].since)).toEqual([0, now])
+})
+
+test('a clock answer that is a fraction refuses the call, leaves the file, and the next good answer is kept', async ($, on) => {
+  const w = world(on, w => {
+    w.dirs(BRIGADE)
+    w.put(FILE, { type: 'file', data: { text: '{"cards":[],"todos":[]}' } })
+  })
+  await start($)
+  await brigade($)
+  // The kit's clock answers what it is set to, a fraction included.
+  await w.clock.set(1.5)
+  const refused = await call($, { cards: [card('a')], todos: [] })
+  expect(refused.ok).toBe(false)
+  expect(refused.text).toContain('clock')
+  expect(w.text(FILE)).toBe('{"cards":[],"todos":[]}')
+  await w.clock.set(2)
+  expect((await call($, { cards: [card('a')], todos: [] })).ok).toBe(true)
+  expect(JSON.parse(w.text(FILE) ?? 'null').cards[0].since).toBe(2)
+})
+
+test('the stamp keeps no age the file carries ahead of the clock by more than 2 minutes', async ($, on) => {
+  const w = world(on, w => {
+    w.dirs(BRIGADE)
+    w.put(FILE, { type: 'file', data: { text: JSON.stringify({ cards: [card('a', { since: 500000 })], todos: [] }) } })
+  })
+  await start($)
+  await brigade($)
+  expect((await call($, { cards: [card('a')], todos: [] })).ok).toBe(true)
+  expect(JSON.parse(w.text(FILE) ?? 'null').cards[0].since).toBe(0)
+})
+
+// --- the gh call ---------------------------------------------------------------
+
+test('with a card carrying a pr, the open pane runs the one fixed gh list at most once a minute, with a 15 s limit', async ($, on) => {
+  const w = await grouped(on, $, PRS)
+  expect(asked(w)).toBe(1)
+  expect(w.ghCalls[0]).toEqual(GH_ARGV)
+  expect(w.ghInits[0]).toEqual({ timeoutMs: 15000 })
+  await w.clock.advance(59000)
+  expect(asked(w)).toBe(1)
+  await w.clock.advance(1000)
+  expect(asked(w)).toBe(2)
+  await w.clock.advance(60000)
+  expect(asked(w)).toBe(3)
+})
+
+test('no gh call runs when no card carries a pr', async ($, on) => {
+  const w = await grouped(on, $, ALL)
+  await w.clock.advance(180000)
+  expect(asked(w)).toBe(0)
+})
+
+test('no gh call runs once the pane is closed', async ($, on) => {
+  const w = await grouped(on, $, PRS)
+  expect(asked(w)).toBe(1)
+  w.open = false
+  await w.clock.advance(5000)
+  await w.clock.advance(180000)
+  expect(asked(w)).toBe(1)
+})
+
+test("a dismissed card's PR is not asked about", async ($, on) => {
+  const w = await grouped(on, $, { cards: [card('alpha', { status: 'working', pr: '341' })], todos: [] })
+  expect(asked(w)).toBe(1)
+  const m = await mountOn($, 'desktop')
+  await m.press({ key: 'dismiss-0-alpha' })
+  await w.clock.advance(180000)
+  expect(asked(w)).toBe(1)
+})
+
+test('once gh says every shown PR is merged, it is not asked again', async ($, on) => {
+  const w = world(on, w => {
+    w.dirs(BRIGADE)
+    w.put(FILE, { type: 'file', data: { text: JSON.stringify(PRS) } })
+    w.ghOut = JSON.stringify([ghPr(341, { state: 'MERGED' }), ghPr(342, { state: 'MERGED' })])
+  })
+  on('session.receive', (_: any, e: any) => e)
+  await start($)
+  await brigade($)
+  await w.clock.settle()
+  expect(asked(w)).toBe(1)
+  await w.clock.advance(240000)
+  expect(asked(w)).toBe(1)
+})
+
+test('a result the pane\'s close overtakes is dropped', async ($, on) => {
+  const w = world(on, w => {
+    w.dirs(BRIGADE)
+    w.put(FILE, { type: 'file', data: { text: JSON.stringify(PRS) } })
+    w.holdGh = true
+    w.ghOut = JSON.stringify([ghPr(341, { title: 'Dropped answer' })])
+  })
+  on('session.receive', (_: any, e: any) => e)
+  await start($)
+  const opening = brigade($)
+  await w.clock.settle()
+  w.open = false
+  await w.clock.advance(5000)
+  w.holdGh = false
+  w.releaseGh()
+  await opening
+  await w.clock.settle()
+  w.open = true
+  await brigade($)
+  await w.clock.settle()
+  const m = await mountOn($, 'desktop')
+  await m.press({ key: 'view-prs' })
+  expect((await textOf(m)).includes('Dropped answer')).toBe(false)
+})
+
+const BAD_GH = [
+  ['a non-zero exit', (w: World) => { w.ghExit = 1 }],
+  ['output the engine cut short', (w: World) => { w.ghCut = true }],
+  ['output that is no JSON', (w: World) => { w.ghOut = 'not json' }],
+  ['a failure to start', (w: World) => { w.ghDeny = 'spawn failed: SECRET_MARKER_XYZ' }],
+] as const
+for (const [label, spoil] of BAD_GH) {
+  test(`gh with ${label}: the last good answers stay, one dim line says so, and the error text is shown and stored nowhere`, async ($, on) => {
+    const w = world(on, w => {
+      w.dirs(BRIGADE)
+      w.put(FILE, { type: 'file', data: { text: JSON.stringify(PRS) } })
+      w.ghOut = JSON.stringify([ghPr(341, { title: 'Good title' })])
+    })
+    on('session.receive', (_: any, e: any) => e)
+    await start($)
+    await brigade($)
+    await w.clock.settle()
+    const m = await mountOn($, 'desktop')
+    await m.press({ key: 'view-prs' })
+    expect((await textOf(m)).includes('Good title')).toBe(true)
+    expect((await textOf(m)).includes('PR details unavailable')).toBe(false)
+    spoil(w)
+    w.ghErr = 'SECRET_MARKER_XYZ account=octo host=ghe.example'
+    await w.clock.advance(60000)
+    const text = await textOf(m)
+    expect(text.includes('PR details unavailable')).toBe(true)
+    expect(text.includes('Good title')).toBe(true)
+    expect(text.includes('SECRET_MARKER')).toBe(false)
+    expect(text.includes('octo')).toBe(false)
+    expect(w.states.some(([, v]) => v.includes('SECRET_MARKER') || v.includes('octo'))).toBe(false)
+    expect(w.errors.some(e => e.includes('SECRET_MARKER'))).toBe(false)
+    expect(w.toasts.some(t => t.includes('SECRET_MARKER'))).toBe(false)
+  })
+}
+
+test('a PR from a fork gets no title, counts or state: the card draws its own title and prState', async ($, on) => {
+  const w = world(on, w => {
+    w.dirs(BRIGADE)
+    w.put(FILE, { type: 'file', data: { text: JSON.stringify(PRS) } })
+    w.ghOut = JSON.stringify([ghPr(341, { title: 'Stranger PR', state: 'MERGED', isCrossRepository: true }), ghPr(342, { title: 'Real merged', state: 'MERGED' })])
+  })
+  on('session.receive', (_: any, e: any) => e)
+  await start($)
+  await brigade($)
+  await w.clock.settle()
+  const m = await mountOn($, 'desktop')
+  await m.press({ key: 'view-prs' })
+  const text = await textOf(m)
+  expect(text.includes('Stranger PR')).toBe(false)
+  expect(text.includes('alpha')).toBe(true)
+  expect(text.includes('Real merged')).toBe(true)
+  // The fork's PR left the card's own state, open, in place.
+  expect(text.indexOf('▾ Open 1')).toBeLessThan(text.indexOf('alpha'))
+})
+
+// --- the views ------------------------------------------------------------------
+
+for (const surface of SURFACES) {
+  test(`${surface}: the switch shows Sessions first, each time the pane opens, and the Pull requests view groups the PRs with counts and hints`, async ($, on) => {
+    const w = world(on, w => {
+      w.dirs(BRIGADE)
+      w.put(FILE, { type: 'file', data: { text: JSON.stringify({ cards: [...PRS.cards, card('delta', { status: 'working', pr: '343', prState: 'closed' })], todos: [] }) } })
+      w.ghOut = JSON.stringify([ghPr(341, { title: 'Fix the pane', additions: 20, deletions: 4 }), ghPr(342, { title: 'Merged thing', state: 'MERGED' })])
+    })
+    on('session.receive', (_: any, e: any) => e)
+    await start($)
+    await brigade($)
+    await w.clock.settle()
+    const m = await mountOn($, surface)
+    let text = await textOf(m)
+    expect(text.startsWith('4 sessions')).toBe(true)
+    await m.press({ key: 'view-prs' })
+    text = await textOf(m)
+    expect(text.startsWith('3 pull requests')).toBe(true)
+    expect(text.includes('1 waiting on you')).toBe(true)
+    for (const bar of ['▾ Open 1', '▾ Merged 1', '▾ Closed 1']) expect(text.includes(bar)).toBe(true)
+    // The PR's title, then the card's title, the counts, the repository and the age.
+    expect(text.includes('Fix the pane')).toBe(true)
+    expect(text.includes('alpha · +20 −4 · o/r')).toBe(true)
+    expect(text.includes('Merged thing')).toBe(true)
+    // The card with no answer from gh shows its own title.
+    expect(text.includes('delta')).toBe(true)
+    // Usage and the spacer stay.
+    expect(text.includes('Usage')).toBe(true)
+    // Reopening the pane opens on Sessions.
+    w.open = false
+    await w.clock.advance(5000)
+    await brigade($)
+    await w.clock.settle()
+    expect((await textOf(m)).startsWith('4 sessions')).toBe(true)
+  })
+
+  test(`${surface}: the Pull requests view shows its empty groups' hints, folds on a press, and keeps the roster's errors on top`, async ($, on) => {
+    await grouped(on, $, { cards: [card('plain', { status: 'working' })], todos: [] })
+    const m = await mountOn($, surface)
+    await m.press({ key: 'view-prs' })
+    let text = await textOf(m)
+    expect(text.startsWith('0 pull requests')).toBe(true)
+    for (const hint of ['No open pull requests.', 'Nothing merged yet.', 'No closed pull requests.']) expect(text.includes(hint)).toBe(true)
+    await m.press({ key: 'grp-pr-open' })
+    text = await textOf(m)
+    expect(text.includes('▸ Open 0')).toBe(true)
+    expect(text.includes('No open pull requests.')).toBe(false)
+  })
+
+  test(`${surface}: the roster's errors stay on top of the Pull requests view`, async ($, on) => {
+    const bad = await grouped(on, $, { cards: [card('bad', { status: 'paused' })], todos: [] })
+    const n = await mountOn($, surface)
+    await n.press({ key: 'view-prs' })
+    expect((await textOf(n)).includes('Roster not shown')).toBe(true)
+    expect(bad.errors.at(-1)).toContain('Roster not shown')
+  })
+
+  test(`${surface}: a card shows its PR pill in the state's colour, and a state outside the Map draws the pill with no colour`, async ($, on) => {
+    await grouped(on, $, PRS, (key, value) =>
+      key === 'roster' ? { ...value, cards: [...(value?.cards ?? []), { ...card('odd', { status: 'working' }), pr: '7', prState: 'constructor' }] } : value,
+    )
+    const m = await mountOn($, surface)
+    await m.press({ key: 'grp-finished' })
+    const all = await nodes(m)
+    expect(texts(all, '#341')[0]?.props.color).toBe('success')
+    expect(texts(all, '#342')[0]?.props.color).toBe('merged')
+    expect(texts(all, '#7')[0]).toBeDefined()
+    expect(texts(all, '#7')[0]?.props.color).toBeUndefined()
+    // On Desktop the pill is a round outline in the state's colour; the terminal has none.
+    const pills = all.filter(n => n.type === 'Box' && n.props.borderStyle === 'round' && n.props.borderColor === 'success')
+    expect(pills.length).toBe(surface === 'desktop' ? 1 : 0)
+  })
+
+  test(`${surface}: a card's age is drawn from its since, and none when since is ahead of the clock by over 2 minutes`, async ($, on) => {
+    const w = await grouped(on, $, { cards: [card('old', { status: 'working', since: 0 }), card('future', { status: 'working', since: 1200000 })], todos: [] })
+    await w.clock.advance(14 * 60000)
+    const m = await mountOn($, surface)
+    const all = await nodes(m)
+    const ages = all.filter(n => n.type === 'Text' && n.props.tabular === true).map(n => n.text)
+    expect(ages).toEqual(['14m'])
+  })
+
+  test(`${surface}: the settings show as one character each on Desktop, in full on the terminal`, async ($, on) => {
+    await grouped(on, $, { cards: [card('mx', { status: 'working', settings: 'Opus, max, default mode' })], todos: [] })
+    const m = await mountOn($, surface)
+    const text = await textOf(m)
+    expect(text.includes('O·∞')).toBe(surface === 'desktop')
+    // The tooltip holds the full line on Desktop; the terminal shows it inline.
+    expect(text.includes('Opus, max, default mode')).toBe(true)
+  })
+
+  test(`${surface}: hairlines, hover fills and tooltips are Desktop's; the terminal draws a blank row and always shows the actions`, async ($, on) => {
+    await grouped(on, $, { cards: [card('one', { status: 'working' }), card('two', { status: 'working' })], todos: [] })
+    const m = await mountOn($, surface)
+    const all = await nodes(m)
+    const lines = all.filter(n => n.type === 'Svg' && n.props.alt === 'divider')
+    // A hover is not in the drawn tree; what it reveals is: a Box hidden at rest.
+    const hidden = all.filter(n => n.type === 'Box' && n.props.display === 'none')
+    const actions = all.filter(n => n.type === 'Box' && ['Dismiss', 'OpenDismiss'].includes(spoken(n)))
+    if (surface === 'desktop') {
+      expect(lines.length).toBe(1)
+      expect(hidden.length).toBeGreaterThan(0)
+      expect(actions.some(a => a.props.display === 'none')).toBe(true)
+      expect(String(lines[0]?.props.source)).toContain('class="rule"')
+    } else {
+      expect(lines.length).toBe(0)
+      expect(hidden.length).toBe(0)
+      expect(actions.length).toBeGreaterThan(0)
+      for (const a of actions) expect(a.props.display).toBeUndefined()
+    }
+  })
+
+  test(`${surface}: the checkbox selects a card and a to-do's box ticks the to-do, each with its own key and word`, async ($, on) => {
+    const w = await grouped(on, $, { cards: [card('one', { status: 'working' }), card('two', { status: 'working' })], todos: [{ id: 't1', text: 'look' }] })
+    const m = await mountOn($, surface)
+    await m.redraw(PANE_PROPS)
+    expect((await m.find({ key: 'pick-0-one' })).props.label).toBe('Select')
+    expect((await m.find({ key: 'todo-0-t1' })).props.label).toBe('Done')
+    const ticks = () => w.log.filter(l => l.startsWith('state ticking')).length
+    await m.press({ key: 'pick-0-one' })
+    await m.press({ key: 'pick-1-two' })
+    expect(ticks()).toBe(0)
+    expect((await textOf(m)).includes('2 selected')).toBe(true)
+    await m.press({ key: 'todo-0-t1' })
+    expect(ticks()).toBeGreaterThan(0)
+    // The tick selected nothing: still the two cards.
+    expect((await textOf(m)).includes('2 selected')).toBe(true)
+    // A second press on a card's box unselects it.
+    await m.press({ key: 'pick-0-one' })
+    expect((await textOf(m)).includes('1 selected')).toBe(true)
+  })
+
+  test(`${surface}: the bar's Dismiss hides the selected cards, skips one that waits on the owner, and clears the selection; the cross clears it alone`, async ($, on) => {
+    // Every selection the pane sets is replaced by one naming a card that waits on the owner.
+    const PLANTED = ['work-one', 'need-one', 'stop-one', 'not-a-card']
+    const w = await grouped(on, $, ALL, (key, value) => (key === 'picked' && Array.isArray(value) && value.length > 0 ? PLANTED : value))
+    const m = await mountOn($, surface)
+    await m.press({ key: 'pick-1-workone' })
+    expect((await textOf(m)).includes('4 selected')).toBe(true)
+    await m.press({ key: 'barclear' })
+    const cleared = await textOf(m)
+    expect(cleared.includes('selected')).toBe(false)
+    expect(cleared.includes('work-one')).toBe(true)
+    await m.press({ key: 'pick-1-workone' })
+    await m.press({ key: 'bardismiss' })
+    const after = await textOf(m)
+    expect(after.includes('selected')).toBe(false)
+    expect(after.includes('work-one')).toBe(false)
+    expect(after.includes('need-one')).toBe(true)
+    expect(after.includes('▸ Done · stopped 1')).toBe(true)
+    // Reopening brings the dismissed cards back and clears the selection.
+    w.open = false
+    await w.clock.advance(5000)
+    await brigade($)
+    await w.clock.settle()
+    const back = await textOf(m)
+    expect(back.includes('work-one')).toBe(true)
+    expect(back.includes('▸ Done · stopped 2')).toBe(true)
+  })
+
+  test(`${surface}: Dismiss is on working, done and stopped cards and never on one that waits on the owner; a card dismissed while working shows in Waiting on you when it turns needs-you`, async ($, on) => {
+    const w = await grouped(on, $, ALL)
+    const m = await mountOn($, surface)
+    await m.press({ key: 'grp-finished' })
+    await m.redraw(PANE_PROPS)
+    expect(await m.find({ key: 'dismiss-1-workone' })).toBeDefined()
+    expect(await m.find({ key: 'dismiss-0-doneone' })).toBeDefined()
+    expect(await m.find({ key: 'dismiss-3-stopone' })).toBeDefined()
+    expect(await m.find({ key: 'dismiss-2-needone' })).toBeUndefined()
+    expect(await m.find({ key: 'dismiss-4-needtwo' })).toBeUndefined()
+    await m.press({ key: 'dismiss-1-workone' })
+    expect((await textOf(m)).includes('work-one')).toBe(false)
+    // The head chef turns the dismissed card to needs-you: it shows again, in Waiting on you.
+    await call($, { cards: ALL.cards.map(c => (c.title === 'work-one' ? { ...c, status: 'needs-you' } : c)), todos: [] })
+    await w.clock.settle()
+    const text = await textOf(m)
+    expect(text.includes('▾ Waiting on you 3')).toBe(true)
+    expect(text.indexOf('work-one')).toBeLessThan(text.indexOf('▾ Working'))
+  })
+
+  test(`${surface}: a planted view, selection or fold list is checked again and changes nothing it should not`, async ($, on) => {
+    await grouped(on, $, ALL, (key, value) => {
+      if (key === 'view') return '__proto__'
+      if (key === 'picked') return Array.from({ length: 300 }, (_, i) => `bogus-${i}`)
+      return value
+    })
+    const m = await mountOn($, surface)
+    await m.press({ key: 'pick-1-workone' })
+    const text = await textOf(m)
+    // The planted view word reads as Sessions; the long selection reads as at most 50.
+    expect(text.startsWith('5 sessions')).toBe(true)
+    expect(text.includes('50 selected')).toBe(true)
+  })
+}
