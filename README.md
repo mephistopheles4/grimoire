@@ -138,18 +138,42 @@ any matter, and the lead tells you in one line of each one it sends. A
 session cannot tell a forged sender from the lead; read the skill's README
 before you install. Not for work in the same session.
 
-`/brigade` opens the Brigade pane: one card per session the lead started, with
-its work, phase, settings, live busy or idle state, cache warmth and latest
-report. A card that waits on you and holds a large context says when to reply
+`/brigade` opens the Brigade pane: one compact row per session the lead
+started. A switch at the top shows either Sessions or Pull requests, and the
+pane opens on Sessions each time. Sessions keeps three foldable groups: Waiting
+on you, Working, and Done · stopped, which starts folded and counts the reports
+its sessions sent since you opened the pane. A row shows a checkbox, a status
+dot, the title, the phase, the latest report's first line, the live busy or idle
+state and how long the session has been in its status and phase. Model and
+effort show as one character each, with the full settings in a tooltip. Open and
+Dismiss appear when you point at a row; in the terminal they are always shown.
+Tick several rows and a bar at the foot dismisses them together. A session that
+waits on you has no Dismiss and is never hidden. Reopening the pane brings
+dismissed rows back. The pane's section bars, hover and selection bar are drawn
+for Desktop's dark theme, so in a light theme they look darker than the rest of
+the app.
+
+The lead can put each session's pull request on its row. A pill shows the
+number in the state's colour. The Pull requests view lists those pull requests
+grouped Open, Merged and Closed, with title, added and removed lines, repository
+and age. While the pane is open and a row carries a pull request, the pane asks
+`gh` for the details once a minute, and stops once every pull request it shows is merged. **The
+details need `gh` installed, signed in, and run from a github.com repository.** On
+macOS and Linux the pane also asks only when every folder on PATH is an absolute
+path. Without them the pill shows the number and the state the lead last knew, and the
+Pull requests view says "PR details unavailable". A pull request opened from a
+fork is never shown as the brigade's.
+
+A row that waits on you and holds a large context says when to reply
 to keep its cache, or suggests a hand-off once it has gone cold. Under its
 cache bar, a context meter shows how full the session's context is: amber from
-70%, red from 90%. Tabs on the card switch to two more views. Burn rate is a
+70%, red from 90%. Icon buttons on the row switch to two more views. Burn rate is a
 sparkline of the new tokens the session spent in each of the last 30 minutes,
 with its rate per minute. Context trend is a sparkline of its last 30 calls'
 context; it marks each call under half the one before it, a compaction, and
-counts them. A card shows tabs only when it has more than one view, and keeps
-your choice while the lead session lasts. The reply reminder shows under
-whichever tab you chose. At its bottom
+counts them. A row shows these buttons only when it has more than one view, and
+keeps your choice while the lead session lasts. The reply reminder shows under
+whichever view you chose. At the bottom of the pane
 it shows the lead session's own rate limits and context. A faint extension on
 the session and weekly limit bars shows where each will be at its reset if the
 current pace holds, and a red note says how early a limit runs out when that
@@ -164,7 +188,7 @@ its `SKILL.md` is generated from:
 Since 0.60.0 every session with the plugin writes its own usage numbers to a
 small summary file. Since 0.61.0 the pane draws a member's card from that file
 whenever it passes its checks, so a member whose transcript is too large to
-read keeps its cache line, context meter and tabs. A card that reads "summary
+read keeps its cache line, context meter and views. A card that reads "summary
 path refused" or "not a summary file" is drawn from its transcript instead:
 the member's file failed the path check, or the same file failed its checks
 two polls running. SECURITY.md says where the files are.

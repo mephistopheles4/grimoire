@@ -1,4 +1,4 @@
-import type { Card, Pair, Roster, Status, Todo } from './types'
+import type { Card, Pair, PrState, Roster, Status, Todo } from './types'
 
 // What the Brigade pane reads from outside itself, checked before it is drawn
 // or used: the roster, the rows `claude agents --json` prints, the transcript
@@ -64,9 +64,25 @@ function text(where: string, v: unknown, max: number, required: boolean): Checke
   return { value: v }
 }
 
-function card(i: number, v: unknown): Checked<Card> {
+/** Where a roster came from. The file may hold a card's `since`; the tool's
+ *  input may not, since the tool stamps it. */
+export type Source = 'file' | 'tool'
+
+/** The three states a card's PR can be in, as the card keeps them. */
+export const PR_STATES: readonly PrState[] = ['open', 'merged', 'closed']
+
+/** A PR number as text: 1 to 7 digits. The tool's schema and the view module take this one pattern. */
+export const PR_NUMBER = /^[0-9]{1,7}$/
+
+/** Whether a value is a whole number from 0 to 2^53 - 1. */
+const isWhole = (v: unknown): v is number => typeof v === 'number' && Number.isSafeInteger(v) && v >= 0
+
+function card(i: number, v: unknown, source: Source): Checked<Card> {
   const where = `card ${i + 1}`
-  const f = fields(where, v, ['title', 'work', 'phase', 'settings', 'status', 'desktopId', 'bgId', 'url'])
+  if (source === 'tool' && isRecord(v) && Object.hasOwn(v, 'since')) {
+    return { error: `${where} since is stamped by the pane, not sent by the tool` }
+  }
+  const f = fields(where, v, ['title', 'work', 'phase', 'settings', 'status', 'desktopId', 'bgId', 'url', 'pr', 'prState', 'since'])
   if ('error' in f) return f
   const o = f.value
   const title = text(`${where} title`, o.title, MAX_TITLE, true)
@@ -85,6 +101,20 @@ function card(i: number, v: unknown): Checked<Card> {
     const t = text(`${where} ${k}`, o[k], MAX_ID, false)
     if ('error' in t) return t
     if (t.value !== undefined) out[k] = t.value
+  }
+  if (o.pr !== undefined) {
+    if (typeof o.pr !== 'string' || !PR_NUMBER.test(o.pr)) return { error: `${where} pr is not 1 to 7 digits` }
+    out.pr = o.pr
+  }
+  if (o.prState !== undefined) {
+    if (typeof o.prState !== 'string' || !(PR_STATES as readonly string[]).includes(o.prState)) {
+      return { error: `${where} prState is not one of ${PR_STATES.join(', ')}` }
+    }
+    out.prState = o.prState as PrState
+  }
+  if (o.since !== undefined) {
+    if (!isWhole(o.since)) return { error: `${where} since is not a whole number from 0 to ${Number.MAX_SAFE_INTEGER}` }
+    out.since = o.since
   }
   return { value: out }
 }
@@ -109,7 +139,7 @@ function todo(i: number, v: unknown): Checked<Todo> {
  *  id twice. The pane reads a missing list as empty. `strict` requires both
  *  lists, as the writer does of a file it would overwrite: `{}` is then no
  *  roster, so a hard link to some other JSON file is not taken for one. */
-export function checkRoster(raw: string, strict = false): Checked<Roster> {
+export function checkRoster(raw: string, strict = false, source: Source = 'file'): Checked<Roster> {
   let parsed: unknown
   try {
     parsed = JSON.parse(raw)
@@ -132,7 +162,7 @@ export function checkRoster(raw: string, strict = false): Checked<Roster> {
   const out: Roster = { cards: [], todos: [] }
   const titles = new Set<string>()
   for (const [i, v] of cards.entries()) {
-    const c = card(i, v)
+    const c = card(i, v, source)
     if ('error' in c) return c
     // Compared as drawn, so two titles that differ only in a hidden
     // character cannot pose as one card.
@@ -163,6 +193,112 @@ export function serialize(roster: Roster): Checked<string> {
   const text = JSON.stringify(roster)
   const bytes = new TextEncoder().encode(text).length
   return bytes > MAX_ROSTER_BYTES ? { error: `the roster is ${bytes} bytes, over the cap of ${MAX_ROSTER_BYTES}` } : { value: text }
+}
+
+// --- the card's age ------------------------------------------------------------
+//
+// A card's `since` is when it entered its current status and phase. The
+// set_roster tool stamps it from the engine clock, inside its queue, and the
+// model never sends one. A `since` written to the file by anything else is
+// drawn as written.
+
+/** How far ahead of the clock a kept or drawn time may be: 2 minutes. */
+export const AHEAD_MS = 120000
+
+/** The cards with `since` set: kept from the previous roster's card of the
+ *  same drawn title, status and phase when that value passes the file check
+ *  and is at most 2 minutes ahead of the clock, else the clock's answer. A
+ *  clock answer that is not a whole number from 0 to 2^53 - 1 refuses. */
+export function stampSince(previous: Roster | undefined, cards: readonly Card[], clock: unknown): Checked<Card[]> {
+  if (!isWhole(clock)) return { error: 'clock: the engine clock gave no whole number of milliseconds' }
+  const before = new Map<string, Card>()
+  for (const c of previous?.cards ?? []) before.set(oneLine(c.title, MAX_TITLE), c)
+  return {
+    value: cards.map(c => {
+      const was = before.get(oneLine(c.title, MAX_TITLE))
+      // The phase is compared as the pane draws it, so a hidden character or a trailing space is no change.
+      const keep = was !== undefined && was.status === c.status && oneLine(was.phase, 160) === oneLine(c.phase, 160) && isWhole(was.since) && was.since <= clock + AHEAD_MS
+      return { ...c, since: keep ? was.since : clock }
+    }),
+  }
+}
+
+// --- the gh answer ---------------------------------------------------------------
+//
+// The pane asks `gh pr list` for the brigade's PRs. The output is text another
+// process wrote, so it is read as untrusted: held to a size, a count and a
+// shape per entry, and kept in a Map keyed by number.
+
+/** The cap on `gh`'s output, in UTF-8 bytes. */
+export const MAX_GH_BYTES = 1024 * 1024
+const MAX_GH_ENTRIES = 100
+const MAX_GH_TITLE = 1000
+const MAX_COUNT = 100000000
+const MAX_PR = 9999999
+
+/** The one argument list the pane runs; no roster text reaches it. */
+export const GH_ARGV: readonly string[] = [
+  'gh',
+  'pr',
+  'list',
+  '--state',
+  'all',
+  '--limit',
+  '100',
+  '--json',
+  'number,title,state,additions,deletions,updatedAt,url,isCrossRepository',
+]
+
+/** One PR `gh` answered for, after its checks. `updatedAt` is epoch ms. */
+export type GhPr = { number: number; title: string; state: PrState; additions: number; deletions: number; updatedAt: number; repo: string }
+
+const GH_STATES: ReadonlyMap<string, PrState> = new Map([
+  ['OPEN', 'open'],
+  ['MERGED', 'merged'],
+  ['CLOSED', 'closed'],
+])
+const GH_URL = /^https:\/\/github\.com\/([A-Za-z0-9-]{1,39}\/[A-Za-z0-9._-]{1,100})\/pull\/([0-9]{1,7})$/
+const GH_TIME = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z$/
+
+const wholeBetween = (v: unknown, min: number, max: number): v is number => typeof v === 'number' && Number.isSafeInteger(v) && v >= min && v <= max
+
+/** The PRs `gh pr list` printed, by number. Only an entry of the stated shape
+ *  counts, among the first 100; a fork's PR counts as no answer. Output over
+ *  1 MiB, or no JSON list, is an error whose words carry none of the output. */
+export function parsePrList(stdout: string): Checked<Map<number, GhPr>> {
+  if (new TextEncoder().encode(stdout).length > MAX_GH_BYTES) return { error: 'gh printed more than the pane reads' }
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(stdout)
+  } catch {
+    return { error: 'gh printed no JSON' }
+  }
+  if (!Array.isArray(parsed)) return { error: 'gh printed no list' }
+  const out = new Map<number, GhPr>()
+  for (const e of parsed.slice(0, MAX_GH_ENTRIES)) {
+    if (!isRecord(e)) continue
+    const state = typeof e.state === 'string' ? GH_STATES.get(e.state) : undefined
+    const url = typeof e.url === 'string' ? GH_URL.exec(e.url) : null
+    if (
+      !wholeBetween(e.number, 1, MAX_PR) ||
+      typeof e.title !== 'string' ||
+      [...e.title].length > MAX_GH_TITLE ||
+      state === undefined ||
+      !wholeBetween(e.additions, 0, MAX_COUNT) ||
+      !wholeBetween(e.deletions, 0, MAX_COUNT) ||
+      typeof e.updatedAt !== 'string' ||
+      !GH_TIME.test(e.updatedAt) ||
+      url === null ||
+      Number(url[2]) !== e.number ||
+      e.isCrossRepository !== false
+    ) {
+      continue
+    }
+    const updatedAt = Date.parse(e.updatedAt)
+    if (!Number.isFinite(updatedAt) || out.has(e.number)) continue
+    out.set(e.number, { number: e.number, title: oneLine(e.title, 80), state, additions: e.additions, deletions: e.deletions, updatedAt, repo: url[1] ?? '' })
+  }
+  return { value: out }
 }
 
 // --- the roster path ---------------------------------------------------------

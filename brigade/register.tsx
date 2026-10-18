@@ -3,7 +3,10 @@ import type { EngineInterface, Register, Timer } from 'claude-code'
 
 import type { Card, Roster } from './types'
 import {
+  GH_ARGV,
   MAX_ROSTER_BYTES,
+  PR_NUMBER,
+  PR_STATES,
   MAX_TEXT,
   OPEN_NAME,
   OPEN_SERVER,
@@ -22,6 +25,7 @@ import {
   oneLine,
   openerArgv,
   parseAgents,
+  parsePrList,
   placeRoster,
   readOpenAnswer,
   remoteLink,
@@ -29,17 +33,23 @@ import {
   rosterFile,
   rulesAllowTool,
   serialize,
+  stampSince,
   statRejection,
   toolSession,
   unixRealPath,
 } from './roster.ts'
-import type { HostOs, StatAnswer } from './roster.ts'
+import type { GhPr, HostOs, StatAnswer } from './roster.ts'
 import {
   CACHE_CELLS,
   EMPTY_USAGE,
+  GROUP_HINTS,
+  GROUP_KEYS,
+  GROUP_NAMES,
+  MAX_PICKED,
   MAX_TRANSCRIPT_BYTES,
   SVG_MAX,
   VIEW_LABELS,
+  ageText,
   addSample,
   burnRate,
   cacheBar,
@@ -51,21 +61,29 @@ import {
   contextCells,
   contextMeter,
   contextMeterSvg,
+  compactSettings,
   contextTrend,
-  foldLabel,
   drawnTitle,
+  foldedFrom,
   groupCards,
+  hairlineSvg,
   idsFrom,
-  isOpen,
   isReason,
   linkStep,
   liveState,
   metersFrom,
   newFinder,
   newSummaryMemory,
+  pickedFrom,
+  pillColor,
+  pillSvg,
+  pillState,
+  prNumber,
+  prRows,
   readCalls,
   refusalLines,
   reportCount,
+  reportNote,
   settleTicks,
   sizeText,
   snapshotFrom,
@@ -77,22 +95,26 @@ import {
   todoBar,
   toggleTick,
   usageView,
+  viewFrom,
   viewOf,
   waitingCount,
   warmthFrom,
   warmthLine,
   withoutSize,
 } from './view.ts'
-import type { Finder, ReadMemory, Spark, SummaryMemory } from './view.ts'
+import type { Finder, PrRow, ReadMemory, Spark, SummaryMemory } from './view.ts'
 import { registerWriter, writerEpoch, writerSession } from './writer.ts'
 
-// The Brigade pane: one card per session a lead session started, each in a
-// rounded box with its work, phase, settings, live busy or idle state, cache
-// warmth, context meter, tabs for its burn rate and context trend, and latest
-// report; the owner's to-dos in one box, each ticked with a press that
-// a second press undoes; and at the bottom this session's own rate limits and
-// context. The pane reads the roster file while it is open. The head chef
-// fills it through the set_roster tool below, which writes the file for it
+// The Brigade pane: one compact row per session a lead session started, in
+// three foldable groups (Waiting on you, Working, Done · stopped) behind a
+// switch to a Pull requests view. A row shows its status dot, title, phase,
+// live busy or idle state, age, PR pill and latest report, and on a needs-you
+// or working row the cache warmth, context meter and the burn and trend views;
+// the owner's to-dos sit under Waiting on you, each ticked with a press that a
+// second press undoes; at the foot are the selection bar and this session's
+// own rate limits and context. The pane reads the roster file while it is
+// open, and asks `gh` for the PR details once a minute. The head chef fills
+// the roster through the set_roster tool below, which writes the file for it
 // with no permission prompt; the head chef writes no file itself. The usage
 // section is worked out in view.ts, as plain values; this file reads and
 // stores the reading and turns the view's result into elements.
@@ -109,6 +131,7 @@ const PANE = 'brigade'
 const TITLE = 'Brigade'
 const ROSTER_MS = 5000
 const AGENTS_MS = 10000
+const GH_MS = 60000
 const TOOL = 'set_roster'
 
 // The values are the plugin's, so they sit under its manifest name.
@@ -131,11 +154,18 @@ const warmth = atom({ plugin: 'grimoire', key: 'warmth' } as const, [])
 const meters = atom({ plugin: 'grimoire', key: 'meters' } as const, [])
 const refusals = atom({ plugin: 'grimoire', key: 'refusals' } as const, [])
 const tabs = atom({ plugin: 'grimoire', key: 'tabs' } as const, [])
-const doneOpen = atom({ plugin: 'grimoire', key: 'doneOpen' } as const, false)
+// The chosen view, the selected cards and the folded groups. Each is read
+// again through its fixed set or shape before use (view.ts).
+const viewAtom = atom({ plugin: 'grimoire', key: 'view' } as const, 'sessions')
+const picked = atom({ plugin: 'grimoire', key: 'picked' } as const, [])
+const folded = atom({ plugin: 'grimoire', key: 'folded' } as const, [])
+// The group that starts folded each time the pane opens.
+const STARTS_FOLDED = ['finished']
 
-// Colours are the app's own theme keys, so the pane follows the person's
-// theme, light or dark, as the rest of Claude Code does. The status the head
-// chef wrote on a card, and the live state, take theirs from view.ts.
+// Text and status colours are the app's own theme keys, so they follow the
+// person's theme, light or dark, as the rest of Claude Code does; the fills
+// are the fixed colours below. The status the head chef wrote on a card, and
+// the live state, take theirs from view.ts.
 
 // The cells of the cache block's label column, the width of "◆ context", so
 // the cache bar and the context meter start at the same place.
@@ -148,6 +178,25 @@ const keyFor = (verb: string, i: number, title: string) => `${verb}-${i}-${slug(
 // A Button must carry onPress. The ui.press hook below answers every press
 // itself, so this bottom of the chain never runs.
 const noop = () => {}
+// The prototype's fills, read off Desktop's dark theme, for every surface that
+// draws images: fixed values, never from file data. No theme key draws them,
+// and the engine names none for the pane's background, so the pane takes
+// them and reads poorly in a light theme (the owner's decision at the
+// rebuild's visual check). A round border in a fill's own colour rounds it;
+// one in the pane's colour is unseen at rest, so a hover rounds a card.
+const DARK_FILLS = {
+  pane: '#1a1a19',
+  bar: '#2b2b2a',
+  hover: '#262625',
+  tip: '#3a3a38',
+} as const
+// The icon of each card view, with its name in the tooltip. A Button carries
+// no `label`: a desktop draws the label in place of the Button's text.
+const VIEW_ICONS: ReadonlyMap<string, string> = new Map([
+  ['cache', '◆'],
+  ['burn', '↯'],
+  ['trend', '∿'],
+])
 // A to-do's checkbox. A desktop draws a native button as wide as its label,
 // and folds a plain space away, so the blank at rest there is an en space and
 // a four-per-em space: 0.75 em, the width of the ✓ (0.749 em, measured in
@@ -202,7 +251,7 @@ async function loadRoster($: EngineInterface): Promise<string[] | undefined> {
     return undefined
   }
   // After a clear or a resume the session id changes, and so does the file:
-  // name the new one and the one before it.
+  // keep the new one and the one before it. Nothing draws them since #339.
   await update($, files, f =>
     f.current === at.file ? f : { current: at.file, previous: f.current },
   )
@@ -345,6 +394,106 @@ async function pollAgents($: EngineInterface, open: () => boolean) {
   }
 }
 
+// --- the PR details --------------------------------------------------------
+//
+// While the pane is open and a shown card carries a PR number, the pane runs one
+// fixed `gh pr list` a minute. The argument list is a constant: no roster text,
+// number or title reaches the command. The answers, and the numbers known to be
+// merged, stay in the module for the session and never enter plugin state;
+// a reload starts them over. `gh`'s error text is never read, shown or stored.
+
+// By PR number, the last good answers.
+let ghAnswers: ReadonlyMap<number, GhPr> = new Map()
+// The numbers `gh` said are merged. The call stops once every shown PR is in here.
+const ghMerged = new Set<number>()
+// Whether the last call failed: the Pull requests view says so in fixed words.
+let ghDown = false
+// The owner/name the first good answer named. `gh` answers for the repository the
+// environment and the working folder's git config choose, which a member session
+// can change; an answer naming another repository counts as no answer.
+let ghRepo: string | undefined
+// When the last call started, on the engine clock.
+let ghAt: number | undefined
+let asking = false
+
+// The numbers of the PRs the shown cards carry, as numbers.
+const shownPrs = (cards: readonly Card[], hidden: ReadonlySet<unknown>): number[] => {
+  const g = groupCards(cards, hidden)
+  return [...g.needsYou, ...g.working, ...g.finished].flatMap(({ c }) => {
+    const n = prNumber(c)
+    return n === undefined ? [] : [Number(n)]
+  })
+}
+
+// On macOS and Linux `gh` is found by name on the inherited PATH, so a PATH with
+// an empty or relative entry could let a file in the project folder run in its
+// place, with the session's environment. Such a host runs nothing then. Windows
+// is measured: the engine runs the real `gh` there (threat model, row 15).
+async function ghFindable($: EngineInterface): Promise<boolean> {
+  try {
+    const os = await hostOs($)
+    if (os === 'windows') return true
+    if (os === undefined) return false
+    const path = await $.env.get('PATH')
+    return typeof path === 'string' && path !== '' && path.split(':').every(entry => entry.startsWith('/'))
+  } catch {
+    return false
+  }
+}
+
+// `tick` is the timer's own call, which always runs; the call at arm waits out
+// a minute since the last one, so a quick reopen asks once.
+async function askGh($: EngineInterface, open: () => boolean, tick: boolean) {
+  if (asking) return
+  asking = true
+  try {
+    const wanted = shownPrs((await read($, roster)).cards, new Set(await read($, dismissed)))
+    if (wanted.length === 0 || wanted.every(n => ghMerged.has(n))) return
+    const now = await $.clock.now()
+    if (!tick && ghAt !== undefined && now - ghAt < GH_MS) return
+    ghAt = now
+    if (!(await ghFindable($))) {
+      if (open()) ghDown = true
+      return
+    }
+    let found: ReadonlyMap<number, GhPr> | undefined
+    try {
+      const ran = await $.process.run([...GH_ARGV], { timeoutMs: 15000 })
+      if (!open()) return
+      if (ran.exitCode === 0 && ran.isStdoutTruncated === false && typeof ran.stdout === 'string') {
+        const parsed = parsePrList(ran.stdout)
+        if ('value' in parsed) found = parsed.value
+      }
+    } catch {
+      // A failure to start counts as no answer.
+    }
+    if (!open()) return
+    if (found === undefined) {
+      ghDown = true
+      return
+    }
+    // The first good answer pins the repository; another one is no answer.
+    const answered = [...found.values()]
+    if (ghRepo === undefined) ghRepo = answered[0]?.repo
+    if (ghRepo !== undefined && answered.some(a => a.repo !== ghRepo)) {
+      ghDown = true
+      return
+    }
+    // A merged PR is kept even when a later answer no longer lists it.
+    const next = new Map<number, GhPr>()
+    for (const [n, a] of ghAnswers) if (ghMerged.has(n)) next.set(n, a)
+    for (const [n, a] of found) {
+      next.set(n, a)
+      if (a.state === 'merged') ghMerged.add(n)
+    }
+    ghAnswers = next
+    // A call that answered for none of the shown numbers (another host, say) says so too.
+    ghDown = wanted.every(n => !next.has(n))
+  } finally {
+    asking = false
+  }
+}
+
 // This session's own usage, for the section at the bottom of the pane. The
 // plain reading costs nothing. The context breakdown is asked for only when
 // the session draws somewhere other than the terminal, the one place the
@@ -395,7 +544,7 @@ async function measureUsage($: EngineInterface) {
 // The timers are taken before the first await, so two arms that overlap
 // cannot both pass the check. Each arm carries its generation, and a close
 // moves the generation on, so neither its first reads nor a tick already
-// queued run after the pane closed. DONE · STOPPED starts closed at each arm.
+// queued run after the pane closed. STARTS_FOLDED says which groups start folded at each arm.
 let generation = 0
 async function arm($: EngineInterface) {
   if (timers.length === 0) {
@@ -404,16 +553,19 @@ async function arm($: EngineInterface) {
     timers = [
       $.clock.every(ROSTER_MS, () => void (live() && rosterTick($, live))),
       $.clock.every(AGENTS_MS, () => void (live() && pollAgents($, live))),
+      $.clock.every(GH_MS, () => void (live() && askGh($, live, true))),
     ]
     await update($, armed, () => true)
-    await update($, doneOpen, () => false)
+    await update($, folded, () => STARTS_FOLDED)
     if (live()) await readUsage($)
     if (live()) await loadRoster($)
     if (live()) await pollAgents($, live)
+    // Not awaited: a slow gh must not hold up the /brigade reply or the tool's offer.
+    if (live()) void askGh($, live, false)
     return
   }
   await update($, armed, () => true)
-  await update($, doneOpen, () => false)
+  await update($, folded, () => STARTS_FOLDED)
 }
 function disarm() {
   generation++
@@ -594,7 +746,7 @@ async function openInApp($: EngineInterface, c: Card) {
 const TOOL_NAME = 'mcp__grimoire__set_roster'
 
 const DESCRIPTION =
-  "Keeps the Brigade pane's roster for this lead session. Pass the whole roster every time, every card and every to-do; it replaces the last one. Both lists are required; two empty lists are an empty roster. It works only while the Brigade pane is open, which the owner opens with /brigade, and refuses otherwise. A refusal names the rule that failed."
+  "Keeps the Brigade pane's roster for this lead session. Pass the whole roster every time, every card and every to-do; it replaces the last one. Both lists are required; two empty lists are an empty roster. A card may carry its session's pull request: `pr` (its number as text, 1 to 7 digits) and `prState` (`open`, `merged` or `closed`, the last state known). Send no `since`: the pane stamps how long each card has been in its status and phase from its own clock. It works only while the Brigade pane is open, which the owner opens with /brigade, and refuses otherwise. A refusal names the rule that failed."
 
 const field = (max: number) => ({ type: 'string', maxLength: max })
 const SCHEMA = {
@@ -618,6 +770,8 @@ const SCHEMA = {
           desktopId: field(100),
           bgId: field(100),
           url: field(100),
+          pr: { type: 'string', pattern: PR_NUMBER.source },
+          prState: { type: 'string', enum: [...PR_STATES] },
         },
       },
     },
@@ -692,11 +846,8 @@ async function setRoster($: EngineInterface, e: Record<string, unknown>, signal:
   for (const k of ['cards', 'todos']) {
     if (!Object.hasOwn(input, k)) return refuse(`malformed input: "${k}" is missing; pass both lists, empty if need be`)
   }
-  const checked = checkRoster(JSON.stringify(input), true)
+  const checked = checkRoster(JSON.stringify(input), true, 'tool')
   if ('error' in checked) return refuse(`shape: ${checked.error}`)
-  const text = serialize(checked.value)
-  if ('error' in text) return refuse(`size: ${text.error}`)
-  const value = checked.value
   const at = await where($)
   if ('error' in at) return refuse(`path: ${at.error}`)
 
@@ -707,14 +858,26 @@ async function setRoster($: EngineInterface, e: Record<string, unknown>, signal:
     const placed = await placeRoster(at.config, at.plugin, at.id, statOf($))
     if ('refused' in placed) return refuse(placed.refused)
     // A file already there is overwritten only if it is a roster, both lists
-    // and all. What it holds otherwise is never echoed.
+    // and all. What it holds otherwise is never echoed. Its cards are the
+    // ages' source.
+    let previous: Roster | undefined
     if (placed.existing !== undefined) {
-      const isRoster =
-        placed.existing.size <= MAX_ROSTER_BYTES && !('error' in checkRoster(String(await $.fs.read(placed.file)), true))
-      if (!isRoster) {
+      const was = placed.existing.size <= MAX_ROSTER_BYTES ? checkRoster(String(await $.fs.read(placed.file)), true) : undefined
+      if (was === undefined || 'error' in was) {
         return refuse(`not a roster: ${placed.file} holds something other than a roster, so it is not overwritten. Ask the owner to delete that file`)
       }
+      previous = was.value
     }
+    // The ages: stamped here, in the queue, from the file just read and the
+    // engine clock, so two calls in one turn stamp in order. The model sent no
+    // time; the tool's check refused one.
+    const stamped = stampSince(previous, checked.value.cards, await $.clock.now())
+    if ('error' in stamped) return refuse(stamped.error)
+    const value: Roster = { cards: stamped.value, todos: checked.value.todos }
+    const text = serialize(value)
+    if ('error' in text) return refuse(`size: ${text.error}`)
+    const again = checkRoster(text.value, true, 'file')
+    if ('error' in again) return refuse(`shape: ${again.error}`)
     if (signal.aborted) return refuse('abandoned: the call ran out of time or was interrupted before its write')
     progress.written = true
     await $.fs.write(placed.file, text.value)
@@ -795,6 +958,13 @@ export const register: Register = on => {
   })
 
   on('command.run', { command: 'brigade' }, async $ => {
+    // Each /brigade opens on Sessions, with the dismissed cards back and
+    // nothing selected.
+    await update($, viewAtom, () => 'sessions')
+    await update($, dismissed, () => [])
+    await update($, picked, () => [])
+    // Reports count from the open.
+    await update($, reports, () => [])
     // Open first, and start the reads and offer the tool only once the engine
     // lists the pane: a pane another plugin refuses or answers for starts
     // neither.
@@ -809,11 +979,11 @@ export const register: Register = on => {
         ready = ` \`${TOOL}\` could not be offered (${oneLine(String(err instanceof Error ? err.message : err), 200)}); keep no roster.`
       }
     }
-    // The reply names no roster path: no skill reads one, and the pane's own
-    // top line shows it to the owner. When no file can be named, the pane
-    // keeps the full reason.
+    // The reply names no roster path: no skill reads one, and the pane no
+    // longer draws one. When no file can be named, the pane keeps the full
+    // reason.
     const at = await where($)
-    const named = 'error' in at ? ' The pane cannot name the roster file, so it shows none; the pane says why.' : ''
+    const named = 'error' in at ? ' The pane cannot find the roster file; the pane says why.' : ''
     return {
       text: `${opened.isPlaced ? 'Brigade pane opened.' : `Brigade pane is open but not shown: ${opened.reason}.`}${named}${ready}`,
     }
@@ -866,12 +1036,35 @@ export const register: Register = on => {
 
   // Presses arrive here with a fresh `$`. Each finds its card or to-do again
   // in the current state by place and title, and does nothing if it moved.
-  // The DONE · STOPPED toggle's key, `fold`, holds no hyphen, since the key
-  // is split on one; a press flips the group, and a stored value other than
-  // exactly true counts as closed, so the press opens it.
+  // The switch, group (`grp-`) and selection-bar keys are matched whole, before
+  // the split below; only card and to-do keys are split on a hyphen.
   on('ui.press', { plugin: 'grimoire', requestId: PANE }, async ($, e, next) => {
-    if (e.element === 'fold') {
-      await update($, doneOpen, v => !isOpen(v))
+    // The switch, a group's fold and the selection bar: fixed words, read
+    // through fixed sets.
+    if (e.element === 'view-sessions' || e.element === 'view-prs') {
+      await update($, viewAtom, () => (e.element === 'view-prs' ? 'prs' : 'sessions'))
+      return { element: e.element }
+    }
+    if (e.element.startsWith('grp-')) {
+      const group = e.element.slice(4)
+      if (GROUP_KEYS.includes(group)) {
+        await update($, folded, list => {
+          const current = foldedFrom(list)
+          return current.includes(group) ? current.filter(g => g !== group) : [...current, group]
+        })
+      }
+      return { element: e.element }
+    }
+    if (e.element === 'barclear') {
+      await update($, picked, () => [])
+      return { element: e.element }
+    }
+    if (e.element === 'bardismiss') {
+      // Each selected title that is still a card and does not wait on the owner.
+      const chosen = new Set(pickedFrom(await read($, picked)))
+      const drop = (await read($, roster)).cards.filter(c => chosen.has(c.title) && c.status !== 'needs-you').map(c => c.title)
+      await update($, dismissed, list => [...list, ...drop.filter(t => !list.includes(t))])
+      await update($, picked, () => [])
       return { element: e.element }
     }
     const [verb, place, slugged, word] = e.element.split('-')
@@ -895,12 +1088,24 @@ export const register: Register = on => {
     const c = current.cards[i]
     if (c === undefined || slug(c.title) !== slugged) return { element: e.element }
     if (verb === 'open') await openInApp($, c)
-    if (verb === 'dismiss') await update($, dismissed, list => [...list, c.title])
+    // A card that waits on the owner has no Dismiss, and a press cannot add one.
+    if (verb === 'dismiss' && c.status !== 'needs-you') {
+      await update($, dismissed, list => (list.includes(c.title) ? list : [...list, c.title]))
+      // A dismissed card leaves the selection too.
+      await update($, picked, list => pickedFrom(list).filter(t => t !== c.title))
+    }
+    // A card's checkbox: selects it, at most 50 at once.
+    if (verb === 'pick') {
+      await update($, picked, list => {
+        const current = pickedFrom(list)
+        return current.includes(c.title) ? current.filter(t => t !== c.title) : current.length < MAX_PICKED ? [...current, c.title] : current
+      })
+    }
     // A tab: the view word is read through the fixed set, never as a key,
     // and the choice is kept under this card's own title.
     if (verb === 'tab') {
-      const view = viewOf(word)
-      if (view !== undefined) await update($, tabs, list => chooseTab(list, c.title, view))
+      const tab = viewOf(word)
+      if (tab !== undefined) await update($, tabs, list => chooseTab(list, c.title, tab))
     }
     return { element: e.element }
   })
@@ -911,17 +1116,21 @@ export const register: Register = on => {
     const { Box, Text, Button } = table
     // The render only reads the stored reading: it fetches none.
     const Svg = 'Svg' in table ? table.Svg : undefined
-    // The clock moves the warmth line too: the roster timer's redraws every
-    // 5 s move its countdown.
+    // The clock moves the warmth line and the ages too: the roster timer's
+    // redraws every 5 s move their countdowns.
     const now = await $.clock.now()
     // Where images draw: any surface with an Svg but the terminal. The usage
     // section reads this too, and falls back to text bars when its image is
-    // over the engine's cap; the strip and the to-do bar are a few rects each
-    // and need no fallback.
+    // over the engine's cap; the strip, the to-do bar and the hairline are a
+    // few rects each and need no fallback.
     const surface = Svg === undefined ? 'terminal' : e.surface
-    const Image = surface === 'terminal' ? undefined : Svg
+    const terminal = surface === 'terminal'
+    const Image = terminal ? undefined : Svg
+    // A pointer hovers only on Desktop; the editor, mobile and the terminal show what a hover would.
+    const pointer = surface === 'desktop'
+    // Where a small margin draws as a step: the editor draws it as nothing.
+    const stepped = surface === 'desktop' || surface === 'mobile'
     const metered = usageView(await read($, usage), surface, now, SVG_MAX, await read($, samples))
-    const paths = await read($, files)
     const error = await read($, rosterError)
     const pollError = await read($, liveError)
     const { cards, todos } = await read($, roster)
@@ -940,26 +1149,125 @@ export const register: Register = on => {
     const ticks = await read($, ticking)
     const crossed = new Set(ticksFrom(ticks).map(p => p.name))
     const last = (title: string) => [...inbox].reverse().find(r => r.from === drawnTitle(title))
+    // The chosen view, the selection and the folds, each checked again.
+    const view = viewFrom(await read($, viewAtom))
+    const picks = new Set(pickedFrom(await read($, picked)))
+    const folds = new Set(foldedFrom(await read($, folded)))
 
     // The cards in their groups, each with its place in the roster, which every
     // button key keeps. A status outside the four words draws in no group.
     const { needsYou, working, finished } = groupCards(cards, hidden)
-    // As stored: read through isOpen, which takes only exactly true as open.
-    const openState = await read($, doneOpen)
+    // The bar counts only picks a checkbox shows: a card that waits on the
+    // owner has none, and a title no shown card holds is no pick.
+    const pickable = new Set([...working, ...finished].map(({ c }) => c.title))
+    const selected = [...picks].filter(t => pickable.has(t)).length
     // A ticked to-do stays in the list, crossed out, until the sweep moves it.
     const open = todos.map((t, i) => ({ t, i })).filter(({ t }) => !ticked.has(t.id))
     const waiting = waitingCount(needsYou.length, todos, done, ticks)
-    // The Brigade heading's count, the status strip and the to-do bar: numbers
-    // only, from the statuses and the to-do, done and ticking lists.
+    // The count on the left of the top row, the status strip and the to-do bar:
+    // numbers only, from the statuses and the to-do, done and ticking lists.
     const shown = needsYou.length + working.length + finished.length
     const strip = statusStrip(cards, hidden)
     const progress = todoBar(todos, done, ticks)
-    const headingNote =
+    const sessionsCount =
       shown > 0 || progress !== undefined
         ? `${shown} ${shown === 1 ? 'session' : 'sessions'}`
         : error === ''
           ? 'No cards in the roster yet.'
           : undefined
+    const prs = prRows(cards, hidden, ghAnswers, now)
+    const prCount = prs.open.length + prs.merged.length + prs.closed.length
+
+    // A pointer over a scope lights every element drawn with it. Desktop only:
+    // the terminal has no pointer. At rest a round border in the pane's own
+    // grey, unseen; on hover the border and the fill take the hover grey, so
+    // the lit row is rounded.
+    const hoverFill = (scope: string) =>
+      !pointer
+        ? {}
+        : {
+            borderStyle: 'round' as const,
+            borderColor: DARK_FILLS.pane,
+            hover: { scope, borderColor: DARK_FILLS.hover, backgroundColor: DARK_FILLS.hover },
+          }
+    // A section bar's rounded fill: a round border in the fill's own colour.
+    const roundFill = { borderStyle: 'round', borderColor: DARK_FILLS.bar, backgroundColor: DARK_FILLS.bar } as const
+    // A tooltip: a hidden Box shown while the pointer is on its anchor's scope.
+    // The terminal has none, and shows the text inline where it carries news.
+    const tip = (key: string, anchorEl: JSX.Element, text: string) =>
+      !pointer ? (
+        anchorEl
+      ) : (
+        <Box position="relative" hover={{ scope: `tip-${key}` }}>
+          {anchorEl}
+          <Box position="absolute" top={1} left={0} display="none" hover={{ scope: `tip-${key}`, display: 'flex' }} backgroundColor={DARK_FILLS.tip} paddingX="sm">
+            <Text>{text}</Text>
+          </Box>
+        </Box>
+      )
+    // The PR pill, in Desktop's own form: where images draw, a small image of
+    // a rounded tint with the state's mark and the number (view.ts), its
+    // height fixed, which a Box with a border cannot be. The terminal draws
+    // the number in the state's colour. A state the Maps do not hold draws
+    // the number uncoloured, with no tint and no mark.
+    const pill = (n: string, state: string) => {
+      const color = pillColor(state)
+      const image = Image === undefined ? undefined : pillSvg(n, state)
+      if (Image !== undefined && image !== undefined) return <Image source={image.source} alt={image.alt} width={image.width} height={image.height} />
+      return color === undefined ? <Text>{`#${n}`}</Text> : <Text color={color}>{`#${n}`}</Text>
+    }
+    const hint = (key: string) => (
+      <Box paddingX={3} paddingY={1}>
+        <Text dimColor>{GROUP_HINTS.get(key) ?? ''}</Text>
+      </Box>
+    )
+    // A group's section bar: a fold arrow, the name and the count. A rounded
+    // filled bar where the pane draws images, its count brightening while the
+    // pointer is on the bar, as Desktop's own section headers do; bold text in
+    // the terminal.
+    const groupHead = (key: string, count: number, note = '') => {
+      const arrow = folds.has(key) ? '▸' : '▾'
+      const name = GROUP_NAMES.get(key) ?? ''
+      const scope = `bar-${key}`
+      return terminal ? (
+        <Box marginTop={1}>
+          <Button key={`grp-${key}`} plain onPress={noop}>
+            <Text bold>{`${arrow} ${name}`}</Text>
+            <Text dimColor>{` ${count}${note}`}</Text>
+          </Button>
+        </Box>
+      ) : (
+        <Box paddingX="sm" marginTop="md" marginBottom="xs" {...roundFill} {...(pointer ? { hover: { scope } } : {})}>
+          <Button key={`grp-${key}`} plain onPress={noop}>
+            <Text dimColor>{`${arrow} `}</Text>
+            <Text weight="medium">{name}</Text>
+            {pointer ? (
+              <Text color="inactive" hover={{ scope, color: 'text' }}>
+                {` ${count}${note}`}
+              </Text>
+            ) : (
+              <Text dimColor>{` ${count}${note}`}</Text>
+            )}
+          </Button>
+        </Box>
+      )
+    }
+    // The hairline between two rows: an image where images draw, a blank row in
+    // the terminal. Where images draw, only Working and Done · stopped take it;
+    // Waiting on you parts its rows with a row gap and Pull requests with a
+    // small margin, as the prototype does.
+    const between = (key: string) => {
+      if (Image === undefined) return <Text>{' '}</Text>
+      const line = hairlineSvg()
+      return (
+        <Box key={`div-${key}`} flexDirection="row" marginX="md">
+          <Box flexDirection="column" flexGrow={1} minWidth={8}>
+            <Image source={line.source} alt={line.alt} height={line.height} />
+          </Box>
+        </Box>
+      )
+    }
+    const rows = (list: JSX.Element[], key: string) => list.flatMap((row, k) => (k === 0 ? [row] : [between(`${key}-${k}`), row]))
 
     // A sparkline row: on Desktop the image in a column Box that grows, on
     // the terminal its cells between dim end marks, each run in its colour;
@@ -990,37 +1298,36 @@ export const register: Register = on => {
       )
     }
 
-    // One card, in a rounded box: amber when it needs the owner, dim
-    // otherwise. The status badge, glyph and word, the title and its live
-    // state on one line, the title cut first so the state stays in view.
-    // Then, on a needs-you or working card, its tab row when it has two or
-    // more views, and the chosen view. The default view: the ◆ cache bar
-    // with its short text and the dim line under it, or the ◆ warmth line,
-    // dim, when there is no bar; the ◆ context meter, in the cache bar's
-    // form, when the card's model has a known window; and the nudge, which
-    // wraps. Burn rate: its sparkline and rate, or the cache line's reason
-    // when the transcript is too large, shared or not found. Context trend:
-    // its sparkline and the context now. The nudge shows under whichever
-    // tab is chosen, so a sticky choice never hides it. Then the phase, the work, the
-    // settings and the latest report, each on its own line and cut to the
-    // pane's width, and the buttons on their own row. A done or stopped card
-    // draws no tabs, ◆ line, bar, meter, sparkline or nudge: a finished
-    // session's cache and context mean nothing.
+    // One card, a compact row: its checkbox (none on a card that waits on the
+    // owner, whose dot is full size and title bold); the status dot, title, hover
+    // actions (always shown in the terminal), PR pill, live state and age;
+    // the phase with the settings in short on its right (the full line under
+    // it in the terminal); and the latest report since the pane opened. Then,
+    // on a needs-you or working card, the view icons (words in the terminal)
+    // and the chosen view: the ◆ cache bar with its short text and the dim
+    // line under it, or the ◆ warmth line, dim, when there is no bar; the ◆
+    // context meter, in the cache bar's form, when the card's model has a
+    // known window; and the nudge, which wraps. Burn rate: its sparkline and
+    // rate, or the cache line's reason when the transcript is too large,
+    // shared or not found. Context trend: its sparkline and the context now.
+    // The nudge shows under whichever view is chosen, so a sticky choice never
+    // hides it. A done or stopped card draws no views, ◆ line, bar, meter,
+    // sparkline or nudge: a finished session's cache and context mean nothing.
     const card = ({ c, i }: { c: Card; i: number }) => {
       const look = statusOf(c.status)
       if (look === undefined) return null
       const state = liveState(running.get(c.title))
       const isFinished = look.group === 'finished'
       const views = isFinished ? [] : cardViews(warm.get(c.title), meterOf.get(c.title))
-      const shown = isFinished ? undefined : chosenView(tabChoices, c.title, views)
+      const chosen = isFinished ? undefined : chosenView(tabChoices, c.title, views)
       const warmLine = isFinished ? undefined : warmthLine(warm.get(c.title), running.get(c.title), c.status, now)
-      const bar = shown === 'cache' ? cacheBar(warm.get(c.title), running.get(c.title), now) : undefined
+      const bar = chosen === 'cache' ? cacheBar(warm.get(c.title), running.get(c.title), now) : undefined
       const image = bar !== undefined && Image !== undefined ? cacheBarSvg(bar) : undefined
-      const meter = shown === 'cache' ? contextMeter(meterOf.get(c.title)) : undefined
+      const meter = chosen === 'cache' ? contextMeter(meterOf.get(c.title)) : undefined
       const meterImage = meter !== undefined && Image !== undefined ? contextMeterSvg(meter) : undefined
-      const reason = shown === 'burn' && isReason(warm.get(c.title)) ? warmLine?.text : undefined
-      const burn = shown === 'burn' && reason === undefined ? burnRate(meterOf.get(c.title), now) : undefined
-      const trend = shown === 'trend' ? contextTrend(meterOf.get(c.title)) : undefined
+      const reason = chosen === 'burn' && isReason(warm.get(c.title)) ? warmLine?.text : undefined
+      const burn = chosen === 'burn' && reason === undefined ? burnRate(meterOf.get(c.title), now) : undefined
+      const trend = chosen === 'trend' ? contextTrend(meterOf.get(c.title)) : undefined
       const refusal = isFinished ? undefined : refused.get(c.title)
       // The cache block's value column: as wide as its longest text, so the
       // cache bar and the context meter end at the same place. Each value
@@ -1038,63 +1345,143 @@ export const register: Register = on => {
       const report = last(c.title)
       const needs = c.status === 'needs-you'
       const canOpen = appLink(c, found.get(c.title)) !== undefined
+      const isPicked = picks.has(c.title)
+      const scope = `row-${i}-${slug(c.title)}`
+      const short = compactSettings(c.settings)
+      const age = ageText(c.since, now)
+      const number = prNumber(c)
+      const answer = number === undefined ? undefined : ghAnswers.get(Number(number))
+      // The actions: on Desktop hidden until the pointer is on the row, in the
+      // terminal always shown. A card that waits on the owner has no Dismiss.
+      const actions =
+        canOpen || !needs ? (
+          <Box flexShrink={0} flexDirection="row" columnGap={1} {...(!pointer ? {} : { display: 'none' as const, hover: { scope, display: 'flex' as const } })}>
+            {canOpen && (
+              <Button key={keyFor('open', i, c.title)} plain dimColor onPress={noop}>
+                Open
+              </Button>
+            )}
+            {!needs && (
+              <Button key={keyFor('dismiss', i, c.title)} plain dimColor onPress={noop}>
+                Dismiss
+              </Button>
+            )}
+          </Box>
+        ) : null
       return (
-        <Box
-          flexDirection="column"
-          borderStyle="round"
-          borderColor={needs ? 'warning' : 'inactive'}
-          borderDimColor={!needs}
-          paddingX={1}
-          marginBottom={1}
-        >
-          <Box flexDirection="row" columnGap={1}>
-            <Box flexShrink={0}>
-              <Text color={look.color}>
-                {look.glyph} {look.word}
-              </Text>
-            </Box>
-            <Box flexGrow={1} flexShrink={1} minWidth={0}>
-              <Text bold wrap="truncate-end">
-                {oneLine(c.title, 80)}
-              </Text>
-            </Box>
-            <Box flexShrink={0}>
-              {/* Idle on a working card is bold as well as amber: the flip
-                  from busy is the owner's cue (owner decision q1 A on #287). */}
-              {c.status === 'working' && state.text === 'idle' ? (
-                <Text bold color={state.color}>
-                  {state.text}
+        <Box flexDirection="column" paddingX={terminal ? 0 : 'md'} paddingY={terminal ? 0 : 'sm'} {...hoverFill(scope)}>
+          <Box flexDirection="row" columnGap={1} alignItems="center">
+            {/* The checkbox: its own key and its own word, so a press on it
+                is never a to-do's tick. A card that waits on the owner has
+                none: the bar's one action, Dismiss, never takes it. */}
+            {!needs && (
+              <Box flexShrink={0}>
+                {isPicked ? (
+                  <Button key={keyFor('pick', i, c.title)} onPress={noop}>
+                    ✓
+                  </Button>
+                ) : (
+                  <Button key={keyFor('pick', i, c.title)} dimColor onPress={noop}>
+                    {terminal ? UNTICKED_TERMINAL : UNTICKED}
+                  </Button>
+                )}
+              </Box>
+            )}
+            <Box flexDirection="column" flexGrow={1} flexShrink={1} minWidth={0}>
+              <Box flexDirection="row" columnGap={1} alignItems="center">
+                {/* The status dot in the status colour: small on a card, full
+                    size on one that waits on the owner, whose title is bold.
+                    The terminal draws the status glyph, which reads without
+                    colour. */}
+                <Box flexShrink={0}>
+                  {terminal ? (
+                    <Text color={look.color}>{look.glyph}</Text>
+                  ) : needs ? (
+                    <Text color={look.color}>●</Text>
+                  ) : (
+                    <Text color={look.color} size="caption">
+                      ●
+                    </Text>
+                  )}
+                </Box>
+                <Box flexGrow={1} flexShrink={1} minWidth={0}>
+                  <Text weight={needs ? 'bold' : 'semibold'} wrap="truncate-end">
+                    {oneLine(c.title, 80)}
+                  </Text>
+                </Box>
+                {actions}
+                {number !== undefined && (
+                  <Box flexShrink={0}>
+                    {answer === undefined ? pill(number, pillState(undefined, c.prState)) : tip(`pill-${i}`, pill(number, pillState(answer.state, c.prState)), answer.repo)}
+                  </Box>
+                )}
+                <Box flexShrink={0}>
+                  {/* Idle on a working card is bold as well as amber: the flip
+                      from busy is the owner's cue (owner decision q1 A on #287). */}
+                  {c.status === 'working' && state.text === 'idle' ? (
+                    <Text bold color={state.color}>
+                      {state.text}
+                    </Text>
+                  ) : (
+                    <Text color={state.color}>{state.text}</Text>
+                  )}
+                </Box>
+                {age !== undefined && (
+                  <Box flexShrink={0}>
+                    <Text dimColor tabular>
+                      {age}
+                    </Text>
+                  </Box>
+                )}
+              </Box>
+              <Box flexDirection="row" columnGap={1}>
+                <Box flexGrow={1} flexShrink={1} minWidth={0}>
+                  <Text dimColor size="footnote" wrap="truncate-end">
+                    {oneLine(c.phase, 160)}
+                  </Text>
+                </Box>
+                {pointer && <Box flexShrink={0}>{tip(`set-${i}`, <Text dimColor mono>{short.text}</Text>, short.full)}</Box>}
+              </Box>
+              {!pointer && (
+                <Text dimColor wrap="truncate-end">
+                  {short.full}
                 </Text>
-              ) : (
-                <Text color={state.color}>{state.text}</Text>
+              )}
+              {report !== undefined && (
+                <Text dimColor size="footnote" wrap="truncate-end">
+                  {report.at} → {report.line}
+                </Text>
               )}
             </Box>
           </Box>
-          <Box flexDirection="column" marginLeft={2} marginRight={2} marginTop={1}>
-            {/* The tab row, under the header line: the chosen tab marked
-                `● ` and a primary button, the others buttons drawn dim, so
-                each shows its outline (#287). Two branches, never a prop
-                handed false: Desktop refuses plain={false} and skips the
-                whole render. */}
+          <Box flexDirection="column" marginTop={1}>
+            {/* The views: icons with tooltips on Desktop, words in the
+                terminal, the chosen one primary and the others dim. Two
+                branches, never a prop handed false: Desktop refuses
+                plain={false} and skips the whole render. */}
             {views.length >= 2 && (
-              <Box flexDirection="row" columnGap={1} marginBottom={1}>
+              <Box flexDirection="row" columnGap={1} marginBottom={1} alignItems="center">
                 {views.map(v =>
-                  v === shown ? (
-                    <Button key={`${keyFor('tab', i, c.title)}-${v}`} variant="primary" onPress={noop}>
-                      {`● ${VIEW_LABELS.get(v) ?? ''}`}
-                    </Button>
-                  ) : (
-                    <Button key={`${keyFor('tab', i, c.title)}-${v}`} dimColor onPress={noop}>
-                      {VIEW_LABELS.get(v) ?? ''}
-                    </Button>
+                  tip(
+                    `tab-${i}-${v}`,
+                    v === chosen ? (
+                      <Button key={`${keyFor('tab', i, c.title)}-${v}`} variant="primary" onPress={noop}>
+                        {pointer ? (VIEW_ICONS.get(v) ?? '?') : `● ${VIEW_LABELS.get(v) ?? ''}`}
+                      </Button>
+                    ) : (
+                      <Button key={`${keyFor('tab', i, c.title)}-${v}`} dimColor onPress={noop}>
+                        {pointer ? (VIEW_ICONS.get(v) ?? '?') : (VIEW_LABELS.get(v) ?? '')}
+                      </Button>
+                    ),
+                    VIEW_LABELS.get(v) ?? '',
                   ),
                 )}
               </Box>
             )}
-            {/* The burn rate or the context trend, or the burn tab's reason
-                line, then the nudge, which shows under every tab (owner
-                decision q1 B on #272), then one row before the phase. */}
-            {shown !== undefined && shown !== 'cache' && (reason !== undefined || burn !== undefined || trend !== undefined || warmLine?.nudge !== undefined) && (
+            {/* The burn rate or the context trend, or the burn view's reason
+                line, then the nudge, which shows under every view (owner
+                decision q1 B on #272), then one row before the next. */}
+            {chosen !== undefined && chosen !== 'cache' && (reason !== undefined || burn !== undefined || trend !== undefined || warmLine?.nudge !== undefined) && (
               <Box flexDirection="column" marginBottom={1}>
                 {reason !== undefined && (
                   <Text dimColor wrap="truncate-end">
@@ -1110,13 +1497,12 @@ export const register: Register = on => {
                 )}
               </Box>
             )}
-            {/* The cache block, then one row before the phase. Where images
-                draw, the image takes the room between the label and its
-                text, which do not shrink, so on a narrow pane the bar shrinks
-                to its minimum, not the text; the image, placed in
-                percentages, spans a column Box that grows. The terminal's 16
-                cells keep their width. */}
-            {shown === 'cache' && (bar !== undefined || warmLine !== undefined || meter !== undefined) && (
+            {/* The cache block. Where images draw, the image takes the room
+                between the label and its text, which do not shrink, so on a
+                narrow pane the bar shrinks to its minimum, not the text; the
+                image, placed in percentages, spans a column Box that grows.
+                The terminal's 16 cells keep their width. */}
+            {chosen === 'cache' && (bar !== undefined || warmLine !== undefined || meter !== undefined) && (
               <Box flexDirection="column" marginBottom={1}>
                 {bar !== undefined && (
                   <Box flexDirection="row" columnGap={1}>
@@ -1196,7 +1582,7 @@ export const register: Register = on => {
                 )}
               </Box>
             )}
-            {/* The member's summary file refused, under every tab: the card
+            {/* The member's summary file refused, under every view: the card
                 above comes from its transcript. */}
             {refusal !== undefined && (
               <Box marginBottom={1}>
@@ -1205,198 +1591,220 @@ export const register: Register = on => {
                 </Text>
               </Box>
             )}
-            <Text wrap="truncate-end">{oneLine(c.phase, 160)}</Text>
-            <Text dimColor wrap="truncate-end">
-              {oneLine(c.work, 160)}
-            </Text>
-            <Text dimColor wrap="truncate-end">
-              {oneLine(c.settings, 80)}
-            </Text>
-            {report !== undefined && (
-              <Text dimColor wrap="truncate-end">
-                {report.at} → {report.line}
-              </Text>
-            )}
-            {(canOpen || isFinished) && (
-              <Box flexDirection="row" columnGap={2} marginTop={1}>
-                {canOpen && (
-                  <Button key={keyFor('open', i, c.title)} onPress={noop}>
-                    Open in app
-                  </Button>
-                )}
-                {isFinished && (
-                  <Button key={keyFor('dismiss', i, c.title)} dimColor onPress={noop}>
-                    Dismiss
-                  </Button>
-                )}
-              </Box>
-            )}
-            {isFinished && <Text dimColor>Archive it in the sidebar when you are done with it.</Text>}
           </Box>
         </Box>
       )
     }
 
-    return (
-      <Box flexDirection="column">
-        <Box flexDirection="row" columnGap={1}>
-          <Text dimColor>Roster</Text>
-          <Text dimColor wrap="wrap">
-            {paths.current === '' ? 'not named yet' : paths.current}
-          </Text>
-        </Box>
-        {paths.previous !== '' && (
-          <Box flexDirection="row" columnGap={1}>
-            <Text dimColor>Before</Text>
-            <Text dimColor wrap="wrap">
-              {paths.previous}
+    // A to-do: its checkbox (its own key), its text and, for one that names a
+    // session the pane can open, Open.
+    const todoRow = ({ t, i }: { t: (typeof todos)[number]; i: number }) => {
+      const isTicked = crossed.has(t.id)
+      return (
+        <Box flexDirection="row" alignItems="flex-start" columnGap={1} paddingX={terminal ? 0 : 'md'}>
+          {/* Blank and dim at rest, a tick once pressed; a second press inside
+              the grace period undoes it. The blank is as wide as the tick, and
+              the slot fixed, so neither the box nor the text moves when it is
+              ticked. */}
+          <Box width={CHECK_CELLS} flexShrink={0}>
+            {isTicked ? (
+              <Button key={keyFor('todo', i, t.id)} onPress={noop}>
+                ✓
+              </Button>
+            ) : (
+              <Button key={keyFor('todo', i, t.id)} dimColor onPress={noop}>
+                {terminal ? UNTICKED_TERMINAL : UNTICKED}
+              </Button>
+            )}
+          </Box>
+          <Box flexGrow={1} flexShrink={1} minWidth={0}>
+            <Text wrap="wrap" strikethrough={isTicked} dimColor={isTicked}>
+              {oneLine(t.text, MAX_TEXT)}
             </Text>
           </Box>
-        )}
-        {error !== '' && <Text color="error">{error}</Text>}
-        {pollError !== '' && <Text color="error">{pollError}</Text>}
-        {/* The Brigade heading and its count, the status strip with its legend
-            line, and the to-do bar. Each bar spans the pane: on Desktop an
-            image in a column Box that grows, its text in a Box that does not
-            shrink; on the terminal, cells of text. */}
-        <Box flexDirection="column" marginTop={1}>
-          <Box flexDirection="row" columnGap={1}>
-            <Text bold>Brigade</Text>
-            {headingNote !== undefined && <Text dimColor>{headingNote}</Text>}
-          </Box>
-          {strip !== undefined && (
-            <Box flexDirection="column" marginTop={1}>
-              {Image !== undefined ? (
-                <Box flexDirection="column" flexGrow={1}>
-                  <Image source={strip.svg.source} alt={strip.svg.alt} height={strip.svg.height} />
-                </Box>
-              ) : (
-                <Text>
-                  {strip.runs.map(r => (
-                    <Text color={r.color}>{r.text}</Text>
-                  ))}
-                </Text>
-              )}
-              <Text wrap="wrap">
-                {strip.legend.map((l, i) => (
-                  <Text color={l.color}>{i > 0 ? `  ${l.text}` : l.text}</Text>
-                ))}
-              </Text>
-            </Box>
-          )}
-          {progress !== undefined && (
-            <Box flexDirection="row" columnGap={1} marginTop={1} alignItems="center">
-              <Box flexShrink={0}>
-                <Text>To-dos</Text>
-              </Box>
-              {Image !== undefined ? (
-                <Box flexDirection="column" flexGrow={1} minWidth={8}>
-                  <Image source={progress.svg.source} alt={progress.svg.alt} height={progress.svg.height} />
-                </Box>
-              ) : (
-                <Box flexShrink={0}>
-                  <Text>
-                    <Text dimColor>▕</Text>
-                    <Text color="success">{progress.cells}</Text>
-                    <Text dimColor>▏</Text>
-                  </Text>
-                </Box>
-              )}
-              <Box flexShrink={0}>
-                <Text dimColor>{progress.text}</Text>
-              </Box>
-            </Box>
-          )}
-        </Box>
-        <Box flexDirection="column" marginTop={1} marginBottom={1}>
-          <Box marginBottom={1}>
-            <Text bold>
-              Waiting on you <Text dimColor>{waiting}</Text>
-            </Text>
-          </Box>
-          {/* One rounded box, a line between rows. A card that needs the
-              owner has a fixed two-cell gutter for its mark, top-aligned; a
-              to-do has its checkbox there, a full button. The text may shrink,
-              so a long line wraps inside the box. */}
-          <Box flexDirection="column" borderStyle="round" borderColor="inactive" borderDimColor paddingX={1} rowGap={1}>
-            {needsYou.map(({ c }) => (
-              <Box flexDirection="row" alignItems="flex-start">
-                <Box width={2} flexShrink={0}>
-                  <Text color="warning">●</Text>
-                </Box>
-                <Box flexDirection="column" flexGrow={1} flexShrink={1} minWidth={0}>
-                  <Text bold wrap="truncate-end">
-                    {oneLine(c.title, 80)}
-                  </Text>
-                  <Text dimColor wrap="wrap">
-                    {oneLine(c.phase, MAX_TEXT)}
-                  </Text>
-                </Box>
-              </Box>
-            ))}
-            {open.map(({ t, i }) => {
-              const isTicked = crossed.has(t.id)
-              return (
-                <Box flexDirection="row" alignItems="flex-start" columnGap={1}>
-                  {/* Blank and dim at rest, a tick once pressed; a second
-                      press inside the grace period undoes it. The blank is
-                      as wide as the tick, and the slot fixed, so neither the
-                      box nor the text moves when it is ticked. */}
-                  <Box width={CHECK_CELLS} flexShrink={0}>
-                    <Button key={keyFor('todo', i, t.id)} dimColor={!isTicked} onPress={noop}>
-                      {isTicked ? '✓' : e.surface === 'terminal' ? UNTICKED_TERMINAL : UNTICKED}
-                    </Button>
-                  </Box>
-                  <Box flexGrow={1} flexShrink={1} minWidth={0}>
-                    <Text wrap="wrap" strikethrough={isTicked} dimColor={isTicked}>
-                      {oneLine(t.text, MAX_TEXT)}
-                    </Text>
-                  </Box>
-                  {t.session !== undefined && cards.some(c => c.title === t.session && appLink(c, found.get(c.title)) !== undefined) && (
-                    <Box flexShrink={0}>
-                      <Button key={keyFor('go', i, t.id)} onPress={noop}>
-                        Open
-                      </Button>
-                    </Box>
-                  )}
-                </Box>
-              )
-            })}
-            {needsYou.length + open.length === 0 && <Text dimColor>Nothing waits on you.</Text>}
-          </Box>
-        </Box>
-        {/* The groups: a bold heading in the status colour with its count
-            dim beside it, one row under it, then its cards. An empty group
-            draws nothing. DONE · STOPPED is a toggle that starts closed. */}
-        {[
-          { name: 'NEEDS YOU', color: statusOf('needs-you')?.color, list: needsYou },
-          { name: 'WORKING', color: statusOf('working')?.color, list: working },
-        ].map(
-          g =>
-            g.list.length > 0 && (
-              <Box flexDirection="column" marginBottom={1}>
-                <Box marginBottom={1}>
-                  <Text bold color={g.color}>
-                    {g.name} <Text dimColor>{g.list.length}</Text>
-                  </Text>
-                </Box>
-                {g.list.map(card)}
-              </Box>
-            ),
-        )}
-        {finished.length > 0 && (
-          <Box flexDirection="column">
-            {/* `plain` only as plain: Desktop refuses plain={false} and skips
-                the whole render. */}
-            <Box marginTop={1} marginBottom={isOpen(openState) ? 1 : 2}>
-              <Button key="fold" plain onPress={noop}>
-                {foldLabel(openState, finished.length, reportCount(finished.map(({ c }) => c.title), inbox))}
+          {t.session !== undefined && cards.some(c => c.title === t.session && appLink(c, found.get(c.title)) !== undefined) && (
+            <Box flexShrink={0}>
+              <Button key={keyFor('go', i, t.id)} onPress={noop}>
+                Open
               </Button>
             </Box>
-            {isOpen(openState) && finished.map(card)}
+          )}
+        </Box>
+      )
+    }
+
+    // A pull request row: on its first line the pill and the PR's title (the
+    // card's own with no answer from `gh`); under both, on a dim line, the
+    // card's title, the counts, the repository and the age. On Desktop and
+    // mobile rows sit a small step apart with no hairline; the editor, where
+    // that step is nothing, and the terminal part them as `rows` does.
+    const prRow = (r: PrRow) => (
+      <Box flexDirection="column" paddingX={terminal ? 0 : 'md'} paddingY={terminal ? 0 : 'sm'} marginBottom={stepped ? 'xs' : 0} {...hoverFill(`pr-${r.i}-${slug(r.number)}`)}>
+        <Box flexDirection="row" columnGap={1} alignItems="center">
+          <Box flexShrink={0}>{pill(r.number, r.state)}</Box>
+          <Box flexGrow={1} flexShrink={1} minWidth={0}>
+            <Text weight="semibold" wrap="truncate-end">
+              {r.title}
+            </Text>
+          </Box>
+        </Box>
+        <Text dimColor size="footnote" wrap="truncate-end">
+          {[r.detail.cardTitle, r.detail.counts, r.detail.repo, r.detail.age].filter(x => x !== undefined).join(' · ')}
+        </Text>
+      </Box>
+    )
+
+    // The switch: an icon button with a tooltip on Desktop, the word in the
+    // terminal; the chosen one primary. The tooltip names the view and may add
+    // a count.
+    const switchButton = (id: 'sessions' | 'prs', icon: string, word: string, tipText: string) =>
+      tip(
+        `switch-${id}`,
+        view === id ? (
+          <Button key={`view-${id}`} variant="primary" onPress={noop}>
+            {pointer ? icon : word}
+          </Button>
+        ) : (
+          <Button key={`view-${id}`} dimColor onPress={noop}>
+            {pointer ? icon : word}
+          </Button>
+        ),
+        tipText,
+      )
+
+    return (
+      <Box flexDirection="column" flexGrow={1} minHeight={e.props.placement === 'dock' ? e.props.scroll.bodyRows : undefined}>
+        {/* The top row: what the chosen view holds, on the left; the switch on
+            the right. The pane's own title names the pane, and the roster's
+            file is not named here. */}
+        <Box flexDirection="row" columnGap={1} marginBottom={1} alignItems="center">
+          <Box flexGrow={1} flexShrink={1} minWidth={0}>
+            <Text weight="medium" wrap="truncate-end">
+              {view === 'prs' ? `${prCount} ${prCount === 1 ? 'pull request' : 'pull requests'}` : (sessionsCount ?? '')}
+            </Text>
+          </Box>
+          {switchButton('sessions', '◫', 'Sessions', 'Sessions')}
+          {switchButton('prs', '⎇', 'Pull requests', `Pull requests ${prCount}`)}
+        </Box>
+        {error !== '' && <Text color="error">{error}</Text>}
+        {pollError !== '' && <Text color="error">{pollError}</Text>}
+        {view === 'prs' ? (
+          <Box flexDirection="column">
+            {needsYou.length > 0 && <Text dimColor>{`${needsYou.length} waiting on you`}</Text>}
+            {(
+              [
+                ['pr-open', prs.open],
+                ['pr-merged', prs.merged],
+                ['pr-closed', prs.closed],
+              ] as const
+            ).map(([key, list]) => (
+              <Box flexDirection="column">
+                {groupHead(key, list.length)}
+                {!folds.has(key) && (list.length > 0 ? (stepped ? list.map(prRow) : rows(list.map(prRow), key)) : hint(key))}
+              </Box>
+            ))}
+            {ghDown && (
+              <Box marginTop={1}>
+                <Text dimColor>PR details unavailable</Text>
+              </Box>
+            )}
+          </Box>
+        ) : (
+          <Box flexDirection="column">
+            {/* The status strip with its legend line, and the to-do bar. Each
+                bar spans the pane: on Desktop an image in a column Box that
+                grows, its text in a Box that does not shrink; on the terminal,
+                cells of text. */}
+            {strip !== undefined && (
+              <Box flexDirection="column" marginTop={1}>
+                {Image !== undefined ? (
+                  <Box flexDirection="column" flexGrow={1}>
+                    <Image source={strip.svg.source} alt={strip.svg.alt} height={strip.svg.height} />
+                  </Box>
+                ) : (
+                  <Text>
+                    {strip.runs.map(r => (
+                      <Text color={r.color}>{r.text}</Text>
+                    ))}
+                  </Text>
+                )}
+                <Text wrap="wrap">
+                  {strip.legend.map((l, i) => (
+                    <Text color={l.color}>{i > 0 ? `  ${l.text}` : l.text}</Text>
+                  ))}
+                </Text>
+              </Box>
+            )}
+            {progress !== undefined && (
+              <Box flexDirection="row" columnGap={1} marginTop={1} alignItems="center">
+                <Box flexShrink={0}>
+                  <Text>To-dos</Text>
+                </Box>
+                {Image !== undefined ? (
+                  <Box flexDirection="column" flexGrow={1} minWidth={8}>
+                    <Image source={progress.svg.source} alt={progress.svg.alt} height={progress.svg.height} />
+                  </Box>
+                ) : (
+                  <Box flexShrink={0}>
+                    <Text>
+                      <Text dimColor>▕</Text>
+                      <Text color="success">{progress.cells}</Text>
+                      <Text dimColor>▏</Text>
+                    </Text>
+                  </Box>
+                )}
+                <Box flexShrink={0}>
+                  <Text dimColor>{progress.text}</Text>
+                </Box>
+              </Box>
+            )}
+            {/* The groups: a section bar with its fold arrow, name and count,
+                then its cards, or a quiet hint when it is empty. Waiting on you
+                holds the cards that need the owner, then the open to-dos, a
+                row apart with no hairline and a row below its bar, as the
+                prototype draws them. Each bar counts the reports its
+                cards sent, so a fold never hides one without a sign. */}
+            {groupHead('waiting', waiting, reportNote(reportCount(needsYou.map(({ c }) => c.title), inbox)))}
+            {!folds.has('waiting') &&
+              (needsYou.length + open.length > 0 ? (
+                terminal ? (
+                  <Box flexDirection="column">{rows([...needsYou.map(card), ...open.map(todoRow)], 'waiting')}</Box>
+                ) : (
+                  <Box flexDirection="column" rowGap={1} marginTop={1}>
+                    {needsYou.map(card)}
+                    {open.map(todoRow)}
+                  </Box>
+                )
+              ) : (
+                hint('waiting')
+              ))}
+            {groupHead('working', working.length, reportNote(reportCount(working.map(({ c }) => c.title), inbox)))}
+            {!folds.has('working') && (working.length > 0 ? rows(working.map(card), 'working') : hint('working'))}
+            {groupHead('finished', finished.length, reportNote(reportCount(finished.map(({ c }) => c.title), inbox)))}
+            {!folds.has('finished') && (finished.length > 0 ? rows(finished.map(card), 'finished') : hint('finished'))}
+            {inbox.length === 0 && (
+              <Box marginTop={1}>
+                <Text dimColor>No reports since the pane opened.</Text>
+              </Box>
+            )}
           </Box>
         )}
-        {inbox.length === 0 && <Text dimColor>No reports since the pane opened.</Text>}
+        {/* A spacer takes the room left in a docked pane, so the selection bar
+            and Usage sit at its foot. */}
+        <Box flexGrow={1} />
+        {selected > 0 && (
+          <Box flexDirection="row" justifyContent="center" marginTop="md" marginBottom="sm">
+            <Box flexDirection="row" alignItems="center" columnGap="md" paddingX="md" {...(terminal ? { borderStyle: 'round', borderColor: 'inactive', backgroundColor: 'subtle' } : { borderStyle: 'round', borderColor: DARK_FILLS.tip, backgroundColor: DARK_FILLS.hover })}>
+              <Text>{`${selected} selected`}</Text>
+              <Button key="bardismiss" plain onPress={noop}>
+                ✓ Dismiss
+              </Button>
+              <Button key="barclear" plain dimColor onPress={noop}>
+                ✕
+              </Button>
+            </Box>
+          </Box>
+        )}
         <Box flexDirection="column" marginTop={1}>
           <Text bold>Usage</Text>
           {metered.kind === 'none' && <Text dimColor>No reading yet: it arrives with the next reply.</Text>}

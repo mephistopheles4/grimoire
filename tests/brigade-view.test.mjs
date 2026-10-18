@@ -80,8 +80,9 @@ function attributes(source) {
 // The classes `done` and `stopped` and the id `st` are admitted for the
 // status strip, the to-do bar and the cache bar, which build them, as
 // threat-model row 15 says. The class `proj` is admitted for the usage
-// image's projection (#275).
-const CLASSES = new Set(['muted', 'track', 'ok', 'warn', 'hot', 'free', 'buffer', 'c0', 'c1', 'c2', 'c3', 'c4', 'c5', 'c6', 'done', 'stopped', 'proj']);
+// image's projection (#275). The `tint-` and `ink-` classes are admitted for
+// the PR pill (#339).
+const CLASSES = new Set(['muted', 'track', 'ok', 'warn', 'hot', 'free', 'buffer', 'c0', 'c1', 'c2', 'c3', 'c4', 'c5', 'c6', 'done', 'stopped', 'proj', 'rule', 'tint-open', 'tint-merged', 'tint-closed', 'ink-open', 'ink-merged', 'ink-closed']);
 const LENGTHS = new Set(['width', 'height', 'x', 'y', 'rx', 'cx', 'cy', 'r']);
 const NUMBER = /^\d+(?:\.\d+)?$/;
 const PERCENT = /^(\d+(?:\.\d+)?)%$/;
@@ -2055,7 +2056,7 @@ test('the not-found line: "◆ transcript not found", dim, whatever the live sta
 // one fixed Map, and the stored roster is drawn as stored, so a status outside
 // the four words, or one that names a prototype key, counts nowhere.
 
-const { STATUS, statusOf, groupCards, isOpen, foldLabel, reportCount, drawnTitle } = view;
+const { STATUS, statusOf, groupCards, reportCount, drawnTitle } = view;
 const cardOf = (title, status) => ({ title, work: 'w', phase: 'p', settings: 's', status });
 const placed = list => list.map(({ c, i }) => [i, c.title]);
 
@@ -2110,20 +2111,6 @@ test('a stored card with a hostile or unknown status draws in no group, the rest
   }
 });
 
-test('the done and stopped group reads open only when its stored value is exactly true', () => {
-  assert.equal(isOpen(true), true);
-  for (const v of [false, 'true', 1, {}, [], null, undefined]) assert.equal(isOpen(v), false, String(v));
-});
-
-test('the toggle reads ▸ closed and ▾ open, with its card count, and adds the report count only when there are reports', () => {
-  assert.equal(foldLabel(false, 2, 0), '▸ DONE · STOPPED  2');
-  assert.equal(foldLabel(true, 2, 0), '▾ DONE · STOPPED  2');
-  assert.equal(foldLabel(false, 2, 1), '▸ DONE · STOPPED  2 · 1 report');
-  assert.equal(foldLabel(false, 3, 2), '▸ DONE · STOPPED  3 · 2 reports');
-  // A stored open value that is not exactly true draws closed.
-  assert.equal(foldLabel('true', 1, 0), '▸ DONE · STOPPED  1');
-});
-
 test('the report count is the inbox entries whose sender matches a done or stopped card, as the card\'s report line matches', () => {
   const inbox = [
     { from: 'alpha', line: 'one', at: '10:00' },
@@ -2146,12 +2133,18 @@ test('the report count is the inbox entries whose sender matches a done or stopp
   }
 });
 
-test('the state contract declares doneOpen as a boolean, and the pane keeps it in an atom that starts false', () => {
+test('the state contract declares the view, the selection and the folds: the view atom starts on sessions, the others empty, and no doneOpen', () => {
   const types = readFileSync(join(root, 'brigade/types/index.d.ts'), 'utf8');
   const block = types.slice(types.indexOf('interface PluginState'));
-  assert.match(block, /\n\s+doneOpen: boolean\n/);
   const register = readFileSync(join(root, 'brigade/register.tsx'), 'utf8');
-  assert.match(register, /atom\(\{ plugin: 'grimoire', key: 'doneOpen' \} as const, false\)/);
+  assert.match(block, /\n\s+view: string\n/);
+  assert.match(block, /\n\s+picked: string\[\]\n/);
+  assert.match(block, /\n\s+folded: string\[\]\n/);
+  assert.doesNotMatch(block, /doneOpen/);
+  assert.match(register, /atom\(\{ plugin: 'grimoire', key: 'view' \} as const, 'sessions'\)/);
+  assert.match(register, /atom\(\{ plugin: 'grimoire', key: 'picked' \} as const, \[\]\)/);
+  assert.match(register, /atom\(\{ plugin: 'grimoire', key: 'folded' \} as const, \[\]\)/);
+  assert.doesNotMatch(register, /doneOpen/);
 });
 
 // --- the cache bar -----------------------------------------------------------
@@ -4265,4 +4258,198 @@ test('the pane hands the poll its summary reads, with the plugin data id from wh
   assert.match(register, /\}, finder, \{ plugin: at\.plugin, held: summaries \}\)/);
   // At module scope, so the held records last from poll to poll.
   assert.match(register, /^const summaries: SummaryMemory = newSummaryMemory\(\)$/m);
+});
+
+// --- issue 339: the redesigned pane's view rules --------------------------------
+
+const {
+  GROUP_KEYS, GROUP_HINTS, PILLS, ageText, compactSettings, foldedFrom, hairlineSvg, pickedFrom, pillColor, pillState,
+  prRows, reportNote, viewFrom,
+} = view;
+
+test('the age text: now under a minute, then whole minutes, hours and days', () => {
+  const now = 10 * 24 * 3600000;
+  assert.equal(ageText(now, now), 'now');
+  assert.equal(ageText(now - 59999, now), 'now');
+  assert.equal(ageText(now - 60000, now), '1m');
+  assert.equal(ageText(now - 14 * 60000 - 30000, now), '14m');
+  assert.equal(ageText(now - 59 * 60000, now), '59m');
+  assert.equal(ageText(now - 3600000, now), '1h');
+  assert.equal(ageText(now - 3 * 3600000 - 59 * 60000, now), '3h');
+  assert.equal(ageText(now - 24 * 3600000, now), '1d');
+  assert.equal(ageText(now - 2 * 24 * 3600000 - 5, now), '2d');
+});
+
+test('the age text draws nothing for a time that is not a whole number or is more than 2 minutes ahead of the clock', () => {
+  const { AHEAD_MS } = roster;
+  const now = 1_000_000;
+  assert.equal(AHEAD_MS, 120000);
+  assert.equal(ageText(now + AHEAD_MS, now), 'now');
+  assert.equal(ageText(now + AHEAD_MS + 1, now), undefined);
+  for (const since of [1.5, NaN, Infinity, -1, 2 ** 53, '5', null, undefined, {}, [], true]) {
+    assert.equal(ageText(since, now), undefined, String(since));
+  }
+});
+
+test('the compact settings: the model\'s first letter and one character for the effort, with the full line cleaned and cut for the tooltip', () => {
+  assert.equal(compactSettings('Opus, high, default permission mode').text, 'O·H');
+  assert.equal(compactSettings('Sonnet, medium').text, 'S·M');
+  assert.equal(compactSettings('haiku, low').text, 'H·L');
+  assert.equal(compactSettings('Opus, xhigh').text, 'O·X');
+  assert.equal(compactSettings('Opus, max').text, 'O·∞');
+  assert.equal(compactSettings('Opus').text, 'O');
+  assert.equal(compactSettings('Opus, constructor').text, 'O');
+  assert.equal(compactSettings('').text, '?');
+  assert.equal(compactSettings(5).text, '?');
+  assert.equal(compactSettings(undefined).full, 'No settings on the card.');
+  const long = compactSettings(`Opus, high, ${'x'.repeat(200)}`);
+  assert.equal([...long.full].length, 80);
+  assert.doesNotMatch(compactSettings(`O\u{202e}pus, high\u{7}`).full, /[\u{202e}\u{7}]/u);
+});
+
+test('the pill\'s look comes from a Map keyed by state, so a prototype key draws no colour and nothing throws', () => {
+  assert.ok(PILLS instanceof Map);
+  assert.equal(pillColor('open'), 'success');
+  assert.equal(pillColor('merged'), 'merged');
+  assert.equal(pillColor('closed'), 'error');
+  for (const s of ['constructor', '__proto__', 'toString', 'OPEN', '', 5, null, undefined, {}]) assert.equal(pillColor(s), undefined, String(s));
+});
+
+test('the pill\'s state is gh\'s answer, else the card\'s prState, else open', () => {
+  assert.equal(pillState('merged', 'open'), 'merged');
+  assert.equal(pillState(undefined, 'closed'), 'closed');
+  assert.equal(pillState(undefined, undefined), 'open');
+  assert.equal(pillState(undefined, 'constructor'), 'constructor');
+  assert.equal(pillState(undefined, 5), 'open');
+});
+
+test('the chosen view reads through the fixed set: anything but prs is sessions', () => {
+  assert.equal(viewFrom('prs'), 'prs');
+  for (const v of ['sessions', 'PRS', '__proto__', 'constructor', '', 5, null, undefined, {}, ['prs']]) assert.equal(viewFrom(v), 'sessions', String(v));
+});
+
+test('the folded groups keep only names from the fixed six, at most 50, from the first 200 entries', () => {
+  assert.deepEqual([...GROUP_KEYS], ['waiting', 'working', 'finished', 'pr-open', 'pr-merged', 'pr-closed']);
+  assert.deepEqual(foldedFrom(['finished', 'pr-open']), ['finished', 'pr-open']);
+  assert.deepEqual(foldedFrom(['finished', 'finished']), ['finished']);
+  assert.deepEqual(foldedFrom(['__proto__', 'constructor', 'toString', 'Finished', 5, null, {}, 'working']), ['working']);
+  const long = [...Array.from({ length: 300 }, () => '__proto__'), 'working'];
+  assert.deepEqual(foldedFrom(long), []);
+  for (const stored of [undefined, null, 'finished', {}, { length: 1, 0: 'finished' }, true]) assert.deepEqual(foldedFrom(stored), [], String(stored));
+});
+
+test('the picked titles keep only text within the title cap, at most 50, from the first 200 entries', () => {
+  assert.deepEqual(pickedFrom(['a', 'b']), ['a', 'b']);
+  assert.deepEqual(pickedFrom(['a', 'a']), ['a']);
+  assert.deepEqual(pickedFrom(['a', 5, null, {}, 'x'.repeat(81), 'b']), ['a', 'b']);
+  assert.equal(pickedFrom(Array.from({ length: 300 }, (_, i) => `t${i}`)).length, 50);
+  assert.deepEqual(pickedFrom([...Array.from({ length: 200 }, () => 5), 'late']), []);
+  for (const stored of [undefined, null, 'a', {}, { length: 1, 0: 'a' }]) assert.deepEqual(pickedFrom(stored), [], String(stored));
+});
+
+test('a needs-you card is shown whatever the dismissed list holds; any other card is hidden by it', () => {
+  const cards = [cardOf('a', 'needs-you'), cardOf('b', 'working'), cardOf('c', 'done')];
+  const g = groupCards(cards, new Set(['a', 'b', 'c']));
+  assert.deepEqual(placed(g.needsYou), [[0, 'a']]);
+  assert.deepEqual(placed(g.working), []);
+  assert.deepEqual(placed(g.finished), []);
+  assert.deepEqual(statusCounts(cards, new Set(['a', 'b', 'c'])).map(e => [e.look.word, e.count]), [['needs you', 1]]);
+});
+
+test('the section bar notes: the report count only when there are reports', () => {
+  assert.equal(reportNote(0), '');
+  assert.equal(reportNote(1), ' · 1 report');
+  assert.equal(reportNote(3), ' · 3 reports');
+});
+
+test('each group has a quiet hint', () => {
+  assert.equal(GROUP_HINTS.get('waiting'), 'Decisions, reviews, and permission requests.');
+  assert.equal(GROUP_HINTS.get('working'), 'No session is working.');
+  assert.equal(GROUP_HINTS.get('finished'), 'Sessions the owner closed.');
+  assert.equal(GROUP_HINTS.get('pr-open'), 'No open pull requests.');
+  assert.equal(GROUP_HINTS.get('pr-merged'), 'Nothing merged yet.');
+  assert.equal(GROUP_HINTS.get('pr-closed'), 'No closed pull requests.');
+});
+
+const ghAnswer = (number, over = {}) => ({ number, title: `PR ${number}`, state: 'merged', additions: 5, deletions: 1, updatedAt: NOW - 3 * 3600000, repo: 'o/r', ...over });
+const prCard = (title, status, pr, prState) => ({ ...cardOf(title, status), ...(pr === undefined ? {} : { pr }), ...(prState === undefined ? {} : { prState }) });
+
+test('the PR rows: a card\'s PR in the group of gh\'s state, else the card\'s, else open, with gh\'s title, counts, repository and age', () => {
+  const cards = [prCard('a', 'working', '10'), prCard('b', 'done', '11', 'closed'), prCard('c', 'working', '12', 'open'), prCard('d', 'working')];
+  const answers = new Map([[12, ghAnswer(12, { state: 'merged' })]]);
+  const rows = prRows(cards, new Set(), answers, NOW);
+  assert.deepEqual(rows.open.map(r => [r.i, r.number, r.title]), [[0, '10', 'a']]);
+  assert.deepEqual(rows.closed.map(r => [r.i, r.number, r.title]), [[1, '11', 'b']]);
+  assert.deepEqual(rows.merged.map(r => [r.i, r.number, r.title]), [[2, '12', 'PR 12']]);
+  assert.deepEqual(rows.merged[0].detail, { cardTitle: 'c', counts: '+5 −1', repo: 'o/r', age: '3h' });
+  assert.equal(rows.open[0].detail.counts, undefined);
+  assert.equal(rows.open[0].detail.repo, undefined);
+});
+
+test('the PR rows list one row per card, skip dismissed cards but not needs-you ones, and fall back safely on hostile stored values', () => {
+  const cards = [prCard('a', 'working', '7'), prCard('b', 'working', '7'), prCard('c', 'done', '8'), prCard('d', 'needs-you', '9'), prCard('e', 'working', 'abc'), prCard('f', 'working', '1', 'constructor'), prCard('g', 'paused', '2'), null, 5];
+  const rows = prRows(cards, new Set(['c', 'd']), new Map(), NOW);
+  assert.deepEqual(rows.open.map(r => r.title), ['a', 'b', 'd', 'f']);
+  assert.deepEqual(rows.merged, []);
+  assert.deepEqual(rows.closed, []);
+  assert.deepEqual(prRows('cards', new Set(), new Map(), NOW), { open: [], merged: [], closed: [] });
+});
+
+test('the hairline and PR pill images: their classes, a light and a dark rule each in the style block, and the allowlist holds', () => {
+  // The pill: a rounded tint, the state's mark and the number, 18 high.
+  for (const [state, mark] of [['open', '⇄'], ['merged', '⎇'], ['closed', '⊘']]) {
+    const p = view.pillSvg('341', state);
+    assertAllowlisted(p.source);
+    assert.equal(p.height, 18);
+    assert.equal(p.alt, `#341, ${state}`);
+    assert.match(p.source, new RegExp(`<rect class="tint-${state}" [^>]*rx="9"/>`));
+    assert.ok(p.source.includes(`<text class="ink-${state}" x="7" y="12.5">${mark}</text>`));
+    assert.ok(p.source.includes('>#341</text>'));
+    assert.match(view.STYLE, new RegExp(`prefers-color-scheme: dark\\).*\\.tint-${state}\\{fill:#[0-9a-f]{6}\\}.*\\}$`));
+    // A light rule for the tint and the ink, before the dark block.
+    const light = view.STYLE.split('@media')[0];
+    assert.match(light, new RegExp(`\\.tint-${state}\\{fill:#[0-9a-f]{6}\\}`));
+    assert.match(light, new RegExp(`\\.ink-${state}\\{fill:#[0-9a-f]{6}\\}`));
+  }
+  // A longer number makes a wider pill; a state or number of the wrong shape makes none.
+  assert.ok(view.pillSvg('1234567', 'open').width > view.pillSvg('7', 'open').width);
+  for (const [n, state] of [['341', 'constructor'], ['341', 'draft'], ['12345678', 'open'], ['3a1', 'open'], ['', 'open']]) assert.equal(view.pillSvg(n, state), undefined);
+  const h = hairlineSvg();
+  assertAllowlisted(h.source);
+  assert.match(h.source, /<rect class="rule" /);
+  assert.equal(h.source.match(/<rect /g).length, 1);
+  assert.match(view.STYLE, /\.rule\{fill:#[0-9a-f]{6}\}/);
+  assert.match(view.STYLE, /prefers-color-scheme: dark\).*\.rule\{fill:#[0-9a-f]{6}\}\}$/);
+  assert.ok(h.source.length < 2000);
+});
+
+test('no colour in the register or view modules is a hex or a colour name outside an image\'s style block and the register\'s fixed fills', () => {
+  const themeKeys = new Set(['text', 'inverseText', 'inactive', 'subtle', 'suggestion', 'remember', 'success', 'error', 'warning', 'merged', 'claude', 'permission', 'planMode', 'autoAccept', 'promptBorder', 'bashBorder', 'ide', 'diffAdded', 'diffRemoved', 'diffAddedDimmed', 'diffRemovedDimmed', 'diffAddedWord', 'diffRemovedWord']);
+  const registerSource = readFileSync(join(root, 'brigade/register.tsx'), 'utf8');
+  const viewSource = readFileSync(join(root, 'brigade/view.ts'), 'utf8');
+  // The one place a hex may sit: the style constant's text.
+  const viewOutside = viewSource.replace(/export const STYLE = \[[\s\S]*?\]\.join\(''\)/, '');
+  // The register module's one place a hex may sit: its fixed fills, each a
+  // hex and nothing else (the owner's decision at the rebuild's visual check).
+  const fills = /const DARK_FILLS = \{([\s\S]*?)\} as const/.exec(registerSource);
+  assert.ok(fills, 'the fixed fills are where the test looks');
+  for (const line of fills[1].split('\n').filter(l => l.trim() !== '')) assert.match(line, /^\s*[a-z]+: '#[0-9a-f]{6}',$/, `${line} is a named hex fill`);
+  const registerOutside = registerSource.replace(fills[0], '');
+  // A hex as a quoted value; an issue number in a comment is not one.
+  assert.doesNotMatch(registerOutside, /["'`]#[0-9a-fA-F]{3,8}\b/, 'no hex in the register module outside its fixed fills');
+  // The fixed fills are fills and borders only: no text takes one.
+  assert.doesNotMatch(registerSource, /\bcolor\s*[:=]\s*\{?\s*DARK_FILLS\./, 'no text colour is a fixed fill');
+  assert.doesNotMatch(viewOutside, /["'`]#[0-9a-fA-F]{3,8}\b/, 'no hex in the view module outside its style text');
+  // A colour name held in a quoted string anywhere in the register module, in an expression too.
+  assert.doesNotMatch(registerSource, /["'`](?:red|green|blue|gray|grey|white|black|yellow|orange|purple|pink|cyan|magenta|transparent)["'`]/i, 'no colour name in the register module');
+  let seen = 0;
+  for (const m of registerSource.matchAll(/\b(?:color|borderColor|backgroundColor)=(?:"([^"]*)"|\{'([^']*)'\})/g)) {
+    seen += 1;
+    assert.ok(themeKeys.has(m[1] ?? m[2]), `${m[0]} is not a theme key`);
+  }
+  assert.ok(seen > 0, 'the test read at least one colour prop');
+  // `dim` is a warmth line's tone word: the line is drawn with dimColor, never as a colour.
+  for (const m of [...registerSource.matchAll(/(?:color|Color|tone)\s*[:=]\s*'([^']*)'/g), ...viewOutside.matchAll(/(?:color|tone)\s*:\s*'([^']*)'/g)]) {
+    assert.ok(themeKeys.has(m[1]) || m[1] === 'dim', `${m[0]} is not a theme key`);
+  }
 });

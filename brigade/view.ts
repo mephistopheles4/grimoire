@@ -1,5 +1,5 @@
-import { SESSION_ID, foldsCase, oneLine, pathKey, placeSummary, projectFolder, sepOf, statRejection } from './roster.ts'
-import type { AgentRow, StatAnswer } from './roster.ts'
+import { AHEAD_MS, PR_NUMBER, PR_STATES, SESSION_ID, foldsCase, oneLine, pathKey, placeSummary, projectFolder, sepOf, statRejection } from './roster.ts'
+import type { AgentRow, GhPr, StatAnswer } from './roster.ts'
 import type { Meter, Pair, Sample, UsageCategory, UsageLimit, UsageSnapshot, Warmth } from './types'
 
 // What the Brigade pane draws, worked out from plain values: the render hook
@@ -303,8 +303,13 @@ export const STYLE = [
   '.proj{fill:#a9cdf0}',
   '.done{fill:#3f8f4f}.stopped{fill:#9c9a92}',
   '.free{fill:#e8e6dc}.buffer{fill:#d6d3c8}',
+  // The hairline between cards.
+  '.rule{fill:#e0ded6}',
+  // A PR pill, as Desktop draws its own: a tint of the state and its ink.
+  '.tint-open{fill:#dff3e4}.tint-merged{fill:#ece6fb}.tint-closed{fill:#fbe3e1}',
+  '.ink-open,.ink-merged,.ink-closed{font-size:11px;font-weight:500}.ink-open{fill:#2f7d3f}.ink-merged{fill:#6f4fc9}.ink-closed{fill:#c6413a}',
   '.c0{fill:#d97757}.c1{fill:#6a9bcc}.c2{fill:#788c5d}.c3{fill:#c46686}.c4{fill:#8b7fc7}.c5{fill:#c9a227}.c6{fill:#5fa8a0}',
-  '@media (prefers-color-scheme: dark){text{fill:#e8e6e1}.muted{fill:#9c9a92}.track,.free{fill:#3a3935}.buffer{fill:#4a4944}.ok{fill:#5aa2ef}.proj{fill:#2f5f8f}.warn{fill:#e8a23a}.hot{fill:#ef6b62}.done{fill:#62b56f}.stopped{fill:#6b6a64}}',
+  '@media (prefers-color-scheme: dark){text{fill:#e8e6e1}.muted{fill:#9c9a92}.track,.free{fill:#3a3935}.buffer{fill:#4a4944}.ok{fill:#5aa2ef}.proj{fill:#2f5f8f}.warn{fill:#e8a23a}.hot{fill:#ef6b62}.done{fill:#62b56f}.stopped{fill:#6b6a64}.tint-open{fill:#1f3a26}.tint-merged{fill:#2e2547}.tint-closed{fill:#3a1f1f}.ink-open{fill:#62b56f}.ink-merged{fill:#a48be0}.ink-closed{fill:#ef6b62}.rule{fill:#333331}}',
 ].join('')
 
 const XMLNS = 'http://www.w3.org/2000/svg'
@@ -690,8 +695,9 @@ export async function settleTicks(
 
 // --- Severity groups --------------------------------------------------------
 //
-// The cards sit in three groups by the status the head chef wrote: NEEDS YOU,
-// WORKING, and DONE · STOPPED, which a press folds open and shut. The stored
+// The cards sit in three groups by the status the head chef wrote: Waiting on
+// you, Working, and Done · stopped. Any group folds on a press, and
+// STARTS_FOLDED in register.tsx says which start folded. The stored
 // roster is drawn as stored, and another plugin can rewrite it, so a status is
 // read only through the fixed Map below: one outside the four words, or one
 // that names a prototype key, has no look and counts nowhere. No key, class or
@@ -726,9 +732,9 @@ export type Placed<T> = { c: T; i: number }
 export type Groups<T> = { needsYou: Placed<T>[]; working: Placed<T>[]; finished: Placed<T>[] }
 
 /** The stored cards in their groups, each in roster order. A card whose title
- *  is in `hidden`, the dismissed ones, is in none, and so is a card that is
- *  not a record or has no look; cards that are not a list give three empty
- *  groups. */
+ *  is in `hidden`, the dismissed ones, is in none unless it waits on the owner,
+ *  and a card that is not a record or has no look is in none; cards that are
+ *  not a list give three empty groups. */
 export function groupCards<T>(cards: readonly T[], hidden: ReadonlySet<unknown>): Groups<T> {
   const out: Groups<T> = { needsYou: [], working: [], finished: [] }
   if (!Array.isArray(cards)) return out
@@ -739,22 +745,198 @@ export function groupCards<T>(cards: readonly T[], hidden: ReadonlySet<unknown>)
   return out
 }
 
-/** A stored card's look when the pane shows it: a record, not dismissed, with
- *  one of the four statuses; else undefined. The groups, the heading and the
+/** A stored card's look when the pane shows it: a record with one of the four
+ *  statuses that is not dismissed, or waits on the owner; else undefined. The groups, the heading and the
  *  status strip all count cards by this one rule. */
 function shownLook(c: unknown, hidden: ReadonlySet<unknown>): StatusLook | undefined {
-  return isRecord(c) && !hidden.has(c.title) ? statusOf(c.status) : undefined
+  if (!isRecord(c)) return undefined
+  const look = statusOf(c.status)
+  // A card that waits on the owner is never hidden, whatever was dismissed.
+  return look !== undefined && look.group !== 'needsYou' && hidden.has(c.title) ? undefined : look
 }
 
-/** The stored open state of DONE · STOPPED, open only when exactly true. */
-export const isOpen = (v: unknown): boolean => v === true
+// --- views, folds, selection and the redesigned pane -----------------------------
+//
+// The pane's own values are plugin state another plugin can rewrite, so each is
+// read through a fixed set or a fixed shape and a length cap, and a value that
+// fails reads as empty.
 
-/** The DONE · STOPPED toggle's label: ▸ closed or ▾ open, its card count, and
- *  the count of its cards' reports when there are any, so a report behind
- *  the fold stays in view. */
-export function foldLabel(open: unknown, cards: number, reports: number): string {
-  const count = reports > 0 ? ` · ${reports} ${reports === 1 ? 'report' : 'reports'}` : ''
-  return `${isOpen(open) ? '▾' : '▸'} DONE · STOPPED  ${cards}${count}`
+/** The six groups that fold, in the order the pane draws them. */
+export const GROUP_KEYS: readonly string[] = ['waiting', 'working', 'finished', 'pr-open', 'pr-merged', 'pr-closed']
+
+/** A group's name on its section bar. */
+export const GROUP_NAMES: ReadonlyMap<string, string> = new Map([
+  ['waiting', 'Waiting on you'],
+  ['working', 'Working'],
+  ['finished', 'Done · stopped'],
+  ['pr-open', 'Open'],
+  ['pr-merged', 'Merged'],
+  ['pr-closed', 'Closed'],
+])
+
+/** The quiet line an empty group shows. */
+export const GROUP_HINTS: ReadonlyMap<string, string> = new Map([
+  ['waiting', 'Decisions, reviews, and permission requests.'],
+  ['working', 'No session is working.'],
+  ['finished', 'Sessions the owner closed.'],
+  ['pr-open', 'No open pull requests.'],
+  ['pr-merged', 'Nothing merged yet.'],
+  ['pr-closed', 'No closed pull requests.'],
+])
+
+const MAX_SCAN = 200
+const MAX_KEPT = 50
+const MAX_PICK_TITLE = 80
+/** The most cards selected at once. */
+export const MAX_PICKED = 50
+
+/** The chosen view: `prs` only when exactly that word, else `sessions`. */
+export const viewFrom = (stored: unknown): 'sessions' | 'prs' => (stored === 'prs' ? 'prs' : 'sessions')
+
+/** The folded groups: names from the fixed six only, no repeat, from the
+ *  first 200 entries, at most 50 kept. Anything else reads as none. */
+export function foldedFrom(stored: unknown): string[] {
+  if (!Array.isArray(stored)) return []
+  const out: string[] = []
+  for (const g of stored.slice(0, MAX_SCAN)) {
+    if (typeof g === 'string' && GROUP_KEYS.includes(g) && !out.includes(g) && out.length < MAX_KEPT) out.push(g)
+  }
+  return out
+}
+
+/** The selected cards' titles: text within the title cap, no repeat, from the
+ *  first 200 entries, at most 50 kept. Anything else reads as none. */
+export function pickedFrom(stored: unknown): string[] {
+  if (!Array.isArray(stored)) return []
+  const out: string[] = []
+  for (const t of stored.slice(0, MAX_SCAN)) {
+    if (typeof t === 'string' && [...t].length <= MAX_PICK_TITLE && !out.includes(t) && out.length < MAX_PICKED) out.push(t)
+  }
+  return out
+}
+
+/** The count a section bar adds after its name: the reports its cards sent
+ *  since the pane opened, when there are any. */
+export const reportNote = (reports: number): string => (reports > 0 ? ` · ${reports} ${reports === 1 ? 'report' : 'reports'}` : '')
+
+/** A time on the engine clock as an age: `now` under a minute, then whole
+ *  minutes, hours and days. A time that is not a whole number from 0 to
+ *  2^53 - 1, or is more than 2 minutes ahead of the clock, has no age. */
+export function ageText(since: unknown, now: number): string | undefined {
+  if (typeof since !== 'number' || !Number.isSafeInteger(since) || since < 0 || !Number.isFinite(now)) return undefined
+  const gap = now - since
+  if (gap < -AHEAD_MS) return undefined
+  if (gap < MIN_MS) return 'now'
+  if (gap < 3600000) return `${Math.floor(gap / MIN_MS)}m`
+  if (gap < 86400000) return `${Math.floor(gap / 3600000)}h`
+  return `${Math.floor(gap / 86400000)}d`
+}
+
+const EFFORT_MARKS: ReadonlyMap<string, string> = new Map([
+  ['low', 'L'],
+  ['medium', 'M'],
+  ['high', 'H'],
+  ['xhigh', 'X'],
+  ['max', '∞'],
+])
+
+/** A card's settings line as one character for the model and one for the
+ *  effort, joined by `·` (`O·H`), and the line itself, cleaned and cut to 80,
+ *  for the tooltip. */
+export function compactSettings(settings: unknown): { text: string; full: string } {
+  const line = typeof settings === 'string' ? settings : ''
+  const parts = line.split(',').map(p => oneLine(p, 40))
+  const model = [...(parts[0] ?? '')][0]?.toUpperCase() ?? ''
+  const effort = EFFORT_MARKS.get((parts[1] ?? '').toLowerCase()) ?? ''
+  const text = [model, effort].filter(x => x !== '').join('·')
+  return { text: text === '' ? '?' : text, full: oneLine(line, 80) || 'No settings on the card.' }
+}
+
+/** The PR pill's theme key by state, never looked up in a plain object. */
+export const PILLS: ReadonlyMap<string, string> = new Map([
+  ['open', 'success'],
+  ['merged', 'merged'],
+  ['closed', 'error'],
+])
+
+/** The pill's theme key, or undefined for a state the Map does not hold. */
+export const pillColor = (state: unknown): string | undefined => (typeof state === 'string' ? PILLS.get(state) : undefined)
+
+/** A card's PR state as the pill draws it: `gh`'s answer, else the card's own,
+ *  else open. The card's is passed on as stored; the Map decides its colour. */
+export const pillState = (gh: string | undefined, card: unknown): string => gh ?? (typeof card === 'string' ? card : 'open')
+
+/** A pull request row: the card it comes from, its place in the roster, its
+ *  number, the state it is grouped by, its title and the dim line's parts. */
+export type PrRow = {
+  c: Record<string, unknown>
+  i: number
+  number: string
+  state: string
+  title: string
+  detail: { cardTitle: string; counts?: string; repo?: string; age?: string }
+}
+
+/** A stored card's PR number as text, or undefined: the card must be a record
+ *  and `pr` text of 1 to 7 digits, by the roster module's own pattern. */
+export const prNumber = (c: unknown): string | undefined => (isRecord(c) && typeof c.pr === 'string' && PR_NUMBER.test(c.pr) ? c.pr : undefined)
+
+/** The pull requests the shown cards carry, grouped Open, Merged and Closed:
+ *  one row per card, `gh`'s state when it answered for the number, else the
+ *  card's, else open. With an answer a row has the PR's title, counts,
+ *  repository and age; without one, the card's title alone. */
+export function prRows(cards: unknown, hidden: ReadonlySet<unknown>, answers: ReadonlyMap<number, GhPr>, now: number): { open: PrRow[]; merged: PrRow[]; closed: PrRow[] } {
+  const out = { open: [] as PrRow[], merged: [] as PrRow[], closed: [] as PrRow[] }
+  if (!Array.isArray(cards)) return out
+  cards.forEach((c, i) => {
+    const number = prNumber(c)
+    if (!isRecord(c) || number === undefined || shownLook(c, hidden) === undefined) return
+    const answer = answers.get(Number(number))
+    const own = typeof c.prState === 'string' && (PR_STATES as readonly string[]).includes(c.prState) ? c.prState : 'open'
+    const state = answer?.state ?? own
+    const cardTitle = drawnTitle(String(c.title))
+    const detail: PrRow['detail'] = { cardTitle }
+    if (answer !== undefined) {
+      detail.counts = `+${num(answer.additions)} −${num(answer.deletions)}`
+      detail.repo = answer.repo
+      const age = ageText(answer.updatedAt, now)
+      if (age !== undefined) detail.age = age
+    }
+    const row: PrRow = { c, i, number, state, title: answer?.title ?? cardTitle, detail }
+    if (state === 'merged') out.merged.push(row)
+    else if (state === 'closed') out.closed.push(row)
+    else out.open.push(row)
+  })
+  return out
+}
+
+/** The hairline between cards: one rect in the rule class, across the width. */
+export function hairlineSvg(): BarImage {
+  return { source: `${svgOpen(9)}<rect class="rule" x="0" y="4" width="100%" height="1"/></svg>`, alt: 'divider', height: 9 }
+}
+
+// A PR pill's class suffix and mark by state, read only through this Map.
+const PILL_LOOKS: ReadonlyMap<string, { cls: string; mark: string }> = new Map([
+  ['open', { cls: 'open', mark: '⇄' }],
+  ['merged', { cls: 'merged', mark: '⎇' }],
+  ['closed', { cls: 'closed', mark: '⊘' }],
+])
+const PILL_HEIGHT = 18
+
+/** A PR pill as Desktop draws its own: a rounded tint of the state, its mark
+ *  and `#` with the number in the state's ink, 18 px high and as wide as its
+ *  text, by an estimate of the font's widths. Undefined for a number that is
+ *  not 1 to 7 digits or a state the Map does not hold, `constructor` included. */
+export function pillSvg(n: string, state: string): (BarImage & { width: number }) | undefined {
+  const look = PILL_LOOKS.get(state)
+  if (look === undefined || !/^[0-9]{1,7}$/.test(n)) return undefined
+  const width = Math.round(36 + 6.3 * n.length)
+  const source =
+    `<svg xmlns="${XMLNS}" width="${num(width)}" height="${num(PILL_HEIGHT)}"><style>${STYLE}</style>` +
+    `<rect class="tint-${look.cls}" x="0" y="0" width="100%" height="${num(PILL_HEIGHT)}" rx="${num(PILL_HEIGHT / 2)}"/>` +
+    `<text class="ink-${look.cls}" x="7" y="12.5">${look.mark}</text>` +
+    `<text class="ink-${look.cls}" x="22" y="12.5">#${svgText(n, 8)}</text></svg>`
+  return { source, alt: `#${n}, ${state}`, height: PILL_HEIGHT, width }
 }
 
 /** A card's title as drawn and as a report's sender is kept: cleaned and cut
@@ -786,7 +968,7 @@ function doneOrTicking(done: unknown, ticking: unknown): Set<string> {
 
 // --- The status strip and the to-do bar ---------------------------------------
 //
-// Under the Brigade heading: a strip with one segment per status, its legend,
+// Under the top row: a strip with one segment per status, its legend,
 // and a bar of the to-dos done. Both are drawn from counts alone. Each builder
 // takes the stored roster and lists as they are, reads a card only through
 // the status Map and a to-do only by its id, and writes only numbers, fixed

@@ -55,8 +55,9 @@ the local summary estimate of the context breakdown, which sends no request.
 On an Open in app press it reads three environment variables, `OS`,
 `SystemRoot` and `windir`, only to tell whether each is set or `OS` is
 `Windows_NT`; it never stores, shows or sends them.
-It makes no network request of its own; its one tool call, below, goes to
-whatever connected server answers to the name `ccd_window`. Besides each session's own usage summary, below, it writes one file, the lead session's roster,
+It makes no network request of its own, apart from the `gh` call below; its
+one tool call, below, goes to whatever connected server answers to the name
+`ccd_window`. Besides each session's own usage summary, below, it writes one file, the lead session's roster,
 through a tool the model calls, `set_roster`, which skips Claude Code's
 permission prompt. So that write has no human and no classifier review; every
 call is still recorded in the transcript as the tool's result. The tool exists
@@ -77,11 +78,23 @@ tool stops it. An exact deny rule was seen to stop it on Desktop 2.1.289; a
 rule for the whole server, `mcp__ccd_window`, rests on the engine matching it
 the same way, which was not tried there. When that call is refused,
 fails or takes over 5 seconds in all, or the card has no Desktop id, its one
-other process is the host's opener, given a `claude://` link: `explorer.exe`
+other process, besides `gh` and `claude agents --json`, is the host's opener, given a `claude://` link: `explorer.exe`
 on Windows, as before, `/usr/bin/open` on macOS and `/usr/bin/xdg-open` on
 Linux, the last two by absolute path. The absolute path pins only the opener:
 on Linux it then starts its desktop helper, or a fallback browser, by name on
 the inherited PATH. On a host it cannot identify it runs nothing.
+**Since 0.64.0 the pane runs `gh`.** While its pane is open and a shown card
+carries a pull request number, it runs one fixed command, `gh pr list`, once a
+minute, with no roster text in it, a 15-second limit and one run at a time.
+`gh` is the owner's own GitHub command line tool: the call sends the owner's
+GitHub credential to GitHub, and it inherits the session's environment, keys
+and tokens included. On Windows the engine was measured to run the real `gh`
+from the system path, not a stub in the working folder. On macOS and Linux the
+pane runs nothing when the inherited PATH has an empty or relative entry. The
+environment and the working folder's git remotes choose the repository, and the
+pane pins the first answer's repository for the session. The titles and
+repository names it gets, private ones included, are drawn on every surface;
+its error text is never shown or stored.
 Everything it reads is checked and drawn as text, in the usage image too.
 
 **Since 0.60.0 every session that has the plugin writes its own usage

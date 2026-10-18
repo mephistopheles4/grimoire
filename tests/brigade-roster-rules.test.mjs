@@ -541,3 +541,180 @@ test('dataPlace: the config folder from the install path, else from this session
   // A start record of another session names nothing.
   assert.deepEqual(dataPlace('C:\\work\\grimoire', 'grimoire', { ...start, sessionId: '99999999-8888-7777-6666-555555555555' }, SID), { config: undefined, plugin: 'grimoire-inline' });
 });
+
+// --- issue 339: the card's PR fields, the stamp and the gh answer ------------------
+
+const { parsePrList, stampSince } = roster;
+const MAX_SAFE = Number.MAX_SAFE_INTEGER;
+const fileCheck = over => checkRoster(JSON.stringify({ cards: [card('a', over)], todos: [] }), true, 'file');
+const toolCheck = over => checkRoster(JSON.stringify({ cards: [card('a', over)], todos: [] }), true, 'tool');
+
+test('a card takes pr as 1 to 7 digits and prState as open, merged or closed, from the file and from the tool', () => {
+  for (const check of [fileCheck, toolCheck]) {
+    assert.deepEqual(check({ pr: '1', prState: 'open' }).value.cards[0], card('a', { pr: '1', prState: 'open' }));
+    assert.equal(check({ pr: '9999999', prState: 'merged' }).value.cards[0].pr, '9999999');
+    assert.equal(check({ prState: 'closed' }).value.cards[0].prState, 'closed');
+    for (const [over, field] of [
+      [{ pr: 'abc' }, 'pr'],
+      [{ pr: '' }, 'pr'],
+      [{ pr: '12345678' }, 'pr'],
+      [{ pr: 341 }, 'pr'],
+      [{ pr: '-1' }, 'pr'],
+      [{ prState: 'constructor' }, 'prState'],
+      [{ prState: 'OPEN' }, 'prState'],
+      [{ prState: 1 }, 'prState'],
+    ]) {
+      const r = check(over);
+      assert.ok('error' in r, JSON.stringify(over));
+      assert.match(r.error, new RegExp(`^card 1 ${field} `), JSON.stringify(over));
+    }
+  }
+});
+
+test('since comes from the file as a whole number from 0 to 2^53 - 1, and never from the tool', () => {
+  assert.equal(fileCheck({ since: 0 }).value.cards[0].since, 0);
+  assert.equal(fileCheck({ since: MAX_SAFE }).value.cards[0].since, MAX_SAFE);
+  for (const since of [MAX_SAFE + 1, 2 ** 53, -1, 1.5, '5', null, true, {}]) {
+    const r = fileCheck({ since });
+    assert.ok('error' in r, String(since));
+    assert.match(r.error, /^card 1 since /);
+  }
+  const fromTool = toolCheck({ since: 5 });
+  assert.ok('error' in fromTool);
+  assert.match(fromTool.error, /^card 1 since /);
+  assert.match(fromTool.error, /tool/);
+  // The default source is the file's.
+  assert.equal(checkRoster(JSON.stringify({ cards: [card('a', { since: 7 })], todos: [] })).value.cards[0].since, 7);
+});
+
+test('the stamp keeps a card\'s since when its drawn title, status and phase match and the kept value is sane', () => {
+  const now = 10_000_000;
+  const before = { cards: [card('alpha', { phase: 'p', since: 5_000 }), card('beta', { phase: 'p', since: 6_000 })], todos: [] };
+  const next = [card('alpha', { phase: 'p' }), card('beta', { phase: 'changed' }), card('gamma')];
+  const r = stampSince(before, next, now);
+  assert.deepEqual(r.value.map(c => c.since), [5_000, now, now]);
+  // Titles are matched as drawn: a hidden character does not make a new card.
+  const hidden = stampSince(before, [card('al\u{200b}pha', { phase: 'p' })], now);
+  assert.equal(hidden.value[0].since, 5_000);
+  // A status change restamps.
+  assert.equal(stampSince(before, [card('alpha', { phase: 'p', status: 'done' })], now).value[0].since, now);
+  // No previous roster stamps everything.
+  assert.equal(stampSince(undefined, [card('alpha')], now).value[0].since, now);
+});
+
+test('the stamp drops a kept since that is not sane or is more than 2 minutes ahead of the clock', () => {
+  const now = 10_000_000;
+  const ahead = { cards: [card('a', { since: now + 120_000 + 1 })], todos: [] };
+  assert.equal(stampSince(ahead, [card('a')], now).value[0].since, now);
+  const edge = { cards: [card('a', { since: now + 120_000 })], todos: [] };
+  assert.equal(stampSince(edge, [card('a')], now).value[0].since, now + 120_000);
+  const bad = { cards: [card('a', { since: 2 ** 53 })], todos: [] };
+  assert.equal(stampSince(bad, [card('a')], now).value[0].since, now);
+});
+
+test('the stamp refuses a clock answer that is not a whole number from 0 to 2^53 - 1', () => {
+  for (const clock of [1.5, NaN, Infinity, -1, 2 ** 53, '5', undefined, null, {}]) {
+    const r = stampSince(undefined, [card('a')], clock);
+    assert.ok('error' in r, String(clock));
+    assert.match(r.error, /clock/);
+  }
+  assert.ok('value' in stampSince(undefined, [card('a')], 0));
+});
+
+test('a stamped roster passes the strict file check, prototype-keyed titles included', () => {
+  const stamped = stampSince(undefined, [card('constructor'), card('__proto__')], 1).value;
+  assert.deepEqual(stamped.map(c => c.since), [1, 1]);
+  assert.ok('value' in checkRoster(JSON.stringify({ cards: stamped, todos: [] }), true, 'file'));
+});
+
+// The gh answer: untrusted text, read by shape.
+const pr = (over = {}) => ({
+  number: 341,
+  title: 'A title',
+  state: 'OPEN',
+  additions: 10,
+  deletions: 2,
+  updatedAt: '2026-10-18T10:00:00Z',
+  url: 'https://github.com/owner/repo/pull/341',
+  isCrossRepository: false,
+  ...over,
+});
+const parse = list => parsePrList(JSON.stringify(list));
+
+test('the gh parser keeps an entry of the stated shape, keyed by number, with the repository from the URL', () => {
+  const r = parse([pr()]);
+  const got = r.value.get(341);
+  assert.equal(got.title, 'A title');
+  assert.equal(got.state, 'open');
+  assert.equal(got.additions, 10);
+  assert.equal(got.deletions, 2);
+  assert.equal(got.repo, 'owner/repo');
+  assert.equal(got.updatedAt, Date.UTC(2026, 9, 18, 10, 0, 0));
+  assert.equal(parse([pr({ state: 'MERGED' })]).value.get(341).state, 'merged');
+  assert.equal(parse([pr({ state: 'CLOSED' })]).value.get(341).state, 'closed');
+});
+
+test('the gh parser drops every entry of a wrong shape and never throws', () => {
+  const bad = [
+    null,
+    7,
+    'text',
+    [],
+    pr({ title: 5 }),
+    pr({ title: 'x'.repeat(1001) }),
+    pr({ state: 'constructor' }),
+    pr({ state: '__proto__' }),
+    pr({ state: 'open' }),
+    pr({ number: 10_000_000 }),
+    pr({ number: 0 }),
+    pr({ number: 1.5 }),
+    pr({ number: '341' }),
+    pr({ additions: 100_000_001 }),
+    pr({ additions: -1 }),
+    pr({ deletions: 1.5 }),
+    pr({ updatedAt: '2026-10-18T10:00:00+02:00' }),
+    pr({ updatedAt: 'yesterday' }),
+    pr({ url: 'https://github.com/owner/repo/pull/342' }),
+    pr({ url: 'http://github.com/owner/repo/pull/341' }),
+    pr({ url: 'https://evil.example/owner/repo/pull/341' }),
+    pr({ url: 'https://github.com/owner/repo/pull/341/files' }),
+    pr({ url: 'https://github.com/owner/re po/pull/341' }),
+    pr({ isCrossRepository: true }),
+    pr({ isCrossRepository: undefined }),
+    pr({ isCrossRepository: 'false' }),
+  ];
+  for (const entry of bad) {
+    const r = parse([entry]);
+    assert.equal(r.value.size, 0, JSON.stringify(entry));
+  }
+  // An array is no plain object.
+  assert.equal(parse([Object.assign([], pr())]).value.size, 0);
+});
+
+test('the gh parser looks at the first 100 entries only', () => {
+  const list = Array.from({ length: 101 }, (_, i) => pr({ number: i + 1, url: `https://github.com/o/r/pull/${i + 1}` }));
+  const r = parse(list);
+  assert.equal(r.value.size, 100);
+  assert.equal(r.value.has(101), false);
+  assert.equal(r.value.has(100), true);
+});
+
+test('the gh parser refuses output that is not a list, is not JSON, or is over 1 MiB, and its error carries none of the output', () => {
+  assert.ok('error' in parsePrList('not json'));
+  assert.ok('error' in parsePrList('{"a":1}'));
+  assert.ok('error' in parsePrList('null'));
+  assert.ok('error' in parsePrList(JSON.stringify([pr()]) + ' '.repeat(1024 * 1024)));
+  // Bytes, not characters: 600 KiB of 2-byte characters is over the cap.
+  assert.ok('error' in parsePrList(JSON.stringify(['\u{e9}'.repeat(600 * 1024)])));
+  // The same text under 1 MiB of characters is valid JSON: only the byte count refuses it.
+  assert.ok('value' in parsePrList(JSON.stringify(['\u{e9}'.repeat(100 * 1024)])));
+  assert.doesNotMatch(parsePrList('SECRET_MARKER').error, /SECRET_MARKER/);
+});
+
+test('the gh title is cleaned and cut to 80 characters', () => {
+  const r = parse([pr({ title: `a\u{202e}b\u{7}${'c'.repeat(200)}` })]);
+  const title = r.value.get(341).title;
+  assert.equal([...title].length, 80);
+  assert.doesNotMatch(title, /[\u{202e}\u{7}]/u);
+  assert.ok(r.value instanceof Map);
+});
