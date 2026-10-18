@@ -1649,6 +1649,20 @@ for (const surface of SURFACES) {
     expect(drawn.filter(n => n.type === 'Text' && n.text === '●' && n.props.color === 'warning').length).toBe(2)
     const working = surface === 'terminal' ? '◐' : '●'
     expect(drawn.find(n => n.type === 'Text' && n.text === working && n.props.color !== 'warning')?.props.color).toBe('suggestion')
+    const bar = boxAround(drawn, (c: any) => c?.props?.key === 'grp-finished')
+    const title = (t: string) => drawn.find(n => n.type === 'Text' && n.text === t)
+    if (surface === 'desktop') {
+      // A rounded fill: a round border in the fill's own key.
+      expect([bar?.props.borderStyle, bar?.props.borderColor, bar?.props.backgroundColor]).toEqual(['round', 'subtle', 'subtle'])
+      // The waiting cards' dots are full size, the working card's small; a
+      // waiting title is bold.
+      for (const dot of drawn.filter(n => n.type === 'Text' && n.text === '●' && n.props.color === 'warning')) expect(dot.props.size).toBeUndefined()
+      expect(drawn.find(n => n.type === 'Text' && n.text === '●' && n.props.color === 'suggestion')?.props.size).toBe('caption')
+      expect(title('need-one')?.props.weight).toBe('bold')
+      expect(title('work-one')?.props.weight).toBe('semibold')
+    } else {
+      expect(bar?.props.backgroundColor).toBeUndefined()
+    }
   })
 
   test(`${surface}: an empty group shows its quiet hint`, async ($, on) => {
@@ -1678,10 +1692,10 @@ for (const surface of SURFACES) {
     expect(opened.includes('▾ Done · stopped 2')).toBe(true)
     expect(opened.indexOf('▾ Done · stopped')).toBeLessThan(opened.indexOf('done-one'))
     expect(opened.indexOf('done-one')).toBeLessThan(opened.indexOf('stop-one'))
+    expect(opened.includes('○')).toBe(false)
     if (surface === 'terminal') {
       expect(opened.includes('✓')).toBe(true)
       expect(opened.includes('–')).toBe(true)
-      expect(opened.includes('○')).toBe(false)
     } else {
       // Desktop: a dot in each finished status's own colour.
       const drawn = (await m.findAll({ type: 'Text', text: '●' })) as { props: Record<string, unknown> }[]
@@ -3622,6 +3636,12 @@ for (const surface of SURFACES) {
     expect(text.includes('Merged thing')).toBe(true)
     // The card with no answer from gh shows its own title.
     expect(text.includes('delta')).toBe(true)
+    if (surface === 'desktop') {
+      // Rows a small step apart, with no hairline between them.
+      const all = await nodes(m)
+      expect(all.filter(n => n.type === 'Svg' && n.props.alt === 'divider').length).toBe(0)
+      expect(all.filter(n => n.type === 'Box' && n.props.marginBottom === 'xs' && n.props.paddingY === 'sm').length).toBe(3)
+    }
     // Usage and the spacer stay.
     expect(text.includes('Usage')).toBe(true)
     // Reopening the pane opens on Sessions.
@@ -3695,19 +3715,31 @@ for (const surface of SURFACES) {
   })
 
   test(`${surface}: hairlines, hover fills and tooltips are Desktop's; the terminal draws a blank row and always shows the actions`, async ($, on) => {
-    await grouped(on, $, { cards: [card('one', { status: 'working' }), card('two', { status: 'working' })], todos: [] })
+    // A waiting card and a to-do as well: Waiting on you parts its rows with a
+    // row gap, not a hairline.
+    await grouped(on, $, { cards: [card('one', { status: 'working' }), card('two', { status: 'working' }), card('wait', { status: 'needs-you' })], todos: [{ id: 't1', text: 'look' }] })
     const m = await mountOn($, surface)
     const all = await nodes(m)
     const lines = all.filter(n => n.type === 'Svg' && n.props.alt === 'divider')
+    // The Box that holds the waiting card and the to-do, and no other card.
+    const waitingRows = all.find(n => n.type === 'Box' && spoken(n).includes('wait') && spoken(n).includes('look') && !spoken(n).includes('two') && n.children.length > 1)
     // A hover is not in the drawn tree; what it reveals is: a Box hidden at rest.
     const hidden = all.filter(n => n.type === 'Box' && n.props.display === 'none')
     const actions = all.filter(n => n.type === 'Box' && ['Dismiss', 'OpenDismiss'].includes(spoken(n)))
     if (surface === 'desktop') {
       expect(lines.length).toBe(1)
+      expect(waitingRows?.props.rowGap).toBe(1)
       expect(hidden.length).toBeGreaterThan(0)
+      // A tooltip is a square fill, as in the prototype.
+      for (const h of hidden.filter(n => n.props.position === 'absolute')) {
+        expect(h.props.backgroundColor).toBe('subtle')
+        expect(h.props.borderStyle).toBeUndefined()
+      }
       expect(actions.some(a => a.props.display === 'none')).toBe(true)
       expect(String(lines[0]?.props.source)).toContain('class="rule"')
     } else {
+      // A blank row parts the waiting card from the to-do, as it parts cards.
+      expect(waitingRows?.children.map(spoken)).toContain(' ')
       expect(lines.length).toBe(0)
       expect(hidden.length).toBe(0)
       expect(actions.length).toBeGreaterThan(0)
@@ -3718,14 +3750,27 @@ for (const surface of SURFACES) {
   test(`${surface}: the checkbox selects a card and a to-do's box ticks the to-do, each with its own key and word`, async ($, on) => {
     const w = await grouped(on, $, { cards: [card('one', { status: 'working' }), card('two', { status: 'working' })], todos: [{ id: 't1', text: 'look' }] })
     const m = await mountOn($, surface)
-    await m.redraw(PANE_PROPS)
-    expect((await m.find({ key: 'pick-0-one' })).props.label).toBe('Select')
-    expect((await m.find({ key: 'todo-0-t1' })).props.label).toBe('Done')
+    // A box, no word: a desktop draws a Button's label in place of its text,
+    // and the harness reports the drawn text as the label. The card's slot
+    // takes the box's width; the to-do's is fixed.
+    const all = await nodes(m)
+    const blank = surface === 'desktop' ? '\u{2002}\u{2005}' : ' '
+    expect((await m.find({ key: 'pick-0-one' })).props.label).toBe(blank)
+    expect((await m.find({ key: 'todo-0-t1' })).props.label).toBe(blank)
+    expect(boxAround(all, (c: any) => c?.props?.key === 'pick-0-one')?.props.width).toBeUndefined()
+    expect(boxAround(all, (c: any) => c?.props?.key === 'todo-0-t1')?.props.width).toBe(5)
     const ticks = () => w.log.filter(l => l.startsWith('state ticking')).length
     await m.press({ key: 'pick-0-one' })
     await m.press({ key: 'pick-1-two' })
     expect(ticks()).toBe(0)
-    expect((await textOf(m)).includes('2 selected')).toBe(true)
+    const two = await textOf(m)
+    expect(two.includes('2 selected')).toBe(true)
+    expect(two.includes('✓ Dismiss')).toBe(true)
+    if (surface === 'desktop') {
+      // The bar is a rounded fill.
+      const bar = boxAround(await nodes(m), (c: any) => c?.props?.key === 'bardismiss')
+      expect([bar?.props.borderStyle, bar?.props.borderColor, bar?.props.backgroundColor]).toEqual(['round', 'subtle', 'subtle'])
+    }
     await m.press({ key: 'todo-0-t1' })
     expect(ticks()).toBeGreaterThan(0)
     // The tick selected nothing: still the two cards.
@@ -3745,7 +3790,9 @@ for (const surface of SURFACES) {
     const w = await grouped(on, $, ALL, (key, value) => (key === 'picked' && Array.isArray(value) && value.length > 0 ? PLANTED : value))
     const m = await mountOn($, surface)
     await m.press({ key: 'pick-1-workone' })
-    expect((await textOf(m)).includes('4 selected')).toBe(true)
+    // The bar counts only picks a checkbox shows: not the card that waits on
+    // the owner, and not a title no card holds.
+    expect((await textOf(m)).includes('2 selected')).toBe(true)
     await m.press({ key: 'barclear' })
     const cleared = await textOf(m)
     expect(cleared.includes('selected')).toBe(false)
@@ -3777,6 +3824,8 @@ for (const surface of SURFACES) {
     expect(await m.find({ key: 'dismiss-3-stopone' })).toBeDefined()
     expect(await m.find({ key: 'dismiss-2-needone' })).toBeUndefined()
     expect(await m.find({ key: 'dismiss-4-needtwo' })).toBeUndefined()
+    // Nor a checkbox: the bar's Dismiss never takes a card that waits.
+    expect(await m.find({ key: 'pick-2-needone' })).toBeUndefined()
     await m.press({ key: 'dismiss-1-workone' })
     expect((await textOf(m)).includes('work-one')).toBe(false)
     // The head chef turns the dismissed card to needs-you: it shows again, in Waiting on you.
@@ -3790,15 +3839,18 @@ for (const surface of SURFACES) {
   test(`${surface}: a planted view or selection is checked again and changes nothing it should not`, async ($, on) => {
     await grouped(on, $, ALL, (key, value) => {
       if (key === 'view') return '__proto__'
-      if (key === 'picked') return Array.from({ length: 300 }, (_, i) => `bogus-${i}`)
+      // 49 titles no card holds, then work-one, 50th and kept, then stop-one,
+      // 51st and past the cap, then more.
+      if (key === 'picked') return [...Array.from({ length: 49 }, (_, i) => `bogus-${i}`), 'work-one', 'stop-one', ...Array.from({ length: 250 }, (_, i) => `more-${i}`)]
       return value
     })
     const m = await mountOn($, surface)
     await m.press({ key: 'pick-1-workone' })
     const text = await textOf(m)
-    // The planted view word reads as Sessions; the long selection reads as at most 50.
+    // The planted view word reads as Sessions; the long selection reads as at
+    // most 50 entries, and the bar counts only the cards among them.
     expect(text.startsWith('5 sessions')).toBe(true)
-    expect(text.includes('50 selected')).toBe(true)
+    expect(text.includes('1 selected')).toBe(true)
   })
 }
 
@@ -3951,14 +4003,18 @@ for (const surface of SURFACES) {
     expect(text.includes('▾ Waiting on you 2 · 1 report')).toBe(true)
   })
 
-  test(`${surface}: the icon-only buttons carry a name`, async ($, on) => {
+  test(`${surface}: the icon-only buttons draw their icon, carry no label, and a tooltip or a word names each`, async ($, on) => {
     await grouped(on, $, ALL)
     const m = await mountOn($, surface)
     await m.redraw(PANE_PROPS)
-    expect((await m.find({ key: 'view-sessions' })).props.label).toBe('Sessions')
-    expect((await m.find({ key: 'view-prs' })).props.label).toBe('Pull requests')
+    // A desktop draws a Button's label in place of its text, so none sets one;
+    // the harness reports the drawn text as the label.
+    expect((await m.find({ key: 'view-sessions' })).props.label).toBe(surface === 'desktop' ? '◫' : 'Sessions')
+    expect((await m.find({ key: 'view-prs' })).props.label).toBe(surface === 'desktop' ? '⑂' : 'Pull requests')
+    // The Pull requests tooltip counts what the view holds.
+    expect((await textOf(m)).includes('Pull requests 0')).toBe(surface === 'desktop')
     await m.press({ key: 'pick-1-workone' })
-    expect((await m.find({ key: 'barclear' })).props.label).toBe('Clear selection')
+    expect((await m.find({ key: 'barclear' })).props.label).toBe('✕')
   })
 }
 

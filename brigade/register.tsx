@@ -176,7 +176,11 @@ const keyFor = (verb: string, i: number, title: string) => `${verb}-${i}-${slug(
 // A Button must carry onPress. The ui.press hook below answers every press
 // itself, so this bottom of the chain never runs.
 const noop = () => {}
-// The icon of each card view, with its name in the tooltip.
+// The one theme key every fill takes: the section bars, the hover, the
+// tooltip and the selection bar.
+const FILL = 'subtle'
+// The icon of each card view, with its name in the tooltip. A Button carries
+// no `label`: a desktop draws the label in place of the Button's text.
 const VIEW_ICONS: ReadonlyMap<string, string> = new Map([
   ['cache', '◆'],
   ['burn', '↯'],
@@ -1113,6 +1117,8 @@ export const register: Register = on => {
     const Image = terminal ? undefined : Svg
     // A pointer hovers only on Desktop; the editor, mobile and the terminal show what a hover would.
     const pointer = surface === 'desktop'
+    // Where a small margin draws as a step: the editor draws it as nothing.
+    const stepped = surface === 'desktop' || surface === 'mobile'
     const metered = usageView(await read($, usage), surface, now, SVG_MAX, await read($, samples))
     const error = await read($, rosterError)
     const pollError = await read($, liveError)
@@ -1140,6 +1146,10 @@ export const register: Register = on => {
     // The cards in their groups, each with its place in the roster, which every
     // button key keeps. A status outside the four words draws in no group.
     const { needsYou, working, finished } = groupCards(cards, hidden)
+    // The bar counts only picks a checkbox shows: a card that waits on the
+    // owner has none, and a title no shown card holds is no pick.
+    const pickable = new Set([...working, ...finished].map(({ c }) => c.title))
+    const selected = [...picks].filter(t => pickable.has(t)).length
     // A ticked to-do stays in the list, crossed out, until the sweep moves it.
     const open = todos.map((t, i) => ({ t, i })).filter(({ t }) => !ticked.has(t.id))
     const waiting = waitingCount(needsYou.length, todos, done, ticks)
@@ -1161,12 +1171,12 @@ export const register: Register = on => {
     // the terminal has no pointer. A fill in the theme's own `subtle`, so it
     // follows the light and the dark theme; the engine names no key for the
     // pane's background, so the fill is square and has no outline at rest.
-    const hoverFill = (scope: string) => (!pointer ? {} : { hover: { scope, backgroundColor: 'subtle' as const } })
+    const hoverFill = (scope: string) => (!pointer ? {} : { hover: { scope, backgroundColor: FILL } })
     // A rounded fill: a round border in the fill's own colour, the one way the
     // engine rounds a fill. Only for a Box filled at rest; a card's fill shows
     // on hover alone, and its outline at rest would need the pane's colour,
     // which no theme key names.
-    const roundFill = { borderStyle: 'round', borderColor: 'subtle', backgroundColor: 'subtle' } as const
+    const roundFill = { borderStyle: 'round', borderColor: FILL, backgroundColor: FILL } as const
     // A tooltip: a hidden Box shown while the pointer is on its anchor's scope.
     // The terminal has none, and shows the text inline where it carries news.
     const tip = (key: string, anchorEl: JSX.Element, text: string) =>
@@ -1175,7 +1185,7 @@ export const register: Register = on => {
       ) : (
         <Box position="relative" hover={{ scope: `tip-${key}` }}>
           {anchorEl}
-          <Box position="absolute" top={1} left={0} display="none" hover={{ scope: `tip-${key}`, display: 'flex' }} {...roundFill} paddingX="sm">
+          <Box position="absolute" top={1} left={0} display="none" hover={{ scope: `tip-${key}`, display: 'flex' }} backgroundColor={FILL} paddingX="sm">
             <Text>{text}</Text>
           </Box>
         </Box>
@@ -1202,10 +1212,13 @@ export const register: Register = on => {
       </Box>
     )
     // A group's section bar: a fold arrow, the name and the count. A rounded
-    // filled bar where the pane draws images; bold text in the terminal.
+    // filled bar where the pane draws images, its count brightening while the
+    // pointer is on the bar, as Desktop's own section headers do; bold text in
+    // the terminal.
     const groupHead = (key: string, count: number, note = '') => {
       const arrow = folds.has(key) ? '▸' : '▾'
       const name = GROUP_NAMES.get(key) ?? ''
+      const scope = `bar-${key}`
       return terminal ? (
         <Box marginTop={1}>
           <Button key={`grp-${key}`} plain onPress={noop}>
@@ -1214,17 +1227,25 @@ export const register: Register = on => {
           </Button>
         </Box>
       ) : (
-        <Box paddingX="sm" marginTop="md" marginBottom="xs" {...roundFill}>
+        <Box paddingX="sm" marginTop="md" marginBottom="xs" {...roundFill} {...(pointer ? { hover: { scope } } : {})}>
           <Button key={`grp-${key}`} plain onPress={noop}>
             <Text dimColor>{`${arrow} `}</Text>
             <Text weight="medium">{name}</Text>
-            <Text dimColor>{` ${count}${note}`}</Text>
+            {pointer ? (
+              <Text color="inactive" hover={{ scope, color: 'text' }}>
+                {` ${count}${note}`}
+              </Text>
+            ) : (
+              <Text dimColor>{` ${count}${note}`}</Text>
+            )}
           </Button>
         </Box>
       )
     }
-    // The hairline between two rows: an image on Desktop, a blank row in the
-    // terminal.
+    // The hairline between two rows: an image where images draw, a blank row in
+    // the terminal. Where images draw, only Working and Done · stopped take it;
+    // Waiting on you parts its rows with a row gap and Pull requests with a
+    // small margin, as the prototype does.
     const between = (key: string) => {
       if (Image === undefined) return <Text>{' '}</Text>
       const line = hairlineSvg()
@@ -1267,7 +1288,8 @@ export const register: Register = on => {
       )
     }
 
-    // One card, a compact row: its checkbox; the status dot, title, hover
+    // One card, a compact row: its checkbox (none on a card that waits on the
+    // owner, whose dot is full size and title bold); the status dot, title, hover
     // actions (always shown in the terminal), PR pill, live state and age;
     // the phase with the settings in short on its right (the full line under
     // it in the terminal); and the latest report since the pane opened. Then,
@@ -1344,9 +1366,15 @@ export const register: Register = on => {
                 none: the bar's one action, Dismiss, never takes it. */}
             {!needs && (
               <Box flexShrink={0}>
-                <Button key={keyFor('pick', i, c.title)} label="Select" dimColor={!isPicked} onPress={noop}>
-                  {isPicked ? '✓' : terminal ? UNTICKED_TERMINAL : UNTICKED}
-                </Button>
+                {isPicked ? (
+                  <Button key={keyFor('pick', i, c.title)} onPress={noop}>
+                    ✓
+                  </Button>
+                ) : (
+                  <Button key={keyFor('pick', i, c.title)} dimColor onPress={noop}>
+                    {terminal ? UNTICKED_TERMINAL : UNTICKED}
+                  </Button>
+                )}
               </Box>
             )}
             <Box flexDirection="column" flexGrow={1} flexShrink={1} minWidth={0}>
@@ -1427,11 +1455,11 @@ export const register: Register = on => {
                   tip(
                     `tab-${i}-${v}`,
                     v === chosen ? (
-                      <Button key={`${keyFor('tab', i, c.title)}-${v}`} label={VIEW_LABELS.get(v) ?? ''} variant="primary" onPress={noop}>
+                      <Button key={`${keyFor('tab', i, c.title)}-${v}`} variant="primary" onPress={noop}>
                         {pointer ? (VIEW_ICONS.get(v) ?? '?') : `● ${VIEW_LABELS.get(v) ?? ''}`}
                       </Button>
                     ) : (
-                      <Button key={`${keyFor('tab', i, c.title)}-${v}`} label={VIEW_LABELS.get(v) ?? ''} dimColor onPress={noop}>
+                      <Button key={`${keyFor('tab', i, c.title)}-${v}`} dimColor onPress={noop}>
                         {pointer ? (VIEW_ICONS.get(v) ?? '?') : (VIEW_LABELS.get(v) ?? '')}
                       </Button>
                     ),
@@ -1558,8 +1586,8 @@ export const register: Register = on => {
       )
     }
 
-    // A to-do: its checkbox (its own key and word), its text and, for one that
-    // names a session the pane can open, Open.
+    // A to-do: its checkbox (its own key), its text and, for one that names a
+    // session the pane can open, Open.
     const todoRow = ({ t, i }: { t: (typeof todos)[number]; i: number }) => {
       const isTicked = crossed.has(t.id)
       return (
@@ -1569,9 +1597,15 @@ export const register: Register = on => {
               the slot fixed, so neither the box nor the text moves when it is
               ticked. */}
           <Box width={CHECK_CELLS} flexShrink={0}>
-            <Button key={keyFor('todo', i, t.id)} label="Done" dimColor={!isTicked} onPress={noop}>
-              {isTicked ? '✓' : terminal ? UNTICKED_TERMINAL : UNTICKED}
-            </Button>
+            {isTicked ? (
+              <Button key={keyFor('todo', i, t.id)} onPress={noop}>
+                ✓
+              </Button>
+            ) : (
+              <Button key={keyFor('todo', i, t.id)} dimColor onPress={noop}>
+                {terminal ? UNTICKED_TERMINAL : UNTICKED}
+              </Button>
+            )}
           </Box>
           <Box flexGrow={1} flexShrink={1} minWidth={0}>
             <Text wrap="wrap" strikethrough={isTicked} dimColor={isTicked}>
@@ -1591,9 +1625,11 @@ export const register: Register = on => {
 
     // A pull request row: the pill, the PR's title (the card's own with no
     // answer from `gh`), and on a dim line the card's title, the counts, the
-    // repository and the age. Rows sit a small step apart, with no hairline.
+    // repository and the age. On Desktop and mobile rows sit a small step
+    // apart with no hairline; the editor, where that step is nothing, and the
+    // terminal part them as `rows` does.
     const prRow = (r: PrRow) => (
-      <Box flexDirection="row" columnGap={1} paddingX={terminal ? 0 : 'md'} paddingY={terminal ? 0 : 'sm'} marginBottom={terminal ? 0 : 'xs'} alignItems="center" {...hoverFill(`pr-${r.i}-${slug(r.number)}`)}>
+      <Box flexDirection="row" columnGap={1} paddingX={terminal ? 0 : 'md'} paddingY={terminal ? 0 : 'sm'} marginBottom={stepped ? 'xs' : 0} alignItems="center" {...hoverFill(`pr-${r.i}-${slug(r.number)}`)}>
         <Box flexShrink={0}>{pill(r.number, r.state)}</Box>
         <Box flexDirection="column" flexGrow={1} flexShrink={1} minWidth={0}>
           <Text weight="semibold" wrap="truncate-end">
@@ -1607,17 +1643,17 @@ export const register: Register = on => {
     )
 
     // The switch: an icon button with a tooltip on Desktop, the word in the
-    // terminal; the chosen one primary. The tooltip may add a count to the
-    // button's name.
-    const switchButton = (id: 'sessions' | 'prs', icon: string, word: string, label: string, tipText = label) =>
+    // terminal; the chosen one primary. The tooltip names the view and may add
+    // a count.
+    const switchButton = (id: 'sessions' | 'prs', icon: string, word: string, tipText: string) =>
       tip(
         `switch-${id}`,
         view === id ? (
-          <Button key={`view-${id}`} label={label} variant="primary" onPress={noop}>
+          <Button key={`view-${id}`} variant="primary" onPress={noop}>
             {pointer ? icon : word}
           </Button>
         ) : (
-          <Button key={`view-${id}`} label={label} dimColor onPress={noop}>
+          <Button key={`view-${id}`} dimColor onPress={noop}>
             {pointer ? icon : word}
           </Button>
         ),
@@ -1636,7 +1672,7 @@ export const register: Register = on => {
             </Text>
           </Box>
           {switchButton('sessions', '◫', 'Sessions', 'Sessions')}
-          {switchButton('prs', '⑂', 'Pull requests', 'Pull requests', `Pull requests ${prCount}`)}
+          {switchButton('prs', '⑂', 'Pull requests', `Pull requests ${prCount}`)}
         </Box>
         {error !== '' && <Text color="error">{error}</Text>}
         {pollError !== '' && <Text color="error">{pollError}</Text>}
@@ -1652,7 +1688,7 @@ export const register: Register = on => {
             ).map(([key, list]) => (
               <Box flexDirection="column">
                 {groupHead(key, list.length)}
-                {!folds.has(key) && (list.length > 0 ? (terminal ? rows(list.map(prRow), key) : list.map(prRow)) : hint(key))}
+                {!folds.has(key) && (list.length > 0 ? (stepped ? list.map(prRow) : rows(list.map(prRow), key)) : hint(key))}
               </Box>
             ))}
             {ghDown && (
@@ -1713,7 +1749,8 @@ export const register: Register = on => {
             {/* The groups: a section bar with its fold arrow, name and count,
                 then its cards, or a quiet hint when it is empty. Waiting on you
                 holds the cards that need the owner, then the open to-dos, a
-                row apart with no hairline. Each bar counts the reports its
+                row apart with no hairline and a row below its bar, as the
+                prototype draws them. Each bar counts the reports its
                 cards sent, so a fold never hides one without a sign. */}
             {groupHead('waiting', waiting, reportNote(reportCount(needsYou.map(({ c }) => c.title), inbox)))}
             {!folds.has('waiting') &&
@@ -1743,14 +1780,14 @@ export const register: Register = on => {
         {/* A spacer takes the room left in a docked pane, so the selection bar
             and Usage sit at its foot. */}
         <Box flexGrow={1} />
-        {picks.size > 0 && (
+        {selected > 0 && (
           <Box flexDirection="row" justifyContent="center" marginTop="md" marginBottom="sm">
-            <Box flexDirection="row" alignItems="center" columnGap="md" paddingX="md" {...roundFill}>
-              <Text>{`${picks.size} selected`}</Text>
+            <Box flexDirection="row" alignItems="center" columnGap="md" paddingX="md" {...(terminal ? { borderStyle: 'round', borderColor: 'inactive', backgroundColor: FILL } : roundFill)}>
+              <Text>{`${selected} selected`}</Text>
               <Button key="bardismiss" plain onPress={noop}>
                 ✓ Dismiss
               </Button>
-              <Button key="barclear" label="Clear selection" plain dimColor onPress={noop}>
+              <Button key="barclear" plain dimColor onPress={noop}>
                 ✕
               </Button>
             </Box>
