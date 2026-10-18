@@ -49,7 +49,7 @@ node '<skill base directory>/scripts/render.mjs' --version
 It prints its version and Node's. Offer the chat way in, and say why, in
 each of these cases:
 
-- Node is missing, or older than 20.0.0.
+- Node is missing, or older than 24.0.0.
 - The person cannot open a file from this machine in their own browser. A
   remote session is one example.
 - The limits refuse the draft. Name the limit that the script names.

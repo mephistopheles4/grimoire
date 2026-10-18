@@ -132,7 +132,7 @@
       "analyzers": [
         "static_patterns_tool_misuse"
       ],
-      "sha256": "80e6db8245b1b493b06f11f78fc25542ad0c8ff7882afc29724c0176a6331c9e",
+      "sha256": "64e6109fa1dc629664e620e9f9bd193c0489297f43d518593ed145525fc850a6",
       "reason": "The contract skill's interview script. The destructive-command parser stops partway through a long expression and marks the file partial for that one check; every other check reads it in full. Like every entry of this code, it would also accept a marker-pass give-up inside that one check, which the scanner reports under this code. Read by hand on 2026-10-18 for the hiring interview's engine (issue 343): the file holds no rm, del or erase command in any spelling, runs no other program and reaches no network. Its one delete is --clean, which unlinks the page and the answers file, and with --draft the draft, by their fixed names, only inside a folder named contract-interview- and 16 hex digits. Re-read on 2026-10-18 after the review fixes on issue 343: the ok lines print the hash first and the title masked, cut and quoted, and the home fold keeps lengths; no delete command, program run or network call was added, and --clean is unchanged. Re-read on 2026-10-18 for the hiring page (issue 344): --out writes one page by a fixed template, refuses a target not ending in .html and a file it did not write, and sets the page owner-only; no delete command, program run or network call was added, and --clean is unchanged."
     },
     {

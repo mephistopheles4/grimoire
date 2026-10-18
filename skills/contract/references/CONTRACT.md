@@ -140,7 +140,7 @@ not show this skill finds them in a contract it helped write.
   them only after the person's yes in chat each time.
 - **Decided.** It offers two ways in: the chat interview, or the hiring page,
   which the person fills by picking. Before drafting, it runs the interview
-  script's version check. When Node is missing or older than 20.0.0, when the
+  script's version check. When Node is missing or older than 24.0.0, when the
   person cannot open a file from this machine in their own browser, or when
   the limits refuse a draft, it says why and offers the chat way.
 - **Decided.** At the hand-back of a hiring interview, it asks the person to
@@ -291,7 +291,7 @@ holds. **Decided:** the one exception is the hiring page, which keeps
 answers, and the light or dark choice, in the browser until the person
 presses Forget; Forget leaves the light or dark choice.
 
-**What it needs to run** (**Decided**): Node.js 20 or later, for the
+**What it needs to run** (**Decided**): Node.js 24 or later, for the
 interview script, behind the frontmatter line `compatibility: Needs Node.js
 20 or later to run its interview script. No install and no other
 dependencies.` It is exempt from the own-words rule, and low-stakes.

@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// The contract skill's interview script. Zero dependencies, Node 20.0.0 or
+// The contract skill's interview script. Zero dependencies, Node 24.0.0 or
 // later. It makes an interview's scratch folder, checks a draft, writes the
 // page the person answers on, reads an answer block back against its draft,
 // and deletes its own three files.

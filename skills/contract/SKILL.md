@@ -1,7 +1,7 @@
 ---
 name: contract
 description: Builds a reusable skill, agent or main agent file (CLAUDE.md) from terms a person agrees, and keeps those terms as a contract its file is generated from. Use when someone wants a new skill or agent, wants to turn a prompt they keep pasting into one, or wants to change or write the contract for one. Not for a one-off prompt, for running a skill or agent that already exists, or for a legal or business contract.
-compatibility: Needs Node.js 20 or later to run its interview script. No install and no other dependencies.
+compatibility: Needs Node.js 24 or later to run its interview script. No install and no other dependencies.
 ---
 
 # contract
@@ -123,7 +123,7 @@ Each stop is fixed. Tell the person, and wait:
 Offer two ways in: the chat interview, or the hiring page, which the person
 fills by picking. For the page, read `references/hiring.md` first. Before
 drafting, run the interview script's version check. When Node is missing or
-older than 20.0.0, when the person cannot open a file from this machine in
+older than 24.0.0, when the person cannot open a file from this machine in
 their own browser, or when the limits refuse a draft, say why and offer the
 chat way.
 
@@ -316,7 +316,7 @@ During a hiring interview, run `scripts/render.mjs` with `--version`,
 `--new-folder`, `--check`, `--out`, `--answers` and `--clean`, every path
 single-quoted. It makes the scratch folder, renders the page, checks the
 pasted block and prints the change list, so you never retell it. It needs
-Node.js 20 or later, and nothing else.
+Node.js 24 or later, and nothing else.
 
 Each write and delete it makes is an action. Tell the person first:
 

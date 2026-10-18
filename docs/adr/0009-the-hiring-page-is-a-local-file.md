@@ -12,7 +12,7 @@ into a scratch folder on the person's machine, and the person opens it in
 their own browser (q2). It is not a hosted Artifact, and it is never
 published. A hosted page would be easier to open and could keep its own
 store, but it would put the person's draft on a service, need an account,
-and tie the skill to one product. The local file runs wherever Node 20 runs
+and tie the skill to one product. The local file runs wherever Node 24 runs
 and loads nothing from the network: its fonts and its stylesheet are inside
 it, and a content security policy holds that. The cost is a copy and paste
 back into chat, and a page some setups cannot open, such as a remote

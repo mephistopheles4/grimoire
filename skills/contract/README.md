@@ -104,7 +104,7 @@ the skill offers a second way in, where you answer by picking.
    each term that can do damage, in your own words. Then it writes the
    contract and builds, as in the chat way.
 
-The page needs **Node.js 20 or later** to render, and nothing else to
+The page needs **Node.js 24 or later** to render, and nothing else to
 install. It loads nothing from the network. When Node is missing, or you
 cannot open a file from this machine in your browser, the skill offers the
 chat way. [An example page](https://mephistopheles4.github.io/grimoire/skills-contract-examples-release-notes.html)
@@ -151,7 +151,7 @@ A small change then gives a small diff, and a reviewer can read it.
 where you answer by picking, then read back the one block you paste. Its
 interview script, `scripts/render.mjs`, makes a scratch folder for each
 interview, renders the page, checks the block, prints the change list, and
-deletes its own files at the hand-back. It needs Node.js 20 or later. The
+deletes its own files at the hand-back. It needs Node.js 24 or later. The
 page keeps your answers in your browser until you press Forget, unencrypted:
 see "Read before you install" above.
 
@@ -189,7 +189,7 @@ old question to its part and keeps each answer's words and mark.
 | [`references/binding-antigravity.md`](references/binding-antigravity.md) | How the skill builds an agent for Antigravity. |
 | [`references/binding-codex.md`](references/binding-codex.md) | How the skill builds an agent for Codex. |
 | [`references/hiring.md`](references/hiring.md) | The hiring page: how the skill drafts, renders and reads back. |
-| [`scripts/render.mjs`](scripts/render.mjs) | The interview script: the scratch folder, the page, the block check, and the deletes. Node.js 20, no dependencies. |
+| [`scripts/render.mjs`](scripts/render.mjs) | The interview script: the scratch folder, the page, the block check, and the deletes. Node.js 24, no dependencies. |
 | [`scripts/interview.js`](scripts/interview.js) | The one module the page and the script share: the checks, the marks, the block, restore and Forget. |
 | [`scripts/kinds.json`](scripts/kinds.json) | The kinds of clause, with their parts, fields and stakes. The only copy of that table. |
 | [`assets/template.html`](assets/template.html) | The page the script fills in. |
