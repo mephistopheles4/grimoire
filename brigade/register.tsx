@@ -507,7 +507,8 @@ async function arm($: EngineInterface) {
     if (live()) await readUsage($)
     if (live()) await loadRoster($)
     if (live()) await pollAgents($, live)
-    if (live()) await askGh($, live, false)
+    // Not awaited: a slow gh must not hold up the /brigade reply or the tool's offer.
+    if (live()) void askGh($, live, false)
     return
   }
   await update($, armed, () => true)
@@ -909,6 +910,8 @@ export const register: Register = on => {
     await update($, viewAtom, () => 'sessions')
     await update($, dismissed, () => [])
     await update($, picked, () => [])
+    // Reports count from the open.
+    await update($, reports, () => [])
     // Open first, and start the reads and offer the tool only once the engine
     // lists the pane: a pane another plugin refuses or answers for starts
     // neither.
@@ -1034,7 +1037,11 @@ export const register: Register = on => {
     if (c === undefined || slug(c.title) !== slugged) return { element: e.element }
     if (verb === 'open') await openInApp($, c)
     // A card that waits on the owner has no Dismiss, and a press cannot add one.
-    if (verb === 'dismiss' && c.status !== 'needs-you') await update($, dismissed, list => (list.includes(c.title) ? list : [...list, c.title]))
+    if (verb === 'dismiss' && c.status !== 'needs-you') {
+      await update($, dismissed, list => (list.includes(c.title) ? list : [...list, c.title]))
+      // A dismissed card leaves the selection too.
+      await update($, picked, list => pickedFrom(list).filter(t => t !== c.title))
+    }
     // A card's checkbox: selects it, at most 50 at once.
     if (verb === 'pick') {
       await update($, picked, list => {
@@ -1332,9 +1339,9 @@ export const register: Register = on => {
                     {oneLine(c.phase, 160)}
                   </Text>
                 </Box>
-                {!isFinished && !terminal && <Box flexShrink={0}>{tip(`set-${i}`, <Text dimColor mono>{short.text}</Text>, short.full)}</Box>}
+                {!terminal && <Box flexShrink={0}>{tip(`set-${i}`, <Text dimColor mono>{short.text}</Text>, short.full)}</Box>}
               </Box>
-              {terminal && !isFinished && (
+              {terminal && (
                 <Text dimColor wrap="truncate-end">
                   {short.full}
                 </Text>

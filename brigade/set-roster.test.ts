@@ -3766,3 +3766,57 @@ for (const surface of SURFACES) {
     expect(text.includes('50 selected')).toBe(true)
   })
 }
+
+// --- issue 339: fixes from the first review round ---------------------------------
+
+test('opening the pane does not wait on the first gh call: the reply comes and the tool is offered while gh runs', async ($, on) => {
+  const w = world(on, w => {
+    w.dirs(BRIGADE)
+    w.put(FILE, { type: 'file', data: { text: JSON.stringify(PRS) } })
+    w.holdGh = true
+  })
+  on('session.receive', (_: any, e: any) => e)
+  await start($)
+  const reply = await brigade($)
+  expect(reply.text).toContain('`set_roster` is ready')
+  expect(w.registered).toEqual(['set_roster'])
+  expect(asked(w)).toBe(1)
+  w.holdGh = false
+  w.releaseGh()
+  await w.clock.settle()
+})
+
+for (const surface of SURFACES) {
+  test(`${surface}: a done card shows its settings too`, async ($, on) => {
+    await grouped(on, $, { cards: [card('fin', { status: 'done', settings: 'Opus, high' })], todos: [] })
+    const m = await mountOn($, surface)
+    await m.press({ key: 'grp-finished' })
+    const text = await textOf(m)
+    expect(text.includes(surface === 'desktop' ? 'O·H' : 'Opus, high')).toBe(true)
+  })
+
+  test(`${surface}: a card dismissed with its own button leaves the selection and its count`, async ($, on) => {
+    await grouped(on, $, ALL)
+    const m = await mountOn($, surface)
+    await m.press({ key: 'pick-1-workone' })
+    expect((await textOf(m)).includes('1 selected')).toBe(true)
+    await m.press({ key: 'dismiss-1-workone' })
+    const text = await textOf(m)
+    expect(text.includes('selected')).toBe(false)
+  })
+
+  test(`${surface}: reports count from the open: reopening the pane clears them`, async ($, on) => {
+    const w = await grouped(on, $, ALL)
+    await $.session.receive({ origin: { kind: 'peer' }, text: '<cross-session-message from="done-one">\nold news\n</cross-session-message>' })
+    const m = await mountOn($, surface)
+    expect((await textOf(m)).includes('· 1 report')).toBe(true)
+    w.open = false
+    await w.clock.advance(5000)
+    await brigade($)
+    await w.clock.settle()
+    const text = await textOf(m)
+    expect(text.includes('· 1 report')).toBe(false)
+    expect(text.includes('old news')).toBe(false)
+    expect(text.includes('No reports since the pane opened.')).toBe(true)
+  })
+}
