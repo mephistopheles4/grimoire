@@ -1296,7 +1296,10 @@ export function page(prog) {
    * a stylesheet has no way to embed a binary. See assets/FONTS.md, and do not
    * edit the bundle in place: replace it from the design system repository.
    *
-   * Vendored from aviation-design-system 067c21f, which names the walk-sheet
+   * Vendored from aviation-design-system 6297a04, which makes the ground
+   * réseau crosses (.av-grid; graph paper moves to .av-grid--ruled) and adds
+   * the zone border (.av-zones) and the surface-filled .av-sheet--surface. It
+   * supersedes 067c21f, which names the walk-sheet
    * roles — --av-path, --av-path-caught and --av-state-rule — so a sheet asks
    * for "the error path" and each theme answers in its own colour, rather
    * than reaching for --av-caution and getting whatever that theme spends it

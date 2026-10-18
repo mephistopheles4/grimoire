@@ -97,13 +97,22 @@ body { margin: 0; }
    that decides it can be a colour at all. */
 body { height: 100vh; box-sizing: border-box; padding: var(--av-s1);
   background: var(--av-ground); overflow: hidden; }
+/* The zone border is the paper the sheet is drawn on: numbers across the top
+   and bottom, letters down the sides, the way a drawing sheet's border lets a
+   reader say "see B3". It carries text, so it wears av-paper and not the
+   ground, and the sheet inside it is the zone field, so the réseau stays off
+   the labels. The system's markup ships as it is; the script counts the zones
+   from the frame, about 240px each, because a window has no fixed size to
+   count from. Under 560px wide the frame takes the compact variant, since two
+   36px side bands would eat a fifth of a phone. */
+.av-zones { height: 100%; }
 
-/* THE PANEL SHADOW IS A DELIBERATE LOCAL EXCEPTION to the system's rule 5
-   ("No gradients, no drop shadows, no photographs. Depth comes from line
-   weight."). It is declared here, in the tool, and NOT as an --av-* token,
-   because the exception is groundtrack's and the system does not sanction it.
-   If it ever should, it needs a token and an amended rule, not a copy of this
-   line in a second consumer.
+/* THE PANEL SHADOW is the second exception the system's rule 5 now allows: a
+   shadow for depth once a dense interface has more layers than line weight
+   can separate, kept slight. The rule asks for it to be built from existing
+   tokens, and this one cannot be, so it is declared here, in the tool, and
+   NOT as an --av-* token. If a second consumer needs it, it needs a token in
+   the system, not a copy of this line.
 
    It cannot be built from ink. A shadow is darker than whatever it falls on,
    in both schemes; every ink-derived value inverts with the scheme and would
@@ -117,8 +126,11 @@ body { height: 100vh; box-sizing: border-box; padding: var(--av-s1);
 .sheet-root { --side-w: 22rem; --cut-h: 12rem; height: 100%;
   /* background-COLOR, not the shorthand: this rule loads after the bundle, and
      `background:` would reset background-image and silently erase .av-grid's
-     ruling from the element carrying it. */
+     crosses from the element carrying it. */
   background-color: var(--av-paper); border: var(--av-rule-bold) solid var(--av-ink);
+  /* The sheet is the zone field, and the field's padding is for a field that
+     holds panels; this one's panels are its own grid areas, edge to edge. */
+  padding: 0;
   box-sizing: border-box;
   display: grid; grid-template-columns: minmax(0, 1fr) var(--side-w);
   grid-template-rows: auto 1fr var(--cut-h) auto;
@@ -266,7 +278,10 @@ input[type=checkbox] { accent-color: var(--av-ink); margin: 0 var(--av-s1) 0 0; 
 .wire--flow-rev { stroke-dasharray: 6 6; animation: flow-rev 1.2s linear infinite; }
 /* How many frames of a self-calling node are open, beside its loop wire. A
    figure, not a picture, and it never moves. */
-.wire-count { fill: var(--av-ink); font-size: var(--av-t-micro); font-weight: 600; font-variant-numeric: tabular-nums; }
+.wire-count { fill: var(--av-ink); font-size: var(--av-t-micro); font-weight: 600; font-variant-numeric: tabular-nums;
+  /* The figure sits on the bare réseau, and text never does: a halo of the
+     sheet's surface, painted under the glyphs, holds the crosses back. */
+  stroke: var(--av-surface); stroke-width: 6px; stroke-linejoin: round; paint-order: stroke; }
 .nd-count { font-size: var(--av-t-micro); font-weight: 600; margin-left: var(--av-s1); }
 
 /* A node is a part on the drawing. Its states are line weights: the open one
@@ -640,13 +655,16 @@ button[data-help][aria-disabled=true] { cursor: help; }
 </style>
 </head>
 <body class="av-paper">
+<div class="av-zones av-paper" id="zones">
+<ol class="av-zones-edge av-zones-edge--top" aria-hidden="true"></ol>
+<ol class="av-zones-edge av-zones-edge--left" aria-hidden="true"></ol>
 <!-- The grid rules the WHOLE sheet, not just the plan. It used to rule the plan
      alone, which made the drawing the only textured surface on the screen and
      left it reading as recessed under flat chrome — the grid was doing a
      ground's job. Ruling the sheet and floating the panels on --av-surface puts
      it back where it belongs: under everything, showing through raw only where
      the drawing is. -->
-<div class="sheet-root av-grid" id="root">
+<div class="sheet-root av-grid av-zones-field" id="root">
   <div class="head">
    <div class="head-row">
     <div class="head-id">
@@ -795,6 +813,9 @@ button[data-help][aria-disabled=true] { cursor: help; }
     </div>
   </div>
 </div>
+<ol class="av-zones-edge av-zones-edge--right" aria-hidden="true"></ol>
+<ol class="av-zones-edge av-zones-edge--bottom" aria-hidden="true"></ol>
+</div>
 
 <script>/*MODULE*/</script>
 <script>
@@ -807,6 +828,30 @@ const PROG = Groundtrack.hardenKeys(/*DATA*/);
 const G = Groundtrack;
 const esc = G.esc;
 const $ = id => document.getElementById(id);
+
+/* The zone border's labels, counted from the frame: about 240px a zone, as
+   the system asks. Letters skip I and O, as drawing sheets do. Under 560px
+   wide the frame goes compact, and the compact frame shows no side letters. */
+(function () {
+  const zones = $('zones'), ZONE = 240, LETTERS = 'ABCDEFGHJKLMNPQRSTUVWX';
+  let cols = 0, rows = 0;
+  function label(t) { const li = document.createElement('li'); li.textContent = t; return li; }
+  function count() {
+    const r = zones.getBoundingClientRect();
+    zones.classList.toggle('av-zones--compact', r.width < 560);
+    const c = Math.max(1, Math.round(r.width / ZONE));
+    const w = Math.min(LETTERS.length, Math.max(1, Math.round(r.height / ZONE)));
+    if (c === cols && w === rows) return;
+    cols = c; rows = w;
+    const nums = Array.from({ length: c }, function (_, i) { return String(i + 1); });
+    const lets = LETTERS.slice(0, w).split('');
+    zones.querySelectorAll(':scope > .av-zones-edge').forEach(function (ol) {
+      ol.replaceChildren.apply(ol, (ol.matches('.av-zones-edge--top, .av-zones-edge--bottom') ? nums : lets).map(label));
+    });
+  }
+  new ResizeObserver(count).observe(zones);
+  count();
+})();
 
 /* Fixed text the page shows for the three channels and the two stamps. None
    of it is author text, which is why it may sit in an attribute. */
