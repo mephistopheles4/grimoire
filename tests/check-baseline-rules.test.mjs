@@ -274,6 +274,8 @@ const SHIPPED = {
     ['RA2', 'references/binding-codex.md'],
     ['LP3', 'SKILL.md'],
     ['MP1', '*contract.changelog.md'],
+    ['RA2', 'README.md'],
+    ['EA3', 'assets/OFL.txt'],
   ],
 };
 
