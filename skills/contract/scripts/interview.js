@@ -30,9 +30,9 @@ const Interview = (() => {
    * drafted fresh as docs/limits/contract-skill.interview.json: each is four
    * times that draft's figure (96,878 bytes; 38 clauses in its largest part;
    * 1,711 characters in its longest field), with no field limit under 4,000.
-   * The threat model's limits entry records the figures. A real draft one of
-   * them refuses is a stop for the person; the fix is to raise the limit with
-   * a measurement to back it. Options per question need no limit of their
+   * The figures are drafted for the threat model's limits entry (issue
+   * 343). A real draft one of them refuses is a stop for the person; the fix
+   * is to raise the limit with a measurement to back it. Options per question need no limit of their
    * own: the format already allows four at most. A block is held to the same
    * three. */
   const LIMITS = Object.freeze({ bytes: 387512, clausesPerPart: 152, fieldChars: 6844 });
@@ -766,7 +766,7 @@ const Interview = (() => {
   /* The last cell of a row, before its mark: a rule's gate and freedom, a
    * term's standard, a probation check's settling event. */
   const lastCell = (k, x) => {
-    if (k === 'rule') return [x.gate && `Gated by: ${x.gate}`, x.freedom].filter(Boolean).join(', ');
+    if (k === 'rule') return [x.gate && `Gated by: ${cell(x.gate)}`, x.freedom].filter(Boolean).join(', ');
     if (k === 'term') return cell(x.fields.standard || '');
     return cell(x.fields['settled-when']);
   };
@@ -815,7 +815,9 @@ const Interview = (() => {
       if (e.op === 'add') parts.get(e.part).push({ id: e.id, kind: K.byId.get(e.kind), fields: e.fields || {}, none: e.none === true, mark });
       else if (e.op === 'none') {
         const list = parts.get(e.part).filter(x => x.kind.id !== e.kind);
-        list.push({ id: `${e.kind}-none`, kind: K.byId.get(e.kind), fields: {}, none: true, mark });
+        // The stand-in's id holds a colon, which no clause id may, so no
+        // later edit by id can reach it.
+        list.push({ id: `none:${e.kind}`, kind: K.byId.get(e.kind), fields: {}, none: true, mark });
         parts.set(e.part, list);
       } else if (e.op === 'rekind') {
         const w = where(e.id);
@@ -875,7 +877,8 @@ const Interview = (() => {
    * browser's localStorage on a page opened from disk, nothing on the
    * published example, and a Map in the tests. Every read and write survives
    * a store that is missing or throws: answers then live only as long as the
-   * page. The answers are not encrypted; the threat model records why. */
+   * page. The answers are not encrypted; the line that says why is drafted
+   * for the threat model (issue 343). */
   const PREFIX = 'contract-interview:';
   const prefixOf = (type, name) => `${PREFIX}${type}:${name}:`;
   const keyOf = (draft, hash) => prefixOf(draft.type, draft.name) + hash;
@@ -941,7 +944,10 @@ const Interview = (() => {
     if (!store || !isObj(draft.previous)) return none;
     const p = draft.previous;
     const elsewhere = p.type !== draft.type || p.name !== draft.name;
-    if (elsewhere && opts.shared) return { ...none, note: 'Earlier answers under another name were left alone. Forget here does not clear them: to clear them, render the earlier draft and press Forget there.' };
+    /* What a note says about earlier answers left in the store: Forget here
+     * reaches them only under this draft's type and name. */
+    const left = why => `${why} Forget here ${elsewhere ? 'does not clear them: to clear them, render the earlier draft and press Forget there.' : 'clears them.'}`;
+    if (elsewhere && opts.shared) return { ...none, note: left('Earlier answers under another name were left alone.') };
     const oldKey = prefixOf(p.type, p.name) + p.hash;
     const text = safely(() => store.getItem(oldKey), null);
     const entry = typeof text === 'string' ? safely(() => JSON.parse(text), null) : null;
@@ -968,11 +974,12 @@ const Interview = (() => {
     }
     /* Kept only if the carried answers pass the new draft's block check. */
     const block = blockOf(draft, kinds, hashes, state);
-    if (checkBlock(block, draft, kinds, hashes).refusals.length) return { adopted: [], dropped: [...adopted, ...dropped], note: 'Earlier answers no longer fit this draft and were left alone. Forget here does not clear them: to clear them, render the earlier draft and press Forget there.' };
+    if (checkBlock(block, draft, kinds, hashes).refusals.length) return { adopted: [], dropped: [...adopted, ...dropped], note: left('Earlier answers no longer fit this draft and were left alone.') };
     /* The old entry goes only once the new one is saved; a failed save
-     * leaves it, so a later redraft can carry the answers over again. */
-    if (save(store, draft, kinds, hashes, state)) safely(() => store.removeItem(oldKey));
-    return { adopted, dropped, note: '' };
+     * leaves it, so a later redraft can carry the answers over again, and
+     * the note says where it stays. */
+    const gone = save(store, draft, kinds, hashes, state) && safely(() => (store.removeItem(oldKey), true), false);
+    return { adopted, dropped, note: gone ? '' : left('Saving here failed, so the earlier answers were kept where they were.') };
   }
 
   /** Forget: remove every key under this contract's prefix, and nothing else.

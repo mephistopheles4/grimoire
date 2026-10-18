@@ -149,6 +149,7 @@ test('--check refuses each case in the spec\'s list, naming the field', () => {
     d.parts.tools.push({ id: 'bk', kind: 'binding-key', fields: { setting: 'permissionMode', value: 'default' }, mark: 'Proposed' });
   }), 'type', /not one of/);
   assert.ok(!(r.stderr + r.stdout).includes('TYPE-'), 'the refused type printed');
+  assert.ok(!r.stderr.split('\n').some(l => /parts\.tools\[\d+\]\.kind:/.test(l)), 'a refused type gates no kind');
 });
 
 test('--check refuses a key named __proto__ at every level, and never reads it as a prototype', () => {
@@ -229,6 +230,15 @@ test('--check warns on a home path, a sibling account\'s home, a key-shaped valu
   const ok = r.stderr.split('\n').find(l => l.startsWith('ok: '));
   assert.ok(ok.startsWith(`ok: sha256 ${sha256(p)} — "Hire [masked] with [masked], from [masked] — sha256 fff`), ok);
   assert.match(ok, /t… \(\d{3} characters\)"$/);
+  // A key shape across character 200 is masked before the cut, and a quote, a
+  // backslash and a line break print escaped on one ok line.
+  const straddle = derive(d => (d.title = `${'x'.repeat(170)}${key} "q" \\ line\nbreak`));
+  const s = run(contractRender, [straddle, '--check']);
+  assert.equal(s.code, 0, s.stderr);
+  const oks = s.stderr.split('\n').filter(l => l.startsWith('ok: '));
+  assert.equal(oks.length, 1, 'one ok line');
+  assert.ok(oks[0].endsWith(`— "${'x'.repeat(170)}[masked] \\"q\\" \\\\ line\\nbreak"`), oks[0]);
+  assert.ok(!s.stderr.includes('ghp_'), 'no part of the key prints');
   assert.match(r.stdout, /^warning: parts\.good\[0\]\.fields\.text: .*home folder/m);
   assert.match(r.stdout, /^warning: parts\.roles\[0\]\.fields\.text: .*home folder/m);
   assert.match(r.stdout, /^warning: parts\.tools\[0\]\.fields\.detail: .*key/m);
@@ -535,6 +545,7 @@ test('--answers prints the change list, each pick with its label and the fields 
       ['duty-1', { fields: { text: 'proposes the type and the name' } }],
       ['duty-4', { fields: { text: 'restored words' }, restored: true }],
       ['stop-2', { fields: { when: clause(iv.draft, 'roles', 'stop-2').fields.when } }],
+      ['key-1', { option: 'key-1-b' }], // an option whose fields leave out the drafted detail
     ]),
     edits: EDITS,
   });
@@ -542,6 +553,7 @@ test('--answers prints the change list, each pick with its label and the fields 
   assert.equal(r.code, 0, r.stderr);
   const changes = section(r.stdout, 'Changes:');
   assert.ok(changes.includes('  roles/stop-2 then removed'), 'a drafted field the answer leaves out is named');
+  assert.ok(changes.includes('  tools/key-1 detail removed'), 'and one a picked option leaves out');
   const job = iv.draft.questions[0].options[1];
   assert.ok(changes.includes(`  purpose/job picked ${JSON.stringify(job.label)}, not the proposal; marked Confirmed; chip "It is safer"`), changes.join('\n'));
   assert.ok(changes.includes(`  purpose/job does ${JSON.stringify(job.fields.does)}`));
@@ -646,7 +658,7 @@ test('--answers prints every string from a file as one escaped, quoted literal, 
 });
 test('hiring.md refuses a quoted or control-character path before every command it gives', () => {
   const md = readFileSync(join(root, 'skills', 'contract', 'references', 'hiring.md'), 'utf8');
-  const refusal = md.indexOf('Before you compose any\ncommand, check each path');
+  const refusal = md.indexOf('Before you compose any\ncommand, check each path, the skill base directory included.');
   assert.ok(refusal > 0, 'the refusal is stated');
   for (const cp of ['U+0027', 'U+2018', 'U+2019', 'U+201A', 'U+201B']) assert.ok(md.includes(cp), cp);
   // The script is named by the skill's base directory, quoted, never by a path
@@ -655,6 +667,13 @@ test('hiring.md refuses a quoted or control-character path before every command 
   assert.ok(commands.length >= 5, 'every command is in a text fence');
   for (const c of commands) assert.ok(c[1].startsWith("node '<skill base directory>/scripts/render.mjs'"), c[1]);
   assert.ok(!/node scripts\//.test(md), 'no command names the script relative to the working folder');
+  // Every file of the skill is named under its base directory, kinds.json too.
+  for (const m of md.matchAll(/scripts\/[a-z.]+/g)) assert.equal(md.slice(m.index - 23, m.index), '<skill base directory>/', `${m[0]} is named under the skill base directory`);
+  // The block's edit rules, and Forget's reach, as the block check holds them.
+  assert.match(md, /A rename names a\s+schedule, by part and kind, never one entry\./);
+  assert.match(md, /An add or a none goes only\s+in a part the level asks\./);
+  assert.match(md, /An edit may hold `restored`/);
+  assert.match(md, /Forget clears this draft's name and\s+type only\./);
   for (const c of commands) assert.ok(c.index > refusal, `${c[1]} comes after the refusal`);
   for (const c of commands) for (const p of c[1].matchAll(/'[^']*'/g)) assert.match(p[0], /^'<[^>]+>[^']*'$/, 'every path is a single-quoted placeholder');
 });

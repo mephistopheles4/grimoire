@@ -108,6 +108,26 @@ test('the export escapes a pipe and a line break in a table cell, and writes an 
   assert.ok(md.includes('| Term | Plain meaning | Standard |\n|---|---|---|\n'), 'the term table has the template\'s three columns');
   assert.ok(md.includes('| Skill | Instructions the agent picks up by itself when a situation matches, in a folder holding `SKILL.md` | Agent Skills specification; *Proposed* |'));
   assert.ok(md.includes('| Question | Why it is open | Settled when |\n|---|---|---|\n'), 'the open table has the template\'s three columns');
+  assert.ok(md.includes('| Does a simple agent need more than Quick? | No Quick contract for an agent exists yet | Two Quick contracts are written after release; *Proposed* |'));
+  // A gate is a cell's text too: its pipe and line break are escaped.
+  const gated = base();
+  gated.parts.rules[0].gate = 'a | b\n| forged | row | potential | **Decided** |';
+  const g = Interview.exportContract(gated, kinds, Interview.blockOf(gated, kinds, hashes, { answers: new Map(), edits: [] }));
+  assert.ok(g.includes('Gated by: a \\| b<br>\\| forged \\| row \\| potential \\| **Decided** \\|'), 'the gate stays in its cell');
+  // An agreed none's stand-in can never share an id with a clause, so an edit
+  // by id never reaches it: the export keeps None and drops the added key.
+  const stand = Interview.blockOf(d, kinds, hashes, {
+    answers: new Map(),
+    edits: [
+      { op: 'none', part: 'purpose', kind: 'stays-out' },
+      { op: 'add', id: 'stays-out-none', part: 'tools', kind: 'key', fields: { capability: 'push to main', reason: 'speed' } },
+      { op: 'remove', id: 'stays-out-none' },
+    ],
+  });
+  assert.deepEqual(Interview.checkBlock(stand, d, kinds, hashes).refusals, []);
+  const sm = Interview.exportContract(d, kinds, stand);
+  assert.match(sm, /\*\*Not its job\*\*\n\n- None\. \*\*Decided\*\*/);
+  assert.ok(!sm.includes('push to main'), 'the removed clause is not exported');
 });
 /** An in-memory store shaped like the browser's localStorage, which records
  *  every key read, and every listing of key names through length or key(i). */
@@ -142,19 +162,24 @@ test('restore: saved answers survive a reload, come back marked restored and cou
     { op: 'add', id: 'added-1', part: 'rules', kind: 'rule', fields: { rule: 'one', guards: 'a slip', status: 'potential' } },
     { op: 'remove', id: 'duty-2' },
     { op: 'none', part: 'purpose', kind: 'stays-out' },
+    { op: 'rekind', id: 'duty-3', kind: 'stop', fields: { when: 'the person has not said yes' } },
   ];
   const withEdits = memoryStore();
   Interview.save(withEdits, base(), kinds, hashes, { answers: saved(), edits });
   const back = Interview.restore(withEdits, base(), kinds, hashes);
-  assert.ok(back.state.edits.length === 3 && back.state.edits.every(e => e.restored === true), 'each edit is marked restored');
+  assert.ok(back.state.edits.length === 4 && back.state.edits.every(e => e.restored === true), 'each edit is marked restored');
   const again = Interview.blockOf(base(), kinds, hashes, back.state);
   assert.deepEqual(Interview.checkBlock(again, base(), kinds, hashes).refusals, []);
   const read = Interview.readBack(again, base(), kinds);
   assert.ok(read.changes.includes('  edit (restored): added rules/added-1, a house rule'), read.changes.join('\n'));
-  for (const at of ['rules/added-1', 'roles/duty-2', 'purpose/(stays-out)']) assert.ok(read.pushback.some(l => l.startsWith(`  ${at}:`) && l.includes('a restored edit')), `${at} pushed back\n${read.pushback.join('\n')}`);
+  assert.ok(read.changes.includes('  edit (restored): removed roles/duty-2'));
+  assert.ok(read.changes.includes('  edit (restored): agreed none for the purpose schedule of stays-out'));
+  assert.ok(read.changes.includes('  edit (restored): re-kinded roles/duty-3 from duty to stop'));
+  for (const at of ['rules/added-1', 'roles/duty-2', 'purpose/(stays-out)', 'roles/duty-3']) assert.ok(read.pushback.some(l => l.startsWith(`  ${at}:`) && l.includes('a restored edit')), `${at} pushed back\n${read.pushback.join('\n')}`);
   const md = Interview.exportContract(base(), kinds, again);
   assert.ok(md.includes('| one | a slip | potential | *Proposed* |'), 'a restored add exports Proposed');
   assert.match(md, /\*\*Not its job\*\*\n\n- None\. \*Proposed\*/, 'a restored none exports Proposed');
+  assert.ok(md.includes('- When the person has not said yes, it stops and asks *Proposed*'), 'a restored re-kind exports Proposed');
 });
 
 test('restore drops saved answers that fail the block check, and survives a store that is missing or throws', () => {
@@ -210,7 +235,9 @@ test('redraft: a reworded option drops its saved pick and names it, adopts the u
   const r2 = Interview.redraft(chipped, redrafted(d => (d.questions.find(q => q.clause === 'near-miss').chips = ['a new chip'])), kinds, newHashes, { shared: false });
   assert.deepEqual(r2.adopted, []);
   assert.ok(chipped.map.has(keyOf(base(), hashes.draft)));
-  assert.match(r2.note, /Forget here does not clear them/);
+  // Under the same name and type, Forget here does clear them, and says so.
+  assert.match(r2.note, /were left alone\. Forget here clears them\./);
+  assert.doesNotMatch(r2.note, /does not clear/);
 });
 
 test('redraft: a draft that changes its name adopts from the old name\'s key, and no key under the old name remains', () => {
@@ -221,6 +248,15 @@ test('redraft: a draft that changes its name adopts from the old name\'s key, an
   assert.deepEqual(r.adopted, ['near-miss', 'duty-1']);
   assert.ok(![...store.map.keys()].some(k => k.startsWith('contract-interview:skill:contract:')));
   assert.ok(store.map.has(keyOf(d, newHashes.draft)));
+  // A failed save under the new name keeps the old entry, which Forget here
+  // cannot reach, and the note says so and how to clear it.
+  const full = memoryStore();
+  Interview.save(full, base(), kinds, hashes, { answers: saved(), edits: [] });
+  full.setItem = () => { throw new Error('quota'); };
+  const r2 = Interview.redraft(full, d, kinds, newHashes, { shared: false });
+  assert.ok(full.map.has(keyOf(base(), hashes.draft)));
+  assert.match(r2.note, /Forget here does not clear them/);
+  assert.match(r2.note, /render the earlier draft and press Forget there/);
 });
 
 test('redraft on a shared page whose previous names another contract adopts nothing, says so, and leaves that entry', () => {

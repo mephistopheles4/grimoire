@@ -85,8 +85,9 @@ unencrypted until they are deleted.
 ## The draft
 
 Write the draft as `draft.interview.json` in the scratch folder. Use your
-file-write tool, never a shell. Read `scripts/kinds.json` before you draft:
-it names each kind of clause, its part, its fields and its stakes.
+file-write tool, never a shell. Before you draft, read
+`<skill base directory>/scripts/kinds.json`: it names each kind of clause,
+its part, its fields and its stakes.
 
 The draft is one JSON object. Its keys are exactly these:
 
@@ -151,7 +152,8 @@ The block's keys are exactly these:
 
 - `format`: `1`.
 - `draft`: the SHA-256 of the draft's bytes.
-- `kinds`: the SHA-256 of `scripts/kinds.json` the page was made with.
+- `kinds`: the SHA-256 of `<skill base directory>/scripts/kinds.json`
+  that the page was made with.
 - `answers`: one entry for each clause the person touched. An entry holds
   `id`, then `option` or `fields`, then `mark`. It may hold `chip`, `flag`
   and `restored`.
@@ -190,7 +192,10 @@ Ask one question at a time, on each clause the push-back list names. Also
 raise any low-stakes clause whose text acts beyond its own notes, sends
 data, installs, grants access, loosens a stop, or widens when it steps in.
 Ask whether each warned value belongs in the contract. The person's reply
-in their own words makes that clause **Decided**.
+in their own words makes that clause **Decided**. A line such as
+`purpose/(stays-out)` names a schedule: ask about the whole schedule. A
+restored edit stays *Proposed* until the person touches it on the page and
+copies the block again.
 
 ## The hand-back and the deletes
 
@@ -198,9 +203,10 @@ Ask the person to press Forget on the page first, on every path. Wait for
 their word that the page shows "Forgotten". When they decline, say that the
 answers stay in the browser. While the draft is kept, rendering the page
 again and pressing Forget clears them. Forget clears this draft's name and
-type only. When the page said earlier answers were left alone, render that
-earlier draft too, and press Forget there. Once the draft is gone, clearing the
-browser's stored data for pages opened from disk is the one way left.
+type only. When the page said that Forget here does not clear earlier
+answers, render that earlier draft too, and press Forget there. Once the
+draft is gone, clearing the browser's stored data for pages opened from
+disk is the one way left.
 
 Then say "I will delete the page and the answers file". The person's yes in
 chat is the go:
