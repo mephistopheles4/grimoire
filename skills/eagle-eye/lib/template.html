@@ -60,20 +60,19 @@ try{if(localStorage.getItem('aviation-scheme')==='dark')document.documentElement
 [hidden]{display:none!important}
 html,body{height:100%}
 /* The ground, the ink, the face and the ruling all come from the system now:
-   the page wears av-paper and av-grid on <body>.
+   the page wears av-paper on <body>, and the zone border's field wears av-grid.
 
-   THE TWO-TIER GRID, not the single. This page kept av-grid--single at first,
-   to preserve the one-weight ruling it drew for itself before it wore the
-   system at all. That was preserving the wrong thing: real graph paper is two
-   ruled tiers, a fine one that reads as tone and a heavier line every fifth
-   cell that carries the structure, and every other sheet in the system is
-   ruled that way. A findings sheet has no reason to be the exception.
+   THE RÉSEAU, not graph paper. .av-grid is one cross per major division now,
+   a single background image the system sizes for itself, so nothing here sets
+   background-size. It sits on the field and not on <body> because the zone
+   labels are text, and text never sits bare on the crosses.
 
-   AND NOTHING SETS background-size HERE. It used to, carried over from the
-   private grid. av-grid paints four gradients and needs four sizes to match;
-   one value would have been applied to all four layers and flattened the
-   major tier back into the minor — the exact ruling this change is undoing.
-   The size comes from --av-grid-size, through the system's own rule. */
+   THE ZONE BORDER frames the sheet the way a drawing's border does: numbers
+   across the top and bottom, letters down the sides, so a reader can say
+   "see B3". The system's markup is used as it ships; the shell counts the
+   zones from the frame's size, about 240px each, because a page has no fixed
+   size to count them from. Below 560px wide the frame takes the compact
+   variant, since two 36px side bands would eat a fifth of a phone. */
 body{margin:0}
 button{font:inherit;color:inherit;background:none;border:0;padding:0;cursor:pointer;text-align:left}
 input,textarea{font:inherit;color:inherit;background:var(--av-paper);border:1px solid var(--av-ink-30)}
@@ -138,7 +137,9 @@ input,textarea{font:inherit;color:inherit;background:var(--av-paper);border:1px 
 .dot{display:inline-block;width:6px;height:6px;border-radius:50%;flex:none}
 .dot.caution{background:var(--av-caution)} .dot.normal{background:var(--av-normal)} .dot.ink{background:var(--av-ink)}
 .page{min-height:100%;padding:var(--sp-4);display:flex;flex-direction:column}
-.sheet{flex:1;border:2px solid var(--av-ink);background:var(--av-surface);display:flex;flex-direction:column;min-height:calc(100vh - var(--sp-4) * 2)}
+.av-zones{flex:1;min-height:calc(100vh - var(--sp-4) * 2)}
+.av-zones-field{display:flex;flex-direction:column}
+.sheet{flex:1;border:2px solid var(--av-ink);background:var(--av-surface);display:flex;flex-direction:column}
 #view{flex:1;display:flex;flex-direction:column;min-height:0}
 /* Two columns. The left holds the lockup over the view and preset controls. The right, .head-end,
    spans both rows: the page tools (tour, scheme) sit level with the title, and the session actions
@@ -351,8 +352,11 @@ details[open] > :not(summary){animation:ee-unfold .22s var(--ease) both}
 @media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
 </style>
 </head>
-<body class="av-paper av-grid">
-<div class="page"><div class="sheet">
+<body class="av-paper">
+<div class="page"><div class="av-zones" id="zones">
+<ol class="av-zones-edge av-zones-edge--top" aria-hidden="true"></ol>
+<ol class="av-zones-edge av-zones-edge--left" aria-hidden="true"></ol>
+<div class="av-zones-field av-grid"><div class="sheet">
   <div class="head">
     <div class="head-id">
       <!-- The eagle-eye mark, the 40px-and-up variant, inlined so the page
@@ -398,6 +402,9 @@ details[open] > :not(summary){animation:ee-unfold .22s var(--ease) both}
     </details>
   </div>
   <div id="view"></div>
+</div></div>
+<ol class="av-zones-edge av-zones-edge--right" aria-hidden="true"></ol>
+<ol class="av-zones-edge av-zones-edge--bottom" aria-hidden="true"></ol>
 </div></div>
 <div class="tip" id="tip"></div>
 
@@ -914,6 +921,27 @@ if (TOUR.length) {
     else if (e.key === 'ArrowLeft') { e.preventDefault(); showStop(tourAt - 1); }
   });
 }
+
+// The zone border's labels, counted from the frame: about 240px a zone, as the system asks, because a page
+// has no fixed size to count from. Letters skip I and O, as drawing sheets do, and run out at X, so a very
+// tall page gets taller zones rather than a 25th letter. Under 560px wide the frame goes compact.
+(() => {
+  const zones = $('zones'), ZONE = 240, LETTERS = 'ABCDEFGHJKLMNPQRSTUVWX';
+  const label = t => { const li = document.createElement('li'); li.textContent = t; return li; };
+  let cols = 0, rows = 0;
+  const count = () => {
+    const r = zones.getBoundingClientRect();
+    zones.classList.toggle('av-zones--compact', r.width < 560);
+    const c = Math.max(1, Math.round(r.width / ZONE)), w = Math.min(LETTERS.length, Math.max(1, Math.round(r.height / ZONE)));
+    if (c === cols && w === rows) return;
+    cols = c; rows = w;
+    const nums = Array.from({ length: c }, (_, i) => String(i + 1)), lets = [...LETTERS.slice(0, w)];
+    zones.querySelectorAll(':scope > .av-zones-edge').forEach(ol =>
+      ol.replaceChildren(...(ol.matches('.av-zones-edge--top, .av-zones-edge--bottom') ? nums : lets).map(label)));
+  };
+  new ResizeObserver(count).observe(zones);
+  count();
+})();
 
 paintPresets(); paintReset(); decodeHash(); update();
 </script>

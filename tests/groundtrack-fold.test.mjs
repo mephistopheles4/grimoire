@@ -973,12 +973,12 @@ const loopWalk = {
 
 /* Every run to check: the loop, greet with its error runs, the recursive
  * graph, and every run of the shipped files whose walks re-enter a chain —
- * map-300-woodwork and the large pr-382 example. */
+ * map-300-woodwork and the large realtime-shadows example. */
 const everyRun = () => {
   const runs = [{ name: 'loop', prog: loop, walk: loopWalk }];
   for (const run of greet.presets) runs.push({ name: `greet / ${run.name}`, prog: greet, walk: run.trace });
   for (const run of recursive.presets) runs.push({ name: `recursive / ${run.name}`, prog: recursive, walk: run.trace });
-  for (const path of [join(examples, 'map-300-woodwork.flightpath.json'), join(root, 'docs', 'examples', 'pr-382.flightpath.json')]) {
+  for (const path of [join(examples, 'map-300-woodwork.flightpath.json'), join(root, 'docs', 'examples', 'realtime-shadows.flightpath.json')]) {
     const file = G.hardenKeys(JSON.parse(readFileSync(path, 'utf8')));
     file.graphs.forEach((g, i) => {
       const v = G.graphView(file, i);

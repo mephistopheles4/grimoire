@@ -298,6 +298,23 @@ test('--out writes the page with the box and the module inside it', () => {
   assert.match(html, /const EagleEye = \(\(\) => \{/);
 });
 
+test('the sheet sits in the zone border, with the réseau on its field and not under the labels', () => {
+  // The design system's markup, in its order: top, left, the field, right,
+  // bottom. The field carries the ground, and the sheet is laid on it.
+  const out = join(work, 'zones.html');
+  assert.equal(run(renderer, [exampleBox, '--out', out]).code, 0);
+  const html = readFileSync(out, 'utf8');
+  assert.match(html, /<body class="av-paper">/);
+  // The bundle's own comment shows the same markup, so read the body only.
+  const body = html.slice(html.indexOf('<body'));
+  const edges = [...body.matchAll(/<(ol|div) class="(av-zones-edge av-zones-edge--\w+|av-zones-field av-grid)"/g)].map(m => m[2]);
+  assert.deepEqual(edges, ['av-zones-edge av-zones-edge--top', 'av-zones-edge av-zones-edge--left',
+    'av-zones-field av-grid', 'av-zones-edge av-zones-edge--right', 'av-zones-edge av-zones-edge--bottom']);
+  assert.match(html, /<div class="av-zones-field av-grid"><div class="sheet">/);
+  // Drawing sheets skip I and O, so a zone letter never reads as a figure.
+  assert.equal(html.match(/LETTERS = '([A-Z]+)'/)[1], 'ABCDEFGHJKLMNPQRSTUVWX');
+});
+
 test('a default render writes a page the repository already ignores', () => {
   // With no --out the page landed beside the box as <name>.html, and
   // .gitignore covers site/ but not that. Every default render left an

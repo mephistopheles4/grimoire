@@ -112,12 +112,19 @@
   --av-deck-ink-12:rgb(34 38 43 / 0.12); /* light rules, cell dividers */
   --av-deck-grid:rgb(34 38 43 / 0.05);   /* the drafting grid          */
 
-  /* MAJOR TIER — for .av-grid--ruled. Real graph paper is two-tier: a fine
-     ruling that reads as tone, plus heavier lines every 4th or 5th cell that
-     carry the structure. The minor tier drops to 0.035 under --ruled so the
+  /* MAJOR TIER — for .av-grid--ruled, graph paper. Real graph paper is
+     two-tier: a fine ruling that reads as tone, plus heavier lines every 4th
+     or 5th cell that carry the structure. The minor tier drops to 0.035 under --ruled so the
      pair together is quieter than the single-tier grid. */
   --av-deck-grid-minor:rgb(34 38 43 / 0.035);
   --av-deck-grid-major:rgb(34 38 43 / 0.085);
+
+  /* RÉSEAU — the ground .av-grid draws: one 13px cross every major division,
+     the way a survey camera etches a lattice of crosses onto its plate. A
+     background image cannot read a custom property, so the cross is drawn
+     in this theme's ink at the 0.3 alpha literally. Keep it in step with
+     ink-30 above if the ink changes. */
+  --av-deck-reseau:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120' viewBox='0 0 120 120'%3E%3Cpath d='M54 60.5H67M60.5 54V67' stroke='rgb(34,38,43)' stroke-opacity='0.3' stroke-width='1' fill='none' shape-rendering='crispEdges'/%3E%3C/svg%3E");
 
   /* SURFACE — translucent sheet fill. Sits over the grid and holds it back
      without hiding it, so a sheet reads as laid ON the paper. */
@@ -215,6 +222,7 @@
   --av-grid:var(--av-deck-grid);
   --av-grid-minor:var(--av-deck-grid-minor);
   --av-grid-major:var(--av-deck-grid-major);
+  --av-reseau:var(--av-deck-reseau);
   --av-surface:var(--av-deck-surface);
 
   --av-font:'IBM Plex Mono',ui-monospace,'SFMono-Regular',Menlo,Consolas,monospace;
@@ -267,6 +275,13 @@
   /* MAJOR TIER — see themes/deck.css for the reasoning. */
   --av-site-grid-minor:rgb(21 34 44 / 0.035);
   --av-site-grid-major:rgb(21 34 44 / 0.085);
+
+  /* RÉSEAU — the ground .av-grid draws: one 13px cross every major division,
+     the way a survey camera etches a lattice of crosses onto its plate. A
+     background image cannot read a custom property, so the cross is drawn
+     in this theme's ink at the 0.3 alpha literally. Keep it in step with
+     ink-30 above if the ink changes. */
+  --av-site-reseau:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120' viewBox='0 0 120 120'%3E%3Cpath d='M54 60.5H67M60.5 54V67' stroke='rgb(21,34,44)' stroke-opacity='0.3' stroke-width='1' fill='none' shape-rendering='crispEdges'/%3E%3C/svg%3E");
 
   --av-site-surface:rgb(244 246 247 / 0.72); /* translucent sheet fill */
 
@@ -336,6 +351,7 @@
   --av-grid:var(--av-site-grid);
   --av-grid-minor:var(--av-site-grid-minor);
   --av-grid-major:var(--av-site-grid-major);
+  --av-reseau:var(--av-site-reseau);
   --av-surface:var(--av-site-surface);
   --av-deep:var(--av-site-deep);
   --av-deep-line:var(--av-site-deep-line);
@@ -409,6 +425,13 @@
   --av-dark-grid-minor:rgb(236 229 223 / 0.032);
   --av-dark-grid-major:rgb(236 229 223 / 0.075);
 
+  /* RÉSEAU — the ground .av-grid draws: one 13px cross every major division,
+     the way a survey camera etches a lattice of crosses onto its plate. A
+     background image cannot read a custom property, so the cross is drawn
+     in this theme's ink at the 0.28 alpha literally. Keep it in step with
+     ink-30 above if the ink changes. */
+  --av-dark-reseau:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120' viewBox='0 0 120 120'%3E%3Cpath d='M54 60.5H67M60.5 54V67' stroke='rgb(236,229,223)' stroke-opacity='0.28' stroke-width='1' fill='none' shape-rendering='crispEdges'/%3E%3C/svg%3E");
+
   /* SURFACE — the translucent sheet fill that sits over the grid. On paper
      it holds the grid back; here it also lifts the sheet off the ground,
      which is how elevation reads without shadow on a dark screen. */
@@ -469,6 +492,7 @@
     --av-grid:var(--av-dark-grid);
     --av-grid-minor:var(--av-dark-grid-minor);
     --av-grid-major:var(--av-dark-grid-major);
+    --av-reseau:var(--av-dark-reseau);
     --av-surface:var(--av-dark-surface);
     --av-caution:var(--av-dark-caution);
     --av-normal:var(--av-dark-normal);
@@ -547,8 +571,15 @@
      3. Every neutral is ink at reduced alpha, never a sampled grey. The ramp
         derives from the theme's ink.
      4. Text never uses a neutral below ink 70. Below that is non-text only.
-     5. No gradients. No drop shadows. No photographs. Depth comes from line
-        weight, the way it does on a real drawing.
+     5. No photographs. Gradients and shadows are a last resort: the paper
+        stays flat, and depth comes from line weight first, the way it does
+        on a real drawing. Two exceptions, both kept slight — a gradient in
+        or around the one control that must stand out, and a shadow for depth
+        once a dense interface has more layers than line weight can separate.
+        Built from existing tokens, and never behind a mark (rule 6).
+     6. Marks are never tiered, and never re-grounded. Caution and normal
+        appear at full strength on plain paper or not at all; the technical
+        plane in tools.css is the one sanctioned exception.
 
    WHAT FLEXES BY THEME: paper, ink, accents, typefaces, grid pitch, measure.
    WHAT DOES NOT: everything in this file.
@@ -557,23 +588,29 @@
 /* GROUND ------------------------------------------------------------------ */
 .av-paper{background-color:var(--av-paper);color:var(--av-ink);font-family:var(--av-font);font-size:var(--av-t-body);line-height:1.6}
 
-/* THE DRAFTING GRID — two-tier, the way graph paper is actually printed:
-   a fine ruling that reads as tone, plus a heavier line every
-   --av-grid-major-every cells to navigate by. The pair is quieter than a
-   single tier at the same pitch, because the fine tier can sit lighter when
-   it is not also doing the structural work.
+/* THE GROUND — réseau crosses. A survey camera etches a lattice of small
+   crosses onto every plate so distortion can be measured; .av-grid does the
+   same, one 13px cross per major division (120px at the 24px pitch), in the
+   theme's ink at 30%. It keeps the measured rhythm of the pitch with almost
+   no ink between the marks, and it replaces the graph-paper lattice that had
+   become the stock way to say "technical". The cross is a background image
+   staged per theme (--av-reseau), because an image cannot read a custom
+   property. Its pitch follows --av-grid-major-every and the theme's pitch;
+   the cross is drawn for 120px, so a different pitch scales the arms too.
 
-   The system runs 24px minor / 120px major — 5 per division, the metric
-   convention. Major gradients are listed first so they paint over the minor
-   ones where the two coincide. .av-grid--ruled is an alias, kept because the
-   two-tier ruling shipped under that name before it became the default.
+   The tile size is spelled out inline rather than held in a custom property:
+   a calc() referencing var() inside a custom property resolves where it is
+   DECLARED, so a hoisted size would freeze at the root pitch and silently
+   ignore any per-element override. In background-size it evaluates at the
+   element, which is what we want. */
+.av-grid{background-image:var(--av-reseau);background-size:calc(var(--av-grid-size) * var(--av-grid-major-every)) calc(var(--av-grid-size) * var(--av-grid-major-every))}
 
-   The major pitch is spelled out inline rather than held in a custom
-   property: a calc() referencing var() inside a custom property resolves
-   where it is DECLARED, so a hoisted --av-grid-major-size would freeze at
-   the root pitch and silently ignore any per-element override. In
-   background-size it evaluates at the element, which is what we want. */
-.av-grid,.av-grid--ruled{background-image:linear-gradient(to right,var(--av-grid-major) var(--av-rule-hair),transparent var(--av-rule-hair)),linear-gradient(to bottom,var(--av-grid-major) var(--av-rule-hair),transparent var(--av-rule-hair)),linear-gradient(to right,var(--av-grid-minor) var(--av-rule-hair),transparent var(--av-rule-hair)),linear-gradient(to bottom,var(--av-grid-minor) var(--av-rule-hair),transparent var(--av-rule-hair));background-size:calc(var(--av-grid-size) * var(--av-grid-major-every)) calc(var(--av-grid-size) * var(--av-grid-major-every)),calc(var(--av-grid-size) * var(--av-grid-major-every)) calc(var(--av-grid-size) * var(--av-grid-major-every)),var(--av-grid-size) var(--av-grid-size),var(--av-grid-size) var(--av-grid-size)}
+/* GRAPH PAPER — the two-tier ruling that was the default ground: a fine
+   ruling that reads as tone, plus a heavier line every
+   --av-grid-major-every cells. Kept for a surface that is measured cell by
+   cell (a pitch study, a plotting sheet), not as a page ground. Major
+   gradients are listed first so they paint over the minor ones. */
+.av-grid--ruled{background-image:linear-gradient(to right,var(--av-grid-major) var(--av-rule-hair),transparent var(--av-rule-hair)),linear-gradient(to bottom,var(--av-grid-major) var(--av-rule-hair),transparent var(--av-rule-hair)),linear-gradient(to right,var(--av-grid-minor) var(--av-rule-hair),transparent var(--av-rule-hair)),linear-gradient(to bottom,var(--av-grid-minor) var(--av-rule-hair),transparent var(--av-rule-hair));background-size:calc(var(--av-grid-size) * var(--av-grid-major-every)) calc(var(--av-grid-size) * var(--av-grid-major-every)),calc(var(--av-grid-size) * var(--av-grid-major-every)) calc(var(--av-grid-size) * var(--av-grid-major-every)),var(--av-grid-size) var(--av-grid-size),var(--av-grid-size) var(--av-grid-size)}
 
 /* Single-tier escape hatch: one pitch, one weight. For surfaces too small to
    show a major division, or where the grid must stay a flat texture. */
@@ -581,6 +618,44 @@
 
 /* Sheet frame — the ruled border a drawing sits inside. */
 .av-sheet{border:var(--av-rule-bold) solid var(--av-ink);padding:var(--av-s4)}
+/* A sheet laid on a ground: the translucent surface holds the crosses back
+   without hiding them, so the sheet reads as laid ON the paper. */
+.av-sheet--surface{background:var(--av-surface)}
+
+/* ZONE BORDER — the secondary pattern, for fixed-size sheets: link
+   previews, social posts, banners. Engineering drawing sheets carry zone
+   numbers across the top and bottom and letters down the sides, so a reader
+   can say "see B3". The labels are text, so they hold to ink 70 (rule 4).
+   Zone counts are the markup's: aim for zones about 240px wide. The band
+   (36px) and label size (18px) are sized for cards that a feed shows at
+   about 500px wide. .av-zones--compact is for strips under 200px tall: a
+   12px band, 11px numbers, and no side letters.
+
+   <div class="av-zones">
+     <ol class="av-zones-edge av-zones-edge--top"><li>1</li>…</ol>
+     <ol class="av-zones-edge av-zones-edge--left"><li>A</li>…</ol>
+     <div class="av-zones-field av-grid">…</div>
+     <ol class="av-zones-edge av-zones-edge--right"><li>A</li>…</ol>
+     <ol class="av-zones-edge av-zones-edge--bottom"><li>1</li>…</ol>
+   </div>
+
+   Cite a zone only when the content names it (rule 1): wrap the label in
+   .av-zones-cite on each edge it appears on, and say the zone in the text. */
+.av-zones{--av-zones-band:var(--av-s4);display:grid;grid-template-columns:var(--av-zones-band) minmax(0,1fr) var(--av-zones-band);grid-template-rows:var(--av-zones-band) minmax(0,1fr) var(--av-zones-band);grid-template-areas:". top ." "left field right" ". bottom .";border:var(--av-rule-bold) solid var(--av-ink);box-sizing:border-box}
+.av-zones-edge{list-style:none;margin:0;padding:0;display:flex;font-size:var(--av-t-lead);letter-spacing:var(--av-track-label);text-transform:uppercase;color:var(--av-ink-70);font-variant-numeric:tabular-nums}
+.av-zones-edge li{flex:1 1 0;display:flex;align-items:center;justify-content:center;min-width:0;min-height:0}
+.av-zones-edge--top{grid-area:top}
+.av-zones-edge--bottom{grid-area:bottom}
+.av-zones-edge--left{grid-area:left;flex-direction:column}
+.av-zones-edge--right{grid-area:right;flex-direction:column}
+.av-zones-edge--top li+li,.av-zones-edge--bottom li+li{border-left:var(--av-rule-hair) solid var(--av-ink-30)}
+.av-zones-edge--left li+li,.av-zones-edge--right li+li{border-top:var(--av-rule-hair) solid var(--av-ink-30)}
+.av-zones-field{grid-area:field;position:relative;min-width:0;min-height:0;border:var(--av-rule-hair) solid var(--av-ink-30);padding:var(--av-s4)}
+.av-zones-cite{color:var(--av-ink);border:var(--av-rule-thin) solid var(--av-ink);padding:0 var(--av-s1)}
+.av-zones--compact{--av-zones-band:var(--av-s2);grid-template-columns:var(--av-zones-band) minmax(0,1fr) var(--av-zones-band)}
+.av-zones--compact .av-zones-edge{font-size:var(--av-t-micro);letter-spacing:0}
+.av-zones--compact .av-zones-edge--left,.av-zones--compact .av-zones-edge--right{display:none}
+.av-zones--compact .av-zones-field{padding:var(--av-s2)}
 
 /* TYPE -------------------------------------------------------------------- */
 .av-slide-title,.av-h1,.av-h2{text-transform:uppercase;letter-spacing:var(--av-track-title);font-weight:600;line-height:1.1;text-wrap:balance;margin:0}
