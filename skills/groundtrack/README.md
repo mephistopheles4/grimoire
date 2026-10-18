@@ -85,8 +85,8 @@ can:
   tree, and its contract. The cutaway follows the cursor while the run plays.
 - Read the steps as a listing that carries the run: which lines executed, which
   branch never ran, and how each call and effect turned out.
-- Flip between the drawing and a tree. Pan by dragging or with the wheel; zoom
-  with ctrl and the wheel.
+- Flip between the drawing and a tree. Pan by dragging; zoom with the wheel, no
+  key held, and the grid zooms with the drawing.
 - Redraw the graph under a **layer**. Flip to the test layer, and a node that
   still reaches the real network is a design defect you can see.
 - **Take the tour**, when the file carries one. Each stop moves the page to a

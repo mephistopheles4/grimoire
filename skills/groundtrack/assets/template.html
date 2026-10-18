@@ -249,8 +249,14 @@ input[type=checkbox] { accent-color: var(--av-ink); margin: 0 var(--av-s1) 0 0; 
 
 /* Plan — the drawing. Pan and zoom are load-bearing: it does not fit at 1:1.
    A drag anywhere on it pans, a node included, and a drag selects no text. The
-   wheel pans too, and with ctrl held it zooms about the pointer. */
+   wheel zooms about the pointer, with no key held.
+   The plan carries its own réseau, and the script moves and scales it with the
+   drawing, so the crosses are the drawing's paper: zoom out and they close up
+   under the nodes, pan and they travel with them. The paper is opaque, so the
+   sheet's fixed crosses never show through as a second lattice. Separate
+   properties rather than the shorthand, for the reason #root gives. */
 .plan { grid-area: plan; overflow: hidden; position: relative;
+  background-color: var(--av-paper); background-image: var(--av-reseau);
   border-right: var(--av-rule-hair) solid var(--av-ink); cursor: grab; touch-action: none; }
 .plan.grabbing { cursor: grabbing; }
 .plan.grabbing, .plan.grabbing * { user-select: none; -webkit-user-select: none; }
@@ -662,8 +668,9 @@ button[data-help][aria-disabled=true] { cursor: help; }
      alone, which made the drawing the only textured surface on the screen and
      left it reading as recessed under flat chrome — the grid was doing a
      ground's job. Ruling the sheet and floating the panels on --av-surface puts
-     it back where it belongs: under everything, showing through raw only where
-     the drawing is. -->
+     it back where it belongs: under everything. The plan lays its own copy over
+     it, the same crosses at the same pitch, which pans and zooms with the
+     drawing; see .plan. -->
 <div class="sheet-root av-grid av-zones-field" id="root">
   <div class="head">
    <div class="head-row">
@@ -1424,6 +1431,11 @@ function start() {
   /* -- render ------------------------------------------------------------- */
   const applyTransform = () => {
     $('canvas').style.transform = 'translate(' + S.panX + 'px,' + S.panY + 'px) scale(' + S.zoom + ')';
+    /* The plan's crosses follow the canvas: same origin, same scale. 120 is
+       the réseau tile at 1:1, the system's 24px pitch times its 5. */
+    const tile = 120 * S.zoom;
+    $('plan').style.backgroundPosition = S.panX + 'px ' + S.panY + 'px';
+    $('plan').style.backgroundSize = tile + 'px ' + tile + 'px';
   };
 
   function render() {
@@ -1735,34 +1747,28 @@ function start() {
   $('zoomIn').addEventListener('click', function () { setZoom(S.zoom * 1.25); });
   $('zoomOut').addEventListener('click', function () { setZoom(S.zoom / 1.25); });
 
-  /* The wheel. Plain, it scrolls the drawing the way it scrolls any sheet;
-     with shift it scrolls sideways; with ctrl (cmd on a Mac) it zooms about
-     the pointer, so the part under it stays under it. Neither rebuilds the
-     page — the transform and the scale readout move, and nothing else — since
-     a wheel fires many times a second and a render rebuilds every region.
-     Listened to as non-passive so the browser's own ctrl-wheel page zoom is
-     declined. The tree is a scrolling column already and is left alone. */
+  /* The wheel zooms about the pointer, so the part under it stays under it,
+     and no key need be held; a drag pans. A trackpad pinch arrives as a wheel
+     with ctrl set and takes the same path. It does not rebuild the page — the
+     transform, the crosses and the scale readout move, and nothing else —
+     since a wheel fires many times a second and a render rebuilds every
+     region. Listened to as non-passive so the browser's own page zoom and
+     scroll are declined. The tree is a scrolling column already and is left
+     alone. */
   $('plan').addEventListener('wheel', function (e) {
     if (S.tree) return;
     e.preventDefault();
     const unit = e.deltaMode === 1 ? 16 : e.deltaMode === 2 ? $('plan').clientHeight : 1;
-    if (e.ctrlKey || e.metaKey) {
-      const box = $('plan').getBoundingClientRect();
-      const mx = e.clientX - box.left, my = e.clientY - box.top;
-      const factor = Math.exp(-e.deltaY * unit * 0.0015);
-      const z = Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, S.zoom * factor));
-      /* The canvas point under the pointer, kept under it at the new scale. */
-      const cx = (mx - S.panX) / S.zoom, cy = (my - S.panY) / S.zoom;
-      S.zoom = z;
-      S.panX = mx - cx * z;
-      S.panY = my - cy * z;
-      $('scaleNow').textContent = '1:' + (1 / S.zoom).toFixed(2);
-    } else if (e.shiftKey && !e.deltaX) {
-      S.panX -= e.deltaY * unit;
-    } else {
-      S.panX -= e.deltaX * unit;
-      S.panY -= e.deltaY * unit;
-    }
+    const box = $('plan').getBoundingClientRect();
+    const mx = e.clientX - box.left, my = e.clientY - box.top;
+    const factor = Math.exp(-e.deltaY * unit * 0.0015);
+    const z = Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, S.zoom * factor));
+    /* The canvas point under the pointer, kept under it at the new scale. */
+    const cx = (mx - S.panX) / S.zoom, cy = (my - S.panY) / S.zoom;
+    S.zoom = z;
+    S.panX = mx - cx * z;
+    S.panY = my - cy * z;
+    $('scaleNow').textContent = '1:' + (1 / S.zoom).toFixed(2);
     applyTransform();
   }, { passive: false });
   $('zoomFit').addEventListener('click', function () {
