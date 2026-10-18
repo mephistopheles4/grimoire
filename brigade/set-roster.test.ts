@@ -4029,7 +4029,7 @@ for (const surface of SURFACES) {
     // A desktop draws a Button's label in place of its text, so none sets one;
     // the harness reports the drawn text as the label.
     expect((await m.find({ key: 'view-sessions' })).props.label).toBe(surface === 'desktop' ? '◫' : 'Sessions')
-    expect((await m.find({ key: 'view-prs' })).props.label).toBe(surface === 'desktop' ? '⑂' : 'Pull requests')
+    expect((await m.find({ key: 'view-prs' })).props.label).toBe(surface === 'desktop' ? '⎇' : 'Pull requests')
     // The Pull requests tooltip counts what the view holds.
     expect((await textOf(m)).includes('Pull requests 0')).toBe(surface === 'desktop')
     await m.press({ key: 'pick-1-workone' })

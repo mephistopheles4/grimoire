@@ -918,7 +918,7 @@ export function hairlineSvg(): BarImage {
 // A PR pill's class suffix and mark by state, read only through this Map.
 const PILL_LOOKS: ReadonlyMap<string, { cls: string; mark: string }> = new Map([
   ['open', { cls: 'open', mark: '⇄' }],
-  ['merged', { cls: 'merged', mark: '⑂' }],
+  ['merged', { cls: 'merged', mark: '⎇' }],
   ['closed', { cls: 'closed', mark: '⊘' }],
 ])
 const PILL_HEIGHT = 18

@@ -4397,7 +4397,7 @@ test('the PR rows list one row per card, skip dismissed cards but not needs-you 
 
 test('the hairline and PR pill images: their classes, a light and a dark rule each in the style block, and the allowlist holds', () => {
   // The pill: a rounded tint, the state's mark and the number, 18 high.
-  for (const [state, mark] of [['open', '⇄'], ['merged', '⑂'], ['closed', '⊘']]) {
+  for (const [state, mark] of [['open', '⇄'], ['merged', '⎇'], ['closed', '⊘']]) {
     const p = view.pillSvg('341', state);
     assertAllowlisted(p.source);
     assert.equal(p.height, 18);

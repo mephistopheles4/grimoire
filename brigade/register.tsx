@@ -1684,7 +1684,7 @@ export const register: Register = on => {
             </Text>
           </Box>
           {switchButton('sessions', '◫', 'Sessions', 'Sessions')}
-          {switchButton('prs', '⑂', 'Pull requests', `Pull requests ${prCount}`)}
+          {switchButton('prs', '⎇', 'Pull requests', `Pull requests ${prCount}`)}
         </Box>
         {error !== '' && <Text color="error">{error}</Text>}
         {pollError !== '' && <Text color="error">{pollError}</Text>}
