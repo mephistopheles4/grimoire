@@ -1,0 +1,135 @@
+{
+  "format": 1,
+  "title": "release-notes: a small made-up skill that writes release notes",
+  "type": "skill",
+  "level": "Standard",
+  "name": "release-notes",
+  "parts": {
+    "purpose": [
+      { "id": "name", "kind": "name", "fields": { "name": "release-notes" }, "mark": "Proposed" },
+      { "id": "job", "kind": "job", "fields": { "does": "writes the release notes for a version from its merged pull requests", "for": "the maintainer cutting the release" }, "mark": "Proposed" },
+      { "id": "steps-in-tag", "kind": "steps-in", "fields": { "when": "someone asks for the notes of a version that is tagged, or about to be" }, "mark": "Proposed" },
+      { "id": "steps-in-branch", "kind": "steps-in", "fields": { "when": "a release branch is cut and its notes are missing" }, "mark": "Proposed" },
+      { "id": "stays-out-one-pr", "kind": "stays-out", "fields": { "what": "the change log of a single pull request" }, "mark": "Proposed" },
+      { "id": "near-miss", "kind": "near-miss", "fields": { "situation": "a request to sum up a week's commits for a status update" }, "mark": "Proposed" }
+    ],
+    "why": [
+      { "id": "why", "kind": "why", "fields": { "text": "" } }
+    ],
+    "good": [
+      { "id": "example", "kind": "example", "fields": { "text": "## 2.4.0\n\n### Breaking\n- The `--out` flag now needs a file name.\n\n### Added\n- Dark mode for the report page.\n\n### Fixed\n- Long titles no longer cut off the summary." }, "mark": "Proposed" },
+      { "id": "bar", "kind": "bar", "fields": { "good": "each line says what changed for the reader, grouped by kind, breaking changes first", "so-so": "the pull request titles, pasted in merge order" }, "mark": "Proposed" }
+    ],
+    "roles": [
+      { "id": "duty-read", "kind": "duty", "fields": { "text": "reads every pull request merged since the last tag" }, "mark": "Proposed" },
+      { "id": "duty-group", "kind": "duty", "fields": { "text": "groups the changes as breaking, added and fixed" }, "mark": "Proposed" },
+      { "id": "checked-labels", "kind": "checked", "fields": { "what": "that every merged pull request carries a label", "by": "the repository's label check" }, "mark": "Proposed" },
+      { "id": "sign-off-breaking", "kind": "sign-off", "fields": { "decision": "what counts as a breaking change" }, "mark": "Proposed" },
+      { "id": "stop-gap", "kind": "stop", "fields": { "when": "a breaking change has no line in its pull request", "then": "lists that pull request and waits for your words" }, "mark": "Proposed", "freedom": "fixed" },
+      { "id": "stop-publish", "kind": "stop", "fields": { "when": "the notes are ready to publish" }, "mark": "Proposed", "freedom": "fixed" },
+      { "id": "unsure", "kind": "unsure", "fields": { "choice": "leaves-questions", "why": "the maintainer reads the notes before they go out anyway" }, "mark": "Proposed" }
+    ],
+    "tools": [
+      { "id": "key-gh", "kind": "key", "fields": { "capability": "read merged pull requests and tags through gh", "reason": "the notes are written from them", "detail": "gh pr list --state merged; gh release view" }, "mark": "Proposed" },
+      { "id": "limit-publish", "kind": "limit", "fields": { "text": "it never pushes, tags or publishes on its own" }, "mark": "Proposed" },
+      { "id": "runtime", "kind": "runtime", "fields": { "needs": "the gh command line, signed in" }, "mark": "Proposed" },
+      { "id": "action-draft", "kind": "action", "fields": { "act": "opens a draft release on GitHub", "tells-first": "the version and the notes it will post", "yes": "your yes in chat, for that one draft" }, "mark": "Proposed" },
+      { "id": "record-none", "kind": "record", "none": true, "mark": "Proposed" }
+    ],
+    "rules": [
+      { "id": "rule-invent", "kind": "rule", "fields": { "rule": "Never write a change that no pull request names", "guards": "notes that promise what was not shipped", "status": "potential" }, "mark": "Proposed", "refs": ["rule-late"] },
+      { "id": "rule-late", "kind": "rule", "fields": { "guards": "a pull request merged after the tag slipping into the notes", "status": "potential" }, "mark": "Proposed" }
+    ],
+    "writing": [
+      { "id": "term-breaking", "kind": "term", "fields": { "word": "breaking change", "meaning": "a change that makes a user's setup stop working until they act" }, "mark": "Proposed" },
+      { "id": "term-release", "kind": "term", "fields": { "word": "release", "meaning": "one tagged version and its notes", "standard": "semantic versioning" }, "mark": "Proposed" },
+      { "id": "style", "kind": "style", "fields": { "text": "plain sentences in the past tense, one change per line, no emoji" }, "mark": "Proposed" }
+    ],
+    "open": []
+  },
+  "questions": [
+    {
+      "id": "q-job",
+      "clause": "job",
+      "situation": "The maintainer says: \"we tag 2.4.0 tomorrow.\" In one sentence, what is this skill there to do for them?",
+      "options": [
+        { "id": "job-a", "label": "Write the notes for 2.4.0 from what was merged", "fields": { "does": "writes the release notes for a version from its merged pull requests", "for": "the maintainer cutting the release" } },
+        { "id": "job-b", "label": "Write the notes and publish the release", "fields": { "does": "writes the release notes and publishes the release", "for": "the maintainer cutting the release" } },
+        { "id": "job-c", "label": "Sum up what changed, for anyone who asks", "fields": { "does": "sums up what changed since the last tag", "for": "anyone on the team who asks" } }
+      ],
+      "proposed": "job-a",
+      "chips": ["It matches how we release", "It is safer", "It is quicker"]
+    },
+    {
+      "id": "q-sign-off",
+      "clause": "sign-off-breaking",
+      "situation": "A pull request renames a setting but keeps the old name working for now. Is that a breaking change, and who says so?",
+      "options": [
+        { "id": "sign-off-a", "label": "The skill decides, from the code", "fields": { "decision": "nothing: it judges breaking changes from the code" } },
+        { "id": "sign-off-b", "label": "I decide what counts as breaking", "fields": { "decision": "what counts as a breaking change" } },
+        { "id": "sign-off-c", "label": "The pull request's label decides", "fields": { "decision": "nothing: a pull request's breaking label decides" } }
+      ],
+      "proposed": "sign-off-b",
+      "chips": ["Breaking changes cost users", "Labels are not always right", "It is quicker"]
+    },
+    {
+      "id": "q-stop-gap",
+      "clause": "stop-gap",
+      "situation": "The diff shows a breaking change, but its pull request never mentions it. What should the skill do?",
+      "options": [
+        { "id": "gap-a", "label": "Write a line for it from the diff, and carry on", "fields": { "when": "a breaking change has no line in its pull request", "then": "writes a line for it from the diff and carries on" } },
+        { "id": "gap-b", "label": "Stop, list that pull request, and wait for my words", "fields": { "when": "a breaking change has no line in its pull request", "then": "lists that pull request and waits for your words" } },
+        { "id": "gap-c", "label": "Leave it out", "fields": { "when": "a breaking change has no line in its pull request", "then": "leaves it out of the notes" } }
+      ],
+      "proposed": "gap-b",
+      "chips": ["A missed break hurts users", "I know the changes best", "It is quicker"]
+    },
+    {
+      "id": "q-unsure",
+      "clause": "unsure",
+      "situation": "The skill cannot tell whether a fix belongs under Fixed or Added. What does it do?",
+      "options": [
+        { "id": "unsure-a", "label": "Asks me at once, and waits", "fields": { "choice": "asks-at-once", "why": "a wrong heading misleads readers" } },
+        { "id": "unsure-b", "label": "Picks one, and leaves the question in the notes for me", "fields": { "choice": "leaves-questions", "why": "the maintainer reads the notes before they go out anyway" } },
+        { "id": "unsure-c", "label": "Picks one, and tells me which it picked", "fields": { "choice": "decides-and-shows", "why": "most of these calls are small" } }
+      ],
+      "proposed": "unsure-b",
+      "chips": ["I read them anyway", "Fewer interruptions", "It is safer"]
+    },
+    {
+      "id": "q-key",
+      "clause": "key-gh",
+      "situation": "To write the notes, the skill needs to see what was merged. What may it use?",
+      "options": [
+        { "id": "key-a", "label": "gh, reading merged pull requests and tags only", "fields": { "capability": "read merged pull requests and tags through gh", "reason": "the notes are written from them", "detail": "gh pr list --state merged; gh release view" } },
+        { "id": "key-b", "label": "gh, with whatever access my login has", "fields": { "capability": "run any gh command with your login", "reason": "it can do whatever the release needs" } },
+        { "id": "key-c", "label": "Only the git log, no gh at all", "fields": { "capability": "read the git log of the repository", "reason": "the notes are written from commit messages" } }
+      ],
+      "proposed": "key-a",
+      "chips": ["Least access", "Pull requests say more than commits", "It is quicker"]
+    },
+    {
+      "id": "q-action",
+      "clause": "action-draft",
+      "situation": "The notes are done. Should the skill put them on GitHub, and if so how?",
+      "options": [
+        { "id": "action-a", "label": "Publish the release straight away", "fields": { "act": "publishes the release on GitHub", "tells-first": "nothing", "yes": "none: it publishes when the notes are done" } },
+        { "id": "action-b", "label": "Open a draft release, after telling me what it will post, on my yes", "fields": { "act": "opens a draft release on GitHub", "tells-first": "the version and the notes it will post", "yes": "your yes in chat, for that one draft" } },
+        { "id": "action-c", "label": "Never touch GitHub: I paste the notes myself", "fields": { "act": "nothing on GitHub: it hands you the notes as text", "tells-first": "nothing", "yes": "none needed" } }
+      ],
+      "proposed": "action-b",
+      "chips": ["I review before anything goes out", "Least access", "It is quicker"]
+    },
+    {
+      "id": "q-rule",
+      "clause": "rule-invent",
+      "situation": "A commit message mentions a feature, but no merged pull request does. What should the notes say?",
+      "options": [
+        { "id": "rule-a", "label": "Nothing: only pull requests count", "fields": { "rule": "Never write a change that no pull request names", "guards": "notes that promise what was not shipped", "status": "potential" } },
+        { "id": "rule-b", "label": "Mention it, marked as unconfirmed", "fields": { "rule": "Mark a change seen only in commits as unconfirmed", "guards": "a real change left out of the notes", "status": "potential" } }
+      ],
+      "proposed": "rule-a",
+      "chips": ["Notes must be true", "Nothing gets missed"]
+    }
+  ]
+}

@@ -27,6 +27,14 @@ export const ARTIFACTS = [
     checkArgs: ['--check'],
     outArgs: out => ['--out', out],
   },
+  {
+    type: 'interview',
+    suffix: '.interview.json',
+    renderer: 'skills/contract/scripts/render.mjs',
+    checkArgs: ['--check'],
+    // The published example keeps nothing: --site gives the page no store.
+    outArgs: out => ['--out', out, '--site'],
+  },
 ];
 
 /** The row that owns a file, or null. Matched on the whole tail of the name. */

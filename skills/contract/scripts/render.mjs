@@ -1,11 +1,13 @@
 #!/usr/bin/env node
 // The contract skill's interview script. Zero dependencies, Node 20.0.0 or
-// later. It makes an interview's scratch folder, checks a draft, reads an
-// answer block back against its draft, and deletes its own three files.
+// later. It makes an interview's scratch folder, checks a draft, writes the
+// page the person answers on, reads an answer block back against its draft,
+// and deletes its own three files.
 //
 //   node render.mjs --version
 //   node render.mjs --new-folder ['<parent>']
 //   node render.mjs '<draft>' --check
+//   node render.mjs '<draft>' --out '<page>' [--site] [--shared]
 //   node render.mjs '<draft>' --answers '<block>' [--shared]
 //   node render.mjs --clean '<folder>' [--draft]
 //
@@ -15,7 +17,7 @@
 // two. The page's logic, the block check included, sits in interview.js; this
 // script requires it, so the page and the script run one copy.
 
-import { chmodSync, existsSync, lstatSync, mkdirSync, readdirSync, readFileSync, statSync, unlinkSync } from 'node:fs';
+import { chmodSync, closeSync, existsSync, lstatSync, mkdirSync, openSync, readdirSync, readFileSync, readSync, statSync, unlinkSync, writeFileSync } from 'node:fs';
 import { basename, dirname, isAbsolute, join, parse, resolve, sep } from 'node:path';
 import { homedir, tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
@@ -38,6 +40,7 @@ const USAGE =
   "  node render.mjs --version\n" +
   "  node render.mjs --new-folder ['<parent>']\n" +
   "  node render.mjs '<draft>' --check\n" +
+  "  node render.mjs '<draft>' --out '<page>' [--site] [--shared]\n" +
   "  node render.mjs '<draft>' --answers '<block>' [--shared]\n" +
   "  node render.mjs --clean '<folder>' [--draft]";
 
@@ -249,6 +252,167 @@ function answers(draftFile, blockFile, shared) {
   return 0;
 }
 
+/* -- the page ----------------------------------------------------------------
+ *
+ * One self-contained file: the template, the Aviation bundle, the fonts as
+ * data, the module and the draft, with nothing loaded from the network. */
+
+/** The page's first line. `--out` overwrites a file only when its first line
+ *  is this one, so it never replaces a page or file it did not write. A
+ *  comment after the doctype keeps the page in standards mode. */
+const MARKER = "<!doctype html><!-- the contract skill's interview page, written by render.mjs -->";
+
+/* Each face with the range IBM declares for it, as groundtrack's renderer
+ * sets them: two rules for one family and weight with no range would leave
+ * only the last in force. */
+const LATIN1 =
+  'U+0020-007E, U+00A0-00FF, U+0131, U+0152-0153, U+02C6, U+02DA, U+02DC, U+2013-2014, ' +
+  'U+2018-201A, U+201C-201E, U+2020-2022, U+2026, U+2030, U+2039-203A, U+2044, U+20AC, ' +
+  'U+2122, U+2212, U+FB01-FB02';
+const PI =
+  'U+03C0, U+0E3F, U+2000-200D, U+2010-2012, U+2015, U+2028-2029, U+202F, U+2032-2033, ' +
+  'U+203E, U+205F, U+2070, U+2074-2079, U+2080-2089, U+2113, U+2116, U+2126, U+212E, ' +
+  'U+2150-2151, U+2153-215E, U+2190-2199, U+21A9-21AA, U+21B0-21B3, U+21B6-21B7, ' +
+  'U+21BA-21BB, U+21C4, U+21C6, U+2202, U+2206, U+220F, U+2211, U+2215, U+2219-221A, ' +
+  'U+221E, U+222B, U+2236, U+2248, U+2260, U+2264-2265, U+2400-2421, U+2500-259F, ' +
+  'U+25CA, U+2713, U+274C, U+2B0E-2B11, U+3000, U+FEFF, U+FFFD';
+const FONTS = [
+  ['400', 'IBMPlexMono-Regular-Latin1.woff2', LATIN1],
+  ['400', 'IBMPlexMono-Regular-Pi.woff2', PI],
+  ['500', 'IBMPlexMono-Medium-Latin1.woff2', LATIN1],
+  ['500', 'IBMPlexMono-Medium-Pi.woff2', PI],
+  ['600', 'IBMPlexMono-SemiBold-Latin1.woff2', LATIN1],
+  ['600', 'IBMPlexMono-SemiBold-Pi.woff2', PI],
+];
+
+const cspHash = text => `'sha256-${createHash('sha256').update(text, 'utf8').digest('base64')}'`;
+
+/** The page for a draft that passed its check. `opts.folder` is the scratch
+ *  folder's name, or null; `opts.site` and `opts.shared` are the flags. */
+function page(draft, draftBytes, opts) {
+  const assets = resolve(here, '..', 'assets');
+  const template = readFileSync(join(assets, 'template.html'), 'utf8');
+  const kb = kindsBytes();
+  // The module ends with its Node export line, which the page has no use for.
+  const moduleSource = readFileSync(resolve(here, 'interview.js'), 'utf8').replace(/\nif \(typeof module[^\n]*\n?$/, '\n');
+  /* The Aviation design system, vendored whole from its dist/aviation.bundle.css
+   * at 6297a04, the merge commit of its pull request 10 and the first to carry
+   * the réseau ground the page stands on. Do not edit it in place: replace it
+   * from the design system, and record the commit here when you do. */
+  const aviation = readFileSync(join(assets, 'aviation.bundle.css'), 'utf8');
+  const faces = FONTS.map(([weight, file, range]) => {
+    const b64 = readFileSync(join(assets, file)).toString('base64');
+    return `@font-face{font-family:'IBM Plex Mono';font-style:normal;font-weight:${weight};font-display:block;unicode-range:${range};src:url(data:font/woff2;base64,${b64}) format('woff2')}`;
+  }).join('\n');
+
+  /* JSON inside a script block: every "<" is written as its escape, so no
+   * draft string can close the block or open a comment in it. A script reads
+   * the escape as "<". */
+  const data = JSON.stringify({
+    draft,
+    kinds: JSON.parse(kb.toString('utf8')),
+    hashes: { draft: sha256(draftBytes), kinds: sha256(kb) },
+    site: opts.site,
+    shared: opts.shared,
+    folder: opts.folder,
+  }).replace(/</g, '\\u003c');
+
+  /* The policy line comes before every slot, so the template splits there:
+   * the head above it holds no slot, and everything below is filled first and
+   * then hashed. */
+  const [head, tail] = template.split('/*CSP*/');
+  if (tail === undefined || /\/\*[A-Z]+\*\//.test(head)) throw new Error('template: the policy slot must come before every other slot');
+
+  /* One pass, with function replacements. A string replacement reads $& and
+   * its kin as patterns, so draft text holding one would splice in a slab of
+   * the template; filling slot after slot would let a title that spells a
+   * later slot take that slot's fill. One regex over the template fills each
+   * slot where the template has it, and never searches what a fill put in. */
+  const fills = {
+    '/*TITLE*/': () => draft.title.replace(/[<>&]/g, ''),
+    '/*AVIATION*/': () => aviation,
+    '/*FONTS*/': () => faces,
+    '/*DATA*/': () => data,
+    '/*MODULE*/': () => moduleSource,
+  };
+  const filled = tail.replace(/\/\*(?:TITLE|AVIATION|FONTS|DATA|MODULE)\*\//g, slot => fills[slot]());
+
+  /* The content security policy: nothing from the network, the page's own
+   * scripts and styles allowed by their hashes, fonts and images from inline
+   * data only. The template uses no style attribute and no inline handler. */
+  const hashesOf = tag => [...filled.matchAll(new RegExp(`<${tag}>([\\s\\S]*?)</${tag}>`, 'g'))].map(m => cspHash(m[1]));
+  const csp = [
+    "default-src 'none'",
+    `script-src ${hashesOf('script').join(' ')}`,
+    `style-src ${hashesOf('style').join(' ')}`,
+    'font-src data:',
+    'img-src data:',
+    "base-uri 'none'",
+    "form-action 'none'",
+  ].join('; ');
+  return head + csp + filled;
+}
+
+/** The first line of a file, read from its first bytes only. */
+function firstLine(file) {
+  const fd = openSync(file, 'r');
+  try {
+    const buf = Buffer.alloc(MARKER.length + 2);
+    const n = readSync(fd, buf, 0, buf.length, 0);
+    return buf.subarray(0, n).toString('utf8').split(/\r?\n/)[0];
+  } finally {
+    closeSync(fd);
+  }
+}
+
+/** `--out`: check the draft, then write its page. */
+function out(draftFile, pageFile, site, shared) {
+  if (!pageFile.endsWith('.html')) {
+    say('render.mjs: --out writes a page whose name ends in .html. Name another file.');
+    return 2;
+  }
+  if (existsSync(pageFile)) {
+    let own = false;
+    try {
+      own = lstatSync(pageFile).isFile() && firstLine(pageFile) === MARKER;
+    } catch (e) {
+      say(`cannot read ${named(pageFile)}: ${e.code || e.name}`);
+      return 2;
+    }
+    if (!own) {
+      say('render.mjs: that file exists and is not a page this script wrote, so --out leaves it. Name another file.');
+      return 2;
+    }
+  }
+  const read = readJson(draftFile, 'draft');
+  if (!read.bytes) return read.code;
+  ownerOnly(draftFile);
+  const kinds = JSON.parse(kindsBytes().toString('utf8'));
+  const h = homes();
+  const { refusals, warnings } = Interview.checkDraft(read.value, kinds, h);
+  if (refusals.length) {
+    for (const [path, why] of refusals) say(`draft: ${path}: ${why}`);
+    say(`draft: ${refusals.length} refusal(s); check the draft with --check`);
+    return 1;
+  }
+  for (const [path, why] of warnings) tell(`warning: ${path}: ${why}`);
+  // The top bar names the scratch folder, and only a scratch folder: any
+  // other folder's name could be the person's own.
+  const folder = !site && inScratch(pageFile) ? basename(dirname(resolve(pageFile))) : null;
+  const html = page(read.value, read.bytes, { site, shared, folder });
+  try {
+    writeFileSync(pageFile, html);
+    // The page holds the person's draft, so it is owner-only wherever it
+    // lands, unless it is the published example.
+    if (posix && !site) chmodSync(pageFile, 0o600);
+  } catch (e) {
+    say(`cannot write ${named(pageFile)}: ${e.code || e.name}`);
+    return 2;
+  }
+  say(`ok: wrote ${basename(pageFile)}, ${Buffer.byteLength(html).toLocaleString('en-US')} bytes, from sha256 ${sha256(read.bytes)} — ${Interview.quoted(read.value.title, h.homes, h.fold)}`);
+  return 0;
+}
+
 /** The command, as a function that returns its exit code. It never calls
  * `process.exit`, so a piped stdout drains before Node exits. */
 function main(argv) {
@@ -292,6 +456,9 @@ function main(argv) {
     const h = homes();
     say(`ok: sha256 ${sha256(read.bytes)} — ${Interview.quoted(draft.title, h.homes, h.fold)}`);
     return 0;
+  }
+  if (args[1] === '--out' && values.length === 2 && args[2] === values[1] && args.length - 3 === flags.length - 1 && only('--out', '--site', '--shared')) {
+    return out(values[0], values[1], flags.includes('--site'), flags.includes('--shared'));
   }
   if (args[1] === '--answers' && values.length === 2 && args[2] === values[1] && args.length - 3 === flags.length - 1 && only('--answers', '--shared')) {
     return answers(values[0], values[1], flags.includes('--shared'));

@@ -993,6 +993,34 @@ const Interview = (() => {
     return n;
   }
 
-  return { LIMITS, save, restore, redraft, forget, readBack, exportContract, checkDraft, shapesIn, mask, quoted, folded, KEY_SHAPES, blockOf, blockText, checkBlock, tally };
+  /* -- what the page shows ------------------------------------------------------
+   *
+   * The page draws the contract as the person's answers and edits leave it,
+   * from the same reading the export uses, so what it shows is what the block
+   * will write. */
+
+  /** The clauses as the page's state leaves them: per part, each with its
+   *  kind, fields, mark and schedule name, and the schedule order. */
+  function view(draft, kinds, hashes, state) {
+    return finalClauses(draft, kindsIndex(kinds), blockOf(draft, kinds, hashes, state));
+  }
+
+  /** A clause's sentence: one of its kind's frames, its blanks filled in
+   *  field order, a choice shown by the template's words. */
+  const sentence = (kinds, kind, fields, frame) => fill(kind[frame], kind, fields, kinds.words || {});
+
+  /** What a question shows before and after a pick. A high-stakes question
+   *  shows no proposal and no fields until the person picks; a low-stakes one
+   *  shows Claude's proposal at once. Stakes come from kinds.json, never the
+   *  draft, which has no say in them. */
+  function reveal(draft, kinds, clauseId, picked) {
+    const K = kindsIndex(kinds);
+    const entry = draftIndex(draft, K).clauses.get(clauseId);
+    const high = !entry || entry.kind.stakes === 'high';
+    const shown = picked || !high;
+    return { high, proposal: shown, fields: shown };
+  }
+
+  return { LIMITS, save, restore, redraft, forget, readBack, exportContract, checkDraft, shapesIn, mask, quoted, folded, KEY_SHAPES, blockOf, blockText, checkBlock, tally, view, sentence, reveal };
 })();
 if (typeof module !== 'undefined') module.exports = Interview;
