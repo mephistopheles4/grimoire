@@ -149,7 +149,9 @@ effort show as one character each, with the full settings in a tooltip. Open and
 Dismiss appear when you point at a row; in the terminal they are always shown.
 Tick several rows and a bar at the foot dismisses them together. A session that
 waits on you has no Dismiss and is never hidden. Reopening the pane brings
-dismissed rows back.
+dismissed rows back. The pane's section bars, hover and selection bar are drawn
+for Desktop's dark theme, so in a light theme they look darker than the rest of
+the app.
 
 The lead can put each session's pull request on its row. A pill shows the
 number in the state's colour. The Pull requests view lists those pull requests
