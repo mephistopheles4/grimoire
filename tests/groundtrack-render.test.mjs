@@ -1946,6 +1946,26 @@ test('the page embeds the file', () => {
   assert.match(html, /"id":"example-greet"/);
 });
 
+test('the sheet sits in the zone border, with the réseau on its field and not under the labels', () => {
+  // The design system's markup, in its order: top, left, the field, right,
+  // bottom. The field is the sheet itself, and it carries the ground.
+  const html = pageOf(exampleFlightpath);
+  assert.match(html, /<body class="av-paper">/);
+  // The bundle's own comment shows the same markup, so read the body only.
+  const body = html.slice(html.indexOf('<body'));
+  const edges = [...body.matchAll(/<(ol|div) class="(av-zones-edge av-zones-edge--\w+|sheet-root av-grid av-zones-field)"/g)].map(m => m[2]);
+  assert.deepEqual(edges, ['av-zones-edge av-zones-edge--top', 'av-zones-edge av-zones-edge--left',
+    'sheet-root av-grid av-zones-field', 'av-zones-edge av-zones-edge--right', 'av-zones-edge av-zones-edge--bottom']);
+  assert.match(html, /<div class="av-zones av-paper" id="zones">/);
+  // Drawing sheets skip I and O, so a zone letter never reads as a figure.
+  assert.equal(html.match(/LETTERS = '([A-Z]+)'/)[1], 'ABCDEFGHJKLMNPQRSTUVWX');
+  // The loop count is the one text drawn on the bare plan, so it carries the
+  // surface under its glyphs.
+  const rule = html.match(/\.wire-count \{[^}]*\}/)[0];
+  assert.match(rule, /stroke: var\(--av-surface\)/);
+  assert.match(rule, /paint-order: stroke/);
+});
+
 test('the page prints the failure kind beside the tag, and what the node does with it', () => {
   // A limit, stated: the page draws its rows in the browser, so no assertion
   // here can read a rendered row. What it can read is that the page carries

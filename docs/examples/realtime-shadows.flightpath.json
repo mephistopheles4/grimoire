@@ -1,6 +1,6 @@
 {
   "id": "realtime-shadows",
-  "title": "Real-time shadows, with a painted fallback",
+  "title": "Real-time shadows, painted fallback",
   "blurb": "On the Pixel 10 Pro XL, real-time shadows lost the WebGL context once many programs sampled the shadow map. This change joins the woodwork into one mesh, compiles every book with no shadow fetch, paints the lost band back onto the covers and steps the painted pieces the map casts aside, falls back to painted shadows on a lost context or a program that will not link — remembered for 30 days unless the page ran a shadow probe — turns real-time shadows on for everyone, and adds G60, G61 and a phone harness to hold it. Drawn at 8767661, the head of 29 commits (one a merge of main) over main at 118b9e0.",
   "env": {
     "RESTORE_WAIT_MS": 2500,
