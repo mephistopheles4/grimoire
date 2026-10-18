@@ -2,7 +2,10 @@
 // testing. A gate that silently does nothing reads as a gate that passed.
 //
 // Each test copies the parts of the tree the check reads into a temporary
-// directory, breaks exactly one thing, and asserts the check says so. The copy
+// directory, breaks exactly one thing, and asserts the check says so. Or it
+// breaks one kind of thing many ways, every place of one list or every key
+// off one allow-list, and asserts the check names each one: a single break
+// taken off the rule still drops its own line from the output. The copy
 // is not decoration: check.mjs finds the repository root from its own file
 // location, so it cannot be pointed at a fixture any other way. That is also
 // why every mutation test runs the copy's own scripts/check.mjs — running this
@@ -92,7 +95,8 @@ export const manifest = dir => join(dir, '.claude-plugin', 'plugin.json');
 
 export const setVersion = (dir, v) => writeJson(manifest(dir), { ...readJson(manifest(dir)), version: v });
 
-// A file of the mod, written into the copy at run time. The tests of the rules
+// A file of the mod, or any other file a test puts in the copy, written at run
+// time. The tests of the rules
 // that cover the mod write the files they break here, the way the
 // format-check tests write their fixture skills, so a test holds whatever the
 // committed mod looks like. `rel` is a forward-slash
