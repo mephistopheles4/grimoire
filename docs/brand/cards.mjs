@@ -65,7 +65,7 @@ const CARDS = [
   {
     name: 'contract',
     title: 'Contract',
-    tagline: ['Agree the terms,', 'then seal the file.'],
+    tagline: ['Agree the terms,', 'then build the file from them.'],
     footer: 'grimoire · skills/contract',
   },
   {
