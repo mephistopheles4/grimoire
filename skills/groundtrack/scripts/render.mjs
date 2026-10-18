@@ -740,6 +740,22 @@ function path(prog, gi, pi, r) {
 export function check(prog, fileLabel) {
   const r = refusals(fileLabel);
   shape(prog, r);
+  /* A key named "__proto__" is refused at any depth, the author-keyed maps
+   * included. JSON.parse keeps it as a plain field and the check reads it as
+   * one, but the page reads the file as an object literal, where the same key
+   * sets the prototype: a layer, an ambient value or an argument the check
+   * saw is gone from the page. The walk keeps its own list rather than calling
+   * itself, so depth costs memory and not the call stack, and it names a key
+   * in the path only when the key is a plain word. */
+  const pending = isObj(prog) ? [{ v: prog, up: null, seg: '' }] : [];
+  const spell = n => { const segs = []; for (; n && n.up; n = n.up) segs.unshift(n.seg); return segs.join('').replace(/^\./, '') || 'file'; };
+  while (pending.length) {
+    const n = pending.pop();
+    if (Object.hasOwn(n.v, '__proto__')) r.shape(spell(n), 'a key named "__proto__" is refused — the page would read it as a prototype, not a field');
+    const list = Array.isArray(n.v);
+    for (const [k, x] of Object.entries(n.v).reverse())
+      if (x && typeof x === 'object') pending.push({ v: x, up: n, seg: list ? `[${k}]` : `.${/^[A-Za-z0-9_-]{1,64}$/.test(k) ? k : '(a key not printed)'}` });
+  }
   if (r.list.length) return r.list; /* links are unreliable once the shape is wrong */
   /* Each walk is validated against the graph it belongs to, entering at that
    * graph's entry. Every rule below that is unchanged. */
@@ -1332,21 +1348,30 @@ export function page(prog) {
    * splices a slab of the template into the middle of the page — including the
    * template's own real closing script tag, which the replace above cannot help
    * with because that tag never went through the file. A function
-   * replacement is inserted literally and has no patterns at all. */
+   * replacement is inserted literally and has no patterns at all.
+   *
+   * One pass, and this is load-bearing too. Filled one after another, each
+   * fill took the first match in the page built so far, so a title that
+   * spelled a later placeholder took that insert: the module went into the
+   * title, and the page loaded with no code. One regex over the template
+   * fills every slot where the template has it, and never searches what a
+   * fill put in. */
   /* The sheet picker is rendered here rather than built by the page's script,
    * because a control the script creates is in no page as a string and so no
    * test can count one per graph. Same bargain as the files tab: the markup is
    * the module's, and this splices it in. A one-graph file gets nothing. */
   const picker = Groundtrack.sheetPickerMarkup(prog);
 
-  return template
-    .replace('/*TITLE*/', () => String(prog.title).replace(/[<>&]/g, ''))
-    .replace('/*AVIATION*/', () => aviation)
-    .replace('/*FONTS*/', () => faces)
-    .replace('<!--SHEETS-->', () => picker)
-    .replace('<!--TOUR-->', () => Groundtrack.tourButtonMarkup(prog))
-    .replace('/*DATA*/', () => data)
-    .replace('/*MODULE*/', () => moduleSource);
+  const fills = {
+    '/*TITLE*/': () => String(prog.title).replace(/[<>&]/g, ''),
+    '/*AVIATION*/': () => aviation,
+    '/*FONTS*/': () => faces,
+    '<!--SHEETS-->': () => picker,
+    '<!--TOUR-->': () => Groundtrack.tourButtonMarkup(prog),
+    '/*DATA*/': () => data,
+    '/*MODULE*/': () => moduleSource,
+  };
+  return template.replace(/\/\*(?:TITLE|AVIATION|FONTS|DATA|MODULE)\*\/|<!--(?:SHEETS|TOUR)-->/g, slot => fills[slot]());
 }
 
 /* -- the command line ------------------------------------------------------ */
