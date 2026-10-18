@@ -99,6 +99,7 @@ test('--check refuses each case in the spec\'s list, naming the field', () => {
     ['parts.purpose[1].kind', d => (d.parts.purpose[1].kind = 'wizard'), /no kind/],
     ['parts.purpose[1].kind', d => (d.parts.purpose[1].kind = 'duty'), /cannot hold/],
     ['parts.tools[0].kind', d => d.parts.tools.push({ id: 'bf', kind: 'built-for', fields: { tool: 'Codex' }, mark: 'Proposed' }) && (d.parts.tools.unshift(d.parts.tools.pop()), true), /this draft's type cannot hold this kind; it is for agent and CLAUDE\.md/],
+    ['parts.tools[0].kind', d => d.parts.tools.unshift({ id: 'bk', kind: 'binding-key', fields: { setting: 'permissionMode', value: 'default' }, mark: 'Proposed' }), /this draft's type cannot hold this kind; it is for agent and CLAUDE\.md/],
     ['parts.roles[14].gate', d => (d.parts.roles[14].gate = 'a hook'), /checked/],
     ['parts.purpose[1]', d => (d.parts.purpose[1].none = true), /both/],
     ['parts.purpose[1]', d => delete d.parts.purpose[1].fields, /neither/],
@@ -110,16 +111,20 @@ test('--check refuses each case in the spec\'s list, naming the field', () => {
     ['questions[0].proposed', d => (d.questions[0].proposed = 'unsure-a'), /not an option/],
     ['questions[0].clause', d => (d.questions[0].clause = 'constructor'), /no clause/],
     ['questions[1].clause', d => (d.questions[1].clause = d.questions[0].clause), /second question/],
-    ['parts.why[0].mark', d => (d.parts.why[0].mark = 'Proposed'), /why/],
-    ['parts.why[0].fields.text', d => (d.parts.why[0].fields.text = 'Because.'), /why/],
+    ['parts.why[0].mark', d => (d.parts.why[0].mark = 'Proposed'), /carries no mark/],
+    ['parts.why[0].fields.text', d => (d.parts.why[0].fields.text = 'Because.'), /empty in a draft/],
     ['questions[0].clause', d => (d.questions[0].clause = 'why'), /why/],
     ['parts.purpose[1].id', d => (d.parts.purpose[1].id = 'name'), /duplicate/],
-    ['parts.purpose[1].id', d => (d.parts.purpose[1].id = 'Bad Id'), /id/],
+    ['parts.purpose[1].id', d => (d.parts.purpose[1].id = 'Bad Id'), /1 to 64 characters of a-z/],
     ['questions[0].options[1].id', d => (d.questions[0].options[1].id = d.questions[0].options[0].id), /duplicate/],
     ['parts.purpose[1].fields.does', d => (d.parts.purpose[1].fields.does = 'bell\x07here'), /U\+0007/],
     ['parts.purpose[1].fields.does', d => (d.parts.purpose[1].fields.does = 'zero\u{200B}width'), /U\+200B/],
     ['parts.purpose[1].fields.does', d => (d.parts.purpose[1].fields.does = 'lone\rcr'), /U\+000D/],
     ['parts.purpose[1].fields.does', d => (d.parts.purpose[1].fields.does = 'bidi\u{202E}x'), /U\+202E/],
+    ['parts.purpose[1].fields.does', d => (d.parts.purpose[1].fields.does = 'next\u{0085}line'), /U\+0085/],
+    ['parts.purpose[1].fields.does', d => (d.parts.purpose[1].fields.does = 'del\u{007F}x'), /U\+007F/],
+    ['parts.purpose[1].fields.does', d => (d.parts.purpose[1].fields.does = 'line\u{2028}sep'), /U\+2028/],
+    ['parts.purpose[1].fields.does', d => (d.parts.purpose[1].fields.does = 'non\u{FFFE}char'), /U\+FFFE/],
     ['parts.purpose[1].fields.does', d => (d.parts.purpose[1].fields.does = 7), /expected a string/],
     ['parts.open', d => ((d.level = 'Standard'), true), /level/],
     ['parts', d => delete d.parts.open, /missing required key "open"/],
@@ -133,7 +138,7 @@ test('--check refuses each case in the spec\'s list, naming the field', () => {
     ['previous.name', d => (d.previous = { type: 'skill', name: 'a:b', hash: 'a'.repeat(64) }), /colon/],
     ['previous.hash', d => (d.previous = { type: 'skill', name: 'contract', hash: 'A'.repeat(64) }), /64 lowercase hex/],
     ['previous.type', d => (d.previous = { type: 'plugin', name: 'contract', hash: 'a'.repeat(64) }), /not one of/],
-    ['rewrite.version', d => (d.rewrite = { version: '1.2' }), /version/],
+    ['rewrite.version', d => (d.rewrite = { version: '1.2' }), /expected a version/],
   ];
   for (const [path, mutate, why] of cases) refused(derive(mutate), path, why);
   // A refused type is refused once, and the kinds it gates never print it.
@@ -369,6 +374,12 @@ test('--check sets the draft to mode 600 inside a scratch folder and changes no 
   chmodSync(inside, 0o644);
   assert.equal(run(contractRender, [inside, '--check']).code, 0);
   assert.equal(mode(inside), 0o600);
+  // The answers file too, read by --answers, even when its block is refused.
+  const answersFile = join(folder, 'answers.json');
+  writeFileSync(answersFile, '{}');
+  chmodSync(answersFile, 0o644);
+  assert.equal(run(contractRender, [inside, '--answers', answersFile]).code, 1);
+  assert.equal(mode(answersFile), 0o600);
   const outside = derive(() => {});
   chmodSync(outside, 0o644);
   assert.equal(run(contractRender, [outside, '--check']).code, 0);
@@ -398,7 +409,6 @@ const answersRun = (draftFile, blockFile, ...more) => run(contractRender, [draft
 
 const EDITS = [
   { op: 'add', id: 'added-1', part: 'roles', kind: 'duty', fields: { text: 'keeps the interview short' } },
-  { op: 'rename', id: 'duty-2', name: 'one question at a time' },
   { op: 'rename', part: 'roles', kind: 'duty', name: 'Its duties' },
   { op: 'move', id: 'duty-3', to: 0 },
   { op: 'move', part: 'roles', kind: 'stop', to: 0 },
@@ -426,25 +436,35 @@ test('--answers refuses each case in the spec\'s list, naming the field', () => 
   const cases = [
     ['file', b => ({ ...b, extra: 1 }), /unknown key "extra"/],
     ['format', b => ({ ...b, format: 2 }), /unknown format/],
-    ['draft', b => ({ ...b, draft: 'a'.repeat(64) }), /draft/],
+    ['draft', b => ({ ...b, draft: 'a'.repeat(64) }), /made from another draft/],
     ['answers[0]', b => ((b.answers[0].extra = 1), b), /unknown key "extra"/],
     ['answers[0].id', b => ((b.answers[0].id = 'no-such'), b), /no clause/],
     ['answers[0].id', b => ((b.answers[0].id = 'constructor'), b), /no clause/],
     ['answers[0].option', b => ((b.answers[0].option = 'stop-3-b'), b), /not an option/],
     ['answers[0]', b => ((b.answers[0].fields = { does: 'x', for: 'y' }), b), /both/],
-    ['answers[0].mark', b => ((b.answers[0].mark = 'Decided'), b), /mark/],
-    ['answers[0].chip', b => ((b.answers[0].chip = 'I made this up'), b), /chip/],
+    ['answers[0].mark', b => ((b.answers[0].mark = 'Decided'), b), /is not what this answer earns/],
+    ['answers[0].chip', b => ((b.answers[0].chip = 'I made this up'), b), /is not a chip of this clause/],
     ['answers[0].flag', b => ((b.answers[0].flag = 'yes'), b), /true/],
     ['answers[1].id', b => (b.answers.push({ ...b.answers[0] }), b), /second answer/],
     ['answers[0].fields.does', b => ({ ...b, answers: [{ id: 'job', fields: { does: 'a\u{202E}b', for: 'y' }, mark: 'Decided' }] }), /U\+202E/],
     ['answers[0].fields', b => ({ ...b, answers: [{ id: 'job', fields: { does: 'x' }, mark: 'Decided' }] }), /missing required key "for"/],
-    ['answers[0].mark', b => ({ ...b, answers: [{ id: 'sign-off-1', option: 'sign-off-1-a', mark: 'Confirmed' }] }), /mark/],
+    ['answers[0].mark', b => ({ ...b, answers: [{ id: 'sign-off-1', option: 'sign-off-1-a', mark: 'Confirmed' }] }), /it earns Proposed/],
     ['answers[0].fields.text', b => ({ ...b, answers: [{ id: 'why', fields: { text: '' }, mark: 'Decided' }] }), /why/],
     ['edits[0].op', b => ({ ...b, edits: [{ op: 'explode', id: 'job' }] }), /not one of/],
     ['edits[0].id', b => ({ ...b, edits: [{ op: 'remove', id: 'no-such' }] }), /no clause/],
     ['edits[0].id', b => ({ ...b, edits: [{ op: 'add', id: 'job', part: 'roles', kind: 'duty', fields: { text: 'x' } }] }), /duplicate/],
     ['edits[0].kind', b => ({ ...b, edits: [{ op: 'add', id: 'added-1', part: 'roles', kind: 'key', fields: { capability: 'x', reason: 'y' } }] }), /cannot hold/],
     ['edits[0].kind', b => ({ ...b, edits: [{ op: 'add', id: 'added-1', part: 'tools', kind: 'built-for', fields: { tool: 'x' } }] }), /this draft's type cannot hold this kind; it is for agent and CLAUDE\.md/],
+    ['edits[0].kind', b => ({ ...b, edits: [{ op: 'add', id: 'added-1', part: 'tools', kind: 'binding-key', fields: { setting: 'x', value: 'y' } }] }), /this draft's type cannot hold this kind; it is for agent and CLAUDE\.md/],
+    // A rename names a schedule; an entry has no name of its own to export.
+    ['edits[0]', b => ({ ...b, edits: [{ op: 'rename', id: 'duty-2', name: 'x' }] }), /a rename names a schedule by part and kind/],
+    // An edit on a clause an earlier agreed none or schedule removal took.
+    ['edits[1].id', b => ({ ...b, edits: [{ op: 'none', part: 'roles', kind: 'duty' }, { op: 'rekind', id: 'duty-1', kind: 'stop', fields: { when: 'x' } }] }), /names no clause in this draft or its edits/],
+    ['edits[1].id', b => ({ ...b, edits: [{ op: 'none', part: 'roles', kind: 'duty' }, { op: 'move', id: 'duty-1', to: 0 }] }), /names no clause in this draft or its edits/],
+    ['edits[2].id', b => ({ ...b, edits: [{ op: 'add', id: 'added-1', part: 'roles', kind: 'duty', fields: { text: 'x' } }, { op: 'remove', part: 'roles', kind: 'duty' }, { op: 'rekind', id: 'added-1', kind: 'stop', fields: { when: 'x' } }] }), /names no clause in this draft or its edits/],
+    ['edits[2].id', b => ({ ...b, edits: [{ op: 'add', id: 'added-1', part: 'roles', kind: 'duty', fields: { text: 'x' } }, { op: 'remove', part: 'roles', kind: 'duty' }, { op: 'remove', id: 'added-1' }] }), /names no clause in this draft or its edits/],
+    ['edits[2].id', b => ({ ...b, edits: [{ op: 'rekind', id: 'stop-10', kind: 'duty', fields: { text: 'x' } }, { op: 'remove', part: 'roles', kind: 'duty' }, { op: 'move', id: 'stop-10', to: 0 }] }), /names no clause in this draft or its edits/],
+    ['edits[0].restored', b => ({ ...b, edits: [{ op: 'remove', id: 'stop-9', restored: 'yes' }] }), /expected true/],
     ['edits[0].fields', b => ({ ...b, edits: [{ op: 'add', id: 'added-1', part: 'roles', kind: 'duty', fields: { what: 'x' } }] }), /unknown key "what"/],
     ['edits[0].to', b => ({ ...b, edits: [{ op: 'move', id: 'duty-1', to: -1 }] }), /index/],
     ['edits[0]', b => ({ ...b, edits: [{ op: 'remove', id: 'job', extra: 1 }] }), /unknown key "extra"/],
@@ -456,6 +476,19 @@ test('--answers refuses each case in the spec\'s list, naming the field', () => 
     const line = r.stderr.split('\n').find(l => l.startsWith(`block: ${path}: `));
     assert.ok(line, `no refusal names ${path}:\n${r.stderr}`);
     assert.match(line, why);
+  }
+  // A part the level does not ask takes no added clause and no agreed none.
+  const q = interview(d => {
+    d.level = 'Quick';
+    d.parts.rules = [];
+    d.parts.writing = [];
+    d.parts.open = [];
+    d.questions = d.questions.filter(x => x.clause !== 'rule-33');
+  });
+  for (const edit of [{ op: 'add', id: 'added-1', part: 'rules', kind: 'rule', fields: { guards: 'x', status: 'potential' } }, { op: 'none', part: 'open', kind: 'probation' }]) {
+    const r = answersRun(q.draftFile, q.write({ answers: new Map(), edits: [edit] }));
+    assert.equal(r.code, 1, `${edit.op}: expected a refusal\n${r.stderr}`);
+    assert.match(r.stderr, /^block: edits\[0\]\.part: the level Quick does not ask this part/m);
   }
 });
 
@@ -501,12 +534,14 @@ test('--answers prints the change list, each pick with its label and the fields 
       ['job', { option: 'job-b', chip: 'It is safer' }],
       ['duty-1', { fields: { text: 'proposes the type and the name' } }],
       ['duty-4', { fields: { text: 'restored words' }, restored: true }],
+      ['stop-2', { fields: { when: clause(iv.draft, 'roles', 'stop-2').fields.when } }],
     ]),
     edits: EDITS,
   });
   const r = answersRun(iv.draftFile, p);
   assert.equal(r.code, 0, r.stderr);
   const changes = section(r.stdout, 'Changes:');
+  assert.ok(changes.includes('  roles/stop-2 then removed'), 'a drafted field the answer leaves out is named');
   const job = iv.draft.questions[0].options[1];
   assert.ok(changes.includes(`  purpose/job picked ${JSON.stringify(job.label)}, not the proposal; marked Confirmed; chip "It is safer"`), changes.join('\n'));
   assert.ok(changes.includes(`  purpose/job does ${JSON.stringify(job.fields.does)}`));
@@ -516,7 +551,6 @@ test('--answers prints the change list, each pick with its label and the fields 
   assert.ok(changes.includes('  roles/duty-4 restored and untouched; marked Proposed'));
   assert.ok(changes.includes('  edit: added roles/added-1, a duty'));
   assert.ok(changes.includes('  roles/added-1 text "keeps the interview short"'));
-  assert.ok(changes.includes('  edit: renamed roles/duty-2 "one question at a time"'));
   assert.ok(changes.includes('  edit: renamed the roles schedule of duty "Its duties"'));
   assert.ok(changes.includes('  edit: moved roles/duty-3 to place 1'));
   assert.ok(changes.includes('  edit: moved the roles schedule of stop to place 1'));
@@ -551,11 +585,16 @@ test('--answers lists for push-back every high-stakes clause, every removal or r
   has('roles/duty-5', 'a warned field');
   assert.ok(!back.some(l => l.startsWith('  roles/duty-1:')), 'an untouched low-stakes clause is not listed');
   const all = section(answersRun(iv.draftFile, p, '--shared').stdout, 'Push back on:');
-  for (const id of ['purpose/job', 'roles/duty-1', 'writing/term-1', 'open/retire']) assert.ok(all.some(l => l.startsWith(`  ${id}:`)), `--shared lists ${id}`);
+  // Every live clause of the draft, part by part; stop-9 was removed and
+  // stop-10 re-kinded, and both are listed for that.
+  for (const [part, list] of Object.entries(iv.draft.parts)) for (const c of list) {
+    assert.ok(all.some(l => l.startsWith(`  ${part}/${c.id}:`) && (c.id === 'stop-9' || l.includes('a clause of a shared draft'))), `--shared lists ${part}/${c.id}`);
+  }
 });
 
 test('--answers warns on a home path, a key-shaped value and an email, names the field, and prints the value nowhere', () => {
-  const home = join(work, 'homes', 'carol');
+  // A home folder named with a space, such as a first and last name.
+  const home = join(work, 'homes', 'carol smith');
   const key = `ghp_${'Z9y8X7w6V5'.repeat(4)}`;
   const iv = interview(d => {
     d.questions[0].options[1].fields.does = `runs with ${key}`;
@@ -578,7 +617,9 @@ test('--answers warns on a home path, a key-shaped value and an email, names the
   assert.match(r.stdout, /^warning: title: .*home folder/m);
   assert.match(r.stdout, /^warning: title: .*key/m);
   assert.ok(r.stderr.includes(`ok: the block matches its draft, sha256 ${iv.hashes.draft} — "Hire [masked] with [masked]"`), r.stderr);
-  for (const value of [key, home, 'someone@example.com', 'carol']) assert.ok(!(r.stdout + r.stderr).includes(value), `printed ${value}`);
+  for (const value of [key, home, 'someone@example.com', 'carol', 'smith']) assert.ok(!(r.stdout + r.stderr).includes(value), `printed ${value}`);
+  // Windows folds case; a letter whose lowercase is longer must not move the mask.
+  assert.equal(Interview.mask('\u{130}\u{130} C:\\Users\\Dana\\x.md end', ['C:\\Users\\Dana'], true), '\u{130}\u{130} [masked] end');
 });
 
 test('--answers prints every string from a file as one escaped, quoted literal, and an exported field whole on numbered lines', () => {
@@ -605,12 +646,15 @@ test('--answers prints every string from a file as one escaped, quoted literal, 
 });
 test('hiring.md refuses a quoted or control-character path before every command it gives', () => {
   const md = readFileSync(join(root, 'skills', 'contract', 'references', 'hiring.md'), 'utf8');
-  const refusal = md.indexOf('Before you compose any\ncommand, check each path.');
+  const refusal = md.indexOf('Before you compose any\ncommand, check each path');
   assert.ok(refusal > 0, 'the refusal is stated');
   for (const cp of ['U+0027', 'U+2018', 'U+2019', 'U+201A', 'U+201B']) assert.ok(md.includes(cp), cp);
-  const commands = [...md.matchAll(/```text\n(node scripts\/render\.mjs[^\n]*)\n```/g)];
+  // The script is named by the skill's base directory, quoted, never by a path
+  // relative to the working folder, which a stranger's repository can supply.
+  const commands = [...md.matchAll(/```text\n(node [^\n]*)\n```/g)];
   assert.ok(commands.length >= 5, 'every command is in a text fence');
-  const version = commands.find(c => c[1].endsWith('--version'));
-  for (const c of commands) if (c !== version) assert.ok(c.index > refusal, `${c[1]} comes after the refusal`);
+  for (const c of commands) assert.ok(c[1].startsWith("node '<skill base directory>/scripts/render.mjs'"), c[1]);
+  assert.ok(!/node scripts\//.test(md), 'no command names the script relative to the working folder');
+  for (const c of commands) assert.ok(c.index > refusal, `${c[1]} comes after the refusal`);
   for (const c of commands) for (const p of c[1].matchAll(/'[^']*'/g)) assert.match(p[0], /^'<[^>]+>[^']*'$/, 'every path is a single-quoted placeholder');
 });

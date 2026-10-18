@@ -446,14 +446,16 @@ const Interview = (() => {
   const ANSWER = { req: ['id', 'mark'], opt: ['option', 'fields', 'chip', 'flag', 'restored'] };
   const MARKS = ['Proposed', 'Confirmed', 'Decided'];
   /* The folder edits, by op. A clause edit names its clause by `id`; a
-   * schedule edit names one kind in one part. */
+   * schedule edit names one kind in one part. A rename names a schedule
+   * only: an entry has no name of its own that the contract exports. Any
+   * edit may carry `restored`, set by restore until the person touches it. */
   const EDIT = {
-    add: { req: ['op', 'id', 'part', 'kind'], opt: ['fields', 'none'] },
-    rename: { req: ['op', 'name'], opt: ['id', 'part', 'kind'] },
-    move: { req: ['op', 'to'], opt: ['id', 'part', 'kind'] },
-    remove: { req: ['op'], opt: ['id', 'part', 'kind'] },
-    rekind: { req: ['op', 'id', 'kind', 'fields'], opt: [] },
-    none: { req: ['op', 'part', 'kind'], opt: [] },
+    add: { req: ['op', 'id', 'part', 'kind'], opt: ['fields', 'none', 'restored'] },
+    rename: { req: ['op', 'name'], opt: ['id', 'part', 'kind', 'restored'] },
+    move: { req: ['op', 'to'], opt: ['id', 'part', 'kind', 'restored'] },
+    remove: { req: ['op'], opt: ['id', 'part', 'kind', 'restored'] },
+    rekind: { req: ['op', 'id', 'kind', 'fields'], opt: ['restored'] },
+    none: { req: ['op', 'part', 'kind'], opt: ['restored'] },
   };
   const OPS = Object.keys(EDIT);
 
@@ -512,12 +514,23 @@ const Interview = (() => {
 
     if (!Array.isArray(block.edits)) refuse('edits', 'expected an array');
     else {
-      /* The clauses alive as the edits run in order: the draft's, plus each
-       * one added, minus each one removed. */
-      const live = new Map([...ix.clauses].map(([id, e]) => [id, e.part]));
+      /* The clauses alive as the edits run in order, each with its current
+       * kind: the draft's, plus each one added, minus each one removed, by
+       * id, by schedule or by an agreed none, exactly as readBack and the
+       * export remove them. */
+      const live = new Map([...ix.clauses].map(([id, e]) => [id, { part: e.part, kind: e.c.kind }]));
+      const dropSchedule = (part, kindId) => { for (const [id, x] of [...live]) if (x.part === part && x.kind === kindId) live.delete(id); };
       const ids = new Set(ix.clauses.keys());
       for (const q of draft.questions) { ids.add(q.id); for (const o of q.options) ids.add(o.id); }
       const perPart = new Map(K.parts.map(p => [p, draft.parts[p].length]));
+      const asked = K.levels.get(draft.level);
+      /* A part the level does not ask holds no clauses (spec v4 S6), so an
+       * edit cannot add one there or agree a none in it. */
+      const askedPart = (path, part) => {
+        if (asked.includes(part)) return true;
+        refuse(`${path}.part`, `the level ${draft.level} does not ask this part, so it takes no added clause and no agreed none`);
+        return false;
+      };
       const kindIn = (path, part, kindId) => {
         if (!oneOf(`${path}.part`, part, K.parts)) return null;
         if (!isText(`${path}.kind`, kindId)) return null;
@@ -542,14 +555,16 @@ const Interview = (() => {
         if (!isObj(e)) return refuse(path, 'expected an object');
         if (!oneOf(`${path}.op`, e.op, OPS)) return;
         if (!keys(path, e, EDIT[e.op])) return;
+        if (Object.hasOwn(e, 'restored') && e.restored !== true) refuse(`${path}.restored`, 'expected true, or no restored');
         if (e.op === 'add') {
           const kind = kindIn(path, e.part, e.kind);
+          const inAsked = kind !== null && askedPart(path, e.part);
           if (isText(`${path}.id`, e.id)) {
             if (!ID.test(e.id)) refuse(`${path}.id`, 'an id is 1 to 64 characters of a-z, 0-9 and -, starting with a letter or digit');
             else if (ids.has(e.id)) refuse(`${path}.id`, 'duplicate id; the draft or an earlier edit uses it');
-            else if (kind) {
+            else if (inAsked) {
               ids.add(e.id);
-              live.set(e.id, e.part);
+              live.set(e.id, { part: e.part, kind: e.kind });
               perPart.set(e.part, perPart.get(e.part) + 1);
               if (perPart.get(e.part) > LIMITS.clausesPerPart) refuse(path, `more than the limit of ${count(LIMITS.clausesPerPart)} clauses in one part`);
             }
@@ -560,16 +575,21 @@ const Interview = (() => {
           else if (!hasFields && e.none !== true) refuse(`${path}.none`, 'expected true');
         } else if (e.op === 'rekind') {
           if (target(path, { id: e.id })) {
-            const kind = kindIn(path, live.get(e.id), e.kind);
-            if (kind) fieldsOf(`${path}.fields`, e.fields, kind);
+            const kind = kindIn(path, live.get(e.id).part, e.kind);
+            if (kind) {
+              fieldsOf(`${path}.fields`, e.fields, kind);
+              live.get(e.id).kind = e.kind;
+            }
           }
-        } else if (e.op === 'none') kindIn(path, e.part, e.kind);
+        } else if (e.op === 'none') {
+          if (kindIn(path, e.part, e.kind) && askedPart(path, e.part)) dropSchedule(e.part, e.kind);
+        } else if (e.op === 'rename' && Object.hasOwn(e, 'id')) refuse(path, 'a rename names a schedule by part and kind; an entry has no name of its own');
         else if (target(path, e)) {
           if (e.op === 'rename') isText(`${path}.name`, e.name);
           if (e.op === 'move' && !(Number.isInteger(e.to) && e.to >= 0)) refuse(`${path}.to`, 'expected an index, 0 or more');
           if (e.op === 'remove') {
             if (Object.hasOwn(e, 'id')) live.delete(e.id);
-            else for (const [id, part] of [...live]) if (part === e.part && (ix.clauses.has(id) ? ix.clauses.get(id).c.kind : null) === e.kind) live.delete(id);
+            else dropSchedule(e.part, e.kind);
           }
         }
       });
@@ -619,6 +639,12 @@ const Interview = (() => {
     const fieldLines = (at, fields, name) => {
       for (const [k, v] of Object.entries(fields)) whole(`${at} ${k}`, literal(v, name(k), at));
     };
+    /* A drafted field the answer leaves out, which the export then drops with
+     * the words that join it: named, so a dropped consequence is seen. */
+    const removedLines = (at, drafted, fields) => {
+      if (!isObj(drafted)) return;
+      for (const k of Object.keys(drafted)) if (!Object.hasOwn(fields, k)) changes.push(`  ${at} ${k} removed`);
+    };
     /* The title prints on the ok line; it is warned on here, as in the check. */
     for (const shape of shapesIn(draft.title, opts.homes, opts.fold)) warnings.push(['title', `holds ${shape}; ask whether it belongs in the contract`]);
 
@@ -635,11 +661,13 @@ const Interview = (() => {
         const label = JSON.stringify(cut(literal(o.label, `${at} label`, at)));
         changes.push(`  ${at} ${a.restored ? 'restored and untouched, ' : ''}picked ${label}, ${o.id === q.proposed ? 'the proposal' : 'not the proposal'}${tail}`);
         fieldLines(at, o.fields, k => `${at} ${k}`);
+        removedLines(at, e.c.fields, o.fields);
       } else {
         const same = sameFields(a.fields, e.c.fields);
         changes.push(`  ${at} ${a.restored ? 'restored and untouched' : same ? 'agreed as drafted' : 'wrote its own words'}${tail}`);
         const changed = Object.fromEntries(Object.entries(a.fields).filter(([k, v]) => !(isObj(e.c.fields) && e.c.fields[k] === v)));
         fieldLines(at, a.restored ? a.fields : changed, k => `answers[${i}].fields.${k}`);
+        removedLines(at, e.c.fields, a.fields);
       }
     });
 
@@ -655,35 +683,49 @@ const Interview = (() => {
     };
     block.edits.forEach((e, i) => {
       const name = k => `edits[${i}].${k}`;
+      /* A restored edit came back from the browser's store: the person has
+       * not touched it in this page, so it prints as restored and is pushed
+       * back, at its clause or its schedule. */
+      const edit = e.restored ? '  edit (restored):' : '  edit:';
+      const restoredAt = at => { if (e.restored) push(at, 'a restored edit'); };
+      const scheduleAt = `${e.part}/(${e.kind})`;
       if (e.op === 'add') {
         const kind = K.byId.get(e.kind);
         live.set(e.id, { part: e.part, kind });
-        changes.push(`  edit: added ${e.part}/${e.id}, ${e.none ? `an agreed none of ${e.kind}` : kind.kind}`);
+        changes.push(`${edit} added ${e.part}/${e.id}, ${e.none ? `an agreed none of ${e.kind}` : kind.kind}`);
+        restoredAt(`${e.part}/${e.id}`);
         if (e.fields) fieldLines(`${e.part}/${e.id}`, e.fields, k => `${name('fields')}.${k}`);
       } else if (e.op === 'rename') {
-        const what = e.id !== undefined ? `${live.get(e.id).part}/${e.id}` : schedule(e);
-        changes.push(`  edit: renamed ${what} ${JSON.stringify(cut(literal(e.name, name('name'))))}`);
+        changes.push(`${edit} renamed ${schedule(e)} ${JSON.stringify(cut(literal(e.name, name('name'))))}`);
+        restoredAt(scheduleAt);
       } else if (e.op === 'move') {
-        changes.push(`  edit: moved ${e.id !== undefined ? `${live.get(e.id).part}/${e.id}` : schedule(e)} to place ${e.to + 1}`);
+        const at = e.id !== undefined ? `${live.get(e.id).part}/${e.id}` : schedule(e);
+        changes.push(`${edit} moved ${at} to place ${e.to + 1}`);
+        restoredAt(e.id !== undefined ? at : scheduleAt);
       } else if (e.op === 'remove') {
         if (e.id !== undefined) {
-          changes.push(`  edit: removed ${live.get(e.id).part}/${e.id}`);
+          const at = `${live.get(e.id).part}/${e.id}`;
+          changes.push(`${edit} removed ${at}`);
+          restoredAt(at);
           removeOne(e.id);
         } else {
-          changes.push(`  edit: removed ${schedule(e)}`);
+          changes.push(`${edit} removed ${schedule(e)}`);
+          restoredAt(scheduleAt);
           for (const [id, x] of [...live]) if (x.part === e.part && x.kind.id === e.kind) removeOne(id);
         }
       } else if (e.op === 'rekind') {
         const x = live.get(e.id);
         const kind = K.byId.get(e.kind);
-        changes.push(`  edit: re-kinded ${x.part}/${e.id} from ${x.kind.id} to ${kind.id}`);
+        changes.push(`${edit} re-kinded ${x.part}/${e.id} from ${x.kind.id} to ${kind.id}`);
+        restoredAt(`${x.part}/${e.id}`);
         if (x.kind.stakes === 'high' && kind.stakes !== 'high') push(`${x.part}/${e.id}`, 're-kinded away from a high-stakes kind');
         live.set(e.id, { part: x.part, kind });
         fieldLines(`${x.part}/${e.id}`, e.fields, k => `${name('fields')}.${k}`);
       } else if (e.op === 'none') {
-        changes.push(`  edit: agreed none for ${schedule(e)}`);
+        changes.push(`${edit} agreed none for ${schedule(e)}`);
+        restoredAt(scheduleAt);
         for (const [id, x] of [...live]) if (x.part === e.part && x.kind.id === e.kind) { gone.set(id, x); live.delete(id); }
-        if (K.byId.get(e.kind).stakes === 'high') push(`${e.part}/(${e.kind})`, 'a high-stakes kind agreed none');
+        if (K.byId.get(e.kind).stakes === 'high') push(scheduleAt, 'a high-stakes kind agreed none');
       }
     });
     /* A removed clause another clause still names. */
@@ -712,14 +754,22 @@ const Interview = (() => {
    * then all eight part headings in order, a part the level does not ask left
    * empty. Each part lists its clauses kind by kind, each kind under its own
    * name, each clause in its plain frame with its mark. Three kinds are table
-   * rows, as the template keeps them. Text is Markdown source and is written
-   * as is; in a table cell a pipe is escaped and a line break written as
-   * <br>, so a cell stays one cell. */
+   * rows, with the template's columns; the mark folds into each row's last
+   * cell. Text is Markdown source and is written as is; in a table cell a
+   * pipe is escaped and a line break written as <br>, so a cell stays one
+   * cell. */
   const TABLES = new Map([
     ['rule', { head: ['Rule', 'Guards against', 'Status', 'Gated by, freedom'], row: f => [f.rule || '', f.guards, f.status === 'observed' && f.seen ? `observed: ${f.seen}` : f.status] }],
-    ['term', { head: ['Term', 'Plain meaning', 'Standard', 'Mark'], row: f => [f.word, f.meaning, f.standard || ''] }],
-    ['probation', { head: ['Question', 'Why it is open', 'Settled when', 'Mark'], row: f => [f.question, f['why-open'], f['settled-when']] }],
+    ['term', { head: ['Term', 'Plain meaning', 'Standard'], row: f => [f.word, f.meaning] }],
+    ['probation', { head: ['Question', 'Why it is open', 'Settled when'], row: f => [f.question, f['why-open']] }],
   ]);
+  /* The last cell of a row, before its mark: a rule's gate and freedom, a
+   * term's standard, a probation check's settling event. */
+  const lastCell = (k, x) => {
+    if (k === 'rule') return [x.gate && `Gated by: ${x.gate}`, x.freedom].filter(Boolean).join(', ');
+    if (k === 'term') return cell(x.fields.standard || '');
+    return cell(x.fields['settled-when']);
+  };
   const cell = s => s.replace(/\|/g, '\\|').replace(/\r?\n/g, '<br>');
   const markText = m => (m === 'Proposed' ? '*Proposed*' : m ? `**${m}**` : '(not answered yet)');
   const capital = s => s.charAt(0).toUpperCase() + s.slice(1);
@@ -759,21 +809,24 @@ const Interview = (() => {
     const order = new Map(K.parts.map(p => [p, []])); // schedule order per part
     const where = id => { for (const [part, list] of parts) { const i = list.findIndex(x => x.id === id); if (i >= 0) return { part, list, i }; } return null; };
     for (const e of block.edits) {
-      if (e.op === 'add') parts.get(e.part).push({ id: e.id, kind: K.byId.get(e.kind), fields: e.fields || {}, none: e.none === true, mark: 'Decided' });
+      /* The person's own edit is Decided; one restored from the store and
+       * not touched since is theirs only once they say so, so Proposed. */
+      const mark = e.restored ? 'Proposed' : 'Decided';
+      if (e.op === 'add') parts.get(e.part).push({ id: e.id, kind: K.byId.get(e.kind), fields: e.fields || {}, none: e.none === true, mark });
       else if (e.op === 'none') {
         const list = parts.get(e.part).filter(x => x.kind.id !== e.kind);
-        list.push({ id: `${e.kind}-none`, kind: K.byId.get(e.kind), fields: {}, none: true, mark: 'Decided' });
+        list.push({ id: `${e.kind}-none`, kind: K.byId.get(e.kind), fields: {}, none: true, mark });
         parts.set(e.part, list);
       } else if (e.op === 'rekind') {
         const w = where(e.id);
-        w.list[w.i] = { ...w.list[w.i], kind: K.byId.get(e.kind), fields: e.fields, none: false, mark: 'Decided' };
+        w.list[w.i] = { ...w.list[w.i], kind: K.byId.get(e.kind), fields: e.fields, none: false, mark };
       } else if (e.op === 'remove') {
         if (e.id !== undefined) { const w = where(e.id); w.list.splice(w.i, 1); }
         else parts.set(e.part, parts.get(e.part).filter(x => x.kind.id !== e.kind));
       } else if (e.op === 'move') {
         if (e.id !== undefined) { const w = where(e.id); const [x] = w.list.splice(w.i, 1); w.list.splice(Math.min(e.to, w.list.length), 0, x); }
         else { const o = order.get(e.part).filter(k => k !== e.kind); o.splice(Math.min(e.to, o.length), 0, e.kind); order.set(e.part, o); }
-      } else if (e.op === 'rename' && e.id === undefined) names.set(`${e.part}/${e.kind}`, e.name);
+      } else if (e.op === 'rename') names.set(`${e.part}/${e.kind}`, e.name);
     }
     return { parts, names, order };
   }
@@ -801,8 +854,7 @@ const Interview = (() => {
           for (const x of entries) {
             if (x.none) continue;
             const cells = table.row(x.fields).map(cell);
-            const gate = [x.gate && `Gated by: ${x.gate}`, x.freedom].filter(Boolean).join(', ');
-            const last = k === 'rule' ? [gate, markText(x.mark)].filter(Boolean).join('; ') : markText(x.mark);
+            const last = [lastCell(k, x), markText(x.mark)].filter(Boolean).join('; ');
             out.push(`| ${[...cells, last].join(' | ')} |`);
           }
         } else for (const x of entries) {
@@ -866,11 +918,11 @@ const Interview = (() => {
       void mark;
       return [id, { ...rest, restored: true }];
     })),
-    edits: block.edits.slice(),
+    edits: block.edits.map(e => ({ ...e, restored: true })),
   });
 
-  /** The answers saved for this draft, each marked restored until the person
-   *  touches it, and how many came back. */
+  /** The answers and folder edits saved for this draft, each marked restored
+   *  until the person touches it, and how many answers came back. */
   function restore(store, draft, kinds, hashes) {
     const empty = { state: { answers: new Map(), edits: [] }, count: 0, dropped: false };
     if (!store) return empty;
@@ -889,7 +941,7 @@ const Interview = (() => {
     if (!store || !isObj(draft.previous)) return none;
     const p = draft.previous;
     const elsewhere = p.type !== draft.type || p.name !== draft.name;
-    if (elsewhere && opts.shared) return { ...none, note: 'Earlier answers under another name were left alone.' };
+    if (elsewhere && opts.shared) return { ...none, note: 'Earlier answers under another name were left alone. Forget here does not clear them: to clear them, render the earlier draft and press Forget there.' };
     const oldKey = prefixOf(p.type, p.name) + p.hash;
     const text = safely(() => store.getItem(oldKey), null);
     const entry = typeof text === 'string' ? safely(() => JSON.parse(text), null) : null;
@@ -917,8 +969,9 @@ const Interview = (() => {
     /* Kept only if the carried answers pass the new draft's block check. */
     const block = blockOf(draft, kinds, hashes, state);
     if (checkBlock(block, draft, kinds, hashes).refusals.length) return { adopted: [], dropped: [...adopted, ...dropped], note: '' };
-    save(store, draft, kinds, hashes, state);
-    safely(() => store.removeItem(oldKey));
+    /* The old entry goes only once the new one is saved; a failed save
+     * leaves it, so a later redraft can carry the answers over again. */
+    if (save(store, draft, kinds, hashes, state)) safely(() => store.removeItem(oldKey));
     return { adopted, dropped, note: '' };
   }
 

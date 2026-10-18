@@ -44,6 +44,10 @@ test('marks follow the rules for every way an answer is made', () => {
   assert.equal(mark.get('why'), 'Decided', 'why is always Decided');
   const restored = Interview.blockOf(base(), kinds, hashes, { answers: new Map([['duty-1', { fields: { text: 'x' }, restored: true }]]), edits: [] });
   assert.deepEqual(restored.answers[0], { id: 'duty-1', fields: { text: 'x' }, mark: 'Proposed', restored: true }, 'an untouched restored answer is Proposed, whatever it was');
+  const stop = base().parts.roles.find(c => c.id === 'stop-1').fields;
+  const edited = Interview.blockOf(base(), kinds, hashes, { answers: new Map([['stop-1', { fields: { ...stop, when: 'the person has not said yes' } }], ['stop-2', { fields: base().parts.roles.find(c => c.id === 'stop-2').fields }]]), edits: [] });
+  assert.equal(edited.answers[0].mark, 'Decided', 'any edit makes a high-stakes clause Decided');
+  assert.equal(edited.answers[1].mark, 'Proposed', 'a high-stakes clause agreed as drafted stays Proposed');
 });
 
 test('the block holds exactly its keys and binds itself to the draft and the kinds table by hash', () => {
@@ -99,17 +103,22 @@ test('the export escapes a pipe and a line break in a table cell, and writes an 
   assert.ok(md.includes('| one \\| two<br>three | a slip | potential |'), md.slice(md.indexOf('## rules'), md.indexOf('## rules') + 400));
   assert.match(md, /\*\*Not its job\*\*\n\n- None\. \*\*Decided\*\*/);
   assert.match(md, /\*\*A record it keeps\*\*\n\n- None\. \*Proposed\*/);
+  // The term and open tables keep the template's columns; the mark folds into
+  // the last cell, as the rules table does.
+  assert.ok(md.includes('| Term | Plain meaning | Standard |\n|---|---|---|\n'), 'the term table has the template\'s three columns');
+  assert.ok(md.includes('| Skill | Instructions the agent picks up by itself when a situation matches, in a folder holding `SKILL.md` | Agent Skills specification; *Proposed* |'));
+  assert.ok(md.includes('| Question | Why it is open | Settled when |\n|---|---|---|\n'), 'the open table has the template\'s three columns');
 });
 /** An in-memory store shaped like the browser's localStorage, which records
- *  every key read. */
+ *  every key read, and every listing of key names through length or key(i). */
 function memoryStore(seed = {}) {
   const m = new Map(Object.entries(seed));
   const reads = [];
   return {
     reads,
     map: m,
-    get length() { return m.size; },
-    key: i => [...m.keys()][i] ?? null,
+    get length() { reads.push('(length)'); return m.size; },
+    key: i => { reads.push(`(key ${i})`); return [...m.keys()][i] ?? null; },
     getItem: k => { reads.push(k); return m.has(k) ? m.get(k) : null; },
     setItem: (k, v) => { m.set(k, String(v)); },
     removeItem: k => { m.delete(k); },
@@ -127,6 +136,25 @@ test('restore: saved answers survive a reload, come back marked restored and cou
   assert.ok([...r.state.answers.values()].every(a => a.restored === true));
   const block = Interview.blockOf(base(), kinds, hashes, r.state);
   assert.ok(block.answers.every(a => a.mark === 'Proposed' && a.restored === true));
+  // Folder edits come back marked restored too: each is pushed back, and a
+  // restored add or none exports Proposed, never as the person's own.
+  const edits = [
+    { op: 'add', id: 'added-1', part: 'rules', kind: 'rule', fields: { rule: 'one', guards: 'a slip', status: 'potential' } },
+    { op: 'remove', id: 'duty-2' },
+    { op: 'none', part: 'purpose', kind: 'stays-out' },
+  ];
+  const withEdits = memoryStore();
+  Interview.save(withEdits, base(), kinds, hashes, { answers: saved(), edits });
+  const back = Interview.restore(withEdits, base(), kinds, hashes);
+  assert.ok(back.state.edits.length === 3 && back.state.edits.every(e => e.restored === true), 'each edit is marked restored');
+  const again = Interview.blockOf(base(), kinds, hashes, back.state);
+  assert.deepEqual(Interview.checkBlock(again, base(), kinds, hashes).refusals, []);
+  const read = Interview.readBack(again, base(), kinds);
+  assert.ok(read.changes.includes('  edit (restored): added rules/added-1, a house rule'), read.changes.join('\n'));
+  for (const at of ['rules/added-1', 'roles/duty-2', 'purpose/(stays-out)']) assert.ok(read.pushback.some(l => l.startsWith(`  ${at}:`) && l.includes('a restored edit')), `${at} pushed back\n${read.pushback.join('\n')}`);
+  const md = Interview.exportContract(base(), kinds, again);
+  assert.ok(md.includes('| one | a slip | potential | *Proposed* |'), 'a restored add exports Proposed');
+  assert.match(md, /\*\*Not its job\*\*\n\n- None\. \*Proposed\*/, 'a restored none exports Proposed');
 });
 
 test('restore drops saved answers that fail the block check, and survives a store that is missing or throws', () => {
@@ -169,6 +197,12 @@ test('redraft: a reworded option drops its saved pick and names it, adopts the u
   const mine = [...store.map.keys()].filter(k => k.startsWith('contract-interview:skill:contract:'));
   assert.deepEqual(mine, [keyOf(base(), newHashes.draft)]);
   assert.equal(Interview.restore(store, redrafted(), kinds, newHashes).count, 2);
+  // A save that fails leaves the old entry in place, so no answer is lost.
+  const full = memoryStore();
+  Interview.save(full, base(), kinds, hashes, { answers: saved(), edits: [] });
+  full.setItem = () => { throw new Error('quota'); };
+  Interview.redraft(full, redrafted(), kinds, newHashes, { shared: false });
+  assert.ok(full.map.has(keyOf(base(), hashes.draft)), 'the old entry stays when the new one was not saved');
 });
 
 test('redraft: a draft that changes its name adopts from the old name\'s key, and no key under the old name remains', () => {
@@ -189,6 +223,8 @@ test('redraft on a shared page whose previous names another contract adopts noth
   const r = Interview.redraft(store, d, kinds, newHashes, { shared: true });
   assert.deepEqual(r.adopted, []);
   assert.match(r.note, /another name were left alone/);
+  assert.match(r.note, /Forget here does not clear them/, 'the note says the earlier answers stay past Forget');
+  assert.match(r.note, /render the earlier draft and press Forget there/, 'and how to clear them');
   assert.deepEqual(store.reads, []);
   assert.ok(store.map.has(keyOf(base(), hashes.draft)));
 });
