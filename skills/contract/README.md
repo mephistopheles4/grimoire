@@ -42,9 +42,9 @@ contract before you use it, as you would any code from someone else.
 
 **The hiring page keeps your answers, unencrypted.** If you take the second
 way in (below), the page keeps your answers in your browser until you press
-**Forget these answers** on it. Other pages opened from disk in the same
+**Reset** on it. Other pages opened from disk in the same
 browser, browser extensions with file access, programs running as you and
-backups of your browser profile can read them. Forget removes them from the
+backups of your browser profile can read them. Reset removes them from the
 page's store; your browser may keep its own copy on disk for a while. Your
 browser's history keeps the page's title and location. The draft, the page and the
 answers file in the interview's scratch folder hold the same answers,
@@ -154,7 +154,7 @@ where you answer by picking, then read back the one block you paste. Its
 interview script, `scripts/render.mjs`, makes a scratch folder for each
 interview, renders the page, checks the block, prints the change list, and
 deletes its own files at the hand-back. It needs Node.js 24 or later. The
-page keeps your answers in your browser until you press Forget, unencrypted:
+page keeps your answers in your browser until you press Reset, unencrypted:
 see "Read before you install" above. On the page you can add, move and
 remove a schedule's entries. To remove or move a term in the letter, say so
 in chat at push-back.
@@ -163,7 +163,7 @@ in chat at push-back.
 both ways in, unless it is only what the skill needs to run.
 
 **To roll back,** revert the change and publish the next minor version. An
-interview still open then finishes by the chat way, and Forget still works on
+interview still open then finishes by the chat way, and Reset still works on
 a page already rendered.
 
 ## Changes in 0.12.0
@@ -194,7 +194,7 @@ old question to its part and keeps each answer's words and mark.
 | [`references/binding-codex.md`](references/binding-codex.md) | How the skill builds an agent for Codex. |
 | [`references/hiring.md`](references/hiring.md) | The hiring page: how the skill drafts, renders and reads back. |
 | [`scripts/render.mjs`](scripts/render.mjs) | The interview script: the scratch folder, the page, the block check, and the deletes. Node.js 24, no dependencies. |
-| [`scripts/interview.js`](scripts/interview.js) | The one module the page and the script share: the checks, the marks, the block, restore and Forget. |
+| [`scripts/interview.js`](scripts/interview.js) | The one module the page and the script share: the checks, the marks, the block, restore and Reset. |
 | [`scripts/kinds.json`](scripts/kinds.json) | The kinds of clause, with their parts, fields and stakes. The only copy of that table. |
 | [`assets/template.html`](assets/template.html) | The page the script fills in. |
 | `assets/` (the rest) | The page's fonts, their licence, and the Aviation design system's stylesheet, copied in so the page loads nothing. |

@@ -145,12 +145,12 @@ not show this skill finds them in a contract it helped write.
   a file from this machine in their own browser. It does the same when the
   limits refuse a draft.
 - **Decided.** At the hand-back of a hiring interview, it asks the person to
-  press Forget on the page. Before any delete of the page, it waits for their
-  word that the page shows Forgotten. When they decline, it says the answers
-  stay in the browser. While the draft is kept, rendering the page again and
-  pressing Forget removes them. Once the draft is deleted, clearing the
-  browser's stored data for pages opened from disk is the one way left. It
-  names what it deleted.
+  press Reset on the page. Before any delete of the page, it waits for their
+  word that the page says the answers are cleared. When they decline, it says
+  the answers stay in the browser. While the draft is kept, rendering the
+  page again and pressing Reset removes them. Once the draft is deleted,
+  clearing the browser's stored data for pages opened from disk is the one
+  way left. It names what it deleted.
 - **Decided.** An answer for an action, a stop or the tools (except what it
   needs to run), drafted from a file or by the skill, needs the person's own
   words, marked **Decided**.
@@ -291,7 +291,7 @@ the skill says so then.
 exists only when the person asks for one, saying where it is kept and what it
 holds. **Decided:** the one exception is the hiring page, which keeps
 answers, and the light or dark choice, in the browser until the person
-presses Forget; Forget leaves the light or dark choice.
+presses Reset; Reset leaves the light or dark choice.
 
 **What it needs to run** (**Decided**): Node.js 24 or later, for the
 interview script, behind the frontmatter line `compatibility: Needs Node.js
@@ -305,8 +305,8 @@ on the person's yes:
 |---|---|---|
 | Make the scratch folder (`--new-folder`), owner-only on macOS and Linux | Where it is, that its files hold the answers unencrypted until deleted, and that a folder you name is as private as that folder | Your yes to the hiring interview |
 | Write the draft and the pasted answer block with its file-write tool, never through a shell: the block verbatim, fence and all, as `answers.json`, before the check | That it is writing them in the scratch folder | Your yes to the hiring interview |
-| Write the page with the script (`--out`) | That the page keeps answers in the browser until Forget, unencrypted, and that other pages opened from disk in the same browser may read them | Your yes to the hiring interview |
-| Delete the page and the answers file (`--clean`), after asking for Forget | That it will now remove the page and the answers file | Your yes in chat |
+| Write the page with the script (`--out`) | That the page keeps answers in the browser until Reset, unencrypted, and that other pages opened from disk in the same browser may read them | Your yes to the hiring interview |
+| Delete the page and the answers file (`--clean`), after asking for Reset | That it will now remove the page and the answers file | Your yes in chat |
 | Delete the draft (`--clean --draft`) | The offer to delete it | Your yes to that offer |
 
 **Actions beyond reading, and writing its own files** (**Confirmed**:
@@ -364,7 +364,7 @@ change-log row.
 | Run evals only after a yes in chat each time, capped and not published | Spending the person's usage without asking | potential | fixed |
 | An answer for an action, a stop or the tools (except what it needs to run), drafted from a file or by the skill, needs the person's own words, marked **Decided** | A file or the skill's own draft widening what the built file may do without the person's words | potential | |
 | Refuse a quote or control character in a path before any command | A path that breaks out of its quotes in a shell | potential | fixed |
-| Ask for Forget before any delete of the hiring page, on every path | Saved answers left in the browser after the page that could clear them is gone | potential | fixed |
+| Ask for Reset before any delete of the hiring page, on every path | Saved answers left in the browser after the page that could clear them is gone | potential | fixed |
 | | Crying wolf: firing until the person dismisses it | potential | |
 
 ## writing

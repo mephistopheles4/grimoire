@@ -139,12 +139,12 @@ Before you compose any command, check each path. Refuse a path that holds a
 control character or any of the five single-quote characters: the ASCII
 quote and the four curly ones.
 
-At the hand-back of a hiring interview, ask the person to press Forget on the
-page. Before any delete of the page, wait for their word that the page shows
-Forgotten. When they decline, say the answers stay in the browser. While the
-draft is kept, rendering the page again and pressing Forget removes them.
-Once the draft is deleted, clearing the browser's stored data for pages
-opened from disk is the one way left. Name what you deleted.
+At the hand-back of a hiring interview, ask the person to press Reset on the
+page. Before any delete of the page, wait for their word that the page says
+the answers are cleared. When they decline, say the answers stay in the
+browser. While the draft is kept, rendering the page again and pressing Reset
+removes them. Once the draft is deleted, clearing the browser's stored data
+for pages opened from disk is the one way left. Name what you deleted.
 
 ## The interview
 
@@ -330,11 +330,11 @@ Each write and delete it makes is an action. Tell the person first:
 - **The draft and the pasted block:** write them with your file-write tool,
   never through a shell. Write the block verbatim, fence and all, as the
   answers file in the scratch folder, before the check.
-- **The page** (`--out`): that it keeps answers in the browser until Forget,
+- **The page** (`--out`): that it keeps answers in the browser until Reset,
   unencrypted, and that other pages opened from disk in the same browser may
   read them.
 - **Deleting the page and the answers file** (`--clean`), after asking for
-  Forget: say "I will delete the page and the answers file". The person's yes
+  Reset: say "I will delete the page and the answers file". The person's yes
   in chat is the go.
 - **Deleting the draft** (`--clean --draft`): only on the person's yes to
   that offer.
@@ -352,7 +352,7 @@ Each write and delete it makes is an action. Tell the person first:
 - Nothing records anything by default. Keep a record only where the person
   asks for one in `tools`. The one exception is the hiring page, which keeps
   answers, and the light or dark choice, in the browser until the person
-  presses Forget; Forget leaves the light or dark choice.
+  presses Reset; Reset leaves the light or dark choice.
 <!-- contract:end rules -->
 
 ## Additional resources

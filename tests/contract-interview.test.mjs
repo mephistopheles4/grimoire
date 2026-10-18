@@ -1,5 +1,5 @@
 // The hiring page's one module, interview.js, tested in Node: the marks, the
-// block it writes, the tally, the export, restore, redraft and Forget. The
+// block it writes, the tally, the export, restore, redraft and Reset. The
 // module takes its store as a parameter, so these tests pass one in memory;
 // Node 20 has no localStorage. What only a browser shows stays on the
 // checklist ticket 2 runs.
@@ -229,14 +229,14 @@ test('redraft: a reworded option drops its saved pick and names it, adopts the u
   Interview.redraft(full, redrafted(), kinds, newHashes, { shared: false });
   assert.ok(full.map.has(keyOf(base(), hashes.draft)), 'the old entry stays when the new one was not saved');
   // Carried answers that fail the new draft's block check (a chip reworded)
-  // leave the old entry, and the note says Forget here does not clear it.
+  // leave the old entry, and the note says Reset here does not clear it.
   const chipped = memoryStore();
   Interview.save(chipped, base(), kinds, hashes, { answers: new Map([['near-miss', { option: 'near-miss-a', chip: base().questions.find(q => q.clause === 'near-miss').chips[0] }]]), edits: [] });
   const r2 = Interview.redraft(chipped, redrafted(d => (d.questions.find(q => q.clause === 'near-miss').chips = ['a new chip'])), kinds, newHashes, { shared: false });
   assert.deepEqual(r2.adopted, []);
   assert.ok(chipped.map.has(keyOf(base(), hashes.draft)));
-  // Under the same name and type, Forget here does clear them, and says so.
-  assert.match(r2.note, /were left alone\. Forget here clears them\./);
+  // Under the same name and type, Reset here does clear them, and says so.
+  assert.match(r2.note, /were left alone\. Reset here clears them\./);
   assert.doesNotMatch(r2.note, /does not clear/);
 });
 
@@ -248,15 +248,15 @@ test('redraft: a draft that changes its name adopts from the old name\'s key, an
   assert.deepEqual(r.adopted, ['near-miss', 'duty-1']);
   assert.ok(![...store.map.keys()].some(k => k.startsWith('contract-interview:skill:contract:')));
   assert.ok(store.map.has(keyOf(d, newHashes.draft)));
-  // A failed save under the new name keeps the old entry, which Forget here
+  // A failed save under the new name keeps the old entry, which Reset here
   // cannot reach, and the note says so and how to clear it.
   const full = memoryStore();
   Interview.save(full, base(), kinds, hashes, { answers: saved(), edits: [] });
   full.setItem = () => { throw new Error('quota'); };
   const r2 = Interview.redraft(full, d, kinds, newHashes, { shared: false });
   assert.ok(full.map.has(keyOf(base(), hashes.draft)));
-  assert.match(r2.note, /Forget here does not clear them/);
-  assert.match(r2.note, /render the earlier draft and press Forget there/);
+  assert.match(r2.note, /Reset here does not clear them/);
+  assert.match(r2.note, /render the earlier draft and press Reset there/);
 });
 
 test('redraft on a shared page whose previous names another contract adopts nothing, says so, and leaves that entry', () => {
@@ -267,13 +267,13 @@ test('redraft on a shared page whose previous names another contract adopts noth
   const r = Interview.redraft(store, d, kinds, newHashes, { shared: true });
   assert.deepEqual(r.adopted, []);
   assert.match(r.note, /another name were left alone/);
-  assert.match(r.note, /Forget here does not clear them/, 'the note says the earlier answers stay past Forget');
-  assert.match(r.note, /render the earlier draft and press Forget there/, 'and how to clear them');
+  assert.match(r.note, /Reset here does not clear them/, 'the note says the earlier answers stay past Reset');
+  assert.match(r.note, /render the earlier draft and press Reset there/, 'and how to clear them');
   assert.deepEqual(store.reads, []);
   assert.ok(store.map.has(keyOf(base(), hashes.draft)));
 });
 
-test('Forget removes every key under the contract\'s prefix and no other key, the theme key included', () => {
+test('Reset removes every key under the contract\'s prefix and no other key, the theme key included', () => {
   const other = `contract-interview:skill:other:${'d'.repeat(64)}`;
   const store = memoryStore({ [other]: '{}', 'aviation-scheme': 'dark' });
   Interview.save(store, base(), kinds, hashes, { answers: saved(), edits: [] });

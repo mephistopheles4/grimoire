@@ -22,7 +22,7 @@ session; the skill then offers the chat way.
 
 The page keeps the person's answers in the browser's local storage, so a
 closed page restores them (q8). The skill's own rule, "nothing records
-anything by default", names this store as its one exception. Forget removes
+anything by default", names this store as its one exception. Reset removes
 the answers from the page's store; the browser may keep its own copy on disk
 for a while. The draft, the page and the answers file in the scratch folder hold the
 same answers until the hand-back deletes them (q17, q18). None of this is
@@ -32,7 +32,7 @@ readers that matter: other pages opened from disk in the same browser,
 extensions with file access, programs running as the person, and profile
 backups. The owner accepted that risk to keep the page simple; the threat
 model records it as an accepted risk, with its date and source. What limits
-it is Forget, the deletes at the hand-back, and a scratch folder only the
+it is Reset, the deletes at the hand-back, and a scratch folder only the
 person's account can open on macOS and Linux.
 
 ## SHA-256 binds a block to its draft, and proves nothing more

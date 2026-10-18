@@ -3,7 +3,7 @@
  *
  * It lives apart from the page so that a test can reach it, and render.mjs
  * inlines it into the page. The draft check, the block check, the marks, the
- * export, the tally, the block writer, restore, redraft and Forget are all
+ * export, the tally, the block writer, restore, redraft and Reset are all
  * here, so the page and the script cannot disagree about any of them.
  *
  * A draft and a block are a stranger's text. Every lookup keyed by file text
@@ -944,9 +944,9 @@ const Interview = (() => {
     if (!store || !isObj(draft.previous)) return none;
     const p = draft.previous;
     const elsewhere = p.type !== draft.type || p.name !== draft.name;
-    /* What a note says about earlier answers left in the store: Forget here
+    /* What a note says about earlier answers left in the store: Reset here
      * reaches them only under this draft's type and name. */
-    const left = why => `${why} Forget here ${elsewhere ? 'does not clear them: to clear them, render the earlier draft and press Forget there.' : 'clears them.'}`;
+    const left = why => `${why} Reset here ${elsewhere ? 'does not clear them: to clear them, render the earlier draft and press Reset there.' : 'clears them.'}`;
     if (elsewhere && opts.shared) return { ...none, note: left('Earlier answers under another name were left alone.') };
     const oldKey = prefixOf(p.type, p.name) + p.hash;
     const text = safely(() => store.getItem(oldKey), null);
@@ -982,7 +982,7 @@ const Interview = (() => {
     return { adopted, dropped, note: gone ? '' : left('Saving here failed, so the earlier answers were kept where they were.') };
   }
 
-  /** Forget: remove every key under this contract's prefix, and nothing else.
+  /** Reset: remove every key under this contract's prefix, and nothing else.
    *  The light or dark choice stays. Returns how many keys went. */
   function forget(store, draft) {
     if (!store) return 0;

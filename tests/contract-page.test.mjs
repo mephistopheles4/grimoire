@@ -1,6 +1,6 @@
 // The contract skill's hiring page, at the seam the skill uses: the
 // interview script's --out flag. What only a browser shows (keyboard-only
-// completion, the notices on screen, copy, restore after a close, Forget, the
+// completion, the notices on screen, copy, restore after a close, Reset, the
 // policy enforced, reduced motion) is on the named checklist of spec v4 S9 on
 // #313, run in the built-in browser before the PR opens.
 //
@@ -144,7 +144,7 @@ test('a CLAUDE.md draft renders with the plain frames and no letter', () => {
   assert.equal(dataOf(html).value.draft.type, 'CLAUDE.md');
   const page = scriptBlocks(html).at(-1);
   assert.match(page, /const PLAIN = draft\.type === 'CLAUDE\.md';\nconst FRAME = PLAIN \? 'plain' : 'hiring';/);
-  assert.match(page, /if \(!PLAIN\) sheet\.append\(h\('div', \{ class: 'sig' \}/);
+  assert.match(page, /if \(!PLAIN && shown === paras\.length\) sheet\.append\(h\('div', \{ class: 'sig' \}/);
 });
 
 /* -- the fill, in one pass (q20's review, moved here from issue 343) ---------- */
@@ -233,7 +233,7 @@ test('a high-stakes question shows no proposal and no fields until the person pi
 
 /* -- claim 13: --site, and the folder line ----------------------------------- */
 
-test('--site builds a page with no store, no Forget and no folder, saying it keeps nothing', () => {
+test('--site builds a page with no store, no Reset and no folder, saying it keeps nothing', () => {
   const dir = scratch();
   const draft = derive(example, null, dir, 'draft.interview.json');
   const html = render(draft, join(dir, 'interview.html'), '--site');
@@ -248,7 +248,7 @@ test('--site builds a page with no store, no Forget and no folder, saying it kee
   assert.deepEqual([...new Set(uses)], ['aviation-scheme']);
   assert.equal((page.match(/window\.localStorage/g) || []).length, 1);
   assert.match(page, /if \(D\.site\) box\.append\(h\('p', null, 'This example keeps nothing\.'\)\);/);
-  assert.match(page, /if \(!D\.site\) \{\n\s+const forget = /);
+  assert.match(page, /D\.site \? null : resetButton\(\),/);
   // And the module, given no store, reads and writes nothing.
   const d = JSON.parse(readFileSync(example, 'utf8'));
   const hashes = { draft: 'a'.repeat(64), kinds: 'b'.repeat(64) };
