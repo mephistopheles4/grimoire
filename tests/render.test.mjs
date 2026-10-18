@@ -299,7 +299,7 @@ test('--out writes the page with the box and the module inside it', () => {
   assert.match(html, /const EagleEye = \(\(\) => \{/);
 });
 
-test('the sheet sits in the zone border, with the réseau on its field and not under the labels', () => {
+test('the sheet sits in the zone border, with the réseau on its field and not under the labels, and no frame of its own', () => {
   // The design system's markup, in its order: top, left, the field, right,
   // bottom. The field carries the ground, and the sheet is laid on it.
   const out = join(work, 'zones.html');
@@ -312,6 +312,10 @@ test('the sheet sits in the zone border, with the réseau on its field and not u
   assert.deepEqual(edges, ['av-zones-edge av-zones-edge--top', 'av-zones-edge av-zones-edge--left',
     'av-zones-field av-grid', 'av-zones-edge av-zones-edge--right', 'av-zones-edge av-zones-edge--bottom']);
   assert.match(html, /<div class="av-zones-field av-grid"><div class="sheet">/);
+  // The zone border is the only frame: the sheet has no border of its own and
+  // fills the field, so the page is not framed twice.
+  assert.match(html, /#zones>\.av-zones-field\{[^}]*padding:0\}/);
+  assert.doesNotMatch(html.match(/\n\.sheet\{[^}]*\}/)[0], /border/);
   // Drawing sheets skip I and O, so a zone letter never reads as a figure.
   assert.equal(html.match(/LETTERS = '([A-Z]+)'/)[1], 'ABCDEFGHJKLMNPQRSTUVWX');
 });

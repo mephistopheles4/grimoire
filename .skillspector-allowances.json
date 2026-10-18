@@ -28,8 +28,8 @@
       "analyzers": [
         "static_patterns_tool_misuse"
       ],
-      "sha256": "9c0ed3b472bac190a19cda4d044f19c17c04c9c47defea1ed2d2e062dadb1465",
-      "reason": "The page template the renderer fills in. The destructive-command parser stops partway through a long expression and marks the file partial for that one check; every other check reads it in full. The entry also accepts a marker-pass give-up inside that one check, which the scanner reports under this code. Re-read on 2026-10-18 for the réseau ground and the zone border (PR 342): the change moves .av-grid to the zone field, wraps the sheet in the zone markup and adds a script that counts the zone labels; it adds no rm, del or erase in any spelling, and nothing that runs a command, touches a file or reaches the network."
+      "sha256": "c310082134324e49278ec95ae1b37117c438819c8930066917c633c72ebbd93a",
+      "reason": "The page template the renderer fills in. The destructive-command parser stops partway through a long expression and marks the file partial for that one check; every other check reads it in full. The entry also accepts a marker-pass give-up inside that one check, which the scanner reports under this code. Re-read on 2026-10-18 for the réseau ground and the zone border (PR 342): the change moves .av-grid to the zone field, wraps the sheet in the zone markup and adds a script that counts the zone labels; it adds no rm, del or erase in any spelling, and nothing that runs a command, touches a file or reaches the network. Re-read on 2026-10-18 for the single frame (PR 346): the change drops the sheet's border, sets the zone field's padding to zero and rewords two comments; it adds no rm, del or erase in any spelling, and nothing that runs a command, touches a file or reaches the network."
     },
     {
       "skill": "eagle-eye",

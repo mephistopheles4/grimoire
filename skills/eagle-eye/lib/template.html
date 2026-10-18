@@ -67,7 +67,7 @@ html,body{height:100%}
    background-size. It sits on the field and not on <body> because the zone
    labels are text, and text never sits bare on the crosses.
 
-   THE ZONE BORDER frames the sheet the way a drawing's border does: numbers
+   THE ZONE BORDER is the sheet's frame, the way a drawing's border is: numbers
    across the top and bottom, letters down the sides, so a reader can say
    "see B3". The system's markup is used as it ships; the shell counts the
    zones from the frame's size, about 240px each, because a page has no fixed
@@ -138,8 +138,11 @@ input,textarea{font:inherit;color:inherit;background:var(--av-paper);border:1px 
 .dot.caution{background:var(--av-caution)} .dot.normal{background:var(--av-normal)} .dot.ink{background:var(--av-ink)}
 .page{min-height:100%;padding:var(--sp-4);display:flex;flex-direction:column}
 .av-zones{flex:1;min-height:calc(100vh - var(--sp-4) * 2)}
-.av-zones-field{display:flex;flex-direction:column}
-.sheet{flex:1;border:2px solid var(--av-ink);background:var(--av-surface);display:flex;flex-direction:column}
+/* The zone border is the sheet's only frame. The sheet fills the field edge to edge, with no border
+   or inset of its own, and its surface fill is what keeps the text off the crosses. The id outranks
+   the system's compact rule, which would put the inset back. */
+#zones>.av-zones-field{display:flex;flex-direction:column;padding:0}
+.sheet{flex:1;background:var(--av-surface);display:flex;flex-direction:column}
 #view{flex:1;display:flex;flex-direction:column;min-height:0}
 /* Two columns. The left holds the lockup over the view and preset controls. The right, .head-end,
    spans both rows: the page tools (tour, scheme) sit level with the title, and the session actions

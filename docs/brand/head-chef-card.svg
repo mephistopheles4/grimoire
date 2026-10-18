@@ -6,18 +6,33 @@
 text{font-family:'IBM Plex Mono',ui-monospace,Menlo,Consolas,monospace}
 </style>
 <defs>
-  <pattern id="minor" width="40" height="40" patternUnits="userSpaceOnUse">
-    <path d="M40 0 H0 V40" fill="none" stroke="rgb(34 38 43 / 0.035)" stroke-width="1"/>
-  </pattern>
-  <pattern id="major" width="200" height="200" patternUnits="userSpaceOnUse">
-    <path d="M200 0 H0 V200" fill="none" stroke="rgb(34 38 43 / 0.085)" stroke-width="1"/>
+  <pattern id="reseau" x="38" y="38" width="120" height="120" patternUnits="userSpaceOnUse">
+    <path d="M54 60.5H67M60.5 54V67" fill="none" stroke="#22262B" stroke-opacity="0.3" stroke-width="1" shape-rendering="crispEdges"/>
   </pattern>
 </defs>
 <rect width="1280" height="640" fill="#FAFAF7"/>
-<rect width="1280" height="640" fill="url(#minor)"/>
-<rect width="1280" height="640" fill="url(#major)"/>
-<rect x="36.5" y="36.5" width="1207" height="567" fill="none" stroke="rgb(34 38 43 / 0.22)" stroke-width="1"/>
-<svg x="88" y="88" width="200" height="200" viewBox="0 0 24 24">
+<rect x="38" y="38" width="1204" height="564" fill="url(#reseau)" stroke="rgb(34 38 43 / 0.3)" stroke-width="1"/>
+<rect x="1" y="1" width="1278" height="638" fill="none" stroke="#22262B" stroke-width="2"/>
+<text x="158.4" y="20" font-size="18" letter-spacing="2.88" fill="rgb(34 38 43 / 0.7)" text-anchor="middle" dominant-baseline="central">1</text>
+<text x="158.4" y="620" font-size="18" letter-spacing="2.88" fill="rgb(34 38 43 / 0.7)" text-anchor="middle" dominant-baseline="central">1</text>
+<text x="399.20000000000005" y="20" font-size="18" letter-spacing="2.88" fill="rgb(34 38 43 / 0.7)" text-anchor="middle" dominant-baseline="central">2</text>
+<text x="399.20000000000005" y="620" font-size="18" letter-spacing="2.88" fill="rgb(34 38 43 / 0.7)" text-anchor="middle" dominant-baseline="central">2</text>
+<path d="M278.8 2V38M278.8 602V638" stroke="rgb(34 38 43 / 0.3)" stroke-width="1"/>
+<text x="640" y="20" font-size="18" letter-spacing="2.88" fill="rgb(34 38 43 / 0.7)" text-anchor="middle" dominant-baseline="central">3</text>
+<text x="640" y="620" font-size="18" letter-spacing="2.88" fill="rgb(34 38 43 / 0.7)" text-anchor="middle" dominant-baseline="central">3</text>
+<path d="M519.6 2V38M519.6 602V638" stroke="rgb(34 38 43 / 0.3)" stroke-width="1"/>
+<text x="880.8000000000001" y="20" font-size="18" letter-spacing="2.88" fill="rgb(34 38 43 / 0.7)" text-anchor="middle" dominant-baseline="central">4</text>
+<text x="880.8000000000001" y="620" font-size="18" letter-spacing="2.88" fill="rgb(34 38 43 / 0.7)" text-anchor="middle" dominant-baseline="central">4</text>
+<path d="M760.4000000000001 2V38M760.4000000000001 602V638" stroke="rgb(34 38 43 / 0.3)" stroke-width="1"/>
+<text x="1121.6000000000001" y="20" font-size="18" letter-spacing="2.88" fill="rgb(34 38 43 / 0.7)" text-anchor="middle" dominant-baseline="central">5</text>
+<text x="1121.6000000000001" y="620" font-size="18" letter-spacing="2.88" fill="rgb(34 38 43 / 0.7)" text-anchor="middle" dominant-baseline="central">5</text>
+<path d="M1001.2 2V38M1001.2 602V638" stroke="rgb(34 38 43 / 0.3)" stroke-width="1"/>
+<text x="20" y="179" font-size="18" letter-spacing="2.88" fill="rgb(34 38 43 / 0.7)" text-anchor="middle" dominant-baseline="central">A</text>
+<text x="1260" y="179" font-size="18" letter-spacing="2.88" fill="rgb(34 38 43 / 0.7)" text-anchor="middle" dominant-baseline="central">A</text>
+<text x="20" y="461" font-size="18" letter-spacing="2.88" fill="rgb(34 38 43 / 0.7)" text-anchor="middle" dominant-baseline="central">B</text>
+<text x="1260" y="461" font-size="18" letter-spacing="2.88" fill="rgb(34 38 43 / 0.7)" text-anchor="middle" dominant-baseline="central">B</text>
+<path d="M2 320H38M1242 320H1278" stroke="rgb(34 38 43 / 0.3)" stroke-width="1"/>
+<svg x="74" y="192" width="200" height="200" viewBox="0 0 24 24">
 <rect x="0.8" y="0.8" width="22.4" height="22.4" fill="#22262B"></rect>
   <circle cx="12" cy="8.0" r="4.0" fill="none" stroke="#FAFAF7" stroke-width="1.4"></circle>
   <g stroke="#FAFAF7" stroke-width="0.22">
@@ -31,10 +46,11 @@ text{font-family:'IBM Plex Mono',ui-monospace,Menlo,Consolas,monospace}
   </g>
   <circle cx="18.4" cy="17.6" r="2.2" fill="#B45309"></circle>
 </svg>
-<text x="336" y="150" font-size="64" font-weight="600" letter-spacing="7.68" fill="#22262B">HEAD-CHEF</text>
-<rect x="336" y="184" width="520" height="2" fill="#22262B"/>
-<text font-size="30" font-weight="400" fill="rgb(34 38 43 / 0.8)"><tspan x="336" y="228">Lead the sessions;</tspan><tspan x="336" y="271.5">let them do the work.</tspan></text>
-<rect x="88" y="509" width="1104" height="1" fill="rgb(34 38 43 / 0.5)"/>
-<text x="88" y="546" font-size="18" font-weight="400" letter-spacing="2.88" fill="rgb(34 38 43 / 0.7)">GRIMOIRE · SKILLS/HEAD-CHEF</text>
-<text x="1192" y="546" font-size="18" font-weight="400" letter-spacing="2.88" fill="rgb(34 38 43 / 0.7)" text-anchor="end">A. DIAB</text>
+<rect x="299" y="193" width="906" height="198" fill="rgb(250 250 247 / 0.72)" stroke="#22262B" stroke-width="2"/>
+<text x="334" y="258" font-size="64" font-weight="600" letter-spacing="7.68" fill="#22262B">HEAD-CHEF</text>
+<rect x="334" y="278" width="520" height="2" fill="#22262B"/>
+<text font-size="30" font-weight="400" fill="rgb(34 38 43 / 0.8)"><tspan x="334" y="320">Lead the sessions;</tspan><tspan x="334" y="360">let them do the work.</tspan></text>
+<rect x="74.5" y="510.5" width="1131" height="55" fill="rgb(250 250 247 / 0.72)" stroke="rgb(34 38 43 / 0.3)" stroke-width="1"/>
+<text x="98" y="538" font-size="18" font-weight="400" letter-spacing="2.88" fill="rgb(34 38 43 / 0.7)" dominant-baseline="central">GRIMOIRE · SKILLS/HEAD-CHEF</text>
+<text x="1182" y="538" font-size="18" font-weight="400" letter-spacing="2.88" fill="rgb(34 38 43 / 0.7)" text-anchor="end" dominant-baseline="central">A. DIAB</text>
 </svg>
