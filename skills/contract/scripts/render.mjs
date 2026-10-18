@@ -99,7 +99,9 @@ const named = file => {
 function readJson(file, label, strip = s => s) {
   let bytes;
   try {
-    if (statSync(file).size > Interview.LIMITS.bytes) {
+    const size = statSync(file).size;
+    ownerOnly(file);
+    if (size > Interview.LIMITS.bytes) {
       say(`${label}: file: larger than the limit of ${Interview.LIMITS.bytes.toLocaleString('en-US')} bytes`);
       say(`${label}: 1 refusal(s)`);
       return { code: 1 };
@@ -132,7 +134,8 @@ const posix = process.platform !== 'win32';
 const inScratch = file => SCRATCH.test(basename(dirname(resolve(file))));
 
 /* A file the script reads inside a scratch folder is set to mode 600, so a
- * file Claude wrote with a tool that cannot set a mode is owner-only too.
+ * file Claude wrote with a tool that cannot set a mode is owner-only too. It
+ * is set before the file is parsed, so a file that fails to parse is too.
  * Outside such a folder, such as the repository's example, no mode changes. */
 const ownerOnly = file => {
   if (posix && inScratch(file)) chmodSync(file, 0o600);
@@ -225,8 +228,6 @@ function answers(draftFile, blockFile, shared) {
   if (!d.bytes) return d.code;
   const b = readJson(blockFile, 'block', unfence);
   if (!b.bytes) return b.code;
-  ownerOnly(draftFile);
-  ownerOnly(blockFile);
   const kb = kindsBytes();
   const kinds = JSON.parse(kb.toString('utf8'));
   const draftCheck = Interview.checkDraft(d.value, kinds, homes());
@@ -262,8 +263,7 @@ function answers(draftFile, blockFile, shared) {
  *  comment after the doctype keeps the page in standards mode. */
 const MARKER = "<!doctype html><!-- the contract skill's interview page, written by render.mjs -->";
 
-/* Each face with the range IBM declares for it, as groundtrack's renderer
- * sets them: two rules for one family and weight with no range would leave
+/* Each face with the range IBM declares for it: two rules for one family and weight with no range would leave
  * only the last in force. */
 const LATIN1 =
   'U+0020-007E, U+00A0-00FF, U+0131, U+0152-0153, U+02C6, U+02DA, U+02DC, U+2013-2014, ' +
@@ -341,6 +341,13 @@ function page(draft, draftBytes, opts) {
    * scripts and styles allowed by their hashes, fonts and images from inline
    * data only. The template uses no style attribute and no inline handler. */
   const hashesOf = tag => [...filled.matchAll(new RegExp(`<${tag}>([\\s\\S]*?)</${tag}>`, 'g'))].map(m => cspHash(m[1]));
+  // The policy hashes what the filled page holds, so it would allow a block a
+  // fill slipped in. A page whose script and style blocks are not exactly the
+  // template's own is never written.
+  const blocks = (text, tag) => (text.match(new RegExp(`<${tag}\\b`, 'gi')) || []).length;
+  for (const tag of ['script', 'style']) {
+    if (blocks(filled, tag) !== blocks(tail, tag)) throw new Error(`template: the filled page holds ${blocks(filled, tag)} ${tag} blocks, not the template's ${blocks(tail, tag)}`);
+  }
   const csp = [
     "default-src 'none'",
     `script-src ${hashesOf('script').join(' ')}`,
@@ -371,10 +378,19 @@ function out(draftFile, pageFile, site, shared) {
     say('render.mjs: --out writes a page whose name ends in .html. Name another file.');
     return 2;
   }
-  if (existsSync(pageFile)) {
+  // lstat, not exists: a link at the target, even one to nothing, is not a
+  // page this script wrote, and writing through it could land anywhere.
+  let there;
+  try {
+    there = lstatSync(pageFile, { throwIfNoEntry: false });
+  } catch (e) {
+    say(`cannot read ${named(pageFile)}: ${e.code || e.name}`);
+    return 2;
+  }
+  if (there) {
     let own = false;
     try {
-      own = lstatSync(pageFile).isFile() && firstLine(pageFile) === MARKER;
+      own = there.isFile() && firstLine(pageFile) === MARKER;
     } catch (e) {
       say(`cannot read ${named(pageFile)}: ${e.code || e.name}`);
       return 2;
@@ -386,7 +402,6 @@ function out(draftFile, pageFile, site, shared) {
   }
   const read = readJson(draftFile, 'draft');
   if (!read.bytes) return read.code;
-  ownerOnly(draftFile);
   const kinds = JSON.parse(kindsBytes().toString('utf8'));
   const h = homes();
   const { refusals, warnings } = Interview.checkDraft(read.value, kinds, h);
@@ -400,11 +415,22 @@ function out(draftFile, pageFile, site, shared) {
   // other folder's name could be the person's own.
   const folder = !site && inScratch(pageFile) ? basename(dirname(resolve(pageFile))) : null;
   const html = page(read.value, read.bytes, { site, shared, folder });
+  // The page holds the person's draft, so it is owner-only wherever it lands,
+  // unless it is the published example, and owner-only before the draft is in
+  // it: an earlier page is set to 600 first, and a new one is created at 600.
+  // A new page is created exclusively, so nothing put at the target since the
+  // look above is written through.
+  const owner = posix && !site;
+  if (owner && there) {
+    try {
+      chmodSync(pageFile, 0o600);
+    } catch (e) {
+      say(`cannot make ${named(pageFile)} owner-only, so nothing was written: ${e.code || e.name}`);
+      return 2;
+    }
+  }
   try {
-    writeFileSync(pageFile, html);
-    // The page holds the person's draft, so it is owner-only wherever it
-    // lands, unless it is the published example.
-    if (posix && !site) chmodSync(pageFile, 0o600);
+    writeFileSync(pageFile, html, { mode: owner ? 0o600 : 0o666, flag: there ? 'w' : 'wx' });
   } catch (e) {
     say(`cannot write ${named(pageFile)}: ${e.code || e.name}`);
     return 2;
@@ -441,7 +467,6 @@ function main(argv) {
     const draftFile = values[0];
     const read = readJson(draftFile, 'draft');
     if (!read.bytes) return read.code;
-    ownerOnly(draftFile);
     const draft = read.value;
     const kinds = JSON.parse(kindsBytes().toString('utf8'));
     const { refusals, warnings } = Interview.checkDraft(draft, kinds, homes());

@@ -8,10 +8,10 @@ site/
 *.local.*
 .DS_Store
 Thumbs.db
-# Interview drafts are scratch files holding a person's answers. Two are
-# tracked on purpose: the contract skill's measurement draft, which its
-# limits were set against (spec v4.2 on #313), and the made-up example the
-# public site publishes.
+# Interview drafts are scratch files holding a person's answers. One is
+# tracked on purpose: the made-up example the public site publishes. The
+# contract skill's measurement draft, which its limits were set against
+# (spec v4.2 on #313), is named .measured.json, so it is a test fixture and
+# never an artifact the site publishes.
 *.interview.json
-!docs/limits/contract-skill.interview.json
 !skills/contract/examples/release-notes.interview.json

@@ -22,8 +22,9 @@ session; the skill then offers the chat way.
 
 The page keeps the person's answers in the browser's local storage, so a
 closed page restores them (q8). The skill's own rule, "nothing records
-anything by default", names this store as its one exception; Forget clears
-it. The draft, the page and the answers file in the scratch folder hold the
+anything by default", names this store as its one exception. Forget removes
+the answers from the page's store; the browser may keep its own copy on disk
+for a while. The draft, the page and the answers file in the scratch folder hold the
 same answers until the hand-back deletes them (q17, q18). None of this is
 encrypted (q10, q17). A key the page could hold would sit beside the data it
 protects, so encryption would add code and no real protection against the

@@ -46,13 +46,10 @@ check that the page can run:
 node '<skill base directory>/scripts/render.mjs' --version
 ```
 
-It prints its version and Node's. Offer the chat way in, and say why, in
-each of these cases:
-
-- Node is missing, or older than 24.0.0.
-- The person cannot open a file from this machine in their own browser. A
-  remote session is one example.
-- The limits refuse the draft. Name the limit that the script names.
+It prints its version and Node's. Offer the chat way in the cases that
+`SKILL.md`'s "Two ways in" names, as it says. A remote session is one case
+where the person cannot open a file from this machine. When the limits
+refuse the draft, name the limit that the script names.
 
 ## The scratch folder
 
@@ -74,18 +71,17 @@ node '<skill base directory>/scripts/render.mjs' --new-folder '<parent>'
 ```
 
 The script refuses a parent inside a git work tree. Never offer a synced
-folder, such as Desktop or Documents. When the person names a parent, say
-once that the files are as private as that folder. Say also that they leave
-the machine if the folder syncs.
+folder, such as Desktop or Documents. When the person names a parent, tell
+them what `SKILL.md` says for `--new-folder`. Add that the files leave the
+machine if the folder syncs.
 
 The folder holds three files, with fixed names: `draft.interview.json`,
-`interview.html` and `answers.json`. They hold the person's answers
-unencrypted until they are deleted.
+`interview.html` and `answers.json`.
 
 ## The draft
 
-Write the draft as `draft.interview.json` in the scratch folder. Use your
-file-write tool, never a shell. Before you draft, read
+Write the draft as `draft.interview.json` in the scratch folder, as
+`SKILL.md` says for the draft. Before you draft, read
 `<skill base directory>/scripts/kinds.json`: it names each kind of clause,
 its part, its fields and its stakes.
 
@@ -145,19 +141,17 @@ that is there and is not a page it wrote. The page loads nothing from the
 network. Its top bar shows the scratch folder's name.
 
 The person opens the file in their own browser. When you hand the page
-over, say once that the saved answers and the scratch files are
-unencrypted. Say also that other pages opened from disk in the same browser
-may read the saved answers.
+over, tell them what `SKILL.md` says for `--out`.
 
-A draft you did not write in this session counts as shared. Render it, and
-read its block back, with `--shared`. A shared page offers no "Agree to the
-rest as drafted".
+Render a shared draft, as `SKILL.md` defines it, with `--shared`, and read
+its block back with `--shared`. A shared page offers no "Agree to the rest
+as drafted".
 
 ## The answer block
 
 The person copies one fenced JSON block from the page and pastes it in
-chat. Write it verbatim, fence and all, as `answers.json` in the scratch
-folder, with your file-write tool. Then check it.
+chat. Write it as `answers.json` in the scratch folder, as `SKILL.md` says
+for the pasted block. Then check it.
 
 The block's keys are exactly these:
 
@@ -199,34 +193,34 @@ says for any file.
 
 ## Push-back
 
+The page lets the person add, move and remove a schedule's entries, not a
+term in the letter. A term they want removed or moved, they say in chat:
+take it as an answer in their own words.
+
 Ask one question at a time, on each clause the push-back list names. Also
 raise any low-stakes clause whose text acts beyond its own notes, sends
 data, installs, grants access, loosens a stop, or widens when it steps in.
-Ask whether each warned value belongs in the contract. The person's reply
-in their own words makes that clause **Decided**. A line such as
+Ask whether each warned value belongs in the contract. Mark each reply as
+`SKILL.md` says for the person's own words. A line such as
 `purpose/(stays-out)` names a schedule: ask about the whole schedule. A
 restored edit stays *Proposed* until the person touches it on the page and
 copies the block again.
 
 ## The hand-back and the deletes
 
-Ask the person to press Forget on the page first, on every path. Wait for
-their word that the page shows "Forgotten". When they decline, say that the
-answers stay in the browser. While the draft is kept, rendering the page
-again and pressing Forget clears them. Forget clears this draft's name and
-type only. When the page said that Forget here does not clear earlier
-answers, render that earlier draft too, and press Forget there. Once the
-draft is gone, clearing the browser's stored data for pages opened from
-disk is the one way left.
+Ask for Forget first, on every path, and wait, as `SKILL.md` says for the
+hand-back. Forget clears this draft's name and type only. When the page
+said that Forget here does not clear earlier answers, render that earlier
+draft too, and press Forget there.
 
-Then say "I will delete the page and the answers file". The person's yes in
-chat is the go:
+Then delete the page and the answers file, as `SKILL.md` says for
+`--clean`:
 
 ```text
 node '<skill base directory>/scripts/render.mjs' --clean '<folder>'
 ```
 
-Offer to delete the draft too. Delete it only on the person's yes:
+Offer to delete the draft too, as it says for `--clean --draft`:
 
 ```text
 node '<skill base directory>/scripts/render.mjs' --clean '<folder>' --draft
@@ -241,7 +235,8 @@ left, and offer to delete them the same way.
 ## A half-done interview
 
 The page's top bar shows the scratch folder's name. In a new chat, ask the
-person for that line. Check the draft in that folder. Render the page again
+person for that line. If they named a parent folder, ask for it too.
+Check the draft in that folder. Render the page again
 from it with `--shared`, and push back on every clause. Open only a page
 the skill rendered in that folder. Never open a page someone sent: ask for
 the draft instead. When the check finds no draft, say so, and start again.

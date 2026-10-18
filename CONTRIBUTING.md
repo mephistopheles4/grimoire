@@ -72,7 +72,7 @@ Two rules about what goes in there:
 
 **Never commit an artifact as a fixture.** `scripts/check.mjs` and
 `scripts/build-pages.mjs` both walk the whole tree for every suffix
-`scripts/lib/registry.mjs` names — `*.box.json` and `*.flightpath.json` today.
+`scripts/lib/registry.mjs` names — `*.box.json`, `*.flightpath.json` and `*.interview.json` today.
 A broken fixture fails the check, and a valid one is rendered and published to
 the public site. Read the artifact the skill already ships, or write the
 malformed one to a temporary directory at run time. `tests/render.test.mjs` and

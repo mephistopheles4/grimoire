@@ -44,7 +44,9 @@ contract before you use it, as you would any code from someone else.
 way in (below), the page keeps your answers in your browser until you press
 **Forget these answers** on it. Other pages opened from disk in the same
 browser, browser extensions with file access, programs running as you and
-backups of your browser profile can read them. The draft, the page and the
+backups of your browser profile can read them. Forget removes them from the
+page's store; your browser may keep its own copy on disk for a while. Your
+browser's history keeps the page's title and location. The draft, the page and the
 answers file in the interview's scratch folder hold the same answers,
 unencrypted, until the skill deletes them at the hand-back. The scratch
 folder is in your own temporary folder on Windows and macOS, and under
@@ -153,7 +155,9 @@ interview script, `scripts/render.mjs`, makes a scratch folder for each
 interview, renders the page, checks the block, prints the change list, and
 deletes its own files at the hand-back. It needs Node.js 24 or later. The
 page keeps your answers in your browser until you press Forget, unencrypted:
-see "Read before you install" above.
+see "Read before you install" above. On the page you can add, move and
+remove a schedule's entries. To remove or move a term in the letter, say so
+in chat at push-back.
 
 **An answer for the tools, an action or a stop needs your own words,** on
 both ways in, unless it is only what the skill needs to run.

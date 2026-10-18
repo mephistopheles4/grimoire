@@ -16,7 +16,7 @@ export const contractRender = join(root, 'skills', 'contract', 'scripts', 'rende
 export const contractModule = join(root, 'skills', 'contract', 'scripts', 'interview.js');
 // The contract skill's own terms, drafted fresh: the measurement draft its
 // limits were set against (spec v4.2 S8 on #313).
-export const measurementDraft = join(root, 'docs', 'limits', 'contract-skill.interview.json');
+export const measurementDraft = join(root, 'docs', 'limits', 'contract-skill.measured.json');
 export const examples = join(root, 'skills', 'groundtrack', 'examples');
 // The small worked example: two nodes, three runs, and every move kind the
 // shape has. It is the one every derived fixture starts from.

@@ -140,26 +140,28 @@ not show this skill finds them in a contract it helped write.
   them only after the person's yes in chat each time.
 - **Decided.** It offers two ways in: the chat interview, or the hiring page,
   which the person fills by picking. Before drafting, it runs the interview
-  script's version check. When Node is missing or older than 24.0.0, when the
-  person cannot open a file from this machine in their own browser, or when
-  the limits refuse a draft, it says why and offers the chat way.
+  script's version check. It offers the chat way, and says why, when Node is
+  missing or older than 24.0.0. It does the same when the person cannot open
+  a file from this machine in their own browser. It does the same when the
+  limits refuse a draft.
 - **Decided.** At the hand-back of a hiring interview, it asks the person to
-  press Forget on the page and waits for their word that the page shows
-  Forgotten, before any delete of the page. When they decline, it says the
-  answers stay in the browser: while the draft is kept, rendering the page
-  again from it and pressing Forget clears them; once the draft is deleted,
-  clearing the browser's stored data for pages opened from disk is the one
-  way left. It names what it deleted.
-- **Decided.** An answer for the tools, other than what it needs to run, an
-  action or a stop, drafted from a file or by you, needs the person's own
+  press Forget on the page. Before any delete of the page, it waits for their
+  word that the page shows Forgotten. When they decline, it says the answers
+  stay in the browser. While the draft is kept, rendering the page again and
+  pressing Forget removes them. Once the draft is deleted, clearing the
+  browser's stored data for pages opened from disk is the one way left. It
+  names what it deleted.
+- **Decided.** An answer for an action, a stop or the tools (except what it
+  needs to run), drafted from a file or by the skill, needs the person's own
   words, marked **Decided**.
-- **Decided.** Before composing any command, it refuses a path holding any of
-  the five single-quote characters (the ASCII quote and the four curly ones)
-  or a control character.
-- **Decided.** It runs three commands only: the interview script in
-  `scripts/render.mjs` during a hiring interview, which also makes its
-  scratch folder and deletes its own three files there; the validator after
-  building; and an eval run the person says yes to in chat.
+- **Decided.** Before it composes any command, it checks each path. It
+  refuses a path that holds a control character or any of the five
+  single-quote characters: the ASCII quote and the four curly ones.
+- **Decided.** It runs three commands only. The first is the interview script
+  in `scripts/render.mjs`, during a hiring interview. It also makes its
+  scratch folder and deletes its own three files there. The second is the
+  validator, after building. The third is an eval run, after the person's
+  yes in chat.
 
 **Automatic checks** (**Confirmed**): `claude plugin validate --strict` decides
 whether the built file and its folder pass the tool's own schema, and nothing
@@ -243,7 +245,7 @@ decide not to, from these parts alone.
 |---|---|
 | Read | To read the template, an existing contract, or an existing skill, agent or CLAUDE.md |
 | Write, Edit | To write the contract, its change log and the built file, where the person's skills and agents already live |
-| One shell command, `claude plugin validate --strict '<path>'` | To validate the built file. A deterministic check must be code, not a model's opinion. It refuses a path that holds a single quote |
+| The validator, `claude plugin validate --strict '<path>'` | To validate the built file. A deterministic check must be code, not a model's opinion. It refuses a path that holds a single quote |
 | `claude plugin eval`, with `--max-cost-usd` and `--no-publish` | To run eval cases it wrote, only after the person's yes in chat each time. One yes never covers the next run |
 | The interview script, `scripts/render.mjs`, with `--version`, `--new-folder`, `--check`, `--out`, `--answers` and `--clean`, every path single-quoted | The script makes the scratch folder, renders the page, checks the pasted block and prints the change list, so the skill does not retell it. **Decided** |
 | `references/binding-claude.md`, `binding-antigravity.md`, `binding-codex.md` | To map an agent's plain capabilities to the tool it is built for. One file per tool, each with the tool version it was last checked against. The split is **Decided**; the files' text is **Confirmed** |
@@ -293,7 +295,7 @@ presses Forget; Forget leaves the light or dark choice.
 
 **What it needs to run** (**Decided**): Node.js 24 or later, for the
 interview script, behind the frontmatter line `compatibility: Needs Node.js
-20 or later to run its interview script. No install and no other
+24 or later to run its interview script. No install and no other
 dependencies.` It is exempt from the own-words rule, and low-stakes.
 
 **The hiring interview's actions** (**Decided**), each told first and done
@@ -360,7 +362,7 @@ change-log row.
 | Read the template at the start of each interview, and quote or paraphrase it; never restate it from memory | Asking from a template that drifted in memory | potential | |
 | Add an eval case only for a failure seen in use, and review the suite's size at each amendment | A suite that grows out of control | potential | |
 | Run evals only after a yes in chat each time, capped and not published | Spending the person's usage without asking | potential | fixed |
-| An answer for the tools, other than what it needs to run, an action or a stop, drafted from a file or by the skill, needs the person's own words, marked **Decided** | A file or the skill's own draft widening what the built file may do without the person's words | potential | |
+| An answer for an action, a stop or the tools (except what it needs to run), drafted from a file or by the skill, needs the person's own words, marked **Decided** | A file or the skill's own draft widening what the built file may do without the person's words | potential | |
 | Refuse a quote or control character in a path before any command | A path that breaks out of its quotes in a shell | potential | fixed |
 | Ask for Forget before any delete of the hiring page, on every path | Saved answers left in the browser after the page that could clear them is gone | potential | fixed |
 | | Crying wolf: firing until the person dismisses it | potential | |

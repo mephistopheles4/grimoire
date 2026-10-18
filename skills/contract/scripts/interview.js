@@ -27,7 +27,7 @@ const Interview = (() => {
   /* -- the limits ------------------------------------------------------------
    *
    * Set by ADR 0004's method against the contract skill's own contract,
-   * drafted fresh as docs/limits/contract-skill.interview.json: each is four
+   * drafted fresh as docs/limits/contract-skill.measured.json: each is four
    * times that draft's figure (96,878 bytes; 38 clauses in its largest part;
    * 1,711 characters in its longest field), with no field limit under 4,000.
    * The figures are drafted for the threat model's limits entry (issue
