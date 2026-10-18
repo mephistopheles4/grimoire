@@ -1422,30 +1422,30 @@ test('a callee whose params are not a list of strings is refused before args are
 });
 
 test('an arg or param named after a prototype member neither crashes nor misreports', () => {
-  // A literal `__proto__:` in an object written here sets the prototype and
-  // never reaches the file. Defined as an own key, it serialises as one, and
-  // JSON.parse reads it back as an own key.
-  const prototypeArgs = () => {
-    const args = { id: 'userId', constructor: 'c' };
-    Object.defineProperty(args, '__proto__', { value: 'p', enumerable: true, configurable: true, writable: true });
-    return args;
-  };
+  const prototypeArgs = () => ({ id: 'userId', constructor: 'c' });
   const unnamed = derive(greetArgs(prototypeArgs()));
-  assert.match(readFileSync(unnamed, 'utf8'), /"__proto__": "p"/, 'the fixture carries __proto__ as an own key');
   const r = check(unnamed);
   assert.equal(r.code, 0, r.stderr);
   assert.doesNotMatch(r.stderr, /TypeError|Cannot read|at Object/);
-  assert.deepEqual(argLines(r.stdout), ['greet[1] calls lookupName with args its params do not name: "constructor", "__proto__"']);
+  assert.deepEqual(argLines(r.stdout), ['greet[1] calls lookupName with args its params do not name: "constructor"']);
 
-  // Named as params too, both match.
+  // Named as params too, it matches.
   const named = check(
     derive(prog => {
       greetArgs(prototypeArgs())(prog);
-      prog.nodes.lookupName.params = ['id', 'constructor', '__proto__'];
+      prog.nodes.lookupName.params = ['id', 'constructor'];
     }),
   );
   assert.equal(named.code, 0, named.stderr);
   assert.deepEqual(argLines(named.stdout), []);
+
+  // An own `__proto__` arg was read here as a plain key, but the page reads
+  // the file as an object literal and drops it, so it is now refused by path,
+  // still with no stack trace. A literal `__proto__:` written here would set
+  // the prototype, so the key is defined as an own one.
+  const proto = derive(greetArgs(Object.defineProperty(prototypeArgs(), '__proto__', { value: 'p', enumerable: true, configurable: true, writable: true })));
+  assert.match(readFileSync(proto, 'utf8'), /"__proto__": "p"/, 'the fixture carries __proto__ as an own key');
+  refusedAt(check(proto), 'nodes.greet.steps[1].args', 'a key named "__proto__" is refused — the page would read it as a prototype, not a field');
 
   // A callee whose id is a prototype member is read through the own-property
   // test, on a step no walk runs.
@@ -2386,6 +2386,27 @@ test('file text that spells a placeholder lands as text, not as a template inser
   const prog = JSON.parse(/const PROG = Groundtrack\.hardenKeys\((.*)\);\n/.exec(html)[1]);
   assert.equal(prog.nodes.greet.steps[1].aside, spellings, 'the aside reaches the page as itself');
   assert.doesNotMatch(html, /<script>\/\*MODULE\*\/<\/script>/, 'the module slot is filled');
+});
+
+test('a key named __proto__ is refused anywhere in a flightpath file', () => {
+  // JSON.parse keeps "__proto__" as a plain field, and the check reads it as
+  // one. The page reads the file as an object literal, where the same key sets
+  // the prototype, so a layer, an ambient value or an argument the check saw
+  // was gone from the page. So the key is refused wherever it sits, including
+  // the author-keyed maps that no key check reads.
+  const own = (obj, value) => Object.defineProperty(obj, '__proto__', { value, enumerable: true, writable: true, configurable: true });
+  const cases = {
+    'a layer name': prog => own(prog.layers, { nodes: {} }),
+    'an ambient value': prog => own(prog.env, 'x'),
+    "a call's arguments": prog => own(prog.nodes.greet.steps[1].args, 'userId'),
+  };
+  for (const [where, mutate] of Object.entries(cases)) {
+    const file = derive(mutate);
+    assert.match(readFileSync(file, 'utf8'), /"__proto__"/, `${where}: the case was built`);
+    const r = check(file);
+    assert.equal(r.code, 1, `${where}: refused`);
+    assert.match(r.stderr, /"__proto__"/, `${where}: the refusal names the key`);
+  }
 });
 
 test('author text reaches the page as text, in every field the page shows', () => {

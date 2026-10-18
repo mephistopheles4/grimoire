@@ -542,20 +542,45 @@ test('a key named __proto__ is refused anywhere in a box', () => {
   // JSON.parse keeps "__proto__" as a plain field, so the checks here never
   // read what sits under it. The page reads the box as an object literal,
   // where the same key sets the prototype: the fields under it reach the page
-  // as if the box had them. So the key is refused, at the top and deeper.
+  // as if the box had them. So the key is refused, at the top and deeper,
+  // inside a list too, and on a render as well as a check.
   const text = JSON.stringify(box());
+  const odd = JSON.stringify(String.fromCharCode(7) + 'odd');
   const cases = {
     top: text.replace(/^\{/, '{"__proto__":{"who":"never checked"},'),
     nested: text.replace('"why":"The strawman for row one"', '"why":"The strawman for row one","__proto__":{"notes":"never checked"}'),
+    'in a list': text.replace('"label":"Option A1"', '"label":"Option A1","__proto__":{"notes":"never checked"}'),
+    'under an odd key': text.replace(/^\{/, `{${odd}:{"__proto__":{"notes":"never checked"}},`),
   };
   for (const [where, json] of Object.entries(cases)) {
     assert.notEqual(json, text, `${where}: the case was built`);
-    const p = join(work, `proto-${where}.box.json`);
+    const p = join(work, `proto-${where.replace(/ /g, '-')}.box.json`);
     writeFileSync(p, json);
     const r = run(renderer, [p, '--check']);
     assert.equal(r.code, 1, `${where}: refused`);
     assert.match(r.stderr, /"__proto__"/, `${where}: the refusal names the key`);
+    // The path it prints names a plain-word key and nothing else, so a key
+    // built to carry control characters never reaches the terminal.
+    assert.ok(!r.stderr.includes(String.fromCharCode(7)), `${where}: no control character printed`);
+    if (where === 'under an odd key') assert.match(r.stderr, /\(a key not printed\)/);
+
+    const out = join(work, `proto-${where.replace(/ /g, '-')}.html`);
+    assert.equal(run(renderer, [p, '--out', out]).code, 1, `${where}: a render is refused too`);
+    assert.equal(existsSync(out), false, `${where}: no page is written`);
   }
+});
+
+test('a deeply nested box still passes --check', () => {
+  // The __proto__ refusal walks the whole box. A walk that calls itself once
+  // per level ran out of stack on a box nested a few thousand deep, and
+  // --check ended in a stack trace where it had passed before. The walk keeps
+  // its own list, so depth costs memory and not the call stack.
+  const deep = '['.repeat(100000) + ']'.repeat(100000);
+  const p = join(work, 'deep.box.json');
+  writeFileSync(p, JSON.stringify(box()).replace(/^\{/, `{"extra":${deep},`));
+  const r = run(renderer, [p, '--check']);
+  assert.equal(r.code, 0, r.stderr.slice(0, 300));
+  assert.doesNotMatch(r.stderr, /RangeError|\n\s+at /, 'no stack trace');
 });
 
 test('a box with two chosen options in one row is refused, and no page is written', () => {

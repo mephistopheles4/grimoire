@@ -740,6 +740,22 @@ function path(prog, gi, pi, r) {
 export function check(prog, fileLabel) {
   const r = refusals(fileLabel);
   shape(prog, r);
+  /* A key named "__proto__" is refused at any depth, the author-keyed maps
+   * included. JSON.parse keeps it as a plain field and the check reads it as
+   * one, but the page reads the file as an object literal, where the same key
+   * sets the prototype: a layer, an ambient value or an argument the check
+   * saw is gone from the page. The walk keeps its own list rather than calling
+   * itself, so depth costs memory and not the call stack, and it names a key
+   * in the path only when the key is a plain word. */
+  const pending = isObj(prog) ? [{ v: prog, up: null, seg: '' }] : [];
+  const spell = n => { const segs = []; for (; n && n.up; n = n.up) segs.unshift(n.seg); return segs.join('').replace(/^\./, '') || 'file'; };
+  while (pending.length) {
+    const n = pending.pop();
+    if (Object.hasOwn(n.v, '__proto__')) r.shape(spell(n), 'a key named "__proto__" is refused — the page would read it as a prototype, not a field');
+    const list = Array.isArray(n.v);
+    for (const [k, x] of Object.entries(n.v).reverse())
+      if (x && typeof x === 'object') pending.push({ v: x, up: n, seg: list ? `[${k}]` : `.${/^[A-Za-z0-9_-]{1,64}$/.test(k) ? k : '(a key not printed)'}` });
+  }
   if (r.list.length) return r.list; /* links are unreliable once the shape is wrong */
   /* Each walk is validated against the graph it belongs to, entering at that
    * graph's entry. Every rule below that is unchanged. */

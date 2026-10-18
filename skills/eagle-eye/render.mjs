@@ -60,16 +60,20 @@ function validate(box) {
   // plain field, so no check below reads what sits under it. The page reads the
   // box as an object literal, where the same key sets the prototype, and the
   // fields under it reach the page as if the box had them.
-  (function proto(v, at) {
-    if (!v || typeof v !== 'object') return;
-    if (Object.hasOwn(v, '__proto__')) err(`${at || 'box'}: a key named "__proto__" is refused — the page would read it as a prototype, not a field`);
-    // The path names a key only when it is a plain word, so a key built to
-    // carry control characters never reaches the terminal.
-    for (const [k, x] of Object.entries(v)) {
-      const seg = /^[A-Za-z0-9_-]{1,64}$/.test(k) ? k : '(a key not printed)';
-      proto(x, Array.isArray(v) ? `${at}[${k}]` : at ? `${at}.${seg}` : seg);
-    }
-  })(box, '');
+  //
+  // The walk keeps its own list rather than calling itself, so a box nested
+  // deep costs memory and not the call stack, and a path is spelled out only
+  // for a key it refuses. It names a key only when it is a plain word, so a
+  // key built to carry control characters never reaches the terminal.
+  const pending = [{ v: box, up: null, seg: '' }];
+  const spell = n => { const segs = []; for (; n && n.up; n = n.up) segs.unshift(n.seg); return segs.join('').replace(/^\./, '') || 'box'; };
+  while (pending.length) {
+    const n = pending.pop();
+    if (Object.hasOwn(n.v, '__proto__')) err(`${spell(n)}: a key named "__proto__" is refused — the page would read it as a prototype, not a field`);
+    const list = Array.isArray(n.v);
+    for (const [k, x] of Object.entries(n.v).reverse())
+      if (x && typeof x === 'object') pending.push({ v: x, up: n, seg: list ? `[${k}]` : `.${/^[A-Za-z0-9_-]{1,64}$/.test(k) ? k : '(a key not printed)'}` });
+  }
   if (typeof box.title !== 'string' || !box.title.trim()) err('title: required, non-empty string');
   // The brief. `problem` is the only place the box says what the whole set is for. A row's own
   // `problem` explains one decision; nothing explained the set, so a reader who opens the page
