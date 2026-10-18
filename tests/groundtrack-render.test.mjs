@@ -47,7 +47,7 @@ function derive(mutate) {
 const check = file => run(groundtrack, [file, '--check']);
 
 /** The largest real sheet, which the size limits are measured against. */
-const pr382 = join(root, 'docs', 'examples', 'pr-382.flightpath.json');
+const realtimeShadows = join(root, 'docs', 'examples', 'realtime-shadows.flightpath.json');
 
 // The small example states one change and one graph, and every mutator below
 // reaches into that graph's runs. Named so the reshape reads as one thing
@@ -1545,11 +1545,11 @@ test('an arg name holding a character JSON leaves raw prints it escaped', () => 
   assert.equal(r.stdout.split(/\r\n|[\n\r\u{85}\u{2028}\u{2029}]/u).filter(Boolean).length, Number(/(\d+) finding\(s\)/.exec(r.stderr)[1]));
 });
 
-test('pr-382 still validates, and its call sites are compared with their callees', () => {
+test('realtime-shadows still validates, and its call sites are compared with their callees', () => {
   // The largest real sheet sits outside the skill's examples folder, so the
   // shipped-examples test does not read it. It keeps its findings unanswered:
   // it is the sheet the size limits are measured against.
-  const r = check(pr382);
+  const r = check(realtimeShadows);
   assert.equal(r.code, 0, r.stderr);
   assert.doesNotMatch(r.stderr, /whose success channel is void/);
   // 20 call sites naming 38 args when this check landed: the probe that sized

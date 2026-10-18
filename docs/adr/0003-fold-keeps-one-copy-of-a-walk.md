@@ -47,7 +47,7 @@ by a byte.
   order moves first entered them, and is built on `bare()`, because its keys
   are a stranger's strings (see [rendering.md](../security/rendering.md)).
 - **Byte-identical is the bar.** A change to `fold` shows that every state of
-  every example and of `docs/examples/pr-382.flightpath.json`, `--text` for
+  every example and of `docs/examples/realtime-shadows.flightpath.json`, `--text` for
   every run, and `--check`, print exactly what they printed before.
 
 ## What guards the rules
@@ -74,7 +74,7 @@ it made cost and memory grow with the square of a run's length.
 
 **Capping moves and nesting instead was rejected.** A cap tight enough to bound
 the copying refused real files before it bounded hostile ones:
-`docs/examples/pr-382.flightpath.json` alone has 8,155 moves across its runs.
+`docs/examples/realtime-shadows.flightpath.json` alone has 8,155 moves across its runs.
 
 **Keeping every view once built was rejected.** It was the first version, and
 it made the page's memory grow with the square of how far a reader stepped.

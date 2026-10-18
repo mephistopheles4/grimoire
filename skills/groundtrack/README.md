@@ -35,7 +35,7 @@ pane it hides until you click. The second is the tour's walk through one run.
 </p>
 
 [demo]: https://mephistopheles4.github.io/grimoire/skills-groundtrack-examples-pr-313.html
-[complex]: https://mephistopheles4.github.io/grimoire/docs-examples-pr-382.html
+[complex]: https://mephistopheles4.github.io/grimoire/docs-examples-realtime-shadows.html
 [tour]: https://mephistopheles4.github.io/grimoire/skills-groundtrack-examples-greet.html
 
 ## Use it
