@@ -3642,10 +3642,14 @@ for (const surface of SURFACES) {
       expect(all.filter(n => n.type === 'Svg' && n.props.alt === 'divider').length).toBe(0)
       const prRows = all.filter(n => n.type === 'Box' && n.props.marginBottom === 'xs' && n.props.paddingY === 'sm')
       expect(prRows.length).toBe(3)
-      // The pill and the title on one line, the dim line under both.
+      // The pill and the title on one line, the dim line under both; each row
+      // carries the round ring in the pane's grey that its hover fills.
       for (const row of prRows) {
         expect(row.props.flexDirection).toBe('column')
+        expect([row.props.borderStyle, row.props.borderColor]).toEqual(['round', '#1a1a19'])
+        expect(row.children.length).toBe(2)
         expect(row.children[0]?.props.flexDirection).toBe('row')
+        expect(row.children[1]?.type).toBe('Text')
       }
     }
     // Usage and the spacer stay.
@@ -3785,11 +3789,10 @@ for (const surface of SURFACES) {
     const two = await textOf(m)
     expect(two.includes('2 selected')).toBe(true)
     expect(two.includes('✓ Dismiss')).toBe(true)
-    if (surface === 'desktop') {
-      // The bar is a rounded fill with a soft outline a shade above it.
-      const bar = boxAround(await nodes(m), (c: any) => c?.props?.key === 'bardismiss')
-      expect([bar?.props.borderStyle, bar?.props.borderColor, bar?.props.backgroundColor]).toEqual(['round', '#3a3a38', '#262625'])
-    }
+    // The bar is a rounded fill with a soft outline a shade above it; the
+    // terminal keeps its theme keys.
+    const bar = boxAround(await nodes(m), (c: any) => c?.props?.key === 'bardismiss')
+    expect([bar?.props.borderStyle, bar?.props.borderColor, bar?.props.backgroundColor]).toEqual(surface === 'desktop' ? ['round', '#3a3a38', '#262625'] : ['round', 'inactive', 'subtle'])
     await m.press({ key: 'todo-0-t1' })
     expect(ticks()).toBeGreaterThan(0)
     // The tick selected nothing: still the two cards.
@@ -4038,7 +4041,7 @@ for (const surface of SURFACES) {
 }
 
 test('the editor and mobile show Open, Dismiss and the full settings without a pointer', async ($, on) => {
-  await grouped(on, $, { cards: [card('one', { status: 'working', settings: 'Opus, high, plan mode' })], todos: [] })
+  await grouped(on, $, { cards: [card('one', { status: 'working', settings: 'Opus, high, plan mode', pr: '341', prState: 'open' })], todos: [] })
   for (const surface of ['vscode', 'mobile']) {
     const m = await mountOn($, surface)
     const all = await nodes(m)
@@ -4046,5 +4049,9 @@ test('the editor and mobile show Open, Dismiss and the full settings without a p
     expect(all.filter(n => n.type === 'Box' && n.props.display === 'none').length).toBe(0)
     expect(await m.find({ key: 'dismiss-0-one' })).toBeDefined()
     expect(String(all[0]?.text).includes('Opus, high, plan mode')).toBe(true)
+    // The images and fills draw as on Desktop; the hover's ring does not, with no pointer.
+    expect(boxAround(all, (c: any) => c?.props?.key === 'grp-working')?.props.backgroundColor).toBe('#2b2b2a')
+    expect(all.filter(n => n.type === 'Svg' && n.props.alt === '#341, open').length).toBe(1)
+    expect(all.filter(n => n.type === 'Box' && n.props.borderColor === '#1a1a19').length).toBe(0)
   }
 })

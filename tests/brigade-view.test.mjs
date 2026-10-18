@@ -4406,6 +4406,10 @@ test('the hairline and PR pill images: their classes, a light and a dark rule ea
     assert.ok(p.source.includes(`<text class="ink-${state}" x="7" y="12.5">${mark}</text>`));
     assert.ok(p.source.includes('>#341</text>'));
     assert.match(view.STYLE, new RegExp(`prefers-color-scheme: dark\\).*\\.tint-${state}\\{fill:#[0-9a-f]{6}\\}.*\\}$`));
+    // A light rule for the tint and the ink, before the dark block.
+    const light = view.STYLE.split('@media')[0];
+    assert.match(light, new RegExp(`\\.tint-${state}\\{fill:#[0-9a-f]{6}\\}`));
+    assert.match(light, new RegExp(`\\.ink-${state}\\{fill:#[0-9a-f]{6}\\}`));
   }
   // A longer number makes a wider pill; a state or number of the wrong shape makes none.
   assert.ok(view.pillSvg('1234567', 'open').width > view.pillSvg('7', 'open').width);
@@ -4433,6 +4437,8 @@ test('no colour in the register or view modules is a hex or a colour name outsid
   const registerOutside = registerSource.replace(fills[0], '');
   // A hex as a quoted value; an issue number in a comment is not one.
   assert.doesNotMatch(registerOutside, /["'`]#[0-9a-fA-F]{3,8}\b/, 'no hex in the register module outside its fixed fills');
+  // The fixed fills are fills and borders only: no text takes one.
+  assert.doesNotMatch(registerSource, /\bcolor\s*[:=]\s*\{?\s*DARK_FILLS\./, 'no text colour is a fixed fill');
   assert.doesNotMatch(viewOutside, /["'`]#[0-9a-fA-F]{3,8}\b/, 'no hex in the view module outside its style text');
   // A colour name held in a quoted string anywhere in the register module, in an expression too.
   assert.doesNotMatch(registerSource, /["'`](?:red|green|blue|gray|grey|white|black|yellow|orange|purple|pink|cyan|magenta|transparent)["'`]/i, 'no colour name in the register module');
