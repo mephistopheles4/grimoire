@@ -1684,7 +1684,7 @@ test('the pane keeps its re-read memory in a Map of the view module\'s ReadMemor
   const register = readFileSync(join(root, 'brigade/register.tsx'), 'utf8');
   assert.match(register, /\nconst memory: ReadMemory = new Map\(\)\n/);
   assert.equal(register.match(/\bmemory\b/g)?.length, 2, 'declared once and handed to readCalls once');
-  assert.match(register, /readCalls\(rows\.value, cards\.map\(c => c\.title\), config, memory, \{/);
+  assert.match(register, /readCalls\(rows, cards\.map\(c => c\.title\), config, memory, io, finder, /);
   const v = readFileSync(join(root, 'brigade/view.ts'), 'utf8');
   assert.match(v, /export type ReadMemory = Map<string, \{ mtimeMs: number; readAt: number; series: CallSeries \| undefined \}>/);
 });
@@ -4255,7 +4255,7 @@ test('the state contract declares the refusal lines under the plugin\'s manifest
 
 test('the pane hands the poll its summary reads, with the plugin data id from where the roster is', () => {
   const register = readFileSync(join(root, 'brigade/register.tsx'), 'utf8');
-  assert.match(register, /\}, finder, \{ plugin: at\.plugin, held: summaries \}\)/);
+  assert.match(register, /, io, finder, \{ plugin: at\.plugin, held: summaries \}\)/);
   // At module scope, so the held records last from poll to poll.
   assert.match(register, /^const summaries: SummaryMemory = newSummaryMemory\(\)$/m);
 });

@@ -2398,9 +2398,9 @@ export type PollIo = FinderIo & { read: (path: string) => Promise<string> }
 // --- The engine's session files -------------------------------------------------
 //
 // The engine keeps one small file for each running session,
-// <config>/sessions/<pid>.json, and `claude agents --json` reads the same
-// files before it reaches every live session, which makes each of them do
-// work at once (#347). So the live state is read from the files, which costs
+// <config>/sessions/<pid>.json, holding the fields `claude agents --json`
+// prints; that command also reaches every live session, which makes each of
+// them do work at once (#347). So the live state is read from the files, which costs
 // no process; `claude agents` runs only as the slow check that drops a file
 // left behind (register.tsx). Only a `<digits>.json` the listing names as a
 // plain file is opened, so the `.key` file beside each is never read. Each

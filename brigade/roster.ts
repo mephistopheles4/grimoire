@@ -535,8 +535,8 @@ function agentRow(r: unknown): AgentRow | undefined {
 }
 
 /** One of the engine's session files, `<config>/sessions/<pid>.json`, as a
- *  row of the same shape `claude agents --json` gives, which reads the same
- *  files: only the name, the status (`?` while a new session has none yet),
+ *  row of the same shape `claude agents --json` gives, which prints the same
+ *  fields: only the name, the status (`?` while a new session has none yet),
  *  the session id and the folder are taken, by the rules a `claude agents`
  *  row is checked by. Every other field the engine writes there (its
  *  messaging socket, bridge and Desktop ids, process start, former names) is

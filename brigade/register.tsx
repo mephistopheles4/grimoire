@@ -318,7 +318,7 @@ const summaries: SummaryMemory = newSummaryMemory()
 const linkFrom = new Map<string, string>()
 let polling = false
 
-// The `claude agents --json` check, in module memory: its last rows (which
+// The `claude agents --json` check, kept in the module: its last rows (which
 // carry each session's folder, so they never enter plugin state), the
 // session ids of the files it did not list, when it last started on the
 // engine clock, whether the pane was the shown tab at the last poll, and
