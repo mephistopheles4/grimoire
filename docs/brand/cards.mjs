@@ -94,6 +94,10 @@ function card({ name, title, tagline, footer }) {
   const COLS = 5, ROWS = 2, LETTERS = 'ABCDEFGHJKLMNPQRSTUVWX';
   const IN = { x: F.x + PAD, y: F.y + PAD, r: F.x + F.w - PAD, b: F.y + F.h - PAD };
   const MARK = 200, SHEET_X = IN.x + MARK + 24, TEXT_X = SHEET_X + PAD;
+  const FOOT = 56; // the title block's height, on the field's bottom edge
+  // The mark and its sheet sit on the middle of the field above the title
+  // block, so the crosses show evenly above and below them.
+  const TOP = Math.round((IN.y + IN.b - FOOT - MARK) / 2);
 
   // One band's labels and the hairlines between them, centred on each zone.
   const label = (x, y, t) =>
@@ -112,7 +116,7 @@ function card({ name, title, tagline, footer }) {
   }
 
   const tag = tagline
-    .map((line, i) => `<tspan x="${TEXT_X}" y="${IN.y + 128 + i * 40}">${esc(line)}</tspan>`)
+    .map((line, i) => `<tspan x="${TEXT_X}" y="${TOP + 128 + i * 40}">${esc(line)}</tspan>`)
     .join('');
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" role="img" aria-labelledby="t">
 <title id="t">${esc(title)} — ${esc(tagline.join(' '))}</title>
@@ -130,16 +134,16 @@ text{font-family:'IBM Plex Mono',ui-monospace,Menlo,Consolas,monospace}
 <rect x="${F.x}" y="${F.y}" width="${F.w}" height="${F.h}" fill="url(#reseau)" stroke="${alpha(0.3)}" stroke-width="1"/>
 <rect x="${RULE / 2}" y="${RULE / 2}" width="${W - RULE}" height="${H - RULE}" fill="none" stroke="${INK}" stroke-width="${RULE}"/>
 ${band.join('\n')}
-<svg x="${IN.x}" y="${IN.y}" width="${MARK}" height="${MARK}" viewBox="0 0 24 24">
+<svg x="${IN.x}" y="${TOP}" width="${MARK}" height="${MARK}" viewBox="0 0 24 24">
 ${markBody(name)}
 </svg>
-<rect x="${SHEET_X + 1}" y="${IN.y + 1}" width="${IN.r - SHEET_X - 2}" height="${MARK - 2}" fill="${SURFACE}" stroke="${INK}" stroke-width="2"/>
-<text x="${TEXT_X}" y="${IN.y + 66}" font-size="64" font-weight="600" letter-spacing="7.68" fill="${INK}">${esc(title.toUpperCase())}</text>
-<rect x="${TEXT_X}" y="${IN.y + 86}" width="520" height="2" fill="${INK}"/>
+<rect x="${SHEET_X + 1}" y="${TOP + 1}" width="${IN.r - SHEET_X - 2}" height="${MARK - 2}" fill="${SURFACE}" stroke="${INK}" stroke-width="2"/>
+<text x="${TEXT_X}" y="${TOP + 66}" font-size="64" font-weight="600" letter-spacing="7.68" fill="${INK}">${esc(title.toUpperCase())}</text>
+<rect x="${TEXT_X}" y="${TOP + 86}" width="520" height="2" fill="${INK}"/>
 <text font-size="30" font-weight="400" fill="${alpha(0.8)}">${tag}</text>
-<rect x="${IN.x + 0.5}" y="${IN.b - 56 + 0.5}" width="${IN.r - IN.x - 1}" height="55" fill="${SURFACE}" stroke="${alpha(0.3)}" stroke-width="1"/>
-<text x="${IN.x + 24}" y="${IN.b - 28}" font-size="18" font-weight="400" letter-spacing="2.88" fill="${alpha(0.7)}" dominant-baseline="central">${esc(footer.toUpperCase())}</text>
-<text x="${IN.r - 24}" y="${IN.b - 28}" font-size="18" font-weight="400" letter-spacing="2.88" fill="${alpha(0.7)}" text-anchor="end" dominant-baseline="central">A. DIAB</text>
+<rect x="${IN.x + 0.5}" y="${IN.b - FOOT + 0.5}" width="${IN.r - IN.x - 1}" height="${FOOT - 1}" fill="${SURFACE}" stroke="${alpha(0.3)}" stroke-width="1"/>
+<text x="${IN.x + 24}" y="${IN.b - FOOT / 2}" font-size="18" font-weight="400" letter-spacing="2.88" fill="${alpha(0.7)}" dominant-baseline="central">${esc(footer.toUpperCase())}</text>
+<text x="${IN.r - 24}" y="${IN.b - FOOT / 2}" font-size="18" font-weight="400" letter-spacing="2.88" fill="${alpha(0.7)}" text-anchor="end" dominant-baseline="central">A. DIAB</text>
 </svg>
 `;
 }

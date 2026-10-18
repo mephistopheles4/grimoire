@@ -79,8 +79,9 @@ type in are inlined from the copies groundtrack ships, so a card renders the
 same in a README, in a browser and in a link preview, and fetches nothing.
 Each one wears the design system's zone border, the pattern it keeps for
 fixed-size sheets such as link previews: five numbered zones across, two
-lettered rows down, and the réseau crosses on the field inside. The text sits
-on surface-filled panels, never bare on the crosses.
+lettered rows down, and the réseau crosses on the field inside, with the mark
+and name centred on it. The text sits on surface-filled panels, never bare on
+the crosses.
 
 They are generated, not drawn by hand:
 
