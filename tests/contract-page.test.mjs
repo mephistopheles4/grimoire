@@ -559,6 +559,14 @@ test('Reset holds against a second press and a long stay on the button; Undo wor
   again.press(again.key('reset'));
   assert.equal(again.saved().answers[0].id, 'job', 'Undo chosen within ten seconds puts the answers back');
   assert.match(again.text(), /Undone: your answers are back\./);
+  // A quick leave counts too: off the button at once, back later, in time.
+  const quick = loadPage({ seed: seed() });
+  quick.press(quick.key('reset'));
+  quick.clock.tick(500);
+  quick.key('reset').blur();
+  quick.clock.tick(2000);
+  quick.press(quick.key('reset'));
+  assert.ok(quick.saved(), 'Undo was not offered after a quick leave and a return within ten seconds');
 });
 
 test('a planted restored value keeps its restored mark until its own Keep: a field edit starts from the draft, and a chip, skip or flag tap keeps the mark', () => {

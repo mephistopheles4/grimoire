@@ -625,13 +625,12 @@ function noticesEl() {
  * keeps what it cleared in memory for ten seconds from the press. Undo is
  * offered only once the pointer or the focus has left the button and come
  * back, so a second press, or a stay on the button, never brings the answers
- * back. A leave in the first second does not count: the redraw after the
- * press moves the focus, and some browsers report that as a leave. Undo puts
- * the answers back and saves them again. */
+ * back. Only the button now on the page counts: the redraw after the press
+ * moves the focus from the old button, and some browsers report that as a
+ * leave. Undo puts the answers back and saves them again. */
 const UNDO_GRACE_MS = 10000;
-const UNDO_SETTLE_MS = 1000;
 const HOT_SETTLE_MS = 260;
-let undoSnap = null, undoFuse = null, settleFuse = null, undoSettled = false, undoLeft = false, resetHot = false, hotFuse = null, resetEl = null;
+let undoSnap = null, undoFuse = null, undoLeft = false, resetHot = false, hotFuse = null, resetEl = null;
 const undoOffered = () => Boolean(undoSnap) && undoLeft && resetHot;
 function paintReset() {
   if (!resetEl) return;
@@ -642,21 +641,21 @@ function paintReset() {
 }
 function disarmUndo() { clearTimeout(undoFuse); undoFuse = null; undoSnap = null; undoLeft = false; paintReset(); }
 function armUndo(snap) {
-  clearTimeout(undoFuse); clearTimeout(settleFuse);
-  undoSnap = snap; undoSettled = false; undoLeft = false;
+  clearTimeout(undoFuse);
+  undoSnap = snap; undoLeft = false;
   undoFuse = setTimeout(disarmUndo, UNDO_GRACE_MS);
-  settleFuse = setTimeout(() => { undoSettled = true; }, UNDO_SETTLE_MS);
 }
-function resetHover(on) {
+function resetHover(on, e) {
+  if (e.target !== resetEl) return;
   clearTimeout(hotFuse); hotFuse = null;
   if (on) { resetHot = true; paintReset(); return; }
-  if (undoSnap && undoSettled) undoLeft = true;
+  if (undoSnap) undoLeft = true;
   hotFuse = setTimeout(() => { resetHot = false; paintReset(); }, HOT_SETTLE_MS);
 }
 function resetButton() {
   resetEl = h('button', { class: 'scheme reset', type: 'button', key: 'reset', on: {
-    mouseenter: () => resetHover(true), focus: () => resetHover(true),
-    mouseleave: () => resetHover(false), blur: () => resetHover(false),
+    mouseenter: e => resetHover(true, e), focus: e => resetHover(true, e),
+    mouseleave: e => resetHover(false, e), blur: e => resetHover(false, e),
     click: () => {
       if (undoOffered()) {
         const s = undoSnap;
