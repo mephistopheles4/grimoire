@@ -224,7 +224,7 @@ test('a quoted version is read, because the entries accept quoting too', () => {
   assertPasses(dir);
 });
 
-// C1. The exact set of narrowed entries the three skills ship. The reader in
+// C1. The exact set of narrowed entries the four skills ship. The reader in
 // scripts/check.mjs exports nothing, so this parses the fixed entry shape
 // itself: a "- rule_id" line opens an entry, and its file, message and reason
 // lines follow, each double-quoted. An entry added, dropped or re-pointed needs
@@ -264,9 +264,19 @@ const SHIPPED = {
     ['RP1', 'README.md'],
     ['TR2', '*SKILL.md', TR2_MESSAGE],
   ],
+  contract: [
+    ['EA2', 'references/binding-antigravity.md'],
+    ['EA2', 'references/binding-claude.md'],
+    ['EA2', 'references/binding-codex.md'],
+    ['EA2', 'references/contract.changelog.md'],
+    ['EA2', 'references/CONTRACT.md'],
+    ['P2', 'SKILL.md'],
+    ['RA2', 'references/binding-codex.md'],
+    ['MP1', '*contract.changelog.md'],
+  ],
 };
 
-test('each skill ships exactly its narrowed entries, none with a wildcard except head-chef TR2', () => {
+test('each skill ships exactly its narrowed entries, none with a wildcard except head-chef TR2 and contract MP1', () => {
   for (const [skill, want] of Object.entries(SHIPPED)) {
     const got = entriesOf(join(root, 'skills', skill, '.skillspector-baseline.yaml'));
     assert.deepEqual(
@@ -275,7 +285,8 @@ test('each skill ships exactly its narrowed entries, none with a wildcard except
       `${skill}: the shipped entries`,
     );
     for (const e of got) {
-      if (e.rule_id === 'TR2') continue;
+      // Both keep the root's own wildcard, which a skill entry may repeat.
+      if (e.rule_id === 'TR2' || (skill === 'contract' && e.rule_id === 'MP1')) continue;
       assert.doesNotMatch(`${e.file}${e.message ?? ''}`, /[*?[]/, `${skill} ${e.rule_id}: a wildcard in a narrowing`);
     }
   }
