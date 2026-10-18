@@ -1162,6 +1162,11 @@ export const register: Register = on => {
     // follows the light and the dark theme; the engine names no key for the
     // pane's background, so the fill is square and has no outline at rest.
     const hoverFill = (scope: string) => (!pointer ? {} : { hover: { scope, backgroundColor: 'subtle' as const } })
+    // A rounded fill: a round border in the fill's own colour, the one way the
+    // engine rounds a fill. Only for a Box filled at rest; a card's fill shows
+    // on hover alone, and its outline at rest would need the pane's colour,
+    // which no theme key names.
+    const roundFill = { borderStyle: 'round', borderColor: 'subtle', backgroundColor: 'subtle' } as const
     // A tooltip: a hidden Box shown while the pointer is on its anchor's scope.
     // The terminal has none, and shows the text inline where it carries news.
     const tip = (key: string, anchorEl: JSX.Element, text: string) =>
@@ -1170,7 +1175,7 @@ export const register: Register = on => {
       ) : (
         <Box position="relative" hover={{ scope: `tip-${key}` }}>
           {anchorEl}
-          <Box position="absolute" top={1} left={0} display="none" hover={{ scope: `tip-${key}`, display: 'flex' }} borderStyle="round" borderColor="inactive" backgroundColor="subtle" paddingX="sm">
+          <Box position="absolute" top={1} left={0} display="none" hover={{ scope: `tip-${key}`, display: 'flex' }} {...roundFill} paddingX="sm">
             <Text>{text}</Text>
           </Box>
         </Box>
@@ -1196,8 +1201,8 @@ export const register: Register = on => {
         <Text dimColor>{GROUP_HINTS.get(key) ?? ''}</Text>
       </Box>
     )
-    // A group's section bar: a fold arrow, the name and the count. A filled bar
-    // on Desktop; bold text in the terminal.
+    // A group's section bar: a fold arrow, the name and the count. A rounded
+    // filled bar where the pane draws images; bold text in the terminal.
     const groupHead = (key: string, count: number, note = '') => {
       const arrow = folds.has(key) ? '▸' : '▾'
       const name = GROUP_NAMES.get(key) ?? ''
@@ -1209,7 +1214,7 @@ export const register: Register = on => {
           </Button>
         </Box>
       ) : (
-        <Box paddingX="sm" marginTop="md" marginBottom="xs" backgroundColor="subtle">
+        <Box paddingX="sm" marginTop="md" marginBottom="xs" {...roundFill}>
           <Button key={`grp-${key}`} plain onPress={noop}>
             <Text dimColor>{`${arrow} `}</Text>
             <Text weight="medium">{name}</Text>
@@ -1335,19 +1340,34 @@ export const register: Register = on => {
         <Box flexDirection="column" paddingX={terminal ? 0 : 'md'} paddingY={terminal ? 0 : 'sm'} {...hoverFill(scope)}>
           <Box flexDirection="row" columnGap={1} alignItems="center">
             {/* The checkbox: its own key and its own word, so a press on it
-                is never a to-do's tick. The slot is as wide as the to-do's. */}
-            <Box width={CHECK_CELLS} flexShrink={0}>
-              <Button key={keyFor('pick', i, c.title)} label="Select" dimColor={!isPicked} onPress={noop}>
-                {isPicked ? '✓' : terminal ? UNTICKED_TERMINAL : UNTICKED}
-              </Button>
-            </Box>
+                is never a to-do's tick. A card that waits on the owner has
+                none: the bar's one action, Dismiss, never takes it. */}
+            {!needs && (
+              <Box flexShrink={0}>
+                <Button key={keyFor('pick', i, c.title)} label="Select" dimColor={!isPicked} onPress={noop}>
+                  {isPicked ? '✓' : terminal ? UNTICKED_TERMINAL : UNTICKED}
+                </Button>
+              </Box>
+            )}
             <Box flexDirection="column" flexGrow={1} flexShrink={1} minWidth={0}>
               <Box flexDirection="row" columnGap={1} alignItems="center">
+                {/* The status dot in the status colour: small on a card, full
+                    size on one that waits on the owner, whose title is bold.
+                    The terminal draws the status glyph, which reads without
+                    colour. */}
                 <Box flexShrink={0}>
-                  <Text color={look.color}>{look.glyph}</Text>
+                  {terminal ? (
+                    <Text color={look.color}>{look.glyph}</Text>
+                  ) : needs ? (
+                    <Text color={look.color}>●</Text>
+                  ) : (
+                    <Text color={look.color} size="caption">
+                      ●
+                    </Text>
+                  )}
                 </Box>
                 <Box flexGrow={1} flexShrink={1} minWidth={0}>
-                  <Text weight="semibold" wrap="truncate-end">
+                  <Text weight={needs ? 'bold' : 'semibold'} wrap="truncate-end">
                     {oneLine(c.title, 80)}
                   </Text>
                 </Box>
@@ -1571,9 +1591,9 @@ export const register: Register = on => {
 
     // A pull request row: the pill, the PR's title (the card's own with no
     // answer from `gh`), and on a dim line the card's title, the counts, the
-    // repository and the age.
+    // repository and the age. Rows sit a small step apart, with no hairline.
     const prRow = (r: PrRow) => (
-      <Box flexDirection="row" columnGap={1} paddingX={terminal ? 0 : 'md'} paddingY={terminal ? 0 : 'sm'} alignItems="center" {...hoverFill(`pr-${r.i}-${slug(r.number)}`)}>
+      <Box flexDirection="row" columnGap={1} paddingX={terminal ? 0 : 'md'} paddingY={terminal ? 0 : 'sm'} marginBottom={terminal ? 0 : 'xs'} alignItems="center" {...hoverFill(`pr-${r.i}-${slug(r.number)}`)}>
         <Box flexShrink={0}>{pill(r.number, r.state)}</Box>
         <Box flexDirection="column" flexGrow={1} flexShrink={1} minWidth={0}>
           <Text weight="semibold" wrap="truncate-end">
@@ -1587,8 +1607,9 @@ export const register: Register = on => {
     )
 
     // The switch: an icon button with a tooltip on Desktop, the word in the
-    // terminal; the chosen one primary.
-    const switchButton = (id: 'sessions' | 'prs', icon: string, word: string, label: string) =>
+    // terminal; the chosen one primary. The tooltip may add a count to the
+    // button's name.
+    const switchButton = (id: 'sessions' | 'prs', icon: string, word: string, label: string, tipText = label) =>
       tip(
         `switch-${id}`,
         view === id ? (
@@ -1600,7 +1621,7 @@ export const register: Register = on => {
             {pointer ? icon : word}
           </Button>
         ),
-        label,
+        tipText,
       )
 
     return (
@@ -1615,7 +1636,7 @@ export const register: Register = on => {
             </Text>
           </Box>
           {switchButton('sessions', '◫', 'Sessions', 'Sessions')}
-          {switchButton('prs', '⑂', 'Pull requests', 'Pull requests')}
+          {switchButton('prs', '⑂', 'Pull requests', 'Pull requests', `Pull requests ${prCount}`)}
         </Box>
         {error !== '' && <Text color="error">{error}</Text>}
         {pollError !== '' && <Text color="error">{pollError}</Text>}
@@ -1631,7 +1652,7 @@ export const register: Register = on => {
             ).map(([key, list]) => (
               <Box flexDirection="column">
                 {groupHead(key, list.length)}
-                {!folds.has(key) && (list.length > 0 ? rows(list.map(prRow), key) : hint(key))}
+                {!folds.has(key) && (list.length > 0 ? (terminal ? rows(list.map(prRow), key) : list.map(prRow)) : hint(key))}
               </Box>
             ))}
             {ghDown && (
@@ -1691,13 +1712,20 @@ export const register: Register = on => {
             )}
             {/* The groups: a section bar with its fold arrow, name and count,
                 then its cards, or a quiet hint when it is empty. Waiting on you
-                holds the cards that need the owner, then the open to-dos. */}
+                holds the cards that need the owner, then the open to-dos, a
+                row apart with no hairline. Each bar counts the reports its
+                cards sent, so a fold never hides one without a sign. */}
             {groupHead('waiting', waiting, reportNote(reportCount(needsYou.map(({ c }) => c.title), inbox)))}
             {!folds.has('waiting') &&
               (needsYou.length + open.length > 0 ? (
-                <Box flexDirection="column">
-                  {rows([...needsYou.map(card), ...open.map(todoRow)], 'waiting')}
-                </Box>
+                terminal ? (
+                  <Box flexDirection="column">{rows([...needsYou.map(card), ...open.map(todoRow)], 'waiting')}</Box>
+                ) : (
+                  <Box flexDirection="column" rowGap={1} marginTop={1}>
+                    {needsYou.map(card)}
+                    {open.map(todoRow)}
+                  </Box>
+                )
               ) : (
                 hint('waiting')
               ))}
@@ -1717,10 +1745,10 @@ export const register: Register = on => {
         <Box flexGrow={1} />
         {picks.size > 0 && (
           <Box flexDirection="row" justifyContent="center" marginTop="md" marginBottom="sm">
-            <Box flexDirection="row" alignItems="center" columnGap="md" paddingX="md" backgroundColor="subtle" borderStyle="round" borderColor="inactive">
+            <Box flexDirection="row" alignItems="center" columnGap="md" paddingX="md" {...roundFill}>
               <Text>{`${picks.size} selected`}</Text>
               <Button key="bardismiss" plain onPress={noop}>
-                Dismiss
+                ✓ Dismiss
               </Button>
               <Button key="barclear" label="Clear selection" plain dimColor onPress={noop}>
                 ✕

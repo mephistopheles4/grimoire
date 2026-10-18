@@ -1643,10 +1643,12 @@ for (const surface of SURFACES) {
     expect((await textOf(m)).includes('Brigade')).toBe(false)
     expect((await textOf(m)).includes('plugins')).toBe(false)
     expect(await m.find({ key: 'grp-finished' })).toBeDefined()
-    // Colour comes from the status Map: the dot is the status glyph in its key.
+    // Colour comes from the status Map: the terminal draws the status glyph
+    // in its key, Desktop a dot in its key.
     const drawn = (await m.findAll({})) as { type: string; props: Record<string, unknown>; text?: string }[]
     expect(drawn.filter(n => n.type === 'Text' && n.text === '●' && n.props.color === 'warning').length).toBe(2)
-    expect(drawn.find(n => n.type === 'Text' && n.text === '◐')?.props.color).toBe('suggestion')
+    const working = surface === 'terminal' ? '◐' : '●'
+    expect(drawn.find(n => n.type === 'Text' && n.text === working && n.props.color !== 'warning')?.props.color).toBe('suggestion')
   })
 
   test(`${surface}: an empty group shows its quiet hint`, async ($, on) => {
@@ -1676,9 +1678,17 @@ for (const surface of SURFACES) {
     expect(opened.includes('▾ Done · stopped 2')).toBe(true)
     expect(opened.indexOf('▾ Done · stopped')).toBeLessThan(opened.indexOf('done-one'))
     expect(opened.indexOf('done-one')).toBeLessThan(opened.indexOf('stop-one'))
-    expect(opened.includes('✓')).toBe(true)
-    expect(opened.includes('–')).toBe(true)
-    expect(opened.includes('○')).toBe(false)
+    if (surface === 'terminal') {
+      expect(opened.includes('✓')).toBe(true)
+      expect(opened.includes('–')).toBe(true)
+      expect(opened.includes('○')).toBe(false)
+    } else {
+      // Desktop: a dot in each finished status's own colour.
+      const drawn = (await m.findAll({ type: 'Text', text: '●' })) as { props: Record<string, unknown> }[]
+      const colors = drawn.map(n => n.props.color)
+      expect(colors.includes('success')).toBe(true)
+      expect(colors.includes('inactive')).toBe(true)
+    }
     await m.press({ key: 'grp-finished' })
     const closed = await groupsOf(m)
     expect(closed.includes('▸ Done · stopped 2')).toBe(true)
