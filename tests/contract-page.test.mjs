@@ -1,8 +1,11 @@
 // The contract skill's hiring page, at the seam the skill uses: the
-// interview script's --out flag. What only a browser shows (keyboard-only
-// completion, the notices on screen, copy, restore after a close, Reset, the
-// policy enforced, reduced motion) is on the named checklist of spec v4 S9 on
-// #313, run in the built-in browser before the PR opens.
+// interview script's --out flag. A few tests run the rendered page's own
+// scripts on a small stand-in document, to drive its logic: what it draws at
+// load, and what a press or a keystroke leaves in its store. What only a
+// browser shows (keyboard-only completion, real focus and pointer events,
+// copy, restore after a close, the policy enforced, reduced motion) is on the
+// named checklist of spec v4 S9 on #313, run in the built-in browser before
+// the PR opens.
 //
 // Nothing here commits a fixture. Every draft is derived from the shipped
 // example or the measurement draft and written to a temporary folder.
@@ -302,4 +305,218 @@ test('the fonts and their licence are byte for byte groundtrack\'s, and the bund
   assert.equal(copied.length, 8);
   for (const f of copied) assert.equal(sha(readFileSync(join(mine, f))), sha(readFileSync(join(theirs, f))), f);
   assert.equal(sha(readFileSync(join(mine, 'aviation.bundle.css'))), BUNDLE.sha256, `aviation.bundle.css is not the bundle at ${BUNDLE.commit}`);
+});
+
+/* -- the page's own logic, run on a stand-in document ------------------------- */
+
+/* A document just big enough for the page script: elements with children,
+ * properties, a class list and listeners; focus that moves and fires blur
+ * and focus; and a selector matcher for the selectors the page uses. A
+ * selector it does not know throws, so a page change that needs more says
+ * so. Reduced motion is on, so no animation runs. Timers run on a hand
+ * clock. */
+function standIn() {
+  let now = 0;
+  let next = 1;
+  const timers = new Map();
+  const clock = {
+    setTimeout: (fn, ms = 0) => { const id = next++; timers.set(id, { at: now + ms, fn }); return id; },
+    clearTimeout: id => { timers.delete(id); },
+    tick(ms) {
+      const end = now + ms;
+      for (;;) {
+        const due = [...timers].filter(([, t]) => t.at <= end).sort((a, b) => a[1].at - b[1].at || a[0] - b[0])[0];
+        if (!due) break;
+        timers.delete(due[0]);
+        now = due[1].at;
+        due[1].fn();
+      }
+      now = end;
+    },
+  };
+  const compound = part => {
+    const m = /^([a-z0-9]*|\*)((?:\.[a-zA-Z0-9_-]+)*)((?::not\(\[[a-z]+\]\))*)$/.exec(part);
+    if (!m) throw new Error(`the stand-in document does not know the selector ${part}`);
+    const classes = m[2].split('.').filter(Boolean);
+    const nots = [...m[3].matchAll(/:not\(\[([a-z]+)\]\)/g)].map(x => x[1]);
+    return el => (m[1] === '' || m[1] === '*' || el.tagName === m[1].toUpperCase())
+      && classes.every(c => el.classList.contains(c))
+      && nots.every(a => !(el[a] || el.hasAttribute(a)));
+  };
+  const matcher = selector => {
+    const steps = selector.trim().split(/\s+/).map(compound);
+    return el => {
+      if (!steps[steps.length - 1](el)) return false;
+      let i = steps.length - 2;
+      for (let up = el.parentElement; up && i >= 0; up = up.parentElement) if (steps[i](up)) i--;
+      return i < 0;
+    };
+  };
+  let doc = null;
+  /** An event at `target`, bubbling to the document unless told not to. */
+  function fire(target, type, init = {}) {
+    let stopped = false;
+    const e = { type, target, key: init.key, defaultPrevented: false, preventDefault() { this.defaultPrevented = true; }, stopPropagation() { stopped = true; } };
+    const path = [target];
+    if (init.bubbles !== false) {
+      for (let x = target.parentNode; x; x = x.parentNode) path.push(x);
+      path.push(doc);
+    }
+    for (const x of path) {
+      for (const fn of (x.listeners.get(type) || []).slice()) fn(e);
+      if (stopped) break;
+    }
+    return e;
+  }
+  class Text {
+    constructor(data) { this.nodeType = 3; this.data = String(data); this.parentNode = null; }
+    get textContent() { return this.data; }
+  }
+  class El {
+    constructor(tag) {
+      this.nodeType = 1;
+      this.tagName = tag.toUpperCase();
+      this.childNodes = [];
+      this.parentNode = null;
+      this.attrs = new Map();
+      this.listeners = new Map();
+      this.style = {};
+      this.hidden = false;
+      const names = new Set();
+      this.classList = {
+        add: (...c) => c.forEach(x => names.add(x)),
+        remove: (...c) => c.forEach(x => names.delete(x)),
+        toggle: (c, on = !names.has(c)) => { if (on) names.add(c); else names.delete(c); return on; },
+        contains: c => names.has(c),
+        names,
+      };
+      if (this.tagName === 'INPUT' || this.tagName === 'TEXTAREA') { this.value = ''; this.selectionStart = 0; this.selectionEnd = 0; }
+    }
+    get className() { return [...this.classList.names].join(' '); }
+    set className(v) { this.classList.names.clear(); for (const c of String(v).split(/\s+/)) if (c) this.classList.names.add(c); }
+    get parentElement() { return this.parentNode instanceof El ? this.parentNode : null; }
+    get children() { return this.childNodes.filter(x => x instanceof El); }
+    get textContent() { return this.childNodes.map(x => x.textContent).join(''); }
+    set textContent(v) { this.replaceChildren(String(v)); }
+    get innerText() { return this.textContent; }
+    get offsetHeight() { return 0; }
+    get scrollHeight() { return 0; }
+    append(...kids) {
+      for (const k of kids) {
+        const node = typeof k === 'string' ? new Text(k) : k;
+        if (node.parentNode) node.parentNode.childNodes.splice(node.parentNode.childNodes.indexOf(node), 1);
+        node.parentNode = this;
+        this.childNodes.push(node);
+      }
+    }
+    replaceChildren(...kids) {
+      for (const x of this.childNodes) x.parentNode = null;
+      this.childNodes = [];
+      this.append(...kids);
+    }
+    remove() { if (this.parentNode) { this.parentNode.childNodes.splice(this.parentNode.childNodes.indexOf(this), 1); this.parentNode = null; } }
+    contains(x) { for (let y = x; y; y = y.parentNode) if (y === this) return true; return false; }
+    setAttribute(k, v) { this.attrs.set(k, String(v)); }
+    getAttribute(k) { return this.attrs.has(k) ? this.attrs.get(k) : null; }
+    removeAttribute(k) { this.attrs.delete(k); }
+    hasAttribute(k) { return this.attrs.has(k); }
+    addEventListener(type, fn) { if (!this.listeners.has(type)) this.listeners.set(type, []); this.listeners.get(type).push(fn); }
+    descendants() { return this.children.flatMap(c => [c, ...c.descendants()]); }
+    querySelectorAll(s) { return this.descendants().filter(matcher(s)); }
+    querySelector(s) { return this.querySelectorAll(s)[0] || null; }
+    matches(s) { return matcher(s)(this); }
+    closest(s) { const m = matcher(s); for (let x = this; x; x = x.parentElement) if (m(x)) return x; return null; }
+    getBoundingClientRect() { return { top: 0, bottom: 0, left: 0, right: 0, width: 0, height: 0 }; }
+    scrollIntoView() {}
+    setSelectionRange(a, b) { this.selectionStart = a; this.selectionEnd = b; }
+    showModal() { this.open = true; }
+    close() { this.open = false; }
+    /* Focus moves: the element that had it gets blur, even when a redraw
+     * has already taken it out of the page, as some browsers do. */
+    focus() {
+      const was = doc.activeElement;
+      if (was === this) return;
+      doc.activeElement = this;
+      if (was && was !== doc.body) fire(was, 'blur', { bubbles: false });
+      fire(this, 'focus', { bubbles: false });
+    }
+    blur() { if (doc.activeElement === this) { doc.activeElement = doc.body; fire(this, 'blur', { bubbles: false }); } }
+  }
+  const html = new El('html');
+  const body = new El('body');
+  const app = new El('div');
+  app.id = 'app';
+  body.append(app);
+  html.append(body);
+  doc = {
+    documentElement: html,
+    body,
+    activeElement: body,
+    listeners: new Map(),
+    createElement: tag => new El(tag),
+    createElementNS: (ns, tag) => new El(tag),
+    createTextNode: data => new Text(data),
+    getElementById: id => html.descendants().find(el => el.id === id) || null,
+    querySelectorAll: s => html.querySelectorAll(s),
+    querySelector: s => html.querySelector(s),
+    addEventListener: El.prototype.addEventListener,
+  };
+  return { doc, clock, fire };
+}
+
+/** A page rendered from the shipped example and loaded on a stand-in
+ *  document. Its store holds `seed` when given, saved by the module the page
+ *  inlines, under the page's own hashes. */
+const pages = new Map();
+function loadPage({ flags = [], seed } = {}) {
+  const at = flags.join(' ');
+  if (!pages.has(at)) pages.set(at, render(example, join(work, `logic-${n++}.html`), ...flags));
+  const html = pages.get(at);
+  const D = dataOf(html).value;
+  const map = new Map();
+  const store = {
+    getItem: k => (map.has(k) ? map.get(k) : null),
+    setItem: (k, v) => { map.set(k, String(v)); },
+    removeItem: k => { map.delete(k); },
+    key: i => [...map.keys()][i] ?? null,
+    get length() { return map.size; },
+  };
+  if (seed) Interview.save(store, D.draft, D.kinds, D.hashes, seed);
+  const { doc, clock, fire } = standIn();
+  const sandbox = {
+    document: doc,
+    localStorage: store,
+    matchMedia: () => ({ matches: true }),
+    navigator: {},
+    innerHeight: 800,
+    addEventListener() {},
+    setTimeout: clock.setTimeout,
+    clearTimeout: clock.clearTimeout,
+  };
+  sandbox.window = sandbox;
+  const ctx = vm.createContext(sandbox);
+  for (const [i, block] of scriptBlocks(html).entries()) vm.runInContext(block, ctx, { filename: `script ${i}` });
+  const all = () => doc.documentElement.descendants();
+  const prefix = `contract-interview:${D.draft.type}:${D.draft.name}:`;
+  return {
+    D, map, clock, doc,
+    key: k => all().find(el => el.pageKey === k) || null,
+    text: () => doc.documentElement.textContent,
+    /** The block saved under this draft's key, or null. */
+    saved: () => (map.has(prefix + D.hashes.draft) ? JSON.parse(map.get(prefix + D.hashes.draft)).block : null),
+    click: el => fire(el, 'click'),
+    /** A press as a pointer makes it: focus, then click. */
+    press: el => { el.focus(); fire(el, 'click'); },
+    type: (el, value) => { el.value = value; fire(el, 'input'); },
+  };
+}
+
+test('a page whose store holds a moved and a removed entry loads, and names both changes', () => {
+  const edits = [{ op: 'move', id: 'duty-read', to: 1 }, { op: 'remove', id: 'stays-out-one-pr' }];
+  let page;
+  assert.doesNotThrow(() => { page = loadPage({ seed: { answers: new Map(), edits } }); });
+  const text = page.text();
+  assert.match(text, /Changes brought back from this browser/);
+  assert.match(text, /Moved [^.]*\(duty-read\)/);
+  assert.match(text, /Removed [^.]*\(stays-out-one-pr\)/);
 });
