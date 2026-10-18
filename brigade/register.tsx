@@ -24,7 +24,6 @@ import {
   lookup,
   oneLine,
   openerArgv,
-  parseAgents,
   parsePrList,
   placeRoster,
   readOpenAnswer,
@@ -47,6 +46,7 @@ import {
   GROUP_NAMES,
   MAX_PICKED,
   MAX_TRANSCRIPT_BYTES,
+  SESSIONS_UNREAD,
   SVG_MAX,
   VIEW_LABELS,
   ageText,
@@ -81,6 +81,7 @@ import {
   prNumber,
   prRows,
   readCalls,
+  readSessions,
   refusalLines,
   reportCount,
   reportNote,
@@ -130,7 +131,8 @@ import { registerWriter, writerEpoch, writerSession } from './writer.ts'
 const PANE = 'brigade'
 const TITLE = 'Brigade'
 const ROSTER_MS = 5000
-const AGENTS_MS = 10000
+// The live poll reads the engine's session files this often (#347).
+const LIVE_MS = 10000
 const GH_MS = 60000
 const TOOL = 'set_roster'
 
@@ -311,26 +313,39 @@ const summaries: SummaryMemory = newSummaryMemory()
 const linkFrom = new Map<string, string>()
 let polling = false
 
-async function pollAgents($: EngineInterface, open: () => boolean) {
-  // One poll at a time: `claude agents` may take up to 15 s and the
-  // transcript reads add to that, so a tick that finds the last poll still
-  // running does nothing.
+async function pollLive($: EngineInterface, open: () => boolean) {
+  // One poll at a time: the transcript reads can take a while, so a tick
+  // that finds the last poll still running does nothing.
   if (polling) return
   polling = true
   try {
-    // With no roster file to read there is no brigade to show, so no process
-    // runs either; the pane already shows why.
+    // With no roster file to read there is no brigade to show, so nothing is
+    // read either; the pane already shows why.
     const at = await where($)
     if ('error' in at) return
+    // The stat resolves, so the place checks and the summary's path rule get
+    // a real path. An engine with no listing makes the transcript finder's
+    // listing reject, quietly, and the session-file read draw the fixed line.
+    const io = {
+      live: open,
+      now: () => $.clock.now(),
+      stat: (path: string) => $.fs.stat(path, { resolve: true }),
+      list: async (path: string) => $.fs.list(path),
+      read: async (path: string) => String(await $.fs.read(path)),
+    }
+    // The live state, from the engine's session files every poll. The pane
+    // runs no `claude agents --json`, which makes every running session do
+    // work at once (#347). A file that fails its check draws no row, and it,
+    // or a folder that cannot be read, draws the one fixed line.
+    const files = await readSessions(at.config, io)
+    if (!open()) return
+    const rows = files?.rows ?? []
+    await update($, live, () => rows.map(r => ({ name: r.name, value: r.status })))
+    await update($, liveError, () => (files?.complete === true ? '' : SESSIONS_UNREAD))
+    // With no session read at all, the cards keep the cache and meter values
+    // they had: no rows would only redraw every card as not found.
+    if (files === undefined) return
     try {
-      const { exitCode, stdout, stderr } = await $.process.run(['claude', 'agents', '--json'], { timeoutMs: 15000 })
-      if (!open()) return
-      if (exitCode !== 0) throw new Error(oneLine(stderr, 200) || `exit ${exitCode}`)
-      const rows = parseAgents(stdout)
-      if ('error' in rows) throw new Error(rows.error)
-      await update($, live, () => rows.value.map(r => ({ name: r.name, value: r.status })))
-      await update($, liveError, () => '')
-
       // Transcripts are found under the config folder.
       const config = at.config
       const cards = (await read($, roster)).cards
@@ -338,17 +353,8 @@ async function pollAgents($: EngineInterface, open: () => boolean) {
       // Each roster member's cache warmth and meters: from its summary file
       // in this plugin's data folder when one passes its checks, else from
       // its transcript's call series, found by the transcript finder. The
-      // rules for what is found and read, and when, are in view.ts. The stat
-      // resolves, so the finder's place check and the summary's path rule
-      // get a real path; an engine with no listing rejects here, quietly, as
-      // a rejected listing.
-      const found = await readCalls(rows.value, cards.map(c => c.title), config, memory, {
-        live: open,
-        now: () => $.clock.now(),
-        stat: path => $.fs.stat(path, { resolve: true }),
-        list: async path => $.fs.list(path),
-        read: async path => String(await $.fs.read(path)),
-      }, finder, { plugin: at.plugin, held: summaries })
+      // rules for what is found and read, and when, are in view.ts.
+      const found = await readCalls(rows, cards.map(c => c.title), config, memory, io, finder, { plugin: at.plugin, held: summaries })
       if (found === undefined || !open()) return
       await update($, warmth, () => found.warmth)
       await update($, meters, () => found.meters)
@@ -386,8 +392,8 @@ async function pollAgents($: EngineInterface, open: () => boolean) {
         else linkFrom.set(name, at.path)
         await update($, links, list => [...list.filter(p => p.name !== name), ...(url === undefined ? [] : [{ name, value: url }])])
       }
-    } catch (err) {
-      await update($, liveError, () => `claude agents: ${oneLine(String(err instanceof Error ? err.message : err), 200)}`)
+    } catch {
+      // The reads are tried again at the next poll.
     }
   } finally {
     polling = false
@@ -552,14 +558,14 @@ async function arm($: EngineInterface) {
     const live = () => generation === mine
     timers = [
       $.clock.every(ROSTER_MS, () => void (live() && rosterTick($, live))),
-      $.clock.every(AGENTS_MS, () => void (live() && pollAgents($, live))),
+      $.clock.every(LIVE_MS, () => void (live() && pollLive($, live))),
       $.clock.every(GH_MS, () => void (live() && askGh($, live, true))),
     ]
     await update($, armed, () => true)
     await update($, folded, () => STARTS_FOLDED)
     if (live()) await readUsage($)
     if (live()) await loadRoster($)
-    if (live()) await pollAgents($, live)
+    if (live()) await pollLive($, live)
     // Not awaited: a slow gh must not hold up the /brigade reply or the tool's offer.
     if (live()) void askGh($, live, false)
     return

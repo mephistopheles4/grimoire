@@ -143,7 +143,9 @@ function makeFs() {
     const n = walk(p, true)?.node
     return n?.type === 'file' ? n.data.text : undefined
   }
-  return { nodes, log, put, dirs, walk, stat, list, write, text }
+  // A file removed, as a session that ended removes its own.
+  const drop = (p: string) => nodes.delete(key(p))
+  return { nodes, log, put, dirs, walk, stat, list, write, text, drop }
 }
 
 const ENOENT = RECORDED.rejections.missing.replace(/^.*\) /, '')
@@ -189,7 +191,6 @@ type World = ReturnType<typeof makeFs> & {
   mcp: (args: Record<string, unknown>) => unknown
   mcpCalls: { server: string; tool: string; args: Record<string, unknown> }[]
   procs: string[][]
-  agents: string
   env: Record<string, string>
   failEnv: boolean
   probes: Record<string, Probe>
@@ -204,9 +205,12 @@ type World = ReturnType<typeof makeFs> & {
   plant?: (key: string, value: any) => any
   /** Every value the pane set, by key, as JSON. */
   states: [string, string][]
-  /** How many times the pane listed a folder, and a message to refuse it with. */
+  /** How many times the pane listed a folder other than the sessions folder,
+   *  and a message to refuse those listings with. */
   listings: number
   listDeny: string
+  /** Whether the pane is the shown tab, as `$.ui.panes()` says. */
+  shown: boolean
   /** The usage the bottom of `turn.step` answers with, and how many session
    *  usage calls the plugins made. */
   stepUsage: unknown
@@ -260,7 +264,6 @@ function world(on: On, setup: (w: World) => void = w => w.dirs(`${CONFIG}\\plugi
     mcp: (() => ({ value: { content: [{ type: 'text', text: 'Opened session in a split pane (pane 1) beside this one.' }], isError: false } })) as World['mcp'],
     mcpCalls: [] as World['mcpCalls'],
     procs: [] as string[][],
-    agents: '[]',
     env: { ...WINDOWS } as Record<string, string>,
     failEnv: false,
     probes: {} as Record<string, Probe>,
@@ -273,6 +276,7 @@ function world(on: On, setup: (w: World) => void = w => w.dirs(`${CONFIG}\\plugi
     usage: undefined as unknown,
     states: [] as [string, string][],
     listings: 0,
+    shown: true,
     listDeny: '',
     stepUsage: null as unknown,
     usageCalls: 0,
@@ -289,6 +293,8 @@ function world(on: On, setup: (w: World) => void = w => w.dirs(`${CONFIG}\\plugi
     holdGh: false,
     releaseGh: () => {},
   })
+  // The engine keeps a sessions folder; a test plants the files in it.
+  w.dirs(`${CONFIG}\\sessions`)
   w.dirs(CONFIG)
   setup(w)
   w.clock = mock.clock(on)
@@ -323,9 +329,10 @@ function world(on: On, setup: (w: World) => void = w => w.dirs(`${CONFIG}\\plugi
     return t === undefined ? { deny: ENOENT } : { value: t }
   })
   on('fs.list', ($, e: any) => {
-    w.listings++
+    const sessions = String(e.path).endsWith('\\sessions')
+    if (!sessions) w.listings++
     w.log.push(`list ${e.path}`)
-    if (w.listDeny !== '') return { deny: w.listDeny }
+    if (w.listDeny !== '' && !sessions) return { deny: w.listDeny }
     const l = w.list(e.path)
     return l === undefined ? { deny: ENOENT } : { value: l }
   })
@@ -338,7 +345,7 @@ function world(on: On, setup: (w: World) => void = w => w.dirs(`${CONFIG}\\plugi
     return { value: { isPlaced: true } }
   })
   on('ui.panes', () => ({
-    value: w.open ? [{ id: 'brigade', title: 'Brigade', isShown: true, isFocused: false, isPlaced: true }] : [],
+    value: w.open ? [{ id: 'brigade', title: 'Brigade', isShown: w.shown, isFocused: false, isPlaced: true }] : [],
   }))
   on('ui.toast', ($, e: any) => {
     w.toasts.push(String(e.text))
@@ -406,9 +413,7 @@ function world(on: On, setup: (w: World) => void = w => w.dirs(`${CONFIG}\\plugi
     w.mcpCalls.push({ server: e.server, tool: e.tool, args: e.args })
     return w.mcp(e.args) as any
   })
-  // The pane's own poll runs `claude agents --json` on its timer; it lists
-  // `w.agents`, no session by default. Every process, an opener among them,
-  // is recorded, with what it was started with. An opener can be made to fail
+  // Every process, an opener among them, is recorded, with what it was started with. An opener can be made to fail
   // to start, or to run until released.
   on('process.run', async ($, e: any) => {
     w.procs.push([...e.argv])
@@ -426,8 +431,7 @@ function world(on: On, setup: (w: World) => void = w => w.dirs(`${CONFIG}\\plugi
       // One release lets every held opener go.
       if (w.holdRun) await new Promise<void>(res => { const before = w.releaseRun; w.releaseRun = () => { before(); res() } })
     }
-    const stdout = e.argv[0] === 'claude' ? w.agents : ''
-    return { value: { exitCode: e.argv[0] === 'explorer.exe' ? 1 : 0, stdout, stderr: '', isStdoutTruncated: false, isStderrTruncated: false } }
+    return { value: { exitCode: e.argv[0] === 'explorer.exe' ? 1 : 0, stdout: '', stderr: '', isStdoutTruncated: false, isStderrTruncated: false } }
   })
   return w
 }
@@ -439,6 +443,20 @@ const call = async ($: any, input: Record<string, unknown>): Promise<{ ok: boole
   if (typeof r.deny === 'string') return { ok: false, text: r.deny }
   if (r.isError) return { ok: false, text: String(r.text ?? r.result) }
   return { ok: true, text: String(r.text ?? r.result) }
+}
+
+// The live sessions, as the engine keeps them: one file each in the config
+// folder's sessions folder, which the pane reads every poll (#347). Each file
+// also holds the kinds of field the pane never reads; earlier files go.
+const SESSIONS = `${CONFIG}\\sessions`
+const liveRows = (w: World, rows: { name: string; status: string; sessionId: string; cwd?: string }[]) => {
+  w.dirs(SESSIONS)
+  for (const e of w.list(SESSIONS) ?? []) w.drop(`${SESSIONS}\\${e.name}`)
+  rows.forEach((r, i) => {
+    const text = JSON.stringify({ pid: 100 + i, kind: 'interactive', messagingSocketPath: '\\\\.\\pipe\\cc-msg-x', bridgeSessionId: 'session_X', ...r })
+    w.put(`${SESSIONS}\\${100 + i}.json`, { type: 'file', data: { text } })
+    w.put(`${SESSIONS}\\${100 + i}.0123abcd.key`, { type: 'file', data: { text: 'KEY' } })
+  })
 }
 
 const card = (title: string, over: Record<string, unknown> = {}) => ({ title, work: 'w', phase: 'p', settings: 's', status: 'working', ...over })
@@ -874,8 +892,8 @@ test('with plugins absent the call is refused', async ($, on) => {
 // Spec v3 on #212, decision 5. A press is raised as the engine raises it, on
 // the pane's button key: `open-<index>-<slug>` for a card, `go-<index>-<slug>`
 // for a to-do's Open. The pane loads the seeded roster on /brigade. The
-// pane's own `claude agents --json` poll runs on its timer, so these tests
-// look for the opener only. The world is Windows, so the opener is
+// pane runs no process of its own, so every process these tests see is an
+// opener. The world is Windows, so the opener is
 // explorer.exe; the host tests at the end change the host.
 
 const DESKTOP = 'local_0123abcd-4567-89ab-cdef-0123456789ab'
@@ -1079,7 +1097,7 @@ test('a card with only a url, or only a background id, makes no tool list and no
   // the pane's poll finds it, so its button is drawn too.
   const BG = '99999999-8888-7777-6666-555555555555'
   const w = await pane(on, $)
-  w.agents = JSON.stringify([{ name: 'gamma', status: 'idle', sessionId: BG, cwd: 'C:\\work' }])
+  liveRows(w, [{ name: 'gamma', status: 'idle', sessionId: BG, cwd: 'C:\\work' }])
   w.put(`${CONFIG}\\projects\\C--work\\${BG}.jsonl`, {
     type: 'file',
     data: { text: JSON.stringify({ type: 'system', subtype: 'bridge_status', url: 'https://claude.ai/code/session_BG1' }) },
@@ -1153,7 +1171,7 @@ const openers = (w: World) => w.procs.filter(p => OPENERS.includes(p[0]))
 // finds in its transcript, as a head chef's `claude --bg` session has.
 async function background(on: On, $: any) {
   const w = await pane(on, $)
-  w.agents = JSON.stringify([{ name: 'gamma', status: 'idle', sessionId: BG_ID, cwd: 'C:\\work' }])
+  liveRows(w, [{ name: 'gamma', status: 'idle', sessionId: BG_ID, cwd: 'C:\\work' }])
   w.put(`${CONFIG}\\projects\\C--work\\${BG_ID}.jsonl`, {
     type: 'file',
     data: { text: JSON.stringify({ type: 'system', subtype: 'bridge_status', url: 'https://claude.ai/code/session_BG1' }) },
@@ -1177,8 +1195,8 @@ test('on macOS, a press on a background card with a Remote Control link runs /us
   macos(w)
   await press($, 'open-2-gamma')
   expect(openers(w)).toEqual([['/usr/bin/open', BG_LINK]])
-  // Nothing else: every process but the pane's own claude agents poll.
-  expect(w.procs.filter(p => p[0] !== 'claude')).toEqual([['/usr/bin/open', BG_LINK]])
+  // Nothing else: the pane runs no other process.
+  expect(w.procs).toEqual([['/usr/bin/open', BG_LINK]])
   expect(w.probed).toEqual([MAC_PROBE])
   expect(w.toasts.at(-1)).toBe('Opening gamma in the app (0)')
 })
@@ -1828,7 +1846,7 @@ for (const surface of SURFACES) {
 // --- the cache bar ---------------------------------------------------------------
 //
 // Spec revision 3 on #250, S6 and S8; ticket #257. The warmth records and live
-// states are planted as the agents poll stores them: the poll runs again on
+// states are planted as the live poll stores them: the poll runs again on
 // its 10 s timer after the clock is read, so each record's time is set from
 // the clock the render reads. Each test runs on both surfaces.
 
@@ -2303,8 +2321,8 @@ for (const surface of SURFACES) {
 //
 // Spec revision 3 on #251, S3 and S16 criteria 1 and 2; ticket #270. A session
 // that moved into a worktree after it started writes its transcript under the
-// worktree's projects folder, while `claude agents` still names its launch
-// folder. The folder names are made up, as the config folder is. Each listing
+// worktree's projects folder, while its session file may still name its
+// launch folder. The folder names are made up, as the config folder is. Each listing
 // the pane asks is answered from the file system in memory, in the shape the
 // engine listed each kind of entry (recorded-stats.ts).
 
@@ -2333,11 +2351,11 @@ const plantIn = (w: World, folder: string, link: string) => {
   w.dirs(folder)
   w.put(`${folder}\\${MID}.jsonl`, { type: 'file', data: { text: `${bridge(link)}\n${callAt(w.clock.now() - MINUTE)}\n`, mtimeMs: w.clock.now() } })
 }
-// The pane with one needs-you card, `gamma`, whose session `claude agents`
-// lists in the launch folder, and a poll after `setup` plants its files.
+// The pane with one needs-you card, `gamma`, whose session file names the
+// launch folder, and a poll after `setup` plants its files.
 async function moved(on: On, $: any, setup: (w: World) => void) {
   const w = await grouped(on, $, { cards: [card('gamma', { status: 'needs-you' })], todos: [] })
-  w.agents = JSON.stringify([{ name: 'gamma', status: 'idle', sessionId: MID, cwd: 'C:\\work' }])
+  liveRows(w, [{ name: 'gamma', status: 'idle', sessionId: MID, cwd: 'C:\\work' }])
   w.dirs(LAUNCH)
   setup(w)
   await w.clock.advance(10000)
@@ -2369,7 +2387,7 @@ for (const surface of SURFACES) {
   test(`${surface}: a needs-you or working card whose transcript is found nowhere says so, dim, and a finished card says nothing`, async ($, on) => {
     const SIDS = ['66666666-7777-4888-8999-aaaaaaaaaaaa', '77777777-8888-4999-8aaa-bbbbbbbbbbbb', '88888888-9999-4aaa-8bbb-cccccccccccc']
     const w = await grouped(on, $, { cards: [card('need-x', { status: 'needs-you' }), card('work-x'), card('done-x', { status: 'done' })], todos: [] })
-    w.agents = JSON.stringify(['need-x', 'work-x', 'done-x'].map((name, i) => ({ name, status: i === 1 ? 'busy' : 'idle', sessionId: SIDS[i], cwd: 'C:\\work' })))
+    liveRows(w, ['need-x', 'work-x', 'done-x'].map((name, i) => ({ name, status: i === 1 ? 'busy' : 'idle', sessionId: SIDS[i], cwd: 'C:\\work' })))
     w.dirs(LAUNCH)
     await w.clock.advance(10000)
     await w.clock.settle()
@@ -2664,7 +2682,7 @@ test('no folder path, transcript text, model text or message id reaches any valu
 // --- burn rate, the context trend and card tabs -------------------------------
 //
 // Spec revision 3 on #251, S7 and S11; ticket #272. The meters and warmth
-// records are planted as the agents poll stores them. Each test runs on both
+// records are planted as the live poll stores them. Each test runs on both
 // surfaces.
 
 const TABBED = {
@@ -3677,16 +3695,16 @@ for (const surface of SURFACES) {
 
   test(`${surface}: the roster's errors stay on top of the Pull requests view`, async ($, on) => {
     const bad = await grouped(on, $, { cards: [card('bad', { status: 'paused' })], todos: [] })
-    bad.agents = 'not json'
+    bad.put(`${SESSIONS}\\100.json`, { type: 'file', data: { text: 'not json' } })
     await bad.clock.advance(10000)
     const n = await mountOn($, surface)
     await n.press({ key: 'view-prs' })
     const text = await textOf(n)
     expect(text.includes('Roster not shown')).toBe(true)
-    // The poll's error too, and both above the groups.
-    expect(text.includes('claude agents:')).toBe(true)
+    // The poll's line too, and both above the groups.
+    expect(text.includes('Cannot read the session files.')).toBe(true)
     expect(text.indexOf('Roster not shown')).toBeLessThan(text.indexOf('▾ Open'))
-    expect(text.indexOf('claude agents:')).toBeLessThan(text.indexOf('▾ Open'))
+    expect(text.indexOf('Cannot read the session files.')).toBeLessThan(text.indexOf('▾ Open'))
     expect(bad.errors.at(-1)).toContain('Roster not shown')
   })
 
@@ -4054,4 +4072,103 @@ test('the editor and mobile show Open, Dismiss and the full settings without a p
     expect(all.filter(n => n.type === 'Svg' && n.props.alt === '#341, open').length).toBe(1)
     expect(all.filter(n => n.type === 'Box' && n.props.borderColor === '#1a1a19').length).toBe(0)
   }
+})
+
+// --- the live poll's source (#347) --------------------------------------------
+//
+// The live state comes from the engine's session files on every 10 s poll.
+// The pane runs no `claude agents --json`, which makes every running session
+// do work at once. A file that fails its check, or a sessions folder that
+// cannot be read, draws one fixed line and no row from that file.
+
+const S1 = 'aaaaaaaa-1111-4222-8333-444444444444'
+const S2 = 'bbbbbbbb-1111-4222-8333-444444444444'
+const claudeRuns = (w: World) => w.procs.filter(p => p[0] === 'claude').length
+const lastLive = (w: World) => JSON.parse(w.states.filter(([k]) => k === 'live').at(-1)?.[1] ?? '[]')
+const lastLiveError = (w: World) => JSON.parse(w.states.filter(([k]) => k === 'liveError').at(-1)?.[1] ?? '""')
+const UNREAD = 'Cannot read the session files.'
+
+test('the live state follows the session files at every poll, and the pane never runs claude agents, shown or not', async ($, on) => {
+  const w = await pane(on, $, 'desktop', w => liveRows(w, [{ name: 'alpha', status: 'busy', sessionId: S1, cwd: 'C:\\work' }]))
+  expect(lastLive(w)).toEqual([{ name: 'alpha', value: 'busy' }])
+  liveRows(w, [{ name: 'alpha', status: 'idle', sessionId: S1, cwd: 'C:\\work' }])
+  await w.clock.advance(10000)
+  await w.clock.settle()
+  expect(lastLive(w)).toEqual([{ name: 'alpha', value: 'idle' }])
+  w.shown = false
+  await w.clock.advance(300000)
+  w.shown = true
+  await w.clock.advance(300000)
+  await w.clock.settle()
+  expect(claudeRuns(w)).toBe(0)
+  expect(lastLiveError(w)).toBe('')
+  // A session that ended took its file with it.
+  liveRows(w, [])
+  await w.clock.advance(10000)
+  await w.clock.settle()
+  expect(lastLive(w)).toEqual([])
+})
+
+test('a session file that fails its check draws the one fixed line and no row from it; the good file still draws, and a fixed file clears the line', async ($, on) => {
+  const w = await pane(on, $, 'desktop', w =>
+    liveRows(w, [
+      { name: 'alpha', status: 'busy', sessionId: S1, cwd: 'C:\\work' },
+      { name: 'beta', status: 'idle', sessionId: S2, cwd: 'C:\\work' },
+    ]),
+  )
+  w.put(`${SESSIONS}\\101.json`, { type: 'file', data: { text: '{"name":"beta","status":' } })
+  await w.clock.advance(10000)
+  await w.clock.settle()
+  expect(lastLive(w)).toEqual([{ name: 'alpha', value: 'busy' }])
+  expect(lastLiveError(w)).toBe(UNREAD)
+  const text = await textOf(mounted)
+  expect(text.includes(UNREAD)).toBe(true)
+  w.put(`${SESSIONS}\\101.json`, { type: 'file', data: { text: JSON.stringify({ name: 'beta', status: 'idle', sessionId: S2 }) } })
+  await w.clock.advance(10000)
+  await w.clock.settle()
+  expect(lastLiveError(w)).toBe('')
+  expect(lastLive(w)).toEqual([{ name: 'alpha', value: 'busy' }, { name: 'beta', value: 'idle' }])
+})
+
+test('a sessions folder that cannot be read draws the fixed line and no rows, and keeps the cards\' last cache and meter values', async ($, on) => {
+  const w = await pane(on, $, 'desktop', w => liveRows(w, [{ name: 'alpha', status: 'busy', sessionId: S1, cwd: 'C:\\work' }]))
+  w.drop(`${SESSIONS}\\100.json`)
+  w.drop(`${SESSIONS}\\100.0123abcd.key`)
+  w.drop(SESSIONS)
+  const kept = w.states.filter(([k]) => k === 'warmth' || k === 'meters').length
+  await w.clock.advance(10000)
+  await w.clock.settle()
+  expect(lastLive(w)).toEqual([])
+  expect(lastLiveError(w)).toBe(UNREAD)
+  expect(claudeRuns(w)).toBe(0)
+  // Nothing the transcripts gave is redrawn from no rows.
+  expect(w.states.filter(([k]) => k === 'warmth' || k === 'meters').length).toBe(kept)
+})
+
+test('a close while the session files are being read stores no live state', async ($, on) => {
+  const w = await pane(on, $, 'desktop', w => liveRows(w, [{ name: 'alpha', status: 'busy', sessionId: S1, cwd: 'C:\\work' }]))
+  liveRows(w, [{ name: 'alpha', status: 'idle', sessionId: S1, cwd: 'C:\\work' }])
+  w.holdStat = true
+  await w.clock.advance(10000)
+  // The pane goes from the engine's list; the next roster tick sees it and
+  // stops every read, while the session read still waits on its stat.
+  w.open = false
+  await w.clock.advance(5000)
+  const from = w.states.length
+  w.holdStat = false
+  w.releaseStat()
+  await w.clock.settle()
+  expect(w.states.slice(from).filter(([k]) => k === 'live' || k === 'liveError')).toEqual([])
+})
+
+test('the pane keeps nothing from a session file but the name and status: no socket, bridge id or folder in any value it set', async ($, on) => {
+  const w = await pane(on, $, 'desktop', w => liveRows(w, [{ name: 'alpha', status: 'busy', sessionId: S1, cwd: 'C:\\work' }]))
+  await w.clock.advance(10000)
+  await w.clock.settle()
+  for (const [k, v] of w.states) for (const piece of ['cc-msg', 'session_X', 'C:\\\\work', '.key']) expect(`${k} ${v}`.includes(piece)).toBe(false)
+  // The file was read, and the key file beside it never was.
+  expect(w.log.some(l => l.startsWith('read ') && l.endsWith('\\100.json'))).toBe(true)
+  expect(w.log.some(l => l.startsWith('read ') && l.endsWith('.key'))).toBe(false)
+  // No Refresh button: there is nothing for it to run.
+  expect(await mounted.find({ key: 'refresh' })).toBeUndefined()
 })
