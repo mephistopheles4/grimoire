@@ -301,6 +301,15 @@ no rule reads. A mod kept in any other folder is outside those rules until
 `.claude-plugin/types/` at every load; `.gitignore` excludes them, so never
 commit them and the check never reads them.
 
+**The engine loads more than the mod.** It also loads components from default
+places at the plugin root (`commands/`, `agents/`, `output-styles/`, `workflows/`,
+`themes/`, `monitors/`, `bin/`, `.mcp.json`, `.lsp.json`, `settings.json`, a root
+`SKILL.md`) and from manifest and marketplace-entry keys that add component
+locations. The check fails on a root entry named like one, in any case, and on a
+key in `plugin.json` or `marketplace.json` outside a short allow-list of metadata
+and the two pointers it reads. To use one, add it to `LOAD_ROOTS` or the key list in
+`scripts/check.mjs` with a rule that reads what it loads.
+
 **Changing the export format touches three places.** The page writes it,
 `SKILL.md` specifies it, and the agent reads it back. All three in one commit,
 or none.

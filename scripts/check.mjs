@@ -21,6 +21,8 @@
 //    `claude-code`, which the engine supplies.
 //    6b. Every pointer the engine follows to the mod's code, and every
 //    relative import in it, lands inside the mod's folders.
+//    6c. Nothing else the engine loads: no default component folder or file at
+//    the root, and no manifest or marketplace key outside an allow-list.
 // 7. The SkillSpector baselines agree, so a rule reasoned away at the
 //    repository root is reasoned away the same way inside a skill: the same
 //    reason, and a skill entry no broader than the root's.
@@ -67,7 +69,14 @@ for (const n of walkNotes) console.log(`note: ${n}`);
 // not this repository's: .gitignore excludes them, so the walk never sees them.
 const MOD_DIRS = ['brigade', 'hooks'];
 const underMod = src => MOD_DIRS.some(d => src.startsWith(`${d}/`));
-const isShipped = src => src.startsWith('skills/') || underMod(src);
+// Every place at the plugin root that the engine loads without a manifest key
+// (the plugin manifest reference, "Standard layout"), beyond skills/ and the
+// mod's folders. This repository uses none of them, and rule 6c refuses each.
+// A file in one would ship and load, so isShipped reads them too, and the
+// fixed-path and dependency rules cover it in the same run.
+const LOAD_ROOTS = ['commands', 'agents', 'output-styles', 'workflows', 'themes', 'monitors', 'bin', '.mcp.json', '.lsp.json', 'settings.json', 'SKILL.md'];
+const underLoadRoot = src => LOAD_ROOTS.some(d => src === d || src.startsWith(`${d}/`));
+const isShipped = src => src.startsWith('skills/') || underMod(src) || underLoadRoot(src);
 // Code: every suffix Node or the engine loads a module from. The rules that
 // read code read all of them, so a suffix is never a way round one. In any
 // case, too: an install that folds case loads x.TS as it loads x.ts.
@@ -838,6 +847,30 @@ for (const e of readdirSync(root, { withFileTypes: true })) {
 // case folds and is read by nothing here.
 for (const e of existsSync(join(root, 'hooks')) ? readdirSync(join(root, 'hooks')) : []) {
   if (caseTwin(e, 'hooks.json')) fail(`hooks/${shown(e)} is hooks/hooks.json in another case — an install that folds case loads it, and the check reads only hooks/hooks.json. Rename it.`);
+}
+
+// 6c. Nothing else the engine loads.
+//
+// The engine loads components from more places than skills/ and the mod: the
+// default folders and files at the plugin root (LOAD_ROOTS), a manifest key
+// that adds a component location, and a marketplace entry key that adds
+// components or merges hooks. A file in any of them ships and runs on an
+// installer's machine, and no rule above reads it. So a root entry named like
+// one, in any case, fails; and each manifest and marketplace key must be on a
+// short list of metadata and the two pointers 6b reads. A key off the list
+// fails as an unknown key in a hooks file does, whatever the engine does with
+// it today. To use one, add it here with a reason and read what it points at.
+const PLUGIN_KEYS = new Set(['$schema', 'name', 'version', 'description', 'author', 'homepage', 'repository', 'license', 'keywords', 'types', 'hooks']);
+const MARKET_KEYS = new Set(['$schema', 'name', 'owner', 'description', 'plugins']);
+const ENTRY_KEYS_MKT = new Set(['name', 'source', 'description', 'category', 'keywords', 'version']);
+const keyFail = (where, key, set) =>
+  fail(`${where} holds "${shown(key)}", which is not one of ${[...set].join(', ')}. The engine loads components, hooks or settings from some keys, and no rule here reads what they point at; add one to the list in scripts/check.mjs only with a reason.`);
+for (const key of Object.keys(plugin)) if (!PLUGIN_KEYS.has(key)) keyFail('.claude-plugin/plugin.json', key, PLUGIN_KEYS);
+for (const key of Object.keys(mkt)) if (!MARKET_KEYS.has(key)) keyFail('.claude-plugin/marketplace.json', key, MARKET_KEYS);
+for (const p of mkt.plugins) for (const key of Object.keys(p)) if (!ENTRY_KEYS_MKT.has(key)) keyFail(`.claude-plugin/marketplace.json "${shown(String(p.name))}"`, key, ENTRY_KEYS_MKT);
+for (const e of readdirSync(root, { withFileTypes: true })) {
+  const hit = LOAD_ROOTS.find(d => e.name === d || caseTwin(e.name, d));
+  if (hit) fail(`${shown(e.name)}${e.isDirectory() ? '/' : ''} at the root is a place the engine loads (${hit}) — it would run or read what no rule here reads. Remove it, or name the place in LOAD_ROOTS in scripts/check.mjs with a rule that reads it.`);
 }
 
 // 7. The SkillSpector baselines agree: a skill's entry gives the root's reason and is never broader.
