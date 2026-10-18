@@ -139,7 +139,7 @@ jobs:
       # than on whatever the image happens to carry.
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
-          node-version: '22'
+          node-version: '24'
 
       # pipx ships on the ubuntu-24.04 image and uv does not, so this route
       # costs no second action. The install lands on the runner and never on a

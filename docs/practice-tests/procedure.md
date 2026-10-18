@@ -31,7 +31,7 @@ standard it follows.
 
 ## Before you start
 
-1. Install Node 20 or later, and Claude Code on the path. Sign in with your
+1. Install Node 24 or later, and Claude Code on the path. Sign in with your
    plan. A run needs no API key and no new token.
 2. Use PowerShell 7 or a POSIX shell. Windows PowerShell 5.1 sends text to a
    program's standard input as ASCII, so it changes some messages.

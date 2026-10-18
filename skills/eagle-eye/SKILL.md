@@ -1,9 +1,9 @@
 ---
 name: eagle-eye
 description: Steps in when a discussion holds three or more open decisions and at least two of them are coupled, so that one choice changes what is possible in another, or when someone asks for it by name (/eagle-eye, an eagle-eye view, or a morphological box). Stays out when the person insists on the quick route, and for two independent choices.
-compatibility: Needs Node.js 20 or later to run render.mjs and audit.mjs. No install and no other dependencies.
+compatibility: Needs Node.js 24 or later to run render.mjs and audit.mjs. No install and no other dependencies.
 metadata:
-  contract-version: 0.2.3
+  contract-version: 0.2.4
   familiar-digest: "sha256:ff4a86956b03cd9152665d034f94f96c7fb049108a4211cbcc62d487151d8682"
   contract-digest: "sha256:5cbb215488a2521f28a59d4ad68d1fde68267e4aa75e2d8d26efb12f0795046e"
 ---

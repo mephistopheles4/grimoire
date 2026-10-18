@@ -40,13 +40,10 @@ It walks what `.gitignore` does not exclude, so a worktree under
 it would ship with no rule reading it; in CI the check also fails when it
 cannot ask git which files it tracks.
 
-You need Node 22.18 or later and nothing else. There is no install step, because
-there are no dependencies. The skills' own scripts run on Node 20, but the one
-command needs 22.18: `tests/brigade-view.test.mjs` imports the Brigade mod's
-TypeScript modules as they are, and Node strips their types by default only
-from 22.18 (23.6 on the 23 line). On an older Node that test fails with a
-message naming the version. Checked on 2026-10-06: 22.17.1 fails, 22.18.0
-passes.
+You need Node 24 or later and nothing else. There is no install step, because
+there are no dependencies. The skills' own scripts and the one command share
+that floor, and CI runs on it. `tests/brigade-view.test.mjs` imports the Brigade
+mod's TypeScript modules as they are, which Node 24 does by default.
 
 ## Tests
 

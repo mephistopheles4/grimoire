@@ -83,7 +83,7 @@ that a confident-looking verdict rests on three guesses.
 
 ## Run the renderer by hand
 
-No install, no dependencies. Node 20 or later:
+No install, no dependencies. Node 24 or later:
 
 ```bash
 node skills/eagle-eye/render.mjs <box.json> --out page.html
