@@ -1319,9 +1319,12 @@ export function page(prog) {
     return `@font-face{font-family:'IBM Plex Mono';font-style:normal;font-weight:${weight};font-display:block;unicode-range:${range};src:url(data:font/woff2;base64,${b64}) format('woff2')}`;
   }).join('\n');
 
-  /* JSON inside a script block: the closing-tag sequence is escaped so no
-   * author string can close it. */
-  const data = JSON.stringify(prog).replace(/<\//g, '<\\/');
+  /* JSON inside a script block: every "<" is written as its JSON escape, so no
+   * author string can close the block or open a comment in it. "</script>"
+   * would end it, and a comment opener followed by "<script" puts the
+   * tokenizer where the page's own "</script>" ends nothing. A script reads
+   * the escape as "<". */
+  const data = JSON.stringify(prog).replace(/</g, '\\u003c');
 
   /* Function replacements, and this is load-bearing rather than style. A
    * string replacement is interpreted: $&, $` and $' stand for the match and
