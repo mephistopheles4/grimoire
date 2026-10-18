@@ -1566,10 +1566,10 @@ test('the state contract declares warmth under the plugin\'s manifest name', () 
   assert.match(register, /atom\(\{ plugin: 'grimoire', key: 'warmth' \} as const, \[\]\)/);
 });
 
-test('the agents poll has an in-flight guard: a tick that finds a poll running does nothing', () => {
+test('the live poll has an in-flight guard: a tick that finds a poll running does nothing', () => {
   const register = readFileSync(join(root, 'brigade/register.tsx'), 'utf8');
-  const poll = register.slice(register.indexOf('async function pollAgents'));
-  assert.match(poll, /^async function pollAgents[^{]*\{\s*(?:\/\/[^\n]*\n\s*)*if \(polling\) return\n\s*polling = true\n\s*try \{/);
+  const poll = register.slice(register.indexOf('async function pollLive'));
+  assert.match(poll, /^async function pollLive[^{]*\{\s*(?:\/\/[^\n]*\n\s*)*if \(polling\) return\n\s*polling = true\n\s*try \{/);
   assert.match(poll, /\} finally \{\n\s*polling = false\n\s*\}/);
 });
 
@@ -4459,9 +4459,9 @@ test('no colour in the register or view modules is a hex or a colour name outsid
 // --- the engine's session files (#347) ---------------------------------------
 //
 // The live state comes from the files the engine keeps for each running
-// session, <config>/sessions/<pid>.json, which `claude agents --json` reads
-// too. Every other field the engine writes there is left unread: the fake
-// file holds the kinds of field it has, made up.
+// session, <config>/sessions/<pid>.json. Every other field the engine writes
+// there is left unread: the fake file holds the kinds of field it has, made
+// up.
 
 const { MAX_SESSION_FILE_BYTES, SESSIONS_UNREAD, readSessions } = view;
 const SESSIONS = `${CONFIG}\\sessions`;
@@ -4482,8 +4482,10 @@ const sessionText = (name, i, status = 'idle', extra = {}) =>
     formerNames: [{ name: 'old' }],
     ...extra,
   });
+// The config folder and its sessions folder, each resolving to itself.
+const FOLDERS = { [CONFIG]: { kind: 'dir', size: 0, text: '' }, [SESSIONS]: { kind: 'dir', size: 0, text: '' } };
 const sessionsFs = (files, names = Object.keys(files).map(p => p.slice(SESSIONS.length + 1))) =>
-  fakeFs({ [SESSIONS]: { kind: 'dir', size: 0, text: '' }, ...files }, { listing: names.map(n => entry(n, 'file')) });
+  fakeFs({ ...FOLDERS, ...files }, { listing: names.map(n => entry(n, 'file')) });
 
 test('the session files give each session its name, id, status and folder, and no other field the engine wrote', async () => {
   const fs = sessionsFs({ [`${SESSIONS}\\101.json`]: { text: sessionText('A', 0, 'busy') }, [`${SESSIONS}\\102.json`]: { text: sessionText('B', 1) } });
@@ -4493,7 +4495,7 @@ test('the session files give each session its name, id, status and folder, and n
   assert.doesNotMatch(JSON.stringify(got), /secret|SECRET|pipe|4242|claude-desktop|old/);
 });
 
-test('only a <digits>.json listed as a plain file is opened: never a .key file, a link, a folder or another name', async () => {
+test('only a <digits>.json of 1 to 10 digits listed as a plain file is opened: never a .key file, a link, a folder or another name', async () => {
   const keep = `${SESSIONS}\\101.json`;
   const listing = [
     entry('101.json', 'file'),
@@ -4502,23 +4504,30 @@ test('only a <digits>.json listed as a plain file is opened: never a .key file, 
     entry('103.json', 'folder'),
     entry('x104.json', 'file'),
     entry('105.json.bak', 'file'),
+    entry('12345678901.json', 'file'),
   ];
-  const fs = fakeFs({ [SESSIONS]: { kind: 'dir', size: 0, text: '' }, [keep]: { text: sessionText('A', 0) } }, { listing });
+  const fs = fakeFs({ ...FOLDERS, [keep]: { text: sessionText('A', 0) } }, { listing });
   const got = await readSessions(CONFIG, fs.io);
   assert.deepEqual(got.rows, [agent('A', 0)]);
+  // A link or a folder named like a session file is a file the pane cannot read.
+  assert.equal(got.complete, false);
   assert.deepEqual(fs.reads, [keep]);
-  assert.deepEqual(fs.stats, [SESSIONS, keep]);
+  assert.deepEqual(fs.stats, [SESSIONS, CONFIG, keep]);
 });
 
-test('a file over 8 KiB, one whose real path is elsewhere, one that is not JSON or has no name or a bad id is skipped, and the read says it is incomplete', async () => {
+test('a file that fails a check is skipped, and the read says it is incomplete', async () => {
   assert.equal(MAX_SESSION_FILE_BYTES, 8192);
   const p = n => `${SESSIONS}\\${n}.json`;
   const ok = { [p(1)]: { text: sessionText('A', 0) } };
   for (const [why, bad] of [
-    ['over 8 KiB', { text: sessionText('B', 1), size: 8193 }],
+    ['over 8 KiB at its stat', { text: sessionText('B', 1), size: 8193 }],
+    ['over 8 KiB once read', { text: sessionText('B', 1, 'idle', { pad: 'x'.repeat(8192) }), size: 100 }],
     ['real path elsewhere', { text: sessionText('B', 1), realPath: 'C:\\elsewhere\\2.json' }],
+    ['a link at its stat', { text: sessionText('B', 1), isLink: true }],
+    ['not a regular file at its stat', { text: sessionText('B', 1), kind: 'other' }],
     ['not JSON', { text: '{"name":' }],
     ['no name', { text: sessionText('', 1) }],
+    ['a name over 300 characters', { text: sessionText('x'.repeat(301), 1) }],
     ['a bad id', { text: sessionText('B', 1, 'idle', { sessionId: '../x' }) }],
     ['a read that fails', { text: sessionText('B', 1), fail: true }],
   ]) {
@@ -4527,13 +4536,40 @@ test('a file over 8 KiB, one whose real path is elsewhere, one that is not JSON 
   }
   const big = sessionsFs({ ...ok, [p(2)]: { text: sessionText('B', 1), size: 8192 } });
   assert.equal((await readSessions(CONFIG, big.io)).complete, true, 'exactly 8 KiB is read');
+  const long = sessionsFs({ [p(1)]: { text: sessionText('x'.repeat(300), 0) } });
+  assert.equal((await readSessions(CONFIG, long.io)).rows[0]?.name.length, 300, 'a name of 300 characters is kept');
   const fresh = sessionsFs({ [p(1)]: { text: sessionText('A', 0, 'idle', { status: undefined }) } });
   assert.deepEqual((await readSessions(CONFIG, fresh.io)).rows, [agent('A', 0, '?')], 'a new session with no status yet reads as unknown');
+  const deep = sessionsFs({ [p(1)]: { text: sessionText('A', 0, 'idle', { cwd: `C:\\${'d'.repeat(1001)}` }) } });
+  assert.deepEqual((await readSessions(CONFIG, deep.io)).rows, [{ name: 'A', status: 'idle', sessionId: SID[0] }], 'a folder over 1,000 characters is dropped');
 });
 
-test('no sessions folder, one that is a link, or a listing that fails or is not a list reads nothing at all', async () => {
-  assert.equal(await readSessions(CONFIG, fakeFs({}).io), undefined);
-  assert.equal(await readSessions(CONFIG, fakeFs({ [SESSIONS]: { kind: 'dir', size: 0, text: '', isLink: true, realPath: 'C:\\elsewhere' } }).io), undefined);
+test('a session that ended between the listing and its read has no row, and the read is still complete', async () => {
+  const p = n => `${SESSIONS}\\${n}.json`;
+  const fs = sessionsFs({ [p(1)]: { text: sessionText('A', 0) } }, ['1.json', '2.json']);
+  assert.deepEqual(await readSessions(CONFIG, fs.io), { complete: true, rows: [agent('A', 0)] });
+  const gone = sessionsFs({ [p(1)]: { text: sessionText('A', 0) }, [p(2)]: { text: sessionText('B', 1) } });
+  const read = gone.io.read;
+  gone.io.read = async path => {
+    if (path === p(2)) throw new Error('ENOENT: no such file or directory');
+    return read(path);
+  };
+  assert.deepEqual(await readSessions(CONFIG, gone.io), { complete: true, rows: [agent('A', 0)] }, 'gone at the read too');
+});
+
+test('no sessions folder, one that is a link, a file or elsewhere, or a listing that fails or is not a list reads nothing at all', async () => {
+  assert.equal(await readSessions(CONFIG, fakeFs({ [CONFIG]: FOLDERS[CONFIG] }).io), undefined);
+  for (const [why, folder] of [
+    ['a link', { kind: 'dir', size: 0, text: '', isLink: true, realPath: 'C:\\elsewhere' }],
+    ['a file', { kind: 'file', size: 0, text: '' }],
+    ['no real path', { kind: 'dir', size: 0, text: '', realPath: undefined }],
+    ['a real path outside the config folder', { kind: 'dir', size: 0, text: '', realPath: 'C:\\elsewhere\\sessions' }],
+  ]) {
+    assert.equal(await readSessions(CONFIG, fakeFs({ [CONFIG]: FOLDERS[CONFIG], [SESSIONS]: folder }, { listing: [] }).io), undefined, why);
+  }
+  // A config folder that is itself elsewhere moves its sessions folder with it.
+  const moved = fakeFs({ [CONFIG]: { kind: 'dir', size: 0, text: '', realPath: 'D:\\real' }, [SESSIONS]: { kind: 'dir', size: 0, text: '', realPath: 'D:\\real\\sessions' } }, { listing: [] });
+  assert.deepEqual(await readSessions(CONFIG, moved.io), { complete: true, rows: [] });
   const rejecting = sessionsFs({});
   rejecting.io.list = async () => {
     throw new Error('EACCES');
@@ -4542,8 +4578,4 @@ test('no sessions folder, one that is a link, or a listing that fails or is not 
   const odd = sessionsFs({});
   odd.io.list = async () => ({ name: '1.json' });
   assert.equal(await readSessions(CONFIG, odd.io), undefined);
-});
-
-test('the fixed line names no path and no reason', () => {
-  assert.equal(SESSIONS_UNREAD, 'Cannot read the session files.');
 });

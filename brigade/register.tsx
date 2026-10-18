@@ -132,7 +132,7 @@ const PANE = 'brigade'
 const TITLE = 'Brigade'
 const ROSTER_MS = 5000
 // The live poll reads the engine's session files this often (#347).
-const AGENTS_MS = 10000
+const LIVE_MS = 10000
 const GH_MS = 60000
 const TOOL = 'set_roster'
 
@@ -313,19 +313,19 @@ const summaries: SummaryMemory = newSummaryMemory()
 const linkFrom = new Map<string, string>()
 let polling = false
 
-async function pollAgents($: EngineInterface, open: () => boolean) {
+async function pollLive($: EngineInterface, open: () => boolean) {
   // One poll at a time: the transcript reads can take a while, so a tick
   // that finds the last poll still running does nothing.
   if (polling) return
   polling = true
   try {
-    // With no roster file to read there is no brigade to show, so no process
-    // runs either; the pane already shows why.
+    // With no roster file to read there is no brigade to show, so nothing is
+    // read either; the pane already shows why.
     const at = await where($)
     if ('error' in at) return
     // The stat resolves, so the place checks and the summary's path rule get
-    // a real path; an engine with no listing rejects here, quietly, as a
-    // rejected listing.
+    // a real path. An engine with no listing makes the transcript finder's
+    // listing reject, quietly, and the session-file read draw the fixed line.
     const io = {
       live: open,
       now: () => $.clock.now(),
@@ -342,6 +342,9 @@ async function pollAgents($: EngineInterface, open: () => boolean) {
     const rows = files?.rows ?? []
     await update($, live, () => rows.map(r => ({ name: r.name, value: r.status })))
     await update($, liveError, () => (files?.complete === true ? '' : SESSIONS_UNREAD))
+    // With no session read at all, the cards keep the cache and meter values
+    // they had: no rows would only redraw every card as not found.
+    if (files === undefined) return
     try {
       // Transcripts are found under the config folder.
       const config = at.config
@@ -555,14 +558,14 @@ async function arm($: EngineInterface) {
     const live = () => generation === mine
     timers = [
       $.clock.every(ROSTER_MS, () => void (live() && rosterTick($, live))),
-      $.clock.every(AGENTS_MS, () => void (live() && pollAgents($, live))),
+      $.clock.every(LIVE_MS, () => void (live() && pollLive($, live))),
       $.clock.every(GH_MS, () => void (live() && askGh($, live, true))),
     ]
     await update($, armed, () => true)
     await update($, folded, () => STARTS_FOLDED)
     if (live()) await readUsage($)
     if (live()) await loadRoster($)
-    if (live()) await pollAgents($, live)
+    if (live()) await pollLive($, live)
     // Not awaited: a slow gh must not hold up the /brigade reply or the tool's offer.
     if (live()) void askGh($, live, false)
     return

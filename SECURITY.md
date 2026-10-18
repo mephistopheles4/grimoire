@@ -37,9 +37,13 @@ it registers `/brigade` and the two hooks of its usage summary writer, below,
 and since 0.60.0 it is no longer idle by default
 ([ADR 0008](docs/adr/0008-brigade-is-no-longer-idle-by-default.md)). While its pane is open it reads
 the engine's own session files, `<config>/sessions/<digits>.json`, for each
-session's name, status, id and folder only, and never the key file beside
-each. Since 0.66.0 it no longer runs `claude agents --json`, which made every
-running session do work at once. It also reads the lead session's roster file from the plugin's
+session's name, status, id and folder only. It never opens the key file
+beside each by name; a hard link to it is not caught, as for transcripts, and
+nothing is kept from a file that is not a session file. The files are the
+engine's and undocumented, read as Claude Code 2.1.299 writes them; when one
+fails its checks the pane says it cannot read the session files. Since 0.66.0
+it no longer runs `claude agents --json`, which made every running session do
+work at once. It also reads the lead session's roster file from the plugin's
 data folder, and reads other sessions' transcripts to find a session's link
 and its model calls' usage, which gives each card its cache-warmth line and,
 since 0.55.0, its context meter, and since 0.56.0, its burn rate and context

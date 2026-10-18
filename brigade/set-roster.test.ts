@@ -208,9 +208,9 @@ type World = ReturnType<typeof makeFs> & {
   /** How many times the pane listed a folder other than the sessions folder,
    *  and a message to refuse those listings with. */
   listings: number
+  listDeny: string
   /** Whether the pane is the shown tab, as `$.ui.panes()` says. */
   shown: boolean
-  listDeny: string
   /** The usage the bottom of `turn.step` answers with, and how many session
    *  usage calls the plugins made. */
   stepUsage: unknown
@@ -892,8 +892,8 @@ test('with plugins absent the call is refused', async ($, on) => {
 // Spec v3 on #212, decision 5. A press is raised as the engine raises it, on
 // the pane's button key: `open-<index>-<slug>` for a card, `go-<index>-<slug>`
 // for a to-do's Open. The pane loads the seeded roster on /brigade. The
-// pane's own `claude agents --json` poll runs on its timer, so these tests
-// look for the opener only. The world is Windows, so the opener is
+// pane runs no process of its own, so every process these tests see is an
+// opener. The world is Windows, so the opener is
 // explorer.exe; the host tests at the end change the host.
 
 const DESKTOP = 'local_0123abcd-4567-89ab-cdef-0123456789ab'
@@ -1846,7 +1846,7 @@ for (const surface of SURFACES) {
 // --- the cache bar ---------------------------------------------------------------
 //
 // Spec revision 3 on #250, S6 and S8; ticket #257. The warmth records and live
-// states are planted as the agents poll stores them: the poll runs again on
+// states are planted as the live poll stores them: the poll runs again on
 // its 10 s timer after the clock is read, so each record's time is set from
 // the clock the render reads. Each test runs on both surfaces.
 
@@ -2321,8 +2321,8 @@ for (const surface of SURFACES) {
 //
 // Spec revision 3 on #251, S3 and S16 criteria 1 and 2; ticket #270. A session
 // that moved into a worktree after it started writes its transcript under the
-// worktree's projects folder, while `claude agents` still names its launch
-// folder. The folder names are made up, as the config folder is. Each listing
+// worktree's projects folder, while its session file may still name its
+// launch folder. The folder names are made up, as the config folder is. Each listing
 // the pane asks is answered from the file system in memory, in the shape the
 // engine listed each kind of entry (recorded-stats.ts).
 
@@ -2351,8 +2351,8 @@ const plantIn = (w: World, folder: string, link: string) => {
   w.dirs(folder)
   w.put(`${folder}\\${MID}.jsonl`, { type: 'file', data: { text: `${bridge(link)}\n${callAt(w.clock.now() - MINUTE)}\n`, mtimeMs: w.clock.now() } })
 }
-// The pane with one needs-you card, `gamma`, whose session `claude agents`
-// lists in the launch folder, and a poll after `setup` plants its files.
+// The pane with one needs-you card, `gamma`, whose session file names the
+// launch folder, and a poll after `setup` plants its files.
 async function moved(on: On, $: any, setup: (w: World) => void) {
   const w = await grouped(on, $, { cards: [card('gamma', { status: 'needs-you' })], todos: [] })
   liveRows(w, [{ name: 'gamma', status: 'idle', sessionId: MID, cwd: 'C:\\work' }])
@@ -2682,7 +2682,7 @@ test('no folder path, transcript text, model text or message id reaches any valu
 // --- burn rate, the context trend and card tabs -------------------------------
 //
 // Spec revision 3 on #251, S7 and S11; ticket #272. The meters and warmth
-// records are planted as the agents poll stores them. Each test runs on both
+// records are planted as the live poll stores them. Each test runs on both
 // surfaces.
 
 const TABBED = {
@@ -4130,16 +4130,35 @@ test('a session file that fails its check draws the one fixed line and no row fr
   expect(lastLive(w)).toEqual([{ name: 'alpha', value: 'busy' }, { name: 'beta', value: 'idle' }])
 })
 
-test('a sessions folder that cannot be read draws the fixed line and no rows', async ($, on) => {
+test('a sessions folder that cannot be read draws the fixed line and no rows, and keeps the cards\' last cache and meter values', async ($, on) => {
   const w = await pane(on, $, 'desktop', w => liveRows(w, [{ name: 'alpha', status: 'busy', sessionId: S1, cwd: 'C:\\work' }]))
   w.drop(`${SESSIONS}\\100.json`)
   w.drop(`${SESSIONS}\\100.0123abcd.key`)
   w.drop(SESSIONS)
+  const kept = w.states.filter(([k]) => k === 'warmth' || k === 'meters').length
   await w.clock.advance(10000)
   await w.clock.settle()
   expect(lastLive(w)).toEqual([])
   expect(lastLiveError(w)).toBe(UNREAD)
   expect(claudeRuns(w)).toBe(0)
+  // Nothing the transcripts gave is redrawn from no rows.
+  expect(w.states.filter(([k]) => k === 'warmth' || k === 'meters').length).toBe(kept)
+})
+
+test('a close while the session files are being read stores no live state', async ($, on) => {
+  const w = await pane(on, $, 'desktop', w => liveRows(w, [{ name: 'alpha', status: 'busy', sessionId: S1, cwd: 'C:\\work' }]))
+  liveRows(w, [{ name: 'alpha', status: 'idle', sessionId: S1, cwd: 'C:\\work' }])
+  w.holdStat = true
+  await w.clock.advance(10000)
+  // The pane goes from the engine's list; the next roster tick sees it and
+  // stops every read, while the session read still waits on its stat.
+  w.open = false
+  await w.clock.advance(5000)
+  const from = w.states.length
+  w.holdStat = false
+  w.releaseStat()
+  await w.clock.settle()
+  expect(w.states.slice(from).filter(([k]) => k === 'live' || k === 'liveError')).toEqual([])
 })
 
 test('the pane keeps nothing from a session file but the name and status: no socket, bridge id or folder in any value it set', async ($, on) => {

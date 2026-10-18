@@ -501,7 +501,7 @@ export function rosterFile(data: string, sessionId: string): string {
 /** A running session, as far as the pane uses it: its name, its live state
  *  (`busy`, `idle`; a background session's `state` when it has no
  *  `status`), its session id and its folder. */
-export type AgentRow = { name: string; status: string; sessionId?: string; cwd?: string }
+export type SessionRow = { name: string; status: string; sessionId?: string; cwd?: string }
 
 /** One of the engine's session files, `<config>/sessions/<pid>.json`, as a
  *  row: only the name, the status (`?` while a new session has none yet),
@@ -511,7 +511,7 @@ export type AgentRow = { name: string; status: string; sessionId?: string; cwd?:
  *  name of at most 300 characters or no session id of the engine's shape,
  *  gives none; the status is cut to one line of 20 characters, and a folder
  *  over 1,000 characters is dropped. */
-export function sessionRow(text: string): AgentRow | undefined {
+export function sessionRow(text: string): SessionRow | undefined {
   let r: unknown
   try {
     r = JSON.parse(text)
@@ -521,7 +521,7 @@ export function sessionRow(text: string): AgentRow | undefined {
   if (!isRecord(r) || typeof r.name !== 'string' || r.name === '' || r.name.length > MAX_TEXT) return undefined
   if (typeof r.sessionId !== 'string' || !SESSION_ID.test(r.sessionId)) return undefined
   const state = typeof r.status === 'string' ? r.status : typeof r.state === 'string' ? r.state : undefined
-  const row: AgentRow = { name: r.name, status: state === undefined ? '?' : oneLine(state, 20), sessionId: r.sessionId }
+  const row: SessionRow = { name: r.name, status: state === undefined ? '?' : oneLine(state, 20), sessionId: r.sessionId }
   if (typeof r.cwd === 'string' && r.cwd.length <= 1000) row.cwd = r.cwd
   return row
 }
