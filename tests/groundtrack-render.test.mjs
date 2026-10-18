@@ -2274,6 +2274,14 @@ test('the plain wheel zooms the plan about the pointer, with no key held', () =>
   const wheel = html.match(/\$\('plan'\)\.addEventListener\('wheel', function \(e\) \{([\s\S]*?)\n  \}, \{ passive: false \}\);/)[1];
   assert.doesNotMatch(wheel, /ctrlKey|metaKey|shiftKey/, 'no modifier decides what the wheel does');
   assert.match(wheel, /S\.zoom = z;/);
+  // About the pointer: the canvas point under it is kept under it.
+  assert.match(wheel, /cx = \(mx - S\.panX\) \/ S\.zoom, cy = \(my - S\.panY\) \/ S\.zoom/);
+  assert.match(wheel, /S\.panX = mx - cx \* z;\s*S\.panY = my - cy \* z;/);
+  // And the drawing and its crosses are redrawn, without a full render.
+  assert.match(wheel, /applyTransform\(\);\s*$/);
+  // A drag pans through the same transform, so the crosses follow it too.
+  const move = html.match(/plan\.addEventListener\('pointermove', function \(e\) \{([\s\S]*?)\n  \}\);/)[1];
+  assert.match(move, /applyTransform\(\);\s*$/);
 });
 
 test('a help note is never wider than the window less its margins', () => {
