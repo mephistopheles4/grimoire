@@ -518,6 +518,46 @@ test('a title cannot carry markup into the head', () => {
   assert.match(head, /<title>Break img src=x onerror=alert\(1\) out — eagle-eye<\/title>/);
 });
 
+test('box text that spells a placeholder lands as text, not as a template insert', () => {
+  // The renderer fills the template's placeholders. Filled one after another,
+  // each fill took the first match in the page built so far, so a title or a
+  // why that spelled a later placeholder took that insert: the page's code
+  // went into the title, and its own slot stayed empty. The fills now happen
+  // in one pass, so text that one fill inserts is never searched again.
+  const spellings = '/*DATA*/ /*MODULE*/ /*FONTS*/ /*AVIATION*/ <!--TOUR-->';
+  const b = box();
+  b.title = `A box ${spellings}`;
+  b.rel.a1.why = `A reason holding ${spellings}`;
+  const out = join(work, 'placeholder.html');
+  const r = run(renderer, [write('placeholder.box.json', b), '--out', out]);
+  assert.equal(r.code, 0, r.stderr);
+  const html = readFileSync(out, 'utf8');
+
+  assert.equal(/<title>([\s\S]*?) — eagle-eye<\/title>/.exec(html)[1], b.title.replace(/[<>&]/g, ''), 'the title holds the box title and nothing spliced in');
+  assert.equal(JSON.parse(/const BOX = (.*);\n/.exec(html)[1]).rel.a1.why, b.rel.a1.why, 'the why reaches the page as itself');
+  assert.doesNotMatch(html, /<script>\s*\/\*MODULE\*\/\s*<\/script>/, 'the module slot is filled');
+});
+
+test('a key named __proto__ is refused anywhere in a box', () => {
+  // JSON.parse keeps "__proto__" as a plain field, so the checks here never
+  // read what sits under it. The page reads the box as an object literal,
+  // where the same key sets the prototype: the fields under it reach the page
+  // as if the box had them. So the key is refused, at the top and deeper.
+  const text = JSON.stringify(box());
+  const cases = {
+    top: text.replace(/^\{/, '{"__proto__":{"who":"never checked"},'),
+    nested: text.replace('"why":"The strawman for row one"', '"why":"The strawman for row one","__proto__":{"notes":"never checked"}'),
+  };
+  for (const [where, json] of Object.entries(cases)) {
+    assert.notEqual(json, text, `${where}: the case was built`);
+    const p = join(work, `proto-${where}.box.json`);
+    writeFileSync(p, json);
+    const r = run(renderer, [p, '--check']);
+    assert.equal(r.code, 1, `${where}: refused`);
+    assert.match(r.stderr, /"__proto__"/, `${where}: the refusal names the key`);
+  }
+});
+
 test('a box with two chosen options in one row is refused, and no page is written', () => {
   const b = box();
   b.dims[0].opts[1].chosen = true;

@@ -1332,21 +1332,30 @@ export function page(prog) {
    * splices a slab of the template into the middle of the page — including the
    * template's own real closing script tag, which the replace above cannot help
    * with because that tag never went through the file. A function
-   * replacement is inserted literally and has no patterns at all. */
+   * replacement is inserted literally and has no patterns at all.
+   *
+   * One pass, and this is load-bearing too. Filled one after another, each
+   * fill took the first match in the page built so far, so a title that
+   * spelled a later placeholder took that insert: the module went into the
+   * title, and the page loaded with no code. One regex over the template
+   * fills every slot where the template has it, and never searches what a
+   * fill put in. */
   /* The sheet picker is rendered here rather than built by the page's script,
    * because a control the script creates is in no page as a string and so no
    * test can count one per graph. Same bargain as the files tab: the markup is
    * the module's, and this splices it in. A one-graph file gets nothing. */
   const picker = Groundtrack.sheetPickerMarkup(prog);
 
-  return template
-    .replace('/*TITLE*/', () => String(prog.title).replace(/[<>&]/g, ''))
-    .replace('/*AVIATION*/', () => aviation)
-    .replace('/*FONTS*/', () => faces)
-    .replace('<!--SHEETS-->', () => picker)
-    .replace('<!--TOUR-->', () => Groundtrack.tourButtonMarkup(prog))
-    .replace('/*DATA*/', () => data)
-    .replace('/*MODULE*/', () => moduleSource);
+  const fills = {
+    '/*TITLE*/': () => String(prog.title).replace(/[<>&]/g, ''),
+    '/*AVIATION*/': () => aviation,
+    '/*FONTS*/': () => faces,
+    '<!--SHEETS-->': () => picker,
+    '<!--TOUR-->': () => Groundtrack.tourButtonMarkup(prog),
+    '/*DATA*/': () => data,
+    '/*MODULE*/': () => moduleSource,
+  };
+  return template.replace(/\/\*(?:TITLE|AVIATION|FONTS|DATA|MODULE)\*\/|<!--(?:SHEETS|TOUR)-->/g, slot => fills[slot]());
 }
 
 /* -- the command line ------------------------------------------------------ */

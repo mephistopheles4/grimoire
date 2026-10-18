@@ -2369,6 +2369,25 @@ test("the shipped faces are IBM's own, unmodified", () => {
   assert.match(bundles[0].toString('utf8').slice(0, 200), /AVIATION — BUNDLE/);
 });
 
+test('file text that spells a placeholder lands as text, not as a template insert', () => {
+  // The renderer fills the template's placeholders. Filled one after another,
+  // each fill took the first match in the page built so far, so a title that
+  // spelled a later placeholder took that insert: the page's code went into
+  // the title, and its own slot stayed empty. The fills now happen in one
+  // pass, so text that one fill inserts is never searched again.
+  const spellings = '/*DATA*/ /*MODULE*/ /*FONTS*/ /*AVIATION*/ <!--SHEETS--> <!--TOUR-->';
+  const file = derive(prog => {
+    prog.title = `T ${spellings}`;
+    prog.nodes.greet.steps[1].aside = spellings;
+  });
+  const html = pageOf(file);
+
+  assert.equal(/<title>groundtrack — ([\s\S]*?)<\/title>/.exec(html)[1], `T ${spellings}`.replace(/[<>&]/g, ''), 'the title holds the file title and nothing spliced in');
+  const prog = JSON.parse(/const PROG = Groundtrack\.hardenKeys\((.*)\);\n/.exec(html)[1]);
+  assert.equal(prog.nodes.greet.steps[1].aside, spellings, 'the aside reaches the page as itself');
+  assert.doesNotMatch(html, /<script>\/\*MODULE\*\/<\/script>/, 'the module slot is filled');
+});
+
 test('author text reaches the page as text, in every field the page shows', () => {
   // One field left out of this fixture is one field with no coverage, which is
   // how the incumbent shipped a row name that reached the page as markup.
