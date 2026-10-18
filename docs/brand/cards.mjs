@@ -4,8 +4,9 @@
 //
 //   node docs/brand/cards.mjs
 //
-// Each card is the layout the brand handoff specifies: a drafting grid, the
-// mark at 200px, the name over a rule, the tagline, and a title-block footer.
+// Each card is the layout the brand handoff specifies, inside the design
+// system's zone border: the mark at 200px, the name over a rule, the tagline,
+// and a title-block footer.
 // The two faces the wordmark and the tagline use are inlined from the copies
 // groundtrack already ships, so a card renders the same in a README, in a
 // browser, and in a link preview, and fetches nothing to do it. Zero
@@ -26,6 +27,7 @@ const fonts = join(root, 'skills', 'groundtrack', 'assets');
 const INK = '#22262B';
 const PAPER = '#FAFAF7';
 const alpha = a => `rgb(34 38 43 / ${a})`;
+const SURFACE = 'rgb(250 250 247 / 0.72)'; // --av-deck-surface, the translucent sheet fill
 
 const face = (weight, file) =>
   `@font-face{font-family:'IBM Plex Mono';font-weight:${weight};font-style:normal;` +
@@ -76,10 +78,41 @@ const CARDS = [
 
 const esc = s => s.replace(/&/g, '&amp;').replace(/</g, '&lt;');
 
+/* The card is a fixed-size sheet, which is what the design system's zone
+ * border is for: zone numbers across the top and bottom, letters down the
+ * sides, in a 36px band at 18px and ink 70, inside a bold outline. The field
+ * inside it carries the réseau, one 13px cross every 120px at ink 30, and the
+ * text sits on surface-filled panels, never bare on the crosses. Zones are
+ * about 240px wide, five across; the field is 564px tall, so two rows, as on
+ * the design system's own zone-border card. No zone is cited, because no card
+ * names one. This draws aviation.css's .av-zones and .av-grid in SVG, since a
+ * card cannot load a stylesheet. */
 function card({ name, title, tagline, footer }) {
-  const W = 1280, H = 640, PAD = 88, TEXT_X = PAD + 200 + 48;
+  const W = 1280, H = 640, RULE = 2, BAND = 36, PAD = 36;
+  const F = { x: RULE + BAND, y: RULE + BAND };
+  F.w = W - 2 * F.x; F.h = H - 2 * F.y;
+  const COLS = 5, ROWS = 2, LETTERS = 'ABCDEFGHJKLMNPQRSTUVWX';
+  const IN = { x: F.x + PAD, y: F.y + PAD, r: F.x + F.w - PAD, b: F.y + F.h - PAD };
+  const MARK = 200, SHEET_X = IN.x + MARK + 24, TEXT_X = SHEET_X + PAD;
+
+  // One band's labels and the hairlines between them, centred on each zone.
+  const label = (x, y, t) =>
+    `<text x="${x}" y="${y}" font-size="18" letter-spacing="2.88" fill="${alpha(0.7)}" text-anchor="middle" dominant-baseline="central">${t}</text>`;
+  const band = [];
+  const cw = F.w / COLS, rh = F.h / ROWS;
+  for (let i = 0; i < COLS; i++) {
+    const cx = F.x + cw * (i + 0.5);
+    band.push(label(cx, RULE + BAND / 2, i + 1), label(cx, H - RULE - BAND / 2, i + 1));
+    if (i) band.push(`<path d="M${F.x + cw * i} ${RULE}V${F.y}M${F.x + cw * i} ${F.y + F.h}V${H - RULE}" stroke="${alpha(0.3)}" stroke-width="1"/>`);
+  }
+  for (let i = 0; i < ROWS; i++) {
+    const cy = F.y + rh * (i + 0.5);
+    band.push(label(RULE + BAND / 2, cy, LETTERS[i]), label(W - RULE - BAND / 2, cy, LETTERS[i]));
+    if (i) band.push(`<path d="M${RULE} ${F.y + rh * i}H${F.x}M${F.x + F.w} ${F.y + rh * i}H${W - RULE}" stroke="${alpha(0.3)}" stroke-width="1"/>`);
+  }
+
   const tag = tagline
-    .map((line, i) => `<tspan x="${TEXT_X}" y="${228 + i * 43.5}">${esc(line)}</tspan>`)
+    .map((line, i) => `<tspan x="${TEXT_X}" y="${IN.y + 128 + i * 40}">${esc(line)}</tspan>`)
     .join('');
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" role="img" aria-labelledby="t">
 <title id="t">${esc(title)} — ${esc(tagline.join(' '))}</title>
@@ -89,26 +122,24 @@ ${face(600, 'IBMPlexMono-SemiBold-Latin1.woff2')}
 text{font-family:'IBM Plex Mono',ui-monospace,Menlo,Consolas,monospace}
 </style>
 <defs>
-  <pattern id="minor" width="40" height="40" patternUnits="userSpaceOnUse">
-    <path d="M40 0 H0 V40" fill="none" stroke="${alpha(0.035)}" stroke-width="1"/>
-  </pattern>
-  <pattern id="major" width="200" height="200" patternUnits="userSpaceOnUse">
-    <path d="M200 0 H0 V200" fill="none" stroke="${alpha(0.085)}" stroke-width="1"/>
+  <pattern id="reseau" x="${F.x}" y="${F.y}" width="120" height="120" patternUnits="userSpaceOnUse">
+    <path d="M54 60.5H67M60.5 54V67" fill="none" stroke="${INK}" stroke-opacity="0.3" stroke-width="1" shape-rendering="crispEdges"/>
   </pattern>
 </defs>
 <rect width="${W}" height="${H}" fill="${PAPER}"/>
-<rect width="${W}" height="${H}" fill="url(#minor)"/>
-<rect width="${W}" height="${H}" fill="url(#major)"/>
-<rect x="36.5" y="36.5" width="${W - 73}" height="${H - 73}" fill="none" stroke="${alpha(0.22)}" stroke-width="1"/>
-<svg x="${PAD}" y="${PAD}" width="200" height="200" viewBox="0 0 24 24">
+<rect x="${F.x}" y="${F.y}" width="${F.w}" height="${F.h}" fill="url(#reseau)" stroke="${alpha(0.3)}" stroke-width="1"/>
+<rect x="${RULE / 2}" y="${RULE / 2}" width="${W - RULE}" height="${H - RULE}" fill="none" stroke="${INK}" stroke-width="${RULE}"/>
+${band.join('\n')}
+<svg x="${IN.x}" y="${IN.y}" width="${MARK}" height="${MARK}" viewBox="0 0 24 24">
 ${markBody(name)}
 </svg>
-<text x="${TEXT_X}" y="150" font-size="64" font-weight="600" letter-spacing="7.68" fill="${INK}">${esc(title.toUpperCase())}</text>
-<rect x="${TEXT_X}" y="184" width="520" height="2" fill="${INK}"/>
+<rect x="${SHEET_X + 1}" y="${IN.y + 1}" width="${IN.r - SHEET_X - 2}" height="${MARK - 2}" fill="${SURFACE}" stroke="${INK}" stroke-width="2"/>
+<text x="${TEXT_X}" y="${IN.y + 66}" font-size="64" font-weight="600" letter-spacing="7.68" fill="${INK}">${esc(title.toUpperCase())}</text>
+<rect x="${TEXT_X}" y="${IN.y + 86}" width="520" height="2" fill="${INK}"/>
 <text font-size="30" font-weight="400" fill="${alpha(0.8)}">${tag}</text>
-<rect x="${PAD}" y="509" width="${W - PAD * 2}" height="1" fill="${alpha(0.5)}"/>
-<text x="${PAD}" y="546" font-size="18" font-weight="400" letter-spacing="2.88" fill="${alpha(0.7)}">${esc(footer.toUpperCase())}</text>
-<text x="${W - PAD}" y="546" font-size="18" font-weight="400" letter-spacing="2.88" fill="${alpha(0.7)}" text-anchor="end">A. DIAB</text>
+<rect x="${IN.x + 0.5}" y="${IN.b - 56 + 0.5}" width="${IN.r - IN.x - 1}" height="55" fill="${SURFACE}" stroke="${alpha(0.3)}" stroke-width="1"/>
+<text x="${IN.x + 24}" y="${IN.b - 28}" font-size="18" font-weight="400" letter-spacing="2.88" fill="${alpha(0.7)}" dominant-baseline="central">${esc(footer.toUpperCase())}</text>
+<text x="${IN.r - 24}" y="${IN.b - 28}" font-size="18" font-weight="400" letter-spacing="2.88" fill="${alpha(0.7)}" text-anchor="end" dominant-baseline="central">A. DIAB</text>
 </svg>
 `;
 }
