@@ -76,6 +76,7 @@ import {
   newSummaryMemory,
   pickedFrom,
   pillColor,
+  pillSvg,
   pillState,
   prNumber,
   prRows,
@@ -182,29 +183,13 @@ const noop = () => {}
 // and the engine names none for the pane's background, so the pane takes
 // them and reads poorly in a light theme (the owner's decision at the
 // rebuild's visual check). A round border in a fill's own colour rounds it;
-// one in the pane's colour is unseen at rest, so a hover rounds a card. The
-// last three tint a PR pill by its state, as Desktop's own PR pill does.
+// one in the pane's colour is unseen at rest, so a hover rounds a card.
 const DARK_FILLS = {
   pane: '#1a1a19',
   bar: '#2b2b2a',
   hover: '#262625',
   tip: '#3a3a38',
-  open: '#1f3a26',
-  merged: '#2e2547',
-  closed: '#3a1f1f',
 } as const
-// A PR pill's tint and mark by state, read only through these Maps: a stored
-// state they do not hold, `constructor` included, draws no tint and no mark.
-const PILL_TINTS: ReadonlyMap<string, string> = new Map([
-  ['open', DARK_FILLS.open],
-  ['merged', DARK_FILLS.merged],
-  ['closed', DARK_FILLS.closed],
-])
-const PILL_MARKS: ReadonlyMap<string, string> = new Map([
-  ['open', '⇄'],
-  ['merged', '⑂'],
-  ['closed', '⊘'],
-])
 // The icon of each card view, with its name in the tooltip. A Button carries
 // no `label`: a desktop draws the label in place of the Button's text.
 const VIEW_ICONS: ReadonlyMap<string, string> = new Map([
@@ -1220,30 +1205,16 @@ export const register: Register = on => {
           </Box>
         </Box>
       )
-    // The PR pill, in Desktop's own form: a rounded tint of the state's colour
-    // with no outline, the state's mark and `#` with the number in the state's
-    // colour, in caption size so the pill sits low. The terminal draws the
-    // number in the state's colour. A state the Maps do not hold draws
-    // uncoloured, with no tint and no mark.
+    // The PR pill, in Desktop's own form: where images draw, a small image of
+    // a rounded tint with the state's mark and the number (view.ts), its
+    // height fixed, which a Box with a border cannot be. The terminal draws
+    // the number in the state's colour. A state the Maps do not hold draws
+    // the number uncoloured, with no tint and no mark.
     const pill = (n: string, state: string) => {
       const color = pillColor(state)
-      const tone = color === undefined ? {} : { color }
-      const tint = PILL_TINTS.get(state)
-      const mark = PILL_MARKS.get(state)
-      return terminal ? (
-        <Text {...tone}>{`#${n}`}</Text>
-      ) : (
-        <Box flexDirection="row" columnGap={1} borderStyle="round" paddingX="sm" {...(tint === undefined ? {} : { borderColor: tint, backgroundColor: tint })}>
-          {mark !== undefined && (
-            <Text size="caption" {...tone}>
-              {mark}
-            </Text>
-          )}
-          <Text size="caption" weight="medium" {...tone}>
-            {`#${n}`}
-          </Text>
-        </Box>
-      )
+      const image = Image === undefined ? undefined : pillSvg(n, state)
+      if (Image !== undefined && image !== undefined) return <Image source={image.source} alt={image.alt} width={image.width} height={image.height} />
+      return color === undefined ? <Text>{`#${n}`}</Text> : <Text color={color}>{`#${n}`}</Text>
     }
     const hint = (key: string) => (
       <Box paddingX={3} paddingY={1}>

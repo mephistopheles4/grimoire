@@ -80,8 +80,9 @@ function attributes(source) {
 // The classes `done` and `stopped` and the id `st` are admitted for the
 // status strip, the to-do bar and the cache bar, which build them, as
 // threat-model row 15 says. The class `proj` is admitted for the usage
-// image's projection (#275).
-const CLASSES = new Set(['muted', 'track', 'ok', 'warn', 'hot', 'free', 'buffer', 'c0', 'c1', 'c2', 'c3', 'c4', 'c5', 'c6', 'done', 'stopped', 'proj', 'rule']);
+// image's projection (#275). The `tint-` and `ink-` classes are admitted for
+// the PR pill (#339).
+const CLASSES = new Set(['muted', 'track', 'ok', 'warn', 'hot', 'free', 'buffer', 'c0', 'c1', 'c2', 'c3', 'c4', 'c5', 'c6', 'done', 'stopped', 'proj', 'rule', 'tint-open', 'tint-merged', 'tint-closed', 'ink-open', 'ink-merged', 'ink-closed']);
 const LENGTHS = new Set(['width', 'height', 'x', 'y', 'rx', 'cx', 'cy', 'r']);
 const NUMBER = /^\d+(?:\.\d+)?$/;
 const PERCENT = /^(\d+(?:\.\d+)?)%$/;
@@ -4394,7 +4395,21 @@ test('the PR rows list one row per card, skip dismissed cards but not needs-you 
   assert.deepEqual(prRows('cards', new Set(), new Map(), NOW), { open: [], merged: [], closed: [] });
 });
 
-test('the hairline image: one rect with the rule class, a light rule and a dark rule in the style block, and the allowlist holds', () => {
+test('the hairline and PR pill images: their classes, a light and a dark rule each in the style block, and the allowlist holds', () => {
+  // The pill: a rounded tint, the state's mark and the number, 18 high.
+  for (const [state, mark] of [['open', '⇄'], ['merged', '⑂'], ['closed', '⊘']]) {
+    const p = view.pillSvg('341', state);
+    assertAllowlisted(p.source);
+    assert.equal(p.height, 18);
+    assert.equal(p.alt, `#341, ${state}`);
+    assert.match(p.source, new RegExp(`<rect class="tint-${state}" [^>]*rx="9"/>`));
+    assert.ok(p.source.includes(`<text class="ink-${state}" x="7" y="12.5">${mark}</text>`));
+    assert.ok(p.source.includes('>#341</text>'));
+    assert.match(view.STYLE, new RegExp(`prefers-color-scheme: dark\\).*\\.tint-${state}\\{fill:#[0-9a-f]{6}\\}.*\\}$`));
+  }
+  // A longer number makes a wider pill; a state or number of the wrong shape makes none.
+  assert.ok(view.pillSvg('1234567', 'open').width > view.pillSvg('7', 'open').width);
+  for (const [n, state] of [['341', 'constructor'], ['341', 'draft'], ['12345678', 'open'], ['3a1', 'open'], ['', 'open']]) assert.equal(view.pillSvg(n, state), undefined);
   const h = hairlineSvg();
   assertAllowlisted(h.source);
   assert.match(h.source, /<rect class="rule" /);

@@ -305,8 +305,11 @@ export const STYLE = [
   '.free{fill:#e8e6dc}.buffer{fill:#d6d3c8}',
   // The hairline between cards.
   '.rule{fill:#e0ded6}',
+  // A PR pill, as Desktop draws its own: a tint of the state and its ink.
+  '.tint-open{fill:#dff3e4}.tint-merged{fill:#ece6fb}.tint-closed{fill:#fbe3e1}',
+  '.ink-open,.ink-merged,.ink-closed{font-size:11px;font-weight:500}.ink-open{fill:#2f7d3f}.ink-merged{fill:#6f4fc9}.ink-closed{fill:#c6413a}',
   '.c0{fill:#d97757}.c1{fill:#6a9bcc}.c2{fill:#788c5d}.c3{fill:#c46686}.c4{fill:#8b7fc7}.c5{fill:#c9a227}.c6{fill:#5fa8a0}',
-  '@media (prefers-color-scheme: dark){text{fill:#e8e6e1}.muted{fill:#9c9a92}.track,.free{fill:#3a3935}.buffer{fill:#4a4944}.ok{fill:#5aa2ef}.proj{fill:#2f5f8f}.warn{fill:#e8a23a}.hot{fill:#ef6b62}.done{fill:#62b56f}.stopped{fill:#6b6a64}.rule{fill:#333331}}',
+  '@media (prefers-color-scheme: dark){text{fill:#e8e6e1}.muted{fill:#9c9a92}.track,.free{fill:#3a3935}.buffer{fill:#4a4944}.ok{fill:#5aa2ef}.proj{fill:#2f5f8f}.warn{fill:#e8a23a}.hot{fill:#ef6b62}.done{fill:#62b56f}.stopped{fill:#6b6a64}.tint-open{fill:#1f3a26}.tint-merged{fill:#2e2547}.tint-closed{fill:#3a1f1f}.ink-open{fill:#62b56f}.ink-merged{fill:#a48be0}.ink-closed{fill:#ef6b62}.rule{fill:#333331}}',
 ].join('')
 
 const XMLNS = 'http://www.w3.org/2000/svg'
@@ -910,6 +913,30 @@ export function prRows(cards: unknown, hidden: ReadonlySet<unknown>, answers: Re
 /** The hairline between cards: one rect in the rule class, across the width. */
 export function hairlineSvg(): BarImage {
   return { source: `${svgOpen(9)}<rect class="rule" x="0" y="4" width="100%" height="1"/></svg>`, alt: 'divider', height: 9 }
+}
+
+// A PR pill's class suffix and mark by state, read only through this Map.
+const PILL_LOOKS: ReadonlyMap<string, { cls: string; mark: string }> = new Map([
+  ['open', { cls: 'open', mark: '⇄' }],
+  ['merged', { cls: 'merged', mark: '⑂' }],
+  ['closed', { cls: 'closed', mark: '⊘' }],
+])
+const PILL_HEIGHT = 18
+
+/** A PR pill as Desktop draws its own: a rounded tint of the state, its mark
+ *  and `#` with the number in the state's ink, 18 px high and as wide as its
+ *  text, by an estimate of the font's widths. Undefined for a number that is
+ *  not 1 to 7 digits or a state the Map does not hold, `constructor` included. */
+export function pillSvg(n: string, state: string): (BarImage & { width: number }) | undefined {
+  const look = PILL_LOOKS.get(state)
+  if (look === undefined || !/^[0-9]{1,7}$/.test(n)) return undefined
+  const width = Math.round(36 + 6.3 * n.length)
+  const source =
+    `<svg xmlns="${XMLNS}" width="${num(width)}" height="${num(PILL_HEIGHT)}"><style>${STYLE}</style>` +
+    `<rect class="tint-${look.cls}" x="0" y="0" width="100%" height="${num(PILL_HEIGHT)}" rx="${num(PILL_HEIGHT / 2)}"/>` +
+    `<text class="ink-${look.cls}" x="7" y="12.5">${look.mark}</text>` +
+    `<text class="ink-${look.cls}" x="22" y="12.5">#${svgText(n, 8)}</text></svg>`
+  return { source, alt: `#${n}, ${state}`, height: PILL_HEIGHT, width }
 }
 
 /** A card's title as drawn and as a report's sender is kept: cleaned and cut

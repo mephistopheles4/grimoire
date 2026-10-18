@@ -3687,19 +3687,22 @@ for (const surface of SURFACES) {
     const m = await mountOn($, surface)
     await m.press({ key: 'grp-finished' })
     const all = await nodes(m)
-    expect(texts(all, '#341')[0]?.props.color).toBe('success')
-    expect(texts(all, '#342')[0]?.props.color).toBe('merged')
+    // On Desktop the pill is a small image of a rounded tint, its mark and the
+    // number, 18 px high, as Desktop's own PR pill; the terminal draws the
+    // number in the state's colour. A state outside the Maps draws the number
+    // uncoloured, on both.
+    const pills = all.filter(n => n.type === 'Svg' && /^#\d+, /.test(String(n.props.alt)))
+    if (surface === 'desktop') {
+      expect(pills.map(p => p.props.alt).sort()).toEqual(['#341, open', '#342, merged'])
+      for (const p of pills) expect(p.props.height).toBe(18)
+      expect(String(pills.find(p => p.props.alt === '#341, open')?.props.source)).toContain('class="tint-open"')
+    } else {
+      expect(pills.length).toBe(0)
+      expect(texts(all, '#341')[0]?.props.color).toBe('success')
+      expect(texts(all, '#342')[0]?.props.color).toBe('merged')
+    }
     expect(texts(all, '#7')[0]).toBeDefined()
     expect(texts(all, '#7')[0]?.props.color).toBeUndefined()
-    // On Desktop the pill is a rounded tint of its state, with the state's
-    // mark, as Desktop's own PR pill; the terminal has none. A state outside
-    // the Maps draws no tint and no mark.
-    const tinted = (tint: string) => all.filter(n => n.type === 'Box' && n.props.borderStyle === 'round' && n.props.borderColor === tint && n.props.backgroundColor === tint)
-    expect(tinted('#1f3a26').length).toBe(surface === 'desktop' ? 1 : 0)
-    expect(tinted('#2e2547').length).toBe(surface === 'desktop' ? 1 : 0)
-    expect(texts(all, '⇄').length).toBe(surface === 'desktop' ? 1 : 0)
-    const bare = all.filter(n => n.type === 'Box' && n.props.borderStyle === 'round' && n.props.borderColor === undefined && n.props.backgroundColor === undefined)
-    expect(bare.length).toBe(surface === 'desktop' ? 1 : 0)
   })
 
   test(`${surface}: a card's age is drawn from its since, and none when since is ahead of the clock by over 2 minutes`, async ($, on) => {
