@@ -71,7 +71,8 @@ export type Source = 'file' | 'tool'
 /** The three states a card's PR can be in, as the card keeps them. */
 export const PR_STATES: readonly PrState[] = ['open', 'merged', 'closed']
 
-const PR_NUMBER = /^[0-9]{1,7}$/
+/** A PR number as text: 1 to 7 digits. The tool's schema and the view module take this one pattern. */
+export const PR_NUMBER = /^[0-9]{1,7}$/
 
 /** Whether a value is a whole number from 0 to 2^53 - 1. */
 const isWhole = (v: unknown): v is number => typeof v === 'number' && Number.isSafeInteger(v) && v >= 0
@@ -215,7 +216,8 @@ export function stampSince(previous: Roster | undefined, cards: readonly Card[],
   return {
     value: cards.map(c => {
       const was = before.get(oneLine(c.title, MAX_TITLE))
-      const keep = was !== undefined && was.status === c.status && was.phase === c.phase && isWhole(was.since) && was.since <= clock + AHEAD_MS
+      // The phase is compared as the pane draws it, so a hidden character or a trailing space is no change.
+      const keep = was !== undefined && was.status === c.status && oneLine(was.phase, 160) === oneLine(c.phase, 160) && isWhole(was.since) && was.since <= clock + AHEAD_MS
       return { ...c, since: keep ? was.since : clock }
     }),
   }

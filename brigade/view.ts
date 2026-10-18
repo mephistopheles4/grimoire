@@ -1,4 +1,4 @@
-import { AHEAD_MS, PR_STATES, SESSION_ID, foldsCase, oneLine, pathKey, placeSummary, projectFolder, sepOf, statRejection } from './roster.ts'
+import { AHEAD_MS, PR_NUMBER, PR_STATES, SESSION_ID, foldsCase, oneLine, pathKey, placeSummary, projectFolder, sepOf, statRejection } from './roster.ts'
 import type { AgentRow, GhPr, StatAnswer } from './roster.ts'
 import type { Meter, Pair, Sample, UsageCategory, UsageLimit, UsageSnapshot, Warmth } from './types'
 
@@ -692,8 +692,9 @@ export async function settleTicks(
 
 // --- Severity groups --------------------------------------------------------
 //
-// The cards sit in three groups by the status the head chef wrote: NEEDS YOU,
-// WORKING, and DONE · STOPPED, which a press folds open and shut. The stored
+// The cards sit in three groups by the status the head chef wrote: Waiting on
+// you, Working, and Done · stopped. Any group folds on a press, and
+// STARTS_FOLDED in register.tsx says which start folded. The stored
 // roster is drawn as stored, and another plugin can rewrite it, so a status is
 // read only through the fixed Map below: one outside the four words, or one
 // that names a prototype key, has no look and counts nowhere. No key, class or
@@ -728,9 +729,9 @@ export type Placed<T> = { c: T; i: number }
 export type Groups<T> = { needsYou: Placed<T>[]; working: Placed<T>[]; finished: Placed<T>[] }
 
 /** The stored cards in their groups, each in roster order. A card whose title
- *  is in `hidden`, the dismissed ones, is in none, and so is a card that is
- *  not a record or has no look; cards that are not a list give three empty
- *  groups. */
+ *  is in `hidden`, the dismissed ones, is in none unless it waits on the owner,
+ *  and a card that is not a record or has no look is in none; cards that are
+ *  not a list give three empty groups. */
 export function groupCards<T>(cards: readonly T[], hidden: ReadonlySet<unknown>): Groups<T> {
   const out: Groups<T> = { needsYou: [], working: [], finished: [] }
   if (!Array.isArray(cards)) return out
@@ -783,6 +784,8 @@ export const GROUP_HINTS: ReadonlyMap<string, string> = new Map([
 const MAX_SCAN = 200
 const MAX_KEPT = 50
 const MAX_PICK_TITLE = 80
+/** The most cards selected at once. */
+export const MAX_PICKED = 50
 
 /** The chosen view: `prs` only when exactly that word, else `sessions`. */
 export const viewFrom = (stored: unknown): 'sessions' | 'prs' => (stored === 'prs' ? 'prs' : 'sessions')
@@ -804,7 +807,7 @@ export function pickedFrom(stored: unknown): string[] {
   if (!Array.isArray(stored)) return []
   const out: string[] = []
   for (const t of stored.slice(0, MAX_SCAN)) {
-    if (typeof t === 'string' && [...t].length <= MAX_PICK_TITLE && !out.includes(t) && out.length < MAX_KEPT) out.push(t)
+    if (typeof t === 'string' && [...t].length <= MAX_PICK_TITLE && !out.includes(t) && out.length < MAX_PICKED) out.push(t)
   }
   return out
 }
@@ -871,10 +874,8 @@ export type PrRow = {
   detail: { cardTitle: string; counts?: string; repo?: string; age?: string }
 }
 
-const PR_NUMBER = /^[0-9]{1,7}$/
-
 /** A stored card's PR number as text, or undefined: the card must be a record
- *  and `pr` text of 1 to 7 digits, as the roster check holds it to. */
+ *  and `pr` text of 1 to 7 digits, by the roster module's own pattern. */
 export const prNumber = (c: unknown): string | undefined => (isRecord(c) && typeof c.pr === 'string' && PR_NUMBER.test(c.pr) ? c.pr : undefined)
 
 /** The pull requests the shown cards carry, grouped Open, Merged and Closed:
@@ -940,7 +941,7 @@ function doneOrTicking(done: unknown, ticking: unknown): Set<string> {
 
 // --- The status strip and the to-do bar ---------------------------------------
 //
-// Under the Brigade heading: a strip with one segment per status, its legend,
+// Under the top row: a strip with one segment per status, its legend,
 // and a bar of the to-dos done. Both are drawn from counts alone. Each builder
 // takes the stored roster and lists as they are, reads a card only through
 // the status Map and a to-do only by its id, and writes only numbers, fixed

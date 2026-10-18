@@ -2132,7 +2132,7 @@ test('the report count is the inbox entries whose sender matches a done or stopp
   }
 });
 
-test('the state contract declares the view, the selection and the folds, each in an atom that starts empty, and no doneOpen', () => {
+test('the state contract declares the view, the selection and the folds: the view atom starts on sessions, the others empty, and no doneOpen', () => {
   const types = readFileSync(join(root, 'brigade/types/index.d.ts'), 'utf8');
   const block = types.slice(types.indexOf('interface PluginState'));
   const register = readFileSync(join(root, 'brigade/register.tsx'), 'utf8');

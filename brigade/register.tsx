@@ -5,6 +5,8 @@ import type { Card, Roster } from './types'
 import {
   GH_ARGV,
   MAX_ROSTER_BYTES,
+  PR_NUMBER,
+  PR_STATES,
   MAX_TEXT,
   OPEN_NAME,
   OPEN_SERVER,
@@ -43,6 +45,7 @@ import {
   GROUP_HINTS,
   GROUP_KEYS,
   GROUP_NAMES,
+  MAX_PICKED,
   MAX_TRANSCRIPT_BYTES,
   SVG_MAX,
   VIEW_LABELS,
@@ -101,13 +104,16 @@ import {
 import type { Finder, PrRow, ReadMemory, Spark, SummaryMemory } from './view.ts'
 import { registerWriter, writerEpoch, writerSession } from './writer.ts'
 
-// The Brigade pane: one card per session a lead session started, each in a
-// rounded box with its work, phase, settings, live busy or idle state, cache
-// warmth, context meter, tabs for its burn rate and context trend, and latest
-// report; the owner's to-dos in one box, each ticked with a press that
-// a second press undoes; and at the bottom this session's own rate limits and
-// context. The pane reads the roster file while it is open. The head chef
-// fills it through the set_roster tool below, which writes the file for it
+// The Brigade pane: one compact row per session a lead session started, in
+// three foldable groups (Waiting on you, Working, Done · stopped) behind a
+// switch to a Pull requests view. A row shows its status dot, title, phase,
+// live busy or idle state, age, PR pill and latest report, and on a needs-you
+// or working row the cache warmth, context meter and the burn and trend views;
+// the owner's to-dos sit under Waiting on you, each ticked with a press that a
+// second press undoes; at the foot are the selection bar and this session's
+// own rate limits and context. The pane reads the roster file while it is
+// open, and asks `gh` for the PR details once a minute. The head chef fills
+// the roster through the set_roster tool below, which writes the file for it
 // with no permission prompt; the head chef writes no file itself. The usage
 // section is worked out in view.ts, as plain values; this file reads and
 // stores the reading and turns the view's result into elements.
@@ -230,7 +236,7 @@ async function loadRoster($: EngineInterface): Promise<string[] | undefined> {
     return undefined
   }
   // After a clear or a resume the session id changes, and so does the file:
-  // name the new one and the one before it.
+  // keep the new one and the one before it. Nothing draws them since #339.
   await update($, files, f =>
     f.current === at.file ? f : { current: at.file, previous: f.current },
   )
@@ -383,10 +389,14 @@ async function pollAgents($: EngineInterface, open: () => boolean) {
 
 // By PR number, the last good answers.
 let ghAnswers: ReadonlyMap<number, GhPr> = new Map()
-// The numbers `gh` said are merged: never looked for again.
+// The numbers `gh` said are merged. The call stops once every shown PR is in here.
 const ghMerged = new Set<number>()
 // Whether the last call failed: the Pull requests view says so in fixed words.
 let ghDown = false
+// The owner/name the first good answer named. `gh` answers for the repository the
+// environment and the working folder's git config choose, which a member session
+// can change; an answer naming another repository counts as no answer.
+let ghRepo: string | undefined
 // When the last call started, on the engine clock.
 let ghAt: number | undefined
 let asking = false
@@ -400,6 +410,22 @@ const shownPrs = (cards: readonly Card[], hidden: ReadonlySet<unknown>): number[
   })
 }
 
+// On macOS and Linux `gh` is found by name on the inherited PATH, so a PATH with
+// an empty or relative entry could let a file in the project folder run in its
+// place, with the session's environment. Such a host runs nothing then. Windows
+// is measured: the engine runs the real `gh` there (threat model, row 15).
+async function ghFindable($: EngineInterface): Promise<boolean> {
+  try {
+    const os = await hostOs($)
+    if (os === 'windows') return true
+    if (os === undefined) return false
+    const path = await $.env.get('PATH')
+    return typeof path === 'string' && path !== '' && path.split(':').every(entry => entry.startsWith('/'))
+  } catch {
+    return false
+  }
+}
+
 // `tick` is the timer's own call, which always runs; the call at arm waits out
 // a minute since the last one, so a quick reopen asks once.
 async function askGh($: EngineInterface, open: () => boolean, tick: boolean) {
@@ -411,6 +437,10 @@ async function askGh($: EngineInterface, open: () => boolean, tick: boolean) {
     const now = await $.clock.now()
     if (!tick && ghAt !== undefined && now - ghAt < GH_MS) return
     ghAt = now
+    if (!(await ghFindable($))) {
+      if (open()) ghDown = true
+      return
+    }
     let found: ReadonlyMap<number, GhPr> | undefined
     try {
       const ran = await $.process.run([...GH_ARGV], { timeoutMs: 15000 })
@@ -420,10 +450,17 @@ async function askGh($: EngineInterface, open: () => boolean, tick: boolean) {
         if ('value' in parsed) found = parsed.value
       }
     } catch {
-      found = undefined
+      // A failure to start counts as no answer.
     }
     if (!open()) return
     if (found === undefined) {
+      ghDown = true
+      return
+    }
+    // The first good answer pins the repository; another one is no answer.
+    const answered = [...found.values()]
+    if (ghRepo === undefined) ghRepo = answered[0]?.repo
+    if (ghRepo !== undefined && answered.some(a => a.repo !== ghRepo)) {
       ghDown = true
       return
     }
@@ -435,7 +472,8 @@ async function askGh($: EngineInterface, open: () => boolean, tick: boolean) {
       if (a.state === 'merged') ghMerged.add(n)
     }
     ghAnswers = next
-    ghDown = false
+    // A call that answered for none of the shown numbers (another host, say) says so too.
+    ghDown = wanted.every(n => !next.has(n))
   } finally {
     asking = false
   }
@@ -491,7 +529,7 @@ async function measureUsage($: EngineInterface) {
 // The timers are taken before the first await, so two arms that overlap
 // cannot both pass the check. Each arm carries its generation, and a close
 // moves the generation on, so neither its first reads nor a tick already
-// queued run after the pane closed. DONE · STOPPED starts closed at each arm.
+// queued run after the pane closed. STARTS_FOLDED says which groups start folded at each arm.
 let generation = 0
 async function arm($: EngineInterface) {
   if (timers.length === 0) {
@@ -693,7 +731,7 @@ async function openInApp($: EngineInterface, c: Card) {
 const TOOL_NAME = 'mcp__grimoire__set_roster'
 
 const DESCRIPTION =
-  "Keeps the Brigade pane's roster for this lead session. Pass the whole roster every time, every card and every to-do; it replaces the last one. Both lists are required; two empty lists are an empty roster. A card may carry its session's pull request: pr, the number as text (1 to 7 digits), and prState, open, merged or closed, the last state known. The pane stamps how long each card has been in its status and phase from its own clock: send no time. It works only while the Brigade pane is open, which the owner opens with /brigade, and refuses otherwise. A refusal names the rule that failed."
+  "Keeps the Brigade pane's roster for this lead session. Pass the whole roster every time, every card and every to-do; it replaces the last one. Both lists are required; two empty lists are an empty roster. A card may carry its session's pull request: `pr` (its number as text, 1 to 7 digits) and `prState` (`open`, `merged` or `closed`, the last state known). Send no `since`: the pane stamps how long each card has been in its status and phase from its own clock. It works only while the Brigade pane is open, which the owner opens with /brigade, and refuses otherwise. A refusal names the rule that failed."
 
 const field = (max: number) => ({ type: 'string', maxLength: max })
 const SCHEMA = {
@@ -717,8 +755,8 @@ const SCHEMA = {
           desktopId: field(100),
           bgId: field(100),
           url: field(100),
-          pr: { type: 'string', pattern: '^[0-9]{1,7}$' },
-          prState: { type: 'string', enum: ['open', 'merged', 'closed'] },
+          pr: { type: 'string', pattern: PR_NUMBER.source },
+          prState: { type: 'string', enum: [...PR_STATES] },
         },
       },
     },
@@ -930,7 +968,7 @@ export const register: Register = on => {
     // longer draws one. When no file can be named, the pane keeps the full
     // reason.
     const at = await where($)
-    const named = 'error' in at ? ' The pane cannot name the roster file, so it shows none; the pane says why.' : ''
+    const named = 'error' in at ? ' The pane cannot find the roster file; the pane says why.' : ''
     return {
       text: `${opened.isPlaced ? 'Brigade pane opened.' : `Brigade pane is open but not shown: ${opened.reason}.`}${named}${ready}`,
     }
@@ -983,9 +1021,8 @@ export const register: Register = on => {
 
   // Presses arrive here with a fresh `$`. Each finds its card or to-do again
   // in the current state by place and title, and does nothing if it moved.
-  // The DONE · STOPPED toggle's key, `fold`, holds no hyphen, since the key
-  // is split on one; a press flips the group, and a stored value other than
-  // exactly true counts as closed, so the press opens it.
+  // The switch, group (`grp-`) and selection-bar keys are matched whole, before
+  // the split below; only card and to-do keys are split on a hyphen.
   on('ui.press', { plugin: 'grimoire', requestId: PANE }, async ($, e, next) => {
     // The switch, a group's fold and the selection bar: fixed words, read
     // through fixed sets.
@@ -997,8 +1034,8 @@ export const register: Register = on => {
       const group = e.element.slice(4)
       if (GROUP_KEYS.includes(group)) {
         await update($, folded, list => {
-          const now = foldedFrom(list)
-          return now.includes(group) ? now.filter(g => g !== group) : [...now, group]
+          const current = foldedFrom(list)
+          return current.includes(group) ? current.filter(g => g !== group) : [...current, group]
         })
       }
       return { element: e.element }
@@ -1045,15 +1082,15 @@ export const register: Register = on => {
     // A card's checkbox: selects it, at most 50 at once.
     if (verb === 'pick') {
       await update($, picked, list => {
-        const now = pickedFrom(list)
-        return now.includes(c.title) ? now.filter(t => t !== c.title) : now.length < 50 ? [...now, c.title] : now
+        const current = pickedFrom(list)
+        return current.includes(c.title) ? current.filter(t => t !== c.title) : current.length < MAX_PICKED ? [...current, c.title] : current
       })
     }
     // A tab: the view word is read through the fixed set, never as a key,
     // and the choice is kept under this card's own title.
     if (verb === 'tab') {
-      const view = viewOf(word)
-      if (view !== undefined) await update($, tabs, list => chooseTab(list, c.title, view))
+      const tab = viewOf(word)
+      if (tab !== undefined) await update($, tabs, list => chooseTab(list, c.title, tab))
     }
     return { element: e.element }
   })
@@ -1074,6 +1111,8 @@ export const register: Register = on => {
     const surface = Svg === undefined ? 'terminal' : e.surface
     const terminal = surface === 'terminal'
     const Image = terminal ? undefined : Svg
+    // A pointer hovers only on Desktop; the editor, mobile and the terminal show what a hover would.
+    const pointer = surface === 'desktop'
     const metered = usageView(await read($, usage), surface, now, SVG_MAX, await read($, samples))
     const error = await read($, rosterError)
     const pollError = await read($, liveError)
@@ -1109,7 +1148,7 @@ export const register: Register = on => {
     const shown = needsYou.length + working.length + finished.length
     const strip = statusStrip(cards, hidden)
     const progress = todoBar(todos, done, ticks)
-    const headingNote =
+    const sessionsCount =
       shown > 0 || progress !== undefined
         ? `${shown} ${shown === 1 ? 'session' : 'sessions'}`
         : error === ''
@@ -1122,11 +1161,11 @@ export const register: Register = on => {
     // the terminal has no pointer. A fill in the theme's own `subtle`, so it
     // follows the light and the dark theme; the engine names no key for the
     // pane's background, so the fill is square and has no outline at rest.
-    const hoverFill = (scope: string) => (terminal ? {} : { hover: { scope, backgroundColor: 'subtle' as const } })
+    const hoverFill = (scope: string) => (!pointer ? {} : { hover: { scope, backgroundColor: 'subtle' as const } })
     // A tooltip: a hidden Box shown while the pointer is on its anchor's scope.
     // The terminal has none, and shows the text inline where it carries news.
     const tip = (key: string, anchorEl: JSX.Element, text: string) =>
-      terminal ? (
+      !pointer ? (
         anchorEl
       ) : (
         <Box position="relative" hover={{ scope: `tip-${key}` }}>
@@ -1279,7 +1318,7 @@ export const register: Register = on => {
       // terminal always shown. A card that waits on the owner has no Dismiss.
       const actions =
         canOpen || !needs ? (
-          <Box flexShrink={0} flexDirection="row" columnGap={1} {...(terminal ? {} : { display: 'none' as const, hover: { scope, display: 'flex' as const } })}>
+          <Box flexShrink={0} flexDirection="row" columnGap={1} {...(!pointer ? {} : { display: 'none' as const, hover: { scope, display: 'flex' as const } })}>
             {canOpen && (
               <Button key={keyFor('open', i, c.title)} plain dimColor onPress={noop}>
                 Open
@@ -1313,7 +1352,11 @@ export const register: Register = on => {
                   </Text>
                 </Box>
                 {actions}
-                {number !== undefined && <Box flexShrink={0}>{pill(number, pillState(answer?.state, c.prState))}</Box>}
+                {number !== undefined && (
+                  <Box flexShrink={0}>
+                    {answer === undefined ? pill(number, pillState(undefined, c.prState)) : tip(`pill-${i}`, pill(number, pillState(answer.state, c.prState)), answer.repo)}
+                  </Box>
+                )}
                 <Box flexShrink={0}>
                   {/* Idle on a working card is bold as well as amber: the flip
                       from busy is the owner's cue (owner decision q1 A on #287). */}
@@ -1339,9 +1382,9 @@ export const register: Register = on => {
                     {oneLine(c.phase, 160)}
                   </Text>
                 </Box>
-                {!terminal && <Box flexShrink={0}>{tip(`set-${i}`, <Text dimColor mono>{short.text}</Text>, short.full)}</Box>}
+                {pointer && <Box flexShrink={0}>{tip(`set-${i}`, <Text dimColor mono>{short.text}</Text>, short.full)}</Box>}
               </Box>
-              {terminal && (
+              {!pointer && (
                 <Text dimColor wrap="truncate-end">
                   {short.full}
                 </Text>
@@ -1364,12 +1407,12 @@ export const register: Register = on => {
                   tip(
                     `tab-${i}-${v}`,
                     v === chosen ? (
-                      <Button key={`${keyFor('tab', i, c.title)}-${v}`} variant="primary" onPress={noop}>
-                        {terminal ? `● ${VIEW_LABELS.get(v) ?? ''}` : (VIEW_ICONS.get(v) ?? '?')}
+                      <Button key={`${keyFor('tab', i, c.title)}-${v}`} label={VIEW_LABELS.get(v) ?? ''} variant="primary" onPress={noop}>
+                        {pointer ? (VIEW_ICONS.get(v) ?? '?') : `● ${VIEW_LABELS.get(v) ?? ''}`}
                       </Button>
                     ) : (
-                      <Button key={`${keyFor('tab', i, c.title)}-${v}`} dimColor onPress={noop}>
-                        {terminal ? (VIEW_LABELS.get(v) ?? '') : (VIEW_ICONS.get(v) ?? '?')}
+                      <Button key={`${keyFor('tab', i, c.title)}-${v}`} label={VIEW_LABELS.get(v) ?? ''} dimColor onPress={noop}>
+                        {pointer ? (VIEW_ICONS.get(v) ?? '?') : (VIEW_LABELS.get(v) ?? '')}
                       </Button>
                     ),
                     VIEW_LABELS.get(v) ?? '',
@@ -1549,12 +1592,12 @@ export const register: Register = on => {
       tip(
         `switch-${id}`,
         view === id ? (
-          <Button key={`view-${id}`} variant="primary" onPress={noop}>
-            {terminal ? word : icon}
+          <Button key={`view-${id}`} label={label} variant="primary" onPress={noop}>
+            {pointer ? icon : word}
           </Button>
         ) : (
-          <Button key={`view-${id}`} dimColor onPress={noop}>
-            {terminal ? word : icon}
+          <Button key={`view-${id}`} label={label} dimColor onPress={noop}>
+            {pointer ? icon : word}
           </Button>
         ),
         label,
@@ -1568,7 +1611,7 @@ export const register: Register = on => {
         <Box flexDirection="row" columnGap={1} marginBottom={1} alignItems="center">
           <Box flexGrow={1} flexShrink={1} minWidth={0}>
             <Text weight="medium" wrap="truncate-end">
-              {view === 'prs' ? `${prCount} ${prCount === 1 ? 'pull request' : 'pull requests'}` : (headingNote ?? '')}
+              {view === 'prs' ? `${prCount} ${prCount === 1 ? 'pull request' : 'pull requests'}` : (sessionsCount ?? '')}
             </Text>
           </Box>
           {switchButton('sessions', '◫', 'Sessions', 'Sessions')}
@@ -1649,7 +1692,7 @@ export const register: Register = on => {
             {/* The groups: a section bar with its fold arrow, name and count,
                 then its cards, or a quiet hint when it is empty. Waiting on you
                 holds the cards that need the owner, then the open to-dos. */}
-            {groupHead('waiting', waiting)}
+            {groupHead('waiting', waiting, reportNote(reportCount(needsYou.map(({ c }) => c.title), inbox)))}
             {!folds.has('waiting') &&
               (needsYou.length + open.length > 0 ? (
                 <Box flexDirection="column">
@@ -1658,7 +1701,7 @@ export const register: Register = on => {
               ) : (
                 hint('waiting')
               ))}
-            {groupHead('working', working.length)}
+            {groupHead('working', working.length, reportNote(reportCount(working.map(({ c }) => c.title), inbox)))}
             {!folds.has('working') && (working.length > 0 ? rows(working.map(card), 'working') : hint('working'))}
             {groupHead('finished', finished.length, reportNote(reportCount(finished.map(({ c }) => c.title), inbox)))}
             {!folds.has('finished') && (finished.length > 0 ? rows(finished.map(card), 'finished') : hint('finished'))}
@@ -1679,7 +1722,7 @@ export const register: Register = on => {
               <Button key="bardismiss" plain onPress={noop}>
                 Dismiss
               </Button>
-              <Button key="barclear" plain dimColor onPress={noop}>
+              <Button key="barclear" label="Clear selection" plain dimColor onPress={noop}>
                 ✕
               </Button>
             </Box>

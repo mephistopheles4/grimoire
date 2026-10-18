@@ -61,7 +61,8 @@ node --test tests/audit.test.mjs tests/brigade-roster-rules.test.mjs tests/briga
 ```
 
 **The suite never reaches the network.** eagle-eye's edge audit is the one
-script in the tree that sends anything, and `tests/audit.test.mjs` runs it
+script in the tree that sends anything, apart from the Brigade pane's `gh` call,
+which the mod's tests answer with a fake. `tests/audit.test.mjs` runs the audit
 against a fake service bound to `127.0.0.1` inside the test process. It clears
 any real key from the child's environment first, so a key in your shell is
 never used. CI never calls the provider. A test that did would spend money and

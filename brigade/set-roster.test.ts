@@ -517,7 +517,7 @@ test('when the config folder cannot be found, the reply names no path and the pa
   // No session start, so no transcript path names the config folder.
   const reply = await brigade($)
   await w.clock.settle()
-  expect(reply.text).toBe('Brigade pane opened. The pane cannot name the roster file, so it shows none; the pane says why. `set_roster` is ready: call it with the full roster.')
+  expect(reply.text).toBe('Brigade pane opened. The pane cannot find the roster file; the pane says why. `set_roster` is ready: call it with the full roster.')
   expect(reply.text).not.toContain('Roster file:')
   expect(reply.text).not.toContain('Cannot find')
   expect(reply.text).not.toContain('\\')
@@ -1564,7 +1564,7 @@ for (const surface of ['terminal', 'desktop'] as const) {
   }
 }
 
-// --- severity groups and the DONE · STOPPED fold --------------------------------
+// --- the groups and their folds --------------------------------
 //
 // Spec revision 3 on #250, S5 and S10; ticket #254. Each test runs on both
 // surfaces. A tree a surface refuses comes back from the mount, never in the
@@ -2058,7 +2058,7 @@ for (const surface of SURFACES) {
   })
 }
 
-// --- the Brigade heading, the status strip and the to-do bar --------------------
+// --- the top row, the status strip and the to-do bar --------------------
 //
 // Spec revision 3 on #250, S2, S3, S4 and S8; ticket #256. Each test runs on
 // both surfaces: Desktop draws the strip and the bar as images, the terminal
@@ -2083,7 +2083,7 @@ const TODOS = [
 const LEGEND = '● 2 needs you  ◐ 1 working  ✓ 1 done  – 1 stopped'
 
 for (const surface of SURFACES) {
-  test(`${surface}: the Brigade heading counts the shown cards, then the strip, its legend and the to-do bar, above Waiting on you`, async ($, on) => {
+  test(`${surface}: the top row counts the shown cards, then the strip, its legend and the to-do bar, above Waiting on you`, async ($, on) => {
     await grouped(on, $, { ...ALL, todos: TODOS })
     const m = await mountOn($, surface)
     const nodes = await drawnOf(m)
@@ -3777,7 +3777,7 @@ for (const surface of SURFACES) {
     expect(text.indexOf('work-one')).toBeLessThan(text.indexOf('▾ Working'))
   })
 
-  test(`${surface}: a planted view, selection or fold list is checked again and changes nothing it should not`, async ($, on) => {
+  test(`${surface}: a planted view or selection is checked again and changes nothing it should not`, async ($, on) => {
     await grouped(on, $, ALL, (key, value) => {
       if (key === 'view') return '__proto__'
       if (key === 'picked') return Array.from({ length: 300 }, (_, i) => `bogus-${i}`)
@@ -3848,3 +3848,118 @@ for (const surface of SURFACES) {
     expect(text.includes('No reports since the pane opened.')).toBe(true)
   })
 }
+
+// --- issue 339: fixes from the second review round --------------------------------
+
+test('a phase that differs only by a trailing space or a hidden character keeps the card\'s age', async ($, on) => {
+  const w = world(on)
+  await start($)
+  await brigade($)
+  await call($, { cards: [card('a', { phase: 'building' })], todos: [] })
+  await w.clock.advance(60000)
+  await call($, { cards: [card('a', { phase: 'building \u{200b}' })], todos: [] })
+  expect(JSON.parse(w.text(FILE) ?? 'null').cards[0].since).toBe(0)
+})
+
+test('a call that answers for none of the shown numbers says PR details are unavailable', async ($, on) => {
+  const w = world(on, w => {
+    w.dirs(BRIGADE)
+    w.put(FILE, { type: 'file', data: { text: JSON.stringify(PRS) } })
+    // Another host's URLs: every entry fails the github.com rule.
+    w.ghOut = JSON.stringify([ghPr(341, { url: 'https://ghe.example/o/r/pull/341' })])
+  })
+  on('session.receive', (_: any, e: any) => e)
+  await start($)
+  await brigade($)
+  await w.clock.settle()
+  const m = await mountOn($, 'desktop')
+  await m.press({ key: 'view-prs' })
+  expect((await textOf(m)).includes('PR details unavailable')).toBe(true)
+})
+
+test('an answer naming another repository than the first one is no answer', async ($, on) => {
+  const w = world(on, w => {
+    w.dirs(BRIGADE)
+    w.put(FILE, { type: 'file', data: { text: JSON.stringify(PRS) } })
+    w.ghOut = JSON.stringify([ghPr(341, { title: 'First repo title' })])
+  })
+  on('session.receive', (_: any, e: any) => e)
+  await start($)
+  await brigade($)
+  await w.clock.settle()
+  const m = await mountOn($, 'desktop')
+  await m.press({ key: 'view-prs' })
+  expect((await textOf(m)).includes('First repo title')).toBe(true)
+  // The repository gh answers for changes under the pane.
+  w.ghOut = JSON.stringify([ghPr(341, { title: 'Other repo title', url: 'https://github.com/evil/repo/pull/341' })])
+  await w.clock.advance(60000)
+  const text = await textOf(m)
+  expect(text.includes('Other repo title')).toBe(false)
+  expect(text.includes('First repo title')).toBe(true)
+  expect(text.includes('PR details unavailable')).toBe(true)
+})
+
+test('on macOS a PATH with an empty or relative entry runs no gh, and an absolute PATH does', async ($, on) => {
+  const bad = world(on, w => {
+    w.dirs(BRIGADE)
+    w.put(FILE, { type: 'file', data: { text: JSON.stringify(PRS) } })
+    macos(w)
+    w.env = { PATH: '/usr/bin::/bin' }
+  })
+  on('session.receive', (_: any, e: any) => e)
+  await start($)
+  await brigade($)
+  await bad.clock.settle()
+  await bad.clock.advance(120000)
+  expect(asked(bad)).toBe(0)
+})
+
+test('on macOS an absolute PATH lets gh run', async ($, on) => {
+  const good = world(on, w => {
+    w.dirs(BRIGADE)
+    w.put(FILE, { type: 'file', data: { text: JSON.stringify(PRS) } })
+    macos(w)
+    w.env = { PATH: '/usr/bin:/bin' }
+  })
+  on('session.receive', (_: any, e: any) => e)
+  await start($)
+  await brigade($)
+  await good.clock.settle()
+  expect(asked(good)).toBe(1)
+})
+
+for (const surface of SURFACES) {
+  test(`${surface}: every Sessions bar counts the reports of its cards`, async ($, on) => {
+    await grouped(on, $, ALL)
+    for (const from of ['need-one', 'work-one', 'work-one']) {
+      await $.session.receive({ origin: { kind: 'peer' }, text: `<cross-session-message from="${from}">\nnews\n</cross-session-message>` })
+    }
+    const m = await mountOn($, surface)
+    await m.press({ key: 'grp-working' })
+    const text = await textOf(m)
+    expect(text.includes('▸ Working 1 · 2 reports')).toBe(true)
+    expect(text.includes('▾ Waiting on you 2 · 1 report')).toBe(true)
+  })
+
+  test(`${surface}: the icon-only buttons carry a name`, async ($, on) => {
+    await grouped(on, $, ALL)
+    const m = await mountOn($, surface)
+    await m.redraw(PANE_PROPS)
+    expect((await m.find({ key: 'view-sessions' })).props.label).toBe('Sessions')
+    expect((await m.find({ key: 'view-prs' })).props.label).toBe('Pull requests')
+    await m.press({ key: 'pick-1-workone' })
+    expect((await m.find({ key: 'barclear' })).props.label).toBe('Clear selection')
+  })
+}
+
+test('the editor and mobile show Open, Dismiss and the full settings without a pointer', async ($, on) => {
+  await grouped(on, $, { cards: [card('one', { status: 'working', settings: 'Opus, high, plan mode' })], todos: [] })
+  for (const surface of ['vscode', 'mobile']) {
+    const m = await mountOn($, surface)
+    const all = await nodes(m)
+    // No Box is hidden at rest, so Dismiss is reachable, and the settings show in full.
+    expect(all.filter(n => n.type === 'Box' && n.props.display === 'none').length).toBe(0)
+    expect(await m.find({ key: 'dismiss-0-one' })).toBeDefined()
+    expect(String(all[0]?.text).includes('Opus, high, plan mode')).toBe(true)
+  }
+})
