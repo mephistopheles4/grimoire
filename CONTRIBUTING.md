@@ -14,7 +14,8 @@ That is the contract, and it is still one command. It validates every
 artifact in the tree with the renderer its registry row names, checks that no
 file a skill or the mod ships has grown a fixed path back, fails on a skill
 frontmatter key outside its allow-list and on a hidden character in a skill
-file, fails on a code fence that declares no
+file, fails on a place or a manifest key the engine loads from that no rule
+reads, fails on a code fence that declares no
 language, fails on a dependency, fails when a skill's SkillSpector baseline entry
 gives a different reason from the root's or is broader than it, and runs the test suite in `tests/`. CI
 runs it as a required check called `check`. `main` takes no direct pushes.
@@ -57,7 +58,7 @@ not take, and `SECURITY.md` explains why that matters more than it looks.
 run only the suite while you work on it:
 
 ```bash
-node --test tests/audit.test.mjs tests/brigade-roster-rules.test.mjs tests/brigade-view.test.mjs tests/build-pages.test.mjs tests/case.test.mjs tests/check-allowances.test.mjs tests/check-baseline-rules.test.mjs tests/check-baselines.test.mjs tests/check-format.test.mjs tests/check-home-paths.test.mjs tests/check-home-shapes.test.mjs tests/check-manifests.test.mjs tests/check-mod.test.mjs tests/check-paths.test.mjs tests/check-skill-files.test.mjs tests/check-test-step.test.mjs tests/check-tracked.test.mjs tests/check-tree.test.mjs tests/check-version.test.mjs tests/eagle-eye-sheets.test.mjs tests/esc.test.mjs tests/groundtrack-fold.test.mjs tests/groundtrack-render.test.mjs tests/groundtrack-sheets.test.mjs tests/practice.test.mjs tests/registry.test.mjs tests/render.test.mjs tests/skillspector-gate.test.mjs tests/skillspector-probe.test.mjs tests/skillspector-strip-suppressed.test.mjs
+node --test tests/audit.test.mjs tests/brigade-roster-rules.test.mjs tests/brigade-view.test.mjs tests/build-pages.test.mjs tests/case.test.mjs tests/check-allowances.test.mjs tests/check-baseline-rules.test.mjs tests/check-baselines.test.mjs tests/check-format.test.mjs tests/check-home-paths.test.mjs tests/check-home-shapes.test.mjs tests/check-load-surface.test.mjs tests/check-manifests.test.mjs tests/check-mod.test.mjs tests/check-paths.test.mjs tests/check-skill-files.test.mjs tests/check-test-step.test.mjs tests/check-tracked.test.mjs tests/check-tree.test.mjs tests/check-version.test.mjs tests/eagle-eye-sheets.test.mjs tests/esc.test.mjs tests/groundtrack-fold.test.mjs tests/groundtrack-render.test.mjs tests/groundtrack-sheets.test.mjs tests/practice.test.mjs tests/registry.test.mjs tests/render.test.mjs tests/skillspector-gate.test.mjs tests/skillspector-probe.test.mjs tests/skillspector-strip-suppressed.test.mjs
 ```
 
 **The suite never reaches the network.** eagle-eye's edge audit is the one
@@ -304,11 +305,14 @@ commit them and the check never reads them.
 **The engine loads more than the mod.** It also loads components from default
 places at the plugin root (`commands/`, `agents/`, `output-styles/`, `workflows/`,
 `themes/`, `monitors/`, `bin/`, `.mcp.json`, `.lsp.json`, `settings.json`, a root
-`SKILL.md`) and from manifest and marketplace-entry keys that add component
-locations. The check fails on a root entry named like one, in any case, and on a
-key in `plugin.json` or `marketplace.json` outside a short allow-list of metadata
-and the two pointers it reads. To use one, add it to `LOAD_ROOTS` or the key list in
-`scripts/check.mjs` with a rule that reads what it loads.
+`SKILL.md`), and from manifest and marketplace keys that add components, run a
+command or change what installs. The check fails on a root entry named like one
+of those places, in any case, and on a key in `plugin.json` or
+`marketplace.json` outside a short allow-list of metadata and the two pointers
+it reads. It reads the root from the disk, so an untracked `.mcp.json` fails
+too: the engine loads it from a checkout loaded in place. To use a place or a
+key, take it off its list in rule 6c of `scripts/check.mjs` and add a rule that
+reads what it loads, as the mod's folders and the `hooks` key are read.
 
 **Changing the export format touches three places.** The page writes it,
 `SKILL.md` specifies it, and the agent reads it back. All three in one commit,
