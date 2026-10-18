@@ -401,6 +401,7 @@ test('a box whose text opens an HTML comment leaves the data block parseable', (
   const data = blocks.find(s => s.includes('const BOX ='));
   assert.ok(data, 'the data block is there');
   assert.doesNotThrow(() => new vm.Script(data), 'the data block parses as script');
+  assert.ok(!data.includes('<'), 'every "<" in the data is escaped, not only one before "!" or "/"');
   assert.equal(vm.runInNewContext(`${data};BOX`).rel.a1.why, text, 'the text reaches the page as itself');
 });
 

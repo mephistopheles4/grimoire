@@ -2421,6 +2421,7 @@ test('a file whose text opens an HTML comment leaves the player block parseable'
   assert.ok(player, 'the player block is there');
   assert.doesNotThrow(() => new vm.Script(player), 'the player block parses as script');
   const json = /const PROG = Groundtrack\.hardenKeys\((.*)\);\n/.exec(player)[1];
+  assert.ok(!json.includes('<'), 'every "<" in the data is escaped, not only one before "!" or "/"');
   assert.equal(JSON.parse(json).nodes.greet.steps[1].aside, text, 'the text reaches the page as itself');
 });
 
