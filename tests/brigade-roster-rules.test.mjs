@@ -705,7 +705,9 @@ test('the gh parser refuses output that is not a list, is not JSON, or is over 1
   assert.ok('error' in parsePrList('null'));
   assert.ok('error' in parsePrList(JSON.stringify([pr()]) + ' '.repeat(1024 * 1024)));
   // Bytes, not characters: 600 KiB of 2-byte characters is over the cap.
-  assert.ok('error' in parsePrList('[]' + '\u{e9}'.repeat(600 * 1024)));
+  assert.ok('error' in parsePrList(JSON.stringify(['\u{e9}'.repeat(600 * 1024)])));
+  // The same text under 1 MiB of characters is valid JSON: only the byte count refuses it.
+  assert.ok('value' in parsePrList(JSON.stringify(['\u{e9}'.repeat(100 * 1024)])));
   assert.doesNotMatch(parsePrList('SECRET_MARKER').error, /SECRET_MARKER/);
 });
 

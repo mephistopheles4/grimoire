@@ -1749,6 +1749,8 @@ for (const surface of SURFACES) {
     await m.press({ key: 'grp-finished' })
     const text = await groupsOf(m)
     expect(text.includes('→ one more thing')).toBe(true)
+    // The line carries the report's time.
+    expect(/\d\d:\d\d → one more thing/.test(text)).toBe(true)
     expect(text.includes('→ still going')).toBe(true)
     expect(text.includes('↳')).toBe(false)
   })
@@ -1935,7 +1937,13 @@ for (const surface of SURFACES) {
       ].sort(),
     )
     // The cache block sits under the card's row, which holds the phase.
-    expect(texts(all, 'p').length).toBeGreaterThan(0)
+    // Each of the four shown cards draws its phase before its cache block.
+    const phaseAt = all.flatMap((n, k) => (n.type === 'Text' && n.text === 'p' ? [k] : []))
+    const cacheAt = all.flatMap((n, k) => (n.type === 'Text' && n.text === '◆ cache' ? [k] : []))
+    expect(phaseAt.length).toBe(4)
+    expect(cacheAt.length).toBe(3)
+    for (const c of cacheAt) expect(phaseAt.filter(k => k < c).length).toBeGreaterThan(0)
+    expect(phaseAt[0]).toBeLessThan(cacheAt[0] as number)
     // The old one-line ◆ text is gone where a bar draws.
     expect(text.includes('◆ cache cold ·')).toBe(false)
     expect(text.includes('◆ cache warm ·')).toBe(false)
@@ -2083,6 +2091,7 @@ for (const surface of SURFACES) {
     // No Brigade heading: the pane's own title names it. The count is the top row's.
     expect(text.includes('Brigade')).toBe(false)
     const count = nodes.find(n => n.type === 'Text' && n.text === '5 sessions')
+    // The count is the top row's, in the prototype's medium weight (it was dim under the old heading).
     expect(count?.props.weight).toBe('medium')
     // The legend: each status with its glyph, count and word, in its colour,
     // in the Map's order.
@@ -2742,7 +2751,7 @@ for (const surface of SURFACES) {
     expect(w.states.some(([k]) => k === 'tabs')).toBe(false)
   })
 
-  test(`${surface}: the cache block's labels and values sit in fixed columns, the right inset matches the left, and context under 70% is neutral (#287)`, async ($, on) => {
+  test(`${surface}: the cache block's labels and values sit in fixed columns, and context under 70% is neutral (#287; the card's body inset left with the redesign)`, async ($, on) => {
     await tabbed(on, $)
     const m = await mountOn($, surface)
     const all = await nodes(m)
@@ -3402,10 +3411,12 @@ test('two calls in one turn stamp in order, the second from the file the first w
   await call($, { cards: [card('a')], todos: [] })
   await w.clock.advance(60000)
   const now = w.clock.now()
-  const [x, y] = await Promise.all([call($, { cards: [card('a')], todos: [] }), call($, { cards: [card('a', { status: 'done' })], todos: [] })])
+  // The first changes the status, the second changes it back: read from the first's file, the second
+  // stamps again; read from the file as it was before the turn, it would keep the old age.
+  const [x, y] = await Promise.all([call($, { cards: [card('a', { status: 'done' })], todos: [] }), call($, { cards: [card('a')], todos: [] })])
   expect([x.ok, y.ok]).toEqual([true, true])
   const written = w.log.filter(l => l.startsWith('write ')).slice(-2).map(l => JSON.parse(l.slice(l.indexOf('{'))))
-  expect(written.map(r => r.cards[0].since)).toEqual([0, now])
+  expect(written.map(r => r.cards[0].since)).toEqual([now, now])
 })
 
 test('a clock answer that is a fraction refuses the call, leaves the file, and the next good answer is kept', async ($, on) => {
@@ -3568,7 +3579,10 @@ test('a PR from a fork gets no title, counts or state: the card draws its own ti
   expect(text.includes('alpha')).toBe(true)
   expect(text.includes('Real merged')).toBe(true)
   // The fork's PR left the card's own state, open, in place.
+  expect(text.includes('▾ Open 1')).toBe(true)
   expect(text.indexOf('▾ Open 1')).toBeLessThan(text.indexOf('alpha'))
+  // And no counts from the fork's PR on the card's row.
+  expect(text.includes('alpha · +')).toBe(false)
 })
 
 // --- the views ------------------------------------------------------------------
@@ -3608,7 +3622,7 @@ for (const surface of SURFACES) {
     expect((await textOf(m)).startsWith('4 sessions')).toBe(true)
   })
 
-  test(`${surface}: the Pull requests view shows its empty groups' hints, folds on a press, and keeps the roster's errors on top`, async ($, on) => {
+  test(`${surface}: the Pull requests view shows its empty groups' hints and folds on a press`, async ($, on) => {
     await grouped(on, $, { cards: [card('plain', { status: 'working' })], todos: [] })
     const m = await mountOn($, surface)
     await m.press({ key: 'view-prs' })
@@ -3623,9 +3637,16 @@ for (const surface of SURFACES) {
 
   test(`${surface}: the roster's errors stay on top of the Pull requests view`, async ($, on) => {
     const bad = await grouped(on, $, { cards: [card('bad', { status: 'paused' })], todos: [] })
+    bad.agents = 'not json'
+    await bad.clock.advance(10000)
     const n = await mountOn($, surface)
     await n.press({ key: 'view-prs' })
-    expect((await textOf(n)).includes('Roster not shown')).toBe(true)
+    const text = await textOf(n)
+    expect(text.includes('Roster not shown')).toBe(true)
+    // The poll's error too, and both above the groups.
+    expect(text.includes('claude agents:')).toBe(true)
+    expect(text.indexOf('Roster not shown')).toBeLessThan(text.indexOf('▾ Open'))
+    expect(text.indexOf('claude agents:')).toBeLessThan(text.indexOf('▾ Open'))
     expect(bad.errors.at(-1)).toContain('Roster not shown')
   })
 
@@ -3702,6 +3723,10 @@ for (const surface of SURFACES) {
     // A second press on a card's box unselects it.
     await m.press({ key: 'pick-0-one' })
     expect((await textOf(m)).includes('1 selected')).toBe(true)
+    // The bar's Dismiss ticks no to-do.
+    const before = ticks()
+    await m.press({ key: 'bardismiss' })
+    expect(ticks()).toBe(before)
   })
 
   test(`${surface}: the bar's Dismiss hides the selected cards, skips one that waits on the owner, and clears the selection; the cross clears it alone`, async ($, on) => {
@@ -3780,6 +3805,9 @@ test('opening the pane does not wait on the first gh call: the reply comes and t
   const reply = await brigade($)
   expect(reply.text).toContain('`set_roster` is ready')
   expect(w.registered).toEqual(['set_roster'])
+  expect(asked(w)).toBe(1)
+  // A tick that finds a call still running does nothing.
+  await w.clock.advance(120000)
   expect(asked(w)).toBe(1)
   w.holdGh = false
   w.releaseGh()

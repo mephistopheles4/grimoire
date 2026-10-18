@@ -4413,6 +4413,8 @@ test('no colour in the register or view modules is a hex or a colour name outsid
   // A hex as a quoted value; an issue number in a comment is not one.
   assert.doesNotMatch(registerSource, /["'`]#[0-9a-fA-F]{3,8}\b/, 'no hex in the register module');
   assert.doesNotMatch(viewOutside, /["'`]#[0-9a-fA-F]{3,8}\b/, 'no hex in the view module outside its style text');
+  // A colour name held in a quoted string anywhere in the register module, in an expression too.
+  assert.doesNotMatch(registerSource, /["'`](?:red|green|blue|gray|grey|white|black|yellow|orange|purple|pink|cyan|magenta|transparent)["'`]/i, 'no colour name in the register module');
   let seen = 0;
   for (const m of registerSource.matchAll(/\b(?:color|borderColor|backgroundColor)=(?:"([^"]*)"|\{'([^']*)'\})/g)) {
     seen += 1;
