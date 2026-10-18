@@ -474,9 +474,9 @@ function notesEl() {
   const restoredEdits = S.edits.filter(e => e.restored);
   if (restoredEdits.length) {
     const list = h('ul');
-    for (const e of restoredEdits) list.append(h('li', null, describeEdit(e), ' ', h('button', { type: 'button', class: 'quiet', on: { click: () => act(() => { delete e.restored; }) } }, 'Keep')));
+    for (const e of restoredEdits) list.append(h('li', null, describeEdit(e), ' ', h('button', { type: 'button', class: 'quiet', on: { click: () => act(() => { delete e.restored; S.fresh = 'sign'; }) } }, 'Keep')));
     box.append(h('div', { class: 'note' }, h('span', null, 'Changes brought back from this browser, each a proposal until you keep it:'), list,
-      h('button', { type: 'button', class: 'quiet', on: { click: () => act(() => { for (const e of S.edits) delete e.restored; }) } }, 'Keep them all')));
+      h('button', { type: 'button', class: 'quiet', on: { click: () => act(() => { for (const e of S.edits) delete e.restored; S.fresh = 'sign'; }) } }, 'Keep them all')));
   }
   return box;
 }
@@ -529,7 +529,6 @@ function letter() {
       const p = h('p', null, g.lead ? `${g.lead} ` : null, g.terms.map(x => [term(x), ' ']));
       if (i === groups.length - 1 && refs.length) p.append(pointer(refs, terms.length > 0));
       sheet.append(p);
-      for (const x of g.terms) if (S.open === x.id) sheet.append(termPop(x));
     });
     if (!groups.length) sheet.append(h('p', null, PLAIN ? `${capital(part)}. ` : (PART_LEADS[part] ? `${PART_LEADS[part]} ` : null), pointer(refs, false)));
   }
@@ -554,7 +553,7 @@ function nameHeading() {
   });
   const d = DRAFTED.get(x.id);
   const agreeBtn = d && (!S.answers.has(x.id) || S.answers.get(x.id).restored)
-    ? h('button', { type: 'button', class: 'quiet small', key: `agree:${x.id}`, on: { click: () => act(() => agree(x.id)) } }, 'Agree')
+    ? h('button', { type: 'button', class: 'quiet small', key: `agree:${x.id}`, on: { click: () => act(() => { agree(x.id); S.fresh = `field:${x.id}:name`; }) } }, 'Agree')
     : null;
   fit(input);
   return h('h2', null, h('label', { htmlFor: id, class: 'vh' }, 'The name'), input, h('span', null, 'description'), mark, agreeBtn);
@@ -611,7 +610,8 @@ function term(x) {
     el.replaceChildren(markEl(y ? y.mark : x.mark, Boolean(b && b.restored)));
     paint(blank, y ? y.mark : x.mark, Boolean(b && b.restored));
   });
-  return h('span', null, blank, mark);
+  // The pop opens right after its blank, so it is next in the tab order.
+  return h('span', null, blank, mark, open ? termPop(x) : null);
 }
 /** What a blank opens: its question, or its words to edit and agree. */
 function termPop(x) {
@@ -772,8 +772,8 @@ function schedule(s, siblings) {
     ['Rename', () => act(() => { S.renaming = s.key; S.schedOpen.add(s.key); S.fresh = `rename:${s.key}`; })],
     at > 0 && ['Move up', () => act(() => { edit({ op: 'move', part: s.part, kind: s.kind.id, to: order.indexOf(siblings[at - 1].kind.id) }); S.fresh = `menu:${s.key}`; })],
     at < siblings.length - 1 && ['Move down', () => act(() => { edit({ op: 'move', part: s.part, kind: s.kind.id, to: order.indexOf(siblings[at + 1].kind.id) }); S.fresh = `menu:${s.key}`; })],
-    ['It needs none of these', () => act(() => { edit({ op: 'none', part: s.part, kind: s.kind.id }); for (const x of s.entries) S.answers.delete(x.id); })],
-    ['Remove', () => fadeOut(det, () => act(() => { edit({ op: 'remove', part: s.part, kind: s.kind.id }); for (const x of s.entries) S.answers.delete(x.id); }))],
+    ['It needs none of these', () => act(() => { edit({ op: 'none', part: s.part, kind: s.kind.id }); for (const x of s.entries) S.answers.delete(x.id); S.fresh = `menu:${s.key}`; })],
+    ['Remove', () => fadeOut(det, () => act(() => { edit({ op: 'remove', part: s.part, kind: s.kind.id }); for (const x of s.entries) S.answers.delete(x.id); S.fresh = `addsched:${s.part}`; }))],
   ], `menu:${s.key}`);
   sum.append(menu);
   det.append(sum, body);
@@ -790,7 +790,7 @@ function schedule(s, siblings) {
   const foot = h('div', { class: 'group' },
     h('button', { type: 'button', key: `add:${s.key}`, on: { click: () => act(() => addEntry(s.part, s.kind)) } }, 'Add an entry'));
   const toAgree = s.entries.filter(x => DRAFTED.has(x.id) && !DRAFTED.get(x.id).c.none && (!S.answers.has(x.id) || S.answers.get(x.id).restored));
-  if (!high && !D.shared && toAgree.length) foot.append(h('button', { type: 'button', class: 'quiet', key: `agree-all:${s.key}`, on: { click: () => act(() => { for (const x of toAgree) agree(x.id); }) } }, 'Agree to the rest as drafted'));
+  if (!high && !D.shared && toAgree.length) foot.append(h('button', { type: 'button', class: 'quiet', key: `agree-all:${s.key}`, on: { click: () => act(() => { for (const x of toAgree) agree(x.id); S.fresh = `add:${s.key}`; }) } }, 'Agree to the rest as drafted'));
   body.append(foot);
   return det;
 }
@@ -843,8 +843,8 @@ function record(x, where) {
   });
   const foot = h('div', { class: 'rec-foot' }, mark);
   const d = DRAFTED.get(x.id);
-  if (d && !x.none && !high && (!a || a.restored)) foot.append(h('button', { type: 'button', class: 'quiet', key: `agree:${x.id}`, on: { click: () => act(() => agree(x.id)) } }, 'Agree'));
-  if (d && !x.none && high && a && a.restored) foot.append(h('button', { type: 'button', class: 'quiet', key: `keep:${x.id}`, on: { click: () => act(() => agree(x.id)) } }, 'Keep'));
+  if (d && !x.none && !high && (!a || a.restored)) foot.append(h('button', { type: 'button', class: 'quiet', key: `agree:${x.id}`, on: { click: () => act(() => { agree(x.id); S.fresh = `field:${x.id}:${x.kind.fields[0].name}`; }) } }, 'Agree'));
+  if (d && !x.none && high && a && a.restored) foot.append(h('button', { type: 'button', class: 'quiet', key: `keep:${x.id}`, on: { click: () => act(() => { agree(x.id); S.fresh = `field:${x.id}:${x.kind.fields[0].name}`; }) } }, 'Keep'));
   if (high && !x.none) foot.append(h('span', { class: 'small muted' }, 'your own words go in chat'));
   if (x.none) foot.append(h('button', { type: 'button', class: 'quiet', key: `replace:${x.id}`, on: { click: () => act(() => {
     if (d) edit({ op: 'remove', id: x.id }); else edit({ op: 'remove', part: partOf(x.id), kind: x.kind.id });
@@ -867,7 +867,7 @@ function entryMenu(x, s) {
     at > 0 && ['Move up', () => act(() => { edit({ op: 'move', id: x.id, to: same[at - 1][1] }); S.fresh = `menu:${x.id}`; })],
     at < same.length - 1 && ['Move down', () => act(() => { edit({ op: 'move', id: x.id, to: same[at + 1][1] }); S.fresh = `menu:${x.id}`; })],
     kinds.kinds.some(k => k.part === s.part && k.id !== x.kind.id && k.id !== 'why' && !(k.types && !k.types.includes(draft.type))) && ['Change its kind', () => act(() => { S.rekinding = x.id; S.fresh = `rekind:${x.id}`; })],
-    ['Remove', e => fadeOut(e && e.closest ? e.closest('.rec') : null, () => act(() => { edit({ op: 'remove', id: x.id }); S.answers.delete(x.id); }))],
+    ['Remove', e => fadeOut(e && e.closest ? e.closest('.rec') : null, () => act(() => { edit({ op: 'remove', id: x.id }); S.answers.delete(x.id); S.fresh = `add:${s.key}`; }))],
   ], `menu:${x.id}`);
 }
 

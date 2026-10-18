@@ -142,7 +142,7 @@
       "analyzers": [
         "static_patterns_tool_misuse"
       ],
-      "sha256": "7714df4607c3f7cc04bddcfd0faff270a5995be82fdd5dcbaaaa8a06594dac69",
+      "sha256": "52afa10d823072ad8e9764829956b70cbab3715757ac564b159e7b0dda8049b7",
       "reason": "The hiring page's template: one HTML file whose inline script draws the page. The destructive-command parser stops partway through a long expression and marks the file partial for that one check; every other check reads it in full. Read by hand on 2026-10-18 for the hiring page (issue 344): it holds no rm, del or erase command in any spelling, runs no program, and makes no network request, which its content security policy also refuses; its text is the page's own labels and notices, addressed to the person, and no instruction to an agent."
     },
     {
@@ -163,7 +163,7 @@
         "static_patterns_supply_chain",
         "static_patterns_system_prompt_leakage"
       ],
-      "sha256": "7714df4607c3f7cc04bddcfd0faff270a5995be82fdd5dcbaaaa8a06594dac69",
+      "sha256": "52afa10d823072ad8e9764829956b70cbab3715757ac564b159e7b0dda8049b7",
       "reason": "The hiring page's template: one HTML file whose inline script draws the page. The marker pass cannot settle a stretch of its script and marks the file partial for these checks; the plain scan still reads it in full under tool misuse. Read by hand on 2026-10-18 for the hiring page (issue 344): it holds no rm, del or erase command in any spelling, runs no program, and makes no network request, which its content security policy also refuses; its text is the page's own labels and notices, addressed to the person, and no instruction to an agent."
     }
   ],
