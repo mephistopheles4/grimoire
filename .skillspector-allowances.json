@@ -28,8 +28,8 @@
       "analyzers": [
         "static_patterns_tool_misuse"
       ],
-      "sha256": "9a7450dbd6987c239c57c8841c79e515e5ee6ba92934dbdbb46f66f36e07a444",
-      "reason": "The page template the renderer fills in. The destructive-command parser stops partway through a long expression and marks the file partial for that one check; every other check reads it in full. The entry also accepts a marker-pass give-up inside that one check, which the scanner reports under this code."
+      "sha256": "9c0ed3b472bac190a19cda4d044f19c17c04c9c47defea1ed2d2e062dadb1465",
+      "reason": "The page template the renderer fills in. The destructive-command parser stops partway through a long expression and marks the file partial for that one check; every other check reads it in full. The entry also accepts a marker-pass give-up inside that one check, which the scanner reports under this code. Re-read on 2026-10-18 for the réseau ground and the zone border (PR 342): the change moves .av-grid to the zone field, wraps the sheet in the zone markup and adds a script that counts the zone labels; it adds no rm, del or erase in any spelling, and nothing that runs a command, touches a file or reaches the network."
     },
     {
       "skill": "eagle-eye",
@@ -39,7 +39,7 @@
         "static_patterns_tool_misuse"
       ],
       "sha256": "5248c661bbfb59eb3f4a6001c818c12a91b2570d3689f4c9c3e72caa60d799e8",
-      "reason": "The box renderer. The destructive-command parser stops partway through a long expression and marks the file partial for that one check; every other check reads it in full. The entry also accepts a marker-pass give-up inside that one check, which the scanner reports under this code. Re-read on 2026-10-18 for 0.64.1: the new lines, an escape of every < in the inlined JSON and its comment, were read by hand; they hold no rm, del or erase in any spelling."
+      "reason": "The box renderer. The destructive-command parser stops partway through a long expression and marks the file partial for that one check; every other check reads it in full. The entry also accepts a marker-pass give-up inside that one check, which the scanner reports under this code. Re-read on 2026-10-18 for 0.65.1: the new lines, an escape of every < in the inlined JSON and its comment, were read by hand; they hold no rm, del or erase in any spelling."
     },
     {
       "skill": "groundtrack",
@@ -58,8 +58,8 @@
       "analyzers": [
         "static_patterns_tool_misuse"
       ],
-      "sha256": "a20940b8824d407116c78e7e6ff757cc699b0593779ad01cb153cce8032b7691",
-      "reason": "The flightpath renderer and validator. The destructive-command parser stops partway through a long expression and marks the file partial for that one check; every other check reads it in full. The entry also accepts a marker-pass give-up inside that one check, which the scanner reports under this code. Read by hand on 2026-10-17 for issues 248, 249, 252 and 330: the change adds no rm, del or erase in any spelling. Re-read on 2026-10-18 for 0.64.1: the new lines, an escape of every < in the inlined JSON and its comment, were read by hand; they hold no rm, del or erase in any spelling."
+      "sha256": "30c54f01a457d5c538ba56953f2c8d47d0d73f02ffa0fe929789e5a47e6f3a0f",
+      "reason": "The flightpath renderer and validator. The destructive-command parser stops partway through a long expression and marks the file partial for that one check; every other check reads it in full. The entry also accepts a marker-pass give-up inside that one check, which the scanner reports under this code. Read by hand on 2026-10-17 for issues 248, 249, 252 and 330: the change adds no rm, del or erase in any spelling. Re-read on 2026-10-18 for the réseau ground and the zone border (PR 342): the change rewrites the vendored-revision comment and adds no rm, del or erase. Re-read on 2026-10-18 for 0.65.1: the new lines, an escape of every < in the inlined JSON and its comment, were read by hand; they hold no rm, del or erase in any spelling."
     },
     {
       "skill": "groundtrack",

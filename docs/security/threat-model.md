@@ -180,9 +180,9 @@ cost it drives.
 | A call's args against its callee's params (no limit) | 28,300 calls into a node with 28,300 params (4.42 MB). Until #247 this was 20,000 calls into each of two callees, the second skipped for a params list ending in the number 0; the check now refuses that callee | 0.14 s | 0.24 s | 0.26 s | not run: the page does not compare them |
 | Long param names (no limit) | One callee with 5,000 params of 20,000 characters that differ only at the end, and a call passing one (95 MB). V8 hashes a string that long by its length alone, so a plain Set of them took 13.5 s; names that long are held by their SHA-256 digest | 0.41 s | 0.65 s | 0.38 s | not run: the page does not compare them |
 | Node id length (no limit) | The long-chain file above, with ids of 1,000 characters (22.7 MB) | 0.17 s | 0.23 s | 0.52 s | 0.87 s |
-| For comparison | `docs/examples/pr-382.flightpath.json` (7 graphs, 88 nodes) | 0.11 s | 0.11 s | 0.16 s | 0.12 s |
+| For comparison | `docs/examples/realtime-shadows.flightpath.json` (7 graphs, 88 nodes) | 0.11 s | 0.11 s | 0.16 s | 0.12 s |
 
-**What each limit leaves for `docs/examples/pr-382.flightpath.json`.** Its
+**What each limit leaves for `docs/examples/realtime-shadows.flightpath.json`.** Its
 deepest graph is 14 calls deep, 71 times under the limit. Its largest tree
 view is 304 rows, 66 times under. Its search for cut calls costs 77,415 units,
 12.9 times under.

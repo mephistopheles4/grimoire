@@ -28,7 +28,7 @@ other cost that was measured is made to grow in step with the file rather
 than capped. The numbers, the files that produced them and the machine are in
 the threat model's "Row 5, measured".
 
-The limits were sized against `docs/examples/pr-382.flightpath.json`, the
+The limits were sized against `docs/examples/realtime-shadows.flightpath.json`, the
 largest real sheet: it sits 71 times under the depth limit, 66 times under the
 row limit and 12.9 times under the cut budget. The cut budget is the tightest,
 so a much larger real sheet with many layers and long call arguments would
