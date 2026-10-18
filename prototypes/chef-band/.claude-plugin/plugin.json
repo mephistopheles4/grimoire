@@ -1,0 +1,1 @@
+{ "name": "chef-band", "version": "0.1.0", "description": "Throwaway prototype: the head chef's capabilities in a band above the prompt, with an I understand button", "types": "./types/index.d.ts" }
