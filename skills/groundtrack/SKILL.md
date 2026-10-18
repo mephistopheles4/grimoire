@@ -213,7 +213,8 @@ Its last group is every file in the change, not the ones no node accounts for.
 The first two groups leave each other's files out, so without it a reader could
 not see where one node's file sits in the whole change.
 
-The wheel scrolls the drawing. With ctrl held it zooms about the pointer.
+The wheel zooms the drawing about the pointer, with no key held, and the
+grid under it zooms and pans with it. A drag pans.
 
 The contract tab states one number per node: its cyclomatic complexity, as
 drawn. One, plus one for each `if`, each error handler and each backward jump.
