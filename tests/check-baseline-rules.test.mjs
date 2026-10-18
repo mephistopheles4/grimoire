@@ -272,6 +272,7 @@ const SHIPPED = {
     ['EA2', 'references/CONTRACT.md'],
     ['P2', 'SKILL.md'],
     ['RA2', 'references/binding-codex.md'],
+    ['LP3', 'SKILL.md'],
     ['MP1', '*contract.changelog.md'],
   ],
 };

@@ -114,6 +114,26 @@
       ],
       "sha256": "f7ef0b14eaf694a8e7a7f2275efb5806eb156a7395fa6d9f00305ca6e7bafeb7",
       "reason": "The skill's instructions. The marker pass reads a removal verb followed by a quote as the start of a \"remove the marker\" directive and cannot settle it; here that is the git command names in code spans, such as `worktree remove`. Measured on 2026-10-09: with those verbs disguised in a scratch copy, the give-up goes away; each matching line was read by hand and none is a disguised directive. Re-read on 2026-10-11 for head-chef 0.6.0 (issue 263): the new lines on record acts, such as a delete named in quotes, were read by hand, and none is a disguised directive. The plain scan still reads the whole file under every listed check. Re-read on 2026-10-11 for head-chef 0.7.0 (issue 267): the new lines on which tool reaches a chip, and on keeping a Desktop id off records, were read by hand; they hold no removal verb and no disguised directive. Re-read on 2026-10-14 for head-chef 0.8.0 (issue 293): the new lines on the stop and archive tools, on notes, and on the chip start, were read by hand; they hold no removal verb followed by a quote and no disguised directive. Re-read on 2026-10-14 after a measurement (flag 51, issue 293): the new lines, a launch-line warning that an approval card is coming and the wording that a raise above the lead waits for it, were read by hand; they hold no removal verb followed by a quote and no disguised directive. Re-read on 2026-10-14 for 0.8.1 (issue 298): the new lines, a fixed sentence that the session id is only for finding the lead and checking a sender, the words \"by name\" in the held-turn ping, and the task-list step's reason without the phone, were read by hand; they hold no removal verb followed by a quote and no disguised directive."
+    },
+    {
+      "skill": "contract",
+      "path": "scripts/interview.js",
+      "reason_code": "static_parse_limit",
+      "analyzers": [
+        "static_patterns_tool_misuse"
+      ],
+      "sha256": "89bdde2dea252a1466a1744cc4506815e786b4d49d1a502799f52a639694561b",
+      "reason": "The hiring page's module, which the interview script requires and the page will inline. The destructive-command parser stops partway through a long expression and marks the file partial for that one check; every other check reads it in full. Like every entry of this code, it would also accept a marker-pass give-up inside that one check, which the scanner reports under this code. Read by hand on 2026-10-18 for the hiring interview's engine (issue 343): the file holds no rm, del or erase command in any spelling, and nothing that runs a command, touches a file or reaches the network; it checks drafts and blocks, works out marks, and reads and writes a store it is handed."
+    },
+    {
+      "skill": "contract",
+      "path": "scripts/render.mjs",
+      "reason_code": "static_parse_limit",
+      "analyzers": [
+        "static_patterns_tool_misuse"
+      ],
+      "sha256": "1bf6888b4b4340208a50aaad26678670b57464a60d2c2889965868e7cc91ba1f",
+      "reason": "The contract skill's interview script. The destructive-command parser stops partway through a long expression and marks the file partial for that one check; every other check reads it in full. Like every entry of this code, it would also accept a marker-pass give-up inside that one check, which the scanner reports under this code. Read by hand on 2026-10-18 for the hiring interview's engine (issue 343): the file holds no rm, del or erase command in any spelling, runs no other program and reaches no network. Its one delete is --clean, which unlinks the page and the answers file, and with --draft the draft, by their fixed names, only inside a folder named contract-interview- and 16 hex digits."
     }
   ],
   "references": [
