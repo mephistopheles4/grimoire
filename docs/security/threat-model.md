@@ -17,7 +17,9 @@ five doors:
    installer on the next update.
 3. **The CI and publishing path** — the workflows and the actions they run.
 4. **The edge audit** — the one script that sends text and a key off the
-   machine.
+   machine, apart from the Brigade pane's `gh` call (door 5), which runs the
+   owner's own GitHub command line tool and sends its credential to GitHub
+   once a minute while the pane is open.
 5. **The Brigade mod** — the hooks module Claude Code runs in every session
    that has the plugin, and the text it reads from other sessions.
 6. **The head-chef skill's brigade** — the sessions the skill starts, the
