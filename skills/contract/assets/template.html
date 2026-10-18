@@ -60,7 +60,10 @@ button.quiet{border-color:var(--av-ink-30);color:var(--av-ink-70)}
 .stack .behind.b1{transform:translate(6px,6px)}
 .stack .behind.b2{transform:translate(12px,12px)}
 .stack>.av-sheet{position:relative;z-index:1;padding:24px 28px;line-height:1.7}
-.letter h2{font-size:var(--av-t-h3);margin:4px 0 14px}
+.letter h2{font-size:var(--av-t-h3);margin:4px 0 14px;display:flex;gap:10px;align-items:baseline;flex-wrap:wrap}
+.letter h2 input.title{font:inherit;color:inherit;border:0;border-bottom:var(--av-rule-hair) dashed var(--av-ink-30);background:transparent;padding:0 2px;min-width:4ch}
+.letter h2 input.title:focus{background:var(--av-ink-12)}
+.letter h2 .mark{font-weight:400}
 .letter h3,.sched-part h3{font-size:var(--av-t-micro);text-transform:uppercase;letter-spacing:var(--av-track-label);color:var(--av-ink-70);font-weight:500;margin:20px 0 6px}
 .letter p{margin:6px 0}
 .sig{border-top:var(--av-rule-hair) solid var(--av-ink);width:260px;margin-top:28px;padding-top:4px;font-size:var(--av-t-annot);color:var(--av-ink-70)}
@@ -160,10 +163,10 @@ for (const part of PARTS) for (const c of draft.parts[part]) DRAFTED.set(c.id, {
 const PLAIN = draft.type === 'CLAUDE.md';
 const FRAME = PLAIN ? 'plain' : 'hiring';
 const ASKED = new Set(kinds.levels[draft.level]);
-/* Kinds the letter carries even without a question: the job, why we are
-   hiring, and great work. Every clause with a question is a term of the
+/* Kinds the letter carries even without a question: the name, the job, why
+   we are hiring, and great work. Every clause with a question is a term of the
    letter too; every other clause sits in its kind's schedule. */
-const LETTER_KINDS = new Set(['job', 'why', 'example']);
+const LETTER_KINDS = new Set(['name', 'job', 'why', 'example']);
 const HEADS = PLAIN
   ? Object.fromEntries(PARTS.map(p => [p, p]))
   : { purpose: 'The job', why: 'Why we are hiring', good: 'Great work', roles: 'Duties, sign-offs and stops', tools: 'Keys and access', rules: 'House rules', writing: 'House style', open: 'Probation' };
@@ -490,10 +493,10 @@ function letter() {
   const sheet = h('article', { class: 'av-sheet av-sheet--surface letter', aria: { label: PLAIN ? 'The rules' : 'The offer letter' } });
   sheet.append(h('p', { class: 'lbl' }, PLAIN ? 'Rules for this folder · draft' : 'Offer of employment · draft'));
   if (PLAIN) sheet.append(h('h2', null, `Rules for ${draft.name}`));
-  else sheet.append(h('h2', null, `Dear ${draft.name},`), h('p', null, 'We would like you to take on the job below. Each underlined term is one to agree: open it to answer. The rest of the terms are in the schedules attached under this letter.'));
+  else sheet.append(nameHeading(), h('p', null, 'We would like you to take on the job below. Each underlined term is one to agree: open it to answer. The rest of the terms are in the schedules attached under this letter.'));
   const all = schedules();
   for (const part of PARTS) {
-    const terms = V.parts.get(part).filter(inLetter);
+    const terms = V.parts.get(part).filter(x => inLetter(x) && !(x.kind.id === 'name' && !PLAIN && !QUESTION.has(x.id)));
     const refs = all.filter(s => s.part === part);
     if (!terms.length && !refs.length) continue;
     sheet.append(h('h3', null, HEADS[part]));
@@ -503,6 +506,30 @@ function letter() {
   if (!PLAIN) sheet.append(h('div', { class: 'sig' }, 'Signed, when every term is agreed'));
   return h('div', { class: 'stack' }, h('div', { class: 'behind b2' }), h('div', { class: 'behind b1' }), sheet);
 }
+/** The letter's heading: the name, edited where it sits, then the word
+ *  "description", as a job description reads. The name is the name clause's
+ *  field, so an edit is an answer like any other. With no name clause left,
+ *  the heading shows the draft's name as text. */
+function nameHeading() {
+  const x = V.parts.get('purpose').find(z => z.kind.id === 'name' && inLetter(z) && !QUESTION.has(z.id));
+  if (!x) return h('h2', null, `${draft.name} description`);
+  const id = newDomId();
+  const input = h('input', { class: 'title', id, key: `field:${x.id}:name`, value: x.fields.name, spellcheck: false,
+    on: { input: e => { setField(x.id, 'name', e.target.value); persist(); fit(e.target); refresh(); } } });
+  const mark = live(h('span'), el => {
+    const y = V.parts.get('purpose').find(z => z.id === x.id);
+    const b = S.answers.get(x.id);
+    el.replaceChildren(markEl(y ? y.mark : x.mark, Boolean(b && b.restored)));
+  });
+  const d = DRAFTED.get(x.id);
+  const agreeBtn = d && (!S.answers.has(x.id) || S.answers.get(x.id).restored)
+    ? h('button', { type: 'button', class: 'quiet small', key: `agree:${x.id}`, on: { click: () => act(() => agree(x.id)) } }, 'Agree')
+    : null;
+  fit(input);
+  return h('h2', null, h('label', { htmlFor: id, class: 'vh' }, 'The name'), input, h('span', null, 'description'), mark, agreeBtn);
+}
+/* A one-line field as wide as its text. */
+const fit = el => { el.size = Math.max(4, el.value.length + 1); };
 function refButton(s) {
   return h('button', { type: 'button', class: 'ref', key: `ref:${s.key}`, on: { click: () => {
     S.schedOpen.add(s.key);
