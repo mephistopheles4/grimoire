@@ -56,6 +56,24 @@ function validate(box) {
   const errors = [], warnings = [];
   const err = m => errors.push(m), warn = m => warnings.push(m);
   if (!box || typeof box !== 'object') return { errors: ['box is not an object'], warnings };
+  // A key named "__proto__" is refused at any depth. JSON.parse keeps it as a
+  // plain field, so no check below reads what sits under it. The page reads the
+  // box as an object literal, where the same key sets the prototype, and the
+  // fields under it reach the page as if the box had them.
+  //
+  // The walk keeps its own list rather than calling itself, so a box nested
+  // deep costs memory and not the call stack, and a path is spelled out only
+  // for a key it refuses. It names a key only when it is a plain word, so a
+  // key built to carry control characters never reaches the terminal.
+  const pending = [{ v: box, up: null, seg: '' }];
+  const spell = n => { const segs = []; for (; n && n.up; n = n.up) segs.unshift(n.seg); return segs.join('').replace(/^\./, '') || 'box'; };
+  while (pending.length) {
+    const n = pending.pop();
+    if (Object.hasOwn(n.v, '__proto__')) err(`${spell(n)}: a key named "__proto__" is refused — the page would read it as a prototype, not a field`);
+    const list = Array.isArray(n.v);
+    for (const [k, x] of Object.entries(n.v).reverse())
+      if (x && typeof x === 'object') pending.push({ v: x, up: n, seg: list ? `[${k}]` : `.${/^[A-Za-z0-9_-]{1,64}$/.test(k) ? k : '(a key not printed)'}` });
+  }
   if (typeof box.title !== 'string' || !box.title.trim()) err('title: required, non-empty string');
   // The brief. `problem` is the only place the box says what the whole set is for. A row's own
   // `problem` explains one decision; nothing explained the set, so a reader who opens the page
@@ -267,13 +285,21 @@ const data = JSON.stringify(box).replace(/</g, '\\u003c');
 // own real "</script>", which is precisely what the escape on the line above
 // cannot help with, because that tag never passed through the box. A function
 // replacement is inserted literally and has no patterns at all.
-const html = template
-  .replace('/*TITLE*/', () => box.title.replace(/[<>&]/g, ''))
-  .replace('/*AVIATION*/', () => aviation)
-  .replace('/*FONTS*/', () => faces)
-  .replace('<!--TOUR-->', () => EagleEye.tourButtonMarkup(box))
-  .replace('/*DATA*/', () => data)
-  .replace('/*MODULE*/', () => module);
+//
+// One pass, and this is load-bearing too. Filled one after another, each fill
+// took the first match in the page built so far, so a title or a why that
+// spelled a later placeholder took that insert: the module went into the
+// title, and the page loaded with no code. One regex over the template fills
+// every slot where the template has it, and never searches what a fill put in.
+const fills = {
+  '/*TITLE*/': () => box.title.replace(/[<>&]/g, ''),
+  '/*AVIATION*/': () => aviation,
+  '/*FONTS*/': () => faces,
+  '<!--TOUR-->': () => EagleEye.tourButtonMarkup(box),
+  '/*DATA*/': () => data,
+  '/*MODULE*/': () => module,
+};
+const html = template.replace(/\/\*(?:TITLE|AVIATION|FONTS|DATA|MODULE)\*\/|<!--TOUR-->/g, slot => fills[slot]());
 // The default page is named .local.html, not .html. A default render writes
 // beside the box file, and a box file that lives in a repository left an
 // untracked page there every time — four in the maintainer's working tree when
