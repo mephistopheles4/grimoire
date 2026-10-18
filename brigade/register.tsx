@@ -163,7 +163,7 @@ const STARTS_FOLDED = ['finished']
 
 // Text and status colours are the app's own theme keys, so they follow the
 // person's theme, light or dark, as the rest of Claude Code does; the fills
-// are the fixed greys below. The status the head chef wrote on a card, and
+// are the fixed colours below. The status the head chef wrote on a card, and
 // the live state, take theirs from view.ts.
 
 // The cells of the cache block's label column, the width of "◆ context", so
@@ -177,18 +177,34 @@ const keyFor = (verb: string, i: number, title: string) => `${verb}-${i}-${slug(
 // A Button must carry onPress. The ui.press hook below answers every press
 // itself, so this bottom of the chain never runs.
 const noop = () => {}
-// The prototype's greys, read off Desktop's dark theme, for every surface that
+// The prototype's fills, read off Desktop's dark theme, for every surface that
 // draws images: fixed values, never from file data. No theme key draws them,
 // and the engine names none for the pane's background, so the pane takes
 // them and reads poorly in a light theme (the owner's decision at the
 // rebuild's visual check). A round border in a fill's own colour rounds it;
-// one in the pane's colour is unseen at rest, so a hover rounds a card.
-const DARK_GREYS = {
+// one in the pane's colour is unseen at rest, so a hover rounds a card. The
+// last three tint a PR pill by its state, as Desktop's own PR pill does.
+const DARK_FILLS = {
   pane: '#1a1a19',
   bar: '#2b2b2a',
   hover: '#262625',
   tip: '#3a3a38',
+  open: '#1f3a26',
+  merged: '#2e2547',
+  closed: '#3a1f1f',
 } as const
+// A PR pill's tint and mark by state, read only through these Maps: a stored
+// state they do not hold, `constructor` included, draws no tint and no mark.
+const PILL_TINTS: ReadonlyMap<string, string> = new Map([
+  ['open', DARK_FILLS.open],
+  ['merged', DARK_FILLS.merged],
+  ['closed', DARK_FILLS.closed],
+])
+const PILL_MARKS: ReadonlyMap<string, string> = new Map([
+  ['open', '⇄'],
+  ['merged', '⑂'],
+  ['closed', '⊘'],
+])
 // The icon of each card view, with its name in the tooltip. A Button carries
 // no `label`: a desktop draws the label in place of the Button's text.
 const VIEW_ICONS: ReadonlyMap<string, string> = new Map([
@@ -1186,11 +1202,11 @@ export const register: Register = on => {
         ? {}
         : {
             borderStyle: 'round' as const,
-            borderColor: DARK_GREYS.pane,
-            hover: { scope, borderColor: DARK_GREYS.hover, backgroundColor: DARK_GREYS.hover },
+            borderColor: DARK_FILLS.pane,
+            hover: { scope, borderColor: DARK_FILLS.hover, backgroundColor: DARK_FILLS.hover },
           }
     // A section bar's rounded fill: a round border in the fill's own colour.
-    const roundFill = { borderStyle: 'round', borderColor: DARK_GREYS.bar, backgroundColor: DARK_GREYS.bar } as const
+    const roundFill = { borderStyle: 'round', borderColor: DARK_FILLS.bar, backgroundColor: DARK_FILLS.bar } as const
     // A tooltip: a hidden Box shown while the pointer is on its anchor's scope.
     // The terminal has none, and shows the text inline where it carries news.
     const tip = (key: string, anchorEl: JSX.Element, text: string) =>
@@ -1199,22 +1215,31 @@ export const register: Register = on => {
       ) : (
         <Box position="relative" hover={{ scope: `tip-${key}` }}>
           {anchorEl}
-          <Box position="absolute" top={1} left={0} display="none" hover={{ scope: `tip-${key}`, display: 'flex' }} backgroundColor={DARK_GREYS.tip} paddingX="sm">
+          <Box position="absolute" top={1} left={0} display="none" hover={{ scope: `tip-${key}`, display: 'flex' }} backgroundColor={DARK_FILLS.tip} paddingX="sm">
             <Text>{text}</Text>
           </Box>
         </Box>
       )
-    // The PR pill: `#` and the number, in the state's colour from a fixed Map,
-    // as a round outline on Desktop and plain coloured text in the terminal. A
-    // state the Map does not hold draws uncoloured.
+    // The PR pill, in Desktop's own form: a rounded tint of the state's colour
+    // with no outline, the state's mark and `#` with the number in the state's
+    // colour, in caption size so the pill sits low. The terminal draws the
+    // number in the state's colour. A state the Maps do not hold draws
+    // uncoloured, with no tint and no mark.
     const pill = (n: string, state: string) => {
       const color = pillColor(state)
       const tone = color === undefined ? {} : { color }
+      const tint = PILL_TINTS.get(state)
+      const mark = PILL_MARKS.get(state)
       return terminal ? (
         <Text {...tone}>{`#${n}`}</Text>
       ) : (
-        <Box borderStyle="round" paddingX="sm" {...(color === undefined ? {} : { borderColor: color })}>
-          <Text size="footnote" weight="medium" {...tone}>
+        <Box flexDirection="row" columnGap={1} borderStyle="round" paddingX="sm" {...(tint === undefined ? {} : { borderColor: tint, backgroundColor: tint })}>
+          {mark !== undefined && (
+            <Text size="caption" {...tone}>
+              {mark}
+            </Text>
+          )}
+          <Text size="caption" weight="medium" {...tone}>
             {`#${n}`}
           </Text>
         </Box>
@@ -1796,7 +1821,7 @@ export const register: Register = on => {
         <Box flexGrow={1} />
         {selected > 0 && (
           <Box flexDirection="row" justifyContent="center" marginTop="md" marginBottom="sm">
-            <Box flexDirection="row" alignItems="center" columnGap="md" paddingX="md" {...(terminal ? { borderStyle: 'round', borderColor: 'inactive', backgroundColor: 'subtle' } : { borderStyle: 'round', borderColor: 'subtle', backgroundColor: DARK_GREYS.hover })}>
+            <Box flexDirection="row" alignItems="center" columnGap="md" paddingX="md" {...(terminal ? { borderStyle: 'round', borderColor: 'inactive', backgroundColor: 'subtle' } : { borderStyle: 'round', borderColor: 'subtle', backgroundColor: DARK_FILLS.hover })}>
               <Text>{`${selected} selected`}</Text>
               <Button key="bardismiss" plain onPress={noop}>
                 ✓ Dismiss
