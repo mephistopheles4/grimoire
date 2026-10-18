@@ -616,32 +616,43 @@ function noticesEl() {
 }
 
 /* Reset clears every answer on the page and in this browser's store, and
- * keeps what it cleared for ten seconds: hovering the button then offers
- * Undo, which puts the answers back and saves them again. The same pattern
- * as the box page's Reset. */
+ * keeps what it cleared in memory for ten seconds from the press. Undo is
+ * offered only once the pointer or the focus has left the button and come
+ * back, so a second press, or a stay on the button, never brings the answers
+ * back. A leave in the first second does not count: the redraw after the
+ * press moves the focus, and some browsers report that as a leave. Undo puts
+ * the answers back and saves them again. */
 const UNDO_GRACE_MS = 10000;
+const UNDO_SETTLE_MS = 1000;
 const HOT_SETTLE_MS = 260;
-let undoSnap = null, undoFuse = null, resetHot = false, hotFuse = null, resetEl = null;
+let undoSnap = null, undoFuse = null, settleFuse = null, undoSettled = false, undoLeft = false, resetHot = false, hotFuse = null, resetEl = null;
+const undoOffered = () => Boolean(undoSnap) && undoLeft && resetHot;
 function paintReset() {
   if (!resetEl) return;
-  const offering = Boolean(undoSnap) && resetHot;
+  const offering = undoOffered();
   resetEl.replaceChildren(glyph(offering ? 'undo' : 'reset'));
   resetEl.classList.toggle('armed', offering);
   named(resetEl, offering ? 'Undo the reset' : undoSnap ? 'Reset. Hover again to undo' : 'Reset every answer');
 }
-function disarmUndo() { clearTimeout(undoFuse); undoFuse = null; undoSnap = null; paintReset(); }
+function disarmUndo() { clearTimeout(undoFuse); undoFuse = null; undoSnap = null; undoLeft = false; paintReset(); }
+function armUndo(snap) {
+  clearTimeout(undoFuse); clearTimeout(settleFuse);
+  undoSnap = snap; undoSettled = false; undoLeft = false;
+  undoFuse = setTimeout(disarmUndo, UNDO_GRACE_MS);
+  settleFuse = setTimeout(() => { undoSettled = true; }, UNDO_SETTLE_MS);
+}
 function resetHover(on) {
   clearTimeout(hotFuse); hotFuse = null;
-  if (on) { resetHot = true; clearTimeout(undoFuse); undoFuse = null; paintReset(); return; }
+  if (on) { resetHot = true; paintReset(); return; }
+  if (undoSnap && undoSettled) undoLeft = true;
   hotFuse = setTimeout(() => { resetHot = false; paintReset(); }, HOT_SETTLE_MS);
-  if (undoSnap) { clearTimeout(undoFuse); undoFuse = setTimeout(disarmUndo, UNDO_GRACE_MS); }
 }
 function resetButton() {
   resetEl = h('button', { class: 'scheme reset', type: 'button', key: 'reset', on: {
     mouseenter: () => resetHover(true), focus: () => resetHover(true),
     mouseleave: () => resetHover(false), blur: () => resetHover(false),
     click: () => {
-      if (undoSnap && resetHot) {
+      if (undoOffered()) {
         const s = undoSnap;
         disarmUndo();
         S.answers = s.answers; S.edits = s.edits; S.own = s.own; S.picked = s.picked; S.step = null;
@@ -656,7 +667,7 @@ function resetButton() {
       S.answers = new Map(); S.edits = []; S.own = new Set(); S.picked = new Map(); S.open = null; S.step = null; S.modal = null;
       notes.length = 0;
       S.status = 'Reset: every answer is cleared from this page and this browser.';
-      if (had) undoSnap = before;
+      if (had) armUndo(before);
       render();
     } } });
   paintReset();

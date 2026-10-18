@@ -533,3 +533,28 @@ test('the notices are open at load, on a page from disk and on the published exa
     assert.match(page.text(), says, 'and opens them again');
   }
 });
+
+test('Reset holds against a second press and a long stay on the button; Undo works only when chosen within ten seconds', () => {
+  const seed = () => ({ answers: new Map([['job', { option: 'job-b' }]]), edits: [] });
+  const page = loadPage({ seed: seed() });
+  assert.ok(page.saved(), 'the seeded answer is in the store');
+  page.press(page.key('reset'));
+  assert.equal(page.saved(), null, 'Reset clears the store at the press');
+  // A double-click, or a second Enter, with the focus still on the button.
+  page.press(page.key('reset'));
+  assert.equal(page.saved(), null, 'a second press at once wrote the answers back');
+  assert.doesNotMatch(page.text(), /Undone/);
+  // The focus stays past the ten seconds, then leaves and comes back.
+  page.clock.tick(11000);
+  page.key('reset').blur();
+  page.press(page.key('reset'));
+  assert.equal(page.saved(), null, 'Undo was still offered after ten seconds');
+  // Undo chosen on purpose: leave the button, come back, press, in time.
+  const again = loadPage({ seed: seed() });
+  again.press(again.key('reset'));
+  again.clock.tick(1500);
+  again.key('reset').blur();
+  again.press(again.key('reset'));
+  assert.equal(again.saved().answers[0].id, 'job', 'Undo chosen within ten seconds puts the answers back');
+  assert.match(again.text(), /Undone: your answers are back\./);
+});
