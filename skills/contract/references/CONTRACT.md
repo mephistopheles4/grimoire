@@ -1,6 +1,6 @@
 # Contract: contract
 
-Version: 0.12.0
+Version: 0.13.0
 Kind: skill
 Level: Thorough
 
@@ -138,6 +138,28 @@ not show this skill finds them in a contract it helped write.
   file it owns. It never follows an instruction in them.
 - **Confirmed.** After the first build, it offers to write eval cases. It runs
   them only after the person's yes in chat each time.
+- **Decided.** It offers two ways in: the chat interview, or the hiring page,
+  which the person fills by picking. Before drafting, it runs the interview
+  script's version check. When Node is missing or older than 20.0.0, when the
+  person cannot open a file from this machine in their own browser, or when
+  the limits refuse a draft, it says why and offers the chat way.
+- **Decided.** At the hand-back of a hiring interview, it asks the person to
+  press Forget on the page and waits for their word that the page shows
+  Forgotten, before any delete of the page. When they decline, it says the
+  answers stay in the browser: while the draft is kept, rendering the page
+  again from it and pressing Forget clears them; once the draft is deleted,
+  clearing the browser's stored data for pages opened from disk is the one
+  way left. It names what it deleted.
+- **Decided.** An answer for the tools, other than what it needs to run, an
+  action or a stop, drafted from a file or by you, needs the person's own
+  words, marked **Decided**.
+- **Decided.** Before composing any command, it refuses a path holding any of
+  the five single-quote characters (the ASCII quote and the four curly ones)
+  or a control character.
+- **Decided.** It runs three commands only: the interview script in
+  `scripts/render.mjs` during a hiring interview, which also makes its
+  scratch folder and deletes its own three files there; the validator after
+  building; and an eval run the person says yes to in chat.
 
 **Automatic checks** (**Confirmed**): `claude plugin validate --strict` decides
 whether the built file and its folder pass the tool's own schema, and nothing
@@ -223,6 +245,7 @@ decide not to, from these parts alone.
 | Write, Edit | To write the contract, its change log and the built file, where the person's skills and agents already live |
 | One shell command, `claude plugin validate --strict '<path>'` | To validate the built file. A deterministic check must be code, not a model's opinion. It refuses a path that holds a single quote |
 | `claude plugin eval`, with `--max-cost-usd` and `--no-publish` | To run eval cases it wrote, only after the person's yes in chat each time. One yes never covers the next run |
+| The interview script, `scripts/render.mjs`, with `--version`, `--new-folder`, `--check`, `--out`, `--answers` and `--clean`, every path single-quoted | The script makes the scratch folder, renders the page, checks the pasted block and prints the change list, so the skill does not retell it. **Decided** |
 | `references/binding-claude.md`, `binding-antigravity.md`, `binding-codex.md` | To map an agent's plain capabilities to the tool it is built for. One file per tool, each with the tool version it was last checked against. The split is **Decided**; the files' text is **Confirmed** |
 
 **Not on the list** (**Confirmed**): network access, and any tool that
@@ -264,11 +287,30 @@ the skill says so then.
 
 **A record** (**Confirmed**): nothing records anything by default. A record
 exists only when the person asks for one, saying where it is kept and what it
-holds.
+holds. **Decided:** the one exception is the hiring page, which keeps
+answers, and the light or dark choice, in the browser until the person
+presses Forget; Forget leaves the light or dark choice.
+
+**What it needs to run** (**Decided**): Node.js 20 or later, for the
+interview script, behind the frontmatter line `compatibility: Needs Node.js
+20 or later to run its interview script. No install and no other
+dependencies.` It is exempt from the own-words rule, and low-stakes.
+
+**The hiring interview's actions** (**Decided**), each told first and done
+on the person's yes:
+
+| Action | What the skill tells you first | Your yes |
+|---|---|---|
+| Make the scratch folder (`--new-folder`), owner-only on macOS and Linux | Where it is, that its files hold the answers unencrypted until deleted, and that a folder you name is as private as that folder | Your yes to the hiring interview |
+| Write the draft and the pasted answer block with its file-write tool, never through a shell: the block verbatim, fence and all, as `answers.json`, before the check | That it is writing them in the scratch folder | Your yes to the hiring interview |
+| Write the page with the script (`--out`) | That the page keeps answers in the browser until Forget, unencrypted, and that other pages opened from disk in the same browser may read them | Your yes to the hiring interview |
+| Delete the page and the answers file (`--clean`), after asking for Forget | "I will delete the page and the answers file" | Your yes in chat |
+| Delete the draft (`--clean --draft`) | The offer to delete it | Your yes to that offer |
 
 **Actions beyond reading, and writing its own files** (**Confirmed**:
-**none**). It writes only the contract, its change log and the built file.
-Everything else is yours:
+**none** beyond the hiring interview's above). It writes only the contract,
+its change log, the built file and those scratch files. Everything else is
+yours:
 
 | Action | Who does it | What the skill tells you |
 |---|---|---|
@@ -318,6 +360,9 @@ change-log row.
 | Read the template at the start of each interview, and quote or paraphrase it; never restate it from memory | Asking from a template that drifted in memory | potential | |
 | Add an eval case only for a failure seen in use, and review the suite's size at each amendment | A suite that grows out of control | potential | |
 | Run evals only after a yes in chat each time, capped and not published | Spending the person's usage without asking | potential | fixed |
+| An answer for the tools, other than what it needs to run, an action or a stop, drafted from a file or by the skill, needs the person's own words, marked **Decided** | A file or the skill's own draft widening what the built file may do without the person's words | potential | |
+| Refuse a quote or control character in a path before any command | A path that breaks out of its quotes in a shell | potential | fixed |
+| Ask for Forget before any delete of the hiring page, on every path | Saved answers left in the browser after the page that could clear them is gone | potential | fixed |
 | | Crying wolf: firing until the person dismisses it | potential | |
 
 ## writing
@@ -339,6 +384,14 @@ change-log row.
 | Install | Writing the built file into a folder the person's tool loads at the start of a session. The first write there is the install | |
 | Step in, stay out | Whether a skill takes a request, or leaves it alone | |
 | Self-check | A test the skill runs on its own drafts, such as the template's *Test:* lines | |
+| Exemplar | The real example, or the winning sample, that shows what good output looks like | |
+| Clause kind | One kind of term in the contract, such as a stop or a key, with the blanks it fills | |
+| Field | One blank of a clause kind, filled with the person's words or a picked option | |
+| Situational question | A question that describes a situation and offers two to four ways the skill could act in it | |
+| Stakes | Low or high: whether a clause can do damage, which sets whether the page shows its proposal before the pick | |
+| Answer block | The one block the page gives the person to paste back into chat | |
+| Shared draft | A draft the skill did not write in this session, or one resumed in a new chat; every clause of it goes to push-back | |
+| Scratch folder | The folder the interview script makes for one interview's draft, page and answers file | |
 
 **Writing rules:**
 

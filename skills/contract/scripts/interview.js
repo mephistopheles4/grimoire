@@ -1006,8 +1006,13 @@ const Interview = (() => {
   }
 
   /** A clause's sentence: one of its kind's frames, its blanks filled in
-   *  field order, a choice shown by the template's words. */
-  const sentence = (kinds, kind, fields, frame) => fill(kind[frame], kind, fields, kinds.words || {});
+   *  field order, a choice shown by the template's words. A frame may have
+   *  fewer blanks than its kind has fields, as a rule's does; the fields past
+   *  its last blank stay out of the sentence. */
+  const sentence = (kinds, kind, fields, frame) => {
+    const blanks = kind[frame].split('___').length - 1;
+    return fill(kind[frame], { ...kind, fields: kind.fields.slice(0, blanks) }, fields, kinds.words || {});
+  };
 
   /** What a question shows before and after a pick. A high-stakes question
    *  shows no proposal and no fields until the person picks; a low-stakes one

@@ -593,7 +593,11 @@ function term(x) {
     if (!r.fields) return `[${opening(q.situation)}]`;
     if (x.none) return `${capital(x.kind.kind)}: none.`;
     const y = V.parts.get(partOf(x.id)).find(z => z.id === x.id);
-    const s = Interview.sentence(kinds, x.kind, (y && y.fields) || shownFields(x.id) || {}, FRAME).replace(/\s*\n\s*/g, ' ');
+    // A field of several lines, such as a sample of great work, stays in its
+    // pop: the sentence names it and does not run it into one line.
+    const f = { ...((y && y.fields) || shownFields(x.id) || {}) };
+    for (const k of Object.keys(f)) if (typeof f[k] === 'string' && f[k].includes('\n')) f[k] = '(the text: open it to read it)';
+    const s = Interview.sentence(kinds, x.kind, f, FRAME);
     return s.length > CUT_AT ? `${s.slice(0, CUT_AT)}… (open it to read it all)` : s;
   };
   /* Inline text that acts as a button, so a long term wraps inside its

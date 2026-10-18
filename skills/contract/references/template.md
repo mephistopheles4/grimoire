@@ -191,6 +191,8 @@ so. Also here:
   committed;
 - a record of what it did, only if you ask for one: where it is kept and what
   it holds. Nothing records anything by default;
+- what it needs installed to run, which a skill's frontmatter `compatibility`
+  line states;
 - each setting that lets it act without your approval, with its value, marked
   **Decided**.
 
