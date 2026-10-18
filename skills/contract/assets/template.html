@@ -63,14 +63,16 @@ button.quiet{border-color:var(--av-ink-30);color:var(--av-ink-70)}
 .letter h2{font-size:var(--av-t-h3);margin:4px 0 14px;display:flex;gap:10px;align-items:baseline;flex-wrap:wrap}
 .letter h2 input.title{font:inherit;color:inherit;border:0;border-bottom:var(--av-rule-hair) dashed var(--av-ink-30);background:transparent;padding:0 2px;min-width:4ch}
 .letter h2 input.title:focus{background:var(--av-ink-12)}
-.letter h2 .mark{font-weight:400}
 .letter h3,.sched-part h3{font-size:var(--av-t-micro);text-transform:uppercase;letter-spacing:var(--av-track-label);color:var(--av-ink-70);font-weight:500;margin:20px 0 6px}
 .letter p{margin:6px 0}
 .sig{border-top:var(--av-rule-hair) solid var(--av-ink);width:260px;margin-top:28px;padding-top:4px;font-size:var(--av-t-annot);color:var(--av-ink-70)}
 /* A blank in the letter: a term still to agree. */
-.blank{border:0;border-bottom:var(--av-rule-bold) dashed var(--av-caution);padding:0 4px;text-align:left;transition:border-color .2s ease}
-.blank.done{border-bottom-style:solid;border-bottom-color:var(--av-normal)}
-.blank[aria-expanded="true"]{outline:var(--av-rule-thin) solid var(--av-ink)}
+.blank{cursor:pointer;text-decoration:underline dashed var(--av-caution);text-decoration-thickness:2px;text-underline-offset:4px;transition:text-decoration-color .2s ease}
+.blank:hover{background:var(--av-ink-12)}
+.blank.st-Confirmed{text-decoration-style:solid;text-decoration-color:var(--av-normal)}
+.blank.st-Decided{text-decoration-style:solid;text-decoration-color:var(--av-ink)}
+.blank.st-restored{text-decoration-style:dotted;text-decoration-color:var(--av-ink-55)}
+.blank[aria-expanded="true"]{background:var(--av-ink-12)}
 .ref{border:0;border-bottom:var(--av-rule-hair) solid var(--av-ink);padding:0;font-size:var(--av-t-annot)}
 .pop{font-size:var(--av-t-annot);border:var(--av-rule-thin) dashed var(--av-ink);background:var(--av-paper);padding:12px 14px;margin:8px 0 14px}
 .pop fieldset{border:0;margin:0;padding:0}
@@ -83,12 +85,18 @@ button.quiet{border-color:var(--av-ink-30);color:var(--av-ink-70)}
 .chips{display:flex;gap:6px;flex-wrap:wrap;margin:8px 0;align-items:center}
 .chips button{font-size:var(--av-t-annot);padding:1px 10px;border-color:var(--av-ink-30)}
 .chips button[aria-pressed="true"]{border-color:var(--av-ink);background:var(--av-ink-12)}
-/* Marks. */
-.mark{font-size:var(--av-t-micro);text-transform:uppercase;letter-spacing:.08em;padding:0 6px;border:var(--av-rule-hair) solid currentColor;white-space:nowrap;transition:color .2s ease,border-color .2s ease}
-.mark.Proposed{color:var(--av-caution);font-style:italic}
-.mark.Confirmed{color:var(--av-normal)}
-.mark.Decided{color:var(--av-ink);border-width:var(--av-rule-bold);font-weight:600}
-.mark.restored{color:var(--av-ink-70);border-style:dashed}
+/* Marks show as colour on the element they mark, never as a label: a
+   yellow edge while Proposed, a subtle green once Confirmed, ink once Decided,
+   dotted while restored. The mark's word stays in the page as hidden text. */
+.rec{border-left:3px solid var(--av-caution)}
+.rec.st-Confirmed{border-left-color:var(--av-normal)}
+.rec.st-Decided{border-left-color:var(--av-ink)}
+.rec.st-restored{border-left-style:dotted;border-left-color:var(--av-ink-55)}
+input.title.st-Proposed{border-bottom:var(--av-rule-bold) dashed var(--av-caution)}
+input.title.st-Confirmed{border-bottom:var(--av-rule-bold) solid var(--av-normal)}
+input.title.st-Decided{border-bottom:var(--av-rule-bold) solid var(--av-ink)}
+textarea.why.st-Decided{border-color:var(--av-ink)}
+.count{font-size:var(--av-t-micro);color:var(--av-ink-70)}
 .stake{font-size:var(--av-t-micro);letter-spacing:var(--av-track-label);text-transform:uppercase;color:var(--av-caution)}
 /* The schedules. */
 .sched{border-top:var(--av-rule-hair) solid var(--av-ink-30);box-shadow:inset 3px 0 0 var(--av-caution);margin:0 -28px;padding:0 28px}
@@ -226,6 +234,7 @@ function h(tag, props, ...kids) {
     else if (k === 'on') for (const [ev, fn] of Object.entries(v)) el.addEventListener(ev, fn);
     else if (k === 'aria') for (const [a, x] of Object.entries(v)) el.setAttribute(`aria-${a}`, String(x));
     else if (k === 'key') el.pageKey = v;
+    else if (k === 'role') el.setAttribute('role', v);
     else el[k] = v;
   }
   for (const kid of kids.flat(Infinity)) if (kid !== null && kid !== undefined && kid !== false) el.append(typeof kid === 'string' ? document.createTextNode(kid) : kid);
@@ -233,9 +242,13 @@ function h(tag, props, ...kids) {
 }
 const human = name => name.replace(/-/g, ' ');
 const capital = s => s.charAt(0).toUpperCase() + s.slice(1);
-const markEl = (mark, restored) => {
-  const m = mark || 'not answered';
-  return h('span', { class: `mark ${mark || ''}${restored ? ' restored' : ''}` }, restored ? `${m}, restored` : m);
+/* A mark's word, for a screen reader only: on screen the mark is the colour
+   of the element it marks. */
+const markEl = (mark, restored) => h('span', { class: 'vh' }, `, ${mark || 'not answered'}${restored ? ', restored' : ''}`);
+const paint = (host, mark, restored) => {
+  host.classList.remove('st-Proposed', 'st-Confirmed', 'st-Decided', 'st-restored');
+  if (mark) host.classList.add(`st-${mark}`);
+  if (restored) host.classList.add('st-restored');
 };
 const idsInUse = () => {
   const ids = new Set(DRAFTED.keys());
@@ -495,13 +508,30 @@ function letter() {
   if (PLAIN) sheet.append(h('h2', null, `Rules for ${draft.name}`));
   else sheet.append(nameHeading(), h('p', null, 'We would like you to take on the job below. Each underlined term is one to agree: open it to answer. The rest of the terms are in the schedules attached under this letter.'));
   const all = schedules();
+  /* The letter is prose: each part one paragraph, or one per kind where a
+   * kind has a lead-in of its own, each term a blank inside it. A part with
+   * no terms in the letter still points to its schedules. */
   for (const part of PARTS) {
     const terms = V.parts.get(part).filter(x => inLetter(x) && !(x.kind.id === 'name' && !PLAIN && !QUESTION.has(x.id)));
     const refs = all.filter(s => s.part === part);
     if (!terms.length && !refs.length) continue;
-    sheet.append(h('h3', null, HEADS[part]));
-    for (const x of terms) sheet.append(term(x));
-    if (refs.length) sheet.append(h('p', { class: 'small' }, terms.length ? 'The rest are in ' : 'These are in ', refs.map((s, i) => [i ? (i === refs.length - 1 ? ' and ' : ', ') : '', refButton(s)]), '.'));
+    if (part === 'why' && terms.length) { sheet.append(whyBox(terms[0])); continue; }
+    const groups = [];
+    for (const x of terms) {
+      const lead = PLAIN ? null : (KIND_LEADS[x.kind.id] || null);
+      const last = groups[groups.length - 1];
+      if (last && last.lead === lead && (lead === null || last.kind === x.kind.id)) last.terms.push(x);
+      else groups.push({ lead, kind: x.kind.id, terms: [x] });
+    }
+    if (!PLAIN && PART_LEADS[part] && groups.length && groups[0].lead === null) groups[0].lead = PART_LEADS[part];
+    if (PLAIN && groups.length) groups[0].lead = `${capital(part)}.`;
+    groups.forEach((g, i) => {
+      const p = h('p', null, g.lead ? `${g.lead} ` : null, g.terms.map(x => [term(x), ' ']));
+      if (i === groups.length - 1 && refs.length) p.append(pointer(refs, terms.length > 0));
+      sheet.append(p);
+      for (const x of g.terms) if (S.open === x.id) sheet.append(termPop(x));
+    });
+    if (!groups.length) sheet.append(h('p', null, PLAIN ? `${capital(part)}. ` : (PART_LEADS[part] ? `${PART_LEADS[part]} ` : null), pointer(refs, false)));
   }
   if (!PLAIN) sheet.append(h('div', { class: 'sig' }, 'Signed, when every term is agreed'));
   return h('div', { class: 'stack' }, h('div', { class: 'behind b2' }), h('div', { class: 'behind b1' }), sheet);
@@ -520,6 +550,7 @@ function nameHeading() {
     const y = V.parts.get('purpose').find(z => z.id === x.id);
     const b = S.answers.get(x.id);
     el.replaceChildren(markEl(y ? y.mark : x.mark, Boolean(b && b.restored)));
+    paint(input, y ? y.mark : x.mark, Boolean(b && b.restored));
   });
   const d = DRAFTED.get(x.id);
   const agreeBtn = d && (!S.answers.has(x.id) || S.answers.get(x.id).restored)
@@ -539,30 +570,61 @@ function refButton(s) {
   } } }, `Schedule ${s.letter}`);
 }
 
-/** One term of the letter. */
+/* The lead-in sentences, in the hiring frame. A part's lead opens its first
+ * paragraph; a kind's lead opens a paragraph of its own. Every frame in
+ * kinds.json is already a sentence, so most kinds need none. */
+const PART_LEADS = { good: 'Great work, for us, looks like this.', rules: 'It keeps our house rules.', writing: 'It writes in our house style.', open: 'Probation.' };
+const KIND_LEADS = { duty: 'Its main duties.', 'sign-off': 'Some calls stay ours alone.', stop: 'There are moments it must stop and ask.', key: 'It holds these keys.', action: 'Some things it does need our yes first.' };
+const CUT_AT = 160;
+/* A situation's first words, for a blank that waits for the person's pick. */
+const opening = s => { const w = s.split(/\s+/); return w.length > 8 ? `${w.slice(0, 8).join(' ')}…` : s; };
+function pointer(refs, more) {
+  return h('span', { class: 'small' }, more ? 'The rest are in ' : 'These are in ', refs.map((s, i) => [i ? (i === refs.length - 1 ? ' and ' : ', ') : '', refButton(s)]), '.');
+}
+
+/** One term of the letter: a blank inside its paragraph, which opens in
+ *  place. It shows the term's sentence, or the kind's name while a
+ *  high-stakes question still waits for the person's pick. */
 function term(x) {
-  if (x.kind.id === 'why') return whyBox(x);
   const q = QUESTION.get(x.id);
-  if (!q) return h('div', { class: 'fade-in' }, record(x, { inLetter: true }));
-  const r = Interview.reveal(draft, kinds, x.id, S.answers.has(x.id));
+  const r = q ? Interview.reveal(draft, kinds, x.id, S.answers.has(x.id)) : { high: x.kind.stakes === 'high', proposal: true, fields: true };
   const open = S.open === x.id;
-  const sayId = newDomId();
   const blankText = () => {
-    const f = shownFields(x.id);
-    if (!r.fields) return `[${x.kind.kind}]`;
-    if (x.none) return 'None';
-    return Interview.sentence(kinds, x.kind, f, FRAME);
+    if (!r.fields) return `[${opening(q.situation)}]`;
+    if (x.none) return `${capital(x.kind.kind)}: none.`;
+    const y = V.parts.get(partOf(x.id)).find(z => z.id === x.id);
+    const s = Interview.sentence(kinds, x.kind, (y && y.fields) || shownFields(x.id) || {}, FRAME).replace(/\s*\n\s*/g, ' ');
+    return s.length > CUT_AT ? `${s.slice(0, CUT_AT)}… (open it to read it all)` : s;
   };
-  const blank = live(h('button', { type: 'button', class: `blank${answered(x.id) ? ' done' : ''}`, key: `blank:${x.id}`, aria: { expanded: open, controls: `pop-${x.id}` },
-    on: { click: () => act(() => { S.open = open ? null : x.id; }) } }), el => { el.textContent = blankText(); });
+  /* Inline text that acts as a button, so a long term wraps inside its
+   * sentence the way the words around it do. */
+  const toggle = () => act(() => { S.open = open ? null : x.id; });
+  const blank = live(h('span', { role: 'button', tabIndex: 0, class: `blank${S.justAdded === x.id ? ' fade-in' : ''}`, key: `blank:${x.id}`, aria: { expanded: open, controls: `pop-${x.id}` },
+    on: { click: toggle, keydown: e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggle(); } } } }), el => { el.textContent = blankText(); });
   const mark = live(h('span'), el => {
     const y = V.parts.get(partOf(x.id)).find(z => z.id === x.id);
     const b = S.answers.get(x.id);
     el.replaceChildren(markEl(y ? y.mark : x.mark, Boolean(b && b.restored)));
+    paint(blank, y ? y.mark : x.mark, Boolean(b && b.restored));
   });
-  const p = h('p', null, blank, ' ', mark,
-    r.high ? h('span', { class: 'stake' }, ' high stakes') : null, h('span', { class: 'vh', id: sayId }, q.situation));
-  return h('div', null, p, open ? questionPop(x, q, r) : null);
+  return h('span', null, blank, mark);
+}
+/** What a blank opens: its question, or its words to edit and agree. */
+function termPop(x) {
+  const q = QUESTION.get(x.id);
+  if (q) return questionPop(x, q, Interview.reveal(draft, kinds, x.id, S.answers.has(x.id)));
+  const d = DRAFTED.get(x.id);
+  const a = S.answers.get(x.id);
+  const box = h('div', { class: 'pop', id: `pop-${x.id}` }, h('p', { class: 'lbl' }, capital(x.kind.kind)));
+  if (x.none) box.append(h('p', null, 'None.'));
+  else box.append(fieldsEditor(x));
+  const foot = h('div', { class: 'group' });
+  if (d && !x.none && x.kind.stakes !== 'high' && (!a || a.restored)) foot.append(h('button', { type: 'button', key: `agree:${x.id}`, on: { click: () => act(() => { agree(x.id); S.open = null; S.fresh = `blank:${x.id}`; }) } }, 'Agree as drafted'));
+  if (x.kind.stakes === 'high' && !x.none) foot.append(h('span', { class: 'small muted' }, 'Your own words on this one go in chat.'));
+  foot.append(h('button', { type: 'button', class: 'primary', key: `done:${x.id}`, on: { click: () => act(() => { S.open = null; S.fresh = `blank:${x.id}`; }) } }, 'Done'));
+  if (d && !x.none) box.append(flagBox(x.id));
+  box.append(foot);
+  return box;
 }
 
 function whyBox(x) {
@@ -575,8 +637,8 @@ function whyBox(x) {
       persist(); size(e.target); refresh();
     } } });
   ta.placeholder = PLAIN ? 'Why these rules exist, in your words' : 'Only you write this. Without it, I…';
-  const mark = live(h('span'), el => { const b = S.answers.get(x.id); el.replaceChildren(markEl(b ? 'Decided' : null, b && b.restored)); });
-  return h('div', null, h('label', { htmlFor: id, class: 'small' }, PLAIN ? 'Why, in your own words' : 'We are hiring because, in your own words: ', mark), ta);
+  const mark = live(h('span'), el => { const b = S.answers.get(x.id); el.replaceChildren(markEl(b ? 'Decided' : null, b && b.restored)); paint(ta, b ? 'Decided' : null, Boolean(b && b.restored)); });
+  return h('div', null, h('label', { htmlFor: id, class: 'small' }, PLAIN ? 'Why, in your own words' : 'We are hiring because', mark), ta);
 }
 
 /** A question, open in place under its blank. */
@@ -695,7 +757,7 @@ function schedule(s, siblings) {
   const det = h('details', { class: `sched${pending ? '' : ' agreed'}${high ? ' tech' : ''}`, id: `sched-${s.letter}`, open: S.schedOpen.has(s.key) });
   const body = h('div', { class: 'body' });
   const title = h('b', null, scheduleName(s));
-  const state = pending ? h('span', { class: 'mark Proposed' }, `${s.entries.length - pending} of ${s.entries.length} agreed`) : markEl(s.entries.some(x => x.mark === 'Decided') ? 'Decided' : 'Confirmed');
+  const state = pending ? h('span', { class: 'count' }, `${s.entries.length - pending} of ${s.entries.length} agreed`) : markEl(s.entries.some(x => x.mark === 'Decided') ? 'Decided' : 'Confirmed');
   const sum = h('summary', { key: `sum:${s.key}` }, h('span', { class: 'sched-letter' }, `Schedule ${s.letter}`), title, state,
     h('span', { class: 'small muted' }, `${s.entries.length} ${s.entries.length === 1 ? 'entry' : 'entries'}`),
     high ? h('span', { class: 'stake' }, 'high stakes: agreed one by one') : null);
@@ -773,6 +835,7 @@ function record(x, where) {
     const y = V.parts.get(partOf(x.id)).find(z => z.id === x.id);
     const b = S.answers.get(x.id);
     el.replaceChildren(markEl(y ? y.mark : x.mark, (b && b.restored) || restored));
+    paint(rec, y ? y.mark : x.mark, Boolean((b && b.restored) || restored));
   });
   const foot = h('div', { class: 'rec-foot' }, mark);
   const d = DRAFTED.get(x.id);
