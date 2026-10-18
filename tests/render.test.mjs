@@ -14,7 +14,8 @@ import assert from 'node:assert/strict';
 import { mkdtempSync, rmSync, writeFileSync, readFileSync, existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { renderer, exampleBox, run } from './helpers.mjs';
+import vm from 'node:vm';
+import { renderer, exampleBox, run, scriptBlocks } from './helpers.mjs';
 
 const work = mkdtempSync(join(tmpdir(), 'grimoire-render-'));
 after(() => rmSync(work, { recursive: true, force: true }));
@@ -384,10 +385,10 @@ test('a box whose text closes the script block cannot close it', () => {
   const html = readFileSync(out, 'utf8');
 
   // The payload is in the page, so this test cannot pass by the text being
-  // dropped. It is there with the slash escaped, which no parser reads as a
+  // dropped. It is there with its "<" escaped, which no parser reads as a
   // closing tag.
   assert.ok(html.includes('window.__pwned'), 'the payload should reach the page, escaped');
-  assert.ok(html.includes('<\\/script>'), 'the closing tag should be written with an escaped slash');
+  assert.ok(html.includes('\\u003c/script>'), 'the closing tag should be written with its "<" escaped');
 
   // Only "</script>" ends a script block. The payload's opening tag sits
   // inside a JavaScript string and does nothing, so the count that matters is
@@ -395,6 +396,30 @@ test('a box whose text closes the script block cannot close it', () => {
   // the same box closes without the payload.
   const closes = s => (readFileSync(s, 'utf8').match(/<\/script\s*>/gi) || []).length;
   assert.equal(closes(out), closes(clean), 'the payload closed no script block');
+});
+
+test('a box whose text opens an HTML comment leaves the data block parseable', () => {
+  // Escaping only "</" is not enough. A comment opener needs no slash: "<!--"
+  // puts the tokenizer in its escaped state, a "<script" after it moves it to
+  // double-escaped, and there the template's own "</script>" ends nothing. So
+  // the data block runs on into the next block's markup and stops parsing.
+  const text = 'A reason holding <!--<script> as plain text';
+  const clean = join(work, 'comment-clean.html');
+  run(renderer, [write('comment-clean.box.json', box()), '--out', clean]);
+
+  const b = box();
+  b.rel.a1.why = text;
+  const out = join(work, 'comment.html');
+  const r = run(renderer, [write('comment.box.json', b), '--out', out]);
+  assert.equal(r.code, 0, r.stderr);
+
+  const blocks = scriptBlocks(readFileSync(out, 'utf8'));
+  assert.equal(blocks.length, scriptBlocks(readFileSync(clean, 'utf8')).length, 'the page keeps every script block it ships');
+  const data = blocks.find(s => s.includes('const BOX ='));
+  assert.ok(data, 'the data block is there');
+  assert.doesNotThrow(() => new vm.Script(data), 'the data block parses as script');
+  assert.ok(!data.includes('<'), 'every "<" in the data is escaped, not only one before "!" or "/"');
+  assert.equal(vm.runInNewContext(`${data};BOX`).rel.a1.why, text, 'the text reaches the page as itself');
 });
 
 test('box text cannot splice the template through a replacement pattern', () => {
