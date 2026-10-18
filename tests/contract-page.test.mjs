@@ -501,6 +501,7 @@ function loadPage({ flags = [], seed } = {}) {
   return {
     D, map, clock, doc,
     key: k => all().find(el => el.pageKey === k) || null,
+    keys: start => all().filter(el => typeof el.pageKey === 'string' && el.pageKey.startsWith(start)),
     text: () => doc.documentElement.textContent,
     /** The block saved under this draft's key, or null. */
     saved: () => (map.has(prefix + D.hashes.draft) ? JSON.parse(map.get(prefix + D.hashes.draft)).block : null),
@@ -508,6 +509,7 @@ function loadPage({ flags = [], seed } = {}) {
     /** A press as a pointer makes it: focus, then click. */
     press: el => { el.focus(); fire(el, 'click'); },
     type: (el, value) => { el.value = value; fire(el, 'input'); },
+    fire,
   };
 }
 
@@ -557,4 +559,35 @@ test('Reset holds against a second press and a long stay on the button; Undo wor
   again.press(again.key('reset'));
   assert.equal(again.saved().answers[0].id, 'job', 'Undo chosen within ten seconds puts the answers back');
   assert.match(again.text(), /Undone: your answers are back\./);
+});
+
+test('a planted restored value keeps its restored mark until its own Keep: a field edit starts from the draft, and a chip, skip or flag tap keeps the mark', () => {
+  const D = dataOf(render(example, join(work, `planted-${n++}.html`))).value;
+  const drafted = D.draft.parts.purpose.find(c => c.id === 'job').fields;
+  const chip = D.draft.questions.find(q => q.clause === 'job').chips[0];
+  const answerOf = (page, id) => page.saved().answers.find(a => a.id === id);
+  // One field edited on a planted answer: the other field is the draft's.
+  const edited = loadPage({ seed: { answers: new Map([['job', { fields: { does: 'planted does', for: 'planted for' } }]]), edits: [] } });
+  edited.click(edited.key('blank:job'));
+  edited.type(edited.key('field:job:does'), 'my own words');
+  assert.deepEqual(answerOf(edited, 'job').fields, { ...drafted, does: 'my own words' });
+  assert.ok(!JSON.stringify(edited.saved()).includes('planted for'), 'a planted sibling field was kept by a field edit');
+  // A chip, skip or flag tap on a planted pick leaves it restored.
+  const tapped = loadPage({ seed: { answers: new Map([['job', { option: 'job-b' }]]), edits: [] } });
+  tapped.click(tapped.key('blank:job'));
+  for (const press of [p => p.keys('chip:job:')[0], p => p.key('chip:job:skip'), p => p.key('flag:job')]) {
+    tapped.click(press(tapped));
+    assert.equal(answerOf(tapped, 'job').restored, true, 'a tap cleared the restored mark');
+  }
+  // A new pick replaces the planted value, and brings no planted chip with it.
+  const picked = loadPage({ seed: { answers: new Map([['job', { option: 'job-b', chip }]]), edits: [] } });
+  picked.click(picked.key('blank:job'));
+  picked.fire(picked.key('opt:job-c'), 'change');
+  assert.deepEqual(answerOf(picked, 'job'), { id: 'job', option: 'job-c', mark: 'Confirmed' });
+  // A field edit on a planted added entry leaves the entry a proposal.
+  const added = { op: 'add', id: 'added-1', part: 'roles', kind: 'duty', fields: { text: 'planted duty' } };
+  const entry = loadPage({ seed: { answers: new Map(), edits: [added] } });
+  entry.click(entry.key('mode'));
+  entry.type(entry.key('field:added-1:text'), 'planted duty, and mine');
+  assert.equal(entry.saved().edits[0].restored, true, 'a field edit kept a planted entry without its Keep');
 });

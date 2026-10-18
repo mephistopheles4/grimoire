@@ -392,30 +392,36 @@ function owner(id) {
   }
   return { drafted: id };
 }
-/** An answer the person touched: whatever it held before, it is no longer
- *  restored. */
+/** An answer the person gave: a new value replaces what it held before, so
+ *  it is no longer restored. A restored answer's chip is not carried over. */
 function answer(id, value) {
   const prev = S.answers.get(id) || {};
   const next = { ...value };
-  if (prev.chip !== undefined && next.chip === undefined && !Object.hasOwn(value, 'chip')) next.chip = prev.chip;
+  if (prev.chip !== undefined && !prev.restored && next.chip === undefined && !Object.hasOwn(value, 'chip')) next.chip = prev.chip;
   if (prev.flag && !Object.hasOwn(value, 'flag')) next.flag = true;
   delete next.restored;
   S.answers.set(id, next);
 }
+/** One field edited. Another page opened from disk can write this
+ *  browser's store, so an edit never keeps a restored value by the way: an
+ *  edit to a restored answer starts from the drafted fields, not the
+ *  restored ones, and a restored edit stays restored, its fields with it,
+ *  until its own Keep. */
 function setField(id, name, value) {
   const o = owner(id);
   if (o.edit) {
     o.edit.fields = { ...o.edit.fields, [name]: value };
-    delete o.edit.restored;
     return;
   }
   const a = S.answers.get(id) || {};
-  const fields = { ...shownFields(id), [name]: value };
+  const from = a.restored ? DRAFTED.get(id).c.fields : shownFields(id);
+  const fields = { ...from, [name]: value };
   const keep = {};
-  if (a.chip !== undefined) keep.chip = a.chip;
+  if (a.chip !== undefined && !a.restored) keep.chip = a.chip;
   if (a.flag) keep.flag = true;
   S.answers.set(id, { fields, ...keep });
 }
+const restoredAnswer = id => Boolean(S.answers.has(id) && S.answers.get(id).restored);
 /** Agree takes the drafted wording, even over an answer restored from this
  *  browser: another page opened from disk can write that store, so a restored
  *  value is kept only by its own Keep, one entry at a time. */
@@ -958,9 +964,8 @@ function questionPop(x, q, r) {
       for (const c of q.chips) chips.append(h('button', { type: 'button', key: `chip:${x.id}:${c}`, aria: { pressed: cur === c }, on: { click: () => act(() => {
         const b = S.answers.get(x.id);
         if (b.chip === c) delete b.chip; else b.chip = c;
-        delete b.restored;
       }) } }, c));
-      chips.append(h('button', { type: 'button', key: `chip:${x.id}:skip`, aria: { pressed: cur === undefined }, on: { click: () => act(() => { const b = S.answers.get(x.id); delete b.chip; delete b.restored; }) } }, 'skip'));
+      chips.append(h('button', { type: 'button', key: `chip:${x.id}:skip`, aria: { pressed: cur === undefined }, on: { click: () => act(() => { const b = S.answers.get(x.id); delete b.chip; }) } }, 'skip'));
       box.append(chips);
     }
     box.append(flagBox(x.id));
@@ -979,7 +984,6 @@ function flagBox(id) {
     const c = S.answers.get(id);
     if (!c) return;
     if (!on) c.flag = true; else delete c.flag;
-    delete c.restored;
   }) } }, 'Ask me about this in chat');
 }
 /** Flagging an untouched entry records its drafted fields unchanged, so the
@@ -1004,7 +1008,12 @@ function fieldsEditor(x) {
         kinds.choices[f.name].map(v => h('option', { value: v, selected: fields[f.name] === v }, (kinds.words && kinds.words[v]) || v)));
     } else {
       ctl = h('textarea', { class: 'ed', id, key, rows: 1, spellcheck: true, value: Object.hasOwn(fields, f.name) ? fields[f.name] : '',
-        on: { input: e => { setField(x.id, f.name, e.target.value); persist(); size(e.target); refresh(); } } });
+        on: { input: e => {
+          // The first edit of a restored answer draws its other fields again, now from the draft.
+          const redraw = restoredAnswer(x.id);
+          setField(x.id, f.name, e.target.value); persist();
+          if (redraw) render(); else { size(e.target); refresh(); }
+        } } });
       if (f.optional) ctl.placeholder = '(optional)';
     }
     const warn = live(h('div', { class: 'warn', aria: { live: 'polite' } }), el => {
