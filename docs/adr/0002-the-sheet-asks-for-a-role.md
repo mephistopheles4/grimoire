@@ -81,10 +81,13 @@ dark, under the 3:1 a stroke carrying a signal is held to. It takes
 uses. `.nd--active` is set per node, so one box can stand for several call sites
 and the running-frame distinction the tree makes has no box to land on. The
 drawing says only that a box has an open frame; the chip on the box, summed over
-its sites, says running or waiting. The cold box, the unwalked wire and their
-arrowheads stay at ink 30 as construction ink: they mark a call that has not
-happened, not a position, and the system holds hairlines and leaders to no
-floor.
+its sites, says running or waiting. The open box keeps its own outline when it
+is also on the stack, which it is on every step: `.nd--sel` is declared after
+`.nd--active`, and the two rules have the same weight, so the later one wins.
+The open box then loses its on-stack ring, and the chip still says which frame
+is running. The cold box, the unwalked wire and their arrowheads stay at ink 30
+as construction ink: they mark a call that has not happened, not a position, and
+the system holds hairlines and leaders to no floor.
 
 **One word per row is read off the filtered path, never off the fold's raw
 entries.** The fold records a throwing frame twice — thrown, then passed through

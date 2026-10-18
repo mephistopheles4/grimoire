@@ -299,8 +299,10 @@ input[type=checkbox] { accent-color: var(--av-ink); margin: 0 var(--av-s1) 0 0; 
 .nd { position: absolute; width: 356px; background: var(--av-paper); border: var(--av-rule-bold) solid var(--av-ink);
   padding: var(--av-s2); cursor: pointer; overflow: hidden; transition: border-color 150ms; }
 .nd--cold { border-width: var(--av-rule-hair); border-color: var(--av-ink-30); color: var(--av-ink-70); }
-.nd--sel { outline: var(--av-rule-thin) solid var(--av-ink); outline-offset: 7px; }
 .nd--active { outline: var(--av-rule-hair) solid var(--av-state-rule); outline-offset: 4px; }
+/* Declared after the on-stack rule: both set an outline, the later one wins, and
+   the open box is on the stack on every step. */
+.nd--sel { outline: var(--av-rule-thin) solid var(--av-ink); outline-offset: 7px; }
 .nd--error { border-color: var(--av-path); }
 .nd-top { display: flex; align-items: center; gap: var(--av-s1); margin-bottom: 2px; }
 .nd-name { font-weight: 600; font-size: var(--av-t-body); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }

@@ -2076,6 +2076,15 @@ test('the drawing outlines a box on the stack with the state rule, which holds 3
   }
 });
 
+test('the open box keeps its outline when it is also on the stack', () => {
+  // Both rules have the same weight, so the later one wins. The open box is
+  // on the stack on every step, and drawn alike it cannot be told apart.
+  const html = pageOf(exampleFlightpath);
+  const at = sel => html.indexOf(`\n${sel} {`);
+  assert.ok(at('.nd--active') > 0 && at('.nd--sel') > 0, 'both rules are declared');
+  assert.ok(at('.nd--sel') > at('.nd--active'), 'the open outline is declared after the on-stack one');
+});
+
 test('the sheet asks for the walk-sheet roles, never the raw mark colours', () => {
   // The design system names --av-path and --av-path-caught so each theme can
   // answer in its own colour. Reaching for --av-caution here would get amber
