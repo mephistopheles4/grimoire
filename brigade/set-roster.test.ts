@@ -3640,7 +3640,13 @@ for (const surface of SURFACES) {
       // Rows a small step apart, with no hairline between them.
       const all = await nodes(m)
       expect(all.filter(n => n.type === 'Svg' && n.props.alt === 'divider').length).toBe(0)
-      expect(all.filter(n => n.type === 'Box' && n.props.marginBottom === 'xs' && n.props.paddingY === 'sm').length).toBe(3)
+      const prRows = all.filter(n => n.type === 'Box' && n.props.marginBottom === 'xs' && n.props.paddingY === 'sm')
+      expect(prRows.length).toBe(3)
+      // The pill and the title on one line, the dim line under both.
+      for (const row of prRows) {
+        expect(row.props.flexDirection).toBe('column')
+        expect(row.children[0]?.props.flexDirection).toBe('row')
+      }
     }
     // Usage and the spacer stay.
     expect(text.includes('Usage')).toBe(true)
@@ -3780,9 +3786,9 @@ for (const surface of SURFACES) {
     expect(two.includes('2 selected')).toBe(true)
     expect(two.includes('✓ Dismiss')).toBe(true)
     if (surface === 'desktop') {
-      // The bar is a rounded fill with a light outline, as in the prototype.
+      // The bar is a rounded fill with a soft outline a shade above it.
       const bar = boxAround(await nodes(m), (c: any) => c?.props?.key === 'bardismiss')
-      expect([bar?.props.borderStyle, bar?.props.borderColor, bar?.props.backgroundColor]).toEqual(['round', 'subtle', '#262625'])
+      expect([bar?.props.borderStyle, bar?.props.borderColor, bar?.props.backgroundColor]).toEqual(['round', '#3a3a38', '#262625'])
     }
     await m.press({ key: 'todo-0-t1' })
     expect(ticks()).toBeGreaterThan(0)

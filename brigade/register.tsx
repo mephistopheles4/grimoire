@@ -1633,22 +1633,24 @@ export const register: Register = on => {
       )
     }
 
-    // A pull request row: the pill, the PR's title (the card's own with no
-    // answer from `gh`), and on a dim line the card's title, the counts, the
-    // repository and the age. On Desktop and mobile rows sit a small step
-    // apart with no hairline; the editor, where that step is nothing, and the
-    // terminal part them as `rows` does.
+    // A pull request row: on its first line the pill and the PR's title (the
+    // card's own with no answer from `gh`); under both, on a dim line, the
+    // card's title, the counts, the repository and the age. On Desktop and
+    // mobile rows sit a small step apart with no hairline; the editor, where
+    // that step is nothing, and the terminal part them as `rows` does.
     const prRow = (r: PrRow) => (
-      <Box flexDirection="row" columnGap={1} paddingX={terminal ? 0 : 'md'} paddingY={terminal ? 0 : 'sm'} marginBottom={stepped ? 'xs' : 0} alignItems="center" {...hoverFill(`pr-${r.i}-${slug(r.number)}`)}>
-        <Box flexShrink={0}>{pill(r.number, r.state)}</Box>
-        <Box flexDirection="column" flexGrow={1} flexShrink={1} minWidth={0}>
-          <Text weight="semibold" wrap="truncate-end">
-            {r.title}
-          </Text>
-          <Text dimColor size="footnote" wrap="truncate-end">
-            {[r.detail.cardTitle, r.detail.counts, r.detail.repo, r.detail.age].filter(x => x !== undefined).join(' · ')}
-          </Text>
+      <Box flexDirection="column" paddingX={terminal ? 0 : 'md'} paddingY={terminal ? 0 : 'sm'} marginBottom={stepped ? 'xs' : 0} {...hoverFill(`pr-${r.i}-${slug(r.number)}`)}>
+        <Box flexDirection="row" columnGap={1} alignItems="center">
+          <Box flexShrink={0}>{pill(r.number, r.state)}</Box>
+          <Box flexGrow={1} flexShrink={1} minWidth={0}>
+            <Text weight="semibold" wrap="truncate-end">
+              {r.title}
+            </Text>
+          </Box>
         </Box>
+        <Text dimColor size="footnote" wrap="truncate-end">
+          {[r.detail.cardTitle, r.detail.counts, r.detail.repo, r.detail.age].filter(x => x !== undefined).join(' · ')}
+        </Text>
       </Box>
     )
 
@@ -1792,7 +1794,7 @@ export const register: Register = on => {
         <Box flexGrow={1} />
         {selected > 0 && (
           <Box flexDirection="row" justifyContent="center" marginTop="md" marginBottom="sm">
-            <Box flexDirection="row" alignItems="center" columnGap="md" paddingX="md" {...(terminal ? { borderStyle: 'round', borderColor: 'inactive', backgroundColor: 'subtle' } : { borderStyle: 'round', borderColor: 'subtle', backgroundColor: DARK_FILLS.hover })}>
+            <Box flexDirection="row" alignItems="center" columnGap="md" paddingX="md" {...(terminal ? { borderStyle: 'round', borderColor: 'inactive', backgroundColor: 'subtle' } : { borderStyle: 'round', borderColor: DARK_FILLS.tip, backgroundColor: DARK_FILLS.hover })}>
               <Text>{`${selected} selected`}</Text>
               <Button key="bardismiss" plain onPress={noop}>
                 ✓ Dismiss
