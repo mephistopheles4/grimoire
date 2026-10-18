@@ -337,6 +337,10 @@ async function pollAgents($: EngineInterface, open: () => boolean) {
   if (polling) return
   polling = true
   try {
+    // A Refresh is taken once, by this poll; a press while it runs asks
+    // again. A Refresh while the pane is not the shown tab is dropped.
+    const asked = refreshWanted
+    refreshWanted = false
     // With no roster file to read there is no brigade to show, so no process
     // runs either; the pane already shows why.
     const at = await where($)
@@ -365,10 +369,9 @@ async function pollAgents($: EngineInterface, open: () => boolean) {
     const now = await $.clock.now().then(n => n, () => Number.NaN)
     if (!open()) return
     const late = agentsAt === undefined || (Number.isFinite(now) && (now < agentsAt || now - agentsAt >= FALLBACK_MS))
-    const due = shown && (refreshWanted || !wasShown || late)
+    const due = shown && (asked || !wasShown || late)
     wasShown = shown
     if (due) {
-      refreshWanted = false
       agentsAt = Number.isFinite(now) ? now : Number.NEGATIVE_INFINITY
       try {
         const { exitCode, stdout, stderr } = await $.process.run(['claude', 'agents', '--json'], { timeoutMs: 15000 })

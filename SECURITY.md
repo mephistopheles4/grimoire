@@ -35,8 +35,12 @@ plugin.** It is a hooks module, `brigade/register.tsx`, named by
 `hooks/hooks.json`, and it runs with the session's own rights. At session start
 it registers `/brigade` and the two hooks of its usage summary writer, below,
 and since 0.60.0 it is no longer idle by default
-([ADR 0008](docs/adr/0008-brigade-is-no-longer-idle-by-default.md)). While its pane is open it runs
-`claude agents --json`, reads the lead session's roster file from the plugin's
+([ADR 0008](docs/adr/0008-brigade-is-no-longer-idle-by-default.md)). While its pane is open it reads
+the engine's own session files, `<config>/sessions/<digits>.json`, for each
+session's name, status, id and folder only, and never the key file beside
+each. Since 0.66.0 it runs `claude agents --json` only while the pane is the
+shown tab: when the tab is shown, from its Refresh button, and every 5 minutes.
+It also reads the lead session's roster file from the plugin's
 data folder, and reads other sessions' transcripts to find a session's link
 and its model calls' usage, which gives each card its cache-warmth line and,
 since 0.55.0, its context meter, and since 0.56.0, its burn rate and context

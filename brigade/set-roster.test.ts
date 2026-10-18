@@ -4148,3 +4148,14 @@ test('the pane keeps nothing from a session file but the name and status: no soc
   expect(w.log.some(l => l.startsWith('read ') && l.endsWith('\\100.json'))).toBe(true)
   expect(w.log.some(l => l.startsWith('read ') && l.endsWith('.key'))).toBe(false)
 })
+
+test('a Refresh pressed while the pane is not the shown tab runs no claude agents and polls once, not over and over', async ($, on) => {
+  const w = await pane(on, $, 'desktop', w => liveRows(w, [{ name: 'alpha', status: 'busy', sessionId: S1, cwd: 'C:/work' }]))
+  w.shown = false
+  const polls = () => w.log.filter(l => l === `stat ${SESSIONS}`).length
+  const before = polls()
+  await press($, 'refresh')
+  await w.clock.settle()
+  expect(agentsRuns(w)).toBe(1)
+  expect(polls() - before).toBe(1)
+})
