@@ -1652,8 +1652,8 @@ for (const surface of SURFACES) {
     const bar = boxAround(drawn, (c: any) => c?.props?.key === 'grp-finished')
     const title = (t: string) => drawn.find(n => n.type === 'Text' && n.text === t)
     if (surface === 'desktop') {
-      // A rounded fill: a round border in the fill's own key.
-      expect([bar?.props.borderStyle, bar?.props.borderColor, bar?.props.backgroundColor]).toEqual(['round', 'subtle', 'subtle'])
+      // A rounded fill: a round border in the fill's own grey.
+      expect([bar?.props.borderStyle, bar?.props.borderColor, bar?.props.backgroundColor]).toEqual(['round', '#2b2b2a', '#2b2b2a'])
       // The waiting cards' dots are full size, the working card's small; a
       // waiting title is bold.
       for (const dot of drawn.filter(n => n.type === 'Text' && n.text === '●' && n.props.color === 'warning')) expect(dot.props.size).toBeUndefined()
@@ -3726,13 +3726,17 @@ for (const surface of SURFACES) {
     // A hover is not in the drawn tree; what it reveals is: a Box hidden at rest.
     const hidden = all.filter(n => n.type === 'Box' && n.props.display === 'none')
     const actions = all.filter(n => n.type === 'Box' && ['Dismiss', 'OpenDismiss'].includes(spoken(n)))
+    // Each card carries a round border in the pane's own grey, unseen at rest,
+    // which its hover fills, so the lit card is rounded; none in the terminal.
+    const rounded = all.filter(n => n.type === 'Box' && n.props.borderStyle === 'round' && n.props.borderColor === '#1a1a19')
+    expect(rounded.length).toBe(surface === 'desktop' ? 3 : 0)
     if (surface === 'desktop') {
       expect(lines.length).toBe(1)
       expect(waitingRows?.props.rowGap).toBe(1)
       expect(hidden.length).toBeGreaterThan(0)
       // A tooltip is a square fill, as in the prototype.
       for (const h of hidden.filter(n => n.props.position === 'absolute')) {
-        expect(h.props.backgroundColor).toBe('subtle')
+        expect(h.props.backgroundColor).toBe('#3a3a38')
         expect(h.props.borderStyle).toBeUndefined()
       }
       expect(actions.some(a => a.props.display === 'none')).toBe(true)
@@ -3767,9 +3771,9 @@ for (const surface of SURFACES) {
     expect(two.includes('2 selected')).toBe(true)
     expect(two.includes('✓ Dismiss')).toBe(true)
     if (surface === 'desktop') {
-      // The bar is a rounded fill.
+      // The bar is a rounded fill with a light outline, as in the prototype.
       const bar = boxAround(await nodes(m), (c: any) => c?.props?.key === 'bardismiss')
-      expect([bar?.props.borderStyle, bar?.props.borderColor, bar?.props.backgroundColor]).toEqual(['round', 'subtle', 'subtle'])
+      expect([bar?.props.borderStyle, bar?.props.borderColor, bar?.props.backgroundColor]).toEqual(['round', 'subtle', '#262625'])
     }
     await m.press({ key: 'todo-0-t1' })
     expect(ticks()).toBeGreaterThan(0)

@@ -161,9 +161,10 @@ const folded = atom({ plugin: 'grimoire', key: 'folded' } as const, [])
 // The group that starts folded each time the pane opens.
 const STARTS_FOLDED = ['finished']
 
-// Colours are the app's own theme keys, so the pane follows the person's
-// theme, light or dark, as the rest of Claude Code does. The status the head
-// chef wrote on a card, and the live state, take theirs from view.ts.
+// Text and status colours are the app's own theme keys, so they follow the
+// person's theme, light or dark, as the rest of Claude Code does; the fills
+// are the fixed greys below. The status the head chef wrote on a card, and
+// the live state, take theirs from view.ts.
 
 // The cells of the cache block's label column, the width of "◆ context", so
 // the cache bar and the context meter start at the same place.
@@ -176,9 +177,18 @@ const keyFor = (verb: string, i: number, title: string) => `${verb}-${i}-${slug(
 // A Button must carry onPress. The ui.press hook below answers every press
 // itself, so this bottom of the chain never runs.
 const noop = () => {}
-// The one theme key every fill takes: the section bars, the hover, the
-// tooltip and the selection bar.
-const FILL = 'subtle'
+// The prototype's greys, read off Desktop's dark theme, for every surface that
+// draws images: fixed values, never from file data. No theme key draws them,
+// and the engine names none for the pane's background, so the pane takes
+// them and reads poorly in a light theme (the owner's decision at the
+// rebuild's visual check). A round border in a fill's own colour rounds it;
+// one in the pane's colour is unseen at rest, so a hover rounds a card.
+const DARK_GREYS = {
+  pane: '#1a1a19',
+  bar: '#2b2b2a',
+  hover: '#262625',
+  tip: '#3a3a38',
+} as const
 // The icon of each card view, with its name in the tooltip. A Button carries
 // no `label`: a desktop draws the label in place of the Button's text.
 const VIEW_ICONS: ReadonlyMap<string, string> = new Map([
@@ -1168,15 +1178,19 @@ export const register: Register = on => {
     const prCount = prs.open.length + prs.merged.length + prs.closed.length
 
     // A pointer over a scope lights every element drawn with it. Desktop only:
-    // the terminal has no pointer. A fill in the theme's own `subtle`, so it
-    // follows the light and the dark theme; the engine names no key for the
-    // pane's background, so the fill is square and has no outline at rest.
-    const hoverFill = (scope: string) => (!pointer ? {} : { hover: { scope, backgroundColor: FILL } })
-    // A rounded fill: a round border in the fill's own colour, the one way the
-    // engine rounds a fill. Only for a Box filled at rest; a card's fill shows
-    // on hover alone, and its outline at rest would need the pane's colour,
-    // which no theme key names.
-    const roundFill = { borderStyle: 'round', borderColor: FILL, backgroundColor: FILL } as const
+    // the terminal has no pointer. At rest a round border in the pane's own
+    // grey, unseen; on hover the border and the fill take the hover grey, so
+    // the lit row is rounded.
+    const hoverFill = (scope: string) =>
+      !pointer
+        ? {}
+        : {
+            borderStyle: 'round' as const,
+            borderColor: DARK_GREYS.pane,
+            hover: { scope, borderColor: DARK_GREYS.hover, backgroundColor: DARK_GREYS.hover },
+          }
+    // A section bar's rounded fill: a round border in the fill's own colour.
+    const roundFill = { borderStyle: 'round', borderColor: DARK_GREYS.bar, backgroundColor: DARK_GREYS.bar } as const
     // A tooltip: a hidden Box shown while the pointer is on its anchor's scope.
     // The terminal has none, and shows the text inline where it carries news.
     const tip = (key: string, anchorEl: JSX.Element, text: string) =>
@@ -1185,7 +1199,7 @@ export const register: Register = on => {
       ) : (
         <Box position="relative" hover={{ scope: `tip-${key}` }}>
           {anchorEl}
-          <Box position="absolute" top={1} left={0} display="none" hover={{ scope: `tip-${key}`, display: 'flex' }} backgroundColor={FILL} paddingX="sm">
+          <Box position="absolute" top={1} left={0} display="none" hover={{ scope: `tip-${key}`, display: 'flex' }} backgroundColor={DARK_GREYS.tip} paddingX="sm">
             <Text>{text}</Text>
           </Box>
         </Box>
@@ -1782,7 +1796,7 @@ export const register: Register = on => {
         <Box flexGrow={1} />
         {selected > 0 && (
           <Box flexDirection="row" justifyContent="center" marginTop="md" marginBottom="sm">
-            <Box flexDirection="row" alignItems="center" columnGap="md" paddingX="md" {...(terminal ? { borderStyle: 'round', borderColor: 'inactive', backgroundColor: FILL } : roundFill)}>
+            <Box flexDirection="row" alignItems="center" columnGap="md" paddingX="md" {...(terminal ? { borderStyle: 'round', borderColor: 'inactive', backgroundColor: 'subtle' } : { borderStyle: 'round', borderColor: 'subtle', backgroundColor: DARK_GREYS.hover })}>
               <Text>{`${selected} selected`}</Text>
               <Button key="bardismiss" plain onPress={noop}>
                 ✓ Dismiss

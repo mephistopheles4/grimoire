@@ -4404,14 +4404,20 @@ test('the hairline image: one rect with the rule class, a light rule and a dark 
   assert.ok(h.source.length < 2000);
 });
 
-test('no colour in the register or view modules is a hex or a colour name outside an image\'s style block', () => {
+test('no colour in the register or view modules is a hex or a colour name outside an image\'s style block and the register\'s fixed greys', () => {
   const themeKeys = new Set(['text', 'inverseText', 'inactive', 'subtle', 'suggestion', 'remember', 'success', 'error', 'warning', 'merged', 'claude', 'permission', 'planMode', 'autoAccept', 'promptBorder', 'bashBorder', 'ide', 'diffAdded', 'diffRemoved', 'diffAddedDimmed', 'diffRemovedDimmed', 'diffAddedWord', 'diffRemovedWord']);
   const registerSource = readFileSync(join(root, 'brigade/register.tsx'), 'utf8');
   const viewSource = readFileSync(join(root, 'brigade/view.ts'), 'utf8');
   // The one place a hex may sit: the style constant's text.
   const viewOutside = viewSource.replace(/export const STYLE = \[[\s\S]*?\]\.join\(''\)/, '');
+  // The register module's one place a hex may sit: its fixed greys, each a
+  // hex and nothing else (the owner's decision at the rebuild's visual check).
+  const greys = /const DARK_GREYS = \{([\s\S]*?)\} as const/.exec(registerSource);
+  assert.ok(greys, 'the fixed greys are where the test looks');
+  for (const line of greys[1].split('\n').filter(l => l.trim() !== '')) assert.match(line, /^\s*[a-z]+: '#[0-9a-f]{6}',$/, `${line} is a named hex grey`);
+  const registerOutside = registerSource.replace(greys[0], '');
   // A hex as a quoted value; an issue number in a comment is not one.
-  assert.doesNotMatch(registerSource, /["'`]#[0-9a-fA-F]{3,8}\b/, 'no hex in the register module');
+  assert.doesNotMatch(registerOutside, /["'`]#[0-9a-fA-F]{3,8}\b/, 'no hex in the register module outside its fixed greys');
   assert.doesNotMatch(viewOutside, /["'`]#[0-9a-fA-F]{3,8}\b/, 'no hex in the view module outside its style text');
   // A colour name held in a quoted string anywhere in the register module, in an expression too.
   assert.doesNotMatch(registerSource, /["'`](?:red|green|blue|gray|grey|white|black|yellow|orange|purple|pink|cyan|magenta|transparent)["'`]/i, 'no colour name in the register module');
