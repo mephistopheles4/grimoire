@@ -1,6 +1,6 @@
 # Contract: eagle-eye
 
-Version: 0.2.3
+Version: 0.2.4
 
 - **Type:** skill
 - **Level:** Thorough
@@ -85,7 +85,7 @@ Version: 0.2.3
 
 ## 5. What tools does it need?
 
-**Confirmed.** Node.js 20 or later, to run `render.mjs` and the optional `audit.mjs`; the system's command that opens a file in the browser. Both scripts sit inside the skill folder, so the seal covers them.
+**Decided** 2026-10-18. Node.js 24 or later, to run `render.mjs` and the optional `audit.mjs`; the system's command that opens a file in the browser. Both scripts sit inside the skill folder, so the seal covers them.
 
 Extra keys: none.
 
@@ -108,6 +108,7 @@ Extra keys: none.
 | 0.2.1 | 2026-10-06 | No clause changed. A Contents list is added at the top of the four long reference files (audit, box-file, usage-record, writing-edges), one bullet per heading in file order. No other line changed, no heading renamed. | Issue 194, from 176: the check warns on a reference file over 100 lines with no contents list in its first 30. | none |
 | 0.2.2 | 2026-10-06 | No clause changed beyond question 5's tools line, which now names Node.js 20 or later. `SKILL.md` gains one `compatibility` frontmatter line; its body does not change. **Decided** 2026-10-06 | Issue 181, from 176: a person installing the skill can see the runtime it needs before a script fails. The floor was confirmed by running every script entry point under Node 20.0.0 and scanning for newer APIs. The owner approved the row and version step. | 5 |
 | 0.2.3 | 2026-10-16 | No clause changed. Step 7 of `SKILL.md` said to run the renderer "from the skill base directory", which a reader can take as "change into it". It now says to run the renderer by its path in the skill base directory, as the step's code block shows. No other line of the body changes. | Issue 173, from 171's live runs: a session read "from" as `cd <base>` and ran a bare `render.mjs`, which the practice runner denies. **Decided** 2026-10-16 (the owner's go, relayed by the head chef) | 3 |
+| 0.2.4 | 2026-10-18 | No clause changed beyond question 5's tools line, which now names Node.js 24 or later. `SKILL.md` changes only its `compatibility` line and `contract-version`. **Decided** 2026-10-18 (the owner's word, relayed by the head chef) | Issue 354: Node 20 reached end of life in April 2026, and the repository keeps one floor, Node 24, which CI runs. | 5 |
 
 ---
 

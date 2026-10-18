@@ -3,10 +3,10 @@
 // SVG source, its alt text and the terminal's text rows as strings. They do
 // not check element trees or paint.
 //
-// The module is TypeScript. Node imports it as it is from 22.18 on, where
-// type stripping is on by default (23.6 on the 23 line). On an older Node the
-// import fails with an error about the file's extension, so the version is
-// checked first and named.
+// The module is TypeScript. Node 24, the repository's floor, imports it as it
+// is, with type stripping on by default. On an older Node the import can fail
+// with an error about the file's extension, so the version is checked first
+// and named.
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -14,10 +14,9 @@ import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-const MINIMUM = '22.18';
-const [major, minor] = process.versions.node.split('.').map(Number);
-const strips = major > 23 || (major === 23 && minor >= 6) || (major === 22 && minor >= 18);
-if (!strips) {
+const MINIMUM = '24';
+const [major] = process.versions.node.split('.').map(Number);
+if (major < 24) {
   throw new Error(
     `tests/brigade-view.test.mjs needs Node ${MINIMUM} or later, which imports TypeScript as it is; this is Node ${process.versions.node}. See CONTRIBUTING.md.`,
   );
@@ -1136,7 +1135,7 @@ test('the state contract declares ticking under the plugin\'s manifest name', ()
 // --- cache warmth ------------------------------------------------------------
 
 const { MAX_TRANSCRIPT_BYTES, NUDGE_TOKENS, callSeries, liveState, readCalls, warmthFrom, warmthLine } = view;
-const { parseAgents } = roster;
+const { sessionRow } = roster;
 const HOUR = 60 * MIN;
 
 // The last call as the cache bar reads it. Since #271 (spec revision 3 on
@@ -1347,18 +1346,20 @@ test('live states: busy and running are success, idle and blocked warning, other
   assert.deepEqual(liveState(undefined), { text: 'not running', color: 'inactive' });
 });
 
-test('the agents-row parser reads an interactive row\'s status and a background row\'s state', () => {
+test('a session file row reads an interactive session\'s status and a background session\'s state', () => {
   const sid = '11111111-2222-4333-8444-555555555555';
-  const rows = parseAgents(JSON.stringify([
-    { name: 'Interactive', status: 'busy', sessionId: sid, cwd: 'C:\\w' },
-    { name: 'Background', state: 'blocked', sessionId: sid, cwd: 'C:\\w' },
-    { name: 'Both', status: 'idle', state: 'blocked' },
-    { name: 'Neither' },
-    { name: 'Hostile', state: '\u{202E}x\ny'.repeat(10) },
-  ]));
-  assert.ok('value' in rows);
-  assert.deepEqual(rows.value.map(r => r.status), ['busy', 'blocked', 'idle', '?', rows.value[4].status]);
-  assert.ok(rows.value[4].status.length <= 20 && !/[\n\u{202E}]/u.test(rows.value[4].status));
+  const row = r => sessionRow(JSON.stringify({ sessionId: sid, ...r }));
+  const rows = [
+    row({ name: 'Interactive', status: 'busy' }),
+    row({ name: 'Background', state: 'blocked' }),
+    row({ name: 'Both', status: 'idle', state: 'blocked' }),
+    row({ name: 'Neither' }),
+    row({ name: 'Hostile', state: '\u{202E}x\ny'.repeat(10) }),
+  ];
+  assert.deepEqual(rows.map(r => r.status), ['busy', 'blocked', 'idle', '?', rows[4].status]);
+  assert.ok(rows[4].status.length <= 20 && !/[\n\u{202E}]/u.test(rows[4].status));
+  assert.equal(sessionRow(JSON.stringify({ name: 'No id', status: 'idle' })), undefined);
+  assert.equal(sessionRow(JSON.stringify([{ name: 'A list', sessionId: sid }])), undefined);
 });
 
 // The read decision, with a fake file system.
@@ -1564,10 +1565,10 @@ test('the state contract declares warmth under the plugin\'s manifest name', () 
   assert.match(register, /atom\(\{ plugin: 'grimoire', key: 'warmth' \} as const, \[\]\)/);
 });
 
-test('the agents poll has an in-flight guard: a tick that finds a poll running does nothing', () => {
+test('the live poll has an in-flight guard: a tick that finds a poll running does nothing', () => {
   const register = readFileSync(join(root, 'brigade/register.tsx'), 'utf8');
-  const poll = register.slice(register.indexOf('async function pollAgents'));
-  assert.match(poll, /^async function pollAgents[^{]*\{\s*(?:\/\/[^\n]*\n\s*)*if \(polling\) return\n\s*polling = true\n\s*try \{/);
+  const poll = register.slice(register.indexOf('async function pollLive'));
+  assert.match(poll, /^async function pollLive[^{]*\{\s*(?:\/\/[^\n]*\n\s*)*if \(polling\) return\n\s*polling = true\n\s*try \{/);
   assert.match(poll, /\} finally \{\n\s*polling = false\n\s*\}/);
 });
 
@@ -1684,7 +1685,7 @@ test('the pane keeps its re-read memory in a Map of the view module\'s ReadMemor
   const register = readFileSync(join(root, 'brigade/register.tsx'), 'utf8');
   assert.match(register, /\nconst memory: ReadMemory = new Map\(\)\n/);
   assert.equal(register.match(/\bmemory\b/g)?.length, 2, 'declared once and handed to readCalls once');
-  assert.match(register, /readCalls\(rows\.value, cards\.map\(c => c\.title\), config, memory, \{/);
+  assert.match(register, /readCalls\(rows, cards\.map\(c => c\.title\), config, memory, io, finder, /);
   const v = readFileSync(join(root, 'brigade/view.ts'), 'utf8');
   assert.match(v, /export type ReadMemory = Map<string, \{ mtimeMs: number; readAt: number; series: CallSeries \| undefined \}>/);
 });
@@ -4255,7 +4256,7 @@ test('the state contract declares the refusal lines under the plugin\'s manifest
 
 test('the pane hands the poll its summary reads, with the plugin data id from where the roster is', () => {
   const register = readFileSync(join(root, 'brigade/register.tsx'), 'utf8');
-  assert.match(register, /\}, finder, \{ plugin: at\.plugin, held: summaries \}\)/);
+  assert.match(register, /, io, finder, \{ plugin: at\.plugin, held: summaries \}\)/);
   // At module scope, so the held records last from poll to poll.
   assert.match(register, /^const summaries: SummaryMemory = newSummaryMemory\(\)$/m);
 });
@@ -4452,4 +4453,128 @@ test('no colour in the register or view modules is a hex or a colour name outsid
   for (const m of [...registerSource.matchAll(/(?:color|Color|tone)\s*[:=]\s*'([^']*)'/g), ...viewOutside.matchAll(/(?:color|tone)\s*:\s*'([^']*)'/g)]) {
     assert.ok(themeKeys.has(m[1]) || m[1] === 'dim', `${m[0]} is not a theme key`);
   }
+});
+
+// --- the engine's session files (#347) ---------------------------------------
+//
+// The live state comes from the files the engine keeps for each running
+// session, <config>/sessions/<pid>.json. Every other field the engine writes
+// there is left unread: the fake file holds the kinds of field it has, made
+// up.
+
+const { MAX_SESSION_FILE_BYTES, SESSIONS_UNREAD, readSessions } = view;
+const SESSIONS = `${CONFIG}\\sessions`;
+const sessionText = (name, i, status = 'idle', extra = {}) =>
+  JSON.stringify({
+    pid: 4242,
+    sessionId: SID[i],
+    cwd: 'C:\\work',
+    kind: 'interactive',
+    entrypoint: 'claude-desktop',
+    name,
+    status,
+    statusUpdatedAt: NOW,
+    messagingSocketPath: '\\\\.\\pipe\\LOCAL\\cc-msg-secret',
+    bridgeSessionId: 'session_SECRET',
+    hostSessionId: 'local_secret',
+    procStart: '1',
+    formerNames: [{ name: 'old' }],
+    ...extra,
+  });
+// The config folder and its sessions folder, each resolving to itself.
+const FOLDERS = { [CONFIG]: { kind: 'dir', size: 0, text: '' }, [SESSIONS]: { kind: 'dir', size: 0, text: '' } };
+const sessionsFs = (files, names = Object.keys(files).map(p => p.slice(SESSIONS.length + 1))) =>
+  fakeFs({ ...FOLDERS, ...files }, { listing: names.map(n => entry(n, 'file')) });
+
+test('the session files give each session its name, id, status and folder, and no other field the engine wrote', async () => {
+  const fs = sessionsFs({ [`${SESSIONS}\\101.json`]: { text: sessionText('A', 0, 'busy') }, [`${SESSIONS}\\102.json`]: { text: sessionText('B', 1) } });
+  const got = await readSessions(CONFIG, fs.io);
+  assert.deepEqual(got, { complete: true, rows: [agent('A', 0, 'busy'), agent('B', 1)] });
+  assert.deepEqual(fs.lists, [SESSIONS]);
+  assert.doesNotMatch(JSON.stringify(got), /secret|SECRET|pipe|4242|claude-desktop|old/);
+});
+
+test('only a <digits>.json of 1 to 10 digits listed as a plain file is opened: never a .key file, a link, a folder or another name', async () => {
+  const keep = `${SESSIONS}\\101.json`;
+  const listing = [
+    entry('101.json', 'file'),
+    entry('101.0123abcd.key', 'file'),
+    entry('102.json', 'file-symlink'),
+    entry('103.json', 'folder'),
+    entry('x104.json', 'file'),
+    entry('105.json.bak', 'file'),
+    entry('12345678901.json', 'file'),
+  ];
+  const fs = fakeFs({ ...FOLDERS, [keep]: { text: sessionText('A', 0) } }, { listing });
+  const got = await readSessions(CONFIG, fs.io);
+  assert.deepEqual(got.rows, [agent('A', 0)]);
+  // A link or a folder named like a session file is a file the pane cannot read.
+  assert.equal(got.complete, false);
+  assert.deepEqual(fs.reads, [keep]);
+  assert.deepEqual(fs.stats, [SESSIONS, CONFIG, keep]);
+});
+
+test('a file that fails a check is skipped, and the read says it is incomplete', async () => {
+  assert.equal(MAX_SESSION_FILE_BYTES, 8192);
+  const p = n => `${SESSIONS}\\${n}.json`;
+  const ok = { [p(1)]: { text: sessionText('A', 0) } };
+  for (const [why, bad] of [
+    ['over 8 KiB at its stat', { text: sessionText('B', 1), size: 8193 }],
+    ['over 8 KiB once read', { text: sessionText('B', 1, 'idle', { pad: 'x'.repeat(8192) }), size: 100 }],
+    ['real path elsewhere', { text: sessionText('B', 1), realPath: 'C:\\elsewhere\\2.json' }],
+    ['a link at its stat', { text: sessionText('B', 1), isLink: true }],
+    ['not a regular file at its stat', { text: sessionText('B', 1), kind: 'other' }],
+    ['not JSON', { text: '{"name":' }],
+    ['no name', { text: sessionText('', 1) }],
+    ['a name over 300 characters', { text: sessionText('x'.repeat(301), 1) }],
+    ['a bad id', { text: sessionText('B', 1, 'idle', { sessionId: '../x' }) }],
+    ['a read that fails', { text: sessionText('B', 1), fail: true }],
+  ]) {
+    const fs = sessionsFs({ ...ok, [p(2)]: bad });
+    assert.deepEqual(await readSessions(CONFIG, fs.io), { complete: false, rows: [agent('A', 0)] }, why);
+  }
+  const big = sessionsFs({ ...ok, [p(2)]: { text: sessionText('B', 1), size: 8192 } });
+  assert.equal((await readSessions(CONFIG, big.io)).complete, true, 'exactly 8 KiB is read');
+  const long = sessionsFs({ [p(1)]: { text: sessionText('x'.repeat(300), 0) } });
+  assert.equal((await readSessions(CONFIG, long.io)).rows[0]?.name.length, 300, 'a name of 300 characters is kept');
+  const fresh = sessionsFs({ [p(1)]: { text: sessionText('A', 0, 'idle', { status: undefined }) } });
+  assert.deepEqual((await readSessions(CONFIG, fresh.io)).rows, [agent('A', 0, '?')], 'a new session with no status yet reads as unknown');
+  const deep = sessionsFs({ [p(1)]: { text: sessionText('A', 0, 'idle', { cwd: `C:\\${'d'.repeat(1001)}` }) } });
+  assert.deepEqual((await readSessions(CONFIG, deep.io)).rows, [{ name: 'A', status: 'idle', sessionId: SID[0] }], 'a folder over 1,000 characters is dropped');
+});
+
+test('a session that ended between the listing and its read has no row, and the read is still complete', async () => {
+  const p = n => `${SESSIONS}\\${n}.json`;
+  const fs = sessionsFs({ [p(1)]: { text: sessionText('A', 0) } }, ['1.json', '2.json']);
+  assert.deepEqual(await readSessions(CONFIG, fs.io), { complete: true, rows: [agent('A', 0)] });
+  const gone = sessionsFs({ [p(1)]: { text: sessionText('A', 0) }, [p(2)]: { text: sessionText('B', 1) } });
+  const read = gone.io.read;
+  gone.io.read = async path => {
+    if (path === p(2)) throw new Error('ENOENT: no such file or directory');
+    return read(path);
+  };
+  assert.deepEqual(await readSessions(CONFIG, gone.io), { complete: true, rows: [agent('A', 0)] }, 'gone at the read too');
+});
+
+test('no sessions folder, one that is a link, a file or elsewhere, or a listing that fails or is not a list reads nothing at all', async () => {
+  assert.equal(await readSessions(CONFIG, fakeFs({ [CONFIG]: FOLDERS[CONFIG] }).io), undefined);
+  for (const [why, folder] of [
+    ['a link', { kind: 'dir', size: 0, text: '', isLink: true, realPath: 'C:\\elsewhere' }],
+    ['a file', { kind: 'file', size: 0, text: '' }],
+    ['no real path', { kind: 'dir', size: 0, text: '', realPath: undefined }],
+    ['a real path outside the config folder', { kind: 'dir', size: 0, text: '', realPath: 'C:\\elsewhere\\sessions' }],
+  ]) {
+    assert.equal(await readSessions(CONFIG, fakeFs({ [CONFIG]: FOLDERS[CONFIG], [SESSIONS]: folder }, { listing: [] }).io), undefined, why);
+  }
+  // A config folder that is itself elsewhere moves its sessions folder with it.
+  const moved = fakeFs({ [CONFIG]: { kind: 'dir', size: 0, text: '', realPath: 'D:\\real' }, [SESSIONS]: { kind: 'dir', size: 0, text: '', realPath: 'D:\\real\\sessions' } }, { listing: [] });
+  assert.deepEqual(await readSessions(CONFIG, moved.io), { complete: true, rows: [] });
+  const rejecting = sessionsFs({});
+  rejecting.io.list = async () => {
+    throw new Error('EACCES');
+  };
+  assert.equal(await readSessions(CONFIG, rejecting.io), undefined);
+  const odd = sessionsFs({});
+  odd.io.list = async () => ({ name: '1.json' });
+  assert.equal(await readSessions(CONFIG, odd.io), undefined);
 });

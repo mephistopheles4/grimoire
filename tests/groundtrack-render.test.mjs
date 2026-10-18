@@ -2050,6 +2050,41 @@ test('the tree separates the running frame from the frames waiting under it', ()
   assert.match(html, /\.tr--active\b[^{]*\{[^}]*var\(--av-ink\)/, 'the running frame keeps full ink');
 });
 
+test('the drawing outlines a box on the stack with the state rule, which holds 3:1 in every theme', () => {
+  const html = pageOf(exampleFlightpath);
+  assert.match(html, /\.nd--active\b[^{]*\{[^}]*outline:\s*var\(--av-rule-hair\)\s+solid\s+var\(--av-state-rule\)\s*;\s*outline-offset:\s*4px/, 'the on-stack outline is a hairline in the state rule, set 4px off the box');
+  assert.doesNotMatch(html, /\.nd--active\b[^{]*\{[^}]*--av-ink-30/, 'and no longer for ink 30');
+  // The ratio, from the page's own tokens: ink at the state-rule alpha laid
+  // over the theme's paper. Dark has one palette for both themes.
+  const lin = c => { c /= 255; return c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4; };
+  const lum = ([r, g, b]) => 0.2126 * lin(r) + 0.7152 * lin(g) + 0.0722 * lin(b);
+  const hex = h => [1, 3, 5].map(i => parseInt(h.slice(i, i + 2), 16));
+  const token = name => {
+    const m = html.match(new RegExp(`--av-${name}:\\s*([^;]+);`));
+    assert.ok(m, `the page declares --av-${name}`);
+    return m[1].trim();
+  };
+  for (const theme of ['deck', 'site', 'dark']) {
+    const paper = hex(token(`${theme}-paper`));
+    const ink = token(`${theme}-ink-55`).match(/rgb\((\d+) (\d+) (\d+) \/ ([\d.]+)\)/);
+    assert.ok(ink, `${theme} ink 55 is an rgb with an alpha`);
+    const a = Number(ink[4]);
+    const stroke = [1, 2, 3].map((i, k) => Number(ink[i]) * a + paper[k] * (1 - a));
+    const [hi, lo] = [lum(stroke), lum(paper)].sort((x, y) => y - x);
+    assert.ok((hi + 0.05) / (lo + 0.05) >= 3, `${theme}: the state rule holds 3:1 against paper`);
+    assert.match(html, new RegExp(`--av-state-rule:\\s*var\\(--av-${theme}-ink-55\\)`), `${theme} maps the state rule to its ink 55`);
+  }
+});
+
+test('the open box keeps its outline when it is also on the stack', () => {
+  // Both rules have the same weight, so the later one wins. The open box is
+  // on the stack on every step, and drawn alike it cannot be told apart.
+  const html = pageOf(exampleFlightpath);
+  const at = sel => html.indexOf(`\n${sel} {`);
+  assert.ok(at('.nd--active') > 0 && at('.nd--sel') > 0, 'both rules are declared');
+  assert.ok(at('.nd--sel') > at('.nd--active'), 'the open outline is declared after the on-stack one');
+});
+
 test('the sheet asks for the walk-sheet roles, never the raw mark colours', () => {
   // The design system names --av-path and --av-path-caught so each theme can
   // answer in its own colour. Reaching for --av-caution here would get amber

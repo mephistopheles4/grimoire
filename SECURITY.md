@@ -35,8 +35,15 @@ plugin.** It is a hooks module, `brigade/register.tsx`, named by
 `hooks/hooks.json`, and it runs with the session's own rights. At session start
 it registers `/brigade` and the two hooks of its usage summary writer, below,
 and since 0.60.0 it is no longer idle by default
-([ADR 0008](docs/adr/0008-brigade-is-no-longer-idle-by-default.md)). While its pane is open it runs
-`claude agents --json`, reads the lead session's roster file from the plugin's
+([ADR 0008](docs/adr/0008-brigade-is-no-longer-idle-by-default.md)). While its pane is open it reads
+the engine's own session files, `<config>/sessions/<digits>.json`, for each
+session's name, status, id and folder only. It never opens the key file
+beside each by name; a hard link to it is not caught, as for transcripts, and
+nothing is kept from a file that is not a session file. The files are the
+engine's and undocumented, read as Claude Code 2.1.299 writes them; when one
+fails its checks the pane says it cannot read the session files. Since 0.67.0
+it no longer runs `claude agents --json`, which made every running session do
+work at once. It also reads the lead session's roster file from the plugin's
 data folder, and reads other sessions' transcripts to find a session's link
 and its model calls' usage, which gives each card its cache-warmth line and,
 since 0.55.0, its context meter, and since 0.56.0, its burn rate and context
@@ -78,7 +85,7 @@ tool stops it. An exact deny rule was seen to stop it on Desktop 2.1.289; a
 rule for the whole server, `mcp__ccd_window`, rests on the engine matching it
 the same way, which was not tried there. When that call is refused,
 fails or takes over 5 seconds in all, or the card has no Desktop id, its one
-other process, besides `gh` and `claude agents --json`, is the host's opener, given a `claude://` link: `explorer.exe`
+other process, besides `gh`, is the host's opener, given a `claude://` link: `explorer.exe`
 on Windows, as before, `/usr/bin/open` on macOS and `/usr/bin/xdg-open` on
 Linux, the last two by absolute path. The absolute path pins only the opener:
 on Linux it then starts its desktop helper, or a fallback browser, by name on

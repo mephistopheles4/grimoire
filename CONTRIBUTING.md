@@ -14,7 +14,8 @@ That is the contract, and it is still one command. It validates every
 artifact in the tree with the renderer its registry row names, checks that no
 file a skill or the mod ships has grown a fixed path back, fails on a skill
 frontmatter key outside its allow-list and on a hidden character in a skill
-file, fails on a code fence that declares no
+file, fails on a place or a manifest key the engine loads from that no rule
+reads, fails on a code fence that declares no
 language, fails on a dependency, fails when a skill's SkillSpector baseline entry
 gives a different reason from the root's or is broader than it, and runs the test suite in `tests/`. CI
 runs it as a required check called `check`. `main` takes no direct pushes.
@@ -39,13 +40,10 @@ It walks what `.gitignore` does not exclude, so a worktree under
 it would ship with no rule reading it; in CI the check also fails when it
 cannot ask git which files it tracks.
 
-You need Node 22.18 or later and nothing else. There is no install step, because
-there are no dependencies. The skills' own scripts run on Node 20, but the one
-command needs 22.18: `tests/brigade-view.test.mjs` imports the Brigade mod's
-TypeScript modules as they are, and Node strips their types by default only
-from 22.18 (23.6 on the 23 line). On an older Node that test fails with a
-message naming the version. Checked on 2026-10-06: 22.17.1 fails, 22.18.0
-passes.
+You need Node 24 or later and nothing else. There is no install step, because
+there are no dependencies. The skills' own scripts and the one command share
+that floor, and CI runs on it. `tests/brigade-view.test.mjs` imports the Brigade
+mod's TypeScript modules as they are, which Node 24 does by default.
 
 ## Tests
 
@@ -57,7 +55,7 @@ not take, and `SECURITY.md` explains why that matters more than it looks.
 run only the suite while you work on it:
 
 ```bash
-node --test tests/audit.test.mjs tests/brigade-roster-rules.test.mjs tests/brigade-view.test.mjs tests/build-pages.test.mjs tests/case.test.mjs tests/check-allowances.test.mjs tests/check-baseline-rules.test.mjs tests/check-baselines.test.mjs tests/check-format.test.mjs tests/check-home-paths.test.mjs tests/check-home-shapes.test.mjs tests/check-manifests.test.mjs tests/check-mod.test.mjs tests/check-paths.test.mjs tests/check-skill-files.test.mjs tests/check-test-step.test.mjs tests/check-tracked.test.mjs tests/check-tree.test.mjs tests/check-version.test.mjs tests/contract-interview.test.mjs tests/contract-page.test.mjs tests/contract-render.test.mjs tests/eagle-eye-sheets.test.mjs tests/esc.test.mjs tests/groundtrack-fold.test.mjs tests/groundtrack-render.test.mjs tests/groundtrack-sheets.test.mjs tests/practice.test.mjs tests/registry.test.mjs tests/render.test.mjs tests/skillspector-gate.test.mjs tests/skillspector-probe.test.mjs tests/skillspector-strip-suppressed.test.mjs
+node --test tests/audit.test.mjs tests/brigade-roster-rules.test.mjs tests/brigade-view.test.mjs tests/build-pages.test.mjs tests/case.test.mjs tests/check-allowances.test.mjs tests/check-baseline-rules.test.mjs tests/check-baselines.test.mjs tests/check-format.test.mjs tests/check-home-paths.test.mjs tests/check-home-shapes.test.mjs tests/check-load-surface.test.mjs tests/check-manifests.test.mjs tests/check-mod.test.mjs tests/check-paths.test.mjs tests/check-skill-files.test.mjs tests/check-test-step.test.mjs tests/check-tracked.test.mjs tests/check-tree.test.mjs tests/check-version.test.mjs tests/contract-interview.test.mjs tests/contract-page.test.mjs tests/contract-render.test.mjs tests/eagle-eye-sheets.test.mjs tests/esc.test.mjs tests/groundtrack-fold.test.mjs tests/groundtrack-render.test.mjs tests/groundtrack-sheets.test.mjs tests/practice.test.mjs tests/registry.test.mjs tests/render.test.mjs tests/skillspector-gate.test.mjs tests/skillspector-probe.test.mjs tests/skillspector-strip-suppressed.test.mjs
 ```
 
 **The suite never reaches the network.** eagle-eye's edge audit is the one
@@ -144,8 +142,8 @@ imports node built-in modules and nothing else. A patch that adds a package
 needs to argue for itself in the pull request body before anybody reads the
 diff. See [`SECURITY.md`](SECURITY.md) for why this matters more than it looks.
 
-`node scripts/check.mjs` enforces this. It fails on a `package.json`, a
-lockfile, and any code file importing a bare specifier — an import path that
+`node scripts/check.mjs` enforces this. It fails on a `package.json` and a
+lockfile, in any case, and on any code file importing a bare specifier — an import path that
 is not relative, not absolute, and not a `node:` builtin. A path starting with
 `//` names a host, so it counts as a package, not as absolute. Code means every
 suffix Node or the Claude Code engine loads: `.ts`, `.tsx`, `.jsx`, `.js`,
@@ -293,13 +291,30 @@ holds both folders to the fixed-path rule and the version bump, as it holds
 hooks file names, every quoted `./` or `../` path in the mod's code, with either slash, and
 the manifest's `hooks` and `types` paths must land in `brigade/` or `hooks/`;
 an import line the check reads may not hold an absolute path; no shipped root
-folder (`skills/`, `.claude-plugin/`, `brigade/`, `hooks/`) nor
-`hooks/hooks.json` may be spelled in another case; and a hooks file may
+folder (`skills/`, `.claude-plugin/`, `brigade/`, `hooks/`), nor
+`hooks/hooks.json`, nor either manifest in `.claude-plugin/`, may be spelled in
+another case; and a hooks file may
 hold nothing but `modules`, because a settings hook there would run a command
 no rule reads. A mod kept in any other folder is outside those rules until
 `MOD_DIRS` in `scripts/check.mjs` names it. The engine writes its own type declarations into
 `.claude-plugin/types/` at every load; `.gitignore` excludes them, so never
 commit them and the check never reads them.
+
+**The engine loads more than the mod.** It also loads components from default
+places at the plugin root (`commands/`, `agents/`, `output-styles/`, `workflows/`,
+`themes/`, `monitors/`, `bin/`, `.mcp.json`, `.lsp.json`, `settings.json`, a root
+`SKILL.md`), and from manifest and marketplace keys that add components, run a
+command or change what installs. The check fails on a root entry named like one
+of those places, in any case, and on a key in `plugin.json` or
+`marketplace.json` outside a short allow-list of metadata and the two pointers
+it reads. It reads the root from the disk, so an untracked `.mcp.json` fails
+too: the engine loads one when it loads this folder as a plugin directory, as
+`claude --plugin-dir .` does. It reads names only and never opens the file.
+The lists are in rule 6c of `scripts/check.mjs`. To use a place, take it off
+`LOAD_ROOTS` and hold it to the rules the mod's folders are held to. To use a
+key, add it to its allow-list with a reason; a key that loads or runs
+something also needs a rule that reads where it points, as the `hooks` key is
+read.
 
 **Changing the export format touches three places.** The page writes it,
 `SKILL.md` specifies it, and the agent reads it back. All three in one commit,
@@ -326,8 +341,9 @@ or none.
 4. Run `node scripts/check.mjs`.
 
 There is no per-skill manifest. The repository is one plugin and every skill
-lives under it. A skill nested deeper than `skills/<name>/` needs an explicit
-`skills` array in `plugin.json`; the check says so if you try.
+lives under it. Each skill sits at `skills/<name>/`: the engine scans one level
+deep, and the `skills` key in `plugin.json` that would reach a deeper folder is
+refused by rule 6c. The check says so if you try.
 
 Open an issue first if the skill is large. It is easier to agree on scope before
 you write ten pages than after.

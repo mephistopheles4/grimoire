@@ -74,13 +74,20 @@ That is the change working as intended rather than a regression — a node that
 raised had no mark in the site theme and now has one — but it is a visible
 change to the drawing and it is recorded rather than slipped through.
 
-**What the drawing does keep is its on-stack outline at ink 30**, which measures
-1.86:1 and is under the 3:1 a stroke carrying a signal is held to. Moving it is
-not a token swap: `.nd--active` is set per node, so one box can stand for
-several call sites and the running-frame distinction the tree now makes has no
-box to land on. Deciding what the drawing should say about the stack is a pass
-over its whole line vocabulary — `.nd--cold`, `.nd--active`, `.nd--sel` and the
-wire weights read against each other — and it is filed as #85.
+**The drawing's on-stack outline now wears the state rule (#85).** It sat at ink
+30, which measures 1.85:1 on deck paper, 1.88:1 on site paper and 2.26:1 on
+dark, under the 3:1 a stroke carrying a signal is held to. It takes
+`--av-state-rule` now (3.53:1, 3.63:1 and 5.12:1), the stroke the tree already
+uses. `.nd--active` is set per node, so one box can stand for several call sites
+and the running-frame distinction the tree makes has no box to land on. The
+drawing says only that a box has an open frame; the chip on the box, summed over
+its sites, says running or waiting. The open box keeps its own outline when it
+is also on the stack, which it is on every step: `.nd--sel` is declared after
+`.nd--active`, and the two rules have the same weight, so the later one wins.
+The open box then loses its on-stack ring, and the chip still says which frame
+is running. The cold box, the unwalked wire and their arrowheads stay at ink 30
+as construction ink: they mark a call that has not happened, not a position, and
+the system holds hairlines and leaders to no floor.
 
 **One word per row is read off the filtered path, never off the fold's raw
 entries.** The fold records a throwing frame twice — thrown, then passed through
