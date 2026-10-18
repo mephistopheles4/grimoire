@@ -28,8 +28,8 @@
       "analyzers": [
         "static_patterns_tool_misuse"
       ],
-      "sha256": "9c0ed3b472bac190a19cda4d044f19c17c04c9c47defea1ed2d2e062dadb1465",
-      "reason": "The page template the renderer fills in. The destructive-command parser stops partway through a long expression and marks the file partial for that one check; every other check reads it in full. The entry also accepts a marker-pass give-up inside that one check, which the scanner reports under this code. Re-read on 2026-10-18 for the réseau ground and the zone border (PR 342): the change moves .av-grid to the zone field, wraps the sheet in the zone markup and adds a script that counts the zone labels; it adds no rm, del or erase in any spelling, and nothing that runs a command, touches a file or reaches the network."
+      "sha256": "c310082134324e49278ec95ae1b37117c438819c8930066917c633c72ebbd93a",
+      "reason": "The page template the renderer fills in. The destructive-command parser stops partway through a long expression and marks the file partial for that one check; every other check reads it in full. The entry also accepts a marker-pass give-up inside that one check, which the scanner reports under this code. Re-read on 2026-10-18 for the réseau ground and the zone border (PR 342): the change moves .av-grid to the zone field, wraps the sheet in the zone markup and adds a script that counts the zone labels; it adds no rm, del or erase in any spelling, and nothing that runs a command, touches a file or reaches the network. Re-read on 2026-10-18 for the single frame (PR 346): the change drops the sheet's border, sets the zone field's padding to zero and rewords two comments; it adds no rm, del or erase in any spelling, and nothing that runs a command, touches a file or reaches the network."
     },
     {
       "skill": "eagle-eye",
@@ -68,8 +68,8 @@
       "analyzers": [
         "static_patterns_tool_misuse"
       ],
-      "sha256": "44edd520ee21c66322fce95038809bef17a74bee4e211362b271fee755859861",
-      "reason": "The skill's instructions. Since SkillSpector 2.12.0 the destructive-command parser, which looks for rm, del and erase, projects the code spans away and then takes the double quote around the run name in the flag table's `--text` row, at line 161, as a shell string that never closes; past its span it stops. Every other check reads the file in full. Like every entry of this code, it would also accept a marker-pass give-up inside that one check, which the scanner reports under this code. Read by hand on 2026-10-17 for 2.13.0 (issue 240): the file holds no rm, del or erase in any spelling, and the only commands it gives are three lines that run the skill's own scripts/render.mjs with node. Read by hand again on 2026-10-17 for issues 248, 249 and 252: the change adds two sentences and a table cell, with no rm, del or erase."
+      "sha256": "7974f96e5028eb417c51fd79abb0b9a673f7afc9fa67b9bc5dcf4b0d6ef2e0c6",
+      "reason": "The skill's instructions. Since SkillSpector 2.12.0 the destructive-command parser, which looks for rm, del and erase, projects the code spans away and then takes the double quote around the run name in the flag table's `--text` row, at line 161, as a shell string that never closes; past its span it stops. Every other check reads the file in full. Like every entry of this code, it would also accept a marker-pass give-up inside that one check, which the scanner reports under this code. Read by hand on 2026-10-17 for 2.13.0 (issue 240): the file holds no rm, del or erase in any spelling, and the only commands it gives are three lines that run the skill's own scripts/render.mjs with node. Read by hand again on 2026-10-17 for issues 248, 249 and 252: the change adds two sentences and a table cell, with no rm, del or erase. Re-read on 2026-10-18 for 0.66.0: the change rewrites the one sentence on the wheel, so it zooms with no key held, and adds no rm, del or erase."
     },
     {
       "skill": "head-chef",

@@ -2255,6 +2255,35 @@ test("the tools are the rail head's rows: zoom, layer, view, then the holds", ()
   assert.deepEqual(at.slice().sort((a, b) => a - b), at, 'in reading order');
 });
 
+test('the plan carries its own réseau, and it pans and zooms with the drawing', () => {
+  // The drawing and the crosses under it are one surface: a node stays on the
+  // cross it sat on whatever the zoom. Opaque paper, so the sheet's own
+  // crosses never show through as a second lattice.
+  const html = pageOf(exampleFlightpath);
+  const rule = html.match(/\.plan \{([^}]*)\}/)[1];
+  assert.match(rule, /background-color: var\(--av-paper\)/);
+  assert.match(rule, /background-image: var\(--av-reseau\)/);
+  const apply = html.match(/const applyTransform = \(\) => \{([\s\S]*?)\n  \};/)[1];
+  assert.match(apply, /backgroundPosition = S\.panX \+ 'px ' \+ S\.panY \+ 'px'/);
+  assert.match(apply, /backgroundSize = tile \+ 'px ' \+ tile \+ 'px'/);
+  assert.match(apply, /tile = 120 \* S\.zoom/);
+});
+
+test('the plain wheel zooms the plan about the pointer, with no key held', () => {
+  const html = pageOf(exampleFlightpath);
+  const wheel = html.match(/\$\('plan'\)\.addEventListener\('wheel', function \(e\) \{([\s\S]*?)\n  \}, \{ passive: false \}\);/)[1];
+  assert.doesNotMatch(wheel, /ctrlKey|metaKey|shiftKey/, 'no modifier decides what the wheel does');
+  assert.match(wheel, /S\.zoom = z;/);
+  // About the pointer: the canvas point under it is kept under it.
+  assert.match(wheel, /cx = \(mx - S\.panX\) \/ S\.zoom, cy = \(my - S\.panY\) \/ S\.zoom/);
+  assert.match(wheel, /S\.panX = mx - cx \* z;\s*S\.panY = my - cy \* z;/);
+  // And the drawing and its crosses are redrawn, without a full render.
+  assert.match(wheel, /applyTransform\(\);\s*$/);
+  // A drag pans through the same transform, so the crosses follow it too.
+  const move = html.match(/plan\.addEventListener\('pointermove', function \(e\) \{([\s\S]*?)\n  \}\);/)[1];
+  assert.match(move, /applyTransform\(\);\s*$/);
+});
+
 test('a help note is never wider than the window less its margins', () => {
   // The module keeps a note inside the window only if the note fits in it.
   // The fold tests hold the placement; this holds the width it relies on,

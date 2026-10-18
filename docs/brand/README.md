@@ -38,10 +38,10 @@ bottom reads as a stack of bars and the top has become a track. A short straight
 run continues past the turn, and the amber sleeper at its head is the cursor.
 
 **contract.** A sheet of terms, three clause rules with the last one short, and
-a wax seal pressed across the sheet's right edge. The sheet cannot be opened
-without breaking the seal, which is what the check reports when a sealed file
-is edited by hand. The seal is the amber; a hairline ring inside it reads as
-pressed wax at large sizes and is dropped in the small variants.
+an amber disc pressed across the sheet's right edge. The disc is the agreed
+terms, the ones the person settled and the built file is generated from. The
+disc is the amber; a hairline ring inside it gives it depth at large sizes and
+is dropped in the small variants.
 
 **head-chef.** One loop above three, the head chef running the brigade's
 loops one level up. Hairlines carry the brief down from the upper loop to each
@@ -77,6 +77,11 @@ intact.
 `contract-card.svg` and `head-chef-card.svg` are the 1280 by 640 social cards. Each one is self-contained: the two faces it sets
 type in are inlined from the copies groundtrack ships, so a card renders the
 same in a README, in a browser and in a link preview, and fetches nothing.
+Each one wears the design system's zone border, the pattern it keeps for
+fixed-size sheets such as link previews: five numbered zones across, two
+lettered rows down, and the réseau crosses on the field inside, with the mark
+and name centred on it. The text sits on surface-filled panels, never bare on
+the crosses.
 
 They are generated, not drawn by hand:
 
@@ -155,8 +160,8 @@ Line weights are the depth system: 0.22 hairline, 0.9 to 1.05 thin, 1.4 to
 vanishes.
 
 **Amber is spent once per mark.** In eagle-eye it is the detached apex; in
-groundtrack it is the cursor sleeper; in contract it is the seal; in head-chef
-it is the loop that reported. A second amber element would mean
+groundtrack it is the cursor sleeper; in contract it is the agreed terms; in
+head-chef it is the loop that reported. A second amber element would mean
 neither.
 
 Corner radius is zero everywhere. No gradients, no shadows, no blur.
