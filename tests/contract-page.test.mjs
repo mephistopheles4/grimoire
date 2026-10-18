@@ -14,6 +14,7 @@ import { createHash } from 'node:crypto';
 import { homedir, tmpdir } from 'node:os';
 import { basename, join } from 'node:path';
 import { createRequire } from 'node:module';
+import vm from 'node:vm';
 import { contractModule, contractRender, measurementDraft, root, run, scriptBlocks } from './helpers.mjs';
 
 const work = mkdtempSync(join(tmpdir(), 'grimoire-contract-page-'));
@@ -82,6 +83,13 @@ test('--out writes a page that holds every hostile draft string as data, inside 
   // The title is element content with its markup characters dropped.
   const title = /<title>([\s\S]*?)<\/title>/.exec(html)[1];
   assert.ok(!/[<>&]/.test(title.replace(/^Hiring interview: /, '')), title);
+});
+
+test('every script block of a rendered page compiles', () => {
+  const html = render(example, join(work, `compile-${n++}.html`));
+  for (const [i, block] of scriptBlocks(html).entries()) {
+    assert.doesNotThrow(() => new vm.Script(block, { filename: `script ${i}` }), `script block ${i} does not compile`);
+  }
 });
 
 test('the template puts no slot in an attribute, and uses no style attribute and no inline handler', () => {
@@ -218,7 +226,8 @@ test('a high-stakes question shows no proposal and no fields until the person pi
   assert.match(r.stderr, /parts\.roles\[4\]: unknown key "stakes"/);
   // The page asks the module, and shows the options' wording only when it says so.
   const page = template.slice(template.lastIndexOf('<script>'));
-  assert.match(page, /const r = Interview\.reveal\(draft, kinds, x\.id, S\.answers\.has\(x\.id\)\);/);
+  assert.match(page, /const r = q \? Interview\.reveal\(draft, kinds, x\.id, S\.answers\.has\(x\.id\)\)/);
+  assert.match(page, /if \(!r\.fields\) return `\[\$\{opening\(q\.situation\)\}\]`;/);
   assert.match(page, /showSays \? h\('span', \{ class: 'says' \}/);
 });
 

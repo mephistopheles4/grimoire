@@ -133,14 +133,25 @@ the person about each one.
 
 ## The page
 
-Render the page from the draft, into the scratch folder, as `interview.html`.
+Render the page from the draft, into the scratch folder, as `interview.html`:
+
+```text
+node '<skill base directory>/scripts/render.mjs' '<folder>/draft.interview.json' --out '<folder>/interview.html'
+```
+
+The script checks the draft first, and writes no page when the check
+refuses it. It refuses a target that does not end in `.html`, and a file
+that is there and is not a page it wrote. The page loads nothing from the
+network. Its top bar shows the scratch folder's name.
+
 The person opens the file in their own browser. When you hand the page
 over, say once that the saved answers and the scratch files are
 unencrypted. Say also that other pages opened from disk in the same browser
 may read the saved answers.
 
 A draft you did not write in this session counts as shared. Render it, and
-read its block back, with `--shared`.
+read its block back, with `--shared`. A shared page offers no "Agree to the
+rest as drafted".
 
 ## The answer block
 

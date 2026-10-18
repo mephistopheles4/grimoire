@@ -304,7 +304,7 @@ on the person's yes:
 | Make the scratch folder (`--new-folder`), owner-only on macOS and Linux | Where it is, that its files hold the answers unencrypted until deleted, and that a folder you name is as private as that folder | Your yes to the hiring interview |
 | Write the draft and the pasted answer block with its file-write tool, never through a shell: the block verbatim, fence and all, as `answers.json`, before the check | That it is writing them in the scratch folder | Your yes to the hiring interview |
 | Write the page with the script (`--out`) | That the page keeps answers in the browser until Forget, unencrypted, and that other pages opened from disk in the same browser may read them | Your yes to the hiring interview |
-| Delete the page and the answers file (`--clean`), after asking for Forget | "I will delete the page and the answers file" | Your yes in chat |
+| Delete the page and the answers file (`--clean`), after asking for Forget | That it will now remove the page and the answers file | Your yes in chat |
 | Delete the draft (`--clean --draft`) | The offer to delete it | Your yes to that offer |
 
 **Actions beyond reading, and writing its own files** (**Confirmed**:

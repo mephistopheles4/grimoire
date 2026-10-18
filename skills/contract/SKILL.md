@@ -324,8 +324,8 @@ Each write and delete it makes is an action. Tell the person first:
   the answers unencrypted until deleted, and that a folder they name is as
   private as that folder. Their yes to the hiring interview is the go.
 - **The draft and the pasted block:** write them with your file-write tool,
-  never through a shell. Write the block verbatim, fence and all, as
-  `answers.json`, before the check.
+  never through a shell. Write the block verbatim, fence and all, as the
+  answers file in the scratch folder, before the check.
 - **The page** (`--out`): that it keeps answers in the browser until Forget,
   unencrypted, and that other pages opened from disk in the same browser may
   read them.
