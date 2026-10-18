@@ -564,7 +564,6 @@ test('Reset holds against a second press and a long stay on the button; Undo wor
 test('a planted restored value keeps its restored mark until its own Keep: a field edit starts from the draft, and a chip, skip or flag tap keeps the mark', () => {
   const D = dataOf(render(example, join(work, `planted-${n++}.html`))).value;
   const drafted = D.draft.parts.purpose.find(c => c.id === 'job').fields;
-  const chip = D.draft.questions.find(q => q.clause === 'job').chips[0];
   const answerOf = (page, id) => page.saved().answers.find(a => a.id === id);
   // One field edited on a planted answer: the other field is the draft's.
   const edited = loadPage({ seed: { answers: new Map([['job', { fields: { does: 'planted does', for: 'planted for' } }]]), edits: [] } });
@@ -580,7 +579,8 @@ test('a planted restored value keeps its restored mark until its own Keep: a fie
     assert.equal(answerOf(tapped, 'job').restored, true, 'a tap cleared the restored mark');
   }
   // A new pick replaces the planted value, and brings no planted chip with it.
-  const picked = loadPage({ seed: { answers: new Map([['job', { option: 'job-b', chip }]]), edits: [] } });
+  const picked = loadPage({ seed: { answers: new Map([['job', { option: 'job-b', chip: 0 }]]), edits: [] } });
+  assert.equal(answerOf(picked, 'job').chip, 0, 'the seeded chip came back');
   picked.click(picked.key('blank:job'));
   picked.fire(picked.key('opt:job-c'), 'change');
   assert.deepEqual(answerOf(picked, 'job'), { id: 'job', option: 'job-c', mark: 'Confirmed' });
@@ -590,4 +590,23 @@ test('a planted restored value keeps its restored mark until its own Keep: a fie
   entry.click(entry.key('mode'));
   entry.type(entry.key('field:added-1:text'), 'planted duty, and mine');
   assert.equal(entry.saved().edits[0].restored, true, 'a field edit kept a planted entry without its Keep');
+});
+
+test('the answer block names a tapped chip by its place in the question, carries none of the draft\'s chip text, and reads back with the text', () => {
+  const page = loadPage();
+  const chips = page.D.draft.questions.find(q => q.clause === 'job').chips;
+  page.click(page.key('blank:job'));
+  page.fire(page.key('opt:job-b'), 'change');
+  page.click(page.keys('chip:job:')[1]);
+  page.click(page.key('sign'));
+  const text = page.key('block').value;
+  for (const c of chips) assert.ok(!text.includes(c), `the block carries the chip text ${JSON.stringify(c)}`);
+  const block = JSON.parse(text.slice(8, -5));
+  assert.equal(block.answers.find(a => a.id === 'job').chip, 1);
+  // The script reads it back, and prints the chip's own text from the draft.
+  const dir = scratch();
+  writeFileSync(join(dir, 'answers.json'), text);
+  const r = run(contractRender, [example, '--answers', join(dir, 'answers.json')]);
+  assert.equal(r.code, 0, r.stderr);
+  assert.match(r.stdout, new RegExp(`purpose/job picked .*; chip ${JSON.stringify(chips[1]).replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`));
 });

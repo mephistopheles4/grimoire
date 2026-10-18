@@ -431,7 +431,7 @@ const EDITS = [
 
 test('--answers passes a block pasted with its code fence, with an edit of every kind', () => {
   const iv = interview();
-  const block = iv.write({ answers: new Map([['job', { option: 'job-b', chip: 'It is safer' }], ['why', { fields: { text: 'Because.' } }]]), edits: EDITS });
+  const block = iv.write({ answers: new Map([['job', { option: 'job-b', chip: 1 /* It is safer */ }], ['why', { fields: { text: 'Because.' } }]]), edits: EDITS });
   const r = answersRun(iv.draftFile, block);
   assert.equal(r.code, 0, r.stderr);
   assert.match(r.stderr, /^ok: the block matches its draft/m);
@@ -454,6 +454,7 @@ test('--answers refuses each case in the spec\'s list, naming the field', () => 
     ['answers[0]', b => ((b.answers[0].fields = { does: 'x', for: 'y' }), b), /both/],
     ['answers[0].mark', b => ((b.answers[0].mark = 'Decided'), b), /is not what this answer earns/],
     ['answers[0].chip', b => ((b.answers[0].chip = 'I made this up'), b), /is not a chip of this clause/],
+    ['answers[0].chip', b => ((b.answers[0].chip = 3), b), /is not a chip of this clause/],
     ['answers[0].flag', b => ((b.answers[0].flag = 'yes'), b), /true/],
     ['answers[1].id', b => (b.answers.push({ ...b.answers[0] }), b), /second answer/],
     ['answers[0].fields.does', b => ({ ...b, answers: [{ id: 'job', fields: { does: 'a\u{202E}b', for: 'y' }, mark: 'Decided' }] }), /U\+202E/],
@@ -541,7 +542,7 @@ test('--answers prints the change list, each pick with its label and the fields 
   const iv = interview();
   const p = iv.write({
     answers: new Map([
-      ['job', { option: 'job-b', chip: 'It is safer' }],
+      ['job', { option: 'job-b', chip: 1 /* It is safer */ }],
       ['duty-1', { fields: { text: 'proposes the type and the name' } }],
       ['duty-4', { fields: { text: 'restored words' }, restored: true }],
       ['stop-2', { fields: { when: clause(iv.draft, 'roles', 'stop-2').fields.when } }],

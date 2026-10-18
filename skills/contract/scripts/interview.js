@@ -372,10 +372,13 @@ const Interview = (() => {
    *
    * The page keeps one answer per clause the person touched: `option`, the id
    * of the option picked, or `fields`, the clause's fields in the person's
-   * hands; then `chip`, `flag` and `restored`. The mark is never stored by
-   * the page's controls: it is worked out from how the answer was made, here,
-   * so the page and the script give the same mark for the same answer, and a
-   * block claiming any other is refused. */
+   * hands; then `chip`, `flag` and `restored`. `chip` is the place of the
+   * reason tapped in the question's chips, counting from 0, never its text,
+   * so a shared draft's words never ride into chat inside the person's own
+   * paste; the read-back prints the text from the draft. The mark is never
+   * stored by the page's controls: it is worked out from how the answer was
+   * made, here, so the page and the script give the same mark for the same
+   * answer, and a block claiming any other is refused. */
 
   /** The draft as Maps: each clause with its kind and part, and each
    *  question by the clause it asks about. */
@@ -502,7 +505,7 @@ const Interview = (() => {
           if (refusals.length > before) ok = false;
           else if (entry.kind.id === 'why' && a.fields.text.trim() === '') { refuse(`${path}.fields.text`, 'the why answer is the person\'s own words, and cannot be empty'); ok = false; }
         }
-        if (Object.hasOwn(a, 'chip') && isText(`${path}.chip`, a.chip) && !(q && q.chips.includes(a.chip))) refuse(`${path}.chip`, 'is not a chip of this clause\'s question');
+        if (Object.hasOwn(a, 'chip') && !(q && Number.isInteger(a.chip) && a.chip >= 0 && a.chip < q.chips.length)) refuse(`${path}.chip`, 'is not a chip of this clause\'s question; expected its place in the question\'s chips, counting from 0');
         if (Object.hasOwn(a, 'flag') && a.flag !== true) refuse(`${path}.flag`, 'expected true, or no flag');
         if (Object.hasOwn(a, 'restored') && a.restored !== true) refuse(`${path}.restored`, 'expected true, or no restored');
         if (oneOf(`${path}.mark`, a.mark, MARKS) && ok) {
@@ -651,7 +654,7 @@ const Interview = (() => {
     block.answers.forEach((a, i) => {
       const e = ix.clauses.get(a.id);
       const at = `${e.part}/${a.id}`;
-      const chip = a.chip !== undefined ? `; chip ${JSON.stringify(cut(literal(a.chip, `answers[${i}].chip`, at)))}` : '';
+      const chip = a.chip !== undefined ? `; chip ${JSON.stringify(cut(literal(ix.questions.get(a.id).chips[a.chip], `${at} chip`, at)))}` : '';
       const tail = `; marked ${a.mark}${chip}${a.flag ? '; flagged for push-back' : ''}`;
       if (a.flag) push(at, 'flagged');
       if (a.restored) push(at, 'restored and untouched');
@@ -885,7 +888,8 @@ const Interview = (() => {
   const safely = (fn, fallback) => { try { return fn(); } catch { return fallback; } };
 
   /** What each saved answer was made against, so a redraft can tell whether
-   *  the clause and the option it picked are still byte for byte the same. */
+   *  the clause, the option it picked and the chip it tapped are still byte
+   *  for byte the same. */
   function basisOf(draft, kinds, state) {
     const ix = draftIndex(draft, kindsIndex(kinds));
     const basis = {};
@@ -893,6 +897,7 @@ const Interview = (() => {
       const e = ix.clauses.get(id);
       const b = { kind: e.c.kind, fields: JSON.stringify(e.c.fields === undefined ? null : e.c.fields) };
       if (Object.hasOwn(a, 'option')) b.option = JSON.stringify(ix.questions.get(id).options.find(o => o.id === a.option).fields);
+      if (a.chip !== undefined) b.chip = JSON.stringify(ix.questions.get(id).chips[a.chip]);
       basis[id] = b;
     }
     return basis;
@@ -965,6 +970,12 @@ const Interview = (() => {
         const q = ix.questions.get(id);
         const o = q && q.options.find(x => x.id === a.option);
         same = Boolean(o && b.option === JSON.stringify(o.fields));
+      }
+      /* A chip is carried by its place, so the text at that place must be
+       * the same too. A chip that is not a place is left to the block check. */
+      if (same && Number.isInteger(a.chip)) {
+        const q = ix.questions.get(id);
+        same = Boolean(q && b.chip === JSON.stringify(q.chips[a.chip]));
       }
       if (!id) continue;
       if (!same) { dropped.push(id); continue; }

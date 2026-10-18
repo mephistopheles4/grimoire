@@ -228,13 +228,20 @@ test('redraft: a reworded option drops its saved pick and names it, adopts the u
   full.setItem = () => { throw new Error('quota'); };
   Interview.redraft(full, redrafted(), kinds, newHashes, { shared: false });
   assert.ok(full.map.has(keyOf(base(), hashes.draft)), 'the old entry stays when the new one was not saved');
-  // Carried answers that fail the new draft's block check (a chip reworded)
-  // leave the old entry, and the note says Reset here does not clear it.
+  // A chip is carried by its place, so a reworded chip drops its answer and
+  // names it, as a reworded option does.
   const chipped = memoryStore();
-  Interview.save(chipped, base(), kinds, hashes, { answers: new Map([['near-miss', { option: 'near-miss-a', chip: base().questions.find(q => q.clause === 'near-miss').chips[0] }]]), edits: [] });
-  const r2 = Interview.redraft(chipped, redrafted(d => (d.questions.find(q => q.clause === 'near-miss').chips = ['a new chip'])), kinds, newHashes, { shared: false });
+  Interview.save(chipped, base(), kinds, hashes, { answers: new Map([['near-miss', { option: 'near-miss-a', chip: 0 }]]), edits: [] });
+  const r1 = Interview.redraft(chipped, redrafted(d => (d.questions.find(q => q.clause === 'near-miss').chips = ['a new chip'])), kinds, newHashes, { shared: false });
+  assert.deepEqual([r1.adopted, r1.dropped], [[], ['near-miss']]);
+  // Carried answers that fail the new draft's block check (a chip saved as
+  // its text, before chips were kept by place) leave the old entry, and the
+  // note says Reset here does not clear it.
+  const old = memoryStore();
+  Interview.save(old, base(), kinds, hashes, { answers: new Map([['near-miss', { option: 'near-miss-a', chip: base().questions.find(q => q.clause === 'near-miss').chips[0] }]]), edits: [] });
+  const r2 = Interview.redraft(old, redrafted(), kinds, newHashes, { shared: false });
   assert.deepEqual(r2.adopted, []);
-  assert.ok(chipped.map.has(keyOf(base(), hashes.draft)));
+  assert.ok(old.map.has(keyOf(base(), hashes.draft)));
   // Under the same name and type, Reset here does clear them, and says so.
   assert.match(r2.note, /were left alone\. Reset here clears them\./);
   assert.doesNotMatch(r2.note, /does not clear/);

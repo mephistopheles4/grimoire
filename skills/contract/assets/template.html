@@ -961,9 +961,11 @@ function questionPop(x, q, r) {
     if (q.chips.length) {
       const chips = h('div', { class: 'chips', role: 'group', aria: { label: 'Why, optional' } }, h('span', { class: 'small muted' }, 'Why (optional):'));
       const cur = S.answers.get(x.id).chip;
-      for (const c of q.chips) chips.append(h('button', { type: 'button', key: `chip:${x.id}:${c}`, aria: { pressed: cur === c }, on: { click: () => act(() => {
+      // A chip is kept by its place in the question, never its text, so the
+      // block the person pastes carries none of the draft's words.
+      for (const [i, c] of q.chips.entries()) chips.append(h('button', { type: 'button', key: `chip:${x.id}:${i}`, aria: { pressed: cur === i }, on: { click: () => act(() => {
         const b = S.answers.get(x.id);
-        if (b.chip === c) delete b.chip; else b.chip = c;
+        if (b.chip === i) delete b.chip; else b.chip = i;
       }) } }, c));
       chips.append(h('button', { type: 'button', key: `chip:${x.id}:skip`, aria: { pressed: cur === undefined }, on: { click: () => act(() => { const b = S.answers.get(x.id); delete b.chip; }) } }, 'skip'));
       box.append(chips);

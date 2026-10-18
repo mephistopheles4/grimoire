@@ -161,7 +161,8 @@ The block's keys are exactly these:
   that the page was made with.
 - `answers`: one entry for each clause the person touched. An entry holds
   `id`, then `option` or `fields`, then `mark`. It may hold `chip`, `flag`
-  and `restored`.
+  and `restored`. `chip` is the place of the reason the person tapped in
+  the question's `chips`, counting from 0, never its text.
 - `edits`: the person's folder edits, in order. Each has an `op`: `add`,
   `rename`, `move`, `remove`, `rekind` or `none`. A rename names a
   schedule, by part and kind, never one entry. An add or a none goes only
