@@ -55,7 +55,7 @@ not take, and `SECURITY.md` explains why that matters more than it looks.
 run only the suite while you work on it:
 
 ```bash
-node --test tests/audit.test.mjs tests/brigade-roster-rules.test.mjs tests/brigade-view.test.mjs tests/build-pages.test.mjs tests/case.test.mjs tests/check-allowances.test.mjs tests/check-baseline-rules.test.mjs tests/check-baselines.test.mjs tests/check-format.test.mjs tests/check-home-paths.test.mjs tests/check-home-shapes.test.mjs tests/check-load-surface.test.mjs tests/check-manifests.test.mjs tests/check-mod.test.mjs tests/check-paths.test.mjs tests/check-skill-files.test.mjs tests/check-test-step.test.mjs tests/check-tracked.test.mjs tests/check-tree.test.mjs tests/check-version.test.mjs tests/eagle-eye-sheets.test.mjs tests/esc.test.mjs tests/groundtrack-fold.test.mjs tests/groundtrack-render.test.mjs tests/groundtrack-sheets.test.mjs tests/practice.test.mjs tests/registry.test.mjs tests/render.test.mjs tests/skillspector-gate.test.mjs tests/skillspector-probe.test.mjs tests/skillspector-strip-suppressed.test.mjs
+node --test tests/audit.test.mjs tests/brigade-roster-rules.test.mjs tests/brigade-view.test.mjs tests/build-pages.test.mjs tests/case.test.mjs tests/check-allowances.test.mjs tests/check-baseline-rules.test.mjs tests/check-baselines.test.mjs tests/check-format.test.mjs tests/check-home-paths.test.mjs tests/check-home-shapes.test.mjs tests/check-load-surface.test.mjs tests/check-manifests.test.mjs tests/check-mod.test.mjs tests/check-paths.test.mjs tests/check-skill-files.test.mjs tests/check-test-step.test.mjs tests/check-tracked.test.mjs tests/check-tree.test.mjs tests/check-version.test.mjs tests/contract-interview.test.mjs tests/contract-page.test.mjs tests/contract-render.test.mjs tests/eagle-eye-sheets.test.mjs tests/esc.test.mjs tests/groundtrack-fold.test.mjs tests/groundtrack-render.test.mjs tests/groundtrack-sheets.test.mjs tests/practice.test.mjs tests/registry.test.mjs tests/render.test.mjs tests/skillspector-gate.test.mjs tests/skillspector-probe.test.mjs tests/skillspector-strip-suppressed.test.mjs
 ```
 
 **The suite never reaches the network.** eagle-eye's edge audit is the one
@@ -70,7 +70,7 @@ Two rules about what goes in there:
 
 **Never commit an artifact as a fixture.** `scripts/check.mjs` and
 `scripts/build-pages.mjs` both walk the whole tree for every suffix
-`scripts/lib/registry.mjs` names — `*.box.json` and `*.flightpath.json` today.
+`scripts/lib/registry.mjs` names — `*.box.json`, `*.flightpath.json` and `*.interview.json` today.
 A broken fixture fails the check, and a valid one is rendered and published to
 the public site. Read the artifact the skill already ships, or write the
 malformed one to a temporary directory at run time. `tests/render.test.mjs` and
@@ -89,7 +89,12 @@ the pane would draw, as strings. Its roster module, `brigade/roster.ts`, is the
 second seam: `tests/brigade-roster-rules.test.mjs` imports it to check the
 roster's shape rules, its byte cap and the path rule that decides whether the
 roster file may be read or written. Keep both to erasable syntax (no enums,
-namespaces or parameter properties), so Node can strip their types.
+namespaces or parameter properties), so Node can strip their types. The
+contract skill's hiring page has a seam of its own: `tests/contract-page.test.mjs`
+renders it through the interview script's `--out`, runs the page's own
+scripts on a small stand-in document, picks its controls by the keys the page
+gives them, such as `blank:<id>` and `chip:<id>:<n>`, and reads what the
+page saved to its store. Those keys and the saved entry are the page's seam.
 
 **Two more gates for the mod's `set_roster` tool, run on your own machine.**
 They drive a live Claude Code session, so they run where you have one. CI fetches

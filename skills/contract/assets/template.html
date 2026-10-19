@@ -1,0 +1,1392 @@
+<!doctype html><!-- the contract skill's interview page, written by render.mjs -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="/*CSP*/">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Hiring interview: /*TITLE*/</title>
+<script>
+/* Light is the default; a reader who chose dark last time gets it before
+   first paint. The theme key is the one the design system's pages share. A page
+   opened from disk may have no storage at all, so the read is guarded too. */
+try{if(localStorage.getItem('aviation-scheme')==='dark')document.documentElement.setAttribute('data-aviation-scheme','dark')}catch(e){}
+</script>
+<style>
+/* The faces, inlined as data: the page loads nothing from the network. */
+/*FONTS*/
+</style>
+<style>
+/* AVIATION: the design system, whole, from dist/aviation.bundle.css at the
+   commit scripts/render.mjs names. Do not edit it here. */
+/*AVIATION*/
+</style>
+<style>
+/* The page's own layer. It uses no style attribute anywhere, so the content
+   security policy can allow styles by hash alone. */
+:root{--av-t-micro:12px}
+*{box-sizing:border-box}
+body{margin:0;min-height:100vh;padding-bottom:var(--av-s6)}
+button,select,input,textarea{font:inherit;color:inherit}
+/* Buttons. A framed button is an action on the whole page or sheet; an
+   action on one entry is a quiet text button, so a sheet of entries does
+   not turn into a grid of boxes. */
+button{cursor:pointer;background:transparent;border:var(--av-rule-thin) solid var(--av-ink);padding:5px 14px;line-height:1.4;transition:background-color .15s ease,border-color .15s ease,color .15s ease,text-decoration-color .15s ease}
+button:disabled{opacity:.45;cursor:not-allowed}
+button.primary{background:var(--av-ink);color:var(--av-paper)}
+button.quiet{border-color:var(--av-ink-30);color:var(--av-ink-80)}
+button.text{border:0;padding:2px 4px;color:var(--av-ink-70);text-decoration:underline;text-decoration-color:var(--av-ink-30);text-underline-offset:3px}
+button.text:hover{color:var(--av-ink);text-decoration-color:var(--av-ink)}
+.wrap{max-width:780px;margin:0 auto;padding:var(--av-s3) 16px}
+.lbl{font-size:var(--av-t-micro);text-transform:uppercase;letter-spacing:var(--av-track-label);color:var(--av-ink-70);margin:0}
+.muted{color:var(--av-ink-70)}
+.small{font-size:var(--av-t-annot)}
+.group{display:flex;gap:var(--av-s2);flex-wrap:wrap;align-items:center}
+.spacer{flex:1}
+.vh{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+/* The top sheet: what this is, the page's own controls, and how far along. */
+.top{display:flex;gap:var(--av-s2);align-items:flex-start;flex-wrap:wrap;margin-bottom:var(--av-s5);padding:var(--av-s3) var(--av-s4)}
+.top>div:first-child{flex:1;min-width:0}
+.top>.spacer{display:none}
+.top .lbl{margin-bottom:var(--av-s1)}
+.top h1{font-size:var(--av-t-h3);line-height:1.3;margin:0;overflow-wrap:anywhere}
+.top .folder{font-size:var(--av-t-micro);color:var(--av-ink-55);margin-top:var(--av-s1);overflow-wrap:anywhere}
+.scheme{width:34px;height:34px;padding:0;display:inline-flex;align-items:center;justify-content:center;border-color:var(--av-ink-30)}
+.scheme svg{width:18px;height:18px}
+.scheme:hover{border-color:var(--av-ink)}
+/* A tip under an icon button, from its own words, after a short wait. */
+[data-tip]{position:relative}
+[data-tip]::after{content:attr(data-tip);position:absolute;top:calc(100% + 6px);right:0;z-index:30;white-space:nowrap;font-size:var(--av-t-annot);font-weight:400;line-height:1.4;padding:4px 8px;background:var(--av-ink);color:var(--av-paper);opacity:0;pointer-events:none;transition:opacity .15s ease}
+[data-tip]:hover::after,[data-tip]:focus-visible::after{opacity:1;transition-delay:.35s}
+.info[aria-expanded="true"]{background:var(--av-ink-12);border-color:var(--av-ink)}
+.mode[aria-pressed="true"]{background:var(--av-ink-12);border-color:var(--av-ink)}
+/* A schedule's modal: a sheet over the letter, its own head and foot
+   fixed, its body scrolling. */
+dialog.modal{width:min(720px,calc(100% - 32px));max-height:min(86vh,900px);padding:0;border:var(--av-rule-bold) solid var(--av-ink);background:linear-gradient(var(--av-surface),var(--av-surface)) var(--av-paper);color:var(--av-ink);display:flex;flex-direction:column;box-shadow:12px 12px 0 -1px var(--av-paper),12px 12px 0 0 var(--av-ink-30)}
+dialog.modal:not([open]){display:none}
+dialog.modal::backdrop{background:color-mix(in srgb,var(--av-ink) 35%,transparent)}
+@keyframes backdrop-in{from{opacity:0}to{opacity:1}}
+dialog.modal.opening{animation:fade-in .2s ease-out}
+dialog.modal.opening::backdrop{animation:backdrop-in .2s ease-out}
+.modal-head{display:flex;align-items:center;gap:var(--av-s2);padding:var(--av-s2) var(--av-s3) var(--av-s2) var(--av-s4);border-bottom:var(--av-rule-hair) solid var(--av-ink-12)}
+.modal-head .lbl{flex:1}
+.modal-head .lbl:focus{outline:0}
+.modal-body{overflow:auto;padding:var(--av-s2) var(--av-s4) var(--av-s3);line-height:1.75}
+.modal-body .sched,.modal-body .sched:last-of-type{border:0}
+.modal-body .sched>summary{cursor:default;grid-template-columns:7em minmax(0,1fr) auto auto;padding-left:0}
+.modal-body .sched>summary::before{content:none}
+.modal-body .sched>summary:hover{background:transparent}
+.modal-body .sched .body{padding-left:0}
+.modal-foot{padding:var(--av-s2) var(--av-s4);border-top:var(--av-rule-hair) solid var(--av-ink-12)}
+/* The guided letter's Next bar and its end. */
+.next{margin:var(--av-s4) 0 0;padding-top:var(--av-s3);border-top:var(--av-rule-hair) solid var(--av-ink-12)}
+.next>p{margin:0 0 var(--av-s3)}
+.sheet-head:focus{outline:0}
+/* Reset, and the Undo it offers for ten seconds. Amber, because taking a
+   reset back is a recovery; the icon swaps in place, so the button never
+   resizes under the pointer. */
+.reset.armed{background:var(--av-caution);border-color:var(--av-caution);color:var(--av-paper)}
+.notices{flex-basis:100%;max-width:68ch;padding-top:var(--av-s2)}
+.notices p{margin:0 0 var(--av-s1);font-size:var(--av-t-annot);line-height:1.6;color:var(--av-ink-70)}
+.meter{flex-basis:100%;margin-top:var(--av-s2)}
+.progress{height:4px;background:var(--av-ink-12);margin:var(--av-s2) 0 0}
+.progress div{height:100%;background:var(--av-normal);width:0;transition:width .25s ease}
+.note{font-size:var(--av-t-annot);line-height:1.6;background:var(--av-paper-tech);padding:var(--av-s2) var(--av-s3);margin:0 0 var(--av-s3)}
+.note ul{margin:var(--av-s1) 0 0;padding-left:20px}
+.status{min-height:1.5em;font-size:var(--av-t-annot);margin:var(--av-s2) 0 0}
+/* The two documents: the letter, then its schedules. One frame each. */
+/* Each document sits on a small stack of sheets, offset down and right. */
+.stack{position:relative;margin:0 12px var(--av-s5) 0}
+.stack .behind{position:absolute;inset:0;border:var(--av-rule-hair) solid var(--av-ink-30);background:var(--av-paper)}
+.stack .behind.b1{transform:translate(6px,6px)}
+.stack .behind.b2{transform:translate(12px,12px)}
+.stack>.av-sheet{position:relative;z-index:1;padding:var(--av-s4);line-height:1.75}
+.letter>.lbl{margin-bottom:var(--av-s2)}
+.letter h2{font-size:var(--av-t-h3);margin:0 0 var(--av-s3);display:flex;gap:var(--av-s2);align-items:baseline;flex-wrap:wrap}
+.letter h2 input.title{transition:background-color .15s ease;font:inherit;color:inherit;border:0;border-bottom:var(--av-rule-hair) dashed var(--av-ink-30);background:transparent;padding:0 2px;min-width:4ch}
+.letter h2 input.title:focus{background:var(--av-ink-12)}
+.letter p{margin:0 0 var(--av-s3);max-width:68ch}
+.sig{border-top:var(--av-rule-hair) solid var(--av-ink);width:260px;margin-top:var(--av-s5);padding-top:var(--av-s1);font-size:var(--av-t-annot);color:var(--av-ink-70)}
+/* A blank in the letter: a term still to agree. The page's one accent. */
+.blank{cursor:pointer;text-decoration:underline dashed var(--av-caution);text-decoration-thickness:2px;text-underline-offset:5px;transition:text-decoration-color .2s ease,background-color .15s ease}
+.blank:hover{background:var(--av-ink-12)}
+.blank.st-Confirmed{text-decoration-style:solid;text-decoration-color:var(--av-normal)}
+.blank.st-Decided{text-decoration-style:solid;text-decoration-color:var(--av-ink)}
+.blank.st-restored{text-decoration-style:dotted;text-decoration-color:var(--av-ink-55)}
+.blank[aria-expanded="true"]{background:var(--av-ink-12)}
+.ref{border:0;border-bottom:var(--av-rule-hair) solid var(--av-ink);padding:0;font-size:var(--av-t-annot)}
+/* A question, open under its blank: a tinted panel, not another box. */
+.pop{display:block;font-size:var(--av-t-annot);line-height:1.6;background:var(--av-paper-tech);border-left:var(--av-rule-bold) solid var(--av-ink);padding:var(--av-s3);margin:var(--av-s2) 0 var(--av-s3)}
+.pop>.lbl{margin-bottom:var(--av-s2)}
+.pop fieldset{border:0;margin:0;padding:0;min-width:0}
+.pop legend{font-weight:600;font-size:var(--av-t-body);line-height:1.5;padding:0;margin-bottom:var(--av-s2)}
+.pop .group{margin-top:var(--av-s3)}
+.opt{display:flex;gap:var(--av-s2);align-items:flex-start;padding:var(--av-s2) var(--av-s2) var(--av-s2) 14px;border-left:3px solid transparent;cursor:pointer;transition:background-color .15s ease,border-color .15s ease}
+.opt+.opt{border-top:var(--av-rule-hair) solid var(--av-ink-12)}
+.opt:hover{background:var(--av-surface)}
+.opt.picked{border-left-color:var(--av-ink);background:var(--av-surface);font-weight:600}
+/* The row is the choice. Its radio stays for the keyboard and a screen
+   reader, out of sight; the row shows focus and the pick. */
+.opt{position:relative}
+.opt input{position:absolute;opacity:0;width:1px;height:1px;margin:0;pointer-events:none}
+.opt:has(input:focus-visible){outline:var(--av-rule-thin) solid var(--av-focus,var(--av-ink));outline-offset:-2px}
+.opt .says{display:block;font-weight:400;color:var(--av-ink-70);margin-top:2px}
+.tag{font-size:var(--av-t-micro);font-weight:500;color:var(--av-caution);margin-left:var(--av-s1);text-transform:uppercase;letter-spacing:var(--av-track-label)}
+.chips{display:flex;gap:var(--av-s1);flex-wrap:wrap;margin:var(--av-s3) 0 0;align-items:center}
+.chips>span{margin-right:var(--av-s1)}
+.chips button{font-size:var(--av-t-annot);padding:2px 12px;border-color:var(--av-ink-30)}
+.chips button[aria-pressed="true"]{border-color:var(--av-ink);background:var(--av-ink-12)}
+/* Marks show as colour on the element they mark, never as a label: a
+   yellow edge while Proposed, a subtle green once Confirmed, ink once Decided,
+   dotted while restored. The mark's word stays in the page as hidden text. */
+.rec.st-Confirmed{border-left-color:var(--av-normal)}
+.rec.st-Decided{border-left-color:var(--av-ink)}
+.rec.st-restored{border-left-style:dotted;border-left-color:var(--av-ink-55)}
+input.title.st-Proposed{border-bottom:var(--av-rule-bold) dashed var(--av-caution)}
+input.title.st-Confirmed{border-bottom:var(--av-rule-bold) solid var(--av-normal)}
+input.title.st-Decided{border-bottom:var(--av-rule-bold) solid var(--av-ink)}
+.fill{transition:background-color .15s ease;display:inline-block;min-width:24ch;max-width:100%;vertical-align:bottom;border-bottom:var(--av-rule-bold) dashed var(--av-caution);padding:0 2px;white-space:pre-wrap;overflow-wrap:anywhere;outline:0;cursor:text}
+.fill:hover,.fill:focus{background:var(--av-ink-12)}
+.fill.st-Decided{border-bottom-style:solid;border-bottom-color:var(--av-ink)}
+.fill.st-restored{border-bottom-style:dotted;border-bottom-color:var(--av-ink-55)}
+.count{font-size:var(--av-t-annot);color:var(--av-ink-70)}
+.stake{color:var(--av-caution)}
+/* The schedules: a heading per part, then one row per schedule. Only a
+   hairline separates rows; the state is the short rule at the left. */
+.sched-part{margin:0 0 var(--av-s4)}
+.sched-part:last-child{margin-bottom:0}
+.sched-part h3{font-size:var(--av-t-micro);text-transform:uppercase;letter-spacing:var(--av-track-label);color:var(--av-ink-70);font-weight:500;margin:0 0 var(--av-s1)}
+.sched{border-top:var(--av-rule-hair) solid var(--av-ink-12)}
+.sched:last-of-type{border-bottom:var(--av-rule-hair) solid var(--av-ink-12)}
+.sched.tech>.body{background:var(--av-paper-tech);padding-left:var(--av-s2);padding-right:var(--av-s2)}
+.sched>summary{list-style:none;cursor:pointer;padding:var(--av-s2) var(--av-s1);display:grid;grid-template-columns:1em 7em minmax(0,1fr) auto auto;gap:0 var(--av-s2);align-items:baseline;transition:background-color .15s ease}
+.sum-main{display:flex;flex-direction:column;gap:2px;min-width:0}
+.sum-main .stake{font-size:var(--av-t-annot)}
+.sched>summary .count{font-variant-numeric:tabular-nums;color:var(--av-ink-55)}
+.sched.agreed>summary .count{color:var(--av-normal);font-weight:600}
+.sheet-head{margin:0 0 var(--av-s4)}
+.sched>summary:hover{background:var(--av-ink-12)}
+.sched>summary::-webkit-details-marker{display:none}
+.sched>summary::before{content:'\25B8';display:inline-block;width:1em;flex:none;color:var(--av-ink-55);transition:transform .18s ease}
+.sched[open]>summary::before{transform:rotate(90deg)}
+.sched>summary b{font-weight:600}
+.sched .body{overflow:hidden;padding:0 0 var(--av-s3) var(--av-s3)}
+.sched-letter{font-size:var(--av-t-annot);color:var(--av-ink-55);white-space:nowrap}
+.empty{font-size:var(--av-t-annot);color:var(--av-ink-55);margin:var(--av-s1) 0 var(--av-s2)}
+.sched-part>.group{margin-top:var(--av-s2)}
+/* An entry: its fields, then its actions on one quiet line. */
+.rec{border-left:3px solid var(--av-caution);padding:var(--av-s2) 0 var(--av-s2) var(--av-s3);margin:var(--av-s2) 0}
+.rec+.rec{margin-top:var(--av-s3)}
+.rec-line{display:grid;grid-template-columns:8.5em minmax(0,1fr);gap:var(--av-s3);align-items:baseline;padding:3px 0}
+.rec-line.one{grid-template-columns:minmax(0,1fr)}
+.rec-k{font-size:var(--av-t-annot);color:var(--av-ink-55)}
+.rec-foot{display:flex;gap:var(--av-s1) var(--av-s2);flex-wrap:wrap;align-items:center;margin-top:var(--av-s1);font-size:var(--av-t-annot);color:var(--av-ink-70)}
+button.flag{font-size:var(--av-t-annot);padding:2px 12px;border-color:var(--av-ink-30);color:var(--av-ink-70)}
+button.flag:hover{border-color:var(--av-ink);color:var(--av-ink)}
+button.flag[aria-pressed="true"]{border-color:var(--av-caution);color:var(--av-caution);font-weight:600}
+.pop>.flag{margin-top:var(--av-s3)}
+.rec-foot .menu{margin-left:auto}
+.fixed{font-size:var(--av-t-annot);color:var(--av-ink-70);margin:var(--av-s1) 0 0}
+/* A field: edited where it sits, styled as the document's text. */
+textarea.ed{transition:background-color .15s ease,border-color .15s ease;display:block;width:100%;border:0;border-bottom:var(--av-rule-hair) dashed var(--av-ink-30);background:transparent;padding:0 2px;resize:none;overflow:hidden;line-height:1.6;min-height:1.6em}
+textarea.ed:hover{border-bottom-color:var(--av-ink-55)}
+textarea.ed:focus{background:var(--av-ink-12)}
+select.pick{border:var(--av-rule-hair) solid var(--av-ink-30);background:var(--av-surface);padding:3px 8px;max-width:100%}
+input.name{border:var(--av-rule-hair) solid var(--av-ink);background:var(--av-surface);padding:3px 8px}
+.warn{color:var(--av-caution);font-size:var(--av-t-annot);margin:var(--av-s1) 0 0}
+span.warn{display:block}
+.was{font-size:var(--av-t-annot);color:var(--av-ink-70)}
+/* The small menu on each schedule and entry. */
+.menu{position:relative;display:inline-block}
+.menu>button{border:0;padding:0 8px;color:var(--av-ink-55);font-weight:600}
+.menu>button:hover,.menu>button[aria-expanded="true"]{color:var(--av-ink);background:var(--av-ink-12)}
+.menu ul{position:absolute;right:0;top:100%;z-index:5;list-style:none;margin:0;padding:var(--av-s1) 0;background:linear-gradient(var(--av-surface),var(--av-surface)) var(--av-paper);box-shadow:4px 4px 0 var(--av-ink-12);border:var(--av-rule-thin) solid var(--av-ink);min-width:12em}
+.menu ul[hidden]{display:none}
+/* Each entry and schedule is its own layer (its transition name makes it
+   one), so the one holding an open menu is lifted above its neighbours. */
+.rec:has(.menu ul:not([hidden])),.sched:has(.menu ul:not([hidden])){position:relative;z-index:20}
+.menu li button{display:block;width:100%;text-align:left;border:0;padding:var(--av-s1) var(--av-s2)}
+.menu li button:hover,.menu li button:focus{background:var(--av-ink-12)}
+/* Signing. */
+.signing h2{font-size:var(--av-t-h3);margin:var(--av-s2) 0 var(--av-s3)}
+.tally{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:var(--av-s3) var(--av-s2);margin:0 0 var(--av-s3)}
+.tally div{border-top:var(--av-rule-hair) solid var(--av-ink-30);padding-top:var(--av-s1);font-size:var(--av-t-annot);color:var(--av-ink-70)}
+.tally b{font-size:var(--av-t-h3);display:block;color:var(--av-ink)}
+.signing>p,.signing>.group{margin:0 0 var(--av-s3)}
+textarea.block{width:100%;min-height:16em;margin-top:var(--av-s1);font-size:var(--av-t-annot);background:var(--av-paper-tech);border:0;padding:var(--av-s2);white-space:pre}
+/* Motion, kept small. The bundle stills every animation under reduced
+   motion, and the page's own script checks too. */
+::view-transition-group(*){animation-duration:.28s;animation-timing-function:ease-in-out}
+@keyframes fade-in{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:none}}
+.fade-in{animation:fade-in .2s ease-out}
+@media (max-width:600px){
+  .top,.stack>.av-sheet{padding:var(--av-s3) 18px}
+  .top>div:first-child{flex-basis:100%;order:1}
+  .top>.notices,.top>.meter{order:2}
+  .top>button:first-of-type{margin-left:auto}
+  .rec-line{grid-template-columns:minmax(0,1fr);gap:0}
+  .rec{padding-left:var(--av-s2)}
+  .sched .body{padding-left:0}
+  .pop{padding:var(--av-s2)}
+}
+</style>
+</head>
+<body class="av-paper av-grid">
+<div class="wrap" id="app"></div>
+<script>/*MODULE*/</script>
+<script>
+'use strict';
+/* The hiring page. Every rule it follows is in the module above, which the
+   interview script runs too: the marks, the block, the tally, restore,
+   redraft and Reset. This script draws the page and keeps its state.
+
+   Three rules hold throughout. Draft text goes into the page only as element
+   content or through value and textContent, never into an attribute. Ids
+   and field names come from the checked draft and kinds table, and are kept
+   on elements as properties, never as attributes; the one exception is a
+   checked id inside pop-<id>, which the id format keeps safe. Accessible
+   names that hold clause text are set through aria-labelledby to an element
+   that holds it. */
+const D = /*DATA*/;
+const draft = D.draft;
+const kinds = D.kinds;
+const hashes = D.hashes;
+const PARTS = kinds.parts;
+const KIND = new Map(kinds.kinds.map(k => [k.id, k]));
+const QUESTION = new Map(draft.questions.map(q => [q.clause, q]));
+const DRAFTED = new Map();
+for (const part of PARTS) for (const c of draft.parts[part]) DRAFTED.set(c.id, { c, part });
+const PLAIN = draft.type === 'CLAUDE.md';
+const FRAME = PLAIN ? 'plain' : 'hiring';
+const ASKED = new Set(kinds.levels[draft.level]);
+/* Kinds the letter carries even without a question: the name, the job, why
+   we are hiring, and great work. Every clause with a question is a term of the
+   letter too; every other clause sits in its kind's schedule. */
+const LETTER_KINDS = new Set(['name', 'job', 'why', 'example']);
+const HEADS = PLAIN
+  ? Object.fromEntries(PARTS.map(p => [p, p]))
+  : { purpose: 'The job', why: 'Why we are hiring', good: 'Great work', roles: 'Duties, sign-offs and stops', tools: 'Keys and access', rules: 'House rules', writing: 'House style', open: 'Probation' };
+
+/* The store: the browser's local storage on a page opened from disk, and
+   nothing on the published example. Any read or write may throw; the module
+   survives that, and so does this. */
+const store = D.site ? null : (() => { try { const s = window.localStorage; void s.length; return s; } catch (e) { return null; } })();
+
+const S = {
+  answers: new Map(),
+  edits: [],
+  open: null,      // the clause whose question is open in the letter
+  own: new Set(),  // clauses answered "none of these, I will say it myself"
+  picked: new Map(), // the option the person picked, kept for the radio after an edit
+  schedOpen: new Set(),
+  renaming: null,
+  rekinding: null,
+  adding: null,
+  signing: false,
+  info: true,     // the notices, open in the top bar at every load until the person closes them
+  all: false,     // show everything at once, not one paragraph at a time
+  step: null,     // how many paragraphs of the letter are shown; null until the first draw
+  revealFresh: null, // the paragraph just shown, faded in once
+  modal: null,    // the schedule open in its own sheet over the letter, by key
+  modalFresh: false, // the modal just opened, faded in once
+  status: '',
+  fresh: null,
+  popFresh: null, // the clause whose pop just opened, faded in once
+  justAdded: null, // the entry just added, faded in once
+};
+const notes = [];
+
+/* -- start: carry over a redraft's answers, then restore ------------------ */
+const describe = id => {
+  const d = DRAFTED.get(id);
+  if (!d) return id;
+  return `${KIND.get(d.c.kind).kind} (${id})`;
+};
+{
+  const rd = Interview.redraft(store, draft, kinds, hashes, { shared: D.shared });
+  if (rd.adopted.length) notes.push(['Carried over from the earlier draft, unchanged:', rd.adopted.map(describe)]);
+  if (rd.dropped.length) notes.push(['Dropped, because the clause, the option you picked or the reason you tapped changed:', rd.dropped.map(describe)]);
+  if (rd.note) notes.push([rd.note, []]);
+  const rs = Interview.restore(store, draft, kinds, hashes);
+  S.answers = rs.state.answers;
+  S.edits = rs.state.edits;
+  if (rs.count) notes.push([`${rs.count} ${rs.count === 1 ? 'answer came' : 'answers came'} back from this browser. Each shows a dotted line, even as you type in it, until you press its Keep; Agree or a new pick replaces it.`, []]);
+  if (rs.state.edits.length) notes.push([`${rs.state.edits.length} ${rs.state.edits.length === 1 ? 'change' : 'changes'} to the schedules came back too, each with a dotted edge. Keep each one below, or it stays a proposal.`, []]);
+  if (rs.dropped) notes.push(['Answers saved in this browser did not fit this draft, so they were dropped.', []]);
+}
+
+/* -- small helpers ------------------------------------------------------------ */
+const still = () => !!(window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches);
+let uid = 0;
+const newDomId = () => `el-${++uid}`;
+/** An element. `props` are DOM properties, never attribute strings, except
+ *  for a few fixed attribute names whose values never hold draft text. */
+function h(tag, props, ...kids) {
+  const el = document.createElement(tag);
+  if (props) for (const [k, v] of Object.entries(props)) {
+    if (v === undefined || v === null || v === false) continue;
+    if (k === 'class') el.className = v;
+    else if (k === 'on') for (const [ev, fn] of Object.entries(v)) el.addEventListener(ev, fn);
+    else if (k === 'aria') for (const [a, x] of Object.entries(v)) el.setAttribute(`aria-${a}`, String(x));
+    else if (k === 'key') el.pageKey = v;
+    else if (k === 'role') el.setAttribute('role', v);
+    else el[k] = v;
+  }
+  for (const kid of kids.flat(Infinity)) if (kid !== null && kid !== undefined && kid !== false) el.append(typeof kid === 'string' ? document.createTextNode(kid) : kid);
+  return el;
+}
+const human = name => name.replace(/-/g, ' ');
+const capital = s => s.charAt(0).toUpperCase() + s.slice(1);
+/* A mark's word, for a screen reader only: on screen the mark is the colour
+   of the element it marks. */
+const markEl = (mark, restored) => h('span', { class: 'vh' }, `, ${mark || 'not answered'}${restored ? ', restored' : ''}`);
+const paint = (host, mark, restored) => {
+  host.classList.remove('st-Proposed', 'st-Confirmed', 'st-Decided', 'st-restored');
+  if (mark) host.classList.add(`st-${mark}`);
+  if (restored) host.classList.add('st-restored');
+};
+const idsInUse = () => {
+  const ids = new Set(DRAFTED.keys());
+  for (const q of draft.questions) { ids.add(q.id); for (const o of q.options) ids.add(o.id); }
+  for (const e of S.edits) if (e.op === 'add') ids.add(e.id);
+  return ids;
+};
+const newId = () => { const used = idsInUse(); let n = 1; while (used.has(`added-${n}`)) n++; return `added-${n}`; };
+const emptyFields = (kind, from) => {
+  const f = {};
+  for (const x of kind.fields) {
+    if (x.optional && !(from && Object.hasOwn(from, x.name))) continue;
+    if (x.type === 'choice') f[x.name] = from && kinds.choices[x.name].includes(from[x.name]) ? from[x.name] : kinds.choices[x.name][0];
+    else f[x.name] = from && typeof from[x.name] === 'string' ? from[x.name] : '';
+  }
+  return f;
+};
+const fieldsEqual = (a, b) => {
+  const ka = Object.keys(a || {});
+  return ka.length === Object.keys(b || {}).length && ka.every(k => Object.hasOwn(b, k) && a[k] === b[k]);
+};
+
+/* -- state changes -------------------------------------------------------------- */
+/* After Reset, nothing is saved again until the person gives an answer or
+ * makes an edit, so a later click writes no empty entry back. That first
+ * answer or edit also withdraws Undo, so Undo never puts the cleared answers
+ * over newer work. */
+let cleared = false;
+function persist() {
+  if (cleared && !S.answers.size && !S.edits.length) return;
+  if (cleared) { cleared = false; disarmUndo(); }
+  Interview.save(store, draft, kinds, hashes, S);
+}
+/** A change that redraws the page. */
+function act(fn) {
+  fn();
+  persist();
+  render();
+}
+/** The fields a clause shows now. */
+function shownFields(id) {
+  const a = S.answers.get(id);
+  const d = DRAFTED.get(id);
+  if (a && Object.hasOwn(a, 'option')) return QUESTION.get(id).options.find(o => o.id === a.option).fields;
+  if (a) return a.fields;
+  return d && d.c.fields;
+}
+/** Where a live clause's fields are kept: the last re-kind of it, the edit
+ *  that added it, or else the person's answer on a drafted clause. */
+function owner(id) {
+  for (let i = S.edits.length - 1; i >= 0; i--) {
+    const e = S.edits[i];
+    if (e.op === 'rekind' && e.id === id) return { edit: e };
+    if (e.op === 'add' && e.id === id) return { edit: e };
+  }
+  return { drafted: id };
+}
+/** A new pick, or Agree: a new value replaces what the answer held before,
+ *  so it is no longer restored. A restored answer's chip and flag are not
+ *  carried over. */
+function answer(id, value) {
+  const prev = S.answers.get(id) || {};
+  const next = { ...value };
+  if (prev.chip !== undefined && !prev.restored && next.chip === undefined && !Object.hasOwn(value, 'chip')) next.chip = prev.chip;
+  if (prev.flag && !prev.restored && !Object.hasOwn(value, 'flag')) next.flag = true;
+  delete next.restored;
+  S.answers.set(id, next);
+}
+/** One field typed in. Another page opened from disk can write this
+ *  browser's store, so typing never keeps a restored value by the way: a
+ *  restored answer stays restored as it is typed in, its other fields, chip
+ *  and flag with it, until its own Keep, as a restored added or re-kinded
+ *  entry does. */
+function setField(id, name, value) {
+  const o = owner(id);
+  if (o.edit) {
+    o.edit.fields = { ...o.edit.fields, [name]: value };
+    return;
+  }
+  const a = S.answers.get(id) || {};
+  const { option, fields: was, ...rest } = a;
+  void option; void was;
+  S.answers.set(id, { fields: { ...shownFields(id), [name]: value }, ...rest });
+}
+/** Agree takes the drafted wording, even over an answer restored from this
+ *  browser: another page opened from disk can write that store, so a restored
+ *  value is kept only by its own Keep, one entry at a time. */
+function agree(id) {
+  const d = DRAFTED.get(id);
+  if (!d || d.c.none) return;
+  const a = S.answers.get(id);
+  if (a && !a.restored) return;
+  answer(id, { fields: { ...d.c.fields } });
+}
+function keep(id) {
+  const a = S.answers.get(id);
+  if (!a || !a.restored) return;
+  const { restored, ...rest } = a;
+  void restored;
+  S.answers.set(id, rest);
+}
+function edit(e) { S.edits.push(e); }
+
+/* -- the current contract, as the module reads it ------------------------------ */
+let V = null;
+const refreshers = [];
+/** Re-read the state into every live element without redrawing, so typing
+ *  in a field never loses its place. */
+function refresh() {
+  V = Interview.view(draft, kinds, hashes, S);
+  for (const fn of refreshers) fn();
+}
+const live = (el, fn) => { refreshers.push(() => fn(el)); fn(el); return el; };
+
+/** Whether a live clause is a term of the letter. */
+const inLetter = x => {
+  const d = DRAFTED.get(x.id);
+  return Boolean(d && d.c.kind === x.kind.id && (QUESTION.has(x.id) || LETTER_KINDS.has(x.kind.id)));
+};
+/** The kinds of a part in the order the export writes them. */
+function kindOrder(part) {
+  const list = V.parts.get(part);
+  const out = [];
+  for (const k of V.order.get(part)) if (list.some(x => x.kind.id === k)) out.push(k);
+  for (const x of list) if (!out.includes(x.kind.id)) out.push(x.kind.id);
+  return out;
+}
+/** Every schedule, in page order, each with its letter. */
+function schedules() {
+  const out = [];
+  for (const part of PARTS) for (const k of kindOrder(part)) {
+    const entries = V.parts.get(part).filter(x => x.kind.id === k && !inLetter(x));
+    if (entries.length) out.push({ part, kind: KIND.get(k), entries, key: `${part}/${k}` });
+  }
+  out.forEach((s, i) => { s.letter = i < 26 ? String.fromCharCode(65 + i) : String(i + 1); });
+  return out;
+}
+const scheduleName = s => V.names.get(s.key) || capital(s.kind.kind);
+const answered = id => S.answers.has(id) && !S.answers.get(id).restored;
+
+/* -- the page ------------------------------------------------------------------- */
+const app = document.getElementById('app');
+
+/* True while a redraw puts the focus back where it was, which is no move of
+ * the person's. */
+let refocusing = false;
+/** Redraw everything, and put the focus back on the element that had it. */
+function render() {
+  const active = document.activeElement && document.activeElement.pageKey;
+  const sel = active && document.activeElement.selectionStart !== undefined ? [document.activeElement.selectionStart, document.activeElement.selectionEnd] : null;
+  refreshers.length = 0;
+  V = Interview.view(draft, kinds, hashes, S);
+  const keyed = new Map();
+  const was = modalEl.querySelector('.modal-body');
+  const keepScroll = was && !S.modalFresh ? was.scrollTop : 0;
+  S.modalFresh = false;
+  const inside = !S.signing && !S.all && S.modal ? scheduleModal() : null;
+  const frag = h('div', null, topBar(), notesEl(), S.signing ? signing() : [letter(), S.all ? schedulesSheet() : null], statusEl());
+  frag.querySelectorAll('*').forEach(el => { if (el.pageKey) keyed.set(el.pageKey, el); });
+  app.replaceChildren(frag);
+  if (inside) {
+    modalEl.replaceChildren(...inside);
+    modalEl.querySelectorAll('*').forEach(el => { if (el.pageKey) keyed.set(el.pageKey, el); });
+    if (!modalEl.open && modalEl.showModal) { if (!still()) modalEl.classList.add('opening'); modalEl.showModal(); }
+    const body = modalEl.querySelector('.modal-body');
+    if (body) body.scrollTop = keepScroll;
+  } else if (modalEl.open) {
+    modalEl.close();
+    modalEl.replaceChildren();
+  }
+  for (const el of app.querySelectorAll('textarea.ed')) size(el);
+  const back = active && keyed.get(active);
+  refocusing = true;
+  try {
+    if (back) {
+      back.focus();
+      if (sel && back.setSelectionRange) try { back.setSelectionRange(sel[0], sel[1]); } catch (e) { /* not a text control */ }
+    }
+    if (S.fresh) { const f = keyed.get(S.fresh); S.fresh = null; if (f) f.focus(); }
+  } finally { refocusing = false; }
+}
+const size = el => { el.style.height = 'auto'; el.style.height = `${el.scrollHeight}px`; };
+
+/* The light and dark switch. */
+const MOON = 'M16.124 4 A 9 9 0 1 0 16.124 20 A 8 8 0 0 1 16.124 4 Z';
+function icon(dark) {
+  const ns = 'http://www.w3.org/2000/svg';
+  const svg = document.createElementNS(ns, 'svg');
+  svg.setAttribute('viewBox', '0 0 24 24');
+  svg.setAttribute('fill', 'none');
+  svg.setAttribute('stroke', 'currentColor');
+  svg.setAttribute('stroke-width', '1.4');
+  svg.setAttribute('aria-hidden', 'true');
+  if (dark) {
+    const c = document.createElementNS(ns, 'circle');
+    c.setAttribute('cx', '12'); c.setAttribute('cy', '12'); c.setAttribute('r', '5');
+    svg.append(c);
+    for (let i = 0; i < 12; i++) {
+      const a = (i * Math.PI) / 6;
+      const l = document.createElementNS(ns, 'line');
+      l.setAttribute('x1', String(12 + 7.6 * Math.cos(a))); l.setAttribute('y1', String(12 + 7.6 * Math.sin(a)));
+      l.setAttribute('x2', String(12 + 10.4 * Math.cos(a))); l.setAttribute('y2', String(12 + 10.4 * Math.sin(a)));
+      svg.append(l);
+    }
+  } else {
+    const p = document.createElementNS(ns, 'path');
+    p.setAttribute('d', MOON);
+    svg.append(p);
+  }
+  return svg;
+}
+const isDark = () => document.documentElement.getAttribute('data-aviation-scheme') === 'dark';
+/* Icons for the top bar's buttons, drawn as strokes on a 24-unit grid. Each
+   button is named by aria-label and shows the same words as a tip. */
+const GLYPHS = {
+  everything: [['path', 'M12 3v6M9 6l3-3 3 3M12 21v-6M9 18l3 3 3-3M4 12h16']],
+  reset: [['path', 'M4.5 13a7.5 7.5 0 1 0 2.2-6.3'], ['path', 'M4 3.5v4.5h4.5']],
+  undo: [['path', 'M9 14 4 9l5-5'], ['path', 'M4 9h10a5.5 5.5 0 0 1 0 11h-3']],
+  info: [['circle', '12 12 9'], ['path', 'M12 11v6'], ['circle', '12 7.6 .4']],
+};
+function glyph(name) {
+  const ns = 'http://www.w3.org/2000/svg';
+  const svg = document.createElementNS(ns, 'svg');
+  svg.setAttribute('viewBox', '0 0 24 24');
+  svg.setAttribute('fill', 'none');
+  svg.setAttribute('stroke', 'currentColor');
+  svg.setAttribute('stroke-width', '1.4');
+  svg.setAttribute('stroke-linecap', 'round');
+  svg.setAttribute('stroke-linejoin', 'round');
+  svg.setAttribute('aria-hidden', 'true');
+  for (const [tag, d] of GLYPHS[name]) {
+    const el = document.createElementNS(ns, tag);
+    if (tag === 'path') el.setAttribute('d', d);
+    else { const [cx, cy, r] = d.split(' '); el.setAttribute('cx', cx); el.setAttribute('cy', cy); el.setAttribute('r', r); }
+    svg.append(el);
+  }
+  return svg;
+}
+/** Name an icon button: its accessible name and its tip, the same words. */
+const named = (b, words) => { b.setAttribute('aria-label', words); b.setAttribute('data-tip', words); return b; };
+function schemeButton() {
+  const b = h('button', { class: 'scheme', type: 'button', key: 'scheme' });
+  const drawIcon = () => {
+    b.replaceChildren(icon(isDark()));
+    named(b, isDark() ? 'Switch to light' : 'Switch to dark');
+  };
+  b.addEventListener('click', () => {
+    const dark = isDark();
+    if (dark) document.documentElement.removeAttribute('data-aviation-scheme');
+    else document.documentElement.setAttribute('data-aviation-scheme', 'dark');
+    try { localStorage.setItem('aviation-scheme', dark ? 'light' : 'dark'); } catch (e) { /* no storage */ }
+    drawIcon();
+  });
+  drawIcon();
+  return b;
+}
+
+function topBar() {
+  return h('header', { class: 'top av-sheet av-sheet--surface' },
+    h('div', null,
+      h('p', { class: 'lbl' }, PLAIN ? 'Rules interview' : 'Hiring interview'),
+      h('h1', null, draft.title),
+      D.folder ? h('div', { class: 'folder' }, `Folder: ${D.folder}`) : null),
+    h('span', { class: 'spacer' }),
+    named(h('button', { type: 'button', class: 'scheme mode', key: 'mode', aria: { pressed: S.all },
+      on: { click: () => act(() => { S.all = !S.all; if (!S.all) S.step = null; }) } }, glyph('everything')),
+      S.all ? 'Show one paragraph at a time' : 'Show everything at once'),
+    D.site ? null : resetButton(),
+    infoButton(),
+    schemeButton(),
+    S.info ? noticesEl() : null,
+    progressEl());
+}
+
+/* The notices: where the answers are kept, and what leaves the machine.
+ * They are open in the top bar at every load, and the info button closes
+ * and opens them. */
+function infoButton() {
+  return named(h('button', { class: 'scheme info', type: 'button', key: 'info', aria: { expanded: Boolean(S.info), controls: 'notices' },
+    on: { click: () => act(() => { S.info = !S.info; }) } }, glyph('info')), 'Where your answers are kept');
+}
+function noticesEl() {
+  const box = h('section', { class: 'notices fade-in', id: 'notices', aria: { label: 'Notices' } });
+  if (D.site) box.append(h('p', null, 'This example keeps nothing.'));
+  else box.append(h('p', null, 'Your answers are kept in this browser until you press Reset. Reset removes them from this page\'s store; the browser may keep its own copy on disk for a while. Your browser\'s history keeps this page\'s title and location.'));
+  box.append(h('p', null, 'Dictation sends your speech to your system\'s maker. A copied block stays on your clipboard, and in its history or sync if you turned them on. Your browser\'s online spell check, if on, sends what you type.'));
+  return box;
+}
+
+/* Reset clears every answer on the page and in this browser's store, and
+ * keeps what it cleared in memory for ten seconds from the press. Undo is
+ * offered only once the pointer or the focus has left the button and come
+ * back, so a second press, or a stay on the button, never brings the answers
+ * back. Only the button now on the page counts: the redraw after the press
+ * moves the focus from the old button, and some browsers report that as a
+ * leave. Undo puts the answers back and saves them again. */
+const UNDO_GRACE_MS = 10000;
+const HOT_SETTLE_MS = 260;
+let undoSnap = null, undoFuse = null, undoLeft = false, undoBack = false, resetHot = false, hotFuse = null, resetEl = null;
+const undoOffered = () => Boolean(undoSnap) && undoLeft && undoBack && resetHot;
+function paintReset() {
+  if (!resetEl) return;
+  const offering = undoOffered();
+  resetEl.replaceChildren(glyph(offering ? 'undo' : 'reset'));
+  resetEl.classList.toggle('armed', offering);
+  named(resetEl, offering ? 'Undo the reset' : undoSnap ? 'Reset. Leave and come back within ten seconds to undo' : 'Reset every answer');
+}
+function disarmUndo() { clearTimeout(undoFuse); undoFuse = null; undoSnap = null; undoLeft = false; undoBack = false; paintReset(); }
+function armUndo(snap) {
+  clearTimeout(undoFuse);
+  undoSnap = snap; undoLeft = false; undoBack = false;
+  undoFuse = setTimeout(disarmUndo, UNDO_GRACE_MS);
+}
+/* A leave counts once the pointer or the focus comes back after it; until
+ * then, a click on the still-focused button is a second press. A redraw's
+ * own refocus of the button is no return. */
+function resetHover(on, e) {
+  if (e.target !== resetEl || refocusing) return;
+  clearTimeout(hotFuse); hotFuse = null;
+  if (on) { if (undoLeft) undoBack = true; resetHot = true; paintReset(); return; }
+  if (undoSnap) { undoLeft = true; undoBack = false; }
+  hotFuse = setTimeout(() => { resetHot = false; paintReset(); }, HOT_SETTLE_MS);
+}
+function resetButton() {
+  resetEl = h('button', { class: 'scheme reset', type: 'button', key: 'reset', on: {
+    mouseenter: e => resetHover(true, e), focus: e => resetHover(true, e),
+    mouseleave: e => resetHover(false, e), blur: e => resetHover(false, e),
+    click: () => {
+      if (undoOffered()) {
+        const s = undoSnap;
+        disarmUndo();
+        S.answers = s.answers; S.edits = s.edits; S.own = s.own; S.picked = s.picked; S.step = null;
+        S.status = 'Undone: your answers are back.';
+        persist();
+        render();
+        return;
+      }
+      const had = S.answers.size + S.edits.length > 0;
+      const before = { answers: new Map([...S.answers].map(([k, v]) => [k, { ...v }])), edits: S.edits.map(e => ({ ...e })), own: new Set(S.own), picked: new Map(S.picked) };
+      Interview.forget(store, draft);
+      cleared = true;
+      S.answers = new Map(); S.edits = []; S.own = new Set(); S.picked = new Map(); S.open = null; S.step = null; S.modal = null;
+      notes.length = 0;
+      S.status = 'Reset: every answer is cleared from this page and this browser.';
+      if (had) armUndo(before);
+      render();
+    } } });
+  paintReset();
+  return resetEl;
+}
+
+function notesEl() {
+  const box = h('div');
+  for (const [text, items] of notes) box.append(h('div', { class: 'note' }, h('span', null, text), items.length ? h('ul', null, items.map(i => h('li', null, i))) : null));
+  const restoredEdits = S.edits.filter(e => e.restored);
+  if (restoredEdits.length) {
+    const list = h('ul');
+    for (const e of restoredEdits) list.append(h('li', null, describeEdit(e), ' ', h('button', { type: 'button', class: 'quiet', on: { click: () => act(() => { delete e.restored; S.fresh = 'sign'; }) } }, 'Keep')));
+    box.append(h('div', { class: 'note' }, h('span', null, 'Changes brought back from this browser, each a proposal until you keep it:'), list));
+  }
+  return box;
+}
+function describeEdit(e) {
+  const where = e.id !== undefined ? describe(e.id) : `${KIND.has(e.kind) ? KIND.get(e.kind).kind : ''} in ${e.part}`;
+  // One sentence per op, built only for the edit's own op: a move or a
+  // remove of one entry carries an id and no kind.
+  switch (e.op) {
+    case 'add': return `Added an entry: ${KIND.has(e.kind) ? KIND.get(e.kind).kind : e.kind}`;
+    case 'rename': return `Renamed a schedule: ${where}`;
+    case 'move': return `Moved ${where}`;
+    case 'remove': return `Removed ${where}`;
+    case 'rekind': return `Changed the kind of ${describe(e.id)}`;
+    default: return `Agreed ${where} holds none`;
+  }
+}
+
+function progressEl() {
+  const terms = [...QUESTION.keys()].filter(id => DRAFTED.has(id));
+  const count = () => terms.filter(answered).length;
+  const label = live(h('span', { class: 'lbl' }), el => { el.textContent = `${count()} of ${terms.length} terms answered in the letter`; });
+  const bar = live(h('div'), el => { el.style.width = `${terms.length ? Math.round((100 * count()) / terms.length) : 100}%`; });
+  const box = h('div', { class: 'meter' },
+    h('div', { class: 'group' }, label, h('span', { class: 'spacer' }),
+      h('button', { type: 'button', key: 'sign', class: S.signing ? '' : 'primary', on: { click: () => act(() => { S.signing = !S.signing; }) } }, S.signing ? 'Back to the letter' : 'Sign')),
+    h('div', { class: 'progress', aria: { hidden: 'true' } }, bar));
+  return box;
+}
+
+function statusEl() {
+  return h('p', { class: 'status', role: 'status' }, S.status);
+}
+
+/* -- the letter ---------------------------------------------------------------- */
+function letter() {
+  const sheet = h('article', { class: 'av-sheet av-sheet--surface letter', aria: { label: PLAIN ? 'The rules' : 'The offer letter' } });
+  sheet.append(h('p', { class: 'lbl' }, PLAIN ? 'Rules for this folder · draft' : 'Offer of employment · draft'));
+  if (PLAIN) sheet.append(h('h2', null, `Rules for ${draft.name}`));
+  else sheet.append(...nameHeading(), h('p', null, 'We would like you to take on the job below. Each underlined term is one to agree: open it to answer. The rest of the terms are in the schedules attached under this letter.'));
+  const all = schedules();
+  const paras = [];
+  /* The letter is prose: each part one paragraph, or one per kind where a
+   * kind has a lead-in of its own, each term a blank inside it. A part with
+   * no terms in the letter still points to its schedules. */
+  for (const part of PARTS) {
+    const terms = V.parts.get(part).filter(x => inLetter(x) && !(x.kind.id === 'name' && !PLAIN && !QUESTION.has(x.id)));
+    const refs = all.filter(s => s.part === part);
+    if (!terms.length && !refs.length) continue;
+    if (part === 'why' && terms.length) { paras.push({ el: whyBox(terms[0]), ids: [terms[0].id] }); continue; }
+    const groups = [];
+    for (const x of terms) {
+      const lead = PLAIN ? null : (KIND_LEADS[x.kind.id] || null);
+      const last = groups[groups.length - 1];
+      if (last && last.lead === lead && (lead === null || last.kind === x.kind.id)) last.terms.push(x);
+      else groups.push({ lead, kind: x.kind.id, terms: [x] });
+    }
+    if (!PLAIN && PART_LEADS[part] && groups.length && groups[0].lead === null) groups[0].lead = PART_LEADS[part];
+    if (PLAIN && groups.length) groups[0].lead = `${capital(part)}.`;
+    groups.forEach((g, i) => {
+      const p = h('p', null, g.lead ? `${g.lead} ` : null, g.terms.map(x => [term(x), ' ']));
+      if (i === groups.length - 1 && refs.length) p.append(pointer(refs, terms.length > 0));
+      paras.push({ el: p, ids: g.terms.map(x => x.id) });
+    });
+    if (!groups.length) paras.push({ el: h('p', null, PLAIN ? `${capital(part)}. ` : (PART_LEADS[part] ? `${PART_LEADS[part]} ` : null), pointer(refs, false)), ids: [] });
+  }
+  /* Guided: the paragraphs come one at a time, from the first with a term
+   * still open, and the schedules wait for the end. "Show everything" shows
+   * the whole letter and its schedules at once. Only what is on screen
+   * changes; every rule stays the same. */
+  const guided = !S.all;
+  if (S.step === null) {
+    const open = paras.findIndex(x => x.ids.some(id => !answered(id)));
+    S.step = open < 0 ? paras.length : open + 1;
+  }
+  const shown = guided ? Math.min(S.step, paras.length) : paras.length;
+  paras.slice(0, shown).forEach((x, i) => {
+    if (guided && i === S.revealFresh) x.el.classList.add('fade-in');
+    sheet.append(x.el);
+  });
+  S.revealFresh = null;
+  if (guided && shown < paras.length) sheet.append(nextBar(paras, shown));
+  else if (guided) sheet.append(endPrompt(all.length));
+  if (!PLAIN && shown === paras.length) sheet.append(h('div', { class: 'sig' }, 'Signed, when every term is agreed'));
+  return h('div', { class: 'stack' }, h('div', { class: 'behind b2' }), h('div', { class: 'behind b1' }), sheet);
+}
+/** Under the last paragraph shown: how far along, and Next. Next reads
+ *  "Skip for now" while a term in that paragraph is still open. */
+function nextBar(paras, shown) {
+  const ids = paras[shown - 1] ? paras[shown - 1].ids : [];
+  const btn = live(h('button', { type: 'button', key: 'next', on: { click: () => act(() => {
+    S.step = shown + 1;
+    S.open = null;
+    S.revealFresh = shown;
+    const first = paras[shown].ids[0];
+    S.fresh = first ? (DRAFTED.get(first) && DRAFTED.get(first).c.kind === 'why' ? `why:${first}` : `blank:${first}`) : 'next';
+  }) } }), el => {
+    const done = ids.every(answered);
+    el.textContent = done ? 'Next' : 'Skip for now';
+    el.className = done ? 'primary' : 'quiet';
+  });
+  return h('div', { class: 'next group' }, h('span', { class: 'small muted' }, `Paragraph ${shown} of ${paras.length}`), h('span', { class: 'spacer' }), btn);
+}
+/** At the end of the letter, in guided mode: the schedules, or sign. */
+function endPrompt(n) {
+  const box = h('div', { class: 'next fade-in' });
+  if (n) {
+    box.append(h('p', null, `The rest of the terms are in ${n} ${n === 1 ? 'schedule' : 'schedules'}, attached to this letter. Each one is drafted for you to agree, change or remove, one schedule at a time. To add a schedule of your own, use Show everything.`));
+    box.append(h('div', { class: 'group' },
+      h('button', { type: 'button', class: 'primary', key: 'review', on: { click: () => act(() => openModal(schedules()[0].key)) } }, 'Review the schedules'),
+      h('button', { type: 'button', class: 'quiet', key: 'sign-now', on: { click: () => act(() => { S.signing = true; }) } }, 'Sign now')));
+  } else {
+    box.append(h('div', { class: 'group' }, h('button', { type: 'button', class: 'primary', key: 'sign-now', on: { click: () => act(() => { S.signing = true; }) } }, 'Sign')));
+  }
+  return box;
+}
+/** The letter's heading: the name, edited where it sits, then the word
+ *  "description", as a job description reads. The name is the name clause's
+ *  field, so an edit is an answer like any other. With no name clause left,
+ *  the heading shows the draft's name as text. */
+function nameHeading() {
+  const x = V.parts.get('purpose').find(z => z.kind.id === 'name' && inLetter(z) && !QUESTION.has(z.id));
+  if (!x) return [h('h2', null, `${draft.name} description`)];
+  const id = newDomId();
+  const input = h('input', { class: 'title', id, key: `field:${x.id}:name`, value: x.fields.name, spellcheck: false,
+    on: { input: e => { setField(x.id, 'name', e.target.value); persist(); fit(e.target); refresh(); } } });
+  const mark = live(h('span'), el => {
+    const y = V.parts.get('purpose').find(z => z.id === x.id);
+    const b = S.answers.get(x.id);
+    el.replaceChildren(markEl(y ? y.mark : x.mark, Boolean(b && b.restored)));
+    paint(input, y ? y.mark : x.mark, Boolean(b && b.restored));
+  });
+  const d = DRAFTED.get(x.id);
+  const agreeBtn = d && (!S.answers.has(x.id) || S.answers.get(x.id).restored)
+    ? h('button', { type: 'button', class: 'quiet small', key: `agree:${x.id}`, on: { click: () => act(() => { agree(x.id); S.fresh = `field:${x.id}:name`; }) } }, 'Agree')
+    : null;
+  const keepBtn = d && S.answers.has(x.id) && S.answers.get(x.id).restored
+    ? h('button', { type: 'button', class: 'quiet small', key: `keep:${x.id}`, on: { click: () => act(() => { keep(x.id); S.fresh = `field:${x.id}:name`; }) } }, 'Keep')
+    : null;
+  fit(input);
+  return [h('h2', null, h('label', { htmlFor: id, class: 'vh' }, 'The name'), input, h('span', null, 'description'), mark, agreeBtn, keepBtn), shapeWarn(() => input.value)];
+}
+/* A one-line field as wide as its text: a width in characters of its own
+   font, so no room is left over after the last one. */
+const fit = el => { el.size = Math.max(4, el.value.length + 1); el.style.width = `${Math.max(4, el.value.length) + 0.5}ch`; };
+function refButton(s) {
+  return h('button', { type: 'button', class: 'ref', key: `ref:${s.key}`, on: { click: () => {
+    if (!S.all) { act(() => openModal(s.key)); return; }
+    S.schedOpen.add(s.key);
+    render();
+    const el = document.getElementById(`sched-${s.letter}`);
+    if (el) { el.scrollIntoView({ behavior: still() ? 'auto' : 'smooth' }); const sum = el.querySelector('summary'); if (sum) sum.focus(); }
+  } } }, `Schedule ${s.letter}`);
+}
+
+/* The lead-in sentences, in the hiring frame. A part's lead opens its first
+ * paragraph; a kind's lead opens a paragraph of its own. Every frame in
+ * kinds.json is already a sentence, so most kinds need none. */
+const PART_LEADS = { good: 'Great work, for us, looks like this.', rules: 'It keeps our house rules.', writing: 'It writes in our house style.', open: 'Probation.' };
+const KIND_LEADS = { duty: 'Its main duties.', 'sign-off': 'Some calls stay ours alone.', stop: 'There are moments it must stop and ask.', key: 'It holds these keys.', action: 'Some things it does need our yes first.' };
+const CUT_AT = 160;
+/* A situation's first words, for a blank that waits for the person's pick. */
+const opening = s => { const w = s.split(/\s+/); return w.length > 8 ? `${w.slice(0, 8).join(' ')}…` : s; };
+function pointer(refs, more) {
+  return h('span', { class: 'small' }, more ? 'The rest are in ' : 'These are in ', refs.map((s, i) => [i ? (i === refs.length - 1 ? ' and ' : ', ') : '', refButton(s)]), '.');
+}
+
+/** One term of the letter: a blank inside its paragraph, which opens in
+ *  place. It shows the term's sentence, or the kind's name while a
+ *  high-stakes question still waits for the person's pick. */
+function term(x) {
+  const q = QUESTION.get(x.id);
+  const r = q ? Interview.reveal(draft, kinds, x.id, S.answers.has(x.id)) : { high: x.kind.stakes === 'high', proposal: true, fields: true };
+  const open = S.open === x.id;
+  const blankText = () => {
+    if (!r.fields) return `[${opening(q.situation)}]`;
+    if (x.none) return `${capital(x.kind.kind)}: none.`;
+    const y = V.parts.get(partOf(x.id)).find(z => z.id === x.id);
+    // A field of several lines, such as a sample of great work, stays in its
+    // pop: the sentence names it and does not run it into one line.
+    const f = { ...((y && y.fields) || shownFields(x.id) || {}) };
+    for (const k of Object.keys(f)) if (typeof f[k] === 'string' && f[k].includes('\n')) f[k] = '(the text: open it to read it)';
+    const s = Interview.sentence(kinds, x.kind, f, FRAME);
+    return s.length > CUT_AT ? `${s.slice(0, CUT_AT)}… (open it to read it all)` : s;
+  };
+  /* Inline text that acts as a button, so a long term wraps inside its
+   * sentence the way the words around it do. */
+  const toggle = () => act(() => { S.open = open ? null : x.id; S.popFresh = S.open; });
+  const blank = live(h('span', { role: 'button', tabIndex: 0, class: `blank${S.justAdded === x.id ? ' fade-in' : ''}`, key: `blank:${x.id}`, aria: { expanded: open, controls: `pop-${x.id}` },
+    on: { click: toggle, keydown: e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggle(); } } } }), el => { el.textContent = blankText(); });
+  const mark = live(h('span'), el => {
+    const y = V.parts.get(partOf(x.id)).find(z => z.id === x.id);
+    const b = S.answers.get(x.id);
+    el.replaceChildren(markEl(y ? y.mark : x.mark, Boolean(b && b.restored)));
+    paint(blank, y ? y.mark : x.mark, Boolean(b && b.restored));
+  });
+  // The pop opens right after its blank, so it is next in the tab order.
+  return h('span', null, blank, mark, open ? termPop(x) : null);
+}
+/** What a blank opens: its question, or its words to edit and agree. It
+ *  fades in when it opens, and not again when a pick inside redraws it. */
+function termPop(x) {
+  const fresh = S.popFresh === x.id;
+  S.popFresh = null;
+  const pop = termPopBody(x);
+  if (fresh) pop.classList.add('fade-in');
+  return pop;
+}
+function termPopBody(x) {
+  const q = QUESTION.get(x.id);
+  if (q) return questionPop(x, q, Interview.reveal(draft, kinds, x.id, S.answers.has(x.id)));
+  const d = DRAFTED.get(x.id);
+  const a = S.answers.get(x.id);
+  const box = h('div', { class: 'pop', id: `pop-${x.id}` }, h('p', { class: 'lbl' }, capital(x.kind.kind)));
+  if (x.none) box.append(h('p', null, 'None.'));
+  else box.append(fieldsEditor(x));
+  const foot = h('div', { class: 'group' });
+  if (d && !x.none && x.kind.stakes !== 'high' && (!a || a.restored)) foot.append(h('button', { type: 'button', key: `agree:${x.id}`, on: { click: () => act(() => { agree(x.id); S.open = null; S.fresh = `blank:${x.id}`; }) } }, 'Agree as drafted'));
+  if (d && !x.none && x.kind.stakes !== 'high' && a && a.restored) foot.append(h('button', { type: 'button', key: `keep:${x.id}`, on: { click: () => act(() => { keep(x.id); S.open = null; S.fresh = `blank:${x.id}`; }) } }, 'Keep'));
+  if (x.kind.stakes === 'high' && !x.none) foot.append(h('span', { class: 'small muted' }, 'Your own words on this one go in chat.'));
+  foot.append(h('button', { type: 'button', class: 'primary', key: `done:${x.id}`, on: { click: () => act(() => { S.open = null; S.fresh = `blank:${x.id}`; }) } }, 'Done'));
+  if (d && !x.none) box.append(flagBox(x.id));
+  box.append(foot);
+  return box;
+}
+
+/** Why: the one blank the person fills in their own words, written where it
+ *  sits in the sentence, on an underline like every other blank. A restored
+ *  why stays restored as it is typed in, until its own Keep. */
+function whyBox(x) {
+  const a = S.answers.get(x.id);
+  const labelId = newDomId();
+  const fill = h('span', { class: 'fill', key: `why:${x.id}`, role: 'textbox', tabIndex: 0, spellcheck: true, aria: { multiline: 'true', labelledby: labelId } });
+  try { fill.contentEditable = 'plaintext-only'; } catch (e) { /* not supported */ }
+  if (fill.contentEditable !== 'plaintext-only') fill.contentEditable = 'true';
+  fill.textContent = a ? a.fields.text : '';
+  fill.addEventListener('input', () => {
+    const text = fill.innerText.replace(/\n$/, '');
+    const b = S.answers.get(x.id);
+    if (text.trim() === '') S.answers.delete(x.id);
+    else if (b && b.restored) S.answers.set(x.id, { ...b, fields: { text } });
+    else answer(x.id, { fields: { text } });
+    persist(); refresh();
+  });
+  const mark = live(h('span'), el => {
+    const b = S.answers.get(x.id);
+    const m = b ? (b.restored ? 'Proposed' : 'Decided') : null;
+    el.replaceChildren(markEl(m, b && b.restored)); paint(fill, m, Boolean(b && b.restored));
+  });
+  const keepBtn = a && a.restored
+    ? h('button', { type: 'button', class: 'quiet small', key: `keep:${x.id}`, on: { click: () => act(() => { keep(x.id); S.fresh = `why:${x.id}`; }) } }, 'Keep')
+    : null;
+  return h('p', null, h('span', { id: labelId }, PLAIN ? 'Why, in your own words:' : 'We are hiring because'), ' ', fill, mark, keepBtn ? ' ' : null, keepBtn, shapeWarn(() => fill.innerText, 'span'));
+}
+
+/** A question, open in place under its blank. */
+function questionPop(x, q, r) {
+  const a = S.answers.get(x.id);
+  const legendId = newDomId();
+  const pickedId = a && Object.hasOwn(a, 'option') ? a.option : S.picked.get(x.id);
+  const own = S.own.has(x.id) && !pickedId;
+  const group = `q-${x.id}`;
+  const box = h('div', { class: 'pop', id: `pop-${x.id}` });
+  const fs = h('fieldset', null, h('legend', { id: legendId }, q.situation));
+  if (r.high && !S.answers.has(x.id)) fs.append(h('p', { class: 'muted' }, 'Pick first. The draft\'s proposal and wording show after you choose.'));
+  for (const o of q.options) {
+    const input = h('input', { type: 'radio', name: group, checked: pickedId === o.id, key: `opt:${o.id}`,
+      on: { change: () => act(() => { S.own.delete(x.id); S.picked.set(x.id, o.id); answer(x.id, { option: o.id }); }) } });
+    const showSays = r.proposal;
+    fs.append(h('label', { class: `opt${pickedId === o.id ? ' picked' : ''}` }, input,
+      h('span', null, o.label,
+        showSays && o.id === q.proposed ? h('span', { class: 'tag' }, 'The draft\'s proposal') : null,
+        showSays ? h('span', { class: 'says' }, Interview.sentence(kinds, x.kind, o.fields, FRAME)) : null)));
+  }
+  fs.append(h('label', { class: `opt${own ? ' picked' : ''}` },
+    h('input', { type: 'radio', name: group, checked: own, key: `own:${x.id}`,
+      on: { change: () => act(() => { S.own.add(x.id); S.picked.delete(x.id); answer(x.id, { fields: emptyFields(x.kind) }); S.fresh = `field:${x.id}:${x.kind.fields[0].name}`; }) } }),
+    h('span', null, 'None of these, I will say it myself')));
+  box.append(fs);
+  if (S.answers.has(x.id)) {
+    box.append(h('p', { class: 'lbl' }, own ? 'Your clause' : 'The clause your pick writes: edit it where it sits'));
+    box.append(fieldsEditor(x));
+    if (q.chips.length) {
+      const chips = h('div', { class: 'chips', role: 'group', aria: { label: 'Why, optional' } }, h('span', { class: 'small muted' }, 'Why (optional):'));
+      const cur = S.answers.get(x.id).chip;
+      // A chip is kept by its place in the question, never its text, so the
+      // block the person pastes carries none of the chip's words.
+      for (const [i, c] of q.chips.entries()) chips.append(h('button', { type: 'button', key: `chip:${x.id}:${i}`, aria: { pressed: cur === i }, on: { click: () => act(() => {
+        const b = S.answers.get(x.id);
+        if (b.chip === i) delete b.chip; else b.chip = i;
+      }) } }, c));
+      chips.append(h('button', { type: 'button', key: `chip:${x.id}:skip`, aria: { pressed: cur === undefined }, on: { click: () => act(() => { const b = S.answers.get(x.id); delete b.chip; }) } }, 'skip'));
+      box.append(chips);
+    }
+    box.append(flagBox(x.id));
+    const restored = S.answers.get(x.id).restored;
+    box.append(h('div', { class: 'group' },
+      restored ? h('button', { type: 'button', key: `keep:${x.id}`, on: { click: () => act(() => { keep(x.id); S.open = null; S.fresh = `blank:${x.id}`; }) } }, 'Keep') : null,
+      h('button', { type: 'button', class: 'primary', key: `done:${x.id}`, on: { click: () => act(() => { S.open = null; S.fresh = `blank:${x.id}`; }) } }, 'Done')));
+  }
+  return box;
+}
+
+/** The flag: a toggle button, pressed while the person wants this one
+ *  raised in chat. */
+function flagBox(id) {
+  const a = S.answers.get(id);
+  const on = Boolean(a && a.flag);
+  return h('button', { type: 'button', class: 'flag', key: `flag:${id}`, aria: { pressed: on }, on: { click: () => act(() => {
+    if (!S.answers.has(id)) keepAsDrafted(id);
+    const c = S.answers.get(id);
+    if (!c) return;
+    if (!on) c.flag = true; else delete c.flag;
+  }) } }, 'Ask me about this in chat');
+}
+/** Flagging an untouched entry records its drafted fields unchanged, so the
+ *  flag has an answer to ride on. A question is flagged only after a pick, so
+ *  no pick is ever made for the person. */
+function keepAsDrafted(id) {
+  const d = DRAFTED.get(id);
+  if (!d || d.c.none || QUESTION.has(id)) return;
+  answer(id, { fields: { ...d.c.fields } });
+}
+
+/** A live warning beside a typed value that holds a key-shaped value or an
+ *  email address, for every place the person types: a clause's fields, the
+ *  name and the why. */
+function shapeWarn(read, tag = 'div') {
+  return live(h(tag, { class: 'warn', aria: { live: 'polite' } }), el => {
+    const shapes = Interview.shapesIn(read() || '').filter(s => s !== 'a home folder path');
+    el.textContent = shapes.length ? `This holds ${shapes.join(' and ')}. It is already kept in this browser, and it goes into the block you copy. Remove it here unless the contract needs it, and say in chat whether it belongs.` : '';
+  });
+}
+/** The fields of a live clause, each edited where it sits. */
+function fieldsEditor(x) {
+  const box = h('div');
+  const fields = x.fields || {};
+  for (const f of x.kind.fields) {
+    const id = newDomId();
+    const key = `field:${x.id}:${f.name}`;
+    let ctl;
+    if (f.type === 'choice') {
+      ctl = h('select', { class: 'pick', id, key, on: { change: e => act(() => setField(x.id, f.name, e.target.value)) } },
+        kinds.choices[f.name].map(v => h('option', { value: v, selected: fields[f.name] === v }, (kinds.words && kinds.words[v]) || v)));
+    } else {
+      ctl = h('textarea', { class: 'ed', id, key, rows: 1, spellcheck: true, value: Object.hasOwn(fields, f.name) ? fields[f.name] : '',
+        on: { input: e => { setField(x.id, f.name, e.target.value); persist(); size(e.target); refresh(); } } });
+      if (f.optional) ctl.placeholder = '(optional)';
+    }
+    const warn = shapeWarn(() => ctl.value);
+    // A kind with one field needs no label beside it: the schedule names it.
+    const one = x.kind.fields.length === 1;
+    box.append(h('div', { class: `rec-line${one ? ' one' : ''}` }, h('label', { class: one ? 'vh' : 'rec-k', htmlFor: id }, human(f.name)), h('div', null, ctl, warn)));
+  }
+  if (x.kind.hint) box.append(h('p', { class: 'note' }, x.kind.hint));
+  const d = DRAFTED.get(x.id);
+  if (d && d.c.freedom) box.append(h('p', { class: 'fixed' }, `Freedom: ${d.c.freedom}${x.kind.id === 'stop' ? ' (fixed by the template for a stop)' : ''}`));
+  if (d && d.c.gate) box.append(h('p', { class: 'fixed' }, 'Gated by: ', d.c.gate));
+  return box;
+}
+
+/* -- a schedule in its own sheet, over the letter ----------------------------- */
+function openModal(key) {
+  S.modal = key;
+  S.modalFresh = true;
+  S.fresh = 'modal-head';
+}
+/** One schedule, on a sheet pulled from the stack: the browser's own
+ *  dialog, so focus stays inside and Escape closes it. Previous and Next
+ *  walk the schedules in order; closing goes back to the place in the
+ *  letter it was opened from. */
+const closeModal = () => act(() => { const key = S.modal; S.modal = null; S.fresh = `ref:${key}`; });
+const modalEl = document.createElement('dialog');
+modalEl.className = 'modal';
+modalEl.setAttribute('aria-labelledby', 'modal-title');
+modalEl.addEventListener('cancel', e => { e.preventDefault(); closeModal(); });
+modalEl.addEventListener('click', e => { if (e.target === modalEl) closeModal(); });
+modalEl.addEventListener('animationend', () => modalEl.classList.remove('opening'));
+document.body.append(modalEl);
+/** What the dialog holds for the open schedule, or null when none is open. */
+function scheduleModal() {
+  const all = schedules();
+  const at = all.findIndex(x => x.key === S.modal);
+  if (at < 0) { S.modal = null; return null; }
+  const s = all[at];
+  const mine = all.filter(x => x.part === s.part);
+  const close = closeModal;
+  const go = to => act(() => { S.modal = all[to].key; S.modalFresh = true; S.fresh = 'modal-head'; });
+  const head = h('div', { class: 'modal-head' },
+    h('p', { class: 'lbl', id: 'modal-title', tabIndex: -1, key: 'modal-head' }, `${HEADS[s.part]}, schedule ${s.letter}`),
+    h('button', { type: 'button', class: 'scheme', key: 'modal-close', title: 'Close', aria: { label: 'Close this schedule' }, on: { click: close } }, '\u00d7'));
+  const body = h('div', { class: 'modal-body' }, schedule(s, mine, true));
+  const foot = h('div', { class: 'modal-foot group' },
+    h('button', { type: 'button', class: 'quiet', key: 'modal-prev', disabled: at === 0, on: { click: () => go(at - 1) } }, 'Previous'),
+    h('span', { class: 'small muted' }, `${at + 1} of ${all.length}`),
+    h('span', { class: 'spacer' }),
+    at < all.length - 1
+      ? h('button', { type: 'button', class: 'primary', key: 'modal-next', on: { click: () => go(at + 1) } }, 'Next schedule')
+      : h('button', { type: 'button', class: 'primary', key: 'modal-done', on: { click: close } }, 'Done'));
+  return [head, body, foot];
+}
+
+/* -- the schedules ------------------------------------------------------------- */
+function schedulesSheet() {
+  const sheet = h('section', { class: 'av-sheet av-sheet--surface', aria: { label: 'Schedules attached to the letter' } });
+  sheet.append(h('p', { class: 'lbl sheet-head', tabIndex: -1, key: 'sheet-head' }, 'Schedules attached to the letter'));
+  const all = schedules();
+  for (const part of PARTS) {
+    if (part === 'why') continue; // its one term is in the letter
+    const box = h('div', { class: 'sched-part' }, h('h3', null, HEADS[part]));
+    const mine = all.filter(s => s.part === part);
+    if (!ASKED.has(part)) box.append(h('p', { class: 'empty' }, `The ${draft.level} level does not ask this part.`));
+    else if (!mine.length) box.append(h('p', { class: 'empty' }, 'No schedule here yet.'));
+    for (const s of mine) box.append(schedule(s, mine));
+    const add = ASKED.has(part) ? addSchedule(part) : null;
+    if (add) box.append(add);
+    sheet.append(box);
+  }
+  return h('div', { class: 'stack' }, h('div', { class: 'behind b2' }), h('div', { class: 'behind b1' }), sheet);
+}
+
+function schedule(s, siblings, inModal) {
+  const high = s.kind.stakes === 'high';
+  const pending = s.entries.filter(x => x.mark === 'Proposed' || (S.answers.get(x.id) || {}).restored).length;
+  const det = h('details', { class: `sched${pending ? '' : ' agreed'}${high ? ' tech' : ''}`, id: `sched-${s.letter}`, open: inModal || S.schedOpen.has(s.key) });
+  const body = h('div', { class: 'body' });
+  det.style.viewTransitionName = `sched-${s.part}-${s.kind.id}`;
+  const title = h('b', null, scheduleName(s));
+  // How many entries are agreed, as "3/5", read out in words. A schedule
+  // with every entry agreed also carries its mark's word.
+  const n = s.entries.length;
+  const state = h('span', { class: 'count' }, h('span', { aria: { hidden: 'true' } }, `${n - pending}/${n}`), h('span', { class: 'vh' }, `, ${n - pending} of ${n} agreed`),
+    pending ? null : markEl(s.entries.some(x => x.mark === 'Decided') ? 'Decided' : 'Confirmed'));
+  // A grid row: the letter, the name, the count and the menu share the first
+  // line, however the name wraps; the stakes note sits under the name.
+  const sum = h('summary', { key: `sum:${s.key}` }, h('span', { class: 'sched-letter' }, `Schedule ${s.letter}`),
+    h('span', { class: 'sum-main' }, title,
+      high ? h('span', { class: 'stake' }, 'high stakes, agreed one by one') : null),
+    state);
+  sum.addEventListener('click', e => { if (e.target.closest('.menu')) return; e.preventDefault(); if (!inModal) slide(det, body, s.key); });
+  const at = siblings.indexOf(s);
+  const order = kindOrder(s.part);
+  const menu = menuEl(`Actions for schedule ${s.letter}`, [
+    ['Rename', () => act(() => { S.renaming = s.key; S.schedOpen.add(s.key); S.fresh = `rename:${s.key}`; })],
+    at > 0 && ['Move up', () => moveAct(() => { edit({ op: 'move', part: s.part, kind: s.kind.id, to: order.indexOf(siblings[at - 1].kind.id) }); S.fresh = `menu:${s.key}`; })],
+    at < siblings.length - 1 && ['Move down', () => moveAct(() => { edit({ op: 'move', part: s.part, kind: s.kind.id, to: order.indexOf(siblings[at + 1].kind.id) }); S.fresh = `menu:${s.key}`; })],
+    ['It needs none of these', () => act(() => { edit({ op: 'none', part: s.part, kind: s.kind.id }); for (const x of s.entries) S.answers.delete(x.id); S.fresh = `menu:${s.key}`; })],
+    ['Remove', () => fadeOut(det, () => act(() => { edit({ op: 'remove', part: s.part, kind: s.kind.id }); for (const x of s.entries) S.answers.delete(x.id); S.fresh = `addsched:${s.part}`; }))],
+  ], `menu:${s.key}`);
+  sum.append(menu);
+  det.append(sum, body);
+  if (S.renaming === s.key) {
+    const id = newDomId();
+    const input = h('input', { class: 'name', id, value: scheduleName(s), key: `rename:${s.key}`, on: { keydown: e => {
+      if (e.key === 'Enter') { e.preventDefault(); const name = e.target.value.trim(); act(() => { S.renaming = null; if (name && name !== scheduleName(s)) renameSchedule(s, name); S.fresh = `menu:${s.key}`; }); }
+      if (e.key === 'Escape') { e.preventDefault(); act(() => { S.renaming = null; S.fresh = `menu:${s.key}`; }); }
+    } } });
+    body.append(h('div', { class: 'note' }, h('label', { htmlFor: id, class: 'small' }, 'New name for this schedule (Enter to keep, Escape to cancel) '), input));
+  }
+  if (s.kind.hint) body.append(h('p', { class: 'note' }, s.kind.hint));
+  for (const x of s.entries) body.append(record(x, { schedule: s }));
+  const foot = h('div', { class: 'group' },
+    h('button', { type: 'button', key: `add:${s.key}`, on: { click: () => act(() => addEntry(s.part, s.kind)) } }, 'Add an entry'));
+  const toAgree = s.entries.filter(x => DRAFTED.has(x.id) && !DRAFTED.get(x.id).c.none && !S.answers.has(x.id));
+  if (!high && !D.shared && toAgree.length) foot.append(h('button', { type: 'button', class: 'quiet', key: `agree-all:${s.key}`, on: { click: () => act(() => { for (const x of toAgree) agree(x.id); S.fresh = `add:${s.key}`; }) } }, 'Agree to the rest as drafted'));
+  body.append(foot);
+  return det;
+}
+function renameSchedule(s, name) {
+  // One rename per schedule is enough: a later one replaces it.
+  S.edits = S.edits.filter(e => !(e.op === 'rename' && e.part === s.part && e.kind === s.kind.id && !e.restored));
+  edit({ op: 'rename', part: s.part, kind: s.kind.id, name });
+}
+function addEntry(part, kind) {
+  const id = newId();
+  edit({ op: 'add', id, part, kind: kind.id, fields: emptyFields(kind) });
+  S.schedOpen.add(`${part}/${kind.id}`);
+  S.fresh = `field:${id}:${kind.fields[0].name}`;
+  S.justAdded = id;
+}
+
+function addSchedule(part) {
+  const free = kinds.kinds.filter(k => k.part === part && k.id !== 'why' && !(k.id === 'name' && PLAIN) && !(k.types && !k.types.includes(draft.type)));
+  if (!free.length) return null;
+  if (S.adding === part) {
+    const id = newDomId();
+    const sel = h('select', { class: 'pick', id, key: `addsel:${part}` }, free.map(k => h('option', { value: k.id }, capital(k.kind))));
+    return h('div', { class: 'note fade-in' },
+      h('label', { htmlFor: id, class: 'small' }, 'Add a schedule: a kind of clause the job needs '), sel, ' ',
+      h('button', { type: 'button', key: `addgo:${part}`, on: { click: () => act(() => { S.adding = null; addEntry(part, KIND.get(sel.value)); }) } }, 'Add'), ' ',
+      h('button', { type: 'button', class: 'quiet', on: { click: () => act(() => { S.adding = null; S.fresh = `addsched:${part}`; }) } }, 'Cancel'));
+  }
+  return h('div', { class: 'group' }, h('button', { type: 'button', class: 'quiet', key: `addsched:${part}`, on: { click: () => act(() => { S.adding = part; S.fresh = `addsel:${part}`; }) } }, 'Add a schedule'),
+    h('span', { class: 'small muted' }, 'a kind of clause the job needs'));
+}
+
+/** One entry: a labelled record, one line per field. */
+function record(x, where) {
+  const a = S.answers.get(x.id);
+  const restored = Boolean(a && a.restored) || S.edits.some(e => e.restored && (e.id === x.id || (e.op === 'none' && `none:${e.kind}` === x.id)));
+  const rec = h('div', { class: `rec${S.justAdded === x.id ? ' fade-in' : ''}` });
+  rec.style.viewTransitionName = `rec-${x.id}`;
+  if (S.justAdded === x.id) S.justAdded = null;
+  const high = x.kind.stakes === 'high';
+  if (x.none) {
+    rec.append(h('p', null, 'None'));
+  } else {
+    rec.append(fieldsEditor(x));
+  }
+  const mark = live(h('span'), el => {
+    const y = V.parts.get(partOf(x.id)).find(z => z.id === x.id);
+    const b = S.answers.get(x.id);
+    el.replaceChildren(markEl(y ? y.mark : x.mark, (b && b.restored) || restored));
+    paint(rec, y ? y.mark : x.mark, Boolean((b && b.restored) || restored));
+  });
+  const foot = h('div', { class: 'rec-foot' }, mark);
+  const d = DRAFTED.get(x.id);
+  if (d && !x.none && !high && (!a || a.restored)) foot.append(h('button', { type: 'button', class: 'text', key: `agree:${x.id}`, on: { click: () => act(() => { agree(x.id); S.fresh = `field:${x.id}:${x.kind.fields[0].name}`; }) } }, 'Agree'));
+  if (d && !x.none && a && a.restored) foot.append(h('button', { type: 'button', class: 'text', key: `keep:${x.id}`, on: { click: () => act(() => { keep(x.id); S.fresh = `field:${x.id}:${x.kind.fields[0].name}`; }) } }, 'Keep'));
+  if (high && !x.none) foot.append(h('span', { class: 'small muted' }, 'your own words go in chat'));
+  if (x.none) foot.append(h('button', { type: 'button', class: 'text', key: `replace:${x.id}`, on: { click: () => act(() => {
+    if (d) edit({ op: 'remove', id: x.id }); else edit({ op: 'remove', part: partOf(x.id), kind: x.kind.id });
+    addEntry(partOf(x.id), x.kind);
+  }) } }, 'Replace with an entry'));
+  if (d && !x.none) foot.append(flagBox(x.id));
+  if (!x.none && where.schedule) foot.append(entryMenu(x, where.schedule));
+  if (S.rekinding === x.id) rec.append(rekindPick(x));
+  rec.append(foot);
+  return rec;
+}
+const partOf = id => { for (const [part, list] of V.parts) if (list.some(z => z.id === id)) return part; return null; };
+
+function entryMenu(x, s) {
+  const list = V.parts.get(s.part);
+  const same = list.map((z, i) => [z, i]).filter(([z]) => z.kind.id === s.kind.id && !inLetter(z));
+  const at = same.findIndex(([z]) => z.id === x.id);
+  const n = s.entries.indexOf(x) + 1;
+  return menuEl(`Actions for entry ${n} of schedule ${s.letter}`, [
+    at > 0 && ['Move up', () => moveAct(() => { edit({ op: 'move', id: x.id, to: same[at - 1][1] }); S.fresh = `menu:${x.id}`; })],
+    at < same.length - 1 && ['Move down', () => moveAct(() => { edit({ op: 'move', id: x.id, to: same[at + 1][1] }); S.fresh = `menu:${x.id}`; })],
+    kinds.kinds.some(k => k.part === s.part && k.id !== x.kind.id && k.id !== 'why' && !(k.types && !k.types.includes(draft.type))) && ['Change its kind', () => act(() => { S.rekinding = x.id; S.fresh = `rekind:${x.id}`; })],
+    ['Remove', e => fadeOut(e && e.closest ? e.closest('.rec') : null, () => act(() => { edit({ op: 'remove', id: x.id }); S.answers.delete(x.id); S.fresh = `add:${s.key}`; }))],
+  ], `menu:${x.id}`);
+}
+
+function rekindPick(x) {
+  const part = partOf(x.id);
+  const choices = kinds.kinds.filter(k => k.part === part && k.id !== x.kind.id && k.id !== 'why' && !(k.id === 'name' && PLAIN) && !(k.types && !k.types.includes(draft.type)));
+  const id = newDomId();
+  const sel = h('select', { class: 'pick', id, key: `rekind:${x.id}` }, choices.map(k => h('option', { value: k.id }, capital(k.kind))));
+  return h('div', { class: 'note' }, h('label', { htmlFor: id, class: 'small' }, 'Change its kind to '), sel, ' ',
+    h('button', { type: 'button', on: { click: () => act(() => {
+      const kind = KIND.get(sel.value);
+      edit({ op: 'rekind', id: x.id, kind: kind.id, fields: emptyFields(kind, x.fields) });
+      S.answers.delete(x.id);
+      S.rekinding = null;
+      S.schedOpen.add(`${part}/${kind.id}`);
+      S.fresh = `field:${x.id}:${kind.fields[0].name}`;
+    }) } }, 'Change'), ' ',
+    h('button', { type: 'button', class: 'quiet', on: { click: () => act(() => { S.rekinding = null; S.fresh = `menu:${x.id}`; }) } }, 'Cancel'));
+}
+
+/** A small menu: Tab to its button, arrows inside, Enter to act, Escape to
+ *  leave. */
+/* A click anywhere outside an open menu closes it, and so does a scroll or
+   a resize, which would leave it floating away from its button. */
+const closeMenus = e => {
+  for (const ul of document.querySelectorAll('.menu ul:not([hidden])')) if (!(e && e.type === 'click' && ul.parentElement.contains(e.target)) && ul.closeMenu) ul.closeMenu();
+};
+document.addEventListener('click', closeMenus);
+document.addEventListener('scroll', closeMenus, true);
+window.addEventListener('resize', closeMenus);
+function menuEl(label, items, key) {
+  const actions = items.filter(Boolean);
+  const listId = newDomId();
+  const btn = h('button', { type: 'button', key, aria: { haspopup: 'menu', expanded: 'false', controls: listId, label } }, '⋯');
+  const ul = h('ul', { role: 'menu', id: listId, hidden: true });
+  const buttons = actions.map(([text, fn]) => h('li', { role: 'none' }, h('button', { type: 'button', role: 'menuitem', tabIndex: -1, on: { click: e => { close(); fn(e.target); } } }, text)));
+  ul.append(...buttons);
+  const items$ = () => [...ul.querySelectorAll('button')];
+  /* The open list is placed against the window, not its row, so a sheet or
+   * a modal that scrolls never cuts it off; it opens upwards when there is
+   * no room below. */
+  const place = () => {
+    const r = btn.getBoundingClientRect();
+    ul.style.position = 'fixed';
+    ul.style.left = 'auto';
+    ul.style.right = `${Math.max(8, document.documentElement.clientWidth - r.right)}px`;
+    const tall = ul.offsetHeight;
+    ul.style.top = `${innerHeight - r.bottom < tall + 8 && r.top > tall + 8 ? r.top - tall - 4 : r.bottom + 4}px`;
+  };
+  const openMenu = first => { ul.hidden = false; place(); btn.setAttribute('aria-expanded', 'true'); const list = items$(); (first === 'last' ? list[list.length - 1] : list[0]).focus(); };
+  const close = () => { ul.hidden = true; btn.setAttribute('aria-expanded', 'false'); };
+  ul.closeMenu = close;
+  btn.addEventListener('click', e => { e.preventDefault(); e.stopPropagation(); if (ul.hidden) openMenu(); else close(); });
+  btn.addEventListener('keydown', e => {
+    if (e.key === 'ArrowDown') { e.preventDefault(); openMenu(); }
+    if (e.key === 'ArrowUp') { e.preventDefault(); openMenu('last'); }
+  });
+  ul.addEventListener('keydown', e => {
+    const list = items$();
+    const i = list.indexOf(document.activeElement);
+    if (e.key === 'ArrowDown') { e.preventDefault(); list[(i + 1) % list.length].focus(); }
+    else if (e.key === 'ArrowUp') { e.preventDefault(); list[(i - 1 + list.length) % list.length].focus(); }
+    else if (e.key === 'Home') { e.preventDefault(); list[0].focus(); }
+    else if (e.key === 'End') { e.preventDefault(); list[list.length - 1].focus(); }
+    else if (e.key === 'Escape') { e.preventDefault(); close(); btn.focus(); }
+    else if (e.key === 'Tab') close();
+  });
+  ul.addEventListener('click', e => e.stopPropagation());
+  return h('span', { class: 'menu' }, btn, ul);
+}
+
+/* Motion. Each one is skipped under reduced motion. */
+/* An animation's end, or a timer just past it: a page in a background tab
+   may never finish an animation, and the change must still land, once. */
+function afterMotion(anim, ms, then) {
+  let ran = false;
+  const once = () => { if (!ran) { ran = true; then(); } };
+  anim.onfinish = once;
+  setTimeout(once, ms + 60);
+}
+function slide(det, body, key) {
+  const done = open => { if (open) S.schedOpen.add(key); else S.schedOpen.delete(key); };
+  if (still() || !body.animate) { det.open = !det.open; done(det.open); return; }
+  if (det.open) {
+    const from = body.offsetHeight;
+    afterMotion(body.animate([{ height: `${from}px`, opacity: 1 }, { height: '0px', opacity: 0 }], { duration: 180, easing: 'ease-in' }), 180, () => { det.open = false; done(false); });
+  } else {
+    det.open = true;
+    done(true);
+    for (const el of body.querySelectorAll('textarea.ed')) size(el);
+    const to = body.offsetHeight;
+    body.animate([{ height: '0px', opacity: 0 }, { height: `${to}px`, opacity: 1 }], { duration: 220, easing: 'ease-out' });
+  }
+}
+/** A move: the browser's view transition slides each schedule and entry
+ *  from its old place to its new one. Each carries a name built from its
+ *  checked id; with no support, or under reduced motion, the move lands at
+ *  once. */
+function moveAct(fn) {
+  if (still() || !document.startViewTransition) { act(fn); return; }
+  document.startViewTransition(() => act(fn));
+}
+function fadeOut(el, then) {
+  if (still() || !el || !el.animate) { then(); return; }
+  el.style.overflow = 'hidden';
+  afterMotion(el.animate([{ opacity: 1, height: `${el.offsetHeight}px` }, { opacity: 0, height: '0px' }], { duration: 180, easing: 'ease-in' }), 180, then);
+}
+
+/* -- signing --------------------------------------------------------------------- */
+function signing() {
+  const t = Interview.tally(draft, S);
+  const block = Interview.blockText(Interview.blockOf(draft, kinds, hashes, S));
+  const restored = [...S.answers.values()].filter(a => a.restored).length;
+  const flags = [...S.answers.values()].filter(a => a.flag).length;
+  const terms = [...QUESTION.keys()].filter(id => DRAFTED.has(id));
+  const open = terms.filter(id => !S.answers.has(id)).length;
+  const why = [...DRAFTED.values()].find(d => d.c.kind === 'why');
+  const boxId = newDomId();
+  const ta = h('textarea', { class: 'block', id: boxId, readOnly: true, value: block, key: 'block', spellcheck: false });
+  const copy = h('button', { type: 'button', class: 'primary', key: 'copy', on: { click: () => {
+    const fail = () => { ta.focus(); ta.select(); S.status = 'Copying did not work here. The block is selected below: copy it with your keyboard.'; document.querySelector('.status').textContent = S.status; };
+    try {
+      navigator.clipboard.writeText(block).then(() => { S.status = 'Copied. Paste it in chat.'; document.querySelector('.status').textContent = S.status; }, fail);
+    } catch (e) { fail(); }
+  } } }, 'Copy the answer block');
+  return h('section', { class: 'av-sheet av-sheet--surface signing', aria: { label: 'Signing' } },
+    h('p', { class: 'lbl' }, 'The signed copy'),
+    h('h2', null, 'Here is what you agreed.'),
+    h('div', { class: 'tally' },
+      h('div', null, h('b', null, String(t.proposalsTaken)), 'proposals taken as drafted'),
+      h('div', null, h('b', null, String(t.otherPicks)), 'other options picked'),
+      h('div', null, h('b', null, String(t.edited)), 'answers in your own words or edited'),
+      h('div', null, h('b', null, String(flags)), 'flagged for chat'),
+      h('div', null, h('b', null, String(restored)), 'restored, not kept yet'),
+      h('div', null, h('b', null, String(open)), 'terms in the letter not answered')),
+    t.proposalsTaken > 0 && t.otherPicks + t.edited === 0 ? h('p', { class: 'warn' }, 'You took every proposal as drafted. That can be right: check that you meant each one.') : null,
+    why && !S.answers.has(why.c.id) ? h('p', { class: 'warn' }, 'Why we are hiring is still empty. Nothing is built until you write it.') : null,
+    h('p', { class: 'small' }, 'Back in chat, the agent asks one question at a time on each high-stakes term and each one you flagged.'),
+    h('div', { class: 'group' }, copy),
+    h('label', { htmlFor: boxId, class: 'small' }, 'Your answer block, as text you can select'),
+    ta);
+}
+
+render();
+</script>
+</body>
+</html>

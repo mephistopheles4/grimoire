@@ -83,6 +83,25 @@ test('the box the skill ships still publishes, and the index links it', () => {
   assert.match(index, /skills\/eagle-eye\/examples\/eagle-eye-skill\.box\.json/);
 });
 
+test('the contract skill\'s example interview publishes with --site, and its page keeps nothing', () => {
+  // The registry row passes --site, so the published page holds no store: it
+  // reads and writes no key under contract-interview:, and only the theme key.
+  const dir = tree();
+  const r = run(buildIn(dir), [], { cwd: dir });
+  assert.equal(r.code, 0, `${r.stdout}\n${r.stderr}`);
+  const name = 'skills-contract-examples-release-notes.html';
+  const page = readFileSync(site(dir, name), 'utf8');
+  const index = readFileSync(site(dir, 'index.html'), 'utf8');
+  assert.ok(index.includes(`href="./${name}">release-notes: a small made-up skill that writes release notes</a>`), 'the index line names the example by its title');
+  assert.ok(index.includes('skills/contract/examples/release-notes.interview.json'));
+  assert.match(index, /<span class="kind">interview<\/span>/);
+  assert.match(page, /"site":true/);
+  assert.match(page, /"folder":null/);
+  const keys = [...page.matchAll(/localStorage\.(?:getItem|setItem|removeItem)\(\s*'([^']*)'/g)].map(m => m[1]);
+  assert.deepEqual([...new Set(keys)], ['aviation-scheme']);
+  assert.match(page, /const store = D\.site \? null : /);
+});
+
 test('the index is the same design as the pages it links', () => {
   // The index carried its own sans-serif stack and declared
   // `color-scheme: light dark`. The pages use the system's tokens and take

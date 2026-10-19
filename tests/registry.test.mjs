@@ -89,8 +89,9 @@ test('a prose-only skill owes the registry no row', () => {
   // The table test above once asked every skill for a row, so the first skill
   // with nothing to render failed it while the check and CONTRIBUTING both
   // said it was fine.
-  // The real tree first: contract is prose-only, so it stays off the list.
-  assert.deepEqual(skillsThatShipExamples(join(root, 'skills')).sort(), ['eagle-eye', 'groundtrack']);
+  // The real tree first: since 0.13.0 the contract skill ships the hiring
+  // page's example, so all three skills that render are on the list.
+  assert.deepEqual(skillsThatShipExamples(join(root, 'skills')).sort(), ['contract', 'eagle-eye', 'groundtrack']);
   const dir = join(work, `case-${n++}`);
   newSkill(dir, 'proseonly', false);
   newSkill(dir, 'renders', true);

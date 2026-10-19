@@ -38,8 +38,10 @@ when the person wants any change to it.
    An agent file or a `CLAUDE.md` has no fences: regenerate the sections the
    touched parts write, and keep the rest word for word. A part that writes
    nothing into the body (`purpose`, `why`, `open`) changes the description,
-   or nothing; say which. Regenerate the Additional resources index when a
-   reference file is added, removed or renamed.
+   or nothing; say which. Regenerate the frontmatter keys a part writes:
+   `description` from `purpose`, and `compatibility` from `tools`.
+   Regenerate the Additional resources index when a reference file is added,
+   removed or renamed.
 8. **Validate,** as the binding says: run `claude plugin validate --strict`
    when the command is available. For a skill, the path is the `skills/`
    folder that holds the skill's folder. For an agent, it is the folder that
