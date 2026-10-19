@@ -89,7 +89,12 @@ the pane would draw, as strings. Its roster module, `brigade/roster.ts`, is the
 second seam: `tests/brigade-roster-rules.test.mjs` imports it to check the
 roster's shape rules, its byte cap and the path rule that decides whether the
 roster file may be read or written. Keep both to erasable syntax (no enums,
-namespaces or parameter properties), so Node can strip their types.
+namespaces or parameter properties), so Node can strip their types. The
+contract skill's hiring page has a seam of its own: `tests/contract-page.test.mjs`
+renders it through the interview script's `--out`, runs the page's own
+scripts on a small stand-in document, picks its controls by the keys the page
+gives them, such as `blank:<id>` and `chip:<id>:<n>`, and reads what the
+page saved to its store. Those keys and the saved entry are the page's seam.
 
 **Two more gates for the mod's `set_roster` tool, run on your own machine.**
 They drive a live Claude Code session, so they run where you have one. CI fetches
