@@ -224,6 +224,13 @@ test('redraft: a reworded option drops its saved pick and names it, adopts the u
   const mine = [...store.map.keys()].filter(k => k.startsWith('contract-interview:skill:contract:'));
   assert.deepEqual(mine, [keyOf(base(), newHashes.draft)]);
   assert.equal(Interview.restore(store, redrafted(), kinds, newHashes).count, 2);
+  assert.equal(r.note, '', 'a redraft with no schedule edit to leave behind says nothing');
+  // Schedule edits are not carried over to a new draft, and the note says so.
+  const edited = memoryStore();
+  Interview.save(edited, base(), kinds, hashes, { answers: saved(), edits: [{ op: 'add', id: 'added-1', part: 'roles', kind: 'duty', fields: { text: 'a duty of mine' } }] });
+  const re = Interview.redraft(edited, redrafted(), kinds, newHashes, { shared: false });
+  assert.deepEqual(re.adopted, ['near-miss', 'duty-1']);
+  assert.equal(re.note, '1 schedule edit from the earlier draft was not carried over: make it again here if you still want it.');
   // A save that fails leaves the old entry in place, so no answer is lost.
   const full = memoryStore();
   Interview.save(full, base(), kinds, hashes, { answers: saved(), edits: [] });

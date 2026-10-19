@@ -166,7 +166,7 @@ const inWorkTree = folder => {
 
 function newFolder(parentArg) {
   const parent = parentArg === undefined ? defaultParent() : resolve(parentArg);
-  if (parentArg !== undefined && inWorkTree(parent)) {
+  if (inWorkTree(parent)) {
     say('render.mjs: the parent folder is inside a git work tree, where the answers could be committed. Name a folder outside any repository.');
     return 2;
   }

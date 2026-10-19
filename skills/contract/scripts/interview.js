@@ -994,7 +994,13 @@ const Interview = (() => {
      * leaves it, so a later redraft can carry the answers over again, and
      * the note says where it stays. */
     const gone = save(store, draft, kinds, hashes, state) && safely(() => (store.removeItem(oldKey), true), false);
-    return { adopted, dropped, note: gone ? '' : left('Saving here failed, so the earlier answers were kept where they were.') };
+    if (!gone) return { adopted, dropped, note: left('Saving here failed, so the earlier answers were kept where they were.') };
+    /* The schedule edits are not carried over, as their clauses may have
+     * moved in the new draft; the note says how many went with the old entry. */
+    const lost = Array.isArray(entry.block.edits) ? entry.block.edits.length : 0;
+    const note = lost === 1 ? '1 schedule edit from the earlier draft was not carried over: make it again here if you still want it.'
+      : lost ? `${lost} schedule edits from the earlier draft were not carried over: make them again here if you still want them.` : '';
+    return { adopted, dropped, note };
   }
 
   /** Reset: remove every key under this contract's prefix, and nothing else.

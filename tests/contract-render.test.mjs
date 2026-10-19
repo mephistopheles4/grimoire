@@ -337,6 +337,11 @@ test('--new-folder refuses a parent inside a git work tree', () => {
   mkdirSync(join(worktree, 'sub'), { recursive: true });
   writeFileSync(join(worktree, '.git'), 'gitdir: elsewhere\n');
   assert.equal(run(contractRender, ['--new-folder', join(worktree, 'sub')]).code, 2, 'a .git file marks a linked worktree');
+  // The default parent is held to the same rule: a cache or temp folder inside a work tree is refused too.
+  const inside = join(worktree, 'sub');
+  const r = run(contractRender, ['--new-folder'], { env: { XDG_CACHE_HOME: inside, TMPDIR: inside, TMP: inside, TEMP: inside } });
+  assert.equal(r.code, 2, 'the default parent skipped the work-tree check');
+  assert.match(r.stderr, /git work tree/);
 });
 
 /** A scratch folder holding the three files and one other. */
