@@ -365,7 +365,12 @@ const fieldsEqual = (a, b) => {
 };
 
 /* -- state changes -------------------------------------------------------------- */
+/* After Reset, nothing is saved again until the person gives an answer or
+ * makes an edit, so a later click writes no empty entry back. */
+let cleared = false;
 function persist() {
+  if (cleared && !S.answers.size && !S.edits.length) return;
+  cleared = false;
   Interview.save(store, draft, kinds, hashes, S);
 }
 /** A change that redraws the page. */
@@ -627,8 +632,8 @@ function noticesEl() {
  * leave. Undo puts the answers back and saves them again. */
 const UNDO_GRACE_MS = 10000;
 const HOT_SETTLE_MS = 260;
-let undoSnap = null, undoFuse = null, undoLeft = false, resetHot = false, hotFuse = null, resetEl = null;
-const undoOffered = () => Boolean(undoSnap) && undoLeft && resetHot;
+let undoSnap = null, undoFuse = null, undoLeft = false, undoBack = false, resetHot = false, hotFuse = null, resetEl = null;
+const undoOffered = () => Boolean(undoSnap) && undoLeft && undoBack && resetHot;
 function paintReset() {
   if (!resetEl) return;
   const offering = undoOffered();
@@ -636,17 +641,19 @@ function paintReset() {
   resetEl.classList.toggle('armed', offering);
   named(resetEl, offering ? 'Undo the reset' : undoSnap ? 'Reset. Hover again to undo' : 'Reset every answer');
 }
-function disarmUndo() { clearTimeout(undoFuse); undoFuse = null; undoSnap = null; undoLeft = false; paintReset(); }
+function disarmUndo() { clearTimeout(undoFuse); undoFuse = null; undoSnap = null; undoLeft = false; undoBack = false; paintReset(); }
 function armUndo(snap) {
   clearTimeout(undoFuse);
-  undoSnap = snap; undoLeft = false;
+  undoSnap = snap; undoLeft = false; undoBack = false;
   undoFuse = setTimeout(disarmUndo, UNDO_GRACE_MS);
 }
+/* A leave counts once the pointer or the focus comes back after it; until
+ * then, a click on the still-focused button is a second press. */
 function resetHover(on, e) {
   if (e.target !== resetEl) return;
   clearTimeout(hotFuse); hotFuse = null;
-  if (on) { resetHot = true; paintReset(); return; }
-  if (undoSnap) undoLeft = true;
+  if (on) { if (undoLeft) undoBack = true; resetHot = true; paintReset(); return; }
+  if (undoSnap) { undoLeft = true; undoBack = false; }
   hotFuse = setTimeout(() => { resetHot = false; paintReset(); }, HOT_SETTLE_MS);
 }
 function resetButton() {
@@ -666,6 +673,7 @@ function resetButton() {
       const had = S.answers.size + S.edits.length > 0;
       const before = { answers: new Map([...S.answers].map(([k, v]) => [k, { ...v }])), edits: S.edits.map(e => ({ ...e })), own: new Set(S.own), picked: new Map(S.picked) };
       Interview.forget(store, draft);
+      cleared = true;
       S.answers = new Map(); S.edits = []; S.own = new Set(); S.picked = new Map(); S.open = null; S.step = null; S.modal = null;
       notes.length = 0;
       S.status = 'Reset: every answer is cleared from this page and this browser.';

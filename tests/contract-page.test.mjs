@@ -539,25 +539,42 @@ test('the notices are open at load, on a page from disk and on the published exa
 test('Reset holds against a second press and a long stay on the button; Undo works only when chosen within ten seconds', () => {
   const seed = () => ({ answers: new Map([['job', { option: 'job-b' }]]), edits: [] });
   const page = loadPage({ seed: seed() });
+  const entries = p => [...p.map.keys()].filter(k => k.startsWith(`contract-interview:${p.D.draft.type}:${p.D.draft.name}:`));
   assert.ok(page.saved(), 'the seeded answer is in the store');
   page.press(page.key('reset'));
-  assert.equal(page.saved(), null, 'Reset clears the store at the press');
+  assert.equal(page.saved(), null, 'Reset left the answers in the store');
   // A double-click, or a second Enter, with the focus still on the button.
   page.press(page.key('reset'));
   assert.equal(page.saved(), null, 'a second press at once wrote the answers back');
   assert.doesNotMatch(page.text(), /Undone/);
+  // The pointer leaves while the focus stays, and Enter comes before any return.
+  page.fire(page.key('reset'), 'mouseleave', { bubbles: false });
+  page.clock.tick(100);
+  page.click(page.key('reset'));
+  assert.equal(page.saved(), null, 'Undo was offered after a leave with no return');
   // The focus stays past the ten seconds, then leaves and comes back.
   page.clock.tick(11000);
   page.key('reset').blur();
   page.press(page.key('reset'));
   assert.equal(page.saved(), null, 'Undo was still offered after ten seconds');
+  // A later save writes no entry until the person answers again.
+  page.click(page.key('info'));
+  assert.deepEqual(entries(page), [], 'a save after Reset wrote an entry back');
+  // A leave late in the ten seconds does not start them again.
+  const late = loadPage({ seed: seed() });
+  late.press(late.key('reset'));
+  late.clock.tick(9000);
+  late.key('reset').blur();
+  late.clock.tick(2000);
+  late.press(late.key('reset'));
+  assert.equal(late.saved(), null, 'a late leave started the ten seconds again');
   // Undo chosen on purpose: leave the button, come back, press, in time.
   const again = loadPage({ seed: seed() });
   again.press(again.key('reset'));
   again.clock.tick(1500);
   again.key('reset').blur();
   again.press(again.key('reset'));
-  assert.equal(again.saved().answers[0].id, 'job', 'Undo chosen within ten seconds puts the answers back');
+  assert.equal((again.saved() || { answers: [] }).answers[0]?.id, 'job', 'Undo chosen within ten seconds did not put the answers back');
   assert.match(again.text(), /Undone: your answers are back\./);
   // A quick leave counts too: off the button at once, back later, in time.
   const quick = loadPage({ seed: seed() });
