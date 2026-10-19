@@ -513,14 +513,26 @@ function loadPage({ flags = [], seed } = {}) {
   };
 }
 
-test('a page whose store holds a moved and a removed entry loads, and names both changes', () => {
-  const edits = [{ op: 'move', id: 'duty-read', to: 1 }, { op: 'remove', id: 'stays-out-one-pr' }];
+test('a page whose store holds an edit of every kind loads, and names each change', () => {
+  const edits = [
+    { op: 'add', id: 'added-1', part: 'roles', kind: 'duty', fields: { text: 'a restored duty' } },
+    { op: 'rename', part: 'roles', kind: 'duty', name: 'Chores' },
+    { op: 'move', id: 'duty-read', to: 1 },
+    { op: 'remove', id: 'stays-out-one-pr' },
+    { op: 'rekind', id: 'duty-group', kind: 'checked', fields: { what: 'the changes', by: 'a person' } },
+    { op: 'none', part: 'roles', kind: 'trigger' },
+  ];
   let page;
   assert.doesNotThrow(() => { page = loadPage({ seed: { answers: new Map(), edits } }); });
   const text = page.text();
+  assert.doesNotMatch(text, /did not fit this draft/, 'the seeded edits were dropped, so the test proves nothing');
   assert.match(text, /Changes brought back from this browser/);
+  assert.match(text, /Added an entry: a duty/);
+  assert.match(text, /Renamed a schedule: a duty in roles/);
   assert.match(text, /Moved [^.]*\(duty-read\)/);
   assert.match(text, /Removed [^.]*\(stays-out-one-pr\)/);
+  assert.match(text, /Changed the kind of [^.]*\(duty-group\)/);
+  assert.match(text, /Agreed where its trigger lives in roles holds none/);
 });
 
 test('the notices are open at load, on a page from disk and on the published example, and the info button toggles them', () => {
@@ -641,7 +653,7 @@ test('the answer block names a tapped chip by its place in the question, carries
   page.click(page.key('sign'));
   const text = page.key('block').value;
   for (const c of chips) assert.ok(!text.includes(c), `the block carries the chip text ${JSON.stringify(c)}`);
-  const block = JSON.parse(text.slice(8, -5));
+  const block = JSON.parse(text.replace(/^```json\n|```\n$/g, ''));
   assert.equal(block.answers.find(a => a.id === 'job').chip, 1);
   // The script reads it back, and prints the chip's own text from the draft.
   const dir = scratch();
