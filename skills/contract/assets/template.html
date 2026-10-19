@@ -58,9 +58,6 @@ button.text:hover{color:var(--av-ink);text-decoration-color:var(--av-ink)}
 [data-tip]::after{content:attr(data-tip);position:absolute;top:calc(100% + 6px);right:0;z-index:30;white-space:nowrap;font-size:var(--av-t-annot);font-weight:400;line-height:1.4;padding:4px 8px;background:var(--av-ink);color:var(--av-paper);opacity:0;pointer-events:none;transition:opacity .15s ease}
 [data-tip]:hover::after,[data-tip]:focus-visible::after{opacity:1;transition-delay:.35s}
 .info[aria-expanded="true"]{background:var(--av-ink-12);border-color:var(--av-ink)}
-/* Reset, and the Undo it offers for ten seconds. Amber, because taking a
-   reset back is a recovery; one width for both labels, so the swap never
-   resizes the button under the pointer. */
 .mode[aria-pressed="true"]{background:var(--av-ink-12);border-color:var(--av-ink)}
 /* A schedule's modal: a sheet over the letter, its own head and foot
    fixed, its body scrolling. */
@@ -84,6 +81,9 @@ dialog.modal.opening::backdrop{animation:backdrop-in .2s ease-out}
 .next{margin:var(--av-s4) 0 0;padding-top:var(--av-s3);border-top:var(--av-rule-hair) solid var(--av-ink-12)}
 .next>p{margin:0 0 var(--av-s3)}
 .sheet-head:focus{outline:0}
+/* Reset, and the Undo it offers for ten seconds. Amber, because taking a
+   reset back is a recovery; the icon swaps in place, so the button never
+   resizes under the pointer. */
 .reset.armed{background:var(--av-caution);border-color:var(--av-caution);color:var(--av-paper)}
 .notices{flex-basis:100%;max-width:68ch;padding-top:var(--av-s2)}
 .notices p{margin:0 0 var(--av-s1);font-size:var(--av-t-annot);line-height:1.6;color:var(--av-ink-70)}
@@ -236,7 +236,7 @@ textarea.block{width:100%;min-height:16em;margin-top:var(--av-s1);font-size:var(
 'use strict';
 /* The hiring page. Every rule it follows is in the module above, which the
    interview script runs too: the marks, the block, the tally, restore,
-   redraft and Forget. This script draws the page and keeps its state.
+   redraft and Reset. This script draws the page and keeps its state.
 
    Three rules hold throughout. Draft text goes into the page only as element
    content or through value and textContent, never into an attribute. Ids
@@ -303,12 +303,12 @@ const describe = id => {
 {
   const rd = Interview.redraft(store, draft, kinds, hashes, { shared: D.shared });
   if (rd.adopted.length) notes.push(['Carried over from the earlier draft, unchanged:', rd.adopted.map(describe)]);
-  if (rd.dropped.length) notes.push(['Dropped, because the clause or the option you picked changed:', rd.dropped.map(describe)]);
+  if (rd.dropped.length) notes.push(['Dropped, because the clause, the option you picked or the reason you tapped changed:', rd.dropped.map(describe)]);
   if (rd.note) notes.push([rd.note, []]);
   const rs = Interview.restore(store, draft, kinds, hashes);
   S.answers = rs.state.answers;
   S.edits = rs.state.edits;
-  if (rs.count) notes.push([`${rs.count} ${rs.count === 1 ? 'answer came' : 'answers came'} back from this browser. Each shows a dotted line until you touch it.`, []]);
+  if (rs.count) notes.push([`${rs.count} ${rs.count === 1 ? 'answer came' : 'answers came'} back from this browser. Each shows a dotted line, even as you type in it, until you press its Keep; Agree or a new pick replaces it.`, []]);
   if (rs.state.edits.length) notes.push([`${rs.state.edits.length} ${rs.state.edits.length === 1 ? 'change' : 'changes'} to the schedules came back too, each with a dotted edge. Keep each one below, or it stays a proposal.`, []]);
   if (rs.dropped) notes.push(['Answers saved in this browser did not fit this draft, so they were dropped.', []]);
 }
@@ -639,7 +639,7 @@ function paintReset() {
   const offering = undoOffered();
   resetEl.replaceChildren(glyph(offering ? 'undo' : 'reset'));
   resetEl.classList.toggle('armed', offering);
-  named(resetEl, offering ? 'Undo the reset' : undoSnap ? 'Reset. Hover again to undo' : 'Reset every answer');
+  named(resetEl, offering ? 'Undo the reset' : undoSnap ? 'Reset. Leave and come back within ten seconds to undo' : 'Reset every answer');
 }
 function disarmUndo() { clearTimeout(undoFuse); undoFuse = null; undoSnap = null; undoLeft = false; undoBack = false; paintReset(); }
 function armUndo(snap) {
@@ -977,7 +977,7 @@ function questionPop(x, q, r) {
       const chips = h('div', { class: 'chips', role: 'group', aria: { label: 'Why, optional' } }, h('span', { class: 'small muted' }, 'Why (optional):'));
       const cur = S.answers.get(x.id).chip;
       // A chip is kept by its place in the question, never its text, so the
-      // block the person pastes carries none of the draft's words.
+      // block the person pastes carries none of the chip's words.
       for (const [i, c] of q.chips.entries()) chips.append(h('button', { type: 'button', key: `chip:${x.id}:${i}`, aria: { pressed: cur === i }, on: { click: () => act(() => {
         const b = S.answers.get(x.id);
         if (b.chip === i) delete b.chip; else b.chip = i;
@@ -1358,7 +1358,7 @@ function signing() {
       h('div', null, h('b', null, String(t.otherPicks)), 'other options picked'),
       h('div', null, h('b', null, String(t.edited)), 'answers in your own words or edited'),
       h('div', null, h('b', null, String(flags)), 'flagged for chat'),
-      h('div', null, h('b', null, String(restored)), 'restored, not touched since'),
+      h('div', null, h('b', null, String(restored)), 'restored, not kept yet'),
       h('div', null, h('b', null, String(open)), 'terms in the letter not answered')),
     t.proposalsTaken > 0 && t.otherPicks + t.edited === 0 ? h('p', { class: 'warn' }, 'You took every proposal as drafted. That can be right: check that you meant each one.') : null,
     why && !S.answers.has(why.c.id) ? h('p', { class: 'warn' }, 'Why we are hiring is still empty. Nothing is built until you write it.') : null,

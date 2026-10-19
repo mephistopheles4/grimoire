@@ -166,8 +166,10 @@ The block's keys are exactly these:
 - `edits`: the person's folder edits, in order. Each has an `op`: `add`,
   `rename`, `move`, `remove`, `rekind` or `none`. A rename names a
   schedule, by part and kind, never one entry. An add or a none goes only
-  in a part the level asks. An edit may hold `restored`: the page brought
-  it back from the browser, and the person has not touched it since.
+  in a part the level asks. An answer or an edit may hold `restored`: the
+  page brought it back from the browser, and the person has not pressed
+  its Keep since. Typing in it, or tapping its chip or flag, leaves it
+  restored.
 
 The hashes bind the block to its draft and its kinds table. They prove
 nothing about who made the block.
@@ -204,8 +206,8 @@ data, installs, grants access, loosens a stop, or widens when it steps in.
 Ask whether each warned value belongs in the contract. Mark each reply as
 `SKILL.md` says for the person's own words. A line such as
 `purpose/(stays-out)` names a schedule: ask about the whole schedule. A
-restored edit stays *Proposed* until the person touches it on the page and
-copies the block again.
+restored answer or edit stays *Proposed* until the person presses its Keep
+on the page, or picks again or agrees there, and copies the block again.
 
 ## The hand-back and the deletes
 

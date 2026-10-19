@@ -374,8 +374,10 @@ const Interview = (() => {
    * of the option picked, or `fields`, the clause's fields in the person's
    * hands; then `chip`, `flag` and `restored`. `chip` is the place of the
    * reason tapped in the question's chips, counting from 0, never its text,
-   * so a shared draft's words never ride into chat inside the person's own
-   * paste; the read-back prints the text from the draft. The mark is never
+   * so a chip carries none of the draft's words into chat inside the
+   * person's own paste; the read-back prints the chip's text from the draft.
+   * `fields` still holds every field of the clause, the ones the person left
+   * as drafted word for word. The mark is never
    * stored by the page's controls: it is worked out from how the answer was
    * made, here, so the page and the script give the same mark for the same
    * answer, and a block claiming any other is refused. */
@@ -451,7 +453,7 @@ const Interview = (() => {
   /* The folder edits, by op. A clause edit names its clause by `id`; a
    * schedule edit names one kind in one part. A rename names a schedule
    * only: an entry has no name of its own that the contract exports. Any
-   * edit may carry `restored`, set by restore until the person touches it. */
+   * edit may carry `restored`, set by restore until the person keeps it. */
   const EDIT = {
     add: { req: ['op', 'id', 'part', 'kind'], opt: ['fields', 'none', 'restored'] },
     rename: { req: ['op', 'name'], opt: ['id', 'part', 'kind', 'restored'] },
@@ -657,17 +659,17 @@ const Interview = (() => {
       const chip = a.chip !== undefined ? `; chip ${JSON.stringify(cut(literal(ix.questions.get(a.id).chips[a.chip], `${at} chip`, at)))}` : '';
       const tail = `; marked ${a.mark}${chip}${a.flag ? '; flagged for push-back' : ''}`;
       if (a.flag) push(at, 'flagged');
-      if (a.restored) push(at, 'restored and untouched');
+      if (a.restored) push(at, 'restored, not kept');
       if (Object.hasOwn(a, 'option')) {
         const q = ix.questions.get(a.id);
         const o = q.options.find(x => x.id === a.option);
         const label = JSON.stringify(cut(literal(o.label, `${at} label`, at)));
-        changes.push(`  ${at} ${a.restored ? 'restored and untouched, ' : ''}picked ${label}, ${o.id === q.proposed ? 'the proposal' : 'not the proposal'}${tail}`);
+        changes.push(`  ${at} ${a.restored ? 'restored, not kept, ' : ''}picked ${label}, ${o.id === q.proposed ? 'the proposal' : 'not the proposal'}${tail}`);
         fieldLines(at, o.fields, k => `${at} ${k}`);
         removedLines(at, e.c.fields, o.fields);
       } else {
         const same = sameFields(a.fields, e.c.fields);
-        changes.push(`  ${at} ${a.restored ? 'restored and untouched' : same ? 'agreed as drafted' : 'wrote its own words'}${tail}`);
+        changes.push(`  ${at} ${a.restored ? 'restored, not kept' : same ? 'agreed as drafted' : 'wrote its own words'}${tail}`);
         const changed = Object.fromEntries(Object.entries(a.fields).filter(([k, v]) => !(isObj(e.c.fields) && e.c.fields[k] === v)));
         fieldLines(at, a.restored ? a.fields : changed, k => `answers[${i}].fields.${k}`);
         removedLines(at, e.c.fields, a.fields);
@@ -687,7 +689,7 @@ const Interview = (() => {
     block.edits.forEach((e, i) => {
       const name = k => `edits[${i}].${k}`;
       /* A restored edit came back from the browser's store: the person has
-       * not touched it in this page, so it prints as restored and is pushed
+       * not kept it in this page, so it prints as restored and is pushed
        * back, at its clause or its schedule. */
       const edit = e.restored ? '  edit (restored):' : '  edit:';
       const restoredAt = at => { if (e.restored) push(at, 'a restored edit'); };
@@ -813,7 +815,7 @@ const Interview = (() => {
     const where = id => { for (const [part, list] of parts) { const i = list.findIndex(x => x.id === id); if (i >= 0) return { part, list, i }; } return null; };
     for (const e of block.edits) {
       /* The person's own edit is Decided; one restored from the store and
-       * not touched since is theirs only once they say so, so Proposed. */
+       * not kept since is theirs only once they say so, so Proposed. */
       const mark = e.restored ? 'Proposed' : 'Decided';
       if (e.op === 'add') parts.get(e.part).push({ id: e.id, kind: K.byId.get(e.kind), fields: e.fields || {}, none: e.none === true, mark });
       else if (e.op === 'none') {
@@ -930,7 +932,7 @@ const Interview = (() => {
   });
 
   /** The answers and folder edits saved for this draft, each marked restored
-   *  until the person touches it, and how many answers came back. */
+   *  until the person keeps it, and how many answers came back. */
   function restore(store, draft, kinds, hashes) {
     const empty = { state: { answers: new Map(), edits: [] }, count: 0, dropped: false };
     if (!store) return empty;

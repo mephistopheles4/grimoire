@@ -561,7 +561,7 @@ test('--answers prints the change list, each pick with its label and the fields 
   assert.ok(changes.includes(`  purpose/job for ${JSON.stringify(job.fields.for)}`));
   assert.ok(changes.includes('  roles/duty-1 wrote its own words; marked Decided'));
   assert.ok(changes.includes('  roles/duty-1 text "proposes the type and the name"'));
-  assert.ok(changes.includes('  roles/duty-4 restored and untouched; marked Proposed'));
+  assert.ok(changes.includes('  roles/duty-4 restored, not kept; marked Proposed'));
   assert.ok(changes.includes('  edit: added roles/added-1, a duty'));
   assert.ok(changes.includes('  roles/added-1 text "keeps the interview short"'));
   assert.ok(changes.includes('  edit: renamed the roles schedule of duty "Its duties"'));
@@ -594,7 +594,7 @@ test('--answers lists for push-back every high-stakes clause, every removal or r
   has('roles/stop-9', 'named by rules/rule-16');
   has('roles/stop-10', 're-kinded away from a high-stakes kind');
   has('purpose/job', 'flagged');
-  has('roles/duty-4', 'restored and untouched');
+  has('roles/duty-4', 'restored, not kept');
   has('roles/duty-5', 'a warned field');
   assert.ok(!back.some(l => l.startsWith('  roles/duty-1:')), 'an untouched low-stakes clause is not listed');
   const all = section(answersRun(iv.draftFile, p, '--shared').stdout, 'Push back on:');
@@ -673,7 +673,7 @@ test('hiring.md refuses a quoted or control-character path before every command 
   // The block's edit rules, and Reset's reach, as the block check holds them.
   assert.match(md, /A rename names a\s+schedule, by part and kind, never one entry\./);
   assert.match(md, /An add or a none goes only\s+in a part the level asks\./);
-  assert.match(md, /An edit may hold `restored`/);
+  assert.match(md, /An answer or an edit may hold `restored`: the\s+page brought it back from the browser, and the person has not pressed\s+its Keep since\./);
   assert.match(md, /Reset clears this draft's name and\s+type only\./);
   for (const c of commands) assert.ok(c.index > refusal, `${c[1]} comes after the refusal`);
   for (const c of commands) for (const p of c[1].matchAll(/'[^']*'/g)) assert.match(p[0], /^'<[^>]+>[^']*'$/, 'every path is a single-quoted placeholder');
