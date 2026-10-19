@@ -569,16 +569,30 @@ test('Reset holds against a second press and a long stay on the button; Undo wor
   assert.ok(quick.saved(), 'Undo was not offered after a quick leave and a return within ten seconds');
 });
 
-test('a planted restored value keeps its restored mark until its own Keep: a field edit starts from the draft, and a chip, skip or flag tap keeps the mark', () => {
+test('a planted restored value keeps its restored mark until its own Keep: a typed edit, a chip, skip or flag tap keeps the mark, and a new pick or Agree takes no planted chip or flag', () => {
   const D = dataOf(render(example, join(work, `planted-${n++}.html`))).value;
-  const drafted = D.draft.parts.purpose.find(c => c.id === 'job').fields;
   const answerOf = (page, id) => page.saved().answers.find(a => a.id === id);
-  // One field edited on a planted answer: the other field is the draft's.
-  const edited = loadPage({ seed: { answers: new Map([['job', { fields: { does: 'planted does', for: 'planted for' } }]]), edits: [] } });
+  // A keystroke in each of a planted answer's fields: the answer, its chip
+  // and its flag stay restored and Proposed, each field holding what was typed.
+  const edited = loadPage({ seed: { answers: new Map([['job', { fields: { does: 'planted does', for: 'planted for' }, chip: 0, flag: true }]]), edits: [] } });
   edited.click(edited.key('blank:job'));
-  edited.type(edited.key('field:job:does'), 'my own words');
-  assert.deepEqual(answerOf(edited, 'job').fields, { ...drafted, does: 'my own words' });
-  assert.ok(!JSON.stringify(edited.saved()).includes('planted for'), 'a planted sibling field was kept by a field edit');
+  edited.type(edited.key('field:job:does'), 'planted does!');
+  edited.type(edited.key('field:job:for'), 'planted for!');
+  assert.deepEqual(answerOf(edited, 'job'), { id: 'job', fields: { does: 'planted does!', for: 'planted for!' }, mark: 'Proposed', chip: 0, flag: true, restored: true }, 'a typed edit took a planted answer as the person\'s');
+  // The same for the name heading, whose Agree then takes the drafted name
+  // and no planted flag, and for the why blank, kept only by its own Keep.
+  const named = loadPage({ seed: { answers: new Map([['name', { fields: { name: 'planted' }, flag: true }], ['why', { fields: { text: 'planted why' } }]]), edits: [] } });
+  named.type(named.key('field:name:name'), 'planted!');
+  assert.deepEqual(answerOf(named, 'name'), { id: 'name', fields: { name: 'planted!' }, mark: 'Proposed', flag: true, restored: true }, 'a typed edit took a planted name as the person\'s');
+  named.click(named.key('agree:name'));
+  assert.deepEqual(answerOf(named, 'name'), { id: 'name', fields: D.draft.parts.purpose.find(c => c.id === 'name').fields, mark: 'Confirmed' }, 'Agree kept a planted flag');
+  named.click(named.key('mode'));
+  const why = named.key('why:why');
+  why.textContent = 'planted why!';
+  named.fire(why, 'input');
+  assert.deepEqual(answerOf(named, 'why'), { id: 'why', fields: { text: 'planted why!' }, mark: 'Proposed', restored: true }, 'a typed edit took a planted why as the person\'s');
+  named.click(named.key('keep:why'));
+  assert.deepEqual(answerOf(named, 'why'), { id: 'why', fields: { text: 'planted why!' }, mark: 'Decided' }, 'the why\'s own Keep did not keep it');
   // A chip, skip or flag tap on a planted pick leaves it restored.
   const tapped = loadPage({ seed: { answers: new Map([['job', { option: 'job-b' }]]), edits: [] } });
   tapped.click(tapped.key('blank:job'));
@@ -586,9 +600,10 @@ test('a planted restored value keeps its restored mark until its own Keep: a fie
     tapped.click(press(tapped));
     assert.equal(answerOf(tapped, 'job').restored, true, 'a tap cleared the restored mark');
   }
-  // A new pick replaces the planted value, and brings no planted chip with it.
-  const picked = loadPage({ seed: { answers: new Map([['job', { option: 'job-b', chip: 0 }]]), edits: [] } });
+  // A new pick replaces the planted value, and brings no planted chip or flag with it.
+  const picked = loadPage({ seed: { answers: new Map([['job', { option: 'job-b', chip: 0, flag: true }]]), edits: [] } });
   assert.equal(answerOf(picked, 'job').chip, 0, 'the seeded chip came back');
+  assert.equal(answerOf(picked, 'job').flag, true, 'the seeded flag came back');
   picked.click(picked.key('blank:job'));
   picked.fire(picked.key('opt:job-c'), 'change');
   assert.deepEqual(answerOf(picked, 'job'), { id: 'job', option: 'job-c', mark: 'Confirmed' });

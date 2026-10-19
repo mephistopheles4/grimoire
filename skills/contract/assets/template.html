@@ -392,21 +392,22 @@ function owner(id) {
   }
   return { drafted: id };
 }
-/** An answer the person gave: a new value replaces what it held before, so
- *  it is no longer restored. A restored answer's chip is not carried over. */
+/** A new pick, or Agree: a new value replaces what the answer held before,
+ *  so it is no longer restored. A restored answer's chip and flag are not
+ *  carried over. */
 function answer(id, value) {
   const prev = S.answers.get(id) || {};
   const next = { ...value };
   if (prev.chip !== undefined && !prev.restored && next.chip === undefined && !Object.hasOwn(value, 'chip')) next.chip = prev.chip;
-  if (prev.flag && !Object.hasOwn(value, 'flag')) next.flag = true;
+  if (prev.flag && !prev.restored && !Object.hasOwn(value, 'flag')) next.flag = true;
   delete next.restored;
   S.answers.set(id, next);
 }
-/** One field edited. Another page opened from disk can write this
- *  browser's store, so an edit never keeps a restored value by the way: an
- *  edit to a restored answer starts from the drafted fields, not the
- *  restored ones, and a restored edit stays restored, its fields with it,
- *  until its own Keep. */
+/** One field typed in. Another page opened from disk can write this
+ *  browser's store, so typing never keeps a restored value by the way: a
+ *  restored answer stays restored as it is typed in, its other fields, chip
+ *  and flag with it, until its own Keep, as a restored added or re-kinded
+ *  entry does. */
 function setField(id, name, value) {
   const o = owner(id);
   if (o.edit) {
@@ -414,14 +415,10 @@ function setField(id, name, value) {
     return;
   }
   const a = S.answers.get(id) || {};
-  const from = a.restored ? DRAFTED.get(id).c.fields : shownFields(id);
-  const fields = { ...from, [name]: value };
-  const keep = {};
-  if (a.chip !== undefined && !a.restored) keep.chip = a.chip;
-  if (a.flag) keep.flag = true;
-  S.answers.set(id, { fields, ...keep });
+  const { option, fields: was, ...rest } = a;
+  void option; void was;
+  S.answers.set(id, { fields: { ...shownFields(id), [name]: value }, ...rest });
 }
-const restoredAnswer = id => Boolean(S.answers.has(id) && S.answers.get(id).restored);
 /** Agree takes the drafted wording, even over an answer restored from this
  *  browser: another page opened from disk can write that store, so a restored
  *  value is kept only by its own Keep, one entry at a time. */
@@ -913,7 +910,8 @@ function termPopBody(x) {
 }
 
 /** Why: the one blank the person fills in their own words, written where it
- *  sits in the sentence, on an underline like every other blank. */
+ *  sits in the sentence, on an underline like every other blank. A restored
+ *  why stays restored as it is typed in, until its own Keep. */
 function whyBox(x) {
   const a = S.answers.get(x.id);
   const labelId = newDomId();
@@ -923,11 +921,21 @@ function whyBox(x) {
   fill.textContent = a ? a.fields.text : '';
   fill.addEventListener('input', () => {
     const text = fill.innerText.replace(/\n$/, '');
-    if (text.trim() === '') S.answers.delete(x.id); else answer(x.id, { fields: { text } });
+    const b = S.answers.get(x.id);
+    if (text.trim() === '') S.answers.delete(x.id);
+    else if (b && b.restored) S.answers.set(x.id, { ...b, fields: { text } });
+    else answer(x.id, { fields: { text } });
     persist(); refresh();
   });
-  const mark = live(h('span'), el => { const b = S.answers.get(x.id); el.replaceChildren(markEl(b ? 'Decided' : null, b && b.restored)); paint(fill, b ? 'Decided' : null, Boolean(b && b.restored)); });
-  return h('p', null, h('span', { id: labelId }, PLAIN ? 'Why, in your own words:' : 'We are hiring because'), ' ', fill, mark);
+  const mark = live(h('span'), el => {
+    const b = S.answers.get(x.id);
+    const m = b ? (b.restored ? 'Proposed' : 'Decided') : null;
+    el.replaceChildren(markEl(m, b && b.restored)); paint(fill, m, Boolean(b && b.restored));
+  });
+  const keepBtn = a && a.restored
+    ? h('button', { type: 'button', class: 'quiet small', key: `keep:${x.id}`, on: { click: () => act(() => { keep(x.id); S.fresh = `why:${x.id}`; }) } }, 'Keep')
+    : null;
+  return h('p', null, h('span', { id: labelId }, PLAIN ? 'Why, in your own words:' : 'We are hiring because'), ' ', fill, mark, keepBtn ? ' ' : null, keepBtn);
 }
 
 /** A question, open in place under its blank. */
@@ -1009,12 +1017,7 @@ function fieldsEditor(x) {
         kinds.choices[f.name].map(v => h('option', { value: v, selected: fields[f.name] === v }, (kinds.words && kinds.words[v]) || v)));
     } else {
       ctl = h('textarea', { class: 'ed', id, key, rows: 1, spellcheck: true, value: Object.hasOwn(fields, f.name) ? fields[f.name] : '',
-        on: { input: e => {
-          // The first edit of a restored answer draws its other fields again, now from the draft.
-          const redraw = restoredAnswer(x.id);
-          setField(x.id, f.name, e.target.value); persist();
-          if (redraw) render(); else { size(e.target); refresh(); }
-        } } });
+        on: { input: e => { setField(x.id, f.name, e.target.value); persist(); size(e.target); refresh(); } } });
       if (f.optional) ctl.placeholder = '(optional)';
     }
     const warn = live(h('div', { class: 'warn', aria: { live: 'polite' } }), el => {
