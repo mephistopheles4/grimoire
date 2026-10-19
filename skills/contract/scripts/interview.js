@@ -775,7 +775,9 @@ const Interview = (() => {
     if (k === 'term') return cell(x.fields.standard || '');
     return cell(x.fields['settled-when']);
   };
-  const cell = s => s.replace(/\|/g, '\\|').replace(/\r?\n/g, '<br>');
+  /* A backslash is escaped first, so a typed one before a pipe cannot
+   * escape the pipe's escape and end the cell. */
+  const cell = s => s.replace(/\\/g, '\\\\').replace(/\|/g, '\\|').replace(/\r?\n/g, '<br>');
   const markText = m => (m === 'Proposed' ? '*Proposed*' : m ? `**${m}**` : '(not answered yet)');
   const capital = s => s.charAt(0).toUpperCase() + s.slice(1);
 

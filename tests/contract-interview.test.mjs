@@ -93,14 +93,16 @@ test('the export matches the template: its title block, the eight parts in order
   assert.match(Interview.exportContract(fresh, kinds, block), /^Version: 0\.1\.0$/m, 'a new contract starts at 0.1.0');
 });
 
-test('the export escapes a pipe and a line break in a table cell, and writes an agreed none as None', () => {
+test('the export escapes a backslash, a pipe and a line break in a table cell, and writes an agreed none as None', () => {
   const d = base();
+  // A typed backslash before a pipe would escape the escape and end the cell,
+  // so the backslash is escaped too.
   const block = Interview.blockOf(d, kinds, hashes, {
-    answers: new Map([['rule-1', { fields: { rule: 'one | two\nthree', guards: 'a slip', status: 'potential' } }]]),
+    answers: new Map([['rule-1', { fields: { rule: 'one | two\nthree\\| **Decided**', guards: 'a slip', status: 'potential' } }]]),
     edits: [{ op: 'none', part: 'purpose', kind: 'stays-out' }],
   });
   const md = Interview.exportContract(d, kinds, block);
-  assert.ok(md.includes('| one \\| two<br>three | a slip | potential |'), md.slice(md.indexOf('## rules'), md.indexOf('## rules') + 400));
+  assert.ok(md.includes('| one \\| two<br>three\\\\\\| **Decided** | a slip | potential |'), md.slice(md.indexOf('## rules'), md.indexOf('## rules') + 400));
   assert.match(md, /\*\*Not its job\*\*\n\n- None\. \*\*Decided\*\*/);
   assert.match(md, /\*\*A record it keeps\*\*\n\n- None\. \*Proposed\*/);
   // The term and open tables keep the template's columns; the mark folds into

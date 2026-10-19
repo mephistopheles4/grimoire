@@ -76,7 +76,7 @@ test('--out writes a page that holds every hostile draft string as data, inside 
   // The tokenizer sees the template's three script elements and no more: no
   // draft string closed one or opened another.
   const blocks = scriptBlocks(html);
-  assert.equal(blocks.length, (template.match(/<script>/g) || []).length);
+  assert.equal(blocks.length, (template.match(/<script>/gi) || []).length);
   assert.match(blocks[1], /const Interview = \(\(\) => \{/, 'the module is in its block, not in the title');
   assert.match(blocks[2], /render\(\);\s*$/, 'the page script ends where the template ends it');
   // The data parses back to the draft it came from, and holds no raw "<".
@@ -100,7 +100,7 @@ test('the template puts no slot in an attribute, and uses no style attribute and
     if (/\/\*(TITLE|AVIATION|FONTS|DATA|MODULE)\*\//.test(line)) assert.doesNotMatch(line.replace(/<title>.*<\/title>/, ''), /=\s*"[^"]*\/\*[A-Z]+\*\//, line);
   }
   assert.match(template, /<meta http-equiv="Content-Security-Policy" content="\/\*CSP\*\/">/);
-  const markup = template.replace(/<script>[\s\S]*?<\/script>/g, '').replace(/<style>[\s\S]*?<\/style>/g, '');
+  const markup = template.replace(/<script>[\s\S]*?<\/script>/gi, '').replace(/<style>[\s\S]*?<\/style>/gi, '');
   assert.doesNotMatch(markup, /\sstyle\s*=/i, 'a style attribute');
   assert.doesNotMatch(markup, /\son[a-z]+\s*=/i, 'an inline handler');
   // Nor does the page script build either one.
@@ -133,7 +133,7 @@ test('the page loads nothing from the network, and its policy allows exactly its
 test('no control or subtitle on the page names a shape', () => {
   const page = template.slice(template.lastIndexOf('<script>'));
   const strings = [...page.matchAll(/'((?:[^'\\\n]|\\.)*)'|`((?:[^`\\]|\\.)*)`/g)].map(m => m[1] ?? m[2]);
-  const text = template.replace(/<script>[\s\S]*?<\/script>/g, '').replace(/<style>[\s\S]*?<\/style>/g, '').replace(/<[^>]*>/g, ' ');
+  const text = template.replace(/<script>[\s\S]*?<\/script>/gi, '').replace(/<style>[\s\S]*?<\/style>/gi, '').replace(/<[^>]*>/g, ' ');
   for (const s of [...strings, text]) assert.doesNotMatch(s, /\b(tables?|lists?|rows?|columns?)\b/i, s);
 });
 
