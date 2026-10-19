@@ -533,6 +533,7 @@ test('a page whose store holds an edit of every kind loads, and names each chang
   assert.match(text, /Removed [^.]*\(stays-out-one-pr\)/);
   assert.match(text, /Changed the kind of [^.]*\(duty-group\)/);
   assert.match(text, /Agreed where its trigger lives in roles holds none/);
+  assert.doesNotMatch(text, /Forget/, 'the page still names Forget');
 });
 
 test('the notices are open at load, on a page from disk and on the published example, and the info button toggles them', () => {
@@ -555,6 +556,7 @@ test('Reset holds against a second press and a long stay on the button; Undo wor
   assert.ok(page.saved(), 'the seeded answer is in the store');
   page.press(page.key('reset'));
   assert.equal(page.saved(), null, 'Reset left the answers in the store');
+  assert.match(page.key('reset').getAttribute('aria-label'), /^Reset\. Leave and come back within ten seconds to undo$/, 'the Reset tip does not say how to undo');
   // A double-click, or a second Enter, with the focus still on the button.
   page.press(page.key('reset'));
   assert.equal(page.saved(), null, 'a second press at once wrote the answers back');
@@ -564,6 +566,18 @@ test('Reset holds against a second press and a long stay on the button; Undo wor
   page.clock.tick(100);
   page.click(page.key('reset'));
   assert.equal(page.saved(), null, 'Undo was offered after a leave with no return');
+  // That press redraws the page, which puts the focus back on the new
+  // button: the page's own refocus is no return, so a second Enter undoes nothing.
+  assert.ok(!page.key('reset').classList.contains('armed'), 'the redraw\'s own refocus counted as a return');
+  page.click(page.key('reset'));
+  assert.equal(page.saved(), null, 'a second Enter after the leave undid Reset');
+  // Nor does a click elsewhere that redraws the page and leaves the focus on Reset.
+  page.fire(page.key('reset'), 'mouseleave', { bubbles: false });
+  page.clock.tick(1000);
+  page.click(page.key('info'));
+  page.click(page.key('reset'));
+  assert.equal(page.saved(), null, 'a redraw after the leave counted as a return');
+  page.click(page.key('info'));
   // The focus stays past the ten seconds, then leaves and comes back.
   page.clock.tick(11000);
   page.key('reset').blur();
@@ -572,6 +586,15 @@ test('Reset holds against a second press and a long stay on the button; Undo wor
   // A later save writes no entry until the person answers again.
   page.click(page.key('info'));
   assert.deepEqual(entries(page), [], 'a save after Reset wrote an entry back');
+  // Saving starts again with the next answer, and an answer taken back is gone from the store too.
+  page.click(page.key('mode'));
+  const why = page.key('why:why');
+  why.textContent = 'mine';
+  page.fire(why, 'input');
+  assert.equal(page.saved().answers[0].id, 'why', 'the first answer after Reset was not saved');
+  why.textContent = '';
+  page.fire(why, 'input');
+  assert.deepEqual(page.saved().answers, [], 'an answer taken back after Reset stayed in the store');
   // A leave late in the ten seconds does not start them again.
   const late = loadPage({ seed: seed() });
   late.press(late.key('reset'));
@@ -588,14 +611,24 @@ test('Reset holds against a second press and a long stay on the button; Undo wor
   again.press(again.key('reset'));
   assert.equal((again.saved() || { answers: [] }).answers[0]?.id, 'job', 'Undo chosen within ten seconds did not put the answers back');
   assert.match(again.text(), /Undone: your answers are back\./);
-  // A quick leave counts too: off the button at once, back later, in time.
+  // A quick leave counts too, by the pointer: off the button at once, back later, in time.
   const quick = loadPage({ seed: seed() });
   quick.press(quick.key('reset'));
   quick.clock.tick(500);
-  quick.key('reset').blur();
+  quick.fire(quick.key('reset'), 'mouseleave', { bubbles: false });
   quick.clock.tick(2000);
-  quick.press(quick.key('reset'));
-  assert.ok(quick.saved(), 'Undo was not offered after a quick leave and a return within ten seconds');
+  quick.fire(quick.key('reset'), 'mouseenter', { bubbles: false });
+  quick.click(quick.key('reset'));
+  assert.ok(quick.saved(), 'Undo was not offered after a quick pointer leave and return within ten seconds');
+  // A new answer after Reset withdraws Undo, so it never puts the cleared answers over newer work.
+  const newer = loadPage({ seed: seed() });
+  newer.press(newer.key('reset'));
+  newer.click(newer.key('blank:job'));
+  newer.fire(newer.key('opt:job-c'), 'change');
+  assert.equal(newer.saved().answers[0].option, 'job-c');
+  newer.key('reset').blur();
+  newer.press(newer.key('reset'));
+  assert.doesNotMatch(newer.text(), /Undone/, 'Undo put the cleared answers over a newer pick');
 });
 
 test('a planted restored value keeps its restored mark until its own Keep: a typed edit, a chip, skip or flag tap keeps the mark, and a new pick or Agree takes no planted chip or flag', () => {
@@ -608,6 +641,15 @@ test('a planted restored value keeps its restored mark until its own Keep: a typ
   edited.type(edited.key('field:job:does'), 'planted does!');
   edited.type(edited.key('field:job:for'), 'planted for!');
   assert.deepEqual(answerOf(edited, 'job'), { id: 'job', fields: { does: 'planted does!', for: 'planted for!' }, mark: 'Proposed', chip: 0, flag: true, restored: true }, 'a typed edit took a planted answer as the person\'s');
+  assert.match(edited.text(), /1 answer came back from this browser\. Each shows a dotted line, even as you type in it, until you press its Keep; Agree or a new pick replaces it\./);
+  edited.click(edited.key('sign'));
+  assert.match(edited.text(), /1restored, not kept yet/, 'the tally does not count the restored answer as not kept');
+  edited.click(edited.key('sign'));
+  // The question's own Keep makes the restored answer the person's.
+  if (!edited.key('done:job')) edited.click(edited.key('blank:job'));
+  assert.ok(edited.key('keep:job'), 'a restored answer to a question has no Keep');
+  edited.click(edited.key('keep:job'));
+  assert.equal(answerOf(edited, 'job').restored, undefined, 'a restored answer to a question has no Keep');
   // The same for the name heading, whose Agree then takes the drafted name
   // and no planted flag, and for the why blank, kept only by its own Keep.
   const named = loadPage({ seed: { answers: new Map([['name', { fields: { name: 'planted' }, flag: true }], ['why', { fields: { text: 'planted why' } }]]), edits: [] } });
@@ -622,6 +664,14 @@ test('a planted restored value keeps its restored mark until its own Keep: a typ
   assert.deepEqual(answerOf(named, 'why'), { id: 'why', fields: { text: 'planted why!' }, mark: 'Proposed', restored: true }, 'a typed edit took a planted why as the person\'s');
   named.click(named.key('keep:why'));
   assert.deepEqual(answerOf(named, 'why'), { id: 'why', fields: { text: 'planted why!' }, mark: 'Decided' }, 'the why\'s own Keep did not keep it');
+  // The name and the why warn on a key or an email, as every other typed field does.
+  const warns = () => named.doc.documentElement.querySelectorAll('.warn').map(w => w.textContent).filter(Boolean);
+  named.type(named.key('field:name:name'), `ghp_${'A1b2C3d4E5'.repeat(4)}`);
+  assert.match(warns().join('\n'), /^This holds a key-shaped value\. It is already kept in this browser/m, 'the name took a key with no warning');
+  const why2 = named.key('why:why');
+  why2.textContent = 'write to a@example.org';
+  named.fire(why2, 'input');
+  assert.equal(warns().filter(w => /^This holds an email address\./.test(w)).length, 1, 'the why took an email with no warning');
   // A chip, skip or flag tap on a planted pick leaves it restored.
   const tapped = loadPage({ seed: { answers: new Map([['job', { option: 'job-b' }]]), edits: [] } });
   tapped.click(tapped.key('blank:job'));

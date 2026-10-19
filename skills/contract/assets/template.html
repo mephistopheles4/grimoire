@@ -193,6 +193,7 @@ textarea.ed:focus{background:var(--av-ink-12)}
 select.pick{border:var(--av-rule-hair) solid var(--av-ink-30);background:var(--av-surface);padding:3px 8px;max-width:100%}
 input.name{border:var(--av-rule-hair) solid var(--av-ink);background:var(--av-surface);padding:3px 8px}
 .warn{color:var(--av-caution);font-size:var(--av-t-annot);margin:var(--av-s1) 0 0}
+span.warn{display:block}
 .was{font-size:var(--av-t-annot);color:var(--av-ink-70)}
 /* The small menu on each schedule and entry. */
 .menu{position:relative;display:inline-block}
@@ -366,11 +367,13 @@ const fieldsEqual = (a, b) => {
 
 /* -- state changes -------------------------------------------------------------- */
 /* After Reset, nothing is saved again until the person gives an answer or
- * makes an edit, so a later click writes no empty entry back. */
+ * makes an edit, so a later click writes no empty entry back. That first
+ * answer or edit also withdraws Undo, so Undo never puts the cleared answers
+ * over newer work. */
 let cleared = false;
 function persist() {
   if (cleared && !S.answers.size && !S.edits.length) return;
-  cleared = false;
+  if (cleared) { cleared = false; disarmUndo(); }
   Interview.save(store, draft, kinds, hashes, S);
 }
 /** A change that redraws the page. */
@@ -483,6 +486,9 @@ const answered = id => S.answers.has(id) && !S.answers.get(id).restored;
 /* -- the page ------------------------------------------------------------------- */
 const app = document.getElementById('app');
 
+/* True while a redraw puts the focus back where it was, which is no move of
+ * the person's. */
+let refocusing = false;
 /** Redraw everything, and put the focus back on the element that had it. */
 function render() {
   const active = document.activeElement && document.activeElement.pageKey;
@@ -509,11 +515,14 @@ function render() {
   }
   for (const el of app.querySelectorAll('textarea.ed')) size(el);
   const back = active && keyed.get(active);
-  if (back) {
-    back.focus();
-    if (sel && back.setSelectionRange) try { back.setSelectionRange(sel[0], sel[1]); } catch (e) { /* not a text control */ }
-  }
-  if (S.fresh) { const f = keyed.get(S.fresh); S.fresh = null; if (f) f.focus(); }
+  refocusing = true;
+  try {
+    if (back) {
+      back.focus();
+      if (sel && back.setSelectionRange) try { back.setSelectionRange(sel[0], sel[1]); } catch (e) { /* not a text control */ }
+    }
+    if (S.fresh) { const f = keyed.get(S.fresh); S.fresh = null; if (f) f.focus(); }
+  } finally { refocusing = false; }
 }
 const size = el => { el.style.height = 'auto'; el.style.height = `${el.scrollHeight}px`; };
 
@@ -648,9 +657,10 @@ function armUndo(snap) {
   undoFuse = setTimeout(disarmUndo, UNDO_GRACE_MS);
 }
 /* A leave counts once the pointer or the focus comes back after it; until
- * then, a click on the still-focused button is a second press. */
+ * then, a click on the still-focused button is a second press. A redraw's
+ * own refocus of the button is no return. */
 function resetHover(on, e) {
-  if (e.target !== resetEl) return;
+  if (e.target !== resetEl || refocusing) return;
   clearTimeout(hotFuse); hotFuse = null;
   if (on) { if (undoLeft) undoBack = true; resetHot = true; paintReset(); return; }
   if (undoSnap) { undoLeft = true; undoBack = false; }
@@ -730,7 +740,7 @@ function letter() {
   const sheet = h('article', { class: 'av-sheet av-sheet--surface letter', aria: { label: PLAIN ? 'The rules' : 'The offer letter' } });
   sheet.append(h('p', { class: 'lbl' }, PLAIN ? 'Rules for this folder · draft' : 'Offer of employment · draft'));
   if (PLAIN) sheet.append(h('h2', null, `Rules for ${draft.name}`));
-  else sheet.append(nameHeading(), h('p', null, 'We would like you to take on the job below. Each underlined term is one to agree: open it to answer. The rest of the terms are in the schedules attached under this letter.'));
+  else sheet.append(...nameHeading(), h('p', null, 'We would like you to take on the job below. Each underlined term is one to agree: open it to answer. The rest of the terms are in the schedules attached under this letter.'));
   const all = schedules();
   const paras = [];
   /* The letter is prose: each part one paragraph, or one per kind where a
@@ -813,7 +823,7 @@ function endPrompt(n) {
  *  the heading shows the draft's name as text. */
 function nameHeading() {
   const x = V.parts.get('purpose').find(z => z.kind.id === 'name' && inLetter(z) && !QUESTION.has(z.id));
-  if (!x) return h('h2', null, `${draft.name} description`);
+  if (!x) return [h('h2', null, `${draft.name} description`)];
   const id = newDomId();
   const input = h('input', { class: 'title', id, key: `field:${x.id}:name`, value: x.fields.name, spellcheck: false,
     on: { input: e => { setField(x.id, 'name', e.target.value); persist(); fit(e.target); refresh(); } } });
@@ -831,7 +841,7 @@ function nameHeading() {
     ? h('button', { type: 'button', class: 'quiet small', key: `keep:${x.id}`, on: { click: () => act(() => { keep(x.id); S.fresh = `field:${x.id}:name`; }) } }, 'Keep')
     : null;
   fit(input);
-  return h('h2', null, h('label', { htmlFor: id, class: 'vh' }, 'The name'), input, h('span', null, 'description'), mark, agreeBtn, keepBtn);
+  return [h('h2', null, h('label', { htmlFor: id, class: 'vh' }, 'The name'), input, h('span', null, 'description'), mark, agreeBtn, keepBtn), shapeWarn(() => input.value)];
 }
 /* A one-line field as wide as its text: a width in characters of its own
    font, so no room is left over after the last one. */
@@ -943,7 +953,7 @@ function whyBox(x) {
   const keepBtn = a && a.restored
     ? h('button', { type: 'button', class: 'quiet small', key: `keep:${x.id}`, on: { click: () => act(() => { keep(x.id); S.fresh = `why:${x.id}`; }) } }, 'Keep')
     : null;
-  return h('p', null, h('span', { id: labelId }, PLAIN ? 'Why, in your own words:' : 'We are hiring because'), ' ', fill, mark, keepBtn ? ' ' : null, keepBtn);
+  return h('p', null, h('span', { id: labelId }, PLAIN ? 'Why, in your own words:' : 'We are hiring because'), ' ', fill, mark, keepBtn ? ' ' : null, keepBtn, shapeWarn(() => fill.innerText, 'span'));
 }
 
 /** A question, open in place under its blank. */
@@ -986,7 +996,10 @@ function questionPop(x, q, r) {
       box.append(chips);
     }
     box.append(flagBox(x.id));
-    box.append(h('div', { class: 'group' }, h('button', { type: 'button', class: 'primary', key: `done:${x.id}`, on: { click: () => act(() => { S.open = null; S.fresh = `blank:${x.id}`; }) } }, 'Done')));
+    const restored = S.answers.get(x.id).restored;
+    box.append(h('div', { class: 'group' },
+      restored ? h('button', { type: 'button', key: `keep:${x.id}`, on: { click: () => act(() => { keep(x.id); S.open = null; S.fresh = `blank:${x.id}`; }) } }, 'Keep') : null,
+      h('button', { type: 'button', class: 'primary', key: `done:${x.id}`, on: { click: () => act(() => { S.open = null; S.fresh = `blank:${x.id}`; }) } }, 'Done')));
   }
   return box;
 }
@@ -1012,6 +1025,15 @@ function keepAsDrafted(id) {
   answer(id, { fields: { ...d.c.fields } });
 }
 
+/** A live warning beside a typed value that holds a key-shaped value or an
+ *  email address, for every place the person types: a clause's fields, the
+ *  name and the why. */
+function shapeWarn(read, tag = 'div') {
+  return live(h(tag, { class: 'warn', aria: { live: 'polite' } }), el => {
+    const shapes = Interview.shapesIn(read() || '').filter(s => s !== 'a home folder path');
+    el.textContent = shapes.length ? `This holds ${shapes.join(' and ')}. It is already kept in this browser, and it goes into the block you copy. Remove it here unless the contract needs it, and say in chat whether it belongs.` : '';
+  });
+}
 /** The fields of a live clause, each edited where it sits. */
 function fieldsEditor(x) {
   const box = h('div');
@@ -1028,11 +1050,7 @@ function fieldsEditor(x) {
         on: { input: e => { setField(x.id, f.name, e.target.value); persist(); size(e.target); refresh(); } } });
       if (f.optional) ctl.placeholder = '(optional)';
     }
-    const warn = live(h('div', { class: 'warn', aria: { live: 'polite' } }), el => {
-      const v = ctl.value || '';
-      const shapes = Interview.shapesIn(v).filter(s => s !== 'a home folder path');
-      el.textContent = shapes.length ? `This holds ${shapes.join(' and ')}. It is already kept in this browser, and it goes into the block you copy. Remove it here unless the contract needs it, and say in chat whether it belongs.` : '';
-    });
+    const warn = shapeWarn(() => ctl.value);
     // A kind with one field needs no label beside it: the schedule names it.
     const one = x.kind.fields.length === 1;
     box.append(h('div', { class: `rec-line${one ? ' one' : ''}` }, h('label', { class: one ? 'vh' : 'rec-k', htmlFor: id }, human(f.name)), h('div', null, ctl, warn)));
