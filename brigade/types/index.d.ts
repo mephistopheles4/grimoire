@@ -134,6 +134,15 @@ declare module 'claude-code' {
        *  the finished group each time the pane opens, and flipped by a press.
        *  Checked again before use. */
       folded: string[]
+      /** The permission warning is shown in this session: set by its tool. */
+      warningShown: boolean
+      /** "I understand" hid the permission warning for this session. */
+      warningHidden: boolean
+      /** The warning's "Don't show again" box is ticked, until "I understand". */
+      warningTicked: boolean
+      /** The owner's "Don't show again", as the store holds it: when, and the
+       *  version of the wording. Checked again before use. */
+      warningAck: { at: string; version: string } | null
     }
   }
 }

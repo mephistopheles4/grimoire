@@ -105,6 +105,7 @@ import {
 } from './view.ts'
 import type { Finder, PrRow, ReadMemory, Spark, SummaryMemory } from './view.ts'
 import { registerWriter, writerEpoch, writerSession } from './writer.ts'
+import { registerWarning, warningOfferAgain, warningStart } from './warning.tsx'
 
 // The Brigade pane: one compact row per session a lead session started, in
 // three foldable groups (Waiting on you, Working, Done · stopped) behind a
@@ -911,6 +912,8 @@ async function setRoster($: EngineInterface, e: Record<string, unknown>, signal:
 export const register: Register = on => {
   // Every session's own usage summary, written from its steps and turn ends.
   registerWriter(on)
+  // The head chef's permission warning, above the prompt in a lead session.
+  registerWarning(on)
 
   on('session.start', async ($, e, next) => {
     // The usage summary writer's clock and session: the engine's epoch and
@@ -923,6 +926,9 @@ export const register: Register = on => {
       name: 'brigade',
       description: 'Show the Brigade pane: the sessions this lead session started',
     })
+    // The permission warning's tool, offered in every session: the head chef
+    // calls it before its first launch, with or without the pane.
+    await warningStart($)
     // A reload of the module while the pane stays up finds it in the engine's
     // record. Only then do the reads start again, and the tool is offered
     // again; a fresh session has no pane and no tool.
@@ -949,6 +955,7 @@ export const register: Register = on => {
     } catch {
       // No tool this time: the next /brigade offers it again.
     }
+    await warningOfferAgain($)
     return next(e)
   })
 

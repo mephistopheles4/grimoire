@@ -168,21 +168,23 @@ machine: [row 15 of the threat model](docs/security/threat-model.md#the-matrix)
 has the guards and the gaps.
 
 **One skill tells the agent to start other agent sessions and to delete their
-worktrees: head-chef.** The agent runs `claude --bg --remote-control`,
-`claude stop`, `claude rm` and `git` for it, and only on the owner's own words
-in chat. From 0.5.0, a session takes any message from the head chef as the
-owner's decision, on any matter, a merge, a deletion, a permission change and
-starting or stopping a session included. It checks only that the sender's
-name maps to the head chef's session id, so any session that can send it a
-message can speak for the owner; the owner accepted that risk on 2026-10-09.
-head-chef runs no script of its own. What leaves the session: sessions post
-fixed report and miss lines and their own milestone content, and the head
-chef posts the rename line, on records that may be public; from 0.6.0, on the
-owner's own words in its chat, the head chef also merges, closes or reopens,
-edits, deletes or labels a record, or posts a comment, itself; questions
-and decisions go by message only, never on a record; and Remote Control makes
-each session it starts, with its transcript, drivable and readable from any
-device signed in to the owner's account.
+worktrees: head-chef.** The agent starts and archives Desktop sessions with
+Claude Desktop's session tools, and runs `git worktree remove` and
+`git branch -d` for cleanup, only on the owner's own words in chat. From
+0.9.0 it starts no background session. A session takes any message from the
+head chef that passes its sender check as a relayed decision, on any matter,
+labelled as relayed and never as the owner's own words. The check compares
+the sender's shown name with the session list, as text, so any session that
+can send it a message under that name can speak for the lead; the owner
+accepted that risk on 2026-10-09. Before
+its first launch in a lead, the Brigade mod's permission warning says so above
+the prompt. head-chef runs no script of its own. What leaves the session:
+sessions post their own milestone content, signed, on records that may be
+public; on the owner's own words in its chat, the head chef merges, closes,
+edits, deletes or labels a record, or files an issue; questions and decisions
+go by message only, never on a record; and Remote Control, while it is on,
+makes each session it starts, with its transcript, drivable and readable from
+any device signed in to the owner's account.
 [Row 16 of the threat model](docs/security/threat-model.md#the-matrix) has the
 guards and the gaps.
 

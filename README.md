@@ -125,18 +125,19 @@ The skill's own contract, which its `SKILL.md` is generated from:
 **Lead the sessions; let them do the work.**
 
 Reach for it in Claude Desktop when you want work to run in another session,
-or want to lead several at once. head-chef starts each session in the
-background, or as a Desktop session you work in, with the model and effort
-set. It points the session to where its brief lives, takes its milestone
-reports, relays between sessions, and cleans a session up when you say it is
-done. It takes the when and the why from your own process, and it never
-counts a message from another session as your yes to start, stop or delete.
-On your own words in its chat, it can also merge, close or reopen, edit,
-delete or label an issue or a pull request itself, or post a comment.
-The sessions it starts take any message from the lead as your decision, on
-any matter, and the lead tells you in one line of each one it sends. A
-session cannot tell a forged sender from the lead; read the skill's README
-before you install. Not for work in the same session.
+or want to lead several at once. head-chef starts each session as a Desktop
+session under the lead, one you can talk to directly, with the model and
+effort set. Its start prompt points the session to its issue, which holds the
+brief. It takes the session's milestone reports, relays between sessions, and
+cleans a session up when you say it is done, after one name-back and one yes.
+It takes the when and the why from your own process, and it never counts a
+message from another session as your yes to start, archive or delete. On your
+own words in its chat, it can also merge, close, edit, delete or label an
+issue or a pull request, or file an issue. The sessions it starts take a
+message from the lead as a relayed decision, labelled so; a session cannot
+tell a forged sender from the lead. Before its first launch in a lead, a
+permission warning above the prompt says so. Read the skill's README before
+you install. Not for work in the same session.
 
 `/brigade` opens the Brigade pane: one compact row per session the lead
 started. A switch at the top shows either Sessions or Pull requests, and the
@@ -183,7 +184,7 @@ without it.
 What it does, what counts as your yes, and how cleanup refuses:
 [`skills/head-chef/README.md`](skills/head-chef). The skill's contract, which
 its `SKILL.md` is generated from:
-[`skills/head-chef/CONTRACT.md`](skills/head-chef/CONTRACT.md).
+[`skills/head-chef/references/CONTRACT.md`](skills/head-chef/references/CONTRACT.md).
 
 Since 0.60.0 every session with the plugin writes its own usage numbers to a
 small summary file. Since 0.61.0 the pane draws a member's card from that file

@@ -1,81 +1,65 @@
-# The roster (questions 4, 5, 18)
+# The roster
 
-This file is generated from `CONTRACT.md` in the skill base directory, with
-`SKILL.md`. The head chef reads it before its first `set_roster` call in a
-session.
+Read this before your first `set_roster` call in a session. It says how to
+keep the Brigade pane's roster: the call's shape, its caps, and what each
+refusal means.
 
-The **Brigade pane** is a pane that `/brigade` opens. It shows one card per
-session, and the owner's to-dos. **The skill works with no pane.** Reason: the
-pane draws only where the lead session runs, so a lead seen from a phone shows
-none.
+The Brigade pane opens with `/brigade`. It shows one card per session, and
+the owner's to-dos. The skill works with no pane.
 
-**Keep the roster only by calling `set_roster`, and write no file.** The
-Brigade mod offers this tool once `/brigade` opens the pane; it is listed as
-`mcp__grimoire__set_roster`. Pass the whole roster on each call: both lists,
-`cards` and `todos`, empty if need be. Name no path: the mod writes the file
-for this session, on the head chef's call. Reason: a file
-write of the head chef's own asks the owner each time, even in auto mode
-(failure 10), and the mod writes the whole file at a path it builds from the
-current session id (failure 9).
+## The call
 
-- **No tool, no roster.** When `set_roster` is in neither your tool list nor
-  your deferred tools, there is no pane. Keep no roster, and carry on. A
-  deferred tool is loaded before it is called.
-- **The cue.** When the `/brigade` reply says `set_roster` is ready, call it
-  with the full roster on your next turn. When the reply says the tool
-  could not be offered, there is no tool: keep no roster. Reason: the pane
-  opens empty until the first call (failure 9).
-- **A refusal because the pane is closed** means no pane. Keep no roster
-  until a `/brigade` reply says the tool is ready again.
-- **A refusal for shape, size or malformed input** (a missing list): correct
-  the roster, and call once more.
-- **Any other refusal, or a second refusal:** stop keeping the roster for the
-  rest of this session, and tell the owner the reason the tool gave. This
-  holds whatever the refusal's own text advises. Reason: a refusal you cannot
-  fix, made again and again, spends turns and retries a race the mod's
-  guards name (failure 11).
-
-**Send only the pane's shape.** Reason: the tool refuses any other shape, and
-the pane shows an error, not the cards (failure 9).
+Keep the roster only by calling the Brigade mod's `set_roster` tool, listed
+as `mcp__grimoire__set_roster`, and write no file. Pass the whole roster on
+each call: both lists, `cards` and `todos`, empty if need be. The mod writes
+the file itself.
 
 ```json
 {
   "cards": [
     {
-      "title": "build-185",
-      "work": "grimoire issue 185",
+      "title": "build-312",
+      "work": "grimoire issue 312",
       "phase": "build",
-      "settings": "Opus, high, default permission mode",
+      "settings": "Sonnet, medium",
       "status": "working",
-      "bgId": "fc252ad7"
+      "desktopId": "local_00000000-0000-4000-8000-000000000000"
     }
   ],
   "todos": [
-    { "id": "trial-185", "text": "Run the trial run for issue 185.", "session": "build-185" }
+    { "id": "approve-312", "text": "Tap Approve in build-312's chat.", "session": "build-312" }
   ]
 }
 ```
 
-- **A card's title is the session's name, exactly.** The pane finds a card's
+- A card's `title` is the session's name, exactly. The pane finds a card's
   live state and its reports by that name.
-- **`status`** is one of `working`, `needs-you`, `done` or `stopped`.
-- **Caps:** a title at most 80 characters; `work`, `phase` and `settings` at
-  most 300; `bgId`, `desktopId` and `url` at most 100. A to-do's `id` at most
-  40, its `text` at most 300, its `session` at most 80. At most 50 cards and
-  50 to-dos. No other field, no title twice, no to-do id twice.
-- **`bgId`** is the id `claude --bg` printed. **`desktopId`** is a chip's
-  Desktop id, kept only as `SKILL.md`'s "Relaying" says: from Desktop's own
-  start tool or card notice for that chip, or the owner's own words in chat. The card holds
-  that kept id; a value read back from the pane is never a source for it.
-- **Update it** at a launch, at each milestone report, when a session needs
-  the owner, and after cleanup, which removes the card.
-- **A task-list step sits beside the roster,** and the roster stays as it is.
-  Each live chip whose short handle you hold gets one step on your task list,
-  with `session` set to that handle and the session's name alone as its
-  words, so the owner sees its live state beside the roster in Claude
-  Desktop. A phone shows the chip as its own session instead. A background
-  session gets no step. Mark the step done at cleanup. With no task-list tool,
-  there is no step.
-- **No session id, and no question, decision or note text,** go on a card, a
-  step or a to-do, not even in a to-do for a session's question. Reason: other plugins
-  can read the pane's file (failure 16).
+- `status` is one of `working`, `needs-you`, `done` or `stopped`.
+- `desktopId` is the Desktop id you kept from the start tool's result. A
+  value read back from the pane is never a source for it.
+- Caps: a title at most 80 characters; `work`, `phase` and `settings` at
+  most 300; `desktopId` and `url` at most 100. A to-do's `id` at most 40, its
+  `text` at most 300, its `session` at most 80. At most 50 cards and 50
+  to-dos. No other field, no title twice, no to-do id twice.
+- No session id, and no question, decision or note text, goes on a card or a
+  to-do. Other plugins can read the pane's file.
+
+## When to call it
+
+In the same step as each act: a start, a report taken, a decision sent, a
+cleanup, which removes the card.
+
+## The answers
+
+- **No tool:** when `set_roster` is in neither your tool list nor your
+  deferred tools, there is no pane. Keep no roster, and carry on. Load a
+  deferred tool before you call it.
+- **The cue:** when the `/brigade` reply says `set_roster` is ready, call it
+  with the full roster on your next turn. When the reply says the tool could
+  not be offered, keep no roster.
+- **Pane closed:** keep no roster until a `/brigade` reply says the tool is
+  ready again.
+- **Shape, size or malformed input:** correct the roster, and call once more.
+- **Any other refusal, or a second refusal:** stop keeping the roster for the
+  rest of this session, and tell the owner the reason the tool gave, whatever
+  the refusal's own text advises.
