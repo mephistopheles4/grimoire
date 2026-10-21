@@ -73,7 +73,7 @@
     },
     {
       "skill": "head-chef",
-      "path": "CONTRACT.md",
+      "path": "references/contract.changelog.md",
       "reason_code": "obfuscated_instruction_text",
       "analyzers": [
         "static_patterns_agent_snooping",
@@ -90,8 +90,30 @@
         "static_patterns_system_prompt_leakage",
         "static_patterns_tool_misuse"
       ],
-      "sha256": "2a69e07b432c1a57e9033e7cdb063ca1b82e28e2187581c184879495e1cdc3d7",
-      "reason": "The skill's contract. The marker pass reads a removal verb followed by a quote as the start of a \"remove the marker\" directive and cannot settle it; here that is the git command names in code spans, such as `worktree remove`, and prose on deleting a session that needs the owner's words. Measured on 2026-10-09: with those verbs disguised in a scratch copy, the give-up goes away; each matching line was read by hand and none is a disguised directive. Re-read on 2026-10-11 for head-chef 0.6.0 (issue 263): the new lines on record acts, such as a delete named in quotes, were read by hand, and none is a disguised directive. The plain scan still reads the whole file under every listed check. Re-read on 2026-10-11 for head-chef 0.7.0 (issue 267): the new lines on which tool reaches a chip, and on keeping a Desktop id off records, were read by hand; they hold no removal verb and no disguised directive. Re-read on 2026-10-14 for head-chef 0.8.0 (issue 293): the new lines on the stop and archive tools, on notes, and on the chip start, were read by hand; they hold no removal verb followed by a quote and no disguised directive. Re-read on 2026-10-14 after a measurement (flag 51, issue 293): the new lines, a launch-line warning that an approval card is coming and the wording that a raise above the lead waits for it, were read by hand; they hold no removal verb followed by a quote and no disguised directive. Re-read on 2026-10-14 for 0.8.1 (issue 298): the new lines, a fixed sentence that the session id is only for finding the lead and checking a sender, the words \"by name\" in the held-turn ping, and the task-list step's reason without the phone, were read by hand; they hold no removal verb followed by a quote and no disguised directive. Reshaped on 2026-10-17 for SkillSpector 2.13.0 (issue 240): since 2.12.0 the destructive-command parser no longer gives up on this file, and the marker pass's give-up inside `static_patterns_tool_misuse` is reported under this code, so this one entry now covers that check too and replaces the parse-limit entry. Carried over from that entry: re-read on 2026-10-11 for head-chef 0.6.0 (issue 263), the delete commands in the record-act tables (`gh issue delete`, `gh api --silent -X DELETE`) were read by hand; each is a documented act the owner must ask for, and the same commands sit in references/record-acts.md, which the scanner reads in full."
+      "sha256": "5f84fb77abc0b0b417ad745e836b40fda656152c54815830b193a9c59211df81",
+      "reason": "The skill's change log: the old contract's history, copied word for word at the 0.9.0 rewrite (issue 296), and that rewrite's row. The marker pass reads a removal verb followed by a quote as the start of a \"remove the marker\" directive and cannot settle it; here that is history: git command names in code spans such as `worktree remove`, and rows that quote old wording a change dropped or deleted. Re-read on 2026-10-21 for head-chef 0.9.0: each of the nine lines where a removal verb meets a quote, three of them the 0.9.0 rows written after the build and the Test review, was read by hand; each records a change, and none is a disguised directive. The plain scan still reads the whole file under every listed check. The head chef reads this file only when someone asks what changed. Re-read on 2026-10-21 after the second Test round: its new row was read by hand and holds no disguised directive. Re-read on 2026-10-21 after the pull-request review: its new row, on the chat fallback, was read by hand and holds no disguised directive. Re-read on 2026-10-21 after the threat-model review: its new row, which quotes the owner's words, was read by hand and holds no disguised directive."
+    },
+    {
+      "skill": "head-chef",
+      "path": "references/CONTRACT.md",
+      "reason_code": "obfuscated_instruction_text",
+      "analyzers": [
+        "static_patterns_agent_snooping",
+        "static_patterns_anti_refusal",
+        "static_patterns_deserialization",
+        "static_patterns_excessive_agency",
+        "static_patterns_harmful_content",
+        "static_patterns_memory_poisoning",
+        "static_patterns_privilege_escalation",
+        "static_patterns_prompt_injection",
+        "static_patterns_rogue_agent",
+        "static_patterns_ssrf",
+        "static_patterns_supply_chain",
+        "static_patterns_system_prompt_leakage",
+        "static_patterns_tool_misuse"
+      ],
+      "sha256": "72923a6209a9d664db32bd383dd43c13477ddd228c90226b8a83d782f4d77e93",
+      "reason": "The skill's contract, rewritten from scratch for head-chef 0.9.0 (issue 296). The marker pass reads a removal verb followed by a quote as the start of a \"remove the marker\" directive and cannot settle it; here that is the git command names in code spans, `git worktree remove` among them, in the cleanup tools line. Re-read on 2026-10-21 after the second Test round, which restored the file-watcher-off flag and the git-folder check: the one line where a removal verb meets a quote, the list of cleanup git commands, was read by hand; it is a documented cleanup step the owner must say yes to, and no disguised directive. The plain scan still reads the whole file under every listed check. Re-read on 2026-10-21 after the pull-request review: the changed chat-fallback line holds no removal verb and no disguised directive. Re-read on 2026-10-21 after the threat-model review: the restored cleanup checks, the branch rule and the start prompt's no token or secret clause were read by hand; none holds a removal verb followed by a quote, and none is a disguised directive."
     },
     {
       "skill": "head-chef",
@@ -112,8 +134,8 @@
         "static_patterns_system_prompt_leakage",
         "static_patterns_tool_misuse"
       ],
-      "sha256": "f7ef0b14eaf694a8e7a7f2275efb5806eb156a7395fa6d9f00305ca6e7bafeb7",
-      "reason": "The skill's instructions. The marker pass reads a removal verb followed by a quote as the start of a \"remove the marker\" directive and cannot settle it; here that is the git command names in code spans, such as `worktree remove`. Measured on 2026-10-09: with those verbs disguised in a scratch copy, the give-up goes away; each matching line was read by hand and none is a disguised directive. Re-read on 2026-10-11 for head-chef 0.6.0 (issue 263): the new lines on record acts, such as a delete named in quotes, were read by hand, and none is a disguised directive. The plain scan still reads the whole file under every listed check. Re-read on 2026-10-11 for head-chef 0.7.0 (issue 267): the new lines on which tool reaches a chip, and on keeping a Desktop id off records, were read by hand; they hold no removal verb and no disguised directive. Re-read on 2026-10-14 for head-chef 0.8.0 (issue 293): the new lines on the stop and archive tools, on notes, and on the chip start, were read by hand; they hold no removal verb followed by a quote and no disguised directive. Re-read on 2026-10-14 after a measurement (flag 51, issue 293): the new lines, a launch-line warning that an approval card is coming and the wording that a raise above the lead waits for it, were read by hand; they hold no removal verb followed by a quote and no disguised directive. Re-read on 2026-10-14 for 0.8.1 (issue 298): the new lines, a fixed sentence that the session id is only for finding the lead and checking a sender, the words \"by name\" in the held-turn ping, and the task-list step's reason without the phone, were read by hand; they hold no removal verb followed by a quote and no disguised directive."
+      "sha256": "567511202050215c04ffbd23484930eb760399bf3c1c4d3714d1e30aa5c169f3",
+      "reason": "The skill's instructions, generated from the 0.9.0 contract (issue 296). The marker pass reads a removal verb followed by a quote as the start of a \"remove the marker\" directive and cannot settle it; here that is the git command names in code spans, `git worktree remove` and `git branch -d`, in the cleanup steps and the tool list. Re-read on 2026-10-21 for head-chef 0.9.0: the four lines where a removal verb meets a code span, and the cleanup limit that a folder which will not go is never deleted another way, were read by hand; each is a cleanup step the owner must say yes to, and none is a disguised directive. The plain scan still reads the whole file under every listed check. Re-read on 2026-10-21 after the second Test round: the lines added for the cleanup stops and the status-file read hold no removal verb followed by a quote beyond the git command names, and no disguised directive. Re-read on 2026-10-21 after the threat-model review: the restored cleanup checks and branch rule add the git commands `log --not --remotes` and `stash list` and a line saying never to pop or drop a stash, with no removal verb followed by a quote, and no disguised directive."
     },
     {
       "skill": "contract",
@@ -183,7 +205,13 @@
     {
       "skill": "head-chef",
       "from": "SKILL.md",
-      "target": "CONTRACT.md",
+      "target": "references/CONTRACT.md",
+      "count": 1
+    },
+    {
+      "skill": "head-chef",
+      "from": "SKILL.md",
+      "target": "references/contract.changelog.md",
       "count": 1
     },
     {

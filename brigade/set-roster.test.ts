@@ -436,6 +436,10 @@ function world(on: On, setup: (w: World) => void = w => w.dirs(`${CONFIG}\\plugi
   return w
 }
 
+// Every tool offered, in order, but the permission warning's: every session
+// offers that one at each start, and warning.test.tsx tests it. Any other
+// tool offered still shows here.
+const rosterOffers = (w: { registered: string[] }) => w.registered.filter(name => name !== 'show_permission_warning')
 const start = ($: any) => $.classic.SessionStart({ source: 'startup', session_id: SID, transcript_path: TRANSCRIPT })
 const brigade = ($: any) => $.command.run({ command: 'brigade', args: '' })
 const call = async ($: any, input: Record<string, unknown>): Promise<{ ok: boolean; text: string }> => {
@@ -514,9 +518,9 @@ test('two calls made at once both complete, one after the other, and the file ho
 test('no tool before /brigade, and the tool after it; the reply names the tool and no roster path', async ($, on) => {
   const w = world(on)
   await start($)
-  expect(w.registered).toEqual([])
+  expect(rosterOffers(w)).toEqual([])
   const reply = await brigade($)
-  expect(w.registered).toEqual(['set_roster'])
+  expect(rosterOffers(w)).toEqual(['set_roster'])
   // The expected value changed in #213 (spec v3 decision 3 on #212): the
   // reply used to carry "Roster file: <path>". No skill reads that line from
   // head-chef 0.2.0 on, Desktop rendered its path without the backslash
@@ -558,10 +562,10 @@ test('a /clear or a resume offers the tool again while the pane is open, and not
   const w = world(on)
   await start($)
   await $.classic.SessionStart({ source: 'clear', session_id: SID, transcript_path: TRANSCRIPT })
-  expect(w.registered).toEqual([])
+  expect(rosterOffers(w)).toEqual([])
   await brigade($)
   await $.classic.SessionStart({ source: 'clear', session_id: SID, transcript_path: TRANSCRIPT })
-  expect(w.registered).toEqual(['set_roster', 'set_roster'])
+  expect(rosterOffers(w)).toEqual(['set_roster', 'set_roster'])
 })
 
 test('a call after the pane closes is refused, and nothing is written', async ($, on) => {
@@ -840,10 +844,10 @@ test('a reload with the pane open offers the tool again; one with the pane close
   const w = world(on)
   await start($)
   await ($ as any).session.start({ cwd: 'C:\\work', surface: null, isInteractive: false })
-  expect(w.registered).toEqual([])
+  expect(rosterOffers(w)).toEqual([])
   await brigade($)
   await ($ as any).session.start({ cwd: 'C:\\work', surface: null, isInteractive: false })
-  expect(w.registered).toEqual(['set_roster', 'set_roster'])
+  expect(rosterOffers(w)).toEqual(['set_roster', 'set_roster'])
 })
 
 test('a session id outside the engine\'s shape is refused', async ($, on) => {
@@ -3104,7 +3108,7 @@ test('every session writes its usage summary at the turn end, numbers only, with
   expect(Math.abs(s.lastAt - w.clock.now())).toBeLessThan(1000)
   expect(text).not.toContain('claude-opus')
   expect(w.open).toBe(false)
-  expect(w.registered).toEqual([])
+  expect(rosterOffers(w)).toEqual([])
   expect(w.usageCalls).toBe(0)
   expect(writerToasts(w)).toEqual([])
 })
@@ -3906,7 +3910,7 @@ test('opening the pane does not wait on the first gh call: the reply comes and t
   await start($)
   const reply = await brigade($)
   expect(reply.text).toContain('`set_roster` is ready')
-  expect(w.registered).toEqual(['set_roster'])
+  expect(rosterOffers(w)).toEqual(['set_roster'])
   expect(asked(w)).toBe(1)
   // A tick that finds a call still running does nothing.
   await w.clock.advance(120000)
