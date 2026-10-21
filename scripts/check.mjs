@@ -190,7 +190,15 @@ const excerpt = s => (s.length > 120 ? `${s.slice(0, 117)}...` : s);
 // it was, so a change to them asks for no version bump. Rule 2c reads the same
 // two places, through the same predicate, for hidden characters: they are what
 // CONTRIBUTING tells a reader to read before running a branch they did not write.
-const isContainerConfig = src => src === 'package.json' || src.startsWith('tests/container/');
+// In any case, as the manifests are: a checkout that folds case reads
+// Tests/Container as tests/container, and Linux CI does not, so a spelling that
+// differs only in case would skip these scans while athanor still found it.
+const foldsTo = (name, wanted) => name === wanted || caseTwin(name, wanted);
+const isContainerConfig = src => {
+  if (src === 'package.json') return true;
+  const [first, second, ...below] = src.split('/');
+  return below.length > 0 && foldsTo(first, 'tests') && foldsTo(second, 'container');
+};
 const isReadForPaths = src => isShipped(src) || isContainerConfig(src);
 for (const shipped of files.filter(f => isReadForPaths(rel(f)))) {
   // The block-quote exemption is markdown only. `>` opens a quotation in prose
@@ -731,10 +739,27 @@ for (const f of files.filter(f => isManifest(basename(f)))) {
 // Dockerfile that is a link, moves the build to wherever it points while the
 // strings in the root package.json still read as the pinned values. The walk
 // lists a link as a file and never enters it, which is why it is found here.
-const isBuildFolderPath = p => p === 'tests' || p === 'tests/container' || isContainerConfig(p);
+const isBuildFolderPath = p => {
+  const [first, second, ...below] = p.split('/');
+  return isContainerConfig(p) || (below.length === 0 && foldsTo(first, 'tests') && (second === undefined || foldsTo(second, 'container')));
+};
 for (const f of files.filter(f => isBuildFolderPath(relRaw(f)))) {
+  const [first, second] = relRaw(f).split('/');
+  if (relRaw(f) !== 'package.json' && (first !== 'tests' || (second !== undefined && second !== 'container'))) {
+    fail(`${rel(f)} is spelled like ${BUILD_FOLDER.context}/ and differs from it only in case — a checkout that folds case would find the pinned folder through it, and Linux CI would not. Rename it.`);
+  }
   if (lstatSync(f).isSymbolicLink()) {
     fail(`${rel(f)} is a symbolic link where the image build folder is held to ${BUILD_FOLDER.context}/ — athanor follows links, so the build would receive whatever the link points at. Replace it with a real file or folder.`);
+  }
+}
+
+// The pinned Dockerfile has to be there and be a plain file, or the removed
+// folder is replaced by a link under another spelling and nothing notices.
+const rootManifest = files.find(f => relRaw(f) === 'package.json');
+if (rootManifest && rootManifestProblem(rootManifest) === null) {
+  const dockerfile = files.find(f => relRaw(f) === BUILD_FOLDER.dockerfile);
+  if (!dockerfile || lstatSync(dockerfile).isSymbolicLink()) {
+    fail(`${BUILD_FOLDER.dockerfile} is missing or is not a plain file, and the athanor key in the root package.json names it as the image build's Dockerfile.`);
   }
 }
 

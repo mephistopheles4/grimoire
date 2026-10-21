@@ -49,6 +49,7 @@ const athanorOnly = { athanor: { dockerfile: 'tests/container/Dockerfile', conte
 test('a root package.json holding only the athanor key passes', () => {
   const dir = tree();
   writeFileSync(join(dir, 'package.json'), JSON.stringify(athanorOnly));
+  modFile(dir, 'tests/container/Dockerfile', 'FROM node:24\n');
   assertPasses(dir);
 });
 
@@ -126,6 +127,39 @@ test('a symbolic link at the build folder, or a Dockerfile that is one, fails, b
   mkdirSync(join(other, 'tests', 'container'), { recursive: true });
   symlinkSync(join('..', '..', 'Dockerfile'), join(other, 'tests', 'container', 'Dockerfile'));
   assertFails(other, /tests\/container\/Dockerfile is a symbolic link where the image build folder is held/);
+});
+
+test('the build folder spelled in another case, or with no Dockerfile in it, fails, because a folding checkout finds it and Linux CI does not', t => {
+  // Linux CI reads Tests/Container as an unrelated name, so the exact-name
+  // guards never see it, while a checkout that folds case resolves the pinned
+  // path through it. The long s upper-cases to S and lower-cases to itself, so
+  // only the upper-case half of the fold sees te\u{17F}ts as tests.
+  const longS = String.fromCodePoint(0x17f);
+  const pinned = JSON.stringify(athanorOnly);
+  const folder = tree();
+  writeFileSync(join(folder, 'package.json'), pinned);
+  modFile(folder, 'Tests/Container/Dockerfile', `FROM node:24\nRUN true ${String.fromCodePoint(0x200b)}\n`);
+  const r = assertFails(folder, /Tests\/Container\/Dockerfile is spelled like tests\/container\/ and differs from it only in case/);
+  // The scans read it under that spelling too.
+  assert.match(r.stderr, /Tests\/Container\/Dockerfile:2 holds U\+200B/);
+  const folded = tree();
+  writeFileSync(join(folded, 'package.json'), pinned);
+  modFile(folded, `te${longS}ts/container/Dockerfile`, 'FROM node:24\n');
+  assertFails(folded, /e.ts\/container\/Dockerfile is spelled like tests\/container\/ and differs from it only in case/);
+  const missing = tree();
+  writeFileSync(join(missing, 'package.json'), pinned);
+  assertFails(missing, /tests\/container\/Dockerfile is missing or is not a plain file/);
+  const link = tree();
+  writeFileSync(join(link, 'package.json'), pinned);
+  writeFileSync(join(link, 'Dockerfile'), 'FROM node:24\n');
+  mkdirSync(join(link, 'tests'));
+  try {
+    symlinkSync('..', join(link, 'tests', 'Container'), 'dir');
+  } catch {
+    t.skip('this file system or account cannot make symbolic links');
+    return;
+  }
+  assertFails(link, /tests\/Container is spelled like tests\/container\/ and differs from it only in case/);
 });
 
 test('a package.json in a folder and a lockfile beside an accepted root manifest still fail', () => {

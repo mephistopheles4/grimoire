@@ -95,7 +95,7 @@ such a package without asking when no one is at a terminal.
   athanor is set to use, which can be a remote one reached over SSH or TLS.
   Use the local engine: check that `DOCKER_HOST` is unset and that
   `docker context inspect --format '{{.Endpoints.docker.Host}}'` prints a local
-  address, a `unix://` socket or an `npipe://` pipe. Keep secrets out of
+  address, a `unix://` socket or an `npipe:////./pipe/` pipe (the host is `.`). Keep secrets out of
   tracked files.
   athanor keeps temporary copies of the index and the run's objects in its state
   folder, `~/.athanor` or `$ATHANOR_HOME`, which is safe to delete.
@@ -104,7 +104,7 @@ such a package without asking when no one is at a terminal.
   Debian's package archive, which is not pinned. It receives the tracked files
   under the folder that the `athanor` key's `context` names, as they are in your
   working tree with your uncommitted edits, and never an ignored or untracked
-  file. The check holds that folder to `tests/container/`, but it runs after the
+  file: `--untracked` widens the run's snapshot and not the build. The check holds that folder to `tests/container/`, but it runs after the
   image is built, so on a branch you did not write your own read is the guard:
   read the diff to `tests/container/` and to the `athanor` key, and look for a
   symbolic link, before you run athanor on it. Read any branch before you run
@@ -227,7 +227,9 @@ above). Any other key fails and is named. So does an `athanor` key that sets
 `tests/container`, leaves either out, or sets `inputs`, because the image build
 has network access and receives the tracked files under that folder, with your
 uncommitted edits. A symbolic link at `tests`, `tests/container` or in it fails
-too, because athanor follows links. `Package.json` and a `package.json`
+too, because athanor follows links, and so does that folder spelled in another
+case, because a checkout that folds case finds it and Linux CI does not, or with
+no plain `tests/container/Dockerfile` in it. `Package.json` and a `package.json`
 in a folder fail, and so does a `binding.gyp` at the root, which npm would
 build. It also fails on any code file importing a bare specifier — an import path that
 is not relative, not absolute, and not a `node:` builtin. A path starting with
