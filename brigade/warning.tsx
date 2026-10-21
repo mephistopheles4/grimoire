@@ -105,9 +105,13 @@ export function registerWarning(on: On) {
               label="I understand"
               onPress={async () => {
                 if (await read($, ticked)) {
-                  const value: Ack = { at: new Date(await $.clock.now()).toISOString(), version: VERSION }
-                  await $.store.set(STORE_KEY, value)
-                  await update($, ack, () => value)
+                  try {
+                    const value: Ack = { at: new Date(await $.clock.now()).toISOString(), version: VERSION }
+                    await $.store.set(STORE_KEY, value)
+                    await update($, ack, () => value)
+                  } catch {
+                    // Not kept for later leads; the band still hides for this one.
+                  }
                 }
                 await update($, hidden, () => true)
               }}

@@ -14,12 +14,20 @@ const BAND = {
 const START = { cwd: 'C:\\work', surface: null, isInteractive: true } as const
 
 // What a session answers beneath the plugin: just enough for the Brigade
-// mod's own start, with no pane open, and a store the test can seed.
-function session(on: On, entries?: Record<string, unknown>) {
+// mod's own start, with no pane open, and a store the test can seed, or one
+// that cannot be written.
+function session(on: On, entries?: Record<string, unknown> | 'unwritable') {
   const w = { registered: [] as string[], verdict: { decision: 'allow' } as Record<string, unknown> }
   on('tool.check', () => w.verdict as any)
   on('classic.SessionStart', () => ({}))
-  mock.store(on, entries)
+  if (entries === 'unwritable') {
+    on('store.get', () => ({ value: undefined }) as any)
+    on('store.set', () => {
+      throw new Error('the store cannot be written')
+    })
+  } else {
+    mock.store(on, entries)
+  }
   mock.clock(on)
   on('session.start', ($, e: any) => ({ cwd: e.cwd }))
   on('command.register', ($, e: any) => ({ value: { command: e.name } }))
@@ -85,6 +93,16 @@ describe('permission warning', () => {
     expect(String(r.result)).toMatch(/Don't show again/)
     const later = await mount($, 'desktop')
     expect(await later.find({ key: 'understand' })).toBeUndefined()
+  })
+
+  test("a store that cannot be written still lets I understand hide the band for this session", async ($, on) => {
+    session(on, 'unwritable')
+    await $.session.start(START)
+    await call($)
+    const ui = await mount($, 'desktop')
+    await ui.press({ key: 'dont-show' })
+    await ui.press({ key: 'understand' })
+    expect(await ui.find({ key: 'understand' })).toBeUndefined()
   })
 
   test('ticking the box twice unticks it, and I understand then hides it for this session only', async ($, on) => {

@@ -143,7 +143,8 @@ need, without overwhelming me or showing me too much.
   each lead, until the owner ticks "Don't show again". It shows again when its
   wording changes.
 - **Confirmed.** When the warning's tool is missing, or refuses, it says the
-  warning to the owner once in chat, as written below.
+  warning to the owner once in chat, as written below, without its two
+  controls, which chat cannot show.
 - **Decided.** It writes the Brigade pane's roster and its to-dos in the same
   step as each act it takes (a start, a report taken, a decision sent, a
   cleanup), never later, while the pane is open.
