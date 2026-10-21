@@ -139,7 +139,7 @@ const TOOL = 'set_roster'
 
 // The values are the plugin's, so they sit under its manifest name.
 const armed = atom({ plugin: 'grimoire', key: 'armed' } as const, false)
-// The engine's record of this session's start; writer.ts reads the same key.
+// The engine's record of a session's start, the last one raised; writer.ts reads the same key.
 const started = atom({ plugin: 'grimoire', key: 'start' } as const, { sessionId: '', transcript: '' })
 const files = atom({ plugin: 'grimoire', key: 'files' } as const, { current: '', previous: '' })
 const roster = atom({ plugin: 'grimoire', key: 'roster' } as const, { cards: [], todos: [] })
@@ -219,18 +219,19 @@ let timers: Timer[] = []
 // reference's rule from the config folder alone: <config>/plugins/data/<id>.
 // `CLAUDE_PLUGIN_DATA` is never read: a mod's environment usually lacks it,
 // and another plugin can set it. The config folder comes from where the plugin
-// was installed, else from the transcript path the engine reported at this
-// session's start (`dataPlace`, which the usage summary writer shares); with
-// neither, nothing is read or written. The config folder also locates other
+// was installed, else from the transcript path the engine reported at a
+// session's start, else from Desktop's synced install folder (`dataPlace`,
+// which the usage summary writer shares); with none, nothing is read or
+// written. The config folder also locates other
 // sessions' transcripts.
 type Where = { file: string; config: string; plugin: string; id: string }
 async function where($: EngineInterface): Promise<Where | { error: string }> {
   const id = await $.session.id()
   if (!SESSION_ID.test(id)) return { error: 'the session id is not the engine\'s shape, so no roster file is named. Nothing was read.' }
-  const { config, plugin } = dataPlace($.plugin.root, $.plugin.name, await read($, started), id)
+  const { config, plugin } = dataPlace($.plugin.root, $.plugin.name, await read($, started))
   if (config === undefined) {
     return {
-      error: `Cannot find the Claude config folder from where the plugin was loaded (${oneLine($.plugin.root, 200)}). The roster would be <Claude config folder>/plugins/data/${plugin}/brigade/${id}.json. Nothing was read.`,
+      error: `Cannot find the Claude config folder from where the plugin was loaded. The roster would be <Claude config folder>/plugins/data/${plugin}/brigade/${id}.json. Nothing was read.`,
     }
   }
   return { file: rosterFile(dataFolder(config, plugin), id), config, plugin, id }
@@ -799,14 +800,6 @@ const SCHEMA = {
 // input and goes to the shared check whole, so an unknown key is refused.
 const ENVELOPE = ['tool', 'tool_use_id', 'agentId', 'consent']
 
-// The permission mode the session last reported, from each prompt and from
-// every other tool call. Plan and don't-ask modes refuse the write. A mode not
-// yet seen, as after a reload before the next prompt or tool call, refuses
-// nothing: refusing it would end the roster for the session after every
-// resume. A switch made since the last report is not seen until the next one.
-const REFUSING_MODES = ['plan', 'dontAsk']
-let mode: string | undefined
-
 const refuse = (rule: string) => ({ deny: `set_roster refused: ${rule}. The roster file is unchanged.` })
 // Once the write has started, a failure cannot say the file is unchanged.
 const failedAfterWrite = (why: string) => ({
@@ -848,7 +841,6 @@ async function setRoster($: EngineInterface, e: Record<string, unknown>, signal:
   }
   // An organisation's ceiling below allow: the tool may never run unasked.
   if (verdict.ceiling !== undefined && verdict.ceiling !== 'allow') return refuse(`organisation ceiling: ${verdict.ceiling}`)
-  if (mode !== undefined && REFUSING_MODES.includes(mode)) return refuse(`permission mode: ${mode}`)
 
   for (const k of ['cards', 'todos']) {
     if (!Object.hasOwn(input, k)) return refuse(`malformed input: "${k}" is missing; pass both lists, empty if need be`)
@@ -861,7 +853,6 @@ async function setRoster($: EngineInterface, e: Record<string, unknown>, signal:
   return oneAtATime(async () => {
     if (signal.aborted) return refuse('abandoned: the call ran out of time or was interrupted before its turn')
     if (!(await paneOpen($))) return refuse('pane closed; roster not kept')
-    if (mode !== undefined && REFUSING_MODES.includes(mode)) return refuse(`permission mode: ${mode}`)
     const placed = await placeRoster(at.config, at.plugin, at.id, statOf($))
     if ('refused' in placed) return refuse(placed.refused)
     // A file already there is overwritten only if it is a roster, both lists
@@ -976,9 +967,9 @@ export const register: Register = on => {
     return next(e)
   })
 
-  // The engine's own record of this session: its id and transcript path, the
-  // one place the config folder can be read from when the plugin's location
-  // does not name it. A clear or a resume fires this again with the new id,
+  // The engine's own record of a session: its id and transcript path, one
+  // place the config folder can be read from when the plugin's location does
+  // not name it (else Desktop's synced install folder). A clear or a resume fires this again with the new id,
   // and session.start does not, so the tool is offered again here while the
   // pane is open; registering a name again replaces it.
   on('classic.SessionStart', async ($, e, next) => {
@@ -986,24 +977,12 @@ export const register: Register = on => {
     if (SESSION_ID.test(e.session_id) && typeof e.transcript_path === 'string') {
       await update($, started, () => ({ sessionId: e.session_id, transcript: e.transcript_path }))
     }
-    if (typeof e.permission_mode === 'string') mode = e.permission_mode
     try {
       if (await paneOpen($)) await offerTool($)
     } catch {
       // No tool this time: the next /brigade offers it again.
     }
     await warningOfferAgain($)
-    return next(e)
-  })
-
-  // The mode each prompt runs in, and each other tool call, as far as the
-  // engine tells a hook. These only note the mode and pass the event on.
-  on('classic.UserPromptSubmit', ($, e, next) => {
-    if (typeof e.permission_mode === 'string') mode = e.permission_mode
-    return next(e)
-  })
-  on('classic.PreToolUse', ($, e, next) => {
-    if (typeof e.permission_mode === 'string') mode = e.permission_mode
     return next(e)
   })
 

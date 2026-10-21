@@ -220,6 +220,11 @@ type World = ReturnType<typeof makeFs> & {
   /** While true, every `stat` waits for `releaseStat`, which lets them all go. */
   holdStat: boolean
   releaseStat: () => void
+  /** The next `session.id` call is answered with the id it found, but only when `releaseId` runs. */
+  holdNextId: boolean
+  releaseId: () => void
+  /** The next this many `session.id` calls are rejected. */
+  rejectIds: number
   /** What the fake `gh` answers: its output, exit code, error text, whether
    *  the engine cut the output short, and a message to fail to start with. */
   ghOut: string
@@ -283,6 +288,9 @@ function world(on: On, setup: (w: World) => void = w => w.dirs(`${CONFIG}\\plugi
     stepFail: '',
     holdStat: false,
     releaseStat: () => {},
+    holdNextId: false,
+    releaseId: () => {},
+    rejectIds: 0,
     ghOut: '[]',
     ghExit: 0,
     ghErr: '',
@@ -351,7 +359,18 @@ function world(on: On, setup: (w: World) => void = w => w.dirs(`${CONFIG}\\plugi
     w.toasts.push(String(e.text))
     return { value: undefined }
   })
-  on('session.id', () => ({ value: w.sid }))
+  on('session.id', async () => {
+    if (w.rejectIds > 0) {
+      w.rejectIds--
+      return { deny: 'forced session.id rejection' }
+    }
+    const found = w.sid
+    if (w.holdNextId) {
+      w.holdNextId = false
+      await new Promise<void>(res => (w.releaseId = res))
+    }
+    return { value: found }
+  })
   on('tool.check', ($, e: any) => {
     w.checks.push(String(e.tool))
     w.checkInputs.push(e.input)
@@ -544,8 +563,12 @@ test('when the config folder cannot be found, the reply names no path and the pa
   expect(reply.text).not.toContain('Cannot find')
   expect(reply.text).not.toContain('\\')
   expect(reply.text).not.toContain('plugins/data')
-  const full = new RegExp(`^Cannot find the Claude config folder from where the plugin was loaded \\(.+\\)\\. The roster would be <Claude config folder>/plugins/data/grimoire-inline/brigade/${SID}\\.json\\. Nothing was read\\.$`)
-  expect(w.errors.some(e => full.test(e))).toBe(true)
+  const full = `Cannot find the Claude config folder from where the plugin was loaded. The roster would be <Claude config folder>/plugins/data/grimoire-inline/brigade/${SID}.json. Nothing was read.`
+  expect(w.errors).toContain(full)
+  // set_roster refuses with the same text after `path: `.
+  const r = await call($, GOOD)
+  expect(r.ok).toBe(false)
+  expect(r.text).toBe(`set_roster refused: path: ${full}. The roster file is unchanged.`)
 })
 
 test('when the tool cannot be offered, the reply says to keep no roster', async ($, on) => {
@@ -692,19 +715,23 @@ test("an ask verdict that names a rule is refused; one that names none is a mode
   expect((await call($, GOOD)).ok).toBe(true)
 })
 
-test('plan and dont-ask modes refuse when the engine reports the mode', async ($, on) => {
+test("set_roster keeps the roster in every permission mode: plan mode's ask naming no rule, and after a prompt that reported don't-ask", async ($, on) => {
   const w = world(on)
   await start($)
   await brigade($)
-  for (const mode of ['plan', 'dontAsk']) {
-    await $.classic.UserPromptSubmit({ prompt: 'go', permission_mode: mode } as any)
-    const r = await call($, GOOD)
-    expect(r.ok).toBe(false)
-    expect(r.text).toContain(`permission mode: ${mode}`)
-  }
-  expect(w.text(FILE)).toBeUndefined()
-  await $.classic.UserPromptSubmit({ prompt: 'go', permission_mode: 'auto' } as any)
-  expect((await call($, GOOD)).ok).toBe(true)
+  // As plan mode gives it: an ask that names no rule, its reason naming the mode.
+  w.verdict = { decision: 'ask', reason: 'plan mode asks before this tool' }
+  const plan = await call($, GOOD)
+  expect(plan.ok).toBe(true)
+  expect(plan.text).toMatch(/^Roster kept: /)
+  expect(w.text(FILE)).toBeDefined()
+  w.verdict = { decision: 'allow' }
+  await $.classic.UserPromptSubmit({ prompt: 'go', permission_mode: 'dontAsk' } as any)
+  const other = { cards: [card('gamma')], todos: [] }
+  const r = await call($, other)
+  expect(r.ok).toBe(true)
+  expect(r.text).toMatch(/^Roster kept: 1 card\(s\)/)
+  expect(w.text(FILE)).toContain('gamma')
 })
 
 test('a forced error inside the tool comes back as a refusal, and nothing is written', async ($, on) => {
@@ -3367,6 +3394,77 @@ test('a clear while a write waits on its checks skips that write; the new sessio
   await w.clock.settle()
   expect(JSON.parse(w.text(`${USAGE_DIR}\\${NEW}.json`) ?? '{}').context).toEqual([151002])
   expect(w.text(USAGE)).toBeUndefined()
+})
+
+// #363: where Claude Code's guard skips the classic hooks, a clear or a resume
+// raises no classic.SessionStart. The writer follows the session id itself.
+test('with classic.SessionStart skipped, a changed session id starts the series over in the new file', async ($, on) => {
+  const w = world(on)
+  await begin($, w)
+  w.stepUsage = STEP_USAGE
+  await raiseStep($)
+  await turnEnd($)
+  await w.clock.settle()
+  const NEW = '99999999-8888-7777-6666-555555555555'
+  w.sid = NEW
+  w.stepUsage = { ...STEP_USAGE, input_tokens: 2 }
+  await raiseStep($)
+  await raiseStep($)
+  await turnEnd($)
+  await w.clock.settle()
+  expect(JSON.parse(w.text(USAGE) ?? '{}').context).toEqual([151006])
+  expect(JSON.parse(w.text(`${USAGE_DIR}\\${NEW}.json`) ?? '{}').context).toEqual([151002, 151002])
+})
+
+test('with classic.SessionStart skipped, a write held while the session id changes leaves the old file unchanged', async ($, on) => {
+  const w = world(on)
+  await begin($, w)
+  w.dirs(BRIGADE)
+  w.holdStat = true
+  w.stepUsage = STEP_USAGE
+  await raiseStep($)
+  await w.clock.settle()
+  const NEW = '99999999-8888-7777-6666-555555555555'
+  w.sid = NEW
+  w.holdStat = false
+  w.releaseStat()
+  await w.clock.settle()
+  expect(w.text(USAGE)).toBeUndefined()
+  expect(usageWrites(w)).toEqual([])
+})
+
+test('with classic.SessionStart skipped, only the latest-started session id read counts: an older answer arriving late is ignored', async ($, on) => {
+  const w = world(on)
+  await begin($, w)
+  w.stepUsage = STEP_USAGE
+  // The first step's id read is held; its answer, the old id, comes last.
+  w.holdNextId = true
+  await raiseStep($)
+  await w.clock.settle()
+  const NEW = '99999999-8888-7777-6666-555555555555'
+  w.sid = NEW
+  w.stepUsage = { ...STEP_USAGE, input_tokens: 2 }
+  await raiseStep($)
+  await w.clock.settle()
+  w.releaseId()
+  await w.clock.settle()
+  await raiseStep($)
+  await turnEnd($)
+  await w.clock.settle()
+  expect(JSON.parse(w.text(USAGE) ?? '{}').context).toEqual([151006])
+  expect(JSON.parse(w.text(`${USAGE_DIR}\\${NEW}.json`) ?? '{}').context).toEqual([151002, 151002])
+})
+
+test('with classic.SessionStart skipped, a rejected session id read is ignored and the step still writes', async ($, on) => {
+  const w = world(on)
+  await begin($, w)
+  w.stepUsage = STEP_USAGE
+  w.rejectIds = 1
+  await raiseStep($)
+  await turnEnd($)
+  await w.clock.settle()
+  expect(JSON.parse(w.text(USAGE) ?? '{}').context).toEqual([151006])
+  expect(writerToasts(w)).toEqual([])
 })
 
 // --- issue 339: the redesigned pane ---------------------------------------------
