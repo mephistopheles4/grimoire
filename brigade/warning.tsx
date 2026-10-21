@@ -1,5 +1,5 @@
 import { atom, read, update } from 'claude-code'
-import type { EngineInterface, On } from 'claude-code'
+import type { On } from 'claude-code'
 
 import { ALSO, RISKS, TITLE, WORDING, isAcknowledged, versionOf } from './warning-text.ts'
 import type { Ack } from './warning-text.ts'
@@ -14,12 +14,14 @@ import type { Ack } from './warning-text.ts'
 // No checkbox element exists on any surface, so "Don't show again" is a
 // button drawn as a box, which a press ticks and unticks.
 
-const TOOL = 'show_permission_warning'
+// register.tsx's own start hooks read the store and offer the tool, from
+// these: `claude plugin validate` refuses `$` handed to an imported function.
+export const TOOL = 'show_permission_warning'
 const TOOL_NAME = 'mcp__grimoire__show_permission_warning'
-const DESCRIPTION =
+export const DESCRIPTION =
   "Shows the head chef's permission warning above the prompt in this session. The head-chef skill calls it once, before its first launch in a lead. Takes no input."
-const SCHEMA = { type: 'object', properties: {}, additionalProperties: false }
-const STORE_KEY = 'permission-warning-ack'
+export const SCHEMA = { type: 'object', properties: {}, additionalProperties: false }
+export const STORE_KEY = 'permission-warning-ack'
 const VERSION = versionOf(WORDING)
 
 // Shown in this session: set by the tool, and kept across a reload.
@@ -29,47 +31,16 @@ const hidden = atom({ plugin: 'grimoire', key: 'warningHidden' } as const, false
 // The box's tick, for this session. "I understand" reads it.
 const ticked = atom({ plugin: 'grimoire', key: 'warningTicked' } as const, false)
 // The owner's "Don't show again", read from the store at each start.
+// register.tsx writes it at each start, through its own atom of this key.
 const ack = atom({ plugin: 'grimoire', key: 'warningAck' } as const, null)
 
-async function stored($: EngineInterface): Promise<Ack | null> {
-  try {
-    // Any well-formed acknowledgement is kept, of this version or an older
-    // one, so the band can say the wording changed; anything else is none.
-    const value = await $.store.get(STORE_KEY)
-    if (typeof value !== 'object' || value === null) return null
-    const { at, version } = value as Record<string, unknown>
-    return typeof at === 'string' && typeof version === 'string' ? { at, version } : null
-  } catch {
-    return null
-  }
-}
-
-async function offer($: EngineInterface) {
-  await $.tool.register({ name: TOOL, description: DESCRIPTION, inputSchema: SCHEMA })
-}
-
-/** At each session start, from register.tsx's own hook: read the owner's
- *  "Don't show again" back from the store, and offer the tool. A failure
- *  leaves no tool, and the skill then says the warning in chat. */
-export async function warningStart($: EngineInterface) {
-  try {
-    const kept = await stored($)
-    await update($, ack, () => kept)
-    await offer($)
-  } catch {
-    // No warning tool this time.
-  }
-}
-
-/** At each classic.SessionStart, a startup, a clear or a resume, from
- *  register.tsx's own hook: offer the tool again, since a clear or a resume
- *  does not fire session.start, and registering a name again replaces it. */
-export async function warningOfferAgain($: EngineInterface) {
-  try {
-    await offer($)
-  } catch {
-    // As above.
-  }
+/** What the store holds, as an acknowledgement. Any well-formed one is kept,
+ *  of this version or an older one, so the band can say the wording changed;
+ *  anything else is none. */
+export function ackFrom(value: unknown): Ack | null {
+  if (typeof value !== 'object' || value === null) return null
+  const { at, version } = value as Record<string, unknown>
+  return typeof at === 'string' && typeof version === 'string' ? { at, version } : null
 }
 
 export function registerWarning(on: On) {

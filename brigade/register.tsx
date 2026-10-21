@@ -105,7 +105,7 @@ import {
 } from './view.ts'
 import type { Finder, PrRow, ReadMemory, Spark, SummaryMemory } from './view.ts'
 import { registerWriter, writerEpoch, writerSession } from './writer.ts'
-import { registerWarning, warningOfferAgain, warningStart } from './warning.tsx'
+import { DESCRIPTION as WARNING_DESCRIPTION, SCHEMA as WARNING_SCHEMA, STORE_KEY as WARNING_KEY, TOOL as WARNING_TOOL, ackFrom, registerWarning } from './warning.tsx'
 
 // The Brigade pane: one compact row per session a lead session started, in
 // three foldable groups (Waiting on you, Working, Done · stopped) behind a
@@ -907,6 +907,43 @@ async function setRoster($: EngineInterface, e: Record<string, unknown>, signal:
     await update($, rosterError, () => '')
     return { result: `Roster kept: ${value.cards.length} card(s), ${value.todos.length} to-do(s).` }
   })
+}
+
+// The owner's "Don't show again", read from the store at each start. The
+// band in warning.tsx reads the same key.
+const warningAck = atom({ plugin: 'grimoire', key: 'warningAck' } as const, null)
+
+async function offerWarning($: EngineInterface) {
+  await $.tool.register({ name: WARNING_TOOL, description: WARNING_DESCRIPTION, inputSchema: WARNING_SCHEMA })
+}
+
+/** At each session start: read the owner's "Don't show again" back from the
+ *  store, and offer the permission warning's tool. A failure leaves no tool,
+ *  and the skill then says the warning in chat. */
+async function warningStart($: EngineInterface) {
+  try {
+    let kept: ReturnType<typeof ackFrom> = null
+    try {
+      kept = ackFrom(await $.store.get(WARNING_KEY))
+    } catch {
+      // An unreadable store is no acknowledgement.
+    }
+    await update($, warningAck, () => kept)
+    await offerWarning($)
+  } catch {
+    // No warning tool this time.
+  }
+}
+
+/** At each classic.SessionStart, a startup, a clear or a resume: offer the
+ *  tool again, since a clear or a resume does not fire session.start, and
+ *  registering a name again replaces it. */
+async function warningOfferAgain($: EngineInterface) {
+  try {
+    await offerWarning($)
+  } catch {
+    // As above.
+  }
 }
 
 export const register: Register = on => {
