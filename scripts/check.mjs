@@ -17,8 +17,9 @@
 // 4. Every plugin in the marketplace manifest exists on disk with a manifest.
 // 5. A change to a skill or the mod carries a version bump.
 // 6. Nothing in the tree takes a dependency: no manifest, no lockfile, and no
-//    import of a bare specifier. The mod's module may import the engine's own
-//    `claude-code`, which the engine supplies.
+//    import of a bare specifier. The one manifest it accepts is a root
+//    package.json holding only an `athanor` key. The mod's module may import
+//    the engine's own `claude-code`, which the engine supplies.
 //    6b. Every pointer the engine follows to the mod's code, and every
 //    relative import in it, lands inside the mod's folders.
 //    6c. Nothing else the engine loads: no default component folder or file at
@@ -177,7 +178,13 @@ const FIXED = [
 // nobody acts on. The CI log is public and outlives a rewritten commit, so the
 // account name is masked before the line is cut; see scripts/lib/printable.mjs.
 const excerpt = s => (s.length > 120 ? `${s.slice(0, 117)}...` : s);
-for (const shipped of files.filter(f => isShipped(rel(f)))) {
+// Two root files are read beyond what ships under skills/ and the mod: the
+// root package.json and the container folder. They ship to every installer
+// with the rest of the repository, and the athanor "commands" are where a
+// pasted local path would land. Rule 5 does not take them: isShipped stays as
+// it was, so a change to them asks for no version bump.
+const READ_FOR_PATHS = src => isShipped(src) || src === 'package.json' || src.startsWith('tests/container/');
+for (const shipped of files.filter(f => READ_FOR_PATHS(rel(f)))) {
   // The block-quote exemption is markdown only. `>` opens a quotation in prose
   // and means nothing in JavaScript, JSON or HTML, so honouring it everywhere
   // would let a fixed path walk through the gate on any line that happened to
@@ -645,10 +652,45 @@ const MANIFESTS = new Set([
 // In any case, too: the engine installs packages when the plugin root holds a
 // manifest and a lockfile, and an install that folds case finds Package.json.
 const isManifest = name => MANIFESTS.has(name) || [...MANIFESTS].some(m => caseTwin(name, m));
+//
+// One exemption, because athanor reads its configuration from nowhere else: a
+// file named exactly `package.json`, in that case, at the root, whose top level
+// is an object holding the key `athanor` and no other, with an object as its
+// value. The limit is one key because npm and the skills CLI act on the others
+// (`dependencies`, `scripts`, `bin`, `type`, `skills`). What is inside `athanor`
+// is athanor's to validate; it exits 125 on a key it does not know. A duplicate
+// key only hides an earlier copy of the same name, and JSON.parse decodes
+// escapes before the key is tested, as athanor's own parser does.
+const isObject = v => typeof v === 'object' && v !== null && !Array.isArray(v);
+// Why a root package.json is not the accepted one, or null when it is.
+function rootManifestProblem(f) {
+  let parsed;
+  try {
+    parsed = JSON.parse(readFileSync(f, 'utf8'));
+  } catch (e) {
+    return `does not parse as JSON (${shown(excerpt(e.message))})`;
+  }
+  if (!isObject(parsed)) return 'is not a JSON object';
+  const others = Object.keys(parsed).filter(k => k !== 'athanor');
+  if (others.length) return `also holds ${others.map(k => `"${shown(k)}"`).join(', ')}`;
+  if (!('athanor' in parsed)) return 'holds no "athanor" key';
+  if (!isObject(parsed.athanor)) return 'has an "athanor" value that is not an object';
+  return null;
+}
 for (const f of files.filter(f => isManifest(basename(f)))) {
+  const problem = relRaw(f) === 'package.json' ? rootManifestProblem(f) : 'is not the root package.json';
+  if (problem === null) continue;
+  const accepted = relRaw(f) === 'package.json' ? ` The one package.json this repository accepts is the root one, holding only an "athanor" key whose value is an object, and this one ${problem}.` : '';
   fail(
-    `${rel(f)}: a dependency manifest or lockfile — delete it. This repository takes no dependency and has no install step, which is what lets the tests run on \`node --test\` and the skill run from a checkout. See CONTRIBUTING.md, "Do not add a dependency", and SECURITY.md for why it matters more than it looks.`,
+    `${rel(f)}: a dependency manifest or lockfile — delete it.${accepted} This repository takes no dependency and has no install step, which is what lets the tests run on \`node --test\` and the skill run from a checkout. See CONTRIBUTING.md, "Do not add a dependency", and SECURITY.md for why it matters more than it looks.`,
   );
+}
+
+// With a root package.json in place, npm's git-package route runs a default
+// native build from a binding.gyp at the root, with no `scripts` key to see.
+// In any case, as the manifests are.
+for (const f of files.filter(f => relRaw(f).toLowerCase() === 'binding.gyp' || caseTwin(relRaw(f), 'binding.gyp'))) {
+  fail(`${rel(f)}: a native build file at the root — npm builds it at install, beside any root package.json, with no "scripts" key to see. Delete it.`);
 }
 
 // Prose is not code, and this repository writes long prose comments. Scanning
@@ -1221,8 +1263,8 @@ for (const [a, b] of caseTwinPaths(files.map(relRaw).filter(p => p.startsWith('s
 // 8. The test suite runs here, under the same one command.
 //
 // `node --test` ships with Node and needs no manifest, no install and no
-// dependency, which is the only reason a repository with no package.json can
-// have tests at all. It runs last because the rules above are cheap and the
+// dependency, which is the only reason a repository with no dependency manifest
+// can have tests at all. It runs last because the rules above are cheap and the
 // suite spawns processes.
 //
 // It runs from here rather than from a second CI step, because CONTRIBUTING

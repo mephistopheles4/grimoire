@@ -40,6 +40,77 @@ test('a dependency manifest anywhere in the tree fails', () => {
   assertFails(dir, /package\.json: a dependency manifest or lockfile/);
 });
 
+// Issue 362: athanor reads its configuration only from an "athanor" key in the
+// root package.json. Rule 6 accepts exactly that file and nothing wider, so
+// the exemption opens no route for a package.
+const athanorOnly = { athanor: { dockerfile: 'tests/container/Dockerfile', context: 'tests/container', commands: { check: 'node scripts/check.mjs' } } };
+
+test('a root package.json holding only the athanor key passes', () => {
+  const dir = tree();
+  writeFileSync(join(dir, 'package.json'), JSON.stringify(athanorOnly));
+  assertPasses(dir);
+});
+
+test('a root package.json with any other key fails and names each one, printed safely', () => {
+  const dir = tree();
+  const esc = String.fromCodePoint(0x1b);
+  const manifest = { ...athanorOnly };
+  for (const k of ['dependencies', 'devDependencies', 'scripts', 'name', 'skills', `a${esc}b`, '/home/zq-acct/x']) manifest[k] = {};
+  writeFileSync(join(dir, 'package.json'), JSON.stringify(manifest));
+  const r = assertFails(dir, /package\.json: a dependency manifest or lockfile/);
+  for (const k of ['dependencies', 'devDependencies', 'scripts', 'name', 'skills']) assert.match(r.stderr, new RegExp(`"${k}"`));
+  assert.match(r.stderr, /"a\\u\{1b\}b"/);
+  assert.match(r.stderr, /"\/home\/<name>\/x"/);
+  assert.doesNotMatch(r.stderr, /zq-acct/);
+  assert.equal(r.stderr.includes(esc), false);
+  // The key that is allowed is not named as one of the others.
+  assert.doesNotMatch(r.stderr, /also holds[^.]*"athanor"/);
+});
+
+test('a root package.json that is not exactly an athanor object fails', () => {
+  const bodies = ['{}\n', '[]\n', '"athanor"\n', '{"athanor":1}\n', '{"athanor":null}\n', '{"athanor":[]}\n', '{"athanor":"x"}\n', 'not json at all\n', '/home/zq-acct/oops\n'];
+  for (const body of bodies) {
+    const dir = tree();
+    writeFileSync(join(dir, 'package.json'), body);
+    const r = assertFails(dir, /package\.json: a dependency manifest or lockfile/);
+    // A parse error can quote the file, and the file is not this check's text.
+    assert.doesNotMatch(r.stderr, /zq-acct/, `body ${JSON.stringify(body)}`);
+  }
+});
+
+test('a package.json in a folder, a lockfile beside an accepted root manifest, and binding.gyp still fail', () => {
+  const dir = tree();
+  writeFileSync(join(dir, 'package.json'), JSON.stringify(athanorOnly));
+  writeFileSync(join(dir, 'package-lock.json'), '{}\n');
+  modFile(dir, 'skills/eagle-eye/package.json', JSON.stringify(athanorOnly));
+  const r = assertFails(dir, /- package-lock\.json: a dependency manifest or lockfile/);
+  assert.match(r.stderr, /skills\/eagle-eye\/package\.json: a dependency manifest or lockfile/);
+  // The accepted root file is not itself named as a failure.
+  assert.doesNotMatch(r.stderr, /- package\.json: a dependency manifest/);
+});
+
+test('binding.gyp at the root fails, in any case, because npm builds it with no scripts key', () => {
+  for (const name of ['binding.gyp', 'Binding.GYP']) {
+    const dir = tree();
+    writeFileSync(join(dir, 'package.json'), JSON.stringify(athanorOnly));
+    writeFileSync(join(dir, name), '{}\n');
+    assertFails(dir, new RegExp(`${name.replace('.', '\\.')}: .*native build`));
+  }
+});
+
+test('a home path in the root package.json or the container folder fails rule 2, masked', () => {
+  // Both files ship to every installer, and "commands" is where a pasted local
+  // path would land.
+  const dir = tree();
+  const m = structuredClone(athanorOnly);
+  m.athanor.commands.check = 'node /home/zq-acct/work/scripts/check.mjs';
+  writeFileSync(join(dir, 'package.json'), JSON.stringify(m, null, 2));
+  modFile(dir, 'tests/container/Dockerfile', 'FROM node:24\nCOPY . C:\\Users\\zq-acct\\work\n');
+  const r = assertFails(dir, /package\.json:\d+ holds a fixed path/);
+  assert.match(r.stderr, /tests\/container\/Dockerfile:2 holds a fixed path/);
+  assert.doesNotMatch(r.stderr, /zq-acct/);
+});
+
 test('a lockfile fails on its own, with no manifest beside it', () => {
   const dir = tree();
   writeFileSync(join(dir, 'skills', 'eagle-eye', 'pnpm-lock.yaml'), 'lockfileVersion: 9\n');

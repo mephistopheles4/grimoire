@@ -256,7 +256,10 @@ The realistic risks:
   does not read the mod.
 - **A dependency.** The renderers import Node built-in modules only, so there is
   no dependency tree to poison. That is true now, not a promise about later.
-  `scripts/check.mjs` fails on a `package.json` or a lockfile.
+  `scripts/check.mjs` fails on a lockfile and on any `package.json` except a
+  root one holding only an `athanor` key, which athanor reads to run the check
+  in a container. That file carries no dependency, script or other key, and the
+  check also refuses a root `binding.gyp`.
 - **An API key in the environment.** The edge audit reads one and sends it as a
   bearer token. Review any change to `skills/eagle-eye/audit.mjs`, its
   endpoints, or how it picks a key as a change that could send a key elsewhere.

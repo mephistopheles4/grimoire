@@ -45,6 +45,51 @@ there are no dependencies. The skills' own scripts and the one command share
 that floor, and CI runs on it. `tests/brigade-view.test.mjs` imports the Brigade
 mod's TypeScript modules as they are, which Node 24 does by default.
 
+## Run the check in a container
+
+`node scripts/check.mjs` stays the one command, and CI runs it. Where
+athanor is installed, it is the
+preferred way to run it: athanor runs the check in a fresh Linux container with
+no network, and caps how many runs go at once on the machine, so several
+sessions can check without breaking each other through files, ports or
+temporary folders. It is optional. Nothing here requires it.
+
+The root `package.json` holds only the `athanor` key, because athanor reads its
+configuration from nowhere else. It names the Dockerfile in `tests/container/`,
+which is the whole build context, and two commands:
+
+```bash
+athanor run check
+athanor run fast
+```
+
+`check` runs the same contract as `node scripts/check.mjs`, and it is the one
+that counts. `fast` runs the test files that do not spawn the check, in about
+a third of the time, and skips the check's rules, so a pass there is not a
+contract pass.
+
+To install athanor, use its checkout at commit `0fd9ad4`, the commit this
+configuration was tested with, outside this repository's tree: run `npm ci`,
+then `npm run prepack`, then `npm install -g .`. athanor is not published, and
+this repository never depends on it.
+
+- Stage new files, or pass `--untracked`. athanor runs the tracked files as
+  they are in the working tree and leaves untracked ones out.
+- A container run cannot cover the version-bump check or the SkillSpector
+  allowance change notice, which need `origin/main`, nor the plugin validator,
+  SkillSpector or zizmor, which stay in CI. A container pass does not cover
+  them.
+- Exit 124, 125 and 137 mean athanor produced no result, whether from a time
+  limit, Docker or its configuration. Run `node scripts/check.mjs` on the host.
+- The cap on concurrent runs is athanor's machine setting `maxRuns`, 2 unless
+  you change it.
+- A run sends your tracked files, with unsaved edits, to the Docker engine
+  athanor is set to use. Use the local engine, and keep secrets out of tracked
+  files. athanor keeps short-lived copies of unsaved files in its state folder.
+- The image build has network access, unlike the run. It also uses the
+  machine's registry login. Read the diff to `tests/container/` and to the
+  `athanor` key before you run athanor on a branch you did not write.
+
 ## Tests
 
 The tests run on `node --test`, which ships with Node. That is the whole reason
@@ -151,8 +196,12 @@ imports node built-in modules and nothing else. A patch that adds a package
 needs to argue for itself in the pull request body before anybody reads the
 diff. See [`SECURITY.md`](SECURITY.md) for why this matters more than it looks.
 
-`node scripts/check.mjs` enforces this. It fails on a `package.json` and a
-lockfile, in any case, and on any code file importing a bare specifier — an import path that
+`node scripts/check.mjs` enforces this. It fails on a lockfile, in any case,
+and on any `package.json` except one: the root `package.json` that holds only
+an `athanor` key whose value is an object (see "Run the check in a container"
+above). Any other key fails and is named, `Package.json` and a `package.json`
+in a folder fail, and so does a `binding.gyp` at the root, which npm would
+build. It also fails on any code file importing a bare specifier — an import path that
 is not relative, not absolute, and not a `node:` builtin. A path starting with
 `//` names a host, so it counts as a package, not as absolute. Code means every
 suffix Node or the Claude Code engine loads: `.ts`, `.tsx`, `.jsx`, `.js`,

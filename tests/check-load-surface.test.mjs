@@ -145,6 +145,11 @@ test('a package manifest or lockfile in another case fails, as the exact name do
   modFile(dir, 'Bun.lock', '\n');
   const r = assertFails(dir, /Package\.json: a dependency manifest or lockfile/);
   assert.match(r.stderr, /Bun\.lock: a dependency manifest or lockfile/);
+  // The root exemption is one exact name: athanor's own file in another case
+  // is the case a folding checkout would keep, and it still fails.
+  const only = tree();
+  modFile(only, 'Package.json', '{"athanor":{}}\n');
+  assertFails(only, /Package\.json: a dependency manifest or lockfile/);
 });
 test('a marketplace entry whose name or source holds a home path fails with the account name masked', () => {
   // The CI log is public and outlives a rewritten commit, so rule 4 prints
