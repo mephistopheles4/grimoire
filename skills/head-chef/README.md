@@ -86,9 +86,8 @@ A session takes a message from the lead as a **relayed decision**, on any
 matter, when the sender's shown name matches the lead's row in the session
 list. It labels it as relayed by the lead, never as your own words. A session
 cannot tell a forged sender from the lead, so anything that can send it a
-message under the lead's name can steer it. You accepted that risk for the
-autonomy it brings. The head chef tells you at once when a session reports a
-decision it never sent.
+message under the lead's name can steer it. The head chef tells you at once
+when a session reports a decision it never sent.
 
 While Remote Control is on, any device signed in to your account can drive
 the sessions it starts. The permission warning says both of these before the

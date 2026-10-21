@@ -110,6 +110,9 @@ need, without overwhelming me or showing me too much.
   with git whatever the archive left of its worktree and branch. The archive
   goes first: git on a live session's worktree fails and leaves the folder
   partly deleted.
+- **Decided.** Before the name-back, it checks each session: no uncommitted
+  or untracked work in its worktree, a session it started or the owner handed
+  it, and its Desktop id's title reading back as the session it kept.
 - **Decided.** It shows the permission warning before its first launch in
   each lead, until the owner ticks "Don't show again". It shows again when its
   wording changes.
@@ -150,6 +153,8 @@ that fails, the owner types `/head-chef`.
 
 **When it is unsure** (**Confirmed**): it decides, and shows the owner,
 because the owner keeps to the bigger picture and steps in where needed.
+(**Decided**) Being unsure never lets it decide what a stop or the owner's
+yes keeps for the owner.
 
 ## tools
 
@@ -171,7 +176,11 @@ because the owner keeps to the bigger picture and steps in where needed.
 - **Confirmed.** It never uses a forcing flag, a recursive delete, or a
   command that discards work.
 - **Decided.** No session id, Desktop id, token, secret, local path or error
-  text goes on an issue, a card, a roster line or a start prompt.
+  text goes on an issue, a card, a roster line or a start prompt. The one
+  exception: a roster card carries its session's Desktop id, which the pane's
+  Open in app needs.
+- **Decided.** It runs the checks and the removals as separate calls. When a
+  folder will not go, it tells the owner, and never deletes it another way.
 - **Confirmed.** It writes each session name itself, from letters, digits and
   `. _ -`, never copied from an issue.
 
@@ -204,6 +213,9 @@ lead's name filled in:
 | Starts a session | nothing: it reports the start right after, in the short form | the owner's words in this chat asking for the work | **Confirmed** |
 | Archives a session, and removes its worktree and branch | the one name-back list | one yes in this chat, covering the whole list; on that yes it runs the checks again without asking again | **Decided** |
 | Merges, closes, edits, deletes or labels something on GitHub, or files an issue | the issue and the act, in one line | the owner's words in this chat naming that act | **Confirmed** |
+
+**Free text for an act on GitHub** (**Decided**): it writes the text to a
+file first, posts from the file, and deletes the file after the act.
 
 **Its record** (**Decided**): the sessions it started, each one's issue,
 stage and state, and the todo section, in the Brigade pane's roster while the

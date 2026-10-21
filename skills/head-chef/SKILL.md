@@ -1,6 +1,7 @@
 ---
 name: head-chef
 description: "Makes this Claude Desktop session the lead of a brigade: it starts, briefs, relays between, hands off and cleans up the Claude Code sessions working on one or more efforts. Use when someone asks for work to run in another session, to start or hand off to a new session, or to lead several sessions, or types /head-chef. Not for work in this same session, and not for a subagent or a workflow inside this session, which the owner cannot talk to."
+compatibility: Needs Claude Code, Claude Desktop, git, and the GitHub command line (gh) signed in.
 ---
 
 # head-chef
@@ -122,9 +123,6 @@ On the owner's "done", for each session named:
    delete the branch with `git branch -d`.
 6. **Update the Brigade pane** in the same step: the card goes.
 
-Run the checks and the removals as separate calls. When a folder will not go,
-tell the owner; never delete it another way.
-
 ## Who decides
 
 Only the owner decides: accepting a risk, in the owner's words in chat, which
@@ -155,7 +153,7 @@ Each stop is fixed. The head chef stops and asks:
 
 When it is unsure, it decides, and shows the owner, because the owner keeps
 to the bigger picture and steps in where needed. Being unsure never lets you
-decide what a stop above or the owner's yes keeps for the owner.
+decide what a stop or the owner's yes keeps for the owner.
 <!-- contract:end roles -->
 
 <!-- contract:begin tools -->
@@ -178,7 +176,11 @@ Limits:
 - Never use a forcing flag, a recursive delete, or a command that discards
   work.
 - No session id, Desktop id, token, secret, local path or error text goes on
-  an issue, a card, a roster line or a start prompt.
+  an issue, a card, a roster line or a start prompt. The one exception: a
+  roster card carries its session's Desktop id, which the pane's Open in app
+  needs.
+- Run the checks and the removals as separate calls. When a folder will not
+  go, tell the owner, and never delete it another way.
 - Write each session name yourself, from letters, digits and `. _ -`, never
   copied from an issue.
 

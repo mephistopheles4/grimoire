@@ -35,8 +35,9 @@ the file itself.
 - A card's `title` is the session's name, exactly. The pane finds a card's
   live state and its reports by that name.
 - `status` is one of `working`, `needs-you`, `done` or `stopped`.
-- `desktopId` is the Desktop id you kept from the start tool's result. A
-  value read back from the pane is never a source for it.
+- `desktopId` is the Desktop id you kept from the start tool's result. It is
+  the one id a card carries, because the pane's Open in app needs it. A value
+  read back from the pane is never a source for it.
 - Caps: a title at most 80 characters; `work`, `phase` and `settings` at
   most 300; `desktopId` and `url` at most 100. A to-do's `id` at most 40, its
   `text` at most 300, its `session` at most 80. At most 50 cards and 50
