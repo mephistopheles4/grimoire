@@ -65,3 +65,16 @@ trigger is a Desktop-started session that cannot load the hook.
 
 **A setting to turn the writer off was deferred.** The owner approved the
 measured figure with no opt-out. Its trigger is the owner asking for one.
+
+## Reviewed: the permission warning (2026-10-21)
+
+head-chef 0.9.0, in plugin 0.69.0 (#296), adds work at session start. At each
+session start the mod reads one key of the plugin's store,
+`permission-warning-ack`, and offers one tool, `show_permission_warning`,
+which a clear or a resume offers again. It starts no timer or process and reads
+no file; it copies the stored value into plugin state, which other plugins
+can read, and the store is written only by a press of I understand with
+Don't show again ticked. PR 360's two Test
+review rounds reviewed this work, and row 15 of the threat model lists its
+calls. The owner asked for this record in chat in the build session on #296,
+on 2026-10-21.
