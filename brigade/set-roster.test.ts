@@ -220,6 +220,11 @@ type World = ReturnType<typeof makeFs> & {
   /** While true, every `stat` waits for `releaseStat`, which lets them all go. */
   holdStat: boolean
   releaseStat: () => void
+  /** The next `session.id` call is answered with the id it found, but only when `releaseId` runs. */
+  holdNextId: boolean
+  releaseId: () => void
+  /** The next this many `session.id` calls are rejected. */
+  rejectIds: number
   /** What the fake `gh` answers: its output, exit code, error text, whether
    *  the engine cut the output short, and a message to fail to start with. */
   ghOut: string
@@ -283,6 +288,9 @@ function world(on: On, setup: (w: World) => void = w => w.dirs(`${CONFIG}\\plugi
     stepFail: '',
     holdStat: false,
     releaseStat: () => {},
+    holdNextId: false,
+    releaseId: () => {},
+    rejectIds: 0,
     ghOut: '[]',
     ghExit: 0,
     ghErr: '',
@@ -351,7 +359,18 @@ function world(on: On, setup: (w: World) => void = w => w.dirs(`${CONFIG}\\plugi
     w.toasts.push(String(e.text))
     return { value: undefined }
   })
-  on('session.id', () => ({ value: w.sid }))
+  on('session.id', async () => {
+    if (w.rejectIds > 0) {
+      w.rejectIds--
+      return { deny: 'forced session.id rejection' }
+    }
+    const found = w.sid
+    if (w.holdNextId) {
+      w.holdNextId = false
+      await new Promise<void>(res => (w.releaseId = res))
+    }
+    return { value: found }
+  })
   on('tool.check', ($, e: any) => {
     w.checks.push(String(e.tool))
     w.checkInputs.push(e.input)
@@ -3412,6 +3431,40 @@ test('with classic.SessionStart skipped, a write held while the session id chang
   await w.clock.settle()
   expect(w.text(USAGE)).toBeUndefined()
   expect(usageWrites(w)).toEqual([])
+})
+
+test('with classic.SessionStart skipped, only the latest-started session id read counts: an older answer arriving late is ignored', async ($, on) => {
+  const w = world(on)
+  await begin($, w)
+  w.stepUsage = STEP_USAGE
+  // The first step's id read is held; its answer, the old id, comes last.
+  w.holdNextId = true
+  await raiseStep($)
+  await w.clock.settle()
+  const NEW = '99999999-8888-7777-6666-555555555555'
+  w.sid = NEW
+  w.stepUsage = { ...STEP_USAGE, input_tokens: 2 }
+  await raiseStep($)
+  await w.clock.settle()
+  w.releaseId()
+  await w.clock.settle()
+  await raiseStep($)
+  await turnEnd($)
+  await w.clock.settle()
+  expect(JSON.parse(w.text(USAGE) ?? '{}').context).toEqual([151006])
+  expect(JSON.parse(w.text(`${USAGE_DIR}\\${NEW}.json`) ?? '{}').context).toEqual([151002, 151002])
+})
+
+test('with classic.SessionStart skipped, a rejected session id read is ignored and the step still writes', async ($, on) => {
+  const w = world(on)
+  await begin($, w)
+  w.stepUsage = STEP_USAGE
+  w.rejectIds = 1
+  await raiseStep($)
+  await turnEnd($)
+  await w.clock.settle()
+  expect(JSON.parse(w.text(USAGE) ?? '{}').context).toEqual([151006])
+  expect(writerToasts(w)).toEqual([])
 })
 
 // --- issue 339: the redesigned pane ---------------------------------------------
