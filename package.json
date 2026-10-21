@@ -4,7 +4,7 @@
     "context": "tests/container",
     "commands": {
       "check": ["sh", "-c", "git add -A -f && node scripts/check.mjs"],
-      "fast": ["sh", "-c", "files=; for f in tests/*.test.mjs; do case \"$f\" in tests/check-*) ;; *) files=\"$files $f\" ;; esac; done; exec node --test $files"]
+      "fast": ["sh", "-c", "files=; for f in tests/*.test.mjs; do case \"$f\" in tests/check-*) ;; *) files=\"$files $f\" ;; esac; done; exec node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --test $files"]
     }
   }
 }

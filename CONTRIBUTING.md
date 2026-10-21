@@ -48,8 +48,8 @@ mod's TypeScript modules as they are, which Node 24 does by default.
 ## Run the check in a container
 
 `node scripts/check.mjs` stays the one command, and CI runs it. Where
-athanor is installed, it is the
-preferred way to run it: athanor runs the check in a fresh Linux container with
+athanor is installed, and on a branch you wrote or whose container files you
+have read (see the last bullet), it is the preferred way to run it: athanor runs the check in a fresh Linux container with
 no network, and caps how many runs go at once on the machine, so several
 sessions can check without breaking each other through files, ports or
 temporary folders. It is optional. Nothing here requires it.
@@ -64,17 +64,23 @@ athanor run fast
 ```
 
 `check` runs the same contract as `node scripts/check.mjs`, and it is the one
-that counts. `fast` runs the test files that do not spawn the check, in about
-a third of the time, and skips the check's rules, so a pass there is not a
-contract pass.
+that counts. `fast` runs every test file except `tests/check-*.test.mjs`, in
+about a third of the time of `check`, and skips the check's rules, so a pass
+there is not a contract pass. Its saving comes from the subset: the same files
+run on the host with `node --test`.
 
-To install athanor, use its checkout at commit `0fd9ad4`, the commit this
-configuration was tested with, outside this repository's tree: run `npm ci`,
-then `npm run prepack`, then `npm install -g .`. athanor is not published, and
-this repository never depends on it.
+To install athanor, clone its source repository outside this repository's tree
+and check out commit `0fd9ad4`, the commit this configuration was tested with:
+run `npm ci`, then `npm run prepack`, then `npm install -g .`. athanor is not
+published, and this repository never depends on it. If `athanor` is not on your
+PATH, run `node scripts/check.mjs`. Never run athanor through `npx` or install
+it by name: the npm package called `athanor` is someone else's, and npm runs
+such a package without asking when no one is at a terminal.
 
-- Stage new files, or pass `--untracked`. athanor runs the tracked files as
-  they are in the working tree and leaves untracked ones out.
+- Stage new files, or pass `--untracked`, as in `athanor run check --untracked`.
+  athanor runs the tracked files as they are in the working tree and leaves
+  untracked ones out. `--untracked` adds untracked files that `.gitignore` does
+  not exclude.
 - A container run cannot cover the version-bump check or the SkillSpector
   allowance change notice, which need `origin/main`, nor the plugin validator,
   SkillSpector or zizmor, which stay in CI. A container pass does not cover
@@ -82,13 +88,21 @@ this repository never depends on it.
 - Exit 124, 125 and 137 mean athanor produced no result, whether from a time
   limit, Docker or its configuration. Run `node scripts/check.mjs` on the host.
 - The cap on concurrent runs is athanor's machine setting `maxRuns`, 2 unless
-  you change it.
-- A run sends your tracked files, with unsaved edits, to the Docker engine
-  athanor is set to use. Use the local engine, and keep secrets out of tracked
-  files. athanor keeps short-lived copies of unsaved files in its state folder.
-- The image build has network access, unlike the run. It also uses the
-  machine's registry login. Read the diff to `tests/container/` and to the
-  `athanor` key before you run athanor on a branch you did not write.
+  you change it. It caps athanor runs only: a run of `node scripts/check.mjs`
+  on the host, including the one after an athanor failure, is outside it.
+- A run sends your tracked files, with uncommitted edits, to the Docker engine
+  athanor is set to use, which can be a remote one reached over SSH or TLS.
+  Use the local engine: check that `DOCKER_HOST` is unset and that
+  `docker context show` prints `default`. Keep secrets out of tracked files.
+  athanor keeps temporary copies of the index and the run's objects in its state
+  folder, `~/.athanor` or `$ATHANOR_HOME`, which is safe to delete.
+- The image build has network access, unlike the run. It pulls the base image
+  from Docker Hub with the machine's registry login and installs git from
+  Debian's package archive, which is not pinned. It receives the whole folder
+  that the `athanor` key's `context` names, including files `.gitignore`
+  excludes, such as local settings. Read the diff to `tests/container/` and to
+  the `athanor` key before you run athanor on a branch you did not write, and
+  run `node scripts/check.mjs` on the host for a branch you have not read.
 
 ## Tests
 
@@ -239,7 +253,8 @@ has taken. The rule catches a bare fence and nothing else.
 as a plugin, copied by hand, or vendored into a project, and each lands in a
 different directory. Reference the skill base directory the harness supplies.
 `scripts/check.mjs` fails on `~/.claude/` or a home path appearing in any file
-under `skills/`, `brigade/` or `hooks/` — the prose, the library, the
+under `skills/`, `brigade/` or `hooks/`, or in the root `package.json` or
+under `tests/container/` — the prose, the library, the
 reference pages, the renderer and the schema. A home path is a Linux, Windows
 or Mac home in any of the shapes a terminal or an editor writes it:
 `C:\Users\…`, `C:/Users/…`, `/Users/…`, Git Bash's `/c/Users/…` and the WSL

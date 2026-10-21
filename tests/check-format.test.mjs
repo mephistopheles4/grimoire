@@ -5,6 +5,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync, writeFileSync, appendFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { root } from './helpers.mjs';
 import { tree, assertPasses, assertFails, modFile, importLine } from './check-fixture.mjs';
 
 test('the single-pass tag strip cannot come back', () => {
@@ -68,7 +69,7 @@ test('a root package.json with any other key fails and names each one, printed s
 });
 
 test('a root package.json that is not exactly an athanor object fails', () => {
-  const bodies = ['{}\n', '[]\n', '"athanor"\n', '{"athanor":1}\n', '{"athanor":null}\n', '{"athanor":[]}\n', '{"athanor":"x"}\n', 'not json at all\n', '/home/zq-acct/oops\n'];
+  const bodies = ['{}\n', '[]\n', '"athanor"\n', '{"athanor":1}\n', '{"athanor":null}\n', '{"athanor":[]}\n', '{"athanor":"x"}\n', 'null\n', '1\n', 'true\n', 'not json at all\n', '/home/zq-acct/oops\n'];
   for (const body of bodies) {
     const dir = tree();
     writeFileSync(join(dir, 'package.json'), body);
@@ -78,7 +79,7 @@ test('a root package.json that is not exactly an athanor object fails', () => {
   }
 });
 
-test('a package.json in a folder, a lockfile beside an accepted root manifest, and binding.gyp still fail', () => {
+test('a package.json in a folder and a lockfile beside an accepted root manifest still fail', () => {
   const dir = tree();
   writeFileSync(join(dir, 'package.json'), JSON.stringify(athanorOnly));
   writeFileSync(join(dir, 'package-lock.json'), '{}\n');
@@ -89,13 +90,34 @@ test('a package.json in a folder, a lockfile beside an accepted root manifest, a
   assert.doesNotMatch(r.stderr, /- package\.json: a dependency manifest/);
 });
 
-test('binding.gyp at the root fails, in any case, because npm builds it with no scripts key', () => {
-  for (const name of ['binding.gyp', 'Binding.GYP']) {
+test('binding.gyp at the root fails, in any case and with or without a manifest, because npm builds it with no scripts key', () => {
+  // The dotless i upper-cases to I and lower-cases to itself: a folding checkout
+  // reads this name as binding.gyp, and only the upper-case half of the match sees it.
+  const dotless = String.fromCodePoint(0x131);
+  for (const [name, withManifest] of [['binding.gyp', false], ['Binding.GYP', true], [`b${dotless}nd${dotless}ng.gyp`, true]]) {
     const dir = tree();
-    writeFileSync(join(dir, 'package.json'), JSON.stringify(athanorOnly));
+    if (withManifest) writeFileSync(join(dir, 'package.json'), JSON.stringify(athanorOnly));
     writeFileSync(join(dir, name), '{}\n');
     assertFails(dir, new RegExp(`${name.replace('.', '\\.')}: .*native build`));
   }
+});
+
+test('the athanor configuration forces the add that keeps rule 2b live, and the image is pinned by digest', () => {
+  // Without the forced add, a tracked file that .gitignore matches is left out
+  // of the container's index, and rule 2b could never fire there.
+  const config = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8')).athanor;
+  assert.deepEqual(config.commands.check.slice(0, 2), ['sh', '-c']);
+  assert.match(config.commands.check[2], /^git add -A -f && node scripts\/check\.mjs$/);
+  const dockerfile = readFileSync(join(root, config.dockerfile), 'utf8');
+  assert.match(dockerfile, /^FROM node:24[^\s@]*@sha256:[0-9a-f]{64}$/m);
+});
+
+test('a hidden direction-changing character in the container folder fails rule 2c', () => {
+  // The Dockerfile and the root config are what CONTRIBUTING tells a reader to
+  // read before running a branch they did not write.
+  const dir = tree();
+  modFile(dir, 'tests/container/Dockerfile', `FROM node:24\nRUN true ${String.fromCodePoint(0x202e)}\n`);
+  assertFails(dir, /tests\/container\/Dockerfile:2 holds U\+202E/);
 });
 
 test('a home path in the root package.json or the container folder fails rule 2, masked', () => {

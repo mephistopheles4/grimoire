@@ -5,21 +5,24 @@
 //
 // 1. Every artifact in the tree validates against the renderer its registry
 //    row names, and every skill that ships artifacts has a row.
-// 2. No file a skill or the mod ships carries a fixed path. Both land in a
+// 2. No file a skill or the mod ships carries a fixed path, nor does the root
+//    package.json or a file under tests/container/. Both land in a
 //    different directory under every install route, so a path naming one is
 //    a defect.
 //    2b. For every rule, not only 2: every file git tracks is one the walk
 //    read, so no rule here skips a file that ships.
 //    2c. A skill's frontmatter holds only the allow-listed keys, and no file
-//    under skills/ holds a hidden control or line-separator character.
+//    under skills/, nor the root package.json, nor a file under
+//    tests/container/, holds a hidden control or line-separator character.
 // 3. The single-pass tag strip does not come back, and no code fence in any
 //    markdown file declares no language.
 // 4. Every plugin in the marketplace manifest exists on disk with a manifest.
 // 5. A change to a skill or the mod carries a version bump.
-// 6. Nothing in the tree takes a dependency: no manifest, no lockfile, and no
-//    import of a bare specifier. The one manifest it accepts is a root
-//    package.json holding only an `athanor` key. The mod's module may import
-//    the engine's own `claude-code`, which the engine supplies.
+// 6. Nothing in the tree takes a dependency: no manifest but one, no lockfile,
+//    no root binding.gyp, and no import of a bare specifier. The one manifest
+//    it accepts is a root package.json holding only an `athanor` key. The
+//    mod's module may import the engine's own `claude-code`, which the engine
+//    supplies.
 //    6b. Every pointer the engine follows to the mod's code, and every
 //    relative import in it, lands inside the mod's folders.
 //    6c. Nothing else the engine loads: no default component folder or file at
@@ -147,7 +150,8 @@ for (const e of readdirSync(join(root, 'skills'), { withFileTypes: true })) {
 // skill's lib/, reference/, renderer or schema. A hardcoded home directory
 // anywhere but the skill's own prose passed the gate that exists to catch it.
 //
-// Scoped to skills/ and the mod's folders and not to the whole tree, because
+// Scoped to skills/ and the mod's folders, plus the two places isContainerConfig
+// names below, and not to the whole tree, because
 // the rule is about what lands on somebody else's computer under an install
 // route nobody here chooses. A repository script is not that, and
 // tests/check-paths.test.mjs
@@ -178,13 +182,16 @@ const FIXED = [
 // nobody acts on. The CI log is public and outlives a rewritten commit, so the
 // account name is masked before the line is cut; see scripts/lib/printable.mjs.
 const excerpt = s => (s.length > 120 ? `${s.slice(0, 117)}...` : s);
-// Two root files are read beyond what ships under skills/ and the mod: the
-// root package.json and the container folder. They ship to every installer
-// with the rest of the repository, and the athanor "commands" are where a
+// Two places are read beyond what ships under skills/ and the mod: the root
+// package.json and the folder tests/container/. A whole-repository install
+// carries them to every installer, and the athanor "commands" are where a
 // pasted local path would land. Rule 5 does not take them: isShipped stays as
-// it was, so a change to them asks for no version bump.
-const READ_FOR_PATHS = src => isShipped(src) || src === 'package.json' || src.startsWith('tests/container/');
-for (const shipped of files.filter(f => READ_FOR_PATHS(rel(f)))) {
+// it was, so a change to them asks for no version bump. Rule 2c reads the same
+// two places, through the same predicate, for hidden characters: they are what
+// CONTRIBUTING tells a reader to read before running a branch they did not write.
+const isContainerConfig = src => src === 'package.json' || src.startsWith('tests/container/');
+const isReadForPaths = src => isShipped(src) || isContainerConfig(src);
+for (const shipped of files.filter(f => isReadForPaths(rel(f)))) {
   // The block-quote exemption is markdown only. `>` opens a quotation in prose
   // and means nothing in JavaScript, JSON or HTML, so honouring it everywhere
   // would let a fixed path walk through the gate on any line that happened to
@@ -340,7 +347,7 @@ const codePoint = c => `U+${c.codePointAt(0).toString(16).toUpperCase().padStart
 // 2 does, so a cut cannot drop the home path that tells the masker the name.
 const quoted = s => printable(excerpt(masked(s)));
 
-for (const f of files.filter(f => relRaw(f).startsWith('skills/'))) {
+for (const f of files.filter(f => relRaw(f).startsWith('skills/') || isContainerConfig(relRaw(f)))) {
   const bytes = readFileSync(f);
   const signature = binaryKind(relRaw(f));
   if (signature && bytes.subarray(0, signature.length).equals(signature)) continue;
@@ -621,10 +628,11 @@ if (!mergeBase) {
 // dependency went green. The rule held only because the tree gave it nowhere
 // to land.
 //
-// Two ways in, so two rules. A manifest or a lockfile is the install step this
-// repository does not have. A bare specifier — an import path that is neither
-// relative nor a node builtin — is a dependency whether or not a manifest
-// declares it.
+// Two ways in, so two rules. A manifest that can install, or a lockfile, is
+// the install step this repository does not have; the one exemption below is a
+// manifest that holds no dependency and nothing an install acts on. A bare
+// specifier — an import path that is neither relative nor a node builtin — is
+// a dependency whether or not a manifest declares it.
 //
 // Say the width, twice over. The rule reads every suffix the Claude Code
 // engine loads a mod's module from — .ts, .tsx, .jsx, .js, .mjs, .cjs, .mts
@@ -667,8 +675,10 @@ function rootManifestProblem(f) {
   let parsed;
   try {
     parsed = JSON.parse(readFileSync(f, 'utf8'));
-  } catch (e) {
-    return `does not parse as JSON (${shown(excerpt(e.message))})`;
+  } catch {
+    // No parser text: Node's message quotes a window of the file, and a window
+    // that starts after a home root has no root for the mask to find.
+    return 'does not parse as JSON';
   }
   if (!isObject(parsed)) return 'is not a JSON object';
   const others = Object.keys(parsed).filter(k => k !== 'athanor');
@@ -678,11 +688,14 @@ function rootManifestProblem(f) {
   return null;
 }
 for (const f of files.filter(f => isManifest(basename(f)))) {
-  const problem = relRaw(f) === 'package.json' ? rootManifestProblem(f) : 'is not the root package.json';
-  if (problem === null) continue;
-  const accepted = relRaw(f) === 'package.json' ? ` The one package.json this repository accepts is the root one, holding only an "athanor" key whose value is an object, and this one ${problem}.` : '';
+  const isRoot = relRaw(f) === 'package.json';
+  const problem = isRoot ? rootManifestProblem(f) : null;
+  if (isRoot && problem === null) continue;
+  // The accepted file is athanor's configuration, so deleting it is the wrong
+  // fix for it: it is told to drop what is not the athanor key.
+  const fix = isRoot ? ` — keep only the "athanor" key (or delete the file if athanor is not wanted). The one package.json this repository accepts is the root one, holding only an "athanor" key whose value is an object, and this one ${problem}.` : ' — delete it.';
   fail(
-    `${rel(f)}: a dependency manifest or lockfile — delete it.${accepted} This repository takes no dependency and has no install step, which is what lets the tests run on \`node --test\` and the skill run from a checkout. See CONTRIBUTING.md, "Do not add a dependency", and SECURITY.md for why it matters more than it looks.`,
+    `${rel(f)}: a dependency manifest or lockfile${fix} This repository takes no dependency and has no install step, which is what lets the tests run on \`node --test\` and the skill run from a checkout. See CONTRIBUTING.md, "Do not add a dependency", and SECURITY.md for why it matters more than it looks.`,
   );
 }
 
@@ -1303,7 +1316,13 @@ if (process.env.GRIMOIRE_IN_TEST) {
   } else if (tests) {
     console.log(`\nrunning ${tests.length} test file(s)`);
     try {
-      execFileSync(process.execPath, ['--test', ...tests], {
+      // The root package.json holds no "type" key, because the one-key rule
+      // refuses it, so Node warns once for each brigade module the tests
+      // import: it detects them as ES modules and says so. The warning is
+      // about the root file's shape and tells a reader nothing they can act on.
+      // The same flag is in the "fast" command of that file. The engine itself
+      // was checked and prints no such warning when it loads the mod.
+      execFileSync(process.execPath, ['--disable-warning=MODULE_TYPELESS_PACKAGE_JSON', '--test', ...tests], {
         cwd: root,
         env: { ...process.env, GRIMOIRE_IN_TEST: '1' },
         stdio: 'inherit',

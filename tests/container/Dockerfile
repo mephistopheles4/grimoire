@@ -8,10 +8,13 @@
 FROM node:24-bookworm-slim@sha256:55fb5f5a527ea2c5c4a95f963e48ef90aa38c7b346054fdc8ee9957a2b55d205
 
 # git, because athanor's boot script commits the snapshot only when the image has
-# it, and the tests and rule 2b of scripts/check.mjs need a repository.
+# it, and the tests and rule 2b of scripts/check.mjs need a repository. The
+# package comes from Debian's archive at build time and is not pinned, so the
+# digest above holds the base image and not git.
 RUN apt-get update \
  && apt-get install -y --no-install-recommends git \
  && rm -rf /var/lib/apt/lists/*
 
-# The image's own non-root user, whose home holds $HOME/work.
+# The image's own non-root user. athanor copies the snapshot into $HOME/work and
+# runs the commands there, so the user must own its home.
 USER node
