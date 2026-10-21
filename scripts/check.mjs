@@ -20,7 +20,8 @@
 // 5. A change to a skill or the mod carries a version bump.
 // 6. Nothing in the tree takes a dependency: no manifest but one, no lockfile,
 //    no root binding.gyp, and no import of a bare specifier. The one manifest
-//    it accepts is a root package.json holding only an `athanor` key. The
+//    it accepts is a root package.json holding only an `athanor` key, whose
+//    image build folder is held to tests/container/. The
 //    mod's module may import the engine's own `claude-code`, which the engine
 //    supplies.
 //    6b. Every pointer the engine follows to the mod's code, and every
@@ -668,15 +669,24 @@ const isManifest = name => MANIFESTS.has(name) || [...MANIFESTS].some(m => caseT
 // (`dependencies`, `scripts`, `bin`, `type`, `skills`). What is inside `athanor`
 // is athanor's to validate, and it exits 125 on a key it does not know, with
 // one exception: the folder the image build receives. The build has network
-// access and takes the whole folder the `context` key names, files .gitignore
-// excludes included, and a branch sets the key. So the two keys that choose
-// that folder are held to today's values, and `inputs`, which adds files from
-// outside it, is refused (issue 362, the owner's decision on the data review).
-// A duplicate key only hides an earlier copy of the same name, and JSON.parse
-// decodes escapes before the key is tested, as athanor's own parser does.
+// access and takes the tracked files under the folder the `context` key names,
+// as they are in the working tree, uncommitted edits included, and a branch
+// sets the key. So the two keys that choose that folder must be present and
+// hold today's values, and `inputs`, which adds files from outside it, is
+// refused (issue 362, the owner's decision on the data review). Both keys are
+// required, not only checked when present: athanor takes a missing `context`
+// from wherever a linked Dockerfile really is. For the same reason a symbolic
+// link at the folder or the Dockerfile is refused below; athanor follows links
+// before it uses either path, so the strings alone prove nothing. A duplicate
+// key only hides an earlier copy of the same name, and JSON.parse decodes
+// escapes before the key is tested, as athanor's own parser does. The pin runs
+// inside the check, after athanor has built the image from the branch, so on a
+// branch nobody has read it holds what merges and not that run.
 const BUILD_FOLDER = { dockerfile: 'tests/container/Dockerfile', context: 'tests/container' };
 const isObject = v => typeof v === 'object' && v !== null && !Array.isArray(v);
-// Why a root package.json is not the accepted one, or null when it is.
+// Why a root package.json is not the accepted one and what to do about it, or
+// null when it is accepted. The accepted file is athanor's configuration, so
+// "delete it" is the wrong fix for it: each problem names its own.
 function rootManifestProblem(f) {
   let parsed;
   try {
@@ -684,32 +694,48 @@ function rootManifestProblem(f) {
   } catch {
     // No parser text: Node's message quotes a window of the file, and a window
     // that starts after a home root has no root for the mask to find.
-    return 'does not parse as JSON';
+    return { problem: 'does not parse as JSON', fix: 'make it valid JSON holding only the "athanor" key' };
   }
-  if (!isObject(parsed)) return 'is not a JSON object';
+  const only = 'holding only an "athanor" key whose value is an object';
+  if (!isObject(parsed)) return { problem: 'is not a JSON object', fix: `make it an object ${only}` };
   const others = Object.keys(parsed).filter(k => k !== 'athanor');
-  if (others.length) return `also holds ${others.map(k => `"${shown(k)}"`).join(', ')}`;
-  if (!('athanor' in parsed)) return 'holds no "athanor" key';
-  if (!isObject(parsed.athanor)) return 'has an "athanor" value that is not an object';
-  const widened = [
-    ...Object.keys(BUILD_FOLDER).filter(k => Object.hasOwn(parsed.athanor, k) && parsed.athanor[k] !== BUILD_FOLDER[k]),
+  if (others.length) {
+    return { problem: `also holds ${others.map(k => `"${shown(k)}"`).join(', ')}`, fix: 'keep only the "athanor" key (or delete the file if athanor is not wanted)' };
+  }
+  if (!('athanor' in parsed)) return { problem: 'holds no "athanor" key', fix: `put the athanor settings in an "athanor" key ${only}` };
+  if (!isObject(parsed.athanor)) return { problem: 'has an "athanor" value that is not an object', fix: `make the "athanor" value an object` };
+  const wrong = [
+    ...Object.keys(BUILD_FOLDER).filter(k => !Object.hasOwn(parsed.athanor, k) || parsed.athanor[k] !== BUILD_FOLDER[k]),
     ...(Object.hasOwn(parsed.athanor, 'inputs') ? ['inputs'] : []),
   ];
-  if (widened.length) {
-    return `sets ${widened.map(k => `"${k}"`).join(' and ')} to something other than the build folder it is held to (dockerfile ${BUILD_FOLDER.dockerfile}, context ${BUILD_FOLDER.context}, no inputs), and the image build, which has network access, receives that whole folder`;
+  if (wrong.length) {
+    return {
+      problem: `does not keep the image build to ${BUILD_FOLDER.context}/ (${wrong.map(k => `"${k}"`).join(', ')}), and the build, which has network access, receives the tracked files under the folder it names, uncommitted edits included`,
+      fix: `set "dockerfile" to ${BUILD_FOLDER.dockerfile} and "context" to ${BUILD_FOLDER.context}, and remove "inputs"`,
+    };
   }
   return null;
 }
 for (const f of files.filter(f => isManifest(basename(f)))) {
   const isRoot = relRaw(f) === 'package.json';
-  const problem = isRoot ? rootManifestProblem(f) : null;
-  if (isRoot && problem === null) continue;
-  // The accepted file is athanor's configuration, so deleting it is the wrong
-  // fix for it: it is told to drop what is not the athanor key.
-  const fix = isRoot ? ` — keep only the "athanor" key (or delete the file if athanor is not wanted). The one package.json this repository accepts is the root one, holding only an "athanor" key whose value is an object that keeps the build to tests/container/, and this one ${problem}.` : ' — delete it.';
+  const rootProblem = isRoot ? rootManifestProblem(f) : null;
+  if (isRoot && rootProblem === null) continue;
+  const fix = isRoot ? ` — ${rootProblem.fix}. The one package.json this repository accepts is the root one, holding only an "athanor" key whose value is an object that keeps the build to tests/container/, and this one ${rootProblem.problem}.` : ' — delete it.';
   fail(
     `${rel(f)}: a dependency manifest or lockfile${fix} This repository takes no dependency and has no install step, which is what lets the tests run on \`node --test\` and the skill run from a checkout. See CONTRIBUTING.md, "Do not add a dependency", and SECURITY.md for why it matters more than it looks.`,
   );
+}
+
+// A symbolic link at the build folder, above it, or inside it. athanor follows
+// links before it uses the configured paths, so a link at tests/container, or a
+// Dockerfile that is a link, moves the build to wherever it points while the
+// strings in the root package.json still read as the pinned values. The walk
+// lists a link as a file and never enters it, which is why it is found here.
+const isBuildFolderPath = p => p === 'tests' || p === 'tests/container' || isContainerConfig(p);
+for (const f of files.filter(f => isBuildFolderPath(relRaw(f)))) {
+  if (lstatSync(f).isSymbolicLink()) {
+    fail(`${rel(f)} is a symbolic link where the image build folder is held to ${BUILD_FOLDER.context}/ — athanor follows links, so the build would receive whatever the link points at. Replace it with a real file or folder.`);
+  }
 }
 
 // With a root package.json in place, npm's git-package route runs a default

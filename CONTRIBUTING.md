@@ -12,9 +12,10 @@ node scripts/check.mjs
 
 That is the contract, and it is still one command. It validates every
 artifact in the tree with the renderer its registry row names, checks that no
-file a skill or the mod ships has grown a fixed path back, fails on a skill
+file a skill or the mod ships, nor the root `package.json` or `tests/container/`,
+has grown a fixed path back, fails on a skill
 frontmatter key outside its allow-list and on a hidden character in a skill
-file, fails on a place or a manifest key the engine loads from that no rule
+file or in those two places, fails on a place or a manifest key the engine loads from that no rule
 reads, fails on a code fence that declares no
 language, fails on a dependency, fails when a skill's SkillSpector baseline entry
 gives a different reason from the root's or is broader than it, and runs the test suite in `tests/`. CI
@@ -49,8 +50,8 @@ mod's TypeScript modules as they are, which Node 24 does by default.
 
 `node scripts/check.mjs` stays the one command, and CI runs it. Where
 athanor is installed, and on a branch you wrote or whose container files you
-have read (see the last bullet), it is the preferred way to run it: athanor runs the check in a fresh Linux container with
-no network, and caps how many runs go at once on the machine, so several
+have read (see the last bullet), it is the preferred way to run it: athanor runs
+the check in a fresh Linux container with no network, and caps how many runs go at once on the machine, so several
 sessions can check without breaking each other through files, ports or
 temporary folders. It is optional. Nothing here requires it.
 
@@ -93,16 +94,24 @@ such a package without asking when no one is at a terminal.
 - A run sends your tracked files, with uncommitted edits, to the Docker engine
   athanor is set to use, which can be a remote one reached over SSH or TLS.
   Use the local engine: check that `DOCKER_HOST` is unset and that
-  `docker context show` prints `default`. Keep secrets out of tracked files.
+  `docker context inspect --format '{{.Endpoints.docker.Host}}'` prints a local
+  address, a `unix://` socket or an `npipe://` pipe. Keep secrets out of
+  tracked files.
   athanor keeps temporary copies of the index and the run's objects in its state
   folder, `~/.athanor` or `$ATHANOR_HOME`, which is safe to delete.
 - The image build has network access, unlike the run. It pulls the base image
   from Docker Hub with the machine's registry login and installs git from
-  Debian's package archive, which is not pinned. It receives the whole folder
-  that the `athanor` key's `context` names, including files `.gitignore`
-  excludes, such as local settings. Read the diff to `tests/container/` and to
-  the `athanor` key before you run athanor on a branch you did not write, and
-  run `node scripts/check.mjs` on the host for a branch you have not read.
+  Debian's package archive, which is not pinned. It receives the tracked files
+  under the folder that the `athanor` key's `context` names, as they are in your
+  working tree with your uncommitted edits, and never an ignored or untracked
+  file. The check holds that folder to `tests/container/`, but it runs after the
+  image is built, so on a branch you did not write your own read is the guard:
+  read the diff to `tests/container/` and to the `athanor` key, and look for a
+  symbolic link, before you run athanor on it. Read any branch before you run
+  its check at all, on the host or in a container: a host run executes the
+  branch's code with your environment, your files and your network, and a
+  container run you have read the container files for runs its tests with none
+  of them.
 
 ## Tests
 
@@ -114,7 +123,7 @@ not take, and `SECURITY.md` explains why that matters more than it looks.
 run only the suite while you work on it:
 
 ```bash
-node --test tests/audit.test.mjs tests/brigade-roster-rules.test.mjs tests/brigade-view.test.mjs tests/brigade-warning.test.mjs tests/build-pages.test.mjs tests/case.test.mjs tests/check-allowances.test.mjs tests/check-baseline-rules.test.mjs tests/check-baselines.test.mjs tests/check-format.test.mjs tests/check-home-paths.test.mjs tests/check-home-shapes.test.mjs tests/check-load-surface.test.mjs tests/check-manifests.test.mjs tests/check-mod.test.mjs tests/check-paths.test.mjs tests/check-skill-files.test.mjs tests/check-test-step.test.mjs tests/check-tracked.test.mjs tests/check-tree.test.mjs tests/check-version.test.mjs tests/contract-interview.test.mjs tests/contract-page.test.mjs tests/contract-render.test.mjs tests/eagle-eye-sheets.test.mjs tests/esc.test.mjs tests/groundtrack-fold.test.mjs tests/groundtrack-render.test.mjs tests/groundtrack-sheets.test.mjs tests/practice.test.mjs tests/registry.test.mjs tests/render.test.mjs tests/skillspector-gate.test.mjs tests/skillspector-probe.test.mjs tests/skillspector-strip-suppressed.test.mjs
+node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --test tests/audit.test.mjs tests/brigade-roster-rules.test.mjs tests/brigade-view.test.mjs tests/brigade-warning.test.mjs tests/build-pages.test.mjs tests/case.test.mjs tests/check-allowances.test.mjs tests/check-baseline-rules.test.mjs tests/check-baselines.test.mjs tests/check-format.test.mjs tests/check-home-paths.test.mjs tests/check-home-shapes.test.mjs tests/check-load-surface.test.mjs tests/check-manifests.test.mjs tests/check-mod.test.mjs tests/check-paths.test.mjs tests/check-skill-files.test.mjs tests/check-test-step.test.mjs tests/check-tracked.test.mjs tests/check-tree.test.mjs tests/check-version.test.mjs tests/contract-interview.test.mjs tests/contract-page.test.mjs tests/contract-render.test.mjs tests/eagle-eye-sheets.test.mjs tests/esc.test.mjs tests/groundtrack-fold.test.mjs tests/groundtrack-render.test.mjs tests/groundtrack-sheets.test.mjs tests/practice.test.mjs tests/registry.test.mjs tests/render.test.mjs tests/skillspector-gate.test.mjs tests/skillspector-probe.test.mjs tests/skillspector-strip-suppressed.test.mjs
 ```
 
 **The suite never reaches the network.** eagle-eye's edge audit is the one
@@ -215,8 +224,10 @@ and on any `package.json` except one: the root `package.json` that holds only
 an `athanor` key whose value is an object (see "Run the check in a container"
 above). Any other key fails and is named. So does an `athanor` key that sets
 `dockerfile` or `context` to anything but `tests/container/Dockerfile` and
-`tests/container`, or sets `inputs`, because the image build has network
-access and receives the whole folder. `Package.json` and a `package.json`
+`tests/container`, leaves either out, or sets `inputs`, because the image build
+has network access and receives the tracked files under that folder, with your
+uncommitted edits. A symbolic link at `tests`, `tests/container` or in it fails
+too, because athanor follows links. `Package.json` and a `package.json`
 in a folder fail, and so does a `binding.gyp` at the root, which npm would
 build. It also fails on any code file importing a bare specifier — an import path that
 is not relative, not absolute, and not a `node:` builtin. A path starting with
@@ -284,7 +295,8 @@ frontmatter's keys at the left margin, and fence it with lines of exactly
 `---`: an indented first key and a fence with anything after it both fail.
 
 **No hidden characters in a skill file.** The check fails on any file under
-`skills/` that holds a control character other than tab, line feed and
+`skills/`, or the root `package.json`, or under `tests/container/`, that holds
+a control character other than tab, line feed and
 carriage return, a carriage return not followed by a line feed, DEL, U+2028,
 U+2029, U+FFFE, U+FFFF, a default ignorable code point (tag characters,
 zero-width characters, the soft hyphen, variation selectors) or a bidi

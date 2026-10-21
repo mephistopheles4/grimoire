@@ -3,7 +3,7 @@
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync, writeFileSync, appendFileSync } from 'node:fs';
+import { readFileSync, writeFileSync, appendFileSync, mkdirSync, symlinkSync } from 'node:fs';
 import { join } from 'node:path';
 import { root } from './helpers.mjs';
 import { tree, assertPasses, assertFails, modFile, importLine } from './check-fixture.mjs';
@@ -69,7 +69,11 @@ test('a root package.json with any other key fails and names each one, printed s
 });
 
 test('a root package.json that is not exactly an athanor object fails', () => {
-  const bodies = ['{}\n', '[]\n', '"athanor"\n', '{"athanor":1}\n', '{"athanor":null}\n', '{"athanor":[]}\n', '{"athanor":"x"}\n', 'null\n', '1\n', 'true\n', 'not json at all\n', '/home/zq-acct/oops\n'];
+  const bodies = ['{}\n', '[]\n', '"athanor"\n', '{"athanor":1}\n', '{"athanor":null}\n', '{"athanor":[]}\n', '{"athanor":"x"}\n', 'null\n', '1\n', 'true\n', 'not json at all\n', '/home/zq-acct/oops\n',
+    // A home path early, then a long stretch, then the error: Node's message
+    // quotes only a window around the error, which holds the name and no home
+    // root for a mask to find.
+    `{"p":"/home/zq-acct/x","pad":"${'a'.repeat(400)}" zq-acct}\n`];
   for (const body of bodies) {
     const dir = tree();
     writeFileSync(join(dir, 'package.json'), body);
@@ -80,24 +84,48 @@ test('a root package.json that is not exactly an athanor object fails', () => {
 });
 
 test('an athanor key that widens the image build folder fails, because the build has network access', () => {
-  // The build receives the whole folder "context" names, files .gitignore
-  // excludes included, and a branch sets the key. "inputs" adds files from
-  // outside it.
+  // The build receives the tracked files under the folder "context" names,
+  // uncommitted edits included, and a branch sets the key. "inputs" adds files
+  // from outside it. A key left out is refused too: athanor takes a missing
+  // "context" from wherever a linked Dockerfile really is.
+  const { context, dockerfile, ...rest } = athanorOnly.athanor;
   const widenings = [
-    { context: '.' },
-    { context: '' },
-    { context: 'tests/container/..' },
-    { dockerfile: 'Dockerfile' },
-    { inputs: ['.env'] },
-    { inputs: [] },
+    ['context', { ...rest, dockerfile, context: '.' }],
+    ['context', { ...rest, dockerfile, context: '' }],
+    ['context', { ...rest, dockerfile, context: 'tests/container/..' }],
+    ['dockerfile', { ...rest, context, dockerfile: 'Dockerfile' }],
+    ['context', { ...rest, dockerfile }],
+    ['dockerfile', { ...rest, context }],
+    ['inputs', { ...rest, dockerfile, context, inputs: ['.env'] }],
+    ['inputs', { ...rest, dockerfile, context, inputs: [] }],
   ];
-  for (const widening of widenings) {
+  for (const [key, athanor] of widenings) {
     const dir = tree();
-    writeFileSync(join(dir, 'package.json'), JSON.stringify({ athanor: { ...athanorOnly.athanor, ...widening } }));
-    const key = Object.keys(widening)[0];
+    writeFileSync(join(dir, 'package.json'), JSON.stringify({ athanor }));
     const r = assertFails(dir, /package\.json: a dependency manifest or lockfile/);
-    assert.match(r.stderr, new RegExp(`sets "${key}"`), JSON.stringify(widening));
+    assert.match(r.stderr, new RegExp(`keep the image build[^)]*"${key}"`), JSON.stringify(athanor));
   }
+});
+
+test('a symbolic link at the build folder, or a Dockerfile that is one, fails, because athanor follows links', t => {
+  // The pinned strings still read right while the build goes wherever the link
+  // points: at the repository root, with every tracked file in it.
+  const dir = tree();
+  writeFileSync(join(dir, 'package.json'), JSON.stringify(athanorOnly));
+  writeFileSync(join(dir, 'Dockerfile'), 'FROM node:24\n');
+  try {
+    symlinkSync('..', join(dir, 'tests'), 'dir');
+  } catch {
+    t.skip('this file system or account cannot make symbolic links');
+    return;
+  }
+  assertFails(dir, /tests is a symbolic link where the image build folder is held/);
+  const other = tree();
+  writeFileSync(join(other, 'package.json'), JSON.stringify(athanorOnly));
+  writeFileSync(join(other, 'Dockerfile'), 'FROM node:24\n');
+  mkdirSync(join(other, 'tests', 'container'), { recursive: true });
+  symlinkSync(join('..', '..', 'Dockerfile'), join(other, 'tests', 'container', 'Dockerfile'));
+  assertFails(other, /tests\/container\/Dockerfile is a symbolic link where the image build folder is held/);
 });
 
 test('a package.json in a folder and a lockfile beside an accepted root manifest still fail', () => {
