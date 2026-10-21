@@ -29,6 +29,11 @@
 # whole name-back list, the head chef runs its checks again and does not ask a
 # second time. It acts on the owner's yes, never without it.
 #
+# Both are whole-file entries. P2 is off for all of `SKILL.md`, so an
+# instruction hidden there in a comment, a link-reference comment or a base64
+# data link would pass the scan; EA2 is off for all of `SKILL.md` and
+# `references/CONTRACT.md`. Review of those files holds what the scan does not.
+#
 # The scanner reports the score unchanged and applies none of this unless you
 # ask. Apply it with --use-shipped-baseline, and read what it covered with
 # --show-suppressed.

@@ -83,7 +83,8 @@ owner's ask rule that names it. When the owner ticks "Don't show again" and
 presses "I understand", it writes the time and a hash of the warning's
 wording to the plugin's own store, under `permission-warning-ack`, and the
 band stays hidden in later sessions until the wording changes. The band draws
-that stored time only as a date. When the owner presses
+that stored time only as a date. The store keeps it unencrypted until it is
+removed, and the mod mirrors it in plugin state, which other plugins can read. When the owner presses
 Open in app on a card with a Desktop id, it first calls the Claude Desktop
 app's own tool, `open_session_in` on the server named `ccd_window`, sending
 only that card's checked session id and the fixed target `split`, so the app
@@ -191,7 +192,10 @@ row holds the name too. The owner accepted the forged-sender risk of the
 0.5.0 form on 2026-10-09; the 0.9.0 form, a relayed decision, awaits its
 threat-model entry. Before
 its first launch in a lead, the Brigade mod's permission warning says so above
-the prompt. head-chef runs no script of its own. What leaves the session:
+the prompt. Each turn the head chef reads the engine's own session files, in
+the config folder's `sessions` folder beside each session's key file, for each
+session's name, id and status, and its folder at cleanup: only digit-named `.json` files that are not links and at most 8 KiB, and never the key files.
+The pane's own read of those files, with its stronger checks, is above. head-chef runs no script of its own. What leaves the session:
 sessions post their own milestone content, signed, on records that may be
 public, and the owner's own process, not the skill, sets what they post; on
 the owner's own words in its chat, the head chef merges, closes, edits,
@@ -312,7 +316,8 @@ the test override: [`docs/security/edge-audit.md`](docs/security/edge-audit.md).
   star), for a scan of the skill's own folder. The root file stays rule-wide, for a scan of the whole repository:
   there E1 and PE3 still hide a send or a credential read in any file, the
   mod's included. The contract skill keeps P2 and RA2 off for all of the
-  skill, and MP1 for its change log only. So an instruction hidden there in a comment, a
+  skill, and MP1 for its change log only; head-chef keeps P2 off for all of its
+  `SKILL.md`, and EA2 for its `SKILL.md` and `references/CONTRACT.md`. So an instruction hidden there in a comment, a
   link-reference comment or a base64 data link, or an instruction to persist
   on the machine (a scheduled job, a startup or profile file, a background
   process or a hidden folder), would pass the scan. Rule 2c refuses invisible
@@ -368,8 +373,8 @@ are the setting above.
   bad commit. It does not survive a stolen admin account.
 - **A skill, an agent and a contract from someone else.** A pass of
   `claude plugin validate --strict` says a frontmatter parses, not that anyone
-  reviewed the file. Read the files first. The eagle-eye and head-chef skills
-  still carry seal marks from the old check, the `familiar-digest` and
-  `contract-digest` lines in their `SKILL.md` metadata; they are inert and prove
-  nothing, and go when each skill is next amended. The contract skill carries
-  none.
+  reviewed the file. Read the files first. The eagle-eye skill still
+  carries seal marks from the old check, the `familiar-digest` and
+  `contract-digest` lines in its `SKILL.md` metadata; they are inert and prove
+  nothing, and go when it is next amended. The contract and head-chef skills
+  carry none.

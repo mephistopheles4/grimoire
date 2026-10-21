@@ -100,8 +100,8 @@ export function registerWarning(on: On) {
     const box = await read($, ticked)
     // The stored time is drawn only as a date of that shape; anything else
     // the store holds is never drawn.
-    const at = kept !== null ? (kept as Ack).at : null
-    const changed = at === null ? null : /^\d{4}-\d{2}-\d{2}/.test(at) ? at.slice(0, 10) : ''
+    const at: unknown = kept !== null ? (kept as Ack).at : null
+    const changed = at === null ? null : typeof at === 'string' && /^\d{4}-\d{2}-\d{2}/.test(at) ? at.slice(0, 10) : ''
 
     return (
       <Box key="permission-warning" flexDirection="column" borderStyle="round" paddingX="lg" paddingY="md" gap="md">

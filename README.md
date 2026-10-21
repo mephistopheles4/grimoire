@@ -133,7 +133,7 @@ cleans a session up when you say it is done, after one name-back and one yes.
 It takes the when and the why from your own process, and it never counts a
 message from another session as your yes to start, archive or delete. On your
 own words in its chat, it can also merge, close, edit, delete or label an
-issue or a pull request, or file an issue. The sessions it starts take a
+issue or a pull request, file an issue, or post a comment. The sessions it starts take a
 message from the lead as a relayed decision, labelled so; a session cannot
 tell a forged sender from the lead. Before its first launch in a lead, a
 permission warning above the prompt says so. Read the skill's README before

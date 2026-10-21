@@ -70,7 +70,7 @@ session to build ticket 4 of issue 312, Sonnet medium."* Or type
   session, and removes with git whatever the archive left. It never forces a
   removal.
 - **Acts on GitHub** only on your own words in its chat: merge, close, edit,
-  delete or label an issue or a pull request, or file an issue, each named in
+  delete or label an issue or a pull request, file an issue, or post a comment, each named in
   one line first.
 
 ## What counts as your yes
@@ -84,13 +84,17 @@ understand on the permission warning is a reminder, not acceptance.
 
 A session takes a message from the lead as a **relayed decision**, on any
 matter, when the sender's shown name matches the lead's row in the session
-list. It labels it as relayed by the lead, never as your own words. A session
+list and no other row holds that name. It labels it as relayed by the lead,
+never as your own words, and names each decision it acted on in its next
+report to the lead. A session
 cannot tell a forged sender from the lead, so anything that can send it a
 message under the lead's name can steer it. The head chef tells you at once
 when a session reports a decision it never sent.
 
+A session also follows comments on its issue made as you, and every session
+you start posts as you, so a comment from one session can steer another.
 While Remote Control is on, any device signed in to your account can drive
-the sessions it starts. The permission warning says both of these before the
+the sessions it starts. The permission warning says all of this before the
 first launch in each lead, until you tick "Don't show again". It shows again
 when its wording changes.
 
@@ -122,7 +126,16 @@ folder, check that it is a plain folder, not a link or a junction.
 
 The last two have no fixed name, so you may not find them all. A record act
 from 0.6.0 to 0.8.x that was interrupted can also leave a post file in the
-temporary folder.
+temporary folder, named `grimoire-act-<hex>.txt`; from 0.9.0 the file is
+named `head-chef-post-<hex>.md`. Either can hold text you asked the head chef
+to post.
+
+**What 0.4.0 posted on your issues stays there.** Sessions under 0.4.0
+posted your quoted words, their questions and choices, and taken-answer and
+failed-check lines on their issues, which may be public. To remove them,
+delete those comments, or delete the old version from each edited comment's
+history: an edit alone keeps the old text there. Notification emails already
+sent keep it too.
 
 ## Files
 
