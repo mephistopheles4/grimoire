@@ -88,8 +88,11 @@ import, which `tests/brigade-view.test.mjs` imports directly to check what
 the pane would draw, as strings. Its roster module, `brigade/roster.ts`, is the
 second seam: `tests/brigade-roster-rules.test.mjs` imports it to check the
 roster's shape rules, its byte cap and the path rule that decides whether the
-roster file may be read or written. Keep both to erasable syntax (no enums,
-namespaces or parameter properties), so Node can strip their types. The
+roster file may be read or written. Its permission warning's wording module,
+`brigade/warning-text.ts`, is the third: `tests/brigade-warning.test.mjs`
+imports it to pin the wording and check the "Don't show again" test. Keep all
+three to erasable syntax (no enums, namespaces or parameter properties), so
+Node can strip their types. The
 contract skill's hiring page has a seam of its own: `tests/contract-page.test.mjs`
 renders it through the interview script's `--out`, runs the page's own
 scripts on a small stand-in document, picks its controls by the keys the page
@@ -110,8 +113,9 @@ claude plugin test .
 node scripts/record-brigade-stats.mjs
 ```
 
-The first runs `brigade/set-roster.test.ts` under the engine's own plugin test
-runner, which drives the tool the way the model calls it. That runner gives a
+The first runs `brigade/set-roster.test.ts` and `brigade/warning.test.tsx`
+under the engine's own plugin test runner, which drives each tool the way the
+model calls it. That runner gives a
 plugin no file system, so the test answers every `stat`, read and write from a
 small file system in memory, and its answers about links, and the way a
 folder listing shows each kind of entry, come from

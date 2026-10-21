@@ -436,9 +436,10 @@ function world(on: On, setup: (w: World) => void = w => w.dirs(`${CONFIG}\\plugi
   return w
 }
 
-// The offers of set_roster alone, in order. Every session also offers the
-// permission warning's tool at its start; warning.test.tsx tests that one.
-const rosterOffers = (w: { registered: string[] }) => w.registered.filter(name => name === 'set_roster')
+// Every tool offered, in order, but the permission warning's: every session
+// offers that one at each start, and warning.test.tsx tests it. Any other
+// tool offered still shows here.
+const rosterOffers = (w: { registered: string[] }) => w.registered.filter(name => name !== 'show_permission_warning')
 const start = ($: any) => $.classic.SessionStart({ source: 'startup', session_id: SID, transcript_path: TRANSCRIPT })
 const brigade = ($: any) => $.command.run({ command: 'brigade', args: '' })
 const call = async ($: any, input: Record<string, unknown>): Promise<{ ok: boolean; text: string }> => {

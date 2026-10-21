@@ -10,7 +10,7 @@
 export const TITLE = 'Head chef is on. Two things to know:'
 export const RISKS = [
   'Any device signed in to your account can drive the sessions it starts while Remote Control is on.',
-  'Those sessions trust any message that claims to come from it.',
+  'Those sessions trust any message that claims to come from it, and any comment on their issue made as you.',
 ]
 export const ALSO = 'It also starts sessions, relays between them, and merges or cleans up on your word.'
 export const WORDING: readonly string[] = [TITLE, ...RISKS, ALSO]

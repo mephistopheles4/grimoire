@@ -33,7 +33,9 @@ request.
 **The Brigade mod is code Claude Code runs in every session that has the
 plugin.** It is a hooks module, `brigade/register.tsx`, named by
 `hooks/hooks.json`, and it runs with the session's own rights. At session start
-it registers `/brigade` and the two hooks of its usage summary writer, below,
+it registers `/brigade` and the two hooks of its usage summary writer, below;
+since 0.69.0 it also reads one key, `permission-warning-ack`, from the
+plugin's own store and offers a second tool, `show_permission_warning`, below;
 and since 0.60.0 it is no longer idle by default
 ([ADR 0008](docs/adr/0008-brigade-is-no-longer-idle-by-default.md)). While its pane is open it reads
 the engine's own session files, `<config>/sessions/<digits>.json`, for each
@@ -72,7 +74,16 @@ only once the owner runs `/brigade`, writes only while the pane is open, and
 refuses a subagent's call, a deny verdict, an owner's ask rule, plan and
 don't-ask modes as far as the session has reported its mode, any input outside
 the roster's shape and size, and any link on the way to the file. A deny rule for `mcp__grimoire__set_roster` removes it
-from the session; the owner's own hooks do not stop it. When the owner presses
+from the session; the owner's own hooks do not stop it. The second tool,
+`show_permission_warning`, is offered in every session from its start, so the
+head chef can call it before its first launch with or without the pane. It
+takes no input and writes no file: it draws the head chef's permission
+warning above the prompt. It refuses a subagent's call, a deny verdict and an
+owner's ask rule that names it. When the owner ticks "Don't show again" and
+presses "I understand", it writes the time and a hash of the warning's
+wording to the plugin's own store, under `permission-warning-ack`, and the
+band stays hidden in later sessions until the wording changes. The band draws
+that stored time only as a date. When the owner presses
 Open in app on a card with a Desktop id, it first calls the Claude Desktop
 app's own tool, `open_session_in` on the server named `ccd_window`, sending
 only that card's checked session id and the fixed target `split`, so the app
@@ -175,14 +186,18 @@ Claude Desktop's session tools, and runs `git worktree remove` and
 head chef that passes its sender check as a relayed decision, on any matter,
 labelled as relayed and never as the owner's own words. The check compares
 the sender's shown name with the session list, as text, so any session that
-can send it a message under that name can speak for the lead; the owner
-accepted that risk on 2026-10-09. Before
+can send it a message under that name can speak for the lead, unless another
+row holds the name too. The owner accepted the forged-sender risk of the
+0.5.0 form on 2026-10-09; the 0.9.0 form, a relayed decision, awaits its
+threat-model entry. Before
 its first launch in a lead, the Brigade mod's permission warning says so above
 the prompt. head-chef runs no script of its own. What leaves the session:
 sessions post their own milestone content, signed, on records that may be
-public; on the owner's own words in its chat, the head chef merges, closes,
-edits, deletes or labels a record, or files an issue; questions and decisions
-go by message only, never on a record; and Remote Control, while it is on,
+public, and the owner's own process, not the skill, sets what they post; on
+the owner's own words in its chat, the head chef merges, closes, edits,
+deletes or labels a record, files an issue or posts a comment; the head
+chef's own questions and decisions go by message only; and Remote Control,
+while it is on,
 makes each session it starts, with its transcript, drivable and readable from
 any device signed in to the owner's account.
 [Row 16 of the threat model](docs/security/threat-model.md#the-matrix) has the

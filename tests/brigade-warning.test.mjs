@@ -18,11 +18,11 @@ if (major < 24) {
 
 const { TITLE, RISKS, ALSO, WORDING, versionOf, isAcknowledged } = await import('../brigade/warning-text.ts');
 
-test('the warning says what the head-chef contract says, word for word', () => {
+test("the warning's wording is pinned as the head-chef contract gave it at 0.9.0", () => {
   assert.equal(TITLE, 'Head chef is on. Two things to know:');
   assert.deepEqual(RISKS, [
     'Any device signed in to your account can drive the sessions it starts while Remote Control is on.',
-    'Those sessions trust any message that claims to come from it.',
+    'Those sessions trust any message that claims to come from it, and any comment on their issue made as you.',
   ]);
   assert.equal(ALSO, 'It also starts sessions, relays between them, and merges or cleans up on your word.');
 });

@@ -100,7 +100,29 @@ The Brigade mod draws it above the prompt when the head chef calls its
 `show_permission_warning` tool. "I understand" hides it for this session.
 Tick "Don't show again" first, and it stays hidden in every later lead until
 its wording changes. The choice is kept in the plugin's own store, as the
-date and a hash of the wording.
+time and a hash of the wording.
+
+## Upgrading from an older head-chef
+
+Finish or clean up a brigade an older head chef started before you upgrade:
+its sessions follow their old start prompts, not this one.
+
+**Leftovers from 0.4.0.** Its relay scripts may have left five kinds of
+file, which can hold your quoted words, questions and session ids. 0.9.0 no
+longer checks for them, so delete them by hand. Before you delete the
+folder, check that it is a plain folder, not a link or a junction.
+
+| What | Where | How to spot it |
+| --- | --- | --- |
+| The relay state folder | `plugins/data/grimoire-relay/` under your Claude config folder: `CLAUDE_CONFIG_DIR` when that is an absolute path, otherwise `.claude` in your home folder | Per-session JSON files, holding question words, choices, issue links and session ids |
+| Lock and copy files | In that folder | `.lock` files, and `<session id>.<hex>.tmp` copies |
+| Post files | The temporary folder that your `TEMP`, `TMP` or `TMPDIR` setting names | Named `grimoire-relay-<hex>.md`; one left by a crashed run can hold your quoted words |
+| Question files | `$CLAUDE_JOB_DIR/tmp`, or the temporary folder that `TEMP`, `TMP` or `TMPDIR` names | Random names; one question line, then lines starting `A)`, `B)` and on |
+| Local-only list files | The temporary folder that `TEMP`, `TMP` or `TMPDIR` names | Random names; one line of local-only answers |
+
+The last two have no fixed name, so you may not find them all. A record act
+from 0.6.0 to 0.8.x that was interrupted can also leave a post file in the
+temporary folder.
 
 ## Files
 

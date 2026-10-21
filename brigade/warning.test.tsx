@@ -16,7 +16,9 @@ const START = { cwd: 'C:\\work', surface: null, isInteractive: true } as const
 // What a session answers beneath the plugin: just enough for the Brigade
 // mod's own start, with no pane open, and a store the test can seed.
 function session(on: On, entries?: Record<string, unknown>) {
-  const w = { registered: [] as string[] }
+  const w = { registered: [] as string[], verdict: { decision: 'allow' } as Record<string, unknown> }
+  on('tool.check', () => w.verdict as any)
+  on('classic.SessionStart', () => ({}))
   mock.store(on, entries)
   mock.clock(on)
   on('session.start', ($, e: any) => ({ cwd: e.cwd }))
@@ -50,8 +52,12 @@ describe('permission warning', () => {
       const r = await call($)
       expect(String(r.result)).toMatch(/shown above the prompt/)
       const ui = await mount($, surface)
-      expect(await ui.find({ type: 'Text', text: /Head chef is on/ })).toBeDefined()
-      expect(await ui.find({ type: 'Text', text: /while Remote Control is on/ })).toBeDefined()
+      // Every line of the wording, whole, and the button by its label.
+      for (const line of WORDING) {
+        const escaped = line.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+        expect(await ui.find({ type: 'Text', text: new RegExp(escaped) })).toBeDefined()
+      }
+      expect(await ui.find({ key: 'understand', label: 'I understand' })).toBeDefined()
       await ui.press({ key: 'understand' })
       expect(await ui.find({ key: 'understand' })).toBeUndefined()
       await ui.unmount()
@@ -114,6 +120,36 @@ describe('permission warning', () => {
     expect(String(r.result)).toMatch(/stays hidden/)
     const ui = await mount($, 'desktop')
     expect(await ui.find({ key: 'understand' })).toBeUndefined()
+  })
+
+  test('a clear or a resume offers the tool again', async ($, on) => {
+    const w = session(on)
+    await $.session.start(START)
+    expect(w.registered).toEqual(['show_permission_warning'])
+    await $.classic.SessionStart({ source: 'clear', session_id: 'a1b2c3d4-0000-4000-8000-000000000000', transcript_path: 'C:\\work\\t.jsonl' })
+    expect(w.registered).toEqual(['show_permission_warning', 'show_permission_warning'])
+  })
+
+  test("the owner's deny rule, or an ask rule naming the tool, refuses the call and shows nothing", async ($, on) => {
+    const w = session(on)
+    await $.session.start(START)
+    for (const verdict of [{ decision: 'deny', reason: 'no' }, { decision: 'ask', rule: 'mcp__grimoire__show_permission_warning' }]) {
+      w.verdict = verdict
+      const r = await call($)
+      expect(String(r.deny)).toMatch(/owner's rules/)
+      const ui = await mount($, 'desktop')
+      expect(await ui.find({ key: 'understand' })).toBeUndefined()
+      await ui.unmount()
+    }
+  })
+
+  test('a stored time that is not a date is never drawn', async ($, on) => {
+    session(on, { 'permission-warning-ack': { at: 'evil\u{202E}text', version: 'old' } })
+    await $.session.start(START)
+    await call($)
+    const ui = await mount($, 'desktop')
+    expect(await ui.find({ type: 'Text', text: /wording changed since you chose Don't show again\.$/ })).toBeDefined()
+    expect(await ui.find({ type: 'Text', text: /evil/ })).toBeUndefined()
   })
 
   test("a subagent's call is refused and shows nothing", async ($, on) => {

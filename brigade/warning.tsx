@@ -26,7 +26,7 @@ const VERSION = versionOf(WORDING)
 const shown = atom({ plugin: 'grimoire', key: 'warningShown' } as const, false)
 // Hidden by "I understand" for the rest of this session.
 const hidden = atom({ plugin: 'grimoire', key: 'warningHidden' } as const, false)
-// The box's tick, until "I understand" is pressed.
+// The box's tick, for this session. "I understand" reads it.
 const ticked = atom({ plugin: 'grimoire', key: 'warningTicked' } as const, false)
 // The owner's "Don't show again", read from the store at each start.
 const ack = atom({ plugin: 'grimoire', key: 'warningAck' } as const, null)
@@ -61,9 +61,9 @@ export async function warningStart($: EngineInterface) {
   }
 }
 
-/** At a clear or a resume, which fires classic.SessionStart and not
- *  session.start: offer the tool again, since registering a name again
- *  replaces it. */
+/** At each classic.SessionStart, a startup, a clear or a resume, from
+ *  register.tsx's own hook: offer the tool again, since a clear or a resume
+ *  does not fire session.start, and registering a name again replaces it. */
 export async function warningOfferAgain($: EngineInterface) {
   try {
     await offer($)
@@ -76,6 +76,12 @@ export function registerWarning(on: On) {
   on('tool.call', { tool: TOOL_NAME }, async ($, e) => {
     if ((e as unknown as Record<string, unknown>).agentId !== undefined) {
       return { deny: `${TOOL} refused: only the lead session's own turns show the warning.` }
+    }
+    // The owner's own rules hold for this tool, as for set_roster: a deny,
+    // or an ask rule that names it, refuses the call.
+    const verdict = await $.tool.check({ tool: TOOL_NAME, input: {} })
+    if (verdict.decision === 'deny' || (verdict.decision === 'ask' && verdict.rule !== undefined)) {
+      return { deny: `${TOOL} refused: the owner's rules cover this tool. Say the warning to the owner in chat instead.` }
     }
     if (isAcknowledged(await read($, ack), VERSION)) {
       return { result: "The owner chose Don't show again for this wording, so the warning stays hidden. Go on with the launch." }
@@ -92,7 +98,10 @@ export function registerWarning(on: On) {
 
     const { Box, Button, Text } = $.ui.resolve(e)
     const box = await read($, ticked)
-    const changed = kept !== null ? (kept as Ack).at : null
+    // The stored time is drawn only as a date of that shape; anything else
+    // the store holds is never drawn.
+    const at = kept !== null ? (kept as Ack).at : null
+    const changed = at === null ? null : /^\d{4}-\d{2}-\d{2}/.test(at) ? at.slice(0, 10) : ''
 
     return (
       <Box key="permission-warning" flexDirection="column" borderStyle="round" paddingX="lg" paddingY="md" gap="md">
@@ -102,7 +111,11 @@ export function registerWarning(on: On) {
             <Text key={`risk-${i}`}>• {line}</Text>
           ))}
         </Box>
-        {changed !== null ? <Text dimColor>The wording changed since you chose Don't show again on {changed.slice(0, 10)}.</Text> : null}
+        {changed !== null ? (
+          <Text dimColor>
+            {changed === '' ? "The wording changed since you chose Don't show again." : `The wording changed since you chose Don't show again on ${changed}.`}
+          </Text>
+        ) : null}
         <Box flexDirection="row" justifyContent="space-between" alignItems="center" gap="md">
           <Box flexShrink={1}>
             <Text dimColor>{ALSO}</Text>

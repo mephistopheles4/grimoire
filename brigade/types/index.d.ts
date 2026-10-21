@@ -138,7 +138,7 @@ declare module 'claude-code' {
       warningShown: boolean
       /** "I understand" hid the permission warning for this session. */
       warningHidden: boolean
-      /** The warning's "Don't show again" box is ticked, until "I understand". */
+      /** The warning's "Don't show again" box is ticked, for this session. */
       warningTicked: boolean
       /** The owner's "Don't show again", as the store holds it: when, and the
        *  version of the wording. Checked again before use. */
