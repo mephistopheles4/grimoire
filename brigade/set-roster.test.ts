@@ -707,11 +707,7 @@ test("set_roster keeps the roster in every permission mode: plan mode's ask nami
   expect(plan.text).toMatch(/^Roster kept: /)
   expect(w.text(FILE)).toBeDefined()
   w.verdict = { decision: 'allow' }
-  try {
-    await $.classic.UserPromptSubmit({ prompt: 'go', permission_mode: 'dontAsk' } as any)
-  } catch {
-    // The mod no longer hooks the prompt; the engine may answer that as absent.
-  }
+  await $.classic.UserPromptSubmit({ prompt: 'go', permission_mode: 'dontAsk' } as any)
   const other = { cards: [card('gamma')], todos: [] }
   const r = await call($, other)
   expect(r.ok).toBe(true)

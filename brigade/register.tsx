@@ -139,7 +139,7 @@ const TOOL = 'set_roster'
 
 // The values are the plugin's, so they sit under its manifest name.
 const armed = atom({ plugin: 'grimoire', key: 'armed' } as const, false)
-// The engine's record of this session's start; writer.ts reads the same key.
+// The engine's record of a session's start, the last one raised; writer.ts reads the same key.
 const started = atom({ plugin: 'grimoire', key: 'start' } as const, { sessionId: '', transcript: '' })
 const files = atom({ plugin: 'grimoire', key: 'files' } as const, { current: '', previous: '' })
 const roster = atom({ plugin: 'grimoire', key: 'roster' } as const, { cards: [], todos: [] })
@@ -967,9 +967,9 @@ export const register: Register = on => {
     return next(e)
   })
 
-  // The engine's own record of this session: its id and transcript path, the
-  // one place the config folder can be read from when the plugin's location
-  // does not name it. A clear or a resume fires this again with the new id,
+  // The engine's own record of a session: its id and transcript path, one
+  // place the config folder can be read from when the plugin's location does
+  // not name it (else Desktop's synced install folder). A clear or a resume fires this again with the new id,
   // and session.start does not, so the tool is offered again here while the
   // pane is open; registering a name again replaces it.
   on('classic.SessionStart', async ($, e, next) => {

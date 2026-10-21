@@ -472,7 +472,7 @@ export function dataFolder(config: string, id: string): string {
 
 /** The config folder above Desktop's synced install of this plugin:
  *  <config>/plugins/synced/<one folder>/<name>, or the name with `~g` and
- *  digits after it. Exactly one folder sits between `synced` and the plugin's
+ *  digits after it (Desktop keeps such a copy beside it; seen on Windows). Exactly one folder sits between `synced` and the plugin's
  *  folder, which is the last part of the root. It names a config folder only,
  *  never a marketplace. */
 export function configFromSynced(root: string, name: string): string | undefined {
@@ -498,7 +498,7 @@ export function dataPlace(root: string, name: string, start: { sessionId: string
   return { config, plugin: dataId(name, marketplaceFromRoot(root)) }
 }
 
-/** The config folder above the engine's transcript path for this session:
+/** The config folder above the engine's transcript path for the given session id:
  *  <config>/projects/<folder>/<session id>.jsonl, or undefined. */
 export function configFromTranscript(transcript: string, sessionId: string): string | undefined {
   if (!SESSION_ID.test(sessionId)) return undefined

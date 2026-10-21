@@ -529,7 +529,7 @@ test('the roster path is unchanged by the generalized rule: it never walks into 
   assert.ok(!log.some(p => p.includes('usage')));
 });
 
-test('dataPlace: the config folder from the install path, else from this session\'s own start record', () => {
+test('dataPlace: the config folder from the install path, else from the start record', () => {
   const { dataPlace } = roster;
   const start = { sessionId: SID, transcript: `C:\\cfg\\.claude\\projects\\C--work\\${SID}.jsonl` };
   assert.deepEqual(dataPlace('C:\\cfg\\.claude\\plugins\\cache\\market\\grimoire\\0.60.0', 'grimoire', start), { config: 'C:\\cfg\\.claude', plugin: 'grimoire-market' });
@@ -551,6 +551,8 @@ test('dataPlace: Desktop\'s synced install folder names the config folder, after
   assert.equal(dataPlace('C:\\cfg\\.claude\\plugins\\synced\\a\\b\\grimoire', 'grimoire', none).config, undefined);
   assert.equal(dataPlace('C:\\cfg\\.claude\\plugins\\synced\\abc123\\other', 'grimoire', none).config, undefined);
   assert.equal(dataPlace('C:\\cfg\\.claude\\plugins\\synced\\abc123', 'grimoire', none).config, undefined);
+  assert.equal(dataPlace('C:\\cfg\\.claude\\plugins\\synced\\abc123\\other~g2', 'grimoire', none).config, undefined);
+  assert.equal(dataPlace('C:\\cfg\\.claude\\plugins\\synced\\abc123\\grimoire~g', 'grimoire', none).config, undefined);
   assert.equal(dataPlace('C:\\cfg\\.claude\\plugins\\synced\\abc123\\grimoire\\sub', 'grimoire', none).config, undefined);
   assert.equal(dataPlace('C:\\cfg\\.claude\\plugins\\synced\\abc123\\grimoire~gx', 'grimoire', none).config, undefined);
   // The start record wins over the synced form.
@@ -571,7 +573,7 @@ test('dataPlace: a start record of another session still names its config folder
   // The id is off the engine's shape.
   assert.equal(dataPlace(root, 'grimoire', { sessionId: 'x', transcript: 'C:\\cfg\\.claude\\projects\\C--work\\x.jsonl' }).config, undefined);
   // The fields are not text.
-  assert.equal(dataPlace(root, 'grimoire', { sessionId: OTHER, transcript: 5 }).config, undefined);
+  assert.equal(dataPlace(root, 'grimoire', { sessionId: OTHER, transcript: [good.transcript] }).config, undefined);
   assert.equal(dataPlace(root, 'grimoire', { sessionId: 7, transcript: good.transcript }).config, undefined);
 });
 

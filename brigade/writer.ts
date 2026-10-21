@@ -22,7 +22,8 @@ import {
 // pane can draw a member whose transcript is too large to read. No pane, no
 // /brigade and no tool is needed for it to run.
 //
-// A `turn.step` hook passes the step on first, then records it. On the step's
+// A `turn.step` hook starts an unawaited read of the session id, passes the
+// step on, then records it. On the step's
 // path it awaits no engine call: it reads the step's own result, keeps the
 // numbers in module memory, stamps them from the module's own clock and, when
 // a write is due, starts one it does not await. The writes run one at a time,
@@ -35,7 +36,7 @@ import {
 // write, stops it until the module reloads, with one toast; a clear does not
 // restart it.
 
-// The engine's record of this session's start, which register.tsx's
+// The engine's record of a session's start, the last one raised, which register.tsx's
 // `classic.SessionStart` hook keeps under the same key.
 const started = atom({ plugin: 'grimoire', key: 'start' } as const, { sessionId: '', transcript: '' })
 
@@ -49,7 +50,7 @@ let sessionOf: string | undefined
 // latest-started read that has answered counts, so a slow older answer cannot
 // put the writer back on a session it has left.
 let readsStarted = 0
-let readAnswered = 0
+let latestAnswered = 0
 
 // The module's clock: the engine clock's epoch, read once and never awaited
 // on a step's path, carried on by `performance.now()`. Until the epoch
@@ -71,7 +72,7 @@ function readEpoch($: EngineInterface) {
 const now = (): number => Math.round(epoch === undefined ? Date.now() : epoch.engine + (performance.now() - epoch.perf))
 
 // The engine follows `$` only into functions declared in the file that holds
-// the hook, so these two are written here rather than imported.
+// the hook, so the functions below are written here rather than imported.
 
 // The config folder, the plugin's data id and this session's id, read at
 // each write, so after a clear the file follows the new id; by the rule the
@@ -88,8 +89,8 @@ function followSession($: EngineInterface) {
   const n = ++readsStarted
   $.session.id().then(
     id => {
-      if (n < readAnswered) return
-      readAnswered = n
+      if (n < latestAnswered) return
+      latestAnswered = n
       writerSession(id)
     },
     () => undefined,
@@ -160,7 +161,8 @@ async function writeOnce($: EngineInterface) {
     if (!isSummaryFile(placed.existing.size, text)) return refuse($, 'file')
   }
   // The id again, just before the numbers are taken: a clear while the checks
-  // waited moves it, and this write is skipped.
+  // waited moves it, and this write is skipped; the writer moves to the new
+  // session.
   const again = await $.session.id()
   if (again !== at.id) return writerSession(again)
   const summary = summaryFrom(memory, now())
