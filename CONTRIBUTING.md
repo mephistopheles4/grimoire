@@ -213,7 +213,10 @@ diff. See [`SECURITY.md`](SECURITY.md) for why this matters more than it looks.
 `node scripts/check.mjs` enforces this. It fails on a lockfile, in any case,
 and on any `package.json` except one: the root `package.json` that holds only
 an `athanor` key whose value is an object (see "Run the check in a container"
-above). Any other key fails and is named, `Package.json` and a `package.json`
+above). Any other key fails and is named. So does an `athanor` key that sets
+`dockerfile` or `context` to anything but `tests/container/Dockerfile` and
+`tests/container`, or sets `inputs`, because the image build has network
+access and receives the whole folder. `Package.json` and a `package.json`
 in a folder fail, and so does a `binding.gyp` at the root, which npm would
 build. It also fails on any code file importing a bare specifier — an import path that
 is not relative, not absolute, and not a `node:` builtin. A path starting with

@@ -79,6 +79,27 @@ test('a root package.json that is not exactly an athanor object fails', () => {
   }
 });
 
+test('an athanor key that widens the image build folder fails, because the build has network access', () => {
+  // The build receives the whole folder "context" names, files .gitignore
+  // excludes included, and a branch sets the key. "inputs" adds files from
+  // outside it.
+  const widenings = [
+    { context: '.' },
+    { context: '' },
+    { context: 'tests/container/..' },
+    { dockerfile: 'Dockerfile' },
+    { inputs: ['.env'] },
+    { inputs: [] },
+  ];
+  for (const widening of widenings) {
+    const dir = tree();
+    writeFileSync(join(dir, 'package.json'), JSON.stringify({ athanor: { ...athanorOnly.athanor, ...widening } }));
+    const key = Object.keys(widening)[0];
+    const r = assertFails(dir, /package\.json: a dependency manifest or lockfile/);
+    assert.match(r.stderr, new RegExp(`sets "${key}"`), JSON.stringify(widening));
+  }
+});
+
 test('a package.json in a folder and a lockfile beside an accepted root manifest still fail', () => {
   const dir = tree();
   writeFileSync(join(dir, 'package.json'), JSON.stringify(athanorOnly));

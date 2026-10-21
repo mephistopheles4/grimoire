@@ -666,9 +666,15 @@ const isManifest = name => MANIFESTS.has(name) || [...MANIFESTS].some(m => caseT
 // is an object holding the key `athanor` and no other, with an object as its
 // value. The limit is one key because npm and the skills CLI act on the others
 // (`dependencies`, `scripts`, `bin`, `type`, `skills`). What is inside `athanor`
-// is athanor's to validate; it exits 125 on a key it does not know. A duplicate
-// key only hides an earlier copy of the same name, and JSON.parse decodes
-// escapes before the key is tested, as athanor's own parser does.
+// is athanor's to validate, and it exits 125 on a key it does not know, with
+// one exception: the folder the image build receives. The build has network
+// access and takes the whole folder the `context` key names, files .gitignore
+// excludes included, and a branch sets the key. So the two keys that choose
+// that folder are held to today's values, and `inputs`, which adds files from
+// outside it, is refused (issue 362, the owner's decision on the data review).
+// A duplicate key only hides an earlier copy of the same name, and JSON.parse
+// decodes escapes before the key is tested, as athanor's own parser does.
+const BUILD_FOLDER = { dockerfile: 'tests/container/Dockerfile', context: 'tests/container' };
 const isObject = v => typeof v === 'object' && v !== null && !Array.isArray(v);
 // Why a root package.json is not the accepted one, or null when it is.
 function rootManifestProblem(f) {
@@ -685,6 +691,13 @@ function rootManifestProblem(f) {
   if (others.length) return `also holds ${others.map(k => `"${shown(k)}"`).join(', ')}`;
   if (!('athanor' in parsed)) return 'holds no "athanor" key';
   if (!isObject(parsed.athanor)) return 'has an "athanor" value that is not an object';
+  const widened = [
+    ...Object.keys(BUILD_FOLDER).filter(k => Object.hasOwn(parsed.athanor, k) && parsed.athanor[k] !== BUILD_FOLDER[k]),
+    ...(Object.hasOwn(parsed.athanor, 'inputs') ? ['inputs'] : []),
+  ];
+  if (widened.length) {
+    return `sets ${widened.map(k => `"${k}"`).join(' and ')} to something other than the build folder it is held to (dockerfile ${BUILD_FOLDER.dockerfile}, context ${BUILD_FOLDER.context}, no inputs), and the image build, which has network access, receives that whole folder`;
+  }
   return null;
 }
 for (const f of files.filter(f => isManifest(basename(f)))) {
@@ -693,7 +706,7 @@ for (const f of files.filter(f => isManifest(basename(f)))) {
   if (isRoot && problem === null) continue;
   // The accepted file is athanor's configuration, so deleting it is the wrong
   // fix for it: it is told to drop what is not the athanor key.
-  const fix = isRoot ? ` — keep only the "athanor" key (or delete the file if athanor is not wanted). The one package.json this repository accepts is the root one, holding only an "athanor" key whose value is an object, and this one ${problem}.` : ' — delete it.';
+  const fix = isRoot ? ` — keep only the "athanor" key (or delete the file if athanor is not wanted). The one package.json this repository accepts is the root one, holding only an "athanor" key whose value is an object that keeps the build to tests/container/, and this one ${problem}.` : ' — delete it.';
   fail(
     `${rel(f)}: a dependency manifest or lockfile${fix} This repository takes no dependency and has no install step, which is what lets the tests run on \`node --test\` and the skill run from a checkout. See CONTRIBUTING.md, "Do not add a dependency", and SECURITY.md for why it matters more than it looks.`,
   );
