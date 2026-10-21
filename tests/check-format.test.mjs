@@ -3,8 +3,9 @@
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync, writeFileSync, appendFileSync } from 'node:fs';
+import { readFileSync, writeFileSync, appendFileSync, mkdirSync, symlinkSync } from 'node:fs';
 import { join } from 'node:path';
+import { root } from './helpers.mjs';
 import { tree, assertPasses, assertFails, modFile, importLine } from './check-fixture.mjs';
 
 test('the single-pass tag strip cannot come back', () => {
@@ -38,6 +39,181 @@ test('a dependency manifest anywhere in the tree fails', () => {
   const dir = tree();
   writeFileSync(join(dir, 'package.json'), '{"name":"grimoire","dependencies":{}}\n');
   assertFails(dir, /package\.json: a dependency manifest or lockfile/);
+});
+
+// Issue 362: athanor reads its configuration only from an "athanor" key in the
+// root package.json. Rule 6 accepts exactly that file and nothing wider, so
+// the exemption opens no route for a package.
+const athanorOnly = { athanor: { dockerfile: 'tests/container/Dockerfile', context: 'tests/container', commands: { check: 'node scripts/check.mjs' } } };
+
+test('a root package.json holding only the athanor key passes', () => {
+  const dir = tree();
+  writeFileSync(join(dir, 'package.json'), JSON.stringify(athanorOnly));
+  modFile(dir, 'tests/container/Dockerfile', 'FROM node:24\n');
+  assertPasses(dir);
+});
+
+test('a root package.json with any other key fails and names each one, printed safely', () => {
+  const dir = tree();
+  const esc = String.fromCodePoint(0x1b);
+  const manifest = { ...athanorOnly };
+  for (const k of ['dependencies', 'devDependencies', 'scripts', 'name', 'skills', `a${esc}b`, '/home/zq-acct/x']) manifest[k] = {};
+  writeFileSync(join(dir, 'package.json'), JSON.stringify(manifest));
+  const r = assertFails(dir, /package\.json: a dependency manifest or lockfile/);
+  for (const k of ['dependencies', 'devDependencies', 'scripts', 'name', 'skills']) assert.match(r.stderr, new RegExp(`"${k}"`));
+  assert.match(r.stderr, /"a\\u\{1b\}b"/);
+  assert.match(r.stderr, /"\/home\/<name>\/x"/);
+  assert.doesNotMatch(r.stderr, /zq-acct/);
+  assert.equal(r.stderr.includes(esc), false);
+  // The key that is allowed is not named as one of the others.
+  assert.doesNotMatch(r.stderr, /also holds[^.]*"athanor"/);
+});
+
+test('a root package.json that is not exactly an athanor object fails', () => {
+  const bodies = ['{}\n', '[]\n', '"athanor"\n', '{"athanor":1}\n', '{"athanor":null}\n', '{"athanor":[]}\n', '{"athanor":"x"}\n', 'null\n', '1\n', 'true\n', 'not json at all\n', '/home/zq-acct/oops\n',
+    // A home path early, then a long stretch, then the error: Node's message
+    // quotes only a window around the error, which holds the name and no home
+    // root for a mask to find.
+    `{"p":"/home/zq-acct/x","pad":"${'a'.repeat(400)}" zq-acct}\n`];
+  for (const body of bodies) {
+    const dir = tree();
+    writeFileSync(join(dir, 'package.json'), body);
+    const r = assertFails(dir, /package\.json: a dependency manifest or lockfile/);
+    // A parse error can quote the file, and the file is not this check's text.
+    assert.doesNotMatch(r.stderr, /zq-acct/, `body ${JSON.stringify(body)}`);
+  }
+});
+
+test('an athanor key that widens the image build folder fails, because the build has network access', () => {
+  // The build receives the tracked files under the folder "context" names,
+  // uncommitted edits included, and a branch sets the key. "inputs" adds files
+  // from outside it. A key left out is refused too: athanor takes a missing
+  // "context" from wherever a linked Dockerfile really is.
+  const { context, dockerfile, ...rest } = athanorOnly.athanor;
+  const widenings = [
+    ['context', { ...rest, dockerfile, context: '.' }],
+    ['context', { ...rest, dockerfile, context: '' }],
+    ['context', { ...rest, dockerfile, context: 'tests/container/..' }],
+    ['dockerfile', { ...rest, context, dockerfile: 'Dockerfile' }],
+    ['context', { ...rest, dockerfile }],
+    ['dockerfile', { ...rest, context }],
+    ['inputs', { ...rest, dockerfile, context, inputs: ['.env'] }],
+    ['inputs', { ...rest, dockerfile, context, inputs: [] }],
+  ];
+  for (const [key, athanor] of widenings) {
+    const dir = tree();
+    writeFileSync(join(dir, 'package.json'), JSON.stringify({ athanor }));
+    const r = assertFails(dir, /package\.json: a dependency manifest or lockfile/);
+    assert.match(r.stderr, new RegExp(`keep the image build[^)]*"${key}"`), JSON.stringify(athanor));
+  }
+});
+
+test('a symbolic link at the build folder, or a Dockerfile that is one, fails, because athanor follows links', t => {
+  // The pinned strings still read right while the build goes wherever the link
+  // points: at the repository root, with every tracked file in it.
+  const dir = tree();
+  writeFileSync(join(dir, 'package.json'), JSON.stringify(athanorOnly));
+  writeFileSync(join(dir, 'Dockerfile'), 'FROM node:24\n');
+  try {
+    symlinkSync('..', join(dir, 'tests'), 'dir');
+  } catch {
+    t.skip('this file system or account cannot make symbolic links');
+    return;
+  }
+  assertFails(dir, /tests is a symbolic link where the image build folder is held/);
+  const other = tree();
+  writeFileSync(join(other, 'package.json'), JSON.stringify(athanorOnly));
+  writeFileSync(join(other, 'Dockerfile'), 'FROM node:24\n');
+  mkdirSync(join(other, 'tests', 'container'), { recursive: true });
+  symlinkSync(join('..', '..', 'Dockerfile'), join(other, 'tests', 'container', 'Dockerfile'));
+  assertFails(other, /tests\/container\/Dockerfile is a symbolic link where the image build folder is held/);
+});
+
+test('the build folder spelled in another case, or with no Dockerfile in it, fails, because a folding checkout finds it and Linux CI does not', t => {
+  // Linux CI reads Tests/Container as an unrelated name, so the exact-name
+  // guards never see it, while a checkout that folds case resolves the pinned
+  // path through it. The long s upper-cases to S and lower-cases to itself, so
+  // only the upper-case half of the fold sees te\u{17F}ts as tests.
+  const longS = String.fromCodePoint(0x17f);
+  const pinned = JSON.stringify(athanorOnly);
+  const folder = tree();
+  writeFileSync(join(folder, 'package.json'), pinned);
+  modFile(folder, 'Tests/Container/Dockerfile', `FROM node:24\nRUN true ${String.fromCodePoint(0x200b)}\n`);
+  const r = assertFails(folder, /Tests\/Container\/Dockerfile is spelled like tests\/container\/ and differs from it only in case/);
+  // The scans read it under that spelling too.
+  assert.match(r.stderr, /Tests\/Container\/Dockerfile:2 holds U\+200B/);
+  const folded = tree();
+  writeFileSync(join(folded, 'package.json'), pinned);
+  modFile(folded, `te${longS}ts/container/Dockerfile`, 'FROM node:24\n');
+  assertFails(folded, /e.ts\/container\/Dockerfile is spelled like tests\/container\/ and differs from it only in case/);
+  const missing = tree();
+  writeFileSync(join(missing, 'package.json'), pinned);
+  assertFails(missing, /tests\/container\/Dockerfile is missing or is not a plain file/);
+  const link = tree();
+  writeFileSync(join(link, 'package.json'), pinned);
+  writeFileSync(join(link, 'Dockerfile'), 'FROM node:24\n');
+  mkdirSync(join(link, 'tests'));
+  try {
+    symlinkSync('..', join(link, 'tests', 'Container'), 'dir');
+  } catch {
+    t.skip('this file system or account cannot make symbolic links');
+    return;
+  }
+  assertFails(link, /tests\/Container is spelled like tests\/container\/ and differs from it only in case/);
+});
+
+test('a package.json in a folder and a lockfile beside an accepted root manifest still fail', () => {
+  const dir = tree();
+  writeFileSync(join(dir, 'package.json'), JSON.stringify(athanorOnly));
+  writeFileSync(join(dir, 'package-lock.json'), '{}\n');
+  modFile(dir, 'skills/eagle-eye/package.json', JSON.stringify(athanorOnly));
+  const r = assertFails(dir, /- package-lock\.json: a dependency manifest or lockfile/);
+  assert.match(r.stderr, /skills\/eagle-eye\/package\.json: a dependency manifest or lockfile/);
+  // The accepted root file is not itself named as a failure.
+  assert.doesNotMatch(r.stderr, /- package\.json: a dependency manifest/);
+});
+
+test('binding.gyp at the root fails, in any case and with or without a manifest, because npm builds it with no scripts key', () => {
+  // The dotless i upper-cases to I and lower-cases to itself: a folding checkout
+  // reads this name as binding.gyp, and only the upper-case half of the match sees it.
+  const dotless = String.fromCodePoint(0x131);
+  for (const [name, withManifest] of [['binding.gyp', false], ['Binding.GYP', true], [`b${dotless}nd${dotless}ng.gyp`, true]]) {
+    const dir = tree();
+    if (withManifest) writeFileSync(join(dir, 'package.json'), JSON.stringify(athanorOnly));
+    writeFileSync(join(dir, name), '{}\n');
+    assertFails(dir, new RegExp(`${name.replace('.', '\\.')}: .*native build`));
+  }
+});
+
+test('the athanor configuration forces the add that keeps rule 2b live, and the image is pinned by digest', () => {
+  // Without the forced add, a tracked file that .gitignore matches is left out
+  // of the container's index, and rule 2b could never fire there.
+  const config = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8')).athanor;
+  assert.deepEqual(config.commands.check.slice(0, 2), ['sh', '-c']);
+  assert.match(config.commands.check[2], /^git add -A -f && node scripts\/check\.mjs$/);
+  const dockerfile = readFileSync(join(root, config.dockerfile), 'utf8');
+  assert.match(dockerfile, /^FROM node:24[^\s@]*@sha256:[0-9a-f]{64}$/m);
+});
+
+test('a hidden direction-changing character in the container folder fails rule 2c', () => {
+  // The Dockerfile and the root config are what CONTRIBUTING tells a reader to
+  // read before running a branch they did not write.
+  const dir = tree();
+  modFile(dir, 'tests/container/Dockerfile', `FROM node:24\nRUN true ${String.fromCodePoint(0x202e)}\n`);
+  assertFails(dir, /tests\/container\/Dockerfile:2 holds U\+202E/);
+});
+
+test('a home path in the root package.json or the container folder fails rule 2, masked', () => {
+  // Both files ship to every installer, and "commands" is where a pasted local
+  // path would land.
+  const dir = tree();
+  const m = structuredClone(athanorOnly);
+  m.athanor.commands.check = 'node /home/zq-acct/work/scripts/check.mjs';
+  writeFileSync(join(dir, 'package.json'), JSON.stringify(m, null, 2));
+  modFile(dir, 'tests/container/Dockerfile', 'FROM node:24\nCOPY . C:\\Users\\zq-acct\\work\n');
+  const r = assertFails(dir, /package\.json:\d+ holds a fixed path/);
+  assert.match(r.stderr, /tests\/container\/Dockerfile:2 holds a fixed path/);
+  assert.doesNotMatch(r.stderr, /zq-acct/);
 });
 
 test('a lockfile fails on its own, with no manifest beside it', () => {

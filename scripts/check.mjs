@@ -5,20 +5,25 @@
 //
 // 1. Every artifact in the tree validates against the renderer its registry
 //    row names, and every skill that ships artifacts has a row.
-// 2. No file a skill or the mod ships carries a fixed path. Both land in a
+// 2. No file a skill or the mod ships carries a fixed path, nor does the root
+//    package.json or a file under tests/container/. Both land in a
 //    different directory under every install route, so a path naming one is
 //    a defect.
 //    2b. For every rule, not only 2: every file git tracks is one the walk
 //    read, so no rule here skips a file that ships.
 //    2c. A skill's frontmatter holds only the allow-listed keys, and no file
-//    under skills/ holds a hidden control or line-separator character.
+//    under skills/, nor the root package.json, nor a file under
+//    tests/container/, holds a hidden control or line-separator character.
 // 3. The single-pass tag strip does not come back, and no code fence in any
 //    markdown file declares no language.
 // 4. Every plugin in the marketplace manifest exists on disk with a manifest.
 // 5. A change to a skill or the mod carries a version bump.
-// 6. Nothing in the tree takes a dependency: no manifest, no lockfile, and no
-//    import of a bare specifier. The mod's module may import the engine's own
-//    `claude-code`, which the engine supplies.
+// 6. Nothing in the tree takes a dependency: no manifest but one, no lockfile,
+//    no root binding.gyp, and no import of a bare specifier. The one manifest
+//    it accepts is a root package.json holding only an `athanor` key, whose
+//    image build folder is held to tests/container/. The
+//    mod's module may import the engine's own `claude-code`, which the engine
+//    supplies.
 //    6b. Every pointer the engine follows to the mod's code, and every
 //    relative import in it, lands inside the mod's folders.
 //    6c. Nothing else the engine loads: no default component folder or file at
@@ -146,7 +151,8 @@ for (const e of readdirSync(join(root, 'skills'), { withFileTypes: true })) {
 // skill's lib/, reference/, renderer or schema. A hardcoded home directory
 // anywhere but the skill's own prose passed the gate that exists to catch it.
 //
-// Scoped to skills/ and the mod's folders and not to the whole tree, because
+// Scoped to skills/ and the mod's folders, plus the two places isContainerConfig
+// names below, and not to the whole tree, because
 // the rule is about what lands on somebody else's computer under an install
 // route nobody here chooses. A repository script is not that, and
 // tests/check-paths.test.mjs
@@ -177,7 +183,24 @@ const FIXED = [
 // nobody acts on. The CI log is public and outlives a rewritten commit, so the
 // account name is masked before the line is cut; see scripts/lib/printable.mjs.
 const excerpt = s => (s.length > 120 ? `${s.slice(0, 117)}...` : s);
-for (const shipped of files.filter(f => isShipped(rel(f)))) {
+// Two places are read beyond what ships under skills/ and the mod: the root
+// package.json and the folder tests/container/. A whole-repository install
+// carries them to every installer, and the athanor "commands" are where a
+// pasted local path would land. Rule 5 does not take them: isShipped stays as
+// it was, so a change to them asks for no version bump. Rule 2c reads the same
+// two places, through the same predicate, for hidden characters: they are what
+// CONTRIBUTING tells a reader to read before running a branch they did not write.
+// In any case, as the manifests are: a checkout that folds case reads
+// Tests/Container as tests/container, and Linux CI does not, so a spelling that
+// differs only in case would skip these scans while athanor still found it.
+const foldsTo = (name, wanted) => name === wanted || caseTwin(name, wanted);
+const isContainerConfig = src => {
+  if (src === 'package.json') return true;
+  const [first, second, ...below] = src.split('/');
+  return below.length > 0 && foldsTo(first, 'tests') && foldsTo(second, 'container');
+};
+const isReadForPaths = src => isShipped(src) || isContainerConfig(src);
+for (const shipped of files.filter(f => isReadForPaths(rel(f)))) {
   // The block-quote exemption is markdown only. `>` opens a quotation in prose
   // and means nothing in JavaScript, JSON or HTML, so honouring it everywhere
   // would let a fixed path walk through the gate on any line that happened to
@@ -333,7 +356,7 @@ const codePoint = c => `U+${c.codePointAt(0).toString(16).toUpperCase().padStart
 // 2 does, so a cut cannot drop the home path that tells the masker the name.
 const quoted = s => printable(excerpt(masked(s)));
 
-for (const f of files.filter(f => relRaw(f).startsWith('skills/'))) {
+for (const f of files.filter(f => relRaw(f).startsWith('skills/') || isContainerConfig(relRaw(f)))) {
   const bytes = readFileSync(f);
   const signature = binaryKind(relRaw(f));
   if (signature && bytes.subarray(0, signature.length).equals(signature)) continue;
@@ -614,10 +637,11 @@ if (!mergeBase) {
 // dependency went green. The rule held only because the tree gave it nowhere
 // to land.
 //
-// Two ways in, so two rules. A manifest or a lockfile is the install step this
-// repository does not have. A bare specifier — an import path that is neither
-// relative nor a node builtin — is a dependency whether or not a manifest
-// declares it.
+// Two ways in, so two rules. A manifest that can install, or a lockfile, is
+// the install step this repository does not have; the one exemption below is a
+// manifest that holds no dependency and nothing an install acts on. A bare
+// specifier — an import path that is neither relative nor a node builtin — is
+// a dependency whether or not a manifest declares it.
 //
 // Say the width, twice over. The rule reads every suffix the Claude Code
 // engine loads a mod's module from — .ts, .tsx, .jsx, .js, .mjs, .cjs, .mts
@@ -645,10 +669,105 @@ const MANIFESTS = new Set([
 // In any case, too: the engine installs packages when the plugin root holds a
 // manifest and a lockfile, and an install that folds case finds Package.json.
 const isManifest = name => MANIFESTS.has(name) || [...MANIFESTS].some(m => caseTwin(name, m));
+//
+// One exemption, because athanor reads its configuration from nowhere else: a
+// file named exactly `package.json`, in that case, at the root, whose top level
+// is an object holding the key `athanor` and no other, with an object as its
+// value. The limit is one key because npm and the skills CLI act on the others
+// (`dependencies`, `scripts`, `bin`, `type`, `skills`). What is inside `athanor`
+// is athanor's to validate, and it exits 125 on a key it does not know, with
+// one exception: the folder the image build receives. The build has network
+// access and takes the tracked files under the folder the `context` key names,
+// as they are in the working tree, uncommitted edits included, and a branch
+// sets the key. So the two keys that choose that folder must be present and
+// hold today's values, and `inputs`, which adds files from outside it, is
+// refused (issue 362, the owner's decision on the data review). Both keys are
+// required, not only checked when present: athanor takes a missing `context`
+// from wherever a linked Dockerfile really is. For the same reason a symbolic
+// link at the folder or the Dockerfile is refused below; athanor follows links
+// before it uses either path, so the strings alone prove nothing. A duplicate
+// key only hides an earlier copy of the same name, and JSON.parse decodes
+// escapes before the key is tested, as athanor's own parser does. The pin runs
+// inside the check, after athanor has built the image from the branch, so on a
+// branch nobody has read it holds what merges and not that run.
+const BUILD_FOLDER = { dockerfile: 'tests/container/Dockerfile', context: 'tests/container' };
+const isObject = v => typeof v === 'object' && v !== null && !Array.isArray(v);
+// Why a root package.json is not the accepted one and what to do about it, or
+// null when it is accepted. The accepted file is athanor's configuration, so
+// "delete it" is the wrong fix for it: each problem names its own.
+function rootManifestProblem(f) {
+  let parsed;
+  try {
+    parsed = JSON.parse(readFileSync(f, 'utf8'));
+  } catch {
+    // No parser text: Node's message quotes a window of the file, and a window
+    // that starts after a home root has no root for the mask to find.
+    return { problem: 'does not parse as JSON', fix: 'make it valid JSON holding only the "athanor" key' };
+  }
+  const only = 'holding only an "athanor" key whose value is an object';
+  if (!isObject(parsed)) return { problem: 'is not a JSON object', fix: `make it an object ${only}` };
+  const others = Object.keys(parsed).filter(k => k !== 'athanor');
+  if (others.length) {
+    return { problem: `also holds ${others.map(k => `"${shown(k)}"`).join(', ')}`, fix: 'keep only the "athanor" key (or delete the file if athanor is not wanted)' };
+  }
+  if (!('athanor' in parsed)) return { problem: 'holds no "athanor" key', fix: `put the athanor settings in an "athanor" key ${only}` };
+  if (!isObject(parsed.athanor)) return { problem: 'has an "athanor" value that is not an object', fix: `make the "athanor" value an object` };
+  const wrong = [
+    ...Object.keys(BUILD_FOLDER).filter(k => !Object.hasOwn(parsed.athanor, k) || parsed.athanor[k] !== BUILD_FOLDER[k]),
+    ...(Object.hasOwn(parsed.athanor, 'inputs') ? ['inputs'] : []),
+  ];
+  if (wrong.length) {
+    return {
+      problem: `does not keep the image build to ${BUILD_FOLDER.context}/ (${wrong.map(k => `"${k}"`).join(', ')}), and the build, which has network access, receives the tracked files under the folder it names, uncommitted edits included`,
+      fix: `set "dockerfile" to ${BUILD_FOLDER.dockerfile} and "context" to ${BUILD_FOLDER.context}, and remove "inputs"`,
+    };
+  }
+  return null;
+}
 for (const f of files.filter(f => isManifest(basename(f)))) {
+  const isRoot = relRaw(f) === 'package.json';
+  const rootProblem = isRoot ? rootManifestProblem(f) : null;
+  if (isRoot && rootProblem === null) continue;
+  const fix = isRoot ? ` — ${rootProblem.fix}. The one package.json this repository accepts is the root one, holding only an "athanor" key whose value is an object that keeps the build to tests/container/, and this one ${rootProblem.problem}.` : ' — delete it.';
   fail(
-    `${rel(f)}: a dependency manifest or lockfile — delete it. This repository takes no dependency and has no install step, which is what lets the tests run on \`node --test\` and the skill run from a checkout. See CONTRIBUTING.md, "Do not add a dependency", and SECURITY.md for why it matters more than it looks.`,
+    `${rel(f)}: a dependency manifest or lockfile${fix} This repository takes no dependency and has no install step, which is what lets the tests run on \`node --test\` and the skill run from a checkout. See CONTRIBUTING.md, "Do not add a dependency", and SECURITY.md for why it matters more than it looks.`,
   );
+}
+
+// A symbolic link at the build folder, above it, or inside it. athanor follows
+// links before it uses the configured paths, so a link at tests/container, or a
+// Dockerfile that is a link, moves the build to wherever it points while the
+// strings in the root package.json still read as the pinned values. The walk
+// lists a link as a file and never enters it, which is why it is found here.
+const isBuildFolderPath = p => {
+  const [first, second, ...below] = p.split('/');
+  return isContainerConfig(p) || (below.length === 0 && foldsTo(first, 'tests') && (second === undefined || foldsTo(second, 'container')));
+};
+for (const f of files.filter(f => isBuildFolderPath(relRaw(f)))) {
+  const [first, second] = relRaw(f).split('/');
+  if (relRaw(f) !== 'package.json' && (first !== 'tests' || (second !== undefined && second !== 'container'))) {
+    fail(`${rel(f)} is spelled like ${BUILD_FOLDER.context}/ and differs from it only in case — a checkout that folds case would find the pinned folder through it, and Linux CI would not. Rename it.`);
+  }
+  if (lstatSync(f).isSymbolicLink()) {
+    fail(`${rel(f)} is a symbolic link where the image build folder is held to ${BUILD_FOLDER.context}/ — athanor follows links, so the build would receive whatever the link points at. Replace it with a real file or folder.`);
+  }
+}
+
+// The pinned Dockerfile has to be there and be a plain file, or the removed
+// folder is replaced by a link under another spelling and nothing notices.
+const rootManifest = files.find(f => relRaw(f) === 'package.json');
+if (rootManifest && rootManifestProblem(rootManifest) === null) {
+  const dockerfile = files.find(f => relRaw(f) === BUILD_FOLDER.dockerfile);
+  if (!dockerfile || lstatSync(dockerfile).isSymbolicLink()) {
+    fail(`${BUILD_FOLDER.dockerfile} is missing or is not a plain file, and the athanor key in the root package.json names it as the image build's Dockerfile.`);
+  }
+}
+
+// With a root package.json in place, npm's git-package route runs a default
+// native build from a binding.gyp at the root, with no `scripts` key to see.
+// In any case, as the manifests are.
+for (const f of files.filter(f => relRaw(f).toLowerCase() === 'binding.gyp' || caseTwin(relRaw(f), 'binding.gyp'))) {
+  fail(`${rel(f)}: a native build file at the root — npm builds it at install, beside any root package.json, with no "scripts" key to see. Delete it.`);
 }
 
 // Prose is not code, and this repository writes long prose comments. Scanning
@@ -1221,8 +1340,8 @@ for (const [a, b] of caseTwinPaths(files.map(relRaw).filter(p => p.startsWith('s
 // 8. The test suite runs here, under the same one command.
 //
 // `node --test` ships with Node and needs no manifest, no install and no
-// dependency, which is the only reason a repository with no package.json can
-// have tests at all. It runs last because the rules above are cheap and the
+// dependency, which is the only reason a repository with no dependency manifest
+// can have tests at all. It runs last because the rules above are cheap and the
 // suite spawns processes.
 //
 // It runs from here rather than from a second CI step, because CONTRIBUTING
@@ -1261,7 +1380,13 @@ if (process.env.GRIMOIRE_IN_TEST) {
   } else if (tests) {
     console.log(`\nrunning ${tests.length} test file(s)`);
     try {
-      execFileSync(process.execPath, ['--test', ...tests], {
+      // The root package.json holds no "type" key, because the one-key rule
+      // refuses it, so Node warns once for each brigade module the tests
+      // import: it detects them as ES modules and says so. The warning is
+      // about the root file's shape and tells a reader nothing they can act on.
+      // The same flag is in the "fast" command of that file. The engine itself
+      // was checked and prints no such warning when it loads the mod.
+      execFileSync(process.execPath, ['--disable-warning=MODULE_TYPELESS_PACKAGE_JSON', '--test', ...tests], {
         cwd: root,
         env: { ...process.env, GRIMOIRE_IN_TEST: '1' },
         stdio: 'inherit',
