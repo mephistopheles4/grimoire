@@ -189,15 +189,17 @@ labelled as relayed and never as the owner's own words. The check compares
 the sender's shown name with the session list, as text, so any session that
 can send it a message under that name can speak for the lead, unless another
 row holds the name too. The owner accepted the forged-sender risk of the
-0.5.0 form on 2026-10-09; the 0.9.0 form, a relayed decision, awaits its
-threat-model entry. Before
+0.5.0 form on 2026-10-09, and the 0.9.0 form, a relayed decision bound to the
+shown name alone, on 2026-10-21; row 16 of the threat model records both,
+with the other risks of 0.9.0 the owner accepted. Before
 its first launch in a lead, the Brigade mod's permission warning says so above
 the prompt. Each turn the head chef reads the engine's own session files, in
 the config folder's `sessions` folder beside each session's key file, for each
 session's name, id and status, and its folder at cleanup: only digit-named `.json` files that are not links and at most 8 KiB, and never the key files.
 The pane's own read of those files, with its stronger checks, is above. head-chef runs no script of its own. What leaves the session:
 sessions post their own milestone content, signed, on records that may be
-public, and the owner's own process, not the skill, sets what they post; on
+public, and the owner's own process, not the skill, sets what they post,
+except that the start prompt bars a token or secret; on
 the owner's own words in its chat, the head chef merges, closes, edits,
 deletes or labels a record, files an issue or posts a comment; the head
 chef's own questions and decisions go by message only; and Remote Control,
