@@ -245,7 +245,8 @@ The realistic risks:
   protection guards this. `scripts/check.mjs` also refuses a `SKILL.md`
   frontmatter key outside `name`, `description`, `compatibility`, `license`,
   `allowed-tools` and `metadata`, so a `hooks` key cannot merge unseen, and
-  any file under `skills/` that holds a control character other than tab,
+  any file under `skills/`, the root `package.json` or `tests/container/` that
+  holds a control character other than tab,
   line feed and carriage return, a lone carriage return, DEL, U+2028, U+2029,
   U+FFFE, U+FFFF, a default ignorable code point (tag characters, zero-width
   characters, the soft hyphen, variation selectors) or a bidi control, which
@@ -258,7 +259,15 @@ The realistic risks:
   does not read the mod.
 - **A dependency.** The renderers import Node built-in modules only, so there is
   no dependency tree to poison. That is true now, not a promise about later.
-  `scripts/check.mjs` fails on a `package.json` or a lockfile.
+  `scripts/check.mjs` fails on a lockfile and on any `package.json` except a
+  root one holding only an `athanor` key, which athanor reads to run the check
+  in a container. That file carries no dependency, script or other key, and
+  its build folder is held to `tests/container/` with no `inputs` and no
+  symbolic link there, because the image build has network access. The check
+  also refuses a root `binding.gyp`. That hold runs inside the check, after
+  athanor has built the image from the branch, so it protects what merges and
+  not a run on a branch nobody has read: there, reading `tests/container/` and
+  the `athanor` key is the guard.
 - **An API key in the environment.** The edge audit reads one and sends it as a
   bearer token. Review any change to `skills/eagle-eye/audit.mjs`, its
   endpoints, or how it picks a key as a change that could send a key elsewhere.
