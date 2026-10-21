@@ -42,8 +42,14 @@ const started = atom({ plugin: 'grimoire', key: 'start' } as const, { sessionId:
 let memory = newUsageMemory()
 let flight = newFlight()
 let stopped = false
-// The session id the memory belongs to, from the engine's session start.
+// The session id the memory belongs to, from the engine's session start and
+// from the id reads below.
 let sessionOf: string | undefined
+// The id reads the step hook starts, numbered in the order started. Only the
+// latest-started read that has answered counts, so a slow older answer cannot
+// put the writer back on a session it has left.
+let readsStarted = 0
+let readAnswered = 0
 
 // The module's clock: the engine clock's epoch, read once and never awaited
 // on a step's path, carried on by `performance.now()`. Until the epoch
@@ -72,8 +78,22 @@ const now = (): number => Math.round(epoch === undefined ? Date.now() : epoch.en
 // roster uses (`dataPlace`). Undefined when no config folder can be named.
 async function locate($: EngineInterface): Promise<{ config: string; plugin: string; id: string } | undefined> {
   const id = await $.session.id()
-  const { config, plugin } = dataPlace($.plugin.root, $.plugin.name, await read($, started), id)
+  const { config, plugin } = dataPlace($.plugin.root, $.plugin.name, await read($, started))
   return config === undefined ? undefined : { config, plugin, id }
+}
+
+// Starts a read of the session id and does not wait for it, so a clear or a
+// resume is seen without `classic.SessionStart`. A rejected read is ignored.
+function followSession($: EngineInterface) {
+  const n = ++readsStarted
+  $.session.id().then(
+    id => {
+      if (n < readAnswered) return
+      readAnswered = n
+      writerSession(id)
+    },
+    () => undefined,
+  )
 }
 
 // One resolving `stat` for the path rule, a rejection sorted into missing or
@@ -139,6 +159,10 @@ async function writeOnce($: EngineInterface) {
     const text = placed.existing.size <= MAX_SUMMARY_BYTES ? String(await $.fs.read(placed.file)) : undefined
     if (!isSummaryFile(placed.existing.size, text)) return refuse($, 'file')
   }
+  // The id again, just before the numbers are taken: a clear while the checks
+  // waited moves it, and this write is skipped.
+  const again = await $.session.id()
+  if (again !== at.id) return writerSession(again)
   const summary = summaryFrom(memory, now())
   if (summary === undefined || stopped || sessionOf !== owner) return
   const text = serializeSummary(summary)
@@ -160,10 +184,11 @@ export function writerEpoch(engine: number, perf: number) {
   if (epoch === undefined && Number.isFinite(engine) && Number.isFinite(perf)) epoch = { engine, perf }
 }
 
-/** For register.tsx's `session.start` and `classic.SessionStart` hooks: the
- *  session id the memory belongs to. A module load names it first, so a clear
- *  or a resume after a reload is seen as one; a new id starts the series over,
- *  the old file left behind. Never throws. */
+/** For register.tsx's `session.start` and `classic.SessionStart` hooks, and
+ *  for the id reads the step hook starts: the session id the memory belongs
+ *  to. A module load names it first, so a clear or a resume after a reload is
+ *  seen as one; a new id starts the series over, the old file left behind.
+ *  Never throws. */
 export function writerSession(sessionId: unknown) {
   if (typeof sessionId !== 'string') return
   if (sessionOf !== undefined && sessionOf !== sessionId) memory = newUsageMemory()
@@ -174,9 +199,15 @@ export function writerSession(sessionId: unknown) {
  *  a module, so the session start's work is register.tsx's to call:
  *  `writerEpoch` and `writerSession`. */
 export function registerWriter(on: On) {
-  // The step is passed on first. Everything after it sits in one catch, and
-  // the registration's own catch passes the step through unchanged.
+  // The step starts its id read, then is passed on. Everything after it sits
+  // in one catch, and the registration's own catch passes the step through
+  // unchanged.
   on('turn.step', async function* ($, e, next) {
+    try {
+      followSession($)
+    } catch {
+      // The step goes on unchanged.
+    }
     const r = yield* next(e)
     try {
       if (!stopped) {

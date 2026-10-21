@@ -470,13 +470,31 @@ export function dataFolder(config: string, id: string): string {
   return `${config}${sep}plugins${sep}data${sep}${id}`
 }
 
+/** The config folder above Desktop's synced install of this plugin:
+ *  <config>/plugins/synced/<one folder>/<name>, or the name with `~g` and
+ *  digits after it. Exactly one folder sits between `synced` and the plugin's
+ *  folder, which is the last part of the root. It names a config folder only,
+ *  never a marketplace. */
+export function configFromSynced(root: string, name: string): string | undefined {
+  const m = /^(.+)[\\/]plugins[\\/]synced[\\/][^\\/]+[\\/]([^\\/]+)$/.exec(root)
+  if (m === null) return undefined
+  const tail = m[2].startsWith(`${name}~g`) ? m[2].slice(name.length + 2) : undefined
+  return m[2] === name || (tail !== undefined && /^\d+$/.test(tail)) ? m[1] : undefined
+}
+
 /** The config folder and the plugin's data id for this session, by one rule
- *  the roster and the usage summary writer share: the config folder from
- *  where the plugin was installed, else from the transcript path the engine
- *  reported at this session's start, when that record is this session's;
- *  `config` is undefined with neither. */
-export function dataPlace(root: string, name: string, start: { sessionId: string; transcript: string }, sessionId: string): { config: string | undefined; plugin: string } {
-  const config = configFromRoot(root) ?? (start.sessionId === sessionId ? configFromTranscript(start.transcript, sessionId) : undefined)
+ *  the roster and the usage summary writer share, in order: the config folder
+ *  from where the plugin was installed; else from the transcript path the
+ *  engine reported at a session's start, whatever session that record holds
+ *  (a clear does not change the config folder), when its id is of the
+ *  engine's shape, both fields are text and the transcript's file name is its
+ *  own id; else from Desktop's synced install folder. `config` is undefined
+ *  with none. The data id never takes a marketplace from the synced form. */
+export function dataPlace(root: string, name: string, start: { sessionId: string; transcript: string }): { config: string | undefined; plugin: string } {
+  const config =
+    configFromRoot(root) ??
+    (typeof start.sessionId === 'string' && typeof start.transcript === 'string' ? configFromTranscript(start.transcript, start.sessionId) : undefined) ??
+    configFromSynced(root, name)
   return { config, plugin: dataId(name, marketplaceFromRoot(root)) }
 }
 

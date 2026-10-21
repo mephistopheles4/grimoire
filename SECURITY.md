@@ -71,9 +71,9 @@ through a tool the model calls, `set_roster`, which skips Claude Code's
 permission prompt. So that write has no human and no classifier review; every
 call is still recorded in the transcript as the tool's result. The tool exists
 only once the owner runs `/brigade`, writes only while the pane is open, and
-refuses a subagent's call, a deny verdict, an owner's ask rule, plan and
-don't-ask modes as far as the session has reported its mode, any input outside
-the roster's shape and size, and any link on the way to the file. A deny rule for `mcp__grimoire__set_roster` removes it
+refuses a subagent's call, a deny verdict, an owner's ask rule, any input
+outside the roster's shape and size, and any link on the way to the file. It
+writes in every permission mode. A deny rule for `mcp__grimoire__set_roster` removes it
 from the session; the owner's own hooks do not stop it. The second tool,
 `show_permission_warning`, is offered in every session from its start, so the
 head chef can call it before its first launch with or without the pane. It

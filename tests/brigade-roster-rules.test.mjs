@@ -532,14 +532,47 @@ test('the roster path is unchanged by the generalized rule: it never walks into 
 test('dataPlace: the config folder from the install path, else from this session\'s own start record', () => {
   const { dataPlace } = roster;
   const start = { sessionId: SID, transcript: `C:\\cfg\\.claude\\projects\\C--work\\${SID}.jsonl` };
-  assert.deepEqual(dataPlace('C:\\cfg\\.claude\\plugins\\cache\\market\\grimoire\\0.60.0', 'grimoire', start, SID), { config: 'C:\\cfg\\.claude', plugin: 'grimoire-market' });
+  assert.deepEqual(dataPlace('C:\\cfg\\.claude\\plugins\\cache\\market\\grimoire\\0.60.0', 'grimoire', start), { config: 'C:\\cfg\\.claude', plugin: 'grimoire-market' });
   // The install path comes first: a start record under another config folder does not move it.
   const elsewhere = { sessionId: SID, transcript: `D:\\other\\.claude\\projects\\C--work\\${SID}.jsonl` };
-  assert.deepEqual(dataPlace('C:\\cfg\\.claude\\plugins\\cache\\market\\grimoire\\0.60.0', 'grimoire', elsewhere, SID), { config: 'C:\\cfg\\.claude', plugin: 'grimoire-market' });
-  assert.deepEqual(dataPlace('C:\\work\\grimoire', 'grimoire', elsewhere, SID), { config: 'D:\\other\\.claude', plugin: 'grimoire-inline' });
-  assert.deepEqual(dataPlace('C:\\work\\grimoire', 'grimoire', start, SID), { config: 'C:\\cfg\\.claude', plugin: 'grimoire-inline' });
-  // A start record of another session names nothing.
-  assert.deepEqual(dataPlace('C:\\work\\grimoire', 'grimoire', { ...start, sessionId: '99999999-8888-7777-6666-555555555555' }, SID), { config: undefined, plugin: 'grimoire-inline' });
+  assert.deepEqual(dataPlace('C:\\cfg\\.claude\\plugins\\cache\\market\\grimoire\\0.60.0', 'grimoire', elsewhere), { config: 'C:\\cfg\\.claude', plugin: 'grimoire-market' });
+  assert.deepEqual(dataPlace('C:\\work\\grimoire', 'grimoire', elsewhere), { config: 'D:\\other\\.claude', plugin: 'grimoire-inline' });
+  assert.deepEqual(dataPlace('C:\\work\\grimoire', 'grimoire', start), { config: 'C:\\cfg\\.claude', plugin: 'grimoire-inline' });
+});
+
+test('dataPlace: Desktop\'s synced install folder names the config folder, after the install path and the start record', () => {
+  const { dataPlace } = roster;
+  const none = { sessionId: '', transcript: '' };
+  const want = { config: 'C:\\cfg\\.claude', plugin: 'grimoire-inline' };
+  assert.deepEqual(dataPlace('C:\\cfg\\.claude\\plugins\\synced\\abc123\\grimoire~g2', 'grimoire', none), want);
+  assert.deepEqual(dataPlace('C:\\cfg\\.claude\\plugins\\synced\\abc123\\grimoire', 'grimoire', none), want);
+  assert.deepEqual(dataPlace('/cfg/.claude/plugins/synced/abc123/grimoire~g12', 'grimoire', none), { config: '/cfg/.claude', plugin: 'grimoire-inline' });
+  // Two folders between synced and the plugin, another plugin's name, or nothing after the id folder: no config folder.
+  assert.equal(dataPlace('C:\\cfg\\.claude\\plugins\\synced\\a\\b\\grimoire', 'grimoire', none).config, undefined);
+  assert.equal(dataPlace('C:\\cfg\\.claude\\plugins\\synced\\abc123\\other', 'grimoire', none).config, undefined);
+  assert.equal(dataPlace('C:\\cfg\\.claude\\plugins\\synced\\abc123', 'grimoire', none).config, undefined);
+  assert.equal(dataPlace('C:\\cfg\\.claude\\plugins\\synced\\abc123\\grimoire\\sub', 'grimoire', none).config, undefined);
+  assert.equal(dataPlace('C:\\cfg\\.claude\\plugins\\synced\\abc123\\grimoire~gx', 'grimoire', none).config, undefined);
+  // The start record wins over the synced form.
+  const start = { sessionId: SID, transcript: `D:\\other\\.claude\\projects\\C--work\\${SID}.jsonl` };
+  assert.deepEqual(dataPlace('C:\\cfg\\.claude\\plugins\\synced\\abc123\\grimoire', 'grimoire', start), { config: 'D:\\other\\.claude', plugin: 'grimoire-inline' });
+  // The install path wins over both.
+  assert.equal(dataPlace('C:\\cfg\\.claude\\plugins\\cache\\market\\grimoire\\0.60.0', 'grimoire', start).config, 'C:\\cfg\\.claude');
+});
+
+test('dataPlace: a start record of another session still names its config folder; a bad record names none', () => {
+  const { dataPlace } = roster;
+  const OTHER = '99999999-8888-7777-6666-555555555555';
+  const root = 'C:\\work\\grimoire';
+  const good = { sessionId: OTHER, transcript: `C:\\cfg\\.claude\\projects\\C--work\\${OTHER}.jsonl` };
+  assert.deepEqual(dataPlace(root, 'grimoire', good), { config: 'C:\\cfg\\.claude', plugin: 'grimoire-inline' });
+  // The file name does not match the record's own id.
+  assert.equal(dataPlace(root, 'grimoire', { ...good, transcript: `C:\\cfg\\.claude\\projects\\C--work\\${SID}.jsonl` }).config, undefined);
+  // The id is off the engine's shape.
+  assert.equal(dataPlace(root, 'grimoire', { sessionId: 'x', transcript: 'C:\\cfg\\.claude\\projects\\C--work\\x.jsonl' }).config, undefined);
+  // The fields are not text.
+  assert.equal(dataPlace(root, 'grimoire', { sessionId: OTHER, transcript: 5 }).config, undefined);
+  assert.equal(dataPlace(root, 'grimoire', { sessionId: 7, transcript: good.transcript }).config, undefined);
 });
 
 // --- issue 339: the card's PR fields, the stamp and the gh answer ------------------
