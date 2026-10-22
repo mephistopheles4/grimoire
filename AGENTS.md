@@ -3,9 +3,9 @@
 Before you patch anything, read [`CONTRIBUTING.md`](CONTRIBUTING.md) — it is the
 contract for any patch.
 
-Run the repo's checks with `athanor run check`. Read
-[Run the check in a container](CONTRIBUTING.md#run-the-check-in-a-container)
-first: it says how to install athanor and run it safely.
+Read [Run the check in a container](CONTRIBUTING.md#run-the-check-in-a-container)
+first, for how to install athanor and when it is safe to run, then run the
+check with `athanor run check` by default.
 
 ## Three directories are called `scripts/`
 

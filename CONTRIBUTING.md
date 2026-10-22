@@ -48,12 +48,13 @@ mod's TypeScript modules as they are, which Node 24 does by default.
 
 ## Run the check in a container
 
-`node scripts/check.mjs` stays the one command, and CI runs it. Where
-athanor is installed, and on a branch you wrote or whose container files you
-have read (see the last bullet), it is the preferred way to run it: athanor runs
+`node scripts/check.mjs` stays the one command, and CI runs it. On your own
+machine, athanor is the default way to run it, on a branch you wrote or whose
+container files you have read (see the last bullet): athanor runs
 the check in a fresh Linux container with no network, and caps how many runs go at once on the machine, so several
 sessions can check without breaking each other through files, ports or
-temporary folders. It is optional. Nothing here requires it.
+temporary folders. Where `athanor` is not on your PATH, or produces no result, run
+`node scripts/check.mjs` on the host instead.
 
 The root `package.json` holds only the `athanor` key, because athanor reads its
 configuration from nowhere else. It names the Dockerfile in `tests/container/`,
