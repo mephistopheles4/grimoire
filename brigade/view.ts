@@ -2358,7 +2358,8 @@ export async function readCalls(
       slots.push({ warmth: { name, kind: 'too-large' } })
       continue
     }
-    slots.push({ name, working: isWorking(row.status), path: found.path, mtimeMs: found.mtimeMs })
+    // One session on two rows is working when either row says so.
+    slots.push({ name, working: list.some(r => isWorking(r.status)), path: found.path, mtimeMs: found.mtimeMs })
   }
 
   // Which transcripts to read: every changed one of an idle member, and of
