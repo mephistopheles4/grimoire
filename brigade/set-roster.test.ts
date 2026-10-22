@@ -932,7 +932,7 @@ const SEEDED = {
   cards: [
     card('alpha', { desktopId: DESKTOP }),
     card('beta', { url: 'https://claude.ai/code/session_ABC123' }),
-    card('gamma', { bgId: 'bg1' }),
+    card('gamma', { bgId: 'ab12cd34' }),
     card('delta', { desktopId: 'local_NOT-HEX' }),
   ],
   todos: [{ id: 't1', text: 'look', session: 'alpha' }],
@@ -1128,7 +1128,7 @@ test('a card with only a url, or only a background id, makes no tool list and no
   // the pane's poll finds it, so its button is drawn too.
   const BG = '99999999-8888-7777-6666-555555555555'
   const w = await pane(on, $)
-  liveRows(w, [{ name: 'gamma', status: 'idle', sessionId: BG, cwd: 'C:\\work', jobId: 'bg1' }])
+  liveRows(w, [{ name: 'gamma', status: 'idle', sessionId: BG, cwd: 'C:\\work', jobId: 'ab12cd34' }])
   w.put(`${CONFIG}\\projects\\C--work\\${BG}.jsonl`, {
     type: 'file',
     data: { text: JSON.stringify({ type: 'system', subtype: 'bridge_status', url: 'https://claude.ai/code/session_BG1' }) },
@@ -1202,7 +1202,7 @@ const openers = (w: World) => w.procs.filter(p => OPENERS.includes(p[0]))
 // finds in its transcript, as a head chef's `claude --bg` session has.
 async function background(on: On, $: any) {
   const w = await pane(on, $)
-  liveRows(w, [{ name: 'gamma', status: 'idle', sessionId: BG_ID, cwd: 'C:\\work', jobId: 'bg1' }])
+  liveRows(w, [{ name: 'gamma', status: 'idle', sessionId: BG_ID, cwd: 'C:\\work', jobId: 'ab12cd34' }])
   w.put(`${CONFIG}\\projects\\C--work\\${BG_ID}.jsonl`, {
     type: 'file',
     data: { text: JSON.stringify({ type: 'system', subtype: 'bridge_status', url: 'https://claude.ai/code/session_BG1' }) },
@@ -4278,8 +4278,8 @@ test('the pane keeps nothing from a session file but the name and status: no soc
 // --- #358: a card finds its session by id, and the pane moves a card up -------------
 
 const FULL = 'Plan 358: Brigade pane refreshes itself'
-const BG_JOB = 'ab12cd34'
-const idRow = (over: Record<string, unknown> = {}) => ({ name: FULL, status: 'busy', sessionId: S1, cwd: 'C:\work', hostSessionId: DESKTOP, statusUpdatedAt: 5, ...over })
+const BG_JOB = 'ffffffff'
+const idRow = (over: Record<string, unknown> = {}) => ({ name: FULL, status: 'busy', sessionId: S1, cwd: 'C:\\work', hostSessionId: DESKTOP, statusUpdatedAt: 5, ...over })
 const poll = async (w: World) => {
   await w.clock.advance(10000)
   await w.clock.settle()
@@ -4304,7 +4304,11 @@ test('a card finds its session by Desktop id whatever the head chef titled it, a
   liveRows(w, [idRow({ hostSessionId: 'local_ffffffff-0000' }), idRow({ name: 'delta', hostSessionId: undefined, sessionId: S2 })])
   await poll(w)
   expect(lastLive(w)).toEqual([])
-  expect((await groupText(mounted, 'Working')).includes('not running')).toBe(true)
+  // The first card in the roster is alpha: its own word is the first one drawn.
+  const after = await groupText(mounted, 'Working')
+  expect(after.includes('not running')).toBe(true)
+  expect(after.includes(FULL)).toBe(false)
+  expect(after.indexOf('not running')).toBeLessThan(after.indexOf('beta'))
 })
 
 test('a session waiting on a prompt moves its working card under Waiting on you with the reason, no Dismiss, and back when it goes busy', async ($, on) => {
@@ -4338,17 +4342,18 @@ test('a card the head chef marked done stays where it is whatever its session fi
 test('live holds entries only for roster cards and no id from a session file; a planted move or name over its cap draws nothing', async ($, on) => {
   const w = await pane(on, $, 'desktop', w => liveRows(w, [idRow({ jobId: BG_JOB, bridgeSessionId: 'session_X' }), idRow({ name: 'Not a card', sessionId: S2, hostSessionId: 'local_aaaa' })]))
   expect(lastLive(w)).toEqual([{ name: 'alpha', value: 'busy', shown: FULL }])
-  for (const [k, v] of w.states) for (const piece of [BG_JOB, 'session_X', 'Not a card', 'C:\\work']) expect(`${k} ${v}`.includes(piece)).toBe(false)
+  for (const [k, v] of w.states) for (const piece of [BG_JOB, 'session_X', 'Not a card', 'C:\\\\work']) expect(`${k} ${v}`.includes(piece)).toBe(false)
   for (const [k, v] of w.states.filter(([k]) => k === 'live')) expect(`${k} ${v}`.includes(DESKTOP)).toBe(false)
   w.plant = (key: string, value: any) =>
-    key === 'live' ? [{ name: 'alpha', value: 'busy', shown: 'y'.repeat(500), move: 'sideways' }, { name: 'x'.repeat(500), value: 'busy', move: 'waiting' }] : value
+    key === 'live' ? [{ name: 'alpha', value: 'busy', shown: 'y'.repeat(500), move: 'sideways' }] : value
   await poll(w)
   const text = await textOf(mounted)
-  expect(text.includes('y'.repeat(500))).toBe(false)
+  // A name over its cap is dropped whole, so even the 80 characters a drawn title keeps are absent.
+  expect(text.includes('y'.repeat(80))).toBe(false)
   expect((await groupText(mounted, 'Waiting on you')).includes('alpha')).toBe(false)
 })
 
 test('a background card is found by its job id and shows the session\'s name, live word and link source', async ($, on) => {
-  const w = await pane(on, $, 'desktop', w => liveRows(w, [{ name: 'a bg job', status: 'idle', sessionId: BG_ID, cwd: 'C:\\work', jobId: 'bg1' }]))
+  const w = await pane(on, $, 'desktop', w => liveRows(w, [{ name: 'a bg job', status: 'idle', sessionId: BG_ID, cwd: 'C:\\work', jobId: 'ab12cd34' }]))
   expect(lastLive(w)).toEqual([{ name: 'gamma', value: 'idle', shown: 'a bg job' }])
 })

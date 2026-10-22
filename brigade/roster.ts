@@ -537,7 +537,8 @@ export type SessionRow = {
 // The shapes the fields keep: a Desktop id as the link route takes it, a job
 // id of letters, digits and dashes, and fixed words for the rest.
 const HOST_ID = /^local_[0-9a-f-]{1,80}$/
-const JOB_ID = /^[A-Za-z0-9-]{1,80}$/
+// The job id as the engine writes it (probed on 2.1.302): 8 hex digits.
+const JOB_ID = /^[0-9a-f]{8}$/
 const JOB_STATES: ReadonlySet<string> = new Set(['working', 'blocked', 'done', 'failed', 'stopped'])
 const WAITING_REASONS: ReadonlySet<string> = new Set(['permission prompt', 'input needed', 'sandbox request', 'worker request', 'goal proposal', 'dialog open'])
 
@@ -571,37 +572,39 @@ export function sessionRow(text: string): SessionRow | undefined {
   return row
 }
 
-/** Each card's row at one poll, by card title: a card with a Desktop id takes
+/** A group the poll moves a card to. */
+export type Move = 'waiting' | 'finished'
+
+/** Each card's rows at one poll, by card title: a card with a Desktop id takes
  *  the one row holding it, and falls back to its title only when no file
  *  carries any Desktop id; else a card with a bg id takes the row with that
  *  job id; else the card matches by title. Two rows with one id: the later
- *  update time wins, one with a time beats one without, and with no time on
- *  either the card is unmatched, as two sessions sharing a name are. A card
- *  with no row has no entry. */
-export function matchRows(cards: readonly Card[], rows: readonly SessionRow[]): Map<string, SessionRow> {
-  const out = new Map<string, SessionRow>()
+ *  update time wins and one with a time beats one without. A card with
+ *  several rows left (two sessions sharing a name, or sharing an id with no
+ *  usable time) gets all of them, as the title match always did, so the poll
+ *  draws it as shared. A card with no row has no entry. */
+export function matchRows(cards: readonly Card[], rows: readonly SessionRow[]): Map<string, SessionRow[]> {
+  const out = new Map<string, SessionRow[]>()
   const anyHost = rows.some(r => r.hostId !== undefined)
-  const byTitle = (title: string): SessionRow | undefined => {
-    const same = rows.filter(r => r.name === title)
-    return same.length === 1 ? same[0] : undefined
-  }
-  const byId = (same: readonly SessionRow[]): SessionRow | undefined => {
-    if (same.length <= 1) return same[0]
+  const byTitle = (title: string): SessionRow[] => rows.filter(r => r.name === title)
+  const byId = (same: SessionRow[]): SessionRow[] => {
+    if (same.length <= 1) return same
     const timed = same.filter(r => r.updatedAt !== undefined)
+    if (timed.length === 0) return same
     const best = Math.max(...timed.map(r => r.updatedAt ?? 0))
     const top = timed.filter(r => r.updatedAt === best)
-    return top.length === 1 ? top[0] : undefined
+    return top.length === 1 ? top : same
   }
   for (const c of cards) {
-    let row: SessionRow | undefined
+    let found: SessionRow[]
     if (c.desktopId !== undefined) {
-      row = anyHost ? byId(rows.filter(r => r.hostId === c.desktopId)) : byTitle(c.title)
+      found = anyHost ? byId(rows.filter(r => r.hostId === c.desktopId)) : byTitle(c.title)
     } else if (c.bgId !== undefined) {
-      row = byId(rows.filter(r => r.jobId === c.bgId))
+      found = byId(rows.filter(r => r.jobId === c.bgId))
     } else {
-      row = byTitle(c.title)
+      found = byTitle(c.title)
     }
-    if (row !== undefined) out.set(c.title, row)
+    if (found.length > 0) out.set(c.title, found)
   }
   return out
 }
@@ -611,8 +614,10 @@ export function matchRows(cards: readonly Card[], rows: readonly SessionRow[]): 
  *  waiting on a prompt or input, or a background session that is blocked,
  *  moves it to `waiting`; a background session that is done, failed or
  *  stopped moves it to `finished`. The head chef's needs-you, done and
- *  stopped always hold. A state counts only for a background row. */
-export function rowMove(status: string, row: SessionRow | undefined): 'waiting' | 'finished' | undefined {
+ *  stopped always hold. A state counts only for a background row. On
+ *  Claude Code 2.1.302 a background session's file carries no `state`, so
+ *  the `finished` move waits on an engine that writes it. */
+export function rowMove(status: string, row: SessionRow | undefined): Move | undefined {
   if (status !== 'working' || row === undefined) return undefined
   if (row.jobId !== undefined && row.jobState !== undefined) {
     if (row.jobState === 'blocked') return 'waiting'

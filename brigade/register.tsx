@@ -48,6 +48,7 @@ import {
   GROUP_HINTS,
   GROUP_KEYS,
   GROUP_NAMES,
+  MAX_NAME,
   MAX_PICKED,
   MAX_TRANSCRIPT_BYTES,
   SESSIONS_UNREAD,
@@ -72,6 +73,7 @@ import {
   groupCards,
   liveFrom,
   movedLook,
+  movesFrom,
   hairlineSvg,
   idsFrom,
   isReason,
@@ -349,16 +351,17 @@ async function pollLive($: EngineInterface, open: () => boolean) {
     if (!open()) return
     const rows = files?.rows ?? []
     // Each roster card finds its session by id (a title only when it has no
-    // id), and only the cards' entries are kept: the live word, the session's
-    // own name and the group the card moves to. No id is stored.
+    // id, or when no session file carries a Desktop id), and only the cards'
+    // entries are kept: the live word, the session's own name and the group
+    // the card moves to. No id is stored. A card two sessions share keeps an
+    // entry per session and no move.
     const cards = (await read($, roster)).cards
     const matched = matchRows(cards, rows)
     await update($, live, () =>
       cards.flatMap(c => {
-        const row = matched.get(c.title)
-        if (row === undefined) return []
-        const move = rowMove(c.status, row)
-        return [{ name: c.title, value: liveWord(row), shown: oneLine(row.name, 300), ...(move === undefined ? {} : { move }) }]
+        const own = matched.get(c.title) ?? []
+        const move = own.length === 1 ? rowMove(c.status, own[0]) : undefined
+        return own.map(row => ({ name: c.title, value: liveWord(row), shown: oneLine(row.name, MAX_NAME), ...(move === undefined ? {} : { move }) }))
       }),
     )
     await update($, liveError, () => (files?.complete === true ? '' : SESSIONS_UNREAD))
@@ -374,11 +377,8 @@ async function pollLive($: EngineInterface, open: () => boolean) {
       // its transcript's call series, found by the transcript finder. The
       // rules for what is found and read, and when, are in view.ts.
       // The matched rows are handed over under their card's title.
-      const named = cards.flatMap(c => {
-        const row = matched.get(c.title)
-        return row === undefined ? [] : [{ ...row, name: c.title }]
-      })
-      const found = await readCalls(named, cards.map(c => c.title), config, memory, io, finder, { plugin: at.plugin, held: summaries })
+      const retitled = cards.flatMap(c => (matched.get(c.title) ?? []).map(row => ({ ...row, name: c.title })))
+      const found = await readCalls(retitled, cards.map(c => c.title), config, memory, io, finder, { plugin: at.plugin, held: summaries })
       if (found === undefined || !open()) return
       await update($, warmth, () => found.warmth)
       await update($, meters, () => found.meters)
@@ -427,7 +427,7 @@ async function pollLive($: EngineInterface, open: () => boolean) {
 // The groups the last poll moved cards to, by card title, read through the
 // checked live entries.
 async function movesOf($: EngineInterface): Promise<Moves> {
-  return new Map(liveFrom(await read($, live)).flatMap(l => (l.move === undefined ? [] : [[l.name, l.move] as const])))
+  return movesFrom(liveFrom(await read($, live)))
 }
 
 // --- the PR details --------------------------------------------------------
@@ -1196,8 +1196,8 @@ export const register: Register = on => {
     const hidden = new Set(await read($, dismissed))
     const liveList = liveFrom(await read($, live))
     const running = lookup(liveList)
-    const named = new Map(liveList.flatMap(l => (l.shown === undefined ? [] : [[l.name, l.shown] as const])))
-    const moves: Moves = new Map(liveList.flatMap(l => (l.move === undefined ? [] : [[l.name, l.move] as const])))
+    const sessionName = new Map(liveList.flatMap(l => (l.shown === undefined ? [] : [[l.name, l.shown] as const])))
+    const moves = movesFrom(liveList)
     const found = lookup(await read($, links))
     const warm = new Map(warmthFrom(await read($, warmth)).map(w => [w.name, w]))
     const meterOf = new Map(metersFrom(await read($, meters)).map(m => [m.name, m]))
@@ -1211,7 +1211,7 @@ export const register: Register = on => {
     const ticks = await read($, ticking)
     const crossed = new Set(ticksFrom(ticks).map(p => p.name))
     // A matched card is known by the session's own name, a report's sender too.
-    const last = (title: string) => [...inbox].reverse().find(r => r.from === drawnTitle(named.get(title) ?? title))
+    const last = (title: string) => [...inbox].reverse().find(r => r.from === drawnTitle(sessionName.get(title) ?? title))
     // The chosen view, the selection and the folds, each checked again.
     const view = viewFrom(await read($, viewAtom))
     const picks = new Set(pickedFrom(await read($, picked)))
@@ -1471,7 +1471,7 @@ export const register: Register = on => {
                 </Box>
                 <Box flexGrow={1} flexShrink={1} minWidth={0}>
                   <Text weight={needs ? 'bold' : 'semibold'} wrap="truncate-end">
-                    {oneLine(named.get(c.title) ?? c.title, 80)}
+                    {oneLine(sessionName.get(c.title) ?? c.title, 80)}
                   </Text>
                 </Box>
                 {actions}
@@ -1829,7 +1829,7 @@ export const register: Register = on => {
                 row apart with no hairline and a row below its bar, as the
                 prototype draws them. Each bar counts the reports its
                 cards sent, so a fold never hides one without a sign. */}
-            {groupHead('waiting', waiting, reportNote(reportCount(needsYou.map(({ c }) => named.get(c.title) ?? c.title), inbox)))}
+            {groupHead('waiting', waiting, reportNote(reportCount(needsYou.map(({ c }) => sessionName.get(c.title) ?? c.title), inbox)))}
             {!folds.has('waiting') &&
               (needsYou.length + open.length > 0 ? (
                 terminal ? (
@@ -1843,9 +1843,9 @@ export const register: Register = on => {
               ) : (
                 hint('waiting')
               ))}
-            {groupHead('working', working.length, reportNote(reportCount(working.map(({ c }) => named.get(c.title) ?? c.title), inbox)))}
+            {groupHead('working', working.length, reportNote(reportCount(working.map(({ c }) => sessionName.get(c.title) ?? c.title), inbox)))}
             {!folds.has('working') && (working.length > 0 ? rows(working.map(card), 'working') : hint('working'))}
-            {groupHead('finished', finished.length, reportNote(reportCount(finished.map(({ c }) => named.get(c.title) ?? c.title), inbox)))}
+            {groupHead('finished', finished.length, reportNote(reportCount(finished.map(({ c }) => sessionName.get(c.title) ?? c.title), inbox)))}
             {!folds.has('finished') && (finished.length > 0 ? rows(finished.map(card), 'finished') : hint('finished'))}
             {inbox.length === 0 && (
               <Box marginTop={1}>
