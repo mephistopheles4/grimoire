@@ -259,6 +259,11 @@ sessions you started, each one's issue, stage and state, and the to-dos.
 Nothing else is recorded. Write the roster and its to-dos in the same step as
 each act you take: a start, a report taken, a decision sent, a cleanup. Never
 leave it for later.
+
+Give each card its session's Desktop id, and never a background job id. The
+pane finds the session by the Desktop id and draws the session's own name; it
+falls back to the card's title only when no session file carries a Desktop id,
+so keep the title equal to the session's name, exactly.
 <!-- contract:end tools -->
 
 <!-- contract:begin rules -->

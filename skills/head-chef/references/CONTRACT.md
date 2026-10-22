@@ -1,6 +1,6 @@
 # Contract: head-chef
 
-Version: 0.9.0
+Version: 0.10.0
 Kind: skill
 Level: Thorough
 
@@ -151,6 +151,11 @@ need, without overwhelming me or showing me too much.
 - **Decided.** It writes the Brigade pane's roster and its to-dos in the same
   step as each act it takes (a start, a report taken, a decision sent, a
   cleanup), never later, while the pane is open.
+- **Decided.** Each card carries its session's Desktop id, and never a
+  background job id. The pane finds the session by the Desktop id and draws
+  the session's own name; it falls back to the card's title only when no
+  session file carries a Desktop id, so the title stays the session's name,
+  exactly.
 
 **Automatic checks:** none listed (**Decided**: the owner removed this list).
 

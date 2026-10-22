@@ -33,18 +33,22 @@ the file itself.
 ```
 
 - A card's `title` is the session's name, exactly. The pane finds a card's
-  live state and its reports by that name.
+  session by its `desktopId` and draws that session's own name on the card,
+  so a rename does not lose it. It falls back to the title only when no
+  session file carries a Desktop id, so keep the title equal to the name.
 - `status` is one of `working`, `needs-you`, `done` or `stopped`.
 - `desktopId` is the Desktop id you kept from the start tool's result. It is
-  the one id a card carries, because the pane's Open in app needs it. A value
-  read back from the pane is never a source for it.
+  the one id a card carries: the pane finds the session by it, and its Open
+  in app needs it. A value read back from the pane is never a source for it.
+- The pane also reads a `bgId`, a background session's job id, from a card.
+  You start only Desktop sessions, so never write `bgId`.
 - `pr` and `prState` are the session's pull request, once it has one: its
   number, and `open`, `merged` or `closed`. The pane shows them as a pill.
 - `url` is a Remote Control session's claude.ai link. A Desktop session's card
   carries `desktopId` instead, so leave `url` out.
 - Caps: a title at most 80 characters; `work`, `phase` and `settings` at
-  most 300; `desktopId` and `url` at most 100. A to-do's `id` at most 40, its
-  `text` at most 300, its `session` at most 80. At most 50 cards and 50
+  most 300; `desktopId` and `url` at most 100. A to-do's `id` at
+  most 40, its `text` at most 300, its `session` at most 80. At most 50 cards and 50
   to-dos. No other field, no title twice, no to-do id twice.
 - No session id, and no question, decision or note text, goes on a card or a
   to-do. Other plugins can read the pane's file.
