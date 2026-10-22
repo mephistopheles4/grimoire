@@ -151,10 +151,11 @@ need, without overwhelming me or showing me too much.
 - **Decided.** It writes the Brigade pane's roster and its to-dos in the same
   step as each act it takes (a start, a report taken, a decision sent, a
   cleanup), never later, while the pane is open.
-- **Decided.** Each card carries its session's Desktop id, or a background
-  session's job id, and the pane finds the session by that id and draws the
-  session's own name. Only a card with neither id is found by its title,
-  which must then be the session's name, exactly.
+- **Decided.** Each card carries its session's Desktop id, and never a
+  background job id. The pane finds the session by the Desktop id and draws
+  the session's own name; it falls back to the card's title only when no
+  session file carries a Desktop id, so the title stays the session's name,
+  exactly.
 
 **Automatic checks:** none listed (**Decided**: the owner removed this list).
 
@@ -233,8 +234,7 @@ yes keeps for the owner.
 - **Decided.** No session id, Desktop id, token, secret, local path or error
   text goes on an issue, a card, a to-do or a start prompt. The one
   exception: a roster card carries its session's Desktop id, which the pane's
-  Open in app needs, or a background session's job id, by which the pane
-  finds it.
+  Open in app needs.
 - **Decided.** It runs the checks and the removals as separate calls. When a
   folder will not go, it tells the owner, and never deletes it another way.
 - **Confirmed.** It writes each session name itself, from letters, digits and
