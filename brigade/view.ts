@@ -761,7 +761,7 @@ export function movesFrom(list: readonly Live[]): Moves {
 export function movedLook(c: unknown, moves: Moves | undefined): StatusLook | undefined {
   if (moves === undefined || !isRecord(c) || c.status !== 'working' || typeof c.title !== 'string') return undefined
   const move = moves.get(c.title)
-  return move === 'waiting' ? STATUS.get('needs-you') : move === 'finished' ? STATUS.get('stopped') : undefined
+  return move === 'waiting' ? STATUS.get('needs-you') : undefined
 }
 
 /** A stored card's look when the pane shows it: a record with one of the four
@@ -1397,7 +1397,7 @@ export function liveFrom(stored: unknown): Live[] {
     if (typeof e.value !== 'string' || e.value.length > MAX_LIVE) continue
     const live: Live = { name: e.name, value: e.value }
     if (typeof e.shown === 'string' && e.shown !== '' && e.shown.length <= MAX_NAME) live.shown = e.shown
-    if (e.move === 'waiting' || e.move === 'finished') live.move = e.move
+    if (e.move === 'waiting') live.move = e.move
     out.push(live)
   }
   return out

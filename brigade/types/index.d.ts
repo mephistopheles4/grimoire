@@ -93,7 +93,7 @@ declare module 'claude-code' {
       files: Files
       roster: Roster
       rosterError: string
-      live: { name: string; value: string; shown?: string; move?: 'waiting' | 'finished' }[]
+      live: { name: string; value: string; shown?: string; move?: 'waiting' }[]
       liveError: string
       links: Pair[]
       reports: Report[]

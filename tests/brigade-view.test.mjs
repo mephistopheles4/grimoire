@@ -4584,10 +4584,10 @@ test('no sessions folder, one that is a link, a file or elsewhere, or a listing 
 const HOST = n => `local_${n}`;
 const fileRow = r => sessionRow(JSON.stringify({ sessionId: '11111111-2222-4333-8444-555555555555', name: 'S', ...r }));
 
-test('the session-row reader keeps the Desktop id, job id, state, waiting reason and update time apart from the status, each only in its shape', () => {
+test('the session-row reader keeps the Desktop id, job id, waiting reason and update time apart from the status, each only in its shape, and takes no background state', () => {
   const row = fileRow({ status: 'waiting', state: 'blocked', hostSessionId: HOST('ab-12'), jobId: 'ab12cd34', waitingFor: 'permission prompt', statusUpdatedAt: 5 });
   assert.equal(row.status, 'waiting');
-  assert.equal(row.jobState, 'blocked');
+  assert.equal(row.jobState, undefined);
   assert.equal(row.hostId, HOST('ab-12'));
   assert.equal(row.jobId, 'ab12cd34');
   assert.equal(row.waitingFor, 'permission prompt');
@@ -4658,18 +4658,15 @@ test('two rows with one Desktop id: the later update time wins, a usable time be
   assert.equal(pick([rowOf('x', { hostId: HOST('a1') }), rowOf('y', { hostId: HOST('a1') })]), 'x,y');
 });
 
-test('the group rule moves only a working card, toward the owner: waiting and blocked to Waiting on you, a background end to Done', () => {
+test('the group rule moves only a working card, toward the owner: only a waiting status moves it to Waiting on you', () => {
   const { rowMove } = roster;
   const w = status => rowMove('working', rowOf('r', { status }));
   assert.equal(w('waiting'), 'waiting');
   assert.equal(w('busy'), undefined);
   assert.equal(w('idle'), undefined);
-  assert.equal(rowMove('working', rowOf('r', { status: 'working', jobId: 'j', jobState: 'blocked' })), 'waiting');
-  for (const s of ['done', 'failed', 'stopped']) assert.equal(rowMove('working', rowOf('r', { jobId: 'j', jobState: s })), 'finished', s);
-  // A state without a job id is not a background row.
-  assert.equal(rowMove('working', rowOf('r', { jobState: 'done' })), undefined);
-  // The state beats the status.
-  assert.equal(rowMove('working', rowOf('r', { status: 'idle', jobId: 'j', jobState: 'blocked' })), 'waiting');
+  // A background row moves only by its status: a forged state in the file moves nothing.
+  const forged = sessionRow(JSON.stringify({ sessionId: '11111111-2222-4333-8444-555555555555', name: 'B', jobId: 'ab12cd34', status: 'idle', state: 'done' }));
+  assert.equal(rowMove('working', forged), undefined);
   // The head chef's other statuses always hold; no row holds too.
   for (const s of ['needs-you', 'done', 'stopped']) assert.equal(rowMove(s, rowOf('r', { status: 'waiting' })), undefined, s);
   assert.equal(rowMove('working', undefined), undefined);
@@ -4686,17 +4683,17 @@ test('the live word draws waiting with its reason, and shell as busy', () => {
 
 test('moves regroup working cards in the groups, the strip counts, the PR rows and the dismiss rule, and never touch the others', () => {
   const cards = [cardOf('a', 'working'), cardOf('b', 'working'), cardOf('c', 'done'), cardOf('d', 'needs-you'), cardOf('e', 'working')];
-  const moves = new Map([['a', 'waiting'], ['b', 'finished'], ['c', 'waiting'], ['d', 'finished']]);
+  const moves = new Map([['a', 'waiting'], ['b', 'waiting'], ['c', 'waiting'], ['d', 'waiting']]);
   const g = groupCards(cards, new Set(), moves);
-  assert.deepEqual(g.needsYou.map(p => p.c.title), ['a', 'd']);
+  assert.deepEqual(g.needsYou.map(p => p.c.title), ['a', 'b', 'd']);
   assert.deepEqual(g.working.map(p => p.c.title), ['e']);
-  assert.deepEqual(g.finished.map(p => p.c.title), ['b', 'c']);
+  assert.deepEqual(g.finished.map(p => p.c.title), ['c']);
   // Without moves, as today.
   assert.deepEqual(groupCards(cards, new Set()).needsYou.map(p => p.c.title), ['d']);
   // A moved-up card is never hidden by a dismiss.
-  assert.deepEqual(groupCards(cards, new Set(['a', 'b']), moves).needsYou.map(p => p.c.title), ['a', 'd']);
+  assert.deepEqual(groupCards(cards, new Set(['a', 'b']), moves).needsYou.map(p => p.c.title), ['a', 'b', 'd']);
   assert.deepEqual(groupCards(cards, new Set(['a', 'b']), moves).finished.map(p => p.c.title), ['c']);
-  assert.deepEqual(statusCounts(cards, new Set(), moves).map(e => [e.look.word, e.count]), [['needs you', 2], ['working', 1], ['done', 1], ['stopped', 1]]);
+  assert.deepEqual(statusCounts(cards, new Set(), moves).map(e => [e.look.word, e.count]), [['needs you', 3], ['working', 1], ['done', 1]]);
   assert.equal(statusStrip(cards, new Set(), moves).total, 5);
   const withPr = [{ ...cardOf('a', 'working'), pr: '5' }, { ...cardOf('b', 'working'), pr: '6' }];
   assert.equal(prRows(withPr, new Set(['b']), new Map(), 0, new Map([['b', 'waiting']])).open.length, 2);

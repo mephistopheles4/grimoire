@@ -519,8 +519,8 @@ export function rosterFile(data: string, sessionId: string): string {
 /** A running session, as far as the pane uses it: its name, its live state
  *  (`busy`, `idle`, `waiting`; a background session's `state` when it has no
  *  `status`), its session id and its folder. Besides those, for matching a
- *  card and for the groups only: the Desktop id, the job id, a background
- *  session's `state`, the waiting reason and the update time, each kept only
+ *  card and for the groups only: the Desktop id, the job id, the waiting
+ *  reason and the update time, each kept only
  *  in its fixed shape. None of them is ever stored. */
 export type SessionRow = {
   name: string
@@ -529,7 +529,6 @@ export type SessionRow = {
   cwd?: string
   hostId?: string
   jobId?: string
-  jobState?: string
   waitingFor?: string
   updatedAt?: number
 }
@@ -539,7 +538,6 @@ export type SessionRow = {
 const HOST_ID = /^local_[0-9a-f-]{1,80}$/
 // The job id as the engine writes it (probed on 2.1.302): 8 hex digits.
 const JOB_ID = /^[0-9a-f]{8}$/
-const JOB_STATES: ReadonlySet<string> = new Set(['working', 'blocked', 'done', 'failed', 'stopped'])
 const WAITING_REASONS: ReadonlySet<string> = new Set(['permission prompt', 'input needed', 'sandbox request', 'worker request', 'goal proposal', 'dialog open'])
 
 /** One of the engine's session files, `<config>/sessions/<pid>.json`, as a
@@ -566,14 +564,13 @@ export function sessionRow(text: string): SessionRow | undefined {
   if (typeof r.cwd === 'string' && r.cwd.length <= 1000) row.cwd = r.cwd
   if (typeof r.hostSessionId === 'string' && HOST_ID.test(r.hostSessionId)) row.hostId = r.hostSessionId
   if (typeof r.jobId === 'string' && JOB_ID.test(r.jobId)) row.jobId = r.jobId
-  if (typeof r.state === 'string' && JOB_STATES.has(r.state)) row.jobState = r.state
   if (typeof r.waitingFor === 'string' && WAITING_REASONS.has(r.waitingFor)) row.waitingFor = r.waitingFor
   if (typeof r.statusUpdatedAt === 'number' && Number.isFinite(r.statusUpdatedAt)) row.updatedAt = r.statusUpdatedAt
   return row
 }
 
 /** A group the poll moves a card to. */
-export type Move = 'waiting' | 'finished'
+export type Move = 'waiting'
 
 /** Each card's rows at one poll, by card title: a card with a Desktop id takes
  *  the one row holding it, and falls back to its title only when no file
@@ -613,19 +610,13 @@ export function matchRows(cards: readonly Card[], rows: readonly SessionRow[], n
 }
 
 /** Where the pane moves a card, or undefined for no move: only a card the
- *  head chef marked `working` moves, and only toward the owner. Its session
- *  waiting on a prompt or input, or a background session that is blocked,
- *  moves it to `waiting`; a background session that is done, failed or
- *  stopped moves it to `finished`. The head chef's needs-you, done and
- *  stopped always hold. A state counts only for a background row. On
- *  Claude Code 2.1.302 a background session's file carries no `state`, so
- *  the `finished` move waits on an engine that writes it. */
+ *  head chef marked `working` moves, and only toward the owner, to `waiting`
+ *  while its session's status is `waiting` (a permission prompt or input).
+ *  The head chef's needs-you, done and stopped always hold. The pane takes no
+ *  background `state` from a session file (a real one carries none, and a
+ *  forged one must not move a card; see #370). */
 export function rowMove(status: string, row: SessionRow | undefined): Move | undefined {
   if (status !== 'working' || row === undefined) return undefined
-  if (row.jobId !== undefined && row.jobState !== undefined) {
-    if (row.jobState === 'blocked') return 'waiting'
-    if (row.jobState === 'done' || row.jobState === 'failed' || row.jobState === 'stopped') return 'finished'
-  }
   return row.status === 'waiting' ? 'waiting' : undefined
 }
 
