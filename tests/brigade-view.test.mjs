@@ -1509,6 +1509,21 @@ test('a name on two rows is reported as shared, and neither transcript is read',
   assert.equal(reads.length + stats.length, 0);
 });
 
+test('two rows with one name and one session id are one session: its transcript is read (#329)', async () => {
+  const files = { [pathOf(0)]: { text: file(row()) } };
+  const { io, reads } = fakeFs(files);
+  const out = await readWarmth([agent('A', 0), agent('A', 0)], ['A'], CONFIG, new Map(), io);
+  assert.equal(out.length, 1);
+  assert.equal(out[0].kind, 'call');
+  assert.deepEqual(reads, [pathOf(0)]);
+});
+
+test('two rows with one name and different session ids still read as shared (#329)', async () => {
+  const files = { [pathOf(0)]: { text: file(row()) }, [pathOf(1)]: { text: file(row()) } };
+  const { io } = fakeFs(files);
+  assert.deepEqual(await readWarmth([agent('A', 0), agent('A', 1)], ['A'], CONFIG, new Map(), io), [{ name: 'A', kind: 'shared' }]);
+});
+
 test('only roster members are read', async () => {
   const files = { [pathOf(0)]: { text: file(row()) }, [pathOf(1)]: { text: file(row()) } };
   const { io, reads } = fakeFs(files);
