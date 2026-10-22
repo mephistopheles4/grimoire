@@ -4647,8 +4647,13 @@ test('a Desktop card falls back to its title only when no file carries any Deskt
 test('two rows with one Desktop id: the later update time wins, a usable time beats none, and no time hands both rows on, as a shared name does', () => {
   const { matchRows } = roster;
   const cards = [cardWith('alpha', { desktopId: HOST('a1') })];
-  const pick = rows => matchRows(cards, rows).get('alpha')?.map(r => r.name).join();
+  const pick = (rows, now) => matchRows(cards, rows, now).get('alpha')?.map(r => r.name).join();
   assert.equal(pick([rowOf('old', { hostId: HOST('a1'), updatedAt: 1 }), rowOf('new', { hostId: HOST('a1'), updatedAt: 2 })]), 'new');
+  // A planted file's time ahead of the clock (past 2 minutes) is no usable time.
+  const live = rowOf('live', { hostId: HOST('a1'), updatedAt: 1000 });
+  const planted = rowOf('planted', { hostId: HOST('a1'), updatedAt: 1000 + 10 * MIN });
+  assert.equal(pick([live, planted], 1000), 'live');
+  assert.equal(pick([live, planted], 1000 + 10 * MIN), 'planted');
   assert.equal(pick([rowOf('none', { hostId: HOST('a1') }), rowOf('timed', { hostId: HOST('a1'), updatedAt: 1 })]), 'timed');
   assert.equal(pick([rowOf('x', { hostId: HOST('a1') }), rowOf('y', { hostId: HOST('a1') })]), 'x,y');
 });

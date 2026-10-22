@@ -356,12 +356,16 @@ async function pollLive($: EngineInterface, open: () => boolean) {
     // the card moves to. No id is stored. A card two sessions share keeps an
     // entry per session and no move.
     const cards = (await read($, roster)).cards
-    const matched = matchRows(cards, rows)
+    const now = await Promise.resolve($.clock.now()).catch(() => Number.NaN)
+    const matched = matchRows(cards, rows, now)
     await update($, live, () =>
       cards.flatMap(c => {
         const own = matched.get(c.title) ?? []
-        const move = own.length === 1 ? rowMove(c.status, own[0]) : undefined
-        return own.map(row => ({ name: c.title, value: liveWord(row), shown: oneLine(row.name, MAX_NAME), ...(move === undefined ? {} : { move }) }))
+        const row = own[0]
+        if (row === undefined) return []
+        // One entry per card: a card two sessions share draws the first one's word, and no move.
+        const move = own.length === 1 ? rowMove(c.status, row) : undefined
+        return [{ name: c.title, value: liveWord(row), shown: oneLine(row.name, MAX_NAME), ...(move === undefined ? {} : { move }) }]
       }),
     )
     await update($, liveError, () => (files?.complete === true ? '' : SESSIONS_UNREAD))
@@ -1121,7 +1125,7 @@ export const register: Register = on => {
       // Each selected title that is still a card and does not wait on the owner.
       const chosen = new Set(pickedFrom(await read($, picked)))
       const moves = await movesOf($)
-      const drop = (await read($, roster)).cards.filter(c => chosen.has(c.title) && c.status !== 'needs-you' && moves.get(c.title) !== 'waiting').map(c => c.title)
+      const drop = (await read($, roster)).cards.filter(c => chosen.has(c.title) && c.status !== 'needs-you' && movedLook(c, moves)?.group !== 'needsYou').map(c => c.title)
       await update($, dismissed, list => [...list, ...drop.filter(t => !list.includes(t))])
       await update($, picked, () => [])
       return { element: e.element }
@@ -1148,7 +1152,7 @@ export const register: Register = on => {
     if (c === undefined || slug(c.title) !== slugged) return { element: e.element }
     if (verb === 'open') await openInApp($, c)
     // A card that waits on the owner has no Dismiss, and a press cannot add one.
-    if (verb === 'dismiss' && c.status !== 'needs-you' && (await movesOf($)).get(c.title) !== 'waiting') {
+    if (verb === 'dismiss' && c.status !== 'needs-you' && movedLook(c, await movesOf($))?.group !== 'needsYou') {
       await update($, dismissed, list => (list.includes(c.title) ? list : [...list, c.title]))
       // A dismissed card leaves the selection too.
       await update($, picked, list => pickedFrom(list).filter(t => t !== c.title))

@@ -582,14 +582,17 @@ export type Move = 'waiting' | 'finished'
  *  update time wins and one with a time beats one without. A card with
  *  several rows left (two sessions sharing a name, or sharing an id with no
  *  usable time) gets all of them, as the title match always did, so the poll
- *  draws it as shared. A card with no row has no entry. */
-export function matchRows(cards: readonly Card[], rows: readonly SessionRow[]): Map<string, SessionRow[]> {
+ *  draws it as shared. An update time more than 2 minutes ahead of `now`
+ *  (the engine clock, when it answered) is no usable time, so a file that
+ *  writes itself a far-future time does not win. A card with no row has no
+ *  entry. */
+export function matchRows(cards: readonly Card[], rows: readonly SessionRow[], now = Number.NaN): Map<string, SessionRow[]> {
   const out = new Map<string, SessionRow[]>()
   const anyHost = rows.some(r => r.hostId !== undefined)
   const byTitle = (title: string): SessionRow[] => rows.filter(r => r.name === title)
   const byId = (same: SessionRow[]): SessionRow[] => {
     if (same.length <= 1) return same
-    const timed = same.filter(r => r.updatedAt !== undefined)
+    const timed = same.filter(r => r.updatedAt !== undefined && !(r.updatedAt > now + AHEAD_MS))
     if (timed.length === 0) return same
     const best = Math.max(...timed.map(r => r.updatedAt ?? 0))
     const top = timed.filter(r => r.updatedAt === best)
