@@ -172,7 +172,7 @@ words. It asks no permission. What follows from it:
     files, and so plant or hide a refusal line;
   - the summary read follows a link swapped in after the path check, as the
     transcript read does, and keeps only checked numbers;
-  - a session named like a card feeds that card from its own summary file,
+  - a session named like a card, or holding its id, feeds that card from its own summary file,
     a session with no working folder included;
   - a writer whose files keep failing a check with fresh times freezes its
     card on the last good record with no line to say so, which the owner
