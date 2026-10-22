@@ -206,7 +206,8 @@ Limits:
   work.
 - No session id, Desktop id, token, secret, local path or error text goes on
   an issue, a card, a to-do or a start prompt. The one exception: a roster
-  card carries its session's Desktop id, which the pane's Open in app needs.
+  card carries its session's Desktop id, which the pane's Open in app needs,
+  or a background session's job id, by which the pane finds it.
 - Run the checks and the removals as separate calls. When a folder will not
   go, tell the owner, and never delete it another way.
 - Write each session name yourself, from letters, digits and `. _ -`, never
@@ -259,6 +260,11 @@ sessions you started, each one's issue, stage and state, and the to-dos.
 Nothing else is recorded. Write the roster and its to-dos in the same step as
 each act you take: a start, a report taken, a decision sent, a cleanup. Never
 leave it for later.
+
+Give each card its session's Desktop id, or a background session's job id.
+The pane finds the session by that id and draws the session's own name. Only a
+card with neither id is found by its title, which must then be the session's
+name, exactly.
 <!-- contract:end tools -->
 
 <!-- contract:begin rules -->
