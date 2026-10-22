@@ -39,10 +39,10 @@ plugin's own store and offers a second tool, `show_permission_warning`, below;
 and since 0.60.0 it is no longer idle by default
 ([ADR 0008](docs/adr/0008-brigade-is-no-longer-idle-by-default.md)). While its pane is open it reads
 the engine's own session files, `<config>/sessions/<digits>.json`, for each
-session's name, status, id and folder only. It never opens the key file
+session's name, status, background state, waiting reason, update time, id, Desktop id, job id and folder only, the ids to match a card to its session and never kept. It never opens the key file
 beside each by name; a hard link to it is not caught, as for transcripts, and
 nothing is kept from a file that is not a session file. The files are the
-engine's and undocumented, read as Claude Code 2.1.299 writes them; when one
+engine's and undocumented, read as Claude Code 2.1.304 writes them; when one
 fails its checks the pane says it cannot read the session files. Since 0.67.0
 it no longer runs `claude agents --json`, which made every running session do
 work at once. It also reads the lead session's roster file from the plugin's

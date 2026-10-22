@@ -517,18 +517,40 @@ export function rosterFile(data: string, sessionId: string): string {
 }
 
 /** A running session, as far as the pane uses it: its name, its live state
- *  (`busy`, `idle`; a background session's `state` when it has no
- *  `status`), its session id and its folder. */
-export type SessionRow = { name: string; status: string; sessionId?: string; cwd?: string }
+ *  (`busy`, `idle`, `waiting`; a background session's `state` when it has no
+ *  `status`), its session id and its folder. Besides those, for matching a
+ *  card and for the groups only: the Desktop id, the job id, a background
+ *  session's `state`, the waiting reason and the update time, each kept only
+ *  in its fixed shape. None of them is ever stored. */
+export type SessionRow = {
+  name: string
+  status: string
+  sessionId?: string
+  cwd?: string
+  hostId?: string
+  jobId?: string
+  jobState?: string
+  waitingFor?: string
+  updatedAt?: number
+}
+
+// The shapes the fields keep: a Desktop id as the link route takes it, a job
+// id of letters, digits and dashes, and fixed words for the rest.
+const HOST_ID = /^local_[0-9a-f-]{1,80}$/
+const JOB_ID = /^[A-Za-z0-9-]{1,80}$/
+const JOB_STATES: ReadonlySet<string> = new Set(['working', 'blocked', 'done', 'failed', 'stopped'])
+const WAITING_REASONS: ReadonlySet<string> = new Set(['permission prompt', 'input needed', 'sandbox request', 'worker request', 'goal proposal', 'dialog open'])
 
 /** One of the engine's session files, `<config>/sessions/<pid>.json`, as a
- *  row: only the name, the status (`?` while a new session has none yet),
- *  the session id and the folder are taken. Every other field the engine
- *  writes there (its messaging socket, bridge and Desktop ids, process start,
- *  former names) is never taken. A file that is not one JSON object, or has no
- *  name of at most 300 characters or no session id of the engine's shape,
- *  gives none; the status is cut to one line of 20 characters, and a folder
- *  over 1,000 characters is dropped. */
+ *  row: the name, the status (`?` while a new session has none yet), the
+ *  session id and the folder, and for matching and grouping the Desktop id,
+ *  job id, background state, waiting reason and update time. Every other
+ *  field the engine writes there (its messaging socket, bridge id, process
+ *  start, former names) is never taken. A file that is not one JSON object,
+ *  or has no name of at most 300 characters or no session id of the engine's
+ *  shape, gives none; the status is cut to one line of 20 characters, a
+ *  folder over 1,000 characters is dropped, and a field outside its shape is
+ *  dropped with the row kept. */
 export function sessionRow(text: string): SessionRow | undefined {
   let r: unknown
   try {
@@ -541,7 +563,70 @@ export function sessionRow(text: string): SessionRow | undefined {
   const state = typeof r.status === 'string' ? r.status : typeof r.state === 'string' ? r.state : undefined
   const row: SessionRow = { name: r.name, status: state === undefined ? '?' : oneLine(state, 20), sessionId: r.sessionId }
   if (typeof r.cwd === 'string' && r.cwd.length <= 1000) row.cwd = r.cwd
+  if (typeof r.hostSessionId === 'string' && HOST_ID.test(r.hostSessionId)) row.hostId = r.hostSessionId
+  if (typeof r.jobId === 'string' && JOB_ID.test(r.jobId)) row.jobId = r.jobId
+  if (typeof r.state === 'string' && JOB_STATES.has(r.state)) row.jobState = r.state
+  if (typeof r.waitingFor === 'string' && WAITING_REASONS.has(r.waitingFor)) row.waitingFor = r.waitingFor
+  if (typeof r.statusUpdatedAt === 'number' && Number.isFinite(r.statusUpdatedAt)) row.updatedAt = r.statusUpdatedAt
   return row
+}
+
+/** Each card's row at one poll, by card title: a card with a Desktop id takes
+ *  the one row holding it, and falls back to its title only when no file
+ *  carries any Desktop id; else a card with a bg id takes the row with that
+ *  job id; else the card matches by title. Two rows with one id: the later
+ *  update time wins, one with a time beats one without, and with no time on
+ *  either the card is unmatched, as two sessions sharing a name are. A card
+ *  with no row has no entry. */
+export function matchRows(cards: readonly Card[], rows: readonly SessionRow[]): Map<string, SessionRow> {
+  const out = new Map<string, SessionRow>()
+  const anyHost = rows.some(r => r.hostId !== undefined)
+  const byTitle = (title: string): SessionRow | undefined => {
+    const same = rows.filter(r => r.name === title)
+    return same.length === 1 ? same[0] : undefined
+  }
+  const byId = (same: readonly SessionRow[]): SessionRow | undefined => {
+    if (same.length <= 1) return same[0]
+    const timed = same.filter(r => r.updatedAt !== undefined)
+    const best = Math.max(...timed.map(r => r.updatedAt ?? 0))
+    const top = timed.filter(r => r.updatedAt === best)
+    return top.length === 1 ? top[0] : undefined
+  }
+  for (const c of cards) {
+    let row: SessionRow | undefined
+    if (c.desktopId !== undefined) {
+      row = anyHost ? byId(rows.filter(r => r.hostId === c.desktopId)) : byTitle(c.title)
+    } else if (c.bgId !== undefined) {
+      row = byId(rows.filter(r => r.jobId === c.bgId))
+    } else {
+      row = byTitle(c.title)
+    }
+    if (row !== undefined) out.set(c.title, row)
+  }
+  return out
+}
+
+/** Where the pane moves a card, or undefined for no move: only a card the
+ *  head chef marked `working` moves, and only toward the owner. Its session
+ *  waiting on a prompt or input, or a background session that is blocked,
+ *  moves it to `waiting`; a background session that is done, failed or
+ *  stopped moves it to `finished`. The head chef's needs-you, done and
+ *  stopped always hold. A state counts only for a background row. */
+export function rowMove(status: string, row: SessionRow | undefined): 'waiting' | 'finished' | undefined {
+  if (status !== 'working' || row === undefined) return undefined
+  if (row.jobId !== undefined && row.jobState !== undefined) {
+    if (row.jobState === 'blocked') return 'waiting'
+    if (row.jobState === 'done' || row.jobState === 'failed' || row.jobState === 'stopped') return 'finished'
+  }
+  return row.status === 'waiting' ? 'waiting' : undefined
+}
+
+/** A row's live word, at most 40 characters: `waiting · <reason>` for a
+ *  waiting session with a reason, `busy` for a shell, else its status. */
+export function liveWord(row: SessionRow): string {
+  if (row.status === 'shell') return 'busy'
+  if (row.status === 'waiting' && row.waitingFor !== undefined) return oneLine(`waiting · ${row.waitingFor}`, 40)
+  return oneLine(row.status, 40)
 }
 
 /** The projects folder name of a working directory: every separator, colon

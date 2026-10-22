@@ -2,6 +2,7 @@ import { atom, read, update } from 'claude-code'
 import type { EngineInterface, Register, Timer } from 'claude-code'
 
 import type { Card, Roster } from './types'
+import type { Moves } from './view.ts'
 import {
   GH_ARGV,
   MAX_ROSTER_BYTES,
@@ -21,7 +22,9 @@ import {
   dataFolder,
   dataPlace,
   listsOpenTool,
+  liveWord,
   lookup,
+  matchRows,
   oneLine,
   openerArgv,
   parsePrList,
@@ -36,6 +39,7 @@ import {
   statRejection,
   toolSession,
   unixRealPath,
+  rowMove,
 } from './roster.ts'
 import type { GhPr, HostOs, StatAnswer } from './roster.ts'
 import {
@@ -66,6 +70,8 @@ import {
   drawnTitle,
   foldedFrom,
   groupCards,
+  liveFrom,
+  movedLook,
   hairlineSvg,
   idsFrom,
   isReason,
@@ -342,7 +348,19 @@ async function pollLive($: EngineInterface, open: () => boolean) {
     const files = await readSessions(at.config, io)
     if (!open()) return
     const rows = files?.rows ?? []
-    await update($, live, () => rows.map(r => ({ name: r.name, value: r.status })))
+    // Each roster card finds its session by id (a title only when it has no
+    // id), and only the cards' entries are kept: the live word, the session's
+    // own name and the group the card moves to. No id is stored.
+    const cards = (await read($, roster)).cards
+    const matched = matchRows(cards, rows)
+    await update($, live, () =>
+      cards.flatMap(c => {
+        const row = matched.get(c.title)
+        if (row === undefined) return []
+        const move = rowMove(c.status, row)
+        return [{ name: c.title, value: liveWord(row), shown: oneLine(row.name, 300), ...(move === undefined ? {} : { move }) }]
+      }),
+    )
     await update($, liveError, () => (files?.complete === true ? '' : SESSIONS_UNREAD))
     // With no session read at all, the cards keep the cache and meter values
     // they had: no rows would only redraw every card as not found.
@@ -350,13 +368,17 @@ async function pollLive($: EngineInterface, open: () => boolean) {
     try {
       // Transcripts are found under the config folder.
       const config = at.config
-      const cards = (await read($, roster)).cards
 
       // Each roster member's cache warmth and meters: from its summary file
       // in this plugin's data folder when one passes its checks, else from
       // its transcript's call series, found by the transcript finder. The
       // rules for what is found and read, and when, are in view.ts.
-      const found = await readCalls(rows, cards.map(c => c.title), config, memory, io, finder, { plugin: at.plugin, held: summaries })
+      // The matched rows are handed over under their card's title.
+      const named = cards.flatMap(c => {
+        const row = matched.get(c.title)
+        return row === undefined ? [] : [{ ...row, name: c.title }]
+      })
+      const found = await readCalls(named, cards.map(c => c.title), config, memory, io, finder, { plugin: at.plugin, held: summaries })
       if (found === undefined || !open()) return
       await update($, warmth, () => found.warmth)
       await update($, meters, () => found.meters)
@@ -402,6 +424,12 @@ async function pollLive($: EngineInterface, open: () => boolean) {
   }
 }
 
+// The groups the last poll moved cards to, by card title, read through the
+// checked live entries.
+async function movesOf($: EngineInterface): Promise<Moves> {
+  return new Map(liveFrom(await read($, live)).flatMap(l => (l.move === undefined ? [] : [[l.name, l.move] as const])))
+}
+
 // --- the PR details --------------------------------------------------------
 //
 // While the pane is open and a shown card carries a PR number, the pane runs one
@@ -425,8 +453,8 @@ let ghAt: number | undefined
 let asking = false
 
 // The numbers of the PRs the shown cards carry, as numbers.
-const shownPrs = (cards: readonly Card[], hidden: ReadonlySet<unknown>): number[] => {
-  const g = groupCards(cards, hidden)
+const shownPrs = (cards: readonly Card[], hidden: ReadonlySet<unknown>, moves: Moves): number[] => {
+  const g = groupCards(cards, hidden, moves)
   return [...g.needsYou, ...g.working, ...g.finished].flatMap(({ c }) => {
     const n = prNumber(c)
     return n === undefined ? [] : [Number(n)]
@@ -455,7 +483,8 @@ async function askGh($: EngineInterface, open: () => boolean, tick: boolean) {
   if (asking) return
   asking = true
   try {
-    const wanted = shownPrs((await read($, roster)).cards, new Set(await read($, dismissed)))
+    const [{ cards }, hid, moves] = await Promise.all([read($, roster), read($, dismissed), movesOf($)])
+    const wanted = shownPrs(cards, new Set(hid), moves)
     if (wanted.length === 0 || wanted.every(n => ghMerged.has(n))) return
     const now = await $.clock.now()
     if (!tick && ghAt !== undefined && now - ghAt < GH_MS) return
@@ -1091,7 +1120,8 @@ export const register: Register = on => {
     if (e.element === 'bardismiss') {
       // Each selected title that is still a card and does not wait on the owner.
       const chosen = new Set(pickedFrom(await read($, picked)))
-      const drop = (await read($, roster)).cards.filter(c => chosen.has(c.title) && c.status !== 'needs-you').map(c => c.title)
+      const moves = await movesOf($)
+      const drop = (await read($, roster)).cards.filter(c => chosen.has(c.title) && c.status !== 'needs-you' && moves.get(c.title) !== 'waiting').map(c => c.title)
       await update($, dismissed, list => [...list, ...drop.filter(t => !list.includes(t))])
       await update($, picked, () => [])
       return { element: e.element }
@@ -1118,7 +1148,7 @@ export const register: Register = on => {
     if (c === undefined || slug(c.title) !== slugged) return { element: e.element }
     if (verb === 'open') await openInApp($, c)
     // A card that waits on the owner has no Dismiss, and a press cannot add one.
-    if (verb === 'dismiss' && c.status !== 'needs-you') {
+    if (verb === 'dismiss' && c.status !== 'needs-you' && (await movesOf($)).get(c.title) !== 'waiting') {
       await update($, dismissed, list => (list.includes(c.title) ? list : [...list, c.title]))
       // A dismissed card leaves the selection too.
       await update($, picked, list => pickedFrom(list).filter(t => t !== c.title))
@@ -1164,7 +1194,10 @@ export const register: Register = on => {
     const pollError = await read($, liveError)
     const { cards, todos } = await read($, roster)
     const hidden = new Set(await read($, dismissed))
-    const running = lookup(await read($, live))
+    const liveList = liveFrom(await read($, live))
+    const running = lookup(liveList)
+    const named = new Map(liveList.flatMap(l => (l.shown === undefined ? [] : [[l.name, l.shown] as const])))
+    const moves: Moves = new Map(liveList.flatMap(l => (l.move === undefined ? [] : [[l.name, l.move] as const])))
     const found = lookup(await read($, links))
     const warm = new Map(warmthFrom(await read($, warmth)).map(w => [w.name, w]))
     const meterOf = new Map(metersFrom(await read($, meters)).map(m => [m.name, m]))
@@ -1177,7 +1210,8 @@ export const register: Register = on => {
     const ticked = new Set(done)
     const ticks = await read($, ticking)
     const crossed = new Set(ticksFrom(ticks).map(p => p.name))
-    const last = (title: string) => [...inbox].reverse().find(r => r.from === drawnTitle(title))
+    // A matched card is known by the session's own name, a report's sender too.
+    const last = (title: string) => [...inbox].reverse().find(r => r.from === drawnTitle(named.get(title) ?? title))
     // The chosen view, the selection and the folds, each checked again.
     const view = viewFrom(await read($, viewAtom))
     const picks = new Set(pickedFrom(await read($, picked)))
@@ -1185,7 +1219,7 @@ export const register: Register = on => {
 
     // The cards in their groups, each with its place in the roster, which every
     // button key keeps. A status outside the four words draws in no group.
-    const { needsYou, working, finished } = groupCards(cards, hidden)
+    const { needsYou, working, finished } = groupCards(cards, hidden, moves)
     // The bar counts only picks a checkbox shows: a card that waits on the
     // owner has none, and a title no shown card holds is no pick.
     const pickable = new Set([...working, ...finished].map(({ c }) => c.title))
@@ -1196,7 +1230,7 @@ export const register: Register = on => {
     // The count on the left of the top row, the status strip and the to-do bar:
     // numbers only, from the statuses and the to-do, done and ticking lists.
     const shown = needsYou.length + working.length + finished.length
-    const strip = statusStrip(cards, hidden)
+    const strip = statusStrip(cards, hidden, moves)
     const progress = todoBar(todos, done, ticks)
     const sessionsCount =
       shown > 0 || progress !== undefined
@@ -1204,7 +1238,7 @@ export const register: Register = on => {
         : error === ''
           ? 'No cards in the roster yet.'
           : undefined
-    const prs = prRows(cards, hidden, ghAnswers, now)
+    const prs = prRows(cards, hidden, ghAnswers, now, moves)
     const prCount = prs.open.length + prs.merged.length + prs.closed.length
 
     // A pointer over a scope lights every element drawn with it. Desktop only:
@@ -1346,7 +1380,9 @@ export const register: Register = on => {
       const look = statusOf(c.status)
       if (look === undefined) return null
       const state = liveState(running.get(c.title))
-      const isFinished = look.group === 'finished'
+      // The look of the group the card draws in; its dot and word stay the head chef's.
+      const group = movedLook(c, moves)?.group ?? look.group
+      const isFinished = group === 'finished'
       const views = isFinished ? [] : cardViews(warm.get(c.title), meterOf.get(c.title))
       const chosen = isFinished ? undefined : chosenView(tabChoices, c.title, views)
       const warmLine = isFinished ? undefined : warmthLine(warm.get(c.title), running.get(c.title), c.status, now)
@@ -1372,7 +1408,7 @@ export const register: Register = on => {
       // test harness drops undefined props, so no test can tell the two apart.
       const valueWidth = Image === undefined ? { width: valueCells } : {}
       const report = last(c.title)
-      const needs = c.status === 'needs-you'
+      const needs = group === 'needsYou'
       const canOpen = appLink(c, found.get(c.title)) !== undefined
       const isPicked = picks.has(c.title)
       const scope = `row-${i}-${slug(c.title)}`
@@ -1435,7 +1471,7 @@ export const register: Register = on => {
                 </Box>
                 <Box flexGrow={1} flexShrink={1} minWidth={0}>
                   <Text weight={needs ? 'bold' : 'semibold'} wrap="truncate-end">
-                    {oneLine(c.title, 80)}
+                    {oneLine(named.get(c.title) ?? c.title, 80)}
                   </Text>
                 </Box>
                 {actions}
@@ -1793,7 +1829,7 @@ export const register: Register = on => {
                 row apart with no hairline and a row below its bar, as the
                 prototype draws them. Each bar counts the reports its
                 cards sent, so a fold never hides one without a sign. */}
-            {groupHead('waiting', waiting, reportNote(reportCount(needsYou.map(({ c }) => c.title), inbox)))}
+            {groupHead('waiting', waiting, reportNote(reportCount(needsYou.map(({ c }) => named.get(c.title) ?? c.title), inbox)))}
             {!folds.has('waiting') &&
               (needsYou.length + open.length > 0 ? (
                 terminal ? (
@@ -1807,9 +1843,9 @@ export const register: Register = on => {
               ) : (
                 hint('waiting')
               ))}
-            {groupHead('working', working.length, reportNote(reportCount(working.map(({ c }) => c.title), inbox)))}
+            {groupHead('working', working.length, reportNote(reportCount(working.map(({ c }) => named.get(c.title) ?? c.title), inbox)))}
             {!folds.has('working') && (working.length > 0 ? rows(working.map(card), 'working') : hint('working'))}
-            {groupHead('finished', finished.length, reportNote(reportCount(finished.map(({ c }) => c.title), inbox)))}
+            {groupHead('finished', finished.length, reportNote(reportCount(finished.map(({ c }) => named.get(c.title) ?? c.title), inbox)))}
             {!folds.has('finished') && (finished.length > 0 ? rows(finished.map(card), 'finished') : hint('finished'))}
             {inbox.length === 0 && (
               <Box marginTop={1}>
