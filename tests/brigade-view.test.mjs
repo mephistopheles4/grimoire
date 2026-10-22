@@ -1509,6 +1509,23 @@ test('a name on two rows is reported as shared, and neither transcript is read',
   assert.equal(reads.length + stats.length, 0);
 });
 
+test('two rows with one name and one session id are one session: its transcript is read (#329)', async () => {
+  const files = { [pathOf(0)]: { text: file(row()) } };
+  const { io, reads } = fakeFs(files);
+  // The row with no working folder comes first, as a Desktop row may.
+  const out = await readWarmth([{ ...agent('A', 0), cwd: undefined }, agent('A', 0)], ['A'], CONFIG, new Map(), io);
+  assert.equal(out.length, 1);
+  assert.equal(out[0].kind, 'call');
+  assert.deepEqual(reads, [pathOf(0)]);
+});
+
+test('two rows with one name and different session ids still read as shared (#329)', async () => {
+  const files = { [pathOf(0)]: { text: file(row()) }, [pathOf(1)]: { text: file(row()) } };
+  const { io, reads, stats } = fakeFs(files);
+  assert.deepEqual(await readWarmth([agent('A', 0), agent('A', 1)], ['A'], CONFIG, new Map(), io), [{ name: 'A', kind: 'shared' }]);
+  assert.equal(reads.length + stats.length, 0);
+});
+
 test('only roster members are read', async () => {
   const files = { [pathOf(0)]: { text: file(row()) }, [pathOf(1)]: { text: file(row()) } };
   const { io, reads } = fakeFs(files);
@@ -1945,8 +1962,10 @@ test('a name two rows share, or a row with no session id, is never looked for', 
   const fs = fakeFs({ [pathOf(0)]: transcript() }, { listing: [entry(WT('a'))] });
   const finder = newFinder();
   const bare = { name: 'B', status: 'idle', cwd: 'C:\\work' };
-  const out = await readWarmth([agent('A', 0), agent('A', 1), bare], ['A', 'B'], CONFIG, new Map(), fs.io, finder);
-  assert.deepEqual(out, [{ name: 'A', kind: 'shared' }]);
+  // Two rows under one name with no session id cannot be told apart: shared.
+  const twoBare = [{ ...bare, name: 'C' }, { ...bare, name: 'C' }];
+  const out = await readWarmth([agent('A', 0), agent('A', 1), bare, ...twoBare], ['A', 'B', 'C'], CONFIG, new Map(), fs.io, finder);
+  assert.deepEqual(out, [{ name: 'A', kind: 'shared' }, { name: 'C', kind: 'shared' }]);
   assert.deepEqual(fs.stats, []);
   assert.deepEqual(fs.lists, []);
   assert.equal(finder.byName.size, 0);

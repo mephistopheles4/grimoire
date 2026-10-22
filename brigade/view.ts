@@ -2250,7 +2250,8 @@ function summaryRecords(name: string, s: Summary): { warmth: Warmth; meter?: Met
  *
  *  Only a roster member is read, through the finder, which asks the real
  *  projects folder once for the poll and keeps each member's result in
- *  `finder.byName` for the link reads. A name on two rows is shared: neither
+ *  `finder.byName` for the link reads. A name on rows with two or more
+ *  session ids, or on two rows one of which has none, is shared: neither
  *  its summary file nor its transcript is looked for. With `summaries`, each
  *  other member's summary file is read by `readSummary`'s rules: one that
  *  passes gives its card's records at any transcript size, with no
@@ -2310,8 +2311,12 @@ export async function readCalls(
   }
   finder.byName.clear()
   for (const [name, list] of byName) {
-    const row = list[0]
-    if (list.length > 1 || row === undefined) {
+    // Rows that all hold one session id are one session seen twice, as when
+    // a Desktop session is resumed in the CLI; the row with a working folder
+    // is read. Two different ids, or a row with none, make the name shared.
+    const one = list.length === 1 || list.every(r => r.sessionId !== undefined && r.sessionId === list[0]?.sessionId)
+    const row = one ? (list.find(r => r.cwd !== undefined) ?? list[0]) : undefined
+    if (row === undefined) {
       slots.push({ warmth: { name, kind: 'shared' } })
       continue
     }
@@ -2353,7 +2358,8 @@ export async function readCalls(
       slots.push({ warmth: { name, kind: 'too-large' } })
       continue
     }
-    slots.push({ name, working: isWorking(row.status), path: found.path, mtimeMs: found.mtimeMs })
+    // One session on two rows is working when either row says so.
+    slots.push({ name, working: list.some(r => isWorking(r.status)), path: found.path, mtimeMs: found.mtimeMs })
   }
 
   // Which transcripts to read: every changed one of an idle member, and of
