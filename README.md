@@ -145,7 +145,8 @@ pane opens on Sessions each time. Sessions keeps three foldable groups: Waiting
 on you, Working, and Done · stopped, which starts folded and counts the reports
 its sessions sent since you opened the pane. A row shows a checkbox, a status
 dot, the title, the phase, the latest report's first line, the live busy or idle
-state and how long the session has been in its status and phase. Model and
+state (a session that waits on you moves its row under Waiting on you, and a row
+shows the session's own title) and how long the session has been in its status and phase. Model and
 effort show as one character each, with the full settings in a tooltip. Open and
 Dismiss appear when you point at a row; in the terminal they are always shown.
 Tick several rows and a bar at the foot dismisses them together. A session that

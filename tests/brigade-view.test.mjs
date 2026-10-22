@@ -1366,7 +1366,7 @@ test('a session file row reads an interactive session\'s status and a background
 const CONFIG = 'C:\\cfg';
 const PROJECTS = `${CONFIG}\\projects`;
 const SID = ['11111111-2222-4333-8444-555555555555', '22222222-3333-4444-8555-666666666666', '33333333-4444-4555-8666-777777777777'];
-const agent = (name, i, status = 'idle') => ({ name, status, sessionId: SID[i], cwd: 'C:\\work' });
+const agent = (name, i, status = 'idle') => ({ name, status, sessionId: SID[i], cwd: 'C:\\work', updatedAt: NOW });
 const pathOf = i => `${CONFIG}\\projects\\C--work\\${SID[i]}.jsonl`;
 
 // The file system as the poll reaches it, answering a resolving `stat`: a
@@ -1685,7 +1685,7 @@ test('the pane keeps its re-read memory in a Map of the view module\'s ReadMemor
   const register = readFileSync(join(root, 'brigade/register.tsx'), 'utf8');
   assert.match(register, /\nconst memory: ReadMemory = new Map\(\)\n/);
   assert.equal(register.match(/\bmemory\b/g)?.length, 2, 'declared once and handed to readCalls once');
-  assert.match(register, /readCalls\(rows, cards\.map\(c => c\.title\), config, memory, io, finder, /);
+  assert.match(register, /readCalls\(retitled, cards\.map\(c => c\.title\), config, memory, io, finder, /);
   const v = readFileSync(join(root, 'brigade/view.ts'), 'utf8');
   assert.match(v, /export type ReadMemory = Map<string, \{ mtimeMs: number; readAt: number; series: CallSeries \| undefined \}>/);
 });
@@ -4540,7 +4540,7 @@ test('a file that fails a check is skipped, and the read says it is incomplete',
   const fresh = sessionsFs({ [p(1)]: { text: sessionText('A', 0, 'idle', { status: undefined }) } });
   assert.deepEqual((await readSessions(CONFIG, fresh.io)).rows, [agent('A', 0, '?')], 'a new session with no status yet reads as unknown');
   const deep = sessionsFs({ [p(1)]: { text: sessionText('A', 0, 'idle', { cwd: `C:\\${'d'.repeat(1001)}` }) } });
-  assert.deepEqual((await readSessions(CONFIG, deep.io)).rows, [{ name: 'A', status: 'idle', sessionId: SID[0] }], 'a folder over 1,000 characters is dropped');
+  assert.deepEqual((await readSessions(CONFIG, deep.io)).rows, [{ name: 'A', status: 'idle', sessionId: SID[0], updatedAt: NOW }], 'a folder over 1,000 characters is dropped');
 });
 
 test('a session that ended between the listing and its read has no row, and the read is still complete', async () => {
@@ -4577,4 +4577,124 @@ test('no sessions folder, one that is a link, a file or elsewhere, or a listing 
   const odd = sessionsFs({});
   odd.io.list = async () => ({ name: '1.json' });
   assert.equal(await readSessions(CONFIG, odd.io), undefined);
+});
+
+// --- #358: a card finds its session by id, and the pane moves a card up ------------
+
+const HOST = n => `local_${n}`;
+const fileRow = r => sessionRow(JSON.stringify({ sessionId: '11111111-2222-4333-8444-555555555555', name: 'S', ...r }));
+
+test('the session-row reader keeps the Desktop id, job id, waiting reason and update time apart from the status, each only in its shape, and takes no background state', () => {
+  const row = fileRow({ status: 'waiting', state: 'blocked', hostSessionId: HOST('ab-12'), jobId: 'ab12cd34', waitingFor: 'permission prompt', statusUpdatedAt: 5 });
+  assert.equal(row.status, 'waiting');
+  assert.equal(row.jobState, undefined);
+  assert.equal(row.hostId, HOST('ab-12'));
+  assert.equal(row.jobId, 'ab12cd34');
+  assert.equal(row.waitingFor, 'permission prompt');
+  assert.equal(row.updatedAt, 5);
+  // The status keeps today's rule: the file's status, else its state.
+  assert.equal(fileRow({ state: 'blocked' }).status, 'blocked');
+  // A field of the wrong shape is dropped and the row is kept.
+  const bad = fileRow({ status: 'busy', hostSessionId: 'local_ZZ', jobId: 'x y', waitingFor: 'free text', state: 'sleeping', statusUpdatedAt: 'soon' });
+  assert.equal(bad.status, 'busy');
+  for (const k of ['hostId', 'jobId', 'waitingFor', 'jobState', 'updatedAt']) assert.equal(bad[k], undefined, k);
+  assert.equal(fileRow({ hostSessionId: 'local_' + 'a'.repeat(81) }).hostId, undefined);
+  // A number too large for a double reads as infinite, and is dropped.
+  assert.equal(sessionRow('{"sessionId":"11111111-2222-4333-8444-555555555555","name":"S","statusUpdatedAt":1e999}').updatedAt, undefined);
+  assert.equal(sessionRow(JSON.stringify({ name: 'No id', hostSessionId: HOST('a') })), undefined);
+});
+
+const rowOf = (name, extra) => ({ name, status: 'busy', sessionId: 'sid-' + name, ...extra });
+const cardWith = (title, extra) => ({ title, work: 'w', phase: 'p', settings: 's', status: 'working', ...extra });
+
+test('a card finds its row by Desktop id first, by job id for a background card, and by title only without an id', () => {
+  const { matchRows } = roster;
+  const rows = [
+    rowOf('Plan 358: Brigade pane', { hostId: HOST('a1') }),
+    rowOf('plan-358-lookalike', { hostId: HOST('b2') }),
+    rowOf('bg job', { jobId: 'job1' }),
+    rowOf('Plain title'),
+  ];
+  const got = matchRows(
+    [
+      cardWith('plan-358', { desktopId: HOST('a1') }),
+      cardWith('plan-358-lookalike', { desktopId: HOST('nope') }),
+      cardWith('bgcard', { bgId: 'job1' }),
+      cardWith('bgcard2', { bgId: 'job2' }),
+      cardWith('Plain title'),
+      cardWith('Missing'),
+    ],
+    rows,
+  );
+  assert.deepEqual(got.get('plan-358').map(r => r.name), ['Plan 358: Brigade pane']);
+  // A wrong Desktop id is not rescued by a row that carries the card's title.
+  assert.equal(got.get('plan-358-lookalike'), undefined);
+  assert.deepEqual(got.get('bgcard').map(r => r.name), ['bg job']);
+  assert.equal(got.get('bgcard2'), undefined);
+  assert.deepEqual(got.get('Plain title').map(r => r.name), ['Plain title']);
+  // Two sessions sharing a name are both handed on, as the title match always did.
+  assert.deepEqual(matchRows([cardWith('twin')], [rowOf('twin'), rowOf('twin')]).get('twin').length, 2);
+  assert.equal(got.get('Missing'), undefined);
+});
+
+test('a Desktop card falls back to its title only when no file carries any Desktop id', () => {
+  const { matchRows } = roster;
+  const cards = [cardWith('alpha', { desktopId: HOST('a1') })];
+  assert.equal(matchRows(cards, [rowOf('alpha')]).get('alpha')[0].name, 'alpha');
+  assert.equal(matchRows(cards, [rowOf('alpha'), rowOf('other', { hostId: HOST('z9') })]).get('alpha'), undefined);
+});
+
+test('two rows with one Desktop id: the later update time wins, a usable time beats none, and no time hands both rows on, as a shared name does', () => {
+  const { matchRows } = roster;
+  const cards = [cardWith('alpha', { desktopId: HOST('a1') })];
+  const pick = (rows, now) => matchRows(cards, rows, now).get('alpha')?.map(r => r.name).join();
+  assert.equal(pick([rowOf('old', { hostId: HOST('a1'), updatedAt: 1 }), rowOf('new', { hostId: HOST('a1'), updatedAt: 2 })]), 'new');
+  // A planted file's time ahead of the clock (past 2 minutes) is no usable time.
+  const live = rowOf('live', { hostId: HOST('a1'), updatedAt: 1000 });
+  const planted = rowOf('planted', { hostId: HOST('a1'), updatedAt: 1000 + 10 * MIN });
+  assert.equal(pick([live, planted], 1000), 'live');
+  assert.equal(pick([live, planted], 1000 + 10 * MIN), 'planted');
+  assert.equal(pick([rowOf('none', { hostId: HOST('a1') }), rowOf('timed', { hostId: HOST('a1'), updatedAt: 1 })]), 'timed');
+  assert.equal(pick([rowOf('x', { hostId: HOST('a1') }), rowOf('y', { hostId: HOST('a1') })]), 'x,y');
+});
+
+test('the group rule moves only a working card, toward the owner: only a waiting status moves it to Waiting on you', () => {
+  const { rowMove } = roster;
+  const w = status => rowMove('working', rowOf('r', { status }));
+  assert.equal(w('waiting'), 'waiting');
+  assert.equal(w('busy'), undefined);
+  assert.equal(w('idle'), undefined);
+  // A background row moves only by its status: a forged state in the file moves nothing.
+  const forged = sessionRow(JSON.stringify({ sessionId: '11111111-2222-4333-8444-555555555555', name: 'B', jobId: 'ab12cd34', status: 'idle', state: 'done' }));
+  assert.equal(rowMove('working', forged), undefined);
+  // The head chef's other statuses always hold; no row holds too.
+  for (const s of ['needs-you', 'done', 'stopped']) assert.equal(rowMove(s, rowOf('r', { status: 'waiting' })), undefined, s);
+  assert.equal(rowMove('working', undefined), undefined);
+});
+
+test('the live word draws waiting with its reason, and shell as busy', () => {
+  const { liveWord } = roster;
+  assert.equal(liveWord(rowOf('r', { status: 'waiting', waitingFor: 'permission prompt' })), 'waiting · permission prompt');
+  assert.equal(liveWord(rowOf('r', { status: 'waiting' })), 'waiting');
+  assert.equal(liveWord(rowOf('r', { status: 'shell' })), 'busy');
+  assert.equal(liveWord(rowOf('r', { status: 'idle' })), 'idle');
+  assert.ok(liveWord(rowOf('r', { status: 'waiting', waitingFor: 'x'.repeat(100) })).length <= 40);
+});
+
+test('moves regroup working cards in the groups, the strip counts, the PR rows and the dismiss rule, and never touch the others', () => {
+  const cards = [cardOf('a', 'working'), cardOf('b', 'working'), cardOf('c', 'done'), cardOf('d', 'needs-you'), cardOf('e', 'working')];
+  const moves = new Map([['a', 'waiting'], ['b', 'waiting'], ['c', 'waiting'], ['d', 'waiting']]);
+  const g = groupCards(cards, new Set(), moves);
+  assert.deepEqual(g.needsYou.map(p => p.c.title), ['a', 'b', 'd']);
+  assert.deepEqual(g.working.map(p => p.c.title), ['e']);
+  assert.deepEqual(g.finished.map(p => p.c.title), ['c']);
+  // Without moves, as today.
+  assert.deepEqual(groupCards(cards, new Set()).needsYou.map(p => p.c.title), ['d']);
+  // A moved-up card is never hidden by a dismiss.
+  assert.deepEqual(groupCards(cards, new Set(['a', 'b']), moves).needsYou.map(p => p.c.title), ['a', 'b', 'd']);
+  assert.deepEqual(groupCards(cards, new Set(['a', 'b']), moves).finished.map(p => p.c.title), ['c']);
+  assert.deepEqual(statusCounts(cards, new Set(), moves).map(e => [e.look.word, e.count]), [['needs you', 3], ['working', 1], ['done', 1]]);
+  assert.equal(statusStrip(cards, new Set(), moves).total, 5);
+  const withPr = [{ ...cardOf('a', 'working'), pr: '5' }, { ...cardOf('b', 'working'), pr: '6' }];
+  assert.equal(prRows(withPr, new Set(['b']), new Map(), 0, new Map([['b', 'waiting']])).open.length, 2);
 });

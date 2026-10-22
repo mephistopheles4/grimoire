@@ -1,5 +1,5 @@
 import { AHEAD_MS, PR_NUMBER, PR_STATES, SESSION_ID, foldsCase, oneLine, pathKey, placeSummary, projectFolder, sepOf, sessionRow, statRejection } from './roster.ts'
-import type { SessionRow, GhPr, StatAnswer } from './roster.ts'
+import type { GhPr, Move, SessionRow, StatAnswer } from './roster.ts'
 import type { Meter, Pair, Sample, UsageCategory, UsageLimit, UsageSnapshot, Warmth } from './types'
 
 // What the Brigade pane draws, worked out from plain values: the render hook
@@ -734,23 +734,43 @@ export type Groups<T> = { needsYou: Placed<T>[]; working: Placed<T>[]; finished:
 /** The stored cards in their groups, each in roster order. A card whose title
  *  is in `hidden`, the dismissed ones, is in none unless it waits on the owner,
  *  and a card that is not a record or has no look is in none; cards that are
- *  not a list give three empty groups. */
-export function groupCards<T>(cards: readonly T[], hidden: ReadonlySet<unknown>): Groups<T> {
+ *  not a list give three empty groups. A working card the poll moved (see
+ *  `movedLook`) is in the group of its move. */
+export function groupCards<T>(cards: readonly T[], hidden: ReadonlySet<unknown>, moves?: Moves): Groups<T> {
   const out: Groups<T> = { needsYou: [], working: [], finished: [] }
   if (!Array.isArray(cards)) return out
   cards.forEach((c, i) => {
-    const look = shownLook(c, hidden)
+    const look = shownLook(c, hidden, moves)
     if (look !== undefined) out[look.group].push({ c, i })
   })
   return out
 }
 
+/** Where the live poll moved cards, by card title. */
+export type Moves = ReadonlyMap<string, Move>
+
+/** The moves the stored live entries hold, by card title. */
+export function movesFrom(list: readonly Live[]): Moves {
+  return new Map(list.flatMap(l => (l.move === undefined ? [] : [[l.name, l.move] as const])))
+}
+
+/** The look a card's move gives it, or undefined: a move applies only while
+ *  the card's own status is `working`, so a status the head chef wrote since
+ *  the poll holds. A move to `waiting` draws as needs-you, one to
+ *  `finished` as stopped. */
+export function movedLook(c: unknown, moves: Moves | undefined): StatusLook | undefined {
+  if (moves === undefined || !isRecord(c) || c.status !== 'working' || typeof c.title !== 'string') return undefined
+  const move = moves.get(c.title)
+  return move === 'waiting' ? STATUS.get('needs-you') : undefined
+}
+
 /** A stored card's look when the pane shows it: a record with one of the four
- *  statuses that is not dismissed, or waits on the owner; else undefined. The groups, the heading and the
+ *  statuses, or a working card's moved look (see `movedLook`), that is not
+ *  dismissed, or waits on the owner; else undefined. The groups, the heading and the
  *  status strip all count cards by this one rule. */
-function shownLook(c: unknown, hidden: ReadonlySet<unknown>): StatusLook | undefined {
+function shownLook(c: unknown, hidden: ReadonlySet<unknown>, moves?: Moves): StatusLook | undefined {
   if (!isRecord(c)) return undefined
-  const look = statusOf(c.status)
+  const look = movedLook(c, moves) ?? statusOf(c.status)
   // A card that waits on the owner is never hidden, whatever was dismissed.
   return look !== undefined && look.group !== 'needsYou' && hidden.has(c.title) ? undefined : look
 }
@@ -885,12 +905,12 @@ export const prNumber = (c: unknown): string | undefined => (isRecord(c) && type
  *  one row per card, `gh`'s state when it answered for the number, else the
  *  card's, else open. With an answer a row has the PR's title, counts,
  *  repository and age; without one, the card's title alone. */
-export function prRows(cards: unknown, hidden: ReadonlySet<unknown>, answers: ReadonlyMap<number, GhPr>, now: number): { open: PrRow[]; merged: PrRow[]; closed: PrRow[] } {
+export function prRows(cards: unknown, hidden: ReadonlySet<unknown>, answers: ReadonlyMap<number, GhPr>, now: number, moves?: Moves): { open: PrRow[]; merged: PrRow[]; closed: PrRow[] } {
   const out = { open: [] as PrRow[], merged: [] as PrRow[], closed: [] as PrRow[] }
   if (!Array.isArray(cards)) return out
   cards.forEach((c, i) => {
     const number = prNumber(c)
-    if (!isRecord(c) || number === undefined || shownLook(c, hidden) === undefined) return
+    if (!isRecord(c) || number === undefined || shownLook(c, hidden, moves) === undefined) return
     const answer = answers.get(Number(number))
     const own = typeof c.prState === 'string' && (PR_STATES as readonly string[]).includes(c.prState) ? c.prState : 'open'
     const state = answer?.state ?? own
@@ -993,11 +1013,11 @@ export type StatusCount = { look: StatusLook; count: number }
  *  status with no cards. Shown is as `groupCards` has it: a record, not
  *  dismissed, and one of the four statuses, by the rule groupCards uses, so
  *  the strip, its legend, the heading and the groups count the same cards. */
-export function statusCounts(cards: unknown, hidden: ReadonlySet<unknown>): StatusCount[] {
+export function statusCounts(cards: unknown, hidden: ReadonlySet<unknown>, moves?: Moves): StatusCount[] {
   const counts = new Map<StatusLook, number>()
   if (Array.isArray(cards)) {
     for (const c of cards) {
-      const look = shownLook(c, hidden)
+      const look = shownLook(c, hidden, moves)
       if (look !== undefined) counts.set(look, (counts.get(look) ?? 0) + 1)
     }
   }
@@ -1082,8 +1102,8 @@ export type StripView = {
   svg: BarImage
 }
 
-export function statusStrip(cards: unknown, hidden: ReadonlySet<unknown>): StripView | undefined {
-  const counts = statusCounts(cards, hidden)
+export function statusStrip(cards: unknown, hidden: ReadonlySet<unknown>, moves?: Moves): StripView | undefined {
+  const counts = statusCounts(cards, hidden, moves)
   const total = counts.reduce((s, e) => s + e.count, 0)
   if (total === 0) return undefined
   const runs = stripRuns(
@@ -1159,8 +1179,11 @@ const AMBER_MS = 15 * MIN_MS
 // the clock's slack; a later one claims to be newer than the file it is in.
 const SLACK_MS = 2 * MIN_MS
 const MAX_COUNT = 10000000
-const MAX_WARMTH = 50
-const MAX_NAME = 300
+// The most entries a stored list of warmth records or live entries keeps.
+const MAX_ENTRIES = 50
+/** The cap on a card's title and on a session's name as kept in the live state. */
+export const MAX_NAME = 300
+const MAX_LIVE = 40
 
 /** The last real model call in a transcript: its time, its context tokens,
  *  and its cache window when a call that wrote cache says it. */
@@ -1340,11 +1363,11 @@ export function callSeries(text: string, mtimeMs: number, now: number): CallSeri
 export const isWorking = (state: string | undefined) => state === 'busy' || state === 'running' || state === 'working'
 
 /** A live state as the card draws it, with its theme colour: `busy`,
- *  `running` and `working` success, `idle` and `blocked` warning, anything
- *  else inactive. */
+ *  `running` and `working` success, `idle`, `blocked` and `waiting` (with
+ *  or without its reason) warning, anything else inactive. */
 export function liveState(state: string | undefined): { text: string; color: string } {
   if (state === undefined) return { text: 'not running', color: 'inactive' }
-  return { text: state, color: isWorking(state) ? 'success' : state === 'idle' || state === 'blocked' ? 'warning' : 'inactive' }
+  return { text: state, color: isWorking(state) ? 'success' : state === 'idle' || state === 'blocked' || state === 'waiting' || state.startsWith('waiting · ') ? 'warning' : 'inactive' }
 }
 
 const KINDS_OF_WARMTH = new Set(['call', 'too-large', 'shared', 'unread', 'not-found'])
@@ -1356,6 +1379,30 @@ const OTHER_KINDS = new Map<string, 'too-large' | 'shared' | 'unread' | 'not-fou
 ])
 const WINDOWS = new Set([SHORT_MS, HOUR_MS])
 
+/** One live entry: a roster card's title, its session's live word, the
+ *  session's own name and the group the poll moved the card to. */
+export type Live = { name: string; value: string; shown?: string; move?: Move }
+
+/** The stored live entries, checked again: a name, value or shown name that
+ *  is not text within its cap is dropped (a bad shown name leaves the entry
+ *  with none), a move outside its two words reads as absent, an entry of
+ *  today's two-field shape reads as no engine name and no move, and at most
+ *  50 stay. */
+export function liveFrom(stored: unknown): Live[] {
+  const out: Live[] = []
+  if (!Array.isArray(stored)) return out
+  for (const e of stored) {
+    if (out.length >= MAX_ENTRIES) break
+    if (!isRecord(e) || typeof e.name !== 'string' || e.name === '' || e.name.length > MAX_NAME) continue
+    if (typeof e.value !== 'string' || e.value.length > MAX_LIVE) continue
+    const live: Live = { name: e.name, value: e.value }
+    if (typeof e.shown === 'string' && e.shown !== '' && e.shown.length <= MAX_NAME) live.shown = e.shown
+    if (e.move === 'waiting') live.move = e.move
+    out.push(live)
+  }
+  return out
+}
+
 /** The stored warmth records, checked again: plugin state is the engine's,
  *  and another plugin may rewrite it. A record of the wrong shape goes, a
  *  repeated name keeps the first, and at most 50 stay. */
@@ -1364,7 +1411,7 @@ export function warmthFrom(stored: unknown): Warmth[] {
   if (!Array.isArray(stored)) return out
   const names = new Set<string>()
   for (const w of stored) {
-    if (out.length >= MAX_WARMTH) break
+    if (out.length >= MAX_ENTRIES) break
     if (!isRecord(w) || typeof w.name !== 'string' || w.name === '' || w.name.length > MAX_NAME || names.has(w.name)) continue
     if (typeof w.kind !== 'string' || !KINDS_OF_WARMTH.has(w.kind)) continue
     if (w.kind === 'call') {

@@ -472,7 +472,7 @@ const call = async ($: any, input: Record<string, unknown>): Promise<{ ok: boole
 // folder's sessions folder, which the pane reads every poll (#347). Each file
 // also holds the kinds of field the pane never reads; earlier files go.
 const SESSIONS = `${CONFIG}\\sessions`
-const liveRows = (w: World, rows: { name: string; status: string; sessionId: string; cwd?: string }[]) => {
+const liveRows = (w: World, rows: Record<string, unknown>[]) => {
   w.dirs(SESSIONS)
   for (const e of w.list(SESSIONS) ?? []) w.drop(`${SESSIONS}\\${e.name}`)
   rows.forEach((r, i) => {
@@ -932,7 +932,7 @@ const SEEDED = {
   cards: [
     card('alpha', { desktopId: DESKTOP }),
     card('beta', { url: 'https://claude.ai/code/session_ABC123' }),
-    card('gamma', { bgId: 'bg1' }),
+    card('gamma', { bgId: 'ab12cd34' }),
     card('delta', { desktopId: 'local_NOT-HEX' }),
   ],
   todos: [{ id: 't1', text: 'look', session: 'alpha' }],
@@ -1128,7 +1128,7 @@ test('a card with only a url, or only a background id, makes no tool list and no
   // the pane's poll finds it, so its button is drawn too.
   const BG = '99999999-8888-7777-6666-555555555555'
   const w = await pane(on, $)
-  liveRows(w, [{ name: 'gamma', status: 'idle', sessionId: BG, cwd: 'C:\\work' }])
+  liveRows(w, [{ name: 'gamma', status: 'idle', sessionId: BG, cwd: 'C:\\work', jobId: 'ab12cd34' }])
   w.put(`${CONFIG}\\projects\\C--work\\${BG}.jsonl`, {
     type: 'file',
     data: { text: JSON.stringify({ type: 'system', subtype: 'bridge_status', url: 'https://claude.ai/code/session_BG1' }) },
@@ -1202,7 +1202,7 @@ const openers = (w: World) => w.procs.filter(p => OPENERS.includes(p[0]))
 // finds in its transcript, as a head chef's `claude --bg` session has.
 async function background(on: On, $: any) {
   const w = await pane(on, $)
-  liveRows(w, [{ name: 'gamma', status: 'idle', sessionId: BG_ID, cwd: 'C:\\work' }])
+  liveRows(w, [{ name: 'gamma', status: 'idle', sessionId: BG_ID, cwd: 'C:\\work', jobId: 'ab12cd34' }])
   w.put(`${CONFIG}\\projects\\C--work\\${BG_ID}.jsonl`, {
     type: 'file',
     data: { text: JSON.stringify({ type: 'system', subtype: 'bridge_status', url: 'https://claude.ai/code/session_BG1' }) },
@@ -4192,11 +4192,11 @@ const UNREAD = 'Cannot read the session files.'
 
 test('the live state follows the session files at every poll, and the pane never runs claude agents, shown or not', async ($, on) => {
   const w = await pane(on, $, 'desktop', w => liveRows(w, [{ name: 'alpha', status: 'busy', sessionId: S1, cwd: 'C:\\work' }]))
-  expect(lastLive(w)).toEqual([{ name: 'alpha', value: 'busy' }])
+  expect(lastLive(w)).toEqual([{ name: 'alpha', value: 'busy', shown: 'alpha' }])
   liveRows(w, [{ name: 'alpha', status: 'idle', sessionId: S1, cwd: 'C:\\work' }])
   await w.clock.advance(10000)
   await w.clock.settle()
-  expect(lastLive(w)).toEqual([{ name: 'alpha', value: 'idle' }])
+  expect(lastLive(w)).toEqual([{ name: 'alpha', value: 'idle', shown: 'alpha' }])
   w.shown = false
   await w.clock.advance(300000)
   w.shown = true
@@ -4221,7 +4221,7 @@ test('a session file that fails its check draws the one fixed line and no row fr
   w.put(`${SESSIONS}\\101.json`, { type: 'file', data: { text: '{"name":"beta","status":' } })
   await w.clock.advance(10000)
   await w.clock.settle()
-  expect(lastLive(w)).toEqual([{ name: 'alpha', value: 'busy' }])
+  expect(lastLive(w)).toEqual([{ name: 'alpha', value: 'busy', shown: 'alpha' }])
   expect(lastLiveError(w)).toBe(UNREAD)
   const text = await textOf(mounted)
   expect(text.includes(UNREAD)).toBe(true)
@@ -4229,7 +4229,7 @@ test('a session file that fails its check draws the one fixed line and no row fr
   await w.clock.advance(10000)
   await w.clock.settle()
   expect(lastLiveError(w)).toBe('')
-  expect(lastLive(w)).toEqual([{ name: 'alpha', value: 'busy' }, { name: 'beta', value: 'idle' }])
+  expect(lastLive(w)).toEqual([{ name: 'alpha', value: 'busy', shown: 'alpha' }, { name: 'beta', value: 'idle', shown: 'beta' }])
 })
 
 test('a sessions folder that cannot be read draws the fixed line and no rows, and keeps the cards\' last cache and meter values', async ($, on) => {
@@ -4273,4 +4273,94 @@ test('the pane keeps nothing from a session file but the name and status: no soc
   expect(w.log.some(l => l.startsWith('read ') && l.endsWith('.key'))).toBe(false)
   // No Refresh button: there is nothing for it to run.
   expect(await mounted.find({ key: 'refresh' })).toBeUndefined()
+})
+
+// --- #358: a card finds its session by id, and the pane moves a card up -------------
+
+const FULL = 'Plan 358: Brigade pane refreshes itself'
+const BG_JOB = 'ffffffff'
+const idRow = (over: Record<string, unknown> = {}) => ({ name: FULL, status: 'busy', sessionId: S1, cwd: 'C:\\work', hostSessionId: DESKTOP, statusUpdatedAt: 5, ...over })
+const poll = async (w: World) => {
+  await w.clock.advance(10000)
+  await w.clock.settle()
+}
+const groupText = async (m: any, group: string) => {
+  const text = await groupsOf(m)
+  const heads = ['Waiting on you', 'Working', 'Done · stopped', 'Open', 'Merged', 'Closed']
+  const at = text.search(new RegExp(`[▾▸] ${group}`))
+  if (at < 0) return ''
+  const rest = text.slice(at + 2)
+  const next = Math.min(...heads.filter(h => h !== group).map(h => { const i = rest.search(new RegExp(`[▾▸] ${h}`)); return i < 0 ? Infinity : i }))
+  return rest.slice(0, next)
+}
+
+test('a card finds its session by Desktop id whatever the head chef titled it, and draws the session\'s own name and live word', async ($, on) => {
+  on('session.receive', (_: any, e: any) => e)
+  const w = await pane(on, $, 'desktop', w => liveRows(w, [idRow()]))
+  expect(lastLive(w)).toEqual([{ name: 'alpha', value: 'busy', shown: FULL }])
+  const working = await groupText(mounted, 'Working')
+  expect(working.includes(FULL)).toBe(true)
+  expect(working.includes('busy')).toBe(true)
+  // A report counts and shows under the card's title or the session's own name.
+  for (const from of ['alpha', FULL]) {
+    await $.session.receive({ origin: { kind: 'peer' }, text: `<cross-session-message from="${from}">\nnews\n</cross-session-message>` })
+  }
+  expect((await groupText(mounted, 'Working')).includes('news')).toBe(true)
+  expect((await groupsOf(mounted)).includes('Working 4 · 2 reports')).toBe(true)
+  // A card whose Desktop id no file holds is not found, even by a file named like it.
+  liveRows(w, [idRow({ hostSessionId: 'local_ffffffff-0000' }), idRow({ name: 'delta', hostSessionId: undefined, sessionId: S2 })])
+  await poll(w)
+  expect(lastLive(w)).toEqual([])
+  // The first card in the roster is alpha: its own word is the first one drawn.
+  const after = await groupText(mounted, 'Working')
+  expect(after.includes('not running')).toBe(true)
+  expect(after.includes(FULL)).toBe(false)
+  expect(after.indexOf('not running')).toBeLessThan(after.indexOf('beta'))
+})
+
+test('a session waiting on a prompt moves its working card under Waiting on you with the reason, no Dismiss, and back when it goes busy', async ($, on) => {
+  const w = await pane(on, $, 'desktop', w => liveRows(w, [idRow()]))
+  expect(await mounted.find({ key: 'dismiss-0-alpha' })).toBeDefined()
+  liveRows(w, [idRow({ status: 'waiting', waitingFor: 'permission prompt' })])
+  await poll(w)
+  expect(lastLive(w)).toEqual([{ name: 'alpha', value: 'waiting · permission prompt', shown: FULL, move: 'waiting' }])
+  const waiting = await groupText(mounted, 'Waiting on you')
+  expect(waiting.includes(FULL)).toBe(true)
+  expect(waiting.includes('waiting · permission prompt')).toBe(true)
+  expect(await mounted.find({ key: 'dismiss-0-alpha' })).toBeUndefined()
+  // A reason outside the fixed set draws a bare waiting.
+  liveRows(w, [idRow({ status: 'waiting', waitingFor: 'anything the engine might say' })])
+  await poll(w)
+  expect(lastLive(w)[0].value).toBe('waiting')
+  liveRows(w, [idRow()])
+  await poll(w)
+  expect(lastLive(w)).toEqual([{ name: 'alpha', value: 'busy', shown: FULL }])
+  expect((await groupText(mounted, 'Working')).includes(FULL)).toBe(true)
+})
+
+test('a card the head chef marked done stays where it is whatever its session file says', async ($, on) => {
+  const w = await grouped(on, $, { cards: [card('alpha', { status: 'done', desktopId: DESKTOP })], todos: [] })
+  liveRows(w, [idRow({ status: 'waiting', waitingFor: 'input needed' })])
+  await poll(w)
+  expect(lastLive(w)[0].move).toBeUndefined()
+  expect(w.states.filter(([k]) => k === 'live').length).toBeGreaterThan(0)
+})
+
+test('live holds entries only for roster cards and no id from a session file; a planted move or name over its cap draws nothing', async ($, on) => {
+  const w = await pane(on, $, 'desktop', w => liveRows(w, [idRow({ jobId: BG_JOB, bridgeSessionId: 'session_X' }), idRow({ name: 'Not a card', sessionId: S2, hostSessionId: 'local_aaaa' })]))
+  expect(lastLive(w)).toEqual([{ name: 'alpha', value: 'busy', shown: FULL }])
+  for (const [k, v] of w.states) for (const piece of [BG_JOB, 'session_X', 'Not a card', 'C:\\\\work']) expect(`${k} ${v}`.includes(piece)).toBe(false)
+  for (const [k, v] of w.states.filter(([k]) => k === 'live')) expect(`${k} ${v}`.includes(DESKTOP)).toBe(false)
+  w.plant = (key: string, value: any) =>
+    key === 'live' ? [{ name: 'alpha', value: 'busy', shown: 'y'.repeat(500), move: 'sideways' }] : value
+  await poll(w)
+  const text = await textOf(mounted)
+  // A name over its cap is dropped whole, so even the 80 characters a drawn title keeps are absent.
+  expect(text.includes('y'.repeat(80))).toBe(false)
+  expect((await groupText(mounted, 'Waiting on you')).includes('alpha')).toBe(false)
+})
+
+test('a background card is found by its job id and shows the session\'s name, live word and link source', async ($, on) => {
+  const w = await pane(on, $, 'desktop', w => liveRows(w, [{ name: 'a bg job', status: 'idle', sessionId: BG_ID, cwd: 'C:\\work', jobId: 'ab12cd34' }]))
+  expect(lastLive(w)).toEqual([{ name: 'gamma', value: 'idle', shown: 'a bg job' }])
 })

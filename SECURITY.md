@@ -39,10 +39,12 @@ plugin's own store and offers a second tool, `show_permission_warning`, below;
 and since 0.60.0 it is no longer idle by default
 ([ADR 0008](docs/adr/0008-brigade-is-no-longer-idle-by-default.md)). While its pane is open it reads
 the engine's own session files, `<config>/sessions/<digits>.json`, for each
-session's name, status, id and folder only. It never opens the key file
+session's name, status, waiting reason, update time,
+session id and folder, and its Desktop id and job id only to match a card to its
+session, never kept. It never opens the key file
 beside each by name; a hard link to it is not caught, as for transcripts, and
 nothing is kept from a file that is not a session file. The files are the
-engine's and undocumented, read as Claude Code 2.1.299 writes them; when one
+engine's and undocumented, read as Claude Code 2.1.304 writes them (the background-session fields were measured on 2.1.302); when one
 fails its checks the pane says it cannot read the session files. Since 0.67.0
 it no longer runs `claude agents --json`, which made every running session do
 work at once. It also reads the lead session's roster file from the plugin's
@@ -170,7 +172,7 @@ words. It asks no permission. What follows from it:
     files, and so plant or hide a refusal line;
   - the summary read follows a link swapped in after the path check, as the
     transcript read does, and keeps only checked numbers;
-  - a session named like a card feeds that card from its own summary file,
+  - a session named like a card, or holding its id, feeds that card from its own summary file,
     a session with no working folder included;
   - a writer whose files keep failing a check with fresh times freezes its
     card on the last good record with no line to say so, which the owner
