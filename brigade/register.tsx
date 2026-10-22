@@ -1214,8 +1214,12 @@ export const register: Register = on => {
     const ticked = new Set(done)
     const ticks = await read($, ticking)
     const crossed = new Set(ticksFrom(ticks).map(p => p.name))
-    // A matched card is known by the session's own name, a report's sender too.
-    const last = (title: string) => [...inbox].reverse().find(r => r.from === drawnTitle(sessionName.get(title) ?? title))
+    // A report's sender is the card's title or, for a matched card, its session's own name.
+    const senders = (title: string) => [title, sessionName.get(title) ?? title]
+    const last = (title: string) => {
+      const names = new Set(senders(title).map(drawnTitle))
+      return [...inbox].reverse().find(r => names.has(r.from))
+    }
     // The chosen view, the selection and the folds, each checked again.
     const view = viewFrom(await read($, viewAtom))
     const picks = new Set(pickedFrom(await read($, picked)))
@@ -1833,7 +1837,7 @@ export const register: Register = on => {
                 row apart with no hairline and a row below its bar, as the
                 prototype draws them. Each bar counts the reports its
                 cards sent, so a fold never hides one without a sign. */}
-            {groupHead('waiting', waiting, reportNote(reportCount(needsYou.map(({ c }) => sessionName.get(c.title) ?? c.title), inbox)))}
+            {groupHead('waiting', waiting, reportNote(reportCount(needsYou.flatMap(({ c }) => senders(c.title)), inbox)))}
             {!folds.has('waiting') &&
               (needsYou.length + open.length > 0 ? (
                 terminal ? (
@@ -1847,9 +1851,9 @@ export const register: Register = on => {
               ) : (
                 hint('waiting')
               ))}
-            {groupHead('working', working.length, reportNote(reportCount(working.map(({ c }) => sessionName.get(c.title) ?? c.title), inbox)))}
+            {groupHead('working', working.length, reportNote(reportCount(working.flatMap(({ c }) => senders(c.title)), inbox)))}
             {!folds.has('working') && (working.length > 0 ? rows(working.map(card), 'working') : hint('working'))}
-            {groupHead('finished', finished.length, reportNote(reportCount(finished.map(({ c }) => sessionName.get(c.title) ?? c.title), inbox)))}
+            {groupHead('finished', finished.length, reportNote(reportCount(finished.flatMap(({ c }) => senders(c.title)), inbox)))}
             {!folds.has('finished') && (finished.length > 0 ? rows(finished.map(card), 'finished') : hint('finished'))}
             {inbox.length === 0 && (
               <Box marginTop={1}>

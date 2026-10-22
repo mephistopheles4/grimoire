@@ -4295,11 +4295,18 @@ const groupText = async (m: any, group: string) => {
 }
 
 test('a card finds its session by Desktop id whatever the head chef titled it, and draws the session\'s own name and live word', async ($, on) => {
+  on('session.receive', (_: any, e: any) => e)
   const w = await pane(on, $, 'desktop', w => liveRows(w, [idRow()]))
   expect(lastLive(w)).toEqual([{ name: 'alpha', value: 'busy', shown: FULL }])
   const working = await groupText(mounted, 'Working')
   expect(working.includes(FULL)).toBe(true)
   expect(working.includes('busy')).toBe(true)
+  // A report counts and shows under the card's title or the session's own name.
+  for (const from of ['alpha', FULL]) {
+    await $.session.receive({ origin: { kind: 'peer' }, text: `<cross-session-message from="${from}">\nnews\n</cross-session-message>` })
+  }
+  expect((await groupText(mounted, 'Working')).includes('news')).toBe(true)
+  expect((await groupsOf(mounted)).includes('Working 4 · 2 reports')).toBe(true)
   // A card whose Desktop id no file holds is not found, even by a file named like it.
   liveRows(w, [idRow({ hostSessionId: 'local_ffffffff-0000' }), idRow({ name: 'delta', hostSessionId: undefined, sessionId: S2 })])
   await poll(w)
