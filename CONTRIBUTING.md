@@ -7,6 +7,14 @@ computer. That is the reason for the rules below, and it is the only reason.
 ## The short version
 
 ```bash
+athanor run check
+```
+
+That runs the check in a container, and it is the default on your own machine
+(see "Run the check in a container" below). Where `athanor` is not on your PATH,
+or produces no result, run the same check on the host:
+
+```bash
 node scripts/check.mjs
 ```
 
@@ -91,7 +99,7 @@ such a package without asking when no one is at a terminal.
   limit, Docker or its configuration. Run `node scripts/check.mjs` on the host.
 - The cap on concurrent runs is athanor's machine setting `maxRuns`, 2 unless
   you change it. It caps athanor runs only: a run of `node scripts/check.mjs`
-  on the host, including the one after an athanor failure, is outside it.
+  on the host, including the one after an athanor run with no result, is outside it.
 - A run sends your tracked files, with uncommitted edits, to the Docker engine
   athanor is set to use, which can be a remote one reached over SSH or TLS.
   Use the local engine: check that `DOCKER_HOST` is unset and that
