@@ -2700,10 +2700,10 @@ test('the context series is the last 30 counted calls, oldest first', () => {
 });
 
 test('the window comes from a fixed table by model family, matched from the start of a checked model id', () => {
-  for (const m of ['claude-opus-5-5', 'claude-sonnet-5-5', 'claude-fable-5-1', 'claude-opus-4-8', 'claude-opus-4-8-20260101', 'claude-opus-5']) {
+  for (const m of ['claude-opus-5-5', 'claude-sonnet-5-5', 'claude-fable-5-1', 'claude-haiku-5-5', 'claude-haiku-5', 'claude-opus-4-8', 'claude-opus-4-8-20260101', 'claude-opus-5']) {
     assert.equal(windowOf(m), 1000000, m);
   }
-  for (const m of ['claude-haiku-5-5', 'claude-haiku-4-5-20251001', `claude-haiku-${'a'.repeat(54)}`]) assert.equal(windowOf(m), 200000, m);
+  for (const m of ['claude-haiku-4-5', 'claude-haiku-4-5-20251001', `claude-haiku-${'a'.repeat(54)}`]) assert.equal(windowOf(m), 200000, m);
   const none = [
     'claude-opus-4-7',
     'claude-sonnet-4-5',
@@ -2730,11 +2730,12 @@ test('the window comes from a fixed table by model family, matched from the star
 
 test('the window is read from the newest counted call only, and the model text is kept nowhere', () => {
   const w = t => callSeries(t, MTIME, NOW)?.window;
-  assert.equal(w(file(row({ model: 'claude-haiku-5-5' }))), 200000);
+  assert.equal(w(file(row({ model: 'claude-haiku-5-5' }))), 1000000);
+  assert.equal(w(file(row({ model: 'claude-haiku-4-5' }))), 200000);
   assert.equal(w(file(row({ ms: -2 * MIN, model: 'claude-opus-5-5' }), row({ ms: -MIN, model: 'claude-next-1' }))), undefined);
   assert.equal(w(file(row({ ms: -2 * MIN, model: 'claude-next-1' }), row({ ms: -MIN, model: 'claude-opus-5-5' }))), 1000000);
   // A newer row that is not counted does not give the model.
-  assert.equal(w(file(row({ ms: -2 * MIN, model: 'claude-haiku-5' }), row({ ms: -MIN, model: 'claude-opus-5-5', extra: { isSidechain: true } }))), 200000);
+  assert.equal(w(file(row({ ms: -2 * MIN, model: 'claude-haiku-4-5' }), row({ ms: -MIN, model: 'claude-opus-5-5', extra: { isSidechain: true } }))), 200000);
   const s = callSeries(file(row({ model: 'claude-opus-5-5' })), MTIME, NOW);
   assert.deepEqual(Object.keys(s).sort(), ['burn', 'context', 'last', 'window']);
   assert.ok(!JSON.stringify(s).includes('claude'));
@@ -3459,8 +3460,9 @@ const stepUsage = (over = {}) => ({
 
 test('a main-loop step with usage counts: its context, its new tokens, its cache and its window', () => {
   assert.deepEqual(stepCall({}, { stopReason: 'tool_use', usage: stepUsage() }), { tokens: 151006, fresh: 1306, cache: true, window: 1000000 });
-  // No cache written or read: the flag is off. A Haiku model has the 200k window.
+  // No cache written or read: the flag is off. A Haiku 4 model has the 200k window, a Haiku 5 the 1M.
   assert.deepEqual(stepCall({}, { stopReason: 'end_turn', usage: stepUsage({ cache_creation_input_tokens: 0, cache_read_input_tokens: 0, model: 'claude-haiku-4-5' }) }), { tokens: 6, fresh: 306, cache: false, window: 200000 });
+  assert.deepEqual(stepCall({}, { stopReason: 'end_turn', usage: stepUsage({ cache_creation_input_tokens: 0, cache_read_input_tokens: 0, model: 'claude-haiku-5-5' }) }), { tokens: 6, fresh: 306, cache: false, window: 1000000 });
   // Cache read alone, or cache written alone, sets the flag.
   assert.equal(stepCall({}, { stopReason: 'end_turn', usage: stepUsage({ cache_creation_input_tokens: 0 }) })?.cache, true);
   assert.equal(stepCall({}, { stopReason: 'end_turn', usage: stepUsage({ cache_read_input_tokens: 0 }) })?.cache, true);
