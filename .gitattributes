@@ -8,3 +8,7 @@
 skills/groundtrack/assets/OFL.txt -text
 skills/eagle-eye/assets/OFL.txt -text
 skills/contract/assets/OFL.txt -text
+
+# The directory listing's icon. Line-ending conversion corrupts a PNG as it
+# does a woff2.
+*.png binary
