@@ -177,6 +177,12 @@ type World = ReturnType<typeof makeFs> & {
   failRegister: boolean
   /** While the pane is open, `ui.panes` rejects. */
   failPanes: boolean
+  /** While the pane is closed, `ui.panes` rejects. */
+  failPanesClosed: boolean
+  /** The open answers, but the engine never lists the pane. */
+  unlisted: boolean
+  /** How many times the pane list was asked. */
+  panesCalls: number
   holdWrite: boolean
   release: () => void
   errors: string[]
@@ -256,6 +262,9 @@ function world(on: On, setup: (w: World) => void = w => w.dirs(`${CONFIG}\\plugi
     failCheck: false,
     failRegister: false,
     failPanes: false,
+    failPanesClosed: false,
+    unlisted: false,
+    panesCalls: 0,
     holdWrite: false,
     release: () => {},
     errors: [] as string[],
@@ -355,11 +364,12 @@ function world(on: On, setup: (w: World) => void = w => w.dirs(`${CONFIG}\\plugi
     w.open = true
     return { value: { isPlaced: true } }
   })
-  on('ui.panes', () =>
-    w.open && w.failPanes
+  on('ui.panes', () => {
+    w.panesCalls++
+    return (w.open ? w.failPanes : w.failPanesClosed)
       ? { deny: 'forced panes failure' }
-      : { value: w.open ? [{ id: 'brigade', title: 'Brigade', isShown: w.shown, isFocused: false, isPlaced: true }] : [] },
-  )
+      : { value: w.open && !w.unlisted ? [{ id: 'brigade', title: 'Brigade', isShown: w.shown, isFocused: false, isPlaced: true }] : [] }
+  })
   on('ui.toast', ($, e: any) => {
     w.toasts.push(String(e.text))
     return { value: undefined }
@@ -4434,6 +4444,7 @@ const NOT_OURS: [string, Record<string, unknown>][] = [
 test('C3: a head-chef from anywhere else, or another skill, opens no pane, offers no tool and returns the text unchanged', async ($, on) => {
   const w = world(on)
   await start($)
+  const asked = w.panesCalls
   for (const [what, over] of NOT_OURS) {
     const r = await load($, over)
     expect(r.text, what).toBe(SKILL_TEXT)
@@ -4442,6 +4453,8 @@ test('C3: a head-chef from anywhere else, or another skill, opens no pane, offer
   expect(w.open).toBe(false)
   expect(rosterOffers(w)).toEqual([])
   expect(w.usageCalls).toBe(0)
+  // No engine call for a load that is not ours.
+  expect(w.panesCalls).toBe(asked)
 })
 
 test('C4: a second load with the pane open resets nothing and adds no line', async ($, on) => {
@@ -4470,6 +4483,12 @@ test('C4: a second load with the pane open resets nothing and adds no line', asy
   expect(r.text).toBe(SKILL_TEXT)
   expect(keys.map(k => mine(k).length)).toEqual(before)
   expect(rosterOffers(w).length).toBe(offers)
+  // The pane closes: the next load opens it clean.
+  w.open = false
+  const again = await load($)
+  expect(added(again)).toBe(READY)
+  expect(mine('view').at(-1)?.[1]).toBe('"sessions"')
+  for (const k of ['picked', 'dismissed', 'reports']) expect(mine(k).at(-1)?.[1]).toBe('[]')
 })
 
 test('C5: the load returns while the first roster read is unanswered, and the pane shows the roster once it is', { timeoutMs: 15000 }, async ($, on) => {
@@ -4504,5 +4523,31 @@ test('C6: when the tool cannot be offered the line says so with no error text; w
   const q = await load($)
   expect(q.text).toBe(SKILL_TEXT)
   expect(w.toasts).toEqual(['The Brigade pane opened without its reads. Type /brigade to start them.'])
+  expect(rosterOffers(w)).toEqual([])
+
+  // A throw before the open says nothing and opens nothing.
+  w.failPanes = false
+  w.open = false
+  w.failPanesClosed = true
+  const early = await load($)
+  expect(early.text).toBe(SKILL_TEXT)
+  expect(w.toasts.length).toBe(1)
+  expect(w.open).toBe(false)
+
+  // A pane the engine does not list adds no line and offers no tool.
+  w.failPanesClosed = false
+  w.unlisted = true
+  const unlisted = await load($)
+  expect(unlisted.text).toBe(SKILL_TEXT)
+  expect(rosterOffers(w)).toEqual([])
+  await w.clock.settle()
+})
+
+test('C7: /brigade when the engine opens the pane but never lists it replies that it opened, and offers no tool', async ($, on) => {
+  const w = world(on)
+  w.unlisted = true
+  await start($)
+  const reply = await brigade($)
+  expect(reply.text).toBe('Brigade pane opened.')
   expect(rosterOffers(w)).toEqual([])
 })
