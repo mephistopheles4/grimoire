@@ -34,7 +34,7 @@ request.
 plugin.** It is a hooks module, `brigade/register.tsx`, named by
 `hooks/hooks.json`, and it runs with the session's own rights. At session start
 it registers `/brigade`, a `skill.prompt` hook, and the two hooks of its usage summary writer, below;
-since 0.73.0 (#376) its `skill.prompt` hook reads each skill load's name, source and plugin name, acts only on head-chef's from the plugin or the owner's own skills folder, and appends one fixed line to that skill's text, never text from the event, the roster or an error;
+since 0.73.0 (#376) its `skill.prompt` hook reads each skill load's name, source and plugin name, acts only on a head-chef skill from a plugin named grimoire or from any user-level skill of that name, and on such a load opens the pane when it is closed, which starts the reads and the `gh` call below and offers `set_roster`, even when the model chose the load (when the engine does not place the pane, it starts none of that and shows a fixed toast naming `/brigade`), and appends one fixed line to that skill's text, never text from the event, the roster or an error;
 since 0.69.0 it also reads one key, `permission-warning-ack`, from the
 plugin's own store and offers a second tool, `show_permission_warning`, below;
 and since 0.60.0 it is no longer idle by default

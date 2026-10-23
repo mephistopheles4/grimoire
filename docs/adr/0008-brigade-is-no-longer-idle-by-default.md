@@ -30,7 +30,7 @@ session has to write them down.
 - The pane opens on `/brigade` or when the plugin's or the owner's own
   head-chef skill loads, and its reads still stop when it closes. The owner
   decided this on issue 376, in the lead's chat on 2026-10-23, relayed by the
-  lead.
+  lead. A skill load whose pane the engine does not place starts no reads.
 - The `set_roster` tool is still offered only once the pane is open.
 - The writer makes no session usage call, so no cost, rate limit or context
   breakdown enters it. It keeps numbers only, from one exact list of keys.

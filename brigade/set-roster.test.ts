@@ -181,6 +181,8 @@ type World = ReturnType<typeof makeFs> & {
   failPanesClosed: boolean
   /** The open answers, but the engine never lists the pane. */
   unlisted: boolean
+  /** The open answers that the pane is not placed. */
+  unplaced: boolean
   /** How many times the pane list was asked. */
   panesCalls: number
   holdWrite: boolean
@@ -264,6 +266,7 @@ function world(on: On, setup: (w: World) => void = w => w.dirs(`${CONFIG}\\plugi
     failPanes: false,
     failPanesClosed: false,
     unlisted: false,
+    unplaced: false,
     panesCalls: 0,
     holdWrite: false,
     release: () => {},
@@ -362,13 +365,13 @@ function world(on: On, setup: (w: World) => void = w => w.dirs(`${CONFIG}\\plugi
   })
   on('ui.open', () => {
     w.open = true
-    return { value: { isPlaced: true } }
+    return { value: w.unplaced ? { isPlaced: false, reason: 'the pane is too narrow' } : { isPlaced: true } }
   })
   on('ui.panes', () => {
     w.panesCalls++
     return (w.open ? w.failPanes : w.failPanesClosed)
       ? { deny: 'forced panes failure' }
-      : { value: w.open && !w.unlisted ? [{ id: 'brigade', title: 'Brigade', isShown: w.shown, isFocused: false, isPlaced: true }] : [] }
+      : { value: w.open && !w.unlisted ? [{ id: 'brigade', title: 'Brigade', isShown: w.shown, isFocused: false, isPlaced: !w.unplaced }] : [] }
   })
   on('ui.toast', ($, e: any) => {
     w.toasts.push(String(e.text))
@@ -4550,4 +4553,31 @@ test('C7: /brigade when the engine opens the pane but never lists it replies tha
   const reply = await brigade($)
   expect(reply.text).toBe('Brigade pane opened.')
   expect(rosterOffers(w)).toEqual([])
+})
+
+test('C9: when the open answers that the pane is not placed, a skill load starts no reads, offers no tool and toasts /brigade; /brigade then shows it and starts them', async ($, on) => {
+  const w = world(on, w => {
+    w.dirs(BRIGADE)
+    w.put(FILE, { type: 'file', data: { text: JSON.stringify(GOOD) } })
+  })
+  w.unplaced = true
+  await start($)
+  const r = await load($)
+  expect(r.text).toBe(SKILL_TEXT)
+  await w.clock.settle()
+  expect(w.open).toBe(true)
+  expect(rosterOffers(w)).toEqual([])
+  expect(w.usageCalls).toBe(0)
+  expect(w.files).toEqual([])
+  expect(w.toasts).toEqual(['The Brigade pane opened but is not shown, so its reads did not start. Type /brigade to show it.'])
+  // A second load, with the pane listed, does nothing more.
+  const again = await load($)
+  expect(again.text).toBe(SKILL_TEXT)
+  expect(w.toasts.length).toBe(1)
+  // /brigade, as ever, starts the reads and offers the tool.
+  const reply = await brigade($)
+  expect(reply.text).toContain('is ready: call it with the full roster.')
+  await w.clock.settle()
+  expect(rosterOffers(w)).toEqual(['set_roster'])
+  expect(w.files.at(-1)).toBe(FILE)
 })
