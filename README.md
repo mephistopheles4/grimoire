@@ -325,8 +325,9 @@ What each of Brigade's hooks does with what it sees:
 | `ui.render`, `ui.press`, `ui.close` | Draws the pane and the warning band, and handles their buttons. |
 
 Nothing the mod reads leaves the machine except the `gh pr list` request
-above and Open in app's call to the Desktop app, which carries only the
-session's id.
+above and Open in app's two routes: the call to the Desktop app carries the
+session's id and the fixed target `split`, and the fallback hands a checked
+`claude://` link to your system's opener.
 
 The threat model,
 [`docs/security/threat-model.md`](docs/security/threat-model.md), has the
