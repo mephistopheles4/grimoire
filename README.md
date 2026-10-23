@@ -281,6 +281,41 @@ the evidence it works is a repository that does it, plus
 
 </details>
 
+## Where it works, and what it runs
+
+On claude.ai chat and in Cowork, only the four skills load. Brigade is a mod,
+so it runs only in Claude Code: the terminal, the Desktop app's Code tab and
+the VS Code extension. head-chef needs Claude Code in the Desktop app, git and
+a signed-in `gh`.
+
+Everything the plugin runs, sends or writes beyond reading and writing the
+files you ask for:
+
+- **eagle-eye's optional audit** (`audit.mjs`) sends the box's text to
+  TypeSafe, or to OpenRouter, which passes it on to TypeSafe. It runs only
+  when you set `TYPESAFE_API_KEY` or `OPENROUTER_API_KEY`, and the skill does
+  a dry run and asks for your yes in chat first. `EAGLE_EYE_AUDIT_ENDPOINT`
+  points it at another endpoint. Each request is charged to your key.
+- **eagle-eye, groundtrack and contract** write their pages as local files.
+  eagle-eye may open its page with your system's browser command, and keeps a
+  usage log only after you say yes. contract's page keeps your answers in the
+  browser's storage until you press Reset.
+- **Brigade**, while its pane is open, runs `gh pr list` once a minute for the
+  pull requests its rows carry, which uses your GitHub sign-in. It reads
+  Claude Code's own session files and the transcripts of the sessions the lead
+  started. It writes a roster file and a usage summary file in the plugin's
+  data folder; the summary file is written in every session, pane open or not.
+  Open in app asks the Desktop app to show a session, or opens a `claude://`
+  link with your system's opener.
+- **Three calls skip the permission prompt:** the `set_roster` tool, which
+  writes the roster file, the `show_permission_warning` tool, which shows a
+  reminder, and Open in app's call to the Desktop app's
+  `mcp__ccd_window__open_session_in`. A deny rule for each name stops it.
+
+The threat model,
+[`docs/security/threat-model.md`](docs/security/threat-model.md), has the
+detail and the accepted risks.
+
 ## Contributing
 
 [`CONTRIBUTING.md`](CONTRIBUTING.md). The contract is one command:
