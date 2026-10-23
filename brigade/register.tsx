@@ -845,6 +845,50 @@ async function offerTool($: EngineInterface) {
   await $.tool.register({ name: TOOL, description: DESCRIPTION, inputSchema: SCHEMA })
 }
 
+// Opens the pane for /brigade and for a head-chef skill load. Each open
+// starts on Sessions, with the dismissed cards back and nothing selected, and
+// reports count from the open. The open comes first, and the reads start and
+// the tool is offered only once the engine lists the pane: a pane another
+// plugin refuses or answers for starts neither. `wait` says whether to wait
+// for the first reads: /brigade does, and the skill hook does not, so the
+// skill's text is never held up by a slow read. `reached.open` is set once
+// the engine has answered the open, for a caller whose later step throws.
+type Offer = 'offered' | 'not listed' | { why: string }
+async function openPane($: EngineInterface, wait: boolean, reached: { open: boolean } = { open: false }) {
+  await update($, viewAtom, () => 'sessions')
+  await update($, dismissed, () => [])
+  await update($, picked, () => [])
+  await update($, reports, () => [])
+  const opened = await $.ui.open({ id: PANE, title: TITLE })
+  reached.open = true
+  let offer: Offer = 'not listed'
+  if (await paneOpen($)) {
+    // Not awaited when the caller does not wait: arm takes its timers before
+    // its first await, so a second arm still starts nothing.
+    if (wait) await arm($)
+    else arm($).catch(() => undefined)
+    try {
+      await offerTool($)
+      offer = 'offered'
+    } catch (err) {
+      offer = { why: oneLine(String(err instanceof Error ? err.message : err), 200) }
+    }
+  }
+  return { opened, offer }
+}
+
+// The two lines the skill hook may append. Fixed text: nothing from the event,
+// the roster or an error reaches the model's prompt through them.
+const READY_LINE = `The Brigade pane is open. \`${TOOL}\` is ready: call it with the full roster on your next turn.`
+const NOT_OFFERED_LINE = `The Brigade pane is open, but \`${TOOL}\` could not be offered; keep no roster.`
+
+// Whether a skill load is the head-chef skill from the plugin's own copy or the
+// owner's own skills folder, read from the event alone. The engine's documents
+// do not say which spelling a plugin skill's name takes, so both are matched.
+const isOurHeadChef = (e: { skill: string; source: string; pluginName?: string }) =>
+  (e.skill === 'head-chef' || (e.skill === 'grimoire:head-chef' && e.source === 'plugin')) &&
+  ((e.source === 'plugin' && e.pluginName === 'grimoire') || e.source === 'userSettings')
+
 // Writes run one after another, so two calls in one turn cannot interleave
 // their checks and writes. A call whose dispatch was abandoned while it
 // waited, because it ran out of time or the owner interrupted it, writes
@@ -1020,27 +1064,10 @@ export const register: Register = on => {
   })
 
   on('command.run', { command: 'brigade' }, async $ => {
-    // Each /brigade opens on Sessions, with the dismissed cards back and
-    // nothing selected.
-    await update($, viewAtom, () => 'sessions')
-    await update($, dismissed, () => [])
-    await update($, picked, () => [])
-    // Reports count from the open.
-    await update($, reports, () => [])
-    // Open first, and start the reads and offer the tool only once the engine
-    // lists the pane: a pane another plugin refuses or answers for starts
-    // neither.
-    const opened = await $.ui.open({ id: PANE, title: TITLE })
+    const { opened, offer } = await openPane($, true)
     let ready = ''
-    if (await paneOpen($)) {
-      await arm($)
-      try {
-        await offerTool($)
-        ready = ` \`${TOOL}\` is ready: call it with the full roster.`
-      } catch (err) {
-        ready = ` \`${TOOL}\` could not be offered (${oneLine(String(err instanceof Error ? err.message : err), 200)}); keep no roster.`
-      }
-    }
+    if (offer === 'offered') ready = ` \`${TOOL}\` is ready: call it with the full roster.`
+    else if (offer !== 'not listed') ready = ` \`${TOOL}\` could not be offered (${offer.why}); keep no roster.`
     // The reply names no roster path: no skill reads one, and the pane no
     // longer draws one. When no file can be named, the pane keeps the full
     // reason.
@@ -1048,6 +1075,25 @@ export const register: Register = on => {
     const named = 'error' in at ? ' The pane cannot find the roster file; the pane says why.' : ''
     return {
       text: `${opened.isPlaced ? 'Brigade pane opened.' : `Brigade pane is open but not shown: ${opened.reason}.`}${named}${ready}`,
+    }
+  })
+
+  // The head-chef skill's load opens the pane, when it is closed, and appends
+  // one fixed line to the skill's text. Every other load passes on untouched,
+  // with no engine call. A throw returns the text as it came; one after the
+  // open answered also says so in a toast.
+  on('skill.prompt', async ($, e, next) => {
+    if (!isOurHeadChef(e)) return next(e)
+    const answered = await next(e)
+    const reached = { open: false }
+    try {
+      if (await paneOpen($)) return answered
+      const { offer } = await openPane($, false, reached)
+      if (offer === 'not listed') return answered
+      return { text: `${answered.text}\n\n${offer === 'offered' ? READY_LINE : NOT_OFFERED_LINE}` }
+    } catch {
+      if (reached.open) $.ui.toast('The Brigade pane opened without its reads. Type /brigade to start them.')
+      return answered
     }
   })
 
