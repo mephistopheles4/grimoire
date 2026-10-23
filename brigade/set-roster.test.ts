@@ -4555,7 +4555,7 @@ test('C7: /brigade when the engine opens the pane but never lists it replies tha
   expect(rosterOffers(w)).toEqual([])
 })
 
-test('C9: when the open answers that the pane is not placed, a skill load starts no reads, offers no tool and toasts /brigade; /brigade then shows it and starts them', async ($, on) => {
+test('C9: when the open answers that the pane is not placed, a skill load starts no reads, offers no tool and toasts /brigade; /brigade then starts them', async ($, on) => {
   const w = world(on, w => {
     w.dirs(BRIGADE)
     w.put(FILE, { type: 'file', data: { text: JSON.stringify(GOOD) } })
@@ -4574,9 +4574,14 @@ test('C9: when the open answers that the pane is not placed, a skill load starts
   const again = await load($)
   expect(again.text).toBe(SKILL_TEXT)
   expect(w.toasts.length).toBe(1)
-  // /brigade, as ever, starts the reads and offers the tool.
+  await w.clock.settle()
+  expect(w.usageCalls).toBe(0)
+  expect(w.files).toEqual([])
+  expect(rosterOffers(w)).toEqual([])
+  // /brigade, as ever, opens afresh, starts the reads and offers the tool; the engine still
+  // answers not placed, so its reply says the pane is open but not shown.
   const reply = await brigade($)
-  expect(reply.text).toContain('is ready: call it with the full roster.')
+  expect(reply.text).toBe('Brigade pane is open but not shown: the pane is too narrow. `set_roster` is ready: call it with the full roster.')
   await w.clock.settle()
   expect(rosterOffers(w)).toEqual(['set_roster'])
   expect(w.files.at(-1)).toBe(FILE)
