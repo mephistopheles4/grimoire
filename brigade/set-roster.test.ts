@@ -175,6 +175,16 @@ type World = ReturnType<typeof makeFs> & {
   existsCalls: string[]
   failCheck: boolean
   failRegister: boolean
+  /** While the pane is open, `ui.panes` rejects. */
+  failPanes: boolean
+  /** While the pane is closed, `ui.panes` rejects. */
+  failPanesClosed: boolean
+  /** The open answers, but the engine never lists the pane. */
+  unlisted: boolean
+  /** The open answers that the pane is not placed. */
+  unplaced: boolean
+  /** How many times the pane list was asked. */
+  panesCalls: number
   holdWrite: boolean
   release: () => void
   errors: string[]
@@ -253,6 +263,11 @@ function world(on: On, setup: (w: World) => void = w => w.dirs(`${CONFIG}\\plugi
     existsCalls: [] as string[],
     failCheck: false,
     failRegister: false,
+    failPanes: false,
+    failPanesClosed: false,
+    unlisted: false,
+    unplaced: false,
+    panesCalls: 0,
     holdWrite: false,
     release: () => {},
     errors: [] as string[],
@@ -350,11 +365,14 @@ function world(on: On, setup: (w: World) => void = w => w.dirs(`${CONFIG}\\plugi
   })
   on('ui.open', () => {
     w.open = true
-    return { value: { isPlaced: true } }
+    return { value: w.unplaced ? { isPlaced: false, reason: 'the pane is too narrow' } : { isPlaced: true } }
   })
-  on('ui.panes', () => ({
-    value: w.open ? [{ id: 'brigade', title: 'Brigade', isShown: w.shown, isFocused: false, isPlaced: true }] : [],
-  }))
+  on('ui.panes', () => {
+    w.panesCalls++
+    return (w.open ? w.failPanes : w.failPanesClosed)
+      ? { deny: 'forced panes failure' }
+      : { value: w.open && !w.unlisted ? [{ id: 'brigade', title: 'Brigade', isShown: w.shown, isFocused: false, isPlaced: !w.unplaced }] : [] }
+  })
   on('ui.toast', ($, e: any) => {
     w.toasts.push(String(e.text))
     return { value: undefined }
@@ -401,6 +419,8 @@ function world(on: On, setup: (w: World) => void = w => w.dirs(`${CONFIG}\\plugi
   on('session.start', ($, e: any) => ({ cwd: e.cwd }))
   on('command.register', ($, e: any) => ({ value: { command: e.name } }))
   on('classic.UserPromptSubmit', () => ({}))
+  // A skill's own text is the bottom of the chain: the engine hands it on whole.
+  on('skill.prompt', ($, e: any) => ({ text: e.text }))
   // Where the session is drawn: the Desktop app, unless a test says otherwise.
   on('session.surfaces', () => ({ value: w.surfaces }))
   // This session's usage reading, when a test gives one; else the kit's own.
@@ -4363,4 +4383,206 @@ test('live holds entries only for roster cards and no id from a session file; a 
 test('a background card is found by its job id and shows the session\'s name, live word and link source', async ($, on) => {
   const w = await pane(on, $, 'desktop', w => liveRows(w, [{ name: 'a bg job', status: 'idle', sessionId: BG_ID, cwd: 'C:\\work', jobId: 'ab12cd34' }]))
   expect(lastLive(w)).toEqual([{ name: 'gamma', value: 'idle', shown: 'a bg job' }])
+})
+
+// --- the pane opens when the head-chef skill loads (#376) ----------------------
+//
+// A skill.prompt event is raised as the engine raises it: the skill's name (`skill`), its
+// text, its frontmatter, its source, the plugin's name for a plugin's skill and
+// the file's path. The hook's answer is the text the model reads.
+
+const SKILL_TEXT = 'THE HEAD-CHEF SKILL TEXT'
+const READY = 'The Brigade pane is open. `set_roster` is ready: call it with the full roster on your next turn.'
+const NOT_OFFERED = 'The Brigade pane is open, but `set_roster` could not be offered; keep no roster.'
+const load = ($: any, over: Record<string, unknown> = {}): Promise<{ text: string }> =>
+  $.skill.prompt({ skill: 'head-chef', text: SKILL_TEXT, frontmatter: {}, source: 'plugin', pluginName: 'grimoire', path: 'C:\\skills\\head-chef\\SKILL.md', ...over })
+// What follows the skill's own text.
+const added = (r: { text: string }) => {
+  expect(r.text.startsWith(SKILL_TEXT)).toBe(true)
+  return r.text.slice(SKILL_TEXT.length).trim()
+}
+
+for (const name of ['head-chef', 'grimoire:head-chef']) {
+  test(`C1: the plugin's own head-chef load (named ${name}) opens the pane, starts the reads, offers the tool and appends the ready line`, async ($, on) => {
+    const w = world(on, w => {
+      w.dirs(BRIGADE)
+      w.put(FILE, { type: 'file', data: { text: JSON.stringify(GOOD) } })
+    })
+    await start($)
+    const r = await load($, { skill: name })
+    expect(w.open).toBe(true)
+    expect(rosterOffers(w)).toEqual(['set_roster'])
+    expect(added(r)).toBe(READY)
+    await w.clock.settle()
+    expect(w.files.at(-1)).toBe(FILE)
+    expect(w.roster.some(x => JSON.stringify(x).includes('alpha'))).toBe(true)
+    expect(w.usageCalls).toBeGreaterThan(0)
+  })
+}
+
+test("C2: the owner's own copy (source userSettings, no plugin name) opens the pane the same way", async ($, on) => {
+  const w = world(on)
+  await start($)
+  const r = await load($, { source: 'userSettings', pluginName: undefined })
+  expect(w.open).toBe(true)
+  expect(rosterOffers(w)).toEqual(['set_roster'])
+  expect(added(r)).toBe(READY)
+  await w.clock.settle()
+  expect(w.files.at(-1)).toBe(FILE)
+})
+
+const NOT_OURS: [string, Record<string, unknown>][] = [
+  ['projectSettings', { source: 'projectSettings', pluginName: undefined }],
+  ['policySettings', { source: 'policySettings', pluginName: undefined }],
+  ['mcp', { source: 'mcp', pluginName: undefined }],
+  ['syncedSkills', { source: 'syncedSkills', pluginName: undefined }],
+  ['built-in', { source: 'built-in', pluginName: undefined }],
+  ['a plugin named other than grimoire', { pluginName: 'other' }],
+  ['a plugin named other than grimoire, with the prefixed name', { skill: 'other:head-chef', pluginName: 'other' }],
+  ['the prefixed name from userSettings', { skill: 'grimoire:head-chef', source: 'userSettings', pluginName: undefined }],
+  ['the prefixed name from projectSettings, naming grimoire', { skill: 'grimoire:head-chef', source: 'projectSettings' }],
+  ['a grimoire skill named other than head-chef', { skill: 'groundtrack' }],
+  ['a user skill named other than head-chef', { skill: 'head-chef-2', source: 'userSettings', pluginName: undefined }],
+]
+test('C3: a head-chef from anywhere else, or another skill, opens no pane, offers no tool and returns the text unchanged', async ($, on) => {
+  const w = world(on)
+  await start($)
+  const asked = w.panesCalls
+  for (const [what, over] of NOT_OURS) {
+    const r = await load($, over)
+    expect(r.text, what).toBe(SKILL_TEXT)
+  }
+  await w.clock.settle()
+  expect(w.open).toBe(false)
+  expect(rosterOffers(w)).toEqual([])
+  expect(w.usageCalls).toBe(0)
+  // No engine call for a load that is not ours.
+  expect(w.panesCalls).toBe(asked)
+})
+
+test('C4: a second load with the pane open resets nothing and adds no line', async ($, on) => {
+  const w = world(on, w => {
+    w.dirs(BRIGADE)
+    w.put(FILE, { type: 'file', data: { text: JSON.stringify(SEEDED) } })
+  })
+  on('session.receive', (_: any, e: any) => e)
+  await start($)
+  await brigade($)
+  await w.clock.settle()
+  const m = await $.ui.mount({ plugin: 'grimoire', surface: 'desktop', component: 'Pane', requestId: 'brigade', props: PANE_PROPS })
+  await m.press({ key: 'pick-0-alpha' })
+  await m.press({ key: 'dismiss-1-beta' })
+  await m.press({ key: 'view-prs' })
+  await $.session.receive({ origin: { kind: 'peer' }, text: '<cross-session-message from="alpha">\nfinished\n</cross-session-message>' })
+  const mine = (key: string) => w.states.filter(([k]) => k === key)
+  const keys = ['view', 'picked', 'dismissed', 'reports']
+  const before = keys.map(k => mine(k).length)
+  expect(mine('view').at(-1)?.[1]).toBe('"prs"')
+  expect(mine('picked').at(-1)?.[1]).toContain('alpha')
+  expect(mine('dismissed').at(-1)?.[1]).toContain('beta')
+  expect(mine('reports').at(-1)?.[1]).toContain('finished')
+  const offers = rosterOffers(w).length
+  const r = await load($)
+  expect(r.text).toBe(SKILL_TEXT)
+  expect(keys.map(k => mine(k).length)).toEqual(before)
+  expect(rosterOffers(w).length).toBe(offers)
+  // The pane closes: the next load opens it clean.
+  w.open = false
+  const again = await load($)
+  expect(added(again)).toBe(READY)
+  expect(mine('view').at(-1)?.[1]).toBe('"sessions"')
+  for (const k of ['picked', 'dismissed', 'reports']) expect(mine(k).at(-1)?.[1]).toBe('[]')
+})
+
+test('C5: the load returns while the first roster read is unanswered, and the pane shows the roster once it is', { timeoutMs: 15000 }, async ($, on) => {
+  const w = world(on, w => {
+    w.dirs(BRIGADE)
+    w.put(FILE, { type: 'file', data: { text: JSON.stringify(GOOD) } })
+  })
+  await start($)
+  w.holdStat = true
+  const r = await load($)
+  expect(added(r)).toBe(READY)
+  expect(w.roster.some(x => JSON.stringify(x).includes('alpha'))).toBe(false)
+  w.holdStat = false
+  w.releaseStat()
+  await w.clock.settle()
+  expect(w.roster.some(x => JSON.stringify(x).includes('alpha'))).toBe(true)
+})
+
+test('C6: when the tool cannot be offered the line says so with no error text; when the listed check throws after the open, the text is unchanged and a toast says so', async ($, on) => {
+  const w = world(on)
+  w.failRegister = true
+  await start($)
+  const r = await load($)
+  expect(added(r)).toBe(NOT_OFFERED)
+  expect(r.text).not.toContain('forced register failure')
+  expect(w.toasts).toEqual([])
+
+  // The pane closes, and the next load opens it but cannot list it.
+  w.failRegister = false
+  w.open = false
+  w.failPanes = true
+  const q = await load($)
+  expect(q.text).toBe(SKILL_TEXT)
+  expect(w.toasts).toEqual(['The Brigade pane opened without its reads. Type /brigade to start them.'])
+  expect(rosterOffers(w)).toEqual([])
+
+  // A throw before the open says nothing and opens nothing.
+  w.failPanes = false
+  w.open = false
+  w.failPanesClosed = true
+  const early = await load($)
+  expect(early.text).toBe(SKILL_TEXT)
+  expect(w.toasts.length).toBe(1)
+  expect(w.open).toBe(false)
+
+  // A pane the engine does not list adds no line and offers no tool.
+  w.failPanesClosed = false
+  w.unlisted = true
+  const unlisted = await load($)
+  expect(unlisted.text).toBe(SKILL_TEXT)
+  expect(rosterOffers(w)).toEqual([])
+  await w.clock.settle()
+})
+
+test('C7: /brigade when the engine opens the pane but never lists it replies that it opened, and offers no tool', async ($, on) => {
+  const w = world(on)
+  w.unlisted = true
+  await start($)
+  const reply = await brigade($)
+  expect(reply.text).toBe('Brigade pane opened.')
+  expect(rosterOffers(w)).toEqual([])
+})
+
+test('C9: when the open answers that the pane is not placed, a skill load starts no reads, offers no tool and toasts /brigade; /brigade then starts them', async ($, on) => {
+  const w = world(on, w => {
+    w.dirs(BRIGADE)
+    w.put(FILE, { type: 'file', data: { text: JSON.stringify(GOOD) } })
+  })
+  w.unplaced = true
+  await start($)
+  const r = await load($)
+  expect(r.text).toBe(SKILL_TEXT)
+  await w.clock.settle()
+  expect(w.open).toBe(true)
+  expect(rosterOffers(w)).toEqual([])
+  expect(w.usageCalls).toBe(0)
+  expect(w.files).toEqual([])
+  expect(w.toasts).toEqual(['The Brigade pane opened but is not shown, so its reads did not start. Type /brigade to show it.'])
+  // A second load, with the pane listed, does nothing more.
+  const again = await load($)
+  expect(again.text).toBe(SKILL_TEXT)
+  expect(w.toasts.length).toBe(1)
+  await w.clock.settle()
+  expect(w.usageCalls).toBe(0)
+  expect(w.files).toEqual([])
+  expect(rosterOffers(w)).toEqual([])
+  // /brigade, as ever, opens afresh, starts the reads and offers the tool; the engine still
+  // answers not placed, so its reply says the pane is open but not shown.
+  const reply = await brigade($)
+  expect(reply.text).toBe('Brigade pane is open but not shown: the pane is too narrow. `set_roster` is ready: call it with the full roster.')
+  await w.clock.settle()
+  expect(rosterOffers(w)).toEqual(['set_roster'])
+  expect(w.files.at(-1)).toBe(FILE)
 })

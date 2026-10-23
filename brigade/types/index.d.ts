@@ -125,10 +125,10 @@ declare module 'claude-code' {
        *  Read only through the fixed set of view words. */
       tabs: Pair[]
       /** The chosen view, `sessions` or `prs`: set to `sessions` each time
-       *  /brigade opens the pane. Read only through the fixed set. */
+       *  /brigade or a skill load that opens the pane does. Read only through the fixed set. */
       view: string
-      /** The selected cards' titles, at most 50. Cleared when /brigade opens
-       *  the pane. Checked again before use. */
+      /** The selected cards' titles, at most 50. Cleared when /brigade or a skill load
+       *  opens the pane. Checked again before use. */
       picked: string[]
       /** The folded groups, from the fixed set of six group keys: set to
        *  the finished group each time the pane opens, and flipped by a press.

@@ -33,7 +33,8 @@ request.
 **The Brigade mod is code Claude Code runs in every session that has the
 plugin.** It is a hooks module, `brigade/register.tsx`, named by
 `hooks/hooks.json`, and it runs with the session's own rights. At session start
-it registers `/brigade` and the two hooks of its usage summary writer, below;
+it registers `/brigade`, a `skill.prompt` hook, and the two hooks of its usage summary writer, below;
+since 0.73.0 (#376) its `skill.prompt` hook reads each skill load's name, source and plugin name, acts only on a head-chef skill from a plugin named grimoire or from any user-level skill of that name, and on such a load opens the pane when it is closed, which starts the reads and the `gh` call below and offers `set_roster`, even when the model chose the load (when the engine does not place the pane, it starts none of that and shows a fixed toast naming `/brigade`), and appends one fixed line to that skill's text, never text from the event, the roster or an error;
 since 0.69.0 it also reads one key, `permission-warning-ack`, from the
 plugin's own store and offers a second tool, `show_permission_warning`, below;
 and since 0.60.0 it is no longer idle by default
@@ -72,7 +73,7 @@ one tool call, below, goes to whatever connected server answers to the name
 through a tool the model calls, `set_roster`, which skips Claude Code's
 permission prompt. So that write has no human and no classifier review; every
 call is still recorded in the transcript as the tool's result. The tool exists
-only once the owner runs `/brigade`, writes only while the pane is open, and
+only once the owner runs `/brigade` or the head-chef skill loads with the pane closed, writes only while the pane is open, and
 refuses a subagent's call, a deny verdict, an owner's ask rule, any input
 outside the roster's shape and size, and any link on the way to the file. It
 writes in every permission mode. It finds the Claude config folder from the install

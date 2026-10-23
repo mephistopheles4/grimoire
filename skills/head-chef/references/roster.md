@@ -4,7 +4,7 @@ Read this before your first `set_roster` call in a session. It says how to
 keep the Brigade pane's roster: the call's shape, its caps, and what each
 refusal means.
 
-The Brigade pane opens with `/brigade`. It shows one card per session, and
+The Brigade pane opens with `/brigade`, or when this skill loads. It shows one card per session, and
 the owner's to-dos. The skill works with no pane.
 
 ## The call
@@ -61,13 +61,15 @@ cleanup, which removes the card.
 ## The answers
 
 - **No tool:** when `set_roster` is in neither your tool list nor your
-  deferred tools, there is no pane. Keep no roster, and carry on. Load a
-  deferred tool before you call it.
-- **The cue:** when the `/brigade` reply says `set_roster` is ready, call it
-  with the full roster on your next turn. When the reply says the tool could
-  not be offered, keep no roster.
-- **Pane closed:** keep no roster until a `/brigade` reply says the tool is
-  ready again.
+  deferred tools, there is no pane, unless a cue says the tool is ready on
+  your next turn. Keep no roster, and carry on. Load a deferred tool before
+  you call it.
+- **The cue:** when the `/brigade` reply, or the line at the end of this
+  skill's text, says `set_roster` is ready, call it with the full roster on
+  your next turn. When either says the tool could not be offered, keep no
+  roster.
+- **Pane closed:** keep no roster until a `/brigade` reply, or a fresh load of
+  this skill, says the tool is ready again.
 - **Shape, size or malformed input:** correct the roster, and call once more.
 - **Any other refusal, or a second refusal:** stop keeping the roster for the
   rest of this session, whatever the refusal's own text advises, and tell the
