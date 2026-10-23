@@ -16,7 +16,7 @@ import {
   OPEN_WAIT_MS,
   SESSION_ID,
   STATUSES,
-  XDG_OPEN,
+  HOST_PROBES,
   appLink,
   checkRoster,
   dataFolder,
@@ -38,7 +38,8 @@ import {
   stampSince,
   statRejection,
   toolSession,
-  unixRealPath,
+  probeHost,
+  windowsByEnv,
   rowMove,
 } from './roster.ts'
 import type { GhPr, HostOs, StatAnswer } from './roster.ts'
@@ -472,11 +473,23 @@ const shownPrs = (cards: readonly Card[], hidden: ReadonlySet<unknown>, moves: M
 // an empty or relative entry could let a file in the project folder run in its
 // place, with the session's environment. Such a host runs nothing then. Windows
 // is measured: the engine runs the real `gh` there (threat model, row 15).
+//
+// The host is worked out on each call, here and at Open in app, or is none.
+// The engine gives a mod no platform field. Windows is known first, by its
+// environment; then each probe in turn, as `probeHost` judges it. A read that
+// fails means no host, never unset. Each name is spelled at its call, so
+// `claude plugin validate` lists what the pane reads, and the reads stay in
+// these two callers because the directory's checker refuses `$` passed to a
+// helper that reads the host.
 async function ghFindable($: EngineInterface): Promise<boolean> {
   try {
-    const os = await hostOs($)
-    if (os === 'windows') return true
-    if (os === undefined) return false
+    if (windowsByEnv(await $.env.get('OS'), await $.env.get('SystemRoot'), await $.env.get('windir'))) return true
+    let os: HostOs | 'next' | undefined = 'next'
+    for (const [probe, file] of HOST_PROBES) {
+      os = probeHost(probe, await statPath($, file))
+      if (os !== 'next') break
+    }
+    if (os === 'next' || os === undefined) return false
     const path = await $.env.get('PATH')
     return typeof path === 'string' && path !== '' && path.split(':').every(entry => entry.startsWith('/'))
   } catch {
@@ -703,42 +716,6 @@ async function askTool($: EngineInterface, session: string, over: () => boolean)
 // `opening` does for the tool route.
 const linking = new Set<string>()
 
-// The files that prove a Unix host, in order: macOS' own version file, which
-// System Integrity Protection guards, then Linux's opener itself.
-const PROBES = [
-  ['macos', '/System/Library/CoreServices/SystemVersion.plist'],
-  ['linux', XDG_OPEN],
-] as const
-
-// The host the link route opens on, worked out on each press, or undefined.
-// The engine gives a mod no platform field. Windows is known first, by its
-// environment, never by a file: on Windows an absolute Unix path resolves
-// under the drive's root, where any local user can plant it. A read that
-// fails means no host, never unset. A Unix answer needs its probe to answer a
-// file whose raw real path is a Unix one; a missing probe file moves on to the
-// next probe, and any other answer means no host. Each name is spelled at its
-// call, so `claude plugin validate` lists what the pane reads.
-async function hostOs($: EngineInterface): Promise<HostOs | undefined> {
-  try {
-    const osName = await $.env.get('OS')
-    if (osName === 'Windows_NT') return 'windows'
-    const systemRoot = await $.env.get('SystemRoot')
-    if (systemRoot !== undefined) return 'windows'
-    const windir = await $.env.get('windir')
-    if (windir !== undefined) return 'windows'
-    const stat = (path: string) => statPath($, path)
-    for (const [os, path] of PROBES) {
-      const s = await stat(path)
-      if ('missing' in s) continue
-      if ('failed' in s || s.found.kind !== 'file' || s.found.realPath === undefined) return undefined
-      return unixRealPath(s.found.realPath) ? os : undefined
-    }
-    return undefined
-  } catch {
-    return undefined
-  }
-}
-
 // The pane's Link takes https only, so the app link goes to the host's own
 // handler for claude://, through the host's opener: explorer.exe on Windows,
 // /usr/bin/open on macOS, /usr/bin/xdg-open on Linux, and none on a host the
@@ -762,8 +739,17 @@ async function openInApp($: EngineInterface, c: Card) {
   if (linking.has(app)) return
   linking.add(app)
   try {
-    const os = await hostOs($)
-    if (os === undefined) {
+    let os: HostOs | 'next' | undefined = 'next'
+    try {
+      if (windowsByEnv(await $.env.get('OS'), await $.env.get('SystemRoot'), await $.env.get('windir'))) os = 'windows'
+      else for (const [probe, file] of HOST_PROBES) {
+        os = probeHost(probe, await statPath($, file))
+        if (os !== 'next') break
+      }
+    } catch {
+      os = undefined
+    }
+    if (os === 'next' || os === undefined) {
       $.ui.toast('Open in app has no opener on this system.')
       return
     }
