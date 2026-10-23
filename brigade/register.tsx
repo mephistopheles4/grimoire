@@ -249,11 +249,12 @@ async function where($: EngineInterface): Promise<Where | { error: string }> {
 
 // One `stat` for the path rule in roster.ts: resolving, and a rejection
 // sorted into missing or failed by its message.
-const statOf = ($: EngineInterface) => (path: string): Promise<StatAnswer> =>
-  $.fs.stat(path, { resolve: true }).then(
+function statPath($: EngineInterface, path: string): Promise<StatAnswer> {
+  return $.fs.stat(path, { resolve: true }).then(
     found => ({ found }),
     err => statRejection(String(err instanceof Error ? err.message : err)),
   )
+}
 // Resolves the to-do ids of the roster it loaded, or undefined when it loaded
 // none: no file named, no file, or a file that failed its check. The file is
 // read only where the path rule allows it, so the pane follows no link either.
@@ -270,7 +271,7 @@ async function loadRoster($: EngineInterface): Promise<string[] | undefined> {
     f.current === at.file ? f : { current: at.file, previous: f.current },
   )
   try {
-    const placed = await placeRoster(at.config, at.plugin, at.id, statOf($))
+    const placed = await placeRoster(at.config, at.plugin, at.id, (path: string) => statPath($, path))
     if ('refused' in placed) {
       throw new Error(placed.refused.startsWith('link:') ? `${placed.refused}; the roster path must not pass through a link or junction` : placed.refused)
     }
@@ -548,7 +549,8 @@ async function askGh($: EngineInterface, open: () => boolean, tick: boolean) {
 async function readUsage($: EngineInterface) {
   const mine = generation
   try {
-    const image = (await $.session.surfaces()).some(s => s !== 'terminal')
+    const surfaces = await $.session.surfaces()
+    const image = surfaces.some(s => s !== 'terminal')
     const reading = await $.session.usage(image ? { breakdown: 'summary' } : undefined)
     if (generation !== mine) return
     const snapshot = snapshotFrom(reading)
@@ -622,7 +624,8 @@ function disarm() {
 // hook's reads and the report keeping all end with it.
 async function rosterTick($: EngineInterface, live: () => boolean) {
   try {
-    const listed = (await $.ui.panes()).some(p => p.id === PANE)
+    const panes = await $.ui.panes()
+    const listed = panes.some(p => p.id === PANE)
     // A close or a fresh arm while the answer was on its way: act on nothing.
     if (!live()) return
     if (!listed) {
@@ -678,7 +681,8 @@ async function viaTool($: EngineInterface, session: string): Promise<boolean> {
 async function askTool($: EngineInterface, session: string, over: () => boolean): Promise<boolean> {
   // Only where the Desktop app draws this session: elsewhere its server is
   // absent, and a server of the same name would be the only one to answer.
-  if (!(await $.session.surfaces()).includes('desktop')) return false
+  const surfaces = await $.session.surfaces()
+  if (!surfaces.includes('desktop')) return false
   if (!listsOpenTool(await $.tool.list())) return false
   const args = { session_id: session, target: OPEN_TARGET }
   if (!rulesAllowTool(await $.tool.check({ tool: OPEN_TOOL, input: args }))) return false
@@ -716,10 +720,13 @@ const PROBES = [
 // call, so `claude plugin validate` lists what the pane reads.
 async function hostOs($: EngineInterface): Promise<HostOs | undefined> {
   try {
-    if ((await $.env.get('OS')) === 'Windows_NT') return 'windows'
-    if ((await $.env.get('SystemRoot')) !== undefined) return 'windows'
-    if ((await $.env.get('windir')) !== undefined) return 'windows'
-    const stat = statOf($)
+    const osName = await $.env.get('OS')
+    if (osName === 'Windows_NT') return 'windows'
+    const systemRoot = await $.env.get('SystemRoot')
+    if (systemRoot !== undefined) return 'windows'
+    const windir = await $.env.get('windir')
+    if (windir !== undefined) return 'windows'
+    const stat = (path: string) => statPath($, path)
     for (const [os, path] of PROBES) {
       const s = await stat(path)
       if ('missing' in s) continue
@@ -841,7 +848,10 @@ const failedAfterWrite = (why: string) => ({
   deny: `set_roster failed after the write began: ${why}. The roster may or may not have been kept; stop keeping the roster and tell the owner.`,
 })
 
-const paneOpen = async ($: EngineInterface) => (await $.ui.panes()).some(p => p.id === PANE)
+async function paneOpen($: EngineInterface): Promise<boolean> {
+  const panes = await $.ui.panes()
+  return panes.some(p => p.id === PANE)
+}
 
 async function offerTool($: EngineInterface) {
   await $.tool.register({ name: TOOL, description: DESCRIPTION, inputSchema: SCHEMA })
@@ -938,7 +948,7 @@ async function setRoster($: EngineInterface, e: Record<string, unknown>, signal:
   return oneAtATime(async () => {
     if (signal.aborted) return refuse('abandoned: the call ran out of time or was interrupted before its turn')
     if (!(await paneOpen($))) return refuse('pane closed; roster not kept')
-    const placed = await placeRoster(at.config, at.plugin, at.id, statOf($))
+    const placed = await placeRoster(at.config, at.plugin, at.id, (path: string) => statPath($, path))
     if ('refused' in placed) return refuse(placed.refused)
     // A file already there is overwritten only if it is a roster, both lists
     // and all. What it holds otherwise is never echoed. Its cards are the
@@ -967,7 +977,7 @@ async function setRoster($: EngineInterface, e: Record<string, unknown>, signal:
     // A link swapped in between the check and the write, at the file or at
     // any folder above it, is caught here by the same path rule, after the
     // fact, and said loudly. A hard link is not.
-    const after = await placeRoster(at.config, at.plugin, at.id, statOf($)).catch(err => ({
+    const after = await placeRoster(at.config, at.plugin, at.id, (path: string) => statPath($, path)).catch(err => ({
       refused: `the check failed (${oneLine(String(err instanceof Error ? err.message : err), 200)})`,
     }))
     const why = 'refused' in after ? after.refused : after.existing === undefined ? 'the file is not there' : undefined

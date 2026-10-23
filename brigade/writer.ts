@@ -99,12 +99,11 @@ function followSession($: EngineInterface) {
 
 // One resolving `stat` for the path rule, a rejection sorted into missing or
 // failed by its message.
-function statOf($: EngineInterface): (path: string) => Promise<StatAnswer> {
-  return path =>
-    $.fs.stat(path, { resolve: true }).then(
-      found => ({ found }),
-      err => statRejection(String(err instanceof Error ? err.message : err)),
-    )
+function statPath($: EngineInterface, path: string): Promise<StatAnswer> {
+  return $.fs.stat(path, { resolve: true }).then(
+    found => ({ found }),
+    err => statRejection(String(err instanceof Error ? err.message : err)),
+  )
 }
 
 // The kinds of refusal, in fixed words: the toast names the kind and never
@@ -154,7 +153,7 @@ async function writeOnce($: EngineInterface) {
   // No config folder named: nothing is written, and nothing was refused.
   const at = await locate($)
   if (at === undefined || (owner !== undefined && at.id !== owner)) return
-  const placed = await placeSummary(at.config, at.plugin, at.id, statOf($))
+  const placed = await placeSummary(at.config, at.plugin, at.id, (path: string) => statPath($, path))
   if ('refused' in placed) return refuse($, 'path')
   if (placed.existing !== undefined) {
     const text = placed.existing.size <= MAX_SUMMARY_BYTES ? String(await $.fs.read(placed.file)) : undefined
@@ -172,7 +171,7 @@ async function writeOnce($: EngineInterface) {
   await $.fs.write(placed.file, text.value)
   // A link swapped in between the check and the write is caught here, after
   // the fact. A hard link is not.
-  const after = await placeSummary(at.config, at.plugin, at.id, statOf($)).catch(() => ({ refused: 'the check could not run' }))
+  const after = await placeSummary(at.config, at.plugin, at.id, (path: string) => statPath($, path)).catch(() => ({ refused: 'the check could not run' }))
   const why = 'refused' in after ? after.refused : after.existing === undefined ? 'the file is not there' : undefined
   if (why !== undefined) refuse($, 'after')
 }
