@@ -703,6 +703,33 @@ export function unixRealPath(path: string): boolean {
   return /^\/[^\\/]/.test(path) && !path.includes('\\')
 }
 
+/** The files that prove a Unix host, in order: macOS' own version file, which
+ *  System Integrity Protection guards, then Linux's opener itself. */
+export const HOST_PROBES = [
+  ['macos', '/System/Library/CoreServices/SystemVersion.plist'],
+  ['linux', XDG_OPEN],
+] as const
+
+/** Whether one of Windows' own environment names, read on its own, names a
+ *  Windows host: `OS` is `Windows_NT`, or `SystemRoot` or `windir` is set.
+ *  Callers read them in that order and stop at the first that does, so a
+ *  later read that fails cannot undo a known answer. Windows is known by its
+ *  environment only, never by a file: on Windows an absolute Unix path
+ *  resolves under the drive's root, where any local user can plant it. */
+export function windowsEnv(name: 'OS' | 'SystemRoot' | 'windir', value: unknown): boolean {
+  return name === 'OS' ? value === 'Windows_NT' : value !== undefined
+}
+
+/** What one probe's `stat` answer says about the host: its Unix host, `next`
+ *  when the probe file is missing so the next probe is asked, or undefined
+ *  for no host. A Unix answer needs the probe to be a file whose raw real
+ *  path is a Unix one; any other answer, a failed read included, is no host. */
+export function probeHost(os: 'macos' | 'linux', s: StatAnswer): HostOs | 'next' | undefined {
+  if ('missing' in s) return 'next'
+  if ('failed' in s || s.found.kind !== 'file' || s.found.realPath === undefined) return undefined
+  return unixRealPath(s.found.realPath) ? os : undefined
+}
+
 // Open in app through the Desktop app's own tool, which shows a session this
 // lead started beside it. The tool, its server and the target are constants:
 // no roster text names any of them, and only a checked Desktop id is sent.

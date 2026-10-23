@@ -16,7 +16,7 @@ import {
   OPEN_WAIT_MS,
   SESSION_ID,
   STATUSES,
-  XDG_OPEN,
+  HOST_PROBES,
   appLink,
   checkRoster,
   dataFolder,
@@ -38,7 +38,8 @@ import {
   stampSince,
   statRejection,
   toolSession,
-  unixRealPath,
+  probeHost,
+  windowsEnv,
   rowMove,
 } from './roster.ts'
 import type { GhPr, HostOs, StatAnswer } from './roster.ts'
@@ -249,11 +250,12 @@ async function where($: EngineInterface): Promise<Where | { error: string }> {
 
 // One `stat` for the path rule in roster.ts: resolving, and a rejection
 // sorted into missing or failed by its message.
-const statOf = ($: EngineInterface) => (path: string): Promise<StatAnswer> =>
-  $.fs.stat(path, { resolve: true }).then(
+function statPath($: EngineInterface, path: string): Promise<StatAnswer> {
+  return $.fs.stat(path, { resolve: true }).then(
     found => ({ found }),
     err => statRejection(String(err instanceof Error ? err.message : err)),
   )
+}
 // Resolves the to-do ids of the roster it loaded, or undefined when it loaded
 // none: no file named, no file, or a file that failed its check. The file is
 // read only where the path rule allows it, so the pane follows no link either.
@@ -270,7 +272,7 @@ async function loadRoster($: EngineInterface): Promise<string[] | undefined> {
     f.current === at.file ? f : { current: at.file, previous: f.current },
   )
   try {
-    const placed = await placeRoster(at.config, at.plugin, at.id, statOf($))
+    const placed = await placeRoster(at.config, at.plugin, at.id, (path: string) => statPath($, path))
     if ('refused' in placed) {
       throw new Error(placed.refused.startsWith('link:') ? `${placed.refused}; the roster path must not pass through a link or junction` : placed.refused)
     }
@@ -471,11 +473,23 @@ const shownPrs = (cards: readonly Card[], hidden: ReadonlySet<unknown>, moves: M
 // an empty or relative entry could let a file in the project folder run in its
 // place, with the session's environment. Such a host runs nothing then. Windows
 // is measured: the engine runs the real `gh` there (threat model, row 15).
+//
+// The host is worked out on each call, here and at Open in app, or is none.
+// The engine gives a mod no platform field. Windows is known first, by its
+// environment; then each probe in turn, as `probeHost` judges it. A read that
+// fails means no host, never unset. Each name is spelled at its call, so
+// `claude plugin validate` lists what the pane reads, and the reads stay in
+// these two callers because the directory's checker refuses `$` passed to a
+// helper that reads the host.
 async function ghFindable($: EngineInterface): Promise<boolean> {
   try {
-    const os = await hostOs($)
-    if (os === 'windows') return true
-    if (os === undefined) return false
+    if (windowsEnv('OS', await $.env.get('OS')) || windowsEnv('SystemRoot', await $.env.get('SystemRoot')) || windowsEnv('windir', await $.env.get('windir'))) return true
+    let os: HostOs | 'next' | undefined = 'next'
+    for (const [probe, file] of HOST_PROBES) {
+      os = probeHost(probe, await statPath($, file))
+      if (os !== 'next') break
+    }
+    if (os === 'next' || os === undefined) return false
     const path = await $.env.get('PATH')
     return typeof path === 'string' && path !== '' && path.split(':').every(entry => entry.startsWith('/'))
   } catch {
@@ -548,7 +562,8 @@ async function askGh($: EngineInterface, open: () => boolean, tick: boolean) {
 async function readUsage($: EngineInterface) {
   const mine = generation
   try {
-    const image = (await $.session.surfaces()).some(s => s !== 'terminal')
+    const surfaces = await $.session.surfaces()
+    const image = surfaces.some(s => s !== 'terminal')
     const reading = await $.session.usage(image ? { breakdown: 'summary' } : undefined)
     if (generation !== mine) return
     const snapshot = snapshotFrom(reading)
@@ -622,7 +637,8 @@ function disarm() {
 // hook's reads and the report keeping all end with it.
 async function rosterTick($: EngineInterface, live: () => boolean) {
   try {
-    const listed = (await $.ui.panes()).some(p => p.id === PANE)
+    const panes = await $.ui.panes()
+    const listed = panes.some(p => p.id === PANE)
     // A close or a fresh arm while the answer was on its way: act on nothing.
     if (!live()) return
     if (!listed) {
@@ -678,7 +694,8 @@ async function viaTool($: EngineInterface, session: string): Promise<boolean> {
 async function askTool($: EngineInterface, session: string, over: () => boolean): Promise<boolean> {
   // Only where the Desktop app draws this session: elsewhere its server is
   // absent, and a server of the same name would be the only one to answer.
-  if (!(await $.session.surfaces()).includes('desktop')) return false
+  const surfaces = await $.session.surfaces()
+  if (!surfaces.includes('desktop')) return false
   if (!listsOpenTool(await $.tool.list())) return false
   const args = { session_id: session, target: OPEN_TARGET }
   if (!rulesAllowTool(await $.tool.check({ tool: OPEN_TOOL, input: args }))) return false
@@ -698,39 +715,6 @@ async function askTool($: EngineInterface, session: string, over: () => boolean)
 // nothing until that press ends, whether its run succeeds or fails, as
 // `opening` does for the tool route.
 const linking = new Set<string>()
-
-// The files that prove a Unix host, in order: macOS' own version file, which
-// System Integrity Protection guards, then Linux's opener itself.
-const PROBES = [
-  ['macos', '/System/Library/CoreServices/SystemVersion.plist'],
-  ['linux', XDG_OPEN],
-] as const
-
-// The host the link route opens on, worked out on each press, or undefined.
-// The engine gives a mod no platform field. Windows is known first, by its
-// environment, never by a file: on Windows an absolute Unix path resolves
-// under the drive's root, where any local user can plant it. A read that
-// fails means no host, never unset. A Unix answer needs its probe to answer a
-// file whose raw real path is a Unix one; a missing probe file moves on to the
-// next probe, and any other answer means no host. Each name is spelled at its
-// call, so `claude plugin validate` lists what the pane reads.
-async function hostOs($: EngineInterface): Promise<HostOs | undefined> {
-  try {
-    if ((await $.env.get('OS')) === 'Windows_NT') return 'windows'
-    if ((await $.env.get('SystemRoot')) !== undefined) return 'windows'
-    if ((await $.env.get('windir')) !== undefined) return 'windows'
-    const stat = statOf($)
-    for (const [os, path] of PROBES) {
-      const s = await stat(path)
-      if ('missing' in s) continue
-      if ('failed' in s || s.found.kind !== 'file' || s.found.realPath === undefined) return undefined
-      return unixRealPath(s.found.realPath) ? os : undefined
-    }
-    return undefined
-  } catch {
-    return undefined
-  }
-}
 
 // The pane's Link takes https only, so the app link goes to the host's own
 // handler for claude://, through the host's opener: explorer.exe on Windows,
@@ -755,8 +739,17 @@ async function openInApp($: EngineInterface, c: Card) {
   if (linking.has(app)) return
   linking.add(app)
   try {
-    const os = await hostOs($)
-    if (os === undefined) {
+    let os: HostOs | 'next' | undefined = 'next'
+    try {
+      if (windowsEnv('OS', await $.env.get('OS')) || windowsEnv('SystemRoot', await $.env.get('SystemRoot')) || windowsEnv('windir', await $.env.get('windir'))) os = 'windows'
+      else for (const [probe, file] of HOST_PROBES) {
+        os = probeHost(probe, await statPath($, file))
+        if (os !== 'next') break
+      }
+    } catch {
+      os = undefined
+    }
+    if (os === 'next' || os === undefined) {
       $.ui.toast('Open in app has no opener on this system.')
       return
     }
@@ -841,7 +834,10 @@ const failedAfterWrite = (why: string) => ({
   deny: `set_roster failed after the write began: ${why}. The roster may or may not have been kept; stop keeping the roster and tell the owner.`,
 })
 
-const paneOpen = async ($: EngineInterface) => (await $.ui.panes()).some(p => p.id === PANE)
+async function paneOpen($: EngineInterface): Promise<boolean> {
+  const panes = await $.ui.panes()
+  return panes.some(p => p.id === PANE)
+}
 
 async function offerTool($: EngineInterface) {
   await $.tool.register({ name: TOOL, description: DESCRIPTION, inputSchema: SCHEMA })
@@ -938,7 +934,7 @@ async function setRoster($: EngineInterface, e: Record<string, unknown>, signal:
   return oneAtATime(async () => {
     if (signal.aborted) return refuse('abandoned: the call ran out of time or was interrupted before its turn')
     if (!(await paneOpen($))) return refuse('pane closed; roster not kept')
-    const placed = await placeRoster(at.config, at.plugin, at.id, statOf($))
+    const placed = await placeRoster(at.config, at.plugin, at.id, (path: string) => statPath($, path))
     if ('refused' in placed) return refuse(placed.refused)
     // A file already there is overwritten only if it is a roster, both lists
     // and all. What it holds otherwise is never echoed. Its cards are the
@@ -967,7 +963,7 @@ async function setRoster($: EngineInterface, e: Record<string, unknown>, signal:
     // A link swapped in between the check and the write, at the file or at
     // any folder above it, is caught here by the same path rule, after the
     // fact, and said loudly. A hard link is not.
-    const after = await placeRoster(at.config, at.plugin, at.id, statOf($)).catch(err => ({
+    const after = await placeRoster(at.config, at.plugin, at.id, (path: string) => statPath($, path)).catch(err => ({
       refused: `the check failed (${oneLine(String(err instanceof Error ? err.message : err), 200)})`,
     }))
     const why = 'refused' in after ? after.refused : after.existing === undefined ? 'the file is not there' : undefined

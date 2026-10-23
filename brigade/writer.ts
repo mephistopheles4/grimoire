@@ -99,12 +99,11 @@ function followSession($: EngineInterface) {
 
 // One resolving `stat` for the path rule, a rejection sorted into missing or
 // failed by its message.
-function statOf($: EngineInterface): (path: string) => Promise<StatAnswer> {
-  return path =>
-    $.fs.stat(path, { resolve: true }).then(
-      found => ({ found }),
-      err => statRejection(String(err instanceof Error ? err.message : err)),
-    )
+function statPath($: EngineInterface, path: string): Promise<StatAnswer> {
+  return $.fs.stat(path, { resolve: true }).then(
+    found => ({ found }),
+    err => statRejection(String(err instanceof Error ? err.message : err)),
+  )
 }
 
 // The kinds of refusal, in fixed words: the toast names the kind and never
@@ -116,11 +115,13 @@ const REFUSED = {
 } as const
 
 // The first refusal stops every later write until the module reloads, and
-// says so once. A clear does not restart it.
-function refuse($: EngineInterface, kind: keyof typeof REFUSED) {
-  if (stopped) return
+// its words are toasted once, by the caller; a later refusal has none. A
+// clear does not restart it. The caller makes the toast so `$` reaches no
+// helper here: the directory's checker refuses that.
+function refuse(kind: keyof typeof REFUSED): string | undefined {
+  if (stopped) return undefined
   stopped = true
-  $.ui.toast(`Brigade: the usage summary was not written, and will not be until the plugin reloads (a clear does not restart it): ${REFUSED[kind]}.`, { timeoutMs: 15000 })
+  return `Brigade: the usage summary was not written, and will not be until the plugin reloads (a clear does not restart it): ${REFUSED[kind]}.`
 }
 
 // A write is asked for; one starts when the throttle and the single flight
@@ -154,11 +155,19 @@ async function writeOnce($: EngineInterface) {
   // No config folder named: nothing is written, and nothing was refused.
   const at = await locate($)
   if (at === undefined || (owner !== undefined && at.id !== owner)) return
-  const placed = await placeSummary(at.config, at.plugin, at.id, statOf($))
-  if ('refused' in placed) return refuse($, 'path')
+  const placed = await placeSummary(at.config, at.plugin, at.id, (path: string) => statPath($, path))
+  if ('refused' in placed) {
+    const said = refuse('path')
+    if (said !== undefined) $.ui.toast(said, { timeoutMs: 15000 })
+    return
+  }
   if (placed.existing !== undefined) {
     const text = placed.existing.size <= MAX_SUMMARY_BYTES ? String(await $.fs.read(placed.file)) : undefined
-    if (!isSummaryFile(placed.existing.size, text)) return refuse($, 'file')
+    if (!isSummaryFile(placed.existing.size, text)) {
+      const said = refuse('file')
+      if (said !== undefined) $.ui.toast(said, { timeoutMs: 15000 })
+      return
+    }
   }
   // The id again, just before the numbers are taken: a clear while the checks
   // waited moves it, and this write is skipped; the writer moves to the new
@@ -172,9 +181,11 @@ async function writeOnce($: EngineInterface) {
   await $.fs.write(placed.file, text.value)
   // A link swapped in between the check and the write is caught here, after
   // the fact. A hard link is not.
-  const after = await placeSummary(at.config, at.plugin, at.id, statOf($)).catch(() => ({ refused: 'the check could not run' }))
+  const after = await placeSummary(at.config, at.plugin, at.id, (path: string) => statPath($, path)).catch(() => ({ refused: 'the check could not run' }))
   const why = 'refused' in after ? after.refused : after.existing === undefined ? 'the file is not there' : undefined
-  if (why !== undefined) refuse($, 'after')
+  if (why === undefined) return
+  const said = refuse('after')
+  if (said !== undefined) $.ui.toast(said, { timeoutMs: 15000 })
 }
 
 /** For register.tsx's `session.start` hook, which a module load raises: the
