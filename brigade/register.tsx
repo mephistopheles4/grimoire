@@ -39,7 +39,7 @@ import {
   statRejection,
   toolSession,
   probeHost,
-  windowsByEnv,
+  windowsEnv,
   rowMove,
 } from './roster.ts'
 import type { GhPr, HostOs, StatAnswer } from './roster.ts'
@@ -483,7 +483,7 @@ const shownPrs = (cards: readonly Card[], hidden: ReadonlySet<unknown>, moves: M
 // helper that reads the host.
 async function ghFindable($: EngineInterface): Promise<boolean> {
   try {
-    if (windowsByEnv(await $.env.get('OS'), await $.env.get('SystemRoot'), await $.env.get('windir'))) return true
+    if (windowsEnv('OS', await $.env.get('OS')) || windowsEnv('SystemRoot', await $.env.get('SystemRoot')) || windowsEnv('windir', await $.env.get('windir'))) return true
     let os: HostOs | 'next' | undefined = 'next'
     for (const [probe, file] of HOST_PROBES) {
       os = probeHost(probe, await statPath($, file))
@@ -741,7 +741,7 @@ async function openInApp($: EngineInterface, c: Card) {
   try {
     let os: HostOs | 'next' | undefined = 'next'
     try {
-      if (windowsByEnv(await $.env.get('OS'), await $.env.get('SystemRoot'), await $.env.get('windir'))) os = 'windows'
+      if (windowsEnv('OS', await $.env.get('OS')) || windowsEnv('SystemRoot', await $.env.get('SystemRoot')) || windowsEnv('windir', await $.env.get('windir'))) os = 'windows'
       else for (const [probe, file] of HOST_PROBES) {
         os = probeHost(probe, await statPath($, file))
         if (os !== 'next') break

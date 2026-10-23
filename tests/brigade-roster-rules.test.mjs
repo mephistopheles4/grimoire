@@ -310,7 +310,7 @@ test('appLink is unchanged: a checked Desktop id, else a Remote Control link, el
 // the real-path shape a Unix answer needs. The host reads themselves are held
 // by brigade/set-roster.test.ts under the engine's runner.
 
-const { HOST_PROBES, openerArgv, probeHost, unixRealPath, windowsByEnv } = roster;
+const { HOST_PROBES, openerArgv, probeHost, unixRealPath, windowsEnv } = roster;
 
 test('openerArgv gives the one program for each host and the link, as two entries', () => {
   for (const link of ['claude://claude.ai/epitaxy/' + LOCAL, 'claude://claude.ai/code/session_ABC123']) {
@@ -342,12 +342,14 @@ test('a Unix answer needs a raw real path with one leading / then a non-separato
 });
 
 test('Windows is named by its environment alone: OS=Windows_NT, or SystemRoot or windir set', () => {
-  assert.equal(windowsByEnv('Windows_NT', undefined, undefined), true);
-  assert.equal(windowsByEnv(undefined, 'C:\\Windows', undefined), true);
-  assert.equal(windowsByEnv(undefined, undefined, 'C:\\Windows'), true);
-  assert.equal(windowsByEnv(undefined, '', undefined), true);
-  assert.equal(windowsByEnv('Darwin', undefined, undefined), false);
-  assert.equal(windowsByEnv(undefined, undefined, undefined), false);
+  assert.equal(windowsEnv('OS', 'Windows_NT'), true);
+  assert.equal(windowsEnv('OS', 'Darwin'), false);
+  assert.equal(windowsEnv('OS', undefined), false);
+  assert.equal(windowsEnv('SystemRoot', 'C:\\Windows'), true);
+  assert.equal(windowsEnv('SystemRoot', ''), true);
+  assert.equal(windowsEnv('SystemRoot', undefined), false);
+  assert.equal(windowsEnv('windir', 'C:\\Windows'), true);
+  assert.equal(windowsEnv('windir', undefined), false);
 });
 
 test('the probes are macOS then Linux, at their fixed paths', () => {

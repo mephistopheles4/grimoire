@@ -710,12 +710,14 @@ export const HOST_PROBES = [
   ['linux', XDG_OPEN],
 ] as const
 
-/** Whether Windows' own environment names a Windows host: `OS` is
- *  `Windows_NT`, or `SystemRoot` or `windir` is set. Windows is known by its
+/** Whether one of Windows' own environment names, read on its own, names a
+ *  Windows host: `OS` is `Windows_NT`, or `SystemRoot` or `windir` is set.
+ *  Callers read them in that order and stop at the first that does, so a
+ *  later read that fails cannot undo a known answer. Windows is known by its
  *  environment only, never by a file: on Windows an absolute Unix path
  *  resolves under the drive's root, where any local user can plant it. */
-export function windowsByEnv(os: unknown, systemRoot: unknown, windir: unknown): boolean {
-  return os === 'Windows_NT' || systemRoot !== undefined || windir !== undefined
+export function windowsEnv(name: 'OS' | 'SystemRoot' | 'windir', value: unknown): boolean {
+  return name === 'OS' ? value === 'Windows_NT' : value !== undefined
 }
 
 /** What one probe's `stat` answer says about the host: its Unix host, `next`
