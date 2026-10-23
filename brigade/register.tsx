@@ -129,13 +129,15 @@ import { DESCRIPTION as WARNING_DESCRIPTION, SCHEMA as WARNING_SCHEMA, STORE_KEY
 // section is worked out in view.ts, as plain values; this file reads and
 // stores the reading and turns the view's result into elements.
 //
-// The pane waits for /brigade. At session start it registers /brigade and the
-// usage summary writer (writer.ts), reads the engine clock and the session id
-// once for the writer, and nothing else: no timer, no process, no
-// file read, no tool and no pane. The writer's hooks record each step and
-// write this session's own summary file; ADR 0008 records why the mod is no
-// longer idle by default. The pane opens only on /brigade, and closing it
-// stops every timer. A message from another session never opens it.
+// The pane waits for /brigade or the head-chef skill's load. At session start
+// it registers /brigade, the skill hook and the usage summary writer
+// (writer.ts), reads the engine clock and the session id once for the writer,
+// and nothing else: no timer, no process, no file read, no tool and no pane.
+// The writer's hooks record each step and write this session's own summary
+// file; ADR 0008 records why the mod is no longer idle by default. The pane
+// opens only on /brigade or when the plugin's own or the owner's own
+// head-chef skill loads with the pane closed, and closing it stops every
+// timer. A message from another session never opens it directly.
 
 const PANE = 'brigade'
 const TITLE = 'Brigade'
@@ -601,7 +603,7 @@ async function arm($: EngineInterface) {
     if (live()) await readUsage($)
     if (live()) await loadRoster($)
     if (live()) await pollLive($, live)
-    // Not awaited: a slow gh must not hold up the /brigade reply or the tool's offer.
+    // Not awaited: a slow gh must not hold up the /brigade reply, the skill's text or the tool's offer.
     if (live()) void askGh($, live, false)
     return
   }
@@ -787,7 +789,7 @@ async function openInApp($: EngineInterface, c: Card) {
 const TOOL_NAME = 'mcp__grimoire__set_roster'
 
 const DESCRIPTION =
-  "Keeps the Brigade pane's roster for this lead session. Pass the whole roster every time, every card and every to-do; it replaces the last one. Both lists are required; two empty lists are an empty roster. A card may carry its session's pull request: `pr` (its number as text, 1 to 7 digits) and `prState` (`open`, `merged` or `closed`, the last state known). Send no `since`: the pane stamps how long each card has been in its status and phase from its own clock. It works only while the Brigade pane is open, which the owner opens with /brigade, and refuses otherwise. A refusal names the rule that failed."
+  "Keeps the Brigade pane's roster for this lead session. Pass the whole roster every time, every card and every to-do; it replaces the last one. Both lists are required; two empty lists are an empty roster. A card may carry its session's pull request: `pr` (its number as text, 1 to 7 digits) and `prState` (`open`, `merged` or `closed`, the last state known). Send no `since`: the pane stamps how long each card has been in its status and phase from its own clock. It works only while the Brigade pane is open, which the owner opens with /brigade or a load of the head-chef skill opens, and refuses otherwise. A refusal names the rule that failed."
 
 const field = (max: number) => ({ type: 'string', maxLength: max })
 const SCHEMA = {

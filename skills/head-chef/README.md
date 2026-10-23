@@ -45,7 +45,8 @@ installed and signed in.
 
 Then, in Claude Desktop, ask for work to run elsewhere, for example *"start a
 session to build ticket 4 of issue 312, Sonnet medium."* Or type
-`/head-chef`. Type `/brigade` to open the pane.
+`/head-chef`. With the plugin installed, the pane opens when the skill loads,
+or type `/brigade` to open it.
 
 ## What it does
 

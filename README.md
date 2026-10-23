@@ -139,7 +139,7 @@ tell a forged sender from the lead. Before its first launch in a lead, a
 permission warning above the prompt says so. Read the skill's README before
 you install. Not for work in the same session.
 
-`/brigade` opens the Brigade pane: one compact row per session the lead
+`/brigade` opens the Brigade pane, and so does loading the head-chef skill from the plugin or from your own skills folder: one compact row per session the lead
 started. A switch at the top shows either Sessions or Pull requests, and the
 pane opens on Sessions each time. Sessions keeps three foldable groups: Waiting
 on you, Working, and Done · stopped, which starts folded and counts the reports

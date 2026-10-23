@@ -27,8 +27,10 @@ session has to write them down.
 
 ## What still holds
 
-- The pane still opens only on `/brigade`, and its reads still stop when it
-  closes.
+- The pane opens on `/brigade` or when the plugin's or the owner's own
+  head-chef skill loads, and its reads still stop when it closes. The owner
+  decided this on issue 376, in the lead's chat on 2026-10-23, relayed by the
+  lead.
 - The `set_roster` tool is still offered only once the pane is open.
 - The writer makes no session usage call, so no cost, rate limit or context
   breakdown enters it. It keeps numbers only, from one exact list of keys.
@@ -53,7 +55,7 @@ id, and a clear or a resume starts a new one. The owner can delete the
 
 **A future change that adds work at session start needs the same review.**
 Idle by default was the line a reviewer could hold the mod to. That line is
-now "the pane's reads wait for `/brigade`; the writer's per-step work stays
+now "the pane's reads wait for `/brigade` or a head-chef skill load; the writer's per-step work stays
 within the approved ceiling of 2 ms at the 95th percentile".
 
 ## Considered Options

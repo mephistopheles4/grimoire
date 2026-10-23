@@ -1,6 +1,6 @@
 # Contract: head-chef
 
-Version: 0.10.0
+Version: 0.11.0
 Kind: skill
 Level: Thorough
 
@@ -156,6 +156,9 @@ need, without overwhelming me or showing me too much.
   the session's own name; it falls back to the card's title only when no
   session file carries a Desktop id, so the title stays the session's name,
   exactly.
+- *Proposed.* It learns `set_roster` is ready from the `/brigade` reply or
+  from the line the Brigade mod appends to this skill's text when the skill's
+  load opens the pane, and calls it on its next turn.
 
 **Automatic checks:** none listed (**Decided**: the owner removed this list).
 
