@@ -2516,6 +2516,30 @@ test('the Remote Control link is read again when the found path changes, and goe
   holdsNoPath(w)
 })
 
+test('a card dropped by set_roster leaves no stored link, and when it returns its link is read again (#281)', async ($, on) => {
+  const w = await moved(on, $, w => plantIn(w, LAUNCH, 'HOME1'))
+  const m = await mountOn($, 'desktop')
+  await m.press({ key: 'open-0-gamma' })
+  expect(explorer(w)).toEqual([['explorer.exe', 'claude://claude.ai/code/session_HOME1']])
+  const stored = () => w.states.filter(([k]) => k === 'links').map(([, v]) => v).at(-1) ?? ''
+  expect(stored().includes('HOME1')).toBe(true)
+  // The roster now has no gamma: the next poll leaves no link for it.
+  await call($, { cards: [card('delta', { status: 'needs-you' })], todos: [] })
+  await w.clock.advance(10000)
+  await w.clock.settle()
+  expect(stored().includes('HOME1')).toBe(false)
+  // Gamma returns with the transcript where it was: its link is read again.
+  await call($, { cards: [card('gamma', { status: 'needs-you' })], todos: [] })
+  await w.clock.advance(10000)
+  await w.clock.settle()
+  await m.redraw(PANE_PROPS)
+  await m.press({ key: 'open-0-gamma' })
+  expect(explorer(w)).toEqual([
+    ['explorer.exe', 'claude://claude.ai/code/session_HOME1'],
+    ['explorer.exe', 'claude://claude.ai/code/session_HOME1'],
+  ])
+})
+
 test('a link read at 4 MiB or less is kept when the member is found at a new path past 4 MiB (#308)', async ($, on) => {
   const w = await moved(on, $, w => plantIn(w, LAUNCH, 'HOME1'))
   const m = await mountOn($, 'desktop')
