@@ -246,6 +246,9 @@ test('a hang ends at the limit, and the child and its tree are gone', async () =
   assert.equal(alive(), false, 'the hung child is gone');
 });
 
+// The probe's fixed folder and its switch against the current-folder lookup
+// back each other up, so this test fails only when both are gone; the claim is
+// that a planted file never runs, and either one keeps it true.
 test('a file planted in the working folder is never run', async () => {
   const dir = folder();
   const marker = planted(dir);
