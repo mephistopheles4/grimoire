@@ -805,3 +805,37 @@ export function report(raw: string): { from: string; line: string } {
 
 /** A lookup over pairs that never reaches a prototype: a Map, built per read. */
 export const lookup = (pairs: readonly Pair[]) => new Map(pairs.map(p => [p.name, p.value]))
+
+// --- a head-chef load where the security default is seated (#380) -----------
+//
+// Where a user plugin's skill.prompt hook never runs, a head-chef load is seen
+// through the call around it. These say whether that load ran, and whether
+// the session's local skill listing shows the loaded copy is ours.
+
+/** A typed load ran only when core answered it with its `ref`: a hook that
+ *  answers the command in core's place expanded no skill. */
+export function typedLoadRan(answer: unknown): boolean {
+  return isRecord(answer) && !('deny' in answer) && answer.ref !== undefined
+}
+
+/** A model's Skill load ran only when the Skill tool says it succeeded. */
+export function skillLoadRan(answer: unknown): boolean {
+  if (!isRecord(answer) || 'deny' in answer || answer.isError === true) return false
+  return isRecord(answer.result) && answer.result.success === true
+}
+
+type ListedSkill = { name?: unknown; source?: unknown; pluginName?: unknown }
+type SkillListing = { totalSkills?: unknown; includedSkills?: unknown; skillFrontmatter?: readonly ListedSkill[] }
+
+/** Whether the listing shows the loaded copy is ours and the only copy of its
+ *  name: grimoire's own for `grimoire:head-chef`, the owner's own for
+ *  `head-chef`. A listing that left skills out, or gives no counts, confirms
+ *  nothing. */
+export function listedAsOurs(skills: SkillListing | undefined, name: string): boolean {
+  if (skills === undefined || typeof skills.totalSkills !== 'number' || skills.includedSkills !== skills.totalSkills) return false
+  const copies = (skills.skillFrontmatter ?? []).filter(s => s.name === name)
+  if (copies.length === 0) return false
+  return name === 'grimoire:head-chef'
+    ? copies.length === 1 && copies[0].source === 'plugin' && copies[0].pluginName === 'grimoire'
+    : copies.every(s => s.source === 'userSettings')
+}

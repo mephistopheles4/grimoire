@@ -784,3 +784,44 @@ test('the gh title is cleaned and cut to 80 characters', () => {
   assert.doesNotMatch(title, /[\u{202e}\u{7}]/u);
   assert.ok(r.value instanceof Map);
 });
+
+// --- a head-chef load where the security default is seated (#380) ------------
+//
+// spec rev 3 on #380, S3, and the owner's q5 and q6 there: a typed load opens
+// the pane only when core answered it, and the session's local skill listing
+// shows one copy of the name, and it is ours. A model's Skill load counts as
+// run only when the Skill tool says it succeeded.
+
+const { listedAsOurs, skillLoadRan, typedLoadRan } = roster;
+const listing = (skills, total = skills.length) => ({ totalSkills: total, includedSkills: skills.length, skillFrontmatter: skills });
+const PLUGIN_COPY = { name: 'grimoire:head-chef', source: 'plugin', pluginName: 'grimoire' };
+const USER_COPY = { name: 'head-chef', source: 'userSettings' };
+
+test('the listing confirms our copy only when it is the one copy of its name, and the listing is whole', () => {
+  assert.equal(listedAsOurs(listing([PLUGIN_COPY, USER_COPY]), 'grimoire:head-chef'), true);
+  assert.equal(listedAsOurs(listing([PLUGIN_COPY, USER_COPY]), 'head-chef'), true);
+  // Another plugin's copy, a second copy, a project copy beside the owner's, no copy, a partial listing, none.
+  assert.equal(listedAsOurs(listing([{ ...PLUGIN_COPY, pluginName: 'other' }]), 'grimoire:head-chef'), false);
+  assert.equal(listedAsOurs(listing([PLUGIN_COPY, { ...PLUGIN_COPY, pluginName: 'other' }]), 'grimoire:head-chef'), false);
+  assert.equal(listedAsOurs(listing([USER_COPY, { name: 'head-chef', source: 'projectSettings' }]), 'head-chef'), false);
+  assert.equal(listedAsOurs(listing([{ name: 'groundtrack', source: 'plugin', pluginName: 'grimoire' }]), 'head-chef'), false);
+  assert.equal(listedAsOurs(listing([USER_COPY], 200), 'head-chef'), false);
+  assert.equal(listedAsOurs(undefined, 'head-chef'), false);
+  assert.equal(listedAsOurs({ skillFrontmatter: [USER_COPY] }, 'head-chef'), false);
+});
+
+test('a typed load ran only when core answered it with its ref', () => {
+  assert.equal(typedLoadRan({ text: '', ref: 'r' }), true);
+  assert.equal(typedLoadRan({ text: '' }), false);
+  assert.equal(typedLoadRan({ deny: 'no' }), false);
+  assert.equal(typedLoadRan(undefined), false);
+});
+
+test('a Skill load ran only when the Skill tool says it succeeded', () => {
+  assert.equal(skillLoadRan({ ref: 'r', result: { success: true, commandName: 'head-chef' }, text: '' }), true);
+  assert.equal(skillLoadRan({ ref: 'r', result: { success: false, commandName: 'head-chef' }, text: '' }), false);
+  assert.equal(skillLoadRan({ ref: 'r', result: { success: true }, text: '', isError: true }), false);
+  assert.equal(skillLoadRan({ deny: 'the owner refused the skill' }), false);
+  assert.equal(skillLoadRan({ ref: 'r', result: 'no such skill', text: '' }), false);
+  assert.equal(skillLoadRan(null), false);
+});

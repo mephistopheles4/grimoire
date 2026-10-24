@@ -4626,6 +4626,31 @@ test('C6: when the tool cannot be offered the line says so with no error text; w
   await w.clock.settle()
 })
 
+// The owner's q5 (a) on #380: a placed pane the engine does not list yet is
+// offered the tool, but its reads wait until a turn finds it listed; that turn
+// adds no note, the tool being offered already.
+test('S2.2: a placed pane the engine does not list starts no reads until a turn finds it listed', async ($, on) => {
+  const w = world(on, w => {
+    w.dirs(BRIGADE)
+    w.put(FILE, { type: 'file', data: { text: JSON.stringify(GOOD) } })
+  })
+  await start($)
+  w.unlisted = true
+  expect(added(await load($))).toBe(READY_UNLISTED)
+  expect(rosterOffers(w)).toEqual(['set_roster'])
+  await w.clock.settle()
+  expect(w.usageCalls).toBe(0)
+  expect(w.files).toEqual([])
+  expect(w.ghCalls).toEqual([])
+  w.unlisted = false
+  await $.turn.start({ text: 'go on', turnId: 's22' })
+  await w.clock.settle()
+  expect(w.usageCalls).toBeGreaterThan(0)
+  expect(w.files.at(-1)).toBe(FILE)
+  expect(rosterOffers(w)).toEqual(['set_roster'])
+  expect(w.notes).toEqual([])
+})
+
 test('C7: /brigade when the engine opens the pane but never lists it replies that it opened, and offers no tool', async ($, on) => {
   const w = world(on)
   w.unlisted = true
@@ -4677,7 +4702,7 @@ test('C9: when the open answers that the pane is not placed, a skill load starts
 // leaves a flag. Each turn while it is set looks at the pane once; the turn
 // that finds it shown starts the reads, offers the tool and stores one note.
 
-const LATE = 'The Brigade pane is now shown. `set_roster` is ready: call it with the full roster.'
+const LATE = 'Brigade (plugin note): The Brigade pane is now shown. `set_roster` is ready: call it with the full roster.'
 let turnNo = 0
 const turn = ($: any, over: Record<string, unknown> = {}) => $.turn.start({ text: 'go on', turnId: `t${++turnNo}`, ...over })
 
@@ -4804,14 +4829,17 @@ test('S2.3: a load that finds the pane open but cannot offer the tool says so', 
 
 // --- where the security default is seated (#380) -----------------------------
 //
-// spec rev 3 on #380, S3: where the security default is seated, a user
-// plugin's skill.prompt hook never runs, so the head-chef load is seen through
-// the Skill call or the typed command around it. The wrapper returns the
-// load's own answer, then, when the skill hook did not run and the load ran,
-// confirms from the session's local skill listing that the copy is ours, opens
-// the pane and stores the branch's line as a note.
+// spec rev 3 on #380, S3, as the owner settled it there (q5 and q6): where the
+// security default is seated, a user plugin's skill.prompt hook never runs, so
+// a head-chef load is seen through the call around it. Each wrapper returns
+// the load's own answer. A model's Skill load that ran, with the skill hook
+// skipped, opens nothing and stores one fixed note asking for /brigade. Only a
+// typed load core answered opens the pane, after the local skill listing
+// confirms the copy (tests/brigade-roster-rules.test.mjs tests that check and
+// the two "ran" checks at their own seam).
 
-const CONFIRM_FAILED = 'Brigade did not open its pane for this head-chef load: it could not confirm which copy of the skill loaded. Ask the owner to type /brigade.'
+const NOTE = 'Brigade (plugin note): '
+const MODEL_LOAD = `${NOTE}The Brigade pane was not opened: a head-chef load the owner did not type opens no pane here. Ask the owner to type /brigade.`
 const listing = (skills: Record<string, unknown>[], total = skills.length) => ({
   context: { breakdown: { skills: { totalSkills: total, includedSkills: skills.length, tokens: 0, skillFrontmatter: skills.map(s => ({ tokens: 1, ...s })) } } },
 })
@@ -4827,21 +4855,18 @@ const skillCall = ($: any, skill: string, over: Record<string, unknown> = {}) =>
 const typed = ($: any, command: string) => $.command.run({ command, args: '' })
 
 for (const name of ['grimoire:head-chef', 'head-chef']) {
-  test(`S3: seated, the model's Skill call for ${name} returns the load's answer, then opens the pane, offers the tool and stores the ready note`, async ($, on) => {
-    const w = loads(on, $, w => {
-      w.dirs(BRIGADE)
-      w.put(FILE, { type: 'file', data: { text: JSON.stringify(GOOD) } })
-    })
+  test(`S3: seated, the model's Skill call for ${name} returns the load's answer, opens nothing and stores the /brigade note`, async ($, on) => {
+    const w = loads(on, $)
     w.seated = true
-    w.usage = listing([PLUGIN_COPY, USER_COPY, { name: 'groundtrack', source: 'plugin', pluginName: 'grimoire' }])
+    w.usage = listing([PLUGIN_COPY, USER_COPY])
     await start($)
     const r = await skillCall($, name)
     expect(r.text).toBe(`Launching skill: ${name}`)
     await w.clock.settle()
-    expect(w.open).toBe(true)
-    expect(rosterOffers(w)).toEqual(['set_roster'])
-    expect(w.notes).toEqual([READY])
-    expect(w.files.at(-1)).toBe(FILE)
+    expect(w.open).toBe(false)
+    expect(rosterOffers(w)).toEqual([])
+    expect(w.notes).toEqual([MODEL_LOAD])
+    expect(w.usageCalls).toBe(0)
   })
 }
 
@@ -4863,29 +4888,6 @@ test('S3: seated, a typed /grimoire:head-chef answered without core\'s ref opens
   expect(w.usageCalls).toBe(0)
 })
 
-test('S3: seated, a listing with a second grimoire:head-chef, another plugin\'s, opens nothing and a note asks for /brigade', async ($, on) => {
-  const w = loads(on, $)
-  w.seated = true
-  w.usage = listing([PLUGIN_COPY, { name: 'grimoire:head-chef', source: 'plugin', pluginName: 'other' }])
-  await start($)
-  await skillCall($, 'grimoire:head-chef')
-  await w.clock.settle()
-  expect(w.open).toBe(false)
-  expect(w.notes).toEqual([CONFIRM_FAILED])
-})
-
-test('S3: seated, a confirmed load whose open fails before the pane opens stores the open-failed note', async ($, on) => {
-  const w = loads(on, $)
-  w.seated = true
-  w.usage = listing([PLUGIN_COPY])
-  w.failPanesClosed = true
-  await start($)
-  await skillCall($, 'grimoire:head-chef')
-  await w.clock.settle()
-  expect(w.open).toBe(false)
-  expect(w.notes).toEqual(['Brigade could not open its pane for this head-chef load. Ask the owner to type /brigade.'])
-})
-
 test('S3: any other skill, a subagent\'s load, and another plugin\'s head-chef pass on with no engine call', async ($, on) => {
   const w = loads(on, $)
   w.seated = true
@@ -4901,7 +4903,9 @@ test('S3: any other skill, a subagent\'s load, and another plugin\'s head-chef p
   expect(w.notes).toEqual([])
 })
 
-test('S3: a refused or failed head-chef load opens nothing, seated or not', async ($, on) => {
+// An answer whose result says success: false is tested at its own seam, in
+// tests/brigade-roster-rules.test.mjs.
+test('S3: a refused or failed head-chef load opens nothing and adds no note, seated or not', async ($, on) => {
   const w = loads(on, $)
   w.usage = listing([PLUGIN_COPY])
   await start($)
@@ -4919,37 +4923,6 @@ test('S3: a refused or failed head-chef load opens nothing, seated or not', asyn
   expect(w.usageCalls).toBe(0)
 })
 
-const UNCONFIRMED: [string, unknown][] = [
-  ['the listing cannot be read', 'fail'],
-  ['the listing names no copy', listing([{ name: 'groundtrack', source: 'plugin', pluginName: 'grimoire' }])],
-  ['a project copy is listed beside the owner\'s', listing([USER_COPY, { name: 'head-chef', source: 'projectSettings' }])],
-  ['the listing left skills out', listing([USER_COPY], 200)],
-]
-for (const [what, usage] of UNCONFIRMED) {
-  test(`S3: seated, when ${what}, the load opens nothing and a note asks for /brigade`, async ($, on) => {
-    const w = loads(on, $)
-    w.seated = true
-    w.usage = usage
-    await start($)
-    await skillCall($, 'head-chef')
-    await w.clock.settle()
-    expect(w.open).toBe(false)
-    expect(rosterOffers(w)).toEqual([])
-    expect(w.notes).toEqual([CONFIRM_FAILED])
-  })
-}
-
-test('S3: seated, a grimoire:head-chef listed as another plugin\'s opens nothing and a note asks for /brigade', async ($, on) => {
-  const w = loads(on, $)
-  w.seated = true
-  w.usage = listing([{ name: 'grimoire:head-chef', source: 'plugin', pluginName: 'other' }])
-  await start($)
-  await skillCall($, 'grimoire:head-chef')
-  await w.clock.settle()
-  expect(w.open).toBe(false)
-  expect(w.notes).toEqual([CONFIRM_FAILED])
-})
-
 // spec rev 3 on #380, S4: with no classic.SessionStart, session.start offers
 // the warning, a resume's session.start offers set_roster again while the pane
 // is listed, and the roster is named from the live session id. With no
@@ -4957,11 +4930,9 @@ test('S3: seated, a grimoire:head-chef listed as another plugin\'s opens nothing
 test('S4: seated, with no classic.SessionStart, the warning, the roster tool after a resume and the live id each still work', async ($, on) => {
   const w = loads(on, $)
   w.seated = true
-  w.usage = listing([PLUGIN_COPY])
   await $.session.start({ cwd: 'C:\\work' })
   expect(w.registered).toEqual(['show_permission_warning'])
-  await skillCall($, 'grimoire:head-chef')
-  await w.clock.settle()
+  await brigade($)
   expect(rosterOffers(w)).toEqual(['set_roster'])
   // A resume is a new process: its session.start finds the pane listed.
   await $.session.start({ cwd: 'C:\\work' })
@@ -4970,6 +4941,7 @@ test('S4: seated, with no classic.SessionStart, the warning, the roster tool aft
   // names a new file; here no transcript names the config folder, and the
   // reason says so.
   const gap = (id: string) => `Cannot find the Claude config folder from where the plugin was loaded. The roster would be <Claude config folder>/plugins/data/grimoire-inline/brigade/${id}.json. Nothing was read.`
+  await w.clock.settle()
   expect(w.errors).toContain(gap(SID))
   const NEW = '66666666-7777-8888-9999-000000000000'
   w.sid = NEW

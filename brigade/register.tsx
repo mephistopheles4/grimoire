@@ -23,8 +23,11 @@ import {
   dataPlace,
   listsOpenTool,
   liveWord,
+  listedAsOurs,
   lookup,
   matchRows,
+  skillLoadRan,
+  typedLoadRan,
   oneLine,
   openerArgv,
   parsePrList,
@@ -866,9 +869,9 @@ async function offerTool($: EngineInterface) {
 // the engine has answered the open, for a caller whose later step throws.
 // `needPlaced` is for the skill hook: a pane the engine answers is not placed
 // starts no reads and offers no tool, so nothing runs while it waits unseen.
-// It also starts the reads and offers the tool for a placed pane the engine
-// does not list yet (#380): the tool refuses while the pane is unlisted, and
-// the roster tick stops the reads if it never is. `listed` says which it was.
+// It also offers the tool for a placed pane the engine does not list yet
+// (#380), which refuses while the pane is unlisted; the reads wait for the
+// listing, which the late turn finds. `listed` says which it was.
 type Offer = 'offered' | 'not listed' | 'not placed' | { why: string }
 async function openPane($: EngineInterface, wait: boolean, reached: { open: boolean } = { open: false }, needPlaced = false) {
   await update($, viewAtom, () => 'sessions')
@@ -883,7 +886,8 @@ async function openPane($: EngineInterface, wait: boolean, reached: { open: bool
   if (listed || needPlaced) {
     // Not awaited when the caller does not wait: arm takes its timers before
     // its first await, so a second arm still starts nothing.
-    if (wait) await arm($)
+    if (!listed) lateOffer = 'arm'
+    else if (wait) await arm($)
     else arm($).catch(() => undefined)
     try {
       await offerTool($)
@@ -908,19 +912,24 @@ const NOT_SHOWN_LINE = `The Brigade pane is open but not shown, so \`${TOOL}\` i
 const NO_READS_LINE = `The Brigade pane opened without its reads, so \`${TOOL}\` is not ready. Ask the owner to type /brigade.`
 const NO_READS_TOAST = 'The Brigade pane opened without its reads. Type /brigade to start them.'
 
-// Set when a head-chef load leaves the pane open but not shown, or open
-// without its reads: the next turn that finds it shown offers the tool (#380).
-let lateOffer = false
+// Set when a head-chef load leaves the pane waiting (#380): 'offer' when it is
+// open but not shown, or open without its reads, so the next turn that finds
+// it shown starts the reads and offers the tool; 'arm' when the tool is
+// offered already and only the reads wait for the engine to list the pane.
+let lateOffer: false | 'offer' | 'arm' = false
 const LATE_NOTE = `The Brigade pane is now shown. \`${TOOL}\` is ready: call it with the full roster.`
 
-// One fixed row for the model, where no skill text can carry a line.
+// One fixed row for the model, where no skill text can carry a line. It is
+// stored as a user row, so each starts by saying it is the plugin's.
+const NOTE_FROM = 'Brigade (plugin note): '
 async function note($: EngineInterface, text: string) {
-  await $.session.append({ message: { type: 'user', content: [{ type: 'text', text }] } })
+  await $.session.append({ message: { type: 'user', content: [{ type: 'text', text: `${NOTE_FROM}${text}` }] } })
 }
 
-// The late offer, at a turn of the lead's own while the flag is set: one look
-// at the pane. Shown: the reads start, the tool is offered and one note says
-// so. Gone: the flag clears. Still waiting: the next turn looks again.
+// The late look, at a turn of the lead's own while the flag is set: one look
+// at the pane. Listed and shown: the reads start, and on 'offer' the tool is
+// offered and one note says so. Gone: the flag clears. Still waiting: the next
+// turn looks again.
 async function lateTurn($: EngineInterface) {
   const listed = await paneListed($)
   if (listed === undefined) {
@@ -929,6 +938,10 @@ async function lateTurn($: EngineInterface) {
   }
   if (!listed.isPlaced) return
   if (timers.length === 0) arm($).catch(() => undefined)
+  if (lateOffer === 'arm') {
+    lateOffer = false
+    return
+  }
   // The flag clears only once the tool is offered: a failed offer is tried
   // again at the next turn.
   await offerTool($)
@@ -945,7 +958,7 @@ async function headChefLoad($: EngineInterface): Promise<string | undefined> {
     const listed = await paneListed($)
     if (listed !== undefined) {
       if (!listed.isPlaced) {
-        lateOffer = true
+        lateOffer = 'offer'
         return NOT_SHOWN_LINE
       }
       // Found open: nothing is reset, the reads start only if they are not
@@ -961,16 +974,16 @@ async function headChefLoad($: EngineInterface): Promise<string | undefined> {
     }
     const { offer, listed: nowListed } = await openPane($, false, reached, true)
     if (offer === 'not placed') {
-      lateOffer = true
+      lateOffer = 'offer'
       $.ui.toast(NOT_SHOWN_TOAST)
       return NOT_SHOWN_LINE
     }
     if (offer !== 'offered') return NOT_OFFERED_LINE
-    lateOffer = false
+    if (nowListed) lateOffer = false
     return nowListed ? READY_LINE : READY_UNLISTED_LINE
   } catch {
     if (!reached.open) return undefined
-    lateOffer = true
+    lateOffer = 'offer'
     $.ui.toast(NO_READS_TOAST)
     return NO_READS_LINE
   }
@@ -989,27 +1002,16 @@ const isOurHeadChef = (e: { skill: string; source: string; pluginName?: string }
 // seen through the Skill call or the typed command around it. The skill hook,
 // where it runs, clears the mark for any load of a head-chef name, ours or not,
 // and handles the load itself. A mark still set after a load that ran means
-// the hook was skipped: the pane opens only when the session's local skill
-// listing shows one copy of that name, and it is ours, as isOurHeadChef reads
-// a load. Its line goes in a note, after the load's own answer has returned.
+// the hook was skipped. Then, as the owner settled on #380 (q6), only a typed
+// load core answered opens the pane, and only when the session's local skill
+// listing shows one copy of that name, and it is ours; a model's load stores
+// one note asking for /brigade. The note follows the load's own answer.
 const isHeadChefName = (name: unknown) => name === 'head-chef' || name === 'grimoire:head-chef'
-const isObject = (v: unknown): v is object => typeof v === 'object' && v !== null
 let loadPending = false
 
 const CONFIRM_FAILED_NOTE = 'Brigade did not open its pane for this head-chef load: it could not confirm which copy of the skill loaded. Ask the owner to type /brigade.'
 const OPEN_FAILED_NOTE = 'Brigade could not open its pane for this head-chef load. Ask the owner to type /brigade.'
-
-type Listed = { name?: unknown; source?: unknown; pluginName?: unknown }
-// Whether the local listing shows the loaded copy is ours and the only copy of
-// its name. A listing that left skills out confirms nothing.
-function listedAsOurs(skills: { totalSkills?: number; includedSkills?: number; skillFrontmatter?: Listed[] } | undefined, name: string) {
-  if (skills === undefined || skills.includedSkills !== skills.totalSkills) return false
-  const copies = (skills.skillFrontmatter ?? []).filter(s => s.name === name)
-  if (copies.length === 0) return false
-  return name === 'grimoire:head-chef'
-    ? copies.length === 1 && copies[0].source === 'plugin' && copies[0].pluginName === 'grimoire'
-    : copies.every(s => s.source === 'userSettings')
-}
+const MODEL_LOAD_NOTE = 'The Brigade pane was not opened: a head-chef load the owner did not type opens no pane here. Ask the owner to type /brigade.'
 
 async function seatedLoad($: EngineInterface, name: string) {
   let ours = false
@@ -1024,8 +1026,8 @@ async function seatedLoad($: EngineInterface, name: string) {
 }
 
 // Runs a head-chef load with the mark set, and returns its own answer. Only a
-// load that ran, with the mark still set, starts the seated open, unawaited.
-async function wrapLoad<T>($: EngineInterface, name: string, load: () => Promise<T>, ran: (answer: T) => boolean): Promise<T> {
+// load that ran, with the mark still set, starts `seated`, unawaited.
+async function wrapLoad<T>(load: () => Promise<T>, ran: (answer: T) => boolean, seated: () => Promise<void>): Promise<T> {
   loadPending = true
   let answer: T
   try {
@@ -1036,7 +1038,7 @@ async function wrapLoad<T>($: EngineInterface, name: string, load: () => Promise
   }
   const skipped = loadPending
   loadPending = false
-  if (skipped && ran(answer)) void seatedLoad($, name).catch(() => undefined)
+  if (skipped && ran(answer)) void seated().catch(() => undefined)
   return answer
 }
 
@@ -1263,13 +1265,13 @@ export const register: Register = on => {
   on('tool.call', { tool: 'Skill' }, async ($, e, next) => {
     const name = (e as { skill?: unknown }).skill
     if (e.agentId !== undefined || !isHeadChefName(name)) return next(e)
-    return wrapLoad($, name as string, () => next(e), answer => isObject(answer) && !('deny' in answer) && !(answer as { isError?: boolean }).isError)
+    return wrapLoad(() => next(e), skillLoadRan, () => note($, MODEL_LOAD_NOTE))
   })
   // A typed load ran only when core answered it with its `ref`: a hook beneath
   // that answers the command in its place expanded no skill.
   for (const command of ['head-chef', 'grimoire:head-chef']) {
     on('command.run', { command }, async ($, e, next) => {
-      return wrapLoad($, command, () => next(e), answer => isObject(answer) && (answer as { ref?: unknown }).ref !== undefined)
+      return wrapLoad(() => next(e), typedLoadRan, () => seatedLoad($, command))
     })
   }
 
