@@ -1107,6 +1107,13 @@ if (existsSync(join(root, '.claude', 'settings.json'))) {
 // does one this rule cannot read. A nested file with no hooks key is left
 // alone, as a root one is by no rule but 6d. Hooks in a subagent's or a skill's
 // frontmatter under .claude/ are not read; CONTRIBUTING says so.
+//
+// The walk lists a link to a folder as a file and does not look through it, so
+// a tracked link named .claude would hide a settings file behind it. A file or
+// a link with that name fails: a folder is the only thing it can be.
+for (const f of files.filter(f => basename(f).toLowerCase() === '.claude')) {
+  fail(`${rel(f)} is a file or a link named .claude — the check cannot look through it for a settings file, and Claude Code would. Remove it.`);
+}
 const NESTED_SETTINGS = /(?:^|\/)\.claude\/settings(?:\.local)?\.json$/i;
 for (const f of files.filter(f => NESTED_SETTINGS.test(relRaw(f)) && relRaw(f).toLowerCase() !== '.claude/settings.json')) {
   let registers;

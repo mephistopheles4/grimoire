@@ -127,6 +127,17 @@ test('a nested .claude settings file that cannot be read fails the check, and on
   assertPasses(plain);
 });
 
+// The walk lists a link to a folder as a file, so a tracked link named .claude
+// would hide the settings file behind it from the rule above. A file or a link
+// with that name is never right, and a regular file stands in for the link here
+// because a link needs a privilege some machines do not give.
+test('a file or link named .claude, which the walk cannot look through, fails the check', () => {
+  const dir = tree();
+  mkdirSync(join(dir, 'docs'));
+  writeFileSync(join(dir, 'docs', '.claude'), 'not a folder\n');
+  assertFails(dir, /docs\/\.claude is a file or a link named \.claude/);
+});
+
 test('a flag does not turn a failing check into a passing one', () => {
   const dir = tree();
   const settings = readSettings(dir);
