@@ -425,9 +425,12 @@ async function pollLive($: EngineInterface, open: () => boolean) {
         else linkFrom.set(name, at.path)
         await update($, links, list => [...list.filter(p => p.name !== name), ...(url === undefined ? [] : [{ name, value: url }])])
       }
-      // A link whose card left the roster goes with it (#281).
+      // A link whose card left the roster goes with it, and so does the path
+      // it was read from: a card that returns reads its link again (#281).
       if (!open()) return
-      await update($, links, list => linksOnRoster(list, cards.map(c => c.title)))
+      const titles = cards.map(c => c.title)
+      for (const name of [...linkFrom.keys()]) if (!titles.includes(name)) linkFrom.delete(name)
+      await update($, links, list => linksOnRoster(list, titles))
     } catch {
       // The reads are tried again at the next poll.
     }

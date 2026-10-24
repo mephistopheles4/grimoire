@@ -2061,11 +2061,16 @@ test('a stored link for a name with no card on the roster goes (#281)', () => {
   assert.deepEqual(linksOnRoster(list, ['a']), [list[0]], 'b left the roster: its link goes');
   assert.deepEqual(linksOnRoster(list, []), [], 'an empty roster keeps no link');
   assert.equal(linksOnRoster(list, ['a', 'b']), list, 'nothing to drop: the same list, so no write');
+  assert.deepEqual(linksOnRoster(list, ['b']), [list[1]], 'matched by name, not by position');
+  assert.equal(linksOnRoster(list, ['b', 'a']), list, 'a roster in another order keeps every link');
 });
 
 test('the poll prunes stored links to the roster after the link reads (#281)', () => {
   const register = readFileSync(join(root, 'brigade/register.tsx'), 'utf8');
-  assert.match(register, /await update\(\$, links, list => linksOnRoster\(list, cards\.map\(c => c\.title\)\)\)/);
+  assert.match(
+    register,
+    /\n {6}\}\n(?: {6}\/\/[^\n]*\n)+ {6}if \(!open\(\)\) return\n {6}const titles = cards\.map\(c => c\.title\)\n {6}for \(const name of \[\.\.\.linkFrom\.keys\(\)\]\) if \(!titles\.includes\(name\)\) linkFrom\.delete\(name\)\n {6}await update\(\$, links, list => linksOnRoster\(list, titles\)\)\n {4}\} catch \{/,
+  );
 });
 
 test('the pane keeps a stored link on a keep step: it remembers the path and changes no link', () => {
