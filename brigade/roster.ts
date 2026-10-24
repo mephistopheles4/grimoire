@@ -827,10 +827,10 @@ export function skillLoadRan(answer: unknown): boolean {
 type ListedSkill = { name?: unknown; source?: unknown; pluginName?: unknown }
 type SkillListing = { totalSkills?: unknown; includedSkills?: unknown; skillFrontmatter?: readonly ListedSkill[] }
 
-/** Whether the listing shows the loaded copy is ours and the only copy of its
- *  name: grimoire's own for `grimoire:head-chef`, the owner's own for
- *  `head-chef`. A listing that left skills out, or gives no counts, confirms
- *  nothing. */
+/** Whether the listing shows the loaded copy is ours: for `grimoire:head-chef`,
+ *  one copy of the name and it is grimoire's own; for `head-chef`, every copy
+ *  of the name is the owner's own. A listing that left skills out, or gives
+ *  no counts, confirms nothing. */
 export function listedAsOurs(skills: SkillListing | undefined, name: string): boolean {
   if (skills === undefined || typeof skills.totalSkills !== 'number' || skills.includedSkills !== skills.totalSkills) return false
   const copies = (skills.skillFrontmatter ?? []).filter(s => s.name === name)

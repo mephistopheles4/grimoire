@@ -253,7 +253,7 @@ type World = ReturnType<typeof makeFs> & {
   /** Where the security default is seated: a skill load raises no `skill.prompt`
    *  a user plugin sees. */
   seated: boolean
-  /** How the engine answers a Skill call: run, refused, or failed. */
+  /** How the engine answers a Skill call: run, refused, failed, or answered unsuccessful. */
   skillAnswer: 'ran' | 'deny' | 'error' | 'unsuccessful'
   /** What a head-chef load raises its `skill.prompt` with (source and plugin name). */
   loadedAs: Record<string, unknown>
@@ -4466,7 +4466,7 @@ const NOT_OFFERED = 'The Brigade pane is open, but `set_roster` could not be off
 const ALREADY_OPEN = 'The Brigade pane was already open. `set_roster` is ready: call it with the full roster on your next turn.'
 const NOT_SHOWN = 'The Brigade pane is open but not shown, so `set_roster` is not ready yet. It is offered once the pane is shown; if it does not come, ask the owner to type /brigade.'
 const NO_READS = 'The Brigade pane opened without its reads, so `set_roster` is not ready. Ask the owner to type /brigade.'
-const READY_UNLISTED ='The Brigade pane is open, though the engine does not list it yet. `set_roster` is ready: call it with the full roster on your next turn.'
+const READY_UNLISTED = 'The Brigade pane is opening but not ready yet, so a `set_roster` call is refused for now. Wait for a Brigade note saying it is ready, then call it with the full roster.'
 const load = ($: any, over: Record<string, unknown> = {}): Promise<{ text: string }> =>
   $.skill.prompt({ skill: 'head-chef', text: SKILL_TEXT, frontmatter: {}, source: 'plugin', pluginName: 'grimoire', path: 'C:\\skills\\head-chef\\SKILL.md', ...over })
 // What follows the skill's own text.
@@ -4631,8 +4631,9 @@ test('C6: when the tool cannot be offered the line says so with no error text; w
 
 // The owner's q5 (a) on #380: a placed pane the engine does not list yet is
 // offered the tool, but its reads wait until a turn finds it listed; that turn
-// adds no note, the tool being offered already.
-test('S2.2: a placed pane the engine does not list starts no reads until a turn finds it listed', async ($, on) => {
+// starts them and adds one note that the tool now works, and offers the tool
+// no second time.
+test('S2.2: a placed pane the engine does not list starts no reads until a turn finds it listed, which says the tool is ready', async ($, on) => {
   const w = world(on, w => {
     w.dirs(BRIGADE)
     w.put(FILE, { type: 'file', data: { text: JSON.stringify(GOOD) } })
@@ -4651,7 +4652,7 @@ test('S2.2: a placed pane the engine does not list starts no reads until a turn 
   expect(w.usageCalls).toBeGreaterThan(0)
   expect(w.files.at(-1)).toBe(FILE)
   expect(rosterOffers(w)).toEqual(['set_roster'])
-  expect(w.notes).toEqual([])
+  expect(w.notes).toEqual([LATE])
 })
 
 test('C7: /brigade when the engine opens the pane but never lists it replies that it opened, and offers no tool', async ($, on) => {
@@ -4838,11 +4839,11 @@ test('S2.3: a load that finds the pane open but cannot offer the tool says so', 
 // the load's own answer. A model's Skill load that ran, with the skill hook
 // skipped, opens nothing and stores one fixed note asking for /brigade. Only a
 // typed load core answered opens the pane, after the local skill listing
-// confirms the copy (tests/brigade-roster-rules.test.mjs tests that check and
-// the two "ran" checks at their own seam).
+// confirms the copy (tests/brigade-roster-rules.test.mjs tests the listing
+// check and the two "ran" checks directly).
 
 const NOTE = 'Brigade (plugin note): '
-const MODEL_LOAD = `${NOTE}The Brigade pane was not opened: a head-chef load the owner did not type opens no pane here. Ask the owner to type /brigade.`
+const MODEL_LOAD = `${NOTE}The Brigade pane was not opened, so \`set_roster\` is not ready: in this session a head-chef load the owner did not type opens no pane. Ask the owner to type /brigade.`
 const listing = (skills: Record<string, unknown>[], total = skills.length) => ({
   context: { breakdown: { skills: { totalSkills: total, includedSkills: skills.length, tokens: 0, skillFrontmatter: skills.map(s => ({ tokens: 1, ...s })) } } },
 })

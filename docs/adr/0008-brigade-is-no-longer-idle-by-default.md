@@ -93,8 +93,9 @@ under way, or a load left the pane open but not shown. Then the work is bounded:
 - `turn.start` asks for the pane list once a turn until the pane is shown and
   listed, or gone.
 
-None of the three starts a timer, a process or a file read of its own. The
-reads still wait for the engine to list the pane. `set_roster` is now offered
+None of the three starts a timer, a process or a file read beyond the pane's
+own reads, which they may start and which still wait for the engine to list
+the pane. `set_roster` is now offered
 as soon as the engine answers that the pane is open and placed, even before it
 lists the pane, and each call still refuses while the pane is not listed. Spec
 rev 3 on #380 sets this out, the owner settled its seated route and its reads
