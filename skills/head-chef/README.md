@@ -167,6 +167,19 @@ delete those comments, or delete the old version from each edited comment's
 history: an edit alone keeps the old text there. Notification emails already
 sent keep it too.
 
+## Running the eval cases
+
+The cases in `evals/head-chef/` run once on Haiku before each head-chef
+merge, on your yes, and on the lead's model when budget allows:
+
+```bash
+claude plugin eval <repo> --model haiku --runs 1 --ablation none --no-publish --max-cost-usd 2
+```
+
+To run one case, add `--case <name>`; a second `--case` replaces the first.
+On 2026-10-24 two cases on Haiku cost under a cent each and took 19 and 29
+seconds.
+
 ## Files
 
 | File | What it is |
