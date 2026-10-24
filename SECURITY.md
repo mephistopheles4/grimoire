@@ -248,7 +248,8 @@ The realistic risks:
   protection guards this. `scripts/check.mjs` also refuses a `SKILL.md`
   frontmatter key outside `name`, `description`, `compatibility`, `license`,
   `allowed-tools` and `metadata`, so a `hooks` key cannot merge unseen, and
-  any file under `skills/`, the root `package.json` or `tests/container/` that
+  any file under `skills/`, the root `package.json`, `tests/container/`,
+  `.claude/settings.json` or `scripts/agent-check-guard.mjs` that
   holds a control character other than tab,
   line feed and carriage return, a lone carriage return, DEL, U+2028, U+2029,
   U+FFFE, U+FFFF, a default ignorable code point (tag characters, zero-width

@@ -13,7 +13,8 @@
 //    read, so no rule here skips a file that ships.
 //    2c. A skill's frontmatter holds only the allow-listed keys, and no file
 //    under skills/, nor the root package.json, nor a file under
-//    tests/container/, holds a hidden control or line-separator character.
+//    tests/container/, nor .claude/settings.json or scripts/agent-check-guard.mjs,
+//    holds a hidden control or line-separator character.
 // 3. The single-pass tag strip does not come back, and no code fence in any
 //    markdown file declares no language.
 // 4. Every plugin in the marketplace manifest exists on disk with a manifest.
@@ -28,6 +29,10 @@
 //    relative import in it, lands inside the mod's folders.
 //    6c. Nothing else the engine loads: no default component folder or file at
 //    the root, and no manifest or marketplace key outside an allow-list.
+//    6d. .claude/settings.json holds the one entry that registers
+//    scripts/agent-check-guard.mjs and nothing else, neither it nor the
+//    script has a twin spelled in another case, and there is no settings file
+//    below the root.
 // 7. The SkillSpector baselines agree, so a rule reasoned away at the
 //    repository root is reasoned away the same way inside a skill: the same
 //    reason, and a skill entry no broader than the root's.
@@ -41,6 +46,7 @@ import { appendFileSync, existsSync, lstatSync, readdirSync, readFileSync, realp
 import { basename, join, posix, relative, resolve, sep } from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
+import { isDeepStrictEqual } from 'node:util';
 import { walk } from './lib/tree.mjs';
 import { ARTIFACTS, rowFor } from './lib/registry.mjs';
 import { ALLOWANCES, checkAgainstTree, diffAllowances, parseAllowances, readAllowances, unexplainedRehashes } from './lib/skillspector-allowances.mjs';
@@ -60,6 +66,19 @@ const rel = p => shown(relRaw(p));
 // carries why, and it is shared with build-pages.mjs so the two cannot drift.
 const { files, notes: walkNotes } = walk(root);
 for (const n of walkNotes) console.log(`note: ${n}`);
+
+// A host fallback named on the command line (issue 377). scripts/agent-check-guard.mjs
+// refuses `node scripts/check.mjs` from an agent while athanor is on the
+// machine, and tells the agent to add `--host-fallback=<reason>` when athanor
+// produced no result. This is the only thing the flag does: the note puts the
+// reason in the output, so the skip shows in the record. It changes no rule,
+// no other line and no exit code. The reason is the agent's own text, so it
+// prints through `shown`, which masks a home path and escapes a line break or
+// a hidden character, and then it is cut at 200 characters (the other strings
+// here are cut at 120 by `excerpt`; a reason is a sentence, not a name).
+const fallbackArg = process.argv.slice(2).find(a => a.startsWith('--host-fallback='));
+const fallbackReason = fallbackArg ? shown(fallbackArg.slice('--host-fallback='.length).trim()) : '';
+if (fallbackReason) console.log(`note: host fallback named: ${fallbackReason.length > 200 ? `${fallbackReason.slice(0, 197)}...` : fallbackReason}`);
 
 // What ships besides the skills: the Claude Code mod. The engine loads its
 // hooks module and runs it in every session the plugin is installed in, so it
@@ -200,6 +219,14 @@ const isContainerConfig = src => {
   return below.length > 0 && foldsTo(first, 'tests') && foldsTo(second, 'container');
 };
 const isReadForPaths = src => isShipped(src) || isContainerConfig(src);
+// The two files that run when an agent session opens on a branch (issue 377):
+// the settings file that registers the guard, and the guard. Like the container
+// config, a reader reads them before opening a session on a branch they did not
+// write, so rule 2c holds them to the hidden-character rule too. The match
+// ignores letter case, as the container config's does: a checkout that folds
+// case keeps one of two twins.
+const GUARD_FILES = ['.claude/settings.json', 'scripts/agent-check-guard.mjs'];
+const isGuardFile = src => GUARD_FILES.includes(src.toLowerCase());
 for (const shipped of files.filter(f => isReadForPaths(rel(f)))) {
   // The block-quote exemption is markdown only. `>` opens a quotation in prose
   // and means nothing in JavaScript, JSON or HTML, so honouring it everywhere
@@ -356,7 +383,7 @@ const codePoint = c => `U+${c.codePointAt(0).toString(16).toUpperCase().padStart
 // 2 does, so a cut cannot drop the home path that tells the masker the name.
 const quoted = s => printable(excerpt(masked(s)));
 
-for (const f of files.filter(f => relRaw(f).startsWith('skills/') || isContainerConfig(relRaw(f)))) {
+for (const f of files.filter(f => relRaw(f).startsWith('skills/') || isContainerConfig(relRaw(f)) || isGuardFile(relRaw(f)))) {
   const bytes = readFileSync(f);
   const signature = binaryKind(relRaw(f));
   if (signature && bytes.subarray(0, signature.length).equals(signature)) continue;
@@ -1023,6 +1050,75 @@ for (const p of mkt.plugins) for (const key of Object.keys(p)) if (!MARKET_ENTRY
 for (const e of readdirSync(root, { withFileTypes: true })) {
   const hit = LOAD_ROOTS.find(d => e.name === d || caseTwin(e.name, d));
   if (hit) fail(`${shown(e.name)}${e.isDirectory() ? '/' : ''} at the root is a place the engine loads (${hit}) — it would load what no rule here reads. Remove it, or take it off LOAD_ROOTS in rule 6c of scripts/check.mjs and hold it to the rules the mod's folders are held to (isShipped and rule 5).`);
+}
+
+// 6d. The settings file holds the guard's entry and nothing else.
+//
+// Claude Code reads .claude/settings.json when a session opens in the folder,
+// and it can register hooks, grant permissions, set environment variables and
+// run a status line command. A pull request that edits it runs code on the
+// reader's machine before anyone has reviewed the branch, and no rule above
+// reads the file. So it is held to exactly the one entry that registers
+// scripts/agent-check-guard.mjs, written here: any other hook, matcher,
+// command, timeout or key fails, and so does a file that is not JSON. To add
+// anything, change the entry here, and say in the pull request what Claude Code
+// does with it. This runs when the check does, which is after the hook has
+// already fired for a session opened on the branch, so it protects the merge
+// and not the reader; CONTRIBUTING tells a reader to read a branch's hooks
+// first. The threat-model row proposed for issue 377 is the owner's decision.
+//
+// The file is compared as text as well as parsed: JSON.parse keeps the last of
+// a repeated key, and Claude Code's reader may pick another, so a file that
+// parses to the entry but is not the entry's one line fails too.
+//
+// A spelling in another case is refused too: a checkout that folds case keeps
+// one of two twins, which may be the one no rule read, and Claude Code loads
+// the settings file by its folded name. The comparison is on the whole path.
+const GUARD_ENTRY = {
+  hooks: {
+    PreToolUse: [
+      {
+        matcher: 'Bash|PowerShell',
+        hooks: [{ type: 'command', command: 'node', args: ['${CLAUDE_PROJECT_DIR}/scripts/agent-check-guard.mjs'], timeout: 10 }],
+      },
+    ],
+  },
+};
+for (const f of files.map(relRaw)) {
+  const twin = GUARD_FILES.find(g => caseTwin(f, g));
+  if (twin) fail(`${shown(f)} is ${twin} in another case — a checkout that folds case keeps one of two twins, and Claude Code loads the settings file by its folded name. Rename it ${twin}.`);
+}
+if (existsSync(join(root, '.claude', 'settings.json'))) {
+  let settings;
+  const text = readFileSync(join(root, '.claude', 'settings.json'), 'utf8').replace(/^\u{FEFF}/u, '');
+  try {
+    settings = JSON.parse(text);
+  } catch {
+    fail('.claude/settings.json is not JSON — Claude Code would read it as it can, and no rule here could say what it registers. Fix it, or remove it.');
+  }
+  if (settings !== undefined && (!isDeepStrictEqual(settings, GUARD_ENTRY) || text.trim() !== JSON.stringify(GUARD_ENTRY))) {
+    fail('.claude/settings.json holds more or less than the one guard entry, in the one line rule 6d of scripts/check.mjs writes — Claude Code runs what it registers when a session opens on the branch, hooks, permissions, environment variables and status line commands included, and no rule here reads those. Remove the rest, and keep your own settings in .claude/settings.local.json, which git ignores. Or change GUARD_ENTRY in rule 6d and say in the pull request what Claude Code does with it.');
+  }
+}
+
+// Claude Code reads a settings file from the folder a session starts in, and a
+// settings file can run code through its hooks, status line, helper commands,
+// environment variables and permissions. A .claude/settings.json below the
+// root would apply to a session opened there, and rule 6d reads only the
+// root's. So every settings file below the root fails, whatever it holds
+// (settings.local.json too, if git tracks one: .gitignore hides it from the
+// walk, and rule 2b fails the tracked file). Hooks in a subagent's or a skill's
+// frontmatter under .claude/ are not read; CONTRIBUTING says so.
+//
+// The walk lists a link to a folder as a file and does not look through it, so
+// a tracked link named .claude would hide a settings file behind it. A file or
+// a link with that name fails: a folder is the only thing it can be.
+for (const f of files.filter(f => basename(f).toLowerCase() === '.claude')) {
+  fail(`${rel(f)} is a file or a link named .claude — the check cannot look through it for a settings file, and Claude Code would. Remove it.`);
+}
+const NESTED_SETTINGS = /(?:^|\/)\.claude\/settings(?:\.local)?\.json$/i;
+for (const f of files.filter(f => NESTED_SETTINGS.test(relRaw(f)) && relRaw(f).toLowerCase() !== '.claude/settings.json')) {
+  fail(`${rel(f)} is a settings file below the root — Claude Code loads it when a session starts in its folder, and it can run code through hooks, a status line, helper commands and environment variables, none of which a rule here reads. Remove it; the one settings file this repository keeps is .claude/settings.json at the root, held to rule 6d. Keep your own settings in .claude/settings.local.json.`);
 }
 
 // 7. The SkillSpector baselines agree: a skill's entry gives the root's reason and is never broader.

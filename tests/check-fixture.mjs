@@ -62,6 +62,13 @@ export function tree() {
   for (const part of ['brigade', 'hooks']) {
     if (existsSync(join(root, part))) cpSync(join(root, part), join(dir, part), { recursive: true });
   }
+  // The settings file that registers the agent guard. Only that file: the
+  // folder also holds .claude/worktrees/, which the walk skips and a copy
+  // should not carry.
+  if (existsSync(join(root, '.claude', 'settings.json'))) {
+    mkdirSync(join(dir, '.claude'));
+    cpSync(join(root, '.claude', 'settings.json'), join(dir, '.claude', 'settings.json'));
+  }
   cpSync(join(root, '.gitignore'), join(dir, '.gitignore'));
   cpSync(join(root, baselineName), join(dir, baselineName));
   // The SkillSpector allowance, whose entries name files under skills/ and
