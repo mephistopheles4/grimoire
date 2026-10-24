@@ -92,21 +92,22 @@ understand on the permission warning is a reminder, not acceptance.
 
 A session takes the lead's first message when the sender's shown name
 matches the lead's row in the session list and no other row holds that name.
-It answers it, and keeps that message's messaging address as the lead's.
-From then on it takes a message from the lead only from that address,
-whatever name it shows, so renaming the lead no longer cuts its sessions
-off. It takes each such message as a **relayed decision**, on any matter. It
-labels it as relayed by the lead, never as your own words, and names each
-decision it acted on in its next report to the lead. Until the first message,
-anything that can send it a message under the lead's name can steer it, and
-no probe has shown whether a local program can state another's address. The
-head chef tells you at once when a session reports a decision it never sent,
-a message it refused, or a send that failed.
+It answers it, and keeps the lead's Desktop id that the message carries.
+From then on it takes a message from the lead only when it carries that id,
+whatever name or address it shows, so renaming or restarting the lead no
+longer cuts its sessions off, and it reports to the address of the lead's
+latest message. It takes each such message as a **relayed decision**, on any
+matter. It labels it as relayed by the lead, never as your own words, and
+names each decision it acted on in its next report to the lead. Until the
+first message, anything that can send it a message under the lead's name can
+steer it, and no probe has shown whether a local program can state another's
+id. The head chef tells you at once when a session reports a decision it
+never sent, a message it refused, or a send that failed.
 
 Before a restart, `/clear` or resume of the lead, the head chef warns you
-that its address may change: what those do to the address is not measured.
-A session that loses the address takes nothing from the lead until you give
-it the address in its own chat.
+that its sessions need its new id if its Desktop id changes: what those do to
+the id is not measured. A session that loses the id takes nothing from the
+lead until you give it the id in its own chat.
 
 A session also follows comments on its issue made as you, and every session
 you start posts as you, so a comment from one session can steer another.
