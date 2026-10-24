@@ -80,3 +80,21 @@ Don't show again ticked. PR 360's two Test
 review rounds reviewed this work, and row 15 of the threat model lists its
 calls. The owner asked for this record in chat in the build session on #296,
 on 2026-10-21.
+
+## Reviewed: the head-chef load paths (2026-10-24)
+
+Plugin 0.74.0 (#380) adds three hooks that run in every session: `tool.call`
+on `Skill`, `command.run` for `/head-chef` and `/grimoire:head-chef`, and
+`turn.start`. Each passes on with no engine call unless a head-chef load is
+under way, or a load left the pane open but not shown. Then the work is bounded:
+- the wrappers read the session's local skill list once, through the
+  `summary` breakdown that sends no request, and only where `skill.prompt` was
+  skipped;
+- `turn.start` asks for the pane list once a turn until the pane is shown or
+  gone.
+
+None of the three starts a timer, a process or a file read of its own. The
+reads still wait for the pane. `set_roster` is now offered as soon as the
+engine answers that the pane is open and placed, even before it lists the pane.
+Each call still refuses while the pane is not listed. Spec rev 3 on #380 sets
+this out, and the Test round on its pull request reviews it.

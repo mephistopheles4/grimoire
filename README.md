@@ -316,13 +316,28 @@ What each of Brigade's hooks does with what it sees:
 
 | Hook | What it does |
 | --- | --- |
-| `session.start`, `classic.SessionStart` | Registers `/brigade`, notes the session's id and transcript path to find the plugin's data folder, and offers `show_permission_warning`, and `set_roster` while the pane is open, again after a reload, a clear or a resume. It changes nothing in the event and passes it on. |
-| `command.run` for `/brigade` | Opens the pane. It answers only `/brigade`. |
-| `skill.prompt` | Opens the pane when the head-chef skill loads from grimoire or your own skills folder, and adds one line to that skill's text saying whether `set_roster` is ready. Every other skill load passes on unchanged. |
-| `tool.call` for `set_roster` and `show_permission_warning` | Answers for the mod's own two tools, which have no other code behind them. It hooks no other tool. |
+| `session.start`, `classic.SessionStart` | Registers `/brigade`, notes the session's id and transcript path to find the plugin's data folder, and offers `show_permission_warning`, and `set_roster` while the pane is open, again after a reload, a clear or a resume. It changes nothing in the event and passes it on. || `command.run` for `/brigade` | Opens the pane. It answers only `/brigade`. |
+| `skill.prompt` | Opens the pane when the head-chef skill loads from grimoire or your own skills folder, or finds it open, and adds one line to that skill's text saying whether `set_roster` is ready, or why not. Every other skill load passes on unchanged. |
+| `tool.call` for `Skill`, and `command.run` for `/head-chef` and `/grimoire:head-chef` | Watch a head-chef load for the case where `skill.prompt` never reached the plugin (see below). Each returns the load's own answer unchanged. Any other skill, and a subagent's load, passes on with no other work. |
+| `tool.call` for `set_roster` and `show_permission_warning` | Answers for the mod's own two tools, which have no other code behind them. |
+| `turn.start` | Only after a head-chef load whose pane was open but not shown: looks at the pane once a turn, and once it is shown, offers `set_roster` and adds one note saying so. Otherwise, and on a subagent's turn, it passes on with no other work. |
 | `turn.step`, `turn.complete` | Counts each model call's token numbers for the usage summary file. It reads no text of the conversation and passes every step on unchanged. |
 | `session.measure`, `session.receive` | While the pane is open, refreshes the usage numbers and keeps the first line of each report another session sends. |
 | `ui.render`, `ui.press`, `ui.close` | Draws the pane and the warning band, and handles their buttons. |
+
+Claude Code's bundled security default, on a machine with managed settings or
+a Team or Enterprise account, keeps the plugins you install from seeing
+`skill.prompt` and `classic.SessionStart`. What Brigade does with and without
+it:
+
+| | Without the security default | With it |
+| --- | --- | --- |
+| A head-chef load, typed or the model's own | `skill.prompt` opens the pane, with one line in the skill's text | after the load, the pane opens if the session's local skill list shows one copy of that name and it is grimoire's or yours, with one note; otherwise a note asks for `/brigade` |
+| A pane opened but not shown | `set_roster` is offered, with one note, at the first turn that finds it shown | the same |
+| A refused or failed load | nothing | nothing |
+| `/brigade` | as before | as before |
+| The session id, `set_roster` after a resume, `show_permission_warning` | as before | from `session.start` and the id read live |
+| The transcript path | from `classic.SessionStart` | not known: the data folder comes from where the plugin is installed, and the pane says when it cannot find it |
 
 Nothing the mod reads leaves the machine except the `gh pr list` request
 above and Open in app's two routes: the call to the Desktop app carries the

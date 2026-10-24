@@ -4882,6 +4882,32 @@ test('S3: seated, a grimoire:head-chef listed as another plugin\'s opens nothing
   expect(w.notes).toEqual([CONFIRM_FAILED])
 })
 
+// spec rev 3 on #380, S4: with no classic.SessionStart, session.start offers
+// the warning, a resume's session.start offers set_roster again while the pane
+// is listed, and the roster is named from the live session id. With no
+// transcript path the config folder is a stated gap the pane names.
+test('S4: seated, with no classic.SessionStart, the warning, the roster tool after a resume and the live id each still work', async ($, on) => {
+  const w = loads(on, $)
+  w.seated = true
+  w.usage = listing([PLUGIN_COPY])
+  await $.session.start({ cwd: 'C:\\work' })
+  expect(w.registered).toEqual(['show_permission_warning'])
+  await skillCall($, 'grimoire:head-chef')
+  await w.clock.settle()
+  expect(rosterOffers(w)).toEqual(['set_roster'])
+  // A resume is a new process: its session.start finds the pane listed.
+  await $.session.start({ cwd: 'C:\\work' })
+  expect(rosterOffers(w)).toEqual(['set_roster', 'set_roster'])
+  // The roster is named from the id the engine gives now, so a clear's new id
+  // names a new file; here no transcript names the config folder, and the
+  // reason says so.
+  const gap = (id: string) => `Cannot find the Claude config folder from where the plugin was loaded. The roster would be <Claude config folder>/plugins/data/grimoire-inline/brigade/${id}.json. Nothing was read.`
+  expect(w.errors).toContain(gap(SID))
+  const NEW = '66666666-7777-8888-9999-000000000000'
+  w.sid = NEW
+  expect((await call($, GOOD)).text).toBe(`set_roster refused: path: ${gap(NEW)}. The roster file is unchanged.`)
+})
+
 test('S3: not seated, a wrapped load opens once through the skill hook and stores no note; a project copy opens nothing', async ($, on) => {
   const w = loads(on, $)
   w.usage = listing([PLUGIN_COPY])
