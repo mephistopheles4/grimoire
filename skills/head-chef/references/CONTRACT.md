@@ -231,7 +231,10 @@ need, without overwhelming me or showing me too much.
   session list on the phone.
 - *Proposed.* It learns `set_roster` is ready from the `/brigade` reply or
   from the line the Brigade mod appends to this skill's text when the skill's
-  load opens the pane, and calls it on its next turn.
+  load opens the pane, and calls it on its next turn. *Proposed* (0.12.0,
+  the lead's decision, 2026-10-24): when such a line, or a note the mod
+  stores (each starts "Brigade (plugin note): "), says `set_roster` is not
+  ready, it keeps no roster and asks the owner to type `/brigade`.
 
 **Automatic checks:** none listed (**Decided**: the owner removed this list).
 

@@ -74,6 +74,10 @@ cleanup, which removes the card.
   skill's text, says `set_roster` is ready, call it with the full roster on
   your next turn. When either says the tool could not be offered, keep no
   roster.
+- **Not ready:** when that line, or a note from the mod (each starts
+  "Brigade (plugin note): "), says `set_roster` is not ready, keep no roster,
+  and ask the owner to type `/brigade`. When a later note says it is ready,
+  call it with the full roster.
 - **Pane closed:** keep no roster until a `/brigade` reply, or a fresh load of
   this skill, says the tool is ready again.
 - **Shape, size or malformed input:** correct the roster, and call once more.
