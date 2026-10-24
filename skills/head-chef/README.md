@@ -98,10 +98,10 @@ It answers it, and keeps the lead's Desktop id that the message carries.
 From then on it takes a message from the lead only when it carries that id,
 whatever name or address it shows, and it reports to the address of the
 lead's latest message. Before it takes one, or reports, it checks that a
-status file pairs the lead's id with that address; before a report, when
-none does, it reports to the address of the one status file that carries the
-lead's id, and holds the report when none or two do. Once a lead ends,
-another program can take its address. So renaming or restarting the lead
+status file pairs the lead's id with that address, and holds the report
+when none does: once a lead ends, another program can take its address. The
+head chef notices when its own address changes after a restart, and messages
+each session, so their next reports follow it. So renaming or restarting the lead
 should no longer cut its sessions off, as long as the lead's Desktop id stays
 the same; that is expected, not yet measured, until a field run shows it.
 The first message is checked against the status files too. A program of
