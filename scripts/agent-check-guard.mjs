@@ -17,8 +17,9 @@
 // with an explicit allow skips the owner's permission prompt for the call, and
 // silence leaves their rules in force. A bug in this file fails the same way,
 // because a guard that fails closed would block all work in the repository.
-// Threat-model row 18 (proposed) says the rest: this is a nudge that shows a
-// skip, not a control against running a branch's code on the host.
+// The threat-model row proposed for issue 377, which is the owner's decision,
+// says the rest: this is a nudge that shows a skip, not a control against
+// running a branch's code on the host.
 
 import { spawn, spawnSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
@@ -30,7 +31,7 @@ import { pathToFileURL } from 'node:url';
 const REFUSAL = [
   'Run the check with `athanor run check` first.',
   'The host check, `node scripts/check.mjs`, is the fallback only when athanor is missing or its run produces no result (exit 124, 125 or 137).',
-  'If that is why you are here, rerun the same command with `--host-fallback=<reason>`, name the reason and the exit code in it, and say in your report that you used the fallback.',
+  'If that is why you are here, rerun the same command with `--host-fallback=<reason>`, name the reason and the exit code in it in your own words (no path, token or pasted error text), and say in your report that you used the fallback.',
   'athanor sends the tracked files, with uncommitted edits, to the Docker engine it is set to use, so run it only against a local engine, as CONTRIBUTING.md ("Run the check in a container") explains.',
 ].join(' ');
 
@@ -39,10 +40,14 @@ const FLAG = '--host-fallback=';
 // The command as segments of tokens. Quotes are read first, so text inside
 // them is one token of data; the body of a heredoc or a PowerShell here-string
 // is skipped as data; and only then do `;`, `|`, `&&`, `||`, a lone `&`, a
-// parenthesis and a line break end a segment. A backslash is a path character,
-// not an escape, except before a double quote inside double quotes. An unclosed
+// parenthesis, a brace and a line break end a segment. A backslash is a path
+// character, not an escape, except before a double quote inside double quotes
+// in Bash; PowerShell escapes with a backtick, so a path ending in a backslash
+// inside double quotes closes there. A line continuation (a backslash in Bash,
+// a backtick in PowerShell, then a line break) joins the two lines. An unclosed
 // quote runs to the end of the command.
-function segmentsOf(command) {
+function segmentsOf(command, bash) {
+  command = command.replace(bash ? /\\\r?\n/g : /`\r?\n/g, ' ');
   const segments = [];
   let tokens = [];
   let current = '';
@@ -71,7 +76,7 @@ function segmentsOf(command) {
       started = true;
       i++;
       while (i < n && command[i] !== '"') {
-        if ((command[i] === '\\' || command[i] === '`') && command[i + 1] === '"') {
+        if ((command[i] === (bash ? '\\' : '`') || (bash && command[i] === '`')) && command[i + 1] === '"') {
           current += '"';
           i += 2;
         } else current += command[i++];
@@ -113,11 +118,16 @@ function segmentsOf(command) {
     } else if (c === ' ' || c === '\t' || c === '\r') {
       endToken();
       i++;
-    } else if (c === ';' || c === '|' || c === '(' || c === ')') {
+    } else if (c === ';' || c === '|' || c === '(' || c === ')' || c === '{' || c === '}') {
       endSegment();
       i += command.startsWith('||', i) ? 2 : 1;
     } else if (c === '&') {
-      if (command.startsWith('&&', i)) {
+      if (current.endsWith('>') || command[i + 1] === '>') {
+        // A redirect, `2>&1` or `&>`, is part of the word it sits in.
+        started = true;
+        current += c;
+        i++;
+      } else if (command.startsWith('&&', i)) {
         endSegment();
         i += 2;
       } else if (tokens.length === 0 && !started) {
@@ -153,6 +163,7 @@ function classify(tokens) {
     const t = tokens[i];
     if (t === undefined) return 'other';
     if (WRAPPERS.has(t) || ASSIGNMENT.test(t)) i++;
+    else if (t.startsWith('$') && tokens[i + 1] === '=') i += 2;
     else if (t === 'timeout') {
       i++;
       if (/^[\d.]+[smhd]?$/.test(tokens[i] ?? '')) i++;
@@ -174,7 +185,7 @@ export async function decide(input, { athanorPresent }) {
     if (input.tool_name !== 'Bash' && input.tool_name !== 'PowerShell') return null;
     const command = input.tool_input?.command;
     if (typeof command !== 'string') return null;
-    if (!segmentsOf(command).some(s => classify(s) === 'check')) return null;
+    if (!segmentsOf(command, input.tool_name === 'Bash').some(s => classify(s) === 'check')) return null;
     return (await athanorPresent()) ? { reason: REFUSAL } : null;
   } catch {
     return null;

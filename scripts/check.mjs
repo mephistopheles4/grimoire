@@ -32,7 +32,7 @@
 //    6d. .claude/settings.json holds the one entry that registers
 //    scripts/agent-check-guard.mjs and nothing else, and neither it nor the
 //    script has a twin spelled in another case.
-// 7.The SkillSpector baselines agree, so a rule reasoned away at the
+// 7. The SkillSpector baselines agree, so a rule reasoned away at the
 //    repository root is reasoned away the same way inside a skill: the same
 //    reason, and a skill entry no broader than the root's.
 //    7a. No two paths under skills/ differ only in case.
@@ -72,8 +72,9 @@ for (const n of walkNotes) console.log(`note: ${n}`);
 // produced no result. This is the only thing the flag does: the note puts the
 // reason in the output, so the skip shows in the record. It changes no rule,
 // no other line and no exit code. The reason is the agent's own text, so it
-// prints through `shown` and is cut after masking, like any other string here,
-// and a line break in it cannot hide or fake the note.
+// prints through `shown`, which masks a home path and escapes a line break or
+// a hidden character, and then it is cut at 200 characters (the other strings
+// here are cut at 120 by `excerpt`; a reason is a sentence, not a name).
 const fallbackArg = process.argv.slice(2).find(a => a.startsWith('--host-fallback='));
 const fallbackReason = fallbackArg ? shown(fallbackArg.slice('--host-fallback='.length).trim()) : '';
 if (fallbackReason) console.log(`note: host fallback named: ${fallbackReason.length > 200 ? `${fallbackReason.slice(0, 197)}...` : fallbackReason}`);
@@ -220,8 +221,9 @@ const isReadForPaths = src => isShipped(src) || isContainerConfig(src);
 // The two files that run when an agent session opens on a branch (issue 377):
 // the settings file that registers the guard, and the guard. Like the container
 // config, a reader reads them before opening a session on a branch they did not
-// write, so rule 2c holds them to the hidden-character rule too. In any case,
-// for the reason the container config is.
+// write, so rule 2c holds them to the hidden-character rule too. The match
+// ignores letter case, as the container config's does: a checkout that folds
+// case keeps one of two twins.
 const GUARD_FILES = ['.claude/settings.json', 'scripts/agent-check-guard.mjs'];
 const isGuardFile = src => GUARD_FILES.includes(src.toLowerCase());
 for (const shipped of files.filter(f => isReadForPaths(rel(f)))) {
@@ -1060,8 +1062,13 @@ for (const e of readdirSync(root, { withFileTypes: true })) {
 // command, timeout or key fails, and so does a file that is not JSON. To add
 // anything, change the entry here, and say in the pull request what Claude Code
 // does with it. This runs when the check does, which is after the hook has
-// already fired for a session opened on the branch; docs/security/threat-model.md
-// says so, and CONTRIBUTING tells a reader to read a branch's hooks first.
+// already fired for a session opened on the branch, so it protects the merge
+// and not the reader; CONTRIBUTING tells a reader to read a branch's hooks
+// first. The threat-model row proposed for issue 377 is the owner's decision.
+//
+// The file is compared as text as well as parsed: JSON.parse keeps the last of
+// a repeated key, and Claude Code's reader may pick another, so a file that
+// parses to the entry but is not the entry's one line fails too.
 //
 // A spelling in another case is refused too: a checkout that folds case keeps
 // one of two twins, which may be the one no rule read, and Claude Code loads
@@ -1082,13 +1089,14 @@ for (const f of files.map(relRaw)) {
 }
 if (existsSync(join(root, '.claude', 'settings.json'))) {
   let settings;
+  const text = readFileSync(join(root, '.claude', 'settings.json'), 'utf8').replace(/^\u{FEFF}/u, '');
   try {
-    settings = JSON.parse(readFileSync(join(root, '.claude', 'settings.json'), 'utf8').replace(/^\u{FEFF}/u, ''));
+    settings = JSON.parse(text);
   } catch {
     fail('.claude/settings.json is not JSON — Claude Code would read it as it can, and no rule here could say what it registers. Fix it, or remove it.');
   }
-  if (settings !== undefined && !isDeepStrictEqual(settings, GUARD_ENTRY)) {
-    fail('.claude/settings.json holds more or less than the one guard entry — Claude Code runs what it registers when a session opens on the branch, hooks, permissions, environment variables and status line commands included, and no rule here reads those. Remove the rest, or change GUARD_ENTRY in rule 6d of scripts/check.mjs and say in the pull request what Claude Code does with it.');
+  if (settings !== undefined && (!isDeepStrictEqual(settings, GUARD_ENTRY) || text.trim() !== JSON.stringify(GUARD_ENTRY))) {
+    fail('.claude/settings.json holds more or less than the one guard entry, in the one line rule 6d of scripts/check.mjs writes — Claude Code runs what it registers when a session opens on the branch, hooks, permissions, environment variables and status line commands included, and no rule here reads those. Remove the rest, and keep your own settings in .claude/settings.local.json, which git ignores. Or change GUARD_ENTRY in rule 6d and say in the pull request what Claude Code does with it.');
   }
 }
 

@@ -57,9 +57,10 @@ test('a fallback reason with a line break or an escape prints as one escaped lin
   assert.deepEqual(more, []);
   for (const escaped of ['\\u{a}', '\\u{d}', '\\u{1b}']) assert.ok(line.includes(escaped), escaped);
   assert.ok(!nasty.stdout.includes('\u001b'), 'no raw escape reaches the log');
+  assert.ok(!nasty.stdout.split('\n').some(l => l.startsWith('b') || l.startsWith('c')), 'no line break splits the note');
   const long = run(checkIn(dir), [`--host-fallback=${'x'.repeat(500)}`], { cwd: dir, env: { GITHUB_BASE_REF: null } });
   const [capped] = note(long);
-  assert.ok(capped.length < 'note: host fallback named: '.length + 201, `capped, got ${capped.length}`);
+  assert.equal(capped.length, 'note: host fallback named: '.length + 200);
   assert.ok(capped.endsWith('...'));
 });
 
@@ -81,14 +82,36 @@ test('the settings file fails the check when it holds anything but the guard ent
     ['a permissions block', s => { s.permissions = { allow: ['Bash(*)'] }; }],
     ['a status line', s => { s.statusLine = { type: 'command', command: 'node' }; }],
   ];
-  for (const [what, edit] of extra) {
+  for (const [, edit] of extra) {
     const dir = tree();
     const settings = readSettings(dir);
     edit(settings);
     writeSettings(dir, settings);
     assertFails(dir, /\.claude\/settings\.json holds more or less than the one guard entry/);
-    assert.ok(what);
   }
+});
+
+test('a settings file that parses to the entry but is not its one line fails the check', () => {
+  // A repeated key parses to the last value, and Claude Code's reader may pick
+  // the first, so the file is held to the entry's own text.
+  const dir = tree();
+  writeSettings(dir, `{"hooks":{"Stop":[]},"hooks":${JSON.stringify(GUARD_ENTRY.hooks)}}`);
+  assertFails(dir, /\.claude\/settings\.json holds more or less than the one guard entry/);
+  const spaced = tree();
+  writeSettings(spaced, JSON.stringify(GUARD_ENTRY, null, 2));
+  assertFails(spaced, /holds more or less than the one guard entry/);
+});
+
+test('a flag does not turn a failing check into a passing one', () => {
+  const dir = tree();
+  const settings = readSettings(dir);
+  settings.env = { SECRET: 'x' };
+  writeSettings(dir, settings);
+  const plain = run(checkIn(dir), [], { cwd: dir, env: { GITHUB_BASE_REF: null } });
+  const named = run(checkIn(dir), ['--host-fallback=docker is down'], { cwd: dir, env: { GITHUB_BASE_REF: null } });
+  assert.equal(plain.code, 1);
+  assert.equal(named.code, 1);
+  assert.equal(named.stderr, plain.stderr);
 });
 
 test('a settings file that is not JSON fails the check', () => {

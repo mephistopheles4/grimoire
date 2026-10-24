@@ -23,8 +23,10 @@ artifact in the tree with the renderer its registry row names, checks that no
 file a skill or the mod ships, nor the root `package.json` or `tests/container/`,
 has grown a fixed path back, fails on a skill
 frontmatter key outside its allow-list and on a hidden character in a skill
-file or in those two places, fails on a place or a manifest key the engine loads from that no rule
-reads, fails on a code fence that declares no
+file or in those two places (and in `.claude/settings.json` and
+`scripts/agent-check-guard.mjs`), fails on a place or a manifest key the engine loads from that no rule
+reads, fails when `.claude/settings.json` holds anything but the agent guard's one entry,
+fails on a code fence that declares no
 language, fails on a dependency, fails when a skill's SkillSpector baseline entry
 gives a different reason from the root's or is broader than it, and runs the test suite in `tests/`. CI
 runs it as a required check called `check`. `main` takes no direct pushes.
@@ -131,10 +133,14 @@ repository. When the call is `node scripts/check.mjs` in any of its forms (the
 plain, `./` and backslash paths, quoted or not, behind `cd`, `;`, `&&`, `&`,
 `FOO=1` or `timeout`) and `athanor` works on the machine, the hook refuses it
 and tells the agent to run `athanor run check`. The host check stays the
-fallback for when athanor is missing or its run exits 124, 125 or 137. Then the
-agent adds `--host-fallback=<reason>` to the same command, with the reason and
-the exit code in it, and names that in its report. `node scripts/check.mjs`
-prints the reason as one note and runs as it always does. The flag is a way to
+fallback for when athanor is missing or its run exits 124, 125 or 137. When
+athanor is missing the hook lets the plain host check through, and there is
+nothing to name. When a run exits 124, 125 or 137, or an agent needs the
+version-bump or allowance checks that a container run cannot cover, it adds
+`--host-fallback=<reason>` to the same command, with the reason and the exit
+code in it in its own words (no path, token or pasted error text), and names
+that in its report. `node scripts/check.mjs` prints the reason as one note and
+runs as it always does. The flag is a way to
 make a skip visible, not to stop one: the refusal names it.
 
 - **Athanor works** when `athanor --version` exits 0 and prints a version
@@ -142,9 +148,11 @@ make a skip visible, not to stop one: the refusal names it.
   shim"), a missing program and a hang all mean athanor is missing, so the
   host check is allowed and nothing has to be done. On Windows the probe goes
   through `cmd.exe`, because an npm install leaves a `.cmd` shim. It runs from
-  the system folder with the lookup in the current folder switched off, and it
-  finds nothing when `PATH` has an empty or relative entry on other systems.
-  Like any program it starts, it inherits the session's environment.
+  the system folder with the lookup in the current folder switched off. On
+  macOS and Linux a `PATH` with an empty or relative entry counts as athanor
+  missing, so the hook lets the host check through; on Windows a relative entry
+  is searched from the system folder. Like any program it starts, the probe
+  inherits the session's environment, and it finds the first `athanor` on `PATH`.
 - **Everything else passes in silence:** the hook prints nothing, so your
   permission rules decide, as they would without it. The same holds when it
   fails. A hook that cannot start because `node` or the script is missing makes
@@ -170,7 +178,11 @@ make a skip visible, not to stop one: the refusal names it.
   settings file holds anything but this one entry, if either file holds a hidden
   character, or if either is spelled in another case. It runs after the hook
   has fired for a session opened on the branch, so it protects the merge and not
-  the reader.
+  the reader. Keep your own Claude Code settings in `.claude/settings.local.json`,
+  which git ignores, and not in this file. The check reads only this one
+  settings file: a settings file in another folder, or hooks in a subagent or
+  skill under `.claude/`, are read by nobody here, so read them in a branch you
+  have not written.
 
 ## Tests
 
@@ -356,7 +368,8 @@ frontmatter's keys at the left margin, and fence it with lines of exactly
 `---`: an indented first key and a fence with anything after it both fail.
 
 **No hidden characters in a skill file.** The check fails on any file under
-`skills/`, or the root `package.json`, or under `tests/container/`, that holds
+`skills/`, or the root `package.json`, or under `tests/container/`, or
+`.claude/settings.json` or `scripts/agent-check-guard.mjs` (in any case), that holds
 a control character other than tab, line feed and
 carriage return, a carriage return not followed by a line feed, DEL, U+2028,
 U+2029, U+FFFE, U+FFFF, a default ignorable code point (tag characters,

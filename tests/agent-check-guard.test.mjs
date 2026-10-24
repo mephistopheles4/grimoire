@@ -36,6 +36,15 @@ const FORMS = [
   'node --disable-warning=X scripts/check.mjs',
   'sleep 1 & node scripts/check.mjs',
   '(node scripts/check.mjs)',
+  'env FOO=1 node scripts/check.mjs',
+  'time node scripts/check.mjs',
+  'call node scripts/check.mjs',
+  'node scripts/check.mjs 2>&1',
+  'node scripts/check.mjs 2>&1 | tail -5',
+  'node scripts/check.mjs &> out.txt',
+  '$out = node scripts/check.mjs',
+  'if ($true) { node scripts/check.mjs }',
+  'Measure-Command { node scripts/check.mjs }',
 ];
 
 for (const tool of ['Bash', 'PowerShell']) {
@@ -49,12 +58,22 @@ for (const tool of ['Bash', 'PowerShell']) {
   }
 }
 
+test('a line continuation joins the two lines, in the shell that has it', async () => {
+  assert.ok(await ask('node \\\nscripts/check.mjs'));
+  assert.ok(await ask('node `\nscripts/check.mjs', { tool: 'PowerShell' }));
+});
+
+test('PowerShell does not escape a quote with a backslash, so a path ending in one closes its quote', async () => {
+  assert.ok(await ask('Set-Location "C:\\x\\"; node scripts/check.mjs', { tool: 'PowerShell' }));
+});
+
 test('every form passes while athanor is missing', async () => {
   for (const form of FORMS) assert.equal(await ask(form, { athanorPresent: missing }), null, form);
 });
 
 test('the flag with a reason lets the host check through, with athanor present', async () => {
   assert.equal(await ask('node scripts/check.mjs --host-fallback=docker-down'), null);
+  assert.equal(await ask('node scripts/check.mjs 2>&1 --host-fallback=docker-down'), null);
   assert.equal(await ask('node scripts/check.mjs --host-fallback="exit 137 from athanor"'), null);
 });
 
@@ -86,6 +105,8 @@ test('commands that are not the host check pass untouched', async () => {
     'node --test tests/x.test.mjs',
     'node scripts/check.mjs.bak',
     'node other/check.mjs',
+    'node myscripts/check.mjs',
+    'node xscripts\\check.mjs',
     'echo scripts/check.mjs.bak',
     'echo node scripts/check.mjs',
     'ls scripts/check.mjs',
@@ -128,6 +149,7 @@ test('the refusal names the fallback flag and the local-engine rule', async () =
   assert.match(reason, /local/i);
   assert.match(reason, /Docker engine/);
   assert.match(reason, /uncommitted/);
+  assert.match(reason, /own words/);
 });
 
 // The presence probe and the script as Claude Code runs it. A fake `athanor`
@@ -159,6 +181,7 @@ const folder = () => {
 const BODIES = {
   ok: "console.log('0.1.0');",
   dangling: "console.error('mise ERROR athanor is not a valid shim.'); process.exit(1);",
+  noversion: "console.log('this is not athanor');",
   hang: "import('node:fs').then(fs => fs.writeFileSync(new URL('./pid.txt', import.meta.url), String(process.pid))); setInterval(() => {}, 1000);",
 };
 
@@ -202,6 +225,10 @@ test('a dangling shim counts as athanor missing', async () => {
   assert.equal(await probeAthanor({ env: envWith(fake('dangling')) }), false);
 });
 
+test('a program that exits 0 without printing a version is not athanor', async () => {
+  assert.equal(await probeAthanor({ env: envWith(fake('noversion')) }), false);
+});
+
 test('no athanor on PATH counts as missing', async () => {
   assert.equal(await probeAthanor({ env: envWith(folder()) }), false);
 });
@@ -238,9 +265,12 @@ test('a file planted in the working folder is never run', async () => {
 
 test('outside Windows a PATH with an empty or relative entry runs nothing and counts as missing', async () => {
   const dir = fake('ok');
-  for (const path of ['', `${dir}${delimiter}`, `${delimiter}${dir}`, `${dir}${delimiter}bin`, `${dir}${delimiter}.`]) {
+  const stand = folder();
+  const marker = planted(stand);
+  for (const path of ['', `${dir}${delimiter}`, `${delimiter}${dir}`, `${dir}${delimiter}bin`, `${dir}${delimiter}.`, `${stand}${delimiter}bin`]) {
     assert.equal(await probeAthanor({ env: { PATH: path }, platform: 'linux' }), false, JSON.stringify(path));
   }
+  assert.equal(existsSync(marker), false, 'a stand-in on an absolute entry beside a relative one ran');
 });
 
 // The script as the hook runs it.
