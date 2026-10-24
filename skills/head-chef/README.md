@@ -50,10 +50,16 @@ or type `/brigade` to open it.
 
 ## What it does
 
-- **Starts sessions.** Each one is a Desktop session under the lead, with its
+- **Starts sessions.** Each one is a Desktop session under the lead by default, with its
   name, model and effort set. The model and effort come from your words or
   your own process. Its start prompt is one short pointer: the stage and the
   issue, which holds the brief, and how to report to the lead.
+- **Offers a background session when Desktop refuses.** Desktop's start tool
+  refuses a start you type from the phone over Remote Control. The head chef
+  then says so in one line and offers to start the session in the background
+  with Remote Control instead, and starts it only when you choose that. You
+  open it from its card in the Brigade pane, or from the claude.ai session
+  list on the phone.
 - **Never relies on a card** to start work you asked for. When a start can
   only happen through a card, such as an approval above the lead's settings,
   it says in one line that the card needs a tap in the desktop app.
@@ -68,8 +74,11 @@ or type `/brigade` to open it.
   open.
 - **Cleans up** on your "done": one name-back of each session, its worktree
   and its branch, then one yes. It runs its checks again, archives the
-  session, and removes with git whatever the archive left. It never forces a
-  removal.
+  session, and removes with git whatever the archive left. A background
+  session is stopped and removed with `claude stop` and `claude rm` in place
+  of the archive, and the name-back marks it. `claude rm` keeps the
+  session's transcript in the Claude config folder; what it keeps of the
+  job's own store was not checked. It never forces a removal.
 - **Acts on GitHub** only on your own words in its chat: merge, close, edit,
   delete or label an issue or a pull request, file an issue, or post a comment, each named in
   one line first.
@@ -83,14 +92,32 @@ understand on the permission warning is a reminder, not acceptance.
 
 ## What the sessions trust
 
-A session takes a message from the lead as a **relayed decision**, on any
-matter, when the sender's shown name matches the lead's row in the session
-list and no other row holds that name. It labels it as relayed by the lead,
-never as your own words, and names each decision it acted on in its next
-report to the lead. A session
-cannot tell a forged sender from the lead, so anything that can send it a
-message under the lead's name can steer it. The head chef tells you at once
-when a session reports a decision it never sent.
+A session takes the lead's first message when the sender's shown name
+matches the lead's row in the session list and no other row holds that name.
+It answers it, and keeps the lead's Desktop id that the message carries.
+From then on it takes a message from the lead only when it carries that id,
+whatever name or address it shows, and it reports to the address of the
+lead's latest message. Before it takes one, or reports, it checks that a
+status file pairs the lead's id with that address, and holds the report
+when none does: once a lead ends, another program can take its address. The
+head chef notices when its own address changes after a restart, and messages
+each session, so their next reports follow it. So renaming or restarting the lead
+should no longer cut its sessions off, as long as the lead's Desktop id stays
+the same; that is expected, not yet measured, until a field run shows it.
+The first message is checked against the status files too. A program of
+yours can still plant a status file, so this is a consistency check, not a
+guard. It takes each such message as a **relayed decision**, on any
+matter. It labels it as relayed by the lead, never as your own words, and
+names each decision it acted on in its next report to the lead. Until the
+first message, anything that can send it a message under the lead's name can
+steer it, and no probe has shown whether a local program can state another's
+id. The head chef tells you at once when a session reports a decision it
+never sent, a message it refused, or a send that failed.
+
+Before a restart, `/clear` or resume of the lead, the head chef warns you
+that its sessions need its new id if its Desktop id changes: what those do to
+the id is not measured. A session that loses the id takes nothing from the
+lead until you give it the id in its own chat.
 
 A session also follows comments on its issue made as you, and every session
 you start posts as you, so a comment from one session can steer another.
@@ -110,7 +137,9 @@ time and a hash of the wording.
 ## Upgrading from an older head-chef
 
 Finish or clean up a brigade an older head chef started before you upgrade:
-its sessions follow their old start prompts, not this one.
+its sessions follow their old start prompts, not this one. Sessions started
+before 0.12.0 check the lead by its name, so a rename still cuts them off;
+the head chef warns you before one.
 
 **Leftovers from 0.4.0.** Its relay scripts may have left five kinds of
 file, which can hold your quoted words, questions and session ids. 0.9.0 no
