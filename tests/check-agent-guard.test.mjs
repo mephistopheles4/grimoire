@@ -102,29 +102,27 @@ test('a settings file that parses to the entry but is not its one line fails the
   assertFails(spaced, /holds more or less than the one guard entry/);
 });
 
-// Claude Code loads a settings file from the folder a session starts in, so a
-// .claude/settings.json below the root registers hooks for a session opened
-// there, and nothing else reads it.
-test('a nested .claude settings file that registers hooks fails the check', () => {
+// Claude Code loads a settings file from the folder a session starts in, and a
+// settings file can run code through its hooks, status line, helpers, environment
+// and permissions, so one below the root fails whatever it holds.
+test('a settings file below the root fails the check, whatever it holds', () => {
   // A settings.local.json is not tried: .gitignore matches *.local.*, so the
   // walk never reads one, and rule 2b fails one that git tracks anyway.
-  for (const [where, name] of [['docs', 'settings.json'], ['skills/eagle-eye', 'settings.json']]) {
+  const held = [
+    JSON.stringify({ hooks: { Stop: [] } }),
+    JSON.stringify({ statusLine: { type: 'command', command: 'node x.mjs' } }),
+    JSON.stringify({ apiKeyHelper: 'node x.mjs' }),
+    JSON.stringify({ env: { A: '1' } }),
+    JSON.stringify({ model: 'sonnet' }),
+    '{}',
+    '{ "hooks": ',
+  ];
+  for (const [where, text] of held.flatMap(text => [['docs', text], ['skills/eagle-eye', text]])) {
     const dir = tree();
     mkdirSync(join(dir, where, '.claude'), { recursive: true });
-    writeFileSync(join(dir, where, '.claude', name), JSON.stringify({ hooks: { Stop: [] } }));
-    assertFails(dir, new RegExp(`${where}/\\.claude/${name.replace('.', '\\.')} registers hooks`));
+    writeFileSync(join(dir, where, '.claude', 'settings.json'), text);
+    assertFails(dir, new RegExp(`${where}/\\.claude/settings\\.json is a settings file below the root`));
   }
-});
-
-test('a nested .claude settings file that cannot be read fails the check, and one with no hooks passes', () => {
-  const broken = tree();
-  mkdirSync(join(broken, 'docs', '.claude'), { recursive: true });
-  writeFileSync(join(broken, 'docs', '.claude', 'settings.json'), '{ "hooks": ');
-  assertFails(broken, /docs\/\.claude\/settings\.json cannot be read/);
-  const plain = tree();
-  mkdirSync(join(plain, 'docs', '.claude'), { recursive: true });
-  writeFileSync(join(plain, 'docs', '.claude', 'settings.json'), JSON.stringify({ model: 'sonnet' }));
-  assertPasses(plain);
 });
 
 // The walk lists a link to a folder as a file, so a tracked link named .claude
