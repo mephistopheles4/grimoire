@@ -50,8 +50,9 @@ must do, or every rule and step shown at once.
 Read the engine's status files for each turn's checks. The engine keeps one
 small file per running session in the `sessions` folder of the Claude config
 folder. Read a file only when its name is digits and `.json` and it is not a
-link, and keep only its `name`, `sessionId` and `status` fields, plus `cwd`
-at cleanup: read it with one command that prints only those fields, and skip
+link, and keep only its `name`, `sessionId`, `status` and `jobId` fields,
+plus `cwd` at cleanup and a background session's `messagingSocketPath`
+before a send to it: read it with one command that prints only those fields, and skip
 a file over 8 KiB or one that is not a regular file. Never open,
 list in your output, or copy any other file in that folder, such as a `.key`
 file. Run `claude agents --json` only where a file cannot answer, such as a
@@ -97,6 +98,58 @@ Start each session only when the owner's words in this chat ask for the work.
    Usage figures go in this chat only.
 7. **Update the Brigade pane** in the same step, as "The Brigade pane" says.
 
+### When Desktop refuses the start
+
+When Desktop's start tool refuses a start, such as one the owner typed from
+the phone over Remote Control, say so in one line and offer to start that
+session as a background session with Remote Control instead. Start it that
+way only on the owner's words choosing that route. Then:
+
+1. **Start it** with `claude --bg --remote-control <name> -n <name> -w <name>
+   --model <model> --effort <effort>`, followed by the filled start prompt as
+   one argument, in a form in which your shell expands nothing. Without `-n`,
+   the session's name is its prompt's text. Set no permission mode; Desktop's
+   setters do not apply.
+
+   In Git Bash:
+
+   ```text
+   claude --bg --remote-control <name> -n <name> -w <name> --model <model> --effort <effort> "$(cat <<'HEAD_CHEF_PROMPT'
+   <the filled start prompt>
+   HEAD_CHEF_PROMPT
+   )"
+   ```
+
+   In PowerShell, a single-quoted here-string, its closing `'@` at the start
+   of its line:
+
+   ```text
+   claude --bg --remote-control <name> -n <name> -w <name> --model <model> --effort <effort> @'
+   <the filled start prompt>
+   '@
+   ```
+
+2. **Keep its id,** the second field of the first line `claude --bg` prints,
+   in this chat only, and its session id from the status-file row whose
+   `jobId` equals that id. When it prints no id, or no row carries that id
+   by your next turn after the start report, it did not start: tell the
+   owner in one line, keep nothing, write no card, and retry by no other
+   route.
+3. **Check its first prompt.** Read only the transcript named by that row's
+   session id, in the `projects` folder of the Claude config folder, up to
+   its first user entry. Compare that entry with the filled start prompt
+   inside the one command, and print only "match" or "no match". On "no
+   match", stop: tell the owner, and send it nothing.
+4. **Report the start** as for any session, saying "a background session
+   with Remote Control" in place of "a Desktop session", and that it opens
+   from its card in the Brigade pane or from the claude.ai session list on
+   the phone.
+5. **Give its card** its job id as `bgId`, and no `desktopId` or `url`.
+
+When the owner says it shows as offline for Remote Control, it still runs:
+keep its id and its card, and tell the owner to open it from
+`claude agents`.
+
 Never rely on a card to start work the owner asked for. When the owner's
 words ask for the work, start the session directly. When a start can only
 happen through a card, such as an approval above the lead's settings or a
@@ -105,7 +158,12 @@ the desktop app.
 
 ## Between the owner and the sessions
 
-- Send to a session only by the Desktop id you kept for it.
+- Send to a session only by the Desktop id you kept for it. A background
+  session has none: send to it with the agent's message tool, to the
+  `messagingSocketPath` on the row whose `jobId` you kept. Read it fresh
+  before each send, under the status-file rule, printed for that one row
+  only, and keep it in this chat only. When two rows carry the kept `jobId`,
+  send nothing to that session, and tell the owner.
 - Relay questions and answers between sessions and the owner, quoting each
   and naming its source.
 - Answer a session's question yourself when the owner's direction already
@@ -127,7 +185,9 @@ On the owner's "done", for each session named:
    --remotes` shows no commit and `git -C <worktree> stash list` no entry for
    its branch, that no other running session's folder is inside that
    worktree, that the session is one you started or the owner handed you, and
-   that its Desktop id's title reads back as the session you kept. Check its
+   that its Desktop id's title reads back as the session you kept. For a
+   background session, the name on the row whose `jobId` you kept reads back
+   instead, and two rows carrying that `jobId` are stop 3. Check its
    linked side sessions too: the archive takes the finished ones with it.
    Stop (stop 3) when the session has no status file or no matching
    worktree entry, when two status files hold one session id, or when the
@@ -137,11 +197,18 @@ On the owner's "done", for each session named:
    command with `-c core.fsmonitor=false`, so no repository setting runs a
    program in the lead.
 2. **Name back the whole list,** side sessions included, and wait for one yes
-   (stop 2 below).
+   (stop 2 below). Mark each background session as one.
 3. **On that yes, run the checks again** without asking again. A check that
    now refuses is stop 3.
 4. **Archive the session first,** with Desktop's archive tool. Git on a live
-   session's worktree fails and leaves the folder partly deleted.
+   session's worktree fails and leaves the folder partly deleted. For a
+   background session, run `claude stop <id>`, then `claude rm <id>`, with
+   the id you kept, in place of the archive. `claude stop` removes its
+   status-file row, so read everything you need from the row before it.
+   `claude rm` removes a clean worktree and its branch, and refuses one with
+   uncommitted work or an unpushed commit. Never pass `--discard-unpushed` or
+   `--force-remove-worktree`, and never discard the session from
+   `claude agents`, whatever `rm` advises: a refusal is stop 3.
 5. **Then remove with git what the archive left:** read `git worktree list`
    again, remove a worktree still there with `git worktree remove`, and
    delete the branch with `git branch -d`.
@@ -186,6 +253,15 @@ decide what a stop or the owner's yes keeps for the owner.
 - **Claude Desktop's session tools:** start, message, read and archive
   Desktop sessions, set a session's model and effort, and read usage, so the
   owner can talk to each one.
+- **The agent's message tool:** message a background session.
+- **Background sessions:** `claude --bg` (with `--remote-control`, `-n`,
+  `-w`, `--model` and `--effort` only), `claude stop <id>` and
+  `claude rm <id>` (with no flag), for a session Desktop refused to start.
+  Measured on Claude Code 2.1.302.
+- **One transcript read:** a background session's transcript, named by its
+  row's session id, up to its first user entry only, to check its first
+  prompt. `claude logs` prints wrapped terminal output and cannot show the
+  prompt arrived whole.
 - **The engine's status files,** as "Each turn" says, with
   `claude agents --json` only where a file cannot answer.
 - **gh:** read a session's issue, and post on it. Every act on GitHub names
@@ -205,8 +281,11 @@ Limits:
 - Never use a forcing flag, a recursive delete, or a command that discards
   work.
 - No session id, Desktop id, token, secret, local path or error text goes on
-  an issue, a card, a to-do or a start prompt. The one exception: a roster
-  card carries its session's Desktop id, which the pane's Open in app needs.
+  an issue, a card, a to-do or a start prompt. Two exceptions: a roster card
+  carries its session's Desktop id, which the pane's Open in app needs, and a
+  background session's card carries its job id as `bgId`.
+- `claude rm` is the one tree removal you run besides git's, and never with
+  a flag.
 - Run the checks and the removals as separate calls. When a folder will not
   go, tell the owner, and never delete it another way.
 - Write each session name yourself, from letters, digits and `. _ -`, never
@@ -239,6 +318,7 @@ The mod draws it. When there is no mod, say it in chat, once, as written:
 | Act | Tell the owner first | The owner's yes |
 |---|---|---|
 | Start a session | nothing: report the start right after, in the short form | the owner's words in this chat asking for the work |
+| Start a background session, after Desktop refused the start | the refusal and the offer, in one line | the owner's words in this chat choosing the background route |
 | Archive a session, and remove its worktree and branch | the one name-back list | one yes in this chat, covering the whole list; on that yes, run the checks again without asking again |
 | Merge, close, edit, delete or label something on GitHub, file an issue, or post a comment | the issue and the act, in one line, and whether the record is public | the owner's words in this chat naming that act; a hand-off's comment is covered by the words that asked for the hand-off |
 
@@ -260,10 +340,12 @@ Nothing else is recorded. Write the roster and its to-dos in the same step as
 each act you take: a start, a report taken, a decision sent, a cleanup. Never
 leave it for later.
 
-Give each card its session's Desktop id, and never a background job id. The
-pane finds the session by the Desktop id and draws the session's own name; it
-falls back to the card's title only when no session file carries a Desktop id,
-so keep the title equal to the session's name, exactly.
+Give each Desktop session's card its Desktop id. The pane finds the session
+by the Desktop id and draws the session's own name; it falls back to the
+card's title only when no session file carries a Desktop id, so keep the
+title equal to the session's name, exactly. Give a background session's card
+its job id as `bgId`, and no `desktopId` or `url`: the pane finds it by the
+job id and reads its Remote Control link itself.
 <!-- contract:end tools -->
 
 <!-- contract:begin rules -->

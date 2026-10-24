@@ -50,10 +50,16 @@ or type `/brigade` to open it.
 
 ## What it does
 
-- **Starts sessions.** Each one is a Desktop session under the lead, with its
+- **Starts sessions.** Each one is a Desktop session under the lead by default, with its
   name, model and effort set. The model and effort come from your words or
   your own process. Its start prompt is one short pointer: the stage and the
   issue, which holds the brief, and how to report to the lead.
+- **Offers a background session when Desktop refuses.** Desktop's start tool
+  refuses a start you type from the phone over Remote Control. The head chef
+  then says so in one line and offers to start the session in the background
+  with Remote Control instead, and starts it only when you choose that. You
+  open it from its card in the Brigade pane, or from the claude.ai session
+  list on the phone.
 - **Never relies on a card** to start work you asked for. When a start can
   only happen through a card, such as an approval above the lead's settings,
   it says in one line that the card needs a tap in the desktop app.
@@ -68,8 +74,9 @@ or type `/brigade` to open it.
   open.
 - **Cleans up** on your "done": one name-back of each session, its worktree
   and its branch, then one yes. It runs its checks again, archives the
-  session, and removes with git whatever the archive left. It never forces a
-  removal.
+  session, and removes with git whatever the archive left. A background
+  session is stopped and removed with `claude stop` and `claude rm` in place
+  of the archive, and the name-back marks it. It never forces a removal.
 - **Acts on GitHub** only on your own words in its chat: merge, close, edit,
   delete or label an issue or a pull request, file an issue, or post a comment, each named in
   one line first.

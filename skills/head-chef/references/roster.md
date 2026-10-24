@@ -38,16 +38,22 @@ the file itself.
   session file carries a Desktop id, so keep the title equal to the name.
 - `status` is one of `working`, `needs-you`, `done` or `stopped`.
 - `desktopId` is the Desktop id you kept from the start tool's result. It is
-  the one id a card carries: the pane finds the session by it, and its Open
-  in app needs it. A value read back from the pane is never a source for it.
-- The pane also reads a `bgId`, a background session's job id, from a card.
-  You start only Desktop sessions, so never write `bgId`.
+  the id a Desktop session's card carries: the pane finds the session by it,
+  and its Open in app needs it. A value read back from the pane is never a
+  source for it.
+- `bgId` is a background session's job id: the id you kept from what
+  `claude --bg` printed. Write it only on the card of a session you started
+  in the background, after Desktop refused the start, and give that card no
+  `desktopId` and no `url`: the pane finds the session by its job id and
+  reads its Remote Control link itself. A value read back from the pane is
+  never a source for it.
 - `pr` and `prState` are the session's pull request, once it has one: its
   number, and `open`, `merged` or `closed`. The pane shows them as a pill.
 - `url` is a Remote Control session's claude.ai link. A Desktop session's card
-  carries `desktopId` instead, so leave `url` out.
+  carries `desktopId`, and a background session's card `bgId`, so leave `url`
+  out.
 - Caps: a title at most 80 characters; `work`, `phase` and `settings` at
-  most 300; `desktopId` and `url` at most 100. A to-do's `id` at
+  most 300; `desktopId`, `bgId` and `url` at most 100. A to-do's `id` at
   most 40, its `text` at most 300, its `session` at most 80. At most 50 cards and 50
   to-dos. No other field, no title twice, no to-do id twice.
 - No session id, and no question, decision or note text, goes on a card or a

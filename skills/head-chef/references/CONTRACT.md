@@ -1,6 +1,6 @@
 # Contract: head-chef
 
-Version: 0.11.0
+Version: 0.12.0
 Kind: skill
 Level: Thorough
 
@@ -92,6 +92,31 @@ need, without overwhelming me or showing me too much.
   form of the example. Model and effort come from the owner's words or the
   owner's own process; this skill restates neither. It sets no permission
   mode: a session takes the default unless the owner's words name one.
+- *Proposed.* When Desktop's start tool refuses a start, it says so in one
+  line and offers to start that session as a background session with Remote
+  Control instead. It starts it that way only on the owner's words choosing
+  that route, after the refusal line. A background session is otherwise a
+  session like any other: the same start prompt, reports, card and cleanup.
+- *Proposed.* It starts a background session with
+  `claude --bg --remote-control <name> -n <name> -w <name> --model <model>
+  --effort <effort>`, then the filled start prompt as one argument, in a form
+  in which its shell expands nothing: in Git Bash, a quoted heredoc
+  (`<<'HEAD_CHEF_PROMPT'`) inside a double-quoted command substitution; in
+  PowerShell, a single-quoted here-string (`@'` … `'@`). It sets no
+  permission mode, and Desktop's setters do not apply. Without `-n`, the
+  session's name in the status files is its prompt's text.
+- *Proposed.* It keeps a background session's id, the second field of the
+  first line `claude --bg` prints, in this chat only, and its session id
+  from the status-file row whose `jobId` equals that id. On every background
+  start it checks the session's first prompt against the filled template,
+  with the transcript read under "tools". A mismatch is a stop: it tells the
+  owner and sends nothing.
+- *Proposed.* A background start fails, with no card, nothing kept, one line
+  to the owner and no retry by another route, when `claude --bg` prints no
+  id, or when no status-file row carries the kept id by its next turn after
+  the start report. A session that shows as offline for Remote Control still
+  runs: it keeps its id and card, and tells the owner to open it from
+  `claude agents`.
 - **Confirmed.** It sets a session's model and effort with Desktop's setters.
 - **Confirmed.** The start report gives the 5-hour and weekly usage, read
   with Desktop's usage tool.
@@ -108,7 +133,12 @@ need, without overwhelming me or showing me too much.
   shows. It keeps the two apart, in this chat only. The Desktop id addresses
   the session; the session id finds its row in the status files.
 - **Confirmed.** It sends to a session only by the Desktop id it kept for
-  that session.
+  that session. *Proposed,* the one exception: a background session has no
+  Desktop id, so it sends to it with the agent's message tool, to the
+  `messagingSocketPath` on the row whose `jobId` it kept, read fresh before
+  each send under the status-file rule, printed for that one row only and
+  kept in this chat only. When two rows carry the kept `jobId`, it refuses
+  every send to that session and tells the owner.
 - **Confirmed.** It relays questions and answers between sessions and the
   owner, quoting each and naming its source.
 - **Confirmed.** It answers a session's question itself when the owner's
@@ -124,9 +154,24 @@ need, without overwhelming me or showing me too much.
   with git whatever the archive left of its worktree and branch. The archive
   goes first: git on a live session's worktree fails and leaves the folder
   partly deleted.
+- *Proposed.* For a background session, `claude stop <id>` then
+  `claude rm <id>`, with the kept id, take the archive's place, and git
+  removes what is left as for any session. `claude rm` is the one tree
+  removal the head chef allows besides git's, under the forcing-flag limit:
+  it never passes `--discard-unpushed` or `--force-remove-worktree`, and
+  never discards a session from `claude agents`, whatever `rm` advises.
+  `claude stop` removes the session's status-file row, so every row read
+  comes before it. Measured on Claude Code 2.1.302: `rm` refused a dirty
+  worktree and an unpushed commit, removed a clean worktree and its branch,
+  left a folder outside that a link in it pointed to, and kept the
+  transcript.
 - **Decided.** Before the name-back, it checks each session: no uncommitted
   or untracked work in its worktree, a session it started or the owner handed
   it, and its Desktop id's title reading back as the session it kept.
+  *Proposed:* for a background session, the name on the row whose `jobId`
+  it kept reads back as the session it kept, and the name-back marks it as a
+  background session. Two rows carrying the kept `jobId` stop cleanup
+  (stop 3).
 - **Decided.** Cleanup also stops (stop 3) when the session's branch holds
   a commit that no remote-tracking ref reaches, or when a stash entry is for
   its branch, and it never pops or drops a stash.
@@ -155,7 +200,14 @@ need, without overwhelming me or showing me too much.
   background job id. The pane finds the session by the Desktop id and draws
   the session's own name; it falls back to the card's title only when no
   session file carries a Desktop id, so the title stays the session's name,
-  exactly.
+  exactly. *Proposed,* reversing "never a background job id" for background
+  sessions only (D2 of issue 385): a background session's card carries its
+  job id as `bgId`, and no `desktopId` or `url`; the pane matches it by the
+  job id and reads its Remote Control link itself.
+- *Proposed.* The start report of a background session says "a background
+  session with Remote Control" in place of "a Desktop session", and tells
+  the owner it opens from the Brigade pane's card or from the claude.ai
+  session list on the phone.
 - *Proposed.* It learns `set_roster` is ready from the `/brigade` reply or
   from the line the Brigade mod appends to this skill's text when the skill's
   load opens the pane, and calls it on its next turn.
@@ -202,6 +254,20 @@ yes keeps for the owner.
 
 - **Decided.** It starts, messages, reads and archives Desktop sessions with
   Claude Desktop's session tools, so the owner can talk to each one.
+  *Proposed:* it messages a background session with the agent's message
+  tool, beside Desktop's session tools.
+- *Proposed.* It starts, stops and removes a background session with
+  `claude --bg` (with `--remote-control`, `-n`, `-w`, `--model` and
+  `--effort` only), `claude stop <id>` and `claude rm <id>` (with no flag).
+- *Proposed* (q2 on issue 385, the owner's answer, relayed by the lead,
+  2026-10-24). To check a background session's first prompt, it reads one
+  file beyond the status files: the transcript named by the kept row's
+  `sessionId`, in the Claude config folder's `projects` folder, up to its
+  first user entry only. It compares that entry with the filled start prompt
+  inside the one command and prints only "match" or "no match". The reason:
+  `claude logs` prints wrapped terminal output, which cannot show the prompt
+  arrived whole, and a transcript holds everything a session saw, so the read
+  stops at the one entry the check needs.
 - **Confirmed.** It reads the engine's small status file for each running
   session, to see each session's name, id and busy or idle state at almost no
   cost; `claude agents --json` only where a file cannot answer, such as a new
@@ -209,7 +275,8 @@ yes keeps for the owner.
 - **Confirmed.** It reads a status file only when its name is digits and
   `.json` and it is not a link, and it keeps only `name`, `sessionId` and
   `status`, plus `cwd` at cleanup, with one command that prints only those
-  fields, and skips a file over 8 KiB or one that is not a regular file. It
+  fields (*Proposed:* plus `jobId`, and a background session's
+  `messagingSocketPath` before a send to it), and skips a file over 8 KiB or one that is not a regular file. It
   never opens, lists in its output, or
   copies any other file in that folder, such as a `.key` file. From
   `claude agents --json` it keeps only names and session ids.
@@ -237,13 +304,16 @@ yes keeps for the owner.
 - **Decided.** No session id, Desktop id, token, secret, local path or error
   text goes on an issue, a card, a to-do or a start prompt. The one
   exception: a roster card carries its session's Desktop id, which the pane's
-  Open in app needs.
+  Open in app needs. *Proposed,* the second exception: a background
+  session's card carries its job id as `bgId`.
 - **Decided.** It runs the checks and the removals as separate calls. When a
   folder will not go, it tells the owner, and never deletes it another way.
 - **Confirmed.** It writes each session name itself, from letters, digits and
   `. _ -`, never copied from an issue.
 
 **Needs** (**Decided**): Claude Code, Claude Desktop, git, and gh signed in.
+*Proposed:* the background route's commands and the message fields were
+measured on Claude Code 2.1.302.
 
 **The start prompt** (**Decided**; the sentences added in the two review
 rounds **Confirmed**, and the no token or secret clause **Decided**), with the stage, issue, repository and lead's name filled in:
@@ -281,6 +351,7 @@ review round), drawn above the prompt:
 | Act | It tells the owner first | The owner's yes | Mark |
 |---|---|---|---|
 | Starts a session | nothing: it reports the start right after, in the short form | the owner's words in this chat asking for the work | **Confirmed** |
+| Starts a background session, after Desktop refused the start | the refusal and the offer, in one line | the owner's words in this chat choosing the background route | *Proposed* |
 | Archives a session, and removes its worktree and branch | the one name-back list | one yes in this chat, covering the whole list; on that yes it runs the checks again without asking again | **Decided** |
 | Merges, closes, edits, deletes or labels something on GitHub, files an issue, or posts a comment | the issue and the act, in one line, and whether the record is public | the owner's words in this chat naming that act; a hand-off's comment is covered by the words that asked for the hand-off | **Confirmed** |
 
@@ -338,8 +409,7 @@ its text.
 
 | Question | Why it is open | Settled when | Mark |
 |---|---|---|---|
-| Whether the engine's status files keep their shape across Claude Code versions | they are the engine's own files, not a published interface | a few Claude Code updates pass with no change, or one breaks it and the fallback holds | **Confirmed** |
-| Whether Desktop's start tool starts a session directly on a turn the owner typed from the phone | nobody has tried it | one start from the phone works, or fails | **Decided** |
+| Whether the engine's status files keep their shape across Claude Code versions, `jobId` and `messagingSocketPath` included | they are the engine's own files, not a published interface | a few Claude Code updates pass with no change, or one breaks it and the fallback holds | **Confirmed**; *Proposed* for the two added fields |
 | Whether cleanup moves behind a typed `/brigade done`, gated by the Brigade mod | a mod hook refusing Desktop's archive tool and git's remove commands is unproven, and so is a command typed over Remote Control | a probe shows the hook can refuse those calls, and the gate is built | **Decided** |
 | Whether the eval cases cover the skill in use | the practice test was retired at 0.9.0, and the eval cases in `evals/head-chef/` take its place; they run only on the owner's yes | the owner runs the cases, or a failure seen in use adds one | **Confirmed** |
 
