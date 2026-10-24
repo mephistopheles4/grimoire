@@ -90,14 +90,23 @@ understand on the permission warning is a reminder, not acceptance.
 
 ## What the sessions trust
 
-A session takes a message from the lead as a **relayed decision**, on any
-matter, when the sender's shown name matches the lead's row in the session
-list and no other row holds that name. It labels it as relayed by the lead,
-never as your own words, and names each decision it acted on in its next
-report to the lead. A session
-cannot tell a forged sender from the lead, so anything that can send it a
-message under the lead's name can steer it. The head chef tells you at once
-when a session reports a decision it never sent.
+A session takes the lead's first message when the sender's shown name
+matches the lead's row in the session list and no other row holds that name.
+It answers it, and keeps that message's messaging address as the lead's.
+From then on it takes a message from the lead only from that address,
+whatever name it shows, so renaming the lead no longer cuts its sessions
+off. It takes each such message as a **relayed decision**, on any matter. It
+labels it as relayed by the lead, never as your own words, and names each
+decision it acted on in its next report to the lead. Until the first message,
+anything that can send it a message under the lead's name can steer it, and
+no probe has shown whether a local program can state another's address. The
+head chef tells you at once when a session reports a decision it never sent,
+a message it refused, or a send that failed.
+
+Before a restart, `/clear` or resume of the lead, the head chef warns you
+that its address may change: what those do to the address is not measured.
+A session that loses the address takes nothing from the lead until you give
+it the address in its own chat.
 
 A session also follows comments on its issue made as you, and every session
 you start posts as you, so a comment from one session can steer another.
@@ -117,7 +126,9 @@ time and a hash of the wording.
 ## Upgrading from an older head-chef
 
 Finish or clean up a brigade an older head chef started before you upgrade:
-its sessions follow their old start prompts, not this one.
+its sessions follow their old start prompts, not this one. Sessions started
+before 0.12.0 check the lead by its name, so a rename still cuts them off;
+the head chef warns you before one.
 
 **Leftovers from 0.4.0.** Its relay scripts may have left five kinds of
 file, which can hold your quoted words, questions and session ids. 0.9.0 no
