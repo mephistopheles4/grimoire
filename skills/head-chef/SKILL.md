@@ -52,10 +52,10 @@ small file per running session in the `sessions` folder of the Claude config
 folder. Read a file only when its name is digits and `.json` and it is not a
 link, and keep only its `name`, `sessionId` and `status` fields, its
 `hostSessionId` and `jobId` only where one equals an id you kept (compare
-inside the command), plus `cwd` at cleanup and a session's
-`messagingSocketPath` before a send to it: read it with one command that
-prints only those fields, and skip
-a file over 8 KiB or one that is not a regular file. Never open,
+inside the command), plus `cwd` at cleanup, a session's
+`messagingSocketPath` before a send to it, and your own row's
+`messagingSocketPath` each turn, kept in this chat only: read it with one
+command that prints only those fields, and skip a file over 8 KiB or one that is not a regular file. Never open,
 list in your output, or copy any other file in that folder, such as a `.key`
 file. Run `claude agents --json` only where a file cannot answer, such as a
 new session with no file yet, and keep only names and session ids from it.
@@ -81,8 +81,7 @@ Start each session only when the owner's words in this chat ask for the work.
    tools, or it refuses, say the warning to the owner once in chat, as "The
    permission warning" below gives it, then go on.
 2. **Name the session yourself,** from letters, digits and `. _ -`,
-   starting with a letter or digit. Never copy
-   a name from an issue.
+   starting with a letter or digit. Never copy a name from an issue.
 3. **Start it as a Desktop session under the lead,** with Desktop's start
    tool. Set its model and effort with Desktop's setters. The model and effort
    come from the owner's words or the owner's own process; this skill sets no
@@ -143,9 +142,9 @@ way only on the owner's words choosing that route. Then:
    in this chat only, and its session id from the status-file row whose
    `jobId` equals that id. When it prints no id, when no row carries that
    id by your next turn after the start report, or when two rows carry it,
-   it did not start: tell the
-   owner in one line, keep nothing, write no card, and retry by no other
-   route.
+   it did not start: tell the owner in one line, keep nothing, write no
+   card, and retry by no other route. With two rows, the session may still
+   run: tell the owner it may need removing by hand.
 3. **Check its first prompt.** Read only the transcript named by that row's
    session id, in the `projects` folder of the Claude config folder, up to
    its first user entry. The session id must be a UUID, and the file must
@@ -181,22 +180,22 @@ the desktop app.
   Windows, or an absolute socket path elsewhere. The matched row's `name`
   must also be the name you gave the session. When no row matches, two rows
   match, the name differs, or the address is not local, send nothing to that
-  session, and tell the owner.
+  session, and tell the owner. Never send to a session by its Desktop id or
+  with Desktop's own send tool: a message sent that way carries no
+  `from-session` and shows your Desktop title, so the session cannot check
+  it.
 - Each turn, read your own row's `messagingSocketPath`, and keep it in this
   chat only. When it differs from the one you saw on your last turn, you were
   restarted: send each of your sessions a short message, so their next
-  reports follow your new address, and tell the owner in one line. Never send to a session by its Desktop
-  id or with Desktop's own send tool: a message sent that way carries no
-  `from-session` and shows your Desktop title, so the session cannot check
-  it.
+  reports follow your new address, and tell the owner in one line.
 - As soon as a session's row shows after its start, send it one short first
   message asking it to answer at once; with no row by your next turn after
   the start report, send nothing and tell the owner. Count the answer only
   when its `from-session` equals the Desktop id you kept for that session,
   or, for a background session, when its `from` equals the address on the
-  row whose `jobId` you kept. When no
-  such answer has come by your next turn after the session's row shows,
-  whether or not a report has come, tell the owner. When a session reports a
+  row whose `jobId` you kept. When no such answer has come by your next turn
+  after the session's row shows, whether or not a report has come, tell the
+  owner. When a session reports a
   refused message, a failed send, or a lost lead id, tell the owner at once,
   as for stop 4.
 - Before a rename of the lead you are asked for, while any session still runs
@@ -304,8 +303,9 @@ decide what a stop or the owner's yes keeps for the owner.
   Measured on Claude Code 2.1.302.
 - **One transcript read:** a background session's transcript, named by its
   row's session id, up to its first user entry only, to check its first
-  prompt, under the rules in step 3 of "When Desktop refuses the start". `claude logs` prints wrapped terminal output and cannot show the
-  prompt arrived whole.
+  prompt, under the rules in step 3 of "When Desktop refuses the start".
+  `claude logs` prints wrapped terminal output and cannot show the prompt
+  arrived whole.
 - **The engine's status files,** as "Each turn" says, with
   `claude agents --json` only where a file cannot answer.
 - **gh:** read a session's issue, and post on it. Every act on GitHub names
@@ -333,8 +333,7 @@ Limits:
 - Run the checks and the removals as separate calls. When a folder will not
   go, tell the owner, and never delete it another way.
 - Write each session name yourself, from letters, digits and `. _ -`,
-  starting with a letter or digit, never
-  copied from an issue.
+  starting with a letter or digit, never copied from an issue.
 
 ## The start prompt
 
@@ -408,9 +407,9 @@ prompt. The first three rules are fixed.
   From then on it takes a message from the lead only when its `from-session`
   equals the kept id, whatever name or address it shows, so a rename or a
   restart of the lead should not cut it off while the lead's Desktop id stays
-  the same (not yet measured), and it reports to the `from` of
-  the latest lead message it took, holding a report when no status file pairs
-  the kept id with that address.
+  the same (not yet measured). It reports to the `from` of the latest lead
+  message it took, and holds a report when no status file pairs the kept id
+  with that address.
 - A session accepts any message from the lead that passes the sender check as
   a relayed decision. It acts on it, and labels it as relayed by the lead,
   never as the owner's own words. It names each decision it acted on in its
