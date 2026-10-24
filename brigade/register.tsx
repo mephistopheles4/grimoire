@@ -928,9 +928,11 @@ async function lateTurn($: EngineInterface) {
     return
   }
   if (!listed.isPlaced) return
-  lateOffer = false
   if (timers.length === 0) arm($).catch(() => undefined)
+  // The flag clears only once the tool is offered: a failed offer is tried
+  // again at the next turn.
   await offerTool($)
+  lateOffer = false
   await note($, LATE_NOTE)
 }
 

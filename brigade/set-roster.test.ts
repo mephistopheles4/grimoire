@@ -4763,6 +4763,45 @@ test('S2.7: /brigade, or a turn that finds the pane closed, clears the flag, so 
   expect(w.notes).toEqual([])
 })
 
+test('S2.7: a later load that finds the pane shown clears the flag, so no turn adds the late note', async ($, on) => {
+  const w = world(on)
+  await start($)
+  w.unplaced = true
+  await load($)
+  w.unplaced = false
+  expect(added(await load($))).toBe(ALREADY_OPEN)
+  await turn($)
+  expect(w.notes).toEqual([])
+})
+
+test('S2.7: a late look that throws leaves the turn to go on and the next turn looks again; a failed offer is tried again', async ($, on) => {
+  const w = world(on)
+  await start($)
+  w.unplaced = true
+  await load($)
+  w.unplaced = false
+  w.failPanes = true
+  expect((await turn($)).turnId).toBeDefined()
+  w.failPanes = false
+  w.failRegister = true
+  await turn($)
+  expect(rosterOffers(w)).toEqual([])
+  expect(w.notes).toEqual([])
+  w.failRegister = false
+  await turn($)
+  await w.clock.settle()
+  expect(rosterOffers(w)).toEqual(['set_roster'])
+  expect(w.notes).toEqual([LATE])
+})
+
+test('S2.3: a load that finds the pane open but cannot offer the tool says so', async ($, on) => {
+  const w = world(on)
+  await start($)
+  await brigade($)
+  w.failRegister = true
+  expect(added(await load($))).toBe(NOT_OFFERED)
+})
+
 // --- where the security default is seated (#380) -----------------------------
 //
 // spec rev 3 on #380, S3: where the security default is seated, a user
@@ -4804,25 +4843,48 @@ for (const name of ['grimoire:head-chef', 'head-chef']) {
     expect(w.notes).toEqual([READY])
     expect(w.files.at(-1)).toBe(FILE)
   })
-
-  // A typed load ran only when core answered with its `ref`, which no test can
-  // give: the kit's answer beneath stands for a hook that answered the command
-  // in core's place. That a real typed skill carries a `ref` is the probe's
-  // finding on #380 (2.1.302), and the seated live run is a stated gap.
-  test(`S3: seated, a typed /${name} answered without core's ref opens nothing and adds no note`, async ($, on) => {
-    const w = loads(on, $)
-    w.seated = true
-    w.usage = listing([PLUGIN_COPY, USER_COPY])
-    await start($)
-    const r = await typed($, name)
-    expect(r.text).toBe('')
-    await w.clock.settle()
-    expect(w.open).toBe(false)
-    expect(rosterOffers(w)).toEqual([])
-    expect(w.notes).toEqual([])
-    expect(w.usageCalls).toBe(0)
-  })
 }
+
+// A typed load ran only when core answered with its `ref`, which no test can
+// give: the kit's answer beneath stands for a hook that answered the command
+// in core's place. That a real typed skill carries a `ref` is the probe's
+// finding on #380 (2.1.302), and the seated live run is a stated gap.
+test('S3: seated, a typed /grimoire:head-chef answered without core\'s ref opens nothing and adds no note', async ($, on) => {
+  const w = loads(on, $)
+  w.seated = true
+  w.usage = listing([PLUGIN_COPY, USER_COPY])
+  await start($)
+  const r = await typed($, 'grimoire:head-chef')
+  expect(r.text).toBe('')
+  await w.clock.settle()
+  expect(w.open).toBe(false)
+  expect(rosterOffers(w)).toEqual([])
+  expect(w.notes).toEqual([])
+  expect(w.usageCalls).toBe(0)
+})
+
+test('S3: seated, a listing with a second grimoire:head-chef, another plugin\'s, opens nothing and a note asks for /brigade', async ($, on) => {
+  const w = loads(on, $)
+  w.seated = true
+  w.usage = listing([PLUGIN_COPY, { name: 'grimoire:head-chef', source: 'plugin', pluginName: 'other' }])
+  await start($)
+  await skillCall($, 'grimoire:head-chef')
+  await w.clock.settle()
+  expect(w.open).toBe(false)
+  expect(w.notes).toEqual([CONFIRM_FAILED])
+})
+
+test('S3: seated, a confirmed load whose open fails before the pane opens stores the open-failed note', async ($, on) => {
+  const w = loads(on, $)
+  w.seated = true
+  w.usage = listing([PLUGIN_COPY])
+  w.failPanesClosed = true
+  await start($)
+  await skillCall($, 'grimoire:head-chef')
+  await w.clock.settle()
+  expect(w.open).toBe(false)
+  expect(w.notes).toEqual(['Brigade could not open its pane for this head-chef load. Ask the owner to type /brigade.'])
+})
 
 test('S3: any other skill, a subagent\'s load, and another plugin\'s head-chef pass on with no engine call', async ($, on) => {
   const w = loads(on, $)
