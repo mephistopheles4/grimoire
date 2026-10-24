@@ -49,6 +49,7 @@ import {
   GROUP_HINTS,
   GROUP_KEYS,
   GROUP_NAMES,
+  linksOnRoster,
   MAX_NAME,
   MAX_PICKED,
   MAX_TRANSCRIPT_BYTES,
@@ -424,6 +425,9 @@ async function pollLive($: EngineInterface, open: () => boolean) {
         else linkFrom.set(name, at.path)
         await update($, links, list => [...list.filter(p => p.name !== name), ...(url === undefined ? [] : [{ name, value: url }])])
       }
+      // A link whose card left the roster goes with it (#281).
+      if (!open()) return
+      await update($, links, list => linksOnRoster(list, cards.map(c => c.title)))
     } catch {
       // The reads are tried again at the next poll.
     }

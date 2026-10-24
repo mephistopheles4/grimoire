@@ -2437,6 +2437,13 @@ export function linkStep(found: string | undefined, from: string | undefined, st
   return from !== undefined || stored ? 'drop' : 'skip'
 }
 
+/** The stored links whose name is a card on the roster: a link for a card
+ *  that left the roster goes (#281). The same list when none goes. */
+export function linksOnRoster<T extends { name: string }>(list: readonly T[], titles: readonly string[]): readonly T[] {
+  const kept = list.filter(p => titles.includes(p.name))
+  return kept.length === list.length ? list : kept
+}
+
 // Whether two transcript paths end in the same file name, the session id,
 // compared as the path rule compares.
 const sameFile = (a: string, b: string): boolean => {

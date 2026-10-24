@@ -2055,6 +2055,19 @@ test('the link read past 4 MiB keeps the stored link: no read, no drop, a reload
   assert.equal(linkStep(moved.toUpperCase(), home, true, big), 'keep');
 });
 
+test('a stored link for a name with no card on the roster goes (#281)', () => {
+  const { linksOnRoster } = view;
+  const list = [{ name: 'a', value: 'https://claude.ai/code/session_a' }, { name: 'b', value: 'https://claude.ai/code/session_b' }];
+  assert.deepEqual(linksOnRoster(list, ['a']), [list[0]], 'b left the roster: its link goes');
+  assert.deepEqual(linksOnRoster(list, []), [], 'an empty roster keeps no link');
+  assert.equal(linksOnRoster(list, ['a', 'b']), list, 'nothing to drop: the same list, so no write');
+});
+
+test('the poll prunes stored links to the roster after the link reads (#281)', () => {
+  const register = readFileSync(join(root, 'brigade/register.tsx'), 'utf8');
+  assert.match(register, /await update\(\$, links, list => linksOnRoster\(list, cards\.map\(c => c\.title\)\)\)/);
+});
+
 test('the pane keeps a stored link on a keep step: it remembers the path and changes no link', () => {
   const register = readFileSync(join(root, 'brigade/register.tsx'), 'utf8');
   assert.match(register, /const step = linkStep\(at\?\.path, linkFrom\.get\(name\), stored\.has\(name\), at\?\.size\)\n/);
