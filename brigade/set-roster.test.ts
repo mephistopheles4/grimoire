@@ -254,7 +254,7 @@ type World = ReturnType<typeof makeFs> & {
    *  a user plugin sees. */
   seated: boolean
   /** How the engine answers a Skill call: run, refused, or failed. */
-  skillAnswer: 'ran' | 'deny' | 'error'
+  skillAnswer: 'ran' | 'deny' | 'error' | 'unsuccessful'
   /** What a head-chef load raises its `skill.prompt` with (source and plugin name). */
   loadedAs: Record<string, unknown>
   /** The test's own `$`, which raises the skill's `skill.prompt` inside a load. */
@@ -406,6 +406,8 @@ function world(on: On, setup: (w: World) => void = w => w.dirs(`${CONFIG}\\plugi
     return { value: found }
   })
   on('tool.check', ($, e: any) => {
+    // The Skill tool's own permission: the owner allows it, unless a test refuses the load.
+    if (e.tool === 'Skill') return { decision: 'allow' }
     w.checks.push(String(e.tool))
     w.checkInputs.push(e.input)
     if (w.stall === 'verdict') return new Promise<never>(() => {})
@@ -452,6 +454,7 @@ function world(on: On, setup: (w: World) => void = w => w.dirs(`${CONFIG}\\plugi
   on('tool.call', { tool: 'Skill' }, async ($: any, e: any) => {
     if (w.skillAnswer === 'deny') return { deny: 'the owner refused the skill' }
     if (w.skillAnswer === 'error') return { ref: 'r', result: 'no such skill', text: 'no such skill', isError: true }
+    if (w.skillAnswer === 'unsuccessful') return { ref: 'r', result: { success: false, commandName: e.skill }, text: 'not loaded' }
     await expand($, e.skill)
     return { ref: 'r', result: { success: true }, text: `Launching skill: ${e.skill}` }
   })
@@ -4903,15 +4906,13 @@ test('S3: any other skill, a subagent\'s load, and another plugin\'s head-chef p
   expect(w.notes).toEqual([])
 })
 
-// An answer whose result says success: false is tested at its own seam, in
-// tests/brigade-roster-rules.test.mjs.
-test('S3: a refused or failed head-chef load opens nothing and adds no note, seated or not', async ($, on) => {
+test('S3: a refused, failed or unsuccessful head-chef load opens nothing and adds no note, seated or not', async ($, on) => {
   const w = loads(on, $)
   w.usage = listing([PLUGIN_COPY])
   await start($)
   for (const seated of [true, false]) {
     w.seated = seated
-    for (const answer of ['deny', 'error'] as const) {
+    for (const answer of ['deny', 'error', 'unsuccessful'] as const) {
       w.skillAnswer = answer
       await skillCall($, 'grimoire:head-chef')
       await w.clock.settle()

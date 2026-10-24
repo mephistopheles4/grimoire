@@ -87,14 +87,15 @@ Plugin 0.74.0 (#380) adds three hooks that run in every session: `tool.call`
 on `Skill`, `command.run` for `/head-chef` and `/grimoire:head-chef`, and
 `turn.start`. Each passes on with no engine call unless a head-chef load is
 under way, or a load left the pane open but not shown. Then the work is bounded:
-- the wrappers read the session's local skill list once, through the
-  `summary` breakdown that sends no request, and only where `skill.prompt` was
-  skipped;
-- `turn.start` asks for the pane list once a turn until the pane is shown or
-  gone.
+- where `skill.prompt` was skipped, a model's load stores one note and
+  nothing more, and a typed load reads the session's local skill list once,
+  through the `summary` breakdown that sends no request;
+- `turn.start` asks for the pane list once a turn until the pane is shown and
+  listed, or gone.
 
 None of the three starts a timer, a process or a file read of its own. The
-reads still wait for the pane. `set_roster` is now offered as soon as the
-engine answers that the pane is open and placed, even before it lists the pane.
-Each call still refuses while the pane is not listed. Spec rev 3 on #380 sets
-this out, and the Test round on its pull request reviews it.
+reads still wait for the engine to list the pane. `set_roster` is now offered
+as soon as the engine answers that the pane is open and placed, even before it
+lists the pane, and each call still refuses while the pane is not listed. Spec
+rev 3 on #380 sets this out, the owner settled its seated route and its reads
+there (q5 and q6), and the Test rounds on its pull request review it.

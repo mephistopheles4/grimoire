@@ -333,8 +333,9 @@ it:
 
 | | Without the security default | With it |
 | --- | --- | --- |
-| A head-chef load, typed or the model's own | `skill.prompt` opens the pane, with one line in the skill's text | after the load, the pane opens if the session's local skill list shows one copy of that name and it is grimoire's or yours, with one note; otherwise a note asks for `/brigade` |
-| A pane opened but not shown | `set_roster` is offered, with one note, at the first turn that finds it shown | the same |
+| A typed `/head-chef` | `skill.prompt` opens the pane, with one line in the skill's text | after the load, the pane opens if the session's local skill list shows one copy of that name and it is grimoire's or yours, with one note; otherwise a note asks for `/brigade` |
+| The model loading head-chef itself | the same as typed | no pane: one note asks for `/brigade` |
+| A pane opened but not shown, or not yet listed | its reads, and `set_roster` with one note if it was not offered yet, start at the first turn that finds it shown and listed | the same |
 | A refused or failed load | nothing | nothing |
 | `/brigade` | as before | as before |
 | The session id, `set_roster` after a resume, `show_permission_warning` | as before | from `session.start` and the id read live |
