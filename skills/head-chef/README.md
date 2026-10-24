@@ -76,7 +76,9 @@ or type `/brigade` to open it.
   and its branch, then one yes. It runs its checks again, archives the
   session, and removes with git whatever the archive left. A background
   session is stopped and removed with `claude stop` and `claude rm` in place
-  of the archive, and the name-back marks it. It never forces a removal.
+  of the archive, and the name-back marks it. `claude rm` keeps the
+  session's transcript in the Claude config folder; what it keeps of the
+  job's own store was not checked. It never forces a removal.
 - **Acts on GitHub** only on your own words in its chat: merge, close, edit,
   delete or label an issue or a pull request, file an issue, or post a comment, each named in
   one line first.
@@ -94,11 +96,15 @@ A session takes the lead's first message when the sender's shown name
 matches the lead's row in the session list and no other row holds that name.
 It answers it, and keeps the lead's Desktop id that the message carries.
 From then on it takes a message from the lead only when it carries that id,
-whatever name or address it shows, so renaming or restarting the lead no
-longer cuts its sessions off, and it reports to the address of the lead's
-latest message. Before it takes one, or reports, it checks that a status
-file pairs the lead's id with that address, and holds the report when none
-does: once a lead ends, another program can take its address. A program of
+whatever name or address it shows, and it reports to the address of the
+lead's latest message. Before it takes one, or reports, it checks that a
+status file pairs the lead's id with that address; before a report, when
+none does, it reports to the address of the one status file that carries the
+lead's id, and holds the report when none or two do. Once a lead ends,
+another program can take its address. So renaming or restarting the lead
+should no longer cut its sessions off, as long as the lead's Desktop id stays
+the same; that is expected, not yet measured, until a field run shows it.
+The first message is checked against the status files too. A program of
 yours can still plant a status file, so this is a consistency check, not a
 guard. It takes each such message as a **relayed decision**, on any
 matter. It labels it as relayed by the lead, never as your own words, and
