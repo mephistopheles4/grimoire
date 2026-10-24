@@ -96,7 +96,11 @@ It answers it, and keeps the lead's Desktop id that the message carries.
 From then on it takes a message from the lead only when it carries that id,
 whatever name or address it shows, so renaming or restarting the lead no
 longer cuts its sessions off, and it reports to the address of the lead's
-latest message. It takes each such message as a **relayed decision**, on any
+latest message. Before it takes one, or reports, it checks that a status
+file pairs the lead's id with that address, and holds the report when none
+does: once a lead ends, another program can take its address. A program of
+yours can still plant a status file, so this is a consistency check, not a
+guard. It takes each such message as a **relayed decision**, on any
 matter. It labels it as relayed by the lead, never as your own words, and
 names each decision it acted on in its next report to the lead. Until the
 first message, anything that can send it a message under the lead's name can
