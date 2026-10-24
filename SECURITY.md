@@ -34,6 +34,7 @@ request.
 plugin.** It is a hooks module, `brigade/register.tsx`, named by
 `hooks/hooks.json`, and it runs with the session's own rights. At session start
 it registers `/brigade`, a `skill.prompt` hook, and the two hooks of its usage summary writer, below;
+since 0.74.0 (#380) it also hooks the `Skill` tool's call, the typed `/head-chef` and `/grimoire:head-chef` commands, and each turn's start, and each of those passes on with no engine call unless a head-chef load is under way or a load left the pane waiting: where the security default skips `skill.prompt`, a model's head-chef load opens no pane and leaves one fixed note asking for `/brigade`, and a typed one that Claude Code itself answered opens the pane only after one read of the session's local skill list confirms the copy is grimoire's or the owner's; the notes are fixed rows added to the conversation, each starting "Brigade (plugin note):";
 since 0.73.0 (#376) its `skill.prompt` hook reads each skill load's name, source and plugin name, acts only on a head-chef skill from a plugin named grimoire or from any user-level skill of that name, and on such a load opens the pane when it is closed, which starts the reads and the `gh` call below and offers `set_roster`, even when the model chose the load (when the engine does not place the pane, it starts none of that and shows a fixed toast naming `/brigade`), and appends one fixed line to that skill's text, never text from the event, the roster or an error;
 since 0.69.0 it also reads one key, `permission-warning-ack`, from the
 plugin's own store and offers a second tool, `show_permission_warning`, below;
@@ -62,7 +63,8 @@ changes, and never when it is over 4 MiB. A working session's transcript is
 read at most once a minute, and at most 5 of them a poll. For the link, a
 transcript is read again only when its found path changes. It also reads this session's own usage, its rate limits and context, when the
 pane opens and, while it stays open, each time the engine measures the
-session; it asks only for
+session, and once more for a typed head-chef load where the security default
+skips `skill.prompt`, to read the skill list; it asks only for
 the local summary estimate of the context breakdown, which sends no request.
 On an Open in app press it reads three environment variables, `OS`,
 `SystemRoot` and `windir`, only to tell whether each is set or `OS` is
@@ -73,7 +75,7 @@ one tool call, below, goes to whatever connected server answers to the name
 through a tool the model calls, `set_roster`, which skips Claude Code's
 permission prompt. So that write has no human and no classifier review; every
 call is still recorded in the transcript as the tool's result. The tool exists
-only once the owner runs `/brigade` or the head-chef skill loads with the pane closed, writes only while the pane is open, and
+only once the owner runs `/brigade` or the head-chef skill loads, which offers it again when the pane is already open, or at the first turn that finds a pane the load left waiting shown, writes only while the pane is open, and
 refuses a subagent's call, a deny verdict, an owner's ask rule, any input
 outside the roster's shape and size, and any link on the way to the file. It
 writes in every permission mode. It finds the Claude config folder from the install

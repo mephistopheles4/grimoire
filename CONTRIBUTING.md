@@ -226,8 +226,9 @@ seam is its view module, `brigade/view.ts`: plain TypeScript with no engine
 import, which `tests/brigade-view.test.mjs` imports directly to check what
 the pane would draw, as strings. Its roster module, `brigade/roster.ts`, is the
 second seam: `tests/brigade-roster-rules.test.mjs` imports it to check the
-roster's shape rules, its byte cap and the path rule that decides whether the
-roster file may be read or written. Its permission warning's wording module,
+roster's shape rules, its byte cap, the path rule that decides whether the
+roster file may be read or written, and the checks that say whether a
+head-chef load ran and which copy loaded. Its permission warning's wording module,
 `brigade/warning-text.ts`, is the third: `tests/brigade-warning.test.mjs`
 imports it to pin the wording and check the "Don't show again" test. Keep all
 three to erasable syntax (no enums, namespaces or parameter properties), so
