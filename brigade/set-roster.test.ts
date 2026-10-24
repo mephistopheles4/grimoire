@@ -4805,7 +4805,11 @@ for (const name of ['grimoire:head-chef', 'head-chef']) {
     expect(w.files.at(-1)).toBe(FILE)
   })
 
-  test(`S3: seated, a typed /${name} opens the pane once and stores the ready note`, async ($, on) => {
+  // A typed load ran only when core answered with its `ref`, which no test can
+  // give: the kit's answer beneath stands for a hook that answered the command
+  // in core's place. That a real typed skill carries a `ref` is the probe's
+  // finding on #380 (2.1.302), and the seated live run is a stated gap.
+  test(`S3: seated, a typed /${name} answered without core's ref opens nothing and adds no note`, async ($, on) => {
     const w = loads(on, $)
     w.seated = true
     w.usage = listing([PLUGIN_COPY, USER_COPY])
@@ -4813,8 +4817,10 @@ for (const name of ['grimoire:head-chef', 'head-chef']) {
     const r = await typed($, name)
     expect(r.text).toBe('')
     await w.clock.settle()
-    expect(rosterOffers(w)).toEqual(['set_roster'])
-    expect(w.notes).toEqual([READY])
+    expect(w.open).toBe(false)
+    expect(rosterOffers(w)).toEqual([])
+    expect(w.notes).toEqual([])
+    expect(w.usageCalls).toBe(0)
   })
 }
 

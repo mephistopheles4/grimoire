@@ -991,6 +991,7 @@ const isOurHeadChef = (e: { skill: string; source: string; pluginName?: string }
 // listing shows one copy of that name, and it is ours, as isOurHeadChef reads
 // a load. Its line goes in a note, after the load's own answer has returned.
 const isHeadChefName = (name: unknown) => name === 'head-chef' || name === 'grimoire:head-chef'
+const isObject = (v: unknown): v is object => typeof v === 'object' && v !== null
 let loadPending = false
 
 const CONFIRM_FAILED_NOTE = 'Brigade did not open its pane for this head-chef load: it could not confirm which copy of the skill loaded. Ask the owner to type /brigade.'
@@ -1260,11 +1261,13 @@ export const register: Register = on => {
   on('tool.call', { tool: 'Skill' }, async ($, e, next) => {
     const name = (e as { skill?: unknown }).skill
     if (e.agentId !== undefined || !isHeadChefName(name)) return next(e)
-    return wrapLoad($, name as string, () => next(e), answer => !('deny' in answer) && !(answer as { isError?: boolean }).isError)
+    return wrapLoad($, name as string, () => next(e), answer => isObject(answer) && !('deny' in answer) && !(answer as { isError?: boolean }).isError)
   })
+  // A typed load ran only when core answered it with its `ref`: a hook beneath
+  // that answers the command in its place expanded no skill.
   for (const command of ['head-chef', 'grimoire:head-chef']) {
     on('command.run', { command }, async ($, e, next) => {
-      return wrapLoad($, command, () => next(e), answer => typeof answer === 'object' && answer !== null && !('deny' in answer))
+      return wrapLoad($, command, () => next(e), answer => isObject(answer) && (answer as { ref?: unknown }).ref !== undefined)
     })
   }
 
