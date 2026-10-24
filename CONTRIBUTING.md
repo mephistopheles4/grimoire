@@ -179,10 +179,10 @@ make a skip visible, not to stop one: the refusal names it.
   character, or if either is spelled in another case. It runs after the hook
   has fired for a session opened on the branch, so it protects the merge and not
   the reader. Keep your own Claude Code settings in `.claude/settings.local.json`,
-  which git ignores, and not in this file. The check reads only this one
-  settings file: a settings file in another folder, or hooks in a subagent or
-  skill under `.claude/`, are read by nobody here, so read them in a branch you
-  have not written.
+  which git ignores, and not in this file. The check also fails a settings
+  file below the root, such as `docs/.claude/settings.json`, that registers
+  hooks or cannot be read. Hooks in a subagent or skill under `.claude/` are
+  read by no rule, so read them in a branch you have not written.
 
 ## Tests
 

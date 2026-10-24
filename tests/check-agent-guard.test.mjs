@@ -102,6 +102,31 @@ test('a settings file that parses to the entry but is not its one line fails the
   assertFails(spaced, /holds more or less than the one guard entry/);
 });
 
+// Claude Code loads a settings file from the folder a session starts in, so a
+// .claude/settings.json below the root registers hooks for a session opened
+// there, and nothing else reads it.
+test('a nested .claude settings file that registers hooks fails the check', () => {
+  // A settings.local.json is not tried: .gitignore matches *.local.*, so the
+  // walk never reads one, and rule 2b fails one that git tracks anyway.
+  for (const [where, name] of [['docs', 'settings.json'], ['skills/eagle-eye', 'settings.json']]) {
+    const dir = tree();
+    mkdirSync(join(dir, where, '.claude'), { recursive: true });
+    writeFileSync(join(dir, where, '.claude', name), JSON.stringify({ hooks: { Stop: [] } }));
+    assertFails(dir, new RegExp(`${where}/\\.claude/${name.replace('.', '\\.')} registers hooks`));
+  }
+});
+
+test('a nested .claude settings file that cannot be read fails the check, and one with no hooks passes', () => {
+  const broken = tree();
+  mkdirSync(join(broken, 'docs', '.claude'), { recursive: true });
+  writeFileSync(join(broken, 'docs', '.claude', 'settings.json'), '{ "hooks": ');
+  assertFails(broken, /docs\/\.claude\/settings\.json cannot be read/);
+  const plain = tree();
+  mkdirSync(join(plain, 'docs', '.claude'), { recursive: true });
+  writeFileSync(join(plain, 'docs', '.claude', 'settings.json'), JSON.stringify({ model: 'sonnet' }));
+  assertPasses(plain);
+});
+
 test('a flag does not turn a failing check into a passing one', () => {
   const dir = tree();
   const settings = readSettings(dir);

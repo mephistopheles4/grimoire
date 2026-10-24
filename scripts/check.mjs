@@ -30,8 +30,9 @@
 //    6c. Nothing else the engine loads: no default component folder or file at
 //    the root, and no manifest or marketplace key outside an allow-list.
 //    6d. .claude/settings.json holds the one entry that registers
-//    scripts/agent-check-guard.mjs and nothing else, and neither it nor the
-//    script has a twin spelled in another case.
+//    scripts/agent-check-guard.mjs and nothing else, neither it nor the
+//    script has a twin spelled in another case, and no settings file below
+//    the root registers hooks.
 // 7. The SkillSpector baselines agree, so a rule reasoned away at the
 //    repository root is reasoned away the same way inside a skill: the same
 //    reason, and a skill entry no broader than the root's.
@@ -1098,6 +1099,25 @@ if (existsSync(join(root, '.claude', 'settings.json'))) {
   if (settings !== undefined && (!isDeepStrictEqual(settings, GUARD_ENTRY) || text.trim() !== JSON.stringify(GUARD_ENTRY))) {
     fail('.claude/settings.json holds more or less than the one guard entry, in the one line rule 6d of scripts/check.mjs writes — Claude Code runs what it registers when a session opens on the branch, hooks, permissions, environment variables and status line commands included, and no rule here reads those. Remove the rest, and keep your own settings in .claude/settings.local.json, which git ignores. Or change GUARD_ENTRY in rule 6d and say in the pull request what Claude Code does with it.');
   }
+}
+
+// Claude Code reads a settings file from the folder a session starts in, so a
+// .claude/settings.json below the root registers hooks for a session opened
+// there, and rule 6d does not read it. One that registers hooks fails, and so
+// does one this rule cannot read. A nested file with no hooks key is left
+// alone, as a root one is by no rule but 6d. Hooks in a subagent's or a skill's
+// frontmatter under .claude/ are not read; CONTRIBUTING says so.
+const NESTED_SETTINGS = /(?:^|\/)\.claude\/settings(?:\.local)?\.json$/i;
+for (const f of files.filter(f => NESTED_SETTINGS.test(relRaw(f)) && relRaw(f).toLowerCase() !== '.claude/settings.json')) {
+  let registers;
+  try {
+    const parsed = JSON.parse(readFileSync(f, 'utf8').replace(/^\u{FEFF}/u, ''));
+    registers = Object.hasOwn(parsed, 'hooks');
+  } catch {
+    fail(`${rel(f)} cannot be read as a settings object — Claude Code loads it when a session starts in its folder, and no rule here could say what it registers. Fix it, or remove it.`);
+    continue;
+  }
+  if (registers) fail(`${rel(f)} registers hooks — Claude Code loads it when a session starts in its folder and runs them, and no rule here reads them. Remove the hooks key; the one settings file that registers hooks is .claude/settings.json at the root, held to rule 6d.`);
 }
 
 // 7. The SkillSpector baselines agree: a skill's entry gives the root's reason and is never broader.
