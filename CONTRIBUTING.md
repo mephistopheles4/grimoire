@@ -96,7 +96,8 @@ such a package without asking when no one is at a terminal.
   SkillSpector or zizmor, which stay in CI. A container pass does not cover
   them.
 - Exit 124, 125 and 137 mean athanor produced no result, whether from a time
-  limit, Docker or its configuration. Run `node scripts/check.mjs` on the host.
+  limit, Docker or its configuration. Run `node scripts/check.mjs` on the host,
+  with `--host-fallback=<reason>` if you are an agent (see "The agent guard").
 - The cap on concurrent runs is athanor's machine setting `maxRuns`, 2 unless
   you change it. It caps athanor runs only: a run of `node scripts/check.mjs`
   on the host, including the one after an athanor run with no result, is outside it.
@@ -122,6 +123,55 @@ such a package without asking when no one is at a terminal.
   container run you have read the container files for runs its tests with none
   of them.
 
+### The agent guard
+
+`.claude/settings.json` registers one Claude Code hook, `scripts/agent-check-guard.mjs`,
+which runs before every Bash and PowerShell call an agent makes in this
+repository. When the call is `node scripts/check.mjs` in any of its forms (the
+plain, `./` and backslash paths, quoted or not, behind `cd`, `;`, `&&`, `&`,
+`FOO=1` or `timeout`) and `athanor` works on the machine, the hook refuses it
+and tells the agent to run `athanor run check`. The host check stays the
+fallback for when athanor is missing or its run exits 124, 125 or 137. Then the
+agent adds `--host-fallback=<reason>` to the same command, with the reason and
+the exit code in it, and names that in its report. `node scripts/check.mjs`
+prints the reason as one note and runs as it always does. The flag is a way to
+make a skip visible, not to stop one: the refusal names it.
+
+- **Athanor works** when `athanor --version` exits 0 and prints a version
+  within five seconds. A shim that dangles (mise says "athanor is not a valid
+  shim"), a missing program and a hang all mean athanor is missing, so the
+  host check is allowed and nothing has to be done. On Windows the probe goes
+  through `cmd.exe`, because an npm install leaves a `.cmd` shim. It runs from
+  the system folder with the lookup in the current folder switched off, and it
+  finds nothing when `PATH` has an empty or relative entry on other systems.
+  Like any program it starts, it inherits the session's environment.
+- **Everything else passes in silence:** the hook prints nothing, so your
+  permission rules decide, as they would without it. The same holds when it
+  fails. A hook that cannot start because `node` or the script is missing makes
+  Claude Code print a hook error on every shell call, and lets the call go.
+- **You are not affected** when you run `node scripts/check.mjs` in your own
+  terminal, and neither is CI. The hook acts on an agent's tool calls only.
+- **It is not a control.** An agent can type the flag or run the check some
+  way the hook does not read, and a branch's code runs on the host whenever
+  anyone runs it. The hook only makes the order visible.
+- **Opening an agent session on a branch runs that branch's hooks.** The hook
+  is tracked code, so a pull request that edits `scripts/agent-check-guard.mjs`
+  or `.claude/settings.json` runs its code when a session opens on it, with
+  your rights and your environment, before anyone has reviewed it. That is so
+  for a worktree under a checkout you already trust, for `claude -p` and SDK
+  sessions, which show no trust dialog, for a branch checked out inside a
+  running session, and for a Claude Desktop session, which runs whatever the
+  main checkout holds. Read a branch's `.claude/` folder and `scripts/`
+  before you open a session on it, as you read it before you run its check, or
+  start the session with `--bare` or `--settings '{"disableAllHooks": true}'`.
+  The first interactive session in a fresh clone shows the trust dialog, which
+  lists the hooks.
+- **The check holds both files.** `node scripts/check.mjs` fails if the
+  settings file holds anything but this one entry, if either file holds a hidden
+  character, or if either is spelled in another case. It runs after the hook
+  has fired for a session opened on the branch, so it protects the merge and not
+  the reader.
+
 ## Tests
 
 The tests run on `node --test`, which ships with Node. That is the whole reason
@@ -132,7 +182,7 @@ not take, and `SECURITY.md` explains why that matters more than it looks.
 run only the suite while you work on it:
 
 ```bash
-node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --test tests/audit.test.mjs tests/brigade-roster-rules.test.mjs tests/brigade-view.test.mjs tests/brigade-warning.test.mjs tests/build-pages.test.mjs tests/case.test.mjs tests/check-allowances.test.mjs tests/check-baseline-rules.test.mjs tests/check-baselines.test.mjs tests/check-format.test.mjs tests/check-home-paths.test.mjs tests/check-home-shapes.test.mjs tests/check-load-surface.test.mjs tests/check-manifests.test.mjs tests/check-mod.test.mjs tests/check-paths.test.mjs tests/check-skill-files.test.mjs tests/check-test-step.test.mjs tests/check-tracked.test.mjs tests/check-tree.test.mjs tests/check-version.test.mjs tests/contract-interview.test.mjs tests/contract-page.test.mjs tests/contract-render.test.mjs tests/eagle-eye-sheets.test.mjs tests/esc.test.mjs tests/groundtrack-fold.test.mjs tests/groundtrack-render.test.mjs tests/groundtrack-sheets.test.mjs tests/practice.test.mjs tests/registry.test.mjs tests/render.test.mjs tests/skillspector-gate.test.mjs tests/skillspector-probe.test.mjs tests/skillspector-strip-suppressed.test.mjs
+node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --test tests/agent-check-guard.test.mjs tests/audit.test.mjs tests/brigade-roster-rules.test.mjs tests/brigade-view.test.mjs tests/brigade-warning.test.mjs tests/build-pages.test.mjs tests/case.test.mjs tests/check-agent-guard.test.mjs tests/check-allowances.test.mjs tests/check-baseline-rules.test.mjs tests/check-baselines.test.mjs tests/check-format.test.mjs tests/check-home-paths.test.mjs tests/check-home-shapes.test.mjs tests/check-load-surface.test.mjs tests/check-manifests.test.mjs tests/check-mod.test.mjs tests/check-paths.test.mjs tests/check-skill-files.test.mjs tests/check-test-step.test.mjs tests/check-tracked.test.mjs tests/check-tree.test.mjs tests/check-version.test.mjs tests/contract-interview.test.mjs tests/contract-page.test.mjs tests/contract-render.test.mjs tests/eagle-eye-sheets.test.mjs tests/esc.test.mjs tests/groundtrack-fold.test.mjs tests/groundtrack-render.test.mjs tests/groundtrack-sheets.test.mjs tests/practice.test.mjs tests/registry.test.mjs tests/render.test.mjs tests/skillspector-gate.test.mjs tests/skillspector-probe.test.mjs tests/skillspector-strip-suppressed.test.mjs
 ```
 
 **The suite never reaches the network.** eagle-eye's edge audit is the one

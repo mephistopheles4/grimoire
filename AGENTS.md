@@ -7,6 +7,13 @@ Read [Run the check in a container](CONTRIBUTING.md#run-the-check-in-a-container
 first, for how to install athanor and when it is safe to run, then run the
 check with `athanor run check` by default.
 
+A hook in `.claude/settings.json` enforces that order: while `athanor` works, it
+refuses `node scripts/check.mjs` from you. Run the host check only when athanor is
+missing (a shim that dangles counts as missing) or its run exits 124, 125 or
+137, and then add `--host-fallback=<reason>`, naming the reason and the exit
+code, and say in your report that you used the fallback. Read
+[The agent guard](CONTRIBUTING.md#the-agent-guard) for the rest.
+
 ## Three directories are called `scripts/`
 
 `scripts/` at the repository root holds this repository's own checks — the one
