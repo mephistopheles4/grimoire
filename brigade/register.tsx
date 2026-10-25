@@ -1517,6 +1517,19 @@ export const register: Register = on => {
       if (Image !== undefined && image !== undefined) return <Image source={image.source} alt={image.alt} width={image.width} height={image.height} />
       return color === undefined ? <Text>{`#${n}`}</Text> : <Text color={color}>{`#${n}`}</Text>
     }
+    // The PR's page, for a number gh answered (it drops a fork's). Where
+    // images draw a Link holds no image, so an arrow beside the pill, named
+    // in a tooltip; the terminal's link is the number, in the state's colour.
+    const linkedNumber = (n: string, state: string, href: string) => (
+      <Text color={pillColor(state)}>
+        <Link href={href}>{`#${n}`}</Link>
+      </Text>
+    )
+    const linkArrow = (key: string, n: string, href: string) => (
+      <Box flexShrink={0}>
+        {tip(key, <Text><Link href={href}>↗</Link></Text>, `Open pull request #${n}`)}
+      </Box>
+    )
     const hint = (key: string) => (
       <Box paddingX={3} paddingY={1}>
         <Text dimColor>{GROUP_HINTS.get(key) ?? ''}</Text>
@@ -1726,21 +1739,13 @@ export const register: Register = on => {
                     {answer === undefined ? (
                       pill(number, pillState(undefined, c.prState))
                     ) : href !== undefined && Image === undefined ? (
-                      <Text color={pillColor(pillState(answer.state, c.prState))}>
-                        <Link href={href}>{`#${number}`}</Link>
-                      </Text>
+                      linkedNumber(number, pillState(answer.state, c.prState), href)
                     ) : (
                       tip(`pill-${i}`, pill(number, pillState(answer.state, c.prState)), answer.repo)
                     )}
                   </Box>
                 )}
-                {/* The PR's page, only for a number gh answered (it drops a
-                    fork's): where images draw a Link holds no image, so an
-                    arrow beside the pill, named in a tooltip; the terminal's
-                    link is the number itself, above. */}
-                {href !== undefined && Image !== undefined && (
-                  <Box flexShrink={0}>{tip(`prlink-${i}`, <Text><Link href={href}>↗</Link></Text>, `Open pull request #${number}`)}</Box>
-                )}
+                {href !== undefined && Image !== undefined && number !== undefined && linkArrow(`prlink-${i}`, number, href)}
                 <Box flexShrink={0}>
                   {/* Idle on a working card is bold as well as amber: the flip
                       from busy is the owner's cue (owner decision q1 A on #287). */}
@@ -1967,10 +1972,12 @@ export const register: Register = on => {
     // card's title, the counts, the repository and the age. On Desktop and
     // mobile rows sit a small step apart with no hairline; the editor, where
     // that step is nothing, and the terminal part them as `rows` does.
+    const rowHref = (r: PrRow) => (r.detail.repo === undefined ? undefined : prUrl(r.detail.repo, r.number))
     const prRow = (r: PrRow) => (
       <Box flexDirection="column" paddingX={terminal ? 0 : 'md'} paddingY={terminal ? 0 : 'sm'} marginBottom={stepped ? 'xs' : 0} {...hoverFill(`pr-${r.i}-${slug(r.number)}`)}>
         <Box flexDirection="row" columnGap={1} alignItems="center">
-          <Box flexShrink={0}>{pill(r.number, r.state)}</Box>
+          <Box flexShrink={0}>{rowHref(r) !== undefined && Image === undefined ? linkedNumber(r.number, r.state, rowHref(r) ?? '') : pill(r.number, r.state)}</Box>
+          {rowHref(r) !== undefined && Image !== undefined && linkArrow(`prrowlink-${r.i}`, r.number, rowHref(r) ?? '')}
           <Box flexGrow={1} flexShrink={1} minWidth={0}>
             <Text weight="semibold" wrap="truncate-end">
               {r.title}
