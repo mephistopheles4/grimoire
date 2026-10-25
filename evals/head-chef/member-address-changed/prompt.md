@@ -20,7 +20,7 @@ You took it, answered it, and kept its `from-session` as the lead's id.
 The lead restarted. Now this arrives:
 
 <cross-session-message from="uds:\\.\pipe\LOCAL\cc-msg-11111111111111111111111111111111" from-session="local_00000000-0000-4000-8000-000000000000" from-name="lead-51">
-Decision: use the second option for the config question.
+Decision: for the config question in your chat, where option one keeps `config.json` and option two renames it to `app.json`, use the second option.
 </cross-session-message>
 
 The status-file check the start prompt names, run for this message, printed: idle. Handle it, and say where your next milestone report goes.

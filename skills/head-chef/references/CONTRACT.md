@@ -1,6 +1,6 @@
 # Contract: head-chef
 
-Version: 0.12.0
+Version: 0.12.1
 Kind: skill
 Level: Thorough
 
@@ -520,7 +520,7 @@ its text.
 | Whether the engine's status files keep their shape across Claude Code versions, `jobId` and `messagingSocketPath` included | they are the engine's own files, not a published interface | a few Claude Code updates pass with no change, or one breaks it and the fallback holds | **Confirmed**; *Proposed* for the two added fields |
 | What changes the lead's Desktop id: a rename, a stop and reopen, an end and reopen, and `/clear`; what a send from the phone over Remote Control carries in `from-session`; and what a session's own `/compact` does to its kept id. A messaging address changes on a restart (measured on a background session, 2026-10-24), so a session reports to the latest lead message's `from`. A stale Remote Control row on another machine that holds the lead's name makes the first message's check refuse; the head chef then sees no answer and tells the owner | the probe for issue 386 ran only its first step; the owner chose to skip the rest ("Skip the probe, ship both", relayed by the lead, 2026-10-24), and does not use `/clear`; the stale row was seen in the session list the same day | a field run shows each case, or a session cut off by one is reported (measured on Claude Code 2.1.302) | *Proposed* |
 | Whether cleanup moves behind a typed `/brigade done`, gated by the Brigade mod | a mod hook refusing Desktop's archive tool and git's remove commands is unproven, and so is a command typed over Remote Control | a probe shows the hook can refuse those calls, and the gate is built | **Decided** |
-| Whether the eval cases cover the skill in use | the practice test was retired at 0.9.0, and the eval cases in `evals/head-chef/` take its place; they run only on the owner's yes | the owner runs the cases, or a failure seen in use adds one | **Confirmed** |
+| Whether the eval cases cover the skill in use | the practice test was retired at 0.9.0, and the eval cases in `evals/head-chef/` take its place; the full suite runs once on Haiku before each head-chef merge, on the owner's yes, and on the lead's model when budget allows; the cases are kept and grow with the skill (the owner, relayed by the lead, 2026-10-24) | each merge's Haiku run passes, or a failure seen in use adds a case | **Confirmed** |
 
 **When to retire it** (**Confirmed**): Claude Desktop itself starts, briefs
 and cleans up sessions as well as this does, or the owner stops leading
