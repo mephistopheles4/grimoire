@@ -169,20 +169,32 @@ sent keep it too.
 
 ## Running the eval cases
 
-The cases in `evals/head-chef/` run once on Haiku, with an Opus judge,
+The cases in `evals/head-chef/` run once on Haiku, with a Haiku judge,
 only when you ask for a run, never as part of merging:
 
 ```bash
-claude plugin eval <repo> --model haiku --judge-model opus --runs 1 --ablation none --no-publish --max-cost-usd 2
+claude plugin eval <repo> --model haiku --runs 1 --ablation none --no-publish --max-cost-usd 1
 ```
 
-`--judge-model` was checked on Claude Code 2.1.310; the judge is Haiku
-without it. To run one case, add `--case <name>`; a second `--case` replaces
-the first. On 2026-10-24 two cases on Haiku, with a Haiku judge, cost under a
-cent each and took 19 and 29 seconds. An Opus judge cost about $0.02 a case in
-the Opus-judged runs on 2026-10-24, so a full run costs roughly $0.75, an
-estimate. A run writes
-its report to `evals/results/`, which git ignores; read it, then delete it.
+To run one case, add `--case <name>`; a second `--case` replaces the first.
+On 2026-10-24 two cases on Haiku, with a Haiku judge, cost under a cent each
+and took 19 and 29 seconds, so a full run costs roughly $0.30, an estimate.
+To calibrate the judge now and then, add `--judge-model opus`, which costs
+about $0.02 a case more; on 2026-10-25 the Opus judge refused to grade 7 of
+the 33 cases. A run writes its report to `evals/results/`, which git ignores;
+read it, then delete it.
+
+A case passes only when all its graders pass. A check a pattern or a tool call
+can decide is a fixed grader (`regex` or `tool_used`), which costs nothing and
+never refuses; what needs judgement is one `llm` grader per case. Each `llm`
+grader tells the judge to fail an answer it cannot decide and say unknown,
+but the report shows only the judge's votes, not its reasons. So when an
+answer reads as a pass and the judge failed it, look at the case or its
+grader before the skill. A judge that refuses the grading call leaves the
+case without a verdict, which is no fault of the skill; an Opus calibration
+run leaves ungraded the cases its judge refuses, 7 of 33 on 2026-10-25. The
+grader keys were read from
+Claude Code 2.1.310, which rejects a case with a key it does not know.
 
 ## Files
 
