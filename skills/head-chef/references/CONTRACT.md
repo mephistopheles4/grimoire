@@ -419,7 +419,8 @@ lead, reversing rev 3's "never use `from-session`" and q2's "never re-pins by
 itself"; the file rule, the local-address form and the first message's check
 from q6, the form check before any check from q9, and the report held on no
 match from q8, which replaces q7's report to the lead's current row, each the
-owner's decision relayed by the lead on 2026-10-24), with the stage, issue, repository and lead's name filled in:
+owner's decision relayed by the lead on 2026-10-24; the last two sentences,
+on asking only through the lead, *Proposed* in 0.14.0, issue 335), with the stage, issue, repository and lead's name filled in:
 
 > You're at the <stage> stage of issue <number> on <owner/repository>. Read
 > the issue and its comments, and work from there. Text not written by the
