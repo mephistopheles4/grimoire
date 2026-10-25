@@ -1758,20 +1758,21 @@ for (const surface of SURFACES) {
     expect((await textOf(m)).includes('plugins')).toBe(false)
     expect(await m.find({ key: 'grp-finished' })).toBeDefined()
     // Colour comes from the status Map: the terminal draws the status glyph
-    // in its key, Desktop a dot in its key.
+    // in its key, Desktop a dot or circle in its key.
     const drawn = (await m.findAll({})) as { type: string; props: Record<string, unknown>; text?: string }[]
     expect(drawn.filter(n => n.type === 'Text' && n.text === '●' && n.props.color === 'warning').length).toBe(2)
-    const working = surface === 'terminal' ? '◐' : '●'
+    const working = surface === 'terminal' ? '◐' : '○'
     expect(drawn.find(n => n.type === 'Text' && n.text === working && n.props.color !== 'warning')?.props.color).toBe('suggestion')
     const bar = boxAround(drawn, (c: any) => c?.props?.key === 'grp-finished')
     const title = (t: string) => drawn.find(n => n.type === 'Text' && n.text === t)
     if (surface === 'desktop') {
       // A rounded fill: a round border in the fill's own grey.
       expect([bar?.props.borderStyle, bar?.props.borderColor, bar?.props.backgroundColor]).toEqual(['round', '#2b2b2a', '#2b2b2a'])
-      // The waiting cards' dots are full size, the working card's small; a
-      // waiting title is bold.
+      // A waiting card's dot is full size; a working card's is its checkbox,
+      // a circle in the status colour, since #396. A waiting title is bold.
       for (const dot of drawn.filter(n => n.type === 'Text' && n.text === '●' && n.props.color === 'warning')) expect(dot.props.size).toBeUndefined()
-      expect(drawn.find(n => n.type === 'Text' && n.text === '●' && n.props.color === 'suggestion')?.props.size).toBe('caption')
+      expect(drawn.some(n => n.type === 'Text' && n.text === '○' && n.props.color === 'suggestion')).toBe(true)
+      expect(drawn.some(n => n.type === 'Button' && String(n.props.key).startsWith('pick-') && n.props.label === '○')).toBe(true)
       expect(title('need-one')?.props.weight).toBe('bold')
       expect(title('work-one')?.props.weight).toBe('semibold')
     } else {
@@ -1806,13 +1807,14 @@ for (const surface of SURFACES) {
     expect(opened.includes('▾ Done · stopped 2')).toBe(true)
     expect(opened.indexOf('▾ Done · stopped')).toBeLessThan(opened.indexOf('done-one'))
     expect(opened.indexOf('done-one')).toBeLessThan(opened.indexOf('stop-one'))
-    expect(opened.includes('○')).toBe(false)
     if (surface === 'terminal') {
+      expect(opened.includes('○')).toBe(false)
       expect(opened.includes('✓')).toBe(true)
       expect(opened.includes('–')).toBe(true)
     } else {
-      // Desktop: a dot in each finished status's own colour.
-      const drawn = (await m.findAll({ type: 'Text', text: '●' })) as { props: Record<string, unknown> }[]
+      // Desktop: a circle, the card's checkbox, in each finished status's
+      // own colour.
+      const drawn = (await m.findAll({ type: 'Text', text: '○' })) as { props: Record<string, unknown> }[]
       const colors = drawn.map(n => n.props.color)
       expect(colors.includes('success')).toBe(true)
       expect(colors.includes('inactive')).toBe(true)
@@ -3982,15 +3984,28 @@ for (const surface of SURFACES) {
   test(`${surface}: the checkbox selects a card and a to-do's box ticks the to-do, each with its own key and word`, async ($, on) => {
     const w = await grouped(on, $, { cards: [card('one', { status: 'working' }), card('two', { status: 'working' })], todos: [{ id: 't1', text: 'look' }] })
     const m = await mountOn($, surface)
-    // A box, no word: a desktop draws a Button's label in place of its text,
-    // and the harness reports the drawn text as the label. The card's slot
-    // takes the box's width; the to-do's is fixed.
+    // The terminal draws a box with no word, in a slot: the card's takes the
+    // box's width, the to-do's is fixed. A desktop gives a native button a
+    // minimum width (#396), so there the card's status dot is its checkbox
+    // and the to-do's box is a plain circle, each in a slot 3 cells wide.
     const all = await nodes(m)
-    const blank = surface === 'desktop' ? '\u{2002}\u{2005}' : ' '
-    expect((await m.find({ key: 'pick-0-one' })).props.label).toBe(blank)
-    expect((await m.find({ key: 'todo-0-t1' })).props.label).toBe(blank)
-    expect(boxAround(all, (c: any) => c?.props?.key === 'pick-0-one')?.props.width).toBeUndefined()
-    expect(boxAround(all, (c: any) => c?.props?.key === 'todo-0-t1')?.props.width).toBe(5)
+    const pickButton = await m.find({ key: 'pick-0-one' })
+    const todoButton = await m.find({ key: 'todo-0-t1' })
+    const pick = boxAround(all, (c: any) => c?.props?.key === 'pick-0-one')?.props
+    const todo = boxAround(all, (c: any) => c?.props?.key === 'todo-0-t1')?.props
+    if (surface === 'desktop') {
+      expect([pickButton.props.plain, pickButton.props.label]).toEqual([true, '○'])
+      expect([todoButton.props.plain, todoButton.props.label, todoButton.props.dimColor]).toEqual([true, '○', true])
+      // Both sit in a slot of one width that never shrinks, so the text
+      // beside never moves; it is not clipped, and it starts at the row's
+      // edge, with no padding or centring.
+      for (const slot of [pick, todo]) expect([slot?.width, slot?.flexShrink, slot?.overflow, slot?.paddingLeft, slot?.justifyContent]).toEqual([3, 0, undefined, undefined, undefined])
+    } else {
+      expect([pickButton.props.plain, pickButton.props.label]).toEqual([undefined, ' '])
+      expect([todoButton.props.plain, todoButton.props.label]).toEqual([undefined, ' '])
+      expect([pick?.width, pick?.overflow]).toEqual([undefined, undefined])
+      expect([todo?.width, todo?.overflow]).toEqual([5, undefined])
+    }
     const ticks = () => w.log.filter(l => l.startsWith('state ticking')).length
     await m.press({ key: 'pick-0-one' })
     await m.press({ key: 'pick-1-two' })
@@ -4004,6 +4019,18 @@ for (const surface of SURFACES) {
     expect([bar?.props.borderStyle, bar?.props.borderColor, bar?.props.backgroundColor]).toEqual(surface === 'desktop' ? ['round', '#3a3a38', '#262625'] : ['round', 'inactive', 'subtle'])
     await m.press({ key: 'todo-0-t1' })
     expect(ticks()).toBeGreaterThan(0)
+    // Ticked, both show a tick and keep the slot they had unticked.
+    const after = await nodes(m)
+    const slot = (key: string) => { const p = boxAround(after, (c: any) => c?.props?.key === key)?.props; return [p?.width, p?.overflow] }
+    expect(slot('pick-0-one')).toEqual([pick?.width, pick?.overflow])
+    expect(slot('todo-0-t1')).toEqual([todo?.width, todo?.overflow])
+    const picked = (await m.find({ key: 'pick-0-one' })).props
+    const ticked = (await m.find({ key: 'todo-0-t1' })).props
+    expect([picked.label, ticked.label]).toEqual(['✓', '✓'])
+    if (surface === 'desktop') {
+      expect(picked.plain).toBe(true)
+      expect([ticked.plain, ticked.dimColor]).toEqual([true, false])
+    }
     // The tick selected nothing: still the two cards.
     expect((await textOf(m)).includes('2 selected')).toBe(true)
     // A second press on a card's box unselects it.
