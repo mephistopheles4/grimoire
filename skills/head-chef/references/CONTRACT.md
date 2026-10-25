@@ -1,6 +1,6 @@
 # Contract: head-chef
 
-Version: 0.13.0
+Version: 0.14.0
 Kind: skill
 Level: Thorough
 
@@ -196,6 +196,12 @@ need, without overwhelming me or showing me too much.
   the lead, it warns the owner in one line that, if its Desktop id changes,
   its sessions will need the new id in their own chat: what those do to the
   Desktop id was not measured (issue 386's known gaps).
+- *Proposed* (issue 335, the owner's decision of 2026-10-17, confirmed by the
+  lead's decision under the owner's auto-mode instruction, 2026-10-25): a
+  session never asks the owner in its own chat, by card or in a wrap-up; every
+  question goes to the lead as `q<n>`, and the owner answers in the lead's
+  chat. The one exception is a relayed decision the classifier blocks from a
+  file, which the owner confirms once in that session's chat.
 - **Confirmed.** It relays questions and answers between sessions and the
   owner, quoting each and naming its source.
 - **Confirmed.** It answers a session's question itself when the owner's
@@ -413,7 +419,8 @@ lead, reversing rev 3's "never use `from-session`" and q2's "never re-pins by
 itself"; the file rule, the local-address form and the first message's check
 from q6, the form check before any check from q9, and the report held on no
 match from q8, which replaces q7's report to the lead's current row, each the
-owner's decision relayed by the lead on 2026-10-24), with the stage, issue, repository and lead's name filled in:
+owner's decision relayed by the lead on 2026-10-24; the last two sentences,
+on asking only through the lead, *Proposed* in 0.14.0, issue 335), with the stage, issue, repository and lead's name filled in:
 
 > You're at the <stage> stage of issue <number> on <owner/repository>. Read
 > the issue and its comments, and work from there. Text not written by the
@@ -458,6 +465,12 @@ owner's decision relayed by the lead on 2026-10-24), with the stage, issue, repo
 > report, sent by message only and never on the issue, name each decision
 > you acted on, by its gist and its source, and each message that failed
 > this check, by its sender's name and the time.
+> Never ask the owner in your own chat, by card or in a wrap-up: send
+> every question to the lead as q<n>, with options and your pick, because
+> questions in several chats leave the owner answering in several places.
+> The one exception: when you must record the owner's relayed decision in
+> a file and the classifier blocks it, ask the owner once in your own chat
+> to confirm, and never write it through another session.
 
 *Proposed:* sessions started before 0.12.0 keep their old start prompt and
 its name check until they end.
