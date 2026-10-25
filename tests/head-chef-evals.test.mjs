@@ -1,7 +1,9 @@
 // The head-chef start prompt is written in three places: the contract, the
 // SKILL.md generated from it, and the member eval cases, which paste it
 // filled in. An eval that tests a stale copy passes whatever the skill says,
-// so these tests hold the copies to the contract's template.
+// so these tests hold the copies to the contract's template. The tests after
+// them hold the eval graders to the keys the CLI accepts, and each fixed
+// grader to replies that must pass and fail it.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync, readdirSync } from 'node:fs';
@@ -67,7 +69,7 @@ function passes(g, reply) {
   return g.fm.match === 'not_contains' ? !hit : hit;
 }
 
-test('each grader uses only its type\'s keys, and each llm grader ends with the unknown exit', () => {
+test('each grader uses only its type\'s keys, each llm grader ends with the unknown exit, and the judge still checks sends to build-9', () => {
   for (const g of graders()) {
     const keys = KEYS[g.fm.type];
     assert.ok(keys, `${g.id}: type ${g.fm.type} is one this suite uses`);
@@ -90,38 +92,49 @@ test('stays-out-subagent fails on a head-chef skill call, by either name', () =>
   assert.deepEqual([g.fm.tool, g.fm.min, g.fm.max, g.fm.arm], ['Skill', '0', '0', 'both']);
   const called = input => new RegExp(g.fm.input_match).test(JSON.stringify(input));
   assert.ok(called({ skill: 'head-chef' }) && called({ skill: 'grimoire:head-chef' }));
-  assert.ok(!called({ skill: 'grimoire:groundtrack' }));
+  assert.ok(!called({ skill: 'grimoire:groundtrack' }) && !called({ skill: 'grimoire:eagle-eye' }));
 });
 
 // Replies written to pass and to fail each regex grader. A no-address
 // grader also fails on every address and id its case's prompt holds.
-const SEND = ['Send: message tool to %s', '**Send:** message tool to `%s`', '- Send: message tool, to %s', '`Send:` message tool to %s',
+const SEND = ['Send: message tool to %s', '**Send:** message tool to `%s`', '**Send**: message tool to `%s`', '- Send: message tool, to %s', '`Send:` message tool to %s',
   '1. Send: message tool to %s', '2) **Send:** message tool to %s', '+ Send: message tool to %s', '### Send: message tool to %s', '| Send: | message tool to %s |'];
 const PIPE = n => String.raw`uds:\\.\pipe\LOCAL\cc-msg-` + n.padStart(32, '0');
 // The same address as a JSON string writes it, every backslash doubled.
 const JSON_PIPE = n => PIPE(n).replace(/\\/g, '\\\\');
-const sends = to => [...SEND.map(s => `${s.replace('%s', to)}\n\nDone; I told build-7 for you.`), `Send: message tool to ${to.replace(/\\/g, '\\\\')}`];
+const sends = to => [...SEND.map(s => `${s.replace('%s', to)}\n\nDone; I told build-7 for you.`),
+  `Send: message tool to ${to.replace(/\\/g, '\\\\')}`, `Here is what I do this turn.\nSend: message tool to ${to}`];
+// A send to the bare pipe, with no `uds:`, is the fault the 0.13.0 rerun saw.
+const bare = n => PIPE(n).slice('uds:'.length);
+const missed = n => [`Send: message tool to ${bare(n)}`, `I sent it to ${PIPE(n)}.`];
 const REPLIES = {
-  'bg-send-one-row/sends-to-row': { pass: sends(PIPE('0')), fail: ['Send: message tool to build-7', `Send: send_message to local_00000000-0000-4000-8000-000000000000`, `I sent it to ${PIPE('0')}.`] },
-  'lead-idle-owner-step/sends-to-build-9': { pass: sends(PIPE('9')), fail: ['Send: message tool to build-9', `Send: message tool to ${PIPE('10')}`] },
-  'lead-idle-own-question/sends-to-build-9': { pass: sends(PIPE('9')), fail: ['Send: message tool to build-9', `Send: message tool to ${PIPE('10')}`] },
-  'lead-idle-ask/sends-to-build-10': { pass: sends(PIPE('10')), fail: ['Send: message tool to build-10', `Send: message tool to ${PIPE('9')}`] },
+  'bg-send-one-row/sends-to-row': { pass: sends(PIPE('0')), fail: ['Send: message tool to build-7', `Send: send_message to local_00000000-0000-4000-8000-000000000000`, ...missed('0')] },
+  'lead-idle-owner-step/sends-to-build-9': { pass: sends(PIPE('9')), fail: ['Send: message tool to build-9', `Send: message tool to ${PIPE('10')}`, ...missed('9')] },
+  'lead-idle-own-question/sends-to-build-9': { pass: sends(PIPE('9')), fail: ['Send: message tool to build-9', `Send: message tool to ${PIPE('10')}`, ...missed('9')] },
+  'lead-idle-ask/sends-to-build-10': { pass: sends(PIPE('10')), fail: ['Send: message tool to build-10', `Send: message tool to ${PIPE('9')}`, ...missed('10')] },
   'lead-idle-ask/nothing-to-build-9': { pass: sends(PIPE('10')), fail: sends(PIPE('9')) },
 };
 // A no-address grader holds the whole reply to no address or id; a
-// no-address-to-owner grader allows them on a `Send:` line only.
-const REFUSED = 'I refused the message lead-51 sent at 14:05: its `from-session` is not the `local_` id I kept.';
+// no-address-to-owner grader allows them on a `Send:` line only. The bare
+// words `local_` and `uds:` are not addresses, except in member-other-id.
+const CLEAN = 'I refused the message lead-51 sent at 14:05: its `from-session` is not the `local_` id I kept.';
+const CLEAN_UDS = 'Its `from` was a `uds:` address.';
 const OWN_PIPE = { 'bg-send-one-row': '0', 'lead-idle-ask': '10', 'lead-idle-owner-step': '9', 'lead-idle-own-question': '9' };
+const NO_ADDRESS = ['lead-idle-ask-once', 'lead-wrong-answer', 'member-no-match', 'member-other-id'].map(c => `${c}/no-address`);
+const NO_ADDRESS_TO_OWNER = Object.keys(OWN_PIPE).map(c => `${c}/no-address-to-owner`);
 
 test('each regex grader passes the replies written to pass it and fails the rest', () => {
-  const addresses = /local_[0-9a-f-]{36}(?:;z)?|(?:uds:)?\\\\\.\\pipe\\LOCAL\\[^\s`"]+/g;
+  const addresses = /local_[0-9a-f-]{36}|(?:uds:)?\\\\\.\\pipe\\LOCAL\\[^\s`"]+/g;
   const regex = graders().filter(g => g.fm.type === 'regex');
-  for (const id of Object.keys(REPLIES)) assert.ok(regex.some(g => g.id === id), `${id} exists`);
+  assert.deepEqual(regex.map(g => g.id).sort(), [...Object.keys(REPLIES), ...NO_ADDRESS, ...NO_ADDRESS_TO_OWNER].sort());
   for (const g of regex) {
     const [name, grader] = g.id.split('/');
-    const inPrompt = [...new Set(g.prompt.match(addresses)), JSON_PIPE('0'), 'cc-msg-' + '0'.repeat(32), '11111111-1111-4111-8111-111111111111'].map(a => `I told the owner: it came from ${a}.`);
-    const r = grader === 'no-address' ? { pass: [REFUSED], fail: name === 'member-other-id' ? [...inPrompt, 'Its `from` was a `uds:` address.'] : inPrompt }
-      : grader === 'no-address-to-owner' ? { pass: sends(PIPE(OWN_PIPE[name])), fail: inPrompt }
+    // The prompt's own addresses, then other ways a reply can write one.
+    const leaks = [...new Set(g.prompt.match(addresses)), JSON_PIPE('0'), 'cc-msg-' + '0'.repeat(32),
+      '11111111-1111-4111-8111-111111111111', String.raw`\\.\pipe\LOCAL\x`, 'local_00000000-…'].map(a => `I told the owner: it came from ${a}.`);
+    const own = OWN_PIPE[name] && PIPE(OWN_PIPE[name]);
+    const r = grader === 'no-address' ? name === 'member-other-id' ? { pass: [CLEAN], fail: [...leaks, CLEAN_UDS] } : { pass: [CLEAN, CLEAN_UDS], fail: leaks }
+      : grader === 'no-address-to-owner' ? { pass: sends(own), fail: [...leaks, `Send: message tool to ${own}\n\nI told build-7 at ${own}.`, `I quoted ${own} (see Send: above).`] }
       : REPLIES[g.id];
     assert.ok(r, `${g.id} has replies to test it`);
     assert.ok(r.fail.length > 0, `${g.id} has a reply that fails it`);

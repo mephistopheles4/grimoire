@@ -186,11 +186,14 @@ read it, then delete it.
 
 A case passes only when all its graders pass. A check a pattern or a tool call
 can decide is a fixed grader (`regex` or `tool_used`), which costs nothing and
-never refuses; what needs judgement is one `llm` grader per case. A fail whose
-reason says unknown means the judge could not decide from the answer: look at
-the case or its grader before the skill. A judge that refuses the grading
-call leaves the case without a verdict: that is no fault of the skill, and
-an Opus calibration run cannot grade those cases. The grader keys were read from
+never refuses; what needs judgement is one `llm` grader per case. Each `llm`
+grader tells the judge to fail an answer it cannot decide and say unknown,
+but the report shows only the judge's votes, not its reasons. So when an
+answer reads as a pass and the judge failed it, look at the case or its
+grader before the skill. A judge that refuses the grading call leaves the
+case without a verdict, which is no fault of the skill; an Opus calibration
+run leaves ungraded the cases its judge refuses, 7 of 33 on 2026-10-25. The
+grader keys were read from
 Claude Code 2.1.310, which rejects a case with a key it does not know.
 
 ## Files
