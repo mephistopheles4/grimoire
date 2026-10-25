@@ -222,7 +222,7 @@ const VIEW_ICONS: ReadonlyMap<string, string> = new Map([
 // the same way in its status colour. Each sits in a slot CHECK_CELLS_DESKTOP
 // wide, so the text beside it never moves when it is ticked.
 const UNTICKED_TERMINAL = ' '
-const CHECK_CELLS = 5
+const CHECK_CELLS_TERMINAL = 5
 const CHECK_CELLS_DESKTOP = 3
 
 // The module's own timers. A reload starts the module over and the engine
@@ -1675,7 +1675,9 @@ export const register: Register = on => {
           <Box flexDirection="row" columnGap={1} alignItems="center">
             {/* The checkbox: its own key and its own word, so a press on it
                 is never a to-do's tick. A card that waits on the owner has
-                none: the bar's one action, Dismiss, never takes it. */}
+                none: the bar's one action, Dismiss, never takes it.
+                On the terminal only; on a desktop the status mark below is
+                the checkbox. */}
             {terminal && !needs && (
               <Box flexShrink={0}>
                 {isPicked ? (
@@ -1691,10 +1693,10 @@ export const register: Register = on => {
             )}
             <Box flexDirection="column" flexGrow={1} flexShrink={1} minWidth={0}>
               <Box flexDirection="row" columnGap={1} alignItems="center">
-                {/* The status dot in the status colour: small on a card, full
-                    size on one that waits on the owner, whose title is bold.
-                    The terminal draws the status glyph, which reads without
-                    colour. */}
+                {/* The status mark in the status colour. On a desktop a waiting
+                    card's is a full-size dot and its title is bold; any other
+                    card's is its checkbox, below. The terminal draws the status
+                    glyph, which reads without colour. */}
                 <Box flexShrink={0}>
                   {terminal ? (
                     <Text color={look.color}>{look.glyph}</Text>
@@ -1909,11 +1911,10 @@ export const register: Register = on => {
       const isTicked = crossed.has(t.id)
       return (
         <Box flexDirection="row" alignItems="flex-start" columnGap={1} paddingX={terminal ? 0 : 'md'}>
-          {/* Blank and dim at rest, a tick once pressed; a second press inside
-              the grace period undoes it. The blank is as wide as the tick, and
-              the slot fixed, so neither the box nor the text moves when it is
-              ticked. */}
-          <Box flexShrink={0} {...(terminal ? { width: CHECK_CELLS } : { width: CHECK_CELLS_DESKTOP })}>
+          {/* Dim at rest (a blank on the terminal, a ○ on a desktop), a tick
+              once pressed; a second press inside the grace period undoes it.
+              The slot is fixed, so the text does not move when it is ticked. */}
+          <Box flexShrink={0} {...(terminal ? { width: CHECK_CELLS_TERMINAL } : { width: CHECK_CELLS_DESKTOP })}>
             {!terminal ? (
               <Button key={keyFor('todo', i, t.id)} plain dimColor={!isTicked} onPress={noop}>
                 {isTicked ? '✓' : '○'}
