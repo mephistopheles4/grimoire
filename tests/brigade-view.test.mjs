@@ -4737,3 +4737,25 @@ test('moves regroup working cards in the groups, the strip counts, the PR rows a
   const withPr = [{ ...cardOf('a', 'working'), pr: '5' }, { ...cardOf('b', 'working'), pr: '6' }];
   assert.equal(prRows(withPr, new Set(['b']), new Map(), 0, new Map([['b', 'waiting']])).open.length, 2);
 });
+
+// --- issue 379: the PR chip's link ------------------------------------------------
+
+test("the PR link is built from gh's checked repository and the card's number, and nothing else", () => {
+  const { prUrl } = view;
+  assert.equal(prUrl('o/r', '341'), 'https://github.com/o/r/pull/341');
+  assert.equal(prUrl('mephistopheles4/grimoire', '7'), 'https://github.com/mephistopheles4/grimoire/pull/7');
+  // A repository or number outside the shapes gh's answer is held to: no link.
+  for (const [repo, n] of [
+    ['', '341'],
+    ['o', '341'],
+    ['o/r/x', '341'],
+    ['o/r?x=1', '341'],
+    ['o/r#a', '341'],
+    ['../evil', '341'],
+    ['o/r', ''],
+    ['o/r', '0'],
+    ['o/r', '12345678'],
+    ['o/r', '34a'],
+    ['o/r', '341/../../x'],
+  ]) assert.equal(prUrl(repo, n), undefined, `${repo} ${n}`);
+});
