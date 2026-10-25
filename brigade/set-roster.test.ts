@@ -3854,6 +3854,43 @@ for (const surface of SURFACES) {
       expect(all.some(n => n.type === 'Svg' && n.props.alt === '#341, open')).toBe(true)
     } else {
       expect((links[0].children ?? []).map(spoken).join('')).toBe('#341')
+      // The linked number keeps its state's colour.
+      expect(all.find(n => n.type === 'Text' && (n.children ?? []).some((k: any) => k?.type === 'Link' && k.props.href.endsWith('/341')))?.props.color).toBe('success')
+    }
+  })
+}
+
+// --- issue 405: the Pull requests tab's chips open the pull request ---------------
+
+for (const surface of SURFACES) {
+  test(`${surface}: a Pull requests row links to the PR gh answered for, from gh's repository and the row's number only`, async ($, on) => {
+    // 341 is answered; 342 is a fork's, so no answer. Every free-text field
+    // of alpha's carries a link gh never named.
+    const evil = 'https://github.com/evil/repo/pull/9'
+    const cards = [{ ...PRS.cards[0], title: `alpha ${evil}`, work: evil, phase: evil, settings: evil }, PRS.cards[1], PRS.cards[2], card('delta', { status: 'done', pr: '343', prState: 'open' })]
+    const w = world(on, w => {
+      w.dirs(BRIGADE)
+      w.put(FILE, { type: 'file', data: { text: JSON.stringify({ cards, todos: [] }) } })
+      w.ghOut = JSON.stringify([ghPr(341), ghPr(342, { state: 'MERGED', isCrossRepository: true }), ghPr(343, { state: 'MERGED' })])
+    })
+    on('session.receive', (_: any, e: any) => e)
+    await start($)
+    await brigade($)
+    await w.clock.settle()
+    const m = await mountOn($, surface)
+    await m.press({ key: 'view-prs' })
+    const all = await nodes(m)
+    const links = all.filter(n => n.type === 'Link')
+    // A merged row gh answered for links too; the fork's does not.
+    expect(links.map(l => l.props.href).sort()).toEqual(['https://github.com/o/r/pull/341', 'https://github.com/o/r/pull/343'])
+    if (surface === 'desktop') {
+      expect((links[0].children ?? []).map(spoken).join('')).toBe('↗')
+      expect((await textOf(m)).includes('Open pull request #341')).toBe(true)
+      expect(all.some(n => n.type === 'Svg' && n.props.alt === '#341, open')).toBe(true)
+    } else {
+      expect((links[0].children ?? []).map(spoken).join('')).toBe('#341')
+      // The linked number keeps its state's colour.
+      expect(all.find(n => n.type === 'Text' && (n.children ?? []).some((k: any) => k?.type === 'Link' && k.props.href.endsWith('/341')))?.props.color).toBe('success')
     }
   })
 }
