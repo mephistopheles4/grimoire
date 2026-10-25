@@ -154,7 +154,11 @@ need, without overwhelming me or showing me too much.
   row fresh before each send under the status-file rule, prints that one
   row's address only, and keeps it in this chat only. It sends only to a
   local address: a pipe under `\\.\pipe\` on Windows, or an absolute socket
-  path elsewhere. *Proposed* (q9): the matched row's `name` must also be the
+  path elsewhere. *Proposed* (issue 388, the owner's decision, relayed by the
+  lead, 2026-10-24): the message tool's `to` is `uds:` followed by the
+  row's `messagingSocketPath`, never the bare path; for a row whose path is
+  `\\.\pipe\LOCAL\cc-msg-<hex>`, the `to` is
+  `uds:\\.\pipe\LOCAL\cc-msg-<hex>`. *Proposed* (q9): the matched row's `name` must also be the
   name it gave the session. When no row matches, two rows match, the name
   differs, or the address is not local, it sends nothing to that session and
   tells the owner. It never sends to a session by its Desktop id or with

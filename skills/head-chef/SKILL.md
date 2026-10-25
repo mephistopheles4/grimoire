@@ -182,7 +182,10 @@ the desktop app.
 ## Between the owner and the sessions
 
 - Send to every session with the agent's message tool, to the
-  `messagingSocketPath` on its row: the row whose `hostSessionId` equals the
+  `messagingSocketPath` on its row, with the message tool's `to` set to
+  `uds:` followed by that path, never the bare path: for a row whose path is
+  `\\.\pipe\LOCAL\cc-msg-<hex>`, send to `uds:\\.\pipe\LOCAL\cc-msg-<hex>`.
+  The row is the one whose `hostSessionId` equals the
   Desktop id you kept for a Desktop session, or whose `jobId` equals the id
   you kept for a background session. Read it fresh before each send, under
   the status-file rule, printed for that one row only, and keep it in this
