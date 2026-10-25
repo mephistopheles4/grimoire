@@ -3997,8 +3997,8 @@ for (const surface of SURFACES) {
       expect([pickButton.props.plain, pickButton.props.label]).toEqual([true, '○'])
       expect([todoButton.props.plain, todoButton.props.label, todoButton.props.dimColor]).toEqual([true, '○', true])
       // Both sit in a slot of one width, so the text beside never moves.
-      expect([pick?.width, pick?.overflow]).toEqual([2, undefined])
-      expect([todo?.width, todo?.overflow]).toEqual([2, undefined])
+      expect([pick?.width, pick?.overflow]).toEqual([3, undefined])
+      expect([todo?.width, todo?.overflow]).toEqual([3, undefined])
     } else {
       expect([pickButton.props.plain, pickButton.props.label]).toEqual([undefined, ' '])
       expect([todoButton.props.plain, todoButton.props.label]).toEqual([undefined, ' '])

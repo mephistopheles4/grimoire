@@ -223,7 +223,7 @@ const VIEW_ICONS: ReadonlyMap<string, string> = new Map([
 // wide, so the text beside it never moves when it is ticked.
 const UNTICKED_TERMINAL = ' '
 const CHECK_CELLS = 5
-const CHECK_CELLS_DESKTOP = 2
+const CHECK_CELLS_DESKTOP = 3
 
 // The module's own timers. A reload starts the module over and the engine
 // drops the old timers with it.
@@ -1704,7 +1704,7 @@ export const register: Register = on => {
                     // On a desktop the dot is the card's checkbox, drawn as
                     // a to-do's is: a circle in the status colour, a tick once
                     // selected, in a slot that keeps the title still.
-                    <Box width={CHECK_CELLS_DESKTOP} justifyContent="center">
+                    <Box width={CHECK_CELLS_DESKTOP} flexShrink={0}>
                       <Button key={keyFor('pick', i, c.title)} plain onPress={noop}>
                         <Text color={look.color}>{isPicked ? '✓' : '○'}</Text>
                       </Button>
@@ -1913,7 +1913,7 @@ export const register: Register = on => {
               the grace period undoes it. The blank is as wide as the tick, and
               the slot fixed, so neither the box nor the text moves when it is
               ticked. */}
-          <Box flexShrink={0} {...(terminal ? { width: CHECK_CELLS } : { width: CHECK_CELLS_DESKTOP, justifyContent: 'center' })}>
+          <Box flexShrink={0} {...(terminal ? { width: CHECK_CELLS } : { width: CHECK_CELLS_DESKTOP })}>
             {!terminal ? (
               <Button key={keyFor('todo', i, t.id)} plain dimColor={!isTicked} onPress={noop}>
                 {isTicked ? '✓' : '○'}
