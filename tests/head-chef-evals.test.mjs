@@ -86,7 +86,8 @@ test('each grader uses only its type\'s keys, and each llm grader ends with the 
 
 test('stays-out-subagent fails on a head-chef skill call, by either name', () => {
   const g = graders().find(g => g.id === 'stays-out-subagent/no-head-chef');
-  assert.deepEqual([g.fm.tool, g.fm.max, g.fm.arm], ['Skill', '0', 'both']);
+  // min defaults to 1, so a grader with max: 0 alone could never pass.
+  assert.deepEqual([g.fm.tool, g.fm.min, g.fm.max, g.fm.arm], ['Skill', '0', '0', 'both']);
   const called = input => new RegExp(g.fm.input_match).test(JSON.stringify(input));
   assert.ok(called({ skill: 'head-chef' }) && called({ skill: 'grimoire:head-chef' }));
   assert.ok(!called({ skill: 'grimoire:groundtrack' }));
