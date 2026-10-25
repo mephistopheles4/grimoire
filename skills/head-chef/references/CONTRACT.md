@@ -170,7 +170,7 @@ need, without overwhelming me or showing me too much.
   owner's decision, relayed by the lead, 2026-10-24): a session idle for over
   1 hour, by its row's `statusUpdatedAt`, gets no such message; the new
   address reaches it with the next message the lead sends it anyway, and the
-  line to the owner names it. Until then a report it sends is held, not lost:
+  line to the owner names it. Until then a report it sends is held in its own chat and not resent:
   the session's check finds no file pairing the lead's id with the old
   address, so it holds the report and says so in its own chat. The fallback
   send by the lead's name covers only a send that fails, not this hold.

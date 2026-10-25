@@ -69,7 +69,7 @@ or type `/brigade` to open it.
 - **Decides small questions** your direction already covers, and tells you in
   one line.
 - **Watches** for a session that is blocked, quiet, or done without
-  reporting, and messages it to ask.
+  reporting, and messages it to ask. Before it messages a session idle for over an hour, it tells you the message makes that session re-read its whole context at full price, and asks first, offering cheaper routes; a reply to the session's own question, or a step you asked for by name, needs no ask.
 - **Keeps the Brigade pane** in the same step as each act, while the pane is
   open.
 - **Cleans up** on your "done": one name-back of each session, its worktree
@@ -101,7 +101,7 @@ lead's latest message. Before it takes one, or reports, it checks that a
 status file pairs the lead's id with that address, and holds the report
 when none does: once a lead ends, another program can take its address. The
 head chef notices when its own address changes after a restart, and messages
-each session, so their next reports follow it. So renaming or restarting the lead
+each session idle for under an hour, so their next reports follow it; a session idle for longer gets the new address with the next message it is sent, and holds its reports until then. So renaming or restarting the lead
 should no longer cut its sessions off, as long as the lead's Desktop id stays
 the same; that is expected, not yet measured, until a field run shows it.
 The first message is checked against the status files too. A program of
