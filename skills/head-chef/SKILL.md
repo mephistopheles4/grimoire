@@ -50,7 +50,7 @@ must do, or every rule and step shown at once.
 Read the engine's status files for each turn's checks. The engine keeps one
 small file per running session in the `sessions` folder of the Claude config
 folder. Read a file only when its name is digits and `.json` and it is not a
-link, and keep only its `name`, `sessionId` and `status` fields, its
+link, and keep only its `name`, `sessionId`, `status` and `statusUpdatedAt` fields, its
 `hostSessionId` and `jobId` only where one equals an id you kept (compare
 inside the command), plus `cwd` at cleanup, a session's
 `messagingSocketPath` before a send to it, and your own row's
@@ -67,6 +67,16 @@ From those reads:
 - Notice a session that is blocked, quiet, or done without reporting, and
   message it to ask. A session whose status is idle, with no report since the
   last message you sent it, counts as quiet.
+- Before you message a session whose status has been idle for over 1 hour,
+  by its row's `statusUpdatedAt`, tell the owner in one line that the message
+  makes the session re-read its whole context at full price, and ask first.
+  With the question, offer the cheaper routes: do the step in this chat when
+  it is a few commands; brief a fresh, small session for it; or, when the
+  session's work is done, clean it up and keep its result. Don't ask for a
+  reply to that session's own question, or for a step the owner asked for by
+  name. This covers the message to a quiet session too. Ask once per idle
+  spell: after the owner's no, don't ask again about that session until its
+  status changes.
 - Track and report only the sessions you started or the owner handed you.
 
 ## Starting a session
@@ -172,7 +182,10 @@ the desktop app.
 ## Between the owner and the sessions
 
 - Send to every session with the agent's message tool, to the
-  `messagingSocketPath` on its row: the row whose `hostSessionId` equals the
+  `messagingSocketPath` on its row, with the message tool's `to` set to
+  `uds:` followed by that path, never the bare path: for a row whose path is
+  `\\.\pipe\LOCAL\cc-msg-<hex>`, send to `uds:\\.\pipe\LOCAL\cc-msg-<hex>`.
+  The row is the one whose `hostSessionId` equals the
   Desktop id you kept for a Desktop session, or whose `jobId` equals the id
   you kept for a background session. Read it fresh before each send, under
   the status-file rule, printed for that one row only, and keep it in this
@@ -187,7 +200,12 @@ the desktop app.
 - Each turn, read your own row's `messagingSocketPath`, and keep it in this
   chat only. When it differs from the one you saw on your last turn, you were
   restarted: send each of your sessions a short message, so their next
-  reports follow your new address, and tell the owner in one line.
+  reports follow your new address, and tell the owner in one line. Skip a
+  session idle for over 1 hour, by its row's `statusUpdatedAt`: the new
+  address reaches it with the next message you send it anyway, and your line
+  to the owner names it. Until then it holds its reports, since its check
+  finds no file pairing your id with the old address. A report held this way
+  stays in that session's chat and is not resent; later reports reach you.
 - As soon as a session's row shows after its start, send it one short first
   message asking it to answer at once; with no row by your next turn after
   the start report, send nothing and tell the owner. Count the answer only

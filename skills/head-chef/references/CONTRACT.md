@@ -1,6 +1,6 @@
 # Contract: head-chef
 
-Version: 0.12.1
+Version: 0.13.0
 Kind: skill
 Level: Thorough
 
@@ -154,7 +154,11 @@ need, without overwhelming me or showing me too much.
   row fresh before each send under the status-file rule, prints that one
   row's address only, and keeps it in this chat only. It sends only to a
   local address: a pipe under `\\.\pipe\` on Windows, or an absolute socket
-  path elsewhere. *Proposed* (q9): the matched row's `name` must also be the
+  path elsewhere. *Proposed* (issue 388, the owner's decision, relayed by the
+  lead, 2026-10-24): the message tool's `to` is `uds:` followed by the
+  row's `messagingSocketPath`, never the bare path; for a row whose path is
+  `\\.\pipe\LOCAL\cc-msg-<hex>`, the `to` is
+  `uds:\\.\pipe\LOCAL\cc-msg-<hex>`. *Proposed* (q9): the matched row's `name` must also be the
   name it gave the session. When no row matches, two rows match, the name
   differs, or the address is not local, it sends nothing to that session and
   tells the owner. It never sends to a session by its Desktop id or with
@@ -166,7 +170,17 @@ need, without overwhelming me or showing me too much.
   `messagingSocketPath`, keeping it in this chat only. When it differs from
   the one it saw on its last turn, it has been restarted: it sends each of
   its sessions a short message, so their next reports follow its new
-  address, and tells the owner in one line.
+  address, and tells the owner in one line. *Proposed* (issue 388, q4, the
+  owner's decision, relayed by the lead, 2026-10-24): a session idle for over
+  1 hour, by its row's `statusUpdatedAt`, gets no such message; the new
+  address reaches it with the next message the lead sends it anyway, and the
+  line to the owner names it. Until then a report it sends is held in its own chat and not resent:
+  the session's check finds no file pairing the lead's id with the old
+  address, so it holds the report and says so in its own chat. The fallback
+  send by the lead's name covers only a send that fails, not this hold.
+  *Proposed* (q6 on issue 388, the owner's decision, relayed by the lead,
+  2026-10-24): a report held this way stays in that session's chat and is
+  not resent; later reports reach the lead.
 - *Proposed.* As soon as a session's row shows after its start, it sends the
   session one short first message, asking it to answer at once; with no row
   by its next turn after the start report, it sends nothing and tells the
@@ -191,6 +205,19 @@ need, without overwhelming me or showing me too much.
 - **Confirmed.** It notices a session that is blocked, quiet, or done without
   reporting, and messages it to ask. A session whose status is idle, with no
   report since the last message it was sent, counts as quiet.
+- *Proposed* (issue 388, q1–q4, the owner's decisions, relayed by the lead,
+  2026-10-24). Before it messages a session whose status has been idle for
+  over 1 hour, by its row's `statusUpdatedAt`, it tells the owner in one line
+  that the message makes the session re-read its whole context at full
+  price, and asks first. With the question it offers the cheaper routes: do
+  the step in this chat when it is a few commands; brief a fresh, small
+  session for it; or, when the session's work is done, clean it up and keep
+  its result. It does not ask for a reply to that session's own question, or
+  for a step the owner asked for by name. *Proposed* (q7 on issue 388, the
+  owner's decision, relayed by the lead, 2026-10-24): this ask covers the
+  message to a quiet session above too. It asks once per idle spell: after the
+  owner's no, it does not ask again about that session until its status
+  changes.
 - **Confirmed.** It knows its own name from its own row: the row whose
   session id is its own.
 - **Decided.** On the owner's "done", it archives each session, then removes
@@ -332,8 +359,8 @@ yes keeps for the owner.
   cost; `claude agents --json` only where a file cannot answer, such as a new
   session with no file yet.
 - **Confirmed.** It reads a status file only when its name is digits and
-  `.json` and it is not a link, and it keeps only `name`, `sessionId` and
-  `status`, plus `cwd` at cleanup, with one command that prints only those
+  `.json` and it is not a link, and it keeps only `name`, `sessionId`,
+  `status` and (*Proposed*, issue 388) `statusUpdatedAt`, plus `cwd` at cleanup, with one command that prints only those
   fields (*Proposed:* plus `hostSessionId` and `jobId`, compared inside the
   command and printed only for a row that matches an id it kept, a
   session's `messagingSocketPath` before a send to it, and its own row's
