@@ -4744,6 +4744,9 @@ test("the PR link is built from gh's checked repository and the card's number, a
   const { prUrl } = view;
   assert.equal(prUrl('o/r', '341'), 'https://github.com/o/r/pull/341');
   assert.equal(prUrl('mephistopheles4/grimoire', '7'), 'https://github.com/mephistopheles4/grimoire/pull/7');
+  // The longest owner and name gh's answer holds, and a name with dots.
+  assert.equal(prUrl(`${'a'.repeat(39)}/${'r'.repeat(100)}`, '1'), `https://github.com/${'a'.repeat(39)}/${'r'.repeat(100)}/pull/1`);
+  assert.equal(prUrl('o/r.js', '1'), 'https://github.com/o/r.js/pull/1');
   // A repository or number outside the shapes gh's answer is held to: no link.
   for (const [repo, n] of [
     ['', '341'],
@@ -4752,6 +4755,11 @@ test("the PR link is built from gh's checked repository and the card's number, a
     ['o/r?x=1', '341'],
     ['o/r#a', '341'],
     ['../evil', '341'],
+    ['o/..', '341'],
+    ['o/.', '341'],
+    ['-o/r', '341'],
+    [`${'a'.repeat(40)}/r`, '341'],
+    [`o/${'r'.repeat(101)}`, '341'],
     ['o/r', ''],
     ['o/r', '0'],
     ['o/r', '12345678'],

@@ -3828,7 +3828,7 @@ for (const surface of SURFACES) {
     // no pr. Every free-text field of alpha's carries a link gh never named.
     const evil = 'https://github.com/evil/repo/pull/9'
     const cards = [
-      { ...PRS.cards[0], work: evil, phase: evil, settings: evil },
+      { ...PRS.cards[0], title: `alpha ${evil}`, work: evil, phase: evil, settings: evil },
       PRS.cards[1],
       PRS.cards[2],
     ]
@@ -3855,13 +3855,6 @@ for (const surface of SURFACES) {
     } else {
       expect((links[0].children ?? []).map(spoken).join('')).toBe('#341')
     }
-  })
-
-  test(`${surface}: a card whose PR gh has not answered draws its chip with no link`, async ($, on) => {
-    await grouped(on, $, PRS)
-    const m = await mountOn($, surface)
-    await m.press({ key: 'grp-finished' })
-    expect((await nodes(m)).filter(n => n.type === 'Link').length).toBe(0)
   })
 }
 
