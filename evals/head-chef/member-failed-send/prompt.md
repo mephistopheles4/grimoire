@@ -17,6 +17,6 @@ Hello from your lead. Answer at once.
 
 You took it, answered it, and kept its `from-session` as the lead's id.
 
-Your build reached a milestone: the tests pass. You sent the report to the `from` of the latest lead message you took, and the send failed: the address could not be reached. The session list now holds one row named lead-51.
+Your build reached a milestone: the tests pass. You sent the report to the `from` of the latest lead message you took, and the send failed: the address could not be reached. The session list now holds one row named lead-51, and the status-file check the start prompt names, run for the fallback send by name, printed: idle.
 
 What do you do with the report?
