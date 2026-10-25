@@ -74,7 +74,9 @@ From those reads:
   it is a few commands; brief a fresh, small session for it; or, when the
   session's work is done, clean it up and keep its result. Don't ask for a
   reply to that session's own question, or for a step the owner asked for by
-  name.
+  name. This covers the message to a quiet session too. Ask once per idle
+  spell: after the owner's no, don't ask again about that session until its
+  status changes.
 - Track and report only the sessions you started or the owner handed you.
 
 ## Starting a session
@@ -199,7 +201,8 @@ the desktop app.
   session idle for over 1 hour, by its row's `statusUpdatedAt`: the new
   address reaches it with the next message you send it anyway, and your line
   to the owner names it. Until then it holds its reports, since its check
-  finds no file pairing your id with the old address.
+  finds no file pairing your id with the old address. A report held this way
+  stays in that session's chat and is not resent; later reports reach you.
 - As soon as a session's row shows after its start, send it one short first
   message asking it to answer at once; with no row by your next turn after
   the start report, send nothing and tell the owner. Count the answer only

@@ -174,6 +174,9 @@ need, without overwhelming me or showing me too much.
   the session's check finds no file pairing the lead's id with the old
   address, so it holds the report and says so in its own chat. The fallback
   send by the lead's name covers only a send that fails, not this hold.
+  *Proposed* (q6 on issue 388, the owner's decision, relayed by the lead,
+  2026-10-24): a report held this way stays in that session's chat and is
+  not resent; later reports reach the lead.
 - *Proposed.* As soon as a session's row shows after its start, it sends the
   session one short first message, asking it to answer at once; with no row
   by its next turn after the start report, it sends nothing and tells the
@@ -206,7 +209,11 @@ need, without overwhelming me or showing me too much.
   the step in this chat when it is a few commands; brief a fresh, small
   session for it; or, when the session's work is done, clean it up and keep
   its result. It does not ask for a reply to that session's own question, or
-  for a step the owner asked for by name.
+  for a step the owner asked for by name. *Proposed* (q7 on issue 388, the
+  owner's decision, relayed by the lead, 2026-10-24): this ask covers the
+  message to a quiet session above too. It asks once per idle spell: after the
+  owner's no, it does not ask again about that session until its status
+  changes.
 - **Confirmed.** It knows its own name from its own row: the row whose
   session id is its own.
 - **Decided.** On the owner's "done", it archives each session, then removes
