@@ -153,9 +153,14 @@ way only on the owner's words choosing that route. Then:
    in this chat only, and its session id from the status-file row whose
    `jobId` equals that id. When it prints no id, when no row carries that
    id by your next turn after the start report, or when two rows carry it,
-   it did not start: tell the owner in one line, keep nothing, write no
-   card, and retry by no other route. With two rows, the session may still
-   run: tell the owner it may need removing by hand.
+   it did not start: tell the owner in one line, the failure notice, keep
+   nothing, write no card, and retry by no other route. Make no offer to
+   retry by any route, command or session you name, the background route
+   included. With two rows, the session may still run: after the failure
+   notice, tell the owner it may need removing by hand, and you may name
+   `claude stop` and `claude rm` for the owner to run, with no id, path or
+   error text. Never take up either row later; a new start needs the owner's
+   words again.
 3. **Check its first prompt.** Read only the transcript named by that row's
    session id, in the `projects` folder of the Claude config folder, up to
    its first user entry. The session id must be a UUID, and the file must

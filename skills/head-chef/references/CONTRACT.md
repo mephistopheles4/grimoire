@@ -1,6 +1,6 @@
 # Contract: head-chef
 
-Version: 0.14.0
+Version: 0.15.0
 Kind: skill
 Level: Thorough
 
@@ -123,9 +123,18 @@ need, without overwhelming me or showing me too much.
   id, when no status-file row carries the kept id by its next turn after
   the start report, or (*Proposed*, q9) when two rows carry it; with two
   rows the session may still run, and it tells the owner it may need
-  removing by hand. A session that shows as offline for Remote Control still
-  runs: it keeps its id and card, and tells the owner to open it from
+  removing by hand. A session that shows as offline for Remote Control
+  still runs: it keeps its id and card, and tells the owner to open it from
   `claude agents`.
+- *Proposed* (q5, the owner's words, relayed by the lead). After any failed
+  background start it makes no offer to retry by any route, command or
+  session it names, the background route included.
+- *Proposed* (q6, the lead's decision under the owner's auto-mode
+  instruction). For every failed background start, the one line is the
+  failure notice. With two rows, the removal warning follows it and may name
+  `claude stop` and `claude rm` for the owner to run, with no id, path or
+  error text. It never takes up either row later; a new start needs the
+  owner's words again.
 - **Confirmed.** It sets a session's model and effort with Desktop's setters.
 - **Confirmed.** The start report gives the 5-hour and weekly usage, read
   with Desktop's usage tool.
@@ -560,7 +569,7 @@ its text.
 | Whether the engine's status files keep their shape across Claude Code versions, `jobId` and `messagingSocketPath` included | they are the engine's own files, not a published interface | a few Claude Code updates pass with no change, or one breaks it and the fallback holds | **Confirmed**; *Proposed* for the two added fields |
 | What changes the lead's Desktop id: a rename, a stop and reopen, an end and reopen, and `/clear`; what a send from the phone over Remote Control carries in `from-session`; and what a session's own `/compact` does to its kept id. A messaging address changes on a restart (measured on a background session, 2026-10-24), so a session reports to the latest lead message's `from`. A stale Remote Control row on another machine that holds the lead's name makes the first message's check refuse; the head chef then sees no answer and tells the owner | the probe for issue 386 ran only its first step; the owner chose to skip the rest ("Skip the probe, ship both", relayed by the lead, 2026-10-24), and does not use `/clear`; the stale row was seen in the session list the same day | a field run shows each case, or a session cut off by one is reported (measured on Claude Code 2.1.302) | *Proposed* |
 | Whether cleanup moves behind a typed `/brigade done`, gated by the Brigade mod | a mod hook refusing Desktop's archive tool and git's remove commands is unproven, and so is a command typed over Remote Control | a probe shows the hook can refuse those calls, and the gate is built | **Decided** |
-| Whether the eval cases cover the skill in use | the practice test was retired at 0.9.0, and the eval cases in `evals/head-chef/` take its place; the full suite runs once on Haiku before each head-chef merge, on the owner's yes, and on the lead's model when budget allows; the cases are kept and grow with the skill (the owner, relayed by the lead, 2026-10-24) | each merge's Haiku run passes, or a failure seen in use adds a case | **Confirmed** |
+| Whether the eval cases cover the skill in use | the practice test was retired at 0.9.0, and the eval cases in `evals/head-chef/` take its place; the suite runs once on Haiku, with an Opus judge (`--judge-model opus`), when the owner asks for a run, and never as a standing step before a merge; the cases are kept and grow with the skill | a run the owner asked for passes, or a failure seen in use adds a case | **Decided** for running on the owner's request and never per merge; *Proposed* for the Opus judge and for dropping the extra run on the lead's model (q3) |
 
 **When to retire it** (**Confirmed**): Claude Desktop itself starts, briefs
 and cleans up sessions as well as this does, or the owner stops leading
