@@ -91,6 +91,7 @@ import {
   pillColor,
   pillSvg,
   pillState,
+  prUrl,
   prNumber,
   prRows,
   readCalls,
@@ -1405,7 +1406,7 @@ export const register: Register = on => {
 
   on('ui.render', { component: 'Pane', requestId: PANE }, async ($, e) => {
     const table = $.ui.resolve(e)
-    const { Box, Text, Button } = table
+    const { Box, Text, Button, Link } = table
     // The render only reads the stored reading: it fetches none.
     const Svg = 'Svg' in table ? table.Svg : undefined
     // The clock moves the warmth line and the ages too: the roster timer's
@@ -1653,6 +1654,7 @@ export const register: Register = on => {
       const age = ageText(c.since, now)
       const number = prNumber(c)
       const answer = number === undefined ? undefined : ghAnswers.get(Number(number))
+      const href = number === undefined || answer === undefined ? undefined : prUrl(answer.repo, number)
       // The actions: on Desktop hidden until the pointer is on the row, in the
       // terminal always shown. A card that waits on the owner has no Dismiss.
       const actions =
@@ -1721,8 +1723,23 @@ export const register: Register = on => {
                 {actions}
                 {number !== undefined && (
                   <Box flexShrink={0}>
-                    {answer === undefined ? pill(number, pillState(undefined, c.prState)) : tip(`pill-${i}`, pill(number, pillState(answer.state, c.prState)), answer.repo)}
+                    {answer === undefined ? (
+                      pill(number, pillState(undefined, c.prState))
+                    ) : href !== undefined && Image === undefined ? (
+                      <Text color={pillColor(pillState(answer.state, c.prState))}>
+                        <Link href={href}>{`#${number}`}</Link>
+                      </Text>
+                    ) : (
+                      tip(`pill-${i}`, pill(number, pillState(answer.state, c.prState)), answer.repo)
+                    )}
                   </Box>
+                )}
+                {/* The PR's page, only for a number gh answered (it drops a
+                    fork's): where images draw a Link holds no image, so an
+                    arrow beside the pill, named in a tooltip; the terminal's
+                    link is the number itself, above. */}
+                {href !== undefined && Image !== undefined && (
+                  <Box flexShrink={0}>{tip(`prlink-${i}`, <Text><Link href={href}>↗</Link></Text>, `Open pull request #${number}`)}</Box>
                 )}
                 <Box flexShrink={0}>
                   {/* Idle on a working card is bold as well as amber: the flip

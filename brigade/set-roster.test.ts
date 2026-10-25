@@ -3820,6 +3820,44 @@ test('a PR from a fork gets no title, counts or state: the card draws its own ti
   expect(text.includes('alpha · +')).toBe(false)
 })
 
+// --- issue 379: the PR chip opens the pull request ---------------------------------
+
+for (const surface of SURFACES) {
+  test(`${surface}: a card's PR chip links to the PR gh answered for, from gh's repository and the card's number only`, async ($, on) => {
+    // alpha's 341 is answered; beta's 342 is a fork's, so no answer; gamma has
+    // no pr. Every free-text field of alpha's carries a link gh never named.
+    const evil = 'https://github.com/evil/repo/pull/9'
+    const cards = [
+      { ...PRS.cards[0], title: `alpha ${evil}`, work: evil, phase: evil, settings: evil },
+      PRS.cards[1],
+      PRS.cards[2],
+    ]
+    const w = world(on, w => {
+      w.dirs(BRIGADE)
+      w.put(FILE, { type: 'file', data: { text: JSON.stringify({ cards, todos: [] }) } })
+      w.ghOut = JSON.stringify([ghPr(341), ghPr(342, { state: 'MERGED', isCrossRepository: true })])
+    })
+    on('session.receive', (_: any, e: any) => e)
+    await start($)
+    await brigade($)
+    await w.clock.settle()
+    const m = await mountOn($, surface)
+    await m.press({ key: 'grp-finished' })
+    const all = await nodes(m)
+    const links = all.filter(n => n.type === 'Link')
+    expect(links.map(l => l.props.href)).toEqual(['https://github.com/o/r/pull/341'])
+    // On Desktop the image pill stays, the link is a small arrow beside it,
+    // named in a tooltip; the terminal's link is the number itself.
+    if (surface === 'desktop') {
+      expect((links[0].children ?? []).map(spoken).join('')).toBe('↗')
+      expect((await textOf(m)).includes('Open pull request #341')).toBe(true)
+      expect(all.some(n => n.type === 'Svg' && n.props.alt === '#341, open')).toBe(true)
+    } else {
+      expect((links[0].children ?? []).map(spoken).join('')).toBe('#341')
+    }
+  })
+}
+
 // --- the views ------------------------------------------------------------------
 
 for (const surface of SURFACES) {

@@ -1,6 +1,6 @@
 {
   "name": "grimoire",
-  "version": "0.78.2",
+  "version": "0.79.1",
   "description": "A spellbook of agent skills for AI. Cast wisely. Four skills: eagle-eye, which lays coupled decisions out as a morphological box and renders one self-contained page that reads any configuration back; groundtrack, which turns a plan or a written change into a call graph with recorded traces through it, on a page a reader can step; contract, which interviews a person to agree the terms for a skill, an agent or a CLAUDE.md of their own, then generates its file from that contract and validates it; and head-chef, which makes a Claude Desktop session the lead of the sessions it starts, with their model and effort set, their milestone reports, relays between them, and cleanup when the owner says a session is done. And one pane for Claude Code: Brigade, opened with /brigade or when the head-chef skill loads, which shows the sessions a lead session started as compact rows, each with its phase, live busy or idle state, age, cache warmth, latest report and pull request, behind a switch between a Sessions view and a Pull requests view, with a coloured pill for each pull request and the lead session's own rate limits and context. The pull request details need the GitHub command line tool, gh, installed, signed in, and run in a GitHub repository.",
   "author": {
     "name": "Ayman Diab",
