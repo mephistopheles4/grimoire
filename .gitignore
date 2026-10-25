@@ -15,3 +15,6 @@ Thumbs.db
 # never an artifact the site publishes.
 *.interview.json
 !skills/contract/examples/release-notes.interview.json
+# Output of claude plugin eval runs. It can hold local paths and session text,
+# so it is read, summarised on the issue, and deleted, never committed.
+evals/results/

@@ -169,16 +169,20 @@ sent keep it too.
 
 ## Running the eval cases
 
-The cases in `evals/head-chef/` run once on Haiku before each head-chef
-merge, on your yes, and on the lead's model when budget allows:
+The cases in `evals/head-chef/` run once on Haiku, with an Opus judge,
+only when you ask for a run, never as part of merging:
 
 ```bash
-claude plugin eval <repo> --model haiku --runs 1 --ablation none --no-publish --max-cost-usd 2
+claude plugin eval <repo> --model haiku --judge-model opus --runs 1 --ablation none --no-publish --max-cost-usd 2
 ```
 
-To run one case, add `--case <name>`; a second `--case` replaces the first.
-On 2026-10-24 two cases on Haiku cost under a cent each and took 19 and 29
-seconds.
+`--judge-model` was checked on Claude Code 2.1.310; the judge is Haiku
+without it. To run one case, add `--case <name>`; a second `--case` replaces
+the first. On 2026-10-24 two cases on Haiku, with a Haiku judge, cost under a
+cent each and took 19 and 29 seconds. An Opus judge cost about $0.02 a case in
+the Opus-judged runs on 2026-10-24, so a full run costs roughly $0.75, an
+estimate. A run writes
+its report to `evals/results/`, which git ignores; read it, then delete it.
 
 ## Files
 
