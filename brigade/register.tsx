@@ -220,10 +220,15 @@ const VIEW_ICONS: ReadonlyMap<string, string> = new Map([
 // a four-per-em space: 0.75 em, the width of the ✓ (0.749 em, measured in
 // Segoe UI's fallback), so the box keeps its size when ticked. The terminal
 // draws every one of them a cell wide, so it keeps one plain space. The slot
-// is as wide as the terminal's `[ ✓ ]`.
+// is as wide as the terminal's `[ ✓ ]`. Since late October 2026 a desktop
+// gives a native button a minimum width the label no longer sets, so there
+// each box sits in a slot of CHECK_CELLS_DESKTOP that clips the rest (#396);
+// ticked and unticked share it. The terminal draws neither slot.
 const UNTICKED = '\u{2002}\u{2005}'
 const UNTICKED_TERMINAL = ' '
 const CHECK_CELLS = 5
+const CHECK_CELLS_DESKTOP = 3
+const CHECK_CLIP = { width: CHECK_CELLS_DESKTOP, overflow: 'hidden' } as const
 
 // The module's own timers. A reload starts the module over and the engine
 // drops the old timers with it.
@@ -1677,7 +1682,7 @@ export const register: Register = on => {
                 is never a to-do's tick. A card that waits on the owner has
                 none: the bar's one action, Dismiss, never takes it. */}
             {!needs && (
-              <Box flexShrink={0}>
+              <Box flexShrink={0} {...(terminal ? {} : CHECK_CLIP)}>
                 {isPicked ? (
                   <Button key={keyFor('pick', i, c.title)} onPress={noop}>
                     ✓
@@ -1908,7 +1913,7 @@ export const register: Register = on => {
               the grace period undoes it. The blank is as wide as the tick, and
               the slot fixed, so neither the box nor the text moves when it is
               ticked. */}
-          <Box width={CHECK_CELLS} flexShrink={0}>
+          <Box flexShrink={0} {...(terminal ? { width: CHECK_CELLS } : CHECK_CLIP)}>
             {isTicked ? (
               <Button key={keyFor('todo', i, t.id)} onPress={noop}>
                 ✓

@@ -3989,8 +3989,18 @@ for (const surface of SURFACES) {
     const blank = surface === 'desktop' ? '\u{2002}\u{2005}' : ' '
     expect((await m.find({ key: 'pick-0-one' })).props.label).toBe(blank)
     expect((await m.find({ key: 'todo-0-t1' })).props.label).toBe(blank)
-    expect(boxAround(all, (c: any) => c?.props?.key === 'pick-0-one')?.props.width).toBeUndefined()
-    expect(boxAround(all, (c: any) => c?.props?.key === 'todo-0-t1')?.props.width).toBe(5)
+    // A desktop clips both boxes to one fixed slot, so a native button's
+    // minimum width cannot widen them (#396); the terminal's slots are as
+    // before.
+    const pick = boxAround(all, (c: any) => c?.props?.key === 'pick-0-one')?.props
+    const todo = boxAround(all, (c: any) => c?.props?.key === 'todo-0-t1')?.props
+    if (surface === 'desktop') {
+      expect([pick?.width, pick?.overflow]).toEqual([3, 'hidden'])
+      expect([todo?.width, todo?.overflow]).toEqual([3, 'hidden'])
+    } else {
+      expect([pick?.width, pick?.overflow]).toEqual([undefined, undefined])
+      expect([todo?.width, todo?.overflow]).toEqual([5, undefined])
+    }
     const ticks = () => w.log.filter(l => l.startsWith('state ticking')).length
     await m.press({ key: 'pick-0-one' })
     await m.press({ key: 'pick-1-two' })
