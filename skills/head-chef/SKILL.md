@@ -153,8 +153,12 @@ way only on the owner's words choosing that route. Then:
    `jobId` equals that id. When it prints no id, when no row carries that
    id by your next turn after the start report, or when two rows carry it,
    it did not start: tell the owner in one line, keep nothing, write no
-   card, and retry by no other route. With two rows, the session may still
-   run: tell the owner it may need removing by hand.
+   card, and retry by no other route. End with no offer to retry by any
+   route, command or session you name. With two rows, the session may still
+   run: after that line, tell the owner it may need removing by hand, and
+   you may name `claude stop` and `claude rm` for the owner to run, with no
+   id. Never take up either row later; a new start needs the owner's words
+   again.
 3. **Check its first prompt.** Read only the transcript named by that row's
    session id, in the `projects` folder of the Claude config folder, up to
    its first user entry. The session id must be a UUID, and the file must

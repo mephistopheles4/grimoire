@@ -1,6 +1,6 @@
 # Contract: head-chef
 
-Version: 0.13.1
+Version: 0.15.0
 Kind: skill
 Level: Thorough
 
@@ -123,7 +123,14 @@ need, without overwhelming me or showing me too much.
   id, when no status-file row carries the kept id by its next turn after
   the start report, or (*Proposed*, q9) when two rows carry it; with two
   rows the session may still run, and it tells the owner it may need
-  removing by hand. A session that shows as offline for Remote Control still
+  removing by hand. (*Proposed*, issue 392, q5, the owner's words relayed
+  by the lead, 2026-10-25) It ends with no offer to retry by any route,
+  command or session it names. (*Proposed*, issue 392, q6, the lead's
+  decision under the owner's auto-mode instruction, 2026-10-25) The one line
+  is the failure notice; with two rows the removal warning follows it, and
+  may name `claude stop` and `claude rm` for the owner to run, with no id.
+  It never takes up either row later; a new start needs the owner's words
+  again. A session that shows as offline for Remote Control still
   runs: it keeps its id and card, and tells the owner to open it from
   `claude agents`.
 - **Confirmed.** It sets a session's model and effort with Desktop's setters.
