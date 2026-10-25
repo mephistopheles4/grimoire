@@ -886,6 +886,12 @@ export const pillColor = (state: unknown): string | undefined => (typeof state =
  *  else open. The card's is passed on as stored; the Map decides its colour. */
 export const pillState = (gh: string | undefined, card: unknown): string => gh ?? (typeof card === 'string' ? card : 'open')
 
+/** The PR chip's link: GitHub's page for the card's number in the repository
+ *  `gh` answered with, each held again to the shape `gh`'s answer is read to,
+ *  so no card text reaches the URL. Anything else: no link. */
+export const prUrl = (repo: string, n: string): string | undefined =>
+  /^[A-Za-z0-9][A-Za-z0-9-]{0,38}\/[A-Za-z0-9._-]{1,100}$/.test(repo) && !['.', '..'].includes(repo.split('/')[1] ?? '') && /^[1-9][0-9]{0,6}$/.test(n) ? `https://github.com/${repo}/pull/${n}` : undefined
+
 /** A pull request row: the card it comes from, its place in the roster, its
  *  number, the state it is grouped by, its title and the dim line's parts. */
 export type PrRow = {
