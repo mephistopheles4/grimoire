@@ -4014,6 +4014,11 @@ for (const surface of SURFACES) {
     expect([bar?.props.borderStyle, bar?.props.borderColor, bar?.props.backgroundColor]).toEqual(surface === 'desktop' ? ['round', '#3a3a38', '#262625'] : ['round', 'inactive', 'subtle'])
     await m.press({ key: 'todo-0-t1' })
     expect(ticks()).toBeGreaterThan(0)
+    // Ticked, both boxes keep the slot they had unticked.
+    const after = await nodes(m)
+    const slot = (key: string) => { const p = boxAround(after, (c: any) => c?.props?.key === key)?.props; return [p?.width, p?.overflow] }
+    expect(slot('pick-0-one')).toEqual([pick?.width, pick?.overflow])
+    expect(slot('todo-0-t1')).toEqual([todo?.width, todo?.overflow])
     // The tick selected nothing: still the two cards.
     expect((await textOf(m)).includes('2 selected')).toBe(true)
     // A second press on a card's box unselects it.
