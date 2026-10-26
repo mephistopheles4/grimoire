@@ -4372,7 +4372,7 @@ test('the chosen view reads through the fixed set: anything but prs or decisions
 
 test('the folded groups keep only names from the fixed seven, at most 50, from the first 200 entries', () => {
   // Spec 402 adds the Decisions tab's History, folded by default (S5.4).
-  assert.deepEqual([...GROUP_KEYS], ['waiting', 'working', 'finished', 'pr-open', 'pr-merged', 'pr-closed', 'd-history']);
+  assert.deepEqual([...GROUP_KEYS], ['waiting', 'working', 'finished', 'pr-open', 'pr-merged', 'pr-closed', 'd-flagged', 'd-history']);
   assert.deepEqual(foldedFrom(['finished', 'pr-open']), ['finished', 'pr-open']);
   assert.deepEqual(foldedFrom(['finished', 'finished']), ['finished']);
   assert.deepEqual(foldedFrom(['__proto__', 'constructor', 'toString', 'Finished', 5, null, {}, 'working']), ['working']);

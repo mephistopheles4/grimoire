@@ -136,8 +136,9 @@ declare module 'claude-code' {
       /** The selected cards' titles, at most 50. Cleared when /brigade or a skill load
        *  opens the pane. Checked again before use. */
       picked: string[]
-      /** The folded groups, from the fixed set of six group keys: set to
-       *  the finished group each time the pane opens, and flipped by a press.
+      /** The folded groups, from the fixed set of group keys: set to the
+       *  finished group and the Decisions tab's Flagged and History each
+       *  time the pane opens, and flipped by a press.
        *  Checked again before use. */
       folded: string[]
       /** The permission warning is shown in this session: set by its tool. */

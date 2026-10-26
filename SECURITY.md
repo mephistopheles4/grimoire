@@ -206,8 +206,10 @@ KiB, and past a cap it drops only entries the owner marked read and did not
 flag, oldest first; with nothing to drop it refuses and the file is
 unchanged. To tell which entries are read it lists the `brigade/marks/`
 folder and reads every marks file there. When the owner presses "✓ Read,
-next" in the pane's Decisions tab, the pane writes a mark, the log's session
-id, the entry's id and time, the state and the press time, to its own
+next", "⚑ Flag" or "⚑ Unflag" in the pane's Decisions tab, or Dismiss on its
+picked Flagged rows (since 0.82.0, spec 402 ticket 2), the pane writes a mark
+for each entry, the log's session id, the entry's id and time, the state
+(read, flagged or unflagged) and the press time, in one write, to its own
 session's marks file, `brigade/marks/<session id>.json`, at most 2,000 marks
 and 64 KiB. Both files go only where the roster's link-refusing path rule
 allows, overwrite only a file that passes the strict check of its own kind,

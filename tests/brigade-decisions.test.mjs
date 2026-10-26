@@ -17,8 +17,8 @@ import { readFileSync } from 'node:fs';
 const d = await import('../brigade/decisions.ts');
 const {
   MAX_ENTRIES, MAX_LOG_BYTES, MAX_MARKS, HISTORY_PAGE,
-  appendEntry, checkInput, checkLog, checkMarks, emptyLog, addMark, mergeMarks, markKey,
-  reviewQueue, historyRows, matchesSearch, searchWords, serializeLog, serializeMarks,
+  appendEntry, checkInput, checkLog, checkMarks, emptyLog, addMark, addMarks, mergeMarks, markKey,
+  reviewQueue, flaggedRows, historyRows, matchesSearch, searchWords, serializeLog, serializeMarks,
   sha256Hex, projectDigest, sourceLabel, writerName, missingIds,
 } = d;
 
@@ -445,6 +445,40 @@ test('claim 10: Lead, Relayed by the writer, and a waiting entry draw as their s
   assert.equal(sourceLabel({ ...e, source: 'lead' }, 'lead-a'), 'Lead');
   assert.equal(sourceLabel({ ...e, source: 'relayed' }, 'lead-a'), 'Relayed by lead-a');
   assert.equal(sourceLabel({ ...e, source: 'relayed' }, 'an ended session'), 'Relayed by an ended session');
+});
+
+// --- claim 9: Flagged to revisit and Dismiss ------------------------------------------------
+
+test('claim 9: Flagged holds the entries whose latest mark is flagged, oldest first across the logs, and the search filters it', () => {
+  const ls = logs();
+  ls[0].log.entries[2].work = 'needle';
+  const m = (sid, id, at, state, when) => ({ log: sid, id, entryAt: at, state, at: when });
+  const states = mergeMarks([
+    { kind: 'marks', v: 1, marks: [m(SID, '3', NOW + 2, 'flagged', NOW + 5), m(OTHER, '2', NOW - 9, 'flagged', NOW + 5), m(SID, '1', NOW, 'flagged', NOW + 5)] },
+    // Unflagged later, in another file: no longer flagged.
+    { kind: 'marks', v: 1, marks: [m(SID, '1', NOW, 'unflagged', NOW + 6), m(SID, '2', NOW + 1, 'read', NOW + 6)] },
+  ], NOW + 10);
+  const rows = flaggedRows(ls, states, []);
+  assert.deepEqual(rows.map(r => [r.sid, r.entry.id]), [[OTHER, '2'], [SID, '3']]);
+  assert.deepEqual(flaggedRows(ls, states, searchWords('NEEDLE')).map(r => [r.sid, r.entry.id]), [[SID, '3']]);
+  assert.deepEqual(flaggedRows(ls, new Map(), []), []);
+});
+
+test('claim 9: Dismiss adds every picked mark in one file; past the cap old marks drop, never a new one, and the file given is unchanged', () => {
+  const mark = i => ({ log: OTHER, id: String(i + 1), entryAt: NOW, state: 'read', at: NOW + i });
+  let file = { kind: 'marks', v: 1, marks: [] };
+  for (let i = 0; i < MAX_MARKS; i++) file = addMark(file, mark(i), new Set());
+  const before = JSON.stringify(file);
+  const oldest = file.marks[0].at;
+  const picked = [0, 1, 2].map(i => ({ log: SID, id: String(i + 1), entryAt: NOW, state: 'unflagged', at: NOW + 9000 }));
+  const next = addMarks(file, picked, new Set());
+  assert.equal(JSON.stringify(file), before);
+  assert.deepEqual(next.marks.slice(-3), picked);
+  assert.ok(!next.marks.slice(0, -3).some(x => x.log === SID), 'no new mark dropped');
+  assert.ok(!next.marks.some(x => x.at === oldest), 'the oldest old mark dropped');
+  const old = next.marks.slice(0, -3);
+  assert.deepEqual(old, file.marks.slice(file.marks.length - old.length), 'the old marks kept are the newest, in order');
+  assert.ok('value' in serializeMarks(next));
 });
 
 // --- claim 8: search ------------------------------------------------------------------------

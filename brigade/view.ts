@@ -783,8 +783,9 @@ function shownLook(c: unknown, hidden: ReadonlySet<unknown>, moves?: Moves): Sta
 
 /** The groups that fold, in the order the pane draws them: the Sessions
  *  view's three, the Pull requests view's three and the Decisions tab's
- *  History. The tab's To review takes a name and a hint here, and never folds. */
-export const GROUP_KEYS: readonly string[] = ['waiting', 'working', 'finished', 'pr-open', 'pr-merged', 'pr-closed', 'd-history']
+ *  Flagged to revisit and History. The tab's To review takes a name and a
+ *  hint here, and never folds. */
+export const GROUP_KEYS: readonly string[] = ['waiting', 'working', 'finished', 'pr-open', 'pr-merged', 'pr-closed', 'd-flagged', 'd-history']
 
 /** A group's name on its section bar. */
 export const GROUP_NAMES: ReadonlyMap<string, string> = new Map([
@@ -795,6 +796,7 @@ export const GROUP_NAMES: ReadonlyMap<string, string> = new Map([
   ['pr-merged', 'Merged'],
   ['pr-closed', 'Closed'],
   ['d-review', 'To review'],
+  ['d-flagged', 'Flagged to revisit'],
   ['d-history', 'History'],
 ])
 
@@ -807,6 +809,7 @@ export const GROUP_HINTS: ReadonlyMap<string, string> = new Map([
   ['pr-merged', 'Nothing merged yet.'],
   ['pr-closed', 'No closed pull requests.'],
   ['d-review', 'All caught up. New decisions land here.'],
+  ['d-flagged', 'Nothing flagged.'],
   ['d-history', 'No decision logged yet.'],
 ])
 
@@ -819,7 +822,7 @@ export const MAX_PICKED = 50
 /** The chosen view: `prs` or `decisions` only when exactly that word, else `sessions`. */
 export const viewFrom = (stored: unknown): 'sessions' | 'prs' | 'decisions' => (stored === 'prs' || stored === 'decisions' ? stored : 'sessions')
 
-/** The folded groups: names from the fixed six only, no repeat, from the
+/** The folded groups: names from the fixed set only, no repeat, from the
  *  first 200 entries, at most 50 kept. Anything else reads as none. */
 export function foldedFrom(stored: unknown): string[] {
   if (!Array.isArray(stored)) return []

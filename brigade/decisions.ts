@@ -414,19 +414,24 @@ export function mergeMarks(files: readonly MarksFile[], now: number): Map<string
 /** The file with one mark added. Past 2,000 marks or 64 KiB, marks for
  *  entries in no log the pane read (not in `known`) drop first, then the
  *  oldest by mark time. The new mark never drops. */
-export function addMark(file: MarksFile | undefined, mark: Mark, known: ReadonlySet<string>): MarksFile {
-  const marks = [...(file?.marks ?? []), mark]
+export const addMark = (file: MarksFile | undefined, mark: Mark, known: ReadonlySet<string>): MarksFile => addMarks(file, [mark], known)
+
+/** The file with several marks added at once, as Dismiss writes them, under
+ *  the same cap rule; none of the new marks drops. */
+export function addMarks(file: MarksFile | undefined, added: readonly Mark[], known: ReadonlySet<string>): MarksFile {
+  const marks = [...(file?.marks ?? []), ...added]
   const sizes = marks.map(m => bytes(JSON.stringify(m)))
   let total = bytes('{"kind":"marks","v":1,"marks":[]}') + sizes.reduce((a, b) => a + b, 0) + marks.length - 1
-  while ((marks.length > MAX_MARKS || total > MAX_MARKS_BYTES) && marks.length > 1) {
+  while ((marks.length > MAX_MARKS || total > MAX_MARKS_BYTES) && marks.length > added.length) {
+    const old = marks.length - added.length
     let pick = -1
-    for (let i = 0; i < marks.length - 1; i++) {
+    for (let i = 0; i < old; i++) {
       const m = marks[i]
       if (known.has(markKey(m.log, m.id, m.entryAt))) continue
       if (pick < 0 || m.at < (marks[pick]?.at ?? 0)) pick = i
     }
     if (pick < 0) {
-      for (let i = 0; i < marks.length - 1; i++) if (pick < 0 || (marks[i]?.at ?? 0) < (marks[pick]?.at ?? 0)) pick = i
+      for (let i = 0; i < old; i++) if (pick < 0 || (marks[i]?.at ?? 0) < (marks[pick]?.at ?? 0)) pick = i
     }
     total -= (sizes[pick] ?? 0) + 1
     marks.splice(pick, 1)
@@ -480,6 +485,14 @@ export function reviewQueue(logs: readonly ReadLog[], states: ReadonlyMap<string
   const at = order.findIndex(r => !skipped.has(rowKey(r)))
   const i = at < 0 ? 0 : at
   return { order, head: order[i] as Row | undefined, n: i + 1, total: order.length }
+}
+
+/** Flagged to revisit: every entry across the logs read whose latest mark is
+ *  flagged and that matches the search, oldest first, as To review is. */
+export function flaggedRows(logs: readonly ReadLog[], states: ReadonlyMap<string, MarkState>, words: readonly string[]): Row[] {
+  return rowsOf(logs)
+    .filter(r => states.get(rowKey(r)) === 'flagged' && matchesSearch(r.entry, r.writer, words))
+    .sort(oldestFirst)
 }
 
 /** History: every entry across the logs read that matches the search, newest
