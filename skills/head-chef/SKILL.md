@@ -243,9 +243,10 @@ On the owner's "done", for each session named:
 
 1. **Check first.** Take its worktree only from the `git worktree list` entry
    whose path is the session's own folder, as its status file's `cwd` gives
-   it. Check that `git -C <worktree> status --porcelain` shows no uncommitted
-   or untracked work, that `git -C <worktree> log --oneline <branch> --not
-   --remotes` shows no commit and `git -C <worktree> stash list` no entry for
+   it. Check that `git -C <worktree> status --porcelain --untracked-files=normal
+   --ignore-submodules=none` shows no uncommitted or untracked work, that
+   `git -C <worktree> log --format=%h -n 1 <branch> --not --remotes` shows no
+   commit and `git -C <worktree> stash list` no entry for
    its branch, that no other running session's folder is inside that
    worktree, that the session is one you started or the owner handed you, and
    that its Desktop id's title reads back as the session you kept. For a
@@ -256,11 +257,20 @@ On the owner's "done", for each session named:
    worktree entry, when two status files hold one session id, or when the
    folder is the main working tree. Stop too unless the worktree's git
    folder, from `git -C <worktree> rev-parse --git-dir --git-common-dir`,
-   sits in the lead repository's `worktrees` folder. Run every cleanup git
-   command with `-c core.fsmonitor=false`, so no repository setting runs a
-   program in the lead.
+   sits in the lead repository's `worktrees` folder, the path followed by `/`.
+   Run every cleanup git command with `--no-optional-locks`,
+   `-c core.fsmonitor=false` and `-c log.showSignature=false`, so no
+   index-write hook, file watcher or signing program runs in the lead. When
+   the worktree holds submodules, add the checks inside each one that
+   `references/submodule-cleanup.md` gives.
 2. **Name back the whole list,** side sessions included, and wait for one yes
-   (stop 2 below). Mark each background session as one.
+   (stop 2 below). Mark each background session as one. For a worktree with
+   submodules, say that a force would delete each submodule's ignored files
+   and its own history store, unrecoverably, including any commit that only a
+   stale, self-written or otherwise mismatched remote-tracking ref, a graft
+   or a commit-graph hides, changes hidden by an assume-unchanged or
+   skip-worktree flag or a filter driver, unpushed Git LFS objects, a submodule's own linked
+   worktrees, and reflogs switched off by config.
 3. **On that yes, run the checks again** without asking again. A check that
    now refuses is stop 3.
 4. **Archive the session first,** with Desktop's archive tool. Git on a live
@@ -270,15 +280,21 @@ On the owner's "done", for each session named:
    `cwd` must be the folder `-w <name>` made, `.claude/worktrees/<name>` in
    the lead repository, or it is stop 3. `claude stop` removes its
    status-file row, so read everything you need from the row before it.
-   After `claude stop`, run `git -C <worktree> status --porcelain` again: any
+   After `claude stop`, run `git -C <worktree> status --porcelain
+   --untracked-files=normal --ignore-submodules=none` again: any
    output is stop 3, and `claude rm` does not run.
    `claude rm` removes a clean worktree and its branch, and refuses one with
    uncommitted work or an unpushed commit. Never pass `--discard-unpushed` or
    `--force-remove-worktree`, and never discard the session from
    `claude agents`, whatever `rm` advises: a refusal is stop 3.
-5. **Then remove with git what the archive left:** read `git worktree list`
-   again, remove a worktree still there with `git worktree remove`, and
-   delete the branch with `git branch -d`.
+5. **Then remove with git what the archive left:** read
+   `git worktree list --porcelain` and the running sessions' `cwd` again: if a
+   running session's folder is the worktree or inside it, it is stop 3. Remove
+   a worktree still there with `git worktree remove`, and delete the branch
+   with `git branch -d`. When plain `git worktree remove` refuses a worktree
+   with submodules, follow `references/submodule-cleanup.md`: its checks
+   pass, or it is stop 3, and then one `git worktree remove --force`, never
+   doubled.
 6. **Update the Brigade pane** in the same step: the card goes.
 
 ## Who decides
@@ -301,7 +317,8 @@ Each stop is fixed. The head chef stops and asks:
    its branch, in one list, and waits for one yes.
 3. When a cleanup check refuses, or a removal fails partway: it stops the
    cleanup and tells the owner what is left, never forcing or deleting
-   recursively.
+   recursively. The one exception is the forced remove of a worktree with
+   submodules, once its checks pass.
 4. When a session reports a decision the head chef never sent: it tells the
    owner at once.
 5. When a message is not delivered: it tells the owner, and does not resend
@@ -334,12 +351,19 @@ decide what a stop or the owner's yes keeps for the owner.
   `claude agents --json` only where a file cannot answer.
 - **gh:** read a session's issue, and post on it. Every act on GitHub names
   its repository, never the clone's default.
-- **git:** `git worktree list`, `git -C <worktree> status --porcelain`,
+- **git:** `git worktree list`, `git -C <worktree> status --porcelain
+  --untracked-files=normal --ignore-submodules=none`,
   `git -C <worktree> rev-parse --git-dir --git-common-dir`,
-  `git -C <worktree> log --oneline <branch> --not --remotes`,
+  `git -C <worktree> log --format=%h -n 1 <branch> --not --remotes`,
   `git -C <worktree> stash list`,
   `git worktree remove` and `git branch -d`, for cleanup, each with
-  `-c core.fsmonitor=false`.
+  `--no-optional-locks`, `-c core.fsmonitor=false` and
+  `-c log.showSignature=false`. For a worktree
+  with submodules, also `git worktree list --porcelain`, `git -C <worktree>
+  submodule status --recursive`, `submodule foreach` with the four inner
+  commands in `references/submodule-cleanup.md`, a read-only listing of the
+  `objects` and `commondir` entries under the worktree's admin `modules` folder, and, once,
+  `git worktree remove --force`.
 - **The Brigade mod:** `mcp__grimoire__show_permission_warning` for the warning, and
   `set_roster` for the pane. Read `references/roster.md` before your first
   `set_roster` call in a session.
@@ -347,11 +371,12 @@ decide what a stop or the owner's yes keeps for the owner.
 Limits:
 
 - Never use a forcing flag, a recursive delete, or a command that discards
-  work.
-- No session id, Desktop id, token, secret, local path or error text goes on
-  an issue, a card, a to-do or a start prompt. Two exceptions: a roster card
-  carries its session's Desktop id, which the pane's Open in app needs, and a
-  background session's card carries its job id as `bgId`.
+  work. The one exception is the single forced remove in
+  `references/submodule-cleanup.md`, never doubled.
+- No session id, Desktop id, token, secret, local path, error text or check
+  output goes on an issue, a card, a to-do or a start prompt. Two exceptions:
+  a roster card carries its session's Desktop id, which the pane's Open in app
+  needs, and a background session's card carries its job id as `bgId`.
 - `claude rm` is the one tree removal you run besides git's, and never with
   a flag.
 - Run the checks and the removals as separate calls. When a folder will not
@@ -451,6 +476,8 @@ prompt. The first three rules are fixed.
 
 ## Additional resources
 
+- `references/submodule-cleanup.md`: the checks and the one forced remove for
+  a worktree with submodules. Read when cleanup meets one.
 - `references/roster.md`: the shape of a `set_roster` call, its caps, and
   what each refusal means. Read before your first `set_roster` call in a
   session.
