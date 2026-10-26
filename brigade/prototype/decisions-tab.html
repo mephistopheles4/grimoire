@@ -1,0 +1,346 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>PROTOTYPE 402 Decisions tab</title>
+<!--
+  PROTOTYPE for issue 402. Throwaway: nothing here merges.
+  Question: what should a third Brigade tab, Decisions, look like?
+  Three variants of the Decisions tab inside a mock of the docked Brigade pane,
+  switchable with ?variant=A|B|C and the floating bar (or the arrow keys).
+  The pane mock draws only what the mod UI already draws: Desktop's dark fills
+  (DARK_FILLS in brigade/register.tsx), section bars with a fold arrow, icon
+  buttons with a tooltip, primary or dim buttons, and a ○ that a press turns into ✓.
+  All rows are invented sample data; state is in memory only.
+-->
+<style>
+:root {
+  --pane: #1a1a19; --bar: #2b2b2a; --hover: #262625; --tip: #3a3a38;
+  --text: #ececea; --dim: #9b9a95; --rule: #333331;
+  --primary: #d97757; --success: #6fbf73; --warning: #e0b050; --info: #7aa7e0; --error: #e06c6c;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: #111110; color: var(--text); font: 13px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif; }
+.stage { display: flex; gap: 24px; padding: 24px 16px 96px; justify-content: center; flex-wrap: wrap; }
+.chat { flex: 0 1 520px; min-width: 0; color: var(--dim); border: 1px dashed var(--rule); border-radius: 8px; padding: 16px; height: 760px; }
+.chat h2 { color: var(--text); font-size: 14px; margin: 0 0 8px; }
+.chat p { margin: 0 0 8px; }
+.pane { flex: 0 0 380px; max-width: 100%; height: 760px; background: var(--pane); border-radius: 8px; border: 1px solid var(--rule); display: flex; flex-direction: column; overflow: hidden; }
+.pane-title { padding: 8px 12px; border-bottom: 1px solid var(--rule); font-weight: 600; display: flex; justify-content: space-between; }
+.pane-title span { color: var(--dim); font-weight: 400; }
+.body { flex: 1; overflow-y: auto; padding: 8px 12px; display: flex; flex-direction: column; }
+.row { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.grow { flex: 1; min-width: 0; }
+.trunc { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.dim { color: var(--dim); }
+.foot { font-size: 11.5px; }
+button { font: inherit; color: var(--text); background: var(--bar); border: 0; border-radius: 6px; padding: 3px 8px; cursor: pointer; }
+button:hover { background: var(--tip); }
+button.primary { background: var(--primary); color: #1a1a19; }
+button.dimbtn { color: var(--dim); }
+button.plain { background: none; padding: 0; }
+button.plain:hover { background: none; color: #fff; }
+.tipwrap { position: relative; }
+.tipwrap .tiptext { display: none; position: absolute; top: 28px; right: 0; background: var(--tip); padding: 2px 8px; border-radius: 4px; white-space: nowrap; z-index: 5; }
+.tipwrap:hover .tiptext { display: block; }
+.bar { background: var(--bar); border-radius: 6px; padding: 3px 8px; margin: 10px 0 4px; display: flex; gap: 6px; align-items: center; cursor: pointer; user-select: none; }
+.bar .count { color: var(--dim); }
+.bar:hover .count { color: var(--text); }
+.hint { color: var(--dim); padding: 6px 24px; }
+.item { padding: 6px 8px; border-radius: 6px; cursor: pointer; }
+.item:hover { background: var(--hover); }
+.item + .item { margin-top: 2px; }
+.tick { flex: 0 0 22px; text-align: center; cursor: pointer; color: var(--dim); }
+.tick.on { color: var(--success); }
+.src { flex: 0 0 auto; font-size: 11px; padding: 0 6px; border-radius: 4px; }
+.src.lead { background: #22324a; color: var(--info); }
+.src.owner { background: #1f3423; color: var(--success); }
+.flag { color: var(--warning); }
+.read .pick, .read .when { color: var(--dim); }
+.detail { margin: 6px 0 2px 28px; display: grid; gap: 4px; }
+.detail .k { color: var(--dim); font-size: 11.5px; }
+.detail ul { margin: 0; padding-left: 16px; }
+.detail li.chosen { color: var(--text); }
+.detail li { color: var(--dim); }
+.actions { display: flex; gap: 6px; margin-top: 4px; flex-wrap: wrap; }
+.filters { display: flex; gap: 4px; flex-wrap: wrap; margin: 6px 0 2px; }
+.auto { display: flex; align-items: center; gap: 8px; padding: 6px 8px; border-radius: 6px; background: var(--hover); margin-top: 4px; }
+.auto.on { box-shadow: inset 3px 0 0 var(--primary); }
+.switch { width: 30px; height: 16px; border-radius: 8px; background: var(--tip); position: relative; flex: 0 0 auto; cursor: pointer; }
+.switch::after { content: ""; position: absolute; top: 2px; left: 2px; width: 12px; height: 12px; border-radius: 50%; background: var(--dim); transition: left .12s; }
+.switch.on { background: var(--primary); }
+.switch.on::after { left: 16px; background: #fff; }
+.lock { color: var(--dim); font-size: 11px; }
+.handoff h4 { margin: 8px 0 2px; font-size: 11.5px; color: var(--dim); font-weight: 600; }
+.handoff ul { margin: 0; padding-left: 18px; }
+.card { background: var(--hover); border-radius: 8px; padding: 10px; display: grid; gap: 6px; margin-top: 6px; }
+.card .q { color: var(--dim); }
+.card .p { font-weight: 600; }
+.usage { border-top: 1px solid var(--rule); padding: 8px 12px; }
+.usage .meter { height: 6px; border-radius: 3px; background: var(--bar); overflow: hidden; margin: 2px 0 4px; }
+.usage .meter i { display: block; height: 100%; background: var(--success); }
+.stub { color: var(--dim); padding: 16px 4px; }
+.note { margin: 10px 0 0; font-size: 11.5px; color: var(--warning); }
+.switcher { position: fixed; left: 50%; bottom: 16px; transform: translateX(-50%); background: #fff; color: #111; border-radius: 999px; padding: 6px 10px; display: flex; gap: 10px; align-items: center; box-shadow: 0 6px 24px rgba(0,0,0,.5); font-size: 13px; z-index: 50; max-width: calc(100vw - 32px); flex-wrap: wrap; justify-content: center; }
+.switcher button { background: #111; color: #fff; border-radius: 999px; }
+.switcher .state { font: 11px ui-monospace, Consolas, monospace; color: #555; }
+</style>
+</head>
+<body>
+<div class="stage">
+  <div class="chat">
+    <h2>PROTOTYPE · issue 402 · Decisions tab</h2>
+    <p>The right column is a mock of the docked Brigade pane on Desktop, with a third tab added beside Sessions and Pull requests. Only the Decisions tab is drawn; the other two are stubs.</p>
+    <p>Flip the variant with the white bar at the foot, or the arrow keys. Each variant puts the same parts together a different way: the decision log, the Read tick, Flag to revisit, the filters, the lead's hand-off and the auto-mode switch.</p>
+    <p>Use the bar's <b>Auto mode default</b> button to see the tab with auto mode starting on or off. That default is an open question for the spec: nothing here settles it.</p>
+    <p>Every row is invented sample data. Nothing is saved: a reload starts fresh.</p>
+  </div>
+  <div class="pane" id="pane"></div>
+</div>
+<div class="switcher" id="switcher"></div>
+
+<script>
+const VARIANTS = [
+  ['A', 'Ruled log'],
+  ['B', 'Review queue'],
+  ['C', 'By session'],
+]
+// Invented sample decisions, newest first. Fields follow the 2026-10-25 register:
+// at, source (lead | owner), session, work, question, options, pick, why, undo, revisit.
+const DECISIONS = [
+  { id: 'd9', at: '2026-10-26T11:32', source: 'lead', session: 'sample-412', work: 'issue 412', question: 'The spec pair disagree on whether the cache key needs the locale. Fold the finding or defer it?', options: ['Fold it into the spec now', 'Defer with a named trigger', 'Ask the owner'], pick: 'Fold it into the spec now', why: 'Cheap to reverse and the standing instruction covers spec findings with a clear fix.', undo: 'Revert the spec commit that adds the locale to the key.', revisit: 'When 412 reaches Test' },
+  { id: 'd8', at: '2026-10-26T10:58', source: 'owner', session: 'sample-388', work: 'PR 391', question: 'Merge 391 now, or wait for the batched visual check?', options: ['Wait for the batched check', 'Merge now'], pick: 'Wait for the batched check', why: 'The owner prefers one Desktop check per chain.', undo: 'None needed: nothing merged.', revisit: '' },
+  { id: 'd7', at: '2026-10-26T10:41', source: 'lead', session: 'sample-412', work: 'issue 412', question: 'Model for the build session?', options: ['Sonnet, medium (tier default)', 'Opus, high'], pick: 'Sonnet, medium (tier default)', why: 'Standard tier, nothing on the sensitive list.', undo: 'Stop the session and restart it on Opus.', revisit: '' },
+  { id: 'd6', at: '2026-10-26T09:15', source: 'lead', session: 'sample-405', work: 'issue 405', question: 'A lens report names a flaky test. File a follow-up or note it?', options: ['Note it in the review record', 'File a follow-up issue'], pick: 'Note it in the review record', why: 'The review already filed two follow-ups, the cost limit.', undo: 'File the issue from the note.', revisit: 'Next retro' },
+  { id: 'd5', at: '2026-10-26T08:02', source: 'owner', session: 'lead', work: 'brigade', question: 'Start the day in auto mode?', options: ['Yes, with the usual owner list', 'No, ask me each time'], pick: 'Yes, with the usual owner list', why: 'The owner is away until the afternoon.', undo: 'Flip auto mode off in this tab.', revisit: '' },
+  { id: 'd4', at: '2026-10-25T18:44', source: 'lead', session: 'sample-399', work: 'PR 400', question: 'CI is red on a scan that reports late. Rerun or wait?', options: ['Wait for the scan to report', 'Rerun the job'], pick: 'Wait for the scan to report', why: 'A pending required scan reads as blocked; it clears by itself.', undo: 'Rerun the job.', revisit: '' },
+  { id: 'd3', at: '2026-10-25T16:20', source: 'lead', session: 'sample-399', work: 'issue 399', question: 'Archive the finished session now?', options: ['Keep it until its worktree is checked', 'Archive it now'], pick: 'Keep it until its worktree is checked', why: 'Archiving is the owner\u{2019}s call after a worktree check.', undo: 'Archive it by hand.', revisit: '' },
+  { id: 'd2', at: '2026-10-25T14:05', source: 'owner', session: 'sample-396', work: 'PR 398', question: 'Accept the review and merge 398?', options: ['Merge', 'Hold for another pass'], pick: 'Merge', why: 'The owner checked it on Desktop.', undo: 'Revert the merge commit.', revisit: '' },
+  { id: 'd1', at: '2026-10-25T11:30', source: 'lead', session: 'sample-396', work: 'issue 396', question: 'Which tier to propose?', options: ['Standard', 'Quick'], pick: 'Standard', why: 'It touches the pane\u{2019}s press handling and needs a short spec.', undo: 'Re-propose the tier.', revisit: '' },
+]
+const HANDOFF = {
+  updated: '2026-10-26 11:35',
+  sections: [
+    ['How to resume', ['Read this hand-off, then the roster', 'Re-verify each session\u{2019}s link before taking its messages']],
+    ['Rules in force', ['Auto mode: lead picks outside the owner list', 'Owner list: merges, installs, publishing, accepted risks']],
+    ['Running sessions', ['sample-412: spec review', 'sample-405: build, tests green']],
+    ['Cleanup waiting', ['sample-399: worktree check, then archive']],
+    ['Open for the owner', ['PR 391: batched visual check', 'Flagged: 1 decision to revisit']],
+  ],
+}
+
+const params = new URLSearchParams(location.search)
+const S = {
+  variant: VARIANTS.some(v => v[0] === params.get('variant')) ? params.get('variant') : 'A',
+  tab: 'decisions',
+  filter: 'all',
+  read: new Set(['d1', 'd2', 'd3', 'd4']),
+  flagged: new Set(['d6']),
+  open: new Set(),
+  folded: new Set(['handoff']),
+  autoDefault: params.get('auto') === 'off' ? false : true,
+  auto: undefined,
+  queue: 0,
+}
+S.auto = S.autoDefault
+
+const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]))
+const time = d => d.at.slice(11, 16)
+const day = d => d.at.slice(0, 10) === '2026-10-26' ? 'Today' : 'Yesterday'
+const unread = () => DECISIONS.filter(d => !S.read.has(d.id))
+const shown = () => DECISIONS.filter(d =>
+  S.filter === 'all' ? true :
+  S.filter === 'unread' ? !S.read.has(d.id) :
+  S.filter === 'lead' ? d.source === 'lead' :
+  S.filter === 'owner' ? d.source === 'owner' :
+  S.flagged.has(d.id))
+const srcTag = d => `<span class="src ${d.source}">${d.source === 'owner' ? 'Owner' : 'Lead'}</span>`
+const tick = d => `<span class="tick ${S.read.has(d.id) ? 'on' : ''}" data-act="read" data-id="${d.id}" title="${S.read.has(d.id) ? 'Read' : 'Mark read'}">${S.read.has(d.id) ? '✓' : '○'}</span>`
+const flagMark = d => S.flagged.has(d.id) ? '<span class="flag" title="Flagged to revisit">⚑</span>' : ''
+const bar = (key, name, count) => `<div class="bar" data-act="fold" data-id="${key}"><span class="dim">${S.folded.has(key) ? '▸' : '▾'}</span><span>${name}</span><span class="count">${count}</span></div>`
+
+const filters = () => {
+  const f = [['all', 'All'], ['unread', `Unread ${unread().length}`], ['lead', 'Lead\u{2019}s calls'], ['owner', 'Owner\u{2019}s answers'], ['flag', `Flagged ${S.flagged.size}`]]
+  return `<div class="filters">${f.map(([k, w]) => `<button class="${S.filter === k ? 'primary' : 'dimbtn'}" data-act="filter" data-id="${k}">${w}</button>`).join('')}</div>`
+}
+const autoRow = () => `
+  <div class="auto ${S.auto ? 'on' : ''}">
+    <span class="switch ${S.auto ? 'on' : ''}" data-act="auto" title="Only the owner can flip this"></span>
+    <div class="grow">
+      <div>Auto mode ${S.auto ? 'on' : 'off'}</div>
+      <div class="dim foot">${S.auto ? 'The lead takes its own pick outside the owner list, and logs each one here.' : 'The lead asks the owner on every decision.'}</div>
+    </div>
+    <span class="lock" title="Owner-only: how is open for the spec">🔒 owner</span>
+  </div>`
+const detail = d => `
+  <div class="detail">
+    <div class="k">Question</div><div>${esc(d.question)}</div>
+    <div class="k">Options</div><ul>${d.options.map(o => `<li class="${o === d.pick ? 'chosen' : ''}">${o === d.pick ? `<b>${esc(o)}</b> (picked)` : esc(o)}</li>`).join('')}</ul>
+    <div class="k">Why</div><div>${esc(d.why)}</div>
+    <div class="k">To undo</div><div>${esc(d.undo)}</div>
+    ${d.revisit ? `<div class="k">Revisit</div><div>${esc(d.revisit)}</div>` : ''}
+    <div class="actions">
+      <button data-act="read" data-id="${d.id}">${S.read.has(d.id) ? '✓ Read' : '○ Mark read'}</button>
+      <button class="${S.flagged.has(d.id) ? 'primary' : ''}" data-act="flag" data-id="${d.id}">⚑ ${S.flagged.has(d.id) ? 'Flagged to revisit' : 'Flag to revisit'}</button>
+    </div>
+  </div>`
+const handoffBody = () => `<div class="handoff" style="padding:0 8px 4px">
+  <div class="dim foot">Updated ${HANDOFF.updated}</div>
+  ${HANDOFF.sections.map(([t, items]) => `<h4>${t}</h4><ul>${items.map(i => `<li>${esc(i)}</li>`).join('')}</ul>`).join('')}</div>`
+
+// A: one ruled log. A compact row per decision under a day bar; a press opens
+// the full entry in place. Hand-off folded at the top, auto mode above it.
+function variantA() {
+  const list = shown()
+  const days = [...new Set(list.map(day))]
+  return `
+    ${autoRow()}
+    ${bar('handoff', 'Lead hand-off', HANDOFF.sections.length)}
+    ${S.folded.has('handoff') ? '' : handoffBody()}
+    ${filters()}
+    ${days.length === 0 ? '<div class="hint">Nothing matches this filter.</div>' : days.map(dy => {
+      const rows = list.filter(d => day(d) === dy)
+      return bar('day-' + dy, dy, rows.length) + (S.folded.has('day-' + dy) ? '' : rows.map(d => `
+        <div class="item ${S.read.has(d.id) ? 'read' : ''}" data-act="open" data-id="${d.id}">
+          <div class="row">${tick(d)}<span class="dim when">${time(d)}</span>${srcTag(d)}<span class="grow trunc pick">${esc(d.pick)}</span>${flagMark(d)}</div>
+          <div class="dim foot trunc" style="margin-left:28px">${esc(d.session)} · ${esc(d.work)} · ${esc(d.question)}</div>
+          ${S.open.has(d.id) ? detail(d) : ''}
+        </div>`).join(''))
+    }).join('')}`
+}
+
+// B: a review queue. The unread decisions come one at a time at full detail,
+// oldest first, with Read and next; the read ones fold away under History.
+// Auto mode and the hand-off sit at the foot, above Usage.
+function variantB() {
+  const queue = unread().slice().reverse()
+  const i = Math.min(S.queue, Math.max(queue.length - 1, 0))
+  const d = queue[i]
+  const history = DECISIONS.filter(x => S.read.has(x.id))
+  return `
+    ${bar('queue', 'To review', queue.length)}
+    ${S.folded.has('queue') ? '' : d === undefined ? '<div class="hint">All caught up. New decisions land here.</div>' : `
+      <div class="card">
+        <div class="row"><span class="dim">${i + 1} of ${queue.length}</span><span class="grow"></span>${srcTag(d)}<span class="dim">${day(d)} ${time(d)}</span></div>
+        <div class="dim foot">${esc(d.session)} · ${esc(d.work)}</div>
+        <div class="q">${esc(d.question)}</div>
+        <div class="p">${esc(d.pick)}</div>
+        <div>${esc(d.why)}</div>
+        <details><summary class="dim">Options (${d.options.length}) and how to undo</summary>
+          <ul style="margin:4px 0;padding-left:16px">${d.options.map(o => `<li class="${o === d.pick ? '' : 'dim'}">${esc(o)}</li>`).join('')}</ul>
+          <div class="dim foot">To undo: ${esc(d.undo)}</div>
+          ${d.revisit ? `<div class="dim foot">Revisit: ${esc(d.revisit)}</div>` : ''}
+        </details>
+        <div class="actions">
+          <button class="primary" data-act="readnext" data-id="${d.id}">✓ Read, next</button>
+          <button class="${S.flagged.has(d.id) ? 'primary' : ''}" data-act="flag" data-id="${d.id}">⚑ ${S.flagged.has(d.id) ? 'Flagged' : 'Flag to revisit'}</button>
+          <button class="dimbtn" data-act="skip">Skip</button>
+        </div>
+      </div>`}
+    ${bar('flagq', 'Flagged to revisit', S.flagged.size)}
+    ${S.folded.has('flagq') ? '' : [...S.flagged].map(id => DECISIONS.find(x => x.id === id)).map(x => `
+      <div class="item" data-act="open" data-id="${x.id}"><div class="row"><span class="flag">⚑</span><span class="dim">${time(x)}</span><span class="grow trunc">${esc(x.pick)}</span></div>${S.open.has(x.id) ? detail(x) : ''}</div>`).join('') || '<div class="hint">Nothing flagged.</div>'}
+    ${bar('history', 'History', history.length)}
+    ${S.folded.has('history') ? '' : history.map(x => `
+      <div class="item read" data-act="open" data-id="${x.id}"><div class="row">${tick(x)}<span class="dim when">${day(x).slice(0, 3)} ${time(x)}</span>${srcTag(x)}<span class="grow trunc pick">${esc(x.pick)}</span></div>${S.open.has(x.id) ? detail(x) : ''}</div>`).join('')}
+    <div style="flex:1"></div>
+    ${bar('handoff', 'Lead hand-off', HANDOFF.sections.length)}
+    ${S.folded.has('handoff') ? '' : handoffBody()}
+    ${autoRow()}`
+}
+
+// C: by session. The decisions sit under each session, as the Sessions tab
+// groups its cards; the day is only a stamp. Auto mode is a strip across the
+// top, the hand-off a folded card under it, filters as one dim line.
+function variantC() {
+  const list = shown()
+  const sessions = [...new Set(list.map(d => d.session))]
+  return `
+    ${autoRow()}
+    <div class="card" style="padding:6px 8px">
+      <div class="row" data-act="fold" data-id="handoff" style="cursor:pointer"><span class="dim">${S.folded.has('handoff') ? '▸' : '▾'}</span><span class="grow">Lead hand-off</span><span class="dim foot">${HANDOFF.updated.slice(11)}</span></div>
+      ${S.folded.has('handoff') ? '' : handoffBody()}
+    </div>
+    ${filters()}
+    ${sessions.length === 0 ? '<div class="hint">Nothing matches this filter.</div>' : sessions.map(s => {
+      const rows = list.filter(d => d.session === s)
+      const u = rows.filter(d => !S.read.has(d.id)).length
+      return bar('s-' + s, s, `${rows.length}${u ? ` · ${u} unread` : ''}`) + (S.folded.has('s-' + s) ? '' : rows.map(d => `
+        <div class="item ${S.read.has(d.id) ? 'read' : ''}" data-act="open" data-id="${d.id}">
+          <div class="row">${tick(d)}${srcTag(d)}<span class="grow trunc pick">${esc(d.pick)}</span>${flagMark(d)}<span class="dim foot">${day(d) === 'Today' ? '' : 'Yday '}${time(d)}</span></div>
+          ${S.open.has(d.id) ? detail(d) : `<div class="dim foot trunc" style="margin-left:28px">${esc(d.work)} · ${esc(d.question)}</div>`}
+        </div>`).join(''))
+    }).join('')}`
+}
+
+function render() {
+  const icon = (id, ic, tipText) => `<span class="tipwrap"><button class="${S.tab === id ? 'primary' : 'dimbtn'}" data-act="tab" data-id="${id}">${ic}</button><span class="tiptext">${tipText}</span></span>`
+  const heading = S.tab === 'decisions' ? `${DECISIONS.length} decisions · ${unread().length} unread` : S.tab === 'prs' ? '3 pull requests' : '4 sessions'
+  const body = S.tab !== 'decisions'
+    ? `<div class="stub">The ${S.tab === 'prs' ? 'Pull requests' : 'Sessions'} tab as it is today. Not drawn in this prototype.</div>`
+    : { A: variantA, B: variantB, C: variantC }[S.variant]()
+  document.getElementById('pane').innerHTML = `
+    <div class="pane-title">Brigade <span>docked</span></div>
+    <div class="body">
+      <div class="row" style="margin-bottom:6px">
+        <div class="grow trunc" style="font-weight:500">${heading}</div>
+        ${icon('sessions', '◫', 'Sessions')}${icon('prs', '⎇', 'Pull requests 3')}${icon('decisions', '⚖', `Decisions ${unread().length} unread`)}
+      </div>
+      ${body}
+    </div>
+    <div class="usage">
+      <b>Usage</b>
+      <div class="row"><span style="width:52px">5-hour</span><div class="grow meter"><i style="width:34%"></i></div><span class="dim">34%</span></div>
+      <div class="row"><span style="width:52px">Weekly</span><div class="grow meter"><i style="width:61%"></i></div><span class="dim">61%</span></div>
+    </div>`
+  const [k, name] = VARIANTS.find(v => v[0] === S.variant)
+  document.getElementById('switcher').innerHTML = `
+    <button data-sw="-1">←</button><b>${k} (${name})</b><button data-sw="1">→</button>
+    <button data-sw="auto">Auto mode default: ${S.autoDefault ? 'on' : 'off'}</button>
+    <span class="state">filter=${S.filter} unread=${unread().length} flagged=${S.flagged.size} auto=${S.auto ? 'on' : 'off'}</span>`
+}
+
+function setVariant(step) {
+  const i = VARIANTS.findIndex(v => v[0] === S.variant)
+  S.variant = VARIANTS[(i + step + VARIANTS.length) % VARIANTS.length][0]
+  const p = new URLSearchParams(location.search); p.set('variant', S.variant); history.replaceState(null, '', '?' + p)
+  render()
+}
+
+document.addEventListener('click', e => {
+  const sw = e.target.closest('[data-sw]')
+  if (sw) {
+    if (sw.dataset.sw === 'auto') {
+      S.autoDefault = !S.autoDefault; S.auto = S.autoDefault
+      const p = new URLSearchParams(location.search); p.set('auto', S.autoDefault ? 'on' : 'off'); history.replaceState(null, '', '?' + p)
+      render()
+    } else setVariant(Number(sw.dataset.sw))
+    return
+  }
+  const t = e.target.closest('[data-act]')
+  if (!t) return
+  e.stopPropagation()
+  const { act, id } = t.dataset
+  const toggle = (set, x) => set.has(x) ? set.delete(x) : set.add(x)
+  if (act === 'tab') S.tab = id
+  if (act === 'filter') S.filter = id
+  if (act === 'fold') toggle(S.folded, id)
+  if (act === 'open') toggle(S.open, id)
+  if (act === 'read') toggle(S.read, id)
+  if (act === 'flag') toggle(S.flagged, id)
+  if (act === 'readnext') S.read.add(id)
+  if (act === 'skip') S.queue++
+  if (act === 'auto') S.auto = !S.auto
+  render()
+})
+document.addEventListener('keydown', e => {
+  if (e.target.closest('input,textarea,[contenteditable]')) return
+  if (e.key === 'ArrowLeft') setVariant(-1)
+  if (e.key === 'ArrowRight') setVariant(1)
+})
+render()
+</script>
+</body>
+</html>
