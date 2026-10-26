@@ -10,15 +10,16 @@ import type { Register } from 'claude-code'
 // Opened with /decisions-proto.
 
 const PANE = 'decisions-proto'
-const variantAtom = atom({ plugin: 'decisions-proto', key: 'variant' } as const, 'A')
+const variantAtom = atom({ plugin: 'decisions-proto', key: 'variant' } as const, 'B')
 const tabAtom = atom({ plugin: 'decisions-proto', key: 'tab' } as const, 'decisions')
 const filterAtom = atom({ plugin: 'decisions-proto', key: 'filter' } as const, 'all')
 const readAtom = atom({ plugin: 'decisions-proto', key: 'read' } as const, ['d1', 'd2', 'd3', 'd4'])
 const flaggedAtom = atom({ plugin: 'decisions-proto', key: 'flagged' } as const, ['d6'])
 const openAtom = atom({ plugin: 'decisions-proto', key: 'open' } as const, [])
 const foldedAtom = atom({ plugin: 'decisions-proto', key: 'folded' } as const, ['handoff'])
-const autoAtom = atom({ plugin: 'decisions-proto', key: 'auto' } as const, true)
-const autoDefaultAtom = atom({ plugin: 'decisions-proto', key: 'autoDefault' } as const, true)
+// The autonomy slider: 1 Manual, 2 Auto, 3 Full throttle.
+const levelAtom = atom({ plugin: 'decisions-proto', key: 'level' } as const, 2)
+const levelDefaultAtom = atom({ plugin: 'decisions-proto', key: 'levelDefault' } as const, 2)
 const queueAtom = atom({ plugin: 'decisions-proto', key: 'queue' } as const, 0)
 
 // Brigade's fills (DARK_FILLS in brigade/register.tsx).
@@ -33,7 +34,7 @@ const DECISIONS: Decision[] = [
   { id: 'd8', at: '2026-10-26T10:58', source: 'owner', session: 'sample-388', work: 'PR 391', question: 'Merge 391 now, or wait for the batched visual check?', options: ['Wait for the batched check', 'Merge now'], pick: 'Wait for the batched check', why: 'The owner prefers one Desktop check per chain.', undo: 'None needed: nothing merged.', revisit: '' },
   { id: 'd7', at: '2026-10-26T10:41', source: 'lead', session: 'sample-412', work: 'issue 412', question: 'Model for the build session?', options: ['Sonnet, medium (tier default)', 'Opus, high'], pick: 'Sonnet, medium (tier default)', why: 'Standard tier, nothing on the sensitive list.', undo: 'Stop the session and restart it on Opus.', revisit: '' },
   { id: 'd6', at: '2026-10-26T09:15', source: 'lead', session: 'sample-405', work: 'issue 405', question: 'A lens report names a flaky test. File a follow-up or note it?', options: ['Note it in the review record', 'File a follow-up issue'], pick: 'Note it in the review record', why: 'The review already filed two follow-ups, the cost limit.', undo: 'File the issue from the note.', revisit: 'Next retro' },
-  { id: 'd5', at: '2026-10-26T08:02', source: 'owner', session: 'lead', work: 'brigade', question: 'Start the day in auto mode?', options: ['Yes, with the usual owner list', 'No, ask me each time'], pick: 'Yes, with the usual owner list', why: 'The owner is away until the afternoon.', undo: 'Flip auto mode off in this tab.', revisit: '' },
+  { id: 'd5', at: '2026-10-26T08:02', source: 'owner', session: 'lead', work: 'brigade', question: 'Which autonomy level for today?', options: ['2 Auto, with the usual owner list', '1 Manual', '3 Full throttle'], pick: '2 Auto, with the usual owner list', why: 'The owner is away until the afternoon.', undo: 'Slide autonomy back to 1 in this tab.', revisit: '' },
   { id: 'd4', at: '2026-10-25T18:44', source: 'lead', session: 'sample-399', work: 'PR 400', question: 'CI is red on a scan that reports late. Rerun or wait?', options: ['Wait for the scan to report', 'Rerun the job'], pick: 'Wait for the scan to report', why: 'A pending required scan reads as blocked; it clears by itself.', undo: 'Rerun the job.', revisit: '' },
   { id: 'd3', at: '2026-10-25T16:20', source: 'lead', session: 'sample-399', work: 'issue 399', question: 'Archive the finished session now?', options: ['Keep it until its worktree is checked', 'Archive it now'], pick: 'Keep it until its worktree is checked', why: 'Archiving is the owner\u{2019}s call after a worktree check.', undo: 'Archive it by hand.', revisit: '' },
   { id: 'd2', at: '2026-10-25T14:05', source: 'owner', session: 'sample-396', work: 'PR 398', question: 'Accept the review and merge 398?', options: ['Merge', 'Hold for another pass'], pick: 'Merge', why: 'The owner checked it on Desktop.', undo: 'Revert the merge commit.', revisit: '' },
@@ -43,7 +44,7 @@ const HANDOFF: { updated: string; sections: [string, string[]][] } = {
   updated: '11:35',
   sections: [
     ['How to resume', ['Read this hand-off, then the roster', 'Re-verify each session\u{2019}s link before taking its messages']],
-    ['Rules in force', ['Auto mode: lead picks outside the owner list', 'Owner list: merges, installs, publishing, accepted risks']],
+    ['Rules in force', ['Autonomy 2, Auto: lead picks outside the owner list', 'Owner list: merges, installs, publishing, accepted risks']],
     ['Running sessions', ['sample-412: spec review', 'sample-405: build, tests green']],
     ['Cleanup waiting', ['sample-399: worktree check, then archive']],
     ['Open for the owner', ['PR 391: batched visual check', 'Flagged: 1 decision to revisit']],
@@ -85,11 +86,11 @@ export const register: Register = on => {
       if (verb === 'readnext') await update($, readAtom, l => (l.includes(arg) ? l : [...l, arg]))
     }
     if (verb === 'skip') await update($, queueAtom, n => n + 1)
-    if (verb === 'auto') await update($, autoAtom, v => !v)
-    if (verb === 'autodef') {
-      const next = !(await read($, autoDefaultAtom))
-      await update($, autoDefaultAtom, () => next)
-      await update($, autoAtom, () => next)
+    if (verb === 'level' && ['1', '2', '3'].includes(arg)) await update($, levelAtom, () => Number(arg))
+    if (verb === 'leveldef') {
+      const next = ((await read($, levelDefaultAtom)) % 3) + 1
+      await update($, levelDefaultAtom, () => next)
+      await update($, levelAtom, () => next)
     }
     if (verb === 'reset') {
       await update($, readAtom, () => ['d1', 'd2', 'd3', 'd4'])
@@ -98,6 +99,8 @@ export const register: Register = on => {
       await update($, foldedAtom, () => ['handoff'])
       await update($, queueAtom, () => 0)
       await update($, filterAtom, () => 'all')
+      await update($, levelDefaultAtom, () => 2)
+      await update($, levelAtom, () => 2)
     }
     return { element: e.element }
   })
@@ -115,8 +118,8 @@ export const register: Register = on => {
     const flagged = new Set(await read($, flaggedAtom))
     const opened = new Set(await read($, openAtom))
     const folds = new Set(await read($, foldedAtom))
-    const auto = await read($, autoAtom)
-    const autoDefault = await read($, autoDefaultAtom)
+    const level = await read($, levelAtom)
+    const levelDefault = await read($, levelDefaultAtom)
     const queueAt = await read($, queueAtom)
 
     const unread = DECISIONS.filter(d => !readSet.has(d.id))
@@ -245,22 +248,48 @@ export const register: Register = on => {
         {pick('filter:flag', filter === 'flag', `Flagged ${flagged.size}`)}
       </Box>
     )
-    // The auto-mode switch: inert for anyone but the owner in the build; here
-    // a press flips it so both states can be seen.
+    // The autonomy slider: three stops on a track, the chosen one primary.
+    // Owner-only in the build; here a press moves it so each level can be seen.
+    const LEVELS: [number, string, string][] = [
+      [1, 'Manual', 'The lead asks you on every decision.'],
+      [2, 'Auto', 'The lead takes its own pick outside the owner list, and logs each one here. It stops for the owner list.'],
+      [3, 'Full throttle', 'The lead runs to the goal without stopping, even for major decisions. Each one is logged here for you to review.'],
+    ]
+    const [, levelName, levelText] = LEVELS[level - 1] ?? LEVELS[1]
+    const track = ['●', '━━━━━', level >= 2 ? '●' : '○', '━━━━━', level >= 3 ? '●' : '○'].join('')
     const autoRow = () => (
-      <Box flexDirection="row" columnGap={1} alignItems="flex-start" paddingX="sm" paddingY="xs" marginTop="sm" {...(terminal ? {} : { borderStyle: 'round', borderColor: auto ? 'claude' : FILLS.bar, backgroundColor: FILLS.hover })}>
-        <Box flexShrink={0}>{pick('auto', auto, auto ? '● On' : '○ Off')}</Box>
-        <Box flexDirection="column" flexGrow={1} flexShrink={1} minWidth={0}>
-          <Text weight="medium">{`Auto mode ${auto ? 'on' : 'off'}`}</Text>
-          <Text dimColor size="footnote" wrap="wrap">
-            {auto ? 'The lead takes its own pick outside the owner list, and logs each one here.' : 'The lead asks the owner on every decision.'}
-          </Text>
-        </Box>
-        <Box flexShrink={0}>
+      <Box flexDirection="column" paddingX="sm" paddingY="xs" marginTop="sm" {...(terminal ? {} : { borderStyle: 'round', borderColor: level === 3 ? 'warning' : level === 2 ? 'claude' : FILLS.bar, backgroundColor: FILLS.hover })}>
+        <Box flexDirection="row" columnGap={1}>
+          <Box flexGrow={1}>
+            <Text weight="medium">{`Autonomy · ${level} ${levelName}`}</Text>
+          </Box>
           <Text dimColor size="footnote">
             🔒 owner
           </Text>
         </Box>
+        <Text color={level === 3 ? 'warning' : level === 2 ? 'claude' : 'inactive'}>{track}</Text>
+        <Box flexDirection="row" columnGap={1}>
+          {LEVELS.map(([n, word]) =>
+            level === n ? (
+              <Button key={`level:${n}`} variant="primary" onPress={noop}>
+                {`${n} ${word}`}
+              </Button>
+            ) : (
+              <Button key={`level:${n}`} dimColor onPress={noop}>
+                {`${n} ${word}`}
+              </Button>
+            ),
+          )}
+        </Box>
+        {level === 3 ? (
+          <Text color="warning" size="footnote" wrap="wrap">
+            {levelText}
+          </Text>
+        ) : (
+          <Text dimColor size="footnote" wrap="wrap">
+            {levelText}
+          </Text>
+        )}
       </Box>
     )
     const handoffBody = () => (
@@ -279,7 +308,7 @@ export const register: Register = on => {
       </Box>
     )
 
-    // A: one ruled log, day bars, hand-off folded under auto mode.
+    // A: one ruled log, day bars, hand-off folded under the slider.
     const variantA = () => {
       const days = [...new Set(shown.map(day))]
       return (
@@ -308,7 +337,7 @@ export const register: Register = on => {
     }
 
     // B: a review queue, oldest unread first at full detail; flagged and
-    // history fold below; hand-off and auto mode at the foot.
+    // history fold below; hand-off and the autonomy slider at the foot.
     const variantB = () => {
       const queue = unread.slice().reverse()
       const i = Math.min(queueAt, Math.max(queue.length - 1, 0))
@@ -435,7 +464,7 @@ export const register: Register = on => {
           <Text color="warning" size="footnote">{`PROTOTYPE 402 · variant ${variant} (${name})`}</Text>
           <Box flexDirection="row" columnGap={1} flexWrap="wrap">
             {VARIANTS.map(([k]) => pick(`var:${k}`, variant === k, k))}
-            {pick('autodef', autoDefault, `Auto default ${autoDefault ? 'on' : 'off'}`)}
+            {pick('leveldef', false, `Starts at ${levelDefault}`)}
             <Button key="reset" dimColor onPress={noop}>
               Reset
             </Button>

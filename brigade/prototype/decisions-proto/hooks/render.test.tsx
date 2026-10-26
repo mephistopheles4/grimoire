@@ -15,6 +15,7 @@ test('each variant draws, opens a row and ticks it, on terminal and desktop', as
   for (const surface of ['terminal', 'desktop'] as const) {
     const ui = await $.ui.mount({ ...PANE, surface })
     expect((await ui.find({ type: 'Text', text: /9 decisions · 5 unread/ }))?.text).toBe('9 decisions · 5 unread')
+    await ui.press({ key: 'var:A' })
     await ui.press({ key: 'open:d9:log' })
     expect(await ui.find({ type: 'Text', text: /cache key needs the locale/ })).toBeTruthy()
     await ui.press({ key: 'read:d9:log' })
@@ -23,10 +24,17 @@ test('each variant draws, opens a row and ticks it, on terminal and desktop', as
       await ui.press({ key: `var:${v}` })
       expect(await ui.find({ type: 'Text', text: new RegExp(`variant ${v}`) })).toBeTruthy()
     }
+    expect(await ui.find({ type: 'Text', text: /Autonomy · 2 Auto/ })).toBeTruthy()
+    await ui.press({ key: 'level:3' })
+    expect(await ui.find({ type: 'Text', text: /even for major decisions/ })).toBeTruthy()
+    await ui.press({ key: 'level:1' })
+    expect(await ui.find({ type: 'Text', text: /asks you on every decision/ })).toBeTruthy()
+    await ui.press({ key: 'leveldef' })
+    expect(await ui.find({ type: 'Text', text: /Autonomy · 3 Full throttle/ })).toBeTruthy()
     await ui.press({ key: 'fold:handoff' })
     expect(await ui.find({ type: 'Text', text: /How to resume/ })).toBeTruthy()
     await ui.press({ key: 'reset' })
-    await ui.press({ key: 'var:A' })
+    await ui.press({ key: 'level:2' })
     await ui.unmount()
   }
 })

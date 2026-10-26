@@ -1,4 +1,4 @@
-export type Flag = boolean
+export type Level = number
 
 declare module 'claude-code' {
   interface PluginState {
@@ -10,8 +10,8 @@ declare module 'claude-code' {
       flagged: string[]
       open: string[]
       folded: string[]
-      auto: boolean
-      autoDefault: boolean
+      level: number
+      levelDefault: number
       queue: number
     }
   }
