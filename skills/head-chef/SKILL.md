@@ -269,7 +269,7 @@ On the owner's "done", for each session named:
    and its own history store, unrecoverably, including any commit that only a
    stale, self-written or otherwise mismatched remote-tracking ref, a graft
    or a commit-graph hides, changes hidden by an assume-unchanged or
-   skip-worktree flag, unpushed Git LFS objects, a submodule's own linked
+   skip-worktree flag or a filter driver, unpushed Git LFS objects, a submodule's own linked
    worktrees, and reflogs switched off by config.
 3. **On that yes, run the checks again** without asking again. A check that
    now refuses is stop 3.
