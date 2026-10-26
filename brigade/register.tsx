@@ -392,7 +392,7 @@ async function pollLive($: EngineInterface, open: () => boolean) {
     const files = await readSessions(at.config, io)
     if (!open()) return
     const rows = files?.rows ?? []
-    // Each log's writer is named from the same rows, kept in module memory.
+    // Each log's writer is named from the same rows, kept in the module and never stored.
     if (files !== undefined) sessionRows = rows.map(r => ({ name: r.name, status: r.status, sessionId: r.sessionId }))
     // Each roster card finds its session by id (a title only when it has no
     // id, or when no session file carries a Desktop id), and only the cards'
@@ -496,7 +496,7 @@ async function movesOf($: EngineInterface): Promise<Moves> {
 // minutes ahead of the engine clock, is skipped and counted. A file is read
 // again only when the listing shows its size or time changed. A folder whose
 // listing passes 5,000 entries gives no other session's file. What was read
-// stays in module memory and never enters plugin state: a reload starts it
+// stays in the module and never enters plugin state: a reload starts it
 // over, which costs one read per file. A read's error message is dropped.
 
 type Kind = 'decisions' | 'marks'
@@ -1903,7 +1903,7 @@ export const register: Register = on => {
     const view = viewFrom(await read($, viewAtom))
     const picks = new Set(pickedFrom(await read($, picked)))
     const folds = new Set(foldedFrom(await read($, folded)))
-    // The Decisions tab: what the last decision read gave, from module memory;
+    // The Decisions tab: what the last decision read gave, as the module keeps it;
     // the counter is read so a read that changed something redraws the pane.
     await read($, decisionsSeen)
     const Input = 'Input' in table ? table.Input : undefined
