@@ -231,6 +231,9 @@ own hash; it protects nothing secret. What follows from it:
   projects folder can match. Any process running as the owner, other plugins,
   and anything that backs up or syncs the config folder can read them. They
   are not encrypted; the owner accepted this on 2026-10-26 (q9 A on #402).
+  Other local accounts that can read the profile's data folder can read them
+  too, since the engine's write takes no file mode; the owner accepted this on
+  2026-10-26 (q11 A on #402's ticket 411).
 - **What does not reach the write:** no permission prompt, mode, owner hook or
   classifier sees `log_decision`'s write or a mark's; each call is recorded in
   the transcript as the tool's result, and a mark is not.
