@@ -13,6 +13,8 @@ declare module 'claude-code' {
       level: number
       levelDefault: number
       queue: number
+      picked: string[]
+      dismissed: string[]
     }
   }
 }
