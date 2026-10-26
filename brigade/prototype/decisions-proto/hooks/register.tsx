@@ -567,15 +567,12 @@ export const register: Register = on => {
         </Box>
         {/* Search filters as you type. Desktop draws a one-line field at its own
             width, whatever box holds it; only a field of two rows or more fills
-            the row, and the owner chose the small one. With no submitLabel the
-            field draws no button. */}
+            the row, and the owner chose the small one. The field's own button,
+            labelled ⌕, is its only button. */}
         {tab === 'decisions' && variant === 'B' && Input !== undefined && (
           <Box flexDirection="row" columnGap={1} alignItems="center">
-            <Box flexShrink={0}>
-              <Text dimColor>⌕</Text>
-            </Box>
             <Box flexDirection="column" flexGrow={1} flexShrink={1} minWidth={0}>
-              <Input key="search" placeholder="Search decisions" value={query} rows={1} onInput={noop} onSubmit={noop} />
+              <Input key="search" placeholder="Search decisions" value={query} submitLabel="⌕" onInput={noop} onSubmit={noop} />
             </Box>
             {query !== '' && (
               <Button key="clearsearch" plain dimColor onPress={noop}>
