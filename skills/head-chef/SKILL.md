@@ -243,9 +243,10 @@ On the owner's "done", for each session named:
 
 1. **Check first.** Take its worktree only from the `git worktree list` entry
    whose path is the session's own folder, as its status file's `cwd` gives
-   it. Check that `git -C <worktree> status --porcelain` shows no uncommitted
-   or untracked work, that `git -C <worktree> log --oneline <branch> --not
-   --remotes` shows no commit and `git -C <worktree> stash list` no entry for
+   it. Check that `git -C <worktree> status --porcelain --untracked-files=normal
+   --ignore-submodules=none` shows no uncommitted or untracked work, that
+   `git -C <worktree> log --format=%h -n 1 <branch> --not --remotes` shows no
+   commit and `git -C <worktree> stash list` no entry for
    its branch, that no other running session's folder is inside that
    worktree, that the session is one you started or the owner handed you, and
    that its Desktop id's title reads back as the session you kept. For a
@@ -256,17 +257,19 @@ On the owner's "done", for each session named:
    worktree entry, when two status files hold one session id, or when the
    folder is the main working tree. Stop too unless the worktree's git
    folder, from `git -C <worktree> rev-parse --git-dir --git-common-dir`,
-   sits in the lead repository's `worktrees` folder. Run every cleanup git
-   command with `--no-optional-locks`, `-c core.fsmonitor=false` and
-   `-c log.showSignature=false`, so no repository setting or hook runs a
-   program in the lead. When the worktree holds
-   submodules, add the checks inside each one that
+   sits in the lead repository's `worktrees` folder, the path followed by `/`.
+   Run every cleanup git command with `--no-optional-locks`,
+   `-c core.fsmonitor=false` and `-c log.showSignature=false`, so no
+   index-write hook, file watcher or signing program runs in the lead. When
+   the worktree holds submodules, add the checks inside each one that
    `references/submodule-cleanup.md` gives.
 2. **Name back the whole list,** side sessions included, and wait for one yes
    (stop 2 below). Mark each background session as one. For a worktree with
    submodules, say that a force would delete each submodule's ignored files
-   and its own history store, unrecoverably, with any commit that only a stale or self-written
-   remote-tracking ref reaches.
+   and its own history store, unrecoverably, including any commit that only a
+   stale, self-written or otherwise mismatched remote-tracking ref reaches,
+   unpushed Git LFS objects, a submodule's own linked worktrees, and reflogs
+   switched off by config.
 3. **On that yes, run the checks again** without asking again. A check that
    now refuses is stop 3.
 4. **Archive the session first,** with Desktop's archive tool. Git on a live
@@ -276,7 +279,8 @@ On the owner's "done", for each session named:
    `cwd` must be the folder `-w <name>` made, `.claude/worktrees/<name>` in
    the lead repository, or it is stop 3. `claude stop` removes its
    status-file row, so read everything you need from the row before it.
-   After `claude stop`, run `git -C <worktree> status --porcelain` again: any
+   After `claude stop`, run `git -C <worktree> status --porcelain
+   --untracked-files=normal --ignore-submodules=none` again: any
    output is stop 3, and `claude rm` does not run.
    `claude rm` removes a clean worktree and its branch, and refuses one with
    uncommitted work or an unpushed commit. Never pass `--discard-unpushed` or
@@ -346,9 +350,10 @@ decide what a stop or the owner's yes keeps for the owner.
   `claude agents --json` only where a file cannot answer.
 - **gh:** read a session's issue, and post on it. Every act on GitHub names
   its repository, never the clone's default.
-- **git:** `git worktree list`, `git -C <worktree> status --porcelain`,
+- **git:** `git worktree list`, `git -C <worktree> status --porcelain
+  --untracked-files=normal --ignore-submodules=none`,
   `git -C <worktree> rev-parse --git-dir --git-common-dir`,
-  `git -C <worktree> log --oneline <branch> --not --remotes`,
+  `git -C <worktree> log --format=%h -n 1 <branch> --not --remotes`,
   `git -C <worktree> stash list`,
   `git worktree remove` and `git branch -d`, for cleanup, each with
   `--no-optional-locks`, `-c core.fsmonitor=false` and

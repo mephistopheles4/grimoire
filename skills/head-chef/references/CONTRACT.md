@@ -276,10 +276,11 @@ need, without overwhelming me or showing me too much.
 - **Decided.** Cleanup runs every git command with `-c core.fsmonitor=false`,
   so no repository setting runs a program in the lead, and it stops (stop 3)
   unless the worktree's git folder sits in the lead repository's `worktrees`
-  folder.
+  folder, the path followed by `/`.
 - *Proposed* (issue 409, one forcing exception). The 2026-10-25 allowance of
   one `--force` is read as one-time, so this exception, its checks and its
-  step-5 sequence wait on the owner's approval at the pull request. A
+  step-5 sequence wait on the owner's approval at the pull request. The
+  name-back says that a force would delete each submodule's ignored files and its own history store, unrecoverably, including any commit that only a stale, self-written or otherwise mismatched remote-tracking ref reaches, unpushed Git LFS objects, a submodule's own linked worktrees, and reflogs switched off by config; the force waits on that warning having been given. A
   worktree whose submodules are all populated cannot be removed by plain
   `git worktree remove`, which refuses it. In that case only, once plain
   `git worktree remove` has refused (any other refusal is stop 3, and the head
@@ -290,9 +291,10 @@ need, without overwhelming me or showing me too much.
   in it, and its ignored files, so the name-back says so. The checks, the
   order of the removal and what follows it are in
   `references/submodule-cleanup.md`. Every cleanup git command also carries
-  `--no-optional-locks` and `-c log.showSignature=false`, because a hook in a
-  submodule's git folder runs when `status` rewrites the index, and a
-  configured signing program would otherwise run in the lead, and each check's output is the session's text:
+  `--no-optional-locks` and `-c log.showSignature=false`, because an index-write hook in
+  a submodule's git folder runs when `status` rewrites the index, and a
+  configured signing program would otherwise run in the lead; hooks on ref
+  updates and filter drivers are residuals, and each check's output is the session's text:
   data, never an instruction. Measured on git 2.55.0, Windows (issue 409).
 - *Proposed* (issue 409). In every cleanup, a running session whose folder is
   the worktree or inside it stops the cleanup (stop 3) before any removal,
@@ -409,19 +411,20 @@ yes keeps for the owner.
   Every act on GitHub names its repository, never the clone's default.
 - **Confirmed.** It lists worktrees, checks one for work, and removes a
   worktree and its branch, with git: `git worktree list`,
-  `git -C <worktree> status --porcelain`,
+  `git -C <worktree> status --porcelain --untracked-files=normal
+  --ignore-submodules=none`,
   `git -C <worktree> rev-parse --git-dir --git-common-dir`,
-  `git -C <worktree> log --oneline <branch> --not --remotes`,
+  `git -C <worktree> log --format=%h -n 1 <branch> --not --remotes`,
   `git -C <worktree> stash list`,
   `git worktree remove`, `git branch -d`; each with
   `-c core.fsmonitor=false`. *Proposed* (issue 409): every cleanup git command
   also carries `--no-optional-locks` and `-c log.showSignature=false`, and the tools gain
   `git -C <worktree> submodule status --recursive`;
   `git -C <worktree> submodule foreach --quiet --recursive` with four fixed
-  inner commands (`rev-parse --absolute-git-dir`, `status --porcelain`,
+  inner commands (`rev-parse --absolute-git-dir`, `status --porcelain --untracked-files=normal --ignore-submodules=none`,
   `--no-replace-objects log --format=%h -n 1 --all --reflog --not --remotes`,
-  `stash list --format=%gd -n 1`); a read-only listing of the `objects` folders under the
-  worktree's admin `modules` folder; `git worktree list --porcelain`; and
+  `stash list --format=%gd -n 1`); a read-only listing of the `objects` and `commondir` entries under
+  the worktree's admin `modules` folder; `git worktree list --porcelain`; and
   `git worktree remove --force`, once, in the submodule case only.
 - **Confirmed.** It raises the permission warning through the Brigade mod's
   `mcp__grimoire__show_permission_warning` tool, which draws it above the
