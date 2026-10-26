@@ -5667,7 +5667,15 @@ test('claim 9: an opened Flagged row draws the card with Unflag in place of Flag
   const before = w.text(LOG)
   expect(await shows(/^All caught up/)).toBe(true)
   await press($, 'grp-d-flagged')
+  // The folded row: the arrow and the pick in one press, the dim line, and the
+  // source over the time.
+  expect(await shows(/^▸ $/)).toBe(true)
+  expect(await shows(/^Yes$/)).toBe(true)
+  expect(await shows(/^lead-a · issue 411 · decision 1$/)).toBe(true)
+  expect(await shows(/^Lead$/)).toBe(true)
+  expect(await shows(/^1970-01-01 00:00$/)).toBe(true)
   await press($, 'dfopen-0-1-200')
+  expect(await shows(/^▾ $/)).toBe(true)
   expect(await shows(/^Question 1\?$/)).toBe(true)
   expect(await mounted.find({ key: 'dunflag-0-1-200' })).toBeDefined()
   const keys = (await mounted.findAll({ type: 'Button' })).map((b: any) => String(b.key))
@@ -5690,6 +5698,8 @@ for (const surface of ['terminal', 'desktop'] as const) {
     const peer = w.text(PEER_LOG)
     await press($, 'grp-d-flagged')
     expect(await mounted.find({ key: 'dbardismiss' })).toBeUndefined()
+    // The pick box is framed on the terminal, as a card's checkbox is there.
+    expect((await mounted.find({ key: 'dfpick-0-1-100' }))?.props.plain).toBe(surface === 'terminal' ? undefined : true)
     await press($, 'dfpick-0-1-100')
     await press($, 'dfpick-1-1-200')
     expect(await shows(/^2 selected$/)).toBe(true)
@@ -5742,6 +5752,35 @@ test('claim 9: the search filters Flagged too', async ($, on) => {
   await mounted.input({ key: 'dsearch', text: '392', kind: 'change' })
   const rows = (await mounted.findAll({ type: 'Button' })).map((b: any) => String(b.key)).filter(k => k.startsWith('dfopen-'))
   expect(rows).toEqual(['dfopen-0-2-300'])
+})
+
+test('claim 9: an Unflag whose mark cannot be written changes nothing, says so, and keeps the row open', async ($, on) => {
+  const w = await flagPane(on, $, 'desktop', w => {
+    seed(w, LOG, logText([kept(1, 200)]))
+    seed(w, OWN_MARKS, '{"cards":[],"todos":[]}')
+    seed(w, PEER_MARKS, marksText([flagMark(SID, '1', 200)]))
+  })
+  await press($, 'grp-d-flagged')
+  await press($, 'dfopen-0-1-200')
+  await press($, 'dfpick-0-1-200')
+  await press($, 'dunflag-0-1-200')
+  expect(w.text(OWN_MARKS)).toBe('{"cards":[],"todos":[]}')
+  expect(await shows(/^Not saved: the mark could not be written$/)).toBe(true)
+  expect(await mounted.find({ key: 'dunflag-0-1-200' })).toBeDefined()
+  expect(await shows(/^1 selected$/)).toBe(true)
+})
+
+test('Flagged draws at most 50 rows until Show more is pressed, so planted flags cannot flood the pane', async ($, on) => {
+  await flagPane(on, $, 'desktop', w => {
+    seed(w, LOG, logText(Array.from({ length: 51 }, (_, i) => kept(i + 1, 200 + i))))
+    seed(w, PEER_MARKS, marksText(Array.from({ length: 51 }, (_, i) => flagMark(SID, String(i + 1), 200 + i))))
+  })
+  await press($, 'grp-d-flagged')
+  const rows = async () => (await mounted.findAll({ type: 'Button' })).filter((b: any) => String(b.key).startsWith('dfopen-')).length
+  expect(await rows()).toBe(50)
+  await press($, 'dfmore')
+  expect(await rows()).toBe(51)
+  expect(await mounted.find({ key: 'dfmore' })).toBeUndefined()
 })
 
 test('claim 9: a Dismiss whose marks cannot be written changes nothing, says so, and keeps the pick', async ($, on) => {

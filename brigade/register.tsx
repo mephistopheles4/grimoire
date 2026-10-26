@@ -53,6 +53,7 @@ import {
   FULL,
   MAX_LOG_BYTES,
   MAX_MARKS_BYTES,
+  HISTORY_PAGE,
   MAX_OTHER_FILES,
   addMarks,
   appendEntry,
@@ -522,6 +523,7 @@ const openedRows = new Set<string>()
 const openedFlagged = new Set<string>()
 const pickedRows = new Set<string>()
 let historyPages = 1
+let flaggedPages = 1
 let markFailed = false
 let readingDecisions = false
 
@@ -1249,6 +1251,7 @@ async function openPane($: EngineInterface, wait: boolean, reached: { open: bool
   openedFlagged.clear()
   pickedRows.clear()
   historyPages = 1
+  flaggedPages = 1
   markFailed = false
   const opened = await $.ui.open({ id: PANE, title: TITLE })
   reached.open = true
@@ -1854,6 +1857,11 @@ export const register: Register = on => {
     }
     if (e.element === 'dbarclear') {
       pickedRows.clear()
+      await update($, decisionsSeen, n => ((typeof n === 'number' ? n : 0) + 1) % 1000000)
+      return { element: e.element }
+    }
+    if (e.element === 'dfmore') {
+      flaggedPages = Math.min(flaggedPages + 1, 1000)
       await update($, decisionsSeen, n => ((typeof n === 'number' ? n : 0) + 1) % 1000000)
       return { element: e.element }
     }
@@ -2540,8 +2548,8 @@ export const register: Register = on => {
     //
     // To review: the oldest unread entry across the logs read, as a card, with
     // Read, next, Flag and Skip. Flagged to revisit, folded by default: the
-    // flagged entries oldest first, each row with a pick box for the Dismiss
-    // island and opening into the same card, with Unflag. History, folded by
+    // flagged entries oldest first, 50 a page, each row with a pick box for
+    // the Dismiss island and opening into the same card, with Unflag. History, folded by
     // default: every entry newest first, 50 a page, each row opening into the
     // same card. Every field is drawn as text through the one-line cleaner,
     // line by line.
@@ -2671,14 +2679,26 @@ export const register: Register = on => {
       return (
         <Box flexDirection="column" paddingX={terminal ? 0 : 'sm'} {...hoverFill(`dfrow-${i}`)}>
           <Box flexDirection="row" columnGap={1} alignItems="flex-start">
+            {/* On the terminal a framed button, as a card's checkbox is
+                there; elsewhere a plain ○ that turns into ✓. */}
             <Box flexShrink={0} {...(terminal ? {} : { width: CHECK_CELLS_DESKTOP })}>
-              {isPicked ? (
+              {terminal ? (
+                isPicked ? (
+                  <Button key={`dfpick-${key}`} onPress={noop}>
+                    ✓
+                  </Button>
+                ) : (
+                  <Button key={`dfpick-${key}`} dimColor onPress={noop}>
+                    {UNTICKED_TERMINAL}
+                  </Button>
+                )
+              ) : isPicked ? (
                 <Button key={`dfpick-${key}`} plain onPress={noop}>
                   <Text color="success">✓</Text>
                 </Button>
               ) : (
                 <Button key={`dfpick-${key}`} plain dimColor onPress={noop}>
-                  {terminal ? UNTICKED_TERMINAL : '○'}
+                  ○
                 </Button>
               )}
             </Box>
@@ -2751,7 +2771,16 @@ export const register: Register = on => {
           (dFlagged.length === 0 ? (
             words.length > 0 && dFlaggedAll > 0 ? quiet('No flagged decision matches the search.') : hint('d-flagged')
           ) : (
-            <Box flexDirection="column">{dFlagged.map(flaggedRow)}</Box>
+            <Box flexDirection="column">
+              {dFlagged.slice(0, flaggedPages * HISTORY_PAGE).map(flaggedRow)}
+              {dFlagged.length > flaggedPages * HISTORY_PAGE && (
+                <Box marginTop={1}>
+                  <Button key="dfmore" dimColor onPress={noop}>
+                    Show more
+                  </Button>
+                </Box>
+              )}
+            </Box>
           ))}
         {groupHead('d-history', dHistory.total)}
         {!folds.has('d-history') &&

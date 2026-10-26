@@ -471,7 +471,10 @@ test('claim 9: Dismiss adds every picked mark in one file; past the cap old mark
   const before = JSON.stringify(file);
   const oldest = file.marks[0].at;
   const picked = [0, 1, 2].map(i => ({ log: SID, id: String(i + 1), entryAt: NOW, state: 'unflagged', at: NOW + 9000 }));
-  const next = addMarks(file, picked, new Set());
+  // Every old mark is for an entry the pane read, so the new marks are the only
+  // unknown ones: a cap rule that let a new mark drop would take one first.
+  const known = new Set(file.marks.map(x => markKey(x.log, x.id, x.entryAt)));
+  const next = addMarks(file, picked, known);
   assert.equal(JSON.stringify(file), before);
   assert.deepEqual(next.marks.slice(-3), picked);
   assert.ok(!next.marks.slice(0, -3).some(x => x.log === SID), 'no new mark dropped');
