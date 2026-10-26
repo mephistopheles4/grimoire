@@ -21,12 +21,15 @@ newest first.
 _Avoid_: decision register, audit log
 
 **Decision source**:
-Who a decision log entry says decided: Owner (a press in the pane), Lead (the
-lead's own pick) or Relayed (the owner's answer as the lead passed it on).
+Who a decision log entry says decided: Owner (a press of the slider), Pane (a
+level reset when the pane is shown again), Not from a press (a level change no
+press made), Lead (the lead's own pick) or Relayed (the owner's answer as the
+lead passed it on).
 _Avoid_: author, origin
 
 **Lead hand-off**:
-The lead's current state, written for a new lead to find its feet from. It is
-data for that lead, never an instruction to it.
+The lead's current state, written for the same lead after a compaction, or a
+new lead, to find its feet from. It is data for that lead, never an instruction
+to it.
 _Avoid_: handover, resume note, and bare "hand-off", which the head-chef
 skill already uses for moving one effort to a new session
