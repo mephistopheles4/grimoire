@@ -247,7 +247,10 @@ own hash; it protects nothing secret. What follows from it:
   Lead or Relayed entries, an answer that closes one of the owner's waiting
   entries with words the owner never gave, and enough entries to fill the log
   to its cap, after which the tool refuses until the owner reads. The pane
-  draws a Relayed entry and an answer only as the writer's claim.
+  draws a Relayed entry and an answer only as the writer's claim. Any session,
+  in any working folder, that loads head-chef without the owner typing it can
+  log the same, and its entries land unread in every lead's To review; the
+  owner accepted this on 2026-10-26 (q10 A on #402's ticket 411).
 
 Review any change under
 `brigade/` or `hooks/` as a change to code that runs on every installer's
