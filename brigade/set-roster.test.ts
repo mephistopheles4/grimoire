@@ -5431,6 +5431,7 @@ test('claim 13: the pane reads no decision or marks file while it is closed, and
     seed(w, LOG, logText([kept(1, 200)]))
     seed(w, PEER_LOG, logText([kept(1, 100)]))
     seed(w, OWN_MARKS, marksText([]))
+    seed(w, PEER_MARKS, marksText([]))
   })
   await start($)
   await w.clock.advance(20000)
@@ -5440,9 +5441,12 @@ test('claim 13: the pane reads no decision or marks file while it is closed, and
   expect(readsOf(w, LOG)).toBe(1)
   expect(readsOf(w, PEER_LOG)).toBe(1)
   expect(readsOf(w, OWN_MARKS)).toBe(1)
+  expect(readsOf(w, PEER_MARKS)).toBe(1)
   await w.clock.advance(5000)
   expect(readsOf(w, LOG)).toBe(1)
   expect(readsOf(w, PEER_LOG)).toBe(1)
+  expect(readsOf(w, OWN_MARKS)).toBe(1)
+  expect(readsOf(w, PEER_MARKS)).toBe(1)
   // A changed time is read again; a changed size too.
   seed(w, PEER_LOG, logText([kept(1, 100)]), 9)
   seed(w, LOG, logText([kept(1, 200), kept(2, 300)]), 1)
@@ -5467,6 +5471,98 @@ test('claim 13: from a folder whose listing passes 5,000 entries the pane reads 
   expect(await shows(/^Own question\?$/)).toBe(true)
   expect(await shows(/^1 of 1$/)).toBe(true)
   expect(await shows(/over 5,000 entries/)).toBe(true)
+})
+
+test('claim 13: past 5,000 entries in the marks folder the pane still reads its own marks file', async ($, on) => {
+  await decisionsPane(on, $, 'desktop', w => {
+    seed(w, LOG, logText([kept(1, 200)]))
+    seed(w, OWN_MARKS, marksText([{ log: SID, id: '1', entryAt: 200, state: 'read', at: 5 }]))
+    for (let i = 0; i < 5001; i++) seed(w, `${MARKS}\\x${i}.txt`, 'x')
+  })
+  expect(await shows(/^All caught up/)).toBe(true)
+  expect(await shows(/over 5,000 entries/)).toBe(true)
+})
+
+test('log_decision is offered on a reload, a head-chef load and the late offer too', async ($, on) => {
+  const w = loads(on, $)
+  const offers = () => w.registered.filter(n => n === 'log_decision').length
+  await start($)
+  // A head-chef load whose pane is not placed offers nothing yet; the late offer does.
+  w.unplaced = true
+  await skillCall($, 'grimoire:head-chef')
+  await w.clock.settle()
+  expect(offers()).toBe(0)
+  w.unplaced = false
+  await $.turn.start({ turnId: 't1' })
+  await w.clock.settle()
+  expect(offers()).toBe(1)
+  // A head-chef load that finds the pane open offers it again.
+  await skillCall($, 'grimoire:head-chef')
+  await w.clock.settle()
+  expect(offers()).toBe(2)
+  // And so does a reload with the pane open.
+  await ($ as any).session.start({ cwd: 'C:\\work', surface: null, isInteractive: false })
+  expect(offers()).toBe(3)
+})
+
+test('claim 2: the id comes from next even when next is ahead of the entries', async ($, on) => {
+  const w = world(on, w => {
+    w.dirs(DECISIONS)
+    seed(w, LOG, logText([kept(1, 1), kept(2, 2)], 7))
+  })
+  await start($)
+  await brigade($)
+  expect((await decide($)).text).toMatch(/^Logged decision 7 at /)
+  expect(parsed(w, LOG).next).toBe(8)
+})
+
+test('claim 6: the card draws the entry\'s own level and id', async ($, on) => {
+  await decisionsPane(on, $, 'desktop', w => seed(w, LOG, logText([kept(3, 200, { level: 2 })], 4)))
+  expect(await shows(/^at level 2$/)).toBe(true)
+  expect(await shows(/^Decision 3$/)).toBe(true)
+  expect(await shows(/^1 of 1$/)).toBe(true)
+})
+
+test('claim 5: a marks folder that is a link is refused: the press writes nothing through it and says so', async ($, on) => {
+  const w = await decisionsPane(on, $, 'desktop', w => {
+    seed(w, LOG, logText([kept(1, 200)]))
+    w.drop(MARKS)
+    w.dirs(`${ELSEWHERE}\\m`)
+    w.put(MARKS, { type: 'link', kind: 'junction', target: `${ELSEWHERE}\\m` })
+  })
+  await press($, 'dnext-1-200')
+  expect(w.text(`${ELSEWHERE}\\m\\${SID}.json`)).toBeUndefined()
+  expect(await shows(/^Not saved: the mark could not be written$/)).toBe(true)
+})
+
+test('claim 4: a marks file the pane skips as dated ahead marks nothing read for the drop rule either', async ($, on) => {
+  const w = await decisionsPane(on, $, 'desktop', w => {
+    seed(w, LOG, logText(Array.from({ length: 500 }, (_, i) => kept(i + 1, i + 1))))
+    seed(w, PEER_MARKS, marksText([{ log: SID, id: '1', entryAt: 1, state: 'read', at: 5 }]), 10_000_000_000_000)
+  })
+  expect(await shows(/^1 of 500$/)).toBe(true)
+  const before = w.text(LOG)
+  const r = await decide($)
+  expect(r.text).toMatch(/the decision log is full/)
+  expect(w.text(LOG)).toBe(before)
+})
+
+test('claim 4: the drop rule reads every marks file through the cache: a second full call after a tick reads none again', async ($, on) => {
+  const others = Array.from({ length: 22 }, (_, i) => `${MARKS}\\${String(i).padStart(8, '0')}-7777-8888-9999-000000000000.json`)
+  const w = world(on, w => {
+    w.dirs(DECISIONS)
+    w.dirs(MARKS)
+    seed(w, LOG, logText(Array.from({ length: 500 }, (_, i) => kept(i + 1, i + 1))))
+    // The oldest file lies beyond the 20 newest the pane reads at a tick.
+    others.forEach((p, i) => seed(w, p, marksText([]), 100 + i))
+  })
+  await start($)
+  await brigade($)
+  expect((await decide($)).ok).toBe(false)
+  expect(readsOf(w, others[0] ?? '')).toBe(1)
+  await w.clock.advance(5000)
+  expect((await decide($)).ok).toBe(false)
+  expect(readsOf(w, others[0] ?? '')).toBe(1)
 })
 
 test('claim 19: History draws at most 50 rows until Show more is pressed', async ($, on) => {

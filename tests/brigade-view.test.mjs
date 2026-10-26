@@ -4370,9 +4370,9 @@ test('the chosen view reads through the fixed set: anything but prs or decisions
   for (const v of ['sessions', 'PRS', 'Decisions', '__proto__', 'constructor', '', 5, null, undefined, {}, ['prs']]) assert.equal(viewFrom(v), 'sessions', String(v));
 });
 
-test('the folded groups keep only names from the fixed eight, at most 50, from the first 200 entries', () => {
-  // Spec 402 adds the Decisions tab's To review and History, which fold too.
-  assert.deepEqual([...GROUP_KEYS], ['waiting', 'working', 'finished', 'pr-open', 'pr-merged', 'pr-closed', 'd-review', 'd-history']);
+test('the folded groups keep only names from the fixed seven, at most 50, from the first 200 entries', () => {
+  // Spec 402 adds the Decisions tab's History, folded by default (S5.4).
+  assert.deepEqual([...GROUP_KEYS], ['waiting', 'working', 'finished', 'pr-open', 'pr-merged', 'pr-closed', 'd-history']);
   assert.deepEqual(foldedFrom(['finished', 'pr-open']), ['finished', 'pr-open']);
   assert.deepEqual(foldedFrom(['finished', 'finished']), ['finished']);
   assert.deepEqual(foldedFrom(['__proto__', 'constructor', 'toString', 'Finished', 5, null, {}, 'working']), ['working']);

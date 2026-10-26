@@ -72,7 +72,9 @@ const bytes = (text: string) => new TextEncoder().encode(text).length
 
 const CONTROL = /[\u{0}-\u{9}\u{B}-\u{1F}\u{7F}-\u{9F}\u{2028}\u{2029}]/u
 const HIDDEN = /[\p{Default_Ignorable_Code_Point}\u{61C}\u{200E}\u{200F}\u{202A}-\u{202E}\u{2066}-\u{2069}]/u
-const ID_SHAPED = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}|local_[0-9a-f-]{8,}/i
+// A session id, a Desktop id as the roster takes one (`local_` and 1 to 80
+// hex digits or dashes, ending there), and a Remote Control session's link.
+const ID_SHAPED = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}|local_[0-9a-f-]{1,80}(?![0-9a-z_])|claude\.ai\/code\/session_[0-9a-z]/i
 const ENTRY_ID = /^[1-9][0-9]{0,15}$/
 const DIGEST = /^[0-9a-f]{64}$/
 
@@ -280,7 +282,10 @@ export function appendEntry(log: DecisionLog, raw: unknown, o: AppendOptions): C
     for (let i = 0; i < kept.length - 1 && !fits(); ) {
       const e = kept[i]
       const state = o.read.get(markKey(sid, e.id, e.at))
-      const drops = TOOL_SOURCES.includes(e.source) && (state === 'read' || state === 'unflagged') && (!e.waiting || answered.has(e.id))
+      // An answer stays while the waiting entry it answers does, so that
+      // entry is never drawn as waiting again nor answered twice.
+      const answering = e.answers !== '' && kept.some(x => x.id === e.answers)
+      const drops = TOOL_SOURCES.includes(e.source) && (state === 'read' || state === 'unflagged') && (!e.waiting || answered.has(e.id)) && !answering
       if (!drops) {
         i++
         continue

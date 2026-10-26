@@ -606,6 +606,9 @@ async function readDecisions($: EngineInterface, live: () => boolean) {
       next.skipped += l.others.length - fresh.length
       if (kind === 'decisions') next.beyond = Math.max(fresh.length - MAX_OTHER_FILES, 0)
       const files = [...(l.own !== undefined ? [l.own] : []), ...fresh.slice(0, MAX_OTHER_FILES)]
+      // A marks file the drop scan read stays cached while it is listed, so a
+      // second full-log call reads none of the unchanged ones again.
+      if (kind === 'marks') for (const f of fresh) kept.add(`${kind} ${f.sid}`)
       for (const f of files) {
         kept.add(`${kind} ${f.sid}`)
         if (f.mtimeMs > now + AHEAD_MS) {
@@ -645,6 +648,8 @@ async function allReadMarks($: EngineInterface, at: Where, now: number) {
     if (l.refused || l.tooMany) return new Map()
     const files: MarksFile[] = []
     for (const f of [...(l.own !== undefined ? [l.own] : []), ...l.others]) {
+      // Under the pane's checks: a file dated more than two minutes ahead gives no mark.
+      if (f.mtimeMs > now + AHEAD_MS) continue
       const got = await heldFile($, at, 'marks', f)
       if (got.value !== undefined && got.value.kind === 'marks') files.push(got.value)
     }
@@ -2584,9 +2589,20 @@ export const register: Register = on => {
     const head = dQueue.head
     const decisionsBody = (
       <Box flexDirection="column">
-        {groupHead('d-review', dQueue.total)}
-        {!folds.has('d-review') &&
-          (head !== undefined
+        {/* To review is a heading, not a fold: the spec folds only Flagged
+            and History. */}
+        {terminal ? (
+          <Box marginTop={1}>
+            <Text bold>{GROUP_NAMES.get('d-review') ?? ''}</Text>
+            <Text dimColor>{` ${dQueue.total}`}</Text>
+          </Box>
+        ) : (
+          <Box paddingX="sm" marginTop="md" marginBottom="xs" {...roundFill}>
+            <Text weight="medium">{GROUP_NAMES.get('d-review') ?? ''}</Text>
+            <Text dimColor>{` ${dQueue.total}`}</Text>
+          </Box>
+        )}
+        {(head !== undefined
             ? entryCard(head, <Text dimColor>{`${dQueue.n} of ${dQueue.total}`}</Text>, [
                 <Button key={`dnext-${head.entry.id}-${head.entry.at}`} variant="primary" onPress={noop}>
                   ✓ Read, next

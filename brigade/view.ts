@@ -782,8 +782,9 @@ function shownLook(c: unknown, hidden: ReadonlySet<unknown>, moves?: Moves): Sta
 // fails reads as empty.
 
 /** The groups that fold, in the order the pane draws them: the Sessions
- *  view's three, the Pull requests view's three and the Decisions tab's two. */
-export const GROUP_KEYS: readonly string[] = ['waiting', 'working', 'finished', 'pr-open', 'pr-merged', 'pr-closed', 'd-review', 'd-history']
+ *  view's three, the Pull requests view's three and the Decisions tab's
+ *  History. The tab's To review takes a name and a hint here, and never folds. */
+export const GROUP_KEYS: readonly string[] = ['waiting', 'working', 'finished', 'pr-open', 'pr-merged', 'pr-closed', 'd-history']
 
 /** A group's name on its section bar. */
 export const GROUP_NAMES: ReadonlyMap<string, string> = new Map([

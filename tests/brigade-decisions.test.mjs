@@ -106,6 +106,11 @@ test('claim 14: every field refuses session-id and Desktop-id shaped text, in an
     assert.ok('error' in checkInput(input({ options: [t, 'b'], pick: t })));
   }
   for (const t of ['local_cache', 'a local_ deal', '1111-2222', 'deadbeef']) assert.ok('value' in checkInput(input({ why: t })), t);
+  // The Desktop-id shape the roster knows takes 1 to 80 characters after
+  // local_, and a Remote Control session's link is an id too.
+  for (const t of ['local_a', 'id local_0123abc here', 'https://claude.ai/code/session_ABC123', 'see claude.ai/code/session_x']) {
+    assert.match(checkInput(input({ why: t })).error ?? '', /session id or Desktop id/, t);
+  }
 });
 
 test('claim 14: options must be distinct after case folding, the pick one of them, or empty for a waiting entry', () => {
@@ -159,6 +164,26 @@ test('claim 4: a full log drops read, unflagged entries oldest first, and ids ar
   assert.ok(!ids.includes('2'), 'the oldest read entry dropped');
   assert.equal(ids.at(-1), String(MAX_ENTRIES + 1));
   assert.equal(r.value.log.next, MAX_ENTRIES + 2);
+  // A second append after the drop takes the next id, never one counted from the entries.
+  const again = appendEntry(r.value.log, input(), { at: NOW + 1000, level: 1, read: readAll(r.value.log), sid: SID });
+  assert.equal(again.value.entry.id, String(MAX_ENTRIES + 2));
+  // A log whose next is ahead of its entries keeps counting from next.
+  const gapped = { ...logOf(2), next: 7 };
+  assert.equal(appendEntry(gapped, input(), { at: NOW, level: 1, read: new Map() }).value.entry.id, '7');
+});
+
+test('claim 4: a read Relayed answer never drops while the waiting entry it answers is in the log', () => {
+  let log = logOf(1, () => ({ waiting: true, pick: '' }));
+  log = appendEntry(log, input({ source: 'relayed', answers: '1' }), { at: NOW + 1, level: 1, read: new Map() }).value.log;
+  for (let i = 2; i < MAX_ENTRIES; i++) log = appendEntry(log, input(), { at: NOW + i, level: 1, read: new Map() }).value.log;
+  // Only the answer is read: the waiting entry is unread, so nothing may drop.
+  const read = new Map([[markKey(SID, '2', NOW + 1), 'read']]);
+  const r = appendEntry(log, input(), { at: NOW + 999, level: 1, read, sid: SID });
+  assert.match(r.error ?? '', /full/);
+  // Both read: the waiting entry drops first, then its answer may.
+  read.set(markKey(SID, '1', NOW), 'read');
+  const both = appendEntry(log, input(), { at: NOW + 999, level: 1, read, sid: SID });
+  assert.deepEqual(both.value.log.entries.slice(0, 1).map(e => e.id), ['2']);
 });
 
 test('claim 4: an unread, flagged or unanswered waiting entry never drops, and refuses with nothing changed when nothing can', () => {
@@ -184,6 +209,16 @@ test('claim 4: a read waiting entry drops only once a later entry answers it', (
   const r = appendEntry(log, input({ source: 'relayed', answers: '1' }), { at: NOW + 902, level: 1, read: keepAllButFirst, sid: SID });
   assert.ok('value' in r, JSON.stringify(r.error));
   assert.ok(!r.value.log.entries.some(e => e.id === '1'));
+});
+
+test('claim 4: Owner, Pane and alarm entries never drop, even as the oldest and read', () => {
+  let log = emptyLog(null);
+  for (const source of ['owner', 'pane', 'alarm']) log = appendEntry(log, { ...input(), source }, { at: NOW, level: 1, read: new Map(), fixed: true }).value.log;
+  for (let i = 0; i < MAX_ENTRIES - 3; i++) log = appendEntry(log, input(), { at: NOW + 1 + i, level: 1, read: new Map() }).value.log;
+  const r = appendEntry(log, input(), { at: NOW + 9999, level: 1, read: readAll(log), sid: SID });
+  assert.ok('value' in r);
+  assert.deepEqual(r.value.log.entries.slice(0, 3).map(e => e.source), ['owner', 'pane', 'alarm']);
+  assert.equal(r.value.log.entries[3].id, '5');
 });
 
 test('claim 4: Owner, Pane and alarm entries never drop, are written past the entry cap, and never past the byte cap', () => {
@@ -245,6 +280,10 @@ test('claim 5: the strict log check takes only a log of its own kind', () => {
     JSON.stringify({ ...JSON.parse(good), entries: [...JSON.parse(good).entries, JSON.parse(good).entries[0]] }),
     JSON.stringify({ ...JSON.parse(good), entries: [{ ...JSON.parse(good).entries[0], level: 4 }] }),
     JSON.stringify({ ...JSON.parse(good), entries: [{ ...JSON.parse(good).entries[0], why: `a ${SID}` }] }),
+    // An answer naming a later entry, an entry that does not wait, or one already answered.
+    JSON.stringify({ ...JSON.parse(good), entries: [{ ...JSON.parse(good).entries[0], source: 'relayed', answers: '2' }, JSON.parse(good).entries[1]] }),
+    JSON.stringify({ ...JSON.parse(good), entries: [JSON.parse(good).entries[0], { ...JSON.parse(good).entries[1], source: 'relayed', answers: '1' }] }),
+    JSON.stringify({ ...JSON.parse(good), entries: [{ ...JSON.parse(good).entries[0], waiting: true, pick: '' }, { ...JSON.parse(good).entries[1], source: 'relayed', answers: '1' }, { ...JSON.parse(good).entries[2], source: 'relayed', answers: '1' }] }),
   ]) {
     assert.ok('error' in checkLog(raw), raw.slice(0, 80));
   }
@@ -270,6 +309,9 @@ test('claim 7: the latest mark by time wins across marks files, a mark over two 
   const m = (state, at, entryAt = NOW) => ({ log: SID, id: '1', entryAt, state, at });
   const states = mergeMarks([{ kind: 'marks', v: 1, marks: [m('read', NOW + 10)] }, { kind: 'marks', v: 1, marks: [m('unflagged', NOW + 20)] }], NOW + 30);
   assert.equal(states.get(markKey(SID, '1', NOW)), 'unflagged');
+  // In the other order of files too: the time decides, never the order read.
+  const reversed = mergeMarks([{ kind: 'marks', v: 1, marks: [m('unflagged', NOW + 20)] }, { kind: 'marks', v: 1, marks: [m('read', NOW + 10)] }], NOW + 30);
+  assert.equal(reversed.get(markKey(SID, '1', NOW)), 'unflagged');
   const ahead = mergeMarks([{ kind: 'marks', v: 1, marks: [m('read', NOW + 120_001)] }], NOW);
   assert.equal(ahead.get(markKey(SID, '1', NOW)), undefined);
   assert.equal(mergeMarks([{ kind: 'marks', v: 1, marks: [m('read', NOW + 120_000)] }], NOW).get(markKey(SID, '1', NOW)), 'read');

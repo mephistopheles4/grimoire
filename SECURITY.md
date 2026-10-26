@@ -216,7 +216,10 @@ re-reads a file only when its size or time changed, skips a file dated more
 than two minutes ahead, reads no other file from a folder whose listing passes
 5,000 entries, and draws each log's writer by the engine's session name for
 its session id, or "an ended session". Nothing it reads enters plugin state
-but the search text and a redraw counter. What follows from it:
+but the search text, which other plugins can read until the next open clears
+it, and a redraw counter. The project digest comes from the mod's own unkeyed
+SHA-256 in `brigade/decisions.ts`, tested against the NIST vectors and Node's
+own hash; it protects nothing secret. What follows from it:
 - **What the files reveal:** every decision a lead logged, its reason and the
   options it weighed, waiting entries that hold decisions the owner keeps,
   each entry's level, and which entries the owner read and when. The files are
@@ -238,6 +241,11 @@ but the search text and a redraw counter. What follows from it:
   strict check. Anything that can write the data folder can plant a
   well-formed log or marks file, current-dated marks that hide decisions
   included; the owner accepted this on 2026-10-26 (q19 A on #402).
+- **What a hijacked lead can log:** within the field rules and caps, false
+  Lead or Relayed entries, an answer that closes one of the owner's waiting
+  entries with words the owner never gave, and enough entries to fill the log
+  to its cap, after which the tool refuses until the owner reads. The pane
+  draws a Relayed entry and an answer only as the writer's claim.
 
 Review any change under
 `brigade/` or `hooks/` as a change to code that runs on every installer's
