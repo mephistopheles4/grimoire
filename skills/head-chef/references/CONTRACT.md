@@ -274,13 +274,13 @@ need, without overwhelming me or showing me too much.
   no matching worktree entry, when two status files hold one session id, or
   when the folder is the main working tree.
 - **Decided.** Cleanup runs every git command with `-c core.fsmonitor=false`,
-  so no repository setting runs a program in the lead, and it stops (stop 3)
+  so no file watcher runs in the lead, and it stops (stop 3)
   unless the worktree's git folder sits in the lead repository's `worktrees`
   folder, the path followed by `/`.
 - *Proposed* (issue 409, one forcing exception). The 2026-10-25 allowance of
   one `--force` is read as one-time, so this exception, its checks and its
   step-5 sequence wait on the owner's approval at the pull request. The
-  name-back says that a force would delete each submodule's ignored files and its own history store, unrecoverably, including any commit that only a stale, self-written or otherwise mismatched remote-tracking ref reaches, unpushed Git LFS objects, a submodule's own linked worktrees, and reflogs switched off by config; the force waits on that warning having been given. A
+  name-back says that a force would delete each submodule's ignored files and its own history store, unrecoverably, including any commit that only a stale, self-written or otherwise mismatched remote-tracking ref, a graft or a commit-graph hides, changes hidden by an assume-unchanged or skip-worktree flag, unpushed Git LFS objects, a submodule's own linked worktrees, and reflogs switched off by config; the force waits on that warning having been given. A
   worktree whose submodules are all populated cannot be removed by plain
   `git worktree remove`, which refuses it. In that case only, once plain
   `git worktree remove` has refused (any other refusal is stop 3, and the head
@@ -418,7 +418,9 @@ yes keeps for the owner.
   `git -C <worktree> stash list`,
   `git worktree remove`, `git branch -d`; each with
   `-c core.fsmonitor=false`. *Proposed* (issue 409): every cleanup git command
-  also carries `--no-optional-locks` and `-c log.showSignature=false`, and the tools gain
+  also carries `--no-optional-locks` and `-c log.showSignature=false`, the outer
+  `status` carries the two status options above, the outer unpushed-commit
+  check prints one hash, and the tools gain
   `git -C <worktree> submodule status --recursive`;
   `git -C <worktree> submodule foreach --quiet --recursive` with four fixed
   inner commands (`rev-parse --absolute-git-dir`, `status --porcelain --untracked-files=normal --ignore-submodules=none`,

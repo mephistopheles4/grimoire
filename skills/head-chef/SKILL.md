@@ -267,9 +267,10 @@ On the owner's "done", for each session named:
    (stop 2 below). Mark each background session as one. For a worktree with
    submodules, say that a force would delete each submodule's ignored files
    and its own history store, unrecoverably, including any commit that only a
-   stale, self-written or otherwise mismatched remote-tracking ref reaches,
-   unpushed Git LFS objects, a submodule's own linked worktrees, and reflogs
-   switched off by config.
+   stale, self-written or otherwise mismatched remote-tracking ref, a graft
+   or a commit-graph hides, changes hidden by an assume-unchanged or
+   skip-worktree flag, unpushed Git LFS objects, a submodule's own linked
+   worktrees, and reflogs switched off by config.
 3. **On that yes, run the checks again** without asking again. A check that
    now refuses is stop 3.
 4. **Archive the session first,** with Desktop's archive tool. Git on a live
@@ -361,7 +362,7 @@ decide what a stop or the owner's yes keeps for the owner.
   with submodules, also `git worktree list --porcelain`, `git -C <worktree>
   submodule status --recursive`, `submodule foreach` with the four inner
   commands in `references/submodule-cleanup.md`, a read-only listing of the
-  `objects` folders under the worktree's admin `modules` folder, and, once,
+  `objects` and `commondir` entries under the worktree's admin `modules` folder, and, once,
   `git worktree remove --force`.
 - **The Brigade mod:** `mcp__grimoire__show_permission_warning` for the warning, and
   `set_roster` for the pane. Read `references/roster.md` before your first
