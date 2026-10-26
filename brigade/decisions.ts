@@ -1,0 +1,517 @@
+import { AHEAD_MS, SESSION_ID, oneLine } from './roster.ts'
+import type { SessionRow } from './roster.ts'
+
+// The decision log's rules (spec 402, S5.1 and S5.2): what a log_decision
+// call may carry, what each file kind must hold, how an append is stamped and
+// capped and which entries it may drop, how the owner's marks merge, and what
+// the Decisions tab draws from them. The log, the marks and the tab's queue
+// are text other processes can write, so each is held to a shape before use.
+// Nothing here calls the engine: register.tsx reads and writes the files and
+// hands the text over, and tests/brigade-decisions.test.mjs tests these
+// rules as they are.
+
+/** The sources an entry may carry. Only `lead` and `relayed` come from the
+ *  tool; the pane writes the other three (the slider, ticket 4). */
+export type Source = 'owner' | 'pane' | 'alarm' | 'lead' | 'relayed'
+const SOURCES: readonly string[] = ['owner', 'pane', 'alarm', 'lead', 'relayed']
+// The tool's sources, and the only ones an append may drop.
+const TOOL_SOURCES: readonly string[] = ['lead', 'relayed']
+
+/** One decision, as the log keeps it (S5.2). `id`, `at` and `level` are the mod's. */
+export type DecisionEntry = {
+  id: string
+  at: number
+  level: 1 | 2 | 3
+  source: Source
+  waiting: boolean
+  work: string
+  question: string
+  options: string[]
+  pick: string
+  why: string
+  undo: string
+  revisit: string
+  answers: string
+}
+
+/** A session's decision log file. `next` only ever goes up, so an id is never reused. */
+export type DecisionLog = { kind: 'decisions'; v: 1; next: number; project: string | null; entries: DecisionEntry[] }
+
+/** A mark's state: read, flagged (and so read), or unflagged (read, not flagged). */
+export type MarkState = 'read' | 'flagged' | 'unflagged'
+/** One mark the owner made: which log's entry, by its id and its own time, and when. */
+export type Mark = { log: string; id: string; entryAt: number; state: MarkState; at: number }
+/** A session's marks file. */
+export type MarksFile = { kind: 'marks'; v: 1; marks: Mark[] }
+
+export const MAX_ENTRIES = 500
+export const MAX_LOG_BYTES = 256 * 1024
+export const MAX_MARKS = 2000
+export const MAX_MARKS_BYTES = 64 * 1024
+/** History's page: the rows it draws before, and for each, "Show more". */
+export const HISTORY_PAGE = 50
+/** How many other sessions' files of each kind the pane reads, newest first. */
+export const MAX_OTHER_FILES = 20
+// The most one entry can take as JSON: 5,016 characters of text at four bytes
+// each, with its keys. The dim line reads a log this close to the byte cap as
+// one the cap rule may have dropped from.
+const MAX_ENTRY_BYTES = 21 * 1024
+
+type Checked<T> = { value: T } | { error: string }
+
+const isRecord = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v)
+const isWhole = (v: unknown): v is number => typeof v === 'number' && Number.isSafeInteger(v) && v >= 0
+const bytes = (text: string) => new TextEncoder().encode(text).length
+
+// --- the text rules (S5.2) ----------------------------------------------------
+//
+// Every field refuses a control character other than a line break, each
+// hidden or direction-changing character the roster's HIDDEN set names, and
+// text in the session-id and Desktop-id shapes. These copies carry no `g`
+// flag: a global pattern's `test` keeps its place between calls.
+
+const CONTROL = /[\u{0}-\u{9}\u{B}-\u{1F}\u{7F}-\u{9F}\u{2028}\u{2029}]/u
+const HIDDEN = /[\p{Default_Ignorable_Code_Point}\u{61C}\u{200E}\u{200F}\u{202A}-\u{202E}\u{2066}-\u{2069}]/u
+const ID_SHAPED = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}|local_[0-9a-f-]{8,}/i
+const ENTRY_ID = /^[1-9][0-9]{0,15}$/
+const DIGEST = /^[0-9a-f]{64}$/
+
+function text(where: string, v: unknown, min: number, max: number): Checked<string> {
+  if (typeof v !== 'string') return { error: `${where} is not text` }
+  if (min > 0 && v.trim() === '') return { error: `${where} is empty` }
+  if ([...v].length > max) return { error: `${where} is over ${max} characters` }
+  if (CONTROL.test(v)) return { error: `${where} holds a control character other than a line break` }
+  if (HIDDEN.test(v)) return { error: `${where} holds a hidden or direction-changing character` }
+  if (ID_SHAPED.test(v)) return { error: `${where} holds text shaped like a session id or Desktop id` }
+  return { value: v }
+}
+
+/** An entry's fields other than the three the mod stamps. */
+export type EntryInput = Omit<DecisionEntry, 'id' | 'at' | 'level'>
+
+const INPUT_KEYS = ['source', 'waiting', 'work', 'question', 'options', 'pick', 'why', 'undo', 'revisit', 'answers']
+const STAMPED = ['id', 'at', 'level'] as const
+
+// The fields both checks share. `sources` is what this caller may write.
+function fieldsOf(o: Record<string, unknown>, sources: readonly string[], required: boolean): Checked<EntryInput> {
+  if (typeof o.source !== 'string' || !sources.includes(o.source)) {
+    return { error: sources === TOOL_SOURCES ? 'source is not lead or relayed' : 'source is not one of the five sources' }
+  }
+  const source = o.source as Source
+  if (o.waiting !== undefined && typeof o.waiting !== 'boolean') return { error: 'waiting is not true or false' }
+  if (required && typeof o.waiting !== 'boolean') return { error: 'waiting is not true or false' }
+  const waiting = o.waiting === true
+  const out: EntryInput = { source, waiting, work: '', question: '', options: [], pick: '', why: '', undo: '', revisit: '', answers: '' }
+  const limits = [
+    ['work', 1, 300],
+    ['question', 1, 1000],
+    ['why', 1, 1000],
+    ['undo', 1, 300],
+    ['revisit', 0, 300],
+  ] as const
+  for (const [k, min, max] of limits) {
+    const t = text(k, o[k] === undefined && !required && k === 'revisit' ? '' : o[k], min, max)
+    if ('error' in t) return t
+    out[k] = t.value
+  }
+  if (!Array.isArray(o.options) || o.options.length < 1 || o.options.length > 6) return { error: 'options is not a list of 1 to 6 items' }
+  const folded = new Set<string>()
+  for (const [i, v] of o.options.entries()) {
+    const t = text(`option ${i + 1}`, v, 1, 300)
+    if ('error' in t) return t
+    const f = t.value.toLowerCase()
+    if (folded.has(f)) return { error: `options repeat an option once case is folded (option ${i + 1})` }
+    folded.add(f)
+    out.options.push(t.value)
+  }
+  const pick = o.pick === undefined && waiting && !required ? '' : o.pick
+  if (typeof pick !== 'string') return { error: 'pick is not text' }
+  if (waiting) {
+    if (pick !== '') return { error: 'pick: a waiting entry has no pick; send an empty pick' }
+  } else if (!out.options.includes(pick)) {
+    return { error: 'pick is not one of the options' }
+  }
+  out.pick = pick
+  const answers = o.answers === undefined && !required ? '' : o.answers
+  if (typeof answers !== 'string' || (answers !== '' && !ENTRY_ID.test(answers))) return { error: 'answers is not empty or an entry id' }
+  if (answers !== '' && (source !== 'relayed' || waiting)) return { error: 'answers: only a relayed entry that is not waiting may answer one' }
+  if (waiting && (source !== 'lead' || answers !== '')) return { error: 'waiting: only a lead entry that answers none may wait' }
+  out.answers = answers
+  return { value: out }
+}
+
+/** A log_decision call's input, checked: own keys only, of the shape S5.2
+ *  sets, with no `id`, `at` or `level` and a source of `lead` or `relayed`.
+ *  `waiting`, `revisit` and `answers` may be left out; a waiting entry may
+ *  leave out its pick. */
+export function checkInput(v: unknown): Checked<EntryInput> {
+  if (!isRecord(v)) return { error: 'the entry is not an object' }
+  for (const k of STAMPED) if (Object.hasOwn(v, k)) return { error: `${k} is stamped by the mod, not sent by the tool` }
+  if (!Object.hasOwn(v, 'source') || !TOOL_SOURCES.includes(String(v.source))) return { error: 'source is not lead or relayed' }
+  const extra = Object.keys(v).filter(k => !INPUT_KEYS.includes(k))
+  if (extra.length > 0) return { error: `the entry has a field the decision log does not use: ${oneLine(extra[0] ?? '', 40)}` }
+  return fieldsOf(v, TOOL_SOURCES, false)
+}
+
+// The pane's own fixed entries (ticket 4) take the same rules with any source.
+function checkFixed(v: unknown): Checked<EntryInput> {
+  if (!isRecord(v)) return { error: 'the entry is not an object' }
+  return fieldsOf(v, SOURCES, false)
+}
+
+function checkEntry(i: number, v: unknown): Checked<DecisionEntry> {
+  const where = `entry ${i + 1}`
+  if (!isRecord(v)) return { error: `${where} is not an object` }
+  const keys = [...STAMPED, ...INPUT_KEYS]
+  const extra = Object.keys(v).filter(k => !keys.includes(k))
+  if (extra.length > 0) return { error: `${where} has a field the decision log does not use` }
+  if (typeof v.id !== 'string' || !ENTRY_ID.test(v.id)) return { error: `${where} id is not an entry id` }
+  if (!isWhole(v.at)) return { error: `${where} at is not a whole number` }
+  if (v.level !== 1 && v.level !== 2 && v.level !== 3) return { error: `${where} level is not 1, 2 or 3` }
+  const f = fieldsOf(v, SOURCES, true)
+  if ('error' in f) return { error: `${where} ${f.error}` }
+  return { value: { id: v.id, at: v.at, level: v.level, ...f.value } }
+}
+
+/** A log file's text, checked strictly, as the pane reads it and as the
+ *  writer does before it overwrites one: exactly the five keys, kind
+ *  `decisions`, version 1, every entry of its shape, ids rising and below
+ *  `next`, and an `answers` that names an earlier entry, waiting if it is
+ *  still there, and answered by no other. */
+export function checkLog(raw: string): Checked<DecisionLog> {
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(raw)
+  } catch {
+    return { error: 'the decision log is not JSON' }
+  }
+  if (!isRecord(parsed)) return { error: 'the decision log is not an object' }
+  const keys = Object.keys(parsed)
+  if (keys.length !== 5 || !['kind', 'v', 'next', 'project', 'entries'].every(k => keys.includes(k))) return { error: 'the decision log does not have exactly its five fields' }
+  if (parsed.kind !== 'decisions' || parsed.v !== 1) return { error: 'the file is not a decision log of version 1' }
+  if (!isWhole(parsed.next) || parsed.next < 1) return { error: 'the decision log\'s next is not a whole number from 1' }
+  if (parsed.project !== null && (typeof parsed.project !== 'string' || !DIGEST.test(parsed.project))) return { error: 'the decision log\'s project is not a digest or null' }
+  if (!Array.isArray(parsed.entries)) return { error: 'the decision log\'s entries is not a list' }
+  const entries: DecisionEntry[] = []
+  const byId = new Map<string, DecisionEntry>()
+  const answered = new Set<string>()
+  let last = 0
+  for (const [i, v] of parsed.entries.entries()) {
+    const e = checkEntry(i, v)
+    if ('error' in e) return e
+    const n = Number(e.value.id)
+    if (n <= last || n >= parsed.next) return { error: `entry ${i + 1} id is out of order or not below next` }
+    last = n
+    const a = e.value.answers
+    if (a !== '') {
+      const target = byId.get(a)
+      if (Number(a) >= n || (target !== undefined && !target.waiting) || answered.has(a)) return { error: `entry ${i + 1} answers no open waiting entry` }
+      answered.add(a)
+    }
+    byId.set(e.value.id, e.value)
+    entries.push(e.value)
+  }
+  return { value: { kind: 'decisions', v: 1, next: parsed.next, project: parsed.project as string | null, entries } }
+}
+
+/** A log with no entries yet. */
+export const emptyLog = (project: string | null): DecisionLog => ({ kind: 'decisions', v: 1, next: 1, project, entries: [] })
+
+/** A log as the text the writer saves, measured in UTF-8 bytes against the cap. */
+export function serializeLog(log: DecisionLog): Checked<string> {
+  const t = JSON.stringify(log)
+  return bytes(t) > MAX_LOG_BYTES ? { error: 'the decision log is over its byte cap' } : { value: t }
+}
+
+// --- the append (S5.1's caps) ---------------------------------------------------
+
+/** One entry's mark key: its log's session id, its id and its own time, so a
+ *  mark never lands on another entry. */
+export const markKey = (log: string, id: string, at: number) => `${log} ${id} ${at}`
+
+const isRead = (s: MarkState | undefined) => s !== undefined
+
+/** What an append needs from outside: the engine clock's time, the level in
+ *  force, the merged marks (`read`, keyed by `markKey`) and this log's session
+ *  id. `fixed` is the pane's own Owner, Pane and alarm entries: written past
+ *  the entry cap, never past the byte cap, and with no drop. */
+export type AppendOptions = { at: number; level: 1 | 2 | 3; read: ReadonlyMap<string, MarkState>; sid?: string; fixed?: boolean }
+
+/** Appends one entry, stamping its id from `next`, its time and its level.
+ *  Past 500 entries or 256 KiB, entries the owner has marked read and not
+ *  flagged drop first, oldest first: never an unread or flagged one, a
+ *  waiting one no entry answers, or an Owner, Pane or alarm one. With nothing
+ *  left to drop it refuses, and the log given is never changed. */
+export function appendEntry(log: DecisionLog, raw: unknown, o: AppendOptions): Checked<{ log: DecisionLog; entry: DecisionEntry }> {
+  const c = o.fixed === true ? checkFixed(raw) : checkInput(raw)
+  if ('error' in c) return c
+  const f = c.value
+  if (f.answers !== '') {
+    if (!log.entries.some(e => e.id === f.answers && e.waiting)) return { error: 'answers no waiting entry in this log' }
+    if (log.entries.some(e => e.answers === f.answers)) return { error: 'answers a waiting entry already answered' }
+  }
+  if (!isWhole(o.at)) return { error: 'clock: the engine clock gave no whole number of milliseconds' }
+  if (!Number.isSafeInteger(log.next + 1)) return { error: 'the decision log has no id left' }
+  const entry: DecisionEntry = {
+    id: String(log.next),
+    at: o.at,
+    level: o.level,
+    source: f.source,
+    waiting: f.waiting,
+    work: f.work,
+    question: f.question,
+    options: f.options,
+    pick: f.pick,
+    why: f.why,
+    undo: f.undo,
+    revisit: f.revisit,
+    answers: f.answers,
+  }
+  const kept = [...log.entries, entry]
+  // The text's size, kept up to date as entries drop: the frame, each entry,
+  // and a comma between two.
+  const frame = bytes(JSON.stringify({ ...log, next: log.next + 1, entries: [] }))
+  const sizes = kept.map(e => bytes(JSON.stringify(e)))
+  let total = frame + sizes.reduce((a, b) => a + b, 0) + Math.max(kept.length - 1, 0)
+  const fits = () => (o.fixed === true || kept.length <= MAX_ENTRIES) && total <= MAX_LOG_BYTES
+  if (!fits() && o.fixed !== true) {
+    const answered = new Set(kept.map(e => e.answers).filter(a => a !== ''))
+    const sid = o.sid ?? ''
+    for (let i = 0; i < kept.length - 1 && !fits(); ) {
+      const e = kept[i]
+      const state = o.read.get(markKey(sid, e.id, e.at))
+      const drops = TOOL_SOURCES.includes(e.source) && (state === 'read' || state === 'unflagged') && (!e.waiting || answered.has(e.id))
+      if (!drops) {
+        i++
+        continue
+      }
+      total -= (sizes[i] ?? 0) + 1
+      kept.splice(i, 1)
+      sizes.splice(i, 1)
+    }
+  }
+  if (!fits()) return { error: 'the decision log is full: no entry can drop' }
+  const next: DecisionLog = { ...log, next: log.next + 1, entries: kept }
+  return 'error' in serializeLog(next) ? { error: 'the decision log is full: no entry can drop' } : { value: { log: next, entry } }
+}
+
+/** The ids missing below `next` that the cap rule does not explain: none when
+ *  the log sits at a cap, where drops happen; else every gap. */
+export function missingIds(log: DecisionLog): number {
+  const missing = log.next - 1 - log.entries.length
+  if (missing <= 0) return 0
+  const nearCap = log.entries.length >= MAX_ENTRIES || bytes(JSON.stringify(log)) > MAX_LOG_BYTES - MAX_ENTRY_BYTES
+  return nearCap ? 0 : missing
+}
+
+// --- marks (S5.4) -----------------------------------------------------------------
+
+function checkMark(i: number, v: unknown): Checked<Mark> {
+  const where = `mark ${i + 1}`
+  if (!isRecord(v)) return { error: `${where} is not an object` }
+  const keys = Object.keys(v)
+  if (keys.length !== 5 || !['log', 'id', 'entryAt', 'state', 'at'].every(k => keys.includes(k))) return { error: `${where} does not have exactly its five fields` }
+  if (typeof v.log !== 'string' || !SESSION_ID.test(v.log)) return { error: `${where} log is not a session id` }
+  if (typeof v.id !== 'string' || !ENTRY_ID.test(v.id)) return { error: `${where} id is not an entry id` }
+  if (!isWhole(v.entryAt) || !isWhole(v.at)) return { error: `${where} time is not a whole number` }
+  if (v.state !== 'read' && v.state !== 'flagged' && v.state !== 'unflagged') return { error: `${where} state is not read, flagged or unflagged` }
+  return { value: { log: v.log, id: v.id, entryAt: v.entryAt, state: v.state, at: v.at } }
+}
+
+/** A marks file's text, checked strictly: exactly its three keys, kind
+ *  `marks`, version 1, at most 2,000 marks, each of its shape. */
+export function checkMarks(raw: string): Checked<MarksFile> {
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(raw)
+  } catch {
+    return { error: 'the marks file is not JSON' }
+  }
+  if (!isRecord(parsed)) return { error: 'the marks file is not an object' }
+  const keys = Object.keys(parsed)
+  if (keys.length !== 3 || !['kind', 'v', 'marks'].every(k => keys.includes(k))) return { error: 'the marks file does not have exactly its three fields' }
+  if (parsed.kind !== 'marks' || parsed.v !== 1) return { error: 'the file is not a marks file of version 1' }
+  if (!Array.isArray(parsed.marks) || parsed.marks.length > MAX_MARKS) return { error: `the marks file's marks is not a list of at most ${MAX_MARKS}` }
+  const marks: Mark[] = []
+  for (const [i, v] of parsed.marks.entries()) {
+    const m = checkMark(i, v)
+    if ('error' in m) return m
+    marks.push(m.value)
+  }
+  return { value: { kind: 'marks', v: 1, marks } }
+}
+
+/** A marks file as the text the writer saves, measured against the byte cap. */
+export function serializeMarks(file: MarksFile): Checked<string> {
+  const t = JSON.stringify(file)
+  return bytes(t) > MAX_MARKS_BYTES || file.marks.length > MAX_MARKS ? { error: 'the marks file is over its cap' } : { value: t }
+}
+
+/** Each entry's state, keyed by `markKey`: the latest mark for it by mark
+ *  time across the files given. A mark dated more than two minutes ahead of
+ *  the engine clock is ignored. An entry with no mark has none. */
+export function mergeMarks(files: readonly MarksFile[], now: number): Map<string, MarkState> {
+  const best = new Map<string, Mark>()
+  for (const f of files) {
+    for (const m of f.marks) {
+      if (m.at > now + AHEAD_MS) continue
+      const k = markKey(m.log, m.id, m.entryAt)
+      const was = best.get(k)
+      if (was === undefined || m.at > was.at) best.set(k, m)
+    }
+  }
+  return new Map([...best].map(([k, m]) => [k, m.state]))
+}
+
+/** The file with one mark added. Past 2,000 marks or 64 KiB, marks for
+ *  entries in no log the pane read (not in `known`) drop first, then the
+ *  oldest by mark time. The new mark never drops. */
+export function addMark(file: MarksFile | undefined, mark: Mark, known: ReadonlySet<string>): MarksFile {
+  const marks = [...(file?.marks ?? []), mark]
+  const sizes = marks.map(m => bytes(JSON.stringify(m)))
+  let total = bytes('{"kind":"marks","v":1,"marks":[]}') + sizes.reduce((a, b) => a + b, 0) + marks.length - 1
+  while ((marks.length > MAX_MARKS || total > MAX_MARKS_BYTES) && marks.length > 1) {
+    let pick = -1
+    for (let i = 0; i < marks.length - 1; i++) {
+      const m = marks[i]
+      if (known.has(markKey(m.log, m.id, m.entryAt))) continue
+      if (pick < 0 || m.at < (marks[pick]?.at ?? 0)) pick = i
+    }
+    if (pick < 0) {
+      for (let i = 0; i < marks.length - 1; i++) if (pick < 0 || (marks[i]?.at ?? 0) < (marks[pick]?.at ?? 0)) pick = i
+    }
+    total -= (sizes[pick] ?? 0) + 1
+    marks.splice(pick, 1)
+    sizes.splice(pick, 1)
+  }
+  return { kind: 'marks', v: 1, marks }
+}
+
+// --- what the tab draws (S5.4) --------------------------------------------------
+
+/** One log as the pane read it: its session id, the writer's drawn name and the log. */
+export type ReadLog = { sid: string; writer: string; log: DecisionLog }
+/** One entry in the tab, with its log's session id and writer. */
+export type Row = { sid: string; writer: string; entry: DecisionEntry }
+
+/** The writer of a log: the engine's session name for that session id, from
+ *  the session files the cards are matched against, or "an ended session". */
+export function writerName(rows: readonly SessionRow[], sid: string): string {
+  const row = rows.find(r => r.sessionId === sid)
+  return row === undefined ? 'an ended session' : oneLine(row.name, 80)
+}
+
+/** The words of a search, folded: each must appear in an entry. */
+export const searchWords = (query: string): string[] =>
+  [...query].slice(0, 200).join('').toLowerCase().split(/\s+/).filter(w => w !== '')
+
+/** Whether every word appears in the entry's writer name, id, work, question,
+ *  options, pick, why, undo or revisit, in any case. */
+export function matchesSearch(e: DecisionEntry, writer: string, words: readonly string[]): boolean {
+  if (words.length === 0) return true
+  const hay = [writer, e.id, e.work, e.question, ...e.options, e.pick, e.why, e.undo, e.revisit].join('\n').toLowerCase()
+  return words.every(w => hay.includes(w))
+}
+
+const rowKey = (r: Row) => markKey(r.sid, r.entry.id, r.entry.at)
+const rowsOf = (logs: readonly ReadLog[]): Row[] => logs.flatMap(l => l.log.entries.map(entry => ({ sid: l.sid, writer: l.writer, entry })))
+const oldestFirst = (a: Row, b: Row) => a.entry.at - b.entry.at || (a.sid < b.sid ? -1 : a.sid > b.sid ? 1 : 0) || Number(a.entry.id) - Number(b.entry.id)
+
+/** To review: every unread entry across the logs read that matches the
+ *  search, oldest first (Owner and Pane entries count as read by their
+ *  source), and the one shown, the first not skipped in this pane's life, or
+ *  the first again once all were skipped, with its place as "n of N". */
+export function reviewQueue(logs: readonly ReadLog[], states: ReadonlyMap<string, MarkState>, skipped: ReadonlySet<string>, words: readonly string[]) {
+  const order = rowsOf(logs)
+    .filter(r => r.entry.source !== 'owner' && r.entry.source !== 'pane' && !isRead(states.get(rowKey(r))) && matchesSearch(r.entry, r.writer, words))
+    .sort(oldestFirst)
+  const at = order.findIndex(r => !skipped.has(rowKey(r)))
+  const i = at < 0 ? 0 : at
+  return { order, head: order[i] as Row | undefined, n: i + 1, total: order.length }
+}
+
+/** History: every entry across the logs read that matches the search, newest
+ *  first, 50 a page for the pages shown. */
+export function historyRows(logs: readonly ReadLog[], words: readonly string[], pages: number) {
+  const all = rowsOf(logs)
+    .filter(r => matchesSearch(r.entry, r.writer, words))
+    .sort((a, b) => oldestFirst(b, a))
+  const rows = all.slice(0, Math.max(1, pages) * HISTORY_PAGE)
+  return { rows, total: all.length, more: rows.length < all.length }
+}
+
+/** The source as the tab draws it. Every Owner entry draws "as recorded"
+ *  until the slider (ticket 4) writes them. */
+export function sourceLabel(e: DecisionEntry, writer: string): string {
+  if (e.source === 'lead') return 'Lead'
+  if (e.source === 'relayed') return `Relayed by ${writer}`
+  if (e.source === 'owner') return 'Owner (as recorded)'
+  if (e.source === 'pane') return 'Pane'
+  return 'Not from a press'
+}
+
+// --- the project digest (S5.1) -------------------------------------------------
+
+const K = [
+  0x428a2f98, 0x71374491, 0xb5c0fbcf, 0xe9b5dba5, 0x3956c25b, 0x59f111f1, 0x923f82a4, 0xab1c5ed5, 0xd807aa98, 0x12835b01, 0x243185be, 0x550c7dc3, 0x72be5d74, 0x80deb1fe,
+  0x9bdc06a7, 0xc19bf174, 0xe49b69c1, 0xefbe4786, 0x0fc19dc6, 0x240ca1cc, 0x2de92c6f, 0x4a7484aa, 0x5cb0a9dc, 0x76f988da, 0x983e5152, 0xa831c66d, 0xb00327c8, 0xbf597fc7,
+  0xc6e00bf3, 0xd5a79147, 0x06ca6351, 0x14292967, 0x27b70a85, 0x2e1b2138, 0x4d2c6dfc, 0x53380d13, 0x650a7354, 0x766a0abb, 0x81c2c92e, 0x92722c85, 0xa2bfe8a1, 0xa81a664b,
+  0xc24b8b70, 0xc76c51a3, 0xd192e819, 0xd6990624, 0xf40e3585, 0x106aa070, 0x19a4c116, 0x1e376c08, 0x2748774c, 0x34b0bcb5, 0x391c0cb3, 0x4ed8aa4a, 0x5b9cca4f, 0x682e6ff3,
+  0x748f82ee, 0x78a5636f, 0x84c87814, 0x8cc70208, 0x90befffa, 0xa4506ceb, 0xbef9a3f7, 0xc67178f2,
+]
+
+/** The SHA-256 of a text's UTF-8 bytes, in hex: plain and unkeyed. */
+export function sha256Hex(input: string): string {
+  const data = new TextEncoder().encode(input)
+  const len = data.length
+  const blocks = Math.ceil((len + 9) / 64)
+  const buf = new Uint8Array(blocks * 64)
+  buf.set(data)
+  buf[len] = 0x80
+  const view = new DataView(buf.buffer)
+  view.setUint32(buf.length - 8, Math.floor(len / 0x20000000))
+  view.setUint32(buf.length - 4, (len * 8) >>> 0)
+  const h = [0x6a09e667, 0xbb67ae85, 0x3c6ef372, 0xa54ff53a, 0x510e527f, 0x9b05688c, 0x1f83d9ab, 0x5be0cd19]
+  const w = new Uint32Array(64)
+  const rotr = (x: number, n: number) => (x >>> n) | (x << (32 - n))
+  for (let b = 0; b < blocks; b++) {
+    for (let i = 0; i < 16; i++) w[i] = view.getUint32(b * 64 + i * 4)
+    for (let i = 16; i < 64; i++) {
+      const a = w[i - 15] ?? 0
+      const c = w[i - 2] ?? 0
+      const s0 = rotr(a, 7) ^ rotr(a, 18) ^ (a >>> 3)
+      const s1 = rotr(c, 17) ^ rotr(c, 19) ^ (c >>> 10)
+      w[i] = ((w[i - 16] ?? 0) + s0 + (w[i - 7] ?? 0) + s1) >>> 0
+    }
+    let [a, bb, c, d, e, f, g, hh] = h as [number, number, number, number, number, number, number, number]
+    for (let i = 0; i < 64; i++) {
+      const s1 = rotr(e, 6) ^ rotr(e, 11) ^ rotr(e, 25)
+      const ch = (e & f) ^ (~e & g)
+      const t1 = (hh + s1 + ch + (K[i] ?? 0) + (w[i] ?? 0)) >>> 0
+      const s0 = rotr(a, 2) ^ rotr(a, 13) ^ rotr(a, 22)
+      const maj = (a & bb) ^ (a & c) ^ (bb & c)
+      const t2 = (s0 + maj) >>> 0
+      hh = g
+      g = f
+      f = e
+      e = (d + t1) >>> 0
+      d = c
+      c = bb
+      bb = a
+      a = (t1 + t2) >>> 0
+    }
+    const add = [a, bb, c, d, e, f, g, hh]
+    for (let i = 0; i < 8; i++) h[i] = ((h[i] ?? 0) + (add[i] ?? 0)) >>> 0
+  }
+  return h.map(x => x.toString(16).padStart(8, '0')).join('')
+}
+
+/** The project digest: the SHA-256 of the name of the folder that holds this
+ *  session's transcript, from the session-start record the mod keeps, only
+ *  when that record's session id is the current one; else null. The name is
+ *  never stored. */
+export function projectDigest(start: { sessionId: unknown; transcript: unknown }, sessionId: string): string | null {
+  if (typeof start.sessionId !== 'string' || typeof start.transcript !== 'string' || start.sessionId !== sessionId || !SESSION_ID.test(sessionId)) return null
+  const m = /^.+[\\/]projects[\\/]([^\\/]+)[\\/]([^\\/]+)\.jsonl$/.exec(start.transcript)
+  return m !== null && m[2] === sessionId && m[1] !== undefined ? sha256Hex(m[1]) : null
+}
