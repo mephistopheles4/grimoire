@@ -193,7 +193,9 @@ which waiting entry it answers. The mod stamps the entry's id, its time from
 the engine clock and the level in force (1 until the autonomy slider lands),
 and refuses an input that carries any of them, a source other than `lead` or
 `relayed`, or a field holding a control, hidden or direction-changing
-character or text shaped like a session id or a Desktop id. Like `set_roster`
+character, text shaped like a session id, a Desktop id or a Remote Control
+link, a value shaped like a known key, an email address or a home-folder
+path; the refusal names the shape, never the value. Like `set_roster`
 it skips the permission prompt in every mode, works only while the pane is
 listed and placed with its reads running, and refuses a subagent's call, a
 deny verdict, an owner's ask rule and an organisation ceiling below allow;

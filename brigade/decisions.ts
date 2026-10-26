@@ -75,6 +75,38 @@ const HIDDEN = /[\p{Default_Ignorable_Code_Point}\u{61C}\u{200E}\u{200F}\u{202A}
 // A session id, a Desktop id as the roster takes one (`local_` and 1 to 80
 // hex digits or dashes, ending there), and a Remote Control session's link.
 const ID_SHAPED = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}|local_[0-9a-f-]{1,80}(?![0-9a-z_])|claude\.ai\/code\/session_[0-9a-z]/i
+// Beyond S5.2, on the owner's word (q3 A, relayed by the lead, 2026-10-26):
+// until the head-chef skill's data rule lands, the mod itself refuses a
+// value shaped like a known key, an email address and a home-folder path.
+// The key shapes are a copy of the masking the threat model's row 14 names,
+// in scripts/practice.mjs, since the mod cannot import a repository script;
+// tests/brigade-decisions.test.mjs holds the two copies equal. The home
+// shapes are the check's own (scripts/check.mjs), from the config folder
+// under a home to Git Bash's, WSL's and Cygwin's spelling of a Windows one.
+const START = String.raw`(?:(?<![A-Za-z0-9_])|(?<=\\[nrtbf])|(?<=\\u[0-9A-Fa-f]{4}))`
+export const KEY_SHAPES = [
+  /sk-ant-[A-Za-z0-9_-]{20,}/g,
+  new RegExp(`${START}sk-(?:or-|proj-)?[A-Za-z0-9_-]{20,}`, 'g'),
+  /(?:ghp|gho|ghu|ghs|ghr)_[A-Za-z0-9]{30,}/g,
+  /github_pat_[A-Za-z0-9_]{30,}/g,
+  new RegExp(`${START}(?:AKIA|ASIA)[0-9A-Z]{16}(?![0-9A-Z])`, 'g'),
+  /AIza[0-9A-Za-z_-]{35}/g,
+  /xox[abprs]-[A-Za-z0-9-]{10,}/g,
+  /npm_[A-Za-z0-9]{36}/g,
+  /hf_[A-Za-z0-9]{30,}/g,
+  new RegExp(`${START}eyJ[A-Za-z0-9_-]{10,}\\.[A-Za-z0-9_-]{10,}\\.[A-Za-z0-9_-]{10,}`, 'g'),
+  /-----BEGIN [A-Z ]*PRIVATE KEY-----[\s\S]*?(?:-----END [A-Z ]*PRIVATE KEY-----|$)/g,
+]
+// Copies without the `g` flag, whose `test` keeps no place between calls.
+const KEYS = KEY_SHAPES.map(re => new RegExp(re.source, re.flags.replace('g', '')))
+const EMAIL = /[A-Za-z0-9._%+-]+@[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)*\.[A-Za-z]{2,}/
+const HOMES = [
+  /~\/\.claude/,
+  /\/home\/[a-z$]/i,
+  /(?<![A-Za-z])[A-Za-z](?::|%3A)(?:\\+|\/)Users(?!\w)/i,
+  /(?<![\w.-])\/Users(?:\/[A-Za-z]|\/?(?=['"`$]|$))/,
+  /(?<![\w.-])(?:\/mnt|\/cygdrive)?\/[A-Za-z]\/Users(?:\/[A-Za-z]|\/?(?=['"`$]|$))/,
+]
 const ENTRY_ID = /^[1-9][0-9]{0,15}$/
 const DIGEST = /^[0-9a-f]{64}$/
 
@@ -85,6 +117,9 @@ function text(where: string, v: unknown, min: number, max: number): Checked<stri
   if (CONTROL.test(v)) return { error: `${where} holds a control character other than a line break` }
   if (HIDDEN.test(v)) return { error: `${where} holds a hidden or direction-changing character` }
   if (ID_SHAPED.test(v)) return { error: `${where} holds text shaped like a session id or Desktop id` }
+  if (KEYS.some(re => re.test(v))) return { error: `${where} holds text shaped like a key` }
+  if (EMAIL.test(v)) return { error: `${where} holds an email address` }
+  if (HOMES.some(re => re.test(v))) return { error: `${where} holds a home-folder path` }
   return { value: v }
 }
 

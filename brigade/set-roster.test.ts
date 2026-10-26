@@ -5578,3 +5578,19 @@ test('claim 19: History draws at most 50 rows until Show more is pressed', async
   expect(await rows()).toBe(120)
   expect(await mounted.find({ key: 'dmore' })).toBeUndefined()
 })
+
+// Beyond S5.2, on the owner's word (q3 A, relayed by the lead, 2026-10-26).
+test('a field holding a key-shaped value or an email address is refused through the tool, naming the shape, and nothing is written', async ($, on) => {
+  const w = world(on)
+  await start($)
+  await brigade($)
+  expect((await decide($)).ok).toBe(true)
+  const before = w.text(LOG)
+  const key = `sk-ant-${'a'.repeat(24)}`
+  for (const [over, rule] of [[{ why: `use ${key}` }, /holds text shaped like a key/], [{ work: `mail ${'someone'}@example.org` }, /holds an email address/]] as const) {
+    const r = await decide($, { ...ENTRY, ...over })
+    expect(r.text).toMatch(rule)
+    expect(r.text).not.toContain(key)
+    expect(w.text(LOG)).toBe(before)
+  }
+})

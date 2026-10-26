@@ -12,6 +12,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
+import { readFileSync } from 'node:fs';
 
 const d = await import('../brigade/decisions.ts');
 const {
@@ -111,6 +112,45 @@ test('claim 14: every field refuses session-id and Desktop-id shaped text, in an
   for (const t of ['local_a', 'id local_0123abc here', 'https://claude.ai/code/session_ABC123', 'see claude.ai/code/session_x']) {
     assert.match(checkInput(input({ why: t })).error ?? '', /session id or Desktop id/, t);
   }
+});
+
+// Beyond S5.2's id shapes, on the owner's word (q3 A on #402's ticket 411,
+// relayed by the lead, 2026-10-26): until the head-chef skill's data rule
+// lands, the mod itself refuses key-shaped values, email addresses and
+// home-folder paths, with fixed words that never echo the value.
+test('every field refuses a key-shaped value, an email address and a home-folder path, naming the shape and never the value', () => {
+  const key = `sk-ant-${'a'.repeat(24)}`;
+  const cases = [
+    [key, /holds text shaped like a key/],
+    [`ghp_${'b'.repeat(36)}`, /holds text shaped like a key/],
+    [`token AKIA${'C'.repeat(16)} here`, /holds text shaped like a key/],
+    ['write to someone@example.org', /holds an email address/],
+    ['see C:\\Users\\someone\\x', /holds a home-folder path/],
+    ['see C:/Users/someone', /holds a home-folder path/],
+    ['in /home/someone/repo', /holds a home-folder path/],
+    ['in /Users/someone/repo', /holds a home-folder path/],
+    ['in /c/Users/someone', /holds a home-folder path/],
+    ['in ~/.claude/plugins', /holds a home-folder path/],
+  ];
+  for (const field of ['work', 'question', 'why', 'undo', 'revisit']) {
+    for (const [t, rule] of cases) {
+      const r = checkInput(input({ [field]: t }));
+      assert.match(r.error ?? '', rule, `${field} ${t}`);
+      assert.ok(!r.error.includes(t), 'the refusal never echoes the value');
+    }
+  }
+  assert.match(checkInput(input({ options: [key, 'b'], pick: key })).error ?? '', /holds text shaped like a key/);
+  for (const t of ['a key decision', 'mail the owner', 'the user@ handle', 'api/Users/42', 'the /users route', 'sk-short']) {
+    assert.ok('value' in checkInput(input({ why: t })), t);
+  }
+});
+
+test('the key shapes equal the masking the threat model\'s row 14 names, in scripts/practice.mjs, so the copies cannot drift', () => {
+  const src = readFileSync(new URL('../scripts/practice.mjs', import.meta.url), 'utf8');
+  const block = /const START = (String\.raw`[^`]*`);\nconst KEY_SHAPES = (\[[\s\S]*?\n\]);/.exec(src);
+  assert.ok(block, 'practice.mjs still holds START and KEY_SHAPES in this shape');
+  const theirs = new Function(`const START = ${block[1]}; return ${block[2]};`)();
+  assert.deepEqual(d.KEY_SHAPES.map(String), theirs.map(String));
 });
 
 test('claim 14: options must be distinct after case folding, the pick one of them, or empty for a waiting entry', () => {
