@@ -82,7 +82,9 @@ const ID_SHAPED = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}|
 // in scripts/practice.mjs, since the mod cannot import a repository script;
 // tests/brigade-decisions.test.mjs holds the two copies equal. The home
 // shapes are the check's own (scripts/check.mjs), from the config folder
-// under a home to Git Bash's, WSL's and Cygwin's spelling of a Windows one.
+// under a home to Git Bash's, WSL's and Cygwin's spelling of a Windows one,
+// and one more: a Linux home spelled with backslashes, as Windows names a
+// path inside a WSL distribution. A test holds them equal to the check's.
 const START = String.raw`(?:(?<![A-Za-z0-9_])|(?<=\\[nrtbf])|(?<=\\u[0-9A-Fa-f]{4}))`
 export const KEY_SHAPES = [
   /sk-ant-[A-Za-z0-9_-]{20,}/g,
@@ -99,13 +101,15 @@ export const KEY_SHAPES = [
 ]
 // Copies without the `g` flag, whose `test` keeps no place between calls.
 const KEYS = KEY_SHAPES.map(re => new RegExp(re.source, re.flags.replace('g', '')))
-const EMAIL = /[A-Za-z0-9._%+-]+@[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)*\.[A-Za-z]{2,}/
-const HOMES = [
+// Each part bounded, so a long run of text with no @ costs little to test.
+const EMAIL = /[A-Za-z0-9._%+-]{1,64}@[A-Za-z0-9-]{1,63}(?:\.[A-Za-z0-9-]{1,63})*\.[A-Za-z]{2,63}/
+export const HOME_SHAPES = [
   /~\/\.claude/,
   /\/home\/[a-z$]/i,
   /(?<![A-Za-z])[A-Za-z](?::|%3A)(?:\\+|\/)Users(?!\w)/i,
   /(?<![\w.-])\/Users(?:\/[A-Za-z]|\/?(?=['"`$]|$))/,
   /(?<![\w.-])(?:\/mnt|\/cygdrive)?\/[A-Za-z]\/Users(?:\/[A-Za-z]|\/?(?=['"`$]|$))/,
+  /\\home\\[a-z$]/i,
 ]
 const ENTRY_ID = /^[1-9][0-9]{0,15}$/
 const DIGEST = /^[0-9a-f]{64}$/
@@ -119,7 +123,7 @@ function text(where: string, v: unknown, min: number, max: number): Checked<stri
   if (ID_SHAPED.test(v)) return { error: `${where} holds text shaped like a session id or Desktop id` }
   if (KEYS.some(re => re.test(v))) return { error: `${where} holds text shaped like a key` }
   if (EMAIL.test(v)) return { error: `${where} holds an email address` }
-  if (HOMES.some(re => re.test(v))) return { error: `${where} holds a home-folder path` }
+  if (HOME_SHAPES.some(re => re.test(v))) return { error: `${where} holds a home-folder path` }
   return { value: v }
 }
 
@@ -156,7 +160,8 @@ function fieldsOf(o: Record<string, unknown>, sources: readonly string[], requir
   for (const [i, v] of o.options.entries()) {
     const t = text(`option ${i + 1}`, v, 1, 300)
     if ('error' in t) return t
-    const f = t.value.toLowerCase()
+    // Full case folding: upper case first, so ß and SS meet.
+    const f = t.value.toUpperCase().toLowerCase()
     if (folded.has(f)) return { error: `options repeat an option once case is folded (option ${i + 1})` }
     folded.add(f)
     out.options.push(t.value)

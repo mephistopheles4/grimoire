@@ -131,6 +131,7 @@ test('every field refuses a key-shaped value, an email address and a home-folder
     ['in /Users/someone/repo', /holds a home-folder path/],
     ['in /c/Users/someone', /holds a home-folder path/],
     ['in ~/.claude/plugins', /holds a home-folder path/],
+    ['on \\\\wsl$\\Ubuntu\\home\\someone\\repo', /holds a home-folder path/],
   ];
   for (const field of ['work', 'question', 'why', 'undo', 'revisit']) {
     for (const [t, rule] of cases) {
@@ -145,6 +146,18 @@ test('every field refuses a key-shaped value, an email address and a home-folder
   }
 });
 
+test('the home shapes are the check\'s own, in scripts/check.mjs, so the copies cannot drift', () => {
+  const src = readFileSync(new URL('../scripts/check.mjs', import.meta.url), 'utf8');
+  const block = /\nconst FIXED = (\[[\s\S]*?\n\]);/.exec(src);
+  assert.ok(block, 'check.mjs still holds FIXED in this shape');
+  const theirs = new Function(`return ${block[1]};`)();
+  // The copy reads a field, not a file's lines, so it drops the check's
+  // \r? before an end; and it adds the backslash spelling of a Linux home.
+  const ours = d.HOME_SHAPES.map(String);
+  assert.deepEqual(ours.slice(0, theirs.length), theirs.map(re => String(re).replaceAll('\\r?$', '$')));
+  assert.deepEqual(ours.slice(theirs.length), [String(/\\home\\[a-z$]/i)]);
+});
+
 test('the key shapes equal the masking the threat model\'s row 14 names, in scripts/practice.mjs, so the copies cannot drift', () => {
   const src = readFileSync(new URL('../scripts/practice.mjs', import.meta.url), 'utf8');
   const block = /const START = (String\.raw`[^`]*`);\nconst KEY_SHAPES = (\[[\s\S]*?\n\]);/.exec(src);
@@ -155,6 +168,8 @@ test('the key shapes equal the masking the threat model\'s row 14 names, in scri
 
 test('claim 14: options must be distinct after case folding, the pick one of them, or empty for a waiting entry', () => {
   assert.match(checkInput(input({ options: ['Yes', 'yes'], pick: 'Yes' })).error, /options repeat/);
+  // Full case folding, not only lower case: ß folds to ss.
+  assert.match(checkInput(input({ options: ['STRASSE', 'straße'], pick: 'STRASSE' })).error ?? '', /options repeat/);
   assert.match(checkInput(input({ pick: 'Maybe' })).error, /pick is not one of the options/);
   assert.match(checkInput(input({ pick: '' })).error, /pick is not one of the options/);
   assert.match(checkInput(input({ options: [] })).error, /options/);
@@ -249,6 +264,8 @@ test('claim 4: a read waiting entry drops only once a later entry answers it', (
   const r = appendEntry(log, input({ source: 'relayed', answers: '1' }), { at: NOW + 902, level: 1, read: keepAllButFirst, sid: SID });
   assert.ok('value' in r, JSON.stringify(r.error));
   assert.ok(!r.value.log.entries.some(e => e.id === '1'));
+  // The log the drop leaves, an answer whose waiting entry is gone, still passes its own strict check.
+  assert.ok('value' in checkLog(serializeLog(r.value.log).value));
 });
 
 test('claim 4: Owner, Pane and alarm entries never drop, even as the oldest and read', () => {

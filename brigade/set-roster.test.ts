@@ -5224,6 +5224,7 @@ test("claim 3: log_decision refuses a subagent's call, a deny verdict and an ask
     expect(r.text).toMatch(/^log_decision refused: the owner's rules: /)
     expect(r.ok).toBe(false)
     expect(r.text).not.toContain('SECRET')
+    expect(r.text).not.toContain('mcp__grimoire__log_decision')
     expect(r.text).not.toContain('\\')
   }
   expect(w.text(LOG)).toBeUndefined()
@@ -5587,10 +5588,42 @@ test('a field holding a key-shaped value or an email address is refused through 
   expect((await decide($)).ok).toBe(true)
   const before = w.text(LOG)
   const key = `sk-ant-${'a'.repeat(24)}`
-  for (const [over, rule] of [[{ why: `use ${key}` }, /holds text shaped like a key/], [{ work: `mail ${'someone'}@example.org` }, /holds an email address/]] as const) {
+  const mail = `${'someone'}@example.org`
+  for (const [over, rule, value] of [[{ why: `use ${key}` }, /holds text shaped like a key/, key], [{ work: `mail ${mail}` }, /holds an email address/, mail]] as const) {
     const r = await decide($, { ...ENTRY, ...over })
     expect(r.text).toMatch(rule)
-    expect(r.text).not.toContain(key)
+    expect(r.text).not.toContain(value)
     expect(w.text(LOG)).toBe(before)
   }
+})
+
+test('claim 4: past 5,000 entries in the marks folder the drop rule still reads this session\'s own marks file', async ($, on) => {
+  const w = world(on, w => {
+    w.dirs(DECISIONS)
+    w.dirs(MARKS)
+    seed(w, LOG, logText(Array.from({ length: 500 }, (_, i) => kept(i + 1, i + 1))))
+    seed(w, OWN_MARKS, marksText([{ log: SID, id: '1', entryAt: 1, state: 'read', at: 5 }]))
+    for (let i = 0; i < 5001; i++) seed(w, `${MARKS}\\x${i}.txt`, 'x')
+  })
+  await start($)
+  await brigade($)
+  expect((await decide($)).text).toMatch(/^Logged decision 501 at /)
+  expect(parsed(w, LOG).entries[0].id).toBe('2')
+})
+
+test('claim 3: a call queued while the pane was shown is refused at its turn once the pane has closed', async ($, on) => {
+  const w = world(on)
+  await start($)
+  await brigade($)
+  w.holdWrite = true
+  const first = decide($)
+  await w.clock.settle()
+  const second = decide($)
+  await w.clock.settle()
+  w.open = false
+  w.holdWrite = false
+  w.release()
+  expect((await first).ok).toBe(true)
+  expect((await second).text).toMatch(/^log_decision refused: pane: /)
+  expect(parsed(w, LOG).entries.length).toBe(1)
 })

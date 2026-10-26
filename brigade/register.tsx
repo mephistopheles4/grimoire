@@ -645,7 +645,9 @@ async function readDecisions($: EngineInterface, live: () => boolean) {
 async function allReadMarks($: EngineInterface, at: Where, now: number) {
   try {
     const l = await listKind($, at, 'marks')
-    if (l.refused || l.tooMany) return new Map()
+    // Past 5,000 entries the listing gives no other file, but this session's
+    // own marks file is still read by its own path, as the pane reads it.
+    if (l.refused) return new Map()
     const files: MarksFile[] = []
     for (const f of [...(l.own !== undefined ? [l.own] : []), ...l.others]) {
       // Under the pane's checks: a file dated more than two minutes ahead gives no mark.
@@ -1771,7 +1773,7 @@ export const register: Register = on => {
       await pressReview($, review[1] ?? '', review[2] ?? '', Number(review[3]))
       return { element: e.element }
     }
-    const row = /^dopen-([0-9]{1,4})-([1-9][0-9]{0,15})-([0-9]{1,16})$/.exec(e.element)
+    const row = /^dopen-([0-9]{1,5})-([1-9][0-9]{0,15})-([0-9]{1,16})$/.exec(e.element)
     if (row !== null) {
       const r = historyRows(tabLogs(), searchWords(queryFrom(await read($, query))), historyPages).rows[Number(row[1])]
       if (r !== undefined && r.entry.id === row[2] && r.entry.at === Number(row[3])) {

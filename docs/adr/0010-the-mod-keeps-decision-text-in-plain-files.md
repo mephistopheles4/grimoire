@@ -36,10 +36,12 @@ last, but this repository is public, so a decision's text would be published.
   decision or note text, goes on a card or a to-do.
 - Decision text reaches a file only through `log_decision`, which stamps each
   entry's id, time and level itself and refuses an input that carries them.
-  Its fields refuse control, hidden and direction-changing characters and
-  text shaped like a session id or a Desktop id. The head-chef skill keeps
-  tokens, secrets, local paths, error text and personal detail out of them
-  (ticket 6 of spec 402).
+  Its fields refuse control, hidden and direction-changing characters, text
+  shaped like a session id, a Desktop id or a Remote Control link, and, on
+  the owner's word beyond the spec, a value shaped like a known key, an email
+  address and a home-folder path. The head-chef skill keeps the rest, tokens,
+  secrets, local paths, error text and personal detail the shapes miss, out
+  of them (ticket 6 of spec 402).
 - Every file is written only where the roster's link-refusing path rule
   allows, one folder past `brigade`, and an existing file is overwritten only
   when it passes the strict check of its own kind.

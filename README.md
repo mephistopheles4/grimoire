@@ -341,7 +341,7 @@ What each of Brigade's hooks does with what it sees:
 | `turn.start` | Only after a head-chef load whose pane was open but not shown, not yet listed, or opened without its reads: looks at the pane once a turn, and once it is shown and listed, starts the pane's reads, offers `set_roster` if it was not offered yet, and adds one note saying it is ready. Otherwise, and on a subagent's turn, it passes on with no other work. It reads no text of the prompt. |
 | `turn.step`, `turn.complete` | Counts each model call's token numbers for the usage summary file. It reads no text of the conversation and passes every step on unchanged. |
 | `session.measure`, `session.receive` | While the pane is open, refreshes the usage numbers and keeps the first line of each report another session sends. |
-| `ui.render`, `ui.press`, `ui.input`, `ui.close` | Draws the pane and the warning band, handles their buttons, and takes the Decisions tab's search text, which it keeps only to filter the tab. |
+| `ui.render`, `ui.press`, `ui.input`, `ui.close` | Draws the pane and the warning band, handles their buttons, and takes the Decisions tab's search text, which it keeps only to filter the tab, in plugin state, which other plugins can read until the pane next opens. |
 
 Claude Code's bundled security default, on a machine with managed settings or
 a Team or Enterprise account, keeps the plugins you install from seeing
