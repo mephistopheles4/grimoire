@@ -4,6 +4,7 @@ import type { EngineInterface, Register, Timer } from 'claude-code'
 import type { Card, Roster } from './types'
 import type { Moves } from './view.ts'
 import {
+  AHEAD_MS,
   GH_ARGV,
   MAX_ROSTER_BYTES,
   PR_NUMBER,
@@ -31,6 +32,8 @@ import {
   oneLine,
   openerArgv,
   parsePrList,
+  placeDecisions,
+  placeMarks,
   placeRoster,
   readOpenAnswer,
   remoteLink,
@@ -45,7 +48,32 @@ import {
   windowsEnv,
   rowMove,
 } from './roster.ts'
-import type { GhPr, HostOs, StatAnswer } from './roster.ts'
+import type { GhPr, HostOs, Placed, SessionRow, StatAnswer } from './roster.ts'
+import {
+  FULL,
+  MAX_LOG_BYTES,
+  MAX_MARKS_BYTES,
+  MAX_OTHER_FILES,
+  addMark,
+  appendEntry,
+  checkInput,
+  checkLog,
+  checkMarks,
+  cleanLines,
+  emptyLog,
+  historyRows,
+  markKey,
+  mergeMarks,
+  missingIds,
+  projectDigest,
+  reviewQueue,
+  searchWords,
+  serializeLog,
+  serializeMarks,
+  sourceLabel,
+  writerName,
+} from './decisions.ts'
+import type { DecisionEntry, DecisionLog, MarksFile, ReadLog, Row } from './decisions.ts'
 import {
   CACHE_CELLS,
   EMPTY_USAGE,
@@ -53,6 +81,7 @@ import {
   GROUP_KEYS,
   GROUP_NAMES,
   linksOnRoster,
+  MAX_LISTING,
   MAX_NAME,
   MAX_PICKED,
   MAX_TRANSCRIPT_BYTES,
@@ -178,8 +207,12 @@ const tabs = atom({ plugin: 'grimoire', key: 'tabs' } as const, [])
 const viewAtom = atom({ plugin: 'grimoire', key: 'view' } as const, 'sessions')
 const picked = atom({ plugin: 'grimoire', key: 'picked' } as const, [])
 const folded = atom({ plugin: 'grimoire', key: 'folded' } as const, [])
-// The group that starts folded each time the pane opens.
-const STARTS_FOLDED = ['finished']
+// The groups that start folded each time the pane opens.
+const STARTS_FOLDED = ['finished', 'd-history']
+// The Decisions tab's search text, read again through its cap before use, and
+// a counter the decision reads move so the pane redraws: it carries no text.
+const query = atom({ plugin: 'grimoire', key: 'query' } as const, '')
+const decisionsSeen = atom({ plugin: 'grimoire', key: 'decisionsSeen' } as const, 0)
 
 // Text and status colours are the app's own theme keys, so they follow the
 // person's theme, light or dark, as the rest of Claude Code does; the fills
@@ -359,6 +392,8 @@ async function pollLive($: EngineInterface, open: () => boolean) {
     const files = await readSessions(at.config, io)
     if (!open()) return
     const rows = files?.rows ?? []
+    // Each log's writer is named from the same rows, kept in module memory.
+    if (files !== undefined) sessionRows = rows.map(r => ({ name: r.name, status: r.status, sessionId: r.sessionId }))
     // Each roster card finds its session by id (a title only when it has no
     // id, or when no session file carries a Desktop id), and only the cards'
     // entries are kept: the live word, the session's own name and the group
@@ -447,6 +482,254 @@ async function pollLive($: EngineInterface, open: () => boolean) {
 // checked live entries.
 async function movesOf($: EngineInterface): Promise<Moves> {
   return movesFrom(liveFrom(await read($, live)))
+}
+
+// --- the decision log (spec 402) --------------------------------------------
+//
+// While the pane is open, and only then (ADR 0008), the roster timer's tick
+// reads this session's own decision log and marks file, and the 20 newest
+// other logs and marks files by modification time, from brigade/decisions
+// and brigade/marks in the plugin's data folder. Every file is placed by the
+// roster's path rule before it is read, its size checked against its kind's
+// cap before the read and its length after, and its text held to its kind's
+// strict check (decisions.ts); a file that fails, or is dated more than two
+// minutes ahead of the engine clock, is skipped and counted. A file is read
+// again only when the listing shows its size or time changed. A folder whose
+// listing passes 5,000 entries gives no other session's file. What was read
+// stays in module memory and never enters plugin state: a reload starts it
+// over, which costs one read per file. A read's error message is dropped.
+
+type Kind = 'decisions' | 'marks'
+const CAPS: Record<Kind, number> = { decisions: MAX_LOG_BYTES, marks: MAX_MARKS_BYTES }
+// By kind and session id, what the last read of each file gave: the listing's
+// size and time, and the checked file, or undefined when it failed a check.
+type Held = { size: number; mtimeMs: number; value: DecisionLog | MarksFile | undefined }
+const held = new Map<string, Held>()
+// What the tab draws from, as of the last read.
+type TabRead = { logs: ReadLog[]; marks: { sid: string; file: MarksFile }[]; skipped: number; beyond: number; tooMany: boolean }
+let tabRead: TabRead = { logs: [], marks: [], skipped: 0, beyond: 0, tooMany: false }
+// Each running session's name and id, from the live poll's session files,
+// for each log's writer.
+let sessionRows: SessionRow[] = []
+// The entries skipped, the History rows opened and History's pages, for this
+// pane's life; and whether the last mark could not be written.
+const skipped = new Set<string>()
+const openedRows = new Set<string>()
+let historyPages = 1
+let markFailed = false
+let readingDecisions = false
+
+function placeKind($: EngineInterface, at: Where, kind: Kind, sid: string): Promise<Placed> {
+  const stat = (path: string) => statPath($, path)
+  return kind === 'decisions' ? placeDecisions(at.config, at.plugin, sid, stat) : placeMarks(at.config, at.plugin, sid, stat)
+}
+
+// A file of a kind, placed again by the path rule for its session id, its size
+// checked before the read and its length after. Undefined on any failure.
+async function readKind($: EngineInterface, at: Where, kind: Kind, sid: string): Promise<DecisionLog | MarksFile | undefined> {
+  try {
+    const placed = await placeKind($, at, kind, sid)
+    if ('refused' in placed || placed.existing === undefined || placed.existing.size > CAPS[kind]) return undefined
+    const text = String(await $.fs.read(placed.file))
+    if (new TextEncoder().encode(text).length > CAPS[kind]) return undefined
+    const checked = kind === 'decisions' ? checkLog(text) : checkMarks(text)
+    return 'value' in checked ? checked.value : undefined
+  } catch {
+    return undefined
+  }
+}
+
+// One listing entry the reads may take: a plain file named by a session id.
+type Listed = { sid: string; size: number; mtimeMs: number }
+function listedFile(e: unknown): Listed | undefined {
+  if (typeof e !== 'object' || e === null) return undefined
+  const f = e as Record<string, unknown>
+  const m = typeof f.name === 'string' ? /^(.+)\.json$/.exec(f.name) : null
+  const sid = m?.[1]
+  if (sid === undefined || !SESSION_ID.test(sid) || f.kind !== 'file' || f.isLink !== false) return undefined
+  return typeof f.size === 'number' && typeof f.mtimeMs === 'number' ? { sid, size: f.size, mtimeMs: f.mtimeMs } : undefined
+}
+
+// A kind's folder, as the path rule placed this session's own file: its own
+// file by its own stat, and every other file the listing names, newest first.
+// `refused` when the rule refuses the folder; `tooMany` past 5,000 entries.
+async function listKind($: EngineInterface, at: Where, kind: Kind) {
+  const placed = await placeKind($, at, kind, at.id)
+  if ('refused' in placed) return { refused: true, others: [] as Listed[], tooMany: false }
+  let own: Listed | undefined
+  if (placed.existing !== undefined) {
+    const s = await $.fs.stat(placed.file, { resolve: true }).catch(() => undefined)
+    if (s !== undefined && typeof s.mtimeMs === 'number') own = { sid: at.id, size: s.size, mtimeMs: s.mtimeMs }
+  }
+  const folder = placed.file.slice(0, placed.file.length - `${at.id}.json`.length - 1)
+  const entries: unknown = await $.fs.list(folder).catch(() => [])
+  const list = Array.isArray(entries) ? entries : []
+  if (list.length > MAX_LISTING) return { refused: false, own, others: [] as Listed[], tooMany: true }
+  const others = list.flatMap(e => {
+    const f = listedFile(e)
+    return f === undefined || f.sid === at.id ? [] : [f]
+  })
+  return { refused: false, own, others: others.sort((a, b) => b.mtimeMs - a.mtimeMs), tooMany: false }
+}
+
+// One file through the cache: read again only when its size or time moved.
+// Returns the checked file, and whether this call read it.
+async function heldFile($: EngineInterface, at: Where, kind: Kind, f: Listed) {
+  const k = `${kind} ${f.sid}`
+  const was = held.get(k)
+  if (was !== undefined && was.size === f.size && was.mtimeMs === f.mtimeMs) return { value: was.value, fresh: false }
+  const value = await readKind($, at, kind, f.sid)
+  held.set(k, { size: f.size, mtimeMs: f.mtimeMs, value })
+  return { value, fresh: true }
+}
+
+// The pane's read of the decision files, at each roster tick and at arm.
+async function readDecisions($: EngineInterface, live: () => boolean) {
+  if (readingDecisions) return
+  readingDecisions = true
+  try {
+    const at = await where($)
+    if ('error' in at) return
+    const now = await $.clock.now()
+    const next: TabRead = { logs: [], marks: [], skipped: 0, beyond: 0, tooMany: false }
+    let changed = false
+    const kept = new Set<string>()
+    for (const kind of ['decisions', 'marks'] as const) {
+      const l = await listKind($, at, kind)
+      if (!live()) return
+      if (l.refused) {
+        next.skipped++
+        continue
+      }
+      next.tooMany ||= l.tooMany
+      const fresh = l.others.filter(f => f.mtimeMs <= now + AHEAD_MS)
+      next.skipped += l.others.length - fresh.length
+      if (kind === 'decisions') next.beyond = Math.max(fresh.length - MAX_OTHER_FILES, 0)
+      const files = [...(l.own !== undefined ? [l.own] : []), ...fresh.slice(0, MAX_OTHER_FILES)]
+      for (const f of files) {
+        kept.add(`${kind} ${f.sid}`)
+        if (f.mtimeMs > now + AHEAD_MS) {
+          next.skipped++
+          continue
+        }
+        const got = await heldFile($, at, kind, f)
+        if (!live()) return
+        changed ||= got.fresh
+        if (got.value === undefined) next.skipped++
+        else if (got.value.kind === 'decisions') next.logs.push({ sid: f.sid, writer: '', log: { ...got.value, entries: got.value.entries.filter(e => e.at <= now + AHEAD_MS) } })
+        else next.marks.push({ sid: f.sid, file: got.value })
+      }
+    }
+    for (const k of [...held.keys()]) {
+      if (!kept.has(k)) {
+        held.delete(k)
+        changed = true
+      }
+    }
+    const counts = (t: TabRead) => `${t.logs.length} ${t.marks.length} ${t.skipped} ${t.beyond} ${t.tooMany}`
+    changed ||= counts(next) !== counts(tabRead)
+    tabRead = next
+    if (changed) await update($, decisionsSeen, n => ((typeof n === 'number' ? n : 0) + 1) % 1000000)
+  } catch {
+    // The next tick reads again.
+  } finally {
+    readingDecisions = false
+  }
+}
+
+// Every marks file in the folder, through the same cache, for log_decision's
+// drop rule: an entry with no readable read mark counts as unread.
+async function allReadMarks($: EngineInterface, at: Where, now: number) {
+  try {
+    const l = await listKind($, at, 'marks')
+    if (l.refused || l.tooMany) return new Map()
+    const files: MarksFile[] = []
+    for (const f of [...(l.own !== undefined ? [l.own] : []), ...l.others]) {
+      const got = await heldFile($, at, 'marks', f)
+      if (got.value !== undefined && got.value.kind === 'marks') files.push(got.value)
+    }
+    return mergeMarks(files, now)
+  } catch {
+    return new Map()
+  }
+}
+
+// The writes to one session's log, from the tool or the pane, take turns in
+// one queue, so no write is lost and no id is reused; the marks file's
+// writes take turns in another.
+let logWriting: Promise<unknown> = Promise.resolve()
+let marksWriting: Promise<unknown> = Promise.resolve()
+function logTurn<T>(work: () => Promise<T>): Promise<T> {
+  const run = logWriting.then(work, work)
+  logWriting = run.catch(() => undefined)
+  return run
+}
+function marksTurn<T>(work: () => Promise<T>): Promise<T> {
+  const run = marksWriting.then(work, work)
+  marksWriting = run.catch(() => undefined)
+  return run
+}
+
+// The fixed warnings after a write whose path then failed its check. They
+// name the file kind, never the path.
+const LOG_AFTER = 'Brigade: after a decision was logged, the decision log path failed its check. Something changed it between the check and the write; check the plugin\'s data folder.'
+const MARKS_AFTER = 'Brigade: after a mark was saved, the marks path failed its check. Something changed it between the check and the write; check the plugin\'s data folder.'
+
+// One mark in this session's own marks file, written in its queue. False when
+// it could not be written; then nothing was changed.
+async function writeMark($: EngineInterface, r: Row, state: 'read' | 'flagged' | 'unflagged'): Promise<boolean> {
+  return marksTurn(async () => {
+    try {
+      const at = await where($)
+      if ('error' in at) return false
+      const placed = await placeKind($, at, 'marks', at.id)
+      if ('refused' in placed) return false
+      let file: MarksFile | undefined
+      if (placed.existing !== undefined) {
+        if (placed.existing.size > MAX_MARKS_BYTES) return false
+        const was = checkMarks(String(await $.fs.read(placed.file)))
+        if ('error' in was) return false
+        file = was.value
+      }
+      const now = await $.clock.now()
+      const known = new Set(tabRead.logs.flatMap(l => l.log.entries.map(e => markKey(l.sid, e.id, e.at))))
+      const value = addMark(file, { log: r.sid, id: r.entry.id, entryAt: r.entry.at, state, at: now }, known)
+      const text = serializeMarks(value)
+      if ('error' in text) return false
+      await $.fs.write(placed.file, text.value)
+      const after = await placeKind($, at, 'marks', at.id).catch(() => ({ refused: 'the check could not run' }))
+      if ('refused' in after || after.existing === undefined) $.ui.toast(MARKS_AFTER, { timeoutMs: 15000 })
+      // The tab shows the mark at once; the next read finds the file again.
+      held.delete(`marks ${at.id}`)
+      tabRead = { ...tabRead, marks: [...tabRead.marks.filter(m => m.sid !== at.id), { sid: at.id, file: value }] }
+      return true
+    } catch {
+      return false
+    }
+  })
+}
+
+// The logs as the tab draws them: each writer named from the session files.
+const tabLogs = (): ReadLog[] => tabRead.logs.map(l => ({ ...l, writer: writerName(sessionRows, l.sid) }))
+const queryFrom = (stored: unknown): string => (typeof stored === 'string' ? [...stored].slice(0, 200).join('') : '')
+
+// A press on To review's Read, next or Skip: it acts only when the entry its
+// key names, by id and time, is still the one shown.
+async function pressReview($: EngineInterface, verb: string, id: string, entryAt: number) {
+  const now = await $.clock.now()
+  const q = reviewQueue(tabLogs(), mergeMarks(tabRead.marks.map(m => m.file), now), skipped, searchWords(queryFrom(await read($, query))))
+  const head = q.head
+  if (head === undefined || head.entry.id !== id || head.entry.at !== entryAt) return
+  const k = markKey(head.sid, head.entry.id, head.entry.at)
+  if (verb === 'dnext') {
+    const saved = await writeMark($, head, 'read')
+    markFailed = !saved
+    if (saved) skipped.delete(k)
+  } else {
+    skipped.add(k)
+    if (q.order.every(r => skipped.has(markKey(r.sid, r.entry.id, r.entry.at)))) skipped.clear()
+  }
+  await update($, decisionsSeen, n => ((typeof n === 'number' ? n : 0) + 1) % 1000000)
 }
 
 // --- the PR details --------------------------------------------------------
@@ -630,6 +913,7 @@ async function arm($: EngineInterface) {
     await update($, folded, () => STARTS_FOLDED)
     if (live()) await readUsage($)
     if (live()) await loadRoster($)
+    if (live()) await readDecisions($, live)
     if (live()) await pollLive($, live)
     // Not awaited: a slow gh must not hold up the /brigade reply, the skill's text or the tool's offer.
     if (live()) void askGh($, live, false)
@@ -665,6 +949,7 @@ async function rosterTick($: EngineInterface, live: () => boolean) {
   }
   const ids = await loadRoster($)
   if (live()) await sweepTodos($, ids)
+  if (live()) await readDecisions($, live)
 }
 
 // The Desktop ids whose press is in its tool route now. A second press for
@@ -856,8 +1141,15 @@ async function paneListed($: EngineInterface) {
   return panes.find(p => p.id === PANE)
 }
 
+// set_roster, and with it log_decision (spec 402), wherever the pane offers
+// a tool. A failed log_decision offer leaves set_roster offered.
 async function offerTool($: EngineInterface) {
   await $.tool.register({ name: TOOL, description: DESCRIPTION, inputSchema: SCHEMA })
+  try {
+    await $.tool.register({ name: LOG_TOOL, description: LOG_DESCRIPTION, inputSchema: LOG_SCHEMA })
+  } catch {
+    // No log_decision: a lead that cannot log acts at level 1.
+  }
 }
 
 // Set when a head-chef load leaves the pane waiting (#380), and read by the
@@ -887,6 +1179,12 @@ async function openPane($: EngineInterface, wait: boolean, reached: { open: bool
   await update($, dismissed, () => [])
   await update($, picked, () => [])
   await update($, reports, () => [])
+  // The Decisions tab starts over too: no search, nothing skipped or opened.
+  await update($, query, () => '')
+  skipped.clear()
+  openedRows.clear()
+  historyPages = 1
+  markFailed = false
   const opened = await $.ui.open({ id: PANE, title: TITLE })
   reached.open = true
   let offer: Offer = 'not listed'
@@ -1135,6 +1433,109 @@ async function setRoster($: EngineInterface, e: Record<string, unknown>, signal:
   })
 }
 
+// --- log_decision (spec 402, S5.3) ----------------------------------------------
+//
+// The tool a lead logs each decision with, before it acts on it. Like
+// set_roster it writes with no permission prompt, so it is guarded here: it
+// is offered where set_roster is, works only while the pane is listed and
+// placed with its reads running, refuses a subagent's call and every verdict
+// set_roster refuses, takes only an entry that passes the shared check, and
+// writes only this session's own log, through the log's queue. The mod stamps
+// the entry's id, time and level; the level is 1 until the autonomy slider
+// lands (ticket 4). Every refusal is fixed words naming the rule: no path,
+// verdict reason or engine message.
+
+const LOG_TOOL = 'log_decision'
+const LOG_TOOL_NAME = 'mcp__grimoire__log_decision'
+const LEVEL = 1
+const LEVEL_NAME = 'Manual'
+
+const LOG_DESCRIPTION =
+  "Logs one decision to this lead session's decision log, which the owner reviews in the Brigade pane's Decisions tab. Call it once per decision, before you act on it. Send `source` (`lead` for your own pick, `relayed` for the owner's answer as you relay it), `work` (the issue or pull request), `question`, `options` (1 to 6, distinct), `pick` (exactly one of the options), `why`, `undo`, and `revisit` if there is a time to come back to it. For a decision the owner keeps, send `waiting: true` and an empty `pick`; when the owner answers, log a `relayed` entry whose `answers` is the waiting entry's id. Never send `id`, `at` or `level`: the pane stamps them. Plain text only, with no session id, Desktop id, token, secret, local path, error text or personal detail. It works only while the Brigade pane is open and shown, and refuses otherwise; a refusal names the rule that failed, and means act at level 1."
+
+const LOG_SCHEMA = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['source', 'work', 'question', 'options', 'pick', 'why', 'undo'],
+  properties: {
+    source: { type: 'string', enum: ['lead', 'relayed'] },
+    waiting: { type: 'boolean' },
+    work: field(300),
+    question: field(1000),
+    options: { type: 'array', minItems: 1, maxItems: 6, items: field(300) },
+    pick: field(300),
+    why: field(1000),
+    undo: field(300),
+    revisit: field(300),
+    answers: { type: 'string', pattern: '^[1-9][0-9]{0,15}$' },
+  },
+}
+
+const refuseLog = (rule: string) => ({ deny: `log_decision refused: ${rule}. The decision log is unchanged; act at level 1.` })
+const failedAfterLog = () => ({
+  deny: 'log_decision failed after the write began: the decision log path then failed its check. The log may or may not hold the entry; act at level 1 and tell the owner.',
+})
+
+// Whether the pane is listed and placed with its reads running: only then
+// does the owner see what the tool writes.
+async function readsRunning($: EngineInterface): Promise<boolean> {
+  const pane = await paneListed($)
+  return pane !== undefined && pane.isPlaced === true && timers.length > 0
+}
+
+async function logDecision($: EngineInterface, e: Record<string, unknown>, signal: AbortSignal, progress: Progress) {
+  if (e.agentId !== undefined) return refuseLog("subagent: only the lead session's own turns log decisions")
+  if (!(await readsRunning($))) return refuseLog('pane: the Brigade pane is not open and shown with its reads running')
+  const input = Object.fromEntries(Object.entries(e).filter(([k]) => !ENVELOPE.includes(k)))
+  if (!rulesAllowTool(await $.tool.check({ tool: LOG_TOOL_NAME, input }))) {
+    return refuseLog("the owner's rules: a deny verdict, an ask rule or an organisation ceiling covers this tool")
+  }
+  const checked = checkInput(input)
+  if ('error' in checked) return refuseLog(`shape: ${checked.error}`)
+  const at = await where($)
+  if ('error' in at) return refuseLog('path: no decision log file can be named')
+
+  return logTurn(async () => {
+    if (signal.aborted) return refuseLog('abandoned: the call ran out of time or was interrupted before its turn')
+    if (!(await readsRunning($))) return refuseLog('pane: the Brigade pane is not open and shown with its reads running')
+    const placed = await placeKind($, at, 'decisions', at.id)
+    if ('refused' in placed) return refuseLog('path: the decision log path failed its check')
+    // A file already there is overwritten only if it is a decision log. What
+    // it holds otherwise is never echoed.
+    let log = emptyLog(projectDigest(await read($, started), at.id))
+    if (placed.existing !== undefined) {
+      const was = placed.existing.size <= MAX_LOG_BYTES ? checkLog(String(await $.fs.read(placed.file))) : undefined
+      if (was === undefined || 'error' in was) {
+        return refuseLog("not a decision log: the file at the decision log's place holds something else, so it is not overwritten. Ask the owner to look at the plugin's data folder")
+      }
+      log = was.value
+    }
+    const now = await $.clock.now()
+    // The marks are read only when the log is full and an entry must drop.
+    let r = appendEntry(log, checked.value, { at: now, level: LEVEL, read: new Map(), sid: at.id })
+    if ('error' in r && r.error === FULL) r = appendEntry(log, checked.value, { at: now, level: LEVEL, read: await allReadMarks($, at, now), sid: at.id })
+    if ('error' in r) return refuseLog(r.error === FULL ? 'the decision log is full: review the Decisions tab' : `shape: ${r.error}`)
+    const text = serializeLog(r.value.log)
+    if ('error' in text) return refuseLog('the decision log is full: review the Decisions tab')
+    if (signal.aborted) return refuseLog('abandoned: the call ran out of time or was interrupted before its write')
+    progress.written = true
+    await $.fs.write(placed.file, text.value)
+    // A link swapped in between the check and the write is caught here,
+    // after the fact, and said loudly. A hard link is not.
+    const after = await placeKind($, at, 'decisions', at.id).catch(() => ({ refused: 'the check could not run' }))
+    if ('refused' in after || after.existing === undefined) {
+      $.ui.toast(LOG_AFTER, { timeoutMs: 15000 })
+      return failedAfterLog()
+    }
+    // The tab shows the entry at once; the next read finds the file again.
+    held.delete(`decisions ${at.id}`)
+    tabRead = { ...tabRead, logs: [...tabRead.logs.filter(l => l.sid !== at.id), { sid: at.id, writer: '', log: r.value.log }] }
+    await update($, decisionsSeen, n => ((typeof n === 'number' ? n : 0) + 1) % 1000000)
+    const { entry } = r.value
+    return { result: `Logged decision ${entry.id} at ${new Date(entry.at).toISOString()}, at level ${LEVEL} (${LEVEL_NAME}).` }
+  })
+}
+
 // The owner's "Don't show again", read from the store at each start. The
 // band in warning.tsx reads the same key.
 const warningAck = atom({ plugin: 'grimoire', key: 'warningAck' } as const, null)
@@ -1264,6 +1665,26 @@ export const register: Register = on => {
     deny: 'set_roster refused: error: the tool failed or ran out of time. The roster may or may not have been kept; stop keeping the roster and tell the owner.',
   }))
 
+  // log_decision, answered here and nowhere beneath, as set_roster is. A throw
+  // becomes a refusal with no engine message.
+  on('tool.call', { tool: LOG_TOOL_NAME }, async ($, e, next) => {
+    const progress: Progress = { written: false }
+    try {
+      return await logDecision($, e as unknown as Record<string, unknown>, next.signal, progress)
+    } catch {
+      return progress.written ? failedAfterLog() : refuseLog('error: the tool failed')
+    }
+  }).catch(() => ({
+    deny: 'log_decision refused: error: the tool failed or ran out of time. The log may or may not hold the entry; act at level 1 and tell the owner.',
+  }))
+
+  // The Decisions tab's search box: its text, cut to 200 characters, is the
+  // search. The text is shown back only in the box.
+  on('ui.input', { plugin: 'grimoire', requestId: PANE, element: 'dsearch' }, async ($, e, next) => {
+    await update($, query, () => queryFrom(e.value))
+    return next(e)
+  })
+
   // The model's head-chef load, and the typed one, wrapped for where the skill
   // hook is skipped. Any other skill or command, and a subagent's load, pass
   // on with no engine call; the load's own answer always returns unchanged.
@@ -1333,8 +1754,36 @@ export const register: Register = on => {
   on('ui.press', { plugin: 'grimoire', requestId: PANE }, async ($, e, next) => {
     // The switch, a group's fold and the selection bar: fixed words, read
     // through fixed sets.
-    if (e.element === 'view-sessions' || e.element === 'view-prs') {
-      await update($, viewAtom, () => (e.element === 'view-prs' ? 'prs' : 'sessions'))
+    if (e.element === 'view-sessions' || e.element === 'view-prs' || e.element === 'view-decisions') {
+      await update($, viewAtom, () => (e.element === 'view-prs' ? 'prs' : e.element === 'view-decisions' ? 'decisions' : 'sessions'))
+      return { element: e.element }
+    }
+    // The Decisions tab's keys, matched whole: To review's two buttons carry
+    // the shown entry's id and time, a History row its place, id and time,
+    // and none a session id.
+    const review = /^(dnext|dskip)-([1-9][0-9]{0,15})-([0-9]{1,16})$/.exec(e.element)
+    if (review !== null) {
+      await pressReview($, review[1] ?? '', review[2] ?? '', Number(review[3]))
+      return { element: e.element }
+    }
+    const row = /^dopen-([0-9]{1,4})-([1-9][0-9]{0,15})-([0-9]{1,16})$/.exec(e.element)
+    if (row !== null) {
+      const r = historyRows(tabLogs(), searchWords(queryFrom(await read($, query))), historyPages).rows[Number(row[1])]
+      if (r !== undefined && r.entry.id === row[2] && r.entry.at === Number(row[3])) {
+        const k = markKey(r.sid, r.entry.id, r.entry.at)
+        if (openedRows.has(k)) openedRows.delete(k)
+        else openedRows.add(k)
+        await update($, decisionsSeen, n => ((typeof n === 'number' ? n : 0) + 1) % 1000000)
+      }
+      return { element: e.element }
+    }
+    if (e.element === 'dmore') {
+      historyPages = Math.min(historyPages + 1, 1000)
+      await update($, decisionsSeen, n => ((typeof n === 'number' ? n : 0) + 1) % 1000000)
+      return { element: e.element }
+    }
+    if (e.element === 'dsearch-clear') {
+      await update($, query, () => '')
       return { element: e.element }
     }
     if (e.element.startsWith('grp-')) {
@@ -1454,6 +1903,19 @@ export const register: Register = on => {
     const view = viewFrom(await read($, viewAtom))
     const picks = new Set(pickedFrom(await read($, picked)))
     const folds = new Set(foldedFrom(await read($, folded)))
+    // The Decisions tab: what the last decision read gave, from module memory;
+    // the counter is read so a read that changed something redraws the pane.
+    await read($, decisionsSeen)
+    const Input = 'Input' in table ? table.Input : undefined
+    const queryText = queryFrom(await read($, query))
+    const words = searchWords(queryText)
+    const dLogs = tabLogs()
+    const dStates = mergeMarks(tabRead.marks.map(m => m.file), now)
+    const dQueue = reviewQueue(dLogs, dStates, skipped, words)
+    const dUnread = reviewQueue(dLogs, dStates, skipped, []).total
+    const dHistory = historyRows(dLogs, words, historyPages)
+    const dTotal = dLogs.reduce((n, l) => n + l.log.entries.length, 0)
+    const dMissing = dLogs.reduce((n, l) => n + missingIds(l.log), 0)
 
     // The cards in their groups, each with its place in the roster, which every
     // button key keeps. A status outside the four words draws in no group.
@@ -1990,10 +2452,183 @@ export const register: Register = on => {
       </Box>
     )
 
+    // --- the Decisions tab (spec 402, S5.4) ---
+    //
+    // To review: the oldest unread entry across the logs read, as a card, with
+    // Read, next and Skip. History, folded by default: every entry newest
+    // first, 50 a page, each row opening into the same card. Every field is
+    // drawn as text through the one-line cleaner, line by line.
+    const stamp = (at: number) => {
+      const d = new Date(at)
+      return Number.isFinite(d.getTime()) ? d.toISOString().slice(0, 16).replace('T', ' ') : ''
+    }
+    const lines = (t: string) => (
+      <Box flexDirection="column">
+        {cleanLines(t).map(l => (
+          <Text wrap="wrap">{l}</Text>
+        ))}
+      </Box>
+    )
+    const part = (label: string, body: JSX.Element) => (
+      <Box flexDirection="column">
+        <Text dimColor size="footnote" weight="semibold">
+          {label}
+        </Text>
+        {body}
+      </Box>
+    )
+    // A waiting entry's headline names its answer, as the lead records it.
+    const answerOf = (r: Row): DecisionEntry | undefined =>
+      r.entry.waiting ? dLogs.find(l => l.sid === r.sid)?.log.entries.find(x => x.answers === r.entry.id) : undefined
+    const headline = (r: Row) => {
+      if (!r.entry.waiting) return oneLine(r.entry.pick, 300)
+      const a = answerOf(r)
+      return a === undefined ? 'Waits for you' : `Answered, as the lead records it: decision ${a.id}`
+    }
+    const entryCard = (r: Row, top: JSX.Element | undefined, buttons: JSX.Element[]) => {
+      const d = r.entry
+      const alarm = d.source === 'alarm'
+      return (
+        <Box flexDirection="column" paddingX={terminal ? 0 : 'md'} paddingY={terminal ? 0 : 'sm'} rowGap={terminal ? 0 : 'sm'} {...(terminal ? {} : { borderStyle: 'round' as const, borderColor: alarm ? 'warning' : DARK_FILLS.bar, backgroundColor: DARK_FILLS.hover })}>
+          <Box flexDirection="row" columnGap={1} alignItems="flex-start">
+            <Box flexDirection="column" flexGrow={1} flexShrink={1} minWidth={0}>
+              {top}
+              {alarm ? (
+                <Text color="warning" weight="semibold" wrap="wrap">
+                  {headline(r)}
+                </Text>
+              ) : (
+                <Text weight="semibold" wrap="wrap">
+                  {headline(r)}
+                </Text>
+              )}
+              <Text dimColor>{r.writer}</Text>
+            </Box>
+            <Box flexDirection="column" flexShrink={0} alignItems="flex-end">
+              <Text>{sourceLabel(d, r.writer)}</Text>
+              <Text dimColor tabular>
+                {stamp(d.at)}
+              </Text>
+              <Text dimColor>{`at level ${d.level}`}</Text>
+            </Box>
+          </Box>
+          {part('Question', lines(d.question))}
+          {part(
+            'Options',
+            <Box flexDirection="column">
+              {d.options.map(o => (
+                <Box flexDirection="row" columnGap={1}>
+                  <Box flexShrink={0}>{!d.waiting && o === d.pick ? <Text color="success">●</Text> : <Text dimColor>○</Text>}</Box>
+                  <Box flexShrink={1} minWidth={0}>
+                    <Text wrap="wrap">{oneLine(o, 300)}</Text>
+                  </Box>
+                </Box>
+              ))}
+            </Box>,
+          )}
+          {part('Why', lines(d.why))}
+          {part('To undo', lines(d.undo))}
+          {d.revisit !== '' && part('Revisit', lines(d.revisit))}
+          <Text dimColor>{`Decision ${d.id}`}</Text>
+          {buttons.length > 0 && (
+            <Box flexDirection="row" columnGap={1} justifyContent="flex-start" alignItems="center">
+              {buttons.map(b => (
+                <Box flexShrink={0}>{b}</Box>
+              ))}
+            </Box>
+          )}
+        </Box>
+      )
+    }
+    const quiet = (text: string) => (
+      <Box paddingX={3} paddingY={1}>
+        <Text dimColor>{text}</Text>
+      </Box>
+    )
+    // A History row: one press holding the fold arrow and the headline, a dim
+    // line under it, and the source over the time on the right.
+    const historyRow = (r: Row, i: number) => {
+      const k = markKey(r.sid, r.entry.id, r.entry.at)
+      const isOpen = openedRows.has(k)
+      const isRead = r.entry.source === 'owner' || r.entry.source === 'pane' || dStates.get(k) !== undefined
+      return (
+        <Box flexDirection="column" paddingX={terminal ? 0 : 'sm'} {...hoverFill(`drow-${i}`)}>
+          <Box flexDirection="row" columnGap={1} alignItems="flex-start">
+            <Box flexDirection="column" flexGrow={1} flexShrink={1} minWidth={0}>
+              <Button key={`dopen-${i}-${r.entry.id}-${r.entry.at}`} plain onPress={noop}>
+                <Text dimColor>{`${isOpen ? '▾' : '▸'} `}</Text>
+                {isRead ? <Text dimColor>{headline(r)}</Text> : <Text weight="medium">{headline(r)}</Text>}
+              </Button>
+              <Text dimColor size="footnote" wrap="truncate-end">
+                {`${r.writer} · ${oneLine(r.entry.work, 80)} · decision ${r.entry.id}`}
+              </Text>
+            </Box>
+            <Box flexDirection="column" flexShrink={0} alignItems="flex-end">
+              <Text dimColor>{sourceLabel(r.entry, r.writer)}</Text>
+              <Text dimColor size="footnote" tabular>
+                {stamp(r.entry.at)}
+              </Text>
+            </Box>
+          </Box>
+          {isOpen && entryCard(r, undefined, [])}
+        </Box>
+      )
+    }
+    // The dim line: what the read left out, by count, never by name.
+    const dimLine = [
+      tabRead.tooMany ? 'A decision or marks folder lists over 5,000 entries, so no other session\'s file was read from it' : undefined,
+      tabRead.skipped > 0 ? `${tabRead.skipped} file(s) skipped` : undefined,
+      tabRead.beyond > 0 ? `${tabRead.beyond} older log(s) not read` : undefined,
+      dMissing > 0 ? `${dMissing} id(s) missing` : undefined,
+    ].filter(x => x !== undefined)
+    const head = dQueue.head
+    const decisionsBody = (
+      <Box flexDirection="column">
+        {groupHead('d-review', dQueue.total)}
+        {!folds.has('d-review') &&
+          (head !== undefined
+            ? entryCard(head, <Text dimColor>{`${dQueue.n} of ${dQueue.total}`}</Text>, [
+                <Button key={`dnext-${head.entry.id}-${head.entry.at}`} variant="primary" onPress={noop}>
+                  ✓ Read, next
+                </Button>,
+                <Button key={`dskip-${head.entry.id}-${head.entry.at}`} dimColor onPress={noop}>
+                  Skip
+                </Button>,
+              ])
+            : words.length > 0 && dUnread > 0
+              ? quiet('No unread decision matches the search.')
+              : hint('d-review'))}
+        {markFailed && <Text color="error">Not saved: the mark could not be written</Text>}
+        {groupHead('d-history', dHistory.total)}
+        {!folds.has('d-history') &&
+          (dHistory.rows.length === 0 ? (
+            words.length > 0 && dTotal > 0 ? quiet('No decision matches the search.') : hint('d-history')
+          ) : (
+            <Box flexDirection="column">
+              {dHistory.rows.map(historyRow)}
+              {dHistory.more && (
+                <Box marginTop={1}>
+                  <Button key="dmore" dimColor onPress={noop}>
+                    Show more
+                  </Button>
+                </Box>
+              )}
+            </Box>
+          ))}
+        {dimLine.length > 0 && (
+          <Box marginTop={1}>
+            <Text dimColor wrap="wrap">
+              {dimLine.join(' · ')}
+            </Text>
+          </Box>
+        )}
+      </Box>
+    )
+
     // The switch: an icon button with a tooltip on Desktop, the word in the
     // terminal; the chosen one primary. The tooltip names the view and may add
     // a count.
-    const switchButton = (id: 'sessions' | 'prs', icon: string, word: string, tipText: string) =>
+    const switchButton = (id: 'sessions' | 'prs' | 'decisions', icon: string, word: string, tipText: string) =>
       tip(
         `switch-${id}`,
         view === id ? (
@@ -2016,15 +2651,41 @@ export const register: Register = on => {
         <Box flexDirection="row" columnGap={1} marginBottom={1} alignItems="center">
           <Box flexGrow={1} flexShrink={1} minWidth={0}>
             <Text weight="medium" wrap="truncate-end">
-              {view === 'prs' ? `${prCount} ${prCount === 1 ? 'pull request' : 'pull requests'}` : (sessionsCount ?? '')}
+              {view === 'prs'
+                ? `${prCount} ${prCount === 1 ? 'pull request' : 'pull requests'}`
+                : view === 'decisions'
+                  ? dTotal === 0
+                    ? 'No decisions logged yet.'
+                    : words.length > 0
+                      ? `${dHistory.total} of ${dTotal} match`
+                      : `${dTotal} ${dTotal === 1 ? 'decision' : 'decisions'} · ${dUnread} unread`
+                  : (sessionsCount ?? '')}
             </Text>
           </Box>
           {switchButton('sessions', '◫', 'Sessions', 'Sessions')}
           {switchButton('prs', '⎇', 'Pull requests', `Pull requests ${prCount}`)}
+          {switchButton('decisions', '⚖', 'Decisions', `Decisions ${dUnread} unread`)}
         </Box>
         {error !== '' && <Text color="error">{error}</Text>}
         {pollError !== '' && <Text color="error">{pollError}</Text>}
-        {view === 'prs' ? (
+        {/* The search box, on Desktop and the terminal: the mobile app draws
+            no field. It filters as the owner types; ⌕ is its own button and
+            ✕ clears it. */}
+        {view === 'decisions' && Input !== undefined && e.surface !== 'mobile' && (
+          <Box flexDirection="row" columnGap={1} alignItems="center">
+            <Box flexDirection="column" flexGrow={1} flexShrink={1} minWidth={0}>
+              <Input key="dsearch" placeholder="Search decisions" value={queryText} submitLabel="⌕" onInput={noop} onSubmit={noop} />
+            </Box>
+            {queryText !== '' && (
+              <Button key="dsearch-clear" plain dimColor onPress={noop}>
+                ✕
+              </Button>
+            )}
+          </Box>
+        )}
+        {view === 'decisions' ? (
+          decisionsBody
+        ) : view === 'prs' ? (
           <Box flexDirection="column">
             {needsYou.length > 0 && <Text dimColor>{`${needsYou.length} waiting on you`}</Text>}
             {(

@@ -124,9 +124,15 @@ declare module 'claude-code' {
        *  or `trend`, kept for the session and not reset when the pane opens.
        *  Read only through the fixed set of view words. */
       tabs: Pair[]
-      /** The chosen view, `sessions` or `prs`: set to `sessions` each time
-       *  /brigade or a skill load that opens the pane does. Read only through the fixed set. */
+      /** The chosen view, `sessions`, `prs` or `decisions`: set to `sessions`
+       *  each time /brigade or a skill load that opens the pane does. Read only through the fixed set. */
       view: string
+      /** The Decisions tab's search text, cleared each time the pane opens.
+       *  Read only through its 200-character cap. */
+      query: string
+      /** A counter the decision reads move so the pane redraws. It carries
+       *  no decision, mark or session id: those stay in module memory. */
+      decisionsSeen: number
       /** The selected cards' titles, at most 50. Cleared when /brigade or a skill load
        *  opens the pane. Checked again before use. */
       picked: string[]

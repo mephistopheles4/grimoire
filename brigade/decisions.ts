@@ -290,10 +290,13 @@ export function appendEntry(log: DecisionLog, raw: unknown, o: AppendOptions): C
       sizes.splice(i, 1)
     }
   }
-  if (!fits()) return { error: 'the decision log is full: no entry can drop' }
+  if (!fits()) return { error: FULL }
   const next: DecisionLog = { ...log, next: log.next + 1, entries: kept }
-  return 'error' in serializeLog(next) ? { error: 'the decision log is full: no entry can drop' } : { value: { log: next, entry } }
+  return 'error' in serializeLog(next) ? { error: FULL } : { value: { log: next, entry } }
 }
+
+/** An append's refusal when nothing can drop: fixed words the tool answers with. */
+export const FULL = 'the decision log is full: no entry can drop'
 
 /** The ids missing below `next` that the cap rule does not explain: none when
  *  the log sits at a cap, where drops happen; else every gap. */
@@ -400,6 +403,10 @@ export function writerName(rows: readonly SessionRow[], sid: string): string {
   const row = rows.find(r => r.sessionId === sid)
   return row === undefined ? 'an ended session' : oneLine(row.name, 80)
 }
+
+/** A field's lines, each made safe to draw: its line breaks kept, and each
+ *  line cleaned as the roster's one-line text is. */
+export const cleanLines = (text: string): string[] => text.split(/\n/).map(l => oneLine(l, 1000))
 
 /** The words of a search, folded: each must appear in an entry. */
 export const searchWords = (query: string): string[] =>
