@@ -68,12 +68,14 @@ const toggle = (list: string[], x: string) => (list.includes(x) ? list.filter(y 
 
 export const register: Register = on => {
   on('session.start', async ($, e, next) => {
+    await update($, openAtom, () => [])
     await $.command.register({ name: 'decisions-proto', description: 'PROTOTYPE 402: open the Decisions tab prototype pane' })
     void $.ui.open({ id: PANE, title: 'Brigade · PROTOTYPE 402' })
     return next(e)
   })
 
   on('command.run', { command: 'decisions-proto' }, async $ => {
+    await update($, openAtom, () => [])
     await $.ui.open({ id: PANE, title: 'Brigade · PROTOTYPE 402' })
     return { text: 'Decisions prototype pane opened.' }
   })
@@ -86,7 +88,10 @@ export const register: Register = on => {
   on('ui.press', { requestId: PANE }, async ($, e) => {
     const [verb, arg = ''] = e.element.split(':')
     if (verb === 'var' && VARIANTS.some(v => v[0] === arg)) await update($, variantAtom, () => arg)
-    if (verb === 'tab' && ['sessions', 'prs', 'decisions'].includes(arg)) await update($, tabAtom, () => arg)
+    if (verb === 'tab' && ['sessions', 'prs', 'decisions'].includes(arg)) {
+      await update($, tabAtom, () => arg)
+      await update($, openAtom, () => [])
+    }
     if (verb === 'filter' && FILTERS.includes(arg)) await update($, filterAtom, () => arg)
     if (verb === 'fold') await update($, foldedAtom, l => toggle(l, arg))
     if (IDS.has(arg)) {
@@ -266,12 +271,14 @@ export const register: Register = on => {
     ]
     // The card both share: the parts a step apart on their own fill, the
     // buttons last.
-    const entryCard = (top: JSX.Element[], parts: JSX.Element[], buttons: JSX.Element, outer: Record<string, unknown> = {}) => (
+    const entryCard = (top: JSX.Element[], parts: JSX.Element[], buttons: JSX.Element[], outer: Record<string, unknown> = {}) => (
       <Box flexDirection="column" paddingX="md" paddingY="sm" rowGap="sm" {...outer} {...(terminal ? {} : { borderStyle: 'round', borderColor: FILLS.bar, backgroundColor: FILLS.hover })}>
         {top.length > 0 && <Box flexDirection="column">{top}</Box>}
         {parts}
-        <Box flexDirection="row" columnGap={1} marginTop="xs" flexWrap="wrap">
-          {buttons}
+        <Box flexDirection="row" columnGap={1} marginTop="xs" justifyContent="flex-start" alignItems="center">
+          {buttons.map(b => (
+            <Box flexShrink={0}>{b}</Box>
+          ))}
         </Box>
       </Box>
     )
@@ -279,10 +286,10 @@ export const register: Register = on => {
       entryCard(
         [],
         entryParts(d),
-        <>
-          {pick(`read:${d.id}:${at}-d`, readSet.has(d.id), readSet.has(d.id) ? '✓ Read' : '○ Mark read')}
-          {pick(`flag:${d.id}:${at}-d`, flagged.has(d.id), flagged.has(d.id) ? '⚑ Flagged to revisit' : '⚑ Flag to revisit')}
-        </>,
+        [
+          pick(`read:${d.id}:${at}-d`, readSet.has(d.id), readSet.has(d.id) ? '✓ Read' : '○ Mark read'),
+          pick(`flag:${d.id}:${at}-d`, flagged.has(d.id), flagged.has(d.id) ? '⚑ Flagged' : '⚑ Flag to revisit'),
+        ],
         { marginTop: 'sm', marginBottom: 'xs', ...(terminal ? { marginLeft: 3 } : {}) },
       )
     // Who decided, over when: the right-hand column of a row and the card.
@@ -294,25 +301,24 @@ export const register: Register = on => {
         </Text>
       </Box>
     )
-    // A compact row: the pick box, a fold arrow, the pick over a dim line,
-    // and who decided over when on the right. A press on the arrow or the
-    // pick opens the full entry under it.
+    // A compact row: the pick box; then one press holding the fold arrow and
+    // the pick, as a section bar's arrow and name are one press (a Button
+    // holds text only); the dim line under it; who decided over when on the
+    // right. The press opens the full entry under the row.
     const row = (d: Decision, stamp: string, sub: string, at: string) => (
       <Box flexDirection="column" paddingX={terminal ? 0 : 'sm'} {...hoverFill(`row-${d.id}`)}>
         <Box flexDirection="row" columnGap={1} alignItems="flex-start">
           {tick(d, at)}
-          <Box flexShrink={0}>
-            <Button key={`open:${d.id}:${at}-a`} plain dimColor onPress={noop}>
-              {opened.has(d.id) ? '▾' : '▸'}
-            </Button>
-          </Box>
           <Box flexDirection="column" flexGrow={1} flexShrink={1} minWidth={0}>
             <Button key={`open:${d.id}:${at}`} plain onPress={noop}>
-              {readSet.has(d.id) ? <Text dimColor wrap="truncate-end">{d.pick}</Text> : <Text weight="medium" wrap="truncate-end">{d.pick}</Text>}
+              <Text dimColor>{`${opened.has(d.id) ? '▾' : '▸'} `}</Text>
+              {readSet.has(d.id) ? <Text dimColor>{d.pick}</Text> : <Text weight="medium">{d.pick}</Text>}
             </Button>
-            <Text dimColor size="footnote" wrap="truncate-end">
-              {sub}
-            </Text>
+            <Box marginLeft={2}>
+              <Text dimColor size="footnote" wrap="truncate-end">
+                {sub}
+              </Text>
+            </Box>
           </Box>
           {whoWhen(d, stamp)}
         </Box>
@@ -352,7 +358,7 @@ export const register: Register = on => {
       stop('100%', level >= 3, -6) +
       '</svg>'
     const autoRow = () => (
-      <Box flexDirection="column" paddingX="sm" paddingY="xs" marginTop="sm" {...(terminal ? {} : { borderStyle: 'round', borderColor: level === 3 ? 'warning' : level === 2 ? 'claude' : FILLS.bar, backgroundColor: FILLS.hover })}>
+      <Box flexDirection="column" paddingX="md" paddingY="sm" rowGap="sm" marginTop="md" {...(terminal ? {} : { borderStyle: 'round', borderColor: level === 3 ? 'warning' : level === 2 ? 'claude' : FILLS.bar, backgroundColor: FILLS.hover })}>
         <Box flexDirection="row" columnGap={1}>
           <Box flexGrow={1}>
             <Text weight="medium">{`Autonomy · ${level} ${levelName}`}</Text>
@@ -472,15 +478,15 @@ export const register: Register = on => {
                   </Box>,
                 ],
                 entryParts(d),
-                <>
+                [
                   <Button key={`readnext:${d.id}`} variant="primary" onPress={noop}>
                     ✓ Read, next
-                  </Button>
-                  {pick(`flag:${d.id}:queue`, flagged.has(d.id), flagged.has(d.id) ? '⚑ Flagged' : '⚑ Flag to revisit')}
+                  </Button>,
+                  pick(`flag:${d.id}:queue`, flagged.has(d.id), flagged.has(d.id) ? '⚑ Flagged' : '⚑ Flag'),
                   <Button key="skip" dimColor onPress={noop}>
                     Skip
-                  </Button>
-                </>,
+                  </Button>,
+                ],
               )
             ))}
           {bar('flagq', 'Flagged to revisit', String(flagged.size))}
@@ -548,7 +554,7 @@ export const register: Register = on => {
     const selected = kept.filter(d => picks.has(d.id)).length
 
     return (
-      <Box flexDirection="column" flexGrow={1} minHeight={e.props.placement === 'dock' ? e.props.scroll.bodyRows : undefined}>
+      <Box flexDirection="column" flexGrow={1} position="relative" minHeight={e.props.placement === 'dock' ? e.props.scroll.bodyRows : undefined}>
         <Box flexDirection="row" columnGap={1} marginBottom={1} alignItems="center">
           <Box flexGrow={1} flexShrink={1} minWidth={0}>
             <Text weight="medium" wrap="truncate-end">
@@ -561,20 +567,13 @@ export const register: Register = on => {
         </Box>
         {tab === 'decisions' && variant === 'B' && Input !== undefined && (
           <Box flexDirection="row" columnGap={1} alignItems="center">
-            <Box flexDirection="column" flexGrow={1} flexShrink={1} minWidth={0}>
-              <Input key="search" placeholder="Search by session, issue or word" value={query} submitLabel="search" onInput={noop} onSubmit={noop} />
+            <Box flexDirection="column" flexGrow={1} flexShrink={1} minWidth={0} alignItems="stretch">
+              <Input key="search" placeholder="Search by session, issue or word" value={query} submitLabel="⌕" onInput={noop} onSubmit={noop} />
             </Box>
             {query !== '' && (
               <Button key="clearsearch" plain dimColor onPress={noop}>
                 ✕
               </Button>
-            )}
-            {tip(
-              'search',
-              <Button key="searchgo" onPress={noop}>
-                {pointer ? '⌕' : 'Search'}
-              </Button>,
-              'Search',
             )}
           </Box>
         )}
@@ -585,22 +584,9 @@ export const register: Register = on => {
             : variant === 'C'
               ? variantC()
               : variantA()}
-        {/* A spacer takes the room left in a docked pane, so the island and
-            the foot sit at its bottom, as Brigade's selection bar and Usage do. */}
+        {/* A spacer takes the room left in a docked pane, so the foot sits
+            at its bottom, as Brigade's Usage does. */}
         <Box flexGrow={1} />
-        {tab === 'decisions' && selected > 0 && (
-          <Box flexDirection="row" justifyContent="center" marginTop="md" marginBottom="sm">
-            <Box flexDirection="row" alignItems="center" columnGap="md" paddingX="md" {...(terminal ? { borderStyle: 'round', borderColor: 'inactive', backgroundColor: 'subtle' } : { borderStyle: 'round', borderColor: FILLS.tip, backgroundColor: FILLS.hover })}>
-              <Text>{`${selected} selected`}</Text>
-              <Button key="bardismiss" plain onPress={noop}>
-                ✓ Dismiss
-              </Button>
-              <Button key="barclear" plain dimColor onPress={noop}>
-                ✕
-              </Button>
-            </Box>
-          </Box>
-        )}
         {tab === 'decisions' && variant === 'B' && bFoot()}
         {/* The prototype's own bar, not part of the design. */}
         <Box flexDirection="column" marginTop="md" paddingX="sm" paddingY="xs" {...(terminal ? {} : { borderStyle: 'round', borderColor: 'warning' })}>
@@ -613,6 +599,20 @@ export const register: Register = on => {
             </Button>
           </Box>
         </Box>
+        {/* The Dismiss island floats over the pane's foot, over what is there. */}
+        {tab === 'decisions' && selected > 0 && (
+          <Box position="absolute" bottom={2} left={0} right={0} flexDirection="row" justifyContent="center">
+            <Box flexDirection="row" alignItems="center" columnGap="md" paddingX="md" {...(terminal ? { borderStyle: 'round', borderColor: 'inactive', backgroundColor: 'subtle' } : { borderStyle: 'round', borderColor: FILLS.tip, backgroundColor: FILLS.hover })}>
+              <Text>{`${selected} selected`}</Text>
+              <Button key="bardismiss" plain onPress={noop}>
+                ✓ Dismiss
+              </Button>
+              <Button key="barclear" plain dimColor onPress={noop}>
+                ✕
+              </Button>
+            </Box>
+          </Box>
+        )}
       </Box>
     )
   })
