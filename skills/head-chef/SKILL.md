@@ -257,14 +257,16 @@ On the owner's "done", for each session named:
    folder is the main working tree. Stop too unless the worktree's git
    folder, from `git -C <worktree> rev-parse --git-dir --git-common-dir`,
    sits in the lead repository's `worktrees` folder. Run every cleanup git
-   command with `-c core.fsmonitor=false` and `-c log.showSignature=false`, so
-   no repository setting runs a program in the lead. When the worktree holds
+   command with `--no-optional-locks`, `-c core.fsmonitor=false` and
+   `-c log.showSignature=false`, so no repository setting or hook runs a
+   program in the lead. When the worktree holds
    submodules, add the checks inside each one that
    `references/submodule-cleanup.md` gives.
 2. **Name back the whole list,** side sessions included, and wait for one yes
    (stop 2 below). Mark each background session as one. For a worktree with
    submodules, say that a force would delete each submodule's ignored files
-   and its own history store, unrecoverably.
+   and its own history store, unrecoverably, with any commit that only a stale or self-written
+   remote-tracking ref reaches.
 3. **On that yes, run the checks again** without asking again. A check that
    now refuses is stop 3.
 4. **Archive the session first,** with Desktop's archive tool. Git on a live
@@ -349,7 +351,8 @@ decide what a stop or the owner's yes keeps for the owner.
   `git -C <worktree> log --oneline <branch> --not --remotes`,
   `git -C <worktree> stash list`,
   `git worktree remove` and `git branch -d`, for cleanup, each with
-  `-c core.fsmonitor=false` and `-c log.showSignature=false`. For a worktree
+  `--no-optional-locks`, `-c core.fsmonitor=false` and
+  `-c log.showSignature=false`. For a worktree
   with submodules, also `git worktree list --porcelain`, `git -C <worktree>
   submodule status --recursive`, `submodule foreach` with the four inner
   commands in `references/submodule-cleanup.md`, a read-only listing of the
