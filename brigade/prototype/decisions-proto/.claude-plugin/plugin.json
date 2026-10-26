@@ -1,0 +1,1 @@
+{ "name": "decisions-proto", "version": "0.1.0", "description": "PROTOTYPE for grimoire issue 402: a Decisions tab in a Brigade-style pane. Throwaway.", "types": "./types/index.d.ts" }
