@@ -228,7 +228,6 @@ export const register: Register = on => {
       </Box>
     )
     const src = (d: Decision) => <Text color={d.source === 'owner' ? 'success' : 'suggestion'}>{d.source === 'owner' ? 'Owner' : 'Lead'}</Text>
-    const flagMark = (d: Decision) => (flagged.has(d.id) ? <Text color="warning">⚑</Text> : undefined)
 
     // The full entry: each part a dim label over its text, the parts a step
     // apart, the options a list with the pick marked, the buttons last.
@@ -240,58 +239,82 @@ export const register: Register = on => {
         {body}
       </Box>
     )
-    const detail = (d: Decision, at: string) => (
-      <Box flexDirection="column" marginTop="sm" marginBottom="xs" paddingX="md" paddingY="sm" rowGap="sm" {...(terminal ? { marginLeft: 3 } : { borderStyle: 'round', borderColor: FILLS.bar, backgroundColor: FILLS.hover })}>
-        {part('Question', <Text wrap="wrap">{d.question}</Text>)}
-        {part(
-          'Options',
-          d.options.map(o => (
-            <Box flexDirection="row" columnGap={1} paddingLeft={1}>
-              <Box flexShrink={0}>{o === d.pick ? <Text color="success">●</Text> : <Text dimColor>○</Text>}</Box>
-              <Box flexShrink={1} minWidth={0}>
-                {o === d.pick ? (
-                  <Text weight="semibold" wrap="wrap">
-                    {o}
-                  </Text>
-                ) : (
-                  <Text dimColor wrap="wrap">
-                    {o}
-                  </Text>
-                )}
-              </Box>
+    const entryParts = (d: Decision) => [
+      part('Question', <Text wrap="wrap">{d.question}</Text>),
+      part(
+        'Options',
+        d.options.map(o => (
+          <Box flexDirection="row" columnGap={1} paddingLeft={1}>
+            <Box flexShrink={0}>{o === d.pick ? <Text color="success">●</Text> : <Text dimColor>○</Text>}</Box>
+            <Box flexShrink={1} minWidth={0}>
+              {o === d.pick ? (
+                <Text weight="semibold" wrap="wrap">
+                  {o}
+                </Text>
+              ) : (
+                <Text dimColor wrap="wrap">
+                  {o}
+                </Text>
+              )}
             </Box>
-          )),
-        )}
-        {part('Why', <Text wrap="wrap">{d.why}</Text>)}
-        {part('To undo', <Text wrap="wrap">{d.undo}</Text>)}
-        {d.revisit !== '' && part('Revisit', <Text wrap="wrap">{d.revisit}</Text>)}
-        <Box flexDirection="row" columnGap={1} marginTop="xs">
-          {pick(`read:${d.id}:${at}-d`, readSet.has(d.id), readSet.has(d.id) ? '✓ Read' : '○ Mark read')}
-          {pick(`flag:${d.id}:${at}-d`, flagged.has(d.id), flagged.has(d.id) ? '⚑ Flagged to revisit' : '⚑ Flag to revisit')}
+          </Box>
+        )),
+      ),
+      part('Why', <Text wrap="wrap">{d.why}</Text>),
+      part('To undo', <Text wrap="wrap">{d.undo}</Text>),
+      ...(d.revisit !== '' ? [part('Revisit', <Text wrap="wrap">{d.revisit}</Text>)] : []),
+    ]
+    // The card both share: the parts a step apart on their own fill, the
+    // buttons last.
+    const entryCard = (top: JSX.Element[], parts: JSX.Element[], buttons: JSX.Element, outer: Record<string, unknown> = {}) => (
+      <Box flexDirection="column" paddingX="md" paddingY="sm" rowGap="sm" {...outer} {...(terminal ? {} : { borderStyle: 'round', borderColor: FILLS.bar, backgroundColor: FILLS.hover })}>
+        {top.length > 0 && <Box flexDirection="column">{top}</Box>}
+        {parts}
+        <Box flexDirection="row" columnGap={1} marginTop="xs" flexWrap="wrap">
+          {buttons}
         </Box>
       </Box>
     )
-    // A compact row: tick, time, source, pick; a dim line under it; a press on
-    // the pick opens the full entry in place.
+    const detail = (d: Decision, at: string) =>
+      entryCard(
+        [],
+        entryParts(d),
+        <>
+          {pick(`read:${d.id}:${at}-d`, readSet.has(d.id), readSet.has(d.id) ? '✓ Read' : '○ Mark read')}
+          {pick(`flag:${d.id}:${at}-d`, flagged.has(d.id), flagged.has(d.id) ? '⚑ Flagged to revisit' : '⚑ Flag to revisit')}
+        </>,
+        { marginTop: 'sm', marginBottom: 'xs', ...(terminal ? { marginLeft: 3 } : {}) },
+      )
+    // Who decided, over when: the right-hand column of a row and the card.
+    const whoWhen = (d: Decision, stamp: string) => (
+      <Box flexDirection="column" flexShrink={0} alignItems="flex-end">
+        {src(d)}
+        <Text dimColor size="footnote" tabular>
+          {stamp}
+        </Text>
+      </Box>
+    )
+    // A compact row: the pick box, a fold arrow, the pick over a dim line,
+    // and who decided over when on the right. A press on the arrow or the
+    // pick opens the full entry under it.
     const row = (d: Decision, stamp: string, sub: string, at: string) => (
       <Box flexDirection="column" paddingX={terminal ? 0 : 'sm'} {...hoverFill(`row-${d.id}`)}>
-        <Box flexDirection="row" columnGap={1} alignItems="center">
+        <Box flexDirection="row" columnGap={1} alignItems="flex-start">
           {tick(d, at)}
           <Box flexShrink={0}>
-            <Text dimColor tabular>{stamp}</Text>
+            <Button key={`open:${d.id}:${at}-a`} plain dimColor onPress={noop}>
+              {opened.has(d.id) ? '▾' : '▸'}
+            </Button>
           </Box>
-          <Box flexShrink={0}>{src(d)}</Box>
-          <Box flexGrow={1} flexShrink={1} minWidth={0}>
+          <Box flexDirection="column" flexGrow={1} flexShrink={1} minWidth={0}>
             <Button key={`open:${d.id}:${at}`} plain onPress={noop}>
               {readSet.has(d.id) ? <Text dimColor wrap="truncate-end">{d.pick}</Text> : <Text weight="medium" wrap="truncate-end">{d.pick}</Text>}
             </Button>
+            <Text dimColor size="footnote" wrap="truncate-end">
+              {sub}
+            </Text>
           </Box>
-          {flagMark(d)}
-        </Box>
-        <Box marginLeft={3}>
-          <Text dimColor size="footnote" wrap="truncate-end">
-            {sub}
-          </Text>
+          {whoWhen(d, stamp)}
         </Box>
         {opened.has(d.id) && detail(d, at)}
       </Box>
@@ -372,18 +395,25 @@ export const register: Register = on => {
       </Box>
     )
     const handoffBody = () => (
-      <Box flexDirection="column" paddingX="md">
+      <Box flexDirection="column" paddingX="md" paddingY="sm" rowGap="md" marginBottom="sm" {...(terminal ? {} : { borderStyle: 'round', borderColor: FILLS.bar, backgroundColor: FILLS.hover })}>
         <Text dimColor size="footnote">{`Updated today ${HANDOFF.updated}`}</Text>
-        {HANDOFF.sections.map(([t, items]) => (
-          <Box flexDirection="column" marginTop="xs">
-            <Text dimColor weight="semibold" size="footnote">
-              {t}
-            </Text>
-            {items.map(i => (
-              <Text wrap="wrap">{`· ${i}`}</Text>
-            ))}
-          </Box>
-        ))}
+        {HANDOFF.sections.map(([t, items]) =>
+          part(
+            t,
+            <Box flexDirection="column" rowGap="xs" marginTop="xs">
+              {items.map(i => (
+                <Box flexDirection="row" columnGap={1} paddingLeft={1}>
+                  <Box flexShrink={0}>
+                    <Text dimColor>·</Text>
+                  </Box>
+                  <Box flexShrink={1} minWidth={0}>
+                    <Text wrap="wrap">{i}</Text>
+                  </Box>
+                </Box>
+              ))}
+            </Box>,
+          ),
+        )}
       </Box>
     )
 
@@ -428,29 +458,21 @@ export const register: Register = on => {
             (d === undefined ? (
               hint(words.length > 0 ? 'No unread decision matches the search.' : 'All caught up. New decisions land here.')
             ) : (
-              <Box flexDirection="column" paddingX="md" paddingY="sm" rowGap={0} {...(terminal ? {} : { borderStyle: 'round', borderColor: FILLS.hover, backgroundColor: FILLS.hover })}>
-                <Box flexDirection="row" columnGap={1}>
-                  <Box flexGrow={1}>
-                    <Text dimColor>{`${i + 1} of ${queue.length}`}</Text>
-                  </Box>
-                  {src(d)}
-                  <Text dimColor>{`${day(d)} ${time(d)}`}</Text>
-                </Box>
-                <Text dimColor size="footnote">{`${d.session} · ${d.work}`}</Text>
-                <Text dimColor wrap="wrap">{d.question}</Text>
-                <Text weight="semibold" wrap="wrap">{d.pick}</Text>
-                <Text wrap="wrap">{d.why}</Text>
-                <Button key={`open:${d.id}:queue`} plain dimColor onPress={noop}>
-                  {`${opened.has(d.id) ? '▾' : '▸'} Options (${d.options.length}) and how to undo`}
-                </Button>
-                {opened.has(d.id) && (
-                  <Box flexDirection="column" marginLeft={2}>
-                    {d.options.map(o => (o === d.pick ? <Text wrap="wrap">{`● ${o}`}</Text> : <Text dimColor wrap="wrap">{`○ ${o}`}</Text>))}
-                    <Text dimColor size="footnote" wrap="wrap">{`To undo: ${d.undo}`}</Text>
-                    {d.revisit !== '' && <Text dimColor size="footnote" wrap="wrap">{`Revisit: ${d.revisit}`}</Text>}
-                  </Box>
-                )}
-                <Box flexDirection="row" columnGap={1} marginTop="sm">
+              entryCard(
+                [
+                  <Box flexDirection="row" columnGap={1} alignItems="flex-start">
+                    <Box flexDirection="column" flexGrow={1} flexShrink={1} minWidth={0}>
+                      <Text dimColor>{`${i + 1} of ${queue.length}`}</Text>
+                      <Text weight="semibold" wrap="wrap">
+                        {d.pick}
+                      </Text>
+                      <Text dimColor size="footnote">{`${d.session} · ${d.work}`}</Text>
+                    </Box>
+                    {whoWhen(d, `${day(d)} ${time(d)}`)}
+                  </Box>,
+                ],
+                entryParts(d),
+                <>
                   <Button key={`readnext:${d.id}`} variant="primary" onPress={noop}>
                     ✓ Read, next
                   </Button>
@@ -458,8 +480,8 @@ export const register: Register = on => {
                   <Button key="skip" dimColor onPress={noop}>
                     Skip
                   </Button>
-                </Box>
-              </Box>
+                </>,
+              )
             ))}
           {bar('flagq', 'Flagged to revisit', String(flagged.size))}
           {!folds.has('flagq') &&
@@ -539,13 +561,20 @@ export const register: Register = on => {
         </Box>
         {tab === 'decisions' && variant === 'B' && Input !== undefined && (
           <Box flexDirection="row" columnGap={1} alignItems="center">
-            <Box flexGrow={1} flexShrink={1} minWidth={0}>
+            <Box flexDirection="column" flexGrow={1} flexShrink={1} minWidth={0}>
               <Input key="search" placeholder="Search by session, issue or word" value={query} submitLabel="search" onInput={noop} onSubmit={noop} />
             </Box>
             {query !== '' && (
               <Button key="clearsearch" plain dimColor onPress={noop}>
                 ✕
               </Button>
+            )}
+            {tip(
+              'search',
+              <Button key="searchgo" onPress={noop}>
+                {pointer ? '⌕' : 'Search'}
+              </Button>,
+              'Search',
             )}
           </Box>
         )}
