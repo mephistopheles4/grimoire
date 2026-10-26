@@ -20,6 +20,8 @@ const foldedAtom = atom({ plugin: 'decisions-proto', key: 'folded' } as const, [
 // The picked rows, and the rows the Dismiss island took off the list.
 const pickedAtom = atom({ plugin: 'decisions-proto', key: 'picked' } as const, [])
 const dismissedAtom = atom({ plugin: 'decisions-proto', key: 'dismissed' } as const, [])
+// The search box's text: it filters by session, issue or word.
+const queryAtom = atom({ plugin: 'decisions-proto', key: 'query' } as const, '')
 // The autonomy slider: 1 Manual, 2 Auto, 3 Full throttle.
 const levelAtom = atom({ plugin: 'decisions-proto', key: 'level' } as const, 2)
 const levelDefaultAtom = atom({ plugin: 'decisions-proto', key: 'levelDefault' } as const, 2)
@@ -76,6 +78,11 @@ export const register: Register = on => {
     return { text: 'Decisions prototype pane opened.' }
   })
 
+  on('ui.input', { requestId: PANE, element: 'search' }, async ($, e, next) => {
+    await update($, queryAtom, () => e.value.slice(0, 200))
+    return next(e)
+  })
+
   on('ui.press', { requestId: PANE }, async ($, e) => {
     const [verb, arg = ''] = e.element.split(':')
     if (verb === 'var' && VARIANTS.some(v => v[0] === arg)) await update($, variantAtom, () => arg)
@@ -96,6 +103,7 @@ export const register: Register = on => {
       await update($, pickedAtom, () => [])
     }
     if (verb === 'barclear') await update($, pickedAtom, () => [])
+    if (verb === 'clearsearch') await update($, queryAtom, () => '')
     if (verb === 'level' && ['1', '2', '3'].includes(arg)) await update($, levelAtom, () => Number(arg))
     if (verb === 'leveldef') {
       const next = ((await read($, levelDefaultAtom)) % 3) + 1
@@ -109,6 +117,7 @@ export const register: Register = on => {
       await update($, foldedAtom, () => ['handoff', 'history'])
       await update($, pickedAtom, () => [])
       await update($, dismissedAtom, () => [])
+      await update($, queryAtom, () => '')
       await update($, queueAtom, () => 0)
       await update($, filterAtom, () => 'all')
       await update($, levelDefaultAtom, () => 2)
@@ -120,6 +129,8 @@ export const register: Register = on => {
   on('ui.render', { component: 'Pane', requestId: PANE }, async ($, e) => {
     const table = $.ui.resolve(e)
     const { Box, Text, Button } = table
+    // The mobile app draws no field yet: there the tab has no search box.
+    const Input = 'Input' in table ? table.Input : undefined
     const Svg = 'Svg' in table ? table.Svg : undefined
     const terminal = !('Svg' in table) || e.surface === 'terminal'
     const pointer = e.surface === 'desktop'
@@ -136,8 +147,17 @@ export const register: Register = on => {
     const queueAt = await read($, queueAtom)
     const picks = new Set(await read($, pickedAtom))
     const gone = new Set(await read($, dismissedAtom))
+    const query = await read($, queryAtom)
+    // Every word typed must be found in the entry's session, work, question,
+    // options, pick, reason or undo, in any case.
+    const words = query.toLowerCase().split(/\s+/).filter(w => w !== '')
+    const matches = (d: Decision) => {
+      const hay = [d.session, d.work, d.question, ...d.options, d.pick, d.why, d.undo, d.revisit].join(' ').toLowerCase()
+      return words.every(w => hay.includes(w))
+    }
 
-    const kept = DECISIONS.filter(d => !gone.has(d.id))
+    const all = DECISIONS.filter(d => !gone.has(d.id))
+    const kept = all.filter(matches)
     const unread = kept.filter(d => !readSet.has(d.id))
     const shown = kept.filter(d =>
       filter === 'unread' ? !readSet.has(d.id) : filter === 'lead' ? d.source === 'lead' : filter === 'owner' ? d.source === 'owner' : filter === 'flag' ? flagged.has(d.id) : true,
@@ -406,7 +426,7 @@ export const register: Register = on => {
           {bar('queue', 'To review', String(queue.length))}
           {!folds.has('queue') &&
             (d === undefined ? (
-              hint('All caught up. New decisions land here.')
+              hint(words.length > 0 ? 'No unread decision matches the search.' : 'All caught up. New decisions land here.')
             ) : (
               <Box flexDirection="column" paddingX="md" paddingY="sm" rowGap={0} {...(terminal ? {} : { borderStyle: 'round', borderColor: FILLS.hover, backgroundColor: FILLS.hover })}>
                 <Box flexDirection="row" columnGap={1}>
@@ -501,7 +521,7 @@ export const register: Register = on => {
         ),
         tipText,
       )
-    const heading = tab === 'decisions' ? `${kept.length} decisions · ${unread.length} unread` : tab === 'prs' ? '3 pull requests' : '4 sessions'
+    const heading = tab === 'decisions' ? words.length > 0 ? `${kept.length} of ${all.length} match` : `${kept.length} decisions · ${unread.length} unread` : tab === 'prs' ? '3 pull requests' : '4 sessions'
     const name = VARIANTS.find(v => v[0] === variant)?.[1] ?? ''
     const selected = kept.filter(d => picks.has(d.id)).length
 
@@ -517,6 +537,18 @@ export const register: Register = on => {
           {switchButton('prs', '⎇', 'Pull requests', 'Pull requests 3')}
           {switchButton('decisions', '⚖', 'Decisions', `Decisions · ${unread.length} unread`)}
         </Box>
+        {tab === 'decisions' && variant === 'B' && Input !== undefined && (
+          <Box flexDirection="row" columnGap={1} alignItems="center">
+            <Box flexGrow={1} flexShrink={1} minWidth={0}>
+              <Input key="search" placeholder="Search by session, issue or word" value={query} submitLabel="search" onInput={noop} onSubmit={noop} />
+            </Box>
+            {query !== '' && (
+              <Button key="clearsearch" plain dimColor onPress={noop}>
+                ✕
+              </Button>
+            )}
+          </Box>
+        )}
         {tab !== 'decisions'
           ? hint(`The ${tab === 'prs' ? 'Pull requests' : 'Sessions'} tab as it is today. Not drawn in this prototype.`)
           : variant === 'B'

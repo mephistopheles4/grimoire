@@ -15,6 +15,7 @@ declare module 'claude-code' {
       queue: number
       picked: string[]
       dismissed: string[]
+      query: string
     }
   }
 }
