@@ -100,3 +100,21 @@ as soon as the engine answers that the pane is open and placed, even before it
 lists the pane, and each call still refuses while the pane is not listed. Spec
 rev 3 on #380 sets this out, the owner settled its seated route and its reads
 there (q5 and q6), and the Test rounds on its pull request review it.
+
+## Reviewed: the autonomy level's poll and the compaction hook (2026-10-27)
+
+Spec 402 rev 6.2 on #430 adds two pieces that can run with the pane closed.
+The autonomy level gets a 5-second poll of its own, apart from the pane's
+timers. It runs only while the stored or last-pressed level is above 1, or an
+alarm, a reset's Pane entry or a reset that could not land waits, and it starts
+when a press, a reset, one of the pane's tools or the band above the prompt
+finds one of those, or a stored level that differs from the last press. Each
+tick reads the session id and the stored level, and writes only the session's
+own decision log, for an alarm or a Pane entry; it reads no usage, keeps no
+report, starts no process and stops once nothing is left. A session at level 1
+with nothing waiting runs no tick at all. The new `session.compact` hook reads
+only the compaction's trigger, whether a subagent's loop is compacting, and
+whether the compaction was skipped: never the conversation, its instructions
+or the summary, and it returns the compaction unchanged. The band's render
+reads the stored level, the pane's redraw counter and the session id. Rev
+6.2's Design rounds reviewed this, and its Test round reviews the build.
