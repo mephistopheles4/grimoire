@@ -190,6 +190,8 @@ data it acts on only after your yes. The Lead hand-off section, folded at the
 foot of the Decisions view, shows the one the lead would read: its writer, when
 it was updated, the five sections, and "Not this session's writing" when it is
 another session's, or this lead's own file changed since the lead wrote it.
+Each read copies the hand-off into the reading session's transcript, where it
+stays after you delete the hand-off folder.
 
 A row that waits on you and holds a large context says when to reply
 to keep its cache, or suggests a hand-off once it has gone cold. Under its

@@ -295,7 +295,10 @@ foot of the Decisions tab. What follows from it:
   classifier sees `set_lead_handoff`'s write; each call is recorded in the
   transcript as the tool's result.
 - **What accumulates:** the mod never removes a hand-off. There is one per
-  session id; the owner can delete the `brigade/handoff/` folder by hand.
+  session id; the owner can delete the `brigade/handoff/` folder by hand. Each
+  `read_lead_handoff` answer copies the hand-off it gives, another session's
+  included, into the reading session's transcript, where it stays after the
+  folder is deleted.
 - **The race and planted files:** the check-and-write race and the hard-link
   gap of the other writers reach the hand-off writer too, and anything that
   can write the data folder can plant a well-formed same-folder hand-off
