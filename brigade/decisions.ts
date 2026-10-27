@@ -515,6 +515,88 @@ export function sourceLabel(e: DecisionEntry, writer: string): string {
   return 'Not from a press'
 }
 
+// --- the lead hand-off (S5.1 and S5.3) -------------------------------------------
+//
+// The lead's working state, one file per session, which set_lead_handoff
+// replaces whole and read_lead_handoff reads back. Each section is a list of
+// lines under the entry fields' text rules, and a line holds no line break.
+
+/** The five sections, in the order the pane draws them. */
+export const HANDOFF_SECTIONS = ['resume', 'rules', 'sessions', 'cleanup', 'owner'] as const
+export type HandoffSections = { [K in (typeof HANDOFF_SECTIONS)[number]]: string[] }
+/** A session's hand-off file. `at` and `project` are the mod's. */
+export type Handoff = { kind: 'handoff'; v: 1; at: number; project: string | null; sections: HandoffSections }
+export const MAX_HANDOFF_BYTES = 32 * 1024
+const MAX_HANDOFF_LINES = 20
+
+function checkSections(v: unknown, where: string): Checked<HandoffSections> {
+  if (!isRecord(v)) return { error: `${where} is not an object` }
+  const extra = Object.keys(v).filter(k => !(HANDOFF_SECTIONS as readonly string[]).includes(k))
+  if (extra.length > 0) return { error: `${where} has a field it does not use: ${oneLine(extra[0] ?? '', 40)}` }
+  const out = { resume: [], rules: [], sessions: [], cleanup: [], owner: [] } as HandoffSections
+  for (const k of HANDOFF_SECTIONS) {
+    const lines = v[k]
+    if (!Array.isArray(lines) || lines.length > MAX_HANDOFF_LINES) return { error: `${k} is not a list of at most ${MAX_HANDOFF_LINES} lines` }
+    for (const [i, line] of lines.entries()) {
+      const where = `${k} line ${i + 1}`
+      if (typeof line === 'string' && line.includes('\n')) return { error: `${where} holds a line break` }
+      const t = text(where, line, 1, 300)
+      if ('error' in t) return t
+      out[k].push(t.value)
+    }
+  }
+  return { value: out }
+}
+
+/** A set_lead_handoff call's input, checked: exactly the five sections, each
+ *  a list of at most 20 lines of 1 to 300 characters, under the text rules. */
+export const checkHandoffInput = (v: unknown): Checked<HandoffSections> => checkSections(v, 'the hand-off')
+
+/** A hand-off file's text, checked strictly: exactly its five keys, kind
+ *  `handoff`, version 1, a whole `at`, a digest or null, and the sections. */
+export function checkHandoff(raw: string): Checked<Handoff> {
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(raw)
+  } catch {
+    return { error: 'the hand-off is not JSON' }
+  }
+  if (!isRecord(parsed)) return { error: 'the hand-off is not an object' }
+  const keys = Object.keys(parsed)
+  if (keys.length !== 5 || !['kind', 'v', 'at', 'project', 'sections'].every(k => keys.includes(k))) return { error: 'the hand-off does not have exactly its five fields' }
+  if (parsed.kind !== 'handoff' || parsed.v !== 1) return { error: 'the file is not a hand-off of version 1' }
+  if (!isWhole(parsed.at)) return { error: 'the hand-off\'s at is not a whole number' }
+  if (parsed.project !== null && (typeof parsed.project !== 'string' || !DIGEST.test(parsed.project))) return { error: 'the hand-off\'s project is not a digest or null' }
+  const s = checkSections(parsed.sections, 'the hand-off\'s sections')
+  if ('error' in s) return s
+  return { value: { kind: 'handoff', v: 1, at: parsed.at, project: parsed.project as string | null, sections: s.value } }
+}
+
+/** A hand-off as the text the writer saves, measured in UTF-8 bytes against the cap. */
+export function serializeHandoff(h: Handoff): Checked<string> {
+  const t = JSON.stringify(h)
+  return bytes(t) > MAX_HANDOFF_BYTES ? { error: 'the hand-off is over 32 KiB' } : { value: t }
+}
+
+/** One hand-off as read, with the session id of the file that held it. */
+export type ReadHandoff = { sid: string; handoff: Handoff }
+
+/** The hand-off read_lead_handoff gives, and the pane draws: this session's
+ *  own when it has one, else the newest by stamped time among the others with
+ *  the same non-null project digest. One dated more than two minutes ahead of
+ *  the engine clock is never chosen. */
+export function chooseHandoff(own: ReadHandoff | undefined, others: readonly ReadHandoff[], project: string | null, now: number): ReadHandoff | undefined {
+  if (own !== undefined && own.handoff.at <= now + AHEAD_MS) return own
+  if (project === null) return undefined
+  let best: ReadHandoff | undefined
+  for (const o of others) {
+    const h = o.handoff
+    if (h.project !== project || h.at > now + AHEAD_MS) continue
+    if (best === undefined || h.at > best.handoff.at || (h.at === best.handoff.at && o.sid < best.sid)) best = o
+  }
+  return best
+}
+
 // --- the project digest (S5.1) -------------------------------------------------
 
 const K = [

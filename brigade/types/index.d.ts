@@ -137,8 +137,8 @@ declare module 'claude-code' {
        *  opens the pane. Checked again before use. */
       picked: string[]
       /** The folded groups, from the fixed set of group keys: set to the
-       *  finished group and the Decisions tab's Flagged and History each
-       *  time the pane opens, and flipped by a press.
+       *  finished group and the Decisions tab's Flagged, History and Lead
+       *  hand-off each time the pane opens, and flipped by a press.
        *  Checked again before use. */
       folded: string[]
       /** The permission warning is shown in this session: set by its tool. */

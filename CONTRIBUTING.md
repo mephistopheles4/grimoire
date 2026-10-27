@@ -234,7 +234,8 @@ imports it to pin the wording and check the "Don't show again" test. Its
 decision log's rules module, `brigade/decisions.ts`, is the fourth:
 `tests/brigade-decisions.test.mjs` imports it to check a `log_decision`
 call's input, each file kind's strict check, the caps and drop rule, the
-marks merge, the review queue, the search and the SHA-256. Keep all
+marks merge, the review queue, the search, the SHA-256, and a hand-off's
+input check and which hand-off is chosen. Keep all
 four to erasable syntax (no enums, namespaces or parameter properties), so
 Node can strip their types. The
 contract skill's hiring page has a seam of its own: `tests/contract-page.test.mjs`

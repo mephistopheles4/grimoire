@@ -20,6 +20,7 @@ const {
   appendEntry, checkInput, checkLog, checkMarks, emptyLog, addMark, addMarks, mergeMarks, markKey,
   reviewQueue, flaggedRows, historyRows, matchesSearch, searchWords, serializeLog, serializeMarks,
   sha256Hex, projectDigest, sourceLabel, writerName, missingIds,
+  MAX_HANDOFF_BYTES, checkHandoffInput, checkHandoff, serializeHandoff, chooseHandoff,
 } = d;
 
 const SID = '11111111-2222-3333-4444-555555555555';
@@ -547,4 +548,84 @@ test('the project digest is the SHA-256 of the transcript folder name, only for 
   assert.equal(projectDigest(start, OTHER), null);
   assert.equal(projectDigest({ sessionId: SID, transcript: 'C:\\nowhere.jsonl' }, SID), null);
   assert.equal(projectDigest({ sessionId: '', transcript: '' }, SID), null);
+});
+
+// --- the lead hand-off (ticket 3: claims 12 and 14) --------------------------------------------
+
+const sections = (over = {}) => ({ resume: ['Read issue 413.'], rules: [], sessions: ['build-413 builds.'], cleanup: [], owner: ['q1 waits.'], ...over });
+const DIGEST = createHash('sha256').update('C--work').digest('hex');
+const OTHER_DIGEST = createHash('sha256').update('C--elsewhere').digest('hex');
+const handoff = (at, project = DIGEST, over = {}) => ({ kind: 'handoff', v: 1, at, project, sections: sections(over) });
+
+test('claim 14: every hand-off line refuses hidden and direction-changing characters, id-shaped text and a line break', () => {
+  assert.deepEqual(checkHandoffInput(sections()).value, sections());
+  for (const line of [
+    'a\u{202E}b', 'a\u{200F}b', 'a\u{2066}b', 'zero\u{200B}width',
+    `see ${SID}`, 'open local_0123abcd-4567-89ab-cdef-0123456789ab',
+    'two\nlines', 'a\u{7}bell', '', 'x'.repeat(301),
+  ]) {
+    const r = checkHandoffInput(sections({ rules: ['fine', line] }));
+    assert.ok('error' in r, JSON.stringify(line));
+    assert.match(r.error, /^rules line 2 /);
+  }
+  assert.ok('value' in checkHandoffInput(sections({ rules: ['x'.repeat(300)] })));
+});
+
+test('S5.3: a hand-off input takes exactly the five sections, each a list of at most 20 lines, and nothing the mod stamps', () => {
+  assert.ok('value' in checkHandoffInput(sections({ resume: Array.from({ length: 20 }, (_, i) => `Line ${i}`) })));
+  assert.match(checkHandoffInput(sections({ resume: Array.from({ length: 21 }, (_, i) => `Line ${i}`) })).error, /^resume is not a list of at most 20 lines$/);
+  const { owner, ...four } = sections();
+  assert.match(checkHandoffInput(four).error, /^owner is not a list of at most 20 lines$/);
+  assert.match(checkHandoffInput({ ...sections(), at: 5 }).error, /^the hand-off has a field it does not use: at$/);
+  assert.match(checkHandoffInput({ ...sections(), project: DIGEST }).error, /^the hand-off has a field it does not use: project$/);
+  assert.match(checkHandoffInput(sections({ cleanup: 'one line' })).error, /^cleanup is not a list/);
+  assert.match(checkHandoffInput(null).error, /^the hand-off is not an object$/);
+});
+
+test('claim 5: a hand-off file passes its strict check only in its own shape', () => {
+  const good = serializeHandoff(handoff(5));
+  assert.deepEqual(checkHandoff(good.value).value, handoff(5));
+  assert.ok('value' in checkHandoff(JSON.stringify(handoff(5, null))));
+  for (const bad of [
+    { ...handoff(5), extra: 1 },
+    { ...handoff(5), kind: 'decisions' },
+    { ...handoff(5), v: 2 },
+    { ...handoff(5), at: -1 },
+    { ...handoff(5), project: 'C--work' },
+    { ...handoff(5), sections: { ...sections(), more: [] } },
+    { ...handoff(5), sections: sections({ owner: [`see ${SID}`] }) },
+  ]) assert.ok('error' in checkHandoff(JSON.stringify(bad)), JSON.stringify(bad).slice(0, 80));
+  assert.ok('error' in checkHandoff('{"cards":[],"todos":[]}'));
+  assert.ok('error' in checkHandoff('not json'));
+});
+
+test('a hand-off over 32 KiB is refused', () => {
+  // Twenty lines of 300 four-byte characters in each section: about 120 KiB.
+  const wide = Array.from({ length: 20 }, () => '\u{1F600}'.repeat(300));
+  const big = handoff(5, DIGEST, { resume: wide, rules: wide, sessions: wide, cleanup: wide, owner: wide });
+  assert.ok('value' in checkHandoffInput(big.sections));
+  assert.match(serializeHandoff(big).error, /^the hand-off is over 32 KiB$/);
+  assert.equal(MAX_HANDOFF_BYTES, 32 * 1024);
+});
+
+test('claim 12: the hand-off chosen is this session\'s own, else the newest by stamped time with the same project digest', () => {
+  const own = { sid: SID, handoff: handoff(100) };
+  const older = { sid: '22222222-2222-2222-2222-222222222222', handoff: handoff(200) };
+  const newer = { sid: '33333333-3333-3333-3333-333333333333', handoff: handoff(300) };
+  const elsewhere = { sid: '44444444-4444-4444-4444-444444444444', handoff: handoff(900, OTHER_DIGEST) };
+  const ahead = { sid: '55555555-5555-5555-5555-555555555555', handoff: handoff(NOW + 120_001) };
+  const undated = { sid: '66666666-6666-6666-6666-666666666666', handoff: handoff(950, null) };
+  const others = [older, elsewhere, ahead, newer, undated];
+  // The own hand-off wins, however old.
+  assert.equal(chooseHandoff(own, others, DIGEST, NOW), own);
+  // Without one: the newest by its own time among the same digest, never
+  // another digest's, a null one or one dated more than two minutes ahead.
+  assert.equal(chooseHandoff(undefined, others, DIGEST, NOW), newer);
+  assert.equal(chooseHandoff(undefined, [elsewhere, ahead, undated], DIGEST, NOW), undefined);
+  // An own hand-off dated ahead is never chosen either.
+  assert.equal(chooseHandoff({ sid: SID, handoff: handoff(NOW + 120_001) }, others, DIGEST, NOW), newer);
+  assert.equal(chooseHandoff({ sid: SID, handoff: handoff(NOW + 120_000) }, others, DIGEST, NOW)?.sid, SID);
+  // A session with no digest finds no other's.
+  assert.equal(chooseHandoff(undefined, others, null, NOW), undefined);
+  assert.equal(chooseHandoff(own, others, null, NOW), own);
 });
