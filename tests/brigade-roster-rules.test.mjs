@@ -545,6 +545,49 @@ for (const [os, s] of Object.entries(shapes)) {
   });
 }
 
+// --- the decision log's and the marks' paths (spec 402, S5.1; claim 5) -----------
+//
+// The same rule again, one folder past brigade: <data>/brigade/decisions and
+// <data>/brigade/marks, each file named by its session id.
+
+const { placeDecisions, placeMarks } = roster;
+
+for (const [os, s] of Object.entries(shapes)) {
+  for (const [kind, folder, placeKind] of [['decision log', 'decisions', placeDecisions], ['marks', 'marks', placeMarks]]) {
+    const ID = 'grimoire-inline';
+    const at = (...p) => s.join(s.config, ...p);
+    const BRIGADE = at('plugins', 'data', ID, 'brigade');
+    const FOLDER = s.join(BRIGADE, folder);
+    const FILE = s.join(FOLDER, `${SID}.json`);
+    const all = (over = {}) => ({
+      [s.config]: dir(s.config),
+      [at('plugins')]: dir(at('plugins')),
+      [at('plugins', 'data')]: dir(at('plugins', 'data')),
+      [at('plugins', 'data', ID)]: dir(at('plugins', 'data', ID)),
+      [BRIGADE]: dir(BRIGADE),
+      [FOLDER]: dir(FOLDER),
+      ...over,
+    });
+    const place = (table, sid = SID) => placeKind(s.config, ID, sid, statFrom(table));
+
+    test(`${os}: the ${kind} file sits in brigade/${folder}, under the roster's path rule`, async () => {
+      assert.deepEqual(await place(all()), { file: FILE });
+      assert.deepEqual(await place(all({ [FILE]: file(FILE, 300) })), { file: FILE, existing: { size: 300 } });
+      const shapesOf = os === 'windows' ? ['junction', 'broken-junction', 'dir-symlink'] : ['dir-symlink'];
+      for (const shape of shapesOf) {
+        assert.deepEqual(await place(all({ [FOLDER]: recorded(shape, s.join(s.other, folder)) })), { refused: `link: ${folder} is a link` }, shape);
+      }
+      assert.deepEqual(await place(all({ [FOLDER]: dir(s.join(s.other, folder)) })), { refused: `link: ${folder} does not lead where its name says` });
+      const fileShapes = os === 'windows' ? ['file-symlink', 'broken-file-symlink', 'junction'] : ['file-symlink', 'broken-file-symlink'];
+      for (const shape of fileShapes) {
+        assert.match((await place(all({ [FILE]: recorded(shape, s.join(s.other, 'x.json')) }))).refused, /^link: the .* file is a link$/, shape);
+      }
+      assert.match((await place(all({ [FILE]: file(s.join(s.other, 'x.json')) }))).refused, /^link: .* does not lead where its name says$/);
+      assert.match((await place({}, 'not-an-id')).refused, /^path: /);
+    });
+  }
+}
+
 test('the roster path is unchanged by the generalized rule: it never walks into usage', async () => {
   const C = 'C:\\cfg\\.claude';
   const ID = 'grimoire-inline';

@@ -4363,13 +4363,16 @@ test('the pill\'s state is gh\'s answer, else the card\'s prState, else open', (
   assert.equal(pillState(undefined, 5), 'open');
 });
 
-test('the chosen view reads through the fixed set: anything but prs is sessions', () => {
+test('the chosen view reads through the fixed set: anything but prs or decisions is sessions', () => {
   assert.equal(viewFrom('prs'), 'prs');
-  for (const v of ['sessions', 'PRS', '__proto__', 'constructor', '', 5, null, undefined, {}, ['prs']]) assert.equal(viewFrom(v), 'sessions', String(v));
+  // Spec 402, claim 1: the Decisions tab is the third view.
+  assert.equal(viewFrom('decisions'), 'decisions');
+  for (const v of ['sessions', 'PRS', 'Decisions', '__proto__', 'constructor', '', 5, null, undefined, {}, ['prs']]) assert.equal(viewFrom(v), 'sessions', String(v));
 });
 
-test('the folded groups keep only names from the fixed six, at most 50, from the first 200 entries', () => {
-  assert.deepEqual([...GROUP_KEYS], ['waiting', 'working', 'finished', 'pr-open', 'pr-merged', 'pr-closed']);
+test('the folded groups keep only names from the fixed seven, at most 50, from the first 200 entries', () => {
+  // Spec 402 adds the Decisions tab's History, folded by default (S5.4).
+  assert.deepEqual([...GROUP_KEYS], ['waiting', 'working', 'finished', 'pr-open', 'pr-merged', 'pr-closed', 'd-history']);
   assert.deepEqual(foldedFrom(['finished', 'pr-open']), ['finished', 'pr-open']);
   assert.deepEqual(foldedFrom(['finished', 'finished']), ['finished']);
   assert.deepEqual(foldedFrom(['__proto__', 'constructor', 'toString', 'Finished', 5, null, {}, 'working']), ['working']);

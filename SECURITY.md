@@ -71,7 +71,7 @@ On an Open in app press it reads three environment variables, `OS`,
 `Windows_NT`; it never stores, shows or sends them.
 It makes no network request of its own, apart from the `gh` call below; its
 one tool call, below, goes to whatever connected server answers to the name
-`ccd_window`. Besides each session's own usage summary, below, it writes one file, the lead session's roster,
+`ccd_window`. Besides each session's own usage summary, and since 0.81.0 the decision log and the owner's marks, both below, it writes one file, the lead session's roster,
 through a tool the model calls, `set_roster`, which skips Claude Code's
 permission prompt. So that write has no human and no classifier review; every
 call is still recorded in the transcript as the tool's result. The tool exists
@@ -180,6 +180,80 @@ words. It asks no permission. What follows from it:
   - a writer whose files keep failing a check with fresh times freezes its
     card on the last good record with no line to say so, which the owner
     accepted.
+
+**Since 0.81.0 a lead writes a decision log, and the pane writes the
+owner's marks** (spec 402, ticket 1;
+[ADR 0010](docs/adr/0010-the-mod-keeps-decision-text-in-plain-files.md)).
+The mod offers a third tool, `log_decision`, wherever it offers `set_roster`.
+It appends one entry per call to the lead session's own log,
+`brigade/decisions/<session id>.json` in the plugin's data folder: the
+entry's source (`lead` or `relayed`), whether it waits for the owner, its
+work, question, options, pick, reason, how to undo it, when to revisit it and
+which waiting entry it answers. The mod stamps the entry's id, its time from
+the engine clock and the level in force (1 until the autonomy slider lands),
+and refuses an input that carries any of them, a source other than `lead` or
+`relayed`, or a field holding a control, hidden or direction-changing
+character, text shaped like a session id, a Desktop id or a Remote Control
+link, a value shaped like a known key, an email address or a home-folder
+path; the refusal names the shape, never the value. Like `set_roster`
+it skips the permission prompt in every mode, works only while the pane is
+listed and placed with its reads running, and refuses a subagent's call, a
+deny verdict, an owner's ask rule and an organisation ceiling below allow;
+each refusal is fixed words naming the rule, never a path, a verdict's reason
+or an engine message. A deny rule for `mcp__grimoire__log_decision` removes it.
+Its writes take turns in one queue, a log keeps at most 500 entries and 256
+KiB, and past a cap it drops only entries the owner marked read and did not
+flag, oldest first; with nothing to drop it refuses and the file is
+unchanged. To tell which entries are read it lists the `brigade/marks/`
+folder and reads every marks file there. When the owner presses "✓ Read,
+next" in the pane's Decisions tab, the pane writes a mark, the log's session
+id, the entry's id and time, the state and the press time, to its own
+session's marks file, `brigade/marks/<session id>.json`, at most 2,000 marks
+and 64 KiB. Both files go only where the roster's link-refusing path rule
+allows, overwrite only a file that passes the strict check of its own kind,
+and are checked again after the write. While the pane is open, and only then,
+it lists both folders on the roster's 5-second poll, reads this session's own
+log and marks file and the 20 newest others of each by modification time,
+re-reads a file only when its size or time changed, skips a file dated more
+than two minutes ahead, reads no other file from a folder whose listing passes
+5,000 entries, and draws each log's writer by the engine's session name for
+its session id, or "an ended session". Nothing it reads enters plugin state
+but the search text, which other plugins can read until the next open clears
+it, and a redraw counter. The project digest comes from the mod's own unkeyed
+SHA-256 in `brigade/decisions.ts`, tested against the NIST vectors and Node's
+own hash; it protects nothing secret. What follows from it:
+- **What the files reveal:** every decision a lead logged, its reason and the
+  options it weighed, waiting entries that hold decisions the owner keeps,
+  each entry's level, and which entries the owner read and when. The files are
+  named by session id, a mark names the session id of the log it marks, and
+  each log holds a plain, unkeyed SHA-256 digest of the working folder's
+  transcript-folder name, never the name, which a reader who can list the
+  projects folder can match. Any process running as the owner, other plugins,
+  and anything that backs up or syncs the config folder can read them. They
+  are not encrypted; the owner accepted this on 2026-10-26 (q9 A on #402).
+  Other local accounts that can read the profile's data folder can read them
+  too, since the engine's write takes no file mode; the owner accepted this on
+  2026-10-26 (q11 A on #402's ticket 411).
+- **What does not reach the write:** no permission prompt, mode, owner hook or
+  classifier sees `log_decision`'s write or a mark's; each call is recorded in
+  the transcript as the tool's result, and a mark is not.
+- **What accumulates:** the mod never removes a log or a marks file. There is
+  one of each per session id, and they outlast transcript cleanup and an
+  uninstall that leaves the plugin's data folder. The owner can delete the
+  `brigade/decisions/` and `brigade/marks/` folders by hand.
+- **The race and planted files:** the roster's check-and-write race recurs for
+  both writers, and a hard link between two files of one kind passes the
+  strict check. Anything that can write the data folder can plant a
+  well-formed log or marks file, current-dated marks that hide decisions
+  included; the owner accepted this on 2026-10-26 (q19 A on #402).
+- **What a hijacked lead can log:** within the field rules and caps, false
+  Lead or Relayed entries, an answer that closes one of the owner's waiting
+  entries with words the owner never gave, and enough entries to fill the log
+  to its cap, after which the tool refuses until the owner reads. The pane
+  draws a Relayed entry and an answer only as the writer's claim. Any session,
+  in any working folder, that loads head-chef without the owner typing it can
+  log the same, and its entries land unread in every lead's To review; the
+  owner accepted this on 2026-10-26 (q10 A on #402's ticket 411).
 
 Review any change under
 `brigade/` or `hooks/` as a change to code that runs on every installer's

@@ -368,7 +368,9 @@ function world(on: On, setup: (w: World) => void = w => w.dirs(`${CONFIG}\\plugi
     return t === undefined ? { deny: ENOENT } : { value: t }
   })
   on('fs.list', ($, e: any) => {
-    const sessions = String(e.path).endsWith('\\sessions')
+    // The sessions folder, and the decision log's and marks' folders (spec
+    // 402), are listed every poll; the count is the transcript finder's.
+    const sessions = String(e.path).endsWith('\\sessions') || /\\brigade\\(?:decisions|marks)$/i.test(String(e.path))
     if (!sessions) w.listings++
     w.log.push(`list ${e.path}`)
     if (w.listDeny !== '' && !sessions) return { deny: w.listDeny }
@@ -520,10 +522,12 @@ function world(on: On, setup: (w: World) => void = w => w.dirs(`${CONFIG}\\plugi
   return w
 }
 
-// Every tool offered, in order, but the permission warning's: every session
-// offers that one at each start, and warning.test.tsx tests it. Any other
-// tool offered still shows here.
-const rosterOffers = (w: { registered: string[] }) => w.registered.filter(name => name !== 'show_permission_warning')
+// Every tool offered, in order, but the permission warning's and the decision
+// log's: every session offers the first at each start, and warning.test.tsx
+// tests it; log_decision is offered with set_roster at each of its sites, and
+// the decision log's tests at the end check that. Any other tool offered
+// still shows here.
+const rosterOffers = (w: { registered: string[] }) => w.registered.filter(name => name !== 'show_permission_warning' && name !== 'log_decision')
 const start = ($: any) => $.classic.SessionStart({ source: 'startup', session_id: SID, transcript_path: TRANSCRIPT })
 const brigade = ($: any) => $.command.run({ command: 'brigade', args: '' })
 const call = async ($: any, input: Record<string, unknown>): Promise<{ ok: boolean; text: string }> => {
@@ -5071,4 +5075,555 @@ test('S3: not seated, a wrapped load opens once through the skill hook and store
   expect(w.open).toBe(false)
   expect(rosterOffers(w)).toEqual(['set_roster', 'set_roster'])
   expect(w.notes).toEqual([])
+})
+
+// --- the decision log (spec 402, ticket 1) -------------------------------------
+//
+// log_decision driven as the model calls it, and the Decisions tab drawn and
+// pressed as the owner uses it. The files sit in brigade/decisions and
+// brigade/marks beside the roster; each test seeds them in the world's file
+// system and reads back what was written. Each test names the acceptance
+// claim of spec 402 (S7) it backs.
+
+const DECISIONS = `${BRIGADE}\\decisions`
+const MARKS = `${BRIGADE}\\marks`
+const LOG = `${DECISIONS}\\${SID}.json`
+const OWN_MARKS = `${MARKS}\\${SID}.json`
+const PEER = '66666666-7777-8888-9999-000000000000'
+const PEER_LOG = `${DECISIONS}\\${PEER}.json`
+const PEER_MARKS = `${MARKS}\\${PEER}.json`
+const LOG_TOOL = 'mcp__grimoire__log_decision'
+const ENTRY = { source: 'lead', work: 'issue 411', question: 'Which tier?', options: ['Thorough', 'Standard'], pick: 'Thorough', why: 'It is sensitive.', undo: 'Re-propose the tier.' }
+const decide = async ($: any, input: Record<string, unknown> = ENTRY): Promise<{ ok: boolean; text: string }> => {
+  const r = await $.tool.call({ tool: LOG_TOOL, ...input })
+  if (typeof r.deny === 'string') return { ok: false, text: r.deny }
+  return { ok: r.isError !== true, text: String(r.text ?? r.result) }
+}
+// An entry as the log keeps it.
+const kept = (id: number, at: number, over: Record<string, unknown> = {}) => ({
+  id: String(id), at, level: 1, source: 'lead', waiting: false, work: 'issue 411', question: `Question ${id}?`,
+  options: ['Yes', 'No'], pick: 'Yes', why: 'Because.', undo: 'Undo it.', revisit: '', answers: '', ...over,
+})
+const logText = (entries: unknown[], next = entries.length + 1) => JSON.stringify({ kind: 'decisions', v: 1, next, project: null, entries })
+const marksText = (marks: unknown[]) => JSON.stringify({ kind: 'marks', v: 1, marks })
+const seed = (w: World, path: string, text: string, mtimeMs = 1) => w.put(path, { type: 'file', data: { text, mtimeMs } })
+const parsed = (w: World, path: string) => JSON.parse(w.text(path) ?? 'null')
+const writesTo = (w: World, path: string) => w.log.filter(l => l.toLowerCase().startsWith(`write ${path.toLowerCase()} `)).length
+const readsOf = (w: World, path: string) => w.log.filter(l => l.toLowerCase() === `read ${path.toLowerCase()}`).length
+
+// The pane on a surface, switched to the Decisions tab, with the files the
+// test seeds and this session's own row in the sessions folder.
+async function decisionsPane(on: On, $: any, surface: 'terminal' | 'desktop' | 'mobile' = 'desktop', setup: (w: World) => void = () => {}) {
+  const w = world(on, w => {
+    w.dirs(`${CONFIG}\\plugins`)
+    w.dirs(DECISIONS)
+    w.dirs(MARKS)
+    liveRows(w, [{ name: 'lead-a', status: 'idle', sessionId: SID }])
+    setup(w)
+  })
+  await start($)
+  await brigade($)
+  await w.clock.settle()
+  mounted = await $.ui.mount({ plugin: 'grimoire', surface, component: 'Pane', requestId: 'brigade', props: PANE_PROPS })
+  await press($, 'view-decisions')
+  return w
+}
+const shows = async (text: RegExp) => (await mounted.find({ type: 'Text', text })) !== undefined
+
+for (const surface of ['terminal', 'desktop', 'mobile'] as const) {
+  test(`claim 1: the Decisions tab shows beside Sessions and Pull requests, and the pane still opens on Sessions (${surface})`, async ($, on) => {
+    const w = world(on)
+    await start($)
+    await brigade($)
+    await w.clock.settle()
+    mounted = await $.ui.mount({ plugin: 'grimoire', surface, component: 'Pane', requestId: 'brigade', props: PANE_PROPS })
+    for (const key of ['view-sessions', 'view-prs', 'view-decisions']) expect(await mounted.find({ key })).toBeDefined()
+    expect((await mounted.find({ key: 'view-sessions' }))?.props.variant).toBe('primary')
+    expect((await mounted.find({ key: 'view-decisions' }))?.props.variant).toBeUndefined()
+    await press($, 'view-decisions')
+    expect((await mounted.find({ key: 'view-decisions' }))?.props.variant).toBe('primary')
+    // A new open starts on Sessions again.
+    await brigade($)
+    expect((await mounted.find({ key: 'view-sessions' }))?.props.variant).toBe('primary')
+  })
+}
+
+test('log_decision is offered wherever set_roster is, and not before the pane opens', async ($, on) => {
+  const w = world(on)
+  await start($)
+  expect(w.registered.filter(n => n === 'log_decision')).toEqual([])
+  await brigade($)
+  expect(w.registered.filter(n => n === 'log_decision')).toEqual(['log_decision'])
+  await $.classic.SessionStart({ source: 'clear', session_id: SID, transcript_path: TRANSCRIPT })
+  expect(w.registered.filter(n => n === 'log_decision')).toEqual(['log_decision', 'log_decision'])
+})
+
+test('claim 2: log_decision appends an entry whose id, at and level the mod set, and answers with them', async ($, on) => {
+  const w = world(on)
+  await start($)
+  await brigade($)
+  await w.clock.advance(1234)
+  const now = w.clock.now()
+  const r = await decide($)
+  expect(r.ok).toBe(true)
+  expect(r.text).toBe(`Logged decision 1 at ${new Date(now).toISOString()}, at level 1 (Manual).`)
+  const log = parsed(w, LOG)
+  expect(log.kind).toBe('decisions')
+  expect(log.v).toBe(1)
+  expect(log.next).toBe(2)
+  // The project digest: a SHA-256 of the transcript folder's name, never the name.
+  expect(log.project).toMatch(/^[0-9a-f]{64}$/)
+  expect(w.text(LOG)).not.toContain('C--work')
+  expect(log.entries).toEqual([{ id: '1', at: now, level: 1, source: 'lead', waiting: false, work: 'issue 411', question: 'Which tier?', options: ['Thorough', 'Standard'], pick: 'Thorough', why: 'It is sensitive.', undo: 'Re-propose the tier.', revisit: '', answers: '' }])
+  expect((await decide($, { ...ENTRY, source: 'relayed' })).text).toMatch(/^Logged decision 2 at /)
+  expect(parsed(w, LOG).entries.map((e: any) => e.id)).toEqual(['1', '2'])
+  expect(parsed(w, LOG).next).toBe(3)
+})
+
+test('claim 2: an input carrying id, at or level, or a source other than lead or relayed, is refused and the file left unchanged', async ($, on) => {
+  const w = world(on)
+  await start($)
+  await brigade($)
+  expect((await decide($)).ok).toBe(true)
+  const before = w.text(LOG)
+  for (const over of [{ id: '9' }, { at: 5 }, { level: 3 }, { source: 'owner' }, { source: 'pane' }, { source: 'alarm' }]) {
+    const r = await decide($, { ...ENTRY, ...over })
+    expect(r.ok).toBe(false)
+    expect(r.text).toMatch(/^log_decision refused: shape: .*The decision log is unchanged/)
+    expect(w.text(LOG)).toBe(before)
+  }
+})
+
+test('claim 14: a field holding a hidden character or session-id shaped text is refused through the tool, and nothing is written', async ($, on) => {
+  const w = world(on)
+  await start($)
+  await brigade($)
+  for (const over of [{ why: 'a\u{202E}b' }, { work: `see ${SID}` }, { undo: 'open local_0123abcd-4567-89ab-cdef-0123456789ab' }, { options: ['A', 'a'], pick: 'A' }, { pick: 'Neither' }]) {
+    const r = await decide($, { ...ENTRY, ...over })
+    expect(r.ok).toBe(false)
+    expect(r.text).toMatch(/^log_decision refused: shape: /)
+  }
+  expect(w.text(LOG)).toBeUndefined()
+})
+
+// An organisation's ceiling is set by the engine alone (a hook's own is
+// dropped), so it cannot be given here; the refusal shares the check below.
+test("claim 3: log_decision refuses a subagent's call, a deny verdict and an ask naming a rule, naming no reason it was given", async ($, on) => {
+  const w = world(on)
+  await start($)
+  await brigade($)
+  const sub = await decide($, { ...ENTRY, agentId: 'a-subagent' })
+  expect(sub.text).toMatch(/^log_decision refused: subagent: /)
+  expect(sub.ok).toBe(false)
+  for (const verdict of [
+    { decision: 'deny', reason: 'SECRET managed policy at C:\\policy' },
+    { decision: 'ask', rule: 'mcp__grimoire__log_decision' },
+  ] as any[]) {
+    w.verdict = verdict
+    const r = await decide($)
+    expect(r.text).toMatch(/^log_decision refused: the owner's rules: /)
+    expect(r.ok).toBe(false)
+    expect(r.text).not.toContain('SECRET')
+    expect(r.text).not.toContain('mcp__grimoire__log_decision')
+    expect(r.text).not.toContain('\\')
+  }
+  expect(w.text(LOG)).toBeUndefined()
+  w.verdict = { decision: 'ask' }
+  expect((await decide($)).ok).toBe(true)
+})
+
+test('claim 3: unless the pane is listed and placed with its reads running, log_decision refuses and writes nothing', async ($, on) => {
+  const w = world(on)
+  await start($)
+  // Never opened.
+  expect((await decide($)).text).toMatch(/^log_decision refused: pane: /)
+  // Opened, but the engine never lists it, so no reads start.
+  w.unlisted = true
+  await brigade($)
+  expect((await decide($)).text).toMatch(/^log_decision refused: pane: /)
+  // Now listed and placed, but its reads still have not started.
+  w.unlisted = false
+  expect((await decide($)).text).toMatch(/^log_decision refused: pane: /)
+  expect(w.text(LOG)).toBeUndefined()
+})
+
+test('claim 3: a pane listed but not placed refuses, and so does one that was closed', async ($, on) => {
+  const w = world(on)
+  await start($)
+  w.unplaced = true
+  await brigade($)
+  expect((await decide($)).text).toMatch(/^log_decision refused: pane: /)
+  w.unplaced = false
+  await brigade($)
+  expect((await decide($)).ok).toBe(true)
+  w.open = false
+  expect((await decide($)).text).toMatch(/^log_decision refused: pane: /)
+  expect(parsed(w, LOG).entries.length).toBe(1)
+})
+
+test('claim 4: a full log drops its oldest read entry, its mark read from a marks file; a mark only in a file that fails its check counts as unread', async ($, on) => {
+  const full = Array.from({ length: 500 }, (_, i) => kept(i + 1, i + 1))
+  const w = world(on, w => {
+    w.dirs(DECISIONS)
+    w.dirs(MARKS)
+    seed(w, LOG, logText(full))
+    // The only read mark for entry 1 sits in a file that is not a marks file.
+    seed(w, PEER_MARKS, JSON.stringify({ kind: 'marks', v: 1, marks: [{ log: SID, id: '1', entryAt: 1, state: 'read', at: 5 }], extra: 1 }))
+  })
+  await start($)
+  await brigade($)
+  const before = w.text(LOG)
+  const r = await decide($)
+  expect(r.ok).toBe(false)
+  expect(r.text).toBe('log_decision refused: the decision log is full: review the Decisions tab. The decision log is unchanged; act at level 1.')
+  expect(w.text(LOG)).toBe(before)
+  // A good marks file now holds the mark: entry 1 drops, and the new id is 501.
+  seed(w, PEER_MARKS, marksText([{ log: SID, id: '1', entryAt: 1, state: 'read', at: 5 }]), 2)
+  const again = await decide($)
+  expect(again.ok).toBe(true)
+  const log = parsed(w, LOG)
+  expect(log.entries.length).toBe(500)
+  expect(log.entries[0].id).toBe('2')
+  expect(log.entries.at(-1).id).toBe('501')
+  expect(log.next).toBe(502)
+})
+
+test('claim 5: an own log that fails its strict check is never overwritten, and the refusal names no path', async ($, on) => {
+  const w = world(on, w => {
+    w.dirs(DECISIONS)
+    seed(w, LOG, '{"cards":[],"todos":[]}')
+  })
+  await start($)
+  await brigade($)
+  const r = await decide($)
+  expect(r.ok).toBe(false)
+  expect(r.text).toMatch(/^log_decision refused: not a decision log: /)
+  expect(r.text).not.toContain('\\')
+  expect(w.text(LOG)).toBe('{"cards":[],"todos":[]}')
+})
+
+test('claim 5: a decisions folder that is a link is refused, and nothing is written through it', async ($, on) => {
+  const w = world(on, w => {
+    w.dirs(BRIGADE)
+    w.dirs(`${ELSEWHERE}\\d`)
+    w.put(DECISIONS, { type: 'link', kind: 'junction', target: `${ELSEWHERE}\\d` })
+  })
+  await start($)
+  await brigade($)
+  const r = await decide($)
+  expect(r.ok).toBe(false)
+  expect(r.text).toMatch(/^log_decision refused: path: /)
+  expect(r.text).not.toContain('\\')
+  expect(w.text(`${ELSEWHERE}\\d\\${SID}.json`)).toBeUndefined()
+})
+
+test('claim 6: To review shows the oldest unread entry across the logs read, with n of N, the level, the id and the writer', async ($, on) => {
+  await decisionsPane(on, $, 'desktop', w => {
+    seed(w, LOG, logText([kept(1, 200, { question: 'Own question?' })]))
+    // The peer's session has ended: no row in the sessions folder names it.
+    seed(w, PEER_LOG, logText([kept(1, 100, { question: 'Peer question?' })]))
+  })
+  expect(await shows(/^1 of 2$/)).toBe(true)
+  expect(await shows(/^Peer question\?$/)).toBe(true)
+  expect(await shows(/^an ended session$/)).toBe(true)
+  expect(await shows(/^at level 1$/)).toBe(true)
+  expect(await shows(/^Decision 1$/)).toBe(true)
+  expect(await shows(/^Own question\?$/)).toBe(false)
+})
+
+test('claim 6: Read, next marks the shown entry read in this session\'s marks file and shows the next; Skip writes no mark', async ($, on) => {
+  const w = await decisionsPane(on, $, 'desktop', w => {
+    seed(w, LOG, logText([kept(1, 200, { question: 'Own question?' }), kept(2, 300, { question: 'Third question?' })]))
+    seed(w, PEER_LOG, logText([kept(1, 100, { question: 'Peer question?' })]))
+  })
+  await press($, 'dnext-1-100')
+  expect(parsed(w, OWN_MARKS).marks).toEqual([{ log: PEER, id: '1', entryAt: 100, state: 'read', at: w.clock.now() }])
+  expect(await shows(/^1 of 2$/)).toBe(true)
+  expect(await shows(/^Own question\?$/)).toBe(true)
+  expect(await shows(/^lead-a$/)).toBe(true)
+  const marks = writesTo(w, OWN_MARKS)
+  await press($, 'dskip-1-200')
+  expect(writesTo(w, OWN_MARKS)).toBe(marks)
+  expect(await shows(/^2 of 2$/)).toBe(true)
+  expect(await shows(/^Third question\?$/)).toBe(true)
+  // Skipping the last wraps to the first.
+  await press($, 'dskip-2-300')
+  expect(await shows(/^1 of 2$/)).toBe(true)
+  expect(writesTo(w, OWN_MARKS)).toBe(marks)
+})
+
+test('claim 5: a marks file that fails its check is never overwritten; the press says the mark was not saved', async ($, on) => {
+  const w = await decisionsPane(on, $, 'desktop', w => {
+    seed(w, LOG, logText([kept(1, 200)]))
+    seed(w, OWN_MARKS, '{"cards":[],"todos":[]}')
+  })
+  await press($, 'dnext-1-200')
+  expect(w.text(OWN_MARKS)).toBe('{"cards":[],"todos":[]}')
+  expect(await shows(/^Not saved: the mark could not be written$/)).toBe(true)
+  expect(await shows(/^1 of 1$/)).toBe(true)
+})
+
+test('claim 7: read marks survive a module reload and a new session', async ($, on) => {
+  const w = await decisionsPane(on, $, 'desktop', w => seed(w, LOG, logText([kept(1, 200)])))
+  await press($, 'dnext-1-200')
+  expect(await shows(/^All caught up/)).toBe(true)
+  await ($ as any).session.start({ cwd: 'C:\\work', surface: null, isInteractive: false })
+  await w.clock.advance(5000)
+  expect(await shows(/^All caught up/)).toBe(true)
+  // A new session: its own marks file is new, and the old one is read as another's.
+  const NEW = '77777777-8888-9999-aaaa-bbbbbbbbbbbb'
+  w.sid = NEW
+  await $.classic.SessionStart({ source: 'clear', session_id: NEW, transcript_path: `${CONFIG}\\projects\\C--work\\${NEW}.jsonl` })
+  await w.clock.advance(5000)
+  expect(await shows(/^All caught up/)).toBe(true)
+  expect(await shows(/^1 of 1$/)).toBe(false)
+})
+
+test('claim 7: a mark dated over two minutes ahead, or for another at, leaves the entry unread', async ($, on) => {
+  await decisionsPane(on, $, 'desktop', w => {
+    seed(w, LOG, logText([kept(1, 200), kept(2, 300)]))
+    seed(w, PEER_MARKS, marksText([{ log: SID, id: '1', entryAt: 200, state: 'read', at: 10_000_000_000 }, { log: SID, id: '2', entryAt: 299, state: 'read', at: 5 }]))
+  })
+  expect(await shows(/^1 of 2$/)).toBe(true)
+})
+
+test('claim 8: the search filters To review and History by every word typed', async ($, on) => {
+  await decisionsPane(on, $, 'desktop', w => seed(w, LOG, logText([kept(1, 200, { work: 'PR 391', why: 'Alpha reason' }), kept(2, 300, { work: 'PR 392', why: 'Beta reason' })])))
+  expect(await shows(/^1 of 2$/)).toBe(true)
+  await mounted.input({ key: 'dsearch', text: 'beta 392', kind: 'change' })
+  expect(await shows(/^1 of 1$/)).toBe(true)
+  expect(await shows(/^Question 2\?$/)).toBe(true)
+  await press($, 'grp-d-history')
+  expect((await mounted.findAll({ type: 'Button' })).filter((b: any) => String(b.key).startsWith('dopen-')).length).toBe(1)
+  await mounted.input({ key: 'dsearch', text: 'beta 391', kind: 'change' })
+  expect(await shows(/^No unread decision matches the search\.$/)).toBe(true)
+  await press($, 'dsearch-clear')
+  expect(await shows(/^1 of 2$/)).toBe(true)
+})
+
+test('claim 8: the tab draws no search box on mobile, and one on the terminal', async ($, on) => {
+  await decisionsPane(on, $, 'mobile', w => seed(w, LOG, logText([kept(1, 200)])))
+  expect(await mounted.find({ type: 'Input' })).toBeUndefined()
+  expect(await shows(/^1 of 1$/)).toBe(true)
+  await mounted.unmount()
+  mounted = await $.ui.mount({ plugin: 'grimoire', surface: 'terminal', component: 'Pane', requestId: 'brigade', props: PANE_PROPS })
+  expect(await mounted.find({ key: 'dsearch' })).toBeDefined()
+})
+
+test('claim 10: Lead, Relayed by the writer, a waiting entry and its answer draw as their sources say', async ($, on) => {
+  await decisionsPane(on, $, 'desktop', w =>
+    seed(w, LOG, logText([kept(1, 200, { waiting: true, pick: '' }), kept(2, 300, { source: 'relayed', answers: '1' })])),
+  )
+  expect(await shows(/^Answered, as the lead records it: decision 2$/)).toBe(true)
+  expect(await shows(/^Lead$/)).toBe(true)
+  await press($, 'dnext-1-200')
+  expect(await shows(/^Relayed by lead-a$/)).toBe(true)
+})
+
+test('claim 10: an unanswered waiting entry draws as Waits for you', async ($, on) => {
+  await decisionsPane(on, $, 'desktop', w => seed(w, LOG, logText([kept(1, 200, { waiting: true, pick: '' })])))
+  expect(await shows(/^Waits for you$/)).toBe(true)
+})
+
+test('claim 13: the pane reads no decision or marks file while it is closed, and a poll over unchanged files reads none', async ($, on) => {
+  const w = world(on, w => {
+    w.dirs(DECISIONS)
+    w.dirs(MARKS)
+    seed(w, LOG, logText([kept(1, 200)]))
+    seed(w, PEER_LOG, logText([kept(1, 100)]))
+    seed(w, OWN_MARKS, marksText([]))
+    seed(w, PEER_MARKS, marksText([]))
+  })
+  await start($)
+  await w.clock.advance(20000)
+  expect(w.log.some(l => /^(read|list) .*\\brigade\\(decisions|marks)/i.test(l))).toBe(false)
+  await brigade($)
+  await w.clock.settle()
+  expect(readsOf(w, LOG)).toBe(1)
+  expect(readsOf(w, PEER_LOG)).toBe(1)
+  expect(readsOf(w, OWN_MARKS)).toBe(1)
+  expect(readsOf(w, PEER_MARKS)).toBe(1)
+  await w.clock.advance(5000)
+  expect(readsOf(w, LOG)).toBe(1)
+  expect(readsOf(w, PEER_LOG)).toBe(1)
+  expect(readsOf(w, OWN_MARKS)).toBe(1)
+  expect(readsOf(w, PEER_MARKS)).toBe(1)
+  // A changed time is read again; a changed size too.
+  seed(w, PEER_LOG, logText([kept(1, 100)]), 9)
+  seed(w, LOG, logText([kept(1, 200), kept(2, 300)]), 1)
+  await w.clock.advance(5000)
+  expect(readsOf(w, PEER_LOG)).toBe(2)
+  expect(readsOf(w, LOG)).toBe(2)
+  // Closed again: the next tick finds the pane gone and stops, and nothing more is read.
+  w.open = false
+  await w.clock.advance(5000)
+  const reads = w.log.filter(l => l.startsWith('read ')).length
+  seed(w, LOG, logText([kept(1, 200)]), 50)
+  await w.clock.advance(20000)
+  expect(w.log.filter(l => l.startsWith('read ')).length).toBe(reads)
+})
+
+test('claim 13: from a folder whose listing passes 5,000 entries the pane reads no other log, still reads its own, and says so', async ($, on) => {
+  await decisionsPane(on, $, 'desktop', w => {
+    seed(w, LOG, logText([kept(1, 200, { question: 'Own question?' })]))
+    seed(w, PEER_LOG, logText([kept(1, 100, { question: 'Peer question?' })]))
+    for (let i = 0; i < 5001; i++) seed(w, `${DECISIONS}\\x${i}.txt`, 'x')
+  })
+  expect(await shows(/^Own question\?$/)).toBe(true)
+  expect(await shows(/^1 of 1$/)).toBe(true)
+  expect(await shows(/over 5,000 entries/)).toBe(true)
+})
+
+test('claim 13: past 5,000 entries in the marks folder the pane still reads its own marks file', async ($, on) => {
+  await decisionsPane(on, $, 'desktop', w => {
+    seed(w, LOG, logText([kept(1, 200)]))
+    seed(w, OWN_MARKS, marksText([{ log: SID, id: '1', entryAt: 200, state: 'read', at: 5 }]))
+    for (let i = 0; i < 5001; i++) seed(w, `${MARKS}\\x${i}.txt`, 'x')
+  })
+  expect(await shows(/^All caught up/)).toBe(true)
+  expect(await shows(/over 5,000 entries/)).toBe(true)
+})
+
+test('log_decision is offered on a reload, a head-chef load and the late offer too', async ($, on) => {
+  const w = loads(on, $)
+  const offers = () => w.registered.filter(n => n === 'log_decision').length
+  await start($)
+  // A head-chef load whose pane is not placed offers nothing yet; the late offer does.
+  w.unplaced = true
+  await skillCall($, 'grimoire:head-chef')
+  await w.clock.settle()
+  expect(offers()).toBe(0)
+  w.unplaced = false
+  await $.turn.start({ turnId: 't1' })
+  await w.clock.settle()
+  expect(offers()).toBe(1)
+  // A head-chef load that finds the pane open offers it again.
+  await skillCall($, 'grimoire:head-chef')
+  await w.clock.settle()
+  expect(offers()).toBe(2)
+  // And so does a reload with the pane open.
+  await ($ as any).session.start({ cwd: 'C:\\work', surface: null, isInteractive: false })
+  expect(offers()).toBe(3)
+})
+
+test('claim 2: the id comes from next even when next is ahead of the entries', async ($, on) => {
+  const w = world(on, w => {
+    w.dirs(DECISIONS)
+    seed(w, LOG, logText([kept(1, 1), kept(2, 2)], 7))
+  })
+  await start($)
+  await brigade($)
+  expect((await decide($)).text).toMatch(/^Logged decision 7 at /)
+  expect(parsed(w, LOG).next).toBe(8)
+})
+
+test('claim 6: the card draws the entry\'s own level and id', async ($, on) => {
+  await decisionsPane(on, $, 'desktop', w => seed(w, LOG, logText([kept(3, 200, { level: 2 })], 4)))
+  expect(await shows(/^at level 2$/)).toBe(true)
+  expect(await shows(/^Decision 3$/)).toBe(true)
+  expect(await shows(/^1 of 1$/)).toBe(true)
+})
+
+test('claim 5: a marks folder that is a link is refused: the press writes nothing through it and says so', async ($, on) => {
+  const w = await decisionsPane(on, $, 'desktop', w => {
+    seed(w, LOG, logText([kept(1, 200)]))
+    w.drop(MARKS)
+    w.dirs(`${ELSEWHERE}\\m`)
+    w.put(MARKS, { type: 'link', kind: 'junction', target: `${ELSEWHERE}\\m` })
+  })
+  await press($, 'dnext-1-200')
+  expect(w.text(`${ELSEWHERE}\\m\\${SID}.json`)).toBeUndefined()
+  expect(await shows(/^Not saved: the mark could not be written$/)).toBe(true)
+})
+
+test('claim 4: a marks file the pane skips as dated ahead marks nothing read for the drop rule either', async ($, on) => {
+  const w = await decisionsPane(on, $, 'desktop', w => {
+    seed(w, LOG, logText(Array.from({ length: 500 }, (_, i) => kept(i + 1, i + 1))))
+    seed(w, PEER_MARKS, marksText([{ log: SID, id: '1', entryAt: 1, state: 'read', at: 5 }]), 10_000_000_000_000)
+  })
+  expect(await shows(/^1 of 500$/)).toBe(true)
+  const before = w.text(LOG)
+  const r = await decide($)
+  expect(r.text).toMatch(/the decision log is full/)
+  expect(w.text(LOG)).toBe(before)
+})
+
+test('claim 4: the drop rule reads every marks file through the cache: a second full call after a tick reads none again', async ($, on) => {
+  const others = Array.from({ length: 22 }, (_, i) => `${MARKS}\\${String(i).padStart(8, '0')}-7777-8888-9999-000000000000.json`)
+  const w = world(on, w => {
+    w.dirs(DECISIONS)
+    w.dirs(MARKS)
+    seed(w, LOG, logText(Array.from({ length: 500 }, (_, i) => kept(i + 1, i + 1))))
+    // The oldest file lies beyond the 20 newest the pane reads at a tick.
+    others.forEach((p, i) => seed(w, p, marksText([]), 100 + i))
+  })
+  await start($)
+  await brigade($)
+  expect((await decide($)).ok).toBe(false)
+  expect(readsOf(w, others[0] ?? '')).toBe(1)
+  await w.clock.advance(5000)
+  expect((await decide($)).ok).toBe(false)
+  expect(readsOf(w, others[0] ?? '')).toBe(1)
+})
+
+test('claim 19: History draws at most 50 rows until Show more is pressed', async ($, on) => {
+  await decisionsPane(on, $, 'desktop', w => seed(w, LOG, logText(Array.from({ length: 120 }, (_, i) => kept(i + 1, i + 1)))))
+  const rows = async () => (await mounted.findAll({ type: 'Button' })).filter((b: any) => String(b.key).startsWith('dopen-')).length
+  // Folded by default.
+  expect(await rows()).toBe(0)
+  await press($, 'grp-d-history')
+  expect(await rows()).toBe(50)
+  await press($, 'dmore')
+  expect(await rows()).toBe(100)
+  await press($, 'dmore')
+  expect(await rows()).toBe(120)
+  expect(await mounted.find({ key: 'dmore' })).toBeUndefined()
+})
+
+// Beyond S5.2, on the owner's word (q3 A, relayed by the lead, 2026-10-26).
+test('a field holding a key-shaped value or an email address is refused through the tool, naming the shape, and nothing is written', async ($, on) => {
+  const w = world(on)
+  await start($)
+  await brigade($)
+  expect((await decide($)).ok).toBe(true)
+  const before = w.text(LOG)
+  const key = `sk-ant-${'a'.repeat(24)}`
+  const mail = `${'someone'}@example.org`
+  for (const [over, rule, value] of [[{ why: `use ${key}` }, /holds text shaped like a key/, key], [{ work: `mail ${mail}` }, /holds an email address/, mail]] as const) {
+    const r = await decide($, { ...ENTRY, ...over })
+    expect(r.text).toMatch(rule)
+    expect(r.text).not.toContain(value)
+    expect(w.text(LOG)).toBe(before)
+  }
+})
+
+test('claim 4: past 5,000 entries in the marks folder the drop rule still reads this session\'s own marks file', async ($, on) => {
+  const w = world(on, w => {
+    w.dirs(DECISIONS)
+    w.dirs(MARKS)
+    seed(w, LOG, logText(Array.from({ length: 500 }, (_, i) => kept(i + 1, i + 1))))
+    seed(w, OWN_MARKS, marksText([{ log: SID, id: '1', entryAt: 1, state: 'read', at: 5 }]))
+    for (let i = 0; i < 5001; i++) seed(w, `${MARKS}\\x${i}.txt`, 'x')
+  })
+  await start($)
+  await brigade($)
+  expect((await decide($)).text).toMatch(/^Logged decision 501 at /)
+  expect(parsed(w, LOG).entries[0].id).toBe('2')
+})
+
+test('claim 3: a call queued while the pane was shown is refused at its turn once the pane has closed', async ($, on) => {
+  const w = world(on)
+  await start($)
+  await brigade($)
+  w.holdWrite = true
+  const first = decide($)
+  await w.clock.settle()
+  const second = decide($)
+  await w.clock.settle()
+  w.open = false
+  w.holdWrite = false
+  w.release()
+  expect((await first).ok).toBe(true)
+  expect((await second).text).toMatch(/^log_decision refused: pane: /)
+  expect(parsed(w, LOG).entries.length).toBe(1)
 })

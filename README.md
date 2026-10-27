@@ -140,8 +140,8 @@ permission warning above the prompt says so. Read the skill's README before
 you install. Not for work in the same session.
 
 `/brigade` opens the Brigade pane, and so does loading the head-chef skill from the plugin or from your own skills folder: one compact row per session the lead
-started. A switch at the top shows either Sessions or Pull requests, and the
-pane opens on Sessions each time. Sessions keeps three foldable groups: Waiting
+started. A switch at the top shows Sessions, Pull requests or Decisions, and
+the pane opens on Sessions each time. Sessions keeps three foldable groups: Waiting
 on you, Working, and Done · stopped, which starts folded and counts the reports
 its sessions sent since you opened the pane. A row shows a checkbox, a status
 dot, the title, the phase, the latest report's first line, the live busy or idle
@@ -165,6 +165,17 @@ macOS and Linux the pane also asks only when every folder on PATH is an absolute
 path. Without them the pill shows the number and the state the lead last knew, and the
 Pull requests view says "PR details unavailable". A pull request opened from a
 fork is never shown as the brigade's.
+
+The lead logs each decision it takes or relays with the `log_decision` tool,
+and the Decisions view lays them out for you to review. To review shows the
+oldest decision you have not read, from this lead's log and the 20 most recent
+other leads' logs, at full size: "n of N", the pick, which session wrote it,
+whether it was the lead's own pick or your answer as the lead relayed it, the
+time and level, the question, the options, why, how to undo it, and when to
+revisit it. "✓ Read, next" marks it read and shows the next; Skip shows the
+next without marking it. Your marks survive a reload and a new lead. History,
+folded at first, holds every decision newest first, 50 at a time. On Desktop
+and the terminal a search box filters both by every word you type.
 
 A row that waits on you and holds a large context says when to reply
 to keep its cache, or suggests a hand-off once it has gone cold. Under its
@@ -305,26 +316,32 @@ files you ask for:
   Claude Code's own session files and the transcripts of the sessions the lead
   started. It writes a roster file and a usage summary file in the plugin's
   data folder; the summary file is written in every session, pane open or not.
+  Since 0.81.0 it also writes each lead's decision log, one entry per
+  decision the lead logs, and a marks file of the Read presses you make in its
+  Decisions tab, both in plain text in the same folder, never removed by the
+  mod; while the pane is open it reads this session's files and the 20 newest
+  other sessions' ([ADR 0010](docs/adr/0010-the-mod-keeps-decision-text-in-plain-files.md)).
   Open in app asks the Desktop app to show a session, or opens a `claude://`
   link with your system's opener.
-- **Three calls skip the permission prompt:** the `set_roster` tool, which
-  writes the roster file, the `show_permission_warning` tool, which shows a
-  reminder, and Open in app's call to the Desktop app's
+- **Four calls skip the permission prompt:** the `set_roster` tool, which
+  writes the roster file, the `log_decision` tool, which appends to the
+  decision log, the `show_permission_warning` tool, which shows a reminder,
+  and Open in app's call to the Desktop app's
   `mcp__ccd_window__open_session_in`. A deny rule for each name stops it.
 
 What each of Brigade's hooks does with what it sees:
 
 | Hook | What it does |
 | --- | --- |
-| `session.start`, `classic.SessionStart` | Registers `/brigade`, notes the session's id and transcript path to find the plugin's data folder, and offers `show_permission_warning`, and `set_roster` while the pane is open, again after a reload, a clear or a resume. It changes nothing in the event and passes it on. |
+| `session.start`, `classic.SessionStart` | Registers `/brigade`, notes the session's id and transcript path to find the plugin's data folder, and offers `show_permission_warning`, and `set_roster` and `log_decision` while the pane is open, again after a reload, a clear or a resume. It changes nothing in the event and passes it on. |
 | `command.run` for `/brigade` | Opens the pane. It answers only `/brigade`. |
 | `skill.prompt` | Opens the pane when the head-chef skill loads from grimoire or your own skills folder, or finds it open, and adds one line to that skill's text saying whether `set_roster` is ready, or why not. Every other skill load passes on unchanged. |
 | `tool.call` for `Skill`, and `command.run` for `/head-chef` and `/grimoire:head-chef` | Watch a head-chef load for the case where `skill.prompt` never reached the plugin (see below). Each reads the skill's or command's name and the load's answer, and returns that answer unchanged; where `skill.prompt` was skipped, a typed load also reads the session's local skill list once. Any other skill, and a subagent's load, passes on with no other work. |
-| `tool.call` for `set_roster` and `show_permission_warning` | Answers for the mod's own two tools, which have no other code behind them. |
+| `tool.call` for `set_roster`, `log_decision` and `show_permission_warning` | Answers for the mod's own three tools, which have no other code behind them. |
 | `turn.start` | Only after a head-chef load whose pane was open but not shown, not yet listed, or opened without its reads: looks at the pane once a turn, and once it is shown and listed, starts the pane's reads, offers `set_roster` if it was not offered yet, and adds one note saying it is ready. Otherwise, and on a subagent's turn, it passes on with no other work. It reads no text of the prompt. |
 | `turn.step`, `turn.complete` | Counts each model call's token numbers for the usage summary file. It reads no text of the conversation and passes every step on unchanged. |
 | `session.measure`, `session.receive` | While the pane is open, refreshes the usage numbers and keeps the first line of each report another session sends. |
-| `ui.render`, `ui.press`, `ui.close` | Draws the pane and the warning band, and handles their buttons. |
+| `ui.render`, `ui.press`, `ui.input`, `ui.close` | Draws the pane and the warning band, handles their buttons, and takes the Decisions tab's search text, which it keeps only to filter the tab, in plugin state, which other plugins can read until the pane next opens. |
 
 Claude Code's bundled security default, on a machine with managed settings or
 a Team or Enterprise account, keeps the plugins you install from seeing
@@ -341,8 +358,10 @@ it:
 | The session id, `set_roster` after a resume, `show_permission_warning` | as before | from `session.start` and the id read live |
 | The transcript path | from `classic.SessionStart` | not known: the data folder comes from where the plugin is installed, and the pane says when it cannot find it |
 
-Nothing the mod reads leaves the machine except the `gh pr list` request
-above and Open in app's two routes: the call to the Desktop app carries the
+What the pane draws, decision text included, reaches the Desktop and mobile
+apps through Claude Code's own channel. Beyond that, nothing the mod reads
+leaves the machine except the `gh pr list` request above and Open in app's
+two routes: the call to the Desktop app carries the
 session's id and the fixed target `split`, and the fallback hands a checked
 `claude://` link to your system's opener.
 
