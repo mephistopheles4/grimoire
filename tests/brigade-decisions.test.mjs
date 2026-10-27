@@ -492,6 +492,24 @@ test('claim 10: the Owner, Pane and alarm entries are built in one fixed shape e
   assert.equal(inFixedShape(logOf(1).entries[0]), true);
 });
 
+test("claim 25: a compaction's Pane entry has its own fixed shape, and each of the three whys reads only as itself", () => {
+  const base = (raw) => {
+    const r = appendEntry(emptyLog(null), raw, { at: NOW, level: 1, read: new Map(), fixed: true });
+    assert.ok('value' in r);
+    return r.value.log.entries[0];
+  };
+  const compacted = base(paneEntry('compact'));
+  assert.deepEqual([compacted.source, compacted.pick, compacted.why, compacted.undo], ['pane', '1 Manual', "The lead's context was compacted", 'Move the slider in the pane']);
+  assert.ok('value' in checkLog(JSON.stringify({ ...emptyLog(null), next: 2, entries: [compacted] })));
+  for (const why of ['The pane was shown again', 'The Brigade mod was reloaded', "The lead's context was compacted"]) {
+    assert.equal(inFixedShape({ ...compacted, why }), true, why);
+  }
+  // Any other why is out of shape, the near misses included.
+  for (const why of ['The lead was compacted', "The lead's context was compacted.", 'Moved in the pane', '']) {
+    assert.equal(inFixedShape({ ...compacted, why }), false, why);
+  }
+});
+
 test('claim 10: an Owner, Pane or alarm entry that differs from its fixed shape in any field is out of shape', () => {
   const base = (raw) => {
     const r = appendEntry(emptyLog(null), raw, { at: NOW, level: 1, read: new Map(), fixed: true });

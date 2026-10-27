@@ -187,6 +187,12 @@ type World = ReturnType<typeof makeFs> & {
   placeOnOpen: boolean
   /** The open opens the pane, then rejects. */
   rejectOpen: boolean
+  /** The engine's compaction answers a skip. */
+  compactSkip: boolean
+  /** What the engine's compaction answers in place of the messages it was given. */
+  compactResult: unknown
+  /** The compaction the engine was last handed. */
+  compactSeen: any
   /** How many times the pane list was asked. */
   panesCalls: number
   holdWrite: boolean
@@ -284,6 +290,9 @@ function world(on: On, setup: (w: World) => void = w => w.dirs(`${CONFIG}\\plugi
     unplaced: false,
     placeOnOpen: false,
     rejectOpen: false,
+    compactSkip: false,
+    compactResult: undefined,
+    compactSeen: undefined,
     panesCalls: 0,
     holdWrite: false,
     release: () => {},
@@ -473,6 +482,16 @@ function world(on: On, setup: (w: World) => void = w => w.dirs(`${CONFIG}\\plugi
     return { ref: 'r', result: { success: true }, text: `Launching skill: ${e.skill}` }
   })
   on('turn.start', ($, e: any) => ({ turnId: e.turnId }))
+  // The engine's own band above the prompt: one empty box, so a band that
+  // draws nothing of its own shows only it.
+  on('ui.render', { component: 'AbovePrompt' }, ($, e) => $.ui.resolve(e).Box({ key: 'engine' }))
+  // The engine's own compaction: the conversation as it was handed down, a
+  // result the test gives, or a skip.
+  on('session.compact', ($, e: any) => {
+    w.compactSeen = e
+    if (w.compactSkip) return { skip: 'a classic hook blocked it' }
+    return (w.compactResult ?? { messages: e.messages }) as any
+  })
   for (const command of ['head-chef', 'grimoire:head-chef']) {
     on('command.run', { command }, async ($: any) => {
       await expand($, command)
@@ -6988,4 +7007,505 @@ test('claims 10 and 11: a showing or a reload while a raise is still being logge
   await w.clock.advance(15000)
   expect((await readLevel($)).text).toBe(LEVEL_1)
   expect(ownEntries(w).slice(2)).toEqual(['owner 3 Full throttle · Moved in the pane · level 1', 'pane 1 Manual · The Brigade mod was reloaded · level 1'])
+})
+
+// --- the level-3 band and the compaction reset (spec 402 rev 6.2, #430) ------------
+//
+// The band above the lead's prompt, the level's own poll, the compaction
+// reset, and the tools with the pane hidden or closed. The band is mounted as
+// the terminal and Desktop draw it; beneath it the engine draws one empty box
+// (`engine`). A compaction is raised as the engine raises one, with
+// session.compact and then classic.SessionStart with source `compact`. Each
+// test names the claim of spec 402 (S7) it backs.
+
+const BAND_PROPS = { hasSurvey: false, isWorking: false, maxRows: 20, bodyColumns: 80, scroll: { offset: 0, bodyRows: 20 }, view: {} }
+const band = ($: any, surface: 'terminal' | 'desktop' = 'desktop', props: Record<string, unknown> = {}) =>
+  $.ui.mount({ plugin: 'grimoire', surface, component: 'AbovePrompt', props: { ...BAND_PROPS, ...props } })
+const hhmm = (at: number) => new Date(at).toISOString().slice(11, 16)
+const BAND_3 = (at: number) => `Full throttle since ${hhmm(at)} UTC: once you confirm it here, the lead merges, posts and settles security findings on its own`
+const BAND_ALARM = (l: 1 | 2 | 3, at: number) =>
+  `Autonomy changed to ${l} (${['', 'Manual', 'Auto', 'Full throttle'][l]}) without a press at ${hhmm(at)} UTC: set to 1. Read the alarm in the Brigade pane`
+const bandTexts = async (b: any): Promise<string[]> => (await b.findAll({ type: 'Text' })).map((n: any) => String(n.text))
+const compactNow = ($: any, over: Record<string, unknown> = {}) => $.session.compact({ trigger: 'manual', messages: [{ role: 'user', text: 'Hello.', toolUses: [] }], ...over })
+const compactStart = ($: any) => $.classic.SessionStart({ source: 'compact', session_id: SID, transcript_path: TRANSCRIPT })
+const COMPACTED = "pane 1 Manual · The lead's context was compacted · level 1"
+// Three minutes and a second on, so the band's HH:MM is not the clock's start.
+const LATER = 3 * MINUTE + 1000
+// Another plugin writes the stored level, with no press: it reads back as
+// written until the pane next sets it.
+const rewritten = (on: On) => {
+  const box = { value: undefined as unknown }
+  on('state.get', ($: any, e: any, next: any) => (box.value !== undefined && e.key === 'autonomy' ? { value: { value: box.value, version: 1 } } : next(e)))
+  return (w: World, level: unknown) => {
+    box.value = [{ session: SID, level }]
+    w.plant = (key, v) => {
+      if (key === 'autonomy') box.value = undefined
+      return v
+    }
+  }
+}
+const reopen = async ($: any, w: World) => {
+  await mounted.unmount().catch(() => undefined)
+  w.open = true
+  w.unplaced = false
+  await brigade($)
+  await w.clock.settle()
+  mounted = await $.ui.mount({ plugin: 'grimoire', surface: 'desktop', component: 'Pane', requestId: 'brigade', props: PANE_PROPS })
+  await press($, 'view-decisions')
+}
+
+for (const surface of ['terminal', 'desktop'] as const) {
+  test(`claim 21: with level 3 in force the band shows the level-3 line with its press time, the pane open, behind another tab or closed (${surface})`, async ($, on) => {
+    const w = await decisionsPane(on, $, surface)
+    const b = await band($, surface)
+    expect(await bandTexts(b)).toEqual([])
+    expect(await b.find({ key: 'engine' })).toBeDefined()
+    await w.clock.advance(LATER)
+    const at = w.clock.now()
+    await press($, 'level-3')
+    const line = await b.find({ type: 'Text', text: BAND_3(at) })
+    expect(line?.props.color).toBe('warning')
+    expect(await b.find({ key: `l3dismiss-${at}`, text: 'Dismiss' })).toBeDefined()
+    // What the engine draws beneath still shows.
+    expect(await b.find({ key: 'engine' })).toBeDefined()
+    // Behind another tab: the engine lists the pane but does not place it.
+    w.unplaced = true
+    await w.clock.advance(5000)
+    expect(await b.find({ type: 'Text', text: BAND_3(at) })).toBeDefined()
+    expect((await readLevel($)).text).toBe(level3(at))
+    // Closed: the engine no longer lists it, and the pane's reads stop.
+    w.open = false
+    await w.clock.advance(5000)
+    expect(await b.find({ type: 'Text', text: BAND_3(at) })).toBeDefined()
+    expect((await readLevel($)).text).toBe(level3(at))
+    // A press of 2 takes the line away.
+    await reopen($, w)
+    await press($, 'level-2')
+    expect(await bandTexts(b)).toEqual([])
+  })
+}
+
+test('claim 22: Dismiss hides the level-3 line until a new press of 3, a compaction or a reload, and shows it again after each', async ($, on) => {
+  const w = await decisionsPane(on, $)
+  const b = await band($)
+  await w.clock.advance(1000)
+  const first = w.clock.now()
+  await press($, 'level-3')
+  await b.press({ key: `l3dismiss-${first}` })
+  expect(await bandTexts(b)).toEqual([])
+  await w.clock.advance(15000)
+  expect(await bandTexts(b)).toEqual([])
+  // A new press of 3, at a new time, shows it again.
+  await press($, 'level-2')
+  await w.clock.advance(1000)
+  const second = w.clock.now()
+  await press($, 'level-3')
+  expect(await b.find({ type: 'Text', text: BAND_3(second) })).toBeDefined()
+  // A compaction resets the level; the next 3 shows its line.
+  await b.press({ key: `l3dismiss-${second}` })
+  await compactNow($)
+  await w.clock.advance(1000)
+  const third = w.clock.now()
+  await press($, 'level-3')
+  expect(await b.find({ type: 'Text', text: BAND_3(third) })).toBeDefined()
+  // So does a reload.
+  await b.press({ key: `l3dismiss-${third}` })
+  await ($ as any).session.start({ cwd: 'C:\\work', surface: null, isInteractive: false })
+  await w.clock.settle()
+  await w.clock.advance(1000)
+  const fourth = w.clock.now()
+  await press($, 'level-3')
+  expect(await b.find({ type: 'Text', text: BAND_3(fourth) })).toBeDefined()
+})
+
+test('claim 22: a Dismiss pressed under another session id hides nothing', async ($, on) => {
+  const w = await decisionsPane(on, $)
+  const b = await band($)
+  await w.clock.advance(1000)
+  const at = w.clock.now()
+  await press($, 'level-3')
+  // The engine moved to another id, and the band has not drawn since.
+  w.sid = NEW_SID
+  await b.press({ key: `l3dismiss-${at}` })
+  w.sid = SID
+  await b.unmount()
+  const again = await band($)
+  expect(await again.find({ type: 'Text', text: BAND_3(at) })).toBeDefined()
+})
+
+test('claim 22: a resume back to the same id with the classic start hook skipped shows the level-3 line again', async ($, on) => {
+  const w = await decisionsPane(on, $)
+  const b = await band($)
+  await w.clock.advance(1000)
+  const at = w.clock.now()
+  await press($, 'level-3')
+  await b.press({ key: `l3dismiss-${at}` })
+  // A clear to another id and a resume back, neither raising classic.SessionStart:
+  // the level poll's tick under the other id drops the dismissal.
+  w.sid = NEW_SID
+  await w.clock.advance(5000)
+  w.sid = SID
+  await b.unmount()
+  const back = await band($)
+  expect(await back.find({ type: 'Text', text: BAND_3(at) })).toBeDefined()
+})
+
+test('claim 23: an alarm shows the alarm line, with no Dismiss, at any level, until this pane marks its entry; with level 3 in force both lines show', async ($, on) => {
+  const w = await decisionsPane(on, $)
+  const b = await band($)
+  await w.clock.advance(LATER)
+  plantOnce(w, 3)
+  await press($, 'level-2')
+  await w.clock.advance(5000)
+  const caught = w.clock.now()
+  const line = await b.find({ type: 'Text', text: BAND_ALARM(3, caught) })
+  expect(line?.props.color).toBe('warning')
+  expect(await b.findAll({ type: 'Button' })).toEqual([])
+  await w.clock.advance(15000)
+  expect(await bandTexts(b)).toEqual([BAND_ALARM(3, caught)])
+  // A 3 pressed while the alarm is still unread: both lines, the alarm's on top.
+  await w.clock.advance(1000)
+  const at = w.clock.now()
+  await press($, 'level-3')
+  expect(await bandTexts(b)).toEqual([BAND_ALARM(3, caught), BAND_3(at)])
+  // The owner reads the alarm in the pane: its line goes, the level-3 line stays.
+  const alarm = parsed(w, LOG).entries.find((e: any) => e.source === 'alarm')
+  await press($, `dnext-${alarm.id}-${alarm.at}`)
+  expect(await bandTexts(b)).toEqual([BAND_3(at)])
+})
+
+test('claim 23: a repeat joins the held alarm and clears with it, the line naming the latest level and time', async ($, on) => {
+  const w = await decisionsPane(on, $)
+  const b = await band($)
+  plantOnce(w, 3)
+  await press($, 'level-2')
+  await w.clock.advance(5000)
+  const first = parsed(w, LOG).entries.find((e: any) => e.source === 'alarm')
+  // Another change while the alarm sits unread: held back, joined to the line.
+  await w.clock.advance(MINUTE)
+  plantOnce(w, 2)
+  await press($, 'level-3')
+  await w.clock.advance(5000)
+  const later = w.clock.now()
+  expect(parsed(w, LOG).entries.filter((e: any) => e.source === 'alarm').length).toBe(1)
+  expect(await bandTexts(b)).toEqual([BAND_ALARM(2, later)])
+  await press($, `dnext-${first.id}-${first.at}`)
+  expect(await bandTexts(b)).toEqual([])
+})
+
+test('claim 23: a planted marks file neither clears nor raises the alarm line, and a module reload clears it', async ($, on) => {
+  const w = await decisionsPane(on, $)
+  const b = await band($)
+  plantOnce(w, 3)
+  await press($, 'level-2')
+  await w.clock.advance(5000)
+  const caught = w.clock.now()
+  const alarm = parsed(w, LOG).entries.find((e: any) => e.source === 'alarm')
+  // A marks file another writer planted marks the alarm read: the pane's queue empties, the line stays.
+  seed(w, OWN_MARKS, marksText([{ log: SID, id: alarm.id, entryAt: alarm.at, state: 'read', at: 5 }]), 70)
+  await w.clock.advance(5000)
+  expect(await shows(/^1 of /)).toBe(false)
+  expect(await bandTexts(b)).toEqual([BAND_ALARM(3, caught)])
+  // A reload clears it, and a planted alarm entry this module never caught raises none.
+  await ($ as any).session.start({ cwd: 'C:\\work', surface: null, isInteractive: false })
+  await w.clock.settle()
+  expect(await bandTexts(b)).toEqual([])
+  w.drop(OWN_MARKS)
+  seed(w, LOG, logText([...parsed(w, LOG).entries, { ...alarm, id: '50', at: 50 }], 51), 80)
+  await w.clock.advance(5000)
+  expect(await bandTexts(b)).toEqual([])
+})
+
+test('claim 24: with the pane behind another tab or closed, read_autonomy answers the level, and log_decision and the hand-off tools work', async ($, on) => {
+  const w = await decisionsPane(on, $, 'desktop', w => w.dirs(HANDOFFS))
+  await press($, 'level-2')
+  for (const step of [() => (w.unplaced = true), () => (w.open = false)]) {
+    step()
+    await w.clock.advance(5000)
+    expect((await readLevel($)).text).toBe(LEVEL_2)
+    expect((await decide($)).text).toMatch(/^Logged decision \d+ at .*, at level 2 \(Auto\)\.$/)
+    expect((await setHandoff($)).text).toMatch(/^Hand-off kept at .*, at level 2 \(Auto\)\.$/)
+    expect((await readHandoff($)).ok).toBe(true)
+  }
+})
+
+test('claim 24: a session whose pane never offered the tools has none of them, and a reload with the pane closed withdraws them', async ($, on) => {
+  const w = world(on, w => {
+    w.dirs(`${CONFIG}\\plugins`)
+    w.dirs(DECISIONS)
+    w.dirs(HANDOFFS)
+  })
+  await start($)
+  const refusedAll = async () => {
+    expect((await decide($)).text).toBe('log_decision refused: offer: the Brigade pane has not offered this tool in this session. The decision log is unchanged; act at level 1.')
+    expect((await setHandoff($)).text).toBe('set_lead_handoff refused: offer: the Brigade pane has not offered this tool in this session. The hand-off is unchanged.')
+    expect((await readHandoff($)).text).toBe('read_lead_handoff refused: offer: the Brigade pane has not offered this tool in this session. Nothing was changed.')
+    expect((await readLevel($)).text).toBe(LEVEL_1)
+  }
+  await refusedAll()
+  expect(w.text(LOG)).toBeUndefined()
+  await brigade($)
+  await w.clock.settle()
+  expect((await decide($)).ok).toBe(true)
+  // A reload while the pane is closed offers nothing, and every call is refused again.
+  w.open = false
+  await w.clock.advance(5000)
+  await ($ as any).session.start({ cwd: 'C:\\work', surface: null, isInteractive: false })
+  await w.clock.settle()
+  await refusedAll()
+  expect(parsed(w, LOG).entries.length).toBe(1)
+})
+
+test("claim 24: the level's own poll catches a change with the pane closed, at level 1 once a tool call finds it, stops at level 1 with nothing waiting, and is not the pane's reads", async ($, on) => {
+  const otherWrites = rewritten(on)
+  on('session.receive', (_: any, e: any) => e)
+  const w = await decisionsPane(on, $)
+  await press($, 'level-2')
+  w.open = false
+  await w.clock.advance(5000)
+  const usage = w.usageCalls
+  const reportsKept = () => w.states.filter(([k]) => k === 'reports').length
+  const kept = reportsKept()
+  // A rewrite at 2: the level's poll catches it with the pane closed.
+  otherWrites(w, 3)
+  await w.clock.advance(5000)
+  expect(ownEntries(w)).toEqual(['owner 2 Auto · Moved in the pane · level 1', 'alarm 3 Full throttle · Changed, not from a press · level 1'])
+  expect((await readLevel($)).text).toBe(LEVEL_1)
+  // The poll keeps no report and reads no usage: it is not the pane's reads.
+  await $.session.receive({ origin: { kind: 'peer' }, text: '<cross-session-message from="x">\nnews\n</cross-session-message>' })
+  await w.clock.advance(15000)
+  expect(w.usageCalls).toBe(usage)
+  expect(reportsKept()).toBe(kept)
+  // The owner reads the alarm, so the next one is logged rather than counted.
+  const alarm = parsed(w, LOG).entries.find((e: any) => e.source === 'alarm')
+  await reopen($, w)
+  await press($, `dnext-${alarm.id}-${alarm.at}`)
+  w.open = false
+  await w.clock.advance(5000)
+  // At level 1 with nothing waiting the poll has stopped: a rewrite is not caught by the clock alone.
+  otherWrites(w, 2)
+  await w.clock.advance(15000)
+  expect(ownEntries(w).filter(e => e.startsWith('alarm')).length).toBe(1)
+  // A tool call that finds it reads 1 and starts the poll, whose next tick logs the alarm.
+  expect((await readLevel($)).text).toBe(LEVEL_1)
+  await w.clock.advance(5000)
+  expect(ownEntries(w).filter(e => e.startsWith('alarm'))).toEqual([
+    'alarm 3 Full throttle · Changed, not from a press · level 1',
+    'alarm 2 Auto · Changed, not from a press · level 1',
+  ])
+})
+
+test("claim 24: at level 1 the band's render that finds a rewritten level starts the poll", async ($, on) => {
+  const otherWrites = rewritten(on)
+  const w = await decisionsPane(on, $)
+  w.open = false
+  await w.clock.advance(5000)
+  otherWrites(w, 3)
+  await w.clock.advance(15000)
+  expect(ownEntries(w)).toEqual([])
+  await band($)
+  await w.clock.advance(5000)
+  expect(ownEntries(w)).toEqual(['alarm 3 Full throttle · Changed, not from a press · level 1'])
+})
+
+test('claim 25: a showing of the pane no longer resets the level, and writes no Pane entry', async ($, on) => {
+  const w = await decisionsPane(on, $)
+  await press($, 'level-2')
+  // Closed, then shown again by /brigade.
+  w.open = false
+  await w.clock.advance(5000)
+  await brigade($)
+  await w.clock.settle()
+  expect((await readLevel($)).text).toBe(LEVEL_2)
+  // Listed but not placed, then placed by /brigade.
+  w.unplaced = true
+  w.placeOnOpen = true
+  await brigade($)
+  await w.clock.settle()
+  expect((await readLevel($)).text).toBe(LEVEL_2)
+  expect(ownEntries(w)).toEqual(['owner 2 Auto · Moved in the pane · level 1'])
+})
+
+test('claim 25: a head-chef load and the late offer that show the pane keep the level', async ($, on) => {
+  const w = loads(on, $, w => {
+    w.dirs(`${CONFIG}\\plugins`)
+    w.dirs(DECISIONS)
+  })
+  await start($)
+  await brigade($)
+  await w.clock.settle()
+  mounted = await $.ui.mount({ plugin: 'grimoire', surface: 'desktop', component: 'Pane', requestId: 'brigade', props: PANE_PROPS })
+  await press($, 'view-decisions')
+  await press($, 'level-2')
+  w.unplaced = true
+  expect(added(await load($))).toBe(NOT_SHOWN)
+  w.unplaced = false
+  await turn($)
+  await w.clock.settle()
+  expect((await readLevel($)).text).toBe(LEVEL_2)
+  w.open = false
+  await w.clock.advance(5000)
+  expect(added(await load($))).toBe(READY)
+  await w.clock.settle()
+  expect((await readLevel($)).text).toBe(LEVEL_2)
+  expect(ownEntries(w)).toEqual(['owner 2 Auto · Moved in the pane · level 1'])
+})
+
+test('claim 25: a compaction of the main conversation resets a level above 1 to 1 with one Pane entry, by either signal, and at level 1 writes nothing', async ($, on) => {
+  const w = await decisionsPane(on, $)
+  await w.clock.advance(1000)
+  await press($, 'level-3')
+  await compactNow($)
+  expect((await readLevel($)).text).toBe(LEVEL_1)
+  await compactStart($)
+  await w.clock.advance(15000)
+  expect(ownEntries(w)).toEqual(['owner 3 Full throttle · Moved in the pane · level 1', COMPACTED])
+  // The classic start alone, as where the hook is answered in core's place.
+  await press($, 'level-2')
+  await compactStart($)
+  await w.clock.settle()
+  expect((await readLevel($)).text).toBe(LEVEL_1)
+  await w.clock.advance(15000)
+  expect(ownEntries(w).slice(2)).toEqual(['owner 2 Auto · Moved in the pane · level 1', COMPACTED])
+  // At level 1 neither signal writes anything.
+  await compactNow($)
+  await compactStart($)
+  await w.clock.advance(15000)
+  expect(ownEntries(w).length).toBe(4)
+  // Nothing in To review: Pane entries count as read.
+  expect(await shows(/^1 of /)).toBe(false)
+})
+
+test("claim 25: a subagent's compaction, a precompute and a compaction that was skipped reset nothing", async ($, on) => {
+  const w = await decisionsPane(on, $)
+  await press($, 'level-2')
+  await compactNow($, { agentId: 'a-subagent' })
+  await compactNow($, { trigger: 'precompute' })
+  w.compactSkip = true
+  await compactNow($)
+  await w.clock.advance(15000)
+  expect((await readLevel($)).text).toBe(LEVEL_2)
+  expect(ownEntries(w)).toEqual(['owner 2 Auto · Moved in the pane · level 1'])
+  // Every other trigger resets.
+  w.compactSkip = false
+  for (const trigger of ['auto', 'plugin']) {
+    await press($, 'level-2')
+    await compactNow($, { trigger })
+    expect((await readLevel($)).text).toBe(LEVEL_1)
+  }
+  await w.clock.advance(15000)
+  expect(ownEntries(w).filter(e => e === COMPACTED).length).toBe(2)
+})
+
+test('claim 25: a compaction first logs a level another plugin wrote as an alarm, not a Pane entry', async ($, on) => {
+  const w = await decisionsPane(on, $)
+  plantOnce(w, 3)
+  await press($, 'level-2')
+  await compactNow($)
+  expect((await readLevel($)).text).toBe(LEVEL_1)
+  await w.clock.advance(15000)
+  expect(ownEntries(w)).toEqual(['owner 2 Auto · Moved in the pane · level 1', 'alarm 3 Full throttle · Changed, not from a press · level 1'])
+})
+
+test('claim 25: a compaction while a raise is still being logged voids the raise, and one Pane entry follows its Owner entry', async ($, on) => {
+  const w = await decisionsPane(on, $)
+  w.holdWrite = true
+  const raise = press($, 'level-3')
+  await w.clock.settle()
+  const compacting = compactNow($)
+  await w.clock.settle()
+  w.holdWrite = false
+  w.release()
+  await raise
+  await compacting
+  await w.clock.advance(15000)
+  expect((await readLevel($)).text).toBe(LEVEL_1)
+  expect(ownEntries(w)).toEqual(['owner 3 Full throttle · Moved in the pane · level 1', COMPACTED])
+})
+
+test("claim 25: a compaction's Pane entry that cannot be written still lowers the level and is tried again on the level's poll, with the pane closed", async ($, on) => {
+  const w = await decisionsPane(on, $)
+  await press($, 'level-2')
+  w.open = false
+  await w.clock.advance(5000)
+  seed(w, LOG, '{"cards":[],"todos":[]}')
+  await compactNow($)
+  expect((await readLevel($)).text).toBe(LEVEL_1)
+  await w.clock.advance(5000)
+  w.drop(LOG)
+  await w.clock.advance(5000)
+  expect(ownEntries(w)).toEqual([COMPACTED])
+  await w.clock.advance(15000)
+  expect(ownEntries(w).length).toBe(1)
+})
+
+test('claim 25: a compaction reset that cannot read the session id waits, reading 1, and lands on the next tick of the poll', async ($, on) => {
+  const w = await decisionsPane(on, $)
+  await press($, 'level-2')
+  w.open = false
+  await w.clock.advance(5000)
+  w.rejectIds = 1
+  await compactNow($)
+  expect((await readLevel($)).text).toBe(LEVEL_1)
+  await w.clock.advance(5000)
+  expect((await readLevel($)).text).toBe(LEVEL_1)
+  await w.clock.advance(5000)
+  expect(ownEntries(w)).toEqual(['owner 2 Auto · Moved in the pane · level 1', COMPACTED])
+  // Once it landed, a press sets the level again.
+  await reopen($, w)
+  await press($, 'level-2')
+  expect((await readLevel($)).text).toBe(LEVEL_2)
+})
+
+for (const surface of ['terminal', 'desktop'] as const) {
+  test(`claim 26: at levels 1 and 2 with no alarm the band draws no banner; the permission warning draws beneath the banner, also when its tool is called again and when the banner's work throws (${surface})`, async ($, on) => {
+    const w = await decisionsPane(on, $, surface)
+    const b = await band($, surface)
+    expect(await bandTexts(b)).toEqual([])
+    await press($, 'level-2')
+    expect(await bandTexts(b)).toEqual([])
+    expect(await b.find({ key: 'engine' })).toBeDefined()
+    // The warning, called as the head-chef skill calls it.
+    await $.tool.call({ tool: 'mcp__grimoire__show_permission_warning' })
+    expect(await b.find({ key: 'understand' })).toBeDefined()
+    await w.clock.advance(1000)
+    const at = w.clock.now()
+    await press($, 'level-3')
+    expect((await bandTexts(b))[0]).toBe(BAND_3(at))
+    expect(await b.find({ key: 'understand' })).toBeDefined()
+    await $.tool.call({ tool: 'mcp__grimoire__show_permission_warning' })
+    expect((await bandTexts(b))[0]).toBe(BAND_3(at))
+    expect(await b.find({ key: 'understand' })).toBeDefined()
+    // The banner's own read throws: the warning beneath still shows.
+    await b.unmount()
+    w.rejectIds = 1
+    const thrown = await band($, surface)
+    expect(await thrown.find({ key: 'understand' })).toBeDefined()
+    // A survey holds the band: the banner yields.
+    await thrown.unmount()
+    const survey = await band($, surface, { hasSurvey: true })
+    expect(await survey.find({ type: 'Text', text: BAND_3(at) })).toBeUndefined()
+  })
+}
+
+test("claim 27: the compaction hook returns the engine's result unchanged, and no message, instruction or summary text reaches state, the log, a toast or a tool answer", async ($, on) => {
+  const SENTINEL = 'SENTINEL-430-text'
+  const result = { messages: [{ role: 'user', text: `summary ${SENTINEL}`, toolUses: [] }], tokensBefore: 900, tokensAfter: 90 }
+  const w = await decisionsPane(on, $, 'desktop', w => w.dirs(HANDOFFS))
+  w.compactResult = result
+  const wrote: string[] = []
+  const write = w.write
+  w.write = (p: string, t: string) => {
+    wrote.push(t)
+    write(p, t)
+  }
+  await press($, 'level-2')
+  const got = await $.session.compact({ trigger: 'manual', instructions: `keep ${SENTINEL}`, messages: [{ role: 'user', text: `hello ${SENTINEL}`, toolUses: [] }] })
+  expect(got).toEqual(result)
+  expect(w.compactSeen.instructions).toBe(`keep ${SENTINEL}`)
+  await compactStart($)
+  await w.clock.advance(15000)
+  const answers = [(await readLevel($)).text, (await decide($)).text, (await setHandoff($)).text]
+  for (const text of [...w.states.map(([, v]) => v), ...wrote, ...w.toasts, ...answers]) expect(text.includes(SENTINEL)).toBe(false)
+  expect(ownEntries(w).slice(0, 2)).toEqual(['owner 2 Auto · Moved in the pane · level 1', COMPACTED])
 })
