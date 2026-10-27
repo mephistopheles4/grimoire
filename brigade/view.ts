@@ -912,6 +912,8 @@ export type PrRow = {
   state: string
   title: string
   detail: { cardTitle: string; counts?: string; repo?: string; age?: string }
+  /** The PR's page, built only from `gh`'s answer; absent without one. */
+  href?: string
 }
 
 /** A stored card's PR number as text, or undefined: the card must be a record
@@ -946,7 +948,8 @@ export function unavailableLine(base: boolean, named: number): string | undefine
  *  one row per card, `gh`'s state when it answered for the number in the
  *  card's repository (`prAnswer`), else the card's, else open. With an answer
  *  a row has the PR's title, counts, repository and age; without one, the
- *  card's title alone, and the repository the card names, if any. */
+ *  card's title alone, and the repository the card names, if any, with no
+ *  link: a row links only from an answer. */
 export function prRows(cards: unknown, hidden: ReadonlySet<unknown>, answers: ReadonlyMap<number, GhPr>, now: number, moves?: Moves, named?: ReadonlyMap<string, ReadonlyMap<number, GhPr>>): { open: PrRow[]; merged: PrRow[]; closed: PrRow[] } {
   const out = { open: [] as PrRow[], merged: [] as PrRow[], closed: [] as PrRow[] }
   if (!Array.isArray(cards)) return out
@@ -967,6 +970,8 @@ export function prRows(cards: unknown, hidden: ReadonlySet<unknown>, answers: Re
       detail.repo = String(c.repo)
     }
     const row: PrRow = { c, i, number, state, title: answer?.title ?? cardTitle, detail }
+    const href = answer === undefined ? undefined : prUrl(answer.repo, number)
+    if (href !== undefined) row.href = href
     if (state === 'merged') out.merged.push(row)
     else if (state === 'closed') out.closed.push(row)
     else out.open.push(row)

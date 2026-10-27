@@ -4806,6 +4806,13 @@ test('a card naming a repository takes only that repository\'s answer, and a car
     // A repository value that fails the check is no repository and takes no answer at all.
     ['e', 'e', undefined],
   ]);
+  // A row links only from an answer: base, named, and none for the unanswered.
+  assert.deepEqual([...rows.merged, ...rows.open].map(r => [r.c.title, r.href]), [
+    ['a', 'https://github.com/o/r/pull/7'],
+    ['b', 'https://github.com/other/proj/pull/7'],
+    ['d', undefined],
+    ['e', undefined],
+  ]);
   // Not the base answer's merged #8: the named repository had no #8.
   assert.deepEqual(rows.closed.map(r => [r.c.title, r.title, r.detail.repo, r.detail.counts]), [['c', 'c', 'other/proj', undefined]]);
   // Without the named answers, every named card has no answer.

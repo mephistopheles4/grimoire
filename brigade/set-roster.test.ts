@@ -6896,7 +6896,7 @@ test('claim 17: set_roster takes repo and writes it with the card', async ($, on
   expect(JSON.parse(w.text(FILE) ?? 'null').cards[0].repo).toBe('other/proj')
 })
 
-for (const repo of ['ghe.example/o/r', 'o/r/x', '-o/r', 'github.com/o', 'o/..']) {
+for (const repo of ['o/r/x', '-o/r', 'github.com/o', 'o/..']) {
   test(`claim 17: set_roster refuses the repo ${repo}, names the field without the value, and leaves the file`, async ($, on) => {
     const w = world(on, w => {
       w.dirs(BRIGADE)
@@ -6917,8 +6917,8 @@ for (const repo of ['ghe.example/o/r', 'o/r/x', '-o/r', 'github.com/o', 'o/..'])
   })
 }
 
-for (const surface of SURFACES) {
-  test(`${surface}, claim 17: a named card's chip and row open its pull request in that repository and name it; the run is the base list with GH_REPO alone; no gh row reaches plugin state`, async ($, on) => {
+for (const surface of [...SURFACES, 'mobile'] as const) {
+  test(`${surface}, claim 17: a named card's pill and row open its pull request in that repository and name it; the run is the base list with GH_REPO alone; no gh row reaches plugin state`, async ($, on) => {
     const w = await namedPane(on, $, [ALPHA, BETA], w => {
       w.ghOut = JSON.stringify([ghPr(341, { title: 'Base title' })])
       w.ghOutBy['other/proj'] = JSON.stringify([otherPr(7, { title: 'Other title' })])
@@ -6931,8 +6931,13 @@ for (const surface of SURFACES) {
     const m = await mountOn($, surface)
     const links = (await nodes(m)).filter(n => n.type === 'Link').map(l => l.props.href).sort()
     expect(links).toEqual(['https://github.com/o/r/pull/341', `${OTHER}/7`])
-    // Desktop names the repository in the chip's tooltip.
-    if (surface === 'desktop') expect((await textOf(m)).includes('other/proj')).toBe(true)
+    // Every surface names the repository beside the pill: inline where there
+    // is no pointer, in the tooltips on Desktop, the arrow's included.
+    const sessions = await textOf(m)
+    expect(sessions.includes('other/proj')).toBe(true)
+    if (surface === 'desktop') expect(sessions.includes('Open pull request other/proj#7')).toBe(true)
+    // The base card's pill names no repository on the Sessions view.
+    if (surface !== 'desktop') expect(sessions.includes('o/r')).toBe(false)
     await m.press({ key: 'view-prs' })
     const text = await textOf(m)
     expect(text.includes('Other title')).toBe(true)
@@ -6956,7 +6961,11 @@ for (const [label, answer] of [
     expect(repoOf(w, 1)).toBe('other/proj')
     const m = await mountOn($, 'desktop')
     expect((await nodes(m)).filter(n => n.type === 'Link').map(l => l.props.href)).toEqual(['https://github.com/o/r/pull/341'])
+    // The pill still names the repository the card names, with no link.
+    expect((await textOf(m)).includes('other/proj')).toBe(true)
     await m.press({ key: 'view-prs' })
+    // The row names it too, and links only from an answer.
+    expect((await nodes(m)).filter(n => n.type === 'Link').map(l => l.props.href)).toEqual(['https://github.com/o/r/pull/341'])
     const text = await textOf(m)
     expect(text.includes('Base seven')).toBe(false)
     expect(text.includes('Other title')).toBe(false)
@@ -7080,4 +7089,19 @@ test("claim 17: a named result the pane's close overtakes is dropped", async ($,
   const m = await mountOn($, 'desktop')
   await m.press({ key: 'view-prs' })
   expect((await textOf(m)).includes('Dropped answer')).toBe(false)
+})
+
+test('claim 17: a base failure leaves the unavailable line once no shown card needs the base run', async ($, on) => {
+  const w = await namedPane(on, $, [ALPHA, BETA], w => {
+    w.ghOut = 'not json'
+    w.ghOutBy['other/proj'] = JSON.stringify([otherPr(7, { title: 'Other title' })])
+  })
+  const m = await mountOn($, 'desktop')
+  await m.press({ key: 'view-prs' })
+  expect((await textOf(m)).includes('PR details unavailable')).toBe(true)
+  expect((await call($, { cards: [BETA], todos: [] })).ok).toBe(true)
+  await w.clock.advance(60000)
+  const text = await textOf(m)
+  expect(text.includes('Other title')).toBe(true)
+  expect(text.includes('PR details unavailable')).toBe(false)
 })

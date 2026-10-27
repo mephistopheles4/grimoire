@@ -962,13 +962,12 @@ test('the head-chef roster reference gives the repo rule as the check holds it (
   // The field is named, with when to set it and its shape.
   const rule = ref.split('\n- ').find(b => b.startsWith('`repo`'));
   assert.ok(rule, 'roster.md has a bullet for `repo`');
-  assert.match(rule, /another repository/);
-  assert.match(rule, /owner\/name/);
-  assert.match(rule, /no host/);
+  // Which way the rule points: set for another repository, left out for the lead's own.
+  assert.match(rule.replace(/\s+/g, ' '), /`repo` is the pull request's repository, as `owner\/name` with no host, when that pull request is in another repository than your own working folder's\. Leave it out for a pull request in your own repository\./);
   // Every owner/name the reference shows as an example passes the check.
   const examples = [...ref.matchAll(/"repo": "([^"]*)"/g)].map(m => m[1]);
   assert.ok(examples.length > 0, 'the example call carries a repo');
   for (const e of examples) assert.match(e, REPO);
   // The caps line names the field's limits as REPO holds them.
-  assert.match(ref, /`repo` an owner of at most 39 and a name of at most 100/);
+  assert.match(ref.replace(/\s+/g, ' '), /`repo`: the owner 1 to 39 letters, digits or `-`, not starting with `-`; the name 1 to 100 letters, digits, `-`, `\.` or `_`, not starting with `-` or `\.`/);
 });

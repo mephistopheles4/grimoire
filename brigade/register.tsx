@@ -860,7 +860,7 @@ async function dismissFlagged($: EngineInterface) {
 //
 // While the pane is open and a shown card carries a PR number, the pane runs one
 // fixed `gh pr list` a minute for the cards that name no repository, and the
-// same argument list for each repository the cards name (issue 408), with that
+// same argument list for the repositories the cards name, taking turns (issue 408), with that
 // checked owner/name as GH_REPO in the run's environment, so no roster text,
 // number or title reaches the command line. The answers, and the numbers known
 // to be merged, stay in the module for the session and never enter plugin
@@ -886,7 +886,9 @@ type Named = { answers: ReadonlyMap<number, GhPr>; merged: ReadonlySet<number>; 
 const ghNamed = new Map<string, Named>()
 // The named repository run last: the next minute's turn starts after it.
 let ghLast: string | undefined
-// At most this many named runs a minute, besides the base run.
+// At most this many named runs a minute, besides the base run: 6 runs a
+// minute in all, the number README.md, SECURITY.md and the threat model
+// (door 4, row 15 and the engine-calls table) give. Change them together.
 const NAMED_RUNS = 5
 const MAX_NAMED_ROWS = 100
 
@@ -968,6 +970,8 @@ async function askGh($: EngineInterface, open: () => boolean, tick: boolean) {
   try {
     const [{ cards }, hid, moves] = await Promise.all([read($, roster), read($, dismissed), movesOf($)])
     const { base, named } = shownPrs(cards, new Set(hid), moves)
+    // With no shown card needing the base run, its last failure is no news.
+    if (base.length === 0) ghDown = false
     // A repository no shown card names loses its rows.
     for (const r of [...ghNamed.keys()]) if (!named.has(r)) ghNamed.delete(r)
     const baseWanted = base.length > 0 && !base.every(n => ghMerged.has(n))
@@ -2774,9 +2778,9 @@ export const register: Register = on => {
         <Link href={href}>{`#${n}`}</Link>
       </Text>
     )
-    const linkArrow = (key: string, n: string, href: string) => (
+    const linkArrow = (key: string, n: string, href: string, repo?: string) => (
       <Box flexShrink={0}>
-        {tip(key, <Text><Link href={href}>↗</Link></Text>, `Open pull request #${n}`)}
+        {tip(key, <Text><Link href={href}>↗</Link></Text>, `Open pull request ${repo ?? ''}#${n}`)}
       </Box>
     )
     const hint = (key: string) => (
@@ -2917,8 +2921,10 @@ export const register: Register = on => {
       const number = prNumber(c)
       const answer = prAnswer(c, ghAnswers, named)
       const href = number === undefined || answer === undefined ? undefined : prUrl(answer.repo, number)
-      // The repository a click goes to, for the tooltip: gh's answer's, else the card's own.
-      const repoTip = answer?.repo ?? (cardRepo(c) === undefined ? undefined : String(c.repo))
+      // For a card that names a repository, that repository: in the pill's
+      // tooltip and the arrow's on Desktop, and drawn beside the pill where
+      // there is no pointer. gh's spelling once it answered, else the card's.
+      const namedRepo = cardRepo(c) === undefined ? undefined : (answer?.repo ?? String(c.repo))
       // The actions: on Desktop hidden until the pointer is on the row, in the
       // terminal always shown. A card that waits on the owner has no Dismiss.
       const actions =
@@ -2988,7 +2994,7 @@ export const register: Register = on => {
                 {number !== undefined && (
                   <Box flexShrink={0}>
                     {answer === undefined ? (
-                      repoTip === undefined ? pill(number, pillState(undefined, c.prState)) : tip(`pill-${i}`, pill(number, pillState(undefined, c.prState)), repoTip)
+                      namedRepo === undefined ? pill(number, pillState(undefined, c.prState)) : tip(`pill-${i}`, pill(number, pillState(undefined, c.prState)), namedRepo)
                     ) : href !== undefined && Image === undefined ? (
                       linkedNumber(number, pillState(answer.state, c.prState), href)
                     ) : (
@@ -2996,7 +3002,12 @@ export const register: Register = on => {
                     )}
                   </Box>
                 )}
-                {href !== undefined && Image !== undefined && number !== undefined && linkArrow(`prlink-${i}`, number, href)}
+                {namedRepo !== undefined && number !== undefined && !pointer && (
+                  <Box flexShrink={0}>
+                    <Text dimColor>{namedRepo}</Text>
+                  </Box>
+                )}
+                {href !== undefined && Image !== undefined && number !== undefined && linkArrow(`prlink-${i}`, number, href, namedRepo)}
                 <Box flexShrink={0}>
                   {/* Idle on a working card is bold as well as amber: the flip
                       from busy is the owner's cue (owner decision q1 A on #287). */}
@@ -3223,7 +3234,7 @@ export const register: Register = on => {
     // card's title, the counts, the repository and the age. On Desktop and
     // mobile rows sit a small step apart with no hairline; the editor, where
     // that step is nothing, and the terminal part them as `rows` does.
-    const rowHref = (r: PrRow) => (r.detail.repo === undefined ? undefined : prUrl(r.detail.repo, r.number))
+    const rowHref = (r: PrRow) => r.href
     const prRow = (r: PrRow) => (
       <Box flexDirection="column" paddingX={terminal ? 0 : 'md'} paddingY={terminal ? 0 : 'sm'} marginBottom={stepped ? 'xs' : 0} {...hoverFill(`pr-${r.i}-${slug(r.number)}`)}>
         <Box flexDirection="row" columnGap={1} alignItems="center">

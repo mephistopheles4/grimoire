@@ -318,7 +318,7 @@ need, without overwhelming me or showing me too much.
   sessions only (D2 of issue 385): a background session's card carries its
   job id as `bgId`, and no `desktopId` or `url`; the pane matches it by the
   job id and reads its Remote Control link itself.
-- **Decided.** A card whose pull request is in another repository than the
+- **Confirmed.** A card whose pull request is in another repository than the
   lead's own working folder's carries that repository as `repo`, an
   `owner/name` with no host, and a card whose pull request is in the lead's
   own repository carries none. `references/roster.md` gives the field's

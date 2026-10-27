@@ -162,8 +162,9 @@ and age. While the pane is open and a row carries a pull request, the pane asks
 `gh` for the details once a minute, and stops once every pull request it shows is merged. When
 a session's pull request is in another repository than the lead's own, the lead
 can name it on the row (`repo`, as `owner/name`): the pane then asks `gh` about
-that repository too, at most 6 runs a minute in all, and the chip's tooltip and
-the Pull requests row name it. **The
+that repository too, at most 6 runs a minute in all, the repositories taking
+turns past five, and the pane names it beside the pill and on the Pull requests
+row. **The
 details need `gh` installed, signed in, and run from a github.com repository.** On
 macOS and Linux the pane also asks only when every folder on PATH is an absolute
 path. Without them the pill shows the number and the state the lead last knew, and the
@@ -348,10 +349,12 @@ files you ask for:
   browser's storage until you press Reset.
 - **Brigade**, while its pane is open, runs `gh pr list` once a minute for the
   pull requests its rows carry, and once a minute for each other repository a
-  row names, at most 6 runs a minute, which uses your GitHub sign-in. It reads
-  Claude Code's own session files and the transcripts of the sessions the lead
-  started. It writes a roster file and a usage summary file in the plugin's
-  data folder; the summary file is written in every session, pane open or not.
+  row names, at most 6 runs a minute, the repositories taking turns past five,
+  which uses your GitHub sign-in. It reads Claude Code's own session files and
+  the transcripts of the sessions the lead started. It writes a roster file and
+  a usage summary file in the plugin's data folder; the summary file is written
+  in every session, pane open or not. The roster file, unencrypted, holds each
+  row's other repository by owner/name, private ones included.
   Since 0.81.0 it also writes each lead's decision log, one entry per
   decision the lead logs, and a marks file of the Read, Flag, Unflag and
   Dismiss presses you make in its Decisions tab, both in plain text in the same folder, never removed by the
