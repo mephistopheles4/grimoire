@@ -6936,8 +6936,8 @@ for (const surface of [...SURFACES, 'mobile'] as const) {
     const sessions = await textOf(m)
     expect(sessions.includes('other/proj')).toBe(true)
     if (surface === 'desktop') expect(sessions.includes('Open pull request other/proj#7')).toBe(true)
-    // The base card's pill names no repository on the Sessions view.
-    if (surface !== 'desktop') expect(sessions.includes('o/r')).toBe(false)
+    // The base card's pill names no repository on the Sessions view (its link's URL aside).
+    if (surface !== 'desktop') expect(sessions.split('https://github.com/o/r/').join('').includes('o/r')).toBe(false)
     await m.press({ key: 'view-prs' })
     const text = await textOf(m)
     expect(text.includes('Other title')).toBe(true)
