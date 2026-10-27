@@ -1588,8 +1588,8 @@ async function setRoster($: EngineInterface, e: Record<string, unknown>, signal:
 //
 // The tool a lead logs each decision with, before it acts on it. Like
 // set_roster it writes with no permission prompt, so it is guarded here: it
-// is offered where set_roster is, works only while the pane is listed and
-// placed with its reads running, refuses a subagent's call and every verdict
+// is offered where set_roster is, works only once this module has offered it
+// since its last reload, pane shown or not, refuses a subagent's call and every verdict
 // set_roster refuses, takes only an entry that passes the shared check, and
 // writes only this session's own log, through the log's queue. The mod stamps
 // the entry's id, time and level, the level read_autonomy would answer. Every
@@ -1715,8 +1715,8 @@ async function appendToLog($: EngineInterface, at: Where, raw: unknown, o: Appen
 // set_lead_handoff replaces this session's own hand-off; read_lead_handoff
 // gives this session's own back, else the newest from the same project
 // digest, as data. Both are offered where set_roster is and guarded as
-// log_decision is: they work only while the pane is listed and placed with its
-// reads running, refuse a subagent's call and every verdict set_roster
+// log_decision is: they work only once this module has offered them since its
+// last reload, pane shown or not, refuse a subagent's call and every verdict set_roster
 // refuses, and touch only the hand-off folder the path rule places. The write
 // keeps, in this module only, the SHA-256 of the exact text it wrote, so a
 // read can tell an own file rewritten since: after a reload none is kept, and
