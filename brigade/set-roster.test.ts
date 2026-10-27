@@ -524,11 +524,12 @@ function world(on: On, setup: (w: World) => void = w => w.dirs(`${CONFIG}\\plugi
 }
 
 // Every tool offered, in order, but the permission warning's, the decision
-// log's and the hand-off's two: every session offers the first at each start,
-// and warning.test.tsx tests it; the other three are offered with set_roster
-// at each of its sites, and the decision log's and hand-off's tests at the
-// end check that. Any other tool offered still shows here.
-const OFFERED_WITH = ['show_permission_warning', 'log_decision', 'set_lead_handoff', 'read_lead_handoff']
+// log's, the hand-off's two and the level's: every session offers the first
+// at each start, and warning.test.tsx tests it; the other four are offered
+// with set_roster at each of its sites, and the decision log's, hand-off's
+// and slider's tests at the end check that. Any other tool offered still
+// shows here.
+const OFFERED_WITH = ['show_permission_warning', 'log_decision', 'set_lead_handoff', 'read_lead_handoff', 'read_autonomy']
 const rosterOffers = (w: { registered: string[] }) => w.registered.filter(name => !OFFERED_WITH.includes(name))
 const start = ($: any) => $.classic.SessionStart({ source: 'startup', session_id: SID, transcript_path: TRANSCRIPT })
 const brigade = ($: any) => $.command.run({ command: 'brigade', args: '' })
@@ -5486,14 +5487,15 @@ test('claim 13: past 5,000 entries in the marks folder the pane still reads its 
   expect(await shows(/over 5,000 entries/)).toBe(true)
 })
 
-test('log_decision and the two hand-off tools are offered on a reload, a head-chef load and the late offer too', async ($, on) => {
+test('log_decision, the two hand-off tools and read_autonomy are offered on a reload, a head-chef load and the late offer too', async ($, on) => {
   const w = loads(on, $)
   const count = (name: string) => w.registered.filter(n => n === name).length
-  // Each of the three is offered at each site, so the counts move together.
+  // Each of the four is offered at each site, so the counts move together.
   const offers = () => {
     const n = count('log_decision')
     expect(count('set_lead_handoff')).toBe(n)
     expect(count('read_lead_handoff')).toBe(n)
+    expect(count('read_autonomy')).toBe(n)
     return n
   }
   await start($)
@@ -6092,3 +6094,365 @@ test('claim 13: the Lead hand-off section, folded at first, draws the hand-off r
   for (const label of ['How to resume', 'Rules in force', 'Running sessions', 'Cleanup waiting', 'Open for the owner']) expect(await shows(new RegExp(`^${label}$`))).toBe(true)
   expect(await shows(/^q1 waits\.$/)).toBe(true)
 })
+
+// --- the autonomy slider (spec 402, ticket 4) -------------------------------------
+//
+// read_autonomy, the slider at the foot of the Decisions tab, the level drawn
+// on every tab, the Owner, Pane and alarm entries, and the reset rules. A
+// change not from a press is planted the way row 15 names: another plugin
+// rewriting the pane's state as it is set. A module reload is raised as the
+// harness raises one, with session.start. Each test names the claim of spec
+// 402 (S7) it backs.
+
+const AUTONOMY_TOOL = 'mcp__grimoire__read_autonomy'
+const readLevel = ($: any, input: Record<string, unknown> = {}) => toolAnswer($, AUTONOMY_TOOL, input)
+const LEVEL_1 = 'Autonomy level 1 (Manual).'
+const LEVEL_2 = 'Autonomy level 2 (Auto).'
+const level3 = (at: number) =>
+  `Autonomy level 3 (Full throttle), set by a press in the pane at ${new Date(at).toISOString()}. It counts only once the owner confirms it in this chat; until then act at level 2.`
+const NOT_CHANGED = /^Not changed: the decision log could not be written$/
+const ALARM_LINE = /^Autonomy changed without a press and could not be logged: set to 1$/
+const LEVEL_3_LINE =
+  "Full throttle: once you confirm it in the lead's chat, the lead merges, posts, cleans up, starts sessions and settles security findings without asking; a finding that would expose a secret or personal data still waits for you"
+// The pane's own entries, as the log keeps them, by source, pick, why and level.
+const ownEntries = (w: World): string[] => (parsed(w, LOG)?.entries ?? []).map((e: any) => `${e.source} ${e.pick} · ${e.why} · level ${e.level}`)
+// The next time the pane sets the stored level, another plugin writes this in its place, once.
+const plantOnce = (w: World, value: unknown) => {
+  w.plant = (key, v) => {
+    if (key !== 'autonomy') return v
+    w.plant = undefined
+    return [{ session: SID, level: value }]
+  }
+}
+
+test('read_autonomy is offered wherever set_roster is, and not before the pane opens', async ($, on) => {
+  const w = world(on)
+  await start($)
+  expect(w.registered.filter(n => n === 'read_autonomy')).toEqual([])
+  await brigade($)
+  expect(w.registered.filter(n => n === 'read_autonomy')).toEqual(['read_autonomy'])
+  await $.classic.SessionStart({ source: 'clear', session_id: SID, transcript_path: TRANSCRIPT })
+  expect(w.registered.filter(n => n === 'read_autonomy')).toEqual(['read_autonomy', 'read_autonomy'])
+})
+
+test("claim 3: read_autonomy refuses a subagent's call, a deny verdict, an ask naming a rule and any input, naming no reason it was given", async ($, on) => {
+  const w = await decisionsPane(on, $)
+  await press($, 'level-2')
+  expect((await readLevel($)).text).toBe(LEVEL_2)
+  const sub = await readLevel($, { agentId: 'a-subagent' })
+  expect(sub.ok).toBe(false)
+  expect(sub.text).toBe("read_autonomy refused: subagent: only the lead session's own turns read the level. Act at level 1.")
+  for (const verdict of [
+    { decision: 'deny', reason: 'SECRET managed policy at C:\\policy' },
+    { decision: 'ask', rule: 'mcp__grimoire__read_autonomy' },
+  ] as any[]) {
+    w.verdict = verdict
+    const r = await readLevel($)
+    expect(r.ok).toBe(false)
+    expect(r.text).toBe("read_autonomy refused: the owner's rules: a deny verdict, an ask rule or an organisation ceiling covers this tool. Act at level 1.")
+  }
+  w.verdict = { decision: 'ask' }
+  const extra = await readLevel($, { level: 3 })
+  expect(extra.text).toBe('read_autonomy refused: shape: the tool takes no input. Act at level 1.')
+  expect((await readLevel($)).text).toBe(LEVEL_2)
+})
+
+test('claim 3: unless the pane is listed and placed with its reads running, read_autonomy answers 1', async ($, on) => {
+  const w = await decisionsPane(on, $)
+  await press($, 'level-2')
+  expect((await readLevel($)).text).toBe(LEVEL_2)
+  // Not placed: the owner cannot see it.
+  w.unplaced = true
+  expect((await readLevel($)).text).toBe(LEVEL_1)
+  w.unplaced = false
+  expect((await readLevel($)).text).toBe(LEVEL_2)
+  // Closed: the engine no longer lists it, and the next tick stops the reads.
+  w.open = false
+  expect((await readLevel($)).text).toBe(LEVEL_1)
+  await w.clock.advance(5000)
+  expect((await readLevel($)).text).toBe(LEVEL_1)
+})
+
+test('claims 10 and 11: a press moves the slider, logs an Owner entry drawn as Owner, and read_autonomy answers the level; a 3 carries its press time', async ($, on) => {
+  const w = await decisionsPane(on, $)
+  expect((await readLevel($)).text).toBe(LEVEL_1)
+  expect((await mounted.find({ key: 'level-1' }))?.props.variant).toBe('primary')
+  await w.clock.advance(1000)
+  await press($, 'level-2')
+  expect((await readLevel($)).text).toBe(LEVEL_2)
+  expect((await mounted.find({ key: 'level-2' }))?.props.variant).toBe('primary')
+  expect((await mounted.find({ key: 'level-1' }))?.props.variant).toBeUndefined()
+  await w.clock.advance(1000)
+  const at3 = w.clock.now()
+  await press($, 'level-3')
+  expect((await readLevel($)).text).toBe(level3(at3))
+  // A raise is logged before it happens, at the level then in force; a lowering after.
+  await press($, 'level-1')
+  expect((await readLevel($)).text).toBe(LEVEL_1)
+  expect(ownEntries(w)).toEqual([
+    'owner 2 Auto · Moved in the pane · level 1',
+    'owner 3 Full throttle · Moved in the pane · level 2',
+    'owner 1 Manual · Moved in the pane · level 1',
+  ])
+  // Owner entries count as read: none waits in To review, and History draws each as Owner.
+  expect(await shows(/^1 of /)).toBe(false)
+  await press($, 'grp-d-history')
+  expect(await shows(/^Owner$/)).toBe(true)
+  expect(await shows(/^Owner \(as recorded\)$/)).toBe(false)
+  // A later 3 carries the later press's time; a press on the chosen stop logs nothing.
+  await w.clock.advance(1000)
+  const again = w.clock.now()
+  await press($, 'level-3')
+  await press($, 'level-3')
+  expect((await readLevel($)).text).toBe(level3(again))
+  expect(ownEntries(w).length).toBe(4)
+  // A press to 2 clears the press time: a 2 carries none.
+  await press($, 'level-2')
+  expect((await readLevel($)).text).toBe(LEVEL_2)
+})
+
+test('claim 11: a raise that cannot be logged does not happen and says so; a lowering happens logged or not', async ($, on) => {
+  const w = await decisionsPane(on, $)
+  await press($, 'level-2')
+  // The log's place now holds something else, so no entry can be written.
+  seed(w, LOG, '{"cards":[],"todos":[]}')
+  await press($, 'level-3')
+  expect((await readLevel($)).text).toBe(LEVEL_2)
+  expect(await shows(NOT_CHANGED)).toBe(true)
+  expect((await mounted.find({ key: 'level-2' }))?.props.variant).toBe('primary')
+  await press($, 'level-1')
+  expect((await readLevel($)).text).toBe(LEVEL_1)
+  expect(await shows(NOT_CHANGED)).toBe(false)
+  expect(w.text(LOG)).toBe('{"cards":[],"todos":[]}')
+})
+
+test('claim 11: a new session reads 1, and a /clear puts no alarm in To review', async ($, on) => {
+  const w = await decisionsPane(on, $)
+  await press($, 'level-2')
+  const NEW = '77777777-8888-9999-aaaa-bbbbbbbbbbbb'
+  w.sid = NEW
+  await $.classic.SessionStart({ source: 'clear', session_id: NEW, transcript_path: `${CONFIG}\\projects\\C--work\\${NEW}.jsonl` })
+  expect((await readLevel($)).text).toBe(LEVEL_1)
+  await w.clock.advance(15000)
+  expect((await readLevel($)).text).toBe(LEVEL_1)
+  expect(ownEntries(w)).toEqual(['owner 2 Auto · Moved in the pane · level 1'])
+  expect(parsed(w, `${DECISIONS}\\${NEW}.json`)).toBeNull()
+  expect(await shows(/^1 of /)).toBe(false)
+})
+
+test('claim 11: /brigade on a closed pane resets a level above 1 to 1 with a Pane entry; on a shown pane it keeps the level', async ($, on) => {
+  const w = await decisionsPane(on, $)
+  await press($, 'level-2')
+  await brigade($)
+  await w.clock.settle()
+  expect((await readLevel($)).text).toBe(LEVEL_2)
+  expect(ownEntries(w).length).toBe(1)
+  // Closed, then shown again.
+  w.open = false
+  await w.clock.advance(5000)
+  await brigade($)
+  await w.clock.settle()
+  expect((await readLevel($)).text).toBe(LEVEL_1)
+  expect(ownEntries(w)).toEqual(['owner 2 Auto · Moved in the pane · level 1', 'pane 1 Manual · The pane was shown again · level 1'])
+  // A showing that finds the level at 1 writes nothing, and no reset puts an alarm in To review.
+  w.open = false
+  await w.clock.advance(5000)
+  await brigade($)
+  await w.clock.advance(15000)
+  expect(ownEntries(w).length).toBe(2)
+  await press($, 'view-decisions')
+  expect(await shows(/^1 of /)).toBe(false)
+})
+
+test('claim 11: a head-chef load that finds the pane shown keeps the level, and the late offer that shows it resets it', async ($, on) => {
+  const w = loads(on, $, w => {
+    w.dirs(`${CONFIG}\\plugins`)
+    w.dirs(DECISIONS)
+  })
+  await start($)
+  await brigade($)
+  await w.clock.settle()
+  mounted = await $.ui.mount({ plugin: 'grimoire', surface: 'desktop', component: 'Pane', requestId: 'brigade', props: PANE_PROPS })
+  await press($, 'view-decisions')
+  await press($, 'level-2')
+  expect(added(await load($))).toBe(ALREADY_OPEN)
+  await w.clock.settle()
+  expect((await readLevel($)).text).toBe(LEVEL_2)
+  // Listed but not placed: a load that finds it so is no showing.
+  w.unplaced = true
+  expect(added(await load($))).toBe(NOT_SHOWN)
+  w.unplaced = false
+  await w.clock.settle()
+  expect(ownEntries(w).length).toBe(1)
+  // The turn that finds it placed shows it: the level goes to 1, with a Pane entry.
+  await turn($)
+  await w.clock.settle()
+  expect((await readLevel($)).text).toBe(LEVEL_1)
+  expect(ownEntries(w)).toEqual(['owner 2 Auto · Moved in the pane · level 1', 'pane 1 Manual · The pane was shown again · level 1'])
+})
+
+test('claim 11: a stored level another plugin wrote reads 1 at once; the poll resets it to 1 and puts one unread alarm in To review', async ($, on) => {
+  const w = await decisionsPane(on, $)
+  plantOnce(w, 3)
+  await press($, 'level-2')
+  // Before any poll: the stored 3 differs from the last pressed 2.
+  expect((await readLevel($)).text).toBe(LEVEL_1)
+  await w.clock.advance(5000)
+  expect((await readLevel($)).text).toBe(LEVEL_1)
+  await w.clock.advance(15000)
+  expect(ownEntries(w)).toEqual(['owner 2 Auto · Moved in the pane · level 1', 'alarm 3 Full throttle · Changed, not from a press · level 1'])
+  expect(await shows(/^1 of 1$/)).toBe(true)
+  expect(await shows(/^Not from a press$/)).toBe(true)
+  const headline = await mounted.find({ type: 'Text', text: /^3 Full throttle$/ })
+  expect(headline?.props.color).toBe('warning')
+  // The slider stands at 1, and a press moves it again.
+  expect((await mounted.find({ key: 'level-1' }))?.props.variant).toBe('primary')
+  await press($, 'level-2')
+  expect((await readLevel($)).text).toBe(LEVEL_2)
+})
+
+test('claim 11: any stored value other than 1, 2 or 3 reads as 1', async ($, on) => {
+  const w = await decisionsPane(on, $)
+  for (const planted of ['2', 2.5, null, { level: 2 }]) {
+    plantOnce(w, planted)
+    await press($, 'level-2')
+    expect((await readLevel($)).text).toBe(LEVEL_1)
+    await w.clock.advance(5000)
+    await press($, 'level-1')
+  }
+  // Each was a change not from a press, found as 1.
+  expect(ownEntries(w).filter(e => e.startsWith('alarm'))).toEqual(Array(4).fill('alarm 1 Manual · Changed, not from a press · level 1'))
+})
+
+test('claim 11: an alarm that cannot be written keeps the level at 1, says so, and is tried again on the next poll', async ($, on) => {
+  const w = await decisionsPane(on, $)
+  plantOnce(w, 3)
+  await press($, 'level-2')
+  seed(w, LOG, '{"cards":[],"todos":[]}')
+  await w.clock.advance(5000)
+  expect((await readLevel($)).text).toBe(LEVEL_1)
+  expect(await shows(ALARM_LINE)).toBe(true)
+  await w.clock.advance(5000)
+  expect(await shows(ALARM_LINE)).toBe(true)
+  w.drop(LOG)
+  await w.clock.advance(5000)
+  expect(ownEntries(w)).toEqual(['alarm 3 Full throttle · Changed, not from a press · level 1'])
+  expect(await shows(ALARM_LINE)).toBe(false)
+  await w.clock.advance(15000)
+  expect(ownEntries(w).length).toBe(1)
+})
+
+test('claim 11: an alarm whose write has not finished by the next poll says so and starts no second write', async ($, on) => {
+  const w = await decisionsPane(on, $)
+  plantOnce(w, 3)
+  await press($, 'level-2')
+  w.holdWrite = true
+  await w.clock.advance(5000)
+  await w.clock.advance(5000)
+  expect(await shows(ALARM_LINE)).toBe(true)
+  expect((await readLevel($)).text).toBe(LEVEL_1)
+  w.holdWrite = false
+  w.release()
+  await w.clock.advance(5000)
+  expect(ownEntries(w).filter(e => e.startsWith('alarm')).length).toBe(1)
+  expect(await shows(ALARM_LINE)).toBe(false)
+})
+
+test('claims 10 and 11: a module reload resets a level above 1 to 1 with a Pane entry, writes no alarm, and draws earlier presses as recorded', async ($, on) => {
+  const w = await decisionsPane(on, $)
+  await w.clock.advance(1000)
+  await press($, 'level-3')
+  await ($ as any).session.start({ cwd: 'C:\\work', surface: null, isInteractive: false })
+  await w.clock.settle()
+  expect((await readLevel($)).text).toBe(LEVEL_1)
+  await w.clock.advance(15000)
+  expect((await readLevel($)).text).toBe(LEVEL_1)
+  expect(ownEntries(w)).toEqual(['owner 3 Full throttle · Moved in the pane · level 1', 'pane 1 Manual · The Brigade mod was reloaded · level 1'])
+  await press($, 'grp-d-history')
+  expect(await shows(/^Owner \(as recorded\)$/)).toBe(true)
+  expect(await shows(/^Owner$/)).toBe(false)
+  // A reload at level 1 writes nothing.
+  await ($ as any).session.start({ cwd: 'C:\\work', surface: null, isInteractive: false })
+  await w.clock.settle()
+  expect(ownEntries(w).length).toBe(2)
+})
+
+test('claim 10: an Owner entry this pane did not write draws as recorded, and an Owner, Pane or alarm entry out of its shape is skipped and counted', async ($, on) => {
+  const fixed = (source: string, pick: string, why: string, undo: string) => ({
+    source, work: 'Autonomy slider', question: 'Autonomy level', options: ['1 Manual', '2 Auto', '3 Full throttle'], pick, why, undo,
+  })
+  await decisionsPane(on, $, 'desktop', w =>
+    seed(w, PEER_LOG, logText([
+      kept(1, 100, fixed('owner', '2 Auto', 'Moved in the pane', 'Move the slider back')),
+      kept(2, 200, fixed('owner', '3 Full throttle', 'The lead moved it', 'Move the slider back')),
+      kept(3, 300, fixed('alarm', '3 Full throttle', 'Changed, not from a press', 'Move the slider in the pane')),
+      kept(4, 400, fixed('pane', '3 Full throttle', 'The pane was shown again', 'Move the slider in the pane')),
+    ])),
+  )
+  await press($, 'grp-d-history')
+  expect(await shows(/^Owner \(as recorded\)$/)).toBe(true)
+  expect(await shows(/^Not from a press$/)).toBe(true)
+  expect(await shows(/^Pane$/)).toBe(false)
+  expect(await shows(/The lead moved it/)).toBe(false)
+  expect(await shows(/2 Owner, Pane or alarm entry\(s\) not in their fixed shape/)).toBe(true)
+  expect(await shows(/id\(s\) missing/)).toBe(false)
+})
+
+test("the level in force is stamped on each log_decision entry and named in its answer and set_lead_handoff's", async ($, on) => {
+  const w = await decisionsPane(on, $, 'desktop', w => w.dirs(HANDOFFS))
+  await press($, 'level-2')
+  const r = await decide($)
+  expect(r.text).toMatch(/^Logged decision 2 at .*, at level 2 \(Auto\)\.$/)
+  expect(parsed(w, LOG).entries[1].level).toBe(2)
+  expect((await setHandoff($)).text).toMatch(/^Hand-off kept at .*, at level 2 \(Auto\)\.$/)
+  // A 3 counts for the stamp as read_autonomy answers it.
+  await w.clock.advance(1000)
+  await press($, 'level-3')
+  expect((await decide($)).text).toMatch(/, at level 3 \(Full throttle\)\.$/)
+  plantOnce(w, 3)
+  await press($, 'level-2')
+  expect((await decide($)).text).toMatch(/, at level 1 \(Manual\)\.$/)
+  expect(parsed(w, LOG).entries.at(-1).level).toBe(1)
+})
+
+test('claim 20: a slider press and a log_decision call at the same moment both land, with different ids', async ($, on) => {
+  const w = await decisionsPane(on, $)
+  w.holdWrite = true
+  const pressed = press($, 'level-2')
+  const logged = decide($)
+  await w.clock.settle()
+  w.holdWrite = false
+  w.release()
+  await pressed
+  expect((await logged).ok).toBe(true)
+  await w.clock.settle()
+  const entries = parsed(w, LOG).entries
+  expect(entries.map((e: any) => e.source).sort()).toEqual(['lead', 'owner'])
+  expect(new Set(entries.map((e: any) => e.id)).size).toBe(2)
+  expect((await readLevel($)).text).toBe(LEVEL_2)
+})
+
+for (const surface of ['terminal', 'desktop', 'mobile'] as const) {
+  test(`claim 15: the level in force is drawn on every tab, level 3 in the warning colour, and the slider says what it lets the lead do (${surface})`, async ($, on) => {
+    const w = await decisionsPane(on, $, surface)
+    for (const view of ['view-sessions', 'view-prs', 'view-decisions']) {
+      await press($, view)
+      const label = await mounted.find({ type: 'Text', text: /^Autonomy 1$/ })
+      expect(label).toBeDefined()
+      expect(label?.props.color).toBeUndefined()
+    }
+    expect(await shows(/^Manual: the lead asks you on every decision\.$/)).toBe(true)
+    await w.clock.advance(1000)
+    await press($, 'level-3')
+    for (const view of ['view-sessions', 'view-prs', 'view-decisions']) {
+      await press($, view)
+      expect((await mounted.find({ type: 'Text', text: /^Autonomy 3$/ }))?.props.color).toBe('warning')
+    }
+    const line = await mounted.find({ type: 'Text', text: LEVEL_3_LINE })
+    expect(line?.props.color).toBe('warning')
+    for (const key of ['level-1', 'level-2', 'level-3']) expect(await mounted.find({ key })).toBeDefined()
+    // The track: an image where images draw, text on the terminal.
+    if (surface === 'terminal') expect(await shows(/^●━+●━+●$/)).toBe(true)
+    else expect(await mounted.find({ type: 'Svg', alt: 'Autonomy level 3 of 3' })).toBeDefined()
+  })
+}

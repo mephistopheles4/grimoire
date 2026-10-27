@@ -133,6 +133,12 @@ declare module 'claude-code' {
       /** A counter the decision reads move so the pane redraws. It carries
        *  no decision, mark or session id: those stay in module memory. */
       decisionsSeen: number
+      /** The autonomy level a slider press set, keyed by this session's
+       *  checked id and holding only its own. Read only through
+       *  storedLevel: anything but the number 1, 2 or 3 reads as 1, and a
+       *  value that differs from the last press this module saw raises an
+       *  alarm and reads as 1. */
+      autonomy: { session: string; level: number }[]
       /** The selected cards' titles, at most 50. Cleared when /brigade or a skill load
        *  opens the pane. Checked again before use. */
       picked: string[]
