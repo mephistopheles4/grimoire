@@ -352,8 +352,10 @@ files you ask for:
   Dismiss presses you make in its Decisions tab, both in plain text in the same folder, never removed by the
   mod, and since 0.83.0 each lead's hand-off, its working state, beside them.
   Since 0.84.0 the log also holds each move of the autonomy slider, each reset
-  and each alarm, with its time; the level itself is kept only in the lead
-  session's plugin state, never on disk.
+  and each alarm, with its time. The level the mod reads is kept only in the
+  lead session's plugin state, never in a file; each answer of
+  `read_autonomy`, `log_decision` and `set_lead_handoff` names it, and a 3's
+  press time, in the lead's transcript, where it stays after the files go.
   The files are named by session id, and the log and the hand-off hold a plain
   SHA-256 digest of the working folder's transcript-folder name, never the
   name, which links one working folder's sessions;

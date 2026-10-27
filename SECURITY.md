@@ -325,7 +325,7 @@ skips the permission prompt, refuses a subagent's call and every verdict
 `set_roster` refuses, and answers 1 unless the pane is listed and placed with
 its reads running; a deny rule for `mcp__grimoire__read_autonomy` removes it.
 The stored level sits in plugin state as `autonomy`, this session's id and
-its level, never on disk; the last level a press set, a 3's press time and the
+its level, never in a file; the last level a press set, a 3's press time and the
 Owner entries the pane wrote stay in the module's memory. The level in force
 is 1 whenever the stored level differs from the last press, while an alarm
 waits to be logged, and for a 3 with no press time. A press logs an Owner
@@ -346,7 +346,15 @@ follows from it:
   The owner accepted this on 2026-10-26, and again for level 3 (q2 and q32 A
   on #402). The head-chef skill's level rules (spec 402, ticket 6) are to
   have the lead ask the owner once in its own chat before it acts on a 3;
-  until they land, the skill tells no lead to read the level.
+  until they land, the skill says nothing of levels, but `read_autonomy`'s
+  own description asks the lead to read the level before each decision it
+  would take itself. That description, and every answer that names a 3, say
+  that a 3 counts only once the owner confirms it in the lead's chat, and
+  that at every level a finding that would expose a secret or personal data,
+  and any accepted-risk record, wait for the owner.
+- **Where the level is copied:** each answer of `read_autonomy`,
+  `log_decision` and `set_lead_handoff` names the level, and a 3's press
+  time, in the lead's transcript, where it stays after the log is deleted.
 - **What does not reach it:** no permission prompt, mode, owner hook or
   classifier sees `read_autonomy`'s answer, the pane's Owner, Pane and alarm
   writes, or a press.
