@@ -783,9 +783,9 @@ function shownLook(c: unknown, hidden: ReadonlySet<unknown>, moves?: Moves): Sta
 
 /** The groups that fold, in the order the pane draws them: the Sessions
  *  view's three, the Pull requests view's three and the Decisions tab's
- *  Flagged to revisit and History. The tab's To review takes a name and a
- *  hint here, and never folds. */
-export const GROUP_KEYS: readonly string[] = ['waiting', 'working', 'finished', 'pr-open', 'pr-merged', 'pr-closed', 'd-flagged', 'd-history']
+ *  Flagged to revisit, History and Lead hand-off. The tab's To review takes
+ *  a name and a hint here, and never folds. */
+export const GROUP_KEYS: readonly string[] = ['waiting', 'working', 'finished', 'pr-open', 'pr-merged', 'pr-closed', 'd-flagged', 'd-history', 'd-handoff']
 
 /** A group's name on its section bar. */
 export const GROUP_NAMES: ReadonlyMap<string, string> = new Map([
@@ -798,6 +798,7 @@ export const GROUP_NAMES: ReadonlyMap<string, string> = new Map([
   ['d-review', 'To review'],
   ['d-flagged', 'Flagged to revisit'],
   ['d-history', 'History'],
+  ['d-handoff', 'Lead hand-off'],
 ])
 
 /** The quiet line an empty group shows. */
@@ -811,6 +812,7 @@ export const GROUP_HINTS: ReadonlyMap<string, string> = new Map([
   ['d-review', 'All caught up. New decisions land here.'],
   ['d-flagged', 'Nothing flagged.'],
   ['d-history', 'No decision logged yet.'],
+  ['d-handoff', 'No hand-off from this session or this working folder yet.'],
 ])
 
 const MAX_SCAN = 200
