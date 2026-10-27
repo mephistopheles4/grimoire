@@ -332,7 +332,8 @@ waits to be logged, and for a 3 with no press time. A press logs an Owner
 entry in the session's own log first when it raises the level, which does not
 happen if the entry cannot be written; a lowering always happens. Each new
 lead session starts at 1; a showing that makes the pane shown and a reload of
-the mod reset a level above 1 to 1 with a Pane entry. A clear or a resume
+the mod reset a level above 1 to 1 with a Pane entry; a reload writes it
+even with the pane closed, the one file a session start writes. A clear or a resume
 forgets every other session's level and press time, writing no entry; an
 alarm still waiting is logged once its session comes back. At each 5-second poll a
 stored level that differs from the last press is set to 1 and logged as one
@@ -342,7 +343,8 @@ follows from it:
 - **What the log reveals:** each entry's level, and the times of the owner's
   slider moves, of the resets and of the alarms, which show roughly when the
   owner let the lead run alone. Owner, Pane and alarm entries never drop.
-- **Who can move it:** another plugin can rewrite `autonomy` or press the
+- **Who can move it:** another plugin can read `autonomy`, and so learn when
+  the owner let the lead run alone, and can rewrite it or press the
   slider, and so raise the level the lead reads; a rewrite reads as 1 and
   raises an alarm, and a press by another plugin is logged as the owner's.
   The owner accepted this on 2026-10-26, and again for level 3 (q2 and q32 A

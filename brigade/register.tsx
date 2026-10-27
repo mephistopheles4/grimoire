@@ -1065,10 +1065,13 @@ async function rosterTick($: EngineInterface, live: () => boolean) {
     // No answer this time: the next tick asks again.
     return
   }
+  // The level first: a step below that fails or hangs never holds back
+  // catching a change not from a press.
+  await levelTick($)
+  if (!live()) return
   const ids = await loadRoster($)
   if (live()) await sweepTodos($, ids)
   if (live()) await readDecisions($, live)
-  if (live()) await levelTick($)
 }
 
 // The Desktop ids whose press is in its tool route now. A second press for
@@ -2047,17 +2050,27 @@ async function pressLevel($: EngineInterface, l: Level) {
 
 // A new session id reads 1: at a clear or a resume, what this module kept
 // for any other id goes, and so does a stored level of another id, and a
-// raise still being logged never applies. No entry is written: no level in
-// force was reset. A pending alarm stays, and is logged once its id is back.
+// raise of another id still being logged never applies. No entry is written:
+// no level in force was reset. A pending alarm stays, and is logged once its
+// id is back. A start that keeps this id forgets nothing.
 async function forgetOtherLevels($: EngineInterface, sid: string) {
   if (!SESSION_ID.test(sid)) return
   await levelTurn(async () => {
-    levelTurns++
-    for (const m of [pressedLevel, pressedAt, raising]) for (const k of [...m.keys()]) if (k !== sid) m.delete(k)
+    let forgot = false
+    for (const m of [pressedLevel, pressedAt, raising]) {
+      for (const k of [...m.keys()]) {
+        if (k !== sid) {
+          m.delete(k)
+          forgot = true
+        }
+      }
+    }
     const stored: unknown = await read($, autonomy)
     if (Array.isArray(stored) && stored.some(x => typeof x !== 'object' || x === null || (x as { session?: unknown }).session !== sid)) {
+      forgot = true
       await update($, autonomy, () => [])
     }
+    if (forgot) levelTurns++
   })
 }
 

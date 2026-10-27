@@ -353,7 +353,8 @@ files you ask for:
   mod, and since 0.83.0 each lead's hand-off, its working state, beside them.
   Since 0.84.0 the log also holds each move of the autonomy slider, each reset
   and each alarm, with its time. The level the mod reads is kept only in the
-  lead session's plugin state, never in a file; each answer of
+  lead session's plugin state, which other plugins can read, never in a
+  file; each answer of
   `read_autonomy`, `log_decision` and `set_lead_handoff` names it in the
   lead's transcript, and `read_autonomy`'s names a 3's press time, where they
   stay after the files go.
@@ -378,11 +379,11 @@ What each of Brigade's hooks does with what it sees:
 | Hook | What it does |
 | --- | --- |
 | `session.start`, `classic.SessionStart` | Registers `/brigade`, notes the session's id and transcript path to find the plugin's data folder, and offers `show_permission_warning`, and `set_roster`, `log_decision`, `set_lead_handoff`, `read_lead_handoff` and `read_autonomy` while the pane is open, again after a reload, a clear or a resume. A reload sets an autonomy level above 1 back to 1 and logs it; a clear or a resume forgets any other session's level. It changes nothing in the event and passes it on. |
-| `command.run` for `/brigade` | Opens the pane. It answers only `/brigade`. |
-| `skill.prompt` | Opens the pane when the head-chef skill loads from grimoire or your own skills folder, or finds it open, and adds one line to that skill's text saying whether `set_roster` is ready, or why not. Every other skill load passes on unchanged. |
+| `command.run` for `/brigade` | Opens the pane. It answers only `/brigade`. Since 0.84.0, opening a pane that was not shown sets an autonomy level above 1 back to 1 and logs it. |
+| `skill.prompt` | Opens the pane when the head-chef skill loads from grimoire or your own skills folder, or finds it open, and adds one line to that skill's text saying whether `set_roster` is ready, or why not. Since 0.84.0, a load that opens a pane that was not shown sets an autonomy level above 1 back to 1 and logs it. Every other skill load passes on unchanged. |
 | `tool.call` for `Skill`, and `command.run` for `/head-chef` and `/grimoire:head-chef` | Watch a head-chef load for the case where `skill.prompt` never reached the plugin (see below). Each reads the skill's or command's name and the load's answer, and returns that answer unchanged; where `skill.prompt` was skipped, a typed load also reads the session's local skill list once. Any other skill, and a subagent's load, passes on with no other work. |
 | `tool.call` for `set_roster`, `log_decision`, `set_lead_handoff`, `read_lead_handoff`, `read_autonomy` and `show_permission_warning` | Answers for the mod's own six tools, which have no other code behind them. |
-| `turn.start` | Only after a head-chef load whose pane was open but not shown, not yet listed, or opened without its reads: looks at the pane once a turn, and once it is shown and listed, starts the pane's reads, offers `set_roster` if it was not offered yet, and adds one note saying it is ready. Otherwise, and on a subagent's turn, it passes on with no other work. It reads no text of the prompt. |
+| `turn.start` | Only after a head-chef load whose pane was open but not shown, not yet listed, or opened without its reads: looks at the pane once a turn, and once it is shown and listed, starts the pane's reads, offers `set_roster` if it was not offered yet, and adds one note saying it is ready. Since 0.84.0, the turn that finds a pane the load found not shown now shown sets an autonomy level above 1 back to 1 and logs it, once. Otherwise, and on a subagent's turn, it passes on with no other work. It reads no text of the prompt. |
 | `turn.step`, `turn.complete` | Counts each model call's token numbers for the usage summary file. It reads no text of the conversation and passes every step on unchanged. |
 | `session.measure`, `session.receive` | While the pane is open, refreshes the usage numbers and keeps the first line of each report another session sends. |
 | `ui.render`, `ui.press`, `ui.input`, `ui.close` | Draws the pane and the warning band, handles their buttons, and takes the Decisions tab's search text, which it keeps only to filter the tab, in plugin state, which other plugins can read until the pane next opens. |

@@ -6422,6 +6422,49 @@ test('claim 11: a raise still being logged at a /clear never applies, even after
   expect((await readLevel($)).text).toBe(LEVEL_1)
 })
 
+test('claim 11: a start that keeps the session id while a raise is still being logged lets the raise apply', async ($, on) => {
+  const w = await decisionsPane(on, $)
+  await w.clock.advance(1000)
+  w.holdWrite = true
+  const raise = press($, 'level-3')
+  await w.clock.settle()
+  await $.classic.SessionStart({ source: 'compact', session_id: SID, transcript_path: TRANSCRIPT })
+  w.holdWrite = false
+  w.release()
+  await raise
+  await w.clock.settle()
+  expect((await readLevel($)).text).toMatch(/^Autonomy level 3 /)
+  expect(ownEntries(w)).toEqual(['owner 3 Full throttle · Moved in the pane · level 1'])
+})
+
+test('claim 11: a poll catches a change not from a press before the file reads, so a read that never answers does not hold it back', async ($, on) => {
+  const w = await decisionsPane(on, $)
+  plantOnce(w, 3)
+  await press($, 'level-2')
+  const stored = () => w.states.filter(([k]) => k === 'autonomy').at(-1)?.[1]
+  expect(stored()).toBe(JSON.stringify([{ session: SID, level: 3 }]))
+  w.holdStat = true
+  await w.clock.advance(5000)
+  expect(stored()).toBe(JSON.stringify([{ session: SID, level: 1 }]))
+  w.holdStat = false
+  w.releaseStat()
+  await w.clock.advance(5000)
+  expect(ownEntries(w)).toEqual(['owner 2 Auto · Moved in the pane · level 1', 'alarm 3 Full throttle · Changed, not from a press · level 1'])
+})
+
+test('claim 10: an Owner entry this pane wrote, rewritten in place with another pick, draws as recorded', async ($, on) => {
+  const w = await decisionsPane(on, $)
+  await press($, 'level-2')
+  await press($, 'grp-d-history')
+  expect(await shows(/^Owner$/)).toBe(true)
+  const log = parsed(w, LOG)
+  log.entries[0].pick = '3 Full throttle'
+  seed(w, LOG, JSON.stringify(log), 99)
+  await w.clock.advance(5000)
+  expect(await shows(/^Owner \(as recorded\)$/)).toBe(true)
+  expect(await shows(/^Owner$/)).toBe(false)
+})
+
 test('claim 11: a press on the level in force before the late offer leaves the showing to reset it', async ($, on) => {
   const w = loads(on, $, w => {
     w.dirs(`${CONFIG}\\plugins`)
