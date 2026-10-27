@@ -193,6 +193,21 @@ another session's, or this lead's own file changed since the lead wrote it.
 Each read copies the hand-off into the reading session's transcript, where it
 stays after you delete the hand-off folder.
 
+At the foot of the Decisions view, the autonomy slider sets how far the lead
+may go on its own. At 1 Manual the lead asks you on every decision. At 2 Auto
+it takes its own pick on decisions it is sure of, and sends you the major ones
+and the ones you keep as to-dos while it carries on. At 3 Full throttle, once
+you confirm it in the lead's own chat, it runs to the goal: it merges, posts,
+cleans up, starts sessions and settles security findings without a word from
+you for each act, logging each one first; a finding that would expose a secret
+or personal data still waits for you. Only your press moves the slider, and
+the level in force is drawn on every view, 3 in the warning colour. Each move
+is logged as your own decision ("Owner"). A new lead session starts at 1, and
+so does each new showing of the pane and a reload of the mod, logged as
+"Pane". A change to the level that no press made sets it back to 1 and puts an
+alarm ("Not from a press") in To review. The lead reads its level with the
+`read_autonomy` tool, which answers 1 while the pane is closed or not shown.
+
 A row that waits on you and holds a large context says when to reply
 to keep its cache, or suggests a hand-off once it has gone cold. Under its
 cache bar, a context meter shows how full the session's context is: amber from
@@ -336,6 +351,9 @@ files you ask for:
   decision the lead logs, and a marks file of the Read, Flag, Unflag and
   Dismiss presses you make in its Decisions tab, both in plain text in the same folder, never removed by the
   mod, and since 0.83.0 each lead's hand-off, its working state, beside them.
+  Since 0.84.0 the log also holds each move of the autonomy slider, each reset
+  and each alarm, with its time; the level itself is kept only in the lead
+  session's plugin state, never on disk.
   The files are named by session id, and the log and the hand-off hold a plain
   SHA-256 digest of the working folder's transcript-folder name, never the
   name, which links one working folder's sessions;
@@ -343,10 +361,11 @@ files you ask for:
   other sessions' ([ADR 0010](docs/adr/0010-the-mod-keeps-decision-text-in-plain-files.md)).
   Open in app asks the Desktop app to show a session, or opens a `claude://`
   link with your system's opener.
-- **Six calls skip the permission prompt:** the `set_roster` tool, which
+- **Seven calls skip the permission prompt:** the `set_roster` tool, which
   writes the roster file, the `log_decision` tool, which appends to the
   decision log, the `set_lead_handoff` and `read_lead_handoff` tools, which
-  write and read the lead's hand-off, the `show_permission_warning` tool,
+  write and read the lead's hand-off, the `read_autonomy` tool, which reads
+  the lead's autonomy level, the `show_permission_warning` tool,
   which shows a reminder,
   and Open in app's call to the Desktop app's
   `mcp__ccd_window__open_session_in`. A deny rule for each name stops it.
@@ -355,11 +374,11 @@ What each of Brigade's hooks does with what it sees:
 
 | Hook | What it does |
 | --- | --- |
-| `session.start`, `classic.SessionStart` | Registers `/brigade`, notes the session's id and transcript path to find the plugin's data folder, and offers `show_permission_warning`, and `set_roster`, `log_decision`, `set_lead_handoff` and `read_lead_handoff` while the pane is open, again after a reload, a clear or a resume. It changes nothing in the event and passes it on. |
+| `session.start`, `classic.SessionStart` | Registers `/brigade`, notes the session's id and transcript path to find the plugin's data folder, and offers `show_permission_warning`, and `set_roster`, `log_decision`, `set_lead_handoff`, `read_lead_handoff` and `read_autonomy` while the pane is open, again after a reload, a clear or a resume. A reload sets an autonomy level above 1 back to 1 and logs it. It changes nothing in the event and passes it on. |
 | `command.run` for `/brigade` | Opens the pane. It answers only `/brigade`. |
 | `skill.prompt` | Opens the pane when the head-chef skill loads from grimoire or your own skills folder, or finds it open, and adds one line to that skill's text saying whether `set_roster` is ready, or why not. Every other skill load passes on unchanged. |
 | `tool.call` for `Skill`, and `command.run` for `/head-chef` and `/grimoire:head-chef` | Watch a head-chef load for the case where `skill.prompt` never reached the plugin (see below). Each reads the skill's or command's name and the load's answer, and returns that answer unchanged; where `skill.prompt` was skipped, a typed load also reads the session's local skill list once. Any other skill, and a subagent's load, passes on with no other work. |
-| `tool.call` for `set_roster`, `log_decision`, `set_lead_handoff`, `read_lead_handoff` and `show_permission_warning` | Answers for the mod's own five tools, which have no other code behind them. |
+| `tool.call` for `set_roster`, `log_decision`, `set_lead_handoff`, `read_lead_handoff`, `read_autonomy` and `show_permission_warning` | Answers for the mod's own six tools, which have no other code behind them. |
 | `turn.start` | Only after a head-chef load whose pane was open but not shown, not yet listed, or opened without its reads: looks at the pane once a turn, and once it is shown and listed, starts the pane's reads, offers `set_roster` if it was not offered yet, and adds one note saying it is ready. Otherwise, and on a subagent's turn, it passes on with no other work. It reads no text of the prompt. |
 | `turn.step`, `turn.complete` | Counts each model call's token numbers for the usage summary file. It reads no text of the conversation and passes every step on unchanged. |
 | `session.measure`, `session.receive` | While the pane is open, refreshes the usage numbers and keeps the first line of each report another session sends. |

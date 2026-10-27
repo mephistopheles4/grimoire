@@ -190,7 +190,8 @@ It appends one entry per call to the lead session's own log,
 entry's source (`lead` or `relayed`), whether it waits for the owner, its
 work, question, options, pick, reason, how to undo it, when to revisit it and
 which waiting entry it answers. The mod stamps the entry's id, its time from
-the engine clock and the level in force (1 until the autonomy slider lands),
+the engine clock and the level in force (since 0.84.0, the level
+`read_autonomy` would answer),
 and refuses an input that carries any of them, a source other than `lead` or
 `relayed`, or a field holding a control, hidden or direction-changing
 character, text shaped like a session id, a Desktop id or a Remote Control
@@ -310,6 +311,45 @@ foot of the Decisions tab. What follows from it:
   (q19 A on #402). A hijacked lead can write a false hand-off within its
   sections and cap, which the next lead in the same working folder is given
   as another session's writing.
+
+**Since 0.84.0 the owner sets the lead's autonomy level** (spec 402, ticket
+4). A slider at the foot of the Decisions tab has three stops, 1 Manual, 2
+Auto and 3 Full throttle, and only a press on it sets a level above 1. **A
+level 3 the owner has confirmed in the lead's chat lets the lead merge pull
+requests, post, and settle security findings without a per-act word from the
+owner**; it logs each act before it, and a finding that would expose a secret
+or personal data, and any accepted-risk record, still wait for the owner. The
+mod offers a fifth tool, `read_autonomy`, wherever it offers `set_roster`:
+it takes no input, answers the level in force, a 3 with the time of its press,
+skips the permission prompt, refuses a subagent's call and every verdict
+`set_roster` refuses, and answers 1 unless the pane is listed and placed with
+its reads running; a deny rule for `mcp__grimoire__read_autonomy` removes it.
+The stored level sits in plugin state as `autonomy`, this session's id and
+its level, never on disk; the last level a press set, a 3's press time and the
+Owner entries the pane wrote stay in the module's memory. The level in force
+is 1 whenever the stored level differs from the last press, while an alarm
+waits to be logged, and for a 3 with no press time. A press logs an Owner
+entry in the session's own log first when it raises the level, which does not
+happen if the entry cannot be written; a lowering always happens. Each new
+lead session starts at 1; a showing that makes the pane shown and a reload of
+the mod reset a level above 1 to 1 with a Pane entry. At each 5-second poll a
+stored level that differs from the last press is set to 1 and logged as one
+unread alarm, tried again at the next poll if it cannot be written. The pane
+draws the level in force on every tab, level 3 in the warning colour. What
+follows from it:
+- **What the log reveals:** each entry's level, and the times of the owner's
+  slider moves, of the resets and of the alarms, which show roughly when the
+  owner let the lead run alone. Owner, Pane and alarm entries never drop.
+- **Who can move it:** another plugin can rewrite `autonomy` or press the
+  slider, and so raise the level the lead reads; a rewrite reads as 1 and
+  raises an alarm, and a press by another plugin is logged as the owner's.
+  The owner accepted this on 2026-10-26, and again for level 3 (q2 and q32 A
+  on #402). The head-chef skill's level rules (spec 402, ticket 6) are to
+  have the lead ask the owner once in its own chat before it acts on a 3;
+  until they land, the skill tells no lead to read the level.
+- **What does not reach it:** no permission prompt, mode, owner hook or
+  classifier sees `read_autonomy`'s answer, the pane's Owner, Pane and alarm
+  writes, or a press.
 
 Review any change under
 `brigade/` or `hooks/` as a change to code that runs on every installer's
