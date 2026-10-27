@@ -182,6 +182,15 @@ Your marks survive a reload and a new lead. History, folded at first, holds
 every decision newest first, 50 at a time. On Desktop and the terminal a
 search box filters all three by every word you type.
 
+The lead keeps its working state with the `set_lead_handoff` tool: how to
+resume, the rules in force, the running sessions, the cleanup waiting and what
+is open for you, which it reads back with `read_lead_handoff` after a
+compaction. A new lead in the same working folder reads the last lead's, as
+data it acts on only after your yes. The Lead hand-off section, folded at the
+foot of the Decisions view, shows the one the lead would read: its writer, when
+it was updated, the five sections, and "Not this session's writing" when it is
+another session's, or this lead's own file changed since the lead wrote it.
+
 A row that waits on you and holds a large context says when to reply
 to keep its cache, or suggests a hand-off once it has gone cold. Under its
 cache bar, a context meter shows how full the session's context is: amber from
@@ -324,13 +333,16 @@ files you ask for:
   Since 0.81.0 it also writes each lead's decision log, one entry per
   decision the lead logs, and a marks file of the Read, Flag, Unflag and
   Dismiss presses you make in its Decisions tab, both in plain text in the same folder, never removed by the
-  mod; while the pane is open it reads this session's files and the 20 newest
+  mod, and since 0.83.0 each lead's hand-off, its working state, beside them;
+  while the pane is open it reads this session's files and the 20 newest
   other sessions' ([ADR 0010](docs/adr/0010-the-mod-keeps-decision-text-in-plain-files.md)).
   Open in app asks the Desktop app to show a session, or opens a `claude://`
   link with your system's opener.
-- **Four calls skip the permission prompt:** the `set_roster` tool, which
+- **Six calls skip the permission prompt:** the `set_roster` tool, which
   writes the roster file, the `log_decision` tool, which appends to the
-  decision log, the `show_permission_warning` tool, which shows a reminder,
+  decision log, the `set_lead_handoff` and `read_lead_handoff` tools, which
+  write and read the lead's hand-off, the `show_permission_warning` tool,
+  which shows a reminder,
   and Open in app's call to the Desktop app's
   `mcp__ccd_window__open_session_in`. A deny rule for each name stops it.
 
@@ -338,11 +350,11 @@ What each of Brigade's hooks does with what it sees:
 
 | Hook | What it does |
 | --- | --- |
-| `session.start`, `classic.SessionStart` | Registers `/brigade`, notes the session's id and transcript path to find the plugin's data folder, and offers `show_permission_warning`, and `set_roster` and `log_decision` while the pane is open, again after a reload, a clear or a resume. It changes nothing in the event and passes it on. |
+| `session.start`, `classic.SessionStart` | Registers `/brigade`, notes the session's id and transcript path to find the plugin's data folder, and offers `show_permission_warning`, and `set_roster`, `log_decision`, `set_lead_handoff` and `read_lead_handoff` while the pane is open, again after a reload, a clear or a resume. It changes nothing in the event and passes it on. |
 | `command.run` for `/brigade` | Opens the pane. It answers only `/brigade`. |
 | `skill.prompt` | Opens the pane when the head-chef skill loads from grimoire or your own skills folder, or finds it open, and adds one line to that skill's text saying whether `set_roster` is ready, or why not. Every other skill load passes on unchanged. |
 | `tool.call` for `Skill`, and `command.run` for `/head-chef` and `/grimoire:head-chef` | Watch a head-chef load for the case where `skill.prompt` never reached the plugin (see below). Each reads the skill's or command's name and the load's answer, and returns that answer unchanged; where `skill.prompt` was skipped, a typed load also reads the session's local skill list once. Any other skill, and a subagent's load, passes on with no other work. |
-| `tool.call` for `set_roster`, `log_decision` and `show_permission_warning` | Answers for the mod's own three tools, which have no other code behind them. |
+| `tool.call` for `set_roster`, `log_decision`, `set_lead_handoff`, `read_lead_handoff` and `show_permission_warning` | Answers for the mod's own five tools, which have no other code behind them. |
 | `turn.start` | Only after a head-chef load whose pane was open but not shown, not yet listed, or opened without its reads: looks at the pane once a turn, and once it is shown and listed, starts the pane's reads, offers `set_roster` if it was not offered yet, and adds one note saying it is ready. Otherwise, and on a subagent's turn, it passes on with no other work. It reads no text of the prompt. |
 | `turn.step`, `turn.complete` | Counts each model call's token numbers for the usage summary file. It reads no text of the conversation and passes every step on unchanged. |
 | `session.measure`, `session.receive` | While the pane is open, refreshes the usage numbers and keeps the first line of each report another session sends. |

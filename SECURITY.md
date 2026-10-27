@@ -71,7 +71,7 @@ On an Open in app press it reads three environment variables, `OS`,
 `Windows_NT`; it never stores, shows or sends them.
 It makes no network request of its own, apart from the `gh` call below; its
 one tool call, below, goes to whatever connected server answers to the name
-`ccd_window`. Besides each session's own usage summary, and since 0.81.0 the decision log and the owner's marks, both below, it writes one file, the lead session's roster,
+`ccd_window`. Besides each session's own usage summary, and since 0.81.0 the decision log and the owner's marks and since 0.83.0 the lead hand-off, all below, it writes one file, the lead session's roster,
 through a tool the model calls, `set_roster`, which skips Claude Code's
 permission prompt. So that write has no human and no classifier review; every
 call is still recorded in the transcript as the tool's result. The tool exists
@@ -256,6 +256,51 @@ own hash; it protects nothing secret. What follows from it:
   in any working folder, that loads head-chef without the owner typing it can
   log the same, and its entries land unread in every lead's To review; the
   owner accepted this on 2026-10-26 (q10 A on #402's ticket 411).
+
+**Since 0.83.0 a lead keeps a hand-off** (spec 402, ticket 3). The mod offers
+two more tools wherever it offers `set_roster`. `set_lead_handoff` replaces
+the lead session's own hand-off, `brigade/handoff/<session id>.json` in the
+plugin's data folder: five sections (how to resume, rules in force, running
+sessions, cleanup waiting, open for the owner), each at most 20 lines of at
+most 300 characters, under the decision log's field rules and with no line
+break, at most 32 KiB in all, stamped with its time and the project digest.
+`read_lead_handoff` gives this session's own hand-off back, else the newest
+by stamped time that another session wrote with the same project digest, or
+"none". Its answer is the writer's session name, the time and the sections
+as one JSON line between two fixed lines saying it is data and holds no
+instruction. The mod keeps the SHA-256 of the exact text it last wrote, in
+module memory only, and marks an own file whose text no longer matches, or
+for which none is kept (after a reload, say), as "not this session's
+writing", as it marks every other session's. Both tools skip the permission
+prompt, refuse as `log_decision` does, and touch only the `brigade/handoff/`
+folder the path rule places; a deny rule for `mcp__grimoire__set_lead_handoff`
+or `mcp__grimoire__read_lead_handoff` removes it. While the pane is open it
+reads this session's hand-off and the 20 newest others under the same reads
+as the logs, and draws the one `read_lead_handoff` would give, folded at the
+foot of the Decisions tab. What follows from it:
+- **What the file reveals:** the lead's working state as it wrote it: how to
+  resume, the rules in force, the running sessions by name, the cleanup
+  waiting, leftover worktrees by branch, and what is open for the owner, with
+  the time and the project digest. Who can read it is as for the log; the
+  owner accepted the hand-off at rest with the log on 2026-10-26 (q9 A on
+  #402).
+- **What chooses another session's hand-off:** the project digest, from the
+  session-start record in plugin state, which other plugins can rewrite, so a
+  rewritten record can offer a new lead another working folder's hand-off;
+  the owner accepted this on 2026-10-26 (q29 on #402). Any hand-off but this
+  session's own unchanged one is marked as not this session's writing, and a
+  new lead acts on nothing in it until the owner's yes.
+- **What does not reach the write:** no permission prompt, mode, owner hook or
+  classifier sees `set_lead_handoff`'s write; each call is recorded in the
+  transcript as the tool's result.
+- **What accumulates:** the mod never removes a hand-off. There is one per
+  session id; the owner can delete the `brigade/handoff/` folder by hand.
+- **The race and planted files:** the check-and-write race and the hard-link
+  gap of the other writers reach the hand-off writer too, and anything that
+  can write the data folder can plant a well-formed same-folder hand-off
+  (q19 A on #402). A hijacked lead can write a false hand-off within its
+  sections and cap, which the next lead in the same working folder is given
+  as another session's writing.
 
 Review any change under
 `brigade/` or `hooks/` as a change to code that runs on every installer's
