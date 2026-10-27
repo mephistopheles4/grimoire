@@ -6916,6 +6916,21 @@ for (const surface of ['terminal', 'desktop'] as const) {
   })
 }
 
+test('claims 21 and 23: a 3 whose stored level another plugin rewrote draws no level-3 line, before any tick and after', async ($, on) => {
+  const otherWrites = rewritten(on)
+  const w = await decisionsPane(on, $)
+  await w.clock.advance(1000)
+  const at = w.clock.now()
+  await press($, 'level-3')
+  otherWrites(w, 2)
+  // Before the poll catches it, the level in force is 1: no line.
+  const before = await band($)
+  expect(await bandTexts(before)).toEqual([])
+  await before.unmount()
+  await w.clock.advance(5000)
+  expect(await bandTexts(await band($))).not.toContain(BAND_3(at))
+})
+
 test('claim 22: Dismiss hides the level-3 line until a new press of 3, a compaction or a reload, and shows it again after each', async ($, on) => {
   const w = await decisionsPane(on, $)
   const b = await band($)
@@ -6972,11 +6987,11 @@ test('claim 22: a resume back to the same id with the classic start hook skipped
   await press($, 'level-3')
   await b.press({ key: `l3dismiss-${at}` })
   // A clear to another id and a resume back, neither raising classic.SessionStart:
-  // the level poll's tick under the other id drops the dismissal.
+  // the level poll's tick under the other id drops the dismissal, with no draw there.
+  await b.unmount()
   w.sid = NEW_SID
   await w.clock.advance(5000)
   w.sid = SID
-  await b.unmount()
   const back = await band($)
   expect(await back.find({ type: 'Text', text: BAND_3(at) })).toBeDefined()
   // A draw under the other id drops it too, with no tick in between.
@@ -7093,13 +7108,17 @@ test('claim 24: a session whose pane never offered the tools has none of them, a
     w.dirs(HANDOFFS)
   })
   await start($)
-  const refusedAll = async () => {
+  const refusedAll = async (level = true) => {
     expect((await decide($)).text).toBe('log_decision refused: offer: the Brigade pane has not offered this tool in this session. The decision log is unchanged; act at level 1.')
     expect((await setHandoff($)).text).toBe('set_lead_handoff refused: offer: the Brigade pane has not offered this tool in this session. The hand-off is unchanged.')
     expect((await readHandoff($)).text).toBe('read_lead_handoff refused: offer: the Brigade pane has not offered this tool in this session. Nothing was changed.')
-    expect((await readLevel($)).text).toBe(LEVEL_1)
+    if (level) expect((await readLevel($)).text).toBe(LEVEL_1)
   }
   await refusedAll()
+  // The offer is the first rule the three that write or read files ask: a deny verdict does not change their refusal.
+  w.verdict = { decision: 'deny', reason: 'a rule denies it' }
+  await refusedAll(false)
+  w.verdict = { decision: 'ask' }
   expect(w.text(LOG)).toBeUndefined()
   await brigade($)
   await w.clock.settle()
