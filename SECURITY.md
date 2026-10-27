@@ -334,11 +334,13 @@ happen if the entry cannot be written; a lowering always happens. Each new
 lead session starts at 1; a showing that makes the pane shown and a reload of
 the mod reset a level above 1 to 1 with a Pane entry; a session start or reload
 that finds a stored level above 1 writes it even with the pane closed, the one
-file a session start writes. A clear or a resume
+file a session start writes. A Pane entry that cannot be written keeps the
+level at 1 and is tried again at the next poll, as an alarm is. A clear or a resume
 forgets every other session's level and press time, writing no entry; an
 alarm still waiting is logged once its session comes back. At each 5-second poll a
 stored level that differs from the last press is set to 1 and logged as one
-unread alarm, tried again at the next poll if it cannot be written. The pane
+unread alarm, tried again at the next poll if it cannot be written; while an
+alarm the pane wrote is unread, a repeat is counted in the pane, not logged. The pane
 draws the level in force on every tab, level 3 in the warning colour. What
 follows from it:
 - **What the log reveals:** each entry's level, and the times of the owner's

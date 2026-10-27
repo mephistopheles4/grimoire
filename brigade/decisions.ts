@@ -569,6 +569,19 @@ export const paneEntry = (why: keyof typeof PANE_WHYS) => fixedEntry('pane', lev
 /** An alarm's entry, with the level found as pick. */
 export const alarmEntry = (found: Level) => fixedEntry('alarm', levelOption(found), ALARM_WHY, PANE_UNDO)
 
+/** Whether this session's own log holds an alarm the pane wrote, in its
+ *  fixed shape, that no mark covers. `wrote` keys each alarm the pane wrote
+ *  by `markKey` of the log's session id, the entry's id and its time. While
+ *  one sits unread, a repeat alarm is counted in the pane, not appended, so
+ *  a level rewritten at every poll cannot fill the log; an alarm another
+ *  writer planted holds nothing back. */
+export function unreadOwnAlarm(log: DecisionLog, sid: string, wrote: ReadonlySet<string>, states: ReadonlyMap<string, MarkState>): boolean {
+  return log.entries.some(e => {
+    const key = markKey(sid, e.id, e.at)
+    return e.source === 'alarm' && inFixedShape(e) && wrote.has(key) && !isRead(states.get(key))
+  })
+}
+
 /** Whether an entry is in its source's fixed shape: always true for a Lead
  *  or Relayed entry, which the tool's own check holds. */
 export function inFixedShape(e: DecisionEntry): boolean {

@@ -21,7 +21,7 @@ const {
   reviewQueue, flaggedRows, historyRows, matchesSearch, searchWords, serializeLog, serializeMarks,
   sha256Hex, projectDigest, sourceLabel, writerName, missingIds,
   MAX_HANDOFF_BYTES, checkHandoffInput, checkHandoff, serializeHandoff, chooseHandoff,
-  levelFrom, storedLevel, levelInForce, ownerEntry, paneEntry, alarmEntry, inFixedShape,
+  levelFrom, storedLevel, levelInForce, ownerEntry, paneEntry, alarmEntry, inFixedShape, unreadOwnAlarm,
 } = d;
 
 const SID = '11111111-2222-3333-4444-555555555555';
@@ -510,6 +510,29 @@ test('claim 10: an Owner, Pane or alarm entry that differs from its fixed shape 
     [pane, { level: 2 }], [alarm, { level: 3 }],
   ];
   for (const [e, over] of bent) assert.equal(inFixedShape({ ...e, ...over }), false, `${e.source} ${JSON.stringify(over)}`);
+});
+
+test('claim 11: a repeat alarm is held back only while an alarm the pane wrote sits unread, in its shape, in this log', () => {
+  let log = emptyLog(null);
+  for (const raw of [alarmEntry(3), input()]) {
+    const r = appendEntry(log, raw, { at: NOW, level: 1, read: new Map(), fixed: raw.source === 'alarm' });
+    assert.ok('value' in r);
+    log = r.value.log;
+  }
+  const [alarm, lead] = log.entries;
+  const wrote = new Set([markKey(SID, alarm.id, alarm.at)]);
+  assert.equal(unreadOwnAlarm(log, SID, wrote, new Map()), true);
+  // Read, or flagged, by any mark: the next alarm is logged.
+  for (const state of ['read', 'flagged', 'unflagged']) {
+    assert.equal(unreadOwnAlarm(log, SID, wrote, new Map([[markKey(SID, alarm.id, alarm.at), state]])), false, state);
+  }
+  // An alarm the pane did not write, or one it wrote in another session's log, holds nothing back.
+  assert.equal(unreadOwnAlarm(log, SID, new Set(), new Map()), false);
+  assert.equal(unreadOwnAlarm(log, OTHER, wrote, new Map()), false);
+  // Nor does one rewritten out of its shape, nor another entry under an alarm's key.
+  const bent = { ...log, entries: [{ ...alarm, why: 'Moved in the pane' }, lead] };
+  assert.equal(unreadOwnAlarm(bent, SID, wrote, new Map()), false);
+  assert.equal(unreadOwnAlarm(log, SID, new Set([markKey(SID, lead.id, lead.at)]), new Map()), false);
 });
 
 // --- claim 9: Flagged to revisit and Dismiss ------------------------------------------------
