@@ -571,7 +571,7 @@ test('claim 14: every hand-off line refuses hidden and direction-changing charac
   assert.ok('value' in checkHandoffInput(sections({ rules: ['x'.repeat(300)] })));
 });
 
-test('claim 14: a hand-off input takes exactly the five sections, each a list of at most 20 lines, and nothing the mod stamps', () => {
+test('S5.3: a hand-off input takes exactly the five sections, each a list of at most 20 lines, and nothing the mod stamps', () => {
   assert.ok('value' in checkHandoffInput(sections({ resume: Array.from({ length: 20 }, (_, i) => `Line ${i}`) })));
   assert.match(checkHandoffInput(sections({ resume: Array.from({ length: 21 }, (_, i) => `Line ${i}`) })).error, /^resume is not a list of at most 20 lines$/);
   const { owner, ...four } = sections();
