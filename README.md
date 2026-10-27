@@ -197,10 +197,15 @@ At the foot of the Decisions view, the autonomy slider sets how far the lead
 may go on its own. At 1 Manual the lead asks you on every decision. At 2 Auto
 it takes its own pick on decisions it is sure of, and sends you the major ones
 and the ones you keep as to-dos while it carries on. At 3 Full throttle, once
-you confirm it in the lead's own chat, it runs to the goal: it merges, posts,
-cleans up, starts sessions and settles security findings without a word from
-you for each act, logging each one first; a finding that would expose a secret
-or personal data still waits for you. Only your press moves the slider, and
+you confirm it in the lead's own chat with a goal in your words there, it runs
+to the goal: it merges, posts, starts sessions, waives reviews and settles
+security findings without a word from you for each act, logging each one
+first. Still waiting for you, as to-dos: a finding that would expose a secret
+or personal data, a post or merge text that would carry personal data or
+private work, an accepted-risk record, a merge that removes or weakens a
+control the threat model or `SECURITY.md` names, an install, and cleanup,
+whose yes is yours at every level. Since head-chef 0.17.0 the skill holds
+these rules. Only your press moves the slider, and
 the level in force is drawn on every view, 3 in the warning colour. Each move
 is logged as your own decision ("Owner"). A new lead session starts at 1, and
 so does each new showing of the pane and a reload of the mod, logged as
@@ -224,7 +229,7 @@ current pace holds, and a red note says how early a limit runs out when that
 pace would pass 100%. It needs the plugin install above. The skill works
 without it.
 
-What it does, what counts as your yes, and how cleanup refuses:
+What it does, what counts as your yes, and what cleanup names back:
 [`skills/head-chef/README.md`](skills/head-chef). The skill's contract, which
 its `SKILL.md` is generated from:
 [`skills/head-chef/references/CONTRACT.md`](skills/head-chef/references/CONTRACT.md).
@@ -358,6 +363,13 @@ files you ask for:
   `read_autonomy`, `log_decision` and `set_lead_handoff` names it in the
   lead's transcript, and `read_autonomy`'s names a 3's press time, where they
   stay after the files go.
+  Since head-chef 0.17.0 the hand-off's rules section holds a level-3 goal,
+  naming work by repository and issue, and the log holds a waiting entry for
+  each cleanup a level-3 lead names back, by repository and branch only.
+  Before a cleanup, the lead reads git state in every repository the brigade
+  ran in, and in any folder an item that is not bound to its session names:
+  found work by file names, counts, short hashes and stash refs, never
+  contents; and each repository's `origin` as `owner/name` only.
   The files are named by session id, and the log and the hand-off hold a plain
   SHA-256 digest of the working folder's transcript-folder name, never the
   name, which links one working folder's sessions;

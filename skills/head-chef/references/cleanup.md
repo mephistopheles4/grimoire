@@ -35,7 +35,7 @@ For each session, before the name-back:
 9. The repository's `owner/name`, with one command that reads the `origin` address inside itself and prints only `owner/name`, or "not checked", never the address. In PowerShell:
 
    ```text
-   $u = git <g> -C <kept main> remote get-url origin; if ($LASTEXITCODE -eq 0 -and $u -cmatch '^(?:https://github\.com/|ssh://git@github\.com/|git@github\.com:)([A-Za-z0-9][A-Za-z0-9-]{0,38})/([A-Za-z0-9_][A-Za-z0-9._-]{0,99}?)(?:\.git)?/?$') { "$($Matches[1])/$($Matches[2])" } else { 'not checked' }
+   $u = git <g> -C <kept main> remote get-url origin 2>$null; if ($LASTEXITCODE -eq 0 -and $u -cmatch '^(?:https://github\.com/|ssh://git@github\.com/|git@github\.com:)([A-Za-z0-9][A-Za-z0-9-]{0,38})/([A-Za-z0-9_][A-Za-z0-9._-]{0,99}?)(?:\.git)?/?$') { "$($Matches[1])/$($Matches[2])" } else { 'not checked' }
    ```
 
 10. With an `owner/name`, from the kept repository only: `gh pr list --repo <owner/name> --state merged --head <branch> --json number,headRefOid`. A pull request whose `headRefOid` equals the full tip holds the branch's work.

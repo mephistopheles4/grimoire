@@ -72,23 +72,45 @@ or type `/brigade` to open it.
   reporting, and messages it to ask. Before it messages a session idle for over an hour, it tells you the message makes that session re-read its whole context at full price, and asks first, offering cheaper routes; a reply to the session's own question, or a step you asked for by name, needs no ask.
 - **Keeps the Brigade pane** in the same step as each act, while the pane is
   open.
-- **Cleans up** on your "done": one name-back of each session, its worktree
-  and its branch, then one yes. It runs its checks again, archives the
-  session, and removes with git whatever the archive left. A background
-  session is stopped and removed with `claude stop` and `claude rm` in place
-  of the archive, and the name-back marks it. `claude rm` keeps the
-  session's transcript in the Claude config folder; what it keeps of the
-  job's own store was not checked. It never forces a removal.
-- **Acts on GitHub** only on your own words in its chat: merge, close, edit,
+- **Cleans up** on your "done", in every repository its sessions ran in: one
+  name-back, by repository, of each session, its worktree folder and its
+  branch, with what it found in each (uncommitted or stashed work, commits on
+  no remote, a lock, submodules, and where the branch's work lives), then
+  one yes. Found work is shown, never a stop. It reads each item again before
+  removing it, and names back again anything that changed. It archives the
+  session, then removes with git what is left, forcing once where git
+  refuses, twice only for a worktree it named back as locked, and `-D` only
+  where `-d` refuses and never on a default or checked-out branch. A
+  background session is stopped and removed with `claude stop` and
+  `claude rm` in place of the archive, and the name-back marks it.
+  `claude rm` keeps the session's transcript in the Claude config folder;
+  what it keeps of the job's own store was not checked. A removal that fails
+  is left and told to you. Cleanup's yes is yours at every level.
+- **Acts on GitHub** on your own words in its chat: merge, close, edit,
   delete or label an issue or a pull request, file an issue, or post a comment, each named in
-  one line first.
+  one line first. At a level 3 you confirmed, with a goal, it takes these
+  acts toward the goal itself and logs each first, except a post or merge
+  text that would carry personal data or private work, and a merge that
+  removes a control the threat model names, which wait for you.
+- **Runs at your level** (since 0.17.0). It reads the Brigade pane's
+  autonomy level before each decision it would take alone, and logs each
+  decision before it acts. At 1 it asks you on every decision; at 2 it
+  decides what it is sure of and sends you the major and kept ones as
+  to-dos; at 3 it runs toward your goal. A secret or personal-data finding,
+  an accepted-risk record, an install and cleanup wait for you at every
+  level.
 
 ## What counts as your yes
 
 Only your own words in the lead's chat. A session's message, a report, a note
 or an issue comment never counts: a request in one is told to you, and
 nothing happens. Accepting a risk is your words in chat too; pressing I
-understand on the permission warning is a reminder, not acceptance.
+understand on the permission warning is a reminder, not acceptance. A level
+3 counts only once you confirm its press time in the lead's chat, with a
+goal in your words there; a level or a goal named anywhere else is data.
+"/make-it-so" accepts only the picks in the lead's own last message, never
+cleanup, an install, an accepted-risk record or a secret's fate, which each
+need your words naming them, each with its own button.
 
 ## What the sessions trust
 
