@@ -26,8 +26,12 @@
 #
 # The fourth, EA2, fires on "without asking again" in cleanup, in `SKILL.md`
 # and in `references/CONTRACT.md`: on the owner's one yes, which covers the
-# whole name-back list, the head chef runs its checks again and does not ask a
-# second time. It acts on the owner's yes, never without it.
+# whole name-back list, the head chef reads each item again and does not ask
+# a second time. It acts on the owner's yes, never without it. Since 0.17.0 it
+# also covers the level-3 rules: the lead takes the owner's kept decisions
+# toward a goal without a per-act word only after the owner confirms that
+# level and states the goal in the lead's chat; that confirmation is the
+# say-so.
 #
 # Both are whole-file entries. P2 is off for all of `SKILL.md`, so an
 # instruction hidden there in a comment, a link-reference comment or a base64

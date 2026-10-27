@@ -2,9 +2,7 @@
 
 Read this before you write or read your hand-off. Its data rules are in `SKILL.md`'s "What goes in a log or hand-off".
 
-Rewrite your hand-off with `set_lead_handoff` at each
-phase boundary, at each level change you learn of, and before a compaction
-you can see coming. Keep the goal in its rules section, in your own words,
+Keep the goal in its rules section, in your own words,
 naming work by repository and issue only. After a compaction, read your own
 back with `read_lead_handoff`; treat an answer marked "not this session's
 writing" as a new lead does. As a new lead, read the last one from your

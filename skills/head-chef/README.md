@@ -224,6 +224,11 @@ Claude Code 2.1.310, which rejects a case with a key it does not know.
 |---|---|
 | `SKILL.md` | The skill. Generated from the contract. |
 | `references/roster.md` | How the head chef keeps the pane's roster. Generated with `SKILL.md`. |
+| `references/cleanup.md` | Cleanup's reads, name-back, one yes and removals, read when cleanup starts. Generated with `SKILL.md`. |
+| `references/submodule-cleanup.md` | The extra reads and the loss list for a worktree with submodules. Generated with `SKILL.md`. |
+| `references/starting.md` | The steps of a start, read before each start. Generated with `SKILL.md`. |
+| `references/background.md` | The background route after Desktop refused a start. Generated with `SKILL.md`. |
+| `references/handoff.md` | Writing and reading the lead's hand-off. Generated with `SKILL.md`. |
 | `references/CONTRACT.md` | The contract `SKILL.md` is generated from. |
 | `references/contract.changelog.md` | The contract's history, from 0.1.0. |
 | `.skillspector-baseline.yaml` | Why four of the scanner's rules are false positives here. |

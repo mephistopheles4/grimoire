@@ -403,10 +403,19 @@ names back, by repository, every worktree and branch it will remove with
 what it found in each, and removes them only on the owner's one yes in chat,
 at every level: `git worktree remove`, forced once where git refuses and
 doubled for a worktree named back as locked, and `git branch -d`, or `-D`
-where that refuses, never for a default or checked-out branch. It reads
-every repository the brigade ran in, with hooks, the file watcher and
-signing switched off for its git commands; a filter driver can still run. From
-0.9.0 it starts no background session. A session takes any message from the
+where that refuses, never for a default or checked-out branch; for a
+background session, `claude stop` and `claude rm` take the archive's place.
+It removes only the folder and branch it kept when it started the session. It
+reads every repository the brigade ran in, and any folder an item that is not
+bound to its session names, with hooks, the file watcher and signing switched
+off for its git commands; a filter driver can still run. What the reads print
+lands in the lead's transcript: file names, counts, short hashes, stash refs,
+every worktree's path and lock line, and merged branch names, never file
+contents; each repository's `origin` is read as `owner/name` only. Cleanup
+also asks GitHub, with the owner's `gh` sign-in, for the merged pull requests
+of each branch it names. The head chef starts a background session with
+`claude --bg` only when Desktop refused a start and the owner chose that
+route. A session takes any message from the
 head chef that passes its sender check as a relayed decision, on any matter,
 labelled as relayed and never as the owner's own words. The check compares
 the sender's shown name with the session list, as text, so any session that
