@@ -354,8 +354,9 @@ files you ask for:
   Since 0.84.0 the log also holds each move of the autonomy slider, each reset
   and each alarm, with its time. The level the mod reads is kept only in the
   lead session's plugin state, never in a file; each answer of
-  `read_autonomy`, `log_decision` and `set_lead_handoff` names it, and a 3's
-  press time, in the lead's transcript, where it stays after the files go.
+  `read_autonomy`, `log_decision` and `set_lead_handoff` names it in the
+  lead's transcript, and `read_autonomy`'s names a 3's press time, where they
+  stay after the files go.
   The files are named by session id, and the log and the hand-off hold a plain
   SHA-256 digest of the working folder's transcript-folder name, never the
   name, which links one working folder's sessions;
@@ -376,7 +377,7 @@ What each of Brigade's hooks does with what it sees:
 
 | Hook | What it does |
 | --- | --- |
-| `session.start`, `classic.SessionStart` | Registers `/brigade`, notes the session's id and transcript path to find the plugin's data folder, and offers `show_permission_warning`, and `set_roster`, `log_decision`, `set_lead_handoff`, `read_lead_handoff` and `read_autonomy` while the pane is open, again after a reload, a clear or a resume. A reload sets an autonomy level above 1 back to 1 and logs it. It changes nothing in the event and passes it on. |
+| `session.start`, `classic.SessionStart` | Registers `/brigade`, notes the session's id and transcript path to find the plugin's data folder, and offers `show_permission_warning`, and `set_roster`, `log_decision`, `set_lead_handoff`, `read_lead_handoff` and `read_autonomy` while the pane is open, again after a reload, a clear or a resume. A reload sets an autonomy level above 1 back to 1 and logs it; a clear or a resume forgets any other session's level. It changes nothing in the event and passes it on. |
 | `command.run` for `/brigade` | Opens the pane. It answers only `/brigade`. |
 | `skill.prompt` | Opens the pane when the head-chef skill loads from grimoire or your own skills folder, or finds it open, and adds one line to that skill's text saying whether `set_roster` is ready, or why not. Every other skill load passes on unchanged. |
 | `tool.call` for `Skill`, and `command.run` for `/head-chef` and `/grimoire:head-chef` | Watch a head-chef load for the case where `skill.prompt` never reached the plugin (see below). Each reads the skill's or command's name and the load's answer, and returns that answer unchanged; where `skill.prompt` was skipped, a typed load also reads the session's local skill list once. Any other skill, and a subagent's load, passes on with no other work. |

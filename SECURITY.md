@@ -332,7 +332,9 @@ waits to be logged, and for a 3 with no press time. A press logs an Owner
 entry in the session's own log first when it raises the level, which does not
 happen if the entry cannot be written; a lowering always happens. Each new
 lead session starts at 1; a showing that makes the pane shown and a reload of
-the mod reset a level above 1 to 1 with a Pane entry. At each 5-second poll a
+the mod reset a level above 1 to 1 with a Pane entry. A clear or a resume
+forgets every other session's level and press time, writing no entry; an
+alarm still waiting is logged once its session comes back. At each 5-second poll a
 stored level that differs from the last press is set to 1 and logged as one
 unread alarm, tried again at the next poll if it cannot be written. The pane
 draws the level in force on every tab, level 3 in the warning colour. What
@@ -353,8 +355,9 @@ follows from it:
   that at every level a finding that would expose a secret or personal data,
   and any accepted-risk record, wait for the owner.
 - **Where the level is copied:** each answer of `read_autonomy`,
-  `log_decision` and `set_lead_handoff` names the level, and a 3's press
-  time, in the lead's transcript, where it stays after the log is deleted.
+  `log_decision` and `set_lead_handoff` names the level in the lead's
+  transcript, and `read_autonomy`'s names a 3's press time, where they stay
+  after the log is deleted.
 - **What does not reach it:** no permission prompt, mode, owner hook or
   classifier sees `read_autonomy`'s answer, the pane's Owner, Pane and alarm
   writes, or a press.

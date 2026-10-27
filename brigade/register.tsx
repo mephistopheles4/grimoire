@@ -1293,7 +1293,7 @@ async function offerTool($: EngineInterface) {
 let lateOffer: false | 'offer' | 'arm' = false
 // Set with lateOffer when the load found the pane not shown, so the turn that
 // finds it shown is a showing and resets the autonomy level, once. A press
-// clears it: the owner saw the pane shown, so the showing has passed.
+// that sets a level clears it, so the reset never undoes a press.
 let lateShowing = false
 
 // Opens the pane for /brigade and for a head-chef load. Each open starts on
@@ -2012,14 +2012,16 @@ async function levelTick($: EngineInterface) {
 async function pressLevel($: EngineInterface, l: Level) {
   const sid = await levelSid($)
   if (sid === undefined) return
-  lateShowing = false
   const now = await $.clock.now()
   const step = await levelTurn(async () => {
     await catchChange($, sid)
     const turn = ++levelTurns
     const inForce = await levelNow($, sid)
     if (l === inForce && !raising.has(sid)) return { kind: 'none' as const }
+    // Only a press that sets a level ends a pending showing: one on the level
+    // in force leaves its reset to come.
     if (l <= inForce) {
+      lateShowing = false
       await setLevel($, sid, l)
       return { kind: 'lower' as const }
     }
@@ -2034,6 +2036,7 @@ async function pressLevel($: EngineInterface, l: Level) {
       if (raising.get(sid) === step.turn) raising.delete(sid)
       if (entry === undefined) raiseFailed = true
       else if (levelTurns === step.turn) {
+        lateShowing = false
         await setLevel($, sid, l)
         if (l === 3 && Number.isSafeInteger(now)) pressedAt.set(sid, now)
       }
@@ -2043,15 +2046,16 @@ async function pressLevel($: EngineInterface, l: Level) {
 }
 
 // A new session id reads 1: at a clear or a resume, what this module kept
-// for any other id goes, and so does a stored level of another id. No entry
-// is written: no level in force was reset.
+// for any other id goes, and so does a stored level of another id, and a
+// raise still being logged never applies. No entry is written: no level in
+// force was reset. A pending alarm stays, and is logged once its id is back.
 async function forgetOtherLevels($: EngineInterface, sid: string) {
   if (!SESSION_ID.test(sid)) return
   await levelTurn(async () => {
-    for (const m of [pressedLevel, pressedAt, alarms, raising]) for (const k of [...m.keys()]) if (k !== sid) m.delete(k)
+    levelTurns++
+    for (const m of [pressedLevel, pressedAt, raising]) for (const k of [...m.keys()]) if (k !== sid) m.delete(k)
     const stored: unknown = await read($, autonomy)
     if (Array.isArray(stored) && stored.some(x => typeof x !== 'object' || x === null || (x as { session?: unknown }).session !== sid)) {
-      levelTurns++
       await update($, autonomy, () => [])
     }
   })

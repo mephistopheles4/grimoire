@@ -6368,19 +6368,85 @@ test('claim 11: the late offer never undoes a press: a pane placed at the load, 
   expect(ownEntries(w).length).toBe(2)
 })
 
-test('claim 11: a /clear and a resume back to the earlier session id read 1, with no alarm', async ($, on) => {
+const NEW_SID = '77777777-8888-9999-aaaa-bbbbbbbbbbbb'
+// The engine moves to another session id by a clear or a resume.
+const switchTo = async ($: any, w: World, sid: string, source: 'clear' | 'resume') => {
+  w.sid = sid
+  await $.classic.SessionStart({ source, session_id: sid, transcript_path: sid === SID ? TRANSCRIPT : `${CONFIG}\\projects\\C--work\\${sid}.jsonl` })
+}
+
+for (const source of ['clear', 'resume'] as const) {
+  test(`claim 11: a ${source} to another id and a resume back to the earlier session id read 1, with no alarm`, async ($, on) => {
+    const w = await decisionsPane(on, $)
+    await w.clock.advance(1000)
+    await press($, 'level-3')
+    await switchTo($, w, NEW_SID, source)
+    await switchTo($, w, SID, 'resume')
+    expect((await readLevel($)).text).toBe(LEVEL_1)
+    await w.clock.advance(15000)
+    expect((await readLevel($)).text).toBe(LEVEL_1)
+    expect(ownEntries(w)).toEqual(['owner 3 Full throttle · Moved in the pane · level 1'])
+  })
+}
+
+test('claim 11: an alarm that could not be written before a /clear is logged once a resume brings its session id back', async ($, on) => {
+  const w = await decisionsPane(on, $)
+  plantOnce(w, 3)
+  await press($, 'level-2')
+  seed(w, LOG, '{"cards":[],"todos":[]}')
+  await w.clock.advance(5000)
+  expect(await shows(ALARM_LINE)).toBe(true)
+  await switchTo($, w, NEW_SID, 'clear')
+  await switchTo($, w, SID, 'resume')
+  expect((await readLevel($)).text).toBe(LEVEL_1)
+  w.drop(LOG)
+  await w.clock.advance(15000)
+  expect(ownEntries(w)).toEqual(['alarm 3 Full throttle · Changed, not from a press · level 1'])
+  expect((await readLevel($)).text).toBe(LEVEL_1)
+})
+
+test('claim 11: a raise still being logged at a /clear never applies, even after a resume back', async ($, on) => {
   const w = await decisionsPane(on, $)
   await w.clock.advance(1000)
-  await press($, 'level-3')
-  const NEW = '77777777-8888-9999-aaaa-bbbbbbbbbbbb'
-  w.sid = NEW
-  await $.classic.SessionStart({ source: 'clear', session_id: NEW, transcript_path: `${CONFIG}\\projects\\C--work\\${NEW}.jsonl` })
-  w.sid = SID
-  await $.classic.SessionStart({ source: 'resume', session_id: SID, transcript_path: TRANSCRIPT })
+  w.holdWrite = true
+  const raise = press($, 'level-3')
+  await w.clock.settle()
+  await switchTo($, w, NEW_SID, 'clear')
+  w.holdWrite = false
+  w.release()
+  await raise
+  await switchTo($, w, SID, 'resume')
+  await w.clock.settle()
   expect((await readLevel($)).text).toBe(LEVEL_1)
   await w.clock.advance(15000)
   expect((await readLevel($)).text).toBe(LEVEL_1)
-  expect(ownEntries(w)).toEqual(['owner 3 Full throttle · Moved in the pane · level 1'])
+})
+
+test('claim 11: a press on the level in force before the late offer leaves the showing to reset it', async ($, on) => {
+  const w = loads(on, $, w => {
+    w.dirs(`${CONFIG}\\plugins`)
+    w.dirs(DECISIONS)
+  })
+  await start($)
+  expect(added(await load($))).toBe(READY)
+  await w.clock.settle()
+  mounted = await $.ui.mount({ plugin: 'grimoire', surface: 'desktop', component: 'Pane', requestId: 'brigade', props: PANE_PROPS })
+  await press($, 'view-decisions')
+  await w.clock.advance(1000)
+  await press($, 'level-3')
+  // Not placed at a load, then shown; a press on the 3 in force sets nothing.
+  w.open = false
+  await w.clock.advance(5000)
+  w.unplaced = true
+  expect(added(await load($))).toBe(NOT_SHOWN)
+  w.unplaced = false
+  await w.clock.advance(1000)
+  await press($, 'view-decisions')
+  await press($, 'level-3')
+  await turn($)
+  await w.clock.settle()
+  expect((await readLevel($)).text).toBe(LEVEL_1)
+  expect(ownEntries(w)).toEqual(['owner 3 Full throttle · Moved in the pane · level 1', 'pane 1 Manual · The pane was shown again · level 1'])
 })
 
 test('claim 11: a stored level another plugin wrote reads 1 at once; the poll resets it to 1 and puts one unread alarm in To review', async ($, on) => {
