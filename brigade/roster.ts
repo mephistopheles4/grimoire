@@ -74,6 +74,14 @@ export const PR_STATES: readonly PrState[] = ['open', 'merged', 'closed']
 /** A PR number as text: 1 to 7 digits. The tool's schema and the view module take this one pattern. */
 export const PR_NUMBER = /^[0-9]{1,7}$/
 
+/** A card's repository, owner/name and nothing else (spec 402, S5.6): the owner
+ *  1 to 39 letters, digits and hyphens, not starting with a hyphen; the name 1
+ *  to 100 letters, digits, `.`, `_` and `-`, not starting with `.` or `-`, so
+ *  never `.` or `..`. The whole value must match, so a host part (a third
+ *  segment, or a dotted owner) never passes. The tool's schema takes this one
+ *  pattern, and the run builder checks it again. */
+export const REPO = /^[A-Za-z0-9][A-Za-z0-9-]{0,38}\/[A-Za-z0-9_][A-Za-z0-9._-]{0,99}$/
+
 /** Whether a value is a whole number from 0 to 2^53 - 1. */
 const isWhole = (v: unknown): v is number => typeof v === 'number' && Number.isSafeInteger(v) && v >= 0
 
@@ -82,7 +90,7 @@ function card(i: number, v: unknown, source: Source): Checked<Card> {
   if (source === 'tool' && isRecord(v) && Object.hasOwn(v, 'since')) {
     return { error: `${where} since is stamped by the pane, not sent by the tool` }
   }
-  const f = fields(where, v, ['title', 'work', 'phase', 'settings', 'status', 'desktopId', 'bgId', 'url', 'pr', 'prState', 'since'])
+  const f = fields(where, v, ['title', 'work', 'phase', 'settings', 'status', 'desktopId', 'bgId', 'url', 'pr', 'prState', 'repo', 'since'])
   if ('error' in f) return f
   const o = f.value
   const title = text(`${where} title`, o.title, MAX_TITLE, true)
@@ -111,6 +119,11 @@ function card(i: number, v: unknown, source: Source): Checked<Card> {
       return { error: `${where} prState is not one of ${PR_STATES.join(', ')}` }
     }
     out.prState = o.prState as PrState
+  }
+  // Fixed words: the value is never echoed.
+  if (o.repo !== undefined) {
+    if (typeof o.repo !== 'string' || !REPO.test(o.repo)) return { error: `${where} repo is not a plain owner/name` }
+    out.repo = o.repo
   }
   if (o.since !== undefined) {
     if (!isWhole(o.since)) return { error: `${where} since is not a whole number from 0 to ${Number.MAX_SAFE_INTEGER}` }
@@ -236,7 +249,9 @@ const MAX_GH_TITLE = 1000
 const MAX_COUNT = 100000000
 const MAX_PR = 9999999
 
-/** The one argument list the pane runs; no roster text reaches it. */
+/** The one argument list the pane runs. No roster text reaches it: a run for
+ *  a card's repository passes the checked owner/name as GH_REPO in the run's
+ *  environment, never on the command line (`ghRun`). */
 export const GH_ARGV: readonly string[] = [
   'gh',
   'pr',
@@ -248,6 +263,17 @@ export const GH_ARGV: readonly string[] = [
   '--json',
   'number,title,state,additions,deletions,updatedAt,url,isCrossRepository',
 ]
+
+/** A `gh` run: the fixed argument list and its options, the 15-second limit
+ *  and, for a card's repository, that owner/name as GH_REPO, the only
+ *  variable set. The base run, with no repository, sets none. A repository
+ *  that fails `REPO` here builds no run. */
+export type GhRun = { argv: readonly string[]; init: { timeoutMs: number; env?: { GH_REPO: string } } }
+export function ghRun(repo?: unknown): GhRun | undefined {
+  if (repo === undefined) return { argv: GH_ARGV, init: { timeoutMs: 15000 } }
+  if (typeof repo !== 'string' || !REPO.test(repo)) return undefined
+  return { argv: GH_ARGV, init: { timeoutMs: 15000, env: { GH_REPO: repo } } }
+}
 
 /** One PR `gh` answered for, after its checks. `updatedAt` is epoch ms. */
 export type GhPr = { number: number; title: string; state: PrState; additions: number; deletions: number; updatedAt: number; repo: string }
@@ -299,6 +325,25 @@ export function parsePrList(stdout: string): Checked<Map<number, GhPr>> {
     out.set(e.number, { number: e.number, title: oneLine(e.title, 80), state, additions: e.additions, deletions: e.deletions, updatedAt, repo: url[1] ?? '' })
   }
   return { value: out }
+}
+
+/** The answer for a named repository: the parsed rows when every one's URL
+ *  names that repository, compared in lower case; else undefined, no answer,
+ *  since `gh` then answered for some other repository. */
+export function answerFor(repo: string, found: ReadonlyMap<number, GhPr>): ReadonlyMap<number, GhPr> | undefined {
+  const want = repo.toLowerCase()
+  for (const a of found.values()) if (a.repo.toLowerCase() !== want) return undefined
+  return found
+}
+
+/** The named repositories that run this minute: at most `max` of them, in
+ *  sorted order, starting after `last`, the last one run, and wrapping round.
+ *  A `last` no card names any more starts at the next name after it. */
+export function rotate(repos: readonly string[], last: string | undefined, max: number): string[] {
+  const sorted = [...new Set(repos)].sort()
+  const from = last === undefined ? 0 : sorted.findIndex(r => r > last)
+  const start = from === -1 ? 0 : from
+  return [...sorted.slice(start), ...sorted.slice(0, start)].slice(0, max)
 }
 
 // --- the roster path ---------------------------------------------------------

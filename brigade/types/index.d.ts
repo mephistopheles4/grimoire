@@ -18,6 +18,9 @@ export type Card = {
   pr?: string
   /** The head chef's last-known state of that PR, used when `gh` has no answer. */
   prState?: PrState
+  /** The PR's repository as owner/name, when it is not the lead's own
+   *  working folder's; checked against `REPO` wherever it is read. */
+  repo?: string
   /** When the card entered its current status and phase, in milliseconds on
    *  the engine clock. The tool stamps it; the file may hold it. */
   since?: number
