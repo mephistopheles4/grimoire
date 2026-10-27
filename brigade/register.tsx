@@ -1688,8 +1688,8 @@ const PANE_RULE = 'pane: the Brigade pane is not open and shown with its reads r
 const RULES_RULE = "the owner's rules: a deny verdict, an ask rule or an organisation ceiling covers this tool"
 
 // By session id, the SHA-256 of the text this module last wrote as that
-// session's hand-off. Module memory only: plugin state is text other plugins
-// can rewrite.
+// session's hand-off. It stays in this module: plugin state is text other
+// plugins can rewrite.
 const writtenHandoff = new Map<string, string>()
 
 // The hand-off's writes and the own-file reads take turns in one queue, so a
