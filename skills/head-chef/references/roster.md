@@ -24,6 +24,17 @@ the file itself.
       "settings": "Sonnet, medium",
       "status": "working",
       "desktopId": "local_00000000-0000-4000-8000-000000000000"
+    },
+    {
+      "title": "fix-api-17",
+      "work": "example-org/api issue 17",
+      "phase": "review",
+      "settings": "Sonnet, medium",
+      "status": "working",
+      "desktopId": "local_00000000-0000-4000-8000-000000000001",
+      "pr": "18",
+      "prState": "open",
+      "repo": "example-org/api"
     }
   ],
   "todos": [
@@ -49,12 +60,21 @@ the file itself.
   never a source for it.
 - `pr` and `prState` are the session's pull request, once it has one: its
   number, and `open`, `merged` or `closed`. The pane shows them as a pill.
+- `repo` is the pull request's repository, as `owner/name` with no host, when
+  that pull request is in another repository than your own working folder's.
+  Leave it out for a pull request in your own repository. The pane asks `gh`
+  about each repository the cards name, the chip opens the pull request there,
+  and its tooltip and the Pull requests row name the repository. Any other
+  value is refused as a shape.
 - `url` is a Remote Control session's claude.ai link. A Desktop session's card
   carries `desktopId`, and a background session's card `bgId`, so leave `url`
   out.
 - Caps: a title at most 80 characters; `work`, `phase` and `settings` at
   most 300; `desktopId`, `bgId` and `url` at most 100. A to-do's `id` at
-  most 40, its `text` at most 300, its `session` at most 80. At most 50 cards and 50
+  most 40, its `text` at most 300, its `session` at most 80;
+  `repo` an owner of at most 39 and a name of at most 100 characters, the
+  owner of letters, digits and `-`, the name also of `.` and `_`, neither
+  starting with `-` and the name not with `.`. At most 50 cards and 50
   to-dos. No other field, no title twice, no to-do id twice.
 - No session id, and no question, decision or note text, goes on a card or a
   to-do. Other plugins can read the pane's file.

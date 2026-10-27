@@ -5,9 +5,9 @@ import type { Card, Roster } from './types'
 import type { Moves } from './view.ts'
 import {
   AHEAD_MS,
-  GH_ARGV,
   MAX_ROSTER_BYTES,
   PR_NUMBER,
+  REPO,
   PR_STATES,
   MAX_TEXT,
   OPEN_NAME,
@@ -18,10 +18,12 @@ import {
   SESSION_ID,
   STATUSES,
   HOST_PROBES,
+  answerFor,
   appLink,
   checkRoster,
   dataFolder,
   dataPlace,
+  ghRun,
   listsOpenTool,
   liveWord,
   listedAsOurs,
@@ -40,6 +42,7 @@ import {
   remoteLink,
   report,
   rosterFile,
+  rotate,
   rulesAllowTool,
   serialize,
   stampSince,
@@ -139,9 +142,12 @@ import {
   pillColor,
   pillSvg,
   pillState,
+  prAnswer,
   prUrl,
   prNumber,
   prRows,
+  cardRepo,
+  unavailableLine,
   readCalls,
   readSessions,
   refusalLines,
@@ -853,12 +859,14 @@ async function dismissFlagged($: EngineInterface) {
 // --- the PR details --------------------------------------------------------
 //
 // While the pane is open and a shown card carries a PR number, the pane runs one
-// fixed `gh pr list` a minute. The argument list is a constant: no roster text,
-// number or title reaches the command. The answers, and the numbers known to be
-// merged, stay in the module for the session and never enter plugin state;
-// a reload starts them over. `gh`'s error text is never read, shown or stored.
+// fixed `gh pr list` a minute for the cards that name no repository, and the
+// same argument list for each repository the cards name (issue 408), with that
+// checked owner/name as GH_REPO in the run's environment, so no roster text,
+// number or title reaches the command line. The answers, and the numbers known
+// to be merged, stay in the module for the session and never enter plugin
+// state; a reload starts them over. `gh`'s error text is never read, shown or stored.
 
-// By PR number, the last good answers.
+// By PR number, the last good answers for the cards that name no repository.
 let ghAnswers: ReadonlyMap<number, GhPr> = new Map()
 // The numbers `gh` said are merged. The call stops once every shown PR is in here.
 const ghMerged = new Set<number>()
@@ -871,15 +879,38 @@ let ghRepo: string | undefined
 // When the last call started, on the engine clock.
 let ghAt: number | undefined
 let asking = false
+// Each repository a shown card names, by its lower-case owner/name: its last
+// good answers (at most 100 rows), the numbers known merged among them, and
+// whether its last run failed. A repository goes once no shown card names it.
+type Named = { answers: ReadonlyMap<number, GhPr>; merged: ReadonlySet<number>; down: boolean }
+const ghNamed = new Map<string, Named>()
+// The named repository run last: the next minute's turn starts after it.
+let ghLast: string | undefined
+// At most this many named runs a minute, besides the base run.
+const NAMED_RUNS = 5
+const MAX_NAMED_ROWS = 100
 
-// The numbers of the PRs the shown cards carry, as numbers.
-const shownPrs = (cards: readonly Card[], hidden: ReadonlySet<unknown>, moves: Moves): number[] => {
+// The PRs the shown cards carry: the numbers of those that name no
+// repository, and, by repository, the numbers of those that name one. A card
+// whose `repo` fails the check is in neither.
+const shownPrs = (cards: readonly Card[], hidden: ReadonlySet<unknown>, moves: Moves): { base: number[]; named: Map<string, number[]> } => {
   const g = groupCards(cards, hidden, moves)
-  return [...g.needsYou, ...g.working, ...g.finished].flatMap(({ c }) => {
+  const base: number[] = []
+  const named = new Map<string, number[]>()
+  for (const { c } of [...g.needsYou, ...g.working, ...g.finished]) {
     const n = prNumber(c)
-    return n === undefined ? [] : [Number(n)]
-  })
+    if (n === undefined) continue
+    if (c.repo === undefined) {
+      base.push(Number(n))
+      continue
+    }
+    const repo = cardRepo(c)
+    if (repo !== undefined) named.set(repo, [...(named.get(repo) ?? []), Number(n)])
+  }
+  return { base, named }
 }
+// The named answers, as the view reads them.
+const namedAnswers = (): ReadonlyMap<string, ReadonlyMap<number, GhPr>> => new Map([...ghNamed].map(([r, b]) => [r, b.answers]))
 
 // On macOS and Linux `gh` is found by name on the inherited PATH, so a PATH with
 // an empty or relative entry could let a file in the project folder run in its
@@ -909,58 +940,114 @@ async function ghFindable($: EngineInterface): Promise<boolean> {
   }
 }
 
+// One run, built by `ghRun`: the rows it parsed, or undefined for any
+// failure, a failure to start included.
+async function runGh($: EngineInterface, repo?: string): Promise<ReadonlyMap<number, GhPr> | undefined> {
+  const run = ghRun(repo)
+  if (run === undefined) return undefined
+  try {
+    const ran = await $.process.run([...run.argv], run.init)
+    if (ran.exitCode === 0 && ran.isStdoutTruncated === false && typeof ran.stdout === 'string') {
+      const parsed = parsePrList(ran.stdout)
+      if ('value' in parsed) return parsed.value
+    }
+  } catch {
+    // No answer.
+  }
+  return undefined
+}
+
 // `tick` is the timer's own call, which always runs; the call at arm waits out
-// a minute since the last one, so a quick reopen asks once.
+// a minute since the last one, so a quick reopen asks once. One run goes at a
+// time: the base run first, then the named repositories whose turn it is, each
+// after its own host check. A minute whose runs overrun finds `asking` set and
+// waits for the next.
 async function askGh($: EngineInterface, open: () => boolean, tick: boolean) {
   if (asking) return
   asking = true
   try {
     const [{ cards }, hid, moves] = await Promise.all([read($, roster), read($, dismissed), movesOf($)])
-    const wanted = shownPrs(cards, new Set(hid), moves)
-    if (wanted.length === 0 || wanted.every(n => ghMerged.has(n))) return
+    const { base, named } = shownPrs(cards, new Set(hid), moves)
+    // A repository no shown card names loses its rows.
+    for (const r of [...ghNamed.keys()]) if (!named.has(r)) ghNamed.delete(r)
+    const baseWanted = base.length > 0 && !base.every(n => ghMerged.has(n))
+    const namedWanted = [...named].filter(([r, ns]) => !ns.every(n => ghNamed.get(r)?.merged.has(n) === true)).map(([r]) => r)
+    if (!baseWanted && namedWanted.length === 0) return
     const now = await $.clock.now()
     if (!tick && ghAt !== undefined && now - ghAt < GH_MS) return
     ghAt = now
-    if (!(await ghFindable($))) {
-      if (open()) ghDown = true
-      return
-    }
-    let found: ReadonlyMap<number, GhPr> | undefined
-    try {
-      const ran = await $.process.run([...GH_ARGV], { timeoutMs: 15000 })
-      if (!open()) return
-      if (ran.exitCode === 0 && ran.isStdoutTruncated === false && typeof ran.stdout === 'string') {
-        const parsed = parsePrList(ran.stdout)
-        if ('value' in parsed) found = parsed.value
+    if (baseWanted) {
+      if (!(await ghFindable($))) {
+        if (open()) ghDown = true
+        return
       }
-    } catch {
-      // A failure to start counts as no answer.
+      const found = await runGh($)
+      if (!open()) return
+      takeBase(found, base)
     }
-    if (!open()) return
-    if (found === undefined) {
-      ghDown = true
-      return
+    for (const r of rotate(namedWanted, ghLast, NAMED_RUNS)) {
+      if (!(await ghFindable($))) {
+        if (open()) markNamedDown(r)
+        return
+      }
+      if (!open()) return
+      ghLast = r
+      const found = await runGh($, r)
+      if (!open()) return
+      takeNamed(r, found, named.get(r) ?? [])
     }
-    // The first good answer pins the repository; another one is no answer.
-    const answered = [...found.values()]
-    if (ghRepo === undefined) ghRepo = answered[0]?.repo
-    if (ghRepo !== undefined && answered.some(a => a.repo !== ghRepo)) {
-      ghDown = true
-      return
-    }
-    // A merged PR is kept even when a later answer no longer lists it.
-    const next = new Map<number, GhPr>()
-    for (const [n, a] of ghAnswers) if (ghMerged.has(n)) next.set(n, a)
-    for (const [n, a] of found) {
-      next.set(n, a)
-      if (a.state === 'merged') ghMerged.add(n)
-    }
-    ghAnswers = next
-    // A call that answered for none of the shown numbers (another host, say) says so too.
-    ghDown = wanted.every(n => !next.has(n))
   } finally {
     asking = false
   }
+}
+
+// The base run's answer. The first good answer pins the repository; another
+// one is no answer.
+function takeBase(found: ReadonlyMap<number, GhPr> | undefined, wanted: readonly number[]) {
+  if (found === undefined) {
+    ghDown = true
+    return
+  }
+  const answered = [...found.values()]
+  if (ghRepo === undefined) ghRepo = answered[0]?.repo
+  if (ghRepo !== undefined && answered.some(a => a.repo !== ghRepo)) {
+    ghDown = true
+    return
+  }
+  // A merged PR is kept even when a later answer no longer lists it.
+  const next = new Map<number, GhPr>()
+  for (const [n, a] of ghAnswers) if (ghMerged.has(n)) next.set(n, a)
+  for (const [n, a] of found) {
+    next.set(n, a)
+    if (a.state === 'merged') ghMerged.add(n)
+  }
+  ghAnswers = next
+  // A call that answered for none of the shown numbers (another host, say) says so too.
+  ghDown = wanted.every(n => !next.has(n))
+}
+
+// A named repository's run failed, or answered for another repository: its
+// last good answers stay, and the line counts it.
+function markNamedDown(repo: string) {
+  const b = ghNamed.get(repo)
+  ghNamed.set(repo, { answers: b?.answers ?? new Map(), merged: b?.merged ?? new Set(), down: true })
+}
+
+// A named repository's answer, which counts only when every row names that
+// repository. Its rows, then the merged ones it kept that the answer no longer
+// lists, up to 100.
+function takeNamed(repo: string, found: ReadonlyMap<number, GhPr> | undefined, wanted: readonly number[]) {
+  const checked = found === undefined ? undefined : answerFor(repo, found)
+  if (checked === undefined) {
+    markNamedDown(repo)
+    return
+  }
+  const was = ghNamed.get(repo)
+  const next = new Map<number, GhPr>()
+  for (const [n, a] of checked) if (next.size < MAX_NAMED_ROWS) next.set(n, a)
+  for (const [n, a] of was?.answers ?? []) if (next.size < MAX_NAMED_ROWS && !next.has(n) && was?.merged.has(n) === true) next.set(n, a)
+  const merged = new Set([...next.values()].filter(a => a.state === 'merged').map(a => a.number))
+  ghNamed.set(repo, { answers: next, merged, down: wanted.every(n => !next.has(n)) })
 }
 
 // This session's own usage, for the section at the bottom of the pane. The
@@ -1202,7 +1289,7 @@ async function openInApp($: EngineInterface, c: Card) {
 const TOOL_NAME = 'mcp__grimoire__set_roster'
 
 const DESCRIPTION =
-  "Keeps the Brigade pane's roster for this lead session. Pass the whole roster every time, every card and every to-do; it replaces the last one. Both lists are required; two empty lists are an empty roster. A card may carry its session's pull request: `pr` (its number as text, 1 to 7 digits) and `prState` (`open`, `merged` or `closed`, the last state known). Send no `since`: the pane stamps how long each card has been in its status and phase from its own clock. It works only while the Brigade pane is open, which the owner opens with /brigade or a load of the head-chef skill opens, and refuses otherwise. A refusal names the rule that failed."
+  "Keeps the Brigade pane's roster for this lead session. Pass the whole roster every time, every card and every to-do; it replaces the last one. Both lists are required; two empty lists are an empty roster. A card may carry its session's pull request: `pr` (its number as text, 1 to 7 digits) and `prState` (`open`, `merged` or `closed`, the last state known), and, when that pull request is in another repository than this session's working folder, `repo`, its `owner/name` with no host. Send no `since`: the pane stamps how long each card has been in its status and phase from its own clock. It works only while the Brigade pane is open, which the owner opens with /brigade or a load of the head-chef skill opens, and refuses otherwise. A refusal names the rule that failed."
 
 const field = (max: number) => ({ type: 'string', maxLength: max })
 const SCHEMA = {
@@ -1228,6 +1315,7 @@ const SCHEMA = {
           url: field(100),
           pr: { type: 'string', pattern: PR_NUMBER.source },
           prState: { type: 'string', enum: [...PR_STATES] },
+          repo: { type: 'string', pattern: REPO.source },
         },
       },
     },
@@ -2635,7 +2723,9 @@ export const register: Register = on => {
         : error === ''
           ? 'No cards in the roster yet.'
           : undefined
-    const prs = prRows(cards, hidden, ghAnswers, now, moves)
+    const named = namedAnswers()
+    const prs = prRows(cards, hidden, ghAnswers, now, moves, named)
+    const unavailable = unavailableLine(ghDown, [...ghNamed.values()].filter(b => b.down).length)
     const prCount = prs.open.length + prs.merged.length + prs.closed.length
 
     // A pointer over a scope lights every element drawn with it. Desktop only:
@@ -2825,8 +2915,10 @@ export const register: Register = on => {
       const short = compactSettings(c.settings)
       const age = ageText(c.since, now)
       const number = prNumber(c)
-      const answer = number === undefined ? undefined : ghAnswers.get(Number(number))
+      const answer = prAnswer(c, ghAnswers, named)
       const href = number === undefined || answer === undefined ? undefined : prUrl(answer.repo, number)
+      // The repository a click goes to, for the tooltip: gh's answer's, else the card's own.
+      const repoTip = answer?.repo ?? (cardRepo(c) === undefined ? undefined : String(c.repo))
       // The actions: on Desktop hidden until the pointer is on the row, in the
       // terminal always shown. A card that waits on the owner has no Dismiss.
       const actions =
@@ -2896,7 +2988,7 @@ export const register: Register = on => {
                 {number !== undefined && (
                   <Box flexShrink={0}>
                     {answer === undefined ? (
-                      pill(number, pillState(undefined, c.prState))
+                      repoTip === undefined ? pill(number, pillState(undefined, c.prState)) : tip(`pill-${i}`, pill(number, pillState(undefined, c.prState)), repoTip)
                     ) : href !== undefined && Image === undefined ? (
                       linkedNumber(number, pillState(answer.state, c.prState), href)
                     ) : (
@@ -3589,9 +3681,9 @@ export const register: Register = on => {
                 {!folds.has(key) && (list.length > 0 ? (stepped ? list.map(prRow) : rows(list.map(prRow), key)) : hint(key))}
               </Box>
             ))}
-            {ghDown && (
+            {unavailable !== undefined && (
               <Box marginTop={1}>
-                <Text dimColor>PR details unavailable</Text>
+                <Text dimColor>{unavailable}</Text>
               </Box>
             )}
           </Box>

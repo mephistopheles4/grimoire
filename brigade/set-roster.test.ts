@@ -246,6 +246,10 @@ type World = ReturnType<typeof makeFs> & {
   ghErr: string
   ghCut: boolean
   ghDeny: string
+  /** What the fake `gh` answers for a run whose environment names a repository
+   *  as GH_REPO, by that value; a value it does not hold answers `ghOut`, as a
+   *  host that ignored the environment would. */
+  ghOutBy: Record<string, string>
   /** Every `gh` start, its argv, and what it was started with. */
   ghCalls: string[][]
   ghInits: unknown[]
@@ -328,6 +332,7 @@ function world(on: On, setup: (w: World) => void = w => w.dirs(`${CONFIG}\\plugi
     ghErr: '',
     ghCut: false,
     ghDeny: '',
+    ghOutBy: {} as Record<string, string>,
     ghCalls: [] as string[][],
     ghInits: [] as unknown[],
     holdGh: false,
@@ -521,7 +526,9 @@ function world(on: On, setup: (w: World) => void = w => w.dirs(`${CONFIG}\\plugi
       w.ghInits.push(e.init)
       if (w.holdGh) await new Promise<void>(res => { const before = w.releaseGh; w.releaseGh = () => { before(); res() } })
       if (w.ghDeny !== '') return { deny: w.ghDeny }
-      return { value: { exitCode: w.ghExit, stdout: w.ghOut, stderr: w.ghErr, isStdoutTruncated: w.ghCut, isStderrTruncated: false } }
+      const named = e.init?.env?.GH_REPO
+      const stdout = typeof named === 'string' && Object.hasOwn(w.ghOutBy, named) ? w.ghOutBy[named] : w.ghOut
+      return { value: { exitCode: w.ghExit, stdout, stderr: w.ghErr, isStdoutTruncated: w.ghCut, isStderrTruncated: false } }
     }
     if (OPENERS.includes(e.argv[0])) {
       w.order.push(`run ${e.argv[0]}`)
@@ -6853,4 +6860,223 @@ test('claims 10 and 11: a showing or a reload while a raise is still being logge
   await w.clock.advance(15000)
   expect((await readLevel($)).text).toBe(LEVEL_1)
   expect(ownEntries(w).slice(2)).toEqual(['owner 3 Full throttle · Moved in the pane · level 1', 'pane 1 Manual · The Brigade mod was reloaded · level 1'])
+})
+
+// --- issue 415: PR chips for other repositories (spec 402, S5.6; claim 17) -------
+//
+// A card may name its pull request's repository as `repo`. The pane runs the
+// same fixed argument list for each named repository, with the repository as
+// GH_REPO in the run's environment, and counts an answer only when every
+// pull request in it names that repository.
+
+const OTHER = 'https://github.com/other/proj/pull'
+const otherPr = (n: number, over: Record<string, unknown> = {}) => ghPr(n, { url: `${OTHER}/${n}`, ...over })
+async function namedPane(on: On, $: any, cards: unknown[], setup: (w: World) => void = () => {}) {
+  const w = world(on, w => {
+    w.dirs(BRIGADE)
+    w.put(FILE, { type: 'file', data: { text: JSON.stringify({ cards, todos: [] }) } })
+    setup(w)
+  })
+  on('session.receive', (_: any, e: any) => e)
+  await start($)
+  await brigade($)
+  await w.clock.settle()
+  return w
+}
+const repoOf = (w: World, i: number) => (w.ghInits[i] as any)?.env?.GH_REPO
+const ALPHA = card('alpha', { status: 'working', pr: '341' })
+const BETA = card('beta', { status: 'working', pr: '7', repo: 'other/proj' })
+
+test('claim 17: set_roster takes repo and writes it with the card', async ($, on) => {
+  const w = world(on)
+  await start($)
+  await brigade($)
+  const r = await call($, { cards: [card('a', { pr: '7', repo: 'other/proj' })], todos: [] })
+  expect(r.ok).toBe(true)
+  expect(JSON.parse(w.text(FILE) ?? 'null').cards[0].repo).toBe('other/proj')
+})
+
+for (const repo of ['ghe.example/o/r', 'o/r/x', '-o/r', 'github.com/o', 'o/..']) {
+  test(`claim 17: set_roster refuses the repo ${repo}, names the field without the value, and leaves the file`, async ($, on) => {
+    const w = world(on, w => {
+      w.dirs(BRIGADE)
+      w.put(FILE, { type: 'file', data: { text: '{"cards":[],"todos":[]}' } })
+    })
+    await start($)
+    await brigade($)
+    const r = await call($, { cards: [card('a', { pr: '7', repo })], todos: [] })
+    expect(r.ok).toBe(false)
+    expect(r.text).toContain('card 1 repo is not a plain owner/name')
+    expect(r.text.includes(repo)).toBe(false)
+    expect(w.text(FILE)).toBe('{"cards":[],"todos":[]}')
+  })
+  test(`claim 17: the pane refuses a roster file whose card names the repo ${repo}`, async ($, on) => {
+    const w = await grouped(on, $, { cards: [card('a', { pr: '7', repo })], todos: [] })
+    expect(w.errors.at(-1)).toBe('Roster not shown: card 1 repo is not a plain owner/name')
+    expect(asked(w)).toBe(0)
+  })
+}
+
+for (const surface of SURFACES) {
+  test(`${surface}, claim 17: a named card's chip and row open its pull request in that repository and name it; the run is the base list with GH_REPO alone; no gh row reaches plugin state`, async ($, on) => {
+    const w = await namedPane(on, $, [ALPHA, BETA], w => {
+      w.ghOut = JSON.stringify([ghPr(341, { title: 'Base title' })])
+      w.ghOutBy['other/proj'] = JSON.stringify([otherPr(7, { title: 'Other title' })])
+    })
+    expect(asked(w)).toBe(2)
+    expect(w.ghCalls[0]).toEqual(GH_ARGV)
+    expect(w.ghInits[0]).toEqual({ timeoutMs: 15000 })
+    expect(w.ghCalls[1]).toEqual(GH_ARGV)
+    expect(w.ghInits[1]).toEqual({ timeoutMs: 15000, env: { GH_REPO: 'other/proj' } })
+    const m = await mountOn($, surface)
+    const links = (await nodes(m)).filter(n => n.type === 'Link').map(l => l.props.href).sort()
+    expect(links).toEqual(['https://github.com/o/r/pull/341', `${OTHER}/7`])
+    // Desktop names the repository in the chip's tooltip.
+    if (surface === 'desktop') expect((await textOf(m)).includes('other/proj')).toBe(true)
+    await m.press({ key: 'view-prs' })
+    const text = await textOf(m)
+    expect(text.includes('Other title')).toBe(true)
+    expect(text.includes('beta · +12 −3 · other/proj')).toBe(true)
+    expect((await nodes(m)).filter(n => n.type === 'Link').map(l => l.props.href).sort()).toEqual(['https://github.com/o/r/pull/341', `${OTHER}/7`])
+    expect(text.includes('PR details unavailable')).toBe(false)
+    // The rows stay in the module: no title gh answered reaches plugin state.
+    expect(w.states.some(([, v]) => v.includes('Other title') || v.includes('Base title'))).toBe(false)
+  })
+}
+
+for (const [label, answer] of [
+  ['an answer for the base repository, as a host that ignored the environment gives', undefined],
+  ['an answer with one pull request from another repository', JSON.stringify([otherPr(7, { title: 'Other title' }), ghPr(8, { url: 'https://github.com/evil/x/pull/8' })])],
+] as const) {
+  test(`claim 17: ${label} counts for none of the named repository's cards, and the line names one repository`, async ($, on) => {
+    const w = await namedPane(on, $, [ALPHA, BETA], w => {
+      w.ghOut = JSON.stringify([ghPr(341), ghPr(7, { title: 'Base seven' })])
+      if (answer !== undefined) w.ghOutBy['other/proj'] = answer
+    })
+    expect(repoOf(w, 1)).toBe('other/proj')
+    const m = await mountOn($, 'desktop')
+    expect((await nodes(m)).filter(n => n.type === 'Link').map(l => l.props.href)).toEqual(['https://github.com/o/r/pull/341'])
+    await m.press({ key: 'view-prs' })
+    const text = await textOf(m)
+    expect(text.includes('Base seven')).toBe(false)
+    expect(text.includes('Other title')).toBe(false)
+    expect(text.includes('PR details unavailable for 1 repository')).toBe(true)
+  })
+}
+
+test('claim 17: a repository is one however it is spelled: one run, and an answer in another case counts', async ($, on) => {
+  const w = await namedPane(on, $, [card('beta', { status: 'working', pr: '7', repo: 'Other/Proj' }), card('gamma', { status: 'working', pr: '8', repo: 'other/PROJ' })], w => {
+    w.ghOutBy['other/proj'] = JSON.stringify([ghPr(7, { url: 'https://github.com/OTHER/proj/pull/7' }), ghPr(8, { url: 'https://github.com/OTHER/proj/pull/8' })])
+  })
+  expect(asked(w)).toBe(1)
+  expect(w.ghInits[0]).toEqual({ timeoutMs: 15000, env: { GH_REPO: 'other/proj' } })
+  const m = await mountOn($, 'desktop')
+  expect((await nodes(m)).filter(n => n.type === 'Link').map(l => l.props.href).sort()).toEqual(['https://github.com/OTHER/proj/pull/7', 'https://github.com/OTHER/proj/pull/8'])
+})
+
+test("claim 17: #n in one repository never takes another's state, and a repository stops being asked only once its own PRs are merged", async ($, on) => {
+  const w = await namedPane(on, $, [card('alpha', { status: 'working', pr: '7' }), BETA], w => {
+    w.ghOut = JSON.stringify([ghPr(7, { state: 'MERGED', title: 'Base seven' })])
+    w.ghOutBy['other/proj'] = JSON.stringify([otherPr(7, { title: 'Other seven' })])
+  })
+  const m = await mountOn($, 'desktop')
+  await m.press({ key: 'view-prs' })
+  const text = await textOf(m)
+  expect(text.indexOf('▾ Open 1')).toBeLessThan(text.indexOf('Other seven'))
+  expect(text.indexOf('Other seven')).toBeLessThan(text.indexOf('Merged 1'))
+  expect(text.indexOf('Merged 1')).toBeLessThan(text.indexOf('Base seven'))
+  // The base repository's #7 is merged: only the named one is asked again.
+  await w.clock.advance(60000)
+  expect(asked(w)).toBe(3)
+  expect(repoOf(w, 2)).toBe('other/proj')
+  w.ghOutBy['other/proj'] = JSON.stringify([otherPr(7, { state: 'MERGED' })])
+  await w.clock.advance(60000)
+  expect(asked(w)).toBe(4)
+  await w.clock.advance(120000)
+  expect(asked(w)).toBe(4)
+})
+
+const SEVEN = [1, 2, 3, 4, 5, 6, 7].map(k => card(`c${k}`, { status: 'working', pr: String(k), repo: `r${k}/p` }))
+
+test('claim 17: named runs take turns, at most 5 a minute besides the base run, from where the last minute stopped, each with the 15 s limit', async ($, on) => {
+  const w = await namedPane(on, $, [ALPHA, ...SEVEN])
+  expect(w.ghInits.map((_, i) => repoOf(w, i))).toEqual([undefined, 'r1/p', 'r2/p', 'r3/p', 'r4/p', 'r5/p'])
+  await w.clock.advance(60000)
+  expect(w.ghInits.slice(6).map((_, i) => repoOf(w, i + 6))).toEqual([undefined, 'r6/p', 'r7/p', 'r1/p', 'r2/p', 'r3/p'])
+  expect(w.ghInits.every(i => (i as any).timeoutMs === 15000)).toBe(true)
+  for (const argv of w.ghCalls) expect(argv).toEqual(GH_ARGV)
+})
+
+test('claim 17: one run at a time, and a minute whose runs overrun waits for the next', async ($, on) => {
+  const w = await namedPane(on, $, SEVEN, w => {
+    w.holdGh = true
+  })
+  expect(asked(w)).toBe(1)
+  await w.clock.advance(60000)
+  expect(asked(w)).toBe(1)
+  w.holdGh = false
+  w.releaseGh()
+  await w.clock.settle()
+  expect(w.ghInits.map((_, i) => repoOf(w, i))).toEqual(['r1/p', 'r2/p', 'r3/p', 'r4/p', 'r5/p'])
+  await w.clock.advance(60000)
+  expect(w.ghInits.slice(5).map((_, i) => repoOf(w, i + 5))).toEqual(['r6/p', 'r7/p', 'r1/p', 'r2/p', 'r3/p'])
+})
+
+test('claim 17: each named run passes the host and PATH check: a PATH that turns relative mid-minute runs no more', async ($, on) => {
+  const w = await namedPane(on, $, SEVEN.slice(0, 3), w => {
+    macos(w)
+    w.env = { PATH: '/usr/bin:/bin' }
+    w.holdGh = true
+  })
+  expect(asked(w)).toBe(1)
+  w.env = { PATH: '/usr/bin::/bin' }
+  w.holdGh = false
+  w.releaseGh()
+  await w.clock.settle()
+  expect(asked(w)).toBe(1)
+})
+
+test("claim 17: a repository's rows go once no card names it", async ($, on) => {
+  const w = await namedPane(on, $, [ALPHA, BETA], w => {
+    w.ghOutBy['other/proj'] = JSON.stringify([otherPr(7, { title: 'Other title' })])
+  })
+  const m = await mountOn($, 'desktop')
+  await m.press({ key: 'view-prs' })
+  expect((await textOf(m)).includes('Other title')).toBe(true)
+  expect((await call($, { cards: [ALPHA], todos: [] })).ok).toBe(true)
+  await w.clock.advance(60000)
+  // Named again, with gh now failing for it: the old rows are gone, not kept as the last good answer.
+  w.ghOutBy['other/proj'] = 'not json'
+  expect((await call($, { cards: [ALPHA, BETA], todos: [] })).ok).toBe(true)
+  expect((await textOf(m)).includes('Other title')).toBe(false)
+  await w.clock.advance(60000)
+  const text = await textOf(m)
+  expect(text.includes('Other title')).toBe(false)
+  expect(text.includes('PR details unavailable for 1 repository')).toBe(true)
+})
+
+test("claim 17: a named result the pane's close overtakes is dropped", async ($, on) => {
+  const w = world(on, w => {
+    w.dirs(BRIGADE)
+    w.put(FILE, { type: 'file', data: { text: JSON.stringify({ cards: [BETA], todos: [] }) } })
+    w.holdGh = true
+    w.ghOutBy['other/proj'] = JSON.stringify([otherPr(7, { title: 'Dropped answer' })])
+  })
+  on('session.receive', (_: any, e: any) => e)
+  await start($)
+  const opening = brigade($)
+  await w.clock.settle()
+  w.open = false
+  await w.clock.advance(5000)
+  w.holdGh = false
+  w.releaseGh()
+  await opening
+  await w.clock.settle()
+  w.ghOutBy['other/proj'] = 'not json'
+  w.open = true
+  await brigade($)
+  await w.clock.settle()
+  const m = await mountOn($, 'desktop')
+  await m.press({ key: 'view-prs' })
+  expect((await textOf(m)).includes('Dropped answer')).toBe(false)
 })

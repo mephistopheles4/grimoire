@@ -1,4 +1,4 @@
-import { AHEAD_MS, PR_NUMBER, PR_STATES, SESSION_ID, foldsCase, oneLine, pathKey, placeSummary, projectFolder, sepOf, sessionRow, statRejection } from './roster.ts'
+import { AHEAD_MS, PR_NUMBER, PR_STATES, REPO, SESSION_ID, foldsCase, oneLine, pathKey, placeSummary, projectFolder, sepOf, sessionRow, statRejection } from './roster.ts'
 import type { GhPr, Move, SessionRow, StatAnswer } from './roster.ts'
 import type { Meter, Pair, Sample, UsageCategory, UsageLimit, UsageSnapshot, Warmth } from './types'
 
@@ -918,17 +918,42 @@ export type PrRow = {
  *  and `pr` text of 1 to 7 digits, by the roster module's own pattern. */
 export const prNumber = (c: unknown): string | undefined => (isRecord(c) && typeof c.pr === 'string' && PR_NUMBER.test(c.pr) ? c.pr : undefined)
 
+/** A stored card's repository, in lower case, the key its answers are kept
+ *  under; undefined for a card that names none or a value that fails `REPO`. */
+export const cardRepo = (c: unknown): string | undefined => (isRecord(c) && typeof c.repo === 'string' && REPO.test(c.repo) ? c.repo.toLowerCase() : undefined)
+
+/** `gh`'s answer for a card's PR: from its own repository's answers when the
+ *  card names one, else from the base answers. A card whose `repo` fails the
+ *  check takes no answer, so `#n` in one repository never takes another's. */
+export function prAnswer(c: unknown, answers: ReadonlyMap<number, GhPr>, named?: ReadonlyMap<string, ReadonlyMap<number, GhPr>>): GhPr | undefined {
+  const number = prNumber(c)
+  if (number === undefined || !isRecord(c)) return undefined
+  if (c.repo === undefined) return answers.get(Number(number))
+  const repo = cardRepo(c)
+  return repo === undefined ? undefined : named?.get(repo)?.get(Number(number))
+}
+
+/** The dim line under the Pull requests view when some repositories had no
+ *  answer: the base repository alone keeps the words it had; once a named one
+ *  failed, the line counts them all. */
+export function unavailableLine(base: boolean, named: number): string | undefined {
+  const n = (base ? 1 : 0) + named
+  if (n === 0) return undefined
+  return named === 0 ? 'PR details unavailable' : `PR details unavailable for ${n} ${n === 1 ? 'repository' : 'repositories'}`
+}
+
 /** The pull requests the shown cards carry, grouped Open, Merged and Closed:
- *  one row per card, `gh`'s state when it answered for the number, else the
- *  card's, else open. With an answer a row has the PR's title, counts,
- *  repository and age; without one, the card's title alone. */
-export function prRows(cards: unknown, hidden: ReadonlySet<unknown>, answers: ReadonlyMap<number, GhPr>, now: number, moves?: Moves): { open: PrRow[]; merged: PrRow[]; closed: PrRow[] } {
+ *  one row per card, `gh`'s state when it answered for the number in the
+ *  card's repository (`prAnswer`), else the card's, else open. With an answer
+ *  a row has the PR's title, counts, repository and age; without one, the
+ *  card's title alone, and the repository the card names, if any. */
+export function prRows(cards: unknown, hidden: ReadonlySet<unknown>, answers: ReadonlyMap<number, GhPr>, now: number, moves?: Moves, named?: ReadonlyMap<string, ReadonlyMap<number, GhPr>>): { open: PrRow[]; merged: PrRow[]; closed: PrRow[] } {
   const out = { open: [] as PrRow[], merged: [] as PrRow[], closed: [] as PrRow[] }
   if (!Array.isArray(cards)) return out
   cards.forEach((c, i) => {
     const number = prNumber(c)
     if (!isRecord(c) || number === undefined || shownLook(c, hidden, moves) === undefined) return
-    const answer = answers.get(Number(number))
+    const answer = prAnswer(c, answers, named)
     const own = typeof c.prState === 'string' && (PR_STATES as readonly string[]).includes(c.prState) ? c.prState : 'open'
     const state = answer?.state ?? own
     const cardTitle = drawnTitle(String(c.title))
@@ -938,6 +963,8 @@ export function prRows(cards: unknown, hidden: ReadonlySet<unknown>, answers: Re
       detail.repo = answer.repo
       const age = ageText(answer.updatedAt, now)
       if (age !== undefined) detail.age = age
+    } else if (cardRepo(c) !== undefined) {
+      detail.repo = String(c.repo)
     }
     const row: PrRow = { c, i, number, state, title: answer?.title ?? cardTitle, detail }
     if (state === 'merged') out.merged.push(row)

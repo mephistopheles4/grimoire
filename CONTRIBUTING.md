@@ -227,8 +227,9 @@ import, which `tests/brigade-view.test.mjs` imports directly to check what
 the pane would draw, as strings. Its roster module, `brigade/roster.ts`, is the
 second seam: `tests/brigade-roster-rules.test.mjs` imports it to check the
 roster's shape rules, its byte cap, the path rule that decides whether the
-roster file may be read or written, and the checks that say whether a
-head-chef load ran and which copy loaded. Its permission warning's wording module,
+roster file may be read or written, the checks that say whether a
+head-chef load ran and which copy loaded, a card's repository check, the
+per-repository `gh` run and its answer check, and the runs' rotation. Its permission warning's wording module,
 `brigade/warning-text.ts`, is the third: `tests/brigade-warning.test.mjs`
 imports it to pin the wording and check the "Don't show again" test. Its
 decision log's rules module, `brigade/decisions.ts`, is the fourth:

@@ -868,3 +868,107 @@ test('a Skill load ran only when the Skill tool says it succeeded', () => {
   assert.equal(skillLoadRan({ ref: 'r', result: 'no such skill', text: '' }), false);
   assert.equal(skillLoadRan(null), false);
 });
+
+// --- issue 415: a card's repository and the per-repository gh run ----------------
+
+const { GH_ARGV, REPO, answerFor, ghRun, rotate } = roster;
+
+// Each is refused wherever a card is read: a host part, a dotted owner, a
+// leading hyphen or dot, `.` and `..`, an owner over 39 or a name over 100,
+// a character outside the set (a space, a line break, a hidden one, `?`, `#`,
+// `_` in the owner), a URL, a missing or extra segment, and a value that is
+// not text.
+const BAD_REPOS = [
+  'o', 'o/r/x', 'github.com/o', 'ghe.example/o/r', 'https://github.com/o/r', '/o/r', 'o/', '/r', 'o//r',
+  '-o/r', 'o/-r', 'o/.r', 'o/.', 'o/..', `${'a'.repeat(40)}/r`, `o/${'r'.repeat(101)}`,
+  'o/r ', ' o/r', 'o /r', 'o/r\n', 'o\u{200B}/r', 'o/r?x', 'o/r#1', 'o_x/r', 'o.x/r', '', 1, null, ['o/r'],
+];
+const GOOD_REPOS = ['o/r', 'O/R', 'a-b/c.d_e-f', 'o/_x', 'o/r.', `${'a'.repeat(39)}/${'r'.repeat(100)}`, 'mephistopheles4/grimoire'];
+
+test('a card may carry repo, a plain owner/name, from the file and from the tool, strict or not', () => {
+  for (const repo of GOOD_REPOS) {
+    for (const strict of [false, true]) {
+      for (const source of ['file', 'tool']) {
+        const r = checkRoster(JSON.stringify({ cards: [card('a', { pr: '7', repo })], todos: [] }), strict, source);
+        assert.equal(r.value?.cards[0].repo, repo, `${repo} ${strict} ${source}`);
+      }
+    }
+  }
+  assert.equal('repo' in checkRoster(JSON.stringify({ cards: [card('a')], todos: [] })).value.cards[0], false);
+});
+
+test('any other repo value fails the roster\'s read and the tool, names the field and never echoes the value', () => {
+  for (const repo of BAD_REPOS) {
+    for (const strict of [false, true]) {
+      for (const source of ['file', 'tool']) {
+        const r = checkRoster(JSON.stringify({ cards: [card('a', { repo })], todos: [] }), strict, source);
+        assert.equal(r.error, 'card 1 repo is not a plain owner/name', `${JSON.stringify(repo)} ${strict} ${source}`);
+      }
+    }
+  }
+});
+
+test('the repo pattern matches the whole value and is the one the tool\'s schema takes', () => {
+  for (const repo of GOOD_REPOS) assert.match(repo, REPO);
+  for (const repo of BAD_REPOS) if (typeof repo === 'string') assert.doesNotMatch(repo, REPO, repo);
+  assert.ok(REPO.source.startsWith('^') && REPO.source.endsWith('$'));
+});
+
+test('the base run is the fixed list with no environment; a named run is the same list with the repository as GH_REPO alone', () => {
+  assert.deepEqual(ghRun(), { argv: GH_ARGV, init: { timeoutMs: 15000 } });
+  assert.equal('env' in ghRun().init, false);
+  const named = ghRun('other/proj');
+  assert.deepEqual(named, { argv: GH_ARGV, init: { timeoutMs: 15000, env: { GH_REPO: 'other/proj' } } });
+  assert.deepEqual(Object.keys(named.init.env), ['GH_REPO']);
+  // No roster text reaches the command line.
+  assert.equal(named.argv.some(a => a.includes('other') || a.includes('proj')), false);
+  // The list is checked again where the run is built: anything else builds no run.
+  for (const repo of BAD_REPOS) if (repo !== '') assert.equal(ghRun(repo), undefined, JSON.stringify(repo));
+  assert.equal(ghRun(''), undefined);
+});
+
+const ghRow = (number, repo, over = {}) => ({ number, title: `PR ${number}`, state: 'open', additions: 1, deletions: 1, updatedAt: 0, repo, ...over });
+
+test('an answer counts for a named repository only when every pull request names that repository, case folded', () => {
+  const ok = new Map([[7, ghRow(7, 'Other/Proj')], [8, ghRow(8, 'other/proj')]]);
+  assert.equal(answerFor('other/proj', ok), ok);
+  assert.equal(answerFor('OTHER/PROJ', ok), ok);
+  // One row from another repository makes the whole answer no answer.
+  assert.equal(answerFor('other/proj', new Map([[7, ghRow(7, 'other/proj')], [9, ghRow(9, 'o/r')]])), undefined);
+  assert.equal(answerFor('other/proj', new Map([[7, ghRow(7, 'other/proj2')]])), undefined);
+  assert.equal(answerFor('other/proj', new Map([[7, ghRow(7, 'evil/other/proj')]])), undefined);
+  // An empty list names no other repository: an answer with no rows.
+  assert.equal(answerFor('other/proj', new Map()).size, 0);
+});
+
+test('the named runs take turns: at most the cap a minute, in order, from where the last minute stopped', () => {
+  const repos = ['g/7', 'a/1', 'c/3', 'b/2', 'e/5', 'd/4', 'f/6'];
+  assert.deepEqual(rotate(repos, undefined, 5), ['a/1', 'b/2', 'c/3', 'd/4', 'e/5']);
+  assert.deepEqual(rotate(repos, 'e/5', 5), ['f/6', 'g/7', 'a/1', 'b/2', 'c/3']);
+  assert.deepEqual(rotate(repos, 'c/3', 5), ['d/4', 'e/5', 'f/6', 'g/7', 'a/1']);
+  // Fewer than the cap: each once, still from where the last stopped.
+  assert.deepEqual(rotate(['a/1', 'b/2'], 'a/1', 5), ['b/2', 'a/1']);
+  assert.deepEqual(rotate(['a/1'], 'a/1', 5), ['a/1']);
+  // A last one no card names any more: the next after it in order.
+  assert.deepEqual(rotate(['a/1', 'c/3', 'd/4'], 'b/2', 2), ['c/3', 'd/4']);
+  assert.deepEqual(rotate(['a/1', 'c/3'], 'z/9', 5), ['a/1', 'c/3']);
+  assert.deepEqual(rotate(['a/1', 'a/1', 'b/2'], undefined, 5), ['a/1', 'b/2']);
+  assert.deepEqual(rotate([], 'a/1', 5), []);
+});
+
+test('the head-chef roster reference gives the repo rule as the check holds it (claim 16, the repo rule)', async () => {
+  const { readFile } = await import('node:fs/promises');
+  const ref = await readFile(new URL('../skills/head-chef/references/roster.md', import.meta.url), 'utf8');
+  // The field is named, with when to set it and its shape.
+  const rule = ref.split('\n- ').find(b => b.startsWith('`repo`'));
+  assert.ok(rule, 'roster.md has a bullet for `repo`');
+  assert.match(rule, /another repository/);
+  assert.match(rule, /owner\/name/);
+  assert.match(rule, /no host/);
+  // Every owner/name the reference shows as an example passes the check.
+  const examples = [...ref.matchAll(/"repo": "([^"]*)"/g)].map(m => m[1]);
+  assert.ok(examples.length > 0, 'the example call carries a repo');
+  for (const e of examples) assert.match(e, REPO);
+  // The caps line names the field's limits as REPO holds them.
+  assert.match(ref, /`repo` an owner of at most 39 and a name of at most 100/);
+});

@@ -110,15 +110,25 @@ Linux, the last two by absolute path. The absolute path pins only the opener:
 on Linux it then starts its desktop helper, or a fallback browser, by name on
 the inherited PATH. On a host it cannot identify it runs nothing.
 **Since 0.64.0 the pane runs `gh`.** While its pane is open and a shown card
-carries a pull request number, it runs one fixed command, `gh pr list`, once a
-minute, with no roster text in it, a 15-second limit and one run at a time.
+carries a pull request number, it runs `gh pr list` with one fixed argument
+list, with at most one checked owner/name from a card's field passed as
+`GH_REPO` in the run's environment, whose characters keep any host form out:
+once a minute per repository, at most 6 runs a minute, with a 15-second limit
+and one run at a time. Since 0.85.0 a card may carry `repo`, the owner/name of
+its pull request's repository when that is not the lead's own; `set_roster`
+refuses any other value, a roster file holding one fails its read, and the
+roster file keeps the field at rest with the rest of the card.
 `gh` is the owner's own GitHub command line tool: the call sends the owner's
 GitHub credential to GitHub, and it inherits the session's environment, keys
 and tokens included. On Windows the engine was measured to run the real `gh`
 from the system path, not a stub in the working folder. On macOS and Linux the
 pane runs nothing when the inherited PATH has an empty or relative entry. The
-environment and the working folder's git remotes choose the repository, and the
-pane pins the first answer's repository for the session. The titles and
+environment and the working folder's git remotes choose the repository for
+the cards that name none, and the pane pins the first answer's repository for
+the session. A named repository's answer counts only when every pull request
+in it names that repository, and its rows, up to 100, stay in module memory
+and go once no card names it. A named card's chip and row name the
+repository a click opens. The titles and
 repository names it gets, private ones included, are drawn on every surface;
 its error text is never shown or stored.
 Everything it reads is checked and drawn as text, in the usage image too.
