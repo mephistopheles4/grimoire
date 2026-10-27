@@ -172,10 +172,15 @@ oldest decision you have not read, from this lead's log and the 20 most recent
 other leads' logs, at full size: "n of N", the pick, which session wrote it,
 whether it was the lead's own pick or your answer as the lead relayed it, the
 time and level, the question, the options, why, how to undo it, and when to
-revisit it. "✓ Read, next" marks it read and shows the next; Skip shows the
-next without marking it. Your marks survive a reload and a new lead. History,
-folded at first, holds every decision newest first, 50 at a time. On Desktop
-and the terminal a search box filters both by every word you type.
+revisit it. "✓ Read, next" marks it read and shows the next; "⚑ Flag" marks
+it read and puts it in Flagged to revisit; Skip shows the next without marking
+it. Flagged to revisit, folded at first, holds the flagged decisions oldest
+first; each row opens into the same card, with "⚑ Unflag", and its pick box
+feeds the same selection island as the Sessions view, whose Dismiss unflags
+the picked rows and marks them read. No press removes a decision from a log.
+Your marks survive a reload and a new lead. History, folded at first, holds
+every decision newest first, 50 at a time. On Desktop and the terminal a
+search box filters all three by every word you type.
 
 A row that waits on you and holds a large context says when to reply
 to keep its cache, or suggests a hand-off once it has gone cold. Under its
@@ -317,8 +322,8 @@ files you ask for:
   started. It writes a roster file and a usage summary file in the plugin's
   data folder; the summary file is written in every session, pane open or not.
   Since 0.81.0 it also writes each lead's decision log, one entry per
-  decision the lead logs, and a marks file of the Read presses you make in its
-  Decisions tab, both in plain text in the same folder, never removed by the
+  decision the lead logs, and a marks file of the Read, Flag, Unflag and
+  Dismiss presses you make in its Decisions tab, both in plain text in the same folder, never removed by the
   mod; while the pane is open it reads this session's files and the 20 newest
   other sessions' ([ADR 0010](docs/adr/0010-the-mod-keeps-decision-text-in-plain-files.md)).
   Open in app asks the Desktop app to show a session, or opens a `claude://`

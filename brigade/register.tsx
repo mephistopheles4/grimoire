@@ -53,14 +53,16 @@ import {
   FULL,
   MAX_LOG_BYTES,
   MAX_MARKS_BYTES,
+  HISTORY_PAGE,
   MAX_OTHER_FILES,
-  addMark,
+  addMarks,
   appendEntry,
   checkInput,
   checkLog,
   checkMarks,
   cleanLines,
   emptyLog,
+  flaggedRows,
   historyRows,
   markKey,
   mergeMarks,
@@ -208,7 +210,7 @@ const viewAtom = atom({ plugin: 'grimoire', key: 'view' } as const, 'sessions')
 const picked = atom({ plugin: 'grimoire', key: 'picked' } as const, [])
 const folded = atom({ plugin: 'grimoire', key: 'folded' } as const, [])
 // The groups that start folded each time the pane opens.
-const STARTS_FOLDED = ['finished', 'd-history']
+const STARTS_FOLDED = ['finished', 'd-flagged', 'd-history']
 // The Decisions tab's search text, read again through its cap before use, and
 // a counter the decision reads move so the pane redraws: it carries no text.
 const query = atom({ plugin: 'grimoire', key: 'query' } as const, '')
@@ -511,11 +513,17 @@ let tabRead: TabRead = { logs: [], marks: [], skipped: 0, beyond: 0, tooMany: fa
 // Each running session's name and id, from the live poll's session files,
 // for each log's writer.
 let sessionRows: SessionRow[] = []
-// The entries skipped, the History rows opened and History's pages, for this
-// pane's life; and whether the last mark could not be written.
+// The entries skipped, the History and Flagged rows opened, the Flagged rows
+// picked for the Dismiss island and History's pages, for this pane's life;
+// and whether the last mark could not be written. Each set holds mark keys,
+// which name a session id, so they stay in this module and never reach
+// plugin state or a button's key.
 const skipped = new Set<string>()
 const openedRows = new Set<string>()
+const openedFlagged = new Set<string>()
+const pickedRows = new Set<string>()
 let historyPages = 1
+let flaggedPages = 1
 let markFailed = false
 let readingDecisions = false
 
@@ -682,9 +690,9 @@ function marksTurn<T>(work: () => Promise<T>): Promise<T> {
 const LOG_AFTER = 'Brigade: after a decision was logged, the decision log path failed its check. Something changed it between the check and the write; check the plugin\'s data folder.'
 const MARKS_AFTER = 'Brigade: after a mark was saved, the marks path failed its check. Something changed it between the check and the write; check the plugin\'s data folder.'
 
-// One mark in this session's own marks file, written in its queue. False when
-// it could not be written; then nothing was changed.
-async function writeMark($: EngineInterface, r: Row, state: 'read' | 'flagged' | 'unflagged'): Promise<boolean> {
+// One mark for each row given, in this session's own marks file, in one write
+// in its queue. False when they could not be written; then nothing was changed.
+async function writeMarks($: EngineInterface, rows: readonly Row[], state: 'read' | 'flagged' | 'unflagged'): Promise<boolean> {
   return marksTurn(async () => {
     try {
       const at = await where($)
@@ -700,7 +708,7 @@ async function writeMark($: EngineInterface, r: Row, state: 'read' | 'flagged' |
       }
       const now = await $.clock.now()
       const known = new Set(tabRead.logs.flatMap(l => l.log.entries.map(e => markKey(l.sid, e.id, e.at))))
-      const value = addMark(file, { log: r.sid, id: r.entry.id, entryAt: r.entry.at, state, at: now }, known)
+      const value = addMarks(file, rows.map(r => ({ log: r.sid, id: r.entry.id, entryAt: r.entry.at, state, at: now })), known)
       const text = serializeMarks(value)
       if ('error' in text) return false
       await $.fs.write(placed.file, text.value)
@@ -720,21 +728,71 @@ async function writeMark($: EngineInterface, r: Row, state: 'read' | 'flagged' |
 const tabLogs = (): ReadLog[] => tabRead.logs.map(l => ({ ...l, writer: writerName(sessionRows, l.sid) }))
 const queryFrom = (stored: unknown): string => (typeof stored === 'string' ? [...stored].slice(0, 200).join('') : '')
 
-// A press on To review's Read, next or Skip: it acts only when the entry its
-// key names, by id and time, is still the one shown.
+// A press on To review's Read, next, Flag or Skip: it acts only when the
+// entry its key names, by id and time, is still the one shown. Flag marks it
+// flagged, which counts as read, so it leaves To review for Flagged.
 async function pressReview($: EngineInterface, verb: string, id: string, entryAt: number) {
   const now = await $.clock.now()
   const q = reviewQueue(tabLogs(), mergeMarks(tabRead.marks.map(m => m.file), now), skipped, searchWords(queryFrom(await read($, query))))
   const head = q.head
   if (head === undefined || head.entry.id !== id || head.entry.at !== entryAt) return
   const k = markKey(head.sid, head.entry.id, head.entry.at)
-  if (verb === 'dnext') {
-    const saved = await writeMark($, head, 'read')
+  if (verb === 'dnext' || verb === 'dflag') {
+    const saved = await writeMarks($, [head], verb === 'dflag' ? 'flagged' : 'read')
     markFailed = !saved
     if (saved) skipped.delete(k)
   } else {
     skipped.add(k)
     if (q.order.every(r => skipped.has(markKey(r.sid, r.entry.id, r.entry.at)))) skipped.clear()
+  }
+  await update($, decisionsSeen, n => ((typeof n === 'number' ? n : 0) + 1) % 1000000)
+}
+
+// Flagged to revisit as the tab draws it now: the logs read, the merged marks
+// and the search.
+async function flaggedNow($: EngineInterface): Promise<Row[]> {
+  const now = await $.clock.now()
+  return flaggedRows(tabLogs(), mergeMarks(tabRead.marks.map(m => m.file), now), searchWords(queryFrom(await read($, query))))
+}
+
+// A press on a Flagged row's fold, pick box or Unflag: it acts only when the
+// row at the place its key names still holds the entry, by id and time.
+// Unflag marks the entry unflagged, which counts as read.
+async function pressFlagged($: EngineInterface, verb: string, place: number, id: string, entryAt: number) {
+  const r = (await flaggedNow($))[place]
+  if (r === undefined || r.entry.id !== id || r.entry.at !== entryAt) return
+  const k = markKey(r.sid, r.entry.id, r.entry.at)
+  if (verb === 'dfopen') {
+    if (openedFlagged.has(k)) openedFlagged.delete(k)
+    else openedFlagged.add(k)
+  } else if (verb === 'dfpick') {
+    if (pickedRows.has(k)) pickedRows.delete(k)
+    else if (pickedRows.size < MAX_PICKED) pickedRows.add(k)
+  } else {
+    const saved = await writeMarks($, [r], 'unflagged')
+    markFailed = !saved
+    if (saved) {
+      pickedRows.delete(k)
+      openedFlagged.delete(k)
+    }
+  }
+  await update($, decisionsSeen, n => ((typeof n === 'number' ? n : 0) + 1) % 1000000)
+}
+
+// The Dismiss island on the Decisions tab: every picked row still shown in
+// Flagged is unflagged, which counts as read, in one write; a pick no longer
+// flagged is left out. A write that fails changes nothing and keeps the picks.
+async function dismissFlagged($: EngineInterface) {
+  const rows = (await flaggedNow($)).filter(r => pickedRows.has(markKey(r.sid, r.entry.id, r.entry.at)))
+  if (rows.length > 0) {
+    const saved = await writeMarks($, rows, 'unflagged')
+    markFailed = !saved
+    if (saved) {
+      for (const r of rows) {
+        pickedRows.delete(markKey(r.sid, r.entry.id, r.entry.at))
+        openedFlagged.delete(markKey(r.sid, r.entry.id, r.entry.at))
+      }
+    }
   }
   await update($, decisionsSeen, n => ((typeof n === 'number' ? n : 0) + 1) % 1000000)
 }
@@ -1190,7 +1248,10 @@ async function openPane($: EngineInterface, wait: boolean, reached: { open: bool
   await update($, query, () => '')
   skipped.clear()
   openedRows.clear()
+  openedFlagged.clear()
+  pickedRows.clear()
   historyPages = 1
+  flaggedPages = 1
   markFailed = false
   const opened = await $.ui.open({ id: PANE, title: TITLE })
   reached.open = true
@@ -1765,10 +1826,11 @@ export const register: Register = on => {
       await update($, viewAtom, () => (e.element === 'view-prs' ? 'prs' : e.element === 'view-decisions' ? 'decisions' : 'sessions'))
       return { element: e.element }
     }
-    // The Decisions tab's keys, matched whole: To review's two buttons carry
-    // the shown entry's id and time, a History row its place, id and time,
-    // and none a session id.
-    const review = /^(dnext|dskip)-([1-9][0-9]{0,15})-([0-9]{1,16})$/.exec(e.element)
+    // The Decisions tab's keys, matched whole: To review's three buttons carry
+    // the shown entry's id and time, a History or Flagged row's its place, id
+    // and time, and none a session id. The island's two have their own words,
+    // so a press on them is never read as the Sessions tab's.
+    const review = /^(dnext|dflag|dskip)-([1-9][0-9]{0,15})-([0-9]{1,16})$/.exec(e.element)
     if (review !== null) {
       await pressReview($, review[1] ?? '', review[2] ?? '', Number(review[3]))
       return { element: e.element }
@@ -1782,6 +1844,25 @@ export const register: Register = on => {
         else openedRows.add(k)
         await update($, decisionsSeen, n => ((typeof n === 'number' ? n : 0) + 1) % 1000000)
       }
+      return { element: e.element }
+    }
+    const flagged = /^(dfopen|dfpick|dunflag)-([0-9]{1,5})-([1-9][0-9]{0,15})-([0-9]{1,16})$/.exec(e.element)
+    if (flagged !== null) {
+      await pressFlagged($, flagged[1] ?? '', Number(flagged[2]), flagged[3] ?? '', Number(flagged[4]))
+      return { element: e.element }
+    }
+    if (e.element === 'dbardismiss') {
+      await dismissFlagged($)
+      return { element: e.element }
+    }
+    if (e.element === 'dbarclear') {
+      pickedRows.clear()
+      await update($, decisionsSeen, n => ((typeof n === 'number' ? n : 0) + 1) % 1000000)
+      return { element: e.element }
+    }
+    if (e.element === 'dfmore') {
+      flaggedPages = Math.min(flaggedPages + 1, 1000)
+      await update($, decisionsSeen, n => ((typeof n === 'number' ? n : 0) + 1) % 1000000)
       return { element: e.element }
     }
     if (e.element === 'dmore') {
@@ -1921,6 +2002,10 @@ export const register: Register = on => {
     const dQueue = reviewQueue(dLogs, dStates, skipped, words)
     const dUnread = reviewQueue(dLogs, dStates, skipped, []).total
     const dHistory = historyRows(dLogs, words, historyPages)
+    const dFlagged = flaggedRows(dLogs, dStates, words)
+    const dFlaggedAll = words.length > 0 ? flaggedRows(dLogs, dStates, []).length : dFlagged.length
+    // The island on this tab counts only the picks Flagged shows.
+    const dPicked = dFlagged.filter(r => pickedRows.has(markKey(r.sid, r.entry.id, r.entry.at))).length
     const dTotal = dLogs.reduce((n, l) => n + l.log.entries.length, 0)
     const dMissing = dLogs.reduce((n, l) => n + missingIds(l.log), 0)
 
@@ -2462,9 +2547,12 @@ export const register: Register = on => {
     // --- the Decisions tab (spec 402, S5.4) ---
     //
     // To review: the oldest unread entry across the logs read, as a card, with
-    // Read, next and Skip. History, folded by default: every entry newest
-    // first, 50 a page, each row opening into the same card. Every field is
-    // drawn as text through the one-line cleaner, line by line.
+    // Read, next, Flag and Skip. Flagged to revisit, folded by default: the
+    // flagged entries oldest first, 50 a page, each row with a pick box for
+    // the Dismiss island and opening into the same card, with Unflag. History, folded by
+    // default: every entry newest first, 50 a page, each row opening into the
+    // same card. Every field is drawn as text through the one-line cleaner,
+    // line by line.
     const stamp = (at: number) => {
       const d = new Date(at)
       return Number.isFinite(d.getTime()) ? d.toISOString().slice(0, 16).replace('T', ' ') : ''
@@ -2581,6 +2669,64 @@ export const register: Register = on => {
         </Box>
       )
     }
+    // A Flagged row: as a History row, with a pick box first, drawn as a
+    // card's checkbox is; an opened row's card has Unflag in place of Flag.
+    const flaggedRow = (r: Row, i: number) => {
+      const k = markKey(r.sid, r.entry.id, r.entry.at)
+      const isOpen = openedFlagged.has(k)
+      const isPicked = pickedRows.has(k)
+      const key = `${i}-${r.entry.id}-${r.entry.at}`
+      return (
+        <Box flexDirection="column" paddingX={terminal ? 0 : 'sm'} {...hoverFill(`dfrow-${i}`)}>
+          <Box flexDirection="row" columnGap={1} alignItems="flex-start">
+            {/* On the terminal a framed button, as a card's checkbox is
+                there; elsewhere a plain ○ that turns into ✓. */}
+            <Box flexShrink={0} {...(terminal ? {} : { width: CHECK_CELLS_DESKTOP })}>
+              {terminal ? (
+                isPicked ? (
+                  <Button key={`dfpick-${key}`} onPress={noop}>
+                    ✓
+                  </Button>
+                ) : (
+                  <Button key={`dfpick-${key}`} dimColor onPress={noop}>
+                    {UNTICKED_TERMINAL}
+                  </Button>
+                )
+              ) : isPicked ? (
+                <Button key={`dfpick-${key}`} plain onPress={noop}>
+                  <Text color="success">✓</Text>
+                </Button>
+              ) : (
+                <Button key={`dfpick-${key}`} plain dimColor onPress={noop}>
+                  ○
+                </Button>
+              )}
+            </Box>
+            <Box flexDirection="column" flexGrow={1} flexShrink={1} minWidth={0}>
+              <Button key={`dfopen-${key}`} plain onPress={noop}>
+                <Text dimColor>{`${isOpen ? '▾' : '▸'} `}</Text>
+                <Text dimColor>{headline(r)}</Text>
+              </Button>
+              <Text dimColor size="footnote" wrap="truncate-end">
+                {`${r.writer} · ${oneLine(r.entry.work, 80)} · decision ${r.entry.id}`}
+              </Text>
+            </Box>
+            <Box flexDirection="column" flexShrink={0} alignItems="flex-end">
+              <Text dimColor>{sourceLabel(r.entry, r.writer)}</Text>
+              <Text dimColor size="footnote" tabular>
+                {stamp(r.entry.at)}
+              </Text>
+            </Box>
+          </Box>
+          {isOpen &&
+            entryCard(r, undefined, [
+              <Button key={`dunflag-${key}`} dimColor onPress={noop}>
+                ⚑ Unflag
+              </Button>,
+            ])}
+        </Box>
+      )
+    }
     // The dim line: what the read left out, by count, never by name.
     const dimLine = [
       tabRead.tooMany ? 'A decision or marks folder lists over 5,000 entries, so no other session\'s file was read from it' : undefined,
@@ -2609,6 +2755,9 @@ export const register: Register = on => {
                 <Button key={`dnext-${head.entry.id}-${head.entry.at}`} variant="primary" onPress={noop}>
                   ✓ Read, next
                 </Button>,
+                <Button key={`dflag-${head.entry.id}-${head.entry.at}`} dimColor onPress={noop}>
+                  ⚑ Flag
+                </Button>,
                 <Button key={`dskip-${head.entry.id}-${head.entry.at}`} dimColor onPress={noop}>
                   Skip
                 </Button>,
@@ -2617,6 +2766,22 @@ export const register: Register = on => {
               ? quiet('No unread decision matches the search.')
               : hint('d-review'))}
         {markFailed && <Text color="error">Not saved: the mark could not be written</Text>}
+        {groupHead('d-flagged', dFlagged.length)}
+        {!folds.has('d-flagged') &&
+          (dFlagged.length === 0 ? (
+            words.length > 0 && dFlaggedAll > 0 ? quiet('No flagged decision matches the search.') : hint('d-flagged')
+          ) : (
+            <Box flexDirection="column">
+              {dFlagged.slice(0, flaggedPages * HISTORY_PAGE).map(flaggedRow)}
+              {dFlagged.length > flaggedPages * HISTORY_PAGE && (
+                <Box marginTop={1}>
+                  <Button key="dfmore" dimColor onPress={noop}>
+                    Show more
+                  </Button>
+                </Box>
+              )}
+            </Box>
+          ))}
         {groupHead('d-history', dHistory.total)}
         {!folds.has('d-history') &&
           (dHistory.rows.length === 0 ? (
@@ -2640,6 +2805,21 @@ export const register: Register = on => {
             </Text>
           </Box>
         )}
+      </Box>
+    )
+
+    // The selection bar, the same island on every tab: the count, Dismiss and ✕.
+    const island = (count: number, dismissKey: string, clearKey: string) => (
+      <Box flexDirection="row" justifyContent="center" marginTop="md" marginBottom="sm">
+        <Box flexDirection="row" alignItems="center" columnGap="md" paddingX="md" {...(terminal ? { borderStyle: 'round', borderColor: 'inactive', backgroundColor: 'subtle' } : { borderStyle: 'round', borderColor: DARK_FILLS.tip, backgroundColor: DARK_FILLS.hover })}>
+          <Text>{`${count} selected`}</Text>
+          <Button key={dismissKey} plain onPress={noop}>
+            ✓ Dismiss
+          </Button>
+          <Button key={clearKey} plain dimColor onPress={noop}>
+            ✕
+          </Button>
+        </Box>
       </Box>
     )
 
@@ -2807,19 +2987,10 @@ export const register: Register = on => {
         {/* A spacer takes the room left in a docked pane, so the selection bar
             and Usage sit at its foot. */}
         <Box flexGrow={1} />
-        {selected > 0 && (
-          <Box flexDirection="row" justifyContent="center" marginTop="md" marginBottom="sm">
-            <Box flexDirection="row" alignItems="center" columnGap="md" paddingX="md" {...(terminal ? { borderStyle: 'round', borderColor: 'inactive', backgroundColor: 'subtle' } : { borderStyle: 'round', borderColor: DARK_FILLS.tip, backgroundColor: DARK_FILLS.hover })}>
-              <Text>{`${selected} selected`}</Text>
-              <Button key="bardismiss" plain onPress={noop}>
-                ✓ Dismiss
-              </Button>
-              <Button key="barclear" plain dimColor onPress={noop}>
-                ✕
-              </Button>
-            </Box>
-          </Box>
-        )}
+        {/* The Dismiss island: on the Decisions tab it holds the picked
+            Flagged rows, under its own keys; on the other two, the picked
+            cards. */}
+        {view === 'decisions' ? dPicked > 0 && island(dPicked, 'dbardismiss', 'dbarclear') : selected > 0 && island(selected, 'bardismiss', 'barclear')}
         <Box flexDirection="column" marginTop={1}>
           <Text bold>Usage</Text>
           {metered.kind === 'none' && <Text dimColor>No reading yet: it arrives with the next reply.</Text>}
