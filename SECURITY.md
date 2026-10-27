@@ -283,7 +283,8 @@ foot of the Decisions tab. What follows from it:
   waiting, leftover worktrees by branch, and what is open for the owner, with
   the time and the project digest. Who can read it is as for the log; the
   owner accepted the hand-off at rest with the log on 2026-10-26 (q9 A on
-  #402).
+  #402), and that other local accounts that can read the profile's data
+  folder can read it too on 2026-10-27 (q3 A on #402's ticket 413).
 - **What chooses another session's hand-off:** the project digest, from the
   session-start record in plugin state, which other plugins can rewrite, so a
   rewritten record can offer a new lead another working folder's hand-off;
