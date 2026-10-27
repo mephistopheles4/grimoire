@@ -6456,3 +6456,20 @@ for (const surface of ['terminal', 'desktop', 'mobile'] as const) {
     else expect(await mounted.find({ type: 'Svg', alt: 'Autonomy level 3 of 3' })).toBeDefined()
   })
 }
+
+test('claim 11: a press made while a raise is still being logged wins: the raise does not happen, and both presses are logged', async ($, on) => {
+  const w = await decisionsPane(on, $)
+  w.holdWrite = true
+  const raise = press($, 'level-3')
+  await w.clock.settle()
+  const lower = press($, 'level-1')
+  await w.clock.settle()
+  w.holdWrite = false
+  w.release()
+  await raise
+  await lower
+  await w.clock.settle()
+  expect((await readLevel($)).text).toBe(LEVEL_1)
+  expect(ownEntries(w)).toEqual(['owner 3 Full throttle · Moved in the pane · level 1', 'owner 1 Manual · Moved in the pane · level 1'])
+  expect((await mounted.find({ key: 'level-1' }))?.props.variant).toBe('primary')
+})

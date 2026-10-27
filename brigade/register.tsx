@@ -128,6 +128,7 @@ import {
   movesFrom,
   hairlineSvg,
   idsFrom,
+  levelTrackSvg,
   isReason,
   linkStep,
   liveState,
@@ -3295,26 +3296,15 @@ export const register: Register = on => {
     // The autonomy slider: the level in force, the track, a stop for each
     // level, the chosen one primary, and a line saying what it lets the lead
     // do; level 3 in the warning colour. The track is an image where images
-    // draw, its fills fixed values, and text on the terminal.
-    const lit = level === 3 ? '#e0a040' : level === 2 ? '#d97757' : '#8a8984'
-    const off = '#4a4a47'
-    const trackStop = (x: string, isLit: boolean, dx: number) =>
-      `<svg x="${x}" overflow="visible"><circle cx="${dx}" cy="7" r="${isLit ? 5 : 4}" fill="${isLit ? lit : DARK_FILLS.hover}" stroke="${isLit ? lit : off}" stroke-width="2"/></svg>`
-    const trackSvg =
-      '<svg xmlns="http://www.w3.org/2000/svg" width="100%" height="14">' +
-      `<rect x="0" y="6" width="100%" height="2" fill="${off}"/>` +
-      `<rect x="0" y="6" width="${level === 1 ? '0' : level === 2 ? '50%' : '100%'}" height="2" fill="${lit}"/>` +
-      trackStop('0', true, 6) +
-      trackStop('50%', level >= 2, 0) +
-      trackStop('100%', level >= 3, -6) +
-      '</svg>'
+    // draw (view.ts) and text on the terminal.
+    const track = levelTrackSvg(level)
     const trackText = ['●', '━━━━━', level >= 2 ? '●' : '○', '━━━━━', level >= 3 ? '●' : '○'].join('')
     const slider = (
       <Box flexDirection="column" paddingX={terminal ? 0 : 'md'} paddingY={terminal ? 0 : 'sm'} rowGap={terminal ? 0 : 'sm'} marginTop={terminal ? 1 : 'md'} {...(terminal ? {} : { borderStyle: 'round' as const, borderColor: level === 3 ? 'warning' : DARK_FILLS.bar, backgroundColor: DARK_FILLS.hover })}>
         <Text weight="medium">{`Autonomy · ${levelOption(level)}`}</Text>
         {Image !== undefined ? (
           <Box flexDirection="column" flexGrow={1}>
-            <Image source={trackSvg} alt={`Autonomy level ${level} of 3`} height={14} />
+            <Image source={track.source} alt={track.alt} height={track.height} />
           </Box>
         ) : level === 3 ? (
           <Text color="warning">{trackText}</Text>
