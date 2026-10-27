@@ -354,8 +354,9 @@ files you ask for:
   Dismiss presses you make in its Decisions tab, both in plain text in the same folder, never removed by the
   mod, and since 0.83.0 each lead's hand-off, its working state, beside them.
   Since 0.84.0 the log also holds each move of the autonomy slider, each reset
-  and each alarm, with its time, except an alarm that repeats while an earlier
-  one is unread, which the pane counts instead. The level the mod reads is kept only in the
+  and each alarm, with its time; since 0.85.0, not an alarm that repeats
+  while an earlier one is unread, which the pane counts instead. The level the
+  mod reads is kept only in the
   lead session's plugin state, with that session's id, which other plugins
   can read, never in a file; each answer of
   `read_autonomy`, `log_decision` and `set_lead_handoff` names it in the
