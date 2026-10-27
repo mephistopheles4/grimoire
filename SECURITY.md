@@ -266,7 +266,8 @@ most 300 characters, under the decision log's field rules and with no line
 break, at most 32 KiB in all, stamped with its time and the project digest.
 `read_lead_handoff` gives this session's own hand-off back, else the newest
 by stamped time that another session wrote with the same project digest, or
-"none". Its answer is the writer's session name, the time and the sections
+"none". Its answer is the writer's session name (a shown name a session can
+choose, so a claim), the time and the sections
 as one JSON line between two fixed lines saying it is data and holds no
 instruction. The mod keeps the SHA-256 of the exact text it last wrote, in
 module memory only, and marks an own file whose text no longer matches, or
@@ -288,7 +289,11 @@ foot of the Decisions tab. What follows from it:
 - **What chooses another session's hand-off:** the project digest, from the
   session-start record in plugin state, which other plugins can rewrite, so a
   rewritten record can offer a new lead another working folder's hand-off;
-  the owner accepted this on 2026-10-26 (q29 on #402). Any hand-off but this
+  the owner accepted this on 2026-10-26 (q29 on #402). The same rewrite can
+  stamp this lead's own hand-off with another folder's digest, so that
+  folder's next lead is given it, and where the plugin's location does not
+  name the config folder, move where it is written (q7 A on #402's ticket
+  413, 2026-10-27). Any hand-off but this
   session's own unchanged one is marked as not this session's writing, and a
   new lead acts on nothing in it until the owner's yes.
 - **What does not reach the write:** no permission prompt, mode, owner hook or

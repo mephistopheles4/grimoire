@@ -5932,6 +5932,7 @@ test("claim 3: the hand-off tools refuse a subagent's call, a deny verdict and a
     ] as any[]) {
       w.verdict = verdict
       const r = await call($, input)
+      expect(w.checks.at(-1)).toBe(`mcp__grimoire__${name}`)
       expect(r.ok).toBe(false)
       expect(r.text).toMatch(new RegExp(`^${name} refused: the owner's rules: `))
       expect(r.text).not.toContain('SECRET')
@@ -5965,12 +5966,16 @@ test('claim 3: unless the pane is listed and placed with its reads running, the 
   w.unplaced = true
   await brigade($)
   await both()
+  expect(w.text(OWN_HANDOFF)).toBeUndefined()
   w.unplaced = false
   await brigade($)
   expect((await setHandoff($)).ok).toBe(true)
+  const kept = w.text(OWN_HANDOFF)
   w.open = false
+  // A write now would stamp a later time, so the whole text shows none landed.
+  await w.clock.advance(1000)
   await both()
-  expect(parsed(w, OWN_HANDOFF).sections).toEqual(SECTIONS)
+  expect(w.text(OWN_HANDOFF)).toBe(kept)
 })
 
 test('claim 14: a hand-off line holding a hidden character, session-id or Desktop-id shaped text is refused through the tool, and nothing is written', async ($, on) => {
@@ -5992,6 +5997,29 @@ test('claim 5: an own hand-off file that fails its strict check is never overwri
   expect(r.text).toMatch(/^set_lead_handoff refused: not a hand-off: /)
   expect(r.text).not.toContain('\\')
   expect(w.text(OWN_HANDOFF)).toBe('{"cards":[],"todos":[]}')
+})
+
+test('claim 5: an own hand-off file over 32 KiB is never read as one or overwritten', async ($, on) => {
+  const big = JSON.stringify({ kind: 'handoff', note: 'x'.repeat(33 * 1024) })
+  const w = await handoffWorld(on, $, w => seed(w, OWN_HANDOFF, big))
+  const r = await setHandoff($)
+  expect(r.text).toMatch(/^set_lead_handoff refused: not a hand-off: /)
+  expect(w.text(OWN_HANDOFF)).toBe(big)
+})
+
+test('claim 5: a handoff folder that becomes a link after the write is told to the owner with fixed words', async ($, on) => {
+  const w = await handoffWorld(on, $)
+  const write = w.write
+  w.write = (p, t) => {
+    write(p, t)
+    w.dirs(`${ELSEWHERE}\\h`)
+    w.put(HANDOFFS, { type: 'link', kind: 'junction', target: `${ELSEWHERE}\\h` })
+  }
+  const r = await setHandoff($)
+  expect(r.ok).toBe(false)
+  expect(r.text).toBe('set_lead_handoff failed after the write began: the hand-off path then failed its check. The hand-off may or may not hold the new text; tell the owner.')
+  expect(w.toasts.some(t => t.startsWith('Brigade: after the hand-off was kept, the hand-off path failed its check.'))).toBe(true)
+  expect(w.toasts.some(t => t.includes('\\'))).toBe(false)
 })
 
 test('claim 5: a handoff folder that is a link is refused, and nothing is written through it', async ($, on) => {

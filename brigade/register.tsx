@@ -628,6 +628,9 @@ async function readDecisions($: EngineInterface, live: () => boolean) {
     const at = await where($)
     if ('error' in at) return
     const now = await $.clock.now()
+    // A clock answer that is not a whole number reads nothing this tick, so
+    // no file dated ahead slips past the skip.
+    if (!Number.isSafeInteger(now) || now < 0) return
     const next: TabRead = { ...EMPTY_READ, logs: [], marks: [], handoffs: [], sid: at.id, project: projectDigest(await read($, started), at.id) }
     let changed = false
     const kept = new Set<string>()
@@ -1807,6 +1810,8 @@ async function readLeadHandoff($: EngineInterface, e: Record<string, unknown>, s
     if (signal.aborted) return refuseRead('abandoned: the call ran out of time or was interrupted before its turn')
     if (!(await readsRunning($))) return refuseRead(PANE_RULE)
     const now = await $.clock.now()
+    // A clock answer that is not a whole number could pass a file dated ahead.
+    if (!Number.isSafeInteger(now) || now < 0) return refuseRead('clock: the engine clock gave no whole number of milliseconds')
     const l = await listKind($, at, 'handoff')
     if (l.refused) return refuseRead('path: the hand-off path failed its check')
     // This session's own file is read afresh, so its digest and its fields

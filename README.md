@@ -335,7 +335,10 @@ files you ask for:
   Since 0.81.0 it also writes each lead's decision log, one entry per
   decision the lead logs, and a marks file of the Read, Flag, Unflag and
   Dismiss presses you make in its Decisions tab, both in plain text in the same folder, never removed by the
-  mod, and since 0.83.0 each lead's hand-off, its working state, beside them;
+  mod, and since 0.83.0 each lead's hand-off, its working state, beside them.
+  The files are named by session id, and the log and the hand-off hold a plain
+  SHA-256 digest of the working folder's transcript-folder name, never the
+  name, which links one working folder's sessions;
   while the pane is open it reads this session's files and the 20 newest
   other sessions' ([ADR 0010](docs/adr/0010-the-mod-keeps-decision-text-in-plain-files.md)).
   Open in app asks the Desktop app to show a session, or opens a `claude://`
