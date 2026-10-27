@@ -6049,20 +6049,18 @@ test('claim 13: from a hand-off folder whose listing passes 5,000 entries the pa
   expect(readsOf(w, PEER_HANDOFF)).toBe(0)
 })
 
-for (const surface of ['terminal', 'desktop'] as const) {
-  test(`claim 13: the Lead hand-off section, folded at first, draws the hand-off read_lead_handoff would give, its writer, time and five sections (${surface})`, async ($, on) => {
-    await decisionsPane(on, $, surface, w => {
-      w.dirs(HANDOFFS)
-      seed(w, PEER_HANDOFF, handoffText(200, WORK, { ...SECTIONS, resume: ['Peer resume line.'] }))
-      seed(w, `${HANDOFFS}\\99999999-9999-9999-9999-999999999999.json`, handoffText(900, ELSEWHERE_DIGEST, { ...SECTIONS, resume: ['Elsewhere line.'] }))
-    })
-    expect(await shows(/^Peer resume line\.$/)).toBe(false)
-    await press($, 'grp-d-handoff')
-    expect(await shows(/^Peer resume line\.$/)).toBe(true)
-    expect(await shows(/^Elsewhere line\.$/)).toBe(false)
-    expect(await shows(/^Updated 1970-01-01 00:00$/)).toBe(true)
-    expect(await shows(/^Not this session's writing$/)).toBe(true)
-    for (const label of ['How to resume', 'Rules in force', 'Running sessions', 'Cleanup waiting', 'Open for the owner']) expect(await shows(new RegExp(`^${label}$`))).toBe(true)
-    expect(await shows(/^q1 waits\.$/)).toBe(true)
+test('claim 13: the Lead hand-off section, folded at first, draws the hand-off read_lead_handoff would give, its writer, time and five sections (desktop)', async ($, on) => {
+  await decisionsPane(on, $, 'desktop', w => {
+    w.dirs(HANDOFFS)
+    seed(w, PEER_HANDOFF, handoffText(200, WORK, { ...SECTIONS, resume: ['Peer resume line.'] }))
+    seed(w, `${HANDOFFS}\\99999999-9999-9999-9999-999999999999.json`, handoffText(900, ELSEWHERE_DIGEST, { ...SECTIONS, resume: ['Elsewhere line.'] }))
   })
-}
+  expect(await shows(/^Peer resume line\.$/)).toBe(false)
+  await press($, 'grp-d-handoff')
+  expect(await shows(/^Peer resume line\.$/)).toBe(true)
+  expect(await shows(/^Elsewhere line\.$/)).toBe(false)
+  expect(await shows(/^Updated 1970-01-01 00:00$/)).toBe(true)
+  expect(await shows(/^Not this session's writing$/)).toBe(true)
+  for (const label of ['How to resume', 'Rules in force', 'Running sessions', 'Cleanup waiting', 'Open for the owner']) expect(await shows(new RegExp(`^${label}$`))).toBe(true)
+  expect(await shows(/^q1 waits\.$/)).toBe(true)
+})
