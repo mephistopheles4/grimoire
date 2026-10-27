@@ -341,12 +341,13 @@ skips the permission prompt, refuses a subagent's call and every verdict
 `set_roster` refuses, and answers 1 unless the pane is listed and placed with
 its reads running; a deny rule for `mcp__grimoire__read_autonomy` removes it.
 The stored level sits in plugin state as `autonomy`, this session's id and
-its level, never in a file; the last level a press set, a 3's press time and the
-Owner entries the pane wrote stay in the module's memory. The level in force
+its level, never in a file; the last level a press set, a 3's press time, the
+Owner entries the pane wrote, the alarms it wrote, a pending alarm and a
+reset's pending Pane entry stay in the module's memory. The level in force
 is 1 whenever the stored level differs from the last press, while an alarm
 or a reset's Pane entry waits to be logged, and for a 3 with no press time.
 A press that raises the level first logs what waits, then an Owner entry in
-the session's own log, and the raise does not happen if that cannot be
+the session's own log, and the raise does not happen if either cannot be
 written; a lowering always happens. Each new
 lead session starts at 1; a showing that makes the pane shown and a reload of
 the mod reset a level above 1 to 1 with a Pane entry; a session start or reload
