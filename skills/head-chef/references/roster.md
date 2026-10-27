@@ -49,20 +49,26 @@ the file itself.
   never a source for it.
 - `pr` and `prState` are the session's pull request, once it has one: its
   number, and `open`, `merged` or `closed`. The pane shows them as a pill.
-- `url` is a Remote Control session's claude.ai link. A Desktop session's card
-  carries `desktopId`, and a background session's card `bgId`, so leave `url`
-  out.
+- `url` is a Remote Control session's claude.ai link, and nothing else:
+  never an issue's or a pull request's address, which takes Open in app away.
+  A Desktop session's card carries `desktopId`, and a background session's
+  card `bgId`, so leave `url` out.
+- `work` names the repository and the issue number only, as in the example.
 - Caps: a title at most 80 characters; `work`, `phase` and `settings` at
   most 300; `desktopId`, `bgId` and `url` at most 100. A to-do's `id` at
   most 40, its `text` at most 300, its `session` at most 80. At most 50 cards and 50
   to-dos. No other field, no title twice, no to-do id twice.
 - No session id, and no question, decision or note text, goes on a card or a
-  to-do. Other plugins can read the pane's file.
+  to-do. Other plugins can read the pane's file. Decision text goes only
+  through `log_decision` and `set_lead_handoff`, under the skill's data
+  rules. A waiting entry's to-do has fixed text: "Decision <id> from <lead
+  name> waits for you in the Decisions tab".
 
 ## When to call it
 
-In the same step as each act: a start, a report taken, a decision sent, a
-cleanup, which removes the card.
+In the same turn as each act: a start, a report taken, a decision sent, a
+new question for the owner, a merge, a cleanup, which removes the card. A
+refused call is said once in your next report.
 
 ## The answers
 
