@@ -185,6 +185,8 @@ type World = ReturnType<typeof makeFs> & {
   unplaced: boolean
   /** The next open places a pane that was listed but not placed. */
   placeOnOpen: boolean
+  /** The open opens the pane, then rejects. */
+  rejectOpen: boolean
   /** How many times the pane list was asked. */
   panesCalls: number
   holdWrite: boolean
@@ -281,6 +283,7 @@ function world(on: On, setup: (w: World) => void = w => w.dirs(`${CONFIG}\\plugi
     unlisted: false,
     unplaced: false,
     placeOnOpen: false,
+    rejectOpen: false,
     panesCalls: 0,
     holdWrite: false,
     release: () => {},
@@ -387,6 +390,7 @@ function world(on: On, setup: (w: World) => void = w => w.dirs(`${CONFIG}\\plugi
   })
   on('ui.open', () => {
     w.open = true
+    if (w.rejectOpen) return { deny: 'forced open failure' }
     if (w.placeOnOpen) {
       w.placeOnOpen = false
       w.unplaced = false
@@ -6295,6 +6299,19 @@ test('claim 11: /brigade on a closed pane resets a level above 1 to 1 with a Pan
   await w.clock.advance(5000)
   expect((await readLevel($)).text).toBe(LEVEL_1)
   expect(ownEntries(w).slice(4)).toEqual(['owner 2 Auto · Moved in the pane · level 1', 'pane 1 Manual · The pane was shown again · level 1'])
+  // An open that rejects after opening the pane leaves its showing pending,
+  // so the next /brigade, which finds the pane shown, still resets.
+  await press($, 'view-decisions')
+  await press($, 'level-2')
+  w.open = false
+  await w.clock.advance(5000)
+  w.rejectOpen = true
+  await Promise.resolve(brigade($)).catch(() => undefined)
+  w.rejectOpen = false
+  await brigade($)
+  await w.clock.settle()
+  expect((await readLevel($)).text).toBe(LEVEL_1)
+  expect(ownEntries(w).slice(6)).toEqual(['owner 2 Auto · Moved in the pane · level 1', 'pane 1 Manual · The pane was shown again · level 1'])
 })
 
 test('claim 11: a level another plugin wrote, met by a showing before any poll, is logged as an alarm, not a Pane entry', async ($, on) => {
@@ -6357,6 +6374,16 @@ test('claim 11: a head-chef load that finds the pane shown keeps the level, and 
   await w.clock.settle()
   expect((await readLevel($)).text).toBe(LEVEL_1)
   expect(ownEntries(w).slice(4)).toEqual(['owner 2 Auto · Moved in the pane · level 1', 'pane 1 Manual · The pane was shown again · level 1'])
+  // So does a second load that finds it shown before the lead's turn.
+  await press($, 'view-decisions')
+  await press($, 'level-2')
+  w.unplaced = true
+  expect(added(await load($))).toBe(NOT_SHOWN)
+  w.unplaced = false
+  expect(added(await load($))).toBe(ALREADY_OPEN)
+  await w.clock.settle()
+  expect((await readLevel($)).text).toBe(LEVEL_1)
+  expect(ownEntries(w).slice(6)).toEqual(['owner 2 Auto · Moved in the pane · level 1', 'pane 1 Manual · The pane was shown again · level 1'])
 })
 
 test('claim 11: the late offer never undoes a press: a pane placed at the load, or one the owner pressed in before the turn, is not reset again', async ($, on) => {
@@ -6476,7 +6503,7 @@ test('claim 11: a poll catches a change not from a press before the file reads, 
   expect(ownEntries(w)).toEqual(['owner 2 Auto · Moved in the pane · level 1', 'alarm 3 Full throttle · Changed, not from a press · level 1'])
 })
 
-test('claim 10: an Owner entry this pane wrote, rewritten in place with another pick, time or id, or copied into a peer log, draws as recorded', async ($, on) => {
+test('claim 10: an Owner entry this pane wrote, rewritten in place with another pick, time, level or id, or copied into a peer log, draws as recorded', async ($, on) => {
   const w = await decisionsPane(on, $)
   await press($, 'level-2')
   await press($, 'grp-d-history')
@@ -6487,6 +6514,7 @@ test('claim 10: an Owner entry this pane wrote, rewritten in place with another 
   for (const change of [
     (log: any) => (log.entries[0].pick = '3 Full throttle'),
     (log: any) => (log.entries[0].at += 1),
+    (log: any) => (log.entries[0].level = 2),
     (log: any) => {
       log.entries[0].id = String(log.next)
       log.next += 1
@@ -6758,9 +6786,25 @@ test('claim 11: while an alarm waits to be logged, a level pressed since still r
     'alarm 3 Full throttle · Changed, not from a press · level 1',
   ])
   expect((await readLevel($)).text).toBe(LEVEL_1)
+  // A press below the last-pressed level while an alarm waits is a lowering
+  // too: it happens though it cannot be logged, so a 3 pressed since never
+  // comes back once the alarm is written.
+  plantOnce(w, 3)
+  await press($, 'level-2')
+  seed(w, LOG, '{"cards":[],"todos":[]}')
+  await w.clock.advance(5000)
+  expect(await shows(ALARM_LINE)).toBe(true)
+  w.drop(LOG)
+  await press($, 'level-3')
+  seed(w, LOG, '{"cards":[],"todos":[]}')
+  await press($, 'level-2')
+  w.drop(LOG)
+  await w.clock.advance(5000)
+  expect(ownEntries(w)).toEqual(['alarm 3 Full throttle · Changed, not from a press · level 1'])
+  expect((await readLevel($)).text).toBe(LEVEL_2)
 })
 
-test('claims 10 and 11: a showing while a raise is still being logged voids the raise, and a Pane entry follows its Owner entry', async ($, on) => {
+test('claims 10 and 11: a showing or a reload while a raise is still being logged voids the raise, and a Pane entry follows its Owner entry', async ($, on) => {
   const w = await decisionsPane(on, $)
   w.holdWrite = true
   const raise = press($, 'level-3')
@@ -6774,4 +6818,18 @@ test('claims 10 and 11: a showing while a raise is still being logged voids the 
   await w.clock.advance(15000)
   expect((await readLevel($)).text).toBe(LEVEL_1)
   expect(ownEntries(w)).toEqual(['owner 3 Full throttle · Moved in the pane · level 1', 'pane 1 Manual · The pane was shown again · level 1'])
+  // A module reload does the same.
+  await press($, 'view-decisions')
+  w.holdWrite = true
+  const again = press($, 'level-3')
+  await w.clock.settle()
+  const reload = ($ as any).session.start({ cwd: 'C:\\work', surface: null, isInteractive: false })
+  await w.clock.settle()
+  w.holdWrite = false
+  w.release()
+  await again
+  await reload
+  await w.clock.advance(15000)
+  expect((await readLevel($)).text).toBe(LEVEL_1)
+  expect(ownEntries(w).slice(2)).toEqual(['owner 3 Full throttle · Moved in the pane · level 1', 'pane 1 Manual · The Brigade mod was reloaded · level 1'])
 })

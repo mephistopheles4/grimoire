@@ -582,6 +582,8 @@ export function inFixedShape(e: DecisionEntry): boolean {
   return (
     LEVEL_OPTIONS.includes(e.pick) &&
     e.pick === want.pick &&
+    // Only an Owner entry carries a level above 1; the pane writes Pane and alarm entries at 1.
+    (e.source === 'owner' || e.level === 1) &&
     e.waiting === want.waiting &&
     e.work === want.work &&
     e.question === want.question &&

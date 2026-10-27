@@ -1315,6 +1315,8 @@ let lateShowing = false
 // for a pane that was not, /brigade's open resets the autonomy level to 1
 // whatever the open answers, and a head-chef load's only once it answers
 // placed, leaving an unplaced one to the late offer; before any tool is offered.
+// The showing is pending from before the open until its reset, so an open
+// that rejects leaves it for the next /brigade, load or late offer.
 type Offer = 'offered' | 'not listed' | 'not placed' | { why: string }
 async function openPane($: EngineInterface, wait: boolean, reached: { open: boolean } = { open: false }, needPlaced = false, wasShown = false) {
   await update($, viewAtom, () => 'sessions')
@@ -1330,10 +1332,14 @@ async function openPane($: EngineInterface, wait: boolean, reached: { open: bool
   historyPages = 1
   flaggedPages = 1
   markFailed = false
+  if (!wasShown) lateShowing = true
   const opened = await $.ui.open({ id: PANE, title: TITLE })
   reached.open = true
   raiseFailed = false
-  if (!wasShown && (opened.isPlaced || !needPlaced)) await resetLevel($, 'shown').catch(() => undefined)
+  if (!wasShown && (opened.isPlaced || !needPlaced)) {
+    await resetLevel($, 'shown').catch(() => undefined)
+    lateShowing = false
+  }
   let offer: Offer = 'not listed'
   if (needPlaced && !opened.isPlaced) return { opened, offer: 'not placed' as const, listed: false }
   const listed = await paneOpen($)
@@ -1414,8 +1420,13 @@ async function headChefLoad($: EngineInterface): Promise<string | undefined> {
         lateShowing = true
         return NOT_SHOWN_LINE
       }
-      // Found open: nothing is reset, the reads start only if they are not
-      // running, and the tool is offered again, which replaces it.
+      // Found open: nothing is reset but a showing an earlier load or open
+      // left pending, the reads start only if they are not running, and the
+      // tool is offered again, which replaces it.
+      if (lateShowing) {
+        lateShowing = false
+        await resetLevel($, 'shown').catch(() => undefined)
+      }
       if (timers.length === 0) arm($).catch(() => undefined)
       try {
         await offerTool($)
@@ -1905,9 +1916,9 @@ async function readLeadHandoff($: EngineInterface, e: Record<string, unknown>, s
 
 const pressedLevel = new Map<string, Level>()
 const pressedAt = new Map<string, number>()
-// The Owner entries this pane wrote, each by its log's session id, id, time and pick.
+// The Owner entries this pane wrote, each by its log's session id, id, time, level and pick.
 const ownerWrote = new Set<string>()
-const ownerKey = (sid: string, e: { id: string; at: number; pick: string }) => `${sid} ${e.id} ${e.at} ${e.pick}`
+const ownerKey = (sid: string, e: { id: string; at: number; level: number; pick: string }) => `${sid} ${e.id} ${e.at} ${e.level} ${e.pick}`
 // An alarm waiting to be logged: the level found, whether its write is under
 // way, and whether the pane says it is late.
 type Alarm = { found: Level; writing: boolean; late: boolean }
@@ -2196,8 +2207,10 @@ export const register: Register = on => {
     pressedAt.clear()
     ownerWrote.clear()
     alarms.clear()
-    raising.clear()
+    // A raise still being logged is forgotten only after the reset, which
+    // counts it as a level above 1, so its Owner entry is followed by a Pane one.
     await resetLevel($, 'reload').catch(() => undefined)
+    raising.clear()
     // A reload of the module while the pane stays up finds it in the engine's
     // record. Only then do the reads start again, and the tool is offered
     // again; a fresh session has no pane and no tool.

@@ -507,6 +507,7 @@ test('claim 10: an Owner, Pane or alarm entry that differs from its fixed shape 
     [owner, { why: 'The lead moved it' }], [owner, { undo: 'Nothing' }], [owner, { revisit: 'Tomorrow' }], [owner, { waiting: true, pick: '' }],
     [pane, { pick: '3 Full throttle' }], [pane, { why: 'Moved in the pane' }], [pane, { undo: 'Move the slider back' }],
     [alarm, { why: 'Moved in the pane' }], [alarm, { undo: 'Move the slider back' }],
+    [pane, { level: 2 }], [alarm, { level: 3 }],
   ];
   for (const [e, over] of bent) assert.equal(inFixedShape({ ...e, ...over }), false, `${e.source} ${JSON.stringify(over)}`);
 });
