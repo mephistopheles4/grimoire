@@ -4466,6 +4466,18 @@ test('the hairline and PR pill images: their classes, a light and a dark rule ea
   assert.ok(h.source.length < 2000);
 });
 
+test('claim 15: the autonomy track image: three segments, lit up to the level in its class, any other level drawn as 1, on the allowlist', () => {
+  for (const [level, lit, want] of [[1, 'stopped', 1], [2, 'c0', 2], [3, 'warn', 3], [0, 'stopped', 1], [4, 'stopped', 1], [Number.NaN, 'stopped', 1]]) {
+    const t = view.levelTrackSvg(level);
+    assertAllowlisted(t.source);
+    assert.equal(t.height, 14);
+    assert.equal(t.alt, `Autonomy level ${want} of 3`);
+    const classes = [...t.source.matchAll(/<rect class="([a-z0-9]+)"/g)].map(m => m[1]);
+    assert.deepEqual(classes, [0, 1, 2].map(i => (i < want ? lit : 'track')), String(level));
+    assert.ok(t.source.length < 2000);
+  }
+});
+
 test('no colour in the register or view modules is a hex or a colour name outside an image\'s style block and the register\'s fixed fills', () => {
   const themeKeys = new Set(['text', 'inverseText', 'inactive', 'subtle', 'suggestion', 'remember', 'success', 'error', 'warning', 'merged', 'claude', 'permission', 'planMode', 'autoAccept', 'promptBorder', 'bashBorder', 'ide', 'diffAdded', 'diffRemoved', 'diffAddedDimmed', 'diffRemovedDimmed', 'diffAddedWord', 'diffRemovedWord']);
   const registerSource = readFileSync(join(root, 'brigade/register.tsx'), 'utf8');

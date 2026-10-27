@@ -11,7 +11,7 @@ import type { SessionRow } from './roster.ts'
 // rules as they are.
 
 /** The sources an entry may carry. Only `lead` and `relayed` come from the
- *  tool; the pane writes the other three (the slider, ticket 4). */
+ *  tool; the pane writes the other three, for the autonomy slider. */
 export type Source = 'owner' | 'pane' | 'alarm' | 'lead' | 'relayed'
 const SOURCES: readonly string[] = ['owner', 'pane', 'alarm', 'lead', 'relayed']
 // The tool's sources, and the only ones an append may drop.
@@ -505,14 +505,95 @@ export function historyRows(logs: readonly ReadLog[], words: readonly string[], 
   return { rows, total: all.length, more: rows.length < all.length }
 }
 
-/** The source as the tab draws it. Every Owner entry draws "as recorded"
- *  until the slider (ticket 4) writes them. */
-export function sourceLabel(e: DecisionEntry, writer: string): string {
+/** The source as the tab draws it. An Owner entry draws plain "Owner" only
+ *  when `mine` says this pane wrote it in this module's life, by its id, time
+ *  and pick; any other draws "as recorded". */
+export function sourceLabel(e: DecisionEntry, writer: string, mine = false): string {
   if (e.source === 'lead') return 'Lead'
   if (e.source === 'relayed') return `Relayed by ${writer}`
-  if (e.source === 'owner') return 'Owner (as recorded)'
+  if (e.source === 'owner') return mine ? 'Owner' : 'Owner (as recorded)'
   if (e.source === 'pane') return 'Pane'
   return 'Not from a press'
+}
+
+// --- the autonomy level (S5.1, S5.2 and S5.4) ------------------------------------
+//
+// The level a lead reads, set only by a press on the Decisions tab's slider.
+// register.tsx keeps the stored level in plugin state, which other plugins can
+// rewrite, and the last level a press set, a 3's press time and a pending
+// alarm in its own module memory; these rules read them. The pane's own log
+// entries, Owner, Pane and alarm, each have one fixed shape, built and checked
+// from the same words, so an entry in any other shape is skipped.
+
+export type Level = 1 | 2 | 3
+export const LEVEL_NAMES: Readonly<Record<Level, string>> = { 1: 'Manual', 2: 'Auto', 3: 'Full throttle' }
+/** A level as an option of the pane's entries: "1 Manual", "2 Auto", "3 Full throttle". */
+export const levelOption = (l: Level) => `${l} ${LEVEL_NAMES[l]}`
+const LEVEL_OPTIONS = ([1, 2, 3] as const).map(levelOption)
+
+/** A stored level: the number 1, 2 or 3, and 1 for anything else. */
+export const levelFrom = (v: unknown): Level => (v === 2 || v === 3 ? v : 1)
+
+/** This session's stored level from the plugin state's list of
+ *  `{ session, level }`: 1 when the list or its entry is not of that shape. */
+export function storedLevel(stored: unknown, sid: string): Level {
+  if (!Array.isArray(stored)) return 1
+  const own = stored.find(s => isRecord(s) && s.session === sid)
+  return isRecord(own) ? levelFrom(own.level) : 1
+}
+
+/** The level in force: 1 when the stored level differs from the last one a
+ *  press set, while an alarm waits to be logged, and for a 3 with no live
+ *  press time; else the stored level. */
+export function levelInForce(o: { stored: Level; pressed: Level; pressAt: number | undefined; alarm: boolean }): Level {
+  if (o.stored !== o.pressed || o.alarm) return 1
+  if (o.stored === 3 && o.pressAt === undefined) return 1
+  return o.stored
+}
+
+const SLIDER_WORK = 'Autonomy slider'
+const SLIDER_QUESTION = 'Autonomy level'
+const OWNER_WHY = 'Moved in the pane'
+const OWNER_UNDO = 'Move the slider back'
+const PANE_UNDO = 'Move the slider in the pane'
+const PANE_WHYS = { shown: 'The pane was shown again', reload: 'The Brigade mod was reloaded' } as const
+const ALARM_WHY = 'Changed, not from a press'
+
+const fixedEntry = (source: Source, pick: string, why: string, undo: string): EntryInput => ({
+  source, waiting: false, work: SLIDER_WORK, question: SLIDER_QUESTION, options: [...LEVEL_OPTIONS], pick, why, undo, revisit: '', answers: '',
+})
+/** A slider press's Owner entry, with the new level as pick. */
+export const ownerEntry = (l: Level) => fixedEntry('owner', levelOption(l), OWNER_WHY, OWNER_UNDO)
+/** A reset's Pane entry: on a new showing of the pane, or a module reload. */
+export const paneEntry = (why: keyof typeof PANE_WHYS) => fixedEntry('pane', levelOption(1), PANE_WHYS[why], PANE_UNDO)
+/** An alarm's entry, with the level found as pick. */
+export const alarmEntry = (found: Level) => fixedEntry('alarm', levelOption(found), ALARM_WHY, PANE_UNDO)
+
+/** Whether an entry is in its source's fixed shape: always true for a Lead
+ *  or Relayed entry, which the tool's own check holds. */
+export function inFixedShape(e: DecisionEntry): boolean {
+  if (e.source === 'lead' || e.source === 'relayed') return true
+  const want =
+    e.source === 'owner'
+      ? ownerEntry(levelFrom(LEVEL_OPTIONS.indexOf(e.pick) + 1))
+      : e.source === 'pane'
+        ? paneEntry(e.why === PANE_WHYS.reload ? 'reload' : 'shown')
+        : alarmEntry(levelFrom(LEVEL_OPTIONS.indexOf(e.pick) + 1))
+  return (
+    LEVEL_OPTIONS.includes(e.pick) &&
+    e.pick === want.pick &&
+    // Only an Owner entry carries a level above 1; the pane writes Pane and alarm entries at 1.
+    (e.source === 'owner' || e.level === 1) &&
+    e.waiting === want.waiting &&
+    e.work === want.work &&
+    e.question === want.question &&
+    e.options.length === want.options.length &&
+    e.options.every((o, i) => o === want.options[i]) &&
+    e.why === want.why &&
+    e.undo === want.undo &&
+    e.revisit === want.revisit &&
+    e.answers === want.answers
+  )
 }
 
 // --- the lead hand-off (S5.1 and S5.3) -------------------------------------------

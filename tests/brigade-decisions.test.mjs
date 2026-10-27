@@ -21,6 +21,7 @@ const {
   reviewQueue, flaggedRows, historyRows, matchesSearch, searchWords, serializeLog, serializeMarks,
   sha256Hex, projectDigest, sourceLabel, writerName, missingIds,
   MAX_HANDOFF_BYTES, checkHandoffInput, checkHandoff, serializeHandoff, chooseHandoff,
+  levelFrom, storedLevel, levelInForce, ownerEntry, paneEntry, alarmEntry, inFixedShape,
 } = d;
 
 const SID = '11111111-2222-3333-4444-555555555555';
@@ -446,6 +447,69 @@ test('claim 10: Lead, Relayed by the writer, and a waiting entry draw as their s
   assert.equal(sourceLabel({ ...e, source: 'lead' }, 'lead-a'), 'Lead');
   assert.equal(sourceLabel({ ...e, source: 'relayed' }, 'lead-a'), 'Relayed by lead-a');
   assert.equal(sourceLabel({ ...e, source: 'relayed' }, 'an ended session'), 'Relayed by an ended session');
+});
+
+// --- the autonomy level (ticket 4) ------------------------------------------------
+
+test('claim 11: a stored level other than the number 1, 2 or 3 reads as 1, and only this session\'s own counts', () => {
+  for (const [v, want] of [[1, 1], [2, 2], [3, 3], [0, 1], [4, 1], ['3', 1], [2.5, 1], [null, 1], [undefined, 1], [[3], 1], [{ level: 3 }, 1]]) {
+    assert.equal(levelFrom(v), want, String(v));
+    assert.equal(storedLevel([{ session: SID, level: v }], SID), want, String(v));
+  }
+  assert.equal(storedLevel([{ session: OTHER, level: 3 }], SID), 1);
+  for (const planted of [undefined, null, 'x', {}, { [SID]: 3 }, [null], [{ session: SID }]]) assert.equal(storedLevel(planted, SID), 1);
+});
+
+test('claim 11: the level in force is 1 when the stored level differs from the last pressed one, an alarm waits, or a 3 has no press time', () => {
+  assert.equal(levelInForce({ stored: 2, pressed: 2, pressAt: undefined, alarm: false }), 2);
+  assert.equal(levelInForce({ stored: 3, pressed: 3, pressAt: NOW, alarm: false }), 3);
+  assert.equal(levelInForce({ stored: 3, pressed: 3, pressAt: undefined, alarm: false }), 1);
+  assert.equal(levelInForce({ stored: 3, pressed: 2, pressAt: NOW, alarm: false }), 1);
+  assert.equal(levelInForce({ stored: 2, pressed: 3, pressAt: NOW, alarm: false }), 1);
+  assert.equal(levelInForce({ stored: 2, pressed: 2, pressAt: undefined, alarm: true }), 1);
+  assert.equal(levelInForce({ stored: 1, pressed: 1, pressAt: undefined, alarm: false }), 1);
+});
+
+test('claim 10: the Owner, Pane and alarm entries are built in one fixed shape each, pass the log\'s check, and draw as their sources', () => {
+  let log = emptyLog(null);
+  for (const raw of [ownerEntry(3), paneEntry('shown'), paneEntry('reload'), alarmEntry(2)]) {
+    const r = appendEntry(log, raw, { at: NOW, level: 1, read: new Map(), fixed: true });
+    assert.ok('value' in r, JSON.stringify(r));
+    log = r.value.log;
+  }
+  assert.ok('value' in checkLog(JSON.stringify(log)));
+  const [owner, shown, reload, alarm] = log.entries;
+  assert.deepEqual([owner.question, owner.options, owner.pick, owner.why], ['Autonomy level', ['1 Manual', '2 Auto', '3 Full throttle'], '3 Full throttle', 'Moved in the pane']);
+  assert.deepEqual([shown.pick, shown.why, reload.why], ['1 Manual', 'The pane was shown again', 'The Brigade mod was reloaded']);
+  assert.deepEqual([alarm.pick, alarm.why], ['2 Auto', 'Changed, not from a press']);
+  for (const e of log.entries) assert.equal(inFixedShape(e), true, e.source);
+  assert.equal(sourceLabel(owner, 'lead-a', true), 'Owner');
+  assert.equal(sourceLabel(owner, 'lead-a', false), 'Owner (as recorded)');
+  assert.equal(sourceLabel(owner, 'lead-a'), 'Owner (as recorded)');
+  assert.equal(sourceLabel(shown, 'lead-a'), 'Pane');
+  assert.equal(sourceLabel(alarm, 'lead-a'), 'Not from a press');
+  // The tool's own entries are never held to these shapes.
+  assert.equal(inFixedShape(logOf(1).entries[0]), true);
+});
+
+test('claim 10: an Owner, Pane or alarm entry that differs from its fixed shape in any field is out of shape', () => {
+  const base = (raw) => {
+    const r = appendEntry(emptyLog(null), raw, { at: NOW, level: 1, read: new Map(), fixed: true });
+    assert.ok('value' in r);
+    return r.value.log.entries[0];
+  };
+  const owner = base(ownerEntry(2));
+  const pane = base(paneEntry('shown'));
+  const alarm = base(alarmEntry(3));
+  const bent = [
+    [owner, { work: 'issue 1' }], [owner, { question: 'Which level?' }], [owner, { options: ['1 Manual', '2 Auto'] }],
+    [owner, { options: ['2 Auto', '1 Manual', '3 Full throttle'] }], [owner, { pick: 'Yes', options: ['Yes', 'No'] }],
+    [owner, { why: 'The lead moved it' }], [owner, { undo: 'Nothing' }], [owner, { revisit: 'Tomorrow' }], [owner, { waiting: true, pick: '' }],
+    [pane, { pick: '3 Full throttle' }], [pane, { why: 'Moved in the pane' }], [pane, { undo: 'Move the slider back' }],
+    [alarm, { why: 'Moved in the pane' }], [alarm, { undo: 'Move the slider back' }],
+    [pane, { level: 2 }], [alarm, { level: 3 }],
+  ];
+  for (const [e, over] of bent) assert.equal(inFixedShape({ ...e, ...over }), false, `${e.source} ${JSON.stringify(over)}`);
 });
 
 // --- claim 9: Flagged to revisit and Dismiss ------------------------------------------------

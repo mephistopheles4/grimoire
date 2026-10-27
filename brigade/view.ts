@@ -952,6 +952,17 @@ export function hairlineSvg(): BarImage {
   return { source: `${svgOpen(9)}<rect class="rule" x="0" y="4" width="100%" height="1"/></svg>`, alt: 'divider', height: 9 }
 }
 
+/** The autonomy slider's track (spec 402, S5.4): three rounded segments
+ *  across the image, one a level, each up to the level in force lit, grey
+ *  at 1, the brand orange at 2 and the warning amber at 3; the rest in the
+ *  track's class. A level other than 2 or 3 draws as 1. */
+export function levelTrackSvg(level: number): BarImage {
+  const l = level === 2 || level === 3 ? level : 1
+  const lit = l === 3 ? 'warn' : l === 2 ? 'c0' : 'stopped'
+  const segments = [0, 34, 68].map((x, i) => `<rect class="${i < l ? lit : 'track'}" x="${x}%" y="4" width="32%" height="6" rx="3"/>`).join('')
+  return { source: `${svgOpen(14)}${segments}</svg>`, alt: `Autonomy level ${l} of 3`, height: 14 }
+}
+
 // A PR pill's class suffix and mark by state, read only through this Map.
 const PILL_LOOKS: ReadonlyMap<string, { cls: string; mark: string }> = new Map([
   ['open', { cls: 'open', mark: '⇄' }],
