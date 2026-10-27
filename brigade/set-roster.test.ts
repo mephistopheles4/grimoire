@@ -190,6 +190,8 @@ type World = ReturnType<typeof makeFs> & {
   /** How many times the pane list was asked. */
   panesCalls: number
   holdWrite: boolean
+  /** A path whose next write the engine refuses, once. */
+  failWriteOnce?: string
   release: () => void
   errors: string[]
   files: string[]
@@ -364,6 +366,10 @@ function world(on: On, setup: (w: World) => void = w => w.dirs(`${CONFIG}\\plugi
     return s === undefined ? { deny: ENOENT } : { value: e.resolve ? s : { ...s, realPath: undefined } }
   })
   on('fs.write', async ($, e: any) => {
+    if (w.failWriteOnce !== undefined && e.path === w.failWriteOnce) {
+      w.failWriteOnce = undefined
+      return { deny: 'EIO: i/o error' }
+    }
     if (w.holdWrite) await new Promise<void>(res => (w.release = res))
     w.write(e.path, e.text)
     return { value: undefined }
@@ -6680,6 +6686,22 @@ test("claim 11: a reset's Pane entry that cannot be written keeps the level at 1
   expect(await shows(RESET_LINE)).toBe(false)
   await w.clock.advance(15000)
   expect(ownEntries(w).length).toBe(1)
+})
+
+test("claim 11: a raise that lands while a reset's Pane entry still waits reads 1 until that entry is written", async ($, on) => {
+  const w = await decisionsPane(on, $)
+  await press($, 'level-2')
+  seed(w, LOG, '{"cards":[],"todos":[]}')
+  await ($ as any).session.start({ cwd: 'C:\\work', surface: null, isInteractive: false })
+  await w.clock.settle()
+  w.drop(LOG)
+  // The log refuses one write: the Pane entry's, written just ahead of the raise.
+  w.failWriteOnce = LOG
+  await press($, 'level-2')
+  expect((await readLevel($)).text).toBe(LEVEL_1)
+  await w.clock.advance(5000)
+  expect(ownEntries(w)).toEqual(['owner 2 Auto · Moved in the pane · level 1', 'pane 1 Manual · The Brigade mod was reloaded · level 1'])
+  expect((await readLevel($)).text).toBe(LEVEL_2)
 })
 
 test("claim 11: a reset's Pane entry whose write has not finished by the next poll says so and starts no second write", async ($, on) => {
