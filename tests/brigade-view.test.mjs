@@ -4782,3 +4782,50 @@ test("the PR link is built from gh's checked repository and the card's number, a
     ['o/r', '341/../../x'],
   ]) assert.equal(prUrl(repo, n), undefined, `${repo} ${n}`);
 });
+
+// --- issue 415: PR rows for other repositories ----------------------------------
+
+test('a card naming a repository takes only that repository\'s answer, and a card without one only the base answer', () => {
+  const { unavailableLine } = view;
+  const cards = [
+    prCard('a', 'working', '7'),
+    { ...prCard('b', 'working', '7'), repo: 'Other/Proj' },
+    { ...prCard('c', 'working', '8', 'closed'), repo: 'other/proj' },
+    { ...prCard('d', 'working', '9'), repo: 'third/repo' },
+    { ...prCard('e', 'working', '7'), repo: 'ghe.example/o/r' },
+  ];
+  const base = new Map([[7, ghAnswer(7, { state: 'merged', title: 'Base 7' })], [8, ghAnswer(8, { state: 'merged', title: 'Base 8' })]]);
+  const named = new Map([['other/proj', new Map([[7, ghAnswer(7, { state: 'open', title: 'Other 7', repo: 'other/proj' })]])]]);
+  const rows = prRows(cards, new Set(), base, NOW, undefined, named);
+  // #7 in one repository never takes another's state or title.
+  assert.deepEqual(rows.merged.map(r => [r.c.title, r.title, r.detail.repo]), [['a', 'Base 7', 'o/r']]);
+  assert.deepEqual(rows.open.map(r => [r.c.title, r.title, r.detail.repo]), [
+    ['b', 'Other 7', 'other/proj'],
+    // A named card with no answer keeps its own title and state, and names its repository.
+    ['d', 'd', 'third/repo'],
+    // A repository value that fails the check is no repository and takes no answer at all.
+    ['e', 'e', undefined],
+  ]);
+  // A row links only from an answer: base, named, and none for the unanswered.
+  assert.deepEqual([...rows.merged, ...rows.open].map(r => [r.c.title, r.href]), [
+    ['a', 'https://github.com/o/r/pull/7'],
+    ['b', 'https://github.com/other/proj/pull/7'],
+    ['d', undefined],
+    ['e', undefined],
+  ]);
+  // Not the base answer's merged #8: the named repository had no #8.
+  assert.deepEqual(rows.closed.map(r => [r.c.title, r.title, r.detail.repo, r.detail.counts]), [['c', 'c', 'other/proj', undefined]]);
+  // Without the named answers, every named card has no answer.
+  assert.deepEqual(prRows(cards, new Set(), base, NOW).open.map(r => r.title), ['b', 'd', 'e']);
+  assert.equal(typeof unavailableLine, 'function');
+});
+
+test('the unavailable line names how many repositories had no answer', () => {
+  const { unavailableLine } = view;
+  assert.equal(unavailableLine(false, 0), undefined);
+  // The base repository alone keeps the line as it was.
+  assert.equal(unavailableLine(true, 0), 'PR details unavailable');
+  assert.equal(unavailableLine(false, 1), 'PR details unavailable for 1 repository');
+  assert.equal(unavailableLine(true, 1), 'PR details unavailable for 2 repositories');
+  assert.equal(unavailableLine(false, 5), 'PR details unavailable for 5 repositories');
+});
