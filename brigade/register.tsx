@@ -2082,7 +2082,7 @@ async function setLevel($: EngineInterface, sid: string, l: Level) {
 // A stored level that differs from the last-pressed one is set to 1, with an
 // alarm pending for the level found. The band names it, with the time caught
 // on the engine's clock; a change caught while the band holds an alarm joins
-// it, and ends a dismissal. Inside the lock.
+// it. Setting 1 clears the press time, so no dismissal outlives it. Inside the lock.
 async function catchChange($: EngineInterface, sid: string) {
   const stored = storedLevel(await read($, autonomy), sid)
   if (stored === pressedOf(sid)) return
@@ -2090,7 +2090,6 @@ async function catchChange($: EngineInterface, sid: string) {
   const now = await $.clock.now()
   const held = bandAlarms.get(sid)
   bandAlarms.set(sid, { found: stored, caught: Number.isSafeInteger(now) ? now : (held?.caught ?? 0), entry: held?.entry })
-  bandDismissed = undefined
   await setLevel($, sid, 1)
 }
 
@@ -2179,14 +2178,14 @@ async function levelTick($: EngineInterface) {
 }
 
 // Whether the level poll has anything to look at: a reset waiting, or for
-// this session a level above 1, stored or last pressed, a stored level that
-// differs from the last press, or an alarm or a Pane entry waiting.
+// this session a level above 1, stored or last pressed (so also a stored level
+// that differs from the last press), or an alarm or a Pane entry waiting.
 async function levelPollNeeded($: EngineInterface): Promise<boolean> {
   if (resetWaits !== undefined) return true
   const sid = await levelSid($)
   if (sid === undefined) return false
   const stored = storedLevel(await read($, autonomy), sid)
-  return stored > 1 || pressedOf(sid) > 1 || stored !== pressedOf(sid) || alarms.has(sid) || paneWaits.has(sid)
+  return stored > 1 || pressedOf(sid) > 1 || alarms.has(sid) || paneWaits.has(sid)
 }
 
 // Starts the level poll when it has something to look at and is not running.
@@ -2305,8 +2304,8 @@ async function forgetOtherLevels($: EngineInterface, sid: string) {
 // conversation. A reset of a level above 1 writes a Pane entry, and so does
 // one that voids a raise still being logged, whose Owner entry may land before
 // it in the log's queue. At a compaction a change not from a press is caught
-// first, as an alarm; a reload writes none. Any reset clears the press time
-// and the band's dismissal. The level is lowered before the Pane entry is
+// first, as an alarm; a reload writes none. Any reset clears the press time,
+// which a dismissal is keyed by, so it ends one too. The level is lowered before the Pane entry is
 // written, which is not awaited: one that fails is said in the pane and tried
 // again on the level poll. A reset that cannot read the session id, or a step
 // of which throws, waits in `resetWaits`, reading 1, and is tried again at
@@ -2320,7 +2319,6 @@ async function resetLevel($: EngineInterface, why: ResetWhy) {
         if (why === 'compact') await catchChange($, sid)
         levelTurns++
         pressedAt.delete(sid)
-        bandDismissed = undefined
         const stored = storedLevel(await read($, autonomy), sid)
         const raised = raising.has(sid)
         if (stored === 1 && pressedOf(sid) === 1 && !raised) return false
@@ -2444,7 +2442,6 @@ const bandAlarm = (a: BandAlarm) =>
 function registerBand(on: Parameters<Register>[0]) {
   on('ui.render', { component: 'AbovePrompt', props: { hasSurvey: false } }, async ($, e, next) => {
     const beneath = await next(e)
-    if (e.props.hasSurvey) return beneath
     try {
       await read($, decisionsSeen)
       await read($, autonomy)

@@ -6979,6 +6979,32 @@ test('claim 22: a resume back to the same id with the classic start hook skipped
   await b.unmount()
   const back = await band($)
   expect(await back.find({ type: 'Text', text: BAND_3(at) })).toBeDefined()
+  // A draw under the other id drops it too, with no tick in between.
+  await back.press({ key: `l3dismiss-${at}` })
+  expect(await bandTexts(back)).toEqual([])
+  await back.unmount()
+  w.sid = NEW_SID
+  await (await band($)).unmount()
+  w.sid = SID
+  const home = await band($)
+  expect(await home.find({ type: 'Text', text: BAND_3(at) })).toBeDefined()
+})
+
+test('claim 23: a clear and a resume back while the alarm is unread take the alarm line away, and the alarm still waits in To review', async ($, on) => {
+  const w = await decisionsPane(on, $)
+  plantOnce(w, 3)
+  await press($, 'level-2')
+  await w.clock.advance(5000)
+  const caught = w.clock.now()
+  const b = await band($)
+  expect(await bandTexts(b)).toEqual([BAND_ALARM(3, caught)])
+  await b.unmount()
+  await switchTo($, w, NEW_SID, 'clear')
+  await switchTo($, w, SID, 'resume')
+  const back = await band($)
+  expect(await bandTexts(back)).toEqual([])
+  await w.clock.advance(5000)
+  expect(await shows(/^1 of 1$/)).toBe(true)
 })
 
 test('claim 23: an alarm shows the alarm line, with no Dismiss, at any level, until this pane marks its entry; with level 3 in force both lines show', async ($, on) => {
