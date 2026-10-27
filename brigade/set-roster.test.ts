@@ -7038,6 +7038,7 @@ test('claim 17: each named run passes the host and PATH check: a PATH that turns
 
 test("claim 17: a repository's rows go once no card names it", async ($, on) => {
   const w = await namedPane(on, $, [ALPHA, BETA], w => {
+    w.ghOut = JSON.stringify([ghPr(341)])
     w.ghOutBy['other/proj'] = JSON.stringify([otherPr(7, { title: 'Other title' })])
   })
   const m = await mountOn($, 'desktop')
