@@ -540,7 +540,9 @@ by the Desktop id and draws the session's own name; it falls back to the
 card's title only when no session file carries a Desktop id, so keep the
 title equal to the session's name, exactly. Give a background session's card
 its job id as `bgId`, and no `desktopId` or `url`: the pane finds it by the
-job id and reads its Remote Control link itself.
+job id and reads its Remote Control link itself. Give a card whose pull
+request is in another repository than your own working folder's that
+repository as `repo`, an `owner/name` with no host; give no other card one.
 <!-- contract:end tools -->
 
 <!-- contract:begin rules -->

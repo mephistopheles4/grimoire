@@ -24,6 +24,17 @@ the file itself.
       "settings": "Sonnet, medium",
       "status": "working",
       "desktopId": "local_00000000-0000-4000-8000-000000000000"
+    },
+    {
+      "title": "fix-api-17",
+      "work": "example-org/api issue 17",
+      "phase": "review",
+      "settings": "Sonnet, medium",
+      "status": "working",
+      "desktopId": "local_00000000-0000-4000-8000-000000000001",
+      "pr": "18",
+      "prState": "open",
+      "repo": "example-org/api"
     }
   ],
   "todos": [
@@ -49,6 +60,13 @@ the file itself.
   never a source for it.
 - `pr` and `prState` are the session's pull request, once it has one: its
   number, and `open`, `merged` or `closed`. The pane shows them as a pill.
+- `repo` is the pull request's repository, as `owner/name` with no host, when
+  that pull request is in another repository than your own working folder's.
+  Leave it out for a pull request in your own repository. The pane asks `gh`
+  about each repository the cards name, in turns, the pill opens the pull
+  request there once `gh` answers, and the pane names the repository beside
+  the pill and on the Pull requests row. Any other value is refused as a
+  shape.
 - `url` is a Remote Control session's claude.ai link, and nothing else:
   never an issue's or a pull request's address, which takes Open in app away.
   A Desktop session's card carries `desktopId`, and a background session's
@@ -56,8 +74,10 @@ the file itself.
 - `work` names the repository and the issue number only, as in the example.
 - Caps: a title at most 80 characters; `work`, `phase` and `settings` at
   most 300; `desktopId`, `bgId` and `url` at most 100. A to-do's `id` at
-  most 40, its `text` at most 300, its `session` at most 80. At most 50 cards and 50
-  to-dos. No other field, no title twice, no to-do id twice.
+  most 40, its `text` at most 300, its `session` at most 80.
+  `repo`: the owner 1 to 39 letters, digits or `-`, not starting with `-`;
+  the name 1 to 100 letters, digits, `-`, `.` or `_`, not starting with `-`
+  or `.`. At most 50 cards and 50 to-dos. No other field, no title twice, no to-do id twice.
 - No session id, and no question, decision or note text, goes on a card or a
   to-do. Other plugins can read the pane's file. Decision text goes only
   through `log_decision` and `set_lead_handoff`, under the skill's data
