@@ -543,10 +543,10 @@ export function storedLevel(stored: unknown, sid: string): Level {
 }
 
 /** The level in force: 1 when the stored level differs from the last one a
- *  press set, while an alarm waits to be logged, and for a 3 with no live
- *  press time; else the stored level. */
-export function levelInForce(o: { stored: Level; pressed: Level; pressAt: number | undefined; alarm: boolean }): Level {
-  if (o.stored !== o.pressed || o.alarm) return 1
+ *  press set, while an alarm or a reset's Pane entry waits to be logged, and
+ *  for a 3 with no live press time; else the stored level. */
+export function levelInForce(o: { stored: Level; pressed: Level; pressAt: number | undefined; waiting: boolean }): Level {
+  if (o.stored !== o.pressed || o.waiting) return 1
   if (o.stored === 3 && o.pressAt === undefined) return 1
   return o.stored
 }

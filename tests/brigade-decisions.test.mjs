@@ -460,14 +460,14 @@ test('claim 11: a stored level other than the number 1, 2 or 3 reads as 1, and o
   for (const planted of [undefined, null, 'x', {}, { [SID]: 3 }, [null], [{ session: SID }]]) assert.equal(storedLevel(planted, SID), 1);
 });
 
-test('claim 11: the level in force is 1 when the stored level differs from the last pressed one, an alarm waits, or a 3 has no press time', () => {
-  assert.equal(levelInForce({ stored: 2, pressed: 2, pressAt: undefined, alarm: false }), 2);
-  assert.equal(levelInForce({ stored: 3, pressed: 3, pressAt: NOW, alarm: false }), 3);
-  assert.equal(levelInForce({ stored: 3, pressed: 3, pressAt: undefined, alarm: false }), 1);
-  assert.equal(levelInForce({ stored: 3, pressed: 2, pressAt: NOW, alarm: false }), 1);
-  assert.equal(levelInForce({ stored: 2, pressed: 3, pressAt: NOW, alarm: false }), 1);
-  assert.equal(levelInForce({ stored: 2, pressed: 2, pressAt: undefined, alarm: true }), 1);
-  assert.equal(levelInForce({ stored: 1, pressed: 1, pressAt: undefined, alarm: false }), 1);
+test('claim 11: the level in force is 1 when the stored level differs from the last pressed one, an alarm or a Pane entry waits, or a 3 has no press time', () => {
+  assert.equal(levelInForce({ stored: 2, pressed: 2, pressAt: undefined, waiting: false }), 2);
+  assert.equal(levelInForce({ stored: 3, pressed: 3, pressAt: NOW, waiting: false }), 3);
+  assert.equal(levelInForce({ stored: 3, pressed: 3, pressAt: undefined, waiting: false }), 1);
+  assert.equal(levelInForce({ stored: 3, pressed: 2, pressAt: NOW, waiting: false }), 1);
+  assert.equal(levelInForce({ stored: 2, pressed: 3, pressAt: NOW, waiting: false }), 1);
+  assert.equal(levelInForce({ stored: 2, pressed: 2, pressAt: undefined, waiting: true }), 1);
+  assert.equal(levelInForce({ stored: 1, pressed: 1, pressAt: undefined, waiting: false }), 1);
 });
 
 test('claim 10: the Owner, Pane and alarm entries are built in one fixed shape each, pass the log\'s check, and draw as their sources', () => {
