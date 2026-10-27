@@ -354,7 +354,8 @@ follows from it:
   until they land, the skill says nothing of levels, but `read_autonomy`'s
   own description asks the lead to read the level before each decision it
   would take itself. That description, and every answer that names a 3, say
-  that a 3 counts only once the owner confirms it in the lead's chat, and
+  that a 3 counts only once the owner confirms that press in the lead's chat,
+  never on a confirmation given for an earlier press time, and
   that at every level a finding that would expose a secret or personal data,
   and any accepted-risk record, wait for the owner.
 - **Where the level is copied:** each answer of `read_autonomy`,
