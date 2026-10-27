@@ -6473,3 +6473,20 @@ test('claim 11: a press made while a raise is still being logged wins: the raise
   expect(ownEntries(w)).toEqual(['owner 3 Full throttle · Moved in the pane · level 1', 'owner 1 Manual · Moved in the pane · level 1'])
   expect((await mounted.find({ key: 'level-1' }))?.props.variant).toBe('primary')
 })
+
+test('claim 11: while an alarm waits to be logged, a level pressed since still reads 1, until the alarm is written', async ($, on) => {
+  const w = await decisionsPane(on, $)
+  plantOnce(w, 3)
+  await press($, 'level-2')
+  seed(w, LOG, '{"cards":[],"todos":[]}')
+  await w.clock.advance(5000)
+  expect(await shows(ALARM_LINE)).toBe(true)
+  // The log can be written again before the next poll, and the owner presses 2.
+  w.drop(LOG)
+  await press($, 'level-2')
+  expect(ownEntries(w)).toEqual(['owner 2 Auto · Moved in the pane · level 1'])
+  expect((await readLevel($)).text).toBe(LEVEL_1)
+  await w.clock.advance(5000)
+  expect(ownEntries(w)).toEqual(['owner 2 Auto · Moved in the pane · level 1', 'alarm 3 Full throttle · Changed, not from a press · level 1'])
+  expect((await readLevel($)).text).toBe(LEVEL_2)
+})
