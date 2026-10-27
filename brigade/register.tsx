@@ -1312,8 +1312,9 @@ let lateShowing = false
 // the engine answers is not placed starts no reads and offers no tool, so
 // nothing runs while it waits unseen. `listed` says whether the engine listed
 // it. `wasShown` says whether the pane was listed and placed before the open:
-// an open that places a pane that was not resets the autonomy level to 1,
-// before any tool is offered.
+// for a pane that was not, /brigade's open resets the autonomy level to 1
+// whatever the open answers, and a head-chef load's only once it answers
+// placed, leaving an unplaced one to the late offer; before any tool is offered.
 type Offer = 'offered' | 'not listed' | 'not placed' | { why: string }
 async function openPane($: EngineInterface, wait: boolean, reached: { open: boolean } = { open: false }, needPlaced = false, wasShown = false) {
   await update($, viewAtom, () => 'sessions')
@@ -1332,7 +1333,7 @@ async function openPane($: EngineInterface, wait: boolean, reached: { open: bool
   const opened = await $.ui.open({ id: PANE, title: TITLE })
   reached.open = true
   raiseFailed = false
-  if (opened.isPlaced && !wasShown) await resetLevel($, 'shown').catch(() => undefined)
+  if (!wasShown && (opened.isPlaced || !needPlaced)) await resetLevel($, 'shown').catch(() => undefined)
   let offer: Offer = 'not listed'
   if (needPlaced && !opened.isPlaced) return { opened, offer: 'not placed' as const, listed: false }
   const listed = await paneOpen($)
@@ -2009,9 +2010,11 @@ async function levelTick($: EngineInterface) {
 }
 
 // A press on the slider. A change not from a press is caught first. A press
-// on the level in force does nothing; a lowering happens at once and is
-// logged after; a raise happens only once its Owner entry is written, and
-// only when no press or change came in between. A 3 keeps its press time.
+// on the level that is both in force and last pressed does nothing; a press
+// at or below the level in force, or below the last-pressed one (while an
+// alarm waits), is a lowering, which happens at once and is logged after; a
+// raise happens only once its Owner entry is written, and only when no press
+// or change came in between. A 3 keeps its press time.
 async function pressLevel($: EngineInterface, l: Level) {
   const sid = await levelSid($)
   if (sid === undefined) return
@@ -2020,10 +2023,11 @@ async function pressLevel($: EngineInterface, l: Level) {
     await catchChange($, sid)
     const turn = ++levelTurns
     const inForce = await levelNow($, sid)
-    if (l === inForce && !raising.has(sid)) return { kind: 'none' as const }
+    const pressed = pressedOf(sid)
+    if (l === inForce && l === pressed && !raising.has(sid)) return { kind: 'none' as const }
     // Only a press that sets a level ends a pending showing: one on the level
     // in force leaves its reset to come.
-    if (l <= inForce) {
+    if (l <= inForce || l < pressed) {
       lateShowing = false
       await setLevel($, sid, l)
       return { kind: 'lower' as const }
@@ -2075,22 +2079,24 @@ async function forgetOtherLevels($: EngineInterface, sid: string) {
 }
 
 // A reset to 1: at a showing that makes the pane shown, and at a module
-// reload. A reset of a level above 1 writes a Pane entry. At a showing a
-// change not from a press is caught first, as an alarm; a reload writes none.
-// Any reset clears the press time.
+// reload. A reset of a level above 1 writes a Pane entry, and so does one
+// that voids a raise still being logged, whose Owner entry may land before
+// it in the log's queue. At a showing a change not from a press is caught
+// first, as an alarm; a reload writes none. Any reset clears the press time.
 async function resetLevel($: EngineInterface, why: 'shown' | 'reload') {
   const sid = await levelSid($)
   if (sid === undefined) return
-  const was = await levelTurn(async () => {
+  const logged = await levelTurn(async () => {
     if (why === 'shown') await catchChange($, sid)
     levelTurns++
     pressedAt.delete(sid)
     const stored = storedLevel(await read($, autonomy), sid)
-    if (stored === 1 && pressedOf(sid) === 1) return 1
+    const raised = raising.has(sid)
+    if (stored === 1 && pressedOf(sid) === 1 && !raised) return false
     await setLevel($, sid, 1)
-    return stored
+    return stored > 1 || raised
   })
-  if (was > 1) void appendFixed($, sid, paneEntry(why), 1)
+  if (logged) void appendFixed($, sid, paneEntry(why), 1)
 }
 
 const AUTONOMY_TOOL = 'read_autonomy'
@@ -2224,8 +2230,11 @@ export const register: Register = on => {
 
   on('command.run', { command: 'brigade' }, async $ => {
     lateOffer = false
+    // A showing a load left pending is this open's to make, since the late
+    // offer it waited for no longer runs.
     const before = await paneListed($).catch(() => undefined)
-    const { opened, offer } = await openPane($, true, { open: false }, false, before?.isPlaced === true)
+    const { opened, offer } = await openPane($, true, { open: false }, false, before?.isPlaced === true && !lateShowing)
+    lateShowing = false
     let ready = ''
     if (offer === 'offered') ready = ` \`${TOOL}\` is ready: call it with the full roster.`
     else if (offer !== 'not listed' && offer !== 'not placed') ready = ` \`${TOOL}\` could not be offered (${offer.why}); keep no roster.`

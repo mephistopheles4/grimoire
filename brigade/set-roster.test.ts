@@ -6282,6 +6282,19 @@ test('claim 11: /brigade on a closed pane resets a level above 1 to 1 with a Pan
   await w.clock.settle()
   expect((await readLevel($)).text).toBe(LEVEL_1)
   expect(ownEntries(w).slice(2)).toEqual(['owner 2 Auto · Moved in the pane · level 1', 'pane 1 Manual · The pane was shown again · level 1'])
+  // /brigade on a closed pane that the open does not place resets too, so the
+  // level set before never comes back once the pane is placed.
+  await press($, 'view-decisions')
+  await press($, 'level-2')
+  w.open = false
+  await w.clock.advance(5000)
+  w.unplaced = true
+  await brigade($)
+  await w.clock.settle()
+  w.unplaced = false
+  await w.clock.advance(5000)
+  expect((await readLevel($)).text).toBe(LEVEL_1)
+  expect(ownEntries(w).slice(4)).toEqual(['owner 2 Auto · Moved in the pane · level 1', 'pane 1 Manual · The pane was shown again · level 1'])
 })
 
 test('claim 11: a level another plugin wrote, met by a showing before any poll, is logged as an alarm, not a Pane entry', async ($, on) => {
@@ -6333,6 +6346,17 @@ test('claim 11: a head-chef load that finds the pane shown keeps the level, and 
   await w.clock.settle()
   expect((await readLevel($)).text).toBe(LEVEL_1)
   expect(ownEntries(w).slice(2)).toEqual(['owner 2 Auto · Moved in the pane · level 1', 'pane 1 Manual · The pane was shown again · level 1'])
+  // A load that finds the pane not shown, then /brigade once it is placed,
+  // before the lead's turn: /brigade takes the showing over and resets.
+  await press($, 'view-decisions')
+  await press($, 'level-2')
+  w.unplaced = true
+  expect(added(await load($))).toBe(NOT_SHOWN)
+  w.unplaced = false
+  await brigade($)
+  await w.clock.settle()
+  expect((await readLevel($)).text).toBe(LEVEL_1)
+  expect(ownEntries(w).slice(4)).toEqual(['owner 2 Auto · Moved in the pane · level 1', 'pane 1 Manual · The pane was shown again · level 1'])
 })
 
 test('claim 11: the late offer never undoes a press: a pane placed at the load, or one the owner pressed in before the turn, is not reset again', async ($, on) => {
@@ -6452,17 +6476,35 @@ test('claim 11: a poll catches a change not from a press before the file reads, 
   expect(ownEntries(w)).toEqual(['owner 2 Auto · Moved in the pane · level 1', 'alarm 3 Full throttle · Changed, not from a press · level 1'])
 })
 
-test('claim 10: an Owner entry this pane wrote, rewritten in place with another pick, draws as recorded', async ($, on) => {
+test('claim 10: an Owner entry this pane wrote, rewritten in place with another pick, time or id, or copied into a peer log, draws as recorded', async ($, on) => {
   const w = await decisionsPane(on, $)
   await press($, 'level-2')
   await press($, 'grp-d-history')
   expect(await shows(/^Owner$/)).toBe(true)
-  const log = parsed(w, LOG)
-  log.entries[0].pick = '3 Full throttle'
-  seed(w, LOG, JSON.stringify(log), 99)
+  const original = w.text(LOG)!
+  let mtime = 99
+  // Each part the pane matches on, changed alone in this session's own log.
+  for (const change of [
+    (log: any) => (log.entries[0].pick = '3 Full throttle'),
+    (log: any) => (log.entries[0].at += 1),
+    (log: any) => {
+      log.entries[0].id = String(log.next)
+      log.next += 1
+    },
+  ]) {
+    const log = JSON.parse(original)
+    change(log)
+    seed(w, LOG, JSON.stringify(log), mtime++)
+    await w.clock.advance(5000)
+    expect(await shows(/^Owner \(as recorded\)$/)).toBe(true)
+    expect(await shows(/^Owner$/)).toBe(false)
+  }
+  // The same entry, copied whole into a peer's log, is not this pane's.
+  seed(w, LOG, original, mtime++)
+  seed(w, PEER_LOG, original, mtime++)
   await w.clock.advance(5000)
+  expect(await shows(/^Owner$/)).toBe(true)
   expect(await shows(/^Owner \(as recorded\)$/)).toBe(true)
-  expect(await shows(/^Owner$/)).toBe(false)
 })
 
 test('claim 11: a press on the level in force before the late offer leaves the showing to reset it', async ($, on) => {
@@ -6699,4 +6741,37 @@ test('claim 11: while an alarm waits to be logged, a level pressed since still r
   await w.clock.advance(5000)
   expect(ownEntries(w)).toEqual(['owner 2 Auto · Moved in the pane · level 1', 'alarm 3 Full throttle · Changed, not from a press · level 1'])
   expect((await readLevel($)).text).toBe(LEVEL_2)
+  // A press of 1 while an alarm waits lowers the level: a raise logged since
+  // does not come back once the alarm is written.
+  seed(w, LOG, '{"cards":[],"todos":[]}')
+  plantOnce(w, 3)
+  await press($, 'level-1')
+  await w.clock.advance(5000)
+  expect(await shows(ALARM_LINE)).toBe(true)
+  w.drop(LOG)
+  await press($, 'level-2')
+  await press($, 'level-1')
+  await w.clock.advance(5000)
+  expect(ownEntries(w)).toEqual([
+    'owner 2 Auto · Moved in the pane · level 1',
+    'owner 1 Manual · Moved in the pane · level 1',
+    'alarm 3 Full throttle · Changed, not from a press · level 1',
+  ])
+  expect((await readLevel($)).text).toBe(LEVEL_1)
+})
+
+test('claims 10 and 11: a showing while a raise is still being logged voids the raise, and a Pane entry follows its Owner entry', async ($, on) => {
+  const w = await decisionsPane(on, $)
+  w.holdWrite = true
+  const raise = press($, 'level-3')
+  await w.clock.settle()
+  w.open = false
+  await w.clock.advance(5000)
+  await brigade($)
+  w.holdWrite = false
+  w.release()
+  await raise
+  await w.clock.advance(15000)
+  expect((await readLevel($)).text).toBe(LEVEL_1)
+  expect(ownEntries(w)).toEqual(['owner 3 Full throttle · Moved in the pane · level 1', 'pane 1 Manual · The pane was shown again · level 1'])
 })
