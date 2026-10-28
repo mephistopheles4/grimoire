@@ -7,6 +7,7 @@
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 
 const MINIMUM = '24';
 const [major] = process.versions.node.split('.').map(Number);
@@ -18,13 +19,32 @@ if (major < 24) {
 
 const { TITLE, RISKS, ALSO, WORDING, versionOf, isAcknowledged } = await import('../brigade/warning-text.ts');
 
-test("the warning's wording is pinned as the head-chef contract gave it at 0.9.0", () => {
+test("the warning's wording is pinned as the head-chef contract gave it at 0.17.0", () => {
   assert.equal(TITLE, 'Head chef is on. Two things to know:');
   assert.deepEqual(RISKS, [
     'Any device signed in to your account can drive the sessions it starts while Remote Control is on.',
     'Those sessions trust any message that claims to come from it, and any comment on their issue made as you.',
   ]);
-  assert.equal(ALSO, 'It also starts sessions, relays between them, and merges or cleans up on your word.');
+  assert.equal(
+    ALSO,
+    'It also starts sessions and relays between them. It merges, posts, waives reviews and settles security findings on your word, or on its own toward a goal at a level 3 you confirmed in its chat; it cleans up, forcing where git refuses, only on your yes.',
+  );
+});
+
+// The skill says the warning in chat when the mod cannot draw it, so its copy
+// must be the band's, word for word: a quoted block of "> " lines, each "- "
+// line a risk, wrapped lines joined with one space.
+test("the head-chef skill's chat copy of the warning is the band's wording", () => {
+  const skill = readFileSync(new URL('../skills/head-chef/SKILL.md', import.meta.url), 'utf8').replace(/\r\n/g, '\n');
+  const block = skill.split('\n## The permission warning\n')[1]?.split('\n\n').find(p => p.startsWith('> '));
+  assert.ok(block, 'SKILL.md quotes the warning under "## The permission warning"');
+  const lines = [];
+  for (const raw of block.split('\n').map(l => l.replace(/^>\s?/, ''))) {
+    if (raw === '') lines.push('');
+    else if (raw.startsWith('- ') || lines.length === 0 || lines.at(-1) === '') lines.push(raw.replace(/^- /, ''));
+    else lines[lines.length - 1] += ` ${raw.trim()}`;
+  }
+  assert.deepEqual(lines.filter(l => l !== ''), [...WORDING]);
 });
 
 test('the version is stable for one wording and moves when any line changes', () => {

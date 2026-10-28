@@ -46,7 +46,7 @@ last, but this repository is public, so a decision's text would be published.
   allows, one folder past `brigade`, and an existing file is overwritten only
   when it passes the strict check of its own kind.
 - The tool works only once the mod has offered it to this session since its
-  last reload, and since 0.87.0 (spec 402 rev 6.2, #430) with the pane shown, behind
+  last reload, and since 0.88.0 (spec 402 rev 6.2, #430) with the pane shown, behind
   another tab or closed alike; the pane reads the files only while it is open
   (ADR 0008).
 - A log is capped at 500 entries and 256 KiB, and a marks file at 2,000 marks

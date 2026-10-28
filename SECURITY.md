@@ -214,7 +214,7 @@ character, text shaped like a session id, a Desktop id or a Remote Control
 link, a value shaped like a known key, an email address or a home-folder
 path; the refusal names the shape, never the value. Like `set_roster`
 it skips the permission prompt in every mode, works only once the mod has
-offered it to this session since its last reload, and since 0.87.0 with the pane shown,
+offered it to this session since its last reload, and since 0.88.0 with the pane shown,
 behind another tab or closed alike, and refuses a subagent's call, a
 deny verdict, an owner's ask rule and an organisation ceiling below allow;
 each refusal is fixed words naming the rule, never a path, a verdict's reason
@@ -300,7 +300,10 @@ foot of the Decisions tab. What follows from it:
 - **What the file reveals:** the lead's working state as it wrote it: how to
   resume, the rules in force, the running sessions by name, the cleanup
   waiting, leftover worktrees by branch, and what is open for the owner, with
-  the time and the project digest. Who can read it is as for the log; the
+  the time and the project digest. Since head-chef 0.17.0 the rules section
+  holds a level-3 goal, naming work by repository and issue, and the log a
+  waiting entry for each cleanup a level-3 lead names back, by repository and
+  branch only. Who can read it is as for the log; the
   owner accepted the hand-off at rest with the log on 2026-10-26 (q9 A on
   #402), and that other local accounts that can read the profile's data
   folder can read it too on 2026-10-27 (q3 A on #402's ticket 413).
@@ -332,15 +335,21 @@ foot of the Decisions tab. What follows from it:
 **Since 0.84.0 the owner sets the lead's autonomy level** (spec 402, ticket
 4). A slider at the foot of the Decisions tab has three stops, 1 Manual, 2
 Auto and 3 Full throttle, and only a press on it sets a level above 1. **A
-level 3 the owner has confirmed in the lead's chat lets the lead merge pull
-requests, post, and settle security findings without a per-act word from the
-owner**; it logs each act before it, and a finding that would expose a secret
-or personal data, and any accepted-risk record, still wait for the owner. The
+level 3 the owner has confirmed in the lead's chat, with a goal in the owner's
+words there, lets the lead merge pull requests, post, waive reviews and settle
+security findings toward that goal without a per-act word from the owner**; it
+logs each act before it. Since head-chef 0.17.0 these still wait for the
+owner at level 3: a finding that would expose a secret or personal data; a
+post, merge text or commit message that would carry personal data or private
+work; an accepted-risk record; a merge that removes or weakens a control the
+threat model or this file names; an install; and cleanup. A secret or
+personal-data finding holds every merge, push and pull request of its
+effort's branch, and of branches based on it, until the owner answers. The
 mod offers a fifth tool, `read_autonomy`, wherever it offers `set_roster`:
 it takes no input, answers the level in force, a 3 with the time of its press,
 skips the permission prompt, refuses a subagent's call and every verdict
 `set_roster` refuses, and answers 1 until the mod has offered it to this
-session since its last reload, and otherwise the level in force, since 0.87.0 whether the pane is
+session since its last reload, and otherwise the level in force, since 0.88.0 whether the pane is
 shown or not; a deny rule for `mcp__grimoire__read_autonomy` removes it.
 The stored level sits in plugin state as `autonomy`, this session's id and
 its level, never in a file; the last level a press set, a 3's press time, the
@@ -351,7 +360,7 @@ or a reset's Pane entry waits to be logged, and for a 3 with no press time.
 A press that raises the level first logs what waits, then an Owner entry in
 the session's own log, and the raise does not happen if either cannot be
 written; a lowering always happens. Each new
-lead session starts at 1; a reload of the mod and, since 0.87.0, a compaction
+lead session starts at 1; a reload of the mod and, since 0.88.0, a compaction
 of the lead's main conversation reset a level above 1 to 1 with a Pane entry,
 and a showing of the pane no longer does; a session start, reload or
 compaction that finds a stored level above 1 writes that entry even with the
@@ -360,7 +369,7 @@ only who is compacting, the compaction's trigger and whether it was skipped,
 never the conversation, the instructions or the summary, and a compaction first logs a
 stored level that differs from the last press as an alarm. A reset that cannot
 read the session id, or one of whose steps throws, waits, reading 1, until it
-lands. Since 0.87.0 a press on the slider that would raise the level acts only
+lands. Since 0.88.0 a press on the slider that would raise the level acts only
 while the engine lists the pane and it is placed, and one pressed on a hidden or
 closed pane is dropped; a lowering acts whatever the pane list answers. A pane
 list that does not answer within 5 seconds counts as not placed. A Pane entry that cannot be written keeps the
@@ -371,7 +380,7 @@ alarm still waiting is logged once its session comes back. At each tick of the
 level's own 5-second poll a stored level that differs from the last press is set to 1 and logged as one
 unread alarm, tried again at the next poll if it cannot be written; while an
 alarm the pane wrote is unread, a repeat is counted in the pane, not logged,
-unless the marks cannot be read. Since 0.87.0 that poll is the level's alone:
+unless the marks cannot be read. Since 0.88.0 that poll is the level's alone:
 it runs with the pane open or closed while the stored or last-pressed level is
 above 1 or an alarm, a Pane entry or a reset waits, and starts at a press, a
 reset, a session start, a call of the mod's tools, or a draw of the band above
@@ -379,7 +388,7 @@ the prompt or of the pane, any of which may find a stored level that differs
 from the last press, so its alarm and Pane entry writes also happen with the pane closed; it
 reads no usage and keeps no report. The pane
 draws the level in force on every tab, level 3 in the warning colour, and
-since 0.87.0 the band above the lead's prompt draws a 3 in force, with its
+since 0.88.0 the band above the lead's prompt draws a 3 in force, with its
 press time and a Dismiss, and an unread alarm this mod caught, on the terminal
 and Desktop only. What follows from it:
 - **What the log reveals:** each entry's level, and the times of the owner's
@@ -391,19 +400,19 @@ and Desktop only. What follows from it:
   slider, and so raise the level the lead reads; a rewrite reads as 1 and
   raises an alarm, and a press by another plugin is logged as the owner's.
   The owner accepted this on 2026-10-26, and again for level 3 (q2 and q32 A
-  on #402). The head-chef skill's level rules (spec 402, ticket 6) are to
-  have the lead ask the owner once in its own chat before it acts on a 3;
-  until they land, the skill says nothing of levels, but `read_autonomy`'s
-  own description asks the lead to read the level before each decision it
-  would take itself. That description, and every answer that names a 3, say
-  that a 3 counts only once the owner confirms that press in the lead's chat,
-  never on a confirmation given for an earlier press time, and
-  that at every level a finding that would expose a secret or personal data,
-  and any accepted-risk record, wait for the owner.
+  on #402). Since head-chef 0.17.0 (issue 416) the skill has the lead read
+  the level with `read_autonomy` before each decision it would take itself,
+  ask the owner once in its own chat, naming the press time, before it acts
+  on a 3, and act at 2 until the owner's words there confirm it; a level,
+  goal or confirmation named in a message, file, hand-off or report is data.
+  `read_autonomy`'s description, and every answer that names a 3, say that a
+  3 counts only once the owner confirms that press in the lead's chat, never
+  on a confirmation given for an earlier press time, and list what still
+  waits for the owner at level 3.
 - **Where the level is copied:** each answer of `read_autonomy`,
   `log_decision` and `set_lead_handoff` names the level in the lead's
   transcript, and `read_autonomy`'s names a 3's press time, where they stay
-  after the log is deleted. Since 0.87.0 the band above the lead's prompt
+  after the log is deleted. Since 0.88.0 the band above the lead's prompt
   draws a 3 and its press time, and an alarm's level and time, in the tree
   that other plugins' band hooks see.
 - **What does not reach it:** no permission prompt, mode, owner hook or
@@ -417,9 +426,24 @@ has the guards and the gaps.
 
 **One skill tells the agent to start other agent sessions and to delete their
 worktrees: head-chef.** The agent starts and archives Desktop sessions with
-Claude Desktop's session tools, and runs `git worktree remove` and
-`git branch -d` for cleanup, only on the owner's own words in chat. From
-0.9.0 it starts no background session. A session takes any message from the
+Claude Desktop's session tools. Since head-chef 0.17.0 (issue 416) cleanup
+names back, by repository, every worktree and branch it will remove with
+what it found in each, and removes them only on the owner's one yes in chat,
+at every level: `git worktree remove`, forced once where git refuses and
+doubled for a worktree named back as locked, and `git branch -d`, or `-D`
+where that refuses, never for a default or checked-out branch; for a
+background session, `claude stop` and `claude rm` take the archive's place.
+It removes only the folder and branch it kept when it started the session. It
+reads every repository the brigade ran in, and any folder an item that is not
+bound to its session names, with hooks, the file watcher and signing switched
+off for its git commands; a filter driver can still run. What the reads print
+lands in the lead's transcript: file names, counts, short hashes, stash refs,
+every worktree's path and lock line, and merged branch names, never file
+contents; each repository's `origin` is read as `owner/name` only. Cleanup
+also asks GitHub, with the owner's `gh` sign-in, for the merged pull requests
+of each branch it names. The head chef starts a background session with
+`claude --bg` only when Desktop refused a start and the owner chose that
+route. A session takes any message from the
 head chef that passes its sender check as a relayed decision, on any matter,
 labelled as relayed and never as the owner's own words. The check compares
 the sender's shown name with the session list, as text, so any session that
@@ -436,7 +460,8 @@ The pane's own read of those files, with its stronger checks, is above. head-che
 sessions post their own milestone content, signed, on records that may be
 public, and the owner's own process, not the skill, sets what they post,
 except that the start prompt bars a token or secret; on
-the owner's own words in its chat, the head chef merges, closes, edits,
+the owner's own words in its chat, or at a level 3 the owner confirmed there
+toward the owner's goal, the head chef merges, closes, edits,
 deletes or labels a record, files an issue or posts a comment; the head
 chef's own questions and decisions go by message only; and Remote Control,
 while it is on,

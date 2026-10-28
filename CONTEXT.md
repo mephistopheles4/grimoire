@@ -23,7 +23,7 @@ _Avoid_: decision register, audit log
 **Decision source**:
 Who a decision log entry says decided: Owner (a press of the slider), Pane (a
 level reset at a reload of the mod or a compaction of the lead, or, in a log
-written before 0.87.0, when the pane was shown again; the name stays from
+written before 0.88.0, when the pane was shown again; the name stays from
 when only the pane made these resets, and the entry's why says which), Not from a press (a level change no
 press made), Lead (the lead's own pick) or Relayed (the owner's answer as the
 lead passed it on).
