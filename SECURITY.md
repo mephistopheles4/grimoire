@@ -343,12 +343,13 @@ skips the permission prompt, refuses a subagent's call and every verdict
 session since its last reload, and otherwise the level in force, since 0.87.0 whether the pane is
 shown or not; a deny rule for `mcp__grimoire__read_autonomy` removes it.
 The stored level sits in plugin state as `autonomy`, this session's id and
-its level, never in a file; the last level a press set, a 3's press time and the
-Owner entries the pane wrote stay in the module's memory. The level in force
+its level, never in a file; the last level a press set, a 3's press time, the
+Owner entries the pane wrote, the alarms it wrote, a pending alarm and a
+reset's pending Pane entry stay in the module's memory. The level in force
 is 1 whenever the stored level differs from the last press, while an alarm
 or a reset's Pane entry waits to be logged, and for a 3 with no press time.
 A press that raises the level first logs what waits, then an Owner entry in
-the session's own log, and the raise does not happen if that cannot be
+the session's own log, and the raise does not happen if either cannot be
 written; a lowering always happens. Each new
 lead session starts at 1; a reload of the mod and, since 0.87.0, a compaction
 of the lead's main conversation reset a level above 1 to 1 with a Pane entry,

@@ -2260,11 +2260,13 @@ async function pressLevel($: EngineInterface, l: Level) {
   if (step.kind === 'lower') await appendFixed($, sid, ownerEntry(l), l)
   if (step.kind === 'raise') {
     // What waits to be logged goes first, so the log never ends on an alarm
-    // or a reset made before this raise; a log that cannot take it fails the
-    // raise's own entry too.
+    // or a reset made before this raise. One that could not be written fails
+    // the raise; one whose write is still under way lands ahead of it in the
+    // log's queue.
     await flushAlarm($, sid)
     await flushPane($, sid)
-    const entry = await appendFixed($, sid, ownerEntry(l), step.from)
+    const stuck = [alarms.get(sid), paneWaits.get(sid)].some(w => w !== undefined && !w.writing)
+    const entry = stuck ? undefined : await appendFixed($, sid, ownerEntry(l), step.from)
     await levelTurn(async () => {
       // A change not from a press made while the entry was written is caught
       // first, which voids the raise.

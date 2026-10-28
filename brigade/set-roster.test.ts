@@ -6530,19 +6530,42 @@ test("claims 11 and 25: a reset's Pane entry that cannot be written keeps the le
   expect(ownEntries(w).length).toBe(1)
 })
 
-test("claim 11: a raise that lands while a reset's Pane entry still waits reads 1 until that entry is written", async ($, on) => {
+test("claim 11: a raise whose waiting Pane entry cannot be written first does not happen, even when its own entry could be", async ($, on) => {
   const w = await decisionsPane(on, $)
   await press($, 'level-2')
   seed(w, LOG, '{"cards":[],"todos":[]}')
   await ($ as any).session.start({ cwd: 'C:\\work', surface: null, isInteractive: false })
   await w.clock.settle()
   w.drop(LOG)
-  // The log refuses one write: the Pane entry's, written just ahead of the raise.
+  // The log refuses one write: the Pane entry's, tried just ahead of the raise.
   w.failWriteOnce = LOG
   await press($, 'level-2')
   expect((await readLevel($)).text).toBe(LEVEL_1)
+  expect(await shows(NOT_CHANGED)).toBe(true)
   await w.clock.advance(5000)
-  expect(ownEntries(w)).toEqual(['owner 2 Auto · Moved in the pane · level 1', 'pane 1 Manual · The Brigade mod was reloaded · level 1'])
+  expect(ownEntries(w)).toEqual(['pane 1 Manual · The Brigade mod was reloaded · level 1'])
+  expect((await readLevel($)).text).toBe(LEVEL_1)
+})
+
+test('claim 11: a press below the last-pressed level is a lowering even with the level in force lower, and happens though it cannot be logged', async ($, on) => {
+  // The press of 3 reads the engine clock at a time that is not a whole number,
+  // and its Owner entry is written once the clock is whole again, so that 3
+  // keeps no press time and reads 1 while 3 stays the last pressed.
+  const w = await decisionsPane(on, $)
+  await w.clock.advance(0.5)
+  w.holdStat = true
+  const raise = press($, 'level-3')
+  await w.clock.settle()
+  w.holdStat = false
+  await w.clock.advance(0.5)
+  w.releaseStat()
+  await raise
+  await w.clock.settle()
+  expect(ownEntries(w)).toEqual(['owner 3 Full throttle · Moved in the pane · level 1'])
+  expect((await readLevel($)).text).toBe(LEVEL_1)
+  // A press of 2 with the log refusing every write: a lowering, so it happens.
+  seed(w, LOG, '{"cards":[],"todos":[]}')
+  await press($, 'level-2')
   expect((await readLevel($)).text).toBe(LEVEL_2)
 })
 
