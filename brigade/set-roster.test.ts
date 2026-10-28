@@ -6273,14 +6273,15 @@ test('claim 11: the late offer never undoes a press: a pane placed at the load, 
     w.dirs(DECISIONS)
   })
   await start($)
-  // Placed at the load but not listed yet: the open itself was the showing.
+  // Placed at the load but not listed yet; the engine lists it before the
+  // owner's press, since a press acts only on a listed, placed pane (q3e).
   w.unlisted = true
   expect(added(await load($))).toBe(READY_UNLISTED)
   await w.clock.settle()
   mounted = await $.ui.mount({ plugin: 'grimoire', surface: 'desktop', component: 'Pane', requestId: 'brigade', props: PANE_PROPS })
+  w.unlisted = false
   await press($, 'view-decisions')
   await press($, 'level-2')
-  w.unlisted = false
   await turn($)
   await w.clock.settle()
   expect((await readLevel($)).text).toBe(LEVEL_2)
