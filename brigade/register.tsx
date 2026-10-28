@@ -2254,8 +2254,8 @@ async function pressLevel($: EngineInterface, l: Level, placed: () => Promise<bo
   const now = await $.clock.now()
   // Read before the press takes its turn, so a press dropped for a hidden or
   // closed pane voids no raise still being logged (#430's C10, from the
-  // scoped read's q5d).
-  const isPlaced = await placed().catch(() => false)
+  // scoped read's q5d), and never inside the lock.
+  const isPlaced = await placedWithin($, placed)
   const step = await levelTurn(async () => {
     await catchChange($, sid)
     const live = raising.get(sid)
@@ -2307,6 +2307,21 @@ async function pressLevel($: EngineInterface, l: Level, placed: () => Promise<bo
   }
   await ensureLevelPoll($)
   await redraw($)
+}
+
+// The pane check, bounded on the engine clock: an answer that has not come
+// within OPEN_WAIT_MS, or a failure, counts as not placed, so a pane list
+// that never answers still lets a lowering act (#430's C10, from q7).
+async function placedWithin($: EngineInterface, placed: () => Promise<boolean>): Promise<boolean> {
+  let timer: Timer | undefined
+  const waited = new Promise<false>(res => {
+    timer = $.clock.after(OPEN_WAIT_MS, () => res(false))
+  })
+  try {
+    return await Promise.race([placed(), waited]).catch(() => false)
+  } finally {
+    timer?.cancel()
+  }
 }
 
 // A new session id reads 1: at a clear or a resume, what this module kept

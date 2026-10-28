@@ -179,6 +179,8 @@ type World = ReturnType<typeof makeFs> & {
   failPanes: boolean
   /** While the pane is closed, `ui.panes` rejects. */
   failPanesClosed: boolean
+  /** While true, `ui.panes` never answers. */
+  hangPanes: boolean
   /** The open answers, but the engine never lists the pane. */
   unlisted: boolean
   /** The open answers that the pane is not placed. */
@@ -292,6 +294,7 @@ function world(on: On, setup: (w: World) => void = w => w.dirs(`${CONFIG}\\plugi
     failRegister: false,
     failPanes: false,
     failPanesClosed: false,
+    hangPanes: false,
     unlisted: false,
     unplaced: false,
     placeOnOpen: false,
@@ -419,6 +422,7 @@ function world(on: On, setup: (w: World) => void = w => w.dirs(`${CONFIG}\\plugi
   })
   on('ui.panes', () => {
     w.panesCalls++
+    if (w.hangPanes) return new Promise<never>(() => {})
     return (w.open ? w.failPanes : w.failPanesClosed)
       ? { deny: 'forced panes failure' }
       : { value: w.open && !w.unlisted ? [{ id: 'brigade', title: 'Brigade', isShown: w.shown, isFocused: false, isPlaced: !w.unplaced }] : [] }
@@ -7160,6 +7164,23 @@ test("C10, the closing read's q4a: a press that lowers the level acts whatever t
     'owner 3 Full throttle · Moved in the pane · level 1',
     'owner 2 Auto · Moved in the pane · level 2',
   ])
+})
+
+test("C10, the q7 fix: a pane list that never answers counts as not placed after the 5-second bound, so a lowering still acts and a raise is dropped", async ($, on) => {
+  const w = await decisionsPane(on, $)
+  await press($, 'level-2')
+  w.hangPanes = true
+  // A lowering still acts once the bound passes, with its Owner entry.
+  const lower = press($, 'level-1')
+  await w.clock.advance(5000)
+  expect((await readLevel($)).text).toBe(LEVEL_1)
+  await lower
+  // A raise waits out the same bound, then is dropped and logs nothing.
+  const raise = press($, 'level-2')
+  await w.clock.advance(5000)
+  await raise
+  expect((await readLevel($)).text).toBe(LEVEL_1)
+  expect(ownEntries(w)).toEqual(['owner 2 Auto · Moved in the pane · level 1', 'owner 1 Manual · Moved in the pane · level 1'])
 })
 
 test("C10, the scoped read's q5d: a press above the level in force needs a listed, placed pane, even one below the last-pressed level", async ($, on) => {
