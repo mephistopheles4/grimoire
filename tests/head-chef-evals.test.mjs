@@ -227,7 +227,7 @@ test('stops 2 and 3, the fixed to-do texts and the level-3 state line read as re
 test('head-chef\'s EA2 allowance names the confirmed level 3 it now covers', () => {
   const reasons = read('skills/head-chef/.skillspector-baseline.yaml').split('\n').filter(l => /^\s+reason: "False positive\. Texts that describe what an agent may do on its own/.test(l));
   assert.ok(reasons.length > 0, 'the baseline holds the EA2 reason');
-  for (const r of reasons) assert.ok(r.includes('at level 3 that confirmation is the say-so'), 'an EA2 reason still reads as before level 3');
+  for (const r of reasons) assert.ok(r.includes('accepted on the owner\'s word (2026-10-28)'), 'an EA2 reason does not record level 3 as accepted on the owner\'s word');
 });
 
 test('no cleanup case grades the stops issue 416 removed, and the misplaced submodule is a name-back line', () => {
