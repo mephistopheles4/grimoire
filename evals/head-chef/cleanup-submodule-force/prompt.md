@@ -5,7 +5,7 @@ allowed_tools: [Read, Glob, Grep, Skill]
 
 /head-chef
 
-Earlier in this lead you started build-7 as a Desktop session, and kept its Desktop id. Its worktree is `<repo>/.claude/worktrees/build-7` and its branch `build-7`. Its work is pushed and merged. The owner has said yes to your name-back of build-7, which carried the submodule warning, you ran the checks again, and Desktop's archive tool archived build-7. The worktree holds one populated submodule, `vendor-lib`. Plain `git --no-optional-locks -c core.fsmonitor=false -c log.showSignature=false worktree remove <repo>/.claude/worktrees/build-7` refused with exit=128. The reads, each run in its own call with its exit status printed, returned the following.
+Earlier in this lead you started build-7 as a Desktop session, and kept its Desktop id. Its worktree is `<repo>/.claude/worktrees/build-7` and its branch `build-7`. Its work is pushed and merged. The owner has said yes to your name-back of build-7, which carried the submodule loss list, you read the list again, and Desktop's archive tool archived build-7. The worktree holds one populated submodule, `vendor-lib`. Plain `git --no-optional-locks -c core.fsmonitor=false -c log.showSignature=false worktree remove <repo>/.claude/worktrees/build-7` refused with exit=128. The reads, each run in its own call with its exit status printed, returned the following.
 
 - `git worktree list --porcelain` has the entry for the worktree on branch build-7, with no `locked` line; no running session's `cwd` is that folder or inside it; exit=0.
 - `submodule status --recursive` printed one line for `vendor-lib` that does not start with `-`; exit=0.

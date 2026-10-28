@@ -12,7 +12,8 @@ export const RISKS = [
   'Any device signed in to your account can drive the sessions it starts while Remote Control is on.',
   'Those sessions trust any message that claims to come from it, and any comment on their issue made as you.',
 ]
-export const ALSO = 'It also starts sessions, relays between them, and merges or cleans up on your word.'
+export const ALSO =
+  'It also starts sessions and relays between them. It merges, posts, waives reviews and settles security findings on your word, or on its own toward a goal at a level 3 you confirmed in its chat; it cleans up, forcing where git refuses, only on your yes.'
 export const WORDING: readonly string[] = [TITLE, ...RISKS, ALSO]
 
 /** The owner's "Don't show again": when, and which version of the wording. */
