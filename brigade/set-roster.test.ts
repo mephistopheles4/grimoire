@@ -7130,7 +7130,7 @@ test('claim 23: a planted marks file neither clears nor raises the alarm line, a
   expect(await bandTexts(b)).toEqual([])
 })
 
-test('C10, the closing read's q4a: a press that lowers the level acts whatever the pane list answers; only a raise needs a listed, placed pane', async ($, on) => {
+test("C10, the closing read's q4a: a press that lowers the level acts whatever the pane list answers; only a raise needs a listed, placed pane", async ($, on) => {
   const w = await decisionsPane(on, $)
   await w.clock.advance(1000)
   await press($, 'level-3')
@@ -7155,7 +7155,7 @@ test('C10, the closing read's q4a: a press that lowers the level acts whatever t
   ])
 })
 
-test('C12, the closing read's q4c: a press of 3 at a clock time outside the Date range keeps no press time, so it reads 1 and draws no level-3 line', async ($, on) => {
+test("C12, the closing read's q4c: a press of 3 at a clock time outside the Date range keeps no press time, so it reads 1 and draws no level-3 line", async ($, on) => {
   const w = await decisionsPane(on, $)
   w.open = false
   await w.clock.advance(5000)
@@ -7168,7 +7168,7 @@ test('C12, the closing read's q4c: a press of 3 at a clock time outside the Date
   expect(await bandTexts(await band($))).toEqual([])
 })
 
-test('C12, the closing read's q4c: an alarm caught at a clock time outside the Date range names 00:00, not the time', async ($, on) => {
+test("C12, the closing read's q4c: an alarm caught at a clock time outside the Date range names 00:00, not the time", async ($, on) => {
   const otherWrites = rewritten(on)
   const w = await decisionsPane(on, $)
   w.open = false
@@ -7182,7 +7182,7 @@ test('C12, the closing read's q4c: an alarm caught at a clock time outside the D
   expect(await bandTexts(await band($))).toEqual([BAND_ALARM(3, 0)])
 })
 
-test('claim 23, the closing read's q4c: marking another entry leaves the alarm line up; only its own entry clears it', async ($, on) => {
+test("claim 23, the closing read's q4c: marking another entry leaves the alarm line up; only its own entry clears it", async ($, on) => {
   const w = await decisionsPane(on, $)
   const b = await band($)
   plantOnce(w, 3)
@@ -7200,7 +7200,7 @@ test('claim 23, the closing read's q4c: marking another entry leaves the alarm l
   expect(await bandTexts(b)).toEqual([])
 })
 
-test('claim 23, the closing read's q4f: after a clear and a resume back, a repeat held behind the unread alarm joins it, and reading that alarm clears the line', async ($, on) => {
+test("claim 23, the closing read's q4f: after a clear and a resume back, a repeat held behind the unread alarm joins it, and reading that alarm clears the line", async ($, on) => {
   const w = await decisionsPane(on, $)
   plantOnce(w, 3)
   await press($, 'level-2')
@@ -7219,7 +7219,7 @@ test('claim 23, the closing read's q4f: after a clear and a resume back, a repea
   expect(await bandTexts(b)).toEqual([])
 })
 
-test('C10, Test round 1's q3e: a slider press acts only while the engine lists the pane and it is placed', async ($, on) => {
+test("C10, Test round 1's q3e: a slider press acts only while the engine lists the pane and it is placed", async ($, on) => {
   const w = await decisionsPane(on, $)
   // Behind another tab, then closed: a press raised on the pane's stop sets nothing and logs nothing.
   for (const step of [() => (w.unplaced = true), () => (w.open = false)]) {
@@ -7235,7 +7235,7 @@ test('C10, Test round 1's q3e: a slider press acts only while the engine lists t
   expect((await readLevel($)).text).toBe(LEVEL_2)
 })
 
-test('C11, Test round 1's q3f: a clear to another session id with the pane closed withdraws the tools, and a resume back to the id they were offered for brings them back', async ($, on) => {
+test("C11, Test round 1's q3f: a clear to another session id with the pane closed withdraws the tools, and a resume back to the id they were offered for brings them back", async ($, on) => {
   const w = await decisionsPane(on, $, 'desktop', w => w.dirs(HANDOFFS))
   w.open = false
   await w.clock.advance(5000)
