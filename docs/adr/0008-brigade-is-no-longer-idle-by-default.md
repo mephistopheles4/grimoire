@@ -109,8 +109,10 @@ timers. It runs only while the stored or last-pressed level is above 1, or an
 alarm, a reset's Pane entry or a reset that could not land waits, and it starts
 when a press, a reset, one of the pane's tools or the band above the prompt
 finds one of those, or a stored level that differs from the last press. Each
-tick reads the session id and the stored level, and writes only the session's
-own decision log, for an alarm or a Pane entry; it reads no usage, keeps no
+tick reads the session id and the stored level, sets the stored level to 1
+when it differs from the last press, and writes only the session's own
+decision log, for an alarm or a Pane entry, reading the log first as its
+writer does; it reads no usage, keeps no
 report, starts no process and stops once nothing is left. A session at level 1
 with nothing waiting runs no tick at all. The new `session.compact` hook reads
 only the compaction's trigger, whether a subagent's loop is compacting, and

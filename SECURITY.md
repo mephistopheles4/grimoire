@@ -214,7 +214,7 @@ character, text shaped like a session id, a Desktop id or a Remote Control
 link, a value shaped like a known key, an email address or a home-folder
 path; the refusal names the shape, never the value. Like `set_roster`
 it skips the permission prompt in every mode, works only once the mod has
-offered it since its last reload, and since 0.87.0 with the pane shown,
+offered it to this session since its last reload, and since 0.87.0 with the pane shown,
 behind another tab or closed alike, and refuses a subagent's call, a
 deny verdict, an owner's ask rule and an organisation ceiling below allow;
 each refusal is fixed words naming the rule, never a path, a verdict's reason
@@ -339,8 +339,8 @@ or personal data, and any accepted-risk record, still wait for the owner. The
 mod offers a fifth tool, `read_autonomy`, wherever it offers `set_roster`:
 it takes no input, answers the level in force, a 3 with the time of its press,
 skips the permission prompt, refuses a subagent's call and every verdict
-`set_roster` refuses, and answers 1 until the mod has offered it since its
-last reload, and otherwise the level in force, since 0.87.0 whether the pane is
+`set_roster` refuses, and answers 1 until the mod has offered it to this
+session since its last reload, and otherwise the level in force, since 0.87.0 whether the pane is
 shown or not; a deny rule for `mcp__grimoire__read_autonomy` removes it.
 The stored level sits in plugin state as `autonomy`, this session's id and
 its level, never in a file; the last level a press set, a 3's press time and the
@@ -355,10 +355,13 @@ of the lead's main conversation reset a level above 1 to 1 with a Pane entry,
 and a showing of the pane no longer does; a session start, reload or
 compaction that finds a stored level above 1 writes that entry even with the
 pane closed, the one file a session start writes. The compaction hook reads
-only who is compacting and whether the compaction was skipped, never the
-conversation, the instructions or the summary, and a compaction first logs a
+only who is compacting, the compaction's trigger and whether it was skipped,
+never the conversation, the instructions or the summary, and a compaction first logs a
 stored level that differs from the last press as an alarm. A reset that cannot
-read the session id waits, reading 1, until it lands. A Pane entry that cannot be written keeps the
+read the session id, or one of whose steps throws, waits, reading 1, until it
+lands. Since 0.87.0 a press on the slider sets a level only while the engine
+lists the pane and it is placed; a press raised on a hidden or closed pane is
+dropped. A Pane entry that cannot be written keeps the
 level at 1 and is tried again at the next poll, as an alarm is; an entry
 written late carries the time it was written. A clear or a resume
 forgets every other session's level and press time, writing no entry; an

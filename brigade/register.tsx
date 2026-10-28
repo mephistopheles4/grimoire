@@ -78,6 +78,7 @@ import {
   inFixedShape,
   unreadOwnAlarm,
   levelInForce,
+  clockTime,
   levelOption,
   markKey,
   mergeMarks,
@@ -1388,7 +1389,7 @@ async function offerTool($: EngineInterface) {
       // a lead with no read_autonomy acts at level 1.
     }
   }
-  toolsOffered = true
+  toolsOfferedFor = await levelSid($).catch(() => undefined)
 }
 
 // Set when a head-chef load leaves the pane waiting (#380), and read by the
@@ -1411,7 +1412,7 @@ let lateOffer: false | 'offer' | 'arm' = false
 // caller whose later step throws. `needPlaced` is for a head-chef load: a pane
 // the engine answers is not placed starts no reads and offers no tool, so
 // nothing runs while it waits unseen. `listed` says whether the engine listed
-// it. A showing no longer resets the autonomy level (spec 402 rev 6.2).
+// it. Since 0.87.0 (spec 402 rev 6.2) a showing no longer resets the autonomy level.
 type Offer = 'offered' | 'not listed' | 'not placed' | { why: string }
 async function openPane($: EngineInterface, wait: boolean, reached: { open: boolean } = { open: false }, needPlaced = false) {
   await update($, viewAtom, () => 'sessions')
@@ -1717,13 +1718,13 @@ const failedAfterLog = () => ({
   deny: 'log_decision failed after the write began: the decision log path then failed its check. The log may or may not hold the entry; act at level 1 and tell the owner.',
 })
 
-// Refused until this module has offered the tools since its last reload: a
-// session whose pane never opened has none of them (#430, q1).
-const OFFER_RULE = 'offer: the Brigade pane has not offered this tool in this session'
+// Refused until this module has offered the tools to this session id since its
+// last reload: a session whose pane never opened has none of them (#430, q1).
+const OFFER_RULE = 'offer: the Brigade mod has not offered this tool to this session since it last loaded; the owner can type /brigade to offer it'
 
 async function logDecision($: EngineInterface, e: Record<string, unknown>, signal: AbortSignal, progress: Progress) {
   if (e.agentId !== undefined) return refuseLog("subagent: only the lead session's own turns log decisions")
-  if (!toolsOffered) return refuseLog(OFFER_RULE)
+  if (!(await offered($))) return refuseLog(OFFER_RULE)
   await ensureLevelPoll($)
   const input = Object.fromEntries(Object.entries(e).filter(([k]) => !ENVELOPE.includes(k)))
   if (!rulesAllowTool(await $.tool.check({ tool: LOG_TOOL_NAME, input }))) {
@@ -1736,7 +1737,7 @@ async function logDecision($: EngineInterface, e: Record<string, unknown>, signa
 
   return logTurn(async () => {
     if (signal.aborted) return refuseLog('abandoned: the call ran out of time or was interrupted before its turn')
-    if (!toolsOffered) return refuseLog(OFFER_RULE)
+    if (!(await offered($))) return refuseLog(OFFER_RULE)
     // The level stamped is the one read_autonomy would answer now.
     const level = await levelTurn(() => levelNow($, at.id))
     const r = await appendToLog($, at, checked.value, { level, fixed: false, signal, progress })
@@ -1895,7 +1896,7 @@ function handoffAnswer(c: ChosenHandoff | undefined, unread: 'flooded' | 'older'
 // The checks both tools make before anything is placed or read.
 async function handoffGate($: EngineInterface, e: Record<string, unknown>, name: string): Promise<{ input: Record<string, unknown> } | { rule: string }> {
   if (e.agentId !== undefined) return { rule: "subagent: only the lead session's own turns keep the hand-off" }
-  if (!toolsOffered) return { rule: OFFER_RULE }
+  if (!(await offered($))) return { rule: OFFER_RULE }
   await ensureLevelPoll($)
   const input = Object.fromEntries(Object.entries(e).filter(([k]) => !ENVELOPE.includes(k)))
   if (!rulesAllowTool(await $.tool.check({ tool: name, input }))) return { rule: RULES_RULE }
@@ -1912,7 +1913,7 @@ async function setLeadHandoff($: EngineInterface, e: Record<string, unknown>, si
 
   return handoffTurn(async () => {
     if (signal.aborted) return refuseSet('abandoned: the call ran out of time or was interrupted before its turn')
-    if (!toolsOffered) return refuseSet(OFFER_RULE)
+    if (!(await offered($))) return refuseSet(OFFER_RULE)
     const placed = await placeKind($, at, 'handoff', at.id)
     if ('refused' in placed) return refuseSet('path: the hand-off path failed its check')
     // A file already there is overwritten only if it is a hand-off. What it
@@ -1963,7 +1964,7 @@ async function readLeadHandoff($: EngineInterface, e: Record<string, unknown>, s
 
   return handoffTurn(async () => {
     if (signal.aborted) return refuseRead('abandoned: the call ran out of time or was interrupted before its turn')
-    if (!toolsOffered) return refuseRead(OFFER_RULE)
+    if (!(await offered($))) return refuseRead(OFFER_RULE)
     const now = await $.clock.now()
     // A clock answer that is not a whole number could pass a file dated ahead.
     if (!Number.isSafeInteger(now) || now < 0) return refuseRead('clock: the engine clock gave no whole number of milliseconds')
@@ -2027,9 +2028,12 @@ let resetWaits: ResetWhy | undefined
 let bandDismissed: { sid: string; at: number } | undefined
 type BandAlarm = { found: Level; caught: number; entry?: { id: string; at: number } }
 const bandAlarms = new Map<string, BandAlarm>()
-// Whether this module offered the tools that read and write the level, the log
-// and the hand-off since its last reload: until it has, each refuses (#430, q1).
-let toolsOffered = false
+// The session id this module last offered the tools that read and write the
+// level, the log and the hand-off for, since its last reload: under any other
+// id, or none, each refuses (#430, q1 and q3f). A clear or a resume to a new id
+// offers them again only while the pane is open.
+let toolsOfferedFor: string | undefined
+const offered = async ($: EngineInterface) => toolsOfferedFor !== undefined && (await levelSid($).catch(() => undefined)) === toolsOfferedFor
 // The level's own poll, apart from the pane's timers: it is never the pane's
 // reads, and runs only while something about the level needs looking at.
 const LEVEL_MS = 5000
@@ -2089,7 +2093,7 @@ async function catchChange($: EngineInterface, sid: string) {
   if (!alarms.has(sid)) alarms.set(sid, { found: stored, writing: false, late: false })
   const now = await $.clock.now()
   const held = bandAlarms.get(sid)
-  bandAlarms.set(sid, { found: stored, caught: Number.isSafeInteger(now) ? now : (held?.caught ?? 0), entry: held?.entry })
+  bandAlarms.set(sid, { found: stored, caught: clockTime(now) ? now : (held?.caught ?? 0), entry: held?.entry })
   await setLevel($, sid, 1)
 }
 
@@ -2221,8 +2225,8 @@ function stopLevelPoll() {
 
 // A press on the slider. A change not from a press is caught first. A press
 // on the level that is both in force and last pressed does nothing; a press
-// at or below the level in force, or below the last-pressed one (while an
-// alarm waits), is a lowering, which happens at once and is logged after; a
+// at or below the level in force, or below the last-pressed one (while the
+// level in force is below it), is a lowering, which happens at once and is logged after; a
 // raise logs what waits first, happens only once its Owner entry is written,
 // and only when no press or change came in between. A press on the level a raise still being logged
 // goes to, with nothing in between, does nothing. A 3 keeps its press time.
@@ -2240,7 +2244,11 @@ async function pressLevel($: EngineInterface, l: Level) {
     const turn = ++levelTurns
     const inForce = await levelNow($, sid)
     const pressed = pressedOf(sid)
-    if (l === inForce && l === pressed && !raising.has(sid)) return { kind: 'none' as const }
+    if (l === inForce && l === pressed && !raising.has(sid)) {
+      // A press of the 3 in force brings back the band's level-3 line it dismissed.
+      if (l === 3 && bandDismissed?.sid === sid) bandDismissed = undefined
+      return { kind: 'none' as const }
+    }
     if (l <= inForce || l < pressed) {
       await setLevel($, sid, l)
       return { kind: 'lower' as const }
@@ -2265,7 +2273,7 @@ async function pressLevel($: EngineInterface, l: Level) {
       if (entry === undefined) raiseFailed = true
       else if (levelTurns === step.turn) {
         await setLevel($, sid, l)
-        if (l === 3 && Number.isSafeInteger(now)) pressedAt.set(sid, now)
+        if (l === 3 && clockTime(now)) pressedAt.set(sid, now)
       }
     })
   }
@@ -2378,7 +2386,7 @@ async function readAutonomy($: EngineInterface, e: Record<string, unknown>) {
   const input = Object.fromEntries(Object.entries(e).filter(([k]) => !ENVELOPE.includes(k)))
   if (!rulesAllowTool(await $.tool.check({ tool: AUTONOMY_NAME, input }))) return refuseLevel(RULES_RULE)
   if (Object.keys(input).length > 0) return refuseLevel('shape: the tool takes no input')
-  if (!toolsOffered) return { result: levelAnswer(1, undefined) }
+  if (!(await offered($))) return { result: levelAnswer(1, undefined) }
   await ensureLevelPoll($)
   const sid = await levelSid($)
   if (sid === undefined) return { result: levelAnswer(1, undefined) }
@@ -2526,7 +2534,7 @@ export const register: Register = on => {
     bandAlarms.clear()
     bandDismissed = undefined
     resetWaits = undefined
-    toolsOffered = false
+    toolsOfferedFor = undefined
     stopLevelPoll()
     // A raise still being logged is forgotten only after the reset, which
     // counts it as a level above 1, so its Owner entry is followed by a Pane one.
@@ -2562,13 +2570,18 @@ export const register: Register = on => {
       // No tool this time: the next /brigade offers it again.
     }
     await warningOfferAgain($)
+    // An alarm or a Pane entry still waiting for this id is logged by the level
+    // poll, with the pane open or closed.
+    await ensureLevelPoll($)
     return next(e)
   })
 
   // A compaction of the lead's main conversation resets a level above 1 to 1
   // (spec 402 rev 6.2, S4). It reads only the trigger, the agent id and
   // whether the result is a skip, passes the event on as received and
-  // returns the result unchanged; the lowering lands before it returns.
+  // returns the result unchanged; the lowering lands before it returns. A
+  // `precompute` is the engine computing a summary ahead of time, which
+  // installs nothing, so it is no compaction of the conversation.
   on('session.compact', async ($, e, next) => {
     const result = await next(e)
     try {
@@ -2751,7 +2764,10 @@ export const register: Register = on => {
     // The slider's three stops.
     const stop = /^level-([123])$/.exec(e.element)
     if (stop !== null) {
-      await pressLevel($, Number(stop[1]) as Level)
+      // The owner's own press comes from a pane the engine lists and places; a
+      // press raised on any other is dropped (#430, q3e).
+      const pane = await paneListed($).catch(() => undefined)
+      if (pane?.isPlaced === true) await pressLevel($, Number(stop[1]) as Level)
       return { element: e.element }
     }
     const review = /^(dnext|dflag|dskip)-([1-9][0-9]{0,15})-([0-9]{1,16})$/.exec(e.element)

@@ -6899,20 +6899,25 @@ for (const surface of ['terminal', 'desktop'] as const) {
     expect(await b.find({ key: `l3dismiss-${at}`, text: 'Dismiss' })).toBeDefined()
     // What the engine draws beneath still shows.
     expect(await b.find({ key: 'engine' })).toBeDefined()
-    // Behind another tab: the engine lists the pane but does not place it.
+    // Behind another tab: the engine lists the pane but does not place it. Each
+    // step draws the band afresh, so it is drawn with the pane in that state.
     w.unplaced = true
     await w.clock.advance(5000)
-    expect(await b.find({ type: 'Text', text: BAND_3(at) })).toBeDefined()
+    await b.unmount()
+    const hidden = await band($, surface)
+    expect(await hidden.find({ type: 'Text', text: BAND_3(at) })).toBeDefined()
     expect((await readLevel($)).text).toBe(level3(at))
     // Closed: the engine no longer lists it, and the pane's reads stop.
     w.open = false
     await w.clock.advance(5000)
-    expect(await b.find({ type: 'Text', text: BAND_3(at) })).toBeDefined()
+    await hidden.unmount()
+    const closed = await band($, surface)
+    expect(await closed.find({ type: 'Text', text: BAND_3(at) })).toBeDefined()
     expect((await readLevel($)).text).toBe(level3(at))
     // A press of 2 takes the line away.
     await reopen($, w)
     await press($, 'level-2')
-    expect(await bandTexts(b)).toEqual([])
+    expect(await bandTexts(closed)).toEqual([])
   })
 }
 
@@ -6941,6 +6946,12 @@ test('claim 22: Dismiss hides the level-3 line until a new press of 3, a compact
   expect(await bandTexts(b)).toEqual([])
   await w.clock.advance(15000)
   expect(await bandTexts(b)).toEqual([])
+  // A press of 3 while that 3 is in force shows it again, with the same press time.
+  await press($, 'level-3')
+  expect(await bandTexts(b)).toEqual([BAND_3(first)])
+  await b.press({ key: `l3dismiss-${first}` })
+  // An alarm, the fourth way out, sets the level to 1, so it ends the line too; the
+  // claim 23 tests cover it.
   // A new press of 3, at a new time, shows it again.
   await press($, 'level-2')
   await w.clock.advance(1000)
@@ -6977,6 +6988,12 @@ test('claim 22: a Dismiss pressed under another session id hides nothing', async
   await b.unmount()
   const again = await band($)
   expect(await again.find({ type: 'Text', text: BAND_3(at) })).toBeDefined()
+  // A Dismiss pressed while the session id cannot be read hides nothing either.
+  w.rejectIds = 1
+  await again.press({ key: `l3dismiss-${at}` })
+  await again.unmount()
+  const after = await band($)
+  expect(await after.find({ type: 'Text', text: BAND_3(at) })).toBeDefined()
 })
 
 test('claim 22: a resume back to the same id with the classic start hook skipped shows the level-3 line again', async ($, on) => {
@@ -7088,6 +7105,60 @@ test('claim 23: a planted marks file neither clears nor raises the alarm line, a
   expect(await bandTexts(b)).toEqual([])
 })
 
+test('q3e: a slider press acts only while the engine lists the pane and it is placed', async ($, on) => {
+  const w = await decisionsPane(on, $)
+  // Behind another tab, then closed: a press raised on the pane's stop sets nothing and logs nothing.
+  for (const step of [() => (w.unplaced = true), () => (w.open = false)]) {
+    step()
+    await press($, 'level-2')
+    expect((await readLevel($)).text).toBe(LEVEL_1)
+  }
+  expect(ownEntries(w)).toEqual([])
+  // Listed and placed again: the press sets the level.
+  w.open = true
+  w.unplaced = false
+  await press($, 'level-2')
+  expect((await readLevel($)).text).toBe(LEVEL_2)
+})
+
+test('q3f: a clear to another session id with the pane closed withdraws the tools, and a resume back to the id they were offered for brings them back', async ($, on) => {
+  const w = await decisionsPane(on, $, 'desktop', w => w.dirs(HANDOFFS))
+  w.open = false
+  await w.clock.advance(5000)
+  await switchTo($, w, NEW_SID, 'clear')
+  expect((await decide($)).text).toMatch(/^log_decision refused: offer: /)
+  expect((await setHandoff($)).text).toMatch(/^set_lead_handoff refused: offer: /)
+  expect((await readHandoff($)).text).toMatch(/^read_lead_handoff refused: offer: /)
+  await switchTo($, w, SID, 'resume')
+  expect((await decide($)).ok).toBe(true)
+})
+
+test('claim 24 (C9): with the pane up, a reload whose offer fails leaves read_autonomy answering 1 after a press of 2', async ($, on) => {
+  const w = await decisionsPane(on, $)
+  w.failRegister = true
+  await ($ as any).session.start({ cwd: 'C:\\work', surface: null, isInteractive: false }).catch(() => undefined)
+  await w.clock.settle()
+  await press($, 'level-2')
+  expect((await readLevel($)).text).toBe(LEVEL_1)
+})
+
+test('claim 24: an alarm still waiting for a session id is logged once a resume brings the id back, with the pane closed', async ($, on) => {
+  const w = await decisionsPane(on, $)
+  plantOnce(w, 3)
+  await press($, 'level-2')
+  seed(w, LOG, '{"cards":[],"todos":[]}')
+  await w.clock.advance(5000)
+  w.open = false
+  await mounted.unmount()
+  await w.clock.advance(5000)
+  await switchTo($, w, NEW_SID, 'clear')
+  await w.clock.advance(15000)
+  await switchTo($, w, SID, 'resume')
+  w.drop(LOG)
+  await w.clock.advance(5000)
+  expect(ownEntries(w)).toEqual(['alarm 3 Full throttle · Changed, not from a press · level 1'])
+})
+
 test('claim 24: with the pane behind another tab or closed, read_autonomy answers the level, and log_decision and the hand-off tools work', async ($, on) => {
   const w = await decisionsPane(on, $, 'desktop', w => w.dirs(HANDOFFS))
   await press($, 'level-2')
@@ -7109,9 +7180,9 @@ test('claim 24: a session whose pane never offered the tools has none of them, a
   })
   await start($)
   const refusedAll = async (level = true) => {
-    expect((await decide($)).text).toBe('log_decision refused: offer: the Brigade pane has not offered this tool in this session. The decision log is unchanged; act at level 1.')
-    expect((await setHandoff($)).text).toBe('set_lead_handoff refused: offer: the Brigade pane has not offered this tool in this session. The hand-off is unchanged.')
-    expect((await readHandoff($)).text).toBe('read_lead_handoff refused: offer: the Brigade pane has not offered this tool in this session. Nothing was changed.')
+    expect((await decide($)).text).toBe('log_decision refused: offer: the Brigade mod has not offered this tool to this session since it last loaded; the owner can type /brigade to offer it. The decision log is unchanged; act at level 1.')
+    expect((await setHandoff($)).text).toBe('set_lead_handoff refused: offer: the Brigade mod has not offered this tool to this session since it last loaded; the owner can type /brigade to offer it. The hand-off is unchanged.')
+    expect((await readHandoff($)).text).toBe('read_lead_handoff refused: offer: the Brigade mod has not offered this tool to this session since it last loaded; the owner can type /brigade to offer it. Nothing was changed.')
     if (level) expect((await readLevel($)).text).toBe(LEVEL_1)
   }
   await refusedAll()
@@ -7307,6 +7378,8 @@ test("claim 25: a compaction's Pane entry that cannot be written still lowers th
   seed(w, LOG, '{"cards":[],"todos":[]}')
   await compactNow($)
   expect((await readLevel($)).text).toBe(LEVEL_1)
+  // The stored level is lowered at once, not only once its entry lands.
+  expect(w.states.filter(([k]) => k === 'autonomy').at(-1)?.[1]).toBe(JSON.stringify([{ session: SID, level: 1 }]))
   await w.clock.advance(5000)
   w.drop(LOG)
   await w.clock.advance(5000)

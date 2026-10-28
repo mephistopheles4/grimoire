@@ -21,7 +21,7 @@ const {
   reviewQueue, flaggedRows, historyRows, matchesSearch, searchWords, serializeLog, serializeMarks,
   sha256Hex, projectDigest, sourceLabel, writerName, missingIds,
   MAX_HANDOFF_BYTES, checkHandoffInput, checkHandoff, serializeHandoff, chooseHandoff,
-  levelFrom, storedLevel, levelInForce, ownerEntry, paneEntry, alarmEntry, inFixedShape, unreadOwnAlarm,
+  levelFrom, storedLevel, levelInForce, ownerEntry, paneEntry, alarmEntry, inFixedShape, unreadOwnAlarm, clockTime,
 } = d;
 
 const SID = '11111111-2222-3333-4444-555555555555';
@@ -490,6 +490,11 @@ test('claim 10: the Owner, Pane and alarm entries are built in one fixed shape e
   assert.equal(sourceLabel(alarm, 'lead-a'), 'Not from a press');
   // The tool's own entries are never held to these shapes.
   assert.equal(inFixedShape(logOf(1).entries[0]), true);
+});
+
+test('q3g: a clock time is kept only as a whole number of milliseconds inside the Date range', () => {
+  for (const ok of [0, 1, NOW, 8.64e15, -8.64e15]) assert.equal(clockTime(ok), true, String(ok));
+  for (const bad of [8.64e15 + 1, -8.64e15 - 1, Number.MAX_SAFE_INTEGER, 1.5, NaN, Infinity, '5', undefined, null]) assert.equal(clockTime(bad), false, String(bad));
 });
 
 test("claim 25: a compaction's Pane entry has its own fixed shape, and each of the three whys reads only as itself", () => {

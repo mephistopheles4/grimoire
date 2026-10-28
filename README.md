@@ -209,7 +209,7 @@ or personal data still waits for you. Only your press moves the slider, and
 the level in force is drawn on every view, 3 in the warning colour. Each move
 is logged as your own decision ("Owner"). A new lead session starts at 1, and
 so does a reload of the mod and, since 0.87.0, each compaction of the lead's
-conversation, logged as "Pane"; showing the pane again no longer resets it. A change to the level that no press made sets it back to 1 and puts an
+conversation, logged as "Pane" (the name stays from when only the pane made these resets; the entry's why says which); showing the pane again no longer resets it. A change to the level that no press made sets it back to 1 and puts an
 alarm ("Not from a press") in To review; while that alarm is unread, further
 such changes are counted on the pane, not logged again. A reset or an alarm
 that cannot be logged is said on the pane and tried again. The lead reads its level with the
@@ -219,8 +219,9 @@ time of its press and a Dismiss, which hides it until the next press of 3, the
 next alarm, or the next compaction or reload. While an alarm is unread, a
 warning line there names the level found and when, until you read the alarm in
 To review. Both lines show on the terminal and Desktop only: the mobile app,
-claude.ai and VS Code draw nothing above the prompt. A mod older than 0.87.0
-skips a compaction's Pane entry and counts it as out of shape.
+claude.ai and VS Code draw nothing above the prompt. If you go back to a mod
+older than 0.87.0, its Decisions tab leaves out a compaction's Pane entry and
+counts it among the entries it cannot draw.
 
 A row that waits on you and holds a large context says when to reply
 to keep its cache, or suggests a hand-off once it has gone cold. Under its
@@ -398,7 +399,7 @@ What each of Brigade's hooks does with what it sees:
 | Hook | What it does |
 | --- | --- |
 | `session.start`, `classic.SessionStart` | Registers `/brigade`, notes the session's id and transcript path to find the plugin's data folder, and offers `show_permission_warning`, and `set_roster`, `log_decision`, `set_lead_handoff`, `read_lead_handoff` and `read_autonomy` while the pane is open, again after a reload, a clear or a resume. A session start or reload that finds an autonomy level above 1 sets it back to 1 and logs it, pane open or not, and since 0.87.0 so does a start after a compaction; a clear or a resume forgets any other session's level. It changes nothing in the event and passes it on. |
-| `session.compact` | Since 0.87.0, after a compaction of the lead's own conversation that went ahead, sets an autonomy level above 1 back to 1 and logs it. It reads only who is compacting and whether the compaction was skipped, never the conversation, the instructions or the summary, and returns the compaction unchanged. |
+| `session.compact` | Since 0.87.0, after a compaction of the lead's own conversation that went ahead, sets an autonomy level above 1 back to 1 and logs it. It reads only who is compacting, the compaction's trigger (a `precompute`, which the engine runs ahead of time and installs nothing, resets nothing) and whether it was skipped, never the conversation, the instructions or the summary, and returns the compaction unchanged. |
 | `command.run` for `/brigade` | Opens the pane. It answers only `/brigade`. |
 | `skill.prompt` | Opens the pane when the head-chef skill loads from grimoire or your own skills folder, or finds it open, and adds one line to that skill's text saying whether `set_roster` is ready, or why not. Every other skill load passes on unchanged. |
 | `tool.call` for `Skill`, and `command.run` for `/head-chef` and `/grimoire:head-chef` | Watch a head-chef load for the case where `skill.prompt` never reached the plugin (see below). Each reads the skill's or command's name and the load's answer, and returns that answer unchanged; where `skill.prompt` was skipped, a typed load also reads the session's local skill list once. Any other skill, and a subagent's load, passes on with no other work. |
