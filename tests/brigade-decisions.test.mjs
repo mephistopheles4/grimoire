@@ -492,7 +492,7 @@ test('claim 10: the Owner, Pane and alarm entries are built in one fixed shape e
   assert.equal(inFixedShape(logOf(1).entries[0]), true);
 });
 
-test('q3g: a clock time is kept only as a whole number of milliseconds inside the Date range', () => {
+test('C12, Test round 1's q3g: a clock time is kept only as a whole number of milliseconds inside the Date range', () => {
   for (const ok of [0, 1, NOW, 8.64e15, -8.64e15]) assert.equal(clockTime(ok), true, String(ok));
   for (const bad of [8.64e15 + 1, -8.64e15 - 1, Number.MAX_SAFE_INTEGER, 1.5, NaN, Infinity, '5', undefined, null]) assert.equal(clockTime(bad), false, String(bad));
 });

@@ -543,7 +543,7 @@ export function storedLevel(stored: unknown, sid: string): Level {
 }
 
 /** Whether a clock answer is a time the band can name: a whole number of
- *  milliseconds inside the Date range (#430, q3g). Any other is no time. */
+ *  milliseconds inside the Date range (#430, Test round 1's q3g, C12). Any other is no time. */
 export const clockTime = (t: unknown): t is number => typeof t === 'number' && Number.isSafeInteger(t) && Math.abs(t) <= 8.64e15
 
 /** The level in force: 1 when the stored level differs from the last one a

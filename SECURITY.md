@@ -360,9 +360,9 @@ only who is compacting, the compaction's trigger and whether it was skipped,
 never the conversation, the instructions or the summary, and a compaction first logs a
 stored level that differs from the last press as an alarm. A reset that cannot
 read the session id, or one of whose steps throws, waits, reading 1, until it
-lands. Since 0.87.0 a press on the slider sets a level only while the engine
-lists the pane and it is placed; a press raised on a hidden or closed pane is
-dropped. A Pane entry that cannot be written keeps the
+lands. Since 0.87.0 a press on the slider that would raise the level acts only
+while the engine lists the pane and it is placed, and one raised on a hidden or
+closed pane is dropped; a lowering acts whatever the pane list answers. A Pane entry that cannot be written keeps the
 level at 1 and is tried again at the next poll, as an alarm is; an entry
 written late carries the time it was written. A clear or a resume
 forgets every other session's level and press time, writing no entry; an
@@ -372,9 +372,10 @@ unread alarm, tried again at the next poll if it cannot be written; while an
 alarm the pane wrote is unread, a repeat is counted in the pane, not logged,
 unless the marks cannot be read. Since 0.87.0 that poll is the level's alone:
 it runs with the pane open or closed while the stored or last-pressed level is
-above 1 or an alarm, a Pane entry or a reset waits, and starts when a tool call
-or the band above the prompt finds a stored level that differs from the last
-press, so its alarm and Pane entry writes also happen with the pane closed; it
+above 1 or an alarm, a Pane entry or a reset waits, and starts at a press, a
+reset, a session start, a call of the mod's tools, or a draw of the band above
+the prompt or of the pane, any of which may find a stored level that differs
+from the last press, so its alarm and Pane entry writes also happen with the pane closed; it
 reads no usage and keeps no report. The pane
 draws the level in force on every tab, level 3 in the warning colour, and
 since 0.87.0 the band above the lead's prompt draws a 3 in force, with its

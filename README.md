@@ -218,7 +218,7 @@ While level 3 is in force, a line above the lead's prompt says so, with the
 time of its press and a Dismiss, which hides it until the next press of 3, the
 next alarm, or the next compaction or reload. While an alarm is unread, a
 warning line there names the level found and when, until you read the alarm in
-To review. Both lines show on the terminal and Desktop only: the mobile app,
+To review, or until a reload of the mod or a change of session. Both lines show on the terminal and Desktop only: the mobile app,
 claude.ai and VS Code draw nothing above the prompt. If you go back to a mod
 older than 0.87.0, its Decisions tab leaves out a compaction's Pane entry and
 counts it among the entries it cannot draw.

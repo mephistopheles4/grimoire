@@ -107,7 +107,8 @@ Spec 402 rev 6.2 on #430 adds two pieces that can run with the pane closed.
 The autonomy level gets a 5-second poll of its own, apart from the pane's
 timers. It runs only while the stored or last-pressed level is above 1, or an
 alarm, a reset's Pane entry or a reset that could not land waits, and it starts
-when a press, a reset, one of the pane's tools or the band above the prompt
+when a press, a reset, a session start, one of the mod's tools, or a draw of
+the band above the prompt or of the pane
 finds one of those, or a stored level that differs from the last press. Each
 tick reads the session id and the stored level, sets the stored level to 1
 when it differs from the last press, and writes only the session's own

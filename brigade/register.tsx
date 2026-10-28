@@ -784,7 +784,8 @@ async function writeMarks($: EngineInterface, rows: readonly Row[], state: 'read
       // The tab shows the mark at once; the next read finds the file again.
       held.delete(`marks ${at.id}`)
       tabRead = { ...tabRead, marks: [...tabRead.marks.filter(m => m.sid !== at.id), { sid: at.id, file: value }] }
-      // The band's alarm line goes once this pane's own press marks its entry;
+      // The band's alarm line goes once this pane's own press marks its entry,
+      // or at a reload or a change of session id;
       // a marks file read from disk never clears it.
       for (const r of rows) {
         const shown = bandAlarms.get(r.sid)?.entry
@@ -1719,7 +1720,7 @@ const failedAfterLog = () => ({
 })
 
 // Refused until this module has offered the tools to this session id since its
-// last reload: a session whose pane never opened has none of them (#430, q1).
+// last reload: a session whose pane never opened has none of them (#430, the build's q1, C9).
 const OFFER_RULE = 'offer: the Brigade mod has not offered this tool to this session since it last loaded; the owner can type /brigade to offer it'
 
 async function logDecision($: EngineInterface, e: Record<string, unknown>, signal: AbortSignal, progress: Progress) {
@@ -2023,14 +2024,14 @@ let resetWaits: ResetWhy | undefined
 // The band above the lead's prompt (spec 402 rev 6.2, S3). A Dismiss of the
 // level-3 line, by the session id and the press time it was drawn for; and,
 // by session id, the alarm this module caught that the band names: the level
-// found and when, and once written, the entry, which only this pane's own
+// found and when, and once written, the entry; only this pane's own
 // press clears. A repeat joins the alarm held.
 let bandDismissed: { sid: string; at: number } | undefined
 type BandAlarm = { found: Level; caught: number; entry?: { id: string; at: number } }
 const bandAlarms = new Map<string, BandAlarm>()
 // The session id this module last offered the tools that read and write the
 // level, the log and the hand-off for, since its last reload: under any other
-// id, or none, each refuses (#430, q1 and q3f). A clear or a resume to a new id
+// id, or none, each refuses (#430: the build's q1, C9, and Test round 1's q3f, C11). A clear or a resume to a new id
 // offers them again only while the pane is open.
 let toolsOfferedFor: string | undefined
 const offered = async ($: EngineInterface) => toolsOfferedFor !== undefined && (await levelSid($).catch(() => undefined)) === toolsOfferedFor
@@ -2155,8 +2156,19 @@ const flushAlarm = ($: EngineInterface, sid: string) =>
   flushWait($, sid, alarms, a => alarmEntry(a.found), r => {
     alarmRepeats.set(sid, r === 'repeat' ? (alarmRepeats.get(sid) ?? 0) + 1 : 0)
     const held = bandAlarms.get(sid)
-    if (r !== 'repeat' && held !== undefined) held.entry = { id: r.id, at: r.at }
+    if (held === undefined) return
+    if (r !== 'repeat') held.entry = { id: r.id, at: r.at }
+    // A repeat is held behind the unread alarm this pane wrote last, so the line
+    // names that entry and goes when it is marked.
+    else if (held.entry === undefined) held.entry = lastOwnAlarm(sid)
   })
+
+// The last alarm this pane wrote in this session's log, as the tab read it.
+function lastOwnAlarm(sid: string): { id: string; at: number } | undefined {
+  const entries = tabRead.logs.find(l => l.sid === sid)?.log.entries ?? []
+  const own = entries.filter(e => e.source === 'alarm' && alarmsWrote.has(markKey(sid, e.id, e.at))).at(-1)
+  return own === undefined ? undefined : { id: own.id, at: own.at }
+}
 
 // A reset's pending Pane entry.
 const flushPane = ($: EngineInterface, sid: string) => flushWait($, sid, paneWaits, p => paneEntry(p.why), () => undefined)
@@ -2193,8 +2205,9 @@ async function levelPollNeeded($: EngineInterface): Promise<boolean> {
 }
 
 // Starts the level poll when it has something to look at and is not running.
-// Called after a press or a reset, and by the tools and the band, which may
-// find a level another plugin wrote. Never throws.
+// Called after a press or a reset, at a session start, and by the tools, the
+// band and the pane's draw, which may find a level another plugin wrote. Never
+// throws.
 async function ensureLevelPoll($: EngineInterface) {
   if (levelTimer !== undefined || levelStarting) return
   levelStarting = true
@@ -2227,10 +2240,10 @@ function stopLevelPoll() {
 // on the level that is both in force and last pressed does nothing; a press
 // at or below the level in force, or below the last-pressed one (while the
 // level in force is below it), is a lowering, which happens at once and is logged after; a
-// raise logs what waits first, happens only once its Owner entry is written,
+// raise needs the pane listed and placed, logs what waits first, happens only once its Owner entry is written,
 // and only when no press or change came in between. A press on the level a raise still being logged
 // goes to, with nothing in between, does nothing. A 3 keeps its press time.
-async function pressLevel($: EngineInterface, l: Level) {
+async function pressLevel($: EngineInterface, l: Level, placed: () => Promise<boolean>) {
   // A reset still waiting lands before the press, so it never undoes one.
   await landWaitingReset($)
   if (resetWaits !== undefined) return
@@ -2258,6 +2271,15 @@ async function pressLevel($: EngineInterface, l: Level) {
   })
   raiseFailed = false
   if (step.kind === 'lower') await appendFixed($, sid, ownerEntry(l), l)
+  // A raise needs the pane listed and placed; one pressed on a hidden or
+  // closed pane is dropped before anything is logged.
+  if (step.kind === 'raise' && !(await placed().catch(() => false))) {
+    await levelTurn(async () => {
+      if (raising.get(sid)?.turn === step.turn) raising.delete(sid)
+    })
+    await redraw($)
+    return
+  }
   if (step.kind === 'raise') {
     // What waits to be logged goes first, so the log never ends on an alarm
     // or a reset made before this raise. One that could not be written fails
@@ -2767,9 +2789,9 @@ export const register: Register = on => {
     const stop = /^level-([123])$/.exec(e.element)
     if (stop !== null) {
       // The owner's own press comes from a pane the engine lists and places; a
-      // press raised on any other is dropped (#430, q3e).
-      const pane = await paneListed($).catch(() => undefined)
-      if (pane?.isPlaced === true) await pressLevel($, Number(stop[1]) as Level)
+      // raise pressed on any other is dropped, while a lowering always acts
+      // (#430, Test round 1 q3e and the closing read's q4a).
+      await pressLevel($, Number(stop[1]) as Level, async () => (await paneListed($).catch(() => undefined))?.isPlaced === true)
       return { element: e.element }
     }
     const review = /^(dnext|dflag|dskip)-([1-9][0-9]{0,15})-([0-9]{1,16})$/.exec(e.element)
