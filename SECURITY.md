@@ -350,20 +350,26 @@ skips the permission prompt, refuses a subagent's call and every verdict
 `set_roster` refuses, and answers 1 unless the pane is listed and placed with
 its reads running; a deny rule for `mcp__grimoire__read_autonomy` removes it.
 The stored level sits in plugin state as `autonomy`, this session's id and
-its level, never in a file; the last level a press set, a 3's press time and the
-Owner entries the pane wrote stay in the module's memory. The level in force
+its level, never in a file; the last level a press set, a 3's press time, the
+Owner entries the pane wrote, the alarms it wrote, a pending alarm and a
+reset's pending Pane entry stay in the module's memory. The level in force
 is 1 whenever the stored level differs from the last press, while an alarm
-waits to be logged, and for a 3 with no press time. A press logs an Owner
-entry in the session's own log first when it raises the level, which does not
-happen if the entry cannot be written; a lowering always happens. Each new
+or a reset's Pane entry waits to be logged, and for a 3 with no press time.
+A press that raises the level first logs what waits, then an Owner entry in
+the session's own log, and the raise does not happen if either cannot be
+written; a lowering always happens. Each new
 lead session starts at 1; a showing that makes the pane shown and a reload of
 the mod reset a level above 1 to 1 with a Pane entry; a session start or reload
 that finds a stored level above 1 writes it even with the pane closed, the one
-file a session start writes. A clear or a resume
+file a session start writes. A Pane entry that cannot be written keeps the
+level at 1 and is tried again at the next poll, as an alarm is; an entry
+written late carries the time it was written. A clear or a resume
 forgets every other session's level and press time, writing no entry; an
 alarm still waiting is logged once its session comes back. At each 5-second poll a
 stored level that differs from the last press is set to 1 and logged as one
-unread alarm, tried again at the next poll if it cannot be written. The pane
+unread alarm, tried again at the next poll if it cannot be written; while an
+alarm the pane wrote is unread, a repeat is counted in the pane, not logged,
+unless the marks cannot be read. The pane
 draws the level in force on every tab, level 3 in the warning colour. What
 follows from it:
 - **What the log reveals:** each entry's level, and the times of the owner's

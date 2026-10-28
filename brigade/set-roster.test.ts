@@ -190,6 +190,8 @@ type World = ReturnType<typeof makeFs> & {
   /** How many times the pane list was asked. */
   panesCalls: number
   holdWrite: boolean
+  /** A path whose next write the engine refuses, once. */
+  failWriteOnce?: string
   release: () => void
   errors: string[]
   files: string[]
@@ -369,6 +371,10 @@ function world(on: On, setup: (w: World) => void = w => w.dirs(`${CONFIG}\\plugi
     return s === undefined ? { deny: ENOENT } : { value: e.resolve ? s : { ...s, realPath: undefined } }
   })
   on('fs.write', async ($, e: any) => {
+    if (w.failWriteOnce !== undefined && e.path === w.failWriteOnce) {
+      w.failWriteOnce = undefined
+      return { deny: 'EIO: i/o error' }
+    }
     if (w.holdWrite) await new Promise<void>(res => (w.release = res))
     w.write(e.path, e.text)
     return { value: undefined }
@@ -6133,6 +6139,8 @@ const STILL_WAITS =
 const level3 = (at: number) => `Autonomy level 3 (Full throttle), set by a press in the pane at ${new Date(at).toISOString()}. ${CONFIRM_3} ${STILL_WAITS}`
 const NOT_CHANGED = /^Not changed: the decision log could not be written$/
 const ALARM_LINE = /^Autonomy changed without a press and could not be logged: set to 1$/
+const RESET_LINE = /^Autonomy reset to 1 and the reset could not be logged$/
+const REPEAT_LINE = /^Autonomy changed without a press (\d+) more times? since its last alarm was logged$/
 const LEVEL_3_LINE =
   "Full throttle: once you confirm it, with a goal, in the lead's chat, the lead merges, posts, starts sessions and settles security findings toward the goal without asking; a secret or personal-data finding, an accepted-risk record, an install and cleanup still wait for you, with the rest the skill lists"
 // The pane's own entries, as the log keeps them, by source, pick, why and level.
@@ -6592,6 +6600,9 @@ test('claim 11: a stored level another plugin wrote reads 1 at once; the poll re
   expect((await mounted.find({ key: 'level-1' }))?.props.variant).toBe('primary')
   await press($, 'level-2')
   expect((await readLevel($)).text).toBe(LEVEL_2)
+  // The owner reads the alarm, so the next one is logged rather than counted.
+  const first = parsed(w, LOG).entries[1]
+  await press($, `dnext-${first.id}-${first.at}`)
   // A level another plugin writes while a raise is still being logged is
   // caught when the raise lands: the raise does not happen, and one alarm is logged.
   w.holdWrite = true
@@ -6618,6 +6629,9 @@ test('claim 11: any stored value other than 1, 2 or 3 reads as 1', async ($, on)
     expect((await readLevel($)).text).toBe(LEVEL_1)
     await w.clock.advance(5000)
     await press($, 'level-1')
+    // Each alarm is read before the next, which a still-unread one would count rather than log.
+    const alarm = parsed(w, LOG).entries.filter((e: any) => e.source === 'alarm').at(-1)
+    await press($, `dnext-${alarm.id}-${alarm.at}`)
   }
   // Each was a change not from a press, found as 1.
   expect(ownEntries(w).filter(e => e.startsWith('alarm'))).toEqual(Array(4).fill('alarm 1 Manual · Changed, not from a press · level 1'))
@@ -6639,6 +6653,149 @@ test('claim 11: an alarm that cannot be written keeps the level at 1, says so, a
   expect(await shows(ALARM_LINE)).toBe(false)
   await w.clock.advance(15000)
   expect(ownEntries(w).length).toBe(1)
+})
+
+test("claim 11: a reset's Pane entry that cannot be written keeps the level at 1, says so, and is tried again on the next poll, at a showing and at a reload", async ($, on) => {
+  const w = await decisionsPane(on, $)
+  await press($, 'level-2')
+  // A showing, with the log's place holding something else.
+  w.open = false
+  await w.clock.advance(5000)
+  seed(w, LOG, '{"cards":[],"todos":[]}')
+  await brigade($)
+  await w.clock.settle()
+  await press($, 'view-decisions')
+  expect((await readLevel($)).text).toBe(LEVEL_1)
+  expect(await shows(RESET_LINE)).toBe(true)
+  await w.clock.advance(5000)
+  expect(await shows(RESET_LINE)).toBe(true)
+  // A raise while the log still cannot be written does not happen.
+  await press($, 'level-2')
+  expect((await readLevel($)).text).toBe(LEVEL_1)
+  expect(await shows(NOT_CHANGED)).toBe(true)
+  // The log is freed and the owner presses 2: the waiting Pane entry is written
+  // first, so the log never ends on a reset made before the raise.
+  w.drop(LOG)
+  await press($, 'level-2')
+  expect(ownEntries(w)).toEqual(['pane 1 Manual · The pane was shown again · level 1', 'owner 2 Auto · Moved in the pane · level 1'])
+  expect(await shows(RESET_LINE)).toBe(false)
+  expect((await readLevel($)).text).toBe(LEVEL_2)
+  // A reload, with the log's place holding something else again.
+  seed(w, LOG, '{"cards":[],"todos":[]}')
+  await ($ as any).session.start({ cwd: 'C:\\work', surface: null, isInteractive: false })
+  await w.clock.settle()
+  expect((await readLevel($)).text).toBe(LEVEL_1)
+  await w.clock.advance(5000)
+  expect(await shows(RESET_LINE)).toBe(true)
+  w.drop(LOG)
+  await w.clock.advance(5000)
+  expect(ownEntries(w)).toEqual(['pane 1 Manual · The Brigade mod was reloaded · level 1'])
+  expect(await shows(RESET_LINE)).toBe(false)
+  await w.clock.advance(15000)
+  expect(ownEntries(w).length).toBe(1)
+})
+
+test("claim 11: a raise whose waiting Pane entry cannot be written first does not happen, even when its own entry could be", async ($, on) => {
+  const w = await decisionsPane(on, $)
+  await press($, 'level-2')
+  seed(w, LOG, '{"cards":[],"todos":[]}')
+  await ($ as any).session.start({ cwd: 'C:\\work', surface: null, isInteractive: false })
+  await w.clock.settle()
+  w.drop(LOG)
+  // The log refuses one write: the Pane entry's, tried just ahead of the raise.
+  w.failWriteOnce = LOG
+  await press($, 'level-2')
+  expect((await readLevel($)).text).toBe(LEVEL_1)
+  expect(await shows(NOT_CHANGED)).toBe(true)
+  await w.clock.advance(5000)
+  expect(ownEntries(w)).toEqual(['pane 1 Manual · The Brigade mod was reloaded · level 1'])
+  expect((await readLevel($)).text).toBe(LEVEL_1)
+})
+
+test('claim 11: a press below the last-pressed level is a lowering even with the level in force lower, and happens though it cannot be logged', async ($, on) => {
+  // The press of 3 reads the engine clock at a time that is not a whole number,
+  // and its Owner entry is written once the clock is whole again, so that 3
+  // keeps no press time and reads 1 while 3 stays the last pressed.
+  const w = await decisionsPane(on, $)
+  await w.clock.advance(0.5)
+  w.holdStat = true
+  const raise = press($, 'level-3')
+  await w.clock.settle()
+  w.holdStat = false
+  await w.clock.advance(0.5)
+  w.releaseStat()
+  await raise
+  await w.clock.settle()
+  expect(ownEntries(w)).toEqual(['owner 3 Full throttle · Moved in the pane · level 1'])
+  expect((await readLevel($)).text).toBe(LEVEL_1)
+  // A press of 2 with the log refusing every write: a lowering, so it happens.
+  seed(w, LOG, '{"cards":[],"todos":[]}')
+  await press($, 'level-2')
+  expect((await readLevel($)).text).toBe(LEVEL_2)
+})
+
+test("claim 11: a reset's Pane entry whose write has not finished by the next poll says so and starts no second write", async ($, on) => {
+  const w = await decisionsPane(on, $)
+  await press($, 'level-2')
+  w.holdWrite = true
+  await ($ as any).session.start({ cwd: 'C:\\work', surface: null, isInteractive: false })
+  await w.clock.advance(5000)
+  await w.clock.advance(5000)
+  expect(await shows(RESET_LINE)).toBe(true)
+  expect((await readLevel($)).text).toBe(LEVEL_1)
+  w.holdWrite = false
+  w.release()
+  await w.clock.advance(5000)
+  expect(ownEntries(w).filter(e => e.startsWith('pane')).length).toBe(1)
+  expect(await shows(RESET_LINE)).toBe(false)
+})
+
+test('claim 11: a level rewritten at every poll leaves one unread alarm and a count in the pane; once it is read, the next is logged', async ($, on) => {
+  const w = await decisionsPane(on, $)
+  const alarmsLogged = () => ownEntries(w).filter(e => e.startsWith('alarm'))
+  const count = async () => {
+    const line = await mounted.find({ type: 'Text', text: REPEAT_LINE })
+    return line === undefined ? 0 : Number(REPEAT_LINE.exec(line.text ?? '')?.[1])
+  }
+  // Another plugin writes a 3 in place of every level the pane stores.
+  w.plant = (key, v) => (key === 'autonomy' ? [{ session: SID, level: 3 }] : v)
+  await press($, 'level-2')
+  for (let i = 0; i < 60; i++) await w.clock.advance(5000)
+  expect(alarmsLogged()).toEqual(['alarm 3 Full throttle · Changed, not from a press · level 1'])
+  expect(await count()).toBeGreaterThanOrEqual(55)
+  expect(w.text(LOG)!.length).toBeLessThan(2000)
+  expect((await readLevel($)).text).toBe(LEVEL_1)
+  expect((await mounted.find({ type: 'Text', text: REPEAT_LINE }))?.props.color).toBe('warning')
+  // Read, next: the next change is logged as a new alarm, and the count starts over.
+  const alarmRows = () => parsed(w, LOG).entries.filter((e: any) => e.source === 'alarm')
+  const first = alarmRows()[0]
+  await press($, `dnext-${first.id}-${first.at}`)
+  await w.clock.advance(5000)
+  expect(alarmsLogged().length).toBe(2)
+  expect(await count()).toBe(0)
+  await w.clock.advance(5000)
+  expect(alarmsLogged().length).toBe(2)
+  expect(await count()).toBe(1)
+  expect(await shows(/^Autonomy changed without a press 1 more time since its last alarm was logged$/)).toBe(true)
+  // Marks that cannot be read hold nothing back: the next change is logged.
+  seed(w, OWN_MARKS, 'not a marks file', 60)
+  await w.clock.advance(5000)
+  expect(alarmsLogged().length).toBe(3)
+  expect(await count()).toBe(0)
+  w.drop(OWN_MARKS)
+  // An unread alarm the pane did not write holds nothing back: the next change is logged.
+  const planted = { ...alarmRows()[1], id: '90', at: 90 }
+  seed(w, LOG, logText([planted], 91), 50)
+  await w.clock.advance(5000)
+  expect(parsed(w, LOG).entries.map((e: any) => `${e.id} ${e.source}`)).toEqual(['90 alarm', '91 alarm'])
+  expect(await count()).toBe(0)
+  // The plugin stops. A change counted, not logged, still lets a later press set the level.
+  w.plant = undefined
+  await w.clock.advance(5000)
+  expect(await count()).toBe(1)
+  await w.clock.advance(5000)
+  await press($, 'level-2')
+  expect((await readLevel($)).text).toBe(LEVEL_2)
 })
 
 test('claim 11: an alarm whose write has not finished by the next poll says so and starts no second write', async ($, on) => {
@@ -6780,56 +6937,79 @@ test('claim 11: a press made while a raise is still being logged wins: the raise
   expect((await mounted.find({ key: 'level-1' }))?.props.variant).toBe('primary')
 })
 
-test('claim 11: while an alarm waits to be logged, a level pressed since still reads 1, until the alarm is written', async ($, on) => {
+test('claim 11: a second press on the stop a raise still being logged targets logs nothing more, and the raise applies once, at the first press time', async ($, on) => {
+  const w = await decisionsPane(on, $)
+  await w.clock.advance(1000)
+  const first = w.clock.now()
+  w.holdWrite = true
+  const raise = press($, 'level-3')
+  await w.clock.settle()
+  await w.clock.advance(1000)
+  const again = press($, 'level-3')
+  await w.clock.settle()
+  w.holdWrite = false
+  w.release()
+  await raise
+  await again
+  await w.clock.settle()
+  expect((await readLevel($)).text).toBe(level3(first))
+  expect(ownEntries(w)).toEqual(['owner 3 Full throttle · Moved in the pane · level 1'])
+  // A raise voided by a press in between: a press on its stop starts a raise of its own.
+  await press($, 'level-1')
+  w.holdWrite = true
+  const voided = press($, 'level-2')
+  await w.clock.settle()
+  const lower = press($, 'level-1')
+  await w.clock.settle()
+  const retry = press($, 'level-2')
+  await w.clock.settle()
+  w.holdWrite = false
+  w.release()
+  await voided
+  await lower
+  await retry
+  await w.clock.settle()
+  expect((await readLevel($)).text).toBe(LEVEL_2)
+  expect(ownEntries(w).slice(1)).toEqual([
+    'owner 1 Manual · Moved in the pane · level 1',
+    'owner 2 Auto · Moved in the pane · level 1',
+    'owner 1 Manual · Moved in the pane · level 1',
+    'owner 2 Auto · Moved in the pane · level 1',
+  ])
+})
+
+test('claim 11: a raise while an alarm waits writes the alarm first, and fails when it cannot; a lowering happens at once', async ($, on) => {
   const w = await decisionsPane(on, $)
   plantOnce(w, 3)
   await press($, 'level-2')
   seed(w, LOG, '{"cards":[],"todos":[]}')
   await w.clock.advance(5000)
   expect(await shows(ALARM_LINE)).toBe(true)
-  // The log can be written again before the next poll, and the owner presses 2.
+  // The log can be written again before the next poll, and the owner presses 2:
+  // the waiting alarm is written first, so the log never ends on an alarm made
+  // before the raise, and the raise applies at once.
   w.drop(LOG)
   await press($, 'level-2')
-  expect(ownEntries(w)).toEqual(['owner 2 Auto · Moved in the pane · level 1'])
-  expect((await readLevel($)).text).toBe(LEVEL_1)
-  expect(await shows(/^Autonomy 1$/)).toBe(true)
-  expect(await shows(/^Autonomy 2$/)).toBe(false)
-  await w.clock.advance(5000)
-  expect(ownEntries(w)).toEqual(['owner 2 Auto · Moved in the pane · level 1', 'alarm 3 Full throttle · Changed, not from a press · level 1'])
+  expect(ownEntries(w)).toEqual(['alarm 3 Full throttle · Changed, not from a press · level 1', 'owner 2 Auto · Moved in the pane · level 1'])
   expect((await readLevel($)).text).toBe(LEVEL_2)
-  // A press of 1 while an alarm waits lowers the level: a raise logged since
-  // does not come back once the alarm is written.
-  seed(w, LOG, '{"cards":[],"todos":[]}')
-  plantOnce(w, 3)
+  expect(await shows(/^Autonomy 2$/)).toBe(true)
+  expect(await shows(ALARM_LINE)).toBe(false)
+  // A press of 1 lowers the level at once.
   await press($, 'level-1')
-  await w.clock.advance(5000)
-  expect(await shows(ALARM_LINE)).toBe(true)
-  w.drop(LOG)
-  await press($, 'level-2')
-  await press($, 'level-1')
-  await w.clock.advance(5000)
-  expect(ownEntries(w)).toEqual([
-    'owner 2 Auto · Moved in the pane · level 1',
-    'owner 1 Manual · Moved in the pane · level 1',
-    'alarm 3 Full throttle · Changed, not from a press · level 1',
-  ])
   expect((await readLevel($)).text).toBe(LEVEL_1)
-  // A press below the last-pressed level while an alarm waits is a lowering
-  // too: it happens though it cannot be logged, so a 3 pressed since never
-  // comes back once the alarm is written.
+  // A raise while the alarm cannot be written does not happen.
   plantOnce(w, 3)
   await press($, 'level-2')
   seed(w, LOG, '{"cards":[],"todos":[]}')
   await w.clock.advance(5000)
   expect(await shows(ALARM_LINE)).toBe(true)
-  w.drop(LOG)
   await press($, 'level-3')
-  seed(w, LOG, '{"cards":[],"todos":[]}')
-  await press($, 'level-2')
+  expect((await readLevel($)).text).toBe(LEVEL_1)
+  expect(await shows(NOT_CHANGED)).toBe(true)
   w.drop(LOG)
   await w.clock.advance(5000)
   expect(ownEntries(w)).toEqual(['alarm 3 Full throttle · Changed, not from a press · level 1'])
-  expect((await readLevel($)).text).toBe(LEVEL_2)
+  expect((await readLevel($)).text).toBe(LEVEL_1)
 })
 
 test('claims 10 and 11: a showing or a reload while a raise is still being logged voids the raise, and a Pane entry follows its Owner entry', async ($, on) => {

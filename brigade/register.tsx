@@ -76,6 +76,7 @@ import {
   flaggedRows,
   historyRows,
   inFixedShape,
+  unreadOwnAlarm,
   levelInForce,
   levelOption,
   markKey,
@@ -708,21 +709,29 @@ async function readDecisions($: EngineInterface, live: () => boolean) {
 // Every marks file in the folder, through the same cache, for log_decision's
 // drop rule: an entry with no readable read mark counts as unread.
 async function allReadMarks($: EngineInterface, at: Where, now: number) {
+  return (await readMarks($, at, now, false)) ?? new Map()
+}
+
+// The marks merged from every marks file in the folder. `strict` gives none
+// at all when the listing is refused, a read throws or a file fails its
+// check, so a caller can tell marks it could not read from no marks.
+async function readMarks($: EngineInterface, at: Where, now: number, strict: boolean) {
   try {
     const l = await listKind($, at, 'marks')
     // Past 5,000 entries the listing gives no other file, but this session's
     // own marks file is still read by its own path, as the pane reads it.
-    if (l.refused) return new Map()
+    if (l.refused) return strict ? undefined : new Map()
     const files: MarksFile[] = []
     for (const f of [...(l.own !== undefined ? [l.own] : []), ...l.others]) {
       // Under the pane's checks: a file dated more than two minutes ahead gives no mark.
       if (f.mtimeMs > now + AHEAD_MS) continue
       const got = await heldFile($, at, 'marks', f)
       if (got.value !== undefined && got.value.kind === 'marks') files.push(got.value)
+      else if (strict) return undefined
     }
     return mergeMarks(files, now)
   } catch {
-    return new Map()
+    return strict ? undefined : new Map()
   }
 }
 
@@ -1766,10 +1775,15 @@ async function logDecision($: EngineInterface, e: Record<string, unknown>, signa
 // One entry appended to this session's own log, inside the log's queue: the
 // tool's entry, or with `fixed` the pane's own Owner, Pane or alarm entry,
 // which skips the marks scan and the entry cap but never the byte cap. A
-// refusal is fixed words for log_decision to answer with; `after` means the
-// write began and the path then failed its check.
+// refusal is fixed words for log_decision to answer with, or, for the pane's
+// own alarm, REPEAT, which appendFixed turns into 'repeat' and log_decision
+// never sees; `after` means the write began and the path then failed its check.
 type Appended = { entry: DecisionEntry } | { refused: string } | { after: true }
-type AppendRun = { level: Level; fixed: boolean; signal?: AbortSignal; progress?: Progress }
+// `alarmsWrote`, for an alarm, is the alarms this pane wrote: while one of
+// them sits unread in the log, the alarm is a repeat and is not appended.
+// Marks that cannot be read count as read, so the alarm is logged.
+type AppendRun = { level: Level; fixed: boolean; signal?: AbortSignal; progress?: Progress; alarmsWrote?: ReadonlySet<string> }
+const REPEAT = 'repeat: an alarm this pane wrote is still unread'
 async function appendToLog($: EngineInterface, at: Where, raw: unknown, o: AppendRun): Promise<Appended> {
   const placed = await placeKind($, at, 'decisions', at.id)
   if ('refused' in placed) return { refused: 'path: the decision log path failed its check' }
@@ -1784,7 +1798,13 @@ async function appendToLog($: EngineInterface, at: Where, raw: unknown, o: Appen
     log = was.value
   }
   const now = await $.clock.now()
-  // The marks are read only when the log is full and an entry must drop.
+  // The marks are read only when the log is full and an entry must drop, or
+  // when an alarm this pane wrote is in the log and may be unread.
+  const wrote = o.alarmsWrote
+  if (wrote !== undefined && unreadOwnAlarm(log, at.id, wrote, new Map())) {
+    const marks = await readMarks($, at, now, true)
+    if (marks !== undefined && unreadOwnAlarm(log, at.id, wrote, marks)) return { refused: REPEAT }
+  }
   const opts = { at: now, level: o.level, read: new Map(), sid: at.id, fixed: o.fixed }
   let r = appendEntry(log, raw, opts)
   if ('error' in r && r.error === FULL && !o.fixed) r = appendEntry(log, raw, { ...opts, read: await allReadMarks($, at, now) })
@@ -2015,9 +2035,19 @@ const ownerKey = (sid: string, e: { id: string; at: number; level: number; pick:
 // way, and whether the pane says it is late.
 type Alarm = { found: Level; writing: boolean; late: boolean }
 const alarms = new Map<string, Alarm>()
+// A reset's Pane entry waiting to be logged, as an alarm waits: why the level
+// was reset, whether its write is under way, and whether the pane says it is
+// late. One stands for every reset made while it waits.
+type PaneWait = { why: 'shown' | 'reload'; writing: boolean; late: boolean }
+const paneWaits = new Map<string, PaneWait>()
+// The alarms this pane wrote, by markKey of their log's session id, id and
+// time, and how many alarms were held back since the last one written: while
+// one it wrote sits unread, a repeat is counted, not appended.
+const alarmsWrote = new Set<string>()
+const alarmRepeats = new Map<string, number>()
 // The raise whose Owner entry is being written, by session id, named by the
-// turn that started it.
-const raising = new Map<string, number>()
+// turn that started it, with the level it raises to.
+const raising = new Map<string, { turn: number; to: Level }>()
 // Moves on at every press and every change to the levels, so a raise whose
 // entry was written applies only when nothing came in between.
 let levelTurns = 0
@@ -2038,9 +2068,11 @@ async function levelSid($: EngineInterface): Promise<string | undefined> {
   return SESSION_ID.test(id) ? id : undefined
 }
 
-// The level in force for a session, as read_autonomy answers while the pane is shown.
+// The level in force for a session, as read_autonomy answers while the pane
+// is shown: 1 while an alarm or a reset's Pane entry waits to be logged.
 async function levelNow($: EngineInterface, sid: string): Promise<Level> {
-  return levelInForce({ stored: storedLevel(await read($, autonomy), sid), pressed: pressedOf(sid), pressAt: pressedAt.get(sid), alarm: alarms.has(sid) })
+  const waiting = alarms.has(sid) || paneWaits.has(sid)
+  return levelInForce({ stored: storedLevel(await read($, autonomy), sid), pressed: pressedOf(sid), pressAt: pressedAt.get(sid), waiting })
 }
 
 // Sets the stored and last-pressed levels together, keeping only this
@@ -2064,15 +2096,18 @@ async function catchChange($: EngineInterface, sid: string) {
 const redraw = ($: EngineInterface) => update($, decisionsSeen, n => ((typeof n === 'number' ? n : 0) + 1) % 1000000)
 
 // One of the pane's own entries, in this session's own log through the log's
-// queue, stamped with the level given: the entry written, or none.
-function appendFixed($: EngineInterface, sid: string, raw: EntryInput, level: Level): Promise<DecisionEntry | undefined> {
+// queue, stamped with the level given: the entry written, 'repeat' for an
+// alarm held back while one this pane wrote sits unread, or none.
+function appendFixed($: EngineInterface, sid: string, raw: EntryInput, level: Level): Promise<DecisionEntry | 'repeat' | undefined> {
   return logTurn(async () => {
     try {
       const at = await where($)
       if ('error' in at || at.id !== sid) return undefined
-      const r = await appendToLog($, at, raw, { level, fixed: true })
+      const r = await appendToLog($, at, raw, { level, fixed: true, alarmsWrote: raw.source === 'alarm' ? alarmsWrote : undefined })
+      if ('refused' in r && r.refused === REPEAT) return 'repeat'
       if (!('entry' in r)) return undefined
       if (r.entry.source === 'owner') ownerWrote.add(ownerKey(sid, r.entry))
+      if (r.entry.source === 'alarm') alarmsWrote.add(markKey(sid, r.entry.id, r.entry.at))
       return r.entry
     } catch {
       return undefined
@@ -2080,33 +2115,53 @@ function appendFixed($: EngineInterface, sid: string, raw: EntryInput, level: Le
   })
 }
 
-// Logs a pending alarm. One whose write is still under way, or failed, is
-// late: the pane says so, and the next poll tries again, never while a write
-// is under way.
-async function flushAlarm($: EngineInterface, sid: string) {
-  const a = alarms.get(sid)
-  if (a === undefined) return
-  if (a.writing) {
-    a.late = true
+// Logs an entry that waits in `waits` for this session: an alarm or a reset's
+// Pane entry. One whose write is still under way, or failed, is late: the pane
+// says so, and the next poll tries again, never while a write is under way.
+// The write is marked under way before its first await, so a poll that comes
+// before it ends starts no second one. `written` hears each landed write.
+async function flushWait<W extends { writing: boolean; late: boolean }>(
+  $: EngineInterface,
+  sid: string,
+  waits: Map<string, W>,
+  entry: (w: W) => EntryInput,
+  written: (r: DecisionEntry | 'repeat') => void,
+) {
+  const w = waits.get(sid)
+  if (w === undefined) return
+  if (w.writing) {
+    w.late = true
     await redraw($)
     return
   }
-  a.writing = true
-  const written = await appendFixed($, sid, alarmEntry(a.found), 1)
-  a.writing = false
-  if (written === undefined) a.late = true
-  else if (alarms.get(sid) === a) alarms.delete(sid)
+  w.writing = true
+  const r = await appendFixed($, sid, entry(w), 1)
+  w.writing = false
+  if (r === undefined) w.late = true
+  else {
+    written(r)
+    if (waits.get(sid) === w) waits.delete(sid)
+  }
   await redraw($)
 }
 
+// A pending alarm. One held back as a repeat is counted instead, and the count
+// starts over at the next alarm written.
+const flushAlarm = ($: EngineInterface, sid: string) =>
+  flushWait($, sid, alarms, a => alarmEntry(a.found), r => alarmRepeats.set(sid, r === 'repeat' ? (alarmRepeats.get(sid) ?? 0) + 1 : 0))
+
+// A reset's pending Pane entry.
+const flushPane = ($: EngineInterface, sid: string) => flushWait($, sid, paneWaits, p => paneEntry(p.why), () => undefined)
+
 // At each roster tick while the reads run: a change not from a press is
-// caught, and a pending alarm logged.
+// caught, and a pending alarm and Pane entry logged.
 async function levelTick($: EngineInterface) {
   try {
     const sid = await levelSid($)
     if (sid === undefined) return
     await levelTurn(() => catchChange($, sid))
     await flushAlarm($, sid)
+    await flushPane($, sid)
   } catch {
     // The next tick looks again.
   }
@@ -2116,14 +2171,17 @@ async function levelTick($: EngineInterface) {
 // on the level that is both in force and last pressed does nothing; a press
 // at or below the level in force, or below the last-pressed one (while an
 // alarm waits), is a lowering, which happens at once and is logged after; a
-// raise happens only once its Owner entry is written, and only when no press
-// or change came in between. A 3 keeps its press time.
+// raise logs what waits first, happens only once its Owner entry is written,
+// and only when no press or change came in between. A press on the level a raise still being logged
+// goes to, with nothing in between, does nothing. A 3 keeps its press time.
 async function pressLevel($: EngineInterface, l: Level) {
   const sid = await levelSid($)
   if (sid === undefined) return
   const now = await $.clock.now()
   const step = await levelTurn(async () => {
     await catchChange($, sid)
+    const live = raising.get(sid)
+    if (live !== undefined && live.turn === levelTurns && live.to === l) return { kind: 'none' as const }
     const turn = ++levelTurns
     const inForce = await levelNow($, sid)
     const pressed = pressedOf(sid)
@@ -2135,18 +2193,25 @@ async function pressLevel($: EngineInterface, l: Level) {
       await setLevel($, sid, l)
       return { kind: 'lower' as const }
     }
-    raising.set(sid, turn)
+    raising.set(sid, { turn, to: l })
     return { kind: 'raise' as const, turn, from: inForce }
   })
   raiseFailed = false
   if (step.kind === 'lower') await appendFixed($, sid, ownerEntry(l), l)
   if (step.kind === 'raise') {
-    const entry = await appendFixed($, sid, ownerEntry(l), step.from)
+    // What waits to be logged goes first, so the log never ends on an alarm
+    // or a reset made before this raise. One that could not be written fails
+    // the raise; one whose write is still under way lands ahead of it in the
+    // log's queue.
+    await flushAlarm($, sid)
+    await flushPane($, sid)
+    const stuck = [alarms.get(sid), paneWaits.get(sid)].some(w => w !== undefined && !w.writing)
+    const entry = stuck ? undefined : await appendFixed($, sid, ownerEntry(l), step.from)
     await levelTurn(async () => {
       // A change not from a press made while the entry was written is caught
       // first, which voids the raise.
       await catchChange($, sid)
-      if (raising.get(sid) === step.turn) raising.delete(sid)
+      if (raising.get(sid)?.turn === step.turn) raising.delete(sid)
       if (entry === undefined) raiseFailed = true
       else if (levelTurns === step.turn) {
         lateShowing = false
@@ -2189,6 +2254,8 @@ async function forgetOtherLevels($: EngineInterface, sid: string) {
 // that voids a raise still being logged, whose Owner entry may land before
 // it in the log's queue. At a showing a change not from a press is caught
 // first, as an alarm; a reload writes none. Any reset clears the press time.
+// The Pane entry waits as an alarm does: its write is not awaited, and one
+// that fails is said in the pane and tried again at the next poll.
 async function resetLevel($: EngineInterface, why: 'shown' | 'reload') {
   const sid = await levelSid($)
   if (sid === undefined) return
@@ -2200,9 +2267,13 @@ async function resetLevel($: EngineInterface, why: 'shown' | 'reload') {
     const raised = raising.has(sid)
     if (stored === 1 && pressedOf(sid) === 1 && !raised) return false
     await setLevel($, sid, 1)
-    return stored > 1 || raised
+    if (stored > 1 || raised) {
+      if (!paneWaits.has(sid)) paneWaits.set(sid, { why, writing: false, late: false })
+      return true
+    }
+    return false
   })
-  if (logged) void appendFixed($, sid, paneEntry(why), 1)
+  if (logged) void flushPane($, sid).catch(() => undefined)
 }
 
 const AUTONOMY_TOOL = 'read_autonomy'
@@ -2306,6 +2377,9 @@ export const register: Register = on => {
     pressedAt.clear()
     ownerWrote.clear()
     alarms.clear()
+    paneWaits.clear()
+    alarmsWrote.clear()
+    alarmRepeats.clear()
     // A raise still being logged is forgotten only after the reset, which
     // counts it as a level above 1, so its Owner entry is followed by a Pane one.
     await resetLevel($, 'reload').catch(() => undefined)
@@ -2704,6 +2778,8 @@ export const register: Register = on => {
     const lvSid = await levelSid($).catch(() => undefined)
     const level: Level = lvSid === undefined ? 1 : await levelNow($, lvSid)
     const alarmLate = lvSid !== undefined && alarms.get(lvSid)?.late === true
+    const resetLate = lvSid !== undefined && paneWaits.get(lvSid)?.late === true
+    const repeats = lvSid === undefined ? 0 : (alarmRepeats.get(lvSid) ?? 0)
     // The hand-off drawn: the one read_lead_handoff would give this session.
     const dHandoff = chosenHandoff(tabRead.sid, tabRead.handoffs, tabRead.project, now)
 
@@ -3659,6 +3735,8 @@ export const register: Register = on => {
           {switchButton('decisions', '⚖', 'Decisions', `Decisions ${dUnread} unread`)}
         </Box>
         {alarmLate && <Text color="warning">Autonomy changed without a press and could not be logged: set to 1</Text>}
+        {resetLate && <Text color="warning">Autonomy reset to 1 and the reset could not be logged</Text>}
+        {repeats > 0 && <Text color="warning">{`Autonomy changed without a press ${repeats} more ${repeats === 1 ? 'time' : 'times'} since its last alarm was logged`}</Text>}
         {error !== '' && <Text color="error">{error}</Text>}
         {pollError !== '' && <Text color="error">{pollError}</Text>}
         {/* The search box, on Desktop and the terminal: the mobile app draws

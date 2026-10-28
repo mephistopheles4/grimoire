@@ -215,7 +215,9 @@ the level in force is drawn on every view, 3 in the warning colour. Each move
 is logged as your own decision ("Owner"). A new lead session starts at 1, and
 so does each new showing of the pane and a reload of the mod, logged as
 "Pane". A change to the level that no press made sets it back to 1 and puts an
-alarm ("Not from a press") in To review. The lead reads its level with the
+alarm ("Not from a press") in To review; while that alarm is unread, further
+such changes are counted on the pane, not logged again. A reset or an alarm
+that cannot be logged is said on the pane and tried again. The lead reads its level with the
 `read_autonomy` tool, which answers 1 while the pane is closed or not shown.
 
 A row that waits on you and holds a large context says when to reply
@@ -365,7 +367,9 @@ files you ask for:
   Dismiss presses you make in its Decisions tab, both in plain text in the same folder, never removed by the
   mod, and since 0.83.0 each lead's hand-off, its working state, beside them.
   Since 0.84.0 the log also holds each move of the autonomy slider, each reset
-  and each alarm, with its time. The level the mod reads is kept only in the
+  and each alarm, with its time; since 0.86.0, not an alarm that repeats
+  while an earlier one is unread, which the pane counts instead. The level the
+  mod reads is kept only in the
   lead session's plugin state, with that session's id, which other plugins
   can read, never in a file; each answer of
   `read_autonomy`, `log_decision` and `set_lead_handoff` names it in the
