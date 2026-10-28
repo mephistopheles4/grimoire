@@ -361,7 +361,7 @@ never the conversation, the instructions or the summary, and a compaction first 
 stored level that differs from the last press as an alarm. A reset that cannot
 read the session id, or one of whose steps throws, waits, reading 1, until it
 lands. Since 0.87.0 a press on the slider that would raise the level acts only
-while the engine lists the pane and it is placed, and one raised on a hidden or
+while the engine lists the pane and it is placed, and one pressed on a hidden or
 closed pane is dropped; a lowering acts whatever the pane list answers. A Pane entry that cannot be written keeps the
 level at 1 and is tried again at the next poll, as an alarm is; an entry
 written late carries the time it was written. A clear or a resume

@@ -4,7 +4,9 @@
 // history pages, the search, and the SHA-256 the project digest takes.
 // brigade/decisions.ts takes plain values and no engine import, so these run
 // under `node --test` in CI, where there is no Claude Code. Each test names
-// the acceptance claim of spec 402 (S7) it backs.
+// the acceptance claim of spec 402 (S7) it backs, or C9 to C12 for the
+// decisions taken at #430's build and its Test rounds, which the closing
+// read's claims list on #430 records.
 //
 // The module is TypeScript; tests/brigade-view.test.mjs names the Node version
 // that imports it as it is.

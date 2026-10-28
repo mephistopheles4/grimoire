@@ -6274,7 +6274,8 @@ test('claim 11: the late offer never undoes a press: a pane placed at the load, 
   })
   await start($)
   // Placed at the load but not listed yet; the engine lists it before the
-  // owner's press, since a press acts only on a listed, placed pane (q3e).
+  // owner's press, since a raise acts only on a listed, placed pane (Test
+  // round 1's q3e, C10).
   w.unlisted = true
   expect(added(await load($))).toBe(READY_UNLISTED)
   await w.clock.settle()
@@ -6872,7 +6873,8 @@ test('claims 10 and 11: a reload while a raise is still being logged voids the r
 // (`engine`). A compaction is raised as the engine raises one, with
 // session.compact and then classic.SessionStart with source `compact`. Each
 // test names the claim of spec 402 (S7) it backs, or C9 to C12 for the
-// decisions taken at the build and its Test rounds.
+// decisions taken at the build and its Test rounds, which the closing read's
+// claims list on #430 records.
 
 const BAND_PROPS = { hasSurvey: false, isWorking: false, maxRows: 20, bodyColumns: 80, scroll: { offset: 0, bodyRows: 20 }, view: {} }
 const band = ($: any, surface: 'terminal' | 'desktop' = 'desktop', props: Record<string, unknown> = {}) =>
@@ -7133,6 +7135,11 @@ test('claim 23: a planted marks file neither clears nor raises the alarm line, a
 test("C10, the closing read's q4a: a press that lowers the level acts whatever the pane list answers; only a raise needs a listed, placed pane", async ($, on) => {
   const w = await decisionsPane(on, $)
   await w.clock.advance(1000)
+  // A raise while the pane list read fails is dropped, and logs nothing.
+  w.failPanes = true
+  await press($, 'level-2')
+  expect((await readLevel($)).text).toBe(LEVEL_1)
+  w.failPanes = false
   await press($, 'level-3')
   // Behind another tab: the stop to 1 still lands and is logged; a raise from there is dropped.
   w.unplaced = true
@@ -7182,6 +7189,27 @@ test("C12, the closing read's q4c: an alarm caught at a clock time outside the D
   expect(await bandTexts(await band($))).toEqual([BAND_ALARM(3, 0)])
 })
 
+test("C12, the closing read's q4c: a repeat caught at a clock time outside the Date range keeps the held alarm's time", async ($, on) => {
+  const otherWrites = rewritten(on)
+  const w = await decisionsPane(on, $)
+  await w.clock.advance(LATER)
+  otherWrites(w, 3)
+  const b = await band($)
+  await w.clock.advance(5000)
+  const caught = w.clock.now()
+  expect(await bandTexts(b)).toEqual([BAND_ALARM(3, caught)])
+  await b.unmount()
+  // Nothing waits once the alarm is written and the pane closes, so the clock can jump.
+  w.open = false
+  await w.clock.advance(5000)
+  await mounted.unmount()
+  await w.clock.set(8.64e15 + 60000)
+  otherWrites(w, 2)
+  const back = await band($)
+  await w.clock.advance(5000)
+  expect(await bandTexts(back)).toEqual([BAND_ALARM(2, caught)])
+})
+
 test("claim 23, the closing read's q4c: marking another entry leaves the alarm line up; only its own entry clears it", async ($, on) => {
   const w = await decisionsPane(on, $)
   const b = await band($)
@@ -7202,24 +7230,35 @@ test("claim 23, the closing read's q4c: marking another entry leaves the alarm l
 
 test("claim 23, the closing read's q4f: after a clear and a resume back, a repeat held behind the unread alarm joins it, and reading that alarm clears the line", async ($, on) => {
   const w = await decisionsPane(on, $)
+  // An earlier alarm, read in To review, sits before the unread one.
   plantOnce(w, 3)
   await press($, 'level-2')
   await w.clock.advance(5000)
-  const first = parsed(w, LOG).entries.find((e: any) => e.source === 'alarm')
+  const read = parsed(w, LOG).entries.find((e: any) => e.source === 'alarm')
+  await press($, `dnext-${read.id}-${read.at}`)
+  plantOnce(w, 3)
+  await press($, 'level-2')
+  await w.clock.advance(5000)
+  const first = parsed(w, LOG).entries.filter((e: any) => e.source === 'alarm').at(-1)
+  // And an alarm entry another writer planted after it.
+  seed(w, LOG, logText([...parsed(w, LOG).entries, { ...first, id: '50', at: 50 }], 51), 80)
   await switchTo($, w, NEW_SID, 'clear')
   await switchTo($, w, SID, 'resume')
   plantOnce(w, 3)
   await press($, 'level-2')
   await w.clock.advance(5000)
   const later = w.clock.now()
-  expect(parsed(w, LOG).entries.filter((e: any) => e.source === 'alarm').length).toBe(1)
+  expect(parsed(w, LOG).entries.filter((e: any) => e.source === 'alarm').length).toBe(3)
   const b = await band($)
+  expect(await bandTexts(b)).toEqual([BAND_ALARM(3, later)])
+  // Reading the planted entry leaves the line; reading the unread own alarm clears it.
+  await press($, 'dnext-50-50')
   expect(await bandTexts(b)).toEqual([BAND_ALARM(3, later)])
   await press($, `dnext-${first.id}-${first.at}`)
   expect(await bandTexts(b)).toEqual([])
 })
 
-test("C10, Test round 1's q3e: a slider press acts only while the engine lists the pane and it is placed", async ($, on) => {
+test("C10, Test round 1's q3e: a slider press that would raise acts only while the engine lists the pane and it is placed", async ($, on) => {
   const w = await decisionsPane(on, $)
   // Behind another tab, then closed: a press raised on the pane's stop sets nothing and logs nothing.
   for (const step of [() => (w.unplaced = true), () => (w.open = false)]) {

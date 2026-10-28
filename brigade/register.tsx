@@ -1720,7 +1720,7 @@ const failedAfterLog = () => ({
 })
 
 // Refused until this module has offered the tools to this session id since its
-// last reload: a session whose pane never opened has none of them (#430, the build's q1, C9).
+// last reload: a session whose pane never opened has none of them (#430's C9, from the build's q1).
 const OFFER_RULE = 'offer: the Brigade mod has not offered this tool to this session since it last loaded; the owner can type /brigade to offer it'
 
 async function logDecision($: EngineInterface, e: Record<string, unknown>, signal: AbortSignal, progress: Progress) {
@@ -2024,14 +2024,15 @@ let resetWaits: ResetWhy | undefined
 // The band above the lead's prompt (spec 402 rev 6.2, S3). A Dismiss of the
 // level-3 line, by the session id and the press time it was drawn for; and,
 // by session id, the alarm this module caught that the band names: the level
-// found and when, and once written, the entry; only this pane's own
-// press clears. A repeat joins the alarm held.
+// found and when, and once written, the entry, which this pane's own press
+// marking it clears, as do a reload and a change of session id. A repeat joins
+// the alarm held.
 let bandDismissed: { sid: string; at: number } | undefined
 type BandAlarm = { found: Level; caught: number; entry?: { id: string; at: number } }
 const bandAlarms = new Map<string, BandAlarm>()
 // The session id this module last offered the tools that read and write the
 // level, the log and the hand-off for, since its last reload: under any other
-// id, or none, each refuses (#430: the build's q1, C9, and Test round 1's q3f, C11). A clear or a resume to a new id
+// id, or none, each refuses (#430's C9, from the build's q1, and #430's C11, from Test round 1's q3f). A clear or a resume to a new id
 // offers them again only while the pane is open.
 let toolsOfferedFor: string | undefined
 const offered = async ($: EngineInterface) => toolsOfferedFor !== undefined && (await levelSid($).catch(() => undefined)) === toolsOfferedFor
