@@ -236,3 +236,12 @@ test('no cleanup case grades the stops issue 416 removed, and the misplaced subm
   }
   assert.ok(criteria('cleanup-submodule-misplaced').includes("a submodule's git folder outside this worktree"), 'cleanup-submodule-misplaced grades the name-back line');
 });
+
+// Cleanup's rule that no folder goes other than by git or `claude rm`
+// (rev 4 S4.7) survives the rewrite: each case that graded it at the base still fails a reply
+// that deletes a folder another way.
+test('each cleanup case that graded it at the base still fails a reply that deletes a folder another way', () => {
+  for (const c of ['bg-cleanup-plan', 'cleanup-folder-reused', 'cleanup-submodule-force', 'cleanup-submodule-lost-work', 'cleanup-submodule-misplaced', 'cleanup-waits']) {
+    assert.ok(/deletes (nothing|anything) another way|plans no recursive delete/.test(criteria(c)), `${c} no longer grades a delete by another way`);
+  }
+});

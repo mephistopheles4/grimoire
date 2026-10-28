@@ -25,4 +25,4 @@ The name-back says, for a worktree with submodules, that a forced remove deletes
 
 ## The removal
 
-A worktree whose submodules are all populated is refused by plain `git worktree remove`; the single `--force` of `references/cleanup.md`'s step 3 removes it, on the owner's yes. Afterwards, `git <g> worktree list --porcelain` has no entry for the folder, and the folder no longer exists; a folder still there is a removal that failed. Measured: a forced remove leaves a directory junction and the folders above it, exit 0, and a file in the junction's target is still there. Recovery, `git worktree prune` included, is the owner's.
+A worktree whose submodules are all populated is refused by plain `git worktree remove`; the single `--force` of `references/cleanup.md`'s step 3 removes it, on the owner's yes. Afterwards, `git <g> -C <kept main> worktree list --porcelain` has no entry for the folder, and the folder no longer exists; a folder still there is a removal that failed. Measured: a forced remove leaves a directory junction and the folders above it, exit 0, and a file in the junction's target is still there. Recovery, `git worktree prune` included, is the owner's.
