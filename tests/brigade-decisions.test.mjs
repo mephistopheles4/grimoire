@@ -4,7 +4,9 @@
 // history pages, the search, and the SHA-256 the project digest takes.
 // brigade/decisions.ts takes plain values and no engine import, so these run
 // under `node --test` in CI, where there is no Claude Code. Each test names
-// the acceptance claim of spec 402 (S7) it backs.
+// the acceptance claim of spec 402 (S7) it backs, or C9 to C12 for the
+// decisions taken at #430's build and its Test rounds, which the closing
+// read's claims list on #430 records.
 //
 // The module is TypeScript; tests/brigade-view.test.mjs names the Node version
 // that imports it as it is.
@@ -21,7 +23,7 @@ const {
   reviewQueue, flaggedRows, historyRows, matchesSearch, searchWords, serializeLog, serializeMarks,
   sha256Hex, projectDigest, sourceLabel, writerName, missingIds,
   MAX_HANDOFF_BYTES, checkHandoffInput, checkHandoff, serializeHandoff, chooseHandoff,
-  levelFrom, storedLevel, levelInForce, ownerEntry, paneEntry, alarmEntry, inFixedShape, unreadOwnAlarm,
+  levelFrom, storedLevel, levelInForce, ownerEntry, paneEntry, alarmEntry, inFixedShape, unreadOwnAlarm, clockTime,
 } = d;
 
 const SID = '11111111-2222-3333-4444-555555555555';
@@ -490,6 +492,29 @@ test('claim 10: the Owner, Pane and alarm entries are built in one fixed shape e
   assert.equal(sourceLabel(alarm, 'lead-a'), 'Not from a press');
   // The tool's own entries are never held to these shapes.
   assert.equal(inFixedShape(logOf(1).entries[0]), true);
+});
+
+test("C12, Test round 1's q3g: a clock time is kept only as a whole number of milliseconds inside the Date range", () => {
+  for (const ok of [0, 1, NOW, 8.64e15, -8.64e15]) assert.equal(clockTime(ok), true, String(ok));
+  for (const bad of [8.64e15 + 1, -8.64e15 - 1, Number.MAX_SAFE_INTEGER, 1.5, NaN, Infinity, '5', undefined, null]) assert.equal(clockTime(bad), false, String(bad));
+});
+
+test("claim 25: a compaction's Pane entry has its own fixed shape, and each of the three whys reads only as itself", () => {
+  const base = (raw) => {
+    const r = appendEntry(emptyLog(null), raw, { at: NOW, level: 1, read: new Map(), fixed: true });
+    assert.ok('value' in r);
+    return r.value.log.entries[0];
+  };
+  const compacted = base(paneEntry('compact'));
+  assert.deepEqual([compacted.source, compacted.pick, compacted.why, compacted.undo], ['pane', '1 Manual', "The lead's context was compacted", 'Move the slider in the pane']);
+  assert.ok('value' in checkLog(JSON.stringify({ ...emptyLog(null), next: 2, entries: [compacted] })));
+  for (const why of ['The pane was shown again', 'The Brigade mod was reloaded', "The lead's context was compacted"]) {
+    assert.equal(inFixedShape({ ...compacted, why }), true, why);
+  }
+  // Any other why is out of shape, the near misses included.
+  for (const why of ['The lead was compacted', "The lead's context was compacted.", 'Moved in the pane', '']) {
+    assert.equal(inFixedShape({ ...compacted, why }), false, why);
+  }
 });
 
 test('claim 10: an Owner, Pane or alarm entry that differs from its fixed shape in any field is out of shape', () => {

@@ -213,12 +213,20 @@ whose yes is yours at every level. Since head-chef 0.17.0 the skill holds
 these rules. Only your press moves the slider, and
 the level in force is drawn on every view, 3 in the warning colour. Each move
 is logged as your own decision ("Owner"). A new lead session starts at 1, and
-so does each new showing of the pane and a reload of the mod, logged as
-"Pane". A change to the level that no press made sets it back to 1 and puts an
+so does a reload of the mod and, since 0.88.0, each compaction of the lead's
+conversation, logged as "Pane" (the name stays from when only the pane made these resets; the entry's why says which); showing the pane again no longer resets it. A change to the level that no press made sets it back to 1 and puts an
 alarm ("Not from a press") in To review; while that alarm is unread, further
 such changes are counted on the pane, not logged again. A reset or an alarm
 that cannot be logged is said on the pane and tried again. The lead reads its level with the
-`read_autonomy` tool, which answers 1 while the pane is closed or not shown.
+`read_autonomy` tool, whether the pane is open, behind another tab or closed.
+While level 3 is in force, a line above the lead's prompt says so, with the
+time of its press and a Dismiss, which hides it until the next press of 3, the
+next alarm, or the next compaction or reload. While an alarm is unread, a
+warning line there names the level found and when, until you read the alarm in
+To review, or until a reload of the mod or a change of session. Both lines show on the terminal and Desktop only: the mobile app,
+claude.ai and VS Code draw nothing above the prompt. If you go back to a mod
+older than 0.88.0, its Decisions tab leaves out a compaction's Pane entry and
+counts it among the entries it cannot draw.
 
 A row that waits on you and holds a large context says when to reply
 to keep its cache, or suggests a hand-off once it has gone cold. Under its
@@ -404,15 +412,16 @@ What each of Brigade's hooks does with what it sees:
 
 | Hook | What it does |
 | --- | --- |
-| `session.start`, `classic.SessionStart` | Registers `/brigade`, notes the session's id and transcript path to find the plugin's data folder, and offers `show_permission_warning`, and `set_roster`, `log_decision`, `set_lead_handoff`, `read_lead_handoff` and `read_autonomy` while the pane is open, again after a reload, a clear or a resume. A session start or reload that finds an autonomy level above 1 sets it back to 1 and logs it, pane open or not; a clear or a resume forgets any other session's level. It changes nothing in the event and passes it on. |
-| `command.run` for `/brigade` | Opens the pane. It answers only `/brigade`. Since 0.84.0, opening a pane that was not shown sets an autonomy level above 1 back to 1 and logs it. |
-| `skill.prompt` | Opens the pane when the head-chef skill loads from grimoire or your own skills folder, or finds it open, and adds one line to that skill's text saying whether `set_roster` is ready, or why not. Since 0.84.0, a load that opens a pane that was not shown sets an autonomy level above 1 back to 1 and logs it. Every other skill load passes on unchanged. |
+| `session.start`, `classic.SessionStart` | Registers `/brigade`, notes the session's id and transcript path to find the plugin's data folder, and offers `show_permission_warning`, and `set_roster`, `log_decision`, `set_lead_handoff`, `read_lead_handoff` and `read_autonomy` while the pane is open, again after a reload, a clear or a resume. A session start or reload that finds an autonomy level above 1 sets it back to 1 and logs it, pane open or not, and since 0.88.0 so does a start after a compaction; a clear or a resume forgets any other session's level. It changes nothing in the event and passes it on. |
+| `session.compact` | Since 0.88.0, after a compaction of the lead's own conversation that went ahead, sets an autonomy level above 1 back to 1 and logs it. It reads only who is compacting, the compaction's trigger (a `precompute`, which the engine runs ahead of time and installs nothing, resets nothing) and whether it was skipped, never the conversation, the instructions or the summary, and returns the compaction unchanged. |
+| `command.run` for `/brigade` | Opens the pane. It answers only `/brigade`. |
+| `skill.prompt` | Opens the pane when the head-chef skill loads from grimoire or your own skills folder, or finds it open, and adds one line to that skill's text saying whether `set_roster` is ready, or why not. Every other skill load passes on unchanged. |
 | `tool.call` for `Skill`, and `command.run` for `/head-chef` and `/grimoire:head-chef` | Watch a head-chef load for the case where `skill.prompt` never reached the plugin (see below). Each reads the skill's or command's name and the load's answer, and returns that answer unchanged; where `skill.prompt` was skipped, a typed load also reads the session's local skill list once. Any other skill, and a subagent's load, passes on with no other work. |
 | `tool.call` for `set_roster`, `log_decision`, `set_lead_handoff`, `read_lead_handoff`, `read_autonomy` and `show_permission_warning` | Answers for the mod's own six tools, which have no other code behind them. |
-| `turn.start` | Only after a head-chef load whose pane was open but not shown, not yet listed, or opened without its reads: looks at the pane once a turn, and once it is shown and listed, starts the pane's reads, offers `set_roster` if it was not offered yet, and adds one note saying it is ready. Since 0.84.0, the turn that finds a pane the load found not shown now shown sets an autonomy level above 1 back to 1 and logs it, once. Otherwise, and on a subagent's turn, it passes on with no other work. It reads no text of the prompt. |
+| `turn.start` | Only after a head-chef load whose pane was open but not shown, not yet listed, or opened without its reads: looks at the pane once a turn, and once it is shown and listed, starts the pane's reads, offers `set_roster` if it was not offered yet, and adds one note saying it is ready. Otherwise, and on a subagent's turn, it passes on with no other work. It reads no text of the prompt. |
 | `turn.step`, `turn.complete` | Counts each model call's token numbers for the usage summary file. It reads no text of the conversation and passes every step on unchanged. |
 | `session.measure`, `session.receive` | While the pane is open, refreshes the usage numbers and keeps the first line of each report another session sends. |
-| `ui.render`, `ui.press`, `ui.input`, `ui.close` | Draws the pane and the warning band, handles their buttons, and takes the Decisions tab's search text, which it keeps only to filter the tab, in plugin state, which other plugins can read until the pane next opens. |
+| `ui.render`, `ui.press`, `ui.input`, `ui.close` | Draws the pane, the warning band and, since 0.88.0, the autonomy level's line above the warning, handles their buttons, and takes the Decisions tab's search text, which it keeps only to filter the tab, in plugin state, which other plugins can read until the pane next opens. |
 
 Claude Code's bundled security default, on a machine with managed settings or
 a Team or Enterprise account, keeps the plugins you install from seeing

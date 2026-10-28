@@ -213,8 +213,9 @@ and refuses an input that carries any of them, a source other than `lead` or
 character, text shaped like a session id, a Desktop id or a Remote Control
 link, a value shaped like a known key, an email address or a home-folder
 path; the refusal names the shape, never the value. Like `set_roster`
-it skips the permission prompt in every mode, works only while the pane is
-listed and placed with its reads running, and refuses a subagent's call, a
+it skips the permission prompt in every mode, works only once the mod has
+offered it to this session since its last reload, and since 0.88.0 with the pane shown,
+behind another tab or closed alike, and refuses a subagent's call, a
 deny verdict, an owner's ask rule and an organisation ceiling below allow;
 each refusal is fixed words naming the rule, never a path, a verdict's reason
 or an engine message. A deny rule for `mcp__grimoire__log_decision` removes it.
@@ -347,8 +348,9 @@ effort's branch, and of branches based on it, until the owner answers. The
 mod offers a fifth tool, `read_autonomy`, wherever it offers `set_roster`:
 it takes no input, answers the level in force, a 3 with the time of its press,
 skips the permission prompt, refuses a subagent's call and every verdict
-`set_roster` refuses, and answers 1 unless the pane is listed and placed with
-its reads running; a deny rule for `mcp__grimoire__read_autonomy` removes it.
+`set_roster` refuses, and answers 1 until the mod has offered it to this
+session since its last reload, and otherwise the level in force, since 0.88.0 whether the pane is
+shown or not; a deny rule for `mcp__grimoire__read_autonomy` removes it.
 The stored level sits in plugin state as `autonomy`, this session's id and
 its level, never in a file; the last level a press set, a 3's press time, the
 Owner entries the pane wrote, the alarms it wrote, a pending alarm and a
@@ -358,22 +360,40 @@ or a reset's Pane entry waits to be logged, and for a 3 with no press time.
 A press that raises the level first logs what waits, then an Owner entry in
 the session's own log, and the raise does not happen if either cannot be
 written; a lowering always happens. Each new
-lead session starts at 1; a showing that makes the pane shown and a reload of
-the mod reset a level above 1 to 1 with a Pane entry; a session start or reload
-that finds a stored level above 1 writes it even with the pane closed, the one
-file a session start writes. A Pane entry that cannot be written keeps the
+lead session starts at 1; a reload of the mod and, since 0.88.0, a compaction
+of the lead's main conversation reset a level above 1 to 1 with a Pane entry,
+and a showing of the pane no longer does; a session start, reload or
+compaction that finds a stored level above 1 writes that entry even with the
+pane closed, the one file a session start writes. The compaction hook reads
+only who is compacting, the compaction's trigger and whether it was skipped,
+never the conversation, the instructions or the summary, and a compaction first logs a
+stored level that differs from the last press as an alarm. A reset that cannot
+read the session id, or one of whose steps throws, waits, reading 1, until it
+lands. Since 0.88.0 a press on the slider that would raise the level acts only
+while the engine lists the pane and it is placed, and one pressed on a hidden or
+closed pane is dropped; a lowering acts whatever the pane list answers. A pane
+list that does not answer within 5 seconds counts as not placed. A Pane entry that cannot be written keeps the
 level at 1 and is tried again at the next poll, as an alarm is; an entry
 written late carries the time it was written. A clear or a resume
 forgets every other session's level and press time, writing no entry; an
-alarm still waiting is logged once its session comes back. At each 5-second poll a
-stored level that differs from the last press is set to 1 and logged as one
+alarm still waiting is logged once its session comes back. At each tick of the
+level's own 5-second poll a stored level that differs from the last press is set to 1 and logged as one
 unread alarm, tried again at the next poll if it cannot be written; while an
 alarm the pane wrote is unread, a repeat is counted in the pane, not logged,
-unless the marks cannot be read. The pane
-draws the level in force on every tab, level 3 in the warning colour. What
-follows from it:
+unless the marks cannot be read. Since 0.88.0 that poll is the level's alone:
+it runs with the pane open or closed while the stored or last-pressed level is
+above 1 or an alarm, a Pane entry or a reset waits, and starts at a press, a
+reset, a session start, a call of the mod's tools, or a draw of the band above
+the prompt or of the pane, any of which may find a stored level that differs
+from the last press, so its alarm and Pane entry writes also happen with the pane closed; it
+reads no usage and keeps no report. The pane
+draws the level in force on every tab, level 3 in the warning colour, and
+since 0.88.0 the band above the lead's prompt draws a 3 in force, with its
+press time and a Dismiss, and an unread alarm this mod caught, on the terminal
+and Desktop only. What follows from it:
 - **What the log reveals:** each entry's level, and the times of the owner's
-  slider moves, of the resets and of the alarms, which show roughly when the
+  slider moves, of the resets, the lead's compactions among them, and of the
+  alarms, which show roughly when the
   owner let the lead run alone. Owner, Pane and alarm entries never drop.
 - **Who can move it:** another plugin can read `autonomy`, and so learn when
   the owner let the lead run alone, and can rewrite it or press the
@@ -392,7 +412,9 @@ follows from it:
 - **Where the level is copied:** each answer of `read_autonomy`,
   `log_decision` and `set_lead_handoff` names the level in the lead's
   transcript, and `read_autonomy`'s names a 3's press time, where they stay
-  after the log is deleted.
+  after the log is deleted. Since 0.88.0 the band above the lead's prompt
+  draws a 3 and its press time, and an alarm's level and time, in the tree
+  that other plugins' band hooks see.
 - **What does not reach it:** no permission prompt, mode, owner hook or
   classifier sees `read_autonomy`'s answer, the pane's Owner, Pane and alarm
   writes, or a press.
