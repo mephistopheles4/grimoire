@@ -131,8 +131,18 @@
       "analyzers": [
         "static_patterns_tool_misuse"
       ],
-      "sha256": "ae436e165b3e039ccc2742731ec77ffe3ad8a24e9e0e4a86503587608c77bab4",
+      "sha256": "ab8b4984bc5e5df7d39c15c2859f2fb8a4c63dee73c8842df8c996149f313bf5",
       "reason": "The skill's instructions, generated from the contract. The destructive-command parser stops partway through a long expression and marks the file partial for that one check; every other check reads it in full. The entry also accepts a marker-pass give-up inside that one check, which the scanner reports under this code. Read on 2026-10-24 for head-chef 0.12.0 (issues 385 and 386), when the parser first gave up here: the new text names `claude rm` and the start command `claude --bg` in code spans inside long sentences and two fenced start forms; each line was read by hand, `rm` is a cleanup step the owner must say yes to, and none is a disguised directive. Re-read on 2026-10-24 for 0.13.0 (issue 388): the changes are the ask before messaging a session idle for over an hour, the restart carve-out for such a session, `statusUpdatedAt` among the status-file fields, the Version line and one changelog row, plus the q6 and q7 sentences on a held report and asking once per idle spell, and the send rule's `uds:` form with a placeholder pipe path; they name no command, and no directive was added. Re-read on 2026-10-25 for 0.14.0 (issue 335): the changes are two start-prompt sentences sending every question to the lead as a numbered question, with the classifier exception, a contract bullet recording the owner's 2026-10-17 decision, the intro line, the Version line and one changelog row; each line was read by hand, they name no command, and no directive was added. Re-read on 2026-10-25 for issue 392, head-chef 0.15.0: the only change is step 2 of the background start, generated from the contract's new terms; it names `claude stop` and `claude rm` in code spans for the owner to run, was read by hand, and adds no directive. Re-read on 2026-10-26 for issue 409: the change adds the single forced `worktree remove` for a worktree with submodules, its checks and a pointer to the new reference file, and adds no rm, del or erase. Re-read on 2026-10-27 for issue 415, head-chef 0.16.1: one added sentence telling the lead to give a card whose pull request is in another repository that repository as `repo`, an owner/name with no host; it names no command, adds no rm, del or erase, and no directive was added. Re-read on 2026-10-27 for issue 416, head-chef 0.17.0: the change adds the autonomy level rules, the decision log and hand-off rules, the next-step box and the cleanup summary, regenerated from the contract, and moves the start, background, hand-off and cleanup steps to reference files; each added line was read by hand; it names `claude rm` and git's removals in code spans, as cleanup's commands on the owner's yes, and adds no rm, del or erase command and no directive."
+    },
+    {
+      "skill": "head-chef",
+      "path": "references/cleanup.md",
+      "reason_code": "static_parse_limit",
+      "analyzers": [
+        "static_patterns_tool_misuse"
+      ],
+      "sha256": "3b53131e65d84d632b6fde766d05588b9c214fed4fc5b4245d68a9a4cd7fc3f5",
+      "reason": "The cleanup procedure, moved out of SKILL.md in head-chef 0.17.0 (issue 416). The destructive-command parser follows a command only for a fixed span, and stops on the long git lines in code spans here: the four-flag git prefix, then `worktree remove`, `--force`, `--force --force`, `branch -d` and `branch -D` on placeholders, and the two one-line reads that print a repository's owner/name. Each is a removal the name-back lists for the owner's one yes, or a read, never an instruction to run unasked. Only that one check stops; every other check reads the file in full. Re-read on 2026-10-27 for issue 416, head-chef 0.17.0: every command line in the file was read by hand; each names a placeholder, none holds a recursive or forced delete outside cleanup's git removals and `claude rm`, and no directive is hidden in them."
     },
     {
       "skill": "contract",
@@ -210,6 +220,12 @@
       "from": "SKILL.md",
       "target": "references/contract.changelog.md",
       "count": 1
+    },
+    {
+      "skill": "head-chef",
+      "from": "SKILL.md",
+      "target": "references/cleanup.md",
+      "count": 5
     },
     {
       "skill": "contract",

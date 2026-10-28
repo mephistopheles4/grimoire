@@ -258,7 +258,7 @@ included; waiving `adversarial-lens` or `data-lens`, or any lens due on a
 change that matches the sensitive-work list or touches secrets or personal
 data, where declining the sensitive route or its offer at Test counts as
 waiving the security pair; a waiver of any lens or review step on a change
-that edits a control a threat-model row or `SECURITY.md` names; and what
+that edits a control a threat-model row or the repository's security policy names; and what
 still waits. A waived security pair counts as "you are unsure" below.
 
 **At level 3 these still wait for the owner,** each as a waiting entry with
@@ -269,7 +269,7 @@ message you write that would carry personal data, or private-repository work
 onto a public record or another repository; writing or editing an
 accepted-risk entry in a threat model, its scope or the line that names it;
 the merge of a change that removes or weakens a control a threat-model row
-or `SECURITY.md` names, wherever the control lives, whenever any lens says
+or the repository's security policy names, wherever the control lives, whenever any lens says
 so or you are unsure; an install; and cleanup's yes.
 
 **The hold.** A waiting entry holds only the acts that would land or publish
