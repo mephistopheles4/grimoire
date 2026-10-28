@@ -2239,9 +2239,10 @@ function stopLevelPoll() {
 
 // A press on the slider. A change not from a press is caught first. A press
 // on the level that is both in force and last pressed does nothing; a press
-// at or below the level in force, or below the last-pressed one (while the
-// level in force is below it), is a lowering, which happens at once and is logged after; a
-// raise needs the pane listed and placed, logs what waits first, happens only once its Owner entry is written,
+// above the level in force needs the pane listed and placed, or is dropped
+// before it takes a turn; a press at or below the level in force, or below the
+// last-pressed one (while the level in force is below it), is a lowering, which happens at once and is logged after; a
+// raise logs what waits first, happens only once its Owner entry is written,
 // and only when no press or change came in between. A press on the level a raise still being logged
 // goes to, with nothing in between, does nothing. A 3 keeps its press time.
 async function pressLevel($: EngineInterface, l: Level, placed: () => Promise<boolean>) {
@@ -2251,11 +2252,14 @@ async function pressLevel($: EngineInterface, l: Level, placed: () => Promise<bo
   const sid = await levelSid($)
   if (sid === undefined) return
   const now = await $.clock.now()
+  // Read before the press takes its turn, so a press dropped for a hidden or
+  // closed pane voids no raise still being logged (#430's C10, from the
+  // scoped read's q5d).
+  const isPlaced = await placed().catch(() => false)
   const step = await levelTurn(async () => {
     await catchChange($, sid)
     const live = raising.get(sid)
     if (live !== undefined && live.turn === levelTurns && live.to === l) return { kind: 'none' as const }
-    const turn = ++levelTurns
     const inForce = await levelNow($, sid)
     const pressed = pressedOf(sid)
     if (l === inForce && l === pressed && !raising.has(sid)) {
@@ -2263,6 +2267,10 @@ async function pressLevel($: EngineInterface, l: Level, placed: () => Promise<bo
       if (l === 3 && bandDismissed?.sid === sid) bandDismissed = undefined
       return { kind: 'none' as const }
     }
+    // Above the level in force, even below the last press, the pane must be
+    // listed and placed; one pressed on a hidden or closed pane is dropped.
+    if (l > inForce && !isPlaced) return { kind: 'dropped' as const }
+    const turn = ++levelTurns
     if (l <= inForce || l < pressed) {
       await setLevel($, sid, l)
       return { kind: 'lower' as const }
@@ -2272,12 +2280,7 @@ async function pressLevel($: EngineInterface, l: Level, placed: () => Promise<bo
   })
   raiseFailed = false
   if (step.kind === 'lower') await appendFixed($, sid, ownerEntry(l), l)
-  // A raise needs the pane listed and placed; one pressed on a hidden or
-  // closed pane is dropped before anything is logged.
-  if (step.kind === 'raise' && !(await placed().catch(() => false))) {
-    await levelTurn(async () => {
-      if (raising.get(sid)?.turn === step.turn) raising.delete(sid)
-    })
+  if (step.kind === 'dropped') {
     await redraw($)
     return
   }
@@ -2790,8 +2793,9 @@ export const register: Register = on => {
     const stop = /^level-([123])$/.exec(e.element)
     if (stop !== null) {
       // The owner's own press comes from a pane the engine lists and places; a
-      // raise pressed on any other is dropped, while a lowering always acts
-      // (#430, Test round 1 q3e and the closing read's q4a).
+      // press above the level in force pressed on any other is dropped, while
+      // a lowering always acts (#430's C10, from Test round 1's q3e, the
+      // closing read's q4a and the scoped read's q5d).
       await pressLevel($, Number(stop[1]) as Level, async () => (await paneListed($).catch(() => undefined))?.isPlaced === true)
       return { element: e.element }
     }

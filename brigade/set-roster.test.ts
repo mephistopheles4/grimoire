@@ -7162,6 +7162,39 @@ test("C10, the closing read's q4a: a press that lowers the level acts whatever t
   ])
 })
 
+test("C10, the scoped read's q5d: a press above the level in force needs a listed, placed pane, even one below the last-pressed level", async ($, on) => {
+  const w = await decisionsPane(on, $)
+  w.open = false
+  await w.clock.advance(5000)
+  await mounted.unmount()
+  // A 3 pressed with the clock outside the Date range keeps no press time, so 1 is in force.
+  await w.clock.set(8.64e15 + 60000)
+  await reopen($, w)
+  await press($, 'level-3')
+  expect((await readLevel($)).text).toBe(LEVEL_1)
+  // A 2 pressed behind another tab is below the last press but above 1: dropped.
+  w.unplaced = true
+  await press($, 'level-2')
+  expect((await readLevel($)).text).toBe(LEVEL_1)
+  expect(ownEntries(w)).toEqual(['owner 3 Full throttle · Moved in the pane · level 1'])
+})
+
+test("C10, the scoped read's q5d: a raise dropped for a hidden pane takes no turn, so the owner's raise still being logged applies", async ($, on) => {
+  const w = await decisionsPane(on, $)
+  w.holdWrite = true
+  const raise = press($, 'level-2')
+  await w.clock.settle()
+  w.unplaced = true
+  await press($, 'level-3')
+  w.unplaced = false
+  w.holdWrite = false
+  w.release()
+  await raise
+  await w.clock.settle()
+  expect((await readLevel($)).text).toBe(LEVEL_2)
+  expect(ownEntries(w)).toEqual(['owner 2 Auto · Moved in the pane · level 1'])
+})
+
 test("C12, the closing read's q4c: a press of 3 at a clock time outside the Date range keeps no press time, so it reads 1 and draws no level-3 line", async ($, on) => {
   const w = await decisionsPane(on, $)
   w.open = false
