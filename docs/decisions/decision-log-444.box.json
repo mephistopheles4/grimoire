@@ -1,0 +1,521 @@
+{
+  "title": "Decision log per lead, and Mark all read (issue 444)",
+  "problem": "The Decisions tab in the Brigade pane shows a lead's decision log. Today it also shows the logs of up to 20 other sessions, so a new lead's tab holds the decisions of earlier leads. The owner wants each lead's tab to show only that lead's decisions, and one press that marks all of To review as read. The rows decide what counts as this lead's log, what the tab still shows from other logs, and what the new press marks. Fixed: each session keeps its own log file, an answers link works only inside the log that holds the waiting entry, and a marks file holds at most 64 KiB. With no decision, the tab stays hard to read and the owner clears To review one entry at a time.",
+  "who": "The owner, who reads the Decisions tab, and each head-chef lead, whose decisions the tab shows.",
+  "when": "At the Plan stage of issue 444, before the spec is written. The date is not known.",
+  "dims": [
+    {
+      "id": "lead",
+      "name": "What counts as this lead's log",
+      "problem": "Each session writes its decision log to its own file, named by its session id. A /clear in the lead's chat starts a new session id, so one chat can write two or more logs. This row decides which log files the tab treats as the lead's own. A rule that is too narrow hides the lead's own work after a /clear. A rule that is too wide brings back the earlier leads.",
+      "opts": [
+        {
+          "id": "lead-id",
+          "label": "Only the log of this session id",
+          "short": "This session id",
+          "src": "issue 444, want 1",
+          "chosen": true
+        },
+        {
+          "id": "lead-chain",
+          "label": "This session id, and the ids this chat had before a /clear, as the mod's module memory saw them (lost at a reload)",
+          "short": "This id and its /clear past",
+          "src": "plan-444 from the code"
+        },
+        {
+          "id": "lead-project",
+          "label": "Every log with the same project digest, so every lead in this working folder",
+          "short": "Same working folder",
+          "src": "plan-444 from the code"
+        },
+        {
+          "id": "lead-all",
+          "label": "As today: this log and the 20 newest other logs",
+          "short": "As today",
+          "strawman": true,
+          "src": "ADR 0010"
+        }
+      ]
+    },
+    {
+      "id": "open",
+      "name": "Other logs' open items in To review and Flagged",
+      "problem": "An open item is an entry the owner must still act on: a waiting entry with no answer, or an entry the owner flagged to revisit. When the tab hides other logs, their open items go too. A new lead cannot answer an earlier lead's waiting entry with an answers link. The head-chef contract says that card stays until the owner marks it read. This row decides which open items from other logs the tab still shows.",
+      "opts": [
+        {
+          "id": "open-none",
+          "label": "None: other logs show nothing",
+          "short": "None",
+          "strawman": true,
+          "src": "issue 444, want 1"
+        },
+        {
+          "id": "open-waiting",
+          "label": "Unanswered waiting entries from other logs stay in To review until marked read",
+          "short": "Waiting entries",
+          "src": "issue 444, the owner's leaning, relayed by the lead"
+        },
+        {
+          "id": "open-both",
+          "label": "Unanswered waiting entries stay in To review, and flagged entries stay in Flagged to revisit, until the owner clears each",
+          "short": "Waiting and flagged",
+          "src": "plan-444 from the code",
+          "chosen": true
+        }
+      ]
+    },
+    {
+      "id": "hist",
+      "name": "Other logs in History",
+      "problem": "History lists every entry the tab reads, newest first. ADR 0010 says the tab reads other logs so that a new lead does not hide what the last one decided. This row decides whether the owner can still see earlier leads' decisions from the tab.",
+      "opts": [
+        {
+          "id": "hist-hidden",
+          "label": "Hidden: History shows only this lead's log",
+          "short": "Hidden",
+          "src": "issue 444, want 1",
+          "chosen": true
+        },
+        {
+          "id": "hist-folded",
+          "label": "A separate section, folded by default, lists the other logs' entries",
+          "short": "Folded section",
+          "src": "plan-444 from the code"
+        },
+        {
+          "id": "hist-later",
+          "label": "Hidden now; a view of earlier leads comes in a later issue if the owner asks",
+          "short": "Later",
+          "strawman": true
+        }
+      ]
+    },
+    {
+      "id": "disk",
+      "name": "Other logs on disk",
+      "problem": "Each log file stays in the plugin's data folder until the owner deletes it. This row decides whether the mod deletes earlier leads' logs when a new lead starts, or keeps them and only hides them.",
+      "opts": [
+        {
+          "id": "disk-kept",
+          "label": "Kept on disk, hidden from the tab",
+          "short": "Kept, hidden",
+          "src": "issue 444, the owner's leaning, relayed by the lead",
+          "chosen": true
+        },
+        {
+          "id": "disk-deleted",
+          "label": "Deleted when a new lead starts",
+          "short": "Deleted",
+          "strawman": true,
+          "src": "issue 444, open question 1"
+        }
+      ]
+    },
+    {
+      "id": "scope",
+      "name": "What Mark all read takes",
+      "problem": "To review has no separate Waits for you section. A waiting entry sits in To review with the headline Waits for you. An alarm entry also sits in To review, and marking it read removes the band's warning that the autonomy level changed with no press. This row decides which To review entries the new press marks read.",
+      "opts": [
+        {
+          "id": "scope-every",
+          "label": "Every entry in To review",
+          "short": "Every entry",
+          "strawman": true
+        },
+        {
+          "id": "scope-nowait",
+          "label": "Every entry except unanswered waiting entries",
+          "short": "All but waiting",
+          "src": "issue 444, the owner's leaning, relayed by the lead"
+        },
+        {
+          "id": "scope-noalarm",
+          "label": "Every entry except unanswered waiting entries and alarm entries",
+          "short": "All but waiting and alarms",
+          "src": "plan-444 from the code",
+          "chosen": true
+        }
+      ]
+    },
+    {
+      "id": "search",
+      "name": "Mark all read and the search",
+      "problem": "The tab has a search box. To review shows only the entries that match it, and its count is of those. This row decides whether the press marks only the matching entries or every entry in the queue.",
+      "opts": [
+        {
+          "id": "search-match",
+          "label": "Only the entries that match the search, the ones the count shows",
+          "short": "Matching only",
+          "src": "plan-444 from the code",
+          "chosen": true
+        },
+        {
+          "id": "search-all",
+          "label": "Every entry in the queue, matching or not",
+          "short": "Whole queue",
+          "src": "plan-444 from the code"
+        },
+        {
+          "id": "search-off",
+          "label": "No Mark all read while a search is typed: the button hides",
+          "short": "Hidden while searching",
+          "strawman": true
+        }
+      ]
+    },
+    {
+      "id": "guard",
+      "name": "How the press is guarded",
+      "problem": "A mark has three states: read, flagged and unflagged. No state means unread, so no press can mark an entry unread again. A read entry also becomes one the log may drop once it passes 500 entries or 256 KiB. This row decides whether the one press needs a second step or an undo.",
+      "opts": [
+        {
+          "id": "guard-one",
+          "label": "One press; the button shows the count it will mark",
+          "short": "One press",
+          "src": "issue 444, want 2",
+          "chosen": true,
+          "strawman": true
+        },
+        {
+          "id": "guard-confirm",
+          "label": "Two steps: the press shows a Confirm and a Cancel",
+          "short": "Confirm step",
+          "src": "plan-444 from the code"
+        },
+        {
+          "id": "guard-undo",
+          "label": "One press, with an Undo that marks the entries unread again",
+          "short": "Undo",
+          "src": "plan-444 from the code"
+        }
+      ]
+    }
+  ],
+  "rel": {
+    "lead-id": {
+      "why": "Recommended. The narrowest rule, and the one the issue states. It removes other sessions' logs from the tab.",
+      "rel": [
+        [
+          "open-none",
+          "conf",
+          "A /clear gives the chat a new session id. With no carry-over, the waiting entries from before it leave the tab.",
+          "sourced",
+          "brigade/set-roster.test.ts, claim 11: a /clear starts a new session id"
+        ]
+      ],
+      "notes": [
+        "Threat model row 15 names text another session wrote as a way to mislead the pane. A tab that draws only its own log, plus open items, draws less of that text.",
+        "ADR 0010 says the tab reads 20 other logs so a new lead does not hide what the last one decided. This option reverses that, so ADR 0010 needs a new ADR or an amendment."
+      ]
+    },
+    "lead-chain": {
+      "why": "Keeps the lead's work across a /clear. The mod sees the /clear at session start and can keep the old id in module memory.",
+      "rel": [
+        [
+          "disk-deleted",
+          "conf",
+          "The earlier ids of this chat name log files. Deleting other logs at a new start deletes this chat's own earlier log.",
+          "argued"
+        ]
+      ],
+      "notes": [
+        "Module memory ends at a reload, so after a reload the pre-/clear log drops out of the tab. That is a second rule to test, for one case."
+      ]
+    },
+    "lead-project": {
+      "why": "Uses the project digest that each log already carries. It shows every lead that worked in this folder.",
+      "rel": [
+        [
+          "hist-folded",
+          "conf",
+          "Every same-folder log is in the main lists already. A section for other logs then holds only other folders.",
+          "argued"
+        ],
+        [
+          "open-none",
+          "conf",
+          "A log with a null digest, written when the session-start record was missing, matches no folder, so its waiting entries drop out with no carry-over.",
+          "sourced",
+          "brigade/decisions.ts, projectDigest gives null"
+        ]
+      ],
+      "notes": [
+        "Earlier leads in the same folder are the case the issue describes, so this option keeps most of the problem."
+      ]
+    },
+    "lead-all": {
+      "why": "The design today, from ADR 0010.",
+      "rel": [
+        [
+          "search-all",
+          "conf",
+          "Twenty-one logs hold up to 10,500 entries. One marks file holds about 564 marks, so one write is refused.",
+          "measured",
+          "plan-444: JSON size of one mark with a 36-character id, against MAX_MARKS_BYTES in brigade/decisions.ts"
+        ]
+      ],
+      "notes": [
+        "The same limit holds for a large search result. With this session's log alone the most is 500 entries, which fit."
+      ]
+    },
+    "open-none": {
+      "why": "The literal reading of the issue: only this lead's decisions.",
+      "rel": [],
+      "notes": [
+        "It also hides entries the owner flagged in an earlier log. The issue does not name flags."
+      ]
+    },
+    "open-waiting": {
+      "why": "Keeps each waiting entry until the owner marks it read, as the contract's rule for an answer to an old waiting entry needs.",
+      "rel": [
+        [
+          "disk-deleted",
+          "conf",
+          "A carried waiting entry is read from its own log file; a deleted file has no entry to carry.",
+          "argued"
+        ],
+        [
+          "disk-kept",
+          "req",
+          "The pane reads each carried entry from the log file of the session that wrote it.",
+          "argued"
+        ]
+      ],
+      "notes": [
+        "The head-chef contract already handles the answer: the new lead logs it without answers and names the earlier writer and id. No change to answers is needed."
+      ]
+    },
+    "open-both": {
+      "why": "Recommended. Waiting entries and flags are the owner's open work. Hiding either one drops it with no word.",
+      "rel": [
+        [
+          "disk-deleted",
+          "conf",
+          "A carried entry is read from its own log file; a deleted file has no entry to carry.",
+          "argued"
+        ],
+        [
+          "disk-kept",
+          "req",
+          "The pane reads each carried entry from the log file of the session that wrote it.",
+          "argued"
+        ]
+      ],
+      "notes": [
+        "The pane keeps reading the 20 newest other logs, but draws only these items from them. Past 20 other logs, the dim line still counts the older logs not read."
+      ]
+    },
+    "hist-hidden": {
+      "why": "Recommended. It matches the owner's words: the tab shows only that lead's decisions.",
+      "rel": [
+        [
+          "lead-all",
+          "conf",
+          "As today draws 20 other logs in History, and this option draws only the lead's own log.",
+          "argued"
+        ]
+      ],
+      "notes": []
+    },
+    "hist-folded": {
+      "why": "Keeps the intent of ADR 0010 without putting earlier leads in the main lists.",
+      "rel": [
+        [
+          "disk-kept",
+          "req",
+          "A section that lists other logs' entries needs those files on disk.",
+          "argued"
+        ]
+      ],
+      "notes": [
+        "It adds a fourth section to the tab, which the issue did not ask for."
+      ]
+    },
+    "hist-later": {
+      "why": "Ships the issue as asked and keeps the option open, because the files stay on disk.",
+      "rel": [
+        [
+          "disk-kept",
+          "req",
+          "A later view of earlier leads reads their files, so the files must stay.",
+          "argued"
+        ]
+      ],
+      "notes": [
+        "Rejected for now: the issue asks only to hide, and Hidden already keeps the files, so Later adds nothing until the owner asks."
+      ]
+    },
+    "disk-kept": {
+      "why": "Recommended, and the owner's leaning. Cheaper to undo: a later change can show the files again.",
+      "rel": [],
+      "notes": []
+    },
+    "disk-deleted": {
+      "why": "Removes earlier logs for good.",
+      "rel": [],
+      "notes": [
+        "It is a delete of the owner's files by the mod, which nothing in the mod does today, and it cannot be undone."
+      ]
+    },
+    "scope-every": {
+      "why": "The simplest rule: the press empties To review.",
+      "rel": [
+        [
+          "open-waiting",
+          "conf",
+          "The press removes every carried waiting entry from To review. The owner wants waiting entries to stay until answered.",
+          "sourced",
+          "issue 444, the owner's leaning, relayed by the lead"
+        ],
+        [
+          "open-both",
+          "conf",
+          "The press removes every carried waiting entry from To review. The owner wants waiting entries to stay until answered.",
+          "sourced",
+          "issue 444, the owner's leaning, relayed by the lead"
+        ]
+      ],
+      "notes": []
+    },
+    "scope-nowait": {
+      "why": "The owner's leaning: To review only, and waiting entries stay until answered.",
+      "rel": [
+        [
+          "guard-one",
+          "conf",
+          "security? It also marks alarm entries read, which removes the band warning that the level changed with no press.",
+          "sourced",
+          "brigade/register.tsx, writeMarks deletes the band alarm for each row it marks"
+        ]
+      ],
+      "notes": []
+    },
+    "scope-noalarm": {
+      "why": "Recommended. An alarm says the autonomy level changed with no press. The owner reads each one alone.",
+      "rel": [],
+      "notes": [
+        "The alarm entries come only from this session's own log, so this rule is the same under every option of the first row."
+      ]
+    },
+    "search-match": {
+      "why": "Recommended. The press marks what the owner can see and what the count says.",
+      "rel": [],
+      "notes": []
+    },
+    "search-all": {
+      "why": "One press always empties the queue, whatever the search.",
+      "rel": [
+        [
+          "guard-one",
+          "conf",
+          "One press would mark entries the search hides from the owner, with no second step to show them.",
+          "argued"
+        ]
+      ],
+      "notes": []
+    },
+    "guard-one": {
+      "why": "Recommended. The issue asks for one press. History keeps every marked entry, so nothing leaves the tab for good.",
+      "rel": [
+        [
+          "search-match",
+          "req",
+          "With no second step, the press must mark only the entries the owner can see.",
+          "argued"
+        ]
+      ],
+      "notes": [
+        "A marked entry can drop from the log past its caps. That is the same for one Read, next press today.",
+        "Flagged as the none answer for coverage. It is also the issue's own ask."
+      ]
+    },
+    "guard-confirm": {
+      "why": "A second step against a slip of the pointer.",
+      "rel": [],
+      "notes": [
+        "It goes against the issue's one press."
+      ]
+    },
+    "guard-undo": {
+      "why": "One press that the owner can take back.",
+      "rel": [],
+      "notes": [
+        "It needs a fourth mark state for unread. A marks file is version 1, and the check refuses an unknown state, so an older mod would refuse the whole file (brigade/decisions.ts, checkMark). That is a format change."
+      ]
+    },
+    "search-off": {
+      "why": "The by-hand answer: the owner clears the search first.",
+      "rel": [],
+      "notes": [
+        "It adds a step the issue does not ask for. Matching only gives the same safety with no extra step."
+      ]
+    }
+  },
+  "suspected": [],
+  "presets": [
+    {
+      "title": "As chosen",
+      "text": "Open the rows that carry the argument: what counts as the lead's log, and the open items from other logs.",
+      "steps": [
+        {
+          "label": "Open the first row",
+          "open": "lead",
+          "view": "findings"
+        },
+        {
+          "label": "Open the open-items row",
+          "open": "open",
+          "view": "findings"
+        },
+        {
+          "label": "Close it",
+          "open": null,
+          "view": "findings"
+        }
+      ]
+    },
+    {
+      "title": "The literal reading",
+      "text": "Set no carry-over of open items and read what the first row loses after a /clear.",
+      "reframe": "The problem becomes whether the owner can lose a waiting entry with no word.",
+      "steps": [
+        {
+          "label": "Set None",
+          "set": {
+            "open": "open-none"
+          },
+          "open": "lead"
+        }
+      ]
+    },
+    {
+      "title": "The cheap route",
+      "text": "Every entry, the whole queue, one press: the least to build. Read the conflicts.",
+      "steps": [
+        {
+          "label": "Set the cheap options",
+          "set": {
+            "scope": "scope-every",
+            "search": "search-all",
+            "guard": "guard-one"
+          },
+          "open": "scope"
+        }
+      ]
+    },
+    {
+      "title": "The break test",
+      "text": "Set As today in the first row and read what the whole-queue press then costs.",
+      "steps": [
+        {
+          "label": "Set As today",
+          "set": {
+            "lead": "lead-all",
+            "search": "search-all"
+          },
+          "open": "search"
+        }
+      ]
+    }
+  ]
+}
