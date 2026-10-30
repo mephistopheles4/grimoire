@@ -57,8 +57,9 @@ merges only on the owner's own word on q2): To review's heading gains "Mark N
 relayed read", which marks this session's own unread Relayed entries that
 answer no waiting entry read in one write. Each such claim still reaches To
 review as a card and is counted in the press's label; the press marks it from
-there, whether or not its card was opened. A question and its answer never
-leave by this press. A mark from it records the press, not a reading, and a
+there, whether or not its card was opened. A question and the answer the log
+links to it never leave by this press; an answer logged without that link, to
+a waiting entry in another session's log, counts as a claim and does. A mark from it records the press, not a reading, and a
 claim it marks stays in History only until its log's cap drops it.
 
 The owner chose this on issue 444 (q1 to q3 A and q9 A, relayed by the lead on

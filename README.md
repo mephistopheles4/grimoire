@@ -225,10 +225,14 @@ cards.
 
 Since 0.91.0 To review's heading also shows "✓ Mark N relayed read", beside
 Mark all read. It marks read, in one write, this lead's own unread Relayed
-entries that answer no question, the claims about your words that it logged.
-It leaves out a question and its answer, which leave only from their own
-card, every other entry, every other session's entries, and anything your
-search hides, and a press marks nothing if the set changed since you looked,
+entries that the log links to no question, the claims about your words that
+it logged.
+It leaves out a question and the answer the log links to it, which leave only
+from their own card, every other entry, every other session's entries, and
+anything your search hides. An answer logged without that link, as a lead
+logs one to a question in another session's log after a /clear, a resume or a
+hand-off, counts as a claim and is taken. A press marks nothing if the set
+changed since you looked,
 or if your marks file is so full that the write would push out marks of
 entries you read. A mark from any bulk press records the press, not a
 reading of each entry, and the marks one press writes share one press time.
