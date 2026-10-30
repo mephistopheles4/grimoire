@@ -494,9 +494,10 @@ bound to the shown name alone, on 2026-10-21, and the 1.0.0 form, which drops
 the status-file pairing, on 2026-10-30; row 16 of the threat model records
 them, with the other risks the owner accepted. Before
 its first launch in a lead, the Brigade mod's permission warning says so above
-the prompt. Each turn the head chef reads the engine's own session files, in
-the config folder's `sessions` folder beside each session's key file, for each
-session's name, id and status, and its folder at cleanup: only digit-named `.json` files that are not links and at most 8 KiB, and never the key files.
+the prompt. When it starts or takes a session, and at cleanup, the head chef
+reads the engine's own session files, in the config folder's `sessions` folder
+beside each session's key file, for each session's name, id, status and
+folder (since head-chef 1.0.0 no longer each turn): only digit-named `.json` files that are not links and at most 8 KiB, and never the key files.
 The pane's own read of those files, with its stronger checks, is above. head-chef runs no script of its own. What leaves the session:
 sessions post their own milestone content, signed, on records that may be
 public, and the owner's own process, not the skill, sets what they post,
