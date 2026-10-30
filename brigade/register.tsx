@@ -713,6 +713,9 @@ async function readDecisions($: EngineInterface, live: () => boolean) {
   }
 }
 
+// The most marks-file bytes one drop scan reads: 32 files at their cap.
+const MAX_SCAN_BYTES = 8 * 1024 * 1024
+
 // Every marks file in the folder, through the same cache, for log_decision's
 // drop rule: an entry with no readable read mark counts as unread.
 async function allReadMarks($: EngineInterface, at: Where, now: number) {
@@ -729,9 +732,17 @@ async function readMarks($: EngineInterface, at: Where, now: number, strict: boo
     // own marks file is still read by its own path, as the pane reads it.
     if (l.refused) return strict ? undefined : new Map()
     const files: MarksFile[] = []
+    let scanned = 0
     for (const f of [...(l.own !== undefined ? [l.own] : []), ...l.others]) {
       // Under the pane's checks: a file dated more than two minutes ahead gives no mark.
       if (f.mtimeMs > now + AHEAD_MS) continue
+      // The scan reads at most MAX_SCAN_BYTES of files by their listed sizes,
+      // newest first. Past it the rest count as unread, which fails safe.
+      scanned += f.size
+      if (scanned > MAX_SCAN_BYTES) {
+        if (strict) return undefined
+        break
+      }
       const got = await heldFile($, at, 'marks', f)
       if (got.value !== undefined && got.value.kind === 'marks') files.push(got.value)
       else if (strict) return undefined

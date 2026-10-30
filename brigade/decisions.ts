@@ -48,7 +48,10 @@ export const MAX_ENTRIES = 500
 export const MAX_LOG_BYTES = 256 * 1024
 export const MAX_MARKS = 2000
 // 256 KiB since 0.89.0 (spec 444 q14): one Mark all read press adds up to 500
-// marks, and the 2,000-mark count must still fit beside them.
+// marks, and the 2,000-mark count fits beside them for the entry ids that
+// occur (ids run in sequence, so a mark is about 115 to 122 bytes). At the
+// widest id the format allows, a mark is 133 bytes and the cap holds fewer old
+// marks than the count; the order of the drops still holds.
 export const MAX_MARKS_BYTES = 256 * 1024
 /** History's page: the rows it draws before, and for each, "Show more". */
 export const HISTORY_PAGE = 50
@@ -539,12 +542,14 @@ export function historyRows(logs: readonly ReadLog[], words: readonly string[], 
   return { rows, total: all.length, more: rows.length < all.length }
 }
 
-/** The logs as each view of the tab draws them (spec 444 S3), for the pane's
- *  session id `sid`. This session's log is drawn whole in To review and
- *  Flagged, and alone in History. From every other log, To review draws an
- *  unanswered waiting entry and an alarm entry in its fixed shape (both with
- *  no mark), and Flagged draws any entry whose latest mark is flagged, which
- *  `flaggedRows` picks by state. "Answered" is judged on the whole log read.
+/** The logs as each view of the tab draws them (spec 444 S3, with the change
+ *  of Test round 1), for the pane's session id `sid`. This session's log is
+ *  drawn whole in To review and Flagged, and alone in History. From every
+ *  other log, To review draws, with no mark on the entry: an unanswered
+ *  waiting entry; a Relayed entry that answers one, with that waiting entry
+ *  while the answer is unread; and an alarm entry in its fixed shape. Flagged
+ *  draws any entry whose latest mark is flagged, which `flaggedRows` picks by
+ *  state. "Answered" is judged on the whole log read.
  *  `unshown` counts the unread entries of other logs that To review does not
  *  draw: a number only. An Owner or Pane entry counts as read by its source. */
 export function drawnLogs(logs: readonly ReadLog[], sid: string, states: ReadonlyMap<string, MarkState>) {
@@ -557,10 +562,17 @@ export function drawnLogs(logs: readonly ReadLog[], sid: string, states: Readonl
       history.push(l)
       continue
     }
+    const unread = (e: DecisionEntry) => !isRead(states.get(markKey(l.sid, e.id, e.at)))
     const answered = new Set(l.log.entries.filter(e => e.answers !== '').map(e => e.answers))
+    // A Relayed answer that is still unread, with the waiting entry it answers.
+    const answeredUnread = new Set(l.log.entries.filter(e => e.answers !== '' && unread(e)).map(e => e.answers))
     const entries = l.log.entries.filter(e => {
-      if (isRead(states.get(markKey(l.sid, e.id, e.at)))) return false
-      return (e.source === 'lead' && e.waiting && !answered.has(e.id)) || (e.source === 'alarm' && inFixedShape(e))
+      if (!unread(e)) return false
+      return (
+        (e.source === 'lead' && e.waiting && (!answered.has(e.id) || answeredUnread.has(e.id))) ||
+        (e.source === 'relayed' && e.answers !== '') ||
+        (e.source === 'alarm' && inFixedShape(e))
+      )
     })
     for (const e of l.log.entries) {
       if (e.source === 'owner' || e.source === 'pane' || isRead(states.get(markKey(l.sid, e.id, e.at))) || entries.includes(e)) continue

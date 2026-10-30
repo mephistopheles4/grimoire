@@ -11,6 +11,10 @@ it carries three kinds of entry, each marked "From another session" by
 comparing session ids, never names:
 
 - an unanswered waiting entry, in To review, until the owner marks it read;
+- a Relayed entry that answers a waiting entry, in To review, until read, with
+  that waiting entry while the answer is unread (a change of Test round 1,
+  taken by the lead at level 3, so that a claim about the owner's words still
+  reaches the owner as a card);
 - an unread alarm entry in its fixed shape, in To review, until read;
 - an entry the owner flagged, in Flagged to revisit, until unflagged.
 

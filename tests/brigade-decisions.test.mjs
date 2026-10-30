@@ -771,7 +771,8 @@ test('spec 444 claims 1, 2, 13: the tab draws this log, and from another only un
   const other = ls[1].log.entries;
   const v = drawnLogs(ls, SID, new Map());
   const reviewOther = v.review.find(l => l.sid === OTHER).log.entries.map(e => e.work);
-  assert.deepEqual(reviewOther.sort(), [alarmEntry(3).work, 'waits'].sort());
+  // The answered waiting entry comes with its unread answer (Test round 1, adversarial-lens F1).
+  assert.deepEqual(reviewOther.sort(), [alarmEntry(3).work, 'waits', 'answered', 'the answer'].sort());
   assert.equal(v.review.find(l => l.sid === SID).log.entries.length, 3);
   assert.deepEqual(v.history.map(l => l.sid), [SID], 'History draws this log only');
   // A mark clears a carried one.
@@ -803,18 +804,35 @@ test('spec 444 claim 14: the drawn log is told apart by session id, never by wri
 
 test('spec 444 claim 15: the unshown count is the unread entries of other logs the tab does not draw, as a number only', () => {
   const ls = tabLogsFor();
-  // The answered waiting entry, its answer, a plain lead and a relayed one: four unread, undrawn... the answered waiting entry is not carried.
+  // A plain Lead entry and a Relayed entry that answers nothing: two unread, undrawn.
   const e = ls[1].log.entries;
-  assert.equal(drawnLogs(ls, SID, new Map()).unshown, 4);
+  assert.equal(drawnLogs(ls, SID, new Map()).unshown, 2);
   const states = new Map([[keyOf(OTHER, e[3]), 'read']]);
-  assert.equal(drawnLogs(ls, SID, states).unshown, 3, 'the count falls when marked');
+  assert.equal(drawnLogs(ls, SID, states).unshown, 1, 'the count falls when marked');
+});
+
+test('spec 444 claims 2 and 15: a Relayed answer is carried with the waiting entry it answers, and alone once that is read', () => {
+  const ls = tabLogsFor();
+  const [, answered, answer] = ls[1].log.entries;
+  const works = states => drawnLogs(ls, SID, states).review.find(l => l.sid === OTHER).log.entries.map(e => e.work).filter(w => ['answered', 'the answer'].includes(w)).sort();
+  assert.deepEqual(works(new Map()), ['answered', 'the answer']);
+  // The answer read: the waiting entry it answers is answered, so neither shows.
+  assert.deepEqual(works(new Map([[keyOf(OTHER, answer), 'read']])), []);
+  // The waiting entry read first: the unread answer still shows, alone.
+  assert.deepEqual(works(new Map([[keyOf(OTHER, answered), 'read']])), ['the answer']);
+  // Mark all read never takes a carried entry.
+  const q = reviewQueue(drawnLogs(ls, SID, new Map()).review, new Map(), new Set(), []);
+  assert.ok(markAllSet(q.order, SID).rows.every(r => r.sid === SID));
 });
 
 test('spec 444 claim 7: Mark all read takes only this log\'s shown plain Lead entries, with a hash that moves when the set does', () => {
   const ls = tabLogsFor();
   ls[0].log.entries.push({ ...ls[0].log.entries[0], id: '4', at: NOW + 10, waiting: true, pick: '', work: 'mine waits' });
   ls[0].log.entries.push({ ...ls[0].log.entries[0], id: '5', at: NOW + 11, source: 'relayed', answers: '4', waiting: false });
+  // An unread alarm in this session's own log is never taken either.
+  ls[0].log.entries.push({ ...ls[0].log.entries[0], id: '6', at: NOW + 12, source: 'alarm' });
   const q = reviewQueue(drawnLogs(ls, SID, new Map()).review, new Map(), new Set(), []);
+  assert.ok(q.order.some(r => r.sid === SID && r.entry.source === 'alarm'), 'the alarm is in To review');
   const set = markAllSet(q.order, SID);
   assert.deepEqual(set.rows.map(r => r.entry.id), ['1', '2', '3']);
   assert.equal(set.n, 3);
@@ -855,6 +873,16 @@ test('spec 444 claim 10: past the cap a superseded mark drops before a live one,
   assert.ok(!next.marks.some(m => m.id === '1' && m.state === 'flagged'), 'the superseded flag dropped first');
   assert.ok(next.marks.some(m => m.id === '1' && m.state === 'unflagged'));
   assert.deepEqual(next.marks.slice(-1), added);
+});
+
+test('spec 444 claim 10: a superseded mark drops before a live one that is older than it', () => {
+  // A live read mark for entry A is the oldest; B's flag is superseded by B's later unflag. Oldest-first would drop A's.
+  const marks = [mk(SID, '1', NOW, 'read', NOW + 1), mk(SID, '2', NOW, 'flagged', NOW + 2), mk(SID, '2', NOW, 'unflagged', NOW + 3), ...Array.from({ length: MAX_MARKS - 3 }, (_, i) => mk(SID, String(i + 3), NOW, 'read', NOW + 10 + i))];
+  const file = { kind: 'marks', v: 1, marks };
+  const known = new Set(marks.map(m => markKey(m.log, m.id, m.entryAt)));
+  const next = addMarks(file, [mk(SID, '9999', NOW, 'read', NOW + 9000)], known, [], NOW + 20000);
+  assert.ok(next.marks.some(m => m.id === '1'), 'the older live mark stays');
+  assert.ok(!next.marks.some(m => m.id === '2' && m.state === 'flagged'), 'the superseded flag dropped');
 });
 
 test('spec 444 claim 10: a newest mark whose older flag sits in another file is kept past step 3, and unknown entries drop first', () => {

@@ -5410,12 +5410,15 @@ const markAllLabel = async (n: number) => {
   const [key] = await markAllKeys()
   return key !== undefined && JSON.stringify((await mounted.find({ key }))?.props).includes(`✓ Mark all ${n} read`)
 }
+const ALARM_444 = { source: 'alarm', work: 'Autonomy slider', question: 'Autonomy level', options: ['1 Manual', '2 Auto', '3 Full throttle'], pick: '3 Full throttle', why: 'Changed, not from a press', undo: 'Move the slider in the pane' }
 const markAllSeed = (w: World) => {
   seed(w, LOG, logText([
     kept(1, 200, { question: 'Plain one?' }),
     kept(2, 300, { question: 'Plain two?' }),
     kept(3, 400, { question: 'Mine waits?', waiting: true, pick: '' }),
     kept(4, 500, { question: 'Relayed?', source: 'relayed' }),
+    // An unread alarm in this session's own log: in To review, never taken.
+    kept(5, 600, ALARM_444),
   ]))
   seed(w, PEER_LOG, logText([kept(1, 100, { question: 'Peer waits?', waiting: true, pick: '' }), kept(2, 110, { question: 'Peer plain?' }), kept(3, 120, { question: 'Peer relayed?', source: 'relayed' })]))
 }
@@ -5444,7 +5447,7 @@ test('spec 444 claims 6 and 7: no button when nothing can be taken; a press mark
   expect(parsed(w, OWN_MARKS).marks.map((m: any) => [m.log, m.id, m.state])).toEqual([[SID, '1', 'read'], [SID, '2', 'read']])
   expect((await markAllKeys()).length).toBe(0)
   expect(await shows(/^Peer waits\?$/)).toBe(true)
-  expect(await shows(/^unread entry/)).toBe(false)
+  expect(await shows(/1 unread entry\(s\) in other sessions' logs not shown/)).toBe(true)
   await press($, 'grp-d-history')
   expect(await shows(/· decision 1$/)).toBe(true)
 })
@@ -5527,7 +5530,7 @@ test('spec 444 claim 3: a carried flagged row leaves Flagged by Unflag, and by D
   })
   await press($, 'grp-d-flagged')
   await press($, 'dfopen-1-2-110')
-  expect(await shows(/^From another session · /)).toBe(false)
+  expect(await shows(/^an ended session · From another session · /)).toBe(true)
   await press($, 'dunflag-1-2-110')
   expect(ownMarks(w).map((m: any) => [m.log, m.id, m.state])).toEqual([[PEER, '2', 'unflagged']])
   expect(await mounted.find({ key: 'dfopen-1-2-110' })).toBeUndefined()
@@ -5545,6 +5548,128 @@ test('spec 444: under a search the header counts the entries the tab draws that 
   expect(await shows(/^3 decisions · 3 unread$/)).toBe(true)
   await mounted.input({ key: 'dsearch', text: 'alpha', kind: 'change' })
   expect(await shows(/^2 of 3 match$/)).toBe(true)
+})
+
+test('spec 444 claim 14: a carried card says it is from another session though its writer has this session\'s name', async ($, on) => {
+  await decisionsPane(on, $, 'desktop', w => {
+    liveRows(w, [{ name: 'lead-a', status: 'idle', sessionId: SID }, { name: 'lead-a', status: 'idle', sessionId: PEER }])
+    seed(w, PEER_LOG, logText([kept(1, 100, { question: 'Peer waits?', waiting: true, pick: '' })]))
+  })
+  expect(await shows(/^Peer waits\?$/)).toBe(true)
+  expect(await shows(/^lead-a$/)).toBe(true)
+  expect(await shows(/^From another session$/)).toBe(true)
+})
+
+test('spec 444 claim 14: this session\'s own card never says it is from another session', async ($, on) => {
+  await decisionsPane(on, $, 'desktop', w => seed(w, LOG, logText([kept(1, 100, { question: 'Own waits?', waiting: true, pick: '' })])))
+  expect(await shows(/^Own waits\?$/)).toBe(true)
+  expect(await shows(/From another session/)).toBe(false)
+})
+
+test('spec 444 claims 2 and 15: a Relayed answer shows with the waiting entry it answers, and alone once that is read', async ($, on) => {
+  await decisionsPane(on, $, 'desktop', w =>
+    seed(w, PEER_LOG, logText([kept(1, 100, { question: 'Peer asks?', waiting: true, pick: '' }), kept(2, 110, { question: 'Owner said yes?', source: 'relayed', answers: '1' })])),
+  )
+  expect(await shows(/^1 of 2$/)).toBe(true)
+  expect(await shows(/^Peer asks\?$/)).toBe(true)
+  expect(await shows(/^From another session$/)).toBe(true)
+  await press($, 'dnext-1-100')
+  expect(await shows(/^1 of 1$/)).toBe(true)
+  expect(await shows(/^Owner said yes\?$/)).toBe(true)
+})
+
+test('spec 444 claim 8: a key whose set kept its size but changed its entries marks nothing', async ($, on) => {
+  const w = await flagPane(on, $, 'desktop', w => seed(w, LOG, logText([kept(1, 200, { question: 'First?' }), kept(2, 300, { question: 'Second?' })])))
+  const [key] = await markAllKeys()
+  expect(key).toMatch(/^dmarkall-2-/)
+  w.holdWrite = true
+  const read = press($, 'dnext-1-200')
+  await w.clock.settle()
+  const all = press($, key as string)
+  await w.clock.settle()
+  // While the first write is held, a new plain entry arrives: the set is {2, 3}, the same size as the key's.
+  seed(w, LOG, logText([kept(1, 200), kept(2, 300), kept(3, 400, { question: 'New?' })]), 9)
+  await w.clock.advance(5000)
+  w.holdWrite = false
+  w.release()
+  await read
+  await all
+  await w.clock.settle()
+  expect(ownMarks(w).map((m: any) => m.id)).toEqual(['1'])
+})
+
+test('spec 444 claim 8: a Flag queued just before the press keeps its flag, and the old key marks nothing', async ($, on) => {
+  const w = await flagPane(on, $, 'desktop', w => seed(w, LOG, logText([kept(1, 200, { question: 'First?' }), kept(2, 300, { question: 'Second?' })])))
+  const [key] = await markAllKeys()
+  w.holdWrite = true
+  const flag = press($, 'dflag-1-200')
+  await w.clock.settle()
+  const all = press($, key as string)
+  await w.clock.settle()
+  w.holdWrite = false
+  w.release()
+  await flag
+  await all
+  await w.clock.settle()
+  expect(ownMarks(w).map((m: any) => [m.id, m.state])).toEqual([['1', 'flagged']])
+})
+
+test('spec 444 claim 10: a press at the marks cap keeps a newest mark whose older flag sits in another session\'s file', async ($, on) => {
+  const L3 = '88888888-1111-2222-3333-444444444443'
+  const L4 = '88888888-1111-2222-3333-444444444444'
+  const L5 = '88888888-1111-2222-3333-444444444445'
+  const logs: [string, string, number][] = [[SID, LOG, 500], [PEER, PEER_LOG, 500], [L3, `${DECISIONS}\\${L3}.json`, 500], [L4, `${DECISIONS}\\${L4}.json`, 500], [L5, `${DECISIONS}\\${L5}.json`, 1]]
+  const w = await flagPane(on, $, 'desktop', w => {
+    const fillers: unknown[] = []
+    for (const [sid, path, n] of logs) {
+      seed(w, path, logText(Array.from({ length: n }, (_, i) => kept(i + 1, 1000 + i, { question: `Q ${sid.slice(-1)} ${i + 1}?` }))))
+      for (let i = 0; i < n; i++) {
+        // The unread entry (this log's last) and the flagged one (the peer's first) get their marks below.
+        if ((sid === SID && i === 499) || (sid === PEER && i === 0)) continue
+        fillers.push({ log: sid, id: String(i + 1), entryAt: 1000 + i, state: 'read', at: 100 + fillers.length })
+      }
+    }
+    // The peer's flag is older than this file's unflag of the same entry, which is this file's oldest mark: 2,000 marks.
+    seed(w, OWN_MARKS, marksText([flagMark(PEER, '1', 1000, 'unflagged', 6), ...fillers]))
+    seed(w, PEER_MARKS, marksText([flagMark(PEER, '1', 1000, 'flagged', 5)]))
+  })
+  expect(parsed(w, OWN_MARKS).marks.length).toBe(2000)
+  await press($, 'dnext-500-1499')
+  const marks = ownMarks(w)
+  expect(marks.length).toBe(2000)
+  expect(marks.some((m: any) => m.log === PEER && m.id === '1' && m.state === 'unflagged')).toBe(true)
+  expect(marks.some((m: any) => m.log === SID && m.id === '500')).toBe(true)
+})
+
+const fullLogWorld = (on: On, filler: number) =>
+  world(on, w => {
+    w.dirs(DECISIONS)
+    w.dirs(MARKS)
+    seed(w, LOG, logText(Array.from({ length: 500 }, (_, i) => kept(i + 1, i + 1))))
+    // Entry 1's only read mark sits in the oldest file; each other file is a full marks file about 185 KB.
+    seed(w, PEER_MARKS, marksText([{ log: SID, id: '1', entryAt: 1, state: 'read', at: 5 }]), 2)
+    const fat = marksText(Array.from({ length: 2000 }, (_, i) => ({ log: SID, id: String(1000 + i), entryAt: 1, state: 'read', at: 5 })))
+    for (let i = 0; i < filler; i++) seed(w, `${MARKS}\\00000000-0000-0000-0000-${String(i).padStart(12, '0')}.json`, fat, 10 + i)
+  })
+
+test('spec 444: the drop scan reads at most 8 MiB of marks files, so a flood of large files leaves the rest unread', async ($, on) => {
+  const w = fullLogWorld(on, 60)
+  await start($)
+  await brigade($)
+  const before = w.text(LOG)
+  const r = await decide($)
+  expect(r.ok).toBe(false)
+  expect(r.text).toBe('log_decision refused: the decision log is full: review the Decisions tab. The decision log is unchanged; act at level 1.')
+  expect(w.text(LOG)).toBe(before)
+})
+
+test('spec 444: under the scan bound the oldest marks file is still read, so the full log drops entry 1', async ($, on) => {
+  const w = fullLogWorld(on, 3)
+  await start($)
+  await brigade($)
+  const r = await decide($)
+  expect(r.ok).toBe(true)
+  expect(parsed(w, LOG).entries[0].id).toBe('2')
 })
 
 test('spec 444 claim 9: a Mark all read whose marks cannot be written changes nothing and says so', async ($, on) => {
@@ -6870,6 +6995,8 @@ test('claim 10: an Owner entry this pane did not write draws as recorded, and an
     seed(w, LOG, logText([
       kept(1, 100, fixed('owner', '2 Auto', 'Moved in the pane', 'Move the slider back')),
       kept(2, 300, fixed('alarm', '3 Full throttle', 'Changed, not from a press', 'Move the slider in the pane')),
+      // Out of shape in this session's own log too: left out of History, and counted.
+      kept(3, 350, fixed('owner', '3 Full throttle', 'The lead moved it', 'Move the slider back', 'Own bent slider')),
     ]))
     seed(w, PEER_LOG, logText([
       kept(1, 200, fixed('owner', '3 Full throttle', 'The lead moved it', 'Move the slider back', 'Peer slider')),
@@ -6882,8 +7009,10 @@ test('claim 10: an Owner entry this pane did not write draws as recorded, and an
   expect(await shows(/^Pane$/)).toBe(false)
   expect(await shows(/· decision 1$/)).toBe(true)
   expect(await shows(/· decision 2$/)).toBe(true)
+  expect(await shows(/· decision 3$/)).toBe(false)
+  expect(await shows(/Own bent slider/)).toBe(false)
   expect(await shows(/Peer slider/)).toBe(false)
-  expect(await shows(/2 Owner, Pane or alarm entry\(s\) not in their fixed shape/)).toBe(true)
+  expect(await shows(/3 Owner, Pane or alarm entry\(s\) not in their fixed shape/)).toBe(true)
   expect(await shows(/id\(s\) missing/)).toBe(false)
 })
 

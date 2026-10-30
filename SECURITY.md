@@ -223,7 +223,8 @@ Its writes take turns in one queue, a log keeps at most 500 entries and 256
 KiB, and past a cap it drops only entries the owner marked read and did not
 flag, oldest first; with nothing to drop it refuses and the file is
 unchanged. To tell which entries are read it lists the `brigade/marks/`
-folder and reads every marks file there. When the owner presses "✓ Read,
+folder and reads the marks files there, newest first, up to 8 MiB in total
+(since 0.89.0; the rest count as unread, which fails safe). When the owner presses "✓ Read,
 next", "⚑ Flag" or "⚑ Unflag" in the pane's Decisions tab, or Dismiss on its
 picked Flagged rows (since 0.82.0, spec 402 ticket 2), or "✓ Mark all N read"
 (since 0.89.0, spec 444, one write for all the entries it takes), the pane writes a mark

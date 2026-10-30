@@ -187,9 +187,10 @@ every decision newest first, 50 at a time. On Desktop and the terminal a
 search box filters all three by every word you type.
 
 Since 0.89.0 the tab shows this lead's decisions only. From other sessions'
-logs it carries three kinds of decision, each marked "From another session":
-a waiting entry nobody answered in its own log, and an alarm, both until you
-read them, and any decision you flagged until you unflag it. A new lead
+logs it carries four kinds of decision, each marked "From another session":
+a waiting entry nobody answered in its own log, a relayed answer to one
+(with that waiting entry while the answer is unread), and an alarm, all until
+you read them, and any decision you flagged until you unflag it. A new lead
 therefore never hides a question meant for you. Earlier sessions' logs stay on
 disk, unshown, and you can delete them by hand; the pane still reads the 20
 newest, and the dim line at the foot counts the unread entries of other logs
