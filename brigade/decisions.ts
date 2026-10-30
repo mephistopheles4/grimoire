@@ -477,6 +477,26 @@ export function addMarks(
   return { kind: 'marks', v: 1, marks: marks.filter((_, i) => !dropped.has(i)) }
 }
 
+/** Whether writing `after` in place of `before` changes the counted state of
+ *  an entry in a log read (`known`) other than the entries the write marks
+ *  (`marked`): that is, whether the caps pushed out a mark that was still its
+ *  entry's newest counted state, so the entry would read as it did before
+ *  that mark. Mark these N read writes nothing when this holds (spec 447,
+ *  Test round 1, q3 A), so a bulk press never undoes the owner's own reads. */
+export function dropsLiveMark(
+  before: MarksFile | undefined,
+  after: MarksFile,
+  others: readonly MarksFile[],
+  known: ReadonlySet<string>,
+  marked: ReadonlySet<string>,
+  now: number,
+): boolean {
+  const was = mergeMarks([...(before === undefined ? [] : [before]), ...others], now)
+  const is = mergeMarks([after, ...others], now)
+  for (const k of known) if (!marked.has(k) && was.get(k) !== is.get(k)) return true
+  return false
+}
+
 // --- what the tab draws (S5.4) --------------------------------------------------
 
 /** One log as the pane read it: its session id, the writer's drawn name and the log. */
@@ -542,6 +562,57 @@ export function historyRows(logs: readonly ReadLog[], words: readonly string[], 
   return { rows, total: all.length, more: rows.length < all.length }
 }
 
+// --- whether another log's session has ended (spec 447 S3) ---------------------
+//
+// Worked out again at each draw from the live poll's last session read, the
+// pane's open time, the engine clock and the entry times in the logs read,
+// and never stored. Unknown draws every log as 0.89.0 drew it.
+
+/** How long a log's newest entry keeps its session running (spec 447 S3.8). */
+export const RECENT_MS = 30 * 60 * 1000
+export type Liveness = 'running' | 'ended' | 'unknown'
+/** The live poll's last read of the session files: the session ids its rows
+ *  hold, whether it was complete, whether a file went after the listing, and
+ *  when it began on the engine clock. */
+export type SessionsSeen = { ids: readonly string[]; complete: boolean; fileGone: boolean; startedAt: number }
+/** What the ended rule reads: the last session read since the pane opened,
+ *  or none when it returned nothing; the pane's open time; the engine clock. */
+export type LiveInput = { seen: SessionsSeen | undefined; openedAt: number | undefined; now: number }
+
+/** Whether the pane can tell a session has ended: a complete read with no
+ *  file gone after its listing, begun since the pane's current open, and a
+ *  clock and an open time that are whole numbers. */
+export function canTell(l: LiveInput): boolean {
+  const s = l.seen
+  return s !== undefined && s.complete && !s.fileGone && isWhole(l.now) && isWhole(l.openedAt) && isWhole(s.startedAt) && s.startedAt >= l.openedAt
+}
+
+/** Each log's state, by its session id. This session's own log is running. A
+ *  log is running while a file in the last read holds its session id, or
+ *  while its newest entry, as read, is dated within 30 minutes of the clock;
+ *  ended when the pane can tell and neither holds; else unknown. */
+export function sessionStates(logs: readonly ReadLog[], sid: string, l: LiveInput): Map<string, Liveness> {
+  const tell = canTell(l)
+  const out = new Map<string, Liveness>()
+  for (const log of logs) {
+    const newest = log.log.entries.reduce<number | undefined>((n, e) => (n === undefined || e.at > n ? e.at : n), undefined)
+    const recent = isWhole(l.now) && newest !== undefined && newest >= l.now - RECENT_MS
+    const filed = l.seen?.ids.includes(log.sid) === true
+    out.set(log.sid, log.sid === sid || filed || recent ? 'running' : tell && newest !== undefined ? 'ended' : 'unknown')
+  }
+  return out
+}
+
+/** The writer drawn for an ended session's entries: its name went with its session file. */
+export const ENDED_WRITER = 'an ended session'
+
+// The entries an ended session's line takes, read or not: every Relayed entry,
+// and every waiting entry that a Relayed entry in the same log answers.
+function endedEntries(log: DecisionLog): DecisionEntry[] {
+  const answered = new Set(log.entries.filter(e => e.source === 'relayed' && e.answers !== '').map(e => e.answers))
+  return log.entries.filter(e => e.source === 'relayed' || (e.source === 'lead' && e.waiting && answered.has(e.id)))
+}
+
 /** The logs as each view of the tab draws them (spec 444 S3, with the change
  *  of Test round 1), for the pane's session id `sid`. This session's log is
  *  drawn whole in To review and Flagged, and alone in History. From every
@@ -549,11 +620,17 @@ export function historyRows(logs: readonly ReadLog[], words: readonly string[], 
  *  answered or not, until the owner reads it; every Relayed entry, whether or
  *  not it answers one; and an alarm entry in its fixed shape. Flagged draws any entry whose
  *  latest mark is flagged, which `flaggedRows` picks by state.
+ *  Since spec 447, from a log `live` reads as ended, To review draws neither
+ *  its Relayed entries nor the waiting entries they answer: `ended` holds
+ *  those, read or not, for the block's lines and History's fold, with the
+ *  writer "an ended session". `canTell` says whether any log could be ended.
  *  `unshown` counts the unread entries of other logs that To review does not
- *  draw: a number only. An Owner or Pane entry counts as read by its source. */
-export function drawnLogs(logs: readonly ReadLog[], sid: string, states: ReadonlyMap<string, MarkState>) {
+ *  draw and no line counts: a number only. An Owner or Pane entry counts as
+ *  read by its source. */
+export function drawnLogs(logs: readonly ReadLog[], sid: string, states: ReadonlyMap<string, MarkState>, live: ReadonlyMap<string, Liveness> = new Map(), tell = false) {
   const review: ReadLog[] = []
   const history: ReadLog[] = []
+  const ended: ReadLog[] = []
   let unshown = 0
   for (const l of logs) {
     if (l.sid === sid) {
@@ -562,8 +639,9 @@ export function drawnLogs(logs: readonly ReadLog[], sid: string, states: Readonl
       continue
     }
     const unread = (e: DecisionEntry) => !isRead(states.get(markKey(l.sid, e.id, e.at)))
+    const gone = tell && live.get(l.sid) === 'ended' ? endedEntries(l.log) : []
     const entries = l.log.entries.filter(e => {
-      if (!unread(e)) return false
+      if (!unread(e) || gone.includes(e)) return false
       return (
         (e.source === 'lead' && e.waiting) ||
         e.source === 'relayed' ||
@@ -571,12 +649,13 @@ export function drawnLogs(logs: readonly ReadLog[], sid: string, states: Readonl
       )
     })
     for (const e of l.log.entries) {
-      if (e.source === 'owner' || e.source === 'pane' || isRead(states.get(markKey(l.sid, e.id, e.at))) || entries.includes(e)) continue
+      if (e.source === 'owner' || e.source === 'pane' || isRead(states.get(markKey(l.sid, e.id, e.at))) || entries.includes(e) || gone.includes(e)) continue
       unshown++
     }
     review.push({ ...l, log: { ...l.log, entries } })
+    if (gone.length > 0) ended.push({ ...l, writer: ENDED_WRITER, log: { ...l.log, entries: gone } })
   }
-  return { review, flagged: [...logs], history, unshown }
+  return { review, flagged: [...logs], history, ended, canTell: tell, unshown }
 }
 
 /** The entries Mark all read takes from To review's order: this session's
@@ -587,13 +666,64 @@ export function drawnLogs(logs: readonly ReadLog[], sid: string, states: Readonl
 export function markAllSet(order: readonly Row[], sid: string) {
   const rows = order.filter(r => r.sid === sid && r.entry.source === 'lead' && !r.entry.waiting)
   if (rows.length === 0) return { rows, n: 0, hash: '' }
-  return { rows, n: rows.length, hash: sha256Hex(rows.map(rowKey).sort().join('\n')).slice(0, 16) }
+  return { rows, n: rows.length, hash: setHash(rows) }
 }
+
+// A press's staleness check: the first 16 hex digits of SHA-256 over the
+// set's mark keys, sorted and joined by line breaks.
+const setHash = (rows: readonly Row[]) => sha256Hex(rows.map(rowKey).sort().join('\n')).slice(0, 16)
 
 const MARK_ALL_KEY = /^dmarkall-([1-9][0-9]{0,2})-([0-9a-f]{16})$/
 /** A Mark all read button's key, matched whole: its count (1 to 500) and hash. */
 export function parseMarkAllKey(key: string): { n: number; hash: string } | undefined {
   const m = MARK_ALL_KEY.exec(key)
+  const n = Number(m?.[1])
+  return m === null || n > MAX_ENTRIES ? undefined : { n, hash: m[2] as string }
+}
+
+/** The most `work` values an ended session's line draws, and each one's length. */
+const LINE_WORKS = 3
+const LINE_WORK_CHARS = 40
+
+/** One ended session's line in To review (spec 447 S4.2): its unread entries
+ *  that match the search, newest first, their count and hash, the newest
+ *  one's time, and the distinct `work` values, newest first, at most 3 of
+ *  them, each cleaned as a roster line is and cut to 40 characters, with how
+ *  many more there are. It names no session. */
+export type EndedLine = { rows: Row[]; n: number; hash: string; at: number; works: string[]; more: number }
+
+/** To review's block: one line for each ended log in `ended` with an unread
+ *  entry that matches the search, the line with the newest such entry first.
+ *  Mark these N read takes exactly a line's rows. */
+export function endedLines(ended: readonly ReadLog[], states: ReadonlyMap<string, MarkState>, words: readonly string[]): EndedLine[] {
+  const lines: (EndedLine & { sid: string })[] = []
+  for (const l of ended) {
+    const rows = rowsOf([l])
+      .filter(r => !isRead(states.get(rowKey(r))) && matchesSearch(r.entry, r.writer, words))
+      .sort((a, b) => oldestFirst(b, a))
+    const first = rows[0]
+    if (first === undefined) continue
+    // Cleaned and cut first, so two values that draw alike count once.
+    const works = [...new Set(rows.map(r => oneLine(r.entry.work, LINE_WORK_CHARS)))]
+    lines.push({
+      sid: l.sid,
+      rows,
+      n: rows.length,
+      hash: setHash(rows),
+      at: first.entry.at,
+      works: works.slice(0, LINE_WORKS),
+      more: Math.max(works.length - LINE_WORKS, 0),
+    })
+  }
+  return lines
+    .sort((a, b) => b.at - a.at || (a.sid < b.sid ? -1 : a.sid > b.sid ? 1 : 0))
+    .map(({ sid: _, ...line }) => line)
+}
+
+const MARK_ENDED_KEY = /^dmarkended-([1-9][0-9]{0,2})-([0-9a-f]{16})$/
+/** A Mark these N read button's key, matched whole: its count (1 to 500) and hash. */
+export function parseMarkEndedKey(key: string): { n: number; hash: string } | undefined {
+  const m = MARK_ENDED_KEY.exec(key)
   const n = Number(m?.[1])
   return m === null || n > MAX_ENTRIES ? undefined : { n, hash: m[2] as string }
 }

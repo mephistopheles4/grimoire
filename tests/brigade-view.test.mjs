@@ -4543,7 +4543,7 @@ const sessionsFs = (files, names = Object.keys(files).map(p => p.slice(SESSIONS.
 test('the session files give each session its name, id, status and folder, and no other field the engine wrote', async () => {
   const fs = sessionsFs({ [`${SESSIONS}\\101.json`]: { text: sessionText('A', 0, 'busy') }, [`${SESSIONS}\\102.json`]: { text: sessionText('B', 1) } });
   const got = await readSessions(CONFIG, fs.io);
-  assert.deepEqual(got, { complete: true, rows: [agent('A', 0, 'busy'), agent('B', 1)] });
+  assert.deepEqual(got, { complete: true, fileGone: false, rows: [agent('A', 0, 'busy'), agent('B', 1)] });
   assert.deepEqual(fs.lists, [SESSIONS]);
   assert.doesNotMatch(JSON.stringify(got), /secret|SECRET|pipe|4242|claude-desktop|old/);
 });
@@ -4585,7 +4585,7 @@ test('a file that fails a check is skipped, and the read says it is incomplete',
     ['a read that fails', { text: sessionText('B', 1), fail: true }],
   ]) {
     const fs = sessionsFs({ ...ok, [p(2)]: bad });
-    assert.deepEqual(await readSessions(CONFIG, fs.io), { complete: false, rows: [agent('A', 0)] }, why);
+    assert.deepEqual(await readSessions(CONFIG, fs.io), { complete: false, fileGone: false, rows: [agent('A', 0)] }, why);
   }
   const big = sessionsFs({ ...ok, [p(2)]: { text: sessionText('B', 1), size: 8192 } });
   assert.equal((await readSessions(CONFIG, big.io)).complete, true, 'exactly 8 KiB is read');
@@ -4597,17 +4597,19 @@ test('a file that fails a check is skipped, and the read says it is incomplete',
   assert.deepEqual((await readSessions(CONFIG, deep.io)).rows, [{ name: 'A', status: 'idle', sessionId: SID[0], updatedAt: NOW }], 'a folder over 1,000 characters is dropped');
 });
 
-test('a session that ended between the listing and its read has no row, and the read is still complete', async () => {
+// Since spec 447 (S3.7) the read also says a file went, so the ended rule
+// takes no such read as complete; `complete` keeps its meaning for the roster.
+test('a session that ended between the listing and its read has no row, and the read is still complete, with a file gone', async () => {
   const p = n => `${SESSIONS}\\${n}.json`;
   const fs = sessionsFs({ [p(1)]: { text: sessionText('A', 0) } }, ['1.json', '2.json']);
-  assert.deepEqual(await readSessions(CONFIG, fs.io), { complete: true, rows: [agent('A', 0)] });
+  assert.deepEqual(await readSessions(CONFIG, fs.io), { complete: true, fileGone: true, rows: [agent('A', 0)] });
   const gone = sessionsFs({ [p(1)]: { text: sessionText('A', 0) }, [p(2)]: { text: sessionText('B', 1) } });
   const read = gone.io.read;
   gone.io.read = async path => {
     if (path === p(2)) throw new Error('ENOENT: no such file or directory');
     return read(path);
   };
-  assert.deepEqual(await readSessions(CONFIG, gone.io), { complete: true, rows: [agent('A', 0)] }, 'gone at the read too');
+  assert.deepEqual(await readSessions(CONFIG, gone.io), { complete: true, fileGone: true, rows: [agent('A', 0)] }, 'gone at the read too');
 });
 
 test('no sessions folder, one that is a link, a file or elsewhere, or a listing that fails or is not a list reads nothing at all', async () => {
@@ -4622,7 +4624,7 @@ test('no sessions folder, one that is a link, a file or elsewhere, or a listing 
   }
   // A config folder that is itself elsewhere moves its sessions folder with it.
   const moved = fakeFs({ [CONFIG]: { kind: 'dir', size: 0, text: '', realPath: 'D:\\real' }, [SESSIONS]: { kind: 'dir', size: 0, text: '', realPath: 'D:\\real\\sessions' } }, { listing: [] });
-  assert.deepEqual(await readSessions(CONFIG, moved.io), { complete: true, rows: [] });
+  assert.deepEqual(await readSessions(CONFIG, moved.io), { complete: true, fileGone: false, rows: [] });
   const rejecting = sessionsFs({});
   rejecting.io.list = async () => {
     throw new Error('EACCES');
