@@ -18,12 +18,13 @@ import { readFileSync } from 'node:fs';
 
 const d = await import('../brigade/decisions.ts');
 const {
-  MAX_ENTRIES, MAX_LOG_BYTES, MAX_MARKS, HISTORY_PAGE,
+  MAX_ENTRIES, MAX_LOG_BYTES, MAX_MARKS, MAX_MARKS_BYTES, HISTORY_PAGE,
   appendEntry, checkInput, checkLog, checkMarks, emptyLog, addMark, addMarks, mergeMarks, markKey,
   reviewQueue, flaggedRows, historyRows, matchesSearch, searchWords, serializeLog, serializeMarks,
   sha256Hex, projectDigest, sourceLabel, writerName, missingIds,
   MAX_HANDOFF_BYTES, checkHandoffInput, checkHandoff, serializeHandoff, chooseHandoff,
   levelFrom, storedLevel, levelInForce, ownerEntry, paneEntry, alarmEntry, inFixedShape, unreadOwnAlarm, clockTime,
+  drawnLogs, markAllSet, parseMarkAllKey,
 } = d;
 
 const SID = '11111111-2222-3333-4444-555555555555';
@@ -383,14 +384,14 @@ test('claim 7: the latest mark by time wins across marks files, a mark over two 
 test('claim 7: a marks file past its cap drops marks for entries in no log read first, then the oldest', () => {
   const known = new Set([markKey(SID, '1', NOW)]);
   const mark = i => ({ log: i === 0 ? SID : OTHER, id: String(i + 1), entryAt: NOW, state: 'read', at: NOW + i });
-  // The known entry's mark is the oldest; the byte cap bites well before 2,000 marks.
+  // The known entry's mark is the oldest; the count cap bites at 2,000 marks.
   let file = { kind: 'marks', v: 1, marks: [] };
-  for (let i = 0; i < MAX_MARKS; i++) file = addMark(file, mark(i), known);
+  for (let i = 0; i < MAX_MARKS + 50; i++) file = addMark(file, mark(i), known);
   const kept = file.marks.length;
-  assert.ok(kept < MAX_MARKS);
+  assert.equal(kept, MAX_MARKS);
   assert.ok(file.marks.some(x => x.log === SID && x.id === '1'), "the known entry's mark is kept while unknown ones remain");
   assert.ok(!file.marks.some(x => x.log === OTHER && x.id === '2'), 'the oldest unknown mark dropped');
-  assert.ok(new TextEncoder().encode(serializeMarks(file).value).length <= 64 * 1024);
+  assert.ok(new TextEncoder().encode(serializeMarks(file).value).length <= MAX_MARKS_BYTES);
   // With every mark known, the oldest drops.
   const all = new Set(file.marks.map(x => markKey(x.log, x.id, x.entryAt)));
   const next = addMark(file, mark(MAX_MARKS + 5), all);
@@ -740,4 +741,195 @@ test('claim 12: the hand-off chosen is this session\'s own, else the newest by s
   // A session with no digest finds no other's.
   assert.equal(chooseHandoff(undefined, others, null, NOW), undefined);
   assert.equal(chooseHandoff(own, others, null, NOW), own);
+});
+
+// --- spec 444: one lead's log, carried entries, Mark all read, the marks cap order ------------
+
+const mk = (sid, id, at, state, when) => ({ log: sid, id, entryAt: at, state, at: when });
+// This session's log (3 plain leads) and another's: two waiting entries (one answered), the answer, a plain lead, a relayed, an alarm and an Owner entry.
+const tabLogsFor = () => {
+  const own = { sid: SID, writer: 'lead-a', log: logOf(3) };
+  let ol = emptyLog(null);
+  const add = (raw, at, fixed) => {
+    const r = appendEntry(ol, raw, { at, level: 1, read: new Map(), fixed });
+    assert.ok('value' in r, JSON.stringify(r));
+    ol = r.value.log;
+  };
+  add(input({ waiting: true, pick: '', work: 'waits' }), NOW - 90);
+  add(input({ waiting: true, pick: '', work: 'answered' }), NOW - 89);
+  add(input({ source: 'relayed', answers: '2', work: 'the answer' }), NOW - 88);
+  add(input({ work: 'plain' }), NOW - 87);
+  add(input({ source: 'relayed', work: 'relayed plain' }), NOW - 86);
+  add(alarmEntry(3), NOW - 85, true);
+  add(ownerEntry(2), NOW - 84, true);
+  return [own, { sid: OTHER, writer: 'an ended session', log: ol }];
+};
+const keyOf = (sid, e) => markKey(sid, e.id, e.at);
+
+test('spec 444 claims 1, 2, 13: the tab draws this log, and from another only waiting, Relayed, unread fixed-shape alarm and flagged entries', () => {
+  const ls = tabLogsFor();
+  const other = ls[1].log.entries;
+  const v = drawnLogs(ls, SID, new Map());
+  const reviewOther = v.review.find(l => l.sid === OTHER).log.entries.map(e => e.work);
+  // The answered waiting entry comes with its unread answer, and every Relayed entry is carried, answering or not.
+  assert.deepEqual(reviewOther.sort(), [alarmEntry(3).work, 'waits', 'answered', 'the answer', 'relayed plain'].sort());
+  assert.equal(v.review.find(l => l.sid === SID).log.entries.length, 3);
+  assert.deepEqual(v.history.map(l => l.sid), [SID], 'History draws this log only');
+  // A mark clears a carried one.
+  const waits = other[0];
+  const states = new Map([[keyOf(OTHER, waits), 'read']]);
+  assert.ok(!reviewQueue(drawnLogs(ls, SID, states).review, states, new Set(), []).order.some(r => r.entry.work === 'waits'));
+  // Flagged: any source from another log whose latest mark is flagged; unflagged leaves.
+  const owner = other[6];
+  const fs = new Map([[keyOf(OTHER, owner), 'flagged'], [keyOf(OTHER, other[3]), 'flagged']]);
+  assert.deepEqual(flaggedRows(drawnLogs(ls, SID, fs).flagged, fs, []).map(r => r.entry.id).sort(), [owner.id, other[3].id].sort());
+  const un = new Map([[keyOf(OTHER, owner), 'unflagged']]);
+  assert.deepEqual(flaggedRows(drawnLogs(ls, SID, un).flagged, un, []), []);
+  // An alarm out of its fixed shape is not carried.
+  const bent = structuredClone(ls);
+  bent[1].log.entries[5].why = 'changed';
+  assert.ok(!drawnLogs(bent, SID, new Map()).review.find(l => l.sid === OTHER).log.entries.some(e => e.source === 'alarm'));
+  // A read carried alarm leaves To review.
+  const alarmRead = new Map([[keyOf(OTHER, other[5]), 'read']]);
+  assert.ok(drawnLogs(ls, SID, new Map()).review.find(l => l.sid === OTHER).log.entries.some(e => e.source === 'alarm'));
+  assert.ok(!drawnLogs(ls, SID, alarmRead).review.find(l => l.sid === OTHER).log.entries.some(e => e.source === 'alarm'));
+  // A flagged carried waiting entry is read, so it leaves To review and shows in Flagged.
+  const fl = new Map([[keyOf(OTHER, waits), 'flagged']]);
+  const flv = drawnLogs(ls, SID, fl);
+  assert.ok(!flv.review.flatMap(l => l.log.entries).some(e => e.work === 'waits'));
+  assert.deepEqual(flaggedRows(flv.flagged, fl, []).map(r => r.entry.work), ['waits']);
+});
+
+test('spec 444 claim 15: the unshown count is the unread entries of other logs the tab does not draw, as a number only', () => {
+  const ls = tabLogsFor();
+  // A plain Lead entry: the one unread entry that is not drawn (a Relayed entry is carried).
+  const e = ls[1].log.entries;
+  assert.equal(drawnLogs(ls, SID, new Map()).unshown, 1);
+  const states = new Map([[keyOf(OTHER, e[3]), 'read']]);
+  assert.equal(drawnLogs(ls, SID, states).unshown, 0, 'the count falls when marked');
+});
+
+test('spec 444 claims 2 and 15: a Relayed answer and the waiting entry it answers are each carried until read', () => {
+  const ls = tabLogsFor();
+  const [, answered, answer] = ls[1].log.entries;
+  const works = states => drawnLogs(ls, SID, states).review.find(l => l.sid === OTHER).log.entries.map(e => e.work).filter(w => ['answered', 'the answer'].includes(w)).sort();
+  assert.deepEqual(works(new Map()), ['answered', 'the answer']);
+  // The answer read first: the unread question stays, so it cannot fall out of sight.
+  assert.deepEqual(works(new Map([[keyOf(OTHER, answer), 'read']])), ['answered']);
+  assert.deepEqual(works(new Map([[keyOf(OTHER, answer), 'flagged']])), ['answered']);
+  // Both read: neither shows.
+  assert.deepEqual(works(new Map([[keyOf(OTHER, answer), 'read'], [keyOf(OTHER, answered), 'read']])), []);
+  // The waiting entry read first: the unread answer still shows, alone.
+  assert.deepEqual(works(new Map([[keyOf(OTHER, answered), 'read']])), ['the answer']);
+  // Mark all read never takes a carried entry.
+  const q = reviewQueue(drawnLogs(ls, SID, new Map()).review, new Map(), new Set(), []);
+  assert.ok(markAllSet(q.order, SID).rows.every(r => r.sid === SID));
+});
+
+test('spec 444 claim 7: Mark all read takes only this log\'s shown plain Lead entries, with a hash that moves when the set does', () => {
+  const ls = tabLogsFor();
+  ls[0].log.entries.push({ ...ls[0].log.entries[0], id: '4', at: NOW + 10, waiting: true, pick: '', work: 'mine waits' });
+  ls[0].log.entries.push({ ...ls[0].log.entries[0], id: '5', at: NOW + 11, source: 'relayed', answers: '4', waiting: false });
+  // An unread alarm in this session's own log is never taken either.
+  ls[0].log.entries.push({ ...ls[0].log.entries[0], id: '6', at: NOW + 12, source: 'alarm' });
+  const q = reviewQueue(drawnLogs(ls, SID, new Map()).review, new Map(), new Set(), []);
+  assert.ok(q.order.some(r => r.sid === SID && r.entry.source === 'alarm'), 'the alarm is in To review');
+  const set = markAllSet(q.order, SID);
+  assert.deepEqual(set.rows.map(r => r.entry.id), ['1', '2', '3']);
+  assert.equal(set.n, 3);
+  assert.equal(set.hash, createHash('sha256').update(set.rows.map(r => keyOf(r.sid, r.entry)).sort().join('\n')).digest('hex').slice(0, 16));
+  assert.notEqual(markAllSet(q.order.filter(r => !(r.sid === SID && r.entry.id === '1')), SID).hash, set.hash);
+  assert.deepEqual(markAllSet([], SID), { rows: [], n: 0, hash: '' });
+  ls[0].log.entries[1].work = 'needle';
+  const q2 = reviewQueue(drawnLogs(ls, SID, new Map()).review, new Map(), new Set(), searchWords('needle'));
+  assert.deepEqual(markAllSet(q2.order, SID).rows.map(r => r.entry.id), ['2']);
+});
+
+test('spec 444 claim 8: the Mark all read key matches whole, from 1 to 500', () => {
+  const h = 'abcdef0123456789';
+  assert.deepEqual(parseMarkAllKey(`dmarkall-3-${h}`), { n: 3, hash: h });
+  assert.deepEqual(parseMarkAllKey(`dmarkall-500-${h}`), { n: 500, hash: h });
+  for (const bad of [`dmarkall-0-${h}`, `dmarkall-501-${h}`, `dmarkall-03-${h}`, `dmarkall-1000-${h}`, `dmarkall-3-${h}x`, ` dmarkall-3-${h}`, `dmarkall-3-${h.toUpperCase()}`, `dmarkall-3-${h.slice(1)}`, `dmarkall-3-${h}\n`]) {
+    assert.equal(parseMarkAllKey(bad), undefined, bad);
+  }
+});
+
+test('spec 444 claim 10: the marks cap is 256 KiB and a press of 500 fits beside the count cap', () => {
+  assert.equal(d.MAX_MARKS_BYTES, 256 * 1024);
+  const added = Array.from({ length: 500 }, (_, i) => mk(SID, String(1_000_000_000_000_000 + i), NOW, 'read', NOW + 1));
+  const file = { kind: 'marks', v: 1, marks: Array.from({ length: MAX_MARKS - 500 }, (_, i) => mk(OTHER, String(i + 1), NOW, 'read', NOW + 2)) };
+  const known = new Set([...file.marks, ...added].map(m => markKey(m.log, m.id, m.entryAt)));
+  const next = addMarks(file, added, known);
+  assert.equal(next.marks.length, MAX_MARKS);
+  assert.ok('value' in serializeMarks(next));
+});
+
+test('spec 444 claim 10: at wide ids the byte cap binds before the count cap, and the order of the drops still holds', () => {
+  const wide = (log, i, at) => mk(log, String(1_000_000_000_000_000 + i), NOW, 'unflagged', at);
+  const old = Array.from({ length: MAX_MARKS - 500 }, (_, i) => wide(OTHER, i, NOW + i));
+  const added = Array.from({ length: 500 }, (_, i) => wide(SID, 10_000 + i, NOW + 5000));
+  const file = { kind: 'marks', v: 1, marks: old };
+  const known = new Set([...old, ...added].map(m => markKey(m.log, m.id, m.entryAt)));
+  assert.ok(Buffer.byteLength(JSON.stringify({ kind: 'marks', v: 1, marks: [...old, ...added] })) > d.MAX_MARKS_BYTES, 'the count alone would not fit');
+  const next = addMarks(file, added, known);
+  assert.ok(next.marks.length < MAX_MARKS, 'the byte cap dropped marks the count cap would have kept');
+  assert.ok('value' in serializeMarks(next));
+  assert.deepEqual(next.marks.slice(-500), added, 'none of the new marks drops');
+  assert.deepEqual(next.marks.slice(0, 3).map(m => m.id), old.slice(next.marks.length - 500 > 3 ? old.length - (next.marks.length - 500) : 0).slice(0, 3).map(m => m.id), 'the oldest dropped first');
+});
+
+test('spec 444 claim 10: past the cap a superseded mark drops before a live one, so no cleared flag comes back', () => {
+  const marks = [mk(SID, '1', NOW, 'flagged', NOW + 1), mk(SID, '1', NOW, 'unflagged', NOW + 2), ...Array.from({ length: MAX_MARKS - 2 }, (_, i) => mk(SID, String(i + 2), NOW, 'read', NOW + 3 + i))];
+  const file = { kind: 'marks', v: 1, marks };
+  const known = new Set(marks.map(m => markKey(m.log, m.id, m.entryAt)));
+  const added = [mk(SID, '9999', NOW, 'read', NOW + 5000)];
+  const next = addMarks(file, added, known, [], NOW + 6000);
+  assert.equal(next.marks.length, MAX_MARKS);
+  assert.ok(!next.marks.some(m => m.id === '1' && m.state === 'flagged'), 'the superseded flag dropped first');
+  assert.ok(next.marks.some(m => m.id === '1' && m.state === 'unflagged'));
+  assert.deepEqual(next.marks.slice(-1), added);
+});
+
+test('spec 444 claim 10: a superseded mark drops before a live one that is older than it', () => {
+  // A live read mark for entry A is the oldest; B's flag is superseded by B's later unflag. Oldest-first would drop A's.
+  const marks = [mk(SID, '1', NOW, 'read', NOW + 1), mk(SID, '2', NOW, 'flagged', NOW + 2), mk(SID, '2', NOW, 'unflagged', NOW + 3), ...Array.from({ length: MAX_MARKS - 3 }, (_, i) => mk(SID, String(i + 3), NOW, 'read', NOW + 10 + i))];
+  const file = { kind: 'marks', v: 1, marks };
+  const known = new Set(marks.map(m => markKey(m.log, m.id, m.entryAt)));
+  const next = addMarks(file, [mk(SID, '9999', NOW, 'read', NOW + 9000)], known, [], NOW + 20000);
+  assert.ok(next.marks.some(m => m.id === '1'), 'the older live mark stays');
+  assert.ok(!next.marks.some(m => m.id === '2' && m.state === 'flagged'), 'the superseded flag dropped');
+});
+
+test('spec 444 claim 10: a newest mark whose older flag sits in another file is kept past step 3, and unknown entries drop first', () => {
+  const flagOther = { kind: 'marks', v: 1, marks: [mk(OTHER, '1', NOW, 'flagged', NOW + 1)] };
+  const marks = [mk(OTHER, '1', NOW, 'unflagged', NOW + 2), ...Array.from({ length: MAX_MARKS - 1 }, (_, i) => mk(SID, String(i + 1), NOW, 'read', NOW + 10 + i))];
+  const file = { kind: 'marks', v: 1, marks };
+  const known = new Set(marks.map(m => markKey(m.log, m.id, m.entryAt)));
+  const added = [mk(SID, '9000', NOW, 'read', NOW + 9000), mk(SID, '9001', NOW, 'read', NOW + 9000)];
+  const next = addMarks(file, added, known, [flagOther], NOW + 20000);
+  assert.ok(next.marks.some(m => m.log === OTHER && m.state === 'unflagged'), 'the unflagged mark stays');
+  assert.notEqual(mergeMarks([next, flagOther], NOW + 20000).get(markKey(OTHER, '1', NOW)), 'flagged');
+  const unknown = addMarks(file, added, new Set([...known].filter(k => !k.startsWith(OTHER))), [flagOther], NOW + 20000);
+  assert.ok(!unknown.marks.some(m => m.log === OTHER), 'an unknown entry\'s mark dropped first');
+});
+
+test('spec 444 claim 10: a mark dated one minute ahead is inside the allowance, so it supersedes and the older flag of its entry drops first', () => {
+  const now = NOW + 20000;
+  const soon = { kind: 'marks', v: 1, marks: [mk(SID, '1', NOW, 'unflagged', now + 60 * 1000)] };
+  const marks = [mk(SID, '1', NOW, 'flagged', NOW + 1), ...Array.from({ length: MAX_MARKS - 1 }, (_, i) => mk(SID, String(i + 2), NOW, 'read', NOW + 10 + i))];
+  const known = new Set(marks.map(m => markKey(m.log, m.id, m.entryAt)));
+  const next = addMarks({ kind: 'marks', v: 1, marks }, [mk(SID, '9000', NOW, 'read', NOW + 9000)], known, [soon], now);
+  assert.ok(!next.marks.some(m => m.id === '1' && m.state === 'flagged'), 'the flag a counted mark supersedes dropped first');
+  assert.ok(next.marks.some(m => m.id === '2'), 'the oldest plain read stays');
+});
+
+test('spec 444 claim 10: a mark dated over two minutes ahead supersedes nothing, and a live flag drops after the plain reads', () => {
+  const future = { kind: 'marks', v: 1, marks: [mk(SID, '1', NOW, 'unflagged', NOW + 10 * 60 * 1000)] };
+  const marks = [mk(SID, '1', NOW, 'flagged', NOW + 1), ...Array.from({ length: MAX_MARKS - 1 }, (_, i) => mk(SID, String(i + 2), NOW, 'read', NOW + 10 + i))];
+  const file = { kind: 'marks', v: 1, marks };
+  const known = new Set(marks.map(m => markKey(m.log, m.id, m.entryAt)));
+  const added = [mk(SID, '9000', NOW, 'read', NOW + 9000)];
+  const next = addMarks(file, added, known, [future], NOW + 20000);
+  assert.ok(next.marks.some(m => m.id === '1' && m.state === 'flagged'), 'the flag stays');
+  assert.ok(!next.marks.some(m => m.id === '2'), 'the oldest plain read dropped');
 });

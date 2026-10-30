@@ -223,13 +223,23 @@ Its writes take turns in one queue, a log keeps at most 500 entries and 256
 KiB, and past a cap it drops only entries the owner marked read and did not
 flag, oldest first; with nothing to drop it refuses and the file is
 unchanged. To tell which entries are read it lists the `brigade/marks/`
-folder and reads every marks file there. When the owner presses "✓ Read,
+folder and reads the marks files there, this session's own in full and the others newest
+first, up to 8 MiB in total (since 0.89.0; a file over its cap takes nothing
+from the bound; the rest count as unread, which fails safe). When the owner presses "✓ Read,
 next", "⚑ Flag" or "⚑ Unflag" in the pane's Decisions tab, or Dismiss on its
-picked Flagged rows (since 0.82.0, spec 402 ticket 2), the pane writes a mark
+picked Flagged rows (since 0.82.0, spec 402 ticket 2), or "✓ Mark all N read"
+(since 0.89.0, spec 444, one write for all the entries it takes), the pane writes a mark
 for each entry, the log's session id, the entry's id and time, the state
 (read, flagged or unflagged) and the press time, in one write, to its own
 session's marks file, `brigade/marks/<session id>.json`, at most 2,000 marks
-and 64 KiB. Both files go only where the roster's link-refusing path rule
+and, since 0.89.0, 256 KiB (64 KiB before; a mod of 0.88.0 or older refuses a
+file past 64 KiB and counts its entries unread). Past a cap the oldest marks
+drop in a fixed order that keeps a live flag for last and never brings back a
+cleared one. "Mark all N read" matches its count-and-hash button key whole,
+works out its set again inside the marks queue's turn and acts only when the
+set is unchanged; it never takes a waiting entry, an alarm, a Relayed entry or
+an answer. The hash is the mod's unkeyed SHA-256 of the set's mark keys and
+protects nothing secret. Both files go only where the roster's link-refusing path rule
 allows, overwrite only a file that passes the strict check of its own kind,
 and are checked again after the write. While the pane is open, and only then,
 it lists both folders on the roster's 5-second poll, reads this session's own
@@ -244,7 +254,8 @@ SHA-256 in `brigade/decisions.ts`, tested against the NIST vectors and Node's
 own hash; it protects nothing secret. What follows from it:
 - **What the files reveal:** every decision a lead logged, its reason and the
   options it weighed, waiting entries that hold decisions the owner keeps,
-  each entry's level, and which entries the owner read and when, and, since 0.82.0, which the owner flagged to revisit and when each was unflagged or dismissed. The files are
+  each entry's level, and which entries the owner read and when, and, since 0.82.0, which the owner flagged to revisit and when each was unflagged or dismissed;
+  a mark's time from a Mark all read press records the press, not a reading of each entry. The files are
   named by session id, a mark names the session id of the log it marks, and
   each log holds a plain, unkeyed SHA-256 digest of the working folder's
   transcript-folder name, never the name, which a reader who can list the
@@ -272,8 +283,9 @@ own hash; it protects nothing secret. What follows from it:
   to its cap, after which the tool refuses until the owner reads. The pane
   draws a Relayed entry and an answer only as the writer's claim. Any session,
   in any working folder, that loads head-chef without the owner typing it can
-  log the same, and its entries land unread in every lead's To review; the
-  owner accepted this on 2026-10-26 (q10 A on #402's ticket 411).
+  log the same, and its entries reach every lead's To review as cards or counts;
+  the owner accepted this on 2026-10-26 (q10 A on #402's ticket 411), and
+  reworded this sentence on 2026-10-30 in chat ("Reword them").
 
 **Since 0.83.0 a lead keeps a hand-off** (spec 402, ticket 3). The mod offers
 two more tools wherever it offers `set_roster`. `set_lead_handoff` replaces
