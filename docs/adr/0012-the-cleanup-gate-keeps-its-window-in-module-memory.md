@@ -24,6 +24,27 @@ A14 also fails as D7 states it, so D7 changes before any gate code. A9 could
 not be measured as written, and A13 stays partial. Every other row passed, or
 passed with the caveat its line gives.
 
+## For the next Design round
+
+What the probe leaves the redesign to answer, from the measurements and the
+Test review of this record:
+
+- Treat anything a command reply shows as reaching every model in the
+  brigade: the code, and the folder, repository and branch names step 1 would
+  show (A17). The confirm needs a channel the models cannot read, measured
+  again before it is relied on, and a threat-model entry once it is settled.
+- Measure whether another plugin's command run on Desktop can carry an origin
+  it supplies itself (A15 shows the runner passes one through). Until then the
+  origin allow-list of D3 is not relied on.
+- The archive tool's `_consent` field is the app's to set: a relaxed key rule
+  for D7 still refuses it when the model supplies it (A14).
+- Desktop's two worktree-cleanup tools are re-measured live, against
+  throwaway targets only, before the gate is relied on for them (A1).
+
+H7 holds for this record: after each new engine build, before the gate is
+relied on, A1, A14, A16, A17 and A18 are measured again, and a row that fails
+stops reliance on the gate until Design answers it.
+
 ## Measured
 
 The probe is two throwaway plugins outside this repository: a probe mod that
