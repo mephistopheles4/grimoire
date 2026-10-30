@@ -181,21 +181,23 @@ words. It asks no permission. What follows from it:
 - **Since 0.61.0 the lead's pane reads the files** (issue #312): a summary
   file that passes its checks outranks the transcript at every size, with no
   check against it. A forged file from another process running as the owner can show any
-  warmth, on members whose transcript is over 4 MiB too; row 15 names this gap,
-  which the owner accepted. A step the transcript would not count restarts the
+  warmth, on members whose transcript is over 4 MiB too; the threat model
+  lists this gap as candidate P1 (E20), accepted as at the base until the
+  owner names it. A step the transcript would not count restarts the
   hour, and a stopped writer leaves a card reading colder once the member is
   idle, with its meter and burn frozen, and it can draw a hand-off nudge on a
   warm cache. The 1-hour window's known limit, in the README, still applies.
-  Four more gaps, each named in row 15:
+  Four more gaps, each in the threat model:
   - other plugins can read and rewrite the pane's list of refused summary
-    files, and so plant or hide a refusal line;
+    files, and so plant or hide a refusal line (class C4, E24);
   - the summary read follows a link swapped in after the path check, as the
-    transcript read does, and keeps only checked numbers;
+    transcript read does, and keeps only checked numbers (candidate P1, E23,
+    accepted as at the base until the owner names it);
   - a session named like a card, or holding its id, feeds that card from its own summary file,
-    a session with no working folder included;
+    a session with no working folder included (class C5, E22);
   - a writer whose files keep failing a check with fresh times freezes its
-    card on the last good record with no line to say so, which the owner
-    accepted.
+    card on the last good record with no line to say so (candidate P3, E21,
+    accepted as at the base until the owner names it).
 
 **Since 0.81.0 a lead writes a decision log, and the pane writes the
 owner's marks** (spec 402, ticket 1;
@@ -462,7 +464,7 @@ and Desktop only. What follows from it:
 
 Review any change under
 `brigade/` or `hooks/` as a change to code that runs on every installer's
-machine: [row 15 of the threat model](docs/security/threat-model.md#the-matrix)
+machine: the threat model's class C4 and its [row 15 section](docs/security/brigade.md#row-15) (E16)
 has the guards and the gaps.
 
 **One skill tells the agent to start other agent sessions and to delete their
@@ -491,7 +493,7 @@ the sender's shown name with the session list, as text, so any session that
 can send it a message under that name can speak for the lead, unless another
 row holds the name too. The owner accepted the forged-sender risk of the
 0.5.0 form on 2026-10-09, and the 0.9.0 form, a relayed decision bound to the
-shown name alone, on 2026-10-21; row 16 of the threat model records both,
+shown name alone, on 2026-10-21; the threat model's class C5 records both (E45, E57),
 with the other risks of 0.9.0 the owner accepted. Before
 its first launch in a lead, the Brigade mod's permission warning says so above
 the prompt. Each turn the head chef reads the engine's own session files, in
@@ -508,7 +510,7 @@ chef's own questions and decisions go by message only; and Remote Control,
 while it is on,
 makes each session it starts, with its transcript, drivable and readable from
 any device signed in to the owner's account.
-[Row 16 of the threat model](docs/security/threat-model.md#the-matrix) has the
+The threat model's class C5 and its [row 16 section](docs/security/brigade.md#row-16) (E45) have the
 guards and the gaps.
 
 One script can send data, and only when somebody runs it. eagle-eye's
@@ -528,8 +530,12 @@ full. Nothing warns any more on a setting that lets an agent act without the
 person's approval, or sends the agent's work to a server the file names; the
 person reads those keys.
 
-The attacks worth planning for, scenario by scenario, with what stops each
+The attacks worth planning for, by risk and by class, with what stops each
 one and what still gets through: [docs/security/threat-model.md](docs/security/threat-model.md).
+It is one threat model in five pages, with
+[`brigade.md`](docs/security/brigade.md), [`checks.md`](docs/security/checks.md),
+[`rendering.md`](docs/security/rendering.md) and
+[`hiring-interview.md`](docs/security/hiring-interview.md).
 It records the repository settings as they were read on 2026-09-25, and the
 plugin validator's required check as confirmed on 2026-10-09. The
 [platform table](#what-the-platform-is-relied-on-for) below lists what the
