@@ -88,9 +88,11 @@ import {
   paneEntry,
   projectDigest,
   markAllSet,
+  markRelayedSet,
   matchesSearch,
   parseMarkAllKey,
   parseMarkEndedKey,
+  parseMarkRelayedKey,
   parsePairKey,
   canTell,
   dropsLiveMark,
@@ -944,6 +946,26 @@ async function pressMarkAll($: EngineInterface, n: number, hash: string) {
     const set = markAllSet(q.shown, tabRead.sid)
     if (set.n !== n || set.hash !== hash) return
     const saved = await writeMarksNow($, set.rows, 'read')
+    markFailed = !saved
+    if (saved) for (const r of set.rows) skipped.delete(markKey(r.sid, r.entry.id, r.entry.at))
+  })
+  await update($, decisionsSeen, n => ((typeof n === 'number' ? n : 0) + 1) % 1000000)
+}
+
+// A press on To review's Mark N relayed read (spec 448 S5): this session's own
+// unread Relayed entries that answer no waiting entry, under the search. In the
+// marks queue's turn the set is worked out again, as Mark all read's is, and
+// written once only when its size and hash match the key. It writes nothing,
+// and says the mark was not saved, when the marks file's caps would push out a
+// mark that is still its entry's newest state (q7 A).
+async function pressMarkRelayed($: EngineInterface, n: number, hash: string) {
+  await marksTurn(async () => {
+    const now = await $.clock.now()
+    const v = tabView(now)
+    const q = reviewCards(v.review, tabRead.sid, v.states, skipped, searchWords(queryFrom(await read($, query))))
+    const set = markRelayedSet(q.shown, tabRead.sid)
+    if (set.n !== n || set.hash !== hash) return
+    const saved = await writeMarksNow($, set.rows, 'read', true)
     markFailed = !saved
     if (saved) for (const r of set.rows) skipped.delete(markKey(r.sid, r.entry.id, r.entry.at))
   })
@@ -2988,6 +3010,11 @@ export const register: Register = on => {
       await pressMarkAll($, markAll.n, markAll.hash)
       return { element: e.element }
     }
+    const markRelayed = parseMarkRelayedKey(e.element)
+    if (markRelayed !== undefined) {
+      await pressMarkRelayed($, markRelayed.n, markRelayed.hash)
+      return { element: e.element }
+    }
     const markEnded = parseMarkEndedKey(e.element)
     if (markEnded !== undefined) {
       await pressMarkEnded($, markEnded.n, markEnded.hash)
@@ -3189,6 +3216,7 @@ export const register: Register = on => {
     const dFlagged = flaggedRows(dView.flagged, dStates, words)
     const dFlaggedAll = words.length > 0 ? flaggedRows(dView.flagged, dStates, []).length : dFlagged.length
     const dMarkAll = markAllSet(dQueue.shown, tabRead.sid)
+    const dMarkRelayed = markRelayedSet(dQueue.shown, tabRead.sid)
     // The island on this tab counts only the picks Flagged shows.
     const dPicked = dFlagged.filter(r => pickedRows.has(markKey(r.sid, r.entry.id, r.entry.at))).length
     // What the tab draws, each entry once: this log's, and the carried ones.
@@ -4139,6 +4167,13 @@ export const register: Register = on => {
           <Box marginTop={1} flexDirection="row" columnGap={1} alignItems="center">
             <Text bold>{GROUP_NAMES.get('d-review') ?? ''}</Text>
             <Text dimColor>{` ${dQueue.total}`}</Text>
+            {dMarkRelayed.n > 0 && (
+              <Box flexShrink={0} paddingX={1} borderStyle="round" borderColor="inactive">
+                <Button key={`dmarkrelayed-${dMarkRelayed.n}-${dMarkRelayed.hash}`} dimColor onPress={noop}>
+                  {`✓ Mark ${dMarkRelayed.n} relayed read`}
+                </Button>
+              </Box>
+            )}
             {dMarkAll.n > 0 && (
               <Box flexShrink={0} paddingX={1} borderStyle="round" borderColor="inactive">
                 <Button key={`dmarkall-${dMarkAll.n}-${dMarkAll.hash}`} dimColor onPress={noop}>
@@ -4153,6 +4188,13 @@ export const register: Register = on => {
               <Text weight="medium">{GROUP_NAMES.get('d-review') ?? ''}</Text>
               <Text dimColor>{` ${dQueue.total}`}</Text>
             </Box>
+            {dMarkRelayed.n > 0 && (
+              <Box flexShrink={0} paddingX="sm">
+                <Button key={`dmarkrelayed-${dMarkRelayed.n}-${dMarkRelayed.hash}`} dimColor onPress={noop}>
+                  {`✓ Mark ${dMarkRelayed.n} relayed read`}
+                </Button>
+              </Box>
+            )}
             {dMarkAll.n > 0 && (
               <Box flexShrink={0}>
                 <Button key={`dmarkall-${dMarkAll.n}-${dMarkAll.hash}`} dimColor onPress={noop}>
