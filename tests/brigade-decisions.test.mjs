@@ -1146,6 +1146,12 @@ test('spec 448 claims 1 and 5: an own unread waiting entry and its answer are on
   assert.equal(q.total, entries - 1);
   // The shown rows hold every entry, both of the pair included, oldest first.
   assert.deepEqual(q.shown, reviewQueue(v.review, new Map(), new Set(), []).order);
+  // The card takes the waiting entry's place, not the answer's: with the answer dated after the later plain entry, the pair still comes first.
+  const late = structuredClone(ls);
+  late[0].log.entries[2].at = NOW + 10;
+  const lateCards = reviewCards(drawnLogs(late, SID, new Map()).review, SID, new Map(), new Set(), []).cards.filter(c => c.row.sid === SID);
+  assert.deepEqual(lateCards.map(c => c.row.entry.work), ['plain first', 'mine waits', 'plain later']);
+  assert.equal(lateCards[1].answer?.entry.work, 'my answer');
   // Claim 5: the other log's waiting entry and its answer draw as two cards.
   const carried = q.cards.filter(c => c.row.sid === OTHER).map(c => c.row.entry.work);
   assert.ok(carried.includes('answered') && carried.includes('the answer'));

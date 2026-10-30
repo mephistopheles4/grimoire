@@ -5936,11 +5936,15 @@ test('claim 8: the tab draws no search box on mobile, and one on the terminal', 
 
 test('claim 10: Lead, Relayed by the writer, a waiting entry and its answer draw as their sources say', async ($, on) => {
   await decisionsPane(on, $, 'desktop', w =>
-    seed(w, LOG, logText([kept(1, 200, { waiting: true, pick: '' }), kept(2, 300, { source: 'relayed', answers: '1' })])),
+    seed(w, LOG, logText([kept(1, 200, { waiting: true, pick: '' }), kept(2, 300, { source: 'relayed', answers: '1' }), kept(3, 400, { source: 'relayed', question: 'Lone claim?' })])),
   )
   expect(await shows(/^Answered, as the lead records it: decision 2$/)).toBe(true)
   expect(await shows(/^Lead$/)).toBe(true)
   // Since spec 448 this own answered pair draws on one card, the answer's label on it.
+  expect(await shows(/^Relayed by lead-a$/)).toBe(true)
+  // A Relayed entry that answers nothing still draws alone, with its own label.
+  await press($, 'dnext-1-200-2-300')
+  expect(await shows(/^Lone claim\?$/)).toBe(true)
   expect(await shows(/^Relayed by lead-a$/)).toBe(true)
 })
 
