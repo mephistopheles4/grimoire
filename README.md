@@ -199,6 +199,22 @@ heading, marks every shown decision of this lead read in one write. It leaves
 out waiting entries, alarms, Relayed entries and answers, and anything your
 search hides, and a press marks nothing if the set changed since you looked.
 
+Since 0.90.0 a session that has ended stops filling To review with its claims.
+A session counts as running while one of the engine's session files names it,
+or while its log has an entry from the last 30 minutes; it counts as ended
+once a complete read of the session files since you opened the pane names it
+nowhere and its newest entry is older than that. When the pane cannot tell,
+everything draws as before. For each ended session with unread Relayed
+entries, or unread questions such an entry answers, To review shows one dim
+line instead of their cards: "From an ended session", the time of its newest
+such entry, up to three of the work names its entries give, how many are
+unread, and "✓ Mark these N read", which marks exactly those in one write and
+nothing if the line changed since you looked, or if your marks file is so full
+that the write would push out marks of entries you read. Its other questions and alarms
+keep their cards. History gains a fold, "From ended sessions", that holds
+those entries, read or not, newest first, with "Unread" on the ones you have
+not read; it draws from every working folder's logs among the 20 newest.
+
 The lead keeps its working state with the `set_lead_handoff` tool: how to
 resume, the rules in force, the running sessions, the cleanup waiting and what
 is open for you, which it reads back with `read_lead_handoff` after a
@@ -384,7 +400,7 @@ files you ask for:
   row's other repository by owner/name, private ones included.
   Since 0.81.0 it also writes each lead's decision log, one entry per
   decision the lead logs, and a marks file of the Read, Flag, Unflag,
-  Dismiss and, since 0.89.0, Mark all read presses you make in its Decisions tab, both in plain text in the same folder, never removed by the
+  Dismiss and, since 0.89.0, Mark all read and, since 0.90.0, Mark these N read presses you make in its Decisions tab, both in plain text in the same folder, never removed by the
   mod, and since 0.83.0 each lead's hand-off, its working state, beside them.
   Since 0.84.0 the log also holds each move of the autonomy slider, each reset
   and each alarm, with its time; since 0.86.0, not an alarm that repeats

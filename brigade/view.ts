@@ -2541,9 +2541,11 @@ const SESSION_FILE = /^\d{1,10}\.json$/
 // More session files than this is not a brigade.
 const MAX_SESSION_FILES = 500
 
-/** What one read of the session files found: the rows, and whether every
- *  file the listing named was read and passed its checks. */
-export type SessionsRead = { rows: SessionRow[]; complete: boolean }
+/** What one read of the session files found: the rows, whether every file
+ *  the listing named was read and passed its checks, and whether a file went
+ *  after the listing (spec 447 S3.7), which the ended rule takes as a read
+ *  that is not complete. */
+export type SessionsRead = { rows: SessionRow[]; complete: boolean; fileGone: boolean }
 
 // A rejection that says the file is not there: a session that ended after
 // the listing took its file with it.
@@ -2554,7 +2556,8 @@ const gone = (err: unknown): boolean => /\bENOENT\b/.test(String(err instanceof 
  *  other than the real config folder's `sessions`, or cannot be listed as a
  *  list of at most `MAX_LISTING` entries. A file that fails a check or a
  *  read is skipped, and the read is then not complete; a file gone since the
- *  listing is skipped too, and the read stays complete. Never rejects. */
+ *  listing is skipped too, the read stays complete, and `fileGone` is set.
+ *  Never rejects. */
 export async function readSessions(config: string, io: PollIo): Promise<SessionsRead | undefined> {
   const sep = sepOf(config)
   const dir = `${config}${sep}sessions`
@@ -2577,6 +2580,7 @@ export async function readSessions(config: string, io: PollIo): Promise<Sessions
   if (!Array.isArray(entries) || entries.length > MAX_LISTING) return undefined
   const rows: SessionRow[] = []
   let complete = true
+  let fileGone = false
   let taken = 0
   for (const e of entries) {
     if (!isRecord(e) || typeof e.name !== 'string' || !SESSION_FILE.test(e.name)) continue
@@ -2598,10 +2602,11 @@ export async function readSessions(config: string, io: PollIo): Promise<Sessions
       if (row === undefined) throw new Error('shape')
       rows.push(row)
     } catch (err) {
-      if (!gone(err)) complete = false
+      if (gone(err)) fileGone = true
+      else complete = false
     }
   }
-  return { rows, complete }
+  return { rows, complete, fileGone }
 }
 
 // --- The usage summary writer -------------------------------------------------

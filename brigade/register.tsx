@@ -90,6 +90,11 @@ import {
   markAllSet,
   matchesSearch,
   parseMarkAllKey,
+  parseMarkEndedKey,
+  canTell,
+  dropsLiveMark,
+  endedLines,
+  sessionStates,
   reviewQueue,
   searchWords,
   serializeHandoff,
@@ -100,7 +105,7 @@ import {
   storedLevel,
   writerName,
 } from './decisions.ts'
-import type { DecisionEntry, DecisionLog, EntryInput, Handoff, HandoffSections, Level, MarksFile, ReadHandoff, ReadLog, Row } from './decisions.ts'
+import type { DecisionEntry, DecisionLog, EndedLine, EntryInput, Handoff, HandoffSections, Level, LiveInput, MarksFile, ReadHandoff, ReadLog, Row, SessionsSeen } from './decisions.ts'
 import {
   CACHE_CELLS,
   EMPTY_USAGE,
@@ -429,9 +434,23 @@ async function pollLive($: EngineInterface, open: () => boolean) {
     // runs no `claude agents --json`, which makes every running session do
     // work at once (#347). A file that fails its check draws no row, and it,
     // or a folder that cannot be read, draws the one fixed line.
+    // The read's start on the engine clock, for the ended rule (spec 447 S3.6).
+    const startedAt = await Promise.resolve($.clock.now()).catch(() => Number.NaN)
     const files = await readSessions(at.config, io)
     if (!open()) return
     const rows = files?.rows ?? []
+    // What the ended rule reads, kept in the module and never stored: a read
+    // that returned nothing leaves no rows, so every state is unknown. When a
+    // log's state moves, the clock passing 30 minutes included, the tab draws again.
+    sessionsSeen =
+      files === undefined
+        ? undefined
+        : { ids: rows.flatMap(r => (r.sessionId === undefined ? [] : [r.sessionId])), complete: files.complete, fileGone: files.fileGone, startedAt }
+    const states = statesKey(await Promise.resolve($.clock.now()).catch(() => Number.NaN))
+    if (states !== lastStates) {
+      lastStates = states
+      await update($, decisionsSeen, n => ((typeof n === 'number' ? n : 0) + 1) % 1000000)
+    }
     // Each log's writer is named from the same rows, kept in the module and never stored.
     if (files !== undefined) sessionRows = rows.map(r => ({ name: r.name, status: r.status, sessionId: r.sessionId }))
     // Each roster card finds its session by id (a title only when it has no
@@ -583,6 +602,20 @@ const pickedRows = new Set<string>()
 let historyPages = 1
 let flaggedPages = 1
 let markFailed = false
+// Whether the last marks write was refused because the caps would push out a
+// mark that is still an entry's newest state, so the line can say why.
+let marksFull = false
+// History's fold of ended sessions' entries (spec 447 S5.5): open or not, its
+// pages and its opened rows, here and never in plugin state.
+let endedOpen = false
+let endedPages = 1
+const openedEnded = new Set<string>()
+// What the ended rule reads (spec 447 S3.6): the live poll's last session read,
+// the time this pane opened and the last states worked out. A close clears
+// them, so a pane opened again starts unknown.
+let sessionsSeen: SessionsSeen | undefined
+let openedAt: number | undefined
+let lastStates = ''
 let readingDecisions = false
 
 function placeKind($: EngineInterface, at: Where, kind: Kind, sid: string): Promise<Placed> {
@@ -796,7 +829,10 @@ const writeMarks = ($: EngineInterface, rows: readonly Row[], state: 'read' | 'f
 
 // The body of a marks write, with no turn of its own: a caller already in the
 // marks queue's turn (Mark all read) calls this, so the queue cannot wait on itself.
-async function writeMarksNow($: EngineInterface, rows: readonly Row[], state: 'read' | 'flagged' | 'unflagged'): Promise<boolean> {
+// With `keepLive` (Mark these N read) it writes nothing when the caps would push
+// out a mark that is still its entry's newest state.
+async function writeMarksNow($: EngineInterface, rows: readonly Row[], state: 'read' | 'flagged' | 'unflagged', keepLive = false): Promise<boolean> {
+  marksFull = false
   try {
     const at = await where($)
     if ('error' in at) return false
@@ -813,6 +849,10 @@ async function writeMarksNow($: EngineInterface, rows: readonly Row[], state: 'r
     const known = new Set(tabRead.logs.flatMap(l => l.log.entries.map(e => markKey(l.sid, e.id, e.at))))
     const others = tabRead.marks.filter(m => m.sid !== at.id).map(m => m.file)
     const value = addMarks(file, rows.map(r => ({ log: r.sid, id: r.entry.id, entryAt: r.entry.at, state, at: now })), known, others, now)
+    if (keepLive && dropsLiveMark(file, value, others, known, new Set(rows.map(r => markKey(r.sid, r.entry.id, r.entry.at))), now)) {
+      marksFull = true
+      return false
+    }
     const text = serializeMarks(value)
     if ('error' in text) return false
     await $.fs.write(placed.file, text.value)
@@ -843,7 +883,17 @@ const tabLogs = (): ReadLog[] =>
 // this one set, so a row's place in a key matches its place on screen.
 function tabView(now: number) {
   const states = mergeMarks(tabRead.marks.map(m => m.file), now)
-  return { states, ...drawnLogs(tabLogs(), tabRead.sid, states) }
+  const live = liveInput(now)
+  return { states, ...drawnLogs(tabLogs(), tabRead.sid, states, sessionStates(tabRead.logs, tabRead.sid, live), canTell(live)) }
+}
+// The ended rule's input at a draw. Each log's state comes from its entries as
+// read, before an entry out of its fixed shape is left out, so any recent entry
+// keeps its session running.
+const liveInput = (now: number): LiveInput => ({ seen: sessionsSeen, openedAt, now })
+// The states as one text, to tell when one moved.
+const statesKey = (now: number) => {
+  const live = liveInput(now)
+  return `${canTell(live)} ${[...sessionStates(tabRead.logs, tabRead.sid, live)].map(([sid, state]) => `${sid}=${state}`).join(' ')}`
 }
 const queryFrom = (stored: unknown): string => (typeof stored === 'string' ? [...stored].slice(0, 200).join('') : '')
 
@@ -883,6 +933,26 @@ async function pressMarkAll($: EngineInterface, n: number, hash: string) {
     const saved = await writeMarksNow($, set.rows, 'read')
     markFailed = !saved
     if (saved) for (const r of set.rows) skipped.delete(markKey(r.sid, r.entry.id, r.entry.at))
+  })
+  await update($, decisionsSeen, n => ((typeof n === 'number' ? n : 0) + 1) % 1000000)
+}
+
+// A press on an ended session's Mark these N read (spec 447 S6). In the marks
+// queue's turn every line is worked out again from the logs read, the marks as
+// just written, the session states and the search; it writes once, in the same
+// turn, only when exactly one line matches the key's count and hash, else
+// nothing, and the tab draws again. It also writes nothing, and says the mark
+// was not saved, when the marks file's caps would push out a mark that is still
+// its entry's newest state, so the press never undoes an earlier read.
+async function pressMarkEnded($: EngineInterface, n: number, hash: string) {
+  await marksTurn(async () => {
+    const now = await $.clock.now()
+    const v = tabView(now)
+    const found = endedLines(v.ended, v.states, searchWords(queryFrom(await read($, query)))).filter(l => l.n === n && l.hash === hash)
+    const line = found[0]
+    if (line === undefined || found.length !== 1) return
+    const saved = await writeMarksNow($, line.rows, 'read', true)
+    markFailed = !saved
   })
   await update($, decisionsSeen, n => ((typeof n === 'number' ? n : 0) + 1) % 1000000)
 }
@@ -1199,6 +1269,9 @@ async function arm($: EngineInterface) {
       $.clock.every(LIVE_MS, () => void (live() && pollLive($, live))),
       $.clock.every(GH_MS, () => void (live() && askGh($, live, true))),
     ]
+    // The pane's open time: only a session read begun since then can tell ended.
+    const opened = await Promise.resolve($.clock.now()).catch(() => undefined)
+    if (live()) openedAt = opened
     await update($, armed, () => true)
     await update($, folded, () => STARTS_FOLDED)
     if (live()) await readUsage($)
@@ -1216,6 +1289,9 @@ function disarm() {
   generation++
   for (const t of timers) t.cancel()
   timers = []
+  sessionsSeen = undefined
+  openedAt = undefined
+  lastStates = ''
 }
 
 // The roster timer's tick. The engine drops a pane whose drawing threw
@@ -1493,6 +1569,10 @@ async function openPane($: EngineInterface, wait: boolean, reached: { open: bool
   historyPages = 1
   flaggedPages = 1
   markFailed = false
+  marksFull = false
+  endedOpen = false
+  endedPages = 1
+  openedEnded.clear()
   const opened = await $.ui.open({ id: PANE, title: TITLE })
   reached.open = true
   raiseFailed = false
@@ -2889,6 +2969,30 @@ export const register: Register = on => {
       await pressMarkAll($, markAll.n, markAll.hash)
       return { element: e.element }
     }
+    const markEnded = parseMarkEndedKey(e.element)
+    if (markEnded !== undefined) {
+      await pressMarkEnded($, markEnded.n, markEnded.hash)
+      return { element: e.element }
+    }
+    // History's fold of ended sessions' entries: its toggle, Show more and a
+    // row by its place, each kept in this module (spec 447 S5.5).
+    if (e.element === 'dended' || e.element === 'dendedmore') {
+      if (e.element === 'dended') endedOpen = !endedOpen
+      else endedPages = Math.min(endedPages + 1, 1000)
+      await update($, decisionsSeen, n => ((typeof n === 'number' ? n : 0) + 1) % 1000000)
+      return { element: e.element }
+    }
+    const endedRow = /^deopen-([0-9]{1,5})-([1-9][0-9]{0,15})-([0-9]{1,16})$/.exec(e.element)
+    if (endedRow !== null) {
+      const r = historyRows(tabView(await $.clock.now()).ended, searchWords(queryFrom(await read($, query))), endedPages).rows[Number(endedRow[1])]
+      if (r !== undefined && r.entry.id === endedRow[2] && r.entry.at === Number(endedRow[3])) {
+        const k = markKey(r.sid, r.entry.id, r.entry.at)
+        if (openedEnded.has(k)) openedEnded.delete(k)
+        else openedEnded.add(k)
+        await update($, decisionsSeen, n => ((typeof n === 'number' ? n : 0) + 1) % 1000000)
+      }
+      return { element: e.element }
+    }
     const row = /^dopen-([0-9]{1,5})-([1-9][0-9]{0,15})-([0-9]{1,16})$/.exec(e.element)
     if (row !== null) {
       const r = historyRows(tabView(await $.clock.now()).history, searchWords(queryFrom(await read($, query))), historyPages).rows[Number(row[1])]
@@ -3054,8 +3158,13 @@ export const register: Register = on => {
     const dView = tabView(now)
     const dStates = dView.states
     const dQueue = reviewQueue(dView.review, dStates, skipped, words)
-    const dUnread = reviewQueue(dView.review, dStates, skipped, []).total
+    // The ended sessions' block (spec 447 S4.2): its lines under the search, and
+    // the entries all its lines count, which the top line's unread count takes.
+    const dLines = endedLines(dView.ended, dStates, words)
+    const dLined = (words.length > 0 ? endedLines(dView.ended, dStates, []) : dLines).reduce((n, l) => n + l.n, 0)
+    const dUnread = reviewQueue(dView.review, dStates, skipped, []).total + dLined
     const dHistory = historyRows(dView.history, words, historyPages)
+    const dFold = historyRows(dView.ended, words, endedPages)
     const dFlagged = flaggedRows(dView.flagged, dStates, words)
     const dFlaggedAll = words.length > 0 ? flaggedRows(dView.flagged, dStates, []).length : dFlagged.length
     const dMarkAll = markAllSet(dQueue.order, tabRead.sid)
@@ -3063,7 +3172,7 @@ export const register: Register = on => {
     const dPicked = dFlagged.filter(r => pickedRows.has(markKey(r.sid, r.entry.id, r.entry.at))).length
     // What the tab draws, each entry once: this log's, and the carried ones.
     const dDrawn = new Map<string, Row>()
-    for (const l of [...dView.review, ...dView.history]) for (const entry of l.log.entries) dDrawn.set(markKey(l.sid, entry.id, entry.at), { sid: l.sid, writer: l.writer, entry })
+    for (const l of [...dView.review, ...dView.history, ...dView.ended]) for (const entry of l.log.entries) dDrawn.set(markKey(l.sid, entry.id, entry.at), { sid: l.sid, writer: l.writer, entry })
     for (const r of flaggedRows(dView.flagged, dStates, [])) dDrawn.set(markKey(r.sid, r.entry.id, r.entry.at), r)
     const dTotal = dDrawn.size
     const dMatching = [...dDrawn.values()].filter(r => matchesSearch(r.entry, r.writer, words)).length
@@ -3732,15 +3841,17 @@ export const register: Register = on => {
     )
     // A History row: one press holding the fold arrow and the headline, a dim
     // line under it, and the source over the time on the right.
-    const historyRow = (r: Row, i: number) => {
+    // A row of History's fold of ended sessions (spec 447 S5) is drawn the same
+    // way, with keys of its own, and says "Unread" while it is.
+    const historyRow = (r: Row, i: number, fold = false) => {
       const k = markKey(r.sid, r.entry.id, r.entry.at)
-      const isOpen = openedRows.has(k)
+      const isOpen = (fold ? openedEnded : openedRows).has(k)
       const isRead = r.entry.source === 'owner' || r.entry.source === 'pane' || dStates.get(k) !== undefined
       return (
-        <Box flexDirection="column" paddingX={terminal ? 0 : 'sm'} {...hoverFill(`drow-${i}`)}>
+        <Box flexDirection="column" paddingX={terminal ? 0 : 'sm'} {...hoverFill(`${fold ? 'derow' : 'drow'}-${i}`)}>
           <Box flexDirection="row" columnGap={1} alignItems="flex-start">
             <Box flexDirection="column" flexGrow={1} flexShrink={1} minWidth={0}>
-              <Button key={`dopen-${i}-${r.entry.id}-${r.entry.at}`} plain onPress={noop}>
+              <Button key={`${fold ? 'deopen' : 'dopen'}-${i}-${r.entry.id}-${r.entry.at}`} plain onPress={noop}>
                 <Text dimColor>{`${isOpen ? '▾' : '▸'} `}</Text>
                 {isRead ? <Text dimColor>{headline(r)}</Text> : <Text weight="medium">{headline(r)}</Text>}
               </Button>
@@ -3753,6 +3864,7 @@ export const register: Register = on => {
               <Text dimColor size="footnote" tabular>
                 {stamp(r.entry.at)}
               </Text>
+              {fold && !isRead && <Text size="footnote">Unread</Text>}
             </Box>
           </Box>
           {isOpen && entryCard(r, undefined, [])}
@@ -3903,6 +4015,84 @@ export const register: Register = on => {
         {raiseFailed && <Text color="error">Not changed: the decision log could not be written</Text>}
       </Box>
     )
+    // One line of the ended sessions' block (spec 447 S4.2), in the dim colour:
+    // fixed words, the time, the writer's work values each in its own element
+    // after the fixed label, the count and the press. It draws no name.
+    const endedLine = (l: EndedLine) => (
+      <Box flexDirection="column" paddingX={terminal ? 0 : 'sm'} marginBottom={terminal ? 0 : 'xs'}>
+        <Box flexDirection="row" columnGap={1}>
+          <Text dimColor>From an ended session</Text>
+          <Text dimColor tabular>
+            {stamp(l.at)}
+          </Text>
+        </Box>
+        <Box flexDirection="row" columnGap={1}>
+          <Box flexShrink={0}>
+            <Text dimColor>Work:</Text>
+          </Box>
+          {l.works.map((w, i) => (
+            <Box flexDirection="row" columnGap={1} flexShrink={1} minWidth={0}>
+              {i > 0 && <Text dimColor>·</Text>}
+              <Text dimColor wrap="truncate-end">
+                {w}
+              </Text>
+            </Box>
+          ))}
+          {l.more > 0 && (
+            <Box flexShrink={0}>
+              <Text dimColor>{`and ${l.more} more`}</Text>
+            </Box>
+          )}
+        </Box>
+        <Text dimColor wrap="wrap">{`${l.n} unread ${l.n === 1 ? 'entry' : 'entries'}: claims about your words and the questions they answer`}</Text>
+        {terminal ? (
+          <Box flexDirection="row">
+            <Box flexShrink={0} paddingX={1} borderStyle="round" borderColor="inactive">
+              <Button key={`dmarkended-${l.n}-${l.hash}`} dimColor onPress={noop}>
+                {`✓ Mark these ${l.n} read`}
+              </Button>
+            </Box>
+          </Box>
+        ) : (
+          <Box flexDirection="row">
+            <Button key={`dmarkended-${l.n}-${l.hash}`} dimColor onPress={noop}>
+              {`✓ Mark these ${l.n} read`}
+            </Button>
+          </Box>
+        )}
+      </Box>
+    )
+    // History's fold of ended sessions' entries, folded at first, its state in
+    // this module: a row each, newest first, 50 a page; in the unknown state it
+    // says so.
+    const endedFold = (
+      <Box flexDirection="column">
+        <Box marginTop={1}>
+          <Button key="dended" plain onPress={noop}>
+            <Text dimColor>{`${endedOpen ? '▾' : '▸'} `}</Text>
+            <Text weight="medium">From ended sessions</Text>
+            <Text dimColor>{` ${dFold.total}`}</Text>
+          </Button>
+        </Box>
+        {endedOpen &&
+          (!dView.canTell ? (
+            quiet('The pane cannot tell yet which sessions have ended.')
+          ) : dFold.rows.length === 0 ? (
+            quiet(words.length > 0 && historyRows(dView.ended, [], 1).total > 0 ? 'No decision matches the search.' : 'Nothing from an ended session.')
+          ) : (
+            <Box flexDirection="column">
+              {dFold.rows.map((r, i) => historyRow(r, i, true))}
+              {dFold.more && (
+                <Box marginTop={1}>
+                  <Button key="dendedmore" dimColor onPress={noop}>
+                    Show more
+                  </Button>
+                </Box>
+              )}
+            </Box>
+          ))}
+      </Box>
+    )
     const head = dQueue.head
     const decisionsBody = (
       <Box flexDirection="column">
@@ -3935,6 +4125,7 @@ export const register: Register = on => {
             )}
           </Box>
         )}
+        {dLines.length > 0 && <Box flexDirection="column">{dLines.map(endedLine)}</Box>}
         {(head !== undefined
             ? entryCard(head, <Text dimColor>{`${dQueue.n} of ${dQueue.total}`}</Text>, [
                 <Button key={`dnext-${head.entry.id}-${head.entry.at}`} variant="primary" onPress={noop}>
@@ -3947,10 +4138,12 @@ export const register: Register = on => {
                   Skip
                 </Button>,
               ])
-            : words.length > 0 && dUnread > 0
-              ? quiet('No unread decision matches the search.')
-              : hint('d-review'))}
-        {markFailed && <Text color="error">Not saved: the mark could not be written</Text>}
+            : dLines.length > 0
+              ? undefined
+              : words.length > 0 && dUnread > 0
+                ? quiet('No unread decision matches the search.')
+                : hint('d-review'))}
+        {markFailed && <Text color="error">{marksFull ? 'Not saved: your marks file is full of entries you read' : 'Not saved: the mark could not be written'}</Text>}
         {groupHead('d-flagged', dFlagged.length)}
         {!folds.has('d-flagged') &&
           (dFlagged.length === 0 ? (
@@ -3973,7 +4166,7 @@ export const register: Register = on => {
             words.length > 0 && dTotal > 0 ? quiet('No decision matches the search.') : hint('d-history')
           ) : (
             <Box flexDirection="column">
-              {dHistory.rows.map(historyRow)}
+              {dHistory.rows.map((r, i) => historyRow(r, i))}
               {dHistory.more && (
                 <Box marginTop={1}>
                   <Button key="dmore" dimColor onPress={noop}>
@@ -3983,6 +4176,7 @@ export const register: Register = on => {
               )}
             </Box>
           ))}
+        {!folds.has('d-history') && endedFold}
         {groupHead('d-handoff', dHandoff === undefined ? 0 : 1)}
         {!folds.has('d-handoff') && (dHandoff === undefined ? hint('d-handoff') : handoffCard(dHandoff))}
         {dimLine.length > 0 && (
