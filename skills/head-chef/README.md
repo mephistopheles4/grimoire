@@ -130,7 +130,7 @@ takes each message that arrives under that name as a **relayed decision**,
 on any matter. It labels it as relayed by the lead, never as your own words,
 and names each decision it acted on in its next report to the lead. A program
 of yours, or another session that holds the lead's name, can pass as the
-lead: you accepted that on issue 450, and threat-model row 16 records it. The
+lead: you accepted that on issue 450, and the threat model lists it under class C5 as candidate P8. The
 head chef tells you at once when a session reports a decision it never sent.
 
 Before the lead is renamed or handed off, the head chef tells each session

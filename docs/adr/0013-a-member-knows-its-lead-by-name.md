@@ -17,7 +17,7 @@ status file to send or to check a sender.
 
 The owner chose this on issue 450's plan ("Yes, name only", q4, relayed by the
 lead on 2026-10-30). The forged-lead risk it leaves is the owner's accepted risk,
-recorded in row 16 of the threat model as the 2026-10-30 entry.
+listed in the threat model as candidate P8, under class C5, for the owner's word.
 
 ## Options weighed
 
@@ -40,7 +40,7 @@ recorded in row 16 of the threat model as the 2026-10-30 entry.
 ## Why
 
 The status-file pairing was a consistency check, not a guard: a process of the
-same user can plant a status file (row 16). It stopped no attacker the name
+same user can plant a status file ([row 16](../security/brigade.md#row-16)). It stopped no attacker the name
 check lets through, and it made every session do the harness's work. The owner's
 direction for issue 450 was to leave the harness to be a harness and keep the
 skill on leading.
