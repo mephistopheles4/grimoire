@@ -47,7 +47,12 @@ export type MarksFile = { kind: 'marks'; v: 1; marks: Mark[] }
 export const MAX_ENTRIES = 500
 export const MAX_LOG_BYTES = 256 * 1024
 export const MAX_MARKS = 2000
-export const MAX_MARKS_BYTES = 64 * 1024
+// 256 KiB since 0.89.0 (spec 444 q14): one Mark all read press adds up to 500
+// marks, and the 2,000-mark count fits beside them for the entry ids that
+// occur (ids run in sequence, so a mark is about 115 to 122 bytes). At the
+// widest id the format allows, a mark is 133 bytes and the cap holds fewer old
+// marks than the count; the order of the drops still holds.
+export const MAX_MARKS_BYTES = 256 * 1024
 /** History's page: the rows it draws before, and for each, "Show more". */
 export const HISTORY_PAGE = 50
 /** How many other sessions' files of each kind the pane reads, newest first. */
@@ -411,33 +416,85 @@ export function mergeMarks(files: readonly MarksFile[], now: number): Map<string
   return new Map([...best].map(([k, m]) => [k, m.state]))
 }
 
-/** The file with one mark added. Past 2,000 marks or 64 KiB, marks for
- *  entries in no log the pane read (not in `known`) drop first, then the
- *  oldest by mark time. The new mark never drops. */
+/** The file with one mark added. Past 2,000 marks or 256 KiB, marks drop in
+ *  `addMarks`'s order. The new mark never drops. */
 export const addMark = (file: MarksFile | undefined, mark: Mark, known: ReadonlySet<string>): MarksFile => addMarks(file, [mark], known)
 
-/** The file with several marks added at once, as Dismiss writes them, under
- *  the same cap rule; none of the new marks drops. */
-export function addMarks(file: MarksFile | undefined, added: readonly Mark[], known: ReadonlySet<string>): MarksFile {
+/** The file with several marks added at once, as Dismiss and Mark all read
+ *  write them. None of the new marks drops. Past the caps, the old marks drop
+ *  one at a time in this order (spec 444 S4), until the file fits:
+ *  1. a mark for an entry in no log the pane read (not in `known`);
+ *  2. a mark a newer counted mark for the same entry supersedes, in this file
+ *     or in `others`, the other marks files read;
+ *  3. a mark whose entry's newest counted state is not flagged, unless it is
+ *     its entry's newest counted mark while an older flag stays in `others`,
+ *     since dropping it would bring that flag back;
+ *  4. any mark left.
+ *  Each step goes oldest first. "Counted" is as `mergeMarks` counts at `now`;
+ *  the merge is worked out once for the write. */
+export function addMarks(
+  file: MarksFile | undefined,
+  added: readonly Mark[],
+  known: ReadonlySet<string>,
+  others: readonly MarksFile[] = [],
+  now = Number.POSITIVE_INFINITY,
+): MarksFile {
   const marks = [...(file?.marks ?? []), ...added]
   const sizes = marks.map(m => bytes(JSON.stringify(m)))
   let total = bytes('{"kind":"marks","v":1,"marks":[]}') + sizes.reduce((a, b) => a + b, 0) + marks.length - 1
-  while ((marks.length > MAX_MARKS || total > MAX_MARKS_BYTES) && marks.length > added.length) {
-    const old = marks.length - added.length
-    let pick = -1
-    for (let i = 0; i < old; i++) {
-      const m = marks[i]
-      if (known.has(markKey(m.log, m.id, m.entryAt))) continue
-      if (pick < 0 || m.at < (marks[pick]?.at ?? 0)) pick = i
-    }
-    if (pick < 0) {
-      for (let i = 0; i < old; i++) if (pick < 0 || (marks[i]?.at ?? 0) < (marks[pick]?.at ?? 0)) pick = i
-    }
-    total -= (sizes[pick] ?? 0) + 1
-    marks.splice(pick, 1)
-    sizes.splice(pick, 1)
+  const old = marks.length - added.length
+  if (marks.length <= MAX_MARKS && total <= MAX_MARKS_BYTES) return { kind: 'marks', v: 1, marks }
+  // The newest counted mark of each entry, this file first so a tie keeps the
+  // mark the file holds; and the entries an older flag in another file covers.
+  const counted = (m: Mark) => m.at <= now + AHEAD_MS
+  const best = new Map<string, Mark>()
+  for (const m of [...marks, ...others.flatMap(f => f.marks)]) {
+    if (!counted(m)) continue
+    const k = markKey(m.log, m.id, m.entryAt)
+    const was = best.get(k)
+    if (was === undefined || m.at > was.at) best.set(k, m)
   }
-  return { kind: 'marks', v: 1, marks }
+  const flaggedElsewhere = new Set<string>()
+  for (const f of others) for (const m of f.marks) if (counted(m) && m.state === 'flagged') flaggedElsewhere.add(markKey(m.log, m.id, m.entryAt))
+  const rank = (m: Mark): number => {
+    const k = markKey(m.log, m.id, m.entryAt)
+    if (!known.has(k)) return 1
+    const b = best.get(k)
+    if (b !== undefined && b !== m) return 2
+    if (b?.state !== 'flagged' && !(b === m && flaggedElsewhere.has(k))) return 3
+    return 4
+  }
+  const order = marks
+    .slice(0, old)
+    .map((m, i) => ({ i, at: m.at, r: rank(m) }))
+    .sort((a, b) => a.r - b.r || a.at - b.at || a.i - b.i)
+  const dropped = new Set<number>()
+  for (const o of order) {
+    if (marks.length - dropped.size <= MAX_MARKS && total <= MAX_MARKS_BYTES) break
+    dropped.add(o.i)
+    total -= (sizes[o.i] ?? 0) + 1
+  }
+  return { kind: 'marks', v: 1, marks: marks.filter((_, i) => !dropped.has(i)) }
+}
+
+/** Whether writing `after` in place of `before` changes the counted state of
+ *  an entry in a log read (`known`) other than the entries the write marks
+ *  (`marked`): that is, whether the caps pushed out a mark that was still its
+ *  entry's newest counted state, so the entry would read as it did before
+ *  that mark. Mark these N read writes nothing when this holds (spec 447,
+ *  Test round 1, q3 A), so a bulk press never undoes the owner's own reads. */
+export function dropsLiveMark(
+  before: MarksFile | undefined,
+  after: MarksFile,
+  others: readonly MarksFile[],
+  known: ReadonlySet<string>,
+  marked: ReadonlySet<string>,
+  now: number,
+): boolean {
+  const was = mergeMarks([...(before === undefined ? [] : [before]), ...others], now)
+  const is = mergeMarks([after, ...others], now)
+  for (const k of known) if (!marked.has(k) && was.get(k) !== is.get(k)) return true
+  return false
 }
 
 // --- what the tab draws (S5.4) --------------------------------------------------
@@ -503,6 +560,172 @@ export function historyRows(logs: readonly ReadLog[], words: readonly string[], 
     .sort((a, b) => oldestFirst(b, a))
   const rows = all.slice(0, Math.max(1, pages) * HISTORY_PAGE)
   return { rows, total: all.length, more: rows.length < all.length }
+}
+
+// --- whether another log's session has ended (spec 447 S3) ---------------------
+//
+// Worked out again at each draw from the live poll's last session read, the
+// pane's open time, the engine clock and the entry times in the logs read,
+// and never stored. Unknown draws every log as 0.89.0 drew it.
+
+/** How long a log's newest entry keeps its session running (spec 447 S3.8). */
+export const RECENT_MS = 30 * 60 * 1000
+export type Liveness = 'running' | 'ended' | 'unknown'
+/** The live poll's last read of the session files: the session ids its rows
+ *  hold, whether it was complete, whether a file went after the listing, and
+ *  when it began on the engine clock. */
+export type SessionsSeen = { ids: readonly string[]; complete: boolean; fileGone: boolean; startedAt: number }
+/** What the ended rule reads: the last session read since the pane opened,
+ *  or none when it returned nothing; the pane's open time; the engine clock. */
+export type LiveInput = { seen: SessionsSeen | undefined; openedAt: number | undefined; now: number }
+
+/** Whether the pane can tell a session has ended: a complete read with no
+ *  file gone after its listing, begun since the pane's current open, and a
+ *  clock and an open time that are whole numbers. */
+export function canTell(l: LiveInput): boolean {
+  const s = l.seen
+  return s !== undefined && s.complete && !s.fileGone && isWhole(l.now) && isWhole(l.openedAt) && isWhole(s.startedAt) && s.startedAt >= l.openedAt
+}
+
+/** Each log's state, by its session id. This session's own log is running. A
+ *  log is running while a file in the last read holds its session id, or
+ *  while its newest entry, as read, is dated within 30 minutes of the clock;
+ *  ended when the pane can tell and neither holds; else unknown. */
+export function sessionStates(logs: readonly ReadLog[], sid: string, l: LiveInput): Map<string, Liveness> {
+  const tell = canTell(l)
+  const out = new Map<string, Liveness>()
+  for (const log of logs) {
+    const newest = log.log.entries.reduce<number | undefined>((n, e) => (n === undefined || e.at > n ? e.at : n), undefined)
+    const recent = isWhole(l.now) && newest !== undefined && newest >= l.now - RECENT_MS
+    const filed = l.seen?.ids.includes(log.sid) === true
+    out.set(log.sid, log.sid === sid || filed || recent ? 'running' : tell && newest !== undefined ? 'ended' : 'unknown')
+  }
+  return out
+}
+
+/** The writer drawn for an ended session's entries: its name went with its session file. */
+export const ENDED_WRITER = 'an ended session'
+
+// The entries an ended session's line takes, read or not: every Relayed entry,
+// and every waiting entry that a Relayed entry in the same log answers.
+function endedEntries(log: DecisionLog): DecisionEntry[] {
+  const answered = new Set(log.entries.filter(e => e.source === 'relayed' && e.answers !== '').map(e => e.answers))
+  return log.entries.filter(e => e.source === 'relayed' || (e.source === 'lead' && e.waiting && answered.has(e.id)))
+}
+
+/** The logs as each view of the tab draws them (spec 444 S3, with the change
+ *  of Test round 1), for the pane's session id `sid`. This session's log is
+ *  drawn whole in To review and Flagged, and alone in History. From every
+ *  other log, To review draws, with no mark on the entry: a waiting entry,
+ *  answered or not, until the owner reads it; every Relayed entry, whether or
+ *  not it answers one; and an alarm entry in its fixed shape. Flagged draws any entry whose
+ *  latest mark is flagged, which `flaggedRows` picks by state.
+ *  Since spec 447, from a log `live` reads as ended, To review draws neither
+ *  its Relayed entries nor the waiting entries they answer: `ended` holds
+ *  those, read or not, for the block's lines and History's fold, with the
+ *  writer "an ended session". `canTell` says whether any log could be ended.
+ *  `unshown` counts the unread entries of other logs that To review does not
+ *  draw and no line counts: a number only. An Owner or Pane entry counts as
+ *  read by its source. */
+export function drawnLogs(logs: readonly ReadLog[], sid: string, states: ReadonlyMap<string, MarkState>, live: ReadonlyMap<string, Liveness> = new Map(), tell = false) {
+  const review: ReadLog[] = []
+  const history: ReadLog[] = []
+  const ended: ReadLog[] = []
+  let unshown = 0
+  for (const l of logs) {
+    if (l.sid === sid) {
+      review.push(l)
+      history.push(l)
+      continue
+    }
+    const unread = (e: DecisionEntry) => !isRead(states.get(markKey(l.sid, e.id, e.at)))
+    const gone = tell && live.get(l.sid) === 'ended' ? endedEntries(l.log) : []
+    const entries = l.log.entries.filter(e => {
+      if (!unread(e) || gone.includes(e)) return false
+      return (
+        (e.source === 'lead' && e.waiting) ||
+        e.source === 'relayed' ||
+        (e.source === 'alarm' && inFixedShape(e))
+      )
+    })
+    for (const e of l.log.entries) {
+      if (e.source === 'owner' || e.source === 'pane' || isRead(states.get(markKey(l.sid, e.id, e.at))) || entries.includes(e) || gone.includes(e)) continue
+      unshown++
+    }
+    review.push({ ...l, log: { ...l.log, entries } })
+    if (gone.length > 0) ended.push({ ...l, writer: ENDED_WRITER, log: { ...l.log, entries: gone } })
+  }
+  return { review, flagged: [...logs], history, ended, canTell: tell, unshown }
+}
+
+/** The entries Mark all read takes from To review's order: this session's
+ *  plain Lead entries. Waiting entries (so an answered pair's waiting side),
+ *  alarms and Relayed entries (so an answer) are never taken. `hash` is the
+ *  first 16 hex digits of SHA-256 over the set's mark keys, sorted and joined
+ *  by line breaks: a staleness check on the press, not a secret. */
+export function markAllSet(order: readonly Row[], sid: string) {
+  const rows = order.filter(r => r.sid === sid && r.entry.source === 'lead' && !r.entry.waiting)
+  if (rows.length === 0) return { rows, n: 0, hash: '' }
+  return { rows, n: rows.length, hash: setHash(rows) }
+}
+
+// A press's staleness check: the first 16 hex digits of SHA-256 over the
+// set's mark keys, sorted and joined by line breaks.
+const setHash = (rows: readonly Row[]) => sha256Hex(rows.map(rowKey).sort().join('\n')).slice(0, 16)
+
+const MARK_ALL_KEY = /^dmarkall-([1-9][0-9]{0,2})-([0-9a-f]{16})$/
+/** A Mark all read button's key, matched whole: its count (1 to 500) and hash. */
+export function parseMarkAllKey(key: string): { n: number; hash: string } | undefined {
+  const m = MARK_ALL_KEY.exec(key)
+  const n = Number(m?.[1])
+  return m === null || n > MAX_ENTRIES ? undefined : { n, hash: m[2] as string }
+}
+
+/** The most `work` values an ended session's line draws, and each one's length. */
+const LINE_WORKS = 3
+const LINE_WORK_CHARS = 40
+
+/** One ended session's line in To review (spec 447 S4.2): its unread entries
+ *  that match the search, newest first, their count and hash, the newest
+ *  one's time, and the distinct `work` values, newest first, at most 3 of
+ *  them, each cleaned as a roster line is and cut to 40 characters, with how
+ *  many more there are. It names no session. */
+export type EndedLine = { rows: Row[]; n: number; hash: string; at: number; works: string[]; more: number }
+
+/** To review's block: one line for each ended log in `ended` with an unread
+ *  entry that matches the search, the line with the newest such entry first.
+ *  Mark these N read takes exactly a line's rows. */
+export function endedLines(ended: readonly ReadLog[], states: ReadonlyMap<string, MarkState>, words: readonly string[]): EndedLine[] {
+  const lines: (EndedLine & { sid: string })[] = []
+  for (const l of ended) {
+    const rows = rowsOf([l])
+      .filter(r => !isRead(states.get(rowKey(r))) && matchesSearch(r.entry, r.writer, words))
+      .sort((a, b) => oldestFirst(b, a))
+    const first = rows[0]
+    if (first === undefined) continue
+    // Cleaned and cut first, so two values that draw alike count once.
+    const works = [...new Set(rows.map(r => oneLine(r.entry.work, LINE_WORK_CHARS)))]
+    lines.push({
+      sid: l.sid,
+      rows,
+      n: rows.length,
+      hash: setHash(rows),
+      at: first.entry.at,
+      works: works.slice(0, LINE_WORKS),
+      more: Math.max(works.length - LINE_WORKS, 0),
+    })
+  }
+  return lines
+    .sort((a, b) => b.at - a.at || (a.sid < b.sid ? -1 : a.sid > b.sid ? 1 : 0))
+    .map(({ sid: _, ...line }) => line)
+}
+
+const MARK_ENDED_KEY = /^dmarkended-([1-9][0-9]{0,2})-([0-9a-f]{16})$/
+/** A Mark these N read button's key, matched whole: its count (1 to 500) and hash. */
+export function parseMarkEndedKey(key: string): { n: number; hash: string } | undefined {
+  const m = MARK_ENDED_KEY.exec(key)
+  const n = Number(m?.[1])
+  return m === null || n > MAX_ENTRIES ? undefined : { n, hash: m[2] as string }
 }
 
 /** The source as the tab draws it. An Owner entry draws plain "Owner" only
