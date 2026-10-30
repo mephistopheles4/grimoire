@@ -11,14 +11,17 @@ it carries four kinds of entry, each marked "From another session" by
 comparing session ids, never names:
 
 - a waiting entry, answered or not, in To review, until the owner marks it
-  read;
-- a Relayed entry that answers a waiting entry, in To review, until read (a
-  change of Test round 1, taken by the lead at level 3, so that a claim about
-  the owner's words still reaches the owner as a card);
+  read (a change of Test round 1, taken by the lead at level 3: the owner's
+  first choice was an unanswered one);
+- a Relayed entry, in To review, until read, whether or not it answers a
+  waiting entry (a change of Test round 1, taken by the lead at level 3, so
+  that a claim about the owner's words still reaches the owner as a card;
+  widened from answers only to every Relayed entry on the owner's word, relayed
+  by the lead, in the closing read);
 - an unread alarm entry in its fixed shape, in To review, until read;
 - an entry the owner flagged, in Flagged to revisit, until unflagged.
 
-Nothing else from another log is drawn. A dim-line count says how many unread
+Nothing else from another log is drawn; a plain Lead entry is only counted. A dim-line count says how many unread
 entries of other logs the tab no longer draws, in numbers only. The pane still
 reads the same files, this session's and the 20 newest others of each kind. No
 file is deleted or rewritten; earlier logs stay on disk, unshown, and the
@@ -27,7 +30,17 @@ owner can delete them by hand.
 The owner chose this on issue 444 (q1 to q3 A and q9 A, relayed by the lead on
 2026-10-29). To review's heading also gains "Mark all N read", and the marks
 file's cap rises from 64 KiB to 256 KiB so one press of 500 marks fits beside
-the 2,000-mark count (q14).
+the 2,000-mark count (q14). The cap is narrowed to the entry ids that occur: ids
+run in sequence, so a mark is about 115 to 122 bytes and 2,000 marks fit, while
+at the widest id the format allows the cap holds fewer old marks than the
+count; the order of the drops still holds.
+
+The drop scan of `log_decision` reads this session's own marks file in full and
+the other marks files newest first, up to 8 MiB by listed size in all, and a
+file over the marks cap takes nothing from that bound. Past the bound the rest
+count as unread, which fails safe, and a mark dated no later than the first
+skipped file's time plus the two-minute clock allowance counts for nothing, so
+a flag in a skipped file cannot be hidden behind an older read mark.
 
 ## Why
 

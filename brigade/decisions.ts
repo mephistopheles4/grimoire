@@ -546,8 +546,8 @@ export function historyRows(logs: readonly ReadLog[], words: readonly string[], 
  *  of Test round 1), for the pane's session id `sid`. This session's log is
  *  drawn whole in To review and Flagged, and alone in History. From every
  *  other log, To review draws, with no mark on the entry: a waiting entry,
- *  answered or not, until the owner reads it; a Relayed entry that answers
- *  one; and an alarm entry in its fixed shape. Flagged draws any entry whose
+ *  answered or not, until the owner reads it; every Relayed entry, whether or
+ *  not it answers one; and an alarm entry in its fixed shape. Flagged draws any entry whose
  *  latest mark is flagged, which `flaggedRows` picks by state.
  *  `unshown` counts the unread entries of other logs that To review does not
  *  draw: a number only. An Owner or Pane entry counts as read by its source. */
@@ -566,7 +566,7 @@ export function drawnLogs(logs: readonly ReadLog[], sid: string, states: Readonl
       if (!unread(e)) return false
       return (
         (e.source === 'lead' && e.waiting) ||
-        (e.source === 'relayed' && e.answers !== '') ||
+        e.source === 'relayed' ||
         (e.source === 'alarm' && inFixedShape(e))
       )
     })

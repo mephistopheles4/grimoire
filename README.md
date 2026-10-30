@@ -188,9 +188,10 @@ search box filters all three by every word you type.
 
 Since 0.89.0 the tab shows this lead's decisions only. From other sessions'
 logs it carries four kinds of decision, each marked "From another session":
-a waiting entry, a relayed answer to one, and an alarm, all until you read
+a waiting entry, any relayed entry, and an alarm, all until you read
 them, and any decision you flagged until you unflag it. A new lead
-therefore never hides a question meant for you. Earlier sessions' logs stay on
+therefore never hides a question meant for you. A plain Lead entry of another
+session is only counted. Earlier sessions' logs stay on
 disk, unshown, and you can delete them by hand; the pane still reads the 20
 newest, and the dim line at the foot counts the unread entries of other logs
 that the tab no longer draws. "✓ Mark all N read", at the right of To review's

@@ -716,7 +716,7 @@ async function readDecisions($: EngineInterface, live: () => boolean) {
 // The most marks-file bytes one drop scan reads: 32 files at their cap.
 const MAX_SCAN_BYTES = 8 * 1024 * 1024
 
-// Every marks file in the folder, through the same cache, for log_decision's
+// The marks files in the folder, up to MAX_SCAN_BYTES, through the same cache, for log_decision's
 // drop rule: an entry with no readable read mark counts as unread.
 async function allReadMarks($: EngineInterface, at: Where, now: number) {
   return (await readMarks($, at, now, false)) ?? new Map()
@@ -737,10 +737,17 @@ async function readMarks($: EngineInterface, at: Where, now: number, strict: boo
     for (const f of [...(l.own !== undefined ? [l.own] : []), ...l.others]) {
       // Under the pane's checks: a file dated more than two minutes ahead gives no mark.
       if (f.mtimeMs > now + AHEAD_MS) continue
-      // The scan reads at most MAX_SCAN_BYTES of files by their listed sizes,
-      // newest first. Past it the rest count as unread, which fails safe.
+      // A file over the marks cap fails its check and is read by no one, so it
+      // takes nothing from the bound.
+      if (f.size > MAX_MARKS_BYTES) {
+        if (strict) return undefined
+        continue
+      }
+      // The scan reads at most MAX_SCAN_BYTES of files by their listed sizes:
+      // this session's own file in full first, then the others newest first.
+      // Past the bound the rest count as unread, which fails safe.
       scanned += f.size
-      if (scanned > MAX_SCAN_BYTES) {
+      if (f !== l.own && scanned > MAX_SCAN_BYTES) {
         if (strict) return undefined
         cutAt = f.mtimeMs
         break
