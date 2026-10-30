@@ -1,6 +1,6 @@
 # How the pages handle a stranger's text
 
-This page is part of the threat model in [`threat-model.md`](threat-model.md). A control it names is named by the threat model, and a security review is handed it with the threat model.
+This page is part of the threat model in [`threat-model.md`](threat-model.md). A control it names is named by the threat model, and a security review is handed it with the threat model. An edit to its accepted-risk, candidate or gap lines is an edit to the threat model's accepted risks.
 
 Both renderers turn a file somebody else may have written into an HTML page you
 open. This is the main risk in the repository, so this page states exactly what

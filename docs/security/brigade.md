@@ -1,6 +1,6 @@
 # Brigade and head chef: bounds and guards
 
-This page is part of the threat model in [`threat-model.md`](threat-model.md). A control it names is named by the threat model, and a security review is handed it with the threat model.
+This page is part of the threat model in [`threat-model.md`](threat-model.md). A control it names is named by the threat model, and a security review is handed it with the threat model. An edit to its accepted-risk, candidate or gap lines is an edit to the threat model's accepted risks.
 
 This page holds the detail behind the short page's R5, R6 and R7: the bounds on each call the Brigade mod makes through the engine, and the head chef's guards and data. The summary below points into the moved text: [row 15](#row-15) for the mod, [row 16](#row-16) for the head chef, and [the engine calls](#row-15-the-engine-calls-behind-its-write-and-its-tool-call) for each call's bounds. Where the summary and the moved text differ, the moved text holds. Residual risks are named by the threat model's classes and candidates only.
 
@@ -23,7 +23,7 @@ Sources: `brigade/register.tsx`, `skills/head-chef/references/CONTRACT.md` and `
 - C5: a forged or misled session, and false entries written within the tool's own rules.
 - C7: other repositories' rows and titles in memory and on the pane, files at rest that reach backup, sync and other local accounts, and the level in the lead's transcript.
 - C8: no permission prompt on the mod's tools.
-- Candidates: same-user races, links, planted files and files at rest (P1); left-behind or planted session files (P2); reliability items (P3); the report store's question and a session's Remote Control link in plugin state (P6). The proposed scope line would drop the same-user paths: proposed (P0); not in force. Until the owner names a candidate, each entry stays as at the base.
+- Candidates: same-user races, links, planted files and files at rest (P1); left-behind or planted session files (P2); reliability items (P3); the report store's question and a session's Remote Control link in plugin state (P6). The proposed scope line (P0) drops none of these outright; see P1. Until the owner names a candidate, each entry stays as at the base.
 
 ## Summary, part 2: the head chef's guards
 
@@ -46,10 +46,10 @@ What crosses a boundary, with the class or candidate that holds it. Same-user re
 | Data | Where it sits | Who else can reach it |
 | --- | --- | --- |
 | Questions, decisions, relays, reports, decision gists | The lead's and each session's transcripts | Every device on Remote Control: an open gap, candidate P6 (D1a, D3b) |
-| Each session's lead id and address | The session's transcript | The same, for sessions with Remote Control on (C7; D4d, D4e) |
+| Each session's lead id and address | The session's transcript | The same, for sessions with Remote Control on (candidate P6; D4d, D4e) |
 | The autonomy level and its times | The lead's transcript | The same (C7; E38d) |
 | A background session's Remote Control link | Plugin state, and the opener's command line on macOS and Linux | Other plugins: candidate P6 (D4a); other users of a shared host (C7; E76) |
-| The filled start prompt | The lead's command line during a background start | Other users of a shared host (C7; E65) |
+| The filled start prompt | The lead's command line during a background start, and the session's transcript | Other users of a shared host (C7; E65); Remote Control devices, for the transcript copy (candidate P6; D4c) |
 | One-line questions in the report store | Plugin state | Other plugins: candidate P6 (D1b) |
 | Text the owner asked to post | GitHub records, possibly public; a temporary post file until it is deleted | Anyone, for a public record (C6; E53, E60); other users of a shared `/tmp` (C7; E55, E63b) |
 | What earlier versions posted (quoted words, questions, check lines) | GitHub records | Stays after an upgrade: candidate P6 (D1d, D5b) |

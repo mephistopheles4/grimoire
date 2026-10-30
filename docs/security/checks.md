@@ -1,6 +1,6 @@
 # Threat model detail: rows 1 to 14 and 17 to 19
 
-This page is part of the threat model in [`threat-model.md`](threat-model.md). A control it names is named by the threat model, and a security review is handed it with the threat model.
+This page is part of the threat model in [`threat-model.md`](threat-model.md). A control it names is named by the threat model, and a security review is handed it with the threat model. An edit to its accepted-risk, candidate or gap lines is an edit to the threat model's accepted risks.
 
 Each section below holds one scenario of the old matrix, told from the attacker's side, with what stops it today, what still gets through and its framework tags. The short page's risk table maps each row to its risk.
 
