@@ -264,7 +264,18 @@ write. Its keys name both entries, `dnext-<id>-<time>-<answer id>-<answer
 time>`, holding no session id. Read, next, Flag and Skip now work out the card
 shown inside the marks queue's turn, and act only when that card is still
 the one shown with the same entries: a press on a card drawn alone never marks
-an answer that arrived after the draw. Both files go only where the roster's link-refusing path rule
+an answer that arrived after the draw. "✓ Mark N relayed read" (since 0.91.0,
+spec 448, one write) has a key of its own, `dmarkrelayed-<n>-<hash>`, holding
+no session id. It works out its set again inside the marks queue's turn and
+writes only when the set's count and hash are unchanged. It takes only the
+pane's own session's unread Relayed entries that answer no waiting entry,
+under the search; never a waiting entry, a Relayed entry that answers one, an
+alarm, a Lead entry, or an entry of another log, so a question and its answer
+leave only from their own card. Like Mark these N read it writes nothing, and
+says the marks file is full of entries the owner read, when the caps would
+push out a mark that is still an entry's newest state. Its hash is the same
+unkeyed SHA-256, a staleness check that protects nothing secret. The marks one
+bulk press writes share one press time. Both files go only where the roster's link-refusing path rule
 allows, overwrite only a file that passes the strict check of its own kind,
 and are checked again after the write. While the pane is open, and only then,
 it lists both folders on the roster's 5-second poll, reads this session's own
@@ -297,7 +308,7 @@ own hash; it protects nothing secret. What follows from it:
 - **What the files reveal:** every decision a lead logged, its reason and the
   options it weighed, waiting entries that hold decisions the owner keeps,
   each entry's level, and which entries the owner read and when, and, since 0.82.0, which the owner flagged to revisit and when each was unflagged or dismissed;
-  a mark's time from a Mark all read press, or since 0.90.0 a Mark these N read press, records the press, not a reading of each entry. The files are
+  a mark's time from a Mark all read press, or since 0.90.0 a Mark these N read press, or since 0.91.0 a Mark N relayed read press, records the press, not a reading of each entry, and a claim such a press marks stays readable in History only until its log's cap drops it as a read entry. The files are
   named by session id, a mark names the session id of the log it marks, and
   each log holds a plain, unkeyed SHA-256 digest of the working folder's
   transcript-folder name, never the name, which a reader who can list the

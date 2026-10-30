@@ -1198,3 +1198,45 @@ test('spec 448 claim 3: a pair key matches whole, naming both entries by id and 
     assert.equal(parsePairKey(bad), undefined, bad);
   }
 });
+
+// --- spec 448 Part B: Mark N relayed read ---------------------------------------------------------
+
+const { markRelayedSet, parseMarkRelayedKey } = d;
+
+test('spec 448 claims 7 and 8: Mark N relayed read takes only this log\'s shown Relayed entries that answer nothing, with the hash over their sorted mark keys', () => {
+  const ls = pairLogs();
+  let own = ls[0].log;
+  for (const [raw, at] of [[input({ source: 'relayed', work: 'lone claim' }), NOW + 5], [alarmEntry(3), NOW + 6]]) {
+    own = appendEntry(own, raw, { at, level: 1, read: new Map(), fixed: raw.source === 'alarm' }).value.log;
+  }
+  ls[0].log = own;
+  const v = drawnLogs(ls, SID, new Map());
+  const q = reviewCards(v.review, SID, new Map(), new Set(), []);
+  // The other log's relayed entries are in the order, and never taken.
+  assert.ok(q.shown.some(r => r.sid === OTHER && r.entry.source === 'relayed'));
+  const set = markRelayedSet(q.shown, SID);
+  assert.deepEqual(set.rows.map(r => r.entry.work), ['lone claim'], 'never the waiting entry, its answer, a plain Lead entry, an alarm or another log\'s entry');
+  assert.equal(set.n, 1);
+  assert.equal(set.hash, createHash('sha256').update(set.rows.map(r => keyOf(r.sid, r.entry)).sort().join('\n')).digest('hex').slice(0, 16));
+  // A search that hides the claim leaves nothing; the answer drawn alone, its question read, is still not taken.
+  assert.deepEqual(markRelayedSet(reviewCards(v.review, SID, new Map(), new Set(), searchWords('my answer')).shown, SID), { rows: [], n: 0, hash: '' });
+  const wRead = new Map([[keyOf(SID, own.entries[1]), 'read']]);
+  assert.deepEqual(markRelayedSet(reviewCards(drawnLogs(ls, SID, wRead).review, SID, wRead, new Set(), []).shown, SID).rows.map(r => r.entry.work), ['lone claim']);
+  // The hash moves when the set does.
+  own = appendEntry(own, input({ source: 'relayed', work: 'second claim' }), { at: NOW + 7, level: 1, read: new Map() }).value.log;
+  ls[0].log = own;
+  const more = markRelayedSet(reviewCards(drawnLogs(ls, SID, new Map()).review, SID, new Map(), new Set(), []).shown, SID);
+  assert.equal(more.n, 2);
+  assert.notEqual(more.hash, set.hash);
+});
+
+test('spec 448 claim 9: the Mark N relayed read key matches whole, from 1 to 500, and is no other press\'s key', () => {
+  const h = 'abcdef0123456789';
+  assert.deepEqual(parseMarkRelayedKey(`dmarkrelayed-3-${h}`), { n: 3, hash: h });
+  assert.deepEqual(parseMarkRelayedKey(`dmarkrelayed-500-${h}`), { n: 500, hash: h });
+  for (const bad of [`dmarkrelayed-0-${h}`, `dmarkrelayed-501-${h}`, `dmarkrelayed-03-${h}`, `dmarkrelayed-1000-${h}`, `dmarkrelayed-3-${h}x`, ` dmarkrelayed-3-${h}`, `dmarkrelayed-3-${h.toUpperCase()}`, `dmarkrelayed-3-${h.slice(1)}`, `dmarkrelayed-3-${h}\n`, `dmarkall-3-${h}`, `dmarkended-3-${h}`]) {
+    assert.equal(parseMarkRelayedKey(bad), undefined, bad);
+  }
+  assert.equal(parseMarkAllKey(`dmarkrelayed-3-${h}`), undefined);
+  assert.equal(parseMarkEndedKey(`dmarkrelayed-3-${h}`), undefined);
+});

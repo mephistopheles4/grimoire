@@ -223,6 +223,18 @@ and "n of N" count the card once; the tab's totals still count entries. A
 question and its answer carried from another session's log still show as two
 cards.
 
+Since 0.91.0 To review's heading also shows "✓ Mark N relayed read", beside
+Mark all read. It marks read, in one write, this lead's own unread Relayed
+entries that answer no question, the claims about your words that it logged.
+It leaves out a question and its answer, which leave only from their own
+card, every other entry, every other session's entries, and anything your
+search hides, and a press marks nothing if the set changed since you looked,
+or if your marks file is so full that the write would push out marks of
+entries you read. A mark from any bulk press records the press, not a
+reading of each entry, and the marks one press writes share one press time.
+A claim it marks stays in History only until its log's cap drops it as a
+read entry.
+
 The lead keeps its working state with the `set_lead_handoff` tool: how to
 resume, the rules in force, the running sessions, the cleanup waiting and what
 is open for you, which it reads back with `read_lead_handoff` after a
@@ -408,7 +420,7 @@ files you ask for:
   row's other repository by owner/name, private ones included.
   Since 0.81.0 it also writes each lead's decision log, one entry per
   decision the lead logs, and a marks file of the Read, Flag, Unflag,
-  Dismiss and, since 0.89.0, Mark all read and, since 0.90.0, Mark these N read presses you make in its Decisions tab, both in plain text in the same folder, never removed by the
+  Dismiss and, since 0.89.0, Mark all read and, since 0.90.0, Mark these N read and, since 0.91.0, Mark N relayed read presses you make in its Decisions tab, both in plain text in the same folder, never removed by the
   mod, and since 0.83.0 each lead's hand-off, its working state, beside them.
   Since 0.84.0 the log also holds each move of the autonomy slider, each reset
   and each alarm, with its time; since 0.86.0, not an alarm that repeats
