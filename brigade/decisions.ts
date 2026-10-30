@@ -477,6 +477,26 @@ export function addMarks(
   return { kind: 'marks', v: 1, marks: marks.filter((_, i) => !dropped.has(i)) }
 }
 
+/** Whether writing `after` in place of `before` changes the counted state of
+ *  an entry in a log read (`known`) other than the entries the write marks
+ *  (`marked`): that is, whether the caps pushed out a mark that was still its
+ *  entry's newest counted state, so the entry would read as it did before
+ *  that mark. Mark these N read writes nothing when this holds (spec 447,
+ *  Test round 1, q3 A), so a bulk press never undoes the owner's own reads. */
+export function dropsLiveMark(
+  before: MarksFile | undefined,
+  after: MarksFile,
+  others: readonly MarksFile[],
+  known: ReadonlySet<string>,
+  marked: ReadonlySet<string>,
+  now: number,
+): boolean {
+  const was = mergeMarks([...(before === undefined ? [] : [before]), ...others], now)
+  const is = mergeMarks([after, ...others], now)
+  for (const k of known) if (!marked.has(k) && was.get(k) !== is.get(k)) return true
+  return false
+}
+
 // --- what the tab draws (S5.4) --------------------------------------------------
 
 /** One log as the pane read it: its session id, the writer's drawn name and the log. */
@@ -683,14 +703,15 @@ export function endedLines(ended: readonly ReadLog[], states: ReadonlyMap<string
       .sort((a, b) => oldestFirst(b, a))
     const first = rows[0]
     if (first === undefined) continue
-    const works = [...new Set(rows.map(r => r.entry.work))]
+    // Cleaned and cut first, so two values that draw alike count once.
+    const works = [...new Set(rows.map(r => oneLine(r.entry.work, LINE_WORK_CHARS)))]
     lines.push({
       sid: l.sid,
       rows,
       n: rows.length,
       hash: setHash(rows),
       at: first.entry.at,
-      works: works.slice(0, LINE_WORKS).map(w => oneLine(w, LINE_WORK_CHARS)),
+      works: works.slice(0, LINE_WORKS),
       more: Math.max(works.length - LINE_WORKS, 0),
     })
   }

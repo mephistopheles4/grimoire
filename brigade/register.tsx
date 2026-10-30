@@ -92,6 +92,7 @@ import {
   parseMarkAllKey,
   parseMarkEndedKey,
   canTell,
+  dropsLiveMark,
   endedLines,
   sessionStates,
   reviewQueue,
@@ -825,7 +826,9 @@ const writeMarks = ($: EngineInterface, rows: readonly Row[], state: 'read' | 'f
 
 // The body of a marks write, with no turn of its own: a caller already in the
 // marks queue's turn (Mark all read) calls this, so the queue cannot wait on itself.
-async function writeMarksNow($: EngineInterface, rows: readonly Row[], state: 'read' | 'flagged' | 'unflagged'): Promise<boolean> {
+// With `keepLive` (Mark these N read) it writes nothing when the caps would push
+// out a mark that is still its entry's newest state.
+async function writeMarksNow($: EngineInterface, rows: readonly Row[], state: 'read' | 'flagged' | 'unflagged', keepLive = false): Promise<boolean> {
   try {
     const at = await where($)
     if ('error' in at) return false
@@ -842,6 +845,7 @@ async function writeMarksNow($: EngineInterface, rows: readonly Row[], state: 'r
     const known = new Set(tabRead.logs.flatMap(l => l.log.entries.map(e => markKey(l.sid, e.id, e.at))))
     const others = tabRead.marks.filter(m => m.sid !== at.id).map(m => m.file)
     const value = addMarks(file, rows.map(r => ({ log: r.sid, id: r.entry.id, entryAt: r.entry.at, state, at: now })), known, others, now)
+    if (keepLive && dropsLiveMark(file, value, others, known, new Set(rows.map(r => markKey(r.sid, r.entry.id, r.entry.at))), now)) return false
     const text = serializeMarks(value)
     if ('error' in text) return false
     await $.fs.write(placed.file, text.value)
@@ -930,7 +934,9 @@ async function pressMarkAll($: EngineInterface, n: number, hash: string) {
 // queue's turn every line is worked out again from the logs read, the marks as
 // just written, the session states and the search; it writes once, in the same
 // turn, only when exactly one line matches the key's count and hash, else
-// nothing, and the tab draws again.
+// nothing, and the tab draws again. It also writes nothing, and says the mark
+// was not saved, when the marks file's caps would push out a mark that is still
+// its entry's newest state, so the press never undoes an earlier read.
 async function pressMarkEnded($: EngineInterface, n: number, hash: string) {
   await marksTurn(async () => {
     const now = await $.clock.now()
@@ -938,7 +944,7 @@ async function pressMarkEnded($: EngineInterface, n: number, hash: string) {
     const found = endedLines(v.ended, v.states, searchWords(queryFrom(await read($, query)))).filter(l => l.n === n && l.hash === hash)
     const line = found[0]
     if (line === undefined || found.length !== 1) return
-    const saved = await writeMarksNow($, line.rows, 'read')
+    const saved = await writeMarksNow($, line.rows, 'read', true)
     markFailed = !saved
   })
   await update($, decisionsSeen, n => ((typeof n === 'number' ? n : 0) + 1) % 1000000)

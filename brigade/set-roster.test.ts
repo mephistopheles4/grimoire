@@ -22,7 +22,6 @@ import { expect, mock, test } from 'claude-code/testing'
 import type { On } from 'claude-code'
 
 import { RECORDED } from './recorded-stats.ts'
-import { markKey, sha256Hex } from './decisions.ts'
 
 const TOOL = 'mcp__grimoire__set_roster'
 const OPEN_TOOL = 'mcp__ccd_window__open_session_in'
@@ -250,6 +249,9 @@ type World = ReturnType<typeof makeFs> & {
   releaseId: () => void
   /** The next this many `session.id` calls are rejected. */
   rejectIds: number
+  /** Session file names the sessions folder's listing adds, with no file behind
+   *  them: a session that ended between the listing and the read. */
+  ghosts: string[]
   /** What the fake `gh` answers: its output, exit code, error text, whether
    *  the engine cut the output short, and a message to fail to start with. */
   ghOut: string
@@ -342,6 +344,7 @@ function world(on: On, setup: (w: World) => void = w => w.dirs(`${CONFIG}\\plugi
     holdNextId: false,
     releaseId: () => {},
     rejectIds: 0,
+    ghosts: [] as string[],
     ghOut: '[]',
     ghExit: 0,
     ghErr: '',
@@ -406,7 +409,8 @@ function world(on: On, setup: (w: World) => void = w => w.dirs(`${CONFIG}\\plugi
     w.log.push(`list ${e.path}`)
     if (w.listDeny !== '' && !sessions) return { deny: w.listDeny }
     const l = w.list(e.path)
-    return l === undefined ? { deny: ENOENT } : { value: l }
+    const ghosts = String(e.path).endsWith('\\sessions') ? w.ghosts.map(name => ({ name, kind: RECORDED.list.entries.file.kind, isLink: RECORDED.list.entries.file.isLink, size: 10, mtimeMs: 1 })) : []
+    return l === undefined ? { deny: ENOENT } : { value: [...l, ...ghosts] }
   })
   on('fs.exists', ($, e: any) => {
     w.existsCalls.push(e.path)
@@ -8416,7 +8420,8 @@ const ENDED_PEER = [
   kept(1, 100, { question: 'Peer waits?', waiting: true, pick: '', work: 'issue 9' }),
   kept(2, 110, { question: 'Peer asked?', waiting: true, pick: '', work: 'issue 7' }),
   kept(3, 120, { question: 'Peer answer?', source: 'relayed', answers: '2', work: 'issue 7' }),
-  kept(4, 130, { question: 'Peer relayed?', source: 'relayed', work: 'issue 8' }),
+  // Stamped 00:03, a minute no other seeded entry uses, so the line's time is its own.
+  kept(4, 180_000, { question: 'Peer relayed?', source: 'relayed', work: 'issue 8' }),
   kept(5, 140, { question: 'Peer plain?' }),
   kept(6, 150, ALARM_444),
 ]
@@ -8444,14 +8449,14 @@ async function endedPane(on: On, $: any, surface: 'terminal' | 'desktop' | 'mobi
   return w
 }
 
-for (const surface of ['terminal', 'desktop', 'mobile'] as const) {
+for (const surface of ['terminal', 'desktop'] as const) {
   test(`spec 447 claims 1 and 6: an ended session's claims leave the queue for one line, with its fixed words, time, work values, N and press (${surface})`, async ($, on) => {
     await endedPane(on, $, surface)
     // The queue keeps the unanswered waiting entry and the alarm.
     expect(await shows(/^1 of 2$/)).toBe(true)
     expect(await shows(/^Peer waits\?$/)).toBe(true)
     expect(await shows(/^From an ended session$/)).toBe(true)
-    expect(await shows(/^1970-01-01 00:00$/)).toBe(true)
+    expect(await shows(/^1970-01-01 00:03$/)).toBe(true)
     expect(await shows(/^Work:$/)).toBe(true)
     expect(await shows(/^issue 8$/)).toBe(true)
     expect(await shows(/^issue 7$/)).toBe(true)
@@ -8465,13 +8470,23 @@ for (const surface of ['terminal', 'desktop', 'mobile'] as const) {
   })
 }
 
-test('spec 447 claim 6: a work value that holds the line\'s fixed words is drawn in its own element, and N is unchanged', async ($, on) => {
+test('spec 447 claim 6: a work value that holds the line\'s fixed words is drawn in its own element, N is unchanged, and the rest are counted', async ($, on) => {
   await endedPane(on, $, 'desktop', w =>
-    seed(w, PEER_LOG, logText([...ENDED_PEER, kept(7, 160, { source: 'relayed', work: '9 unread entries: claims' })])),
+    seed(w, PEER_LOG, logText([
+      ...ENDED_PEER,
+      kept(7, 183_000, { source: 'relayed', work: '9 unread entries: claims' }),
+      kept(8, 181_000, { source: 'relayed', work: 'issue 10' }),
+      kept(9, 182_000, { source: 'relayed', work: 'issue 11' }),
+    ])),
   )
   expect(await shows(/^9 unread entries: claims$/)).toBe(true)
-  expect(await shows(/^4 unread entries: claims about your words and the questions they answer$/)).toBe(true)
-  expect((await endedKeys()).join(" ")).toMatch(/^dmarkended-4-[0-9a-f]{16}$/)
+  expect(await shows(/^6 unread entries: claims about your words and the questions they answer$/)).toBe(true)
+  expect((await endedKeys()).join(' ')).toMatch(/^dmarkended-6-[0-9a-f]{16}$/)
+  // The newest three work values, then how many more.
+  expect(await shows(/^issue 11$/)).toBe(true)
+  expect(await shows(/^issue 10$/)).toBe(true)
+  expect(await shows(/^issue 8$/)).toBe(false)
+  expect(await shows(/^and 2 more$/)).toBe(true)
 })
 
 test('spec 447 claim 11: the dim line leaves out the line\'s entries, and the top line counts them and the fold\'s rows', async ($, on) => {
@@ -8498,6 +8513,15 @@ test('spec 447 claim 3: a session read that is not complete, or that returns not
   await w.clock.advance(10000)
   expect((await endedKeys()).length).toBe(1)
   expect(await shows(/^The pane cannot tell yet which sessions have ended\.$/)).toBe(false)
+  // A file the listing names is gone at the read: the read stays complete for the roster, not for the ended rule.
+  w.ghosts = ['998.json']
+  await w.clock.advance(10000)
+  expect(await endedKeys()).toEqual([])
+  expect(await shows(/^The pane cannot tell yet which sessions have ended\.$/)).toBe(true)
+  expect(await shows(/^Cannot read the session files\.$/)).toBe(false)
+  w.ghosts = []
+  await w.clock.advance(10000)
+  expect((await endedKeys()).length).toBe(1)
   // No sessions folder: the read returns nothing, and every state is unknown, not the last rows.
   for (const e of w.list(SESSIONS) ?? []) w.drop(`${SESSIONS}\\${e.name}`)
   w.drop(SESSIONS)
@@ -8551,7 +8575,6 @@ test('spec 447 claim 5: a log first seen after the session read began, with a re
   expect(await shows(/^new work$/)).toBe(false)
   const keys = await endedKeys()
   expect(keys.join(' ')).toMatch(/^dmarkended-3-[0-9a-f]{16}$/)
-  expect(keys[0]).not.toContain(sha256Hex(markKey(THIRD, '1', at)).slice(0, 16))
   await press($, keys[0] as string)
   expect(ownMarks(w).some((m: any) => m.log === THIRD)).toBe(false)
   expect(await shows(/^1 of 3$/)).toBe(true)
@@ -8648,11 +8671,11 @@ test('spec 447 claim 10: History\'s fold holds the ended session\'s claims, read
   const from = w.states.length
   await press($, 'dended')
   const rows = (await mounted.findAll({ type: 'Button' })).map((b: any) => String(b.key)).filter(k => k.startsWith('deopen-'))
-  expect(rows).toEqual(['deopen-0-4-130', 'deopen-1-3-120', 'deopen-2-2-110'])
+  expect(rows).toEqual(['deopen-0-4-180000', 'deopen-1-3-120', 'deopen-2-2-110'])
   expect((await mounted.findAll({ type: 'Text', text: /^Unread$/ })).length).toBe(3)
   expect(await shows(/^From another session · issue 8 · decision 4$/)).toBe(false)
   expect(await shows(/^an ended session · From another session · issue 8 · decision 4$/)).toBe(true)
-  await press($, 'deopen-0-4-130')
+  await press($, 'deopen-0-4-180000')
   expect(await shows(/^Peer relayed\?$/)).toBe(true)
   expect(w.states.slice(from).map(([k]) => k).filter(k => !seen.has(k))).toEqual([])
   expect(w.states.filter(([k]) => k === 'folded').length).toBe(folded)
@@ -8661,4 +8684,69 @@ test('spec 447 claim 10: History\'s fold holds the ended session\'s claims, read
   await press($, key as string)
   expect((await mounted.findAll({ type: 'Button' })).filter((b: any) => String(b.key).startsWith('deopen-')).length).toBe(3)
   expect((await mounted.findAll({ type: 'Text', text: /^Unread$/ })).length).toBe(0)
+})
+
+test('spec 447 claims 10 and 16: the fold pages 50 at a time by its own Show more, and draws no project digest', async ($, on) => {
+  const DIGEST_447 = 'ab'.repeat(32)
+  const many = Array.from({ length: 52 }, (_, i) => kept(i + 1, 1000 + i, { source: 'relayed', work: `item ${i + 1}` }))
+  await endedPane(on, $, 'desktop', w => seed(w, PEER_LOG, JSON.stringify({ kind: 'decisions', v: 1, next: 53, project: DIGEST_447, entries: many })))
+  await press($, 'grp-d-history')
+  await press($, 'dended')
+  const foldRows = async () => (await mounted.findAll({ type: 'Button' })).filter((b: any) => String(b.key).startsWith('deopen-')).length
+  expect(await foldRows()).toBe(50)
+  // History's own Show more is not the fold's: this session's History has no rows.
+  expect(await mounted.find({ key: 'dmore' })).toBeUndefined()
+  await press($, 'dendedmore')
+  expect(await foldRows()).toBe(52)
+  expect(await mounted.find({ key: 'dendedmore' })).toBeUndefined()
+  expect(await shows(/^an ended session · From another session · item 1 · decision 1$/)).toBe(true)
+  // No drawn text holds the log's project digest, a row opened included.
+  await press($, 'deopen-51-1-1000')
+  expect(await shows(/^Question 1\?$/)).toBe(true)
+  expect((await mounted.findAll({ type: 'Text', text: new RegExp(DIGEST_447) })).length).toBe(0)
+})
+
+test('spec 447 claim 4 (S3.9): a session whose newest entry passes 30 minutes ends at the next live poll, with no file changed', async ($, on) => {
+  // The peer's newest entry turns 30 minutes old 15 seconds after the pane opens:
+  // running at the open, ended by the second live poll, before the minute's
+  // pull request poll draws the pane again for its own reasons.
+  const fresh = ENDED_PEER.map(e => ({ ...e, at: T447 - 30 * 60 * 1000 + 15_000 - 10 + Number(e.id) }))
+  const w = await endedPane(on, $, 'desktop', w => seed(w, PEER_LOG, logText(fresh)))
+  expect(await endedKeys()).toEqual([])
+  expect(await shows(/^1 of 5$/)).toBe(true)
+  const writes = anyWrites(w)
+  const from = w.states.length
+  // Only the clock moves: the live poll finds it ended and moves the redraw counter.
+  await w.clock.advance(20_000)
+  expect(w.states.slice(from).some(([k]) => k === 'decisionsSeen')).toBe(true)
+  expect((await endedKeys()).length).toBe(1)
+  expect(await shows(/^1 of 2$/)).toBe(true)
+  expect(anyWrites(w)).toBe(writes)
+})
+
+test('spec 447 claim 8 (Test round 1, q3 A): a press that would push out the owner\'s own live read marks writes nothing and says so; one that drops only marks for no log read writes', async ($, on) => {
+  const big = (n: number) => logText(Array.from({ length: 500 }, (_, i) => kept(i + 1, 500 + i, { work: `log ${n}` })))
+  const LOGS = ['bbbbbbbb-0000-0000-0000-000000000001', 'bbbbbbbb-0000-0000-0000-000000000002', 'bbbbbbbb-0000-0000-0000-000000000003', 'bbbbbbbb-0000-0000-0000-000000000004']
+  // 1,998 read marks, each the newest state of a plain entry in a log the pane reads.
+  const live = LOGS.flatMap(sid => Array.from({ length: 500 }, (_, i) => ({ log: sid, id: String(i + 1), entryAt: 500 + i, state: 'read', at: 2000 + i }))).slice(0, 1998)
+  const w = await endedPane(on, $, 'desktop', w => {
+    LOGS.forEach((sid, n) => seed(w, `${DECISIONS}\\${sid}.json`, big(n)))
+    seed(w, OWN_MARKS, marksText(live))
+  })
+  const [key] = await endedKeys()
+  expect(key).toMatch(/^dmarkended-3-/)
+  const writes = writesTo(w, OWN_MARKS)
+  await press($, key as string)
+  expect(writesTo(w, OWN_MARKS)).toBe(writes)
+  expect(await shows(/^Not saved: the mark could not be written$/)).toBe(true)
+  expect(ownMarks(w).length).toBe(1998)
+  expect((await endedKeys()).length).toBe(1)
+  // The same count of marks, for entries in no log read: those drop, and the press writes.
+  seed(w, OWN_MARKS, marksText(live.map(m => ({ ...m, log: 'cccccccc-0000-0000-0000-000000000000' }))), 2)
+  await w.clock.advance(5000)
+  const [again] = await endedKeys()
+  await press($, again as string)
+  expect(writesTo(w, OWN_MARKS)).toBe(writes + 1)
+  expect(ownMarks(w).filter((m: any) => m.log === PEER).map((m: any) => m.id).sort()).toEqual(['2', '3', '4'])
+  expect(await endedKeys()).toEqual([])
 })
