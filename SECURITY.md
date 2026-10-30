@@ -283,8 +283,9 @@ own hash; it protects nothing secret. What follows from it:
   to its cap, after which the tool refuses until the owner reads. The pane
   draws a Relayed entry and an answer only as the writer's claim. Any session,
   in any working folder, that loads head-chef without the owner typing it can
-  log the same, and its entries land unread in every lead's To review; the
-  owner accepted this on 2026-10-26 (q10 A on #402's ticket 411).
+  log the same, and its entries reach every lead's To review as cards or counts;
+  the owner accepted this on 2026-10-26 (q10 A on #402's ticket 411), and
+  reworded this sentence on 2026-10-30 in chat ("Reword them").
 
 **Since 0.83.0 a lead keeps a hand-off** (spec 402, ticket 3). The mod offers
 two more tools wherever it offers `set_roster`. `set_lead_handoff` replaces

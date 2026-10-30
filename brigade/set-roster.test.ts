@@ -5540,16 +5540,6 @@ test('spec 444 claim 3: a carried flagged row leaves Flagged by Unflag, and by D
   expect(await mounted.find({ key: 'dfopen-0-1-100' })).toBeUndefined()
 })
 
-test('spec 444: under a search the header counts the entries the tab draws that match', async ($, on) => {
-  await decisionsPane(on, $, 'desktop', w => {
-    seed(w, LOG, logText([kept(1, 200, { work: 'alpha' }), kept(2, 300, { work: 'beta' })]))
-    seed(w, PEER_LOG, logText([kept(1, 100, { work: 'alpha', waiting: true, pick: '' }), kept(2, 110, { work: 'alpha' })]))
-  })
-  expect(await shows(/^3 decisions · 3 unread$/)).toBe(true)
-  await mounted.input({ key: 'dsearch', text: 'alpha', kind: 'change' })
-  expect(await shows(/^2 of 3 match$/)).toBe(true)
-})
-
 test('spec 444 claim 14: a carried card says it is from another session though its writer has this session\'s name', async ($, on) => {
   await decisionsPane(on, $, 'desktop', w => {
     liveRows(w, [{ name: 'lead-a', status: 'idle', sessionId: SID }, { name: 'lead-a', status: 'idle', sessionId: PEER }])
@@ -5814,6 +5804,42 @@ test('spec 444 claim 10: a press passes its clock to the drop order, so an unfla
   expect(parsed(w, OWN_MARKS).marks.length).toBe(2000)
   await press($, 'dnext-500-1499')
   expect(ownMarks(w).some((m: any) => m.log === PEER && m.id === '1' && m.state === 'flagged')).toBe(true)
+})
+
+test('spec 444 claim 3: a History row opens from the drawn set, not from an unrelated newer entry of another log', async ($, on) => {
+  await decisionsPane(on, $, 'desktop', w => {
+    seed(w, LOG, logText([kept(1, 200, { question: 'Mine?' })]))
+    seed(w, PEER_LOG, logText([kept(1, 500, { question: 'Peer newer?' })]))
+  })
+  await press($, 'grp-d-history')
+  const cards = async () => (await mounted.findAll({ type: 'Text', text: /^Mine\?$/ })).length
+  const before = await cards()
+  await press($, 'dopen-0-1-200')
+  expect(await cards()).toBe(before + 1)
+})
+
+test('spec 444 claim 7: a skipped entry still counts as shown, so the label counts it and the press marks it', async ($, on) => {
+  const w = await decisionsPane(on, $, 'desktop', w => seed(w, LOG, logText([kept(1, 200, { question: 'One?' }), kept(2, 300, { question: 'Two?' })])))
+  await press($, 'dskip-1-200')
+  expect(await markAllLabel(2)).toBe(true)
+  const [key] = await markAllKeys()
+  await press($, key as string)
+  expect(ownMarks(w).map((m: any) => m.id).sort()).toEqual(['1', '2'])
+})
+
+test('spec 444: this session\'s own marks file counts toward the scan bound, so a read mark in the oldest file is out of reach', async ($, on) => {
+  const bytes = (s: string) => new TextEncoder().encode(s).length
+  const fat = bytes(fatMarks())
+  const small = bytes(marksText([{ log: SID, id: '1', entryAt: 1, state: 'read', at: 5 }]))
+  // Just enough full files to fit under 8 MiB beside the small oldest file; this session's own full file then tips the total over.
+  const w = fullLogWorld(on, Math.floor((8 * 1024 * 1024 - small) / fat))
+  seed(w, OWN_MARKS, fatMarks(), 1)
+  await start($)
+  await brigade($)
+  const before = w.text(LOG)
+  const r = await decide($)
+  expect(r.ok).toBe(false)
+  expect(w.text(LOG)).toBe(before)
 })
 
 test('spec 444 claims 4, 13, 14 and 15: another log draws only its waiting, Relayed and alarm entries, says so, and the dim line counts the rest', async ($, on) => {

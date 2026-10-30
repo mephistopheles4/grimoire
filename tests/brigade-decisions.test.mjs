@@ -789,6 +789,10 @@ test('spec 444 claims 1, 2, 13: the tab draws this log, and from another only wa
   const bent = structuredClone(ls);
   bent[1].log.entries[5].why = 'changed';
   assert.ok(!drawnLogs(bent, SID, new Map()).review.find(l => l.sid === OTHER).log.entries.some(e => e.source === 'alarm'));
+  // A read carried alarm leaves To review.
+  const alarmRead = new Map([[keyOf(OTHER, other[5]), 'read']]);
+  assert.ok(drawnLogs(ls, SID, new Map()).review.find(l => l.sid === OTHER).log.entries.some(e => e.source === 'alarm'));
+  assert.ok(!drawnLogs(ls, SID, alarmRead).review.find(l => l.sid === OTHER).log.entries.some(e => e.source === 'alarm'));
   // A flagged carried waiting entry is read, so it leaves To review and shows in Flagged.
   const fl = new Map([[keyOf(OTHER, waits), 'flagged']]);
   const flv = drawnLogs(ls, SID, fl);
