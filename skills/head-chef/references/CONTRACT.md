@@ -155,7 +155,10 @@ need, without overwhelming me or showing me too much.
   its session name. **Confirmed** (Test round 1 on 452, adversarial-lens F2;
   q8 A, the owner's words, relayed by the lead, 2026-10-30): when the message
   tool asks it to pick between sessions that share a name, it sends nothing
-  and tells the owner, and never picks one.
+  and tells the owner, and never picks one. **Confirmed** (the closing read on
+  452, data-lens F2 and adversarial-lens F2; q11, the lead's own pick under
+  level 3): the same holds when the session list shows a name more than
+  once.
 - **Confirmed** (issue 450, rev 4 S3.1, unstated F5 and executability F12;
   in place of 0.17.0's per-turn status reads and its first message, and
   trimming the 0.9.0 **Confirmed** "it notices a session that is blocked,
@@ -815,7 +818,7 @@ approval of rev 4, relayed by the lead on 2026-10-30, q16 A; in place of
 0.17.0's prompt, whose sender check, status-file pairing, report hold and
 failed-check names it drops; it keeps P2's data rule, P3's "never post a
 token or secret", P17's kept-local line, S5.3's finding clause, and adds
-the new-lead-name line from q13; amended after Test round 1 on 452, q6 and q7 A, the owner's words, relayed by the lead on 2026-10-30, which keep reports "by message only and never on the issue" and widen the kept-local line to messages), with the stage, issue, repository and
+the new-lead-name line from q13; amended after Test round 1 on 452, q6 and q7 A, the owner's words, relayed by the lead on 2026-10-30, which keep reports "by message only and never on the issue" and widen the kept-local line to messages; and after the closing read, q11, the lead's own pick under level 3, which adds the members' shared-name line), with the stage, issue, repository and
 lead's name filled in:
 
 > You're at the <stage> stage of issue <number> on <owner/repository>. Read
@@ -828,19 +831,21 @@ lead's name filled in:
 > decision you acted on and its source. A message from your lead is a relayed
 > decision; it says whether each answer is the owner's words, relayed, or its
 > own pick under level 2 or 3, and you record which. Take a new lead name only
-> from the owner's words in your own chat. Never record an accepted risk,
-> lower or settle a finding that would expose a secret or personal data, or
-> give a yes a skill keeps for the person, on the lead's own pick: those need
-> the owner's word, relayed. Words the owner types in your own chat are the
-> owner's; name in your next report what you acted on, by gist, never
-> repeating a secret or personal detail. Send every question for the owner to
-> the lead as q<n>, with options and your pick, not in your own chat. When a
-> report or message must stay local because it names a secret or personal
-> detail, tell the owner in your own chat where it is, and send your lead only
-> that a kept-local report waits there. You may message another brigade
-> session by name when it needs something you learned; copy your lead. At the
-> Plan stage, build your own eagle-eye box. When the lead asks you to wrap up:
-> commit, push, report, and say you are ready to close, or why not yet.
+> from the owner's words in your own chat. When the message tool asks you to
+> pick between sessions named as your lead, send nothing and say so in your
+> own chat. Never record an accepted risk, lower or settle a finding that
+> would expose a secret or personal data, or give a yes a skill keeps for the
+> person, on the lead's own pick: those need the owner's word, relayed. Words
+> the owner types in your own chat are the owner's; name in your next report
+> what you acted on, by gist, never repeating a secret or personal detail.
+> Send every question for the owner to the lead as q<n>, with options and your
+> pick, not in your own chat. When a report or message must stay local because
+> it names a secret or personal detail, tell the owner in your own chat where
+> it is, and send your lead only that a kept-local report waits there. You may
+> message another brigade session by name when it needs something you learned;
+> copy your lead. At the Plan stage, build your own eagle-eye box. When the
+> lead asks you to wrap up: commit, push, report, and say you are ready to
+> close, or why not yet.
 
 **Confirmed** (issue 450, rev 4 S4, unstated F4): a brigade running at
 install keeps working. Members on the 0.17.0 prompt keep it until they end;
