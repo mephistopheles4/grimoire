@@ -88,6 +88,7 @@ import {
   paneEntry,
   projectDigest,
   markAllSet,
+  matchesSearch,
   parseMarkAllKey,
   reviewQueue,
   searchWords,
@@ -572,7 +573,9 @@ let sessionRows: SessionRow[] = []
 // picked for the Dismiss island and History's pages, for this pane's life;
 // and whether the last mark could not be written. Each set holds mark keys,
 // which name a session id, so they stay in this module and never reach
-// plugin state or a button's key.
+// plugin state or a button's key. The one value derived from them that does
+// reach a key is Mark all read's hash: the first 16 hex digits of a SHA-256
+// of the set's sorted mark keys, a staleness check that holds no session id.
 const skipped = new Set<string>()
 const openedRows = new Set<string>()
 const openedFlagged = new Set<string>()
@@ -3033,11 +3036,11 @@ export const register: Register = on => {
     // The island on this tab counts only the picks Flagged shows.
     const dPicked = dFlagged.filter(r => pickedRows.has(markKey(r.sid, r.entry.id, r.entry.at))).length
     // What the tab draws, each entry once: this log's, and the carried ones.
-    const dTotal = new Set([
-      ...dView.review.flatMap(l => l.log.entries.map(e => markKey(l.sid, e.id, e.at))),
-      ...dView.history.flatMap(l => l.log.entries.map(e => markKey(l.sid, e.id, e.at))),
-      ...flaggedRows(dView.flagged, dStates, []).map(r => markKey(r.sid, r.entry.id, r.entry.at)),
-    ]).size
+    const dDrawn = new Map<string, Row>()
+    for (const l of [...dView.review, ...dView.history]) for (const entry of l.log.entries) dDrawn.set(markKey(l.sid, entry.id, entry.at), { sid: l.sid, writer: l.writer, entry })
+    for (const r of flaggedRows(dView.flagged, dStates, [])) dDrawn.set(markKey(r.sid, r.entry.id, r.entry.at), r)
+    const dTotal = dDrawn.size
+    const dMatching = [...dDrawn.values()].filter(r => matchesSearch(r.entry, r.writer, words)).length
     // Counted on the logs as read, before the entries out of shape are left out.
     const dMissing = tabRead.logs.reduce((n, l) => n + missingIds(l.log), 0)
     const dOdd = tabRead.logs.reduce((n, l) => n + l.log.entries.filter(x => !inFixedShape(x)).length, 0)
@@ -4014,7 +4017,7 @@ export const register: Register = on => {
                   ? dTotal === 0
                     ? 'No decisions logged yet.'
                     : words.length > 0
-                      ? `${dHistory.total} of ${dTotal} match`
+                      ? `${dMatching} of ${dTotal} match`
                       : `${dTotal} ${dTotal === 1 ? 'decision' : 'decisions'} · ${dUnread} unread`
                   : (sessionsCount ?? '')}
             </Text>

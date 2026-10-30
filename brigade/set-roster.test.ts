@@ -5476,6 +5476,77 @@ test('spec 444 claim 8: a press whose set has moved marks nothing: the same key 
   expect(parsed(w, OWN_MARKS).marks.map((m: any) => m.id)).toEqual(['1', '2', '5'])
 })
 
+test('spec 444 claim 7: a press adds no plugin-state key, and the hash never reaches a state value', async ($, on) => {
+  const w = await decisionsPane(on, $, 'desktop', markAllSeed)
+  const [key] = await markAllKeys()
+  const seen = new Set(w.states.map(([k]) => k))
+  const from = w.states.length
+  await press($, key as string)
+  const after = w.states.slice(from)
+  expect(after.map(([k]) => k).filter(k => !seen.has(k))).toEqual([])
+  expect(after.some(([, v]) => v.includes(String(key).split('-')[2] as string))).toBe(false)
+})
+
+test('spec 444 claim 8: a Flag before the press keeps its flag out of the set, and a Read, next after it lands too', async ($, on) => {
+  const w = await flagPane(on, $, 'desktop', w => seed(w, LOG, logText([kept(1, 200, { question: 'First?' }), kept(2, 300, { question: 'Second?' })])))
+  await press($, 'dflag-1-200')
+  const [key] = await markAllKeys()
+  expect(key).toMatch(/^dmarkall-1-/)
+  await press($, key as string)
+  expect(ownMarks(w).map((m: any) => [m.id, m.state])).toEqual([['1', 'flagged'], ['2', 'read']])
+  seed(w, LOG, logText([kept(1, 200), kept(2, 300), kept(3, 400, { question: 'Third?' })]), 9)
+  await w.clock.advance(5000)
+  await press($, 'dnext-3-400')
+  expect(ownMarks(w).map((m: any) => m.id)).toEqual(['1', '2', '3'])
+  await press($, 'grp-d-flagged')
+  expect(await mounted.find({ key: 'dfopen-0-1-200' })).toBeDefined()
+})
+
+test('spec 444 claim 4: after a /clear, the earlier log\'s waiting and alarm entries still show, as from another session', async ($, on) => {
+  const alarm = { source: 'alarm', work: 'Autonomy slider', question: 'Autonomy level', options: ['1 Manual', '2 Auto', '3 Full throttle'], pick: '3 Full throttle', why: 'Changed, not from a press', undo: 'Move the slider in the pane' }
+  const w = await decisionsPane(on, $, 'desktop', w =>
+    seed(w, LOG, logText([kept(1, 100, { question: 'Old waits?', waiting: true, pick: '' }), kept(2, 110, { question: 'Old plain?' }), kept(3, 120, alarm)])),
+  )
+  expect(await shows(/^Old plain\?$/)).toBe(false)
+  // A clear: the engine answers the new session id, and the next read goes under it.
+  w.sid = NEW_SID
+  await w.clock.advance(5000)
+  expect(await shows(/^Old waits\?$/)).toBe(true)
+  expect(await shows(/^Waits for you$/)).toBe(true)
+  expect(await shows(/^From another session$/)).toBe(true)
+  expect(await shows(/^1 of 2$/)).toBe(true)
+  expect(await shows(/^Old plain\?$/)).toBe(false)
+  expect(await shows(/1 unread entry\(s\) in other sessions' logs not shown/)).toBe(true)
+})
+
+test('spec 444 claim 3: a carried flagged row leaves Flagged by Unflag, and by Dismiss, each acting on the row pressed', async ($, on) => {
+  const w = await flagPane(on, $, 'desktop', w => {
+    seed(w, LOG, logText([kept(1, 200)]))
+    seed(w, PEER_LOG, logText([kept(1, 100, { question: 'Peer one?' }), kept(2, 110, { question: 'Peer two?' })]))
+    seed(w, PEER_MARKS, marksText([flagMark(PEER, '1', 100), flagMark(PEER, '2', 110)]))
+  })
+  await press($, 'grp-d-flagged')
+  await press($, 'dfopen-1-2-110')
+  expect(await shows(/^From another session · /)).toBe(false)
+  await press($, 'dunflag-1-2-110')
+  expect(ownMarks(w).map((m: any) => [m.log, m.id, m.state])).toEqual([[PEER, '2', 'unflagged']])
+  expect(await mounted.find({ key: 'dfopen-1-2-110' })).toBeUndefined()
+  await press($, 'dfpick-0-1-100')
+  await press($, 'dbardismiss')
+  expect(ownMarks(w).map((m: any) => [m.log, m.id, m.state])).toEqual([[PEER, '2', 'unflagged'], [PEER, '1', 'unflagged']])
+  expect(await mounted.find({ key: 'dfopen-0-1-100' })).toBeUndefined()
+})
+
+test('spec 444: under a search the header counts the entries the tab draws that match', async ($, on) => {
+  await decisionsPane(on, $, 'desktop', w => {
+    seed(w, LOG, logText([kept(1, 200, { work: 'alpha' }), kept(2, 300, { work: 'beta' })]))
+    seed(w, PEER_LOG, logText([kept(1, 100, { work: 'alpha', waiting: true, pick: '' }), kept(2, 110, { work: 'alpha' })]))
+  })
+  expect(await shows(/^3 decisions · 3 unread$/)).toBe(true)
+  await mounted.input({ key: 'dsearch', text: 'alpha', kind: 'change' })
+  expect(await shows(/^2 of 3 match$/)).toBe(true)
+})
+
 test('spec 444 claim 9: a Mark all read whose marks cannot be written changes nothing and says so', async ($, on) => {
   const w = await decisionsPane(on, $, 'desktop', w => {
     markAllSeed(w)
@@ -6791,26 +6862,27 @@ test('claims 10 and 11: a module reload resets a level above 1 to 1 with a Pane 
 })
 
 test('claim 10: an Owner entry this pane did not write draws as recorded, and an Owner, Pane or alarm entry out of its shape is skipped and counted', async ($, on) => {
-  const fixed = (source: string, pick: string, why: string, undo: string) => ({
-    source, work: 'Autonomy slider', question: 'Autonomy level', options: ['1 Manual', '2 Auto', '3 Full throttle'], pick, why, undo,
+  const fixed = (source: string, pick: string, why: string, undo: string, work = 'Autonomy slider') => ({
+    source, work, question: 'Autonomy level', options: ['1 Manual', '2 Auto', '3 Full throttle'], pick, why, undo,
   })
-  await decisionsPane(on, $, 'desktop', w =>
+  await decisionsPane(on, $, 'desktop', w => {
+    // In shape, in this session's own log: drawn. Out of shape, in a peer's log: counted over every log read.
     seed(w, LOG, logText([
       kept(1, 100, fixed('owner', '2 Auto', 'Moved in the pane', 'Move the slider back')),
-      kept(2, 200, fixed('owner', '3 Full throttle', 'The lead moved it', 'Move the slider back')),
-      kept(3, 300, fixed('alarm', '3 Full throttle', 'Changed, not from a press', 'Move the slider in the pane')),
-      kept(4, 400, fixed('pane', '3 Full throttle', 'The pane was shown again', 'Move the slider in the pane')),
-    ])),
-  )
+      kept(2, 300, fixed('alarm', '3 Full throttle', 'Changed, not from a press', 'Move the slider in the pane')),
+    ]))
+    seed(w, PEER_LOG, logText([
+      kept(1, 200, fixed('owner', '3 Full throttle', 'The lead moved it', 'Move the slider back', 'Peer slider')),
+      kept(2, 400, fixed('pane', '3 Full throttle', 'The pane was shown again', 'Move the slider in the pane', 'Peer slider')),
+    ]))
+  })
   await press($, 'grp-d-history')
   expect(await shows(/^Owner \(as recorded\)$/)).toBe(true)
   expect(await shows(/^Not from a press$/)).toBe(true)
   expect(await shows(/^Pane$/)).toBe(false)
-  // History draws a row for each entry in shape, and none for the two out of it.
   expect(await shows(/· decision 1$/)).toBe(true)
-  expect(await shows(/· decision 3$/)).toBe(true)
-  expect(await shows(/· decision 2$/)).toBe(false)
-  expect(await shows(/· decision 4$/)).toBe(false)
+  expect(await shows(/· decision 2$/)).toBe(true)
+  expect(await shows(/Peer slider/)).toBe(false)
   expect(await shows(/2 Owner, Pane or alarm entry\(s\) not in their fixed shape/)).toBe(true)
   expect(await shows(/id\(s\) missing/)).toBe(false)
 })
