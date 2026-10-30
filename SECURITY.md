@@ -227,8 +227,9 @@ folder and reads the marks files there, this session's own in full and the other
 first, up to 8 MiB in total (since 0.89.0; a file over its cap takes nothing
 from the bound; the rest count as unread, which fails safe). When the owner presses "✓ Read,
 next", "⚑ Flag" or "⚑ Unflag" in the pane's Decisions tab, or Dismiss on its
-picked Flagged rows (since 0.82.0, spec 402 ticket 2), or "✓ Mark all N read"
-(since 0.89.0, spec 444, one write for all the entries it takes), the pane writes a mark
+picked Flagged rows (since 0.82.0, spec 402 ticket 2), "✓ Mark all N read"
+(since 0.89.0, spec 444, one write for all the entries it takes), or "✓ Mark
+these N read" (since 0.90.0, spec 447, one write for an ended session's line), the pane writes a mark
 for each entry, the log's session id, the entry's id and time, the state
 (read, flagged or unflagged) and the press time, in one write, to its own
 session's marks file, `brigade/marks/<session id>.json`, at most 2,000 marks
@@ -239,7 +240,14 @@ cleared one. "Mark all N read" matches its count-and-hash button key whole,
 works out its set again inside the marks queue's turn and acts only when the
 set is unchanged; it never takes a waiting entry, an alarm, a Relayed entry or
 an answer. The hash is the mod's unkeyed SHA-256 of the set's mark keys and
-protects nothing secret. Both files go only where the roster's link-refusing path rule
+protects nothing secret. "Mark these N read" works the same way with a key of
+its own, `dmarkended-<n>-<hash>`, holding no session id: it works out every
+ended session's line again inside the marks queue's turn, writes only when
+exactly one line still has its count and hash, and takes only that line's
+entries, an ended session's unread Relayed entries and the waiting entries
+they answer; never an unanswered waiting entry, an alarm, a Lead entry, or an
+entry of a session the pane reads as running or cannot tell. Its hash is the
+same unkeyed SHA-256, a staleness check that protects nothing secret. Both files go only where the roster's link-refusing path rule
 allows, overwrite only a file that passes the strict check of its own kind,
 and are checked again after the write. While the pane is open, and only then,
 it lists both folders on the roster's 5-second poll, reads this session's own
@@ -247,7 +255,24 @@ log and marks file and the 20 newest others of each by modification time,
 re-reads a file only when its size or time changed, skips a file dated more
 than two minutes ahead, reads no other file from a folder whose listing passes
 5,000 entries, and draws each log's writer by the engine's session name for
-its session id, or "an ended session". Nothing it reads enters plugin state
+its session id, or "an ended session". Since 0.90.0 (spec 447) it also tells,
+at each draw, whether another log's session runs. Running: a session file in
+the live poll's last read names the log's session id, or the log's newest
+entry is dated within 30 minutes of the engine clock. Ended: that read was
+complete, no file went after its listing, it began since the pane opened, and
+neither holds. Unknown: anything else, and then every log draws as in 0.89.0.
+The state is worked out again at each draw, kept in the module, never written
+to a file or plugin state, and cleared when the pane closes. From an ended
+session's log To review draws neither its unread Relayed entries nor the
+waiting entries they answer as cards, but one dim line for each such session:
+fixed words, the newest such entry's time, at most three of the writer's
+`work` values in their own elements after a fixed label, the count and the
+press, and no name. History's fold "From ended sessions" draws those entries,
+read or not, which no view drew from another log before, from every working
+folder's logs among the 20 newest; its open state, pages and opened rows stay
+in the module. A claim stays readable there after a press only while its log
+is among the 20 newest read, the pane reads its session as ended, and its own
+log has not dropped it as a read entry. Nothing it reads enters plugin state
 but the search text, which other plugins can read until the next open clears
 it, and a redraw counter. The project digest comes from the mod's own unkeyed
 SHA-256 in `brigade/decisions.ts`, tested against the NIST vectors and Node's
@@ -255,7 +280,7 @@ own hash; it protects nothing secret. What follows from it:
 - **What the files reveal:** every decision a lead logged, its reason and the
   options it weighed, waiting entries that hold decisions the owner keeps,
   each entry's level, and which entries the owner read and when, and, since 0.82.0, which the owner flagged to revisit and when each was unflagged or dismissed;
-  a mark's time from a Mark all read press records the press, not a reading of each entry. The files are
+  a mark's time from a Mark all read press, or since 0.90.0 a Mark these N read press, records the press, not a reading of each entry. The files are
   named by session id, a mark names the session id of the log it marks, and
   each log holds a plain, unkeyed SHA-256 digest of the working folder's
   transcript-folder name, never the name, which a reader who can list the

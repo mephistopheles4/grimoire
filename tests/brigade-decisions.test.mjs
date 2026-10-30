@@ -933,3 +933,177 @@ test('spec 444 claim 10: a mark dated over two minutes ahead supersedes nothing,
   assert.ok(next.marks.some(m => m.id === '1' && m.state === 'flagged'), 'the flag stays');
   assert.ok(!next.marks.some(m => m.id === '2'), 'the oldest plain read dropped');
 });
+
+// --- spec 447: ended sessions' claims leave To review, with one line a session ----------------
+//
+// Each test names the acceptance claim of spec 447 (S10) it backs.
+
+const { RECENT_MS, canTell, sessionStates, endedLines, parseMarkEndedKey } = d;
+const THIRD = 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee';
+// The other log's newest entry is NOW - 84, so 31 minutes on it is quiet.
+const LATER = NOW + 31 * 60 * 1000;
+// A complete read that began after the pane opened, holding only this session's file.
+const seenOnly = (ids = [SID], over = {}) => ({ ids, complete: true, fileGone: false, startedAt: LATER - 1000, ...over });
+const live = (over = {}) => ({ seen: seenOnly(), openedAt: LATER - 60_000, now: LATER, ...over });
+const view447 = (ls, states = new Map(), l = live()) => drawnLogs(ls, SID, states, sessionStates(ls, SID, l), canTell(l));
+const works447 = v => v.review.find(r => r.sid === OTHER).log.entries.map(e => e.work).sort();
+
+test('spec 447 claim 1: with the state ended, a log\'s unread Relayed and answered waiting entries leave the queue; unanswered waiting entries and alarms stay', () => {
+  const ls = tabLogsFor();
+  assert.equal(sessionStates(ls, SID, live()).get(OTHER), 'ended');
+  const v = view447(ls);
+  assert.deepEqual(works447(v), [alarmEntry(3).work, 'waits'].sort());
+  const q = reviewQueue(v.review, new Map(), new Set(), []);
+  assert.ok(!q.order.some(r => r.sid === OTHER && ['answered', 'the answer', 'relayed plain'].includes(r.entry.work)));
+  assert.equal(q.total, 3 + 2, 'the "n of N" counts the three own entries and the two that stay');
+  // Flagged is unchanged: a flagged Relayed entry of an ended log still shows there.
+  const fl = new Map([[keyOf(OTHER, ls[1].log.entries[4]), 'flagged']]);
+  assert.deepEqual(flaggedRows(view447(ls, fl).flagged, fl, []).map(r => r.entry.work), ['relayed plain']);
+});
+
+test('spec 447 claim 2: a running session draws as in 0.89.0, by its session file or by an entry from the last 30 minutes', () => {
+  const ls = tabLogsFor();
+  const old = drawnLogs(ls, SID, new Map());
+  const byFile = live({ seen: seenOnly([SID, OTHER]) });
+  assert.equal(sessionStates(ls, SID, byFile).get(OTHER), 'running');
+  assert.deepEqual(works447(view447(ls, new Map(), byFile)), works447(old));
+  // A file in a read that is not complete still makes its session running.
+  assert.equal(sessionStates(ls, SID, live({ seen: seenOnly([SID, OTHER], { complete: false }) })).get(OTHER), 'running');
+  // No session file, but the newest entry is 30 minutes old to the millisecond: still running.
+  const recent = live({ now: NOW - 84 + RECENT_MS });
+  assert.equal(RECENT_MS, 30 * 60 * 1000);
+  assert.equal(sessionStates(ls, SID, recent).get(OTHER), 'running');
+  assert.deepEqual(works447(view447(ls, new Map(), recent)), works447(old));
+  assert.equal(sessionStates(ls, SID, live({ now: NOW - 84 + RECENT_MS + 1 })).get(OTHER), 'ended');
+  // This session's own log is always running, whatever the read says.
+  assert.equal(sessionStates(ls, SID, live()).get(SID), 'running');
+  // The newest entry is taken from the log as read, so an out-of-shape entry still keeps it running.
+  const odd = structuredClone(ls);
+  odd[1].log.entries.push({ ...odd[1].log.entries[6], id: '8', at: LATER - 1000, why: 'not the fixed words' });
+  odd[1].log.next = 9;
+  assert.equal(sessionStates(odd, SID, live()).get(OTHER), 'running');
+});
+
+test('spec 447 claim 3: with no usable session read the state is unknown, every log draws as in 0.89.0, and the fold cannot tell', () => {
+  const ls = tabLogsFor();
+  const old = works447(drawnLogs(ls, SID, new Map()));
+  for (const [why, l] of [
+    ['no read since the pane opened, or one that returned nothing', live({ seen: undefined })],
+    ['a read that is not complete', live({ seen: seenOnly([SID], { complete: false }) })],
+    ['a file that went after the listing', live({ seen: seenOnly([SID], { fileGone: true }) })],
+    ['a read from before this open', live({ seen: seenOnly([SID], { startedAt: LATER - 60_001 }) })],
+    ['no open time', live({ openedAt: undefined })],
+    ['a clock that is not a whole number', live({ now: LATER + 0.5 })],
+    ['a clock that gave nothing', live({ now: Number.NaN })],
+  ]) {
+    assert.equal(sessionStates(ls, SID, l).get(OTHER), 'unknown', why);
+    const v = view447(ls, new Map(), l);
+    assert.deepEqual(works447(v), old, why);
+    assert.equal(v.canTell, false, why);
+    assert.deepEqual(v.ended, [], why);
+  }
+  assert.equal(view447(ls).canTell, true);
+  // A log with no entries cannot be told ended.
+  const empty = [ls[0], { sid: THIRD, writer: 'an ended session', log: emptyLog(null) }];
+  assert.equal(sessionStates(empty, SID, live()).get(THIRD), 'unknown');
+});
+
+test('spec 447 claim 5: a log first seen after the last complete read began, with an entry from the last 30 minutes, is running and gets no line', () => {
+  const ls = tabLogsFor();
+  ls[1].log.entries.push({ ...ls[1].log.entries[4], id: '8', at: LATER - 500, work: 'just now' });
+  ls[1].log.next = 9;
+  // The read began before the entry was written, and holds no file for this session.
+  const l = live({ seen: seenOnly([SID], { startedAt: LATER - 1000 }) });
+  assert.equal(sessionStates(ls, SID, l).get(OTHER), 'running');
+  const v = view447(ls, new Map(), l);
+  assert.ok(works447(v).includes('just now'));
+  assert.deepEqual(endedLines(v.ended, new Map(), []), []);
+});
+
+test('spec 447 claim 6: one line for each ended session with an entry S4.1 takes, newest first, its time, at most 3 work values and N', () => {
+  const ls = tabLogsFor();
+  // A third ended log, whose newest such entry is newer than the other's, with five work values.
+  let tl = emptyLog(null);
+  for (const [i, w] of ['one', 'two', 'three', 'four', 'From an ended session'].entries()) {
+    tl = appendEntry(tl, input({ source: 'relayed', work: w }), { at: NOW - 50 + i, level: 1, read: new Map() }).value.log;
+  }
+  ls.push({ sid: THIRD, writer: 'an ended session', log: tl });
+  const v = view447(ls);
+  const lines = endedLines(v.ended, new Map(), []);
+  assert.equal(lines.length, 2);
+  const [first, second] = lines;
+  assert.equal(first.at, NOW - 46);
+  assert.deepEqual(first.works, ['From an ended session', 'four', 'three'], 'the newest three, the writer\'s text as it is');
+  assert.equal(first.more, 2);
+  assert.equal(first.n, 5, 'a work value holding the fixed words leaves N unchanged');
+  // The other log: the answered waiting entry, its answer and the plain Relayed entry.
+  assert.equal(second.at, NOW - 86);
+  assert.equal(second.n, 3);
+  assert.deepEqual(second.works, ['relayed plain', 'the answer', 'answered']);
+  assert.equal(second.more, 0);
+  // Each work value is cleaned as a roster line is and cut to 40 characters.
+  ls[2].log.entries[4].work = `${'x'.repeat(50)}\u{202E}`;
+  const cut = endedLines(view447(ls).ended, new Map(), [])[0].works[0];
+  assert.ok([...cut].length <= 40, cut);
+  assert.ok(!cut.includes('\u{202E}'));
+  // A session whose such entries are all read has no line; its unanswered waiting entry is not one of them.
+  const read = new Map(ls[1].log.entries.map(e => [keyOf(OTHER, e), 'read']));
+  read.delete(keyOf(OTHER, ls[1].log.entries[0]));
+  assert.deepEqual(endedLines(view447(ls, read).ended, read, []).map(l => l.n), [5]);
+});
+
+test('spec 447 claim 7: a search hides lines and lowers N', () => {
+  const ls = tabLogsFor();
+  const v = view447(ls);
+  const lines = endedLines(v.ended, new Map(), searchWords('answer'));
+  assert.equal(lines.length, 1);
+  assert.equal(lines[0].n, 2);
+  assert.deepEqual(lines[0].works, ['the answer', 'answered']);
+  assert.equal(lines[0].at, NOW - 88);
+  assert.deepEqual(endedLines(v.ended, new Map(), searchWords('nowhere')), []);
+});
+
+test('spec 447 claim 10: History\'s fold holds every Relayed and answered waiting entry of each ended log, read or not, newest first, under the search', () => {
+  const ls = tabLogsFor();
+  const states = new Map([[keyOf(OTHER, ls[1].log.entries[4]), 'read']]);
+  const v = view447(ls, states);
+  assert.deepEqual(v.ended.map(l => [l.sid, l.writer]), [[OTHER, 'an ended session']]);
+  const fold = historyRows(v.ended, [], 1);
+  assert.deepEqual(fold.rows.map(r => r.entry.work), ['relayed plain', 'the answer', 'answered']);
+  assert.deepEqual(historyRows(v.ended, searchWords('answer'), 1).rows.map(r => r.entry.work), ['the answer', 'answered']);
+  // This session's History rows are unchanged.
+  assert.deepEqual(v.history, drawnLogs(ls, SID, states).history);
+  // 50 a page.
+  let big = emptyLog(null);
+  for (let i = 0; i < 60; i++) big = appendEntry(big, input({ source: 'relayed' }), { at: NOW - 100 + i, level: 1, read: new Map() }).value.log;
+  const bv = view447([ls[0], { sid: OTHER, writer: 'x', log: big }]);
+  assert.equal(historyRows(bv.ended, [], 1).rows.length, HISTORY_PAGE);
+  assert.ok(historyRows(bv.ended, [], 1).more);
+});
+
+test('spec 447 claim 11: the dim line does not count the entries the block counts', () => {
+  const ls = tabLogsFor();
+  // The plain Lead entry is the one unread entry of the other log not drawn, before and after it ends.
+  assert.equal(drawnLogs(ls, SID, new Map()).unshown, 1);
+  assert.equal(view447(ls).unshown, 1);
+});
+
+test('spec 447 claim 8: a line\'s hash is over its sorted mark keys and moves when its set does', () => {
+  const ls = tabLogsFor();
+  const [line] = endedLines(view447(ls).ended, new Map(), []);
+  assert.equal(line.hash, createHash('sha256').update(line.rows.map(r => keyOf(r.sid, r.entry)).sort().join('\n')).digest('hex').slice(0, 16));
+  const read = new Map([[keyOf(OTHER, ls[1].log.entries[2]), 'read']]);
+  const [after] = endedLines(view447(ls, read).ended, read, []);
+  assert.equal(after.n, 2);
+  assert.notEqual(after.hash, line.hash);
+});
+
+test('spec 447 claim 13: the Mark these N read key holds no session id, matches whole, from 1 to 500', () => {
+  const h = 'abcdef0123456789';
+  assert.deepEqual(parseMarkEndedKey(`dmarkended-3-${h}`), { n: 3, hash: h });
+  assert.deepEqual(parseMarkEndedKey(`dmarkended-500-${h}`), { n: 500, hash: h });
+  for (const bad of [`dmarkended-0-${h}`, `dmarkended-501-${h}`, `dmarkended-03-${h}`, `dmarkended-1000-${h}`, `dmarkended-3-${h}x`, ` dmarkended-3-${h}`, `dmarkended-3-${h.toUpperCase()}`, `dmarkended-3-${h.slice(1)}`, `dmarkended-3-${h}\n`, `dmarkall-3-${h}`, `dmarkended-3-${SID}`]) {
+    assert.equal(parseMarkEndedKey(bad), undefined, bad);
+  }
+  assert.equal(parseMarkAllKey(`dmarkended-3-${h}`), undefined);
+});

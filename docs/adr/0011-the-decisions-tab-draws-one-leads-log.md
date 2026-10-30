@@ -22,7 +22,24 @@ comparing session ids, never names:
 - an entry the owner flagged, in Flagged to revisit, until unflagged.
 
 Nothing else from another log is drawn; a plain Lead entry is only counted. A dim-line count says how many unread
-entries of other logs the tab no longer draws, in numbers only. The pane still
+entries of other logs the tab no longer draws, in numbers only.
+
+Amended in 0.90.0 (spec 447): when the pane can tell that a log's session has
+ended, To review no longer carries that log's unread Relayed entries, nor the
+waiting entries they answer, as cards. It shows one line for each such
+session instead, counting them, with one press that marks them read, and the
+dim line no longer counts what a line counts. Those entries, read or not, are
+the one exception to the rule above: they are drawn as rows of a fold in
+History, "From ended sessions". That fold draws entries the owner has already
+read, which no view drew from another log before, and it draws from every
+working folder's logs among the 20 newest, since the pane reads logs with no
+working-folder filter. A session is running while a file in the live poll's
+last session read names it or its log has an entry from the last 30 minutes,
+ended when a complete read since the pane opened names it nowhere and its
+newest entry is older than that, and unknown otherwise; in the unknown state
+every log draws as above. The owner chose the line and its press on issue 447
+(q4 A and q6 A, relayed by the lead); the fold and the 30 minutes are the
+lead's picks under level 3. The pane still
 reads the same files, this session's and the 20 newest others of each kind. No
 file is deleted or rewritten; earlier logs stay on disk, unshown, and the
 owner can delete them by hand.
@@ -48,6 +65,13 @@ A new lead should see its own decisions, not the ones before it. A question
 meant for the owner, a claim about the owner's words, an alarm and a flag must
 not go with it, so those four are carried. Keeping the files and the reads as they are makes the change
 cheap to undo.
+
+The 0.90.0 amendment: carried as a card each, the Relayed entries of ended
+sessions made To review too full to use (135 cards on the owner's first look
+after 0.89.0). A false claim does most of its harm before its writer ends, so
+an ended session's claims fold into one counted line rather than leave the
+owner's sight, and each stays readable in the fold. The rule writes nothing,
+so a session that runs again gets its cards back at the next draw.
 
 ## Consequences
 
