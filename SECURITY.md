@@ -182,22 +182,24 @@ words. It asks no permission. What follows from it:
   file that passes its checks outranks the transcript at every size, with no
   check against it. A forged file from another process running as the owner can show any
   warmth, on members whose transcript is over 4 MiB too; the threat model
-  lists this gap as candidate P1 (E20), accepted before the issue 446 rewrite
-  and pending the owner's word. A step the transcript would not count restarts the
+  lists this gap as [candidate P1](docs/security/threat-model.md#candidates-for-the-owners-word) (E20), still accepted as at the base until the
+  owner names it. A step the transcript would not count restarts the
   hour, and a stopped writer leaves a card reading colder once the member is
   idle, with its meter and burn frozen, and it can draw a hand-off nudge on a
   warm cache. The 1-hour window's known limit, in the README, still applies.
   Four more gaps, each in the threat model:
   - other plugins can read and rewrite the pane's list of refused summary
-    files, and so plant or hide a refusal line ([class C4](docs/security/threat-model.md#c4), E24);
+    files, and so plant or hide a refusal line ([candidate P7](docs/security/threat-model.md#candidates-for-the-owners-word), E24: a gap the base
+    named, not accepted);
   - the summary read follows a link swapped in after the path check, as the
-    transcript read does, and keeps only checked numbers (candidate P1, E23,
-    accepted before the issue 446 rewrite and pending the owner's word);
+    transcript read does, and keeps only checked numbers ([candidate P1](docs/security/threat-model.md#candidates-for-the-owners-word), E23: a gap the base
+    named, not accepted);
   - a session named like a card, or holding its id, feeds that card from its own summary file,
-    a session with no working folder included ([class C5](docs/security/threat-model.md#c5), E22);
+    a session with no working folder included ([candidate P7](docs/security/threat-model.md#candidates-for-the-owners-word), E22: a gap the base
+    named, not accepted);
   - a writer whose files keep failing a check with fresh times freezes its
-    card on the last good record with no line to say so (candidate P3, E21,
-    accepted before the issue 446 rewrite and pending the owner's word).
+    card on the last good record with no line to say so ([candidate P3](docs/security/threat-model.md#candidates-for-the-owners-word), E21,
+    still accepted as at the base until the owner names it).
 
 **Since 0.81.0 a lead writes a decision log, and the pane writes the
 owner's marks** (spec 402, ticket 1;
@@ -464,7 +466,7 @@ and Desktop only. What follows from it:
 
 Review any change under
 `brigade/` or `hooks/` as a change to code that runs on every installer's
-machine: the [row 15 section](docs/security/brigade.md#row-15) of the threat model (its accepted risks are [class C4](docs/security/threat-model.md#c4), E16)
+machine: the [row 15 section](docs/security/brigade.md#row-15) of the threat model (its accepted risks include classes [C4](docs/security/threat-model.md#c4), C5, C7 and C8; E16)
 has the guards and the gaps.
 
 **One skill tells the agent to start other agent sessions and to delete their
@@ -510,7 +512,7 @@ chef's own questions and decisions go by message only; and Remote Control,
 while it is on,
 makes each session it starts, with its transcript, drivable and readable from
 any device signed in to the owner's account.
-The [row 16 section](docs/security/brigade.md#row-16) of the threat model (its accepted risks are [class C5](docs/security/threat-model.md#c5), E45) has the
+The [row 16 section](docs/security/brigade.md#row-16) of the threat model (its accepted risks include classes C1, [C5](docs/security/threat-model.md#c5), C6, C7 and C10; E45) has the
 guards and the gaps.
 
 One script can send data, and only when somebody runs it. eagle-eye's

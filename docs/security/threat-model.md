@@ -11,7 +11,7 @@ A control any of them names is named by the threat model. Two older pages,
 detail it links to, and a control they name counts the same way.
 
 "The base" is this page as it stood before the issue 446 rewrite, at commit
-`4bae5c3` ([provenance](#provenance)). Ids: C1 to C10, K1 and K2 are
+`4bae5c3` ([provenance](#provenance)); its matrix rows 1 to 19 are the "old rows". Ids: C1 to C10, K1 and K2 are
 [accepted classes](#accepted-risks-by-class); P0 to P7 are
 [candidates](#candidates-for-the-owners-word); E and D ids are old entries and
 data blocks, listed in [provenance](#provenance).
@@ -44,12 +44,12 @@ The chart places each top risk by how likely it is and how much harm it does onc
 | Id | Risk | L | I | Old rows | Control in one line | Open gap | Detail |
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | <a id="r1"></a>R1 | **Tracker text steers agent.** A charted pull request, an issue a session works on, or a record the lead acts on. | 0.62 | 0.85 | 1 | Each skill tells the agent the material is data, and groundtrack says on the page that AI drew it. The host agent's own rule is the real guard. | The highest-value attack here. Prompt injection in general is not accepted (C1). | [Row 1](checks.md#row-1) |
-| <a id="r2"></a>R2 | **Shared file.** It steers an agent, breaks a page or stalls a renderer. | 0.38 ⁺ | 0.75 ⁺ | 2–5, 7, 13 | Renderers escape what they print, refuse hostile shapes at three measured limits, and fill pages in one pass. Restored answers are bound to their draft by hash. | The attribute rule is held by review, not by a parse of the page. | [Rows 2–5, 7, 13](checks.md#row-2), [rendering](rendering.md) |
+| <a id="r2"></a>R2 | **Shared file.** It steers an agent, breaks a page or stalls a renderer. | 0.38 ⁺ | 0.75 ⁺ | 2–5, 7, 13 | Renderers escape what they print, refuse hostile shapes at three measured limits, and fill pages in one pass. Restored answers are bound to their draft by hash. | The attribute rule is held by review, not by a parse of the page. Row 13's other residuals are open too. | [Rows 2–5, 7, 13](checks.md#row-2), [rendering](rendering.md) |
 | <a id="r3"></a>R3 | **Poisoned update.** A skill or mod change reaches every installer. | 0.30 ⁺ | 0.95 ⁺ | 8, 17 | Pull requests are required, and so are the check, SkillSpector, zizmor and plugin-validator gates. The check holds frontmatter keys, hidden characters, manifests and baselines. | Plain-prose instructions that no scanner detects. Fifteen scanner dependencies resolve fresh on every run. | [Row 8](checks.md#row-8), [row 17](checks.md#row-17), [scanners](scanners.md) |
 | <a id="r4"></a>R4 | **Hijacked CI.** A moved action or a replaced package. | 0.12 | 0.85 | 9 | Actions are pinned by SHA, and jobs get minimal permissions with no credentials. The one package is pinned and unpacked, never installed. | The npm pin is not a content pin: no hash of the tarball is checked. | [Row 9](checks.md#row-9) |
 | <a id="r5"></a>R5 | **Lead or member moved.** Another session's text steers the lead or a member. | 0.22 | 0.70 | 16 | Members check each sender against the engine's session files. Only the owner's words in the lead's chat count as the owner's, and reports are data. | The sender check is a consistency check. Cleanup's authorization is open (P4). What the data blocks list as not checked is open (P6). Git config still runs programs in the lead at cleanup (filter drivers); row 16's other residuals are open too. | [Row 16](brigade.md#row-16) |
-| <a id="r6"></a>R6 | **Mod acts unprompted.** Its writes and its Open in app call skip the permission step. | 0.30 | 0.55 | 15 | The mod asks the engine for its verdict before each call. A path rule runs before and after each write, and the tools are offered only after `/brigade` or a head-chef load. | The `claude://` opener's inherited environment (P6). | [Row 15](brigade.md#row-15) |
-| <a id="r7"></a>R7 | **Plugin plants state.** Another plugin reads or plants the level, a dismissal, search text or decision entries. | 0.30 | 0.55 | 15 | The pane shows what state claims as a claim. A level 3 counts only once the owner confirms it in the lead's chat, though a plugin that can add rows to the lead's transcript can forge that confirmation (E35a). | What C4 leaves out is a candidate (P1, P2, P4, P6). | [Row 15](brigade.md#row-15) |
+| <a id="r6"></a>R6 | **Mod acts unprompted.** Its writes and its Open in app call skip the permission step. | 0.30 | 0.55 | 15 | The mod asks the engine for its verdict before each call. A path rule runs before and after each write, and the tools are offered only after `/brigade` or a head-chef load. | The `claude://` opener's inherited environment (P6). Row 15's other residuals are open too, the roster's check-and-write race first. | [Row 15](brigade.md#row-15) |
+| <a id="r7"></a>R7 | **Plugin plants state.** Another plugin reads or plants the level, a dismissal, search text or decision entries. | 0.30 | 0.55 | 15 | The pane shows what state claims as a claim. A level 3 counts only once the owner confirms it in the lead's chat, though a plugin that can add rows to the lead's transcript can forge that confirmation (E35a). | Row 15's other residuals are open too; see what C4 leaves out. | [Row 15](brigade.md#row-15) |
 | <a id="r8"></a>R8 | **Key or text leaves.** The audit key or a box's text goes off the machine. | 0.32 ⁺ | 0.64 ⁺ | 6, 10 | The key is never printed or written, and the endpoint override takes loopback only. A dry run names every receiver first, and a standing yes comes only from the user's own instructions. | The script cannot stop the agent itself from printing an environment variable. | [Row 6](checks.md#row-6), [row 10](checks.md#row-10), [edge audit](edge-audit.md) |
 | <a id="r9"></a>R9 | **Personal detail ships.** A home path reaches a shipped file, a page, a post or a command line. | 0.35 ⁺ | 0.25 ⁺ | 17, 18 | The check fails a fixed home path in shipped folders, and groundtrack warns on an absolute one. Posts carry no token or secret. | A home root joined from a separate string is not seen, and free text is not checked. | [Row 17](checks.md#row-17), [row 18](checks.md#row-18) |
 | <a id="r10"></a>R10 | **Branch code runs.** A branch's code runs when a session opens on it. | – | – | 19 | The check holds the tracked settings file to its one guard. The contributor guide says to read a branch's `.claude/` and `scripts/` first, or to open the session with hooks off. | The guard protects the merge, not the reader. A non-local container engine (P6). | [Row 19](checks.md#row-19) |
@@ -201,7 +201,7 @@ worded at the base; the class groups them. Each class reaches only what its entr
 dates, sources and premises are in the [provenance fold](#provenance).
 
 <a id="c1"></a>
-**C1. The host agent is the last guard against text read as instruction.** grimoire cannot enforce the rule that text in a file is data, and every skill's reminder of it is prose. The lead reads whole records, so a stranger's text on a record reaches its context. Comments under the owner's account, or a stranger's text reposted there, can steer a session. A planted line can be taken for the owner's words. Names that a session or a stranger shapes reach the lead's cleanup commands. Not inside C1: prompt injection in general through a charted pull request (R1), a shared file (R2), planted text that claims a standing yes (old row 6), an agent talked into leaking the audit key (old row 10), and a shared skill, agent or contract outside E14 (old row 13). Those stay open risks. Old rows 13 and 16. Entries E52, E58, E59, E61. Not inside C1 either: a skill's write scope and a second agent's load held by prose (E14a, a candidate, P7).
+**C1. The host agent is the last guard against text read as instruction.** grimoire cannot enforce the rule that text in a file is data, and every skill's reminder of it is prose. The lead reads whole records, so a stranger's text on a record reaches its context. Comments under the owner's account, or a stranger's text reposted there, can steer a session. A planted line can be taken for the owner's words for a GitHub act (E52). Names that a session or a stranger shapes reach the lead's cleanup commands. Not inside C1: prompt injection in general through a charted pull request (R1), a shared file (R2), planted text that claims a standing yes (old row 6), an agent talked into leaking the audit key (old row 10), and a shared skill, agent or contract outside E14 (old row 13). Those stay open risks. Old rows 13 and 16. Entries E52, E58, E59, E61. Not inside C1 either: a skill's write scope and a second agent's load held by prose (E14a, a candidate, P7).
 
 *Worded 2026-10-30 by the lead under the owner's relayed word; not yet named by the owner.*
 
@@ -218,10 +218,10 @@ dates, sources and premises are in the [provenance fold](#provenance).
 <a id="c4"></a>
 **C4. Other plugins share the mod's trust.** In plugin state, the plugin's store or its data folder:
 - another plugin can **read** usage summaries, roster files, the decision log, marks and hand-off, and search text;
-- another plugin can **rewrite** the session-start usage record, **plant or hide** refusal lines, **write** a long tabs list, and **plant** the permission warning's dismissal;
+- another plugin can **rewrite** the session-start usage record, **write** a long tabs list, and **plant** the permission warning's dismissal;
 - another plugin can **rewrite or press** the autonomy level, which can set level 3. A 3 counts only once the owner confirms it in the lead's chat, but a plugin that can add rows to the lead's transcript can also forge that confirmation, and its presses log as the owner's (E35a).
 
-An engine answer it supplies can misstate a session's liveness. Not inside C4: a plugin planting or rewriting the decision log, marks, hand-off or summary files (E40's and E20's plugin parts, P1), rewriting the search text, reading the report store's question or a session's Remote Control link (data block parts, P6), cleanup's press, the engine's own session files, and other plugins' tool calls seen by grimoire's hook. Those are candidates (P1, P2, P4, P6). Old row 15. Entries E16, E19a, E24, E25, E27a, E30, E33, E34, E35a, E38a, E44.
+An engine answer it supplies can misstate a session's liveness. Not inside C4: a plugin planting or rewriting the decision log, marks, hand-off or summary files (E40's and E20's plugin parts, P1), rewriting the search text, reading the report store's question or a session's Remote Control link (data block parts, P6), planting or hiding refusal lines (E24, P7), cleanup's press, the engine's own session files, and other plugins' tool calls seen by grimoire's hook. Those are candidates (P1, P2, P4, P6, P7). Old row 15. Entries E16, E19a, E25, E27a, E30, E33, E34, E35a, E38a, E44.
 
 *Worded 2026-10-30 by the lead under the owner's relayed word; not yet named by the owner.*
 
@@ -229,11 +229,11 @@ An engine answer it supplies can misstate a session's liveness. Not inside C4: a
 **C5. A forged or misled session can speak for the lead.**
 - A session that messages a member under the lead's shown name speaks for the lead, and some sessions the check cannot see.
 - A relay counts as a decision. The lead's own calls are not limited, deletion included. A decision can switch off later checks.
-- A name-borrowing session's file can feed another card. A pane's repository redirect is pinned before the first `gh` answer.
+- A pane's repository redirect is pinned before the first `gh` answer.
 - A steered lead, or a session that loaded the skill unasked, can write false log entries and hand-offs.
 - A confirmed level 3 hands the kept decisions to the lead. A secret or personal-data finding and any accepted-risk record still wait. A resumed session may bring back a 3 with its earlier confirmation (E35b). An unconfirmed 3, or a level kept anywhere but that session's memory, is not covered. The wider level-3 reach is pending (P5 item 1). Some surfaces show no sign of level 3.
 
-Old rows 15 and 16. Entries E22, E28, E35b, E36, E42, E45 to E48, E56, E57.
+Old rows 15 and 16. Entries E28, E35b, E36, E42, E45 to E48, E56, E57.
 
 *Worded 2026-10-30 by the lead under the owner's relayed word; not yet named by the owner.*
 
@@ -255,9 +255,8 @@ Old row 16. Entries E49 to E51, E53, E54, E60, E62, E64, E66.
 - A provider keeps the audit text under its own policy.
 - Pull request rows, private titles included, sit in module memory and on every pane surface, and the pane's polls under the owner's sign-in can show in the polled organisation's audit log (E26, E41).
 - The autonomy level and its times sit in session transcripts that reach every Remote Control device, unencrypted at rest unless the disk is (E38d). The rest of the transcripts' content on those devices, the lead's ids and address included, is a candidate (P6).
-- A leftover post file in a shared `/tmp` can be read by another account (E63's other-account part, beside E55).
 - Decision files, usage summaries and rosters sit unencrypted, are never removed, reach backup and sync, and decision files reach other local accounts.
-- A post file can sit in a shared `/tmp` (E55). The filled start prompt, the lead's Desktop id and address (E65) and the app link (E76) sit on command lines other accounts on a shared host can read.
+- A post file, a leftover one included, can sit in a shared `/tmp` where another account can read it (E55, E63b). The filled start prompt, the lead's Desktop id and address (E65) and, on macOS and Linux, the app link (E76) sit on command lines other accounts on a shared host can read.
 - Cleanup's reads put repository metadata in the lead's transcript.
 - An author's home path warns and does not block.
 
@@ -293,10 +292,10 @@ Not inside C7: what the data blocks list as not checked (the phone sync and the 
 
 ## Candidates for the owner's word
 
-There are 56 candidate lines in eight groups, P0 to P7. None of these is in force.
+There are 58 candidate lines in eight groups, P0 to P7. None of these is in force.
 
 <details>
-<summary>Candidates (56 lines)</summary>
+<summary>Candidates (58 lines)</summary>
 
 None of these is in force. A candidate does not meet issue 359's H1. Only a control, or the owner's accepted risk, does. An old entry listed here stays accepted as at the base until the owner names its line. Each line gives its id, where it came from, the class it would join or widen, and the owner's choice.
 
@@ -306,7 +305,7 @@ None of these is in force. A candidate does not meet issue 359's H1. Only a cont
 
 - E19c. Usage summary files read by a same-user process. Yes (C4, read accepted as E19a) · yes (C9) · yes (C1) · no.
 - E20. A forged summary file outranks the transcript. Yes (C4) · yes (C9) · yes (C1) · no.
-- E23. A link swapped in after the path rule runs, for the summary read. Yes (C4) · yes (C9) · yes (C1) · no.
+- E23. A link swapped in after the path rule runs, for the summary read. The base named it as a gap and never accepted it. Yes (C4) · yes (C9) · yes (C1) · no.
 - E27c. Old roster files read by a same-user process. Yes (C4, read accepted as E27a) · yes (C9) · yes (C1) · no.
 - E38c. Decision files read by a same-user process. Yes (C4, read accepted as E38a) · yes (C9) · yes (C1) · yes (C7, accepted as E38b).
 - E40a. A same-user program or shell plants or rewrites decision files. Yes (see E40b) · yes (C9) · yes (C1 or C5) · no.
@@ -314,7 +313,7 @@ None of these is in force. A candidate does not meet issue 359's H1. Only a cont
 - E43. A same-user program redirects a checked write of the log, marks or hand-off. Yes (C4) · yes (C9) · yes (C1) · no.
 - E63a. No first-launch check: a leftover post file, the same-user part. Yes (C4) · yes (C9) · yes (C1) · yes (C7, accepted as E63b).
 - E73c. The interview's saved answers read by processes running as the person. Yes (C4) · yes (C9) · yes (C1) · no.
-- E77. A planted folder under the config folder's `projects` gives a card false numbers and a false link, as a planted transcript can. Yes (C4) · yes (C9) · yes (C1) · no. The Plan missed this entry. It is undated, with no source recorded.
+- E77. A planted folder under the config folder's `projects` gives a card false numbers and a false link, as a planted transcript can. Yes (C4) · yes (C9) · yes (C1) · no. It is undated, with no source recorded.
 
 **P2. E29, raised in full.** Row 15's entry on planted or left-behind session files. It was accepted 2026-10-18 and widened 2026-10-22 and 2026-10-30. It rested on session files feeding only the pane's cards. Issue 359's design makes a session file feed cleanup's window, which breaks that premise. A program the owner runs is the same-user side (P0). Another plugin is a widening of C4, since the engine's session files are not in C4. The owner chooses: re-accept it for the pane only, accept the widening, or have 359 add a control.
 
@@ -329,7 +328,7 @@ None of these is in force. A candidate does not meet issue 359's H1. Only a cont
 
 **P4. Issue 359's H1 items.** Ids are question (q) and finding numbers in issue 359's record. H1 is its rule that cleanup's removal gate waits until each item rests on a control or the owner's accepted risk. Cleanup's authorization rests on these candidates and is open until the owner names them or 359 adds a control.
 
-- q8. Indirect paths that remove a worktree or move a branch with no command the gate reads as a removal. For the lead, inside C5's folded reach (E47). For members, a widening of C5. For a branch's code, a widening of C9.
+- q8. Indirect paths that remove a worktree or move a branch with no command the gate reads as a removal. For the lead, inside C5's reach (E47). For members, a widening of C5. For a branch's code, a widening of C9.
 - q12. The gate's data: the `cwd` and main working tree kept up to 15 minutes, the branch, the confirming session id, and the 2-minute pending set. The module-memory part is a same-user path (P0). The gate's reply puts folder names and the branch in the lead's transcript and model context, which widens C7 (nearest reach: data block D1 and E68).
 - Row 16 pending item 2. A forced remove wherever git refuses, a doubled force for a locked worktree, and `-D` where `-d` refuses. A widening of C10. Superseded by 359's design, pending the owner's word (359's adversarial F10).
 - Row 16 pending item 6. The binding stops are gone. An item not bound to its session is named back and removed on the yes. A widening of C5 and C10. Superseded by 359's design, pending the owner's word (F10).
@@ -372,7 +371,10 @@ None of these is in force. A candidate does not meet issue 359's H1. Only a cont
 - D4h. Not checked in 0.12.0: rename and reopen effects on the Desktop id, a phone send, `/compact`, a stated `from-session`, the Windows pipe path, and POSIX socket permissions (C7).
 - D4j. A status file planted with an ended session's id and name could still receive one of the head chef's sends; nothing else stops it (C4, C7).
 
-**P7. Class reach the base did not accept.**
+**P7. Gaps the base named and did not accept.** Issue 312's q2 A added these as gap sentences; it accepted only E21.
+
+- E22. A session named like a card, or holding its id, feeds that card from its own summary file (C5).
+- E24. Another plugin plants or hides the pane's refusal lines (C4).
 
 - E14a. A skill's write scope, and a contract's load beside its agent as a second agent, held by prose (C1). Row 13's only E14 acceptance is the case-only compare (E14b, C2).
 
@@ -643,12 +645,12 @@ Every control the base matrix named, by risk, by name and never by its steps. A 
 
 #### Conditions the accepted entries rest on
 
+Each condition an old accepted entry rested on, by risk. The entry's own line is in [provenance](#provenance).
+
 - E35a: the same actor can already block the log by planting a file in its place; a reload starts module memory over; the head-chef skill's level rules are where the confirmation is next tightened
 - E29: a writer that can do this can already plant marks that hide decisions
 - E42: an approval comes only from the owner in the lead's chat; `read_lead_handoff`'s description says its own writing is never the owner's words or a level
 - E35b: a 3 is drawn in the warning colour
-
-Each condition an old accepted entry rested on, by risk. The entry's own line is in [provenance](#provenance).
 
 ##### Conditions under R2
 
@@ -879,7 +881,7 @@ The base page at `4bae5c3` holds every entry's full wording: [threat-model.md at
 - E11 · row 11 · accepted undated · widened – · from not stated · word not recorded · rests on a score never changes an edge's tier; the ranking only orders rereading · gist box text can move an edge in the audit's reread order · to K1
 - E12 · row 12 · accepted undated · widened – · from not stated · word not recorded · rests on the dry run names every company that receives the text; edge-audit.md states the opt-ins · gist after a yes the box's text sits under the provider's policy, outside the repository's control · to C7
 - E13 · row 13 · accepted 2026-10-18 · widened – · from adversarial-lens F4 in build-307's lens review (#307) · word relayed by message from the lead session (q6 A from build-307) · rests on the engine is JavaScript and most likely reads it the same way; a hand-written parser would cost more than the risk · gist a duplicate key in a manifest or the hooks file is read last-wins · to C2
-- E14a · row 13 · accepted 2026-10-18 · widened – · from adversarial-lens F5 in build-307's lens review (#307) · word relayed by message from the lead session (q6 A from build-307) · rests on – · gist prose part: write scope held by prose; a contract beside its agent loads as a second agent · to P7
+- E14a · row 13 · accepted – (no base acceptance; E14's sentence covers the case compare only) · widened – · from adversarial-lens F5 in build-307's lens review (#307) · word relayed by message from the lead session (q6 A from build-307) · rests on – · gist prose part: write scope held by prose; a contract beside its agent loads as a second agent · to P7
 - E14b · row 13 · accepted 2026-10-18 · widened – · from adversarial-lens F5 in build-307's lens review (#307) · word relayed by message from the lead session (q6 A from build-307) · rests on git's own path protection refuses the commonest names on NTFS; the rest need a rare legacy file system · gist rule 6c compares root names across case only · to C2
 - E15 · row 13 · accepted 2026-10-06 · widened – · from ADR 0006 · word the owner decided it (ADR 0006) · rests on ADR 0006: skills are dangerous by default · gist a skill's own text is accepted as the nature of a skill · to C2
 - E16 · row 15 · accepted 2026-10-21 · widened 2026-10-26; 2026-10-27; 2026-10-27 · from data-lens F7 spec round 1; adversarial-lens F3 and data-lens F1 spec round 2 (#363) · word relayed by the lead session (q10 and q15 on #363); widenings relayed by the lead (q29 on #402; q7 A on ticket 413; q17 A on ticket 414, confirmed in finish2-414's chat) · rests on plugin state is the one store a reload keeps; the redirect reaches only the owner's own leads and files; the own-writing mark keys on the engine's session id; the owner's yes before a new lead acts on a hand-off; the same path rule and checks · gist the session-start record in plugin state, rewritable by other plugins, steers config folder, digest and write places · to C4
@@ -890,9 +892,9 @@ The base page at `4bae5c3` holds every entry's full wording: [threat-model.md at
 - E19c · row 15 · accepted 2026-10-21 · widened – · from data-lens A2, spec round 1 (#363) · word relayed by the lead session (q9 on #363) · rests on a key kept beside the file reaches the same readers · gist summary files readable by same-user processes · to P1
 - E20 · row 15 · accepted undated · widened – · from r4-q11 A on #304 · word not recorded · rests on a same-user process could already plant a whole transcript; the pane refuses a last-call time more than 2 minutes ahead · gist a forged summary file from a same-user process outranks the transcript · to P1
 - E21 · row 15 · accepted 2026-10-17 · widened – · from q2 A on #312 · word relayed by the head chef · rests on – · gist a writer whose files keep failing a check leaves the card ageing with no line · to P3
-- E22 · row 15 · accepted undated · widened – · from q2 A on #312 · word not recorded · rests on a name two sessions carry reads unknown for warmth · gist a lone impostor's own summary file feeds another card · to C5
+- E22 · row 15 · accepted undated · widened – · from q2 A on #312 · word not recorded · rests on a name two sessions carry reads unknown for warmth · gist a lone impostor's own summary file feeds another card · to P7
 - E23 · row 15 · accepted undated · widened – · from q2 A on #312 · word not recorded · rests on the pane keeps only numbers that pass the strict summary check from at most 1,024 bytes · gist a link swapped in after the path rule is followed for the summary read · to P1
-- E24 · row 15 · accepted undated · widened – · from q2 A on #312 · word not recorded · rests on the pane reads the refusals atom once per render, only through two words, first 200 entries, at most 50 kept · gist another plugin plants or hides refusal lines · to C4
+- E24 · row 15 · accepted undated · widened – · from q2 A on #312 · word not recorded · rests on the pane reads the refusals atom once per render, only through two words, first 200 entries, at most 50 kept · gist another plugin plants or hides refusal lines · to P7
 - E25 · row 15 · accepted undated · widened – · from move 4 of #272 · word not hardened by owner decision (how the word arrived not recorded) · rests on – · gist a plugin-written long `tabs` list slows the pane's redraw · to C4
 - E26 · row 15 · accepted 2026-10-18 · widened widened by E41 (2026-10-26) · from data-lens trade-off T1, PR 341's first security review; spec trade-off point 6 · word given in chat with the head chef, relayed by message (q14 A on #339) · rests on the rows hold only what `gh pr list` already shows the owner; they go when the session ends · gist the latest 100 `gh` rows kept in module memory for the session · to C7
 - E27a · row 15 · accepted 2026-10-18 · widened 2026-10-26 · from data-lens F1, PR 341's first security review · word given in chat with the head chef, relayed by message (q14 A on #339); widened q29 on #402 · rests on a key beside the file reaches the same readers; the summary files already hold finer timing · gist old roster files readable by other plugins · to C4
@@ -1000,4 +1002,4 @@ Links into the old page land here.
 - <a id="keeping-this-page-true"></a>`#keeping-this-page-true`: Now [Keeping this page short](#keeping-this-page-short).
 - <a id="what-an-attacker-can-reach"></a>`#what-an-attacker-can-reach`: Now [Scope](#scope) and [Who is in scope](#who-is-in-scope).
 - <a id="likelihood-and-impact"></a>`#likelihood-and-impact`: Now the [risk table](#residual-risk-at-a-glance) and its scale notes.
-- <a id="the-last-line-of-defence-is-not-ours"></a>`#the-last-line-of-defence-is-not-ours`: Now class [C1](#c1).
+- <a id="the-last-line-of-defence-is-not-ours"></a>`#the-last-line-of-defence-is-not-ours`: Its acceptances for old rows 13 and 16 are now class [C1](#c1); the host-agent guard for rows 1, 2, 6 and 10 is in the risk table's control column.
