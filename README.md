@@ -215,6 +215,14 @@ keep their cards. History gains a fold, "From ended sessions", that holds
 those entries, read or not, newest first, with "Unread" on the ones you have
 not read; it draws from every working folder's logs among the 20 newest.
 
+Since 0.91.0 a question in this lead's own log and the Relayed entry that
+answers it, both unread, show on one card in To review: the question, then
+every field of the answer as its own card drew it. One "✓ Read, next" marks
+both read in one write, Flag flags both and Skip moves both. To review's count
+and "n of N" count the card once; the tab's totals still count entries. A
+question and its answer carried from another session's log still show as two
+cards.
+
 The lead keeps its working state with the `set_lead_handoff` tool: how to
 resume, the rules in force, the running sessions, the cleanup waiting and what
 is open for you, which it reads back with `read_lead_handoff` after a

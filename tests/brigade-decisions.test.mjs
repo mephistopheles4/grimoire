@@ -843,6 +843,10 @@ test('spec 444 claim 7: Mark all read takes only this log\'s shown plain Lead en
   ls[0].log.entries[1].work = 'needle';
   const q2 = reviewQueue(drawnLogs(ls, SID, new Map()).review, new Map(), new Set(), searchWords('needle'));
   assert.deepEqual(markAllSet(q2.order, SID).rows.map(r => r.entry.id), ['2']);
+  // Spec 448 claim 6: with the own pair 4 and 5 on one card, the set and its count are unchanged.
+  const cards = d.reviewCards(drawnLogs(ls, SID, new Map()).review, SID, new Map(), new Set(), []);
+  assert.ok(cards.cards.some(c => c.answer?.entry.id === '5'), 'the own pair draws on one card');
+  assert.deepEqual(markAllSet(cards.shown, SID), set);
 });
 
 test('spec 444 claim 8: the Mark all read key matches whole, from 1 to 500', () => {
@@ -1108,4 +1112,89 @@ test('spec 447 claim 8 (Test round 1, q3 A): a write that pushes out a mark stil
   assert.equal(dropsLiveMark(live, after3, [elsewhere], known, marked, NOW + 9000), false);
   // The entries the write marks are its own business.
   assert.equal(dropsLiveMark(undefined, { kind: 'marks', v: 1, marks: added }, [], marked, marked, NOW + 5000), false);
+});
+
+// --- spec 448: a lead's own answered pair on one card -------------------------------------------
+//
+// Each test names the acceptance claim of spec 448 (S8) it backs.
+
+const { reviewCards, parsePairKey } = d;
+// This session's log: a plain Lead entry, a waiting entry W, a Relayed entry A
+// that answers W, and a later plain entry; and another log's own pair.
+const pairLogs = () => {
+  let own = emptyLog(null);
+  const add = (raw, at) => {
+    own = appendEntry(own, raw, { at, level: 1, read: new Map() }).value.log;
+  };
+  add(input({ work: 'plain first' }), NOW + 1);
+  add(input({ waiting: true, pick: '', work: 'mine waits' }), NOW + 2);
+  add(input({ source: 'relayed', answers: '2', work: 'my answer' }), NOW + 3);
+  add(input({ work: 'plain later' }), NOW + 4);
+  const other = tabLogsFor()[1];
+  return [{ sid: SID, writer: 'lead-a', log: own }, other];
+};
+
+test('spec 448 claims 1 and 5: an own unread waiting entry and its answer are one card at the waiting entry\'s place, counted once; a carried pair stays two cards', () => {
+  const ls = pairLogs();
+  const v = drawnLogs(ls, SID, new Map());
+  const q = reviewCards(v.review, SID, new Map(), new Set(), []);
+  const own = q.cards.filter(c => c.row.sid === SID);
+  assert.deepEqual(own.map(c => [c.row.entry.work, c.answer?.entry.work]), [['plain first', undefined], ['mine waits', 'my answer'], ['plain later', undefined]]);
+  // The answer has no card of its own, and To review's count counts the pair once.
+  assert.ok(!q.cards.some(c => c.row.sid === SID && c.row.entry.work === 'my answer'));
+  const entries = reviewQueue(v.review, new Map(), new Set(), []).total;
+  assert.equal(q.total, entries - 1);
+  // The shown rows hold every entry, both of the pair included, oldest first.
+  assert.deepEqual(q.shown, reviewQueue(v.review, new Map(), new Set(), []).order);
+  // Claim 5: the other log's waiting entry and its answer draw as two cards.
+  const carried = q.cards.filter(c => c.row.sid === OTHER).map(c => c.row.entry.work);
+  assert.ok(carried.includes('answered') && carried.includes('the answer'));
+  assert.ok(q.cards.every(c => c.row.sid === SID || c.answer === undefined));
+});
+
+test('spec 448 claim 3: when only one of the pair is unread it draws alone', () => {
+  const ls = pairLogs();
+  const [, w, a] = ls[0].log.entries;
+  const v = drawnLogs(ls, SID, new Map());
+  for (const [read, alone] of [[w, a], [a, w]]) {
+    for (const state of ['read', 'flagged']) {
+      const states = new Map([[keyOf(SID, read), state]]);
+      const own = reviewCards(v.review, SID, states, new Set(), []).cards.filter(c => c.row.sid === SID);
+      assert.deepEqual(own.map(c => [c.row.entry.id, c.answer]), [['1', undefined], [alone.id, undefined], ['4', undefined]], `${read.work} ${state}`);
+    }
+  }
+});
+
+test('spec 448 claim 4: a search matching only the answer draws the pair, and one matching neither hides it', () => {
+  const ls = pairLogs();
+  const v = drawnLogs(ls, SID, new Map());
+  const only = reviewCards(v.review, SID, new Map(), new Set(), searchWords('my answer'));
+  assert.deepEqual(only.cards.map(c => [c.row.entry.work, c.answer?.entry.work]), [['mine waits', 'my answer']]);
+  assert.deepEqual(only.shown.map(r => r.entry.work), ['mine waits', 'my answer'], 'both count as shown');
+  assert.deepEqual(reviewCards(v.review, SID, new Map(), new Set(), searchWords('mine waits')).shown.map(r => r.entry.work), ['mine waits', 'my answer']);
+  assert.deepEqual(reviewCards(v.review, SID, new Map(), new Set(), searchWords('plain later')).cards.map(c => c.row.entry.work), ['plain later']);
+});
+
+test('spec 448 claim 2: a pair counts as skipped when its waiting entry is, and the queue wraps by card', () => {
+  const ls = [pairLogs()[0]];
+  const [, w] = ls[0].log.entries;
+  const first = keyOf(SID, ls[0].log.entries[0]);
+  const q = reviewCards(ls, SID, new Map(), new Set([first, keyOf(SID, w)]), []);
+  assert.equal(q.head.entry.work, 'plain later');
+  assert.equal(q.answer, undefined);
+  assert.deepEqual([q.n, q.total], [3, 3]);
+  const head = reviewCards(ls, SID, new Map(), new Set([first]), []);
+  assert.deepEqual([head.head.entry.work, head.answer?.entry.work, head.n], ['mine waits', 'my answer', 2]);
+  // Every card skipped: the first again.
+  const all = new Set([0, 1, 3].map(i => keyOf(SID, ls[0].log.entries[i])));
+  assert.equal(reviewCards(ls, SID, new Map(), all, []).n, 1);
+});
+
+test('spec 448 claim 3: a pair key matches whole, naming both entries by id and time', () => {
+  assert.deepEqual(parsePairKey('dnext-2-100-3-110'), { verb: 'dnext', id: '2', at: 100, answerId: '3', answerAt: 110 });
+  assert.deepEqual(parsePairKey('dflag-2-0-3-1'), { verb: 'dflag', id: '2', at: 0, answerId: '3', answerAt: 1 });
+  assert.deepEqual(parsePairKey('dskip-9999999999999999-9999999999999999-1-1')?.verb, 'dskip');
+  for (const bad of ['dnext-2-100', 'dnext-0-100-3-110', 'dnext-2-100-03-110', 'dnext-2-100-3-110-4', ' dnext-2-100-3-110', 'dnext-2-100-3-110\n', 'dread-2-100-3-110', 'dnext-2-100-3-', 'dnext-2-100-3-12345678901234567', 'dmarkall-2-100-3-110']) {
+    assert.equal(parsePairKey(bad), undefined, bad);
+  }
 });

@@ -251,7 +251,14 @@ nothing, and says the marks file is full of entries the owner read, when the
 marks file's caps would push out a mark that is still the newest state of an
 entry in a log the pane reads, so a bulk press never brings back such an entry.
 A mark for an entry in a log the pane no longer reads can still drop. Its hash is the same unkeyed SHA-256, a staleness
-check that protects nothing secret. Both files go only where the roster's link-refusing path rule
+check that protects nothing secret. Since 0.91.0 (spec 448) a waiting entry of
+the pane's own session's log and the unread Relayed entry that answers it draw
+as one card, and "✓ Read, next" or "⚑ Flag" on it writes both marks in one
+write. Its keys name both entries, `dnext-<id>-<time>-<answer id>-<answer
+time>`, holding no session id. Read, next, Flag and Skip now work out the card
+shown inside the marks queue's turn, and act only when that card is still
+the one shown with the same entries: a press on a card drawn alone never marks
+an answer that arrived after the draw. Both files go only where the roster's link-refusing path rule
 allows, overwrite only a file that passes the strict check of its own kind,
 and are checked again after the write. While the pane is open, and only then,
 it lists both folders on the roster's 5-second poll, reads this session's own
