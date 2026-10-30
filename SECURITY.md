@@ -226,7 +226,9 @@ unchanged. To tell which entries are read it lists the `brigade/marks/`
 folder and reads the marks files there, this session's own in full and the others newest
 first, up to 8 MiB in total (since 0.89.0; a file over its cap takes nothing
 from the bound; the rest count as unread, which fails safe). When the owner presses "✓ Read,
-next", "⚑ Flag" or "⚑ Unflag" in the pane's Decisions tab, or Dismiss on its
+next", "⚑ Flag" or "⚑ Unflag" in the pane's Decisions tab (since 0.91.0, spec
+448, "✓ Read, next" or "⚑ Flag" on a card holding a waiting entry and its
+answer writes both marks in one write), or Dismiss on its
 picked Flagged rows (since 0.82.0, spec 402 ticket 2), "✓ Mark all N read"
 (since 0.89.0, spec 444, one write for all the entries it takes), or "✓ Mark
 these N read" (since 0.90.0, spec 447, one write for an ended session's line), the pane writes a mark
