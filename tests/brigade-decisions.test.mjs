@@ -811,13 +811,16 @@ test('spec 444 claim 15: the unshown count is the unread entries of other logs t
   assert.equal(drawnLogs(ls, SID, states).unshown, 1, 'the count falls when marked');
 });
 
-test('spec 444 claims 2 and 15: a Relayed answer is carried with the waiting entry it answers, and alone once that is read', () => {
+test('spec 444 claims 2 and 15: a Relayed answer and the waiting entry it answers are each carried until read', () => {
   const ls = tabLogsFor();
   const [, answered, answer] = ls[1].log.entries;
   const works = states => drawnLogs(ls, SID, states).review.find(l => l.sid === OTHER).log.entries.map(e => e.work).filter(w => ['answered', 'the answer'].includes(w)).sort();
   assert.deepEqual(works(new Map()), ['answered', 'the answer']);
-  // The answer read: the waiting entry it answers is answered, so neither shows.
-  assert.deepEqual(works(new Map([[keyOf(OTHER, answer), 'read']])), []);
+  // The answer read first: the unread question stays, so it cannot fall out of sight.
+  assert.deepEqual(works(new Map([[keyOf(OTHER, answer), 'read']])), ['answered']);
+  assert.deepEqual(works(new Map([[keyOf(OTHER, answer), 'flagged']])), ['answered']);
+  // Both read: neither shows.
+  assert.deepEqual(works(new Map([[keyOf(OTHER, answer), 'read'], [keyOf(OTHER, answered), 'read']])), []);
   // The waiting entry read first: the unread answer still shows, alone.
   assert.deepEqual(works(new Map([[keyOf(OTHER, answered), 'read']])), ['the answer']);
   // Mark all read never takes a carried entry.

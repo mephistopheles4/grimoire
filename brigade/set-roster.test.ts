@@ -5566,7 +5566,7 @@ test('spec 444 claim 14: this session\'s own card never says it is from another 
   expect(await shows(/From another session/)).toBe(false)
 })
 
-test('spec 444 claims 2 and 15: a Relayed answer shows with the waiting entry it answers, and alone once that is read', async ($, on) => {
+test('spec 444 claims 2 and 15: a Relayed answer and the waiting entry it answers each show until read', async ($, on) => {
   await decisionsPane(on, $, 'desktop', w =>
     seed(w, PEER_LOG, logText([kept(1, 100, { question: 'Peer asks?', waiting: true, pick: '' }), kept(2, 110, { question: 'Owner said yes?', source: 'relayed', answers: '1' })])),
   )
@@ -5576,6 +5576,8 @@ test('spec 444 claims 2 and 15: a Relayed answer shows with the waiting entry it
   await press($, 'dnext-1-100')
   expect(await shows(/^1 of 1$/)).toBe(true)
   expect(await shows(/^Owner said yes\?$/)).toBe(true)
+  // The answer card alone carries the label too.
+  expect(await shows(/^From another session$/)).toBe(true)
 })
 
 test('spec 444 claim 8: a key whose set kept its size but changed its entries marks nothing', async ($, on) => {
@@ -5641,15 +5643,18 @@ test('spec 444 claim 10: a press at the marks cap keeps a newest mark whose olde
   expect(marks.some((m: any) => m.log === SID && m.id === '500')).toBe(true)
 })
 
+// A full marks file, about 185 KB, for entries no log holds.
+const fatMarks = () => marksText(Array.from({ length: 2000 }, (_, i) => ({ log: SID, id: String(1000 + i), entryAt: 1, state: 'read', at: 5 })))
+const fatPath = (i: number) => `${MARKS}\\00000000-0000-0000-0000-${String(i).padStart(12, '0')}.json`
 const fullLogWorld = (on: On, filler: number) =>
   world(on, w => {
     w.dirs(DECISIONS)
     w.dirs(MARKS)
     seed(w, LOG, logText(Array.from({ length: 500 }, (_, i) => kept(i + 1, i + 1))))
-    // Entry 1's only read mark sits in the oldest file; each other file is a full marks file about 185 KB.
+    // Entry 1's only read mark sits in the oldest file; each other file is a full marks file.
     seed(w, PEER_MARKS, marksText([{ log: SID, id: '1', entryAt: 1, state: 'read', at: 5 }]), 2)
-    const fat = marksText(Array.from({ length: 2000 }, (_, i) => ({ log: SID, id: String(1000 + i), entryAt: 1, state: 'read', at: 5 })))
-    for (let i = 0; i < filler; i++) seed(w, `${MARKS}\\00000000-0000-0000-0000-${String(i).padStart(12, '0')}.json`, fat, 10 + i)
+    const fat = fatMarks()
+    for (let i = 0; i < filler; i++) seed(w, fatPath(i), fat, 10 + i)
   })
 
 test('spec 444: the drop scan reads at most 8 MiB of marks files, so a flood of large files leaves the rest unread', async ($, on) => {
@@ -5670,6 +5675,38 @@ test('spec 444: under the scan bound the oldest marks file is still read, so the
   const r = await decide($)
   expect(r.ok).toBe(true)
   expect(parsed(w, LOG).entries[0].id).toBe('2')
+})
+
+test('spec 444: when the drop scan is cut, a read mark a skipped file may cover counts for nothing, so a flagged entry is not dropped', async ($, on) => {
+  const w = world(on, w => {
+    w.dirs(DECISIONS)
+    w.dirs(MARKS)
+  })
+  const now = w.clock.now()
+  seed(w, LOG, logText(Array.from({ length: 500 }, (_, i) => kept(i + 1, i + 1))))
+  // This session's file, written recently, holds a read mark for entry 1; an older file holds a newer flag for it.
+  seed(w, OWN_MARKS, marksText([{ log: SID, id: '1', entryAt: 1, state: 'read', at: now - 4_000_000 }]), now - 1_000_000)
+  seed(w, PEER_MARKS, marksText([{ log: SID, id: '1', entryAt: 1, state: 'flagged', at: now - 3_900_000 }]), now - 3_900_000)
+  for (let i = 0; i < 60; i++) seed(w, fatPath(i), fatMarks(), now - 3_800_000 + i)
+  await start($)
+  await brigade($)
+  const before = w.text(LOG)
+  const r = await decide($)
+  expect(r.ok).toBe(false)
+  expect(r.text).toBe('log_decision refused: the decision log is full: review the Decisions tab. The decision log is unchanged; act at level 1.')
+  expect(w.text(LOG)).toBe(before)
+})
+
+test('spec 444: past the scan bound the alarm-repeat guard gets no marks, so the next alarm is logged', async ($, on) => {
+  const w = await decisionsPane(on, $)
+  const alarmsLogged = () => ownEntries(w).filter(e => e.startsWith('alarm'))
+  w.plant = (key, v) => (key === 'autonomy' ? [{ session: SID, level: 3 }] : v)
+  await press($, 'level-2')
+  for (let i = 0; i < 3; i++) await w.clock.advance(5000)
+  expect(alarmsLogged().length).toBe(1)
+  for (let i = 0; i < 60; i++) seed(w, fatPath(i), fatMarks(), 10 + i)
+  await w.clock.advance(5000)
+  expect(alarmsLogged().length).toBe(2)
 })
 
 test('spec 444 claim 9: a Mark all read whose marks cannot be written changes nothing and says so', async ($, on) => {

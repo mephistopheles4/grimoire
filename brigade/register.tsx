@@ -733,6 +733,7 @@ async function readMarks($: EngineInterface, at: Where, now: number, strict: boo
     if (l.refused) return strict ? undefined : new Map()
     const files: MarksFile[] = []
     let scanned = 0
+    let cutAt: number | undefined
     for (const f of [...(l.own !== undefined ? [l.own] : []), ...l.others]) {
       // Under the pane's checks: a file dated more than two minutes ahead gives no mark.
       if (f.mtimeMs > now + AHEAD_MS) continue
@@ -741,12 +742,19 @@ async function readMarks($: EngineInterface, at: Where, now: number, strict: boo
       scanned += f.size
       if (scanned > MAX_SCAN_BYTES) {
         if (strict) return undefined
+        cutAt = f.mtimeMs
         break
       }
       const got = await heldFile($, at, 'marks', f)
       if (got.value !== undefined && got.value.kind === 'marks') files.push(got.value)
       else if (strict) return undefined
     }
+    // A mark in a file left unread is no newer than that file's time, so only
+    // marks dated after it (and the clock allowance) can be the newest of their
+    // entry. An older one might be covered by a flag in a file left unread, so
+    // it counts for nothing and its entry stays unread.
+    const cut = cutAt
+    if (cut !== undefined) return mergeMarks(files.map(f => ({ ...f, marks: f.marks.filter(m => m.at > cut + AHEAD_MS) })), now)
     return mergeMarks(files, now)
   } catch {
     return strict ? undefined : new Map()
