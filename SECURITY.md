@@ -234,8 +234,10 @@ next", "⚑ Flag" or "⚑ Unflag" in the pane's Decisions tab (since 0.91.0, spe
 448, "✓ Read, next" or "⚑ Flag" on a card holding a waiting entry and its
 answer writes both marks in one write), or Dismiss on its
 picked Flagged rows (since 0.82.0, spec 402 ticket 2), "✓ Mark all N read"
-(since 0.89.0, spec 444, one write for all the entries it takes), or "✓ Mark
-these N read" (since 0.90.0, spec 447, one write for an ended session's line), the pane writes a mark
+(since 0.89.0, spec 444, one write for all the entries it takes), "✓ Mark
+these N read" (since 0.90.0, spec 447, one write for an ended session's line),
+or "✓ Mark N relayed read" (since 0.91.0, spec 448, one write for all the
+entries it takes), the pane writes a mark
 for each entry, the log's session id, the entry's id and time, the state
 (read, flagged or unflagged) and the press time, in one write, to its own
 session's marks file, `brigade/marks/<session id>.json`, at most 2,000 marks
