@@ -173,8 +173,7 @@ fork is never shown as the brigade's.
 
 The lead logs each decision it takes or relays with the `log_decision` tool,
 and the Decisions view lays them out for you to review. To review shows the
-oldest decision you have not read, from this lead's log and the 20 most recent
-other leads' logs, at full size: "n of N", the pick, which session wrote it,
+oldest decision you have not read, at full size: "n of N", the pick, which session wrote it,
 whether it was the lead's own pick or your answer as the lead relayed it, the
 time and level, the question, the options, why, how to undo it, and when to
 revisit it. "✓ Read, next" marks it read and shows the next; "⚑ Flag" marks
@@ -186,6 +185,18 @@ the picked rows and marks them read. No press removes a decision from a log.
 Your marks survive a reload and a new lead. History, folded at first, holds
 every decision newest first, 50 at a time. On Desktop and the terminal a
 search box filters all three by every word you type.
+
+Since 0.89.0 the tab shows this lead's decisions only. From other sessions'
+logs it carries three kinds of decision, each marked "From another session":
+a waiting entry nobody answered in its own log, and an alarm, both until you
+read them, and any decision you flagged until you unflag it. A new lead
+therefore never hides a question meant for you. Earlier sessions' logs stay on
+disk, unshown, and you can delete them by hand; the pane still reads the 20
+newest, and the dim line at the foot counts the unread entries of other logs
+that the tab no longer draws. "✓ Mark all N read", at the right of To review's
+heading, marks every shown decision of this lead read in one write. It leaves
+out waiting entries, alarms, Relayed entries and answers, and anything your
+search hides, and a press marks nothing if the set changed since you looked.
 
 The lead keeps its working state with the `set_lead_handoff` tool: how to
 resume, the rules in force, the running sessions, the cleanup waiting and what
@@ -371,8 +382,8 @@ files you ask for:
   in every session, pane open or not. The roster file, unencrypted, holds each
   row's other repository by owner/name, private ones included.
   Since 0.81.0 it also writes each lead's decision log, one entry per
-  decision the lead logs, and a marks file of the Read, Flag, Unflag and
-  Dismiss presses you make in its Decisions tab, both in plain text in the same folder, never removed by the
+  decision the lead logs, and a marks file of the Read, Flag, Unflag,
+  Dismiss and, since 0.89.0, Mark all read presses you make in its Decisions tab, both in plain text in the same folder, never removed by the
   mod, and since 0.83.0 each lead's hand-off, its working state, beside them.
   Since 0.84.0 the log also holds each move of the autonomy slider, each reset
   and each alarm, with its time; since 0.86.0, not an alarm that repeats

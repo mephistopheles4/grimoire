@@ -73,6 +73,7 @@ import {
   chooseHandoff,
   cleanLines,
   emptyLog,
+  drawnLogs,
   flaggedRows,
   historyRows,
   inFixedShape,
@@ -86,6 +87,8 @@ import {
   ownerEntry,
   paneEntry,
   projectDigest,
+  markAllSet,
+  parseMarkAllKey,
   reviewQueue,
   searchWords,
   serializeHandoff,
@@ -759,49 +762,60 @@ const MARKS_AFTER = 'Brigade: after a mark was saved, the marks path failed its 
 
 // One mark for each row given, in this session's own marks file, in one write
 // in its queue. False when they could not be written; then nothing was changed.
-async function writeMarks($: EngineInterface, rows: readonly Row[], state: 'read' | 'flagged' | 'unflagged'): Promise<boolean> {
-  return marksTurn(async () => {
-    try {
-      const at = await where($)
-      if ('error' in at) return false
-      const placed = await placeKind($, at, 'marks', at.id)
-      if ('refused' in placed) return false
-      let file: MarksFile | undefined
-      if (placed.existing !== undefined) {
-        if (placed.existing.size > MAX_MARKS_BYTES) return false
-        const was = checkMarks(String(await $.fs.read(placed.file)))
-        if ('error' in was) return false
-        file = was.value
-      }
-      const now = await $.clock.now()
-      const known = new Set(tabRead.logs.flatMap(l => l.log.entries.map(e => markKey(l.sid, e.id, e.at))))
-      const value = addMarks(file, rows.map(r => ({ log: r.sid, id: r.entry.id, entryAt: r.entry.at, state, at: now })), known)
-      const text = serializeMarks(value)
-      if ('error' in text) return false
-      await $.fs.write(placed.file, text.value)
-      const after = await placeKind($, at, 'marks', at.id).catch(() => ({ refused: 'the check could not run' }))
-      if ('refused' in after || after.existing === undefined) $.ui.toast(MARKS_AFTER, { timeoutMs: 15000 })
-      // The tab shows the mark at once; the next read finds the file again.
-      held.delete(`marks ${at.id}`)
-      tabRead = { ...tabRead, marks: [...tabRead.marks.filter(m => m.sid !== at.id), { sid: at.id, file: value }] }
-      // The band's alarm line goes once this pane's own press marks its entry,
-      // or at a reload or a change of session id;
-      // a marks file read from disk never clears it.
-      for (const r of rows) {
-        const shown = bandAlarms.get(r.sid)?.entry
-        if (shown !== undefined && shown.id === r.entry.id && shown.at === r.entry.at) bandAlarms.delete(r.sid)
-      }
-      return true
-    } catch {
-      return false
+const writeMarks = ($: EngineInterface, rows: readonly Row[], state: 'read' | 'flagged' | 'unflagged'): Promise<boolean> =>
+  marksTurn(() => writeMarksNow($, rows, state))
+
+// The body of a marks write, with no turn of its own: a caller already in the
+// marks queue's turn (Mark all read) calls this, so the queue cannot wait on itself.
+async function writeMarksNow($: EngineInterface, rows: readonly Row[], state: 'read' | 'flagged' | 'unflagged'): Promise<boolean> {
+  try {
+    const at = await where($)
+    if ('error' in at) return false
+    const placed = await placeKind($, at, 'marks', at.id)
+    if ('refused' in placed) return false
+    let file: MarksFile | undefined
+    if (placed.existing !== undefined) {
+      if (placed.existing.size > MAX_MARKS_BYTES) return false
+      const was = checkMarks(String(await $.fs.read(placed.file)))
+      if ('error' in was) return false
+      file = was.value
     }
-  })
+    const now = await $.clock.now()
+    const known = new Set(tabRead.logs.flatMap(l => l.log.entries.map(e => markKey(l.sid, e.id, e.at))))
+    const others = tabRead.marks.filter(m => m.sid !== at.id).map(m => m.file)
+    const value = addMarks(file, rows.map(r => ({ log: r.sid, id: r.entry.id, entryAt: r.entry.at, state, at: now })), known, others, now)
+    const text = serializeMarks(value)
+    if ('error' in text) return false
+    await $.fs.write(placed.file, text.value)
+    const after = await placeKind($, at, 'marks', at.id).catch(() => ({ refused: 'the check could not run' }))
+    if ('refused' in after || after.existing === undefined) $.ui.toast(MARKS_AFTER, { timeoutMs: 15000 })
+    // The tab shows the mark at once; the next read finds the file again.
+    held.delete(`marks ${at.id}`)
+    tabRead = { ...tabRead, marks: [...tabRead.marks.filter(m => m.sid !== at.id), { sid: at.id, file: value }] }
+    // The band's alarm line goes once this pane's own press marks its entry,
+    // or at a reload or a change of session id;
+    // a marks file read from disk never clears it.
+    for (const r of rows) {
+      const shown = bandAlarms.get(r.sid)?.entry
+      if (shown !== undefined && shown.id === r.entry.id && shown.at === r.entry.at) bandAlarms.delete(r.sid)
+    }
+    return true
+  } catch {
+    return false
+  }
 }
 
 // The logs as the tab draws them: each writer named from the session files,
 // and an Owner, Pane or alarm entry out of its fixed shape left out.
 const tabLogs = (): ReadLog[] =>
   tabRead.logs.map(l => ({ ...l, writer: writerName(sessionRows, l.sid), log: { ...l.log, entries: l.log.entries.filter(inFixedShape) } }))
+// What each view of the Decisions tab draws (spec 444): this session's log and
+// the entries carried from the others. The render and every press work from
+// this one set, so a row's place in a key matches its place on screen.
+function tabView(now: number) {
+  const states = mergeMarks(tabRead.marks.map(m => m.file), now)
+  return { states, ...drawnLogs(tabLogs(), tabRead.sid, states) }
+}
 const queryFrom = (stored: unknown): string => (typeof stored === 'string' ? [...stored].slice(0, 200).join('') : '')
 
 // A press on To review's Read, next, Flag or Skip: it acts only when the
@@ -809,7 +823,8 @@ const queryFrom = (stored: unknown): string => (typeof stored === 'string' ? [..
 // flagged, which counts as read, so it leaves To review for Flagged.
 async function pressReview($: EngineInterface, verb: string, id: string, entryAt: number) {
   const now = await $.clock.now()
-  const q = reviewQueue(tabLogs(), mergeMarks(tabRead.marks.map(m => m.file), now), skipped, searchWords(queryFrom(await read($, query))))
+  const v = tabView(now)
+  const q = reviewQueue(v.review, v.states, skipped, searchWords(queryFrom(await read($, query))))
   const head = q.head
   if (head === undefined || head.entry.id !== id || head.entry.at !== entryAt) return
   const k = markKey(head.sid, head.entry.id, head.entry.at)
@@ -824,11 +839,31 @@ async function pressReview($: EngineInterface, verb: string, id: string, entryAt
   await update($, decisionsSeen, n => ((typeof n === 'number' ? n : 0) + 1) % 1000000)
 }
 
+// A press on To review's Mark all read. In the marks queue's turn, after every
+// earlier write has landed, the set is worked out again from the logs read, the
+// marks as just written, the skipped set and the search. It acts only when the
+// set's size and hash match the key, then writes once, in the same turn; else it
+// writes nothing and the tab draws again with the new count.
+async function pressMarkAll($: EngineInterface, n: number, hash: string) {
+  await marksTurn(async () => {
+    const now = await $.clock.now()
+    const v = tabView(now)
+    const q = reviewQueue(v.review, v.states, skipped, searchWords(queryFrom(await read($, query))))
+    const set = markAllSet(q.order, tabRead.sid)
+    if (set.n !== n || set.hash !== hash) return
+    const saved = await writeMarksNow($, set.rows, 'read')
+    markFailed = !saved
+    if (saved) for (const r of set.rows) skipped.delete(markKey(r.sid, r.entry.id, r.entry.at))
+  })
+  await update($, decisionsSeen, n => ((typeof n === 'number' ? n : 0) + 1) % 1000000)
+}
+
 // Flagged to revisit as the tab draws it now: the logs read, the merged marks
 // and the search.
 async function flaggedNow($: EngineInterface): Promise<Row[]> {
   const now = await $.clock.now()
-  return flaggedRows(tabLogs(), mergeMarks(tabRead.marks.map(m => m.file), now), searchWords(queryFrom(await read($, query))))
+  const v = tabView(now)
+  return flaggedRows(v.flagged, v.states, searchWords(queryFrom(await read($, query))))
 }
 
 // A press on a Flagged row's fold, pick box or Unflag: it acts only when the
@@ -2820,9 +2855,14 @@ export const register: Register = on => {
       await pressReview($, review[1] ?? '', review[2] ?? '', Number(review[3]))
       return { element: e.element }
     }
+    const markAll = parseMarkAllKey(e.element)
+    if (markAll !== undefined) {
+      await pressMarkAll($, markAll.n, markAll.hash)
+      return { element: e.element }
+    }
     const row = /^dopen-([0-9]{1,5})-([1-9][0-9]{0,15})-([0-9]{1,16})$/.exec(e.element)
     if (row !== null) {
-      const r = historyRows(tabLogs(), searchWords(queryFrom(await read($, query))), historyPages).rows[Number(row[1])]
+      const r = historyRows(tabView(await $.clock.now()).history, searchWords(queryFrom(await read($, query))), historyPages).rows[Number(row[1])]
       if (r !== undefined && r.entry.id === row[2] && r.entry.at === Number(row[3])) {
         const k = markKey(r.sid, r.entry.id, r.entry.at)
         if (openedRows.has(k)) openedRows.delete(k)
@@ -2982,16 +3022,22 @@ export const register: Register = on => {
     const Input = 'Input' in table ? table.Input : undefined
     const queryText = queryFrom(await read($, query))
     const words = searchWords(queryText)
-    const dLogs = tabLogs()
-    const dStates = mergeMarks(tabRead.marks.map(m => m.file), now)
-    const dQueue = reviewQueue(dLogs, dStates, skipped, words)
-    const dUnread = reviewQueue(dLogs, dStates, skipped, []).total
-    const dHistory = historyRows(dLogs, words, historyPages)
-    const dFlagged = flaggedRows(dLogs, dStates, words)
-    const dFlaggedAll = words.length > 0 ? flaggedRows(dLogs, dStates, []).length : dFlagged.length
+    const dView = tabView(now)
+    const dStates = dView.states
+    const dQueue = reviewQueue(dView.review, dStates, skipped, words)
+    const dUnread = reviewQueue(dView.review, dStates, skipped, []).total
+    const dHistory = historyRows(dView.history, words, historyPages)
+    const dFlagged = flaggedRows(dView.flagged, dStates, words)
+    const dFlaggedAll = words.length > 0 ? flaggedRows(dView.flagged, dStates, []).length : dFlagged.length
+    const dMarkAll = markAllSet(dQueue.order, tabRead.sid)
     // The island on this tab counts only the picks Flagged shows.
     const dPicked = dFlagged.filter(r => pickedRows.has(markKey(r.sid, r.entry.id, r.entry.at))).length
-    const dTotal = dLogs.reduce((n, l) => n + l.log.entries.length, 0)
+    // What the tab draws, each entry once: this log's, and the carried ones.
+    const dTotal = new Set([
+      ...dView.review.flatMap(l => l.log.entries.map(e => markKey(l.sid, e.id, e.at))),
+      ...dView.history.flatMap(l => l.log.entries.map(e => markKey(l.sid, e.id, e.at))),
+      ...flaggedRows(dView.flagged, dStates, []).map(r => markKey(r.sid, r.entry.id, r.entry.at)),
+    ]).size
     // Counted on the logs as read, before the entries out of shape are left out.
     const dMissing = tabRead.logs.reduce((n, l) => n + missingIds(l.log), 0)
     const dOdd = tabRead.logs.reduce((n, l) => n + l.log.entries.filter(x => !inFixedShape(x)).length, 0)
@@ -3582,10 +3628,13 @@ export const register: Register = on => {
       </Box>
     )
     // An Owner entry draws plain Owner only when this pane wrote it.
+    // A carried card or row says so, by the log's session id, never by name.
+    const FROM_OTHER = 'From another session'
+    const fromOther = (r: Row) => (r.sid !== tabRead.sid ? `${FROM_OTHER} · ` : '')
     const labelOf = (r: Row) => sourceLabel(r.entry, r.writer, r.entry.source === 'owner' && ownerWrote.has(ownerKey(r.sid, r.entry)))
     // A waiting entry's headline names its answer, as the lead records it.
     const answerOf = (r: Row): DecisionEntry | undefined =>
-      r.entry.waiting ? dLogs.find(l => l.sid === r.sid)?.log.entries.find(x => x.answers === r.entry.id) : undefined
+      r.entry.waiting ? tabRead.logs.find(l => l.sid === r.sid)?.log.entries.find(x => x.answers === r.entry.id) : undefined
     const headline = (r: Row) => {
       if (!r.entry.waiting) return oneLine(r.entry.pick, 300)
       const a = answerOf(r)
@@ -3609,6 +3658,7 @@ export const register: Register = on => {
                 </Text>
               )}
               <Text dimColor>{r.writer}</Text>
+              {fromOther(r) !== '' && <Text dimColor>{FROM_OTHER}</Text>}
             </Box>
             <Box flexDirection="column" flexShrink={0} alignItems="flex-end">
               <Text>{labelOf(r)}</Text>
@@ -3666,7 +3716,7 @@ export const register: Register = on => {
                 {isRead ? <Text dimColor>{headline(r)}</Text> : <Text weight="medium">{headline(r)}</Text>}
               </Button>
               <Text dimColor size="footnote" wrap="truncate-end">
-                {`${r.writer} · ${oneLine(r.entry.work, 80)} · decision ${r.entry.id}`}
+                {`${r.writer} · ${fromOther(r)}${oneLine(r.entry.work, 80)} · decision ${r.entry.id}`}
               </Text>
             </Box>
             <Box flexDirection="column" flexShrink={0} alignItems="flex-end">
@@ -3719,7 +3769,7 @@ export const register: Register = on => {
                 <Text dimColor>{headline(r)}</Text>
               </Button>
               <Text dimColor size="footnote" wrap="truncate-end">
-                {`${r.writer} · ${oneLine(r.entry.work, 80)} · decision ${r.entry.id}`}
+                {`${r.writer} · ${fromOther(r)}${oneLine(r.entry.work, 80)} · decision ${r.entry.id}`}
               </Text>
             </Box>
             <Box flexDirection="column" flexShrink={0} alignItems="flex-end">
@@ -3776,6 +3826,7 @@ export const register: Register = on => {
       tabRead.skipped > 0 ? `${tabRead.skipped} file(s) skipped` : undefined,
       tabRead.beyond > 0 ? `${tabRead.beyond} older log(s) not read` : undefined,
       dMissing > 0 ? `${dMissing} id(s) missing` : undefined,
+      dView.unshown > 0 ? `${dView.unshown} unread entry(s) in other sessions' logs not shown` : undefined,
       dOdd > 0 ? `${dOdd} Owner, Pane or alarm entry(s) not in their fixed shape` : undefined,
     ].filter(x => x !== undefined)
     // The autonomy slider: the level in force, the track, a stop for each
@@ -3829,14 +3880,30 @@ export const register: Register = on => {
         {/* To review is a heading, not a fold: the spec folds only Flagged
             and History. */}
         {terminal ? (
-          <Box marginTop={1}>
+          <Box marginTop={1} flexDirection="row" columnGap={1} alignItems="center">
             <Text bold>{GROUP_NAMES.get('d-review') ?? ''}</Text>
             <Text dimColor>{` ${dQueue.total}`}</Text>
+            {dMarkAll.n > 0 && (
+              <Box flexShrink={0} paddingX={1} borderStyle="round" borderColor="inactive">
+                <Button key={`dmarkall-${dMarkAll.n}-${dMarkAll.hash}`} dimColor onPress={noop}>
+                  {`✓ Mark all ${dMarkAll.n} read`}
+                </Button>
+              </Box>
+            )}
           </Box>
         ) : (
-          <Box paddingX="sm" marginTop="md" marginBottom="xs" {...roundFill}>
-            <Text weight="medium">{GROUP_NAMES.get('d-review') ?? ''}</Text>
-            <Text dimColor>{` ${dQueue.total}`}</Text>
+          <Box paddingX="sm" marginTop="md" marginBottom="xs" flexDirection="row" alignItems="center" {...roundFill}>
+            <Box flexGrow={1} flexShrink={1} minWidth={0} flexDirection="row">
+              <Text weight="medium">{GROUP_NAMES.get('d-review') ?? ''}</Text>
+              <Text dimColor>{` ${dQueue.total}`}</Text>
+            </Box>
+            {dMarkAll.n > 0 && (
+              <Box flexShrink={0}>
+                <Button key={`dmarkall-${dMarkAll.n}-${dMarkAll.hash}`} dimColor onPress={noop}>
+                  {`✓ Mark all ${dMarkAll.n} read`}
+                </Button>
+              </Box>
+            )}
           </Box>
         )}
         {(head !== undefined

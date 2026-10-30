@@ -12,7 +12,8 @@ own, `brigade/decisions/<session id>.json` in the plugin's data folder. The
 owner's Read marks go into a marks file of the pane's own session,
 `brigade/marks/<session id>.json`. The pane's new Decisions tab reads both, for
 this session and for the 20 newest other sessions, so a new lead does not hide
-what the last one decided. Ticket 3 of spec 402 adds a third kind, the lead
+what the last one decided. (Partly superseded by
+[ADR 0011](0011-the-decisions-tab-draws-one-leads-log.md) on that sentence.) Ticket 3 of spec 402 adds a third kind, the lead
 hand-off, in `brigade/handoff/`. The owner chose this on issue 402, in the
 grilling round's q1 (A: each lead session writes its own files in the plugin's
 data folder, beside its roster, through tools built like `set_roster`),
@@ -50,7 +51,7 @@ last, but this repository is public, so a decision's text would be published.
   another tab or closed alike; the pane reads the files only while it is open
   (ADR 0008).
 - A log is capped at 500 entries and 256 KiB, and a marks file at 2,000 marks
-  and 64 KiB. Past a cap, a log drops only entries the owner has read and not
+  and 64 KiB (256 KiB since 0.89.0, ADR 0011). Past a cap, a log drops only entries the owner has read and not
   flagged, never an unread one, and refuses once nothing can drop.
 
 ## Consequences
