@@ -10,6 +10,13 @@ The session that starts, briefs and relays between the other sessions of a
 brigade, under the head-chef skill.
 _Avoid_: head session, orchestrator
 
+**Idle notice**:
+The one notice a session gets when another session on the same machine next
+goes idle or exits, after it asked for one with the message tool's
+`notify_when_idle`. The lead asks for one after each start and each report, in
+place of polling.
+_Avoid_: idle ping, heartbeat, poll
+
 **Autonomy level**:
 How far the lead may decide on its own in one lead session: 1 Manual, 2 Auto
 or 3 Full throttle. Only the owner sets it.
