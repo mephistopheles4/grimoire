@@ -30,6 +30,16 @@ more work is worth its cost. This applies the stopping rule of
 can do. Stop by the threat's rating, not when a reviewer has no findings left.
 Cheap hygiene is still worth adding.
 
+Added 2026-10-30, issue #446: the threat model now records accepted risks by
+class. A finding that cites an entry an accepted class holds, and that the
+entry's reach covers, is reported in one line and gets no new row. Any other
+finding waits as a candidate for the owner; a new skill, script, reach or
+send still gets a risk row. "Keeping this page true" is now "Keeping this page
+short". The section this ADR cites as "The last line of defence is not ours"
+now has its acceptances for rows 13 and 16 in class C1 of the
+[threat model](../security/threat-model.md#c1); the host-agent guard for rows
+1, 2, 6 and 10 is in its risk table's control column.
+
 ## What the test does not cover
 
 The test covers what a skill can do. It does not cover a defect in this
