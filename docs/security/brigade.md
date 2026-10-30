@@ -23,7 +23,7 @@ Sources: `brigade/register.tsx`, `skills/head-chef/references/CONTRACT.md` and `
 - C5: a forged or misled session, and false entries written within the tool's own rules.
 - C7: other repositories' rows and titles in memory and on the pane, files at rest that reach backup, sync and other local accounts, and the level in the lead's transcript.
 - C8: no permission prompt on the mod's tools.
-- Candidates: same-user races, links, planted files and files at rest (P1); left-behind or planted session files (P2); reliability items (P3); the report store's question and a session's Remote Control link in plugin state (P6). The proposed scope line (P0) drops none of these outright; see P1. Until the owner names a candidate, each entry stays as at the base.
+- Candidates: same-user races, links, planted files and files at rest (P1); left-behind or planted session files (P2); reliability items (P3); a session's own summary file feeding another card, and refusal lines planted, hidden or read by another plugin (P7; the base named them as gaps only); the report store's question and a session's Remote Control link in plugin state (P6). The proposed scope line (P0) drops none of these outright; see P1. Until the owner names a candidate, each entry stays as at the base.
 
 ## Summary, part 2: the head chef's guards
 
