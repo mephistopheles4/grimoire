@@ -32,8 +32,10 @@ Read this when Desktop refused a start and the owner's words in the lead's chat 
    ```
 
 2. **Keep its id,** the second field of the first line `claude --bg` prints,
-   in this chat only: its card and cleanup use it. When it prints no id, it
-   did not start: tell the owner in one line, and write no card.
+   in this chat only: its card and cleanup use it. Keep too what
+   `references/cleanup.md` says to keep for cleanup when you start a
+   session. When it prints no id, it did not start: tell the owner in one
+   line, and write no card.
 3. **Report the start** as for any session, saying "a background session
    with Remote Control" in place of "a Desktop session", and that it opens
    from its card in the Brigade pane or from the claude.ai session list on
