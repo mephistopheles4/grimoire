@@ -8918,20 +8918,28 @@ test('spec 448 claims 7 and 8: under a search the press counts and marks only th
   expect(ownMarks(w).map((m: any) => m.id)).toEqual(['5'])
 })
 
-test('spec 448 claim 9: a key whose set has moved marks nothing: pressed twice, after an entry arrived, or out of range', async ($, on) => {
+test('spec 448 claim 9: a key whose set has moved marks nothing: one claim marked elsewhere as another arrived, pressed twice, or out of range', async ($, on) => {
   const w = await decisionsPane(on, $, 'desktop', relayedSeed)
   const [key] = await relayedKeys()
   const before = writesTo(w, OWN_MARKS)
-  await Promise.all([press($, key as string), press($, key as string)])
-  expect(writesTo(w, OWN_MARKS)).toBe(before + 1)
-  // A new claim arrives: the old key's count no longer matches.
-  const [, hash] = /^dmarkrelayed-2-([0-9a-f]{16})$/.exec(key as string) ?? []
-  seed(w, LOG, logText([...PAIR_448, kept(4, 500, { source: 'relayed' }), kept(5, 600, { source: 'relayed' }), kept(6, 700, { source: 'relayed' })]), 9)
+  // Claim 4 is read in another session's marks file and claim 6 arrives: the count holds at 2, the hash moves.
+  seed(w, PEER_MARKS, marksText([{ log: SID, id: '4', entryAt: 500, state: 'read', at: w.clock.now() }]), 7)
+  seed(w, LOG, logText([...PAIR_448, kept(4, 500, { source: 'relayed' }), kept(5, 600, { source: 'relayed' }), kept(6, 700, { source: 'relayed' })]), 8)
   await w.clock.advance(5000)
+  const [moved] = await relayedKeys()
+  expect(moved).toMatch(/^dmarkrelayed-2-[0-9a-f]{16}$/)
+  expect(moved).not.toBe(key)
   await press($, key as string)
+  expect(writesTo(w, OWN_MARKS)).toBe(before)
+  // The same key pressed twice marks once.
+  await Promise.all([press($, moved as string), press($, moved as string)])
+  expect(writesTo(w, OWN_MARKS)).toBe(before + 1)
+  expect(ownMarks(w).map((m: any) => m.id)).toEqual(['5', '6'])
+  // A count out of range marks nothing.
+  const [, hash] = /^dmarkrelayed-2-([0-9a-f]{16})$/.exec(moved as string) ?? []
   await press($, `dmarkrelayed-501-${hash}`)
   expect(writesTo(w, OWN_MARKS)).toBe(before + 1)
-  expect((await relayedKeys()).join(' ')).toMatch(/^dmarkrelayed-1-[0-9a-f]{16}$/)
+  expect(await relayedKeys()).toEqual([])
 })
 
 test('spec 448 claim 10: a press that would push out a live mark writes nothing and says so; a failed write changes nothing', async ($, on) => {

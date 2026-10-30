@@ -714,9 +714,11 @@ export function markAllSet(order: readonly Row[], sid: string) {
 const setHash = (rows: readonly Row[]) => sha256Hex(rows.map(rowKey).sort().join('\n')).slice(0, 16)
 
 /** The entries Mark N relayed read takes from To review's shown rows (spec
- *  448 S5): this session's Relayed entries that answer no waiting entry. A
- *  question and its answer leave only by a press on their own card, and no
- *  waiting entry, alarm, plain Lead entry or entry of another log is taken.
+ *  448 S5): this session's Relayed entries that link to no waiting entry. A
+ *  question and the answer linked to it leave only by a press on their own
+ *  card, and no waiting entry, alarm, plain Lead entry or entry of another log
+ *  is taken. An answer logged with no link, to another log's waiting entry,
+ *  is a claim like any other and is taken.
  *  `hash` is as Mark all read's: a staleness check, not a secret. */
 export function markRelayedSet(order: readonly Row[], sid: string) {
   const rows = order.filter(r => r.sid === sid && r.entry.source === 'relayed' && r.entry.answers === '')

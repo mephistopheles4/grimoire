@@ -272,8 +272,10 @@ no session id. It works out its set again inside the marks queue's turn and
 writes only when the set's count and hash are unchanged. It takes only the
 pane's own session's unread Relayed entries that answer no waiting entry,
 under the search; never a waiting entry, a Relayed entry that answers one, an
-alarm, a Lead entry, or an entry of another log, so a question and its answer
-leave only from their own card. Like Mark these N read it writes nothing, and
+alarm, a Lead entry, or an entry of another log, so a question and the answer
+the log links to it leave only from their own card. An answer logged without
+that link, as a lead logs one to a waiting entry in another session's log
+after a `/clear`, a resume or a hand-off, counts as a claim and is taken. Like Mark these N read it writes nothing, and
 says the marks file is full of entries the owner read, when the caps would
 push out a mark that is still an entry's newest state. Its hash is the same
 unkeyed SHA-256, a staleness check that protects nothing secret. The marks one
