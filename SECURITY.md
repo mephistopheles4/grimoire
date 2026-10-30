@@ -485,14 +485,14 @@ also asks GitHub, with the owner's `gh` sign-in, for the merged pull requests
 of each branch it names. The head chef starts a background session with
 `claude --bg` only when Desktop refused a start and the owner chose that
 route. A session takes any message from the
-head chef that passes its sender check as a relayed decision, on any matter,
-labelled as relayed and never as the owner's own words. The check compares
-the sender's shown name with the session list, as text, so any session that
-can send it a message under that name can speak for the lead, unless another
-row holds the name too. The owner accepted the forged-sender risk of the
-0.5.0 form on 2026-10-09, and the 0.9.0 form, a relayed decision bound to the
-shown name alone, on 2026-10-21; row 16 of the threat model records both,
-with the other risks of 0.9.0 the owner accepted. Before
+head chef as a relayed decision, on any matter, labelled as relayed and never
+as the owner's own words. Since head-chef 1.0.0 it knows its lead by name
+only (ADR 0013), so any process of the same user, or any session that holds
+the lead's name, can speak for the lead. The owner accepted the forged-sender
+risk of the 0.5.0 form on 2026-10-09, the 0.9.0 form, a relayed decision
+bound to the shown name alone, on 2026-10-21, and the 1.0.0 form, which drops
+the status-file pairing, on 2026-10-30; row 16 of the threat model records
+them, with the other risks the owner accepted. Before
 its first launch in a lead, the Brigade mod's permission warning says so above
 the prompt. Each turn the head chef reads the engine's own session files, in
 the config folder's `sessions` folder beside each session's key file, for each

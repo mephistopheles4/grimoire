@@ -79,6 +79,23 @@ test('SKILL.md keeps stop 4, the accepting reply\'s guard, the data rule, the ow
   assert.match(flat(read('skills/head-chef/references/roster.md')), /never from a report|only from the mod's own line|mod's own line/);
 });
 
+// Issue 416's exact texts that 1.0.0 keeps, in the contract and in SKILL.md;
+// the blocked record's to-do retires with S36 (issue 450, rev 4 S6.6).
+test('stops 2 and 3, the fixed to-do texts and the level-3 state line read as issue 416 gave them, and the blocked record\'s to-do is gone', () => {
+  const CONTRACT = flat(read('skills/head-chef/references/CONTRACT.md').replace(/^> /gm, ''));
+  for (const s of [
+    'When cleanup is ready: it names back each session, its worktree folder, its branch and what it found, by repository, in one list, and waits for one yes.',
+    'When a removal fails: it tells the owner what is left and leaves it, and goes on with the rest of the list; this stop holds the failed item only.',
+    '"Decision <id> from <lead name> waits for you in the Decisions tab"',
+    '"A kept-local report waits in <member>\'s chat"',
+    '"Full throttle since HH:MM UTC, toward <goal by repository and issue>"',
+  ]) {
+    assert.ok(CONTRACT.includes(s), `the contract lacks: ${s}`);
+    assert.ok(SKILL.includes(s), `SKILL.md lacks: ${s}`);
+  }
+  for (const text of [CONTRACT, SKILL]) assert.ok(!text.includes('Confirm the record in'), 'the blocked record\'s to-do is still there');
+});
+
 test('the rules of the retired cases are gone from SKILL.md, and the kept cases\' rules stay', () => {
   for (const s of ['first message', 'answer at once', 'kept id', 'statusUpdatedAt', 'two rows', 'first prompt', 'restarted', 'ask first',
     'cheaper routes', 'Confirm the record in']) assert.ok(!SKILL.includes(s), `SKILL.md still holds: ${s}`);
