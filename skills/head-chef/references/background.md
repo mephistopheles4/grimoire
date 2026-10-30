@@ -10,6 +10,8 @@ Read this when Desktop refused a start and the owner's words in the lead's chat 
    the session's name is its prompt's text. Set no permission mode; Desktop's
    setters do not apply. Refuse the start, and tell the owner, when your own
    name as the lead holds anything but letters, digits, spaces and `. _ -`,
+   when the model is not letters, digits and `. _ -` starting with a letter,
+   when the effort is not one of `low`, `medium`, `high`, `xhigh` or `max`,
    or when your shell is Windows PowerShell 5.1: it splits quoted arguments
    differently from the PowerShell 7 this form was measured on.
 
