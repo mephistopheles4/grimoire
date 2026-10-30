@@ -12,7 +12,7 @@ detail it links to, and a control they name counts the same way.
 
 "The base" is this page as it stood before the issue 446 rewrite, at commit
 `4bae5c3` ([provenance](#provenance)); its matrix rows 1 to 19 are the "old rows". Ids: C1 to C10, K1 and K2 are
-[accepted classes](#accepted-risks-by-class); P0 to P8 are
+[accepted classes](#accepted-risks-by-class); P0 to P7 and P9 are
 [candidates](#candidates-for-the-owners-word); E and D ids are old entries and
 data blocks, listed in [provenance](#provenance).
 
@@ -292,7 +292,7 @@ Not inside C7: what the data blocks list as not checked (the phone sync and the 
 
 ## Candidates for the owner's word
 
-There are 59 candidate lines in nine groups, P0 to P8. None of these is in force.
+There are 59 candidate lines in nine groups, P0 to P7 and P9. None of these is in force.
 
 <details>
 <summary>Candidates (59 lines)</summary>
@@ -378,7 +378,7 @@ None of these is in force. A candidate does not meet issue 359's H1. Only a cont
 
 - E14a. A skill's write scope, and a contract's load beside its agent as a second agent, held by prose (C1). Row 13's only E14 acceptance is the case-only compare (E14b, C2).
 
-**P8. Easings an open change proposes.** Each waits for the owner's own word before its change merges.
+**P9. Easings an open change proposes.** Each waits for the owner's own word before its change merges.
 
 - E42, eased by spec 448's Part B (q2 on issue 448; adversarial-lens F1 and F2 and data-lens F1 in its Test round 1). Class: a claim about the owner's words in the lead's own log that the log links to no waiting entry, marked read in bulk by "Mark N relayed read" without its card being opened, and then droppable by the log's cap. It includes an answer to another session's waiting entry, which a lead logs with no link. Proposed reason: each such claim is in To review's order and counted in the press's label, the head claim is drawn on a card, the press is its own act apart from Mark all read, it never takes an answer the log links to a waiting entry, and an own Relayed entry records the owner's words, or picks one reply accepted, in the lead's own chat, where the owner can compare them. It would widen C5. The owner chooses: re-accept E42 with this widening, or decline, and Part B leaves the change.
 
