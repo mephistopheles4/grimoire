@@ -247,9 +247,10 @@ exactly one line still has its count and hash, and takes only that line's
 entries, an ended session's unread Relayed entries and the waiting entries
 they answer; never an unanswered waiting entry, an alarm, a Lead entry, or an
 entry of a session the pane reads as running or cannot tell. It also writes
-nothing, and says the mark was not saved, when the marks file's caps would push
-out a mark that is still its entry's newest state, so a bulk press never brings
-back an entry the owner read. Its hash is the same unkeyed SHA-256, a staleness
+nothing, and says the marks file is full of entries the owner read, when the
+marks file's caps would push out a mark that is still the newest state of an
+entry in a log the pane reads, so a bulk press never brings back such an entry.
+A mark for an entry in a log the pane no longer reads can still drop. Its hash is the same unkeyed SHA-256, a staleness
 check that protects nothing secret. Both files go only where the roster's link-refusing path rule
 allows, overwrite only a file that passes the strict check of its own kind,
 and are checked again after the write. While the pane is open, and only then,

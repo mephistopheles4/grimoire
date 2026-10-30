@@ -602,6 +602,9 @@ const pickedRows = new Set<string>()
 let historyPages = 1
 let flaggedPages = 1
 let markFailed = false
+// Whether the last marks write was refused because the caps would push out a
+// mark that is still an entry's newest state, so the line can say why.
+let marksFull = false
 // History's fold of ended sessions' entries (spec 447 S5.5): open or not, its
 // pages and its opened rows, here and never in plugin state.
 let endedOpen = false
@@ -829,6 +832,7 @@ const writeMarks = ($: EngineInterface, rows: readonly Row[], state: 'read' | 'f
 // With `keepLive` (Mark these N read) it writes nothing when the caps would push
 // out a mark that is still its entry's newest state.
 async function writeMarksNow($: EngineInterface, rows: readonly Row[], state: 'read' | 'flagged' | 'unflagged', keepLive = false): Promise<boolean> {
+  marksFull = false
   try {
     const at = await where($)
     if ('error' in at) return false
@@ -845,7 +849,10 @@ async function writeMarksNow($: EngineInterface, rows: readonly Row[], state: 'r
     const known = new Set(tabRead.logs.flatMap(l => l.log.entries.map(e => markKey(l.sid, e.id, e.at))))
     const others = tabRead.marks.filter(m => m.sid !== at.id).map(m => m.file)
     const value = addMarks(file, rows.map(r => ({ log: r.sid, id: r.entry.id, entryAt: r.entry.at, state, at: now })), known, others, now)
-    if (keepLive && dropsLiveMark(file, value, others, known, new Set(rows.map(r => markKey(r.sid, r.entry.id, r.entry.at))), now)) return false
+    if (keepLive && dropsLiveMark(file, value, others, known, new Set(rows.map(r => markKey(r.sid, r.entry.id, r.entry.at))), now)) {
+      marksFull = true
+      return false
+    }
     const text = serializeMarks(value)
     if ('error' in text) return false
     await $.fs.write(placed.file, text.value)
@@ -1562,6 +1569,7 @@ async function openPane($: EngineInterface, wait: boolean, reached: { open: bool
   historyPages = 1
   flaggedPages = 1
   markFailed = false
+  marksFull = false
   endedOpen = false
   endedPages = 1
   openedEnded.clear()
@@ -4135,7 +4143,7 @@ export const register: Register = on => {
               : words.length > 0 && dUnread > 0
                 ? quiet('No unread decision matches the search.')
                 : hint('d-review'))}
-        {markFailed && <Text color="error">Not saved: the mark could not be written</Text>}
+        {markFailed && <Text color="error">{marksFull ? 'Not saved: your marks file is full of entries you read' : 'Not saved: the mark could not be written'}</Text>}
         {groupHead('d-flagged', dFlagged.length)}
         {!folds.has('d-flagged') &&
           (dFlagged.length === 0 ? (

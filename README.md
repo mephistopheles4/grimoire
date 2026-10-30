@@ -209,7 +209,8 @@ entries, or unread questions such an entry answers, To review shows one dim
 line instead of their cards: "From an ended session", the time of its newest
 such entry, up to three of the work names its entries give, how many are
 unread, and "✓ Mark these N read", which marks exactly those in one write and
-nothing if the line changed since you looked. Its other questions and alarms
+nothing if the line changed since you looked, or if your marks file is so full
+that the write would push out marks of entries you read. Its other questions and alarms
 keep their cards. History gains a fold, "From ended sessions", that holds
 those entries, read or not, newest first, with "Unread" on the ones you have
 not read; it draws from every working folder's logs among the 20 newest.
