@@ -7794,7 +7794,8 @@ test("claim 23, the closing read's q4c: marking another entry leaves the alarm l
   await press($, `dskip-${alarm.id}-${alarm.at}`)
   await press($, `dnext-${lead.id}-${lead.at}`)
   expect(await bandTexts(b)).toEqual([BAND_ALARM(3, caught)])
-  await press($, `dnext-${alarm.id}-${alarm.at}`)
+  await press($, `dflag-${alarm.id}-${alarm.at}`)
+  // A Flag on its own card is a card press too, and clears the line.
   expect(await bandTexts(b)).toEqual([])
 })
 

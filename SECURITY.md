@@ -237,7 +237,7 @@ next", "⚑ Flag" or "⚑ Unflag" in the pane's Decisions tab (since 0.91.0, spe
 answer writes both marks in one write), or Dismiss on its
 picked Flagged rows (since 0.82.0, spec 402 ticket 2), "✓ Mark all N read"
 (since 0.89.0, spec 444, one write for all the entries it takes), or, from
-0.90.0 to 0.93.0, "✓ Mark these N read" (spec 447, one write for an ended
+0.90.0 to 0.94.0, "✓ Mark these N read" (spec 447, one write for an ended
 session's line), the pane writes a mark
 for each entry, the log's session id, the entry's id and time, the state
 (read, flagged or unflagged) and the press time, in one write, to its own
@@ -247,7 +247,7 @@ file past 64 KiB and counts its entries unread). Past a cap the oldest marks
 drop in a fixed order that keeps a live flag for last and never brings back a
 cleared one. "Mark all N read" matches its count-and-hash button key whole,
 works out its set again inside the marks queue's turn and acts only when the
-set is unchanged. Since 0.94.0 (issue 466) it takes everything under To
+set is unchanged. Since 0.95.0 (issue 466) it takes everything under To
 review that the search shows, of every kind and from every log the tab draws:
 Lead, Relayed, waiting entries and alarms, and every ended session's line;
 before, it took only the pane's own session's plain Lead entries. It writes nothing, and says the marks file is full of entries the
@@ -256,8 +256,8 @@ newest state. A mark leaves the log untouched, so a waiting entry marked read
 keeps its link and a later answer still pairs with it. The hash is the mod's
 unkeyed SHA-256 of the set's mark keys and protects nothing secret. A mark for
 an entry in a log the pane no longer reads can still drop. "Mark these N
-read" (0.90.0 to 0.93.0, spec 447), an ended session's line's own press with
-key `dmarkended-<n>-<hash>`, is gone since 0.94.0: Mark all read takes its
+read" (0.90.0 to 0.94.0, spec 447), an ended session's line's own press with
+key `dmarkended-<n>-<hash>`, is gone since 0.95.0: Mark all read takes its
 entries. Since 0.91.0 (spec 448) a waiting entry of
 the pane's own session's log and the unread Relayed entry that answers it draw
 as one card, and "✓ Read, next" or "⚑ Flag" on it writes both marks in one
@@ -266,7 +266,7 @@ time>`, holding no session id. Read, next, Flag and Skip now work out the card
 shown inside the marks queue's turn, and act only when that card is still
 the one shown with the same entries: a press on a card drawn alone never marks
 an answer that arrived after the draw. "✓ Mark N relayed read" (0.91.0 to
-0.93.0, spec 448) is gone since 0.94.0: Mark all read takes its entries. The
+0.94.0, spec 448) is gone since 0.95.0: Mark all read takes its entries. The
 marks one bulk press writes share one press time. Both files go only where the roster's link-refusing path rule
 allows, overwrite only a file that passes the strict check of its own kind,
 and are checked again after the write. While the pane is open, and only then,
@@ -300,7 +300,7 @@ own hash; it protects nothing secret. What follows from it:
 - **What the files reveal:** every decision a lead logged, its reason and the
   options it weighed, waiting entries that hold decisions the owner keeps,
   each entry's level, and which entries the owner read and when, and, since 0.82.0, which the owner flagged to revisit and when each was unflagged or dismissed;
-  a mark's time from a Mark all read press, or from 0.90.0 to 0.93.0 a Mark these N read press, or from 0.91.0 to 0.93.0 a Mark N relayed read press, records the press, not a reading of each entry, and a claim such a press marks stays readable in History only until its log's cap drops it as a read entry. The files are
+  a mark's time from a Mark all read press, or from 0.90.0 to 0.94.0 a Mark these N read press, or from 0.91.0 to 0.94.0 a Mark N relayed read press, records the press, not a reading of each entry, and a claim such a press marks stays readable in History only until its log's cap drops it as a read entry. The files are
   named by session id, a mark names the session id of the log it marks, and
   each log holds a plain, unkeyed SHA-256 digest of the working folder's
   transcript-folder name, never the name, which a reader who can list the
@@ -446,7 +446,8 @@ from the last press, so its alarm and Pane entry writes also happen with the pan
 reads no usage and keeps no report. The pane
 draws the level in force on every tab, level 3 in the warning colour, and
 since 0.88.0 the band above the lead's prompt draws a 3 in force, with its
-press time and a Dismiss, and an unread alarm this mod caught, on the terminal
+press time and a Dismiss, and an alarm this mod caught until a card or
+History press, reload or new session, on the terminal
 and Desktop only. What follows from it:
 - **What the log reveals:** each entry's level, and the times of the owner's
   slider moves, of the resets, the lead's compactions among them, and of the
