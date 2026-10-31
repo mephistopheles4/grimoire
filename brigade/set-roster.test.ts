@@ -5422,36 +5422,37 @@ const markAllSeed = (w: World) => {
     kept(2, 300, { question: 'Plain two?' }),
     kept(3, 400, { question: 'Mine waits?', waiting: true, pick: '' }),
     kept(4, 500, { question: 'Relayed?', source: 'relayed' }),
-    // An unread alarm in this session's own log: in To review, never taken.
     kept(5, 600, ALARM_444),
   ]))
   seed(w, PEER_LOG, logText([kept(1, 100, { question: 'Peer waits?', waiting: true, pick: '' }), kept(2, 110, { question: 'Peer plain?' }), kept(3, 120, { question: 'Peer relayed?', source: 'relayed' })]))
 }
 
 for (const surface of ['terminal', 'desktop', 'mobile'] as const) {
-  test(`spec 444 claim 6: To review's heading shows Mark all N read with N the entries it takes (${surface})`, async ($, on) => {
+  test(`issue 466: To review's heading shows one Mark all N read with N everything under To review (${surface})`, async ($, on) => {
     await decisionsPane(on, $, surface, markAllSeed)
-    expect(await markAllLabel(2)).toBe(true)
+    // This log's five entries, and the peer's waiting and Relayed entries; its plain entry is not drawn.
+    expect(await markAllLabel(7)).toBe(true)
     expect((await markAllKeys()).length).toBe(1)
   })
 }
 
-test('spec 444 claims 6 and 7: no button when nothing can be taken; a press marks exactly the plain Lead entries in one write, and they stay in History', async ($, on) => {
+test('issue 466: no button when To review is empty; one press marks everything under it in one write, and it stays in History', async ($, on) => {
   const w = await decisionsPane(on, $, 'desktop', w => {
-    seed(w, LOG, logText([kept(1, 200, { waiting: true, pick: '' })]))
+    seed(w, LOG, logText([]))
   })
   expect((await markAllKeys()).length).toBe(0)
-  seed(w, LOG, logText([kept(1, 200, { question: 'Plain one?' }), kept(2, 300, { question: 'Plain two?' }), kept(3, 400, { waiting: true, pick: '' }), kept(4, 500, { source: 'relayed' })]), 5)
-  seed(w, PEER_LOG, logText([kept(1, 100, { question: 'Peer plain?' }), kept(2, 110, { question: 'Peer waits?', waiting: true, pick: '' })]), 5)
+  seed(w, LOG, logText([kept(1, 200, { question: 'Plain one?' }), kept(2, 300, { question: 'Plain two?' }), kept(3, 400, { waiting: true, pick: '' }), kept(4, 500, { source: 'relayed', answers: '3' }), kept(5, 600, ALARM_444)]), 5)
+  seed(w, PEER_LOG, logText([kept(1, 100, { question: 'Peer plain?' }), kept(2, 110, { question: 'Peer waits?', waiting: true, pick: '' }), kept(3, 120, { question: 'Peer relayed?', source: 'relayed' })]), 5)
   await w.clock.advance(5000)
   const [key] = await markAllKeys()
-  expect(key).toMatch(/^dmarkall-2-[0-9a-f]{16}$/)
+  expect(key).toMatch(/^dmarkall-7-[0-9a-f]{16}$/)
   const before = writesTo(w, OWN_MARKS)
   await press($, key as string)
   expect(writesTo(w, OWN_MARKS)).toBe(before + 1)
-  expect(parsed(w, OWN_MARKS).marks.map((m: any) => [m.log, m.id, m.state])).toEqual([[SID, '1', 'read'], [SID, '2', 'read']])
+  const marks = parsed(w, OWN_MARKS).marks.map((m: any) => `${m.log === SID ? 'own' : 'peer'} ${m.id} ${m.state}`).sort()
+  expect(marks).toEqual(['own 1 read', 'own 2 read', 'own 3 read', 'own 4 read', 'own 5 read', 'peer 2 read', 'peer 3 read'])
   expect((await markAllKeys()).length).toBe(0)
-  expect(await shows(/^Peer waits\?$/)).toBe(true)
+  expect(await shows(/^All caught up/)).toBe(true)
   expect(await shows(/1 unread entry\(s\) in other sessions' logs not shown/)).toBe(true)
   await press($, 'grp-d-history')
   expect(await shows(/· decision 1$/)).toBe(true)
@@ -5472,16 +5473,17 @@ test('spec 444 claim 8: a press whose set has moved marks nothing: the same key 
   const before = writesTo(w, OWN_MARKS)
   await Promise.all([press($, key as string), press($, key as string)])
   expect(writesTo(w, OWN_MARKS)).toBe(before + 1)
-  expect(parsed(w, OWN_MARKS).marks.length).toBe(2)
+  expect(parsed(w, OWN_MARKS).marks.length).toBe(7)
   expect(await markAllKeys()).toEqual([])
   // An entry that arrives later gets a key of its own, and the new press marks it alone.
-  seed(w, LOG, logText([kept(1, 200), kept(2, 300), kept(3, 400, { waiting: true, pick: '' }), kept(4, 500, { source: 'relayed' }), kept(5, 600, { question: 'New plain?' })]), 9)
+  seed(w, LOG, logText([kept(1, 200), kept(2, 300), kept(3, 400, { waiting: true, pick: '' }), kept(4, 500, { source: 'relayed' }), kept(5, 600, ALARM_444), kept(6, 700, { question: 'New plain?' })]), 9)
   await w.clock.advance(5000)
   const [fresh] = await markAllKeys()
   expect(fresh).toMatch(/^dmarkall-1-/)
   expect(fresh).not.toBe(key)
   await press($, fresh as string)
-  expect(parsed(w, OWN_MARKS).marks.map((m: any) => m.id)).toEqual(['1', '2', '5'])
+  expect(parsed(w, OWN_MARKS).marks.length).toBe(8)
+  expect(parsed(w, OWN_MARKS).marks.some((m: any) => m.log === SID && m.id === '6')).toBe(true)
 })
 
 test('spec 444 claim 7: a press adds no plugin-state key, and the hash never reaches a state value', async ($, on) => {
@@ -5715,7 +5717,7 @@ test('spec 444 claim 9: a Mark all read whose marks cannot be written changes no
   await press($, key as string)
   expect(w.text(OWN_MARKS)).toBe('{"cards":[],"todos":[]}')
   expect(await shows(/^Not saved: the mark could not be written$/)).toBe(true)
-  expect(await markAllLabel(2)).toBe(true)
+  expect(await markAllLabel(7)).toBe(true)
 })
 
 for (const surface of ['terminal', 'desktop', 'mobile'] as const) {
@@ -5742,7 +5744,7 @@ test('spec 444 claim 9: a Mark all read whose marks file write fails changes not
   expect(w.failWriteOnce).toBeUndefined()
   expect(parsed(w, OWN_MARKS).marks).toEqual([])
   expect(await shows(/^Not saved: the mark could not be written$/)).toBe(true)
-  expect(await markAllLabel(2)).toBe(true)
+  expect(await markAllLabel(7)).toBe(true)
 })
 
 test('spec 444 claim 3: Read, next works from the drawn set, not from an older undrawn entry of another log', async ($, on) => {
@@ -5870,8 +5872,8 @@ test('spec 444 claims 4, 13, 14 and 15: another log draws only its waiting, Rela
   await press($, 'dnext-3-120')
   expect(await shows(/^Autonomy level$/)).toBe(true)
   expect(await shows(/^From another session$/)).toBe(true)
-  // The alarm carries but Mark all read never takes it.
-  expect((await markAllKeys()).length).toBe(0)
+  // Mark all read takes the carried waiting, Relayed and alarm entries alike.
+  expect(await markAllLabel(3)).toBe(true)
   await press($, 'grp-d-history')
   expect(await shows(/· decision 1$/)).toBe(false)
 })
@@ -8672,13 +8674,15 @@ test('spec 447 claims 7 and 8: under a search the line counts and marks only the
   expect(ownMarks(w).map((m: any) => [m.log, m.id])).toEqual([[PEER, '4']])
 })
 
-test('spec 447 claim 12: Mark all read is unchanged beside an ended session\'s line', async ($, on) => {
+test('issue 466: Mark all read takes an ended session\'s line too', async ($, on) => {
   const w = await endedPane(on, $, 'desktop', w => seed(w, LOG, logText([kept(1, 200, { question: 'Plain one?' }), kept(2, 300, { question: 'Plain two?' })])))
-  expect(await markAllLabel(2)).toBe(true)
+  // This log's two, the peer's unanswered waiting entry and alarm, and the line's three.
+  expect(await markAllLabel(7)).toBe(true)
   const [key] = await markAllKeys()
   await press($, key as string)
-  expect(ownMarks(w).map((m: any) => [m.log, m.id])).toEqual([[SID, '1'], [SID, '2']])
-  expect((await endedKeys()).length).toBe(1)
+  expect(ownMarks(w).length).toBe(7)
+  expect((await endedKeys()).length).toBe(0)
+  expect((await markAllKeys()).length).toBe(0)
 })
 
 test('spec 447 claim 10: History\'s fold holds the ended session\'s claims, read or not, says which are unread, and keeps its state out of plugin state', async ($, on) => {
@@ -8866,83 +8870,7 @@ test('spec 448 claim 3: a lone key pressed after the answer arrived marks nothin
   expect(await shows(/^Mine asks\?$/)).toBe(true)
 })
 
-// --- spec 448 Part B: Mark N relayed read ---------------------------------------------------------
-
-const relayedKeys = async () => (await buttonKeys()).filter(k => k.startsWith('dmarkrelayed-'))
-// The pair, a plain entry, two Relayed entries that answer nothing, and another session's lone Relayed entry.
-const relayedSeed = (w: World) => {
-  seed(w, LOG, logText([...PAIR_448, kept(4, 500, { question: 'Lone claim?', source: 'relayed' }), kept(5, 600, { question: 'Second claim?', source: 'relayed', work: 'issue 12' })]))
-  seed(w, PEER_LOG, logText([kept(1, 100, { question: 'Peer relayed?', source: 'relayed' })]))
-}
-
-for (const surface of ['terminal', 'desktop', 'mobile'] as const) {
-  test(`spec 448 claim 7: To review's heading shows Mark N relayed read with N this log's claims that answer nothing, and none at 0 (${surface})`, async ($, on) => {
-    const w = await decisionsPane(on, $, surface, relayedSeed)
-    const keys = await relayedKeys()
-    expect(keys.length).toBe(1)
-    expect(keys[0]).toMatch(/^dmarkrelayed-2-[0-9a-f]{16}$/)
-    expect(JSON.stringify((await mounted.find({ key: keys[0] }))?.props)).toContain('✓ Mark 2 relayed read')
-    seed(w, LOG, logText(PAIR_448), 5)
-    await w.clock.advance(5000)
-    expect(await relayedKeys()).toEqual([])
-  })
-}
-
-test('spec 448 claim 8: a press marks exactly the two claims read in one write, with one press time; the pair, the plain entry and the other log\'s claim stay', async ($, on) => {
-  const w = await decisionsPane(on, $, 'desktop', relayedSeed)
-  const [key] = await relayedKeys()
-  const before = writesTo(w, OWN_MARKS)
-  const seen = new Set(w.states.map(([k]) => k))
-  const from = w.states.length
-  await press($, key as string)
-  expect(writesTo(w, OWN_MARKS)).toBe(before + 1)
-  const at = w.clock.now()
-  expect(ownMarks(w)).toEqual([flagMark(SID, '4', 500, 'read', at), flagMark(SID, '5', 600, 'read', at)])
-  expect(await relayedKeys()).toEqual([])
-  expect(await shows(/^Peer relayed\?$/)).toBe(true)
-  await press($, 'dnext-1-100')
-  expect((await buttonKeys()).includes('dnext-1-200-2-300')).toBe(true)
-  expect(w.states.slice(from).map(([k]) => k).filter(k => !seen.has(k))).toEqual([])
-  // Both stay in History.
-  await press($, 'grp-d-history')
-  expect(await shows(/· decision 4$/)).toBe(true)
-  expect(await shows(/· decision 5$/)).toBe(true)
-})
-
-test('spec 448 claims 7 and 8: under a search the press counts and marks only the claims that match', async ($, on) => {
-  const w = await decisionsPane(on, $, 'desktop', relayedSeed)
-  await mounted.input({ key: 'dsearch', text: 'issue 12', kind: 'change' })
-  const [key] = await relayedKeys()
-  expect(key).toMatch(/^dmarkrelayed-1-/)
-  await press($, key as string)
-  expect(ownMarks(w).map((m: any) => m.id)).toEqual(['5'])
-})
-
-test('spec 448 claim 9: a key whose set has moved marks nothing: one claim marked elsewhere as another arrived, pressed twice, or out of range', async ($, on) => {
-  const w = await decisionsPane(on, $, 'desktop', relayedSeed)
-  const [key] = await relayedKeys()
-  const before = writesTo(w, OWN_MARKS)
-  // Claim 4 is read in another session's marks file and claim 6 arrives: the count holds at 2, the hash moves.
-  seed(w, PEER_MARKS, marksText([{ log: SID, id: '4', entryAt: 500, state: 'read', at: w.clock.now() }]), 7)
-  seed(w, LOG, logText([...PAIR_448, kept(4, 500, { source: 'relayed' }), kept(5, 600, { source: 'relayed' }), kept(6, 700, { source: 'relayed' })]), 8)
-  await w.clock.advance(5000)
-  const [moved] = await relayedKeys()
-  expect(moved).toMatch(/^dmarkrelayed-2-[0-9a-f]{16}$/)
-  expect(moved).not.toBe(key)
-  await press($, key as string)
-  expect(writesTo(w, OWN_MARKS)).toBe(before)
-  // The same key pressed twice marks once.
-  await Promise.all([press($, moved as string), press($, moved as string)])
-  expect(writesTo(w, OWN_MARKS)).toBe(before + 1)
-  expect(ownMarks(w).map((m: any) => m.id)).toEqual(['5', '6'])
-  // A count out of range marks nothing.
-  const [, hash] = /^dmarkrelayed-2-([0-9a-f]{16})$/.exec(moved as string) ?? []
-  await press($, `dmarkrelayed-501-${hash}`)
-  expect(writesTo(w, OWN_MARKS)).toBe(before + 1)
-  expect(await relayedKeys()).toEqual([])
-})
-
-test('spec 448 claim 10: a press that would push out a live mark writes nothing and says so; a failed write changes nothing', async ($, on) => {
+test('issue 466: a Mark all read that would push out a live mark writes nothing and says so; a failed write changes nothing', async ($, on) => {
   const big = (n: number) => logText(Array.from({ length: 500 }, (_, i) => kept(i + 1, 500 + i, { work: `log ${n}` })))
   const LOGS = ['bbbbbbbb-0000-0000-0000-000000000001', 'bbbbbbbb-0000-0000-0000-000000000002', 'bbbbbbbb-0000-0000-0000-000000000003', 'bbbbbbbb-0000-0000-0000-000000000004']
   // 1,998 read marks, each the newest state of a plain entry in a log the pane reads.
@@ -8952,8 +8880,8 @@ test('spec 448 claim 10: a press that would push out a live mark writes nothing 
     seed(w, LOG, logText([1, 2, 3].map(i => kept(i, 100 * i, { source: 'relayed' }))))
     seed(w, OWN_MARKS, marksText(live))
   })
-  const [key] = await relayedKeys()
-  expect(key).toMatch(/^dmarkrelayed-3-/)
+  const [key] = await markAllKeys()
+  expect(key).toMatch(/^dmarkall-3-/)
   const writes = writesTo(w, OWN_MARKS)
   await press($, key as string)
   expect(writesTo(w, OWN_MARKS)).toBe(writes)
@@ -8963,10 +8891,10 @@ test('spec 448 claim 10: a press that would push out a live mark writes nothing 
   seed(w, OWN_MARKS, marksText([]), 2)
   await w.clock.advance(5000)
   w.failWriteOnce = OWN_MARKS
-  const [again] = await relayedKeys()
+  const [again] = await markAllKeys()
   await press($, again as string)
   expect(w.failWriteOnce).toBeUndefined()
   expect(ownMarks(w)).toEqual([])
   expect(await shows(/^Not saved: the mark could not be written$/)).toBe(true)
-  expect((await relayedKeys()).length).toBe(1)
+  expect((await markAllKeys()).length).toBe(1)
 })

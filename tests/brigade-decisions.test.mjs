@@ -821,32 +821,6 @@ test('spec 444 claims 2 and 15: a Relayed answer and the waiting entry it answer
   assert.deepEqual(works(new Map([[keyOf(OTHER, answer), 'read'], [keyOf(OTHER, answered), 'read']])), []);
   // The waiting entry read first: the unread answer still shows, alone.
   assert.deepEqual(works(new Map([[keyOf(OTHER, answered), 'read']])), ['the answer']);
-  // Mark all read never takes a carried entry.
-  const q = reviewQueue(drawnLogs(ls, SID, new Map()).review, new Map(), new Set(), []);
-  assert.ok(markAllSet(q.order, SID).rows.every(r => r.sid === SID));
-});
-
-test('spec 444 claim 7: Mark all read takes only this log\'s shown plain Lead entries, with a hash that moves when the set does', () => {
-  const ls = tabLogsFor();
-  ls[0].log.entries.push({ ...ls[0].log.entries[0], id: '4', at: NOW + 10, waiting: true, pick: '', work: 'mine waits' });
-  ls[0].log.entries.push({ ...ls[0].log.entries[0], id: '5', at: NOW + 11, source: 'relayed', answers: '4', waiting: false });
-  // An unread alarm in this session's own log is never taken either.
-  ls[0].log.entries.push({ ...ls[0].log.entries[0], id: '6', at: NOW + 12, source: 'alarm' });
-  const q = reviewQueue(drawnLogs(ls, SID, new Map()).review, new Map(), new Set(), []);
-  assert.ok(q.order.some(r => r.sid === SID && r.entry.source === 'alarm'), 'the alarm is in To review');
-  const set = markAllSet(q.order, SID);
-  assert.deepEqual(set.rows.map(r => r.entry.id), ['1', '2', '3']);
-  assert.equal(set.n, 3);
-  assert.equal(set.hash, createHash('sha256').update(set.rows.map(r => keyOf(r.sid, r.entry)).sort().join('\n')).digest('hex').slice(0, 16));
-  assert.notEqual(markAllSet(q.order.filter(r => !(r.sid === SID && r.entry.id === '1')), SID).hash, set.hash);
-  assert.deepEqual(markAllSet([], SID), { rows: [], n: 0, hash: '' });
-  ls[0].log.entries[1].work = 'needle';
-  const q2 = reviewQueue(drawnLogs(ls, SID, new Map()).review, new Map(), new Set(), searchWords('needle'));
-  assert.deepEqual(markAllSet(q2.order, SID).rows.map(r => r.entry.id), ['2']);
-  // Spec 448 claim 6: with the own pair 4 and 5 on one card, the set and its count are unchanged.
-  const cards = d.reviewCards(drawnLogs(ls, SID, new Map()).review, SID, new Map(), new Set(), []);
-  assert.ok(cards.cards.some(c => c.answer?.entry.id === '5'), 'the own pair draws on one card');
-  assert.deepEqual(markAllSet(cards.shown, SID), set);
 });
 
 test('spec 444 claim 8: the Mark all read key matches whole, from 1 to 500', () => {
@@ -1205,44 +1179,23 @@ test('spec 448 claim 3: a pair key matches whole, naming both entries by id and 
   }
 });
 
-// --- spec 448 Part B: Mark N relayed read ---------------------------------------------------------
-
-const { markRelayedSet, parseMarkRelayedKey } = d;
-
-test('spec 448 claims 7 and 8: Mark N relayed read takes only this log\'s shown Relayed entries that answer nothing, with the hash over their sorted mark keys', () => {
-  const ls = pairLogs();
-  let own = ls[0].log;
-  for (const [raw, at] of [[input({ source: 'relayed', work: 'lone claim' }), NOW + 5], [alarmEntry(3), NOW + 6]]) {
-    own = appendEntry(own, raw, { at, level: 1, read: new Map(), fixed: raw.source === 'alarm' }).value.log;
-  }
-  ls[0].log = own;
-  const v = drawnLogs(ls, SID, new Map());
-  const q = reviewCards(v.review, SID, new Map(), new Set(), []);
-  // The other log's relayed entries are in the order, and never taken.
-  assert.ok(q.shown.some(r => r.sid === OTHER && r.entry.source === 'relayed'));
-  const set = markRelayedSet(q.shown, SID);
-  assert.deepEqual(set.rows.map(r => r.entry.work), ['lone claim'], 'never the waiting entry, its answer, a plain Lead entry, an alarm or another log\'s entry');
-  assert.equal(set.n, 1);
+test('issue 466: Mark all read takes everything under To review, of every kind and log, and every ended line, with a hash that moves when the set does', () => {
+  const ls = tabLogsFor();
+  ls[0].log.entries.push({ ...ls[0].log.entries[0], id: '4', at: NOW + 10, waiting: true, pick: '', work: 'mine waits' });
+  ls[0].log.entries.push({ ...ls[0].log.entries[0], id: '5', at: NOW + 11, source: 'relayed', answers: '4', waiting: false });
+  ls[0].log.entries.push({ ...ls[0].log.entries[0], id: '6', at: NOW + 12, source: 'alarm' });
+  const v = view447(ls);
+  const cards = d.reviewCards(v.review, SID, new Map(), new Set(), []);
+  const lines = endedLines(v.ended, new Map(), []);
+  assert.ok(lines.length > 0, 'an ended line is drawn');
+  const set = markAllSet(cards.shown, lines);
+  const all = [...cards.shown, ...lines.flatMap(l => l.rows)];
+  assert.deepEqual(set.rows, all);
+  assert.equal(set.n, all.length);
+  for (const kind of ['lead', 'relayed', 'alarm']) assert.ok(set.rows.some(r => r.entry.source === kind), kind);
+  assert.ok(set.rows.some(r => r.entry.waiting), 'a waiting entry');
+  assert.ok(set.rows.some(r => r.sid === OTHER), 'another log\'s entry');
   assert.equal(set.hash, createHash('sha256').update(set.rows.map(r => keyOf(r.sid, r.entry)).sort().join('\n')).digest('hex').slice(0, 16));
-  // A search that hides the claim leaves nothing; the answer drawn alone, its question read, is still not taken.
-  assert.deepEqual(markRelayedSet(reviewCards(v.review, SID, new Map(), new Set(), searchWords('my answer')).shown, SID), { rows: [], n: 0, hash: '' });
-  const wRead = new Map([[keyOf(SID, own.entries[1]), 'read']]);
-  assert.deepEqual(markRelayedSet(reviewCards(drawnLogs(ls, SID, wRead).review, SID, wRead, new Set(), []).shown, SID).rows.map(r => r.entry.work), ['lone claim']);
-  // The hash moves when the set does.
-  own = appendEntry(own, input({ source: 'relayed', work: 'second claim' }), { at: NOW + 7, level: 1, read: new Map() }).value.log;
-  ls[0].log = own;
-  const more = markRelayedSet(reviewCards(drawnLogs(ls, SID, new Map()).review, SID, new Map(), new Set(), []).shown, SID);
-  assert.equal(more.n, 2);
-  assert.notEqual(more.hash, set.hash);
-});
-
-test('spec 448 claim 9: the Mark N relayed read key matches whole, from 1 to 500, and is no other press\'s key', () => {
-  const h = 'abcdef0123456789';
-  assert.deepEqual(parseMarkRelayedKey(`dmarkrelayed-3-${h}`), { n: 3, hash: h });
-  assert.deepEqual(parseMarkRelayedKey(`dmarkrelayed-500-${h}`), { n: 500, hash: h });
-  for (const bad of [`dmarkrelayed-0-${h}`, `dmarkrelayed-501-${h}`, `dmarkrelayed-03-${h}`, `dmarkrelayed-1000-${h}`, `dmarkrelayed-3-${h}x`, ` dmarkrelayed-3-${h}`, `dmarkrelayed-3-${h.toUpperCase()}`, `dmarkrelayed-3-${h.slice(1)}`, `dmarkrelayed-3-${h}\n`, `dmarkall-3-${h}`, `dmarkended-3-${h}`]) {
-    assert.equal(parseMarkRelayedKey(bad), undefined, bad);
-  }
-  assert.equal(parseMarkAllKey(`dmarkrelayed-3-${h}`), undefined);
-  assert.equal(parseMarkEndedKey(`dmarkrelayed-3-${h}`), undefined);
+  assert.notEqual(markAllSet(cards.shown.slice(1), lines).hash, set.hash);
+  assert.deepEqual(markAllSet([], []), { rows: [], n: 0, hash: '' });
 });

@@ -698,13 +698,13 @@ export function drawnLogs(logs: readonly ReadLog[], sid: string, states: Readonl
   return { review, flagged: [...logs], history, ended, canTell: tell, unshown }
 }
 
-/** The entries Mark all read takes from To review's order: this session's
- *  plain Lead entries. Waiting entries (so an answered pair's waiting side),
- *  alarms and Relayed entries (so an answer) are never taken. `hash` is the
- *  first 16 hex digits of SHA-256 over the set's mark keys, sorted and joined
- *  by line breaks: a staleness check on the press, not a secret. */
-export function markAllSet(order: readonly Row[], sid: string) {
-  const rows = order.filter(r => r.sid === sid && r.entry.source === 'lead' && !r.entry.waiting)
+/** The entries Mark all read takes (issue 466): everything under To review,
+ *  its shown rows and every ended session's line, of every kind and log.
+ *  `hash` is the first 16 hex digits of SHA-256 over the set's mark keys,
+ *  sorted and joined by line breaks: a staleness check on the press, not a
+ *  secret. */
+export function markAllSet(shown: readonly Row[], lines: readonly EndedLine[]) {
+  const rows = [...shown, ...lines.flatMap(l => l.rows)]
   if (rows.length === 0) return { rows, n: 0, hash: '' }
   return { rows, n: rows.length, hash: setHash(rows) }
 }
@@ -712,27 +712,6 @@ export function markAllSet(order: readonly Row[], sid: string) {
 // A press's staleness check: the first 16 hex digits of SHA-256 over the
 // set's mark keys, sorted and joined by line breaks.
 const setHash = (rows: readonly Row[]) => sha256Hex(rows.map(rowKey).sort().join('\n')).slice(0, 16)
-
-/** The entries Mark N relayed read takes from To review's shown rows (spec
- *  448 S5): this session's Relayed entries that link to no waiting entry. A
- *  question and the answer linked to it leave only by a press on their own
- *  card, and no waiting entry, alarm, plain Lead entry or entry of another log
- *  is taken. An answer logged with no link, to another log's waiting entry,
- *  is a claim like any other and is taken.
- *  `hash` is as Mark all read's: a staleness check, not a secret. */
-export function markRelayedSet(order: readonly Row[], sid: string) {
-  const rows = order.filter(r => r.sid === sid && r.entry.source === 'relayed' && r.entry.answers === '')
-  if (rows.length === 0) return { rows, n: 0, hash: '' }
-  return { rows, n: rows.length, hash: setHash(rows) }
-}
-
-const MARK_RELAYED_KEY = /^dmarkrelayed-([1-9][0-9]{0,2})-([0-9a-f]{16})$/
-/** A Mark N relayed read button's key, matched whole: its count (1 to 500) and hash. */
-export function parseMarkRelayedKey(key: string): { n: number; hash: string } | undefined {
-  const m = MARK_RELAYED_KEY.exec(key)
-  const n = Number(m?.[1])
-  return m === null || n > MAX_ENTRIES ? undefined : { n, hash: m[2] as string }
-}
 
 const MARK_ALL_KEY = /^dmarkall-([1-9][0-9]{0,2})-([0-9a-f]{16})$/
 /** A Mark all read button's key, matched whole: its count (1 to 500) and hash. */
