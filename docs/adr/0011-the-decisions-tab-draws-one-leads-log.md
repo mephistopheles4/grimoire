@@ -44,6 +44,24 @@ reads the same files, this session's and the 20 newest others of each kind. No
 file is deleted or rewritten; earlier logs stay on disk, unshown, and the
 owner can delete them by hand.
 
+Amended in 0.91.0 (spec 448): in this session's own log, a waiting entry and
+the Relayed entry that answers it, both unread, draw in To review as one card
+at the waiting entry's place. The card shows the question, then every field
+the answer's own card drew, and one Read, next marks both read in one write.
+A claim about the owner's words still reaches the owner as a card: this card.
+A press acts only when its card is still the one shown with the same entries.
+A pair carried from another log still draws as two cards.
+
+Also amended in 0.91.0 (spec 448, q1 A, the lead's pick under level 3; it
+merges only on the owner's own word on q2): To review's heading gains "Mark N
+relayed read", which marks this session's own unread Relayed entries that
+answer no waiting entry read in one write. Each such claim still reaches To
+review as a card and is counted in the press's label; the press marks it from
+there, whether or not its card was opened. A question and the answer the log
+links to it never leave by this press; an answer logged without that link, to
+a waiting entry in another session's log, counts as a claim and does. A mark from it records the press, not a reading, and a
+claim it marks stays in History only until its log's cap drops it.
+
 The owner chose this on issue 444 (q1 to q3 A and q9 A, relayed by the lead on
 2026-10-29). To review's heading also gains "Mark all N read", and the marks
 file's cap rises from 64 KiB to 256 KiB so one press of 500 marks fits beside
@@ -72,6 +90,15 @@ after 0.89.0). A false claim does most of its harm before its writer ends, so
 an ended session's claims fold into one counted line rather than leave the
 owner's sight, and each stays readable in the fold. The rule writes nothing,
 so a session that runs again gets its cards back at the next draw.
+
+The 0.91.0 amendment: the running lead's own log held 39 unread Relayed
+entries and 25 unread waiting entries, 16 of them answered, on the owner's
+machine during issue 447's Design round. A question and its answer read together
+halves the presses for each answered question, and the answer is still drawn
+in full on a card. Mark N relayed read clears the rest of the lead's own
+claims, about 23 of the 39, which record words the owner typed in the lead's
+own chat or picks one reply accepted there; a forged claim of that kind is
+the cost, which q2 puts to the owner.
 
 ## Consequences
 

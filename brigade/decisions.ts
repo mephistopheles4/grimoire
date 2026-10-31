@@ -544,6 +544,46 @@ export function reviewQueue(logs: readonly ReadLog[], states: ReadonlyMap<string
   return { order, head: order[i] as Row | undefined, n: i + 1, total: order.length }
 }
 
+/** One card in To review: an entry alone, or, since spec 448, a waiting entry
+ *  of this session's own log with the unread Relayed entry that answers it. */
+export type ReviewCard = { row: Row; answer: Row | undefined }
+
+/** To review as cards (spec 448 S4): `reviewQueue`'s unread entries, with an
+ *  unread waiting entry of this session's own log (`sid`) and the unread
+ *  Relayed entry that answers it on one card, at the waiting entry's place.
+ *  A card shows when either of its entries matches the search, and then both
+ *  are in `shown`, oldest first, which the presses that work from To review's
+ *  order take. A pair counts as skipped when its waiting entry is. `head` and
+ *  `answer` are the card shown, with its place as "n of N" in cards. */
+export function reviewCards(logs: readonly ReadLog[], sid: string, states: ReadonlyMap<string, MarkState>, skipped: ReadonlySet<string>, words: readonly string[]) {
+  const unread = reviewQueue(logs, states, new Set(), []).order
+  const own = new Map(unread.filter(r => r.sid === sid && r.entry.waiting).map(r => [r.entry.id, r]))
+  const answerOf = new Map<Row, Row>()
+  for (const r of unread) {
+    const w = r.sid === sid && r.entry.source === 'relayed' && r.entry.answers !== '' ? own.get(r.entry.answers) : undefined
+    if (w !== undefined) answerOf.set(w, r)
+  }
+  const answers = new Set(answerOf.values())
+  const cards: ReviewCard[] = unread
+    .filter(r => !answers.has(r))
+    .map(row => ({ row, answer: answerOf.get(row) }))
+    .filter(c => matchesSearch(c.row.entry, c.row.writer, words) || (c.answer !== undefined && matchesSearch(c.answer.entry, c.answer.writer, words)))
+  const shown = cards.flatMap(c => (c.answer === undefined ? [c.row] : [c.row, c.answer])).sort(oldestFirst)
+  const at = cards.findIndex(c => !skipped.has(rowKey(c.row)))
+  const i = at < 0 ? 0 : at
+  const card = cards[i]
+  return { cards, shown, head: card?.row, answer: card?.answer, n: i + 1, total: cards.length }
+}
+
+const PAIR_KEY = /^(dnext|dflag|dskip)-([1-9][0-9]{0,15})-([0-9]{1,16})-([1-9][0-9]{0,15})-([0-9]{1,16})$/
+/** A pair card's Read, next, Flag or Skip key, matched whole: the verb, then
+ *  the waiting entry's id and time, then its answer's (spec 448 S4). */
+export function parsePairKey(key: string): { verb: string; id: string; at: number; answerId: string; answerAt: number } | undefined {
+  const m = PAIR_KEY.exec(key)
+  if (m === null) return undefined
+  return { verb: m[1] as string, id: m[2] as string, at: Number(m[3]), answerId: m[4] as string, answerAt: Number(m[5]) }
+}
+
 /** Flagged to revisit: every entry across the logs read whose latest mark is
  *  flagged and that matches the search, oldest first, as To review is. */
 export function flaggedRows(logs: readonly ReadLog[], states: ReadonlyMap<string, MarkState>, words: readonly string[]): Row[] {
@@ -672,6 +712,27 @@ export function markAllSet(order: readonly Row[], sid: string) {
 // A press's staleness check: the first 16 hex digits of SHA-256 over the
 // set's mark keys, sorted and joined by line breaks.
 const setHash = (rows: readonly Row[]) => sha256Hex(rows.map(rowKey).sort().join('\n')).slice(0, 16)
+
+/** The entries Mark N relayed read takes from To review's shown rows (spec
+ *  448 S5): this session's Relayed entries that link to no waiting entry. A
+ *  question and the answer linked to it leave only by a press on their own
+ *  card, and no waiting entry, alarm, plain Lead entry or entry of another log
+ *  is taken. An answer logged with no link, to another log's waiting entry,
+ *  is a claim like any other and is taken.
+ *  `hash` is as Mark all read's: a staleness check, not a secret. */
+export function markRelayedSet(order: readonly Row[], sid: string) {
+  const rows = order.filter(r => r.sid === sid && r.entry.source === 'relayed' && r.entry.answers === '')
+  if (rows.length === 0) return { rows, n: 0, hash: '' }
+  return { rows, n: rows.length, hash: setHash(rows) }
+}
+
+const MARK_RELAYED_KEY = /^dmarkrelayed-([1-9][0-9]{0,2})-([0-9a-f]{16})$/
+/** A Mark N relayed read button's key, matched whole: its count (1 to 500) and hash. */
+export function parseMarkRelayedKey(key: string): { n: number; hash: string } | undefined {
+  const m = MARK_RELAYED_KEY.exec(key)
+  const n = Number(m?.[1])
+  return m === null || n > MAX_ENTRIES ? undefined : { n, hash: m[2] as string }
+}
 
 const MARK_ALL_KEY = /^dmarkall-([1-9][0-9]{0,2})-([0-9a-f]{16})$/
 /** A Mark all read button's key, matched whole: its count (1 to 500) and hash. */
