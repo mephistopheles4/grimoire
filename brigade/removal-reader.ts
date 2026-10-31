@@ -68,7 +68,7 @@ const GIT_COMMANDS: ReadonlySet<string> = new Set([
   'pickaxe', 'prune', 'prune-packed', 'pull', 'push', 'range-diff', 'read-tree', 'rebase', 'receive-pack', 'reflog',
   'refs', 'remote', 'remote-ext', 'remote-fd', 'repack', 'replace', 'replay', 'repo', 'rerere', 'reset', 'restore',
   'rev-list', 'rev-parse', 'revert', 'rm', 'send-pack', 'shortlog', 'show', 'show-branch', 'show-index', 'show-ref',
-  'sparse-checkout', 'stage', 'stash', 'status', 'stripspace', 'submodule--helper', 'survey', 'switch', 'symbolic-ref',
+  'sparse-checkout', 'stage', 'stash', 'status', 'stripspace', 'survey', 'switch', 'symbolic-ref',
   'tag', 'unpack-file', 'unpack-objects', 'update-index', 'update-ref', 'update-server-info', 'upload-archive',
   'upload-archive--writer', 'upload-pack', 'url-parse', 'var', 'verify-commit', 'verify-pack', 'verify-tag', 'version',
   'whatchanged', 'worktree', 'write-tree', 'submodule', 'filter-branch',
@@ -123,6 +123,10 @@ type Word = {
   // part the reader does not decode: its value is not known.
   expands: boolean
   subs: Script[]
+  // A construct outside the strict subset (q3 B): a backtick or `${...}`
+  // substitution, ANSI-C quoting, a process substitution, an extglob, an
+  // array, a PowerShell script block, hashtable, type or splat.
+  exotic?: boolean
   // PowerShell: the whole token is a string, a group, a call operator, a type, or a here-string.
   str?: boolean
   group?: string
@@ -318,6 +322,7 @@ function posixDollarOrTick(lx: Lexer, w: Word): boolean {
     const sub: Lexer = { src: inner, i: 0, nest: lx.nest + 1, heredocs: [] }
     w.subs.push(posixList(sub, null))
     w.expands = true
+    w.exotic = true
     return true
   }
   const next = src[lx.i + 1]
@@ -342,6 +347,7 @@ function posixDollarOrTick(lx: Lexer, w: Word): boolean {
     }
     if (depth > 0) fail('unclosed ${')
     w.expands = true
+    w.exotic = true
     return true
   }
   if (next === "'") {
@@ -351,6 +357,7 @@ function posixDollarOrTick(lx: Lexer, w: Word): boolean {
     lx.i = e + 1
     w.expands = true
     w.quoted = true
+    w.exotic = true
     return true
   }
   if (next !== undefined && /[A-Za-z0-9_?$#@*!\-]/.test(next)) {
@@ -374,6 +381,7 @@ function posixWord(lx: Lexer): Word {
       lx.i += 2
       w.subs.push(posixList(lx, ')'))
       w.expands = true
+      w.exotic = true
       continue
     }
     if (ch === '(' && lx.i > start && /[@!+*?]/.test(src[lx.i - 1])) {
@@ -387,6 +395,7 @@ function posixWord(lx: Lexer): Word {
       if (lx.i >= src.length) fail('unclosed extglob')
       lx.i++
       w.expands = true
+      w.exotic = true
       continue
     }
     if (ch === '(' && lx.i > start && src[lx.i - 1] === '=' && /^[A-Za-z_][A-Za-z0-9_]*\+?=$/.test(src.slice(start, lx.i))) {
@@ -394,6 +403,7 @@ function posixWord(lx: Lexer): Word {
       lx.i++
       w.subs.push(posixList(lx, ')'))
       w.expands = true
+      w.exotic = true
       continue
     }
     if (POSIX_META.has(ch)) break
@@ -583,6 +593,7 @@ function psDollar(lx: Lexer, w: Word): boolean {
     if (e === -1) fail('unclosed ${')
     lx.i = e + 1
     w.expands = true
+    w.exotic = true
     return true
   }
   if (next !== undefined && /[A-Za-z0-9_?$^:]/.test(next)) {
@@ -625,6 +636,7 @@ function psToken(lx: Lexer, cur: Simple): Word {
   if (ch === '@' && (src[lx.i + 1] === '(' || src[lx.i + 1] === '{')) {
     lx.i += 2
     w.group = src[lx.i - 1] === '(' ? '@(' : '@{'
+    w.exotic = w.group === '@{'
     w.subs.push(psList(lx, src[lx.i - 1] === '(' ? ')' : '}'))
     w.expands = true
     return done()
@@ -632,6 +644,7 @@ function psToken(lx: Lexer, cur: Simple): Word {
   if (ch === '(' || ch === '{') {
     lx.i++
     w.group = ch
+    w.exotic = ch === '{'
     w.subs.push(psList(lx, ch === '(' ? ')' : '}'))
     w.expands = true
     return done()
@@ -648,6 +661,7 @@ function psToken(lx: Lexer, cur: Simple): Word {
     while (lx.i < src.length && !PS_END.has(src[lx.i])) lx.i++
     w.group = '['
     w.expands = true
+    w.exotic = true
     return done()
   }
   let first = true
@@ -693,6 +707,7 @@ function psToken(lx: Lexer, cur: Simple): Word {
       lx.i++
       while (lx.i < src.length && /[A-Za-z0-9_]/.test(src[lx.i])) lx.i++
       w.expands = true
+      w.exotic = true
       first = false
       continue
     }
@@ -716,13 +731,14 @@ export function normProgram(value: string, platform: Platform): string {
 
 /** D2's path normal form: one separator, no trailing separator, and on win32
  *  a Git Bash drive form read as its drive and letters compared without case. */
-export function normPath(path: string, platform: Platform): string {
+export function normPath(path: string, platform: Platform, shell: Shell = 'posix'): string {
   let p = String(path).replace(/\\/g, '/')
   const unc = p.startsWith('//')
   p = p.replace(/\/{2,}/g, '/')
   if (unc) p = `/${p}`
   if (platform === 'win32') {
-    const m = /^\/([A-Za-z])(\/|$)/.exec(p)
+    // The drive form is Git Bash's; under PowerShell, git reads `/h/...` as a path on the current drive.
+    const m = shell === 'posix' ? /^\/([A-Za-z])(\/|$)/.exec(p) : null
     if (m !== null && !unc) p = `${m[1]}:/${p.slice(m[0].length)}`
     p = p.toLowerCase()
   }
@@ -735,13 +751,17 @@ const absolute = (p: string, platform: Platform) =>
 
 // --- reading ----------------------------------------------------------------------------------
 
-type Ctx = { findings: Finding[]; platform: Platform; depth: number }
+// `strict`: the text holds a gated word and a removal word (q3 B). `reads`:
+// the texts read so far, capped so nested wrappers cannot multiply the work.
+type Ctx = { findings: Finding[]; platform: Platform; depth: number; strict: boolean; reads: number }
 type Fed = { piped: boolean; input: boolean }
 
+const MAX_READS = 64
 const cannot = (ctx: Ctx, why: string) => ctx.findings.push({ kind: 'cannot-read', why })
 
 function readText(text: string, shell: Shell, ctx: Ctx) {
   if (ctx.depth + 1 > MAX_DEPTH) return cannot(ctx, 'too deep')
+  if (++ctx.reads > MAX_READS) return cannot(ctx, 'too many reads')
   let script: Script
   try {
     script = shell === 'posix' ? parsePosix(text) : parsePs(text)
@@ -751,7 +771,117 @@ function readText(text: string, shell: Shell, ctx: Ctx) {
   }
   ctx.depth++
   readScript(script, shell, ctx)
+  if (ctx.strict) strictScript(script, shell, ctx)
   ctx.depth--
+}
+
+// --- q3 B: the strict subset -----------------------------------------------------------------
+//
+// A text whose folded form holds git or claude and a removal word, or a
+// variable and one of git's own removal words, passes only when every
+// construct in it is one this reader reads exactly. Anything else in such a
+// text is cannot-read, so a construct the reader splits differently from the
+// real shell fails closed, the next unknown one included. Text without such a
+// pair is read as before.
+
+// The removal words a pair looks for: D2's, and git's other ref writers.
+const TRIP = /\b(worktree|branch|update-ref|symbolic-ref|push|fetch|checkout|switch|config|rm|stop|replay|fast-import|send-pack|fetch-pack|pull|filter-branch|for-each-repo)\b/
+// git's own removal words, which a variable can stand in front of.
+const GIT_TRIP = /\b(worktree|branch|update-ref|symbolic-ref|replay|fast-import|send-pack|fetch-pack|filter-branch|for-each-repo)\b/
+// A `.git` folder in a path is not the program.
+const GATED_RE = /(^|[^.\w])(git|claude)\b/
+const VAR_RE = /\$(\{|[a-z_]|[?$#@*!0-9-])/
+
+/** Lower case, with the characters a shell removes or escapes with dropped. */
+export function fold(text: string): string {
+  return text.toLowerCase().replace(/['"`\\^\u{2018}-\u{201F}]/gu, '')
+}
+
+export function strictPair(text: string): boolean {
+  const f = fold(text)
+  return (GATED_RE.test(f) && TRIP.test(f)) || (VAR_RE.test(f) && GIT_TRIP.test(f))
+}
+
+// Programs whose arguments and input are data: nothing they are given runs.
+const DATA_PROGRAMS: ReadonlySet<string> = new Set([
+  'echo', 'printf', 'cat', 'head', 'tail', 'wc', 'sort', 'uniq', 'grep', 'egrep', 'fgrep', 'rg', 'ls', 'pwd', 'cd',
+  'mkdir', 'touch', 'true', 'false', 'test', '[', 'basename', 'dirname', 'realpath', 'date', 'sleep', 'tee', 'gh',
+  'write-output', 'write-host', 'out-null', 'out-string', 'select-string', 'get-content', 'gc', 'get-childitem', 'gci',
+  'dir', 'select-object', 'select', 'sort-object', 'measure-object', 'get-date', 'get-location', 'set-location', 'sl',
+  'test-path', 'resolve-path', 'join-path', 'split-path', 'format-table', 'format-list', 'convertto-json', 'convertfrom-json',
+])
+// Programs that run what they are given, in any form: never in a strict text.
+const STRICT_REFUSED: ReadonlySet<string> = new Set([
+  ...WRAPPERS, ...POSIX_SHELLS, ...PS_SHELLS, ...CODE_INTERPRETERS, 'cmd', 'eval', 'iex', 'invoke-expression',
+  'start-process', 'saps', 'invoke-command', 'icm', 'start-job', 'sajb', 'start-threadjob', 'invoke-item', 'ii',
+  'alias', 'set-alias', 'new-alias', 'sal', 'nal', 'hash', 'trap', 'source', 'find', 'sed', 'vi', 'vim', 'nano',
+  'ex', 'ed', 'emacs', 'make', 'npx', 'cp', 'ln', 'copy', 'copy-item', 'cpi', 'move-item', 'mklink', 'new-item', 'ni',
+  'set-item', 'si', 'foreach-object', '%', 'where-object', '?', 'invoke-command', 'ssh',
+])
+const POSIX_STRICT_HEADS: ReadonlySet<string> = new Set([
+  ...POSIX_RESERVED, 'for', 'select', 'case', 'esac', 'function', 'time', 'coproc', '[[', '.',
+])
+
+function strictScript(s: Script, shell: Shell, ctx: Ctx) {
+  for (const item of s.items) {
+    if (shell === 'posix' && item.sep === '&') cannot(ctx, 'outside the strict subset')
+    for (const c of item.pipe) strictSimple(c, shell, ctx)
+  }
+}
+
+function strictSimple(c: Simple, shell: Shell, ctx: Ctx) {
+  const out = () => cannot(ctx, 'outside the strict subset')
+  if (c.funcDef || c.groups.length > 0 || c.continued || c.stopParsing) return out()
+  for (const r of c.redirs) {
+    if (r.op === '<<<' || (r.body !== undefined && !r.body.quoted)) return out()
+    if (r.target?.exotic) return out()
+    for (const sub of r.target?.subs ?? []) strictScript(sub, shell, ctx)
+  }
+  for (const w of c.words) {
+    if (w.exotic) return out()
+    for (const sub of w.subs) strictScript(sub, shell, ctx)
+  }
+  let words = c.words
+  if (shell === 'posix') {
+    while (words.length > 0 && /^[A-Za-z_][A-Za-z0-9_]*\+?=/.test(words[0].raw)) words = words.slice(1)
+  } else if (words.length > 0 && (/^[$@]/.test(words[0].raw) || words[0].str || words[0].group !== undefined)) {
+    // An expression or an assignment: its right-hand side is a statement of its own.
+    const k = words.findIndex(w => !w.quoted && literal(w) && PS_ASSIGN.has(w.value))
+    if (k < 0) return strictOwnText(words, ctx)
+    words = words.slice(k + 1)
+    if (words.length === 0) return
+    if (/^[$@]/.test(words[0].raw) || words[0].str || words[0].group !== undefined) return strictOwnText(words, ctx)
+  }
+  if (words.length === 0) return
+  let head = words[0]
+  let rest = words.slice(1)
+  const headValue = literal(head) && !head.quoted && !head.escaped ? head.value.toLowerCase() : ''
+  if (shell === 'posix' && POSIX_STRICT_HEADS.has(headValue)) return out()
+  if (shell === 'powershell') {
+    if (PS_KEYWORDS.has(headValue) || PS_FLOW.has(headValue) || PS_FUNCTION.has(headValue)) return out()
+    if (head.op || headValue === '.') {
+      // `&` or `.` on a literal path is a command; on anything else it was refused already.
+      if (rest.length === 0 || !literal(rest[0]) || rest[0].group !== undefined) return out()
+      head = rest[0]
+      rest = rest.slice(1)
+    }
+  }
+  if (!literal(head)) return out()
+  const name = normProgram(head.value, ctx.platform)
+  const lower = name.toLowerCase()
+  if (isGated(name)) return
+  if (STRICT_REFUSED.has(lower) || lower.startsWith('git-')) return out()
+  if (DATA_PROGRAMS.has(lower) && !(lower === 'gh' && rest.some(w => /^(alias|extension|ext)$/.test(w.value)))) return
+  strictOwnText([head, ...rest], ctx)
+}
+
+// Any other command, or an expression: it may not name git or claude, nor put
+// a variable in front of one of git's removal words.
+function strictOwnText(words: Word[], ctx: Ctx) {
+  const own = fold(words.map(w => (w.subs.length > 0 ? w.value : w.raw) + (literal(w) ? '' : ' $v')).join(' '))
+  if (GATED_RE.test(own)) return cannot(ctx, 'outside the strict subset')
+  const v = own.search(/\$/)
+  if (v >= 0 && GIT_TRIP.test(own.slice(v))) cannot(ctx, 'outside the strict subset')
 }
 
 function readScript(s: Script, shell: Shell, ctx: Ctx) {
@@ -814,7 +944,6 @@ function readPsWords(words: Word[], c: Simple, ctx: Ctx, fed: Fed) {
     if (target === undefined) return
     if (target.group === '{') return
     if (!literal(target) || target.group !== undefined) return cannot(ctx, 'call operator on a value')
-    if (/\s/.test(target.value)) readText(target.value, 'powershell', ctx)
     const named: Word = { ...target, quoted: false, escaped: false, str: false }
     return readCommand(named, words.slice(2), c, ctx, 'powershell', fed)
   }
@@ -851,13 +980,20 @@ function readCommand(head: Word, args: Word[], c: Simple, ctx: Ctx, shell: Shell
   if (ITEM_SETTERS.has(lower) && args.some(a => (literal(a) ? /^env:[\\/]?GIT_/i.test(a.value) : /env:/i.test(a.raw)))) {
     cannot(ctx, 'GIT_ environment')
   }
-  if (name === 'git') return readGit(args, ctx)
+  if (name === 'git') return readGit(args, ctx, shell)
   if (name === 'claude') return readClaude(args, ctx)
   if (lower.startsWith('git-')) return cannot(ctx, 'dashed git command')
+  // fish and zsh quote unlike bash, so their inline code is not read as POSIX.
+  if ((lower === 'fish' || lower === 'zsh') && args.some(a => /^-[A-Za-z]*c/.test(a.value)) &&
+    args.some(a => !literal(a) || CODE_GATED.test(a.value))) return cannot(ctx, 'inline shell of another grammar')
   if (POSIX_SHELLS.has(lower)) return readPosixShell(args, ctx, fed)
   if (PS_SHELLS.has(lower)) return readPwsh(args, ctx, fed, lower)
   if (lower === 'cmd') return readCmd(args, ctx, fed)
   if (lower === 'eval') return readJoined(args, 'posix', ctx)
+  // trap's first argument is code the shell runs later; source and `.` run a file.
+  if (shell === 'posix' && lower === 'trap') return args[0] === undefined || args[0].value.startsWith('-') ? undefined : readJoined(args.slice(0, 1), 'posix', ctx)
+  if (shell === 'posix' && (lower === 'source' || lower === '.')) return args[0] !== undefined && readsInput(args[0]) ? cannot(ctx, 'shell reads its input') : undefined
+  if (lower === 'hash' && args.some(a => !literal(a) || /^-[A-Za-z]*p/.test(a.value))) return cannot(ctx, 'hash names a program')
   if (lower === 'iex' || lower === 'invoke-expression') {
     const rest = args.filter(a => !(literal(a) && /^-c(o(m(m(a(n(d)?)?)?)?)?)?$/i.test(a.value)))
     if (rest.length === 0) return fed.piped || fed.input ? cannot(ctx, 'expression from input') : undefined
@@ -872,7 +1008,14 @@ function readCommand(head: Word, args: Word[], c: Simple, ctx: Ctx, shell: Shell
 }
 
 // D2's backstop: a gated word after command position, then a removal word.
+// Also any program whose first argument is one of git's own removal subcommands,
+// as git under another name would take it.
 function backstop(args: Word[], ctx: Ctx) {
+  const first = args[0]?.value
+  if (first === 'worktree' || first === 'update-ref' || first === 'symbolic-ref' ||
+    (first === 'branch' && args.slice(1).some(a => /^-[A-Za-z]*[dDmMcCf]|^--(delete|move|copy|force)/.test(a.value)))) {
+    cannot(ctx, 'git removal word under another name')
+  }
   args.forEach((a, i) => {
     const gated = !literal(a) || isGated(normProgram(a.value, ctx.platform))
     if (gated && args.slice(i + 1).some(b => literal(b) && REMOVAL_WORDS.has(b.value))) cannot(ctx, 'gated word after command position')
@@ -919,6 +1062,8 @@ function readPosixShell(args: Word[], ctx: Ctx, fed: Fed) {
     if (/^[-+][A-Za-z]+$/.test(v)) {
       if (v.includes('c')) inline = true
       if (v.includes('s')) stdin = true
+      // Each `o` or `O` in a cluster takes the next argument as its value.
+      i += (v.slice(1).match(/[oO]/g) ?? []).length
       continue
     }
     break
@@ -957,7 +1102,12 @@ function readPwsh(args: Word[], ctx: Ctx, fed: Fed, name: string) {
       if (rest.length === 1 && literal(rest[0]) && rest[0].value === '-') return cannot(ctx, 'PowerShell reads its input')
       return readJoined(rest, 'powershell', ctx)
     }
-    if (/^f(i(l(e)?)?)?$/.test(p)) return
+    if (/^f(i(l(e)?)?)?$/.test(p)) {
+      // `-File -` reads the script from input.
+      const file = args[i + 1]
+      if (file !== undefined && (!literal(file) || file.value === '-' || readsInput(file))) cannot(ctx, 'PowerShell reads its input')
+      return
+    }
     if (VALUE.test(p)) i++
   }
   if (fed.piped || fed.input) cannot(ctx, `${name} fed by input`)
@@ -1171,19 +1321,36 @@ function allowedC(kv: string, platform: Platform): boolean {
 }
 
 // A remote that is `.`, a path or a file URL makes push and fetch write local refs.
-const localRemote = (v: string) => v === '.' || /^(\.{1,2}([\\/]|$)|[\\/~]|[A-Za-z]:[\\/]|file:)/i.test(v)
+// A URL with a scheme, or `host:path`, is a remote; any other remote holding a
+// separator or starting with a dot is a path.
+const localRemote = (v: string) =>
+  /^(\.|~|[\\/]|[A-Za-z]:[\\/]|file:)/i.test(v) ||
+  (/[\\/]/.test(v) && !/^[A-Za-z][A-Za-z0-9+.-]*:\/\//.test(v) && !/^[^\\/:]+:/.test(v))
+// git's options that run a command they are given, by subcommand (git 2.55.0).
+const RUNS_COMMAND: Record<string, RegExp> = {
+  'grep': /^(-O|--op)/,
+  'clone': /^(-u|--upl|--template)/,
+  'ls-remote': /^(--upl|--exec)/,
+  'archive': /^(--exec|--remote)/,
+  'fetch': /^--upl/,
+  'pull': /^--upl/,
+  'push': /^(--receive-pack|--rec|--exec)/,
+  'send-pack': /^(--receive-pack|--exec)/,
+  'fetch-pack': /^(--upload-pack|--exec)/,
+}
 
-function readGit(args: Word[], ctx: Ctx) {
+function readGit(args: Word[], ctx: Ctx, shell: Shell) {
   try {
-    gitArgs(args, ctx)
+    gitArgs(args, ctx, shell)
   } catch (e) {
     if (e instanceof ParseError) return cannot(ctx, e.message)
     throw e
   }
 }
 
-function gitArgs(args: Word[], ctx: Ctx) {
+function gitArgs(args: Word[], ctx: Ctx, shell: Shell) {
   const { platform } = ctx
+  const path = (p: string) => normPath(p, platform, shell)
   let repo: string | null = null
   let i = 0
   for (; i < args.length; i++) {
@@ -1194,7 +1361,7 @@ function gitArgs(args: Word[], ctx: Ctx) {
       if (repo !== null) fail('second -C')
       const p = args[++i]
       if (p === undefined || !literal(p)) fail('-C value')
-      repo = normPath(p.value, platform)
+      repo = path(p.value)
       continue
     }
     if (v === '-c') {
@@ -1214,6 +1381,8 @@ function gitArgs(args: Word[], ctx: Ctx) {
   const rest = args.slice(i + 1)
   const add = (f: Finding) => ctx.findings.push(f)
   const forced = (what: string) => add({ kind: 'forced', what })
+  const runs = RUNS_COMMAND[sub]
+  if (runs !== undefined && rest.some(a => runs.test(a.value))) fail('option that runs a command')
   switch (sub) {
     case 'worktree': {
       const verb = rest[0]
@@ -1223,7 +1392,7 @@ function gitArgs(args: Word[], ctx: Ctx) {
       if (table === undefined) fail('worktree subcommand')
       const p = parseOpts(rest.slice(1), table)
       if (verb.value === 'remove') {
-        for (const w of p.positionals) add({ kind: 'removes-worktree', path: normPath(w.value, platform), repo })
+        for (const w of p.positionals) add({ kind: 'removes-worktree', path: path(w.value), repo })
         if (isOn(p, 'force')) forced('worktree-remove')
       }
       if (verb.value === 'add' && isOn(p, '-B')) forced('worktree-add-reset')
@@ -1273,7 +1442,7 @@ function gitArgs(args: Word[], ctx: Ctx) {
         const spec = r.replace(/^\+/, '')
         if (spec.startsWith('^') || !spec.includes(':')) continue
         const dst = spec.slice(spec.lastIndexOf(':') + 1)
-        if (dst !== '' && (dst.startsWith('refs/heads/') || !dst.startsWith('refs/'))) { forced('fetch into a branch'); break }
+        if (movesBranch(dst)) { forced('fetch into a branch'); break }
       }
       return
     }
@@ -1287,40 +1456,41 @@ function gitArgs(args: Word[], ctx: Ctx) {
       if (!flagRead && !verbRead) fail('config write')
       return
     }
-    case 'rebase': {
-      for (const a of rest) if (!literal(a)) fail('argument expands')
-      for (let k = 0; k < rest.length; k++) {
-        const v = rest[k].value
-        const long = /^--ex(e(c)?)?(=(.*))?$/s.exec(v)
-        const short = /^-[A-Za-z]*x(.*)$/s.exec(v)
-        if (long !== null) readCmdArg(long[4] ?? rest[++k]?.value, ctx)
-        else if (short !== null && !v.startsWith('--')) readCmdArg(short[1] !== '' ? short[1] : rest[++k]?.value, ctx)
-      }
+    case 'pull': {
+      // Read as fetch is: a refspec's destination, and a local remote.
+      if (rest.some(w => !literal(w))) fail('argument expands')
+      const pos = rest.filter(w => !w.value.startsWith('-'))
+      if (pos[0] !== undefined && localRemote(pos[0].value)) fail('pull from a local path')
+      if (pos.slice(1).some(w => w.value.includes(':') && movesBranch(w.value.slice(w.value.lastIndexOf(':') + 1)))) forced('pull into a branch')
       return
     }
-    case 'difftool': {
-      for (const a of rest) if (!literal(a)) fail('argument expands')
-      for (let k = 0; k < rest.length; k++) {
-        const v = rest[k].value
-        const long = /^--extc(m(d)?)?(=(.*))?$/s.exec(v)
-        if (long !== null) readCmdArg(long[4] ?? rest[++k]?.value, ctx)
-        else if (v === '-x') readCmdArg(rest[++k]?.value, ctx)
-      }
+    case 'remote': {
+      // A remote pointed at a local path makes a later push or fetch write local refs.
+      if (rest.some(w => !literal(w))) fail('argument expands')
+      const verb = rest.find(w => !w.value.startsWith('-'))?.value
+      if ((verb === 'add' || verb === 'set-url') && rest.slice(1).some(w => !w.value.startsWith('-') && localRemote(w.value))) fail('remote set to a local path')
       return
     }
-    case 'filter-branch': {
-      for (const a of rest) if (!literal(a)) fail('argument expands')
-      for (let k = 0; k < rest.length; k++) {
-        if (/^--([a-z-]+-filter|setup)$/.test(rest[k].value)) readCmdArg(rest[++k]?.value, ctx)
-      }
+    case 'replay':
+    case 'fast-import':
+    case 'send-pack':
+    case 'fetch-pack':
+      // These write refs directly.
+      return forced(sub)
+    case 'rebase':
+      // Its exec option runs a command (q3 B: refused, not read).
+      if (rest.some(w => !literal(w) || /^--ex|^-[A-Za-z]*x/.test(w.value))) fail('option that runs a command')
       return
-    }
-    case 'bisect': {
-      const k = rest.findIndex(a => a.value === 'run')
-      if (k < 0) return
-      for (const a of rest) if (!literal(a)) fail('argument expands')
-      return readCmdArg(rest.slice(k + 1).map(a => a.value).join(' '), ctx)
-    }
+    case 'difftool':
+      if (rest.some(w => !literal(w) || /^--ext|^-[A-Za-z]*x/.test(w.value))) fail('option that runs a command')
+      return
+    case 'filter-branch':
+    case 'for-each-repo':
+      fail('git command that runs commands')
+      return
+    case 'bisect':
+      if (rest.some(w => w.value === 'run')) fail('option that runs a command')
+      return
     case 'submodule': {
       let k = 0
       while (k < rest.length && literal(rest[k]) && rest[k].value.startsWith('-')) k++
@@ -1331,15 +1501,16 @@ function gitArgs(args: Word[], ctx: Ctx) {
       if (cmd.some(a => !literal(a))) fail('argument expands')
       return readCmdArg(cmd.map(a => a.value).join(' '), ctx)
     }
-    case 'for-each-repo': {
-      // It runs `git <args>` in each repository a config key lists.
-      let k = 0
-      while (k < rest.length && literal(rest[k]) && rest[k].value.startsWith('--')) k++
-      return gitArgs(rest.slice(k), ctx)
-    }
     default:
       return
   }
+}
+
+// A destination under refs/heads/, or one with no refs/ prefix (git reads it as
+// a branch), moves a branch. Ref names ignore case on a case-folding disk.
+const movesBranch = (dst: string) => {
+  const d = dst.toLowerCase()
+  return dst !== '' && (d.startsWith('refs/heads/') || !d.startsWith('refs/'))
 }
 
 // A command git runs through the shell: a literal one is read as a command of its own.
@@ -1415,12 +1586,12 @@ function shapeOf(script: Script, shell: Shell, platform: Platform, findings: Fin
   if (!raw[7].startsWith('core.hooksPath=') || raw[8] !== '-C') return null
   const hooks = w[7].value.slice('core.hooksPath='.length)
   if (!absolute(hooks, platform)) return null
-  const main = normPath(w[9].value, platform)
+  const main = normPath(w[9].value, platform, shell)
   if (raw[10] === 'worktree' && raw[11] === 'remove' && f.kind === 'removes-worktree') {
-    return { kind: 'worktree-remove', hooks: normPath(hooks, platform), main, cwd: normPath(w[12].value, platform) }
+    return { kind: 'worktree-remove', hooks: normPath(hooks, platform, shell), main, cwd: normPath(w[12].value, platform, shell) }
   }
   if (raw[10] === 'branch' && raw[11] === '-d' && f.kind === 'deletes-branch') {
-    return { kind: 'branch-delete', hooks: normPath(hooks, platform), main, branch: w[12].value }
+    return { kind: 'branch-delete', hooks: normPath(hooks, platform, shell), main, branch: w[12].value }
   }
   return null
 }
@@ -1438,8 +1609,15 @@ export function readRemovals(text: unknown, shell: unknown, platform: unknown): 
     if (shell !== 'posix' && shell !== 'powershell') return unreadable('unknown shell')
     const plat: Platform = platform === 'win32' ? 'win32' : 'other'
     if (new TextEncoder().encode(text).length > MAX_BYTES) return unreadable('over 8 KiB')
-    const ctx: Ctx = { findings: [], platform: plat, depth: 0 }
-    if (ENV_RULES.some(r => r.test(text))) cannot(ctx, 'GIT_ environment')
+    const ctx: Ctx = { findings: [], platform: plat, depth: 0, strict: strictPair(text), reads: 0 }
+    const folded = fold(text)
+    // GIT_ anywhere in the folded text, or a .NET environment write, is cannot-read (q3 B).
+    if (ENV_RULES.some(r => r.test(text)) || /(^|[^a-z0-9_])git_[a-z0-9_]/.test(folded) || folded.includes('setenvironmentvariable')) {
+      cannot(ctx, 'GIT_ environment')
+    }
+    // A name for git or claude written through PowerShell's alias or function drive.
+    if (/\b(alias|function):/.test(folded) && GATED_RE.test(folded)) cannot(ctx, 'alias of a gated word')
+    if (ctx.strict && /[^\t\n\x20-\x7e]/.test(text)) cannot(ctx, 'outside the strict subset')
     let script: Script
     try {
       script = shell === 'posix' ? parsePosix(text) : parsePs(text)
@@ -1448,6 +1626,7 @@ export function readRemovals(text: unknown, shell: unknown, platform: unknown): 
       throw e
     }
     readScript(script, shell, ctx)
+    if (ctx.strict) strictScript(script, shell, ctx)
     return { findings: ctx.findings, shape: shapeOf(script, shell, plat, ctx.findings) }
   } catch {
     return unreadable('internal')
