@@ -105,6 +105,8 @@ such a package without asking when no one is at a terminal.
 - Exit 124, 125 and 137 mean athanor produced no result, whether from a time
   limit, Docker or its configuration. Run `node scripts/check.mjs` on the host,
   with `--host-fallback=<reason>` if you are an agent (see "The agent guard").
+  A sha512 mismatch in the image build also exits 125; it is not a Docker
+  fault, so stop and tell the owner.
 - The cap on concurrent runs is athanor's machine setting `maxRuns`, 2 unless
   you change it. It caps athanor runs only: a run of `node scripts/check.mjs`
   on the host, including the one after an athanor run with no result, is outside it.
@@ -138,7 +140,8 @@ repository. When the call is `node scripts/check.mjs` in any of its forms (the
 plain, `./` and backslash paths, quoted or not, behind `cd`, `;`, `&&`, `&`,
 `FOO=1` or `timeout`) and `athanor` works on the machine, the hook refuses it
 and tells the agent to run `athanor run check`. The host check stays the
-fallback for when athanor is missing or its run exits 124, 125 or 137. When
+fallback for when athanor is missing or its run exits 124, 125 or 137, but
+not for a sha512 mismatch, which also exits 125: stop and tell the owner. When
 athanor is missing the hook lets the plain host check through, and there is
 nothing to name. When a run exits 124, 125 or 137, or an agent needs the
 version-bump or allowance checks that a container run cannot cover, it adds
@@ -199,7 +202,7 @@ not take, and `SECURITY.md` explains why that matters more than it looks.
 run only the suite while you work on it:
 
 ```bash
-node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --test tests/agent-check-guard.test.mjs tests/audit.test.mjs tests/brigade-cleanup.test.mjs tests/brigade-decisions.test.mjs tests/brigade-roster-rules.test.mjs tests/brigade-scan.test.mjs tests/brigade-view.test.mjs tests/brigade-warning.test.mjs tests/build-pages.test.mjs tests/case.test.mjs tests/check-agent-guard.test.mjs tests/check-allowances.test.mjs tests/check-baseline-rules.test.mjs tests/check-baselines.test.mjs tests/check-format.test.mjs tests/check-home-paths.test.mjs tests/check-home-shapes.test.mjs tests/check-load-surface.test.mjs tests/check-manifests.test.mjs tests/check-mod.test.mjs tests/check-paths.test.mjs tests/check-skill-files.test.mjs tests/check-test-step.test.mjs tests/check-tracked.test.mjs tests/check-tree.test.mjs tests/check-version.test.mjs tests/contract-interview.test.mjs tests/contract-page.test.mjs tests/contract-render.test.mjs tests/eagle-eye-sheets.test.mjs tests/esc.test.mjs tests/groundtrack-fold.test.mjs tests/groundtrack-render.test.mjs tests/groundtrack-sheets.test.mjs tests/head-chef-evals.test.mjs tests/practice.test.mjs tests/registry.test.mjs tests/render.test.mjs tests/skillspector-gate.test.mjs tests/skillspector-probe.test.mjs tests/skillspector-strip-suppressed.test.mjs
+node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --test tests/agent-check-guard.test.mjs tests/audit.test.mjs tests/brigade-cleanup.test.mjs tests/brigade-decisions.test.mjs tests/brigade-gate.test.mjs tests/brigade-roster-rules.test.mjs tests/brigade-scan.test.mjs tests/brigade-view.test.mjs tests/brigade-warning.test.mjs tests/build-pages.test.mjs tests/case.test.mjs tests/check-agent-guard.test.mjs tests/check-allowances.test.mjs tests/check-baseline-rules.test.mjs tests/check-baselines.test.mjs tests/check-format.test.mjs tests/check-home-paths.test.mjs tests/check-home-shapes.test.mjs tests/check-load-surface.test.mjs tests/check-manifests.test.mjs tests/check-mod.test.mjs tests/check-paths.test.mjs tests/check-skill-files.test.mjs tests/check-test-step.test.mjs tests/check-tracked.test.mjs tests/check-tree.test.mjs tests/check-version.test.mjs tests/contract-interview.test.mjs tests/contract-page.test.mjs tests/contract-render.test.mjs tests/eagle-eye-sheets.test.mjs tests/esc.test.mjs tests/groundtrack-fold.test.mjs tests/groundtrack-render.test.mjs tests/groundtrack-sheets.test.mjs tests/head-chef-evals.test.mjs tests/practice.test.mjs tests/registry.test.mjs tests/render.test.mjs tests/skillspector-gate.test.mjs tests/skillspector-probe.test.mjs tests/skillspector-strip-suppressed.test.mjs
 ```
 
 **The suite never reaches the network.** eagle-eye's edge audit is the one
@@ -252,8 +255,12 @@ removal commands and their guards, and the re-read. Its outbound scan's module,
 check the scanner's rules and worst-case time, which calls it matches and the
 body files they name, and the decision a matched call gets, with the setting,
 the file system and the clock handed in, and it reads `brigade/register.tsx`'s
-text for the facts the scan's wiring rests on. Keep all
-six to erasable syntax (no enums, namespaces or parameter properties), so
+text for the facts the scan's wiring rests on. Its cleanup gate's module,
+`brigade/gate.ts`, is the seventh: `tests/brigade-gate.test.mjs` imports it
+to check the `/brigade done` grammar, how a title resolves, the reply, the
+window and the archive hook's decision, and reads `brigade/register.tsx`'s
+text for the gate's wiring. Keep all
+seven to erasable syntax (no enums, namespaces or parameter properties), so
 Node can strip their types. The
 contract skill's hiring page has a seam of its own: `tests/contract-page.test.mjs`
 renders it through the interview script's `--out`, runs the page's own

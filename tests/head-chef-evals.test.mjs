@@ -136,7 +136,8 @@ test('SKILL.md holds the data rule once, word for word, and none of the clauses 
 test('stops 2 and 3, the fixed to-do texts and the level-3 state line read as issue 416 gave them, and the blocked record\'s to-do is gone', () => {
   const CONTRACT = flat(read('skills/head-chef/references/CONTRACT.md').replace(/^> /gm, ''));
   for (const s of [
-    'When cleanup is ready: it names back each session, its worktree folder, its branch and what it found, by repository, in one list, and waits for one yes.',
+    // Stop 2's yes is the owner's typed /brigade done since issue 359.
+    'When cleanup is ready: it names back each session, its worktree folder, its branch and what it found, by repository, in one list, and waits for the owner\'s typed `/brigade done`.',
     'When a removal fails: it tells the owner what is left and leaves it, and goes on with the rest of the list; this stop holds the failed item only.',
     '"Decision <id> from <lead name> waits for you in the Decisions tab"',
     '"A kept-local report waits in <member>\'s chat"',
@@ -330,7 +331,7 @@ test('C16: the contract and SKILL.md say how a command 3 and its goal count', ()
   assert.ok(SKILL.includes('Never run or ask to run `/brigade level` yourself'), 'SKILL.md lacks the never-run rule');
   assert.ok(CONTRACT.includes('only as the repository and issue it names'), 'the contract lacks the restatement rule');
   assert.ok(SKILL.includes('only as the repository and issue it names'), 'SKILL.md lacks the restatement rule');
-  assert.ok(CONTRACT.includes('Version: 1.5.0'), 'the contract is not at 1.5.0');
+  assert.ok(CONTRACT.includes('Version: 1.6.0'), 'the contract is not at 1.6.0');
 });
 
 test('C17: the five level-command eval cases exist, each grading its own rule', () => {

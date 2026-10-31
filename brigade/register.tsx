@@ -55,6 +55,8 @@ import {
 } from './roster.ts'
 import { bindTarget, cardId, hooksReady, makeHooks, runCleanup } from './cleanup.ts'
 import type { CleanupIo, NameBacks, Target } from './cleanup.ts'
+import { ARCHIVE_REFUSAL, ARCHIVE_TOOL, DONE_REPLIES, ENVELOPE as GATE_ENVELOPE, archivePasses, doneReply, fromEngine, isDoneCommand, openWindow, parseDone, resolveTitles, stopAnswer, takeEntry } from './gate.ts'
+import type { Window } from './gate.ts'
 import type { GhPr, HostOs, Placed, SessionRow, StatAnswer } from './roster.ts'
 import { FAILED as SCAN_FAILED, caughtAnswer, decide, readSetting, settingOf, settled, switchArgs, switchReply } from './scan.ts'
 import type { Setting, SwitchArg } from './scan.ts'
@@ -1550,6 +1552,7 @@ async function offerTool($: EngineInterface) {
     { name: READ_HANDOFF_TOOL, description: READ_HANDOFF_DESCRIPTION, inputSchema: READ_HANDOFF_SCHEMA },
     { name: AUTONOMY_TOOL, description: AUTONOMY_DESCRIPTION, inputSchema: AUTONOMY_SCHEMA },
     { name: CLEANUP_TOOL, description: CLEANUP_DESCRIPTION, inputSchema: CLEANUP_SCHEMA },
+    { name: STOP_TOOL, description: STOP_DESCRIPTION, inputSchema: STOP_SCHEMA },
   ]) {
     try {
       await $.tool.register(t)
@@ -2785,6 +2788,68 @@ const CLEANUP_SCHEMA = {
 }
 const refuseCleanup = (rule: string) => ({ deny: `read_cleanup refused: ${rule}. Nothing was read or removed.` })
 
+// The cleanup gate (issue 359, spec v5.2; brigade/gate.ts holds its rules).
+// The owner's typed /brigade done opens a window here, in this module's
+// variables only: a reload starts it empty, and each session start empties it.
+const doneWindow: Window = new Map()
+
+const STOP_TOOL = 'stop_background_session'
+const STOP_NAME = 'mcp__grimoire__stop_background_session'
+const STOP_DESCRIPTION =
+  'Stops one background session on the roster, by its card\'s title, with `claude stop`; it removes nothing. It works only inside a window the owner opened by typing /brigade done with that title, once per window, and only while the Brigade pane is open. Its worktree and branch stay for read_cleanup\'s re-read. A refusal names the rule that failed.'
+const STOP_SCHEMA = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['title'],
+  properties: { title: field(80) },
+}
+const refuseStop = (rule: string) => ({ deny: `stop_background_session refused: ${rule}. Nothing was stopped.` })
+
+// The done command's answer: the origin gate first, before anything of the
+// args beyond the word `done` is read; then the grammar; then each title.
+// No session file, git or folder is read. A throw answers one fixed line.
+async function doneCommand($: EngineInterface, origin: unknown, dispatch: unknown, args: string): Promise<{ text: string }> {
+  try {
+    // The prompt's origin, and the dispatch's. The engine's types say a run
+    // another plugin raised names that plugin in `next.origin`, whatever
+    // prompt origin it supplies; A15b, which would measure it, is not measured.
+    if (!levelOriginAllowed(origin) || !fromEngine(dispatch)) return { text: DONE_REPLIES.notTyped }
+    const titles = parseDone(args)
+    if (titles === undefined) return { text: DONE_REPLIES.usage }
+    const { cards } = await read($, roster)
+    const resolved = resolveTitles(titles, cards, cleanupTargets)
+    openWindow(doneWindow, resolved, await $.clock.now())
+    return { text: doneReply(resolved) }
+  } catch {
+    return { text: DONE_REPLIES.failed }
+  }
+}
+
+// The background stop: the model's own call on the main loop, with read_cleanup's
+// gates, for one open background entry, which closes before `claude stop`
+// runs. No output or error text of the run is shown.
+async function stopBackground($: EngineInterface, e: Record<string, unknown>, origin: unknown) {
+  if (e.agentId !== undefined) return refuseStop("subagent: only the lead session's own turns stop a session")
+  if (!fromEngine(origin)) return refuseStop("caller: only the model's own call stops a session, never another plugin's")
+  // The engine's keys as the gate lists them, `requestMeta` included.
+  const input = Object.fromEntries(Object.entries(e).filter(([k]) => !GATE_ENVELOPE.includes(k)))
+  if (!rulesAllowTool(await $.tool.check({ tool: STOP_NAME, input }))) return refuseStop(RULES_RULE)
+  if (!(await offered($))) return refuseStop(OFFER_RULE)
+  if (!(await paneOpen($))) return refuseStop('pane closed: the owner opens it with /brigade')
+  const { title } = input
+  if (Object.keys(input).some(k => k !== 'title') || typeof title !== 'string') return refuseStop('shape: send `title`, one card title')
+  const { cards } = await read($, roster)
+  const [r] = resolveTitles([oneLine(title, 80)], cards, cleanupTargets)
+  if (r === undefined || !('open' in r) || r.open.kind !== 'bg') return refuseStop('window: no background card on the roster is open under that title; the owner types /brigade done <title>')
+  const t = r.open
+  if (!takeEntry(doneWindow, 'bg', t.id, await $.clock.now())) return refuseStop('window: no /brigade done window is open for it; the owner types /brigade done <title>')
+  // The pane's host and PATH rule, as for `gh` and `git`. On Windows it checks no PATH.
+  if (!(await ghFindable($))) return { result: stopAnswer(undefined) }
+  const ran = await $.process.run(['claude', 'stop', t.id], { timeoutMs: 15000 }).catch(() => undefined)
+  return { result: stopAnswer(ran) }
+}
+// end stopBackground
+
 // Each card's target, by its Desktop id or job id, and each item's last
 // name-back: kept in this module only, never plugin state, the store or a file. A
 // reload starts both over, so a session bound before it reads as not bound to
@@ -3162,6 +3227,7 @@ export const register: Register = on => {
   registerWarning(on)
 
   on('session.start', async ($, e, next) => {
+    doneWindow.clear()
     // The usage summary writer's clock and session: the engine's epoch and
     // this session's id, read once here and never awaited. Only numbers and
     // text cross into writer.ts.
@@ -3170,7 +3236,7 @@ export const register: Register = on => {
     $.session.id().then(id => writerSession(id), () => undefined)
     await $.command.register({
       name: 'brigade',
-      description: 'Show the Brigade pane: the sessions this lead session started. /brigade scan on or off turns the outbound scan on or off, and /brigade level 1, 2 or 3 with a goal sets the autonomy level.',
+      description: 'Show the Brigade pane: the sessions this lead session started. /brigade scan on or off turns the outbound scan on or off, /brigade level 1, 2 or 3 with a goal sets the autonomy level, and /brigade done with card titles lets the lead archive or stop those sessions for 15 minutes.',
     })
     // The permission warning's tool, offered in every session: the head chef
     // calls it before its first launch, with or without the pane.
@@ -3218,6 +3284,8 @@ export const register: Register = on => {
     // Any clear or resume ends every command 3, the same id included (spec
     // v5 S4.3), and a command still being logged never lands.
     if (e.source === 'clear' || e.source === 'resume') {
+      // A clear or a resume closes every /brigade done window too.
+      doneWindow.clear()
       await levelTurn(async () => {
         commanded.clear()
         commandsVoided++
@@ -3258,9 +3326,12 @@ export const register: Register = on => {
     return result
   }).catch(($, e, next) => next(e))
 
-  on('command.run', { command: 'brigade' }, async ($, e) => {
+  on('command.run', { command: 'brigade' }, async ($, e, next) => {
     // `/brigade level ...` sets the autonomy level (issue 464); any other
     // args open the pane, as before.
+    // `/brigade done <titles>` opens the cleanup gate's window (issue 359),
+    // read before every other path, and never opens the pane.
+    if (isDoneCommand(e.args)) return doneCommand($, e.origin, next.origin, e.args)
     if (isLevelCommand(e.args)) return levelCommand($, e.origin, e.args)
     const scanArg = switchArgs(e.args)
     if (scanArg !== undefined) return scanCommand($, e.origin?.kind, scanArg)
@@ -3297,6 +3368,7 @@ export const register: Register = on => {
     // being logged, so a 3 never lands after "Not set"; any other args go on
     // as they did before this handler.
   }).catch(($, e, next) => {
+    if (isDoneCommand(e.args)) return { text: DONE_REPLIES.failed }
     if (!isLevelCommand(e.args)) return next(e)
     commandsVoided++
     return { text: LEVEL_REPLIES.failed }
@@ -3366,6 +3438,21 @@ export const register: Register = on => {
   }).catch(() => ({ deny: 'read_autonomy refused: error: the tool failed or ran out of time. Act at level 1.' }))
   // read_cleanup, answered here and nowhere beneath. A throw becomes a
   // refusal with no engine message; the tool removes nothing either way.
+  // Desktop's archive tool, in every session this mod loads in: it passes
+  // only inside a /brigade done window, and every other call, a throw
+  // included, gets one fixed refusal that names no id, reason or key.
+  on('tool.call', { tool: ARCHIVE_TOOL }, async ($, e, next) => {
+    if (!archivePasses(e as unknown as Record<string, unknown>, next.origin, doneWindow, await $.clock.now())) return { deny: ARCHIVE_REFUSAL }
+    return next(e)
+  }).catch(() => ({ deny: ARCHIVE_REFUSAL }))
+  // stop_background_session, answered here and nowhere beneath.
+  on('tool.call', { tool: STOP_NAME }, async ($, e, next) => {
+    try {
+      return await stopBackground($, e as unknown as Record<string, unknown>, next.origin)
+    } catch {
+      return refuseStop('error: the tool failed')
+    }
+  }).catch(() => ({ deny: 'stop_background_session refused: error: the tool failed or ran out of time. It may or may not have stopped; tell the owner.' }))
   on('tool.call', { tool: CLEANUP_NAME }, async ($, e) => {
     try {
       return await readCleanup($, e as unknown as Record<string, unknown>)
