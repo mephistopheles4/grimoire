@@ -450,3 +450,19 @@ test("S3.2 step 3: the scan's hooks are the mod's outermost, on the mod's own to
   }
   assert.equal((scan.match(/\.catch\(/g) ?? []).length, 6);
 });
+
+// Claim 13's last part, as far as text can show it: the scan's code in
+// register.tsx writes nothing but the setting, and scan.ts reaches no engine.
+test('claim 13: the scan keeps nothing: its only write is the setting', async () => {
+  const { readFileSync } = await import('node:fs');
+  const src = readFileSync(new URL('../brigade/register.tsx', import.meta.url), 'utf8');
+  const part = src.slice(src.indexOf('// --- the outbound scan'), src.indexOf('export const register: Register = on => {'));
+  assert.ok(part.length > 500);
+  assert.equal((part.match(/\$\.store\.set\(/g) ?? []).length, 1);
+  assert.match(part, /\$\.store\.set\(SCAN_KEY, r\.set\)/);
+  for (const w of ['$.fs.write', '$.state.set', 'update(', '$.session.append', '$.ui.toast', 'console.']) {
+    assert.ok(!part.includes(w), w);
+  }
+  const mod = readFileSync(new URL('../brigade/scan.ts', import.meta.url), 'utf8');
+  assert.ok(!/^import /m.test(mod), 'scan.ts imports nothing');
+});
