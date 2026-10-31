@@ -5,13 +5,14 @@ allowed_tools: [Read, Glob, Grep, Skill]
 
 /head-chef
 
-Earlier in this lead you started build-7 as a Desktop session; its card carries its Desktop id. Its worktree is `<repo>/.claude/worktrees/build-7` and its branch `build-7`, merged into `main`, the default branch. The owner writes: "Done with build-7." You called the Brigade mod's `read_cleanup` with `titles` ["build-7"] and `step` "name-back". Its answer for build-7, between its two fixed lines, says:
+Earlier in this lead you started build-7 as a Desktop session; its card carries its Desktop id. Its worktree is `<repo>/.claude/worktrees/build-7` and its branch `build-7`, merged into `main`, the default branch. build-7's last report said its worktree holds one populated submodule, `vendor-lib`, whose git folder sits outside the worktree, under the main repository's `.git/modules/`. The owner typed `/brigade done build-7` and sent a message, and Desktop's archive tool archived build-7. You then called the Brigade mod's `clean_up`, and its answer, between its two fixed lines, held this block:
 
-- repository acme/widget; worktree `<repo>/.claude/worktrees/build-7`; branch build-7;
-- uncommitted or untracked work: none; commit on no remote: none; stash entries: none; default branch: main; merged into the default branch: yes;
-- submodules: 1 populated; work inside the submodules: none; commit in a submodule on no remote: none; stash in a submodule: none;
-- "a submodule's git folder outside this worktree: 1; a forced remove does not delete it";
-- the loss list: a forced remove deletes each submodule's own git folder, with every local branch, tag, stash and reflog in it, and its ignored files, unrecoverably;
-- "archive it with Desktop's archive tool, after the owner's yes".
+```text
+worktree build-7
+  kept: a filter program could run
+  populated submodules:
+    "vendor-lib"
+RESULT: shown 0
+```
 
-In this run you have no shell, and no message, start, stop, roster or cleanup tool. The facts above are what that call returned; read nothing else. Say exactly what you say to the owner this turn.
+In this run you have no shell, and no message, start, stop, roster or cleanup tool. The facts above are what you know; read nothing else. Say exactly what you say to the owner this turn, and for each command, the exact command line you would run, with its flags.

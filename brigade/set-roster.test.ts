@@ -623,7 +623,7 @@ function world(on: On, setup: (w: World) => void = w => w.dirs(`${CONFIG}${SEP}p
 // are offered with set_roster at each of its sites, and the decision log's,
 // cleanup's, hand-off's and slider's tests at the end check that. Any other
 // tool offered still shows here.
-const OFFERED_WITH = ['show_permission_warning', 'log_decision', 'set_lead_handoff', 'read_lead_handoff', 'read_autonomy', 'read_cleanup', 'stop_background_session']
+const OFFERED_WITH = ['show_permission_warning', 'log_decision', 'set_lead_handoff', 'read_lead_handoff', 'read_autonomy', 'stop_background_session', 'clean_up']
 const rosterOffers = (w: { registered: string[] }) => w.registered.filter(name => !OFFERED_WITH.includes(name))
 const start = ($: any) => $.classic.SessionStart({ source: 'startup', session_id: SID, transcript_path: TRANSCRIPT })
 const brigade = ($: any) => $.command.run({ command: 'brigade', args: '' })
@@ -5246,7 +5246,7 @@ for (const surface of ['terminal', 'desktop', 'mobile'] as const) {
   })
 }
 
-for (const tool of ['log_decision', 'read_cleanup', 'stop_background_session']) {
+for (const tool of ['log_decision', 'stop_background_session', 'clean_up']) {
   test(`${tool} is offered wherever set_roster is, and not before the pane opens`, async ($, on) => {
     const w = world(on)
     await start($)
@@ -6066,7 +6066,7 @@ test('claim 13: past 5,000 entries in the marks folder the pane still reads its 
   expect(await shows(/over 5,000 entries/)).toBe(true)
 })
 
-test('log_decision, the two hand-off tools, read_autonomy, read_cleanup and stop_background_session are offered on a reload, a head-chef load and the late offer too', async ($, on) => {
+test('log_decision, the two hand-off tools, read_autonomy, stop_background_session and clean_up are offered on a reload, a head-chef load and the late offer too', async ($, on) => {
   const w = loads(on, $)
   const count = (name: string) => w.registered.filter(n => n === name).length
   // Each of the six is offered at each site, so the counts move together.
@@ -6075,7 +6075,7 @@ test('log_decision, the two hand-off tools, read_autonomy, read_cleanup and stop
     expect(count('set_lead_handoff')).toBe(n)
     expect(count('read_lead_handoff')).toBe(n)
     expect(count('read_autonomy')).toBe(n)
-    expect(count('read_cleanup')).toBe(n)
+    expect(count('clean_up')).toBe(n)
     expect(count('stop_background_session')).toBe(n)
     return n
   }
@@ -9424,4 +9424,49 @@ test('C6: one wake per minute: a second bare /brigade inside the minute submits 
   await typedBrigade($)
   await sent(w)
   expect(seen.map(e => e.text)).toEqual([WAKE, WAKE])
+})
+
+// --- 484: done all and none, and clean_up's refusals, at the engine ---------------------
+// brigade/gate.ts's rules are tested in tests/brigade-gate.test.mjs; these drive the wiring.
+
+const CLEAN_TOOL = 'mcp__grimoire__clean_up'
+const cleanUp = ($: any, input: Record<string, unknown> = {}) => toolAnswer($, CLEAN_TOOL, input)
+const DONE_NOT_TYPED = 'Nothing opened: /brigade done counts only when the owner types it at the prompt or sends it from the phone.'
+const NO_WINDOW = 'clean_up refused: window: no /brigade done window is open; the owner types /brigade done all or /brigade done <title>. Nothing was run or removed.'
+const cleanerRuns = (w: World) => w.procs.filter(argv => argv[0] === 'node')
+
+test('484 C1, C3: /brigade done all with no done card opens nothing, and done none closes every window, both typed only', async ($, on) => {
+  const w = world(on)
+  await start($)
+  await brigade($)
+  expect((await typedBrigade($, 'done all')).text).toBe('Nothing opened: no card is done.')
+  expect((await typedBrigade($, 'done none')).text).toBe('Closed: no window is open.')
+  expect((await typedBrigade($, '  done   none  ', 'bridge')).text).toBe('Closed: no window is open.')
+  for (const kind of ['plugin', 'sdk', null]) {
+    expect((await typedBrigade($, 'done none', kind)).text).toBe(DONE_NOT_TYPED)
+    expect((await typedBrigade($, 'done all', kind)).text).toBe(DONE_NOT_TYPED)
+  }
+  // After none, the archive hook and clean_up refuse, and nothing runs.
+  const archive = await $.tool.call({ tool: 'mcp__ccd_session_mgmt__archive_session', session_id: 'local_11111111-2222-3333-4444-555555555555' })
+  expect(typeof archive.deny).toBe('string')
+  expect((await cleanUp($)).text).toBe(NO_WINDOW)
+  expect(cleanerRuns(w)).toEqual([])
+})
+
+test("484 C4, C14: clean_up refuses a subagent's call, the rules, any input, a closed pane and no open window, and each refusal runs nothing", async ($, on) => {
+  const w = world(on)
+  await start($)
+  await brigade($)
+  expect(w.registered.filter(n => n === 'clean_up')).toEqual(['clean_up'])
+  expect((await cleanUp($, { agentId: 'a-subagent' })).text).toBe("clean_up refused: subagent: only the lead session's own turns clean up. Nothing was run or removed.")
+  w.verdict = { decision: 'deny', reason: 'SECRET managed policy' }
+  const ruled = await cleanUp($)
+  expect(ruled.ok).toBe(false)
+  expect(ruled.text).toBe("clean_up refused: the owner's rules: a deny verdict, an ask rule or an organisation ceiling covers this tool. Nothing was run or removed.")
+  w.verdict = { decision: 'allow' }
+  expect((await cleanUp($, { titles: ['x'] })).text).toBe('clean_up refused: shape: the tool takes no input. Nothing was run or removed.')
+  expect((await cleanUp($)).text).toBe(NO_WINDOW)
+  w.open = false
+  expect((await cleanUp($)).text).toBe('clean_up refused: pane closed: the owner opens it with /brigade. Nothing was run or removed.')
+  expect(cleanerRuns(w)).toEqual([])
 })
