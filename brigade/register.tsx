@@ -2520,6 +2520,8 @@ async function pressLevel($: EngineInterface, l: Level, placed: () => Promise<bo
         if (l === 3 && clockTime(now)) {
           pressedAt.set(sid, now)
           pressedNo.set(sid, ++presses)
+          // A new 3 shows its band line, even at a dismissed 3's time.
+          if (bandDismissed?.sid === sid) bandDismissed = undefined
         }
       }
     })
@@ -2661,7 +2663,9 @@ async function forgetOtherLevels($: EngineInterface, sid: string) {
 async function resetLevel($: EngineInterface, why: ResetWhy) {
   let landed = false
   try {
-    const sid = await levelSid($)
+    // A read that throws counts as no session id, so a reset with nothing to
+    // reset still sets nothing waiting (#439).
+    const sid = await levelSid($).catch(() => undefined)
     if (sid !== undefined) {
       const logged = await levelTurn(async () => {
         if (why === 'compact') await catchChange($, sid)

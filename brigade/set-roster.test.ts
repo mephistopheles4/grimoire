@@ -8440,6 +8440,8 @@ test('claim 17: each named run passes the host and PATH check: a PATH that turns
     macos(w)
     w.env = { PATH: '/usr/bin:/bin' }
     w.holdGh = true
+    // r1 answers for its own #1, so only the repositories the check stops count.
+    w.ghOutBy['r1/p'] = JSON.stringify([ghPr(1, { url: 'https://github.com/r1/p/pull/1' })])
   })
   expect(asked(w)).toBe(1)
   w.env = { PATH: '/usr/bin::/bin' }
