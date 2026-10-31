@@ -735,6 +735,19 @@ test('another running session inside the worktree leaves the item, with no comma
   const text = await call(f, hooks, r, memory, 're-read', [row(f.wt), inside]);
   assert.match(text, /another running session inside: helper/);
   assert.equal(commandLines(text).length, 0);
+
+  // Inside at the name-back: no archive step, and once the other session
+  // goes, the re-read still builds no command, since the item was never
+  // archived and needs a new name-back.
+  const g = fixture();
+  const memory2 = await bound(g, hooks, r);
+  const inside2 = row(path.join(g.wt, 'deep'), { name: 'helper', sessionId: OTHER_SID, hostId: undefined });
+  const first = await call(g, hooks, r, memory2, 'name-back', [row(g.wt), inside2]);
+  assert.match(first, /another running session inside: helper/);
+  assert.doesNotMatch(first, /archive it/);
+  const after = await call(g, hooks, r, memory2, 're-read', [row(g.wt)]);
+  assert.match(after, /no name-back yet/);
+  assert.equal(commandLines(after).length, 0);
 });
 
 test('the main working tree is never named for removal', async () => {

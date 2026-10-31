@@ -546,8 +546,12 @@ async function item(ctx: CleanupContext, step: 'name-back' | 're-read', own: { k
   }
 
   if (step === 'name-back') {
+    // An item left whole keeps no name-back: it was never archived, so a
+    // re-read after the other session goes builds no command for it, and it
+    // needs a new name-back and yes (Test round 2 on issue 454, behaviour-lens F1).
+    if (f.inside.length > 0) return out
     ctx.nameBacks.set(own.id, printOf(f))
-    if (f.inside.length === 0) out.push(t.kind === 'bg' ? `  archive it: ${render(['claude', 'stop', t.id])}` : "  archive it with Desktop's archive tool, after the owner's yes")
+    out.push(t.kind === 'bg' ? `  archive it: ${render(['claude', 'stop', t.id])}` : "  archive it with Desktop's archive tool, after the owner's yes")
     return out
   }
 
