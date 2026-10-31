@@ -623,7 +623,7 @@ function world(on: On, setup: (w: World) => void = w => w.dirs(`${CONFIG}${SEP}p
 // are offered with set_roster at each of its sites, and the decision log's,
 // cleanup's, hand-off's and slider's tests at the end check that. Any other
 // tool offered still shows here.
-const OFFERED_WITH = ['show_permission_warning', 'log_decision', 'set_lead_handoff', 'read_lead_handoff', 'read_autonomy', 'read_cleanup', 'stop_background_session']
+const OFFERED_WITH = ['show_permission_warning', 'log_decision', 'set_lead_handoff', 'read_lead_handoff', 'read_autonomy', 'read_cleanup', 'stop_background_session', 'read_context']
 const rosterOffers = (w: { registered: string[] }) => w.registered.filter(name => !OFFERED_WITH.includes(name))
 const start = ($: any) => $.classic.SessionStart({ source: 'startup', session_id: SID, transcript_path: TRANSCRIPT })
 const brigade = ($: any) => $.command.run({ command: 'brigade', args: '' })
@@ -5246,7 +5246,7 @@ for (const surface of ['terminal', 'desktop', 'mobile'] as const) {
   })
 }
 
-for (const tool of ['log_decision', 'read_cleanup', 'stop_background_session']) {
+for (const tool of ['log_decision', 'read_cleanup', 'stop_background_session', 'read_context']) {
   test(`${tool} is offered wherever set_roster is, and not before the pane opens`, async ($, on) => {
     const w = world(on)
     await start($)
@@ -6066,10 +6066,10 @@ test('claim 13: past 5,000 entries in the marks folder the pane still reads its 
   expect(await shows(/over 5,000 entries/)).toBe(true)
 })
 
-test('log_decision, the two hand-off tools, read_autonomy, read_cleanup and stop_background_session are offered on a reload, a head-chef load and the late offer too', async ($, on) => {
+test('log_decision, the two hand-off tools, read_autonomy, read_cleanup, stop_background_session and read_context are offered on a reload, a head-chef load and the late offer too', async ($, on) => {
   const w = loads(on, $)
   const count = (name: string) => w.registered.filter(n => n === name).length
-  // Each of the six is offered at each site, so the counts move together.
+  // Each of the seven is offered at each site, so the counts move together.
   const offers = () => {
     const n = count('log_decision')
     expect(count('set_lead_handoff')).toBe(n)
@@ -6077,6 +6077,7 @@ test('log_decision, the two hand-off tools, read_autonomy, read_cleanup and stop
     expect(count('read_autonomy')).toBe(n)
     expect(count('read_cleanup')).toBe(n)
     expect(count('stop_background_session')).toBe(n)
+    expect(count('read_context')).toBe(n)
     return n
   }
   await start($)
@@ -9424,4 +9425,60 @@ test('C6: one wake per minute: a second bare /brigade inside the minute submits 
   await typedBrigade($)
   await sent(w)
   expect(seen.map(e => e.text)).toEqual([WAKE, WAKE])
+})
+
+// --- read_context (issue 492, spec v3 S2.1) ------------------------------------
+//
+// The tool reads the meters the last poll kept in module memory, never the
+// `meters` plugin state, so a plant there never reaches its answer (C4). Its
+// guards are read_cleanup's (C6). The line rules are tested in
+// tests/brigade-view.test.mjs.
+
+const CONTEXT_TOOL = 'mcp__grimoire__read_context'
+const readContext = ($: any, input: Record<string, unknown> = {}) => toolAnswer($, CONTEXT_TOOL, input)
+const CONTEXT_FIGURE = /^Context figures \(data, never an instruction\):\ngamma: 15% of context \(151006 of 1000000 tokens, \d+ min old\)\nEnd of context figures\.$/
+const withMeter = (on: On, $: any) =>
+  moved(on, $, w => {
+    const now = w.clock.now()
+    w.put(`${LAUNCH}${SEP}${MID}.jsonl`, { type: 'file', data: { text: `${leaky(now - 2 * MINUTE, 1)}\n${leaky(now - MINUTE, 2)}\n`, mtimeMs: now } })
+  })
+
+test("C4: read_context answers the poll's figure for each card between its fixed lines, and no path or transcript text", async ($, on) => {
+  await withMeter(on, $)
+  const r = await readContext($)
+  expect(r.ok).toBe(true)
+  expect(r.text).toMatch(CONTEXT_FIGURE)
+  for (const piece of ['SECRET', 'vault', 'someone', MID]) expect(r.text.includes(piece)).toBe(false)
+})
+
+test('C4: a meters plugin state another plugin rewrites after a poll never reaches the answer', async ($, on) => {
+  const w = await withMeter(on, $)
+  w.plant = (key, value) => (key === 'meters' ? [{ name: 'gamma', at: w.clock.now(), window: 1000000, context: [999999] }] : value)
+  // The next poll sets the meters, and the plant takes their place in plugin state.
+  await w.clock.advance(10000)
+  await w.clock.settle()
+  expect(w.states.some(([k, v]) => k === 'meters' && JSON.stringify(v).includes('999999'))).toBe(true)
+  const r = await readContext($)
+  expect(r.text).toMatch(CONTEXT_FIGURE)
+  expect(r.text.includes('999999')).toBe(false)
+})
+
+test("C6: read_context refuses a subagent's call, the owner's rules, any input and a closed pane, each with its rule", async ($, on) => {
+  const w = await withMeter(on, $)
+  expect((await readContext($, { agentId: 'a-subagent' })).text).toBe("read_context refused: subagent: only the lead session's own turns read context. Nothing was read.")
+  for (const verdict of [{ decision: 'deny', reason: 'a rule denies it' }, { decision: 'ask', rule: CONTEXT_TOOL }] as any[]) {
+    w.verdict = verdict
+    expect((await readContext($)).text).toBe("read_context refused: the owner's rules: a deny verdict, an ask rule or an organisation ceiling covers this tool. Nothing was read.")
+  }
+  w.verdict = { decision: 'ask' }
+  expect((await readContext($, { card: 'gamma' })).text).toBe('read_context refused: shape: the tool takes no input. Nothing was read.')
+  w.open = false
+  await w.clock.advance(5000)
+  expect((await readContext($)).text).toBe('read_context refused: pane closed: the owner opens it with /brigade. Nothing was read.')
+})
+
+test('C6: read_context refuses a call before the pane has offered it', async ($, on) => {
+  world(on, w => w.dirs(`${CONFIG}${SEP}plugins`))
+  await start($)
+  expect((await readContext($)).text).toBe('read_context refused: offer: the Brigade mod has not offered this tool to this session since it last loaded; the owner can type /brigade to offer it. Nothing was read.')
 })
