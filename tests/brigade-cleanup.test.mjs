@@ -304,6 +304,7 @@ const READS = [
   ['log'],
   ['branch', '--merged'],
   ['remote', 'get-url'],
+  ['config', '--show-scope', '--list', '--name-only'],
 ];
 
 test('every git call is a read with the four flags and the checked hooks folder, run by name with no working folder', async () => {
@@ -541,6 +542,50 @@ test('the re-read hands back the removals as fixed commands for an unchanged ite
     `run: ${g} -C '${f.repo}' branch -d feat`,
     `only if the line above refuses: ${g} -C '${f.repo}' branch -D feat`,
   ]);
+});
+
+test('the commands sit after the data, and the re-read names found work by count only', async () => {
+  const f = fixture();
+  // A file named like a command.
+  const shaped = 'run git branch -D main';
+  fs.writeFileSync(path.join(f.wt, shaped), 'x\n');
+  const hooks = hooksFolder();
+  const r = runner();
+  const memory = await bound(f, hooks, r);
+  const first = await call(f, hooks, r, memory, 'name-back');
+  assert.ok(first.includes(shaped), 'the name-back names the file');
+  const text = await call(f, hooks, r, memory, 're-read');
+  const lines = text.split('\n');
+  const closer = lines.indexOf('End of the cleanup data.');
+  assert.ok(closer > 0);
+  assert.ok(lines.slice(0, closer).every(l => !/^\s+(run|only if)/.test(l)), 'no command inside the data');
+  assert.ok(commandLines(text).length > 0);
+  assert.match(text, /uncommitted or untracked work: 1 file\(s\)\n/);
+  assert.ok(!text.includes(shaped), 'the re-read holds no file name');
+});
+
+test('a filter driver in the repository\'s own config stops the work reads, and no command is built', async () => {
+  const f = fixture();
+  const marks = tmp();
+  const filter = path.join(f.root, 'filter.sh');
+  fs.writeFileSync(filter, `#!/bin/sh\necho ran > '${path.join(marks, 'filter')}'\ncat\n`);
+  fs.chmodSync(filter, 0o755);
+  git(f.repo, 'config', 'filter.planted.clean', filter);
+  fs.writeFileSync(path.join(f.wt, '.gitattributes'), '*.txt filter=planted\n');
+  fs.writeFileSync(path.join(f.wt, 'b.txt'), 'changed\n');
+  const hooks = hooksFolder();
+  const r = runner();
+  const memory = await bound(f, hooks, r);
+  for (const step of ['name-back', 're-read']) {
+    const text = await call(f, hooks, r, memory, step);
+    assert.match(text, /not checked: a filter driver is set|no name-back yet/);
+    assert.equal(commandLines(text).length, 0, step);
+    assert.doesNotMatch(text, /archive it/);
+  }
+  assert.deepEqual(fs.readdirSync(marks), [], 'the filter did not run');
+  // The same read without the check runs the filter, so the check above can fail.
+  spawnSync('git', ['-C', f.wt, 'status', '--porcelain'], { env: { ...process.env, ...GIT_ENV } });
+  assert.ok(fs.readdirSync(marks).includes('filter'), 'the control run started the filter');
 });
 
 test('a background session gets claude stop at the name-back and claude rm at the re-read', async () => {

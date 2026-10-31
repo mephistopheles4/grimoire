@@ -369,8 +369,8 @@ repository, of each session, worktree folder and branch with what the
 Brigade mod's `read_cleanup` found in it, then one yes (stop 2). Found work
 is a line in the name-back, never a stop. A cleanup removes only by the
 commands the tool's re-read hands back, each run as its own shell call; an
-item the tool names "not bound to its session" gets none, and the owner
-cleans it up by hand. Cleanup's yes, the archive included, is the owner's at every level: at
+item the tool builds none for, such as one "not bound to its session", the
+owner cleans up by hand. Cleanup's yes, the archive included, is the owner's at every level: at
 level 3, log a waiting entry naming the cleanup by repository and branch
 only, add a to-do, show the name-back in this chat, and carry on.
 

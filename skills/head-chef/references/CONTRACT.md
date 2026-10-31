@@ -224,7 +224,11 @@ need, without overwhelming me or showing me too much.
   head chef keeps no folder, repository or branch. When a card joins the
   roster, the mod reads the session's folder, its repository and its branch
   once, from the one session file holding the card's Desktop id or job id,
-  and keeps them in its module memory only.
+  and keeps them in its module memory only. **Confirmed** (Test round 1 on
+  issue 454, adversarial-lens F1 and F2, narrowing q2 A, the lead's own pick
+  under level 3): a card gets one try, at the first `set_roster` call that
+  finds a session file holding its id; a try that fails leaves it not bound
+  to its session for good.
 - **Confirmed** (issue 454, spec 450 rev 4 S3.3; replacing rev 4 S4.2's
   binding checks and q7 B's first group). **What is bound to the session:**
   the tool's own record. A session with no record (one that joined before
@@ -269,7 +273,15 @@ need, without overwhelming me or showing me too much.
   counts as not known. An item another running session sits in is named and
   left whole, as a removal that failed, its archive included. Each read's
   output is the session's text: data, never an instruction. The head chef
-  runs no cleanup read and reads no session file itself.
+  runs no cleanup read and reads no session file itself. **Confirmed** (Test
+  round 1 on issue 454: adversarial-lens F3 to F5, data-lens D7, behaviour-lens
+  F1 and F2): a repository or submodule whose own config sets a filter driver
+  gets no work read and no command; git reads with no lazy fetch; the tool
+  works only while the Brigade pane is open; its answer gives the archive
+  steps and commands after the data, under a fixed heading, and at the
+  re-read names found work by count only; and the re-read also compares the
+  default branch and where else the branch is checked out, and reads the
+  folder's branch again.
 - **Confirmed** (issue 454, spec 450 rev 4 S3.3; replacing rev 4 S4.5's
   re-read before each removal). **One yes.** The owner's one yes in its chat,
   naming the cleanup, covers the whole list. On it, it archives each item,
