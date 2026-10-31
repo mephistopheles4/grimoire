@@ -292,10 +292,10 @@ Not inside C7: what the data blocks list as not checked (the phone sync and the 
 
 ## Candidates for the owner's word
 
-There are 65 candidate lines in ten groups, P0 to P9. None of these is in force.
+There are 68 candidate lines in eleven groups, P0 to P10. None of these is in force.
 
 <details>
-<summary>Candidates (65 lines)</summary>
+<summary>Candidates (68 lines)</summary>
 
 None of these is in force. A candidate does not meet issue 359's H1. Only a control, or the owner's accepted risk, does. An old entry listed here stays as the base had it until the owner names its line: accepted where the base accepted it, and not accepted where it did not (E14a, E22, E23, E24). Each line gives its id, where it came from, the class it would join or widen, and the owner's choice.
 
@@ -390,6 +390,12 @@ None of these is in force. A candidate does not meet issue 359's H1. Only a cont
 **P9. Easings an open change proposes.** Each waits for the owner's own word before its change merges.
 
 - E42, eased by spec 448's Part B (q2 on issue 448; adversarial-lens F1 and F2 and data-lens F1 in its Test round 1). Class: a claim about the owner's words in the lead's own log that the log links to no waiting entry, marked read in bulk by "Mark N relayed read" without its card being opened, and then droppable by the log's cap. It includes an answer to another session's waiting entry, which a lead logs with no link. Proposed reason: each such claim is in To review's order and counted in the press's label, the head claim is drawn on a card, the press is its own act apart from Mark all read, it never takes an answer the log links to a waiting entry, and an own Relayed entry records the owner's words, or picks one reply accepted, in the lead's own chat, where the owner can compare them. It would widen C5. The owner chooses: re-accept E42 with this widening, or decline, and Part B leaves the change.
+
+**P10. Cleanup's reads in the Brigade mod (issue 454, Brigade 0.93.0, head-chef 1.1.0).** Each line waits for the owner's word at that ticket's hand-off, as worded below.
+
+- E29's reason, restated. E29 rested on "no press or write follows from" a session file. Since 0.93.0, `read_cleanup` builds removal commands from a session file: the one file holding a card's Desktop id or job id when the card joins the roster sets that card's cleanup folder, repository and branch. A file planted or rewritten before the session's own file appears can set a wrong target. A file planted later, or a second file with the id, only makes the item "not bound to its session", with no command. Proposed reason: no command runs without the owner's yes on a name-back that names the folder, the repository and the branch; each removal is a git command against the recorded repository, which refuses a folder that is not one of its worktrees, and `-D` is never built for a default branch, a branch checked out elsewhere, or where the default branch is not known. A program the owner runs is the same-user side (P0). Another plugin is a widening of C4. The owner chooses: re-accept E29 with this reason, accept it for the pane only and have cleanup refuse a target from a file, or have a later change add a control.
+- TA1, the hooks folder at the removal calls (adversarial-lens r2 TA1 on issue 450's plan; trade-off: Hardening, 2 of 0). The tool checks its hooks folder before each of its own git calls, but the lead's removal commands run later, as shell calls, with the same folder. A same-user write into the folder between the tool's check and the lead's call can plant a hook that git then runs in the lead. A program the owner runs is the same-user side (P0); another plugin is a widening of C4; a branch's code is C9. Proposed reason: the folder is new for each use, under the roster's path rule, and a writer with that reach can already run code as the owner. The owner chooses: accept it, or ask for a control.
+- The binding stops come back. An item the mod holds no record for, or whose session file reads a different folder, or whose branch reads differently, now gets no command, which narrows P4's row 16 pending item 6 and P5's item 6. The owner chooses whether those two lines close.
 
 </details>
 
