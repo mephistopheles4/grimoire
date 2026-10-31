@@ -242,10 +242,8 @@ test('484 C7: a folder the cleaner may remove sits directly under <main>/.claude
   ]) assert.equal(cleanFolder(t), undefined, JSON.stringify(t));
 });
 
-// C3's clearing of the window is pinned as a line of doneCommand by "C1, C2, C4, C5: the done path..." below.
-test('484 C3: done none answers its fixed line', () => {
-  assert.equal(NONE_REPLY, 'Closed: no window is open.');
-});
+// C3's clearing of the window is pinned as a line of doneCommand by "C1, C2, C4, C5: the done path..." below,
+// and its reply by the plugin test "484 C1, C3".
 
 test('484 C4, C9: a clean entry stays open for 15 minutes however often it is read, and one past its time is deleted', () => {
   const w = opened(['build-1'], 0);

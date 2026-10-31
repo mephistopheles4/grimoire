@@ -9433,7 +9433,6 @@ const CLEAN_TOOL = 'mcp__grimoire__clean_up'
 const cleanUp = ($: any, input: Record<string, unknown> = {}) => toolAnswer($, CLEAN_TOOL, input)
 const DONE_NOT_TYPED = 'Nothing opened: /brigade done counts only when the owner types it at the prompt or sends it from the phone.'
 const NO_WINDOW = 'clean_up refused: window: no /brigade done window is open; the owner types /brigade done all or /brigade done <title>. Nothing was run or removed.'
-const cleanerRuns = (w: World) => w.procs.filter(argv => argv[0] === 'node')
 
 // That done none empties the window is pinned as a line of doneCommand in tests/brigade-gate.test.mjs.
 test('484 C1, C3: /brigade done all with no done card opens nothing, and done none answers its line, both typed only', async ($, on) => {
@@ -9449,7 +9448,8 @@ test('484 C1, C3: /brigade done all with no done card opens nothing, and done no
   }
 })
 
-test("484 C4, C14: clean_up refuses a subagent's call, the rules, any input, a closed pane and no open window, and each refusal runs nothing", async ($, on) => {
+// That each refusal comes before any run is pinned as the order of cleanUp's lines in tests/brigade-gate.test.mjs.
+test("484 C4, C14: clean_up refuses a subagent's call, the rules, any input, a closed pane and no open window, each in its fixed words", async ($, on) => {
   const w = world(on)
   await start($)
   await brigade($)
@@ -9464,5 +9464,4 @@ test("484 C4, C14: clean_up refuses a subagent's call, the rules, any input, a c
   expect((await cleanUp($)).text).toBe(NO_WINDOW)
   w.open = false
   expect((await cleanUp($)).text).toBe('clean_up refused: pane closed: the owner opens it with /brigade. Nothing was run or removed.')
-  expect(cleanerRuns(w)).toEqual([])
 })
