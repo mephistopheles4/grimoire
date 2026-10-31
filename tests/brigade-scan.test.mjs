@@ -17,8 +17,8 @@ import assert from 'node:assert/strict';
 
 const s = await import('../brigade/scan.ts');
 const {
-  MAX_BYTES, TIME_LIMIT_MS, scanText, routeOf, decide, settingOf, switchArgs, switchReply,
-  FAILED, TIMED_OUT, MOD_TOOLS,
+  MAX_BYTES, MAX_FILES, MAX_TOTAL, TIME_LIMIT_MS, scanText, routeOf, decide, settingOf, readSetting,
+  caughtAnswer, switchArgs, switchReply, showLine, FAILED, TIMED_OUT, MOD_TOOLS,
 } = s;
 
 // --- fixtures ---------------------------------------------------------------
@@ -37,6 +37,16 @@ const SECRETS = {
   huggingface: 'h' + 'f_' + rep('Ab12', 9),
   stripe: 's' + 'k_live_' + rep('Ab12', 6),
   jwt: 'ey' + 'J' + rep('h', 12) + '.ey' + 'J' + rep('p', 12) + '.' + rep('s', 12),
+  // Each pattern's other prefixes.
+  githubOauth: 'gh' + 'o_' + rep('A1b2', 9),
+  githubUser: 'gh' + 'u_' + rep('A1b2', 9),
+  githubServer: 'gh' + 's_' + rep('A1b2', 9),
+  githubRefresh: 'gh' + 'r_' + rep('A1b2', 9),
+  awsTemporary: 'AS' + 'IA' + 'ABCDEFGHIJ234567',
+  router: 'sk' + '-or-' + rep('Qw9_', 8),
+  stripeRestricted: 'r' + 'k_live_' + rep('Ab12', 6),
+  slackUser: 'xo' + 'xp-' + '1234567890-abcdef',
+  slackApp: 'xo' + 'xa-' + '1234567890-abcdef',
 };
 const KEY_HEADER = '-----BEGIN ' + 'OPENSSH PRIVATE KEY-----';
 const URL_USER = 'https://' + 'someone:hunter2' + '@example.com/repo.git';
@@ -48,7 +58,13 @@ const HOMES = {
   linux: '/ho' + 'me/someone/notes.md',
   gitBash: '/c/Us' + 'ers/someone/notes.md',
   wsl: '/mnt/c/Us' + 'ers/someone/notes.md',
+  cygwin: '/cygdrive/c/Us' + 'ers/someone/notes.md',
+  jsonEscaped: 'C:' + '\\\\Users\\\\someone\\\\notes.md',
+  urlEncoded: 'C%3A' + '/Users/someone/notes.md',
+  linuxBackslash: '\\ho' + 'me\\someone\\notes.md',
 };
+// The three escaped line breaks a body can hold: JSON's, PowerShell's and a URL's.
+const ESCAPES = ['\\n', '`n', '%0A'];
 const NOREPLY = ['12345+someone@users.noreply.github.com', 'noreply@anthropic.com'];
 const rules = fs => fs.map(f => f.rule);
 
@@ -69,6 +85,15 @@ test('claim 12: an email address and each home path are personal data', () => {
   assert.deepEqual(rules(scanText(`mail ${EMAIL} please`, ['personal'])), ['email']);
   for (const [name, v] of Object.entries(HOMES)) {
     assert.deepEqual(rules(scanText(`see ${v} there`, ['personal'])), ['home-path'], name);
+  }
+});
+
+test('claim 12: a token and a home path right after an escaped line break are reported', () => {
+  for (const esc of ESCAPES) {
+    assert.deepEqual(rules(scanText(`line one${esc}${SECRETS.github}`, ['secret'])), ['token'], esc);
+    assert.deepEqual(rules(scanText(`line one${esc}${SECRETS.aws}`, ['secret'])), ['token'], esc);
+    assert.deepEqual(rules(scanText(`line one${esc}${HOMES.windows}`, ['personal'])), ['home-path'], esc);
+    assert.deepEqual(rules(scanText(`line one${esc}${HOMES.linux}`, ['personal'])), ['home-path'], esc);
   }
 });
 
@@ -125,6 +150,8 @@ const WORST = {
   'email domains': 'a@' + fill('b.').slice(2),
   'home paths': fill('C:\\Users'),
   'slashes': fill('/home/'),
+  'escaped tokens': fill('%0Aghp_\\nsk-ant-`neyJ'),
+  'escaped homes': fill('\\nC:\\Users`n/home%0A'),
 };
 
 test('claim 12: a worst-case 1 MiB fixture of each kind finishes in under 100 ms', t => {
@@ -180,10 +207,34 @@ test('S3.2 step 3: other gh and git commands are not matched', () => {
   for (const c of [
     'gh pr view 3', 'gh pr list', 'gh issue view 1 --comments', 'gh pr merge 3 --squash', 'gh pr checks 3',
     'gh release view v1', 'git status', 'git log -1', 'git tag v1', 'git push -u origin x', 'git diff',
+    'gh api repos/o/r/issues', 'gh api -X GET repos/o/r/pulls',
     'echo gh pr create --body b', 'ls', 'node scripts/x.mjs',
   ]) {
     assert.equal(bash(c), undefined, c);
   }
+});
+
+test('S3.2 step 3: a call after an assignment, a reserved word or a wrapper is matched', () => {
+  for (const c of [
+    'if true; then gh pr comment 1 --body b; fi',
+    'while true; do git commit -m m; done',
+    '! git commit -m m',
+    'sudo gh pr create --body b',
+    'timeout 30 gh pr create --body b',
+    'timeout -s KILL 30 gh pr create --body b',
+    'xargs gh pr comment 1 --body',
+    'echo $((1 << 2))\ngh pr create --body b',
+  ]) {
+    assert.ok(bash(c), c);
+  }
+  assert.ok(ps('$r = gh pr create --title t --body b'), 'PowerShell assignment');
+  assert.ok(ps('$r= gh pr create --title t --body b'), 'PowerShell assignment, no space');
+});
+
+test('claim 14: a quoted value is never read as a flag, and a flag cluster ending in F names its file', () => {
+  assert.deepEqual(bash('gh issue comment 5 --body "-Fix the thing"').files, []);
+  assert.deepEqual(bash('git commit -m "-Fix typo"').files, []);
+  assert.deepEqual(bash('git commit -aF msg.txt').files.map(f => f.path), ['msg.txt']);
 });
 
 test('S3.2 step 3: the scanned text starts at the matched call, after its global options', () => {
@@ -234,10 +285,11 @@ test('claim 14: each body-file form names the file the program reads', () => {
   assert.deepEqual(files('git commit -F -'), []);
 });
 
-test('claim 12: SendMessage gets the secret shapes only, on its message', () => {
+test('claim 12: SendMessage gets the secret shapes only, on its message and its summary', () => {
   const r = routeOf('SendMessage', { to: 'build-1', message: `see ${HOMES.windows}`, summary: 'x' });
   assert.deepEqual(r.families, ['secret']);
-  assert.deepEqual(r.parts.map(p => p.field), ['message']);
+  assert.deepEqual(r.parts.map(p => p.field), ['message', 'summary']);
+  assert.ok(!r.parts.some(p => p.text === 'build-1'), 'the address is not read');
   const obj = routeOf('SendMessage', { to: 'x', message: { type: 'shutdown_response', reason: SECRETS.github } });
   assert.ok(obj.parts.some(p => p.text.includes(SECRETS.github)));
 });
@@ -253,6 +305,9 @@ test("claim 12: the mod's three tools get both families on every text field", ()
   // A key that is not a plain word is named as "input", never echoed.
   const odd = routeOf(MOD_TOOLS[0], { [`x ${EMAIL}`]: 'v' });
   assert.deepEqual(odd.parts.map(p => p.field), ['input']);
+  // The engine's envelope keys are not the tool's input, and are not read.
+  const env = routeOf(MOD_TOOLS[1], { tool: 't', tool_use_id: 'u', agentId: 'a', consent: EMAIL, requestMeta: 'r', why: 'w' });
+  assert.deepEqual(env.parts.map(p => p.field), ['why']);
 });
 
 test('claim 13: other tools are not matched', () => {
@@ -285,7 +340,8 @@ function deps(o = {}) {
       if (o.readHangs) return new Promise(() => {});
       return files[p].text;
     },
-    now: () => (t += o.step ?? 1),
+    // A clock that steps by `step`, or reads `times` in turn and then holds the last.
+    now: () => (o.times ? o.times[Math.min(t++, o.times.length - 1)] : (t += o.step ?? 1)),
     after: ms => new Promise(r => setTimeout(r, Math.min(ms, 20))),
   };
   return d;
@@ -300,9 +356,21 @@ test('claim 15: with the setting off or unset, a matched call with a hit passes 
   }
 });
 
-test('claim 15: a setting that fails to read counts as off', async () => {
+test('claim 13: a setting that fails to read refuses a matched call as a failure', async () => {
   const d = deps({ settingThrows: true });
-  assert.equal(await decide('Bash', { command: `gh pr create --body ${SECRETS.github}` }, d), undefined);
+  assert.deepEqual(await decide('Bash', { command: 'gh pr create --body clean' }, d), { deny: FAILED });
+  assert.equal(await readSetting(async () => { throw new Error('store'); }), 'unreadable');
+  assert.equal(await readSetting(async () => 'on'), 'on');
+  assert.equal(await readSetting(async () => undefined), 'off');
+  assert.match(showLine('unreadable'), /\/brigade scan off/);
+});
+
+test("claim 13: the catch handler refuses a matched call unless the setting reads off, and replays a throw from beneath", () => {
+  assert.equal(caughtAnswer({ nextCalled: true, armed: true, setting: 'on' }), 'replay');
+  assert.equal(caughtAnswer({ nextCalled: false, armed: true, setting: 'off' }), 'refuse');
+  assert.equal(caughtAnswer({ nextCalled: false, armed: false, setting: 'on' }), 'refuse');
+  assert.equal(caughtAnswer({ nextCalled: false, armed: false, setting: 'unreadable' }), 'refuse');
+  assert.equal(caughtAnswer({ nextCalled: false, armed: false, setting: 'off' }), 'pass');
 });
 
 test('claim 13: an unmatched call is untouched: nothing is read, not even the setting', async () => {
@@ -345,6 +413,60 @@ test('claim 14: a body file is scanned, resolved against the folder the hook rea
   assert.match((await decide('PowerShell', { command: 'gh pr create --body-file b.md' }, win)).deny, /email address in body file 1/);
   const sub = deps({ cwd: '/work', files: { '/work/sub/m.txt': file(EMAIL) } });
   assert.match((await decide('Bash', { command: 'git -C sub commit -F m.txt' }, sub)).deny, /body file 1/);
+});
+
+test("claim 14: a body file's own path is never scanned as outbound text; its contents are", async () => {
+  const path = 'C:' + '/Users/someone/AppData/Local/Temp/b.md';
+  const clean = deps({ cwd: 'C:\\work', files: { [path]: file('clean text') } });
+  assert.equal(await decide('Bash', { command: `gh pr create --title t --body-file ${path}` }, clean), undefined);
+  const winPath = 'C:' + '\\Users\\someone\\AppData\\Local\\Temp\\b.md';
+  const ps1 = deps({ cwd: 'C:\\work', files: { [winPath]: file('clean text') } });
+  assert.equal(await decide('PowerShell', { command: `gh pr create --title t --body-file ${winPath}` }, ps1), undefined);
+  const dirty = deps({ cwd: 'C:\\work', files: { [path]: file(`mail ${EMAIL}`) } });
+  const r = await decide('Bash', { command: `git commit -F ${path}` }, dirty);
+  assert.match(r.deny, /an email address in body file 1/);
+  assert.ok(!r.deny.includes('in the command'));
+});
+
+test('claim 14: a path the scan cannot resolve as the shell would is refused in its own words, unopened', async () => {
+  for (const [tool, p] of [['Bash', '~/b.md'], ['Bash', '"$HOME/b.md"'], ['PowerShell', '$env:TEMP\\b.md'], ['PowerShell', '%TEMP%\\b.md'], ['Bash', '/tmp/b.md']]) {
+    const d = deps({ cwd: 'C:\\work' });
+    const r = await decide(tool, { command: `gh pr create --body-file ${p}` }, d);
+    assert.match(r.deny, /body file 1 is a path the scan cannot resolve/, p);
+    assert.ok(!d.calls.some(c => c.startsWith('stat')), p);
+  }
+  const drive = deps({ cwd: 'C:\\work', files: { 'C:/work/b.md': file(EMAIL) } });
+  assert.match((await decide('Bash', { command: 'gh pr create --body-file /c/work/b.md' }, drive)).deny, /body file 1/);
+});
+
+test('claim 14: a network or device path is refused without being opened', async () => {
+  for (const p of ['//server/share/b.md', '\\\\server\\share\\b.md', '\\\\?\\C:\\b.md']) {
+    const d = deps({ cwd: 'C:\\work' });
+    const r = await decide('PowerShell', { command: `gh pr create --body-file '${p}'` }, d);
+    assert.match(r.deny, /a network or device path/, p);
+    assert.ok(!d.calls.some(c => c.startsWith('stat')), p);
+  }
+});
+
+test('claim 14: one call reads each body file once, at most four, and at most 2 MiB in all', async () => {
+  const once = deps({ files: { '/abs/b.md': file('fine') } });
+  assert.equal(await decide('Bash', { command: 'gh api x --input /abs/b.md -F a=@/abs/b.md -F b=@/abs/b.md' }, once), undefined);
+  assert.equal(once.calls.filter(c => c === 'read /abs/b.md').length, 1);
+  const many = deps();
+  const five = Array.from({ length: MAX_FILES + 1 }, (_, i) => `-F f${i}=@/abs/${i}.md`).join(' ');
+  assert.match((await decide('Bash', { command: `gh api x ${five}` }, many)).deny, /more than 4 body files/);
+  assert.ok(!many.calls.some(c => c.startsWith('stat')));
+  const half = 'x'.repeat(MAX_BYTES - 16);
+  const big = deps({ files: { '/abs/a.md': file(half), '/abs/b.md': file(half), '/abs/c.md': file(half) } });
+  const r = await decide('Bash', { command: 'gh api x --input /abs/a.md -F b=@/abs/b.md -F c=@/abs/c.md' }, big);
+  assert.match(r.deny, new RegExp(`over the scan's limit of 2 MiB \\(${MAX_TOTAL} bytes\\)`));
+  assert.ok(!big.calls.includes('read /abs/c.md'));
+});
+
+test('S3.2 step 6: the 1 MiB limit counts bytes, not characters', async () => {
+  const command = `gh pr create --body ${'é'.repeat(MAX_BYTES / 2 + 8)}`;
+  assert.ok(command.length < MAX_BYTES);
+  assert.match((await decide('Bash', { command }, deps())).deny, /the command is \d+ bytes/);
 });
 
 test('claim 14: a body file over 1 MiB is refused with its size', async () => {
@@ -394,6 +516,11 @@ test('claim 13: a run past the time bound is refused, in its own fixed words', a
   assert.equal((await decide('Bash', { command: 'gh pr create --body-file /abs/b.md' }, slow)).deny, TIMED_OUT);
   const hang = deps({ readHangs: true, files: { '/abs/b.md': file('fine') } });
   assert.equal((await decide('Bash', { command: 'gh pr create --body-file /abs/b.md' }, hang)).deny, TIMED_OUT);
+  // With no body file, a clock that passes the bound between the parts' scans.
+  const jump = deps({ times: [1, 1, TIME_LIMIT_MS + 5] });
+  assert.equal((await decide('SendMessage', { to: 'x', message: 'a', summary: 'b' }, jump)).deny, TIMED_OUT);
+  const after = deps({ times: [1, 1, 1, TIME_LIMIT_MS + 5] });
+  assert.equal((await decide('SendMessage', { to: 'x', message: 'a', summary: 'b' }, after)).deny, TIMED_OUT);
   assert.match(TIMED_OUT, /2-second/);
   assert.match(TIMED_OUT, /\/brigade scan off/);
 });
@@ -421,9 +548,11 @@ test('claim 15: the switch moves only from a typed origin, composer or bridge', 
     assert.deepEqual(switchReply('off', kind, 'on').set, 'off');
   }
   for (const kind of ['sdk', 'peer', 'peer-send-message', 'plugin', 'task-notification', 'scheduled-trigger', 'unclassified', undefined]) {
-    const r = switchReply('on', kind, 'off');
-    assert.equal(r.set, undefined, String(kind));
-    assert.match(r.text, /typed/, String(kind));
+    for (const [arg, now] of [['on', 'off'], ['off', 'on'], ['off', 'unreadable']]) {
+      const r = switchReply(arg, kind, now);
+      assert.equal(r.set, undefined, `${kind} ${arg}`);
+      assert.match(r.text, /typed/, `${kind} ${arg}`);
+    }
   }
   assert.match(switchReply('show', 'composer', 'off').text, /Outbound scan is off/);
   assert.equal(switchReply('show', 'composer', 'off').set, undefined);
@@ -445,10 +574,18 @@ test("S3.2 step 3: the scan's hooks are the mod's outermost, on the mod's own to
   const firstCall = /^\s*([A-Za-z]+)\(on\)/m.exec(body);
   assert.equal(firstCall?.[1], 'registerScan');
   const scan = src.slice(src.indexOf('function registerScan('), src.indexOf('// `/brigade scan`'));
+  // Each hook, word for word: the same name on its matcher and in its scan, the
+  // refusal returned when there is one, and the catch handler on every hook.
   for (const tool of ["'Bash'", "'PowerShell'", "'SendMessage'", 'TOOL_NAME', 'LOG_TOOL_NAME', 'SET_HANDOFF_NAME']) {
-    assert.ok(scan.includes(`{ tool: ${tool} }`), tool);
+    const line = `  on('tool.call', { tool: ${tool} }, async ($, e, next) => (await scanCall($, ${tool}, e)) ?? next(e)).catch(($, e, next) => scanCaught($, e, next))`;
+    assert.ok(scan.includes(line), tool);
   }
   assert.equal((scan.match(/\.catch\(/g) ?? []).length, 6);
+  // The catch handler answers as caughtAnswer says.
+  const caught = src.slice(src.indexOf('async function scanCaught'), src.indexOf('function registerScan('));
+  assert.match(caught, /caughtAnswer\(\{ nextCalled: next\.called, armed, setting \}\) === 'refuse' \? \{ deny: SCAN_FAILED \} : next\(e\)/);
+  // The switch takes the command's own origin, ahead of the pane.
+  assert.match(src, /const scanArg = switchArgs\(e\.args\)\n\s+if \(scanArg !== undefined\) return scanCommand\(\$, e\.origin\?\.kind, scanArg\)/);
 });
 
 // Claim 13's last part, as far as text can show it: the scan's code in
@@ -463,6 +600,14 @@ test('claim 13: the scan keeps nothing: its only write is the setting', async ()
   for (const w of ['$.fs.write', '$.state.set', 'update(', '$.session.append', '$.ui.toast', 'console.']) {
     assert.ok(!part.includes(w), w);
   }
+  // A call's own path, the hooks and their catch handler, reaches the engine
+  // only to read: the store, the folder, a file's stat and text, and the clock.
+  const hooks = src.slice(src.indexOf('async function scanCall('), src.indexOf('// `/brigade scan`'));
+  const reached = new Set(hooks.match(/\$\.[a-z]+\.[a-zA-Z]+/g) ?? []);
+  assert.deepEqual([...reached].sort(), ['$.clock.after', '$.fs.read', '$.fs.stat', '$.session.cwd']);
+  for (const w of ['redraw(', 'update(', 'scanCommand(']) assert.ok(!hooks.includes(w), w);
+  const helpers = src.slice(src.indexOf('const storedScan'), src.indexOf('// One matched call'));
+  assert.deepEqual([...new Set(helpers.match(/\$\.[a-z]+\.[a-zA-Z]+/g) ?? [])], ['$.store.get']);
   const mod = readFileSync(new URL('../brigade/scan.ts', import.meta.url), 'utf8');
   assert.ok(!/^import /m.test(mod), 'scan.ts imports nothing');
 });

@@ -455,10 +455,10 @@ files you ask for:
   `/brigade scan on`, and `/brigade scan off` turns it off again; the setting
   is one value in the plugin's store, for every session on the machine. While
   it is on, it reads the text of each `gh` post, `git` commit or tag message,
-  `SendMessage` and Brigade tool call, and any file such a command names as its
-  body, up to 1 MiB, and refuses the call when the text holds a secret's shape
-  or, on all but `SendMessage`, an email address or a home path. It keeps
-  nothing it reads.
+  `SendMessage` message and summary, and Brigade tool call, and any local file
+  such a command names as its body, up to 1 MiB, and refuses the call when the
+  text holds a secret's shape or, on all but `SendMessage`, an email address or
+  a home path. It keeps nothing it reads.
 - **Seven calls skip the permission prompt:** the `set_roster` tool, which
   writes the roster file, the `log_decision` tool, which appends to the
   decision log, the `set_lead_handoff` and `read_lead_handoff` tools, which

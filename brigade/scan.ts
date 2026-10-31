@@ -36,21 +36,26 @@ const RULE_WORDS: Readonly<Record<Rule, string>> = {
 
 // --- the scanner -------------------------------------------------------------
 
-// Each token shape is anchored behind by its own body's characters, so a
-// match is tried only where such a run starts, and each count is bounded.
+// Each token shape starts only where a run of its own body's characters
+// starts, or right after an escaped line break or tab, as text written for a
+// JSON body (`\n`), a PowerShell string (backtick-n) or a URL (`%0A`) holds
+// one. Each count is bounded, so a match is tried once per run.
+const ESC = String.raw`(?<=\\[nrtbf]|\\u[0-9A-Fa-f]{4}|\x60[nrt]|%0[AaDd9])`
+const startAt = (cls: string) => String.raw`(?:(?<![${cls}])|${ESC})`
+const shape = (cls: string, body: string) => new RegExp(startAt(cls) + body, 'g')
 const TOKEN_SHAPES = [
-  /(?<![A-Za-z0-9_-])sk-ant-[A-Za-z0-9_-]{20,255}/g,
-  /(?<![A-Za-z0-9_-])sk-(?:or-|proj-)?[A-Za-z0-9_-]{20,255}/g,
-  /(?<![A-Za-z0-9_])gh[pousr]_[A-Za-z0-9]{30,255}/g,
-  /(?<![A-Za-z0-9_])github_pat_[A-Za-z0-9_]{30,255}/g,
-  /(?<![A-Za-z0-9])(?:AKIA|ASIA)[0-9A-Z]{16}(?![0-9A-Z])/g,
-  /(?<![A-Za-z0-9_-])AIza[0-9A-Za-z_-]{35}/g,
-  /(?<![A-Za-z0-9-])xox[abprs]-[A-Za-z0-9-]{10,255}/g,
-  /(?<![A-Za-z0-9_-])glpat-[A-Za-z0-9_-]{20,255}/g,
-  /(?<![A-Za-z0-9_])npm_[A-Za-z0-9]{36}/g,
-  /(?<![A-Za-z0-9_])hf_[A-Za-z0-9]{30,255}/g,
-  /(?<![A-Za-z0-9_])[rs]k_live_[A-Za-z0-9]{20,255}/g,
-  /(?<![A-Za-z0-9_-])eyJ[A-Za-z0-9_-]{10,1024}\.eyJ[A-Za-z0-9_-]{10,2048}\.[A-Za-z0-9_-]{10,1024}/g,
+  shape('A-Za-z0-9_-', 'sk-ant-[A-Za-z0-9_-]{20,255}'),
+  shape('A-Za-z0-9_-', 'sk-(?:or-|proj-)?[A-Za-z0-9_-]{20,255}'),
+  shape('A-Za-z0-9_', 'gh[pousr]_[A-Za-z0-9]{30,255}'),
+  shape('A-Za-z0-9_', 'github_pat_[A-Za-z0-9_]{30,255}'),
+  shape('A-Za-z0-9', '(?:AKIA|ASIA)[0-9A-Z]{16}(?![0-9A-Z])'),
+  shape('A-Za-z0-9_-', 'AIza[0-9A-Za-z_-]{35}'),
+  shape('A-Za-z0-9-', 'xox[abprs]-[A-Za-z0-9-]{10,255}'),
+  shape('A-Za-z0-9_-', 'glpat-[A-Za-z0-9_-]{20,255}'),
+  shape('A-Za-z0-9_', 'npm_[A-Za-z0-9]{36}'),
+  shape('A-Za-z0-9_', 'hf_[A-Za-z0-9]{30,255}'),
+  shape('A-Za-z0-9_', '[rs]k_live_[A-Za-z0-9]{20,255}'),
+  shape('A-Za-z0-9_-', String.raw`eyJ[A-Za-z0-9_-]{10,1024}\.eyJ[A-Za-z0-9_-]{10,2048}\.[A-Za-z0-9_-]{10,1024}`),
 ]
 const KEY_HEADER = /-----BEGIN [A-Z0-9 ]{0,40}PRIVATE KEY[A-Z ]{0,10}-----/g
 // A home folder with a name after it: Windows with either slash, Git Bash's,
@@ -58,10 +63,11 @@ const KEY_HEADER = /-----BEGIN [A-Z0-9 ]{0,40}PRIVATE KEY[A-Z ]{0,10}-----/g
 // with backslashes. `~` and `$HOME` hold no name, so they pass.
 const NAME = String.raw`[^\\/\s"'<>|:*?\x60]`
 // Where a Unix-shaped home may start: not inside a word or a path, and not
-// right after a drive letter, which the Windows shape reports.
-const AFTER = String.raw`(?<![\w.-]|[A-Za-z]:)`
+// right after a drive letter, which the Windows shape reports; or right after
+// an escaped line break, as for the token shapes.
+const AFTER = String.raw`(?:(?<![\w.-]|[A-Za-z]:)|${ESC})`
 const HOME_SHAPES = [
-  new RegExp(String.raw`(?<![A-Za-z])[A-Za-z](?::|%3A)(?:\\{1,4}|\/)[Uu]sers(?:\\{1,4}|\/)${NAME}`, 'g'),
+  new RegExp(String.raw`${startAt('A-Za-z')}[A-Za-z](?::|%3A)(?:\\{1,4}|\/)[Uu]sers(?:\\{1,4}|\/)${NAME}`, 'g'),
   new RegExp(String.raw`${AFTER}(?:\/mnt|\/cygdrive)?\/[A-Za-z]\/[Uu]sers\/${NAME}`, 'g'),
   new RegExp(String.raw`${AFTER}\/Users\/${NAME}`, 'g'),
   new RegExp(String.raw`${AFTER}\/home\/${NAME}`, 'g'),
@@ -158,16 +164,21 @@ export function scanText(text: string, families: readonly Family[]): Finding[] {
 // its flags: quotes, escapes, a Bash heredoc (whose lines are data), a
 // PowerShell here-string, comments, and the operators that end a command.
 
-type Word = { text: string; at: number }
+// A word's text with its quotes taken off, where it starts and ends in the
+// command, and whether it opened with a quote: a quoted word is a value, never
+// a flag, so "-Fix" in a message is not read as `-F ix`.
+type Word = { text: string; at: number; end: number; quoted: boolean }
 
 function commandsOf(cmd: string, pwsh: boolean): Word[][] {
   const cmds: Word[][] = []
   let words: Word[] = []
   let cur = ''
   let at = -1
+  let quoted = false
   let heredocs: { tag: string; strip: boolean }[] = []
+  let i = 0
   const endWord = () => {
-    if (at !== -1) words.push({ text: cur, at })
+    if (at !== -1) words.push({ text: cur, at, end: i, quoted })
     cur = ''
     at = -1
   }
@@ -176,10 +187,12 @@ function commandsOf(cmd: string, pwsh: boolean): Word[][] {
     if (words.length > 0) cmds.push(words)
     words = []
   }
-  const start = (i: number) => {
-    if (at === -1) at = i
+  const start = (from: number, q = false) => {
+    if (at === -1) {
+      at = from
+      quoted = q
+    }
   }
-  let i = 0
   while (i < cmd.length) {
     const c = cmd[i]
     if (c === '\n') {
@@ -232,7 +245,8 @@ function commandsOf(cmd: string, pwsh: boolean): Word[][] {
         if (cmd[j] !== "'" && cmd[j] !== '"' && cmd[j] !== '\\') tag += cmd[j]
         j++
       }
-      if (tag !== '') heredocs.push({ tag, strip })
+      // A heredoc's tag is a word; `x << 2` is a shift, and its lines are not data.
+      if (/^[A-Za-z_]/.test(tag)) heredocs.push({ tag, strip })
       i = j
       continue
     }
@@ -240,13 +254,13 @@ function commandsOf(cmd: string, pwsh: boolean): Word[][] {
       const close = `\n${cmd[i + 1]}@`
       const body = cmd.indexOf('\n', i) + 1
       const end = cmd.indexOf(close, body - 1)
-      start(i)
+      start(i, true)
       cur += cmd.slice(body, end === -1 ? cmd.length : end)
       i = end === -1 ? cmd.length : end + close.length
       continue
     }
     if (c === "'") {
-      start(i)
+      start(i, true)
       let j = i + 1
       while (j < cmd.length) {
         if (cmd[j] === "'") {
@@ -263,7 +277,7 @@ function commandsOf(cmd: string, pwsh: boolean): Word[][] {
       continue
     }
     if (c === '"') {
-      start(i)
+      start(i, true)
       let j = i + 1
       const esc = pwsh ? '`' : '\\'
       while (j < cmd.length && cmd[j] !== '"') {
@@ -300,20 +314,57 @@ function commandsOf(cmd: string, pwsh: boolean): Word[][] {
 }
 
 const ASSIGNMENT = /^[A-Za-z_][A-Za-z0-9_]*=/
-const PREFIXES = new Set(['command', 'exec', 'env', 'time', 'nohup'])
+// Words that come before the program they run: Bash's reserved words and `!`,
+// and programs that run the next word as a command.
+const PREFIXES = new Set(['command', 'exec', 'env', 'time', 'nohup', 'sudo', 'xargs', 'if', 'then', 'do', 'else', 'elif', 'while', 'until', '!'])
 const FOLDER_CHANGES = new Set(['cd', 'pushd', 'popd', 'chdir', 'set-location', 'sl', 'push-location', 'pop-location'])
 
 const programOf = (w: string) =>
   (w.split(/[\\/]/).pop() ?? '').toLowerCase().replace(/\.exe$/, '')
 
-// A flag's value: `--flag value`, `--flag=value`, or for a one-letter flag
-// `-Fvalue`. Returns the value and how many words it took.
-function flagValue(words: readonly Word[], i: number, names: readonly string[]): { value: string; took: number } | undefined {
-  const w = words[i].text
+// Where the program starts in a command's words: past assignments (`NAME=x`,
+// PowerShell's `$name = ` and `$name=`), the prefixes above, `timeout` and its
+// duration, and any option a prefix takes.
+function programAt(words: readonly Word[]): number {
+  let k = 0
+  while (k < words.length) {
+    const w = words[k].text
+    if (words[k].quoted) break
+    if (ASSIGNMENT.test(w) || /^\$[A-Za-z_][\w:]*=$/.test(w)) k++
+    else if (/^\$[A-Za-z_][\w:]*$/.test(w) && words[k + 1]?.text === '=') k += 2
+    else if (PREFIXES.has(w)) {
+      k++
+      while (k < words.length && words[k].text.startsWith('-') && !words[k].quoted) k++
+    } else if (w === 'timeout') {
+      k++
+      while (k < words.length && words[k].text.startsWith('-') && !words[k].quoted) {
+        k += ['-s', '-k', '--signal', '--kill-after'].includes(words[k].text) ? 2 : 1
+      }
+      k++
+    } else break
+  }
+  return k
+}
+
+// A flag's value: `--flag value`, `--flag=value`, a one-letter flag's
+// `-Fvalue`, or the last of a cluster of one-letter flags, `-aF value`. A
+// quoted word is never a flag. Returns the value and the span of the command
+// that holds it, which is a local path for a body file.
+type Value = { value: string; span: [number, number] }
+function flagValue(words: readonly Word[], i: number, names: readonly string[]): Value | undefined {
+  const word = words[i]
+  if (word.quoted) return undefined
+  const w = word.text
+  const next = words[i + 1]
   for (const n of names) {
-    if (w === n) return i + 1 < words.length ? { value: words[i + 1].text, took: 2 } : undefined
-    if (n.startsWith('--') && w.startsWith(`${n}=`)) return { value: w.slice(n.length + 1), took: 1 }
-    if (!n.startsWith('--') && w.startsWith(n) && w.length > n.length) return { value: w.slice(n.length), took: 1 }
+    if (w === n) return next === undefined ? undefined : { value: next.text, span: [next.at, next.end] }
+    if (n.startsWith('--')) {
+      if (w.startsWith(`${n}=`)) return { value: w.slice(n.length + 1), span: [word.at, word.end] }
+    } else if (w.startsWith(n) && w.length > n.length) {
+      return { value: w.slice(n.length), span: [word.at, word.end] }
+    } else if (new RegExp(`^-[A-Za-z]+${n[1]}$`).test(w)) {
+      return next === undefined ? undefined : { value: next.text, span: [next.at, next.end] }
+    }
   }
   return undefined
 }
@@ -321,7 +372,7 @@ const hasFlag = (words: readonly Word[], names: readonly string[]) =>
   words.some((_, i) => flagValue(words, i, names) !== undefined)
 
 export type BodyFile = { path: string; base?: string }
-type Matched = { from: number; files: BodyFile[] }
+type Matched = { from: number; files: BodyFile[]; spans: [number, number][] }
 
 const GH_SUBS: Readonly<Record<string, readonly string[]>> = {
   issue: ['create', 'new', 'edit', 'comment', 'close', 'reopen'],
@@ -329,6 +380,7 @@ const GH_SUBS: Readonly<Record<string, readonly string[]>> = {
   release: ['create', 'new', 'edit'],
 }
 const MERGE_TEXT = ['-t', '--subject', '-b', '--body', '-F', '--body-file']
+const API_BODY = ['-f', '--raw-field', '-F', '--field', '--input']
 
 function ghCall(words: readonly Word[]): Matched | undefined {
   let i = 1
@@ -337,27 +389,29 @@ function ghCall(words: readonly Word[]): Matched | undefined {
   const group = words[i].text
   const sub = words[i + 1]?.text ?? ''
   const rest = words.slice(i + 1)
-  const files: BodyFile[] = []
+  const found: Value[] = []
   if (group === 'api') {
+    if (!hasFlag(rest, API_BODY)) return undefined
     for (let k = 0; k < rest.length; k++) {
       const input = flagValue(rest, k, ['--input'])
       const field = flagValue(rest, k, ['--field', '-F'])
-      if (input !== undefined) files.push({ path: input.value })
+      if (input !== undefined) found.push(input)
       else if (field !== undefined) {
         const m = /^[^=]*=@(.+)$/s.exec(field.value)
-        if (m) files.push({ path: m[1] })
+        if (m) found.push({ value: m[1], span: field.span })
       }
     }
-    return { from: words[i].at, files: files.filter(f => f.path !== '-') }
+  } else {
+    if (!(GH_SUBS[group] ?? []).includes(sub)) return undefined
+    if (group === 'pr' && sub === 'merge' && !hasFlag(rest, MERGE_TEXT)) return undefined
+    const names = group === 'release' ? ['--notes-file', '-F'] : ['--body-file', '-F']
+    for (let k = 0; k < rest.length; k++) {
+      const v = flagValue(rest, k, names)
+      if (v !== undefined) found.push(v)
+    }
   }
-  if (!(GH_SUBS[group] ?? []).includes(sub)) return undefined
-  if (group === 'pr' && sub === 'merge' && !hasFlag(rest, MERGE_TEXT)) return undefined
-  const names = group === 'release' ? ['--notes-file', '-F'] : ['--body-file', '-F']
-  for (let k = 0; k < rest.length; k++) {
-    const v = flagValue(rest, k, names)
-    if (v !== undefined) files.push({ path: v.value })
-  }
-  return { from: words[i].at, files: files.filter(f => f.path !== '-') }
+  const files = found.filter(f => f.value !== '-')
+  return { from: words[i].at, files: files.map(f => ({ path: f.value })), spans: files.map(f => f.span) }
 }
 
 const GIT_TAKES_VALUE = new Set(['-C', '-c', '--git-dir', '--work-tree', '--namespace', '--super-prefix', '--config-env', '--exec-path'])
@@ -379,17 +433,22 @@ function gitCall(words: readonly Word[]): Matched | undefined {
   const rest = words.slice(i + 1)
   if (sub !== 'commit' && !(sub === 'tag' && hasFlag(rest, TAG_TEXT))) return undefined
   const files: BodyFile[] = []
+  const spans: [number, number][] = []
   for (let k = 0; k < rest.length; k++) {
     const v = flagValue(rest, k, ['--file', '-F'])
-    if (v !== undefined && v.value !== '-') files.push(base === undefined ? { path: v.value } : { path: v.value, base })
+    if (v === undefined || v.value === '-') continue
+    files.push(base === undefined ? { path: v.value } : { path: v.value, base })
+    spans.push(v.span)
   }
-  return { from: words[i].at, files }
+  return { from: words[i].at, files, spans }
 }
 
 // --- the routes --------------------------------------------------------------
 
 export const MOD_TOOLS = ['mcp__grimoire__set_roster', 'mcp__grimoire__log_decision', 'mcp__grimoire__set_lead_handoff'] as const
 const SHELLS = ['Bash', 'PowerShell']
+// The keys the engine puts beside a tool's own input, which the tool never sees.
+const ENVELOPE = ['tool', 'tool_use_id', 'agentId', 'requestMeta', 'consent']
 
 export type Part = { field: string; text: string }
 export type Route = { families: Family[]; parts: Part[]; files: BodyFile[]; folderChanged: boolean }
@@ -414,16 +473,17 @@ function textParts(v: unknown, path: string[], out: Part[]) {
 
 // A command's matched calls. The text is read from the first one's subcommand
 // to the command's end, so a folder named before it is not read as a home
-// path, and every matched call's body files are read. A change of folder
-// anywhere in the command makes a relative body file one the scan refuses.
+// path, and every matched call's body files are read. A body file's own path
+// is blanked out of that text: the program reads it here and never sends it.
+// A change of folder anywhere in the command makes a relative body file one
+// the scan refuses.
 function shellRoute(command: string, pwsh: boolean): Route | undefined {
   let folderChanged = false
   let from: number | undefined
   const files: BodyFile[] = []
+  const spans: [number, number][] = []
   for (const words of commandsOf(command, pwsh)) {
-    let k = 0
-    while (k < words.length && (ASSIGNMENT.test(words[k].text) || PREFIXES.has(words[k].text))) k++
-    const call = words.slice(k)
+    const call = words.slice(programAt(words))
     if (call.length === 0) continue
     const program = programOf(call[0].text)
     if (FOLDER_CHANGES.has(program)) folderChanged = true
@@ -431,9 +491,12 @@ function shellRoute(command: string, pwsh: boolean): Route | undefined {
     if (m === undefined) continue
     from ??= m.from
     files.push(...m.files)
+    spans.push(...m.spans)
   }
   if (from === undefined) return undefined
-  return { families: BOTH, parts: [{ field: 'command', text: command.slice(from) }], files, folderChanged }
+  let text = command
+  for (const [a, b] of spans) if (a >= from) text = text.slice(0, a) + ' '.repeat(b - a) + text.slice(b)
+  return { families: BOTH, parts: [{ field: 'command', text: text.slice(from) }], files, folderChanged }
 }
 
 /** The route a call takes, or undefined for a call the scan never touches. */
@@ -442,14 +505,17 @@ export function routeOf(tool: string, input: Readonly<Record<string, unknown>>):
     return typeof input.command === 'string' ? shellRoute(input.command, tool === 'PowerShell') : undefined
   }
   if (tool === 'SendMessage') {
+    // The message and its summary line both reach the other session.
     const parts: Part[] = []
     textParts(input.message, ['message'], parts)
-    return { families: ['secret'], parts: parts.map(p => ({ field: 'message', text: p.text })), files: [], folderChanged: false }
+    const out = parts.map(p => ({ field: 'message', text: p.text }))
+    if (typeof input.summary === 'string') out.push({ field: 'summary', text: input.summary })
+    return { families: ['secret'], parts: out, files: [], folderChanged: false }
   }
   if ((MOD_TOOLS as readonly string[]).includes(tool)) {
     const parts: Part[] = []
     for (const [k, v] of Object.entries(input)) {
-      if (k === 'tool' || k === 'tool_use_id' || k === 'agentId' || k === 'requestMeta') continue
+      if (ENVELOPE.includes(k)) continue
       textParts(v, [k], parts)
     }
     return { families: BOTH, parts, files: [], folderChanged: false }
@@ -464,6 +530,12 @@ function joinPath(base: string, rel: string): string {
   const sep = base.includes('\\') && !base.includes('/') ? '\\' : '/'
   return `${base.replace(/[\\/]+$/, '')}${sep}${sep === '\\' ? rel.replace(/\//g, '\\') : rel}`
 }
+const onWindows = (cwd: string) => /^(?:[A-Za-z]:[\\/]|\\\\)/.test(cwd)
+// A path the hook would have to expand as a shell does: `~`, a variable, or
+// on Windows a Unix-rooted path other than Git Bash's `/c/...` drive form.
+const needsShell = (p: string) => p.startsWith('~') || /\$|%[A-Za-z_][A-Za-z0-9_]*%/.test(p)
+// A share, a device or the long-path namespace: two separators at the start.
+const isNetwork = (p: string) => /^[\\/]{2}/.test(p)
 
 // --- the decision ------------------------------------------------------------
 
@@ -471,13 +543,21 @@ const REFUSED = 'Outbound scan refused this call:'
 const OFF_HINT = 'Tell the owner; the owner can type /brigade scan off to turn the scan off.'
 export const FAILED = `${REFUSED} the scan failed, so the call was not checked. Nothing was sent. ${OFF_HINT}`
 export const TIMED_OUT = `${REFUSED} reading and scanning its text ran past the scan's 2-second limit, so the call was not checked. Nothing was sent. ${OFF_HINT}`
+export const MAX_FILES = 4
+export const MAX_TOTAL = 2 * MAX_BYTES
 // How a refusal names a field: "the command", "the message", or the field's
 // own name ("body file 1", "cards.work").
 const noun = (field: string) => (field === 'command' || field === 'message' ? `the ${field}` : field)
 const tooBig = (field: string, bytes: number) =>
   `${REFUSED} ${noun(field)} is ${bytes} bytes, over the scan's limit of 1 MiB (${MAX_BYTES} bytes). Nothing was sent.`
+const tooMuch = `${REFUSED} its text and body files together are over the scan's limit of 2 MiB (${MAX_TOTAL} bytes). Nothing was sent.`
+const tooMany = `${REFUSED} the command names more than ${MAX_FILES} body files, more than the scan reads for one call. Nothing was sent.`
 const notRegular = (field: string) =>
   `${REFUSED} ${field} is not a regular file (a pipe, a device, a folder or a link), which the scan never opens. Nothing was sent. Write the text to a plain file and name that.`
+const network = (field: string) =>
+  `${REFUSED} ${field} is a network or device path, which the scan never opens. Nothing was sent. Copy the text to a local file and name that.`
+const unresolved = (field: string) =>
+  `${REFUSED} ${field} is a path the scan cannot resolve as the shell would (it starts with ~, holds a variable, or is a Unix path on Windows). Nothing was sent. Name the file by its full path.`
 const relativeAfterCd = (field: string) =>
   `${REFUSED} ${field} is a relative path after a change of folder, so the scan cannot tell which file the program would read. Nothing was sent. Name the file by its absolute path.`
 const found = (hits: readonly string[]) =>
@@ -486,9 +566,20 @@ const found = (hits: readonly string[]) =>
 /** The setting as the store holds it: only the exact text `on` is on. */
 export const settingOf = (v: unknown): 'on' | 'off' => (v === 'on' ? 'on' : 'off')
 
+/** The setting as one read gives it: on, off, or unreadable when the read
+ *  throws, which the hook treats as a failure and refuses a matched call on. */
+export type Setting = 'on' | 'off' | 'unreadable'
+export async function readSetting(get: () => Promise<unknown>): Promise<Setting> {
+  try {
+    return settingOf(await get())
+  } catch {
+    return 'unreadable'
+  }
+}
+
 export type FileStat = { kind: string; size: number; isLink: boolean }
 export type Deps = {
-  /** The stored setting; a throw reads as off. */
+  /** The stored setting. A throw is a failure: a matched call is refused. */
   setting: () => Promise<unknown>
   /** The folder the call runs in, as the hook reads it. */
   cwd: () => Promise<string>
@@ -518,19 +609,13 @@ const LATE = Symbol('late')
 
 /** The answer for one call: a refusal in fixed words, or undefined to let the
  *  call through untouched. An unmatched call reads nothing, the setting
- *  included. A matched call with the setting off reads only the setting. Any
- *  failure after that refuses the call. */
+ *  included. A matched call with the setting off reads only the setting. A
+ *  failure after the match, the setting's read included, refuses the call. */
 export async function decide(tool: string, input: Readonly<Record<string, unknown>>, deps: Deps): Promise<{ deny: string } | undefined> {
   const route = routeOf(tool, input)
   if (route === undefined) return undefined
-  let setting: unknown
   try {
-    setting = await deps.setting()
-  } catch {
-    return undefined
-  }
-  if (settingOf(setting) !== 'on') return undefined
-  try {
+    if (settingOf(await deps.setting()) !== 'on') return undefined
     const started = deps.now()
     const late = () => deps.now() - started > TIME_LIMIT_MS
     const inTime = async <T>(p: Promise<T>): Promise<T | typeof LATE> => {
@@ -539,37 +624,55 @@ export async function decide(tool: string, input: Readonly<Record<string, unknow
       return Promise.race([p, deps.after(left + 1).then(() => LATE)])
     }
     const parts: Part[] = [...route.parts]
+    let total = 0
     for (const p of parts) {
       const bytes = utf8Bytes(p.text)
       if (bytes > MAX_BYTES) return { deny: tooBig(p.field, bytes) }
+      total += bytes
     }
+    if (route.files.length > MAX_FILES) return { deny: tooMany }
     let cwd: string | undefined
+    const seen = new Set<string>()
     for (const [n, f] of route.files.entries()) {
       const field = `body file ${n + 1}`
       let path = f.path
+      if (isNetwork(path) || (f.base !== undefined && isNetwork(f.base))) return { deny: network(field) }
+      if (needsShell(path) || (f.base !== undefined && needsShell(f.base))) return { deny: unresolved(field) }
+      if (cwd === undefined) {
+        const got = await inTime(deps.cwd())
+        if (got === LATE) return { deny: TIMED_OUT }
+        cwd = got
+      }
+      if (onWindows(cwd) && /^\//.test(path)) {
+        // Git Bash's `/c/...` is drive C; any other Unix root is not known here.
+        const drive = /^\/([A-Za-z])(?:\/|$)/.exec(path)
+        if (drive === null) return { deny: unresolved(field) }
+        path = `${drive[1].toUpperCase()}:/${path.slice(3)}`
+      }
       if (!isAbsolute(path)) {
         if (route.folderChanged) return { deny: relativeAfterCd(field) }
-        if (cwd === undefined) {
-          const got = await inTime(deps.cwd())
-          if (got === LATE) return { deny: TIMED_OUT }
-          cwd = got
-        }
         const base = f.base === undefined ? cwd : isAbsolute(f.base) ? f.base : joinPath(cwd, f.base)
         path = joinPath(base, path)
       }
+      const key = onWindows(cwd) ? path.replace(/\\/g, '/').toLowerCase() : path
+      if (seen.has(key)) continue
+      seen.add(key)
       const st = await inTime(deps.stat(path))
       if (st === LATE) return { deny: TIMED_OUT }
       if (st.kind !== 'file' || st.isLink !== false) return { deny: notRegular(field) }
       if (st.size > MAX_BYTES) return { deny: tooBig(field, st.size) }
+      if (total + st.size > MAX_TOTAL) return { deny: tooMuch }
       const text = await inTime(deps.read(path))
       if (text === LATE) return { deny: TIMED_OUT }
       const bytes = utf8Bytes(String(text))
       if (bytes > MAX_BYTES) return { deny: tooBig(field, bytes) }
+      total += bytes
+      if (total > MAX_TOTAL) return { deny: tooMuch }
       parts.push({ field, text: String(text) })
     }
-    if (late()) return { deny: TIMED_OUT }
     const hits: string[] = []
     for (const p of parts) {
+      if (late()) return { deny: TIMED_OUT }
       for (const f of scanText(p.text, route.families)) {
         const hit = `${RULE_WORDS[f.rule]} in ${noun(p.field)}`
         if (!hits.includes(hit)) hits.push(hit)
@@ -580,6 +683,14 @@ export async function decide(tool: string, input: Readonly<Record<string, unknow
   } catch {
     return { deny: FAILED }
   }
+}
+
+/** What the hook's catch handler does with a throw or an overrun: hand a
+ *  throw from beneath back to the chain (`replay`), refuse a matched call
+ *  whose setting read on or reads on now (`refuse`), or let it go (`pass`). */
+export function caughtAnswer(o: { nextCalled: boolean; armed: boolean; setting: Setting }): 'replay' | 'refuse' | 'pass' {
+  if (o.nextCalled) return 'replay'
+  return o.armed || o.setting !== 'off' ? 'refuse' : 'pass'
 }
 
 // --- the switch --------------------------------------------------------------
@@ -599,16 +710,20 @@ export function switchArgs(args: string): SwitchArg | undefined {
 const TYPED = ['composer', 'bridge']
 const ABOUT =
   'The outbound scan refuses a gh post, a git commit or tag message, a SendMessage and the Brigade tools when their text holds a secret, and on gh, git and the Brigade tools an email address or a home-folder path. It is a backstop for accidents, in every session on this machine where grimoire loads.'
-export const showLine = (setting: 'on' | 'off') =>
-  setting === 'on' ? 'Outbound scan is on.' : 'Outbound scan is off. Type /brigade scan on to turn it on.'
+export const showLine = (setting: Setting) =>
+  setting === 'on'
+    ? 'Outbound scan is on.'
+    : setting === 'off'
+      ? 'Outbound scan is off. Type /brigade scan on to turn it on.'
+      : 'The outbound scan cannot read its setting, so it refuses every call it matches. Type /brigade scan off to turn it off in this session.'
 
 /** The reply to a scan command, and the setting to store when it moves. Only a
  *  command the owner typed, at the prompt or over Remote Control, moves it. */
-export function switchReply(arg: SwitchArg, originKind: unknown, now: 'on' | 'off'): { text: string; set?: 'on' | 'off' } {
+export function switchReply(arg: SwitchArg, originKind: unknown, now: Setting): { text: string; set?: 'on' | 'off' } {
   if (arg === 'bad') return { text: 'Brigade: type /brigade scan on, /brigade scan off, or /brigade scan to see the setting.' }
   if (arg === 'show') return { text: `${showLine(now)} ${ABOUT}` }
   if (typeof originKind !== 'string' || !TYPED.includes(originKind)) {
-    return { text: `Brigade: the outbound scan moves only on a command the owner typed. It stays ${now}.` }
+    return { text: `Brigade: the outbound scan moves only on a command the owner typed. It stays as it was.` }
   }
   return {
     set: arg,

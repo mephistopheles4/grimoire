@@ -51,7 +51,7 @@ The chart places each top risk by how likely it is and how much harm it does onc
 | <a id="r6"></a>R6 | **Mod acts unprompted.** Its writes and its Open in app call skip the permission step. | 0.30 | 0.55 | 15 | The mod asks the engine for its verdict before each call. A path rule runs before and after each write, and the tools are offered only after `/brigade` or a head-chef load. | The `claude://` opener's inherited environment (P6). Row 15's other residuals are open too, the roster's check-and-write race first. | [Row 15](brigade.md#row-15) |
 | <a id="r7"></a>R7 | **Plugin plants state.** Another plugin reads or plants the level, a dismissal, search text or decision entries. | 0.30 | 0.55 | 15 | The pane shows what state claims as a claim. A level 3 counts only once the owner confirms it in the lead's chat, though a plugin that can add rows to the lead's transcript can forge that confirmation (E35a). | Row 15's other residuals are open too; what [C4](#c4) leaves out is a candidate (P1, P2, P4, P6, P7). | [Row 15](brigade.md#row-15) |
 | <a id="r8"></a>R8 | **Key or text leaves.** The audit key or a box's text goes off the machine. | 0.32 ⁺ | 0.64 ⁺ | 6, 10 | The key is never printed or written, and the endpoint override takes loopback only. A dry run names every receiver first, and a standing yes comes only from the user's own instructions. | The script cannot stop the agent itself from printing an environment variable. | [Row 6](checks.md#row-6), [row 10](checks.md#row-10), [edge audit](edge-audit.md) |
-| <a id="r9"></a>R9 | **Personal detail ships.** A home path reaches a shipped file, a page, a post or a command line. | 0.35 ⁺ | 0.25 ⁺ | 17, 18 | The check fails a fixed home path in shipped folders, and groundtrack warns on an absolute one. Posts carry no token or secret. | A home root joined from a separate string is not seen, and free text is checked only by the outbound scan, which is off by default ([P10](#candidates-for-the-owners-word)). | [Row 17](checks.md#row-17), [row 18](checks.md#row-18) |
+| <a id="r9"></a>R9 | **Personal detail ships.** A home path reaches a shipped file, a page, a post or a command line. | 0.35 ⁺ | 0.25 ⁺ | 17, 18 | The check fails a fixed home path in shipped folders, and groundtrack warns on an absolute one. Posts carry no token or secret. | A home root joined from a separate string is not seen, and free text beyond the Brigade tools' own fields is checked only by the outbound scan, which is off by default ([P10](#candidates-for-the-owners-word)). | [Row 17](checks.md#row-17), [row 18](checks.md#row-18) |
 | <a id="r10"></a>R10 | **Branch code runs.** A branch's code runs when a session opens on it. | – | – | 19 | The check holds the tracked settings file to its one guard. The contributor guide says to read a branch's `.claude/` and `scripts/` first, or to open the session with hooks off. | The guard protects the merge, not the reader. A non-local container engine (P6). | [Row 19](checks.md#row-19) |
 | – | **Rows 11 and 12.** Box text skews the audit's reread order; a provider keeps audit text. | 0.18, 0.52 | 0.30, 0.20 | 11, 12 | Accepted as [K1](#k1) and [C7](#c7). | – | [Row 11](checks.md#row-11), [row 12](checks.md#row-12) |
 | <a id="r11"></a>R11 | **Skill under test.** It reaches past its practice run. | 0.15 | 0.80 | 14 | Hygiene, not a boundary: a tight posture, a scrubbed environment, and backups of the owner's live places. | What the posture does not stop. | [Row 14](checks.md#row-14) |
@@ -292,10 +292,10 @@ Not inside C7: what the data blocks list as not checked (the phone sync and the 
 
 ## Candidates for the owner's word
 
-There are 70 candidate lines in eleven groups, P0 to P10. None of these is in force.
+There are 71 candidate lines in eleven groups, P0 to P10. None of these is in force.
 
 <details>
-<summary>Candidates (70 lines)</summary>
+<summary>Candidates (71 lines)</summary>
 
 None of these is in force. A candidate does not meet issue 359's H1. Only a control, or the owner's accepted risk, does. An old entry listed here stays as the base had it until the owner names its line: accepted where the base accepted it, and not accepted where it did not (E14a, E22, E23, E24). Each line gives its id, where it came from, the class it would join or widen, and the owner's choice.
 
@@ -393,11 +393,12 @@ None of these is in force. A candidate does not meet issue 359's H1. Only a cont
 
 **P10. The outbound scan (issue 453, plugin 0.93.0).** What the scan's own reads and setting widen; [row 15](brigade.md#row-15) holds the control. Each waits for the owner's word at the ticket's hand-off.
 
-- The setting at rest: one value, `scan`, in the plugin's store, a plain file under the config folder that another plugin or a same-user process can rewrite. A rewrite turns the scan off and loses only the backstop, since the skill's data rule stays in force (C4).
-- The owner's `/brigade scan` command and its reply sit in that session's transcript, which reaches every Remote Control device (C7).
+- The setting at rest: one value, `scan`, in the plugin's store, a plain file under the config folder that another plugin or a same-user process can read or rewrite, with no alarm. A rewrite turns the scan off and loses only the backstop, since the skill's data rule stays in force (C4).
+- The setting in transcripts: the owner's `/brigade scan` command and its reply, and `read_autonomy`'s answer, which ends with the setting, sit in those sessions' transcripts, which reach every Remote Control device (C7).
 - Another plugin's `$.command.run` with an origin it supplies can move the setting, as ADR 0012's A15 shows the test runner passes one through (C4).
 - Every matched call's text, another plugin's tool calls included, passes through grimoire's hook in every session while the scan is on, and the hook keeps none of it, as P4's A4 (C4, C7).
-- The hook reads any regular file a matched command names as a body file, up to 1 MiB, into module memory for that call, and keeps none of it (C7).
+- The hook reads any local regular file a matched command names as a body file, up to 1 MiB, into module memory for that call, and keeps none of it (C7).
+- A refusal tells the calling session, before the command runs, whether a file it names is a regular file, its size when over 1 MiB, and which of the scan's rules its text breaks. Whether the hook runs before the engine's permission check, and so answers for a file the owner's read rules deny, is not measured (C7).
 
 </details>
 
