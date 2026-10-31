@@ -579,12 +579,12 @@ function world(on: On, setup: (w: World) => void = w => w.dirs(`${CONFIG}\\plugi
 }
 
 // Every tool offered, in order, but the permission warning's, the decision
-// log's, the hand-off's two and the level's: every session offers the first
-// at each start, and warning.test.tsx tests it; the other four are offered
-// with set_roster at each of its sites, and the decision log's, hand-off's
-// and slider's tests at the end check that. Any other tool offered still
-// shows here.
-const OFFERED_WITH = ['show_permission_warning', 'log_decision', 'set_lead_handoff', 'read_lead_handoff', 'read_autonomy']
+// log's, the hand-off's two, the level's and cleanup's: every session offers
+// the first at each start, and warning.test.tsx tests it; the other five are
+// offered with set_roster at each of its sites, and the decision log's,
+// cleanup's, hand-off's and slider's tests at the end check that. Any other
+// tool offered still shows here.
+const OFFERED_WITH = ['show_permission_warning', 'log_decision', 'set_lead_handoff', 'read_lead_handoff', 'read_autonomy', 'read_cleanup']
 const rosterOffers = (w: { registered: string[] }) => w.registered.filter(name => !OFFERED_WITH.includes(name))
 const start = ($: any) => $.classic.SessionStart({ source: 'startup', session_id: SID, transcript_path: TRANSCRIPT })
 const brigade = ($: any) => $.command.run({ command: 'brigade', args: '' })
@@ -5206,15 +5206,17 @@ for (const surface of ['terminal', 'desktop', 'mobile'] as const) {
   })
 }
 
-test('log_decision is offered wherever set_roster is, and not before the pane opens', async ($, on) => {
-  const w = world(on)
-  await start($)
-  expect(w.registered.filter(n => n === 'log_decision')).toEqual([])
-  await brigade($)
-  expect(w.registered.filter(n => n === 'log_decision')).toEqual(['log_decision'])
-  await $.classic.SessionStart({ source: 'clear', session_id: SID, transcript_path: TRANSCRIPT })
-  expect(w.registered.filter(n => n === 'log_decision')).toEqual(['log_decision', 'log_decision'])
-})
+for (const tool of ['log_decision', 'read_cleanup']) {
+  test(`${tool} is offered wherever set_roster is, and not before the pane opens`, async ($, on) => {
+    const w = world(on)
+    await start($)
+    expect(w.registered.filter(n => n === tool)).toEqual([])
+    await brigade($)
+    expect(w.registered.filter(n => n === tool)).toEqual([tool])
+    await $.classic.SessionStart({ source: 'clear', session_id: SID, transcript_path: TRANSCRIPT })
+    expect(w.registered.filter(n => n === tool)).toEqual([tool, tool])
+  })
+}
 
 test('claim 2: log_decision appends an entry whose id, at and level the mod set, and answers with them', async ($, on) => {
   const w = world(on)
@@ -8825,21 +8827,26 @@ test('spec 448 claim 2: a pair whose marks write fails changes neither entry and
   expect((await buttonKeys()).includes('dnext-1-200-2-300')).toBe(true)
 })
 
-test('spec 448 claim 3: a lone key pressed after the answer arrived marks nothing, and a pair key whose answer was read elsewhere marks nothing', async ($, on) => {
+// The kit presses only a key drawn now, so a press from a frame drawn before
+// the answer arrived cannot be sent; what is checked is that the key goes and
+// nothing is marked. pressReview's own check of a stale key has no test (#477).
+test('spec 448 claim 3: an answer that arrives after the draw takes the lone key away, and one read elsewhere takes the pair key away; nothing is marked', async ($, on) => {
   const w = await decisionsPane(on, $, 'desktop', w => seed(w, LOG, logText([PAIR_448[0]])))
   expect((await buttonKeys()).includes('dnext-1-200')).toBe(true)
-  // The answer is appended after the draw: the lone card's press marks nothing, and the pair draws.
+  // The answer is appended after the draw: the lone key goes, and the pair draws.
   seed(w, LOG, logText(PAIR_448), 5)
   await w.clock.advance(5000)
-  await press($, 'dnext-1-200')
+  const paired = await buttonKeys()
+  expect(paired.includes('dnext-1-200')).toBe(false)
+  expect(paired.includes('dnext-1-200-2-300')).toBe(true)
   expect(ownMarks(w)).toEqual([])
-  expect((await buttonKeys()).includes('dnext-1-200-2-300')).toBe(true)
-  // The answer is read in another session's marks file: the pair's press marks nothing, and the waiting entry draws alone.
+  // The answer is read in another session's marks file: the pair key goes, and the waiting entry draws alone.
   seed(w, PEER_MARKS, marksText([{ log: SID, id: '2', entryAt: 300, state: 'read', at: w.clock.now() }]), 6)
   await w.clock.advance(5000)
-  await press($, 'dnext-1-200-2-300')
+  const lone = await buttonKeys()
+  expect(lone.includes('dnext-1-200-2-300')).toBe(false)
+  expect(lone.includes('dnext-1-200')).toBe(true)
   expect(ownMarks(w)).toEqual([])
-  expect((await buttonKeys()).includes('dnext-1-200')).toBe(true)
   expect(await shows(/^Mine asks\?$/)).toBe(true)
 })
 

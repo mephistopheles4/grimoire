@@ -448,35 +448,54 @@ ignore in silence. Neither replaces the other.
 `.claude-plugin/plugin.json`, then `skills`. It records each exit status and
 fails at the end, so one red target cannot hide the next. What one run covers
 depends on the version: on 2.1.289, `.` read only the marketplace manifest. On
-2.1.296 it also reads the plugin manifest and `hooks/hooks.json`, and still not
-`skills/`.
+2.1.296 and 2.1.314 it also reads the plugin manifest and `hooks/hooks.json`,
+and still not `skills/`.
 
-**The exit code is the gate.** On 2.1.296 a missing path, a mistyped path, an
+**The exit code is the gate.** On 2.1.314 a missing path, a mistyped path, an
 empty folder and a file that is not JSON all exit `1`, so no output is parsed.
 
 ### What it catches, and what it does not
 
-Measured on 2.1.296:
+Measured on 2.1.314, in athanor's image with no network:
 
-- **It catches** an unknown field in either manifest, a `SKILL.md` whose
-  frontmatter does not parse, and a manifest that is not valid JSON. The
-  unknown field fails only under `--strict`: without the flag it is a warning
-  and the run exits `0`.
-- **It does not catch** an unknown key in a `SKILL.md`'s frontmatter, or a
-  skill folder with no `SKILL.md` at all. `skills/` is a weak check. Both are
-  `scripts/check.mjs`'s to catch, and it does: it refuses a missing
-  `SKILL.md`, and a frontmatter key outside its allow-list.
+- **It catches** an unknown field in either manifest, and a manifest that is
+  not valid JSON. The unknown field fails only under `--strict`: without the
+  flag it is a warning and the run exits `0`.
+- **It does not catch** an unknown key in a `SKILL.md`'s frontmatter, a skill
+  folder with no `SKILL.md` at all, or, since the bump from 2.1.296, a
+  `SKILL.md` whose frontmatter does not parse. `skills/` is a weak check. The
+  first two are `scripts/check.mjs`'s to catch, and it does: it refuses a
+  missing `SKILL.md`, and a frontmatter key outside its allow-list.
 - **It does not check a skill's name or description** against Anthropic's
   skill rules: it passes a name holding "claude" and a description holding an
   XML tag. It does reject a reserved **plugin** name.
 
 ### The pin
 
-**`@anthropic-ai/claude-code-linux-x64@2.1.296`**, set on 2026-10-09, written three times in the
-workflow: the package in the fetch step, the tarball's file name below it, and
-the string `2.1.296 (Claude Code)` the version step compares against. That step
-fails on any other output, so a missing binary or a wrong version fails before
-the gate can read as clean.
+**Claude Code 2.1.314**, set on 2026-10-31, in three places that move together:
+
+- the `validate` job: `@anthropic-ai/claude-code-linux-x64@2.1.314`, written
+  three times (the package in the fetch step, the tarball's file name below
+  it, and the string `2.1.314 (Claude Code)` the version step compares
+  against);
+- the `plugin-test` job: `@anthropic-ai/claude-code-win32-x64@2.1.314`, written
+  the same three times;
+- `tests/container/Dockerfile`, athanor's image: the Linux package, written
+  three times in its one `RUN` line, for `athanor run validate`.
+
+Each version step fails on any other output, so a missing binary or a wrong
+version fails before the gate can read as clean. 2.1.296 was the pin before
+2.1.314: it cannot run the mod's tests, because it refuses a `Text` prop the
+pane draws.
+
+### The mod's tests
+
+The `plugin-test` job runs `claude plugin test .` on a Windows runner. A failing
+test and a test file that does not load both exit `1`, so the exit code is the
+gate. It needs no sign-in and makes no model call, measured on 2.1.314 with an
+empty config folder and no API key. It runs on Windows because the tests' world
+is a Windows machine: on Linux the engine reads its `C:\` paths as relative
+ones, and most tests fail. For the same reason athanor does not run it.
 
 **Fetched, not installed.** `npm pack` downloads the platform package's tarball
 and `tar` unpacks it outside the checkout. The package holds one executable and
@@ -505,8 +524,9 @@ and the check validates against a stale schema.
 
 **How.**
 
-1. Change the version in all three places in the workflow together, and the
-   date beside the pin above.
+1. Change the version in all nine places together: three in each job of the
+   workflow and three in `tests/container/Dockerfile`. Change the date beside
+   the pin above.
 2. Open the pull request, and let CI read the probes. The bump commit itself
    must pass all three targets. Then push a commit that adds an unknown field
    to `.claude-plugin/plugin.json`, and one that adds it to
@@ -515,8 +535,10 @@ and the check validates against a stale schema.
 3. Run `claude plugin validate --strict .` at the new version and read which
    files it says it validated. If that list changed, say so in the pull
    request.
-4. Re-measure the list under "What it catches", and update every `2.1.296` in
+4. Re-measure the list under "What it catches", and update every version in
    this section and in the workflow's comments.
+5. `plugin-test` must pass at the new version. A test that fails only there is
+   read before the bump lands.
 
 ### Reproducing a red run
 
@@ -532,7 +554,8 @@ version can disagree with CI.
   lockfile and on any `package.json` except a root one holding only an
   `athanor` key, whose image build folder is held to `tests/container/`. The
   one package CI fetches is Claude Code, for
-  the plugin validator, and only on the runner.
+  the plugin validator and the mod's tests, and only on the runner; athanor's
+  image fetches the same pinned package when it is built, for `validate`.
 - **No Markdown linter.** markdownlint would report about forty long lines at
   its defaults. `scripts/check.mjs` checks one thing instead: every code fence
   names its language.

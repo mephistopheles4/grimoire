@@ -640,15 +640,19 @@ test("S3.2 step 3: the scan's hooks are the mod's outermost, on the mod's own to
   assert.equal(firstCall?.[1], 'registerScan');
   const scan = src.slice(src.indexOf('function registerScan('), src.indexOf('// `/brigade scan`'));
   // Each hook, word for word: the same name on its matcher and in its scan, the
-  // refusal returned when there is one, and the catch handler on every hook.
-  for (const tool of ["'Bash'", "'PowerShell'", "'SendMessage'", 'TOOL_NAME', 'LOG_TOOL_NAME', 'SET_HANDOFF_NAME']) {
-    const line = `  on('tool.call', { tool: ${tool} }, async ($, e, next) => (await scanCall($, ${tool}, e)) ?? next(e)).catch(($, e, next) => scanCaught($, e, next))`;
+  // refusal returned when there is one, and the catch handler on every hook;
+  // on the mod's own tools the handler carries the tool's own refusal (#477).
+  for (const [tool, own] of [["'Bash'", ''], ["'PowerShell'", ''], ["'SendMessage'", ''], ['TOOL_NAME', ', ROSTER_CAUGHT'], ['LOG_TOOL_NAME', ', LOG_CAUGHT'], ['SET_HANDOFF_NAME', ', HANDOFF_CAUGHT']]) {
+    const line = `  on('tool.call', { tool: ${tool} }, async ($, e, next) => (await scanCall($, ${tool}, e)) ?? next(e)).catch(($, e, next) => scanCaught($, e, next${own}))`;
     assert.ok(scan.includes(line), tool);
   }
   assert.equal((scan.match(/\.catch\(/g) ?? []).length, 6);
-  // The catch handler answers as caughtAnswer says.
+  // The catch handler answers as caughtAnswer says; a pass or a replay on the
+  // mod's own tools answers the tool's own refusal.
   const caught = src.slice(src.indexOf('async function scanCaught'), src.indexOf('function registerScan('));
-  assert.match(caught, /caughtAnswer\(\{ nextCalled: next\.called, armed, setting \}\) === 'refuse' \? \{ deny: SCAN_FAILED \} : next\(e\)/);
+  assert.match(caught, /caughtAnswer\(\{ nextCalled: next\.called, armed, setting \}\) === 'refuse' \? \{ deny: SCAN_FAILED \} : \(own \?\? next\(e\)\)/);
+  // The tool's own catch and the scan's answer the same refusal.
+  for (const own of ['ROSTER_CAUGHT', 'LOG_CAUGHT', 'HANDOFF_CAUGHT']) assert.ok(src.includes(`}).catch(() => ${own})`), own);
   // ... from the setting it read: "on" once armed, else a bounded read settled
   // by what this session has seen.
   assert.ok(caught.includes("const setting = next.called || armed ? 'on' : await readScan($)"));
