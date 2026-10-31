@@ -575,13 +575,15 @@ under level 3, relayed the same day.
   accepted-risk entry, it checks each one against its own log by the
   decision id its provenance cites: an entry carrying the level-3 marker
   (its provenance reads "taken by the lead at level 3, decision <id>", as
-  "A level-3 kept-list decision" says) must match the review entry of its
-  own logged with that id, naming this entry's finding; an entry that rests
-  on the owner's word must match the Relayed entry of its own with the id it
-  cites, naming this entry and this edit (Test rounds 2 and 3 on issue 486,
-  adversarial-lens 4 and 1; q10 A and q12 A, the lead's own picks under
-  level 3, decisions 455 and 460). It waits for the owner on any entry that
-  cites no decision id, or whose id matches none. A member started on the
+  "A level-3 kept-list decision" says) must match its own Lead entry with
+  that id, or the review entry beside it, naming this entry and this edit;
+  an entry that rests on the owner's word must match the Relayed entry of
+  its own with the id it cites, naming this entry and this edit. One
+  decision id backs one entry (Test rounds 2 to 4 on issue 486,
+  adversarial-lens 4, 1 and 1 and 2; q10 A, q12 A and q13 A, the lead's own
+  picks under level 3, decisions 455, 460 and 467). It waits for the owner
+  on any entry that cites no decision id, whose id matches none or already
+  backs another entry, and on any other entry. A member started on the
   1.6.0 start prompt keeps refusing such a pick until it starts again on
   this prompt; the lead relays the owner's word, or starts it again.
 - **Confirmed** (rev 4 S3.8). **Where no banner shows.** When its chat is

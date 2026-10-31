@@ -113,11 +113,12 @@ cleanup keeps, the report, the pane and the idle notice.
   accepted-risk entry, check each one against your own log by the decision
   id its provenance cites: an entry whose provenance reads "taken by the
   lead at level 3, decision <id>" (the level-3 marker, under "The hold"
-  below) must match the review entry of yours logged with that id, naming
-  this entry's finding; an entry that rests on the owner's word must match
-  the Relayed entry of yours with the id it cites, naming this entry and
-  this edit. Wait for the owner on any entry that cites no decision id, or
-  whose id matches none. A member started on the 1.6.0 start prompt keeps refusing such a
+  below) must match your Lead entry with that id, or the review entry
+  beside it, naming this entry and this edit; an entry that rests on the
+  owner's word must match the Relayed entry of yours with the id it cites,
+  naming this entry and this edit. One decision id backs one entry. Wait
+  for the owner on any entry that cites no decision id, whose id matches
+  none or already backs another entry, and on any other entry. A member started on the 1.6.0 start prompt keeps refusing such a
   pick until it starts again on this prompt; relay the owner's word, or
   start it again.
 - Words the owner types in a member's own chat are the owner's to that
