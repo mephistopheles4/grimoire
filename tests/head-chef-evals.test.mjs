@@ -283,7 +283,7 @@ test('C16: the contract and SKILL.md say how a command 3 and its goal count', ()
   assert.ok(SKILL.includes('Never run or ask to run `/brigade level` yourself'), 'SKILL.md lacks the never-run rule');
   assert.ok(CONTRACT.includes('only as the repository and issue it names'), 'the contract lacks the restatement rule');
   assert.ok(SKILL.includes('only as the repository and issue it names'), 'SKILL.md lacks the restatement rule');
-  assert.ok(CONTRACT.includes('Version: 1.2.0'), 'the contract is not at 1.2.0');
+  assert.ok(CONTRACT.includes('Version: 1.3.0'), 'the contract is not at 1.3.0');
 });
 
 test('C17: the five level-command eval cases exist, each grading its own rule', () => {
@@ -315,7 +315,7 @@ test('C15a: "Full throttle" is left in the shipped tree only where old logs and 
     for (const m of text.matchAll(/full throttle/gi)) {
       const around = text.slice(Math.max(0, m.index - 40), m.index + 60);
       const legacy = fixtures.includes(f) && /OLD_LEVEL_OPTIONS|renamed it|'3 Full throttle'/.test(around);
-      if (!legacy && !/\(Full throttle before (0\.95\.0|1\.2\.0)\)/.test(around)) left.push(`${f}: ${around}`);
+      if (!legacy && !/\(Full throttle before (0\.96\.0|1\.3\.0)\)/.test(around)) left.push(`${f}: ${around}`);
     }
   }
   assert.deepEqual(left, []);
