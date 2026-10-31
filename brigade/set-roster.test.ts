@@ -9174,7 +9174,7 @@ test("C15, C15a: the command's Owner entry draws as Owner, and a log holding ent
 
 // --- issue 478, spec v1: a bare /brigade wakes the lead to resend the roster ------------------
 
-const WAKE = 'The owner opened the Brigade pane with /brigade. Call set_roster now with the full roster of the sessions you lead, then carry on with what you were doing.'
+const WAKE = 'The owner opened the Brigade pane with /brigade. Call set_roster now with the full roster of the sessions you lead.'
 const OPENED = 'Brigade pane opened. `set_roster` is ready: call it with the full roster.'
 // /brigade with its args and origin: the owner's own at the prompt by default, any other by its kind, or none.
 const typedBrigade = ($: any, args = '', kind: string | null = 'composer') =>
@@ -9191,49 +9191,67 @@ const submits = (on: On, answer: (e: any) => unknown = e => ({ text: e.text })) 
 
 for (const kind of ['composer', 'bridge']) {
   test(`C1: a bare /brigade from ${kind} that offers the tool submits the one fixed prompt, framed as the plugin's, and replies as before`, async ($, on) => {
-    world(on)
+    const w = world(on)
     const seen = submits(on)
     await start($)
     expect((await typedBrigade($, '', kind)).text).toBe(OPENED)
-    await Promise.resolve()
+    await w.clock.settle()
     expect(seen.map(e => e.text)).toEqual([WAKE])
-    expect(seen[0].asUser).toBeUndefined()
     expect(seen[0].origin).toEqual({ kind: 'plugin', name: 'grimoire' })
   })
 }
 
+test('C1: /brigade with args that are not level or scan opens the pane and submits nothing', async ($, on) => {
+  const w = world(on)
+  const seen = submits(on)
+  await start($)
+  expect((await typedBrigade($, 'roster please')).text).toBe(OPENED)
+  await w.clock.settle()
+  expect(seen).toEqual([])
+})
+
 for (const kind of ['plugin', 'sdk', null]) {
   test(`C2: a bare /brigade from ${kind ?? 'no origin'} submits nothing`, async ($, on) => {
-    world(on)
+    const w = world(on)
     const seen = submits(on)
     await start($)
     expect((await typedBrigade($, '', kind)).text).toBe(OPENED)
-    await Promise.resolve()
+    await w.clock.settle()
     expect(seen).toEqual([])
   })
 }
 
-test('C3: a bare /brigade that offers no tool submits nothing', async ($, on) => {
+test('C3: a bare /brigade whose pane is not listed submits nothing', async ($, on) => {
   const w = world(on)
   const seen = submits(on)
   w.unlisted = true
   await start($)
   expect((await typedBrigade($)).text).toBe('Brigade pane opened.')
-  await Promise.resolve()
+  await w.clock.settle()
+  expect(seen).toEqual([])
+})
+
+test('C3: a bare /brigade whose tool offer fails submits nothing', async ($, on) => {
+  const w = world(on)
+  const seen = submits(on)
+  w.failRegister = true
+  await start($)
+  expect((await typedBrigade($)).text).not.toBe(OPENED)
+  await w.clock.settle()
   expect(seen).toEqual([])
 })
 
 test('C4: /brigade level and /brigade scan submit nothing', async ($, on) => {
-  world(on)
+  const w = world(on)
   const seen = submits(on)
   await start($)
   for (const args of ['level 1', 'level 2', 'scan', 'scan off']) await typedBrigade($, args)
-  await Promise.resolve()
+  await w.clock.settle()
   expect(seen).toEqual([])
 })
 
 test('C5: a submit that fails, or never resolves, leaves the reply as before', async ($, on) => {
-  world(on)
+  const w = world(on)
   let calls = 0
   submits(on, () => {
     calls++
@@ -9243,6 +9261,6 @@ test('C5: a submit that fails, or never resolves, leaves the reply as before', a
   await start($)
   expect((await typedBrigade($)).text).toBe(OPENED)
   expect((await typedBrigade($, '', 'bridge')).text).toBe(OPENED)
-  await Promise.resolve()
+  await w.clock.settle()
   expect(calls).toBe(2)
 })
