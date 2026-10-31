@@ -9175,6 +9175,8 @@ test("C15, C15a: the command's Owner entry draws as Owner, and a log holding ent
 // --- issue 478, spec v1: a bare /brigade wakes the lead to resend the roster ------------------
 
 const WAKE = 'The owner opened the Brigade pane with /brigade. Call set_roster now with the full roster of the sessions you lead.'
+// The least time between two wakes, in milliseconds.
+const WAKE_GAP = 60_000
 const OPENED = 'Brigade pane opened. `set_roster` is ready: call it with the full roster.'
 // /brigade with its args and origin: the owner's own at the prompt by default, any other by its kind, or none.
 const typedBrigade = ($: any, args = '', kind: string | null = 'composer') =>
@@ -9260,7 +9262,23 @@ test('C5: a submit that fails, or never resolves, leaves the reply as before', a
   })
   await start($)
   expect((await typedBrigade($)).text).toBe(OPENED)
+  await w.clock.advance(WAKE_GAP)
   expect((await typedBrigade($, '', 'bridge')).text).toBe(OPENED)
   await w.clock.settle()
   expect(calls).toBe(2)
+})
+
+test('C6: one wake per minute: a second bare /brigade inside the minute submits nothing, and one after it submits again', async ($, on) => {
+  const w = world(on)
+  const seen = submits(on)
+  await start($)
+  await typedBrigade($)
+  await w.clock.advance(WAKE_GAP - 1)
+  expect((await typedBrigade($, '', 'bridge')).text).toBe(OPENED)
+  await w.clock.settle()
+  expect(seen.length).toBe(1)
+  await w.clock.advance(1)
+  await typedBrigade($)
+  await w.clock.settle()
+  expect(seen.map(e => e.text)).toEqual([WAKE, WAKE])
 })

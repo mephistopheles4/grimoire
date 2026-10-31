@@ -1615,6 +1615,10 @@ const READY_LINE = `The Brigade pane is open. \`${TOOL}\` is ready: call it with
 const READY_UNLISTED_LINE = `The Brigade pane is opening but not ready yet, so a \`${TOOL}\` call is refused for now. Wait for a Brigade note saying it is ready, then call it with the full roster.`
 // The turn the owner's bare /brigade hands the lead: fixed words, never typed ones (issue 478).
 const WAKE = 'The owner opened the Brigade pane with /brigade. Call set_roster now with the full roster of the sessions you lead.'
+// At most one wake a minute, whatever stamps the runs; the time of the last
+// one is held by the module alone, so a reload starts it over.
+const WAKE_GAP_MS = 60_000
+let lastWake: number | undefined
 // Shown when the engine opens the pane but does not place it: no reads start
 // and no tool is offered, and /brigade shows the pane and starts them.
 const NOT_SHOWN_TOAST = 'The Brigade pane opened but is not shown, so its reads did not start. Type /brigade to show it.'
@@ -3133,6 +3137,7 @@ export const register: Register = on => {
     bandDismissed = undefined
     resetWaits = undefined
     toolsOfferedFor = undefined
+    lastWake = undefined
     stopLevelPoll()
     // A raise still being logged is forgotten only after the reset, which
     // counts it as a level above 1, so its Owner entry is followed by a Pane one.
@@ -3219,7 +3224,11 @@ export const register: Register = on => {
     // awaited: the turn starts once the session is idle, after this reply.
     if (offer === 'offered' && e.args.trim() === '' && levelOriginAllowed(e.origin)) {
       try {
-        void $.prompt.submit({ text: WAKE }).catch(() => undefined)
+        const now = await $.clock.now()
+        if (lastWake === undefined || now - lastWake >= WAKE_GAP_MS) {
+          lastWake = now
+          void $.prompt.submit({ text: WAKE }).catch(() => undefined)
+        }
       } catch {
         // No turn this time: the reply stands as it is.
       }
