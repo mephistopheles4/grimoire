@@ -250,7 +250,8 @@ const isRead = (s: MarkState | undefined) => s !== undefined
 /** What an append needs from outside: the engine clock's time, the level in
  *  force, the merged marks (`read`, keyed by `markKey`) and this log's session
  *  id. `fixed` is the pane's own Owner, Pane and alarm entries: written past
- *  the entry cap, never past the byte cap, and with no drop. */
+ *  the entry cap and never past the byte cap, which alone drops entries for
+ *  them, so a log that log_decision keeps full still takes them (#497). */
 export type AppendOptions = { at: number; level: 1 | 2 | 3; read: ReadonlyMap<string, MarkState>; sid?: string; fixed?: boolean }
 
 /** Appends one entry, stamping its id from `next`, its time and its level.
@@ -291,7 +292,7 @@ export function appendEntry(log: DecisionLog, raw: unknown, o: AppendOptions): C
   const sizes = kept.map(e => bytes(JSON.stringify(e)))
   let total = frame + sizes.reduce((a, b) => a + b, 0) + Math.max(kept.length - 1, 0)
   const fits = () => (o.fixed === true || kept.length <= MAX_ENTRIES) && total <= MAX_LOG_BYTES
-  if (!fits() && o.fixed !== true) {
+  if (!fits()) {
     const answered = new Set(kept.map(e => e.answers).filter(a => a !== ''))
     const sid = o.sid ?? ''
     for (let i = 0; i < kept.length - 1 && !fits(); ) {
