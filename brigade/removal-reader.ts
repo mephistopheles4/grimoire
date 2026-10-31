@@ -12,6 +12,11 @@
 // it reads, and never throws: any internal error answers cannot-read.
 // tests/brigade-removal-reader.test.mjs tests it as it is.
 //
+// A finding's path, repository, branch and id, and a shape's values, are the
+// caller's own command text: they are for comparing with an open entry only,
+// never for a refusal's text or for anything kept (spec v3 D5, story 17). A
+// finding's `why` and `what` are fixed phrases that hold none of the text.
+//
 // The option tables are git 2.55.0's (`git <command> -h`), the version
 // head-chef's submodule reference was measured on.
 
@@ -489,7 +494,7 @@ function psList(lx: Lexer, closer: ')' | '}' | null): Script {
       continue
     }
     if (ch === ')' || ch === '}') {
-      if (ch !== closer) fail(`unmatched ${ch}`)
+      if (ch !== closer) fail('unmatched closer')
       lx.i++
       endItem('')
       break
@@ -836,6 +841,16 @@ function readCommand(head: Word, args: Word[], c: Simple, ctx: Ctx, shell: Shell
     cannot(ctx, 'continued or here-string removal')
   }
   if (c.stopParsing && (isGated(name) || POSIX_SHELLS.has(lower) || PS_SHELLS.has(lower))) return cannot(ctx, 'stop-parsing')
+  // D2's environment rule on the words as the shell decodes them, beside the raw-text rules.
+  // A value may expand (`PATH="$PATH:x"`); the name may not.
+  if (ENV_SETTERS.has(lower) && args.some(a => {
+    if (literal(a)) return GIT_ENV.test(a.value)
+    const name = /^([A-Za-z_][A-Za-z0-9_]*)\+?=/.exec(a.raw)
+    return name === null ? DECLARES.has(lower) : GIT_ENV.test(name[1])
+  })) cannot(ctx, 'GIT_ environment')
+  if (ITEM_SETTERS.has(lower) && args.some(a => (literal(a) ? /^env:[\\/]?GIT_/i.test(a.value) : /env:/i.test(a.raw)))) {
+    cannot(ctx, 'GIT_ environment')
+  }
   if (name === 'git') return readGit(args, ctx)
   if (name === 'claude') return readClaude(args, ctx)
   if (lower.startsWith('git-')) return cannot(ctx, 'dashed git command')
@@ -872,8 +887,9 @@ const programLike = (name: string) => {
 
 function readWrapper(name: string, args: Word[], c: Simple, ctx: Ctx, shell: Shell, fed: Fed) {
   if (name === 'command' && args.some(a => a.value === '-v' || a.value === '-V')) return
-  for (const a of args) if (literal(a) && /\s/.test(a.value)) readText(a.value, 'posix', ctx)
   const idx = args.findIndex(a => literal(a) && programLike(normProgram(a.value, ctx.platform)))
+  // A string a wrapper runs (`su -c '...'`, `watch '...'`), before the wrapped program if there is one.
+  for (const a of idx < 0 ? args : args.slice(0, idx)) if (literal(a) && /\s/.test(a.value)) readText(a.value, 'posix', ctx)
   if (idx < 0) {
     if (args.some(a => !literal(a))) cannot(ctx, 'wrapped command not literal')
     return backstop(args, ctx)
@@ -913,8 +929,15 @@ function readPosixShell(args: Word[], ctx: Ctx, fed: Fed) {
     return readText(code.value, 'posix', ctx)
   }
   if (stdin) return cannot(ctx, 'shell reads its input')
-  if (i >= args.length && (fed.piped || fed.input)) cannot(ctx, 'shell fed by input')
+  if (i >= args.length) {
+    if (fed.piped || fed.input) cannot(ctx, 'shell fed by input')
+    return
+  }
+  // A script that is input in another form: a substitution, or a device that reads input.
+  if (readsInput(args[i])) cannot(ctx, 'shell reads its input')
 }
+
+const readsInput = (w: Word) => !literal(w) || /^\/(dev|proc\/self)\/(stdin|fd\/)/.test(w.value)
 
 function readPwsh(args: Word[], ctx: Ctx, fed: Fed, name: string) {
   const VALUE = /^(ex|ep|executionpolicy|w|wd|workingdirectory|config|configurationname|i|if|inp|inputformat|o|of|outputformat|windowstyle|settingsfile|settings|v|version|psconsolefile|cu|custompipename)$/
@@ -948,7 +971,9 @@ function readCmd(args: Word[], ctx: Ctx, fed: Fed) {
   }
   if (args.slice(i).some(a => !literal(a))) return cannot(ctx, 'cmd command not literal')
   const text = [args[i].value.slice(2), ...args.slice(i + 1).map(a => a.value)].join(' ').trim()
-  if (/[%^!]/.test(text) && CODE_GATED.test(text)) return cannot(ctx, 'cmd expansion')
+  // cmd expands `%`, `^` and `!`, and takes no single quote as a quote, so its
+  // text is read with POSIX rules only when none of these sits beside a gated word.
+  if (/[%^!']/.test(text) && CODE_GATED.test(text)) return cannot(ctx, 'cmd text the reader cannot split')
   readText(text, 'posix', ctx)
 }
 
@@ -989,7 +1014,7 @@ function readCode(name: string, args: Word[], ctx: Ctx, fed: Fed) {
       continue
     }
     const v = a.value
-    if (v === '-') return cannot(ctx, 'interpreter reads its input')
+    if (v === '-' || /^\/(dev|proc\/self)\/(stdin|fd\/)/.test(v)) return cannot(ctx, 'interpreter reads its input')
     const inline = INLINE_FLAGS.has(v) || (name === 'deno' && v === 'eval' && !operand)
     if (inline && args[i + 1] !== undefined && !(literal(args[i + 1]) && args[i + 1].value.startsWith('-'))) {
       const code = args[i + 1]
@@ -1062,15 +1087,17 @@ const TABLES: Record<string, Table> = {
   'worktree unlock': t(''),
 }
 
-type Parsed = { on: Map<string, number>; positionals: Word[] }
+type Parsed = { on: Map<string, number>; values: Map<string, string[]>; positionals: Word[] }
 
 // git's parse-options: short clusters split, a long option by unique prefix,
 // `--no-` on a negatable one, options anywhere before `--`. An ambiguous or
 // unknown option, or any argument that expands, throws.
 function parseOpts(args: Word[], table: Table): Parsed {
   const on = new Map<string, number>()
+  const values = new Map<string, string[]>()
   const positionals: Word[] = []
   const key = (o: Opt) => o.long ?? `-${o.short}`
+  const keep = (o: Opt, v: string) => values.set(key(o), [...(values.get(key(o)) ?? []), v])
   const set = (o: Opt, yes: boolean) => on.set(key(o), yes ? (on.get(key(o)) ?? 0) + 1 : 0)
   let i = 0
   for (; i < args.length; i++) {
@@ -1089,15 +1116,17 @@ function parseOpts(args: Word[], table: Table): Parsed {
       if (o === undefined) {
         const cands = table.filter(x => x.long?.startsWith(name))
         const negs = name.startsWith('no-') ? table.filter(x => x.neg === true && x.long?.startsWith(name.slice(3))) : []
-        if (cands.length + negs.length !== 1 || name.length === 0) fail(`option --${name}`)
+        if (cands.length + negs.length !== 1 || name.length === 0) fail('unknown or ambiguous option')
         o = cands[0] ?? negs[0]
         yes = cands.length === 1
       }
       const opt = o as Opt
       set(opt, yes)
+      if (yes && value !== undefined) keep(opt, value)
       if (yes && opt.arg === 'req' && value === undefined) {
         if (args[i + 1] === undefined) fail('option value missing')
         if (!literal(args[i + 1])) fail('argument expands')
+        keep(opt, args[i + 1].value)
         i++
       }
       continue
@@ -1105,12 +1134,13 @@ function parseOpts(args: Word[], table: Table): Parsed {
     if (v.startsWith('-') && v.length > 1) {
       for (let k = 1; k < v.length; k++) {
         const o = table.find(x => x.short === v[k])
-        if (o === undefined) fail(`option -${v[k]}`)
+        if (o === undefined) fail('unknown option')
         set(o as Opt, true)
         if ((o as Opt).arg === 'req') {
-          if (k + 1 < v.length) break
+          if (k + 1 < v.length) { keep(o as Opt, v.slice(k + 1)); break }
           if (args[i + 1] === undefined) fail('option value missing')
           if (!literal(args[i + 1])) fail('argument expands')
+          keep(o as Opt, args[i + 1].value)
           i++
           break
         }
@@ -1124,7 +1154,7 @@ function parseOpts(args: Word[], table: Table): Parsed {
     if (!literal(args[i])) fail('argument expands')
     positionals.push(args[i])
   }
-  return { on, positionals }
+  return { on, values, positionals }
 }
 
 const isOn = (p: Parsed, name: string) => (p.on.get(name) ?? 0) > 0
@@ -1174,7 +1204,7 @@ function gitArgs(args: Word[], ctx: Ctx) {
     }
     if (GIT_FLAGS.has(v)) continue
     if (GIT_ENDS.has(v)) return
-    if (v.startsWith('-')) fail(`git option ${v}`)
+    if (v.startsWith('-')) fail('git global option')
     break
   }
   const subWord = args[i]
@@ -1227,9 +1257,8 @@ function gitArgs(args: Word[], ctx: Ctx) {
     }
     case 'push': {
       const p = parseOpts(rest, TABLES.push)
-      const repoOpt = rest.find(a => /^--repo=/.test(a.value))?.value.slice(7)
-      const remote = repoOpt ?? p.positionals[0]?.value
-      if (remote !== undefined && localRemote(remote)) fail('push to a local path')
+      const remotes = [...(p.values.get('repo') ?? []), ...p.positionals.slice(0, 1).map(w => w.value)]
+      if (remotes.some(localRemote)) fail('push to a local path')
       return
     }
     case 'fetch': {
@@ -1238,13 +1267,13 @@ function gitArgs(args: Word[], ctx: Ctx) {
       if (isOn(p, 'update-head-ok')) forced('fetch --update-head-ok')
       const remotes = isOn(p, 'multiple') || isOn(p, 'all') ? p.positionals : p.positionals.slice(0, 1)
       for (const r of remotes) if (localRemote(r.value)) fail('fetch from a local path')
-      if (!isOn(p, 'multiple') && !isOn(p, 'all')) {
-        for (const r of p.positionals.slice(1)) {
-          const spec = r.value.replace(/^\+/, '')
-          if (spec.startsWith('^') || !spec.includes(':')) continue
-          const dst = spec.slice(spec.lastIndexOf(':') + 1)
-          if (dst !== '' && (dst.startsWith('refs/heads/') || !dst.startsWith('refs/'))) { forced('fetch into a branch'); break }
-        }
+      // A refspec's destination, positional or `--refmap`, under refs/heads/ or with no refs/ moves a branch.
+      const specs = [...(isOn(p, 'multiple') || isOn(p, 'all') ? [] : p.positionals.slice(1).map(w => w.value)), ...(p.values.get('refmap') ?? [])]
+      for (const r of specs) {
+        const spec = r.replace(/^\+/, '')
+        if (spec.startsWith('^') || !spec.includes(':')) continue
+        const dst = spec.slice(spec.lastIndexOf(':') + 1)
+        if (dst !== '' && (dst.startsWith('refs/heads/') || !dst.startsWith('refs/'))) { forced('fetch into a branch'); break }
       }
       return
     }
@@ -1342,11 +1371,18 @@ function readClaude(args: Word[], ctx: Ctx) {
 
 const ENV_RULES = [
   /(^|[^A-Za-z0-9_$])GIT_[A-Za-z0-9_]*\+?=/i,
-  /\$env:GIT_[A-Za-z0-9_]*\s*(\+|\?\?)?=(?!=)/i,
+  /\$\{?env:GIT_[A-Za-z0-9_]*\}?\s*(\+|\?\?)?=(?!=)/i,
   /\b(export|declare|typeset|readonly|local|setenv|unset)\s+(-\S+\s+)*GIT_/i,
-  /\b(Set-Item|New-Item|si|ni|Set-Content|sc|Remove-Item|ri)\b[^;\n|]*\benv:GIT_/i,
-  /SetEnvironmentVariable\s*\(\s*['"]GIT_/i,
+  /\b(Set-Item|New-Item|si|ni|Set-Content|sc|Remove-Item|ri)\b[^;\n|]*\benv:[\\/]?GIT_/i,
+  // A variable set by name through .NET: refused unless the name is a literal that is not GIT_.
+  /SetEnvironmentVariable(?!\s*\(\s*['"](?!GIT_)[A-Za-z_])/i,
 ]
+// The same rule on decoded words: a word that names or sets a GIT_ variable,
+// given to a command that sets the environment.
+const GIT_ENV = /^GIT_[A-Za-z0-9_]*(\+?=|$)/i
+const DECLARES: ReadonlySet<string> = new Set(['export', 'declare', 'typeset', 'readonly', 'local'])
+const ENV_SETTERS: ReadonlySet<string> = new Set([...DECLARES, 'setenv', 'unset', 'set', 'env'])
+const ITEM_SETTERS: ReadonlySet<string> = new Set(['set-item', 'new-item', 'si', 'ni'])
 
 // --- D8's allowed shapes ------------------------------------------------------------------------
 

@@ -12,7 +12,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 
-const { readRemovals, normPath } = await import('../brigade/removal-reader.ts');
+const { readRemovals, normPath, MAX_BYTES } = await import('../brigade/removal-reader.ts');
 
 const HOOKS = 'H:/scratch/hooks';
 const G = `--no-optional-locks -c core.fsmonitor=false -c log.showSignature=false -c core.hooksPath=${HOOKS}`;
@@ -94,6 +94,8 @@ test("C1: each of cleanup's reads gives no finding, in its shells, with and with
     for (const shell of only ? [only] : SHELLS) {
       none(fill(tpl), shell);
       none(fill(tpl) + EXIT[shell], shell);
+      // After a cmdlet, the submodule reference prints `"exit=$?"`.
+      if (shell === 'powershell') none(fill(tpl) + '; "exit=$?"', shell);
     }
   }
 });
@@ -164,6 +166,7 @@ test('C3: each forced form, short cluster and long prefix gives forced', () => {
     'git checkout -B a', 'git checkout -qB a', 'git switch -C a', 'git switch --force-create a', 'git switch --force-c a',
     'git fetch origin main:refs/heads/main', 'git fetch origin +x:main', 'git fetch origin HEAD:HEAD',
     'git fetch -u origin', 'git fetch --update-head-ok origin', 'git fetch --update-h origin',
+    "git fetch --refmap='+refs/heads/*:refs/heads/*' origin main",
     `claude rm --force ${ID}`, `claude stop -f ${ID}`,
   ];
   for (const t of FORCED) for (const shell of SHELLS) {
@@ -208,8 +211,14 @@ test('C4: each cannot-read form gives cannot-read', () => {
     'echo "unclosed', "echo 'unclosed", 'git status $(', 'case $x in a) git status;; esac',
     'nohup $X branch -d a',
     "perl -e'system(\"git branch -D a\")'", "awk 'BEGIN { system(\"claude rm x\") }'", 'deno eval "$C"',
+    'parallel git branch -d ::: a', 'export G"IT"_DIR=x', 'export GIT\\_DIR=x', "env 'GIT_DIR=x' git status", 'export "$N"=x',
+    'git push --repo . main', 'git push --rep=. main', 'echo x | bash /dev/stdin', 'bash <(echo x)', 'python /dev/stdin < f',
+    // Over 8 KiB in bytes, under it in characters.
+    `echo ${'\u{e9}'.repeat(4100)}`,
   ];
   for (const t of POSIX) unreadable(t, 'posix');
+  // The size rule counts bytes: exactly 8 KiB of a plain read is still read.
+  none(`echo ${'a'.repeat(MAX_BYTES - 5)}`);
   const PS = [
     'g`it worktree remove x', '& $g worktree remove x', '& (Get-Git) worktree remove x', '. $g status',
     'pwsh -Command $x', 'pwsh -c "git $x"', 'powershell -EncodedCommand ZwBpAHQA', 'pwsh -e ZwBpAHQA', 'pwsh -ec ZwBpAHQA',
@@ -219,7 +228,9 @@ test('C4: each cannot-read form gives cannot-read', () => {
     'git branch -d @names', 'git branch -d $b', 'git branch -d (Get-Branch)', 'git branch -d "$b"', 'git --% branch -D a',
     'git branch -d `\n a', "git commit -m @'\nx\n'@ branch",
     'Start-Process git -ArgumentList "branch -D $b"', 'Start-Process $exe',
-    'g$x worktree remove x', 'function git { }','cmd /c "git branch -D %B%"',
+    'Set-Item env:GIT_DIR x', 'ni env:GIT_DIR -Value x', 'Set-Item Env:\\GIT_DIR x', "${env:GIT_DIR} = 'x'", 'New-Item -Path "env:$n"',
+    '[Environment]::SetEnvironmentVariable($n, "x")', "cmd /c \"echo 'a & git branch -D b'\"",
+    'g$x worktree remove x', 'function git { }', 'cmd /c "git branch -D %B%"',
   ];
   for (const t of PS) unreadable(t, 'powershell');
 });
@@ -232,19 +243,23 @@ test("C5: a literal inline shell and each listed wrapper give the removal's own 
     `bash -c '${RM}'`, `sh -c "${RM}"`, `bash -lc '${RM}'`, `zsh -c '${RM}'`, `eval '${RM}'`, `eval ${RM}`,
     `env ${RM}`, `env -i A=b ${RM}`, `nohup ${RM}`, `nice -n 5 ${RM}`, `timeout 30 ${RM}`, `time ${RM}`, `command ${RM}`,
     `builtin ${RM}`, `exec ${RM}`, `sudo -u me ${RM}`, `doas ${RM}`, `stdbuf -o0 ${RM}`, `setsid ${RM}`, `wsl ${RM}`,
+    `ionice -c 3 ${RM}`, `gtimeout 30 ${RM}`, `su -c '${RM}'`, `chronic ${RM}`, `unbuffer ${RM}`, `taskset 1 ${RM}`,
+    `chrt 10 ${RM}`, `flock /tmp/l ${RM}`, `caffeinate ${RM}`, `script -qc '${RM}' /dev/null`, `strace -f ${RM}`,
+    `ltrace ${RM}`, `busybox sh -c '${RM}'`, `winpty ${RM}`, `start ${RM}`, `call ${RM}`, `runas /user:me "${RM}"`,
+    `coproc ${RM}`, `firejail ${RM}`, `proot ${RM}`,
     `env -S '${RM}'`, `watch '${RM}'`, `cmd /c "${RM}"`, `cmd.exe /C ${RM}`, `( ${RM} )`, `{ ${RM}; }`,
     `if true; then ${RM}; fi`, `true && ${RM}`, `echo $(${RM})`, `echo \`${RM}\``, `x=$(${RM})`, `cat <<EOF\n$(${RM})\nEOF`,
     `diff <(${RM}) f`, `git submodule foreach '${RM}'`, `git rebase -x '${RM}' main`, `git rebase --exec='${RM}' main`,
     `git bisect run ${RM}`, `git difftool --extcmd='${RM}'`, `git for-each-repo --config=maintenance.repo worktree remove x`,
   ];
-  for (const t of POSIX) assert.ok(kinds(read(t, 'posix')).includes('removes-worktree'), `posix: ${t} → ${JSON.stringify(read(t).findings)}`);
+  for (const t of POSIX) has(t, ['removes-worktree'], 'posix');
   const PS = [
     `pwsh -Command '${RM}'`, `pwsh -c "${RM}"`, `powershell -NoProfile -Command ${RM}`, `powershell ${RM}`, `iex '${RM}'`,
     `Invoke-Expression -Command '${RM}'`, `& git worktree remove x`, `& 'git' worktree remove x`, `& "git.exe" worktree remove x`,
     `. git worktree remove x`, `& { ${RM} }`, `1..2 | ForEach-Object { ${RM} }`, `$r = ${RM}`, `$r = @(${RM})`,
     `if ($true) { ${RM} }`, `try { ${RM} } finally { }`, `"$(${RM})"`, `return ${RM}`, `Start-Process git -ArgumentList 'worktree','remove','x'`,
   ];
-  for (const t of PS) assert.ok(kinds(read(t, 'powershell')).includes('removes-worktree'), `powershell: ${t} → ${JSON.stringify(read(t, 'powershell').findings)}`);
+  for (const t of PS) has(t, ['removes-worktree'], 'powershell');
 });
 
 test('C5: a gated word in another case or with a suffix on win32 gives the same finding as the plain word', () => {
@@ -300,7 +315,7 @@ test('C8a: ordinary work gives no finding in either shell', () => {
     'git config --get user.name', 'git config --list', 'git config -l', 'git config --get-regexp ^alias', 'git config get user.name',
     'npm test', 'ls -la | grep x', 'echo "exit=$?"', 'cd /h/work && node scripts/check.mjs', 'rm -rf build',
     'gh pr view 12 --json state', "node -e 'console.log(1)'", "python -c 'print(\"github\")'", 'command -v git',
-    'for f in a b; do echo $f; done', 'git log --grep=worktree', 'VAR=1 npm test', 'timeout 5 npm test',
+    'for f in a b; do echo $f; done', 'git log --grep=worktree', 'VAR=1 npm test', 'timeout 5 npm test', 'export PATH="$PATH:/x"', `cmd /c "dir 'a b'"`,
     'node --test tests/check-git.test.mjs', "perl -p -e 's/a/b/' f", "awk -F, '{ print $1 }' f",
   ];
   for (const t of POSIX) none(t, 'posix');
@@ -310,7 +325,8 @@ test('C8a: ordinary work gives no finding in either shell', () => {
     'git add src/*.ts', 'git push -u origin feat/x', 'git log --oneline -5', 'git status', 'git diff HEAD~1',
     'Get-ChildItem -Force', '$x = 1; "x=$x"', '"exit=$LASTEXITCODE"', '"exit=$?"', 'Write-Output (Get-Date)',
     '& "C:\\Program Files\\nodejs\\node.exe" scripts/check.mjs', 'npm test 2>&1 | Select-Object -Last 5',
-    'Get-Content f.txt | Where-Object { $_ -match "git" }', '$env:PATH = "x"',
+    'Get-Content f.txt | Where-Object { $_ -match "git" }', '$env:PATH = "x"', 'New-Item -ItemType Directory -Path $d',
+    '[Environment]::SetEnvironmentVariable("PATH", $p)',
   ];
   for (const t of PS) none(t, 'powershell');
 });
@@ -340,6 +356,7 @@ test('D1: the reader never throws, and answers cannot-read for what it cannot ta
   for (const t of [null, undefined, 42, {}, '\u0000git branch -D a', ')'.repeat(50), '('.repeat(5000), '$('.repeat(2000), '`'.repeat(3)]) {
     const r = readRemovals(t, 'posix', 'win32');
     assert.ok(Array.isArray(r.findings));
+    if (typeof t !== 'string') assert.deepEqual(kinds(r), ['cannot-read']);
   }
   unreadable('$('.repeat(2000) + 'git branch -D a');
   for (const shell of [undefined, 'cmd', 'POSIX']) assert.deepEqual(kinds(readRemovals('git status', shell, 'win32')), ['cannot-read']);
