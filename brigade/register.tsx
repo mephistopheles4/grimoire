@@ -2907,16 +2907,26 @@ const scanning = new Set<string>()
 // it: the scan is then off in this session, whatever the store holds, so a
 // broken store never leaves the owner without a way out. A stored write clears it.
 let typedOff = false
-// Whether this session has read "on" since this module loaded, and the owner
-// has not typed off since: what `settled` in scan.ts reads an unreadable
-// setting by. Kept in this module only; a reload starts it over.
+// Whether this session has read "on" since this module loaded, by any read,
+// and the owner has not typed off since: what `settled` in scan.ts reads an
+// unreadable setting by. Kept in this module only; a reload starts it over.
 let seenOn = false
-// How long the catch handler waits for the store, inside its 1-second grace.
-const CAUGHT_READ_MS = 500
+// How long a read outside a call's own scan waits for the store: the catch
+// handler's, inside its 1-second grace, the pane's, read_autonomy's and the
+// switch's, so none of them can hang.
+const STORE_WAIT_MS = 500
 
 const storedScan = ($: EngineInterface) => (typedOff ? Promise.resolve('off') : $.store.get(SCAN_KEY))
-// The setting in force for this session, as the pane and read_autonomy show it.
-const readScan = async ($: EngineInterface) => settled(await readSetting(() => storedScan($)), seenOn)
+// One store read that marks the session once it reads "on".
+const readStored = async ($: EngineInterface) => {
+  const v = await storedScan($)
+  if (settingOf(v) === 'on') seenOn = true
+  return v
+}
+// The setting in force for this session, as the pane and read_autonomy show
+// it, read within STORE_WAIT_MS; no answer in time reads as unreadable.
+const readScan = async ($: EngineInterface) =>
+  settled(await Promise.race([readSetting(() => readStored($)), $.clock.sleep(STORE_WAIT_MS).then((): Setting => 'unreadable', (): Setting => 'unreadable')]), seenOn)
 
 // One matched call's scan: a refusal, or undefined to pass it on.
 async function scanCall($: EngineInterface, tool: string, e: { tool_use_id: string }) {
@@ -2924,11 +2934,8 @@ async function scanCall($: EngineInterface, tool: string, e: { tool_use_id: stri
   try {
     return await decide(tool, e as unknown as Record<string, unknown>, {
       setting: async () => {
-        const v = await storedScan($)
-        if (settingOf(v) === 'on') {
-          seenOn = true
-          scanning.add(id)
-        }
+        const v = await readStored($)
+        if (settingOf(v) === 'on') scanning.add(id)
         return v
       },
       seenOn: () => seenOn,
@@ -2946,11 +2953,11 @@ async function scanCall($: EngineInterface, tool: string, e: { tool_use_id: stri
   }
 }
 
-// A throw or an overrun, answered as scan.ts's caughtAnswer says. Its store
-// read is bounded, and one that does not answer in time reads as unreadable.
+// A throw or an overrun, answered as scan.ts's caughtAnswer says, from a
+// bounded read of the setting.
 async function scanCaught<E extends { tool_use_id: string }, R>($: EngineInterface, e: E, next: ((e: E) => Promise<R>) & { called: boolean }) {
   const armed = scanning.delete(e.tool_use_id)
-  const setting = next.called || armed ? 'on' : await Promise.race([readScan($), new Promise<Setting>(res => void $.clock.after(CAUGHT_READ_MS, () => res(settled('unreadable', seenOn))))])
+  const setting = next.called || armed ? 'on' : await readScan($)
   return caughtAnswer({ nextCalled: next.called, armed, setting }) === 'refuse' ? { deny: SCAN_FAILED } : next(e)
 }
 
@@ -2968,23 +2975,25 @@ function registerScan(on: Parameters<Register>[0]) {
 // `/brigade scan`, `/brigade scan on` and `/brigade scan off`: the setting
 // moves only on a command the owner typed (scan.ts says which origins). It
 // opens no pane, and no tool call gates it, so it works while the hook fails.
-// A typed off also clears what this session read, so an unreadable store then
-// counts as off here.
+// On and off read nothing first, and set this session's flags before the
+// store's write, which they wait for within STORE_WAIT_MS: a store that hangs
+// cannot hold the way out. A typed off clears what this session read, so an
+// unreadable store then counts as off here.
 async function scanCommand($: EngineInterface, origin: unknown, arg: SwitchArg) {
-  const r = switchReply(arg, origin, await readScan($))
+  const r = switchReply(arg, origin, arg === 'show' ? await readScan($) : 'off')
   if (r.set === undefined) return { text: r.text }
-  if (r.set === 'off') seenOn = false
-  try {
-    await $.store.set(SCAN_KEY, r.set)
-    typedOff = false
-    if (r.set === 'on') seenOn = true
-  } catch {
-    if (r.set === 'off') {
-      typedOff = true
-      return { text: 'Brigade: the setting could not be stored, so the outbound scan is off in this session only. Other sessions keep what the store holds.' }
-    }
-    return { text: 'Brigade: the setting could not be stored. The outbound scan stays as it was.' }
+  seenOn = r.set === 'on'
+  if (r.set === 'off') typedOff = true
+  const stored = await Promise.race([
+    $.store.set(SCAN_KEY, r.set).then(() => true, () => false),
+    $.clock.sleep(STORE_WAIT_MS).then(() => false, () => false),
+  ])
+  if (!stored) {
+    return r.set === 'off'
+      ? { text: 'Brigade: the setting could not be stored, so the outbound scan is off in this session only. Other sessions keep what the store holds.' }
+      : { text: 'Brigade: the setting could not be stored. The outbound scan stays as it was.' }
   }
+  typedOff = false
   await redraw($).catch(() => undefined)
   return { text: r.text }
 }

@@ -221,7 +221,7 @@ dates, sources and premises are in the [provenance fold](#provenance).
 - another plugin can **rewrite** the session-start usage record, **write** a long tabs list, **plant** the permission warning's dismissal, and **plant** a hook in cleanup's hooks folder between the tool's last check and the lead's removal call (TA1, E29);
 - another plugin can **rewrite or press** the autonomy level, which can set level 3. A 3 counts only once the owner confirms it in the lead's chat, but a plugin that can add rows to the lead's transcript can also forge that confirmation, and its presses log as the owner's (E35a).
 
-An engine answer it supplies can misstate a session's liveness. Not inside C4: a plugin planting or rewriting the decision log, marks, hand-off or summary files (E40's and E20's plugin parts, P1), rewriting the search text, reading the report store's question or a session's Remote Control link (data block parts, P6), planting or hiding refusal lines (E24, P7), cleanup's press, the engine's own session files, and other plugins' tool calls seen by grimoire's hook. Those are candidates (P1, P2, P4, P6, P7). Old row 15. Entries E16, E19a, E25, E27a, E30, E33, E34, E35a, E38a, E44. Also inside C4: another plugin or a same-user process reading or rewriting the outbound scan's setting, which loses only the backstop, or moving it with an origin it supplies ([row 15](brigade.md#row-15)). *Named 2026-10-31 by the owner · from issue 453's Test round 1, adversarial-lens · word relayed by the lead ("pick all risks please, keep in mind ballooning our threat model").*
+An engine answer it supplies can misstate a session's liveness. Not inside C4: a plugin planting or rewriting the decision log, marks, hand-off or summary files (E40's and E20's plugin parts, P1), rewriting the search text, reading the report store's question or a session's Remote Control link (data block parts, P6), planting or hiding refusal lines (E24, P7), cleanup's press, the engine's own session files, and other plugins' tool calls seen by grimoire's hook. Those are candidates (P1, P2, P4, P6, P7). Old row 15. Entries E16, E19a, E25, E27a, E30, E33, E34, E35a, E38a, E44. Also inside C4: another plugin reading or rewriting the outbound scan's setting, which loses only the backstop, or moving it with an origin it supplies ([row 15](brigade.md#row-15)). *Named 2026-10-31 by the owner · from issue 453's Test round 1, adversarial-lens · word relayed by the lead ("pick all risks please, keep in mind ballooning our threat model").*
 
 *Worded 2026-10-30 by the lead under the owner's relayed word; not yet named by the owner.*
 
@@ -292,10 +292,10 @@ Not inside C7: what the data blocks list as not checked (the phone sync and the 
 
 ## Candidates for the owner's word
 
-There are 66 candidate lines in eleven groups, P0 to P10. None of these is in force.
+There are 67 candidate lines in eleven groups, P0 to P10. None of these is in force.
 
 <details>
-<summary>Candidates (66 lines)</summary>
+<summary>Candidates (67 lines)</summary>
 
 None of these is in force. A candidate does not meet issue 359's H1. Only a control, or the owner's accepted risk, does. An old entry listed here stays as the base had it until the owner names its line: accepted where the base accepted it, and not accepted where it did not (E14a, E22, E23, E24). Each line gives its id, where it came from, the class it would join or widen, and the owner's choice.
 
@@ -390,10 +390,11 @@ None of these is in force. A candidate does not meet issue 359's H1. Only a cont
 
 - E42, eased by spec 448's Part B (q2 on issue 448; adversarial-lens F1 and F2 and data-lens F1 in its Test round 1). Class: a claim about the owner's words in the lead's own log that the log links to no waiting entry, marked read in bulk by "Mark N relayed read" without its card being opened, and then droppable by the log's cap. It includes an answer to another session's waiting entry, which a lead logs with no link. Proposed reason: each such claim is in To review's order and counted in the press's label, the head claim is drawn on a card, the press is its own act apart from Mark all read, it never takes an answer the log links to a waiting entry, and an own Relayed entry records the owner's words, or picks one reply accepted, in the lead's own chat, where the owner can compare them. It would widen C5. The owner chooses: re-accept E42 with this widening, or decline, and Part B leaves the change.
 
-**P10. The outbound scan (issue 453, plugin 0.95.0).** What the scan's own reads and setting widen; [row 15](brigade.md#row-15) holds the control. Its setting's rewrite and a forged origin are named into C4.
+**P10. The outbound scan (issue 453, plugin 0.95.0).** What the scan's own reads and setting widen; [row 15](brigade.md#row-15) holds the control. Another plugin's rewrite of its setting, and a forged origin, are named into C4.
 
+- A same-user process, the session's own shell included, can read or rewrite the outbound scan's setting, and so turn the scan off for every session on the machine with one file write; a rewrite loses only the backstop (P1, C4).
 - The setting in transcripts: the owner's `/brigade scan` command and its reply, and `read_autonomy`'s answer, which ends with the setting, sit in those sessions' transcripts, which reach every Remote Control device (C7).
-- Every matched call's text, another plugin's calls included, and each local body file it names, up to 1 MiB, pass through grimoire's hook in module memory and are kept nowhere; a refusal tells the calling session, before the command runs, whether a named file exists, whether it is a regular file, its size over 1 MiB or a bound on it, and which of the scan's rules its text breaks. Whether the hook runs before the engine's permission check is not measured (C4, C7, as P4's A4).
+- Every `Bash`, `PowerShell` and `SendMessage` call's text and every call of the mod's three tools, matched or not and with the scan on or off, another plugin's calls included, and each local body file a matched call names, up to 1 MiB, pass through grimoire's hook in module memory and are kept nowhere; a refusal tells the calling session, before the command runs, whether a named file exists, whether it is a regular file, its size over 1 MiB or a bound on it, and which of the scan's rules its text breaks. Whether the hook runs before the engine's permission check is not measured (C4, C7, as P4's A4).
 
 </details>
 
@@ -592,7 +593,7 @@ Every control the base matrix named, by risk, by name and never by its steps. A 
 - the `gh` call: one fixed argument list, a checked owner/name as `GH_REPO`, the 15-second limit, one run at a time, the per-minute rate, the PATH check, the 1 MiB output cap and `parsePrList`'s checks, the pin to the first good answer, answers kept by repository and number ([row 15](brigade.md#row-15))
 - the usage summary writer: module memory, the step counted as a transcript row, at most one write every 15 seconds, the roster's path rule, the 1,024-byte cap and strict summary check, a refusal stops the writer ([row 15](brigade.md#row-15))
 - the decision log, marks and hand-off writers: offered where `set_roster` is, a session's own file only, a queue, caps, entry shapes, clock checks, fixed refusals ([row 15](brigade.md#row-15))
-- the outbound scan's hooks: off unless the store's `scan` is exactly `on`, which only a typed `/brigade scan on` sets; an unmatched call passes with no engine call; a body file read only when its final name is a regular file, not a link, up to 1 MiB, within 2 seconds; a failure refuses; nothing kept ([row 15](brigade.md#row-15))
+- the outbound scan's hooks: off unless the store's `scan` is exactly `on`, which only a typed `/brigade scan on` sets; an unmatched call passes with no engine call; a body file read only when its final name is a regular file, not a link, up to 1 MiB, within 2 seconds; a failure refuses once this session has read on; nothing kept ([row 15](brigade.md#row-15))
 - each call's bounds in the call table ([the engine calls](brigade.md#row-15-the-engine-calls-behind-its-write-and-its-tool-call))
 
 #### R7. Plugin plants state (old row 15)

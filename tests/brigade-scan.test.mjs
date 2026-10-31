@@ -44,6 +44,7 @@ const SECRETS = {
   githubRefresh: 'gh' + 'r_' + rep('A1b2', 9),
   awsTemporary: 'AS' + 'IA' + 'ABCDEFGHIJ234567',
   router: 'sk' + '-or-' + rep('Qw9_', 8),
+  openaiPlain: 'sk' + '-' + rep('Qw9_', 8),
   stripeRestricted: 'r' + 'k_live_' + rep('Ab12', 6),
   slackUser: 'xo' + 'xp-' + '1234567890-abcdef',
   slackApp: 'xo' + 'xa-' + '1234567890-abcdef',
@@ -255,8 +256,8 @@ test('S3.2 step 3: a heredoc or here-string body anywhere in the command is read
   const old = deps({ files: { '/abs/b.md': file('clean old text') } });
   const write = `cat > /abs/b.md <<'EOF'\nnew text ${EMAIL}\nEOF\ngh pr create --title t --body-file /abs/b.md`;
   assert.match((await decide('Bash', { command: write }, old)).deny, /an email address in the command/);
-  const psWrite = `@'\nnew text ${SECRETS.github}\n'@ | Set-Content b.md; gh pr create --title t --body-file /abs/b.md`;
-  assert.match((await decide('PowerShell', { command: psWrite }, deps({ files: { '/abs/b.md': file('clean') } }))).deny, /token or key in the command/);
+  const psWrite = `@'\nnew text ${EMAIL}\n'@ | Set-Content b.md; gh pr create --title t --body-file /abs/b.md`;
+  assert.match((await decide('PowerShell', { command: psWrite }, deps({ files: { '/abs/b.md': file('clean') } }))).deny, /an email address in the command/);
   // A secret anywhere in the command is read; a home path before the call is not.
   assert.match((await decide('Bash', { command: `export T=${SECRETS.github}; gh pr comment 1 --body x` }, deps())).deny, /token or key/);
   assert.equal(await decide('Bash', { command: `cd ${HOMES.linux} && gh pr comment 1 --body x` }, deps()), undefined);
@@ -267,6 +268,19 @@ test('S3.2 step 3: a line continuation starts no word, in either shell', () => {
   assert.deepEqual(bash('gh pr create --title t \\\r\n  --body-file b.md').files.map(f => f.path), ['b.md']);
   assert.deepEqual(ps('gh pr create --title t `\r\n  --body-file b.md').files.map(f => f.path), ['b.md']);
   assert.deepEqual(ps('gh `\n  pr create --body-file b.md').files.map(f => f.path), ['b.md']);
+});
+
+test('claim 14: a relative body file in a session on a share is refused unopened', async () => {
+  const d = deps({ cwd: '\\\\server\\share\\work' });
+  assert.match((await decide('PowerShell', { command: 'gh pr create --body-file b.md' }, d)).deny, /a network or device path/);
+  assert.ok(!d.calls.some(c => c.startsWith('stat')));
+});
+
+test("S3.2 step 3: git tag's shortened --message and --file are matched, and the file is read", () => {
+  assert.ok(bash('git tag -a v1 --mes "a message"'));
+  assert.ok(bash('git tag -a v1 --messa=m'));
+  assert.deepEqual(bash('git tag -a v1 --fil m.txt').files.map(f => f.path), ['m.txt']);
+  assert.equal(bash('git tag --merged main'), undefined);
 });
 
 test('claim 14: a glued value in a flag cluster and git\'s shortened --file name their file', () => {
@@ -491,7 +505,7 @@ test('claim 14: a path the scan cannot resolve as the shell would is refused in 
 });
 
 test('claim 14: a network or device path is refused without being opened', async () => {
-  for (const p of ['//server/share/b.md', '\\\\server\\share\\b.md', '\\\\?\\C:\\b.md']) {
+  for (const p of ['//server/share/b.md', '\\\\server\\share\\b.md', '\\\\?\\C:\\b.md', '\\??\\C:\\b.md']) {
     const d = deps({ cwd: 'C:\\work' });
     const r = await decide('PowerShell', { command: `gh pr create --body-file '${p}'` }, d);
     assert.match(r.deny, /a network or device path/, p);
@@ -637,12 +651,17 @@ test("S3.2 step 3: the scan's hooks are the mod's outermost, on the mod's own to
   assert.match(caught, /caughtAnswer\(\{ nextCalled: next\.called, armed, setting \}\) === 'refuse' \? \{ deny: SCAN_FAILED \} : next\(e\)/);
   // ... from the setting it read: "on" once armed, else a bounded read settled
   // by what this session has seen.
-  assert.ok(caught.includes("const setting = next.called || armed ? 'on' : await Promise.race([readScan($), new Promise<Setting>(res => void $.clock.after(CAUGHT_READ_MS, () => res(settled('unreadable', seenOn))))])"));
-  assert.match(src, /const readScan = async \(\$: EngineInterface\) => settled\(await readSetting\(\(\) => storedScan\(\$\)\), seenOn\)/);
+  assert.ok(caught.includes("const setting = next.called || armed ? 'on' : await readScan($)"));
+  assert.ok(src.includes("const storedScan = ($: EngineInterface) => (typedOff ? Promise.resolve('off') : $.store.get(SCAN_KEY))"));
+  assert.match(src, /const readStored = async \(\$: EngineInterface\) => \{\n  const v = await storedScan\(\$\)\n  if \(settingOf\(v\) === 'on'\) seenOn = true\n  return v\n\}/);
+  assert.ok(src.includes("settled(await Promise.race([readSetting(() => readStored($)), $.clock.sleep(STORE_WAIT_MS).then((): Setting => 'unreadable', (): Setting => 'unreadable')]), seenOn)"));
+  assert.match(src, /setting: async \(\) => \{\n\s+const v = await readStored\(\$\)\n\s+if \(settingOf\(v\) === 'on'\) scanning\.add\(id\)/);
   // The switch takes the command's own origin, ahead of the pane, and hands it on.
   assert.match(src, /const scanArg = switchArgs\(e\.args\)\n\s+if \(scanArg !== undefined\) return scanCommand\(\$, e\.origin\?\.kind, scanArg\)/);
   const command = src.slice(src.indexOf('async function scanCommand('), src.indexOf('export const register: Register = on => {'));
-  assert.ok(command.includes('const r = switchReply(arg, origin, await readScan($))'));
+  assert.ok(command.includes("const r = switchReply(arg, origin, arg === 'show' ? await readScan($) : 'off')"));
+  // On and off set this session's flags before the store's bounded write.
+  assert.ok(command.includes("seenOn = r.set === 'on'\n  if (r.set === 'off') typedOff = true\n  const stored = await Promise.race(["));
 });
 
 // Claim 13's last part, as far as text can show it: the scan's code in
@@ -665,10 +684,10 @@ test('claim 13: the scan keeps nothing: its only write is the setting', async ()
   for (const w of ['redraw(', 'update(', 'scanCommand(']) assert.ok(!hooks.includes(w), w);
   // ... and calls nothing but these, so no writer elsewhere in the plugin is reached.
   const called = new Set([...hooks.matchAll(/(?<![\w.$])([A-Za-z_]\w*)\(/g)].map(m => m[1]));
-  const allowed = ['scanCall', 'scanCaught', 'registerScan', 'decide', 'storedScan', 'settingOf', 'readScan', 'settled', 'caughtAnswer', 'next', 'on', 'res', 'String', 'Promise', 'Record'];
+  const allowed = ['scanCall', 'scanCaught', 'registerScan', 'decide', 'storedScan', 'settingOf', 'readScan', 'readStored', 'settled', 'caughtAnswer', 'next', 'on', 'res', 'String', 'Promise', 'Record'];
   assert.deepEqual([...called].filter(c => !allowed.includes(c)), []);
   const helpers = src.slice(src.indexOf('const storedScan'), src.indexOf('// One matched call'));
-  assert.deepEqual([...new Set(helpers.match(/\$\.[a-z]+\.[a-zA-Z]+/g) ?? [])], ['$.store.get']);
+  assert.deepEqual([...new Set(helpers.match(/\$\.[a-z]+\.[a-zA-Z]+/g) ?? [])].sort(), ['$.clock.sleep', '$.store.get']);
   const mod = readFileSync(new URL('../brigade/scan.ts', import.meta.url), 'utf8');
   assert.ok(!/^import /m.test(mod), 'scan.ts imports nothing');
 });

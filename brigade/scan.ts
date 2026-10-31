@@ -432,7 +432,8 @@ function ghCall(words: readonly Word[]): Matched | undefined {
 }
 
 const GIT_TAKES_VALUE = new Set(['-C', '-c', '--git-dir', '--work-tree', '--namespace', '--super-prefix', '--config-env', '--exec-path'])
-const TAG_TEXT = ['-m', '--message', '-F', '--file']
+// A tag's message flags, git's unambiguous shortened forms of the long ones included.
+const TAG_TEXT = ['-m', '--message', '--messag', '--messa', '--mess', '--mes', '-F', '--file', '--fil']
 
 function gitCall(words: readonly Word[]): Matched | undefined {
   let i = 1
@@ -707,6 +708,8 @@ export async function decide(tool: string, input: Readonly<Record<string, unknow
         const base = f.base === undefined ? cwd : isAbsolute(f.base) ? f.base : joinPath(cwd, f.base)
         path = joinPath(base, path)
       }
+      // The path as the program would read it, the working folder joined in.
+      if (isNetwork(path)) return { deny: network(field) }
       const key = onWindows(cwd) ? path.replace(/\\/g, '/').toLowerCase() : path
       if (seen.has(key)) continue
       seen.add(key)
