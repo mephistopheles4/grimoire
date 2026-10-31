@@ -590,7 +590,7 @@ Every control the base matrix named, by risk, by name and never by its steps. A 
 - the tests under `claude plugin test` with recorded engine answers ([row 15](brigade.md#row-15))
 - Open in app, the tool route: the `local_` id check, one press at a time, the surface gate, the tool-list gate, the verdict, constant server, tool and target, the 5-second bound, three read outcomes ([row 15](brigade.md#row-15))
 - Open in app, the link route: one argument with no shell, openers by fixed name or absolute path, the 15-second limit, one run per link, the program's name only in a toast ([row 15](brigade.md#row-15))
-- the host check by environment, then by a real-path file check ([row 15](brigade.md#row-15))
+- the operating-system part of the PATH check, by environment, then by a real-path file check ([row 15](brigade.md#row-15))
 - the `gh` call: one fixed argument list, a checked owner/name as `GH_REPO`, the 15-second limit, one run at a time, the per-minute rate, the PATH check, the 1 MiB output cap and `parsePrList`'s checks, the pin to the first good answer, answers kept by repository and number ([row 15](brigade.md#row-15))
 - the usage summary writer: module memory, the step counted as a transcript row, at most one write every 15 seconds, the roster's path rule, the 1,024-byte cap and strict summary check, a refusal stops the writer ([row 15](brigade.md#row-15))
 - the decision log, marks and hand-off writers: offered where `set_roster` is, a session's own file only, a queue, caps, entry shapes, clock checks, fixed refusals ([row 15](brigade.md#row-15))
