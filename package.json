@@ -5,6 +5,8 @@
     "commands": {
       "check": ["sh", "-c", "git add -A -f && node scripts/check.mjs"],
       "fast": ["sh", "-c", "files=; for f in tests/*.test.mjs; do case \"$f\" in tests/check-*) ;; *) files=\"$files $f\" ;; esac; done; exec node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --test $files"],
-      "validate": ["sh", "-c", "failed=0; for t in . .claude-plugin/plugin.json skills; do claude plugin validate --strict \"$t\" || failed=1; done; exit $failed"]    }
+      "validate": ["sh", "-c", "failed=0; for t in . .claude-plugin/plugin.json skills; do claude plugin validate --strict \"$t\" || failed=1; done; exit $failed"],
+      "plugin-test": ["sh", "-c", "claude plugin test ."]
+    }
   }
 }

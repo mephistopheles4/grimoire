@@ -26,13 +26,27 @@ import { RECORDED } from './recorded-stats.ts'
 const TOOL = 'mcp__grimoire__set_roster'
 const OPEN_TOOL = 'mcp__ccd_window__open_session_in'
 const SID = '11111111-2222-3333-4444-555555555555'
-const CONFIG = 'C:\\cfg\\.claude'
-const TRANSCRIPT = `${CONFIG}\\projects\\C--work\\${SID}.jsonl`
+// The host the tests run on, by where the engine loaded this file from: a
+// drive letter is Windows. The engine resolves a path the way its host does,
+// so the world's paths are the host's: `C:\cfg\.claude` on Windows,
+// `/cfg/.claude` elsewhere (#481).
+const ON_WINDOWS = /^file:\/\/\/[A-Za-z]:/.test(import.meta.url)
+const SEP = ON_WINDOWS ? '\\' : '/'
+const ROOT = ON_WINDOWS ? 'C:' : ''
+const CONFIG = `${ROOT}${SEP}cfg${SEP}.claude`
+const TRANSCRIPT = `${CONFIG}${SEP}projects${SEP}C--work${SEP}${SID}.jsonl`
 // The data id of a plugin loaded from a folder of its own: grimoire@inline.
-const DATA = `${CONFIG}\\plugins\\data\\grimoire-inline`
-const BRIGADE = `${DATA}\\brigade`
-const FILE = `${BRIGADE}\\${SID}.json`
-const ELSEWHERE = 'C:\\elsewhere'
+const DATA = `${CONFIG}${SEP}plugins${SEP}data${SEP}grimoire-inline`
+const BRIGADE = `${DATA}${SEP}brigade`
+const FILE = `${BRIGADE}${SEP}${SID}.json`
+const ELSEWHERE = `${ROOT}${SEP}elsewhere`
+// Junctions exist only on Windows, and their answers were recorded there. On
+// any other host a test that builds one is not declared, and its title is
+// printed, so the run says what it left out.
+const withJunction: typeof test = (name, ...rest) => {
+  if (ON_WINDOWS) test(name, ...rest)
+  else console.log(`skipped: junctions are Windows-only (#481): ${name}`)
+}
 
 // --- the file system in memory ------------------------------------------------
 
@@ -41,9 +55,19 @@ type Node =
   | { type: 'file'; data: { text: string; mtimeMs?: number } }
   | { type: 'link'; kind: 'junction' | 'dir-symlink' | 'file-symlink'; target: string }
 
-const spelled = (p: string) => p.replace(/\//g, '\\').replace(/\\+$/, '')
-const key = (p: string) => spelled(p).toLowerCase()
-const parts = (p: string) => p.replace(/\//g, '\\').split('\\').filter(Boolean)
+// The world keeps every path in one spelling, `C:\a\b`; `hostPath` gives it
+// back as the host spells it. Off Windows a `\` is a character of a name, not
+// a separator, so it is held as NAME_BACKSLASH: a path the mod joins with `\`
+// there lands on a file of its own, and the test that expects the real one
+// fails.
+const NAME_BACKSLASH = '\u{E000}'
+const worldPath = (p: string) =>
+  ON_WINDOWS ? p.replace(/\//g, '\\') : /^C:(\\|$)/.test(p) ? p : p.replace(/\\/g, NAME_BACKSLASH).replace(/^\//, 'C:/').replace(/\//g, '\\')
+const hostPath = (p: string) => (ON_WINDOWS ? p : p.replace(/^C:/, '').replace(/\\/g, '/').replaceAll(NAME_BACKSLASH, '\\'))
+const spelled = (p: string) => worldPath(p).replace(/\\+$/, '')
+// Windows folds a path's case; Linux does not.
+const key = (p: string) => (ON_WINDOWS ? spelled(p).toLowerCase() : spelled(p))
+const parts = (p: string) => worldPath(p).split('\\').filter(Boolean)
 
 function makeFs() {
   const nodes = new Map<string, Node>()
@@ -101,11 +125,11 @@ function makeFs() {
         size: to === undefined ? 0 : sizeOf(to.node),
         mtimeMs: to === undefined ? 0 : mtimeOf(to.node),
         isLink: shape.isLink,
-        ...(shape.realPath === 'target' && to !== undefined ? { realPath: to.real } : {}),
+        ...(shape.realPath === 'target' && to !== undefined ? { realPath: hostPath(to.real) } : {}),
       }
     }
     const shape = RECORDED.stats[own.node.type === 'dir' ? 'folder' : 'file']
-    return { kind: shape.kind, size: sizeOf(own.node), mtimeMs: mtimeOf(own.node), isLink: shape.isLink, realPath: own.real }
+    return { kind: shape.kind, size: sizeOf(own.node), mtimeMs: mtimeOf(own.node), isLink: shape.isLink, realPath: hostPath(own.real) }
   }
   // A folder's listing as the engine answers it: each entry by the name it
   // was spelled with, its kind and isLink as recorded for that kind of entry.
@@ -137,7 +161,7 @@ function makeFs() {
     if (there?.type === 'link') return write(there.target, text)
     if (there?.type === 'file') there.data.text = text
     else put(at, { type: 'file', data: { text } })
-    log.push(`write ${at} ${text.slice(0, 200)}`)
+    log.push(`write ${hostPath(at)} ${text.slice(0, 200)}`)
   }
   const text = (p: string) => {
     const n = walk(p, true)?.node
@@ -165,6 +189,20 @@ const OPENERS = ['explorer.exe', '/usr/bin/open', '/usr/bin/xdg-open']
 // A probe's answer: a stat as the engine gives it, or a rejection's message.
 type Probe = { kind: 'file' | 'dir' | 'other'; size: number; mtimeMs: number; isLink: boolean; realPath?: string } | { reject: string }
 const fileAt = (realPath?: string): Probe => ({ kind: 'file', size: 1, mtimeMs: 0, isLink: false, ...(realPath === undefined ? {} : { realPath }) })
+
+// The world's host is read from this file's address; the engine's own `cwd`
+// on a classic event is a second witness. If the two disagreed, the junction
+// tests would vanish from a Windows run, or run on Linux, with nothing failing.
+test("the world's host is the engine's: a drive-letter cwd is Windows, and only there", async ($, on) => {
+  let cwd = ''
+  on('classic.Notification', ($, e: any) => {
+    cwd = String(e.cwd)
+    return {}
+  })
+  await ($ as any).classic.Notification({ message: 'host', notification_type: 'idle_prompt' })
+  expect(cwd).not.toBe('')
+  expect(/^[A-Za-z]:[\\/]/.test(cwd)).toBe(ON_WINDOWS)
+})
 
 type World = ReturnType<typeof makeFs> & {
   open: boolean
@@ -286,7 +324,7 @@ type World = ReturnType<typeof makeFs> & {
 // The engine beneath the plugin: the file system, the pane record, the
 // session id, the verdict, and the record of what the plugin registered and
 // set. Registered before the test's first call on `$`.
-function world(on: On, setup: (w: World) => void = w => w.dirs(`${CONFIG}\\plugins`)): World {
+function world(on: On, setup: (w: World) => void = w => w.dirs(`${CONFIG}${SEP}plugins`)): World {
   const w: World = Object.assign(makeFs(), {
     open: false,
     verdict: { decision: 'ask' as const },
@@ -364,7 +402,7 @@ function world(on: On, setup: (w: World) => void = w => w.dirs(`${CONFIG}\\plugi
     top: undefined as any,
   })
   // The engine keeps a sessions folder; a test plants the files in it.
-  w.dirs(`${CONFIG}\\sessions`)
+  w.dirs(`${CONFIG}${SEP}sessions`)
   w.dirs(CONFIG)
   setup(w)
   w.clock = mock.clock(on)
@@ -406,12 +444,13 @@ function world(on: On, setup: (w: World) => void = w => w.dirs(`${CONFIG}\\plugi
     // The sessions folder, and the decision log's, marks' and hand-off's
     // folders (spec 402), are listed every poll; the count is the transcript
     // finder's.
-    const sessions = String(e.path).endsWith('\\sessions') || /\\brigade\\(?:decisions|marks|handoff)$/i.test(String(e.path))
+    const at = worldPath(String(e.path))
+    const sessions = at.endsWith('\\sessions') || /\\brigade\\(?:decisions|marks|handoff)$/i.test(at)
     if (!sessions) w.listings++
     w.log.push(`list ${e.path}`)
     if (w.listDeny !== '' && !sessions) return { deny: w.listDeny }
     const l = w.list(e.path)
-    const ghosts = String(e.path).endsWith('\\sessions') ? w.ghosts.map(name => ({ name, kind: RECORDED.list.entries.file.kind, isLink: RECORDED.list.entries.file.isLink, size: 10, mtimeMs: 1 })) : []
+    const ghosts = at.endsWith('\\sessions') ?w.ghosts.map(name => ({ name, kind: RECORDED.list.entries.file.kind, isLink: RECORDED.list.entries.file.isLink, size: 10, mtimeMs: 1 })) : []
     return l === undefined ? { deny: ENOENT } : { value: [...l, ...ghosts] }
   })
   on('fs.exists', ($, e: any) => {
@@ -598,14 +637,14 @@ const call = async ($: any, input: Record<string, unknown>): Promise<{ ok: boole
 // The live sessions, as the engine keeps them: one file each in the config
 // folder's sessions folder, which the pane reads every poll (#347). Each file
 // also holds the kinds of field the pane never reads; earlier files go.
-const SESSIONS = `${CONFIG}\\sessions`
+const SESSIONS = `${CONFIG}${SEP}sessions`
 const liveRows = (w: World, rows: Record<string, unknown>[]) => {
   w.dirs(SESSIONS)
-  for (const e of w.list(SESSIONS) ?? []) w.drop(`${SESSIONS}\\${e.name}`)
+  for (const e of w.list(SESSIONS) ?? []) w.drop(`${SESSIONS}${SEP}${e.name}`)
   rows.forEach((r, i) => {
     const text = JSON.stringify({ pid: 100 + i, kind: 'interactive', messagingSocketPath: '\\\\.\\pipe\\cc-msg-x', bridgeSessionId: 'session_X', ...r })
-    w.put(`${SESSIONS}\\${100 + i}.json`, { type: 'file', data: { text } })
-    w.put(`${SESSIONS}\\${100 + i}.0123abcd.key`, { type: 'file', data: { text: 'KEY' } })
+    w.put(`${SESSIONS}${SEP}${100 + i}.json`, { type: 'file', data: { text } })
+    w.put(`${SESSIONS}${SEP}${100 + i}.0123abcd.key`, { type: 'file', data: { text: 'KEY' } })
   })
 }
 
@@ -897,19 +936,19 @@ test("a call that outlasts the hook's budget is answered by the engine's .catch,
 // --- the path guard -----------------------------------------------------------
 
 const linkCases: [string, (w: World) => void, string][] = [
-  ['a junction at plugins', w => { w.dirs(`${ELSEWHERE}\\plugins`); w.put(`${CONFIG}\\plugins`, { type: 'link', kind: 'junction', target: `${ELSEWHERE}\\plugins` }) }, 'link: plugins is a link'],
-  ['a junction at data', w => { w.dirs(`${CONFIG}\\plugins`); w.dirs(`${ELSEWHERE}\\data`); w.put(`${CONFIG}\\plugins\\data`, { type: 'link', kind: 'junction', target: `${ELSEWHERE}\\data` }) }, 'link: data is a link'],
-  ['a junction at the data id', w => { w.dirs(`${CONFIG}\\plugins\\data`); w.dirs(`${ELSEWHERE}\\id`); w.put(DATA, { type: 'link', kind: 'junction', target: `${ELSEWHERE}\\id` }) }, 'link: grimoire-inline is a link'],
-  ['a junction at brigade', w => { w.dirs(DATA); w.dirs(`${ELSEWHERE}\\b`); w.put(BRIGADE, { type: 'link', kind: 'junction', target: `${ELSEWHERE}\\b` }) }, 'link: brigade is a link'],
-  ['a broken junction at brigade', w => { w.dirs(DATA); w.put(BRIGADE, { type: 'link', kind: 'junction', target: `${ELSEWHERE}\\gone` }) }, 'link: brigade is a link'],
-  ['a directory symlink at brigade', w => { w.dirs(DATA); w.dirs(`${ELSEWHERE}\\b`); w.put(BRIGADE, { type: 'link', kind: 'dir-symlink', target: `${ELSEWHERE}\\b` }) }, 'link: brigade is a link'],
-  ['a symlink at the roster file', w => { w.dirs(BRIGADE); w.dirs(ELSEWHERE); w.put(`${ELSEWHERE}\\settings.json`, { type: 'file', data: { text: '{"permissions":{}}' } }); w.put(FILE, { type: 'link', kind: 'file-symlink', target: `${ELSEWHERE}\\settings.json` }) }, 'link: the roster file is a link'],
-  ['a broken symlink at the roster file', w => { w.dirs(BRIGADE); w.dirs(ELSEWHERE); w.put(FILE, { type: 'link', kind: 'file-symlink', target: `${ELSEWHERE}\\made.json` }) }, 'link: the roster file is a link'],
+  ['a junction at plugins', w => { w.dirs(`${ELSEWHERE}${SEP}plugins`); w.put(`${CONFIG}${SEP}plugins`, { type: 'link', kind: 'junction', target: `${ELSEWHERE}${SEP}plugins` }) }, 'link: plugins is a link'],
+  ['a junction at data', w => { w.dirs(`${CONFIG}${SEP}plugins`); w.dirs(`${ELSEWHERE}${SEP}data`); w.put(`${CONFIG}${SEP}plugins${SEP}data`, { type: 'link', kind: 'junction', target: `${ELSEWHERE}${SEP}data` }) }, 'link: data is a link'],
+  ['a junction at the data id', w => { w.dirs(`${CONFIG}${SEP}plugins${SEP}data`); w.dirs(`${ELSEWHERE}${SEP}id`); w.put(DATA, { type: 'link', kind: 'junction', target: `${ELSEWHERE}${SEP}id` }) }, 'link: grimoire-inline is a link'],
+  ['a junction at brigade', w => { w.dirs(DATA); w.dirs(`${ELSEWHERE}${SEP}b`); w.put(BRIGADE, { type: 'link', kind: 'junction', target: `${ELSEWHERE}${SEP}b` }) }, 'link: brigade is a link'],
+  ['a broken junction at brigade', w => { w.dirs(DATA); w.put(BRIGADE, { type: 'link', kind: 'junction', target: `${ELSEWHERE}${SEP}gone` }) }, 'link: brigade is a link'],
+  ['a directory symlink at brigade', w => { w.dirs(DATA); w.dirs(`${ELSEWHERE}${SEP}b`); w.put(BRIGADE, { type: 'link', kind: 'dir-symlink', target: `${ELSEWHERE}${SEP}b` }) }, 'link: brigade is a link'],
+  ['a symlink at the roster file', w => { w.dirs(BRIGADE); w.dirs(ELSEWHERE); w.put(`${ELSEWHERE}${SEP}settings.json`, { type: 'file', data: { text: '{"permissions":{}}' } }); w.put(FILE, { type: 'link', kind: 'file-symlink', target: `${ELSEWHERE}${SEP}settings.json` }) }, 'link: the roster file is a link'],
+  ['a broken symlink at the roster file', w => { w.dirs(BRIGADE); w.dirs(ELSEWHERE); w.put(FILE, { type: 'link', kind: 'file-symlink', target: `${ELSEWHERE}${SEP}made.json` }) }, 'link: the roster file is a link'],
   ['a file where the brigade folder should be', w => { w.dirs(DATA); w.put(BRIGADE, { type: 'file', data: { text: 'x' } }) }, 'path: brigade is not a folder'],
   ['a folder where the roster file should be', w => { w.dirs(FILE) }, 'path: the roster path is not a plain file'],
 ]
 for (const [name, setup, rule] of linkCases) {
-  test(`${name} is refused, and nothing is created at any link target`, async ($, on) => {
+  ;(name.includes('junction') ? withJunction : test)(`${name} is refused, and nothing is created at any link target`, async ($, on) => {
     const w = world(on, setup)
     await start($)
     await brigade($)
@@ -919,7 +958,7 @@ for (const [name, setup, rule] of linkCases) {
     expect(r.text).toContain(rule)
     expect([...w.nodes.keys()].sort()).toEqual(before)
     expect(w.log.filter(l => l.startsWith('write '))).toEqual([])
-    expect(w.text(`${ELSEWHERE}\\settings.json`) ?? '{"permissions":{}}').toBe('{"permissions":{}}')
+    expect(w.text(`${ELSEWHERE}${SEP}settings.json`) ?? '{"permissions":{}}').toBe('{"permissions":{}}')
   })
 }
 
@@ -959,10 +998,11 @@ test('an existing roster is overwritten', async ($, on) => {
 // The write lands, then the file or a folder above it is swapped for a link
 // before the check after it.
 for (const [name, swap, rule] of [
-  ['the file', (w: World) => { w.dirs(ELSEWHERE); w.put(FILE, { type: 'link', kind: 'file-symlink', target: `${ELSEWHERE}\\x.json` }) }, 'link: the roster file is a link'],
-  ['the brigade folder', (w: World) => { w.dirs(`${ELSEWHERE}\\b`); w.put(BRIGADE, { type: 'link', kind: 'junction', target: `${ELSEWHERE}\\b` }) }, 'link: brigade is a link'],
+  ['the file', (w: World) => { w.dirs(ELSEWHERE); w.put(FILE, { type: 'link', kind: 'file-symlink', target: `${ELSEWHERE}${SEP}x.json` }) }, 'link: the roster file is a link'],
+  ['the brigade folder', (w: World) => { w.dirs(`${ELSEWHERE}${SEP}b`); w.put(BRIGADE, { type: 'link', kind: 'junction', target: `${ELSEWHERE}${SEP}b` }) }, 'link: brigade is a link'],
 ] as const) {
-  test(`${name} becoming a link after the write is told to the owner loudly`, async ($, on) => {
+  // The brigade folder's link is a junction.
+  ;(name === 'the brigade folder' ? withJunction : test)(`${name} becoming a link after the write is told to the owner loudly`, async ($, on) => {
     const w = world(on)
     await start($)
     await brigade($)
@@ -980,12 +1020,12 @@ for (const [name, swap, rule] of [
   })
 }
 
-test("the pane's own read refuses a roster path through a link, and says so", async ($, on) => {
+withJunction("the pane's own read refuses a roster path through a link, and says so", async ($, on) => {
   const w = world(on, w => {
     w.dirs(DATA)
-    w.dirs(`${ELSEWHERE}\\b`)
-    w.put(`${ELSEWHERE}\\b\\${SID}.json`, { type: 'file', data: { text: JSON.stringify(GOOD) } })
-    w.put(BRIGADE, { type: 'link', kind: 'junction', target: `${ELSEWHERE}\\b` })
+    w.dirs(`${ELSEWHERE}${SEP}b`)
+    w.put(`${ELSEWHERE}${SEP}b${SEP}${SID}.json`, { type: 'file', data: { text: JSON.stringify(GOOD) } })
+    w.put(BRIGADE, { type: 'link', kind: 'junction', target: `${ELSEWHERE}${SEP}b` })
   })
   await start($)
   await brigade($)
@@ -1006,7 +1046,7 @@ test('a reload with the pane open offers the tool again; one with the pane close
 
 test('a session id outside the engine\'s shape is refused', async ($, on) => {
   const w = world(on, w => {
-    w.dirs(`${CONFIG}\\plugins`)
+    w.dirs(`${CONFIG}${SEP}plugins`)
     w.sid = 'not-an-id'
   })
   await start($)
@@ -1028,7 +1068,7 @@ test('with data absent the first write creates the missing folders and brigade',
 })
 
 test('with the data id absent the first write creates it and brigade', async ($, on) => {
-  const w = world(on, w => w.dirs(`${CONFIG}\\plugins\\data`))
+  const w = world(on, w => w.dirs(`${CONFIG}${SEP}plugins${SEP}data`))
   await start($)
   await brigade($)
   expect((await call($, GOOD)).ok).toBe(true)
@@ -1256,11 +1296,11 @@ test('a card with only a url, or only a background id, makes no tool list and no
   const BG = '99999999-8888-7777-6666-555555555555'
   const w = await pane(on, $)
   liveRows(w, [{ name: 'gamma', status: 'idle', sessionId: BG, cwd: 'C:\\work', jobId: 'ab12cd34' }])
-  w.put(`${CONFIG}\\projects\\C--work\\${BG}.jsonl`, {
+  w.put(`${CONFIG}${SEP}projects${SEP}C--work${SEP}${BG}.jsonl`, {
     type: 'file',
     data: { text: JSON.stringify({ type: 'system', subtype: 'bridge_status', url: 'https://claude.ai/code/session_BG1' }) },
   })
-  w.dirs(`${CONFIG}\\projects\\C--work`)
+  w.dirs(`${CONFIG}${SEP}projects${SEP}C--work`)
   await w.clock.advance(10000)
   await press($, 'open-1-beta')
   await press($, 'open-2-gamma')
@@ -1330,11 +1370,11 @@ const openers = (w: World) => w.procs.filter(p => OPENERS.includes(p[0]))
 async function background(on: On, $: any) {
   const w = await pane(on, $)
   liveRows(w, [{ name: 'gamma', status: 'idle', sessionId: BG_ID, cwd: 'C:\\work', jobId: 'ab12cd34' }])
-  w.put(`${CONFIG}\\projects\\C--work\\${BG_ID}.jsonl`, {
+  w.put(`${CONFIG}${SEP}projects${SEP}C--work${SEP}${BG_ID}.jsonl`, {
     type: 'file',
     data: { text: JSON.stringify({ type: 'system', subtype: 'bridge_status', url: 'https://claude.ai/code/session_BG1' }) },
   })
-  w.dirs(`${CONFIG}\\projects\\C--work`)
+  w.dirs(`${CONFIG}${SEP}projects${SEP}C--work`)
   await w.clock.advance(10000)
   return w
 }
@@ -2487,9 +2527,9 @@ for (const surface of SURFACES) {
 // engine listed each kind of entry (recorded-stats.ts).
 
 const MID = '55555555-6666-4777-8888-999999999999'
-const LAUNCH = `${CONFIG}\\projects\\C--work`
-const WORKTREE = `${CONFIG}\\projects\\C--work--claude-worktrees-build-9`
-const SECOND = `${CONFIG}\\projects\\C--work--claude-worktrees-build-8`
+const LAUNCH = `${CONFIG}${SEP}projects${SEP}C--work`
+const WORKTREE = `${CONFIG}${SEP}projects${SEP}C--work--claude-worktrees-build-9`
+const SECOND = `${CONFIG}${SEP}projects${SEP}C--work--claude-worktrees-build-8`
 // Each call row carries its own message id, as Claude Code writes them; since
 // #271 a row without one is not counted.
 let calls = 0
@@ -2509,7 +2549,7 @@ const bridge = (id: string) => JSON.stringify({ type: 'system', subtype: 'bridge
 // link and a model call a minute ago.
 const plantIn = (w: World, folder: string, link: string) => {
   w.dirs(folder)
-  w.put(`${folder}\\${MID}.jsonl`, { type: 'file', data: { text: `${bridge(link)}\n${callAt(w.clock.now() - MINUTE)}\n`, mtimeMs: w.clock.now() } })
+  w.put(`${folder}${SEP}${MID}.jsonl`, { type: 'file', data: { text: `${bridge(link)}\n${callAt(w.clock.now() - MINUTE)}\n`, mtimeMs: w.clock.now() } })
 }
 // The pane with one needs-you card, `gamma`, whose session file names the
 // launch folder, and a poll after `setup` plants its files.
@@ -2611,8 +2651,8 @@ test('the Remote Control link is read again when the found path changes, and goe
   await m.redraw(PANE_PROPS)
   await m.press({ key: 'open-0-gamma' })
   // Both gone: nothing found, and no link left to open.
-  w.nodes.delete(key(`${LAUNCH}\\${MID}.jsonl`))
-  w.nodes.delete(key(`${WORKTREE}\\${MID}.jsonl`))
+  w.nodes.delete(key(`${LAUNCH}${SEP}${MID}.jsonl`))
+  w.nodes.delete(key(`${WORKTREE}${SEP}${MID}.jsonl`))
   await w.clock.advance(10000)
   await w.clock.settle()
   const all = await nodes(m)
@@ -2655,10 +2695,10 @@ test('a link read at 4 MiB or less is kept when the member is found at a new pat
   await m.press({ key: 'open-0-gamma' })
   // The member moves into a worktree, where its transcript is past 4 MiB:
   // the engine would refuse the read, and the link it had stays.
-  w.nodes.delete(key(`${LAUNCH}\\${MID}.jsonl`))
+  w.nodes.delete(key(`${LAUNCH}${SEP}${MID}.jsonl`))
   w.dirs(WORKTREE)
   const pad = ' '.repeat(4 * 1024 * 1024)
-  w.put(`${WORKTREE}\\${MID}.jsonl`, { type: 'file', data: { text: `${bridge('WT1')}\n${pad}\n${callAt(w.clock.now() - MINUTE)}\n`, mtimeMs: w.clock.now() } })
+  w.put(`${WORKTREE}${SEP}${MID}.jsonl`, { type: 'file', data: { text: `${bridge('WT1')}\n${pad}\n${callAt(w.clock.now() - MINUTE)}\n`, mtimeMs: w.clock.now() } })
   await w.clock.advance(60000)
   await w.clock.settle()
   await m.redraw(PANE_PROPS)
@@ -2669,7 +2709,7 @@ test('a link read at 4 MiB or less is kept when the member is found at a new pat
   ])
   // The engine would refuse it, so the pane never asks: no read of the
   // transcript past 4 MiB, for the link or for the card.
-  expect(w.log.filter(l => l.toLowerCase() === `read ${WORKTREE}\\${MID}.jsonl`.toLowerCase())).toEqual([])
+  expect(w.log.filter(l => l.toLowerCase() === `read ${WORKTREE}${SEP}${MID}.jsonl`.toLowerCase())).toEqual([])
   holdsNoPath(w)
 })
 // --- the context meter -----------------------------------------------------------
@@ -2851,7 +2891,7 @@ const leaky = (at: number, n: number) =>
 test('no folder path, transcript text, model text or message id reaches any value the pane sets, and the meter still draws', async ($, on) => {
   const w = await moved(on, $, w => {
     const now = w.clock.now()
-    w.put(`${LAUNCH}\\${MID}.jsonl`, { type: 'file', data: { text: `${leaky(now - 3 * MINUTE, 1)}\n${leaky(now - 2 * MINUTE, 2)}\n${leaky(now - MINUTE, 3)}\n`, mtimeMs: now } })
+    w.put(`${LAUNCH}${SEP}${MID}.jsonl`, { type: 'file', data: { text: `${leaky(now - 3 * MINUTE, 1)}\n${leaky(now - 2 * MINUTE, 2)}\n${leaky(now - MINUTE, 3)}\n`, mtimeMs: now } })
   })
   const m = await mountOn($, 'desktop')
   const all = await nodes(m)
@@ -3239,8 +3279,8 @@ for (const surface of SURFACES) {
 // no tool is needed. The decisions are view.ts's, under its own tests; these
 // drive the hook the way the engine does.
 
-const USAGE_DIR = `${BRIGADE}\\usage`
-const USAGE = `${USAGE_DIR}\\${SID}.json`
+const USAGE_DIR = `${BRIGADE}${SEP}usage`
+const USAGE = `${USAGE_DIR}${SEP}${SID}.json`
 const SUMMARY_KEYS = ['version', 'at', 'window', 'burn', 'context', 'lastAt', 'lastTokens', 'cache']
 const STEP_USAGE = { input_tokens: 6, cache_creation_input_tokens: 1000, cache_read_input_tokens: 150000, output_tokens: 300, model: 'claude-opus-5-5' }
 
@@ -3372,7 +3412,7 @@ test('a file other than a summary at the summary path stops every later write, w
   expect(writerToasts(w)[0]).not.toContain('cards')
 })
 
-test('a junction at the usage folder is refused, stopping the writer with one toast', async ($, on) => {
+withJunction('a junction at the usage folder is refused, stopping the writer with one toast', async ($, on) => {
   const w = world(on)
   await begin($, w)
   w.dirs(BRIGADE)
@@ -3384,7 +3424,7 @@ test('a junction at the usage folder is refused, stopping the writer with one to
     await turnEnd($)
     await w.clock.settle()
   }
-  expect(w.text(`${ELSEWHERE}\\${SID}.json`)).toBeUndefined()
+  expect(w.text(`${ELSEWHERE}${SEP}${SID}.json`)).toBeUndefined()
   expect(usageWrites(w)).toEqual([])
   expect(writerToasts(w).length).toBe(1)
   expect(writerToasts(w)[0]).toContain('the summary path failed its check')
@@ -3417,13 +3457,13 @@ test('after a clear the series starts over under the new session id, and the old
   await w.clock.settle()
   const NEW = '99999999-8888-7777-6666-555555555555'
   w.sid = NEW
-  await $.classic.SessionStart({ source: 'clear', session_id: NEW, transcript_path: `${CONFIG}\\projects\\C--work\\${NEW}.jsonl` })
+  await $.classic.SessionStart({ source: 'clear', session_id: NEW, transcript_path: `${CONFIG}${SEP}projects${SEP}C--work${SEP}${NEW}.jsonl` })
   w.stepUsage = { ...STEP_USAGE, input_tokens: 2 }
   await raiseStep($)
   await turnEnd($)
   await w.clock.settle()
   expect(JSON.parse(w.text(USAGE) ?? '{}').context).toEqual([151006])
-  expect(JSON.parse(w.text(`${USAGE_DIR}\\${NEW}.json`) ?? '{}').context).toEqual([151002])
+  expect(JSON.parse(w.text(`${USAGE_DIR}${SEP}${NEW}.json`) ?? '{}').context).toEqual([151002])
 })
 
 test('an aborted turn\'s end writes the newest numbers too', async ($, on) => {
@@ -3442,7 +3482,7 @@ test('an aborted turn\'s end writes the newest numbers too', async ($, on) => {
   expect(JSON.parse(w.text(USAGE) ?? '{}').context).toEqual([151006, 151094])
 })
 
-test('a link swapped in during the write is caught by the check after it: one toast, and no later write', async ($, on) => {
+withJunction('a link swapped in during the write is caught by the check after it: one toast, and no later write', async ($, on) => {
   const w = world(on)
   await begin($, w)
   w.dirs(BRIGADE)
@@ -3457,7 +3497,7 @@ test('a link swapped in during the write is caught by the check after it: one to
   w.release()
   await w.clock.settle()
   // The race itself is the accepted gap: the held write went through the link.
-  expect(w.text(`${ELSEWHERE}\\${SID}.json`)).toBeDefined()
+  expect(w.text(`${ELSEWHERE}${SEP}${SID}.json`)).toBeDefined()
   expect(writerToasts(w).length).toBe(1)
   expect(writerToasts(w)[0]).toContain('after the write')
   const writes = w.log.filter(l => l.startsWith('write ')).length
@@ -3480,9 +3520,9 @@ test('after a module reload, a clear still starts the series over: the module lo
   await raiseStep($)
   await w.clock.settle()
   const NEW = '99999999-8888-7777-6666-555555555555'
-  const NEW_FILE = `${USAGE_DIR}\\${NEW}.json`
+  const NEW_FILE = `${USAGE_DIR}${SEP}${NEW}.json`
   w.sid = NEW
-  await $.classic.SessionStart({ source: 'clear', session_id: NEW, transcript_path: `${CONFIG}\\projects\\C--work\\${NEW}.jsonl` })
+  await $.classic.SessionStart({ source: 'clear', session_id: NEW, transcript_path: `${CONFIG}${SEP}projects${SEP}C--work${SEP}${NEW}.jsonl` })
   // The first turn after the clear is cut short before any reply: it counts
   // nothing, so nothing from before the clear may be written under the new id.
   w.stepUsage = null
@@ -3536,7 +3576,7 @@ test('a clear while a write waits on its checks skips that write; the new sessio
   await w.clock.settle()
   const NEW = '99999999-8888-7777-6666-555555555555'
   w.sid = NEW
-  await $.classic.SessionStart({ source: 'clear', session_id: NEW, transcript_path: `${CONFIG}\\projects\\C--work\\${NEW}.jsonl` })
+  await $.classic.SessionStart({ source: 'clear', session_id: NEW, transcript_path: `${CONFIG}${SEP}projects${SEP}C--work${SEP}${NEW}.jsonl` })
   w.stepUsage = { ...STEP_USAGE, input_tokens: 2 }
   await raiseStep($)
   w.holdStat = false
@@ -3545,7 +3585,7 @@ test('a clear while a write waits on its checks skips that write; the new sessio
   expect(w.text(USAGE)).toBeUndefined()
   await turnEnd($)
   await w.clock.settle()
-  expect(JSON.parse(w.text(`${USAGE_DIR}\\${NEW}.json`) ?? '{}').context).toEqual([151002])
+  expect(JSON.parse(w.text(`${USAGE_DIR}${SEP}${NEW}.json`) ?? '{}').context).toEqual([151002])
   expect(w.text(USAGE)).toBeUndefined()
 })
 
@@ -3566,7 +3606,7 @@ test('with classic.SessionStart skipped, a changed session id starts the series 
   await turnEnd($)
   await w.clock.settle()
   expect(JSON.parse(w.text(USAGE) ?? '{}').context).toEqual([151006])
-  expect(JSON.parse(w.text(`${USAGE_DIR}\\${NEW}.json`) ?? '{}').context).toEqual([151002, 151002])
+  expect(JSON.parse(w.text(`${USAGE_DIR}${SEP}${NEW}.json`) ?? '{}').context).toEqual([151002, 151002])
 })
 
 test('with classic.SessionStart skipped, a write held while the session id changes leaves the old file unchanged', async ($, on) => {
@@ -3605,7 +3645,7 @@ test('with classic.SessionStart skipped, only the latest-started session id read
   await turnEnd($)
   await w.clock.settle()
   expect(JSON.parse(w.text(USAGE) ?? '{}').context).toEqual([151006])
-  expect(JSON.parse(w.text(`${USAGE_DIR}\\${NEW}.json`) ?? '{}').context).toEqual([151002, 151002])
+  expect(JSON.parse(w.text(`${USAGE_DIR}${SEP}${NEW}.json`) ?? '{}').context).toEqual([151002, 151002])
 })
 
 test('with classic.SessionStart skipped, a rejected session id read is ignored and the step still writes', async ($, on) => {
@@ -4025,7 +4065,7 @@ for (const surface of SURFACES) {
 
   test(`${surface}: the roster's errors stay on top of the Pull requests view`, async ($, on) => {
     const bad = await grouped(on, $, { cards: [card('bad', { status: 'paused' })], todos: [] })
-    bad.put(`${SESSIONS}\\100.json`, { type: 'file', data: { text: 'not json' } })
+    bad.put(`${SESSIONS}${SEP}100.json`, { type: 'file', data: { text: 'not json' } })
     await bad.clock.advance(10000)
     const n = await mountOn($, surface)
     await n.press({ key: 'view-prs' })
@@ -4471,14 +4511,14 @@ test('a session file that fails its check draws the one fixed line and no row fr
       { name: 'beta', status: 'idle', sessionId: S2, cwd: 'C:\\work' },
     ]),
   )
-  w.put(`${SESSIONS}\\101.json`, { type: 'file', data: { text: '{"name":"beta","status":' } })
+  w.put(`${SESSIONS}${SEP}101.json`, { type: 'file', data: { text: '{"name":"beta","status":' } })
   await w.clock.advance(10000)
   await w.clock.settle()
   expect(lastLive(w)).toEqual([{ name: 'alpha', value: 'busy', shown: 'alpha' }])
   expect(lastLiveError(w)).toBe(UNREAD)
   const text = await textOf(mounted)
   expect(text.includes(UNREAD)).toBe(true)
-  w.put(`${SESSIONS}\\101.json`, { type: 'file', data: { text: JSON.stringify({ name: 'beta', status: 'idle', sessionId: S2 }) } })
+  w.put(`${SESSIONS}${SEP}101.json`, { type: 'file', data: { text: JSON.stringify({ name: 'beta', status: 'idle', sessionId: S2 }) } })
   await w.clock.advance(10000)
   await w.clock.settle()
   expect(lastLiveError(w)).toBe('')
@@ -4487,8 +4527,8 @@ test('a session file that fails its check draws the one fixed line and no row fr
 
 test('a sessions folder that cannot be read draws the fixed line and no rows, and keeps the cards\' last cache and meter values', async ($, on) => {
   const w = await pane(on, $, 'desktop', w => liveRows(w, [{ name: 'alpha', status: 'busy', sessionId: S1, cwd: 'C:\\work' }]))
-  w.drop(`${SESSIONS}\\100.json`)
-  w.drop(`${SESSIONS}\\100.0123abcd.key`)
+  w.drop(`${SESSIONS}${SEP}100.json`)
+  w.drop(`${SESSIONS}${SEP}100.0123abcd.key`)
   w.drop(SESSIONS)
   const kept = w.states.filter(([k]) => k === 'warmth' || k === 'meters').length
   await w.clock.advance(10000)
@@ -4522,7 +4562,7 @@ test('the pane keeps nothing from a session file but the name and status: no soc
   await w.clock.settle()
   for (const [k, v] of w.states) for (const piece of ['cc-msg', 'session_X', 'C:\\\\work', '.key']) expect(`${k} ${v}`.includes(piece)).toBe(false)
   // The file was read, and the key file beside it never was.
-  expect(w.log.some(l => l.startsWith('read ') && l.endsWith('\\100.json'))).toBe(true)
+  expect(w.log.some(l => l.startsWith('read ') && l.endsWith(`${SEP}100.json`))).toBe(true)
   expect(w.log.some(l => l.startsWith('read ') && l.endsWith('.key'))).toBe(false)
   // No Refresh button: there is nothing for it to run.
   expect(await mounted.find({ key: 'refresh' })).toBeUndefined()
@@ -5143,13 +5183,13 @@ test('S3: not seated, a wrapped load opens once through the skill hook and store
 // system and reads back what was written. Each test names the acceptance
 // claim of spec 402 (S7) it backs.
 
-const DECISIONS = `${BRIGADE}\\decisions`
-const MARKS = `${BRIGADE}\\marks`
-const LOG = `${DECISIONS}\\${SID}.json`
-const OWN_MARKS = `${MARKS}\\${SID}.json`
+const DECISIONS = `${BRIGADE}${SEP}decisions`
+const MARKS = `${BRIGADE}${SEP}marks`
+const LOG = `${DECISIONS}${SEP}${SID}.json`
+const OWN_MARKS = `${MARKS}${SEP}${SID}.json`
 const PEER = '66666666-7777-8888-9999-000000000000'
-const PEER_LOG = `${DECISIONS}\\${PEER}.json`
-const PEER_MARKS = `${MARKS}\\${PEER}.json`
+const PEER_LOG = `${DECISIONS}${SEP}${PEER}.json`
+const PEER_MARKS = `${MARKS}${SEP}${PEER}.json`
 const LOG_TOOL = 'mcp__grimoire__log_decision'
 const ENTRY = { source: 'lead', work: 'issue 411', question: 'Which tier?', options: ['Thorough', 'Standard'], pick: 'Thorough', why: 'It is sensitive.', undo: 'Re-propose the tier.' }
 const decide = async ($: any, input: Record<string, unknown> = ENTRY): Promise<{ ok: boolean; text: string }> => {
@@ -5173,7 +5213,7 @@ const readsOf = (w: World, path: string) => w.log.filter(l => l.toLowerCase() ==
 // test seeds and this session's own row in the sessions folder.
 async function decisionsPane(on: On, $: any, surface: 'terminal' | 'desktop' | 'mobile' = 'desktop', setup: (w: World) => void = () => {}) {
   const w = world(on, w => {
-    w.dirs(`${CONFIG}\\plugins`)
+    w.dirs(`${CONFIG}${SEP}plugins`)
     w.dirs(DECISIONS)
     w.dirs(MARKS)
     liveRows(w, [{ name: 'lead-a', status: 'idle', sessionId: SID }])
@@ -5357,14 +5397,15 @@ test('claim 5: an own log that fails its strict check is never overwritten, and 
   expect(r.ok).toBe(false)
   expect(r.text).toMatch(/^log_decision refused: not a decision log: /)
   expect(r.text).not.toContain('\\')
+  expect(r.text).not.toContain(CONFIG)
   expect(w.text(LOG)).toBe('{"cards":[],"todos":[]}')
 })
 
-test('claim 5: a decisions folder that is a link is refused, and nothing is written through it', async ($, on) => {
+withJunction('claim 5: a decisions folder that is a link is refused, and nothing is written through it', async ($, on) => {
   const w = world(on, w => {
     w.dirs(BRIGADE)
-    w.dirs(`${ELSEWHERE}\\d`)
-    w.put(DECISIONS, { type: 'link', kind: 'junction', target: `${ELSEWHERE}\\d` })
+    w.dirs(`${ELSEWHERE}${SEP}d`)
+    w.put(DECISIONS, { type: 'link', kind: 'junction', target: `${ELSEWHERE}${SEP}d` })
   })
   await start($)
   await brigade($)
@@ -5372,7 +5413,8 @@ test('claim 5: a decisions folder that is a link is refused, and nothing is writ
   expect(r.ok).toBe(false)
   expect(r.text).toMatch(/^log_decision refused: path: /)
   expect(r.text).not.toContain('\\')
-  expect(w.text(`${ELSEWHERE}\\d\\${SID}.json`)).toBeUndefined()
+  expect(r.text).not.toContain(CONFIG)
+  expect(w.text(`${ELSEWHERE}${SEP}d${SEP}${SID}.json`)).toBeUndefined()
 })
 
 test('claim 6: To review shows the oldest unread entry across the logs read, with n of N, the level, the id and the writer', async ($, on) => {
@@ -5625,7 +5667,7 @@ test('spec 444 claim 10: a press at the marks cap keeps a newest mark whose olde
   const L3 = '88888888-1111-2222-3333-444444444443'
   const L4 = '88888888-1111-2222-3333-444444444444'
   const L5 = '88888888-1111-2222-3333-444444444445'
-  const logs: [string, string, number][] = [[SID, LOG, 500], [PEER, PEER_LOG, 500], [L3, `${DECISIONS}\\${L3}.json`, 500], [L4, `${DECISIONS}\\${L4}.json`, 500], [L5, `${DECISIONS}\\${L5}.json`, 1]]
+  const logs: [string, string, number][] = [[SID, LOG, 500], [PEER, PEER_LOG, 500], [L3, `${DECISIONS}${SEP}${L3}.json`, 500], [L4, `${DECISIONS}${SEP}${L4}.json`, 500], [L5, `${DECISIONS}${SEP}${L5}.json`, 1]]
   const w = await flagPane(on, $, 'desktop', w => {
     const fillers: unknown[] = []
     for (const [sid, path, n] of logs) {
@@ -5650,7 +5692,7 @@ test('spec 444 claim 10: a press at the marks cap keeps a newest mark whose olde
 
 // A full marks file, about 185 KB, for entries no log holds.
 const fatMarks = () => marksText(Array.from({ length: 2000 }, (_, i) => ({ log: SID, id: String(1000 + i), entryAt: 1, state: 'read', at: 5 })))
-const fatPath = (i: number) => `${MARKS}\\00000000-0000-0000-0000-${String(i).padStart(12, '0')}.json`
+const fatPath = (i: number) => `${MARKS}${SEP}00000000-0000-0000-0000-${String(i).padStart(12, '0')}.json`
 const fullLogWorld = (on: On, filler: number) =>
   world(on, w => {
     w.dirs(DECISIONS)
@@ -5802,7 +5844,7 @@ test('spec 444 claim 10: a press passes its clock to the drop order, so an unfla
   const L3 = '88888888-1111-2222-3333-444444444443'
   const L4 = '88888888-1111-2222-3333-444444444444'
   const L5 = '88888888-1111-2222-3333-444444444445'
-  const logs: [string, string, number][] = [[SID, LOG, 500], [PEER, PEER_LOG, 500], [L3, `${DECISIONS}\\${L3}.json`, 500], [L4, `${DECISIONS}\\${L4}.json`, 500], [L5, `${DECISIONS}\\${L5}.json`, 1]]
+  const logs: [string, string, number][] = [[SID, LOG, 500], [PEER, PEER_LOG, 500], [L3, `${DECISIONS}${SEP}${L3}.json`, 500], [L4, `${DECISIONS}${SEP}${L4}.json`, 500], [L5, `${DECISIONS}${SEP}${L5}.json`, 1]]
   const w = await flagPane(on, $, 'desktop', w => {
     const fillers: unknown[] = []
     for (const [sid, path, n] of logs) {
@@ -5907,7 +5949,7 @@ test('claim 7: read marks survive a module reload and a new session', async ($, 
   // A new session: its own marks file is new, and the old one is read as another's.
   const NEW = '77777777-8888-9999-aaaa-bbbbbbbbbbbb'
   w.sid = NEW
-  await $.classic.SessionStart({ source: 'clear', session_id: NEW, transcript_path: `${CONFIG}\\projects\\C--work\\${NEW}.jsonl` })
+  await $.classic.SessionStart({ source: 'clear', session_id: NEW, transcript_path: `${CONFIG}${SEP}projects${SEP}C--work${SEP}${NEW}.jsonl` })
   await w.clock.advance(5000)
   expect(await shows(/^All caught up/)).toBe(true)
   expect(await shows(/^1 of 1$/)).toBe(false)
@@ -6005,7 +6047,7 @@ test('claim 13: from a folder whose listing passes 5,000 entries the pane reads 
   await decisionsPane(on, $, 'desktop', w => {
     seed(w, LOG, logText([kept(1, 200, { question: 'Own question?' })]))
     seed(w, PEER_LOG, logText([kept(1, 100, { question: 'Peer question?' })]))
-    for (let i = 0; i < 5001; i++) seed(w, `${DECISIONS}\\x${i}.txt`, 'x')
+    for (let i = 0; i < 5001; i++) seed(w, `${DECISIONS}${SEP}x${i}.txt`, 'x')
   })
   expect(await shows(/^Own question\?$/)).toBe(true)
   expect(await shows(/^1 of 1$/)).toBe(true)
@@ -6016,7 +6058,7 @@ test('claim 13: past 5,000 entries in the marks folder the pane still reads its 
   await decisionsPane(on, $, 'desktop', w => {
     seed(w, LOG, logText([kept(1, 200)]))
     seed(w, OWN_MARKS, marksText([{ log: SID, id: '1', entryAt: 200, state: 'read', at: 5 }]))
-    for (let i = 0; i < 5001; i++) seed(w, `${MARKS}\\x${i}.txt`, 'x')
+    for (let i = 0; i < 5001; i++) seed(w, `${MARKS}${SEP}x${i}.txt`, 'x')
   })
   expect(await shows(/^All caught up/)).toBe(true)
   expect(await shows(/over 5,000 entries/)).toBe(true)
@@ -6072,15 +6114,15 @@ test('claim 6: the card draws the entry\'s own level and id', async ($, on) => {
   expect(await shows(/^1 of 1$/)).toBe(true)
 })
 
-test('claim 5: a marks folder that is a link is refused: the press writes nothing through it and says so', async ($, on) => {
+withJunction('claim 5: a marks folder that is a link is refused: the press writes nothing through it and says so', async ($, on) => {
   const w = await decisionsPane(on, $, 'desktop', w => {
     seed(w, LOG, logText([kept(1, 200)]))
     w.drop(MARKS)
-    w.dirs(`${ELSEWHERE}\\m`)
-    w.put(MARKS, { type: 'link', kind: 'junction', target: `${ELSEWHERE}\\m` })
+    w.dirs(`${ELSEWHERE}${SEP}m`)
+    w.put(MARKS, { type: 'link', kind: 'junction', target: `${ELSEWHERE}${SEP}m` })
   })
   await press($, 'dnext-1-200')
-  expect(w.text(`${ELSEWHERE}\\m\\${SID}.json`)).toBeUndefined()
+  expect(w.text(`${ELSEWHERE}${SEP}m${SEP}${SID}.json`)).toBeUndefined()
   expect(await shows(/^Not saved: the mark could not be written$/)).toBe(true)
 })
 
@@ -6097,7 +6139,7 @@ test('claim 4: a marks file the pane skips as dated ahead marks nothing read for
 })
 
 test('claim 4: the drop rule reads every marks file through the cache: a second full call after a tick reads none again', async ($, on) => {
-  const others = Array.from({ length: 22 }, (_, i) => `${MARKS}\\${String(i).padStart(8, '0')}-7777-8888-9999-000000000000.json`)
+  const others = Array.from({ length: 22 }, (_, i) => `${MARKS}${SEP}${String(i).padStart(8, '0')}-7777-8888-9999-000000000000.json`)
   const w = world(on, w => {
     w.dirs(DECISIONS)
     w.dirs(MARKS)
@@ -6134,7 +6176,7 @@ test('claim 4: past 5,000 entries in the marks folder the drop rule still reads 
     w.dirs(MARKS)
     seed(w, LOG, logText(Array.from({ length: 500 }, (_, i) => kept(i + 1, i + 1))))
     seed(w, OWN_MARKS, marksText([{ log: SID, id: '1', entryAt: 1, state: 'read', at: 5 }]))
-    for (let i = 0; i < 5001; i++) seed(w, `${MARKS}\\x${i}.txt`, 'x')
+    for (let i = 0; i < 5001; i++) seed(w, `${MARKS}${SEP}x${i}.txt`, 'x')
   })
   await start($)
   await brigade($)
@@ -6356,9 +6398,9 @@ test('claim 9: a Dismiss whose marks cannot be written changes nothing, says so,
 // set_lead_handoff and read_lead_handoff, and the folded section at the foot
 // of the Decisions tab. Each test names the claim of spec 402 (S7) it backs.
 
-const HANDOFFS = `${BRIGADE}\\handoff`
-const OWN_HANDOFF = `${HANDOFFS}\\${SID}.json`
-const PEER_HANDOFF = `${HANDOFFS}\\${PEER}.json`
+const HANDOFFS = `${BRIGADE}${SEP}handoff`
+const OWN_HANDOFF = `${HANDOFFS}${SEP}${SID}.json`
+const PEER_HANDOFF = `${HANDOFFS}${SEP}${PEER}.json`
 const SET_TOOL = 'mcp__grimoire__set_lead_handoff'
 const READ_TOOL = 'mcp__grimoire__read_lead_handoff'
 // The SHA-256 of the transcript folders' names, C--work and C--elsewhere.
@@ -6388,7 +6430,7 @@ const fields = (text: string) => {
 }
 async function handoffWorld(on: On, $: any, setup: (w: World) => void = () => {}) {
   const w = world(on, w => {
-    w.dirs(`${CONFIG}\\plugins`)
+    w.dirs(`${CONFIG}${SEP}plugins`)
     w.dirs(HANDOFFS)
     liveRows(w, [{ name: 'lead-a', status: 'idle', sessionId: SID }, { name: 'lead-b', status: 'idle', sessionId: PEER }])
     setup(w)
@@ -6434,15 +6476,15 @@ test("claim 12: with no own hand-off, the newest by stamped time from the same p
   const AHEAD = 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa'
   const w = await handoffWorld(on, $, w => {
     seed(w, PEER_HANDOFF, handoffText(100), 1)
-    seed(w, `${HANDOFFS}\\${NEWER}.json`, handoffText(300, WORK, { ...SECTIONS, resume: ['The newest.'] }), 1)
-    seed(w, `${HANDOFFS}\\${OTHER_FOLDER}.json`, handoffText(900, ELSEWHERE_DIGEST), 1)
-    seed(w, `${HANDOFFS}\\${AHEAD}.json`, handoffText(10_000_000_000), 1)
+    seed(w, `${HANDOFFS}${SEP}${NEWER}.json`, handoffText(300, WORK, { ...SECTIONS, resume: ['The newest.'] }), 1)
+    seed(w, `${HANDOFFS}${SEP}${OTHER_FOLDER}.json`, handoffText(900, ELSEWHERE_DIGEST), 1)
+    seed(w, `${HANDOFFS}${SEP}${AHEAD}.json`, handoffText(10_000_000_000), 1)
   })
   const f = fields((await readHandoff($)).text)
   expect(f.resume).toEqual(['The newest.'])
   expect(f.writing).toBe(NOT_OWN)
   expect(f.writer).toBe('an ended session')
-  w.drop(`${HANDOFFS}\\${NEWER}.json`)
+  w.drop(`${HANDOFFS}${SEP}${NEWER}.json`)
   expect(fields((await readHandoff($)).text).writer).toBe('lead-b')
   w.drop(PEER_HANDOFF)
   expect((await readHandoff($)).text).toBe('Lead hand-off: none.')
@@ -6491,7 +6533,7 @@ test("claim 3: the hand-off tools refuse a subagent's call, a deny verdict and a
 
 test('claims 3 and 24: until the pane has offered them, the hand-off tools refuse and write nothing; once offered they work with the pane hidden or closed', async ($, on) => {
   const w = world(on, w => {
-    w.dirs(`${CONFIG}\\plugins`)
+    w.dirs(`${CONFIG}${SEP}plugins`)
     w.dirs(HANDOFFS)
     seed(w, PEER_HANDOFF, handoffText(100))
   })
@@ -6536,6 +6578,7 @@ test('claim 5: an own hand-off file that fails its strict check is never overwri
   expect(r.ok).toBe(false)
   expect(r.text).toMatch(/^set_lead_handoff refused: not a hand-off: /)
   expect(r.text).not.toContain('\\')
+  expect(r.text).not.toContain(CONFIG)
   expect(w.text(OWN_HANDOFF)).toBe('{"cards":[],"todos":[]}')
 })
 
@@ -6547,13 +6590,13 @@ test('claim 5: an own hand-off file over 32 KiB is never read as one or overwrit
   expect(w.text(OWN_HANDOFF)).toBe(big)
 })
 
-test('claim 5: a handoff folder that becomes a link after the write is told to the owner with fixed words', async ($, on) => {
+withJunction('claim 5: a handoff folder that becomes a link after the write is told to the owner with fixed words', async ($, on) => {
   const w = await handoffWorld(on, $)
   const write = w.write
   w.write = (p, t) => {
     write(p, t)
-    w.dirs(`${ELSEWHERE}\\h`)
-    w.put(HANDOFFS, { type: 'link', kind: 'junction', target: `${ELSEWHERE}\\h` })
+    w.dirs(`${ELSEWHERE}${SEP}h`)
+    w.put(HANDOFFS, { type: 'link', kind: 'junction', target: `${ELSEWHERE}${SEP}h` })
   }
   const r = await setHandoff($)
   expect(r.ok).toBe(false)
@@ -6562,19 +6605,19 @@ test('claim 5: a handoff folder that becomes a link after the write is told to t
   expect(w.toasts.some(t => t.includes('\\'))).toBe(false)
 })
 
-test('claim 5: a handoff folder that is a link is refused, and nothing is written through it', async ($, on) => {
+withJunction('claim 5: a handoff folder that is a link is refused, and nothing is written through it', async ($, on) => {
   const w = await handoffWorld(on, $, w => {
     w.drop(HANDOFFS)
     w.dirs(ELSEWHERE)
     w.put(HANDOFFS, { type: 'link', kind: 'junction', target: ELSEWHERE })
   })
   expect((await setHandoff($)).text).toMatch(/^set_lead_handoff refused: path: /)
-  expect(w.text(`${ELSEWHERE}\\${SID}.json`)).toBeUndefined()
+  expect(w.text(`${ELSEWHERE}${SEP}${SID}.json`)).toBeUndefined()
 })
 
 test('claim 13: the pane reads no hand-off while it is closed, reads its own and others once, and again only when a size or time changed', async ($, on) => {
   const w = world(on, w => {
-    w.dirs(`${CONFIG}\\plugins`)
+    w.dirs(`${CONFIG}${SEP}plugins`)
     w.dirs(HANDOFFS)
     seed(w, OWN_HANDOFF, handoffText(100))
     seed(w, PEER_HANDOFF, handoffText(200))
@@ -6605,7 +6648,7 @@ test('claim 13: from a hand-off folder whose listing passes 5,000 entries the pa
     w.dirs(HANDOFFS)
     seed(w, OWN_HANDOFF, handoffText(100, WORK, { ...SECTIONS, resume: ['Own resume line.'] }))
     seed(w, PEER_HANDOFF, handoffText(200, WORK, { ...SECTIONS, resume: ['Peer resume line.'] }))
-    for (let i = 0; i < 5001; i++) seed(w, `${HANDOFFS}\\x${i}.txt`, 'x')
+    for (let i = 0; i < 5001; i++) seed(w, `${HANDOFFS}${SEP}x${i}.txt`, 'x')
   })
   await press($, 'grp-d-handoff')
   expect(await shows(/^Own resume line\.$/)).toBe(true)
@@ -6621,7 +6664,7 @@ test('claim 13: the Lead hand-off section, folded at first, draws the hand-off r
   await decisionsPane(on, $, 'desktop', w => {
     w.dirs(HANDOFFS)
     seed(w, PEER_HANDOFF, handoffText(200, WORK, { ...SECTIONS, resume: ['Peer resume line.'] }))
-    seed(w, `${HANDOFFS}\\99999999-9999-9999-9999-999999999999.json`, handoffText(900, ELSEWHERE_DIGEST, { ...SECTIONS, resume: ['Elsewhere line.'] }))
+    seed(w, `${HANDOFFS}${SEP}99999999-9999-9999-9999-999999999999.json`, handoffText(900, ELSEWHERE_DIGEST, { ...SECTIONS, resume: ['Elsewhere line.'] }))
   })
   expect(await shows(/^Peer resume line\.$/)).toBe(false)
   await press($, 'grp-d-handoff')
@@ -6773,18 +6816,18 @@ test('claim 11: a new session reads 1, and a /clear puts no alarm in To review',
   await press($, 'level-2')
   const NEW = '77777777-8888-9999-aaaa-bbbbbbbbbbbb'
   w.sid = NEW
-  await $.classic.SessionStart({ source: 'clear', session_id: NEW, transcript_path: `${CONFIG}\\projects\\C--work\\${NEW}.jsonl` })
+  await $.classic.SessionStart({ source: 'clear', session_id: NEW, transcript_path: `${CONFIG}${SEP}projects${SEP}C--work${SEP}${NEW}.jsonl` })
   expect((await readLevel($)).text).toBe(LEVEL_1)
   await w.clock.advance(15000)
   expect((await readLevel($)).text).toBe(LEVEL_1)
   expect(ownEntries(w)).toEqual(['owner 2 Auto · Moved in the pane · level 1'])
-  expect(parsed(w, `${DECISIONS}\\${NEW}.json`)).toBeNull()
+  expect(parsed(w, `${DECISIONS}${SEP}${NEW}.json`)).toBeNull()
   expect(await shows(/^1 of /)).toBe(false)
 })
 
 test('claim 11: the late offer never undoes a press: a pane placed at the load, or one the owner pressed in before the turn, is not reset again', async ($, on) => {
   const w = loads(on, $, w => {
-    w.dirs(`${CONFIG}\\plugins`)
+    w.dirs(`${CONFIG}${SEP}plugins`)
     w.dirs(DECISIONS)
   })
   await start($)
@@ -6821,7 +6864,7 @@ const NEW_SID = '77777777-8888-9999-aaaa-bbbbbbbbbbbb'
 // The engine moves to another session id by a clear or a resume.
 const switchTo = async ($: any, w: World, sid: string, source: 'clear' | 'resume') => {
   w.sid = sid
-  await $.classic.SessionStart({ source, session_id: sid, transcript_path: sid === SID ? TRANSCRIPT : `${CONFIG}\\projects\\C--work\\${sid}.jsonl` })
+  await $.classic.SessionStart({ source, session_id: sid, transcript_path: sid === SID ? TRANSCRIPT : `${CONFIG}${SEP}projects${SEP}C--work${SEP}${sid}.jsonl` })
 }
 
 for (const source of ['clear', 'resume'] as const) {
@@ -7952,7 +7995,7 @@ test('claim 24: with the pane behind another tab or closed, read_autonomy answer
 
 test('claim 24: a session whose pane never offered the tools has none of them, and a reload with the pane closed withdraws them', async ($, on) => {
   const w = world(on, w => {
-    w.dirs(`${CONFIG}\\plugins`)
+    w.dirs(`${CONFIG}${SEP}plugins`)
     w.dirs(DECISIONS)
     w.dirs(HANDOFFS)
   })
@@ -8053,7 +8096,7 @@ test('claim 25: a showing of the pane no longer resets the level, and writes no 
 
 test('claim 25: a head-chef load and the late offer that show the pane keep the level', async ($, on) => {
   const w = loads(on, $, w => {
-    w.dirs(`${CONFIG}\\plugins`)
+    w.dirs(`${CONFIG}${SEP}plugins`)
     w.dirs(DECISIONS)
   })
   await start($)
@@ -8555,7 +8598,7 @@ test('claim 17: a base failure leaves the unavailable line once no shown card ne
 
 const T447 = 100_000_000
 const THIRD = 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee'
-const THIRD_LOG = `${DECISIONS}\\${THIRD}.json`
+const THIRD_LOG = `${DECISIONS}${SEP}${THIRD}.json`
 // The peer's log: an unanswered waiting entry, a waiting entry its Relayed
 // answer answers, a Relayed entry that answers nothing, a plain Lead entry and
 // an alarm. The block takes 2, 3 and 4.
@@ -8577,7 +8620,7 @@ const lastValues = (states: [string, string][]) => new Map(states.filter(([k]) =
 // opens, this session's own row in the sessions folder, and the peer's log.
 async function endedPane(on: On, $: any, surface: 'terminal' | 'desktop' | 'mobile' = 'desktop', setup: (w: World) => void = () => {}) {
   const w = world(on, w => {
-    w.dirs(`${CONFIG}\\plugins`)
+    w.dirs(`${CONFIG}${SEP}plugins`)
     w.dirs(DECISIONS)
     w.dirs(MARKS)
     liveRows(w, [{ name: 'lead-a', status: 'idle', sessionId: SID }])
@@ -8642,7 +8685,7 @@ test('spec 447 claim 3: a session read that is not complete, or that returns not
   const w = await endedPane(on, $)
   expect((await endedKeys()).length).toBe(1)
   // A session file that fails its check: the read is not complete.
-  w.put(`${SESSIONS}\\999.json`, { type: 'file', data: { text: 'not a session' } })
+  w.put(`${SESSIONS}${SEP}999.json`, { type: 'file', data: { text: 'not a session' } })
   await w.clock.advance(10000)
   expect(await endedKeys()).toEqual([])
   expect(await shows(/^1 of 5$/)).toBe(true)
@@ -8650,7 +8693,7 @@ test('spec 447 claim 3: a session read that is not complete, or that returns not
   await press($, 'dended')
   expect(await shows(/^The pane cannot tell yet which sessions have ended\.$/)).toBe(true)
   // The file goes: the read is complete again, and the line is back.
-  w.drop(`${SESSIONS}\\999.json`)
+  w.drop(`${SESSIONS}${SEP}999.json`)
   await w.clock.advance(10000)
   expect((await endedKeys()).length).toBe(1)
   expect(await shows(/^The pane cannot tell yet which sessions have ended\.$/)).toBe(false)
@@ -8664,7 +8707,7 @@ test('spec 447 claim 3: a session read that is not complete, or that returns not
   await w.clock.advance(10000)
   expect((await endedKeys()).length).toBe(1)
   // No sessions folder: the read returns nothing, and every state is unknown, not the last rows.
-  for (const e of w.list(SESSIONS) ?? []) w.drop(`${SESSIONS}\\${e.name}`)
+  for (const e of w.list(SESSIONS) ?? []) w.drop(`${SESSIONS}${SEP}${e.name}`)
   w.drop(SESSIONS)
   await w.clock.advance(10000)
   expect(await endedKeys()).toEqual([])
@@ -8807,7 +8850,7 @@ test('spec 447 claim 8 (Test round 1, q3 A), issue 466: a Mark all read that wou
   // 1,998 read marks, each the newest state of a plain entry in a log the pane reads.
   const live = LOGS.flatMap(sid => Array.from({ length: 500 }, (_, i) => ({ log: sid, id: String(i + 1), entryAt: 500 + i, state: 'read', at: 2000 + i }))).slice(0, 1998)
   const w = await endedPane(on, $, 'desktop', w => {
-    LOGS.forEach((sid, n) => seed(w, `${DECISIONS}\\${sid}.json`, big(n)))
+    LOGS.forEach((sid, n) => seed(w, `${DECISIONS}${SEP}${sid}.json`, big(n)))
     seed(w, OWN_MARKS, marksText(live))
   })
   // The peer's waiting entry and alarm, and the line's three.
@@ -8937,7 +8980,7 @@ test('issue 466: a Mark all read that would push out a live mark writes nothing 
   // 1,998 read marks, each the newest state of a plain entry in a log the pane reads.
   const live = LOGS.flatMap(sid => Array.from({ length: 500 }, (_, i) => ({ log: sid, id: String(i + 1), entryAt: 500 + i, state: 'read', at: 2000 + i }))).slice(0, 1998)
   const w = await decisionsPane(on, $, 'desktop', w => {
-    LOGS.forEach((sid, n) => seed(w, `${DECISIONS}\\${sid}.json`, big(n)))
+    LOGS.forEach((sid, n) => seed(w, `${DECISIONS}${SEP}${sid}.json`, big(n)))
     seed(w, LOG, logText([1, 2, 3].map(i => kept(i, 100 * i, { source: 'relayed' }))))
     seed(w, OWN_MARKS, marksText(live))
   })

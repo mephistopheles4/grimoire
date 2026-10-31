@@ -12,6 +12,9 @@ const BAND = {
   props: { hasSurvey: false, isWorking: false, maxRows: 20, bodyColumns: 80, scroll: { offset: 0, bodyRows: 20 }, view: {} },
 } as const
 const START = { cwd: 'C:\\work', surface: null, isInteractive: true } as const
+// A transcript path as the host spells one: a drive letter in this file's
+// address is Windows (#481).
+const TRANSCRIPT = /^file:\/\/\/[A-Za-z]:/.test(import.meta.url) ? 'C:\\work\\t.jsonl' : '/work/t.jsonl'
 
 // What a session answers beneath the plugin: just enough for the Brigade
 // mod's own start, with no pane open, and a store the test can seed, or one
@@ -144,7 +147,7 @@ describe('permission warning', () => {
     const w = session(on)
     await $.session.start(START)
     expect(w.registered).toEqual(['show_permission_warning'])
-    await $.classic.SessionStart({ source: 'clear', session_id: 'a1b2c3d4-0000-4000-8000-000000000000', transcript_path: 'C:\\work\\t.jsonl' })
+    await $.classic.SessionStart({ source: 'clear', session_id: 'a1b2c3d4-0000-4000-8000-000000000000', transcript_path: TRANSCRIPT })
     expect(w.registered).toEqual(['show_permission_warning', 'show_permission_warning'])
   })
 

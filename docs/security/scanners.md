@@ -472,7 +472,7 @@ Measured on 2.1.314, in athanor's image with no network:
 
 ### The pin
 
-**Claude Code 2.1.314**, set on 2026-10-31, in three places that move together:
+**Claude Code 2.1.314**, set on 2026-10-31, in four places that move together:
 
 - the `validate` job: `@anthropic-ai/claude-code-linux-x64@2.1.314`, written
   three times (the package in the fetch step, the tarball's file name below
@@ -480,8 +480,11 @@ Measured on 2.1.314, in athanor's image with no network:
   against);
 - the `plugin-test` job: `@anthropic-ai/claude-code-win32-x64@2.1.314`, written
   the same three times;
+- the `plugin-test-linux` job: the Linux package, written the same three
+  times;
 - `tests/container/Dockerfile`, athanor's image: the Linux package, written
-  four times in its one `RUN` line, for `athanor run validate`, beside the
+  four times in its one `RUN` line, for `athanor run validate` and
+  `athanor run plugin-test`, beside the
   tarball's sha512, which the build checks before it unpacks anything.
 
 Each version step fails on any other output, so a missing binary or a wrong
@@ -491,12 +494,15 @@ pane draws.
 
 ### The mod's tests
 
-The `plugin-test` job runs `claude plugin test .` on a Windows runner. A failing
-test and a test file that does not load both exit `1`, so the exit code is the
-gate. It needs no sign-in and makes no model call, measured on 2.1.314 with an
-empty config folder and no API key. It runs on Windows because the tests' world
-is a Windows machine: on Linux the engine reads its `C:\` paths as relative
-ones, and most tests fail. For the same reason athanor does not run it.
+The `plugin-test` job runs `claude plugin test .` on a Windows runner, and the
+`plugin-test-linux` job runs it on a Linux one. A failing test and a test file
+that does not load both exit `1`, so the exit code is the gate. It needs no
+sign-in and makes no model call, measured on 2.1.314 with an empty config
+folder and no API key. The tests' world follows its host (#481): its paths are
+the host's, and the tests that build a junction run on Windows only, since
+Linux has none and their recorded answers come from Windows. Off Windows they
+are not declared, and the run prints each one's title as skipped. athanor runs
+the same tests as `athanor run plugin-test`.
 
 **Fetched, not installed.** `npm pack` downloads the platform package's tarball
 and `tar` unpacks it outside the checkout. The package holds one executable and
@@ -542,7 +548,7 @@ and the check validates against a stale schema.
    request.
 4. Re-measure the list under "What it catches", and update every version in
    this section and in the workflow's comments.
-5. `plugin-test` must pass at the new version. A test that fails only there is
+5. `plugin-test` and `plugin-test-linux` must pass at the new version. A test that fails only there is
    read before the bump lands.
 
 ### Reproducing a red run

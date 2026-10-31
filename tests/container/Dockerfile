@@ -16,13 +16,13 @@ RUN apt-get update \
  && apt-get install -y --no-install-recommends git \
  && rm -rf /var/lib/apt/lists/*
 
-# Claude Code, for the `validate` command: the same pinned platform package
-# .github/workflows/plugin-validate.yml fetches, fetched the same way, with
-# `npm pack` and `tar` and no install, so no package script runs. The pins
-# move together; docs/security/scanners.md says how to bump them. The fetch is
-# at build time: athanor runs the commands with no network. The mod's tests,
-# `claude plugin test .`, are not run here: they need a Windows host. The
-# folder goes last on PATH, so nothing in the package can stand in for the
+# Claude Code, for the `validate` and `plugin-test` commands: the same pinned
+# platform package .github/workflows/plugin-validate.yml fetches, fetched the
+# same way, with `npm pack` and `tar` and no install, so no package script runs.
+# The pins move together; docs/security/scanners.md says how to bump them. The
+# fetch is at build time: athanor runs the commands with no network. The mod's
+# tests that build a junction are not declared here, as on any host but
+# Windows, and the run prints their titles (#481). The folder goes last on PATH, so nothing in the package can stand in for the
 # image's own sh, node or git.
 #
 # The tarball is held to its sha512 before it is unpacked: the registry's
