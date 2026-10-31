@@ -219,7 +219,7 @@ dates, sources and premises are in the [provenance fold](#provenance).
 **C4. Other plugins share the mod's trust.** In plugin state, the plugin's store or its data folder:
 - another plugin can **read** usage summaries, roster files, the decision log, marks and hand-off, and search text;
 - another plugin can **rewrite** the session-start usage record, **write** a long tabs list, **plant** the permission warning's dismissal, and **plant** a hook in cleanup's hooks folder between the tool's last check and the lead's removal call (TA1, E29);
-- another plugin can **rewrite or press** the autonomy level, which can set level 3. A 3 counts only once the owner confirms it in the lead's chat, but a plugin that can add rows to the lead's transcript can also forge that confirmation, and its presses log as the owner's (E35a). Since 0.95.0 such a plugin can also turn a `/brigade` the owner types, and possibly any line the owner submits, into a level command with a goal of its own, which lasts through compactions; whether a plugin's own run can carry the owner's stamp is not measured.
+- another plugin can **rewrite or press** the autonomy level, which can set level 3. A 3 counts only once the owner confirms it in the lead's chat, but a plugin that can add rows to the lead's transcript can also forge that confirmation, and its presses log as the owner's (E35a). Since 0.95.0 such a plugin can also turn a `/brigade` the owner types, and possibly any line the owner submits, into a level command with a goal of its own, which lasts through compactions; whether a plugin's own run, or the model's, can carry the owner's stamp is not measured.
 
 An engine answer it supplies can misstate a session's liveness. Not inside C4: a plugin planting or rewriting the decision log, marks, hand-off or summary files (E40's and E20's plugin parts, P1), rewriting the search text, reading the report store's question or a session's Remote Control link (data block parts, P6), planting or hiding refusal lines (E24, P7), cleanup's press, the engine's own session files, and other plugins' tool calls seen by grimoire's hook. Those are candidates (P1, P2, P4, P6, P7). Old row 15. Entries E16, E19a, E25, E27a, E30, E33, E34, E35a, E38a, E44.
 
@@ -367,7 +367,7 @@ None of these is in force. A candidate does not meet issue 359's H1. Only a cont
 - D4c, the transcript part. The filled start prompt's copy in the session transcript (C7). Its command-line part is accepted (E65).
 - D4a. The pane keeps a background session's Remote Control link in plugin state that other plugins can read (C4).
 - D4f. `claude rm` keeps a removed background session's transcript; what it keeps of the job's own store is not checked (C7).
-- D4h. Not checked in 0.12.0: rename and reopen effects on the Desktop id, a phone send, `/compact`, a stated `from-session`, the Windows pipe path, and POSIX socket permissions (C7).
+- D4h. Not checked in 0.12.0: rename and reopen effects on the Desktop id, a phone send, `/compact` (for the Brigade mod: the live lead's log showed three compactions with no reload before them on 2026-10-30 and 31; H1a, a live `/compact`, is pending), a stated `from-session`, the Windows pipe path, and POSIX socket permissions (C7).
 - The level command's goal (0.95.0): its phone leg, the slider box drawn over Remote Control, and whether other plugins' pane hooks read the slider box. Not checked (C7, E78).
 - D4j. A status file planted with an ended session's id and name could still receive one of the head chef's sends; nothing else stops it (C4, C7).
 
@@ -610,7 +610,7 @@ Every control the base matrix named, by risk, by name and never by its steps. A 
 - the autonomy level: only a slider press or the owner's level command sets a level above 1; the stored level read only as 1, 2 or 3; a differing stored level reads as 1 and logs an alarm; a raise only once its Owner entry is written; one lock ([row 15](brigade.md#row-15))
 - resets to 1 at a module reload, and at a compaction unless the owner's level command set the 3, retried by the level's poll ([row 15](brigade.md#row-15))
 - the level-3 band with the press time and Dismiss; the level drawn on every tab ([row 15](brigade.md#row-15))
-- a 3 counts only once the owner confirms it in the lead's chat, which a compaction ends, or sets it with `/brigade level 3`, which acts only on a run the engine stamps as the owner's Enter or a Remote Control message (intended; not measured against another plugin's own run or hooks) ([row 15](brigade.md#row-15))
+- a 3 counts only once the owner confirms it in the lead's chat, which a compaction ends, or sets it with `/brigade level 3`, which acts only on a run the engine stamps as the owner's Enter or a Remote Control message (intended; not measured against another plugin's own run or hooks, or the model's own run) ([row 15](brigade.md#row-15))
 
 #### R8. Key or text leaves (old rows 6, 10)
 

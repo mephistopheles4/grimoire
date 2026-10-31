@@ -421,8 +421,9 @@ effort's branch, and of branches based on it, until the owner answers.
 level 2` or `/brigade level 3 <goal>`** at the prompt or from the phone over
 Remote Control. The mod acts on it only when the engine stamps the run as the
 owner's Enter or a Remote Control message, so a run the engine stamps as
-anything else sets nothing. Whether another plugin can run the command with
-the owner's stamp, or a hook can change the stamp, is not yet measured; until
+anything else sets nothing. Whether another plugin, or the model itself, can run
+the command with the owner's stamp, or a hook can change the stamp, is not yet
+measured; until
 it is, that path sits in the class the owner accepted for plugins that forge a
 confirmation (E35a in the threat model). A 3 it sets is confirmed, with
 its goal, which is cleaned, held to 300 characters and not screened for

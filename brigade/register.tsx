@@ -2554,7 +2554,8 @@ async function commandLevel($: EngineInterface, l: Level, goal: string | undefin
     raising.set(sid, { turn, to: l })
     return { kind: 'raise' as const, turn, from: inForce }
   })
-  const set = l === 3 ? `Autonomy set to 3 (${LEVEL_NAMES[3]}) toward: ${goal ?? ''}. It lasts through compactions; a slider press, another level command, an alarm, a reload or a clear ends it.` : `Autonomy set to ${l} (${LEVEL_NAMES[l]}).`
+  // A 3's goal comes last, after a fixed fence, as in read_autonomy's answer.
+  const set = l === 3 ? `Autonomy set to 3 (${LEVEL_NAMES[3]}). It lasts through compactions; a slider press, another level command, an alarm, a reload or a clear ends it. The goal, as it landed, is everything after this colon: ${goal ?? ''}` : `Autonomy set to ${l} (${LEVEL_NAMES[l]}).`
   if (step.kind === 'none') return `Autonomy is already ${l} (${LEVEL_NAMES[l]}).`
   if (step.kind === 'lower') {
     await appendFixed($, sid, commandEntry(l), l)
@@ -3136,9 +3137,14 @@ export const register: Register = on => {
       text: `${opened.isPlaced ? 'Brigade pane opened.' : `Brigade pane is open but not shown: ${opened.reason}.`}${named}${ready}`,
     }
     // A throw, an overrun or a wrong shape on the level path answers its one
-    // fixed line and never reaches the hooks beneath; any other args go on as
-    // they did before this handler.
-  }).catch(($, e, next) => (typeof e.args !== 'string' || isLevelCommand(e.args) ? { text: LEVEL_REPLIES.failed } : next(e)))
+    // fixed line, never reaches the hooks beneath, and voids a command still
+    // being logged, so a 3 never lands after "Not set"; any other args go on
+    // as they did before this handler.
+  }).catch(($, e, next) => {
+    if (!isLevelCommand(e.args)) return next(e)
+    commandsVoided++
+    return { text: LEVEL_REPLIES.failed }
+  })
 
   // The head-chef skill's load opens the pane, or finds it open, and appends
   // one fixed line to the skill's text, one per outcome (#380). Every other
