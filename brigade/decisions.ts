@@ -701,15 +701,34 @@ export function openWaiting(logs: readonly ReadLog[], sid: string): Set<string> 
 }
 
 /** The entries Mark all read takes (issue 466): everything under To review,
- *  its shown rows and every ended session's line, of every kind and log, but
- *  the `open` keys `openWaiting` gives (issue 486), the first 500 of them, so
- *  its key stays in range and a second press takes the rest. `hash` is the first 16 hex digits of SHA-256 over the set's mark keys,
- *  sorted and joined by line breaks: a staleness check on the press, not a
- *  secret. */
-export function markAllSet(shown: readonly Row[], lines: readonly EndedLine[], open: ReadonlySet<string> = new Set()) {
-  const rows = [...shown, ...lines.flatMap(l => l.rows)].filter(r => !open.has(rowKey(r))).slice(0, MAX_ENTRIES)
-  if (rows.length === 0) return { rows, n: 0, hash: '' }
-  return { rows, n: rows.length, hash: setHash(rows) }
+ *  its cards and every ended session's line, of every kind and log, but the
+ *  cards whose entry is one of the `open` keys `openWaiting` gives (issue
+ *  486), taken whole up to 500 entries, so its key stays in range and a second
+ *  press takes the rest. `n` counts what leaves To review and `total` all
+ *  that is under it, each card once, a pair as one, and each ended line's
+ *  entry (issue 496). `hash` is the first 16 hex digits of SHA-256 over the
+ *  set's mark keys, sorted and joined by line breaks: a staleness check on the
+ *  press, not a secret. */
+export function markAllSet(cards: readonly ReviewCard[], lines: readonly EndedLine[], open: ReadonlySet<string> = new Set()) {
+  const fromCards = cards.map(c => (c.answer === undefined ? [c.row] : [c.row, c.answer]))
+  const fromLines = lines.flatMap(l => l.rows.map(r => [r]))
+  const total = fromCards.length + fromLines.length
+  let size = 0
+  let n = 0
+  const take = (units: Row[][]) => {
+    const out: Row[] = []
+    for (const u of units) {
+      if (u.some(r => open.has(rowKey(r)))) continue
+      if (size + u.length > MAX_ENTRIES) break
+      out.push(...u)
+      size += u.length
+      n++
+    }
+    return out
+  }
+  const rows = [...take(fromCards).sort(oldestFirst), ...take(fromLines)]
+  if (rows.length === 0) return { rows, n: 0, total, hash: '' }
+  return { rows, n, total, hash: setHash(rows) }
 }
 
 // A press's staleness check: the first 16 hex digits of SHA-256 over the
@@ -783,13 +802,19 @@ export function sourceLabel(e: DecisionEntry, writer: string, mine = false): str
 // from the same words, so an entry in any other shape is skipped.
 
 export type Level = 1 | 2 | 3
-// Level 3 was "Full throttle" until issue 464 renamed it.
-export const LEVEL_NAMES: Readonly<Record<Level, string>> = { 1: 'Manual', 2: 'Auto', 3: 'Turbo mode' }
-/** A level as an option of the pane's entries: "1 Manual", "2 Auto", "3 Turbo mode". */
+// Level 3 was "Full throttle" until issue 464 renamed it "Turbo mode", and
+// "Turbo mode" until issue 496 renamed it "Turbo".
+export const LEVEL_NAMES: Readonly<Record<Level, string>> = { 1: 'Manual', 2: 'Auto', 3: 'Turbo' }
+/** A level as an option of the pane's entries: "1 Manual", "2 Auto", "3 Turbo". */
 export const levelOption = (l: Level) => `${l} ${LEVEL_NAMES[l]}`
 const LEVEL_OPTIONS = ([1, 2, 3] as const).map(levelOption)
-// The options as logs written before the rename hold them, read and never written.
-const OLD_LEVEL_OPTIONS = ['1 Manual', '2 Auto', '3 Full throttle']
+// The options as logs written before each rename hold them, read and never
+// written: the first name's from before the level command existed, so with no
+// command entry, and Turbo mode, from 0.99.0 to 0.112.0, with one.
+const OLD_LEVEL_OPTIONS = [
+  { options: ['1 Manual', '2 Auto', '3 Full throttle'], command: false },
+  { options: ['1 Manual', '2 Auto', '3 Turbo mode'], command: true },
+]
 
 /** A stored level: the number 1, 2 or 3, and 1 for anything else. */
 export const levelFrom = (v: unknown): Level => (v === 2 || v === 3 ? v : 1)
@@ -858,17 +883,17 @@ export function unreadOwnAlarm(log: DecisionLog, sid: string, wrote: ReadonlySet
 
 /** Whether an entry is in its source's fixed shape: always true for a Lead
  *  or Relayed entry, which the tool's own check holds. A log written before
- *  the rename holds the old options throughout, and only a whole old shape
- *  reads as one: never a mix, and never a command entry, which no build
- *  wrote with the old name. */
+ *  a rename holds that name's options throughout, and only a whole old shape
+ *  reads as one: never a mix, and never a command entry under the first old
+ *  name, which no build wrote. */
 export function inFixedShape(e: DecisionEntry): boolean {
   if (e.source === 'lead' || e.source === 'relayed') return true
-  const old = e.options.length === OLD_LEVEL_OPTIONS.length && e.options.every((o, i) => o === OLD_LEVEL_OPTIONS[i])
-  const options = old ? OLD_LEVEL_OPTIONS : LEVEL_OPTIONS
+  const old = OLD_LEVEL_OPTIONS.find(s => e.options.length === s.options.length && e.options.every((o, i) => o === s.options[i]))
+  const options = old?.options ?? LEVEL_OPTIONS
   const picked = levelFrom(options.indexOf(e.pick) + 1)
   const built =
     e.source === 'owner'
-      ? (e.why === COMMAND_WHY && !old ? commandEntry : ownerEntry)(picked)
+      ? (e.why === COMMAND_WHY && (old?.command ?? true) ? commandEntry : ownerEntry)(picked)
       : e.source === 'pane'
         ? paneEntry((Object.keys(PANE_WHYS) as PaneWhy[]).find(k => PANE_WHYS[k] === e.why) ?? 'shown')
         : alarmEntry(picked)

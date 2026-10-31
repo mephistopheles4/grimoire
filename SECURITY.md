@@ -390,7 +390,7 @@ foot of the Decisions tab. What follows from it:
 
 **Since 0.84.0 the owner sets the lead's autonomy level** (spec 402, ticket
 4). A slider at the foot of the Decisions tab has three stops, 1 Manual, 2
-Auto and 3 Turbo mode (Full throttle before 0.99.0), and only the owner sets
+Auto and 3 Turbo (Turbo mode before 0.113.0), and only the owner sets
 a level above 1: by a press on it or, since 0.99.0, by the level command. **A
 level 3 the owner has confirmed in the lead's chat, with a goal in the owner's
 words there, lets the lead merge pull requests, post, waive reviews and settle

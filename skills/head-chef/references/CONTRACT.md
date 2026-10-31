@@ -1,6 +1,6 @@
 # Contract: head-chef
 
-Version: 1.9.0
+Version: 1.9.1
 Kind: skill
 Level: Thorough
 
@@ -456,7 +456,7 @@ under level 3, relayed the same day.
   that effort's step, and carries on with everything else; it shows no
   blocking card.
 - **Confirmed** (402; rev 4 S3.2; renamed in issue 464, the owner's words,
-  relayed). **Level 3, Turbo mode** (Full throttle before 1.5.0). Once the 3
+  relayed). **Level 3, Turbo** (Turbo mode before 1.9.1). Once the 3
   is confirmed, set by the owner's command or a press the owner confirmed in
   its chat, with a goal, it runs toward the goal
   without stopping, and takes its own pick on every decision toward it. The
@@ -557,7 +557,7 @@ under level 3, relayed the same day.
 - **Confirmed** (rev 4 S3.8). **Where no banner shows.** When its chat is
   reached over Remote Control, or on a surface where the level-3 banner cannot show
   (the mobile app, claude.ai, VS Code), it opens each report at level 3 with
-  one line naming the state: "Turbo mode since HH:MM UTC, toward <goal by
+  one line naming the state: "Turbo since HH:MM UTC, toward <goal by
   repository and issue>". It knows the surface from what the Code tab's
   tools tell it, or from the owner's words; when it cannot tell, it writes
   the line.
@@ -929,7 +929,7 @@ The first two rows are rules each session follows through its start prompt.
 | lead | the Desktop session the head chef runs in |
 | name-back | the list the head chef shows before an act that cannot be undone, naming exactly what it will touch |
 | permission warning (**Decided**) | the band above the prompt that says what the head chef's sessions put at risk, with an I understand button and a Don't show again box |
-| level (**Confirmed**, issues 416 and 464) | how much the lead decides alone: 1 Manual, 2 Auto or 3 Turbo mode, set only by the owner: a press on the Brigade pane's slider, or the `/brigade level` command |
+| level (**Confirmed**, issues 416 and 464) | how much the lead decides alone: 1 Manual, 2 Auto or 3 Turbo, set only by the owner: a press on the Brigade pane's slider, or the `/brigade level` command |
 | goal (**Confirmed**, issues 416 and 464) | the work a level-3 lead runs toward, in the owner's words in the lead's chat or in the `/brigade level 3` command |
 | waiting entry (**Confirmed**, issue 416) | a decision the lead logs for the owner, with no pick, shown in the Decisions tab as "Waits for you" |
 | idle notice (**Confirmed**, issue 450, rev 4 S6.7) | the one notice the message tool's `notify_when_idle` gives when a session next goes idle or exits |
