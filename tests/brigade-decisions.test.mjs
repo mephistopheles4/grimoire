@@ -25,7 +25,7 @@ const {
   MAX_HANDOFF_BYTES, checkHandoffInput, checkHandoff, serializeHandoff, chooseHandoff,
   levelFrom, storedLevel, levelInForce, ownerEntry, paneEntry, alarmEntry, inFixedShape, unreadOwnAlarm, clockTime,
   drawnLogs, markAllSet, parseMarkAllKey,
-  levelOption, commandEntry, parseLevelCommand, levelOriginAllowed, commandHolds, LEVEL_REPLIES,
+  levelOption, commandEntry, parseLevelCommand, isLevelCommand, levelOriginAllowed, commandHolds, LEVEL_REPLIES,
 } = d;
 
 const SID = '11111111-2222-3333-4444-555555555555';
@@ -1265,7 +1265,11 @@ test('C3: the grammar takes level 1, level 2 and level 3 with a goal, and refuse
   // The goal is cleaned as oneLine cleans: controls become spaces, hidden characters go, runs of space fold.
   assert.deepEqual(parseLevelCommand('level 3 issue\u{0}464\n on\u{200B}e   repo'), { level: 3, goal: 'issue 464 one repo' });
   // Not a level command: today's /brigade path.
-  for (const args of ['', '   ', 'open', 'levels 3', 'levelx', 'go level 3']) assert.equal(parseLevelCommand(args), undefined, args);
+  for (const args of ['', '   ', 'open', 'levels 3', 'levelx', 'go level 3']) {
+    assert.equal(parseLevelCommand(args), undefined, args);
+    assert.equal(isLevelCommand(args), false, args);
+  }
+  for (const args of ['level', ' LEVEL 3 x', 'level 9']) assert.equal(isLevelCommand(args), true, args);
   for (const args of ['level', 'level 4', 'level 0', 'level three', 'level 1 now', 'level 2 issue 464', 'level -1', 'level 3x goal']) {
     assert.deepEqual(parseLevelCommand(args), { refused: LEVEL_REPLIES.usage }, args);
   }

@@ -934,11 +934,16 @@ export const LEVEL_REPLIES = {
   notOffered: ' The lead cannot read it until the Brigade pane opens: type /brigade.',
 } as const
 
+const LEVEL_ARGS = /^level(?:\s+([\s\S]*))?$/i
+/** Whether `/brigade`'s args are the level command: the word `level`, alone
+ *  or before a space. Read before the origin gate, and nothing more of the args. */
+export const isLevelCommand = (args: string): boolean => LEVEL_ARGS.test(args.trim())
+
 /** The level command in `/brigade`'s args, or undefined when the args are not
  *  one (today's path, which opens the pane). The goal is cleaned as `oneLine`
  *  cleans, with nothing cut: one past GOAL_MAX characters refuses. */
 export function parseLevelCommand(args: string): { level: Level; goal?: string } | { refused: string } | undefined {
-  const m = /^level(?:\s+([\s\S]*))?$/i.exec(args.trim())
+  const m = LEVEL_ARGS.exec(args.trim())
   if (m === null) return undefined
   const w = /^(\S+)(?:\s+([\s\S]*))?$/.exec(m[1] ?? '')
   if (w === null) return { refused: LEVEL_REPLIES.usage }
