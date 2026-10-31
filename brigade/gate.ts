@@ -94,8 +94,8 @@ export function takeEntry(window: Window, kind: 'desktop' | 'bg', id: string, no
  *  there. The model's own call is measured at the field test (H1). */
 export const fromEngine = (origin: unknown): boolean => isRecord(origin) && origin.plugin === 'engine' && origin.tier === 'core'
 
-// The engine's own fields on a tool call, as brigade/scan.ts lists them.
-// Everything else is the model's input.
+// The engine's own fields on a tool call, by name. Everything else is the
+// model's input.
 export const ENVELOPE = ['tool', 'tool_use_id', 'agentId', 'requestMeta', 'consent']
 
 /** Whether an archive call passes: the model's own call on the main loop,

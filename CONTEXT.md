@@ -17,16 +17,6 @@ goes idle or exits, after it asked for one with the message tool's
 place of polling.
 _Avoid_: idle ping, heartbeat, poll
 
-**Outbound scan**:
-The Brigade mod's check of text a session is about to send, a `gh` post, a
-`git` commit or tag message, a message to another session or a Brigade tool's
-input, which refuses the call when the text holds a secret's shape or, where
-it leaves the machine, an email address or a home path. Off by default; only
-the owner's typed `/brigade scan on` turns it on, for every session on the
-machine. A backstop for accidents beside the skill's data rule, never in its
-place.
-_Avoid_: secret scanner, leak guard, data rule
-
 **Autonomy level**:
 How far the lead may decide on its own in one lead session: 1 Manual, 2 Auto
 or 3 Turbo mode (Full throttle before 0.99.0). Only the owner sets it: by a

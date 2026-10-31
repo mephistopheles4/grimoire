@@ -216,9 +216,7 @@ the engine clock and the level in force (since 0.84.0, the level
 `read_autonomy` would answer),
 and refuses an input that carries any of them, a source other than `lead` or
 `relayed`, or a field holding a control, hidden or direction-changing
-character, text shaped like a session id, a Desktop id or a Remote Control
-link, a value shaped like a known key, an email address or a home-folder
-path; the refusal names the shape, never the value. Like `set_roster`
+character. Like `set_roster`
 it skips the permission prompt in every mode, works only once the mod has
 offered it to this session since its last reload, and since 0.88.0 with the pane shown,
 behind another tab or closed alike, and refuses a subagent's call, a
@@ -249,8 +247,9 @@ cleared one. "Mark all N read" matches its count-and-hash button key whole,
 works out its set again inside the marks queue's turn and acts only when the
 set is unchanged. Since 0.98.0 (issue 466) it takes everything under To
 review that the search shows, of every kind and from every log the tab draws:
-Lead, Relayed, waiting entries and alarms, and every ended session's line;
-before, it took only the pane's own session's plain Lead entries. It writes nothing, and says the marks file is full of entries the
+Lead, Relayed, waiting entries and alarms, and every ended session's line,
+but the pane's own session's waiting entries that no Relayed entry answers (since
+0.109.0, issue 486); before 0.98.0, it took only the pane's own session's plain Lead entries. It writes nothing, and says the marks file is full of entries the
 owner read, when the caps would push out a mark that is still an entry's
 newest state. A mark leaves the log untouched, so a waiting entry marked read
 keeps its link and a later answer still pairs with it. The hash is the mod's
@@ -396,13 +395,12 @@ a level above 1: by a press on it or, since 0.99.0, by the level command. **A
 level 3 the owner has confirmed in the lead's chat, with a goal in the owner's
 words there, lets the lead merge pull requests, post, waive reviews and settle
 security findings toward that goal without a per-act word from the owner**; it
-logs each act before it. Since head-chef 0.17.0 these still wait for the
-owner at level 3: a finding that would expose a secret or personal data; a
-post, merge text or commit message that would carry personal data or private
-work; an accepted-risk record; a merge that removes or weakens a control the
-threat model or this file names; an install; and cleanup. A secret or
-personal-data finding holds every merge, push and pull request of its
-effort's branch, and of branches based on it, until the owner answers.
+logs each act before it. Since head-chef 1.7.0 (issue 486) these still wait
+for the owner at level 3: a post, merge text or commit message that would
+carry private work; an edit to the threat model's scope, the line that names it, or the accepted risks that remove the rules on secrets and personal data and widen the level-3 leave (grimoire's E79 and E80); an install; and cleanup. Every other decision toward the goal, an
+accepted-risk record and a merge that eases a named control included, is the
+lead's, logged with a review entry the owner answers in the Decisions tab
+(E80).
 **Since 0.99.0 (issue 464) the owner can type `/brigade level 1`, `/brigade
 level 2` or `/brigade level 3 <goal>`** at the prompt or from the phone over
 Remote Control. The mod acts on it only when the engine stamps the run as the
@@ -544,8 +542,7 @@ beside each session's key file, for each session's name, id, status and
 folder (since head-chef 1.0.0 no longer each turn): only digit-named `.json` files that are not links and at most 8 KiB, and never the key files.
 The pane's own read of those files, with its stronger checks, is above. head-chef runs no script of its own. What leaves the session:
 sessions post their own milestone content, signed, on records that may be
-public, and the owner's own process, not the skill, sets what they post,
-except that the start prompt bars a token or secret; on
+public, and the owner's own process, not the skill, sets what they post; on
 the owner's own words in its chat, or at a level 3 the owner confirmed there
 or set with the level command, toward the owner's goal, the head chef merges, closes, edits,
 deletes or labels a record, files an issue or posts a comment; the head

@@ -42,7 +42,8 @@ last, but this repository is public, so a decision's text would be published.
   the owner's word beyond the spec, a value shaped like a known key, an email
   address and a home-folder path. The head-chef skill keeps the rest, tokens,
   secrets, local paths, error text and personal detail the shapes miss, out
-  of them (ticket 6 of spec 402).
+  of them (ticket 6 of spec 402). (Partly superseded by issue 486 on that
+  sentence: the fields refuse control and hidden characters only.)
 - Every file is written only where the roster's link-refusing path rule
   allows, one folder past `brigade`, and an existing file is overwritten only
   when it passes the strict check of its own kind.
