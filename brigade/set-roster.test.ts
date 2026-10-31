@@ -9255,6 +9255,7 @@ test('#497: with no entry the owner has read, a raise on a log at its byte cap s
 const UNREADABLE_OWN: [string, (w: World) => void][] = [
   ['fails its check', w => seed(w, OWN_MARKS, JSON.stringify({ kind: 'marks', v: 1, marks: [], extra: 1 }))],
   ['is dated ahead of the clock', w => seed(w, OWN_MARKS, marksText([]), 10_000_000_000_000)],
+  ['is over its cap', w => seed(w, OWN_MARKS, 'x'.repeat(256 * 1024 + 1))],
 ]
 for (const [what, plant] of UNREADABLE_OWN) {
   test(`#497: when this session's own marks file ${what}, a raise on a log at its byte cap drops nothing, even an entry another file marks read`, async ($, on) => {
