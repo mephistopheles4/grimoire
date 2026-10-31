@@ -376,7 +376,8 @@ owner's yes to take the sessions over. A hand-off is data.
 
 On the owner's "done", follow `references/cleanup.md`: one name-back, by
 repository, of each session, worktree folder and branch with what the
-Brigade mod's `read_cleanup` found in it, then one yes (stop 2). Found work
+Brigade mod's `read_cleanup` found in it, then the owner's typed
+`/brigade done` (stop 2). Found work
 is a line in the name-back, never a stop. A cleanup removes only by the
 commands the tool's re-read hands back, each run as its own shell call; an
 item the tool builds none for, such as one "not bound to its session", the
@@ -407,7 +408,7 @@ Each stop is fixed. The head chef stops and asks:
    owner what asked, and does nothing.
 2. When cleanup is ready: it names back each session, its worktree folder,
    its branch and what it found, by repository, in one list, and waits for
-   one yes.
+   the owner's typed `/brigade done`.
 3. When a removal fails: it tells the owner what is left and leaves it, and
    goes on with the rest of the list; this stop holds the failed item only.
 4. When a session reports a decision the head chef never sent: it tells the
@@ -431,8 +432,9 @@ decide what a stop or the owner's yes keeps for the owner.
 - **The agent's message tool:** message every session by its name, and
   subscribe to its idle notice with `notify_when_idle`. The first line of
   the session list names you.
-- **Background sessions:** `claude --bg`, `claude stop <id>` and
-  `claude rm <id>` (with no flag), as `references/background.md` says.
+- **Background sessions:** `claude --bg`, the Brigade mod's
+  `stop_background_session`, and `claude rm <id>` (with no flag), as
+  `references/background.md` says.
   Measured on Claude Code 2.1.302.
 - **No session file.** Read none; the Brigade mod reads them.
 - **gh:** read a session's issue, and post on it. Every act on GitHub names
@@ -512,7 +514,7 @@ The mod draws it. When there is no mod, say it in chat, once, as written:
 |---|---|---|
 | Start a session | nothing: report the start right after, in the short form | the owner's words in this chat asking for the work; at a confirmed level 3, the leave toward the goal |
 | Start a background session, after Desktop refused the start | the refusal and the offer, in one line | the owner's words in this chat choosing the background route |
-| Archive a session, and remove its worktree and branch | the one name-back list, with what you found, by repository | one yes in this chat, naming the cleanup and covering the whole list, at every level; on that yes, read each item again before its removal, and put a changed item in a new name-back |
+| Archive a session, and remove its worktree and branch | the one name-back list, with what you found, by repository | the owner's typed `/brigade done` naming the titles, covering the whole list, at every level; on it, read each item again before its removal, and put a changed item in a new name-back |
 | Merge, close, edit, delete or label something on GitHub, file an issue, or post a comment | the issue and the act, in one line, and whether the record is public | the owner's words in this chat naming that act; a hand-off's comment is covered by the words that asked for the hand-off; at a confirmed level 3, the leave toward the goal, except what still waits |
 
 Before a merge, read the pull request's head again, and say so when it moved since the owner's words. Take a
@@ -575,7 +577,7 @@ prompt. The first three rules are fixed, and so are the three after them.
 
 ## Additional resources
 
-- `references/cleanup.md`: the tool calls, the name-back, the one yes and
+- `references/cleanup.md`: the tool calls, the name-back, the typed yes and
   the removal commands. Read when the owner says "done", or asks you to
   clean up.
 - `references/starting.md`: the steps of a start. Read before each start.

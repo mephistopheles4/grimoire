@@ -481,6 +481,11 @@ test('a target binds by Desktop id or job id, from exactly one session file', as
   const bg = await bindTarget({ title: 'bg-1', bgId: '0123abcd' }, [row(f.wt, { hostId: undefined, jobId: '0123abcd' })], io(hooks, r));
   assert.equal(bg.kind, 'bg');
   assert.equal(bg.cwd, f.wt);
+  // The session's own name, cleaned as a title is drawn, for /brigade done (issue 359).
+  assert.equal(t.name, 'build-1');
+  const named = await bindTarget(card, [row(f.wt, { name: `build\u{200B}-1 ${'x'.repeat(90)}` })], io(hooks, r));
+  assert.equal([...named.name].length, 80);
+  assert.ok(named.name.startsWith('build-1 x'));
   // Two files carrying the id, a file for another id, a card with no id,
   // and a name alone bind nothing.
   assert.ok('why' in (await bindTarget(card, [row(f.wt), row(f.repo, { sessionId: OTHER_SID })], io(hooks, r))));
@@ -655,7 +660,7 @@ test('a repository with no GitHub name that sits in a home folder is not named b
   assert.doesNotMatch(text, /repository: alice/);
 });
 
-test('a background session gets claude stop at the name-back and claude rm at the re-read', async () => {
+test('C11: a background session gets stop_background_session, and no job id, at the name-back, and claude rm at the re-read', async () => {
   const f = fixture();
   const hooks = hooksFolder();
   const r = runner();
@@ -664,7 +669,9 @@ test('a background session gets claude stop at the name-back and claude rm at th
   const t = await bindTarget(bgCard, rows, io(hooks, r));
   const mem = { targets: new Map([['0123abcd', t]]), nameBacks: new Map() };
   const first = await runCleanup({ titles: ['bg-1'], step: 'name-back' }, { cards: [bgCard], rows, ...mem, io: io(hooks, r) });
-  assert.match(first, /archive it: claude stop 0123abcd/);
+  assert.match(first, /archive it with stop_background_session, after the owner types \/brigade done/);
+  assert.ok(!first.includes('0123abcd'), 'the name-back holds no job id');
+  assert.ok(!first.includes('claude stop'));
   assert.ok(first.indexOf('archive it') > first.indexOf('End of the cleanup data.'), 'the archive step sits after the data');
   // `claude stop` takes the session's file away: the re-read expects that.
   const second = await runCleanup({ titles: ['bg-1'], step: 're-read' }, { cards: [bgCard], rows: [], ...mem, io: io(hooks, r) });

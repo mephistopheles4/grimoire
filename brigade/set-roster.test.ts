@@ -579,12 +579,13 @@ function world(on: On, setup: (w: World) => void = w => w.dirs(`${CONFIG}\\plugi
 }
 
 // Every tool offered, in order, but the permission warning's, the decision
-// log's, the hand-off's two and the level's: every session offers the first
-// at each start, and warning.test.tsx tests it; the other four are offered
-// with set_roster at each of its sites, and the decision log's, hand-off's
-// and slider's tests at the end check that. Any other tool offered still
-// shows here.
-const OFFERED_WITH = ['show_permission_warning', 'log_decision', 'set_lead_handoff', 'read_lead_handoff', 'read_autonomy']
+// log's, the hand-off's two, the level's and cleanup's two: every session
+// offers the first at each start, and warning.test.tsx tests it; the others
+// are offered with set_roster at each of its sites, and the decision log's,
+// hand-off's and slider's tests at the end check that, as
+// tests/brigade-gate.test.mjs does the cleanup gate's. Any other tool offered
+// still shows here.
+const OFFERED_WITH = ['show_permission_warning', 'log_decision', 'set_lead_handoff', 'read_lead_handoff', 'read_autonomy', 'read_cleanup', 'stop_background_session']
 const rosterOffers = (w: { registered: string[] }) => w.registered.filter(name => !OFFERED_WITH.includes(name))
 const start = ($: any) => $.classic.SessionStart({ source: 'startup', session_id: SID, transcript_path: TRANSCRIPT })
 const brigade = ($: any) => $.command.run({ command: 'brigade', args: '' })

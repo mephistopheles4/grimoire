@@ -95,9 +95,12 @@ or type `/brigade` to open it.
   lead archives the session, calls the tool again, names back again anything
   that changed, and then runs each command as its own shell call, forcing
   once where git refuses, twice only for a worktree named back as locked, and
-  `-D` only where `-d` refuses and never on a default or checked-out branch. A
-  background session is stopped and removed with `claude stop` and
-  `claude rm` in place of the archive, and the name-back marks it.
+  `-D` only where `-d` refuses and never on a default or checked-out branch.
+  Your yes is typing `/brigade done` with the sessions' titles: only then,
+  for 15 minutes, does the Brigade mod let the lead archive them. A
+  background session is stopped with the mod's `stop_background_session` in
+  place of the archive, then removed with `claude rm`, and the name-back
+  marks it.
   `claude rm` keeps the session's transcript in the Claude config folder;
   what it keeps of the job's own store was not checked. A removal that fails
   is left and told to you. Cleanup's yes is yours at every level.
