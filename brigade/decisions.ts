@@ -812,10 +812,13 @@ export function sourceLabel(e: DecisionEntry, writer: string, mine = false): str
 // from the same words, so an entry in any other shape is skipped.
 
 export type Level = 1 | 2 | 3
-export const LEVEL_NAMES: Readonly<Record<Level, string>> = { 1: 'Manual', 2: 'Auto', 3: 'Full throttle' }
-/** A level as an option of the pane's entries: "1 Manual", "2 Auto", "3 Full throttle". */
+// Level 3 was "Full throttle" until issue 464 renamed it.
+export const LEVEL_NAMES: Readonly<Record<Level, string>> = { 1: 'Manual', 2: 'Auto', 3: 'Turbo mode' }
+/** A level as an option of the pane's entries: "1 Manual", "2 Auto", "3 Turbo mode". */
 export const levelOption = (l: Level) => `${l} ${LEVEL_NAMES[l]}`
 const LEVEL_OPTIONS = ([1, 2, 3] as const).map(levelOption)
+// The options as logs written before the rename hold them, read and never written.
+const OLD_LEVEL_OPTIONS = ['1 Manual', '2 Auto', '3 Full throttle']
 
 /** A stored level: the number 1, 2 or 3, and 1 for anything else. */
 export const levelFrom = (v: unknown): Level => (v === 2 || v === 3 ? v : 1)
@@ -850,12 +853,16 @@ const PANE_UNDO = 'Move the slider in the pane'
 const PANE_WHYS = { shown: 'The pane was shown again', reload: 'The Brigade mod was reloaded', compact: "The lead's context was compacted" } as const
 type PaneWhy = keyof typeof PANE_WHYS
 const ALARM_WHY = 'Changed, not from a press'
+const COMMAND_WHY = "Set by the owner's command"
+const COMMAND_UNDO = 'Type /brigade level 1, or move the slider'
 
 const fixedEntry = (source: Source, pick: string, why: string, undo: string): EntryInput => ({
   source, waiting: false, work: SLIDER_WORK, question: SLIDER_QUESTION, options: [...LEVEL_OPTIONS], pick, why, undo, revisit: '', answers: '',
 })
 /** A slider press's Owner entry, with the new level as pick. */
 export const ownerEntry = (l: Level) => fixedEntry('owner', levelOption(l), OWNER_WHY, OWNER_UNDO)
+/** A level command's Owner entry (issue 464), with the new level as pick. It holds no goal. */
+export const commandEntry = (l: Level) => fixedEntry('owner', levelOption(l), COMMAND_WHY, COMMAND_UNDO)
 /** A reset's Pane entry: at a module reload or a compaction of the lead, or,
  *  in a log written before 0.88.0 (spec 402 rev 6.2), at a new showing of the pane. */
 export const paneEntry = (why: PaneWhy) => fixedEntry('pane', levelOption(1), PANE_WHYS[why], PANE_UNDO)
@@ -876,17 +883,24 @@ export function unreadOwnAlarm(log: DecisionLog, sid: string, wrote: ReadonlySet
 }
 
 /** Whether an entry is in its source's fixed shape: always true for a Lead
- *  or Relayed entry, which the tool's own check holds. */
+ *  or Relayed entry, which the tool's own check holds. A log written before
+ *  the rename holds the old options throughout, and only a whole old shape
+ *  reads as one: never a mix, and never a command entry, which no build
+ *  wrote with the old name. */
 export function inFixedShape(e: DecisionEntry): boolean {
   if (e.source === 'lead' || e.source === 'relayed') return true
-  const want =
+  const old = e.options.length === OLD_LEVEL_OPTIONS.length && e.options.every((o, i) => o === OLD_LEVEL_OPTIONS[i])
+  const options = old ? OLD_LEVEL_OPTIONS : LEVEL_OPTIONS
+  const picked = levelFrom(options.indexOf(e.pick) + 1)
+  const built =
     e.source === 'owner'
-      ? ownerEntry(levelFrom(LEVEL_OPTIONS.indexOf(e.pick) + 1))
+      ? (e.why === COMMAND_WHY && !old ? commandEntry : ownerEntry)(picked)
       : e.source === 'pane'
         ? paneEntry((Object.keys(PANE_WHYS) as PaneWhy[]).find(k => PANE_WHYS[k] === e.why) ?? 'shown')
-        : alarmEntry(levelFrom(LEVEL_OPTIONS.indexOf(e.pick) + 1))
+        : alarmEntry(picked)
+  const want = { ...built, options, pick: options[levelFrom(LEVEL_OPTIONS.indexOf(built.pick) + 1) - 1] }
   return (
-    LEVEL_OPTIONS.includes(e.pick) &&
+    options.includes(e.pick) &&
     e.pick === want.pick &&
     // Only an Owner entry carries a level above 1; the pane writes Pane and alarm entries at 1.
     (e.source === 'owner' || e.level === 1) &&
@@ -901,6 +915,57 @@ export function inFixedShape(e: DecisionEntry): boolean {
     e.answers === want.answers
   )
 }
+
+// --- the level command (issue 464, spec v5 S4.2) --------------------------------
+//
+// `/brigade level 1`, `/brigade level 2` or `/brigade level 3 <goal>`, which
+// acts only on a run the engine stamps as the owner's Enter at the prompt or
+// a message through the Remote Control bridge. A 3 it sets counts as
+// confirmed, with its goal, while its time is the press time. Each refusal is
+// a fixed line holding nothing the owner typed.
+
+export const GOAL_MAX = 300
+export const LEVEL_REPLIES = {
+  notTyped: 'Not set: /brigade level counts only when the owner types it at the prompt or sends it from the phone.',
+  needsGoal: 'Not set: a 3 needs a goal: /brigade level 3 <the goal, by repository and issue>',
+  goalLong: `Not set: a goal holds at most ${GOAL_MAX} characters`,
+  usage: 'Not set: type /brigade level 1, /brigade level 2 or /brigade level 3 <goal>',
+  notLogged: 'Not set: the decision log could not be written',
+  overtaken: 'Not set: the level changed while the command was logged',
+  failed: 'Not set: the level command failed',
+  notOffered: ' The lead cannot read it until the Brigade pane opens: type /brigade.',
+} as const
+
+const LEVEL_ARGS = /^level(?:\s+([\s\S]*))?$/i
+/** Whether `/brigade`'s args are the level command: the word `level`, alone
+ *  or before a space. Read before the origin gate, and nothing more of the args. */
+export const isLevelCommand = (args: unknown): boolean => typeof args === 'string' && LEVEL_ARGS.test(args.trim())
+
+/** The level command in `/brigade`'s args, or undefined when the args are not
+ *  one (today's path, which opens the pane). The goal is cleaned as `oneLine`
+ *  cleans, with nothing cut: one past GOAL_MAX characters refuses. */
+export function parseLevelCommand(args: string): { level: Level; goal?: string } | { refused: string } | undefined {
+  const m = LEVEL_ARGS.exec(args.trim())
+  if (m === null) return undefined
+  const w = /^(\S+)(?:\s+([\s\S]*))?$/.exec(m[1] ?? '')
+  if (w === null) return { refused: LEVEL_REPLIES.usage }
+  const after = w[2] ?? ''
+  if (w[1] === '1' || w[1] === '2') return after === '' ? { level: w[1] === '1' ? 1 : 2 } : { refused: LEVEL_REPLIES.usage }
+  if (w[1] !== '3') return { refused: LEVEL_REPLIES.usage }
+  const goal = oneLine(after, Number.MAX_SAFE_INTEGER)
+  if (goal === '') return { refused: LEVEL_REPLIES.needsGoal }
+  if ([...goal].length > GOAL_MAX) return { refused: LEVEL_REPLIES.goalLong }
+  return { level: 3, goal }
+}
+
+/** Whether a run's origin is the owner's own: their Enter at the prompt, or a
+ *  message through the Remote Control bridge. Anything else, none included, is not. */
+export const levelOriginAllowed = (origin: unknown): boolean => isRecord(origin) && (origin.kind === 'composer' || origin.kind === 'bridge')
+
+/** Whether a 3 counts as set by the command (S4.1): its time is the live press
+ *  time, the level in force is 3, and no raise is in flight. Read every time, never kept. */
+export const commandHolds = (o: { commanded: { at: number; goal: string } | undefined; pressAt: number | undefined; level: Level; raising: boolean }): boolean =>
+  o.commanded !== undefined && o.pressAt !== undefined && o.commanded.at === o.pressAt && o.level === 3 && !o.raising
 
 // --- the lead hand-off (S5.1 and S5.3) -------------------------------------------
 //
