@@ -1749,7 +1749,7 @@ export function contextLines(cards: readonly { title: string }[], meters: readon
     const used = m?.context?.[m.context.length - 1]
     const age = m === undefined ? Number.NaN : now - m.at
     if (m === undefined || m.window === undefined || used === undefined || !(age <= CONTEXT_STALE_MS) || age < -AHEAD_MS) return `${title}: no figure`
-    const share = used > m.window ? 'over 100%' : `${Math.floor((used / m.window) * 100)}%`
+    const share = used > m.window ? 'over 100%' : `${Math.floor((used * 100) / m.window)}%`
     return `${title}: ${share} of context (${used} of ${m.window} tokens, ${Math.max(0, Math.floor(age / MIN_MS))} min old)`
   })
   return [CONTEXT_OPEN, ...lines, CONTEXT_CLOSE]

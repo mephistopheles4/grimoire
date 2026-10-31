@@ -377,6 +377,7 @@ async function loadRoster($: EngineInterface): Promise<string[] | undefined> {
       throw new Error(placed.refused.startsWith('link:') ? `${placed.refused}; the roster path must not pass through a link or junction` : placed.refused)
     }
     if (placed.existing === undefined) {
+      loadedCards = []
       await update($, roster, () => ({ cards: [], todos: [] }))
       await update($, rosterError, () => '')
       return undefined
@@ -385,6 +386,7 @@ async function loadRoster($: EngineInterface): Promise<string[] | undefined> {
     const checked = checkRoster(String(await $.fs.read(placed.file)))
     if ('error' in checked) throw new Error(checked.error)
     const value: Roster = checked.value
+    loadedCards = value.cards
     await update($, roster, () => value)
     await update($, rosterError, () => '')
     return value.todos.map(t => t.id)
@@ -2786,8 +2788,11 @@ const CONTEXT_DESCRIPTION =
 const CONTEXT_SCHEMA = { type: 'object', additionalProperties: false, properties: {} }
 const refuseContext = (rule: string) => ({ deny: `read_context refused: ${rule}. Nothing was read.` })
 
-// The meters the last poll found, kept only in this module.
+// The meters the last poll found, and the cards the last roster-file read
+// passed, kept only in this module: plugin state is the engine's, and another
+// plugin can rewrite it.
 let polledMeters: Meter[] = []
+let loadedCards: Card[] = []
 
 async function readContext($: EngineInterface, e: Record<string, unknown>) {
   if (e.agentId !== undefined) return refuseContext("subagent: only the lead session's own turns read context")
@@ -2796,10 +2801,7 @@ async function readContext($: EngineInterface, e: Record<string, unknown>) {
   if (!(await offered($))) return refuseContext(OFFER_RULE)
   if (!(await paneOpen($))) return refuseContext('pane closed: the owner opens it with /brigade')
   if (Object.keys(input).length > 0) return refuseContext('shape: the tool takes no input')
-  // The cards pass the roster's own check again: plugin state is the engine's.
-  const checked = checkRoster(JSON.stringify(await read($, roster)))
-  const cards = 'value' in checked ? checked.value.cards : []
-  return { result: contextLines(cards, polledMeters, await $.clock.now()).join('\n') }
+  return { result: contextLines(loadedCards, polledMeters, await $.clock.now()).join('\n') }
 }
 
 // --- read_cleanup (issue 454, spec 450 S3.3) --------------------------------------

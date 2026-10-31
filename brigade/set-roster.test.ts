@@ -9463,12 +9463,24 @@ test('C4: a meters plugin state another plugin rewrites after a poll never reach
   expect(r.text.includes('999999')).toBe(false)
 })
 
+test('C4: a roster plugin state another plugin rewrites never puts its titles in the answer', async ($, on) => {
+  const w = await withMeter(on, $)
+  w.plant = (key, value) => (key === 'roster' ? { cards: [card('planted title'), card('gamma')], todos: [] } : value)
+  await w.clock.advance(10000)
+  await w.clock.settle()
+  expect(w.states.some(([k, v]) => k === 'roster' && v.includes('planted title'))).toBe(true)
+  const r = await readContext($)
+  expect(r.text).toMatch(CONTEXT_FIGURE)
+  expect(r.text.includes('planted title')).toBe(false)
+})
+
 test("C6: read_context refuses a subagent's call, the owner's rules, any input and a closed pane, each with its rule", async ($, on) => {
   const w = await withMeter(on, $)
   expect((await readContext($, { agentId: 'a-subagent' })).text).toBe("read_context refused: subagent: only the lead session's own turns read context. Nothing was read.")
   for (const verdict of [{ decision: 'deny', reason: 'a rule denies it' }, { decision: 'ask', rule: CONTEXT_TOOL }] as any[]) {
     w.verdict = verdict
     expect((await readContext($)).text).toBe("read_context refused: the owner's rules: a deny verdict, an ask rule or an organisation ceiling covers this tool. Nothing was read.")
+    expect(w.checks.at(-1)).toBe(CONTEXT_TOOL)
   }
   w.verdict = { decision: 'ask' }
   expect((await readContext($, { card: 'gamma' })).text).toBe('read_context refused: shape: the tool takes no input. Nothing was read.')

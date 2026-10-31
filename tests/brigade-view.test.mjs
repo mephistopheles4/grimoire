@@ -4857,9 +4857,20 @@ test('read_context: a card with a meter reads its last context over its window, 
   ]);
 });
 
-test('read_context: a value over the window reads over 100% (C5)', () => {
-  assert.deepEqual(body(contextLines([{ title: 'a' }], [meter('a', { window: 200000, context: [250000] })], NOW)), [
+test('read_context: a value over the window reads over 100%, and one equal to it 100% (C5)', () => {
+  assert.deepEqual(body(contextLines([{ title: 'a' }, { title: 'b' }], [meter('a', { window: 200000, context: [250000] }), meter('b', { window: 200000, context: [200000] })], NOW)), [
     'a: over 100% of context (250000 of 200000 tokens, 5 min old)',
+    'b: 100% of context (200000 of 200000 tokens, 5 min old)',
+  ]);
+});
+
+test('read_context: the percent is exact for counts a float divide reads low, and the age rounds down (C5)', () => {
+  const cards = ['a', 'b', 'c'].map(title => ({ title }));
+  const meters = [meter('a', { context: [290000] }), meter('b', { window: 200000, context: [58000] }), meter('c', { at: NOW - (5 * MIN + 59000) })];
+  assert.deepEqual(body(contextLines(cards, meters, NOW)), [
+    'a: 29% of context (290000 of 1000000 tokens, 5 min old)',
+    'b: 29% of context (58000 of 200000 tokens, 5 min old)',
+    'c: 64% of context (640000 of 1000000 tokens, 5 min old)',
   ]);
 });
 
@@ -4871,13 +4882,22 @@ test('read_context: no meter, no window, no or empty context read no figure (C4)
 });
 
 test('read_context: a meter over 15 minutes old, or over 2 minutes ahead, reads no figure; 30 seconds ahead is 0 min old (C4, C5)', () => {
-  const cards = ['old', 'edge', 'ahead', 'near'].map(title => ({ title }));
-  const meters = [meter('old', { at: NOW - 16 * MIN }), meter('edge', { at: NOW - 15 * MIN }), meter('ahead', { at: NOW + 3 * MIN }), meter('near', { at: NOW + 30000 })];
+  const cards = ['old', 'edge', 'ahead', 'near', 'two', 'past'].map(title => ({ title }));
+  const meters = [
+    meter('old', { at: NOW - 16 * MIN }),
+    meter('edge', { at: NOW - 15 * MIN }),
+    meter('ahead', { at: NOW + 3 * MIN }),
+    meter('near', { at: NOW + 30000 }),
+    meter('two', { at: NOW + 2 * MIN }),
+    meter('past', { at: NOW + 2 * MIN + 1 }),
+  ];
   assert.deepEqual(body(contextLines(cards, meters, NOW)), [
     'old: no figure',
     'edge: 64% of context (640000 of 1000000 tokens, 15 min old)',
     'ahead: no figure',
     'near: 64% of context (640000 of 1000000 tokens, 0 min old)',
+    'two: 64% of context (640000 of 1000000 tokens, 0 min old)',
+    'past: no figure',
   ]);
 });
 

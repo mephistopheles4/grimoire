@@ -404,21 +404,27 @@ test('C18: the threat model and the security pages hold the level command, its g
 const CONTEXT_LINES = {
   'skills/head-chef/SKILL.md': [
     // C1
+    'At the start of each turn, read your own context percent with `get_usage` and no session id,',
     'At 60% or above, say so in one line and suggest `/compact` once, after saving your hand-off with `set_lead_handoff`;',
     'Suggest again only after a compaction, or when the figure reaches the next 10% step.',
     // C2
     "When you take a member's report, call `read_context` and read that member's line;",
+    'At 60% or above, suggest one line to the owner:',
     "a fresh session for the rest of that member's work, with a hand-off from the member, or let it carry on, once per member per 10% step.",
-    "A fresh session a context figure prompts starts only on the owner's words, at every level.",
+    "A hand-off request or a fresh session a context figure prompts waits for the owner's words, at every level: suggest it in that one line, and send nothing to the member until the owner answers.",
+    "A hand-off request or a fresh session a context figure prompts also waits for the owner's words, at every level, as the Context rule under Tools says.",
     // C3
     'A refused or absent `read_context`, a "no figure" line, and a refused or absent `get_usage`, or one with no context block, raise no suggestion and no error line.',
   ],
   'skills/head-chef/references/CONTRACT.md': [
+    'At the start of each turn, it reads its own context percent with `get_usage` and no session id,',
     'At 60% or above, it says so in one line and suggests `/compact` once, after saving its hand-off with `set_lead_handoff`;',
     'It suggests again only after a compaction, or when the figure reaches the next 10% step.',
     "When it takes a member's report, it calls `read_context` and reads that member's line;",
+    'At 60% or above, it suggests one line to the owner:',
     "a fresh session for the rest of that member's work, with a hand-off from the member, or let it carry on, once per member per 10% step.",
-    "A fresh session a context figure prompts starts only on the owner's words, at every level.",
+    "A hand-off request or a fresh session a context figure prompts waits for the owner's words, at every level: it suggests it in that one line, and sends nothing to the member until the owner answers.",
+    "A hand-off request or a fresh session a context figure prompts also waits for the owner's words, at every level, as the Context clause under tools says.",
     'A refused or absent `read_context`, a "no figure" line, and a refused or absent `get_usage`, or one with no context block, raise no suggestion and no error line.',
   ],
 };
